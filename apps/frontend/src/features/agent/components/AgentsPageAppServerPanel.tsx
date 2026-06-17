@@ -290,7 +290,7 @@ export function AppServerPanel({
             <AgentConsoleActionButton asChild size="sm" variant="outline">
               <Link to={ROUTES.modelProviders}>
                 <Power size={14} />
-                Model Providers
+                Provider / Catalog / Route
               </Link>
             </AgentConsoleActionButton>
           </AgentConsoleLocalToolActions>

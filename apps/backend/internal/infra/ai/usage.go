@@ -44,14 +44,12 @@ type UsageEstimate struct {
 	Cost              float64
 }
 
-func (s *AIService) EstimateTextCost(modelConfigID uint, req TextRequest) (UsageEstimate, error) {
-	cfg, _, def, _, err := s.loadTextConfig(modelConfigID)
-	if err != nil {
-		return UsageEstimate{}, err
-	}
-	inputTokens := estimateTextInputTokens(req)
-	outputTokens := maxPositive(req.MaxTokens, 1024)
-	return estimateUsageCost(cfg, def, "text", inputTokens, outputTokens, 0, 1), nil
+type modelPricing struct {
+	CreditsInputPer1M  float64
+	CreditsOutputPer1M float64
+	CreditsPerImage    float64
+	CreditsPerSecond   float64
+	CreditsPerCall     float64
 }
 
 func (s *AIService) EstimateTextRouteCost(ctx context.Context, userID uint, route ModelRoute, req TextRequest) (UsageEstimate, error) {
@@ -64,26 +62,10 @@ func (s *AIService) EstimateTextRouteCost(ctx context.Context, userID uint, rout
 		if handled {
 			inputTokens := estimateTextInputTokens(req)
 			outputTokens := maxPositive(req.MaxTokens, 1024)
-			return estimateUsageCost(definition.config, definition.def, "text", inputTokens, outputTokens, 0, 1), nil
+			return estimateUsageCostWithPricing(definition.model.pricing(), definition.def, "text", inputTokens, outputTokens, 0, 1), nil
 		}
 	}
-	return s.EstimateTextCost(route.ModelConfigID, req)
-}
-
-func (s *AIService) EstimateImageCost(modelConfigID uint, req ImageRequest) (UsageEstimate, error) {
-	cfg, _, def, err := s.loadConfig(modelConfigID, CapabilityImage)
-	if err != nil {
-		var err2 error
-		cfg, _, def, err2 = s.loadConfig(modelConfigID, CapabilityImageEdit)
-		if err2 != nil {
-			return UsageEstimate{}, err
-		}
-	}
-	n := req.N
-	if n <= 0 {
-		n = 1
-	}
-	return estimateUsageCost(cfg, def, "image", 0, 0, 0, n), nil
+	return UsageEstimate{}, fmt.Errorf("catalog route is required for text usage estimate")
 }
 
 func (s *AIService) EstimateImageRouteCost(ctx context.Context, userID uint, route ModelRoute, req ImageRequest) (UsageEstimate, error) {
@@ -98,25 +80,10 @@ func (s *AIService) EstimateImageRouteCost(ctx context.Context, userID uint, rou
 			if n <= 0 {
 				n = 1
 			}
-			return estimateUsageCost(definition.config, definition.def, "image", 0, 0, 0, n), nil
+			return estimateUsageCostWithPricing(definition.model.pricing(), definition.def, "image", 0, 0, 0, n), nil
 		}
 	}
-	return s.EstimateImageCost(route.ModelConfigID, req)
-}
-
-func (s *AIService) EstimateVideoCost(modelConfigID uint, req VideoRequest) (UsageEstimate, error) {
-	cfg, _, def, err := s.loadVideoConfig(modelConfigID)
-	if err != nil {
-		return UsageEstimate{}, err
-	}
-	duration := req.Duration
-	if duration <= 0 {
-		duration = def.DefaultDurSec
-	}
-	if duration <= 0 {
-		duration = 1
-	}
-	return estimateUsageCost(cfg, def, "video", 0, 0, duration, 1), nil
+	return UsageEstimate{}, fmt.Errorf("catalog route is required for image usage estimate")
 }
 
 func (s *AIService) EstimateVideoRouteCost(ctx context.Context, userID uint, route ModelRoute, req VideoRequest) (UsageEstimate, error) {
@@ -134,26 +101,22 @@ func (s *AIService) EstimateVideoRouteCost(ctx context.Context, userID uint, rou
 			if duration <= 0 {
 				duration = 1
 			}
-			return estimateUsageCost(definition.config, definition.def, "video", 0, 0, duration, 1), nil
+			return estimateUsageCostWithPricing(definition.model.pricing(), definition.def, "video", 0, 0, duration, 1), nil
 		}
 	}
-	return s.EstimateVideoCost(route.ModelConfigID, req)
+	return UsageEstimate{}, fmt.Errorf("catalog route is required for video usage estimate")
 }
 
-func (s *AIService) EstimateAudioTTSCost(modelConfigID uint) (UsageEstimate, error) {
-	cfg, _, def, err := s.loadConfig(modelConfigID, CapabilityAudioTTS)
+func (s *AIService) EstimateAudioTTSRouteCost(ctx context.Context, userID uint, route ModelRoute) (UsageEstimate, error) {
+	_ = userID
+	definition, handled, err := s.catalogRouteDefinition(ctx, route, CapabilityAudioTTS)
 	if err != nil {
 		return UsageEstimate{}, err
 	}
-	return estimateUsageCost(cfg, def, CapabilityAudioTTS, 0, 0, 0, 1), nil
-}
-
-func (s *AIService) EstimateCapabilityPerCallCost(modelConfigID uint, capability string) (UsageEstimate, error) {
-	cfg, _, def, err := s.loadConfig(modelConfigID, capability)
-	if err != nil {
-		return UsageEstimate{}, err
+	if handled {
+		return estimateUsageCostWithPricing(definition.model.pricing(), definition.def, CapabilityAudioTTS, 0, 0, 0, 1), nil
 	}
-	return estimateUsageCost(cfg, def, capability, 0, 0, 0, 1), nil
+	return UsageEstimate{}, fmt.Errorf("catalog route is required for text-to-speech usage estimate")
 }
 
 func (s *AIService) EstimateCapabilityPerCallRouteCost(ctx context.Context, userID uint, route ModelRoute, capability string) (UsageEstimate, error) {
@@ -163,20 +126,9 @@ func (s *AIService) EstimateCapabilityPerCallRouteCost(ctx context.Context, user
 		return UsageEstimate{}, err
 	}
 	if handled {
-		return estimateUsageCost(definition.config, definition.def, capability, 0, 0, 0, 1), nil
+		return estimateUsageCostWithPricing(definition.model.pricing(), definition.def, capability, 0, 0, 0, 1), nil
 	}
-	return s.EstimateCapabilityPerCallCost(route.ModelConfigID, capability)
-}
-
-func (s *AIService) EstimateAudioGenerateCost(modelConfigID uint, capability string, durationSec int) (UsageEstimate, error) {
-	if !isAudioGenerationCapability(capability) {
-		return UsageEstimate{}, fmt.Errorf("unsupported audio generation capability %q", capability)
-	}
-	cfg, _, def, err := s.loadConfig(modelConfigID, capability)
-	if err != nil {
-		return UsageEstimate{}, err
-	}
-	return estimateUsageCost(cfg, def, capability, 0, 0, positiveAudioDuration(durationSec, def), 1), nil
+	return UsageEstimate{}, fmt.Errorf("catalog route is required for %s usage estimate", capability)
 }
 
 func (s *AIService) EstimateAudioGenerateRouteCost(ctx context.Context, userID uint, route ModelRoute, capability string, durationSec int) (UsageEstimate, error) {
@@ -189,12 +141,12 @@ func (s *AIService) EstimateAudioGenerateRouteCost(ctx context.Context, userID u
 		return UsageEstimate{}, err
 	}
 	if handled {
-		return estimateUsageCost(definition.config, definition.def, capability, 0, 0, positiveAudioDuration(durationSec, definition.def), 1), nil
+		return estimateUsageCostWithPricing(definition.model.pricing(), definition.def, capability, 0, 0, positiveAudioDuration(durationSec, definition.def), 1), nil
 	}
-	return s.EstimateAudioGenerateCost(route.ModelConfigID, capability, durationSec)
+	return UsageEstimate{}, fmt.Errorf("catalog route is required for audio generation usage estimate")
 }
 
-func (s *AIService) ReserveUsage(ctx context.Context, userID, modelConfigID uint, estimate UsageEstimate, usage UsageContext) (*persistencemodel.UsageReservation, error) {
+func (s *AIService) ReserveUsage(ctx context.Context, userID, runtimeModelID uint, estimate UsageEstimate, usage UsageContext) (*persistencemodel.UsageReservation, error) {
 	if estimate.ImageCount <= 0 {
 		estimate.ImageCount = 1
 	}
@@ -202,7 +154,7 @@ func (s *AIService) ReserveUsage(ctx context.Context, userID, modelConfigID uint
 		reservation := persistencemodel.UsageReservation{
 			UserID:                userID,
 			OrgID:                 usage.OrgID,
-			AIModelConfigID:       modelConfigID,
+			RuntimeModelID:        runtimeModelID,
 			AIModelCatalogEntryID: usage.AIModelCatalogEntryID,
 			RouteBindingID:        usage.RouteBindingID,
 			GatewayAPIKeyID:       usage.GatewayAPIKeyID,
@@ -226,7 +178,7 @@ func (s *AIService) ReserveUsage(ctx context.Context, userID, modelConfigID uint
 		reservation = persistencemodel.UsageReservation{
 			UserID:                userID,
 			OrgID:                 usage.OrgID,
-			AIModelConfigID:       modelConfigID,
+			RuntimeModelID:        runtimeModelID,
 			AIModelCatalogEntryID: usage.AIModelCatalogEntryID,
 			RouteBindingID:        usage.RouteBindingID,
 			GatewayAPIKeyID:       usage.GatewayAPIKeyID,
@@ -276,12 +228,12 @@ func (s *AIService) ReleaseReservation(ctx context.Context, reservationID uint, 
 	})
 }
 
-func (s *AIService) settleUsage(ctx context.Context, userID, modelConfigID uint, estimate UsageEstimate, usage UsageContext) error {
+func (s *AIService) settleUsage(ctx context.Context, userID, runtimeModelID uint, estimate UsageEstimate, usage UsageContext) error {
 	if estimate.ImageCount <= 0 {
 		estimate.ImageCount = 1
 	}
 	if usage.ReservationID == nil || *usage.ReservationID == 0 {
-		return s.logUsage(ctx, userID, modelConfigID, estimate, usage, nil)
+		return s.logUsage(ctx, userID, runtimeModelID, estimate, usage, nil)
 	}
 
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -305,7 +257,7 @@ func (s *AIService) settleUsage(ctx context.Context, userID, modelConfigID uint,
 		entry := persistencemodel.UsageLog{
 			UserID:                userID,
 			OrgID:                 firstUint(usage.OrgID, reservation.OrgID),
-			AIModelConfigID:       modelConfigID,
+			RuntimeModelID:        runtimeModelID,
 			AIModelCatalogEntryID: firstUint(usage.AIModelCatalogEntryID, reservation.AIModelCatalogEntryID),
 			RouteBindingID:        firstUint(usage.RouteBindingID, reservation.RouteBindingID),
 			UsageReservationID:    usage.ReservationID,
@@ -323,23 +275,26 @@ func (s *AIService) settleUsage(ctx context.Context, userID, modelConfigID uint,
 		if err := tx.Create(&entry).Error; err != nil {
 			return err
 		}
-		return tx.Model(&reservation).Updates(map[string]any{
-			"ai_model_config_id":        modelConfigID,
-			"ai_model_catalog_entry_id": entry.AIModelCatalogEntryID,
-			"route_binding_id":          entry.RouteBindingID,
-			"status":                    ReservationStatusSettled,
-			"actual_cost":               estimate.Cost,
-			"usage_log_id":              entry.ID,
-			"updated_at":                time.Now(),
-		}).Error
+		now := time.Now()
+		return tx.Model(&reservation).
+			Select("RuntimeModelID", "AIModelCatalogEntryID", "RouteBindingID", "Status", "ActualCost", "UsageLogID", "UpdatedAt").
+			Updates(persistencemodel.UsageReservation{
+				RuntimeModelID:        runtimeModelID,
+				AIModelCatalogEntryID: entry.AIModelCatalogEntryID,
+				RouteBindingID:        entry.RouteBindingID,
+				Status:                ReservationStatusSettled,
+				ActualCost:            estimate.Cost,
+				UsageLogID:            &entry.ID,
+				Model:                 gorm.Model{UpdatedAt: now},
+			}).Error
 	})
 }
 
-func (s *AIService) logUsage(ctx context.Context, userID, modelConfigID uint, estimate UsageEstimate, usage UsageContext, reservationID *uint) error {
+func (s *AIService) logUsage(ctx context.Context, userID, runtimeModelID uint, estimate UsageEstimate, usage UsageContext, reservationID *uint) error {
 	entry := persistencemodel.UsageLog{
 		UserID:                userID,
 		OrgID:                 usage.OrgID,
-		AIModelConfigID:       modelConfigID,
+		RuntimeModelID:        runtimeModelID,
 		AIModelCatalogEntryID: usage.AIModelCatalogEntryID,
 		RouteBindingID:        usage.RouteBindingID,
 		UsageReservationID:    reservationID,
@@ -374,11 +329,11 @@ func usageWithRoute(usage UsageContext, route ModelRoute) UsageContext {
 	return usage
 }
 
-func estimateUsageCost(cfg persistencemodel.AIModelConfig, def *ModelDef, opType string, inputTokens, outputTokens, durationSec, imageCount int) UsageEstimate {
-	return estimateUsageCostWithDetails(cfg, def, opType, TokenUsage{InputTokens: inputTokens, OutputTokens: outputTokens}, durationSec, imageCount)
+func estimateUsageCostWithPricing(pricing modelPricing, def *ModelDef, opType string, inputTokens, outputTokens, durationSec, imageCount int) UsageEstimate {
+	return estimateUsageCostWithPricingDetails(pricing, def, opType, TokenUsage{InputTokens: inputTokens, OutputTokens: outputTokens}, durationSec, imageCount)
 }
 
-func estimateUsageCostWithDetails(cfg persistencemodel.AIModelConfig, def *ModelDef, opType string, usage TokenUsage, durationSec, imageCount int) UsageEstimate {
+func estimateUsageCostWithPricingDetails(pricing modelPricing, def *ModelDef, opType string, usage TokenUsage, durationSec, imageCount int) UsageEstimate {
 	if imageCount <= 0 {
 		imageCount = 1
 	}
@@ -390,7 +345,7 @@ func estimateUsageCostWithDetails(cfg persistencemodel.AIModelConfig, def *Model
 		ReasoningTokens:   usage.ReasoningTokens,
 		DurationSec:       durationSec,
 		ImageCount:        imageCount,
-		Cost:              calcCost(cfg, def, usage.InputTokens, usage.OutputTokens, durationSec, imageCount),
+		Cost:              calcCostForPricing(pricing, def, usage.InputTokens, usage.OutputTokens, durationSec, imageCount),
 	}
 }
 

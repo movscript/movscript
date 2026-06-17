@@ -123,11 +123,17 @@ export interface EditingRuntimeTaskLogs {
 }
 
 export interface EditingRuntimeProjectSaveResult {
-  status: 'ok'
+  status: 'ok' | 'conflict'
+  code?: string
+  message?: string
   editingProject?: Record<string, unknown>
   editing_project?: Record<string, unknown>
   projectPath?: string
   project_path?: string
+  expectedRevision?: number
+  expected_revision?: number
+  currentRevision?: number
+  current_revision?: number
 }
 
 export interface EditingRuntimeProjectGetResult {
@@ -279,7 +285,7 @@ export interface EditingRuntimePort {
   getTask(taskId: string, options?: { projectId?: string }): Promise<EditingMediaPipelineTaskState | null | undefined>
   cancelTask(taskId: string, options?: { projectId?: string }): Promise<EditingMediaPipelineTaskState>
   getTaskLogs?(taskId: string, options?: { projectId?: string }): Promise<EditingRuntimeTaskLogs>
-  saveProject?(editingProject: Record<string, unknown>): Promise<EditingRuntimeProjectSaveResult>
+  saveProject?(editingProject: Record<string, unknown>, options?: { expectedRevision?: number }): Promise<EditingRuntimeProjectSaveResult>
   getProject?(input: { projectId: string; editingProjectId: string }): Promise<EditingRuntimeProjectGetResult>
   importExportResource?(request: EditingRuntimeExportImportRequest): Promise<EditingRuntimeExportImportResult>
   saveLocalExport?(request: EditingRuntimeSaveLocalRequest): Promise<EditingRuntimeSaveLocalResult>

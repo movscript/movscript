@@ -88,6 +88,9 @@ export interface MediaClip {
   sourceEndMs?: number
   volume?: number
   muted?: boolean
+  speed?: number
+  fadeInMs?: number
+  fadeOutMs?: number
   fit?: MediaTimelineFit
   position?: string
   xPercent?: number
@@ -175,6 +178,21 @@ export interface MediaEditingProjectOptions {
 export interface MediaEditingProjectServiceOptions {
   now?: () => string
   idFactory?: (prefix: string) => string
+}
+
+export interface MediaTimelineDiagnostic {
+  code: string
+  severity: 'error' | 'warning'
+  trackId?: string
+  track_id?: string
+  clipId?: string
+  clip_id?: string
+  previousClipId?: string
+  previous_clip_id?: string
+  assetId?: string
+  asset_id?: string
+  message: string
+  details?: Record<string, unknown>
 }
 
 export class MediaEditingProjectService {
@@ -440,6 +458,104 @@ export function createMediaEditingProjectService(
   return new MediaEditingProjectService(project, options)
 }
 
+export function validateMediaEditingProjectTimeline(project: MediaEditingProject): MediaTimelineDiagnostic[] {
+  const diagnostics: MediaTimelineDiagnostic[] = []
+  const assetIds = new Set(project.assets.assets.map((asset) => asset.id))
+  const seenTrackIds = new Set<string>()
+  const seenClipIds = new Set<string>()
+
+  for (const track of project.timeline.tracks) {
+    if (seenTrackIds.has(track.id)) {
+      diagnostics.push(diagnostic('duplicate_track_id', 'error', `Duplicate media track id: ${track.id}`, { trackId: track.id }))
+    }
+    seenTrackIds.add(track.id)
+
+    const sortedClips = [...track.clips].sort((left, right) => left.timelineStartMs - right.timelineStartMs || left.id.localeCompare(right.id))
+    for (const clip of track.clips) {
+      if (seenClipIds.has(clip.id)) {
+        diagnostics.push(diagnostic('duplicate_clip_id', 'error', `Duplicate media clip id: ${clip.id}`, { trackId: track.id, clipId: clip.id }))
+      }
+      seenClipIds.add(clip.id)
+      if (clip.durationMs <= 0) {
+        diagnostics.push(diagnostic('invalid_duration', 'error', `Media clip ${clip.id} has invalid duration.`, { trackId: track.id, clipId: clip.id }))
+      }
+      if (clip.timelineStartMs < 0) {
+        diagnostics.push(diagnostic('invalid_timeline_start', 'error', `Media clip ${clip.id} starts before the timeline.`, { trackId: track.id, clipId: clip.id }))
+      }
+      if (clip.sourceStartMs !== undefined && clip.sourceEndMs !== undefined && clip.sourceEndMs < clip.sourceStartMs) {
+        diagnostics.push(diagnostic('invalid_source_range', 'error', `Media clip ${clip.id} has an invalid source range.`, {
+          trackId: track.id,
+          clipId: clip.id,
+          details: { sourceStartMs: clip.sourceStartMs, sourceEndMs: clip.sourceEndMs },
+        }))
+      }
+      if (!clipFitsTrackType(track.type, clip.assetType)) {
+        diagnostics.push(diagnostic('track_clip_type_mismatch', 'error', `Media clip ${clip.id} cannot be placed on ${track.type} track ${track.id}.`, {
+          trackId: track.id,
+          clipId: clip.id,
+          details: { trackType: track.type, clipAssetType: clip.assetType },
+        }))
+      }
+      if (clip.asset && !assetIds.has(clip.asset.id)) {
+        diagnostics.push(diagnostic('asset_not_registered', 'error', `Media clip ${clip.id} references unregistered asset ${clip.asset.id}.`, {
+          trackId: track.id,
+          clipId: clip.id,
+          assetId: clip.asset.id,
+        }))
+      }
+      if (clip.asset && clip.asset.assetType !== clip.assetType) {
+        diagnostics.push(diagnostic('asset_type_mismatch', 'error', `Media clip ${clip.id} asset type does not match its clip type.`, {
+          trackId: track.id,
+          clipId: clip.id,
+          assetId: clip.asset.id,
+          details: { clipAssetType: clip.assetType, assetType: clip.asset.assetType },
+        }))
+      }
+      if (clip.assetType === 'subtitle' && !clip.subtitle?.resourceId && !clip.asset?.resourceId && !clip.text?.content) {
+        diagnostics.push(diagnostic('subtitle_reference_missing', 'error', `Subtitle clip ${clip.id} has no subtitle file, text, or resource reference.`, {
+          trackId: track.id,
+          clipId: clip.id,
+        }))
+      }
+      if (clip.volume !== undefined && clip.volume > 0 && clip.volume <= 2) {
+        diagnostics.push(diagnostic('legacy_ratio_volume', 'warning', `Media clip ${clip.id} uses legacy ratio volume; it will be interpreted as percent volume.`, {
+          trackId: track.id,
+          clipId: clip.id,
+          details: { volume: clip.volume, normalizedVolume: normalizeMediaClipVolumePercent(clip.volume) },
+        }))
+      }
+    }
+
+    if (!trackAllowsOverlap(track.type)) {
+      for (let index = 1; index < sortedClips.length; index += 1) {
+        const previous = sortedClips[index - 1]!
+        const current = sortedClips[index]!
+        const previousEndMs = previous.timelineStartMs + previous.durationMs
+        if (previousEndMs > current.timelineStartMs) {
+          diagnostics.push(diagnostic('clip_overlap', 'error', `Media clip ${current.id} overlaps ${previous.id}.`, {
+            trackId: track.id,
+            clipId: current.id,
+            previousClipId: previous.id,
+            details: { overlapMs: previousEndMs - current.timelineStartMs },
+          }))
+        }
+      }
+    }
+  }
+
+  return diagnostics
+}
+
+export function mediaTimelineIsValid(project: MediaEditingProject): boolean {
+  return validateMediaEditingProjectTimeline(project).every((diagnostic) => diagnostic.severity !== 'error')
+}
+
+export function normalizeMediaClipVolumePercent(volume: number | undefined): number | undefined {
+  if (volume === undefined || !Number.isFinite(volume)) return undefined
+  const normalized = volume > 0 && volume <= 2 ? volume * 100 : volume
+  return Math.max(0, Math.min(200, normalized))
+}
+
 function mediaTrackFromMovScriptTrack(input: {
   track: MovScriptEditPlanTrack
   assets: MediaAssetRegistry
@@ -500,7 +616,7 @@ function mediaClipFromMovScriptItem(input: {
     durationMs,
     sourceStartMs,
     sourceEndMs: sourceStartMs + durationMs,
-    volume: numberField(timing.volume) ?? 1,
+    volume: normalizeMediaClipVolumePercent(numberField(timing.volume)) ?? 100,
     muted: false,
     fit: 'cover',
     opacity: numberField(timing.opacity) ?? 1,
@@ -558,13 +674,46 @@ function assetTypeForEditPlanItem(item: MovScriptEditPlanTrackItem): MediaAssetT
 }
 
 function assertClipFitsTrack(track: MediaTrack, clip: MediaClip): void {
-  if (track.type === 'video' && (clip.assetType === 'video' || clip.assetType === 'image')) return
-  if (track.type === 'image' && clip.assetType === 'image') return
-  if (track.type === 'audio' && clip.assetType === 'audio') return
-  if (track.type === 'text' && clip.assetType === 'text') return
-  if (track.type === 'subtitle' && (clip.assetType === 'subtitle' || clip.assetType === 'text')) return
-  if (track.type === 'effect') return
+  if (clipFitsTrackType(track.type, clip.assetType)) return
   throw new Error(`Media clip type ${clip.assetType} cannot be placed on ${track.type} track ${track.id}`)
+}
+
+export function clipFitsTrackType(trackType: MediaTrackType, assetType: MediaAssetType): boolean {
+  if (trackType === 'video') return assetType === 'video' || assetType === 'image'
+  if (trackType === 'image') return assetType === 'image'
+  if (trackType === 'audio') return assetType === 'audio'
+  if (trackType === 'text') return assetType === 'text' || assetType === 'subtitle'
+  if (trackType === 'subtitle') return assetType === 'subtitle' || assetType === 'text'
+  if (trackType === 'effect') return true
+  return false
+}
+
+export function trackAllowsOverlap(trackType: MediaTrackType): boolean {
+  return trackType === 'effect' || trackType === 'text' || trackType === 'subtitle'
+}
+
+function diagnostic(
+  code: string,
+  severity: MediaTimelineDiagnostic['severity'],
+  message: string,
+  input: {
+    trackId?: string
+    clipId?: string
+    previousClipId?: string
+    assetId?: string
+    details?: Record<string, unknown>
+  } = {},
+): MediaTimelineDiagnostic {
+  return {
+    code,
+    severity,
+    message,
+    ...(input.trackId ? { trackId: input.trackId, track_id: input.trackId } : {}),
+    ...(input.clipId ? { clipId: input.clipId, clip_id: input.clipId } : {}),
+    ...(input.previousClipId ? { previousClipId: input.previousClipId, previous_clip_id: input.previousClipId } : {}),
+    ...(input.assetId ? { assetId: input.assetId, asset_id: input.assetId } : {}),
+    ...(input.details ? { details: input.details } : {}),
+  }
 }
 
 function mediaAssetIdForItem(item: MovScriptEditPlanTrackItem): string {

@@ -8,7 +8,6 @@ import (
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	providercontract "github.com/movscript/movscript/internal/providers/contract"
 	"github.com/movscript/movscript/internal/testutil"
-	"gorm.io/gorm"
 )
 
 type catalogRuntimeProbeProvider struct {
@@ -46,10 +45,11 @@ func TestAIServiceModelCatalogContractMergesLogicalModels(t *testing.T) {
 	resetFailoverTestState()
 	db := testutil.OpenSQLite(t, "ai-model-catalog-contract.db",
 		&persistencemodel.AICredential{},
-		&persistencemodel.AIModelConfig{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
 	)
-	createTextProviderVariant(t, db, 1, "Busy provider")
-	createTextProviderVariant(t, db, 2, "Healthy provider")
+	createCatalogRouteVariant(t, db, 1, "Busy provider", AdapterOpenAICompat, "gpt-5.2", "gpt-5.2-busy", 10, CapabilityText)
+	createCatalogRouteVariant(t, db, 2, "Healthy provider", AdapterOpenAICompat, "gpt-5.2", "gpt-5.2-healthy", 20, CapabilityText)
 	service := NewAIService(db, NewRegistry(db, nil))
 
 	models, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{Capability: CapabilityText})
@@ -60,15 +60,15 @@ func TestAIServiceModelCatalogContractMergesLogicalModels(t *testing.T) {
 		t.Fatalf("ListModels() count = %d, want 1: %#v", len(models), models)
 	}
 	if models[0].ModelID != "gpt-5.2" || models[0].ProviderVariants != 2 || models[0].ProviderName != "" {
-		t.Fatalf("logical model descriptor = %#v, want merged gpt-5.2 without provider name", models[0])
+		t.Fatalf("catalog model descriptor = %#v, want merged gpt-5.2 without provider name", models[0])
 	}
 
 	variants, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{Capability: CapabilityText, ProviderVariants: true})
 	if err != nil {
 		t.Fatalf("ListModels(provider variants) error = %v", err)
 	}
-	if len(variants) != 2 || variants[0].ProviderName == "" || variants[0].ModelConfigID == 0 {
-		t.Fatalf("provider variant descriptors = %#v, want per-provider entries", variants)
+	if len(variants) != 2 || variants[0].ProviderName == "" || variants[0].CredentialID == 0 || variants[0].ProviderModelID == "" {
+		t.Fatalf("provider variant descriptors = %#v, want per-provider metadata without legacy runtime model id", variants)
 	}
 }
 
@@ -172,6 +172,222 @@ func TestAIServiceModelCatalogUsesCatalogEntriesAndRouteBindings(t *testing.T) {
 	}
 }
 
+func TestAIServiceListModelsDoesNotFallbackToLegacyConfigsWhenCatalogExists(t *testing.T) {
+	db := testutil.OpenSQLite(t, "ai-model-catalog-first-over-legacy.db",
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
+	)
+	entry := persistencemodel.AIModelCatalogEntry{
+		PublicModelID:   "catalog-writer",
+		ProviderModelID: "provider-writer-v2",
+		DisplayName:     "Catalog Writer",
+		IsEnabled:       true,
+		Capabilities:    CapabilityText,
+		PricingMode:     string(PricingPerToken),
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	if err := db.Create(&persistencemodel.AIModelRouteBinding{
+		CatalogEntryID: entry.ID,
+		SourceType:     persistencemodel.ModelRouteSourceNewAPI,
+		RouteGroup:     "default",
+		IsEnabled:      true,
+		CapacityWeight: 1,
+	}).Error; err != nil {
+		t.Fatalf("create route binding: %v", err)
+	}
+	service := NewAIService(db, NewRegistry(db, nil))
+
+	models, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{Capability: CapabilityText})
+	if err != nil {
+		t.Fatalf("ListModels() error = %v", err)
+	}
+	if len(models) != 1 || models[0].ModelID != "catalog-writer" || models[0].CatalogEntryID != entry.ID {
+		t.Fatalf("models = %#v, want only catalog entry model", models)
+	}
+	if models[0].ProviderModelID == "legacy-writer" || models[0].ModelID == "legacy-writer" {
+		t.Fatalf("models = %#v, leaked legacy ai_model_configs fallback", models)
+	}
+
+	imageModels, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{Capability: CapabilityImage})
+	if err != nil {
+		t.Fatalf("ListModels(image) error = %v", err)
+	}
+	if len(imageModels) != 0 {
+		t.Fatalf("image models = %#v, want no legacy fallback when catalog owns model listing", imageModels)
+	}
+}
+
+func TestAIServiceGetAnyTextModelUsesCatalogRoutesWithoutLegacyModelConfigTable(t *testing.T) {
+	db := testutil.OpenSQLite(t, "ai-get-any-text-catalog-only.db",
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
+	)
+	if db.Migrator().HasTable("ai_model_configs") {
+		t.Fatal("catalog-only get-any-text test should not create legacy ai_model_configs")
+	}
+	entry := persistencemodel.AIModelCatalogEntry{
+		PublicModelID:   "catalog-writer",
+		ProviderModelID: "provider-writer-v2",
+		DisplayName:     "Catalog Writer",
+		IsEnabled:       true,
+		Capabilities:    CapabilityText,
+		PricingMode:     string(PricingPerToken),
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	if err := db.Create(&persistencemodel.AIModelRouteBinding{
+		CatalogEntryID: entry.ID,
+		SourceType:     persistencemodel.ModelRouteSourceNewAPI,
+		RouteGroup:     "default",
+		IsEnabled:      true,
+		Priority:       10,
+		CapacityWeight: 1,
+	}).Error; err != nil {
+		t.Fatalf("create route binding: %v", err)
+	}
+	service := NewAIService(db, NewRegistry(db, nil))
+
+	runtimeModelID, modelID, err := service.GetAnyTextModel()
+	if err != nil {
+		t.Fatalf("GetAnyTextModel() error = %v", err)
+	}
+	if runtimeModelID != entry.ID || modelID != "catalog-writer" {
+		t.Fatalf("GetAnyTextModel() = id:%d model:%q, want catalog entry id %d public model id", runtimeModelID, modelID, entry.ID)
+	}
+}
+
+func TestAIServiceGetAnyTextModelDoesNotFallbackToLegacyConfigsWhenCatalogExists(t *testing.T) {
+	db := testutil.OpenSQLite(t, "ai-get-any-text-catalog-over-legacy.db",
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
+	)
+	entry := persistencemodel.AIModelCatalogEntry{
+		PublicModelID:   "catalog-writer",
+		ProviderModelID: "provider-writer-v2",
+		DisplayName:     "Catalog Writer",
+		IsEnabled:       true,
+		Capabilities:    CapabilityText,
+		PricingMode:     string(PricingPerToken),
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	if err := db.Create(&persistencemodel.AIModelRouteBinding{
+		CatalogEntryID: entry.ID,
+		SourceType:     persistencemodel.ModelRouteSourceNewAPI,
+		RouteGroup:     "default",
+		IsEnabled:      true,
+		Priority:       1,
+		CapacityWeight: 1,
+	}).Error; err != nil {
+		t.Fatalf("create route binding: %v", err)
+	}
+	service := NewAIService(db, NewRegistry(db, nil))
+
+	runtimeModelID, modelID, err := service.GetAnyTextModel()
+	if err != nil {
+		t.Fatalf("GetAnyTextModel() error = %v", err)
+	}
+	if runtimeModelID != entry.ID || modelID != "catalog-writer" {
+		t.Fatalf("GetAnyTextModel() = id:%d model:%q, want catalog entry over legacy config id %d", runtimeModelID, modelID, entry.ID)
+	}
+}
+
+func TestAIServiceResolveModelRouteByRouteBindingID(t *testing.T) {
+	db := testutil.OpenSQLite(t, "ai-model-catalog-route-binding-resolve.db",
+		&persistencemodel.AICredential{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
+	)
+	cred := persistencemodel.AICredential{AdapterType: AdapterOpenAICompat, DisplayName: "Provider", IsEnabled: true}
+	if err := db.Create(&cred).Error; err != nil {
+		t.Fatalf("create credential: %v", err)
+	}
+	entry := persistencemodel.AIModelCatalogEntry{
+		PublicModelID:   "image-fast",
+		ProviderModelID: "provider-image-v2",
+		DisplayName:     "Image Fast",
+		IsEnabled:       true,
+		Capabilities:    CapabilityImage,
+		PricingMode:     string(PricingPerImage),
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	binding := persistencemodel.AIModelRouteBinding{
+		CatalogEntryID: entry.ID,
+		SourceType:     persistencemodel.ModelRouteSourceLocalProvider,
+		RouteGroup:     "priority",
+		CredentialID:   &cred.ID,
+		IsEnabled:      true,
+		Priority:       1,
+		CapacityWeight: 1,
+	}
+	if err := db.Create(&binding).Error; err != nil {
+		t.Fatalf("create route binding: %v", err)
+	}
+
+	service := NewAIService(db, NewRegistry(db, nil))
+	route, err := service.ResolveModelRoute(ModelRouteRequest{RouteBindingID: binding.ID, Capability: CapabilityImage})
+	if err != nil {
+		t.Fatalf("ResolveModelRoute(route binding) error = %v", err)
+	}
+	if route.RouteBindingID != binding.ID || route.CatalogEntryID != entry.ID || route.CredentialID != cred.ID || route.SelectionReason != "route_binding_id" {
+		t.Fatalf("route = %#v, want fixed route binding/catalog/credential", route)
+	}
+	if route.ModelID != "image-fast" || route.ProviderModelID != "provider-image-v2" || route.RouteGroup != "priority" {
+		t.Fatalf("route model fields = %#v", route)
+	}
+}
+
+func TestCatalogRouteDefinitionUsesCatalogRuntimeModel(t *testing.T) {
+	db := testutil.OpenSQLite(t, "ai-model-catalog-runtime-model.db",
+		&persistencemodel.AIModelCatalogEntry{},
+	)
+	entry := persistencemodel.AIModelCatalogEntry{
+		PublicModelID:      "writer",
+		ProviderModelID:    "provider-writer-v2",
+		DisplayName:        "Writer",
+		ShortName:          "write",
+		IsEnabled:          true,
+		Capabilities:       CapabilityText,
+		PricingMode:        string(PricingPerToken),
+		SupportedParams:    `[{"key":"temperature","type":"number"}]`,
+		CreditsInputPer1M:  1.5,
+		CreditsOutputPer1M: 2.5,
+		CreditsPerCall:     0.25,
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	service := NewAIService(db, NewRegistry(db, nil))
+
+	definition, handled, err := service.catalogRouteDefinition(context.Background(), ModelRoute{
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceNewAPI,
+		ProviderModelID: "provider-writer-v2",
+	}, CapabilityText)
+	if err != nil {
+		t.Fatalf("catalogRouteDefinition() error = %v", err)
+	}
+	if !handled {
+		t.Fatal("catalogRouteDefinition() handled = false, want true")
+	}
+	if definition.model.ID != entry.ID || definition.model.ProviderModelID != "provider-writer-v2" || definition.model.DisplayName != "Writer" {
+		t.Fatalf("catalog runtime model = %#v, want fields copied from catalog entry", definition.model)
+	}
+	if definition.model.CreditsInputPer1M != 1.5 || definition.model.CreditsOutputPer1M != 2.5 || definition.model.CreditsPerCall != 0.25 {
+		t.Fatalf("catalog runtime pricing = %#v, want catalog pricing", definition.model)
+	}
+	pricing := definition.model.pricing()
+	if pricing.CreditsInputPer1M != 1.5 || pricing.CreditsOutputPer1M != 2.5 || pricing.CreditsPerCall != 0.25 {
+		t.Fatalf("pricing = %#v, want derived pricing from catalog runtime model", pricing)
+	}
+}
+
 func TestAIServiceCatalogRouteCanCallLocalProviderWithProviderModelID(t *testing.T) {
 	db := testutil.OpenSQLite(t, "ai-model-catalog-runtime-contract.db",
 		&persistencemodel.AICredential{},
@@ -253,6 +469,46 @@ func TestAIServiceCatalogRouteCanCallLocalProviderWithProviderModelID(t *testing
 	}
 	if reservation.RouteBindingID == nil || *reservation.RouteBindingID != binding.ID {
 		t.Fatalf("usage reservation route binding id = %v, want %d", reservation.RouteBindingID, binding.ID)
+	}
+}
+
+func TestAIServiceCatalogRouteRejectsUnsupportedSourceWithoutLegacyFallback(t *testing.T) {
+	db := testutil.OpenSQLite(t, "ai-model-catalog-route-no-legacy-fallback.db",
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.UsageReservation{},
+		&persistencemodel.UsageLog{},
+	)
+	entry := persistencemodel.AIModelCatalogEntry{
+		PublicModelID:   "writer",
+		ProviderModelID: "provider-writer-v2",
+		DisplayName:     "Writer",
+		IsEnabled:       true,
+		Capabilities:    CapabilityText,
+		PricingMode:     string(PricingPerToken),
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	called := false
+	registry := NewRegistry(db, nil)
+	registry.providerFactory = func(persistencemodel.AICredential, *ModelDef) (Provider, error) {
+		called = true
+		return &catalogRuntimeProbeProvider{}, nil
+	}
+	service := NewAIService(db, registry)
+
+	_, err := service.CallTextWithRouteUsage(context.Background(), 1, ModelRoute{
+		ModelID:         "writer",
+		RuntimeModelID:  99,
+		CatalogEntryID:  entry.ID,
+		SourceType:      "unknown_source",
+		ProviderModelID: entry.ProviderModelID,
+	}, TextRequest{Messages: []Message{{Role: "user", Content: "hello"}}}, UsageContext{})
+	if err == nil {
+		t.Fatal("CallTextWithRouteUsage() succeeded through legacy fallback, want unsupported source error")
+	}
+	if called {
+		t.Fatal("legacy provider was called after catalog route source failed")
 	}
 }
 
@@ -359,9 +615,10 @@ func TestAIServiceCatalogRouteCanCallTTSProviderWithProviderModelID(t *testing.T
 func TestAIServiceModelCatalogDefaultFilterIncludesSubtitleAlign(t *testing.T) {
 	db := testutil.OpenSQLite(t, "ai-model-catalog-align-default.db",
 		&persistencemodel.AICredential{},
-		&persistencemodel.AIModelConfig{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
 	)
-	createProviderVariant(t, db, 1, "Align provider", "align-model", 10, CapabilitySubAlign)
+	createCatalogRouteVariant(t, db, 1, "Align provider", AdapterOpenAICompat, "align-model", "provider-align-model", 10, CapabilitySubAlign)
 	service := NewAIService(db, NewRegistry(db, nil))
 
 	models, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{})
@@ -376,72 +633,114 @@ func TestAIServiceModelCatalogDefaultFilterIncludesSubtitleAlign(t *testing.T) {
 	t.Fatalf("ListModels(default) = %#v, want subtitle_align model", models)
 }
 
-func TestAIServiceModelCatalogContractResolvesProviderBinding(t *testing.T) {
+func TestAIServiceModelCatalogContractResolvesCatalogProviderBinding(t *testing.T) {
 	resetFailoverTestState()
 	db := testutil.OpenSQLite(t, "ai-model-binding-contract.db",
 		&persistencemodel.AICredential{},
-		&persistencemodel.AIModelConfig{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
 	)
-	createProviderVariant(t, db, 1, "Primary provider", "gpt-5.2", 10, CapabilityText)
-	createProviderVariant(t, db, 2, "Image provider", "gpt-image-1", 10, CapabilityImage)
-	if err := db.Model(&persistencemodel.AIModelConfig{}).Where("id = ?", 1).Update("model_id_override", "provider-gpt-5.2").Error; err != nil {
-		t.Fatalf("set model override: %v", err)
-	}
+	createCatalogRouteVariant(t, db, 1, "Primary provider", AdapterOpenAICompat, "writer", "provider-gpt-5.2", 10, CapabilityText)
+	createCatalogRouteVariant(t, db, 2, "Image provider", AdapterOpenAICompat, "image-main", "provider-image-1", 10, CapabilityImage)
 	service := NewAIService(db, NewRegistry(db, nil))
 
 	binding, err := service.ResolveModel(context.Background(), providercontract.AIModelResolveRequest{
-		ModelID:    "provider-gpt-5.2",
+		ModelID:    "writer",
 		Capability: CapabilityText,
 	})
 	if err != nil {
 		t.Fatalf("ResolveModel() error = %v", err)
 	}
-	if binding.ModelConfigID != 1 || binding.ProviderModelID != "provider-gpt-5.2" || binding.AdapterType != AdapterOpenAICompat || binding.ProviderName != "Primary provider" {
+	if binding.ProviderModelID != "provider-gpt-5.2" || binding.AdapterType != AdapterOpenAICompat || binding.ProviderName != "Primary provider" {
 		t.Fatalf("binding = %#v, want provider-backed text route", binding)
 	}
 
 	if _, err := service.ResolveModel(context.Background(), providercontract.AIModelResolveRequest{
-		ModelID:    "provider-gpt-5.2",
+		ModelID:    "writer",
 		Capability: CapabilityImage,
 	}); err == nil {
 		t.Fatal("ResolveModel() for unsupported capability succeeded, want error")
 	}
 }
 
-func TestAIServiceModelCatalogContractCanResolveLocalModelConfigID(t *testing.T) {
-	db := testutil.OpenSQLite(t, "ai-model-binding-legacy-contract.db",
+func TestAIServiceResolveModelUsesCatalogRouteWithoutLegacyModelConfigTable(t *testing.T) {
+	db := testutil.OpenSQLite(t, "ai-model-binding-catalog-only.db",
 		&persistencemodel.AICredential{},
-		&persistencemodel.AIModelConfig{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
 	)
+	if db.Migrator().HasTable("ai_model_configs") {
+		t.Fatal("catalog-only resolve test should not create legacy ai_model_configs")
+	}
 	cred := persistencemodel.AICredential{
-		Model:       gorm.Model{ID: 7},
 		AdapterType: AdapterOpenAICompat,
-		DisplayName: "Legacy provider",
+		DisplayName: "Catalog provider",
 		IsEnabled:   true,
 	}
 	if err := db.Create(&cred).Error; err != nil {
 		t.Fatalf("create credential: %v", err)
 	}
-	cfg := persistencemodel.AIModelConfig{
-		Model:        gorm.Model{ID: 9},
-		CredentialID: cred.ID,
-		ModelDefID:   "gpt-5.2",
-		IsEnabled:    true,
-		Priority:     10,
+	localEntry := persistencemodel.AIModelCatalogEntry{
+		PublicModelID:   "writer",
+		ProviderModelID: "provider-writer-v2",
+		DisplayName:     "Writer",
+		IsEnabled:       true,
+		Capabilities:    CapabilityText,
+		PricingMode:     string(PricingPerToken),
 	}
-	if err := db.Create(&cfg).Error; err != nil {
-		t.Fatalf("create model config: %v", err)
+	newAPIEntry := persistencemodel.AIModelCatalogEntry{
+		PublicModelID:   "priority-writer",
+		ProviderModelID: "newapi-writer-v2",
+		DisplayName:     "Priority Writer",
+		IsEnabled:       true,
+		Capabilities:    CapabilityText,
+		PricingMode:     string(PricingPerToken),
+	}
+	if err := db.Create(&localEntry).Error; err != nil {
+		t.Fatalf("create local catalog entry: %v", err)
+	}
+	if err := db.Create(&newAPIEntry).Error; err != nil {
+		t.Fatalf("create new-api catalog entry: %v", err)
+	}
+	if err := db.Create(&persistencemodel.AIModelRouteBinding{
+		CatalogEntryID: localEntry.ID,
+		SourceType:     persistencemodel.ModelRouteSourceLocalProvider,
+		CredentialID:   &cred.ID,
+		IsEnabled:      true,
+		CapacityWeight: 1,
+	}).Error; err != nil {
+		t.Fatalf("create local route binding: %v", err)
+	}
+	if err := db.Create(&persistencemodel.AIModelRouteBinding{
+		CatalogEntryID: newAPIEntry.ID,
+		SourceType:     persistencemodel.ModelRouteSourceNewAPI,
+		RouteGroup:     "priority",
+		IsEnabled:      true,
+		CapacityWeight: 1,
+	}).Error; err != nil {
+		t.Fatalf("create new-api route binding: %v", err)
 	}
 	service := NewAIService(db, NewRegistry(db, nil))
 
-	binding, err := service.ResolveModel(context.Background(), providercontract.AIModelResolveRequest{
-		ModelConfigID: cfg.ID,
-		Capability:    CapabilityText,
+	localBinding, err := service.ResolveModel(context.Background(), providercontract.AIModelResolveRequest{
+		ModelID:    "writer",
+		Capability: CapabilityText,
 	})
 	if err != nil {
-		t.Fatalf("ResolveModel(legacy id) error = %v", err)
+		t.Fatalf("ResolveModel(local catalog route) error = %v", err)
 	}
-	if binding.ModelID != "gpt-5.2" || binding.ModelConfigID != cfg.ID || binding.SelectionReason != "local_provider" {
-		t.Fatalf("local provider binding = %#v, want logical gpt-5.2", binding)
+	if localBinding.CatalogEntryID != localEntry.ID || localBinding.ProviderModelID != "provider-writer-v2" || localBinding.AdapterType != AdapterOpenAICompat || localBinding.ProviderName != "Catalog provider" {
+		t.Fatalf("local catalog binding = %#v, want provider metadata from credential without legacy config", localBinding)
+	}
+
+	newAPIBinding, err := service.ResolveModel(WithProviderRouteGroup(context.Background(), "priority"), providercontract.AIModelResolveRequest{
+		ModelID:    "priority-writer",
+		Capability: CapabilityText,
+	})
+	if err != nil {
+		t.Fatalf("ResolveModel(new-api catalog route) error = %v", err)
+	}
+	if newAPIBinding.CatalogEntryID != newAPIEntry.ID || newAPIBinding.ProviderModelID != "newapi-writer-v2" || newAPIBinding.AdapterType != persistencemodel.ModelRouteSourceNewAPI || newAPIBinding.ProviderName != "priority" {
+		t.Fatalf("new-api catalog binding = %#v, want route source/group without legacy config", newAPIBinding)
 	}
 }

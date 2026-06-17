@@ -2013,6 +2013,8 @@ export interface AgentChatMessageMeta {
   localRunActivity?: Record<string, unknown>
   providerSessionMessage?: ProviderSessionMessageRef
   providerSessionInput?: ProviderSessionInputRef
+  runtimeMessage?: ProviderSessionMessageRef
+  runtimeInput?: ProviderSessionInputRef
   generationJobs?: AgentGenerationJob[]
   generationParamAudits?: AgentGenerationParamAudit[]
   generationValidationErrors?: AgentGenerationValidationError[]
@@ -2020,11 +2022,11 @@ export interface AgentChatMessageMeta {
 }
 
 export function providerSessionMessageRef(message: { meta?: AgentChatMessageMeta }): ProviderSessionMessageRef | undefined {
-  return message.meta?.providerSessionMessage
+  return message.meta?.providerSessionMessage ?? message.meta?.runtimeMessage
 }
 
 export function providerSessionInputRef(message: { meta?: AgentChatMessageMeta }): ProviderSessionInputRef | undefined {
-  return message.meta?.providerSessionInput
+  return message.meta?.providerSessionInput ?? message.meta?.runtimeInput
 }
 
 export interface AgentPendingActiveRunInputQueueItem {

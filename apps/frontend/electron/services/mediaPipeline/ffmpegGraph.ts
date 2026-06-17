@@ -120,8 +120,10 @@ export function buildAudioMixFilter(audioClips: VideoTimelineExportAudioInput[])
     const duration = seconds(clip.endMs - clip.startMs)
     const delay = Math.round(clip.timelineStartMs)
     const volume = Math.max(0, Math.min(2, (clip.volume ?? 100) / 100)).toFixed(2)
+    const speed = normalizeTimelineSpeed(clip.speed)
     const fadeFilters = buildAudioFadeFilters(clip)
-    return `[${inputIndex}:a]atrim=start=${start}:duration=${duration},asetpts=PTS-STARTPTS,volume=${volume}${fadeFilters.length ? `,${fadeFilters.join(',')}` : ''},adelay=${delay}|${delay}[a${index}]`
+    const speedFilter = speed === 1 ? '' : `,${buildAudioTempoFilter(speed)}`
+    return `[${inputIndex}:a]atrim=start=${start}:duration=${duration},asetpts=PTS-STARTPTS${speedFilter},volume=${volume}${fadeFilters.length ? `,${fadeFilters.join(',')}` : ''},adelay=${delay}|${delay}[a${index}]`
   })
   const mixInputs = normalized.map((_, index) => `[a${index}]`).join('')
   return `${chains.join(';')};${mixInputs}amix=inputs=${normalized.length}:duration=longest:dropout_transition=0[aout]`
@@ -137,6 +139,7 @@ export function normalizeTimelineAudioClips(audioClips: VideoTimelineExportAudio
       endMs: Math.max(0, Math.round(clip.endMs)),
       timelineStartMs: Math.max(0, Math.round(clip.timelineStartMs)),
       volume: clip.volume == null ? undefined : Math.max(0, Math.min(200, clip.volume)),
+      speed: normalizeTimelineSpeed(clip.speed),
       fadeInMs: clampFinite(clip.fadeInMs, 0, 0, Math.max(0, Math.floor((clip.endMs - clip.startMs) / 2))),
       fadeOutMs: clampFinite(clip.fadeOutMs, 0, 0, Math.max(0, Math.floor((clip.endMs - clip.startMs) / 2))),
     }))
@@ -342,13 +345,18 @@ export function buildOverlayFilter(overlays: VideoTimelineExportOverlayInput[]):
   const prepare = normalized.map((overlay, index) => {
     const scale = ((overlay.scalePercent ?? 100) / 100).toFixed(3)
     const opacity = ((overlay.opacityPercent ?? 100) / 100).toFixed(3)
+    const speed = normalizeTimelineSpeed(overlay.speed)
     const fadeFilters = buildOverlayFadeFilters(overlay)
     const sourceDurationMs = Math.max(100, (overlay.sourceEndMs ?? overlay.endMs) - (overlay.sourceStartMs ?? overlay.startMs))
     const filters = [
       overlay.sourceKind === 'video'
         ? `trim=start=${seconds(overlay.sourceStartMs ?? 0)}:duration=${seconds(sourceDurationMs)}`
         : '',
-      overlay.sourceKind === 'video' ? `setpts=PTS-STARTPTS+${seconds(overlay.startMs)}/TB` : '',
+      overlay.sourceKind === 'video'
+        ? speed === 1
+          ? `setpts=PTS-STARTPTS+${seconds(overlay.startMs)}/TB`
+          : `setpts=${(1 / speed).toFixed(6)}*(PTS-STARTPTS)+${seconds(overlay.startMs)}/TB`
+        : '',
     buildMediaPipelineCropFilter(overlay),
       `scale=iw*${scale}:ih*${scale}`,
       'format=rgba',
@@ -388,6 +396,9 @@ export function normalizeTimelineOverlay(overlay: VideoTimelineExportOverlayInpu
     sourceStartMs: Math.max(0, Math.round(overlay.sourceStartMs ?? 0)),
     sourceEndMs: Math.max(0, Math.round(overlay.sourceEndMs ?? overlay.endMs - overlay.startMs)),
     layerIndex: clampFinite(overlay.layerIndex, 30, -100, 100),
+    volume: overlay.volume == null ? undefined : Math.max(0, Math.min(200, overlay.volume)),
+    muted: overlay.muted,
+    speed: normalizeTimelineSpeed(overlay.speed),
     fadeInMs: clampFinite(overlay.fadeInMs, 0, 0, Math.max(0, Math.floor((overlay.endMs - overlay.startMs) / 2))),
     fadeOutMs: clampFinite(overlay.fadeOutMs, 0, 0, Math.max(0, Math.floor((overlay.endMs - overlay.startMs) / 2))),
     cropLeftPercent: clampFinite(overlay.cropLeftPercent, 0, 0, 45),
@@ -396,25 +407,47 @@ export function normalizeTimelineOverlay(overlay: VideoTimelineExportOverlayInpu
     cropBottomPercent: clampFinite(overlay.cropBottomPercent, 0, 0, 45),
     xPercent: clampFinite(overlay.xPercent, 50, 0, 100),
     yPercent: clampFinite(overlay.yPercent, 50, 0, 100),
-    scalePercent: clampFinite(overlay.scalePercent, 100, 10, 300),
+    scalePercent: clampFinite(overlay.scalePercent, 100, 25, 400),
     opacityPercent: clampFinite(overlay.opacityPercent, 100, 0, 100),
   }
 }
 
 export function buildTimelineSegmentArgs(
-  input: VideoClipInput & { sourcePath: string; volume?: number; muted?: boolean; speed?: number },
+  input: VideoClipInput & {
+    sourcePath: string
+    volume?: number
+    muted?: boolean
+    speed?: number
+    fit?: 'crop' | 'contain' | 'cover' | 'none'
+    width?: number
+    height?: number
+    background?: string
+    xPercent?: number
+    yPercent?: number
+    scalePercent?: number
+  },
   outputPath: string,
   durationMs: number,
 ): string[] {
   const start = mediaPipelineFFmpegSeconds(input.startMs)
   const duration = mediaPipelineFFmpegSeconds(durationMs)
   const speed = normalizeTimelineSpeed(input.speed)
+  const width = positiveInt(input.width) ?? 1280
+  const height = positiveInt(input.height) ?? 720
+  const background = sanitizeFFmpegColor(input.background) || 'black'
   const filters = [
     buildMediaPipelineCropFilter(input),
     buildVideoFadeFilter(input.fadeInMs, input.fadeOutMs, durationMs),
     speed === 1 ? '' : `setpts=${(1 / speed).toFixed(6)}*PTS`,
-    'scale=1280:720:force_original_aspect_ratio=decrease',
-    'pad=1280:720:(ow-iw)/2:(oh-ih)/2',
+    buildTimelineClipFitFilter({
+      width,
+      height,
+      background,
+      fit: input.fit,
+      xPercent: input.xPercent,
+      yPercent: input.yPercent,
+      scalePercent: input.scalePercent,
+    }),
     'setsar=1',
   ].filter(Boolean).join(',')
   const args = [
@@ -447,6 +480,54 @@ export function buildTimelineSegmentArgs(
   return args
 }
 
+function buildTimelineClipFitFilter(input: {
+  width: number
+  height: number
+  background: string
+  fit?: 'crop' | 'contain' | 'cover' | 'none'
+  xPercent?: number
+  yPercent?: number
+  scalePercent?: number
+}): string {
+  const padColor = input.background === 'black' || input.background === '0x000000'
+    ? ''
+    : `:color=${input.background}`
+  const xPercent = clampFinite(input.xPercent, 50, 0, 100)
+  const yPercent = clampFinite(input.yPercent, 50, 0, 100)
+  const scalePercent = clampFinite(input.scalePercent, 100, 25, 400)
+  const hasTransform = xPercent !== 50 || yPercent !== 50 || scalePercent !== 100
+  if (input.fit === 'none') {
+    if (!hasTransform) return `scale=${input.width}:${input.height},setsar=1`
+    return buildTransformedTimelineClipFilter(`scale=${input.width}:${input.height}`, input, scalePercent, xPercent, yPercent, padColor)
+  }
+  if (input.fit === 'cover' || input.fit === 'crop') {
+    const baseFilter = `scale=${input.width}:${input.height}:force_original_aspect_ratio=increase,crop=${input.width}:${input.height}`
+    return hasTransform ? buildTransformedTimelineClipFilter(baseFilter, input, scalePercent, xPercent, yPercent, padColor) : baseFilter
+  }
+  const baseFilter = `scale=${input.width}:${input.height}:force_original_aspect_ratio=decrease`
+  if (hasTransform) return buildTransformedTimelineClipFilter(baseFilter, input, scalePercent, xPercent, yPercent, padColor)
+  return `${baseFilter},pad=${input.width}:${input.height}:(ow-iw)/2:(oh-ih)/2${padColor}`
+}
+
+function buildTransformedTimelineClipFilter(
+  baseFilter: string,
+  input: { width: number; height: number },
+  scalePercent: number,
+  xPercent: number,
+  yPercent: number,
+  padColor: string,
+): string {
+  const scale = (scalePercent / 100).toFixed(4)
+  const cropX = ((100 - xPercent) / 100).toFixed(4)
+  const cropY = ((100 - yPercent) / 100).toFixed(4)
+  return [
+    baseFilter,
+    `scale=trunc(iw*${scale}/2)*2:trunc(ih*${scale}/2)*2`,
+    `pad=max(iw\\,${input.width}):max(ih\\,${input.height}):(ow-iw)/2:(oh-ih)/2${padColor}`,
+    `crop=${input.width}:${input.height}:(iw-${input.width})*${cropX}:(ih-${input.height})*${cropY}`,
+  ].join(',')
+}
+
 export function buildAudioTempoFilter(speed: number): string {
   let remaining = normalizeTimelineSpeed(speed)
   const factors: number[] = []
@@ -462,13 +543,16 @@ export function buildAudioTempoFilter(speed: number): string {
   return factors.map(factor => `atempo=${factor.toFixed(3)}`).join(',')
 }
 
-export function buildBlankVideoArgs(outputPath: string, durationMs: number): string[] {
+export function buildBlankVideoArgs(outputPath: string, durationMs: number, input: { width?: number; height?: number; background?: string } = {}): string[] {
+  const width = positiveInt(input.width) ?? 1280
+  const height = positiveInt(input.height) ?? 720
+  const background = sanitizeFFmpegColor(input.background) || 'black'
   return [
     '-y',
     '-hide_banner',
     '-loglevel', 'error',
     '-f', 'lavfi',
-    '-i', 'color=c=black:s=1280x720:r=30',
+    '-i', `color=c=${background}:s=${width}x${height}:r=30`,
     '-f', 'lavfi',
     '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000',
     '-t', mediaPipelineFFmpegSeconds(durationMs),
@@ -495,7 +579,12 @@ export function getRequiredTimelineFFmpegFilters(input: VideoTimelineExportInput
     required.add('atempo')
     required.add('setpts')
   }
-  if (input.clips.some(hasMediaPipelineVisualCrop) || (input.overlays ?? []).some(hasMediaPipelineVisualCrop)) {
+  if (
+    input.clips.some(hasMediaPipelineVisualCrop)
+    || input.clips.some(hasMediaPipelineVisualTransform)
+    || (input.overlays ?? []).some(hasMediaPipelineVisualCrop)
+    || (input.overlays ?? []).some(hasMediaPipelineVisualTransform)
+  ) {
     required.add('crop')
   }
   if (timelineVideoGapsMs(input.clips).length > 0) {
@@ -531,6 +620,9 @@ export function getRequiredTimelineFFmpegFilters(input: VideoTimelineExportInput
     required.add('volume')
     required.add('adelay')
     required.add('amix')
+    if ((input.audioClips ?? []).some(clip => normalizeTimelineSpeed(clip.speed) !== 1)) {
+      required.add('atempo')
+    }
     if ((input.audioClips ?? []).some(clip => (clip.fadeInMs ?? 0) > 0 || (clip.fadeOutMs ?? 0) > 0)) {
       required.add('afade')
     }
@@ -678,6 +770,12 @@ export function hasMediaPipelineVisualCrop(input: Pick<VideoClipInput, 'cropLeft
   return hasVideoVisualCrop(input)
 }
 
+function hasMediaPipelineVisualTransform(input: { xPercent?: number; yPercent?: number; scalePercent?: number }): boolean {
+  return clampFinite(input.xPercent, 50, 0, 100) !== 50
+    || clampFinite(input.yPercent, 50, 0, 100) !== 50
+    || clampFinite(input.scalePercent, 100, 25, 400) !== 100
+}
+
 function buildVideoFadeFilter(fadeInMs: number | undefined, fadeOutMs: number | undefined, durationMs: number): string {
   const durationSeconds = Math.max(0, durationMs) / 1000
   const maxFadeSeconds = durationSeconds / 2
@@ -730,6 +828,15 @@ function sanitizeDrawtextColor(value: string | undefined): string {
   if (hexMatch) return `0x${hexMatch[1]}`
   const ffmpegHexMatch = normalized.match(/^0x[0-9a-f]{6}$/)
   return ffmpegHexMatch ? normalized : 'white'
+}
+
+function sanitizeFFmpegColor(value: string | undefined): string {
+  const normalized = value?.trim().toLowerCase()
+  if (!normalized) return ''
+  const hexMatch = normalized.match(/^#([0-9a-f]{6})$/)
+  if (hexMatch) return `0x${hexMatch[1]}`
+  const ffmpegHexMatch = normalized.match(/^0x[0-9a-f]{6}$/)
+  return ffmpegHexMatch ? normalized : ''
 }
 
 function sanitizeAssFontFamily(value: string | undefined): string {

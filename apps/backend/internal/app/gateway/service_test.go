@@ -27,7 +27,8 @@ func (p *emptyCatalogRoutePolicy) ResolveGatewayModelRoute(_ context.Context, re
 	if request.ModelID == "logical-chat" && request.Capability == ai.CapabilityText {
 		return providercontract.AIGatewayModelRoute{
 			ModelID:         "logical-chat",
-			ModelConfigID:   9,
+			CatalogEntryID:  19,
+			RouteBindingID:  29,
 			ProviderModelID: "provider-chat",
 			Capability:      ai.CapabilityText,
 		}, nil
@@ -56,8 +57,8 @@ func TestResolveModelForCapabilityFallsBackToRoutingWhenCatalogIsEmpty(t *testin
 	if err != nil {
 		t.Fatalf("resolveModelForCapability() error = %v", err)
 	}
-	if id != 9 || responseModel != "logical-chat" {
-		t.Fatalf("resolved model = id %d response %q, want routing model id 9 and logical-chat", id, responseModel)
+	if id != 19 || responseModel != "logical-chat" {
+		t.Fatalf("resolved model = id %d response %q, want catalog entry id 19 and logical-chat", id, responseModel)
 	}
 	if routes.routeRequest.ModelID != "logical-chat" || routes.routeRequest.Capability != ai.CapabilityText {
 		t.Fatalf("routing request = %#v, want logical-chat text lookup", routes.routeRequest)
@@ -67,8 +68,8 @@ func TestResolveModelForCapabilityFallsBackToRoutingWhenCatalogIsEmpty(t *testin
 func TestListChatModelsFiltersGatewayKeyAllowedCatalogEntries(t *testing.T) {
 	catalog := &fakeGatewayModelCatalog{
 		models: []providercontract.AIModelDescriptor{
-			{ModelID: "public-a", ModelConfigID: 101, CatalogEntryID: 1, Capabilities: []string{ai.CapabilityText}},
-			{ModelID: "public-b", ModelConfigID: 102, CatalogEntryID: 2, Capabilities: []string{ai.CapabilityText}},
+			{ModelID: "public-a", CatalogEntryID: 1, Capabilities: []string{ai.CapabilityText}},
+			{ModelID: "public-b", CatalogEntryID: 2, Capabilities: []string{ai.CapabilityText}},
 		},
 	}
 	service := &Service{catalog: catalog, policy: &PolicyService{}}
@@ -83,6 +84,17 @@ func TestListChatModelsFiltersGatewayKeyAllowedCatalogEntries(t *testing.T) {
 	}
 	if len(models) != 1 || models[0].CatalogEntryID != 2 || models[0].ModelID != "public-b" {
 		t.Fatalf("models = %#v, want only allowed catalog entry 2", models)
+	}
+}
+
+func TestChatModelFromDescriptorUsesCatalogEntryIDAsVisibleID(t *testing.T) {
+	model := chatModelFromDescriptor(providercontract.AIModelDescriptor{
+		ModelID:        "public-chat",
+		CatalogEntryID: 202,
+	})
+
+	if model.ID != 202 || model.CatalogEntryID != 202 {
+		t.Fatalf("chat model = %#v, want visible id from catalog entry", model)
 	}
 }
 

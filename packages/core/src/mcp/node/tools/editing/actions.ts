@@ -10,6 +10,7 @@ import {
   type MediaTrack,
   type MediaTrackType,
   type MovScriptEditPlanArtifact,
+  validateMediaEditingProjectTimeline,
 } from '@movscript/editing'
 import { getOptionalNumeric, numericValue } from '../../../tools/shared/params.js'
 import { isRecord } from '../../../tools/shared/record.js'
@@ -122,7 +123,8 @@ export async function editingProjectSave(args: Record<string, unknown>) {
   const runtime = getEditingRuntimePort()
   if (!runtime?.saveProject) return editingRuntimeRequired(args)
   const project = editingProjectArg(args)
-  return runtime.saveProject(project as unknown as Record<string, unknown>)
+  const expectedRevision = getOptionalNumeric(args, 'expectedRevision') ?? getOptionalNumeric(args, 'expected_revision')
+  return runtime.saveProject(project as unknown as Record<string, unknown>, { expectedRevision })
 }
 
 export async function editingProjectGet(args: Record<string, unknown>) {
@@ -169,69 +171,12 @@ export async function editingTimelineApplyCommands(args: Record<string, unknown>
 
 export async function editingTimelineValidate(args: Record<string, unknown>) {
   const project = editingProjectArg(args)
-  const diagnostics: Array<Record<string, unknown>> = []
-  const assetIds = new Set(project.assets.assets.map((asset) => asset.id))
-  const seenTrackIds = new Set<string>()
-  const seenClipIds = new Set<string>()
-  for (const track of project.timeline.tracks) {
-    if (seenTrackIds.has(track.id)) diagnostics.push({ code: 'duplicate_track_id', track_id: track.id })
-    seenTrackIds.add(track.id)
-    const sortedClips = [...track.clips].sort((left, right) => left.timelineStartMs - right.timelineStartMs || left.id.localeCompare(right.id))
-    for (const clip of track.clips) {
-      if (clip.durationMs <= 0) diagnostics.push({ code: 'invalid_duration', track_id: track.id, clip_id: clip.id })
-      if (clip.timelineStartMs < 0) diagnostics.push({ code: 'invalid_timeline_start', track_id: track.id, clip_id: clip.id })
-      if (clip.sourceStartMs !== undefined && clip.sourceEndMs !== undefined && clip.sourceEndMs < clip.sourceStartMs) {
-        diagnostics.push({ code: 'invalid_source_range', track_id: track.id, clip_id: clip.id, source_start_ms: clip.sourceStartMs, source_end_ms: clip.sourceEndMs })
-      }
-      if (seenClipIds.has(clip.id)) diagnostics.push({ code: 'duplicate_clip_id', track_id: track.id, clip_id: clip.id })
-      seenClipIds.add(clip.id)
-      if (!clipFitsTrackType(track.type, clip.assetType)) {
-        diagnostics.push({ code: 'track_clip_type_mismatch', track_id: track.id, clip_id: clip.id, track_type: track.type, clip_asset_type: clip.assetType })
-      }
-      if (clip.asset && !assetIds.has(clip.asset.id)) diagnostics.push({ code: 'asset_not_registered', track_id: track.id, clip_id: clip.id, asset_id: clip.asset.id })
-      if (clip.asset && clip.asset.assetType !== clip.assetType) {
-        diagnostics.push({ code: 'asset_type_mismatch', track_id: track.id, clip_id: clip.id, clip_asset_type: clip.assetType, asset_type: clip.asset.assetType, asset_id: clip.asset.id })
-      }
-      if (clip.assetType === 'subtitle' && !clip.subtitle?.resourceId && !clip.asset?.resourceId && !clip.text?.content) {
-        diagnostics.push({ code: 'subtitle_reference_missing', track_id: track.id, clip_id: clip.id })
-      }
-    }
-    if (!trackAllowsOverlap(track.type)) {
-      for (let index = 1; index < sortedClips.length; index += 1) {
-        const previous = sortedClips[index - 1]!
-        const current = sortedClips[index]!
-        const previousEndMs = previous.timelineStartMs + previous.durationMs
-        if (previousEndMs > current.timelineStartMs) {
-          diagnostics.push({
-            code: 'clip_overlap',
-            track_id: track.id,
-            clip_id: current.id,
-            previous_clip_id: previous.id,
-            overlap_ms: previousEndMs - current.timelineStartMs,
-          })
-        }
-      }
-    }
-  }
+  const diagnostics = validateMediaEditingProjectTimeline(project)
   return {
-    status: diagnostics.length === 0 ? 'ok' : 'diagnostics',
-    valid: diagnostics.length === 0,
+    status: diagnostics.some((diagnostic) => diagnostic.severity === 'error') ? 'diagnostics' : 'ok',
+    valid: diagnostics.every((diagnostic) => diagnostic.severity !== 'error'),
     diagnostics,
   }
-}
-
-function clipFitsTrackType(trackType: MediaTrackType, assetType: MediaAssetDescriptor['assetType']): boolean {
-  if (trackType === 'video') return assetType === 'video' || assetType === 'image'
-  if (trackType === 'image') return assetType === 'image'
-  if (trackType === 'audio') return assetType === 'audio'
-  if (trackType === 'text') return assetType === 'text' || assetType === 'subtitle'
-  if (trackType === 'subtitle') return assetType === 'subtitle' || assetType === 'text'
-  if (trackType === 'effect') return true
-  return false
-}
-
-function trackAllowsOverlap(trackType: MediaTrackType): boolean {
-  return trackType === 'effect' || trackType === 'text' || trackType === 'subtitle'
 }
 
 export async function editingTimelineAddTrack(args: Record<string, unknown>) {

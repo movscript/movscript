@@ -37,13 +37,13 @@ type AIModelCatalogEntry struct {
 // at a new-api group.
 type AIModelRouteBinding struct {
 	gorm.Model
-	CatalogEntryID     uint   `gorm:"not null;index" json:"catalog_entry_id"`
-	SourceType         string `gorm:"not null;index" json:"source_type"`
-	RouteGroup         string `gorm:"default:'';index" json:"route_group"`
-	CredentialID       *uint  `gorm:"index" json:"credential_id,omitempty"`
-	IsEnabled          bool   `gorm:"default:true;index" json:"is_enabled"`
-	Priority           int    `gorm:"default:0" json:"priority"`
-	CapacityWeight     int    `gorm:"default:1" json:"capacity_weight"`
-	MaxConcurrency     int    `gorm:"default:0" json:"max_concurrency"`
-	LocalModelConfigID *uint  `gorm:"uniqueIndex" json:"-"`
+	CatalogEntryID uint                 `gorm:"not null;index" json:"catalog_entry_id"`
+	CatalogEntry   *AIModelCatalogEntry `gorm:"foreignKey:CatalogEntryID" json:"-"`
+	SourceType     string               `gorm:"not null;index" json:"source_type"`
+	RouteGroup     string               `gorm:"default:'';index" json:"route_group"`
+	CredentialID   *uint                `gorm:"index" json:"credential_id,omitempty"`
+	IsEnabled      bool                 `gorm:"default:true;index" json:"is_enabled"`
+	Priority       int                  `gorm:"default:0" json:"priority"`
+	CapacityWeight int                  `gorm:"default:1" json:"capacity_weight"`
+	MaxConcurrency int                  `gorm:"default:0" json:"max_concurrency"`
 }

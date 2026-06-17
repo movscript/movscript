@@ -9,41 +9,6 @@ import (
 	"strings"
 )
 
-// PublicModel is the user-facing model representation.
-type PublicModel struct {
-	ID                uint           `json:"id"`                         // visible catalog entry id when catalog routing is used
-	CatalogEntryID    uint           `json:"catalog_entry_id,omitempty"` // explicit catalog entry id when catalog routing is used
-	CredentialID      uint           `json:"credential_id"`              // parent AICredential ID (for admin edit)
-	ModelID           string         `json:"model_id"`                   // public logical model ID used by callers
-	DisplayName       string         `json:"display_name"`
-	ShortName         string         `json:"short_name,omitempty"`
-	ProviderName      string         `json:"provider_name,omitempty"` // credential display_name; admin/provider-variant views only
-	AdapterType       string         `json:"adapter_type,omitempty"`
-	Capabilities      []string       `json:"capabilities"` // e.g. ["text"], ["image"], ["video_i2v"]
-	PricingMode       PricingMode    `json:"pricing_mode,omitempty"`
-	AcceptsImageInput bool           `json:"accepts_image_input"`  // true for image_edit and i2v models
-	IsDefault         bool           `json:"is_default,omitempty"` // true when this is the admin-pinned default for this capability
-	LogicalModelID    string         `json:"logical_model_id,omitempty"`
-	ProviderVariants  int            `json:"provider_variant_count,omitempty"`
-	ModelDefID        string         `json:"model_def_id"`
-	ModelIDOverride   string         `json:"model_id_override,omitempty"` // actual model ID sent to API if overridden
-	Priority          int            `json:"priority"`
-	CapacityWeight    int            `json:"capacity_weight"`
-	MaxConcurrency    int            `json:"max_concurrency"`
-	SupportedParams   []ParamDef     `json:"supported_params,omitempty"`
-	InputRequirements ModelInputs    `json:"input_requirements"`
-	ParamsSchema      map[string]any `json:"params_schema,omitempty"`
-
-	providerVariantIDs []uint
-}
-
-func publicModelVisibleID(modelConfigID uint, catalogEntryID uint) uint {
-	if catalogEntryID != 0 {
-		return catalogEntryID
-	}
-	return modelConfigID
-}
-
 type ModelInputRequirement struct {
 	Min int `json:"min"`
 	Max int `json:"max"` // -1 means unlimited.
@@ -144,24 +109,17 @@ func NewAIService(db *gorm.DB, registry *Registry) *AIService {
 	return &AIService{db: db, registry: registry}
 }
 
-type modelConfigWithProvider struct {
-	persistencemodel.AIModelConfig
-	ProviderName string
-	AdapterType  string
-}
-
-type GenerationPreflightRequest struct {
-	ModelConfigID uint
-	OutputType    string
-	ExtraParams   string
-	AspectRatio   string
-	Duration      int
-	ImageCount    int
-	VideoCount    int
+type PreflightModelSnapshot struct {
+	ID                uint
+	CredentialID      uint
+	ModelDefID        string
+	ModelIDOverride   string
+	CustomDisplayName string
 }
 
 type GenerationPreflightResult struct {
-	Config           persistencemodel.AIModelConfig
+	CredentialID     uint
+	SnapshotModel    PreflightModelSnapshot
 	Def              *ModelDef
 	NormalizedParams map[string]any
 }
@@ -177,45 +135,7 @@ type GenerationRoutePreflightRequest struct {
 }
 
 type TextPreflightResult struct {
-	Config *persistencemodel.AIModelConfig
-	Def    *ModelDef
-}
-
-// PreflightGeneration validates model capability, input media limits, and
-// generation params before a caller constructs provider-specific requests.
-func (s *AIService) PreflightGeneration(req GenerationPreflightRequest) (GenerationPreflightResult, error) {
-	var cfg persistencemodel.AIModelConfig
-	if err := s.db.First(&cfg, req.ModelConfigID).Error; err != nil {
-		return GenerationPreflightResult{}, fmt.Errorf("model config not found")
-	}
-	if !cfg.IsEnabled {
-		return GenerationPreflightResult{}, fmt.Errorf("model config id=%d is disabled", req.ModelConfigID)
-	}
-	var cred persistencemodel.AICredential
-	if err := s.db.First(&cred, cfg.CredentialID).Error; err != nil {
-		return GenerationPreflightResult{}, fmt.Errorf("credential not found")
-	}
-	if !cred.IsEnabled {
-		return GenerationPreflightResult{}, fmt.Errorf("credential for model config id=%d is disabled", req.ModelConfigID)
-	}
-	def := resolveDefFromConfig(cfg, cred.AdapterType)
-	if err := ValidateGenRequest(def, GenRequest{
-		ModelConfigID: req.ModelConfigID,
-		OutputType:    req.OutputType,
-		ImageCount:    req.ImageCount,
-		VideoCount:    req.VideoCount,
-	}); err != nil {
-		return GenerationPreflightResult{}, err
-	}
-	params, err := ValidateAndNormalizeGenerationParams(def, req.OutputType, req.ExtraParams, req.AspectRatio, req.Duration)
-	if err != nil {
-		return GenerationPreflightResult{}, err
-	}
-	return GenerationPreflightResult{
-		Config:           cfg,
-		Def:              def,
-		NormalizedParams: params,
-	}, nil
+	Def *ModelDef
 }
 
 func (s *AIService) PreflightGenerationRoute(ctx context.Context, userID uint, req GenerationRoutePreflightRequest) (GenerationPreflightResult, error) {
@@ -225,21 +145,13 @@ func (s *AIService) PreflightGenerationRoute(ctx context.Context, userID uint, r
 		return GenerationPreflightResult{}, err
 	}
 	if !handled {
-		return s.PreflightGeneration(GenerationPreflightRequest{
-			ModelConfigID: req.Route.ModelConfigID,
-			OutputType:    req.OutputType,
-			ExtraParams:   req.ExtraParams,
-			AspectRatio:   req.AspectRatio,
-			Duration:      req.Duration,
-			ImageCount:    req.ImageCount,
-			VideoCount:    req.VideoCount,
-		})
+		return GenerationPreflightResult{}, fmt.Errorf("catalog route is required for generation preflight")
 	}
 	if err := ValidateGenRequest(definition.def, GenRequest{
-		ModelConfigID: req.Route.ModelConfigID,
-		OutputType:    req.OutputType,
-		ImageCount:    req.ImageCount,
-		VideoCount:    req.VideoCount,
+		RuntimeModelID: req.Route.RuntimeModelID,
+		OutputType:     req.OutputType,
+		ImageCount:     req.ImageCount,
+		VideoCount:     req.VideoCount,
 	}); err != nil {
 		return GenerationPreflightResult{}, err
 	}
@@ -248,27 +160,17 @@ func (s *AIService) PreflightGenerationRoute(ctx context.Context, userID uint, r
 		return GenerationPreflightResult{}, err
 	}
 	return GenerationPreflightResult{
-		Config:           definition.config,
+		CredentialID: req.Route.CredentialID,
+		SnapshotModel: PreflightModelSnapshot{
+			ID:                req.Route.RuntimeModelID,
+			CredentialID:      req.Route.CredentialID,
+			ModelDefID:        definition.model.ProviderModelID,
+			ModelIDOverride:   firstNonEmptyString(req.Route.ModelID, definition.model.ProviderModelID),
+			CustomDisplayName: definition.model.DisplayName,
+		},
 		Def:              definition.def,
 		NormalizedParams: params,
 	}, nil
-}
-
-// PreflightText validates text model capability and text request parameters.
-// It also normalizes validated params back into req so callers can pass the
-// same TextRequest to CallText/CallTextStream.
-func (s *AIService) PreflightText(modelConfigID uint, req *TextRequest) (TextPreflightResult, error) {
-	if req == nil {
-		return TextPreflightResult{}, fmt.Errorf("text request is required")
-	}
-	cfg, _, def, capability, err := s.loadTextConfig(modelConfigID)
-	if err != nil {
-		return TextPreflightResult{}, err
-	}
-	if err := preflightTextRequest(def, capability, req); err != nil {
-		return TextPreflightResult{}, err
-	}
-	return TextPreflightResult{Config: &cfg, Def: def}, nil
 }
 
 func (s *AIService) PreflightTextRoute(ctx context.Context, userID uint, route ModelRoute, req *TextRequest) (TextPreflightResult, error) {
@@ -285,10 +187,10 @@ func (s *AIService) PreflightTextRoute(ctx context.Context, userID uint, route M
 			if err := preflightTextRequest(definition.def, capability, req); err != nil {
 				return TextPreflightResult{}, err
 			}
-			return TextPreflightResult{Config: &definition.config, Def: definition.def}, nil
+			return TextPreflightResult{Def: definition.def}, nil
 		}
 	}
-	return s.PreflightText(route.ModelConfigID, req)
+	return TextPreflightResult{}, fmt.Errorf("catalog route is required for text preflight")
 }
 
 func preflightTextRequest(def *ModelDef, capability string, req *TextRequest) error {
@@ -352,168 +254,6 @@ func marshalParamsForValidation(params map[string]any) string {
 	return string(b)
 }
 
-// GetModelsByCapability returns enabled logical models whose resolved definition includes capability.
-// Provider variants with the same logical model ID are merged so product UI does
-// not expose provider choices. Use GetProviderModelsByCapability for admin
-// configuration and debugging surfaces.
-func (s *AIService) GetModelsByCapability(capability string) ([]PublicModel, error) {
-	return s.getModelsByCapability(capability, false)
-}
-
-func (s *AIService) GetModelsByAnyCapability(capabilities []string) ([]PublicModel, error) {
-	return s.getModelsByAnyCapability(capabilities, false)
-}
-
-// GetProviderModelsByCapability returns one item per enabled provider-backed
-// model config. Admin uses this to keep provider configuration explicit.
-func (s *AIService) GetProviderModelsByCapability(capability string) ([]PublicModel, error) {
-	return s.getModelsByCapability(capability, true)
-}
-
-func (s *AIService) GetProviderModelsByAnyCapability(capabilities []string) ([]PublicModel, error) {
-	return s.getModelsByAnyCapability(capabilities, true)
-}
-
-func (s *AIService) getModelsByAnyCapability(capabilities []string, providerVariants bool) ([]PublicModel, error) {
-	result := make([]PublicModel, 0)
-	index := map[string]int{}
-	for _, capability := range capabilities {
-		capability = strings.TrimSpace(capability)
-		if capability == "" {
-			continue
-		}
-		models, err := s.getModelsByCapability(capability, providerVariants)
-		if err != nil {
-			return nil, err
-		}
-		for _, model := range models {
-			key := publicModelDedupKey(model, providerVariants)
-			key += "\x00" + publicModelContractSignature(model)
-			if idx, ok := index[key]; ok {
-				result[idx].Capabilities = mergeCapabilities(result[idx].Capabilities, model.Capabilities)
-				result[idx].AcceptsImageInput = result[idx].AcceptsImageInput || model.AcceptsImageInput
-				if model.ProviderVariants > result[idx].ProviderVariants {
-					result[idx].ProviderVariants = model.ProviderVariants
-				}
-				continue
-			}
-			index[key] = len(result)
-			result = append(result, model)
-		}
-	}
-	return result, nil
-}
-
-func (s *AIService) getModelsByCapability(capability string, providerVariants bool) ([]PublicModel, error) {
-	var rows []modelConfigWithProvider
-	if err := s.db.Model(&persistencemodel.AIModelConfig{}).
-		Select("ai_model_configs.*, ai_credentials.display_name AS provider_name, ai_credentials.adapter_type AS adapter_type").
-		Joins("JOIN ai_credentials ON ai_credentials.id = ai_model_configs.credential_id").
-		Where("ai_model_configs.is_enabled = true AND ai_model_configs.deleted_at IS NULL AND ai_credentials.is_enabled = true AND ai_credentials.deleted_at IS NULL").
-		Order("ai_model_configs.priority DESC, ai_model_configs.id ASC").
-		Scan(&rows).Error; err != nil {
-		return nil, err
-	}
-
-	result := make([]PublicModel, 0)
-	groupIndex := map[string]int{}
-	for _, row := range rows {
-		def := resolveDefFromConfig(row.AIModelConfig, row.AdapterType)
-		if !modelHasCapability(def, capability) {
-			continue
-		}
-		item := PublicModel{
-			ID:                row.ID,
-			CredentialID:      row.CredentialID,
-			ModelID:           logicalModelID(row.AIModelConfig, def),
-			DisplayName:       def.DisplayName,
-			ShortName:         row.ShortName,
-			AdapterType:       row.AdapterType,
-			Capabilities:      def.Capabilities,
-			PricingMode:       def.PricingMode,
-			AcceptsImageInput: def.AcceptsImageInput,
-			LogicalModelID:    logicalModelID(row.AIModelConfig, def),
-			ModelDefID:        def.ID,
-			Priority:          row.Priority,
-			CapacityWeight:    runtimeCandidateCapacityWeight(runtimeModelCandidate{cfg: row.AIModelConfig}),
-			MaxConcurrency:    row.MaxConcurrency,
-			SupportedParams:   def.SupportedParams,
-			InputRequirements: modelInputsForCapability(def, capability),
-			ParamsSchema:      ParamsSchema(def.SupportedParams),
-			ProviderVariants:  1,
-			providerVariantIDs: []uint{
-				row.ID,
-			},
-		}
-		if providerVariants {
-			item.ProviderName = row.ProviderName
-			item.ModelIDOverride = row.ModelIDOverride
-			result = append(result, item)
-			continue
-		}
-		key := item.LogicalModelID
-		if key == "" {
-			key = fmt.Sprintf("config:%d", item.ID)
-		}
-		key += "\x00" + publicModelContractSignature(item)
-		if idx, ok := groupIndex[key]; ok {
-			result[idx].ProviderVariants++
-			result[idx].providerVariantIDs = append(result[idx].providerVariantIDs, row.ID)
-			result[idx].Capabilities = mergeCapabilities(result[idx].Capabilities, def.Capabilities)
-			result[idx].AcceptsImageInput = result[idx].AcceptsImageInput || def.AcceptsImageInput
-			result[idx].InputRequirements = mergeModelInputs(result[idx].InputRequirements, modelInputsForCapability(def, capability))
-			result[idx].CapacityWeight += runtimeCandidateCapacityWeight(runtimeModelCandidate{cfg: row.AIModelConfig})
-			if row.MaxConcurrency == 0 || result[idx].MaxConcurrency == 0 {
-				result[idx].MaxConcurrency = 0
-			} else {
-				result[idx].MaxConcurrency += row.MaxConcurrency
-			}
-			continue
-		}
-		groupIndex[key] = len(result)
-		result = append(result, item)
-	}
-	markDefault(result, nil)
-	return result, nil
-}
-
-func publicModelContractSignature(item PublicModel) string {
-	body, err := json.Marshal(struct {
-		Capabilities      []string       `json:"capabilities"`
-		AcceptsImageInput bool           `json:"accepts_image_input"`
-		SupportedParams   []ParamDef     `json:"supported_params"`
-		InputRequirements ModelInputs    `json:"input_requirements"`
-		ParamsSchema      map[string]any `json:"params_schema"`
-	}{
-		Capabilities:      item.Capabilities,
-		AcceptsImageInput: item.AcceptsImageInput,
-		SupportedParams:   item.SupportedParams,
-		InputRequirements: item.InputRequirements,
-		ParamsSchema:      item.ParamsSchema,
-	})
-	if err != nil {
-		return fmt.Sprintf("config:%d", item.ID)
-	}
-	return string(body)
-}
-
-// markDefault sets IsDefault=true on the model whose ID matches defaultID.
-// If defaultID is nil or no match is found, the first model is marked as default.
-func markDefault(models []PublicModel, defaultID *uint) {
-	if len(models) == 0 {
-		return
-	}
-	if defaultID != nil {
-		for i := range models {
-			if models[i].ID == *defaultID || containsUint(models[i].providerVariantIDs, *defaultID) {
-				models[i].IsDefault = true
-				return
-			}
-		}
-	}
-	models[0].IsDefault = true
-}
-
 func modelHasCapability(def *ModelDef, capability string) bool {
 	for _, cap := range def.Capabilities {
 		if cap == capability {
@@ -521,55 +261,6 @@ func modelHasCapability(def *ModelDef, capability string) bool {
 		}
 	}
 	return false
-}
-
-func logicalModelID(cfg persistencemodel.AIModelConfig, def *ModelDef) string {
-	if value := strings.TrimSpace(cfg.ModelIDOverride); value != "" {
-		return value
-	}
-	if def != nil {
-		if value := strings.TrimSpace(def.ModelID); value != "" {
-			return value
-		}
-		if value := strings.TrimSpace(def.ID); value != "" {
-			return value
-		}
-	}
-	return strings.TrimSpace(cfg.ModelDefID)
-}
-
-func modelIDMatches(cfg persistencemodel.AIModelConfig, def *ModelDef, requested string) bool {
-	requested = strings.TrimSpace(requested)
-	if requested == "" {
-		return false
-	}
-	for _, alias := range modelIDAliases(cfg, def) {
-		if alias == requested {
-			return true
-		}
-	}
-	return false
-}
-
-func modelIDAliases(cfg persistencemodel.AIModelConfig, def *ModelDef) []string {
-	aliases := []string{
-		logicalModelID(cfg, def),
-		strings.TrimSpace(cfg.ModelIDOverride),
-		strings.TrimSpace(cfg.ModelDefID),
-	}
-	if def != nil {
-		aliases = append(aliases, strings.TrimSpace(def.ID), strings.TrimSpace(def.ModelID))
-	}
-	out := make([]string, 0, len(aliases))
-	seen := map[string]bool{}
-	for _, alias := range aliases {
-		if alias == "" || seen[alias] {
-			continue
-		}
-		seen[alias] = true
-		out = append(out, alias)
-	}
-	return out
 }
 
 func mergeCapabilities(left []string, right []string) []string {
@@ -585,37 +276,6 @@ func mergeCapabilities(left []string, right []string) []string {
 	return out
 }
 
-func publicModelDedupKey(m PublicModel, providerVariants bool) string {
-	if providerVariants {
-		return fmt.Sprintf("config:%d", m.ID)
-	}
-	if m.LogicalModelID != "" {
-		return "logical:" + m.LogicalModelID
-	}
-	return fmt.Sprintf("config:%d", m.ID)
-}
-
-func publicModelHasVariant(m PublicModel, allowed map[uint]bool) bool {
-	if allowed[m.ID] {
-		return true
-	}
-	for _, id := range m.providerVariantIDs {
-		if allowed[id] {
-			return true
-		}
-	}
-	return false
-}
-
-func containsUint(values []uint, target uint) bool {
-	for _, value := range values {
-		if value == target {
-			return true
-		}
-	}
-	return false
-}
-
 func parseIDArray(s string) []uint {
 	var ids []uint
 	if s == "" || s == "[]" {
@@ -625,42 +285,65 @@ func parseIDArray(s string) []uint {
 	return ids
 }
 
-// GetAnyTextModel returns the first available text-capable model config for internal use.
-// When multiple configs share the highest priority, one is chosen in round-robin order.
-func (s *AIService) GetAnyTextModel() (modelConfigID uint, modelID string, err error) {
-	var rows []modelConfigWithProvider
-	if err := s.db.Model(&persistencemodel.AIModelConfig{}).
-		Select("ai_model_configs.*, ai_credentials.display_name AS provider_name, ai_credentials.adapter_type AS adapter_type").
-		Joins("JOIN ai_credentials ON ai_credentials.id = ai_model_configs.credential_id").
-		Where("ai_model_configs.is_enabled = true AND ai_model_configs.deleted_at IS NULL AND ai_credentials.is_enabled = true AND ai_credentials.deleted_at IS NULL").
-		Order("ai_model_configs.priority DESC, ai_model_configs.id ASC").
-		Scan(&rows).Error; err != nil {
-		return 0, "", err
+// GetAnyTextModel returns the first available text-capable catalog model for internal use.
+func (s *AIService) GetAnyTextModel() (runtimeModelID uint, modelID string, err error) {
+	if runtimeModelID, modelID, handled, err := s.getAnyTextModelFromCatalog(); handled || err != nil {
+		return runtimeModelID, modelID, err
+	}
+	return 0, "", fmt.Errorf("no text/reasoning catalog route configured and enabled")
+}
+
+func (s *AIService) getAnyTextModelFromCatalog() (runtimeModelID uint, modelID string, handled bool, err error) {
+	if s == nil || s.db == nil || !s.db.Migrator().HasTable(&persistencemodel.AIModelCatalogEntry{}) {
+		return 0, "", false, nil
+	}
+	var total int64
+	if err := s.db.Model(&persistencemodel.AIModelCatalogEntry{}).Count(&total).Error; err != nil {
+		return 0, "", true, err
+	}
+	if total == 0 {
+		return 0, "", false, nil
+	}
+	if !s.db.Migrator().HasTable(&persistencemodel.AIModelRouteBinding{}) {
+		return 0, "", true, fmt.Errorf("no text/reasoning catalog route configured and enabled")
 	}
 
-	type candidate struct {
-		cfg      persistencemodel.AIModelConfig
-		def      *ModelDef
-		priority int
+	var entries []persistencemodel.AIModelCatalogEntry
+	if err := s.db.
+		Preload("RouteBindings", "is_enabled = true AND deleted_at IS NULL").
+		Where("is_enabled = true AND deleted_at IS NULL").
+		Order("public_model_id ASC, provider_model_id ASC").
+		Find(&entries).Error; err != nil {
+		return 0, "", true, err
 	}
-	var candidates []candidate
-	for _, row := range rows {
-		def := resolveDefFromConfig(row.AIModelConfig, row.AdapterType)
-		for _, cap := range def.Capabilities {
-			if cap == CapabilityText || cap == CapabilityReasoning {
-				candidates = append(candidates, candidate{cfg: row.AIModelConfig, def: def, priority: row.Priority})
-				break
+	type candidate struct {
+		runtimeModelID uint
+		modelID        string
+		priority       int
+		routeBindingID uint
+	}
+	candidates := make([]candidate, 0, len(entries))
+	for _, entry := range entries {
+		def := catalogEntryDef(entry)
+		if !modelDefMatchesAnyCapability(def, textRuntimeCapabilities()) {
+			continue
+		}
+		for _, binding := range catalogEntryBindingsForFilter(entry.RouteBindings, "") {
+			publicModelID := strings.TrimSpace(entry.PublicModelID)
+			if publicModelID == "" {
+				publicModelID = strings.TrimSpace(entry.ProviderModelID)
 			}
+			candidates = append(candidates, candidate{
+				runtimeModelID: entry.ID,
+				modelID:        publicModelID,
+				priority:       binding.Priority,
+				routeBindingID: binding.ID,
+			})
 		}
 	}
 	if len(candidates) == 0 {
-		return 0, "", fmt.Errorf("no text/reasoning model configured and enabled")
+		return 0, "", true, fmt.Errorf("no text/reasoning catalog route configured and enabled")
 	}
-
-	chosen := pickByPriority("service.get_any_text_model", candidates, func(c candidate) int { return c.priority })
-	mid := chosen.cfg.ModelIDOverride
-	if mid == "" {
-		mid = chosen.def.ModelID
-	}
-	return chosen.cfg.ID, mid, nil
+	chosen := pickByPriority("service.get_any_text_model.catalog", candidates, func(c candidate) int { return c.priority })
+	return chosen.runtimeModelID, chosen.modelID, true, nil
 }

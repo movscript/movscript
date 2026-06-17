@@ -19,6 +19,7 @@ import { registerProviderSessionsIpcHandlers } from './providerSessionsIpc'
 import { registerProjectGitIpcHandlers } from './projectGitIpc'
 import { registerLocalTerminalIpcHandlers } from './localTerminalIpc'
 import { registerMediaPipelineIpcHandlers } from './mediaPipelineIpc'
+import { registerDockShortcutIpcHandlers } from './dockShortcutIpc'
 
 export interface IpcHandlerDependencies {
   broadcastBackendStatus: (status: BackendStatus) => void
@@ -46,4 +47,5 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
   registerAppServerIpcHandlers()
   registerLocalTerminalIpcHandlers()
   registerMediaPipelineIpcHandlers()
+  registerDockShortcutIpcHandlers()
 }

@@ -37,7 +37,8 @@ func TestAlignLoadsAudioResourceAndCallsSubtitleAlignModel(t *testing.T) {
 
 	db := testutil.OpenSQLite(t, "app-audio-align.db",
 		&persistencemodel.AICredential{},
-		&persistencemodel.AIModelConfig{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
 		&persistencemodel.RawResource{},
 		&persistencemodel.UsageReservation{},
 		&persistencemodel.UsageLog{},
@@ -52,16 +53,26 @@ func TestAlignLoadsAudioResourceAndCallsSubtitleAlignModel(t *testing.T) {
 	if err := db.Create(&cred).Error; err != nil {
 		t.Fatalf("create credential: %v", err)
 	}
-	cfg := persistencemodel.AIModelConfig{
-		Model:              gorm.Model{ID: 11},
-		CredentialID:       cred.ID,
-		ModelDefID:         "logical-align",
-		ModelIDOverride:    "align-provider-model",
-		CustomCapabilities: ai.CapabilitySubAlign,
-		IsEnabled:          true,
+	entry := persistencemodel.AIModelCatalogEntry{
+		Model:           gorm.Model{ID: 11},
+		PublicModelID:   "logical-align",
+		ProviderModelID: "align-provider-model",
+		DisplayName:     "Subtitle Align",
+		Capabilities:    ai.CapabilitySubAlign,
+		PricingMode:     string(ai.PricingPerCall),
+		IsEnabled:       true,
 	}
-	if err := db.Create(&cfg).Error; err != nil {
-		t.Fatalf("create model config: %v", err)
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	if err := db.Create(&persistencemodel.AIModelRouteBinding{
+		CatalogEntryID: entry.ID,
+		SourceType:     persistencemodel.ModelRouteSourceLocalProvider,
+		CredentialID:   &cred.ID,
+		IsEnabled:      true,
+		CapacityWeight: 1,
+	}).Error; err != nil {
+		t.Fatalf("create route binding: %v", err)
 	}
 
 	store, err := storage.NewFileSystemStorage(t.TempDir())
@@ -88,7 +99,7 @@ func TestAlignLoadsAudioResourceAndCallsSubtitleAlignModel(t *testing.T) {
 	service := NewService(db, ai.NewAIService(db, ai.NewRegistry(db, nil)), store)
 	resp, err := service.Align(context.Background(), AlignInput{
 		UserID:          42,
-		ModelID:         cfg.ModelDefID,
+		ModelID:         entry.PublicModelID,
 		AudioResourceID: resource.ID,
 		Script:          "hello world",
 		Language:        "en",
@@ -135,7 +146,7 @@ func TestResolveAudioRouteUsesCatalogEntryIDWithoutLegacyModelConfig(t *testing.
 	}).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
 	}
-	if db.Migrator().HasTable(&persistencemodel.AIModelConfig{}) || db.Migrator().HasTable(&persistencemodel.AICredential{}) {
+	if db.Migrator().HasTable("ai_model_configs") || db.Migrator().HasTable(&persistencemodel.AICredential{}) {
 		t.Fatal("catalog audio route test should not create legacy provider tables")
 	}
 

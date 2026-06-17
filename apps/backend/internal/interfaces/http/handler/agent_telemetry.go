@@ -22,11 +22,11 @@ func NewAgentTelemetryHandler(metrics *observability.AgentClientMetrics) *AgentT
 }
 
 type agentTelemetryBatchRequest struct {
-	Schema           string                           `json:"schema"`
-	Operations       []agentTelemetryOperationRequest `json:"operations"`
-	LongTasks        []agentTelemetryDurationRequest  `json:"longTasks"`
-	Metrics          []agentTelemetryMetricRequest    `json:"metrics"`
-	Logs             []agentTelemetryLogRequest       `json:"logs"`
+	Schema     string                           `json:"schema"`
+	Operations []agentTelemetryOperationRequest `json:"operations"`
+	LongTasks  []agentTelemetryDurationRequest  `json:"longTasks"`
+	Metrics    []agentTelemetryMetricRequest    `json:"metrics"`
+	Logs       []agentTelemetryLogRequest       `json:"logs"`
 }
 
 type agentTelemetryOperationRequest struct {

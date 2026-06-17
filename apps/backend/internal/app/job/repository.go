@@ -17,7 +17,7 @@ type repository interface {
 	GetOwned(ctx context.Context, id uint, userID uint, orgID *uint) (domainjob.Job, error)
 	LoadInputResources(ctx context.Context, ids []uint, userID uint, orgID *uint) (InputResourcesResult, error)
 	LoadInputResourcesDetailed(ctx context.Context, ids []uint, userID uint, orgID *uint) (InputResourcesResult, error)
-	ResponseLookups(ctx context.Context, resourceIDs []uint, modelConfigIDs []uint) (ResponseLookups, error)
+	ResponseLookups(ctx context.Context, resourceIDs []uint, catalogEntryIDs []uint) (ResponseLookups, error)
 	GetCredential(ctx context.Context, id uint) (domainjob.AICredential, error)
 	Create(ctx context.Context, job domainjob.Job) (domainjob.Job, error)
 	Retry(ctx context.Context, job *domainjob.Job, message string) (domainjob.Job, error)
@@ -120,12 +120,10 @@ func resourceInCurrentTeam(resourceOrgID, currentOrgID *uint) bool {
 	return resourceOrgID != nil && currentOrgID != nil && *resourceOrgID == *currentOrgID
 }
 
-func (r *gormRepository) ResponseLookups(ctx context.Context, resourceIDs []uint, modelConfigIDs []uint) (ResponseLookups, error) {
+func (r *gormRepository) ResponseLookups(ctx context.Context, resourceIDs []uint, catalogEntryIDs []uint) (ResponseLookups, error) {
 	lookups := ResponseLookups{
 		ResourcesByID:      map[uint]domainjob.RawResource{},
-		ConfigsByID:        map[uint]domainjob.AIModelConfig{},
 		CatalogEntriesByID: map[uint]ModelCatalogEntryLookup{},
-		CredentialsByID:    map[uint]domainjob.AICredential{},
 	}
 	if len(resourceIDs) > 0 {
 		resources := make([]persistencemodel.RawResource, 0)
@@ -136,20 +134,9 @@ func (r *gormRepository) ResponseLookups(ctx context.Context, resourceIDs []uint
 			lookups.ResourcesByID[resource.ID] = domainjob.RawResourceFromModel(resource)
 		}
 	}
-	credentialIDSet := map[uint]bool{}
-	if len(modelConfigIDs) > 0 {
-		if r.db.Migrator().HasTable(&persistencemodel.AIModelConfig{}) {
-			configs := make([]persistencemodel.AIModelConfig, 0)
-			if err := r.db.WithContext(ctx).Where("id IN ?", modelConfigIDs).Find(&configs).Error; err != nil {
-				return lookups, err
-			}
-			for _, cfg := range configs {
-				lookups.ConfigsByID[cfg.ID] = domainjob.AIModelConfigFromModel(cfg)
-				credentialIDSet[cfg.CredentialID] = true
-			}
-		}
+	if len(catalogEntryIDs) > 0 {
 		catalogEntries := make([]persistencemodel.AIModelCatalogEntry, 0)
-		if err := r.db.WithContext(ctx).Where("id IN ?", modelConfigIDs).Find(&catalogEntries).Error; err != nil {
+		if err := r.db.WithContext(ctx).Where("id IN ?", catalogEntryIDs).Find(&catalogEntries).Error; err != nil {
 			return lookups, err
 		}
 		for _, entry := range catalogEntries {
@@ -160,19 +147,6 @@ func (r *gormRepository) ResponseLookups(ctx context.Context, resourceIDs []uint
 				DisplayName:     entry.DisplayName,
 				ShortName:       entry.ShortName,
 			}
-		}
-	}
-	credentialIDs := make([]uint, 0, len(credentialIDSet))
-	for id := range credentialIDSet {
-		credentialIDs = append(credentialIDs, id)
-	}
-	if len(credentialIDs) > 0 && r.db.Migrator().HasTable(&persistencemodel.AICredential{}) {
-		creds := make([]persistencemodel.AICredential, 0)
-		if err := r.db.WithContext(ctx).Where("id IN ?", credentialIDs).Find(&creds).Error; err != nil {
-			return lookups, err
-		}
-		for _, cred := range creds {
-			lookups.CredentialsByID[cred.ID] = domainjob.AICredentialFromModel(cred)
 		}
 	}
 	return lookups, nil

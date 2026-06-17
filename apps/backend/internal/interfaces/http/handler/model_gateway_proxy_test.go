@@ -44,7 +44,8 @@ func TestOpenAIProxyForwardsUnknownFieldsAndRewritesModel(t *testing.T) {
 
 	db := testutil.OpenSQLite(t, "handler-model-gateway-proxy.db",
 		&persistencemodel.AICredential{},
-		&persistencemodel.AIModelConfig{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
 	)
 	credential := persistencemodel.AICredential{
 		AdapterType: ai.AdapterOpenAICompat,
@@ -55,15 +56,25 @@ func TestOpenAIProxyForwardsUnknownFieldsAndRewritesModel(t *testing.T) {
 	if err := db.Create(&credential).Error; err != nil {
 		t.Fatalf("create credential: %v", err)
 	}
-	model := persistencemodel.AIModelConfig{
-		CredentialID:       credential.ID,
-		ModelDefID:         "logical-chat",
-		ModelIDOverride:    "provider-chat",
-		CustomCapabilities: ai.CapabilityText,
-		IsEnabled:          true,
+	entry := persistencemodel.AIModelCatalogEntry{
+		PublicModelID:   "logical-chat",
+		ProviderModelID: "provider-chat",
+		DisplayName:     "Logical Chat",
+		Capabilities:    ai.CapabilityText,
+		PricingMode:     string(ai.PricingPerToken),
+		IsEnabled:       true,
 	}
-	if err := db.Create(&model).Error; err != nil {
-		t.Fatalf("create model: %v", err)
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	if err := db.Create(&persistencemodel.AIModelRouteBinding{
+		CatalogEntryID: entry.ID,
+		SourceType:     persistencemodel.ModelRouteSourceLocalProvider,
+		CredentialID:   &credential.ID,
+		IsEnabled:      true,
+		CapacityWeight: 1,
+	}).Error; err != nil {
+		t.Fatalf("create route binding: %v", err)
 	}
 
 	db = db.Session(&gorm.Session{SkipHooks: true})
@@ -134,7 +145,8 @@ func TestOpenAIProxyRoutesImageGenerationByImageCapability(t *testing.T) {
 
 	db := testutil.OpenSQLite(t, "handler-model-gateway-proxy-image.db",
 		&persistencemodel.AICredential{},
-		&persistencemodel.AIModelConfig{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
 	)
 	credential := persistencemodel.AICredential{
 		AdapterType: ai.AdapterOpenAICompat,
@@ -145,15 +157,25 @@ func TestOpenAIProxyRoutesImageGenerationByImageCapability(t *testing.T) {
 	if err := db.Create(&credential).Error; err != nil {
 		t.Fatalf("create credential: %v", err)
 	}
-	model := persistencemodel.AIModelConfig{
-		CredentialID:       credential.ID,
-		ModelDefID:         "logical-image",
-		ModelIDOverride:    "provider-image",
-		CustomCapabilities: ai.CapabilityImage,
-		IsEnabled:          true,
+	entry := persistencemodel.AIModelCatalogEntry{
+		PublicModelID:   "logical-image",
+		ProviderModelID: "provider-image",
+		DisplayName:     "Logical Image",
+		Capabilities:    ai.CapabilityImage,
+		PricingMode:     string(ai.PricingPerImage),
+		IsEnabled:       true,
 	}
-	if err := db.Create(&model).Error; err != nil {
-		t.Fatalf("create model: %v", err)
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	if err := db.Create(&persistencemodel.AIModelRouteBinding{
+		CatalogEntryID: entry.ID,
+		SourceType:     persistencemodel.ModelRouteSourceLocalProvider,
+		CredentialID:   &credential.ID,
+		IsEnabled:      true,
+		CapacityWeight: 1,
+	}).Error; err != nil {
+		t.Fatalf("create route binding: %v", err)
 	}
 
 	db = db.Session(&gorm.Session{SkipHooks: true})

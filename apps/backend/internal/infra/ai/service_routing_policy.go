@@ -3,7 +3,6 @@ package ai
 import (
 	"fmt"
 	"sort"
-	"strings"
 	"sync"
 	"sync/atomic"
 )
@@ -48,8 +47,8 @@ func (p runtimeRoutingPolicy) orderCandidates(key string, candidates []runtimeMo
 			offset := int((atomic.AddUint64(counter, 1) - 1) % uint64(len(weighted)))
 			group = dedupeRuntimeCandidateGroup(append(append([]runtimeModelCandidate(nil), weighted[offset:]...), weighted[:offset]...))
 			sort.SliceStable(group, func(i, j int) bool {
-				left := runtimeProviderHealthSnapshot(group[i].cfg.ID)
-				right := runtimeProviderHealthSnapshot(group[j].cfg.ID)
+				left := runtimeProviderHealthSnapshot(group[i].id)
+				right := runtimeProviderHealthSnapshot(group[j].id)
 				if leftSaturated, rightSaturated := runtimeCandidateSaturated(group[i], left), runtimeCandidateSaturated(group[j], right); leftSaturated != rightSaturated {
 					return !leftSaturated
 				}
@@ -84,80 +83,24 @@ func dedupeRuntimeCandidateGroup(group []runtimeModelCandidate) []runtimeModelCa
 	seen := make(map[uint]bool, len(group))
 	out := make([]runtimeModelCandidate, 0, len(group))
 	for _, candidate := range group {
-		if seen[candidate.cfg.ID] {
+		if seen[candidate.id] {
 			continue
 		}
-		seen[candidate.cfg.ID] = true
+		seen[candidate.id] = true
 		out = append(out, candidate)
 	}
 	return out
 }
 
 func runtimeCandidateCapacityWeight(candidate runtimeModelCandidate) int {
-	if candidate.cfg.CapacityWeight > 0 {
-		return candidate.cfg.CapacityWeight
+	if candidate.capacityWeight > 0 {
+		return candidate.capacityWeight
 	}
 	return 1
 }
 
 func runtimeCandidateSaturated(candidate runtimeModelCandidate, view runtimeProviderHealthView) bool {
-	return candidate.cfg.MaxConcurrency > 0 && view.inFlight >= candidate.cfg.MaxConcurrency
-}
-
-func filterPreferredRuntimeCandidates(candidates []runtimeModelCandidate, preferredAdapterTypes []string) ([]runtimeModelCandidate, bool) {
-	preferred := compactPreferredAdapterTypes(preferredAdapterTypes)
-	if len(preferred) == 0 || len(candidates) == 0 {
-		return candidates, false
-	}
-	matches := make([]runtimeModelCandidate, 0, len(candidates))
-	for _, adapterType := range preferred {
-		for _, candidate := range candidates {
-			if strings.EqualFold(candidate.adapterType, adapterType) {
-				matches = append(matches, candidate)
-			}
-		}
-		if len(matches) > 0 {
-			return matches, true
-		}
-	}
-	return candidates, false
-}
-
-func filterBudgetRuntimeCandidates(candidates []runtimeModelCandidate, capability string, estimate UsageEstimate, maxEstimatedCost float64) ([]runtimeModelCandidate, bool, error) {
-	if maxEstimatedCost <= 0 {
-		return candidates, false, nil
-	}
-	matches := make([]runtimeModelCandidate, 0, len(candidates))
-	for _, candidate := range candidates {
-		if estimatedRuntimeCandidateCost(candidate, capability, estimate) <= maxEstimatedCost {
-			matches = append(matches, candidate)
-		}
-	}
-	if len(matches) == 0 {
-		return nil, true, fmt.Errorf("no provider variant within estimated cost %.4f for capability %s", maxEstimatedCost, capability)
-	}
-	return matches, true, nil
-}
-
-func estimatedRuntimeCandidateCost(candidate runtimeModelCandidate, capability string, estimate UsageEstimate) float64 {
-	def := resolveDefFromConfig(candidate.cfg, candidate.adapterType)
-	opType := strings.TrimSpace(estimate.OperationType)
-	if opType == "" {
-		opType = operationTypeForCapability(capability)
-	}
-	return estimateUsageCostWithDetails(
-		candidate.cfg,
-		def,
-		opType,
-		TokenUsage{
-			InputTokens:       estimate.InputTokens,
-			OutputTokens:      estimate.OutputTokens,
-			CachedInputTokens: estimate.CachedInputTokens,
-			ReasoningTokens:   estimate.ReasoningTokens,
-		},
-		estimate.DurationSec,
-		estimate.ImageCount,
-	).Cost
+	return candidate.maxConcurrency > 0 && view.inFlight >= candidate.maxConcurrency
 }
 
 func operationTypeForCapability(capability string) string {
@@ -171,50 +114,6 @@ func operationTypeForCapability(capability string) string {
 	default:
 		return capability
 	}
-}
-
-func modelIDRouteSelectionReason(preferred bool, budgetAware bool) string {
-	switch {
-	case preferred && budgetAware:
-		return "model_id_preferred_adapter_budget_aware"
-	case preferred:
-		return "model_id_preferred_adapter"
-	case budgetAware:
-		return "model_id_budget_aware"
-	default:
-		return "model_id_capacity_round_robin"
-	}
-}
-
-func localProviderRouteSelectionReason(preferred bool, budgetAware bool) string {
-	switch {
-	case preferred && budgetAware:
-		return "local_provider_preferred_adapter_budget_aware"
-	case preferred:
-		return "local_provider_preferred_adapter"
-	case budgetAware:
-		return "local_provider_budget_aware"
-	default:
-		return "local_provider"
-	}
-}
-
-func compactPreferredAdapterTypes(values []string) []string {
-	out := make([]string, 0, len(values))
-	seen := map[string]bool{}
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value == "" {
-			continue
-		}
-		key := strings.ToLower(value)
-		if seen[key] {
-			continue
-		}
-		seen[key] = true
-		out = append(out, value)
-	}
-	return out
 }
 
 // pickByPriority selects one item from a slice by priority.

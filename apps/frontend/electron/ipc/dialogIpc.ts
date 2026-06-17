@@ -1,4 +1,4 @@
-import { dialog, ipcMain } from 'electron'
+import { dialog, ipcMain, shell } from 'electron'
 
 export function registerDialogIpcHandlers(): void {
   ipcMain.handle('dialog:openFile', async () => {
@@ -9,5 +9,12 @@ export function registerDialogIpcHandlers(): void {
   ipcMain.handle('dialog:saveFile', async (_e, defaultPath?: string) => {
     const { canceled, filePath } = await dialog.showSaveDialog({ defaultPath })
     return canceled ? null : filePath
+  })
+
+  ipcMain.handle('dialog:revealFileInFolder', (_e, input?: { path?: string }) => {
+    const filePath = input?.path?.trim()
+    if (!filePath) throw new Error('File path is required')
+    shell.showItemInFolder(filePath)
+    return { ok: true }
   })
 }

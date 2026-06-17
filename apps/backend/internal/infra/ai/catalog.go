@@ -121,10 +121,9 @@ type ParamRequiresValue struct {
 	Value any    `json:"value"`
 }
 
-// ModelParamProfile describes a model-specific delta on top of adapter params.
-// It is the preferred JSON shape for AIModelConfig.CustomSupportedParams.
-// For backward compatibility, CustomSupportedParams may still be a []ParamDef
-// full override.
+// ModelParamProfile describes a catalog-entry-specific delta on top of adapter params.
+// It is the preferred JSON shape for catalog supported params.
+// For backward compatibility, supported params may still be a []ParamDef full override.
 type ModelParamProfile struct {
 	Allow    []string            `json:"allow,omitempty"`
 	Deny     []string            `json:"deny,omitempty"`
@@ -133,8 +132,9 @@ type ModelParamProfile struct {
 }
 
 // AdapterParamSet describes the default generation controls exposed by an adapter
-// for a capability. Model configs inherit these controls unless admins override
-// CustomSupportedParams to restrict or remove parameters for a specific model.
+// for a capability. Catalog/runtime model definitions inherit these controls
+// unless admins override CustomSupportedParams to restrict or remove parameters
+// for a specific model.
 type AdapterParamSet struct {
 	Capability string     `json:"capability"`
 	Params     []ParamDef `json:"params"`
@@ -189,9 +189,9 @@ type ModelDef struct {
 	MaxDurSec     int
 }
 
-// ModelPreset is a read-only admin UI template for quickly filling the add-model form.
+// CatalogTemplate is a read-only admin UI template for quickly filling the add-model form.
 // Runtime routing and generation parameter controls never consult this list.
-type ModelPreset struct {
+type CatalogTemplate struct {
 	ID                string      `json:"id"`
 	ModelID           string      `json:"model_id"`
 	DisplayName       string      `json:"display_name"`
@@ -652,13 +652,13 @@ func frameOptions() []int {
 	return out
 }
 
-// ModelPresets returns read-only well-known models used only as UI templates.
-// The admin can pick a preset to pre-fill the add-model form; all values are
-// editable and the list is never consulted at runtime.
-func ModelPresets() []ModelPreset {
-	result := make([]ModelPreset, 0, len(modelPresetSources))
-	for _, def := range modelPresetSources {
-		result = append(result, ModelPreset{
+// CatalogTemplates returns read-only well-known model templates.
+// They can seed catalog entries, but runtime routing and provider calls never
+// consult this list.
+func CatalogTemplates() []CatalogTemplate {
+	result := make([]CatalogTemplate, 0, len(catalogTemplateSources))
+	for _, def := range catalogTemplateSources {
+		result = append(result, CatalogTemplate{
 			ID:                def.ID,
 			ModelID:           def.ModelID,
 			DisplayName:       def.DisplayName,
@@ -1019,8 +1019,8 @@ func filterKnownRequiresValues(values []ParamRequiresValue, known map[string]boo
 	return out
 }
 
-// ResolveModelDef builds a ModelDef entirely from the Custom* fields stored in AIModelConfig.
-// Adapter definitions provide default parameter controls; model configs may
+// ResolveModelDef builds a ModelDef from catalog/runtime model fields.
+// Adapter definitions provide default parameter controls; model definitions may
 // override those controls by storing CustomSupportedParams, including "[]" to
 // explicitly expose no parameters for a model.
 func ResolveModelDef(modelDefID, adapterType, customDisplayName, customCaps, customPricing string,

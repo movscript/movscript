@@ -6,7 +6,7 @@ type UsageLog struct {
 	gorm.Model
 	UserID                uint                 `gorm:"not null" json:"user_id"`
 	OrgID                 *uint                `gorm:"index" json:"org_id,omitempty"`
-	AIModelConfigID       uint                 `gorm:"not null" json:"-"`
+	RuntimeModelID        uint                 `gorm:"column:runtime_model_id;not null" json:"-"`
 	AIModelCatalogEntryID *uint                `gorm:"index" json:"ai_model_catalog_entry_id,omitempty"`
 	RouteBindingID        *uint                `gorm:"index" json:"route_binding_id,omitempty"`
 	UsageReservationID    *uint                `gorm:"index" json:"usage_reservation_id,omitempty"`
@@ -21,7 +21,6 @@ type UsageLog struct {
 	ImageCount            int                  `gorm:"default:1" json:"image_count"`
 	Cost                  float64              `gorm:"default:0" json:"cost"`
 	User                  User                 `gorm:"foreignKey:UserID" json:"user,omitempty"`
-	AIModelConfig         AIModelConfig        `gorm:"foreignKey:AIModelConfigID;-:migration" json:"-"`
 	AIModelCatalogEntry   *AIModelCatalogEntry `gorm:"foreignKey:AIModelCatalogEntryID" json:"ai_model_catalog_entry,omitempty"`
 }
 
@@ -29,7 +28,7 @@ type UsageReservation struct {
 	gorm.Model
 	UserID                uint                 `gorm:"not null;index" json:"user_id"`
 	OrgID                 *uint                `gorm:"index" json:"org_id,omitempty"`
-	AIModelConfigID       uint                 `gorm:"not null;index" json:"-"`
+	RuntimeModelID        uint                 `gorm:"column:runtime_model_id;not null;index" json:"-"`
 	AIModelCatalogEntryID *uint                `gorm:"index" json:"ai_model_catalog_entry_id,omitempty"`
 	RouteBindingID        *uint                `gorm:"index" json:"route_binding_id,omitempty"`
 	GatewayAPIKeyID       *uint                `gorm:"index" json:"gateway_api_key_id,omitempty"`
@@ -43,6 +42,5 @@ type UsageReservation struct {
 	UsageLogID            *uint                `gorm:"index" json:"usage_log_id,omitempty"`
 	Metadata              string               `gorm:"type:text" json:"metadata,omitempty"`
 	User                  User                 `gorm:"foreignKey:UserID" json:"user,omitempty"`
-	AIModelConfig         AIModelConfig        `gorm:"foreignKey:AIModelConfigID;-:migration" json:"-"`
 	AIModelCatalogEntry   *AIModelCatalogEntry `gorm:"foreignKey:AIModelCatalogEntryID" json:"ai_model_catalog_entry,omitempty"`
 }

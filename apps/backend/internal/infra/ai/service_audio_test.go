@@ -22,12 +22,12 @@ func TestCallAlignFallsBackToAudioTranscribeCapability(t *testing.T) {
 func TestCallAudioGenerateUsesCapabilityWithCurrentUserContext(t *testing.T) {
 	db := testutil.OpenSQLite(t, "ai-call-audio-generate.db",
 		&persistencemodel.AICredential{},
-		&persistencemodel.AIModelConfig{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
 		&persistencemodel.UsageReservation{},
 		&persistencemodel.UsageLog{},
 	)
 	cred := persistencemodel.AICredential{
-		Model:       gorm.Model{ID: 1},
 		AdapterType: AdapterLocal,
 		DisplayName: "Local audio",
 		IsEnabled:   true,
@@ -35,31 +35,25 @@ func TestCallAudioGenerateUsesCapabilityWithCurrentUserContext(t *testing.T) {
 	if err := db.Create(&cred).Error; err != nil {
 		t.Fatalf("create credential: %v", err)
 	}
-	cfg := persistencemodel.AIModelConfig{
-		Model:              gorm.Model{ID: 12},
-		CredentialID:       cred.ID,
-		ModelDefID:         "logical-music",
-		ModelIDOverride:    "provider-music",
-		CustomCapabilities: CapabilityAudioMusic,
-		IsEnabled:          true,
-	}
-	if err := db.Create(&cfg).Error; err != nil {
-		t.Fatalf("create model config: %v", err)
-	}
+	createAudioCatalogRoute(t, db, cred.ID, "logical-music", "provider-music", CapabilityAudioMusic)
 
 	provider := &audioGenerateProbeProvider{}
 	registry := NewRegistry(db, nil)
 	registry.providerFactory = func(persistencemodel.AICredential, *ModelDef) (Provider, error) {
 		return provider, nil
 	}
-
-	resp, err := NewAIService(db, registry).CallAudioGenerate(context.Background(), 42, cfg.ID, CapabilityAudioMusic, media.AudioGenerationRequest{
+	service := NewAIService(db, registry)
+	route, err := service.ResolveModelRoute(ModelRouteRequest{ModelID: "logical-music", Capability: CapabilityAudioMusic})
+	if err != nil {
+		t.Fatalf("ResolveModelRoute() error = %v", err)
+	}
+	resp, err := service.CallAudioGenerateWithRouteUsage(context.Background(), 42, route, CapabilityAudioMusic, media.AudioGenerationRequest{
 		Kind:        media.AudioGenerationKindMusic,
 		Prompt:      "quiet piano",
 		DurationSec: 3,
 	}, UsageContext{})
 	if err != nil {
-		t.Fatalf("CallAudioGenerate() error = %v", err)
+		t.Fatalf("CallAudioGenerateWithRouteUsage() error = %v", err)
 	}
 	if provider.generateCalls != 1 {
 		t.Fatalf("generate calls = %d, want 1", provider.generateCalls)
@@ -81,12 +75,12 @@ func TestCallAudioGenerateUsesCapabilityWithCurrentUserContext(t *testing.T) {
 func TestCallSubtitleTranslateUsesSubtitleTranslateCapabilityWithCurrentUserContext(t *testing.T) {
 	db := testutil.OpenSQLite(t, "ai-call-subtitle-translate.db",
 		&persistencemodel.AICredential{},
-		&persistencemodel.AIModelConfig{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
 		&persistencemodel.UsageReservation{},
 		&persistencemodel.UsageLog{},
 	)
 	cred := persistencemodel.AICredential{
-		Model:       gorm.Model{ID: 1},
 		AdapterType: AdapterLocal,
 		DisplayName: "Local subtitle translator",
 		IsEnabled:   true,
@@ -94,30 +88,24 @@ func TestCallSubtitleTranslateUsesSubtitleTranslateCapabilityWithCurrentUserCont
 	if err := db.Create(&cred).Error; err != nil {
 		t.Fatalf("create credential: %v", err)
 	}
-	cfg := persistencemodel.AIModelConfig{
-		Model:              gorm.Model{ID: 13},
-		CredentialID:       cred.ID,
-		ModelDefID:         "logical-subtitle-translate",
-		ModelIDOverride:    "provider-subtitle-translate",
-		CustomCapabilities: CapabilitySubTranslate,
-		IsEnabled:          true,
-	}
-	if err := db.Create(&cfg).Error; err != nil {
-		t.Fatalf("create model config: %v", err)
-	}
+	createAudioCatalogRoute(t, db, cred.ID, "logical-subtitle-translate", "provider-subtitle-translate", CapabilitySubTranslate)
 
 	provider := &subtitleTranslateProbeProvider{}
 	registry := NewRegistry(db, nil)
 	registry.providerFactory = func(persistencemodel.AICredential, *ModelDef) (Provider, error) {
 		return provider, nil
 	}
-
-	resp, err := NewAIService(db, registry).CallSubtitleTranslate(context.Background(), 42, cfg.ID, media.TranslateSubtitleRequest{
+	service := NewAIService(db, registry)
+	route, err := service.ResolveModelRoute(ModelRouteRequest{ModelID: "logical-subtitle-translate", Capability: CapabilitySubTranslate})
+	if err != nil {
+		t.Fatalf("ResolveModelRoute() error = %v", err)
+	}
+	resp, err := service.CallSubtitleTranslateWithRouteUsage(context.Background(), 42, route, media.TranslateSubtitleRequest{
 		Subtitle:       []byte("1\n00:00:00,000 --> 00:00:01,000\nhello\n"),
 		TargetLanguage: "zh-CN",
 	}, UsageContext{})
 	if err != nil {
-		t.Fatalf("CallSubtitleTranslate() error = %v", err)
+		t.Fatalf("CallSubtitleTranslateWithRouteUsage() error = %v", err)
 	}
 	if provider.translateCalls != 1 {
 		t.Fatalf("translate calls = %d, want 1", provider.translateCalls)
@@ -138,14 +126,14 @@ func TestCallSubtitleTranslateUsesSubtitleTranslateCapabilityWithCurrentUserCont
 
 func testCallAlignUsesCapability(t *testing.T, capability string) {
 	t.Helper()
-	db := testutil.OpenSQLite(t, "ai-call-align.db",
+	db := testutil.OpenSQLite(t, "ai-call-align-"+capability+".db",
 		&persistencemodel.AICredential{},
-		&persistencemodel.AIModelConfig{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
 		&persistencemodel.UsageReservation{},
 		&persistencemodel.UsageLog{},
 	)
 	cred := persistencemodel.AICredential{
-		Model:       gorm.Model{ID: 1},
 		AdapterType: AdapterOpenAICompat,
 		DisplayName: "OpenAI subtitle",
 		IsEnabled:   true,
@@ -153,31 +141,25 @@ func testCallAlignUsesCapability(t *testing.T, capability string) {
 	if err := db.Create(&cred).Error; err != nil {
 		t.Fatalf("create credential: %v", err)
 	}
-	cfg := persistencemodel.AIModelConfig{
-		Model:              gorm.Model{ID: 11},
-		CredentialID:       cred.ID,
-		ModelDefID:         "logical-align",
-		ModelIDOverride:    "provider-align",
-		CustomCapabilities: capability,
-		IsEnabled:          true,
-	}
-	if err := db.Create(&cfg).Error; err != nil {
-		t.Fatalf("create model config: %v", err)
-	}
+	createAudioCatalogRoute(t, db, cred.ID, "logical-align", "provider-align", capability)
 
 	provider := &alignProbeProvider{}
 	registry := NewRegistry(db, nil)
 	registry.providerFactory = func(persistencemodel.AICredential, *ModelDef) (Provider, error) {
 		return provider, nil
 	}
-
-	resp, err := NewAIService(db, registry).CallAlign(context.Background(), 42, cfg.ID, media.AlignRequest{
+	service := NewAIService(db, registry)
+	route, err := service.ResolveModelRoute(ModelRouteRequest{ModelID: "logical-align", Capability: capability})
+	if err != nil {
+		t.Fatalf("ResolveModelRoute() error = %v", err)
+	}
+	resp, err := service.CallAlignWithRouteUsage(context.Background(), 42, route, media.AlignRequest{
 		Audio:    []byte("wav"),
 		MimeType: "audio/wav",
 		Script:   "hello world",
 	}, UsageContext{})
 	if err != nil {
-		t.Fatalf("CallAlign() error = %v", err)
+		t.Fatalf("CallAlignWithRouteUsage() error = %v", err)
 	}
 	if provider.alignCalls != 1 {
 		t.Fatalf("align calls = %d, want 1", provider.alignCalls)
@@ -190,6 +172,33 @@ func testCallAlignUsesCapability(t *testing.T, capability string) {
 	}
 	if string(resp.Content) != "aligned" {
 		t.Fatalf("content = %q, want aligned response", string(resp.Content))
+	}
+}
+
+func createAudioCatalogRoute(t *testing.T, db *gorm.DB, credentialID uint, publicModelID, providerModelID, capability string) {
+	t.Helper()
+	if db.Migrator().HasTable("ai_model_configs") {
+		t.Fatal("audio route test unexpectedly created legacy ai_model_configs table")
+	}
+	entry := persistencemodel.AIModelCatalogEntry{
+		PublicModelID:   publicModelID,
+		ProviderModelID: providerModelID,
+		DisplayName:     publicModelID,
+		Capabilities:    capability,
+		PricingMode:     string(PricingPerCall),
+		IsEnabled:       true,
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	if err := db.Create(&persistencemodel.AIModelRouteBinding{
+		CatalogEntryID: entry.ID,
+		SourceType:     persistencemodel.ModelRouteSourceLocalProvider,
+		CredentialID:   &credentialID,
+		CapacityWeight: 1,
+		IsEnabled:      true,
+	}).Error; err != nil {
+		t.Fatalf("create route binding: %v", err)
 	}
 }
 

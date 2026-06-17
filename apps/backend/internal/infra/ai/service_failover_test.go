@@ -19,19 +19,21 @@ func TestRuntimeModelAttemptOrderUsesCapacityWeight(t *testing.T) {
 	runtimeProviderHealth.Delete(uint(102))
 	candidates := []runtimeModelCandidate{
 		{
-			cfg:      persistencemodel.AIModelConfig{Model: gorm.Model{ID: 101}, ModelDefID: "gpt-5.2", Priority: 10, CapacityWeight: 2},
-			priority: 10,
+			id:             101,
+			priority:       10,
+			capacityWeight: 2,
 		},
 		{
-			cfg:      persistencemodel.AIModelConfig{Model: gorm.Model{ID: 102}, ModelDefID: "gpt-5.2", Priority: 10, CapacityWeight: 1},
-			priority: 10,
+			id:             102,
+			priority:       10,
+			capacityWeight: 1,
 		},
 	}
 
 	got := make([]uint, 0, 3)
 	for range 3 {
 		ordered := runtimeModelAttemptOrder(key, candidates)
-		got = append(got, ordered[0].cfg.ID)
+		got = append(got, ordered[0].id)
 	}
 
 	if !slices.Equal(got, []uint{101, 101, 102}) {
@@ -48,110 +50,61 @@ func TestRuntimeModelAttemptOrderAvoidsSaturatedProvider(t *testing.T) {
 	defer finish(nil)
 	candidates := []runtimeModelCandidate{
 		{
-			cfg:      persistencemodel.AIModelConfig{Model: gorm.Model{ID: 201}, ModelDefID: "gpt-5.2", Priority: 10, CapacityWeight: 10, MaxConcurrency: 1},
-			priority: 10,
+			id:             201,
+			priority:       10,
+			capacityWeight: 10,
+			maxConcurrency: 1,
 		},
 		{
-			cfg:      persistencemodel.AIModelConfig{Model: gorm.Model{ID: 202}, ModelDefID: "gpt-5.2", Priority: 10, CapacityWeight: 1},
-			priority: 10,
+			id:             202,
+			priority:       10,
+			capacityWeight: 1,
 		},
 	}
 
 	ordered := runtimeModelAttemptOrder(key, candidates)
-	if len(ordered) != 2 || ordered[0].cfg.ID != 202 || ordered[1].cfg.ID != 201 {
+	if len(ordered) != 2 || ordered[0].id != 202 || ordered[1].id != 201 {
 		t.Fatalf("saturated order = %#v, want 202 before 201", ordered)
 	}
 }
 
-func TestCallTextWithUsageFailsOverToNextProviderVariant(t *testing.T) {
-	resetFailoverTestState()
-	db := testutil.OpenSQLite(t, "ai-failover.db",
-		&persistencemodel.AICredential{},
-		&persistencemodel.AIModelConfig{},
-		&persistencemodel.UsageReservation{},
-		&persistencemodel.UsageLog{},
-	)
-	createTextProviderVariant(t, db, 1, "Busy provider")
-	createTextProviderVariant(t, db, 2, "Healthy provider")
-
-	calls := map[string]int{}
-	registry := NewRegistry(db, nil)
-	registry.providerFactory = func(cred persistencemodel.AICredential, _ *ModelDef) (Provider, error) {
-		return failoverTextProvider{
-			name:  cred.DisplayName,
-			calls: calls,
-		}, nil
-	}
-	svc := NewAIService(db, registry)
-	resp, err := svc.CallTextWithUsage(context.Background(), 1, 1, TextRequest{
-		Messages: []Message{{Role: "user", Content: "hello"}},
-	}, UsageContext{})
-	if err != nil {
-		t.Fatalf("CallTextWithUsage() error = %v", err)
-	}
-	if resp.Content != "ok" {
-		t.Fatalf("content = %q, want ok", resp.Content)
-	}
-	if calls["Busy provider"] != 1 || calls["Healthy provider"] != 1 {
-		t.Fatalf("provider calls = busy:%d healthy:%d, want 1/1", calls["Busy provider"], calls["Healthy provider"])
-	}
-
-	resp, err = svc.CallTextWithUsage(context.Background(), 1, 1, TextRequest{
-		Messages: []Message{{Role: "user", Content: "hello again"}},
-	}, UsageContext{})
-	if err != nil {
-		t.Fatalf("second CallTextWithUsage() error = %v", err)
-	}
-	if resp.Content != "ok" {
-		t.Fatalf("second content = %q, want ok", resp.Content)
-	}
-	if calls["Busy provider"] != 1 || calls["Healthy provider"] != 2 {
-		t.Fatalf("provider calls after cooldown-aware order = busy:%d healthy:%d, want 1/2", calls["Busy provider"], calls["Healthy provider"])
-	}
-	health, err := RuntimeProviderHealthSnapshot(db)
-	if err != nil {
-		t.Fatalf("RuntimeProviderHealthSnapshot() error = %v", err)
-	}
-	if len(health) != 2 {
-		t.Fatalf("health item count = %d, want 2: %#v", len(health), health)
-	}
-	busy := findProviderHealth(health, 1)
-	healthy := findProviderHealth(health, 2)
-	if busy == nil || healthy == nil {
-		t.Fatalf("missing health rows: %#v", health)
-	}
-	if !busy.CircuitOpen || busy.Failures != 1 || busy.ConsecutiveFailures != 1 || busy.CooldownRemainingMs <= 0 {
-		t.Fatalf("busy provider health = %#v, want open circuit with one failure", busy)
-	}
-	if healthy.CircuitOpen || healthy.Successes != 2 || healthy.Failures != 0 {
-		t.Fatalf("healthy provider health = %#v, want closed circuit with two successes", healthy)
-	}
-
-	var reservation persistencemodel.UsageReservation
-	if err := db.First(&reservation).Error; err != nil {
-		t.Fatalf("load reservation: %v", err)
-	}
-	if reservation.AIModelConfigID != 2 || reservation.Status != ReservationStatusSettled {
-		t.Fatalf("reservation = model_config_id:%d status:%s, want 2/%s", reservation.AIModelConfigID, reservation.Status, ReservationStatusSettled)
-	}
-	var usage persistencemodel.UsageLog
-	if err := db.First(&usage).Error; err != nil {
-		t.Fatalf("load usage: %v", err)
-	}
-	if usage.AIModelConfigID != 2 || usage.InputTokens != 3 || usage.OutputTokens != 2 {
-		t.Fatalf("usage = model_config_id:%d input:%d output:%d, want 2/3/2", usage.AIModelConfigID, usage.InputTokens, usage.OutputTokens)
-	}
-}
-
-func TestCallResponsesWithUsageFallsBackToChatWhenProviderResponsesFails(t *testing.T) {
+func TestCallResponsesWithRouteUsageFallsBackToChatWhenProviderResponsesFails(t *testing.T) {
 	resetFailoverTestState()
 	db := testutil.OpenSQLite(t, "ai-responses-chat-fallback.db",
 		&persistencemodel.AICredential{},
-		&persistencemodel.AIModelConfig{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
 		&persistencemodel.UsageReservation{},
 		&persistencemodel.UsageLog{},
 	)
-	createTextProviderVariant(t, db, 1, "Chat fallback provider")
+	cred := persistencemodel.AICredential{
+		AdapterType: AdapterOpenAICompat,
+		DisplayName: "Chat fallback provider",
+		IsEnabled:   true,
+	}
+	if err := db.Create(&cred).Error; err != nil {
+		t.Fatalf("create credential: %v", err)
+	}
+	entry := persistencemodel.AIModelCatalogEntry{
+		PublicModelID:   "gpt-5.2",
+		ProviderModelID: "gpt-5.2",
+		DisplayName:     "gpt-5.2",
+		IsEnabled:       true,
+		Capabilities:    CapabilityText,
+		PricingMode:     string(PricingPerToken),
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	if err := db.Create(&persistencemodel.AIModelRouteBinding{
+		CatalogEntryID: entry.ID,
+		SourceType:     persistencemodel.ModelRouteSourceLocalProvider,
+		CredentialID:   &cred.ID,
+		IsEnabled:      true,
+		CapacityWeight: 1,
+	}).Error; err != nil {
+		t.Fatalf("create route binding: %v", err)
+	}
 
 	calls := map[string]int{}
 	registry := NewRegistry(db, nil)
@@ -162,13 +115,17 @@ func TestCallResponsesWithUsageFallsBackToChatWhenProviderResponsesFails(t *test
 		}, nil
 	}
 	svc := NewAIService(db, registry)
-	resp, err := svc.CallResponsesWithUsage(context.Background(), 1, 1, ResponsesRequest{
+	route, err := svc.ResolveModelRoute(ModelRouteRequest{ModelID: "gpt-5.2", Capability: CapabilityText})
+	if err != nil {
+		t.Fatalf("ResolveModelRoute() error = %v", err)
+	}
+	resp, err := svc.CallResponsesWithRouteUsage(context.Background(), 1, route, ResponsesRequest{
 		Text: TextRequest{
 			Messages: []Message{{Role: "user", Content: "hello"}},
 		},
 	}, UsageContext{})
 	if err != nil {
-		t.Fatalf("CallResponsesWithUsage() error = %v", err)
+		t.Fatalf("CallResponsesWithRouteUsage() error = %v", err)
 	}
 	if resp.Content != "chat fallback ok" {
 		t.Fatalf("content = %q, want chat fallback ok", resp.Content)
@@ -176,87 +133,6 @@ func TestCallResponsesWithUsageFallsBackToChatWhenProviderResponsesFails(t *test
 	if calls["responses"] != 1 || calls["chat"] != 1 {
 		t.Fatalf("calls = %#v, want one responses attempt and one chat fallback", calls)
 	}
-}
-
-func TestCallTextStreamWithUsageFailsOverBeforeStreamStarts(t *testing.T) {
-	resetFailoverTestState()
-	db := testutil.OpenSQLite(t, "ai-stream-failover.db",
-		&persistencemodel.AICredential{},
-		&persistencemodel.AIModelConfig{},
-		&persistencemodel.UsageReservation{},
-		&persistencemodel.UsageLog{},
-	)
-	createTextProviderVariant(t, db, 1, "Busy provider")
-	createTextProviderVariant(t, db, 2, "Healthy provider")
-
-	calls := map[string]int{}
-	registry := NewRegistry(db, nil)
-	registry.providerFactory = func(cred persistencemodel.AICredential, _ *ModelDef) (Provider, error) {
-		return failoverTextProvider{
-			name:  cred.DisplayName,
-			calls: calls,
-		}, nil
-	}
-	svc := NewAIService(db, registry)
-	stream, err := svc.CallTextStreamWithUsage(context.Background(), 1, 1, TextRequest{
-		Messages: []Message{{Role: "user", Content: "hello"}},
-	}, UsageContext{})
-	if err != nil {
-		t.Fatalf("CallTextStreamWithUsage() error = %v", err)
-	}
-	var content string
-	for event := range stream {
-		content += event.ContentDelta
-	}
-	if content != "ok" {
-		t.Fatalf("stream content = %q, want ok", content)
-	}
-	if calls["Busy provider"] != 1 || calls["Healthy provider"] != 1 {
-		t.Fatalf("provider calls = busy:%d healthy:%d, want 1/1", calls["Busy provider"], calls["Healthy provider"])
-	}
-}
-
-func TestCallImageWithUsageFailsOverToNextProviderVariant(t *testing.T) {
-	priorityRoundRobinCounters.Delete("service.runtime_model:image:gpt-image-1:attempts:10")
-	runtimeProviderHealth.Delete(uint(1))
-	runtimeProviderHealth.Delete(uint(2))
-	db := testutil.OpenSQLite(t, "ai-image-failover.db",
-		&persistencemodel.AICredential{},
-		&persistencemodel.AIModelConfig{},
-		&persistencemodel.UsageReservation{},
-		&persistencemodel.UsageLog{},
-	)
-	createProviderVariant(t, db, 1, "Busy provider", "gpt-image-1", 10, CapabilityImage)
-	createProviderVariant(t, db, 2, "Healthy provider", "gpt-image-1", 10, CapabilityImage)
-
-	calls := map[string]int{}
-	registry := NewRegistry(db, nil)
-	registry.providerFactory = func(cred persistencemodel.AICredential, _ *ModelDef) (Provider, error) {
-		return failoverImageProvider{
-			name:  cred.DisplayName,
-			calls: calls,
-		}, nil
-	}
-	svc := NewAIService(db, registry)
-	resp, err := svc.CallImageWithUsage(context.Background(), 1, 1, ImageRequest{Prompt: "draw"}, UsageContext{})
-	if err != nil {
-		t.Fatalf("CallImageWithUsage() error = %v", err)
-	}
-	if len(resp.URLs) != 1 || resp.URLs[0] != "mem://image.png" {
-		t.Fatalf("image URLs = %#v, want mem://image.png", resp.URLs)
-	}
-	if calls["Busy provider"] != 1 || calls["Healthy provider"] != 1 {
-		t.Fatalf("provider calls = busy:%d healthy:%d, want 1/1", calls["Busy provider"], calls["Healthy provider"])
-	}
-}
-
-func findProviderHealth(items []RuntimeProviderHealth, modelConfigID uint) *RuntimeProviderHealth {
-	for i := range items {
-		if items[i].ModelConfigID == modelConfigID {
-			return &items[i]
-		}
-	}
-	return nil
 }
 
 func resetFailoverTestState() {
@@ -280,61 +156,34 @@ func createProviderVariant(t *testing.T, db *gorm.DB, id uint, providerName stri
 	if err := db.Create(&cred).Error; err != nil {
 		t.Fatalf("create credential: %v", err)
 	}
-	cfg := persistencemodel.AIModelConfig{
-		Model:              gorm.Model{ID: id},
-		CredentialID:       cred.ID,
-		ModelDefID:         modelDefID,
-		IsEnabled:          true,
-		Priority:           priority,
-		CustomDisplayName:  modelDefID,
-		CustomCapabilities: strings.Join(capabilities, ","),
+	if db.Migrator().HasTable(&persistencemodel.AIModelCatalogEntry{}) && db.Migrator().HasTable(&persistencemodel.AIModelRouteBinding{}) {
+		entry := persistencemodel.AIModelCatalogEntry{
+			Model:           gorm.Model{ID: id},
+			PublicModelID:   modelDefID,
+			ProviderModelID: modelDefID,
+			DisplayName:     modelDefID,
+			IsEnabled:       true,
+			Capabilities:    strings.Join(capabilities, ","),
+			PricingMode:     string(PricingPerToken),
+		}
+		if slices.Contains(capabilities, CapabilityImage) || slices.Contains(capabilities, CapabilityImageEdit) {
+			entry.PricingMode = string(PricingPerImage)
+		}
+		if err := db.Create(&entry).Error; err != nil {
+			t.Fatalf("create catalog entry: %v", err)
+		}
+		route := persistencemodel.AIModelRouteBinding{
+			CatalogEntryID: entry.ID,
+			SourceType:     persistencemodel.ModelRouteSourceLocalProvider,
+			CredentialID:   &cred.ID,
+			IsEnabled:      true,
+			Priority:       priority,
+			CapacityWeight: 1,
+		}
+		if err := db.Create(&route).Error; err != nil {
+			t.Fatalf("create route binding: %v", err)
+		}
 	}
-	if err := db.Create(&cfg).Error; err != nil {
-		t.Fatalf("create model config: %v", err)
-	}
-}
-
-type failoverTextProvider struct {
-	name  string
-	calls map[string]int
-}
-
-func (p failoverTextProvider) Ping(context.Context) error { return nil }
-
-func (p failoverTextProvider) TextGenerate(_ context.Context, req TextRequest) (TextResponse, error) {
-	p.calls[p.name]++
-	if req.Model != "gpt-5.2" {
-		return TextResponse{}, fmt.Errorf("model = %q, want gpt-5.2", req.Model)
-	}
-	if p.name == "Busy provider" {
-		return TextResponse{}, fmt.Errorf("provider busy")
-	}
-	return TextResponse{
-		Content: "ok",
-		Usage:   TokenUsage{InputTokens: 3, OutputTokens: 2},
-	}, nil
-}
-
-func (p failoverTextProvider) TextStream(_ context.Context, req TextRequest) (<-chan TextStreamEvent, error) {
-	p.calls[p.name]++
-	if req.Model != "gpt-5.2" {
-		return nil, fmt.Errorf("model = %q, want gpt-5.2", req.Model)
-	}
-	if p.name == "Busy provider" {
-		return nil, fmt.Errorf("provider busy")
-	}
-	ch := make(chan TextStreamEvent, 1)
-	ch <- TextStreamEvent{ContentDelta: "ok", Usage: TokenUsage{InputTokens: 3, OutputTokens: 2}}
-	close(ch)
-	return ch, nil
-}
-
-func (p failoverTextProvider) ImageGenerate(context.Context, ImageRequest) (ImageResponse, error) {
-	return ImageResponse{}, fmt.Errorf("not implemented")
-}
-
-func (p failoverTextProvider) VideoGenerate(context.Context, VideoRequest) (VideoResponse, error) {
-	return VideoResponse{}, fmt.Errorf("not implemented")
 }
 
 type responsesFallbackProvider struct {
@@ -365,31 +214,5 @@ func (p responsesFallbackProvider) ImageGenerate(context.Context, ImageRequest) 
 }
 
 func (p responsesFallbackProvider) VideoGenerate(context.Context, VideoRequest) (VideoResponse, error) {
-	return VideoResponse{}, fmt.Errorf("not implemented")
-}
-
-type failoverImageProvider struct {
-	name  string
-	calls map[string]int
-}
-
-func (p failoverImageProvider) Ping(context.Context) error { return nil }
-
-func (p failoverImageProvider) TextGenerate(context.Context, TextRequest) (TextResponse, error) {
-	return TextResponse{}, fmt.Errorf("not implemented")
-}
-
-func (p failoverImageProvider) ImageGenerate(_ context.Context, req ImageRequest) (ImageResponse, error) {
-	p.calls[p.name]++
-	if req.Model != "gpt-image-1" {
-		return ImageResponse{}, fmt.Errorf("model = %q, want gpt-image-1", req.Model)
-	}
-	if p.name == "Busy provider" {
-		return ImageResponse{}, fmt.Errorf("provider busy")
-	}
-	return ImageResponse{URLs: []string{"mem://image.png"}}, nil
-}
-
-func (p failoverImageProvider) VideoGenerate(context.Context, VideoRequest) (VideoResponse, error) {
 	return VideoResponse{}, fmt.Errorf("not implemented")
 }

@@ -23,10 +23,12 @@ type OrgSummary struct {
 }
 
 type ModelSummary struct {
-	Credentials        int64 `json:"credentials"`
-	EnabledCredentials int64 `json:"enabled_credentials"`
-	Configs            int64 `json:"configs"`
-	EnabledConfigs     int64 `json:"enabled_configs"`
+	Credentials           int64 `json:"credentials"`
+	EnabledCredentials    int64 `json:"enabled_credentials"`
+	CatalogEntries        int64 `json:"catalog_entries"`
+	EnabledCatalogEntries int64 `json:"enabled_catalog_entries"`
+	RouteBindings         int64 `json:"route_bindings"`
+	EnabledRouteBindings  int64 `json:"enabled_route_bindings"`
 }
 
 type JobSummary struct {

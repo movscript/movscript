@@ -85,6 +85,7 @@ import type {
   ElectronShotCutResult,
   ElectronMediaPipelineTaskLogs,
   ElectronMediaPipelineTaskEvent,
+  ElectronMediaEditingProjectEvent,
   ElectronMediaPipelineCapabilities,
   ElectronMediaEditingProjectGetResult,
   ElectronMediaEditingProjectSaveResult,
@@ -97,6 +98,10 @@ import type {
   ElectronMediaPipelineEditingProject,
   ElectronMediaPipelineTaskRequest,
   ElectronMediaPipelineTaskState,
+  ElectronDockShortcutSnapshot,
+  ElectronOpenCanvasWindowInput,
+  ElectronOpenEditingProjectWindowInput,
+  ElectronUpdateAppWindowRouteContextInput,
   ElectronTimelineVideoInput,
   ElectronTimelineVideoResult,
   ElectronVideoClipInput,
@@ -113,6 +118,7 @@ export type ElectronAPI = {
   platform?: NodeJS.Platform
   openFile?: () => Promise<string | null>
   saveFile?: (defaultPath?: string) => Promise<string | null>
+  revealFileInFolder?: (input: { path: string }) => Promise<{ ok: true }>
   windowControl?: (action: ElectronWindowControlAction) => Promise<ElectronWindowState | undefined>
   getWindowState?: () => Promise<ElectronWindowState>
   onWindowState?: (handler: (state: ElectronWindowState) => void) => () => void
@@ -120,6 +126,11 @@ export type ElectronAPI = {
   openHomeWindow?: () => Promise<ElectronAppWindowContext>
   openAgentWindow?: () => Promise<ElectronAppWindowContext>
   openProjectWindow?: (input: ElectronOpenProjectWindowInput) => Promise<ElectronAppWindowContext>
+  openEditingWindow?: () => Promise<ElectronAppWindowContext>
+  openEditingProjectWindow?: (input: ElectronOpenEditingProjectWindowInput) => Promise<ElectronAppWindowContext>
+  openCanvasWindow?: (input?: ElectronOpenCanvasWindowInput) => Promise<ElectronAppWindowContext>
+  updateAppWindowRouteContext?: (input: ElectronUpdateAppWindowRouteContextInput) => Promise<ElectronAppWindowContext>
+  updateDockShortcutMenu?: (snapshot: ElectronDockShortcutSnapshot) => Promise<void>
   updateMCPContext?: (snapshot: MCPContextUpdate) => Promise<void>
   getMCPStatus?: () => Promise<ElectronMCPServerStatus>
   setAppSettings?: (settings: AppSettings) => Promise<void>
@@ -216,7 +227,12 @@ export type ElectronAPI = {
   renderMediaPipelineTimelineVideo?: (input: ElectronTimelineVideoInput) => Promise<ElectronTimelineVideoResult>
   getMediaPipelineFFmpegStatus?: () => Promise<ElectronVideoClipStatus>
   analyzeMediaPipelineShotCuts?: (input: ElectronShotCutInput) => Promise<ElectronShotCutResult>
-  saveMediaEditingProject?: (input: { editingProject?: ElectronMediaPipelineEditingProject; editing_project?: ElectronMediaPipelineEditingProject }) => Promise<ElectronMediaEditingProjectSaveResult>
+  saveMediaEditingProject?: (input: {
+    editingProject?: ElectronMediaPipelineEditingProject
+    editing_project?: ElectronMediaPipelineEditingProject
+    expectedRevision?: number
+    expected_revision?: number
+  }) => Promise<ElectronMediaEditingProjectSaveResult>
   getMediaEditingProject?: (input: { projectId?: string; project_id?: string; editingProjectId?: string; editing_project_id?: string }) => Promise<ElectronMediaEditingProjectGetResult>
   importMediaExportResource?: (input: ElectronMediaExportImportInput) => Promise<ElectronMediaExportImportResult>
   saveMediaExportLocal?: (input: ElectronMediaExportSaveLocalInput) => Promise<ElectronMediaExportSaveLocalResult>
@@ -227,5 +243,6 @@ export type ElectronAPI = {
   cancelMediaPipelineTask?: (input: { taskId?: string; task_id?: string; projectId?: string; project_id?: string }) => Promise<ElectronMediaPipelineTaskState>
   getMediaPipelineTaskLogs?: (input: { taskId?: string; task_id?: string; projectId?: string; project_id?: string }) => Promise<ElectronMediaPipelineTaskLogs>
   onMediaPipelineTaskEvent?: (handler: (event: ElectronMediaPipelineTaskEvent) => void) => () => void
+  onMediaEditingProjectEvent?: (handler: (event: ElectronMediaEditingProjectEvent) => void) => () => void
   onMCPOpenRoute?: (handler: (route: string) => void) => () => void
 }

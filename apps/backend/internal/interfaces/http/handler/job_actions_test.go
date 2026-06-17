@@ -25,7 +25,7 @@ func TestAdminJobActionsWriteAuditLogs(t *testing.T) {
 		UserID:                7,
 		OrgID:                 &orgID,
 		ProjectID:             &projectID,
-		ModelConfigID:         11,
+		RuntimeModelID:        11,
 		AIModelCatalogEntryID: &catalogEntryID,
 		JobType:               domainjob.CapabilityImage,
 		Status:                domainjob.StatusFailed,
@@ -36,14 +36,14 @@ func TestAdminJobActionsWriteAuditLogs(t *testing.T) {
 		RequestContext:        `{"model_id":"image-fast","route":{"model_id":"image-fast"}}`,
 	})
 	deleteJob := seedJob(t, db, persistencemodel.Job{
-		UserID:        8,
-		OrgID:         &orgID,
-		ProjectID:     &projectID,
-		ModelConfigID: 12,
-		JobType:       domainjob.CapabilityImage,
-		Status:        domainjob.StatusSucceeded,
-		MaxAttempts:   3,
-		Prompt:        "Generate another poster",
+		UserID:         8,
+		OrgID:          &orgID,
+		ProjectID:      &projectID,
+		RuntimeModelID: 12,
+		JobType:        domainjob.CapabilityImage,
+		Status:         domainjob.StatusSucceeded,
+		MaxAttempts:    3,
+		Prompt:         "Generate another poster",
 	})
 
 	retryReq := httptest.NewRequest(http.MethodPost, "/admin/debug/jobs/"+strconv.FormatUint(uint64(failedJob.ID), 10)+"/retry", nil)

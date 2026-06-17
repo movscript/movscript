@@ -94,6 +94,88 @@ func TestListLLMCallLogsWithoutLegacyModelConfigTable(t *testing.T) {
 	}
 }
 
+func TestListLLMCallLogsDoesNotFilterByLegacyModelConfig(t *testing.T) {
+	db := testutil.OpenSQLite(t, "debug-llm-no-legacy-model-config-filter.db",
+		&persistencemodel.User{},
+		&persistencemodel.AICredential{},
+		&persistencemodel.LLMCallLog{},
+	)
+	cred := persistencemodel.AICredential{AdapterType: "openai_compat", DisplayName: "legacy provider", IsEnabled: true}
+	if err := db.Create(&cred).Error; err != nil {
+		t.Fatalf("seed credential: %v", err)
+	}
+	row := persistencemodel.LLMCallLog{
+		UserID:         7,
+		RuntimeModelID: 99,
+		CredentialID:   cred.ID,
+		OperationType:  "text",
+		RequestModel:   "public-chat",
+		ResponseModel:  "public-chat",
+		Status:         "success",
+	}
+	if err := db.Create(&row).Error; err != nil {
+		t.Fatalf("seed llm call log: %v", err)
+	}
+
+	service := NewService(db)
+	page, err := service.ListLLMCallLogs(context.Background(), LLMCallLogFilter{ModelID: "gpt-legacy"})
+	if err != nil {
+		t.Fatalf("ListLLMCallLogs() legacy config filter error = %v", err)
+	}
+	if page.Total != 0 || len(page.Items) != 0 {
+		t.Fatalf("page = %#v, want no match from legacy ai_model_configs", page)
+	}
+
+	page, err = service.ListLLMCallLogs(context.Background(), LLMCallLogFilter{ModelID: "public-chat"})
+	if err != nil {
+		t.Fatalf("ListLLMCallLogs() request model filter error = %v", err)
+	}
+	if page.Total != 1 || len(page.Items) != 1 || page.Items[0].ModelID != "public-chat" {
+		t.Fatalf("page = %#v, want request/response model match", page)
+	}
+}
+
+func TestListLLMCallLogsFiltersByCatalogEntryWithoutLegacyModelConfigTable(t *testing.T) {
+	db := testutil.OpenSQLite(t, "debug-llm-catalog-entry-filter.db",
+		&persistencemodel.User{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.LLMCallLog{},
+	)
+	entry := persistencemodel.AIModelCatalogEntry{
+		PublicModelID:   "gpt-5.2",
+		ProviderModelID: "provider-gpt-5.2",
+		DisplayName:     "GPT 5.2",
+		Capabilities:    "text",
+		IsEnabled:       true,
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("seed catalog entry: %v", err)
+	}
+	row := persistencemodel.LLMCallLog{
+		UserID:                7,
+		AIModelCatalogEntryID: &entry.ID,
+		CredentialID:          3,
+		OperationType:         "text",
+		Status:                "success",
+		LatencyMs:             12,
+	}
+	if err := db.Create(&row).Error; err != nil {
+		t.Fatalf("seed llm call log: %v", err)
+	}
+
+	service := NewService(db)
+	page, err := service.ListLLMCallLogs(context.Background(), LLMCallLogFilter{ModelID: "gpt-5.2"})
+	if err != nil {
+		t.Fatalf("ListLLMCallLogs() with catalog entry filter error = %v", err)
+	}
+	if page.Total != 1 || len(page.Items) != 1 {
+		t.Fatalf("page = %#v, want one catalog-filtered call", page)
+	}
+	if page.Items[0].CatalogEntryID == nil || *page.Items[0].CatalogEntryID != entry.ID {
+		t.Fatalf("catalog entry id = %v, want %d", page.Items[0].CatalogEntryID, entry.ID)
+	}
+}
+
 func TestDoRawHTTPBlocksUnsafeURLs(t *testing.T) {
 	tests := []string{
 		"http://127.0.0.1:8765/health",
@@ -163,9 +245,9 @@ func TestListJobDetailsFiltersOperationalScope(t *testing.T) {
 	orgID := uint(2)
 	otherOrgID := uint(3)
 	jobs := []persistencemodel.Job{
-		{UserID: 7, OrgID: &orgID, ProjectID: &projectID, ModelConfigID: 4, JobType: "video_i2v", FeatureKey: "ref_video_gen", Status: domainjob.StatusFailed, RequestContext: `{"model_id":"video.fast"}`},
-		{UserID: 7, OrgID: &orgID, ProjectID: &projectID, ModelConfigID: 4, JobType: "image", FeatureKey: "ref_image_gen", Status: domainjob.StatusSucceeded, RequestContext: `{"model_id":"image.fast"}`},
-		{UserID: 8, OrgID: &otherOrgID, ProjectID: &otherProjectID, ModelConfigID: 5, JobType: "video_i2v", FeatureKey: "ref_video_gen", Status: domainjob.StatusFailed, RequestContext: `{"model_id":"video.slow"}`},
+		{UserID: 7, OrgID: &orgID, ProjectID: &projectID, RuntimeModelID: 4, JobType: "video_i2v", FeatureKey: "ref_video_gen", Status: domainjob.StatusFailed, RequestContext: `{"model_id":"video.fast"}`},
+		{UserID: 7, OrgID: &orgID, ProjectID: &projectID, RuntimeModelID: 4, JobType: "image", FeatureKey: "ref_image_gen", Status: domainjob.StatusSucceeded, RequestContext: `{"model_id":"image.fast"}`},
+		{UserID: 8, OrgID: &otherOrgID, ProjectID: &otherProjectID, RuntimeModelID: 5, JobType: "video_i2v", FeatureKey: "ref_video_gen", Status: domainjob.StatusFailed, RequestContext: `{"model_id":"video.slow"}`},
 	}
 	if err := db.Create(&jobs).Error; err != nil {
 		t.Fatalf("seed jobs: %v", err)
@@ -190,6 +272,101 @@ func TestListJobDetailsFiltersOperationalScope(t *testing.T) {
 	}
 	if items[0].UserID != 7 || items[0].JobType != "video_i2v" || items[0].Status != domainjob.StatusFailed {
 		t.Fatalf("unexpected filtered job: %+v", items[0].Job)
+	}
+}
+
+func TestListJobDetailsDoesNotFilterByLegacyModelConfig(t *testing.T) {
+	db := testutil.OpenSQLite(t, "debug-jobs-no-legacy-model-config-filter.db",
+		&persistencemodel.Job{},
+		&persistencemodel.RawResource{},
+		&persistencemodel.AICredential{},
+	)
+	cred := persistencemodel.AICredential{AdapterType: "openai_compat", DisplayName: "legacy provider", IsEnabled: true}
+	if err := db.Create(&cred).Error; err != nil {
+		t.Fatalf("seed credential: %v", err)
+	}
+	job := persistencemodel.Job{
+		UserID:         7,
+		RuntimeModelID: 99,
+		JobType:        "video",
+		Status:         domainjob.StatusSucceeded,
+		Prompt:         "draw",
+		RequestContext: `{"model_id":"public-video"}`,
+	}
+	if err := db.Create(&job).Error; err != nil {
+		t.Fatalf("seed job: %v", err)
+	}
+
+	service := NewService(db)
+	items, total, err := service.ListJobDetails(context.Background(), JobFilters{ModelID: "legacy-video"}, 20, 0)
+	if err != nil {
+		t.Fatalf("ListJobDetails legacy config filter error: %v", err)
+	}
+	if total != 0 || len(items) != 0 {
+		t.Fatalf("items = %+v total = %d, want no match from legacy ai_model_configs", items, total)
+	}
+
+	items, total, err = service.ListJobDetails(context.Background(), JobFilters{ModelID: "public-video"}, 20, 0)
+	if err != nil {
+		t.Fatalf("ListJobDetails request context filter error: %v", err)
+	}
+	if total != 1 || len(items) != 1 || items[0].ID != job.ID {
+		t.Fatalf("items = %+v total = %d, want request context match", items, total)
+	}
+}
+
+func TestListJobDetailsFiltersByCatalogEntryWithoutLegacyModelConfigFallback(t *testing.T) {
+	db := testutil.OpenSQLite(t, "debug-jobs-catalog-filter.db",
+		&persistencemodel.Job{},
+		&persistencemodel.RawResource{},
+		&persistencemodel.AIModelCatalogEntry{},
+	)
+	entry := persistencemodel.AIModelCatalogEntry{
+		PublicModelID:   "video-fast",
+		ProviderModelID: "provider-video-fast",
+		DisplayName:     "Video Fast",
+		Capabilities:    "video",
+		IsEnabled:       true,
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("seed catalog entry: %v", err)
+	}
+	jobs := []persistencemodel.Job{
+		{
+			UserID:                7,
+			RuntimeModelID:        999,
+			AIModelCatalogEntryID: &entry.ID,
+			JobType:               "video",
+			Status:                domainjob.StatusFailed,
+			Prompt:                "draw",
+			RequestContext:        `{}`,
+		},
+		{
+			UserID:         7,
+			RuntimeModelID: entry.ID,
+			JobType:        "video",
+			Status:         domainjob.StatusFailed,
+			Prompt:         "legacy fallback should not match",
+			RequestContext: `{}`,
+		},
+	}
+	if err := db.Create(&jobs).Error; err != nil {
+		t.Fatalf("seed jobs: %v", err)
+	}
+	if db.Migrator().HasTable("ai_model_configs") {
+		t.Fatal("test must run without legacy ai_model_configs table")
+	}
+
+	service := NewService(db)
+	items, total, err := service.ListJobDetails(context.Background(), JobFilters{ModelID: "video-fast"}, 20, 0)
+	if err != nil {
+		t.Fatalf("ListJobDetails returned error: %v", err)
+	}
+	if total != 1 || len(items) != 1 {
+		t.Fatalf("expected one catalog-filtered job, total=%d len=%d items=%+v", total, len(items), items)
+	}
+	if items[0].ID != jobs[0].ID {
+		t.Fatalf("matched job id = %d, want catalog-linked job %d", items[0].ID, jobs[0].ID)
 	}
 }
 

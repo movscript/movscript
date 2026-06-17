@@ -18,7 +18,8 @@ func TestSummaryAggregatesAdminOverview(t *testing.T) {
 		&persistencemodel.Organization{},
 		&persistencemodel.Project{},
 		&persistencemodel.AICredential{},
-		&persistencemodel.AIModelConfig{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
 		&persistencemodel.Job{},
 		&persistencemodel.UsageLog{},
 		&persistencemodel.RawResource{},
@@ -42,7 +43,7 @@ func TestSummaryAggregatesAdminOverview(t *testing.T) {
 	if summary.Projects.Total != 1 {
 		t.Fatalf("projects total = %d, want 1", summary.Projects.Total)
 	}
-	if summary.Models.Credentials != 2 || summary.Models.EnabledCredentials != 1 || summary.Models.EnabledConfigs != 1 {
+	if summary.Models.Credentials != 2 || summary.Models.EnabledCredentials != 1 || summary.Models.EnabledCatalogEntries != 1 || summary.Models.EnabledRouteBindings != 1 {
 		t.Fatalf("unexpected models: %+v", summary.Models)
 	}
 	if summary.Jobs.Total != 3 || summary.Jobs.Pending != 1 || summary.Jobs.Running != 1 || summary.Jobs.Failed != 1 {
@@ -95,22 +96,34 @@ func seedOverviewData(t *testing.T, db *gorm.DB, now time.Time) {
 	if err := db.Model(&credentials[1]).Update("is_enabled", false).Error; err != nil {
 		t.Fatalf("disable credential: %v", err)
 	}
-	configs := []persistencemodel.AIModelConfig{
-		{CredentialID: credentials[0].ID, ModelDefID: "gpt-4o", IsEnabled: true},
-		{CredentialID: credentials[1].ID, ModelDefID: "gemini", IsEnabled: false},
+	catalogEntries := []persistencemodel.AIModelCatalogEntry{
+		{PublicModelID: "gpt-4o", ProviderModelID: "gpt-4o", DisplayName: "GPT-4o", Capabilities: "text", IsEnabled: true},
+		{PublicModelID: "gemini", ProviderModelID: "gemini", DisplayName: "Gemini", Capabilities: "text", IsEnabled: false},
 	}
-	for i := range configs {
-		if err := db.Create(&configs[i]).Error; err != nil {
-			t.Fatalf("create model config: %v", err)
+	for i := range catalogEntries {
+		if err := db.Create(&catalogEntries[i]).Error; err != nil {
+			t.Fatalf("create catalog entry: %v", err)
 		}
 	}
-	if err := db.Model(&configs[1]).Update("is_enabled", false).Error; err != nil {
-		t.Fatalf("disable model config: %v", err)
+	if err := db.Model(&catalogEntries[1]).Update("is_enabled", false).Error; err != nil {
+		t.Fatalf("disable catalog entry: %v", err)
+	}
+	routeBindings := []persistencemodel.AIModelRouteBinding{
+		{CatalogEntryID: catalogEntries[0].ID, SourceType: persistencemodel.ModelRouteSourceLocalProvider, CredentialID: &credentials[0].ID, IsEnabled: true, CapacityWeight: 1},
+		{CatalogEntryID: catalogEntries[1].ID, SourceType: persistencemodel.ModelRouteSourceLocalProvider, CredentialID: &credentials[1].ID, IsEnabled: false, CapacityWeight: 1},
+	}
+	for i := range routeBindings {
+		if err := db.Create(&routeBindings[i]).Error; err != nil {
+			t.Fatalf("create route binding: %v", err)
+		}
+	}
+	if err := db.Model(&routeBindings[1]).Update("is_enabled", false).Error; err != nil {
+		t.Fatalf("disable route binding: %v", err)
 	}
 	jobs := []persistencemodel.Job{
-		{UserID: users[0].ID, ModelConfigID: configs[0].ID, JobType: "image", Status: "pending"},
-		{UserID: users[0].ID, ModelConfigID: configs[0].ID, JobType: "image", Status: "running"},
-		{UserID: users[0].ID, ModelConfigID: configs[0].ID, JobType: "image", Status: "failed"},
+		{UserID: users[0].ID, AIModelCatalogEntryID: &catalogEntries[0].ID, JobType: "image", Status: "pending"},
+		{UserID: users[0].ID, AIModelCatalogEntryID: &catalogEntries[0].ID, JobType: "image", Status: "running"},
+		{UserID: users[0].ID, AIModelCatalogEntryID: &catalogEntries[0].ID, JobType: "image", Status: "failed"},
 	}
 	for i := range jobs {
 		if err := db.Create(&jobs[i]).Error; err != nil {
@@ -118,9 +131,9 @@ func seedOverviewData(t *testing.T, db *gorm.DB, now time.Time) {
 		}
 	}
 	logs := []persistencemodel.UsageLog{
-		{UserID: users[0].ID, AIModelConfigID: configs[0].ID, OperationType: "image", Cost: 1},
-		{UserID: users[0].ID, AIModelConfigID: configs[0].ID, OperationType: "video", Cost: 2},
-		{UserID: users[0].ID, AIModelConfigID: configs[0].ID, OperationType: "text", Cost: 7},
+		{UserID: users[0].ID, AIModelCatalogEntryID: &catalogEntries[0].ID, RouteBindingID: &routeBindings[0].ID, OperationType: "image", Cost: 1},
+		{UserID: users[0].ID, AIModelCatalogEntryID: &catalogEntries[0].ID, RouteBindingID: &routeBindings[0].ID, OperationType: "video", Cost: 2},
+		{UserID: users[0].ID, AIModelCatalogEntryID: &catalogEntries[0].ID, RouteBindingID: &routeBindings[0].ID, OperationType: "text", Cost: 7},
 	}
 	for i := range logs {
 		if err := db.Create(&logs[i]).Error; err != nil {

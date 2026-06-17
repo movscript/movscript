@@ -3,14 +3,10 @@ package ai
 import (
 	"context"
 	"fmt"
+	"strings"
+
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
-
-// CallImage calls an image generation model by legacy AIModelConfig DB ID.
-// It accepts models with either "image" or "image_edit" capability.
-func (s *AIService) CallImage(ctx context.Context, userID, modelConfigID uint, req ImageRequest) (ImageResponse, error) {
-	return s.CallImageWithUsage(ctx, userID, modelConfigID, req, UsageContext{})
-}
 
 func (s *AIService) CallImageWithRouteUsage(ctx context.Context, userID uint, route ModelRoute, req ImageRequest, usage UsageContext) (ImageResponse, error) {
 	usage = usageWithRoute(usage, route)
@@ -23,61 +19,7 @@ func (s *AIService) CallImageWithRouteUsage(ctx context.Context, userID uint, ro
 			return s.callCatalogImageRuntime(ctx, userID, route, runtime, capability, req, usage)
 		}
 	}
-	return s.CallImageWithUsage(ctx, userID, route.ModelConfigID, req, usage)
-}
-
-func (s *AIService) CallImageWithUsage(ctx context.Context, userID, modelConfigID uint, req ImageRequest, usage UsageContext) (ImageResponse, error) {
-	ctx = withProviderSubject(ctx, userID, usage.OrgID)
-	candidates, capability, err := s.runtimeImageModelAttemptCandidates(modelConfigID)
-	if err != nil {
-		return ImageResponse{}, err
-	}
-	attempts := runtimeModelAttemptOrder(runtimeModelRoundRobinKey(candidates[0].logicalID, capability), candidates)
-	var lastErr error
-	for _, attempt := range attempts {
-		cfg, provider, def, err := s.loadConfig(attempt.cfg.ID, capability)
-		if err != nil {
-			lastErr = err
-			continue
-		}
-		attemptReq := req
-		if capability == CapabilityImageEdit {
-			attemptReq.EditOnly = true
-		}
-		attemptReq.Model = resolveModelID(cfg, def)
-		if def.ImageEditField != "" {
-			attemptReq.ImageFieldName = def.ImageEditField
-		}
-		n := attemptReq.N
-		if n <= 0 {
-			n = 1
-		}
-		if usage.ReservationID == nil {
-			estimate := estimateUsageCost(cfg, def, "image", 0, 0, 0, n)
-			reservation, err := s.ReserveUsage(ctx, userID, attempt.cfg.ID, estimate, usage)
-			if err != nil {
-				return ImageResponse{}, err
-			}
-			usage.ReservationID = &reservation.ID
-		}
-		finishAttempt := beginRuntimeProviderAttempt(attempt.cfg.ID)
-		resp, err := provider.ImageGenerate(ctx, attemptReq)
-		finishAttempt(err)
-		if err != nil {
-			lastErr = err
-			continue
-		}
-		estimate := estimateUsageCost(cfg, def, "image", 0, 0, 0, n)
-		if err := s.settleUsage(ctx, userID, attempt.cfg.ID, estimate, usage); err != nil {
-			return ImageResponse{}, err
-		}
-		return resp, nil
-	}
-	if lastErr != nil {
-		_ = s.ReleaseReservation(ctx, derefUint(usage.ReservationID), lastErr.Error())
-		return ImageResponse{}, lastErr
-	}
-	return ImageResponse{}, fmt.Errorf("no available provider variant for model config id=%d and capability %s", modelConfigID, capability)
+	return ImageResponse{}, fmt.Errorf("catalog route is required for image generation")
 }
 
 func (s *AIService) callCatalogImageRuntime(ctx context.Context, userID uint, route ModelRoute, runtime catalogRouteRuntime, capability string, req ImageRequest, usage UsageContext) (ImageResponse, error) {
@@ -95,84 +37,25 @@ func (s *AIService) callCatalogImageRuntime(ctx context.Context, userID uint, ro
 		n = 1
 	}
 	if usage.ReservationID == nil {
-		estimate := estimateUsageCost(runtime.config, runtime.def, "image", 0, 0, 0, n)
-		reservation, err := s.ReserveUsage(ctx, userID, route.ModelConfigID, estimate, usage)
+		estimate := estimateUsageCostWithPricing(runtime.model.pricing(), runtime.def, "image", 0, 0, 0, n)
+		reservation, err := s.ReserveUsage(ctx, userID, route.RuntimeModelID, estimate, usage)
 		if err != nil {
 			return ImageResponse{}, err
 		}
 		usage.ReservationID = &reservation.ID
 	}
-	finishAttempt := beginRuntimeProviderAttempt(route.ModelConfigID)
+	finishAttempt := beginRuntimeProviderAttempt(route.RuntimeModelID)
 	resp, err := runtime.provider.ImageGenerate(ctx, attemptReq)
 	finishAttempt(err)
 	if err != nil {
 		_ = s.ReleaseReservation(ctx, derefUint(usage.ReservationID), err.Error())
 		return ImageResponse{}, err
 	}
-	estimate := estimateUsageCost(runtime.config, runtime.def, "image", 0, 0, 0, n)
-	if err := s.settleUsage(ctx, userID, route.ModelConfigID, estimate, usage); err != nil {
+	estimate := estimateUsageCostWithPricing(runtime.model.pricing(), runtime.def, "image", 0, 0, 0, n)
+	if err := s.settleUsage(ctx, userID, route.RuntimeModelID, estimate, usage); err != nil {
 		return ImageResponse{}, err
 	}
 	return resp, nil
-}
-
-// CallVideo calls a video generation model by legacy AIModelConfig DB ID.
-// It accepts models with any video capability: "video", "video_i2v", or "video_v2v".
-func (s *AIService) CallVideo(ctx context.Context, userID, modelConfigID uint, req VideoRequest) (VideoResponse, error) {
-	return s.CallVideoWithUsage(ctx, userID, modelConfigID, req, UsageContext{})
-}
-
-// GetVideoModelDef resolves the active video-capable model definition without
-// validating request media counts.
-func (s *AIService) GetVideoModelDef(modelConfigID uint) (*ModelDef, error) {
-	_, _, def, err := s.loadVideoConfig(modelConfigID)
-	if err != nil {
-		return nil, err
-	}
-	return def, nil
-}
-
-func (s *AIService) CallVideoWithUsage(ctx context.Context, userID, modelConfigID uint, req VideoRequest, usage UsageContext) (VideoResponse, error) {
-	ctx = withProviderSubject(ctx, userID, usage.OrgID)
-	candidates, capability, err := s.runtimeVideoModelAttemptCandidates(modelConfigID)
-	if err != nil {
-		return VideoResponse{}, err
-	}
-	attempts := runtimeModelAttemptOrder(runtimeModelRoundRobinKey(candidates[0].logicalID, capability), candidates)
-	var lastErr error
-	for _, attempt := range attempts {
-		cfg, provider, def, err := s.loadConfig(attempt.cfg.ID, capability)
-		if err != nil {
-			lastErr = err
-			continue
-		}
-		attemptReq := req
-		prepareVideoRequest(&attemptReq, cfg, def)
-		if usage.ReservationID == nil {
-			estimate := estimateUsageCost(cfg, def, "video", 0, 0, positiveDuration(attemptReq.Duration, def), 1)
-			reservation, err := s.ReserveUsage(ctx, userID, attempt.cfg.ID, estimate, usage)
-			if err != nil {
-				return VideoResponse{}, err
-			}
-			usage.ReservationID = &reservation.ID
-		}
-		finishAttempt := beginRuntimeProviderAttempt(attempt.cfg.ID)
-		resp, err := provider.VideoGenerate(ctx, attemptReq)
-		finishAttempt(err)
-		if err != nil {
-			lastErr = err
-			continue
-		}
-		if err := s.settleVideoUsage(ctx, userID, attempt.cfg.ID, cfg, def, attemptReq.Duration, resp.DurationSec, usage); err != nil {
-			return VideoResponse{}, err
-		}
-		return resp, nil
-	}
-	if lastErr != nil {
-		_ = s.ReleaseReservation(ctx, derefUint(usage.ReservationID), lastErr.Error())
-		return VideoResponse{}, lastErr
-	}
-	return VideoResponse{}, fmt.Errorf("no available provider variant for model config id=%d and capability %s", modelConfigID, capability)
 }
 
 func (s *AIService) CallVideoWithRouteUsage(ctx context.Context, userID uint, route ModelRoute, req VideoRequest, usage UsageContext) (VideoResponse, error) {
@@ -186,43 +69,32 @@ func (s *AIService) CallVideoWithRouteUsage(ctx context.Context, userID uint, ro
 			return s.callCatalogVideoRuntime(ctx, userID, route, runtime, req, usage)
 		}
 	}
-	return s.CallVideoWithUsage(ctx, userID, route.ModelConfigID, req, usage)
+	return VideoResponse{}, fmt.Errorf("catalog route is required for video generation")
 }
 
 func (s *AIService) callCatalogVideoRuntime(ctx context.Context, userID uint, route ModelRoute, runtime catalogRouteRuntime, req VideoRequest, usage UsageContext) (VideoResponse, error) {
 	ctx = withProviderSubject(ctx, userID, usage.OrgID)
 	attemptReq := req
-	prepareVideoRequest(&attemptReq, runtime.config, runtime.def)
+	prepareVideoRequestForModel(&attemptReq, route.ProviderModelID, runtime.def)
 	if usage.ReservationID == nil {
-		estimate := estimateUsageCost(runtime.config, runtime.def, "video", 0, 0, positiveDuration(attemptReq.Duration, runtime.def), 1)
-		reservation, err := s.ReserveUsage(ctx, userID, route.ModelConfigID, estimate, usage)
+		estimate := estimateUsageCostWithPricing(runtime.model.pricing(), runtime.def, "video", 0, 0, positiveDuration(attemptReq.Duration, runtime.def), 1)
+		reservation, err := s.ReserveUsage(ctx, userID, route.RuntimeModelID, estimate, usage)
 		if err != nil {
 			return VideoResponse{}, err
 		}
 		usage.ReservationID = &reservation.ID
 	}
-	finishAttempt := beginRuntimeProviderAttempt(route.ModelConfigID)
+	finishAttempt := beginRuntimeProviderAttempt(route.RuntimeModelID)
 	resp, err := runtime.provider.VideoGenerate(ctx, attemptReq)
 	finishAttempt(err)
 	if err != nil {
 		_ = s.ReleaseReservation(ctx, derefUint(usage.ReservationID), err.Error())
 		return VideoResponse{}, err
 	}
-	if err := s.settleVideoUsage(ctx, userID, route.ModelConfigID, runtime.config, runtime.def, attemptReq.Duration, resp.DurationSec, usage); err != nil {
+	if err := s.settleVideoUsageWithPricing(ctx, userID, route.RuntimeModelID, runtime.model.pricing(), runtime.def, attemptReq.Duration, resp.DurationSec, usage); err != nil {
 		return VideoResponse{}, err
 	}
 	return resp, nil
-}
-
-// SupportsVideoTasks reports whether this model config can submit and poll
-// provider-side async video tasks separately.
-func (s *AIService) SupportsVideoTasks(modelConfigID uint) bool {
-	_, provider, _, err := s.loadVideoConfig(modelConfigID)
-	if err != nil {
-		return false
-	}
-	_, ok := provider.(VideoTaskProvider)
-	return ok
 }
 
 func (s *AIService) SupportsVideoTasksRoute(ctx context.Context, userID uint, route ModelRoute) bool {
@@ -236,18 +108,7 @@ func (s *AIService) SupportsVideoTasksRoute(ctx context.Context, userID uint, ro
 			return ok
 		}
 	}
-	return s.SupportsVideoTasks(route.ModelConfigID)
-}
-
-// SupportsVideoTaskCancellation reports whether this model config can cancel
-// provider-side async video tasks.
-func (s *AIService) SupportsVideoTaskCancellation(modelConfigID uint) bool {
-	_, provider, _, err := s.loadVideoConfig(modelConfigID)
-	if err != nil {
-		return false
-	}
-	_, ok := provider.(VideoTaskCancelProvider)
-	return ok
+	return false
 }
 
 func (s *AIService) SupportsVideoTaskCancellationRoute(ctx context.Context, userID uint, route ModelRoute) bool {
@@ -261,62 +122,7 @@ func (s *AIService) SupportsVideoTaskCancellationRoute(ctx context.Context, user
 			return ok
 		}
 	}
-	return s.SupportsVideoTaskCancellation(route.ModelConfigID)
-}
-
-// CallVideoStart submits an async provider video task exactly once.
-func (s *AIService) CallVideoStart(ctx context.Context, userID, modelConfigID uint, req VideoRequest) (VideoResponse, error) {
-	return s.CallVideoStartWithUsage(ctx, userID, modelConfigID, req, UsageContext{})
-}
-
-func (s *AIService) CallVideoStartWithUsage(ctx context.Context, userID, modelConfigID uint, req VideoRequest, usage UsageContext) (VideoResponse, error) {
-	ctx = withProviderSubject(ctx, userID, usage.OrgID)
-	candidates, capability, err := s.runtimeVideoModelAttemptCandidates(modelConfigID)
-	if err != nil {
-		return VideoResponse{}, err
-	}
-	attempts := runtimeModelAttemptOrder(runtimeModelRoundRobinKey(candidates[0].logicalID, capability), candidates)
-	var lastErr error
-	for _, attempt := range attempts {
-		cfg, provider, def, err := s.loadConfig(attempt.cfg.ID, capability)
-		if err != nil {
-			lastErr = err
-			continue
-		}
-		taskProvider, ok := provider.(VideoTaskProvider)
-		if !ok {
-			lastErr = fmt.Errorf("model config id=%d does not support async video task polling", attempt.cfg.ID)
-			continue
-		}
-		attemptReq := req
-		prepareVideoRequest(&attemptReq, cfg, def)
-		if usage.ReservationID == nil {
-			estimate := estimateUsageCost(cfg, def, "video", 0, 0, positiveDuration(attemptReq.Duration, def), 1)
-			reservation, err := s.ReserveUsage(ctx, userID, attempt.cfg.ID, estimate, usage)
-			if err != nil {
-				return VideoResponse{}, err
-			}
-			usage.ReservationID = &reservation.ID
-		}
-		finishAttempt := beginRuntimeProviderAttempt(attempt.cfg.ID)
-		resp, err := taskProvider.VideoStart(ctx, attemptReq)
-		finishAttempt(err)
-		if err != nil {
-			lastErr = err
-			continue
-		}
-		if resp.URL != "" || len(resp.ContentBytes) > 0 {
-			if err := s.settleVideoUsage(ctx, userID, attempt.cfg.ID, cfg, def, attemptReq.Duration, resp.DurationSec, usage); err != nil {
-				return VideoResponse{}, err
-			}
-		}
-		return resp, nil
-	}
-	if lastErr != nil {
-		_ = s.ReleaseReservation(ctx, derefUint(usage.ReservationID), lastErr.Error())
-		return VideoResponse{}, lastErr
-	}
-	return VideoResponse{}, fmt.Errorf("no available provider variant for model config id=%d and capability %s", modelConfigID, capability)
+	return false
 }
 
 func (s *AIService) CallVideoStartWithRouteUsage(ctx context.Context, userID uint, route ModelRoute, req VideoRequest, usage UsageContext) (VideoResponse, error) {
@@ -333,16 +139,16 @@ func (s *AIService) CallVideoStartWithRouteUsage(ctx context.Context, userID uin
 			}
 			ctx = withProviderSubject(ctx, userID, usage.OrgID)
 			attemptReq := req
-			prepareVideoRequest(&attemptReq, runtime.config, runtime.def)
+			prepareVideoRequestForModel(&attemptReq, route.ProviderModelID, runtime.def)
 			if usage.ReservationID == nil {
-				estimate := estimateUsageCost(runtime.config, runtime.def, "video", 0, 0, positiveDuration(attemptReq.Duration, runtime.def), 1)
-				reservation, err := s.ReserveUsage(ctx, userID, route.ModelConfigID, estimate, usage)
+				estimate := estimateUsageCostWithPricing(runtime.model.pricing(), runtime.def, "video", 0, 0, positiveDuration(attemptReq.Duration, runtime.def), 1)
+				reservation, err := s.ReserveUsage(ctx, userID, route.RuntimeModelID, estimate, usage)
 				if err != nil {
 					return VideoResponse{}, err
 				}
 				usage.ReservationID = &reservation.ID
 			}
-			finishAttempt := beginRuntimeProviderAttempt(route.ModelConfigID)
+			finishAttempt := beginRuntimeProviderAttempt(route.RuntimeModelID)
 			resp, err := taskProvider.VideoStart(ctx, attemptReq)
 			finishAttempt(err)
 			if err != nil {
@@ -350,80 +156,14 @@ func (s *AIService) CallVideoStartWithRouteUsage(ctx context.Context, userID uin
 				return VideoResponse{}, err
 			}
 			if resp.URL != "" || len(resp.ContentBytes) > 0 {
-				if err := s.settleVideoUsage(ctx, userID, route.ModelConfigID, runtime.config, runtime.def, attemptReq.Duration, resp.DurationSec, usage); err != nil {
+				if err := s.settleVideoUsageWithPricing(ctx, userID, route.RuntimeModelID, runtime.model.pricing(), runtime.def, attemptReq.Duration, resp.DurationSec, usage); err != nil {
 					return VideoResponse{}, err
 				}
 			}
 			return resp, nil
 		}
 	}
-	return s.CallVideoStartWithUsage(ctx, userID, route.ModelConfigID, req, usage)
-}
-
-func (s *AIService) runtimeImageModelAttemptCandidates(modelConfigID uint) ([]runtimeModelCandidate, string, error) {
-	candidates, err := s.runtimeModelCandidates(modelConfigID, CapabilityImage)
-	if err == nil && len(candidates) > 0 {
-		return candidates, CapabilityImage, nil
-	}
-	editCandidates, editErr := s.runtimeModelCandidates(modelConfigID, CapabilityImageEdit)
-	if editErr == nil && len(editCandidates) > 0 {
-		return editCandidates, CapabilityImageEdit, nil
-	}
-	if err != nil {
-		return nil, "", err
-	}
-	return nil, "", editErr
-}
-
-func (s *AIService) runtimeVideoModelAttemptCandidates(modelConfigID uint) ([]runtimeModelCandidate, string, error) {
-	videoCaps := []string{CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V}
-	var lastErr error
-	for _, capability := range videoCaps {
-		candidates, err := s.runtimeModelCandidates(modelConfigID, capability)
-		if err == nil && len(candidates) > 0 {
-			return candidates, capability, nil
-		}
-		if err != nil {
-			lastErr = err
-		}
-	}
-	if lastErr != nil {
-		return nil, "", lastErr
-	}
-	return nil, "", fmt.Errorf("no available provider variant for model config id=%d and video capability", modelConfigID)
-}
-
-// CallVideoPoll queries an existing async provider video task without creating a
-// new provider task. Usage is logged only when the poll returns a finished video.
-func (s *AIService) CallVideoPoll(ctx context.Context, userID, modelConfigID uint, taskID, taskKind string, requestedDuration int) (VideoResponse, error) {
-	return s.CallVideoPollWithUsage(ctx, userID, modelConfigID, taskID, taskKind, requestedDuration, UsageContext{})
-}
-
-func (s *AIService) CallVideoPollWithUsage(ctx context.Context, userID, modelConfigID uint, taskID, taskKind string, requestedDuration int, usage UsageContext) (VideoResponse, error) {
-	ctx = withProviderSubject(ctx, userID, usage.OrgID)
-	cfg, provider, def, err := s.loadVideoConfig(modelConfigID)
-	if err != nil {
-		return VideoResponse{}, err
-	}
-	taskProvider, ok := provider.(VideoTaskProvider)
-	if !ok {
-		return VideoResponse{}, fmt.Errorf("model config id=%d does not support async video task polling", modelConfigID)
-	}
-	req := VideoPollRequest{
-		Model:    resolveModelID(cfg, def),
-		TaskID:   taskID,
-		TaskKind: taskKind,
-	}
-	resp, err := taskProvider.VideoPoll(ctx, req)
-	if err != nil {
-		return resp, err
-	}
-	if resp.Status == VideoStatusSucceeded && (resp.URL != "" || len(resp.ContentBytes) > 0) {
-		if err := s.settleVideoUsage(ctx, userID, modelConfigID, cfg, def, requestedDuration, resp.DurationSec, usage); err != nil {
-			return resp, err
-		}
-	}
-	return resp, nil
+	return VideoResponse{}, fmt.Errorf("catalog route is required for video task start")
 }
 
 func (s *AIService) CallVideoPollWithRouteUsage(ctx context.Context, userID uint, route ModelRoute, taskID, taskKind string, requestedDuration int, usage UsageContext) (VideoResponse, error) {
@@ -448,33 +188,14 @@ func (s *AIService) CallVideoPollWithRouteUsage(ctx context.Context, userID uint
 				return resp, err
 			}
 			if resp.Status == VideoStatusSucceeded && (resp.URL != "" || len(resp.ContentBytes) > 0) {
-				if err := s.settleVideoUsage(ctx, userID, route.ModelConfigID, runtime.config, runtime.def, requestedDuration, resp.DurationSec, usage); err != nil {
+				if err := s.settleVideoUsageWithPricing(ctx, userID, route.RuntimeModelID, runtime.model.pricing(), runtime.def, requestedDuration, resp.DurationSec, usage); err != nil {
 					return resp, err
 				}
 			}
 			return resp, nil
 		}
 	}
-	return s.CallVideoPollWithUsage(ctx, userID, route.ModelConfigID, taskID, taskKind, requestedDuration, usage)
-}
-
-// CallVideoCancel requests provider-side cancellation for an async video task.
-func (s *AIService) CallVideoCancel(ctx context.Context, userID, modelConfigID uint, taskID, taskKind string) (VideoResponse, error) {
-	ctx = withProviderUserID(ctx, userID)
-	cfg, provider, def, err := s.loadVideoConfig(modelConfigID)
-	if err != nil {
-		return VideoResponse{}, err
-	}
-	cancelProvider, ok := provider.(VideoTaskCancelProvider)
-	if !ok {
-		return VideoResponse{}, fmt.Errorf("model config id=%d does not support async video task cancellation", modelConfigID)
-	}
-	req := VideoCancelRequest{
-		Model:    resolveModelID(cfg, def),
-		TaskID:   taskID,
-		TaskKind: taskKind,
-	}
-	return cancelProvider.VideoCancel(ctx, req)
+	return VideoResponse{}, fmt.Errorf("catalog route is required for video task polling")
 }
 
 func (s *AIService) CallVideoCancelRoute(ctx context.Context, userID uint, route ModelRoute, taskID, taskKind string) (VideoResponse, error) {
@@ -496,55 +217,31 @@ func (s *AIService) CallVideoCancelRoute(ctx context.Context, userID uint, route
 			})
 		}
 	}
-	return s.CallVideoCancel(ctx, userID, route.ModelConfigID, taskID, taskKind)
+	return VideoResponse{}, fmt.Errorf("catalog route is required for video task cancellation")
 }
 
-// GetFileUploader returns the provider-side Files API uploader configured for a persistencemodel.
-func (s *AIService) GetFileUploader(ctx context.Context, userID, modelConfigID uint) FileUploader {
-	var cfg persistencemodel.AIModelConfig
-	if err := s.db.First(&cfg, modelConfigID).Error; err != nil {
-		return nil
-	}
-	return s.registry.GetFileUploader(ctx, userID, cfg)
-}
-
-func (s *AIService) loadVideoConfig(modelConfigID uint) (persistencemodel.AIModelConfig, Provider, *ModelDef, error) {
-	videoCaps := []string{CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V}
-	var cfg persistencemodel.AIModelConfig
-	var provider Provider
-	var def *ModelDef
-	var lastErr error
-	for _, cap := range videoCaps {
-		var err error
-		cfg, provider, def, err = s.loadConfig(modelConfigID, cap)
-		if err == nil {
-			return cfg, provider, def, nil
+func (s *AIService) GetFileUploaderForRoute(ctx context.Context, userID uint, route ModelRoute) FileUploader {
+	if route.CatalogEntryID != 0 {
+		if strings.TrimSpace(route.SourceType) != persistencemodel.ModelRouteSourceLocalProvider || route.CredentialID == 0 {
+			return nil
 		}
-		lastErr = err
+		var cred persistencemodel.AICredential
+		if err := s.db.WithContext(ctx).Where("id = ? AND is_enabled = true", route.CredentialID).First(&cred).Error; err != nil {
+			return nil
+		}
+		return s.registry.GetFileUploaderForCredential(ctx, userID, cred)
 	}
-	return cfg, provider, def, lastErr
+	return nil
 }
 
-func prepareVideoRequest(req *VideoRequest, cfg persistencemodel.AIModelConfig, def *ModelDef) {
-	req.Model = resolveModelID(cfg, def)
+func prepareVideoRequestForModel(req *VideoRequest, modelID string, def *ModelDef) {
+	req.Model = modelID
 	if req.Duration == 0 && def.DefaultDurSec > 0 {
 		req.Duration = def.DefaultDurSec
 	}
 }
 
-func (s *AIService) logVideoUsage(userID, modelConfigID uint, cfg persistencemodel.AIModelConfig, def *ModelDef, requestedDuration, actualDuration int) {
-	durSec := actualDuration
-	if durSec <= 0 {
-		durSec = requestedDuration
-	}
-	if durSec <= 0 && def.DefaultDurSec > 0 {
-		durSec = def.DefaultDurSec
-	}
-	cost := calcCost(cfg, def, 0, 0, durSec, 1)
-	_ = s.logUsage(context.Background(), userID, modelConfigID, UsageEstimate{OperationType: "video", DurationSec: durSec, ImageCount: 1, Cost: cost}, UsageContext{}, nil)
-}
-
-func (s *AIService) settleVideoUsage(ctx context.Context, userID, modelConfigID uint, cfg persistencemodel.AIModelConfig, def *ModelDef, requestedDuration, actualDuration int, usage UsageContext) error {
+func (s *AIService) settleVideoUsageWithPricing(ctx context.Context, userID, runtimeModelID uint, pricing modelPricing, def *ModelDef, requestedDuration, actualDuration int, usage UsageContext) error {
 	durSec := actualDuration
 	if durSec <= 0 {
 		durSec = requestedDuration
@@ -555,6 +252,6 @@ func (s *AIService) settleVideoUsage(ctx context.Context, userID, modelConfigID 
 	if durSec <= 0 {
 		durSec = 1
 	}
-	estimate := estimateUsageCost(cfg, def, "video", 0, 0, durSec, 1)
-	return s.settleUsage(ctx, userID, modelConfigID, estimate, usage)
+	estimate := estimateUsageCostWithPricing(pricing, def, "video", 0, 0, durSec, 1)
+	return s.settleUsage(ctx, userID, runtimeModelID, estimate, usage)
 }

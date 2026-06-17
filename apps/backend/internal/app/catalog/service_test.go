@@ -12,7 +12,6 @@ func TestServiceListByCapabilityUsesGatewayModelCatalogContract(t *testing.T) {
 	fake := &fakeModelCatalog{
 		models: []providercontract.AIModelDescriptor{{
 			ModelID:           "gpt-5.2",
-			ModelConfigID:     9,
 			CatalogEntryID:    42,
 			CredentialID:      7,
 			ModelDefID:        "gpt-5.2",
@@ -82,6 +81,17 @@ func TestServiceListByCapabilityForRoutePassesRouteGroupAndSkipsCache(t *testing
 		if filter.RouteGroup != "priority" {
 			t.Fatalf("filter route group = %q, want priority", filter.RouteGroup)
 		}
+	}
+}
+
+func TestPublicModelFromDescriptorDoesNotExposeLegacyModelConfigID(t *testing.T) {
+	model := publicModelFromDescriptor(providercontract.AIModelDescriptor{
+		ModelID:     "gpt-5.2",
+		DisplayName: "GPT 5.2",
+	})
+
+	if model.ID != 0 || model.CatalogEntryID != 0 {
+		t.Fatalf("model = %#v, want no visible id without catalog entry", model)
 	}
 }
 

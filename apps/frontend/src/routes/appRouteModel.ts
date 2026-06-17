@@ -42,6 +42,10 @@ export function canvasEditorPath(canvasId: string | number, options?: { source?:
   return `${pathname}?${search.toString()}`
 }
 
+export function editingProjectPath(editingProjectId: string): string {
+  return `/editing/${encodeURIComponent(editingProjectId)}`
+}
+
 export function canvasRouteSourceFromSearch(search: string): CanvasRouteSource {
   const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search)
   const source = params.get(CANVAS_SOURCE_PARAM)

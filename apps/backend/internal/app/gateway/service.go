@@ -111,27 +111,31 @@ type OpenAIProxyInput struct {
 }
 
 type OpenAIProxyRoute struct {
-	ModelConfigID uint
-	ResponseModel string
-	Target        ai.OpenAIProxyTarget
+	CatalogEntryID uint
+	RouteBindingID uint
+	ResponseModel  string
+	Target         ai.OpenAIProxyTarget
 }
 
 type ChatResult struct {
-	ModelConfigID uint
-	ResponseModel string
-	Response      ai.TextResponse
+	CatalogEntryID uint
+	RouteBindingID uint
+	ResponseModel  string
+	Response       ai.TextResponse
 }
 
 type ChatStreamResult struct {
-	ModelConfigID uint
-	ResponseModel string
-	Events        <-chan ai.TextStreamEvent
+	CatalogEntryID uint
+	RouteBindingID uint
+	ResponseModel  string
+	Events         <-chan ai.TextStreamEvent
 }
 
 type ResponsesStreamResult struct {
-	ModelConfigID uint
-	ResponseModel string
-	Events        <-chan ai.ResponsesStreamEvent
+	CatalogEntryID uint
+	RouteBindingID uint
+	ResponseModel  string
+	Events         <-chan ai.ResponsesStreamEvent
 }
 
 type ModelNotFoundError struct {
@@ -275,7 +279,7 @@ func (s *Service) CallChat(ctx context.Context, input ChatInput) (ChatResult, er
 	if err != nil {
 		return ChatResult{}, err
 	}
-	return ChatResult{ModelConfigID: route.ModelConfigID, ResponseModel: responseModel, Response: resp}, nil
+	return chatResultFromRoute(route, responseModel, resp), nil
 }
 
 func (s *Service) CallResponses(ctx context.Context, input ResponsesInput) (ChatResult, error) {
@@ -295,7 +299,7 @@ func (s *Service) CallResponses(ctx context.Context, input ResponsesInput) (Chat
 	if err != nil {
 		return ChatResult{}, err
 	}
-	return ChatResult{ModelConfigID: route.ModelConfigID, ResponseModel: responseModel, Response: resp}, nil
+	return chatResultFromRoute(route, responseModel, resp), nil
 }
 
 func (s *Service) CallChatStream(ctx context.Context, input ChatInput) (ChatStreamResult, error) {
@@ -308,7 +312,7 @@ func (s *Service) CallChatStream(ctx context.Context, input ChatInput) (ChatStre
 	if err != nil {
 		return ChatStreamResult{}, err
 	}
-	return ChatStreamResult{ModelConfigID: route.ModelConfigID, ResponseModel: responseModel, Events: events}, nil
+	return ChatStreamResult{CatalogEntryID: route.CatalogEntryID, RouteBindingID: route.RouteBindingID, ResponseModel: responseModel, Events: events}, nil
 }
 
 func (s *Service) CallResponsesStream(ctx context.Context, input ResponsesInput) (ResponsesStreamResult, error) {
@@ -328,7 +332,7 @@ func (s *Service) CallResponsesStream(ctx context.Context, input ResponsesInput)
 	if err != nil {
 		return ResponsesStreamResult{}, err
 	}
-	return ResponsesStreamResult{ModelConfigID: route.ModelConfigID, ResponseModel: responseModel, Events: events}, nil
+	return ResponsesStreamResult{CatalogEntryID: route.CatalogEntryID, RouteBindingID: route.RouteBindingID, ResponseModel: responseModel, Events: events}, nil
 }
 
 func (s *Service) PrepareOpenAIProxy(ctx context.Context, input OpenAIProxyInput) (OpenAIProxyRoute, error) {
@@ -357,7 +361,16 @@ func (s *Service) PrepareOpenAIProxy(ctx context.Context, input OpenAIProxyInput
 	if err != nil {
 		return OpenAIProxyRoute{}, fmt.Errorf("%w: %v", ErrModelUnavailable, err)
 	}
-	return OpenAIProxyRoute{ModelConfigID: route.ModelConfigID, ResponseModel: responseModel, Target: target}, nil
+	return OpenAIProxyRoute{CatalogEntryID: route.CatalogEntryID, RouteBindingID: route.RouteBindingID, ResponseModel: responseModel, Target: target}, nil
+}
+
+func chatResultFromRoute(route providercontract.AIGatewayModelRoute, responseModel string, response ai.TextResponse) ChatResult {
+	return ChatResult{
+		CatalogEntryID: route.CatalogEntryID,
+		RouteBindingID: route.RouteBindingID,
+		ResponseModel:  responseModel,
+		Response:       response,
+	}
 }
 
 func (s *Service) prepareChat(ctx context.Context, input ChatInput) (providercontract.AIGatewayModelRoute, string, ai.TextRequest, error) {
@@ -394,7 +407,7 @@ func routeAllowedCatalogEntryID(route providercontract.AIGatewayModelRoute) uint
 func aiRouteFromGateway(route providercontract.AIGatewayModelRoute) ai.ModelRoute {
 	return ai.ModelRoute{
 		ModelID:         route.ModelID,
-		ModelConfigID:   route.ModelConfigID,
+		RuntimeModelID:  route.CatalogEntryID,
 		CatalogEntryID:  route.CatalogEntryID,
 		RouteBindingID:  route.RouteBindingID,
 		CredentialID:    route.CredentialID,
@@ -505,14 +518,14 @@ func (s *Service) resolveModelForCapability(ctx context.Context, modelID string,
 			if err != nil {
 				defaultErr = err
 			} else {
-				defaultID = route.ModelConfigID
+				defaultID = route.CatalogEntryID
 			}
 		}
 	}
 	id, responseModel, err := ResolveTextModel(models, modelID, defaultID, defaultErr)
 	if err != nil {
 		if route, routeErr := s.resolveModelIDRouteForCapability(ctx, modelID, capability); routeErr == nil {
-			return route.ModelConfigID, strings.TrimSpace(modelID), nil
+			return route.CatalogEntryID, strings.TrimSpace(modelID), nil
 		}
 		return id, responseModel, ModelNotFoundError{Message: err.Error()}
 	}
@@ -569,7 +582,7 @@ func (s *Service) ResolveTextModel(ctx context.Context, modelID string) (uint, s
 		if err != nil {
 			defaultErr = err
 		} else {
-			defaultID = route.ModelConfigID
+			defaultID = route.CatalogEntryID
 		}
 	}
 	id, responseModel, err := ResolveTextModel(models, modelID, defaultID, defaultErr)
@@ -581,7 +594,7 @@ func (s *Service) ResolveTextModel(ctx context.Context, modelID string) (uint, s
 
 func chatModelFromDescriptor(descriptor providercontract.AIModelDescriptor) ChatModel {
 	return ChatModel{
-		ID:              descriptor.ModelConfigID,
+		ID:              descriptor.CatalogEntryID,
 		CatalogEntryID:  descriptor.CatalogEntryID,
 		ModelID:         descriptor.ModelID,
 		ModelDefID:      descriptor.ModelDefID,

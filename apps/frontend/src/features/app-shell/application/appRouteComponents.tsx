@@ -24,6 +24,7 @@ export const ShotLibraryPage = React.lazy(() => import('@/pages/shot-library/Sho
 export const JobsPage = React.lazy(() => import('@/pages/jobs/JobsPage'))
 export const PluginToolPage = React.lazy(() => import('@/pages/plugins/PluginToolPage'))
 export const GlobalHomePage = React.lazy(() => import('@/pages/home/GlobalHomePage'))
+export const EditingListPage = React.lazy(() => import('@/pages/editing/EditingListPage'))
 export const EditingWorkspacePage = React.lazy(() => import('@/pages/editing/EditingWorkspacePage'))
 export const ProjectOverviewPage = React.lazy(() => import('@/pages/project/ProjectOverviewPage'))
 export const ProjectStandardsPage = React.lazy(() => import('@/pages/project/standards/ProjectStandardsPage'))

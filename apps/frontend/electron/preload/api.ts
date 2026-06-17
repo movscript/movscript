@@ -17,6 +17,7 @@ import { createWindowAPI } from './api/window'
 import { createLocalTerminalAPI } from './api/localTerminal'
 import { createCrossPageNotificationAPI } from './api/crossPageNotifications'
 import { createMediaPipelineAPI } from './api/mediaPipeline'
+import { createDockShortcutAPI } from './api/dockShortcuts'
 
 export function createElectronAPI(ipcRenderer: IpcRenderer, platform: NodeJS.Platform): ElectronAPI {
   return {
@@ -38,5 +39,6 @@ export function createElectronAPI(ipcRenderer: IpcRenderer, platform: NodeJS.Pla
     ...createAppServerAPI(ipcRenderer),
     ...createLocalTerminalAPI(ipcRenderer),
     ...createMediaPipelineAPI(ipcRenderer),
+    ...createDockShortcutAPI(ipcRenderer),
   }
 }

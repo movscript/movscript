@@ -972,7 +972,7 @@ func newTestAICredentialRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 
 func newTestAICredentialRouterWithConfig(t *testing.T, cfg *config.Config) (*gin.Engine, *gorm.DB) {
 	t.Helper()
-	db := testutil.OpenSQLite(t, "handler-ai-credentials.db", &persistencemodel.AICredential{}, &persistencemodel.AIModelConfig{}, &persistencemodel.AuditLog{}, &persistencemodel.AdminSetting{}, &persistencemodel.ExternalResourceSource{})
+	db := testutil.OpenSQLite(t, "handler-ai-credentials.db", &persistencemodel.AICredential{}, &persistencemodel.AuditLog{}, &persistencemodel.AdminSetting{}, &persistencemodel.ExternalResourceSource{})
 	db = db.Session(&gorm.Session{SkipHooks: true})
 	providerMode := ""
 	if cfg != nil {

@@ -49,6 +49,12 @@ export function validateMediaPipelineTimelineExportInput(input: VideoTimelineExp
   if (!Array.isArray(input.clips) || input.clips.length === 0) {
     return { ok: false, code: 'TIMELINE_EMPTY', error: 'Timeline has no video clips to export.' }
   }
+  if (input.width !== undefined && (!Number.isFinite(input.width) || input.width < 120 || input.width > 7680)) {
+    return { ok: false, code: 'INVALID_TIMELINE_SIZE', error: 'Timeline width is invalid.' }
+  }
+  if (input.height !== undefined && (!Number.isFinite(input.height) || input.height < 120 || input.height > 7680)) {
+    return { ok: false, code: 'INVALID_TIMELINE_SIZE', error: 'Timeline height is invalid.' }
+  }
   if (input.clips.length > MAX_TIMELINE_EXPORT_CLIPS) {
     return { ok: false, code: 'TIMELINE_TOO_MANY_CLIPS', error: 'Timeline has too many clips to export locally.' }
   }

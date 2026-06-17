@@ -21,7 +21,7 @@ const (
 	CapabilitySubTranslate = "subtitle_translate"
 )
 
-type ModelConfigInput struct {
+type RuntimeModelSnapshotInput struct {
 	ID                uint
 	CustomDisplayName string
 	ModelIDOverride   string
@@ -47,34 +47,6 @@ type AICredential struct {
 	CreatedAt         time.Time  `json:"CreatedAt"`
 	UpdatedAt         time.Time  `json:"UpdatedAt"`
 	DeletedAt         *time.Time `json:"DeletedAt"`
-}
-
-type AIModelConfig struct {
-	ID                    uint       `json:"ID"`
-	CredentialID          uint       `json:"credential_id"`
-	ModelDefID            string     `json:"model_def_id"`
-	ModelIDOverride       string     `json:"model_id_override"`
-	IsEnabled             bool       `json:"is_enabled"`
-	Priority              int        `json:"priority"`
-	CapacityWeight        int        `json:"capacity_weight"`
-	MaxConcurrency        int        `json:"max_concurrency"`
-	CreditsInputPer1M     float64    `json:"credits_input_per_1m"`
-	CreditsOutputPer1M    float64    `json:"credits_output_per_1m"`
-	CreditsPerImage       float64    `json:"credits_per_image"`
-	CreditsPerSecond      float64    `json:"credits_per_second"`
-	CreditsPerCall        float64    `json:"credits_per_call"`
-	CustomDisplayName     string     `json:"custom_display_name"`
-	ShortName             string     `json:"short_name"`
-	CustomCapabilities    string     `json:"custom_capabilities"`
-	CustomPricingMode     string     `json:"custom_pricing_mode"`
-	CustomAcceptsImage    bool       `json:"custom_accepts_image"`
-	CustomMaxInputImages  int        `json:"custom_max_input_images"`
-	CustomMaxInputVideos  int        `json:"custom_max_input_videos"`
-	CustomImageEditField  string     `json:"custom_image_edit_field"`
-	CustomSupportedParams string     `json:"custom_supported_params"`
-	CreatedAt             time.Time  `json:"CreatedAt"`
-	UpdatedAt             time.Time  `json:"UpdatedAt"`
-	DeletedAt             *time.Time `json:"DeletedAt"`
 }
 
 type RawResource struct {
@@ -114,7 +86,7 @@ type InputResource struct {
 }
 
 type ContextSnapshotInput struct {
-	Model          ModelConfigInput
+	Model          RuntimeModelSnapshotInput
 	Credential     CredentialInput
 	Prompt         string
 	ExtraParams    string
@@ -170,8 +142,9 @@ type VideoCostRequest struct {
 type NewQueuedJobSpec struct {
 	UserID                uint
 	OrgID                 *uint
-	ModelConfigID         uint
+	RuntimeModelID        uint
 	AIModelCatalogEntryID *uint
+	RouteBindingID        *uint
 	RouteGroup            string
 	JobType               string
 	FeatureKey            string
@@ -191,8 +164,9 @@ type Job struct {
 	ID                    uint         `json:"ID"`
 	UserID                uint         `json:"user_id"`
 	OrgID                 *uint        `json:"org_id,omitempty"`
-	ModelConfigID         uint         `json:"-"`
+	RuntimeModelID        uint         `json:"-"`
 	AIModelCatalogEntryID *uint        `json:"ai_model_catalog_entry_id,omitempty"`
+	RouteBindingID        *uint        `json:"route_binding_id,omitempty"`
 	ModelID               string       `json:"model_id,omitempty"`
 	RouteGroup            string       `json:"route_group,omitempty"`
 	JobType               string       `json:"job_type"`
@@ -294,8 +268,9 @@ func NewQueuedJob(spec NewQueuedJobSpec) Job {
 	return Job{
 		UserID:                spec.UserID,
 		OrgID:                 spec.OrgID,
-		ModelConfigID:         spec.ModelConfigID,
+		RuntimeModelID:        spec.RuntimeModelID,
 		AIModelCatalogEntryID: spec.AIModelCatalogEntryID,
+		RouteBindingID:        spec.RouteBindingID,
 		RouteGroup:            spec.RouteGroup,
 		JobType:               spec.JobType,
 		FeatureKey:            spec.FeatureKey,
@@ -423,7 +398,8 @@ func BuildContextSnapshot(input ContextSnapshotInput) string {
 	return string(b)
 }
 
-func CostRequest(modelConfigID uint, jobType string, duration int, extraParams, aspectRatio string) (CostRequestKind, ImageCostRequest, VideoCostRequest, error) {
+func CostRequest(runtimeModelID uint, jobType string, duration int, extraParams, aspectRatio string) (CostRequestKind, ImageCostRequest, VideoCostRequest, error) {
+	_ = runtimeModelID
 	extra := map[string]any{}
 	if extraParams != "" {
 		_ = json.Unmarshal([]byte(extraParams), &extra)
@@ -472,11 +448,11 @@ func CostRequest(modelConfigID uint, jobType string, duration int, extraParams, 
 	}
 }
 
-func ModelDisplay(mcfg ModelConfigInput) string {
+func ModelDisplay(mcfg RuntimeModelSnapshotInput) string {
 	return FirstNonEmpty(mcfg.CustomDisplayName, mcfg.ModelDefID, "Model")
 }
 
-func ModelIdentifier(mcfg ModelConfigInput) string {
+func ModelIdentifier(mcfg RuntimeModelSnapshotInput) string {
 	return FirstNonEmpty(mcfg.ModelIDOverride, mcfg.ModelDefID)
 }
 

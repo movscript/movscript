@@ -12,25 +12,39 @@ import (
 func TestConfigureLocalGatewayDefaultsEnablesDeterministicLocalProvider(t *testing.T) {
 	db := testutil.OpenSQLite(t, "ai-local-gateway.db",
 		&persistencemodel.AICredential{},
-		&persistencemodel.AIModelConfig{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
 	)
+	if db.Migrator().HasTable("ai_model_configs") {
+		t.Fatal("local gateway defaults test should not create legacy ai_model_configs")
+	}
 	if err := ConfigureLocalGatewayDefaults(context.Background(), db, true); err != nil {
 		t.Fatalf("ConfigureLocalGatewayDefaults enable returned error: %v", err)
 	}
 
-	var cfg persistencemodel.AIModelConfig
-	if err := db.Joins("JOIN ai_credentials ON ai_credentials.id = ai_model_configs.credential_id").
-		Where("ai_credentials.adapter_type = ? AND ai_model_configs.model_def_id = ?", AdapterLocal, ManagedLocalGatewayModel).
-		First(&cfg).Error; err != nil {
-		t.Fatalf("load managed local model config: %v", err)
+	var entry persistencemodel.AIModelCatalogEntry
+	if err := db.Where("public_model_id = ? AND provider_model_id = ?", ManagedLocalGatewayModel, ManagedLocalGatewayModel).First(&entry).Error; err != nil {
+		t.Fatalf("load managed local catalog entry: %v", err)
 	}
+	var binding persistencemodel.AIModelRouteBinding
+	if err := db.Where("catalog_entry_id = ? AND source_type = ?", entry.ID, persistencemodel.ModelRouteSourceLocalProvider).First(&binding).Error; err != nil {
+		t.Fatalf("load managed local route binding: %v", err)
+	}
+	var cred persistencemodel.AICredential
+	if binding.CredentialID == nil {
+		t.Fatal("managed local route binding missing credential id")
+	}
+	if err := db.First(&cred, *binding.CredentialID).Error; err != nil {
+		t.Fatalf("load managed local credential: %v", err)
+	}
+	def := catalogEntryDef(entry)
 
 	registry := NewRegistryWithProviderMode(db, nil, "local")
-	provider, def, err := registry.BuildForConfig(cfg)
+	provider, err := registry.BuildForModelCredential(cred, def)
 	if err != nil {
-		t.Fatalf("BuildForConfig returned error: %v", err)
+		t.Fatalf("BuildForModelCredential returned error: %v", err)
 	}
-	if def.AdapterType != AdapterLocal || !modelHasCapability(def, CapabilityText) {
+	if cred.AdapterType != AdapterLocal || !modelHasCapability(def, CapabilityText) {
 		t.Fatalf("unexpected local model def: %+v", def)
 	}
 	resp, err := provider.TextGenerate(context.Background(), TextRequest{
@@ -47,7 +61,8 @@ func TestConfigureLocalGatewayDefaultsEnablesDeterministicLocalProvider(t *testi
 func TestConfigureLocalGatewayDefaultsDisablesManagedLocalProvider(t *testing.T) {
 	db := testutil.OpenSQLite(t, "ai-local-gateway-disable.db",
 		&persistencemodel.AICredential{},
-		&persistencemodel.AIModelConfig{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
 	)
 	if err := ConfigureLocalGatewayDefaults(context.Background(), db, true); err != nil {
 		t.Fatalf("enable local gateway defaults: %v", err)

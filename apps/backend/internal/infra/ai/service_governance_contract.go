@@ -3,41 +3,99 @@ package ai
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	providercontract "github.com/movscript/movscript/internal/providers/contract"
 )
 
-func (s *AIService) EstimateTextGatewayUsage(_ context.Context, modelConfigID uint, request providercontract.TextRequest) (providercontract.AIUsageEstimate, error) {
-	estimate, err := s.EstimateTextCost(modelConfigID, request)
+func (s *AIService) EstimateTextGatewayUsage(ctx context.Context, route providercontract.AIGatewayRouteRequest, request providercontract.TextRequest) (providercontract.AIUsageEstimate, error) {
+	resolved, err := s.gatewayUsageModelRoute(ctx, route, textRuntimeCapabilities()...)
+	if err != nil {
+		return providercontract.AIUsageEstimate{}, err
+	}
+	estimate, err := s.EstimateTextRouteCost(ctx, 0, resolved, request)
 	if err != nil {
 		return providercontract.AIUsageEstimate{}, err
 	}
 	return usageEstimateToContract(estimate), nil
 }
 
-func (s *AIService) EstimateImageGatewayUsage(_ context.Context, modelConfigID uint, request providercontract.ImageRequest) (providercontract.AIUsageEstimate, error) {
-	estimate, err := s.EstimateImageCost(modelConfigID, request)
+func (s *AIService) EstimateImageGatewayUsage(ctx context.Context, route providercontract.AIGatewayRouteRequest, request providercontract.ImageRequest) (providercontract.AIUsageEstimate, error) {
+	resolved, err := s.gatewayUsageModelRoute(ctx, route, CapabilityImage, CapabilityImageEdit)
+	if err != nil {
+		return providercontract.AIUsageEstimate{}, err
+	}
+	estimate, err := s.EstimateImageRouteCost(ctx, 0, resolved, request)
 	if err != nil {
 		return providercontract.AIUsageEstimate{}, err
 	}
 	return usageEstimateToContract(estimate), nil
 }
 
-func (s *AIService) EstimateVideoGatewayUsage(_ context.Context, modelConfigID uint, request providercontract.VideoRequest) (providercontract.AIUsageEstimate, error) {
-	estimate, err := s.EstimateVideoCost(modelConfigID, request)
+func (s *AIService) EstimateVideoGatewayUsage(ctx context.Context, route providercontract.AIGatewayRouteRequest, request providercontract.VideoRequest) (providercontract.AIUsageEstimate, error) {
+	resolved, err := s.gatewayUsageModelRoute(ctx, route, CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V)
+	if err != nil {
+		return providercontract.AIUsageEstimate{}, err
+	}
+	estimate, err := s.EstimateVideoRouteCost(ctx, 0, resolved, request)
 	if err != nil {
 		return providercontract.AIUsageEstimate{}, err
 	}
 	return usageEstimateToContract(estimate), nil
+}
+
+func (s *AIService) gatewayUsageModelRoute(ctx context.Context, request providercontract.AIGatewayRouteRequest, fallbackCapabilities ...string) (ModelRoute, error) {
+	capabilities := make([]string, 0, len(fallbackCapabilities)+1)
+	seen := map[string]bool{}
+	for _, capability := range append([]string{request.Capability}, fallbackCapabilities...) {
+		capability = strings.TrimSpace(capability)
+		if capability == "" || seen[capability] {
+			continue
+		}
+		seen[capability] = true
+		capabilities = append(capabilities, capability)
+	}
+	if len(capabilities) == 0 {
+		return ModelRoute{}, fmt.Errorf("model capability is required")
+	}
+	var lastErr error
+	for _, capability := range capabilities {
+		req := request
+		req.Capability = capability
+		route, err := s.ResolveGatewayModelRoute(ctx, req)
+		if err == nil {
+			return gatewayContractRouteToModelRoute(route), nil
+		}
+		lastErr = err
+	}
+	if lastErr != nil {
+		return ModelRoute{}, lastErr
+	}
+	return ModelRoute{}, fmt.Errorf("model route not found")
+}
+
+func gatewayContractRouteToModelRoute(route providercontract.AIGatewayModelRoute) ModelRoute {
+	return ModelRoute{
+		ModelID:         route.ModelID,
+		RuntimeModelID:  route.CatalogEntryID,
+		CatalogEntryID:  route.CatalogEntryID,
+		RouteBindingID:  route.RouteBindingID,
+		CredentialID:    route.CredentialID,
+		SourceType:      route.SourceType,
+		RouteGroup:      route.RouteGroup,
+		ProviderModelID: route.ProviderModelID,
+		SelectionReason: route.SelectionReason,
+		EstimatedCost:   route.EstimatedCost,
+	}
 }
 
 func (s *AIService) ReserveGatewayUsage(ctx context.Context, request providercontract.AIUsageReserveRequest) (providercontract.AIUsageReservation, error) {
 	reservation, err := s.ReserveUsage(
 		ctx,
 		request.UserID,
-		request.ModelConfigID,
+		gatewayUsageReserveCompatibilityID(request),
 		usageEstimateFromContract(request.Estimate),
 		usageContextFromContract(request.Context),
 	)
@@ -59,7 +117,7 @@ func (s *AIService) SettleGatewayUsage(ctx context.Context, request providercont
 	return s.settleUsage(
 		ctx,
 		request.UserID,
-		request.ModelConfigID,
+		gatewayUsageSettleCompatibilityID(request),
 		usageEstimateFromContract(request.Estimate),
 		usageContextFromContract(request.Context),
 	)
@@ -97,7 +155,7 @@ func (s *AIService) ProbeGatewayProvider(ctx context.Context, request providerco
 	if s == nil || s.db == nil || s.registry == nil {
 		return providercontract.AIGatewayProviderProbeResult{}, fmt.Errorf("ai service is not configured")
 	}
-	provider, health, err := s.providerForProbe(request)
+	provider, health, err := s.providerForProbe(ctx, request)
 	if err != nil {
 		health.Status = providercontract.HealthStatusError
 		health.Message = err.Error()
@@ -139,7 +197,6 @@ func (s *AIService) ListGatewayRuntimeHealth(_ context.Context) ([]providercontr
 	out := make([]providercontract.AIGatewayRuntimeHealth, 0, len(items))
 	for _, item := range items {
 		out = append(out, providercontract.AIGatewayRuntimeHealth{
-			ModelConfigID:       item.ModelConfigID,
 			CatalogEntryID:      item.CatalogEntryID,
 			RouteBindingID:      item.RouteBindingID,
 			ModelID:             item.ModelID,
@@ -164,22 +221,29 @@ func (s *AIService) ListGatewayRuntimeHealth(_ context.Context) ([]providercontr
 	return out, nil
 }
 
-func (s *AIService) providerForProbe(request providercontract.AIGatewayProviderProbeRequest) (Provider, providercontract.ProviderHealth, error) {
+func (s *AIService) providerForProbe(ctx context.Context, request providercontract.AIGatewayProviderProbeRequest) (Provider, providercontract.ProviderHealth, error) {
 	health := providercontract.ProviderHealth{
 		Type:     providercontract.TypeAIGateway,
 		Assembly: providercontract.AssemblyStartup,
 	}
-	if request.ModelConfigID != 0 {
-		var cfg persistencemodel.AIModelConfig
-		if err := s.db.First(&cfg, request.ModelConfigID).Error; err != nil {
+	if gatewayProbeRouteRequestSet(request.Route) {
+		route, err := s.ResolveGatewayModelRoute(ctx, request.Route)
+		if err != nil {
 			return nil, health, err
 		}
-		provider, def, err := s.registry.BuildForConfig(cfg)
-		if def != nil {
-			health.Adapter = def.AdapterType
-			health.Capabilities = append([]string(nil), def.Capabilities...)
+		resolved := gatewayContractRouteToModelRoute(route)
+		if resolved.CatalogEntryID != 0 {
+			runtime, handled, err := s.catalogRouteRuntime(ctx, 0, resolved, route.Capability)
+			if err != nil {
+				return nil, health, err
+			}
+			if handled {
+				health.Adapter = runtime.adapterType
+				health.Capabilities = append([]string(nil), runtime.def.Capabilities...)
+				return runtime.provider, health, nil
+			}
 		}
-		return provider, health, err
+		return nil, health, fmt.Errorf("catalog route is required for provider probe")
 	}
 	if request.CredentialID != 0 {
 		var cred persistencemodel.AICredential
@@ -191,6 +255,10 @@ func (s *AIService) providerForProbe(request providercontract.AIGatewayProviderP
 		return provider, health, err
 	}
 	return nil, health, fmt.Errorf("credential_id is required")
+}
+
+func gatewayProbeRouteRequestSet(route providercontract.AIGatewayRouteRequest) bool {
+	return strings.TrimSpace(route.ModelID) != "" || route.CatalogEntryID != 0 || route.RouteBindingID != 0
 }
 
 func usageContextFromContract(input providercontract.AIUsageContext) UsageContext {
@@ -248,7 +316,6 @@ func usageReservationToContract(input persistencemodel.UsageReservation) provide
 		ID:                    input.ID,
 		UserID:                input.UserID,
 		OrgID:                 input.OrgID,
-		AIModelConfigID:       input.AIModelConfigID,
 		AIModelCatalogEntryID: input.AIModelCatalogEntryID,
 		RouteBindingID:        input.RouteBindingID,
 		GatewayAPIKeyID:       input.GatewayAPIKeyID,
@@ -261,4 +328,36 @@ func usageReservationToContract(input persistencemodel.UsageReservation) provide
 		ReleaseReason:         input.ReleaseReason,
 		UsageLogID:            input.UsageLogID,
 	}
+}
+
+func gatewayUsageReserveCompatibilityID(request providercontract.AIUsageReserveRequest) uint {
+	if request.CatalogEntryID != 0 {
+		return request.CatalogEntryID
+	}
+	if request.Context.AIModelCatalogEntryID != nil && *request.Context.AIModelCatalogEntryID != 0 {
+		return *request.Context.AIModelCatalogEntryID
+	}
+	if request.RouteBindingID != 0 {
+		return request.RouteBindingID
+	}
+	if request.Context.RouteBindingID != nil && *request.Context.RouteBindingID != 0 {
+		return *request.Context.RouteBindingID
+	}
+	return 0
+}
+
+func gatewayUsageSettleCompatibilityID(request providercontract.AIUsageSettleRequest) uint {
+	if request.CatalogEntryID != 0 {
+		return request.CatalogEntryID
+	}
+	if request.Context.AIModelCatalogEntryID != nil && *request.Context.AIModelCatalogEntryID != 0 {
+		return *request.Context.AIModelCatalogEntryID
+	}
+	if request.RouteBindingID != 0 {
+		return request.RouteBindingID
+	}
+	if request.Context.RouteBindingID != nil && *request.Context.RouteBindingID != 0 {
+		return *request.Context.RouteBindingID
+	}
+	return 0
 }

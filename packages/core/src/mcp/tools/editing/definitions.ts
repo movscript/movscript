@@ -79,8 +79,12 @@ export function editingTools(): MCPTool[] {
     },
     {
       name: 'editing_project_save',
-      description: 'Persist a MediaEditingProject revision. Requires the Electron editing runtime or a future backend project store.',
-      inputSchema: objectSchema({ ...editingProjectInput }),
+      description: 'Persist a MediaEditingProject revision. Pass expectedRevision for optimistic locking against the last revision read. Requires the Electron editing runtime or a future backend project store.',
+      inputSchema: objectSchema({
+        ...editingProjectInput,
+        expectedRevision: { type: 'number', description: 'Last persisted revision observed before editing. Save returns conflict if the stored revision changed.' },
+        expected_revision: { type: 'number', description: 'Alias for expectedRevision.' },
+      }),
     },
     {
       name: 'editing_timeline_apply_commands',

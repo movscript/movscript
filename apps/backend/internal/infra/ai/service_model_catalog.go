@@ -20,25 +20,7 @@ func (s *AIService) ListModels(ctx context.Context, filter providercontract.AIMo
 		}
 		return s.editionFilterModelCatalog(ctx, filter, descriptors)
 	}
-	if s.editionModelCatalogOnly() {
-		return s.editionFilterModelCatalog(ctx, filter, []providercontract.AIModelDescriptor{})
-	}
-	capabilities := compactModelCatalogCapabilities(filter)
-	if len(capabilities) == 0 {
-		capabilities = allModelCatalogCapabilities()
-	}
-	models, err := s.GetModelsByAnyCapability(capabilities)
-	if filter.ProviderVariants {
-		models, err = s.GetProviderModelsByAnyCapability(capabilities)
-	}
-	if err != nil {
-		return nil, err
-	}
-	out := make([]providercontract.AIModelDescriptor, 0, len(models))
-	for _, model := range models {
-		out = append(out, publicModelToContractDescriptor(model))
-	}
-	return s.editionFilterModelCatalog(ctx, filter, out)
+	return s.editionFilterModelCatalog(ctx, filter, []providercontract.AIModelDescriptor{})
 }
 
 func (s *AIService) listModelsFromCatalogEntries(ctx context.Context, filter providercontract.AIModelListFilter) ([]providercontract.AIModelDescriptor, bool, error) {
@@ -60,6 +42,10 @@ func (s *AIService) listModelsFromCatalogEntries(ctx context.Context, filter pro
 		Find(&entries).Error; err != nil {
 		return nil, true, err
 	}
+	credentials, err := s.catalogRouteCredentialIndex(ctx, entries)
+	if err != nil {
+		return nil, true, err
+	}
 	capabilities := compactModelCatalogCapabilities(filter)
 	routeGroup := strings.TrimSpace(filter.RouteGroup)
 	if routeGroup == "" {
@@ -78,7 +64,7 @@ func (s *AIService) listModelsFromCatalogEntries(ctx context.Context, filter pro
 		}
 		if filter.ProviderVariants && len(bindings) > 0 {
 			for _, binding := range bindings {
-				out = append(out, catalogEntryDescriptor(entry, def, &binding))
+				out = append(out, catalogEntryDescriptor(entry, def, &binding, credentials))
 			}
 			continue
 		}
@@ -86,7 +72,7 @@ func (s *AIService) listModelsFromCatalogEntries(ctx context.Context, filter pro
 		if len(bindings) > 0 {
 			binding = catalogEntryBestBinding(bindings)
 		}
-		descriptor := catalogEntryDescriptor(entry, def, binding)
+		descriptor := catalogEntryDescriptor(entry, def, binding, nil)
 		descriptor.ProviderVariants = len(bindings)
 		if descriptor.ProviderVariants == 0 {
 			descriptor.ProviderVariants = 1
@@ -100,6 +86,35 @@ func (s *AIService) listModelsFromCatalogEntries(ctx context.Context, filter pro
 		out = append(out, descriptor)
 	}
 	return out, true, nil
+}
+
+func (s *AIService) catalogRouteCredentialIndex(ctx context.Context, entries []persistencemodel.AIModelCatalogEntry) (map[uint]persistencemodel.AICredential, error) {
+	ids := map[uint]bool{}
+	for _, entry := range entries {
+		for _, binding := range entry.RouteBindings {
+			if binding.CredentialID != nil && *binding.CredentialID != 0 {
+				ids[*binding.CredentialID] = true
+			}
+		}
+	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	values := make([]uint, 0, len(ids))
+	for id := range ids {
+		values = append(values, id)
+	}
+	var credentials []persistencemodel.AICredential
+	if err := s.db.WithContext(ctx).
+		Where("id IN ? AND deleted_at IS NULL", values).
+		Find(&credentials).Error; err != nil {
+		return nil, err
+	}
+	out := make(map[uint]persistencemodel.AICredential, len(credentials))
+	for _, credential := range credentials {
+		out[credential.ID] = credential
+	}
+	return out, nil
 }
 
 func catalogEntryBestBinding(bindings []persistencemodel.AIModelRouteBinding) *persistencemodel.AIModelRouteBinding {
@@ -200,31 +215,32 @@ func catalogEntryBindingsForFilter(bindings []persistencemodel.AIModelRouteBindi
 	return out
 }
 
-func catalogEntryDescriptor(entry persistencemodel.AIModelCatalogEntry, def *ModelDef, binding *persistencemodel.AIModelRouteBinding) providercontract.AIModelDescriptor {
+func catalogEntryDescriptor(entry persistencemodel.AIModelCatalogEntry, def *ModelDef, binding *persistencemodel.AIModelRouteBinding, credentials map[uint]persistencemodel.AICredential) providercontract.AIModelDescriptor {
 	providerModelID := strings.TrimSpace(entry.ProviderModelID)
 	publicModelID := strings.TrimSpace(entry.PublicModelID)
 	if publicModelID == "" {
 		publicModelID = providerModelID
 	}
 	credentialID := uint(0)
-	modelConfigID := entry.ID
 	priority := 0
 	capacityWeight := 1
 	maxConcurrency := 0
+	providerName := ""
+	adapterType := ""
 	if binding != nil {
 		if binding.CredentialID != nil {
 			credentialID = *binding.CredentialID
-		}
-		if binding.LocalModelConfigID != nil {
-			modelConfigID = *binding.LocalModelConfigID
+			if credential, ok := credentials[credentialID]; ok {
+				providerName = credential.DisplayName
+				adapterType = credential.AdapterType
+			}
 		}
 		priority = binding.Priority
-		capacityWeight = runtimeCandidateCapacityWeight(runtimeModelCandidate{cfg: persistencemodel.AIModelConfig{CapacityWeight: binding.CapacityWeight}})
+		capacityWeight = runtimeCandidateCapacityWeight(runtimeModelCandidate{capacityWeight: binding.CapacityWeight})
 		maxConcurrency = binding.MaxConcurrency
 	}
 	return providercontract.AIModelDescriptor{
 		ModelID:           publicModelID,
-		ModelConfigID:     modelConfigID,
 		CatalogEntryID:    entry.ID,
 		CredentialID:      credentialID,
 		ProviderModelID:   providerModelID,
@@ -232,6 +248,8 @@ func catalogEntryDescriptor(entry persistencemodel.AIModelCatalogEntry, def *Mod
 		ModelIDOverride:   providerModelID,
 		DisplayName:       def.DisplayName,
 		ShortName:         entry.ShortName,
+		ProviderName:      providerName,
+		AdapterType:       adapterType,
 		Capabilities:      append([]string(nil), def.Capabilities...),
 		PricingMode:       string(def.PricingMode),
 		AcceptsImageInput: def.AcceptsImageInput,
@@ -248,6 +266,9 @@ func catalogEntryDescriptor(entry persistencemodel.AIModelCatalogEntry, def *Mod
 func (s *AIService) resolveCatalogModelRoutePlan(req ModelRouteRequest, capability string, modelID string) (ModelRoutePlan, bool, error) {
 	if s == nil || s.db == nil || !s.db.Migrator().HasTable(&persistencemodel.AIModelCatalogEntry{}) {
 		return ModelRoutePlan{}, false, nil
+	}
+	if req.RouteBindingID != 0 {
+		return s.resolveRouteBindingModelRoutePlan(req, capability)
 	}
 	modelID = strings.TrimSpace(modelID)
 	if modelID == "" && req.CatalogEntryID == 0 {
@@ -292,10 +313,7 @@ func (s *AIService) resolveCatalogModelRoutePlan(req ModelRouteRequest, capabili
 			return bindings[i].ID < bindings[j].ID
 		})
 		for index, binding := range bindings {
-			modelConfigID := entry.ID
-			if binding.LocalModelConfigID != nil {
-				modelConfigID = *binding.LocalModelConfigID
-			}
+			runtimeModelID := entry.ID
 			credentialID := uint(0)
 			if binding.CredentialID != nil {
 				credentialID = *binding.CredentialID
@@ -310,7 +328,7 @@ func (s *AIService) resolveCatalogModelRoutePlan(req ModelRouteRequest, capabili
 			candidates = append(candidates, catalogRouteCandidate{
 				route: ModelRoute{
 					ModelID:         strings.TrimSpace(entry.PublicModelID),
-					ModelConfigID:   modelConfigID,
+					RuntimeModelID:  runtimeModelID,
 					CatalogEntryID:  entry.ID,
 					RouteBindingID:  binding.ID,
 					CredentialID:    credentialID,
@@ -318,12 +336,26 @@ func (s *AIService) resolveCatalogModelRoutePlan(req ModelRouteRequest, capabili
 					RouteGroup:      strings.TrimSpace(binding.RouteGroup),
 					ProviderModelID: strings.TrimSpace(entry.ProviderModelID),
 					SelectionReason: reason,
-					EstimatedCost:   0,
+					EstimatedCost:   estimateCatalogRouteCost(entry, def, capability, req.EstimatedUsage),
 				},
 				priority:  binding.Priority,
 				bindingID: binding.ID,
 			})
 		}
+	}
+	budgetAware := false
+	if req.MaxEstimatedCost > 0 {
+		filtered := candidates[:0]
+		for _, candidate := range candidates {
+			if candidate.route.EstimatedCost <= req.MaxEstimatedCost {
+				filtered = append(filtered, candidate)
+			}
+		}
+		if len(filtered) == 0 && len(candidates) > 0 {
+			return ModelRoutePlan{}, true, fmt.Errorf("no catalog route within estimated cost %.4f for capability %s", req.MaxEstimatedCost, capability)
+		}
+		candidates = filtered
+		budgetAware = true
 	}
 	sort.SliceStable(candidates, func(i, j int) bool {
 		if candidates[i].priority != candidates[j].priority {
@@ -334,6 +366,9 @@ func (s *AIService) resolveCatalogModelRoutePlan(req ModelRouteRequest, capabili
 	routes := make([]ModelRoute, 0, len(candidates))
 	for index, candidate := range candidates {
 		route := candidate.route
+		if budgetAware {
+			route.SelectionReason = "catalog_budget_aware"
+		}
 		if index > 0 {
 			route.SelectionReason = "fallback_candidate"
 		}
@@ -357,26 +392,127 @@ func (s *AIService) resolveCatalogModelRoutePlan(req ModelRouteRequest, capabili
 	}, true, nil
 }
 
+func estimateCatalogRouteCost(entry persistencemodel.AIModelCatalogEntry, def *ModelDef, capability string, estimate UsageEstimate) float64 {
+	if estimate.OperationType == "" &&
+		estimate.InputTokens == 0 &&
+		estimate.OutputTokens == 0 &&
+		estimate.CachedInputTokens == 0 &&
+		estimate.ReasoningTokens == 0 &&
+		estimate.DurationSec == 0 &&
+		estimate.ImageCount == 0 {
+		return 0
+	}
+	opType := strings.TrimSpace(estimate.OperationType)
+	if opType == "" {
+		opType = operationTypeForCapability(capability)
+	}
+	model := catalogRuntimeModelFromEntry(entry, entry.ID)
+	return estimateUsageCostWithPricingDetails(
+		model.pricing(),
+		def,
+		opType,
+		TokenUsage{
+			InputTokens:       estimate.InputTokens,
+			OutputTokens:      estimate.OutputTokens,
+			CachedInputTokens: estimate.CachedInputTokens,
+			ReasoningTokens:   estimate.ReasoningTokens,
+		},
+		estimate.DurationSec,
+		estimate.ImageCount,
+	).Cost
+}
+
+func (s *AIService) resolveRouteBindingModelRoutePlan(req ModelRouteRequest, capability string) (ModelRoutePlan, bool, error) {
+	if !s.db.Migrator().HasTable(&persistencemodel.AIModelRouteBinding{}) {
+		return ModelRoutePlan{}, false, nil
+	}
+	var binding persistencemodel.AIModelRouteBinding
+	if err := s.db.
+		Preload("CatalogEntry").
+		Where("id = ? AND is_enabled = true AND deleted_at IS NULL", req.RouteBindingID).
+		First(&binding).Error; err != nil {
+		return ModelRoutePlan{}, true, err
+	}
+	if binding.CatalogEntry == nil || binding.CatalogEntry.ID == 0 {
+		return ModelRoutePlan{}, true, fmt.Errorf("route binding id=%d has no catalog entry", req.RouteBindingID)
+	}
+	entry := *binding.CatalogEntry
+	if !entry.IsEnabled {
+		return ModelRoutePlan{}, true, fmt.Errorf("catalog entry id=%d is disabled", entry.ID)
+	}
+	def := catalogEntryDef(entry)
+	if !modelHasCapability(def, capability) {
+		return ModelRoutePlan{}, true, fmt.Errorf("model %q does not support %s", entry.PublicModelID, capability)
+	}
+	runtimeModelID := entry.ID
+	credentialID := uint(0)
+	if binding.CredentialID != nil {
+		credentialID = *binding.CredentialID
+	}
+	route := ModelRoute{
+		ModelID:         strings.TrimSpace(entry.PublicModelID),
+		RuntimeModelID:  runtimeModelID,
+		CatalogEntryID:  entry.ID,
+		RouteBindingID:  binding.ID,
+		CredentialID:    credentialID,
+		SourceType:      strings.TrimSpace(binding.SourceType),
+		RouteGroup:      strings.TrimSpace(binding.RouteGroup),
+		ProviderModelID: strings.TrimSpace(entry.ProviderModelID),
+		SelectionReason: "route_binding_id",
+	}
+	return ModelRoutePlan{
+		ModelID:         route.ModelID,
+		Capability:      capability,
+		Routes:          []ModelRoute{route},
+		SelectionReason: route.SelectionReason,
+	}, true, nil
+}
+
 type catalogRouteRuntime struct {
 	entry       persistencemodel.AIModelCatalogEntry
-	config      persistencemodel.AIModelConfig
+	model       catalogRuntimeModel
 	def         *ModelDef
 	provider    Provider
 	adapterType string
 }
 
 type catalogRouteDefinition struct {
-	entry  persistencemodel.AIModelCatalogEntry
-	config persistencemodel.AIModelConfig
-	def    *ModelDef
+	entry persistencemodel.AIModelCatalogEntry
+	model catalogRuntimeModel
+	def   *ModelDef
+}
+
+type catalogRuntimeModel struct {
+	ID                 uint
+	ProviderModelID    string
+	DisplayName        string
+	ShortName          string
+	Capabilities       string
+	PricingMode        string
+	AcceptsImage       bool
+	MaxInputImages     int
+	MaxInputVideos     int
+	ImageEditField     string
+	SupportedParams    string
+	CreditsInputPer1M  float64
+	CreditsOutputPer1M float64
+	CreditsPerImage    float64
+	CreditsPerSecond   float64
+	CreditsPerCall     float64
 }
 
 func (s *AIService) catalogRouteDefinition(ctx context.Context, route ModelRoute, capability string) (catalogRouteDefinition, bool, error) {
-	if route.CatalogEntryID == 0 || strings.TrimSpace(route.SourceType) == "" {
+	if route.CatalogEntryID == 0 && route.RouteBindingID == 0 {
 		return catalogRouteDefinition{}, false, nil
 	}
+	if route.CatalogEntryID == 0 {
+		return catalogRouteDefinition{}, true, fmt.Errorf("catalog entry id is required for route binding id=%d", route.RouteBindingID)
+	}
+	if strings.TrimSpace(route.SourceType) == "" {
+		return catalogRouteDefinition{}, true, fmt.Errorf("route source type is required for catalog entry id=%d", route.CatalogEntryID)
+	}
 	if s == nil || s.db == nil || !s.db.Migrator().HasTable(&persistencemodel.AIModelCatalogEntry{}) {
-		return catalogRouteDefinition{}, false, nil
+		return catalogRouteDefinition{}, true, fmt.Errorf("model catalog table is required for catalog route")
 	}
 	var entry persistencemodel.AIModelCatalogEntry
 	if err := s.db.WithContext(ctx).First(&entry, route.CatalogEntryID).Error; err != nil {
@@ -387,9 +523,9 @@ func (s *AIService) catalogRouteDefinition(ctx context.Context, route ModelRoute
 		return catalogRouteDefinition{}, true, fmt.Errorf("model %q does not support %s", entry.PublicModelID, capability)
 	}
 	return catalogRouteDefinition{
-		entry:  entry,
-		config: catalogEntrySyntheticConfig(entry, route.ModelConfigID),
-		def:    def,
+		entry: entry,
+		model: catalogRuntimeModelFromEntry(entry, route.RuntimeModelID),
+		def:   def,
 	}, true, nil
 }
 
@@ -418,7 +554,7 @@ func (s *AIService) catalogRouteRuntime(ctx context.Context, userID uint, route 
 		}
 		return catalogRouteRuntime{
 			entry:       definition.entry,
-			config:      definition.config,
+			model:       definition.model,
 			def:         definition.def,
 			provider:    provider,
 			adapterType: cred.AdapterType,
@@ -431,46 +567,52 @@ func (s *AIService) catalogRouteRuntime(ctx context.Context, userID uint, route 
 		}
 		return catalogRouteRuntime{
 			entry:       definition.entry,
-			config:      definition.config,
+			model:       definition.model,
 			def:         definition.def,
 			provider:    provider,
 			adapterType: adapterType,
 		}, true, nil
 	}
-	return catalogRouteRuntime{}, false, nil
+	return catalogRouteRuntime{}, true, fmt.Errorf("unsupported catalog route source type %q", strings.TrimSpace(route.SourceType))
 }
 
-func catalogEntrySyntheticConfig(entry persistencemodel.AIModelCatalogEntry, id uint) persistencemodel.AIModelConfig {
-	cfg := persistencemodel.AIModelConfig{
-		ModelDefID:            strings.TrimSpace(entry.ProviderModelID),
-		ModelIDOverride:       strings.TrimSpace(entry.ProviderModelID),
-		CustomDisplayName:     strings.TrimSpace(entry.DisplayName),
-		ShortName:             strings.TrimSpace(entry.ShortName),
-		IsEnabled:             entry.IsEnabled,
-		CustomCapabilities:    strings.TrimSpace(entry.Capabilities),
-		CustomPricingMode:     strings.TrimSpace(entry.PricingMode),
-		CustomAcceptsImage:    entry.AcceptsImage,
-		CustomMaxInputImages:  entry.MaxInputImages,
-		CustomMaxInputVideos:  entry.MaxInputVideos,
-		CustomImageEditField:  strings.TrimSpace(entry.ImageEditField),
-		CustomSupportedParams: strings.TrimSpace(entry.SupportedParams),
-		CreditsInputPer1M:     entry.CreditsInputPer1M,
-		CreditsOutputPer1M:    entry.CreditsOutputPer1M,
-		CreditsPerImage:       entry.CreditsPerImage,
-		CreditsPerSecond:      entry.CreditsPerSecond,
-		CreditsPerCall:        entry.CreditsPerCall,
+func catalogRuntimeModelFromEntry(entry persistencemodel.AIModelCatalogEntry, id uint) catalogRuntimeModel {
+	if id == 0 {
+		id = entry.ID
 	}
-	cfg.ID = id
-	if cfg.ID == 0 {
-		cfg.ID = entry.ID
+	return catalogRuntimeModel{
+		ID:                 id,
+		ProviderModelID:    strings.TrimSpace(entry.ProviderModelID),
+		DisplayName:        strings.TrimSpace(entry.DisplayName),
+		ShortName:          strings.TrimSpace(entry.ShortName),
+		Capabilities:       strings.TrimSpace(entry.Capabilities),
+		PricingMode:        strings.TrimSpace(entry.PricingMode),
+		AcceptsImage:       entry.AcceptsImage,
+		MaxInputImages:     entry.MaxInputImages,
+		MaxInputVideos:     entry.MaxInputVideos,
+		ImageEditField:     strings.TrimSpace(entry.ImageEditField),
+		SupportedParams:    strings.TrimSpace(entry.SupportedParams),
+		CreditsInputPer1M:  entry.CreditsInputPer1M,
+		CreditsOutputPer1M: entry.CreditsOutputPer1M,
+		CreditsPerImage:    entry.CreditsPerImage,
+		CreditsPerSecond:   entry.CreditsPerSecond,
+		CreditsPerCall:     entry.CreditsPerCall,
 	}
-	return cfg
+}
+
+func (model catalogRuntimeModel) pricing() modelPricing {
+	return modelPricing{
+		CreditsInputPer1M:  model.CreditsInputPer1M,
+		CreditsOutputPer1M: model.CreditsOutputPer1M,
+		CreditsPerImage:    model.CreditsPerImage,
+		CreditsPerSecond:   model.CreditsPerSecond,
+		CreditsPerCall:     model.CreditsPerCall,
+	}
 }
 
 func (s *AIService) ResolveModel(ctx context.Context, request providercontract.AIModelResolveRequest) (providercontract.AIModelBinding, error) {
 	route, err := s.ResolveModelRoute(ModelRouteRequest{
 		ModelID:        request.ModelID,
-		ModelConfigID:  request.ModelConfigID,
 		CatalogEntryID: request.CatalogEntryID,
 		Capability:     request.Capability,
 		RouteGroup:     providerRouteGroupFromContext(ctx),
@@ -480,51 +622,32 @@ func (s *AIService) ResolveModel(ctx context.Context, request providercontract.A
 	}
 	binding := providercontract.AIModelBinding{
 		ModelID:         route.ModelID,
-		ModelConfigID:   route.ModelConfigID,
 		CatalogEntryID:  route.CatalogEntryID,
 		ProviderModelID: route.ProviderModelID,
 		Capability:      request.Capability,
 		SelectionReason: route.SelectionReason,
 	}
-	var row modelConfigWithProvider
-	if err := s.db.WithContext(ctx).Model(&persistencemodel.AIModelConfig{}).
-		Select("ai_model_configs.*, ai_credentials.display_name AS provider_name, ai_credentials.adapter_type AS adapter_type").
-		Joins("JOIN ai_credentials ON ai_credentials.id = ai_model_configs.credential_id").
-		Where("ai_model_configs.id = ? AND ai_model_configs.deleted_at IS NULL AND ai_credentials.deleted_at IS NULL", route.ModelConfigID).
-		First(&row).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		return providercontract.AIModelBinding{}, err
-	} else if err == nil {
-		binding.AdapterType = row.AdapterType
-		binding.ProviderName = row.ProviderName
+	if route.CatalogEntryID != 0 {
+		if route.CredentialID != 0 {
+			var cred persistencemodel.AICredential
+			if err := s.db.WithContext(ctx).
+				Where("id = ? AND deleted_at IS NULL", route.CredentialID).
+				First(&cred).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+				return providercontract.AIModelBinding{}, err
+			} else if err == nil {
+				binding.AdapterType = cred.AdapterType
+				binding.ProviderName = cred.DisplayName
+			}
+		}
+		if binding.AdapterType == "" {
+			binding.AdapterType = route.SourceType
+		}
+		if binding.ProviderName == "" && route.RouteGroup != "" {
+			binding.ProviderName = route.RouteGroup
+		}
+		return binding, nil
 	}
 	return binding, nil
-}
-
-func publicModelToContractDescriptor(model PublicModel) providercontract.AIModelDescriptor {
-	return providercontract.AIModelDescriptor{
-		ModelID:           model.ModelID,
-		ModelConfigID:     model.ID,
-		CredentialID:      model.CredentialID,
-		ProviderModelID:   firstNonEmptyString(model.ModelIDOverride, model.ModelID),
-		ModelDefID:        model.ModelDefID,
-		ModelIDOverride:   model.ModelIDOverride,
-		DisplayName:       model.DisplayName,
-		ShortName:         model.ShortName,
-		ProviderName:      model.ProviderName,
-		AdapterType:       model.AdapterType,
-		Capabilities:      append([]string(nil), model.Capabilities...),
-		PricingMode:       string(model.PricingMode),
-		AcceptsImageInput: model.AcceptsImageInput,
-		IsDefault:         model.IsDefault,
-		LogicalModelID:    model.LogicalModelID,
-		ProviderVariants:  model.ProviderVariants,
-		Priority:          model.Priority,
-		CapacityWeight:    model.CapacityWeight,
-		MaxConcurrency:    model.MaxConcurrency,
-		SupportedParams:   paramDefsToContractMaps(model.SupportedParams),
-		InputRequirements: modelInputsToContract(model.InputRequirements),
-		ParamsSchema:      cloneAnyMap(model.ParamsSchema),
-	}
 }
 
 func modelInputsToContract(input ModelInputs) providercontract.AIModelInputRequirements {

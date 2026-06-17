@@ -163,7 +163,7 @@ func TestDetailIncludesMembershipsUsageAndAudit(t *testing.T) {
 	if err := db.Create(&persistencemodel.ProjectMember{ProjectID: project.ID, UserID: user.ID, Role: "owner"}).Error; err != nil {
 		t.Fatalf("create project member: %v", err)
 	}
-	if err := db.Create(&persistencemodel.UsageLog{UserID: user.ID, AIModelConfigID: 1, ProjectID: &project.ID, OperationType: "image", ImageCount: 3, InputTokens: 11, OutputTokens: 22, Cost: 1.5}).Error; err != nil {
+	if err := db.Create(&persistencemodel.UsageLog{UserID: user.ID, RuntimeModelID: 1, ProjectID: &project.ID, OperationType: "image", ImageCount: 3, InputTokens: 11, OutputTokens: 22, Cost: 1.5}).Error; err != nil {
 		t.Fatalf("create usage log: %v", err)
 	}
 	if err := db.Create(&persistencemodel.AuditLog{ActorID: &user.ID, Action: "user.tested", TargetType: "user", TargetID: "1"}).Error; err != nil {

@@ -424,7 +424,6 @@ type AIModelListFilter struct {
 
 type AIModelDescriptor struct {
 	ModelID           string                   `json:"model_id"`
-	ModelConfigID     uint                     `json:"-"`
 	CatalogEntryID    uint                     `json:"catalog_entry_id,omitempty"`
 	CredentialID      uint                     `json:"credential_id,omitempty"`
 	ProviderModelID   string                   `json:"provider_model_id,omitempty"`
@@ -450,14 +449,12 @@ type AIModelDescriptor struct {
 
 type AIModelResolveRequest struct {
 	ModelID        string `json:"model_id,omitempty"`
-	ModelConfigID  uint   `json:"-"`
 	CatalogEntryID uint   `json:"catalog_entry_id,omitempty"`
 	Capability     string `json:"capability"`
 }
 
 type AIModelBinding struct {
 	ModelID         string `json:"model_id"`
-	ModelConfigID   uint   `json:"-"`
 	CatalogEntryID  uint   `json:"catalog_entry_id,omitempty"`
 	ProviderModelID string `json:"provider_model_id"`
 	Capability      string `json:"capability"`
@@ -473,8 +470,8 @@ type AIGatewayModelCatalog interface {
 
 type AIGatewayRouteRequest struct {
 	ModelID               string          `json:"model_id,omitempty"`
-	ModelConfigID         uint            `json:"-"`
 	CatalogEntryID        uint            `json:"catalog_entry_id,omitempty"`
+	RouteBindingID        uint            `json:"route_binding_id,omitempty"`
 	Capability            string          `json:"capability"`
 	PreferredAdapterTypes []string        `json:"preferred_adapter_types,omitempty"`
 	EstimatedUsage        AIUsageEstimate `json:"estimated_usage,omitempty"`
@@ -483,7 +480,6 @@ type AIGatewayRouteRequest struct {
 
 type AIGatewayModelRoute struct {
 	ModelID         string  `json:"model_id"`
-	ModelConfigID   uint    `json:"-"`
 	CatalogEntryID  uint    `json:"catalog_entry_id,omitempty"`
 	RouteBindingID  uint    `json:"route_binding_id,omitempty"`
 	CredentialID    uint    `json:"credential_id,omitempty"`
@@ -545,7 +541,6 @@ type AIUsageReservation struct {
 	ID                    uint    `json:"id"`
 	UserID                uint    `json:"user_id"`
 	OrgID                 *uint   `json:"org_id,omitempty"`
-	AIModelConfigID       uint    `json:"-"`
 	AIModelCatalogEntryID *uint   `json:"ai_model_catalog_entry_id,omitempty"`
 	RouteBindingID        *uint   `json:"route_binding_id,omitempty"`
 	GatewayAPIKeyID       *uint   `json:"gateway_api_key_id,omitempty"`
@@ -560,17 +555,19 @@ type AIUsageReservation struct {
 }
 
 type AIUsageReserveRequest struct {
-	UserID        uint            `json:"user_id"`
-	ModelConfigID uint            `json:"-"`
-	Estimate      AIUsageEstimate `json:"estimate"`
-	Context       AIUsageContext  `json:"context"`
+	UserID         uint            `json:"user_id"`
+	CatalogEntryID uint            `json:"ai_model_catalog_entry_id,omitempty"`
+	RouteBindingID uint            `json:"route_binding_id,omitempty"`
+	Estimate       AIUsageEstimate `json:"estimate"`
+	Context        AIUsageContext  `json:"context"`
 }
 
 type AIUsageSettleRequest struct {
-	UserID        uint            `json:"user_id"`
-	ModelConfigID uint            `json:"-"`
-	Estimate      AIUsageEstimate `json:"estimate"`
-	Context       AIUsageContext  `json:"context"`
+	UserID         uint            `json:"user_id"`
+	CatalogEntryID uint            `json:"ai_model_catalog_entry_id,omitempty"`
+	RouteBindingID uint            `json:"route_binding_id,omitempty"`
+	Estimate       AIUsageEstimate `json:"estimate"`
+	Context        AIUsageContext  `json:"context"`
 }
 
 type AIUsageJobBindingRequest struct {
@@ -603,9 +600,9 @@ type AIGatewayGovernancePolicy interface {
 }
 
 type AIGatewayUsageGovernor interface {
-	EstimateTextGatewayUsage(ctx context.Context, modelConfigID uint, request TextRequest) (AIUsageEstimate, error)
-	EstimateImageGatewayUsage(ctx context.Context, modelConfigID uint, request ImageRequest) (AIUsageEstimate, error)
-	EstimateVideoGatewayUsage(ctx context.Context, modelConfigID uint, request VideoRequest) (AIUsageEstimate, error)
+	EstimateTextGatewayUsage(ctx context.Context, route AIGatewayRouteRequest, request TextRequest) (AIUsageEstimate, error)
+	EstimateImageGatewayUsage(ctx context.Context, route AIGatewayRouteRequest, request ImageRequest) (AIUsageEstimate, error)
+	EstimateVideoGatewayUsage(ctx context.Context, route AIGatewayRouteRequest, request VideoRequest) (AIUsageEstimate, error)
 	ReserveGatewayUsage(ctx context.Context, request AIUsageReserveRequest) (AIUsageReservation, error)
 	SetGatewayReservationJob(ctx context.Context, request AIUsageJobBindingRequest) error
 	ReleaseGatewayUsageReservation(ctx context.Context, request AIUsageReleaseRequest) error
@@ -616,7 +613,6 @@ type AIGatewayUsageLogFilter struct {
 	UserID        string     `json:"user_id,omitempty"`
 	OrgID         string     `json:"org_id,omitempty"`
 	ProjectID     string     `json:"project_id,omitempty"`
-	ModelConfigID string     `json:"-"`
 	ModelID       string     `json:"model_id,omitempty"`
 	ProviderID    string     `json:"provider_id,omitempty"`
 	GatewayKeyID  string     `json:"gateway_api_key_id,omitempty"`
@@ -644,15 +640,6 @@ type AIGatewayUsageUserRef struct {
 	SystemRole string `json:"system_role"`
 }
 
-type AIGatewayUsageModelConfigRef struct {
-	ID                uint   `json:"ID"`
-	CredentialID      uint   `json:"credential_id"`
-	ModelDefID        string `json:"model_def_id"`
-	ModelIDOverride   string `json:"model_id_override"`
-	CustomDisplayName string `json:"custom_display_name"`
-	ShortName         string `json:"short_name"`
-}
-
 type AIGatewayUsageCatalogEntryRef struct {
 	ID              uint   `json:"ID"`
 	PublicModelID   string `json:"public_model_id"`
@@ -665,7 +652,6 @@ type AIGatewayUsageLog struct {
 	ID                    uint                           `json:"ID"`
 	UserID                uint                           `json:"user_id"`
 	OrgID                 *uint                          `json:"org_id,omitempty"`
-	AIModelConfigID       uint                           `json:"-"`
 	UsageReservationID    *uint                          `json:"usage_reservation_id,omitempty"`
 	RouteBindingID        *uint                          `json:"route_binding_id,omitempty"`
 	GatewayAPIKeyID       *uint                          `json:"gateway_api_key_id,omitempty"`
@@ -679,7 +665,6 @@ type AIGatewayUsageLog struct {
 	ImageCount            int                            `json:"image_count"`
 	Cost                  float64                        `json:"cost"`
 	User                  *AIGatewayUsageUserRef         `json:"user,omitempty"`
-	AIModelConfig         *AIGatewayUsageModelConfigRef  `json:"-"`
 	AIModelCatalogEntryID *uint                          `json:"ai_model_catalog_entry_id,omitempty"`
 	AIModelCatalogEntry   *AIGatewayUsageCatalogEntryRef `json:"ai_model_catalog_entry,omitempty"`
 	CreatedAt             time.Time                      `json:"CreatedAt"`
@@ -699,8 +684,6 @@ type AIGatewayUsageOperationSummary struct {
 }
 
 type AIGatewayUsageModelSummary struct {
-	ModelConfigID         uint                           `json:"-"`
-	AIModelConfig         *AIGatewayUsageModelConfigRef  `json:"-"`
 	AIModelCatalogEntryID *uint                          `json:"ai_model_catalog_entry_id,omitempty"`
 	AIModelCatalogEntry   *AIGatewayUsageCatalogEntryRef `json:"ai_model_catalog_entry,omitempty"`
 	AIGatewayUsageTotals
@@ -729,7 +712,7 @@ type AIGatewayUsageReporter interface {
 type AIGatewayCallAuditInput struct {
 	UserID           uint           `json:"user_id"`
 	Context          AIUsageContext `json:"context"`
-	ModelConfigID    uint           `json:"-"`
+	CatalogEntryID   *uint          `json:"ai_model_catalog_entry_id,omitempty"`
 	RouteBindingID   *uint          `json:"route_binding_id,omitempty"`
 	CredentialID     uint           `json:"credential_id"`
 	Provider         string         `json:"provider,omitempty"`
@@ -784,6 +767,7 @@ type AIGatewayCallLog struct {
 	OrgID             *uint                    `json:"org_id,omitempty"`
 	ProjectID         *uint                    `json:"project_id,omitempty"`
 	GatewayAPIKeyID   *uint                    `json:"gateway_api_key_id,omitempty"`
+	CatalogEntryID    *uint                    `json:"ai_model_catalog_entry_id,omitempty"`
 	RouteBindingID    *uint                    `json:"route_binding_id,omitempty"`
 	ModelID           string                   `json:"model_id,omitempty"`
 	CredentialID      uint                     `json:"credential_id"`
@@ -835,8 +819,8 @@ type AIGatewayAuditLogReader interface {
 }
 
 type AIGatewayProviderProbeRequest struct {
-	CredentialID  uint `json:"credential_id,omitempty"`
-	ModelConfigID uint `json:"-"`
+	Route        AIGatewayRouteRequest `json:"route,omitempty"`
+	CredentialID uint                  `json:"credential_id,omitempty"`
 }
 
 type AIGatewayProviderProbeResult struct {
@@ -847,7 +831,6 @@ type AIGatewayProviderProbeResult struct {
 }
 
 type AIGatewayRuntimeHealth struct {
-	ModelConfigID       uint       `json:"-"`
 	CatalogEntryID      uint       `json:"catalog_entry_id,omitempty"`
 	RouteBindingID      uint       `json:"route_binding_id,omitempty"`
 	ModelID             string     `json:"model_id"`

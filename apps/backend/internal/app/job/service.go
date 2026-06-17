@@ -85,9 +85,7 @@ type InputResourcesResult struct {
 
 type ResponseLookups struct {
 	ResourcesByID      map[uint]domainjob.RawResource
-	ConfigsByID        map[uint]domainjob.AIModelConfig
 	CatalogEntriesByID map[uint]ModelCatalogEntryLookup
-	CredentialsByID    map[uint]domainjob.AICredential
 }
 
 type ModelCatalogEntryLookup struct {
@@ -101,8 +99,9 @@ type ModelCatalogEntryLookup struct {
 type CreateInput struct {
 	UserID                uint
 	OrgID                 *uint
-	ModelConfigID         uint
+	RuntimeModelID        uint
 	AIModelCatalogEntryID *uint
+	RouteBindingID        *uint
 	RouteGroup            string
 	JobType               string
 	FeatureKey            string
@@ -122,7 +121,7 @@ type EnqueueInput struct {
 	UserID                uint
 	OrgID                 *uint
 	ModelID               string
-	ModelConfigID         uint
+	RuntimeModelID        uint
 	AIModelCatalogEntryID *uint
 	JobType               string
 	FeatureKey            string
@@ -149,8 +148,8 @@ func (s *Service) LoadInputResources(ctx context.Context, ids []uint, userID uin
 	return s.repo.LoadInputResources(ctx, ids, userID, orgID)
 }
 
-func (s *Service) ResponseLookups(ctx context.Context, resourceIDs []uint, modelConfigIDs []uint) (ResponseLookups, error) {
-	return s.repo.ResponseLookups(ctx, resourceIDs, modelConfigIDs)
+func (s *Service) ResponseLookups(ctx context.Context, resourceIDs []uint, catalogEntryIDs []uint) (ResponseLookups, error) {
+	return s.repo.ResponseLookups(ctx, resourceIDs, catalogEntryIDs)
 }
 
 func (s *Service) GetCredential(ctx context.Context, id uint) (domainjob.AICredential, error) {
@@ -162,8 +161,9 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (domainjob.Job,
 	job := domainjob.NewQueuedJob(domainjob.NewQueuedJobSpec{
 		UserID:                input.UserID,
 		OrgID:                 input.OrgID,
-		ModelConfigID:         input.ModelConfigID,
+		RuntimeModelID:        input.RuntimeModelID,
 		AIModelCatalogEntryID: input.AIModelCatalogEntryID,
+		RouteBindingID:        input.RouteBindingID,
 		RouteGroup:            input.RouteGroup,
 		JobType:               input.JobType,
 		FeatureKey:            input.FeatureKey,
@@ -228,7 +228,7 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (do
 		return domainjob.Job{}, err
 	}
 
-	cred, err := s.credentialForRouteSnapshot(ctx, route, preflight.Config.CredentialID)
+	cred, err := s.credentialForRouteSnapshot(ctx, route, preflight.CredentialID)
 	if err != nil {
 		return domainjob.Job{}, err
 	}
@@ -248,7 +248,7 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (do
 		createdAt = time.Now()
 	}
 	requestContext := BuildContextSnapshot(ContextSnapshotInput{
-		Model:          domainjob.AIModelConfigFromModel(preflight.Config),
+		Model:          preflightModelSnapshot(preflight),
 		Credential:     cred,
 		JobType:        input.JobType,
 		FeatureKey:     input.FeatureKey,
@@ -271,7 +271,8 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (do
 	if route.RouteBindingID != 0 {
 		usage.RouteBindingID = &route.RouteBindingID
 	}
-	reservation, err := s.ai.ReserveUsage(ctx, input.UserID, route.ModelConfigID, estimate, usage)
+	runtimeModelID := aiRoute.RuntimeModelID
+	reservation, err := s.ai.ReserveUsage(ctx, input.UserID, runtimeModelID, estimate, usage)
 	if err != nil {
 		if errors.Is(err, ai.ErrUsageLimitExceeded) {
 			return domainjob.Job{}, err
@@ -282,8 +283,9 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (do
 	job, err := s.Create(ctx, CreateInput{
 		UserID:                input.UserID,
 		OrgID:                 input.OrgID,
-		ModelConfigID:         route.ModelConfigID,
+		RuntimeModelID:        runtimeModelID,
 		AIModelCatalogEntryID: catalogEntryIDPtr(route.CatalogEntryID),
+		RouteBindingID:        routeBindingIDPtr(route.RouteBindingID),
 		RouteGroup:            route.RouteGroup,
 		JobType:               input.JobType,
 		FeatureKey:            input.FeatureKey,
@@ -330,17 +332,35 @@ func catalogEntryIDPtr(id uint) *uint {
 	return &id
 }
 
+func routeBindingIDPtr(id uint) *uint {
+	if id == 0 {
+		return nil
+	}
+	return &id
+}
+
 func aiRouteFromGateway(route providercontract.AIGatewayModelRoute) ai.ModelRoute {
 	return ai.ModelRoute{
 		ModelID:         route.ModelID,
-		ModelConfigID:   route.ModelConfigID,
+		RuntimeModelID:  route.CatalogEntryID,
 		CatalogEntryID:  route.CatalogEntryID,
+		RouteBindingID:  route.RouteBindingID,
 		CredentialID:    route.CredentialID,
 		SourceType:      route.SourceType,
 		RouteGroup:      route.RouteGroup,
 		ProviderModelID: route.ProviderModelID,
 		SelectionReason: route.SelectionReason,
 		EstimatedCost:   route.EstimatedCost,
+	}
+}
+
+func preflightModelSnapshot(preflight ai.GenerationPreflightResult) domainjob.RuntimeModelSnapshotInput {
+	return domainjob.RuntimeModelSnapshotInput{
+		ID:                preflight.SnapshotModel.ID,
+		CredentialID:      preflight.SnapshotModel.CredentialID,
+		ModelDefID:        preflight.SnapshotModel.ModelDefID,
+		ModelIDOverride:   preflight.SnapshotModel.ModelIDOverride,
+		CustomDisplayName: preflight.SnapshotModel.CustomDisplayName,
 	}
 }
 
@@ -390,33 +410,9 @@ func (s *Service) requireImageVerification(def *ai.ModelDef, resources []domainj
 	return nil
 }
 
-func (s *Service) estimateJobCost(modelConfigID uint, jobType string, duration int, extraParams, aspectRatio string) (ai.UsageEstimate, error) {
-	if jobType == ai.CapabilityAudioTTS {
-		return s.ai.EstimateAudioTTSCost(modelConfigID)
-	}
-	if jobType == ai.CapabilityAudioMusic || jobType == ai.CapabilityAudioSFX {
-		return s.ai.EstimateAudioGenerateCost(modelConfigID, jobType, duration)
-	}
-	if jobType == ai.CapabilityAudioSTT || jobType == ai.CapabilitySubAlign || jobType == ai.CapabilitySubTranslate {
-		return s.ai.EstimateCapabilityPerCallCost(modelConfigID, jobType)
-	}
-	kind, imageReq, videoReq, err := CostRequest(modelConfigID, jobType, duration, extraParams, aspectRatio)
-	if err != nil {
-		return ai.UsageEstimate{}, err
-	}
-	switch kind {
-	case domainjob.CostRequestImage:
-		return s.ai.EstimateImageCost(modelConfigID, imageReq)
-	case domainjob.CostRequestVideo:
-		return s.ai.EstimateVideoCost(modelConfigID, videoReq)
-	default:
-		return ai.UsageEstimate{}, err
-	}
-}
-
 func (s *Service) estimateJobRouteCost(ctx context.Context, userID uint, route ai.ModelRoute, jobType string, duration int, extraParams, aspectRatio string) (ai.UsageEstimate, error) {
 	if jobType == ai.CapabilityAudioTTS {
-		return s.ai.EstimateAudioTTSCost(route.ModelConfigID)
+		return s.ai.EstimateAudioTTSRouteCost(ctx, userID, route)
 	}
 	if jobType == ai.CapabilityAudioMusic || jobType == ai.CapabilityAudioSFX {
 		return s.ai.EstimateAudioGenerateRouteCost(ctx, userID, route, jobType, duration)
@@ -424,7 +420,7 @@ func (s *Service) estimateJobRouteCost(ctx context.Context, userID uint, route a
 	if jobType == ai.CapabilityAudioSTT || jobType == ai.CapabilitySubAlign || jobType == ai.CapabilitySubTranslate {
 		return s.ai.EstimateCapabilityPerCallRouteCost(ctx, userID, route, jobType)
 	}
-	kind, imageReq, videoReq, err := CostRequest(route.ModelConfigID, jobType, duration, extraParams, aspectRatio)
+	kind, imageReq, videoReq, err := CostRequest(route.RuntimeModelID, jobType, duration, extraParams, aspectRatio)
 	if err != nil {
 		return ai.UsageEstimate{}, err
 	}
@@ -560,14 +556,19 @@ func (s *Service) resolveJobModelRoute(ctx context.Context, job domainjob.Job, c
 		ctx = ai.WithProviderRouteGroup(ctx, strings.TrimSpace(job.RouteGroup))
 	}
 	catalogEntryID := uint(0)
-	modelConfigID := job.ModelConfigID
+	routeBindingID := uint(0)
+	if job.RouteBindingID != nil && *job.RouteBindingID != 0 {
+		routeBindingID = *job.RouteBindingID
+	}
 	if job.AIModelCatalogEntryID != nil && *job.AIModelCatalogEntryID != 0 {
 		catalogEntryID = *job.AIModelCatalogEntryID
-		modelConfigID = 0
+	}
+	if catalogEntryID == 0 && routeBindingID == 0 {
+		return ai.ModelRoute{}, errors.New("job route binding or catalog entry is required")
 	}
 	return s.ai.ResolveModelRoute(ai.ModelRouteRequest{
-		ModelConfigID:  modelConfigID,
 		CatalogEntryID: catalogEntryID,
+		RouteBindingID: routeBindingID,
 		Capability:     capability,
 		RouteGroup:     strings.TrimSpace(job.RouteGroup),
 	})

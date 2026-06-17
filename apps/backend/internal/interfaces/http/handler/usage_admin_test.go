@@ -16,19 +16,12 @@ import (
 
 func TestUsageLogListFiltersByOrgProjectAndSince(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	db := testutil.OpenSQLite(t, "handler-usage-list.db", &persistencemodel.User{}, &persistencemodel.AICredential{}, &persistencemodel.AIModelConfig{}, &persistencemodel.UsageLog{})
+	db := testutil.OpenSQLite(t, "handler-usage-list.db", &persistencemodel.User{}, &persistencemodel.UsageLog{})
 	user := persistencemodel.User{Username: "usage-list-user", Status: "active"}
 	if err := db.Create(&user).Error; err != nil {
 		t.Fatalf("create user: %v", err)
 	}
-	credential := persistencemodel.AICredential{AdapterType: "openai_compat", DisplayName: "Provider", IsEnabled: true}
-	if err := db.Create(&credential).Error; err != nil {
-		t.Fatalf("create credential: %v", err)
-	}
-	model := persistencemodel.AIModelConfig{CredentialID: credential.ID, ModelDefID: "text", IsEnabled: true}
-	if err := db.Create(&model).Error; err != nil {
-		t.Fatalf("create model config: %v", err)
-	}
+	runtimeModelID := uint(1)
 
 	now := time.Date(2026, 5, 16, 12, 0, 0, 0, time.UTC)
 	orgID := uint(9)
@@ -37,11 +30,11 @@ func TestUsageLogListFiltersByOrgProjectAndSince(t *testing.T) {
 	otherProjectID := uint(12)
 	gatewayKeyID := uint(21)
 	otherGatewayKeyID := uint(22)
-	createScopedUsageLog(t, db, user.ID, model.ID, &orgID, &projectID, &gatewayKeyID, 1.5, now.Add(-time.Hour))
-	createScopedUsageLog(t, db, user.ID, model.ID, &orgID, &projectID, &otherGatewayKeyID, 1.7, now.Add(-time.Hour))
-	createScopedUsageLog(t, db, user.ID, model.ID, &orgID, &otherProjectID, &gatewayKeyID, 2.5, now.Add(-time.Hour))
-	createScopedUsageLog(t, db, user.ID, model.ID, &otherOrgID, &projectID, &gatewayKeyID, 3.5, now.Add(-time.Hour))
-	createScopedUsageLog(t, db, user.ID, model.ID, &orgID, &projectID, &gatewayKeyID, 4.5, now.AddDate(0, 0, -30))
+	createScopedUsageLog(t, db, user.ID, runtimeModelID, &orgID, &projectID, &gatewayKeyID, 1.5, now.Add(-time.Hour))
+	createScopedUsageLog(t, db, user.ID, runtimeModelID, &orgID, &projectID, &otherGatewayKeyID, 1.7, now.Add(-time.Hour))
+	createScopedUsageLog(t, db, user.ID, runtimeModelID, &orgID, &otherProjectID, &gatewayKeyID, 2.5, now.Add(-time.Hour))
+	createScopedUsageLog(t, db, user.ID, runtimeModelID, &otherOrgID, &projectID, &gatewayKeyID, 3.5, now.Add(-time.Hour))
+	createScopedUsageLog(t, db, user.ID, runtimeModelID, &orgID, &projectID, &gatewayKeyID, 4.5, now.AddDate(0, 0, -30))
 
 	h := NewUsageAdminHandler(db.Session(&gorm.Session{SkipHooks: true}))
 	router := gin.New()
@@ -68,24 +61,17 @@ func TestUsageLogListFiltersByOrgProjectAndSince(t *testing.T) {
 
 func TestUsageLogListPaginates(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	db := testutil.OpenSQLite(t, "handler-usage-pagination.db", &persistencemodel.User{}, &persistencemodel.AICredential{}, &persistencemodel.AIModelConfig{}, &persistencemodel.UsageLog{})
+	db := testutil.OpenSQLite(t, "handler-usage-pagination.db", &persistencemodel.User{}, &persistencemodel.UsageLog{})
 	user := persistencemodel.User{Username: "usage-pagination-user", Status: "active"}
 	if err := db.Create(&user).Error; err != nil {
 		t.Fatalf("create user: %v", err)
 	}
-	credential := persistencemodel.AICredential{AdapterType: "openai_compat", DisplayName: "Provider", IsEnabled: true}
-	if err := db.Create(&credential).Error; err != nil {
-		t.Fatalf("create credential: %v", err)
-	}
-	model := persistencemodel.AIModelConfig{CredentialID: credential.ID, ModelDefID: "text", IsEnabled: true}
-	if err := db.Create(&model).Error; err != nil {
-		t.Fatalf("create model config: %v", err)
-	}
+	runtimeModelID := uint(1)
 
 	now := time.Date(2026, 5, 16, 12, 0, 0, 0, time.UTC)
-	createScopedUsageLog(t, db, user.ID, model.ID, nil, nil, nil, 1, now)
-	createScopedUsageLog(t, db, user.ID, model.ID, nil, nil, nil, 2, now)
-	createScopedUsageLog(t, db, user.ID, model.ID, nil, nil, nil, 3, now)
+	createScopedUsageLog(t, db, user.ID, runtimeModelID, nil, nil, nil, 1, now)
+	createScopedUsageLog(t, db, user.ID, runtimeModelID, nil, nil, nil, 2, now)
+	createScopedUsageLog(t, db, user.ID, runtimeModelID, nil, nil, nil, 3, now)
 
 	h := NewUsageAdminHandler(db.Session(&gorm.Session{SkipHooks: true}))
 	router := gin.New()
@@ -110,14 +96,14 @@ func TestUsageLogListPaginates(t *testing.T) {
 	}
 }
 
-func createScopedUsageLog(t *testing.T, db *gorm.DB, userID uint, modelConfigID uint, orgID *uint, projectID *uint, gatewayKeyID *uint, cost float64, createdAt time.Time) {
+func createScopedUsageLog(t *testing.T, db *gorm.DB, userID uint, runtimeModelID uint, orgID *uint, projectID *uint, gatewayKeyID *uint, cost float64, createdAt time.Time) {
 	t.Helper()
 	log := persistencemodel.UsageLog{
 		UserID:          userID,
 		OrgID:           orgID,
 		ProjectID:       projectID,
 		GatewayAPIKeyID: gatewayKeyID,
-		AIModelConfigID: modelConfigID,
+		RuntimeModelID:  runtimeModelID,
 		OperationType:   "text",
 		InputTokens:     10,
 		OutputTokens:    2,

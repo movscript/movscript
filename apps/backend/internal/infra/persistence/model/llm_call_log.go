@@ -14,9 +14,10 @@ type LLMCallLog struct {
 	ProjectID       *uint  `gorm:"index" json:"project_id,omitempty"`
 	GatewayAPIKeyID *uint  `gorm:"index" json:"gateway_api_key_id,omitempty"`
 
-	AIModelConfigID uint  `gorm:"not null;index" json:"-"`
-	RouteBindingID  *uint `gorm:"index" json:"route_binding_id,omitempty"`
-	CredentialID    uint  `gorm:"not null;index" json:"credential_id"`
+	RuntimeModelID        uint  `gorm:"column:runtime_model_id;not null;index" json:"-"`
+	AIModelCatalogEntryID *uint `gorm:"index" json:"ai_model_catalog_entry_id,omitempty"`
+	RouteBindingID        *uint `gorm:"index" json:"route_binding_id,omitempty"`
+	CredentialID          uint  `gorm:"not null;index" json:"credential_id"`
 
 	OperationType string `gorm:"not null;index;size:64" json:"operation_type"`
 	PromptName    string `gorm:"index;size:128" json:"prompt_name,omitempty"`
@@ -32,11 +33,10 @@ type LLMCallLog struct {
 	CachedInputTokens int   `gorm:"default:0" json:"cached_input_tokens"`
 	ReasoningTokens   int   `gorm:"default:0" json:"reasoning_tokens"`
 
-	RequestJSON      string        `gorm:"type:text" json:"request_json,omitempty"`
-	ResponseJSON     string        `gorm:"type:text" json:"response_json,omitempty"`
-	PayloadTruncated bool          `gorm:"default:false" json:"payload_truncated"`
-	ExpiresAt        *time.Time    `gorm:"index" json:"expires_at,omitempty"`
-	RetentionDays    int           `gorm:"default:0" json:"retention_days"`
-	User             User          `gorm:"foreignKey:UserID" json:"user,omitempty"`
-	AIModelConfig    AIModelConfig `gorm:"foreignKey:AIModelConfigID;-:migration" json:"-"`
+	RequestJSON      string     `gorm:"type:text" json:"request_json,omitempty"`
+	ResponseJSON     string     `gorm:"type:text" json:"response_json,omitempty"`
+	PayloadTruncated bool       `gorm:"default:false" json:"payload_truncated"`
+	ExpiresAt        *time.Time `gorm:"index" json:"expires_at,omitempty"`
+	RetentionDays    int        `gorm:"default:0" json:"retention_days"`
+	User             User       `gorm:"foreignKey:UserID" json:"user,omitempty"`
 }

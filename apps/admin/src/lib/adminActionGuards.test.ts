@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  catalogEntryDisplayName,
   cloudFileConfigToggleConfirmKey,
   credentialToggleConfirmKey,
   jobActionConfirmKey,
-  modelConfigDisplayName,
   nextCredentialEnabledState,
 } from './adminActionGuards'
 
@@ -16,9 +16,10 @@ test('credential toggle guard returns the next state and matching confirmation k
   assert.equal(credentialToggleConfirmKey({ is_enabled: true }), 'admin.models.confirmDisableCredential')
 })
 
-test('model config display name prefers custom admin name and falls back to model id', () => {
-  assert.equal(modelConfigDisplayName({ custom_display_name: 'Fast Text', model_def_id: 'gpt-4.1-mini' }), 'Fast Text')
-  assert.equal(modelConfigDisplayName({ custom_display_name: '', model_def_id: 'gpt-4.1-mini' }), 'gpt-4.1-mini')
+test('catalog entry display name prefers admin display fields and falls back to public model id', () => {
+  assert.equal(catalogEntryDisplayName({ display_name: 'Fast Text', short_name: 'fast', public_model_id: 'gpt-5.2' }), 'Fast Text')
+  assert.equal(catalogEntryDisplayName({ display_name: '', short_name: 'fast', public_model_id: 'gpt-5.2' }), 'fast')
+  assert.equal(catalogEntryDisplayName({ display_name: '', short_name: '', public_model_id: 'gpt-5.2' }), 'gpt-5.2')
 })
 
 test('job action guard maps operational actions to confirmation keys', () => {

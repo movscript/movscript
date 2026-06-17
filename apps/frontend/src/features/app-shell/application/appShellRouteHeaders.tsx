@@ -31,7 +31,7 @@ export function toolRouteHeaderTitle(pathname: string): ReactNode | undefined {
     title: ReactNode
   }> = [
     { match: (value) => value === ROUTES.resources, icon: HardDrive, title: i18n.t('header.titles.resources') },
-    { match: (value) => value === ROUTES.editing, icon: Scissors, title: i18n.t('header.titles.editing', { defaultValue: '剪辑' }) },
+    { match: (value) => value === ROUTES.editing || value.startsWith('/editing/'), icon: Scissors, title: i18n.t('header.titles.editing', { defaultValue: '剪辑' }) },
     { match: (value) => value === ROUTES.externalResources, icon: ImageIcon, title: i18n.t('header.titles.externalResources', { defaultValue: '外部资源' }) },
     { match: (value) => value === ROUTES.shotLibrary, icon: Clapperboard, title: i18n.t('header.titles.shotLibrary') },
     { match: (value) => value === ROUTES.jobs, icon: BriefcaseBusiness, title: i18n.t('header.titles.jobs') },
@@ -95,7 +95,7 @@ export function accountSettingsRouteHeaderTitle(tab: AccountSettingsPageTab): Re
   if (tab === 'profile') return <AppRouteHeaderTitle icon={CircleUserRound} title={i18n.t('user.title')} />
   if (tab === 'workspace') return <AppRouteHeaderTitle icon={BriefcaseBusiness} title={i18n.t('sidebar.items.workspace')} />
   if (tab === 'console') return <AppRouteHeaderTitle icon={Bot} title={i18n.t('sidebar.items.agentConsole')} />
-  if (tab === 'console:model-providers') return <AppRouteHeaderTitle icon={Settings} title="Model Providers" />
+  if (tab === 'console:model-providers') return <AppRouteHeaderTitle icon={Settings} title="Provider / Catalog / Route" />
   if (tab === 'console:agents') return <AppRouteHeaderTitle icon={Bot} title="Agents" />
   if (tab === 'console:connections') return <AppRouteHeaderTitle icon={Cable} title="Connections" />
   if (tab === 'console:plugins') return <AppRouteHeaderTitle icon={Plug} title="Plugins" />

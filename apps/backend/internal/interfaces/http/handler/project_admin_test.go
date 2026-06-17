@@ -315,7 +315,7 @@ func TestProjectAdminDetailReturnsOperationalSummary(t *testing.T) {
 	if err := db.Create(&persistencemodel.ProjectMember{ProjectID: project.ID, UserID: owner.ID, Role: "owner"}).Error; err != nil {
 		t.Fatalf("create owner member: %v", err)
 	}
-	if err := db.Create(&persistencemodel.UsageLog{UserID: owner.ID, ProjectID: &project.ID, AIModelConfigID: 1, OperationType: "image", InputTokens: 5, OutputTokens: 7, ImageCount: 2, Cost: 3.5}).Error; err != nil {
+	if err := db.Create(&persistencemodel.UsageLog{UserID: owner.ID, ProjectID: &project.ID, RuntimeModelID: 1, OperationType: "image", InputTokens: 5, OutputTokens: 7, ImageCount: 2, Cost: 3.5}).Error; err != nil {
 		t.Fatalf("create usage: %v", err)
 	}
 	if err := db.Create(&persistencemodel.AuditLog{ProjectID: &project.ID, Action: "project.admin_updated", TargetType: "project", TargetID: strconv.FormatUint(uint64(project.ID), 10)}).Error; err != nil {

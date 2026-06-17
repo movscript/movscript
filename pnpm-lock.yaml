@@ -128,6 +128,9 @@ importers:
       '@movscript/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@movscript/editing':
+        specifier: workspace:*
+        version: link:../../packages/editing
       '@movscript/engine':
         specifier: workspace:*
         version: link:../../packages/engine

@@ -40,6 +40,7 @@
   },
   "dependencies": {
     "@movscript/core": "workspace:*",
+    "@movscript/editing": "workspace:*",
     "@movscript/engine": "workspace:*",
     "@movscript/language": "workspace:*",
     "@movscript/theme": "workspace:*",

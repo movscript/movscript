@@ -16,10 +16,16 @@ func countModelSummary(db *gorm.DB) (ModelSummary, error) {
 	if summary.EnabledCredentials, err = countRows(db, &persistencemodel.AICredential{}, "is_enabled = ?", true); err != nil {
 		return ModelSummary{}, err
 	}
-	if summary.Configs, err = countRows(db, &persistencemodel.AIModelConfig{}, ""); err != nil {
+	if summary.CatalogEntries, err = countRows(db, &persistencemodel.AIModelCatalogEntry{}, ""); err != nil {
 		return ModelSummary{}, err
 	}
-	if summary.EnabledConfigs, err = countRows(db, &persistencemodel.AIModelConfig{}, "is_enabled = ?", true); err != nil {
+	if summary.EnabledCatalogEntries, err = countRows(db, &persistencemodel.AIModelCatalogEntry{}, "is_enabled = ?", true); err != nil {
+		return ModelSummary{}, err
+	}
+	if summary.RouteBindings, err = countRows(db, &persistencemodel.AIModelRouteBinding{}, ""); err != nil {
+		return ModelSummary{}, err
+	}
+	if summary.EnabledRouteBindings, err = countRows(db, &persistencemodel.AIModelRouteBinding{}, "is_enabled = ?", true); err != nil {
 		return ModelSummary{}, err
 	}
 	return summary, nil

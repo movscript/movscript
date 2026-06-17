@@ -145,7 +145,7 @@ export default function AgentConsolePage() {
               {loading && <AgentConsoleSyncBadge>同步中</AgentConsoleSyncBadge>}
             </AgentConsoleHeaderTitleRow>
             <AgentConsoleHeaderDescription>
-              聚合 Model Providers、Agents、Plugins 和 Workspace Root 的状态；业务页面只消费已配置好的能力。
+              聚合 Provider / Catalog / Route、Agents、Plugins 和 Workspace Root 的状态；业务页面只消费已配置好的能力。
             </AgentConsoleHeaderDescription>
           </AgentConsoleHeaderCopy>
           <AgentConsoleHeaderActions>
@@ -278,7 +278,7 @@ export default function AgentConsolePage() {
 
             <ConsolePanel title="管理入口" icon={<Terminal size={14} />}>
               <AgentConsoleGrid>
-                <ManagementLink to={ROUTES.modelProviders} icon={<Settings size={14} />} title="Model Providers" detail="管理后端模型路由；高级直连覆盖仅用于临时外部模型服务。" />
+                <ManagementLink to={ROUTES.modelProviders} icon={<Settings size={14} />} title="Provider / Catalog / Route" detail="管理 provider/new-api 来源、Catalog Entry 和 Route；高级直连覆盖仅用于临时外部模型服务。" />
                 {appServerProvidersForManagement.map((provider) => (
                   <ManagementLink
                     key={provider.id}

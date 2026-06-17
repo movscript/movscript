@@ -38,25 +38,6 @@ export interface AdapterParamSet {
   params: ParamDef[]
 }
 
-// ModelPreset is a read-only admin UI template for quickly adding a model.
-// Runtime routing and generation parameters never consult this list.
-export interface ModelPreset {
-  id: string
-  model_id: string
-  display_name: string
-  capabilities: string[]
-  pricing_mode: 'per_token' | 'per_image' | 'per_second' | 'per_call'
-  adapter_type: string
-  accepts_image_input: boolean
-  max_input_images: number
-  max_input_videos: number
-  image_edit_field?: string
-  ref_input_usd_per_1m?: number
-  ref_output_usd_per_1m?: number
-  ref_usd_per_image?: number
-  ref_usd_per_second?: number
-}
-
 // ParamDef describes a user-configurable generation parameter for a model.
 export interface ParamDef {
   key: string

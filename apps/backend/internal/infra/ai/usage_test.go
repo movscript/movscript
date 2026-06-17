@@ -1,19 +1,15 @@
 package ai
 
-import (
-	"testing"
-
-	"github.com/movscript/movscript/internal/infra/persistence/model"
-)
+import "testing"
 
 func TestEstimateUsageCostPerToken(t *testing.T) {
-	cfg := model.AIModelConfig{
+	pricing := modelPricing{
 		CreditsInputPer1M:  2,
 		CreditsOutputPer1M: 8,
 	}
 	def := &ModelDef{PricingMode: PricingPerToken}
 
-	got := estimateUsageCost(cfg, def, "text", 500_000, 250_000, 0, 1)
+	got := estimateUsageCostWithPricing(pricing, def, "text", 500_000, 250_000, 0, 1)
 
 	if got.Cost != 3 {
 		t.Fatalf("expected 3 credits, got %.4f", got.Cost)

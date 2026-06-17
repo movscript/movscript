@@ -1,10 +1,6 @@
 package ai
 
-import (
-	"encoding/json"
-	"strings"
-	"testing"
-)
+import "testing"
 
 func TestResolveBaseURLPrefersCredentialOverride(t *testing.T) {
 	got := ResolveBaseURL(" https://default.example ", map[string]string{"base_url": " https://custom.example "})
@@ -36,19 +32,5 @@ func TestNewCredentialAppliesDefaults(t *testing.T) {
 	roundTrip := CredentialFromModel(modelCred)
 	if roundTrip.ID != 13 || roundTrip.AdapterType != "openai" || roundTrip.DisplayName != "Main" {
 		t.Fatalf("unexpected credential round-trip: %+v", roundTrip)
-	}
-}
-
-func TestModelConfigJSONUsesPricingMode(t *testing.T) {
-	body, err := json.Marshal(ModelConfig{CustomPricingMode: "per_image"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := string(body)
-	if !strings.Contains(got, `"custom_pricing_mode":"per_image"`) {
-		t.Fatalf("missing custom_pricing_mode in JSON: %s", got)
-	}
-	if strings.Contains(got, "custom_billing_mode") {
-		t.Fatalf("unexpected legacy custom_billing_mode in JSON: %s", got)
 	}
 }

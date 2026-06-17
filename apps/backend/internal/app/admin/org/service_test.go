@@ -214,10 +214,10 @@ func TestDetailReturnsOrgOperationalSummary(t *testing.T) {
 	if err := db.Create(&persistencemodel.RawResource{Name: "Asset", OwnerID: 1, OrgID: &org.ID, Type: "image", FilePath: "asset.png"}).Error; err != nil {
 		t.Fatal(err)
 	}
-	if err := db.Create(&persistencemodel.UsageLog{UserID: 1, OrgID: &org.ID, AIModelConfigID: 1, OperationType: "image", InputTokens: 11, OutputTokens: 22, ImageCount: 3, Cost: 4.5}).Error; err != nil {
+	if err := db.Create(&persistencemodel.UsageLog{UserID: 1, OrgID: &org.ID, RuntimeModelID: 1, OperationType: "image", InputTokens: 11, OutputTokens: 22, ImageCount: 3, Cost: 4.5}).Error; err != nil {
 		t.Fatal(err)
 	}
-	if err := db.Create(&persistencemodel.UsageLog{UserID: 2, OrgID: &otherOrg.ID, AIModelConfigID: 1, OperationType: "image", InputTokens: 99, OutputTokens: 99, ImageCount: 99, Cost: 99}).Error; err != nil {
+	if err := db.Create(&persistencemodel.UsageLog{UserID: 2, OrgID: &otherOrg.ID, RuntimeModelID: 1, OperationType: "image", InputTokens: 99, OutputTokens: 99, ImageCount: 99, Cost: 99}).Error; err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Create(&persistencemodel.AuditLog{OrgID: &org.ID, Action: "org.member.admin_added", TargetType: "org_member", TargetID: "1"}).Error; err != nil {

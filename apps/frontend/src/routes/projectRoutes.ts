@@ -9,6 +9,7 @@ export const ROUTES = {
   canvases: '/canvases',
   canvasEditor: '/canvases/:id',
   editing: '/editing',
+  editingProject: '/editing/:editingProjectId',
   resources: '/resources',
   externalResources: '/resources/external',
   shotLibrary: '/shot-library',

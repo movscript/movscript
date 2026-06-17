@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
@@ -191,13 +192,9 @@ func extFromMime(mime string) string {
 	}
 }
 
-func (w *Worker) loadModelConfig(id uint) *persistencemodel.AIModelConfig {
-	if w == nil || w.db == nil || !w.db.Migrator().HasTable(&persistencemodel.AIModelConfig{}) {
-		return nil
+func (w *Worker) jobModelDefID(ctx context.Context, job *persistencemodel.Job) string {
+	if route, ok := w.catalogRouteForJob(ctx, job); ok {
+		return route.ProviderModelID
 	}
-	var cfg persistencemodel.AIModelConfig
-	if err := w.db.First(&cfg, id).Error; err != nil {
-		return nil
-	}
-	return &cfg
+	return ""
 }

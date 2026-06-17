@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm, stat } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join } from 'path'
+import { normalizeMediaClipVolumePercent } from '@movscript/editing'
 
 import {
   materializeMediaPipelineAsset,
@@ -122,11 +123,14 @@ export async function mediaPipelineTimelineToVideoExportInput(
   const subtitleFiles: NonNullable<VideoTimelineExportInput['subtitleFiles']> = []
   const audioClips: NonNullable<VideoTimelineExportInput['audioClips']> = []
   const overlays: NonNullable<VideoTimelineExportInput['overlays']> = []
+  const primaryVideoTrackId = primaryTimelineVideoTrackId(timeline)
 
   for (const track of timeline.tracks) {
     for (const clip of track.clips) {
-      if (track.type === 'video' && clip.assetType === 'video') {
+      if (track.type === 'video' && clip.assetType === 'video' && track.id === primaryVideoTrackId) {
         clips.push(await mediaPipelineTimelineVideoClipInput(track, clip, workspace, materializeOptions))
+      } else if (track.type === 'video' && clip.assetType === 'video') {
+        overlays.push(await overlayInput(track, clip, 'video', workspace, materializeOptions))
       } else if (track.type === 'audio' && clip.assetType === 'audio') {
         audioClips.push(await audioClipInput(clip, workspace, materializeOptions))
       } else if ((track.type === 'text' || track.type === 'subtitle') && clip.text?.content) {
@@ -139,6 +143,9 @@ export async function mediaPipelineTimelineToVideoExportInput(
           layerIndex: track.zIndex,
           fontSize: textStyle?.fontSize ?? clip.text.fontSize,
           fontFamily: textStyle?.fontFamily ?? clip.text.fontFamily,
+          ...(textPositionYPercent(textStyle?.position ?? clip.text.position ?? clip.position) === undefined ? {} : {
+            yPercent: textPositionYPercent(textStyle?.position ?? clip.text.position ?? clip.position),
+          }),
           textColor: textStyle?.color ?? clip.text.color,
           backgroundColor: textStyle?.backgroundColor ?? clip.text.backgroundColor,
           boxOpacityPercent: backgroundOpacity === undefined
@@ -161,11 +168,14 @@ export async function mediaPipelineTimelineToVideoExportInput(
   }
 
   return {
-    clips,
-    ...(captions.length ? { captions } : {}),
+    clips: clips.sort((left, right) => (left.timelineStartMs ?? 0) - (right.timelineStartMs ?? 0) || (left.layerIndex ?? 0) - (right.layerIndex ?? 0)),
+    ...(captions.length ? { captions: captions.sort((left, right) => (left.layerIndex ?? 0) - (right.layerIndex ?? 0) || left.startMs - right.startMs) } : {}),
     ...(subtitleFiles.length ? { subtitleFiles } : {}),
-    ...(audioClips.length ? { audioClips } : {}),
-    ...(overlays.length ? { overlays } : {}),
+    ...(audioClips.length ? { audioClips: audioClips.sort((left, right) => left.timelineStartMs - right.timelineStartMs) } : {}),
+    ...(overlays.length ? { overlays: overlays.sort((left, right) => (left.layerIndex ?? 0) - (right.layerIndex ?? 0) || left.startMs - right.startMs) } : {}),
+    width: timeline.width,
+    height: timeline.height,
+    background: timeline.background,
   }
 }
 
@@ -185,8 +195,14 @@ async function mediaPipelineTimelineVideoClipInput(
     endMs,
     timelineStartMs: clip.timelineStartMs,
     layerIndex: track.zIndex,
-    volume: clip.volume,
+    volume: normalizeMediaClipVolumePercent(clip.volume),
     muted: clip.muted,
+    ...clipTimingInput(clip),
+    ...clipCropInput(clip),
+    ...(clip.fit ? { fit: clip.fit } : {}),
+    ...(clip.xPercent === undefined ? {} : { xPercent: clip.xPercent }),
+    ...(clip.yPercent === undefined ? {} : { yPercent: clip.yPercent }),
+    ...(clip.scale === undefined ? {} : { scalePercent: clip.scale * 100 }),
   }
 }
 
@@ -204,7 +220,8 @@ async function audioClipInput(
     startMs,
     endMs,
     timelineStartMs: clip.timelineStartMs,
-    volume: clip.volume,
+    volume: normalizeMediaClipVolumePercent(clip.volume),
+    ...clipTimingInput(clip),
   }
 }
 
@@ -221,9 +238,71 @@ async function overlayInput(
     sourceKind,
     startMs: clip.timelineStartMs,
     endMs: clip.timelineStartMs + clip.durationMs,
+    ...(sourceKind === 'video' ? { sourceStartMs: clip.sourceStartMs ?? 0 } : {}),
+    ...(sourceKind === 'video' ? { sourceEndMs: clip.sourceEndMs ?? (clip.sourceStartMs ?? 0) + clip.durationMs } : {}),
     layerIndex: track.zIndex,
-    opacityPercent: clip.opacity === undefined ? undefined : clip.opacity * 100,
+    ...(sourceKind === 'video' && clip.volume !== undefined ? { volume: normalizeMediaClipVolumePercent(clip.volume) } : {}),
+    ...(sourceKind === 'video' && clip.muted !== undefined ? { muted: clip.muted } : {}),
+    ...clipTimingInput(clip),
+    ...clipCropInput(clip),
+    ...(clip.xPercent === undefined ? {} : { xPercent: clip.xPercent }),
+    ...(clip.yPercent === undefined ? {} : { yPercent: clip.yPercent }),
+    ...(clip.scale === undefined ? {} : { scalePercent: clip.scale * 100 }),
+    ...(clip.opacity === undefined ? {} : { opacityPercent: clip.opacity * 100 }),
   }
+}
+
+function primaryTimelineVideoTrackId(timeline: MediaPipelineTimelineRecipe): string | undefined {
+  const videoTracks = timeline.tracks
+    .filter((track) => track.type === 'video' && track.clips.some((clip) => clip.assetType === 'video'))
+    .sort((left, right) => left.zIndex - right.zIndex || left.id.localeCompare(right.id))
+  return videoTracks[0]?.id
+}
+
+function clipTimingInput(clip: MediaPipelineClip): {
+  speed?: number
+  fadeInMs?: number
+  fadeOutMs?: number
+} {
+  const metadata = clip.metadata ?? {}
+  const transitionFadeMs = clip.transition?.type === 'fade' ? numericValue(clip.transition.durationMs) : undefined
+  return {
+    ...(numericValue(clip.speed ?? metadata.speed) ? { speed: numericValue(clip.speed ?? metadata.speed) } : {}),
+    ...(numericValue(clip.fadeInMs ?? metadata.fadeInMs ?? metadata.fade_in_ms ?? transitionFadeMs) ? { fadeInMs: numericValue(clip.fadeInMs ?? metadata.fadeInMs ?? metadata.fade_in_ms ?? transitionFadeMs) } : {}),
+    ...(numericValue(clip.fadeOutMs ?? metadata.fadeOutMs ?? metadata.fade_out_ms ?? transitionFadeMs) ? { fadeOutMs: numericValue(clip.fadeOutMs ?? metadata.fadeOutMs ?? metadata.fade_out_ms ?? transitionFadeMs) } : {}),
+  }
+}
+
+function clipCropInput(clip: MediaPipelineClip): {
+  cropLeftPercent?: number
+  cropRightPercent?: number
+  cropTopPercent?: number
+  cropBottomPercent?: number
+} {
+  const crop = clip.crop
+  if (!crop) return {}
+  return {
+    ...(numericValue(crop.leftPercent) ? { cropLeftPercent: numericValue(crop.leftPercent) } : {}),
+    ...(numericValue(crop.rightPercent) ? { cropRightPercent: numericValue(crop.rightPercent) } : {}),
+    ...(numericValue(crop.topPercent) ? { cropTopPercent: numericValue(crop.topPercent) } : {}),
+    ...(numericValue(crop.bottomPercent) ? { cropBottomPercent: numericValue(crop.bottomPercent) } : {}),
+  }
+}
+
+function textPositionYPercent(position: string | undefined): number | undefined {
+  const normalized = position?.trim().toLowerCase()
+  if (!normalized) return undefined
+  if (normalized === 'top') return 15
+  if (normalized === 'center' || normalized === 'middle') return 50
+  if (normalized === 'bottom') return 88
+  const percent = normalized.match(/^(\d+(?:\.\d+)?)%$/)
+  if (percent) return numericValue(percent[1])
+  return undefined
+}
+
+function numericValue(value: unknown): number | undefined {
+  const numeric = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : Number.NaN
+  return Number.isFinite(numeric) ? numeric : undefined
 }
 
 async function materializedAssetPath(

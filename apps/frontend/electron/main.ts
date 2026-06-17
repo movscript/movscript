@@ -17,6 +17,7 @@ import { openHomeWindow } from './services/appWindowRegistry'
 import { installAdminProtocol, registerAdminProtocolPrivileges } from './adminWindow'
 import { installMediaProtocol, registerMediaProtocolPrivileges } from './mediaProtocol'
 import { installAppUpdateScheduler, uninstallAppUpdateScheduler } from './services/appUpdate'
+import { installDockShortcutMenu } from './services/dockShortcutMenu'
 
 const desktopSmokeTest = process.argv.includes('--movscript-desktop-smoke-test') || process.env.MOVSCRIPT_DESKTOP_SMOKE_TEST === '1'
 
@@ -34,6 +35,7 @@ registerMediaProtocolPrivileges()
 
 app.whenReady().then(async () => {
   installApplicationMenu()
+  installDockShortcutMenu()
   installAdminProtocol()
   installMediaProtocol()
   try {

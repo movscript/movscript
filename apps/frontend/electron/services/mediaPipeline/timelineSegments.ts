@@ -27,7 +27,11 @@ export async function materializeMediaPipelineTimelineBaseVideo(input: {
     const gapMs = clip.timelineStartMs - cursorMs
     if (gapMs > 0) {
       const gapPath = join(input.workDir, `segment-${String(segmentPaths.length + 1).padStart(4, '0')}-gap.mp4`)
-      await runMediaPipelineFFmpeg(input.ffmpegPath, buildBlankVideoArgs(gapPath, gapMs), {
+      await runMediaPipelineFFmpeg(input.ffmpegPath, buildBlankVideoArgs(gapPath, gapMs, {
+        width: input.timeline.width,
+        height: input.timeline.height,
+        background: input.timeline.background,
+      }), {
         signal: input.timeline.signal,
         onOutput: input.timeline.onFFmpegOutput,
       })
@@ -49,12 +53,19 @@ export async function materializeMediaPipelineTimelineBaseVideo(input: {
       volume: clip.volume,
       muted: clip.muted,
       speed: clip.speed,
+      fit: clip.fit,
+      width: input.timeline.width,
+      height: input.timeline.height,
+      background: input.timeline.background,
       fadeInMs: clip.fadeInMs,
       fadeOutMs: clip.fadeOutMs,
       cropLeftPercent: clip.cropLeftPercent,
       cropRightPercent: clip.cropRightPercent,
       cropTopPercent: clip.cropTopPercent,
       cropBottomPercent: clip.cropBottomPercent,
+      xPercent: clip.xPercent,
+      yPercent: clip.yPercent,
+      scalePercent: clip.scalePercent,
       mode: 'accurate',
     }, segmentPath, clip.endMs - clip.startMs), {
       signal: input.timeline.signal,

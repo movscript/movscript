@@ -162,8 +162,8 @@ test('model param admin aliases match the shared manifest', () => {
   )
 })
 
-test('model preset supported params serialize into custom supported params', () => {
-  const presetParams = [
+test('catalog template supported params serialize into custom supported params', () => {
+  const templateParams = [
     {
       key: 'duration',
       label: 'Duration',
@@ -182,7 +182,7 @@ test('model preset supported params serialize into custom supported params', () 
       json_schema: { enum: [29, 33, 37] },
     },
   ] as ParamDef[]
-  const encoded = serializeParamDefs(presetParams)
+  const encoded = serializeParamDefs(templateParams)
   const audit = buildParamContractAudit(encoded, [])
 
   assert.deepEqual(audit.errors, [])

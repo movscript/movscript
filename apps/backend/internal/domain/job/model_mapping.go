@@ -12,8 +12,9 @@ func JobFromModel(job persistencemodel.Job) Job {
 		ID:                    job.ID,
 		UserID:                job.UserID,
 		OrgID:                 job.OrgID,
-		ModelConfigID:         job.ModelConfigID,
+		RuntimeModelID:        job.RuntimeModelID,
 		AIModelCatalogEntryID: job.AIModelCatalogEntryID,
+		RouteBindingID:        job.RouteBindingID,
 		ModelID:               ModelIDFromRequestContext(job.RequestContext),
 		RouteGroup:            job.RouteGroup,
 		JobType:               job.JobType,
@@ -90,8 +91,9 @@ func (job Job) ApplyToModel(target *persistencemodel.Job) {
 	target.Model.ID = job.ID
 	target.UserID = job.UserID
 	target.OrgID = job.OrgID
-	target.ModelConfigID = job.ModelConfigID
+	target.RuntimeModelID = job.RuntimeModelID
 	target.AIModelCatalogEntryID = job.AIModelCatalogEntryID
+	target.RouteBindingID = job.RouteBindingID
 	target.RouteGroup = job.RouteGroup
 	target.JobType = job.JobType
 	target.FeatureKey = job.FeatureKey
@@ -251,38 +253,4 @@ func AICredentialFromModel(credential persistencemodel.AICredential) AICredentia
 		domainCredential.DeletedAt = &deletedAt
 	}
 	return domainCredential
-}
-
-func AIModelConfigFromModel(config persistencemodel.AIModelConfig) AIModelConfig {
-	domainConfig := AIModelConfig{
-		ID:                    config.ID,
-		CredentialID:          config.CredentialID,
-		ModelDefID:            config.ModelDefID,
-		ModelIDOverride:       config.ModelIDOverride,
-		IsEnabled:             config.IsEnabled,
-		Priority:              config.Priority,
-		CapacityWeight:        config.CapacityWeight,
-		MaxConcurrency:        config.MaxConcurrency,
-		CreditsInputPer1M:     config.CreditsInputPer1M,
-		CreditsOutputPer1M:    config.CreditsOutputPer1M,
-		CreditsPerImage:       config.CreditsPerImage,
-		CreditsPerSecond:      config.CreditsPerSecond,
-		CreditsPerCall:        config.CreditsPerCall,
-		CustomDisplayName:     config.CustomDisplayName,
-		ShortName:             config.ShortName,
-		CustomCapabilities:    config.CustomCapabilities,
-		CustomPricingMode:     config.CustomPricingMode,
-		CustomAcceptsImage:    config.CustomAcceptsImage,
-		CustomMaxInputImages:  config.CustomMaxInputImages,
-		CustomMaxInputVideos:  config.CustomMaxInputVideos,
-		CustomImageEditField:  config.CustomImageEditField,
-		CustomSupportedParams: config.CustomSupportedParams,
-		CreatedAt:             config.CreatedAt,
-		UpdatedAt:             config.UpdatedAt,
-	}
-	if config.DeletedAt.Valid {
-		deletedAt := config.DeletedAt.Time
-		domainConfig.DeletedAt = &deletedAt
-	}
-	return domainConfig
 }

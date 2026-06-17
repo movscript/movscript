@@ -25,7 +25,8 @@ type llmCallLogSettings struct {
 type llmCallLogInput struct {
 	UserID         uint
 	Usage          UsageContext
-	Config         persistencemodel.AIModelConfig
+	RuntimeModelID uint
+	CredentialID   uint
 	Provider       string
 	OperationType  string
 	PromptName     string
@@ -42,12 +43,12 @@ func (s *AIService) logLLMCall(ctx context.Context, input llmCallLogInput) {
 	if input.Err != nil {
 		errText = input.Err.Error()
 	}
-	if err := s.RecordGatewayCall(ctx, providercontract.AIGatewayCallAuditInput{
+	audit := providercontract.AIGatewayCallAuditInput{
 		UserID:         input.UserID,
 		Context:        usageContextToContract(input.Usage),
-		ModelConfigID:  input.Config.ID,
+		CatalogEntryID: input.Usage.AIModelCatalogEntryID,
 		RouteBindingID: input.Usage.RouteBindingID,
-		CredentialID:   input.Config.CredentialID,
+		CredentialID:   input.CredentialID,
 		Provider:       input.Provider,
 		OperationType:  input.OperationType,
 		PromptName:     input.PromptName,
@@ -57,15 +58,21 @@ func (s *AIService) logLLMCall(ctx context.Context, input llmCallLogInput) {
 		Response:       input.Response,
 		StartedAt:      input.Start,
 		Error:          errText,
-	}); err != nil {
+	}
+	if err := s.recordGatewayCall(ctx, audit, input.RuntimeModelID); err != nil {
 		observability.WithRequest(ctx).Warn("llm_call_log_write_failed", slog.String("error", err.Error()))
 	}
 }
 
 func (s *AIService) RecordGatewayCall(ctx context.Context, input providercontract.AIGatewayCallAuditInput) error {
-	if s == nil || s.db == nil || input.ModelConfigID == 0 || input.UserID == 0 {
+	return s.recordGatewayCall(ctx, input, 0)
+}
+
+func (s *AIService) recordGatewayCall(ctx context.Context, input providercontract.AIGatewayCallAuditInput, runtimeModelID uint) error {
+	if s == nil || s.db == nil || input.UserID == 0 {
 		return nil
 	}
+	compatibilityRuntimeModelID := gatewayCallCompatibilityRuntimeModelID(input, runtimeModelID)
 	retentionDays := input.RetentionDays
 	if retentionDays <= 0 {
 		retentionDays = s.llmLogRetentionDays(ctx)
@@ -102,12 +109,16 @@ func (s *AIService) RecordGatewayCall(ctx context.Context, input providercontrac
 		latencyMs = time.Since(input.StartedAt).Milliseconds()
 	}
 	entry := persistencemodel.LLMCallLog{
-		RequestID:         observability.RequestIDFromContext(ctx),
-		UserID:            input.UserID,
-		OrgID:             input.Context.OrgID,
-		ProjectID:         input.Context.ProjectID,
-		GatewayAPIKeyID:   input.Context.GatewayAPIKeyID,
-		AIModelConfigID:   input.ModelConfigID,
+		RequestID:       observability.RequestIDFromContext(ctx),
+		UserID:          input.UserID,
+		OrgID:           input.Context.OrgID,
+		ProjectID:       input.Context.ProjectID,
+		GatewayAPIKeyID: input.Context.GatewayAPIKeyID,
+		RuntimeModelID:  compatibilityRuntimeModelID,
+		AIModelCatalogEntryID: firstUint(
+			input.CatalogEntryID,
+			input.Context.AIModelCatalogEntryID,
+		),
 		RouteBindingID:    firstUint(input.RouteBindingID, input.Context.RouteBindingID),
 		CredentialID:      input.CredentialID,
 		OperationType:     input.OperationType,
@@ -129,6 +140,25 @@ func (s *AIService) RecordGatewayCall(ctx context.Context, input providercontrac
 		RetentionDays:     retentionDays,
 	}
 	return s.db.WithContext(ctx).Create(&entry).Error
+}
+
+func gatewayCallCompatibilityRuntimeModelID(input providercontract.AIGatewayCallAuditInput, runtimeModelID uint) uint {
+	if runtimeModelID != 0 {
+		return runtimeModelID
+	}
+	if input.CatalogEntryID != nil && *input.CatalogEntryID != 0 {
+		return *input.CatalogEntryID
+	}
+	if input.Context.AIModelCatalogEntryID != nil && *input.Context.AIModelCatalogEntryID != 0 {
+		return *input.Context.AIModelCatalogEntryID
+	}
+	if input.RouteBindingID != nil && *input.RouteBindingID != 0 {
+		return *input.RouteBindingID
+	}
+	if input.Context.RouteBindingID != nil && *input.Context.RouteBindingID != 0 {
+		return *input.Context.RouteBindingID
+	}
+	return 0
 }
 
 func (input llmCallLogInput) ResponseModelFromResponse() string {

@@ -15,10 +15,11 @@ func TestAIServiceRoutingPolicyContractResolvesProviderBackedRoute(t *testing.T)
 	resetFailoverTestState()
 	db := testutil.OpenSQLite(t, "ai-routing-policy-contract.db",
 		&persistencemodel.AICredential{},
-		&persistencemodel.AIModelConfig{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
 	)
-	createTextProviderVariant(t, db, 1, "Primary provider")
-	createTextProviderVariant(t, db, 2, "Secondary provider")
+	createCatalogRouteVariant(t, db, 1, "Primary provider", AdapterOpenAICompat, "gpt-5.2", "gpt-5.2-primary", 20, CapabilityText)
+	createCatalogRouteVariant(t, db, 2, "Secondary provider", AdapterOpenAICompat, "gpt-5.2", "gpt-5.2-secondary", 10, CapabilityText)
 	service := NewAIService(db, NewRegistry(db, nil))
 
 	route, err := service.ResolveGatewayModelRoute(context.Background(), providercontract.AIGatewayRouteRequest{
@@ -28,11 +29,11 @@ func TestAIServiceRoutingPolicyContractResolvesProviderBackedRoute(t *testing.T)
 	if err != nil {
 		t.Fatalf("ResolveGatewayModelRoute() error = %v", err)
 	}
-	if route.ModelID != "gpt-5.2" || route.ModelConfigID == 0 || route.ProviderModelID != "gpt-5.2" || route.Capability != CapabilityText {
-		t.Fatalf("route = %#v, want provider-backed text route", route)
+	if route.ModelID != "gpt-5.2" || route.ProviderModelID != "gpt-5.2-primary" || route.Capability != CapabilityText || route.SourceType != persistencemodel.ModelRouteSourceLocalProvider {
+		t.Fatalf("route = %#v, want catalog-backed text route", route)
 	}
-	if route.SelectionReason != "model_id_capacity_round_robin" {
-		t.Fatalf("selection reason = %q, want model_id_capacity_round_robin", route.SelectionReason)
+	if route.SelectionReason != "catalog_model_id" {
+		t.Fatalf("selection reason = %q, want catalog_model_id", route.SelectionReason)
 	}
 }
 
@@ -40,17 +41,18 @@ func TestAIServiceRoutingPolicyContractResolvesGenerationRoute(t *testing.T) {
 	resetFailoverTestState()
 	db := testutil.OpenSQLite(t, "ai-routing-generation-contract.db",
 		&persistencemodel.AICredential{},
-		&persistencemodel.AIModelConfig{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
 	)
-	createProviderVariant(t, db, 1, "Image provider", "gpt-image-1", 10, CapabilityImage)
+	createCatalogRouteVariant(t, db, 1, "Image provider", AdapterOpenAICompat, "gpt-image-1", "gpt-image-provider", 10, CapabilityImage)
 	service := NewAIService(db, NewRegistry(db, nil))
 
 	route, err := service.ResolveGatewayGenerationModelRoute(context.Background(), "gpt-image-1", CapabilityImage)
 	if err != nil {
 		t.Fatalf("ResolveGatewayGenerationModelRoute() error = %v", err)
 	}
-	if route.ModelID != "gpt-image-1" || route.ModelConfigID != 1 || route.Capability != CapabilityImage {
-		t.Fatalf("route = %#v, want image route through model config 1", route)
+	if route.ModelID != "gpt-image-1" || route.ProviderModelID != "gpt-image-provider" || route.Capability != CapabilityImage || route.SourceType != persistencemodel.ModelRouteSourceLocalProvider {
+		t.Fatalf("route = %#v, want image route through catalog binding", route)
 	}
 }
 
@@ -58,10 +60,11 @@ func TestAIServiceRoutingPolicyContractExposesFallbackRoutePlan(t *testing.T) {
 	resetFailoverTestState()
 	db := testutil.OpenSQLite(t, "ai-routing-fallback-plan-contract.db",
 		&persistencemodel.AICredential{},
-		&persistencemodel.AIModelConfig{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
 	)
-	createProviderVariantWithAdapter(t, db, 30, "Primary provider", AdapterOpenAICompat, "gpt-5.2", 20, CapabilityText)
-	createProviderVariantWithAdapter(t, db, 31, "Fallback provider", AdapterOpenAICompat, "gpt-5.2", 10, CapabilityText)
+	createCatalogRouteVariant(t, db, 30, "Primary provider", AdapterOpenAICompat, "gpt-5.2", "gpt-5.2-primary", 20, CapabilityText)
+	createCatalogRouteVariant(t, db, 31, "Fallback provider", AdapterOpenAICompat, "gpt-5.2", "gpt-5.2-fallback", 10, CapabilityText)
 	service := NewAIService(db, NewRegistry(db, nil))
 
 	plan, err := service.ResolveGatewayModelRoutePlan(context.Background(), providercontract.AIGatewayRouteRequest{
@@ -74,37 +77,38 @@ func TestAIServiceRoutingPolicyContractExposesFallbackRoutePlan(t *testing.T) {
 	if !plan.FallbackEnabled || len(plan.Routes) != 2 {
 		t.Fatalf("plan = %#v, want two fallback routes", plan)
 	}
-	if plan.ModelID != "gpt-5.2" || plan.Capability != CapabilityText || plan.SelectionReason != "model_id_capacity_round_robin" {
+	if plan.ModelID != "gpt-5.2" || plan.Capability != CapabilityText || plan.SelectionReason != "catalog_model_id" {
 		t.Fatalf("plan metadata = %#v, want text route plan", plan)
 	}
-	if plan.Routes[0].ModelConfigID != 30 || plan.Routes[0].SelectionReason != "model_id_capacity_round_robin" {
+	if plan.Routes[0].ProviderModelID != "gpt-5.2-primary" || plan.Routes[0].SelectionReason != "catalog_model_id" {
 		t.Fatalf("first route = %#v, want primary route", plan.Routes[0])
 	}
-	if plan.Routes[1].ModelConfigID != 31 || plan.Routes[1].SelectionReason != "fallback_candidate" {
+	if plan.Routes[1].ProviderModelID != "gpt-5.2-fallback" || plan.Routes[1].SelectionReason != "fallback_candidate" {
 		t.Fatalf("fallback route = %#v, want fallback route", plan.Routes[1])
 	}
 }
 
-func TestAIServiceRoutingPolicyContractPrefersRequestedAdapter(t *testing.T) {
+func TestAIServiceRoutingPolicyContractUsesRouteGroup(t *testing.T) {
 	resetFailoverTestState()
 	db := testutil.OpenSQLite(t, "ai-routing-preferred-adapter-contract.db",
 		&persistencemodel.AICredential{},
-		&persistencemodel.AIModelConfig{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
 	)
-	createProviderVariantWithAdapter(t, db, 10, "OpenAI-compatible provider", AdapterOpenAICompat, "gpt-5.2", 20, CapabilityText)
-	createProviderVariantWithAdapter(t, db, 11, "Local provider", AdapterLocal, "gpt-5.2", 1, CapabilityText)
+	createCatalogRouteVariantWithGroup(t, db, 10, "Default provider", AdapterOpenAICompat, "gpt-5.2", "gpt-5.2-default", 20, "default", CapabilityText)
+	createCatalogRouteVariantWithGroup(t, db, 11, "Batch provider", AdapterOpenAICompat, "gpt-5.2", "gpt-5.2-batch", 1, "batch", CapabilityText)
 	service := NewAIService(db, NewRegistry(db, nil))
 
-	route, err := service.ResolveGatewayModelRoute(context.Background(), providercontract.AIGatewayRouteRequest{
-		ModelID:               "gpt-5.2",
-		Capability:            CapabilityText,
-		PreferredAdapterTypes: []string{AdapterLocal},
+	ctx := WithProviderRouteGroup(context.Background(), "batch")
+	route, err := service.ResolveGatewayModelRoute(ctx, providercontract.AIGatewayRouteRequest{
+		ModelID:    "gpt-5.2",
+		Capability: CapabilityText,
 	})
 	if err != nil {
 		t.Fatalf("ResolveGatewayModelRoute() error = %v", err)
 	}
-	if route.ModelConfigID != 11 || route.SelectionReason != "model_id_preferred_adapter" {
-		t.Fatalf("route = %#v, want local provider preference", route)
+	if route.ProviderModelID != "gpt-5.2-batch" || route.SelectionReason != "catalog_route_group" {
+		t.Fatalf("route = %#v, want route-group selected provider", route)
 	}
 }
 
@@ -112,10 +116,11 @@ func TestAIServiceRoutingPolicyContractFiltersRoutesByEstimatedBudget(t *testing
 	resetFailoverTestState()
 	db := testutil.OpenSQLite(t, "ai-routing-budget-contract.db",
 		&persistencemodel.AICredential{},
-		&persistencemodel.AIModelConfig{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
 	)
-	createProviderVariantWithAdapterAndCost(t, db, 40, "Expensive provider", AdapterOpenAICompat, "gpt-5.2", 20, 10, 0, CapabilityText)
-	createProviderVariantWithAdapterAndCost(t, db, 41, "Budget provider", AdapterOpenAICompat, "gpt-5.2", 1, 1, 0, CapabilityText)
+	createCatalogRouteVariantWithCost(t, db, 40, "Expensive provider", AdapterOpenAICompat, "gpt-5.2", "gpt-5.2-expensive", 20, 10, 0, CapabilityText)
+	createCatalogRouteVariantWithCost(t, db, 41, "Budget provider", AdapterOpenAICompat, "gpt-5.2", "gpt-5.2-budget", 1, 1, 0, CapabilityText)
 	service := NewAIService(db, NewRegistry(db, nil))
 
 	plan, err := service.ResolveGatewayModelRoutePlan(context.Background(), providercontract.AIGatewayRouteRequest{
@@ -133,39 +138,24 @@ func TestAIServiceRoutingPolicyContractFiltersRoutesByEstimatedBudget(t *testing
 	if plan.FallbackEnabled || len(plan.Routes) != 1 {
 		t.Fatalf("plan = %#v, want one budget-matched route", plan)
 	}
-	if plan.Routes[0].ModelConfigID != 41 || plan.Routes[0].SelectionReason != "model_id_budget_aware" || plan.Routes[0].EstimatedCost != 1 {
+	if plan.Routes[0].SelectionReason != "catalog_budget_aware" || plan.Routes[0].EstimatedCost != 1 {
 		t.Fatalf("route = %#v, want budget provider route", plan.Routes[0])
 	}
 }
 
-func TestAIServiceRoutingPolicyContractPrefersRequestedAdapterForLocalProviderRoute(t *testing.T) {
-	resetFailoverTestState()
-	db := testutil.OpenSQLite(t, "ai-routing-local-provider-preferred-adapter-contract.db",
-		&persistencemodel.AICredential{},
-		&persistencemodel.AIModelConfig{},
-	)
-	createProviderVariantWithAdapter(t, db, 20, "OpenAI-compatible provider", AdapterOpenAICompat, "gpt-5.2", 20, CapabilityText)
-	createProviderVariantWithAdapter(t, db, 21, "Local provider", AdapterLocal, "gpt-5.2", 1, CapabilityText)
-	service := NewAIService(db, NewRegistry(db, nil))
-
-	route, err := service.ResolveGatewayModelRoute(context.Background(), providercontract.AIGatewayRouteRequest{
-		ModelConfigID:         20,
-		Capability:            CapabilityText,
-		PreferredAdapterTypes: []string{AdapterLocal},
-	})
-	if err != nil {
-		t.Fatalf("ResolveGatewayModelRoute() error = %v", err)
-	}
-	if route.ModelConfigID != 21 || route.SelectionReason != "local_provider_preferred_adapter" {
-		t.Fatalf("route = %#v, want local provider preference from local provider route", route)
-	}
+func createCatalogRouteVariant(t *testing.T, db *gorm.DB, id uint, providerName string, adapterType string, publicModelID string, providerModelID string, priority int, capabilities ...string) {
+	createCatalogRouteVariantWithGroupAndCost(t, db, id, providerName, adapterType, publicModelID, providerModelID, priority, "", 0, 0, capabilities...)
 }
 
-func createProviderVariantWithAdapter(t *testing.T, db *gorm.DB, id uint, providerName string, adapterType string, modelDefID string, priority int, capabilities ...string) {
-	createProviderVariantWithAdapterAndCost(t, db, id, providerName, adapterType, modelDefID, priority, 0, 0, capabilities...)
+func createCatalogRouteVariantWithGroup(t *testing.T, db *gorm.DB, id uint, providerName string, adapterType string, publicModelID string, providerModelID string, priority int, routeGroup string, capabilities ...string) {
+	createCatalogRouteVariantWithGroupAndCost(t, db, id, providerName, adapterType, publicModelID, providerModelID, priority, routeGroup, 0, 0, capabilities...)
 }
 
-func createProviderVariantWithAdapterAndCost(t *testing.T, db *gorm.DB, id uint, providerName string, adapterType string, modelDefID string, priority int, creditsInputPer1M float64, creditsOutputPer1M float64, capabilities ...string) {
+func createCatalogRouteVariantWithCost(t *testing.T, db *gorm.DB, id uint, providerName string, adapterType string, publicModelID string, providerModelID string, priority int, creditsInputPer1M float64, creditsOutputPer1M float64, capabilities ...string) {
+	createCatalogRouteVariantWithGroupAndCost(t, db, id, providerName, adapterType, publicModelID, providerModelID, priority, "", creditsInputPer1M, creditsOutputPer1M, capabilities...)
+}
+
+func createCatalogRouteVariantWithGroupAndCost(t *testing.T, db *gorm.DB, id uint, providerName string, adapterType string, publicModelID string, providerModelID string, priority int, routeGroup string, creditsInputPer1M float64, creditsOutputPer1M float64, capabilities ...string) {
 	t.Helper()
 	cred := persistencemodel.AICredential{
 		Model:       gorm.Model{ID: id},
@@ -176,18 +166,31 @@ func createProviderVariantWithAdapterAndCost(t *testing.T, db *gorm.DB, id uint,
 	if err := db.Create(&cred).Error; err != nil {
 		t.Fatalf("create credential: %v", err)
 	}
-	cfg := persistencemodel.AIModelConfig{
+	entry := persistencemodel.AIModelCatalogEntry{
 		Model:              gorm.Model{ID: id},
-		CredentialID:       cred.ID,
-		ModelDefID:         modelDefID,
+		PublicModelID:      publicModelID,
+		ProviderModelID:    providerModelID,
+		DisplayName:        publicModelID,
 		IsEnabled:          true,
-		Priority:           priority,
+		Capabilities:       strings.Join(capabilities, ","),
+		PricingMode:        string(PricingPerToken),
 		CreditsInputPer1M:  creditsInputPer1M,
 		CreditsOutputPer1M: creditsOutputPer1M,
-		CustomDisplayName:  modelDefID,
-		CustomCapabilities: strings.Join(capabilities, ","),
 	}
-	if err := db.Create(&cfg).Error; err != nil {
-		t.Fatalf("create model config: %v", err)
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	credentialID := cred.ID
+	binding := persistencemodel.AIModelRouteBinding{
+		CatalogEntryID: entry.ID,
+		CredentialID:   &credentialID,
+		SourceType:     persistencemodel.ModelRouteSourceLocalProvider,
+		RouteGroup:     routeGroup,
+		IsEnabled:      true,
+		Priority:       priority,
+		CapacityWeight: 1,
+	}
+	if err := db.Create(&binding).Error; err != nil {
+		t.Fatalf("create route binding: %v", err)
 	}
 }

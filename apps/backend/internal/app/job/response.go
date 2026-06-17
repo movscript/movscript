@@ -12,6 +12,7 @@ type Response struct {
 	ID                  uint                    `json:"ID"`
 	UserID              uint                    `json:"user_id"`
 	OrgID               *uint                   `json:"org_id,omitempty"`
+	RouteBindingID      *uint                   `json:"route_binding_id,omitempty"`
 	ModelID             string                  `json:"model_id,omitempty"`
 	ProviderName        string                  `json:"provider_name,omitempty"`
 	ModelDisplay        string                  `json:"model_display,omitempty"`
@@ -58,13 +59,11 @@ func (s *Service) BuildResponses(ctx context.Context, jobs []domainjob.Job, reso
 	}
 
 	resourceIDSet := make(map[uint]bool)
-	modelConfigIDSet := make(map[uint]bool)
 	catalogEntryIDSet := make(map[uint]bool)
 	for i := range jobs {
 		if jobs[i].OutputResource != nil && resourceURL != nil {
 			jobs[i].OutputResource.URL = resourceURL(jobs[i].OutputResource.ID)
 		}
-		modelConfigIDSet[jobs[i].ModelConfigID] = true
 		if jobs[i].AIModelCatalogEntryID != nil && *jobs[i].AIModelCatalogEntryID != 0 {
 			catalogEntryIDSet[*jobs[i].AIModelCatalogEntryID] = true
 		}
@@ -78,15 +77,12 @@ func (s *Service) BuildResponses(ctx context.Context, jobs []domainjob.Job, reso
 		resourceIDs = append(resourceIDs, id)
 	}
 
-	modelConfigIDs := make([]uint, 0, len(modelConfigIDSet))
-	for id := range modelConfigIDSet {
-		modelConfigIDs = append(modelConfigIDs, id)
-	}
+	catalogEntryIDs := make([]uint, 0, len(catalogEntryIDSet))
 	for id := range catalogEntryIDSet {
-		modelConfigIDs = append(modelConfigIDs, id)
+		catalogEntryIDs = append(catalogEntryIDs, id)
 	}
 
-	lookups, err := s.ResponseLookups(ctx, resourceIDs, modelConfigIDs)
+	lookups, err := s.ResponseLookups(ctx, resourceIDs, catalogEntryIDs)
 	if err != nil {
 		return []Response{}
 	}
@@ -119,22 +115,6 @@ func (s *Service) BuildResponses(ctx context.Context, jobs []domainjob.Job, reso
 				item.ModelID = catalogEntryIdentifier(entry)
 			}
 		}
-		if item.ModelDisplay != "" {
-			resp = append(resp, item)
-			continue
-		}
-		if cfg, ok := lookups.ConfigsByID[job.ModelConfigID]; ok {
-			item.ModelDisplay = ModelDisplay(cfg)
-			item.ModelIdentifier = ModelIdentifier(cfg)
-			item.ModelID = ModelIdentifier(cfg)
-			if cred, ok := lookups.CredentialsByID[cfg.CredentialID]; ok {
-				item.ProviderName = cred.DisplayName
-			}
-		} else if entry, ok := lookups.CatalogEntriesByID[job.ModelConfigID]; ok {
-			item.ModelDisplay = catalogEntryDisplay(entry)
-			item.ModelIdentifier = catalogEntryIdentifier(entry)
-			item.ModelID = catalogEntryIdentifier(entry)
-		}
 		resp = append(resp, item)
 	}
 	return resp
@@ -145,6 +125,7 @@ func responseFromJob(job domainjob.Job) Response {
 		ID:                  job.ID,
 		UserID:              job.UserID,
 		OrgID:               job.OrgID,
+		RouteBindingID:      job.RouteBindingID,
 		RouteGroup:          job.RouteGroup,
 		JobType:             job.JobType,
 		FeatureKey:          job.FeatureKey,

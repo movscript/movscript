@@ -28,8 +28,8 @@ const agentConsoleSections = [
   {
     tab: 'console:model-providers',
     to: ROUTES.modelProviders,
-    label: 'Model Providers',
-    description: '后端模型路由与高级直连覆盖',
+    label: 'Provider / Catalog / Route',
+    description: 'provider/new-api、Catalog 和 Route',
     icon: Database,
   },
   {

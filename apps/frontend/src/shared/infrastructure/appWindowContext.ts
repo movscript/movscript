@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import type {
   ElectronAppWindowContext,
+  ElectronOpenCanvasWindowInput,
+  ElectronOpenEditingProjectWindowInput,
   ElectronOpenProjectWindowInput,
 } from '@/shared/contracts/electronApi'
 import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
@@ -56,6 +58,36 @@ export async function openProjectWindow(input: ElectronOpenProjectWindowInput): 
   window.location.assign(input.route ?? '/project')
 }
 
+export async function openEditingWindow(): Promise<void> {
+  const api = readElectronApi()
+  if (api?.openEditingWindow) {
+    await api.openEditingWindow()
+    return
+  }
+  useAppSettingsStore.getState().setWorkMode('tool')
+  window.location.assign('/editing')
+}
+
+export async function openEditingProjectWindow(input: ElectronOpenEditingProjectWindowInput): Promise<void> {
+  const api = readElectronApi()
+  if (api?.openEditingProjectWindow) {
+    await api.openEditingProjectWindow(input)
+    return
+  }
+  useAppSettingsStore.getState().setWorkMode('tool')
+  window.location.assign(input.route ?? `/editing/${encodeURIComponent(input.editingProjectId)}`)
+}
+
+export async function openCanvasWindow(input: ElectronOpenCanvasWindowInput = {}): Promise<void> {
+  const api = readElectronApi()
+  if (api?.openCanvasWindow) {
+    await api.openCanvasWindow(input)
+    return
+  }
+  useAppSettingsStore.getState().setWorkMode('tool')
+  window.location.assign(input.route ?? (input.canvasId ? `/canvases/${encodeURIComponent(String(input.canvasId))}` : '/canvases'))
+}
+
 function applyAppWindowContext(context: ElectronAppWindowContext | null): void {
   useAppWindowContextStore.getState().setContext(context)
   if (!context) return
@@ -68,5 +100,15 @@ function applyAppWindowContext(context: ElectronAppWindowContext | null): void {
 
   if (context.kind === 'agent') {
     useAppSettingsStore.getState().setWorkMode('agent')
+    return
+  }
+
+  if (context.kind === 'editingProject') {
+    useAppSettingsStore.getState().setWorkMode('tool')
+    return
+  }
+
+  if (context.kind === 'tool' || context.kind === 'canvas') {
+    useAppSettingsStore.getState().setWorkMode('tool')
   }
 }

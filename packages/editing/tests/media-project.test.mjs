@@ -5,6 +5,8 @@ import test from 'node:test'
 import {
   createMediaEditingProjectFromMovScriptEditPlan,
   createMediaEditingProjectService,
+  normalizeMediaClipVolumePercent,
+  validateMediaEditingProjectTimeline,
 } from '../dist/index.js'
 import * as editingPackage from '../dist/index.js'
 
@@ -78,11 +80,31 @@ test('creates a MediaEditingProject from a MovScript edit plan', () => {
   assert.equal(videoTrack?.clips[0].timelineStartMs, 0)
   assert.equal(videoTrack?.clips[0].sourceStartMs, 1000)
   assert.equal(videoTrack?.clips[0].durationMs, 4000)
+  assert.equal(videoTrack?.clips[0].volume, 100)
 
   const subtitleTrack = project.timeline.tracks.find((track) => track.id === 'track_subtitle_2')
   assert.equal(subtitleTrack?.type, 'subtitle')
   assert.equal(subtitleTrack?.clips[0].text.content, 'Hello')
   assert.equal(subtitleTrack?.clips[0].durationMs, 5000)
+})
+
+test('normalizes legacy ratio volume and validates media editing timelines', () => {
+  assert.equal(normalizeMediaClipVolumePercent(0.8), 80)
+  assert.equal(normalizeMediaClipVolumePercent(100), 100)
+  assert.equal(normalizeMediaClipVolumePercent(250), 200)
+
+  const project = createMediaEditingProjectFromMovScriptEditPlan(sampleEditPlan(), {
+    now: '2026-06-16T00:00:00.000Z',
+  })
+  const videoTrack = project.timeline.tracks.find((track) => track.id === 'track_video_0')
+  videoTrack.clips.push({
+    ...videoTrack.clips[0],
+    id: 'overlap',
+    timelineStartMs: 1000,
+  })
+  const diagnostics = validateMediaEditingProjectTimeline(project)
+  assert.equal(diagnostics.some((diagnostic) => diagnostic.code === 'clip_overlap' && diagnostic.severity === 'error'), true)
+  assert.equal(diagnostics.some((diagnostic) => diagnostic.code === 'legacy_ratio_volume' && diagnostic.severity === 'warning'), false)
 })
 
 test('applies media timeline commands on a MediaEditingProject', () => {

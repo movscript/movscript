@@ -97,6 +97,9 @@ test('MCP editing export discovery keeps RawResource and HLS publishing paths di
   assert.match(String(toolsByName.get('editing_export_create_candidate')?.description), /RawResource-backed/)
   assert.match(String(toolsByName.get('editing_export_create_candidate')?.description), /future domain candidate schema extension/)
   assert.equal(toolsByName.get('editing_export_create_candidate')?.inputSchema?.properties?.streamId?.description.includes('Known unsupported HLS MediaStreamArtifact ID'), true)
+  assert.ok(toolsByName.get('editing_project_save')?.inputSchema?.properties?.expectedRevision)
+  assert.ok(toolsByName.get('editing_project_save')?.inputSchema?.properties?.expected_revision)
+  assert.match(String(toolsByName.get('editing_project_save')?.description), /optimistic locking/)
 })
 
 test('MCP editing task tools delegate to the registered Electron editing runtime port', async () => {
@@ -107,6 +110,7 @@ test('MCP editing task tools delegate to the registered Electron editing runtime
   const capturedTaskLookups = []
   const capturedTaskLogLookups = []
   const capturedTaskCancels = []
+  const capturedProjectSaves = []
   const previous = setEditingRuntimePort({
     async getCapabilities() {
       return {
@@ -211,7 +215,8 @@ test('MCP editing task tools delegate to the registered Electron editing runtime
         text: '{"event":"task.queued"}\n{"event":"task.succeeded"}\n',
       }
     },
-    async saveProject(editingProject) {
+    async saveProject(editingProject, options) {
+      capturedProjectSaves.push({ editingProject, options })
       return {
         status: 'ok',
         editingProject,
@@ -290,10 +295,14 @@ test('MCP editing task tools delegate to the registered Electron editing runtime
   try {
     const savedProject = await callTool('editing_project_save', {
       editing_project: editingProject(),
+      expectedRevision: 3,
     })
     assert.equal(savedProject.status, 'ok')
     assert.equal(savedProject.editingProject.id, 'edit_project_1')
     assert.equal(savedProject.projectPath, '/tmp/edit_project_1.json')
+    assert.equal(capturedProjectSaves.length, 1)
+    assert.equal(capturedProjectSaves[0].editingProject.id, 'edit_project_1')
+    assert.deepEqual(capturedProjectSaves[0].options, { expectedRevision: 3 })
 
     const loadedProject = await callTool('editing_project_get', {
       projectId: 'project-1',

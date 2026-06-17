@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -60,11 +61,11 @@ func TestRetryDelayCaps(t *testing.T) {
 func TestClaimLocalJobWritesWorkerLease(t *testing.T) {
 	db := openJobRunnerTestDB(t)
 	job := model.Job{
-		UserID:        1,
-		ModelConfigID: 1,
-		JobType:       ai.CapabilityImage,
-		Status:        StatusPending,
-		MaxAttempts:   3,
+		UserID:         1,
+		RuntimeModelID: 1,
+		JobType:        ai.CapabilityImage,
+		Status:         StatusPending,
+		MaxAttempts:    3,
 	}
 	if err := db.Create(&job).Error; err != nil {
 		t.Fatalf("create job: %v", err)
@@ -94,17 +95,146 @@ func TestClaimLocalJobWritesWorkerLease(t *testing.T) {
 	}
 }
 
-func TestWorkerLegacyModelHelpersSkipMissingProviderTables(t *testing.T) {
+func TestWorkerRouteHelpersDoNotFallbackToLegacyModelConfig(t *testing.T) {
 	db := testutil.OpenSQLite(t, "worker_catalog_only.db", &model.Job{}, &model.AIModelCatalogEntry{})
 	worker := NewWorker(db, nil, nil, nil)
-	if db.Migrator().HasTable(&model.AIModelConfig{}) || db.Migrator().HasTable(&model.AICredential{}) {
+	if db.Migrator().HasTable("ai_model_configs") || db.Migrator().HasTable(&model.AICredential{}) {
 		t.Fatal("catalog-only worker test should not create legacy provider tables")
 	}
-	if got := worker.modelAdapterType(42); got != "" {
-		t.Fatalf("modelAdapterType() = %q, want empty when legacy provider tables are absent", got)
+	job := &model.Job{UserID: 7, RuntimeModelID: 42, JobType: ai.CapabilityImage}
+	if got := worker.modelAdapterTypeForJob(job); got != "" {
+		t.Fatalf("modelAdapterTypeForJob() = %q, want empty without route metadata", got)
 	}
-	if cfg := worker.loadModelConfig(42); cfg != nil {
-		t.Fatalf("loadModelConfig() = %#v, want nil when legacy provider tables are absent", cfg)
+	if got := worker.jobModelDefID(context.Background(), job); got != "" {
+		t.Fatalf("jobModelDefID() = %q, want empty without route metadata", got)
+	}
+	if uploader, cacheKey := worker.providerFileUploaderForJob(context.Background(), job); uploader != nil || cacheKey != "" {
+		t.Fatalf("providerFileUploaderForJob() = %v/%q, want nil empty without route metadata", uploader, cacheKey)
+	}
+}
+
+func TestWorkerUsesCatalogRouteBindingForModelAdapterWithoutLegacyModelConfigTable(t *testing.T) {
+	db := testutil.OpenSQLite(t, "worker_catalog_route_adapter.db",
+		&model.Job{},
+		&model.AICredential{},
+		&model.AIModelCatalogEntry{},
+		&model.AIModelRouteBinding{},
+	)
+	if db.Migrator().HasTable("ai_model_configs") {
+		t.Fatal("catalog route adapter test should not create legacy ai_model_configs")
+	}
+	cred := model.AICredential{AdapterType: ai.AdapterVolcen, DisplayName: "Volcen route", IsEnabled: true}
+	if err := db.Create(&cred).Error; err != nil {
+		t.Fatalf("create credential: %v", err)
+	}
+	entry := model.AIModelCatalogEntry{
+		PublicModelID:   "image-fast",
+		ProviderModelID: "provider-image-v2",
+		DisplayName:     "Image Fast",
+		IsEnabled:       true,
+		Capabilities:    ai.CapabilityImage,
+		PricingMode:     string(ai.PricingPerImage),
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	binding := model.AIModelRouteBinding{
+		CatalogEntryID: entry.ID,
+		SourceType:     model.ModelRouteSourceLocalProvider,
+		CredentialID:   &cred.ID,
+		IsEnabled:      true,
+		CapacityWeight: 1,
+	}
+	if err := db.Create(&binding).Error; err != nil {
+		t.Fatalf("create route binding: %v", err)
+	}
+	job := model.Job{
+		UserID:                7,
+		RuntimeModelID:        entry.ID,
+		AIModelCatalogEntryID: &entry.ID,
+		RouteBindingID:        &binding.ID,
+		JobType:               ai.CapabilityImage,
+		Status:                StatusRunning,
+		MaxAttempts:           1,
+	}
+	worker := NewWorker(db, ai.NewAIService(db, ai.NewRegistry(db, nil)), nil, nil)
+
+	route, err := worker.resolveJobModelRoute(context.Background(), &job, ai.CapabilityImage)
+	if err != nil {
+		t.Fatalf("resolveJobModelRoute() error = %v", err)
+	}
+	if route.RouteBindingID != binding.ID || route.CatalogEntryID != entry.ID || route.CredentialID != cred.ID {
+		t.Fatalf("route = %#v, want persisted route binding/catalog/credential", route)
+	}
+	if got := worker.modelAdapterTypeForJob(&job); got != ai.AdapterVolcen {
+		t.Fatalf("modelAdapterTypeForJob() = %q, want route credential adapter %q", got, ai.AdapterVolcen)
+	}
+	if got := worker.jobModelDefID(context.Background(), &job); got != "provider-image-v2" {
+		t.Fatalf("jobModelDefID() = %q, want catalog provider model id", got)
+	}
+}
+
+func TestWorkerProviderFileUploaderUsesCatalogRouteCredentialWithoutLegacyModelConfigTable(t *testing.T) {
+	db := testutil.OpenSQLite(t, "worker_catalog_route_uploader.db",
+		&model.Job{},
+		&model.AICredential{},
+		&model.AIModelCatalogEntry{},
+		&model.AIModelRouteBinding{},
+	)
+	if db.Migrator().HasTable("ai_model_configs") {
+		t.Fatal("catalog route uploader test should not create legacy ai_model_configs")
+	}
+	cred := model.AICredential{
+		AdapterType:       ai.AdapterOpenAICompat,
+		DisplayName:       "OpenAI-compatible route",
+		BaseURL:           "https://provider.example.test/v1",
+		IsEnabled:         true,
+		FilesAPIEnabled:   true,
+		FilesAPIBaseURL:   "https://files.example.test/v1",
+		FilesAPIMaskedKey: "sk-***",
+	}
+	if err := db.Create(&cred).Error; err != nil {
+		t.Fatalf("create credential: %v", err)
+	}
+	entry := model.AIModelCatalogEntry{
+		PublicModelID:   "image-edit",
+		ProviderModelID: "provider-image-edit-v2",
+		DisplayName:     "Image Edit",
+		IsEnabled:       true,
+		Capabilities:    ai.CapabilityImageEdit,
+		PricingMode:     string(ai.PricingPerImage),
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	binding := model.AIModelRouteBinding{
+		CatalogEntryID: entry.ID,
+		SourceType:     model.ModelRouteSourceLocalProvider,
+		CredentialID:   &cred.ID,
+		IsEnabled:      true,
+		CapacityWeight: 1,
+	}
+	if err := db.Create(&binding).Error; err != nil {
+		t.Fatalf("create route binding: %v", err)
+	}
+	job := model.Job{
+		UserID:                7,
+		RuntimeModelID:        entry.ID,
+		AIModelCatalogEntryID: &entry.ID,
+		RouteBindingID:        &binding.ID,
+		JobType:               ai.CapabilityImageEdit,
+		Status:                StatusRunning,
+		MaxAttempts:           1,
+	}
+	worker := NewWorker(db, ai.NewAIService(db, ai.NewRegistry(db, nil)), nil, nil)
+
+	uploader, cacheKey := worker.providerFileUploaderForJob(context.Background(), &job)
+	if uploader == nil {
+		t.Fatal("providerFileUploaderForJob() returned nil, want uploader from route credential")
+	}
+	wantCacheKey := "ai_route_binding:" + strconv.FormatUint(uint64(binding.ID), 10)
+	if cacheKey != wantCacheKey {
+		t.Fatalf("cache key = %q, want route binding key", cacheKey)
 	}
 }
 
@@ -112,7 +242,7 @@ func TestClaimLocalProviderPollDoesNotIncrementAttempt(t *testing.T) {
 	db := openJobRunnerTestDB(t)
 	job := model.Job{
 		UserID:         1,
-		ModelConfigID:  1,
+		RuntimeModelID: 1,
 		JobType:        ai.CapabilityVideo,
 		Status:         StatusPending,
 		AttemptCount:   1,
@@ -162,13 +292,13 @@ func TestRenewLeaseOnlyForOwningWorker(t *testing.T) {
 	now := time.Now()
 	oldLease := now.Add(-time.Minute)
 	job := model.Job{
-		UserID:        1,
-		ModelConfigID: 1,
-		JobType:       ai.CapabilityImage,
-		Status:        StatusRunning,
-		MaxAttempts:   3,
-		LockedBy:      "worker-a",
-		LeaseUntil:    &oldLease,
+		UserID:         1,
+		RuntimeModelID: 1,
+		JobType:        ai.CapabilityImage,
+		Status:         StatusRunning,
+		MaxAttempts:    3,
+		LockedBy:       "worker-a",
+		LeaseUntil:     &oldLease,
 	}
 	if err := db.Create(&job).Error; err != nil {
 		t.Fatalf("create job: %v", err)
@@ -207,14 +337,14 @@ func TestRequeueStaleRunningJobsClearsExpiredLease(t *testing.T) {
 	db := openJobRunnerTestDB(t)
 	expiredLease := time.Now().Add(-time.Minute)
 	job := model.Job{
-		UserID:        1,
-		ModelConfigID: 1,
-		JobType:       ai.CapabilityImage,
-		Status:        StatusRunning,
-		AttemptCount:  1,
-		MaxAttempts:   3,
-		LockedBy:      "dead-worker",
-		LeaseUntil:    &expiredLease,
+		UserID:         1,
+		RuntimeModelID: 1,
+		JobType:        ai.CapabilityImage,
+		Status:         StatusRunning,
+		AttemptCount:   1,
+		MaxAttempts:    3,
+		LockedBy:       "dead-worker",
+		LeaseUntil:     &expiredLease,
 	}
 	if err := db.Create(&job).Error; err != nil {
 		t.Fatalf("create job: %v", err)
@@ -244,7 +374,8 @@ func TestWorkerExecutesOrthogonalSubtitleJobTypesAsResourceOutputs(t *testing.T)
 		&model.RawResource{},
 		&model.ResourceBlob{},
 		&model.AICredential{},
-		&model.AIModelConfig{},
+		&model.AIModelCatalogEntry{},
+		&model.AIModelRouteBinding{},
 		&model.UsageReservation{},
 		&model.UsageLog{},
 	)
@@ -278,27 +409,39 @@ func TestWorkerExecutesOrthogonalSubtitleJobTypesAsResourceOutputs(t *testing.T)
 		{capability: ai.CapabilitySubTranslate, want: "[local subtitle translation:zh-CN]\nhello world\n", withAudio: false},
 	}
 	for index, tc := range cases {
-		cfg := model.AIModelConfig{
-			Model:              gorm.Model{ID: uint(100 + index)},
-			CredentialID:       cred.ID,
-			ModelDefID:         "local-" + tc.capability,
-			ModelIDOverride:    "provider-" + tc.capability,
-			CustomCapabilities: tc.capability,
-			CustomPricingMode:  string(ai.PricingPerCall),
-			IsEnabled:          true,
+		entry := model.AIModelCatalogEntry{
+			Model:           gorm.Model{ID: uint(100 + index)},
+			PublicModelID:   "local-" + tc.capability,
+			ProviderModelID: "provider-" + tc.capability,
+			DisplayName:     "Local " + tc.capability,
+			IsEnabled:       true,
+			Capabilities:    tc.capability,
+			PricingMode:     string(ai.PricingPerCall),
 		}
-		if err := db.Create(&cfg).Error; err != nil {
-			t.Fatalf("create model config %s: %v", tc.capability, err)
+		if err := db.Create(&entry).Error; err != nil {
+			t.Fatalf("create catalog entry %s: %v", tc.capability, err)
+		}
+		binding := model.AIModelRouteBinding{
+			CatalogEntryID: entry.ID,
+			SourceType:     model.ModelRouteSourceLocalProvider,
+			CredentialID:   &cred.ID,
+			IsEnabled:      true,
+			CapacityWeight: 1,
+		}
+		if err := db.Create(&binding).Error; err != nil {
+			t.Fatalf("create route binding %s: %v", tc.capability, err)
 		}
 		job := model.Job{
-			UserID:        42,
-			ModelConfigID: cfg.ID,
-			JobType:       tc.capability,
-			Status:        StatusRunning,
-			MaxAttempts:   1,
-			Title:         "subtitle " + tc.capability,
-			Prompt:        "hello world",
-			ExtraParams:   `{"target_language":"zh-CN","language":"en-US","script":"hello world"}`,
+			UserID:                42,
+			RuntimeModelID:        entry.ID,
+			AIModelCatalogEntryID: &entry.ID,
+			RouteBindingID:        &binding.ID,
+			JobType:               tc.capability,
+			Status:                StatusRunning,
+			MaxAttempts:           1,
+			Title:                 "subtitle " + tc.capability,
+			Prompt:                "hello world",
+			ExtraParams:           `{"target_language":"zh-CN","language":"en-US","script":"hello world"}`,
 		}
 		if tc.withAudio {
 			job.InputResourceID = &audioResourceID

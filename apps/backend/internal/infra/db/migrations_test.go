@@ -303,10 +303,10 @@ func TestMigration000024BackfillsAIModelCapacityConfigColumns(t *testing.T) {
 			t.Fatalf("insert migration %s: %v", migration.Version, err)
 		}
 	}
-	if db.Migrator().HasColumn(&model.AIModelConfig{}, "capacity_weight") {
+	if db.Migrator().HasColumn(&legacyAIModelConfig{}, "capacity_weight") {
 		t.Fatal("capacity_weight column exists before migration")
 	}
-	if db.Migrator().HasColumn(&model.AIModelConfig{}, "max_concurrency") {
+	if db.Migrator().HasColumn(&legacyAIModelConfig{}, "max_concurrency") {
 		t.Fatal("max_concurrency column exists before migration")
 	}
 
@@ -314,13 +314,13 @@ func TestMigration000024BackfillsAIModelCapacityConfigColumns(t *testing.T) {
 		t.Fatalf("RunMigrations() error = %v", err)
 	}
 
-	if !db.Migrator().HasColumn(&model.AIModelConfig{}, "capacity_weight") {
+	if !db.Migrator().HasColumn(&legacyAIModelConfig{}, "capacity_weight") {
 		t.Fatal("expected capacity_weight column to be backfilled")
 	}
-	if !db.Migrator().HasColumn(&model.AIModelConfig{}, "max_concurrency") {
+	if !db.Migrator().HasColumn(&legacyAIModelConfig{}, "max_concurrency") {
 		t.Fatal("expected max_concurrency column to be backfilled")
 	}
-	var cfg model.AIModelConfig
+	var cfg legacyAIModelConfig
 	if err := db.First(&cfg, 1).Error; err != nil {
 		t.Fatalf("read migrated ai model config: %v", err)
 	}
@@ -401,6 +401,9 @@ func TestMigration000045BackfillsUsageCatalogEntryIDs(t *testing.T) {
 	}, &AppliedMigration{})
 	if err := db.AutoMigrate(&model.AIModelCatalogEntry{}, &model.AIModelRouteBinding{}); err != nil {
 		t.Fatalf("create model catalog tables: %v", err)
+	}
+	if err := ensureLegacyRouteBindingModelConfigColumn(db); err != nil {
+		t.Fatalf("add legacy route binding column: %v", err)
 	}
 	if err := db.Exec(`CREATE TABLE usage_logs (
 		id integer primary key,
@@ -734,6 +737,321 @@ func TestMigration000053BackfillsUsageRouteBindingRefs(t *testing.T) {
 	}
 }
 
+func TestMigration000053SkipsRouteBindingBackfillWhenLegacyRouteColumnMissing(t *testing.T) {
+	db := testutil.OpenSQLiteWithConfig(t, "migration_000053_usage_route_binding_id_missing_legacy_route_column.db", &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
+	}, &AppliedMigration{})
+	if err := db.Exec(`CREATE TABLE usage_logs (
+		id integer primary key,
+		created_at datetime,
+		updated_at datetime,
+		deleted_at datetime,
+		user_id integer not null,
+		ai_model_config_id integer not null,
+		operation_type text not null
+	)`).Error; err != nil {
+		t.Fatalf("create usage logs: %v", err)
+	}
+	if err := db.Exec(`CREATE TABLE usage_reservations (
+		id integer primary key,
+		created_at datetime,
+		updated_at datetime,
+		deleted_at datetime,
+		user_id integer not null,
+		ai_model_config_id integer not null,
+		operation_type text not null
+	)`).Error; err != nil {
+		t.Fatalf("create usage reservations: %v", err)
+	}
+	if err := db.Exec(`CREATE TABLE llm_call_logs (
+		id integer primary key,
+		created_at datetime,
+		updated_at datetime,
+		deleted_at datetime,
+		user_id integer not null,
+		ai_model_config_id integer not null,
+		credential_id integer not null,
+		operation_type text not null,
+		status text not null
+	)`).Error; err != nil {
+		t.Fatalf("create llm call logs: %v", err)
+	}
+	if err := db.Exec(`CREATE TABLE ai_model_route_bindings (
+		id integer primary key,
+		created_at datetime,
+		updated_at datetime,
+		deleted_at datetime,
+		catalog_entry_id integer not null,
+		source_type text,
+		route_group text,
+		capacity_weight integer
+	)`).Error; err != nil {
+		t.Fatalf("create route bindings without local_model_config_id: %v", err)
+	}
+	if err := db.Exec(`INSERT INTO ai_model_route_bindings (id, catalog_entry_id, source_type, route_group, capacity_weight) VALUES (321, 100, 'local_provider', '', 1)`).Error; err != nil {
+		t.Fatalf("insert route binding: %v", err)
+	}
+	if err := db.Exec(`INSERT INTO usage_logs (id, user_id, ai_model_config_id, operation_type) VALUES (1, 7, 7, 'text')`).Error; err != nil {
+		t.Fatalf("insert usage log: %v", err)
+	}
+	if err := db.Exec(`INSERT INTO usage_reservations (id, user_id, ai_model_config_id, operation_type) VALUES (1, 7, 7, 'text')`).Error; err != nil {
+		t.Fatalf("insert usage reservation: %v", err)
+	}
+	if err := db.Exec(`INSERT INTO llm_call_logs (id, user_id, ai_model_config_id, credential_id, operation_type, status) VALUES (1, 7, 7, 9, 'text', 'success')`).Error; err != nil {
+		t.Fatalf("insert llm call log: %v", err)
+	}
+	for _, migration := range RegisteredMigrations() {
+		if migration.Version >= "000053" {
+			break
+		}
+		if err := db.Create(&AppliedMigration{
+			Version:   migration.Version,
+			Name:      migration.Name,
+			Checksum:  migrationChecksum(migration),
+			AppliedAt: time.Now().UTC(),
+		}).Error; err != nil {
+			t.Fatalf("insert migration %s: %v", migration.Version, err)
+		}
+	}
+
+	if err := RunMigrations(db); err != nil {
+		t.Fatalf("RunMigrations() error = %v", err)
+	}
+
+	for _, table := range []string{"usage_logs", "usage_reservations", "llm_call_logs"} {
+		if !db.Migrator().HasColumn(table, "route_binding_id") {
+			t.Fatalf("%s.route_binding_id was not added", table)
+		}
+		var populated int
+		if err := db.Raw(`SELECT COUNT(*) FROM ` + table + ` WHERE route_binding_id IS NOT NULL`).Scan(&populated).Error; err != nil {
+			t.Fatalf("count populated %s route binding ids: %v", table, err)
+		}
+		if populated != 0 {
+			t.Fatalf("%s route_binding_id populated without local_model_config_id column", table)
+		}
+	}
+}
+
+func TestMigration000054BackfillsLLMCallLogCatalogEntryRefs(t *testing.T) {
+	db := testutil.OpenSQLiteWithConfig(t, "migration_000054_llm_call_catalog_entry_id.db", &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
+	}, &AppliedMigration{})
+	if err := db.Exec(`CREATE TABLE llm_call_logs (
+		id integer primary key,
+		created_at datetime,
+		updated_at datetime,
+		deleted_at datetime,
+		user_id integer not null,
+		ai_model_config_id integer not null,
+		credential_id integer not null,
+		operation_type text not null,
+		status text not null
+	)`).Error; err != nil {
+		t.Fatalf("create llm call logs: %v", err)
+	}
+	if err := db.Exec(`CREATE TABLE ai_model_route_bindings (
+		id integer primary key,
+		created_at datetime,
+		updated_at datetime,
+		deleted_at datetime,
+		catalog_entry_id integer not null,
+		source_type text,
+		route_group text,
+		local_model_config_id integer,
+		capacity_weight integer
+	)`).Error; err != nil {
+		t.Fatalf("create route bindings: %v", err)
+	}
+	if err := db.Exec(`INSERT INTO ai_model_route_bindings (id, catalog_entry_id, source_type, route_group, local_model_config_id, capacity_weight) VALUES (321, 100, 'local_provider', '', 7, 1)`).Error; err != nil {
+		t.Fatalf("insert route binding: %v", err)
+	}
+	if err := db.Exec(`INSERT INTO llm_call_logs (id, user_id, ai_model_config_id, credential_id, operation_type, status) VALUES (1, 7, 7, 9, 'text', 'success')`).Error; err != nil {
+		t.Fatalf("insert llm call log: %v", err)
+	}
+	for _, migration := range RegisteredMigrations() {
+		if migration.Version >= "000054" {
+			break
+		}
+		if err := db.Create(&AppliedMigration{
+			Version:   migration.Version,
+			Name:      migration.Name,
+			Checksum:  migrationChecksum(migration),
+			AppliedAt: time.Now().UTC(),
+		}).Error; err != nil {
+			t.Fatalf("insert migration %s: %v", migration.Version, err)
+		}
+	}
+	if db.Migrator().HasColumn(&model.LLMCallLog{}, "ai_model_catalog_entry_id") {
+		t.Fatal("llm_call_logs.ai_model_catalog_entry_id exists before migration")
+	}
+
+	if err := RunMigrations(db); err != nil {
+		t.Fatalf("RunMigrations() error = %v", err)
+	}
+
+	var catalogEntryID uint
+	if err := db.Raw(`SELECT ai_model_catalog_entry_id FROM llm_call_logs WHERE id = 1`).Scan(&catalogEntryID).Error; err != nil {
+		t.Fatalf("read llm call log catalog entry id: %v", err)
+	}
+	if catalogEntryID != 100 {
+		t.Fatalf("llm call log catalog entry id = %d, want 100", catalogEntryID)
+	}
+}
+
+func TestMigration000054SkipsLLMCallLogBackfillWhenLegacyRouteColumnMissing(t *testing.T) {
+	db := testutil.OpenSQLiteWithConfig(t, "migration_000054_llm_call_catalog_entry_id_missing_legacy_route_column.db", &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
+	}, &AppliedMigration{})
+	if err := db.Exec(`CREATE TABLE llm_call_logs (
+		id integer primary key,
+		created_at datetime,
+		updated_at datetime,
+		deleted_at datetime,
+		user_id integer not null,
+		ai_model_config_id integer not null,
+		credential_id integer not null,
+		operation_type text not null,
+		status text not null
+	)`).Error; err != nil {
+		t.Fatalf("create llm call logs: %v", err)
+	}
+	if err := db.Exec(`CREATE TABLE ai_model_route_bindings (
+		id integer primary key,
+		created_at datetime,
+		updated_at datetime,
+		deleted_at datetime,
+		catalog_entry_id integer not null,
+		source_type text,
+		route_group text,
+		capacity_weight integer
+	)`).Error; err != nil {
+		t.Fatalf("create route bindings without local_model_config_id: %v", err)
+	}
+	if err := db.Exec(`INSERT INTO ai_model_route_bindings (id, catalog_entry_id, source_type, route_group, capacity_weight) VALUES (321, 100, 'local_provider', '', 1)`).Error; err != nil {
+		t.Fatalf("insert route binding: %v", err)
+	}
+	if err := db.Exec(`INSERT INTO llm_call_logs (id, user_id, ai_model_config_id, credential_id, operation_type, status) VALUES (1, 7, 7, 9, 'text', 'success')`).Error; err != nil {
+		t.Fatalf("insert llm call log: %v", err)
+	}
+	for _, migration := range RegisteredMigrations() {
+		if migration.Version >= "000054" {
+			break
+		}
+		if err := db.Create(&AppliedMigration{
+			Version:   migration.Version,
+			Name:      migration.Name,
+			Checksum:  migrationChecksum(migration),
+			AppliedAt: time.Now().UTC(),
+		}).Error; err != nil {
+			t.Fatalf("insert migration %s: %v", migration.Version, err)
+		}
+	}
+
+	if err := RunMigrations(db); err != nil {
+		t.Fatalf("RunMigrations() error = %v", err)
+	}
+	if !db.Migrator().HasColumn("llm_call_logs", "ai_model_catalog_entry_id") {
+		t.Fatal("llm_call_logs.ai_model_catalog_entry_id was not added")
+	}
+	var populated int
+	if err := db.Raw(`SELECT COUNT(*) FROM llm_call_logs WHERE ai_model_catalog_entry_id IS NOT NULL`).Scan(&populated).Error; err != nil {
+		t.Fatalf("count populated catalog entry ids: %v", err)
+	}
+	if populated != 0 {
+		t.Fatal("llm call log catalog entry id populated without local_model_config_id column")
+	}
+}
+
+func TestMigration000055AddsAndBackfillsJobRouteBindingRefs(t *testing.T) {
+	db := testutil.OpenSQLiteWithConfig(t, "migration_000055_job_route_binding_id.db", &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
+	}, &AppliedMigration{})
+	if err := db.Exec(`CREATE TABLE jobs (
+		id integer primary key,
+		created_at datetime,
+		updated_at datetime,
+		deleted_at datetime,
+		user_id integer not null,
+		model_config_id integer not null,
+		usage_reservation_id integer,
+		job_type text not null,
+		status text not null,
+		prompt text
+	)`).Error; err != nil {
+		t.Fatalf("create jobs: %v", err)
+	}
+	if err := db.Exec(`CREATE TABLE usage_reservations (
+		id integer primary key,
+		created_at datetime,
+		updated_at datetime,
+		deleted_at datetime,
+		user_id integer not null,
+		ai_model_config_id integer not null,
+		route_binding_id integer,
+		operation_type text not null
+	)`).Error; err != nil {
+		t.Fatalf("create usage reservations: %v", err)
+	}
+	if err := db.Exec(`CREATE TABLE ai_model_route_bindings (
+		id integer primary key,
+		created_at datetime,
+		updated_at datetime,
+		deleted_at datetime,
+		catalog_entry_id integer not null,
+		source_type text,
+		route_group text,
+		local_model_config_id integer,
+		capacity_weight integer
+	)`).Error; err != nil {
+		t.Fatalf("create route bindings: %v", err)
+	}
+	if err := db.Exec(`INSERT INTO ai_model_route_bindings (id, catalog_entry_id, source_type, route_group, local_model_config_id, capacity_weight) VALUES (321, 100, 'local_provider', '', 7, 1), (654, 200, 'local_provider', '', 9, 1)`).Error; err != nil {
+		t.Fatalf("insert route bindings: %v", err)
+	}
+	if err := db.Exec(`INSERT INTO usage_reservations (id, user_id, ai_model_config_id, route_binding_id, operation_type) VALUES (11, 7, 7, 321, 'video')`).Error; err != nil {
+		t.Fatalf("insert usage reservation: %v", err)
+	}
+	if err := db.Exec(`INSERT INTO jobs (id, user_id, model_config_id, usage_reservation_id, job_type, status, prompt) VALUES (1, 7, 7, 11, 'video', 'pending', 'draw'), (2, 7, 9, NULL, 'image', 'pending', 'draw')`).Error; err != nil {
+		t.Fatalf("insert jobs: %v", err)
+	}
+	for _, migration := range RegisteredMigrations() {
+		if migration.Version >= "000055" {
+			break
+		}
+		if err := db.Create(&AppliedMigration{
+			Version:   migration.Version,
+			Name:      migration.Name,
+			Checksum:  migrationChecksum(migration),
+			AppliedAt: time.Now().UTC(),
+		}).Error; err != nil {
+			t.Fatalf("insert migration %s: %v", migration.Version, err)
+		}
+	}
+	if db.Migrator().HasColumn(&model.Job{}, "route_binding_id") {
+		t.Fatal("jobs.route_binding_id exists before migration")
+	}
+
+	if err := RunMigrations(db); err != nil {
+		t.Fatalf("RunMigrations() error = %v", err)
+	}
+
+	for _, tc := range []struct {
+		id   uint
+		want uint
+	}{
+		{id: 1, want: 321},
+		{id: 2, want: 654},
+	} {
+		var routeBindingID uint
+		if err := db.Raw(`SELECT route_binding_id FROM jobs WHERE id = ?`, tc.id).Scan(&routeBindingID).Error; err != nil {
+			t.Fatalf("read job %d route binding id: %v", tc.id, err)
+		}
+		if routeBindingID != tc.want {
+			t.Fatalf("job %d route binding id = %d, want %d", tc.id, routeBindingID, tc.want)
+		}
+	}
+}
+
 func TestMigration000047EnforcesUniqueActiveModelRouteBindings(t *testing.T) {
 	db := testutil.OpenSQLiteWithConfig(t, "migration_000047_model_route_binding_unique.db", &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
@@ -820,6 +1138,9 @@ func TestMigration000048RenamesGatewayAPIKeyAllowlistToCatalogEntries(t *testing
 	db := testutil.OpenSQLiteWithConfig(t, "migration_000048_gateway_api_key_catalog_allowlist.db", &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
 	}, &AppliedMigration{}, &model.AIModelCatalogEntry{}, &model.AIModelRouteBinding{})
+	if err := ensureLegacyRouteBindingModelConfigColumn(db); err != nil {
+		t.Fatalf("add legacy route binding column: %v", err)
+	}
 	if err := db.Exec(`CREATE TABLE gateway_api_keys (
 		id integer primary key,
 		created_at datetime,

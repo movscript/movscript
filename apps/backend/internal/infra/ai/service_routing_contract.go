@@ -10,8 +10,8 @@ import (
 func (s *AIService) ResolveGatewayModelRoute(ctx context.Context, request providercontract.AIGatewayRouteRequest) (providercontract.AIGatewayModelRoute, error) {
 	route, err := s.ResolveModelRoute(ModelRouteRequest{
 		ModelID:               request.ModelID,
-		ModelConfigID:         request.ModelConfigID,
 		CatalogEntryID:        request.CatalogEntryID,
+		RouteBindingID:        request.RouteBindingID,
 		Capability:            request.Capability,
 		RouteGroup:            providerRouteGroupFromContext(ctx),
 		PreferredAdapterTypes: request.PreferredAdapterTypes,
@@ -27,8 +27,8 @@ func (s *AIService) ResolveGatewayModelRoute(ctx context.Context, request provid
 func (s *AIService) ResolveGatewayModelRoutePlan(ctx context.Context, request providercontract.AIGatewayRouteRequest) (providercontract.AIGatewayModelRoutePlan, error) {
 	plan, err := s.ResolveModelRoutePlan(ModelRouteRequest{
 		ModelID:               request.ModelID,
-		ModelConfigID:         request.ModelConfigID,
 		CatalogEntryID:        request.CatalogEntryID,
+		RouteBindingID:        request.RouteBindingID,
 		Capability:            request.Capability,
 		RouteGroup:            providerRouteGroupFromContext(ctx),
 		PreferredAdapterTypes: request.PreferredAdapterTypes,
@@ -85,7 +85,6 @@ func (s *AIService) ResolveGatewayGenerationModelRoute(ctx context.Context, mode
 func modelRouteToContract(route ModelRoute, capability string) providercontract.AIGatewayModelRoute {
 	return providercontract.AIGatewayModelRoute{
 		ModelID:         route.ModelID,
-		ModelConfigID:   route.ModelConfigID,
 		CatalogEntryID:  route.CatalogEntryID,
 		RouteBindingID:  route.RouteBindingID,
 		CredentialID:    route.CredentialID,

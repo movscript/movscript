@@ -96,6 +96,17 @@ const routeLayoutRegistry: RouteLayoutRegistryEntry[] = [
     panes: CANVAS_PANES,
   }, (pathname) => /^\/canvases\/[^/]+\/?$/.test(pathname)),
   route({
+    routeId: 'editing.project',
+    pathnamePattern: ROUTES.editingProject,
+    kind: 'page',
+    surface: 'tool',
+    scrollMode: 'workspace',
+    shellLayout: 'flush',
+    panes: [],
+    projectEntryId: undefined,
+    notes: 'Standalone editing project workspace; it opens in its own editingProject window and is not tied to a business project.',
+  }, (pathname) => /^\/editing\/[^/]+\/?$/.test(pathname)),
+  route({
     routeId: 'project.agent',
     pathnamePattern: ROUTES.project.agent,
     kind: 'page',
@@ -256,8 +267,13 @@ const routeLayoutRegistry: RouteLayoutRegistryEntry[] = [
   route({
     routeId: 'editing',
     pathnamePattern: ROUTES.editing,
-    ...TOOL_WORKSPACE_ROUTE,
-    notes: 'Standalone editing project workspace backed by Electron mediaPipeline and MediaEditingProject.',
+    kind: 'page',
+    surface: 'tool',
+    scrollMode: 'document',
+    shellLayout: 'flush',
+    panes: [],
+    projectEntryId: undefined,
+    notes: 'Standalone editing project list backed by Electron mediaPipeline and MediaEditingProject.',
   }, exact(ROUTES.editing)),
   route({
     routeId: 'resources',

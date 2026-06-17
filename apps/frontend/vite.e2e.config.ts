@@ -30,6 +30,7 @@ const alias = {
   '@movscript/core/mcp': resolve('../../packages/core/src/mcp/index.ts'),
   '@movscript/core/backend': resolve('../../packages/core/src/backend/index.ts'),
   '@movscript/core/plugins': resolve('../../packages/core/src/plugins/index.ts'),
+  '@movscript/editing': resolve('../../packages/editing/src/index.ts'),
   '@movscript/theme/theme.css': resolve('../../packages/theme/src/theme.css'),
   '@movscript/ui/style-system': resolve('../../packages/ui/src/style-system.ts'),
   '@movscript/ui/semantic': resolve('../../packages/ui/src/semantic.ts'),

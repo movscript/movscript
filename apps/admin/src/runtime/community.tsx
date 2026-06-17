@@ -1,4 +1,5 @@
 import React from 'react'
+import { Navigate } from 'react-router-dom'
 
 import { AuditLogsPage } from '@admin/pages/admin/AuditLogsPage'
 import { OrgManagementPage } from '@admin/pages/admin/OrgManagementPage'
@@ -19,8 +20,8 @@ const CloudFileConfigPage = React.lazy(() =>
 const DebugPage = React.lazy(() =>
   import('@admin/pages/admin/DebugPage').then((module) => ({ default: module.DebugPage })),
 )
-const ModelCatalogManagementRoute = React.lazy(() =>
-  import('@admin/pages/admin/ModelCatalogManagementRoute').then((module) => ({ default: module.ModelCatalogManagementRoute })),
+const ModelManagementPage = React.lazy(() =>
+  import('@admin/pages/admin/AdminPage').then((module) => ({ default: module.ModelManagementPage })),
 )
 const UsageLogsPage = React.lazy(() =>
   import('@admin/pages/admin/UsageLogsPage').then((module) => ({ default: module.UsageLogsPage })),
@@ -33,7 +34,10 @@ export const runtimeNavItems: AdminNavItem[] = []
 
 export const runtimeBaseRoutes: AdminRouteItem[] = [
   { path: '/', element: <AdminPage /> },
-  { path: '/models', element: <ModelCatalogManagementRoute /> },
+  { path: '/models', element: <Navigate to="/models/providers" replace /> },
+  { path: '/models/providers', element: <ModelManagementPage view="providers" /> },
+  { path: '/models/catalog', element: <ModelManagementPage view="catalog" /> },
+  { path: '/models/routes', element: <ModelManagementPage view="routes" /> },
   { path: '/user-management', element: <UserManagementPage /> },
   { path: '/orgs', element: <OrgManagementPage /> },
   { path: '/projects', element: <ProjectOwnerManagementPage /> },

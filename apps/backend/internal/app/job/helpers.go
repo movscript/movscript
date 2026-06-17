@@ -8,7 +8,7 @@ import (
 )
 
 type ContextSnapshotInput struct {
-	Model          domainjob.AIModelConfig
+	Model          domainjob.RuntimeModelSnapshotInput
 	Credential     domainjob.AICredential
 	Prompt         string
 	ExtraParams    string
@@ -38,7 +38,7 @@ func OrderedResources(resources []domainjob.InputResource, ids []uint) []domainj
 
 func BuildContextSnapshot(input ContextSnapshotInput) string {
 	return domainjob.BuildContextSnapshot(domainjob.ContextSnapshotInput{
-		Model: domainjob.ModelConfigInput{
+		Model: domainjob.RuntimeModelSnapshotInput{
 			ID:                input.Model.ID,
 			CustomDisplayName: input.Model.CustomDisplayName,
 			ModelIDOverride:   input.Model.ModelIDOverride,
@@ -57,8 +57,8 @@ func BuildContextSnapshot(input ContextSnapshotInput) string {
 	})
 }
 
-func CostRequest(modelConfigID uint, jobType string, duration int, extraParams, aspectRatio string) (domainjob.CostRequestKind, ai.ImageRequest, ai.VideoRequest, error) {
-	kind, imageReq, videoReq, err := domainjob.CostRequest(modelConfigID, jobType, duration, extraParams, aspectRatio)
+func CostRequest(runtimeModelID uint, jobType string, duration int, extraParams, aspectRatio string) (domainjob.CostRequestKind, ai.ImageRequest, ai.VideoRequest, error) {
+	kind, imageReq, videoReq, err := domainjob.CostRequest(runtimeModelID, jobType, duration, extraParams, aspectRatio)
 	if err != nil {
 		return kind, ai.ImageRequest{}, ai.VideoRequest{}, err
 	}
@@ -70,20 +70,6 @@ func CostRequest(modelConfigID uint, jobType string, duration int, extraParams, 
 	default:
 		return kind, ai.ImageRequest{}, ai.VideoRequest{}, nil
 	}
-}
-
-func ModelDisplay(mcfg domainjob.AIModelConfig) string {
-	return domainjob.ModelDisplay(domainjob.ModelConfigInput{
-		CustomDisplayName: mcfg.CustomDisplayName,
-		ModelDefID:        mcfg.ModelDefID,
-	})
-}
-
-func ModelIdentifier(mcfg domainjob.AIModelConfig) string {
-	return domainjob.ModelIdentifier(domainjob.ModelConfigInput{
-		ModelIDOverride: mcfg.ModelIDOverride,
-		ModelDefID:      mcfg.ModelDefID,
-	})
 }
 
 func IsVideoJob(jobType string) bool {

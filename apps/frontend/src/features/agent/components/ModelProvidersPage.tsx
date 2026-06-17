@@ -91,7 +91,7 @@ type BackendModelProvider = {
   defaultModel?: string
 }
 
-type ModelProviderLayer = 'sources' | 'catalog' | 'routes'
+type ModelProviderLayer = 'providers' | 'catalog' | 'routes'
 type CatalogDraft = {
   id?: number
   publicModelID: string
@@ -271,7 +271,7 @@ export default function ModelProvidersPage() {
     retry: false,
   })
   const [providers, setProviders] = useState<WorkspaceModelProvider[]>([])
-  const [activeLayer, setActiveLayer] = useState<ModelProviderLayer>('sources')
+  const [activeLayer, setActiveLayer] = useState<ModelProviderLayer>('providers')
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -479,14 +479,14 @@ export default function ModelProvidersPage() {
           <AgentConsoleHeaderCopy>
             <AgentConsoleHeaderTitleRow>
               <IdentityMark kind="model" id="gpt" />
-              <AgentConsoleHeaderTitle>Model Providers</AgentConsoleHeaderTitle>
+              <AgentConsoleHeaderTitle>Provider / Catalog / Route</AgentConsoleHeaderTitle>
               <AgentConsoleStatusBadge intent={enabledCount > 0 ? 'success' : 'warning'} emphasis="soft">
                 {enabledCount} 个可用
               </AgentConsoleStatusBadge>
               {(workspaceConfigQuery.isLoading || backendModelsQuery.isLoading || modelCatalogQuery.isLoading) && <AgentConsoleSyncBadge>同步中</AgentConsoleSyncBadge>}
             </AgentConsoleHeaderTitleRow>
             <AgentConsoleHeaderDescription>
-              按模型来源、Catalog Entry 和模型路由三层管理调用心智。Catalog Entry 是系统识别模型的标准档案；路由决定它实际打到本地 provider 还是 new-api 分组。
+              按 Provider/new-api、Catalog 和 Route 三层管理模型调用。Provider 保存认证和上游来源，Catalog 保存系统识别的模型身份，Route 决定请求实际落到本地 credential 还是 new-api group。
             </AgentConsoleHeaderDescription>
           </AgentConsoleHeaderCopy>
           <AgentConsoleHeaderActions>
@@ -514,7 +514,7 @@ export default function ModelProvidersPage() {
           action={(
             <AgentConsolePanelActions>
               <AgentConsoleStatusBadge intent="neutral" emphasis="soft">
-                source / catalog / route
+                provider / catalog / route
               </AgentConsoleStatusBadge>
             </AgentConsolePanelActions>
           )}
@@ -522,7 +522,7 @@ export default function ModelProvidersPage() {
           <AgentConsoleStack spacing="loose">
             <AgentConsoleIntroRow>
               <AgentConsoleDescription>
-                社区版和商业版共用这三层：模型来源保存认证和上游模型，Catalog Entry 保存系统识别与能力，模型路由保存 Catalog 到 provider 或 new-api 分组的映射。
+                社区版和商业版共用这三层：Provider/new-api 保存认证和上游来源，Catalog Entry 保存模型身份、能力和参数，Route 保存 Catalog 到 provider 或 new-api 分组的映射。
               </AgentConsoleDescription>
               <AgentConsoleToolbar>
                 {MODEL_PROVIDER_LAYERS.map((layer) => (
@@ -550,9 +550,9 @@ export default function ModelProvidersPage() {
           </AgentConsoleStack>
         </AgentConsolePanel>
 
-        {activeLayer === 'sources' ? (
+        {activeLayer === 'providers' ? (
         <AgentConsolePanel
-          title="Backend Providers"
+          title="Provider / new-api"
           icon={<Database size={14} />}
           action={(
             <AgentConsolePanelActions>
@@ -565,7 +565,7 @@ export default function ModelProvidersPage() {
           <AgentConsoleStack spacing="loose">
             <AgentConsoleIntroRow>
               <AgentConsoleDescription>
-                模型来源来自后端 AI Gateway 和本地 workspace 覆盖。社区版通常是固定 API Key 的 local provider；商业版可以在 new-api endpoint 下继续细分 group 和动态 key 策略。
+                Provider/new-api 是运行时来源层。社区版通常是固定 API Key 的 local provider；商业版在 new-api endpoint 下继续细分 group 和动态 key 策略。
               </AgentConsoleDescription>
               <AgentConsoleToolbar>
                 <AgentConsoleStatusBadge intent="neutral" emphasis="soft">
@@ -577,7 +577,7 @@ export default function ModelProvidersPage() {
             {backendModelsQuery.error ? <AgentConsoleInlineError>{errorMessage(backendModelsQuery.error)}</AgentConsoleInlineError> : null}
             {!backendModelsQuery.error && backendProviders.length === 0 ? (
               <AgentConsoleCallout tone="warning" compact>
-                后端当前没有返回可用模型。请先在 Admin 的模型供应商中配置 AI Gateway 凭证和模型路由。
+                后端当前没有返回可用模型。请先配置 Provider/new-api，再创建 Catalog Entry 和 Route。
               </AgentConsoleCallout>
             ) : null}
 
@@ -956,7 +956,7 @@ export default function ModelProvidersPage() {
           </AgentConsolePanel>
         ) : null}
 
-        {activeLayer === 'sources' && showLocalOverrides ? (
+        {activeLayer === 'providers' && showLocalOverrides ? (
           <AgentConsolePanel
             title="Local Providers"
             icon={<Database size={14} />}
@@ -972,7 +972,7 @@ export default function ModelProvidersPage() {
             <AgentConsoleStack spacing="loose">
               <AgentConsoleIntroRow>
                 <AgentConsoleDescription>
-                  高级本地覆盖只保存在当前 runtime profile config 中，用于临时接入后端 AI Gateway 之外的模型服务。团队和正式环境应优先使用 Admin 统一配置的 Backend Providers。
+                  高级本地覆盖只保存在当前 runtime profile config 中，用于临时接入后端 AI Gateway 之外的模型服务。团队和正式环境应优先使用 Provider/new-api 配置和 Route。
                 </AgentConsoleDescription>
                 <AgentConsoleToolbar>
                   <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={addProvider}>
@@ -1054,9 +1054,9 @@ const MODEL_PROVIDER_LAYERS: Array<{
   icon: typeof Database
 }> = [
   {
-    id: 'sources',
-    label: '模型来源',
-    detail: 'new-api/local auth provider 列表、凭证和上游模型。',
+    id: 'providers',
+    label: 'Provider / new-api',
+    detail: '本地 provider credential、new-api endpoint/group 和上游认证来源。',
     edition: '两版共享',
     icon: Database,
   },

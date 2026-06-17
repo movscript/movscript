@@ -25,6 +25,7 @@ import { createMediaPipelineLocalHlsURL, registerMediaPipelineLocalHlsRoot } fro
 import { clampProgressPercent, createTimelineExportProgressReporter } from './progress'
 import {
   getMediaPipelineEditingProject as readStoredMediaPipelineEditingProject,
+  onMediaPipelineEditingProjectEvent,
   saveMediaPipelineEditingProject as writeStoredMediaPipelineEditingProject,
 } from './projectStore'
 import { reframeMediaPipelineSource } from './reframer'
@@ -69,6 +70,7 @@ export {
   getMediaPipelineTaskLogs,
   getStoredMediaPipelineTask,
   importMediaPipelineExportResource,
+  onMediaPipelineEditingProjectEvent,
   onMediaPipelineTaskEvent,
   publishMediaPipelineHlsStream,
   saveMediaPipelineExportLocal,
@@ -104,7 +106,7 @@ export async function getMediaPipelineCapabilities(): Promise<MediaPipelineCapab
 
 export async function saveMediaPipelineEditingProject(
   editingProject: MediaPipelineEditingProject,
-  options: { userDataDir: string },
+  options: { userDataDir: string; expectedRevision?: number },
 ) {
   return writeStoredMediaPipelineEditingProject(editingProject, options)
 }

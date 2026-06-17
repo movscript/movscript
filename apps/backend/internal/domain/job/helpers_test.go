@@ -33,11 +33,11 @@ func TestBuildListSpecExpandsImageType(t *testing.T) {
 
 func TestNewQueuedJobAppliesDomainDefaults(t *testing.T) {
 	job := NewQueuedJob(NewQueuedJobSpec{
-		UserID:        1,
-		ModelConfigID: 2,
-		JobType:       CapabilityImage,
-		Title:         "参考生图-1234",
-		Prompt:        "draw",
+		UserID:         1,
+		RuntimeModelID: 2,
+		JobType:        CapabilityImage,
+		Title:          "参考生图-1234",
+		Prompt:         "draw",
 	})
 	if job.Status != StatusPending {
 		t.Fatalf("status = %q, want %s", job.Status, StatusPending)
@@ -45,7 +45,7 @@ func TestNewQueuedJobAppliesDomainDefaults(t *testing.T) {
 	if job.MaxAttempts != DefaultMaxAttempts {
 		t.Fatalf("max attempts = %d, want %d", job.MaxAttempts, DefaultMaxAttempts)
 	}
-	if job.UserID != 1 || job.ModelConfigID != 2 || job.Title != "参考生图-1234" || job.Prompt != "draw" {
+	if job.UserID != 1 || job.RuntimeModelID != 2 || job.Title != "参考生图-1234" || job.Prompt != "draw" {
 		t.Fatalf("unexpected job: %+v", job)
 	}
 	modelJob := job.ToModel()
@@ -136,7 +136,7 @@ func TestCountInputResources(t *testing.T) {
 
 func TestBuildContextSnapshotIncludesModelAndResources(t *testing.T) {
 	raw := BuildContextSnapshot(ContextSnapshotInput{
-		Model:          ModelConfigInput{ModelDefID: "gpt-image", CredentialID: 8},
+		Model:          RuntimeModelSnapshotInput{ModelDefID: "gpt-image", CredentialID: 8},
 		Credential:     CredentialInput{DisplayName: "OpenAI"},
 		Prompt:         "draw",
 		ExtraParams:    `{"n":1}`,

@@ -234,34 +234,6 @@ func usageUserRefFromContract(ref *providercontract.AIGatewayUsageUserRef) *User
 	return &UserRef{ID: ref.ID, Username: ref.Username, SystemRole: ref.SystemRole}
 }
 
-func usageModelRefToContract(ref *ModelConfigRef) *providercontract.AIGatewayUsageModelConfigRef {
-	if ref == nil {
-		return nil
-	}
-	return &providercontract.AIGatewayUsageModelConfigRef{
-		ID:                ref.ID,
-		CredentialID:      ref.CredentialID,
-		ModelDefID:        ref.ModelDefID,
-		ModelIDOverride:   ref.ModelIDOverride,
-		CustomDisplayName: ref.CustomDisplayName,
-		ShortName:         ref.ShortName,
-	}
-}
-
-func usageModelRefFromContract(ref *providercontract.AIGatewayUsageModelConfigRef) *ModelConfigRef {
-	if ref == nil {
-		return nil
-	}
-	return &ModelConfigRef{
-		ID:                ref.ID,
-		CredentialID:      ref.CredentialID,
-		ModelDefID:        ref.ModelDefID,
-		ModelIDOverride:   ref.ModelIDOverride,
-		CustomDisplayName: ref.CustomDisplayName,
-		ShortName:         ref.ShortName,
-	}
-}
-
 func usageCatalogEntryRefToContract(ref *CatalogEntryRef) *providercontract.AIGatewayUsageCatalogEntryRef {
 	if ref == nil {
 		return nil

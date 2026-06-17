@@ -11,10 +11,14 @@ export interface VideoClipInput {
   speed?: number
   fadeInMs?: number
   fadeOutMs?: number
+  fit?: 'crop' | 'contain' | 'cover' | 'none'
   cropLeftPercent?: number
   cropRightPercent?: number
   cropTopPercent?: number
   cropBottomPercent?: number
+  xPercent?: number
+  yPercent?: number
+  scalePercent?: number
 }
 
 export interface VideoClipResult {
@@ -44,10 +48,14 @@ export interface VideoTimelineExportClipInput {
   speed?: number
   fadeInMs?: number
   fadeOutMs?: number
+  fit?: 'crop' | 'contain' | 'cover' | 'none'
   cropLeftPercent?: number
   cropRightPercent?: number
   cropTopPercent?: number
   cropBottomPercent?: number
+  xPercent?: number
+  yPercent?: number
+  scalePercent?: number
 }
 
 export interface VideoTimelineExportCaptionInput {
@@ -80,6 +88,7 @@ export interface VideoTimelineExportAudioInput {
   endMs: number
   timelineStartMs: number
   volume?: number
+  speed?: number
   fadeInMs?: number
   fadeOutMs?: number
 }
@@ -94,6 +103,9 @@ export interface VideoTimelineExportOverlayInput {
   sourceStartMs?: number
   sourceEndMs?: number
   layerIndex?: number
+  volume?: number
+  muted?: boolean
+  speed?: number
   fadeInMs?: number
   fadeOutMs?: number
   cropLeftPercent?: number
@@ -113,6 +125,9 @@ export interface VideoTimelineExportInput {
   audioClips?: VideoTimelineExportAudioInput[]
   overlays?: VideoTimelineExportOverlayInput[]
   outputName?: string
+  width?: number
+  height?: number
+  background?: string
   signal?: AbortSignal
   onFFmpegOutput?: (output: MediaPipelineProcessOutput) => void
 }

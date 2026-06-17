@@ -111,7 +111,7 @@ export type ElectronAppUpdateStatus = {
   error?: string
 }
 
-export type ElectronAppWindowKind = 'home' | 'agent' | 'project'
+export type ElectronAppWindowKind = 'home' | 'agent' | 'project' | 'editingProject' | 'canvas' | 'tool'
 
 export type ElectronAppWindowProjectSnapshot = {
   ID: number
@@ -128,6 +128,16 @@ export type ElectronAppWindowContext = {
   search?: string
   projectId?: number
   project?: ElectronAppWindowProjectSnapshot | null
+  editingProjectId?: string
+  editingProjectTitle?: string
+  canvasId?: number
+  title?: string
+}
+
+export type ElectronUpdateAppWindowRouteContextInput = {
+  route: string
+  search?: string
+  title?: string
 }
 
 export type ElectronOpenProjectWindowInput = {
@@ -135,6 +145,44 @@ export type ElectronOpenProjectWindowInput = {
   project?: ElectronAppWindowProjectSnapshot | null
   route?: string
   search?: string
+}
+
+export type ElectronOpenEditingProjectWindowInput = {
+  editingProjectId: string
+  title?: string
+  route?: string
+  search?: string
+}
+
+export type ElectronOpenCanvasWindowInput = {
+  canvasId?: number
+  title?: string
+  route?: string
+  search?: string
+}
+
+export type ElectronDockShortcutProject = {
+  id: number
+  name: string
+  updatedAt?: string
+  project?: ElectronAppWindowProjectSnapshot | null
+}
+
+export type ElectronDockShortcutEditingProject = {
+  id: string
+  title: string
+  updatedAt?: string
+}
+
+export type ElectronDockShortcutCanvas = {
+  id: number
+  name: string
+}
+
+export type ElectronDockShortcutSnapshot = {
+  projects?: ElectronDockShortcutProject[]
+  editingProjects?: ElectronDockShortcutEditingProject[]
+  canvases?: ElectronDockShortcutCanvas[]
 }
 
 export type ElectronGenerationToolServerTestResult = {

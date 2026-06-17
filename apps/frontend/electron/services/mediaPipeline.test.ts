@@ -14,6 +14,7 @@ import {
   getMediaPipelineTask,
   getMediaPipelineTaskLogs,
   getStoredMediaPipelineTask,
+  onMediaPipelineEditingProjectEvent,
   onMediaPipelineTaskEvent,
   parseFFmpegProgressTimeMs,
   saveMediaPipelineEditingProject,
@@ -50,6 +51,7 @@ import {
   resolveMediaPipelineSubtitleFileFormat,
 } from './mediaPipeline/subtitleRenderer'
 import { mediaPipelineTimelineToVideoExportInput } from './mediaPipeline/timelineRenderer'
+import type { MediaPipelineEditingProjectEvent } from './mediaPipeline/types'
 import { prepareMediaWorkspace } from './mediaPipeline/workspace'
 
 test('prepares isolated media workspace directories for a project task', async () => {
@@ -204,6 +206,100 @@ test('persists and reads media editing projects from the Electron media workspac
       editingProjectId: 'missing',
     }, { userDataDir })
     assert.equal(missing.status, 'not_found')
+  } finally {
+    await rm(userDataDir, { recursive: true, force: true })
+  }
+})
+
+test('emits media editing project events after successful project saves', async () => {
+  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-project-events-'))
+  const events: MediaPipelineEditingProjectEvent[] = []
+  const unsubscribe = onMediaPipelineEditingProjectEvent((event) => {
+    events.push(event)
+  })
+  try {
+    const editingProject = {
+      version: 1 as const,
+      id: 'editing-project-events',
+      projectId: 'project-events',
+      title: 'Evented cut',
+      source: { kind: 'manual' },
+      timeline: {
+        version: 1 as const,
+        id: 'timeline-events',
+        fps: 30,
+        width: 1080,
+        height: 1920,
+        background: '#000000',
+        tracks: [],
+      },
+      assets: { assets: [] },
+      createdAt: '2026-06-17T00:00:00.000Z',
+      updatedAt: '2026-06-17T00:00:00.000Z',
+      revision: 1,
+    }
+
+    const saved = await saveMediaPipelineEditingProject(editingProject, { userDataDir })
+
+    assert.equal(saved.status, 'ok')
+    assert.equal(events.length, 1)
+    assert.equal(events[0].type, 'saved')
+    assert.equal(events[0].projectId, editingProject.projectId)
+    assert.equal(events[0].editingProjectId, editingProject.id)
+    assert.equal(events[0].revision, 1)
+    assert.equal(events[0].editingProject.title, editingProject.title)
+    assert.equal(events[0].projectPath, saved.projectPath)
+  } finally {
+    unsubscribe()
+    await rm(userDataDir, { recursive: true, force: true })
+  }
+})
+
+test('rejects stale media editing project saves with an optimistic revision conflict', async () => {
+  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-project-conflict-'))
+  try {
+    const editingProject = {
+      version: 1 as const,
+      id: 'editing-project-conflict',
+      projectId: 'project-conflict',
+      title: 'Stored cut',
+      source: { kind: 'manual' },
+      timeline: {
+        version: 1 as const,
+        id: 'timeline-conflict',
+        fps: 30,
+        width: 1080,
+        height: 1920,
+        background: '#000000',
+        tracks: [],
+      },
+      assets: { assets: [] },
+      createdAt: '2026-06-17T00:00:00.000Z',
+      updatedAt: '2026-06-17T00:00:00.000Z',
+      revision: 1,
+    }
+    const saved = await saveMediaPipelineEditingProject(editingProject, { userDataDir })
+    assert.equal(saved.status, 'ok')
+
+    const staleSave = await saveMediaPipelineEditingProject({
+      ...editingProject,
+      title: 'Stale overwrite',
+      revision: 2,
+    }, { userDataDir, expectedRevision: 0 })
+
+    assert.equal(staleSave.status, 'conflict')
+    assert.equal(staleSave.code, 'EDITING_PROJECT_REVISION_CONFLICT')
+    assert.equal(staleSave.expectedRevision, 0)
+    assert.equal(staleSave.currentRevision, 1)
+    assert.equal(staleSave.editingProject.title, 'Stored cut')
+
+    const loaded = await getMediaPipelineEditingProject({
+      projectId: editingProject.projectId,
+      editingProjectId: editingProject.id,
+    }, { userDataDir })
+    assert.equal(loaded.status, 'ok')
+    assert.equal(loaded.editingProject.title, 'Stored cut')
+    assert.equal(loaded.editingProject.revision, 1)
   } finally {
     await rm(userDataDir, { recursive: true, force: true })
   }
@@ -935,10 +1031,12 @@ test('mediaPipeline timeline renderer materializes timeline recipes into export 
   const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-timeline-input-'))
   try {
     const videoPath = join(userDataDir, 'clip.mp4')
+    const overlayVideoPath = join(userDataDir, 'overlay-video.mp4')
     const audioPath = join(userDataDir, 'music.m4a')
     const imagePath = join(userDataDir, 'overlay.png')
     const subtitlePath = join(userDataDir, 'captions.ass')
     await writeFile(videoPath, new Uint8Array([1]))
+    await writeFile(overlayVideoPath, new Uint8Array([5]))
     await writeFile(audioPath, new Uint8Array([2]))
     await writeFile(imagePath, new Uint8Array([3]))
     await writeFile(subtitlePath, 'Dialogue: 0,0:00:00.00,0:00:01.00,Default,,0,0,0,,Hello')
@@ -972,6 +1070,31 @@ test('mediaPipeline timeline renderer materializes timeline recipes into export 
           },
         }],
       }, {
+        id: 'video-overlay-track',
+        type: 'video',
+        zIndex: 5,
+        clips: [{
+          id: 'video-overlay-clip',
+          assetType: 'video',
+          timelineStartMs: 400,
+          durationMs: 300,
+          sourceStartMs: 100,
+          sourceEndMs: 400,
+          volume: 0.75,
+          muted: false,
+          speed: 1.5,
+          fadeInMs: 50,
+          scale: 0.5,
+          crop: { leftPercent: 5, topPercent: 10 },
+          asset: {
+            id: 'asset-overlay-video',
+            sourceKind: 'local_file',
+            assetType: 'video',
+            localPath: overlayVideoPath,
+            label: 'overlay-video.mp4',
+          },
+        }],
+      }, {
         id: 'audio-track',
         type: 'audio',
         zIndex: 1,
@@ -998,7 +1121,7 @@ test('mediaPipeline timeline renderer materializes timeline recipes into export 
           assetType: 'text',
           timelineStartMs: 250,
           durationMs: 500,
-          text: { content: 'Hello', fontSize: 28, backgroundOpacity: 0.25 },
+          text: { content: 'Hello', fontSize: 28, backgroundOpacity: 0.25, position: 'bottom' },
           subtitle: { renderer: 'libass', style: { content: 'Styled hello', color: '#ffffff' } },
         }],
       }, {
@@ -1047,7 +1170,7 @@ test('mediaPipeline timeline renderer materializes timeline recipes into export 
       endMs: 1100,
       timelineStartMs: 100,
       layerIndex: 0,
-      volume: 0.8,
+      volume: 80,
       muted: undefined,
     }])
     assert.deepEqual(exportInput.audioClips, [{
@@ -1056,7 +1179,7 @@ test('mediaPipeline timeline renderer materializes timeline recipes into export 
       startMs: 0,
       endMs: 1000,
       timelineStartMs: 0,
-      volume: 0.5,
+      volume: 50,
     }])
     assert.deepEqual(exportInput.captions, [{
       startMs: 250,
@@ -1065,6 +1188,7 @@ test('mediaPipeline timeline renderer materializes timeline recipes into export 
       layerIndex: 2,
       fontSize: 28,
       fontFamily: undefined,
+      yPercent: 88,
       textColor: '#ffffff',
       backgroundColor: undefined,
       boxOpacityPercent: 25,
@@ -1084,6 +1208,22 @@ test('mediaPipeline timeline renderer materializes timeline recipes into export 
       endMs: 700,
       layerIndex: 4,
       opacityPercent: 60,
+    }, {
+      sourcePath: overlayVideoPath,
+      sourceName: 'overlay-video.mp4',
+      sourceKind: 'video',
+      startMs: 400,
+      endMs: 700,
+      sourceStartMs: 100,
+      sourceEndMs: 400,
+      layerIndex: 5,
+      volume: 75,
+      muted: false,
+      speed: 1.5,
+      fadeInMs: 50,
+      cropLeftPercent: 5,
+      cropTopPercent: 10,
+      scalePercent: 50,
     }])
   } finally {
     await rm(userDataDir, { recursive: true, force: true })
@@ -1796,6 +1936,173 @@ test('timeline_render task renders video with image overlay, text caption, and a
   }
 })
 
+test('timeline_render task exports a full local editing project with video image audio and subtitles', async () => {
+  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-editing-project-e2e-'))
+  const originalFFmpegPath = process.env.FFMPEG_PATH
+  try {
+    process.env.FFMPEG_PATH = await writeFakeMediaPipelineFFmpeg(userDataDir)
+    const videoPath = join(userDataDir, 'local-video.mp4')
+    const imagePath = join(userDataDir, 'local-overlay.png')
+    const audioPath = join(userDataDir, 'local-music.m4a')
+    await writeFile(videoPath, new Uint8Array([1, 2, 3, 4]))
+    await writeFile(imagePath, new Uint8Array([5, 6, 7, 8]))
+    await writeFile(audioPath, new Uint8Array([9, 10, 11, 12]))
+
+    const initialState = await createMediaPipelineTask(
+      {
+        projectId: 'project-1',
+        taskType: 'timeline_render',
+        editingProject: {
+          version: 1,
+          id: 'editing-project-e2e',
+          projectId: 'project-1',
+          title: 'Local composite edit',
+          createdAt: '2026-06-17T00:00:00.000Z',
+          updatedAt: '2026-06-17T00:00:00.000Z',
+          revision: 1,
+          source: { kind: 'manual' },
+          assets: {
+            assets: [{
+              id: 'asset-video',
+              sourceKind: 'local_file',
+              assetType: 'video',
+              localPath: videoPath,
+              label: 'local-video.mp4',
+              metadata: { durationMs: 1200 },
+            }, {
+              id: 'asset-image',
+              sourceKind: 'local_file',
+              assetType: 'image',
+              localPath: imagePath,
+              label: 'local-overlay.png',
+            }, {
+              id: 'asset-audio',
+              sourceKind: 'local_file',
+              assetType: 'audio',
+              localPath: audioPath,
+              label: 'local-music.m4a',
+              metadata: { durationMs: 1200 },
+            }],
+          },
+          timeline: {
+            version: 1,
+            id: 'timeline-editing-project-e2e',
+            fps: 30,
+            width: 1280,
+            height: 720,
+            background: '#000000',
+            durationMs: 1200,
+            tracks: [{
+              id: 'video-track',
+              type: 'video',
+              zIndex: 0,
+              clips: [{
+                id: 'video-clip',
+                assetType: 'video',
+                asset: {
+                  id: 'asset-video',
+                  sourceKind: 'local_file',
+                  assetType: 'video',
+                  localPath: videoPath,
+                  label: 'local-video.mp4',
+                },
+                timelineStartMs: 0,
+                durationMs: 1200,
+                sourceStartMs: 0,
+                sourceEndMs: 1200,
+                volume: 100,
+                fit: 'cover',
+              }],
+            }, {
+              id: 'image-overlay-track',
+              type: 'image',
+              zIndex: 4,
+              clips: [{
+                id: 'image-overlay-clip',
+                assetType: 'image',
+                asset: {
+                  id: 'asset-image',
+                  sourceKind: 'local_file',
+                  assetType: 'image',
+                  localPath: imagePath,
+                  label: 'local-overlay.png',
+                },
+                timelineStartMs: 200,
+                durationMs: 800,
+                xPercent: 76,
+                yPercent: 24,
+                scale: 0.4,
+                opacity: 0.7,
+                transition: { type: 'fade', durationMs: 150 },
+              }],
+            }, {
+              id: 'subtitle-track',
+              type: 'subtitle',
+              zIndex: 8,
+              clips: [{
+                id: 'subtitle-text-clip',
+                assetType: 'text',
+                timelineStartMs: 250,
+                durationMs: 700,
+                position: 'bottom',
+                text: {
+                  content: 'Local edit subtitle',
+                  fontSize: 32,
+                  color: '#ffffff',
+                  backgroundOpacity: 0.3,
+                  align: 'center',
+                },
+                subtitle: { renderer: 'ass' },
+              }],
+            }, {
+              id: 'audio-track',
+              type: 'audio',
+              zIndex: 2,
+              clips: [{
+                id: 'audio-clip',
+                assetType: 'audio',
+                asset: {
+                  id: 'asset-audio',
+                  sourceKind: 'local_file',
+                  assetType: 'audio',
+                  localPath: audioPath,
+                  label: 'local-music.m4a',
+                },
+                timelineStartMs: 0,
+                durationMs: 1200,
+                sourceStartMs: 0,
+                sourceEndMs: 1200,
+                volume: 65,
+                fadeInMs: 100,
+                fadeOutMs: 100,
+              }],
+            }],
+          },
+        },
+        output: { format: 'mp4', filename: 'local-edit.mp4' },
+      },
+      { userDataDir },
+    )
+
+    assert.equal(initialState.status, 'running')
+    const state = await waitForTerminalTask(initialState.taskId)
+    assert.equal(state.status, 'succeeded', `${state.errorCode ?? ''} ${state.errorMessage ?? ''}`.trim())
+    assert.equal(state.outputName, 'local-edit.mp4')
+    assert.equal(await readFile(state.outputPath ?? '', 'utf8'), 'mp4')
+
+    const logs = await getMediaPipelineTaskLogs(state.taskId)
+    assert.equal(logs.status, 'ok')
+    assert.equal(logs.logs?.some((line) => line.includes('"videoClipCount":1')), true)
+    assert.equal(logs.logs?.some((line) => line.includes('"overlayCount":1')), true)
+    assert.equal(logs.logs?.some((line) => line.includes('"captionCount":1')), true)
+    assert.equal(logs.logs?.some((line) => line.includes('"audioClipCount":1')), true)
+  } finally {
+    if (originalFFmpegPath === undefined) delete process.env.FFMPEG_PATH
+    else process.env.FFMPEG_PATH = originalFFmpegPath
+    await rm(userDataDir, { recursive: true, force: true })
+  }
+})
+
 test('timeline_render task burns ASS subtitle assets through the local media pipeline', async () => {
   const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-ass-subtitle-task-'))
   const originalFFmpegPath = process.env.FFMPEG_PATH
@@ -2284,6 +2591,7 @@ test('mediaPipeline task entrypoint depends on local renderer and ffmpeg facades
   assert.match(mediaPipelineIpcSource, /media-pipeline:render-timeline-video/)
   assert.match(mediaPipelineIpcSource, /media-pipeline:get-ffmpeg-status/)
   assert.match(mediaPipelineIpcSource, /media-pipeline:analyze-shot-cuts/)
+  assert.match(mediaPipelineIpcSource, /media-pipeline:editing-project-event/)
   assert.doesNotMatch(mediaPipelineIpcSource, /video:clip/)
   assert.doesNotMatch(mediaPipelineIpcSource, /video:timeline-export/)
   assert.doesNotMatch(mediaPipelineIpcSource, /video:clip-status/)
@@ -2291,6 +2599,7 @@ test('mediaPipeline task entrypoint depends on local renderer and ffmpeg facades
   assert.match(mediaPipelinePreloadSource, /renderMediaPipelineSingleClip/)
   assert.match(mediaPipelinePreloadSource, /getMediaPipelineFFmpegStatus/)
   assert.match(mediaPipelinePreloadSource, /analyzeMediaPipelineShotCuts/)
+  assert.match(mediaPipelinePreloadSource, /onMediaEditingProjectEvent/)
   assert.match(source, /from '\.\/timelineRenderer'/)
   assert.match(source, /from '\.\/ffmpegProbe'/)
   assert.match(source, /from '\.\/progress'/)

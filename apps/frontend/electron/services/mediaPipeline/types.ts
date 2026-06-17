@@ -1,3 +1,11 @@
+import type {
+  MediaAssetDescriptor,
+  MediaClip,
+  MediaEditingProject,
+  MediaTimelineRecipe,
+  MediaTrack,
+} from '@movscript/editing'
+
 export type MediaPipelineTaskType =
   | 'timeline_render'
   | 'timeline_hls'
@@ -6,89 +14,32 @@ export type MediaPipelineTaskType =
 
 export type MediaPipelineTaskStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'canceled'
 
-export type MediaPipelineAssetSourceKind = 'backend_resource' | 'local_file' | 'generated_resource' | 'bytes'
-export type MediaPipelineAssetType = 'video' | 'image' | 'audio' | 'text' | 'subtitle'
+export type MediaPipelineAssetSourceKind = MediaAssetDescriptor['sourceKind']
+export type MediaPipelineAssetType = MediaAssetDescriptor['assetType']
 
-export interface MediaPipelineAssetDescriptor {
-  id: string
-  sourceKind: MediaPipelineAssetSourceKind
-  assetType: MediaPipelineAssetType
-  resourceId?: number
+export type MediaPipelineAssetDescriptor = MediaAssetDescriptor & {
   resourceVersion?: string | number
   resource_version?: string | number
-  localPath?: string
   bytes?: ArrayBuffer | Uint8Array | number[]
   base64?: string
-  mimeType?: string
-  checksum?: string
-  label?: string
-  metadata?: Record<string, unknown>
 }
 
-export interface MediaPipelineClip {
-  id: string
-  assetType: MediaPipelineAssetType
+export type MediaPipelineClip = Omit<MediaClip, 'asset'> & {
   asset?: MediaPipelineAssetDescriptor
-  timelineStartMs: number
-  durationMs: number
-  sourceStartMs?: number
-  sourceEndMs?: number
-  volume?: number
-  muted?: boolean
-  fit?: 'crop' | 'contain' | 'cover' | 'none'
-  opacity?: number
-  text?: {
-    content: string
-    fontSize?: number
-    fontFamily?: string
-    color?: string
-    backgroundColor?: string
-    position?: string
-    backgroundOpacity?: number
-    align?: 'left' | 'center' | 'right'
-  }
-  subtitle?: {
-    resourceId?: number
-    format?: 'srt' | 'vtt' | 'ass' | 'ssa'
-    burnIn?: boolean
-    renderer?: 'drawtext' | 'ass' | 'libass'
-    style?: {
-      content?: string
-      fontSize?: number
-      fontFamily?: string
-      color?: string
-      backgroundColor?: string
-      position?: string
-      backgroundOpacity?: number
-      align?: 'left' | 'center' | 'right'
-    }
-  }
 }
 
-export interface MediaPipelineTrack {
-  id: string
-  type: 'video' | 'image' | 'audio' | 'text' | 'subtitle' | 'effect'
-  zIndex: number
-  muted?: boolean
+export type MediaPipelineTrack = Omit<MediaTrack, 'clips'> & {
   clips: MediaPipelineClip[]
 }
 
-export interface MediaPipelineTimelineRecipe {
-  version: 1
-  id: string
-  fps: number
-  width: number
-  height: number
-  background: string
-  durationMs?: number
+export interface MediaPipelineTimelineRecipe extends Omit<MediaTimelineRecipe, 'tracks'> {
   tracks: MediaPipelineTrack[]
 }
 
-export interface MediaPipelineEditingProject {
-  version: 1
-  id: string
-  projectId: string
-  title: string
+export interface MediaPipelineEditingProject extends Omit<
+  MediaEditingProject,
+  'source' | 'timeline' | 'assets' | 'workspace' | 'provenance' | 'createdAt' | 'updatedAt' | 'revision'
+> {
   source?: Record<string, unknown>
   timeline: MediaPipelineTimelineRecipe
   assets: {
@@ -99,6 +50,19 @@ export interface MediaPipelineEditingProject {
   createdAt?: string
   updatedAt?: string
   revision?: number
+}
+
+export interface MediaPipelineEditingProjectEvent {
+  type: 'saved'
+  projectId: string
+  project_id: string
+  editingProjectId: string
+  editing_project_id: string
+  revision?: number
+  editingProject: MediaPipelineEditingProject
+  editing_project: MediaPipelineEditingProject
+  projectPath: string
+  project_path: string
 }
 
 export interface MediaPipelineOutputSpec {

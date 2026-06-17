@@ -5,7 +5,7 @@ import { api } from '@/lib/api'
 import type { AICredential, AIModelCatalogEntry, AdapterDef, PublicModel, ParamDef, ModelParamProfile, Project, User, RawResource, ResourceBinding, PaginatedResponse, ProviderInstance, ProviderInstanceConfigActivationResult, ProviderInstanceConfigApplyResult, ProviderInstanceConfigDraft, ProviderInstancesResponse } from '@/types'
 import type { AgentCompactParamContract, ParamRuleTypeSummary } from '@admin/lib/modelParamContract'
 import { useUserStore } from '@/store/userStore'
-import { Plus, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, ShieldAlert, ArrowLeft, Pencil, Check, X, RefreshCw, Sparkles, Copy, ArrowUpRight, Settings2, FolderKanban, HardDrive, CloudUpload, ScrollText, BarChart3, UsersRound, Building2, KeyRound, Bug, Download } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, ShieldAlert, ArrowLeft, Pencil, Check, X, RefreshCw, Sparkles, Copy, ArrowUpRight, Settings2, FolderKanban, HardDrive, CloudUpload, ScrollText, BarChart3, UsersRound, Building2, Bug, Download, Database, Route as RouteIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@movscript/ui/primitives'
 import { Input } from '@movscript/ui/primitives'
@@ -1445,87 +1445,23 @@ function ProviderInstanceConfigDraftPanel({ instance }: { instance: ProviderInst
 
 type ModelManagementViewMode = 'providers' | 'catalog' | 'routes'
 
-type ModelTopologyCounts = {
-  providers: number
-  catalogEntries: number
-  routeBindings: number
+function defaultModelManagementViewMode(): ModelManagementViewMode {
+  return runtimeCapabilities.gatewayNewAPIGroup ? 'routes' : 'providers'
+}
+
+function modelManagementRoute(view: ModelManagementViewMode): string {
+  switch (view) {
+    case 'catalog':
+      return '/models/catalog'
+    case 'routes':
+      return '/models/routes'
+    default:
+      return '/models/providers'
+  }
 }
 
 function providerInstanceRef(instance: ProviderInstance): ProviderInstance['ref'] {
   return instance.ref
-}
-
-function ModelTopologyNav({
-  value,
-  onChange,
-  counts,
-}: {
-  value: ModelManagementViewMode
-  onChange: (value: ModelManagementViewMode) => void
-  counts: ModelTopologyCounts
-}) {
-  const { t } = useTranslation()
-  const items: Array<{
-    value: ModelManagementViewMode
-    icon: typeof KeyRound
-    title: string
-    subtitle: string
-    count: string
-  }> = [
-    {
-      value: 'providers',
-      icon: KeyRound,
-      title: t('admin.models.topologyProvidersTitle', { defaultValue: 'Provider / Auth' }),
-      subtitle: t('admin.models.topologyProvidersSubtitle', { defaultValue: 'Base URL、API Key 与连接状态' }),
-      count: t('admin.models.topologyProvidersCount', { defaultValue: '{{count}} 个 provider', count: counts.providers }),
-    },
-    {
-      value: 'catalog',
-      icon: FolderKanban,
-      title: t('admin.models.topologyCatalogTitle', { defaultValue: 'Catalog Entry' }),
-      subtitle: t('admin.models.topologyCatalogSubtitle', { defaultValue: '系统识别的模型身份、能力与参数' }),
-      count: t('admin.models.topologyCatalogCount', { defaultValue: '{{count}} 个 entry', count: counts.catalogEntries }),
-    },
-    {
-      value: 'routes',
-      icon: Settings2,
-      title: t('admin.models.topologyRoutesTitle', { defaultValue: 'Model Route' }),
-      subtitle: t('admin.models.topologyRoutesSubtitle', { defaultValue: '从 Catalog Entry 路由到 provider 或 new-api 分组' }),
-      count: t('admin.models.topologyRoutesCount', { defaultValue: '{{count}} 条 route', count: counts.routeBindings }),
-    },
-  ]
-
-  return (
-    <div className="grid gap-2 md:grid-cols-3">
-      {items.map((item, index) => {
-        const Icon = item.icon
-        const selected = value === item.value
-        return (
-          <button
-            key={item.value}
-            type="button"
-            onClick={() => onChange(item.value)}
-            className={cn(
-              'group relative min-h-[104px] rounded-lg border bg-background p-3 text-left transition-colors',
-              selected ? 'border-primary bg-primary/5' : 'border-border hover:border-foreground/30',
-            )}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <AppIconFrame tone={selected ? 'info' : 'neutral'} size="sm">
-                <Icon size={15} />
-              </AppIconFrame>
-              <span className="rounded-md border border-border bg-card px-1.5 py-0.5 text-[11px] text-muted-foreground">
-                {index + 1}
-              </span>
-            </div>
-            <p className="mt-3 text-sm font-medium text-foreground">{item.title}</p>
-            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{item.subtitle}</p>
-            <p className="mt-2 text-[11px] font-medium text-muted-foreground">{item.count}</p>
-          </button>
-        )
-      })}
-    </div>
-  )
 }
 
 function ModelRouteMatrix({
@@ -1630,104 +1566,11 @@ function ModelRouteMatrix({
   )
 }
 
-export function CommunityModelCatalogPage() {
-  const { t } = useTranslation()
-  const { data: credentials = [], error: credentialsQueryError } = useQuery<AICredential[]>({
-    queryKey: ['admin', 'credentials'],
-    queryFn: () => api.get('/admin/credentials').then((r) => r.data),
-  })
-  const { data: entries = [], error: catalogQueryError } = useQuery<AIModelCatalogEntry[]>({
-    queryKey: ['admin', 'model-catalog'],
-    queryFn: () => api.get('/admin/model-catalog').then((r) => r.data),
-  })
-  const routeBindings = entries.reduce((sum, entry) => sum + (entry.route_bindings?.length ?? 0), 0)
-  const queryError = credentialsQueryError || catalogQueryError
-
-  return (
-    <div className="space-y-6 max-w-5xl">
-      <div>
-        <h2 className="text-base font-semibold text-foreground">{t('admin.modelCatalog.pageTitle', { defaultValue: '模型目录' })}</h2>
-        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-          {t('admin.modelCatalog.pageDescription', { defaultValue: '按 Provider/Auth、Catalog Entry、Model Route 三层维护模型调用心智。社区版路由到本地 provider；商业版可进一步路由到 new-api 分组。' })}
-        </p>
-      </div>
-
-      <div className="grid gap-2 md:grid-cols-3">
-        <ModelTopologyCard
-          index={1}
-          icon={KeyRound}
-          title={t('admin.models.topologyProvidersTitle', { defaultValue: 'Provider / Auth' })}
-          subtitle={t('admin.models.topologyProvidersSubtitle', { defaultValue: 'Base URL、API Key 与连接状态' })}
-          count={t('admin.models.topologyProvidersCount', { defaultValue: '{{count}} 个 provider', count: credentials.length })}
-        />
-        <ModelTopologyCard
-          index={2}
-          icon={FolderKanban}
-          title={t('admin.models.topologyCatalogTitle', { defaultValue: 'Catalog Entry' })}
-          subtitle={t('admin.models.topologyCatalogSubtitle', { defaultValue: '系统识别的模型身份、能力与参数' })}
-          count={t('admin.models.topologyCatalogCount', { defaultValue: '{{count}} 个 entry', count: entries.length })}
-          selected
-        />
-        <ModelTopologyCard
-          index={3}
-          icon={Settings2}
-          title={t('admin.models.topologyRoutesTitle', { defaultValue: 'Model Route' })}
-          subtitle={t('admin.models.topologyRoutesSubtitle', { defaultValue: '从 Catalog Entry 路由到 provider 或 new-api 分组' })}
-          count={t('admin.models.topologyRoutesCount', { defaultValue: '{{count}} 条 route', count: routeBindings })}
-        />
-      </div>
-
-      {queryError && (
-        <AppInlineError className="flex items-start gap-2">
-          <ShieldAlert size={14} className="mt-0.5 shrink-0" />
-          <span>{translateAPIRequestError(queryError)}</span>
-        </AppInlineError>
-      )}
-
-      <ModelCatalogSection credentials={credentials} />
-    </div>
-  )
-}
-
-function ModelTopologyCard({
-  index,
-  icon: Icon,
-  title,
-  subtitle,
-  count,
-  selected = false,
-}: {
-  index: number
-  icon: typeof KeyRound
-  title: string
-  subtitle: string
-  count: string
-  selected?: boolean
-}) {
-  return (
-    <div className={cn(
-      'min-h-[104px] rounded-lg border bg-background p-3',
-      selected ? 'border-primary bg-primary/5' : 'border-border',
-    )}>
-      <div className="flex items-start justify-between gap-3">
-        <AppIconFrame tone={selected ? 'info' : 'neutral'} size="sm">
-          <Icon size={15} />
-        </AppIconFrame>
-        <span className="rounded-md border border-border bg-card px-1.5 py-0.5 text-[11px] text-muted-foreground">
-          {index}
-        </span>
-      </div>
-      <p className="mt-3 text-sm font-medium text-foreground">{title}</p>
-      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{subtitle}</p>
-      <p className="mt-2 text-[11px] font-medium text-muted-foreground">{count}</p>
-    </div>
-  )
-}
-
-export function ModelManagementPage({ initialView = 'providers' }: { initialView?: ModelManagementViewMode } = {}) {
+export function ModelManagementPage({ view = defaultModelManagementViewMode() }: { view?: ModelManagementViewMode } = {}) {
   const { t } = useTranslation()
   const qc = useQueryClient()
-  const [viewMode, setViewMode] = useState<ModelManagementViewMode>(initialView)
+  const navigate = useNavigate()
+  const viewMode = view
   const [addStep, setAddStep] = useState<'idle' | 'pick' | 'fill'>('idle')
   const [selectedAdapter, setSelectedAdapter] = useState<AdapterDef | null>(null)
   const [relayHint, setRelayHint] = useState<string | null>(null)
@@ -1787,12 +1630,6 @@ export function ModelManagementPage({ initialView = 'providers' }: { initialView
     enabled: viewMode === 'routes',
     refetchInterval: viewMode === 'routes' ? 5000 : false,
   })
-  const topologyCounts: ModelTopologyCounts = {
-    providers: credentials.length,
-    catalogEntries: topologyCatalogEntries.length,
-    routeBindings: topologyCatalogEntries.reduce((sum, entry) => sum + (entry.route_bindings?.length ?? 0), 0),
-  }
-
   const deleteCredential = useMutation({
     mutationFn: (id: number) => api.delete(`/admin/credentials/${id}`),
     onMutate: () => setModelAdminError(''),
@@ -1850,6 +1687,10 @@ export function ModelManagementPage({ initialView = 'providers' }: { initialView
 
   const modelQueryError = adaptersQueryError || credentialsQueryError || providerInstancesQueryError
 
+  function setViewMode(nextViewMode: ModelManagementViewMode) {
+    navigate(modelManagementRoute(nextViewMode))
+  }
+
   async function runTest(key: string, fn: () => Promise<TestResult>) {
     setTestingId(key)
     try {
@@ -1897,8 +1738,6 @@ export function ModelManagementPage({ initialView = 'providers' }: { initialView
           <p className="text-xs text-muted-foreground mt-0.5">{t('admin.models.description')}</p>
         </div>
       </div>
-
-      <ModelTopologyNav value={viewMode} onChange={setViewMode} counts={topologyCounts} />
 
       <div className="rounded-lg border border-border bg-card px-4 py-3 text-xs text-muted-foreground">
         {viewMode === 'providers'
@@ -4232,7 +4071,14 @@ interface AdminOverviewSummary {
   users: { total: number; active: number; disabled: number }
   orgs: { total: number; suspended: number }
   projects: { total: number }
-  models: { credentials: number; enabled_credentials: number; configs: number; enabled_configs: number }
+  models: {
+    credentials: number
+    enabled_credentials: number
+    catalog_entries: number
+    enabled_catalog_entries: number
+    route_bindings: number
+    enabled_route_bindings: number
+  }
   jobs: { total: number; pending: number; running: number; succeeded: number; failed: number; cancelled: number }
   usage: { records: number; cost_7d: number; cost_30d: number }
   resources: { total: number; bytes: number }
@@ -4705,11 +4551,14 @@ export default function AdminPage() {
 
   const overviewCards = [
     ...(!runtimeCapabilities.hideModelManagement ? [{
-      label: t('admin.home.metrics.enabledModels'),
-      value: formatAdminNumber(overview?.models.enabled_configs),
-      detail: t('admin.home.metrics.credentials', { count: formatAdminNumber(overview?.models.credentials) }),
+      label: t('admin.home.metrics.enabledCatalogEntries'),
+      value: formatAdminNumber(overview?.models.enabled_catalog_entries),
+      detail: t('admin.home.metrics.providerRoutes', {
+        providers: formatAdminNumber(overview?.models.credentials),
+        routes: formatAdminNumber(overview?.models.enabled_route_bindings),
+      }),
       icon: Settings2,
-      href: '/models',
+      href: '/models/catalog',
     }] : []),
     {
       label: t('admin.home.metrics.projects'),
@@ -4743,7 +4592,11 @@ export default function AdminPage() {
   ]
 
   const sectionCards = [
-    ...(!runtimeCapabilities.hideModelManagement ? [{ label: t('admin.tabs.models'), detail: t('admin.home.sections.models'), icon: Settings2, href: '/models' }] : []),
+    ...(!runtimeCapabilities.hideModelManagement ? [
+      { label: t('admin.tabs.modelProviders'), detail: t('admin.home.sections.modelProviders'), icon: Settings2, href: '/models/providers' },
+      { label: t('admin.tabs.modelCatalog'), detail: t('admin.home.sections.modelCatalog'), icon: Database, href: '/models/catalog' },
+      { label: t('admin.tabs.modelRoutes'), detail: t('admin.home.sections.modelRoutes'), icon: RouteIcon, href: '/models/routes' },
+    ] : []),
     { label: t('admin.tabs.users'), detail: t('admin.home.sections.users'), icon: UsersRound, href: '/user-management' },
     { label: t('admin.tabs.orgs'), detail: t('admin.home.sections.orgs'), icon: Building2, href: '/orgs' },
     { label: t('admin.tabs.projects'), detail: t('admin.home.sections.projects', { count: formatAdminNumber(overview?.projects.total) }), icon: FolderKanban, href: '/projects' },

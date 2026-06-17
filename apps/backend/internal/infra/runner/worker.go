@@ -73,15 +73,20 @@ func (w *Worker) resolveJobModelRoute(ctx context.Context, job *persistencemodel
 	if job.RouteGroup != "" {
 		ctx = ai.WithProviderRouteGroup(ctx, job.RouteGroup)
 	}
-	modelConfigID := job.ModelConfigID
 	catalogEntryID := uint(0)
+	routeBindingID := uint(0)
+	if job.RouteBindingID != nil && *job.RouteBindingID != 0 {
+		routeBindingID = *job.RouteBindingID
+	}
 	if job.AIModelCatalogEntryID != nil && *job.AIModelCatalogEntryID != 0 {
-		modelConfigID = 0
 		catalogEntryID = *job.AIModelCatalogEntryID
 	}
+	if catalogEntryID == 0 && routeBindingID == 0 {
+		return ai.ModelRoute{}, fmt.Errorf("job route binding or catalog entry is required")
+	}
 	route, err := w.aiService.ResolveModelRoute(ai.ModelRouteRequest{
-		ModelConfigID:  modelConfigID,
 		CatalogEntryID: catalogEntryID,
+		RouteBindingID: routeBindingID,
 		Capability:     capability,
 		RouteGroup:     job.RouteGroup,
 	})
@@ -160,10 +165,7 @@ func (w *Worker) execute(ctx context.Context, job *persistencemodel.Job) (err er
 	outputType := job.JobType
 
 	// Resolve the model def ID for debug context.
-	modelDefID := ""
-	if mcfg := w.loadModelConfig(job.ModelConfigID); mcfg != nil {
-		modelDefID = mcfg.ModelDefID
-	}
+	modelDefID := w.jobModelDefID(callCtx, job)
 
 	// Pre-populate job-level context in the debug record before any adapter call.
 	debugResult.JobType = outputType

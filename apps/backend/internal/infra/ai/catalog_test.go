@@ -8,8 +8,8 @@ import (
 	"testing"
 )
 
-func TestModelPresetJSONUsesPricingMode(t *testing.T) {
-	body, err := json.Marshal(ModelPreset{
+func TestCatalogTemplateJSONUsesPricingMode(t *testing.T) {
+	body, err := json.Marshal(CatalogTemplate{
 		ID:          "test",
 		PricingMode: PricingPerImage,
 		SupportedParams: []ParamDef{{
@@ -35,62 +35,62 @@ func TestModelPresetJSONUsesPricingMode(t *testing.T) {
 	}
 }
 
-func TestModelPresetsExposeModelSpecificSupportedParams(t *testing.T) {
-	presets := ModelPresets()
+func TestCatalogTemplatesExposeModelSpecificSupportedParams(t *testing.T) {
+	templates := CatalogTemplates()
 	sawDalle := false
 	sawSeedance := false
-	for _, preset := range presets {
-		switch preset.ID {
+	for _, template := range templates {
+		switch template.ID {
 		case "openai:dall-e-3":
 			sawDalle = true
-			if !hasParam(preset.SupportedParams, "image_size") || hasParam(preset.SupportedParams, "size") {
-				t.Fatalf("expected DALL-E preset params to use canonical image_size key, got %#v", preset.SupportedParams)
+			if !hasParam(template.SupportedParams, "image_size") || hasParam(template.SupportedParams, "size") {
+				t.Fatalf("expected DALL-E template params to use canonical image_size key, got %#v", template.SupportedParams)
 			}
 		case "volcengine:seedance-1-0-lite-t2v":
 			sawSeedance = true
-			if !hasParam(preset.SupportedParams, "duration") || !hasParam(preset.SupportedParams, "resolution") {
-				t.Fatalf("expected preset supported params for %s, got %#v", preset.ID, preset.SupportedParams)
+			if !hasParam(template.SupportedParams, "duration") || !hasParam(template.SupportedParams, "resolution") {
+				t.Fatalf("expected template supported params for %s, got %#v", template.ID, template.SupportedParams)
 			}
-			body, err := json.Marshal(preset)
+			body, err := json.Marshal(template)
 			if err != nil {
 				t.Fatal(err)
 			}
 			if !strings.Contains(string(body), `"supported_params"`) {
-				t.Fatalf("expected preset JSON to expose supported_params: %s", string(body))
+				t.Fatalf("expected template JSON to expose supported_params: %s", string(body))
 			}
 		}
 	}
 	if !sawDalle {
-		t.Fatal("expected DALL-E preset")
+		t.Fatal("expected DALL-E template")
 	}
 	if !sawSeedance {
-		t.Fatal("expected Seedance preset")
+		t.Fatal("expected Seedance template")
 	}
 }
 
-func TestModelPresetsIncludeGPT52(t *testing.T) {
-	for _, preset := range ModelPresets() {
-		if preset.ID != "openai:gpt-5.2" {
+func TestCatalogTemplatesIncludeGPT52(t *testing.T) {
+	for _, template := range CatalogTemplates() {
+		if template.ID != "openai:gpt-5.2" {
 			continue
 		}
-		if preset.ModelID != "gpt-5.2" {
-			t.Fatalf("model_id = %q, want gpt-5.2", preset.ModelID)
+		if template.ModelID != "gpt-5.2" {
+			t.Fatalf("model_id = %q, want gpt-5.2", template.ModelID)
 		}
-		if preset.AdapterType != AdapterOpenAICompat {
-			t.Fatalf("adapter_type = %q, want %q", preset.AdapterType, AdapterOpenAICompat)
+		if template.AdapterType != AdapterOpenAICompat {
+			t.Fatalf("adapter_type = %q, want %q", template.AdapterType, AdapterOpenAICompat)
 		}
-		if preset.PricingMode != PricingPerToken {
-			t.Fatalf("pricing_mode = %q, want %q", preset.PricingMode, PricingPerToken)
+		if template.PricingMode != PricingPerToken {
+			t.Fatalf("pricing_mode = %q, want %q", template.PricingMode, PricingPerToken)
 		}
-		if !hasString(preset.Capabilities, CapabilityText) || !hasString(preset.Capabilities, CapabilityReasoning) {
-			t.Fatalf("capabilities = %#v, want text and reasoning", preset.Capabilities)
+		if !hasString(template.Capabilities, CapabilityText) || !hasString(template.Capabilities, CapabilityReasoning) {
+			t.Fatalf("capabilities = %#v, want text and reasoning", template.Capabilities)
 		}
 		return
 	}
-	t.Fatal("expected GPT-5.2 preset")
+	t.Fatal("expected GPT-5.2 template")
 }
 
-func TestModelPresetsIncludeElevenLabsAudioModels(t *testing.T) {
+func TestCatalogTemplatesIncludeElevenLabsAudioModels(t *testing.T) {
 	wantTTSModels := map[string]string{
 		"elevenlabs:eleven-v3-tts":              "eleven_v3",
 		"elevenlabs:eleven-multilingual-v2-tts": "eleven_multilingual_v2",
@@ -100,42 +100,42 @@ func TestModelPresetsIncludeElevenLabsAudioModels(t *testing.T) {
 	seenTTSModels := map[string]bool{}
 	seenSTT := false
 
-	for _, preset := range ModelPresets() {
-		if modelID, ok := wantTTSModels[preset.ID]; ok {
-			seenTTSModels[preset.ID] = true
-			if preset.ModelID != modelID {
-				t.Fatalf("%s model_id = %q, want %q", preset.ID, preset.ModelID, modelID)
+	for _, template := range CatalogTemplates() {
+		if modelID, ok := wantTTSModels[template.ID]; ok {
+			seenTTSModels[template.ID] = true
+			if template.ModelID != modelID {
+				t.Fatalf("%s model_id = %q, want %q", template.ID, template.ModelID, modelID)
 			}
-			if preset.AdapterType != AdapterElevenLabs {
-				t.Fatalf("%s adapter_type = %q, want %q", preset.ID, preset.AdapterType, AdapterElevenLabs)
+			if template.AdapterType != AdapterElevenLabs {
+				t.Fatalf("%s adapter_type = %q, want %q", template.ID, template.AdapterType, AdapterElevenLabs)
 			}
-			if !hasString(preset.Capabilities, CapabilityAudioTTS) {
-				t.Fatalf("%s capabilities = %#v, want audio_tts", preset.ID, preset.Capabilities)
+			if !hasString(template.Capabilities, CapabilityAudioTTS) {
+				t.Fatalf("%s capabilities = %#v, want audio_tts", template.ID, template.Capabilities)
 			}
-			if preset.PricingMode != PricingPerCall {
-				t.Fatalf("%s pricing_mode = %q, want %q", preset.ID, preset.PricingMode, PricingPerCall)
+			if template.PricingMode != PricingPerCall {
+				t.Fatalf("%s pricing_mode = %q, want %q", template.ID, template.PricingMode, PricingPerCall)
 			}
-			if !hasParam(preset.SupportedParams, "output_format") || !hasParam(preset.SupportedParams, "stability") {
-				t.Fatalf("%s supported_params = %#v", preset.ID, preset.SupportedParams)
+			if !hasParam(template.SupportedParams, "output_format") || !hasParam(template.SupportedParams, "stability") {
+				t.Fatalf("%s supported_params = %#v", template.ID, template.SupportedParams)
 			}
 		}
-		if preset.ID == "elevenlabs:scribe-v2" {
+		if template.ID == "elevenlabs:scribe-v2" {
 			seenSTT = true
-			if preset.ModelID != "scribe_v2" || preset.AdapterType != AdapterElevenLabs ||
-				!hasString(preset.Capabilities, CapabilityAudioSTT) ||
-				!hasParam(preset.SupportedParams, "diarize") {
-				t.Fatalf("scribe preset = %#v", preset)
+			if template.ModelID != "scribe_v2" || template.AdapterType != AdapterElevenLabs ||
+				!hasString(template.Capabilities, CapabilityAudioSTT) ||
+				!hasParam(template.SupportedParams, "diarize") {
+				t.Fatalf("scribe template = %#v", template)
 			}
 		}
 	}
 
 	for id := range wantTTSModels {
 		if !seenTTSModels[id] {
-			t.Fatalf("expected ElevenLabs TTS preset %s", id)
+			t.Fatalf("expected ElevenLabs TTS template %s", id)
 		}
 	}
 	if !seenSTT {
-		t.Fatal("expected ElevenLabs Scribe v2 preset")
+		t.Fatal("expected ElevenLabs Scribe v2 template")
 	}
 }
 
@@ -168,118 +168,118 @@ func TestLocalAdapterDefaultsIncludeAudioGenerationParams(t *testing.T) {
 	}
 }
 
-func TestModelPresetSupportedParamsAreValidCanonicalContracts(t *testing.T) {
+func TestCatalogTemplateSupportedParamsAreValidCanonicalContracts(t *testing.T) {
 	aliasKeys := map[string]bool{}
 	for alias := range generationParamAliasMap() {
 		aliasKeys[alias] = true
 	}
-	for _, preset := range ModelPresets() {
-		if len(preset.SupportedParams) == 0 {
+	for _, template := range CatalogTemplates() {
+		if len(template.SupportedParams) == 0 {
 			continue
 		}
-		for _, param := range preset.SupportedParams {
+		for _, param := range template.SupportedParams {
 			if aliasKeys[param.Key] {
-				t.Fatalf("preset %s exposes alias parameter key %q", preset.ID, param.Key)
+				t.Fatalf("template %s exposes alias parameter key %q", template.ID, param.Key)
 			}
 		}
-		body, err := json.Marshal(preset.SupportedParams)
+		body, err := json.Marshal(template.SupportedParams)
 		if err != nil {
-			t.Fatalf("marshal supported params for preset %s: %v", preset.ID, err)
+			t.Fatalf("marshal supported params for template %s: %v", template.ID, err)
 		}
-		if err := ValidateModelParamConfig(preset.AdapterType, preset.Capabilities, string(body)); err != nil {
-			t.Fatalf("preset %s has invalid supported params: %v", preset.ID, err)
+		if err := ValidateModelParamConfig(template.AdapterType, template.Capabilities, string(body)); err != nil {
+			t.Fatalf("template %s has invalid supported params: %v", template.ID, err)
 		}
 	}
 }
 
-func TestVisualModelPresetDefaultsValidateAsAgentSubmittedParams(t *testing.T) {
-	for _, preset := range ModelPresets() {
-		if !hasVisualGenerationCapability(preset.Capabilities) {
+func TestVisualCatalogTemplateDefaultsValidateAsAgentSubmittedParams(t *testing.T) {
+	for _, template := range CatalogTemplates() {
+		if !hasVisualGenerationCapability(template.Capabilities) {
 			continue
 		}
-		jobType := defaultJobTypeForPresetCapabilities(preset.Capabilities)
+		jobType := defaultJobTypeForTemplateCapabilities(template.Capabilities)
 		if jobType == "" {
-			t.Fatalf("visual preset %s has no supported default job type: %#v", preset.ID, preset.Capabilities)
+			t.Fatalf("visual template %s has no supported default job type: %#v", template.ID, template.Capabilities)
 		}
-		aspectRatio, duration, extraParams := defaultGenerationArgsForPreset(t, preset)
+		aspectRatio, duration, extraParams := defaultGenerationArgsForTemplate(t, template)
 		extraParamsJSON := ""
 		if len(extraParams) > 0 {
 			body, err := json.Marshal(extraParams)
 			if err != nil {
-				t.Fatalf("marshal default params for preset %s: %v", preset.ID, err)
+				t.Fatalf("marshal default params for template %s: %v", template.ID, err)
 			}
 			extraParamsJSON = string(body)
 		}
 		def := &ModelDef{
-			ID:                      preset.ID,
-			ModelID:                 preset.ModelID,
-			DisplayName:             preset.DisplayName,
-			Capabilities:            preset.Capabilities,
-			AdapterType:             preset.AdapterType,
-			SupportedParams:         preset.SupportedParams,
+			ID:                      template.ID,
+			ModelID:                 template.ModelID,
+			DisplayName:             template.DisplayName,
+			Capabilities:            template.Capabilities,
+			AdapterType:             template.AdapterType,
+			SupportedParams:         template.SupportedParams,
 			SupportedParamsExplicit: true,
 		}
 		if err := ValidateGenerationParams(def, jobType, extraParamsJSON, aspectRatio, duration); err != nil {
-			t.Fatalf("preset %s default generation params must validate for job_type %s: aspect_ratio=%q duration=%d extra_params=%s: %v",
-				preset.ID, jobType, aspectRatio, duration, extraParamsJSON, err)
+			t.Fatalf("template %s default generation params must validate for job_type %s: aspect_ratio=%q duration=%d extra_params=%s: %v",
+				template.ID, jobType, aspectRatio, duration, extraParamsJSON, err)
 		}
 	}
 }
 
-func TestVisualModelPresetsDeclareModelSpecificSupportedParams(t *testing.T) {
-	for _, preset := range ModelPresets() {
-		if !hasVisualGenerationCapability(preset.Capabilities) {
+func TestVisualCatalogTemplatesDeclareModelSpecificSupportedParams(t *testing.T) {
+	for _, template := range CatalogTemplates() {
+		if !hasVisualGenerationCapability(template.Capabilities) {
 			continue
 		}
-		if len(preset.SupportedParams) == 0 {
-			t.Fatalf("visual preset %s must declare model-specific supported params to avoid broad adapter defaults", preset.ID)
+		if len(template.SupportedParams) == 0 {
+			t.Fatalf("visual template %s must declare model-specific supported params to avoid broad adapter defaults", template.ID)
 		}
 	}
 }
 
-func TestImageModelPresetsOmitKnownUnsupportedParams(t *testing.T) {
-	for _, preset := range ModelPresets() {
-		switch preset.ID {
+func TestImageCatalogTemplatesOmitKnownUnsupportedParams(t *testing.T) {
+	for _, template := range CatalogTemplates() {
+		switch template.ID {
 		case "openai:gpt-image-1", "openai:gpt-image-1-edit", "openai:gpt-image-2", "openai:gpt-image-2-edit":
-			if hasParam(preset.SupportedParams, "style") {
-				t.Fatalf("preset %s must not expose unsupported style param: %#v", preset.ID, preset.SupportedParams)
+			if hasParam(template.SupportedParams, "style") {
+				t.Fatalf("template %s must not expose unsupported style param: %#v", template.ID, template.SupportedParams)
 			}
 		case "volcengine:seedream-5-0", "volcengine:seedream-5-0-lite", "volcengine-ark:seedream-5-0":
-			if hasParam(preset.SupportedParams, "prompt_strength") || hasParam(preset.SupportedParams, "guidance_scale") {
-				t.Fatalf("preset %s must not expose unsupported prompt strength/guidance scale params: %#v", preset.ID, preset.SupportedParams)
+			if hasParam(template.SupportedParams, "prompt_strength") || hasParam(template.SupportedParams, "guidance_scale") {
+				t.Fatalf("template %s must not expose unsupported prompt strength/guidance scale params: %#v", template.ID, template.SupportedParams)
 			}
 		}
 	}
 }
 
-func TestVideoModelPresetsExposeDurationContractMatchingRuntimeLimits(t *testing.T) {
-	for _, preset := range modelPresetSources {
-		if !hasString(preset.Capabilities, CapabilityVideo) &&
-			!hasString(preset.Capabilities, CapabilityVideoI2V) &&
-			!hasString(preset.Capabilities, CapabilityVideoV2V) {
+func TestVideoCatalogTemplatesExposeDurationContractMatchingRuntimeLimits(t *testing.T) {
+	for _, template := range catalogTemplateSources {
+		if !hasString(template.Capabilities, CapabilityVideo) &&
+			!hasString(template.Capabilities, CapabilityVideoI2V) &&
+			!hasString(template.Capabilities, CapabilityVideoV2V) {
 			continue
 		}
-		duration, ok := findPresetParam(preset.SupportedParams, "duration")
+		duration, ok := findTemplateParam(template.SupportedParams, "duration")
 		if !ok {
-			t.Fatalf("video preset %s must expose duration param for agent preflight", preset.ID)
+			t.Fatalf("video template %s must expose duration param for agent preflight", template.ID)
 		}
 		if duration.Type != "select" || len(duration.Options) == 0 {
-			t.Fatalf("video preset %s duration must be a non-empty select contract, got %#v", preset.ID, duration)
+			t.Fatalf("video template %s duration must be a non-empty select contract, got %#v", template.ID, duration)
 		}
-		if preset.DefaultDurSec > 0 && !hasString(duration.Options, intString(preset.DefaultDurSec)) {
-			t.Fatalf("video preset %s duration options %v must include default duration %d", preset.ID, duration.Options, preset.DefaultDurSec)
+		if template.DefaultDurSec > 0 && !hasString(duration.Options, intString(template.DefaultDurSec)) {
+			t.Fatalf("video template %s duration options %v must include default duration %d", template.ID, duration.Options, template.DefaultDurSec)
 		}
-		if preset.MaxDurSec > 0 {
-			if !hasString(duration.Options, intString(preset.MaxDurSec)) {
-				t.Fatalf("video preset %s duration options %v must include max duration %d", preset.ID, duration.Options, preset.MaxDurSec)
+		if template.MaxDurSec > 0 {
+			if !hasString(duration.Options, intString(template.MaxDurSec)) {
+				t.Fatalf("video template %s duration options %v must include max duration %d", template.ID, duration.Options, template.MaxDurSec)
 			}
 			for _, option := range duration.Options {
 				value, ok := parseIntOption(option)
 				if !ok || value < -1 {
-					t.Fatalf("video preset %s duration option %q must be an integer or -1 auto sentinel", preset.ID, option)
+					t.Fatalf("video template %s duration option %q must be an integer or -1 auto sentinel", template.ID, option)
 				}
-				if value > preset.MaxDurSec {
-					t.Fatalf("video preset %s duration option %q exceeds max duration %d", preset.ID, option, preset.MaxDurSec)
+				if value > template.MaxDurSec {
+					t.Fatalf("video template %s duration option %q exceeds max duration %d", template.ID, option, template.MaxDurSec)
 				}
 			}
 		}
@@ -311,7 +311,7 @@ func hasVisualGenerationCapability(capabilities []string) bool {
 	return false
 }
 
-func defaultJobTypeForPresetCapabilities(capabilities []string) string {
+func defaultJobTypeForTemplateCapabilities(capabilities []string) string {
 	switch {
 	case hasString(capabilities, CapabilityImage):
 		return CapabilityImage
@@ -328,12 +328,12 @@ func defaultJobTypeForPresetCapabilities(capabilities []string) string {
 	}
 }
 
-func defaultGenerationArgsForPreset(t *testing.T, preset ModelPreset) (string, int, map[string]any) {
+func defaultGenerationArgsForTemplate(t *testing.T, template CatalogTemplate) (string, int, map[string]any) {
 	t.Helper()
 	extraParams := map[string]any{}
 	aspectRatio := ""
 	duration := 0
-	for _, param := range preset.SupportedParams {
+	for _, param := range template.SupportedParams {
 		if param.Default == nil {
 			continue
 		}
@@ -341,11 +341,11 @@ func defaultGenerationArgsForPreset(t *testing.T, preset ModelPreset) (string, i
 		case "aspect_ratio":
 			value, ok := param.Default.(string)
 			if !ok {
-				t.Fatalf("preset %s aspect_ratio default must be a string, got %#v", preset.ID, param.Default)
+				t.Fatalf("template %s aspect_ratio default must be a string, got %#v", template.ID, param.Default)
 			}
 			aspectRatio = value
 		case "duration":
-			duration = defaultDurationSeconds(t, preset.ID, param.Default)
+			duration = defaultDurationSeconds(t, template.ID, param.Default)
 		default:
 			extraParams[param.Key] = param.Default
 		}
@@ -353,7 +353,7 @@ func defaultGenerationArgsForPreset(t *testing.T, preset ModelPreset) (string, i
 	return aspectRatio, duration, extraParams
 }
 
-func defaultDurationSeconds(t *testing.T, presetID string, value any) int {
+func defaultDurationSeconds(t *testing.T, templateID string, value any) int {
 	t.Helper()
 	switch v := value.(type) {
 	case int:
@@ -362,17 +362,17 @@ func defaultDurationSeconds(t *testing.T, presetID string, value any) int {
 		return int(v)
 	case float64:
 		if v != float64(int(v)) {
-			t.Fatalf("preset %s duration default must be an integer second count, got %v", presetID, v)
+			t.Fatalf("template %s duration default must be an integer second count, got %v", templateID, v)
 		}
 		return int(v)
 	case string:
 		parsed, err := strconv.Atoi(v)
 		if err != nil {
-			t.Fatalf("preset %s duration default must parse as integer seconds, got %q", presetID, v)
+			t.Fatalf("template %s duration default must parse as integer seconds, got %q", templateID, v)
 		}
 		return parsed
 	default:
-		t.Fatalf("preset %s duration default must be numeric or numeric string, got %#v", presetID, value)
+		t.Fatalf("template %s duration default must be numeric or numeric string, got %#v", templateID, value)
 		return 0
 	}
 }
@@ -433,25 +433,25 @@ func TestResolveModelDefInfersImageInputFromCustomImageLimit(t *testing.T) {
 	}
 }
 
-func TestVisualModelPresetsExposeConsistentInputMetadata(t *testing.T) {
-	for _, preset := range ModelPresets() {
-		if hasString(preset.Capabilities, CapabilityImageEdit) || hasString(preset.Capabilities, CapabilityVideoI2V) {
-			if !preset.AcceptsImageInput || preset.MaxInputImages == 0 {
-				t.Fatalf("preset %s with image input capability must expose accepts_image_input and max_input_images, got accepts=%v max=%d", preset.ID, preset.AcceptsImageInput, preset.MaxInputImages)
+func TestVisualCatalogTemplatesExposeConsistentInputMetadata(t *testing.T) {
+	for _, template := range CatalogTemplates() {
+		if hasString(template.Capabilities, CapabilityImageEdit) || hasString(template.Capabilities, CapabilityVideoI2V) {
+			if !template.AcceptsImageInput || template.MaxInputImages == 0 {
+				t.Fatalf("template %s with image input capability must expose accepts_image_input and max_input_images, got accepts=%v max=%d", template.ID, template.AcceptsImageInput, template.MaxInputImages)
 			}
 		}
-		if hasString(preset.Capabilities, CapabilityVideoV2V) && preset.MaxInputVideos == 0 {
-			t.Fatalf("preset %s with v2v capability must expose max_input_videos", preset.ID)
+		if hasString(template.Capabilities, CapabilityVideoV2V) && template.MaxInputVideos == 0 {
+			t.Fatalf("template %s with v2v capability must expose max_input_videos", template.ID)
 		}
-		if hasString(preset.Capabilities, CapabilityVideo) || hasString(preset.Capabilities, CapabilityVideoI2V) || hasString(preset.Capabilities, CapabilityVideoV2V) {
-			if preset.PricingMode != PricingPerSecond {
-				t.Fatalf("video preset %s pricing_mode = %s, want %s", preset.ID, preset.PricingMode, PricingPerSecond)
+		if hasString(template.Capabilities, CapabilityVideo) || hasString(template.Capabilities, CapabilityVideoI2V) || hasString(template.Capabilities, CapabilityVideoV2V) {
+			if template.PricingMode != PricingPerSecond {
+				t.Fatalf("video template %s pricing_mode = %s, want %s", template.ID, template.PricingMode, PricingPerSecond)
 			}
 		}
-		if (hasString(preset.Capabilities, CapabilityImage) || hasString(preset.Capabilities, CapabilityImageEdit)) &&
-			!hasString(preset.Capabilities, CapabilityVideo) && !hasString(preset.Capabilities, CapabilityVideoI2V) && !hasString(preset.Capabilities, CapabilityVideoV2V) {
-			if preset.PricingMode != PricingPerImage {
-				t.Fatalf("image preset %s pricing_mode = %s, want %s", preset.ID, preset.PricingMode, PricingPerImage)
+		if (hasString(template.Capabilities, CapabilityImage) || hasString(template.Capabilities, CapabilityImageEdit)) &&
+			!hasString(template.Capabilities, CapabilityVideo) && !hasString(template.Capabilities, CapabilityVideoI2V) && !hasString(template.Capabilities, CapabilityVideoV2V) {
+			if template.PricingMode != PricingPerImage {
+				t.Fatalf("image template %s pricing_mode = %s, want %s", template.ID, template.PricingMode, PricingPerImage)
 			}
 		}
 	}
@@ -1363,7 +1363,7 @@ func hasParam(params []ParamDef, key string) bool {
 	return false
 }
 
-func findPresetParam(params []ParamDef, key string) (ParamDef, bool) {
+func findTemplateParam(params []ParamDef, key string) (ParamDef, bool) {
 	for _, p := range params {
 		if p.Key == key {
 			return p, true

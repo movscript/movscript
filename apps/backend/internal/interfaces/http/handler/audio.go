@@ -58,21 +58,13 @@ func (h *AudioHandler) ListModels(c *gin.Context) {
 	})
 }
 
-func (h *AudioHandler) listAudioModels(c *gin.Context, capability string) ([]ai.PublicModel, error) {
-	descriptors, err := h.modelCatalog.ListModels(c.Request.Context(), providercontract.AIModelListFilter{Capability: capability})
-	if err != nil {
-		return nil, err
-	}
-	models := make([]ai.PublicModel, 0, len(descriptors))
-	for _, descriptor := range descriptors {
-		models = append(models, audioPublicModelFromDescriptor(descriptor))
-	}
-	return models, nil
+func (h *AudioHandler) listAudioModels(c *gin.Context, capability string) ([]providercontract.AIModelDescriptor, error) {
+	return h.modelCatalog.ListModels(c.Request.Context(), providercontract.AIModelListFilter{Capability: capability})
 }
 
-func (h *AudioHandler) listAudioModelsForCapabilities(c *gin.Context, capabilities ...string) ([]ai.PublicModel, error) {
+func (h *AudioHandler) listAudioModelsForCapabilities(c *gin.Context, capabilities ...string) ([]providercontract.AIModelDescriptor, error) {
 	seen := map[string]bool{}
-	models := []ai.PublicModel{}
+	models := []providercontract.AIModelDescriptor{}
 	for _, capability := range capabilities {
 		next, err := h.listAudioModels(c, capability)
 		if err != nil {
@@ -97,48 +89,6 @@ func (h *AudioHandler) listAudioModelsForCapabilities(c *gin.Context, capabiliti
 		}
 	}
 	return models, nil
-}
-
-func audioPublicModelFromDescriptor(descriptor providercontract.AIModelDescriptor) ai.PublicModel {
-	modelDefID := descriptor.ModelDefID
-	modelIDOverride := descriptor.ModelIDOverride
-	if descriptor.CatalogEntryID != 0 {
-		modelDefID = descriptor.ModelID
-		modelIDOverride = ""
-	}
-	return ai.PublicModel{
-		ID:                audioPublicModelVisibleID(descriptor.ModelConfigID, descriptor.CatalogEntryID),
-		CatalogEntryID:    descriptor.CatalogEntryID,
-		CredentialID:      descriptor.CredentialID,
-		ModelID:           descriptor.ModelID,
-		DisplayName:       descriptor.DisplayName,
-		ShortName:         descriptor.ShortName,
-		ProviderName:      descriptor.ProviderName,
-		AdapterType:       descriptor.AdapterType,
-		Capabilities:      append([]string(nil), descriptor.Capabilities...),
-		PricingMode:       ai.PricingMode(descriptor.PricingMode),
-		AcceptsImageInput: descriptor.AcceptsImageInput,
-		IsDefault:         descriptor.IsDefault,
-		LogicalModelID:    descriptor.LogicalModelID,
-		ProviderVariants:  descriptor.ProviderVariants,
-		ModelDefID:        modelDefID,
-		ModelIDOverride:   modelIDOverride,
-		Priority:          descriptor.Priority,
-		CapacityWeight:    descriptor.CapacityWeight,
-		MaxConcurrency:    descriptor.MaxConcurrency,
-		InputRequirements: ai.ModelInputs{
-			Image: ai.ModelInputRequirement{Min: descriptor.InputRequirements.Image.Min, Max: descriptor.InputRequirements.Image.Max},
-			Video: ai.ModelInputRequirement{Min: descriptor.InputRequirements.Video.Min, Max: descriptor.InputRequirements.Video.Max},
-		},
-		ParamsSchema: descriptor.ParamsSchema,
-	}
-}
-
-func audioPublicModelVisibleID(modelConfigID uint, catalogEntryID uint) uint {
-	if catalogEntryID != 0 {
-		return catalogEntryID
-	}
-	return modelConfigID
 }
 
 func (h *AudioHandler) Synthesize(c *gin.Context) {

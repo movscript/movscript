@@ -33,6 +33,52 @@ func (AppliedMigration) TableName() string {
 	return "schema_migrations"
 }
 
+type legacyAIModelConfig struct {
+	gorm.Model
+	CredentialID          uint    `gorm:"not null;index" json:"credential_id"`
+	ModelDefID            string  `gorm:"not null" json:"model_def_id"`
+	ModelIDOverride       string  `json:"model_id_override"`
+	IsEnabled             bool    `gorm:"default:true" json:"is_enabled"`
+	Priority              int     `gorm:"default:0" json:"priority"`
+	CapacityWeight        int     `gorm:"default:1" json:"capacity_weight"`
+	MaxConcurrency        int     `gorm:"default:0" json:"max_concurrency"`
+	CreditsInputPer1M     float64 `gorm:"default:0" json:"credits_input_per_1m"`
+	CreditsOutputPer1M    float64 `gorm:"default:0" json:"credits_output_per_1m"`
+	CreditsPerImage       float64 `gorm:"default:0" json:"credits_per_image"`
+	CreditsPerSecond      float64 `gorm:"default:0" json:"credits_per_second"`
+	CreditsPerCall        float64 `gorm:"default:0" json:"credits_per_call"`
+	CustomDisplayName     string  `gorm:"default:''" json:"custom_display_name"`
+	ShortName             string  `gorm:"default:''" json:"short_name"`
+	CustomCapabilities    string  `gorm:"default:''" json:"custom_capabilities"`
+	CustomPricingMode     string  `gorm:"default:''" json:"custom_pricing_mode"`
+	CustomAcceptsImage    bool    `gorm:"default:false" json:"custom_accepts_image"`
+	CustomMaxInputImages  int     `gorm:"default:0" json:"custom_max_input_images"`
+	CustomMaxInputVideos  int     `gorm:"default:0" json:"custom_max_input_videos"`
+	CustomImageEditField  string  `gorm:"default:''" json:"custom_image_edit_field"`
+	CustomSupportedParams string  `gorm:"default:''" json:"custom_supported_params"`
+}
+
+func (legacyAIModelConfig) TableName() string {
+	return "ai_model_configs"
+}
+
+type legacyAIModelRouteBinding struct {
+	gorm.Model
+	CatalogEntryID     uint   `gorm:"not null;index"`
+	SourceType         string `gorm:"not null;index"`
+	RouteGroup         string `gorm:"default:'';index"`
+	CredentialID       *uint  `gorm:"index"`
+	IsEnabled          bool   `gorm:"default:true;index"`
+	Priority           int    `gorm:"default:0"`
+	CapacityWeight     int    `gorm:"default:1"`
+	MaxConcurrency     int    `gorm:"default:0"`
+	LocalModelConfigID *uint  `gorm:"column:local_model_config_id;uniqueIndex"`
+}
+
+func (legacyAIModelRouteBinding) TableName() string {
+	return "ai_model_route_bindings"
+}
+
 func RegisteredMigrations() []Migration {
 	core := []Migration{
 		{
@@ -221,10 +267,10 @@ func RegisteredMigrations() []Migration {
 			Version: "000024",
 			Name:    "add_ai_model_capacity_config",
 			Up: func(db *gorm.DB) error {
-				if !legacyAIProviderSchemaEnabled() && !db.Migrator().HasTable(&persistencemodel.AIModelConfig{}) {
+				if !db.Migrator().HasTable(&legacyAIModelConfig{}) {
 					return nil
 				}
-				return db.AutoMigrate(&persistencemodel.AIModelConfig{})
+				return db.AutoMigrate(&legacyAIModelConfig{})
 			},
 		},
 		{
@@ -380,6 +426,12 @@ func RegisteredMigrations() []Migration {
 			Version: "000045",
 			Name:    "add_usage_model_catalog_entry_refs",
 			Up: func(db *gorm.DB) error {
+				if err := renameRuntimeModelIDColumn(db, "usage_logs", "ai_model_config_id", &persistencemodel.UsageLog{}); err != nil {
+					return err
+				}
+				if err := renameRuntimeModelIDColumn(db, "usage_reservations", "ai_model_config_id", &persistencemodel.UsageReservation{}); err != nil {
+					return err
+				}
 				if err := db.AutoMigrate(&persistencemodel.UsageLog{}, &persistencemodel.UsageReservation{}); err != nil {
 					return err
 				}
@@ -432,6 +484,9 @@ func RegisteredMigrations() []Migration {
 			Version: "000052",
 			Name:    "add_job_model_catalog_entry_refs",
 			Up: func(db *gorm.DB) error {
+				if err := renameRuntimeModelIDColumn(db, "jobs", "model_config_id", &persistencemodel.Job{}); err != nil {
+					return err
+				}
 				if err := db.AutoMigrate(&persistencemodel.Job{}); err != nil {
 					return err
 				}
@@ -448,23 +503,47 @@ func RegisteredMigrations() []Migration {
 				return backfillUsageRouteBindingRefs(db)
 			},
 		},
+		{
+			Version: "000054",
+			Name:    "add_llm_call_log_catalog_entry_refs",
+			Up: func(db *gorm.DB) error {
+				if err := addLLMCallLogCatalogEntryRefColumn(db); err != nil {
+					return err
+				}
+				return backfillModelCatalogEntryRefColumn(db, "llm_call_logs", "ai_model_config_id", "ai_model_catalog_entry_id")
+			},
+		},
+		{
+			Version: "000055",
+			Name:    "add_job_route_binding_refs",
+			Up: func(db *gorm.DB) error {
+				if err := addJobRouteBindingRefColumn(db); err != nil {
+					return err
+				}
+				return backfillJobRouteBindingRefs(db)
+			},
+		},
+		{
+			Version: "000056",
+			Name:    "rename_runtime_model_id_columns",
+			Up: func(db *gorm.DB) error {
+				return renameRuntimeModelIDColumns(db)
+			},
+		},
 	}
 	return append(core, editionMigrations()...)
 }
 
 func renameAIModelConfigPricingModeColumn(db *gorm.DB) error {
 	migrator := db.Migrator()
-	if !migrator.HasTable(&persistencemodel.AIModelConfig{}) {
-		if !legacyAIProviderSchemaEnabled() {
-			return nil
-		}
-		return db.AutoMigrate(&persistencemodel.AIModelConfig{})
-	}
-	if !migrator.HasColumn(&persistencemodel.AIModelConfig{}, "custom_billing_mode") {
+	if !migrator.HasTable(&legacyAIModelConfig{}) {
 		return nil
 	}
-	if !migrator.HasColumn(&persistencemodel.AIModelConfig{}, "custom_pricing_mode") {
-		if err := migrator.RenameColumn(&persistencemodel.AIModelConfig{}, "custom_billing_mode", "custom_pricing_mode"); err != nil {
+	if !migrator.HasColumn(&legacyAIModelConfig{}, "custom_billing_mode") {
+		return nil
+	}
+	if !migrator.HasColumn(&legacyAIModelConfig{}, "custom_pricing_mode") {
+		if err := migrator.RenameColumn(&legacyAIModelConfig{}, "custom_billing_mode", "custom_pricing_mode"); err != nil {
 			return fmt.Errorf("rename ai_model_configs.custom_billing_mode: %w", err)
 		}
 		return nil
@@ -472,15 +551,15 @@ func renameAIModelConfigPricingModeColumn(db *gorm.DB) error {
 	if err := db.Exec(`UPDATE ai_model_configs SET custom_pricing_mode = custom_billing_mode WHERE COALESCE(custom_pricing_mode, '') = '' AND COALESCE(custom_billing_mode, '') <> ''`).Error; err != nil {
 		return fmt.Errorf("copy ai_model_configs pricing mode: %w", err)
 	}
-	if err := migrator.DropColumn(&persistencemodel.AIModelConfig{}, "custom_billing_mode"); err != nil {
+	if err := migrator.DropColumn(&legacyAIModelConfig{}, "custom_billing_mode"); err != nil {
 		return fmt.Errorf("drop ai_model_configs.custom_billing_mode: %w", err)
 	}
-	if migrator.HasColumn(&persistencemodel.AIModelConfig{}, "custom_billing_mode") && db.Dialector.Name() == "sqlite" {
+	if migrator.HasColumn(&legacyAIModelConfig{}, "custom_billing_mode") && db.Dialector.Name() == "sqlite" {
 		if err := db.Exec(`ALTER TABLE ai_model_configs DROP COLUMN custom_billing_mode`).Error; err != nil {
 			return fmt.Errorf("drop ai_model_configs.custom_billing_mode with sqlite fallback: %w", err)
 		}
 	}
-	if migrator.HasColumn(&persistencemodel.AIModelConfig{}, "custom_billing_mode") {
+	if migrator.HasColumn(&legacyAIModelConfig{}, "custom_billing_mode") {
 		return fmt.Errorf("drop ai_model_configs.custom_billing_mode: column still exists")
 	}
 	return nil
@@ -567,22 +646,25 @@ func remapLocalModelConfigIDsToCatalogEntryIDs(db *gorm.DB, raw string) ([]uint,
 	out := make([]uint, 0, len(ids))
 	seen := map[uint]bool{}
 	changed := false
+	canMapLegacyRoutes := db.Migrator().HasTable("ai_model_route_bindings") && hasColumnByName(db, "ai_model_route_bindings", "local_model_config_id")
 	for _, id := range ids {
 		mappedID := id
-		var route struct {
-			CatalogEntryID uint
-		}
-		err := db.Table("ai_model_route_bindings").
-			Select("catalog_entry_id").
-			Where("local_model_config_id = ? AND deleted_at IS NULL", id).
-			Order("id ASC").
-			Limit(1).
-			Scan(&route).Error
-		if err != nil {
-			return nil, false, err
-		}
-		if route.CatalogEntryID != 0 {
-			mappedID = route.CatalogEntryID
+		if canMapLegacyRoutes {
+			var route struct {
+				CatalogEntryID uint
+			}
+			err := db.Table("ai_model_route_bindings").
+				Select("catalog_entry_id").
+				Where("local_model_config_id = ? AND deleted_at IS NULL", id).
+				Order("id ASC").
+				Limit(1).
+				Scan(&route).Error
+			if err != nil {
+				return nil, false, err
+			}
+			if route.CatalogEntryID != 0 {
+				mappedID = route.CatalogEntryID
+			}
 		}
 		if mappedID != id {
 			changed = true
@@ -600,11 +682,14 @@ func remapLocalModelConfigIDsToCatalogEntryIDs(db *gorm.DB, raw string) ([]uint,
 }
 
 func backfillModelCatalogFromLocalProviderConfigs(db *gorm.DB) error {
-	if !db.Migrator().HasTable(&persistencemodel.AIModelConfig{}) {
+	if !db.Migrator().HasTable(&legacyAIModelConfig{}) {
 		return nil
 	}
-	var rows []persistencemodel.AIModelConfig
-	if err := db.Model(&persistencemodel.AIModelConfig{}).
+	if err := ensureLegacyRouteBindingModelConfigColumn(db); err != nil {
+		return err
+	}
+	var rows []legacyAIModelConfig
+	if err := db.Model(&legacyAIModelConfig{}).
 		Where("ai_model_configs.deleted_at IS NULL").
 		Order("ai_model_configs.id ASC").
 		Scan(&rows).Error; err != nil {
@@ -640,7 +725,7 @@ func backfillModelCatalogFromLocalProviderConfigs(db *gorm.DB) error {
 		}
 		credentialID := row.CredentialID
 		localConfigID := row.ID
-		binding := persistencemodel.AIModelRouteBinding{
+		binding := legacyAIModelRouteBinding{
 			CatalogEntryID:     entry.ID,
 			SourceType:         persistencemodel.ModelRouteSourceLocalProvider,
 			CredentialID:       &credentialID,
@@ -653,6 +738,19 @@ func backfillModelCatalogFromLocalProviderConfigs(db *gorm.DB) error {
 		if err := db.Where("local_model_config_id = ?", localConfigID).FirstOrCreate(&binding).Error; err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func ensureLegacyRouteBindingModelConfigColumn(db *gorm.DB) error {
+	if !db.Migrator().HasTable("ai_model_route_bindings") {
+		return nil
+	}
+	if hasColumnByName(db, "ai_model_route_bindings", "local_model_config_id") {
+		return nil
+	}
+	if err := db.Exec(`ALTER TABLE ai_model_route_bindings ADD COLUMN local_model_config_id integer`).Error; err != nil {
+		return fmt.Errorf("add ai_model_route_bindings.local_model_config_id: %w", err)
 	}
 	return nil
 }
@@ -676,6 +774,9 @@ func backfillJobModelCatalogEntryRefs(db *gorm.DB) error {
 
 func backfillUsageRouteBindingRefs(db *gorm.DB) error {
 	if !db.Migrator().HasTable(&persistencemodel.AIModelRouteBinding{}) {
+		return nil
+	}
+	if !hasColumnByName(db, "ai_model_route_bindings", "local_model_config_id") {
 		return nil
 	}
 	for _, table := range []string{"usage_logs", "usage_reservations", "llm_call_logs"} {
@@ -711,6 +812,158 @@ func addUsageRouteBindingRefColumns(db *gorm.DB) error {
 	return nil
 }
 
+func addLLMCallLogCatalogEntryRefColumn(db *gorm.DB) error {
+	migrator := db.Migrator()
+	if !migrator.HasTable("llm_call_logs") {
+		return nil
+	}
+	if migrator.HasColumn("llm_call_logs", "ai_model_catalog_entry_id") {
+		return nil
+	}
+	if err := migrator.AddColumn(&persistencemodel.LLMCallLog{}, "AIModelCatalogEntryID"); err != nil {
+		return fmt.Errorf("add llm_call_logs.ai_model_catalog_entry_id: %w", err)
+	}
+	return nil
+}
+
+func addJobRouteBindingRefColumn(db *gorm.DB) error {
+	migrator := db.Migrator()
+	if !migrator.HasTable("jobs") {
+		return nil
+	}
+	if migrator.HasColumn("jobs", "route_binding_id") {
+		return nil
+	}
+	if err := migrator.AddColumn(&persistencemodel.Job{}, "RouteBindingID"); err != nil {
+		return fmt.Errorf("add jobs.route_binding_id: %w", err)
+	}
+	return nil
+}
+
+func renameRuntimeModelIDColumns(db *gorm.DB) error {
+	targets := []struct {
+		table  string
+		legacy string
+		model  any
+	}{
+		{table: "usage_logs", legacy: "ai_model_config_id", model: &persistencemodel.UsageLog{}},
+		{table: "usage_reservations", legacy: "ai_model_config_id", model: &persistencemodel.UsageReservation{}},
+		{table: "llm_call_logs", legacy: "ai_model_config_id", model: &persistencemodel.LLMCallLog{}},
+		{table: "jobs", legacy: "model_config_id", model: &persistencemodel.Job{}},
+	}
+	for _, target := range targets {
+		if err := renameRuntimeModelIDColumn(db, target.table, target.legacy, target.model); err != nil {
+			return err
+		}
+	}
+	return backfillRuntimeModelDerivedRefs(db)
+}
+
+func backfillRuntimeModelDerivedRefs(db *gorm.DB) error {
+	if err := backfillUsageModelCatalogEntryRefs(db); err != nil {
+		return err
+	}
+	if err := backfillJobModelCatalogEntryRefs(db); err != nil {
+		return err
+	}
+	if err := backfillModelCatalogEntryRefColumn(db, "llm_call_logs", "ai_model_config_id", "ai_model_catalog_entry_id"); err != nil {
+		return err
+	}
+	if err := backfillUsageRouteBindingRefs(db); err != nil {
+		return err
+	}
+	return backfillJobRouteBindingRefs(db)
+}
+
+func renameRuntimeModelIDColumn(db *gorm.DB, table string, legacyColumn string, model any) error {
+	migrator := db.Migrator()
+	if !migrator.HasTable(table) {
+		return nil
+	}
+	hasLegacy := hasColumnByName(db, table, legacyColumn)
+	hasRuntime := hasColumnByName(db, table, "runtime_model_id")
+	switch {
+	case hasLegacy && !hasRuntime:
+		if err := db.Exec(fmt.Sprintf(`ALTER TABLE %s RENAME COLUMN %s TO runtime_model_id`, table, legacyColumn)).Error; err != nil {
+			return fmt.Errorf("rename %s.%s to runtime_model_id: %w", table, legacyColumn, err)
+		}
+	case hasLegacy && hasRuntime:
+		if err := db.Exec(fmt.Sprintf(`UPDATE %s SET runtime_model_id = %s WHERE COALESCE(runtime_model_id, 0) = 0`, table, legacyColumn)).Error; err != nil {
+			return fmt.Errorf("copy %s.%s to runtime_model_id: %w", table, legacyColumn, err)
+		}
+		if err := dropColumnByName(db, table, legacyColumn); err != nil {
+			return fmt.Errorf("drop %s.%s: %w", table, legacyColumn, err)
+		}
+	case !hasRuntime:
+		if err := addRuntimeModelIDColumn(db, table); err != nil {
+			return err
+		}
+	}
+	if err := db.AutoMigrate(model); err != nil {
+		return fmt.Errorf("automigrate %s runtime_model_id: %w", table, err)
+	}
+	if hasColumnByName(db, table, legacyColumn) {
+		return fmt.Errorf("drop %s.%s: column still exists", table, legacyColumn)
+	}
+	return nil
+}
+
+func hasColumnByName(db *gorm.DB, table string, column string) bool {
+	columns, err := db.Migrator().ColumnTypes(table)
+	if err != nil {
+		return false
+	}
+	for _, candidate := range columns {
+		if strings.EqualFold(candidate.Name(), column) {
+			return true
+		}
+	}
+	return false
+}
+
+func dropColumnByName(db *gorm.DB, table string, column string) error {
+	return db.Exec(fmt.Sprintf(`ALTER TABLE %s DROP COLUMN %s`, table, column)).Error
+}
+
+func addRuntimeModelIDColumn(db *gorm.DB, table string) error {
+	if err := db.Exec(fmt.Sprintf(`ALTER TABLE %s ADD COLUMN runtime_model_id integer NOT NULL DEFAULT 0`, table)).Error; err != nil {
+		return fmt.Errorf("add %s.runtime_model_id: %w", table, err)
+	}
+	return nil
+}
+
+func backfillJobRouteBindingRefs(db *gorm.DB) error {
+	if !db.Migrator().HasTable("jobs") {
+		return nil
+	}
+	if !db.Migrator().HasColumn("jobs", "route_binding_id") {
+		return nil
+	}
+	if db.Migrator().HasTable("usage_reservations") &&
+		db.Migrator().HasColumn("jobs", "usage_reservation_id") &&
+		db.Migrator().HasColumn("usage_reservations", "route_binding_id") {
+		update := `UPDATE jobs SET route_binding_id = (
+			SELECT usage_reservations.route_binding_id
+			FROM usage_reservations
+			WHERE usage_reservations.id = jobs.usage_reservation_id
+				AND usage_reservations.route_binding_id IS NOT NULL
+				AND usage_reservations.deleted_at IS NULL
+			LIMIT 1
+		) WHERE jobs.route_binding_id IS NULL
+			AND jobs.usage_reservation_id IS NOT NULL
+			AND EXISTS (
+				SELECT 1 FROM usage_reservations
+				WHERE usage_reservations.id = jobs.usage_reservation_id
+					AND usage_reservations.route_binding_id IS NOT NULL
+					AND usage_reservations.deleted_at IS NULL
+			)`
+		if err := db.Exec(update).Error; err != nil {
+			return fmt.Errorf("backfill jobs.route_binding_id from usage reservations: %w", err)
+		}
+	}
+	return backfillRouteBindingRefColumn(db, "jobs", "model_config_id", "route_binding_id")
+}
+
 func backfillUsageModelCatalogEntryRef(db *gorm.DB, table string) error {
 	return backfillModelCatalogEntryRefColumn(db, table, "ai_model_config_id", "ai_model_catalog_entry_id")
 }
@@ -722,12 +975,22 @@ func backfillRouteBindingRefColumn(db *gorm.DB, table string, legacyModelConfigC
 	if !db.Migrator().HasColumn(table, routeBindingColumn) {
 		return nil
 	}
+	sourceColumn := runtimeModelSourceColumn(db, table, legacyModelConfigColumn)
+	if sourceColumn == "" {
+		return nil
+	}
+	if !db.Migrator().HasTable(&persistencemodel.AIModelRouteBinding{}) {
+		return nil
+	}
+	if !hasColumnByName(db, "ai_model_route_bindings", "local_model_config_id") {
+		return nil
+	}
 	condition := fmt.Sprintf(`%s.%s IS NULL
 		AND EXISTS (
 			SELECT 1 FROM ai_model_route_bindings route_bindings
 			WHERE route_bindings.local_model_config_id = %s.%s
 				AND route_bindings.deleted_at IS NULL
-		)`, table, routeBindingColumn, table, legacyModelConfigColumn)
+		)`, table, routeBindingColumn, table, sourceColumn)
 	update := fmt.Sprintf(`UPDATE %s SET %s = (
 		SELECT route_bindings.id
 		FROM ai_model_route_bindings route_bindings
@@ -735,7 +998,7 @@ func backfillRouteBindingRefColumn(db *gorm.DB, table string, legacyModelConfigC
 			AND route_bindings.deleted_at IS NULL
 		ORDER BY route_bindings.id ASC
 		LIMIT 1
-	) WHERE %s`, table, routeBindingColumn, table, legacyModelConfigColumn, condition)
+	) WHERE %s`, table, routeBindingColumn, table, sourceColumn, condition)
 	if err := db.Exec(update).Error; err != nil {
 		return fmt.Errorf("backfill %s.%s from local provider route bindings: %w", table, routeBindingColumn, err)
 	}
@@ -749,13 +1012,18 @@ func backfillModelCatalogEntryRefColumn(db *gorm.DB, table string, legacyModelCo
 	if !db.Migrator().HasColumn(table, catalogEntryColumn) {
 		return nil
 	}
-	if db.Migrator().HasTable(&persistencemodel.AIModelRouteBinding{}) {
+	sourceColumn := runtimeModelSourceColumn(db, table, legacyModelConfigColumn)
+	if sourceColumn == "" {
+		return nil
+	}
+	if db.Migrator().HasTable(&persistencemodel.AIModelRouteBinding{}) &&
+		hasColumnByName(db, "ai_model_route_bindings", "local_model_config_id") {
 		condition := fmt.Sprintf(`%s.%s IS NULL
 		AND EXISTS (
 			SELECT 1 FROM ai_model_route_bindings route_bindings
 			WHERE route_bindings.local_model_config_id = %s.%s
 				AND route_bindings.deleted_at IS NULL
-		)`, table, catalogEntryColumn, table, legacyModelConfigColumn)
+		)`, table, catalogEntryColumn, table, sourceColumn)
 		update := fmt.Sprintf(`UPDATE %s SET %s = (
 			SELECT route_bindings.catalog_entry_id
 			FROM ai_model_route_bindings route_bindings
@@ -763,29 +1031,42 @@ func backfillModelCatalogEntryRefColumn(db *gorm.DB, table string, legacyModelCo
 				AND route_bindings.deleted_at IS NULL
 			ORDER BY route_bindings.id ASC
 			LIMIT 1
-		) WHERE %s`, table, catalogEntryColumn, table, legacyModelConfigColumn, condition)
+		) WHERE %s`, table, catalogEntryColumn, table, sourceColumn, condition)
 		if err := db.Exec(update).Error; err != nil {
 			return fmt.Errorf("backfill %s.%s from local provider route bindings: %w", table, catalogEntryColumn, err)
 		}
+	}
+	if !db.Migrator().HasTable(&persistencemodel.AIModelCatalogEntry{}) {
+		return nil
 	}
 	condition := fmt.Sprintf(`%s.%s IS NULL
 		AND EXISTS (
 			SELECT 1 FROM ai_model_catalog_entries catalog_entries
 			WHERE catalog_entries.id = %s.%s
 				AND catalog_entries.deleted_at IS NULL
-		)`, table, catalogEntryColumn, table, legacyModelConfigColumn)
-	if db.Migrator().HasTable(&persistencemodel.AIModelConfig{}) {
+		)`, table, catalogEntryColumn, table, sourceColumn)
+	if db.Migrator().HasTable(&legacyAIModelConfig{}) {
 		condition += fmt.Sprintf(`
 		AND NOT EXISTS (
 			SELECT 1 FROM ai_model_configs legacy_configs
 			WHERE legacy_configs.id = %s.%s
 				AND legacy_configs.deleted_at IS NULL
-		)`, table, legacyModelConfigColumn)
+		)`, table, sourceColumn)
 	}
-	if err := db.Exec(fmt.Sprintf(`UPDATE %s SET %s = %s WHERE %s`, table, catalogEntryColumn, legacyModelConfigColumn, condition)).Error; err != nil {
+	if err := db.Exec(fmt.Sprintf(`UPDATE %s SET %s = %s WHERE %s`, table, catalogEntryColumn, sourceColumn, condition)).Error; err != nil {
 		return fmt.Errorf("backfill %s.%s: %w", table, catalogEntryColumn, err)
 	}
 	return nil
+}
+
+func runtimeModelSourceColumn(db *gorm.DB, table string, preferredColumn string) string {
+	if hasColumnByName(db, table, preferredColumn) {
+		return preferredColumn
+	}
+	if hasColumnByName(db, table, "runtime_model_id") {
+		return "runtime_model_id"
+	}
+	return ""
 }
 
 func firstNonEmptyString(values ...string) string {
@@ -1469,7 +1750,6 @@ func allModels() []any {
 		&persistencemodel.ProjectMember{},
 		&persistencemodel.DecisionContext{},
 		&persistencemodel.AICredential{},
-		&persistencemodel.AIModelConfig{},
 		&persistencemodel.AIModelCatalogEntry{},
 		&persistencemodel.AIModelRouteBinding{},
 		&persistencemodel.UsageReservation{},
@@ -1521,7 +1801,6 @@ func currentSchemaBackfillModels() []any {
 		&persistencemodel.ProjectMember{},
 		&persistencemodel.DecisionContext{},
 		&persistencemodel.AICredential{},
-		&persistencemodel.AIModelConfig{},
 		&persistencemodel.AIModelCatalogEntry{},
 		&persistencemodel.AIModelRouteBinding{},
 		&persistencemodel.UsageReservation{},

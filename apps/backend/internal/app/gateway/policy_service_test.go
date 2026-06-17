@@ -55,10 +55,10 @@ func TestPolicyServiceCanCallChatRejectsLocalModelConfigID(t *testing.T) {
 }
 
 func TestRouteAllowedCatalogEntryIDDoesNotFallbackToLegacyRouteID(t *testing.T) {
-	if got := routeAllowedCatalogEntryID(providercontract.AIGatewayModelRoute{ModelConfigID: 99}); got != 0 {
+	if got := routeAllowedCatalogEntryID(providercontract.AIGatewayModelRoute{}); got != 0 {
 		t.Fatalf("routeAllowedCatalogEntryID without catalog entry = %d, want 0", got)
 	}
-	if got := routeAllowedCatalogEntryID(providercontract.AIGatewayModelRoute{ModelConfigID: 99, CatalogEntryID: 7}); got != 7 {
+	if got := routeAllowedCatalogEntryID(providercontract.AIGatewayModelRoute{CatalogEntryID: 7}); got != 7 {
 		t.Fatalf("routeAllowedCatalogEntryID with catalog entry = %d, want 7", got)
 	}
 }

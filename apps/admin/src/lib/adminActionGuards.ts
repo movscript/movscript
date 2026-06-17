@@ -25,6 +25,10 @@ export function credentialToggleConfirmKey(credential: Pick<AICredential, 'is_en
     : 'admin.models.confirmDisableCredential'
 }
 
+export function catalogEntryDisplayName(entry: { display_name?: string; short_name?: string; public_model_id?: string; ID?: number }): string {
+  return entry.display_name || entry.short_name || entry.public_model_id || (entry.ID ? `#${entry.ID}` : '')
+}
+
 export function jobActionConfirmKey(action: AdminJobAction): AdminJobActionConfirmKey {
   switch (action) {
     case 'cancel':

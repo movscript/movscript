@@ -3,13 +3,13 @@ package job
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	domainjob "github.com/movscript/movscript/internal/domain/job"
 	"github.com/movscript/movscript/internal/infra/ai"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"github.com/movscript/movscript/internal/testutil"
-	"gorm.io/gorm"
 )
 
 // 真人认证当前留空：所有模型都不触发，等后续按白名单具体填入。
@@ -34,12 +34,12 @@ func TestEnqueueGenerationAcceptsOrthogonalAudioAndSubtitleJobTypes(t *testing.T
 		&persistencemodel.Job{},
 		&persistencemodel.RawResource{},
 		&persistencemodel.AICredential{},
-		&persistencemodel.AIModelConfig{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
 		&persistencemodel.UsageReservation{},
 		&persistencemodel.UsageLog{},
 	)
 	cred := persistencemodel.AICredential{
-		Model:       gorm.Model{ID: 1},
 		AdapterType: ai.AdapterLocal,
 		DisplayName: "Local P3 audio",
 		IsEnabled:   true,
@@ -49,30 +49,38 @@ func TestEnqueueGenerationAcceptsOrthogonalAudioAndSubtitleJobTypes(t *testing.T
 	}
 	service := NewService(db, ai.NewAIService(db, ai.NewRegistry(db, nil)))
 
-	for index, capability := range []string{
+	for _, capability := range []string{
 		ai.CapabilityAudioMusic,
 		ai.CapabilityAudioSFX,
 		ai.CapabilityAudioSTT,
 		ai.CapabilitySubAlign,
 		ai.CapabilitySubTranslate,
 	} {
-		cfg := persistencemodel.AIModelConfig{
-			Model:              gorm.Model{ID: uint(10 + index)},
-			CredentialID:       cred.ID,
-			ModelDefID:         "local-" + capability,
-			ModelIDOverride:    "provider-" + capability,
-			CustomCapabilities: capability,
-			CustomPricingMode:  string(ai.PricingPerCall),
-			CreditsPerCall:     0,
-			IsEnabled:          true,
+		entry := persistencemodel.AIModelCatalogEntry{
+			PublicModelID:   "local-" + capability,
+			ProviderModelID: "provider-" + capability,
+			DisplayName:     "Local " + capability,
+			Capabilities:    capability,
+			PricingMode:     string(ai.PricingPerCall),
+			CreditsPerCall:  0,
+			IsEnabled:       true,
 		}
-		if err := db.Create(&cfg).Error; err != nil {
-			t.Fatalf("create model config %s: %v", capability, err)
+		if err := db.Create(&entry).Error; err != nil {
+			t.Fatalf("create catalog entry %s: %v", capability, err)
+		}
+		if err := db.Create(&persistencemodel.AIModelRouteBinding{
+			CatalogEntryID: entry.ID,
+			SourceType:     persistencemodel.ModelRouteSourceLocalProvider,
+			CredentialID:   &cred.ID,
+			IsEnabled:      true,
+			CapacityWeight: 1,
+		}).Error; err != nil {
+			t.Fatalf("create route binding %s: %v", capability, err)
 		}
 
 		input := EnqueueInput{
 			UserID:     42,
-			ModelID:    cfg.ModelDefID,
+			ModelID:    entry.PublicModelID,
 			JobType:    capability,
 			FeatureKey: "test." + capability,
 			Title:      "P3 " + capability,
@@ -104,8 +112,84 @@ func TestEnqueueGenerationAcceptsOrthogonalAudioAndSubtitleJobTypes(t *testing.T
 		if snapshot.JobType != capability || snapshot.FeatureKey != "test."+capability {
 			t.Fatalf("request context for %s = %#v", capability, snapshot)
 		}
-		if snapshot.Model.ConfigID != cfg.ID {
+		if snapshot.Model.ConfigID != entry.ID {
 			t.Fatalf("request context model for %s = %#v", capability, snapshot.Model)
 		}
+	}
+}
+
+func TestEnqueueGenerationTTSCatalogRouteWithoutLegacyModelConfig(t *testing.T) {
+	db := testutil.OpenSQLite(t, "job_enqueue_tts_catalog_only.db",
+		&persistencemodel.Job{},
+		&persistencemodel.RawResource{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
+		&persistencemodel.UsageReservation{},
+		&persistencemodel.UsageLog{},
+	)
+	if db.Migrator().HasTable("ai_model_configs") || db.Migrator().HasTable(&persistencemodel.AICredential{}) {
+		t.Fatal("catalog-only TTS enqueue test should not create legacy provider tables")
+	}
+	entry := persistencemodel.AIModelCatalogEntry{
+		PublicModelID:   "voice-main",
+		ProviderModelID: "provider-voice-v2",
+		DisplayName:     "Voice Main",
+		IsEnabled:       true,
+		Capabilities:    ai.CapabilityAudioTTS,
+		PricingMode:     string(ai.PricingPerCall),
+		CreditsPerCall:  1.25,
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	binding := persistencemodel.AIModelRouteBinding{
+		CatalogEntryID: entry.ID,
+		SourceType:     persistencemodel.ModelRouteSourceNewAPI,
+		RouteGroup:     "default",
+		IsEnabled:      true,
+		CapacityWeight: 1,
+	}
+	if err := db.Create(&binding).Error; err != nil {
+		t.Fatalf("create route binding: %v", err)
+	}
+	service := NewService(db, ai.NewAIService(db, ai.NewRegistry(db, nil)))
+
+	job, err := service.EnqueueGeneration(context.Background(), EnqueueInput{
+		UserID:  42,
+		ModelID: "voice-main",
+		JobType: ai.CapabilityAudioTTS,
+		Title:   "Narration",
+		Prompt:  "hello",
+	})
+	if err != nil {
+		t.Fatalf("EnqueueGeneration(TTS catalog route) error = %v", err)
+	}
+	if job.RuntimeModelID != entry.ID {
+		t.Fatalf("job model config compatibility id = %d, want catalog entry id %d", job.RuntimeModelID, entry.ID)
+	}
+	if job.AIModelCatalogEntryID == nil || *job.AIModelCatalogEntryID != entry.ID {
+		t.Fatalf("job catalog entry id = %v, want %d", job.AIModelCatalogEntryID, entry.ID)
+	}
+	if job.RouteBindingID == nil || *job.RouteBindingID != binding.ID {
+		t.Fatalf("job route binding id = %v, want %d", job.RouteBindingID, binding.ID)
+	}
+	if job.UsageReservationID == nil {
+		t.Fatal("job did not store usage reservation id")
+	}
+	var reservation persistencemodel.UsageReservation
+	if err := db.First(&reservation, *job.UsageReservationID).Error; err != nil {
+		t.Fatalf("load usage reservation: %v", err)
+	}
+	if reservation.AIModelCatalogEntryID == nil || *reservation.AIModelCatalogEntryID != entry.ID {
+		t.Fatalf("reservation catalog entry id = %v, want %d", reservation.AIModelCatalogEntryID, entry.ID)
+	}
+	if reservation.RouteBindingID == nil || *reservation.RouteBindingID != binding.ID {
+		t.Fatalf("reservation route binding id = %v, want %d", reservation.RouteBindingID, binding.ID)
+	}
+	if reservation.EstimatedCost != 1.25 {
+		t.Fatalf("reservation estimated cost = %v, want catalog pricing", reservation.EstimatedCost)
+	}
+	if !strings.Contains(job.RequestContext, "provider-voice-v2") || !strings.Contains(job.RequestContext, persistencemodel.ModelRouteSourceNewAPI) {
+		t.Fatalf("request context = %s, want provider model and route source", job.RequestContext)
 	}
 }

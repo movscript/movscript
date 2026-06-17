@@ -13,7 +13,9 @@ import { ProjectRequiredDialog } from '@/features/app-shell/components/ProjectRe
 import { ShellLayout } from '@/features/app-shell/application/AppShellLayout'
 import { CanvasListShellRoute } from '@/features/app-shell/application/AppCanvasListShellRoute'
 import { CanvasEditorShellRoute } from '@/features/app-shell/application/AppCanvasEditorShellRoute'
+import { EditingListShellRoute, EditingProjectShellRoute } from '@/features/app-shell/application/AppEditingShellRoutes'
 import { ToolShellRoute } from '@/features/app-shell/application/AppToolShellRoute'
+import { AppDockShortcutBridge } from '@/features/app-shell/application/AppDockShortcutBridge'
 import {
   ErrorBoundary,
   OrgAdminGuard,
@@ -39,7 +41,6 @@ import {
   AuthPage,
   ClientPluginsPage,
   ContentCanvasWorkspacePage,
-  EditingWorkspacePage,
   ExternalResourcesPage,
   GlobalHomePage,
   InvitePage,
@@ -86,10 +87,13 @@ export function AuthenticatedAppRouter() {
         <UiDebugInspector />
         <BackendBootBoundary />
         <ProjectRequiredDialog />
+        <AppDockShortcutBridge />
         <RouteSuspense fullScreen>
           <Routes>
             <Route path={ROUTES.canvases} element={<CanvasListShellRoute />} />
             <Route path={ROUTES.canvasEditor} element={<CanvasEditorShellRoute />} />
+            <Route path={ROUTES.editing} element={<EditingListShellRoute />} />
+            <Route path={ROUTES.editingProject} element={<EditingProjectShellRoute />} />
             <Route path="/tools/*" element={<ToolShellRoute />} />
             <Route path={ROUTES.orgSelect} element={
               <ShellLayout requireOrg={false}>
@@ -130,7 +134,6 @@ export function AuthenticatedAppRouter() {
                   })}
 
                   <Route path={ROUTES.resources} element={<ResourcesPage />} />
-                  <Route path={ROUTES.editing} element={<EditingWorkspacePage />} />
                   <Route path={ROUTES.externalResources} element={<ExternalResourcesPage />} />
                   <Route path={ROUTES.shotLibrary} element={<ShotLibraryPage />} />
                   <Route path={ROUTES.jobs} element={<JobsPage />} />

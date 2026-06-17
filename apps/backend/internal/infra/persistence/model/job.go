@@ -12,8 +12,9 @@ type Job struct {
 	gorm.Model
 	UserID                uint       `gorm:"not null" json:"user_id"`
 	OrgID                 *uint      `gorm:"index" json:"org_id,omitempty"`
-	ModelConfigID         uint       `gorm:"not null" json:"-"`
+	RuntimeModelID        uint       `gorm:"column:runtime_model_id;not null" json:"-"`
 	AIModelCatalogEntryID *uint      `gorm:"index" json:"ai_model_catalog_entry_id,omitempty"`
+	RouteBindingID        *uint      `gorm:"index" json:"route_binding_id,omitempty"`
 	RouteGroup            string     `gorm:"default:'';index" json:"route_group,omitempty"`
 	JobType               string     `gorm:"not null" json:"job_type"`
 	FeatureKey            string     `gorm:"index;default:''" json:"feature_key,omitempty"`

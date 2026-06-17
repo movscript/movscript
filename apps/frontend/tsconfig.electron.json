@@ -53,6 +53,9 @@
       "@movscript/core/plugins/node": [
         "../../packages/core/src/plugins/node/index.ts"
       ],
+      "@movscript/editing": [
+        "../../packages/editing/src/index.ts"
+      ],
       "@movscript/engine": [
         "../../packages/engine/src/index.ts"
       ],

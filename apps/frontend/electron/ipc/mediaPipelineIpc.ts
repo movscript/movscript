@@ -10,6 +10,7 @@ import {
   getMediaPipelineTask,
   getStoredMediaPipelineTask,
   importMediaPipelineExportResource,
+  onMediaPipelineEditingProjectEvent,
   onMediaPipelineTaskEvent,
   publishMediaPipelineHlsStream,
   saveMediaPipelineExportLocal,
@@ -36,8 +37,18 @@ export function registerMediaPipelineIpcHandlers(): void {
       ?? null,
     cancelTask: (taskId, options) => cancelMediaPipelineTask(taskId, { projectId: options?.projectId, userDataDir: app.getPath('userData') }),
     getTaskLogs: (taskId, options) => getMediaPipelineTaskLogs(taskId, { projectId: options?.projectId, userDataDir: app.getPath('userData') }),
-    saveProject: async (editingProject) => {
-      const result = await saveMediaPipelineEditingProject(editingProject as unknown as MediaPipelineEditingProject, { userDataDir: app.getPath('userData') })
+    saveProject: async (editingProject, options) => {
+      const result = await saveMediaPipelineEditingProject(editingProject as unknown as MediaPipelineEditingProject, {
+        userDataDir: app.getPath('userData'),
+        expectedRevision: options?.expectedRevision,
+      })
+      if (result.status === 'conflict') {
+        return {
+          ...result,
+          editingProject: result.editingProject as unknown as Record<string, unknown>,
+          editing_project: result.editing_project as unknown as Record<string, unknown>,
+        }
+      }
       return {
         ...result,
         editingProject: result.editingProject as unknown as Record<string, unknown>,
@@ -59,10 +70,18 @@ export function registerMediaPipelineIpcHandlers(): void {
     saveLocalExport: (request) => saveMediaPipelineExportLocal(request),
   })
 
-  ipcMain.handle('media-pipeline:save-editing-project', async (_event, input?: { editingProject?: MediaPipelineEditingProject; editing_project?: MediaPipelineEditingProject }) => {
+  ipcMain.handle('media-pipeline:save-editing-project', async (_event, input?: {
+    editingProject?: MediaPipelineEditingProject
+    editing_project?: MediaPipelineEditingProject
+    expectedRevision?: number
+    expected_revision?: number
+  }) => {
     const editingProject = input?.editingProject ?? input?.editing_project
     if (!editingProject) throw new Error('editingProject is required')
-    return saveMediaPipelineEditingProject(editingProject, { userDataDir: app.getPath('userData') })
+    return saveMediaPipelineEditingProject(editingProject, {
+      userDataDir: app.getPath('userData'),
+      expectedRevision: input?.expectedRevision ?? input?.expected_revision,
+    })
   })
 
   ipcMain.handle('media-pipeline:get-editing-project', async (_event, input?: {
@@ -242,6 +261,7 @@ export function registerMediaPipelineIpcHandlers(): void {
   })
 
   registerMediaPipelineTaskEventForwarder()
+  registerMediaPipelineEditingProjectEventForwarder()
 }
 
 let taskEventForwarderRegistered = false
@@ -252,6 +272,18 @@ function registerMediaPipelineTaskEventForwarder(): void {
   onMediaPipelineTaskEvent((taskEvent) => {
     for (const window of BrowserWindow.getAllWindows()) {
       if (!window.webContents.isDestroyed()) window.webContents.send('media-pipeline:task-event', taskEvent)
+    }
+  })
+}
+
+let editingProjectEventForwarderRegistered = false
+
+function registerMediaPipelineEditingProjectEventForwarder(): void {
+  if (editingProjectEventForwarderRegistered) return
+  editingProjectEventForwarderRegistered = true
+  onMediaPipelineEditingProjectEvent((projectEvent) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (!window.webContents.isDestroyed()) window.webContents.send('media-pipeline:editing-project-event', projectEvent)
     }
   })
 }

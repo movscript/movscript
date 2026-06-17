@@ -47,39 +47,67 @@ func ConfigureLocalGatewayDefaults(ctx context.Context, db *gorm.DB, enabled boo
 	if !enabled {
 		return nil
 	}
-	var model persistencemodel.AIModelConfig
+	var entry persistencemodel.AIModelCatalogEntry
 	err = db.WithContext(ctx).
-		Where("credential_id = ? AND model_def_id = ?", cred.ID, ManagedLocalGatewayModel).
-		First(&model).Error
+		Where("public_model_id = ? AND provider_model_id = ?", ManagedLocalGatewayModel, ManagedLocalGatewayModel).
+		First(&entry).Error
 	if err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
-		model = persistencemodel.AIModelConfig{
-			CredentialID:          cred.ID,
-			ModelDefID:            ManagedLocalGatewayModel,
-			ModelIDOverride:       ManagedLocalGatewayModel,
-			IsEnabled:             true,
-			Priority:              100,
-			CapacityWeight:        1,
-			CustomDisplayName:     "MovScript Local",
-			ShortName:             "Local",
-			CustomCapabilities:    CapabilityText + "," + CapabilityReasoning,
-			CustomPricingMode:     string(PricingPerToken),
-			CreditsInputPer1M:     0,
-			CreditsOutputPer1M:    0,
-			CustomSupportedParams: "[]",
+		entry = persistencemodel.AIModelCatalogEntry{
+			PublicModelID:      ManagedLocalGatewayModel,
+			ProviderModelID:    ManagedLocalGatewayModel,
+			DisplayName:        "MovScript Local",
+			ShortName:          "Local",
+			IsEnabled:          true,
+			Capabilities:       CapabilityText + "," + CapabilityReasoning,
+			PricingMode:        string(PricingPerToken),
+			CreditsInputPer1M:  0,
+			CreditsOutputPer1M: 0,
+			SupportedParams:    "[]",
 		}
-		return db.WithContext(ctx).Create(&model).Error
+		if err := db.WithContext(ctx).Create(&entry).Error; err != nil {
+			return err
+		}
+	} else {
+		updates := map[string]any{
+			"is_enabled":            true,
+			"display_name":          "MovScript Local",
+			"short_name":            "Local",
+			"capabilities":          CapabilityText + "," + CapabilityReasoning,
+			"pricing_mode":          string(PricingPerToken),
+			"supported_params":      "[]",
+			"credits_input_per_1m":  0,
+			"credits_output_per_1m": 0,
+		}
+		if err := db.WithContext(ctx).Model(&entry).Updates(updates).Error; err != nil {
+			return err
+		}
 	}
-	updates := map[string]any{
-		"is_enabled":              true,
-		"model_id_override":       ManagedLocalGatewayModel,
-		"custom_display_name":     "MovScript Local",
-		"short_name":              "Local",
-		"custom_capabilities":     CapabilityText + "," + CapabilityReasoning,
-		"custom_pricing_mode":     string(PricingPerToken),
-		"custom_supported_params": "[]",
+
+	credentialID := cred.ID
+	var binding persistencemodel.AIModelRouteBinding
+	err = db.WithContext(ctx).
+		Where("catalog_entry_id = ? AND source_type = ? AND credential_id = ?", entry.ID, persistencemodel.ModelRouteSourceLocalProvider, credentialID).
+		First(&binding).Error
+	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		binding = persistencemodel.AIModelRouteBinding{
+			CatalogEntryID: entry.ID,
+			SourceType:     persistencemodel.ModelRouteSourceLocalProvider,
+			CredentialID:   &credentialID,
+			IsEnabled:      true,
+			Priority:       100,
+			CapacityWeight: 1,
+		}
+		return db.WithContext(ctx).Create(&binding).Error
 	}
-	return db.WithContext(ctx).Model(&model).Updates(updates).Error
+	return db.WithContext(ctx).Model(&binding).Updates(map[string]any{
+		"is_enabled":      true,
+		"priority":        100,
+		"capacity_weight": 1,
+	}).Error
 }

@@ -20,10 +20,6 @@ func (r *Registry) editionBuildGatewayProvider() (Provider, bool, error) {
 	return nil, false, nil
 }
 
-func (r *Registry) editionFileUploader(_ context.Context, _ uint, _ persistencemodel.AIModelConfig) (FileUploader, bool) {
+func (r *Registry) editionFileUploader(_ context.Context, _ uint) (FileUploader, bool) {
 	return nil, false
-}
-
-func (r *Registry) editionDebugCall(_ context.Context, _ uint, _ persistencemodel.AIModelConfig, _ persistencemodel.AICredential, _ *ModelDef, _ string) (DebugCallResult, bool) {
-	return DebugCallResult{}, false
 }

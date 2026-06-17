@@ -2,7 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { BarChart3, Bug, Building2, ChevronsLeft, ChevronsRight, CloudUpload, Database, FileText, FolderKanban, HardDrive, Palette, ScrollText, Settings, Settings2, ShieldCheck, UsersRound, type LucideIcon } from 'lucide-react'
+import { BarChart3, Bug, Building2, ChevronsLeft, ChevronsRight, CloudUpload, Database, FileText, FolderKanban, HardDrive, KeyRound, Palette, Route as RouteIcon, ScrollText, Settings, Settings2, ShieldCheck, UsersRound, type LucideIcon } from 'lucide-react'
 import { queryClient } from '@/lib/queryClient'
 import { useUserStore, type AuthSession } from '@/store/userStore'
 import { api } from '@/lib/api'
@@ -220,7 +220,9 @@ function LoginPage() {
 
 const baseNavItems: { to: string; labelKey: string; icon: LucideIcon; end?: boolean }[] = [
   { to: '/', labelKey: 'admin.nav.overview', icon: Database, end: true },
-  { to: '/models', labelKey: 'admin.tabs.models', icon: Settings2 },
+  { to: '/models/providers', labelKey: 'admin.tabs.modelProviders', icon: KeyRound },
+  { to: '/models/catalog', labelKey: 'admin.tabs.modelCatalog', icon: Database },
+  { to: '/models/routes', labelKey: 'admin.tabs.modelRoutes', icon: RouteIcon },
   { to: '/user-management', labelKey: 'admin.tabs.users', icon: UsersRound },
   { to: '/orgs', labelKey: 'admin.tabs.orgs', icon: Building2 },
   { to: '/projects', labelKey: 'admin.tabs.projects', icon: FolderKanban },
@@ -427,7 +429,7 @@ function AdminShell({ children }: { children: React.ReactNode }) {
   const navItems = [
     ...baseNavItems
       .filter((item) => !adminBaseRouteDisabled(item.to))
-      .filter((item) => !(runtimeCapabilities.hideModelManagement && item.to === '/models'))
+      .filter((item) => !(runtimeCapabilities.hideModelManagement && item.to.startsWith('/models')))
       .filter((item) => !runtimeNavPaths.has(item.to))
       .map((item) => ({ ...item, label: t(item.labelKey) })),
     ...runtimeNavItems,
@@ -552,7 +554,7 @@ function App() {
         {runtimeBaseRoutes
           .filter((route) => !runtimeRoutePaths.has(route.path))
           .filter((route) => !adminBaseRouteDisabled(route.path))
-          .filter((route) => !(runtimeCapabilities.hideModelManagement && route.path === '/models'))
+          .filter((route) => !(runtimeCapabilities.hideModelManagement && route.path.startsWith('/models')))
           .map((route) => (
             <Route key={route.path} path={route.path} element={<AdminShell><LazyAdminPage>{route.element}</LazyAdminPage></AdminShell>} />
           ))}

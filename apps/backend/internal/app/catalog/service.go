@@ -46,13 +46,6 @@ type PublicModel struct {
 	ParamsSchema      map[string]any                            `json:"params_schema,omitempty"`
 }
 
-func visibleModelID(modelConfigID uint, catalogEntryID uint) uint {
-	if catalogEntryID != 0 {
-		return catalogEntryID
-	}
-	return modelConfigID
-}
-
 func NewService(modelCatalog providercontract.AIGatewayModelCatalog, cacheStore ...cache.Cache) *Service {
 	var c cache.Cache
 	if len(cacheStore) > 0 {
@@ -111,7 +104,7 @@ func publicModelFromDescriptor(descriptor providercontract.AIModelDescriptor) Pu
 		modelIDOverride = ""
 	}
 	return PublicModel{
-		ID:                visibleModelID(descriptor.ModelConfigID, descriptor.CatalogEntryID),
+		ID:                descriptor.CatalogEntryID,
 		CatalogEntryID:    descriptor.CatalogEntryID,
 		CredentialID:      descriptor.CredentialID,
 		ModelID:           descriptor.ModelID,

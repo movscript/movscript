@@ -1,8 +1,9 @@
 import type { IpcRenderer } from 'electron'
-import type { ElectronAPI, ElectronMediaPipelineTaskEvent } from '../../../src/shared/contracts/electronApi'
+import type { ElectronAPI, ElectronMediaEditingProjectEvent, ElectronMediaPipelineTaskEvent } from '../../../src/shared/contracts/electronApi'
 
-export function createMediaPipelineAPI(ipcRenderer: IpcRenderer): Pick<ElectronAPI, 'saveMediaEditingProject' | 'getMediaEditingProject' | 'importMediaExportResource' | 'saveMediaExportLocal' | 'publishMediaHlsStream' | 'getMediaPipelineCapabilities' | 'getMediaPipelineFFmpegStatus' | 'renderMediaPipelineSingleClip' | 'renderMediaPipelineTimelineVideo' | 'analyzeMediaPipelineShotCuts' | 'createMediaPipelineTask' | 'getMediaPipelineTask' | 'cancelMediaPipelineTask' | 'getMediaPipelineTaskLogs' | 'onMediaPipelineTaskEvent'> {
+export function createMediaPipelineAPI(ipcRenderer: IpcRenderer): Pick<ElectronAPI, 'saveMediaEditingProject' | 'getMediaEditingProject' | 'importMediaExportResource' | 'saveMediaExportLocal' | 'publishMediaHlsStream' | 'getMediaPipelineCapabilities' | 'getMediaPipelineFFmpegStatus' | 'renderMediaPipelineSingleClip' | 'renderMediaPipelineTimelineVideo' | 'analyzeMediaPipelineShotCuts' | 'createMediaPipelineTask' | 'getMediaPipelineTask' | 'cancelMediaPipelineTask' | 'getMediaPipelineTaskLogs' | 'onMediaPipelineTaskEvent' | 'onMediaEditingProjectEvent'> {
   const taskEvents = createMessageSubscription<ElectronMediaPipelineTaskEvent>(ipcRenderer, 'media-pipeline:task-event')
+  const editingProjectEvents = createMessageSubscription<ElectronMediaEditingProjectEvent>(ipcRenderer, 'media-pipeline:editing-project-event')
   return {
     saveMediaEditingProject: (input) => ipcRenderer.invoke('media-pipeline:save-editing-project', input),
     getMediaEditingProject: (input) => ipcRenderer.invoke('media-pipeline:get-editing-project', input),
@@ -19,6 +20,7 @@ export function createMediaPipelineAPI(ipcRenderer: IpcRenderer): Pick<ElectronA
     cancelMediaPipelineTask: (input) => ipcRenderer.invoke('media-pipeline:cancel-task', input),
     getMediaPipelineTaskLogs: (input) => ipcRenderer.invoke('media-pipeline:get-task-logs', input),
     onMediaPipelineTaskEvent: taskEvents.subscribe,
+    onMediaEditingProjectEvent: editingProjectEvents.subscribe,
   }
 }
 

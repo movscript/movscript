@@ -16,7 +16,7 @@ const CODE_KEYS: Record<string, string> = {
   INTERNAL_ERROR: 'apiErrors.internalError',
   CYCLE_DETECTED: 'apiErrors.cycleDetected',
   CONFLICT: 'apiErrors.conflict',
-  INVALID_MODEL_CONFIG: 'apiErrors.invalidModelConfig',
+  INVALID_MODEL_CATALOG: 'apiErrors.invalidModelCatalog',
 }
 
 const EXACT_KEYS: Record<string, string> = {
@@ -30,7 +30,7 @@ const EXACT_KEYS: Record<string, string> = {
   'not found': 'apiErrors.notFound',
   'folder not found': 'apiErrors.folderNotFound',
   'asset not found': 'apiErrors.assetNotFound',
-  'model config not found': 'apiErrors.modelConfigNotFound',
+  'model catalog entry or route not found': 'apiErrors.modelCatalogNotFound',
   'credential not found': 'apiErrors.credentialNotFound',
   'file required': 'apiErrors.fileRequired',
   'failed to read file': 'apiErrors.failedReadFile',
@@ -104,7 +104,7 @@ export function translateApiError(input: unknown, fallbackKey = 'common.requestF
   }
 
   if (body?.code && CODE_KEYS[body.code]) {
-    if (body.code === 'INVALID_MODEL_CONFIG' && raw) {
+    if (body.code === 'INVALID_MODEL_CATALOG' && raw) {
       return i18n.t(CODE_KEYS[body.code], { detail: raw, defaultValue: raw })
     }
     return i18n.t(CODE_KEYS[body.code], { defaultValue: raw || i18n.t(fallbackKey) })

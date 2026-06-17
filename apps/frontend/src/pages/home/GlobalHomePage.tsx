@@ -9,7 +9,7 @@ import { projectKeys } from '@/features/project/application/projectQueries'
 import { routeForWorkMode } from '@/routes/appRouteModel'
 import { ROUTES } from '@/routes/projectRoutes'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
-import { openAgentWindow, openProjectWindow } from '@/shared/infrastructure/appWindowContext'
+import { openAgentWindow, openCanvasWindow, openEditingWindow, openProjectWindow } from '@/shared/infrastructure/appWindowContext'
 import { api } from '@/shared/infrastructure/api'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { useLastWorkspaceStore } from '@/shared/infrastructure/session/lastWorkspaceStore'
@@ -59,12 +59,13 @@ export default function GlobalHomePage() {
   }
 
   function enterCanvasMode() {
-    navigate(ROUTES.canvases)
+    setWorkMode('tool')
+    void openCanvasWindow()
   }
 
   function enterEditingMode() {
     setWorkMode('tool')
-    navigate(ROUTES.editing)
+    void openEditingWindow()
   }
 
   function enterToolMode() {

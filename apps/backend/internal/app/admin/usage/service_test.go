@@ -2,6 +2,7 @@ package usage
 
 import (
 	"context"
+	"strconv"
 	"testing"
 	"time"
 
@@ -72,20 +73,24 @@ func TestServiceUsesGatewayUsageReporterContract(t *testing.T) {
 }
 
 func TestSummaryAggregatesFilteredUsage(t *testing.T) {
-	db := testutil.OpenSQLite(t, "adminusage.db", &persistencemodel.User{}, &persistencemodel.AICredential{}, &persistencemodel.AIModelConfig{}, &persistencemodel.AIModelCatalogEntry{}, &persistencemodel.UsageLog{})
+	db := testutil.OpenSQLite(t, "adminusage.db", &persistencemodel.User{}, &persistencemodel.AICredential{}, &persistencemodel.AIModelCatalogEntry{}, &persistencemodel.AIModelRouteBinding{}, &persistencemodel.UsageLog{})
 	now := time.Date(2026, 5, 16, 12, 0, 0, 0, time.UTC)
 	userA := createUsageUser(t, db, "alice")
 	userB := createUsageUser(t, db, "bob")
 	credA := createUsageCredential(t, db, "openai")
 	credB := createUsageCredential(t, db, "gemini")
-	modelA := createUsageModel(t, db, credA.ID, "gpt-4o")
-	modelB := createUsageModel(t, db, credB.ID, "gemini")
 	entryA := createUsageCatalogEntry(t, db, "gpt-4o", "provider-gpt-4o", "GPT 4o")
 	entryB := createUsageCatalogEntry(t, db, "gemini", "provider-gemini", "Gemini")
-	textLog := createUsageLog(t, db, userA.ID, modelA.ID, &entryA.ID, "text", 100, 200, 0, 0, 1.5, now.Add(-time.Hour))
-	imageLog := createUsageLog(t, db, userA.ID, modelA.ID, &entryA.ID, "image", 0, 0, 0, 2, 4, now.Add(-2*time.Hour))
-	createUsageLog(t, db, userB.ID, modelB.ID, &entryB.ID, "video", 0, 0, 8, 0, 9, now.Add(-3*time.Hour))
-	createUsageLog(t, db, userA.ID, modelA.ID, &entryA.ID, "text", 10, 20, 0, 0, 0.5, now.AddDate(0, 0, -40))
+	bindingA := createUsageRouteBinding(t, db, entryA.ID, credA.ID)
+	bindingB := createUsageRouteBinding(t, db, entryB.ID, credB.ID)
+	textLog := createUsageLog(t, db, userA.ID, entryA.ID, &entryA.ID, "text", 100, 200, 0, 0, 1.5, now.Add(-time.Hour))
+	imageLog := createUsageLog(t, db, userA.ID, entryA.ID, &entryA.ID, "image", 0, 0, 0, 2, 4, now.Add(-2*time.Hour))
+	videoLog := createUsageLog(t, db, userB.ID, entryB.ID, &entryB.ID, "video", 0, 0, 8, 0, 9, now.Add(-3*time.Hour))
+	oldLog := createUsageLog(t, db, userA.ID, entryA.ID, &entryA.ID, "text", 10, 20, 0, 0, 0.5, now.AddDate(0, 0, -40))
+	setUsageRouteBinding(t, db, textLog, bindingA.ID)
+	setUsageRouteBinding(t, db, imageLog, bindingA.ID)
+	setUsageRouteBinding(t, db, videoLog, bindingB.ID)
+	setUsageRouteBinding(t, db, oldLog, bindingA.ID)
 	gatewayKeyID := uint(21)
 	otherGatewayKeyID := uint(22)
 	setUsageGatewayKey(t, db, textLog, gatewayKeyID)
@@ -131,6 +136,73 @@ func TestSummaryAggregatesFilteredUsage(t *testing.T) {
 	}
 }
 
+func TestSummaryFiltersProviderByRouteBindingCredential(t *testing.T) {
+	db := testutil.OpenSQLite(t, "adminusage-route-provider.db",
+		&persistencemodel.User{},
+		&persistencemodel.AICredential{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
+		&persistencemodel.UsageLog{},
+	)
+	now := time.Date(2026, 5, 16, 12, 0, 0, 0, time.UTC)
+	user := createUsageUser(t, db, "alice")
+	legacyCred := createUsageCredential(t, db, "legacy")
+	routeCred := createUsageCredential(t, db, "route")
+	entry := createUsageCatalogEntry(t, db, "gpt-4o", "provider-gpt-4o", "GPT 4o")
+	binding := persistencemodel.AIModelRouteBinding{
+		CatalogEntryID: entry.ID,
+		SourceType:     persistencemodel.ModelRouteSourceLocalProvider,
+		CredentialID:   &routeCred.ID,
+		IsEnabled:      true,
+	}
+	if err := db.Create(&binding).Error; err != nil {
+		t.Fatalf("create route binding: %v", err)
+	}
+	log := createUsageLog(t, db, user.ID, entry.ID, &entry.ID, "text", 100, 200, 0, 0, 1.5, now)
+	if err := db.Model(&log).Update("route_binding_id", binding.ID).Error; err != nil {
+		t.Fatalf("set usage route binding: %v", err)
+	}
+
+	service := NewService(db)
+	summary, err := service.Summary(context.Background(), ListFilter{ProviderID: strconv.FormatUint(uint64(routeCred.ID), 10)})
+	if err != nil {
+		t.Fatalf("Summary(route provider) returned error: %v", err)
+	}
+	if summary.Totals.Records != 1 || summary.Totals.Cost != 1.5 {
+		t.Fatalf("route provider summary = %+v, want one matching usage row", summary.Totals)
+	}
+	legacySummary, err := service.Summary(context.Background(), ListFilter{ProviderID: strconv.FormatUint(uint64(legacyCred.ID), 10)})
+	if err != nil {
+		t.Fatalf("Summary(legacy provider) returned error: %v", err)
+	}
+	if legacySummary.Totals.Records != 0 {
+		t.Fatalf("legacy provider summary records = %d, want route binding credential to take precedence", legacySummary.Totals.Records)
+	}
+}
+
+func TestSummaryDoesNotFilterProviderByLegacyModelConfig(t *testing.T) {
+	db := testutil.OpenSQLite(t, "adminusage-no-legacy-provider-filter.db",
+		&persistencemodel.User{},
+		&persistencemodel.AICredential{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.UsageLog{},
+	)
+	now := time.Date(2026, 5, 16, 12, 0, 0, 0, time.UTC)
+	user := createUsageUser(t, db, "alice")
+	credential := createUsageCredential(t, db, "legacy-provider")
+	entry := createUsageCatalogEntry(t, db, "gpt-4o", "provider-gpt-4o", "GPT 4o")
+	createUsageLog(t, db, user.ID, entry.ID, &entry.ID, "text", 100, 200, 0, 0, 1.5, now)
+
+	service := NewService(db)
+	summary, err := service.Summary(context.Background(), ListFilter{ProviderID: strconv.FormatUint(uint64(credential.ID), 10)})
+	if err != nil {
+		t.Fatalf("Summary(legacy provider) returned error: %v", err)
+	}
+	if summary.Totals.Records != 0 {
+		t.Fatalf("legacy model config provider summary records = %d, want 0 without route binding", summary.Totals.Records)
+	}
+}
+
 type fakeUsageReporter struct {
 	page    providercontract.AIGatewayUsageLogPage
 	summary providercontract.AIGatewayUsageSummary
@@ -170,15 +242,6 @@ func createUsageCredential(t *testing.T, db *gorm.DB, name string) persistencemo
 	return credential
 }
 
-func createUsageModel(t *testing.T, db *gorm.DB, credentialID uint, modelDefID string) persistencemodel.AIModelConfig {
-	t.Helper()
-	model := persistencemodel.AIModelConfig{CredentialID: credentialID, ModelDefID: modelDefID, IsEnabled: true}
-	if err := db.Create(&model).Error; err != nil {
-		t.Fatalf("create model %q: %v", modelDefID, err)
-	}
-	return model
-}
-
 func createUsageCatalogEntry(t *testing.T, db *gorm.DB, publicModelID string, providerModelID string, displayName string) persistencemodel.AIModelCatalogEntry {
 	t.Helper()
 	entry := persistencemodel.AIModelCatalogEntry{PublicModelID: publicModelID, ProviderModelID: providerModelID, DisplayName: displayName, IsEnabled: true}
@@ -188,11 +251,25 @@ func createUsageCatalogEntry(t *testing.T, db *gorm.DB, publicModelID string, pr
 	return entry
 }
 
+func createUsageRouteBinding(t *testing.T, db *gorm.DB, catalogEntryID uint, credentialID uint) persistencemodel.AIModelRouteBinding {
+	t.Helper()
+	binding := persistencemodel.AIModelRouteBinding{
+		CatalogEntryID: catalogEntryID,
+		SourceType:     persistencemodel.ModelRouteSourceLocalProvider,
+		CredentialID:   &credentialID,
+		IsEnabled:      true,
+	}
+	if err := db.Create(&binding).Error; err != nil {
+		t.Fatalf("create route binding: %v", err)
+	}
+	return binding
+}
+
 func createUsageLog(t *testing.T, db *gorm.DB, userID uint, modelConfigID uint, catalogEntryID *uint, operation string, inputTokens int, outputTokens int, durationSec int, imageCount int, cost float64, createdAt time.Time) persistencemodel.UsageLog {
 	t.Helper()
 	log := persistencemodel.UsageLog{
 		UserID:                userID,
-		AIModelConfigID:       modelConfigID,
+		RuntimeModelID:        modelConfigID,
 		AIModelCatalogEntryID: catalogEntryID,
 		OperationType:         operation,
 		InputTokens:           inputTokens,
@@ -212,6 +289,13 @@ func createUsageLog(t *testing.T, db *gorm.DB, userID uint, modelConfigID uint, 
 
 func uintPtr(value uint) *uint {
 	return &value
+}
+
+func setUsageRouteBinding(t *testing.T, db *gorm.DB, log persistencemodel.UsageLog, routeBindingID uint) {
+	t.Helper()
+	if err := db.Model(&log).Update("route_binding_id", routeBindingID).Error; err != nil {
+		t.Fatalf("set usage route binding: %v", err)
+	}
 }
 
 func setUsageGatewayKey(t *testing.T, db *gorm.DB, log persistencemodel.UsageLog, gatewayKeyID uint) {

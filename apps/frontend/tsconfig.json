@@ -44,6 +44,9 @@
       "@movscript/core/plugins": [
         "../../packages/core/src/plugins/index.ts"
       ],
+      "@movscript/editing": [
+        "../../packages/editing/src/index.ts"
+      ],
       "@movscript/theme": [
         "../../packages/theme/src/index.ts"
       ],

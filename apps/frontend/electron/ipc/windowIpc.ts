@@ -1,5 +1,7 @@
 import { BrowserWindow, ipcMain } from 'electron'
 import type {
+  ElectronOpenCanvasWindowInput,
+  ElectronOpenEditingProjectWindowInput,
   ElectronOpenProjectWindowInput,
   ElectronWindowControlAction,
   ElectronWindowState,
@@ -7,8 +9,12 @@ import type {
 import {
   contextForWebContents,
   openAgentWindow,
+  openCanvasWindow,
+  openEditingWindow,
+  openEditingProjectWindow,
   openHomeWindow,
   openProjectWindow,
+  updateWindowRouteContext,
 } from '../services/appWindowRegistry'
 
 const trackedWindows = new WeakSet<BrowserWindow>()
@@ -59,6 +65,24 @@ export function registerWindowIpcHandlers(): void {
   ipcMain.handle('window:open-project', (_event, input?: ElectronOpenProjectWindowInput) => {
     if (!input) throw new Error('Project window input is required')
     return openProjectWindow(input)
+  })
+
+  ipcMain.handle('window:open-editing', () => {
+    return openEditingWindow()
+  })
+
+  ipcMain.handle('window:open-editing-project', (_event, input?: ElectronOpenEditingProjectWindowInput) => {
+    if (!input) throw new Error('Editing project window input is required')
+    return openEditingProjectWindow(input)
+  })
+
+  ipcMain.handle('window:open-canvas', (_event, input?: ElectronOpenCanvasWindowInput) => {
+    return openCanvasWindow(input)
+  })
+
+  ipcMain.handle('window:update-route-context', (event, input) => {
+    if (!input) throw new Error('Window route context input is required')
+    return updateWindowRouteContext(event.sender, input)
   })
 }
 

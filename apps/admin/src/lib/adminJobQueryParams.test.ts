@@ -20,7 +20,7 @@ test('debugTabFromSearchParams defaults to system unless job filters are present
 
 test('hasJobFilterSearchParams detects all job drilldown query params', () => {
   assert.equal(hasJobFilterSearchParams(new URLSearchParams()), false)
-  for (const key of ['job_id', 'status', 'job_type', 'feature_key', 'user_id', 'org_id', 'project_id', 'page']) {
+  for (const key of ['job_id', 'status', 'job_type', 'feature_key', 'model_id', 'user_id', 'org_id', 'project_id', 'page']) {
     assert.equal(hasJobFilterSearchParams(new URLSearchParams(`${key}=1`)), true, key)
   }
 })
@@ -40,6 +40,7 @@ test('jobFiltersFromSearchParams parses job filter params', () => {
     status: 'failed',
     jobType: 'video',
     featureKey: 'video_v2v',
+    modelId: '',
     userId: '7',
     orgId: '3',
     projectId: '4',

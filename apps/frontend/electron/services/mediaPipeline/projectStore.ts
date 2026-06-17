@@ -1,11 +1,29 @@
 import { mkdir, readFile, writeFile } from 'fs/promises'
 import { dirname, join } from 'path'
 
-import type { MediaPipelineEditingProject } from './types'
+import type { MediaPipelineEditingProject, MediaPipelineEditingProjectEvent } from './types'
 import { stableMediaWorkspacePathPart } from './pathPart'
 
 export interface MediaPipelineProjectStoreResult {
   status: 'ok'
+  editingProject: MediaPipelineEditingProject
+  editing_project: MediaPipelineEditingProject
+  projectPath: string
+  project_path: string
+}
+
+export interface MediaPipelineProjectConflictResult {
+  status: 'conflict'
+  code: 'EDITING_PROJECT_REVISION_CONFLICT'
+  message: string
+  projectId: string
+  project_id: string
+  editingProjectId: string
+  editing_project_id: string
+  expectedRevision?: number
+  expected_revision?: number
+  currentRevision?: number
+  current_revision?: number
   editingProject: MediaPipelineEditingProject
   editing_project: MediaPipelineEditingProject
   projectPath: string
@@ -23,29 +41,79 @@ export interface MediaPipelineProjectNotFoundResult {
 }
 
 export type MediaPipelineProjectGetResult = MediaPipelineProjectStoreResult | MediaPipelineProjectNotFoundResult
+export type MediaPipelineProjectSaveResult = MediaPipelineProjectStoreResult | MediaPipelineProjectConflictResult
+
+const projectEventListeners = new Set<(event: MediaPipelineEditingProjectEvent) => void>()
+
+export function onMediaPipelineEditingProjectEvent(listener: (event: MediaPipelineEditingProjectEvent) => void): () => void {
+  projectEventListeners.add(listener)
+  return () => {
+    projectEventListeners.delete(listener)
+  }
+}
 
 export async function saveMediaPipelineEditingProject(
   editingProject: MediaPipelineEditingProject,
-  options: { userDataDir: string },
-): Promise<MediaPipelineProjectStoreResult> {
+  options: { userDataDir: string; expectedRevision?: number },
+): Promise<MediaPipelineProjectSaveResult> {
   assertMediaPipelineEditingProject(editingProject, 'save request')
   const projectPath = editingProjectPath({
     userDataDir: options.userDataDir,
     projectId: editingProject.projectId,
     editingProjectId: editingProject.id,
   })
+  if (options.expectedRevision !== undefined) {
+    const current = await readStoredEditingProjectForPath(projectPath)
+      ?? await readStoredEditingProjectForPath(legacyEditingProjectPath({
+        userDataDir: options.userDataDir,
+        projectId: editingProject.projectId,
+        editingProjectId: editingProject.id,
+      }))
+    if (current && current.editingProject.revision !== options.expectedRevision) {
+      return {
+        status: 'conflict',
+        code: 'EDITING_PROJECT_REVISION_CONFLICT',
+        message: `Media editing project revision conflict: expected ${options.expectedRevision}, found ${current.editingProject.revision ?? 'unknown'}`,
+        projectId: editingProject.projectId,
+        project_id: editingProject.projectId,
+        editingProjectId: editingProject.id,
+        editing_project_id: editingProject.id,
+        expectedRevision: options.expectedRevision,
+        expected_revision: options.expectedRevision,
+        currentRevision: current.editingProject.revision,
+        current_revision: current.editingProject.revision,
+        editingProject: current.editingProject,
+        editing_project: current.editingProject,
+        projectPath: current.projectPath,
+        project_path: current.projectPath,
+      }
+    }
+  }
   await mkdir(dirname(projectPath), { recursive: true })
   await writeFile(projectPath, `${JSON.stringify({
     schema: 'movscript.media_editing_project.v1',
     editingProject,
   }, null, 2)}\n`)
-  return {
+  const result = {
     status: 'ok',
     editingProject,
     editing_project: editingProject,
     projectPath,
     project_path: projectPath,
-  }
+  } satisfies MediaPipelineProjectStoreResult
+  emitEditingProjectEvent({
+    type: 'saved',
+    projectId: editingProject.projectId,
+    project_id: editingProject.projectId,
+    editingProjectId: editingProject.id,
+    editing_project_id: editingProject.id,
+    revision: editingProject.revision,
+    editingProject,
+    editing_project: editingProject,
+    projectPath,
+    project_path: projectPath,
+  })
+  return result
 }
 
 export async function getMediaPipelineEditingProject(
@@ -95,6 +163,19 @@ async function readProjectStoreFile(projectPath: string): Promise<{ projectPath:
     throw error
   })
   return text === undefined ? undefined : { projectPath, text }
+}
+
+async function readStoredEditingProjectForPath(projectPath: string): Promise<{ projectPath: string; editingProject: MediaPipelineEditingProject } | undefined> {
+  const readResult = await readProjectStoreFile(projectPath)
+  if (!readResult) return undefined
+  const parsed = JSON.parse(readResult.text) as { editingProject?: MediaPipelineEditingProject; editing_project?: MediaPipelineEditingProject }
+  const editingProject = parsed.editingProject ?? parsed.editing_project
+  assertMediaPipelineEditingProject(editingProject, readResult.projectPath)
+  return { projectPath: readResult.projectPath, editingProject }
+}
+
+function emitEditingProjectEvent(event: MediaPipelineEditingProjectEvent): void {
+  for (const listener of Array.from(projectEventListeners)) listener(event)
 }
 
 function editingProjectPath(input: {

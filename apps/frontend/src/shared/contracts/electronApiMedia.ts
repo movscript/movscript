@@ -37,6 +37,7 @@ export type ElectronTimelineVideoInput = {
     speed?: number
     fadeInMs?: number
     fadeOutMs?: number
+    fit?: 'crop' | 'contain' | 'cover' | 'none'
     cropLeftPercent?: number
     cropRightPercent?: number
     cropTopPercent?: number
@@ -59,6 +60,7 @@ export type ElectronTimelineVideoInput = {
     endMs: number
     timelineStartMs: number
     volume?: number
+    speed?: number
     fadeInMs?: number
     fadeOutMs?: number
   }>
@@ -71,6 +73,9 @@ export type ElectronTimelineVideoInput = {
     sourceStartMs?: number
     sourceEndMs?: number
     layerIndex?: number
+    volume?: number
+    muted?: boolean
+    speed?: number
     fadeInMs?: number
     fadeOutMs?: number
     cropLeftPercent?: number
@@ -83,6 +88,9 @@ export type ElectronTimelineVideoInput = {
     opacityPercent?: number
   }>
   outputName?: string
+  width?: number
+  height?: number
+  background?: string
 }
 
 export type ElectronTimelineVideoResult = {
@@ -161,84 +169,29 @@ export type ElectronMediaPipelineCapabilities = {
   project_store: boolean
 }
 
-export type ElectronMediaPipelineAssetDescriptor = {
-  id: string
-  sourceKind: 'backend_resource' | 'local_file' | 'generated_resource' | 'bytes'
-  assetType: 'video' | 'image' | 'audio' | 'text' | 'subtitle'
-  resourceId?: number
+export type ElectronMediaPipelineAssetDescriptor = MediaAssetDescriptor & {
   resourceVersion?: string | number
   resource_version?: string | number
-  localPath?: string
   bytes?: ArrayBuffer | Uint8Array | number[]
   base64?: string
-  mimeType?: string
-  checksum?: string
-  label?: string
-  metadata?: Record<string, unknown>
 }
 
-export type ElectronMediaPipelineClip = {
-  id: string
-  assetType: 'video' | 'image' | 'audio' | 'text' | 'subtitle'
+export type ElectronMediaPipelineClip = Omit<MediaClip, 'asset'> & {
   asset?: ElectronMediaPipelineAssetDescriptor
-  timelineStartMs: number
-  durationMs: number
-  sourceStartMs?: number
-  sourceEndMs?: number
-  volume?: number
-  muted?: boolean
-  fit?: 'crop' | 'contain' | 'cover' | 'none'
-  opacity?: number
-  text?: {
-    content: string
-    fontSize?: number
-    fontFamily?: string
-    color?: string
-    backgroundColor?: string
-    position?: string
-    backgroundOpacity?: number
-    align?: 'left' | 'center' | 'right'
-  }
-  subtitle?: {
-    resourceId?: number
-    format?: 'srt' | 'vtt' | 'ass' | 'ssa'
-    burnIn?: boolean
-    renderer?: 'drawtext' | 'ass' | 'libass'
-    style?: {
-      content?: string
-      fontSize?: number
-      fontFamily?: string
-      color?: string
-      backgroundColor?: string
-      position?: string
-      backgroundOpacity?: number
-      align?: 'left' | 'center' | 'right'
-    }
-  }
 }
 
-export type ElectronMediaPipelineTimelineRecipe = {
-  version: 1
-  id: string
-  fps: number
-  width: number
-  height: number
-  background: string
-  durationMs?: number
-  tracks: Array<{
-    id: string
-    type: 'video' | 'image' | 'audio' | 'text' | 'subtitle' | 'effect'
-    zIndex: number
-    muted?: boolean
+export type ElectronMediaPipelineTrack = Omit<MediaTrack, 'clips'> & {
     clips: ElectronMediaPipelineClip[]
-  }>
 }
 
-export type ElectronMediaPipelineEditingProject = {
-  version: 1
-  id: string
-  projectId: string
-  title: string
+export type ElectronMediaPipelineTimelineRecipe = Omit<MediaTimelineRecipe, 'tracks'> & {
+  tracks: ElectronMediaPipelineTrack[]
+}
+
+export type ElectronMediaPipelineEditingProject = Omit<
+  MediaEditingProject,
+  'source' | 'timeline' | 'assets' | 'workspace' | 'provenance' | 'createdAt' | 'updatedAt' | 'revision'
+> & {
   source?: Record<string, unknown>
   timeline: ElectronMediaPipelineTimelineRecipe
   assets: {
@@ -251,7 +204,7 @@ export type ElectronMediaPipelineEditingProject = {
   revision?: number
 }
 
-export type ElectronMediaEditingProjectSaveResult = {
+export type ElectronMediaEditingProjectStoreResult = {
   status: 'ok'
   editingProject: ElectronMediaPipelineEditingProject
   editing_project: ElectronMediaPipelineEditingProject
@@ -259,8 +212,39 @@ export type ElectronMediaEditingProjectSaveResult = {
   project_path: string
 }
 
+export type ElectronMediaEditingProjectSaveResult = ElectronMediaEditingProjectStoreResult | {
+  status: 'conflict'
+  code: 'EDITING_PROJECT_REVISION_CONFLICT'
+  message: string
+  projectId: string
+  project_id: string
+  editingProjectId: string
+  editing_project_id: string
+  expectedRevision?: number
+  expected_revision?: number
+  currentRevision?: number
+  current_revision?: number
+  editingProject: ElectronMediaPipelineEditingProject
+  editing_project: ElectronMediaPipelineEditingProject
+  projectPath: string
+  project_path: string
+}
+
+export type ElectronMediaEditingProjectEvent = {
+  type: 'saved'
+  projectId: string
+  project_id: string
+  editingProjectId: string
+  editing_project_id: string
+  revision?: number
+  editingProject: ElectronMediaPipelineEditingProject
+  editing_project: ElectronMediaPipelineEditingProject
+  projectPath: string
+  project_path: string
+}
+
 export type ElectronMediaEditingProjectGetResult =
-  | ElectronMediaEditingProjectSaveResult
+  | ElectronMediaEditingProjectStoreResult
   | {
     status: 'not_found'
     projectId: string
@@ -504,3 +488,10 @@ export type ElectronMediaPipelineTaskLogs = {
   text?: string
   logPath?: string
 }
+import type {
+  MediaAssetDescriptor,
+  MediaClip,
+  MediaEditingProject,
+  MediaTimelineRecipe,
+  MediaTrack,
+} from '@movscript/editing'

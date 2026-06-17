@@ -2,7 +2,6 @@ package ai
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
@@ -15,113 +14,19 @@ var runtimeProviderHealth sync.Map
 
 const runtimeProviderFailureCooldown = 30 * time.Second
 
-func (s *AIService) loadConfig(modelConfigID uint, requiredCap string) (persistencemodel.AIModelConfig, Provider, *ModelDef, error) {
-	var cfg persistencemodel.AIModelConfig
-	if err := s.db.First(&cfg, modelConfigID).Error; err != nil {
-		return cfg, nil, nil, fmt.Errorf("model config id=%d not found", modelConfigID)
-	}
-	if !cfg.IsEnabled {
-		return cfg, nil, nil, fmt.Errorf("model config id=%d is disabled", modelConfigID)
-	}
-	provider, def, err := s.registry.BuildForConfig(cfg)
-	if err != nil {
-		return cfg, nil, nil, err
-	}
-	found := false
-	for _, cap := range def.Capabilities {
-		if cap == requiredCap {
-			found = true
-			break
-		}
-	}
-	if !found {
-		return cfg, nil, nil, fmt.Errorf("model %q does not support %s", def.DisplayName, requiredCap)
-	}
-	return cfg, provider, def, nil
-}
-
-func (s *AIService) loadTextConfig(modelConfigID uint) (persistencemodel.AIModelConfig, Provider, *ModelDef, string, error) {
-	var lastErr error
-	for _, cap := range textRuntimeCapabilities() {
-		cfg, provider, def, err := s.loadConfig(modelConfigID, cap)
-		if err == nil {
-			return cfg, provider, def, cap, nil
-		}
-		lastErr = err
-	}
-	if lastErr != nil {
-		return persistencemodel.AIModelConfig{}, nil, nil, "", lastErr
-	}
-	return persistencemodel.AIModelConfig{}, nil, nil, "", fmt.Errorf("no text runtime capability requested")
-}
-
-// ResolveRuntimeModelConfig expands a public logical model ID into the concrete
-// provider-backed model config to use for this request.
-func (s *AIService) ResolveRuntimeModelConfig(modelConfigID uint, requiredCap string) (uint, error) {
-	chosen, _, err := s.resolveRuntimeModelCandidate(modelConfigID, requiredCap, nil)
-	if err != nil {
-		return 0, err
-	}
-	return chosen.cfg.ID, nil
-}
-
-func (s *AIService) resolveRuntimeModelCandidate(modelConfigID uint, requiredCap string, preferredAdapterTypes []string) (runtimeModelCandidate, bool, error) {
-	candidates, err := s.runtimeModelCandidates(modelConfigID, requiredCap)
-	if err != nil {
-		return runtimeModelCandidate{}, false, err
-	}
-	if len(candidates) == 0 {
-		return runtimeModelCandidate{}, false, fmt.Errorf("no available provider variant for model config id=%d and capability %s", modelConfigID, requiredCap)
-	}
-	candidates, preferred := filterPreferredRuntimeCandidates(candidates, preferredAdapterTypes)
-	ordered := runtimeModelAttemptOrder(runtimeModelRoundRobinKey(candidates[0].logicalID, requiredCap), candidates)
-	return ordered[0], preferred, nil
-}
-
-func (s *AIService) ResolveRuntimeTextModel(modelConfigID uint) (uint, error) {
-	return s.resolveRuntimeModelAnyCapability(modelConfigID, textRuntimeCapabilities())
-}
-
-func (s *AIService) ResolveRuntimeGenerationModel(modelConfigID uint, outputType string) (uint, error) {
-	switch outputType {
-	case CapabilityImage, CapabilityImageEdit:
-		return s.resolveRuntimeModelAnyCapability(modelConfigID, []string{outputType})
-	case CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V:
-		return s.resolveRuntimeModelAnyCapability(modelConfigID, []string{outputType})
-	case CapabilityAudioTTS, CapabilityAudioSTT, CapabilityAudioMusic, CapabilityAudioSFX, CapabilitySubAlign, CapabilitySubTranslate:
-		return s.resolveRuntimeModelAnyCapability(modelConfigID, []string{outputType})
-	default:
-		return 0, fmt.Errorf("unsupported runtime output type %q", outputType)
-	}
-}
-
-func (s *AIService) resolveRuntimeModelAnyCapability(modelConfigID uint, caps []string) (uint, error) {
-	var lastErr error
-	for _, cap := range caps {
-		id, err := s.ResolveRuntimeModelConfig(modelConfigID, cap)
-		if err == nil {
-			return id, nil
-		}
-		lastErr = err
-	}
-	if lastErr != nil {
-		return 0, lastErr
-	}
-	return 0, fmt.Errorf("no runtime capability requested")
-}
-
 type runtimeModelCandidate struct {
-	cfg         persistencemodel.AIModelConfig
-	adapterType string
-	logicalID   string
-	priority    int
-	capability  string
+	id             uint
+	logicalID      string
+	priority       int
+	capacityWeight int
+	maxConcurrency int
+	capability     string
 }
 
 type ModelRouteRequest struct {
 	ModelID               string
-	ModelConfigID         uint
 	CatalogEntryID        uint
+	RouteBindingID        uint
 	Capability            string
 	RouteGroup            string
 	PreferredAdapterTypes []string
@@ -131,7 +36,7 @@ type ModelRouteRequest struct {
 
 type ModelRoute struct {
 	ModelID         string
-	ModelConfigID   uint // resolved compatibility route id for legacy clients
+	RuntimeModelID  uint
 	CatalogEntryID  uint
 	RouteBindingID  uint
 	CredentialID    uint
@@ -150,32 +55,53 @@ type ModelRoutePlan struct {
 }
 
 type OpenAIProxyTarget struct {
-	ModelConfigID   uint
+	RuntimeModelID  uint
 	ProviderModelID string
 	BaseURL         string
 	APIKey          string
 }
 
-func (s *AIService) OpenAIProxyTarget(ctx context.Context, userID uint, modelConfigID uint) (OpenAIProxyTarget, error) {
-	var lastErr error
-	for _, capability := range textRuntimeCapabilities() {
-		target, err := s.OpenAIProxyTargetForCapability(ctx, userID, modelConfigID, capability)
-		if err == nil {
-			return target, nil
+func (s *AIService) OpenAIProxyTargetForRoute(ctx context.Context, userID uint, route ModelRoute, requiredCap string) (OpenAIProxyTarget, error) {
+	if strings.TrimSpace(route.RouteGroup) != "" {
+		ctx = WithProviderRouteGroup(ctx, strings.TrimSpace(route.RouteGroup))
+	}
+	if target, handled, err := s.openAIProxyTargetForCredentialCatalogRoute(ctx, userID, route, requiredCap); handled || err != nil {
+		if err != nil {
+			return OpenAIProxyTarget{}, err
 		}
-		lastErr = err
+		return target, nil
 	}
-	if lastErr != nil {
-		return OpenAIProxyTarget{}, lastErr
+	if target, handled, err := s.editionOpenAIProxyTargetForCatalogRoute(ctx, userID, route, requiredCap); handled || err != nil {
+		if err != nil {
+			return OpenAIProxyTarget{}, err
+		}
+		return target, nil
 	}
-	return OpenAIProxyTarget{}, fmt.Errorf("no text runtime capability requested")
+	return OpenAIProxyTarget{}, fmt.Errorf("catalog route is required for OpenAI proxy target")
 }
 
-func (s *AIService) OpenAIProxyTargetForCapability(ctx context.Context, userID uint, modelConfigID uint, requiredCap string) (OpenAIProxyTarget, error) {
+func (s *AIService) openAIProxyTargetForCredentialCatalogRoute(ctx context.Context, userID uint, route ModelRoute, requiredCap string) (OpenAIProxyTarget, bool, error) {
+	if route.CatalogEntryID == 0 || route.CredentialID == 0 {
+		return OpenAIProxyTarget{}, false, nil
+	}
+	definition, handled, err := s.catalogRouteDefinition(ctx, route, requiredCap)
+	if handled || err != nil {
+		if err != nil {
+			return OpenAIProxyTarget{}, true, err
+		}
+	} else {
+		return OpenAIProxyTarget{}, false, nil
+	}
+	var cred persistencemodel.AICredential
+	if err := s.db.WithContext(ctx).
+		Where("id = ? AND is_enabled = true AND deleted_at IS NULL", route.CredentialID).
+		First(&cred).Error; err != nil {
+		return OpenAIProxyTarget{}, true, fmt.Errorf("credential id=%d not found or disabled", route.CredentialID)
+	}
 	ctx = withProviderUserID(ctx, userID)
-	cfg, provider, def, err := s.loadConfig(modelConfigID, requiredCap)
+	provider, err := s.registry.BuildForModelCredential(cred, definition.def)
 	if err != nil {
-		return OpenAIProxyTarget{}, err
+		return OpenAIProxyTarget{}, true, err
 	}
 	baseURL := ""
 	apiKey := ""
@@ -188,30 +114,17 @@ func (s *AIService) OpenAIProxyTargetForCapability(ctx context.Context, userID u
 	}:
 		baseURL, apiKey, err = adapter.ProxyTarget(ctx)
 		if err != nil {
-			return OpenAIProxyTarget{}, err
+			return OpenAIProxyTarget{}, true, err
 		}
 	default:
-		return OpenAIProxyTarget{}, fmt.Errorf("model config id=%d is not backed by an OpenAI-compatible provider", modelConfigID)
+		return OpenAIProxyTarget{}, true, fmt.Errorf("catalog route id=%d is not backed by an OpenAI-compatible provider", route.CatalogEntryID)
 	}
 	return OpenAIProxyTarget{
-		ModelConfigID:   cfg.ID,
-		ProviderModelID: resolveModelID(cfg, def),
+		RuntimeModelID:  route.CatalogEntryID,
+		ProviderModelID: route.ProviderModelID,
 		BaseURL:         baseURL,
 		APIKey:          apiKey,
-	}, nil
-}
-
-func (s *AIService) OpenAIProxyTargetForRoute(ctx context.Context, userID uint, route ModelRoute, requiredCap string) (OpenAIProxyTarget, error) {
-	if strings.TrimSpace(route.RouteGroup) != "" {
-		ctx = WithProviderRouteGroup(ctx, strings.TrimSpace(route.RouteGroup))
-	}
-	if target, handled, err := s.editionOpenAIProxyTargetForCatalogRoute(ctx, userID, route, requiredCap); handled || err != nil {
-		if err != nil {
-			return OpenAIProxyTarget{}, err
-		}
-		return target, nil
-	}
-	return s.OpenAIProxyTargetForCapability(ctx, userID, route.ModelConfigID, requiredCap)
+	}, true, nil
 }
 
 func (s *AIService) ResolveModelRoute(req ModelRouteRequest) (ModelRoute, error) {
@@ -241,28 +154,9 @@ func (s *AIService) ResolveModelRoutePlan(req ModelRouteRequest) (ModelRoutePlan
 		if s.editionModelCatalogOnly() {
 			return ModelRoutePlan{}, fmt.Errorf("catalog model %q not found for capability %s", modelID, capability)
 		}
-		candidates, err := s.runtimeModelCandidatesByModelID(modelID, capability)
-		if err != nil {
-			return ModelRoutePlan{}, err
-		}
-		if len(candidates) == 0 {
-			return ModelRoutePlan{}, fmt.Errorf("model %q not found for capability %s", modelID, capability)
-		}
-		candidates, preferred := filterPreferredRuntimeCandidates(candidates, req.PreferredAdapterTypes)
-		candidates, budgetAware, err := filterBudgetRuntimeCandidates(candidates, capability, req.EstimatedUsage, req.MaxEstimatedCost)
-		if err != nil {
-			return ModelRoutePlan{}, err
-		}
-		ordered := runtimeModelAttemptOrder(runtimeModelRoundRobinKey(candidates[0].logicalID, capability), candidates)
-		selectionReason := modelIDRouteSelectionReason(preferred, budgetAware)
-		return ModelRoutePlan{
-			ModelID:         ordered[0].logicalID,
-			Capability:      capability,
-			Routes:          modelRoutesFromCandidates(ordered, capability, req.EstimatedUsage, selectionReason),
-			SelectionReason: selectionReason,
-		}, nil
+		return ModelRoutePlan{}, fmt.Errorf("catalog model %q not found for capability %s", modelID, capability)
 	}
-	if req.ModelConfigID == 0 && req.CatalogEntryID == 0 {
+	if req.CatalogEntryID == 0 && req.RouteBindingID == 0 {
 		return ModelRoutePlan{}, fmt.Errorf("model_id is required")
 	}
 	if plan, handled, err := s.resolveCatalogModelRoutePlan(req, capability, ""); handled || err != nil {
@@ -274,49 +168,13 @@ func (s *AIService) ResolveModelRoutePlan(req ModelRouteRequest) (ModelRoutePlan
 	if req.CatalogEntryID != 0 {
 		return ModelRoutePlan{}, fmt.Errorf("catalog entry id=%d not found for capability %s", req.CatalogEntryID, capability)
 	}
+	if req.RouteBindingID != 0 {
+		return ModelRoutePlan{}, fmt.Errorf("route binding id=%d not found for capability %s", req.RouteBindingID, capability)
+	}
 	if s.editionModelCatalogOnly() {
 		return ModelRoutePlan{}, fmt.Errorf("catalog_entry_id is required for catalog-only routing")
 	}
-	candidates, err := s.runtimeModelCandidates(req.ModelConfigID, capability)
-	if err != nil {
-		return ModelRoutePlan{}, err
-	}
-	if len(candidates) == 0 {
-		return ModelRoutePlan{}, fmt.Errorf("no available provider variant for model config id=%d and capability %s", req.ModelConfigID, capability)
-	}
-	candidates, preferred := filterPreferredRuntimeCandidates(candidates, req.PreferredAdapterTypes)
-	candidates, budgetAware, err := filterBudgetRuntimeCandidates(candidates, capability, req.EstimatedUsage, req.MaxEstimatedCost)
-	if err != nil {
-		return ModelRoutePlan{}, err
-	}
-	ordered := runtimeModelAttemptOrder(runtimeModelRoundRobinKey(candidates[0].logicalID, capability), candidates)
-	selectionReason := localProviderRouteSelectionReason(preferred, budgetAware)
-	return ModelRoutePlan{
-		ModelID:         ordered[0].logicalID,
-		Capability:      capability,
-		Routes:          modelRoutesFromCandidates(ordered, capability, req.EstimatedUsage, selectionReason),
-		SelectionReason: selectionReason,
-	}, nil
-}
-
-func modelRoutesFromCandidates(candidates []runtimeModelCandidate, capability string, estimate UsageEstimate, selectionReason string) []ModelRoute {
-	routes := make([]ModelRoute, 0, len(candidates))
-	for i, candidate := range candidates {
-		def := resolveDefFromConfig(candidate.cfg, candidate.adapterType)
-		reason := selectionReason
-		if i > 0 {
-			reason = "fallback_candidate"
-		}
-		routes = append(routes, ModelRoute{
-			ModelID:         candidate.logicalID,
-			ModelConfigID:   candidate.cfg.ID,
-			SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
-			ProviderModelID: resolveModelID(candidate.cfg, def),
-			SelectionReason: reason,
-			EstimatedCost:   estimatedRuntimeCandidateCost(candidate, capability, estimate),
-		})
-	}
-	return routes
+	return ModelRoutePlan{}, fmt.Errorf("catalog_entry_id or route_binding_id is required")
 }
 
 func (s *AIService) ResolveTextModelRoute(modelID string) (ModelRoute, error) {
@@ -345,139 +203,6 @@ func (s *AIService) ResolveGenerationModelRoute(modelID string, outputType strin
 	}
 }
 
-func (s *AIService) runtimeModelCandidates(modelConfigID uint, requiredCap string) ([]runtimeModelCandidate, error) {
-	var base modelConfigWithProvider
-	if err := s.db.Model(&persistencemodel.AIModelConfig{}).
-		Select("ai_model_configs.*, ai_credentials.display_name AS provider_name, ai_credentials.adapter_type AS adapter_type").
-		Joins("JOIN ai_credentials ON ai_credentials.id = ai_model_configs.credential_id").
-		Where("ai_model_configs.id = ? AND ai_model_configs.deleted_at IS NULL AND ai_credentials.deleted_at IS NULL", modelConfigID).
-		First(&base).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("model config id=%d not found", modelConfigID)
-		}
-		return nil, err
-	}
-	if !base.IsEnabled {
-		return nil, fmt.Errorf("model config id=%d is disabled", modelConfigID)
-	}
-	def := resolveDefFromConfig(base.AIModelConfig, base.AdapterType)
-	if !modelHasCapability(def, requiredCap) {
-		return nil, fmt.Errorf("model %q does not support %s", def.DisplayName, requiredCap)
-	}
-	logicalID := logicalModelID(base.AIModelConfig, def)
-	if logicalID == "" {
-		return []runtimeModelCandidate{{cfg: base.AIModelConfig, adapterType: base.AdapterType, logicalID: fmt.Sprintf("config:%d", base.ID), priority: base.Priority, capability: requiredCap}}, nil
-	}
-
-	var rows []modelConfigWithProvider
-	if err := s.db.Model(&persistencemodel.AIModelConfig{}).
-		Select("ai_model_configs.*, ai_credentials.display_name AS provider_name, ai_credentials.adapter_type AS adapter_type").
-		Joins("JOIN ai_credentials ON ai_credentials.id = ai_model_configs.credential_id").
-		Where("ai_model_configs.is_enabled = true AND ai_model_configs.deleted_at IS NULL AND ai_credentials.is_enabled = true AND ai_credentials.deleted_at IS NULL").
-		Order("ai_model_configs.priority DESC, ai_model_configs.id ASC").
-		Scan(&rows).Error; err != nil {
-		return nil, err
-	}
-	candidates := make([]runtimeModelCandidate, 0)
-	for _, row := range rows {
-		def := resolveDefFromConfig(row.AIModelConfig, row.AdapterType)
-		if !modelHasCapability(def, requiredCap) || logicalModelID(row.AIModelConfig, def) != logicalID {
-			continue
-		}
-		candidates = append(candidates, runtimeModelCandidate{cfg: row.AIModelConfig, adapterType: row.AdapterType, logicalID: logicalID, priority: row.Priority, capability: requiredCap})
-	}
-	return candidates, nil
-}
-
-func (s *AIService) runtimeTextModelCandidates(modelConfigID uint) ([]runtimeModelCandidate, error) {
-	var (
-		out     []runtimeModelCandidate
-		lastErr error
-	)
-	seen := map[uint]bool{}
-	for _, cap := range textRuntimeCapabilities() {
-		candidates, err := s.runtimeModelCandidates(modelConfigID, cap)
-		if err != nil {
-			lastErr = err
-			continue
-		}
-		for _, candidate := range candidates {
-			if seen[candidate.cfg.ID] {
-				continue
-			}
-			seen[candidate.cfg.ID] = true
-			candidate.capability = cap
-			out = append(out, candidate)
-		}
-	}
-	if len(out) > 0 {
-		return out, nil
-	}
-	if lastErr != nil {
-		return nil, lastErr
-	}
-	return nil, fmt.Errorf("no available provider variant for model config id=%d and text/reasoning capability", modelConfigID)
-}
-
-func (s *AIService) runtimeModelCandidatesByModelID(modelID, requiredCap string) ([]runtimeModelCandidate, error) {
-	requested := strings.TrimSpace(modelID)
-	if requested == "" {
-		return nil, fmt.Errorf("model_id is required")
-	}
-	var rows []modelConfigWithProvider
-	if err := s.db.Model(&persistencemodel.AIModelConfig{}).
-		Select("ai_model_configs.*, ai_credentials.display_name AS provider_name, ai_credentials.adapter_type AS adapter_type").
-		Joins("JOIN ai_credentials ON ai_credentials.id = ai_model_configs.credential_id").
-		Where("ai_model_configs.is_enabled = true AND ai_model_configs.deleted_at IS NULL AND ai_credentials.is_enabled = true AND ai_credentials.deleted_at IS NULL").
-		Order("ai_model_configs.priority DESC, ai_model_configs.id ASC").
-		Scan(&rows).Error; err != nil {
-		return nil, err
-	}
-
-	type rowDef struct {
-		row modelConfigWithProvider
-		def *ModelDef
-	}
-	rowDefs := make([]rowDef, 0, len(rows))
-	matchedLogicalIDs := map[string]bool{}
-	for _, row := range rows {
-		def := resolveDefFromConfig(row.AIModelConfig, row.AdapterType)
-		rowDefs = append(rowDefs, rowDef{row: row, def: def})
-		if !modelHasCapability(def, requiredCap) || !modelIDMatches(row.AIModelConfig, def, requested) {
-			continue
-		}
-		logicalID := logicalModelID(row.AIModelConfig, def)
-		if logicalID == "" {
-			logicalID = fmt.Sprintf("config:%d", row.ID)
-		}
-		matchedLogicalIDs[logicalID] = true
-	}
-	if len(matchedLogicalIDs) == 0 {
-		return nil, nil
-	}
-
-	candidates := make([]runtimeModelCandidate, 0)
-	for _, item := range rowDefs {
-		if !modelHasCapability(item.def, requiredCap) {
-			continue
-		}
-		logicalID := logicalModelID(item.row.AIModelConfig, item.def)
-		if logicalID == "" {
-			logicalID = fmt.Sprintf("config:%d", item.row.ID)
-		}
-		if matchedLogicalIDs[logicalID] {
-			candidates = append(candidates, runtimeModelCandidate{
-				cfg:         item.row.AIModelConfig,
-				adapterType: item.row.AdapterType,
-				logicalID:   logicalID,
-				priority:    item.row.Priority,
-				capability:  requiredCap,
-			})
-		}
-	}
-	return candidates, nil
-}
-
 type runtimeProviderHealthState struct {
 	mu                  sync.Mutex
 	inFlight            int
@@ -497,13 +222,13 @@ type runtimeProviderHealthView struct {
 	openUntil           *time.Time
 }
 
-func runtimeProviderHealthFor(modelConfigID uint) *runtimeProviderHealthState {
-	value, _ := runtimeProviderHealth.LoadOrStore(modelConfigID, &runtimeProviderHealthState{})
+func runtimeProviderHealthFor(runtimeModelID uint) *runtimeProviderHealthState {
+	value, _ := runtimeProviderHealth.LoadOrStore(runtimeModelID, &runtimeProviderHealthState{})
 	return value.(*runtimeProviderHealthState)
 }
 
-func runtimeProviderHealthSnapshot(modelConfigID uint) runtimeProviderHealthView {
-	state := runtimeProviderHealthFor(modelConfigID)
+func runtimeProviderHealthSnapshot(runtimeModelID uint) runtimeProviderHealthView {
+	state := runtimeProviderHealthFor(runtimeModelID)
 	state.mu.Lock()
 	defer state.mu.Unlock()
 	total := state.successes + state.failures
@@ -522,8 +247,8 @@ func runtimeProviderHealthSnapshot(modelConfigID uint) runtimeProviderHealthView
 	}
 }
 
-func beginRuntimeProviderAttempt(modelConfigID uint) func(error) {
-	state := runtimeProviderHealthFor(modelConfigID)
+func beginRuntimeProviderAttempt(runtimeModelID uint) func(error) {
+	state := runtimeProviderHealthFor(runtimeModelID)
 	state.mu.Lock()
 	state.inFlight++
 	state.mu.Unlock()
@@ -546,7 +271,7 @@ func beginRuntimeProviderAttempt(modelConfigID uint) func(error) {
 }
 
 type RuntimeProviderHealth struct {
-	ModelConfigID       uint       `json:"-"`
+	RuntimeModelID      uint       `json:"-"`
 	CatalogEntryID      uint       `json:"catalog_entry_id,omitempty"`
 	RouteBindingID      uint       `json:"route_binding_id,omitempty"`
 	ModelID             string     `json:"model_id"`
@@ -569,51 +294,115 @@ type RuntimeProviderHealth struct {
 }
 
 func RuntimeProviderHealthSnapshot(db *gorm.DB) ([]RuntimeProviderHealth, error) {
-	type healthRow struct {
-		persistencemodel.AIModelConfig
-		ProviderName   string
-		AdapterType    string
-		CatalogEntryID uint
-		RouteBindingID uint
+	if rows, handled, err := runtimeCatalogRouteHealthSnapshot(db); handled || err != nil {
+		return rows, err
 	}
-	var rows []healthRow
-	selectClause := "ai_model_configs.*, ai_credentials.display_name AS provider_name, ai_credentials.adapter_type AS adapter_type"
-	query := db.Model(&persistencemodel.AIModelConfig{}).
-		Joins("JOIN ai_credentials ON ai_credentials.id = ai_model_configs.credential_id")
-	if db.Migrator().HasTable(&persistencemodel.AIModelRouteBinding{}) {
-		selectClause += ", ai_model_route_bindings.catalog_entry_id AS catalog_entry_id, ai_model_route_bindings.id AS route_binding_id"
-		query = query.Joins("LEFT JOIN ai_model_route_bindings ON ai_model_route_bindings.local_model_config_id = ai_model_configs.id AND ai_model_route_bindings.deleted_at IS NULL")
+	return []RuntimeProviderHealth{}, nil
+}
+
+func runtimeCatalogRouteHealthSnapshot(db *gorm.DB) ([]RuntimeProviderHealth, bool, error) {
+	if db == nil || !db.Migrator().HasTable(&persistencemodel.AIModelCatalogEntry{}) {
+		return nil, false, nil
 	}
-	if err := query.
-		Select(selectClause).
-		Where("ai_model_configs.deleted_at IS NULL AND ai_credentials.deleted_at IS NULL").
-		Order("ai_model_configs.priority DESC, ai_model_configs.id ASC").
+	var catalogCount int64
+	if err := db.Model(&persistencemodel.AIModelCatalogEntry{}).Count(&catalogCount).Error; err != nil {
+		return nil, true, err
+	}
+	if catalogCount == 0 {
+		return nil, false, nil
+	}
+	if !db.Migrator().HasTable(&persistencemodel.AIModelRouteBinding{}) {
+		return []RuntimeProviderHealth{}, true, nil
+	}
+	type catalogHealthRow struct {
+		RouteBindingID    uint
+		CatalogEntryID    uint
+		SourceType        string
+		RouteGroup        string
+		CredentialID      *uint
+		BindingEnabled    bool
+		Priority          int
+		CapacityWeight    int
+		MaxConcurrency    int
+		PublicModelID     string
+		ProviderModelID   string
+		DisplayName       string
+		ShortName         string
+		EntryEnabled      bool
+		Capabilities      string
+		PricingMode       string
+		AcceptsImage      bool
+		MaxInputImages    int
+		MaxInputVideos    int
+		ImageEditField    string
+		SupportedParams   string
+		ProviderName      string
+		AdapterType       string
+		CredentialEnabled bool
+	}
+	var rows []catalogHealthRow
+	if err := db.Table("ai_model_route_bindings").
+		Select(`
+			ai_model_route_bindings.id AS route_binding_id,
+			ai_model_route_bindings.catalog_entry_id AS catalog_entry_id,
+			ai_model_route_bindings.source_type AS source_type,
+			ai_model_route_bindings.route_group AS route_group,
+			ai_model_route_bindings.credential_id AS credential_id,
+			ai_model_route_bindings.is_enabled AS binding_enabled,
+			ai_model_route_bindings.priority AS priority,
+			ai_model_route_bindings.capacity_weight AS capacity_weight,
+			ai_model_route_bindings.max_concurrency AS max_concurrency,
+			ai_model_catalog_entries.public_model_id AS public_model_id,
+			ai_model_catalog_entries.provider_model_id AS provider_model_id,
+			ai_model_catalog_entries.display_name AS display_name,
+			ai_model_catalog_entries.short_name AS short_name,
+			ai_model_catalog_entries.is_enabled AS entry_enabled,
+			ai_model_catalog_entries.capabilities AS capabilities,
+			ai_model_catalog_entries.pricing_mode AS pricing_mode,
+			ai_model_catalog_entries.accepts_image AS accepts_image,
+			ai_model_catalog_entries.max_input_images AS max_input_images,
+			ai_model_catalog_entries.max_input_videos AS max_input_videos,
+			ai_model_catalog_entries.image_edit_field AS image_edit_field,
+			ai_model_catalog_entries.supported_params AS supported_params,
+			COALESCE(ai_credentials.display_name, ai_model_route_bindings.route_group) AS provider_name,
+			COALESCE(ai_credentials.adapter_type, ai_model_route_bindings.source_type) AS adapter_type,
+			CASE WHEN ai_model_route_bindings.credential_id IS NULL THEN true ELSE COALESCE(ai_credentials.is_enabled, false) END AS credential_enabled
+		`).
+		Joins("JOIN ai_model_catalog_entries ON ai_model_catalog_entries.id = ai_model_route_bindings.catalog_entry_id AND ai_model_catalog_entries.deleted_at IS NULL").
+		Joins("LEFT JOIN ai_credentials ON ai_credentials.id = ai_model_route_bindings.credential_id AND ai_credentials.deleted_at IS NULL").
+		Where("ai_model_route_bindings.deleted_at IS NULL").
+		Order("ai_model_route_bindings.priority DESC, ai_model_route_bindings.id ASC").
 		Scan(&rows).Error; err != nil {
-		return nil, err
+		return nil, true, err
 	}
 	now := time.Now()
 	out := make([]RuntimeProviderHealth, 0, len(rows))
 	for _, row := range rows {
-		def := resolveDefFromConfig(row.AIModelConfig, row.AdapterType)
-		view := runtimeProviderHealthSnapshot(row.ID)
+		runtimeID := row.CatalogEntryID
+		candidate := runtimeModelCandidate{
+			id:             runtimeID,
+			capacityWeight: row.CapacityWeight,
+			maxConcurrency: row.MaxConcurrency,
+		}
+		view := runtimeProviderHealthSnapshot(runtimeID)
 		remaining := int64(0)
 		if view.openUntil != nil && view.openUntil.After(now) {
 			remaining = view.openUntil.Sub(now).Milliseconds()
 		}
 		out = append(out, RuntimeProviderHealth{
-			ModelConfigID:       row.ID,
+			RuntimeModelID:      runtimeID,
 			CatalogEntryID:      row.CatalogEntryID,
 			RouteBindingID:      row.RouteBindingID,
-			ModelID:             logicalModelID(row.AIModelConfig, def),
-			ModelDefID:          row.ModelDefID,
-			ProviderName:        row.ProviderName,
-			AdapterType:         row.AdapterType,
+			ModelID:             strings.TrimSpace(row.PublicModelID),
+			ModelDefID:          strings.TrimSpace(row.ProviderModelID),
+			ProviderName:        strings.TrimSpace(row.ProviderName),
+			AdapterType:         strings.TrimSpace(row.AdapterType),
 			Priority:            row.Priority,
-			CapacityWeight:      runtimeCandidateCapacityWeight(runtimeModelCandidate{cfg: row.AIModelConfig}),
+			CapacityWeight:      runtimeCandidateCapacityWeight(candidate),
 			MaxConcurrency:      row.MaxConcurrency,
-			IsEnabled:           row.IsEnabled,
+			IsEnabled:           row.BindingEnabled && row.EntryEnabled && row.CredentialEnabled,
 			InFlight:            view.inFlight,
-			Saturated:           runtimeCandidateSaturated(runtimeModelCandidate{cfg: row.AIModelConfig}, view),
+			Saturated:           runtimeCandidateSaturated(candidate, view),
 			Successes:           view.successes,
 			Failures:            view.failures,
 			ConsecutiveFailures: view.consecutiveFailures,
@@ -623,7 +412,7 @@ func RuntimeProviderHealthSnapshot(db *gorm.DB) ([]RuntimeProviderHealth, error)
 			CooldownRemainingMs: remaining,
 		})
 	}
-	return out, nil
+	return out, true, nil
 }
 
 func timePtrIfSet(value time.Time) *time.Time {
@@ -633,40 +422,20 @@ func timePtrIfSet(value time.Time) *time.Time {
 	return &value
 }
 
-// resolveModelID returns the effective model ID for an API call.
-func resolveModelID(cfg persistencemodel.AIModelConfig, def *ModelDef) string {
-	if cfg.ModelIDOverride != "" {
-		return cfg.ModelIDOverride
-	}
-	return def.ModelID
-}
-
-// resolveDefFromConfig calls ResolveModelDef with all Custom* fields from a model config.
-func resolveDefFromConfig(cfg persistencemodel.AIModelConfig, adapterType string) *ModelDef {
-	return ResolveModelDef(
-		cfg.ModelDefID, adapterType,
-		cfg.CustomDisplayName, cfg.CustomCapabilities, cfg.CustomPricingMode,
-		cfg.CustomAcceptsImage, cfg.CustomMaxInputImages, cfg.CustomMaxInputVideos,
-		cfg.CustomImageEditField, cfg.CustomSupportedParams,
-	)
-}
-
-// calcCost computes the credit cost for a call.
-// durationSec is used for per_second; imageCount for per_image.
-func calcCost(cfg persistencemodel.AIModelConfig, def *ModelDef, inputTokens, outputTokens, durationSec, imageCount int) float64 {
+func calcCostForPricing(pricing modelPricing, def *ModelDef, inputTokens, outputTokens, durationSec, imageCount int) float64 {
 	switch def.PricingMode {
 	case PricingPerToken:
-		return float64(inputTokens)/1_000_000*cfg.CreditsInputPer1M +
-			float64(outputTokens)/1_000_000*cfg.CreditsOutputPer1M
+		return float64(inputTokens)/1_000_000*pricing.CreditsInputPer1M +
+			float64(outputTokens)/1_000_000*pricing.CreditsOutputPer1M
 	case PricingPerImage:
 		if imageCount <= 0 {
 			imageCount = 1
 		}
-		return float64(imageCount) * cfg.CreditsPerImage
+		return float64(imageCount) * pricing.CreditsPerImage
 	case PricingPerSecond:
-		return float64(durationSec) * cfg.CreditsPerSecond
+		return float64(durationSec) * pricing.CreditsPerSecond
 	case PricingPerCall:
-		return cfg.CreditsPerCall
+		return pricing.CreditsPerCall
 	default:
 		return 0
 	}

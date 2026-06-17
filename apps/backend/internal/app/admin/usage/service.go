@@ -83,15 +83,6 @@ type UserRef struct {
 	SystemRole string `json:"system_role"`
 }
 
-type ModelConfigRef struct {
-	ID                uint   `json:"ID"`
-	CredentialID      uint   `json:"credential_id"`
-	ModelDefID        string `json:"model_def_id"`
-	ModelIDOverride   string `json:"model_id_override"`
-	CustomDisplayName string `json:"custom_display_name"`
-	ShortName         string `json:"short_name"`
-}
-
 type CatalogEntryRef struct {
 	ID              uint   `json:"ID"`
 	PublicModelID   string `json:"public_model_id"`

@@ -117,12 +117,13 @@ func (r *gormRepository) filteredQuery(ctx context.Context, filter ListFilter) *
 	q := r.db.WithContext(ctx).
 		Model(&persistencemodel.UsageLog{})
 	hasCatalogEntries := r.db.Migrator().HasTable(&persistencemodel.AIModelCatalogEntry{})
-	hasLegacyConfigs := r.db.Migrator().HasTable(&persistencemodel.AIModelConfig{})
+	hasRouteBindings := r.db.Migrator().HasTable(&persistencemodel.AIModelRouteBinding{}) &&
+		r.db.Migrator().HasColumn(&persistencemodel.UsageLog{}, "route_binding_id")
 	if hasCatalogEntries {
 		q = q.Joins("LEFT JOIN ai_model_catalog_entries ON ai_model_catalog_entries.id = usage_logs.ai_model_catalog_entry_id")
 	}
-	if hasLegacyConfigs {
-		q = q.Joins("LEFT JOIN ai_model_configs ON ai_model_configs.id = usage_logs.ai_model_config_id")
+	if hasRouteBindings {
+		q = q.Joins("LEFT JOIN ai_model_route_bindings ON ai_model_route_bindings.id = usage_logs.route_binding_id")
 	}
 
 	if filter.UserID != "" {
@@ -142,8 +143,8 @@ func (r *gormRepository) filteredQuery(ctx context.Context, filter ListFilter) *
 		}
 	}
 	if filter.ProviderID != "" {
-		if hasLegacyConfigs {
-			q = q.Where("ai_model_configs.credential_id = ?", filter.ProviderID)
+		if hasRouteBindings {
+			q = q.Where("ai_model_route_bindings.credential_id = ?", filter.ProviderID)
 		} else {
 			q = q.Where("1 = 0")
 		}

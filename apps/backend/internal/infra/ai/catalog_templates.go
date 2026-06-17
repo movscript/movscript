@@ -1,6 +1,6 @@
 package ai
 
-var modelPresetSources = []ModelDef{
+var catalogTemplateSources = []ModelDef{
 
 	// ─── ElevenLabs ───────────────────────────────────────────────────────────
 

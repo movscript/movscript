@@ -1,14 +1,9 @@
 package ai
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"strings"
-	"time"
 
 	"github.com/movscript/movscript/internal/infra/crypto"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
@@ -37,29 +32,16 @@ func NewRegistryWithProviderMode(db *gorm.DB, encryptionKey []byte, providerMode
 	return &Registry{db: db, encryptionKey: encryptionKey, providerMode: providerMode}
 }
 
-// BuildForConfig constructs a Provider for the given AIModelConfig.
-// It loads the AICredential and resolves the model from admin config plus
-// adapter defaults. Presets are never consulted here.
-func (r *Registry) BuildForConfig(cfg persistencemodel.AIModelConfig) (Provider, *ModelDef, error) {
-	var cred persistencemodel.AICredential
-	if err := r.db.Where("id = ? AND is_enabled = true", cfg.CredentialID).First(&cred).Error; err != nil {
-		return nil, nil, fmt.Errorf("credential id=%d not found or disabled", cfg.CredentialID)
-	}
-
-	def := resolveDefFromConfig(cfg, cred.AdapterType)
-
-	provider, err := r.buildProvider(cred, def)
-	if err != nil {
-		return nil, nil, err
-	}
-	return provider, def, nil
-}
-
 // BuildForCredential constructs a Provider for testing connectivity (no model needed).
 func (r *Registry) BuildForCredential(cred persistencemodel.AICredential) (Provider, error) {
 	// Use a fake minimal ModelDef that captures the adapter type.
 	fakeDef := &ModelDef{AdapterType: cred.AdapterType}
 	return r.buildProvider(cred, fakeDef)
+}
+
+// BuildForModelCredential constructs a Provider from an already resolved credential and model definition.
+func (r *Registry) BuildForModelCredential(cred persistencemodel.AICredential, def *ModelDef) (Provider, error) {
+	return r.buildProvider(cred, def)
 }
 
 // BuildForGatewayProvider constructs the configured gateway-level Provider
@@ -126,16 +108,12 @@ func (r *Registry) buildProvider(cred persistencemodel.AICredential, def *ModelD
 	}
 }
 
-// GetFileUploader returns a FileUploader configured for the credential associated with a model config.
-// Returns nil if FilesAPIEnabled is not set on the credential.
-// Uses the independent Files API key/URL when configured, falling back to the main credential.
-func (r *Registry) GetFileUploader(ctx context.Context, userID uint, cfg persistencemodel.AIModelConfig) FileUploader {
-	if uploader, handled := r.editionFileUploader(ctx, userID, cfg); handled {
+// GetFileUploaderForCredential returns a FileUploader configured for a provider credential.
+// Returns nil if FilesAPIEnabled is not set on the credential. Enterprise gateway
+// mode may provide a per-user relay uploader without using the local credential.
+func (r *Registry) GetFileUploaderForCredential(ctx context.Context, userID uint, cred persistencemodel.AICredential) FileUploader {
+	if uploader, handled := r.editionFileUploader(ctx, userID); handled {
 		return uploader
-	}
-	var cred persistencemodel.AICredential
-	if err := r.db.Where("id = ? AND is_enabled = true", cfg.CredentialID).First(&cred).Error; err != nil {
-		return nil
 	}
 	if !cred.FilesAPIEnabled {
 		return nil
@@ -174,55 +152,6 @@ func (r *Registry) GetFileUploader(ctx context.Context, userID uint, cfg persist
 		return NewVolcenFileUploader(baseURL, apiKey)
 	}
 	return NewFileUploader(baseURL, apiKey)
-}
-
-// GetAny returns the first text-capable (credential, modelConfig, modelDef) triple.
-// Used for internal calls (agent, script analyze) that don't care which model they get.
-// When multiple configs share the highest priority, one is chosen in round-robin order.
-func (r *Registry) GetAny() (Provider, string, error) {
-	type row struct {
-		persistencemodel.AIModelConfig
-		AdapterType string
-	}
-	var rows []row
-	if err := r.db.Model(&persistencemodel.AIModelConfig{}).
-		Select("ai_model_configs.*, ai_credentials.adapter_type AS adapter_type").
-		Joins("JOIN ai_credentials ON ai_credentials.id = ai_model_configs.credential_id").
-		Where("ai_model_configs.is_enabled = true AND ai_model_configs.deleted_at IS NULL AND ai_credentials.is_enabled = true AND ai_credentials.deleted_at IS NULL").
-		Order("ai_model_configs.priority DESC, ai_model_configs.id ASC").
-		Scan(&rows).Error; err != nil {
-		return nil, "", err
-	}
-
-	type candidate struct {
-		cfg      persistencemodel.AIModelConfig
-		def      *ModelDef
-		priority int
-	}
-	var candidates []candidate
-	for _, r := range rows {
-		def := resolveDefFromConfig(r.AIModelConfig, r.AdapterType)
-		for _, cap := range def.Capabilities {
-			if cap == CapabilityText {
-				candidates = append(candidates, candidate{cfg: r.AIModelConfig, def: def, priority: r.Priority})
-				break
-			}
-		}
-	}
-	if len(candidates) == 0 {
-		return nil, "", fmt.Errorf("no text-capable model configured and enabled")
-	}
-
-	chosen := pickByPriority("registry.get_any_text", candidates, func(c candidate) int { return c.priority })
-	provider, _, err := r.BuildForConfig(chosen.cfg)
-	if err != nil {
-		return nil, "", err
-	}
-	modelID := chosen.cfg.ModelIDOverride
-	if modelID == "" {
-		modelID = chosen.def.ModelID
-	}
-	return provider, modelID, nil
 }
 
 // EncryptCredentials encrypts the credential fields map and returns EncryptedKey and MaskedKey.
@@ -271,243 +200,6 @@ func splitKlingKey(key string) [2]string {
 		}
 	}
 	return [2]string{key, ""}
-}
-
-// DebugCall makes the actual API call for a model config and returns raw HTTP details.
-// For text models it sends a minimal generation request; for image it sends a real generation
-// (may incur cost); for video it only validates auth via a list request (no billable task created).
-func (r *Registry) DebugCall(ctx context.Context, userID uint, cfg persistencemodel.AIModelConfig) DebugCallResult {
-	var cred persistencemodel.AICredential
-	if err := r.db.First(&cred, cfg.CredentialID).Error; err != nil {
-		return DebugCallResult{Error: "credential not found"}
-	}
-
-	def := resolveDefFromConfig(cfg, cred.AdapterType)
-	modelID := cfg.ModelIDOverride
-	if modelID == "" {
-		modelID = def.ModelID
-	}
-	if result, handled := r.editionDebugCall(ctx, userID, cfg, cred, def, modelID); handled {
-		return result
-	}
-	apiKey := ""
-	if cred.EncryptedKey != "" {
-		var err error
-		apiKey, err = crypto.Decrypt(cred.EncryptedKey, r.encryptionKey)
-		if err != nil {
-			return DebugCallResult{Error: "failed to decrypt credentials: " + err.Error()}
-		}
-	}
-
-	baseURL := cred.BaseURL
-	if baseURL == "" {
-		if def := GetAdapterDef(cred.AdapterType); def != nil {
-			baseURL = def.DefaultBaseURL
-		}
-	}
-
-	hasText, hasImage := false, false
-	for _, cap := range def.Capabilities {
-		if cap == CapabilityText {
-			hasText = true
-		}
-		if cap == CapabilityImage {
-			hasImage = true
-		}
-	}
-
-	switch def.AdapterType {
-	case AdapterAnthropic:
-		anthropicBase := baseURL
-		if anthropicBase == "" {
-			anthropicBase = "https://api.anthropic.com"
-		}
-		endpoint := strings.TrimRight(anthropicBase, "/") + "/v1/messages"
-		body := map[string]any{
-			"model":      modelID,
-			"messages":   []map[string]string{{"role": "user", "content": "Hi"}},
-			"max_tokens": 1,
-		}
-		return debugHTTPPost(ctx, endpoint, body, map[string]string{
-			"x-api-key":         apiKey,
-			"anthropic-version": "2023-06-01",
-		}, modelID)
-
-	case AdapterKling:
-		// Use a list request so no billable task is created.
-		parts := splitKlingKey(apiKey)
-		ka := NewKlingAdapter(parts[0], parts[1])
-		token := ka.BuildJWT()
-		endpoint := "https://api.klingai.com/v1/videos/text2video?pageNum=1&pageSize=1"
-		return debugHTTPGet(ctx, endpoint, map[string]string{
-			"Authorization": "Bearer " + token,
-		}, modelID)
-
-	case AdapterVolcen:
-		endpoint := strings.TrimRight(baseURL, "/") + "/models"
-		return debugHTTPGet(ctx, endpoint, map[string]string{
-			"Content-Type":  "application/json",
-			"Authorization": "Bearer " + apiKey,
-		}, modelID)
-
-	case AdapterGemini:
-		// List models as a lightweight connectivity check.
-		geminiBase := baseURL
-		if geminiBase == "" {
-			geminiBase = "https://generativelanguage.googleapis.com"
-		}
-		endpoint := geminiBase + "/v1beta/models?key=" + apiKey + "&pageSize=1"
-		return debugHTTPGet(ctx, endpoint, nil, modelID)
-
-	default: // openai_compat
-		if hasImage {
-			endpoint := baseURL + "/images/generations"
-			body := map[string]any{
-				"model":  modelID,
-				"prompt": "a simple red circle on white background",
-				"size":   "1280x720",
-				"n":      1,
-			}
-			return debugHTTPPost(ctx, endpoint, body, map[string]string{
-				"Authorization": "Bearer " + apiKey,
-			}, modelID)
-		}
-		if hasText {
-			endpoint := baseURL + "/chat/completions"
-			body := map[string]any{
-				"model":      modelID,
-				"messages":   []map[string]string{{"role": "user", "content": "Hi"}},
-				"max_tokens": 1,
-			}
-			return debugHTTPPost(ctx, endpoint, body, map[string]string{
-				"Authorization": "Bearer " + apiKey,
-			}, modelID)
-		}
-		// Fallback for video on openai_compat — list models endpoint as connectivity check.
-		endpoint := baseURL + "/models"
-		return debugHTTPGet(ctx, endpoint, map[string]string{
-			"Authorization": "Bearer " + apiKey,
-		}, modelID)
-	}
-}
-
-func debugCallProvider(ctx context.Context, userID uint, provider Provider, def *ModelDef, modelID string) DebugCallResult {
-	ctx, result := WithDebugRecorder(WithProviderUserID(ctx, userID))
-	if modelHasCapability(def, CapabilityText) {
-		_, err := provider.TextGenerate(ctx, TextRequest{
-			Model:     modelID,
-			Messages:  []Message{{Role: "user", Content: "Hi"}},
-			MaxTokens: 1,
-		})
-		if err != nil && result.Error == "" {
-			result.Error = err.Error()
-		}
-		if result.ModelID == "" {
-			result.ModelID = modelID
-		}
-		return *result
-	}
-	if modelHasCapability(def, CapabilityImage) {
-		_, err := provider.ImageGenerate(ctx, ImageRequest{
-			Model:  modelID,
-			Prompt: "a simple red circle on white background",
-			Size:   "1280x720",
-			N:      1,
-		})
-		if err != nil && result.Error == "" {
-			result.Error = err.Error()
-		}
-		if result.ModelID == "" {
-			result.ModelID = modelID
-		}
-		return *result
-	}
-	return DebugCallResult{
-		Success: true,
-		ModelID: modelID,
-		Method:  "SKIP",
-		Error:   "debug only performs live calls for text/image model configs",
-	}
-}
-
-func debugHTTPPost(ctx context.Context, endpoint string, body map[string]any, extraHeaders map[string]string, modelID string) DebugCallResult {
-	bodyBytes, _ := json.Marshal(body)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(bodyBytes))
-	if err != nil {
-		return DebugCallResult{ModelID: modelID, Endpoint: endpoint, Method: "POST",
-			RequestBody: string(bodyBytes), Error: err.Error()}
-	}
-	req.Header.Set("Content-Type", "application/json")
-	for k, v := range extraHeaders {
-		req.Header.Set(k, v)
-	}
-	// Capture request headers (mask Authorization value).
-	reqHeaders := make(map[string]string)
-	for k := range req.Header {
-		v := req.Header.Get(k)
-		if k == "Authorization" {
-			v = maskAuthHeader(v)
-		}
-		reqHeaders[k] = v
-	}
-	start := time.Now()
-	resp, err := http.DefaultClient.Do(req)
-	latency := time.Since(start).Milliseconds()
-	if err != nil {
-		return DebugCallResult{ModelID: modelID, Endpoint: endpoint, Method: "POST",
-			RequestHeaders: reqHeaders, RequestBody: string(bodyBytes), LatencyMs: latency, Error: err.Error()}
-	}
-	defer resp.Body.Close()
-	respBody, _ := io.ReadAll(resp.Body)
-	success := resp.StatusCode < 400
-	errMsg := ""
-	if !success {
-		errMsg = fmt.Sprintf("HTTP %d", resp.StatusCode)
-	}
-	return DebugCallResult{
-		Success: success, ModelID: modelID, Endpoint: endpoint, Method: "POST",
-		RequestHeaders: reqHeaders, RequestBody: string(bodyBytes),
-		ResponseStatus: resp.StatusCode, ResponseBody: string(respBody),
-		LatencyMs: latency, Error: errMsg,
-	}
-}
-
-func debugHTTPGet(ctx context.Context, endpoint string, extraHeaders map[string]string, modelID string) DebugCallResult {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return DebugCallResult{ModelID: modelID, Endpoint: endpoint, Method: "GET", Error: err.Error()}
-	}
-	for k, v := range extraHeaders {
-		req.Header.Set(k, v)
-	}
-	reqHeaders := make(map[string]string)
-	for k := range req.Header {
-		v := req.Header.Get(k)
-		if k == "Authorization" {
-			v = maskAuthHeader(v)
-		}
-		reqHeaders[k] = v
-	}
-	start := time.Now()
-	resp, err := http.DefaultClient.Do(req)
-	latency := time.Since(start).Milliseconds()
-	if err != nil {
-		return DebugCallResult{ModelID: modelID, Endpoint: endpoint, Method: "GET",
-			RequestHeaders: reqHeaders, LatencyMs: latency, Error: err.Error()}
-	}
-	defer resp.Body.Close()
-	respBody, _ := io.ReadAll(resp.Body)
-	success := resp.StatusCode < 400
-	errMsg := ""
-	if !success {
-		errMsg = fmt.Sprintf("HTTP %d", resp.StatusCode)
-	}
-	return DebugCallResult{
-		Success: success, ModelID: modelID, Endpoint: endpoint, Method: "GET",
-		RequestHeaders: reqHeaders, RequestBody: "(no body)",
-		ResponseStatus: resp.StatusCode, ResponseBody: string(respBody),
-		LatencyMs: latency, Error: errMsg,
-	}
 }
 
 // maskAuthHeader masks the token in an Authorization header value.

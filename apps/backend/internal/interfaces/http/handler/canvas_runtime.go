@@ -55,8 +55,9 @@ func (h *CanvasHandler) GenerateRuntimeText(c *gin.Context) {
 	}
 	resp, err := h.aiService.CallTextWithRouteUsage(c.Request.Context(), user.ID, ai.ModelRoute{
 		ModelID:         route.ModelID,
-		ModelConfigID:   route.ModelConfigID,
+		RuntimeModelID:  route.CatalogEntryID,
 		CatalogEntryID:  route.CatalogEntryID,
+		RouteBindingID:  route.RouteBindingID,
 		CredentialID:    route.CredentialID,
 		SourceType:      route.SourceType,
 		RouteGroup:      route.RouteGroup,

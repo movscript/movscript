@@ -183,7 +183,7 @@ func TestAdminDetailReturnsProjectOperationalSummary(t *testing.T) {
 	)
 	owner := createProjectUser(t, db, "detail-owner")
 	project := createProjectRecord(t, db, "Detail Film", "desc", owner.ID, nil)
-	if err := db.Create(&persistencemodel.UsageLog{UserID: owner.ID, ProjectID: &project.ID, AIModelConfigID: 1, OperationType: "image", InputTokens: 5, OutputTokens: 7, ImageCount: 2, Cost: 3.5}).Error; err != nil {
+	if err := db.Create(&persistencemodel.UsageLog{UserID: owner.ID, ProjectID: &project.ID, RuntimeModelID: 1, OperationType: "image", InputTokens: 5, OutputTokens: 7, ImageCount: 2, Cost: 3.5}).Error; err != nil {
 		t.Fatalf("create usage: %v", err)
 	}
 	if err := db.Create(&persistencemodel.AuditLog{ProjectID: &project.ID, Action: "project.admin_updated", TargetType: "project", TargetID: "1"}).Error; err != nil {

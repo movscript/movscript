@@ -39,6 +39,7 @@ const workspaceNodeAlias = {
 }
 
 const packageSharedAlias = {
+  '@movscript/editing': resolve('../../packages/editing/src/index.ts'),
   '@movscript/language/domain': resolve('../../packages/language/src/domain/index.ts'),
   '@movscript/interpreter': resolve('../../packages/interpreter/src/index.ts'),
 }

@@ -12,7 +12,7 @@ import (
 // GenRequest is the canonical front-end request for any generation job.
 // It is transport-agnostic (HTTP handler maps JSON fields to this struct).
 type GenRequest struct {
-	ModelConfigID   uint
+	RuntimeModelID  uint
 	OutputType      string   // use Capability* constants
 	InputModalities []string // "text" | "image" | "video" present in this request
 	ImageCount      int      // number of image resources attached

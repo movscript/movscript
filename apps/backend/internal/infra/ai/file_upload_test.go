@@ -34,7 +34,7 @@ func TestRegistryLocalFileUploaderUsesCredentialFilesAPIKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("encrypt files key: %v", err)
 	}
-	db := testutil.OpenSQLite(t, "ai-file-uploader-local.db", &persistencemodel.AICredential{}, &persistencemodel.AIModelConfig{})
+	db := testutil.OpenSQLite(t, "ai-file-uploader-local.db", &persistencemodel.AICredential{})
 	cred := persistencemodel.AICredential{
 		Model:                gorm.Model{ID: 7},
 		AdapterType:          AdapterOpenAICompat,
@@ -49,11 +49,9 @@ func TestRegistryLocalFileUploaderUsesCredentialFilesAPIKey(t *testing.T) {
 	if err := db.Create(&cred).Error; err != nil {
 		t.Fatalf("create credential: %v", err)
 	}
-	cfg := persistencemodel.AIModelConfig{CredentialID: cred.ID}
-
-	uploader := NewRegistry(db, key).GetFileUploader(context.Background(), 42, cfg)
+	uploader := NewRegistry(db, key).GetFileUploaderForCredential(context.Background(), 42, cred)
 	if uploader == nil {
-		t.Fatal("GetFileUploader() returned nil for enabled files API credential")
+		t.Fatal("GetFileUploaderForCredential() returned nil for enabled files API credential")
 	}
 	if _, err := uploader.UploadFile(context.Background(), []byte("image"), "image.png", "image/png", ""); err != nil {
 		t.Fatalf("UploadFile() error = %v", err)

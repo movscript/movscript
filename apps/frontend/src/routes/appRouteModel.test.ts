@@ -6,6 +6,7 @@ import {
   canvasEditorPath,
   canvasListPathForSource,
   canvasRouteSourceFromSearch,
+  editingProjectPath,
   getAppRouteLayoutSpec,
   routeForWorkMode,
   workModeForRoute,
@@ -58,4 +59,10 @@ test('canvas routes preserve their originating surface for back navigation', () 
   assert.equal(canvasBackPath('?from=agent'), '/project/agent/canvases')
   assert.equal(canvasBackPath('?from=project'), '/project/home')
   assert.equal(canvasBackPath(''), '/canvases')
+})
+
+test('editing project paths are standalone tool routes', () => {
+  assert.equal(editingProjectPath('editing project/42'), '/editing/editing%20project%2F42')
+  assert.equal(getAppRouteLayoutSpec('/editing/editing_project_42').surface, 'tool')
+  assert.equal(getAppRouteLayoutSpec('/editing/editing_project_42').projectEntryId, undefined)
 })

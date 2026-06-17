@@ -17,7 +17,7 @@ func (w *Worker) prepareImageInputReferences(job *persistencemodel.Job, mediaLis
 		return ""
 	}
 
-	switch w.modelAdapterType(job.ModelConfigID) {
+	switch w.modelAdapterTypeForJob(job) {
 	case ai.AdapterVolcen, ai.AdapterKling:
 		// These generation APIs accept provider-readable URLs for reference media.
 		// Volcen Files API file_id is supported by Responses multimodal input, but
@@ -46,7 +46,7 @@ func (w *Worker) prepareVideoInputReferences(job *persistencemodel.Job, imageDat
 	if len(imageData) == 0 && len(videoData) == 0 {
 		return
 	}
-	switch w.modelAdapterType(job.ModelConfigID) {
+	switch w.modelAdapterTypeForJob(job) {
 	case ai.AdapterVolcen, ai.AdapterDashScope, ai.AdapterVidu:
 	default:
 		return
@@ -72,21 +72,44 @@ func (w *Worker) preparePublicMediaReferences(job *persistencemodel.Job, mediaLi
 	}
 }
 
-func (w *Worker) modelAdapterType(modelConfigID uint) string {
-	if w == nil || w.db == nil || !w.db.Migrator().HasTable(&persistencemodel.AIModelConfig{}) || !w.db.Migrator().HasTable(&persistencemodel.AICredential{}) {
+func (w *Worker) modelAdapterTypeForJob(job *persistencemodel.Job) string {
+	if job == nil {
 		return ""
 	}
-	var row struct {
-		AdapterType string
+	if route, ok := w.catalogRouteForJob(context.Background(), job); ok {
+		if adapterType := w.adapterTypeForRoute(route); adapterType != "" {
+			return adapterType
+		}
 	}
-	if err := w.db.Model(&persistencemodel.AIModelConfig{}).
-		Select("ai_credentials.adapter_type AS adapter_type").
-		Joins("JOIN ai_credentials ON ai_credentials.id = ai_model_configs.credential_id").
-		Where("ai_model_configs.id = ?", modelConfigID).
-		Scan(&row).Error; err != nil {
-		return ""
+	return ""
+}
+
+func (w *Worker) catalogRouteForJob(ctx context.Context, job *persistencemodel.Job) (ai.ModelRoute, bool) {
+	if w == nil || w.aiService == nil || job == nil || !jobHasCatalogRouteMetadata(job) {
+		return ai.ModelRoute{}, false
 	}
-	return row.AdapterType
+	route, err := w.resolveJobModelRoute(ctx, job, job.JobType)
+	if err != nil {
+		return ai.ModelRoute{}, false
+	}
+	return route, true
+}
+
+func jobHasCatalogRouteMetadata(job *persistencemodel.Job) bool {
+	if job == nil {
+		return false
+	}
+	return (job.AIModelCatalogEntryID != nil && *job.AIModelCatalogEntryID != 0) || (job.RouteBindingID != nil && *job.RouteBindingID != 0)
+}
+
+func (w *Worker) adapterTypeForRoute(route ai.ModelRoute) string {
+	if route.CredentialID != 0 && w != nil && w.db != nil && w.db.Migrator().HasTable(&persistencemodel.AICredential{}) {
+		var cred persistencemodel.AICredential
+		if err := w.db.Where("id = ? AND deleted_at IS NULL", route.CredentialID).First(&cred).Error; err == nil {
+			return cred.AdapterType
+		}
+	}
+	return route.SourceType
 }
 
 // ensureCloudUpload checks the resource's CloudUploads cache; if no valid entry exists,
@@ -151,11 +174,10 @@ func (w *Worker) ensureCloudUpload(job *persistencemodel.Job, media ai.MediaData
 	defer cancel()
 
 	if !requirePublicURL {
-		if uploader := w.aiService.GetFileUploader(ctx, job.UserID, job.ModelConfigID); uploader != nil {
+		if uploader, cacheKey := w.providerFileUploaderForJob(ctx, job); uploader != nil {
 			fileID, err := uploader.UploadFile(ctx, media.Bytes, filename, mimeType, "")
 			if err == nil && fileID != "" {
-				key := fmt.Sprintf("ai_route:%d", job.ModelConfigID)
-				cache[key] = cacheEntry{FileID: fileID, UploadedAt: time.Now()}
+				cache[cacheKey] = cacheEntry{FileID: fileID, UploadedAt: time.Now()}
 				if b, err := json.Marshal(cache); err == nil {
 					w.db.Model(&resource).Update("cloud_uploads", string(b))
 				}
@@ -190,4 +212,24 @@ func (w *Worker) ensureCloudUpload(job *persistencemodel.Job, media ai.MediaData
 	}
 
 	return result, configID
+}
+
+func (w *Worker) providerFileUploaderForJob(ctx context.Context, job *persistencemodel.Job) (ai.FileUploader, string) {
+	if w == nil || w.aiService == nil || job == nil {
+		return nil, ""
+	}
+	if route, ok := w.catalogRouteForJob(ctx, job); ok {
+		return w.aiService.GetFileUploaderForRoute(ctx, job.UserID, route), providerFileUploadCacheKey(job, route)
+	}
+	return nil, ""
+}
+
+func providerFileUploadCacheKey(job *persistencemodel.Job, route ai.ModelRoute) string {
+	if route.RouteBindingID != 0 {
+		return fmt.Sprintf("ai_route_binding:%d", route.RouteBindingID)
+	}
+	if route.CatalogEntryID != 0 {
+		return fmt.Sprintf("ai_catalog_entry:%d", route.CatalogEntryID)
+	}
+	return ""
 }
