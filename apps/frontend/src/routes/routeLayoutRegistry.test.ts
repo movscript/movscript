@@ -124,6 +124,10 @@ test('route layout registry separates canvas, agent, document, redirect, and ove
   assert.equal(routeLayoutSpecForPathname('/canvases').surface, 'canvas')
   assert.equal(routeLayoutSpecForPathname('/canvases').scrollMode, 'document')
 
+  assert.equal(routeLayoutSpecForPathname('/editing').surface, 'tool')
+  assert.equal(routeLayoutSpecForPathname('/editing').scrollMode, 'workspace')
+  assert.equal(routeLayoutSpecForPathname('/editing').projectEntryId, undefined)
+
   assert.equal(routeLayoutSpecForPathname('/resources').surface, 'tool')
   assert.equal(routeLayoutSpecForPathname('/resources').scrollMode, 'document')
   assert.equal(appRouteViewportScrollForMode(routeLayoutSpecForPathname('/resources').scrollMode), 'auto')
@@ -302,6 +306,7 @@ test('route layout registry has one exported spec per registered route id', () =
   assert.equal(new Set(routeIds).size, routeIds.length)
   assert.ok(routeIds.includes('project.scripts'))
   assert.ok(routeIds.includes('project.content'))
+  assert.ok(routeIds.includes('editing'))
   assert.ok(!routeIds.includes('project.production.redirect'))
   assert.ok(!routeIds.includes('project.productionOrchestration.redirect'))
   assert.ok(routeIds.includes('canvas.editor'))

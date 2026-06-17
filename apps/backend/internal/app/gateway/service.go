@@ -396,6 +396,7 @@ func aiRouteFromGateway(route providercontract.AIGatewayModelRoute) ai.ModelRout
 		ModelID:         route.ModelID,
 		ModelConfigID:   route.ModelConfigID,
 		CatalogEntryID:  route.CatalogEntryID,
+		RouteBindingID:  route.RouteBindingID,
 		CredentialID:    route.CredentialID,
 		SourceType:      route.SourceType,
 		RouteGroup:      route.RouteGroup,

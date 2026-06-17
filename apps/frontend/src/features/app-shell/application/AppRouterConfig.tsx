@@ -39,6 +39,7 @@ import {
   AuthPage,
   ClientPluginsPage,
   ContentCanvasWorkspacePage,
+  EditingWorkspacePage,
   ExternalResourcesPage,
   GlobalHomePage,
   InvitePage,
@@ -129,6 +130,7 @@ export function AuthenticatedAppRouter() {
                   })}
 
                   <Route path={ROUTES.resources} element={<ResourcesPage />} />
+                  <Route path={ROUTES.editing} element={<EditingWorkspacePage />} />
                   <Route path={ROUTES.externalResources} element={<ExternalResourcesPage />} />
                   <Route path={ROUTES.shotLibrary} element={<ShotLibraryPage />} />
                   <Route path={ROUTES.jobs} element={<JobsPage />} />

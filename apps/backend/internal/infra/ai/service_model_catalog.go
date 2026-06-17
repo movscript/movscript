@@ -312,6 +312,7 @@ func (s *AIService) resolveCatalogModelRoutePlan(req ModelRouteRequest, capabili
 					ModelID:         strings.TrimSpace(entry.PublicModelID),
 					ModelConfigID:   modelConfigID,
 					CatalogEntryID:  entry.ID,
+					RouteBindingID:  binding.ID,
 					CredentialID:    credentialID,
 					SourceType:      strings.TrimSpace(binding.SourceType),
 					RouteGroup:      strings.TrimSpace(binding.RouteGroup),

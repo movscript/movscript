@@ -3,9 +3,8 @@ package router
 import "github.com/gin-gonic/gin"
 
 func registerAdminRoutes(admin *gin.RouterGroup, h handlers) {
-	// adapters and model presets (read-only UI templates, not used at runtime)
+	// Provider, catalog, and route configuration.
 	admin.GET("/adapters", h.ai.ListAdapters)
-	admin.GET("/model-presets", h.ai.ListModelPresets)
 	admin.GET("/model-catalog", h.ai.ListModelCatalogEntries)
 	admin.POST("/model-catalog", h.ai.CreateModelCatalogEntry)
 	admin.PUT("/model-catalog/:id", h.ai.UpdateModelCatalogEntry)
@@ -15,7 +14,7 @@ func registerAdminRoutes(admin *gin.RouterGroup, h handlers) {
 	admin.DELETE("/model-catalog/:id/route-bindings/:bindingId", h.ai.DeleteModelRouteBinding)
 
 	if !editionUsesModelCatalogOnly() {
-		registerLegacyAIProviderAdminRoutes(admin, h)
+		registerAIProviderAdminRoutes(admin, h)
 	}
 
 	// user management
@@ -87,9 +86,7 @@ func registerAdminRoutes(admin *gin.RouterGroup, h handlers) {
 	registerAdminDebugRoutes(admin, h)
 }
 
-func registerLegacyAIProviderAdminRoutes(admin *gin.RouterGroup, h handlers) {
-	// Community local-provider model management. Enterprise new-api mode uses
-	// /model-catalog and intentionally does not register these routes.
+func registerAIProviderAdminRoutes(admin *gin.RouterGroup, h handlers) {
 	admin.GET("/provider-instances", h.ai.ListProviderInstances)
 	admin.GET("/provider-instances/:id/config", h.ai.GetProviderInstanceConfig)
 	admin.PUT("/provider-instances/:id/config", h.ai.UpdateProviderInstanceConfig)

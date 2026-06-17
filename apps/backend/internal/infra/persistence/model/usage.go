@@ -8,6 +8,7 @@ type UsageLog struct {
 	OrgID                 *uint                `gorm:"index" json:"org_id,omitempty"`
 	AIModelConfigID       uint                 `gorm:"not null" json:"-"`
 	AIModelCatalogEntryID *uint                `gorm:"index" json:"ai_model_catalog_entry_id,omitempty"`
+	RouteBindingID        *uint                `gorm:"index" json:"route_binding_id,omitempty"`
 	UsageReservationID    *uint                `gorm:"index" json:"usage_reservation_id,omitempty"`
 	GatewayAPIKeyID       *uint                `gorm:"index" json:"gateway_api_key_id,omitempty"`
 	ProjectID             *uint                `gorm:"index" json:"project_id,omitempty"`
@@ -30,6 +31,7 @@ type UsageReservation struct {
 	OrgID                 *uint                `gorm:"index" json:"org_id,omitempty"`
 	AIModelConfigID       uint                 `gorm:"not null;index" json:"-"`
 	AIModelCatalogEntryID *uint                `gorm:"index" json:"ai_model_catalog_entry_id,omitempty"`
+	RouteBindingID        *uint                `gorm:"index" json:"route_binding_id,omitempty"`
 	GatewayAPIKeyID       *uint                `gorm:"index" json:"gateway_api_key_id,omitempty"`
 	ProjectID             *uint                `gorm:"index" json:"project_id,omitempty"`
 	JobID                 *uint                `gorm:"index" json:"job_id,omitempty"`

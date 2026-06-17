@@ -13,7 +13,7 @@ func (s *AIService) CallImage(ctx context.Context, userID, modelConfigID uint, r
 }
 
 func (s *AIService) CallImageWithRouteUsage(ctx context.Context, userID uint, route ModelRoute, req ImageRequest, usage UsageContext) (ImageResponse, error) {
-	usage = usageWithCatalogEntry(usage, route.CatalogEntryID)
+	usage = usageWithRoute(usage, route)
 	for _, capability := range []string{CapabilityImage, CapabilityImageEdit} {
 		runtime, handled, err := s.catalogRouteRuntime(ctx, userID, route, capability)
 		if err != nil {
@@ -176,7 +176,7 @@ func (s *AIService) CallVideoWithUsage(ctx context.Context, userID, modelConfigI
 }
 
 func (s *AIService) CallVideoWithRouteUsage(ctx context.Context, userID uint, route ModelRoute, req VideoRequest, usage UsageContext) (VideoResponse, error) {
-	usage = usageWithCatalogEntry(usage, route.CatalogEntryID)
+	usage = usageWithRoute(usage, route)
 	for _, capability := range []string{CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V} {
 		runtime, handled, err := s.catalogRouteRuntime(ctx, userID, route, capability)
 		if err != nil {
@@ -320,7 +320,7 @@ func (s *AIService) CallVideoStartWithUsage(ctx context.Context, userID, modelCo
 }
 
 func (s *AIService) CallVideoStartWithRouteUsage(ctx context.Context, userID uint, route ModelRoute, req VideoRequest, usage UsageContext) (VideoResponse, error) {
-	usage = usageWithCatalogEntry(usage, route.CatalogEntryID)
+	usage = usageWithRoute(usage, route)
 	for _, capability := range []string{CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V} {
 		runtime, handled, err := s.catalogRouteRuntime(ctx, userID, route, capability)
 		if err != nil {
@@ -427,7 +427,7 @@ func (s *AIService) CallVideoPollWithUsage(ctx context.Context, userID, modelCon
 }
 
 func (s *AIService) CallVideoPollWithRouteUsage(ctx context.Context, userID uint, route ModelRoute, taskID, taskKind string, requestedDuration int, usage UsageContext) (VideoResponse, error) {
-	usage = usageWithCatalogEntry(usage, route.CatalogEntryID)
+	usage = usageWithRoute(usage, route)
 	for _, capability := range []string{CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V} {
 		runtime, handled, err := s.catalogRouteRuntime(ctx, userID, route, capability)
 		if err != nil {

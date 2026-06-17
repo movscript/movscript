@@ -344,6 +344,7 @@ func llmCallLogFromModel(row persistencemodel.LLMCallLog) LLMCallLog {
 		OrgID:             row.OrgID,
 		ProjectID:         row.ProjectID,
 		GatewayAPIKeyID:   row.GatewayAPIKeyID,
+		RouteBindingID:    row.RouteBindingID,
 		ModelID:           llmCallLogModelID(row),
 		CredentialID:      row.CredentialID,
 		OperationType:     row.OperationType,

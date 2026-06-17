@@ -140,6 +140,8 @@ func (s *AIService) ListGatewayRuntimeHealth(_ context.Context) ([]providercontr
 	for _, item := range items {
 		out = append(out, providercontract.AIGatewayRuntimeHealth{
 			ModelConfigID:       item.ModelConfigID,
+			CatalogEntryID:      item.CatalogEntryID,
+			RouteBindingID:      item.RouteBindingID,
 			ModelID:             item.ModelID,
 			ModelDefID:          item.ModelDefID,
 			ProviderName:        item.ProviderName,
@@ -193,21 +195,25 @@ func (s *AIService) providerForProbe(request providercontract.AIGatewayProviderP
 
 func usageContextFromContract(input providercontract.AIUsageContext) UsageContext {
 	return UsageContext{
-		OrgID:           input.OrgID,
-		ProjectID:       input.ProjectID,
-		GatewayAPIKeyID: input.GatewayAPIKeyID,
-		JobID:           input.JobID,
-		ReservationID:   input.ReservationID,
+		OrgID:                 input.OrgID,
+		ProjectID:             input.ProjectID,
+		GatewayAPIKeyID:       input.GatewayAPIKeyID,
+		JobID:                 input.JobID,
+		ReservationID:         input.ReservationID,
+		AIModelCatalogEntryID: input.AIModelCatalogEntryID,
+		RouteBindingID:        input.RouteBindingID,
 	}
 }
 
 func usageContextToContract(input UsageContext) providercontract.AIUsageContext {
 	return providercontract.AIUsageContext{
-		OrgID:           input.OrgID,
-		ProjectID:       input.ProjectID,
-		GatewayAPIKeyID: input.GatewayAPIKeyID,
-		JobID:           input.JobID,
-		ReservationID:   input.ReservationID,
+		OrgID:                 input.OrgID,
+		ProjectID:             input.ProjectID,
+		GatewayAPIKeyID:       input.GatewayAPIKeyID,
+		JobID:                 input.JobID,
+		ReservationID:         input.ReservationID,
+		AIModelCatalogEntryID: input.AIModelCatalogEntryID,
+		RouteBindingID:        input.RouteBindingID,
 	}
 }
 
@@ -239,18 +245,20 @@ func usageEstimateToContract(input UsageEstimate) providercontract.AIUsageEstima
 
 func usageReservationToContract(input persistencemodel.UsageReservation) providercontract.AIUsageReservation {
 	return providercontract.AIUsageReservation{
-		ID:              input.ID,
-		UserID:          input.UserID,
-		OrgID:           input.OrgID,
-		AIModelConfigID: input.AIModelConfigID,
-		GatewayAPIKeyID: input.GatewayAPIKeyID,
-		ProjectID:       input.ProjectID,
-		JobID:           input.JobID,
-		OperationType:   input.OperationType,
-		EstimatedCost:   input.EstimatedCost,
-		ActualCost:      input.ActualCost,
-		Status:          input.Status,
-		ReleaseReason:   input.ReleaseReason,
-		UsageLogID:      input.UsageLogID,
+		ID:                    input.ID,
+		UserID:                input.UserID,
+		OrgID:                 input.OrgID,
+		AIModelConfigID:       input.AIModelConfigID,
+		AIModelCatalogEntryID: input.AIModelCatalogEntryID,
+		RouteBindingID:        input.RouteBindingID,
+		GatewayAPIKeyID:       input.GatewayAPIKeyID,
+		ProjectID:             input.ProjectID,
+		JobID:                 input.JobID,
+		OperationType:         input.OperationType,
+		EstimatedCost:         input.EstimatedCost,
+		ActualCost:            input.ActualCost,
+		Status:                input.Status,
+		ReleaseReason:         input.ReleaseReason,
+		UsageLogID:            input.UsageLogID,
 	}
 }

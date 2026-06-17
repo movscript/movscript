@@ -254,6 +254,12 @@ const routeLayoutRegistry: RouteLayoutRegistryEntry[] = [
     contentWidth: 'normal',
   }, exact(ROUTES.canvases)),
   route({
+    routeId: 'editing',
+    pathnamePattern: ROUTES.editing,
+    ...TOOL_WORKSPACE_ROUTE,
+    notes: 'Standalone editing project workspace backed by Electron mediaPipeline and MediaEditingProject.',
+  }, exact(ROUTES.editing)),
+  route({
     routeId: 'resources',
     pathnamePattern: ROUTES.resources,
     ...TOOL_DOCUMENT_ROUTE,

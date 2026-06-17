@@ -35,6 +35,7 @@ test('app home opens agent, project, and canvas entry points', async ({ page }, 
 
   await expect(page.getByRole('button', { name: /Agent/ })).toBeVisible()
   await expect(page.getByRole('button', { name: /Canvas/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /剪辑|Editing/ })).toBeVisible()
   await expect(page.getByRole('button', { name: /Tool/ })).toBeVisible()
   await expect(page.getByRole('button', { name: /E2E Demo Project/ })).toBeVisible()
   await expect(page.getByRole('button', { name: /新建项目|New Project/ })).toBeVisible()
@@ -58,6 +59,14 @@ test('app home opens the tool entry point', async ({ page }, testInfo) => {
   await expect(page.getByRole('button', { name: /Tool/ })).toBeVisible()
   await page.getByRole('button', { name: /Tool/ }).click()
   await expect(page).toHaveURL(/\/tools\/ref-image-gen$/)
+})
+
+test('app home opens the standalone editing entry point', async ({ page }, testInfo) => {
+  await setupHomePage(page, testInfo.project.use.baseURL)
+  await gotoHome(page)
+
+  await page.getByRole('button', { name: /剪辑|Editing/ }).click()
+  await expect(page).toHaveURL(/\/editing$/)
 })
 
 test('app home creates project through the launcher dialog', async ({ page }, testInfo) => {

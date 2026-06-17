@@ -198,13 +198,13 @@ func TestProviderInstancesExposeAIGatewayCredentialsWithoutSecrets(t *testing.T)
 	}
 	var body struct {
 		Items []struct {
-			ID        string `json:"id"`
-			Type      string `json:"type"`
-			Adapter   string `json:"adapter"`
-			LegacyRef struct {
+			ID      string `json:"id"`
+			Type    string `json:"type"`
+			Adapter string `json:"adapter"`
+			Ref     struct {
 				Kind string `json:"kind"`
 				ID   uint   `json:"id"`
-			} `json:"legacy_ref"`
+			} `json:"ref"`
 			SecretFields []struct {
 				Key        string `json:"key"`
 				Configured bool   `json:"configured"`
@@ -219,7 +219,7 @@ func TestProviderInstancesExposeAIGatewayCredentialsWithoutSecrets(t *testing.T)
 		t.Fatalf("provider instance count = %d, want 1: %+v", len(body.Items), body.Items)
 	}
 	item := body.Items[0]
-	if item.ID != "ai_gateway:credential:1" || item.Type != "ai_gateway" || item.Adapter != "openai_compat" || item.LegacyRef.Kind != "ai_credential" || item.LegacyRef.ID != 1 {
+	if item.ID != "ai_gateway:credential:1" || item.Type != "ai_gateway" || item.Adapter != "openai_compat" || item.Ref.Kind != "ai_credential" || item.Ref.ID != 1 {
 		t.Fatalf("provider instance = %+v, want ai gateway credential mapping", item)
 	}
 	seenAPIKey := false
@@ -366,12 +366,16 @@ func TestProviderInstancesExposeExternalResourceSourcesAndProbeHealth(t *testing
 	}
 	var listBody struct {
 		Items []struct {
-			ID           string `json:"id"`
-			Type         string `json:"type"`
-			Adapter      string `json:"adapter"`
-			DisplayName  string `json:"display_name"`
-			Configured   bool   `json:"configured"`
-			Enabled      bool   `json:"enabled"`
+			ID          string `json:"id"`
+			Type        string `json:"type"`
+			Adapter     string `json:"adapter"`
+			DisplayName string `json:"display_name"`
+			Configured  bool   `json:"configured"`
+			Enabled     bool   `json:"enabled"`
+			Ref         struct {
+				Kind string `json:"kind"`
+				ID   uint   `json:"id"`
+			} `json:"ref"`
 			SecretFields []struct {
 				Key        string `json:"key"`
 				Configured bool   `json:"configured"`
@@ -384,12 +388,16 @@ func TestProviderInstancesExposeExternalResourceSourcesAndProbeHealth(t *testing
 	}
 	instanceID := "external_resource:source:" + strconv.FormatUint(uint64(source.ID), 10)
 	var externalInstance *struct {
-		ID           string `json:"id"`
-		Type         string `json:"type"`
-		Adapter      string `json:"adapter"`
-		DisplayName  string `json:"display_name"`
-		Configured   bool   `json:"configured"`
-		Enabled      bool   `json:"enabled"`
+		ID          string `json:"id"`
+		Type        string `json:"type"`
+		Adapter     string `json:"adapter"`
+		DisplayName string `json:"display_name"`
+		Configured  bool   `json:"configured"`
+		Enabled     bool   `json:"enabled"`
+		Ref         struct {
+			Kind string `json:"kind"`
+			ID   uint   `json:"id"`
+		} `json:"ref"`
 		SecretFields []struct {
 			Key        string `json:"key"`
 			Configured bool   `json:"configured"`
@@ -407,6 +415,9 @@ func TestProviderInstancesExposeExternalResourceSourcesAndProbeHealth(t *testing
 	}
 	if externalInstance.Type != "external_resource" || externalInstance.Adapter != "pexels" || externalInstance.DisplayName != "Editorial Pexels" || !externalInstance.Configured || !externalInstance.Enabled {
 		t.Fatalf("external resource provider instance = %+v", externalInstance)
+	}
+	if externalInstance.Ref.Kind != "external_resource_source" || externalInstance.Ref.ID != source.ID {
+		t.Fatalf("external resource provider ref = %+v, want source %d", externalInstance.Ref, source.ID)
 	}
 	if len(externalInstance.SecretFields) != 1 || externalInstance.SecretFields[0].Key != "api_key" || !externalInstance.SecretFields[0].Configured {
 		t.Fatalf("external resource secret fields = %+v, want configured api_key", externalInstance.SecretFields)

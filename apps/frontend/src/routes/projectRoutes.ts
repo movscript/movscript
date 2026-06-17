@@ -8,6 +8,7 @@ export const ROUTES = {
   orgSettings: '/org/settings',
   canvases: '/canvases',
   canvasEditor: '/canvases/:id',
+  editing: '/editing',
   resources: '/resources',
   externalResources: '/resources/external',
   shotLibrary: '/shot-library',

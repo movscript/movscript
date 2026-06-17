@@ -27,8 +27,8 @@ func TestModelCatalogRejectsDuplicateEntryForSamePublicAndProviderID(t *testing.
 		DisplayName:     "Duplicate",
 		Capabilities:    "video",
 	})
-	if !errors.Is(err, ErrInvalidModelConfig) || !strings.Contains(err.Error(), "catalog entry already exists") {
-		t.Fatalf("duplicate catalog entry error = %v, want ErrInvalidModelConfig with already exists", err)
+	if !errors.Is(err, ErrInvalidModelCatalog) || !strings.Contains(err.Error(), "catalog entry already exists") {
+		t.Fatalf("duplicate catalog entry error = %v, want ErrInvalidModelCatalog with already exists", err)
 	}
 
 	other, err := service.CreateModelCatalogEntry(ctx, ModelCatalogEntryInput{
@@ -46,8 +46,8 @@ func TestModelCatalogRejectsDuplicateEntryForSamePublicAndProviderID(t *testing.
 		DisplayName:     "Image Fast",
 		Capabilities:    "image",
 	})
-	if !errors.Is(err, ErrInvalidModelConfig) || !strings.Contains(err.Error(), "catalog entry already exists") {
-		t.Fatalf("duplicate catalog entry update error = %v, want ErrInvalidModelConfig with already exists", err)
+	if !errors.Is(err, ErrInvalidModelCatalog) || !strings.Contains(err.Error(), "catalog entry already exists") {
+		t.Fatalf("duplicate catalog entry update error = %v, want ErrInvalidModelCatalog with already exists", err)
 	}
 }
 
@@ -137,8 +137,8 @@ func TestModelCatalogNormalizesCapabilitiesAndRejectsInvalidEntryContracts(t *te
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := service.CreateModelCatalogEntry(ctx, tt.input)
-			if !errors.Is(err, ErrInvalidModelConfig) || !strings.Contains(err.Error(), tt.want) {
-				t.Fatalf("CreateModelCatalogEntry() error = %v, want ErrInvalidModelConfig containing %q", err, tt.want)
+			if !errors.Is(err, ErrInvalidModelCatalog) || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("CreateModelCatalogEntry() error = %v, want ErrInvalidModelCatalog containing %q", err, tt.want)
 			}
 		})
 	}
@@ -196,8 +196,8 @@ func TestModelCatalogRejectsDuplicateRouteBindingForSameSourceAndGroup(t *testin
 			Priority:       2,
 			CapacityWeight: 1,
 		})
-		if !errors.Is(err, ErrInvalidModelConfig) || !strings.Contains(err.Error(), "already exists") {
-			t.Fatalf("duplicate binding error = %v, want ErrInvalidModelConfig with already exists", err)
+		if !errors.Is(err, ErrInvalidModelCatalog) || !strings.Contains(err.Error(), "already exists") {
+			t.Fatalf("duplicate binding error = %v, want ErrInvalidModelCatalog with already exists", err)
 		}
 
 		if _, err := service.CreateModelRouteBinding(ctx, strconvID(entry.ID), ModelRouteBindingInput{
@@ -235,8 +235,8 @@ func TestModelCatalogRejectsDuplicateRouteBindingForSameSourceAndGroup(t *testin
 		CredentialID:   &credentialA,
 		CapacityWeight: 1,
 	})
-	if !errors.Is(err, ErrInvalidModelConfig) || !strings.Contains(err.Error(), "already exists") {
-		t.Fatalf("duplicate credential binding error = %v, want ErrInvalidModelConfig with already exists", err)
+	if !errors.Is(err, ErrInvalidModelCatalog) || !strings.Contains(err.Error(), "already exists") {
+		t.Fatalf("duplicate credential binding error = %v, want ErrInvalidModelCatalog with already exists", err)
 	}
 }
 
@@ -306,8 +306,8 @@ func TestModelCatalogRejectsInvalidRouteBindingContracts(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := service.CreateModelRouteBinding(ctx, strconvID(entry.ID), tt.input)
-			if !errors.Is(err, ErrInvalidModelConfig) || !strings.Contains(err.Error(), tt.want) {
-				t.Fatalf("CreateModelRouteBinding() error = %v, want ErrInvalidModelConfig containing %q", err, tt.want)
+			if !errors.Is(err, ErrInvalidModelCatalog) || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("CreateModelRouteBinding() error = %v, want ErrInvalidModelCatalog containing %q", err, tt.want)
 			}
 		})
 	}
@@ -372,8 +372,8 @@ func TestModelCatalogRejectsUpdatingRouteBindingIntoDuplicateGroup(t *testing.T)
 			CapacityWeight: 1,
 		})
 	}
-	if !errors.Is(err, ErrInvalidModelConfig) || !strings.Contains(err.Error(), "already exists") {
-		t.Fatalf("duplicate update error = %v, want ErrInvalidModelConfig with already exists", err)
+	if !errors.Is(err, ErrInvalidModelCatalog) || !strings.Contains(err.Error(), "already exists") {
+		t.Fatalf("duplicate update error = %v, want ErrInvalidModelCatalog with already exists", err)
 	}
 }
 

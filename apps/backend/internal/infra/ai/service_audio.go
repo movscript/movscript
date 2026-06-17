@@ -62,7 +62,7 @@ func (s *AIService) CallTTS(ctx context.Context, userID, modelConfigID uint, req
 }
 
 func (s *AIService) CallTTSWithRouteUsage(ctx context.Context, userID uint, route ModelRoute, req media.TTSRequest, usage UsageContext) (media.TTSResponse, error) {
-	usage = usageWithCatalogEntry(usage, route.CatalogEntryID)
+	usage = usageWithRoute(usage, route)
 	runtime, handled, err := s.catalogRouteRuntime(ctx, userID, route, CapabilityAudioTTS)
 	if err != nil {
 		return media.TTSResponse{}, err
@@ -162,7 +162,7 @@ func (s *AIService) CallAudioGenerateWithRouteUsage(ctx context.Context, userID 
 	if !isAudioGenerationCapability(capability) {
 		return media.AudioGenerationResponse{}, fmt.Errorf("unsupported audio generation capability %q", capability)
 	}
-	usage = usageWithCatalogEntry(usage, route.CatalogEntryID)
+	usage = usageWithRoute(usage, route)
 	runtime, handled, err := s.catalogRouteRuntime(ctx, userID, route, capability)
 	if err != nil {
 		return media.AudioGenerationResponse{}, err
@@ -256,7 +256,7 @@ func (s *AIService) CallTranscribe(ctx context.Context, userID, modelConfigID ui
 }
 
 func (s *AIService) CallTranscribeWithRouteUsage(ctx context.Context, userID uint, route ModelRoute, req media.TranscribeRequest, usage UsageContext) (media.SubtitleResponse, error) {
-	usage = usageWithCatalogEntry(usage, route.CatalogEntryID)
+	usage = usageWithRoute(usage, route)
 	runtime, handled, err := s.catalogRouteRuntime(ctx, userID, route, CapabilityAudioSTT)
 	if err != nil {
 		return media.SubtitleResponse{}, err
@@ -350,7 +350,7 @@ func (s *AIService) CallAlign(ctx context.Context, userID, modelConfigID uint, r
 }
 
 func (s *AIService) CallAlignWithRouteUsage(ctx context.Context, userID uint, route ModelRoute, req media.AlignRequest, usage UsageContext) (media.SubtitleResponse, error) {
-	usage = usageWithCatalogEntry(usage, route.CatalogEntryID)
+	usage = usageWithRoute(usage, route)
 	for _, capability := range []string{CapabilitySubAlign, CapabilityAudioSTT} {
 		runtime, handled, err := s.catalogRouteRuntime(ctx, userID, route, capability)
 		if err != nil {
@@ -447,7 +447,7 @@ func (s *AIService) CallSubtitleTranslate(ctx context.Context, userID, modelConf
 }
 
 func (s *AIService) CallSubtitleTranslateWithRouteUsage(ctx context.Context, userID uint, route ModelRoute, req media.TranslateSubtitleRequest, usage UsageContext) (media.SubtitleResponse, error) {
-	usage = usageWithCatalogEntry(usage, route.CatalogEntryID)
+	usage = usageWithRoute(usage, route)
 	runtime, handled, err := s.catalogRouteRuntime(ctx, userID, route, CapabilitySubTranslate)
 	if err != nil {
 		return media.SubtitleResponse{}, err

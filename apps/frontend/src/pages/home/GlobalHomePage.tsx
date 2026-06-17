@@ -1,6 +1,6 @@
 import { useMemo, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowRight, Bot, FolderOpen, LayoutGrid, Loader2, Plus, Sparkles, Wrench } from 'lucide-react'
+import { ArrowRight, Bot, FolderOpen, LayoutGrid, Loader2, Plus, Scissors, Sparkles, Wrench } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 
@@ -60,6 +60,11 @@ export default function GlobalHomePage() {
 
   function enterCanvasMode() {
     navigate(ROUTES.canvases)
+  }
+
+  function enterEditingMode() {
+    setWorkMode('tool')
+    navigate(ROUTES.editing)
   }
 
   function enterToolMode() {
@@ -173,12 +178,18 @@ export default function GlobalHomePage() {
         </section>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2">
+      <section className="grid gap-3 sm:grid-cols-3">
         <ModeEntry
           icon={<LayoutGrid size={16} />}
           label="Canvas"
           description={t('home.mode.canvas', { defaultValue: '管理全局画布、素材组织和跨项目的可视化灵感板。' })}
           onClick={enterCanvasMode}
+        />
+        <ModeEntry
+          icon={<Scissors size={16} />}
+          label={t('home.mode.editingTitle', { defaultValue: '剪辑' })}
+          description={t('home.mode.editing', { defaultValue: '创建独立剪辑项目，组织素材、轨道、字幕和导出任务。' })}
+          onClick={enterEditingMode}
         />
         <ModeEntry
           icon={<Wrench size={16} />}

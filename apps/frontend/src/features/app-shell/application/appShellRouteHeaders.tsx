@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from 'react'
-import { AudioLines, Bot, BriefcaseBusiness, Cable, CircleUserRound, Clapperboard, GitBranch, HardDrive, Image as ImageIcon, Plug, Settings, Video, Workflow, Zap, type LucideIcon } from 'lucide-react'
+import { AudioLines, Bot, BriefcaseBusiness, Cable, CircleUserRound, Clapperboard, GitBranch, HardDrive, Image as ImageIcon, Plug, Scissors, Settings, Video, Workflow, Zap, type LucideIcon } from 'lucide-react'
 import { runtimeNavItems } from '@runtime'
 import { ROUTES } from '@/routes/projectRoutes'
 import type { AccountSettingsPageTab } from '@/features/app-shell/components/AccountSettingsDialog'
@@ -31,6 +31,7 @@ export function toolRouteHeaderTitle(pathname: string): ReactNode | undefined {
     title: ReactNode
   }> = [
     { match: (value) => value === ROUTES.resources, icon: HardDrive, title: i18n.t('header.titles.resources') },
+    { match: (value) => value === ROUTES.editing, icon: Scissors, title: i18n.t('header.titles.editing', { defaultValue: '剪辑' }) },
     { match: (value) => value === ROUTES.externalResources, icon: ImageIcon, title: i18n.t('header.titles.externalResources', { defaultValue: '外部资源' }) },
     { match: (value) => value === ROUTES.shotLibrary, icon: Clapperboard, title: i18n.t('header.titles.shotLibrary') },
     { match: (value) => value === ROUTES.jobs, icon: BriefcaseBusiness, title: i18n.t('header.titles.jobs') },

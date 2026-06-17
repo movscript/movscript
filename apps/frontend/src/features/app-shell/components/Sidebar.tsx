@@ -13,6 +13,7 @@ import {
   Move,
   Palette,
   ScanSearch,
+  Scissors,
   Shapes,
   Video,
 } from 'lucide-react'
@@ -124,6 +125,7 @@ export function Sidebar({
       <AppSidebarNav collapsed={collapsed}>
         <AppSidebarSection title={t('sidebar.sections.tools')} collapsed={collapsed}>
           <NavItem to={ROUTES.canvases} icon={AppWindow} label={t('sidebar.items.canvas')} collapsed={collapsed} />
+          <NavItem to={ROUTES.editing} icon={Scissors} label={t('sidebar.items.editing', { defaultValue: '剪辑' })} collapsed={collapsed} />
           <NavItem to={ROUTES.tools.refImageGen} icon={Images} label={t('sidebar.items.refImageGen')} collapsed={collapsed} />
           <NavItem to={ROUTES.tools.refVideoGen} icon={CirclePlay} label={t('sidebar.items.refVideoGen')} collapsed={collapsed} />
           <NavItem to={ROUTES.tools.audioGen} icon={AudioLines} label={t('sidebar.items.audioGen')} collapsed={collapsed} />

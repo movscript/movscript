@@ -9,7 +9,7 @@ import (
 	"github.com/movscript/movscript/internal/infra/ai"
 )
 
-type PreviewModelConfigContractInput struct {
+type PreviewCatalogEntryContractInput struct {
 	AdapterType           string
 	CustomCapabilities    string
 	CustomAcceptsImage    bool
@@ -18,7 +18,7 @@ type PreviewModelConfigContractInput struct {
 	CustomSupportedParams string
 }
 
-type ModelConfigContractPreview struct {
+type CatalogEntryContractPreview struct {
 	Capabilities          []string       `json:"capabilities"`
 	SupportedParams       []ai.ParamDef  `json:"supported_params"`
 	ParamsSchema          map[string]any `json:"params_schema"`
@@ -60,23 +60,23 @@ type AgentContractParam struct {
 	RequiresValue    []ai.ParamRequiresValue    `json:"requires_value,omitempty"`
 }
 
-func (s *Service) PreviewModelConfigContract(input PreviewModelConfigContractInput) (ModelConfigContractPreview, error) {
+func (s *Service) PreviewCatalogEntryContract(input PreviewCatalogEntryContractInput) (CatalogEntryContractPreview, error) {
 	capabilities := ai.SplitCapabilities(input.CustomCapabilities)
 	if len(capabilities) == 0 {
-		return ModelConfigContractPreview{}, fmt.Errorf("%w: custom_capabilities is required", ErrInvalidModelConfig)
+		return CatalogEntryContractPreview{}, fmt.Errorf("%w: custom_capabilities is required", ErrInvalidModelCatalog)
 	}
 	if err := validateInputLimit("custom_max_input_images", input.CustomMaxInputImages); err != nil {
-		return ModelConfigContractPreview{}, err
+		return CatalogEntryContractPreview{}, err
 	}
 	if err := validateInputLimit("custom_max_input_videos", input.CustomMaxInputVideos); err != nil {
-		return ModelConfigContractPreview{}, err
+		return CatalogEntryContractPreview{}, err
 	}
 	if err := ai.ValidateModelParamConfig(input.AdapterType, capabilities, input.CustomSupportedParams); err != nil {
-		return ModelConfigContractPreview{}, fmt.Errorf("%w: %v", ErrInvalidModelConfig, err)
+		return CatalogEntryContractPreview{}, fmt.Errorf("%w: %v", ErrInvalidModelCatalog, err)
 	}
 	params, _ := ai.ResolveEffectiveParams(input.AdapterType, capabilities, input.CustomSupportedParams)
 	schema := ai.ParamsSchema(params)
-	return ModelConfigContractPreview{
+	return CatalogEntryContractPreview{
 		Capabilities:          capabilities,
 		SupportedParams:       params,
 		ParamsSchema:          schema,
@@ -326,17 +326,17 @@ func cloneConditionalEnum(items []ai.ParamConditionalEnum) []ai.ParamConditional
 
 func validateInputLimit(field string, value int) error {
 	if value < -1 {
-		return fmt.Errorf("%w: %s must be -1 for unlimited or a non-negative integer", ErrInvalidModelConfig, field)
+		return fmt.Errorf("%w: %s must be -1 for unlimited or a non-negative integer", ErrInvalidModelCatalog, field)
 	}
 	return nil
 }
 
 func validateCapacityConfig(capacityWeight int, maxConcurrency int) error {
 	if capacityWeight < 0 {
-		return fmt.Errorf("%w: capacity_weight must be a positive integer", ErrInvalidModelConfig)
+		return fmt.Errorf("%w: capacity_weight must be a positive integer", ErrInvalidModelCatalog)
 	}
 	if maxConcurrency < 0 {
-		return fmt.Errorf("%w: max_concurrency must be 0 for unlimited or a positive integer", ErrInvalidModelConfig)
+		return fmt.Errorf("%w: max_concurrency must be 0 for unlimited or a positive integer", ErrInvalidModelCatalog)
 	}
 	return nil
 }

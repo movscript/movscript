@@ -53,7 +53,7 @@ func (s *Service) ListModelCatalogEntries(ctx context.Context) ([]persistencemod
 func (s *Service) CreateModelCatalogEntry(ctx context.Context, input ModelCatalogEntryInput) (persistencemodel.AIModelCatalogEntry, error) {
 	entry := modelCatalogEntryFromInput(input)
 	if strings.TrimSpace(entry.PublicModelID) == "" || strings.TrimSpace(entry.ProviderModelID) == "" {
-		return entry, ErrInvalidModelConfig
+		return entry, ErrInvalidModelCatalog
 	}
 	if entry.DisplayName == "" {
 		entry.DisplayName = entry.PublicModelID
@@ -140,7 +140,7 @@ func (s *Service) CreateModelRouteBinding(ctx context.Context, catalogEntryID st
 	input = normalizeEditionModelRouteBindingInput(input)
 	binding := modelRouteBindingFromInput(entryID, input)
 	if strings.TrimSpace(binding.SourceType) == "" {
-		return binding, ErrInvalidModelConfig
+		return binding, ErrInvalidModelCatalog
 	}
 	if err := validateModelRouteBinding(binding); err != nil {
 		return binding, err
@@ -191,7 +191,7 @@ func (s *Service) ensureUniqueModelRouteBinding(ctx context.Context, catalogEntr
 		return err
 	}
 	if count > 0 {
-		return fmt.Errorf("%w: route binding already exists for source %q, group %q, and credential %d", ErrInvalidModelConfig, strings.TrimSpace(sourceType), strings.TrimSpace(routeGroup), credentialIDValue(credentialID))
+		return fmt.Errorf("%w: route binding already exists for source %q, group %q, and credential %d", ErrInvalidModelCatalog, strings.TrimSpace(sourceType), strings.TrimSpace(routeGroup), credentialIDValue(credentialID))
 	}
 	return nil
 }
@@ -214,7 +214,7 @@ func (s *Service) ensureUniqueModelCatalogEntry(ctx context.Context, excludeEntr
 		return err
 	}
 	if count > 0 {
-		return fmt.Errorf("%w: catalog entry already exists for public model id %q and provider model id %q", ErrInvalidModelConfig, strings.TrimSpace(publicModelID), strings.TrimSpace(providerModelID))
+		return fmt.Errorf("%w: catalog entry already exists for public model id %q and provider model id %q", ErrInvalidModelCatalog, strings.TrimSpace(publicModelID), strings.TrimSpace(providerModelID))
 	}
 	return nil
 }
@@ -256,7 +256,7 @@ func validateModelCatalogEntry(entry *persistencemodel.AIModelCatalogEntry) erro
 	}
 	entry.Capabilities = capabilities
 	if entry.PricingMode != "" && !validModelCatalogPricingMode(entry.PricingMode) {
-		return fmt.Errorf("%w: pricing_mode %q is not supported", ErrInvalidModelConfig, entry.PricingMode)
+		return fmt.Errorf("%w: pricing_mode %q is not supported", ErrInvalidModelCatalog, entry.PricingMode)
 	}
 	if err := validateInputLimit("max_input_images", entry.MaxInputImages); err != nil {
 		return err
@@ -272,11 +272,11 @@ func validateModelCatalogEntry(entry *persistencemodel.AIModelCatalogEntry) erro
 		"credits_per_call":      entry.CreditsPerCall,
 	} {
 		if value < 0 {
-			return fmt.Errorf("%w: %s must be non-negative", ErrInvalidModelConfig, field)
+			return fmt.Errorf("%w: %s must be non-negative", ErrInvalidModelCatalog, field)
 		}
 	}
 	if err := infraai.ValidateModelParamConfig(infraai.AdapterOpenAICompat, infraai.SplitCapabilities(capabilities), entry.SupportedParams); err != nil {
-		return fmt.Errorf("%w: %v", ErrInvalidModelConfig, err)
+		return fmt.Errorf("%w: %v", ErrInvalidModelCatalog, err)
 	}
 	return nil
 }
@@ -302,7 +302,7 @@ func normalizeModelCatalogCapabilities(value string) (string, error) {
 	out := make([]string, 0)
 	for _, capability := range infraai.SplitCapabilities(value) {
 		if !allowed[capability] {
-			return "", fmt.Errorf("%w: capability %q is not supported", ErrInvalidModelConfig, capability)
+			return "", fmt.Errorf("%w: capability %q is not supported", ErrInvalidModelCatalog, capability)
 		}
 		if seen[capability] {
 			continue
@@ -327,10 +327,10 @@ func validModelCatalogPricingMode(value string) bool {
 
 func validateModelRouteBinding(binding persistencemodel.AIModelRouteBinding) error {
 	if binding.SourceType == persistencemodel.ModelRouteSourceNewAPI && !supportsNewAPIRouteBindings() {
-		return fmt.Errorf("%w: new_api route bindings require the commercial edition", ErrInvalidModelConfig)
+		return fmt.Errorf("%w: new_api route bindings require the commercial edition", ErrInvalidModelCatalog)
 	}
 	if binding.SourceType == persistencemodel.ModelRouteSourceNewAPI && strings.TrimSpace(binding.RouteGroup) == "" {
-		return fmt.Errorf("%w: route_group is required for new_api route bindings", ErrInvalidModelConfig)
+		return fmt.Errorf("%w: route_group is required for new_api route bindings", ErrInvalidModelCatalog)
 	}
 	return validateCapacityConfig(binding.CapacityWeight, binding.MaxConcurrency)
 }

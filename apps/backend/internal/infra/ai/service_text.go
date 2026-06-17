@@ -18,7 +18,7 @@ func (s *AIService) CallText(ctx context.Context, userID, modelConfigID uint, re
 }
 
 func (s *AIService) CallTextWithRouteUsage(ctx context.Context, userID uint, route ModelRoute, req TextRequest, usage UsageContext) (TextResponse, error) {
-	usage = usageWithCatalogEntry(usage, route.CatalogEntryID)
+	usage = usageWithRoute(usage, route)
 	for _, capability := range textRuntimeCapabilities() {
 		runtime, handled, err := s.catalogRouteRuntime(ctx, userID, route, capability)
 		if err != nil {
@@ -250,7 +250,7 @@ func (s *AIService) CallResponsesWithUsage(ctx context.Context, userID, modelCon
 }
 
 func (s *AIService) CallResponsesWithRouteUsage(ctx context.Context, userID uint, route ModelRoute, req ResponsesRequest, usage UsageContext) (TextResponse, error) {
-	usage = usageWithCatalogEntry(usage, route.CatalogEntryID)
+	usage = usageWithRoute(usage, route)
 	for _, capability := range textRuntimeCapabilities() {
 		runtime, handled, err := s.catalogRouteRuntime(ctx, userID, route, capability)
 		if err != nil {
@@ -264,7 +264,7 @@ func (s *AIService) CallResponsesWithRouteUsage(ctx context.Context, userID uint
 }
 
 func (s *AIService) CallResponsesStreamWithRouteUsage(ctx context.Context, userID uint, route ModelRoute, req ResponsesRequest, usage UsageContext) (<-chan ResponsesStreamEvent, error) {
-	usage = usageWithCatalogEntry(usage, route.CatalogEntryID)
+	usage = usageWithRoute(usage, route)
 	for _, capability := range textRuntimeCapabilities() {
 		runtime, handled, err := s.catalogRouteRuntime(ctx, userID, route, capability)
 		if err != nil {
@@ -643,7 +643,7 @@ func (s *AIService) CallTextStreamWithUsage(ctx context.Context, userID, modelCo
 }
 
 func (s *AIService) CallTextStreamWithRouteUsage(ctx context.Context, userID uint, route ModelRoute, req TextRequest, usage UsageContext) (<-chan TextStreamEvent, error) {
-	usage = usageWithCatalogEntry(usage, route.CatalogEntryID)
+	usage = usageWithRoute(usage, route)
 	for _, capability := range textRuntimeCapabilities() {
 		runtime, handled, err := s.catalogRouteRuntime(ctx, userID, route, capability)
 		if err != nil {

@@ -632,6 +632,108 @@ func TestMigration000052BackfillsJobCatalogEntryIDs(t *testing.T) {
 	}
 }
 
+func TestMigration000053BackfillsUsageRouteBindingRefs(t *testing.T) {
+	db := testutil.OpenSQLiteWithConfig(t, "migration_000053_usage_route_binding_id.db", &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
+	}, &AppliedMigration{})
+	if err := db.Exec(`CREATE TABLE usage_logs (
+		id integer primary key,
+		created_at datetime,
+		updated_at datetime,
+		deleted_at datetime,
+		user_id integer not null,
+		ai_model_config_id integer not null,
+		operation_type text not null
+	)`).Error; err != nil {
+		t.Fatalf("create usage logs: %v", err)
+	}
+	if err := db.Exec(`CREATE TABLE usage_reservations (
+		id integer primary key,
+		created_at datetime,
+		updated_at datetime,
+		deleted_at datetime,
+		user_id integer not null,
+		ai_model_config_id integer not null,
+		operation_type text not null
+	)`).Error; err != nil {
+		t.Fatalf("create usage reservations: %v", err)
+	}
+	if err := db.Exec(`CREATE TABLE llm_call_logs (
+		id integer primary key,
+		created_at datetime,
+		updated_at datetime,
+		deleted_at datetime,
+		user_id integer not null,
+		ai_model_config_id integer not null,
+		credential_id integer not null,
+		operation_type text not null,
+		status text not null
+	)`).Error; err != nil {
+		t.Fatalf("create llm call logs: %v", err)
+	}
+	if err := db.Exec(`CREATE TABLE ai_model_route_bindings (
+		id integer primary key,
+		created_at datetime,
+		updated_at datetime,
+		deleted_at datetime,
+		catalog_entry_id integer not null,
+		source_type text,
+		route_group text,
+		local_model_config_id integer,
+		capacity_weight integer
+	)`).Error; err != nil {
+		t.Fatalf("create route bindings: %v", err)
+	}
+	if err := db.Exec(`INSERT INTO ai_model_route_bindings (id, catalog_entry_id, source_type, route_group, local_model_config_id, capacity_weight) VALUES (321, 100, 'local_provider', '', 7, 1)`).Error; err != nil {
+		t.Fatalf("insert route binding: %v", err)
+	}
+	if err := db.Exec(`INSERT INTO usage_logs (id, user_id, ai_model_config_id, operation_type) VALUES (1, 7, 7, 'text')`).Error; err != nil {
+		t.Fatalf("insert usage log: %v", err)
+	}
+	if err := db.Exec(`INSERT INTO usage_reservations (id, user_id, ai_model_config_id, operation_type) VALUES (1, 7, 7, 'text')`).Error; err != nil {
+		t.Fatalf("insert usage reservation: %v", err)
+	}
+	if err := db.Exec(`INSERT INTO llm_call_logs (id, user_id, ai_model_config_id, credential_id, operation_type, status) VALUES (1, 7, 7, 9, 'text', 'success')`).Error; err != nil {
+		t.Fatalf("insert llm call log: %v", err)
+	}
+	for _, migration := range RegisteredMigrations() {
+		if migration.Version >= "000053" {
+			break
+		}
+		if err := db.Create(&AppliedMigration{
+			Version:   migration.Version,
+			Name:      migration.Name,
+			Checksum:  migrationChecksum(migration),
+			AppliedAt: time.Now().UTC(),
+		}).Error; err != nil {
+			t.Fatalf("insert migration %s: %v", migration.Version, err)
+		}
+	}
+	if db.Migrator().HasColumn(&model.UsageLog{}, "route_binding_id") {
+		t.Fatal("usage_logs.route_binding_id exists before migration")
+	}
+	if db.Migrator().HasColumn(&model.UsageReservation{}, "route_binding_id") {
+		t.Fatal("usage_reservations.route_binding_id exists before migration")
+	}
+	if db.Migrator().HasColumn(&model.LLMCallLog{}, "route_binding_id") {
+		t.Fatal("llm_call_logs.route_binding_id exists before migration")
+	}
+
+	if err := RunMigrations(db); err != nil {
+		t.Fatalf("RunMigrations() error = %v", err)
+	}
+
+	for _, table := range []string{"usage_logs", "usage_reservations", "llm_call_logs"} {
+		var routeBindingID uint
+		if err := db.Raw(`SELECT route_binding_id FROM ` + table + ` WHERE id = 1`).Scan(&routeBindingID).Error; err != nil {
+			t.Fatalf("read %s route binding id: %v", table, err)
+		}
+		if routeBindingID != 321 {
+			t.Fatalf("%s route binding id = %d, want 321", table, routeBindingID)
+		}
+	}
+}
+
 func TestMigration000047EnforcesUniqueActiveModelRouteBindings(t *testing.T) {
 	db := testutil.OpenSQLiteWithConfig(t, "migration_000047_model_route_binding_unique.db", &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,

@@ -128,6 +128,7 @@ type LLMCallLog struct {
 	OrgID             *uint              `json:"org_id,omitempty"`
 	ProjectID         *uint              `json:"project_id,omitempty"`
 	GatewayAPIKeyID   *uint              `json:"gateway_api_key_id,omitempty"`
+	RouteBindingID    *uint              `json:"route_binding_id,omitempty"`
 	ModelID           string             `json:"model_id,omitempty"`
 	CredentialID      uint               `json:"credential_id"`
 	OperationType     string             `json:"operation_type"`

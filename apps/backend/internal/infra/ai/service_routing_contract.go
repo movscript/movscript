@@ -87,6 +87,7 @@ func modelRouteToContract(route ModelRoute, capability string) providercontract.
 		ModelID:         route.ModelID,
 		ModelConfigID:   route.ModelConfigID,
 		CatalogEntryID:  route.CatalogEntryID,
+		RouteBindingID:  route.RouteBindingID,
 		CredentialID:    route.CredentialID,
 		SourceType:      route.SourceType,
 		RouteGroup:      route.RouteGroup,

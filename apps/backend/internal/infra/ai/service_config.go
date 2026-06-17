@@ -133,6 +133,7 @@ type ModelRoute struct {
 	ModelID         string
 	ModelConfigID   uint // resolved compatibility route id for legacy clients
 	CatalogEntryID  uint
+	RouteBindingID  uint
 	CredentialID    uint
 	SourceType      string
 	RouteGroup      string
@@ -546,6 +547,8 @@ func beginRuntimeProviderAttempt(modelConfigID uint) func(error) {
 
 type RuntimeProviderHealth struct {
 	ModelConfigID       uint       `json:"-"`
+	CatalogEntryID      uint       `json:"catalog_entry_id,omitempty"`
+	RouteBindingID      uint       `json:"route_binding_id,omitempty"`
 	ModelID             string     `json:"model_id"`
 	ModelDefID          string     `json:"model_def_id"`
 	ProviderName        string     `json:"provider_name"`
@@ -566,10 +569,23 @@ type RuntimeProviderHealth struct {
 }
 
 func RuntimeProviderHealthSnapshot(db *gorm.DB) ([]RuntimeProviderHealth, error) {
-	var rows []modelConfigWithProvider
-	if err := db.Model(&persistencemodel.AIModelConfig{}).
-		Select("ai_model_configs.*, ai_credentials.display_name AS provider_name, ai_credentials.adapter_type AS adapter_type").
-		Joins("JOIN ai_credentials ON ai_credentials.id = ai_model_configs.credential_id").
+	type healthRow struct {
+		persistencemodel.AIModelConfig
+		ProviderName   string
+		AdapterType    string
+		CatalogEntryID uint
+		RouteBindingID uint
+	}
+	var rows []healthRow
+	selectClause := "ai_model_configs.*, ai_credentials.display_name AS provider_name, ai_credentials.adapter_type AS adapter_type"
+	query := db.Model(&persistencemodel.AIModelConfig{}).
+		Joins("JOIN ai_credentials ON ai_credentials.id = ai_model_configs.credential_id")
+	if db.Migrator().HasTable(&persistencemodel.AIModelRouteBinding{}) {
+		selectClause += ", ai_model_route_bindings.catalog_entry_id AS catalog_entry_id, ai_model_route_bindings.id AS route_binding_id"
+		query = query.Joins("LEFT JOIN ai_model_route_bindings ON ai_model_route_bindings.local_model_config_id = ai_model_configs.id AND ai_model_route_bindings.deleted_at IS NULL")
+	}
+	if err := query.
+		Select(selectClause).
 		Where("ai_model_configs.deleted_at IS NULL AND ai_credentials.deleted_at IS NULL").
 		Order("ai_model_configs.priority DESC, ai_model_configs.id ASC").
 		Scan(&rows).Error; err != nil {
@@ -586,6 +602,8 @@ func RuntimeProviderHealthSnapshot(db *gorm.DB) ([]RuntimeProviderHealth, error)
 		}
 		out = append(out, RuntimeProviderHealth{
 			ModelConfigID:       row.ID,
+			CatalogEntryID:      row.CatalogEntryID,
+			RouteBindingID:      row.RouteBindingID,
 			ModelID:             logicalModelID(row.AIModelConfig, def),
 			ModelDefID:          row.ModelDefID,
 			ProviderName:        row.ProviderName,

@@ -39,9 +39,9 @@ func TestDeleteCredentialReturnsDeletedCredentialAndMissingIsNotFound(t *testing
 	}
 }
 
-func TestPreviewModelConfigContractReturnsResolvedBackendContract(t *testing.T) {
+func TestPreviewCatalogEntryContractReturnsResolvedBackendContract(t *testing.T) {
 	service := newTestService(t)
-	preview, err := service.PreviewModelConfigContract(PreviewModelConfigContractInput{
+	preview, err := service.PreviewCatalogEntryContract(PreviewCatalogEntryContractInput{
 		AdapterType:           "volcen",
 		CustomCapabilities:    "video",
 		CustomSupportedParams: `{"allow":["duration","resolution"],"override":{"duration":{"type":"select","options":["5"],"default":"5"}}}`,
@@ -66,9 +66,9 @@ func TestPreviewModelConfigContractReturnsResolvedBackendContract(t *testing.T) 
 	}
 }
 
-func TestPreviewModelConfigContractUsesInputLimits(t *testing.T) {
+func TestPreviewCatalogEntryContractUsesInputLimits(t *testing.T) {
 	service := newTestService(t)
-	preview, err := service.PreviewModelConfigContract(PreviewModelConfigContractInput{
+	preview, err := service.PreviewCatalogEntryContract(PreviewCatalogEntryContractInput{
 		AdapterType:           ai.AdapterVolcen,
 		CustomCapabilities:    strings.Join([]string{ai.CapabilityVideoI2V, ai.CapabilityVideoV2V}, ","),
 		CustomAcceptsImage:    true,
@@ -87,9 +87,9 @@ func TestPreviewModelConfigContractUsesInputLimits(t *testing.T) {
 	}
 }
 
-func TestPreviewModelConfigContractAllowsUnlimitedInputLimit(t *testing.T) {
+func TestPreviewCatalogEntryContractAllowsUnlimitedInputLimit(t *testing.T) {
 	service := newTestService(t)
-	preview, err := service.PreviewModelConfigContract(PreviewModelConfigContractInput{
+	preview, err := service.PreviewCatalogEntryContract(PreviewCatalogEntryContractInput{
 		AdapterType:           ai.AdapterVolcen,
 		CustomCapabilities:    ai.CapabilityVideoI2V,
 		CustomAcceptsImage:    true,
@@ -104,69 +104,104 @@ func TestPreviewModelConfigContractAllowsUnlimitedInputLimit(t *testing.T) {
 	}
 }
 
-func TestPreviewModelConfigContractRejectsInvalidInputLimit(t *testing.T) {
+func TestPreviewCatalogEntryContractRejectsInvalidInputLimit(t *testing.T) {
 	service := newTestService(t)
-	_, err := service.PreviewModelConfigContract(PreviewModelConfigContractInput{
+	_, err := service.PreviewCatalogEntryContract(PreviewCatalogEntryContractInput{
 		AdapterType:           ai.AdapterVolcen,
 		CustomCapabilities:    ai.CapabilityVideoI2V,
 		CustomMaxInputImages:  -2,
 		CustomSupportedParams: `{"allow":["duration"],"override":{"duration":{"type":"select","options":["5"],"default":"5"}}}`,
 	})
-	if !errors.Is(err, ErrInvalidModelConfig) {
-		t.Fatalf("expected ErrInvalidModelConfig, got %v", err)
+	if !errors.Is(err, ErrInvalidModelCatalog) {
+		t.Fatalf("expected ErrInvalidModelCatalog, got %v", err)
 	}
 	if !strings.Contains(err.Error(), "custom_max_input_images") {
 		t.Fatalf("expected field name in error, got %v", err)
 	}
 }
 
-func TestPresetSupportedParamsRoundTripThroughSavePreviewAndRuntime(t *testing.T) {
+func TestCatalogEntrySupportedParamsRoundTripThroughPreviewAndRuntime(t *testing.T) {
 	service := newTestService(t)
-	for _, preset := range ai.ModelPresets() {
-		if !hasVisualGenerationCapability(preset.Capabilities) {
-			continue
-		}
-		preset := preset
-		t.Run(preset.ID, func(t *testing.T) {
-			paramsJSON, err := json.Marshal(preset.SupportedParams)
-			if err != nil {
-				t.Fatalf("marshal preset supported params: %v", err)
-			}
-
-			capabilities := strings.Join(preset.Capabilities, ",")
-			pricingMode := string(preset.PricingMode)
-			supportedParams := string(paramsJSON)
-
-			preview, err := service.PreviewModelConfigContract(PreviewModelConfigContractInput{
-				AdapterType:           preset.AdapterType,
+	cases := []struct {
+		name            string
+		adapter         string
+		capabilities    []string
+		pricingMode     string
+		acceptsImage    bool
+		maxInputImages  int
+		maxInputVideos  int
+		imageEditField  string
+		supportedParams string
+		wantKeys        []string
+	}{
+		{
+			name:           "image-edit",
+			adapter:        ai.AdapterOpenAICompat,
+			capabilities:   []string{ai.CapabilityImageEdit},
+			pricingMode:    string(ai.PricingPerImage),
+			acceptsImage:   true,
+			maxInputImages: 2,
+			imageEditField: "image",
+			supportedParams: `[
+				{"key":"quality","label":"Quality","type":"select","options":["standard","hd"],"default":"standard"},
+				{"key":"background","label":"Background","type":"select","options":["transparent","opaque"],"default":"opaque"}
+			]`,
+			wantKeys: []string{"background", "quality"},
+		},
+		{
+			name:           "video-i2v-conditional",
+			adapter:        ai.AdapterVolcen,
+			capabilities:   []string{ai.CapabilityVideoI2V},
+			pricingMode:    string(ai.PricingPerSecond),
+			acceptsImage:   true,
+			maxInputImages: 4,
+			supportedParams: `[
+				{"key":"duration","label":"Duration","type":"select","options":["5","10"],"default":"5"},
+				{"key":"workspace","label":"Workspace","type":"boolean"},
+				{"key":"resolution","label":"Resolution","type":"select","options":["480p","720p"],"default":"480p","conditional_enum":[{"when_param":"workspace","when_value":true,"options":["480p"]}]},
+				{"key":"return_last_frame","label":"Return Last Frame","type":"boolean","default":false,"conditional_const":[{"when_param":"workspace","when_value":true,"value":false}]},
+				{"key":"service_tier","label":"Service Tier","type":"select","options":["standard","fast"],"default":"standard"}
+			]`,
+			wantKeys: []string{"duration", "resolution", "return_last_frame", "service_tier", "workspace"},
+		},
+	}
+	for _, tt := range cases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			capabilities := strings.Join(tt.capabilities, ",")
+			preview, err := service.PreviewCatalogEntryContract(PreviewCatalogEntryContractInput{
+				AdapterType:           tt.adapter,
 				CustomCapabilities:    capabilities,
-				CustomAcceptsImage:    preset.AcceptsImageInput,
-				CustomMaxInputImages:  preset.MaxInputImages,
-				CustomMaxInputVideos:  preset.MaxInputVideos,
-				CustomSupportedParams: supportedParams,
+				CustomAcceptsImage:    tt.acceptsImage,
+				CustomMaxInputImages:  tt.maxInputImages,
+				CustomMaxInputVideos:  tt.maxInputVideos,
+				CustomSupportedParams: tt.supportedParams,
 			})
 			if err != nil {
-				t.Fatalf("preview preset-backed contract: %v", err)
+				t.Fatalf("preview catalog entry contract: %v", err)
 			}
 			runtime := ai.ResolveModelDef(
-				preset.ID,
-				preset.AdapterType,
-				preset.DisplayName,
+				tt.name,
+				tt.adapter,
+				tt.name,
 				capabilities,
-				pricingMode,
-				preset.AcceptsImageInput,
-				preset.MaxInputImages,
-				preset.MaxInputVideos,
-				preset.ImageEditField,
-				supportedParams,
+				tt.pricingMode,
+				tt.acceptsImage,
+				tt.maxInputImages,
+				tt.maxInputVideos,
+				tt.imageEditField,
+				tt.supportedParams,
 			)
 
 			if !runtime.SupportedParamsExplicit {
-				t.Fatal("expected saved preset params to be treated as explicit model contract")
+				t.Fatal("expected saved catalog params to be treated as explicit model contract")
 			}
 			assertParamDefsJSONEqual(t, preview.SupportedParams, runtime.SupportedParams)
 			if !stringSlicesEqual(preview.AgentContract.SupportedParamKeys, paramKeys(runtime.SupportedParams)) {
 				t.Fatalf("agent supported keys do not match runtime params: got %#v runtime %#v", preview.AgentContract.SupportedParamKeys, paramKeys(runtime.SupportedParams))
+			}
+			if !stringSlicesEqual(preview.AgentContract.SupportedParamKeys, tt.wantKeys) {
+				t.Fatalf("agent supported keys = %#v, want %#v", preview.AgentContract.SupportedParamKeys, tt.wantKeys)
 			}
 			if preview.AgentContract.InputRequirements.Image.Min != expectedImageInputMin(runtime) || preview.AgentContract.InputRequirements.Image.Max != runtime.MaxInputImages {
 				t.Fatalf("agent image input requirements do not match runtime: got %#v runtime max=%d", preview.AgentContract.InputRequirements.Image, runtime.MaxInputImages)
@@ -180,21 +215,21 @@ func TestPresetSupportedParamsRoundTripThroughSavePreviewAndRuntime(t *testing.T
 		})
 	}
 
-	preset := modelPresetByID(t, "volcengine:seedance-1-5-pro")
-	paramsJSON, err := json.Marshal(preset.SupportedParams)
-	if err != nil {
-		t.Fatalf("marshal preset supported params: %v", err)
-	}
-	preview, err := service.PreviewModelConfigContract(PreviewModelConfigContractInput{
-		AdapterType:           preset.AdapterType,
-		CustomCapabilities:    strings.Join(preset.Capabilities, ","),
-		CustomAcceptsImage:    preset.AcceptsImageInput,
-		CustomMaxInputImages:  preset.MaxInputImages,
-		CustomMaxInputVideos:  preset.MaxInputVideos,
-		CustomSupportedParams: string(paramsJSON),
+	preview, err := service.PreviewCatalogEntryContract(PreviewCatalogEntryContractInput{
+		AdapterType:          ai.AdapterVolcen,
+		CustomCapabilities:   ai.CapabilityVideoI2V,
+		CustomAcceptsImage:   true,
+		CustomMaxInputImages: 4,
+		CustomSupportedParams: `[
+			{"key":"duration","label":"Duration","type":"select","options":["5","10"],"default":"5"},
+			{"key":"workspace","label":"Workspace","type":"boolean"},
+			{"key":"resolution","label":"Resolution","type":"select","options":["480p","720p"],"default":"480p","conditional_enum":[{"when_param":"workspace","when_value":true,"options":["480p"]}]},
+			{"key":"return_last_frame","label":"Return Last Frame","type":"boolean","default":false,"conditional_const":[{"when_param":"workspace","when_value":true,"value":false}]},
+			{"key":"service_tier","label":"Service Tier","type":"select","options":["standard","fast"],"default":"standard"}
+		]`,
 	})
 	if err != nil {
-		t.Fatalf("preview seedance preset-backed contract: %v", err)
+		t.Fatalf("preview conditional catalog contract: %v", err)
 	}
 	for _, key := range []string{"duration", "resolution", "workspace", "return_last_frame", "service_tier"} {
 		if agentContractParam(preview.AgentContract, key) == nil {
@@ -209,16 +244,6 @@ func TestPresetSupportedParamsRoundTripThroughSavePreviewAndRuntime(t *testing.T
 	if returnLastFrame == nil || len(returnLastFrame.ConditionalConst) != 1 || returnLastFrame.ConditionalConst[0].Value != false {
 		t.Fatalf("expected return_last_frame workspace rule after round trip, got %#v", returnLastFrame)
 	}
-}
-
-func hasVisualGenerationCapability(capabilities []string) bool {
-	for _, capability := range capabilities {
-		switch capability {
-		case ai.CapabilityImage, ai.CapabilityImageEdit, ai.CapabilityVideo, ai.CapabilityVideoI2V, ai.CapabilityVideoV2V:
-			return true
-		}
-	}
-	return false
 }
 
 func expectedImageInputMin(def *ai.ModelDef) int {
@@ -256,10 +281,10 @@ func containsString(values []string, target string) bool {
 	return false
 }
 
-func TestPreviewModelConfigContractReturnsAgentCompactRules(t *testing.T) {
+func TestPreviewCatalogEntryContractReturnsAgentCompactRules(t *testing.T) {
 	service := newTestService(t)
 	expectedContract := loadAgentCompactContractFixture(t)
-	preview, err := service.PreviewModelConfigContract(PreviewModelConfigContractInput{
+	preview, err := service.PreviewCatalogEntryContract(PreviewCatalogEntryContractInput{
 		AdapterType:          "volcen",
 		CustomCapabilities:   ai.CapabilityVideoI2V,
 		CustomAcceptsImage:   true,
@@ -399,17 +424,6 @@ func assertParamDefsJSONEqual(t *testing.T, got, want []ai.ParamDef) {
 	}
 }
 
-func modelPresetByID(t *testing.T, id string) ai.ModelPreset {
-	t.Helper()
-	for _, preset := range ai.ModelPresets() {
-		if preset.ID == id {
-			return preset
-		}
-	}
-	t.Fatalf("missing model preset %s", id)
-	return ai.ModelPreset{}
-}
-
 func paramKeys(params []ai.ParamDef) []string {
 	out := make([]string, 0, len(params))
 	for _, param := range params {
@@ -433,15 +447,15 @@ func stringSlicesEqual(a, b []string) bool {
 	return true
 }
 
-func TestPreviewModelConfigContractRejectsInvalidContract(t *testing.T) {
+func TestPreviewCatalogEntryContractRejectsInvalidContract(t *testing.T) {
 	service := newTestService(t)
-	_, err := service.PreviewModelConfigContract(PreviewModelConfigContractInput{
+	_, err := service.PreviewCatalogEntryContract(PreviewCatalogEntryContractInput{
 		AdapterType:           "volcen",
 		CustomCapabilities:    "video",
 		CustomSupportedParams: `[{"key":"duration","type":"select"}]`,
 	})
-	if !errors.Is(err, ErrInvalidModelConfig) {
-		t.Fatalf("expected ErrInvalidModelConfig, got %v", err)
+	if !errors.Is(err, ErrInvalidModelCatalog) {
+		t.Fatalf("expected ErrInvalidModelCatalog, got %v", err)
 	}
 }
 
@@ -449,7 +463,6 @@ func newTestService(t *testing.T) *Service {
 	t.Helper()
 	db := testutil.OpenSQLite(t, "admin-ai.db",
 		&persistencemodel.AICredential{},
-		&persistencemodel.AIModelConfig{},
 		&persistencemodel.AIModelCatalogEntry{},
 		&persistencemodel.AIModelRouteBinding{},
 	)

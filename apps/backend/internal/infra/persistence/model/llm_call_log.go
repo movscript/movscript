@@ -14,8 +14,9 @@ type LLMCallLog struct {
 	ProjectID       *uint  `gorm:"index" json:"project_id,omitempty"`
 	GatewayAPIKeyID *uint  `gorm:"index" json:"gateway_api_key_id,omitempty"`
 
-	AIModelConfigID uint `gorm:"not null;index" json:"-"`
-	CredentialID    uint `gorm:"not null;index" json:"credential_id"`
+	AIModelConfigID uint  `gorm:"not null;index" json:"-"`
+	RouteBindingID  *uint `gorm:"index" json:"route_binding_id,omitempty"`
+	CredentialID    uint  `gorm:"not null;index" json:"credential_id"`
 
 	OperationType string `gorm:"not null;index;size:64" json:"operation_type"`
 	PromptName    string `gorm:"index;size:128" json:"prompt_name,omitempty"`

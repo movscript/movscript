@@ -268,6 +268,9 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (do
 	if route.CatalogEntryID != 0 {
 		usage.AIModelCatalogEntryID = &route.CatalogEntryID
 	}
+	if route.RouteBindingID != 0 {
+		usage.RouteBindingID = &route.RouteBindingID
+	}
 	reservation, err := s.ai.ReserveUsage(ctx, input.UserID, route.ModelConfigID, estimate, usage)
 	if err != nil {
 		if errors.Is(err, ai.ErrUsageLimitExceeded) {

@@ -270,26 +270,6 @@ export interface LLMCallLog {
   UpdatedAt: string
 }
 
-export interface GatewayAPIKey {
-  ID: number
-  name: string
-  key_prefix: string
-  owner_user_id: number
-  org_id?: number
-  project_id?: number
-  allowed_catalog_entry_ids: string
-  allowed_scopes: string
-  is_enabled: boolean
-  new_api_group?: string
-  last_used_at?: string
-  CreatedAt: string
-  UpdatedAt: string
-}
-
-export interface GatewayAPIKeyCreateResponse extends GatewayAPIKey {
-  key: string
-}
-
 // AICredential stores authentication credentials for one adapter type.
 export interface AICredential {
   ID: number
@@ -322,7 +302,7 @@ export interface ProviderInstance {
   enabled: boolean
   config_editable: boolean
   requires_restart: boolean
-  legacy_ref?: {
+  ref?: {
     kind: string
     id: number
   }
@@ -437,26 +417,6 @@ export interface AdapterDef {
 export interface AdapterParamSet {
   capability: string
   params: ParamDef[]
-}
-
-// ModelPreset is a read-only admin UI template for quickly adding a model.
-// Runtime routing and generation parameters never consult this list.
-export interface ModelPreset {
-  id: string
-  model_id: string
-  display_name: string
-  capabilities: string[]
-  pricing_mode: 'per_token' | 'per_image' | 'per_second' | 'per_call'
-  adapter_type: string
-  accepts_image_input: boolean
-  max_input_images: number
-  max_input_videos: number
-  image_edit_field?: string
-  supported_params?: ParamDef[]
-  ref_input_usd_per_1m?: number
-  ref_output_usd_per_1m?: number
-  ref_usd_per_image?: number
-  ref_usd_per_second?: number
 }
 
 // ParamDef describes a user-configurable generation parameter for a model.

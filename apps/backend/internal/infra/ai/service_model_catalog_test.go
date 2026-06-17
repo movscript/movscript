@@ -199,13 +199,14 @@ func TestAIServiceCatalogRouteCanCallLocalProviderWithProviderModelID(t *testing
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
 	}
-	if err := db.Create(&persistencemodel.AIModelRouteBinding{
+	binding := persistencemodel.AIModelRouteBinding{
 		CatalogEntryID: entry.ID,
 		SourceType:     persistencemodel.ModelRouteSourceLocalProvider,
 		CredentialID:   &cred.ID,
 		IsEnabled:      true,
 		CapacityWeight: 1,
-	}).Error; err != nil {
+	}
+	if err := db.Create(&binding).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
 	}
 	probe := &catalogRuntimeProbeProvider{}
@@ -240,12 +241,18 @@ func TestAIServiceCatalogRouteCanCallLocalProviderWithProviderModelID(t *testing
 	if usageLog.AIModelCatalogEntryID == nil || *usageLog.AIModelCatalogEntryID != entry.ID {
 		t.Fatalf("usage log catalog entry id = %v, want %d", usageLog.AIModelCatalogEntryID, entry.ID)
 	}
+	if usageLog.RouteBindingID == nil || *usageLog.RouteBindingID != binding.ID {
+		t.Fatalf("usage log route binding id = %v, want %d", usageLog.RouteBindingID, binding.ID)
+	}
 	var reservation persistencemodel.UsageReservation
 	if err := db.First(&reservation).Error; err != nil {
 		t.Fatalf("load usage reservation: %v", err)
 	}
 	if reservation.AIModelCatalogEntryID == nil || *reservation.AIModelCatalogEntryID != entry.ID {
 		t.Fatalf("usage reservation catalog entry id = %v, want %d", reservation.AIModelCatalogEntryID, entry.ID)
+	}
+	if reservation.RouteBindingID == nil || *reservation.RouteBindingID != binding.ID {
+		t.Fatalf("usage reservation route binding id = %v, want %d", reservation.RouteBindingID, binding.ID)
 	}
 }
 

@@ -105,6 +105,7 @@ type Log struct {
 	UserID                uint             `json:"user_id"`
 	OrgID                 *uint            `json:"org_id,omitempty"`
 	AIModelCatalogEntryID *uint            `json:"ai_model_catalog_entry_id,omitempty"`
+	RouteBindingID        *uint            `json:"route_binding_id,omitempty"`
 	UsageReservationID    *uint            `json:"usage_reservation_id,omitempty"`
 	GatewayAPIKeyID       *uint            `json:"gateway_api_key_id,omitempty"`
 	ProjectID             *uint            `json:"project_id,omitempty"`

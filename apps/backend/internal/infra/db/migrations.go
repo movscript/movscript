@@ -438,6 +438,16 @@ func RegisteredMigrations() []Migration {
 				return backfillJobModelCatalogEntryRefs(db)
 			},
 		},
+		{
+			Version: "000053",
+			Name:    "add_usage_route_binding_refs",
+			Up: func(db *gorm.DB) error {
+				if err := addUsageRouteBindingRefColumns(db); err != nil {
+					return err
+				}
+				return backfillUsageRouteBindingRefs(db)
+			},
+		},
 	}
 	return append(core, editionMigrations()...)
 }
@@ -664,8 +674,72 @@ func backfillJobModelCatalogEntryRefs(db *gorm.DB) error {
 	return backfillModelCatalogEntryRefColumn(db, "jobs", "model_config_id", "ai_model_catalog_entry_id")
 }
 
+func backfillUsageRouteBindingRefs(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&persistencemodel.AIModelRouteBinding{}) {
+		return nil
+	}
+	for _, table := range []string{"usage_logs", "usage_reservations", "llm_call_logs"} {
+		if err := backfillRouteBindingRefColumn(db, table, "ai_model_config_id", "route_binding_id"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func addUsageRouteBindingRefColumns(db *gorm.DB) error {
+	type columnTarget struct {
+		table string
+		model any
+	}
+	targets := []columnTarget{
+		{table: "usage_logs", model: &persistencemodel.UsageLog{}},
+		{table: "usage_reservations", model: &persistencemodel.UsageReservation{}},
+		{table: "llm_call_logs", model: &persistencemodel.LLMCallLog{}},
+	}
+	migrator := db.Migrator()
+	for _, target := range targets {
+		if !migrator.HasTable(target.table) {
+			continue
+		}
+		if migrator.HasColumn(target.table, "route_binding_id") {
+			continue
+		}
+		if err := migrator.AddColumn(target.model, "RouteBindingID"); err != nil {
+			return fmt.Errorf("add %s.route_binding_id: %w", target.table, err)
+		}
+	}
+	return nil
+}
+
 func backfillUsageModelCatalogEntryRef(db *gorm.DB, table string) error {
 	return backfillModelCatalogEntryRefColumn(db, table, "ai_model_config_id", "ai_model_catalog_entry_id")
+}
+
+func backfillRouteBindingRefColumn(db *gorm.DB, table string, legacyModelConfigColumn string, routeBindingColumn string) error {
+	if !db.Migrator().HasTable(table) {
+		return nil
+	}
+	if !db.Migrator().HasColumn(table, routeBindingColumn) {
+		return nil
+	}
+	condition := fmt.Sprintf(`%s.%s IS NULL
+		AND EXISTS (
+			SELECT 1 FROM ai_model_route_bindings route_bindings
+			WHERE route_bindings.local_model_config_id = %s.%s
+				AND route_bindings.deleted_at IS NULL
+		)`, table, routeBindingColumn, table, legacyModelConfigColumn)
+	update := fmt.Sprintf(`UPDATE %s SET %s = (
+		SELECT route_bindings.id
+		FROM ai_model_route_bindings route_bindings
+		WHERE route_bindings.local_model_config_id = %s.%s
+			AND route_bindings.deleted_at IS NULL
+		ORDER BY route_bindings.id ASC
+		LIMIT 1
+	) WHERE %s`, table, routeBindingColumn, table, legacyModelConfigColumn, condition)
+	if err := db.Exec(update).Error; err != nil {
+		return fmt.Errorf("backfill %s.%s from local provider route bindings: %w", table, routeBindingColumn, err)
+	}
+	return nil
 }
 
 func backfillModelCatalogEntryRefColumn(db *gorm.DB, table string, legacyModelConfigColumn string, catalogEntryColumn string) error {

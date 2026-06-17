@@ -26,16 +26,10 @@ func NewAIHandlerWithConfig(db *gorm.DB, cfg *config.Config, encryptionKeyHex st
 	return &AIHandler{db: db, cfg: cfg, service: adminai.NewService(db, key, registry)}
 }
 
-// ── Adapter & Model Presets ───────────────────────────────────────────────────
+// ── Adapter catalog ───────────────────────────────────────────────────────────
 
 func (h *AIHandler) ListAdapters(c *gin.Context) {
 	c.JSON(http.StatusOK, ai.AdapterDefs)
-}
-
-// ListModelPresets returns read-only templates for the admin add-model form.
-// Presets never participate in runtime routing or generation parameter control.
-func (h *AIHandler) ListModelPresets(c *gin.Context) {
-	c.JSON(http.StatusOK, ai.ModelPresets())
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────

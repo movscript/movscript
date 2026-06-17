@@ -26,7 +26,7 @@ type ProviderInstance struct {
 	Enabled         bool                    `json:"enabled"`
 	ConfigEditable  bool                    `json:"config_editable"`
 	RequiresRestart bool                    `json:"requires_restart"`
-	LegacyRef       *ProviderInstanceRef    `json:"legacy_ref,omitempty"`
+	Ref             *ProviderInstanceRef    `json:"ref,omitempty"`
 	ConfigFields    []ProviderInstanceField `json:"config_fields"`
 	SecretFields    []ProviderInstanceField `json:"secret_fields"`
 	Capabilities    []string                `json:"capabilities"`
@@ -79,19 +79,20 @@ func providerInstanceFromCredential(cred domainai.Credential) ProviderInstance {
 		label = def.DisplayName
 	}
 	configFields, secretFields := providerInstanceFieldsFromCredential(cred, def)
+	ref := &ProviderInstanceRef{
+		Kind: "ai_credential",
+		ID:   cred.ID,
+	}
 	return ProviderInstance{
-		ID:          providerInstanceCredentialID(cred.ID),
-		Type:        providercontract.TypeAIGateway,
-		Adapter:     cred.AdapterType,
-		Label:       label,
-		DisplayName: cred.DisplayName,
-		ManagedBy:   providercontract.ManagedByConfig,
-		Configured:  providerInstanceConfigured(secretFields),
-		Enabled:     cred.IsEnabled,
-		LegacyRef: &ProviderInstanceRef{
-			Kind: "ai_credential",
-			ID:   cred.ID,
-		},
+		ID:           providerInstanceCredentialID(cred.ID),
+		Type:         providercontract.TypeAIGateway,
+		Adapter:      cred.AdapterType,
+		Label:        label,
+		DisplayName:  cred.DisplayName,
+		ManagedBy:    providercontract.ManagedByConfig,
+		Configured:   providerInstanceConfigured(secretFields),
+		Enabled:      cred.IsEnabled,
+		Ref:          ref,
 		ConfigFields: configFields,
 		SecretFields: secretFields,
 		Capabilities: providerInstanceAIGatewayCapabilities(def),
@@ -231,6 +232,10 @@ func (s *Service) externalResourceProviderInstanceFromSource(row persistencemode
 	if displayName == "" {
 		displayName = label
 	}
+	ref := &ProviderInstanceRef{
+		Kind: "external_resource_source",
+		ID:   row.ID,
+	}
 	return ProviderInstance{
 		ID:              externalResourceProviderInstanceID(row.ID),
 		Type:            providercontract.TypeExternalResource,
@@ -242,10 +247,7 @@ func (s *Service) externalResourceProviderInstanceFromSource(row persistencemode
 		Enabled:         row.IsEnabled,
 		ConfigEditable:  false,
 		RequiresRestart: false,
-		LegacyRef: &ProviderInstanceRef{
-			Kind: "external_resource_source",
-			ID:   row.ID,
-		},
+		Ref:             ref,
 		SecretFields: []ProviderInstanceField{
 			{Key: "api_key", Required: true, Configured: apiKeyConfigured},
 		},

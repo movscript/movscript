@@ -94,7 +94,7 @@ func writeModelCatalogError(c *gin.Context, err error) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
-	if errors.Is(err, adminai.ErrInvalidModelConfig) {
+	if errors.Is(err, adminai.ErrInvalidModelCatalog) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}

@@ -30,6 +30,7 @@ type UsageContext struct {
 	JobID                 *uint
 	ReservationID         *uint
 	AIModelCatalogEntryID *uint
+	RouteBindingID        *uint
 }
 
 type UsageEstimate struct {
@@ -203,6 +204,7 @@ func (s *AIService) ReserveUsage(ctx context.Context, userID, modelConfigID uint
 			OrgID:                 usage.OrgID,
 			AIModelConfigID:       modelConfigID,
 			AIModelCatalogEntryID: usage.AIModelCatalogEntryID,
+			RouteBindingID:        usage.RouteBindingID,
 			GatewayAPIKeyID:       usage.GatewayAPIKeyID,
 			ProjectID:             usage.ProjectID,
 			JobID:                 usage.JobID,
@@ -226,6 +228,7 @@ func (s *AIService) ReserveUsage(ctx context.Context, userID, modelConfigID uint
 			OrgID:                 usage.OrgID,
 			AIModelConfigID:       modelConfigID,
 			AIModelCatalogEntryID: usage.AIModelCatalogEntryID,
+			RouteBindingID:        usage.RouteBindingID,
 			GatewayAPIKeyID:       usage.GatewayAPIKeyID,
 			ProjectID:             usage.ProjectID,
 			JobID:                 usage.JobID,
@@ -304,6 +307,7 @@ func (s *AIService) settleUsage(ctx context.Context, userID, modelConfigID uint,
 			OrgID:                 firstUint(usage.OrgID, reservation.OrgID),
 			AIModelConfigID:       modelConfigID,
 			AIModelCatalogEntryID: firstUint(usage.AIModelCatalogEntryID, reservation.AIModelCatalogEntryID),
+			RouteBindingID:        firstUint(usage.RouteBindingID, reservation.RouteBindingID),
 			UsageReservationID:    usage.ReservationID,
 			GatewayAPIKeyID:       usage.GatewayAPIKeyID,
 			ProjectID:             usage.ProjectID,
@@ -322,6 +326,7 @@ func (s *AIService) settleUsage(ctx context.Context, userID, modelConfigID uint,
 		return tx.Model(&reservation).Updates(map[string]any{
 			"ai_model_config_id":        modelConfigID,
 			"ai_model_catalog_entry_id": entry.AIModelCatalogEntryID,
+			"route_binding_id":          entry.RouteBindingID,
 			"status":                    ReservationStatusSettled,
 			"actual_cost":               estimate.Cost,
 			"usage_log_id":              entry.ID,
@@ -336,6 +341,7 @@ func (s *AIService) logUsage(ctx context.Context, userID, modelConfigID uint, es
 		OrgID:                 usage.OrgID,
 		AIModelConfigID:       modelConfigID,
 		AIModelCatalogEntryID: usage.AIModelCatalogEntryID,
+		RouteBindingID:        usage.RouteBindingID,
 		UsageReservationID:    reservationID,
 		GatewayAPIKeyID:       usage.GatewayAPIKeyID,
 		ProjectID:             usage.ProjectID,
@@ -358,9 +364,12 @@ func (s *AIService) logUsage(ctx context.Context, userID, modelConfigID uint, es
 	})
 }
 
-func usageWithCatalogEntry(usage UsageContext, catalogEntryID uint) UsageContext {
-	if catalogEntryID != 0 && usage.AIModelCatalogEntryID == nil {
-		usage.AIModelCatalogEntryID = &catalogEntryID
+func usageWithRoute(usage UsageContext, route ModelRoute) UsageContext {
+	if route.CatalogEntryID != 0 && usage.AIModelCatalogEntryID == nil {
+		usage.AIModelCatalogEntryID = &route.CatalogEntryID
+	}
+	if route.RouteBindingID != 0 && usage.RouteBindingID == nil {
+		usage.RouteBindingID = &route.RouteBindingID
 	}
 	return usage
 }

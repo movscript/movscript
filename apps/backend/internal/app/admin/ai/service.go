@@ -9,10 +9,10 @@ import (
 )
 
 var (
-	ErrNotFound           = errors.New("ai admin item not found")
-	ErrInvalidModelConfig = errors.New("invalid ai model config")
-	ErrEncryptCredentials = errors.New("failed to encrypt credentials")
-	ErrEncryptFilesAPIKey = errors.New("failed to encrypt files api key")
+	ErrNotFound            = errors.New("ai admin item not found")
+	ErrInvalidModelCatalog = errors.New("invalid ai model catalog")
+	ErrEncryptCredentials  = errors.New("failed to encrypt credentials")
+	ErrEncryptFilesAPIKey  = errors.New("failed to encrypt files api key")
 )
 
 type Service struct {

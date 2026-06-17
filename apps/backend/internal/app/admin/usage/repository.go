@@ -245,6 +245,7 @@ func usageLogFromModel(row persistencemodel.UsageLog) Log {
 		UserID:                row.UserID,
 		OrgID:                 row.OrgID,
 		AIModelCatalogEntryID: row.AIModelCatalogEntryID,
+		RouteBindingID:        row.RouteBindingID,
 		UsageReservationID:    row.UsageReservationID,
 		GatewayAPIKeyID:       row.GatewayAPIKeyID,
 		ProjectID:             row.ProjectID,

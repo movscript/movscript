@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { AICredential, AIModelCatalogEntry, AdapterDef, ModelPreset, PublicModel, ParamDef, ModelParamProfile, Project, User, GatewayAPIKey, GatewayAPIKeyCreateResponse, RawResource, ResourceBinding, PaginatedResponse, ProviderInstance, ProviderInstanceConfigActivationResult, ProviderInstanceConfigApplyResult, ProviderInstanceConfigDraft, ProviderInstancesResponse } from '@/types'
+import type { AICredential, AIModelCatalogEntry, AdapterDef, PublicModel, ParamDef, ModelParamProfile, Project, User, RawResource, ResourceBinding, PaginatedResponse, ProviderInstance, ProviderInstanceConfigActivationResult, ProviderInstanceConfigApplyResult, ProviderInstanceConfigDraft, ProviderInstancesResponse } from '@/types'
 import type { AgentCompactParamContract, ParamRuleTypeSummary } from '@admin/lib/modelParamContract'
 import { useUserStore } from '@/store/userStore'
 import { Plus, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, ShieldAlert, ArrowLeft, Pencil, Check, X, RefreshCw, Sparkles, Copy, ArrowUpRight, Settings2, FolderKanban, HardDrive, CloudUpload, ScrollText, BarChart3, UsersRound, Building2, KeyRound, Bug, Download } from 'lucide-react'
@@ -35,7 +35,6 @@ import {
 } from '@/lib/adminActionGuards'
 import { emptyJobMonitorFilters, jobUrlSearchParams } from '@/lib/adminJobQueryParams'
 import { auditLogsHref, relativePastDateInput, usageLogsHref } from '@/lib/adminLogQueryParams'
-import { gatewayKeyAuditHref, gatewayKeyUsageHref } from '@/lib/adminGatewayKeyLinks'
 import { adminHref } from '@/lib/adminRoutes'
 import { hasNewAPIGatewayProviderInstance } from '@/lib/adminNewAPIGatewayMode'
 import {
@@ -183,38 +182,11 @@ function refPriceHint(def: PriceDef, t: (key: string, values?: Record<string, un
   }
 }
 
-type GatewayKeyForm = {
-  name: string
-  projectId: string
-  allowedCatalogEntryIds: number[]
-  allowedScopes: string[]
-  newAPIGroup: string
-}
-
-const DEFAULT_GATEWAY_SCOPES = ['model:chat']
-
-function emptyGatewayKeyForm(): GatewayKeyForm {
-  return { name: '', projectId: '', allowedCatalogEntryIds: [], allowedScopes: DEFAULT_GATEWAY_SCOPES, newAPIGroup: '' }
-}
-
-function parseGatewayJSON<T>(raw: string, fallback: T): T {
-  if (!raw?.trim()) return fallback
-  try {
-    return JSON.parse(raw) as T
-  } catch {
-    return fallback
-  }
-}
-
-function gatewayKeyCatalogEntryIDs(key: GatewayAPIKey): number[] {
-  return parseGatewayJSON<number[]>(key.allowed_catalog_entry_ids || '', [])
-}
-
-function gatewayCatalogEntryLabel(entry: AIModelCatalogEntry): string {
+function catalogEntryLabel(entry: AIModelCatalogEntry): string {
   return entry.display_name || entry.short_name || entry.public_model_id || `#${entry.ID}`
 }
 
-function gatewayCatalogEntryDetail(entry: AIModelCatalogEntry): string {
+function catalogEntryDetail(entry: AIModelCatalogEntry): string {
   const capabilities = entry.capabilities.split(',').map((item) => item.trim()).filter(Boolean)
   const routeCount = entry.route_bindings?.length ?? 0
   return [
@@ -222,327 +194,6 @@ function gatewayCatalogEntryDetail(entry: AIModelCatalogEntry): string {
     capabilities.length > 0 ? capabilities.join(', ') : '',
     `${routeCount} route${routeCount === 1 ? '' : 's'}`,
   ].filter(Boolean).join(' · ')
-}
-
-function toGatewayPayload(form: GatewayKeyForm, includeProjectClear = false) {
-  const payload: Record<string, unknown> = {
-    name: form.name.trim(),
-    project_id: form.projectId.trim() ? Number(form.projectId) : includeProjectClear ? null : undefined,
-    allowed_catalog_entry_ids: form.allowedCatalogEntryIds,
-    allowed_scopes: form.allowedScopes.length ? form.allowedScopes : DEFAULT_GATEWAY_SCOPES,
-  }
-  if (canUseGatewayNewAPIGroup) {
-    payload.runtime = { new_api_group: form.newAPIGroup.trim() }
-  }
-  return payload
-}
-
-function GatewayAPIKeysSection() {
-  const { t, i18n } = useTranslation()
-  const qc = useQueryClient()
-  const [showCreate, setShowCreate] = useState(false)
-  const [createForm, setCreateForm] = useState<GatewayKeyForm>(emptyGatewayKeyForm)
-  const [editingId, setEditingId] = useState<number | null>(null)
-  const [editForm, setEditForm] = useState<GatewayKeyForm>(emptyGatewayKeyForm)
-  const [newKey, setNewKey] = useState<{ name: string; value: string } | null>(null)
-  const [copied, setCopied] = useState(false)
-  const [gatewayKeyError, setGatewayKeyError] = useState('')
-
-  const { data, isLoading, isFetching, refetch, error: gatewayKeysQueryError } = useQuery<{ items: GatewayAPIKey[] }>({
-    queryKey: ['model-gateway', 'api-keys'],
-    queryFn: () => api.get('/model-gateway/api-keys').then((r) => r.data),
-  })
-  const keys = data?.items ?? []
-  const { data: catalogEntries = [], error: catalogEntriesQueryError } = useQuery<AIModelCatalogEntry[]>({
-    queryKey: ['admin', 'model-catalog'],
-    queryFn: () => api.get('/admin/model-catalog').then((r) => r.data),
-  })
-  const modelAccessEntries = catalogEntries
-
-  const createKey = useMutation({
-    mutationFn: (form: GatewayKeyForm) => api.post('/model-gateway/api-keys', toGatewayPayload(form)).then((r) => r.data as GatewayAPIKeyCreateResponse),
-    onSuccess: (result) => {
-      setGatewayKeyError('')
-      setNewKey({ name: result.name, value: result.key })
-      setCreateForm(emptyGatewayKeyForm())
-      setShowCreate(false)
-      qc.invalidateQueries({ queryKey: ['model-gateway', 'api-keys'] })
-    },
-    onError: (err: any) => setGatewayKeyError(translateAPIRequestError(err)),
-  })
-
-  const updateKey = useMutation({
-    mutationFn: ({ id, patch }: { id: number; patch: Record<string, unknown> }) =>
-      api.patch(`/model-gateway/api-keys/${id}`, patch).then((r) => r.data),
-    onSuccess: () => {
-      setGatewayKeyError('')
-      setEditingId(null)
-      qc.invalidateQueries({ queryKey: ['model-gateway', 'api-keys'] })
-    },
-    onError: (err: any) => setGatewayKeyError(translateAPIRequestError(err)),
-  })
-
-  const deleteKey = useMutation({
-    mutationFn: (id: number) => api.delete(`/model-gateway/api-keys/${id}`),
-    onSuccess: () => {
-      setGatewayKeyError('')
-      qc.invalidateQueries({ queryKey: ['model-gateway', 'api-keys'] })
-    },
-    onError: (err: any) => setGatewayKeyError(translateAPIRequestError(err)),
-  })
-
-  function startEdit(key: GatewayAPIKey) {
-    setEditingId(key.ID)
-    setEditForm({
-      name: key.name,
-      projectId: key.project_id ? String(key.project_id) : '',
-      allowedCatalogEntryIds: gatewayKeyCatalogEntryIDs(key),
-      allowedScopes: parseGatewayJSON<string[]>(key.allowed_scopes, DEFAULT_GATEWAY_SCOPES),
-      newAPIGroup: key.new_api_group ?? '',
-    })
-  }
-
-  async function copyNewKey() {
-    if (!newKey) return
-    await navigator.clipboard.writeText(newKey.value)
-    setCopied(true)
-    window.setTimeout(() => setCopied(false), 1500)
-  }
-
-  function toggleModel(form: GatewayKeyForm, onChange: (next: GatewayKeyForm) => void, modelID: number) {
-    const next = form.allowedCatalogEntryIds.includes(modelID)
-      ? form.allowedCatalogEntryIds.filter((id) => id !== modelID)
-      : [...form.allowedCatalogEntryIds, modelID]
-    onChange({ ...form, allowedCatalogEntryIds: next })
-  }
-
-  function toggleScope(form: GatewayKeyForm, onChange: (next: GatewayKeyForm) => void, scope: string) {
-    const next = form.allowedScopes.includes(scope)
-      ? form.allowedScopes.filter((item) => item !== scope)
-      : [...form.allowedScopes, scope]
-    onChange({ ...form, allowedScopes: next.length ? next : DEFAULT_GATEWAY_SCOPES })
-  }
-
-  function submitGatewayKeyUpdate(key: GatewayAPIKey) {
-    updateKey.mutate({ id: key.ID, patch: toGatewayPayload(editForm, true) })
-  }
-
-  function toggleGatewayKey(key: GatewayAPIKey) {
-    const confirmKey = key.is_enabled ? 'admin.gatewayKeys.confirmDisable' : 'admin.gatewayKeys.confirmEnable'
-    if (!window.confirm(t(confirmKey, { name: key.name }))) return
-    updateKey.mutate({ id: key.ID, patch: { is_enabled: !key.is_enabled } })
-  }
-
-  function renderForm(form: GatewayKeyForm, onChange: (next: GatewayKeyForm) => void, submitLabel: string, onSubmit: () => void, saving: boolean) {
-    return (
-      <div className="rounded-lg border border-border bg-card p-4 space-y-3">
-        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_160px]">
-          <div>
-            <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.gatewayKeys.name')}</Label>
-            <Input value={form.name} onChange={(event) => onChange({ ...form, name: event.target.value })} placeholder={t('admin.gatewayKeys.namePlaceholder')} className="h-8 text-xs" />
-          </div>
-          <div>
-            <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.gatewayKeys.projectId')}</Label>
-            <Input value={form.projectId} onChange={(event) => onChange({ ...form, projectId: event.target.value.replace(/\D/g, '') })} placeholder={t('admin.gatewayKeys.allProjects')} className="h-8 text-xs" />
-          </div>
-        </div>
-        {canUseGatewayNewAPIGroup && (
-          <div>
-            <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.gatewayKeys.newAPIGroup')}</Label>
-            <Input value={form.newAPIGroup} onChange={(event) => onChange({ ...form, newAPIGroup: event.target.value })} placeholder={t('admin.gatewayKeys.newAPIGroupPlaceholder')} className="h-8 text-xs" />
-            <p className="mt-1 text-xs text-muted-foreground">{t('admin.gatewayKeys.newAPIGroupHint')}</p>
-          </div>
-        )}
-        <div>
-          <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.gatewayKeys.scopes')}</Label>
-          <div className="flex flex-wrap gap-2">
-            {['model:chat', '*'].map((scope) => (
-              <label key={scope} className="flex h-8 items-center gap-2 rounded-md border border-border px-2 text-xs">
-                <input type="checkbox" checked={form.allowedScopes.includes(scope)} onChange={() => toggleScope(form, onChange, scope)} className="rounded" />
-                <span className="font-mono">{scope}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-        <div>
-          <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.gatewayKeys.models')}</Label>
-          <div className="max-h-44 overflow-auto rounded-md border border-border bg-background p-2">
-            {catalogEntriesQueryError ? (
-              <p className="px-2 py-3 text-xs text-destructive">{translateAPIRequestError(catalogEntriesQueryError)}</p>
-            ) : modelAccessEntries.length === 0 ? (
-              <p className="px-2 py-3 text-xs text-muted-foreground">{t('admin.gatewayKeys.noModels')}</p>
-            ) : (
-              <div className="grid gap-1 md:grid-cols-2">
-                {modelAccessEntries.map((entry) => (
-                  <label key={entry.ID} className="flex min-w-0 items-center gap-2 rounded px-2 py-1.5 text-xs hover:bg-muted/60">
-                    <input type="checkbox" checked={form.allowedCatalogEntryIds.includes(entry.ID)} onChange={() => toggleModel(form, onChange, entry.ID)} className="rounded" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate">{gatewayCatalogEntryLabel(entry)}</span>
-                      <span className="block truncate text-[10px] text-muted-foreground">{gatewayCatalogEntryDetail(entry)}</span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            )}
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">{t('admin.gatewayKeys.modelHint')}</p>
-        </div>
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={() => { setShowCreate(false); setEditingId(null) }}>{t('common.cancel')}</Button>
-          <Button type="button" size="sm" onClick={onSubmit} disabled={saving || !form.name.trim()}>
-            {saving ? t('common.saving') : submitLabel}
-          </Button>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="rounded-lg border border-border bg-background p-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex items-start gap-2">
-          <AppIconFrame tone="info" className="mt-0.5">
-            <KeyRound size={16} />
-          </AppIconFrame>
-          <div>
-            <p className="text-sm font-medium text-foreground">{t('admin.gatewayKeys.title')}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{t('admin.gatewayKeys.description')}</p>
-            {canUseGatewayNewAPIGroup && (
-              <p className="mt-1 text-xs text-muted-foreground">{t('admin.gatewayKeys.newAPIBoundary')}</p>
-            )}
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
-            <RefreshCw size={14} className={cn('mr-2', isFetching && 'animate-spin')} />
-            {t('admin.gatewayKeys.refresh')}
-          </Button>
-          <Button type="button" size="sm" onClick={() => setShowCreate((value) => !value)}>
-            <Plus size={14} className="mr-2" />
-            {t('admin.gatewayKeys.create')}
-          </Button>
-        </div>
-      </div>
-
-      {newKey && (
-        <div className="mt-4 rounded-lg border border-primary/30 bg-primary/5 p-3">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-xs font-medium text-foreground">{t('admin.gatewayKeys.createdOnce', { name: newKey.name })}</p>
-              <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{newKey.value}</p>
-            </div>
-            <Button type="button" variant="outline" size="sm" onClick={copyNewKey}>
-              <Copy size={14} className="mr-2" />
-              {copied ? t('admin.gatewayKeys.copied') : t('admin.gatewayKeys.copy')}
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {showCreate && (
-        <div className="mt-4">
-          {renderForm(createForm, setCreateForm, t('admin.gatewayKeys.create'), () => createKey.mutate(createForm), createKey.isPending)}
-        </div>
-      )}
-
-      {gatewayKeyError && (
-        <AppInlineError className="mt-4">
-          {gatewayKeyError}
-        </AppInlineError>
-      )}
-
-      {gatewayKeysQueryError && (
-        <AppInlineError className="mt-4">
-          {translateAPIRequestError(gatewayKeysQueryError)}
-        </AppInlineError>
-      )}
-
-      <div className="mt-4 overflow-hidden rounded-lg border border-border">
-        <table className="w-full text-sm">
-          <thead className="border-b border-border bg-card">
-            <tr>
-              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{t('admin.gatewayKeys.name')}</th>
-              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{t('admin.gatewayKeys.prefix')}</th>
-              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{t('admin.gatewayKeys.scope')}</th>
-              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{t('admin.gatewayKeys.lastUsed')}</th>
-              <th className="px-4 py-2.5 text-right text-xs font-medium text-muted-foreground">{t('admin.gatewayKeys.actions')}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {keys.map((key) => {
-              const catalogEntryIDs = gatewayKeyCatalogEntryIDs(key)
-              const scopes = parseGatewayJSON<string[]>(key.allowed_scopes, DEFAULT_GATEWAY_SCOPES)
-              return (
-                <tr key={key.ID} className="align-top hover:bg-card/70">
-                  <td className="px-4 py-3">
-                    <div className="font-medium text-foreground">{key.name}</div>
-                    <div className="mt-0.5 text-xs text-muted-foreground">#{key.ID} · {key.is_enabled ? t('admin.gatewayKeys.enabled') : t('admin.gatewayKeys.disabled')}</div>
-                    {editingId === key.ID && (
-                      <div className="mt-3">
-                        {renderForm(editForm, setEditForm, t('common.save'), () => submitGatewayKeyUpdate(key), updateKey.isPending)}
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{key.key_prefix}</td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">
-                    <div>{t('admin.gatewayKeys.projectId')}: {key.project_id ? `#${key.project_id}` : t('admin.gatewayKeys.allProjects')}</div>
-                    <div>{t('admin.gatewayKeys.models')}: {catalogEntryIDs.length ? catalogEntryIDs.map((id) => `#${id}`).join(', ') : t('admin.gatewayKeys.allModels')}</div>
-                    <div>{t('admin.gatewayKeys.scopes')}: {scopes.join(', ')}</div>
-                    {canUseGatewayNewAPIGroup && (
-                      <div>{t('admin.gatewayKeys.newAPIGroup')}: {key.new_api_group?.trim() || t('admin.gatewayKeys.newAPIGroupDefault')}</div>
-                    )}
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
-                    {key.last_used_at ? new Date(key.last_used_at).toLocaleString(i18n.language) : '-'}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex justify-end gap-1">
-                      <Button type="button" variant="ghost" size="sm" asChild>
-                        <Link to={gatewayKeyUsageHref(key)}>{t('admin.gatewayKeys.viewUsageLogs')}</Link>
-                      </Button>
-                      <Button type="button" variant="ghost" size="sm" asChild>
-                        <Link to={gatewayKeyAuditHref(key)}>{t('admin.gatewayKeys.viewAuditLogs')}</Link>
-                      </Button>
-                      <Button type="button" variant="ghost" size="sm" onClick={() => startEdit(key)}>{t('common.details')}</Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => toggleGatewayKey(key)}
-                        disabled={updateKey.isPending}
-                      >
-                        {key.is_enabled ? t('admin.gatewayKeys.disable') : t('admin.gatewayKeys.enable')}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        intent="danger"
-                        onClick={() => { if (window.confirm(t('admin.gatewayKeys.confirmDelete', { name: key.name }))) deleteKey.mutate(key.ID) }}
-                        disabled={deleteKey.isPending}
-                      >
-                        {t('common.delete')}
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              )
-            })}
-            {!isLoading && !gatewayKeysQueryError && keys.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-4 py-10 text-center text-sm text-muted-foreground">{t('admin.gatewayKeys.empty')}</td>
-              </tr>
-            )}
-            {isLoading && (
-              <tr>
-                <td colSpan={5} className="px-4 py-10 text-center text-sm text-muted-foreground">{t('common.loading')}</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  )
 }
 
 // ── Step 1: Pick adapter ──────────────────────────────────────────────────────
@@ -965,16 +616,16 @@ function ModelCatalogSection({ credentials }: { credentials: AICredential[] }) {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-medium text-foreground">{gatewayCatalogEntryLabel(entry)}</p>
+                  <p className="text-sm font-medium text-foreground">{catalogEntryLabel(entry)}</p>
                   <StatusBadge intent={entry.is_enabled ? 'success' : 'neutral'}>{entry.is_enabled ? t('admin.modelCatalog.enabled') : t('admin.modelCatalog.disabled')}</StatusBadge>
                   <span className="text-xs text-muted-foreground font-mono">{entry.public_model_id}</span>
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">{entry.provider_model_id} · {gatewayCatalogEntryDetail(entry)}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{entry.provider_model_id} · {catalogEntryDetail(entry)}</p>
               </div>
               <div className="flex shrink-0 gap-2">
                 <Button type="button" variant="outline" size="sm" onClick={() => startEdit(entry)}>{t('common.edit')}</Button>
                 <Button type="button" variant="ghost" size="sm" intent="danger" onClick={() => {
-                  if (window.confirm(t('admin.modelCatalog.confirmDelete', { name: gatewayCatalogEntryLabel(entry) }))) deleteCatalogEntry.mutate(entry.ID)
+                  if (window.confirm(t('admin.modelCatalog.confirmDelete', { name: catalogEntryLabel(entry) }))) deleteCatalogEntry.mutate(entry.ID)
                 }}>
                   {t('common.delete')}
                 </Button>
@@ -1053,6 +704,8 @@ interface PriceForm {
 }
 
 interface RuntimeProviderHealth {
+  catalog_entry_id?: number
+  route_binding_id?: number
   model_id: string
   model_def_id: string
   provider_name: string
@@ -1790,12 +1443,16 @@ function ProviderInstanceConfigDraftPanel({ instance }: { instance: ProviderInst
 
 // ── Model Management ──────────────────────────────────────────────────────────
 
-type ModelManagementViewMode = 'providers' | 'catalog' | 'gateway'
+type ModelManagementViewMode = 'providers' | 'catalog' | 'routes'
 
 type ModelTopologyCounts = {
   providers: number
   catalogEntries: number
   routeBindings: number
+}
+
+function providerInstanceRef(instance: ProviderInstance): ProviderInstance['ref'] {
+  return instance.ref
 }
 
 function ModelTopologyNav({
@@ -1830,7 +1487,7 @@ function ModelTopologyNav({
       count: t('admin.models.topologyCatalogCount', { defaultValue: '{{count}} 个 entry', count: counts.catalogEntries }),
     },
     {
-      value: 'gateway',
+      value: 'routes',
       icon: Settings2,
       title: t('admin.models.topologyRoutesTitle', { defaultValue: 'Model Route' }),
       subtitle: t('admin.models.topologyRoutesSubtitle', { defaultValue: '从 Catalog Entry 路由到 provider 或 new-api 分组' }),
@@ -1917,7 +1574,7 @@ function ModelRouteMatrix({
             <div key={entry.ID} className="grid gap-3 px-4 py-3 md:grid-cols-[minmax(0,1fr)_minmax(280px,1.4fr)_auto]">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="truncate text-sm font-medium text-foreground">{gatewayCatalogEntryLabel(entry)}</p>
+                  <p className="truncate text-sm font-medium text-foreground">{catalogEntryLabel(entry)}</p>
                   <StatusBadge intent={entry.is_enabled ? 'success' : 'neutral'}>
                     {entry.is_enabled ? t('admin.modelCatalog.enabled') : t('admin.modelCatalog.disabled')}
                   </StatusBadge>
@@ -2098,11 +1755,6 @@ export function ModelManagementPage({ initialView = 'providers' }: { initialView
     queryFn: () => api.get('/admin/adapters').then((r) => r.data),
   })
 
-  const { error: presetsQueryError } = useQuery<ModelPreset[]>({
-    queryKey: ['admin', 'model-presets'],
-    queryFn: () => api.get('/admin/model-presets').then((r) => r.data),
-  })
-
   const { data: credentials = [], error: credentialsQueryError } = useQuery<AICredential[]>({
     queryKey: ['admin', 'credentials'],
     queryFn: () => api.get('/admin/credentials').then((r) => r.data),
@@ -2117,21 +1769,23 @@ export function ModelManagementPage({ initialView = 'providers' }: { initialView
     queryKey: ['admin', 'provider-instances'],
     queryFn: () => api.get('/admin/provider-instances').then((r) => r.data),
     enabled: viewMode === 'providers',
-	})
-	const providerInstances = providerInstancesData?.items ?? []
-	const startupProviderInstances = providerInstances.filter((item) => !item.legacy_ref)
+  })
+  const providerInstances = providerInstancesData?.items ?? []
+  const startupProviderInstances = providerInstances.filter((item) => !providerInstanceRef(item))
   const isNewAPIGatewayMode = hasNewAPIGatewayProviderInstance(startupProviderInstances)
-	const providerInstanceByCredentialId = new Map(
-    providerInstances
-      .filter((item) => item.legacy_ref?.kind === 'ai_credential')
-      .map((item) => [item.legacy_ref?.id, item] as const),
-  )
+  const providerInstanceByCredentialId = new Map<number, ProviderInstance>()
+  providerInstances.forEach((item) => {
+    const ref = providerInstanceRef(item)
+    if (ref?.kind === 'ai_credential') {
+      providerInstanceByCredentialId.set(ref.id, item)
+    }
+  })
 
   const runtimeHealthQuery = useQuery<RuntimeProviderHealthResponse>({
     queryKey: ['admin', 'model-runtime-health'],
     queryFn: () => api.get('/admin/debug/model-runtime-health').then((r) => r.data),
-    enabled: viewMode === 'gateway',
-    refetchInterval: viewMode === 'gateway' ? 5000 : false,
+    enabled: viewMode === 'routes',
+    refetchInterval: viewMode === 'routes' ? 5000 : false,
   })
   const topologyCounts: ModelTopologyCounts = {
     providers: credentials.length,
@@ -2194,7 +1848,7 @@ export function ModelManagementPage({ initialView = 'providers' }: { initialView
     onError: (err: any) => setModelAdminError(translateAPIRequestError(err)),
   })
 
-  const modelQueryError = adaptersQueryError || presetsQueryError || credentialsQueryError || providerInstancesQueryError
+  const modelQueryError = adaptersQueryError || credentialsQueryError || providerInstancesQueryError
 
   async function runTest(key: string, fn: () => Promise<TestResult>) {
     setTestingId(key)
@@ -2251,7 +1905,7 @@ export function ModelManagementPage({ initialView = 'providers' }: { initialView
           ? (isNewAPIGatewayMode ? t('admin.models.newAPIGatewayProvidersHint') : t('admin.models.providersHint'))
           : viewMode === 'catalog'
             ? t('admin.models.catalogHint')
-            : t('admin.models.gatewayHint')}
+            : t('admin.models.routesHint')}
       </div>
 
       {modelAdminError && (
@@ -2701,22 +2355,22 @@ export function ModelManagementPage({ initialView = 'providers' }: { initialView
 
       {viewMode === 'catalog' && <ModelCatalogSection credentials={credentials} />}
 
-      {viewMode === 'gateway' && (
+      {viewMode === 'routes' && (
         <div className="space-y-4">
           <ModelRouteMatrix entries={topologyCatalogEntries} credentials={credentials} onOpenRouteForm={() => setViewMode('catalog')} />
 
           <div className="grid gap-3 md:grid-cols-3">
             <div className="rounded-lg border border-border bg-background p-4">
-              <p className="text-sm font-medium text-foreground">{t('admin.models.gatewayRuleTitle')}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{t('admin.models.gatewayRuleBody')}</p>
+              <p className="text-sm font-medium text-foreground">{t('admin.models.routeRuleTitle')}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t('admin.models.routeRuleBody')}</p>
             </div>
             <div className="rounded-lg border border-border bg-background p-4">
-              <p className="text-sm font-medium text-foreground">{t('admin.models.gatewayPriorityTitle')}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{t('admin.models.gatewayPriorityBody')}</p>
+              <p className="text-sm font-medium text-foreground">{t('admin.models.routePriorityTitle')}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t('admin.models.routePriorityBody')}</p>
             </div>
             <div className="rounded-lg border border-border bg-background p-4">
-              <p className="text-sm font-medium text-foreground">{t('admin.models.gatewayScopeTitle')}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{t('admin.models.gatewayScopeBody')}</p>
+              <p className="text-sm font-medium text-foreground">{t('admin.models.routeSourceTitle')}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t('admin.models.routeSourceBody')}</p>
             </div>
           </div>
 
@@ -2728,7 +2382,6 @@ export function ModelManagementPage({ initialView = 'providers' }: { initialView
             onRefresh={() => runtimeHealthQuery.refetch()}
           />
 
-          <GatewayAPIKeysSection />
         </div>
       )}
     </div>
@@ -2798,6 +2451,13 @@ function RuntimeModelHealthSection({
                     </td>
                     <td className="px-3 py-2">
                       <p className="font-mono text-foreground">{item.model_id || item.model_def_id || '-'}</p>
+                      {(item.route_binding_id || item.catalog_entry_id) && (
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          {item.route_binding_id
+                            ? t('admin.models.runtimeHealthRouteBindingValue', { value: item.route_binding_id, defaultValue: 'route #{{value}}' })
+                            : t('admin.models.runtimeHealthCatalogEntryValue', { value: item.catalog_entry_id, defaultValue: 'catalog #{{value}}' })}
+                        </p>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-muted-foreground">
                       <p>{t('admin.models.runtimeHealthPriorityValue', { value: item.priority })}</p>
@@ -2844,6 +2504,8 @@ function runtimeHealthRank(item: RuntimeProviderHealth) {
 }
 
 function runtimeHealthKey(item: RuntimeProviderHealth) {
+  if (item.route_binding_id) return `route:${item.route_binding_id}`
+  if (item.catalog_entry_id) return `catalog:${item.catalog_entry_id}:${item.provider_name}:${item.adapter_type}`
   return [item.provider_name, item.adapter_type, item.model_id || item.model_def_id].join(':')
 }
 
