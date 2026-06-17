@@ -286,7 +286,7 @@ export interface EditingRuntimePort {
   cancelTask(taskId: string, options?: { projectId?: string }): Promise<EditingMediaPipelineTaskState>
   getTaskLogs?(taskId: string, options?: { projectId?: string }): Promise<EditingRuntimeTaskLogs>
   saveProject?(editingProject: Record<string, unknown>, options?: { expectedRevision?: number }): Promise<EditingRuntimeProjectSaveResult>
-  getProject?(input: { projectId: string; editingProjectId: string }): Promise<EditingRuntimeProjectGetResult>
+  getProject?(input: { projectId?: string; editingProjectId: string }): Promise<EditingRuntimeProjectGetResult>
   importExportResource?(request: EditingRuntimeExportImportRequest): Promise<EditingRuntimeExportImportResult>
   saveLocalExport?(request: EditingRuntimeSaveLocalRequest): Promise<EditingRuntimeSaveLocalResult>
   publishHlsStream?(request: EditingRuntimeHlsPublishRequest): Promise<EditingRuntimeHlsPublishResult>

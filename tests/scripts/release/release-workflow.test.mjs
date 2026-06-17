@@ -60,6 +60,8 @@ test('release workflow verifies readiness before packaging and smoke-tests runna
 })
 
 test('release workflow checks out and builds pinned private app-server dependencies', () => {
+  assert.match(releaseWorkflow, /^\s+app-server-deps:\s*$/m)
+  assert.match(releaseWorkflow, /name:\s+Build app-server deps \$\{\{\s*matrix\.name\s*\}\}/)
   assert.match(releaseWorkflow, /uses:\s+actions\/create-github-app-token@v1/)
   assert.match(releaseWorkflow, /app-id:\s+\$\{\{\s*vars\.MOVSCRIPT_DEPS_APP_ID \|\| secrets\.MOVSCRIPT_DEPS_APP_ID\s*\}\}/)
   assert.match(releaseWorkflow, /repository:\s+\$\{\{\s*steps\.binary-deps\.outputs\.mova_repository\s*\}\}/)
@@ -69,7 +71,16 @@ test('release workflow checks out and builds pinned private app-server dependenc
   assert.match(releaseWorkflow, /deps\/codex\/codex-rs\/target/)
   assert.match(releaseWorkflow, /steps\.binary-deps\.outputs\.mova_ref/)
   assert.match(releaseWorkflow, /steps\.binary-deps\.outputs\.codex_ref/)
+  assert.match(releaseWorkflow, /sudo dpkg --add-architecture arm64/)
+  assert.match(releaseWorkflow, /sudo apt-get install -y gcc-aarch64-linux-gnu pkg-config libssl-dev:arm64/)
   assert.match(releaseWorkflow, /pnpm run release -- build-app-server-deps --platform=\$\{\{\s*matrix\.package-platform\s*\}\} --arch=\$\{\{\s*matrix\.package-arch\s*\}\}/)
+  assert.match(releaseWorkflow, /name:\s+app-server-deps-\$\{\{\s*matrix\.package-platform\s*\}\}-\$\{\{\s*matrix\.package-arch\s*\}\}/)
+  assert.match(releaseWorkflow, /path:\s+release-binary-deps\/\$\{\{\s*matrix\.package-platform\s*\}\}-\$\{\{\s*matrix\.package-arch\s*\}\}\//)
+})
+
+test('release workflow packages desktop from reusable app-server dependency artifacts', () => {
+  assert.match(releaseWorkflow, /needs:\s+\[app-server-deps]/)
+  assert.match(releaseWorkflow, /uses:\s+actions\/download-artifact@v4[\s\S]*name:\s+app-server-deps-\$\{\{\s*matrix\.package-platform\s*\}\}-\$\{\{\s*matrix\.package-arch\s*\}\}[\s\S]*path:\s+release-binary-deps\/\$\{\{\s*matrix\.package-platform\s*\}\}-\$\{\{\s*matrix\.package-arch\s*\}\}/)
 })
 
 test('release workflow does not package Windows ARM64 without a vetted ffmpeg-static source', () => {
@@ -81,8 +92,17 @@ test('release workflow collects package artifacts without plugin duplicates', ()
   assert.match(releaseWorkflow, /MOVSCRIPT_COLLECT_PLUGINS:\s+'0'/)
   assert.match(releaseWorkflow, /MOVSCRIPT_ARTIFACT_PREFIX:\s+\$\{\{\s*matrix\.artifact\s*\}\}/)
   assert.match(releaseWorkflow, /pnpm run release -- collect/)
+  assert.match(releaseWorkflow, /pattern:\s+movscript-desktop-\*/)
   assert.match(releaseWorkflow, /merge-multiple:\s+true/)
   assert.match(releaseWorkflow, /find downloaded-artifacts -maxdepth 1 -type f -name '\*SHA256SUMS\.txt' -delete/)
+})
+
+test('release workflow does not run a standalone plugin artifact job', () => {
+  assert.doesNotMatch(releaseWorkflow, /^\s+plugins:\s*$/m)
+  assert.doesNotMatch(releaseWorkflow, /Package plugins/)
+  assert.doesNotMatch(releaseWorkflow, /movscript-plugins/)
+  assert.doesNotMatch(releaseWorkflow, /--filter "\.\/plugins\/\*" build/)
+  assert.match(releaseWorkflow, /needs:\s+\[package]/)
 })
 
 test('release workflow creates attestations and uses the checked-in release notes file', () => {

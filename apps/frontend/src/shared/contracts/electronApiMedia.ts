@@ -255,6 +255,23 @@ export type ElectronMediaEditingProjectGetResult =
     project_path: string
   }
 
+export type ElectronMediaEditingProjectListResult = {
+  status: 'ok'
+  projects: ElectronMediaEditingProjectStoreResult[]
+  editingProjects: ElectronMediaPipelineEditingProject[]
+  editing_projects: ElectronMediaPipelineEditingProject[]
+}
+
+export type ElectronMediaEditingProjectDeleteResult = {
+  status: 'ok' | 'not_found'
+  projectId: string
+  project_id: string
+  editingProjectId: string
+  editing_project_id: string
+  projectPath: string
+  project_path: string
+}
+
 export type ElectronMediaExportImportInput = {
   outputPath?: string
   output_path?: string

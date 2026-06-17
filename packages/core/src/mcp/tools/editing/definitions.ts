@@ -18,7 +18,6 @@ export function editingTools(): MCPTool[] {
       name: 'editing_project_create',
       description: 'Create an empty MovScript media editing project. When an editing project store is available, the project is persisted immediately; otherwise the returned editing_project can be saved with editing_project_save. This does not render media or write content candidates.',
       inputSchema: objectSchema({
-        ...projectLocator,
         title: { type: 'string' },
         width: { type: 'number' },
         height: { type: 'number' },
@@ -30,7 +29,6 @@ export function editingTools(): MCPTool[] {
       name: 'editing_project_create_from_edit_plan',
       description: 'Create a MediaEditingProject from a MovScript edit_plan. When an editing project store is available, the project is persisted immediately; otherwise the returned editing_project can be saved with editing_project_save. This is the main handoff from domain planning into the dedicated editing tool family.',
       inputSchema: objectSchema({
-        ...projectLocator,
         editPlan: { type: 'object', additionalProperties: true, description: 'MovScript edit_plan artifact.' },
         edit_plan: { type: 'object', additionalProperties: true, description: 'Alias for editPlan.' },
         title: { type: 'string' },
@@ -44,8 +42,8 @@ export function editingTools(): MCPTool[] {
     },
     {
       name: 'editing_project_get',
-      description: 'Read a persisted MediaEditingProject by id. Requires the Electron editing runtime or a future backend project store.',
-      inputSchema: objectSchema({ ...projectLocator, editingProjectId: { type: 'string' }, editing_project_id: { type: 'string' } }),
+      description: 'Read a persisted MediaEditingProject by id. Editing projects are stored in the standalone editing project store. Requires the Electron editing runtime or a future backend project store.',
+      inputSchema: objectSchema({ editingProjectId: { type: 'string' }, editing_project_id: { type: 'string' } }),
     },
     {
       name: 'editing_project_update_settings',

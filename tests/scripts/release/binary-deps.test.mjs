@@ -77,6 +77,45 @@ test('buildAppServerDeps verifies checkout refs and exposes provider env paths',
   }
 })
 
+test('buildAppServerDeps configures pkg-config for Linux ARM64 OpenSSL cross builds', () => {
+  const root = mkdtempSync(join(tmpdir(), 'movscript-binary-deps-linux-arm64-'))
+  try {
+    const codexRef = initFakeDependency(root, 'codex')
+    writeFileSync(join(root, 'binary-deps.manifest.json'), JSON.stringify({
+      schema: 'movscript.binary-deps.v1',
+      dependencies: [
+        dependency('codex', codexRef),
+      ],
+    }, null, 2) + '\n')
+
+    const target = rustTargetTriple('linux', 'arm64')
+    const cargoEnvs = []
+    buildAppServerDeps(root, {
+      arch: 'arm64',
+      depsDir: 'deps',
+      manifest: 'binary-deps.manifest.json',
+      platform: 'linux',
+      profile: 'release',
+      spawn: (command, args, options) => {
+        if (command === 'cargo') {
+          cargoEnvs.push(options.env)
+          const binary = join(options.cwd, 'target', target, 'release', 'codex-app-server')
+          mkdirSync(join(options.cwd, 'target', target, 'release'), { recursive: true })
+          writeFileSync(binary, 'app-server\n')
+          chmodSync(binary, 0o755)
+        }
+        return { status: 0 }
+      },
+    }, {})
+
+    assert.equal(cargoEnvs[0].CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER, 'aarch64-linux-gnu-gcc')
+    assert.equal(cargoEnvs[0].PKG_CONFIG_ALLOW_CROSS, '1')
+    assert.equal(cargoEnvs[0].PKG_CONFIG_PATH, '/usr/lib/aarch64-linux-gnu/pkgconfig')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
 test('updateBinaryDepsManifests updates primary and explicit extra manifests from remote refs', () => {
   const parent = mkdtempSync(join(tmpdir(), 'movscript-binary-deps-update-'))
   const root = join(parent, 'movscript')

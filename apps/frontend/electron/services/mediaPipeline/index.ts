@@ -24,7 +24,9 @@ import { normalizeHlsManifestName, packageMediaPipelineHls } from './hlsPackager
 import { createMediaPipelineLocalHlsURL, registerMediaPipelineLocalHlsRoot } from './localHlsProtocol'
 import { clampProgressPercent, createTimelineExportProgressReporter } from './progress'
 import {
+  deleteMediaPipelineEditingProject as deleteStoredMediaPipelineEditingProject,
   getMediaPipelineEditingProject as readStoredMediaPipelineEditingProject,
+  listMediaPipelineEditingProjects as readStoredMediaPipelineEditingProjects,
   onMediaPipelineEditingProjectEvent,
   saveMediaPipelineEditingProject as writeStoredMediaPipelineEditingProject,
 } from './projectStore'
@@ -112,10 +114,23 @@ export async function saveMediaPipelineEditingProject(
 }
 
 export async function getMediaPipelineEditingProject(
-  input: { projectId: string; editingProjectId: string },
+  input: { projectId?: string; editingProjectId: string },
   options: { userDataDir: string },
 ) {
   return readStoredMediaPipelineEditingProject(input, options)
+}
+
+export async function listMediaPipelineEditingProjects(
+  options: { userDataDir: string },
+) {
+  return readStoredMediaPipelineEditingProjects(options)
+}
+
+export async function deleteMediaPipelineEditingProject(
+  input: { projectId?: string; editingProjectId: string },
+  options: { userDataDir: string },
+) {
+  return deleteStoredMediaPipelineEditingProject(input, options)
 }
 
 export async function createMediaPipelineTask(

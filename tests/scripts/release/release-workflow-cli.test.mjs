@@ -28,13 +28,12 @@ test('release workflow check runs release gates in order', () => {
   ])
 })
 
-test('release workflow full runs check, packaging, plugins, and collection', () => {
+test('release workflow full runs check, desktop packaging, and collection', () => {
   assert.deepEqual(releaseWorkflowSteps('full'), [
     ['Run release checks', 'node', ['scripts/release/release-workflow.mjs', 'check']],
     ['Build desktop package', 'node', ['scripts/release/release-workflow.mjs', 'package-desktop']],
     ['Build workspace packages', 'pnpm', ['--filter', './packages/*', 'build']],
     ['Build movcli', 'pnpm', ['--filter', '@movscript/cli', 'build']],
-    ['Build plugins', 'pnpm', ['--filter', './plugins/*', 'build']],
     ['Collect release artifacts', 'node', ['scripts/release/release-workflow.mjs', 'collect']],
   ])
 })

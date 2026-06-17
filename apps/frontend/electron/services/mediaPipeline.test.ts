@@ -9,11 +9,13 @@ import { setMovScriptBackendAPIBaseURL } from '@movscript/core/backend/node'
 import {
   cancelMediaPipelineTask,
   createMediaPipelineTask,
+  deleteMediaPipelineEditingProject,
   getMediaPipelineCapabilities,
   getMediaPipelineEditingProject,
   getMediaPipelineTask,
   getMediaPipelineTaskLogs,
   getStoredMediaPipelineTask,
+  listMediaPipelineEditingProjects,
   onMediaPipelineEditingProjectEvent,
   onMediaPipelineTaskEvent,
   parseFFmpegProgressTimeMs,
@@ -189,20 +191,21 @@ test('persists and reads media editing projects from the Electron media workspac
 
     const saved = await saveMediaPipelineEditingProject(editingProject, { userDataDir })
     assert.equal(saved.status, 'ok')
-    assert.match(saved.projectPath, /media-workspaces\/project_with_spaces--[a-f0-9]{10}\/projects\/editing_project_main--[a-f0-9]{10}\.json$/)
-    const persisted = JSON.parse(await readFile(saved.projectPath, 'utf8')) as { schema: string; editingProject: { id: string } }
+    assert.equal(saved.editingProject.projectId, 'standalone')
+    assert.match(saved.projectPath, /media-workspaces\/standalone--[a-f0-9]{10}\/projects\/editing_project_main--[a-f0-9]{10}\.json$/)
+    const persisted = JSON.parse(await readFile(saved.projectPath, 'utf8')) as { schema: string; editingProject: { id: string; projectId: string } }
     assert.equal(persisted.schema, 'movscript.media_editing_project.v1')
     assert.equal(persisted.editingProject.id, editingProject.id)
+    assert.equal(persisted.editingProject.projectId, 'standalone')
 
     const loaded = await getMediaPipelineEditingProject({
-      projectId: editingProject.projectId,
       editingProjectId: editingProject.id,
     }, { userDataDir })
     assert.equal(loaded.status, 'ok')
     assert.equal(loaded.editingProject.id, editingProject.id)
+    assert.equal(loaded.editingProject.projectId, 'standalone')
 
     const missing = await getMediaPipelineEditingProject({
-      projectId: editingProject.projectId,
       editingProjectId: 'missing',
     }, { userDataDir })
     assert.equal(missing.status, 'not_found')
@@ -244,10 +247,11 @@ test('emits media editing project events after successful project saves', async 
     assert.equal(saved.status, 'ok')
     assert.equal(events.length, 1)
     assert.equal(events[0].type, 'saved')
-    assert.equal(events[0].projectId, editingProject.projectId)
+    assert.equal(events[0].projectId, 'standalone')
     assert.equal(events[0].editingProjectId, editingProject.id)
     assert.equal(events[0].revision, 1)
     assert.equal(events[0].editingProject.title, editingProject.title)
+    assert.equal(events[0].editingProject.projectId, 'standalone')
     assert.equal(events[0].projectPath, saved.projectPath)
   } finally {
     unsubscribe()
@@ -289,12 +293,12 @@ test('rejects stale media editing project saves with an optimistic revision conf
 
     assert.equal(staleSave.status, 'conflict')
     assert.equal(staleSave.code, 'EDITING_PROJECT_REVISION_CONFLICT')
+    assert.equal(staleSave.projectId, 'standalone')
     assert.equal(staleSave.expectedRevision, 0)
     assert.equal(staleSave.currentRevision, 1)
     assert.equal(staleSave.editingProject.title, 'Stored cut')
 
     const loaded = await getMediaPipelineEditingProject({
-      projectId: editingProject.projectId,
       editingProjectId: editingProject.id,
     }, { userDataDir })
     assert.equal(loaded.status, 'ok')
@@ -344,66 +348,27 @@ test('media project store paths remain distinct for ids with the same readable s
     assert.match(basename(second.projectPath), /^editing_project_main--[a-f0-9]{10}\.json$/)
 
     const loadedFirst = await getMediaPipelineEditingProject({
-      projectId: firstProject.projectId,
       editingProjectId: firstProject.id,
     }, { userDataDir })
     const loadedSecond = await getMediaPipelineEditingProject({
-      projectId: secondProject.projectId,
       editingProjectId: secondProject.id,
     }, { userDataDir })
     assert.equal(loadedFirst.status, 'ok')
     assert.equal(loadedFirst.editingProject.id, firstProject.id)
+    assert.equal(loadedFirst.editingProject.projectId, 'standalone')
     assert.equal(loadedSecond.status, 'ok')
     assert.equal(loadedSecond.editingProject.id, secondProject.id)
-  } finally {
-    await rm(userDataDir, { recursive: true, force: true })
-  }
-})
+    assert.equal(loadedSecond.editingProject.projectId, 'standalone')
 
-test('reads legacy sanitized media project store paths for existing projects', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-project-store-legacy-'))
-  try {
-    const editingProject = {
-      version: 1 as const,
-      id: 'editing project:main',
-      projectId: 'project:with spaces',
-      title: 'Stored legacy cut',
-      source: { kind: 'manual' },
-      timeline: {
-        version: 1 as const,
-        id: 'timeline-main',
-        fps: 30,
-        width: 1080,
-        height: 1920,
-        background: '#000000',
-        tracks: [],
-      },
-      assets: { assets: [] },
-      createdAt: '2026-06-17T00:00:00.000Z',
-      updatedAt: '2026-06-17T00:00:00.000Z',
-      revision: 1,
-    }
-    const legacyProjectPath = join(
-      userDataDir,
-      'media-workspaces',
-      'project_with_spaces',
-      'projects',
-      'editing_project_main.json',
-    )
-    await mkdir(dirname(legacyProjectPath), { recursive: true })
-    await writeFile(legacyProjectPath, `${JSON.stringify({
-      schema: 'movscript.media_editing_project.v1',
-      editingProject,
-    }, null, 2)}\n`)
+    const listed = await listMediaPipelineEditingProjects({ userDataDir })
+    assert.equal(listed.status, 'ok')
+    assert.deepEqual(listed.editingProjects.map((project) => project.id).sort(), [firstProject.id, secondProject.id].sort())
+    assert.deepEqual(listed.projects.map((project) => project.projectPath).sort(), [first.projectPath, second.projectPath].sort())
 
-    const loaded = await getMediaPipelineEditingProject({
-      projectId: editingProject.projectId,
-      editingProjectId: editingProject.id,
-    }, { userDataDir })
-
-    assert.equal(loaded.status, 'ok')
-    assert.equal(loaded.projectPath, legacyProjectPath)
-    assert.equal(loaded.editingProject.id, editingProject.id)
+    const deleted = await deleteMediaPipelineEditingProject({ editingProjectId: firstProject.id }, { userDataDir })
+    assert.equal(deleted.status, 'ok')
+    const afterDelete = await listMediaPipelineEditingProjects({ userDataDir })
+    assert.deepEqual(afterDelete.editingProjects.map((project) => project.id), [secondProject.id])
   } finally {
     await rm(userDataDir, { recursive: true, force: true })
   }
@@ -443,7 +408,6 @@ test('rejects invalid or mismatched media editing project files during restore',
     }, null, 2)}\n`)
     await assert.rejects(
       () => getMediaPipelineEditingProject({
-        projectId: editingProject.projectId,
         editingProjectId: editingProject.id,
       }, { userDataDir }),
       /Media editing project identity mismatch/,
@@ -458,7 +422,6 @@ test('rejects invalid or mismatched media editing project files during restore',
     }, null, 2)}\n`)
     await assert.rejects(
       () => getMediaPipelineEditingProject({
-        projectId: editingProject.projectId,
         editingProjectId: editingProject.id,
       }, { userDataDir }),
       /Invalid media editing project file/,
@@ -485,7 +448,6 @@ test('rejects invalid media editing projects before saving to the workspace', as
     )
 
     const missing = await getMediaPipelineEditingProject({
-      projectId: 'project-main',
       editingProjectId: 'bad-project',
     }, { userDataDir })
     assert.equal(missing.status, 'not_found')

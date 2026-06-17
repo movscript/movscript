@@ -325,7 +325,7 @@ test('MCP editing task tools delegate to the registered Electron editing runtime
     assert.equal(createdProject.projectPath, `/tmp/${createdProject.editing_project.id}.json`)
     assert.equal(capturedProjectSaves.length, 3)
     assert.equal(capturedProjectSaves[2].editingProject.id, createdProject.editing_project.id)
-    assert.equal(capturedProjectSaves[2].editingProject.projectId, 'project-1')
+    assert.equal(capturedProjectSaves[2].editingProject.projectId, 'standalone')
     assert.equal(capturedProjectSaves[2].options, undefined)
 
     const createdFromEditPlan = await callTool('editing_project_create_from_edit_plan', {
@@ -349,6 +349,7 @@ test('MCP editing task tools delegate to the registered Electron editing runtime
     assert.equal(capturedProjectSaves.length, 4)
     assert.equal(capturedProjectSaves[3].editingProject.id, createdFromEditPlan.editing_project.id)
     assert.equal(capturedProjectSaves[3].editingProject.source.kind, 'movscript_edit_plan')
+    assert.equal(capturedProjectSaves[3].editingProject.projectId, 'standalone')
     assert.equal(capturedProjectSaves[3].options, undefined)
 
     const loadedProject = await callTool('editing_project_get', {
@@ -672,6 +673,7 @@ test('MCP editing task tools keep a diagnostic response when no Electron runtime
     })
     assert.equal(createdProject.status, 'ok')
     assert.equal(createdProject.editing_project.title, 'Unsaved fallback cut')
+    assert.equal(createdProject.editing_project.projectId, 'standalone')
     assert.equal(createdProject.projectPath, undefined)
 
     const saveResult = await callTool('editing_project_save', {

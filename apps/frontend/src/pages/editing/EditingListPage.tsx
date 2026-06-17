@@ -21,7 +21,7 @@ import {
 import { editingProjectPath } from '@/routes/appRouteModel'
 import { openEditingProjectWindow } from '@/shared/infrastructure/appWindowContext'
 import type { ElectronAPI } from '@/shared/contracts/electronApi'
-import type { ElectronMediaPipelineEditingProject } from '@/shared/contracts/electronApiMedia'
+import type { ElectronMediaEditingProjectStoreResult, ElectronMediaPipelineEditingProject } from '@/shared/contracts/electronApiMedia'
 
 const STANDALONE_EDITING_PROJECT_ID = 'standalone'
 const EDITING_CANVAS_PRESETS = [
@@ -31,7 +31,7 @@ const EDITING_CANVAS_PRESETS = [
   { id: '4:5', label: '4:5 信息流', width: 1080, height: 1350 },
 ] as const
 
-type EditingListMediaAPI = Pick<ElectronAPI, 'saveMediaEditingProject' | 'onMediaEditingProjectEvent'>
+type EditingListMediaAPI = Pick<ElectronAPI, 'saveMediaEditingProject' | 'listMediaEditingProjects' | 'deleteMediaEditingProject' | 'onMediaEditingProjectEvent'>
 
 type ListState =
   | { status: 'idle'; message?: string }
@@ -49,8 +49,28 @@ export default function EditingListPage() {
   const mediaAPI = readMediaAPI()
 
   useEffect(() => {
-    setProjects(readEditingProjectRegistry())
-  }, [])
+    let cancelled = false
+    async function loadProjects() {
+      const registryProjects = readEditingProjectRegistry()
+      if (!mediaAPI?.listMediaEditingProjects) {
+        setProjects(registryProjects)
+        return
+      }
+      try {
+        const result = await mediaAPI.listMediaEditingProjects()
+        if (cancelled) return
+        const storedProjects = result.projects.map(editingProjectStoreResultToSummary)
+        setProjects(storedProjects)
+        writeEditingProjectRegistry(storedProjects)
+      } catch {
+        if (!cancelled) setProjects(registryProjects)
+      }
+    }
+    void loadProjects()
+    return () => {
+      cancelled = true
+    }
+  }, [mediaAPI])
 
   useEffect(() => {
     if (!mediaAPI?.onMediaEditingProjectEvent) return undefined
@@ -113,7 +133,15 @@ export default function EditingListPage() {
     })
   }
 
-  function deleteProject(project: EditingProjectSummary) {
+  async function deleteProject(project: EditingProjectSummary) {
+    try {
+      await mediaAPI?.deleteMediaEditingProject?.({
+        editingProjectId: project.id,
+      })
+    } catch (error) {
+      setState({ status: 'error', message: error instanceof Error ? error.message : String(error) })
+      return
+    }
     const nextProjects = projects.filter((candidate) => candidate.id !== project.id)
     setProjects(nextProjects)
     writeEditingProjectRegistry(nextProjects)
@@ -377,6 +405,17 @@ function createEmptyEditingProject(
     createdAt: now,
     updatedAt: now,
     revision: 0,
+  }
+}
+
+function editingProjectStoreResultToSummary(result: ElectronMediaEditingProjectStoreResult): EditingProjectSummary {
+  return {
+    id: result.editingProject.id,
+    projectId: result.editingProject.projectId,
+    title: result.editingProject.title,
+    updatedAt: result.editingProject.updatedAt ?? new Date().toISOString(),
+    projectPath: result.projectPath,
+    snapshot: result.editingProject,
   }
 }
 

@@ -76,7 +76,9 @@ export function appServerSourceCandidates(root = repoRoot, provider, platform = 
   const executableNames = platform === 'win32'
     ? ['app-server.exe', `${provider}-app-server.exe`, 'codex-app-server.exe', `${provider}.exe`, 'codex.exe']
     : ['app-server', `${provider}-app-server`, 'codex-app-server', provider, 'codex']
+  const builtDepsDir = resolve(root, 'release-binary-deps', `${platform}-${arch}`, provider)
   const targetDirs = [
+    builtDepsDir,
     resolve(root, '..', provider, 'codex-rs', 'target', desktopRustTargetTriple(platform, arch), 'debug'),
     resolve(root, '..', provider, 'codex-rs', 'target', 'debug'),
   ]

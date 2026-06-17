@@ -22,9 +22,11 @@ import {
 } from './runtime.js'
 import { domainCreateContentCandidate } from '../domain/actions.js'
 
+const STANDALONE_EDITING_PROJECT_ID = 'standalone'
+
 export async function editingProjectCreate(args: Record<string, unknown>) {
   const now = new Date().toISOString()
-  const projectId = stringValue(args.projectId ?? args.project_id) ?? 'local'
+  const projectId = STANDALONE_EDITING_PROJECT_ID
   const width = numericValue(args.width) ?? 1080
   const height = numericValue(args.height) ?? 1920
   const fps = numericValue(args.fps) ?? 30
@@ -75,7 +77,7 @@ export async function editingProjectCreateFromEditPlan(args: Record<string, unkn
   if (!editPlan) throw new Error('editPlan is required')
   const defaultDurationMs = getOptionalNumeric(args, 'defaultDurationMs') ?? getOptionalNumeric(args, 'default_duration_ms')
   const editingProject = createMediaEditingProjectFromMovScriptEditPlan(editPlan as unknown as MovScriptEditPlanArtifact, {
-    projectId: stringValue(args.projectId ?? args.project_id),
+    projectId: STANDALONE_EDITING_PROJECT_ID,
     title: stringValue(args.title),
     width: getOptionalNumeric(args, 'width'),
     height: getOptionalNumeric(args, 'height'),
@@ -142,8 +144,7 @@ export async function editingProjectSave(args: Record<string, unknown>) {
 export async function editingProjectGet(args: Record<string, unknown>) {
   const runtime = getEditingRuntimePort()
   if (!runtime?.getProject) return editingRuntimeRequired(args)
-  const projectId = projectIdValue(args)
-  if (!projectId) throw new Error('projectId is required')
+  const projectId = projectIdValue(args) ?? STANDALONE_EDITING_PROJECT_ID
   const editingProjectId = editingProjectIdValue(args)
   return runtime.getProject({ projectId, editingProjectId })
 }

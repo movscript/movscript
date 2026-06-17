@@ -41,6 +41,7 @@ const workspaceNodeAlias = {
 const packageSharedAlias = {
   '@movscript/editing': resolve('../../packages/editing/src/index.ts'),
   '@movscript/language/domain': resolve('../../packages/language/src/domain/index.ts'),
+  '@movscript/interpreter/artifacts': resolve('../../packages/interpreter/src/artifacts/index.ts'),
   '@movscript/interpreter': resolve('../../packages/interpreter/src/index.ts'),
 }
 
@@ -93,12 +94,12 @@ const runtimeSourceRoot = process.env.MOVSCRIPT_RUNTIME_SOURCE_ROOT
   : undefined
 
 const mainAlias = {
-  ...coreSharedAlias,
   ...coreNodeAlias,
-  ...workspaceSharedAlias,
+  ...coreSharedAlias,
   ...workspaceNodeAlias,
-  ...packageSharedAlias,
+  ...workspaceSharedAlias,
   ...packageNodeAlias,
+  ...packageSharedAlias,
   ...appAlias,
 }
 
@@ -112,6 +113,15 @@ const rendererAlias = {
 const allAlias = {
   ...mainAlias,
 }
+const bundledWorkspaceDeps = [
+  '@movscript/core',
+  '@movscript/editing',
+  '@movscript/engine',
+  '@movscript/language',
+  '@movscript/theme',
+  '@movscript/ui',
+  '@movscript/workspace',
+]
 
 const rendererPort = Number(process.env.MOVSCRIPT_FRONTEND_PORT ?? '5173')
 const disableRendererHmr = process.env.MOVSCRIPT_FRONTEND_NO_HMR === '1'
@@ -144,7 +154,7 @@ function runtimeSourceResolver(): Plugin {
 export default defineConfig(() => {
   return {
     main: {
-      plugins: [externalizeDepsPlugin()],
+      plugins: [externalizeDepsPlugin({ exclude: bundledWorkspaceDeps })],
       build: {
         rollupOptions: {
           input: { index: resolve('electron/main.ts') }
@@ -155,7 +165,7 @@ export default defineConfig(() => {
       }
     },
     preload: {
-      plugins: [externalizeDepsPlugin()],
+      plugins: [externalizeDepsPlugin({ exclude: bundledWorkspaceDeps })],
       build: {
         rollupOptions: {
           input: { index: resolve('electron/preload.ts') }

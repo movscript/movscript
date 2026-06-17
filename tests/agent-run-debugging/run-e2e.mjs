@@ -5,7 +5,6 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   acceptanceSummarySchema,
-  acceptanceSummarySchemaUrl,
   assertValidAcceptanceSummary,
   requiredAcceptanceScreenshots as requiredScreenshots,
 } from './acceptance-summary-contract.mjs'
@@ -105,7 +104,6 @@ function formatStepFailure(result) {
 function writeAcceptanceSummary(cleanResult, browserResult, artifactResult) {
   const summary = {
     schema: acceptanceSummarySchema,
-    schemaUrl: acceptanceSummarySchemaUrl,
     generatedAt: new Date().toISOString(),
     artifactRoot: summaryArtifactRoot,
     environment: acceptanceEnvironment(),

@@ -36,8 +36,128 @@ env:
   CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
 jobs:
+  app-server-deps:
+    name: Build app-server deps ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macos
+            os: macos-latest
+            package-platform: darwin
+            package-arch: arm64
+          - name: macos-x64
+            os: macos-latest
+            package-platform: darwin
+            package-arch: x64
+          - name: linux-x64
+            os: ubuntu-latest
+            package-platform: linux
+            package-arch: x64
+          - name: linux-arm64
+            os: ubuntu-latest
+            package-platform: linux
+            package-arch: arm64
+          - name: windows-x64
+            os: windows-latest
+            package-platform: win32
+            package-arch: x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: apps/backend/go.sum
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Resolve binary dependency refs
+        id: binary-deps
+        run: pnpm run release -- resolve-binary-deps
+
+      - name: Create binary dependency token
+        id: deps-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.MOVSCRIPT_DEPS_APP_ID || secrets.MOVSCRIPT_DEPS_APP_ID }}
+          private-key: ${{ secrets.MOVSCRIPT_DEPS_APP_PRIVATE_KEY }}
+          owner: movscript
+          repositories: |
+            mova
+            codex
+
+      - name: Checkout Mova app-server dependency
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.binary-deps.outputs.mova_repository }}
+          ref: ${{ steps.binary-deps.outputs.mova_ref }}
+          path: deps/mova
+          token: ${{ steps.deps-token.outputs.token }}
+
+      - name: Checkout Codex app-server dependency
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.binary-deps.outputs.codex_repository }}
+          ref: ${{ steps.binary-deps.outputs.codex_ref }}
+          path: deps/codex
+          token: ${{ steps.deps-token.outputs.token }}
+
+      - name: Cache app-server Rust builds
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            deps/mova/codex-rs/target
+            deps/codex/codex-rs/target
+          key: app-server-${{ runner.os }}-${{ matrix.package-platform }}-${{ matrix.package-arch }}-${{ steps.binary-deps.outputs.mova_ref }}-${{ steps.binary-deps.outputs.codex_ref }}-${{ hashFiles('deps/mova/codex-rs/Cargo.lock', 'deps/codex/codex-rs/Cargo.lock') }}
+          restore-keys: |
+            app-server-${{ runner.os }}-${{ matrix.package-platform }}-${{ matrix.package-arch }}-${{ steps.binary-deps.outputs.mova_ref }}-${{ steps.binary-deps.outputs.codex_ref }}-
+            app-server-${{ runner.os }}-${{ matrix.package-platform }}-${{ matrix.package-arch }}-
+
+      - name: Set up Rust
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+
+      - name: Install Linux ARM64 app-server cross toolchain
+        if: matrix.package-platform == 'linux' && matrix.package-arch == 'arm64'
+        run: |
+          sudo dpkg --add-architecture arm64
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu pkg-config libssl-dev:arm64
+
+      - name: Build app-server binary dependencies
+        run: pnpm run release -- build-app-server-deps --platform=${{ matrix.package-platform }} --arch=${{ matrix.package-arch }}
+
+      - name: Upload app-server dependency artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-server-deps-${{ matrix.package-platform }}-${{ matrix.package-arch }}
+          path: release-binary-deps/${{ matrix.package-platform }}-${{ matrix.package-arch }}/
+          if-no-files-found: error
+          retention-days: 14
+
   package:
     name: Package ${{ matrix.name }}
+    needs: [app-server-deps]
     strategy:
       fail-fast: false
       matrix:
@@ -123,59 +243,11 @@ jobs:
       - name: Verify package resource contract
         run: pnpm run verify:package-resources
 
-      - name: Resolve binary dependency refs
-        id: binary-deps
-        run: pnpm run release -- resolve-binary-deps
-
-      - name: Create binary dependency token
-        id: deps-token
-        uses: actions/create-github-app-token@v1
+      - name: Download app-server dependency artifacts
+        uses: actions/download-artifact@v4
         with:
-          app-id: ${{ vars.MOVSCRIPT_DEPS_APP_ID || secrets.MOVSCRIPT_DEPS_APP_ID }}
-          private-key: ${{ secrets.MOVSCRIPT_DEPS_APP_PRIVATE_KEY }}
-          owner: movscript
-          repositories: |
-            mova
-            codex
-
-      - name: Checkout Mova app-server dependency
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ steps.binary-deps.outputs.mova_repository }}
-          ref: ${{ steps.binary-deps.outputs.mova_ref }}
-          path: deps/mova
-          token: ${{ steps.deps-token.outputs.token }}
-
-      - name: Checkout Codex app-server dependency
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ steps.binary-deps.outputs.codex_repository }}
-          ref: ${{ steps.binary-deps.outputs.codex_ref }}
-          path: deps/codex
-          token: ${{ steps.deps-token.outputs.token }}
-
-      - name: Cache app-server Rust builds
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            deps/mova/codex-rs/target
-            deps/codex/codex-rs/target
-          key: app-server-${{ runner.os }}-${{ matrix.package-platform }}-${{ matrix.package-arch }}-${{ steps.binary-deps.outputs.mova_ref }}-${{ steps.binary-deps.outputs.codex_ref }}-${{ hashFiles('deps/mova/codex-rs/Cargo.lock', 'deps/codex/codex-rs/Cargo.lock') }}
-          restore-keys: |
-            app-server-${{ runner.os }}-${{ matrix.package-platform }}-${{ matrix.package-arch }}-${{ steps.binary-deps.outputs.mova_ref }}-${{ steps.binary-deps.outputs.codex_ref }}-
-            app-server-${{ runner.os }}-${{ matrix.package-platform }}-${{ matrix.package-arch }}-
-
-      - name: Set up Rust
-        run: rustup toolchain install stable --profile minimal && rustup default stable
-
-      - name: Install Linux ARM64 app-server cross toolchain
-        if: matrix.package-platform == 'linux' && matrix.package-arch == 'arm64'
-        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
-
-      - name: Build app-server binary dependencies
-        run: pnpm run release -- build-app-server-deps --platform=${{ matrix.package-platform }} --arch=${{ matrix.package-arch }}
+          name: app-server-deps-${{ matrix.package-platform }}-${{ matrix.package-arch }}
+          path: release-binary-deps/${{ matrix.package-platform }}-${{ matrix.package-arch }}
 
       - name: Download ffmpeg-static release binary
         run: pnpm run release -- download-ffmpeg-static --platform=${{ matrix.ffmpeg-platform }} --arch=${{ matrix.ffmpeg-arch }}
@@ -213,53 +285,9 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  plugins:
-    name: Package plugins
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Verify release readiness
-        run: pnpm run release -- verify-release-readiness --tag="$RELEASE_TAG"
-        env:
-          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
-          MOVSCRIPT_RELEASE_ALLOW_TEST_TAG: ${{ ((github.event_name == 'workflow_dispatch' && inputs.release_channel == 'test') || contains(github.ref_name, '-test.')) && '1' || '0' }}
-
-      - name: Build plugin packages
-        run: pnpm --filter "./packages/*" build && pnpm --filter @movscript/cli build && pnpm --filter "./plugins/*" build
-
-      - name: Collect plugin artifacts
-        run: pnpm run release -- collect
-
-      - name: Upload plugin artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: movscript-plugins
-          path: release-artifacts/*
-          if-no-files-found: error
-          retention-days: 14
-
   draft-release:
     name: Draft GitHub Release
-    needs: [package, plugins]
+    needs: [package]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -291,6 +319,7 @@ jobs:
       - name: Download package artifacts
         uses: actions/download-artifact@v4
         with:
+          pattern: movscript-desktop-*
           path: downloaded-artifacts
           merge-multiple: true
 

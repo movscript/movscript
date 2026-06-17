@@ -87,7 +87,9 @@ import type {
   ElectronMediaPipelineTaskEvent,
   ElectronMediaEditingProjectEvent,
   ElectronMediaPipelineCapabilities,
+  ElectronMediaEditingProjectDeleteResult,
   ElectronMediaEditingProjectGetResult,
+  ElectronMediaEditingProjectListResult,
   ElectronMediaEditingProjectSaveResult,
   ElectronMediaExportImportInput,
   ElectronMediaExportImportResult,
@@ -234,6 +236,8 @@ export type ElectronAPI = {
     expected_revision?: number
   }) => Promise<ElectronMediaEditingProjectSaveResult>
   getMediaEditingProject?: (input: { projectId?: string; project_id?: string; editingProjectId?: string; editing_project_id?: string }) => Promise<ElectronMediaEditingProjectGetResult>
+  listMediaEditingProjects?: () => Promise<ElectronMediaEditingProjectListResult>
+  deleteMediaEditingProject?: (input: { projectId?: string; project_id?: string; editingProjectId?: string; editing_project_id?: string }) => Promise<ElectronMediaEditingProjectDeleteResult>
   importMediaExportResource?: (input: ElectronMediaExportImportInput) => Promise<ElectronMediaExportImportResult>
   saveMediaExportLocal?: (input: ElectronMediaExportSaveLocalInput) => Promise<ElectronMediaExportSaveLocalResult>
   publishMediaHlsStream?: (input: ElectronMediaHlsPublishInput) => Promise<ElectronMediaHlsPublishResult>

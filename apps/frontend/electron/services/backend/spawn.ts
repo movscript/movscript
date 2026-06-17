@@ -9,12 +9,20 @@ import {
 } from './paths'
 import { writeBackendPid } from './pid'
 import { buildBackendSpawnEnv } from './env'
+import { createBackendOutputCapture, type BackendProcessDiagnostics } from './diagnostics'
 
-export function spawnBackendProcess(): ChildProcess {
+export interface SpawnedBackendProcess {
+  child: ChildProcess
+  diagnostics: BackendProcessDiagnostics
+}
+
+export function spawnBackendProcess(): SpawnedBackendProcess {
   const bin = resolveBackendBinary()
+  const cwd = resolveBackendCwd(bin)
   const dataDir = resolveLocalDataDir()
   const localSecret = resolveLocalSecret(dataDir)
   const env = buildBackendSpawnEnv({ dataDir, localSecret })
+  const output = createBackendOutputCapture()
   console.info('[backend] spawn dependency providers', {
     profile: env.MOVSCRIPT_DEPENDENCY_PROFILE,
     database: env.DB_DRIVER,
@@ -28,13 +36,32 @@ export function spawnBackendProcess(): ChildProcess {
   })
 
   const child = spawn(bin, [], {
-    cwd: resolveBackendCwd(bin),
+    cwd,
     detached: app.isPackaged,
     env,
-    stdio: app.isPackaged ? 'ignore' : 'inherit',
+    stdio: app.isPackaged ? 'ignore' : ['ignore', 'pipe', 'pipe'],
   })
+
+  if (!app.isPackaged) {
+    child.stdout?.on('data', (chunk: Buffer) => {
+      output.append(chunk)
+      process.stdout.write(chunk)
+    })
+    child.stderr?.on('data', (chunk: Buffer) => {
+      output.append(chunk)
+      process.stderr.write(chunk)
+    })
+  }
 
   if (app.isPackaged) child.unref()
   if (child.pid) writeBackendPid(child.pid)
-  return child
+  return {
+    child,
+    diagnostics: {
+      binary: bin,
+      cwd,
+      dataDir,
+      recentOutput: () => output.tail(),
+    },
+  }
 }

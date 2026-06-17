@@ -1,5 +1,4 @@
 export const acceptanceSummarySchema = 'movscript.agent-run-debugging-acceptance-summary.v1'
-export const acceptanceSummarySchemaUrl = 'https://movscript.dev/schemas/agent-run-debugging-acceptance-summary-v1.schema.json'
 export const requiredAcceptanceScreenshots = [
   'agent-run-debug-overview.png',
   'agent-run-model-call-expanded.png',
@@ -13,7 +12,6 @@ export function validateAcceptanceSummary(summary) {
   const errors = []
   const requiredFields = [
     'schema',
-    'schemaUrl',
     'generatedAt',
     'artifactRoot',
     'environment',
@@ -31,7 +29,6 @@ export function validateAcceptanceSummary(summary) {
     if (!requiredFields.includes(field)) errors.push(`${field} is not allowed`)
   }
   if (summary.schema !== acceptanceSummarySchema) errors.push('invalid schema')
-  if (summary.schemaUrl !== acceptanceSummarySchemaUrl) errors.push('invalid schemaUrl')
   if (typeof summary.generatedAt !== 'string' || Number.isNaN(Date.parse(summary.generatedAt))) errors.push('generatedAt must be a date-time string')
   if (typeof summary.artifactRoot !== 'string' || summary.artifactRoot.length === 0) errors.push('artifactRoot must be a non-empty string')
   validateEnvironment(summary.environment, errors)

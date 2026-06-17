@@ -1,12 +1,14 @@
 import type { IpcRenderer } from 'electron'
 import type { ElectronAPI, ElectronMediaEditingProjectEvent, ElectronMediaPipelineTaskEvent } from '../../../src/shared/contracts/electronApi'
 
-export function createMediaPipelineAPI(ipcRenderer: IpcRenderer): Pick<ElectronAPI, 'saveMediaEditingProject' | 'getMediaEditingProject' | 'importMediaExportResource' | 'saveMediaExportLocal' | 'publishMediaHlsStream' | 'getMediaPipelineCapabilities' | 'getMediaPipelineFFmpegStatus' | 'renderMediaPipelineSingleClip' | 'renderMediaPipelineTimelineVideo' | 'analyzeMediaPipelineShotCuts' | 'createMediaPipelineTask' | 'getMediaPipelineTask' | 'cancelMediaPipelineTask' | 'getMediaPipelineTaskLogs' | 'onMediaPipelineTaskEvent' | 'onMediaEditingProjectEvent'> {
+export function createMediaPipelineAPI(ipcRenderer: IpcRenderer): Pick<ElectronAPI, 'saveMediaEditingProject' | 'getMediaEditingProject' | 'listMediaEditingProjects' | 'deleteMediaEditingProject' | 'importMediaExportResource' | 'saveMediaExportLocal' | 'publishMediaHlsStream' | 'getMediaPipelineCapabilities' | 'getMediaPipelineFFmpegStatus' | 'renderMediaPipelineSingleClip' | 'renderMediaPipelineTimelineVideo' | 'analyzeMediaPipelineShotCuts' | 'createMediaPipelineTask' | 'getMediaPipelineTask' | 'cancelMediaPipelineTask' | 'getMediaPipelineTaskLogs' | 'onMediaPipelineTaskEvent' | 'onMediaEditingProjectEvent'> {
   const taskEvents = createMessageSubscription<ElectronMediaPipelineTaskEvent>(ipcRenderer, 'media-pipeline:task-event')
   const editingProjectEvents = createMessageSubscription<ElectronMediaEditingProjectEvent>(ipcRenderer, 'media-pipeline:editing-project-event')
   return {
     saveMediaEditingProject: (input) => ipcRenderer.invoke('media-pipeline:save-editing-project', input),
     getMediaEditingProject: (input) => ipcRenderer.invoke('media-pipeline:get-editing-project', input),
+    listMediaEditingProjects: () => ipcRenderer.invoke('media-pipeline:list-editing-projects'),
+    deleteMediaEditingProject: (input) => ipcRenderer.invoke('media-pipeline:delete-editing-project', input),
     importMediaExportResource: (input) => ipcRenderer.invoke('media-pipeline:import-export-resource', input),
     saveMediaExportLocal: (input) => ipcRenderer.invoke('media-pipeline:save-export-local', input),
     publishMediaHlsStream: (input) => ipcRenderer.invoke('media-pipeline:publish-hls-stream', input),

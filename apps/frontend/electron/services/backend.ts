@@ -5,6 +5,7 @@ import { isBackendReady, isProcessRunning, waitForBackendReady } from './backend
 import { clearBackendPid, readBackendPid } from './backend/pid'
 import { getBackendLaunchPolicy } from './backend/policy'
 import { spawnBackendProcess } from './backend/spawn'
+import { formatBackendStartupFailure, type BackendExitInfo } from './backend/diagnostics'
 import type { BackendLaunchPolicy, BackendStatus, BackendStatusListener } from './backend/types'
 
 let proc: ChildProcess | null = null
@@ -58,11 +59,14 @@ export async function startBackend(
 
 async function spawnBackend(onStatus?: BackendStatusListener): Promise<BackendStatus> {
   setBackendStatus({ state: 'starting', baseURL: LOCAL_BACKEND_URL, message: 'Starting local backend' }, onStatus)
-  const child = spawnBackendProcess()
+  const spawned = spawnBackendProcess()
+  const { child, diagnostics } = spawned
   proc = child
+  let exitInfo: BackendExitInfo | undefined
 
   child.on('error', (err) => console.error('[backend]', err))
   child.on('exit', (code, signal) => {
+    exitInfo = { code, signal }
     console.info(`[backend] exited code=${code ?? 'null'} signal=${signal ?? 'null'}`)
     if (proc === child) proc = null
     clearBackendPid()
@@ -78,7 +82,7 @@ async function spawnBackend(onStatus?: BackendStatusListener): Promise<BackendSt
     const status: BackendStatus = { state: 'ready', baseURL: LOCAL_BACKEND_URL, pid: child.pid }
     return setBackendStatus(status, onStatus)
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Local backend failed to start'
+    const message = formatBackendStartupFailure({ error, diagnostics, exitInfo })
     const status: BackendStatus = { state: 'error', baseURL: LOCAL_BACKEND_URL, pid: child.pid, message }
     return setBackendStatus(status, onStatus)
   }

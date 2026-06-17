@@ -11,10 +11,11 @@ import {
   stageDesktopAppServerBinary,
 } from '../../../scripts/release/stage-app-server-binaries.mjs'
 
-test('appServerSourceCandidates checks target triples before generic debug outputs', () => {
+test('appServerSourceCandidates checks built dependency artifacts before debug outputs', () => {
   const root = resolve('/repo')
   const candidates = appServerSourceCandidates(root, 'codex', 'darwin', 'arm64')
-  assert.equal(candidates[0], resolve('/repo/../codex/codex-rs/target/aarch64-apple-darwin/debug/app-server'))
+  assert.equal(candidates[0], resolve('/repo/release-binary-deps/darwin-arm64/codex/app-server'))
+  assert.ok(candidates.includes(resolve('/repo/../codex/codex-rs/target/aarch64-apple-darwin/debug/app-server')))
   assert.ok(candidates.includes(resolve('/repo/../codex/codex-rs/target/debug/codex-app-server')))
 })
 
@@ -50,6 +51,26 @@ test('stageDesktopAppServerBinaries stages Codex and Mova from provider env vars
     assert.deepEqual(staged.map((entry) => entry.provider), ['codex', 'mova'])
     assert.equal(await readFile(join(root, 'apps/frontend/vendor/app-server/codex/linux/x64/app-server'), 'utf8'), 'codex binary')
     assert.equal(await readFile(join(root, 'apps/frontend/vendor/app-server/mova/linux/x64/app-server'), 'utf8'), 'mova binary')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('stageDesktopAppServerBinaries stages downloaded build dependency artifacts by default', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'movscript-stage-app-server-built-deps-'))
+  try {
+    const codexSource = join(root, 'release-binary-deps/linux-x64/codex/app-server')
+    const movaSource = join(root, 'release-binary-deps/linux-x64/mova/app-server')
+    await mkdir(join(root, 'release-binary-deps/linux-x64/codex'), { recursive: true })
+    await mkdir(join(root, 'release-binary-deps/linux-x64/mova'), { recursive: true })
+    await writeFile(codexSource, 'codex artifact', 'utf8')
+    await writeFile(movaSource, 'mova artifact', 'utf8')
+
+    const staged = stageDesktopAppServerBinaries(root, ['--platform=linux', '--arch=x64'], {})
+
+    assert.deepEqual(staged.map((entry) => entry.source), [codexSource, movaSource])
+    assert.equal(await readFile(join(root, 'apps/frontend/vendor/app-server/codex/linux/x64/app-server'), 'utf8'), 'codex artifact')
+    assert.equal(await readFile(join(root, 'apps/frontend/vendor/app-server/mova/linux/x64/app-server'), 'utf8'), 'mova artifact')
   } finally {
     await rm(root, { recursive: true, force: true })
   }

@@ -4,11 +4,13 @@ import { setEditingRuntimePort, type EditingMediaPipelineTaskRequest } from '@mo
 import {
   cancelMediaPipelineTask,
   createMediaPipelineTask,
+  deleteMediaPipelineEditingProject,
   getMediaPipelineCapabilities,
   getMediaPipelineEditingProject,
   getMediaPipelineTaskLogs,
   getMediaPipelineTask,
   getStoredMediaPipelineTask,
+  listMediaPipelineEditingProjects,
   importMediaPipelineExportResource,
   onMediaPipelineEditingProjectEvent,
   onMediaPipelineTaskEvent,
@@ -90,11 +92,24 @@ export function registerMediaPipelineIpcHandlers(): void {
     editingProjectId?: string
     editing_project_id?: string
   }) => {
-    const projectId = input?.projectId ?? input?.project_id
     const editingProjectId = input?.editingProjectId ?? input?.editing_project_id
-    if (!projectId) throw new Error('projectId is required')
     if (!editingProjectId) throw new Error('editingProjectId is required')
-    return getMediaPipelineEditingProject({ projectId, editingProjectId }, { userDataDir: app.getPath('userData') })
+    return getMediaPipelineEditingProject({ editingProjectId }, { userDataDir: app.getPath('userData') })
+  })
+
+  ipcMain.handle('media-pipeline:list-editing-projects', async () => {
+    return listMediaPipelineEditingProjects({ userDataDir: app.getPath('userData') })
+  })
+
+  ipcMain.handle('media-pipeline:delete-editing-project', async (_event, input?: {
+    projectId?: string
+    project_id?: string
+    editingProjectId?: string
+    editing_project_id?: string
+  }) => {
+    const editingProjectId = input?.editingProjectId ?? input?.editing_project_id
+    if (!editingProjectId) throw new Error('editingProjectId is required')
+    return deleteMediaPipelineEditingProject({ editingProjectId }, { userDataDir: app.getPath('userData') })
   })
 
   ipcMain.handle('media-pipeline:import-export-resource', async (_event, input?: {

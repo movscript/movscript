@@ -123,6 +123,8 @@ function buildRustAppServer({ arch, baseEnv, dependency, platform, profile, repo
   }
   if (target === 'aarch64-unknown-linux-gnu') {
     env.CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER = env.CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER || 'aarch64-linux-gnu-gcc'
+    env.PKG_CONFIG_ALLOW_CROSS = env.PKG_CONFIG_ALLOW_CROSS || '1'
+    env.PKG_CONFIG_PATH = env.PKG_CONFIG_PATH || '/usr/lib/aarch64-linux-gnu/pkgconfig'
   }
   run(`Install Rust target for ${dependency.provider}`, 'rustup', ['target', 'add', target], { cwd: workdir, env, spawn })
   run(`Build ${dependency.provider} app-server`, 'cargo', cargoArgs, { cwd: workdir, env, spawn })
