@@ -79,6 +79,7 @@ test('macOS dock shortcuts mirror desktop root and recent jump entries', () => {
   assert.match(editingRegistrySource, /writeEditingProjectRegistry/)
   assert.match(editingRegistrySource, /dispatchEvent\(new Event\(EDITING_PROJECT_REGISTRY_CHANGED_EVENT\)\)/)
   assert.match(editingListSource, /writeEditingProjectRegistry/)
+  assert.match(editingListSource, /onMediaEditingProjectEvent/)
   assert.match(editingWorkspaceSource, /writeEditingProjectRegistry/)
   assert.match(editingWorkspaceSource, /onMediaEditingProjectEvent/)
   assert.match(editingWorkspaceSource, /expectedRevision: project\.revision/)

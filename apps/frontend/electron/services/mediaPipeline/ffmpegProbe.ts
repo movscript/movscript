@@ -213,7 +213,7 @@ export function readMediaPipelineFFmpegFilters(
 export function parseMediaPipelineFFmpegFilters(output: string): Set<string> {
   const filters = new Set<string>()
   for (const line of output.split(/\r?\n/)) {
-    const match = line.match(/^\s*[T.][S.][C.]\s+([^\s]+)\s/)
+    const match = line.match(/^\s*[TSC.]{2,3}\s+([A-Za-z0-9_]+)\s+\S*->\S+/)
     if (match?.[1]) filters.add(match[1])
   }
   return filters

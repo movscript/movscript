@@ -31,7 +31,7 @@ const EDITING_CANVAS_PRESETS = [
   { id: '4:5', label: '4:5 信息流', width: 1080, height: 1350 },
 ] as const
 
-type EditingListMediaAPI = Pick<ElectronAPI, 'saveMediaEditingProject'>
+type EditingListMediaAPI = Pick<ElectronAPI, 'saveMediaEditingProject' | 'onMediaEditingProjectEvent'>
 
 type ListState =
   | { status: 'idle'; message?: string }
@@ -51,6 +51,26 @@ export default function EditingListPage() {
   useEffect(() => {
     setProjects(readEditingProjectRegistry())
   }, [])
+
+  useEffect(() => {
+    if (!mediaAPI?.onMediaEditingProjectEvent) return undefined
+    return mediaAPI.onMediaEditingProjectEvent((event) => {
+      const eventProject = event.editingProject ?? event.editing_project
+      if (!eventProject?.id) return
+      setProjects((currentProjects) => {
+        const nextProjects = upsertEditingProjectSummary(currentProjects, {
+          id: eventProject.id,
+          projectId: eventProject.projectId,
+          title: eventProject.title,
+          updatedAt: eventProject.updatedAt ?? new Date().toISOString(),
+          projectPath: event.projectPath ?? event.project_path,
+          snapshot: eventProject,
+        })
+        writeEditingProjectRegistry(nextProjects)
+        return nextProjects
+      })
+    })
+  }, [mediaAPI])
 
   async function createAndOpenProject() {
     if (!projectTitle.trim()) return

@@ -762,6 +762,10 @@ function assertMediaEditingProjectEnvelope(project: Record<string, unknown>): vo
   if (!isRecord(project.timeline) || project.timeline.version !== 1 || !Array.isArray(project.timeline.tracks)) {
     throw new Error('editingProject.timeline must be a MediaTimelineRecipe v1 object')
   }
+  if (project.assets === undefined) {
+    project.assets = { assets: [] }
+    return
+  }
   if (!isRecord(project.assets) || !Array.isArray(project.assets.assets)) {
     throw new Error('editingProject.assets must contain an assets array')
   }

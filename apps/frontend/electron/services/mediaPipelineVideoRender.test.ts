@@ -296,11 +296,26 @@ Filters:
  T.C drawtext          V->V       Draw text on top of video frames using libfreetype library.
  ... format            V->V       Convert the input video to one of the specified pixel formats.
  ..C amix              N->A       Audio mixing.
+ T. adelay            A->A       Delay one or more audio channels.
+ .. asetpts           A->A       Set PTS for the output audio frame.
+ .. atrim             A->A       Pick one continuous section from the input, drop the rest.
+ .. pad               V->V       Pad the input video.
+ .. scale             V->V       Scale the input video size and/or convert the image format.
+ .. setsar            V->V       Set the pixel sample aspect ratio.
+ T. volume            A->A       Change input volume.
 `)
   assert.equal(filters.has('drawtext'), true)
   assert.equal(filters.has('format'), true)
   assert.equal(filters.has('amix'), true)
+  assert.equal(filters.has('adelay'), true)
+  assert.equal(filters.has('asetpts'), true)
+  assert.equal(filters.has('atrim'), true)
+  assert.equal(filters.has('pad'), true)
+  assert.equal(filters.has('scale'), true)
+  assert.equal(filters.has('setsar'), true)
+  assert.equal(filters.has('volume'), true)
   assert.equal(filters.has('Filters:'), false)
+  assert.equal(filters.has('T..'), false)
 })
 
 test('readMediaPipelineFFmpegFilters returns parsed filter names from ffmpeg', async () => {

@@ -303,7 +303,6 @@
 }
 
 .editing-workspace-asset-name,
-.editing-workspace-clip span,
 .editing-workspace-task span {
   display: block;
   overflow: hidden;
@@ -1430,15 +1429,14 @@
 
 .editing-workspace-clip-titlebar,
 .editing-workspace-clip-footerbar {
-  display: flex;
   min-width: 0;
   min-height: 0;
   height: 100%;
   align-items: center;
-  gap: 4px;
   overflow: hidden;
   background: rgb(0 0 0 / 58%);
   color: #ffffff;
+  white-space: nowrap;
 }
 
 .editing-workspace-clip-titlebar {
@@ -1450,8 +1448,10 @@
 }
 
 .editing-workspace-clip-footerbar {
+  display: flex;
   grid-row: 3;
   justify-content: flex-start;
+  gap: 4px;
   padding: 0 5px;
   color: rgb(255 255 255 / 78%);
 }
@@ -1483,11 +1483,16 @@
 }
 
 .editing-workspace-clip-titlebar .editing-workspace-clip-label {
+  display: inline-flex;
   width: 100%;
   max-width: 100%;
   flex: 1 1 min(100%, 0);
+  align-items: center;
+  gap: 3px;
+  overflow: hidden;
   font-size: 7px;
   line-height: 1;
+  white-space: nowrap;
 }
 
 .editing-workspace-clip-titlebar .editing-workspace-clip-label > span {
@@ -1586,8 +1591,8 @@
 }
 
 .editing-workspace-clip-content .editing-workspace-clip-media {
-  position: relative;
-  inset: auto;
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   min-width: 0;

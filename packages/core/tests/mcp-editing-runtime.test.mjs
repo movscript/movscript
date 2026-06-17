@@ -304,6 +304,15 @@ test('MCP editing task tools delegate to the registered Electron editing runtime
     assert.equal(capturedProjectSaves[0].editingProject.id, 'edit_project_1')
     assert.deepEqual(capturedProjectSaves[0].options, { expectedRevision: 3 })
 
+    const projectWithoutAssets = editingProject()
+    delete projectWithoutAssets.assets
+    const savedProjectWithoutAssets = await callTool('editing_project_save', {
+      editing_project: projectWithoutAssets,
+    })
+    assert.equal(savedProjectWithoutAssets.status, 'ok')
+    assert.deepEqual(savedProjectWithoutAssets.editingProject.assets, { assets: [] })
+    assert.deepEqual(capturedProjectSaves[1].editingProject.assets, { assets: [] })
+
     const loadedProject = await callTool('editing_project_get', {
       projectId: 'project-1',
       editingProjectId: 'edit_project_1',
