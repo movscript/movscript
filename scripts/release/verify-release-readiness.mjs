@@ -37,6 +37,7 @@ export function runVerifyReleaseReadinessCli(root = repoRoot, env = process.env,
       platform: argValue(args, '--platform') ?? env.MOVSCRIPT_RELEASE_PLATFORM,
       releaseNotesPath: argValue(args, '--release-notes') ?? env.MOVSCRIPT_RELEASE_NOTES_PATH,
       requireSigning: args.includes('--require-signing') || env.MOVSCRIPT_RELEASE_REQUIRE_SIGNING === '1',
+      allowTestTag: args.includes('--allow-test-tag') || env.MOVSCRIPT_RELEASE_ALLOW_TEST_TAG === '1',
     })
     log(`Release readiness verification passed (${result.checks.length} checks).`)
     for (const check of result.checks) log(`- ${check}`)
@@ -53,6 +54,7 @@ export function verifyReleaseReadiness(root = repoRoot, options = {}) {
     platform = env.MOVSCRIPT_RELEASE_PLATFORM,
     releaseNotesPath = defaultReleaseNotesPath,
     requireSigning = env.MOVSCRIPT_RELEASE_REQUIRE_SIGNING === '1',
+    allowTestTag = env.MOVSCRIPT_RELEASE_ALLOW_TEST_TAG === '1',
   } = options
   const checks = []
   const rootPackage = readPackageJSON(root, rootPackagePath)
@@ -69,10 +71,18 @@ export function verifyReleaseReadiness(root = repoRoot, options = {}) {
   const releaseTag = normalizeOptionalTag(tag)
   if (releaseTag) {
     const expectedTag = `v${rootPackage.version}`
-    if (releaseTag !== expectedTag) {
-      throw new Error(`Release tag ${releaseTag} must match package version ${expectedTag}`)
+    const expectedTestTagPattern = testReleaseTagPattern(rootPackage.version)
+    if (releaseTag === expectedTag) {
+      checks.push(`release tag ${releaseTag} matches package version`)
+    } else if (expectedTestTagPattern.test(releaseTag)) {
+      if (!allowTestTag) {
+        throw new Error(`Release tag ${releaseTag} is a test release tag; set MOVSCRIPT_RELEASE_ALLOW_TEST_TAG=1 or pass --allow-test-tag to package it.`)
+      }
+      checks.push(`test release tag ${releaseTag} matches package version ${rootPackage.version}`)
+    } else {
+      const testHint = allowTestTag ? ` or v${rootPackage.version}-test.N` : ''
+      throw new Error(`Release tag ${releaseTag} must match package version ${expectedTag}${testHint}`)
     }
-    checks.push(`release tag ${releaseTag} matches package version`)
   } else {
     checks.push('release tag check skipped outside a tag release')
   }
@@ -155,6 +165,14 @@ function normalizeOptionalTag(value) {
     throw new Error(`Release tag must be a semver tag like v0.1.0, got ${tag}`)
   }
   return tag
+}
+
+function testReleaseTagPattern(version) {
+  return new RegExp(`^v${escapeRegExp(version)}-test\\.\\d+$`)
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 function releaseTagFromEnv(env) {

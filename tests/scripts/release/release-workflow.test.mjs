@@ -53,6 +53,8 @@ test('release workflow installs locked dependencies without mutating package spe
 
 test('release workflow verifies readiness before packaging and smoke-tests runnable packages', () => {
   assert.match(releaseWorkflow, /pnpm run release -- verify-release-readiness --tag="\$RELEASE_TAG" --platform=\$\{\{\s*matrix\.package-platform\s*\}\}/)
+  assert.match(releaseWorkflow, /release_channel:/)
+  assert.match(releaseWorkflow, /MOVSCRIPT_RELEASE_ALLOW_TEST_TAG:\s+\$\{\{\s*\(\(github\.event_name == 'workflow_dispatch' && inputs\.release_channel == 'test'\) \|\| contains\(github\.ref_name, '-test\.'\)\) && '1' \|\| '0'\s*\}\}/)
   assert.match(releaseWorkflow, /MOVSCRIPT_RELEASE_REQUIRE_SIGNING:\s+\$\{\{\s*vars\.MOVSCRIPT_RELEASE_REQUIRE_SIGNING \|\| '0'\s*\}\}/)
   assert.match(releaseWorkflow, /pnpm run release -- smoke-desktop-package --platform=\$\{\{\s*matrix\.package-platform\s*\}\} --arch=\$\{\{\s*matrix\.package-arch\s*\}\}/)
 })
@@ -89,4 +91,12 @@ test('release workflow creates attestations and uses the checked-in release note
   assert.match(releaseWorkflow, /uses:\s+actions\/attest-build-provenance@v2/)
   assert.match(releaseWorkflow, /--notes-file \.github\/release-workspace-notes\.md/)
   assert.doesNotMatch(releaseWorkflow, /release-draft-notes\.md/)
+})
+
+test('release workflow marks test releases as prereleases', () => {
+  assert.match(releaseWorkflow, /echo "is_test=true" >> "\$GITHUB_OUTPUT"/)
+  assert.match(releaseWorkflow, /\^v\[0-9\]\+\\\.\[0-9\]\+\\\.\[0-9\]\+-test\\\.\[0-9\]\+\$/)
+  assert.match(releaseWorkflow, /IS_TEST_RELEASE:\s+\$\{\{\s*steps\.release\.outputs\.is_test\s*\}\}/)
+  assert.match(releaseWorkflow, /RELEASE_FLAGS="--draft --prerelease"/)
+  assert.match(releaseWorkflow, /gh release create "\$RELEASE_TAG" \$RELEASE_FLAGS --title "\$RELEASE_TAG" --notes-file \.github\/release-workspace-notes\.md/)
 })

@@ -26,6 +26,48 @@ test('verifyReleaseReadiness accepts matching desktop release tags', async () =>
   }
 })
 
+test('verifyReleaseReadiness accepts explicit test release tags', async () => {
+  const root = await releaseFixture()
+  try {
+    const result = verifyReleaseReadiness(root, {
+      env: {},
+      tag: 'v0.1.0-test.16',
+      allowTestTag: true,
+    })
+    assert.deepEqual(result.checks.slice(0, 3), [
+      'desktop package version 0.1.0 matches root package',
+      'test release tag v0.1.0-test.16 matches package version 0.1.0',
+      'release notes file exists: .github/release-workspace-notes.md',
+    ])
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('verifyReleaseReadiness rejects test release tags unless explicitly allowed', async () => {
+  const root = await releaseFixture()
+  try {
+    assert.throws(
+      () => verifyReleaseReadiness(root, { env: {}, tag: 'v0.1.0-test.16' }),
+      /Release tag v0\.1\.0-test\.16 is a test release tag; set MOVSCRIPT_RELEASE_ALLOW_TEST_TAG=1 or pass --allow-test-tag/,
+    )
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('verifyReleaseReadiness rejects test release tags for the wrong package version', async () => {
+  const root = await releaseFixture()
+  try {
+    assert.throws(
+      () => verifyReleaseReadiness(root, { env: {}, tag: 'v0.1.1-test.16', allowTestTag: true }),
+      /Release tag v0\.1\.1-test\.16 must match package version v0\.1\.0 or v0\.1\.0-test\.N/,
+    )
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 test('verifyReleaseReadiness rejects tag and desktop version drift', async () => {
   const root = await releaseFixture({ desktopVersion: '0.1.1' })
   try {
