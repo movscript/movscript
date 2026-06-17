@@ -7,12 +7,23 @@
     "baseUrl": ".",
     "outDir": "dist",
     "paths": {
+      "@movscript/core/backend/node": ["../../packages/core/src/backend/node/index.ts"],
+      "@movscript/core/workspace/node": ["../../packages/core/src/workspace/node/index.ts"],
+      "@movscript/decision": ["../../packages/decision/src/index.ts"],
+      "@movscript/editing": ["../../packages/editing/src/index.ts"],
       "@movscript/engine": ["../../packages/engine/src/index.ts"],
       "@movscript/engine/node": ["../../packages/engine/src/node.ts"],
       "@movscript/interpreter": ["../../packages/interpreter/src/index.ts"],
       "@movscript/interpreter/artifacts": ["../../packages/interpreter/src/artifacts/index.ts"],
       "@movscript/interpreter/node": ["../../packages/interpreter/src/node.ts"],
-      "@movscript/prompt": ["../../packages/prompt/src/index.ts"]
+      "@movscript/language": ["../../packages/language/src/index.ts"],
+      "@movscript/language/domain": ["../../packages/language/src/domain/index.ts"],
+      "@movscript/prompt": ["../../packages/prompt/src/index.ts"],
+      "@movscript/workspace": ["../../packages/workspace/src/index.ts"],
+      "@movscript/workspace/indexer": ["../../packages/workspace/src/indexer/index.ts"],
+      "@movscript/workspace/layout": ["../../packages/workspace/src/layout/index.ts"],
+      "@movscript/workspace/node": ["../../packages/workspace/src/node.ts"],
+      "@movscript/workspace/repository": ["../../packages/workspace/src/repository/index.ts"]
     }
   },
   "include": ["src"]

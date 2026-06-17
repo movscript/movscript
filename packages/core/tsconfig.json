@@ -8,12 +8,21 @@
     "outDir": "dist",
     "baseUrl": ".",
     "paths": {
+      "@movscript/decision": ["../decision/src/index.ts"],
+      "@movscript/editing": ["../editing/src/index.ts"],
       "@movscript/engine": ["../engine/src/index.ts"],
       "@movscript/engine/node": ["../engine/src/node.ts"],
       "@movscript/interpreter": ["../interpreter/src/index.ts"],
       "@movscript/interpreter/artifacts": ["../interpreter/src/artifacts/index.ts"],
       "@movscript/interpreter/node": ["../interpreter/src/node.ts"],
-      "@movscript/prompt": ["../prompt/src/index.ts"]
+      "@movscript/language": ["../language/src/index.ts"],
+      "@movscript/language/domain": ["../language/src/domain/index.ts"],
+      "@movscript/prompt": ["../prompt/src/index.ts"],
+      "@movscript/workspace": ["../workspace/src/index.ts"],
+      "@movscript/workspace/indexer": ["../workspace/src/indexer/index.ts"],
+      "@movscript/workspace/layout": ["../workspace/src/layout/index.ts"],
+      "@movscript/workspace/node": ["../workspace/src/node.ts"],
+      "@movscript/workspace/repository": ["../workspace/src/repository/index.ts"]
     }
   },
   "include": ["src"]
