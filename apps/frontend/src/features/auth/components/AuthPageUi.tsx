@@ -10,20 +10,8 @@ export function AuthRoot({ className, ...props }: HTMLAttributes<HTMLDivElement>
   return <div className={cn('auth-root', className)} {...props} />
 }
 
-export function AuthWorkModeRoot({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('auth-root auth-root--work-mode', className)} {...props} />
-}
-
 export function AuthPanel({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return <div className={cn('auth-panel', className)} {...props} />
-}
-
-export function AuthWorkModePanel({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('auth-work-mode-panel', className)} {...props} />
-}
-
-export function AuthBrandMark({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn('auth-brand-mark', className)} {...props} />
 }
 
 export function AuthTitle({ className, ...props }: HTMLAttributes<HTMLHeadingElement>) {

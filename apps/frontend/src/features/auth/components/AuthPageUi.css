@@ -8,26 +8,9 @@
   padding: 24px;
 }
 
-.auth-root--work-mode {
-  color: var(--ms-color-foreground);
-}
-
 .auth-panel {
   width: 100%;
   max-width: 24rem;
-}
-
-.auth-work-mode-panel {
-  width: 100%;
-  max-width: 56rem;
-}
-
-.auth-brand-mark {
-  margin-bottom: var(--ms-space-2);
-  color: var(--ms-color-primary);
-  font-size: var(--ms-text-body);
-  font-weight: 500;
-  line-height: var(--ms-leading-body);
 }
 
 .auth-title {
