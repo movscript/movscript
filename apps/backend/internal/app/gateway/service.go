@@ -128,6 +128,12 @@ type ChatStreamResult struct {
 	Events        <-chan ai.TextStreamEvent
 }
 
+type ResponsesStreamResult struct {
+	ModelConfigID uint
+	ResponseModel string
+	Events        <-chan ai.ResponsesStreamEvent
+}
+
 type ModelNotFoundError struct {
 	Message string
 }
@@ -303,6 +309,26 @@ func (s *Service) CallChatStream(ctx context.Context, input ChatInput) (ChatStre
 		return ChatStreamResult{}, err
 	}
 	return ChatStreamResult{ModelConfigID: route.ModelConfigID, ResponseModel: responseModel, Events: events}, nil
+}
+
+func (s *Service) CallResponsesStream(ctx context.Context, input ResponsesInput) (ResponsesStreamResult, error) {
+	route, responseModel, textReq, err := s.prepareChat(ctx, ChatInput{
+		Principal: input.Principal,
+		Model:     input.Model,
+		Text:      input.Text,
+		ProjectID: input.ProjectID,
+	})
+	if err != nil {
+		return ResponsesStreamResult{}, err
+	}
+	responsesReq := input.Responses
+	responsesReq.Text = textReq
+	ctx = s.providerRouteContextForPrincipal(ctx, input.Principal)
+	events, err := s.ai.CallResponsesStreamWithRouteUsage(ctx, input.Principal.UserID, aiRouteFromGateway(route), responsesReq, UsageContext(input.Principal.Key, input.ProjectID))
+	if err != nil {
+		return ResponsesStreamResult{}, err
+	}
+	return ResponsesStreamResult{ModelConfigID: route.ModelConfigID, ResponseModel: responseModel, Events: events}, nil
 }
 
 func (s *Service) PrepareOpenAIProxy(ctx context.Context, input OpenAIProxyInput) (OpenAIProxyRoute, error) {

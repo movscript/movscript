@@ -123,6 +123,137 @@ func (a *OpenAIAdapter) ResponsesGenerate(ctx context.Context, req ResponsesRequ
 	return result, nil
 }
 
+func (a *OpenAIAdapter) ResponsesStream(ctx context.Context, req ResponsesRequest) (<-chan ResponsesStreamEvent, error) {
+	attachTextPromptDebug(ctx, req.Text)
+	body, err := buildOpenAIResponsesBody(req)
+	if err != nil {
+		return nil, err
+	}
+	body["stream"] = true
+	httpReqBody, _ := json.Marshal(body)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, a.responsesEndpoint(), bytes.NewReader(httpReqBody))
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Accept", "text/event-stream")
+	httpReq.Header.Set("Authorization", "Bearer "+a.APIKey)
+
+	streamDebug := aiStreamDebugEnabled()
+	if streamDebug {
+		slog.Info("ai_openai_responses_stream_request",
+			slog.String("model", req.Text.Model),
+			slog.String("endpoint", a.responsesEndpoint()),
+			slog.String("request_body", truncateForStreamDebug(string(httpReqBody))),
+		)
+	}
+
+	start := time.Now()
+	resp, err := a.rawHTTP.Do(httpReq)
+	latency := time.Since(start).Milliseconds()
+	if err != nil {
+		recordDebugIfEmpty(ctx, DebugCallResult{
+			Success: false, ModelID: req.Text.Model, Endpoint: a.responsesEndpoint(), Method: "POST",
+			RequestBody: mustJSON(body), LatencyMs: latency, Error: err.Error(),
+		})
+		return nil, err
+	}
+	if streamDebug {
+		slog.Info("ai_openai_responses_stream_response",
+			slog.String("model", req.Text.Model),
+			slog.Int("status", resp.StatusCode),
+			slog.Int64("latency_ms", latency),
+			slog.String("content_type", resp.Header.Get("Content-Type")),
+		)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		defer resp.Body.Close()
+		respBody, _ := io.ReadAll(resp.Body)
+		err := fmt.Errorf("openai responses stream HTTP %d: %s", resp.StatusCode, string(respBody))
+		recordDebugIfEmpty(ctx, DebugCallResult{
+			Success: false, ModelID: req.Text.Model, Endpoint: a.responsesEndpoint(), Method: "POST",
+			RequestBody: mustJSON(body), ResponseStatus: resp.StatusCode, ResponseBody: string(respBody),
+			LatencyMs: latency, Error: err.Error(),
+		})
+		return nil, err
+	}
+
+	out := make(chan ResponsesStreamEvent)
+	go func() {
+		defer close(out)
+		defer resp.Body.Close()
+		scanner := bufio.NewScanner(resp.Body)
+		scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+		eventName := ""
+		dataLines := []string{}
+		flush := func() bool {
+			if len(dataLines) == 0 {
+				eventName = ""
+				return false
+			}
+			data := strings.Join(dataLines, "\n")
+			dataLines = nil
+			defer func() { eventName = "" }()
+			if data == "[DONE]" {
+				out <- ResponsesStreamEvent{Type: eventName, Raw: data, Done: true}
+				return true
+			}
+			if streamDebug {
+				slog.Info("ai_openai_responses_stream_raw_event",
+					slog.String("model", req.Text.Model),
+					slog.String("event", eventName),
+					slog.String("data", truncateForStreamDebug(data)),
+				)
+			}
+			var parsed openAIResponsesStreamPayload
+			if err := json.Unmarshal([]byte(data), &parsed); err != nil {
+				out <- ResponsesStreamEvent{Type: eventName, Raw: data, Error: fmt.Sprintf("openai responses stream decode: %v", err)}
+				return false
+			}
+			eventType := firstNonEmptyAI(parsed.Type, eventName)
+			event := ResponsesStreamEvent{
+				Type: eventType,
+				Raw:  data,
+				Done: eventType == "response.completed",
+			}
+			if parsed.Response != nil {
+				event.Usage = tokenUsageFromOpenAIResponsesUsage(parsed.Response.Usage)
+			}
+			if parsed.Error.Message != "" {
+				event.Error = parsed.Error.Message
+			} else if eventType == "response.failed" {
+				event.Error = "response failed"
+			}
+			out <- event
+			return event.Done
+		}
+		for scanner.Scan() {
+			trimmed := strings.TrimSpace(scanner.Text())
+			if trimmed == "" {
+				if flush() {
+					return
+				}
+				continue
+			}
+			if strings.HasPrefix(trimmed, ":") {
+				continue
+			}
+			if strings.HasPrefix(trimmed, "event:") {
+				eventName = strings.TrimSpace(strings.TrimPrefix(trimmed, "event:"))
+				continue
+			}
+			if strings.HasPrefix(trimmed, "data:") {
+				dataLines = append(dataLines, strings.TrimSpace(strings.TrimPrefix(trimmed, "data:")))
+			}
+		}
+		flush()
+		if err := scanner.Err(); err != nil {
+			out <- ResponsesStreamEvent{Error: fmt.Sprintf("openai responses stream receive: %v", err)}
+		}
+	}()
+	return out, nil
+}
+
 func (a *OpenAIAdapter) TextStream(ctx context.Context, req TextRequest) (<-chan TextStreamEvent, error) {
 	attachTextPromptDebug(ctx, req)
 	body, err := buildOpenAIChatBody(req, true)
@@ -326,19 +457,38 @@ type openAIResponsesResponse struct {
 		Name      string `json:"name"`
 		Arguments string `json:"arguments"`
 	} `json:"output"`
-	OutputText string `json:"output_text"`
-	Status     string `json:"status"`
-	Usage      struct {
-		InputTokens        int `json:"input_tokens"`
-		OutputTokens       int `json:"output_tokens"`
-		TotalTokens        int `json:"total_tokens"`
-		InputTokensDetails struct {
-			CachedTokens int `json:"cached_tokens"`
-		} `json:"input_tokens_details"`
-		OutputTokensDetails struct {
-			ReasoningTokens int `json:"reasoning_tokens"`
-		} `json:"output_tokens_details"`
-	} `json:"usage"`
+	OutputText string               `json:"output_text"`
+	Status     string               `json:"status"`
+	Usage      openAIResponsesUsage `json:"usage"`
+}
+
+type openAIResponsesUsage struct {
+	InputTokens        int `json:"input_tokens"`
+	OutputTokens       int `json:"output_tokens"`
+	TotalTokens        int `json:"total_tokens"`
+	InputTokensDetails struct {
+		CachedTokens int `json:"cached_tokens"`
+	} `json:"input_tokens_details"`
+	OutputTokensDetails struct {
+		ReasoningTokens int `json:"reasoning_tokens"`
+	} `json:"output_tokens_details"`
+}
+
+type openAIResponsesStreamPayload struct {
+	Type     string                   `json:"type"`
+	Response *openAIResponsesResponse `json:"response"`
+	Error    struct {
+		Message string `json:"message"`
+	} `json:"error"`
+}
+
+func tokenUsageFromOpenAIResponsesUsage(usage openAIResponsesUsage) TokenUsage {
+	return TokenUsage{
+		InputTokens:       usage.InputTokens,
+		OutputTokens:      usage.OutputTokens,
+		CachedInputTokens: usage.InputTokensDetails.CachedTokens,
+		ReasoningTokens:   usage.OutputTokensDetails.ReasoningTokens,
+	}
 }
 
 func (r openAIResponsesResponse) toTextResponse() TextResponse {
@@ -383,12 +533,7 @@ func (r openAIResponsesResponse) toTextResponse() TextResponse {
 		Content:      content.String(),
 		ToolCalls:    toolCalls,
 		FinishReason: finishReason,
-		Usage: TokenUsage{
-			InputTokens:       r.Usage.InputTokens,
-			OutputTokens:      r.Usage.OutputTokens,
-			CachedInputTokens: r.Usage.InputTokensDetails.CachedTokens,
-			ReasoningTokens:   r.Usage.OutputTokensDetails.ReasoningTokens,
-		},
+		Usage:        tokenUsageFromOpenAIResponsesUsage(r.Usage),
 	}
 }
 

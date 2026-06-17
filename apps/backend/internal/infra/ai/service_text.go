@@ -263,6 +263,170 @@ func (s *AIService) CallResponsesWithRouteUsage(ctx context.Context, userID uint
 	return s.CallResponsesWithUsage(ctx, userID, route.ModelConfigID, req, usage)
 }
 
+func (s *AIService) CallResponsesStreamWithRouteUsage(ctx context.Context, userID uint, route ModelRoute, req ResponsesRequest, usage UsageContext) (<-chan ResponsesStreamEvent, error) {
+	usage = usageWithCatalogEntry(usage, route.CatalogEntryID)
+	for _, capability := range textRuntimeCapabilities() {
+		runtime, handled, err := s.catalogRouteRuntime(ctx, userID, route, capability)
+		if err != nil {
+			return nil, err
+		}
+		if handled {
+			return s.callCatalogResponsesStreamRuntime(ctx, userID, route, runtime, req, usage)
+		}
+	}
+	return s.CallResponsesStreamWithUsage(ctx, userID, route.ModelConfigID, req, usage)
+}
+
+func (s *AIService) CallResponsesStreamWithUsage(ctx context.Context, userID, modelConfigID uint, req ResponsesRequest, usage UsageContext) (<-chan ResponsesStreamEvent, error) {
+	ctx = withProviderSubject(ctx, userID, usage.OrgID)
+	candidates, err := s.runtimeTextModelCandidates(modelConfigID)
+	if err != nil {
+		return nil, err
+	}
+	attempts := runtimeModelAttemptOrder(runtimeModelRoundRobinKey(candidates[0].logicalID, "text_reasoning"), candidates)
+	var lastErr error
+	for _, attempt := range attempts {
+		capability := attempt.capability
+		if capability == "" {
+			capability = CapabilityText
+		}
+		cfg, provider, def, err := s.loadConfig(attempt.cfg.ID, capability)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		streamer, ok := provider.(ResponsesStreamProvider)
+		if !ok {
+			lastErr = fmt.Errorf("responses streaming is not supported by provider for model config %d", attempt.cfg.ID)
+			continue
+		}
+		attemptReq := req
+		attemptReq.Text.Model = resolveModelID(cfg, def)
+		attemptReq.Text.IsReasoning = attemptReq.Text.IsReasoning || modelHasCapability(def, CapabilityReasoning)
+		attachTextPromptDebug(ctx, attemptReq.Text)
+		if usage.ReservationID == nil {
+			estimate := estimateUsageCost(cfg, def, "text", estimateTextInputTokens(attemptReq.Text), maxPositive(attemptReq.Text.MaxTokens, 1024), 0, 1)
+			reservation, err := s.ReserveUsage(ctx, userID, attempt.cfg.ID, estimate, usage)
+			if err != nil {
+				return nil, err
+			}
+			usage.ReservationID = &reservation.ID
+		}
+		finishAttempt := beginRuntimeProviderAttempt(attempt.cfg.ID)
+		start := time.Now()
+		upstream, err := streamer.ResponsesStream(ctx, attemptReq)
+		if err != nil {
+			finishAttempt(err)
+			s.logLLMCall(context.WithoutCancel(ctx), llmCallLogInput{
+				UserID:         userID,
+				Usage:          usage,
+				Config:         cfg,
+				Provider:       attempt.adapterType,
+				OperationType:  "responses_stream",
+				PromptName:     attemptReq.Text.PromptName,
+				RequestModel:   attemptReq.Text.Model,
+				ResponseModel:  attemptReq.Text.Model,
+				RequestPayload: attemptReq,
+				Start:          start,
+				Err:            err,
+			})
+			lastErr = err
+			continue
+		}
+		return s.wrapResponsesStream(ctx, userID, attempt.cfg.ID, cfg, def, attempt.adapterType, attemptReq, usage, start, finishAttempt, upstream), nil
+	}
+	if lastErr != nil {
+		_ = s.ReleaseReservation(ctx, derefUint(usage.ReservationID), lastErr.Error())
+		return nil, lastErr
+	}
+	return nil, fmt.Errorf("no available provider variant for model config id=%d and text/reasoning capability", modelConfigID)
+}
+
+func (s *AIService) callCatalogResponsesStreamRuntime(ctx context.Context, userID uint, route ModelRoute, runtime catalogRouteRuntime, req ResponsesRequest, usage UsageContext) (<-chan ResponsesStreamEvent, error) {
+	ctx = withProviderSubject(ctx, userID, usage.OrgID)
+	streamer, ok := runtime.provider.(ResponsesStreamProvider)
+	if !ok {
+		return nil, fmt.Errorf("responses streaming is not supported by provider for catalog entry %d", route.CatalogEntryID)
+	}
+	attemptReq := req
+	attemptReq.Text.Model = route.ProviderModelID
+	attemptReq.Text.IsReasoning = attemptReq.Text.IsReasoning || modelHasCapability(runtime.def, CapabilityReasoning)
+	attachTextPromptDebug(ctx, attemptReq.Text)
+	if usage.ReservationID == nil {
+		estimate := estimateUsageCost(runtime.config, runtime.def, "text", estimateTextInputTokens(attemptReq.Text), maxPositive(attemptReq.Text.MaxTokens, 1024), 0, 1)
+		reservation, err := s.ReserveUsage(ctx, userID, route.ModelConfigID, estimate, usage)
+		if err != nil {
+			return nil, err
+		}
+		usage.ReservationID = &reservation.ID
+	}
+	finishAttempt := beginRuntimeProviderAttempt(route.ModelConfigID)
+	start := time.Now()
+	upstream, err := streamer.ResponsesStream(ctx, attemptReq)
+	if err != nil {
+		finishAttempt(err)
+		s.logLLMCall(context.WithoutCancel(ctx), llmCallLogInput{
+			UserID:         userID,
+			Usage:          usage,
+			Config:         runtime.config,
+			Provider:       runtime.adapterType,
+			OperationType:  "responses_stream",
+			PromptName:     attemptReq.Text.PromptName,
+			RequestModel:   attemptReq.Text.Model,
+			ResponseModel:  attemptReq.Text.Model,
+			RequestPayload: attemptReq,
+			Start:          start,
+			Err:            err,
+		})
+		_ = s.ReleaseReservation(ctx, derefUint(usage.ReservationID), err.Error())
+		return nil, err
+	}
+	return s.wrapResponsesStream(ctx, userID, route.ModelConfigID, runtime.config, runtime.def, runtime.adapterType, attemptReq, usage, start, finishAttempt, upstream), nil
+}
+
+func (s *AIService) wrapResponsesStream(ctx context.Context, userID uint, billModelConfigID uint, cfg persistencemodel.AIModelConfig, def *ModelDef, provider string, req ResponsesRequest, usage UsageContext, start time.Time, finishAttempt func(error), upstream <-chan ResponsesStreamEvent) <-chan ResponsesStreamEvent {
+	out := make(chan ResponsesStreamEvent)
+	go func() {
+		defer close(out)
+		var tokenUsage TokenUsage
+		var streamErr error
+		for event := range upstream {
+			if event.Usage.InputTokens > 0 || event.Usage.OutputTokens > 0 || event.Usage.CachedInputTokens > 0 || event.Usage.ReasoningTokens > 0 {
+				tokenUsage = event.Usage
+			}
+			if event.Error != "" {
+				streamErr = fmt.Errorf("%s", event.Error)
+			}
+			out <- event
+		}
+		finishAttempt(streamErr)
+		resp := TextResponse{FinishReason: "completed", Usage: tokenUsage}
+		s.logLLMCall(context.WithoutCancel(ctx), llmCallLogInput{
+			UserID:         userID,
+			Usage:          usage,
+			Config:         cfg,
+			Provider:       provider,
+			OperationType:  "responses_stream",
+			PromptName:     req.Text.PromptName,
+			RequestModel:   req.Text.Model,
+			ResponseModel:  req.Text.Model,
+			RequestPayload: req,
+			Response:       &resp,
+			Start:          start,
+			Err:            streamErr,
+		})
+		if streamErr != nil {
+			_ = s.ReleaseReservation(ctx, derefUint(usage.ReservationID), streamErr.Error())
+			return
+		}
+		estimate := estimateUsageCostWithDetails(cfg, def, "text", tokenUsage, 0, 1)
+		if err := s.settleUsage(context.WithoutCancel(ctx), userID, billModelConfigID, estimate, usage); err != nil {
+			observability.WithRequest(ctx).Warn("usage_settle_failed", slog.String("error", err.Error()))
+		}
+	}()
+	return out
+}
+
 func (s *AIService) callCatalogResponsesRuntime(ctx context.Context, userID uint, route ModelRoute, runtime catalogRouteRuntime, req ResponsesRequest, usage UsageContext) (TextResponse, error) {
 	ctx = withProviderSubject(ctx, userID, usage.OrgID)
 	attemptReq := req

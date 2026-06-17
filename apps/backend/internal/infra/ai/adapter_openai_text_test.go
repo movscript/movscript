@@ -248,6 +248,79 @@ func TestOpenAIResponsesGeneratePostsResponsesEndpoint(t *testing.T) {
 	}
 }
 
+func TestOpenAIResponsesStreamPostsResponsesEndpoint(t *testing.T) {
+	var gotPath string
+	var gotBody map[string]any
+	adapter := NewOpenAIAdapter("https://model.example/v1", "test-key")
+	adapter.rawHTTP = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		gotPath = r.URL.Path
+		if r.Header.Get("Accept") != "text/event-stream" {
+			t.Fatalf("accept = %q, want text/event-stream", r.Header.Get("Accept"))
+		}
+		if err := json.NewDecoder(r.Body).Decode(&gotBody); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+		body := strings.Join([]string{
+			`event: response.created`,
+			`data: {"type":"response.created","response":{"id":"resp_test","object":"response","status":"in_progress","model":"gpt-5.2"}}`,
+			``,
+			`event: response.output_item.added`,
+			`data: {"type":"response.output_item.added","item":{"id":"msg_1","type":"message","role":"assistant","content":[]}}`,
+			``,
+			`event: response.output_text.delta`,
+			`data: {"type":"response.output_text.delta","delta":"hello"}`,
+			``,
+			`event: response.completed`,
+			`data: {"type":"response.completed","response":{"id":"resp_test","object":"response","status":"completed","usage":{"input_tokens":7,"output_tokens":2,"total_tokens":9,"input_tokens_details":{"cached_tokens":3},"output_tokens_details":{"reasoning_tokens":1}}}}`,
+			``,
+		}, "\n")
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Status:     "200 OK",
+			Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Request:    r,
+		}, nil
+	})}
+
+	stream, err := adapter.ResponsesStream(context.Background(), ResponsesRequest{
+		Text: TextRequest{
+			Model:    "gpt-5.2",
+			Messages: []Message{{Role: "user", Content: "hello"}},
+		},
+		Input: json.RawMessage(`"hello"`),
+	})
+	if err != nil {
+		t.Fatalf("ResponsesStream() error = %v", err)
+	}
+	var events []ResponsesStreamEvent
+	for event := range stream {
+		events = append(events, event)
+	}
+	if gotPath != "/v1/responses" {
+		t.Fatalf("path = %q, want /v1/responses", gotPath)
+	}
+	if gotBody["stream"] != true {
+		t.Fatalf("stream = %#v, want true", gotBody["stream"])
+	}
+	if _, ok := gotBody["messages"]; ok {
+		t.Fatalf("request body used chat messages: %#v", gotBody)
+	}
+	if len(events) != 4 {
+		t.Fatalf("events len = %d, want 4: %#v", len(events), events)
+	}
+	if events[1].Type != "response.output_item.added" || !strings.Contains(events[1].Raw, `"msg_1"`) {
+		t.Fatalf("item added event = %#v", events[1])
+	}
+	if events[2].Type != "response.output_text.delta" || events[2].Raw == "" {
+		t.Fatalf("text delta event = %#v", events[2])
+	}
+	completed := events[3]
+	if !completed.Done || completed.Usage.InputTokens != 7 || completed.Usage.OutputTokens != 2 || completed.Usage.CachedInputTokens != 3 || completed.Usage.ReasoningTokens != 1 {
+		t.Fatalf("completed event = %#v, want done with parsed usage", completed)
+	}
+}
+
 func TestOpenAITextGenerateParsesUsageDetails(t *testing.T) {
 	adapter := NewOpenAIAdapter("https://model.example/v1", "test-key")
 	adapter.rawHTTP = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {

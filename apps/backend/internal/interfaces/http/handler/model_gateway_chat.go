@@ -235,127 +235,48 @@ func (h *ModelGatewayHandler) Responses(c *gin.Context) {
 }
 
 func (h *ModelGatewayHandler) streamResponses(c *gin.Context, input modelgatewayapp.ResponsesInput) {
-	result, err := h.service.CallChatStream(c.Request.Context(), modelgatewayapp.ChatInput{
-		Principal: input.Principal,
-		Model:     input.Model,
-		Text:      input.Text,
-		ProjectID: input.ProjectID,
-	})
+	result, err := h.service.CallResponsesStream(c.Request.Context(), input)
 	if err != nil {
 		writeGatewayChatError(c, err, "stream")
 		return
 	}
 
-	id := "resp_" + randomHex(12)
-	messageID := "msg_" + randomHex(8)
-	created := time.Now().Unix()
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
 	c.Header("Connection", "keep-alive")
 	c.Status(http.StatusOK)
 	flusher, _ := c.Writer.(http.Flusher)
 
-	writeResponsesSSE(c, flusher, "response.created", responsesStreamEvent{
-		Type: "response.created",
-		Response: &responsesStreamResponse{
-			ID:        id,
-			Object:    "response",
-			CreatedAt: created,
-			Status:    "in_progress",
-			Model:     result.ResponseModel,
-		},
-	})
-
-	var content strings.Builder
-	toolCalls := map[int]ai.ToolCall{}
-	var usage ai.TokenUsage
 	for event := range result.Events {
-		if event.Usage.InputTokens > 0 || event.Usage.OutputTokens > 0 || event.Usage.CachedInputTokens > 0 || event.Usage.ReasoningTokens > 0 {
-			usage = event.Usage
-		}
-		if event.Error != "" {
+		if event.Raw != "" && event.Raw != "[DONE]" {
+			writeRawResponsesSSE(c, flusher, event.Type, event.Raw)
+		} else if event.Error != "" {
 			writeResponsesSSE(c, flusher, "response.failed", responsesStreamEvent{
 				Type: "response.failed",
 				Response: &responsesStreamResponse{
-					ID:        id,
+					ID:        "resp_" + randomHex(12),
 					Object:    "response",
-					CreatedAt: created,
+					CreatedAt: time.Now().Unix(),
 					Status:    "failed",
 					Model:     result.ResponseModel,
 				},
 			})
-			return
-		}
-		if event.ContentDelta != "" {
-			content.WriteString(event.ContentDelta)
-			writeResponsesSSE(c, flusher, "response.output_text.delta", responsesStreamEvent{
-				Type:  "response.output_text.delta",
-				Delta: event.ContentDelta,
-			})
-		}
-		for _, delta := range event.ToolCallDeltas {
-			call := toolCalls[delta.Index]
-			if call.ID == "" {
-				call.ID = delta.ID
-			}
-			if call.ID == "" {
-				call.ID = "call_" + randomHex(8)
-			}
-			call.Type = firstNonEmpty(call.Type, delta.Type, "function")
-			call.Function.Name += delta.Function.Name
-			call.Function.Arguments += delta.Function.Arguments
-			toolCalls[delta.Index] = call
 		}
 		if event.Done {
-			break
+			return
 		}
 	}
-
-	if content.String() != "" {
-		writeResponsesSSE(c, flusher, "response.output_item.done", responsesStreamEvent{
-			Type: "response.output_item.done",
-			Item: &responsesStreamOutputItem{
-				ID:   messageID,
-				Type: "message",
-				Role: "assistant",
-				Content: []responsesStreamOutputContent{{
-					Type: "output_text",
-					Text: content.String(),
-				}},
-			},
-		})
-	}
-	for _, call := range toolCalls {
-		writeResponsesSSE(c, flusher, "response.output_item.done", responsesStreamEvent{
-			Type: "response.output_item.done",
-			Item: &responsesStreamOutputItem{
-				ID:        call.ID,
-				Type:      "function_call",
-				Name:      call.Function.Name,
-				Arguments: call.Function.Arguments,
-				CallID:    call.ID,
-			},
-		})
-	}
-	responsesUsage := responsesUsageFromTokenUsage(usage)
-	endTurn := len(toolCalls) == 0
-	writeResponsesSSE(c, flusher, "response.completed", responsesStreamEvent{
-		Type: "response.completed",
-		Response: &responsesStreamResponse{
-			ID:        id,
-			Object:    "response",
-			CreatedAt: created,
-			Status:    "completed",
-			Model:     result.ResponseModel,
-			Usage:     &responsesUsage,
-			EndTurn:   &endTurn,
-		},
-	})
 }
 
 func writeResponsesSSE(c *gin.Context, flusher http.Flusher, eventName string, event responsesStreamEvent) {
 	payload, _ := json.Marshal(event)
-	fmt.Fprintf(c.Writer, "event: %s\n", eventName)
+	writeRawResponsesSSE(c, flusher, eventName, string(payload))
+}
+
+func writeRawResponsesSSE(c *gin.Context, flusher http.Flusher, eventName string, payload string) {
+	if strings.TrimSpace(eventName) != "" {
+		fmt.Fprintf(c.Writer, "event: %s\n", eventName)
+	}
 	fmt.Fprintf(c.Writer, "data: %s\n\n", payload)
 	if flusher != nil {
 		flusher.Flush()
