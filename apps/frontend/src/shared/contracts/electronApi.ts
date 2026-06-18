@@ -22,6 +22,12 @@ import type {
   ElectronAppServerStatus,
   ElectronAppServerStatusInput,
   ElectronAppServerStopInput,
+  ElectronSdkRuntimeNotifyInput,
+  ElectronSdkRuntimeNotificationEvent,
+  ElectronSdkRuntimeRequestInput,
+  ElectronSdkRuntimeRequestResult,
+  ElectronSdkRuntimeServerRequestEvent,
+  ElectronSdkRuntimeServerRequestResponseInput,
   ElectronAdminAuthSessionInput,
   ElectronAppUpdateStatus,
   ElectronAppWindowContext,
@@ -180,6 +186,11 @@ export type ElectronAPI = {
   getAppServerHubSnapshot?: (input: ElectronAppServerHubSnapshotInput) => Promise<ElectronAppServerHubSnapshot>
   onAppServerHubMessage?: (handler: (message: ElectronAppServerHubMessage) => void) => () => void
   onAppServerLog?: (handler: (event: ElectronAppServerLogEvent) => void) => () => void
+  sdkRuntimeRequest?: <T = ElectronSdkRuntimeRequestResult>(input: ElectronSdkRuntimeRequestInput) => Promise<T>
+  sdkRuntimeNotify?: (input: ElectronSdkRuntimeNotifyInput) => Promise<void>
+  sdkRuntimeRespondToServerRequest?: (input: ElectronSdkRuntimeServerRequestResponseInput) => Promise<void>
+  onSdkRuntimeNotification?: (handler: (event: ElectronSdkRuntimeNotificationEvent) => void) => () => void
+  onSdkRuntimeServerRequest?: (handler: (event: ElectronSdkRuntimeServerRequestEvent) => void) => () => void
   createLocalTerminal?: (input: ElectronLocalTerminalCreateInput) => Promise<ElectronLocalTerminalCreateResult>
   writeLocalTerminal?: (input: ElectronLocalTerminalWriteInput) => Promise<void>
   resizeLocalTerminal?: (input: ElectronLocalTerminalResizeInput) => Promise<void>

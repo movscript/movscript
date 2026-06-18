@@ -23,7 +23,7 @@ const GENERATED_RESOURCE = {
 
 const TEXT_MODEL = {
   id: 31,
-  credential_id: 3,
+  provider_id: 'local_provider:3',
   display_name: 'E2E Text Model',
   short_name: 'e2e-text',
   capabilities: ['text'],

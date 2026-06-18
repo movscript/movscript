@@ -3,51 +3,98 @@ package ai
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
+	infraai "github.com/movscript/movscript/internal/infra/ai"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
-func TestModelCatalogRejectsDuplicateEntryForSamePublicAndProviderID(t *testing.T) {
+func TestModelCatalogRejectsDuplicateEntryForSamePublicID(t *testing.T) {
 	service := newTestService(t)
 	ctx := context.Background()
 
 	if _, err := service.CreateModelCatalogEntry(ctx, ModelCatalogEntryInput{
-		PublicModelID:   "video-fast",
-		ProviderModelID: "provider-video-fast",
-		DisplayName:     "Video Fast",
-		Capabilities:    "video",
+		PublicModelID: "video-fast",
+		DisplayName:   "Video Fast",
+		Capabilities:  "video",
 	}); err != nil {
 		t.Fatalf("CreateModelCatalogEntry() first error = %v", err)
 	}
 	_, err := service.CreateModelCatalogEntry(ctx, ModelCatalogEntryInput{
-		PublicModelID:   "video-fast",
-		ProviderModelID: "provider-video-fast",
-		DisplayName:     "Duplicate",
-		Capabilities:    "video",
+		PublicModelID: "video-fast",
+		DisplayName:   "Duplicate",
+		Capabilities:  "video",
 	})
 	if !errors.Is(err, ErrInvalidModelCatalog) || !strings.Contains(err.Error(), "catalog entry already exists") {
 		t.Fatalf("duplicate catalog entry error = %v, want ErrInvalidModelCatalog with already exists", err)
 	}
 
 	other, err := service.CreateModelCatalogEntry(ctx, ModelCatalogEntryInput{
-		PublicModelID:   "image-fast",
-		ProviderModelID: "provider-image-fast",
-		DisplayName:     "Image Fast",
-		Capabilities:    "image",
+		PublicModelID: "image-fast",
+		DisplayName:   "Image Fast",
+		Capabilities:  "image",
 	})
 	if err != nil {
 		t.Fatalf("CreateModelCatalogEntry() other error = %v", err)
 	}
 	_, err = service.UpdateModelCatalogEntry(ctx, strconvID(other.ID), ModelCatalogEntryInput{
-		PublicModelID:   "video-fast",
-		ProviderModelID: "provider-video-fast",
-		DisplayName:     "Image Fast",
-		Capabilities:    "image",
+		PublicModelID: "video-fast",
+		DisplayName:   "Image Fast",
+		Capabilities:  "image",
 	})
 	if !errors.Is(err, ErrInvalidModelCatalog) || !strings.Contains(err.Error(), "catalog entry already exists") {
 		t.Fatalf("duplicate catalog entry update error = %v, want ErrInvalidModelCatalog with already exists", err)
+	}
+}
+
+func TestProviderRemoteModelDiscoveryDoesNotMutateCatalogOrRoutes(t *testing.T) {
+	service := newTestService(t)
+	service.registry = infraai.NewRegistry(service.db, nil)
+	ctx := context.Background()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || !strings.HasSuffix(r.URL.Path, "/models") {
+			t.Fatalf("unexpected upstream request: %s %s", r.Method, r.URL.String())
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"object":"list","data":[{"id":"gpt-provider-a"},{"id":"gpt-provider-b"}]}`))
+	}))
+	defer upstream.Close()
+
+	credential := persistencemodel.AICredential{
+		AdapterType: "openai_compat",
+		DisplayName: "OpenAI compatible",
+		BaseURL:     upstream.URL,
+		IsEnabled:   true,
+	}
+	if err := service.db.Create(&credential).Error; err != nil {
+		t.Fatalf("create credential: %v", err)
+	}
+
+	ids, err := service.ListRemoteModels(ctx, strconvID(credential.ID))
+	if err != nil {
+		t.Fatalf("ListRemoteModels() error = %v", err)
+	}
+	if strings.Join(ids, ",") != "gpt-provider-a,gpt-provider-b" {
+		t.Fatalf("remote model ids = %#v, want provider ids only", ids)
+	}
+
+	var catalogCount int64
+	if err := service.db.Model(&persistencemodel.AIModelCatalogEntry{}).Count(&catalogCount).Error; err != nil {
+		t.Fatalf("count catalog entries: %v", err)
+	}
+	if catalogCount != 0 {
+		t.Fatalf("catalog entry count = %d, want Provider discovery to leave Catalog unchanged", catalogCount)
+	}
+	var routeCount int64
+	if err := service.db.Model(&persistencemodel.AIModelRouteBinding{}).Count(&routeCount).Error; err != nil {
+		t.Fatalf("count route bindings: %v", err)
+	}
+	if routeCount != 0 {
+		t.Fatalf("route binding count = %d, want Provider discovery to leave Route unchanged", routeCount)
 	}
 }
 
@@ -57,7 +104,6 @@ func TestModelCatalogNormalizesCapabilitiesAndRejectsInvalidEntryContracts(t *te
 
 	entry, err := service.CreateModelCatalogEntry(ctx, ModelCatalogEntryInput{
 		PublicModelID:   "gpt-public",
-		ProviderModelID: "provider-gpt",
 		Capabilities:    " text,reasoning,text ",
 		PricingMode:     "per_token",
 		SupportedParams: `{"allow":["temperature"]}`,
@@ -77,18 +123,16 @@ func TestModelCatalogNormalizesCapabilitiesAndRejectsInvalidEntryContracts(t *te
 		{
 			name: "unknown capability",
 			input: ModelCatalogEntryInput{
-				PublicModelID:   "bad-cap",
-				ProviderModelID: "provider-bad-cap",
-				Capabilities:    "text,unknown",
+				PublicModelID: "bad-cap",
+				Capabilities:  "text,unknown",
 			},
 			want: "capability",
 		},
 		{
 			name: "renderer capability is not a generation model capability",
 			input: ModelCatalogEntryInput{
-				PublicModelID:   "bad-render",
-				ProviderModelID: "provider-bad-render",
-				Capabilities:    "render_video",
+				PublicModelID: "bad-render",
+				Capabilities:  "render_video",
 			},
 			want: "capability",
 		},
@@ -96,7 +140,6 @@ func TestModelCatalogNormalizesCapabilitiesAndRejectsInvalidEntryContracts(t *te
 			name: "invalid supported params json",
 			input: ModelCatalogEntryInput{
 				PublicModelID:   "bad-json",
-				ProviderModelID: "provider-bad-json",
 				Capabilities:    "video",
 				SupportedParams: `{"allow":`,
 			},
@@ -105,30 +148,27 @@ func TestModelCatalogNormalizesCapabilitiesAndRejectsInvalidEntryContracts(t *te
 		{
 			name: "unsupported pricing mode",
 			input: ModelCatalogEntryInput{
-				PublicModelID:   "bad-pricing",
-				ProviderModelID: "provider-bad-pricing",
-				Capabilities:    "image",
-				PricingMode:     "per_provider_vibes",
+				PublicModelID: "bad-pricing",
+				Capabilities:  "image",
+				PricingMode:   "per_provider_vibes",
 			},
 			want: "pricing_mode",
 		},
 		{
 			name: "negative credit price",
 			input: ModelCatalogEntryInput{
-				PublicModelID:   "bad-credit",
-				ProviderModelID: "provider-bad-credit",
-				Capabilities:    "text",
-				CreditsPerCall:  -1,
+				PublicModelID:  "bad-credit",
+				Capabilities:   "text",
+				CreditsPerCall: -1,
 			},
 			want: "credits_per_call",
 		},
 		{
 			name: "invalid image input limit",
 			input: ModelCatalogEntryInput{
-				PublicModelID:   "bad-limit",
-				ProviderModelID: "provider-bad-limit",
-				Capabilities:    "image_edit",
-				MaxInputImages:  -2,
+				PublicModelID:  "bad-limit",
+				Capabilities:   "image_edit",
+				MaxInputImages: -2,
 			},
 			want: "max_input_images",
 		},
@@ -149,9 +189,8 @@ func TestModelCatalogUpdatePreservesCapabilitiesWhenOmitted(t *testing.T) {
 	ctx := context.Background()
 
 	entry, err := service.CreateModelCatalogEntry(ctx, ModelCatalogEntryInput{
-		PublicModelID:   "video-public",
-		ProviderModelID: "provider-video",
-		Capabilities:    "video,video_i2v",
+		PublicModelID: "video-public",
+		Capabilities:  "video,video_i2v",
 	})
 	if err != nil {
 		t.Fatalf("CreateModelCatalogEntry() error = %v", err)
@@ -172,39 +211,41 @@ func TestModelCatalogRejectsDuplicateRouteBindingForSameSourceAndGroup(t *testin
 	ctx := context.Background()
 
 	entry, err := service.CreateModelCatalogEntry(ctx, ModelCatalogEntryInput{
-		PublicModelID:   "video-fast",
-		ProviderModelID: "provider-video-fast",
-		DisplayName:     "Video Fast",
-		Capabilities:    "video",
+		PublicModelID: "video-fast",
+		DisplayName:   "Video Fast",
+		Capabilities:  "video",
 	})
 	if err != nil {
 		t.Fatalf("CreateModelCatalogEntry() error = %v", err)
 	}
 	if supportsNewAPIRouteBindings() {
 		if _, err := service.CreateModelRouteBinding(ctx, strconvID(entry.ID), ModelRouteBindingInput{
-			SourceType:     "new_api",
-			RouteGroup:     "priority",
-			Priority:       1,
-			CapacityWeight: 1,
+			SourceType:      "new_api",
+			RouteGroup:      "priority",
+			ProviderModelID: "provider-video-priority",
+			Priority:        1,
+			CapacityWeight:  1,
 		}); err != nil {
 			t.Fatalf("CreateModelRouteBinding() first error = %v", err)
 		}
 
 		_, err = service.CreateModelRouteBinding(ctx, strconvID(entry.ID), ModelRouteBindingInput{
-			SourceType:     "new_api",
-			RouteGroup:     "priority",
-			Priority:       2,
-			CapacityWeight: 1,
+			SourceType:      "new_api",
+			RouteGroup:      "priority",
+			ProviderModelID: "provider-video-priority-2",
+			Priority:        2,
+			CapacityWeight:  1,
 		})
 		if !errors.Is(err, ErrInvalidModelCatalog) || !strings.Contains(err.Error(), "already exists") {
 			t.Fatalf("duplicate binding error = %v, want ErrInvalidModelCatalog with already exists", err)
 		}
 
 		if _, err := service.CreateModelRouteBinding(ctx, strconvID(entry.ID), ModelRouteBindingInput{
-			SourceType:     "new_api",
-			RouteGroup:     "economy",
-			Priority:       3,
-			CapacityWeight: 1,
+			SourceType:      "new_api",
+			RouteGroup:      "economy",
+			ProviderModelID: "provider-video-economy",
+			Priority:        3,
+			CapacityWeight:  1,
 		}); err != nil {
 			t.Fatalf("CreateModelRouteBinding() different group error = %v", err)
 		}
@@ -217,23 +258,26 @@ func TestModelCatalogRejectsDuplicateRouteBindingForSameSourceAndGroup(t *testin
 	credentialA := uint(101)
 	credentialB := uint(102)
 	if _, err := service.CreateModelRouteBinding(ctx, strconvID(entry.ID), ModelRouteBindingInput{
-		SourceType:     "local_provider",
-		CredentialID:   &credentialA,
-		CapacityWeight: 1,
+		SourceType:      "local_provider",
+		ProviderModelID: "provider-video-a",
+		ProviderID:      localProviderTestProviderID(credentialA),
+		CapacityWeight:  1,
 	}); err != nil {
 		t.Fatalf("CreateModelRouteBinding() local provider credential A error = %v", err)
 	}
 	if _, err := service.CreateModelRouteBinding(ctx, strconvID(entry.ID), ModelRouteBindingInput{
-		SourceType:     "local_provider",
-		CredentialID:   &credentialB,
-		CapacityWeight: 1,
+		SourceType:      "local_provider",
+		ProviderModelID: "provider-video-b",
+		ProviderID:      localProviderTestProviderID(credentialB),
+		CapacityWeight:  1,
 	}); err != nil {
 		t.Fatalf("CreateModelRouteBinding() local provider credential B error = %v", err)
 	}
 	_, err = service.CreateModelRouteBinding(ctx, strconvID(entry.ID), ModelRouteBindingInput{
-		SourceType:     "local_provider",
-		CredentialID:   &credentialA,
-		CapacityWeight: 1,
+		SourceType:      "local_provider",
+		ProviderModelID: "provider-video-a2",
+		ProviderID:      localProviderTestProviderID(credentialA),
+		CapacityWeight:  1,
 	})
 	if !errors.Is(err, ErrInvalidModelCatalog) || !strings.Contains(err.Error(), "already exists") {
 		t.Fatalf("duplicate credential binding error = %v, want ErrInvalidModelCatalog with already exists", err)
@@ -245,9 +289,8 @@ func TestModelCatalogRejectsInvalidRouteBindingContracts(t *testing.T) {
 	ctx := context.Background()
 
 	entry, err := service.CreateModelCatalogEntry(ctx, ModelCatalogEntryInput{
-		PublicModelID:   "video-contract",
-		ProviderModelID: "provider-video-contract",
-		Capabilities:    "video",
+		PublicModelID: "video-contract",
+		Capabilities:  "video",
 	})
 	if err != nil {
 		t.Fatalf("CreateModelCatalogEntry() error = %v", err)
@@ -282,8 +325,9 @@ func TestModelCatalogRejectsInvalidRouteBindingContracts(t *testing.T) {
 		}{
 			name: "new api missing route group",
 			input: ModelRouteBindingInput{
-				SourceType:     "new_api",
-				CapacityWeight: 1,
+				SourceType:      "new_api",
+				ProviderModelID: "provider-video-contract",
+				CapacityWeight:  1,
 			},
 			want: "route_group",
 		})
@@ -295,9 +339,10 @@ func TestModelCatalogRejectsInvalidRouteBindingContracts(t *testing.T) {
 		}{
 			name: "community rejects new api route",
 			input: ModelRouteBindingInput{
-				SourceType:     "new_api",
-				RouteGroup:     "priority",
-				CapacityWeight: 1,
+				SourceType:      "new_api",
+				RouteGroup:      "priority",
+				ProviderModelID: "provider-video-contract",
+				CapacityWeight:  1,
 			},
 			want: "commercial edition",
 		})
@@ -318,10 +363,9 @@ func TestModelCatalogRejectsUpdatingRouteBindingIntoDuplicateGroup(t *testing.T)
 	ctx := context.Background()
 
 	entry, err := service.CreateModelCatalogEntry(ctx, ModelCatalogEntryInput{
-		PublicModelID:   "image-fast",
-		ProviderModelID: "provider-image-fast",
-		DisplayName:     "Image Fast",
-		Capabilities:    "image",
+		PublicModelID: "image-fast",
+		DisplayName:   "Image Fast",
+		Capabilities:  "image",
 	})
 	if err != nil {
 		t.Fatalf("CreateModelCatalogEntry() error = %v", err)
@@ -329,47 +373,53 @@ func TestModelCatalogRejectsUpdatingRouteBindingIntoDuplicateGroup(t *testing.T)
 	var duplicateTarget persistencemodel.AIModelRouteBinding
 	if supportsNewAPIRouteBindings() {
 		if _, err := service.CreateModelRouteBinding(ctx, strconvID(entry.ID), ModelRouteBindingInput{
-			SourceType:     "new_api",
-			RouteGroup:     "priority",
-			CapacityWeight: 1,
+			SourceType:      "new_api",
+			RouteGroup:      "priority",
+			ProviderModelID: "provider-image-priority",
+			CapacityWeight:  1,
 		}); err != nil {
 			t.Fatalf("CreateModelRouteBinding() priority error = %v", err)
 		}
 		duplicateTarget, err = service.CreateModelRouteBinding(ctx, strconvID(entry.ID), ModelRouteBindingInput{
-			SourceType:     "new_api",
-			RouteGroup:     "economy",
-			CapacityWeight: 1,
+			SourceType:      "new_api",
+			RouteGroup:      "economy",
+			ProviderModelID: "provider-image-economy",
+			CapacityWeight:  1,
 		})
 		if err != nil {
 			t.Fatalf("CreateModelRouteBinding() economy error = %v", err)
 		}
 		_, err = service.UpdateModelRouteBinding(ctx, strconvID(duplicateTarget.ID), ModelRouteBindingInput{
-			SourceType:     "new_api",
-			RouteGroup:     "priority",
-			CapacityWeight: 1,
+			SourceType:      "new_api",
+			RouteGroup:      "priority",
+			ProviderModelID: "provider-image-priority-update",
+			CapacityWeight:  1,
 		})
 	} else {
 		credentialA := uint(201)
 		credentialB := uint(202)
 		if _, err := service.CreateModelRouteBinding(ctx, strconvID(entry.ID), ModelRouteBindingInput{
-			SourceType:     "local_provider",
-			CredentialID:   &credentialA,
-			CapacityWeight: 1,
+			SourceType:      "local_provider",
+			ProviderModelID: "provider-image-a",
+			ProviderID:      localProviderTestProviderID(credentialA),
+			CapacityWeight:  1,
 		}); err != nil {
 			t.Fatalf("CreateModelRouteBinding() credential A error = %v", err)
 		}
 		duplicateTarget, err = service.CreateModelRouteBinding(ctx, strconvID(entry.ID), ModelRouteBindingInput{
-			SourceType:     "local_provider",
-			CredentialID:   &credentialB,
-			CapacityWeight: 1,
+			SourceType:      "local_provider",
+			ProviderModelID: "provider-image-b",
+			ProviderID:      localProviderTestProviderID(credentialB),
+			CapacityWeight:  1,
 		})
 		if err != nil {
 			t.Fatalf("CreateModelRouteBinding() credential B error = %v", err)
 		}
 		_, err = service.UpdateModelRouteBinding(ctx, strconvID(duplicateTarget.ID), ModelRouteBindingInput{
-			SourceType:     "local_provider",
-			CredentialID:   &credentialA,
-			CapacityWeight: 1,
+			SourceType:      "local_provider",
+			ProviderModelID: "provider-image-a-update",
+			ProviderID:      localProviderTestProviderID(credentialA),
+			CapacityWeight:  1,
 		})
 	}
 	if !errors.Is(err, ErrInvalidModelCatalog) || !strings.Contains(err.Error(), "already exists") {
@@ -394,10 +444,9 @@ func TestModelCatalogDeleteRemovesRouteBindings(t *testing.T) {
 	ctx := context.Background()
 
 	entry, err := service.CreateModelCatalogEntry(ctx, ModelCatalogEntryInput{
-		PublicModelID:   "audio-fast",
-		ProviderModelID: "provider-audio-fast",
-		DisplayName:     "Audio Fast",
-		Capabilities:    "audio_tts",
+		PublicModelID: "audio-fast",
+		DisplayName:   "Audio Fast",
+		Capabilities:  "audio_tts",
 	})
 	if err != nil {
 		t.Fatalf("CreateModelCatalogEntry() error = %v", err)
@@ -424,14 +473,20 @@ func TestModelCatalogDeleteRemovesRouteBindings(t *testing.T) {
 func validTestModelRouteBindingInput(credentialID uint, routeGroup string) ModelRouteBindingInput {
 	if supportsNewAPIRouteBindings() {
 		return ModelRouteBindingInput{
-			SourceType:     "new_api",
-			RouteGroup:     routeGroup,
-			CapacityWeight: 1,
+			SourceType:      "new_api",
+			RouteGroup:      routeGroup,
+			ProviderModelID: "provider-" + routeGroup,
+			CapacityWeight:  1,
 		}
 	}
 	return ModelRouteBindingInput{
-		SourceType:     "local_provider",
-		CredentialID:   &credentialID,
-		CapacityWeight: 1,
+		SourceType:      "local_provider",
+		ProviderModelID: "provider-" + routeGroup,
+		ProviderID:      localProviderTestProviderID(credentialID),
+		CapacityWeight:  1,
 	}
+}
+
+func localProviderTestProviderID(credentialID uint) string {
+	return persistencemodel.ModelRouteSourceLocalProvider + ":" + strconvID(credentialID)
 }

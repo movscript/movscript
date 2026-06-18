@@ -22,6 +22,7 @@ type UsageLog struct {
 	Cost                  float64              `gorm:"default:0" json:"cost"`
 	User                  User                 `gorm:"foreignKey:UserID" json:"user,omitempty"`
 	AIModelCatalogEntry   *AIModelCatalogEntry `gorm:"foreignKey:AIModelCatalogEntryID" json:"ai_model_catalog_entry,omitempty"`
+	AIModelRouteBinding   *AIModelRouteBinding `gorm:"foreignKey:RouteBindingID" json:"ai_model_route_binding,omitempty"`
 }
 
 type UsageReservation struct {
@@ -43,4 +44,5 @@ type UsageReservation struct {
 	Metadata              string               `gorm:"type:text" json:"metadata,omitempty"`
 	User                  User                 `gorm:"foreignKey:UserID" json:"user,omitempty"`
 	AIModelCatalogEntry   *AIModelCatalogEntry `gorm:"foreignKey:AIModelCatalogEntryID" json:"ai_model_catalog_entry,omitempty"`
+	AIModelRouteBinding   *AIModelRouteBinding `gorm:"foreignKey:RouteBindingID" json:"ai_model_route_binding,omitempty"`
 }

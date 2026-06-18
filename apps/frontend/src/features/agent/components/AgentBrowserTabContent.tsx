@@ -10,6 +10,7 @@ import { ResourceLibraryView } from '@/features/resources/components/ResourcesPa
 import { ExternalResourceSearchPage } from '@/features/resources/components/ResourcesPageExternalSearch'
 import type { Project } from '@/types'
 import { AgentSessionOutputPane } from '@/features/agent/components/AgentSessionOutputPane'
+import { AgentBrowserEditingProjectsPane } from '@/features/agent/components/AgentBrowserEditingProjectsPane'
 import { ProjectHomeBrowserPage } from '@/features/agent/components/AgentBrowserProjectHomePage'
 import { AgentBrowserBlankWebTab } from '@/features/agent/components/AgentBrowserBlankWebTab'
 import type {
@@ -26,9 +27,11 @@ export function AgentBrowserTabContent({
   onOpenResourceLibrary,
   onOpenExternalResourceLibrary,
   onOpenCanvasList,
+  onOpenEditingProjects,
   onOpenResourceLibraryInCurrentTab,
   onOpenExternalResourceLibraryInCurrentTab,
   onOpenCanvasListInCurrentTab,
+  onOpenEditingProjectsInCurrentTab,
   onNavigateBlankWebTab,
 }: {
   activeTab: AgentBrowserContentTab | undefined
@@ -39,9 +42,11 @@ export function AgentBrowserTabContent({
   onOpenResourceLibrary: () => void
   onOpenExternalResourceLibrary: () => void
   onOpenCanvasList: () => void
+  onOpenEditingProjects: () => void
   onOpenResourceLibraryInCurrentTab: () => void
   onOpenExternalResourceLibraryInCurrentTab: () => void
   onOpenCanvasListInCurrentTab: () => void
+  onOpenEditingProjectsInCurrentTab: () => void
   onNavigateBlankWebTab: (tabId: string, url: string) => void
 }) {
   if (activeTab?.kind === 'project_home') {
@@ -52,6 +57,7 @@ export function AgentBrowserTabContent({
         onOpenResourceLibrary={onOpenResourceLibrary}
         onOpenExternalResourceLibrary={onOpenExternalResourceLibrary}
         onOpenCanvasList={onOpenCanvasList}
+        onOpenEditingProjects={onOpenEditingProjects}
       />
     )
   }
@@ -80,6 +86,14 @@ export function AgentBrowserTabContent({
     )
   }
 
+  if (activeTab?.kind === 'editing_projects') {
+    return (
+      <AgentBrowserInternalPane>
+        <AgentBrowserEditingProjectsPane />
+      </AgentBrowserInternalPane>
+    )
+  }
+
   if (activeTab?.kind === 'project_standards') {
     return (
       <AgentBrowserInternalPane>
@@ -102,6 +116,7 @@ export function AgentBrowserTabContent({
         onOpenResourceLibrary={onOpenResourceLibraryInCurrentTab}
         onOpenExternalResourceLibrary={onOpenExternalResourceLibraryInCurrentTab}
         onOpenCanvasList={onOpenCanvasListInCurrentTab}
+        onOpenEditingProjects={onOpenEditingProjectsInCurrentTab}
         onSubmit={(url) => onNavigateBlankWebTab(activeTab.id, url)}
       />
     )

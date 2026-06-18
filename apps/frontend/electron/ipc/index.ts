@@ -10,6 +10,7 @@ import { registerBackendAuthIpcHandlers } from './backendAuthIpc'
 import { registerRuntimeConfigIpcHandlers } from './runtimeConfigIpc'
 import { registerAppServerIpcHandlers } from './appServerIpc'
 import { registerAppServerHubIpcHandlers } from './appServerHubIpc'
+import { registerSdkRuntimeIpcHandlers } from './sdkRuntimeIpc'
 import { registerAppUpdateIpcHandlers } from './appUpdateIpc'
 import { registerDialogIpcHandlers } from './dialogIpc'
 import { registerMCPIpcHandlers } from './mcpIpc'
@@ -47,6 +48,7 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
   registerProviderSessionsIpcHandlers()
   registerAppServerIpcHandlers()
   registerAppServerHubIpcHandlers()
+  registerSdkRuntimeIpcHandlers()
   registerLocalTerminalIpcHandlers()
   registerMediaPipelineIpcHandlers()
   registerDockShortcutIpcHandlers()

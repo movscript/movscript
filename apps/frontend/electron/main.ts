@@ -18,6 +18,7 @@ import { installAdminProtocol, registerAdminProtocolPrivileges } from './adminWi
 import { installMediaProtocol, registerMediaProtocolPrivileges } from './mediaProtocol'
 import { installAppUpdateScheduler, uninstallAppUpdateScheduler } from './services/appUpdate'
 import { installDockShortcutMenu } from './services/dockShortcutMenu'
+import { installDesktopIdentity } from './services/desktopIdentity'
 
 const desktopSmokeTest = process.argv.includes('--movscript-desktop-smoke-test') || process.env.MOVSCRIPT_DESKTOP_SMOKE_TEST === '1'
 
@@ -32,6 +33,7 @@ installChromiumRenderDiagnostics()
 installProviderActivationHost({ broadcastBackendStatus })
 registerAdminProtocolPrivileges()
 registerMediaProtocolPrivileges()
+installDesktopIdentity()
 
 app.whenReady().then(async () => {
   installApplicationMenu()

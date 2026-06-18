@@ -85,8 +85,14 @@ func applyJobFilters(q *gorm.DB, db *gorm.DB, filters JobFilters) *gorm.DB {
 		if db.Migrator().HasTable(&persistencemodel.AIModelCatalogEntry{}) &&
 			db.Migrator().HasColumn(&persistencemodel.Job{}, "ai_model_catalog_entry_id") {
 			q = q.Joins("LEFT JOIN ai_model_catalog_entries ON ai_model_catalog_entries.id = jobs.ai_model_catalog_entry_id")
-			clauses = append(clauses, "ai_model_catalog_entries.public_model_id = ?", "ai_model_catalog_entries.provider_model_id = ?")
-			args = append(args, modelID, modelID)
+			clauses = append(clauses, "ai_model_catalog_entries.public_model_id = ?")
+			args = append(args, modelID)
+		}
+		if db.Migrator().HasTable(&persistencemodel.AIModelRouteBinding{}) &&
+			db.Migrator().HasColumn(&persistencemodel.Job{}, "route_binding_id") {
+			q = q.Joins("LEFT JOIN ai_model_route_bindings ON ai_model_route_bindings.id = jobs.route_binding_id")
+			clauses = append(clauses, "ai_model_route_bindings.provider_model_id = ?")
+			args = append(args, modelID)
 		}
 		q = q.Where(strings.Join(clauses, " OR "), args...)
 	}
@@ -226,8 +232,14 @@ func (r *gormRepository) filteredLLMCallLogQuery(ctx context.Context, filter LLM
 		if r.db.Migrator().HasTable(&persistencemodel.AIModelCatalogEntry{}) &&
 			r.db.Migrator().HasColumn(&persistencemodel.LLMCallLog{}, "ai_model_catalog_entry_id") {
 			q = q.Joins("LEFT JOIN ai_model_catalog_entries ON ai_model_catalog_entries.id = llm_call_logs.ai_model_catalog_entry_id")
-			clauses = append(clauses, "ai_model_catalog_entries.public_model_id = ?", "ai_model_catalog_entries.provider_model_id = ?")
-			args = append(args, modelID, modelID)
+			clauses = append(clauses, "ai_model_catalog_entries.public_model_id = ?")
+			args = append(args, modelID)
+		}
+		if r.db.Migrator().HasTable(&persistencemodel.AIModelRouteBinding{}) &&
+			r.db.Migrator().HasColumn(&persistencemodel.LLMCallLog{}, "route_binding_id") {
+			q = q.Joins("LEFT JOIN ai_model_route_bindings ON ai_model_route_bindings.id = llm_call_logs.route_binding_id")
+			clauses = append(clauses, "ai_model_route_bindings.provider_model_id = ?")
+			args = append(args, modelID)
 		}
 		q = q.Where(strings.Join(clauses, " OR "), args...)
 	}

@@ -25,11 +25,18 @@ test('runtime config snapshot is the preferred API base URL source', () => {
     apiV1BaseURL: 'http://localhost:8766/api/v1',
     localAPIBaseURL: 'http://localhost:8766',
     workspaceDir: '/tmp/movscript-home',
+    providerRuntimeEnv: {
+      MOVSCRIPT_CODEX_RUNTIME_API: ' codex-sdk ',
+      invalid: '',
+    },
     backendStatus: { state: 'ready', baseURL: 'http://localhost:8766/' },
   })
 
   assert.equal(getRuntimeConfigSnapshot()?.apiBaseURL, 'http://localhost:8766')
   assert.equal(getRuntimeConfigSnapshot()?.movScriptHomeDir, '/tmp/movscript-home')
+  assert.deepEqual(getRuntimeConfigSnapshot()?.providerRuntimeEnv, {
+    MOVSCRIPT_CODEX_RUNTIME_API: 'codex-sdk',
+  })
   assert.equal(getAPIBaseURL(), 'http://localhost:8766')
   assert.equal(getAPIV1BaseURL(), 'http://localhost:8766/api/v1')
 

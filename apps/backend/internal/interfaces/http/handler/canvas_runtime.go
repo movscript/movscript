@@ -61,6 +61,7 @@ func (h *CanvasHandler) GenerateRuntimeText(c *gin.Context) {
 		CredentialID:    route.CredentialID,
 		SourceType:      route.SourceType,
 		RouteGroup:      route.RouteGroup,
+		ProviderID:      route.ProviderID,
 		ProviderModelID: route.ProviderModelID,
 		SelectionReason: route.SelectionReason,
 		EstimatedCost:   route.EstimatedCost,

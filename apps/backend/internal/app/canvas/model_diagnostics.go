@@ -40,6 +40,7 @@ type NodeModelDiagnosticModel struct {
 
 type NodeModelDiagnosticRoute struct {
 	ModelID         string `json:"model_id"`
+	ProviderID      string `json:"provider_id,omitempty"`
 	ProviderModelID string `json:"provider_model_id,omitempty"`
 	SelectionReason string `json:"selection_reason,omitempty"`
 }
@@ -188,6 +189,7 @@ func setDiagnosticRoute(diag *NodeModelDiagnostics, route providercontract.AIGat
 	diag.Status = "ok"
 	diag.Route = &NodeModelDiagnosticRoute{
 		ModelID:         route.ModelID,
+		ProviderID:      route.ProviderID,
 		ProviderModelID: route.ProviderModelID,
 		SelectionReason: route.SelectionReason,
 	}

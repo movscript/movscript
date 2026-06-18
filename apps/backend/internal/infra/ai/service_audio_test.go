@@ -181,22 +181,22 @@ func createAudioCatalogRoute(t *testing.T, db *gorm.DB, credentialID uint, publi
 		t.Fatal("audio route test unexpectedly created legacy ai_model_configs table")
 	}
 	entry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID:   publicModelID,
-		ProviderModelID: providerModelID,
-		DisplayName:     publicModelID,
-		Capabilities:    capability,
-		PricingMode:     string(PricingPerCall),
-		IsEnabled:       true,
+		PublicModelID: publicModelID,
+		DisplayName:   publicModelID,
+		Capabilities:  capability,
+		PricingMode:   string(PricingPerCall),
+		IsEnabled:     true,
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
 	}
 	if err := db.Create(&persistencemodel.AIModelRouteBinding{
-		CatalogEntryID: entry.ID,
-		SourceType:     persistencemodel.ModelRouteSourceLocalProvider,
-		CredentialID:   &credentialID,
-		CapacityWeight: 1,
-		IsEnabled:      true,
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
+		ProviderModelID: providerModelID,
+		CredentialID:    &credentialID,
+		CapacityWeight:  1,
+		IsEnabled:       true,
 	}).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
 	}

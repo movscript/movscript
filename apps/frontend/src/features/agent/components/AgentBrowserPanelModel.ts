@@ -30,6 +30,7 @@ export function agentBrowserTabTitle(tab: AgentBrowserContentTab, webState: Agen
   if (tab.kind === 'resources') return tab.title
   if (tab.kind === 'external_resources') return tab.title
   if (tab.kind === 'canvas_list') return tab.title
+  if (tab.kind === 'editing_projects') return tab.title
   if (tab.kind === 'project_standards') return tab.title
   if (tab.kind === 'session_output') return tab.title
   return webState?.title || tab.title || webState?.url || tab.url || '空白页'

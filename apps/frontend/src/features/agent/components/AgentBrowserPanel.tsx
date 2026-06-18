@@ -193,7 +193,7 @@ export function AgentBrowserPanel({ contentAreaId, conversationId, project = nul
     setAddressWorkspace('')
   }
 
-  function openInternalTab(kind: 'resources' | 'external_resources' | 'canvas_list' | 'project_standards' | 'session_output', title: string, options?: { replaceActiveBlank?: boolean }) {
+  function openInternalTab(kind: 'resources' | 'external_resources' | 'canvas_list' | 'editing_projects' | 'project_standards' | 'session_output', title: string, options?: { replaceActiveBlank?: boolean }) {
     const replaceActiveBlank = options?.replaceActiveBlank && activeTab?.kind === 'web' && !activeTab.url && !activeWebState?.url
     if (replaceActiveBlank && activeTab?.kind === 'web') {
       setTabs((current) => current.map((tab) => (
@@ -241,6 +241,14 @@ export function AgentBrowserPanel({ contentAreaId, conversationId, project = nul
 
   function openCanvasListTab() {
     openInternalTab('canvas_list', '画布列表')
+  }
+
+  function openEditingProjectsTab() {
+    openInternalTab('editing_projects', '剪辑')
+  }
+
+  function openEditingProjectsInCurrentTab() {
+    openInternalTab('editing_projects', '剪辑', { replaceActiveBlank: true })
   }
 
   function openProjectStandardsTab() {
@@ -378,6 +386,7 @@ export function AgentBrowserPanel({ contentAreaId, conversationId, project = nul
         onOpenResourceLibraryTab={openResourceLibraryTab}
         onOpenExternalResourceLibraryTab={openExternalResourceLibraryTab}
         onOpenCanvasListTab={openCanvasListTab}
+        onOpenEditingProjectsTab={openEditingProjectsTab}
         onOpenProjectStandardsTab={openProjectStandardsTab}
         onOpenSessionOutputTab={openSessionOutputTab}
         onSetActiveTabId={setActiveTabId}
@@ -395,9 +404,11 @@ export function AgentBrowserPanel({ contentAreaId, conversationId, project = nul
           onOpenResourceLibrary={openResourceLibraryTab}
           onOpenExternalResourceLibrary={openExternalResourceLibraryTab}
           onOpenCanvasList={openCanvasListTab}
+          onOpenEditingProjects={openEditingProjectsTab}
           onOpenResourceLibraryInCurrentTab={openResourceLibraryInCurrentTab}
           onOpenExternalResourceLibraryInCurrentTab={openExternalResourceLibraryInCurrentTab}
           onOpenCanvasListInCurrentTab={openCanvasListInCurrentTab}
+          onOpenEditingProjectsInCurrentTab={openEditingProjectsInCurrentTab}
           onNavigateBlankWebTab={(tabId, url) => {
             setAddressWorkspace(url)
             void navigateWebTab(tabId, url)

@@ -6,6 +6,7 @@ import {
 import type { ElectronRuntimeConfig } from '../../src/shared/contracts/electronApi'
 import { getBackendStatus, LOCAL_BACKEND_URL } from './backend'
 import { resolveDesktopDefaultMovScriptWorkspaceDir } from './movscriptWorkspaceDefaults'
+import { providerRuntimeEnvSnapshot } from './providerRuntimeEnv'
 
 export function getElectronRuntimeConfig(): ElectronRuntimeConfig {
   const movScriptHomeDir = resolveDesktopDefaultMovScriptWorkspaceDir()
@@ -21,6 +22,7 @@ export function getElectronRuntimeConfig(): ElectronRuntimeConfig {
     apiBaseURL,
     apiV1BaseURL: normalizeBackendAPIBaseURL(apiBaseURL),
     localAPIBaseURL: normalizeBackendBaseURL(LOCAL_BACKEND_URL),
+    providerRuntimeEnv: providerRuntimeEnvSnapshot(process.env),
     backendStatus: {
       ...backendStatus,
       baseURL: normalizeBackendBaseURL(backendStatus.baseURL),

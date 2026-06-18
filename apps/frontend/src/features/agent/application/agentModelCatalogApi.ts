@@ -3,14 +3,15 @@ import { fetchAgentBackendModels as fetchAgentBackendModelsWithClient, type Agen
 import { api } from '@/shared/infrastructure/api'
 import type { PublicModel } from '@/types'
 
-export type AgentModelRouteSourceType = 'local_provider' | 'new_api' | 'new_api_group' | string
+export type AgentModelRouteSourceType = 'local_provider' | 'new_api' | string
 
 export type AgentModelRouteBinding = {
   id: number
   catalog_entry_id: number
   source_type: AgentModelRouteSourceType
   route_group?: string
-  credential_id?: number
+  provider_id?: string
+  provider_model_id?: string
   is_enabled: boolean
   priority?: number
   capacity_weight?: number
@@ -20,7 +21,6 @@ export type AgentModelRouteBinding = {
 export type AgentModelCatalogEntry = {
   id: number
   public_model_id: string
-  provider_model_id: string
   display_name: string
   short_name?: string
   is_enabled: boolean
@@ -50,16 +50,6 @@ type AgentModelCatalogEntryResponse = Omit<AgentModelCatalogEntry, 'id' | 'route
   route_bindings?: AgentModelRouteBindingResponse[]
 }
 
-export type AgentModelRouteBindingInput = {
-  source_type: AgentModelRouteSourceType
-  route_group?: string
-  credential_id?: number
-  is_enabled?: boolean
-  priority?: number
-  capacity_weight?: number
-  max_concurrency?: number
-}
-
 export function fetchAgentBackendModels(
   client: AgentBackendModelCatalogClient<PublicModel> = api,
 ): Promise<PublicModel[]> {
@@ -69,20 +59,6 @@ export function fetchAgentBackendModels(
 export async function fetchAgentModelCatalogEntries(): Promise<AgentModelCatalogEntry[]> {
   const response = await api.get<AgentModelCatalogEntryResponse[]>('/admin/model-catalog')
   return normalizeAgentModelCatalogEntries(response.data)
-}
-
-export async function createAgentModelRouteBinding(catalogEntryId: number, input: AgentModelRouteBindingInput): Promise<AgentModelRouteBinding> {
-  const response = await api.post<AgentModelRouteBindingResponse>(`/admin/model-catalog/${catalogEntryId}/route-bindings`, input)
-  return normalizeAgentModelRouteBinding(response.data)
-}
-
-export async function updateAgentModelRouteBinding(catalogEntryId: number, bindingId: number, input: AgentModelRouteBindingInput): Promise<AgentModelRouteBinding> {
-  const response = await api.put<AgentModelRouteBindingResponse>(`/admin/model-catalog/${catalogEntryId}/route-bindings/${bindingId}`, input)
-  return normalizeAgentModelRouteBinding(response.data)
-}
-
-export async function deleteAgentModelRouteBinding(catalogEntryId: number, bindingId: number): Promise<void> {
-  await api.delete(`/admin/model-catalog/${catalogEntryId}/route-bindings/${bindingId}`)
 }
 
 export function normalizeAgentModelCatalogEntries(entries: AgentModelCatalogEntryResponse[]): AgentModelCatalogEntry[] {
@@ -102,6 +78,7 @@ export function normalizeAgentModelRouteBinding(binding: AgentModelRouteBindingR
   const { ID: _legacyID, ...rest } = binding
   return {
     ...rest,
+    ...(rest.provider_id?.trim() ? { provider_id: rest.provider_id.trim() } : {}),
     id: normalizedId(binding),
   }
 }

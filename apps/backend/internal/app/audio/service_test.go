@@ -54,23 +54,23 @@ func TestAlignLoadsAudioResourceAndCallsSubtitleAlignModel(t *testing.T) {
 		t.Fatalf("create credential: %v", err)
 	}
 	entry := persistencemodel.AIModelCatalogEntry{
-		Model:           gorm.Model{ID: 11},
-		PublicModelID:   "logical-align",
-		ProviderModelID: "align-provider-model",
-		DisplayName:     "Subtitle Align",
-		Capabilities:    ai.CapabilitySubAlign,
-		PricingMode:     string(ai.PricingPerCall),
-		IsEnabled:       true,
+		Model:         gorm.Model{ID: 11},
+		PublicModelID: "logical-align",
+		DisplayName:   "Subtitle Align",
+		Capabilities:  ai.CapabilitySubAlign,
+		PricingMode:   string(ai.PricingPerCall),
+		IsEnabled:     true,
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
 	}
 	if err := db.Create(&persistencemodel.AIModelRouteBinding{
-		CatalogEntryID: entry.ID,
-		SourceType:     persistencemodel.ModelRouteSourceLocalProvider,
-		CredentialID:   &cred.ID,
-		IsEnabled:      true,
-		CapacityWeight: 1,
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
+		CredentialID:    &cred.ID,
+		ProviderModelID: "align-provider-model",
+		IsEnabled:       true,
+		CapacityWeight:  1,
 	}).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
 	}
@@ -127,22 +127,22 @@ func TestResolveAudioRouteUsesCatalogEntryIDWithoutLegacyModelConfig(t *testing.
 		&persistencemodel.AIModelRouteBinding{},
 	)
 	entry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID:   "voice-fast",
-		ProviderModelID: "provider-voice-v1",
-		DisplayName:     "Voice Fast",
-		IsEnabled:       true,
-		Capabilities:    ai.CapabilityAudioTTS,
-		PricingMode:     string(ai.PricingPerCall),
+		PublicModelID: "voice-fast",
+		DisplayName:   "Voice Fast",
+		IsEnabled:     true,
+		Capabilities:  ai.CapabilityAudioTTS,
+		PricingMode:   string(ai.PricingPerCall),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
 	}
 	if err := db.Create(&persistencemodel.AIModelRouteBinding{
-		CatalogEntryID: entry.ID,
-		SourceType:     persistencemodel.ModelRouteSourceNewAPI,
-		RouteGroup:     "priority",
-		IsEnabled:      true,
-		CapacityWeight: 1,
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceNewAPI,
+		RouteGroup:      "priority",
+		ProviderModelID: "provider-voice-v1",
+		IsEnabled:       true,
+		CapacityWeight:  1,
 	}).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
 	}

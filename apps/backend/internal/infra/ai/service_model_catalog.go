@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
@@ -38,7 +39,7 @@ func (s *AIService) listModelsFromCatalogEntries(ctx context.Context, filter pro
 	if err := s.db.WithContext(ctx).
 		Preload("RouteBindings", "is_enabled = true").
 		Where("is_enabled = true AND deleted_at IS NULL").
-		Order("public_model_id ASC, provider_model_id ASC").
+		Order("public_model_id ASC").
 		Find(&entries).Error; err != nil {
 		return nil, true, err
 	}
@@ -179,7 +180,7 @@ func mergeCatalogDescriptor(left, right providercontract.AIModelDescriptor) prov
 
 func catalogEntryDef(entry persistencemodel.AIModelCatalogEntry) *ModelDef {
 	return ResolveModelDef(
-		entry.ProviderModelID,
+		catalogEntryModelDefID(entry),
 		AdapterOpenAICompat,
 		entry.DisplayName,
 		entry.Capabilities,
@@ -216,18 +217,20 @@ func catalogEntryBindingsForFilter(bindings []persistencemodel.AIModelRouteBindi
 }
 
 func catalogEntryDescriptor(entry persistencemodel.AIModelCatalogEntry, def *ModelDef, binding *persistencemodel.AIModelRouteBinding, credentials map[uint]persistencemodel.AICredential) providercontract.AIModelDescriptor {
-	providerModelID := strings.TrimSpace(entry.ProviderModelID)
+	providerModelID := catalogRouteProviderModelID(entry, binding)
 	publicModelID := strings.TrimSpace(entry.PublicModelID)
 	if publicModelID == "" {
 		publicModelID = providerModelID
 	}
 	credentialID := uint(0)
+	providerID := ""
 	priority := 0
 	capacityWeight := 1
 	maxConcurrency := 0
 	providerName := ""
 	adapterType := ""
 	if binding != nil {
+		providerID = catalogRouteProviderID(binding)
 		if binding.CredentialID != nil {
 			credentialID = *binding.CredentialID
 			if credential, ok := credentials[credentialID]; ok {
@@ -243,6 +246,7 @@ func catalogEntryDescriptor(entry persistencemodel.AIModelCatalogEntry, def *Mod
 		ModelID:           publicModelID,
 		CatalogEntryID:    entry.ID,
 		CredentialID:      credentialID,
+		ProviderID:        providerID,
 		ProviderModelID:   providerModelID,
 		ModelDefID:        providerModelID,
 		ModelIDOverride:   providerModelID,
@@ -283,7 +287,7 @@ func (s *AIService) resolveCatalogModelRoutePlan(req ModelRouteRequest, capabili
 	} else {
 		query = query.Where("id = ?", req.CatalogEntryID)
 	}
-	if err := query.Order("public_model_id ASC, provider_model_id ASC").Find(&entries).Error; err != nil {
+	if err := query.Order("public_model_id ASC").Find(&entries).Error; err != nil {
 		return ModelRoutePlan{}, true, err
 	}
 	if len(entries) == 0 {
@@ -334,7 +338,8 @@ func (s *AIService) resolveCatalogModelRoutePlan(req ModelRouteRequest, capabili
 					CredentialID:    credentialID,
 					SourceType:      strings.TrimSpace(binding.SourceType),
 					RouteGroup:      strings.TrimSpace(binding.RouteGroup),
-					ProviderModelID: strings.TrimSpace(entry.ProviderModelID),
+					ProviderID:      catalogRouteProviderID(&binding),
+					ProviderModelID: catalogRouteProviderModelID(entry, &binding),
 					SelectionReason: reason,
 					EstimatedCost:   estimateCatalogRouteCost(entry, def, capability, req.EstimatedUsage),
 				},
@@ -457,7 +462,8 @@ func (s *AIService) resolveRouteBindingModelRoutePlan(req ModelRouteRequest, cap
 		CredentialID:    credentialID,
 		SourceType:      strings.TrimSpace(binding.SourceType),
 		RouteGroup:      strings.TrimSpace(binding.RouteGroup),
-		ProviderModelID: strings.TrimSpace(entry.ProviderModelID),
+		ProviderID:      catalogRouteProviderID(&binding),
+		ProviderModelID: catalogRouteProviderModelID(entry, &binding),
 		SelectionReason: "route_binding_id",
 	}
 	return ModelRoutePlan{
@@ -537,16 +543,14 @@ func (s *AIService) catalogRouteRuntime(ctx context.Context, userID uint, route 
 	if err != nil || !handled {
 		return catalogRouteRuntime{}, handled, err
 	}
+	definition.model.ProviderModelID = strings.TrimSpace(route.ProviderModelID)
 	if strings.TrimSpace(route.SourceType) == persistencemodel.ModelRouteSourceLocalProvider {
 		if s.registry == nil {
 			return catalogRouteRuntime{}, true, fmt.Errorf("ai provider registry is not configured")
 		}
-		if route.CredentialID == 0 {
-			return catalogRouteRuntime{}, true, fmt.Errorf("credential id is required for local provider catalog route")
-		}
-		var cred persistencemodel.AICredential
-		if err := s.db.WithContext(ctx).Where("id = ? AND is_enabled = true", route.CredentialID).First(&cred).Error; err != nil {
-			return catalogRouteRuntime{}, true, fmt.Errorf("credential id=%d not found or disabled", route.CredentialID)
+		cred, err := s.localProviderCredentialForRoute(ctx, route)
+		if err != nil {
+			return catalogRouteRuntime{}, true, err
 		}
 		provider, err := s.registry.buildProvider(cred, definition.def)
 		if err != nil {
@@ -582,7 +586,7 @@ func catalogRuntimeModelFromEntry(entry persistencemodel.AIModelCatalogEntry, id
 	}
 	return catalogRuntimeModel{
 		ID:                 id,
-		ProviderModelID:    strings.TrimSpace(entry.ProviderModelID),
+		ProviderModelID:    strings.TrimSpace(entry.PublicModelID),
 		DisplayName:        strings.TrimSpace(entry.DisplayName),
 		ShortName:          strings.TrimSpace(entry.ShortName),
 		Capabilities:       strings.TrimSpace(entry.Capabilities),
@@ -598,6 +602,74 @@ func catalogRuntimeModelFromEntry(entry persistencemodel.AIModelCatalogEntry, id
 		CreditsPerSecond:   entry.CreditsPerSecond,
 		CreditsPerCall:     entry.CreditsPerCall,
 	}
+}
+
+func catalogRouteProviderModelID(entry persistencemodel.AIModelCatalogEntry, binding *persistencemodel.AIModelRouteBinding) string {
+	if binding != nil {
+		if providerModelID := strings.TrimSpace(binding.ProviderModelID); providerModelID != "" {
+			return providerModelID
+		}
+	}
+	return catalogEntryModelDefID(entry)
+}
+
+func catalogRouteProviderID(binding *persistencemodel.AIModelRouteBinding) string {
+	if binding == nil {
+		return ""
+	}
+	if providerID := strings.TrimSpace(binding.ProviderID); providerID != "" {
+		return providerID
+	}
+	switch strings.TrimSpace(binding.SourceType) {
+	case persistencemodel.ModelRouteSourceNewAPI:
+		return persistencemodel.ModelRouteSourceNewAPI
+	case persistencemodel.ModelRouteSourceLocalProvider:
+		if binding.CredentialID != nil && *binding.CredentialID != 0 {
+			return fmt.Sprintf("%s:%d", persistencemodel.ModelRouteSourceLocalProvider, *binding.CredentialID)
+		}
+	}
+	return strings.TrimSpace(binding.SourceType)
+}
+
+func (s *AIService) localProviderCredentialForRoute(ctx context.Context, route ModelRoute) (persistencemodel.AICredential, error) {
+	credentialID := route.CredentialID
+	if credentialID == 0 {
+		parsed, ok := localProviderCredentialIDFromProviderID(route.ProviderID)
+		if ok {
+			credentialID = parsed
+		}
+	}
+	if credentialID == 0 {
+		return persistencemodel.AICredential{}, fmt.Errorf("provider_id is required for local provider catalog route")
+	}
+	var cred persistencemodel.AICredential
+	if err := s.db.WithContext(ctx).Where("id = ? AND is_enabled = true", credentialID).First(&cred).Error; err != nil {
+		return persistencemodel.AICredential{}, fmt.Errorf("provider %q not found or disabled", strings.TrimSpace(route.ProviderID))
+	}
+	return cred, nil
+}
+
+func localProviderCredentialIDFromProviderID(providerID string) (uint, bool) {
+	providerID = strings.TrimSpace(providerID)
+	if providerID == "" {
+		return 0, false
+	}
+	if value, ok := strings.CutPrefix(providerID, persistencemodel.ModelRouteSourceLocalProvider+":"); ok {
+		return parseProviderCredentialID(value)
+	}
+	return 0, false
+}
+
+func parseProviderCredentialID(value string) (uint, bool) {
+	parsed, err := strconv.ParseUint(strings.TrimSpace(value), 10, 64)
+	if err != nil || parsed == 0 {
+		return 0, false
+	}
+	return uint(parsed), true
+}
+
+func catalogEntryModelDefID(entry persistencemodel.AIModelCatalogEntry) string {
+	return strings.TrimSpace(entry.PublicModelID)
 }
 
 func (model catalogRuntimeModel) pricing() modelPricing {
@@ -623,18 +695,18 @@ func (s *AIService) ResolveModel(ctx context.Context, request providercontract.A
 	binding := providercontract.AIModelBinding{
 		ModelID:         route.ModelID,
 		CatalogEntryID:  route.CatalogEntryID,
+		ProviderID:      route.ProviderID,
 		ProviderModelID: route.ProviderModelID,
 		Capability:      request.Capability,
 		SelectionReason: route.SelectionReason,
 	}
 	if route.CatalogEntryID != 0 {
-		if route.CredentialID != 0 {
-			var cred persistencemodel.AICredential
-			if err := s.db.WithContext(ctx).
-				Where("id = ? AND deleted_at IS NULL", route.CredentialID).
-				First(&cred).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		if strings.TrimSpace(route.SourceType) == persistencemodel.ModelRouteSourceLocalProvider {
+			cred, err := s.localProviderCredentialForRoute(ctx, route)
+			if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 				return providercontract.AIModelBinding{}, err
-			} else if err == nil {
+			}
+			if err == nil {
 				binding.AdapterType = cred.AdapterType
 				binding.ProviderName = cred.DisplayName
 			}

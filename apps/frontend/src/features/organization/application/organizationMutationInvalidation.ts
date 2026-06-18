@@ -1,4 +1,5 @@
 import { organizationKeys } from '@/features/organization/application/organizationQueryKeys'
+import { publishAppEvent } from '@/shared/application/appEvents'
 
 export interface OrganizationQueryInvalidator {
   invalidateQueries: (options: { queryKey: readonly unknown[] }) => unknown
@@ -54,6 +55,7 @@ export function invalidateOrganizationMutationResult(
   queryClient: OrganizationQueryInvalidator,
   result: OrganizationMutationResult,
 ): void {
+  publishOrganizationMutationEvent(result.event)
   invalidateOrganizationMutationEvent(queryClient, result.event)
 }
 
@@ -109,4 +111,14 @@ function organizationMutationResult(event: OrganizationMutationEvent): Organizat
     changedPaths: event.changedPaths,
     ...(event.snapshotVersion !== undefined ? { snapshotVersion: event.snapshotVersion } : {}),
   }
+}
+
+function publishOrganizationMutationEvent(event: OrganizationMutationEvent): void {
+  publishAppEvent({
+    topic: 'organization.mutation',
+    scope: { kind: 'global', id: String(event.orgId) },
+    source: 'query-invalidation',
+    payload: event,
+    raw: event,
+  })
 }

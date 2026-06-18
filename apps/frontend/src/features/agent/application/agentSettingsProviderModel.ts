@@ -86,25 +86,6 @@ export function providerModelBaseURLState(baseURL: string) {
   }
 }
 
-export function providerModelDraftState(input: {
-  baseURL: string
-  directModelId: string
-  selectedModel: PublicModel | null
-}) {
-  const baseURLState = providerModelBaseURLState(input.baseURL)
-  const directModelIdValue = input.directModelId.trim()
-  const directModelIdHasSecret = baseURLState.usesManualModelId && hasSensitiveTextSecret(directModelIdValue)
-  const providerModelConfigValue = baseURLState.usesModelCatalog ? (input.selectedModel ? publicModelId(input.selectedModel) : '') : directModelIdValue
-  return {
-    ...baseURLState,
-    directModelIdValue,
-    directModelIdHasSecret,
-    providerModelConfigValue,
-    modelValueMissing: !providerModelConfigValue,
-    canSaveModelConfig: Boolean(providerModelConfigValue) && !directModelIdHasSecret,
-  }
-}
-
 export function providerConfigModelHasSecret(config: ProviderModelConfigPublic | null): boolean {
   return Boolean(config?.configured && hasSensitiveTextSecret(config.model))
 }
@@ -113,19 +94,13 @@ export function providerModelSettingsHasUnsavedChanges(input: {
   effectiveConfig: ProviderModelConfigPublic | null
   providerModelConfigValue: string
   effectiveModelValue: string
-  selectedApiKind: ProviderModelAPIKind
-  baseURLValue: string
-  apiKey: string
   useForChat: boolean
   useForPlanner: boolean
   canSaveModelConfig: boolean
-  defaultApiKind: ProviderModelAPIKind
 }): boolean {
   return input.effectiveConfig?.configured
-    ? input.providerModelConfigValue !== input.effectiveModelValue ||
-      input.selectedApiKind !== (input.effectiveConfig.apiKind ?? input.defaultApiKind) ||
-      input.baseURLValue !== (input.effectiveConfig.baseURL ?? '') ||
-      Boolean(input.apiKey.trim()) ||
+    ? !providerConfigUsesModelCatalog(input.effectiveConfig) ||
+      input.providerModelConfigValue !== input.effectiveModelValue ||
       input.useForChat !== input.effectiveConfig.useForChat ||
       input.useForPlanner !== input.effectiveConfig.useForPlanner
     : input.canSaveModelConfig
@@ -133,13 +108,9 @@ export function providerModelSettingsHasUnsavedChanges(input: {
 
 export type ProviderModelWorkspaceDraft = {
   selectedModelId: string
-  directModelId: string
-  selectedApiKind: ProviderModelAPIKind
-  baseURL: string
   useForChat: boolean
   useForPlanner: boolean
 }
-export type ProviderModelSecretValidationIssue = 'model_id_secret' | 'base_url_secret'
 export type ProviderModelConfigRequest = Parameters<ProviderSessionClient['saveProviderModelConfig']>[0]
 export type ProviderModelOperationPlan = {
   request: ProviderModelConfigRequest
@@ -150,27 +121,18 @@ export function providerModelWorkspaceDraftFromConfig(input: {
   config: ProviderModelConfigPublic
   models: PublicModel[]
   noModelValue: string
-  defaultApiKind: ProviderModelAPIKind
 }): ProviderModelWorkspaceDraft {
+  const catalogModel = input.models.find((model) => publicModelId(model) === input.config.model)
   return {
-    selectedModelId: providerConfigUsesModelCatalog(input.config) ? providerModelValue(input.models, input.config) : input.noModelValue,
-    directModelId: input.config.model ?? '',
-    selectedApiKind: input.config.apiKind ?? input.defaultApiKind,
-    baseURL: input.config.baseURL ?? '',
+    selectedModelId: catalogModel ? publicModelId(catalogModel) : input.noModelValue,
     useForChat: input.config.useForChat,
     useForPlanner: input.config.useForPlanner,
   }
 }
 
-export function clearedProviderModelWorkspaceDraft(input: {
-  noModelValue: string
-  defaultApiKind: ProviderModelAPIKind
-}): ProviderModelWorkspaceDraft {
+export function clearedProviderModelWorkspaceDraft(input: { noModelValue: string }): ProviderModelWorkspaceDraft {
   return {
     selectedModelId: input.noModelValue,
-    directModelId: '',
-    selectedApiKind: input.defaultApiKind,
-    baseURL: '',
     useForChat: true,
     useForPlanner: true,
   }
@@ -180,15 +142,6 @@ export function storedProviderModelWorkspaceId(models: PublicModel[], storedMode
   if (!storedModelId) return null
   const storedModel = models.find((model) => publicModelId(model) === storedModelId)
   return storedModel ? publicModelId(storedModel) : null
-}
-
-export function providerModelSecretValidationIssue(input: {
-  directModelIdHasSecret: boolean
-  baseURLHasSecret: boolean
-}): ProviderModelSecretValidationIssue | null {
-  if (input.directModelIdHasSecret) return 'model_id_secret'
-  if (input.baseURLHasSecret) return 'base_url_secret'
-  return null
 }
 
 export function buildProviderModelConfigRequest(input: {
@@ -239,8 +192,7 @@ export function buildProviderModelConfigFromSnapshotModel(
 ): Parameters<ProviderSessionClient['saveModelConfig']>[0] {
   return {
     model: model.model,
-    ...(model.apiKind ? { apiKind: model.apiKind } : {}),
-    ...(model.baseURL ? { baseURL: model.baseURL } : {}),
+    apiKind: 'openai_responses',
     useForChat: model.useForChat !== false,
     useForPlanner: model.useForPlanner !== false,
   }

@@ -1,5 +1,6 @@
 import { canvasKeys } from '@/features/canvas/application/canvasQueryKeys'
 import type { Canvas } from '@/types'
+import { publishAppEvent } from '@/shared/application/appEvents'
 
 export interface CanvasQueryInvalidator {
   invalidateQueries: (options: { queryKey: readonly unknown[] }) => unknown
@@ -72,6 +73,7 @@ export function invalidateCanvasMutationResult(
   queryClient: CanvasQueryInvalidator,
   result: CanvasMutationResult,
 ): void {
+  publishCanvasMutationEvent(result.event)
   invalidateCanvasMutationEvent(queryClient, result.event)
 }
 
@@ -130,4 +132,14 @@ function canvasMutationResult(event: CanvasMutationEvent): CanvasMutationResult 
     changedPaths: event.changedPaths,
     ...(event.snapshotVersion !== undefined ? { snapshotVersion: event.snapshotVersion } : {}),
   }
+}
+
+function publishCanvasMutationEvent(event: CanvasMutationEvent): void {
+  publishAppEvent({
+    topic: 'canvas.mutation',
+    scope: event.type === 'CanvasDocumentChanged' ? { kind: 'canvas', id: String(event.canvasId) } : { kind: 'canvas' },
+    source: 'query-invalidation',
+    payload: event,
+    raw: event,
+  })
 }

@@ -128,22 +128,22 @@ func TestWorkerUsesCatalogRouteBindingForModelAdapterWithoutLegacyModelConfigTab
 		t.Fatalf("create credential: %v", err)
 	}
 	entry := model.AIModelCatalogEntry{
-		PublicModelID:   "image-fast",
-		ProviderModelID: "provider-image-v2",
-		DisplayName:     "Image Fast",
-		IsEnabled:       true,
-		Capabilities:    ai.CapabilityImage,
-		PricingMode:     string(ai.PricingPerImage),
+		PublicModelID: "image-fast",
+		DisplayName:   "Image Fast",
+		IsEnabled:     true,
+		Capabilities:  ai.CapabilityImage,
+		PricingMode:   string(ai.PricingPerImage),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
 	}
 	binding := model.AIModelRouteBinding{
-		CatalogEntryID: entry.ID,
-		SourceType:     model.ModelRouteSourceLocalProvider,
-		CredentialID:   &cred.ID,
-		IsEnabled:      true,
-		CapacityWeight: 1,
+		CatalogEntryID:  entry.ID,
+		SourceType:      model.ModelRouteSourceLocalProvider,
+		CredentialID:    &cred.ID,
+		ProviderModelID: "provider-image-v2",
+		IsEnabled:       true,
+		CapacityWeight:  1,
 	}
 	if err := db.Create(&binding).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
@@ -197,12 +197,11 @@ func TestWorkerProviderFileUploaderUsesCatalogRouteCredentialWithoutLegacyModelC
 		t.Fatalf("create credential: %v", err)
 	}
 	entry := model.AIModelCatalogEntry{
-		PublicModelID:   "image-edit",
-		ProviderModelID: "provider-image-edit-v2",
-		DisplayName:     "Image Edit",
-		IsEnabled:       true,
-		Capabilities:    ai.CapabilityImageEdit,
-		PricingMode:     string(ai.PricingPerImage),
+		PublicModelID: "image-edit",
+		DisplayName:   "Image Edit",
+		IsEnabled:     true,
+		Capabilities:  ai.CapabilityImageEdit,
+		PricingMode:   string(ai.PricingPerImage),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -410,13 +409,12 @@ func TestWorkerExecutesOrthogonalSubtitleJobTypesAsResourceOutputs(t *testing.T)
 	}
 	for index, tc := range cases {
 		entry := model.AIModelCatalogEntry{
-			Model:           gorm.Model{ID: uint(100 + index)},
-			PublicModelID:   "local-" + tc.capability,
-			ProviderModelID: "provider-" + tc.capability,
-			DisplayName:     "Local " + tc.capability,
-			IsEnabled:       true,
-			Capabilities:    tc.capability,
-			PricingMode:     string(ai.PricingPerCall),
+			Model:         gorm.Model{ID: uint(100 + index)},
+			PublicModelID: "local-" + tc.capability,
+			DisplayName:   "Local " + tc.capability,
+			IsEnabled:     true,
+			Capabilities:  tc.capability,
+			PricingMode:   string(ai.PricingPerCall),
 		}
 		if err := db.Create(&entry).Error; err != nil {
 			t.Fatalf("create catalog entry %s: %v", tc.capability, err)

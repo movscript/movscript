@@ -15,9 +15,10 @@ import { providerSessionKeys, providerSessionRunKeys, providerSessionThreadKeys 
 import { agentConsoleKeys } from '@/features/agent/application/agentQueryKeys'
 import {
   enabledProviders,
-  normalizeProviderSettings,
+  normalizeProviderSettingsWithRuntimeEnv,
+  providerRuntimeProfile,
+  providerSupportsAppServerRuntime,
   resolveAppServerProfile,
-  usesAppServerProtocol,
   useProviderConfigStore,
 } from '@/shared/infrastructure/providerConfigStore'
 import { agentReadinessStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
@@ -61,12 +62,12 @@ export function useAgentControlCenter() {
   const runs = useMemo(() => sortAgentControlRuns(runsQuery.data ?? []), [runsQuery.data])
   const threads = threadsQuery.data ?? []
   const savedProviderSettings = useProviderConfigStore((state) => state.settings)
-  const providerSettings = useMemo(() => normalizeProviderSettings(savedProviderSettings), [savedProviderSettings])
+  const providerSettings = useMemo(() => normalizeProviderSettingsWithRuntimeEnv(savedProviderSettings), [savedProviderSettings])
   const enabledProvidersForConsole = useMemo(() => enabledProviders(providerSettings), [providerSettings])
   const defaultProvider = providerSettings.providers.find((provider) => provider.id === providerSettings.defaultProviderId)
   const appServerProvider = useMemo(() => {
-    if (usesAppServerProtocol(defaultProvider)) return defaultProvider
-    return enabledProvidersForConsole.find((provider) => usesAppServerProtocol(provider))
+    if (providerSupportsAppServerRuntime(defaultProvider)) return defaultProvider
+    return enabledProvidersForConsole.find((provider) => providerSupportsAppServerRuntime(provider))
   }, [defaultProvider, enabledProvidersForConsole])
   const appServerProfile = useMemo(() => appServerProvider ? resolveAppServerProfile(appServerProvider) : undefined, [appServerProvider])
   const appServerStatusQuery = useQuery({
@@ -102,7 +103,7 @@ export function useAgentControlCenter() {
   const appServerRunning = Boolean(appServerStatusQuery.data?.ok && appServerStatusQuery.data.running)
   const capabilityProviders = useMemo(() => {
     return enabledProvidersForConsole.filter((provider) => {
-      if (usesAppServerProtocol(provider)) return appServerRunning && provider.id === appServerProvider?.id
+      if (providerSupportsAppServerRuntime(provider)) return appServerRunning && provider.id === appServerProvider?.id
       return false
     })
   }, [appServerProvider?.id, appServerRunning, enabledProvidersForConsole])
@@ -251,12 +252,15 @@ export function useAgentControlCenter() {
 }
 
 function providerControlHealthKey(provider: ReturnType<typeof enabledProviders>[number]): string {
-  const profile = usesAppServerProtocol(provider) ? resolveAppServerProfile(provider) : undefined
+  const runtime = providerRuntimeProfile(provider)
+  const profile = providerSupportsAppServerRuntime(provider) ? resolveAppServerProfile(provider) : undefined
   return [
     provider.id,
     provider.kind,
     provider.enabled ? 'enabled' : 'disabled',
     provider.label,
+    runtime.id,
+    runtime.api,
     profile?.id ?? '',
     profile?.home ?? '',
     profile?.workspaceDir ?? '',

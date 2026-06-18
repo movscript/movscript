@@ -1,5 +1,6 @@
 import { semanticEntityKeys } from '@/shared/application/semanticEntityQueryKeys'
 import type { SemanticEntityConfig } from '@/shared/infrastructure/api/semanticEntities'
+import { projectAppEventScope, publishAppEvent } from './appEvents'
 
 export interface SemanticEntityQueryInvalidator {
   invalidateQueries: (options: { queryKey: readonly unknown[] }) => unknown
@@ -55,6 +56,7 @@ export function invalidateSemanticEntityMutationResult(
   queryClient: SemanticEntityQueryInvalidator,
   result: SemanticEntityMutationResult,
 ): void {
+  publishSemanticEntityMutationEvent(result.event)
   invalidateSemanticEntityMutationEvent(queryClient, result.event)
 }
 
@@ -71,4 +73,14 @@ export function invalidateSemanticEntityMutationEvent(
       }
       return
   }
+}
+
+function publishSemanticEntityMutationEvent(event: SemanticEntityMutationEvent): void {
+  publishAppEvent({
+    topic: 'semantic-entity.mutation',
+    scope: projectAppEventScope(event.projectId),
+    source: 'query-invalidation',
+    payload: event,
+    raw: event,
+  })
 }

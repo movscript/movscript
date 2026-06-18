@@ -158,6 +158,64 @@ func TestRunMigrationsRejectsDevelopmentBaselineChecksum(t *testing.T) {
 	}
 }
 
+func TestMigrateRouteProviderModelIDBackfillsLegacySQLiteCatalogColumn(t *testing.T) {
+	db := testutil.OpenSQLite(t, "legacy-provider-model-id.db")
+	if err := db.AutoMigrate(&legacyModelCatalogEntryForMigration{}, &model.AIModelRouteBinding{}); err != nil {
+		t.Fatalf("create legacy schema: %v", err)
+	}
+	entry := legacyModelCatalogEntryForMigration{
+		PublicModelID:   "gpt-5.2",
+		ProviderModelID: "gpt-5.2-upstream",
+		DisplayName:     "GPT 5.2",
+		IsEnabled:       true,
+		Capabilities:    "text",
+		SupportedParams: "",
+		PricingMode:     "per_token",
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create legacy catalog entry: %v", err)
+	}
+	route := model.AIModelRouteBinding{
+		CatalogEntryID: entry.ID,
+		SourceType:     model.ModelRouteSourceLocalProvider,
+		IsEnabled:      true,
+	}
+	if err := db.Create(&route).Error; err != nil {
+		t.Fatalf("create route binding: %v", err)
+	}
+
+	if err := migrateRouteProviderModelID(db); err != nil {
+		t.Fatalf("migrateRouteProviderModelID() error = %v", err)
+	}
+
+	var updated model.AIModelRouteBinding
+	if err := db.First(&updated, route.ID).Error; err != nil {
+		t.Fatalf("load route binding: %v", err)
+	}
+	if updated.ProviderModelID != "gpt-5.2-upstream" {
+		t.Fatalf("ProviderModelID = %q, want legacy provider model id backfilled", updated.ProviderModelID)
+	}
+	if !db.Migrator().HasColumn("ai_model_catalog_entries", "provider_model_id") {
+		t.Fatal("expected SQLite migration to leave legacy catalog provider_model_id column in place")
+	}
+}
+
+type legacyModelCatalogEntryForMigration struct {
+	gorm.Model
+	PublicModelID   string
+	DisplayName     string
+	ShortName       string
+	IsEnabled       bool
+	Capabilities    string
+	PricingMode     string
+	ProviderModelID string `gorm:"column:provider_model_id"`
+	SupportedParams string
+}
+
+func (legacyModelCatalogEntryForMigration) TableName() string {
+	return "ai_model_catalog_entries"
+}
+
 func hasSQLiteIndex(db *gorm.DB, name string) bool {
 	var count int64
 	return db.Raw(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = ?`, name).Scan(&count).Error == nil && count > 0

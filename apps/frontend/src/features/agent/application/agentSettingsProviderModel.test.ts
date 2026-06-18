@@ -5,7 +5,6 @@ import {
   buildProviderModelOperationPlan,
   buildProviderModelTestRequest,
   clearedProviderModelWorkspaceDraft,
-  providerModelSecretValidationIssue,
   providerModelWorkspaceDraftFromConfig,
   storedProviderModelWorkspaceId,
 } from '@/features/agent/application/agentSettingsProviderModel'
@@ -27,20 +26,16 @@ test('provider model workspace draft follows backend catalog config', () => {
     }),
     models: textModels,
     noModelValue: '__none',
-    defaultApiKind: 'openai_responses',
   })
 
   assert.deepEqual(draft, {
     selectedModelId: 'gpt-deep',
-    directModelId: 'gpt-deep',
-    selectedApiKind: 'openai_chat_completions',
-    baseURL: '',
     useForChat: true,
     useForPlanner: false,
   })
 })
 
-test('provider model workspace draft keeps manual model ids out of catalog selection', () => {
+test('provider model workspace draft keeps legacy direct model ids out of catalog selection', () => {
   const draft = providerModelWorkspaceDraftFromConfig({
     config: providerConfig({
       model: 'claude-3-5-sonnet',
@@ -51,14 +46,10 @@ test('provider model workspace draft keeps manual model ids out of catalog selec
     }),
     models: textModels,
     noModelValue: '__none',
-    defaultApiKind: 'openai_responses',
   })
 
   assert.deepEqual(draft, {
     selectedModelId: '__none',
-    directModelId: 'claude-3-5-sonnet',
-    selectedApiKind: 'openai_responses',
-    baseURL: 'https://example.test/v1',
     useForChat: false,
     useForPlanner: true,
   })
@@ -71,32 +62,11 @@ test('stored provider model workspace id uses public model ids', () => {
 })
 
 test('cleared provider model workspace draft resets model workspace defaults', () => {
-  assert.deepEqual(clearedProviderModelWorkspaceDraft({
-    noModelValue: '__none',
-    defaultApiKind: 'openai_responses',
-  }), {
+  assert.deepEqual(clearedProviderModelWorkspaceDraft({ noModelValue: '__none' }), {
     selectedModelId: '__none',
-    directModelId: '',
-    selectedApiKind: 'openai_responses',
-    baseURL: '',
     useForChat: true,
     useForPlanner: true,
   })
-})
-
-test('provider model secret validation reports the blocking issue in priority order', () => {
-  assert.equal(providerModelSecretValidationIssue({
-    directModelIdHasSecret: true,
-    baseURLHasSecret: true,
-  }), 'model_id_secret')
-  assert.equal(providerModelSecretValidationIssue({
-    directModelIdHasSecret: false,
-    baseURLHasSecret: true,
-  }), 'base_url_secret')
-  assert.equal(providerModelSecretValidationIssue({
-    directModelIdHasSecret: false,
-    baseURLHasSecret: false,
-  }), null)
 })
 
 test('provider model operation plan builds catalog requests and stored ids', () => {
@@ -123,10 +93,11 @@ test('provider model operation plan builds catalog requests and stored ids', () 
   })
 })
 
-test('snapshot model import uses public model id', () => {
+test('snapshot model import uses public model id without restoring direct provider fields', () => {
   assert.deepEqual(buildProviderModelConfigFromSnapshotModel({
     model: 'gpt-fast',
-    apiKind: 'openai_responses',
+    apiKind: 'anthropic_messages',
+    baseURL: 'https://example.test/v1',
     useForChat: true,
     useForPlanner: false,
   }), {
@@ -178,7 +149,7 @@ function providerConfig(patch: Partial<ProviderModelConfigPublic>): ProviderMode
 
 function model(patch: Pick<PublicModel, 'id' | 'model_id' | 'display_name'> & Partial<PublicModel>): PublicModel {
   return {
-    credential_id: 1,
+    provider_id: 'local_provider:1',
     capabilities: ['text'],
     accepts_image_input: false,
     ...patch,

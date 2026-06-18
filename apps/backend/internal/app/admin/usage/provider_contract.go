@@ -100,6 +100,8 @@ func usageLogToContract(row Log) providercontract.AIGatewayUsageLog {
 		DurationSec:           row.DurationSec,
 		ImageCount:            row.ImageCount,
 		Cost:                  row.Cost,
+		ProviderID:            row.ProviderID,
+		ProviderModelID:       row.ProviderModelID,
 		User:                  usageUserRefToContract(row.User),
 		AIModelCatalogEntry:   usageCatalogEntryRefToContract(row.AIModelCatalogEntry),
 		CreatedAt:             row.CreatedAt,
@@ -125,6 +127,8 @@ func usageLogFromContract(row providercontract.AIGatewayUsageLog) Log {
 		DurationSec:           row.DurationSec,
 		ImageCount:            row.ImageCount,
 		Cost:                  row.Cost,
+		ProviderID:            row.ProviderID,
+		ProviderModelID:       row.ProviderModelID,
 		User:                  usageUserRefFromContract(row.User),
 		AIModelCatalogEntry:   usageCatalogEntryRefFromContract(row.AIModelCatalogEntry),
 		CreatedAt:             row.CreatedAt,
@@ -239,11 +243,10 @@ func usageCatalogEntryRefToContract(ref *CatalogEntryRef) *providercontract.AIGa
 		return nil
 	}
 	return &providercontract.AIGatewayUsageCatalogEntryRef{
-		ID:              ref.ID,
-		PublicModelID:   ref.PublicModelID,
-		ProviderModelID: ref.ProviderModelID,
-		DisplayName:     ref.DisplayName,
-		ShortName:       ref.ShortName,
+		ID:            ref.ID,
+		PublicModelID: ref.PublicModelID,
+		DisplayName:   ref.DisplayName,
+		ShortName:     ref.ShortName,
 	}
 }
 
@@ -252,10 +255,9 @@ func usageCatalogEntryRefFromContract(ref *providercontract.AIGatewayUsageCatalo
 		return nil
 	}
 	return &CatalogEntryRef{
-		ID:              ref.ID,
-		PublicModelID:   ref.PublicModelID,
-		ProviderModelID: ref.ProviderModelID,
-		DisplayName:     ref.DisplayName,
-		ShortName:       ref.ShortName,
+		ID:            ref.ID,
+		PublicModelID: ref.PublicModelID,
+		DisplayName:   ref.DisplayName,
+		ShortName:     ref.ShortName,
 	}
 }

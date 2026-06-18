@@ -41,21 +41,25 @@ import { useAgentControlCenter } from '@/features/agent/presentation/useAgentCon
 import { agentReadinessStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
 import {
   enabledProviders,
-  normalizeProviderSettings,
+  normalizeProviderSettingsWithRuntimeEnv,
+  providerRuntimeApi,
+  providerRuntimeProfile,
   resolveAppServerProfile,
-  usesAppServerProtocol,
+  providerSupportsAppServerRuntime,
   useProviderConfigStore,
   type ProviderConfig,
 } from '@/shared/infrastructure/providerConfigStore'
 
 export function AgentCapabilityProbePanel() {
   const savedSettings = useProviderConfigStore((state) => state.settings)
-  const providers = useMemo(() => enabledProviders(normalizeProviderSettings(savedSettings)), [savedSettings])
+  const providers = useMemo(() => enabledProviders(normalizeProviderSettingsWithRuntimeEnv(savedSettings)), [savedSettings])
   const probeQuery = useQuery({
     queryKey: agentConsoleKeys.providerCapabilityProbe(providers.map(providerProbeKey).join('|')),
     queryFn: async () => Promise.all(providers.map(async (provider) => {
       try {
-        const dataSource = await createAgentChatDataSourceForProvider(provider)
+        const dataSource = await createAgentChatDataSourceForProvider(provider, {
+          appServerPolicy: providerSupportsAppServerRuntime(provider) ? 'status-only' : 'ensure',
+        })
         return await probeAgentChatDataSourceCapabilities({ provider, dataSource })
       } catch (error) {
         return failedAgentChatCapabilityProbeResult({ provider, error })
@@ -89,7 +93,7 @@ export function AgentCapabilityProbePanel() {
     >
       <AgentConsoleIntroRow>
         <AgentConsoleDescription>
-          通过统一数据源 capability 探测每个已启用 provider。app-server provider 可以按各自 profile 启动；后续 provider 只需要实现同一组能力入口。
+          通过统一数据源 capability 探测每个已启用 provider。SDK runtime 会直接走 runtime/probe；app-server runtime 只读取已运行状态，不会因为刷新探针而隐式启动或触发账号配置流程。
         </AgentConsoleDescription>
         <AgentConsoleToolbar>
           <AgentConsoleStatusBadge intent={providers.length > 0 ? 'success' : 'warning'} emphasis="soft">
@@ -132,7 +136,7 @@ export function AgentCapabilityHealthPanel({
       }
     >
       {capabilityHealth.providers.length === 0 ? (
-        <AgentConsoleEmptyText>启动任一 app-server provider 后，控制台会读取统一能力入口并汇总 Tools、Skills、Plugins 和 MCP 状态。</AgentConsoleEmptyText>
+        <AgentConsoleEmptyText>启动或连接任一 provider runtime 后，控制台会读取统一能力入口并汇总 Tools、Skills、Plugins 和 MCP 状态。</AgentConsoleEmptyText>
       ) : (
         <AgentConsoleGrid columns="single">
           {capabilityHealth.providers.map((provider) => (
@@ -219,12 +223,20 @@ function capabilityProbeItemTone(item: AgentChatCapabilityProbeItem): 'success' 
 }
 
 function providerProbeKey(provider: ProviderConfig): string {
-  const profile = usesAppServerProtocol(provider) ? resolveAppServerProfile(provider) : undefined
+  const runtime = providerRuntimeProfile(provider)
+  const profile = providerSupportsAppServerRuntime(provider) ? resolveAppServerProfile(provider) : undefined
   return [
     provider.id,
     provider.kind,
     provider.enabled ? 'enabled' : 'disabled',
     provider.label,
+    runtime.id,
+    runtime.api,
+    runtime.packageName ?? '',
+    runtime.sdkPackageName ?? '',
+    runtime.binaryPackageName ?? '',
+    runtime.packageVersion ?? '',
+    providerRuntimeApi(provider),
     profile?.id ?? '',
     profile?.executablePath ?? '',
     profile?.home ?? '',

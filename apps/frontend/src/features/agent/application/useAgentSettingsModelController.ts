@@ -2,10 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
-  type ProviderModelAPIKind,
-  hasSensitiveURLSecret,
   redactAgentTraceDebugText,
-  stripSensitiveURLSecrets,
 } from '@movscript/core/agent'
 import { fetchAgentBackendModels } from '@/features/agent/application/agentModelCatalogApi'
 import { agentModelKeys } from '@/features/agent/application/agentModelQueryKeys'
@@ -16,9 +13,7 @@ import {
   clearedProviderModelWorkspaceDraft,
   modelDisplayName,
   providerConfigModelHasSecret,
-  providerModelBaseURLState,
-  providerModelDraftState,
-  providerModelSecretValidationIssue,
+  providerConfigUsesModelCatalog,
   providerModelSettingsHasUnsavedChanges,
   providerModelValue,
   providerModelWorkspaceDraftFromConfig,
@@ -27,8 +22,6 @@ import {
   type ProviderModelWorkspaceDraft,
 } from '@/features/agent/application/agentSettingsProviderModel'
 import {
-  buildApiModeSwitchTaskGraph,
-  buildModelCompatibilityProbes,
   buildModelRouteIssues,
 } from '@/features/agent/application/agentSettingsReadiness'
 import {
@@ -44,6 +37,7 @@ import type {
   ProviderModelTestResult,
 } from '@/shared/infrastructure/providerSessionClient'
 import { publicModelLabel } from '@/shared/domain/modelDisplay'
+import { publicModelId } from '@/shared/domain/modelDisplay'
 import type { PublicModel } from '@/types'
 
 interface UseAgentSettingsModelControllerInput {
@@ -63,10 +57,6 @@ export function useAgentSettingsModelController({
 }: UseAgentSettingsModelControllerInput) {
   const { t } = useTranslation()
   const [selectedModelId, setSelectedModelId] = useState<string>(NO_MODEL_VALUE)
-  const [directModelId, setDirectModelId] = useState('')
-  const [selectedApiKind, setSelectedApiKind] = useState<ProviderModelAPIKind>(DEFAULT_API_KIND)
-  const [baseURL, setBaseURL] = useState('')
-  const [modelApiKey, setModelApiKey] = useState('')
   const [useForChat, setUseForChat] = useState(true)
   const [useForPlanner, setUseForPlanner] = useState(true)
   const [testMessage, setTestMessage] = useState(t('agents.settings.testMessageDefault'))
@@ -85,26 +75,18 @@ export function useAgentSettingsModelController({
     retry: false,
   })
 
-  const modelBaseURLState = providerModelBaseURLState(baseURL)
-  const baseURLValue = modelBaseURLState.baseURLValue
-  const usesBackendCompatibleBaseURL = modelBaseURLState.usesBackendCompatibleBaseURL
-  const usesModelCatalog = modelBaseURLState.usesModelCatalog
-  const usesManualModelId = modelBaseURLState.usesManualModelId
   const modelsQuery = useQuery<PublicModel[]>({
-    queryKey: agentModelKeys.backendCatalog(baseURLValue || 'default-backend'),
+    queryKey: agentModelKeys.backendCatalog('default-backend'),
     queryFn: () => fetchAgentBackendModels(),
-    enabled: usesModelCatalog,
   })
 
   const textModels = modelsQuery.data ?? []
   const selectedModel = useMemo(() => selectedProviderModel(textModels, selectedModelId), [selectedModelId, textModels])
-  const modelDraftState = providerModelDraftState({ baseURL, directModelId, selectedModel })
-  const directModelIdValue = modelDraftState.directModelIdValue
-  const directModelIdHasSecret = modelDraftState.directModelIdHasSecret
-  const providerModelConfigValue = modelDraftState.providerModelConfigValue
-  const modelValueMissing = modelDraftState.modelValueMissing
-  const canSaveModelConfig = modelDraftState.canSaveModelConfig
+  const providerModelConfigValue = selectedModel ? publicModelId(selectedModel) : ''
+  const modelValueMissing = !providerModelConfigValue
+  const canSaveModelConfig = Boolean(providerModelConfigValue)
   const effectiveConfig = savedConfig ?? configQuery.data ?? null
+  const legacyDirectModelConfig = Boolean(effectiveConfig?.configured && !providerConfigUsesModelCatalog(effectiveConfig))
   const modelRoutes = effectiveConfig?.capabilities ?? []
   const savedDirectModelIdHasSecret = providerConfigModelHasSecret(effectiveConfig)
   const effectiveModelValue = useMemo(() => (
@@ -124,40 +106,14 @@ export function useAgentSettingsModelController({
     effectiveConfig,
     providerModelConfigValue,
     effectiveModelValue,
-    selectedApiKind,
-    baseURLValue,
-    apiKey: modelApiKey,
     useForChat,
     useForPlanner,
     canSaveModelConfig,
-    defaultApiKind: DEFAULT_API_KIND,
   })
-  const modelBaseURLHasSecret = hasSensitiveURLSecret(baseURLValue)
-  const modelApiKeyProvided = Boolean(modelApiKey.trim())
   const modelRouteIssues = useMemo(() => buildModelRouteIssues({ useForChat, useForPlanner }), [useForChat, useForPlanner])
-  const modelCompatibilityProbes = useMemo(() => buildModelCompatibilityProbes({
-    selectedApiKind,
-    modelValue: providerModelConfigValue,
-    baseURL: baseURLValue,
-    apiKeyProvided: modelApiKeyProvided,
-    usesBackendCompatibleBaseURL,
-    modelBaseURLHasSecret,
-    directModelIdHasSecret,
-    useForChat,
-    useForPlanner,
-    effectiveConfig,
-  }), [baseURLValue, directModelIdHasSecret, effectiveConfig, modelApiKeyProvided, modelBaseURLHasSecret, providerModelConfigValue, selectedApiKind, useForChat, useForPlanner, usesBackendCompatibleBaseURL])
-  const apiModeSwitchTaskGraph = useMemo(() => buildApiModeSwitchTaskGraph({
-    selectedApiKind,
-    probes: modelCompatibilityProbes,
-    hasUnsavedChanges,
-  }), [hasUnsavedChanges, modelCompatibilityProbes, selectedApiKind])
 
   function applyWorkspaceDraft(draft: ProviderModelWorkspaceDraft) {
     setSelectedModelId(draft.selectedModelId)
-    setDirectModelId(draft.directModelId)
-    setSelectedApiKind(draft.selectedApiKind)
-    setBaseURL(draft.baseURL)
     setUseForChat(draft.useForChat)
     setUseForPlanner(draft.useForPlanner)
   }
@@ -168,7 +124,6 @@ export function useAgentSettingsModelController({
       config: effectiveConfig,
       models: textModels,
       noModelValue: NO_MODEL_VALUE,
-      defaultApiKind: DEFAULT_API_KIND,
     }))
     return true
   }
@@ -180,7 +135,6 @@ export function useAgentSettingsModelController({
         config: configQuery.data,
         models: textModels,
         noModelValue: NO_MODEL_VALUE,
-        defaultApiKind: DEFAULT_API_KIND,
       }))
       return
     }
@@ -190,7 +144,7 @@ export function useAgentSettingsModelController({
 
   useEffect(() => {
     setModelConfigClearConfirming(false)
-  }, [baseURL, providerModelConfigValue, modelApiKey, selectedApiKind, useForChat, useForPlanner])
+  }, [providerModelConfigValue, useForChat, useForPlanner])
 
   function recordModelOperationFailure(operation: string, error: string) {
     recordSettingsAudit({
@@ -203,20 +157,14 @@ export function useAgentSettingsModelController({
     })
   }
 
-  function providerModelSecretIssueMessage(issue: ReturnType<typeof providerModelSecretValidationIssue>) {
-    if (issue === 'model_id_secret') return t('agents.settings.modelIdSecretsBlocked')
-    if (issue === 'base_url_secret') return t('agents.settings.baseUrlSecretsBlocked')
-    return null
-  }
-
   function buildModelOperationPlan() {
     return buildProviderModelOperationPlan({
       selectedModel,
-      usesModelCatalog,
+      usesModelCatalog: true,
       model: providerModelConfigValue,
-      apiKind: selectedApiKind,
-      baseURL: baseURLValue,
-      apiKey: modelApiKey,
+      apiKind: DEFAULT_API_KIND,
+      baseURL: '',
+      apiKey: '',
       useForChat,
       useForPlanner,
     })
@@ -225,27 +173,14 @@ export function useAgentSettingsModelController({
   function modelAuditValues() {
     return modelAuditSummaryValues({
       t,
-      selectedApiKind,
       useForChat,
       useForPlanner,
-      usesModelCatalog,
       selectedModelLabel: selectedModel ? publicModelLabel(selectedModel, true) : undefined,
-      directModelIdValue,
     })
   }
 
   async function saveSettings() {
     if (!providerModelConfigValue) return
-    const secretIssueMessage = providerModelSecretIssueMessage(providerModelSecretValidationIssue({
-      directModelIdHasSecret,
-      baseURLHasSecret: modelBaseURLHasSecret,
-    }))
-    if (secretIssueMessage) {
-      setSaveError(secretIssueMessage)
-      setTestResult(null)
-      recordModelOperationFailure(t('agents.settings.modelPanel'), secretIssueMessage)
-      return
-    }
     setSaving(true)
     setSaveError(null)
     setTestResult(null)
@@ -255,7 +190,6 @@ export function useAgentSettingsModelController({
       const nextConfig = await client.saveProviderModelConfig(modelOperationPlan.request)
       setSavedConfig(nextConfig)
       updateAgentSettings({ modelId: modelOperationPlan.storedModelId })
-      setModelApiKey('')
       await configQuery.refetch()
       recordSettingsAudit({
         action: 'model_saved',
@@ -273,17 +207,6 @@ export function useAgentSettingsModelController({
 
   async function testSettings() {
     if (!providerModelConfigValue) return
-    const secretIssueMessage = providerModelSecretIssueMessage(providerModelSecretValidationIssue({
-      directModelIdHasSecret,
-      baseURLHasSecret: modelBaseURLHasSecret,
-    }))
-    if (secretIssueMessage) {
-      setTestError(secretIssueMessage)
-      setTestResult(null)
-      setSaveError(null)
-      recordModelOperationFailure(t('agents.settings.test'), secretIssueMessage)
-      return
-    }
     setTesting(true)
     setTestResult(null)
     setTestError(null)
@@ -329,10 +252,7 @@ export function useAgentSettingsModelController({
     try {
       const nextConfig = await client.clearProviderModelConfig()
       setSavedConfig(nextConfig)
-      applyWorkspaceDraft(clearedProviderModelWorkspaceDraft({
-        noModelValue: NO_MODEL_VALUE,
-        defaultApiKind: DEFAULT_API_KIND,
-      }))
+      applyWorkspaceDraft(clearedProviderModelWorkspaceDraft({ noModelValue: NO_MODEL_VALUE }))
       setModelConfigClearConfirming(false)
       updateAgentSettings({ modelId: null })
       await configQuery.refetch()
@@ -350,12 +270,6 @@ export function useAgentSettingsModelController({
     }
   }
 
-  function stripBaseURLSecrets() {
-    setBaseURL(stripSensitiveURLSecrets(baseURL))
-    setSaveError(null)
-    setTestError(null)
-  }
-
   function resetTransientState() {
     setSavedConfig(null)
     setTestResult(null)
@@ -364,23 +278,14 @@ export function useAgentSettingsModelController({
   }
 
   return {
-    apiModeSwitchTaskGraph,
-    baseURL,
-    baseURLValue,
     canSaveModelConfig,
     clearModelConfig,
     clearingModelConfig,
     configQuery,
     configuredModelLabel,
-    directModelId,
-    directModelIdHasSecret,
-    directModelIdValue,
     effectiveConfig,
     effectiveModelValue,
     hasUnsavedChanges,
-    modelApiKey,
-    modelBaseURLHasSecret,
-    modelCompatibilityProbes,
     modelConfigClearConfirming,
     modelCredentialAcceptedEnv,
     modelCredentialStatus,
@@ -395,20 +300,14 @@ export function useAgentSettingsModelController({
     saveError,
     saveSettings,
     savedDirectModelIdHasSecret,
-    selectedApiKind,
     selectedModel,
     selectedModelId,
-    setBaseURL,
-    setDirectModelId,
-    setModelApiKey,
     setModelConfigClearConfirming,
     setSavedConfig,
-    setSelectedApiKind,
     setSelectedModelId,
     setTestMessage,
     setUseForChat,
     setUseForPlanner,
-    stripBaseURLSecrets,
     testError,
     testMessage,
     testResult,
@@ -417,9 +316,7 @@ export function useAgentSettingsModelController({
     textModels,
     useForChat,
     useForPlanner,
-    usesBackendCompatibleBaseURL,
-    usesManualModelId,
-    usesModelCatalog,
+    legacyDirectModelConfig,
     saving,
     applyWorkspaceDraft,
   }

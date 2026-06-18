@@ -12,6 +12,7 @@ export type ElectronRuntimeConfig = {
   apiBaseURL: string
   apiV1BaseURL: string
   localAPIBaseURL: string
+  providerRuntimeEnv?: Record<string, string>
   backendStatus: ElectronBackendStatus
 }
 

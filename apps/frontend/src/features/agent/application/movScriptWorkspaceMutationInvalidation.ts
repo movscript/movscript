@@ -1,4 +1,5 @@
 import { movScriptWorkspaceKeys } from '@/features/agent/application/movScriptWorkspaceQueryKeys'
+import { publishAppEvent } from '@/shared/application/appEvents'
 
 export interface MovScriptWorkspaceQueryInvalidator {
   invalidateQueries: (options: { queryKey: readonly unknown[] }) => unknown
@@ -57,6 +58,7 @@ export function invalidateMovScriptWorkspaceMutationResult(
   queryClient: MovScriptWorkspaceQueryInvalidator,
   result: MovScriptWorkspaceMutationResult,
 ): void {
+  publishMovScriptWorkspaceMutationEvent(result.event)
   invalidateMovScriptWorkspaceMutationEvent(queryClient, result.event)
 }
 
@@ -83,4 +85,14 @@ function movScriptWorkspaceMutationResult(
     changedPaths: event.changedPaths,
     ...(event.snapshotVersion !== undefined ? { snapshotVersion: event.snapshotVersion } : {}),
   }
+}
+
+function publishMovScriptWorkspaceMutationEvent(event: MovScriptWorkspaceMutationEvent): void {
+  publishAppEvent({
+    topic: 'workspace-files.mutation',
+    scope: { kind: 'workspace', id: event.type === 'WorkspaceFileChanged' && event.path ? event.path : undefined },
+    source: 'query-invalidation',
+    payload: event,
+    raw: event,
+  })
 }

@@ -7,13 +7,11 @@ const (
 	ModelRouteSourceNewAPI        = "new_api"
 )
 
-// AIModelCatalogEntry is the semantic definition for a concrete provider model.
-// ProviderModelID is the model id sent to provider/new-api. PublicModelID is
-// the stable id shown to MovScript clients.
+// AIModelCatalogEntry is the semantic definition for a MovScript public model.
+// Route bindings own provider-specific model ids.
 type AIModelCatalogEntry struct {
 	gorm.Model
 	PublicModelID      string                `gorm:"not null;index" json:"public_model_id"`
-	ProviderModelID    string                `gorm:"not null;index" json:"provider_model_id"`
 	DisplayName        string                `gorm:"not null" json:"display_name"`
 	ShortName          string                `gorm:"default:''" json:"short_name"`
 	IsEnabled          bool                  `gorm:"default:true;index" json:"is_enabled"`
@@ -37,13 +35,15 @@ type AIModelCatalogEntry struct {
 // at a new-api group.
 type AIModelRouteBinding struct {
 	gorm.Model
-	CatalogEntryID uint                 `gorm:"not null;index" json:"catalog_entry_id"`
-	CatalogEntry   *AIModelCatalogEntry `gorm:"foreignKey:CatalogEntryID" json:"-"`
-	SourceType     string               `gorm:"not null;index" json:"source_type"`
-	RouteGroup     string               `gorm:"default:'';index" json:"route_group"`
-	CredentialID   *uint                `gorm:"index" json:"credential_id,omitempty"`
-	IsEnabled      bool                 `gorm:"default:true;index" json:"is_enabled"`
-	Priority       int                  `gorm:"default:0" json:"priority"`
-	CapacityWeight int                  `gorm:"default:1" json:"capacity_weight"`
-	MaxConcurrency int                  `gorm:"default:0" json:"max_concurrency"`
+	CatalogEntryID  uint                 `gorm:"not null;index" json:"catalog_entry_id"`
+	CatalogEntry    *AIModelCatalogEntry `gorm:"foreignKey:CatalogEntryID" json:"-"`
+	SourceType      string               `gorm:"not null;index" json:"source_type"`
+	RouteGroup      string               `gorm:"default:'';index" json:"route_group"`
+	ProviderID      string               `gorm:"default:'';index" json:"provider_id,omitempty"`
+	ProviderModelID string               `gorm:"default:'';index" json:"provider_model_id"`
+	CredentialID    *uint                `gorm:"index" json:"credential_id,omitempty"`
+	IsEnabled       bool                 `gorm:"default:true;index" json:"is_enabled"`
+	Priority        int                  `gorm:"default:0" json:"priority"`
+	CapacityWeight  int                  `gorm:"default:1" json:"capacity_weight"`
+	MaxConcurrency  int                  `gorm:"default:0" json:"max_concurrency"`
 }

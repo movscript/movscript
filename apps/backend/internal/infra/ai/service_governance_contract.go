@@ -85,6 +85,7 @@ func gatewayContractRouteToModelRoute(route providercontract.AIGatewayModelRoute
 		CredentialID:    route.CredentialID,
 		SourceType:      route.SourceType,
 		RouteGroup:      route.RouteGroup,
+		ProviderID:      route.ProviderID,
 		ProviderModelID: route.ProviderModelID,
 		SelectionReason: route.SelectionReason,
 		EstimatedCost:   route.EstimatedCost,
@@ -245,16 +246,24 @@ func (s *AIService) providerForProbe(ctx context.Context, request providercontra
 		}
 		return nil, health, fmt.Errorf("catalog route is required for provider probe")
 	}
-	if request.CredentialID != 0 {
+	credentialID := request.CredentialID
+	if strings.TrimSpace(request.ProviderID) != "" {
+		parsed, ok := localProviderCredentialIDFromProviderID(request.ProviderID)
+		if !ok {
+			return nil, health, fmt.Errorf("catalog route is required for provider_id %q", strings.TrimSpace(request.ProviderID))
+		}
+		credentialID = parsed
+	}
+	if credentialID != 0 {
 		var cred persistencemodel.AICredential
-		if err := s.db.Where("id = ? AND is_enabled = true", request.CredentialID).First(&cred).Error; err != nil {
+		if err := s.db.Where("id = ? AND is_enabled = true", credentialID).First(&cred).Error; err != nil {
 			return nil, health, err
 		}
 		health.Adapter = cred.AdapterType
 		provider, err := s.registry.BuildForCredential(cred)
 		return provider, health, err
 	}
-	return nil, health, fmt.Errorf("credential_id is required")
+	return nil, health, fmt.Errorf("provider_id is required")
 }
 
 func gatewayProbeRouteRequestSet(route providercontract.AIGatewayRouteRequest) bool {

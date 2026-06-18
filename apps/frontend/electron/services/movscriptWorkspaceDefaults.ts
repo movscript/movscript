@@ -2,6 +2,7 @@ import * as electron from 'electron'
 import { setMovScriptBackendDefaultWorkspaceDir } from '@movscript/core/backend/node'
 import { setMCPDefaultWorkspaceDir } from '@movscript/core/mcp/node'
 import { fallbackUserMovScriptHomeDir, resolveDefaultMovScriptWorkspaceDir } from '@movscript/core/workspace/node'
+import { resolveDesktopIdentity } from './desktopIdentity'
 
 let configuredDesktopMovScriptWorkspaceDir: string | undefined
 
@@ -18,5 +19,8 @@ export function resolveDesktopDefaultMovScriptWorkspaceDir(): string {
   if (process.env.MOVSCRIPT_HOME || process.env.MOVSCRIPT_WORKSPACE_DIR) {
     return resolveDefaultMovScriptWorkspaceDir()
   }
-  return electron.app.isPackaged ? fallbackUserMovScriptHomeDir() : process.cwd()
+  if (electron.app.isPackaged) {
+    return resolveDesktopIdentity().homeDir || fallbackUserMovScriptHomeDir()
+  }
+  return process.cwd()
 }

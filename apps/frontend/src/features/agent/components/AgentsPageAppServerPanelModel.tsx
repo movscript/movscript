@@ -276,7 +276,7 @@ export function buildAppServerRecord(draft: ProviderConfigDraft, provider: Provi
 function groupBackendProviders(models: PublicModel[]): ProviderOption[] {
   const groups = new Map<string, { label: string; models: PublicModel[]; capabilities: Set<string> }>()
   for (const model of models) {
-    const key = `backend:${model.credential_id}`
+    const key = backendModelProviderRef(model)
     const group = groups.get(key) ?? {
       label: model.provider_name?.trim() || 'Backend Provider',
       models: [],
@@ -308,6 +308,12 @@ function safeDecodeURIComponent(value: string): string {
   } catch {
     return value
   }
+}
+
+function backendModelProviderRef(model: PublicModel): string {
+  const providerID = model.provider_id?.trim()
+  if (providerID) return `backend:${providerID}`
+  return `backend:catalog:${model.catalog_entry_id || model.id}`
 }
 
 function resolveBackendProviderBaseURL(): string {

@@ -109,7 +109,6 @@ func writeUsageCSV(w http.ResponseWriter, rows []adminusage.Log) {
 		providerModelID := ""
 		if row.AIModelCatalogEntry != nil {
 			publicModelID = row.AIModelCatalogEntry.PublicModelID
-			providerModelID = row.AIModelCatalogEntry.ProviderModelID
 			model = row.AIModelCatalogEntry.ShortName
 			if model == "" {
 				model = row.AIModelCatalogEntry.DisplayName
@@ -118,6 +117,7 @@ func writeUsageCSV(w http.ResponseWriter, rows []adminusage.Log) {
 				model = publicModelID
 			}
 		}
+		providerModelID = row.ProviderModelID
 		username := ""
 		if row.User != nil {
 			username = row.User.Username

@@ -8,7 +8,6 @@ export const agentProviderKeys = {
   workspaceConfig: (profileKey: string) => ['agents-workspace-config', profileKey] as const,
   composerWorkspaceProjects: ['agent-composer-workspace-projects'] as const,
   backendModels: ['agents-backend-models'] as const,
-  modelProvidersConfig: ['workspace-model-providers-config'] as const,
   modelProvidersBackendModels: ['workspace-model-providers-backend-models'] as const,
   modelCatalogEntries: ['workspace-model-catalog-entries'] as const,
   appServerStatus: (providerKey: string, profileId: string) => ['agents-app-server-status', providerKey, profileId] as const,

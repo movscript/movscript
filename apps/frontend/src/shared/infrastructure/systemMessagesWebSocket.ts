@@ -7,6 +7,7 @@ import {
 import { getAPIV1BaseURL } from '@/shared/infrastructure/config'
 import { waitForLocalBackendReady } from '@/shared/infrastructure/backendBoot'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
+import { useSystemStatusStore } from '@/shared/infrastructure/systemStatusStore'
 
 interface SystemMessage {
   id: string
@@ -53,6 +54,7 @@ export function installSystemMessagesWebSocket(): () => void {
     if (disposed) return
     const { token } = useUserStore.getState()
     if (!token) return
+    useSystemStatusStore.getState().setSystemMessagesStatus({ status: 'connecting' })
     void waitForLocalBackendReady().then(() => {
       if (disposed) return
       const url = buildSystemMessagesWebSocketURL({
@@ -60,22 +62,28 @@ export function installSystemMessagesWebSocket(): () => void {
         token,
         orgId: useUserStore.getState().currentOrgID,
       })
+      useSystemStatusStore.getState().setSystemMessagesStatus({ status: 'connecting', url })
       socket = new WebSocket(url)
       socket.onopen = () => {
         reconnectAttempts = 0
+        useSystemStatusStore.getState().setSystemMessagesStatus({ status: 'connected', url, error: undefined })
       }
       socket.onmessage = (message) => {
+        useSystemStatusStore.getState().markSystemMessageReceived()
         const event = crossPageEventFromSystemMessage(parseSystemMessage(message.data))
         if (event) publishCrossPageNotification(event)
       }
       socket.onclose = () => {
         socket = null
+        useSystemStatusStore.getState().setSystemMessagesStatus({ status: disposed ? 'disconnected' : 'reconnecting' })
         scheduleReconnect()
       }
       socket.onerror = () => {
+        useSystemStatusStore.getState().setSystemMessagesStatus({ status: 'error', error: 'System messages websocket error.' })
         socket?.close()
       }
     }).catch(() => {
+      useSystemStatusStore.getState().setSystemMessagesStatus({ status: 'error', error: 'System messages websocket could not connect.' })
       scheduleReconnect()
     })
   }
@@ -83,6 +91,7 @@ export function installSystemMessagesWebSocket(): () => void {
   const scheduleReconnect = () => {
     if (disposed || reconnectTimer !== undefined) return
     if (!useUserStore.getState().token) return
+    useSystemStatusStore.getState().setSystemMessagesStatus({ status: 'reconnecting' })
     const delay = Math.min(MAX_RECONNECT_DELAY_MS, BASE_RECONNECT_DELAY_MS * 2 ** reconnectAttempts)
     reconnectAttempts += 1
     reconnectTimer = window.setTimeout(() => {
@@ -115,6 +124,7 @@ export function installSystemMessagesWebSocket(): () => void {
     unsubscribeStore()
     if (reconnectTimer !== undefined) window.clearTimeout(reconnectTimer)
     closeSocket()
+    useSystemStatusStore.getState().setSystemMessagesStatus({ status: 'disconnected' })
   }
 
   function closeSocket() {

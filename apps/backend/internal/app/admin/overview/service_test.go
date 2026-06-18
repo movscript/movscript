@@ -97,8 +97,8 @@ func seedOverviewData(t *testing.T, db *gorm.DB, now time.Time) {
 		t.Fatalf("disable credential: %v", err)
 	}
 	catalogEntries := []persistencemodel.AIModelCatalogEntry{
-		{PublicModelID: "gpt-4o", ProviderModelID: "gpt-4o", DisplayName: "GPT-4o", Capabilities: "text", IsEnabled: true},
-		{PublicModelID: "gemini", ProviderModelID: "gemini", DisplayName: "Gemini", Capabilities: "text", IsEnabled: false},
+		{PublicModelID: "video-fast", DisplayName: "Video Fast", IsEnabled: true, Capabilities: "video"},
+		{PublicModelID: "image-fast", DisplayName: "Image Fast", IsEnabled: true, Capabilities: "image"},
 	}
 	for i := range catalogEntries {
 		if err := db.Create(&catalogEntries[i]).Error; err != nil {
@@ -109,8 +109,8 @@ func seedOverviewData(t *testing.T, db *gorm.DB, now time.Time) {
 		t.Fatalf("disable catalog entry: %v", err)
 	}
 	routeBindings := []persistencemodel.AIModelRouteBinding{
-		{CatalogEntryID: catalogEntries[0].ID, SourceType: persistencemodel.ModelRouteSourceLocalProvider, CredentialID: &credentials[0].ID, IsEnabled: true, CapacityWeight: 1},
-		{CatalogEntryID: catalogEntries[1].ID, SourceType: persistencemodel.ModelRouteSourceLocalProvider, CredentialID: &credentials[1].ID, IsEnabled: false, CapacityWeight: 1},
+		{CatalogEntryID: catalogEntries[0].ID, SourceType: persistencemodel.ModelRouteSourceLocalProvider, ProviderModelID: "provider-video-fast", CredentialID: &credentials[0].ID, IsEnabled: true, CapacityWeight: 1},
+		{CatalogEntryID: catalogEntries[1].ID, SourceType: persistencemodel.ModelRouteSourceLocalProvider, ProviderModelID: "provider-image-fast", CredentialID: &credentials[1].ID, IsEnabled: false, CapacityWeight: 1},
 	}
 	for i := range routeBindings {
 		if err := db.Create(&routeBindings[i]).Error; err != nil {

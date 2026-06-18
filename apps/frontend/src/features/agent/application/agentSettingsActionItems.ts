@@ -1,4 +1,3 @@
-import { hasSensitiveURLSecret, type ProviderModelAPIKind } from '@movscript/core/agent'
 import type {
   ProviderCatalogConfigFile,
   ProviderModelConfigPublic,
@@ -14,8 +13,6 @@ import type {
 
 export interface BuildSettingsActionItemsInput {
   effectiveConfig: ProviderModelConfigPublic | null
-  selectedApiKind: ProviderModelAPIKind
-  workspaceBaseURL: string
   savedDirectModelIdHasSecret: boolean
   modelRoutes: NonNullable<ProviderModelConfigPublic['capabilities']>
   modelRouteIssues: string[]
@@ -80,19 +77,6 @@ export function buildSettingsActionItemsFromInput(input: BuildSettingsActionItem
     })
   }
 
-  if (input.selectedApiKind === 'openai_chat_completions') {
-    items.push({
-      id: 'api-mode-compatibility',
-      status: 'warning',
-      targetSection: 'agent-settings-model',
-      labelKey: 'agents.settings.actionItems.apiModeCompatibility',
-      detailKey: 'agents.settings.actionItemDetails.apiModeCompatibility',
-      quickFix: 'switch-openai-responses',
-      quickFixLabelKey: 'agents.settings.quickFixes.switchOpenAIResponses',
-      persistHintKey: 'agents.settings.actionItemPersistHints.saveAfterQuickFix',
-    })
-  }
-
   if (input.modelRouteIssues.length > 0) {
     items.push({
       id: 'routes-invalid',
@@ -111,19 +95,6 @@ export function buildSettingsActionItemsFromInput(input: BuildSettingsActionItem
       targetSection: 'agent-settings-model',
       labelKey: 'agents.settings.actionItems.routesMissing',
       detailKey: 'agents.settings.actionItemDetails.routesMissing',
-    })
-  }
-
-  if (hasSensitiveURLSecret(input.workspaceBaseURL)) {
-    items.push({
-      id: 'model-base-url-sensitive',
-      status: 'warning',
-      targetSection: 'agent-settings-model',
-      labelKey: 'agents.settings.actionItems.modelBaseURLSensitive',
-      detailKey: 'agents.settings.actionItemDetails.modelBaseURLSensitive',
-      quickFix: 'strip-sensitive-base-url-query',
-      quickFixLabelKey: 'agents.settings.quickFixes.stripSensitiveBaseURLQuery',
-      persistHintKey: 'agents.settings.actionItemPersistHints.useRuntimeEnvForSecrets',
     })
   }
 

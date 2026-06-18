@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { BrowserWindow, ipcMain } from 'electron'
 import { setEditingRuntimePort, type EditingMediaPipelineTaskRequest } from '@movscript/core/mcp/node'
 
 import {
@@ -29,19 +29,20 @@ import type {
   MediaPipelineEditingProject,
   MediaPipelineTimelineRecipe,
 } from '../services/mediaPipeline/types'
+import { resolveMediaPipelineHomeDir, resolveMediaPipelineReadHomeDirs } from '../services/mediaPipeline/home'
 
 export function registerMediaPipelineIpcHandlers(): void {
   setEditingRuntimePort({
     getCapabilities: getMediaPipelineCapabilities,
-    createTask: (input) => createMediaPipelineTask(toMediaPipelineTaskRequest(input), { userDataDir: app.getPath('userData') }),
+    createTask: (input) => createMediaPipelineTask(toMediaPipelineTaskRequest(input), { userDataDir: resolveMediaPipelineHomeDir() }),
     getTask: async (taskId, options) => getMediaPipelineTask(taskId)
-      ?? (options?.projectId ? await getStoredMediaPipelineTask({ projectId: options.projectId, taskId }, { userDataDir: app.getPath('userData') }) : undefined)
+      ?? (options?.projectId ? await getStoredMediaPipelineTaskFromReadHomeDirs({ projectId: options.projectId, taskId }) : undefined)
       ?? null,
-    cancelTask: (taskId, options) => cancelMediaPipelineTask(taskId, { projectId: options?.projectId, userDataDir: app.getPath('userData') }),
-    getTaskLogs: (taskId, options) => getMediaPipelineTaskLogs(taskId, { projectId: options?.projectId, userDataDir: app.getPath('userData') }),
+    cancelTask: (taskId, options) => cancelMediaPipelineTaskFromReadHomeDirs(taskId, options?.projectId),
+    getTaskLogs: (taskId, options) => getMediaPipelineTaskLogsFromReadHomeDirs(taskId, options?.projectId),
     saveProject: async (editingProject, options) => {
       const result = await saveMediaPipelineEditingProject(editingProject as unknown as MediaPipelineEditingProject, {
-        userDataDir: app.getPath('userData'),
+        userDataDir: resolveMediaPipelineHomeDir(),
         expectedRevision: options?.expectedRevision,
       })
       if (result.status === 'conflict') {
@@ -58,7 +59,7 @@ export function registerMediaPipelineIpcHandlers(): void {
       }
     },
     getProject: async (input) => {
-      const result = await getMediaPipelineEditingProject(input, { userDataDir: app.getPath('userData') })
+      const result = await getMediaPipelineEditingProjectFromReadHomeDirs(input)
       return result.status === 'ok'
         ? {
             ...result,
@@ -81,7 +82,7 @@ export function registerMediaPipelineIpcHandlers(): void {
     const editingProject = input?.editingProject ?? input?.editing_project
     if (!editingProject) throw new Error('editingProject is required')
     return saveMediaPipelineEditingProject(editingProject, {
-      userDataDir: app.getPath('userData'),
+      userDataDir: resolveMediaPipelineHomeDir(),
       expectedRevision: input?.expectedRevision ?? input?.expected_revision,
     })
   })
@@ -94,11 +95,11 @@ export function registerMediaPipelineIpcHandlers(): void {
   }) => {
     const editingProjectId = input?.editingProjectId ?? input?.editing_project_id
     if (!editingProjectId) throw new Error('editingProjectId is required')
-    return getMediaPipelineEditingProject({ editingProjectId }, { userDataDir: app.getPath('userData') })
+    return getMediaPipelineEditingProjectFromReadHomeDirs({ editingProjectId })
   })
 
   ipcMain.handle('media-pipeline:list-editing-projects', async () => {
-    return listMediaPipelineEditingProjects({ userDataDir: app.getPath('userData') })
+    return listMediaPipelineEditingProjectsFromReadHomeDirs()
   })
 
   ipcMain.handle('media-pipeline:delete-editing-project', async (_event, input?: {
@@ -109,7 +110,7 @@ export function registerMediaPipelineIpcHandlers(): void {
   }) => {
     const editingProjectId = input?.editingProjectId ?? input?.editing_project_id
     if (!editingProjectId) throw new Error('editingProjectId is required')
-    return deleteMediaPipelineEditingProject({ editingProjectId }, { userDataDir: app.getPath('userData') })
+    return deleteMediaPipelineEditingProjectFromReadHomeDirs({ editingProjectId })
   })
 
   ipcMain.handle('media-pipeline:import-export-resource', async (_event, input?: {
@@ -249,7 +250,7 @@ export function registerMediaPipelineIpcHandlers(): void {
   })
 
   ipcMain.handle('media-pipeline:create-task', async (_event, input: MediaPipelineTaskRequest) => {
-    return createMediaPipelineTask(input, { userDataDir: app.getPath('userData') })
+    return createMediaPipelineTask(input, { userDataDir: resolveMediaPipelineHomeDir() })
   })
 
   ipcMain.handle('media-pipeline:get-task', async (_event, input?: { taskId?: string; task_id?: string; projectId?: string; project_id?: string }) => {
@@ -257,7 +258,7 @@ export function registerMediaPipelineIpcHandlers(): void {
     const projectId = input?.projectId ?? input?.project_id
     if (!taskId) throw new Error('taskId is required')
     return getMediaPipelineTask(taskId)
-      ?? (projectId ? await getStoredMediaPipelineTask({ projectId, taskId }, { userDataDir: app.getPath('userData') }) : undefined)
+      ?? (projectId ? await getStoredMediaPipelineTaskFromReadHomeDirs({ projectId, taskId }) : undefined)
       ?? null
   })
 
@@ -265,14 +266,14 @@ export function registerMediaPipelineIpcHandlers(): void {
     const taskId = input?.taskId ?? input?.task_id
     const projectId = input?.projectId ?? input?.project_id
     if (!taskId) throw new Error('taskId is required')
-    return cancelMediaPipelineTask(taskId, { projectId, userDataDir: app.getPath('userData') })
+    return cancelMediaPipelineTaskFromReadHomeDirs(taskId, projectId)
   })
 
   ipcMain.handle('media-pipeline:get-task-logs', async (_event, input?: { taskId?: string; task_id?: string; projectId?: string; project_id?: string }) => {
     const taskId = input?.taskId ?? input?.task_id
     const projectId = input?.projectId ?? input?.project_id
     if (!taskId) throw new Error('taskId is required')
-    return getMediaPipelineTaskLogs(taskId, { projectId, userDataDir: app.getPath('userData') })
+    return getMediaPipelineTaskLogsFromReadHomeDirs(taskId, projectId)
   })
 
   registerMediaPipelineTaskEventForwarder()
@@ -301,6 +302,93 @@ function registerMediaPipelineEditingProjectEventForwarder(): void {
       if (!window.webContents.isDestroyed()) window.webContents.send('media-pipeline:editing-project-event', projectEvent)
     }
   })
+}
+
+async function getStoredMediaPipelineTaskFromReadHomeDirs(input: {
+  projectId: string
+  taskId: string
+}) {
+  for (const userDataDir of resolveMediaPipelineReadHomeDirs()) {
+    const task = await getStoredMediaPipelineTask(input, { userDataDir })
+    if (task) return task
+  }
+  return undefined
+}
+
+async function getMediaPipelineTaskLogsFromReadHomeDirs(taskId: string, projectId: string | undefined) {
+  for (const userDataDir of resolveMediaPipelineReadHomeDirs()) {
+    const logs = await getMediaPipelineTaskLogs(taskId, { projectId, userDataDir })
+    if (logs.status === 'ok' || !projectId) return logs
+  }
+  return getMediaPipelineTaskLogs(taskId)
+}
+
+async function cancelMediaPipelineTaskFromReadHomeDirs(taskId: string, projectId: string | undefined) {
+  let notFoundError: unknown
+  for (const userDataDir of resolveMediaPipelineReadHomeDirs()) {
+    try {
+      return await cancelMediaPipelineTask(taskId, { projectId, userDataDir })
+    } catch (error) {
+      if (!isMediaPipelineTaskNotFoundError(error, taskId)) throw error
+      notFoundError = error
+    }
+  }
+  throw notFoundError ?? new Error(`Media pipeline task not found: ${taskId}`)
+}
+
+async function getMediaPipelineEditingProjectFromReadHomeDirs(input: {
+  projectId?: string
+  editingProjectId: string
+}) {
+  let notFoundResult: Awaited<ReturnType<typeof getMediaPipelineEditingProject>> | undefined
+  for (const userDataDir of resolveMediaPipelineReadHomeDirs()) {
+    const result = await getMediaPipelineEditingProject(input, { userDataDir })
+    if (result.status === 'ok') return result
+    notFoundResult = notFoundResult ?? result
+  }
+  return notFoundResult ?? getMediaPipelineEditingProject(input, { userDataDir: resolveMediaPipelineHomeDir() })
+}
+
+async function listMediaPipelineEditingProjectsFromReadHomeDirs(): Promise<Awaited<ReturnType<typeof listMediaPipelineEditingProjects>>> {
+  const projectsById = new Map<string, Awaited<ReturnType<typeof listMediaPipelineEditingProjects>>['projects'][number]>()
+  for (const userDataDir of resolveMediaPipelineReadHomeDirs()) {
+    const result = await listMediaPipelineEditingProjects({ userDataDir })
+    for (const project of result.projects) {
+      const projectId = String(project.editingProject.id)
+      if (!projectsById.has(projectId)) projectsById.set(projectId, project)
+    }
+  }
+  const projects = Array.from(projectsById.values()).sort((left, right) => {
+    const leftTime = Date.parse(left.editingProject.updatedAt ?? '')
+    const rightTime = Date.parse(right.editingProject.updatedAt ?? '')
+    const leftSort = Number.isFinite(leftTime) ? leftTime : 0
+    const rightSort = Number.isFinite(rightTime) ? rightTime : 0
+    return rightSort - leftSort || left.editingProject.id.localeCompare(right.editingProject.id)
+  })
+  const editingProjects = projects.map((project) => project.editingProject)
+  return {
+    status: 'ok',
+    projects,
+    editingProjects,
+    editing_projects: editingProjects,
+  }
+}
+
+async function deleteMediaPipelineEditingProjectFromReadHomeDirs(input: {
+  projectId?: string
+  editingProjectId: string
+}) {
+  let notFoundResult: Awaited<ReturnType<typeof deleteMediaPipelineEditingProject>> | undefined
+  for (const userDataDir of resolveMediaPipelineReadHomeDirs()) {
+    const result = await deleteMediaPipelineEditingProject(input, { userDataDir })
+    if (result.status === 'ok') return result
+    notFoundResult = notFoundResult ?? result
+  }
+  return notFoundResult ?? deleteMediaPipelineEditingProject(input, { userDataDir: resolveMediaPipelineHomeDir() })
+}
+
+function isMediaPipelineTaskNotFoundError(error: unknown, taskId: string): boolean {
+  return error instanceof Error && error.message === `Media pipeline task not found: ${taskId}`
 }
 
 function toMediaPipelineTaskRequest(input: EditingMediaPipelineTaskRequest): MediaPipelineTaskRequest {

@@ -330,6 +330,7 @@ export function providerSessionTreeIdFromAgentChatThread(thread: Pick<AgentChatT
 }
 
 export interface AgentChatCapabilities {
+  runtime?: AgentChatRuntimeCapability
   command?: AgentChatCommandCapability
   fs?: AgentChatFsCapability
   mcp?: AgentChatMcpCapability
@@ -339,6 +340,10 @@ export interface AgentChatCapabilities {
   config?: AgentChatConfigCapability
   account?: AgentChatAccountCapability
   realtime?: AgentChatRealtimeCapability
+}
+
+export interface AgentChatRuntimeCapability {
+  probe(input?: Record<string, unknown>): Promise<unknown>
 }
 
 export interface AgentChatCommandCapability {

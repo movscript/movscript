@@ -35,29 +35,30 @@ test('normalizeAgentModelCatalogEntries maps backend gorm IDs to frontend IDs', 
     {
       ID: 42,
       public_model_id: 'gpt-catalog',
-      provider_model_id: 'gpt-provider',
       display_name: 'GPT Catalog',
       is_enabled: true,
       route_bindings: [
         {
           ID: 99,
           catalog_entry_id: 42,
-          source_type: 'local_provider',
-          credential_id: 7,
-          is_enabled: true,
-        },
+	          source_type: 'local_provider',
+	          provider_id: 'local_provider:7',
+	          provider_model_id: 'gpt-provider',
+	          is_enabled: true,
+	        },
       ],
     },
   ])
 
   assert.equal(entries[0]?.id, 42)
   assert.equal(entries[0]?.route_bindings?.[0]?.id, 99)
+  assert.equal(entries[0]?.route_bindings?.[0]?.provider_id, 'local_provider:7')
 })
 
 function modelFixture(patch: Partial<PublicModel>): PublicModel {
   return {
     id: 1,
-    credential_id: 1,
+    provider_id: 'local_provider:1',
     model_id: 'model',
     display_name: 'Model',
     capabilities: ['text'],

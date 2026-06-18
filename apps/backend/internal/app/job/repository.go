@@ -141,11 +141,10 @@ func (r *gormRepository) ResponseLookups(ctx context.Context, resourceIDs []uint
 		}
 		for _, entry := range catalogEntries {
 			lookups.CatalogEntriesByID[entry.ID] = ModelCatalogEntryLookup{
-				ID:              entry.ID,
-				PublicModelID:   entry.PublicModelID,
-				ProviderModelID: entry.ProviderModelID,
-				DisplayName:     entry.DisplayName,
-				ShortName:       entry.ShortName,
+				ID:            entry.ID,
+				PublicModelID: entry.PublicModelID,
+				DisplayName:   entry.DisplayName,
+				ShortName:     entry.ShortName,
 			}
 		}
 	}

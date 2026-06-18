@@ -57,22 +57,22 @@ func TestOpenAIProxyForwardsUnknownFieldsAndRewritesModel(t *testing.T) {
 		t.Fatalf("create credential: %v", err)
 	}
 	entry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID:   "logical-chat",
-		ProviderModelID: "provider-chat",
-		DisplayName:     "Logical Chat",
-		Capabilities:    ai.CapabilityText,
-		PricingMode:     string(ai.PricingPerToken),
-		IsEnabled:       true,
+		PublicModelID: "logical-chat",
+		DisplayName:   "Logical Chat",
+		Capabilities:  ai.CapabilityText,
+		PricingMode:   string(ai.PricingPerToken),
+		IsEnabled:     true,
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
 	}
 	if err := db.Create(&persistencemodel.AIModelRouteBinding{
-		CatalogEntryID: entry.ID,
-		SourceType:     persistencemodel.ModelRouteSourceLocalProvider,
-		CredentialID:   &credential.ID,
-		IsEnabled:      true,
-		CapacityWeight: 1,
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
+		ProviderModelID: "provider-chat",
+		CredentialID:    &credential.ID,
+		IsEnabled:       true,
+		CapacityWeight:  1,
 	}).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
 	}
@@ -158,22 +158,22 @@ func TestOpenAIProxyRoutesImageGenerationByImageCapability(t *testing.T) {
 		t.Fatalf("create credential: %v", err)
 	}
 	entry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID:   "logical-image",
-		ProviderModelID: "provider-image",
-		DisplayName:     "Logical Image",
-		Capabilities:    ai.CapabilityImage,
-		PricingMode:     string(ai.PricingPerImage),
-		IsEnabled:       true,
+		PublicModelID: "logical-image",
+		DisplayName:   "Logical Image",
+		Capabilities:  ai.CapabilityImage,
+		PricingMode:   string(ai.PricingPerImage),
+		IsEnabled:     true,
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
 	}
 	if err := db.Create(&persistencemodel.AIModelRouteBinding{
-		CatalogEntryID: entry.ID,
-		SourceType:     persistencemodel.ModelRouteSourceLocalProvider,
-		CredentialID:   &credential.ID,
-		IsEnabled:      true,
-		CapacityWeight: 1,
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
+		ProviderModelID: "provider-image",
+		CredentialID:    &credential.ID,
+		IsEnabled:       true,
+		CapacityWeight:  1,
 	}).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
 	}

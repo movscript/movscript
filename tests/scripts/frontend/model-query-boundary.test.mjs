@@ -20,11 +20,11 @@ test('model query keys are delegated to model key factories', () => {
   assert.match(agentModelQueryKeysSource, /backendCatalog: \(scope = 'default-backend'\) => \['models', 'agent-backend', AGENT_BACKEND_MODEL_CAPABILITY_QUERY, scope\] as const/)
 
   assert.match(appServerChatShellSource, /agentModelKeys\.backendCatalog\(\)/)
-  assert.match(agentSettingsModelControllerSource, /agentModelKeys\.backendCatalog\(baseURLValue \|\| 'default-backend'\)/)
+  assert.match(agentSettingsModelControllerSource, /agentModelKeys\.backendCatalog\('default-backend'\)/)
   assert.match(agentChatDataSourcesSource, /agentModelKeys\.backendCatalog\(\)/)
   assert.match(canvasGenerationNodesSource, /modelKeys\.capability\(capability\)/)
   assert.match(toolCanvasSource, /modelKeys\.capability\(capability\)/)
-  assert.match(modelSelectorSource, /modelKeys\.capability\(capability\)/)
+  assert.match(modelSelectorSource, /modelKeys\.capability\(queryCapability\)/)
 
   for (const source of [
     appServerChatShellSource,

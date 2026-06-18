@@ -42,6 +42,13 @@ type ProbeDefinition = {
 
 const PROBES: ProbeDefinition[] = [
   {
+    id: 'runtime',
+    label: 'Runtime',
+    method: 'runtime/probe',
+    supported: (dataSource) => Boolean(dataSource.capabilities?.runtime?.probe),
+    run: (dataSource) => dataSource.capabilities?.runtime?.probe() ?? Promise.resolve(null),
+  },
+  {
     id: 'thread-list',
     label: 'Thread / Turn',
     method: 'thread/list',
@@ -204,6 +211,19 @@ function runProbe(dataSource: AgentChatDataSource, probe: ProbeDefinition): Prom
   }
   return probe.run(dataSource)
     .then((response) => {
+      const readiness = readinessFromResponse(response)
+      if (readiness && !readiness.ok) {
+        return {
+          id: probe.id,
+          label: probe.label,
+          method: probe.method,
+          supported: true,
+          ok: false,
+          tone: 'action' as const,
+          detail: readiness.detail,
+          error: readiness.detail,
+        }
+      }
       const count = countItems(response)
       return {
         id: probe.id,
@@ -229,6 +249,15 @@ function runProbe(dataSource: AgentChatDataSource, probe: ProbeDefinition): Prom
         error: detail,
       }
     })
+}
+
+function readinessFromResponse(value: unknown): { ok: boolean; detail: string } | undefined {
+  if (!isRecord(value) || typeof value.ok !== 'boolean') return undefined
+  if (value.ok) return { ok: true, detail: '请求成功。' }
+  const detail = typeof value.error === 'string' && value.error.trim()
+    ? value.error
+    : '运行时探针返回未就绪。'
+  return { ok: false, detail }
 }
 
 function countItems(value: unknown): number | undefined {

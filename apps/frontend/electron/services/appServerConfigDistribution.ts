@@ -34,6 +34,27 @@ export type AppServerConfigDistribution = {
   warning?: string
 }
 
+export type AgentRuntimeAccountConfig =
+  | {
+      kind: 'apiKey'
+      baseURL: string
+      apiKey: string
+      accountSource: Exclude<AppServerConfigDistribution['accountSource'], 'none'>
+      backendProviderSelected: boolean
+    }
+  | {
+      kind: 'authJson'
+      baseURL: string
+      accountSource: Exclude<AppServerConfigDistribution['accountSource'], 'none'>
+      backendProviderSelected: boolean
+    }
+  | {
+      kind: 'none'
+      baseURL: string
+      accountSource: 'none'
+      backendProviderSelected: boolean
+    }
+
 type AppServerModelConfig = {
   apiKind?: string
   baseURL?: string
@@ -149,6 +170,69 @@ export function distributeAppServerConfigFromMovScriptWorkspace(input: {
   }
 }
 
+export function resolveAgentRuntimeAccountConfig(input: {
+  workspaceDir: string
+  providerKey: string
+  provider?: Record<string, unknown>
+  managedAuthJsonPath?: string
+}): AgentRuntimeAccountConfig {
+  const providerKey = normalizeAppServerKey(input.providerKey)
+  const workspaceConfigSource = readAppServerWorkspaceConfigSource(input.workspaceDir, providerKey)
+  const workspaceConfig = mergeRuntimeProviderOverride(workspaceConfigSource.config, providerKey, input.provider)
+  const modelConfig = normalizeAppServerModelConfig(workspaceConfig)
+  const localHome = resolveLocalAppServerHome(workspaceConfig, providerKey)
+  const backendProviderSelected = usesBackendProvider(workspaceConfig, providerKey)
+  const backendSession = backendProviderSelected
+    ? resolveMovScriptBackendSession({ workspaceDir: input.workspaceDir })
+    : undefined
+  const resolvedAccount = resolveAppServerMaterializedAccount(workspaceConfig, {
+    providerKey,
+    managedAuthJsonPath: input.managedAuthJsonPath ?? join(input.workspaceDir, defaultLocalAppServerHomeName(providerKey), APP_SERVER_AUTH_FILE_NAME),
+    localHome,
+    distributionMode: resolveAppServerDistributionMode(workspaceConfig, providerKey),
+  })
+  const account = backendProviderSelected
+    ? resolveMovScriptBackendAppServerAccount(resolvedAccount, backendSession)
+    : resolvedAccount
+  const baseURL = resolveAppServerBaseURL(workspaceConfig, {
+    account,
+    modelConfig,
+    providerKey,
+    workspaceDir: input.workspaceDir,
+  })
+
+  if (account.kind === 'apiKey') {
+    return {
+      kind: 'apiKey',
+      baseURL,
+      apiKey: account.apiKey,
+      accountSource: nonNoneAccountSource(account.source),
+      backendProviderSelected,
+    }
+  }
+  if (account.kind === 'authJson') {
+    return {
+      kind: 'authJson',
+      baseURL,
+      accountSource: nonNoneAccountSource(account.source),
+      backendProviderSelected,
+    }
+  }
+  return {
+    kind: 'none',
+    baseURL,
+    accountSource: 'none',
+    backendProviderSelected,
+  }
+}
+
+function nonNoneAccountSource(
+  source: AppServerConfigDistribution['accountSource'],
+): Exclude<AppServerConfigDistribution['accountSource'], 'none'> {
+  if (source === 'none') throw new Error('Materialized account source cannot be none.')
+  return source
+}
+
 function readAppServerWorkspaceConfigSource(
   workspaceDir: string,
   providerKey: string,
@@ -250,6 +334,22 @@ function providerRecordBaseURL(config: MovScriptWorkspaceConfig, providerKey: st
     ?? stringField(provider?.baseUrl)
     ?? stringField(recordField(provider, 'config')?.baseURL)
     ?? stringField(recordField(provider, 'config')?.baseUrl)
+}
+
+function mergeRuntimeProviderOverride(
+  config: MovScriptWorkspaceConfig,
+  providerKey: string,
+  provider: Record<string, unknown> | undefined,
+): MovScriptWorkspaceConfig {
+  if (!provider) return config
+  const existingProvider = providerConfigRecord(config, providerKey)
+  return {
+    ...config,
+    providers: {
+      ...(config.providers ?? {}),
+      [providerKey]: mergeRecord(existingProvider, provider),
+    },
+  }
 }
 
 function usesBackendProvider(config: MovScriptWorkspaceConfig, providerKey: string): boolean {

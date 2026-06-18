@@ -244,7 +244,7 @@ func createUsageCredential(t *testing.T, db *gorm.DB, name string) persistencemo
 
 func createUsageCatalogEntry(t *testing.T, db *gorm.DB, publicModelID string, providerModelID string, displayName string) persistencemodel.AIModelCatalogEntry {
 	t.Helper()
-	entry := persistencemodel.AIModelCatalogEntry{PublicModelID: publicModelID, ProviderModelID: providerModelID, DisplayName: displayName, IsEnabled: true}
+	entry := persistencemodel.AIModelCatalogEntry{PublicModelID: publicModelID, DisplayName: displayName, IsEnabled: true}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry %q: %v", publicModelID, err)
 	}
@@ -254,10 +254,11 @@ func createUsageCatalogEntry(t *testing.T, db *gorm.DB, publicModelID string, pr
 func createUsageRouteBinding(t *testing.T, db *gorm.DB, catalogEntryID uint, credentialID uint) persistencemodel.AIModelRouteBinding {
 	t.Helper()
 	binding := persistencemodel.AIModelRouteBinding{
-		CatalogEntryID: catalogEntryID,
-		SourceType:     persistencemodel.ModelRouteSourceLocalProvider,
-		CredentialID:   &credentialID,
-		IsEnabled:      true,
+		CatalogEntryID:  catalogEntryID,
+		SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
+		ProviderModelID: "provider-model",
+		CredentialID:    &credentialID,
+		IsEnabled:       true,
 	}
 	if err := db.Create(&binding).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)

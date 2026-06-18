@@ -446,7 +446,7 @@ function project(): Project {
 function model(): PublicModel {
   return {
     id: 7,
-    credential_id: 1,
+    provider_id: 'local_provider:1',
     model_id: 'gpt-test',
     display_name: 'GPT Test',
     capabilities: ['text'],

@@ -3,7 +3,7 @@ export const AGENT_BACKEND_MODEL_CAPABILITY_QUERY = 'text,reasoning'
 export interface AgentBackendPublicModel {
   id: number
   catalog_entry_id?: number
-  credential_id?: number
+  provider_id?: string
   model_id?: string
   display_name?: string
   short_name?: string

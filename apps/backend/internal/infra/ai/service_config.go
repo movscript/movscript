@@ -42,6 +42,7 @@ type ModelRoute struct {
 	CredentialID    uint
 	SourceType      string
 	RouteGroup      string
+	ProviderID      string
 	ProviderModelID string
 	SelectionReason string
 	EstimatedCost   float64
@@ -81,7 +82,7 @@ func (s *AIService) OpenAIProxyTargetForRoute(ctx context.Context, userID uint, 
 }
 
 func (s *AIService) openAIProxyTargetForCredentialCatalogRoute(ctx context.Context, userID uint, route ModelRoute, requiredCap string) (OpenAIProxyTarget, bool, error) {
-	if route.CatalogEntryID == 0 || route.CredentialID == 0 {
+	if route.CatalogEntryID == 0 || strings.TrimSpace(route.SourceType) != persistencemodel.ModelRouteSourceLocalProvider {
 		return OpenAIProxyTarget{}, false, nil
 	}
 	definition, handled, err := s.catalogRouteDefinition(ctx, route, requiredCap)
@@ -92,11 +93,9 @@ func (s *AIService) openAIProxyTargetForCredentialCatalogRoute(ctx context.Conte
 	} else {
 		return OpenAIProxyTarget{}, false, nil
 	}
-	var cred persistencemodel.AICredential
-	if err := s.db.WithContext(ctx).
-		Where("id = ? AND is_enabled = true AND deleted_at IS NULL", route.CredentialID).
-		First(&cred).Error; err != nil {
-		return OpenAIProxyTarget{}, true, fmt.Errorf("credential id=%d not found or disabled", route.CredentialID)
+	cred, err := s.localProviderCredentialForRoute(ctx, route)
+	if err != nil {
+		return OpenAIProxyTarget{}, true, err
 	}
 	ctx = withProviderUserID(ctx, userID)
 	provider, err := s.registry.BuildForModelCredential(cred, definition.def)
@@ -276,6 +275,7 @@ type RuntimeProviderHealth struct {
 	RouteBindingID      uint       `json:"route_binding_id,omitempty"`
 	ModelID             string     `json:"model_id"`
 	ModelDefID          string     `json:"model_def_id"`
+	ProviderID          string     `json:"provider_id,omitempty"`
 	ProviderName        string     `json:"provider_name"`
 	AdapterType         string     `json:"adapter_type"`
 	Priority            int        `json:"priority"`
@@ -319,6 +319,7 @@ func runtimeCatalogRouteHealthSnapshot(db *gorm.DB) ([]RuntimeProviderHealth, bo
 		CatalogEntryID    uint
 		SourceType        string
 		RouteGroup        string
+		ProviderID        string
 		CredentialID      *uint
 		BindingEnabled    bool
 		Priority          int
@@ -347,13 +348,14 @@ func runtimeCatalogRouteHealthSnapshot(db *gorm.DB) ([]RuntimeProviderHealth, bo
 			ai_model_route_bindings.catalog_entry_id AS catalog_entry_id,
 			ai_model_route_bindings.source_type AS source_type,
 			ai_model_route_bindings.route_group AS route_group,
+			ai_model_route_bindings.provider_id AS provider_id,
 			ai_model_route_bindings.credential_id AS credential_id,
 			ai_model_route_bindings.is_enabled AS binding_enabled,
 			ai_model_route_bindings.priority AS priority,
 			ai_model_route_bindings.capacity_weight AS capacity_weight,
 			ai_model_route_bindings.max_concurrency AS max_concurrency,
 			ai_model_catalog_entries.public_model_id AS public_model_id,
-			ai_model_catalog_entries.provider_model_id AS provider_model_id,
+			ai_model_route_bindings.provider_model_id AS provider_model_id,
 			ai_model_catalog_entries.display_name AS display_name,
 			ai_model_catalog_entries.short_name AS short_name,
 			ai_model_catalog_entries.is_enabled AS entry_enabled,
@@ -395,6 +397,7 @@ func runtimeCatalogRouteHealthSnapshot(db *gorm.DB) ([]RuntimeProviderHealth, bo
 			RouteBindingID:      row.RouteBindingID,
 			ModelID:             strings.TrimSpace(row.PublicModelID),
 			ModelDefID:          strings.TrimSpace(row.ProviderModelID),
+			ProviderID:          strings.TrimSpace(row.ProviderID),
 			ProviderName:        strings.TrimSpace(row.ProviderName),
 			AdapterType:         strings.TrimSpace(row.AdapterType),
 			Priority:            row.Priority,

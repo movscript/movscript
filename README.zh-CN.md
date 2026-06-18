@@ -187,6 +187,31 @@ pnpm --filter @movscript/desktop dev:workspace
 MOVSCRIPT_WORKSPACE_DIR=/tmp/movscript-debug pnpm --filter @movscript/desktop dev:workspace
 ```
 
+### SDK runtimes 一键启动
+
+如果要直接用 Codex SDK runtime 和 Claude SDK runtime 启动桌面端：
+
+```bash
+pnpm run dev:sdk-runtimes
+```
+
+这个命令会使用 `.movscript-dev/.movscript` 作为调试 workspace，并把 SDK 包缓存到 `.movscript-dev/sdk-runtimes`。默认启用：
+
+- `MOVSCRIPT_CODEX_RUNTIME_API=codex-sdk`
+- `@openai/codex-sdk@0.141.0`
+- `@anthropic-ai/claude-agent-sdk@0.3.181`
+
+同版本 SDK 只会准备一次；后续启动会复用缓存。可以通过环境变量覆盖包名、版本或 runtime 缓存目录，例如：
+
+```bash
+MOVSCRIPT_CODEX_SDK_PACKAGE_VERSION=0.141.0 \
+MOVSCRIPT_CLAUDE_SDK_PACKAGE_VERSION=0.3.181 \
+MOVSCRIPT_SDK_RUNTIME_DIR=/tmp/movscript-sdk-runtimes \
+pnpm run dev:sdk-runtimes
+```
+
+正式桌面包默认会内置这两个 SDK runtime。打包时 `pnpm --filter @movscript/desktop dist` 会先运行 `scripts/prepare-sdk-runtime-seed.mjs`，把 SDK 准备到 `apps/frontend/vendor/sdk-runtimes`，再由 electron-builder 放进应用 resources。用户首次使用时会复制到自己的 userData runtime 缓存；不需要预装 Codex、Claude SDK、npm 或其它命令行工具。
+
 ## 开发
 
 常用命令：
@@ -225,6 +250,7 @@ pnpm --filter @movscript/desktop verify:app-server -- --provider mova
 | App-server plugin | [plugins/movscript/README.md](plugins/movscript/README.md) |
 | Observability | [apps/backend/observability/README.md](apps/backend/observability/README.md) |
 | 架构说明 | [docs/](docs/) |
+| Provider / Model / Route 与 Console 边界 | [docs/provider-model-route-console-boundaries.zh-CN.md](docs/provider-model-route-console-boundaries.zh-CN.md) |
 | 上线前清理原则 | [docs/release-cleanup-principles.zh-CN.md](docs/release-cleanup-principles.zh-CN.md) |
 
 ## 社区版范围

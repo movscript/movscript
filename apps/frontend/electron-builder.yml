@@ -46,6 +46,10 @@ extraResources:
     filter:
       - "**/app-server"
       - "**/app-server.exe"
+  - from: vendor/sdk-runtimes
+    to: sdk-runtimes
+    filter:
+      - "**/*"
   - from: vendor/ffmpeg
     to: ffmpeg
     filter:

@@ -65,8 +65,8 @@ test('agent settings page delegates readiness and action item derivation', () =>
   assert.doesNotMatch(pageSource, /function buildSettingsReadinessItems\(/)
   assert.doesNotMatch(pageSource, /function buildSettingsActionItems\(/)
 
-  assert.match(readinessSource, /export function buildModelCompatibilityProbes\(/)
-  assert.match(readinessSource, /export function buildApiModeSwitchTaskGraph\(/)
+  assert.doesNotMatch(readinessSource, /export function buildModelCompatibilityProbes\(/)
+  assert.doesNotMatch(readinessSource, /export function buildApiModeSwitchTaskGraph\(/)
   assert.match(readinessSource, /export function buildSettingsReadinessItems\(/)
   assert.match(readinessSource, /export function buildSettingsActionItems\(/)
 })
@@ -197,7 +197,8 @@ test('agent settings page delegates config file state and commands to an applica
 test('agent settings page delegates model config state and commands to an application controller', () => {
   assert.match(pageSource, /from '@\/features\/agent\/application\/useAgentSettingsModelController'/)
   assert.match(pageSource, /const model = useAgentSettingsModelController\(\{[\s\S]*storedModelId: agentSettings\.modelId,[\s\S]*\}\)/)
-  assert.match(configFilesPanelSource, /<AIAgentSettingsModelPanel[\s\S]*selectedApiKind=\{model\.selectedApiKind\}[\s\S]*onSave=\{model\.saveSettings\}[\s\S]*onClearModelConfig=\{model\.clearModelConfig\}/)
+  assert.match(configFilesPanelSource, /<AIAgentSettingsModelPanel[\s\S]*effectiveConfig=\{model\.effectiveConfig\}[\s\S]*legacyDirectModelConfig=\{model\.legacyDirectModelConfig\}[\s\S]*onSave=\{model\.saveSettings\}[\s\S]*onClearModelConfig=\{model\.clearModelConfig\}/)
+  assert.doesNotMatch(configFilesPanelSource, /selectedApiKind=\{model\.selectedApiKind\}|baseURL=\{model\.baseURL\}|modelApiKey=\{model\.modelApiKey\}|directModelId=\{model\.directModelId\}/)
   assert.doesNotMatch(pageSource, /const \[selectedModelId, setSelectedModelId\]/)
   assert.doesNotMatch(pageSource, /const \[modelApiKey, setModelApiKey\]/)
   assert.doesNotMatch(pageSource, /async function saveSettings\(/)
@@ -362,8 +363,6 @@ test('agent settings page delegates page constants and small utilities', () => {
     'reset-model-workspace',
     'confirm-clear-model-config',
     'enable-chat-route',
-    'switch-openai-responses',
-    'strip-sensitive-base-url-query',
     'reset-config-file-workspace',
     'reset-skill-config-workspace',
     'fix-tool-permissions-workspace-issues',
@@ -511,10 +510,14 @@ test('agent settings page delegates model configuration panel', () => {
     'ApiModeSwitchPlanPanel',
   ]) {
     assert.match(apiModePanelsSource, new RegExp(`export function ${componentName}\\b`))
-    assert.match(modelPanelSource, new RegExp(`<${componentName}\\b`))
+    assert.doesNotMatch(modelPanelSource, new RegExp(`<${componentName}\\b`))
   }
   assert.match(modelPanelSource, /id="agent-settings-model"/)
-  assert.match(modelPanelSource, /data-testid="agent-settings-provider-model-id"/)
+  assert.match(modelPanelSource, /agents\.settings\.modelCatalogOnlyNotice/)
+  assert.match(modelPanelSource, /agents\.settings\.legacyDirectModelConfigNotice/)
+  assert.doesNotMatch(modelPanelSource, /data-testid="agent-settings-provider-model-id"/)
+  assert.doesNotMatch(modelPanelSource, /data-testid="agent-settings-provider-api-key"/)
+  assert.doesNotMatch(modelPanelSource, /agent-settings-advanced-model-routing-toggle/)
   assert.match(modelPanelSource, /data-testid="agent-settings-clear-model-config"/)
 })
 
@@ -656,7 +659,7 @@ test('agent settings shared UI rows use common layout utilities', () => {
   assert.match(settingsSharedUiSource, /"ms-action-row agent-settings-header__actions"/)
   assert.match(settingsSharedUiSource, /"ms-action-row agent-settings-action-row"/)
   assert.match(settingsSharedUiSource, /className="ms-action-row agent-settings-readiness-row"/)
-  assert.match(settingsSharedUiSource, /className="ms-action-row agent-settings-action-header"/)
+  assert.match(settingsSharedUiSource, /className=\{cn\("ms-action-row agent-settings-action-row", className\)\}/)
   assert.match(settingsSharedUiSource, /className="ms-action-row agent-settings-model-route__header"/)
   assert.match(settingsSharedUiSource, /className="ms-action-row agent-settings-tool-permissions-presets__header"/)
   assert.match(settingsSharedUiSource, /className="ms-action-row agent-settings-tool-permissions-presets__list"/)

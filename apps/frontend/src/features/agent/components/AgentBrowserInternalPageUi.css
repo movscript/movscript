@@ -627,13 +627,15 @@
 
 .agent-session-output__record-list,
 .agent-session-output__unit-list,
-.agent-session-output__candidate-list {
+.agent-session-output__candidate-list,
+.agent-session-output__activity-list {
   display: grid;
   gap: var(--ms-space-2);
 }
 
 .agent-session-output__record,
-.agent-session-output__candidate {
+.agent-session-output__candidate,
+.agent-session-output__activity {
   display: flex;
   min-width: 0;
   align-items: flex-start;
@@ -646,13 +648,15 @@
 }
 
 .agent-session-output__record-main,
-.agent-session-output__candidate-copy {
+.agent-session-output__candidate-copy,
+.agent-session-output__activity-main {
   min-width: 0;
 }
 
 .agent-session-output__record-title,
 .agent-session-output__unit-title,
-.agent-session-output__candidate-title {
+.agent-session-output__candidate-title,
+.agent-session-output__activity-title {
   margin: 0;
   color: var(--ms-color-foreground);
   font-size: var(--ms-text-label);
@@ -666,6 +670,8 @@
 .agent-session-output__unit-prompt,
 .agent-session-output__candidate-meta,
 .agent-session-output__candidate-note,
+.agent-session-output__activity-summary,
+.agent-session-output__activity-meta,
 .agent-session-output__candidate-empty,
 .agent-session-output__empty {
   margin: 4px 0 0;
@@ -676,6 +682,33 @@
 
 .agent-session-output__record-meta:empty {
   display: none;
+}
+
+.agent-session-output__activity {
+  position: relative;
+}
+
+.agent-session-output__activity::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  margin-top: 7px;
+  border-radius: 999px;
+  background: var(--ms-color-accent, var(--ms-color-foreground));
+}
+
+.agent-session-output__activity[data-status="completed"]::before {
+  background: var(--ms-color-success, #16884a);
+}
+
+.agent-session-output__activity[data-status="failed"]::before {
+  background: var(--ms-color-danger, #b42318);
+}
+
+.agent-session-output__activity[data-status="requires_action"]::before,
+.agent-session-output__activity[data-status="pending"]::before {
+  background: var(--ms-color-warning, #b7791f);
 }
 
 .agent-session-output__unit {

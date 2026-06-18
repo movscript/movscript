@@ -90,8 +90,6 @@ function navigationMenuTemplate(): MenuItemConstructorOptions {
 }
 
 export function installApplicationMenu(): void {
-  app.setName('Movscript')
-
   const template: MenuItemConstructorOptions[] = [
     ...(process.platform === 'darwin'
       ? [{

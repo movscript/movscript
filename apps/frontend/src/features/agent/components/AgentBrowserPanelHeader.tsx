@@ -2,6 +2,7 @@ import type { FormEvent } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import {
   ClipboardList,
+  Clapperboard,
   Globe2,
   HardDrive,
   Home,
@@ -71,6 +72,7 @@ export function AgentBrowserPanelHeader({
   onOpenResourceLibraryTab,
   onOpenExternalResourceLibraryTab,
   onOpenCanvasListTab,
+  onOpenEditingProjectsTab,
   onOpenProjectStandardsTab,
   onOpenSessionOutputTab,
   onSetActiveTabId,
@@ -99,6 +101,7 @@ export function AgentBrowserPanelHeader({
   onOpenResourceLibraryTab: () => void
   onOpenExternalResourceLibraryTab: () => void
   onOpenCanvasListTab: () => void
+  onOpenEditingProjectsTab: () => void
   onOpenProjectStandardsTab: () => void
   onOpenSessionOutputTab: () => void
   onSetActiveTabId: (tabId: string) => void
@@ -199,6 +202,12 @@ export function AgentBrowserPanelHeader({
               </AgentBrowserMenuItemIcon>
               打开画布列表
             </DropdownMenuItem>
+            <DropdownMenuItem onClick={onOpenEditingProjectsTab}>
+              <AgentBrowserMenuItemIcon>
+                <Clapperboard size={13} />
+              </AgentBrowserMenuItemIcon>
+              打开剪辑
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={onOpenProjectStandardsTab}>
               <AgentBrowserMenuItemIcon>
                 <PenLine size={13} />
@@ -283,6 +292,7 @@ function agentBrowserTabIcon(tab: AgentBrowserContentTab): LucideIcon {
   if (tab.kind === 'resources') return HardDrive
   if (tab.kind === 'external_resources') return ScanSearch
   if (tab.kind === 'canvas_list') return LayoutTemplate
+  if (tab.kind === 'editing_projects') return Clapperboard
   if (tab.kind === 'project_standards') return PenLine
   if (tab.kind === 'session_output') return ClipboardList
   return Globe2

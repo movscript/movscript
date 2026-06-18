@@ -80,8 +80,6 @@ export function AIAgentSettingsConfigFilesPanel({
   toolGrantWorkspaceByName,
   currentToolGrants,
   updateToolGrantWorkspace,
-  stripModelBaseURLSecrets,
-  switchToOpenAIResponses,
 }: {
   catalogQuery: UseQueryResult<ProviderCatalogInspectResponse>
   capabilitiesQuery: UseQueryResult<ProviderSessionCapabilitiesResponse>
@@ -126,8 +124,6 @@ export function AIAgentSettingsConfigFilesPanel({
   toolGrantWorkspaceByName: Map<string, ToolGrantWorkspace>
   currentToolGrants: Set<string>
   updateToolGrantWorkspace: (name: string, patch: Partial<ToolGrantWorkspace>) => void
-  stripModelBaseURLSecrets: () => void
-  switchToOpenAIResponses: () => void
 }) {
   const { t } = useTranslation()
   const currentConfigFile = configFile.currentConfigFile
@@ -168,34 +164,18 @@ export function AIAgentSettingsConfigFilesPanel({
                 onDuplicate={configFile.duplicateSelected}
               />
               <AIAgentSettingsModelPanel
-                selectedApiKind={model.selectedApiKind}
-                setSelectedApiKind={model.setSelectedApiKind}
-                baseURL={model.baseURL}
-                setBaseURL={model.setBaseURL}
-                modelBaseURLHasSecret={model.modelBaseURLHasSecret}
-                onStripModelBaseURLSecrets={stripModelBaseURLSecrets}
-                usesManualModelId={model.usesManualModelId}
-                baseURLValue={model.baseURLValue}
-                usesBackendCompatibleBaseURL={model.usesBackendCompatibleBaseURL}
-                modelApiKey={model.modelApiKey}
-                setModelApiKey={model.setModelApiKey}
                 effectiveConfig={model.effectiveConfig}
-                usesModelCatalog={model.usesModelCatalog}
                 selectedModelId={model.selectedModelId}
                 setSelectedModelId={model.setSelectedModelId}
-                directModelId={model.directModelId}
-                setDirectModelId={model.setDirectModelId}
                 textModels={model.textModels}
                 modelValueMissing={model.modelValueMissing}
-                directModelIdHasSecret={model.directModelIdHasSecret}
                 useForChat={model.useForChat}
                 setUseForChat={model.setUseForChat}
                 useForPlanner={model.useForPlanner}
                 setUseForPlanner={model.setUseForPlanner}
                 modelRouteIssues={model.modelRouteIssues}
-                modelCompatibilityProbes={model.modelCompatibilityProbes}
-                apiModeSwitchTaskGraph={model.apiModeSwitchTaskGraph}
                 selectedModel={model.selectedModel ?? undefined}
+                legacyDirectModelConfig={model.legacyDirectModelConfig}
                 canSaveModelConfig={model.canSaveModelConfig}
                 saving={model.saving}
                 hasUnsavedChanges={model.hasUnsavedChanges}
@@ -208,7 +188,6 @@ export function AIAgentSettingsConfigFilesPanel({
                 saveError={model.saveError}
                 testError={model.testError}
                 testResult={model.testResult}
-                onSwitchToResponses={switchToOpenAIResponses}
               />
               <AIAgentSettingsConfigFileDetailsSection
                 name={configFile.nameWorkspace}

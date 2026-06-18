@@ -91,6 +91,25 @@
       ]
     },
     {
+      "id": "sdk-runtimes",
+      "category": "agent-sdk-runtime",
+      "from": "vendor/sdk-runtimes",
+      "to": "sdk-runtimes",
+      "filter": [
+        "**/*"
+      ],
+      "source": "prepared-npm-artifact",
+      "required": true,
+      "owner": "agent-runtime",
+      "license": "LicenseRef-sdk-runtime-dependencies",
+      "updatePolicy": "bundled-with-app",
+      "verification": [
+        "prepare-sdk-runtime-seed",
+        "electron-builder extraResources parity",
+        "verifyDesktopPackage requiredPaths"
+      ]
+    },
+    {
       "id": "movcli",
       "category": "runtime-tool",
       "from": "../cli",

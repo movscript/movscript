@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import { conversationIdForProviderThread } from '@/features/agent/domain/agentConversation'
+import { recentAppEventSnapshots, resetAppEventDedupeForTests } from '@/shared/application/appEvents'
 import { pageTaskStatusFromProviderSession, useAgentSessionStore } from './agentSessionStore'
 
 test('agent session store delegates conversation and task state transitions', () => {
@@ -334,6 +335,84 @@ test('agent session task actions preserve page task and standalone task lifecycl
 
   assert.equal(useAgentSessionStore.getState().standaloneTasks.standalone_1?.status, 'completed')
   assert.equal(useAgentSessionStore.getState().standaloneTasks.standalone_1?.result, 'done')
+})
+
+test('agent session actions publish activity events for content surfaces', () => {
+  resetAppEventDedupeForTests()
+  useAgentSessionStore.setState({
+    activeConversationIdsByUser: {},
+    conversationsById: {},
+    workspacesByUser: {},
+    conversationThreadBindings: {},
+    conversationRuntimeStates: {},
+    pageTasks: {},
+    standaloneTasks: {},
+  })
+
+  useAgentSessionStore.getState().enqueuePageTask({
+    requestId: 'task_activity_1',
+    taskType: 'script',
+    message: 'Generate script',
+    projectId: 7,
+  })
+  useAgentSessionStore.getState().attachPageTaskConversation('task_activity_1', 'conv_activity_1')
+  useAgentSessionStore.getState().setPageTaskRunning('task_activity_1', {
+    run: {
+      id: 'run_activity_1',
+      threadId: 'thread_activity_1',
+      sessionId: 'session_activity_1',
+      status: 'in_progress',
+      pendingInputRequests: [{ id: 'input_1', status: 'pending', title: 'Need detail', prompt: 'Which version?' }],
+      pendingApprovals: [{ id: 'approval_1', status: 'pending', title: 'Approve edit', reason: 'Writes content' }],
+      steps: [{
+        id: 'step_tool_1',
+        type: 'tool_call',
+        status: 'running',
+        toolName: 'workspace_create',
+      }],
+    } as any,
+  })
+  useAgentSessionStore.getState().updatePageTaskFromProviderSession({
+    requestId: 'task_activity_1',
+    run: {
+      id: 'run_activity_1',
+      threadId: 'thread_activity_1',
+      sessionId: 'session_activity_1',
+      status: 'completed',
+      steps: [{
+        id: 'step_tool_1',
+        type: 'tool_call',
+        status: 'completed',
+        toolName: 'workspace_create',
+      }],
+    } as any,
+    artifacts: [{ type: 'workspace', workspaceId: 'workspace_1', projectId: 7 }],
+  })
+
+  useAgentSessionStore.getState().startStandaloneTask({
+    taskId: 'standalone_activity_1',
+    taskType: 'review',
+    prompt: 'Review this',
+  })
+  useAgentSessionStore.getState().settleStandaloneTask({
+    taskId: 'standalone_activity_1',
+    status: 'completed',
+    result: 'done',
+  })
+
+  assert.deepEqual(recentAppEventSnapshots().map((event) => event.topic), [
+    'agent.activity.started',
+    'agent.activity.updated',
+    'agent.activity.updated',
+    'agent.tool.started',
+    'agent.user-input.requested',
+    'agent.approval.requested',
+    'agent.activity.completed',
+    'agent.tool.completed',
+    'agent.output.created',
+    'agent.activity.started',
+    'agent.activity.completed',
+  ])
 })
 
 test('pageTaskStatusFromProviderSession settles explicit panel payload statuses', () => {

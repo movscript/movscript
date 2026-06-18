@@ -37,6 +37,16 @@ func RegisteredMigrations() []Migration {
 			Name:    "baseline_schema",
 			Up:      migrateBaselineSchema,
 		},
+		{
+			Version: "000002",
+			Name:    "add_route_provider_model_id",
+			Up:      migrateRouteProviderModelID,
+		},
+		{
+			Version: "000003",
+			Name:    "add_route_provider_id",
+			Up:      migrateRouteProviderID,
+		},
 	}
 	return append(core, editionMigrations()...)
 }
@@ -49,6 +59,64 @@ func migrateBaselineSchema(db *gorm.DB) error {
 		return err
 	}
 	return seedDefaultOrg(db)
+}
+
+func migrateRouteProviderModelID(db *gorm.DB) error {
+	if err := db.AutoMigrate(&persistencemodel.AIModelRouteBinding{}); err != nil {
+		return err
+	}
+	migrator := db.Migrator()
+	if migrator.HasColumn("ai_model_catalog_entries", "provider_model_id") {
+		if err := db.Exec(`
+			UPDATE ai_model_route_bindings
+			SET provider_model_id = (
+				SELECT provider_model_id
+				FROM ai_model_catalog_entries
+				WHERE ai_model_catalog_entries.id = ai_model_route_bindings.catalog_entry_id
+			)
+			WHERE (provider_model_id IS NULL OR provider_model_id = '')
+		`).Error; err != nil {
+			return err
+		}
+		if db.Dialector.Name() == "sqlite" {
+			return nil
+		}
+		if err := migrator.DropColumn("ai_model_catalog_entries", "provider_model_id"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func migrateRouteProviderID(db *gorm.DB) error {
+	if err := db.AutoMigrate(&persistencemodel.AIModelRouteBinding{}); err != nil {
+		return err
+	}
+	if err := db.Exec(routeProviderIDBackfillSQL(db)).Error; err != nil {
+		return err
+	}
+	if db.Migrator().HasIndex(&persistencemodel.AIModelRouteBinding{}, activeModelRouteBindingUniqueIndex) {
+		if err := db.Migrator().DropIndex(&persistencemodel.AIModelRouteBinding{}, activeModelRouteBindingUniqueIndex); err != nil {
+			return err
+		}
+	}
+	return enforceUniqueActiveModelRouteBindings(db)
+}
+
+func routeProviderIDBackfillSQL(db *gorm.DB) string {
+	credentialExpr := "source_type || ':' || credential_id"
+	if db.Dialector.Name() == "postgres" {
+		credentialExpr = "source_type || ':' || credential_id::text"
+	}
+	return fmt.Sprintf(`
+		UPDATE ai_model_route_bindings
+		SET provider_id = CASE
+			WHEN source_type = 'new_api' THEN 'new_api'
+			WHEN credential_id IS NOT NULL AND credential_id <> 0 THEN %s
+			ELSE source_type
+		END
+		WHERE provider_id IS NULL OR provider_id = ''
+	`, credentialExpr)
 }
 
 func createCurrentSchemaIndexes(db *gorm.DB) error {
@@ -279,14 +347,7 @@ func enforceUniqueActiveModelRouteBindings(db *gorm.DB) error {
 }
 
 func modelRouteBindingUniqueIndexColumns() string {
-	return "catalog_entry_id, source_type, route_group, COALESCE(credential_id, 0)"
-}
-
-func modelRouteBindingCredentialIDValue(id *uint) uint {
-	if id == nil {
-		return 0
-	}
-	return *id
+	return "catalog_entry_id, source_type, route_group, provider_id"
 }
 
 func softDeleteDuplicateActiveModelRouteBindings(db *gorm.DB) error {
@@ -299,7 +360,7 @@ WHERE deleted_at IS NULL
       SELECT MIN(id) AS keep_id
       FROM ai_model_route_bindings
       WHERE deleted_at IS NULL
-      GROUP BY catalog_entry_id, source_type, route_group, COALESCE(credential_id, 0)
+      GROUP BY catalog_entry_id, source_type, route_group, provider_id
     ) active_routes
   )`
 	if err := db.Exec(stmt).Error; err != nil {
@@ -326,7 +387,7 @@ func enforceUniqueActiveModelCatalogEntries(db *gorm.DB) error {
 		&persistencemodel.AIModelCatalogEntry{},
 		activeModelCatalogEntryUniqueIndex,
 		"ai_model_catalog_entries",
-		"public_model_id, provider_model_id",
+		"public_model_id",
 		"deleted_at IS NULL",
 	)
 }
@@ -336,14 +397,14 @@ func mergeDuplicateActiveModelCatalogEntries(db *gorm.DB) error {
 	if err := db.
 		Unscoped().
 		Where("deleted_at IS NULL").
-		Order("public_model_id ASC, provider_model_id ASC, id ASC").
+		Order("public_model_id ASC, id ASC").
 		Find(&entries).Error; err != nil {
 		return fmt.Errorf("list active model catalog entries: %w", err)
 	}
 	keepers := map[string]uint{}
 	for _, entry := range entries {
-		key := strings.TrimSpace(entry.PublicModelID) + "\x00" + strings.TrimSpace(entry.ProviderModelID)
-		if key == "\x00" {
+		key := strings.TrimSpace(entry.PublicModelID)
+		if key == "" {
 			continue
 		}
 		keepID, ok := keepers[key]
@@ -371,7 +432,7 @@ func mergeDuplicateModelCatalogEntry(db *gorm.DB, duplicateID uint, keepID uint)
 			for _, binding := range bindings {
 				var existing int64
 				if err := tx.Model(&persistencemodel.AIModelRouteBinding{}).
-					Where("catalog_entry_id = ? AND source_type = ? AND route_group = ? AND COALESCE(credential_id, 0) = ? AND deleted_at IS NULL", keepID, binding.SourceType, binding.RouteGroup, modelRouteBindingCredentialIDValue(binding.CredentialID)).
+					Where("catalog_entry_id = ? AND source_type = ? AND route_group = ? AND provider_id = ? AND deleted_at IS NULL", keepID, binding.SourceType, binding.RouteGroup, binding.ProviderID).
 					Count(&existing).Error; err != nil {
 					return fmt.Errorf("check duplicate catalog entry binding: %w", err)
 				}

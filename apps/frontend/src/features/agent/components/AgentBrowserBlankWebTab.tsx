@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowRight, Globe2, HardDrive, LayoutTemplate, ScanSearch } from 'lucide-react'
+import { ArrowRight, Clapperboard, Globe2, HardDrive, LayoutTemplate, ScanSearch } from 'lucide-react'
 import {
   AgentBrowserInput,
   AgentBrowserLauncherSubmitButton,
@@ -19,11 +19,13 @@ export function AgentBrowserBlankWebTab({
   onOpenResourceLibrary,
   onOpenExternalResourceLibrary,
   onOpenCanvasList,
+  onOpenEditingProjects,
   onSubmit,
 }: {
   onOpenResourceLibrary: () => void
   onOpenExternalResourceLibrary: () => void
   onOpenCanvasList: () => void
+  onOpenEditingProjects: () => void
   onSubmit: (url: string) => void
 }) {
   const [value, setValue] = useState('')
@@ -45,6 +47,12 @@ export function AgentBrowserBlankWebTab({
       description: '查看、创建和打开项目画布',
       icon: LayoutTemplate,
       action: onOpenCanvasList,
+    },
+    {
+      title: '剪辑',
+      description: '打开剪辑项目和媒体时间线',
+      icon: Clapperboard,
+      action: onOpenEditingProjects,
     },
   ]
 

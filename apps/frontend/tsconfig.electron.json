@@ -97,6 +97,9 @@
       ],
       "@movscript/workspace/repository": [
         "../../packages/workspace/src/repository/index.ts"
+      ],
+      "@/*": [
+        "./src/*"
       ]
     }
   },

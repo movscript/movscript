@@ -57,23 +57,23 @@ func TestEnqueueGenerationAcceptsOrthogonalAudioAndSubtitleJobTypes(t *testing.T
 		ai.CapabilitySubTranslate,
 	} {
 		entry := persistencemodel.AIModelCatalogEntry{
-			PublicModelID:   "local-" + capability,
-			ProviderModelID: "provider-" + capability,
-			DisplayName:     "Local " + capability,
-			Capabilities:    capability,
-			PricingMode:     string(ai.PricingPerCall),
-			CreditsPerCall:  0,
-			IsEnabled:       true,
+			PublicModelID:  "local-" + capability,
+			DisplayName:    "Local " + capability,
+			Capabilities:   capability,
+			PricingMode:    string(ai.PricingPerCall),
+			CreditsPerCall: 0,
+			IsEnabled:      true,
 		}
 		if err := db.Create(&entry).Error; err != nil {
 			t.Fatalf("create catalog entry %s: %v", capability, err)
 		}
 		if err := db.Create(&persistencemodel.AIModelRouteBinding{
-			CatalogEntryID: entry.ID,
-			SourceType:     persistencemodel.ModelRouteSourceLocalProvider,
-			CredentialID:   &cred.ID,
-			IsEnabled:      true,
-			CapacityWeight: 1,
+			CatalogEntryID:  entry.ID,
+			SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
+			ProviderModelID: "provider-" + capability,
+			CredentialID:    &cred.ID,
+			IsEnabled:       true,
+			CapacityWeight:  1,
 		}).Error; err != nil {
 			t.Fatalf("create route binding %s: %v", capability, err)
 		}
@@ -131,23 +131,23 @@ func TestEnqueueGenerationTTSCatalogRouteWithoutLegacyModelConfig(t *testing.T) 
 		t.Fatal("catalog-only TTS enqueue test should not create legacy provider tables")
 	}
 	entry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID:   "voice-main",
-		ProviderModelID: "provider-voice-v2",
-		DisplayName:     "Voice Main",
-		IsEnabled:       true,
-		Capabilities:    ai.CapabilityAudioTTS,
-		PricingMode:     string(ai.PricingPerCall),
-		CreditsPerCall:  1.25,
+		PublicModelID:  "voice-main",
+		DisplayName:    "Voice Main",
+		IsEnabled:      true,
+		Capabilities:   ai.CapabilityAudioTTS,
+		PricingMode:    string(ai.PricingPerCall),
+		CreditsPerCall: 1.25,
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
 	}
 	binding := persistencemodel.AIModelRouteBinding{
-		CatalogEntryID: entry.ID,
-		SourceType:     persistencemodel.ModelRouteSourceNewAPI,
-		RouteGroup:     "default",
-		IsEnabled:      true,
-		CapacityWeight: 1,
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceNewAPI,
+		RouteGroup:      "default",
+		ProviderModelID: "provider-voice-v2",
+		IsEnabled:       true,
+		CapacityWeight:  1,
 	}
 	if err := db.Create(&binding).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)

@@ -93,7 +93,7 @@ export interface ModelInputRequirements {
 export interface PublicModel {
   id: number
   catalog_entry_id?: number
-  credential_id: number        // parent AICredential ID (for admin inline edit)
+  provider_id?: string         // provider lane selected by Route/Provider
   model_id: string             // public logical model ID used by callers
   display_name: string
   short_name?: string

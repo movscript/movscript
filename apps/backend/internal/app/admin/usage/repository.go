@@ -2,6 +2,8 @@ package usage
 
 import (
 	"context"
+	"strconv"
+	"strings"
 
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
@@ -41,6 +43,7 @@ func (r *gormRepository) ListLogs(ctx context.Context, filter ListFilter) (Page,
 	if err := q.
 		Preload("User").
 		Preload("AIModelCatalogEntry").
+		Preload("AIModelRouteBinding").
 		Offset((page - 1) * pageSize).
 		Limit(pageSize).
 		Find(&rows).Error; err != nil {
@@ -58,6 +61,7 @@ func (r *gormRepository) ExportLogs(ctx context.Context, filter ListFilter, limi
 	if err := r.filteredQuery(ctx, filter).
 		Preload("User").
 		Preload("AIModelCatalogEntry").
+		Preload("AIModelRouteBinding").
 		Order("usage_logs.id desc").
 		Limit(limit).
 		Find(&rows).Error; err != nil {
@@ -119,6 +123,7 @@ func (r *gormRepository) filteredQuery(ctx context.Context, filter ListFilter) *
 	hasCatalogEntries := r.db.Migrator().HasTable(&persistencemodel.AIModelCatalogEntry{})
 	hasRouteBindings := r.db.Migrator().HasTable(&persistencemodel.AIModelRouteBinding{}) &&
 		r.db.Migrator().HasColumn(&persistencemodel.UsageLog{}, "route_binding_id")
+	hasRouteProviderID := hasRouteBindings && r.db.Migrator().HasColumn(&persistencemodel.AIModelRouteBinding{}, "provider_id")
 	if hasCatalogEntries {
 		q = q.Joins("LEFT JOIN ai_model_catalog_entries ON ai_model_catalog_entries.id = usage_logs.ai_model_catalog_entry_id")
 	}
@@ -136,14 +141,25 @@ func (r *gormRepository) filteredQuery(ctx context.Context, filter ListFilter) *
 		q = q.Where("usage_logs.project_id = ?", filter.ProjectID)
 	}
 	if filter.ModelID != "" {
-		if hasCatalogEntries {
-			q = q.Where("ai_model_catalog_entries.public_model_id = ? OR ai_model_catalog_entries.provider_model_id = ?", filter.ModelID, filter.ModelID)
+		if hasCatalogEntries && hasRouteBindings {
+			q = q.Where("(ai_model_catalog_entries.public_model_id = ? OR ai_model_route_bindings.provider_model_id = ?)", filter.ModelID, filter.ModelID)
+		} else if hasCatalogEntries {
+			q = q.Where("ai_model_catalog_entries.public_model_id = ?", filter.ModelID)
+		} else if hasRouteBindings {
+			q = q.Where("ai_model_route_bindings.provider_model_id = ?", filter.ModelID)
 		} else {
 			q = q.Where("1 = 0")
 		}
 	}
 	if filter.ProviderID != "" {
-		if hasRouteBindings {
+		if hasRouteProviderID {
+			providerID := strings.TrimSpace(filter.ProviderID)
+			if credentialID, err := strconv.ParseUint(providerID, 10, 64); err == nil && credentialID != 0 {
+				q = q.Where("(ai_model_route_bindings.provider_id = ? OR ai_model_route_bindings.provider_id = ? OR ai_model_route_bindings.credential_id = ?)", providerID, "local_provider:"+providerID, credentialID)
+			} else {
+				q = q.Where("ai_model_route_bindings.provider_id = ?", providerID)
+			}
+		} else if hasRouteBindings {
 			q = q.Where("ai_model_route_bindings.credential_id = ?", filter.ProviderID)
 		} else {
 			q = q.Where("1 = 0")
@@ -268,15 +284,18 @@ func usageLogFromModel(row persistencemodel.UsageLog) Log {
 		ref := catalogEntryRefFromModel(*row.AIModelCatalogEntry)
 		item.AIModelCatalogEntry = &ref
 	}
+	if row.AIModelRouteBinding != nil {
+		item.ProviderID = row.AIModelRouteBinding.ProviderID
+		item.ProviderModelID = row.AIModelRouteBinding.ProviderModelID
+	}
 	return item
 }
 
 func catalogEntryRefFromModel(entry persistencemodel.AIModelCatalogEntry) CatalogEntryRef {
 	return CatalogEntryRef{
-		ID:              entry.ID,
-		PublicModelID:   entry.PublicModelID,
-		ProviderModelID: entry.ProviderModelID,
-		DisplayName:     entry.DisplayName,
-		ShortName:       entry.ShortName,
+		ID:            entry.ID,
+		PublicModelID: entry.PublicModelID,
+		DisplayName:   entry.DisplayName,
+		ShortName:     entry.ShortName,
 	}
 }

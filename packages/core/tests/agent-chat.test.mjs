@@ -82,6 +82,60 @@ test('core agent chat entrypoint exports the provider-neutral runtime contract',
   )
 })
 
+test('core agent chat capability probe includes provider-neutral runtime readiness', async () => {
+  const result = await agentChat.probeAgentChatDataSourceCapabilities({
+    provider: { id: 'codex', kind: 'codex', label: 'Codex' },
+    dataSource: {
+      provider: 'codex',
+      providerId: 'codex',
+      label: 'Codex SDK',
+      capabilities: {
+        runtime: {
+          probe: async () => ({ ok: false, error: 'missing SDK export' }),
+        },
+      },
+      listThreads: async () => ({ threads: [] }),
+      readThread: async (threadId) => ({
+        provider: 'codex',
+        id: threadId,
+        preview: '',
+        name: null,
+        createdAt: 0,
+        updatedAt: 0,
+        status: 'idle',
+        turns: [],
+      }),
+      startThread: async () => ({
+        provider: 'codex',
+        id: 'thread_1',
+        preview: '',
+        name: null,
+        createdAt: 0,
+        updatedAt: 0,
+        status: 'idle',
+        turns: [],
+      }),
+      startTextTurn: async () => ({
+        id: 'turn_1',
+        items: [],
+        itemsView: 'full',
+        status: 'completed',
+        error: null,
+        startedAt: null,
+        completedAt: null,
+        durationMs: null,
+      }),
+    },
+  })
+
+  const runtimeItem = result.items.find((item) => item.id === 'runtime')
+  assert.equal(runtimeItem?.method, 'runtime/probe')
+  assert.equal(runtimeItem?.supported, true)
+  assert.equal(runtimeItem?.ok, false)
+  assert.equal(runtimeItem?.tone, 'action')
+  assert.equal(runtimeItem?.detail, 'missing SDK export')
+})
+
 test('core agent chat notification dispatcher records active permission profile settings', () => {
   let threads = [{
     provider: 'mova',
@@ -1282,6 +1336,12 @@ test('core probes provider-neutral agent data-source capabilities', async () => 
       startTextTurn: async () => { throw new Error('not used') },
       subscribeThread: () => undefined,
       capabilities: {
+        runtime: {
+          probe: async () => {
+            requestedMethods.push('runtime/probe')
+            return { ok: true }
+          },
+        },
         command: {
           exec: async () => ({ processId: 'p1' }),
         },
@@ -1364,6 +1424,7 @@ test('core probes provider-neutral agent data-source capabilities', async () => 
     'model/list',
     'permissionProfile/list',
     'plugin/list',
+    'runtime/probe',
     'skills/list',
     'thread/list',
     'thread/realtime/listVoices',

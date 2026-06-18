@@ -128,7 +128,6 @@ export default function AIAgentSettingsPage() {
   })
   const readinessItems = useMemo(() => buildSettingsReadinessItems({
     effectiveConfig: model.effectiveConfig,
-    selectedApiKind: model.selectedApiKind,
     savedDirectModelIdHasSecret: model.savedDirectModelIdHasSecret,
     modelRoutes: model.modelRoutes,
     modelRouteIssues: model.modelRouteIssues,
@@ -145,7 +144,6 @@ export default function AIAgentSettingsPage() {
     currentConfigFile,
     model.effectiveConfig,
     model.savedDirectModelIdHasSecret,
-    model.selectedApiKind,
     configFile.hasConfigFileChange,
     workspaceConfig.hasSkillConfigChange,
     workspaceConfig.hasToolPermissionsChange,
@@ -159,8 +157,6 @@ export default function AIAgentSettingsPage() {
   ])
   const settingsActionItems = useMemo(() => buildSettingsActionItems({
     effectiveConfig: model.effectiveConfig,
-    selectedApiKind: model.selectedApiKind,
-    workspaceBaseURL: model.baseURL,
     savedDirectModelIdHasSecret: model.savedDirectModelIdHasSecret,
     modelRoutes: model.modelRoutes,
     modelRouteIssues: model.modelRouteIssues,
@@ -177,12 +173,10 @@ export default function AIAgentSettingsPage() {
     currentConfigFile,
     model.effectiveConfig,
     model.savedDirectModelIdHasSecret,
-    model.selectedApiKind,
     configFile.hasConfigFileChange,
     workspaceConfig.hasSkillConfigChange,
     workspaceConfig.hasToolPermissionsChange,
     model.hasUnsavedChanges,
-    model.baseURL,
     model.modelRouteIssues,
     model.modelRoutes,
     workspaceConfig.skillConfigIssues,
@@ -199,11 +193,6 @@ export default function AIAgentSettingsPage() {
 
   function scrollToSettingsSection(sectionId: string) {
     scrollElementIntoViewById(sectionId)
-  }
-
-  function stripModelBaseURLSecrets(options?: { audit?: boolean }) {
-    model.stripBaseURLSecrets()
-    if (options?.audit) recordSettingsQuickFix('model', 'agents.settings.quickFixes.stripSensitiveBaseURLQuery', 'sensitive_cleanup')
   }
 
   function applySettingsActionQuickFix(quickFix: SettingsActionQuickFix) {
@@ -227,16 +216,6 @@ export default function AIAgentSettingsPage() {
     }
     if (quickFix === 'enable-chat-route') {
       model.setUseForChat(true)
-      applyQuickFixResult()
-      return
-    }
-    if (quickFix === 'switch-openai-responses') {
-      model.setSelectedApiKind('openai_responses')
-      applyQuickFixResult()
-      return
-    }
-    if (quickFix === 'strip-sensitive-base-url-query') {
-      stripModelBaseURLSecrets()
       applyQuickFixResult()
       return
     }
@@ -366,11 +345,6 @@ export default function AIAgentSettingsPage() {
                 toolGrantWorkspaceByName={workspaceConfig.toolGrantWorkspaceByName}
                 currentToolGrants={workspaceConfig.currentToolGrants}
                 updateToolGrantWorkspace={workspaceConfig.updateToolGrantWorkspace}
-                stripModelBaseURLSecrets={() => stripModelBaseURLSecrets({ audit: true })}
-                switchToOpenAIResponses={() => {
-                  model.setSelectedApiKind('openai_responses')
-                  recordSettingsQuickFix('model', 'agents.settings.quickFixes.switchOpenAIResponses', 'mode_migration')
-                }}
               />
               <SettingsSnapshotPanel
                 fileInputRef={settingsSnapshot.fileInputRef}

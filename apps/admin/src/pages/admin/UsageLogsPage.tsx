@@ -84,7 +84,7 @@ function modelLabel(log: UsageLog): string {
 
 function catalogEntryLabel(entry: UsageLog['ai_model_catalog_entry']): string {
   if (!entry) return 'unknown model'
-  return entry.short_name || entry.display_name || entry.public_model_id || entry.provider_model_id || 'unknown model'
+  return entry.short_name || entry.display_name || entry.public_model_id || 'unknown model'
 }
 
 function formatCost(value: number | undefined, digits = 4): string {
@@ -171,7 +171,7 @@ export function UsageLogsPage() {
   }
 
   function providerLabel(log: UsageLog): string {
-    return log.ai_model_catalog_entry?.provider_model_id || '-'
+    return log.provider_model_id || '-'
   }
 
   async function exportCSV() {

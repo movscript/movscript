@@ -224,6 +224,7 @@ export interface UsageLog {
   org_id?: number
   ai_model_catalog_entry_id?: number
   ai_model_catalog_entry?: AIModelCatalogEntry
+  provider_model_id?: string
   usage_reservation_id?: number
   gateway_api_key_id?: number
   project_id?: number
@@ -361,6 +362,8 @@ export interface AIModelRouteBinding {
   catalog_entry_id: number
   source_type: 'local_provider' | 'new_api' | string
   route_group: string
+  provider_id?: string
+  provider_model_id: string
   credential_id?: number
   is_enabled: boolean
   priority: number
@@ -373,7 +376,6 @@ export interface AIModelRouteBinding {
 export interface AIModelCatalogEntry {
   ID: number
   public_model_id: string
-  provider_model_id: string
   display_name: string
   short_name: string
   is_enabled: boolean
@@ -473,7 +475,7 @@ export interface ModelInputRequirements {
 // PublicModel is the user-facing model representation.
 export interface PublicModel {
   id: number
-  credential_id: number        // parent AICredential ID (for admin inline edit)
+  provider_id?: string         // provider lane selected by Route/Provider
   display_name: string
   short_name?: string
   provider_name?: string       // admin/debug only; product UI should not expose providers

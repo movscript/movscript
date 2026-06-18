@@ -1,7 +1,4 @@
-import {
-  redactAgentTraceDebugText,
-  type ProviderModelAPIKind,
-} from '@movscript/core/agent'
+import { redactAgentTraceDebugText } from '@movscript/core/agent'
 import type {
   ProviderCatalogConfigFile,
   ProviderModelConfigPublic,
@@ -71,8 +68,6 @@ export type SettingsActionQuickFix =
   | 'reset-model-workspace'
   | 'confirm-clear-model-config'
   | 'enable-chat-route'
-  | 'switch-openai-responses'
-  | 'strip-sensitive-base-url-query'
   | 'reset-config-file-workspace'
   | 'reset-skill-config-workspace'
   | 'fix-tool-permissions-workspace-issues'
@@ -98,135 +93,8 @@ export function buildModelRouteIssues(input: { useForChat: boolean; useForPlanne
   return []
 }
 
-export function buildModelCompatibilityProbes(input: {
-  selectedApiKind: ProviderModelAPIKind
-  modelValue: string
-  baseURL: string
-  apiKeyProvided: boolean
-  usesBackendCompatibleBaseURL: boolean
-  modelBaseURLHasSecret: boolean
-  directModelIdHasSecret: boolean
-  useForChat: boolean
-  useForPlanner: boolean
-  effectiveConfig: ProviderModelConfigPublic | null
-}): ModelCompatibilityProbe[] {
-  const model = input.modelValue.trim()
-  const probes: ModelCompatibilityProbe[] = []
-  probes.push({
-    id: 'api-mode',
-    status: input.selectedApiKind === 'openai_chat_completions' ? 'warning' : 'ready',
-    labelKey: 'agents.settings.modelCompatibility.apiMode',
-    detailKey: input.selectedApiKind === 'openai_chat_completions'
-      ? 'agents.settings.modelCompatibilityDetails.apiModeChatCompatibility'
-      : 'agents.settings.modelCompatibilityDetails.apiModeReady',
-    detailValues: { apiKind: input.selectedApiKind },
-  })
-
-  let modelStatus: ModelCompatibilityProbe['status'] = model ? 'ready' : 'action'
-  let modelDetailKey = model ? 'agents.settings.modelCompatibilityDetails.modelIdReady' : 'agents.settings.modelCompatibilityDetails.modelIdMissing'
-  if (model && input.directModelIdHasSecret) {
-    modelStatus = 'action'
-    modelDetailKey = 'agents.settings.modelCompatibilityDetails.modelIdSecret'
-  } else if (model && !input.usesBackendCompatibleBaseURL && input.selectedApiKind === 'anthropic_messages' && /^(gpt|o\d|text-|davinci)/i.test(model)) {
-    modelStatus = 'warning'
-    modelDetailKey = 'agents.settings.modelCompatibilityDetails.modelIdProviderMismatch'
-  } else if (model && !input.usesBackendCompatibleBaseURL && (input.selectedApiKind === 'openai_responses' || input.selectedApiKind === 'openai_chat_completions') && /^claude/i.test(model)) {
-    modelStatus = 'warning'
-    modelDetailKey = 'agents.settings.modelCompatibilityDetails.modelIdProviderMismatch'
-  }
-  probes.push({
-    id: 'model-id',
-    status: modelStatus,
-    labelKey: 'agents.settings.modelCompatibility.modelId',
-    detailKey: modelDetailKey,
-    detailValues: { model: model || '-' },
-  })
-
-  const credentialStatus = input.effectiveConfig?.apiKind === input.selectedApiKind ? input.effectiveConfig.credentialStatus : undefined
-  const hasUsableSettingsApiKey = input.apiKeyProvided || Boolean(input.effectiveConfig?.apiKeyConfigured)
-  const usesBackendRequestAuth = input.usesBackendCompatibleBaseURL
-  probes.push({
-    id: 'credentials',
-    status: usesBackendRequestAuth
-      ? 'ready'
-      : !hasUsableSettingsApiKey
-        ? 'action'
-        : 'ready',
-    labelKey: 'agents.settings.modelCompatibility.credentials',
-    detailKey: usesBackendRequestAuth
-      ? 'agents.settings.modelCompatibilityDetails.credentialsBackendManaged'
-      : !hasUsableSettingsApiKey
-        ? 'agents.settings.modelCompatibilityDetails.credentialsMissing'
-        : 'agents.settings.modelCompatibilityDetails.credentialsReady',
-    detailValues: { env: credentialStatus?.acceptedEnv.join(', ') || 'model settings API key' },
-  })
-
-  const hasCustomBaseURL = Boolean(input.baseURL)
-  const baseURLLooksValid = !hasCustomBaseURL || isValidHTTPURL(input.baseURL)
-  probes.push({
-    id: 'base-url',
-    status: input.modelBaseURLHasSecret || !baseURLLooksValid ? 'action' : 'ready',
-    labelKey: 'agents.settings.modelCompatibility.baseURL',
-    detailKey: input.modelBaseURLHasSecret
-      ? 'agents.settings.modelCompatibilityDetails.baseURLSecret'
-      : !baseURLLooksValid
-        ? 'agents.settings.modelCompatibilityDetails.baseURLInvalid'
-        : hasCustomBaseURL
-          ? 'agents.settings.modelCompatibilityDetails.baseURLCustom'
-          : 'agents.settings.modelCompatibilityDetails.baseURLDefault',
-    detailValues: { baseURL: input.baseURL || '-' },
-  })
-
-  probes.push({
-    id: 'routes',
-    status: input.useForChat || input.useForPlanner ? 'ready' : 'action',
-    labelKey: 'agents.settings.modelCompatibility.routes',
-    detailKey: input.useForChat || input.useForPlanner
-      ? 'agents.settings.modelCompatibilityDetails.routesReady'
-      : 'agents.settings.modelCompatibilityDetails.routesMissing',
-  })
-  return probes
-}
-
-export function buildApiModeSwitchTaskGraph(input: {
-  selectedApiKind: ProviderModelAPIKind
-  probes: ModelCompatibilityProbe[]
-  hasUnsavedChanges: boolean
-}): ApiModeSwitchPlanItem[] {
-  const probeById = new Map(input.probes.map((probe) => [probe.id, probe]))
-  const targetApiKind = recommendedSwitchTarget(input.selectedApiKind)
-  const hasActionProbe = input.probes.some((probe) => probe.status === 'action')
-  const saveStatus: ApiModeSwitchPlanItem['status'] = hasActionProbe ? 'action' : input.hasUnsavedChanges ? 'warning' : 'ready'
-  return [
-    {
-      id: 'target-mode',
-      status: input.selectedApiKind === targetApiKind ? 'ready' : 'warning',
-      labelKey: 'agents.settings.apiModeSwitchTaskGraph.targetMode',
-      detailKey: input.selectedApiKind === targetApiKind
-        ? 'agents.settings.apiModeSwitchPlanDetails.targetModeStable'
-        : 'agents.settings.apiModeSwitchPlanDetails.targetModeMigration',
-      detailValues: { apiKind: input.selectedApiKind, targetApiKind },
-    },
-    switchPlanProbeItem('model-id', probeById.get('model-id'), 'agents.settings.apiModeSwitchTaskGraph.modelId'),
-    switchPlanProbeItem('credentials', probeById.get('credentials'), 'agents.settings.apiModeSwitchTaskGraph.credentials'),
-    switchPlanProbeItem('base-url', probeById.get('base-url'), 'agents.settings.apiModeSwitchTaskGraph.baseURL'),
-    switchPlanProbeItem('routes', probeById.get('routes'), 'agents.settings.apiModeSwitchTaskGraph.routes'),
-    {
-      id: 'save-test',
-      status: saveStatus,
-      labelKey: 'agents.settings.apiModeSwitchTaskGraph.saveTest',
-      detailKey: hasActionProbe
-        ? 'agents.settings.apiModeSwitchPlanDetails.saveTestBlocked'
-        : input.hasUnsavedChanges
-          ? 'agents.settings.apiModeSwitchPlanDetails.saveTestPending'
-          : 'agents.settings.apiModeSwitchPlanDetails.saveTestReady',
-    },
-  ]
-}
-
 export function buildSettingsReadinessItems(input: {
   effectiveConfig: ProviderModelConfigPublic | null
-  selectedApiKind: ProviderModelAPIKind
   savedDirectModelIdHasSecret: boolean
   modelRoutes: NonNullable<ProviderModelConfigPublic['capabilities']>
   modelRouteIssues: string[]
@@ -256,12 +124,6 @@ export function buildSettingsReadinessItems(input: {
           ? 'agents.settings.readinessDetails.modelReady'
           : 'agents.settings.readinessDetails.modelMissing',
       detailValues: { model: input.effectiveConfig?.model ? redactAgentTraceDebugText(input.effectiveConfig.model) : '-' },
-    },
-    {
-      id: 'api-mode',
-      status: input.selectedApiKind === 'openai_chat_completions' ? 'warning' : 'ready',
-      labelKey: 'agents.settings.readiness.apiMode',
-      detailKey: apiModeReadinessDetailKey(input.selectedApiKind),
     },
     {
       id: 'model-credentials',
@@ -328,39 +190,4 @@ export function buildSettingsReadinessItems(input: {
 
 export function buildSettingsActionItems(input: BuildSettingsActionItemsInput): SettingsActionItem[] {
   return buildSettingsActionItemsFromInput(input)
-}
-
-function switchPlanProbeItem(
-  id: ApiModeSwitchPlanItem['id'],
-  probe: ModelCompatibilityProbe | undefined,
-  labelKey: string,
-): ApiModeSwitchPlanItem {
-  return {
-    id,
-    status: probe?.status ?? 'warning',
-    labelKey,
-    detailKey: probe?.detailKey ?? 'agents.settings.apiModeSwitchPlanDetails.probeMissing',
-    detailValues: probe?.detailValues,
-  }
-}
-
-function recommendedSwitchTarget(apiKind: ProviderModelAPIKind): ProviderModelAPIKind {
-  if (apiKind === 'openai_chat_completions') return 'openai_responses'
-  return apiKind
-}
-
-function isValidHTTPURL(value: string): boolean {
-  try {
-    const url = new URL(value)
-    return url.protocol === 'http:' || url.protocol === 'https:'
-  } catch {
-    return false
-  }
-}
-
-function apiModeReadinessDetailKey(apiKind: ProviderModelAPIKind): string {
-  if (apiKind === 'openai_responses') return 'agents.settings.readinessDetails.apiModeResponsesRecommended'
-  if (apiKind === 'openai_chat_completions') return 'agents.settings.readinessDetails.apiModeChatCompatibility'
-  if (apiKind === 'anthropic_messages') return 'agents.settings.readinessDetails.apiModeAnthropicProvider'
-  return 'agents.settings.readinessDetails.apiModeBackendManaged'
 }

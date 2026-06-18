@@ -45,7 +45,7 @@ test('core agent model catalog resolves stable public model ids', () => {
 function modelFixture(patch = {}) {
   return {
     id: 1,
-    credential_id: 1,
+    provider_id: 'local_provider:1',
     model_id: 'model',
     display_name: 'Model',
     capabilities: ['text'],

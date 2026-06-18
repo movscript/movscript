@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { CheckCircle2, CircleDot, ClipboardList, Loader2, Sparkles } from 'lucide-react'
+import { Activity, CheckCircle2, CircleDot, ClipboardList, Loader2, Sparkles } from 'lucide-react'
 import { Badge, Button } from '@movscript/ui/primitives'
 import type { ContentSourceWorkspaceData } from '@movscript/core/content'
 
@@ -15,6 +15,13 @@ import {
 import { providerSessionClient } from '@/shared/infrastructure/providerSessionClient'
 import { agentSessionOutputKeys } from '@/features/agent/application/agentSessionOutputQueryKeys'
 import { agentSessionOutputContentWorkspaceChangedResult, invalidateAgentSessionOutputMutationResult } from '@/features/agent/application/agentSessionOutputMutationInvalidation'
+import {
+  agentActivityEventMatches,
+  publishAgentActivityEvent,
+  recentAgentActivityEvents,
+  subscribeAgentActivityEvents,
+  type AgentActivityAppEvent,
+} from '@/features/agent/application/agentActivityEvents'
 
 interface AgentSessionOutputPaneProps {
   conversationId: string
@@ -47,6 +54,7 @@ export function AgentSessionOutputPane({ conversationId, projectId }: AgentSessi
   const runtimeState = useAgentSessionStore((state) => state.conversationRuntimeStates[conversationId])
   const [selectingCandidateKey, setSelectingCandidateKey] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [activityEvents, setActivityEvents] = useState<AgentActivityAppEvent[]>(() => recentAgentActivityEvents({ conversationId, projectId, limit: 12 }))
   const queryClient = useQueryClient()
   const pageTasks = useMemo(() => conversationPageTasks({
     conversationId,
@@ -81,6 +89,16 @@ export function AgentSessionOutputPane({ conversationId, projectId }: AgentSessi
   const contentUnits = useMemo(() => (
     sessionContentUnitsFromWorkspaceData(contentWorkspaceQuery.data, new Set(projection.contentUnitIds))
   ), [contentWorkspaceQuery.data, projection.contentUnitIds])
+  useEffect(() => {
+    const filter = { conversationId, projectId }
+    setActivityEvents(recentAgentActivityEvents({ ...filter, limit: 12 }))
+    return subscribeAgentActivityEvents((event) => {
+      setActivityEvents((current) => {
+        const next = [...current.filter((item) => item.id !== event.id), event]
+        return next.slice(-12)
+      })
+    }, (event) => agentActivityEventMatches(event, filter))
+  }, [conversationId, projectId])
 
   async function selectCandidate(contentUnit: SessionContentUnitView, candidate: SessionCandidateView) {
     if (!projectId) return
@@ -93,6 +111,21 @@ export function AgentSessionOutputPane({ conversationId, projectId }: AgentSessi
         contentUnitId: contentUnit.id,
         candidateId: candidate.id,
         ...(candidate.resourceId !== undefined ? { resourceId: candidate.resourceId } : {}),
+      })
+      publishAgentActivityEvent('agent.output.selected', {
+        conversationId,
+        projectId,
+        activityId: `${contentUnit.id}:${candidate.id}:selected`,
+        kind: 'output',
+        title: '候选已选用',
+        summary: `${contentUnit.title} · ${candidate.title}`,
+        status: 'completed',
+        origin: 'user',
+        targetIds: [contentUnit.id, candidate.id],
+        rawRef: { type: 'content_unit_candidate', id: `${contentUnit.id}:${candidate.id}` },
+      }, {
+        id: `agent:output-selected:${conversationId}:${projectId}:${contentUnit.id}:${candidate.id}`,
+        source: 'agent-session-output-pane',
       })
       await invalidateAgentSessionOutputMutationResult(queryClient, agentSessionOutputContentWorkspaceChangedResult({ projectId, changedIds: [contentUnit.id, candidate.id] }))
     } catch (error) {
@@ -124,6 +157,22 @@ export function AgentSessionOutputPane({ conversationId, projectId }: AgentSessi
           {actionError}
         </div>
       ) : null}
+
+      <section className="agent-session-output__section">
+        <div className="agent-session-output__section-title">
+          <Activity size={14} />
+          <span>行为时间线</span>
+        </div>
+        {activityEvents.length === 0 ? (
+          <EmptySessionOutput message="当前会话暂未记录到 agent 行为。" />
+        ) : (
+          <div className="agent-session-output__activity-list">
+            {activityEvents.map((event) => (
+              <AgentActivityRow key={event.id} event={event} />
+            ))}
+          </div>
+        )}
+      </section>
 
       <section className="agent-session-output__section">
         <div className="agent-session-output__section-title">
@@ -169,6 +218,28 @@ export function AgentSessionOutputPane({ conversationId, projectId }: AgentSessi
         )}
       </section>
     </div>
+  )
+}
+
+function AgentActivityRow({ event }: { event: AgentActivityAppEvent }) {
+  return (
+    <article className="agent-session-output__activity" data-status={event.payload.status}>
+      <div className="agent-session-output__activity-main">
+        <p className="agent-session-output__activity-title">{event.payload.title}</p>
+        {event.payload.summary ? <p className="agent-session-output__activity-summary">{event.payload.summary}</p> : null}
+        <p className="agent-session-output__activity-meta">
+          {[
+            agentActivityTopicLabel(event.topic),
+            agentActivityOriginLabel(event.payload.origin),
+            event.payload.toolName,
+            event.payload.runId ? `run ${event.payload.runId}` : undefined,
+          ].filter(Boolean).join(' · ')}
+        </p>
+      </div>
+      <Badge variant={event.payload.status === 'completed' ? 'outline' : 'soft'}>
+        {agentActivityStatusLabel(event.payload.status)}
+      </Badge>
+    </article>
   )
 }
 
@@ -321,4 +392,29 @@ function selectionStateText(status: SelectionState) {
   if (status === 'stale') return '需复核'
   if (status === 'needs_candidate') return '缺候选'
   return '待选择'
+}
+
+function agentActivityStatusLabel(status: AgentActivityAppEvent['payload']['status']) {
+  if (status === 'completed') return '完成'
+  if (status === 'failed') return '失败'
+  if (status === 'cancelled') return '已取消'
+  if (status === 'requires_action') return '待确认'
+  if (status === 'pending') return '等待'
+  return '进行中'
+}
+
+function agentActivityTopicLabel(topic: AgentActivityAppEvent['topic']) {
+  if (topic.startsWith('agent.tool.')) return '工具'
+  if (topic.startsWith('agent.output.')) return '产出'
+  if (topic === 'agent.plan.updated') return '计划'
+  if (topic === 'agent.approval.requested') return '确认'
+  if (topic === 'agent.user-input.requested') return '补充输入'
+  return '动作'
+}
+
+function agentActivityOriginLabel(origin: AgentActivityAppEvent['payload']['origin']) {
+  if (origin === 'user') return '用户'
+  if (origin === 'agent-mcp') return 'Agent MCP'
+  if (origin === 'agent') return 'Agent'
+  return '系统'
 }

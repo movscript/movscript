@@ -11,7 +11,7 @@ const CANVASES = [
 
 const IMAGE_MODEL = {
   id: 7101,
-  credential_id: 7,
+  provider_id: 'local_provider:7',
   model_def_id: 'e2e-image-v1',
   provider: 'e2e',
   display_name: 'E2E Image Model',

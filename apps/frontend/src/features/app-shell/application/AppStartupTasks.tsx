@@ -4,14 +4,15 @@ import {
   attachCrossPageNotificationBroadcastBridge,
   publishCrossPageNotificationFromUnknown,
 } from '@/shared/application/crossPageNotifications'
-import { agentSessionOutputKeys } from '@/features/agent/application/agentSessionOutputQueryKeys'
-import { movScriptWorkspaceKeys } from '@/features/agent/application/movScriptWorkspaceQueryKeys'
-import { contentCanvasKeys } from '@/features/content/application/contentCanvasQueryKeys'
-import { resourceCandidateKeys } from '@/features/resources/application/resourceQueryKeys'
+import { installAppEventQueryInvalidationBridge } from '@/shared/application/appEventQueryInvalidation'
+import { projectAppEventScope, publishAppEvent } from '@/shared/application/appEvents'
 import { hydrateAppWindowContext } from '@/shared/infrastructure/appWindowContext'
 import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
 import { useAppWindowContextStore } from '@/shared/infrastructure/appWindowContext'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
+import { useSystemStatusStore } from '@/shared/infrastructure/systemStatusStore'
+import { refreshRuntimeConfigSnapshot } from '@/shared/infrastructure/config'
+import { refreshProviderSettingsRuntimeEnv } from '@/shared/infrastructure/providerConfigStore'
 
 export function AppStartupTasks({ settingsHydrated }: { settingsHydrated: boolean }) {
   const queryClient = useQueryClient()
@@ -28,20 +29,33 @@ export function AppStartupTasks({ settingsHydrated }: { settingsHydrated: boolea
   }, [])
 
   useEffect(() => {
+    return installAppEventQueryInvalidationBridge(queryClient)
+  }, [queryClient])
+
+  useEffect(() => {
     const unsubscribe = readElectronApi()?.onMovScriptEngineWorkspaceUpdated?.((event) => {
       const projectId = positiveProjectId(event.projectId)
-      void queryClient.invalidateQueries({ queryKey: movScriptWorkspaceKeys.filesScope })
-      if (!projectId) return
-      void queryClient.invalidateQueries({ queryKey: contentCanvasKeys.project(projectId) })
-      void queryClient.invalidateQueries({ queryKey: agentSessionOutputKeys.contentWorkspace(projectId) })
-      void queryClient.invalidateQueries({ queryKey: resourceCandidateKeys.targetsForProject(projectId) })
-      void queryClient.invalidateQueries({ queryKey: resourceCandidateKeys.generatedTargets(projectId) })
-      for (const kind of ['settings', 'assetSlots', 'productions', 'sceneMoments', 'contentUnits']) {
-        void queryClient.invalidateQueries({ queryKey: [kind, projectId] })
-      }
+      useSystemStatusStore.getState().markWorkspaceUpdated(projectId)
+      publishAppEvent({
+        topic: 'project.workspace.updated',
+        scope: projectAppEventScope(event.projectId),
+        source: 'electron',
+        delivery: 'cross-surface',
+        payload: event,
+        raw: event,
+      })
     })
     return unsubscribe ?? undefined
   }, [queryClient])
+
+  useEffect(() => {
+    if (!settingsHydrated) return
+    void refreshRuntimeConfigSnapshot()
+      .then(() => refreshProviderSettingsRuntimeEnv())
+      .catch((error) => {
+        console.warn('[runtime-config] failed to refresh provider runtime env', error)
+      })
+  }, [settingsHydrated])
 
   useEffect(() => {
     if (!settingsHydrated) return
@@ -72,6 +86,7 @@ export function AppStartupTasks({ settingsHydrated }: { settingsHydrated: boolea
 
   useEffect(() => {
     const unsubscribe = readElectronApi()?.onBackendAuthSessionExpired?.(() => {
+      useSystemStatusStore.getState().markAuthSessionExpired()
       useUserStore.getState().setCurrentUser(null)
     })
     return unsubscribe ?? undefined

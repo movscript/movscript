@@ -7,9 +7,19 @@ import {
   providerLabel,
   type PersistedAppServerProfile,
 } from '@/shared/infrastructure/providerConfigAppServerProfile'
+import { getRuntimeConfigSnapshot } from '@/shared/infrastructure/config'
 import {
+  CLAUDE_PROVIDER_ID,
+  CLAUDE_RUNTIME_API_ENV,
+  CLAUDE_RUNTIME_BINARY_PACKAGE_ENV,
+  CLAUDE_RUNTIME_PACKAGE_ENV,
+  CLAUDE_RUNTIME_PACKAGE_VERSION_ENV,
   CODEX_PROVIDER_ID,
   CODEX_MOVSCRIPT_HOME_PROFILE_ID,
+  CODEX_RUNTIME_PACKAGE_ENV,
+  CODEX_RUNTIME_PACKAGE_VERSION_ENV,
+  CODEX_RUNTIME_API_ENV,
+  CODEX_RUNTIME_SDK_PACKAGE_ENV,
   DEFAULT_CODEX_MOVSCRIPT_HOME_PROFILE,
   DEFAULT_MOVA_MOVSCRIPT_HOME_PROFILE,
   DEFAULT_PROVIDER_SETTINGS,
@@ -27,6 +37,8 @@ export type BuiltInProviderProtocol = 'app-server' | 'claude-code'
 export type ProviderProtocol = BuiltInProviderProtocol | (string & {})
 export type BuiltInProviderMessageAdapterKind = 'thread-turn-item' | 'claude-thread-message'
 export type ProviderMessageAdapterKind = BuiltInProviderMessageAdapterKind | (string & {})
+export type BuiltInProviderRuntimeApi = 'app-server' | 'codex-sdk' | 'claude-sdk'
+export type ProviderRuntimeApi = BuiltInProviderRuntimeApi | (string & {})
 
 export type AppServerLifecycle = 'movscript-owned'
 export type MovScriptWorkspaceScope = 'global' | 'project' | 'production'
@@ -61,7 +73,27 @@ export interface ProviderConfig {
   messageAdapter?: ProviderMessageAdapterKind
   label: string
   enabled: boolean
+  runtime?: ProviderRuntimeProfile
   appServerProfile?: AppServerProfile
+}
+
+export interface ProviderRuntimeProfile {
+  id: string
+  api: ProviderRuntimeApi
+  label: string
+  apiSource?: 'env' | 'user'
+  packageName?: string
+  sdkPackageName?: string
+  binaryPackageName?: string
+  packageVersion?: string
+  executableCommand?: string
+  executableEnvVar?: string
+  apiEnvVar?: string
+  packageNameEnvVar?: string
+  sdkPackageNameEnvVar?: string
+  binaryPackageNameEnvVar?: string
+  packageVersionEnvVar?: string
+  protocolVersion?: string
 }
 
 export interface ProviderSettings {
@@ -70,11 +102,12 @@ export interface ProviderSettings {
   newConversationProviderId?: string
 }
 
-type PersistedProviderConfig = Partial<Omit<ProviderConfig, 'protocol' | 'messageAdapter' | 'appServerProfile'>> & {
+type PersistedProviderConfig = Partial<Omit<ProviderConfig, 'protocol' | 'messageAdapter' | 'runtime' | 'appServerProfile'>> & {
   id?: string
   kind?: ProviderKind
   protocol?: ProviderProtocol
   messageAdapter?: ProviderMessageAdapterKind
+  runtime?: Partial<ProviderRuntimeProfile>
   appServerProfile?: PersistedAppServerProfile
 }
 
@@ -92,8 +125,17 @@ interface ProviderConfigStore {
 }
 
 export {
+  CLAUDE_PROVIDER_ID,
+  CLAUDE_RUNTIME_API_ENV,
+  CLAUDE_RUNTIME_BINARY_PACKAGE_ENV,
+  CLAUDE_RUNTIME_PACKAGE_ENV,
+  CLAUDE_RUNTIME_PACKAGE_VERSION_ENV,
   CODEX_PROVIDER_ID,
   CODEX_MOVSCRIPT_HOME_PROFILE_ID,
+  CODEX_RUNTIME_PACKAGE_ENV,
+  CODEX_RUNTIME_PACKAGE_VERSION_ENV,
+  CODEX_RUNTIME_API_ENV,
+  CODEX_RUNTIME_SDK_PACKAGE_ENV,
   DEFAULT_CODEX_MOVSCRIPT_HOME_PROFILE,
   DEFAULT_MOVA_MOVSCRIPT_HOME_PROFILE,
   DEFAULT_PROVIDER_SETTINGS,
@@ -120,25 +162,25 @@ export const useProviderConfigStore = create<ProviderConfigStore>()(
       settings: DEFAULT_PROVIDER_SETTINGS,
       savedAt: null,
       setSettings: (settings) => set({
-        settings: normalizeProviderSettings(settings),
+        settings: normalizeProviderSettingsWithRuntimeEnv(settings),
         savedAt: new Date().toISOString(),
       }),
       setDefaultProviderId: (providerId) => set((state) => ({
-        settings: normalizeProviderSettings({
+        settings: normalizeProviderSettingsWithRuntimeEnv({
           ...state.settings,
           defaultProviderId: providerId,
         }),
         savedAt: new Date().toISOString(),
       })),
       setNewConversationProviderId: (providerId) => set((state) => ({
-        settings: normalizeProviderSettings({
+        settings: normalizeProviderSettingsWithRuntimeEnv({
           ...state.settings,
           newConversationProviderId: providerId,
         }),
         savedAt: new Date().toISOString(),
       })),
       reset: () => set({
-        settings: normalizeProviderSettings(DEFAULT_PROVIDER_SETTINGS),
+        settings: normalizeProviderSettingsWithRuntimeEnv(DEFAULT_PROVIDER_SETTINGS),
         savedAt: new Date().toISOString(),
       }),
     }),
@@ -149,12 +191,22 @@ export const useProviderConfigStore = create<ProviderConfigStore>()(
         return {
           ...current,
           savedAt: persistedStore.savedAt ?? current.savedAt,
-          settings: normalizeProviderSettings(persistedStore.settings),
+          settings: normalizeProviderSettingsWithRuntimeEnv(persistedStore.settings),
         }
       },
     },
   ),
 )
+
+useProviderConfigStore.setState((state) => ({
+  settings: normalizeProviderSettingsWithRuntimeEnv(state.settings),
+}))
+
+export function refreshProviderSettingsRuntimeEnv(): void {
+  useProviderConfigStore.setState((state) => ({
+    settings: normalizeProviderSettingsWithRuntimeEnv(state.settings),
+  }))
+}
 
 function persistedProviderConfigStore(value: unknown): { settings?: PersistedProviderSettings; savedAt: string | null } {
   if (!value || typeof value !== 'object') return { settings: undefined, savedAt: null }
@@ -179,6 +231,7 @@ export function normalizeProviderSettings(settings: PersistedProviderSettings | 
     if (!kind) continue
     const protocol = normalizeProviderProtocol(provider.protocol, fallback?.protocol, kind)
     const messageAdapter = normalizeProviderMessageAdapter(provider.messageAdapter, fallback?.messageAdapter, kind, protocol)
+    const runtime = normalizeProviderRuntimeProfile(provider.runtime, fallback?.runtime, kind, protocol)
     providersById.set(id, {
       id,
       kind,
@@ -186,6 +239,7 @@ export function normalizeProviderSettings(settings: PersistedProviderSettings | 
       messageAdapter,
       label: provider.label?.trim() || fallback?.label || providerLabel(kind),
       enabled: provider.enabled !== false,
+      runtime,
       ...(protocol === 'app-server'
         ? {
             appServerProfile: normalizeAppServerProfile(
@@ -213,6 +267,12 @@ export function normalizeProviderSettings(settings: PersistedProviderSettings | 
     defaultProviderId,
     ...(newConversationProviderId ? { newConversationProviderId } : {}),
   }
+}
+
+export function normalizeProviderSettingsWithRuntimeEnv(settings: PersistedProviderSettings | null | undefined): ProviderSettings {
+  const normalized = normalizeProviderSettings(settings)
+  const env = getRuntimeConfigSnapshot()?.providerRuntimeEnv
+  return env ? providerSettingsWithRuntimeEnv(normalized, env) : normalized
 }
 
 export function enabledProviders(settings: ProviderSettings): ProviderConfig[] {
@@ -247,8 +307,51 @@ export function providerMessageAdapter(provider: ProviderConfig): ProviderMessag
   return normalizeProviderMessageAdapter(provider.messageAdapter, undefined, provider.kind, providerProtocol(provider))
 }
 
+export function providerRuntimeProfile(provider: ProviderConfig): ProviderRuntimeProfile {
+  return normalizeProviderRuntimeProfile(provider.runtime, undefined, provider.kind, providerProtocol(provider))
+}
+
+export function providerRuntimeApi(provider: ProviderConfig): ProviderRuntimeApi {
+  return providerRuntimeProfile(provider).api
+}
+
+export function providerRuntimeApiOptions(provider: ProviderConfig): Array<{ api: ProviderRuntimeApi; label: string }> {
+  if (provider.kind === CODEX_PROVIDER_ID) {
+    return [
+      { api: 'codex-sdk', label: providerRuntimeLabel(provider.kind, 'codex-sdk') },
+      { api: 'app-server', label: providerRuntimeLabel(provider.kind, 'app-server') },
+    ]
+  }
+  if (provider.kind === CLAUDE_PROVIDER_ID) return [{ api: 'claude-sdk', label: providerRuntimeLabel(provider.kind, 'claude-sdk') }]
+  if (providerProtocol(provider) === 'app-server') return [{ api: 'app-server', label: providerRuntimeLabel(provider.kind, 'app-server') }]
+  return [{ api: providerRuntimeApi(provider), label: providerRuntimeProfile(provider).label }]
+}
+
+export function providerWithRuntimeApi(provider: ProviderConfig, api: ProviderRuntimeApi): ProviderConfig {
+  if (!isSupportedProviderRuntimeApi(api, provider.kind, providerProtocol(provider))) return provider
+  const runtime = providerRuntimeProfile(provider)
+  return {
+    ...provider,
+    runtime: {
+      ...runtime,
+      id: providerRuntimeId(provider.kind, api),
+      api,
+      apiSource: 'user',
+      label: providerRuntimeLabel(provider.kind, api),
+    },
+  }
+}
+
 export function usesAppServerProtocol(provider: ProviderConfig | undefined): boolean {
   return Boolean(provider && providerProtocol(provider) === 'app-server')
+}
+
+export function usesRuntimeApi(provider: ProviderConfig | undefined, api: ProviderRuntimeApi): boolean {
+  return Boolean(provider && providerRuntimeApi(provider) === api)
+}
+
+export function providerSupportsAppServerRuntime(provider: ProviderConfig | undefined): boolean {
+  return Boolean(provider && usesAppServerProtocol(provider) && usesRuntimeApi(provider, 'app-server'))
 }
 
 export function resolveAppServerProfile(provider: ProviderConfig): AppServerProfile {
@@ -260,6 +363,46 @@ export function resolveAppServerProfile(provider: ProviderConfig): AppServerProf
     persistedAppServerProfileForKind(provider),
     kind,
   )
+}
+
+export function providerSettingsWithRuntimeEnv(
+  settings: ProviderSettings,
+  env: Record<string, string | undefined>,
+): ProviderSettings {
+  const defaultProviderId = providerIdFromEnv(env.MOVSCRIPT_DEFAULT_PROVIDER, settings)
+  const newConversationProviderId = providerIdFromEnv(env.MOVSCRIPT_NEW_CONVERSATION_PROVIDER, settings)
+  return normalizeProviderSettings({
+    ...settings,
+    ...(defaultProviderId ? { defaultProviderId } : {}),
+    ...(newConversationProviderId ? { newConversationProviderId } : {}),
+    providers: settings.providers.map((provider) => providerWithRuntimeEnv(provider, env)),
+  })
+}
+
+export function providerWithRuntimeEnv(
+  provider: ProviderConfig,
+  env: Record<string, string | undefined>,
+): ProviderConfig {
+  const runtime = providerRuntimeProfile(provider)
+  const envApi = runtime.apiSource === 'user' ? undefined : runtimeApiFromEnv(provider, runtime, env)
+  const nextApi = envApi ?? runtime.api
+  const nextRuntime = {
+    ...runtime,
+    ...(nextApi !== runtime.api
+      ? {
+          id: providerRuntimeId(provider.kind, nextApi),
+          api: nextApi,
+          apiSource: 'env' as const,
+          label: providerRuntimeLabel(provider.kind, nextApi),
+        }
+      : {}),
+    ...runtimePackageFieldsFromEnv(provider, runtime, env),
+  }
+  if (providerRuntimeProfilesEqual(runtime, nextRuntime)) return provider
+  return {
+    ...provider,
+    runtime: nextRuntime,
+  }
 }
 
 function normalizeProviderProtocol(
@@ -302,6 +445,203 @@ function defaultProviderMessageAdapter(kind: ProviderKind): ProviderMessageAdapt
   return 'thread-turn-item'
 }
 
+function normalizeProviderRuntimeProfile(
+  runtime: Partial<ProviderRuntimeProfile> | undefined,
+  fallback: ProviderRuntimeProfile | undefined,
+  kind: ProviderKind,
+  protocol: ProviderProtocol,
+): ProviderRuntimeProfile {
+  const api = normalizeProviderRuntimeApi(runtime?.api, fallback?.api, kind, protocol)
+  const id = normalizeProviderKey(runtime?.id) ?? normalizeProviderKey(fallback?.id) ?? providerRuntimeId(kind, api)
+  return {
+    id,
+    api,
+    label: runtime?.label?.trim() || fallback?.label || providerRuntimeLabel(kind, api),
+    ...normalizedRuntimeApiSource(runtime?.apiSource ?? fallback?.apiSource),
+    ...normalizedRuntimeStringField('packageName', runtime?.packageName ?? fallback?.packageName),
+    ...normalizedRuntimeStringField('sdkPackageName', runtime?.sdkPackageName ?? fallback?.sdkPackageName),
+    ...normalizedRuntimeStringField('binaryPackageName', runtime?.binaryPackageName ?? fallback?.binaryPackageName),
+    ...normalizedRuntimeStringField('packageVersion', runtime?.packageVersion ?? fallback?.packageVersion),
+    ...normalizedRuntimeStringField('executableCommand', runtime?.executableCommand ?? fallback?.executableCommand),
+    ...normalizedRuntimeEnvField('executableEnvVar', runtime?.executableEnvVar ?? fallback?.executableEnvVar),
+    ...normalizedRuntimeEnvField('apiEnvVar', runtime?.apiEnvVar ?? fallback?.apiEnvVar ?? defaultProviderRuntimeApiEnvVar(kind)),
+    ...normalizedRuntimeEnvField('packageNameEnvVar', runtime?.packageNameEnvVar ?? fallback?.packageNameEnvVar ?? defaultProviderRuntimePackageEnvVar(kind)),
+    ...normalizedRuntimeEnvField('sdkPackageNameEnvVar', runtime?.sdkPackageNameEnvVar ?? fallback?.sdkPackageNameEnvVar ?? defaultProviderRuntimeSdkPackageEnvVar(kind)),
+    ...normalizedRuntimeEnvField('binaryPackageNameEnvVar', runtime?.binaryPackageNameEnvVar ?? fallback?.binaryPackageNameEnvVar ?? defaultProviderRuntimeBinaryPackageEnvVar(kind)),
+    ...normalizedRuntimeEnvField('packageVersionEnvVar', runtime?.packageVersionEnvVar ?? fallback?.packageVersionEnvVar ?? defaultProviderRuntimePackageVersionEnvVar(kind)),
+    ...normalizedRuntimeStringField('protocolVersion', runtime?.protocolVersion ?? fallback?.protocolVersion),
+  }
+}
+
+function normalizedRuntimeApiSource(value: unknown): Pick<ProviderRuntimeProfile, 'apiSource'> {
+  return value === 'env' || value === 'user' ? { apiSource: value } : {}
+}
+
+function normalizeProviderRuntimeApi(
+  api: ProviderRuntimeApi | undefined,
+  fallback: ProviderRuntimeApi | undefined,
+  kind: ProviderKind,
+  protocol: ProviderProtocol,
+): ProviderRuntimeApi {
+  const normalized = normalizeProviderKey(api)
+  if (normalized && isSupportedProviderRuntimeApi(normalized, kind, protocol)) return normalized
+  const fallbackApi = normalizeProviderKey(fallback)
+  if (fallbackApi && isSupportedProviderRuntimeApi(fallbackApi, kind, protocol)) return fallbackApi
+  return defaultProviderRuntimeApi(kind, protocol)
+}
+
+function isSupportedProviderRuntimeApi(api: string, kind: ProviderKind, protocol: ProviderProtocol): boolean {
+  if (kind === 'codex') return api === 'app-server' || api === 'codex-sdk'
+  if (kind === 'claude') return api === 'claude-sdk'
+  if (protocol === 'app-server') return api === 'app-server'
+  return true
+}
+
+function defaultProviderRuntimeApi(kind: ProviderKind, protocol: ProviderProtocol): ProviderRuntimeApi {
+  if (kind === 'codex') return 'app-server'
+  if (kind === 'claude') return 'claude-sdk'
+  if (protocol === 'app-server') return 'app-server'
+  return protocol
+}
+
+function providerRuntimeId(kind: ProviderKind, api: ProviderRuntimeApi): string {
+  return `${kind}-${api}`
+}
+
+function providerRuntimeLabel(kind: ProviderKind, api: ProviderRuntimeApi): string {
+  if (api === 'app-server') return `${providerLabel(kind)} app-server`
+  if (api === 'codex-sdk') return 'Codex SDK'
+  if (api === 'claude-sdk') return 'Claude Agent SDK'
+  return `${providerLabel(kind)} ${api}`
+}
+
+function runtimeApiFromEnv(
+  provider: ProviderConfig,
+  runtime: ProviderRuntimeProfile,
+  env: Record<string, string | undefined>,
+): ProviderRuntimeApi | undefined {
+  const names = [
+    runtime.apiEnvVar,
+    defaultProviderRuntimeApiEnvVar(provider.kind),
+    `MOVSCRIPT_${provider.kind.toUpperCase().replace(/-/g, '_')}_RUNTIME_API`,
+  ].filter(Boolean) as string[]
+  for (const name of names) {
+    const value = normalizeProviderKey(env[name])
+    if (value && isSupportedProviderRuntimeApi(value, provider.kind, providerProtocol(provider))) return value
+  }
+  return undefined
+}
+
+function providerIdFromEnv(value: string | undefined, settings: ProviderSettings): string | undefined {
+  const normalized = normalizeProviderKey(value)
+  if (!normalized) return undefined
+  const provider = settings.providers.find((item) => item.id === normalized || item.kind === normalized)
+  return provider?.enabled === false ? undefined : provider?.id
+}
+
+function defaultProviderRuntimeApiEnvVar(kind: ProviderKind): string | undefined {
+  if (kind === CODEX_PROVIDER_ID) return CODEX_RUNTIME_API_ENV
+  if (kind === CLAUDE_PROVIDER_ID) return CLAUDE_RUNTIME_API_ENV
+  return undefined
+}
+
+function defaultProviderRuntimePackageEnvVar(kind: ProviderKind): string | undefined {
+  if (kind === CODEX_PROVIDER_ID) return CODEX_RUNTIME_PACKAGE_ENV
+  if (kind === CLAUDE_PROVIDER_ID) return CLAUDE_RUNTIME_PACKAGE_ENV
+  return undefined
+}
+
+function defaultProviderRuntimeSdkPackageEnvVar(kind: ProviderKind): string | undefined {
+  if (kind === CODEX_PROVIDER_ID) return CODEX_RUNTIME_SDK_PACKAGE_ENV
+  return undefined
+}
+
+function defaultProviderRuntimeBinaryPackageEnvVar(kind: ProviderKind): string | undefined {
+  if (kind === CLAUDE_PROVIDER_ID) return CLAUDE_RUNTIME_BINARY_PACKAGE_ENV
+  return undefined
+}
+
+function defaultProviderRuntimePackageVersionEnvVar(kind: ProviderKind): string | undefined {
+  if (kind === CODEX_PROVIDER_ID) return CODEX_RUNTIME_PACKAGE_VERSION_ENV
+  if (kind === CLAUDE_PROVIDER_ID) return CLAUDE_RUNTIME_PACKAGE_VERSION_ENV
+  return undefined
+}
+
+function runtimePackageFieldsFromEnv(
+  provider: ProviderConfig,
+  runtime: ProviderRuntimeProfile,
+  env: Record<string, string | undefined>,
+): Partial<ProviderRuntimeProfile> {
+  return {
+    ...runtimeStringFieldFromEnv('packageName', runtimePackageEnvNames(provider, runtime, 'packageNameEnvVar', 'RUNTIME_PACKAGE'), env),
+    ...runtimeStringFieldFromEnv('sdkPackageName', runtimePackageEnvNames(provider, runtime, 'sdkPackageNameEnvVar', 'RUNTIME_SDK_PACKAGE'), env),
+    ...runtimeStringFieldFromEnv('binaryPackageName', runtimePackageEnvNames(provider, runtime, 'binaryPackageNameEnvVar', 'RUNTIME_BINARY_PACKAGE'), env),
+    ...runtimeStringFieldFromEnv('packageVersion', runtimePackageEnvNames(provider, runtime, 'packageVersionEnvVar', 'RUNTIME_PACKAGE_VERSION'), env),
+  }
+}
+
+function runtimePackageEnvNames(
+  provider: ProviderConfig,
+  runtime: ProviderRuntimeProfile,
+  explicitKey: 'packageNameEnvVar' | 'sdkPackageNameEnvVar' | 'binaryPackageNameEnvVar' | 'packageVersionEnvVar',
+  genericSuffix: string,
+): string[] {
+  const providerEnvPrefix = provider.kind.toUpperCase().replace(/-/g, '_')
+  return [
+    runtime[explicitKey],
+    `MOVSCRIPT_${providerEnvPrefix}_${genericSuffix}`,
+  ].filter(Boolean) as string[]
+}
+
+function runtimeStringFieldFromEnv<K extends 'packageName' | 'sdkPackageName' | 'binaryPackageName' | 'packageVersion'>(
+  key: K,
+  names: string[],
+  env: Record<string, string | undefined>,
+): Partial<Pick<ProviderRuntimeProfile, K>> {
+  for (const name of names) {
+    const value = env[name]?.trim()
+    if (value) return { [key]: value } as Partial<Pick<ProviderRuntimeProfile, K>>
+  }
+  return {}
+}
+
+function providerRuntimeProfilesEqual(a: ProviderRuntimeProfile, b: ProviderRuntimeProfile): boolean {
+  const keys: Array<keyof ProviderRuntimeProfile> = [
+    'id',
+    'api',
+    'apiSource',
+    'label',
+    'packageName',
+    'sdkPackageName',
+    'binaryPackageName',
+    'packageVersion',
+    'executableCommand',
+    'executableEnvVar',
+    'apiEnvVar',
+    'packageNameEnvVar',
+    'sdkPackageNameEnvVar',
+    'binaryPackageNameEnvVar',
+    'packageVersionEnvVar',
+    'protocolVersion',
+  ]
+  return keys.every((key) => a[key] === b[key])
+}
+
+function normalizedRuntimeStringField<K extends string>(key: K, value: string | undefined): { [P in K]?: string } {
+  const normalized = value?.trim()
+  return normalized ? { [key]: normalized } as { [P in K]?: string } : {}
+}
+
+function normalizedRuntimeEnvField<K extends string>(key: K, value: string | undefined): { [P in K]?: string } {
+  const normalized = normalizeEnvironmentVariableName(value)
+  return normalized ? { [key]: normalized } as { [P in K]?: string } : {}
+}
+
+function normalizeEnvironmentVariableName(value: string | undefined): string | undefined {
+  const normalized = value?.trim().toUpperCase()
+  return normalized && /^[A-Z_][A-Z0-9_]*$/.test(normalized) ? normalized : undefined
+}
+
 function defaultProviderFallback(): ProviderConfig {
   const fallback = DEFAULT_PROVIDER_SETTINGS.providers.find((provider) => provider.id === DEFAULT_PROVIDER_SETTINGS.defaultProviderId)
   if (!fallback) throw new Error(`Default provider is not configured: ${DEFAULT_PROVIDER_SETTINGS.defaultProviderId}`)
@@ -320,8 +660,8 @@ function normalizeProviderKind(kind: unknown): ProviderKind | undefined {
 }
 
 export function providerInstanceId(provider: ProviderConfig): string {
-  if (usesAppServerProtocol(provider)) return resolveAppServerProfile(provider).id
-  return provider.id
+  if (providerSupportsAppServerRuntime(provider)) return resolveAppServerProfile(provider).id
+  return providerRuntimeProfile(provider).id
 }
 
 export function createProviderThreadRef(input: {

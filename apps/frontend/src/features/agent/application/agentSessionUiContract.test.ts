@@ -148,6 +148,27 @@ test('agent mode sidebar keeps conversations scoped to unbound chats', () => {
   assert.doesNotMatch(agentModePageSource, /AppServerSidebarActiveThread/)
 })
 
+test('agent content area exposes project canvas editing and session output work surfaces', () => {
+  const panelSource = readFileSync(resolve('src/features/agent/components/AgentBrowserPanel.tsx'), 'utf8')
+  const headerSource = readFileSync(resolve('src/features/agent/components/AgentBrowserPanelHeader.tsx'), 'utf8')
+  const tabContentSource = readFileSync(resolve('src/features/agent/components/AgentBrowserTabContent.tsx'), 'utf8')
+  const blankTabSource = readFileSync(resolve('src/features/agent/components/AgentBrowserBlankWebTab.tsx'), 'utf8')
+  const contentStoreSource = readFileSync(resolve('src/features/agent/state/agentContentAreaStore.ts'), 'utf8')
+  const editingPaneSource = readFileSync(resolve('src/features/agent/components/AgentBrowserEditingProjectsPane.tsx'), 'utf8')
+
+  assert.match(contentStoreSource, /kind: 'project_home'/)
+  assert.match(contentStoreSource, /kind: 'canvas_list'/)
+  assert.match(contentStoreSource, /kind: 'editing_projects'/)
+  assert.match(contentStoreSource, /kind: 'session_output'/)
+  assert.match(panelSource, /openEditingProjectsTab/)
+  assert.match(headerSource, /打开剪辑/)
+  assert.match(blankTabSource, /onOpenEditingProjects/)
+  assert.match(tabContentSource, /<CanvasListView source="agent" \/>/)
+  assert.match(tabContentSource, /<AgentBrowserEditingProjectsPane \/>/)
+  assert.match(tabContentSource, /<AgentSessionOutputPane conversationId=\{sessionConversationId\} projectId=\{project\?\.ID\} \/>/)
+  assert.match(editingPaneSource, /openEditingProjectWindow/)
+})
+
 test('agent composer locks workspace context after a session starts', () => {
   const composerControllerSource = readAgentComposerControllerContractSource()
   const composerSectionSource = readFileSync(resolve('src/features/agent/components/AgentComposerSection.tsx'), 'utf8')

@@ -168,7 +168,7 @@ func jobCatalogEntryID(job domainjob.Job) uint {
 }
 
 func catalogEntryDisplay(entry ModelCatalogEntryLookup) string {
-	for _, value := range []string{entry.DisplayName, entry.ShortName, entry.PublicModelID, entry.ProviderModelID} {
+	for _, value := range []string{entry.DisplayName, entry.ShortName, entry.PublicModelID} {
 		if strings.TrimSpace(value) != "" {
 			return strings.TrimSpace(value)
 		}
@@ -177,7 +177,7 @@ func catalogEntryDisplay(entry ModelCatalogEntryLookup) string {
 }
 
 func catalogEntryIdentifier(entry ModelCatalogEntryLookup) string {
-	for _, value := range []string{entry.PublicModelID, entry.ProviderModelID} {
+	for _, value := range []string{entry.PublicModelID} {
 		if strings.TrimSpace(value) != "" {
 			return strings.TrimSpace(value)
 		}

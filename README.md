@@ -187,6 +187,31 @@ This stores local debug state under `.movscript-dev`. To isolate a specific run,
 MOVSCRIPT_WORKSPACE_DIR=/tmp/movscript-debug pnpm --filter @movscript/desktop dev:workspace
 ```
 
+### One-command SDK runtimes
+
+To start the desktop app with the Codex SDK runtime and Claude SDK runtime enabled:
+
+```bash
+pnpm run dev:sdk-runtimes
+```
+
+This command uses `.movscript-dev/.movscript` as the debug workspace and caches SDK packages under `.movscript-dev/sdk-runtimes`. By default it enables:
+
+- `MOVSCRIPT_CODEX_RUNTIME_API=codex-sdk`
+- `@openai/codex-sdk@0.141.0`
+- `@anthropic-ai/claude-agent-sdk@0.3.181`
+
+Each SDK version is prepared once and reused on later launches. Package names, versions, and the runtime cache directory can still be overridden:
+
+```bash
+MOVSCRIPT_CODEX_SDK_PACKAGE_VERSION=0.141.0 \
+MOVSCRIPT_CLAUDE_SDK_PACKAGE_VERSION=0.3.181 \
+MOVSCRIPT_SDK_RUNTIME_DIR=/tmp/movscript-sdk-runtimes \
+pnpm run dev:sdk-runtimes
+```
+
+Packaged desktop builds bundle these SDK runtimes by default. `pnpm --filter @movscript/desktop dist` runs `scripts/prepare-sdk-runtime-seed.mjs`, prepares the SDKs under `apps/frontend/vendor/sdk-runtimes`, and electron-builder copies them into app resources. On first use, the app copies them into the user's runtime cache, so users do not need to preinstall Codex, the Claude SDK, npm, or other command-line tools.
+
 ## Development
 
 Common commands:

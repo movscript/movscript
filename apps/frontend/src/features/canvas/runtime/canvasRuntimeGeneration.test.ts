@@ -46,10 +46,10 @@ test('resolveCanvasRuntimeModel returns no model when saved model id is not in c
 })
 
 function modelFixture(patch: Partial<PublicModel>): PublicModel {
-  return {
-    id: 1,
-    credential_id: 1,
-    model_id: 'model',
+	  return {
+	    id: 1,
+	    provider_id: 'local_provider:1',
+	    model_id: 'model',
     display_name: 'Model',
     capabilities: ['image'],
     accepts_image_input: false,

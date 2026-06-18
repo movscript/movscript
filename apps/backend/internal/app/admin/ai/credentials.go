@@ -10,6 +10,7 @@ import (
 	domainai "github.com/movscript/movscript/internal/domain/ai"
 	"github.com/movscript/movscript/internal/infra/ai"
 	"github.com/movscript/movscript/internal/infra/crypto"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	providercontract "github.com/movscript/movscript/internal/providers/contract"
 )
 
@@ -247,7 +248,8 @@ func (s *Service) testCredential(ctx context.Context, cred domainai.Credential) 
 }
 
 func (s *Service) testCredentialByID(ctx context.Context, credentialID uint) TestResult {
-	result, err := s.gatewayHealth.ProbeGatewayProvider(ctx, providercontract.AIGatewayProviderProbeRequest{CredentialID: credentialID})
+	providerID := fmt.Sprintf("%s:%d", persistencemodel.ModelRouteSourceLocalProvider, credentialID)
+	result, err := s.gatewayHealth.ProbeGatewayProvider(ctx, providercontract.AIGatewayProviderProbeRequest{ProviderID: providerID})
 	if err != nil {
 		return TestResult{Success: false, Message: err.Error()}
 	}

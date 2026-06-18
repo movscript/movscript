@@ -57,19 +57,6 @@ const SETTINGS_QUICK_FIX_DESCRIPTORS: Record<SettingsActionQuickFix, SettingsQui
     auditKind: 'route_enable',
     feedbackKey: 'agents.settings.quickFixes.applied',
   },
-  'switch-openai-responses': {
-    target: 'model',
-    labelKey: 'agents.settings.quickFixes.switchOpenAIResponses',
-    auditKind: 'mode_migration',
-    feedbackKey: 'agents.settings.quickFixes.switchedToResponses',
-    resetModelErrors: true,
-  },
-  'strip-sensitive-base-url-query': {
-    target: 'model',
-    labelKey: 'agents.settings.quickFixes.stripSensitiveBaseURLQuery',
-    auditKind: 'sensitive_cleanup',
-    feedbackKey: 'agents.settings.quickFixes.applied',
-  },
   'reset-config-file-workspace': {
     target: 'config_file',
     labelKey: 'agents.settings.quickFixes.resetWorkspace',
@@ -155,21 +142,16 @@ export function settingsQuickFixDescriptor(quickFix: SettingsActionQuickFix): Se
 
 export function modelAuditSummaryValues(input: {
   t: AgentSettingsTranslate
-  selectedApiKind: ProviderModelAPIKind
   useForChat: boolean
   useForPlanner: boolean
-  usesModelCatalog: boolean
   selectedModelLabel?: string
-  directModelIdValue: string
 }) {
-  const apiKind = input.t(API_KIND_OPTIONS.find((option) => option.value === input.selectedApiKind)?.labelKey ?? API_KIND_OPTIONS[0].labelKey)
   const routes = [
     input.useForChat ? input.t('agents.settings.useForChat') : null,
     input.useForPlanner ? input.t('agents.settings.useForPlanner') : null,
   ].filter(Boolean).join(' + ') || '-'
   return {
-    model: input.usesModelCatalog ? (input.selectedModelLabel ?? '-') : (input.directModelIdValue || '-'),
-    apiKind,
+    model: input.selectedModelLabel ?? '-',
     routes,
   }
 }

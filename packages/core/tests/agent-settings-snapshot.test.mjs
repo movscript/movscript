@@ -231,7 +231,7 @@ function skillFixture(id, patch = {}) {
 function modelFixture(id, patch = {}) {
   return {
     id,
-    credential_id: 1,
+    provider_id: 'local_provider:1',
     model_id: `gpt-${id}`,
     display_name: `Model ${id}`,
     capabilities: ['text'],

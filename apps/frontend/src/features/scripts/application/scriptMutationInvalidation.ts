@@ -1,4 +1,5 @@
 import { scriptKeys } from '@/features/scripts/application/scriptQueryKeys'
+import { projectAppEventScope, publishAppEvent } from '@/shared/application/appEvents'
 
 export interface ScriptQueryInvalidator {
   invalidateQueries: (options: { queryKey: readonly unknown[] }) => unknown
@@ -39,6 +40,7 @@ export function invalidateScriptMutationResult(
   queryClient: ScriptQueryInvalidator,
   result: ScriptMutationResult,
 ): void {
+  publishScriptMutationEvent(result.event)
   invalidateScriptMutationEvent(queryClient, result.event)
 }
 
@@ -92,6 +94,16 @@ function scriptMutationResult(event: ScriptMutationEvent): ScriptMutationResult 
     changedPaths: event.changedPaths,
     ...(event.snapshotVersion !== undefined ? { snapshotVersion: event.snapshotVersion } : {}),
   }
+}
+
+function publishScriptMutationEvent(event: ScriptMutationEvent): void {
+  publishAppEvent({
+    topic: 'script.mutation',
+    scope: projectAppEventScope(event.projectId),
+    source: 'query-invalidation',
+    payload: event,
+    raw: event,
+  })
 }
 
 function refreshProjectScripts(queryClient: ScriptQueryInvalidator, projectId: number | undefined): void {

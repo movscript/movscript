@@ -1,4 +1,5 @@
 import { shotLibraryKeys } from '@/features/shot-library/application/shotLibraryQueryKeys'
+import { publishAppEvent } from '@/shared/application/appEvents'
 
 export interface ShotLibraryQueryInvalidator {
   invalidateQueries: (options: { queryKey: readonly unknown[] }) => unknown
@@ -41,6 +42,7 @@ export function invalidateShotLibraryMutationResult(
   queryClient: ShotLibraryQueryInvalidator,
   result: ShotLibraryMutationResult,
 ): void {
+  publishShotLibraryMutationEvent(result.event)
   invalidateShotLibraryMutationEvent(queryClient, result.event)
 }
 
@@ -53,4 +55,14 @@ export function invalidateShotLibraryMutationEvent(
       void queryClient.invalidateQueries({ queryKey: shotLibraryKeys.references })
       return
   }
+}
+
+function publishShotLibraryMutationEvent(event: ShotLibraryMutationEvent): void {
+  publishAppEvent({
+    topic: 'shot-library.mutation',
+    scope: { kind: 'global' },
+    source: 'query-invalidation',
+    payload: event,
+    raw: event,
+  })
 }

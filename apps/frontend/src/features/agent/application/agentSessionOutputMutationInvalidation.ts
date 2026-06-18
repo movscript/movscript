@@ -1,4 +1,5 @@
 import { agentSessionOutputKeys } from '@/features/agent/application/agentSessionOutputQueryKeys'
+import { projectAppEventScope, publishAppEvent } from '@/shared/application/appEvents'
 
 export interface AgentSessionOutputQueryInvalidator {
   invalidateQueries: (options: { queryKey: readonly unknown[] }) => Promise<unknown> | unknown
@@ -44,6 +45,7 @@ export function invalidateAgentSessionOutputMutationResult(
   queryClient: AgentSessionOutputQueryInvalidator,
   result: AgentSessionOutputMutationResult,
 ): Promise<unknown> | unknown {
+  publishAgentSessionOutputMutationEvent(result.event)
   return invalidateAgentSessionOutputMutationEvent(queryClient, result.event)
 }
 
@@ -55,4 +57,14 @@ export function invalidateAgentSessionOutputMutationEvent(
     case 'AgentSessionOutputContentWorkspaceChanged':
       return queryClient.invalidateQueries({ queryKey: agentSessionOutputKeys.contentWorkspace(event.projectId) })
   }
+}
+
+function publishAgentSessionOutputMutationEvent(event: AgentSessionOutputMutationEvent): void {
+  publishAppEvent({
+    topic: 'agent-output.mutation',
+    scope: projectAppEventScope(event.projectId),
+    source: 'query-invalidation',
+    payload: event,
+    raw: event,
+  })
 }

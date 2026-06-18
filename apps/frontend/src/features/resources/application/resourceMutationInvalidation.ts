@@ -6,6 +6,7 @@ import {
   resourceKeys,
   type ResourceQueryInvalidator,
 } from '@/features/resources/application/resourceQueryKeys'
+import { projectAppEventScope, publishAppEvent } from '@/shared/application/appEvents'
 
 export type ResourceMutationEvent =
   | {
@@ -139,6 +140,7 @@ export function invalidateResourceMutationResult(
   queryClient: ResourceQueryInvalidator,
   result: ResourceMutationResult,
 ): void {
+  publishResourceMutationEvent(result.event)
   invalidateResourceMutationEvent(queryClient, result.event)
 }
 
@@ -172,6 +174,15 @@ function resourceMutationResult(event: ResourceMutationEvent): ResourceMutationR
     changedPaths: event.changedPaths,
     ...(event.snapshotVersion !== undefined ? { snapshotVersion: event.snapshotVersion } : {}),
   }
+}
+
+function publishResourceMutationEvent(event: ResourceMutationEvent): void {
+  publishAppEvent({
+    topic: 'resource.mutation',
+    scope: 'projectId' in event ? projectAppEventScope(event.projectId) : { kind: 'resource' },
+    source: 'query-invalidation',
+    payload: event,
+  })
 }
 
 function invalidateAssetCandidateSelected(

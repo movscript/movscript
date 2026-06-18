@@ -54,6 +54,12 @@ export type AgentBrowserContentTab =
   }
   | {
     id: string
+    kind: 'editing_projects'
+    title: string
+    createdAt: number
+  }
+  | {
+    id: string
     kind: 'project_standards'
     title: string
     createdAt: number

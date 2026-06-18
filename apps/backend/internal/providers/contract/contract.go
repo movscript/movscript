@@ -426,6 +426,7 @@ type AIModelDescriptor struct {
 	ModelID           string                   `json:"model_id"`
 	CatalogEntryID    uint                     `json:"catalog_entry_id,omitempty"`
 	CredentialID      uint                     `json:"credential_id,omitempty"`
+	ProviderID        string                   `json:"provider_id,omitempty"`
 	ProviderModelID   string                   `json:"provider_model_id,omitempty"`
 	ModelDefID        string                   `json:"model_def_id,omitempty"`
 	ModelIDOverride   string                   `json:"model_id_override,omitempty"`
@@ -456,6 +457,7 @@ type AIModelResolveRequest struct {
 type AIModelBinding struct {
 	ModelID         string `json:"model_id"`
 	CatalogEntryID  uint   `json:"catalog_entry_id,omitempty"`
+	ProviderID      string `json:"provider_id,omitempty"`
 	ProviderModelID string `json:"provider_model_id"`
 	Capability      string `json:"capability"`
 	AdapterType     string `json:"adapter_type,omitempty"`
@@ -485,6 +487,7 @@ type AIGatewayModelRoute struct {
 	CredentialID    uint    `json:"credential_id,omitempty"`
 	SourceType      string  `json:"source_type,omitempty"`
 	RouteGroup      string  `json:"route_group,omitempty"`
+	ProviderID      string  `json:"provider_id,omitempty"`
 	ProviderModelID string  `json:"provider_model_id"`
 	Capability      string  `json:"capability,omitempty"`
 	SelectionReason string  `json:"selection_reason,omitempty"`
@@ -641,11 +644,10 @@ type AIGatewayUsageUserRef struct {
 }
 
 type AIGatewayUsageCatalogEntryRef struct {
-	ID              uint   `json:"ID"`
-	PublicModelID   string `json:"public_model_id"`
-	ProviderModelID string `json:"provider_model_id"`
-	DisplayName     string `json:"display_name"`
-	ShortName       string `json:"short_name"`
+	ID            uint   `json:"ID"`
+	PublicModelID string `json:"public_model_id"`
+	DisplayName   string `json:"display_name"`
+	ShortName     string `json:"short_name"`
 }
 
 type AIGatewayUsageLog struct {
@@ -664,6 +666,8 @@ type AIGatewayUsageLog struct {
 	DurationSec           int                            `json:"duration_sec"`
 	ImageCount            int                            `json:"image_count"`
 	Cost                  float64                        `json:"cost"`
+	ProviderID            string                         `json:"provider_id,omitempty"`
+	ProviderModelID       string                         `json:"provider_model_id,omitempty"`
 	User                  *AIGatewayUsageUserRef         `json:"user,omitempty"`
 	AIModelCatalogEntryID *uint                          `json:"ai_model_catalog_entry_id,omitempty"`
 	AIModelCatalogEntry   *AIGatewayUsageCatalogEntryRef `json:"ai_model_catalog_entry,omitempty"`
@@ -820,6 +824,7 @@ type AIGatewayAuditLogReader interface {
 
 type AIGatewayProviderProbeRequest struct {
 	Route        AIGatewayRouteRequest `json:"route,omitempty"`
+	ProviderID   string                `json:"provider_id,omitempty"`
 	CredentialID uint                  `json:"credential_id,omitempty"`
 }
 

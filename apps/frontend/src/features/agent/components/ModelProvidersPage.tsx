@@ -1,16 +1,12 @@
 import {
-  useEffect,
   useMemo,
   useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Database,
   GitBranch,
   Library,
-  Plus,
   RefreshCw,
-  Route,
-  Save,
-  Trash2 } from 'lucide-react'
+  Route } from 'lucide-react'
 import {
   AgentPageShell,
   AgentPageShellHeader,
@@ -20,7 +16,6 @@ import {
   AgentConsoleCallout,
   AgentConsoleDescription,
   AgentConsoleDocumentBody,
-  AgentConsoleFormField,
   AgentConsoleGrid,
   AgentConsoleHeader,
   AgentConsoleHeaderActions,
@@ -30,7 +25,6 @@ import {
   AgentConsoleHeaderTitleRow,
   AgentConsoleInlineError,
   AgentConsoleIntroRow,
-  AgentConsoleLocalToolActions,
   AgentConsoleLocalToolCard,
   AgentConsoleLocalToolControls,
   AgentConsoleLocalToolCopy,
@@ -40,8 +34,6 @@ import {
   AgentConsoleLocalToolTitle,
   AgentConsolePanel,
   AgentConsolePanelActions,
-  AgentConsoleSavedText,
-  AgentConsoleSelectField,
   AgentConsoleStack,
   AgentConsoleStatusBadge,
   AgentConsoleSyncBadge,
@@ -57,25 +49,12 @@ import {
 } from '@/features/agent/application/agentModelCatalogApi'
 import { agentProviderKeys } from '@/features/agent/application/agentQueryKeys'
 import { publicModelId, publicModelLabel } from '@/shared/domain/modelDisplay'
-import { providerSessionClient, type MovScriptWorkspaceConfig } from '@/shared/infrastructure/providerSessionClient'
 import type { PublicModel } from '@/types'
-
-type ModelProviderAPIKind = 'openai_responses' | 'openai_chat_completions' | 'anthropic_messages'
-
-type WorkspaceModelProvider = {
-  id: string
-  label: string
-  baseURL: string
-  apiKey?: string
-  defaultModel?: string
-  apiKind: ModelProviderAPIKind
-  enabled: boolean
-}
 
 type BackendModelProvider = {
   id: string
   label: string
-  credentialId?: number
+  providerId?: string
   modelCount: number
   models: string[]
   capabilities: string[]
@@ -84,27 +63,7 @@ type BackendModelProvider = {
 
 type ModelProviderLayer = 'providers' | 'catalog' | 'routes'
 
-const DEFAULT_PROVIDER: WorkspaceModelProvider = {
-  id: 'openai',
-  label: 'OpenAI',
-  baseURL: 'https://api.openai.com/v1',
-  defaultModel: 'gpt-5',
-  apiKind: 'openai_responses',
-  enabled: true,
-}
-
-const API_KIND_OPTIONS: Array<{ value: ModelProviderAPIKind; label: string }> = [
-  { value: 'openai_responses', label: 'OpenAI Responses' },
-  { value: 'openai_chat_completions', label: 'OpenAI Chat Completions' },
-  { value: 'anthropic_messages', label: 'Anthropic Messages' },
-]
-
 export default function ModelProvidersPage() {
-  const workspaceConfigQuery = useQuery({
-    queryKey: agentProviderKeys.modelProvidersConfig,
-    queryFn: () => providerSessionClient.getWorkspaceConfig(),
-    retry: false,
-  })
   const backendModelsQuery = useQuery({
     queryKey: agentProviderKeys.modelProvidersBackendModels,
     queryFn: () => fetchAgentBackendModels(),
@@ -115,74 +74,12 @@ export default function ModelProvidersPage() {
     queryFn: () => fetchAgentModelCatalogEntries(),
     retry: false,
   })
-  const [providers, setProviders] = useState<WorkspaceModelProvider[]>([])
   const [activeLayer, setActiveLayer] = useState<ModelProviderLayer>('providers')
-  const [saved, setSaved] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [saveError, setSaveError] = useState<string | null>(null)
-  const [testResults, setTestResults] = useState<Record<string, string>>({})
-  const [showLocalOverrides, setShowLocalOverrides] = useState(false)
-
-  useEffect(() => {
-    if (workspaceConfigQuery.data) setProviders(normalizeWorkspaceModelProviders(workspaceConfigQuery.data))
-  }, [workspaceConfigQuery.data])
 
   const backendProviders = useMemo(() => groupBackendModelProviders(backendModelsQuery.data ?? []), [backendModelsQuery.data])
   const catalogEntries = modelCatalogQuery.data ?? []
   const routeBindings = useMemo(() => flattenCatalogRouteBindings(catalogEntries), [catalogEntries])
-  const localOverrideCount = providers.filter((provider) => provider.enabled).length
-  const enabledCount = backendProviders.length + localOverrideCount
-  const invalidCount = providers.filter((provider) => provider.enabled && !modelProviderIsValid(provider)).length
-  const canSave = invalidCount === 0
-
-  function patchProvider(id: string, patch: Partial<WorkspaceModelProvider>) {
-    setProviders((current) => current.map((provider) => provider.id === id ? { ...provider, ...patch } : provider))
-    setSaved(false)
-  }
-
-  function addProvider() {
-    const id = uniqueProviderId(providers)
-    setProviders((current) => [
-      ...current,
-      {
-        id,
-        label: 'Local Provider',
-        baseURL: DEFAULT_PROVIDER.baseURL,
-        defaultModel: DEFAULT_PROVIDER.defaultModel,
-        apiKind: DEFAULT_PROVIDER.apiKind,
-        enabled: true,
-      },
-    ])
-    setSaved(false)
-  }
-
-  function removeProvider(id: string) {
-    setProviders((current) => current.filter((provider) => provider.id !== id))
-    setSaved(false)
-  }
-
-  async function save() {
-    if (!canSave || saving) return
-    setSaveError(null)
-    setSaving(true)
-    try {
-      await providerSessionClient.saveWorkspaceConfig({ modelProviders: providers.map(modelProviderToConfigRecord) })
-      await workspaceConfigQuery.refetch()
-      setSaved(true)
-      window.setTimeout(() => setSaved(false), 1800)
-    } catch (error) {
-      setSaveError(errorMessage(error))
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  function testProvider(provider: WorkspaceModelProvider) {
-    const result = modelProviderIsValid(provider)
-      ? `配置可用：${provider.apiKind} / ${provider.baseURL}`
-      : '需要填写有效 Base URL；启用的 provider 也需要 API Key。'
-    setTestResults((current) => ({ ...current, [provider.id]: result }))
-  }
+  const enabledCount = backendProviders.length
 
   return (
     <AgentPageShell data-testid="model-providers-page">
@@ -195,23 +92,16 @@ export default function ModelProvidersPage() {
               <AgentConsoleStatusBadge intent={enabledCount > 0 ? 'success' : 'warning'} emphasis="soft">
                 {enabledCount} 个可用
               </AgentConsoleStatusBadge>
-              {(workspaceConfigQuery.isLoading || backendModelsQuery.isLoading || modelCatalogQuery.isLoading) && <AgentConsoleSyncBadge>同步中</AgentConsoleSyncBadge>}
+              {(backendModelsQuery.isLoading || modelCatalogQuery.isLoading) && <AgentConsoleSyncBadge>同步中</AgentConsoleSyncBadge>}
             </AgentConsoleHeaderTitleRow>
             <AgentConsoleHeaderDescription>
-              按 Provider、Catalog 和 Route 三层管理模型调用。Provider 保存认证和上游来源，Catalog 保存系统识别的模型身份，Route 决定请求实际落到哪组 credential。
+              按 Provider、Catalog 和 Route 三层查看模型调用状态。配置权威在 Admin：Provider 保存认证和上游来源，Catalog 保存系统识别的模型身份，Route 决定请求实际落到哪条 provider lane。
             </AgentConsoleHeaderDescription>
           </AgentConsoleHeaderCopy>
           <AgentConsoleHeaderActions>
-            <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={() => void Promise.all([workspaceConfigQuery.refetch(), backendModelsQuery.refetch(), modelCatalogQuery.refetch()])}>
+            <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={() => void Promise.all([backendModelsQuery.refetch(), modelCatalogQuery.refetch()])}>
               <RefreshCw size={14} />
               刷新
-            </AgentConsoleActionButton>
-            <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={() => setShowLocalOverrides((value) => !value)}>
-              {showLocalOverrides ? '隐藏高级覆盖' : '高级本地覆盖'}
-            </AgentConsoleActionButton>
-            <AgentConsoleActionButton type="button" size="sm" onClick={() => void save()} disabled={!showLocalOverrides || !canSave || saving}>
-              <Save size={14} />
-              {saving ? '保存中...' : '保存'}
             </AgentConsoleActionButton>
           </AgentConsoleHeaderActions>
         </AgentConsoleHeader>
@@ -234,7 +124,7 @@ export default function ModelProvidersPage() {
           <AgentConsoleStack spacing="loose">
             <AgentConsoleIntroRow>
               <AgentConsoleDescription>
-                社区版通过 Provider credential 和 route group 组织调用来源；Catalog Entry 保存模型身份、能力和参数，Route 保存 Catalog 到供应商凭据组的映射。
+                社区版通过 Provider 和 route group 组织调用来源；Catalog Entry 保存模型身份、能力和参数，Route 保存 Catalog 到 provider lane 的映射。
               </AgentConsoleDescription>
               <AgentConsoleToolbar>
                 {MODEL_PROVIDER_LAYERS.map((layer) => (
@@ -315,6 +205,9 @@ export default function ModelProvidersPage() {
                       默认模型：{provider.defaultModel ?? provider.models[0] ?? '-'}
                     </AgentConsoleCallout>
                     <AgentConsoleCallout compact>
+                      Provider lane：{provider.providerId ?? '-'}
+                    </AgentConsoleCallout>
+                    <AgentConsoleCallout compact>
                       能力：{provider.capabilities.length > 0 ? provider.capabilities.join(', ') : '未声明'}
                     </AgentConsoleCallout>
                     <AgentConsoleCallout compact>
@@ -360,11 +253,11 @@ export default function ModelProvidersPage() {
               <AgentConsoleGrid columns="server">
                 {catalogEntries.map((entry) => (
                   <AgentConsoleLocalToolCard key={entry.id} invalid={!entry.is_enabled}>
-                    <AgentConsoleLocalToolHeader>
-                      <AgentConsoleLocalToolCopy>
-                        <AgentConsoleLocalToolTitle>
-                          <IdentityBadge kind="model" id={entry.public_model_id} label={entry.display_name || entry.public_model_id} detail={entry.provider_model_id} size="sm" variant="stack" />
-                        </AgentConsoleLocalToolTitle>
+	                    <AgentConsoleLocalToolHeader>
+	                      <AgentConsoleLocalToolCopy>
+	                        <AgentConsoleLocalToolTitle>
+	                          <IdentityBadge kind="model" id={entry.public_model_id} label={entry.display_name || entry.public_model_id} detail={entry.public_model_id} size="sm" variant="stack" />
+	                        </AgentConsoleLocalToolTitle>
                         <AgentConsoleLocalToolDetail>
                           {catalogEntryCapabilities(entry).join(', ') || '未声明能力'}
                         </AgentConsoleLocalToolDetail>
@@ -379,14 +272,11 @@ export default function ModelProvidersPage() {
                       </AgentConsoleLocalToolControls>
                     </AgentConsoleLocalToolHeader>
                     <AgentConsoleLocalToolFields>
-                      <AgentConsoleCallout compact>
-                        Public ID：{entry.public_model_id}
-                      </AgentConsoleCallout>
-                      <AgentConsoleCallout compact>
-                        Provider ID：{entry.provider_model_id}
-                      </AgentConsoleCallout>
-                      <AgentConsoleCallout compact>
-                        Params：{supportedParamsSummary(entry.supported_params)}
+	                      <AgentConsoleCallout compact>
+	                        Public ID：{entry.public_model_id}
+	                      </AgentConsoleCallout>
+	                      <AgentConsoleCallout compact>
+	                        Params：{supportedParamsSummary(entry.supported_params)}
                       </AgentConsoleCallout>
                     </AgentConsoleLocalToolFields>
                   </AgentConsoleLocalToolCard>
@@ -422,7 +312,7 @@ export default function ModelProvidersPage() {
               {modelCatalogQuery.error ? <AgentConsoleInlineError>{errorMessage(modelCatalogQuery.error)}</AgentConsoleInlineError> : null}
               {!modelCatalogQuery.error && routeBindings.length === 0 ? (
                 <AgentConsoleCallout tone="warning" compact>
-                  当前没有模型路由。Catalog Entry 需要至少一条 provider credential 绑定后才能被调用，请在 Admin 中配置。
+                  当前没有模型路由。Catalog Entry 需要至少一条 provider lane 绑定后才能被调用，请在 Admin 中配置。
                 </AgentConsoleCallout>
               ) : null}
               <AgentConsoleGrid columns="server">
@@ -439,18 +329,18 @@ export default function ModelProvidersPage() {
                         <AgentConsoleStatusBadge intent={binding.is_enabled && entry.is_enabled ? 'success' : 'neutral'} emphasis="soft">
                           {binding.is_enabled && entry.is_enabled ? '可用' : '停用'}
                         </AgentConsoleStatusBadge>
-                        <AgentConsoleStatusBadge intent="neutral" emphasis="soft">
-                          {isNewAPIRoute(binding) ? 'Provider group' : 'Provider credential'}
-                        </AgentConsoleStatusBadge>
+	                        <AgentConsoleStatusBadge intent="neutral" emphasis="soft">
+	                          {isNewAPIRoute(binding) ? 'new-api adapter' : 'Provider lane'}
+	                        </AgentConsoleStatusBadge>
                       </AgentConsoleLocalToolControls>
                     </AgentConsoleLocalToolHeader>
-                    <AgentConsoleLocalToolFields>
-                      <AgentConsoleCallout compact>
-                        Catalog：{entry.public_model_id} 到 {entry.provider_model_id}
-                      </AgentConsoleCallout>
-                      <AgentConsoleCallout compact>
-                        Target：{isNewAPIRoute(binding) ? `group ${binding.route_group}` : `credential ${binding.credential_id ?? '-'}${binding.route_group ? ` / group ${binding.route_group}` : ''}`}
-                      </AgentConsoleCallout>
+	                    <AgentConsoleLocalToolFields>
+	                      <AgentConsoleCallout compact>
+	                        Catalog：{entry.public_model_id} 到 {binding.provider_model_id || entry.public_model_id}
+	                      </AgentConsoleCallout>
+	                      <AgentConsoleCallout compact>
+	                        Target：{isNewAPIRoute(binding) ? `group ${binding.route_group}` : `${binding.provider_id || 'provider lane'}${binding.route_group ? ` / group ${binding.route_group}` : ''}`}
+	                      </AgentConsoleCallout>
                       <AgentConsoleCallout compact>
                         Priority：{binding.priority ?? 0} / Capacity：{binding.capacity_weight ?? 1} / Concurrency：{(binding.max_concurrency ?? 0) || '不限'}
                       </AgentConsoleCallout>
@@ -462,89 +352,21 @@ export default function ModelProvidersPage() {
           </AgentConsolePanel>
         ) : null}
 
-        {activeLayer === 'providers' && showLocalOverrides ? (
+        {activeLayer === 'providers' ? (
           <AgentConsolePanel
-            title="Local Providers"
+            title="Provider Ownership"
             icon={<Database size={14} />}
             action={(
               <AgentConsolePanelActions>
-                {saved && <AgentConsoleSavedText>已保存</AgentConsoleSavedText>}
-                <AgentConsoleStatusBadge intent={invalidCount > 0 ? 'warning' : 'success'} emphasis="soft">
-                  {invalidCount > 0 ? `${invalidCount} 项需补全` : `${providers.filter((provider) => provider.enabled).length} 个启用`}
+                <AgentConsoleStatusBadge intent="neutral" emphasis="soft">
+                  Admin 管理
                 </AgentConsoleStatusBadge>
               </AgentConsolePanelActions>
             )}
           >
-            <AgentConsoleStack spacing="loose">
-              <AgentConsoleIntroRow>
-                <AgentConsoleDescription>
-                  高级本地覆盖只保存在当前 runtime profile config 中，用于临时接入后端 AI Gateway 之外的模型服务。团队和正式环境应优先使用 Admin 中的 Provider 和 Route 配置。
-                </AgentConsoleDescription>
-                <AgentConsoleToolbar>
-                  <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={addProvider}>
-                    <Plus size={14} />
-                    添加本地覆盖
-                  </AgentConsoleActionButton>
-                  <AgentConsoleStatusBadge intent="neutral" emphasis="soft">
-                    advanced / local override
-                  </AgentConsoleStatusBadge>
-                </AgentConsoleToolbar>
-              </AgentConsoleIntroRow>
-
-              {workspaceConfigQuery.error ? <AgentConsoleInlineError>{errorMessage(workspaceConfigQuery.error)}</AgentConsoleInlineError> : null}
-              {saveError ? <AgentConsoleCallout tone="danger" compact>保存失败：{saveError}</AgentConsoleCallout> : null}
-              {invalidCount > 0 ? <AgentConsoleCallout tone="warning" compact>启用的本地覆盖需要有效 Base URL 和 API Key。</AgentConsoleCallout> : null}
-              {providers.length === 0 ? (
-                <AgentConsoleCallout compact>
-                  当前 workspace 没有本地覆盖；Agent 会使用后端 AI Gateway 提供的模型路由。
-                </AgentConsoleCallout>
-              ) : null}
-
-              <AgentConsoleGrid columns="server">
-                {providers.map((provider) => (
-                  <AgentConsoleLocalToolCard key={provider.id} invalid={provider.enabled && !modelProviderIsValid(provider)}>
-                    <AgentConsoleLocalToolHeader>
-                      <AgentConsoleLocalToolCopy>
-                        <AgentConsoleLocalToolTitle>
-                          <IdentityBadge kind="model" id={provider.defaultModel} label={provider.label || provider.id} detail={provider.defaultModel} size="sm" variant="stack" />
-                        </AgentConsoleLocalToolTitle>
-                        <AgentConsoleLocalToolDetail>{provider.apiKind} / {provider.baseURL || '未设置 Base URL'}</AgentConsoleLocalToolDetail>
-                      </AgentConsoleLocalToolCopy>
-                      <AgentConsoleLocalToolControls>
-                        <AgentConsoleStatusBadge intent={provider.enabled ? 'success' : 'neutral'} emphasis="soft">
-                          {provider.enabled ? '启用' : '停用'}
-                        </AgentConsoleStatusBadge>
-                        <input
-                          type="checkbox"
-                          checked={provider.enabled}
-                          onChange={(event) => patchProvider(provider.id, { enabled: event.target.checked })}
-                          aria-label={`${provider.label} enabled`}
-                        />
-                      </AgentConsoleLocalToolControls>
-                    </AgentConsoleLocalToolHeader>
-                    <AgentConsoleLocalToolFields disabled={!provider.enabled}>
-                      <AgentConsoleFormField label="显示名称" value={provider.label} onChange={(event) => patchProvider(provider.id, { label: event.target.value })} />
-                      <AgentConsoleFormField label="Base URL" value={provider.baseURL} onChange={(event) => patchProvider(provider.id, { baseURL: event.target.value })} placeholder="https://api.openai.com/v1" />
-                      <AgentConsoleFormField label="API Key" type="password" value={provider.apiKey ?? ''} onChange={(event) => patchProvider(provider.id, { apiKey: event.target.value })} placeholder="sk-..." />
-                      <AgentConsoleFormField label="默认模型" value={provider.defaultModel ?? ''} onChange={(event) => patchProvider(provider.id, { defaultModel: event.target.value })} placeholder="gpt-5" />
-                      <AgentConsoleSelectField label="API Mode" value={provider.apiKind} onChange={(event) => patchProvider(provider.id, { apiKind: event.target.value as ModelProviderAPIKind })}>
-                        {API_KIND_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                      </AgentConsoleSelectField>
-                      {testResults[provider.id] ? <AgentConsoleCallout compact>{testResults[provider.id]}</AgentConsoleCallout> : null}
-                    </AgentConsoleLocalToolFields>
-                    <AgentConsoleLocalToolActions>
-                      <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={() => testProvider(provider)}>
-                        验证配置
-                      </AgentConsoleActionButton>
-                      <AgentConsoleActionButton type="button" size="sm" variant="outline" intent="danger" onClick={() => removeProvider(provider.id)}>
-                        <Trash2 size={14} />
-                        删除
-                      </AgentConsoleActionButton>
-                    </AgentConsoleLocalToolActions>
-                  </AgentConsoleLocalToolCard>
-                ))}
-              </AgentConsoleGrid>
-            </AgentConsoleStack>
+            <AgentConsoleCallout compact>
+              Base URL、API Key、adapter 和 route group 由 Admin 的 Provider 接入页维护；Frontend Agent Console 只读取后端已经发布的模型与路由状态。
+            </AgentConsoleCallout>
           </AgentConsolePanel>
         ) : null}
       </AgentConsoleDocumentBody>
@@ -576,7 +398,7 @@ const MODEL_PROVIDER_LAYERS: Array<{
   {
     id: 'routes',
     label: '模型路由',
-    detail: '把 Catalog Entry 映射到 provider credential 或 route group。',
+    detail: '把 Catalog Entry 映射到 provider lane 或 new-api group。',
     edition: 'Admin 管理',
     icon: Route,
   },
@@ -605,26 +427,19 @@ function ModelProviderLayerButton({
   )
 }
 
-function normalizeWorkspaceModelProviders(config: MovScriptWorkspaceConfig): WorkspaceModelProvider[] {
-  const providers = Array.isArray(config.modelProviders)
-    ? config.modelProviders.map(modelProviderFromRecord).filter((provider): provider is WorkspaceModelProvider => Boolean(provider))
-    : []
-  return providers
-}
-
 function groupBackendModelProviders(models: PublicModel[]): BackendModelProvider[] {
   const providers = new Map<string, {
     label: string
-    credentialId?: number
+    providerId?: string
     models: PublicModel[]
     capabilities: Set<string>
   }>()
   for (const model of models) {
-    const credentialId = typeof model.credential_id === 'number' ? model.credential_id : undefined
-    const key = credentialId ? `backend:${credentialId}` : `backend:${model.provider_name ?? 'default'}`
+    const providerId = backendModelProviderId(model)
+    const key = `backend:${providerId}`
     const current = providers.get(key) ?? {
       label: model.provider_name?.trim() || 'Backend Provider',
-      ...(credentialId ? { credentialId } : {}),
+      providerId,
       models: [],
       capabilities: new Set<string>(),
     }
@@ -637,13 +452,19 @@ function groupBackendModelProviders(models: PublicModel[]): BackendModelProvider
     return {
       id,
       label: provider.label,
-      ...(provider.credentialId ? { credentialId: provider.credentialId } : {}),
+      providerId: provider.providerId,
       modelCount: provider.models.length,
       models: provider.models.map((model) => `${publicModelLabel(model)} (${publicModelId(model)})`),
       capabilities: Array.from(provider.capabilities).sort(),
       ...(defaultModel ? { defaultModel: `${publicModelLabel(defaultModel)} (${publicModelId(defaultModel)})` } : {}),
     }
   })
+}
+
+function backendModelProviderId(model: PublicModel): string {
+  const providerID = model.provider_id?.trim()
+  if (providerID) return providerID
+  return `catalog:${model.catalog_entry_id || model.id}`
 }
 
 function flattenCatalogRouteBindings(entries: AgentModelCatalogEntry[]): Array<{
@@ -687,67 +508,7 @@ function isNewAPIRoute(binding: AgentModelRouteBinding): boolean {
 }
 
 function isNewAPIRouteSource(source: string): boolean {
-  return source === 'new_api' || source === 'new_api_group'
-}
-
-function modelProviderFromRecord(record: Record<string, unknown>): WorkspaceModelProvider | undefined {
-  const id = stringField(record.id)
-  if (!id) return undefined
-  const apiKind = modelProviderAPIKind(stringField(record.apiKind))
-  return {
-    id,
-    label: stringField(record.label) ?? id,
-    baseURL: stringField(record.baseURL) ?? '',
-    ...(stringField(record.apiKey) ? { apiKey: stringField(record.apiKey) } : {}),
-    ...(stringField(record.defaultModel) ? { defaultModel: stringField(record.defaultModel) } : {}),
-    apiKind,
-    enabled: record.enabled !== false,
-  }
-}
-
-function modelProviderToConfigRecord(provider: WorkspaceModelProvider): Record<string, unknown> {
-  return {
-    id: provider.id,
-    label: provider.label,
-    baseURL: provider.baseURL,
-    ...(provider.apiKey?.trim() ? { apiKey: provider.apiKey.trim() } : {}),
-    ...(provider.defaultModel?.trim() ? { defaultModel: provider.defaultModel.trim() } : {}),
-    apiKind: provider.apiKind,
-    enabled: provider.enabled,
-  }
-}
-
-function modelProviderAPIKind(value: string | undefined): ModelProviderAPIKind {
-  return value === 'openai_chat_completions' || value === 'anthropic_messages' ? value : 'openai_responses'
-}
-
-function modelProviderIsValid(provider: WorkspaceModelProvider): boolean {
-  if (!provider.enabled) return true
-  return isHTTPURL(provider.baseURL) && Boolean(provider.apiKey?.trim())
-}
-
-function isHTTPURL(value: string): boolean {
-  try {
-    const url = new URL(value)
-    return url.protocol === 'http:' || url.protocol === 'https:'
-  } catch {
-    return false
-  }
-}
-
-function uniqueProviderId(providers: WorkspaceModelProvider[]): string {
-  const ids = new Set(providers.map((provider) => provider.id))
-  let index = providers.length + 1
-  let id = `provider-${index}`
-  while (ids.has(id)) {
-    index += 1
-    id = `provider-${index}`
-  }
-  return id
-}
-
-function stringField(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+  return source === 'new_api'
 }
 
 function errorMessage(error: unknown): string {

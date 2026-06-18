@@ -6,6 +6,7 @@ import {
   RefreshCw,
   RotateCw,
   Settings,
+  SlidersHorizontal,
   Square,
 } from 'lucide-react'
 
@@ -39,12 +40,21 @@ import {
   AgentConsoleMetricCard,
   AgentConsolePanel,
   AgentConsolePanelActions,
+  AgentConsoleSelectField,
   AgentConsoleStatusBadge,
   AgentConsoleSyncBadge,
   AgentConsoleToolbar,
 } from '@/features/agent/components/AgentConsoleUi'
 import { agentSeverityStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
 import type { AgentControlIssue } from '@/features/agent/application/agentControlCenter'
+import {
+  providerRuntimeApiOptions,
+  providerRuntimeProfile,
+  providerWithRuntimeApi,
+  type ProviderConfig,
+  type ProviderRuntimeApi,
+  type ProviderSettings,
+} from '@/shared/infrastructure/providerConfigStore'
 
 type ConsoleIssueTone = AgentConsoleIssueTone
 type ConsoleIssue = AgentControlIssue
@@ -94,8 +104,7 @@ export function AgentControlMatrixPanel({
     >
       <AgentConsoleIntroRow>
         <AgentConsoleDescription>
-          控制台是 Provider 生命周期入口：这里启动、停止和刷新 Provider 状态；运行中的 app-server 需要先停止再修改配置。
-          同一时间只会有一个 app-server Agent 生效。
+          这里只管理 app-server runtime 的生命周期：启动、停止和刷新运行状态。SDK runtime 不需要 app-server 账号投影，能力状态会在 Provider 探针里通过 runtime/probe 检查。
         </AgentConsoleDescription>
         <AgentConsoleToolbar>
           <AgentConsoleStatusBadge intent={appServerRunning ? 'success' : 'warning'} emphasis="soft">
@@ -124,7 +133,7 @@ export function AgentControlMatrixPanel({
           </AgentConsoleLocalToolHeader>
           <AgentConsoleLocalToolFields>
             <AgentConsoleCallout compact>
-              app-server 由 MovScript 托管，home path 由对应 runtime profile 投影给启动进程；可在 Agents 中配置继承本机账号或使用托管 home。
+              app-server 由 MovScript 托管，home path 由对应 runtime profile 投影给启动进程；只有 app-server runtime 需要在 Agents 中配置继承本机账号或使用托管 home。
             </AgentConsoleCallout>
           </AgentConsoleLocalToolFields>
           <AgentConsoleLocalToolActions>
@@ -155,6 +164,81 @@ export function AgentControlMatrixPanel({
 
 export function ConsoleMetricCard({ title, value, detail, tone }: { title: string; value: string; detail: string; tone: ConsoleIssueTone }) {
   return <AgentConsoleMetricCard title={title} value={value} detail={detail} tone={tone} />
+}
+
+export function ProviderRuntimeSwitchPanel({
+  providers,
+  settings,
+  onSettingsChange,
+}: {
+  providers: ProviderConfig[]
+  settings: ProviderSettings
+  onSettingsChange: (settings: ProviderSettings) => void
+}) {
+  const changeProviderRuntime = (provider: ProviderConfig, api: ProviderRuntimeApi) => {
+    onSettingsChange({
+      ...settings,
+      providers: settings.providers.map((item) => item.id === provider.id ? providerWithRuntimeApi(item, api) : item),
+    })
+  }
+
+  return (
+    <ConsolePanel
+      title="Provider Runtime"
+      icon={<SlidersHorizontal size={14} />}
+      action={(
+        <AgentConsolePanelActions>
+          <AgentConsoleStatusBadge intent={providers.length > 0 ? 'success' : 'warning'} emphasis="soft">
+            {providers.length > 0 ? `${providers.length} 个已启用` : '无可用 Provider'}
+          </AgentConsoleStatusBadge>
+        </AgentConsolePanelActions>
+      )}
+    >
+      {providers.length === 0 ? (
+        <AgentConsoleEmptyText>启用 provider 后可以在这里选择运行时。</AgentConsoleEmptyText>
+      ) : (
+        <AgentConsoleGrid columns="single">
+          {providers.map((provider) => {
+            const runtime = providerRuntimeProfile(provider)
+            const options = providerRuntimeApiOptions(provider)
+            const canSwitch = options.length > 1
+            return (
+              <AgentConsoleLocalToolCard key={provider.id}>
+                <AgentConsoleLocalToolHeader>
+                  <AgentConsoleLocalToolCopy>
+                    <AgentConsoleLocalToolTitle>{provider.label}</AgentConsoleLocalToolTitle>
+                    <AgentConsoleLocalToolDetail>{provider.kind} / {runtime.packageVersion ?? runtime.sdkPackageName ?? runtime.packageName ?? runtime.api}</AgentConsoleLocalToolDetail>
+                  </AgentConsoleLocalToolCopy>
+                  <AgentConsoleLocalToolControls>
+                    <AgentConsoleStatusBadge intent={runtime.api === 'app-server' ? 'warning' : 'success'} emphasis="soft">
+                      {runtime.api}
+                    </AgentConsoleStatusBadge>
+                  </AgentConsoleLocalToolControls>
+                </AgentConsoleLocalToolHeader>
+                <AgentConsoleLocalToolFields>
+                  {canSwitch ? (
+                    <AgentConsoleSelectField
+                      label="Runtime"
+                      value={runtime.api}
+                      onChange={(event) => changeProviderRuntime(provider, event.target.value as ProviderRuntimeApi)}
+                    >
+                      {options.map((option) => (
+                        <option key={option.api} value={option.api}>{option.label}</option>
+                      ))}
+                    </AgentConsoleSelectField>
+                  ) : (
+                    <AgentConsoleCallout compact>
+                      当前 provider 只有一个可用 runtime：{runtime.label}。
+                    </AgentConsoleCallout>
+                  )}
+                </AgentConsoleLocalToolFields>
+              </AgentConsoleLocalToolCard>
+            )
+          })}
+        </AgentConsoleGrid>
+      )}
+    </ConsolePanel>
+  )
 }
 
 export function ConsolePanel({ title, icon, action, children }: { title: string; icon: ReactNode; action?: ReactNode; children: ReactNode }) {

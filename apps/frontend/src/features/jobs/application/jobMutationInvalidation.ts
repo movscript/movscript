@@ -1,4 +1,5 @@
 import { jobKeys } from '@/features/jobs/application/jobQueryKeys'
+import { publishAppEvent } from '@/shared/application/appEvents'
 
 export interface JobQueryInvalidator {
   invalidateQueries: (options: { queryKey: readonly unknown[] }) => unknown
@@ -58,6 +59,7 @@ export function invalidateJobMutationResult(
   queryClient: JobQueryInvalidator,
   result: JobMutationResult,
 ): void {
+  publishJobMutationEvent(result.event)
   invalidateJobMutationEvent(queryClient, result.event)
 }
 
@@ -82,4 +84,14 @@ function jobMutationResult(event: JobMutationEvent): JobMutationResult {
     changedPaths: event.changedPaths,
     ...(event.snapshotVersion !== undefined ? { snapshotVersion: event.snapshotVersion } : {}),
   }
+}
+
+function publishJobMutationEvent(event: JobMutationEvent): void {
+  publishAppEvent({
+    topic: 'job.mutation',
+    scope: { kind: 'global' },
+    source: 'query-invalidation',
+    payload: event,
+    raw: event,
+  })
 }

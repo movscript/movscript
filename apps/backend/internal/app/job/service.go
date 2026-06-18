@@ -89,11 +89,10 @@ type ResponseLookups struct {
 }
 
 type ModelCatalogEntryLookup struct {
-	ID              uint
-	PublicModelID   string
-	ProviderModelID string
-	DisplayName     string
-	ShortName       string
+	ID            uint
+	PublicModelID string
+	DisplayName   string
+	ShortName     string
 }
 
 type CreateInput struct {
@@ -348,6 +347,7 @@ func aiRouteFromGateway(route providercontract.AIGatewayModelRoute) ai.ModelRout
 		CredentialID:    route.CredentialID,
 		SourceType:      route.SourceType,
 		RouteGroup:      route.RouteGroup,
+		ProviderID:      route.ProviderID,
 		ProviderModelID: route.ProviderModelID,
 		SelectionReason: route.SelectionReason,
 		EstimatedCost:   route.EstimatedCost,

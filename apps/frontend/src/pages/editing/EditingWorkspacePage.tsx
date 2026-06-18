@@ -23,6 +23,7 @@ import {
 import { isEditableKeyboardTarget, readMediaAPI } from '@/features/editing/application/browser'
 import { saveEditingProjectSnapshot } from '@/features/editing/application/editingProjectSave'
 import { useEditingHeaderStore } from '@/features/editing/application/editingHeaderStore'
+import { useEditingSessionStore } from '@/features/editing/application/editingSessionStore'
 import {
   addAssetClipToCompatibleTrackCommand,
   addAssetClipToTrackCommand,
@@ -90,7 +91,6 @@ import {
   emptyClipForm,
   type ClipForm,
   type PreviewMode,
-  type SaveState,
   type TimelineClipEditMode,
   type TimelineTrack,
   type TimelineTrackType,
@@ -121,11 +121,8 @@ type EditingExportDialogState = {
 export default function EditingWorkspacePage() {
   const { editingProjectId } = useParams<{ editingProjectId: string }>()
   const [projects, setProjects] = useState<EditingProjectSummary[]>([])
-  const [activeProject, setActiveProject] = useState<ElectronMediaPipelineEditingProject | null>(null)
-  const [selectedClipId, setSelectedClipId] = useState<string>('')
   const [timelineClipClipboard, setTimelineClipClipboard] = useState<TimelineClipClipboardItem | null>(null)
   const [clipForm, setClipForm] = useState<ClipForm>(emptyClipForm)
-  const [playheadMs, setPlayheadMs] = useState(0)
   const [timelineZoom, setTimelineZoom] = useState(1)
   const [timelineViewStartMs, setTimelineViewStartMs] = useState(0)
   const [timelineTool, setTimelineTool] = useState<TimelineTool>('select')
@@ -137,8 +134,6 @@ export default function EditingWorkspacePage() {
   const [previewAssetId, setPreviewAssetId] = useState('')
   const [assetPreviewTimeMs, setAssetPreviewTimeMs] = useState(0)
   const [assetPreviewDurationMs, setAssetPreviewDurationMs] = useState(0)
-  const [saveState, setSaveState] = useState<SaveState>({ status: 'idle' })
-  const [isDirty, setIsDirty] = useState(false)
   const [exportDialog, setExportDialog] = useState<EditingExportDialogState>({
     open: false,
     phase: 'settings',
@@ -152,6 +147,16 @@ export default function EditingWorkspacePage() {
   const saveQueueRef = useRef<Promise<ElectronMediaPipelineEditingProject | undefined>>(Promise.resolve(undefined))
   const mediaAPI = readMediaAPI()
   const canCreateTask = Boolean(mediaAPI?.createMediaPipelineTask)
+  const activeProject = useEditingSessionStore((state) => state.activeProject)
+  const selectedClipId = useEditingSessionStore((state) => state.selectedClipId)
+  const playheadMs = useEditingSessionStore((state) => state.playheadMs)
+  const saveState = useEditingSessionStore((state) => state.saveState)
+  const isDirty = useEditingSessionStore((state) => state.isDirty)
+  const setActiveProject = useEditingSessionStore((state) => state.setActiveProject)
+  const setSelectedClipId = useEditingSessionStore((state) => state.setSelectedClipId)
+  const setPlayheadMs = useEditingSessionStore((state) => state.setPlayheadMs)
+  const setSaveState = useEditingSessionStore((state) => state.setSaveState)
+  const setEditingDirtyState = useEditingSessionStore((state) => state.setDirty)
   const { taskStates, upsertTaskState: upsertEditingTaskState } = useEditingTaskStates(mediaAPI, STANDALONE_EDITING_PROJECT_ID)
   const { inspectorResize, layoutStyle, libraryResize, timelineResize } = useEditingWorkspaceLayout()
   const setEditingHeader = useEditingHeaderStore((s) => s.setHeader)
@@ -393,7 +398,7 @@ export default function EditingWorkspacePage() {
 
   function setEditingDirty(dirty: boolean) {
     isDirtyRef.current = dirty
-    setIsDirty(dirty)
+    setEditingDirtyState(dirty)
   }
 
   async function openProject(project: EditingProjectSummary) {

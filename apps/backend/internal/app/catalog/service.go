@@ -24,7 +24,7 @@ type ListOptions struct {
 type PublicModel struct {
 	ID                uint                                      `json:"id"`
 	CatalogEntryID    uint                                      `json:"catalog_entry_id,omitempty"`
-	CredentialID      uint                                      `json:"credential_id"`
+	ProviderID        string                                    `json:"provider_id,omitempty"`
 	ModelID           string                                    `json:"model_id"`
 	DisplayName       string                                    `json:"display_name"`
 	ShortName         string                                    `json:"short_name,omitempty"`
@@ -106,7 +106,7 @@ func publicModelFromDescriptor(descriptor providercontract.AIModelDescriptor) Pu
 	return PublicModel{
 		ID:                descriptor.CatalogEntryID,
 		CatalogEntryID:    descriptor.CatalogEntryID,
-		CredentialID:      descriptor.CredentialID,
+		ProviderID:        descriptor.ProviderID,
 		ModelID:           descriptor.ModelID,
 		DisplayName:       descriptor.DisplayName,
 		ShortName:         descriptor.ShortName,

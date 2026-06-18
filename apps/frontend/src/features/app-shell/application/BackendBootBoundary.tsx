@@ -7,19 +7,21 @@ import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { ROUTES } from '@/routes/projectRoutes'
 import i18n from '@/i18n'
 import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
+import { useSystemStatusStore } from '@/shared/infrastructure/systemStatusStore'
 
 export function BackendBootBoundary() {
   const { pathname } = useLocation()
   const settings = useAppSettingsStore((s) => s.settings)
   const [status, setStatus] = useState<BackendBootStatus | null>(null)
   const [retrying, setRetrying] = useState(false)
+  const setBackendStatus = useSystemStatusStore((state) => state.setBackendStatus)
 
   useEffect(() => {
     let disposed = false
     if (!canManageLocalBackend()) {
-      setStatus({ state: 'starting', baseURL: settings.apiBaseURL })
+      updateBackendStatus({ state: 'starting', baseURL: settings.apiBaseURL })
       void probeLocalBackendStatus(settings.apiBaseURL).then((next) => {
-        if (!disposed) setStatus(next)
+        if (!disposed) updateBackendStatus(next)
       })
       return () => {
         disposed = true
@@ -27,16 +29,16 @@ export function BackendBootBoundary() {
     }
 
     const off = readElectronApi()?.onBackendStatus?.((next) => {
-      if (isBackendBootStatus(next)) setStatus(next)
+      if (isBackendBootStatus(next)) updateBackendStatus(next)
     })
     void readElectronApi()?.getBackendStatus?.().then((next) => {
-      if (!disposed && isBackendBootStatus(next)) setStatus(next)
+      if (!disposed && isBackendBootStatus(next)) updateBackendStatus(next)
     }).catch(() => {})
     return () => {
       disposed = true
       off?.()
     }
-  }, [settings.apiBaseURL])
+  }, [settings.apiBaseURL, setBackendStatus])
 
   const isRecoveryRoute = pathname === ROUTES.appSettings
 
@@ -50,17 +52,17 @@ export function BackendBootBoundary() {
   const isError = displayStatus.state === 'error'
   async function retryLocalBackend() {
     setRetrying(true)
-    setStatus({ state: 'starting', baseURL: settings.apiBaseURL })
+    updateBackendStatus({ state: 'starting', baseURL: settings.apiBaseURL })
     try {
       if (!canManageLocalBackend()) {
-        setStatus(await probeLocalBackendStatus(settings.apiBaseURL))
+        updateBackendStatus(await probeLocalBackendStatus(settings.apiBaseURL))
         return
       }
       await readElectronApi()?.setAppSettings?.(settings)
       const next = await readElectronApi()?.getBackendStatus?.()
-      if (isBackendBootStatus(next)) setStatus(next)
+      if (isBackendBootStatus(next)) updateBackendStatus(next)
     } catch (error) {
-      setStatus({
+      updateBackendStatus({
         state: 'error',
         baseURL: settings.apiBaseURL,
         message: error instanceof Error ? error.message : String(error),
@@ -68,6 +70,11 @@ export function BackendBootBoundary() {
     } finally {
       setRetrying(false)
     }
+  }
+
+  function updateBackendStatus(next: BackendBootStatus) {
+    setStatus(next)
+    setBackendStatus(next)
   }
 
   return (

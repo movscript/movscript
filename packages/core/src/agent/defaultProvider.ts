@@ -72,6 +72,7 @@ export function buildBackendDefaultAgentProviderConfig<TModel extends AgentBacke
   apiBaseURL: string
 }): Record<string, unknown> {
   const providerRef = input.providerRef ?? backendAgentProviderRef(input.model)
+  const providerId = backendAgentProviderId(input.model)
   const modelId = input.modelId ?? publicAgentBackendModelId(input.model)
   return {
     ...(input.currentProvider ?? {}),
@@ -88,21 +89,30 @@ export function buildBackendDefaultAgentProviderConfig<TModel extends AgentBacke
       mode: 'backendKey',
       modelProviderRef: providerRef,
     },
-    defaultAgentProvider: {
-      source: 'backend-model',
-      providerRef,
-      model: modelId,
-      credentialId: input.model.credential_id,
-    },
-  }
-}
+	    defaultAgentProvider: {
+	      source: 'backend-model',
+	      providerRef,
+	      model: modelId,
+	      providerId,
+	    },
+	  }
+	}
 
 export function selectDefaultAgentProviderModel<TModel extends AgentBackendPublicModel>(models: TModel[]): TModel | undefined {
   return models.find((model) => model.is_default) ?? models[0]
 }
 
-export function backendAgentProviderRef(model: Pick<AgentBackendPublicModel, 'credential_id'>): string {
-  return `backend:${model.credential_id}`
+export function backendAgentProviderRef(model: Pick<AgentBackendPublicModel, 'provider_id' | 'catalog_entry_id' | 'id'>): string {
+  return `backend:${backendAgentProviderId(model)}`
+}
+
+function backendAgentProviderId(model: Pick<AgentBackendPublicModel, 'provider_id' | 'catalog_entry_id' | 'id'>): string {
+  const providerID = model.provider_id?.trim()
+  if (providerID) return providerID
+  const catalogEntryID = typeof model.catalog_entry_id === 'number' && Number.isFinite(model.catalog_entry_id) && model.catalog_entry_id > 0
+    ? model.catalog_entry_id
+    : model.id
+  return `catalog:${catalogEntryID}`
 }
 
 export function hasExplicitAgentProviderConfig(provider: Record<string, unknown> | undefined): boolean {

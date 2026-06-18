@@ -1,4 +1,5 @@
 import { contentCanvasKeys } from './contentCanvasQueryKeys'
+import { projectAppEventScope, publishAppEvent } from '@/shared/application/appEvents'
 
 export interface ContentCanvasQueryInvalidator {
   invalidateQueries: (options: { queryKey: readonly unknown[] }) => unknown
@@ -38,6 +39,7 @@ export function invalidateContentCanvasMutationResult(
   queryClient: ContentCanvasQueryInvalidator,
   result: ContentCanvasMutationResult,
 ): void {
+  publishContentCanvasMutationEvent(result.event)
   invalidateContentCanvasMutationEvent(queryClient, result.event)
 }
 
@@ -60,4 +62,14 @@ function contentCanvasMutationResult(event: ContentCanvasMutationEvent): Content
     changedPaths: event.changedPaths,
     ...(event.snapshotVersion !== undefined ? { snapshotVersion: event.snapshotVersion } : {}),
   }
+}
+
+function publishContentCanvasMutationEvent(event: ContentCanvasMutationEvent): void {
+  publishAppEvent({
+    topic: 'content-canvas.mutation',
+    scope: projectAppEventScope(event.projectId),
+    source: 'query-invalidation',
+    payload: event,
+    raw: event,
+  })
 }

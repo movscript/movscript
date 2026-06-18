@@ -41,6 +41,7 @@ import {
   mediaHlsVariantBandwidth,
 } from './mediaPipeline/ffmpegGraph'
 import { packageMediaPipelineHls } from './mediaPipeline/hlsPackager'
+import { resolveMediaPipelineHomeDir } from './mediaPipeline/home'
 import {
   createMediaPipelineLocalHlsURL,
   readMediaPipelineLocalHlsResponse,
@@ -55,6 +56,17 @@ import {
 import { mediaPipelineTimelineToVideoExportInput } from './mediaPipeline/timelineRenderer'
 import type { MediaPipelineEditingProjectEvent } from './mediaPipeline/types'
 import { prepareMediaWorkspace } from './mediaPipeline/workspace'
+import { setDesktopDefaultMovScriptWorkspaceDir } from './movscriptWorkspaceDefaults'
+
+test('media pipeline home follows the configured desktop MovScript workspace', () => {
+  const workspaceDir = join(tmpdir(), `movscript-media-home-${Date.now()}`)
+  try {
+    setDesktopDefaultMovScriptWorkspaceDir(workspaceDir)
+    assert.equal(resolveMediaPipelineHomeDir(), workspaceDir)
+  } finally {
+    setDesktopDefaultMovScriptWorkspaceDir(undefined)
+  }
+})
 
 test('prepares isolated media workspace directories for a project task', async () => {
   const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-workspace-'))

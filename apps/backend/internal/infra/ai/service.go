@@ -312,7 +312,7 @@ func (s *AIService) getAnyTextModelFromCatalog() (runtimeModelID uint, modelID s
 	if err := s.db.
 		Preload("RouteBindings", "is_enabled = true AND deleted_at IS NULL").
 		Where("is_enabled = true AND deleted_at IS NULL").
-		Order("public_model_id ASC, provider_model_id ASC").
+		Order("public_model_id ASC").
 		Find(&entries).Error; err != nil {
 		return 0, "", true, err
 	}
@@ -330,9 +330,6 @@ func (s *AIService) getAnyTextModelFromCatalog() (runtimeModelID uint, modelID s
 		}
 		for _, binding := range catalogEntryBindingsForFilter(entry.RouteBindings, "") {
 			publicModelID := strings.TrimSpace(entry.PublicModelID)
-			if publicModelID == "" {
-				publicModelID = strings.TrimSpace(entry.ProviderModelID)
-			}
 			candidates = append(candidates, candidate{
 				runtimeModelID: entry.ID,
 				modelID:        publicModelID,

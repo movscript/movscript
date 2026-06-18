@@ -1,6 +1,7 @@
 import type { AppSettings } from '@/shared/contracts/appSettings'
 import type { ElectronRuntimeConfig } from '@/shared/contracts/electronApi'
 import { readBrowserStorageItem } from '@/shared/infrastructure/browserStorage'
+import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
 import {
   isLocalLaunchMode,
   normalizeAPIBaseURL,
@@ -60,8 +61,9 @@ export function setRuntimeConfigSnapshot(snapshot: ElectronRuntimeConfig | null 
 }
 
 export async function refreshRuntimeConfigSnapshot(): Promise<ElectronRuntimeConfig | null> {
-  if (typeof window === 'undefined' || !window.api?.getRuntimeConfig) return runtimeConfigSnapshot
-  const snapshot = await window.api.getRuntimeConfig()
+  const api = readElectronApi()
+  if (!api?.getRuntimeConfig) return runtimeConfigSnapshot
+  const snapshot = await api.getRuntimeConfig()
   setRuntimeConfigSnapshot(snapshot)
   return runtimeConfigSnapshot
 }
@@ -80,9 +82,21 @@ function normalizeRuntimeConfigSnapshot(snapshot: ElectronRuntimeConfig): Electr
     apiBaseURL,
     apiV1BaseURL: snapshot.apiV1BaseURL?.trim() ? normalizeAPIBaseURL(snapshot.apiV1BaseURL) + '/api/v1' : `${apiBaseURL}/api/v1`,
     localAPIBaseURL,
+    providerRuntimeEnv: normalizeProviderRuntimeEnv(snapshot.providerRuntimeEnv),
     backendStatus: {
       ...snapshot.backendStatus,
       baseURL: normalizeAPIBaseURL(snapshot.backendStatus.baseURL),
     },
   }
+}
+
+function normalizeProviderRuntimeEnv(env: ElectronRuntimeConfig['providerRuntimeEnv'] | undefined): Record<string, string> | undefined {
+  if (!env || typeof env !== 'object') return undefined
+  const output: Record<string, string> = {}
+  for (const [key, value] of Object.entries(env)) {
+    const normalizedKey = key.trim().toUpperCase()
+    const normalizedValue = value?.trim()
+    if (/^[A-Z_][A-Z0-9_]*$/.test(normalizedKey) && normalizedValue) output[normalizedKey] = normalizedValue
+  }
+  return Object.keys(output).length > 0 ? output : undefined
 }

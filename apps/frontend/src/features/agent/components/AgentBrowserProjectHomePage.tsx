@@ -87,12 +87,14 @@ export function ProjectHomeBrowserPage({
   onOpenResourceLibrary,
   onOpenExternalResourceLibrary,
   onOpenCanvasList,
+  onOpenEditingProjects,
 }: {
   project: Project | null
   onOpenProjectStandards: () => void
   onOpenResourceLibrary: () => void
   onOpenExternalResourceLibrary: () => void
   onOpenCanvasList: () => void
+  onOpenEditingProjects: () => void
 }) {
   const projectId = project?.ID
   const navigate = useNavigate()
@@ -301,6 +303,9 @@ export function ProjectHomeBrowserPage({
           </AgentBrowserContentToolButton>
           <AgentBrowserContentToolButton icon={<LayoutTemplate size={13} />} onClick={onOpenCanvasList}>
             画布
+          </AgentBrowserContentToolButton>
+          <AgentBrowserContentToolButton icon={<Clapperboard size={13} />} onClick={onOpenEditingProjects}>
+            剪辑
           </AgentBrowserContentToolButton>
         </AgentBrowserContentToolbar>
       </AgentBrowserProjectHeader>

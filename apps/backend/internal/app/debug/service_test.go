@@ -142,11 +142,10 @@ func TestListLLMCallLogsFiltersByCatalogEntryWithoutLegacyModelConfigTable(t *te
 		&persistencemodel.LLMCallLog{},
 	)
 	entry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID:   "gpt-5.2",
-		ProviderModelID: "provider-gpt-5.2",
-		DisplayName:     "GPT 5.2",
-		Capabilities:    "text",
-		IsEnabled:       true,
+		PublicModelID: "gpt-5.2",
+		DisplayName:   "GPT 5.2",
+		Capabilities:  "text",
+		IsEnabled:     true,
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("seed catalog entry: %v", err)
@@ -322,11 +321,10 @@ func TestListJobDetailsFiltersByCatalogEntryWithoutLegacyModelConfigFallback(t *
 		&persistencemodel.AIModelCatalogEntry{},
 	)
 	entry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID:   "video-fast",
-		ProviderModelID: "provider-video-fast",
-		DisplayName:     "Video Fast",
-		Capabilities:    "video",
-		IsEnabled:       true,
+		PublicModelID: "video-fast",
+		DisplayName:   "Video Fast",
+		Capabilities:  "video",
+		IsEnabled:     true,
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("seed catalog entry: %v", err)

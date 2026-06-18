@@ -28,25 +28,25 @@ test('ensureDefaultAgentProviderFromBackend creates a backend provider from the 
   const result = await ensureDefaultAgentProviderFromBackend({
     provider: providerFixture(),
     models: [
-      modelFixture({ id: 1, credential_id: 10, model_id: 'fallback-model' }),
-      modelFixture({ id: 2, credential_id: 20, model_id: 'default-model', is_default: true }),
+      modelFixture({ id: 1, provider_id: 'local_provider:10', model_id: 'fallback-model' }),
+      modelFixture({ id: 2, provider_id: 'local_provider:20', model_id: 'default-model', is_default: true }),
     ],
     client,
   })
 
   assert.equal(result.status, 'created')
   assert.equal(result.providerKey, 'mova')
-  assert.equal(result.providerRef, 'backend:20')
+  assert.equal(result.providerRef, 'backend:local_provider:20')
   assert.equal(result.model, 'default-model')
   assert.equal(saves.length, 1)
   assert.equal(saves[0]?.mova?.configSource, 'backend')
-  assert.deepEqual(saves[0]?.mova?.config, { mode: 'backendKey', modelProviderRef: 'backend:20' })
-  assert.deepEqual(saves[0]?.mova?.auth, { mode: 'backendKey', modelProviderRef: 'backend:20' })
+  assert.deepEqual(saves[0]?.mova?.config, { mode: 'backendKey', modelProviderRef: 'backend:local_provider:20' })
+  assert.deepEqual(saves[0]?.mova?.auth, { mode: 'backendKey', modelProviderRef: 'backend:local_provider:20' })
   assert.deepEqual(saves[0]?.mova?.defaultAgentProvider, {
     source: 'backend-model',
-    providerRef: 'backend:20',
+    providerRef: 'backend:local_provider:20',
     model: 'default-model',
-    credentialId: 20,
+    providerId: 'local_provider:20',
   })
 })
 
@@ -74,7 +74,7 @@ test('ensureDefaultAgentProviderFromBackend keeps explicit provider config uncha
 
   const result = await ensureDefaultAgentProviderFromBackend({
     provider: providerFixture(),
-    models: [modelFixture({ credential_id: 20, model_id: 'default-model', is_default: true })],
+    models: [modelFixture({ provider_id: 'local_provider:20', model_id: 'default-model', is_default: true })],
     client,
   })
 
@@ -83,12 +83,13 @@ test('ensureDefaultAgentProviderFromBackend keeps explicit provider config uncha
 })
 
 test('default agent provider model helpers prefer backend defaults', () => {
-  const fallback = modelFixture({ id: 1, credential_id: 10, model_id: 'fallback-model' })
-  const pinned = modelFixture({ id: 2, credential_id: 20, model_id: 'default-model', is_default: true })
+  const fallback = modelFixture({ id: 1, provider_id: 'local_provider:10', model_id: 'fallback-model' })
+  const pinned = modelFixture({ id: 2, provider_id: 'local_provider:20', model_id: 'default-model', is_default: true })
 
-  assert.equal(selectDefaultAgentProviderModel([fallback, pinned])?.model_id, 'default-model')
-  assert.equal(backendAgentProviderRef(pinned), 'backend:20')
-})
+	  assert.equal(selectDefaultAgentProviderModel([fallback, pinned])?.model_id, 'default-model')
+	  assert.equal(backendAgentProviderRef(pinned), 'backend:local_provider:20')
+	  assert.equal(backendAgentProviderRef(modelFixture({ id: 20, catalog_entry_id: 42, provider_id: undefined })), 'backend:catalog:42')
+	})
 
 function providerFixture(): ProviderConfig {
   return {
@@ -111,7 +112,6 @@ function providerFixture(): ProviderConfig {
 function modelFixture(patch: Partial<PublicModel>): PublicModel {
   return {
     id: 1,
-    credential_id: 1,
     model_id: 'model',
     display_name: 'Model',
     capabilities: ['text'],

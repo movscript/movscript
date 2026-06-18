@@ -11,6 +11,7 @@ apps/frontend/electron.vite.config.*.mjs
 apps/frontend/src/api/generated.ts
 apps/frontend/vendor/app-server/*/
 apps/frontend/vendor/ffmpeg/*/
+apps/frontend/vendor/sdk-runtimes/
 apps/frontend/test-results/
 apps/frontend/playwright-report/
 .movscript-dev

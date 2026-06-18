@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	infraai "github.com/movscript/movscript/internal/infra/ai"
@@ -13,7 +14,6 @@ import (
 
 type ModelCatalogEntryInput struct {
 	PublicModelID      string  `json:"public_model_id"`
-	ProviderModelID    string  `json:"provider_model_id"`
 	DisplayName        string  `json:"display_name"`
 	ShortName          string  `json:"short_name"`
 	IsEnabled          *bool   `json:"is_enabled"`
@@ -32,27 +32,28 @@ type ModelCatalogEntryInput struct {
 }
 
 type ModelRouteBindingInput struct {
-	SourceType     string `json:"source_type"`
-	RouteGroup     string `json:"route_group"`
-	CredentialID   *uint  `json:"credential_id"`
-	IsEnabled      *bool  `json:"is_enabled"`
-	Priority       int    `json:"priority"`
-	CapacityWeight int    `json:"capacity_weight"`
-	MaxConcurrency int    `json:"max_concurrency"`
+	SourceType      string `json:"source_type"`
+	RouteGroup      string `json:"route_group"`
+	ProviderID      string `json:"provider_id"`
+	ProviderModelID string `json:"provider_model_id"`
+	IsEnabled       *bool  `json:"is_enabled"`
+	Priority        int    `json:"priority"`
+	CapacityWeight  int    `json:"capacity_weight"`
+	MaxConcurrency  int    `json:"max_concurrency"`
 }
 
 func (s *Service) ListModelCatalogEntries(ctx context.Context) ([]persistencemodel.AIModelCatalogEntry, error) {
 	var entries []persistencemodel.AIModelCatalogEntry
 	err := s.db.WithContext(ctx).
 		Preload("RouteBindings").
-		Order("public_model_id ASC, provider_model_id ASC").
+		Order("public_model_id ASC").
 		Find(&entries).Error
 	return entries, err
 }
 
 func (s *Service) CreateModelCatalogEntry(ctx context.Context, input ModelCatalogEntryInput) (persistencemodel.AIModelCatalogEntry, error) {
 	entry := modelCatalogEntryFromInput(input)
-	if strings.TrimSpace(entry.PublicModelID) == "" || strings.TrimSpace(entry.ProviderModelID) == "" {
+	if strings.TrimSpace(entry.PublicModelID) == "" {
 		return entry, ErrInvalidModelCatalog
 	}
 	if entry.DisplayName == "" {
@@ -64,7 +65,7 @@ func (s *Service) CreateModelCatalogEntry(ctx context.Context, input ModelCatalo
 	if err := validateModelCatalogEntry(&entry); err != nil {
 		return entry, err
 	}
-	if err := s.ensureUniqueModelCatalogEntry(ctx, 0, entry.PublicModelID, entry.ProviderModelID); err != nil {
+	if err := s.ensureUniqueModelCatalogEntry(ctx, 0, entry.PublicModelID); err != nil {
 		return entry, err
 	}
 	if err := s.db.WithContext(ctx).Create(&entry).Error; err != nil {
@@ -84,9 +85,6 @@ func (s *Service) UpdateModelCatalogEntry(ctx context.Context, id string, input 
 	if next.PublicModelID == "" {
 		next.PublicModelID = entry.PublicModelID
 	}
-	if next.ProviderModelID == "" {
-		next.ProviderModelID = entry.ProviderModelID
-	}
 	if next.Capabilities == "" {
 		next.Capabilities = entry.Capabilities
 	}
@@ -96,7 +94,7 @@ func (s *Service) UpdateModelCatalogEntry(ctx context.Context, id string, input 
 	if err := validateModelCatalogEntry(&next); err != nil {
 		return next, err
 	}
-	if err := s.ensureUniqueModelCatalogEntry(ctx, next.ID, next.PublicModelID, next.ProviderModelID); err != nil {
+	if err := s.ensureUniqueModelCatalogEntry(ctx, next.ID, next.PublicModelID); err != nil {
 		return next, err
 	}
 	if err := s.db.WithContext(ctx).Save(&next).Error; err != nil {
@@ -139,6 +137,7 @@ func (s *Service) CreateModelRouteBinding(ctx context.Context, catalogEntryID st
 	}
 	input = normalizeEditionModelRouteBindingInput(input)
 	binding := modelRouteBindingFromInput(entryID, input)
+	normalizeModelRouteBindingProviderID(&binding)
 	if strings.TrimSpace(binding.SourceType) == "" {
 		return binding, ErrInvalidModelCatalog
 	}
@@ -146,7 +145,7 @@ func (s *Service) CreateModelRouteBinding(ctx context.Context, catalogEntryID st
 		return binding, err
 	}
 	normalizeModelRouteBindingCapacity(&binding)
-	if err := s.ensureUniqueModelRouteBinding(ctx, binding.CatalogEntryID, 0, binding.SourceType, binding.RouteGroup, binding.CredentialID); err != nil {
+	if err := s.ensureUniqueModelRouteBinding(ctx, binding.CatalogEntryID, 0, binding.SourceType, binding.RouteGroup, binding.ProviderID); err != nil {
 		return binding, err
 	}
 	if err := s.db.WithContext(ctx).Create(&binding).Error; err != nil {
@@ -162,6 +161,7 @@ func (s *Service) UpdateModelRouteBinding(ctx context.Context, id string, input 
 	}
 	input = normalizeEditionModelRouteBindingInput(input)
 	next := modelRouteBindingFromInput(binding.CatalogEntryID, input)
+	normalizeModelRouteBindingProviderID(&next)
 	next.ID = binding.ID
 	next.CreatedAt = binding.CreatedAt
 	if next.SourceType == "" {
@@ -171,7 +171,7 @@ func (s *Service) UpdateModelRouteBinding(ctx context.Context, id string, input 
 		return next, err
 	}
 	normalizeModelRouteBindingCapacity(&next)
-	if err := s.ensureUniqueModelRouteBinding(ctx, next.CatalogEntryID, next.ID, next.SourceType, next.RouteGroup, next.CredentialID); err != nil {
+	if err := s.ensureUniqueModelRouteBinding(ctx, next.CatalogEntryID, next.ID, next.SourceType, next.RouteGroup, next.ProviderID); err != nil {
 		return next, err
 	}
 	if err := s.db.WithContext(ctx).Save(&next).Error; err != nil {
@@ -180,9 +180,9 @@ func (s *Service) UpdateModelRouteBinding(ctx context.Context, id string, input 
 	return next, nil
 }
 
-func (s *Service) ensureUniqueModelRouteBinding(ctx context.Context, catalogEntryID uint, excludeBindingID uint, sourceType string, routeGroup string, credentialID *uint) error {
+func (s *Service) ensureUniqueModelRouteBinding(ctx context.Context, catalogEntryID uint, excludeBindingID uint, sourceType string, routeGroup string, providerID string) error {
 	q := s.db.WithContext(ctx).Model(&persistencemodel.AIModelRouteBinding{}).
-		Where("catalog_entry_id = ? AND source_type = ? AND route_group = ? AND COALESCE(credential_id, 0) = ?", catalogEntryID, strings.TrimSpace(sourceType), strings.TrimSpace(routeGroup), credentialIDValue(credentialID))
+		Where("catalog_entry_id = ? AND source_type = ? AND route_group = ? AND provider_id = ?", catalogEntryID, strings.TrimSpace(sourceType), strings.TrimSpace(routeGroup), strings.TrimSpace(providerID))
 	if excludeBindingID != 0 {
 		q = q.Where("id <> ?", excludeBindingID)
 	}
@@ -191,21 +191,14 @@ func (s *Service) ensureUniqueModelRouteBinding(ctx context.Context, catalogEntr
 		return err
 	}
 	if count > 0 {
-		return fmt.Errorf("%w: route binding already exists for source %q, group %q, and credential %d", ErrInvalidModelCatalog, strings.TrimSpace(sourceType), strings.TrimSpace(routeGroup), credentialIDValue(credentialID))
+		return fmt.Errorf("%w: route binding already exists for source %q, group %q, and provider %q", ErrInvalidModelCatalog, strings.TrimSpace(sourceType), strings.TrimSpace(routeGroup), strings.TrimSpace(providerID))
 	}
 	return nil
 }
 
-func credentialIDValue(id *uint) uint {
-	if id == nil {
-		return 0
-	}
-	return *id
-}
-
-func (s *Service) ensureUniqueModelCatalogEntry(ctx context.Context, excludeEntryID uint, publicModelID string, providerModelID string) error {
+func (s *Service) ensureUniqueModelCatalogEntry(ctx context.Context, excludeEntryID uint, publicModelID string) error {
 	q := s.db.WithContext(ctx).Model(&persistencemodel.AIModelCatalogEntry{}).
-		Where("public_model_id = ? AND provider_model_id = ?", strings.TrimSpace(publicModelID), strings.TrimSpace(providerModelID))
+		Where("public_model_id = ?", strings.TrimSpace(publicModelID))
 	if excludeEntryID != 0 {
 		q = q.Where("id <> ?", excludeEntryID)
 	}
@@ -214,7 +207,7 @@ func (s *Service) ensureUniqueModelCatalogEntry(ctx context.Context, excludeEntr
 		return err
 	}
 	if count > 0 {
-		return fmt.Errorf("%w: catalog entry already exists for public model id %q and provider model id %q", ErrInvalidModelCatalog, strings.TrimSpace(publicModelID), strings.TrimSpace(providerModelID))
+		return fmt.Errorf("%w: catalog entry already exists for public model id %q", ErrInvalidModelCatalog, strings.TrimSpace(publicModelID))
 	}
 	return nil
 }
@@ -230,7 +223,6 @@ func modelCatalogEntryFromInput(input ModelCatalogEntryInput) persistencemodel.A
 	}
 	return persistencemodel.AIModelCatalogEntry{
 		PublicModelID:      strings.TrimSpace(input.PublicModelID),
-		ProviderModelID:    strings.TrimSpace(input.ProviderModelID),
 		DisplayName:        strings.TrimSpace(input.DisplayName),
 		ShortName:          strings.TrimSpace(input.ShortName),
 		IsEnabled:          enabled,
@@ -332,11 +324,73 @@ func validateModelRouteBinding(binding persistencemodel.AIModelRouteBinding) err
 	if binding.SourceType == persistencemodel.ModelRouteSourceNewAPI && strings.TrimSpace(binding.RouteGroup) == "" {
 		return fmt.Errorf("%w: route_group is required for new_api route bindings", ErrInvalidModelCatalog)
 	}
+	if strings.TrimSpace(binding.ProviderID) == "" {
+		return fmt.Errorf("%w: provider_id is required for route bindings", ErrInvalidModelCatalog)
+	}
+	if strings.TrimSpace(binding.ProviderModelID) == "" {
+		return fmt.Errorf("%w: provider_model_id is required for route bindings", ErrInvalidModelCatalog)
+	}
 	return validateCapacityConfig(binding.CapacityWeight, binding.MaxConcurrency)
 }
 
 func normalizeModelRouteBindingCapacity(binding *persistencemodel.AIModelRouteBinding) {
 	binding.CapacityWeight = normalizeCapacityWeight(binding.CapacityWeight)
+}
+
+func normalizeModelRouteBindingProviderID(binding *persistencemodel.AIModelRouteBinding) {
+	binding.SourceType = strings.TrimSpace(binding.SourceType)
+	binding.RouteGroup = strings.TrimSpace(binding.RouteGroup)
+	binding.ProviderID = strings.TrimSpace(binding.ProviderID)
+	binding.ProviderModelID = strings.TrimSpace(binding.ProviderModelID)
+	if binding.SourceType == "" {
+		binding.SourceType = sourceTypeFromRouteProviderID(binding.ProviderID)
+	}
+	if binding.ProviderID == "" {
+		switch binding.SourceType {
+		case persistencemodel.ModelRouteSourceNewAPI:
+			binding.ProviderID = persistencemodel.ModelRouteSourceNewAPI
+		case persistencemodel.ModelRouteSourceLocalProvider:
+			if binding.CredentialID != nil && *binding.CredentialID != 0 {
+				binding.ProviderID = fmt.Sprintf("%s:%d", persistencemodel.ModelRouteSourceLocalProvider, *binding.CredentialID)
+			}
+		}
+	}
+	if binding.SourceType == persistencemodel.ModelRouteSourceLocalProvider && binding.CredentialID == nil {
+		if credentialID, ok := localProviderCredentialIDFromProviderID(binding.ProviderID); ok {
+			binding.CredentialID = &credentialID
+		}
+	}
+}
+
+func localProviderCredentialIDFromProviderID(providerID string) (uint, bool) {
+	providerID = strings.TrimSpace(providerID)
+	if providerID == "" {
+		return 0, false
+	}
+	if value, ok := strings.CutPrefix(providerID, persistencemodel.ModelRouteSourceLocalProvider+":"); ok {
+		return parseProviderCredentialID(value)
+	}
+	return 0, false
+}
+
+func sourceTypeFromRouteProviderID(providerID string) string {
+	providerID = strings.TrimSpace(providerID)
+	switch {
+	case providerID == persistencemodel.ModelRouteSourceNewAPI:
+		return persistencemodel.ModelRouteSourceNewAPI
+	case strings.HasPrefix(providerID, persistencemodel.ModelRouteSourceLocalProvider+":"):
+		return persistencemodel.ModelRouteSourceLocalProvider
+	default:
+		return ""
+	}
+}
+
+func parseProviderCredentialID(value string) (uint, bool) {
+	parsed, err := strconv.ParseUint(strings.TrimSpace(value), 10, 64)
+	if err != nil || parsed == 0 {
+		return 0, false
+	}
+	return uint(parsed), true
 }
 
 func modelRouteBindingFromInput(catalogEntryID uint, input ModelRouteBindingInput) persistencemodel.AIModelRouteBinding {
@@ -345,13 +399,14 @@ func modelRouteBindingFromInput(catalogEntryID uint, input ModelRouteBindingInpu
 		enabled = *input.IsEnabled
 	}
 	return persistencemodel.AIModelRouteBinding{
-		CatalogEntryID: catalogEntryID,
-		SourceType:     strings.TrimSpace(input.SourceType),
-		RouteGroup:     strings.TrimSpace(input.RouteGroup),
-		CredentialID:   input.CredentialID,
-		IsEnabled:      enabled,
-		Priority:       input.Priority,
-		CapacityWeight: input.CapacityWeight,
-		MaxConcurrency: input.MaxConcurrency,
+		CatalogEntryID:  catalogEntryID,
+		SourceType:      strings.TrimSpace(input.SourceType),
+		RouteGroup:      strings.TrimSpace(input.RouteGroup),
+		ProviderID:      strings.TrimSpace(input.ProviderID),
+		ProviderModelID: strings.TrimSpace(input.ProviderModelID),
+		IsEnabled:       enabled,
+		Priority:        input.Priority,
+		CapacityWeight:  input.CapacityWeight,
+		MaxConcurrency:  input.MaxConcurrency,
 	}
 }

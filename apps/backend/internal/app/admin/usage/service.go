@@ -84,11 +84,10 @@ type UserRef struct {
 }
 
 type CatalogEntryRef struct {
-	ID              uint   `json:"ID"`
-	PublicModelID   string `json:"public_model_id"`
-	ProviderModelID string `json:"provider_model_id"`
-	DisplayName     string `json:"display_name"`
-	ShortName       string `json:"short_name"`
+	ID            uint   `json:"ID"`
+	PublicModelID string `json:"public_model_id"`
+	DisplayName   string `json:"display_name"`
+	ShortName     string `json:"short_name"`
 }
 
 type Log struct {
@@ -108,6 +107,8 @@ type Log struct {
 	DurationSec           int              `json:"duration_sec"`
 	ImageCount            int              `json:"image_count"`
 	Cost                  float64          `json:"cost"`
+	ProviderID            string           `json:"provider_id,omitempty"`
+	ProviderModelID       string           `json:"provider_model_id,omitempty"`
 	User                  *UserRef         `json:"user,omitempty"`
 	AIModelCatalogEntry   *CatalogEntryRef `json:"ai_model_catalog_entry,omitempty"`
 	CreatedAt             time.Time        `json:"CreatedAt"`

@@ -86,12 +86,11 @@ func TestCallResponsesWithRouteUsageFallsBackToChatWhenProviderResponsesFails(t 
 		t.Fatalf("create credential: %v", err)
 	}
 	entry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID:   "gpt-5.2",
-		ProviderModelID: "gpt-5.2",
-		DisplayName:     "gpt-5.2",
-		IsEnabled:       true,
-		Capabilities:    CapabilityText,
-		PricingMode:     string(PricingPerToken),
+		PublicModelID: "gpt-5.2",
+		DisplayName:   "gpt-5.2",
+		IsEnabled:     true,
+		Capabilities:  CapabilityText,
+		PricingMode:   string(PricingPerToken),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -99,6 +98,7 @@ func TestCallResponsesWithRouteUsageFallsBackToChatWhenProviderResponsesFails(t 
 	if err := db.Create(&persistencemodel.AIModelRouteBinding{
 		CatalogEntryID: entry.ID,
 		SourceType:     persistencemodel.ModelRouteSourceLocalProvider,
+		ProviderID:     fmt.Sprintf("%s:%d", persistencemodel.ModelRouteSourceLocalProvider, cred.ID),
 		CredentialID:   &cred.ID,
 		IsEnabled:      true,
 		CapacityWeight: 1,
@@ -158,13 +158,12 @@ func createProviderVariant(t *testing.T, db *gorm.DB, id uint, providerName stri
 	}
 	if db.Migrator().HasTable(&persistencemodel.AIModelCatalogEntry{}) && db.Migrator().HasTable(&persistencemodel.AIModelRouteBinding{}) {
 		entry := persistencemodel.AIModelCatalogEntry{
-			Model:           gorm.Model{ID: id},
-			PublicModelID:   modelDefID,
-			ProviderModelID: modelDefID,
-			DisplayName:     modelDefID,
-			IsEnabled:       true,
-			Capabilities:    strings.Join(capabilities, ","),
-			PricingMode:     string(PricingPerToken),
+			Model:         gorm.Model{ID: id},
+			PublicModelID: modelDefID,
+			DisplayName:   modelDefID,
+			IsEnabled:     true,
+			Capabilities:  strings.Join(capabilities, ","),
+			PricingMode:   string(PricingPerToken),
 		}
 		if slices.Contains(capabilities, CapabilityImage) || slices.Contains(capabilities, CapabilityImageEdit) {
 			entry.PricingMode = string(PricingPerImage)
@@ -175,6 +174,7 @@ func createProviderVariant(t *testing.T, db *gorm.DB, id uint, providerName stri
 		route := persistencemodel.AIModelRouteBinding{
 			CatalogEntryID: entry.ID,
 			SourceType:     persistencemodel.ModelRouteSourceLocalProvider,
+			ProviderID:     fmt.Sprintf("%s:%d", persistencemodel.ModelRouteSourceLocalProvider, cred.ID),
 			CredentialID:   &cred.ID,
 			IsEnabled:      true,
 			Priority:       priority,

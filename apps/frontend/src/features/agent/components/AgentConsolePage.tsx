@@ -45,6 +45,7 @@ import {
   HistoryClearControl,
   IssueRow,
   ManagementLink,
+  ProviderRuntimeSwitchPanel,
 } from '@/features/agent/components/AgentConsolePageSections'
 import { ROUTES } from '@/routes/projectRoutes'
 import { useAgentControlCenter } from '@/features/agent/presentation/useAgentControlCenter'
@@ -53,8 +54,10 @@ import {
   modelDisplay,
 } from '@/features/agent/application/agentControlCenter'
 import {
+  providerRuntimeProfile,
+  providerSupportsAppServerRuntime,
   resolveAppServerProfile,
-  usesAppServerProtocol,
+  useProviderConfigStore,
 } from '@/shared/infrastructure/providerConfigStore'
 import {
   AgentCapabilityHealthPanel,
@@ -68,6 +71,7 @@ import { AgentSessionIntegrationPanel } from '@/features/agent/components/AgentC
 
 export default function AgentConsolePage() {
   const controlCenter = useAgentControlCenter()
+  const setProviderSettings = useProviderConfigStore((state) => state.setSettings)
   const {
     providerSessionsQuery,
     modelQuery,
@@ -109,8 +113,9 @@ export default function AgentConsolePage() {
     setClearConfirming,
   } = controlCenter
   const executingHistoryRunCount = runSummary.active
+  const defaultRuntime = defaultProvider ? providerRuntimeProfile(defaultProvider) : undefined
   const appServerProvidersForManagement = useMemo(
-    () => providerSettings.providers.filter(usesAppServerProtocol),
+    () => providerSettings.providers.filter(providerSupportsAppServerRuntime),
     [providerSettings],
   )
   const appServerLogProfiles = useMemo(
@@ -180,10 +185,10 @@ export default function AgentConsolePage() {
       <AgentConsolePageBody>
         <AgentConsoleMetricGrid>
           <ConsoleMetricCard
-            title="当前 Agent"
-            value={appServerProvider?.label ?? '未选择'}
-            detail={`${appServerRunning ? '运行中' : '未启动'}；同一时间只会有 1 个 Agent 生效，配置入口已连接`}
-            tone={appServerProvider?.enabled ? appServerRunning ? 'ready' : 'warning' : 'action'}
+            title="默认 Provider"
+            value={defaultProvider?.label ?? '未选择'}
+            detail={defaultRuntime ? `${defaultRuntime.api} / ${defaultRuntime.packageVersion ?? defaultRuntime.sdkPackageName ?? defaultRuntime.packageName ?? 'runtime configured'}` : '配置入口已连接'}
+            tone={defaultProvider?.enabled ? 'ready' : 'action'}
           />
           <ConsoleMetricCard
             title="Model Runtime"
@@ -194,8 +199,8 @@ export default function AgentConsolePage() {
           <ConsoleMetricCard
             title="App Server"
             value={providerSessionsQuery.error ? '索引不可用' : appServerRunning ? '运行中' : '未启动'}
-            detail={appServerStatusQuery.data?.endpoint ?? `${providerSessions.length} 个 Runtime ThreadRef 索引记录`}
-            tone={providerSessionsQuery.error ? 'action' : appServerRunning ? 'ready' : 'warning'}
+            detail={appServerProvider ? (appServerStatusQuery.data?.endpoint ?? `${providerSessions.length} 个 Runtime ThreadRef 索引记录`) : '当前默认 runtime 不需要 app-server 启动'}
+            tone={providerSessionsQuery.error ? 'action' : appServerProvider ? appServerRunning ? 'ready' : 'warning' : 'ready'}
           />
           <ConsoleMetricCard
             title="Capabilities"
@@ -229,6 +234,12 @@ export default function AgentConsolePage() {
               onStartAppServer={() => void runControlAction('start-app-server', ensureAppServer)}
               onStopAppServer={() => void runControlAction('stop-app-server', stopAppServer)}
               onRestartAppServer={() => void runControlAction('restart-app-server', restartAppServer)}
+            />
+
+            <ProviderRuntimeSwitchPanel
+              providers={enabledProvidersForConsole}
+              settings={providerSettings}
+              onSettingsChange={setProviderSettings}
             />
 
             <AgentCapabilityHealthPanel
@@ -278,7 +289,7 @@ export default function AgentConsolePage() {
 
             <ConsolePanel title="管理入口" icon={<Terminal size={14} />}>
               <AgentConsoleGrid>
-                <ManagementLink to={ROUTES.modelProviders} icon={<Settings size={14} />} title="Provider / Catalog / Route" detail="管理 provider/new-api 来源，查看 Catalog Entry 和 Route；高级直连覆盖仅用于临时外部模型服务。" />
+                <ManagementLink to={ROUTES.modelProviders} icon={<Settings size={14} />} title="Provider / Catalog / Route" detail="查看 Admin 已发布的 Provider 来源、Catalog Entry 和 Route；配置变更在 Admin 完成。" />
                 {appServerProvidersForManagement.map((provider) => (
                   <ManagementLink
                     key={provider.id}

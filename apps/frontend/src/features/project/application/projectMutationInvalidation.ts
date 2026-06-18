@@ -1,4 +1,5 @@
 import { projectKeys } from '@/features/project/application/projectQueries'
+import { publishAppEvent } from '@/shared/application/appEvents'
 
 export interface ProjectQueryInvalidator {
   invalidateQueries: (options: { queryKey: readonly unknown[] }) => unknown
@@ -44,6 +45,7 @@ export function invalidateProjectMutationResult(
   queryClient: ProjectQueryInvalidator,
   result: ProjectMutationResult,
 ): void {
+  publishProjectMutationEvent(result.event)
   invalidateProjectMutationEvent(queryClient, result.event)
 }
 
@@ -56,4 +58,14 @@ export function invalidateProjectMutationEvent(
       void queryClient.invalidateQueries({ queryKey: projectKeys.list(event.orgId) })
       return
   }
+}
+
+function publishProjectMutationEvent(event: ProjectMutationEvent): void {
+  publishAppEvent({
+    topic: 'project.mutation',
+    scope: { kind: 'global' },
+    source: 'query-invalidation',
+    payload: event,
+    raw: event,
+  })
 }

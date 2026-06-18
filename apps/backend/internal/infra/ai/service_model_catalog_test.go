@@ -2,6 +2,7 @@ package ai
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/movscript/movscript/internal/domain/media"
@@ -67,8 +68,8 @@ func TestAIServiceModelCatalogContractMergesLogicalModels(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListModels(provider variants) error = %v", err)
 	}
-	if len(variants) != 2 || variants[0].ProviderName == "" || variants[0].CredentialID == 0 || variants[0].ProviderModelID == "" {
-		t.Fatalf("provider variant descriptors = %#v, want per-provider metadata without legacy runtime model id", variants)
+	if len(variants) != 2 || variants[0].ProviderName == "" || variants[0].ProviderID == "" || variants[0].ProviderModelID == "" {
+		t.Fatalf("provider variant descriptors = %#v, want per-provider lane metadata without legacy runtime model id", variants)
 	}
 }
 
@@ -79,7 +80,6 @@ func TestAIServiceModelCatalogUsesCatalogEntriesAndRouteBindings(t *testing.T) {
 	)
 	defaultEntry := persistencemodel.AIModelCatalogEntry{
 		PublicModelID:   "video-fast",
-		ProviderModelID: "kling-v2",
 		DisplayName:     "Video Fast",
 		ShortName:       "Fast",
 		IsEnabled:       true,
@@ -92,7 +92,6 @@ func TestAIServiceModelCatalogUsesCatalogEntriesAndRouteBindings(t *testing.T) {
 	}
 	priorityEntry := persistencemodel.AIModelCatalogEntry{
 		PublicModelID:   "video-fast",
-		ProviderModelID: "kling-v2-master",
 		DisplayName:     "Video Fast",
 		ShortName:       "Fast",
 		IsEnabled:       true,
@@ -104,8 +103,8 @@ func TestAIServiceModelCatalogUsesCatalogEntriesAndRouteBindings(t *testing.T) {
 		t.Fatalf("create priority catalog entry: %v", err)
 	}
 	bindings := []persistencemodel.AIModelRouteBinding{
-		{CatalogEntryID: defaultEntry.ID, SourceType: persistencemodel.ModelRouteSourceNewAPI, RouteGroup: "default", IsEnabled: true, Priority: 1, CapacityWeight: 1},
-		{CatalogEntryID: priorityEntry.ID, SourceType: persistencemodel.ModelRouteSourceNewAPI, RouteGroup: "priority", IsEnabled: true, Priority: 10, CapacityWeight: 2},
+		{CatalogEntryID: defaultEntry.ID, SourceType: persistencemodel.ModelRouteSourceNewAPI, RouteGroup: "default", ProviderID: persistencemodel.ModelRouteSourceNewAPI, ProviderModelID: "kling-v2", IsEnabled: true, Priority: 1, CapacityWeight: 1},
+		{CatalogEntryID: priorityEntry.ID, SourceType: persistencemodel.ModelRouteSourceNewAPI, RouteGroup: "priority", ProviderID: persistencemodel.ModelRouteSourceNewAPI, ProviderModelID: "kling-v2-master", IsEnabled: true, Priority: 10, CapacityWeight: 2},
 	}
 	if err := db.Create(&bindings).Error; err != nil {
 		t.Fatalf("create route bindings: %v", err)
@@ -178,12 +177,11 @@ func TestAIServiceListModelsDoesNotFallbackToLegacyConfigsWhenCatalogExists(t *t
 		&persistencemodel.AIModelRouteBinding{},
 	)
 	entry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID:   "catalog-writer",
-		ProviderModelID: "provider-writer-v2",
-		DisplayName:     "Catalog Writer",
-		IsEnabled:       true,
-		Capabilities:    CapabilityText,
-		PricingMode:     string(PricingPerToken),
+		PublicModelID: "catalog-writer",
+		DisplayName:   "Catalog Writer",
+		IsEnabled:     true,
+		Capabilities:  CapabilityText,
+		PricingMode:   string(PricingPerToken),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -228,12 +226,11 @@ func TestAIServiceGetAnyTextModelUsesCatalogRoutesWithoutLegacyModelConfigTable(
 		t.Fatal("catalog-only get-any-text test should not create legacy ai_model_configs")
 	}
 	entry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID:   "catalog-writer",
-		ProviderModelID: "provider-writer-v2",
-		DisplayName:     "Catalog Writer",
-		IsEnabled:       true,
-		Capabilities:    CapabilityText,
-		PricingMode:     string(PricingPerToken),
+		PublicModelID: "catalog-writer",
+		DisplayName:   "Catalog Writer",
+		IsEnabled:     true,
+		Capabilities:  CapabilityText,
+		PricingMode:   string(PricingPerToken),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -265,12 +262,11 @@ func TestAIServiceGetAnyTextModelDoesNotFallbackToLegacyConfigsWhenCatalogExists
 		&persistencemodel.AIModelRouteBinding{},
 	)
 	entry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID:   "catalog-writer",
-		ProviderModelID: "provider-writer-v2",
-		DisplayName:     "Catalog Writer",
-		IsEnabled:       true,
-		Capabilities:    CapabilityText,
-		PricingMode:     string(PricingPerToken),
+		PublicModelID: "catalog-writer",
+		DisplayName:   "Catalog Writer",
+		IsEnabled:     true,
+		Capabilities:  CapabilityText,
+		PricingMode:   string(PricingPerToken),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -307,24 +303,25 @@ func TestAIServiceResolveModelRouteByRouteBindingID(t *testing.T) {
 		t.Fatalf("create credential: %v", err)
 	}
 	entry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID:   "image-fast",
-		ProviderModelID: "provider-image-v2",
-		DisplayName:     "Image Fast",
-		IsEnabled:       true,
-		Capabilities:    CapabilityImage,
-		PricingMode:     string(PricingPerImage),
+		PublicModelID: "image-fast",
+		DisplayName:   "Image Fast",
+		IsEnabled:     true,
+		Capabilities:  CapabilityImage,
+		PricingMode:   string(PricingPerImage),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
 	}
 	binding := persistencemodel.AIModelRouteBinding{
-		CatalogEntryID: entry.ID,
-		SourceType:     persistencemodel.ModelRouteSourceLocalProvider,
-		RouteGroup:     "priority",
-		CredentialID:   &cred.ID,
-		IsEnabled:      true,
-		Priority:       1,
-		CapacityWeight: 1,
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
+		RouteGroup:      "priority",
+		ProviderID:      fmt.Sprintf("%s:%d", persistencemodel.ModelRouteSourceLocalProvider, cred.ID),
+		ProviderModelID: "provider-image-v2",
+		CredentialID:    &cred.ID,
+		IsEnabled:       true,
+		Priority:        1,
+		CapacityWeight:  1,
 	}
 	if err := db.Create(&binding).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
@@ -349,7 +346,6 @@ func TestCatalogRouteDefinitionUsesCatalogRuntimeModel(t *testing.T) {
 	)
 	entry := persistencemodel.AIModelCatalogEntry{
 		PublicModelID:      "writer",
-		ProviderModelID:    "provider-writer-v2",
 		DisplayName:        "Writer",
 		ShortName:          "write",
 		IsEnabled:          true,
@@ -376,7 +372,7 @@ func TestCatalogRouteDefinitionUsesCatalogRuntimeModel(t *testing.T) {
 	if !handled {
 		t.Fatal("catalogRouteDefinition() handled = false, want true")
 	}
-	if definition.model.ID != entry.ID || definition.model.ProviderModelID != "provider-writer-v2" || definition.model.DisplayName != "Writer" {
+	if definition.model.ID != entry.ID || definition.model.ProviderModelID != "writer" || definition.model.DisplayName != "Writer" {
 		t.Fatalf("catalog runtime model = %#v, want fields copied from catalog entry", definition.model)
 	}
 	if definition.model.CreditsInputPer1M != 1.5 || definition.model.CreditsOutputPer1M != 2.5 || definition.model.CreditsPerCall != 0.25 {
@@ -405,22 +401,23 @@ func TestAIServiceCatalogRouteCanCallLocalProviderWithProviderModelID(t *testing
 		t.Fatalf("create credential: %v", err)
 	}
 	entry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID:   "writer",
-		ProviderModelID: "provider-writer-v2",
-		DisplayName:     "Writer",
-		IsEnabled:       true,
-		Capabilities:    CapabilityText,
-		PricingMode:     string(PricingPerToken),
+		PublicModelID: "writer",
+		DisplayName:   "Writer",
+		IsEnabled:     true,
+		Capabilities:  CapabilityText,
+		PricingMode:   string(PricingPerToken),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
 	}
 	binding := persistencemodel.AIModelRouteBinding{
-		CatalogEntryID: entry.ID,
-		SourceType:     persistencemodel.ModelRouteSourceLocalProvider,
-		CredentialID:   &cred.ID,
-		IsEnabled:      true,
-		CapacityWeight: 1,
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
+		ProviderID:      fmt.Sprintf("%s:%d", persistencemodel.ModelRouteSourceLocalProvider, cred.ID),
+		ProviderModelID: "provider-writer-v2",
+		CredentialID:    &cred.ID,
+		IsEnabled:       true,
+		CapacityWeight:  1,
 	}
 	if err := db.Create(&binding).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
@@ -436,7 +433,7 @@ func TestAIServiceCatalogRouteCanCallLocalProviderWithProviderModelID(t *testing
 	if err != nil {
 		t.Fatalf("ResolveModelRoute() error = %v", err)
 	}
-	if route.CatalogEntryID != entry.ID || route.CredentialID != cred.ID || route.ProviderModelID != "provider-writer-v2" {
+	if route.CatalogEntryID != entry.ID || route.ProviderID == "" || route.CredentialID != cred.ID || route.ProviderModelID != "provider-writer-v2" {
 		t.Fatalf("route = %#v, want catalog local-provider route", route)
 	}
 	req := TextRequest{Messages: []Message{{Role: "user", Content: "hello"}}}
@@ -479,12 +476,11 @@ func TestAIServiceCatalogRouteRejectsUnsupportedSourceWithoutLegacyFallback(t *t
 		&persistencemodel.UsageLog{},
 	)
 	entry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID:   "writer",
-		ProviderModelID: "provider-writer-v2",
-		DisplayName:     "Writer",
-		IsEnabled:       true,
-		Capabilities:    CapabilityText,
-		PricingMode:     string(PricingPerToken),
+		PublicModelID: "writer",
+		DisplayName:   "Writer",
+		IsEnabled:     true,
+		Capabilities:  CapabilityText,
+		PricingMode:   string(PricingPerToken),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -502,7 +498,7 @@ func TestAIServiceCatalogRouteRejectsUnsupportedSourceWithoutLegacyFallback(t *t
 		RuntimeModelID:  99,
 		CatalogEntryID:  entry.ID,
 		SourceType:      "unknown_source",
-		ProviderModelID: entry.ProviderModelID,
+		ProviderModelID: "provider-writer-v2",
 	}, TextRequest{Messages: []Message{{Role: "user", Content: "hello"}}}, UsageContext{})
 	if err == nil {
 		t.Fatal("CallTextWithRouteUsage() succeeded through legacy fallback, want unsupported source error")
@@ -525,22 +521,23 @@ func TestAIServiceCatalogRouteCanCallImageProviderWithProviderModelID(t *testing
 		t.Fatalf("create credential: %v", err)
 	}
 	entry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID:   "image-fast",
-		ProviderModelID: "provider-image-v2",
-		DisplayName:     "Image Fast",
-		IsEnabled:       true,
-		Capabilities:    CapabilityImage,
-		PricingMode:     string(PricingPerImage),
+		PublicModelID: "image-fast",
+		DisplayName:   "Image Fast",
+		IsEnabled:     true,
+		Capabilities:  CapabilityImage,
+		PricingMode:   string(PricingPerImage),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
 	}
 	if err := db.Create(&persistencemodel.AIModelRouteBinding{
-		CatalogEntryID: entry.ID,
-		SourceType:     persistencemodel.ModelRouteSourceLocalProvider,
-		CredentialID:   &cred.ID,
-		IsEnabled:      true,
-		CapacityWeight: 1,
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
+		ProviderID:      fmt.Sprintf("%s:%d", persistencemodel.ModelRouteSourceLocalProvider, cred.ID),
+		ProviderModelID: "provider-image-v2",
+		CredentialID:    &cred.ID,
+		IsEnabled:       true,
+		CapacityWeight:  1,
 	}).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
 	}
@@ -575,22 +572,23 @@ func TestAIServiceCatalogRouteCanCallTTSProviderWithProviderModelID(t *testing.T
 		t.Fatalf("create credential: %v", err)
 	}
 	entry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID:   "voice-main",
-		ProviderModelID: "provider-voice-v2",
-		DisplayName:     "Voice Main",
-		IsEnabled:       true,
-		Capabilities:    CapabilityAudioTTS,
-		PricingMode:     string(PricingPerCall),
+		PublicModelID: "voice-main",
+		DisplayName:   "Voice Main",
+		IsEnabled:     true,
+		Capabilities:  CapabilityAudioTTS,
+		PricingMode:   string(PricingPerCall),
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
 	}
 	if err := db.Create(&persistencemodel.AIModelRouteBinding{
-		CatalogEntryID: entry.ID,
-		SourceType:     persistencemodel.ModelRouteSourceLocalProvider,
-		CredentialID:   &cred.ID,
-		IsEnabled:      true,
-		CapacityWeight: 1,
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
+		ProviderID:      fmt.Sprintf("%s:%d", persistencemodel.ModelRouteSourceLocalProvider, cred.ID),
+		ProviderModelID: "provider-voice-v2",
+		CredentialID:    &cred.ID,
+		IsEnabled:       true,
+		CapacityWeight:  1,
 	}).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
 	}
@@ -681,20 +679,18 @@ func TestAIServiceResolveModelUsesCatalogRouteWithoutLegacyModelConfigTable(t *t
 		t.Fatalf("create credential: %v", err)
 	}
 	localEntry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID:   "writer",
-		ProviderModelID: "provider-writer-v2",
-		DisplayName:     "Writer",
-		IsEnabled:       true,
-		Capabilities:    CapabilityText,
-		PricingMode:     string(PricingPerToken),
+		PublicModelID: "writer",
+		DisplayName:   "Writer",
+		IsEnabled:     true,
+		Capabilities:  CapabilityText,
+		PricingMode:   string(PricingPerToken),
 	}
 	newAPIEntry := persistencemodel.AIModelCatalogEntry{
-		PublicModelID:   "priority-writer",
-		ProviderModelID: "newapi-writer-v2",
-		DisplayName:     "Priority Writer",
-		IsEnabled:       true,
-		Capabilities:    CapabilityText,
-		PricingMode:     string(PricingPerToken),
+		PublicModelID: "priority-writer",
+		DisplayName:   "Priority Writer",
+		IsEnabled:     true,
+		Capabilities:  CapabilityText,
+		PricingMode:   string(PricingPerToken),
 	}
 	if err := db.Create(&localEntry).Error; err != nil {
 		t.Fatalf("create local catalog entry: %v", err)
@@ -703,20 +699,24 @@ func TestAIServiceResolveModelUsesCatalogRouteWithoutLegacyModelConfigTable(t *t
 		t.Fatalf("create new-api catalog entry: %v", err)
 	}
 	if err := db.Create(&persistencemodel.AIModelRouteBinding{
-		CatalogEntryID: localEntry.ID,
-		SourceType:     persistencemodel.ModelRouteSourceLocalProvider,
-		CredentialID:   &cred.ID,
-		IsEnabled:      true,
-		CapacityWeight: 1,
+		CatalogEntryID:  localEntry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
+		ProviderID:      fmt.Sprintf("%s:%d", persistencemodel.ModelRouteSourceLocalProvider, cred.ID),
+		ProviderModelID: "provider-writer-v2",
+		CredentialID:    &cred.ID,
+		IsEnabled:       true,
+		CapacityWeight:  1,
 	}).Error; err != nil {
 		t.Fatalf("create local route binding: %v", err)
 	}
 	if err := db.Create(&persistencemodel.AIModelRouteBinding{
-		CatalogEntryID: newAPIEntry.ID,
-		SourceType:     persistencemodel.ModelRouteSourceNewAPI,
-		RouteGroup:     "priority",
-		IsEnabled:      true,
-		CapacityWeight: 1,
+		CatalogEntryID:  newAPIEntry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceNewAPI,
+		RouteGroup:      "priority",
+		ProviderID:      persistencemodel.ModelRouteSourceNewAPI,
+		ProviderModelID: "newapi-writer-v2",
+		IsEnabled:       true,
+		CapacityWeight:  1,
 	}).Error; err != nil {
 		t.Fatalf("create new-api route binding: %v", err)
 	}

@@ -2,6 +2,7 @@ package ai
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -29,7 +30,7 @@ func TestAIServiceRoutingPolicyContractResolvesProviderBackedRoute(t *testing.T)
 	if err != nil {
 		t.Fatalf("ResolveGatewayModelRoute() error = %v", err)
 	}
-	if route.ModelID != "gpt-5.2" || route.ProviderModelID != "gpt-5.2-primary" || route.Capability != CapabilityText || route.SourceType != persistencemodel.ModelRouteSourceLocalProvider {
+	if route.ModelID != "gpt-5.2" || route.ProviderID != "local_provider:1" || route.ProviderModelID != "gpt-5.2-primary" || route.Capability != CapabilityText || route.SourceType != persistencemodel.ModelRouteSourceLocalProvider {
 		t.Fatalf("route = %#v, want catalog-backed text route", route)
 	}
 	if route.SelectionReason != "catalog_model_id" {
@@ -51,7 +52,7 @@ func TestAIServiceRoutingPolicyContractResolvesGenerationRoute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveGatewayGenerationModelRoute() error = %v", err)
 	}
-	if route.ModelID != "gpt-image-1" || route.ProviderModelID != "gpt-image-provider" || route.Capability != CapabilityImage || route.SourceType != persistencemodel.ModelRouteSourceLocalProvider {
+	if route.ModelID != "gpt-image-1" || route.ProviderID != "local_provider:1" || route.ProviderModelID != "gpt-image-provider" || route.Capability != CapabilityImage || route.SourceType != persistencemodel.ModelRouteSourceLocalProvider {
 		t.Fatalf("route = %#v, want image route through catalog binding", route)
 	}
 }
@@ -169,7 +170,6 @@ func createCatalogRouteVariantWithGroupAndCost(t *testing.T, db *gorm.DB, id uin
 	entry := persistencemodel.AIModelCatalogEntry{
 		Model:              gorm.Model{ID: id},
 		PublicModelID:      publicModelID,
-		ProviderModelID:    providerModelID,
 		DisplayName:        publicModelID,
 		IsEnabled:          true,
 		Capabilities:       strings.Join(capabilities, ","),
@@ -182,13 +182,15 @@ func createCatalogRouteVariantWithGroupAndCost(t *testing.T, db *gorm.DB, id uin
 	}
 	credentialID := cred.ID
 	binding := persistencemodel.AIModelRouteBinding{
-		CatalogEntryID: entry.ID,
-		CredentialID:   &credentialID,
-		SourceType:     persistencemodel.ModelRouteSourceLocalProvider,
-		RouteGroup:     routeGroup,
-		IsEnabled:      true,
-		Priority:       priority,
-		CapacityWeight: 1,
+		CatalogEntryID:  entry.ID,
+		CredentialID:    &credentialID,
+		SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
+		RouteGroup:      routeGroup,
+		ProviderID:      fmt.Sprintf("%s:%d", persistencemodel.ModelRouteSourceLocalProvider, credentialID),
+		ProviderModelID: providerModelID,
+		IsEnabled:       true,
+		Priority:        priority,
+		CapacityWeight:  1,
 	}
 	if err := db.Create(&binding).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)

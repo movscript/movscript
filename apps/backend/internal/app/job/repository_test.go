@@ -149,12 +149,11 @@ func TestServiceEnqueueGenerationPreservesConflictSuggestedFix(t *testing.T) {
 		t.Fatalf("create credential: %v", err)
 	}
 	entry := model.AIModelCatalogEntry{
-		PublicModelID:   "seedance-conflict-test",
-		ProviderModelID: "seedance-conflict-provider",
-		DisplayName:     "Seedance Conflict Test",
-		IsEnabled:       true,
-		Capabilities:    ai.CapabilityVideo,
-		PricingMode:     string(ai.PricingPerSecond),
+		PublicModelID: "seedance-conflict-test",
+		DisplayName:   "Seedance Conflict Test",
+		IsEnabled:     true,
+		Capabilities:  ai.CapabilityVideo,
+		PricingMode:   string(ai.PricingPerSecond),
 		SupportedParams: `[
 			{"key":"duration","type":"number","conflicts_with":["frames"]},
 			{"key":"frames","type":"number"}
@@ -164,11 +163,12 @@ func TestServiceEnqueueGenerationPreservesConflictSuggestedFix(t *testing.T) {
 		t.Fatalf("create catalog entry: %v", err)
 	}
 	if err := db.Create(&model.AIModelRouteBinding{
-		CatalogEntryID: entry.ID,
-		SourceType:     model.ModelRouteSourceLocalProvider,
-		CredentialID:   &cred.ID,
-		IsEnabled:      true,
-		CapacityWeight: 1,
+		CatalogEntryID:  entry.ID,
+		SourceType:      model.ModelRouteSourceLocalProvider,
+		ProviderModelID: "seedance-conflict-provider",
+		CredentialID:    &cred.ID,
+		IsEnabled:       true,
+		CapacityWeight:  1,
 	}).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
 	}
@@ -202,7 +202,6 @@ func TestServiceEnqueueGenerationUsesCatalogRouteWithoutLegacyModelConfig(t *tes
 	db := openJobRepositoryTestDB(t)
 	defaultEntry := model.AIModelCatalogEntry{
 		PublicModelID:   "image-fast",
-		ProviderModelID: "provider-image-default",
 		DisplayName:     "Image Fast Default",
 		IsEnabled:       true,
 		Capabilities:    ai.CapabilityImage,
@@ -214,7 +213,6 @@ func TestServiceEnqueueGenerationUsesCatalogRouteWithoutLegacyModelConfig(t *tes
 	}
 	entry := model.AIModelCatalogEntry{
 		PublicModelID:   "image-fast",
-		ProviderModelID: "provider-image-v2",
 		DisplayName:     "Image Fast",
 		IsEnabled:       true,
 		Capabilities:    ai.CapabilityImage,
@@ -225,22 +223,24 @@ func TestServiceEnqueueGenerationUsesCatalogRouteWithoutLegacyModelConfig(t *tes
 		t.Fatalf("create catalog entry: %v", err)
 	}
 	if err := db.Create(&model.AIModelRouteBinding{
-		CatalogEntryID: defaultEntry.ID,
-		SourceType:     model.ModelRouteSourceNewAPI,
-		RouteGroup:     "default",
-		IsEnabled:      true,
-		Priority:       10,
-		CapacityWeight: 1,
+		CatalogEntryID:  defaultEntry.ID,
+		SourceType:      model.ModelRouteSourceNewAPI,
+		RouteGroup:      "default",
+		ProviderModelID: "provider-image-default",
+		IsEnabled:       true,
+		Priority:        10,
+		CapacityWeight:  1,
 	}).Error; err != nil {
 		t.Fatalf("create default route binding: %v", err)
 	}
 	priorityBinding := model.AIModelRouteBinding{
-		CatalogEntryID: entry.ID,
-		SourceType:     model.ModelRouteSourceNewAPI,
-		RouteGroup:     "priority",
-		IsEnabled:      true,
-		Priority:       1,
-		CapacityWeight: 1,
+		CatalogEntryID:  entry.ID,
+		SourceType:      model.ModelRouteSourceNewAPI,
+		RouteGroup:      "priority",
+		ProviderModelID: "provider-image-v2",
+		IsEnabled:       true,
+		Priority:        1,
+		CapacityWeight:  1,
 	}
 	if err := db.Create(&priorityBinding).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
@@ -278,10 +278,9 @@ func TestGormRepositoryResponseLookupsUsesCatalogWithoutLegacyProviderTables(t *
 	db := testutil.OpenSQLite(t, "job_repository_catalog_only.db", &model.Job{}, &model.RawResource{}, &model.AIModelCatalogEntry{})
 	repo := &gormRepository{db: db}
 	entry := model.AIModelCatalogEntry{
-		PublicModelID:   "image-fast",
-		ProviderModelID: "provider-image-v2",
-		DisplayName:     "Image Fast",
-		IsEnabled:       true,
+		PublicModelID: "image-fast",
+		DisplayName:   "Image Fast",
+		IsEnabled:     true,
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -298,7 +297,7 @@ func TestGormRepositoryResponseLookupsUsesCatalogWithoutLegacyProviderTables(t *
 	if !ok {
 		t.Fatalf("catalog lookup missing entry %d", entry.ID)
 	}
-	if catalog.PublicModelID != "image-fast" || catalog.ProviderModelID != "provider-image-v2" {
+	if catalog.PublicModelID != "image-fast" {
 		t.Fatalf("catalog lookup = %#v", catalog)
 	}
 }
@@ -306,10 +305,9 @@ func TestGormRepositoryResponseLookupsUsesCatalogWithoutLegacyProviderTables(t *
 func TestBuildResponsesUsesOnlyExplicitCatalogEntryID(t *testing.T) {
 	db := testutil.OpenSQLite(t, "job_response_catalog_explicit.db", &model.Job{}, &model.RawResource{}, &model.AIModelCatalogEntry{})
 	entry := model.AIModelCatalogEntry{
-		PublicModelID:   "image-fast",
-		ProviderModelID: "provider-image-v2",
-		DisplayName:     "Image Fast",
-		IsEnabled:       true,
+		PublicModelID: "image-fast",
+		DisplayName:   "Image Fast",
+		IsEnabled:     true,
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)

@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { AICredential, AIModelCatalogEntry, AdapterDef, PublicModel, ParamDef, ModelParamProfile, Project, User, RawResource, ResourceBinding, PaginatedResponse, ProviderInstance, ProviderInstanceConfigActivationResult, ProviderInstanceConfigApplyResult, ProviderInstanceConfigDraft, ProviderInstancesResponse } from '@/types'
+import type { AICredential, AIModelCatalogEntry, AIModelRouteBinding, AdapterDef, PublicModel, ParamDef, ModelParamProfile, Project, User, RawResource, ResourceBinding, PaginatedResponse, ProviderInstance, ProviderInstanceConfigActivationResult, ProviderInstanceConfigApplyResult, ProviderInstanceConfigDraft, ProviderInstancesResponse } from '@/types'
 import type { AgentCompactParamContract, ParamRuleTypeSummary } from '@admin/lib/modelParamContract'
 import { useUserStore } from '@/store/userStore'
 import { Plus, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, ShieldAlert, ArrowLeft, Pencil, Check, X, RefreshCw, Sparkles, Copy, ArrowUpRight, Settings2, FolderKanban, HardDrive, CloudUpload, ScrollText, BarChart3, UsersRound, Building2, Bug, Download, Database, Route as RouteIcon } from 'lucide-react'
@@ -88,7 +88,6 @@ function credentialFieldLabel(key: string, fallback: string, t: (key: string, op
 
 type CatalogEntryForm = {
   public_model_id: string
-  provider_model_id: string
   display_name: string
   short_name: string
   is_enabled: boolean
@@ -103,9 +102,9 @@ type CatalogEntryForm = {
 }
 
 type CatalogRouteForm = {
-  source_type: 'local_provider' | 'new_api'
   route_group: string
-  credential_id: string
+  provider_id: string
+  provider_model_id: string
   is_enabled: boolean
   priority: string
   capacity_weight: string
@@ -425,8 +424,7 @@ function ModelCatalogSection({ credentials }: { credentials: AICredential[] }) {
   const qc = useQueryClient()
   const [catalogForm, setCatalogForm] = useState<CatalogEntryForm>(() => emptyCatalogEntryForm())
   const [editingCatalogId, setEditingCatalogId] = useState<number | null>(null)
-  const [routeFormFor, setRouteFormFor] = useState<number | null>(null)
-  const [routeForm, setRouteForm] = useState<CatalogRouteForm>(() => emptyCatalogRouteForm(credentials[0]?.ID))
+  const [remoteCredentialId, setRemoteCredentialId] = useState(() => credentials.find((credential) => credential.is_enabled)?.ID ? String(credentials.find((credential) => credential.is_enabled)?.ID) : '')
   const [catalogError, setCatalogError] = useState('')
 
   const catalogQuery = useQuery<AIModelCatalogEntry[]>({
@@ -434,7 +432,24 @@ function ModelCatalogSection({ credentials }: { credentials: AICredential[] }) {
     queryFn: () => api.get('/admin/model-catalog').then((r) => r.data),
   })
   const entries = catalogQuery.data ?? []
-  const localProviders = credentials.filter((credential) => credential.is_enabled)
+  const localProviders = useMemo(
+    () => credentials.filter((credential) => credential.is_enabled),
+    [credentials],
+  )
+
+  useEffect(() => {
+    if (!remoteCredentialId && localProviders[0]?.ID) {
+      setRemoteCredentialId(String(localProviders[0].ID))
+    }
+  }, [localProviders, remoteCredentialId])
+
+  const remoteModelsQuery = useQuery<string[]>({
+    queryKey: ['admin', 'credentials', remoteCredentialId, 'remote-models'],
+    queryFn: () => remoteCredentialId
+      ? api.get(`/admin/credentials/${remoteCredentialId}/remote-models`).then((r) => r.data)
+      : Promise.resolve([]),
+    enabled: false,
+  })
 
   const saveCatalogEntry = useMutation({
     mutationFn: ({ id, form }: { id?: number; form: CatalogEntryForm }) => {
@@ -464,30 +479,6 @@ function ModelCatalogSection({ credentials }: { credentials: AICredential[] }) {
     onError: (err: any) => setCatalogError(translateAPIRequestError(err)),
   })
 
-  const createRouteBinding = useMutation({
-    mutationFn: ({ entryId, form }: { entryId: number; form: CatalogRouteForm }) =>
-      api.post(`/admin/model-catalog/${entryId}/route-bindings`, catalogRoutePayload(form)).then((r) => r.data),
-    onMutate: () => setCatalogError(''),
-    onSuccess: () => {
-      setCatalogError('')
-      setRouteFormFor(null)
-      setRouteForm(emptyCatalogRouteForm(localProviders[0]?.ID))
-      qc.invalidateQueries({ queryKey: ['admin', 'model-catalog'] })
-    },
-    onError: (err: any) => setCatalogError(translateAPIRequestError(err)),
-  })
-
-  const deleteRouteBinding = useMutation({
-    mutationFn: ({ entryId, bindingId }: { entryId: number; bindingId: number }) =>
-      api.delete(`/admin/model-catalog/${entryId}/route-bindings/${bindingId}`),
-    onMutate: () => setCatalogError(''),
-    onSuccess: () => {
-      setCatalogError('')
-      qc.invalidateQueries({ queryKey: ['admin', 'model-catalog'] })
-    },
-    onError: (err: any) => setCatalogError(translateAPIRequestError(err)),
-  })
-
   function startEdit(entry: AIModelCatalogEntry) {
     setEditingCatalogId(entry.ID)
     setCatalogForm(catalogEntryFormFromEntry(entry))
@@ -505,20 +496,57 @@ function ModelCatalogSection({ credentials }: { credentials: AICredential[] }) {
     setCatalogForm({ ...catalogForm, capabilities: next, pricing_mode: inferPricingMode(next) })
   }
 
-  function openRouteForm(entryId: number) {
-    setRouteFormFor(entryId)
-    setRouteForm(emptyCatalogRouteForm(localProviders[0]?.ID))
+  function importRemoteModel(modelID: string) {
+    const imported = catalogEntryTemplateForm({
+      public_model_id: modelID,
+      display_name: modelID,
+      short_name: modelID,
+      capabilities: ['text'],
+      pricing_mode: 'per_token',
+    })
+    setEditingCatalogId(null)
+    setCatalogForm(imported)
   }
 
   const catalogInputErrors = inputLimitErrors(catalogForm.max_input_images, catalogForm.max_input_videos, t)
-  const canSaveCatalog = catalogForm.public_model_id.trim() && catalogForm.provider_model_id.trim() && catalogInputErrors.length === 0
-  const canSaveRoute = routeForm.source_type === 'new_api'
-    ? Boolean(routeFormFor && routeForm.route_group.trim())
-    : Boolean(routeFormFor && routeForm.credential_id.trim())
+  const canSaveCatalog = catalogForm.public_model_id.trim() && catalogInputErrors.length === 0
 
   return (
     <div className="space-y-4">
-      <ModelRouteMatrix entries={entries} credentials={credentials} onOpenRouteForm={openRouteForm} />
+      <div className="rounded-lg border border-border bg-card p-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-sm font-medium text-foreground">从 Provider 获取模型 ID</p>
+            <p className="mt-1 text-xs text-muted-foreground">Catalog 负责把 provider 返回的 model id 纳入 MovScript 模型列表；线路绑定在 Route 页维护。</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <select value={remoteCredentialId} onChange={(event) => setRemoteCredentialId(event.target.value)} className="h-8 rounded-md border border-input bg-background px-2 text-xs">
+              <option value="">选择 Provider</option>
+              {localProviders.map((credential) => (
+                <option key={credential.ID} value={credential.ID}>{credential.display_name}</option>
+              ))}
+            </select>
+            <Button type="button" variant="outline" size="sm" disabled={!remoteCredentialId || remoteModelsQuery.isFetching} onClick={() => remoteModelsQuery.refetch()}>
+              {remoteModelsQuery.isFetching ? '获取中' : '获取模型'}
+            </Button>
+          </div>
+        </div>
+        {remoteModelsQuery.error && <AppInlineError className="mt-3">{translateAPIRequestError(remoteModelsQuery.error)}</AppInlineError>}
+        {(remoteModelsQuery.data ?? []).length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {(remoteModelsQuery.data ?? []).map((modelID) => (
+              <button
+                key={modelID}
+                type="button"
+                onClick={() => importRemoteModel(modelID)}
+                className="rounded-md border border-border bg-background px-2 py-1 text-xs font-mono text-muted-foreground hover:border-ring hover:text-foreground"
+              >
+                {modelID}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="rounded-lg border border-border bg-card p-4 space-y-4">
         <div className="flex items-start justify-between gap-3">
@@ -542,10 +570,6 @@ function ModelCatalogSection({ credentials }: { credentials: AICredential[] }) {
           <div>
             <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.modelCatalog.publicModelId')}</Label>
             <Input value={catalogForm.public_model_id} onChange={(event) => setCatalogForm({ ...catalogForm, public_model_id: event.target.value })} className="h-8 text-xs font-mono" placeholder="gpt-4.1" />
-          </div>
-          <div>
-            <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.modelCatalog.providerModelId')}</Label>
-            <Input value={catalogForm.provider_model_id} onChange={(event) => setCatalogForm({ ...catalogForm, provider_model_id: event.target.value })} className="h-8 text-xs font-mono" placeholder="gpt-4.1" />
           </div>
           <div>
             <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.modelCatalog.displayName')}</Label>
@@ -619,7 +643,7 @@ function ModelCatalogSection({ credentials }: { credentials: AICredential[] }) {
                   <StatusBadge intent={entry.is_enabled ? 'success' : 'neutral'}>{entry.is_enabled ? t('admin.modelCatalog.enabled') : t('admin.modelCatalog.disabled')}</StatusBadge>
                   <span className="text-xs text-muted-foreground font-mono">{entry.public_model_id}</span>
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">{entry.provider_model_id} · {catalogEntryDetail(entry)}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{catalogEntryDetail(entry)}</p>
               </div>
               <div className="flex shrink-0 gap-2">
                 <Button type="button" variant="outline" size="sm" onClick={() => startEdit(entry)}>{t('common.edit')}</Button>
@@ -640,9 +664,7 @@ function ModelCatalogSection({ credentials }: { credentials: AICredential[] }) {
             <div className="rounded-md border border-border bg-card">
               <div className="flex items-center justify-between border-b border-border px-3 py-2">
                 <p className="text-xs font-medium text-muted-foreground">{t('admin.modelCatalog.routes')}</p>
-                <button onClick={() => openRouteForm(entry.ID)} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
-                  <Plus size={11} /> {t('admin.modelCatalog.addRoute')}
-                </button>
+                <span className="text-xs text-muted-foreground">在 Route 页维护</span>
               </div>
               <div className="divide-y divide-border">
                 {(entry.route_bindings ?? []).length === 0 ? (
@@ -651,38 +673,278 @@ function ModelCatalogSection({ credentials }: { credentials: AICredential[] }) {
                   <div key={binding.ID} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
                     <div className="min-w-0">
                       <p className="font-medium text-foreground">{binding.source_type === 'new_api' ? t('admin.modelCatalog.newAPIRoute') : t('admin.modelCatalog.localProviderRoute')}</p>
-                      <p className="truncate text-muted-foreground">
-                        {binding.source_type === 'new_api'
-                          ? binding.route_group
-                          : `credential #${binding.credential_id ?? '-'}${binding.route_group ? ` · group ${binding.route_group}` : ''}`} · priority {binding.priority ?? 0} · capacity {binding.capacity_weight ?? 1}
-                      </p>
+	                      <p className="truncate text-muted-foreground">
+	                        {binding.source_type === 'new_api'
+	                          ? binding.route_group
+	                          : `${binding.provider_id || '-'}${binding.route_group ? ` · group ${binding.route_group}` : ''}`} · priority {binding.priority ?? 0} · capacity {binding.capacity_weight ?? 1}
+	                      </p>
                     </div>
-                    <Button type="button" variant="ghost" size="sm" intent="danger" onClick={() => deleteRouteBinding.mutate({ entryId: entry.ID, bindingId: binding.ID })}>
-                      {t('common.delete')}
-                    </Button>
                   </div>
                 ))}
-                {routeFormFor === entry.ID && (
-                  <div className="grid gap-2 px-3 py-3 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_110px_110px_120px_auto]">
-                    <select value={routeForm.credential_id} onChange={(event) => setRouteForm({ ...routeForm, credential_id: event.target.value, source_type: 'local_provider' })} className="h-8 rounded-md border border-input bg-background px-2 text-xs">
-                      <option value="">{t('admin.modelCatalog.pickCredential')}</option>
-                      {localProviders.map((credential) => <option key={credential.ID} value={credential.ID}>{credential.display_name}</option>)}
-                    </select>
-                    <Input value={routeForm.route_group} onChange={(event) => setRouteForm({ ...routeForm, route_group: event.target.value, source_type: 'local_provider' })} placeholder={t('admin.modelCatalog.routeGroup')} className="h-8 text-xs" />
-                    <Input value={routeForm.priority} onChange={(event) => setRouteForm({ ...routeForm, priority: event.target.value })} placeholder="priority" className="h-8 text-xs" />
-                    <Input value={routeForm.capacity_weight} onChange={(event) => setRouteForm({ ...routeForm, capacity_weight: event.target.value })} placeholder="capacity" className="h-8 text-xs" />
-                    <Input value={routeForm.max_concurrency} onChange={(event) => setRouteForm({ ...routeForm, max_concurrency: event.target.value })} placeholder="concurrency" className="h-8 text-xs" />
-                    <Button type="button" size="sm" disabled={!canSaveRoute || createRouteBinding.isPending} onClick={() => createRouteBinding.mutate({ entryId: entry.ID, form: routeForm })}>
-                      {t('common.save')}
-                    </Button>
-                  </div>
-                )}
               </div>
             </div>
           </div>
         ))}
       </div>
     </div>
+  )
+}
+
+function ModelRoutesSection({ credentials }: { credentials: AICredential[] }) {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const [routeFormFor, setRouteFormFor] = useState<number | null>(null)
+  const [routeForm, setRouteForm] = useState<CatalogRouteForm>(() => emptyCatalogRouteForm(credentials.find((credential) => credential.is_enabled)?.ID))
+  const [routeDialogOpen, setRouteDialogOpen] = useState(false)
+  const [routeError, setRouteError] = useState('')
+
+  const catalogQuery = useQuery<AIModelCatalogEntry[]>({
+    queryKey: ['admin', 'model-catalog'],
+    queryFn: () => api.get('/admin/model-catalog').then((r) => r.data),
+  })
+  const runtimeHealthQuery = useQuery<RuntimeProviderHealthResponse>({
+    queryKey: ['admin', 'model-runtime-health'],
+    queryFn: () => api.get('/admin/debug/model-runtime-health').then((r) => r.data),
+    refetchInterval: 5000,
+  })
+  const entries = catalogQuery.data ?? []
+  const localProviders = useMemo(
+    () => credentials.filter((credential) => credential.is_enabled),
+    [credentials],
+  )
+	  const selectedEntry = entries.find((entry) => entry.ID === routeFormFor) ?? entries[0]
+
+	  useEffect(() => {
+    if (!routeForm.provider_id && localProviders[0]?.ID) {
+      const providerID = localProviderRouteProviderID(localProviders[0].ID)
+      setRouteForm((form) => ({ ...form, provider_id: providerID }))
+    }
+  }, [localProviders, routeForm.provider_id])
+
+  const createRouteBinding = useMutation({
+    mutationFn: ({ entryId, form }: { entryId: number; form: CatalogRouteForm }) =>
+      api.post(`/admin/model-catalog/${entryId}/route-bindings`, catalogRoutePayload(form)).then((r) => r.data),
+    onMutate: () => setRouteError(''),
+    onSuccess: () => {
+      setRouteError('')
+      setRouteForm(emptyCatalogRouteForm(localProviders[0]?.ID, activeEntry?.public_model_id ?? ''))
+      setRouteDialogOpen(false)
+      qc.invalidateQueries({ queryKey: ['admin', 'model-catalog'] })
+    },
+    onError: (err: any) => setRouteError(translateAPIRequestError(err)),
+  })
+
+  const updateRouteBinding = useMutation({
+    mutationFn: ({ entryId, bindingId, form }: { entryId: number; bindingId: number; form: CatalogRouteForm }) =>
+      api.put(`/admin/model-catalog/${entryId}/route-bindings/${bindingId}`, catalogRoutePayload(form)).then((r) => r.data),
+    onMutate: () => setRouteError(''),
+    onSuccess: () => {
+      setRouteError('')
+      qc.invalidateQueries({ queryKey: ['admin', 'model-catalog'] })
+    },
+    onError: (err: any) => setRouteError(translateAPIRequestError(err)),
+  })
+
+  const deleteRouteBinding = useMutation({
+    mutationFn: ({ entryId, bindingId }: { entryId: number; bindingId: number }) =>
+      api.delete(`/admin/model-catalog/${entryId}/route-bindings/${bindingId}`),
+    onMutate: () => setRouteError(''),
+    onSuccess: () => {
+      setRouteError('')
+      qc.invalidateQueries({ queryKey: ['admin', 'model-catalog'] })
+    },
+    onError: (err: any) => setRouteError(translateAPIRequestError(err)),
+  })
+
+  function openRouteForm(entryId: number) {
+    const entry = entries.find((item) => item.ID === entryId)
+    setRouteFormFor(entryId)
+    setRouteForm(emptyCatalogRouteForm(localProviders[0]?.ID, entry?.public_model_id ?? ''))
+    setRouteDialogOpen(true)
+  }
+
+  const activeEntry = selectedEntry ? selectedEntry : null
+	  const canSaveRoute = Boolean(activeEntry && routeForm.provider_id.trim() && routeForm.provider_model_id.trim())
+
+  return (
+    <div className="space-y-4">
+      {routeError && <AppInlineError>{routeError}</AppInlineError>}
+      {catalogQuery.error && <AppInlineError>{translateAPIRequestError(catalogQuery.error)}</AppInlineError>}
+
+      <ModelRouteMatrix entries={entries} credentials={credentials} onOpenRouteForm={openRouteForm} />
+
+      <section className="grid gap-4">
+        <div className="rounded-lg border border-border bg-card">
+          <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
+            <div>
+              <p className="text-sm font-medium text-foreground">Catalog 路由策略</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+	                选择 Catalog Entry 后，在这里维护 provider lane、route group、priority、capacity 和 concurrency。
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              {activeEntry && (
+                <StatusBadge intent={activeEntry.is_enabled ? 'success' : 'neutral'}>
+                  {activeEntry.is_enabled ? t('admin.modelCatalog.enabled') : t('admin.modelCatalog.disabled')}
+                </StatusBadge>
+              )}
+              <Button type="button" size="sm" onClick={() => openRouteForm(activeEntry?.ID ?? entries[0]?.ID ?? 0)} disabled={entries.length === 0}>
+                <Plus size={14} className="mr-1.5" />
+                新增 Route
+              </Button>
+            </div>
+          </div>
+          {activeEntry ? (
+            <div className="divide-y divide-border">
+              {(activeEntry.route_bindings ?? []).length === 0 ? (
+                <p className="px-4 py-6 text-sm text-muted-foreground">{t('admin.modelCatalog.noRoutes')}</p>
+              ) : (activeEntry.route_bindings ?? []).map((binding) => (
+                <CommunityRouteBindingEditor
+                  key={binding.ID}
+                  binding={binding}
+                  credentials={localProviders}
+                  busy={updateRouteBinding.isPending || deleteRouteBinding.isPending}
+                  onSave={(form) => updateRouteBinding.mutate({ entryId: activeEntry.ID, bindingId: binding.ID, form })}
+                  onDelete={() => deleteRouteBinding.mutate({ entryId: activeEntry.ID, bindingId: binding.ID })}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="px-4 py-6 text-sm text-muted-foreground">{t('admin.modelCatalog.empty')}</p>
+          )}
+        </div>
+
+      </section>
+
+      {routeDialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <form
+            className="w-full max-w-lg rounded-lg border border-border bg-card p-4 shadow-xl"
+            onSubmit={(event) => {
+              event.preventDefault()
+              if (activeEntry) createRouteBinding.mutate({ entryId: activeEntry.ID, form: routeForm })
+            }}
+          >
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">新增 Route Binding</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  当前模型：{activeEntry?.public_model_id || '未选择'}
+                </p>
+              </div>
+              <button type="button" onClick={() => setRouteDialogOpen(false)} className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" aria-label={t('common.close')}>
+                <X size={16} />
+              </button>
+            </div>
+            <label className="mb-2 block text-xs text-muted-foreground">
+              Catalog Entry
+              <select
+                value={activeEntry?.ID ?? ''}
+                onChange={(event) => {
+                  const entryID = Number(event.target.value)
+                  const entry = entries.find((item) => item.ID === entryID)
+                  setRouteFormFor(entryID)
+                  setRouteForm(emptyCatalogRouteForm(localProviders[0]?.ID, entry?.public_model_id ?? ''))
+                }}
+                className="mt-1 h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
+              >
+                {entries.map((entry) => (
+                  <option key={entry.ID} value={entry.ID}>{entry.public_model_id}</option>
+                ))}
+              </select>
+            </label>
+            <label className="mb-2 block text-xs text-muted-foreground">
+		              Provider lane
+		              <select value={routeForm.provider_id} onChange={(event) => setRouteForm({ ...routeForm, provider_id: event.target.value })} className="mt-1 h-8 w-full rounded-md border border-input bg-background px-2 text-xs">
+		                <option value="">{t('admin.modelCatalog.pickCredential')}</option>
+		                {localProviders.map((credential) => <option key={credential.ID} value={localProviderRouteProviderID(credential.ID)}>{credential.display_name}</option>)}
+		              </select>
+	            </label>
+	            <Input value={routeForm.route_group} onChange={(event) => setRouteForm({ ...routeForm, route_group: event.target.value })} placeholder={t('admin.modelCatalog.routeGroup')} className="mb-2 h-8 text-xs" />
+            <div className="grid grid-cols-3 gap-2">
+              <Input value={routeForm.priority} onChange={(event) => setRouteForm({ ...routeForm, priority: event.target.value })} placeholder="priority" className="h-8 text-xs" />
+              <Input value={routeForm.capacity_weight} onChange={(event) => setRouteForm({ ...routeForm, capacity_weight: event.target.value })} placeholder="capacity" className="h-8 text-xs" />
+              <Input value={routeForm.max_concurrency} onChange={(event) => setRouteForm({ ...routeForm, max_concurrency: event.target.value })} placeholder="concurrency" className="h-8 text-xs" />
+            </div>
+            <label className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+              <input type="checkbox" checked={routeForm.is_enabled} onChange={(event) => setRouteForm({ ...routeForm, is_enabled: event.target.checked })} />
+              启用 route binding
+            </label>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setRouteDialogOpen(false)}>
+                {t('common.cancel')}
+              </Button>
+              <Button type="submit" disabled={!canSaveRoute || createRouteBinding.isPending || entries.length === 0}>
+                {createRouteBinding.isPending ? t('common.saving') : t('common.save')}
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      <RuntimeModelHealthSection
+        items={runtimeHealthQuery.data?.items ?? []}
+        isLoading={runtimeHealthQuery.isLoading}
+        isFetching={runtimeHealthQuery.isFetching}
+        error={runtimeHealthQuery.error}
+        onRefresh={() => runtimeHealthQuery.refetch()}
+      />
+    </div>
+  )
+}
+
+function CommunityRouteBindingEditor({
+  binding,
+  credentials,
+  busy,
+  onSave,
+  onDelete,
+}: {
+  binding: AIModelRouteBinding
+  credentials: AICredential[]
+  busy: boolean
+  onSave: (form: CatalogRouteForm) => void
+  onDelete: () => void
+}) {
+  const { t } = useTranslation()
+  const [form, setForm] = useState<CatalogRouteForm>(() => catalogRouteFormFromBinding(binding))
+
+  useEffect(() => {
+    setForm(catalogRouteFormFromBinding(binding))
+  }, [binding.ID, binding.UpdatedAt])
+
+  return (
+    <form
+      className="grid gap-2 px-4 py-3 text-xs md:grid-cols-[minmax(160px,1fr)_minmax(150px,1fr)_minmax(120px,0.8fr)_90px_90px_110px_auto]"
+      onSubmit={(event) => {
+        event.preventDefault()
+        onSave(form)
+	      }}
+	    >
+		      <select
+		        value={form.provider_id}
+		        onChange={(event) => setForm({ ...form, provider_id: event.target.value })}
+		        className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+		      >
+	        <option value="">{t('admin.modelCatalog.pickCredential')}</option>
+	        {credentials.map((credential) => (
+	          <option key={credential.ID} value={localProviderRouteProviderID(credential.ID)}>{credential.display_name}</option>
+	        ))}
+      </select>
+      <Input value={form.provider_model_id} onChange={(event) => setForm({ ...form, provider_model_id: event.target.value })} placeholder="provider model id" className="h-8 text-xs font-mono" />
+      <Input value={form.route_group} onChange={(event) => setForm({ ...form, route_group: event.target.value })} placeholder={t('admin.modelCatalog.routeGroup')} className="h-8 text-xs" />
+      <Input value={form.priority} onChange={(event) => setForm({ ...form, priority: event.target.value })} placeholder="priority" className="h-8 text-xs" />
+      <Input value={form.capacity_weight} onChange={(event) => setForm({ ...form, capacity_weight: event.target.value })} placeholder="capacity" className="h-8 text-xs" />
+      <Input value={form.max_concurrency} onChange={(event) => setForm({ ...form, max_concurrency: event.target.value })} placeholder="concurrency" className="h-8 text-xs" />
+      <div className="flex items-center justify-end gap-1">
+        <label className="flex items-center gap-1 text-xs text-muted-foreground">
+          <input type="checkbox" checked={form.is_enabled} onChange={(event) => setForm({ ...form, is_enabled: event.target.checked })} />
+          启用
+        </label>
+	        <Button type="submit" size="sm" variant="outline" disabled={busy || !form.provider_id.trim() || !form.provider_model_id.trim()}>{t('common.save')}</Button>
+        <Button type="button" size="sm" variant="ghost" intent="danger" disabled={busy} onClick={onDelete}>{t('common.delete')}</Button>
+      </div>
+    </form>
   )
 }
 
@@ -731,7 +993,6 @@ function defaultPriceForm(): PriceForm {
 function emptyCatalogEntryForm(): CatalogEntryForm {
   return {
     public_model_id: '',
-    provider_model_id: '',
     display_name: '',
     short_name: '',
     is_enabled: true,
@@ -749,7 +1010,6 @@ function emptyCatalogEntryForm(): CatalogEntryForm {
 function catalogEntryFormFromEntry(entry: AIModelCatalogEntry): CatalogEntryForm {
   return {
     public_model_id: entry.public_model_id,
-    provider_model_id: entry.provider_model_id,
     display_name: entry.display_name,
     short_name: entry.short_name ?? '',
     is_enabled: entry.is_enabled,
@@ -774,7 +1034,6 @@ function catalogEntryFormFromEntry(entry: AIModelCatalogEntry): CatalogEntryForm
 function catalogEntryPayload(form: CatalogEntryForm): Record<string, unknown> {
   return {
     public_model_id: form.public_model_id.trim(),
-    provider_model_id: form.provider_model_id.trim(),
     display_name: form.display_name.trim() || form.public_model_id.trim(),
     short_name: form.short_name.trim(),
     is_enabled: form.is_enabled,
@@ -793,11 +1052,12 @@ function catalogEntryPayload(form: CatalogEntryForm): Record<string, unknown> {
   }
 }
 
-function emptyCatalogRouteForm(credentialID?: number): CatalogRouteForm {
+function emptyCatalogRouteForm(credentialID?: number, providerModelID = ''): CatalogRouteForm {
+  const providerID = localProviderRouteProviderID(credentialID)
   return {
-    source_type: 'local_provider',
     route_group: '',
-    credential_id: credentialID ? String(credentialID) : '',
+    provider_id: providerID,
+    provider_model_id: providerModelID,
     is_enabled: true,
     priority: '0',
     capacity_weight: '1',
@@ -805,17 +1065,33 @@ function emptyCatalogRouteForm(credentialID?: number): CatalogRouteForm {
   }
 }
 
-function catalogRoutePayload(form: CatalogRouteForm): Record<string, unknown> {
-  const isNewAPI = form.source_type === 'new_api'
+function catalogRouteFormFromBinding(binding: AIModelRouteBinding): CatalogRouteForm {
+  const providerID = binding.provider_id || localProviderRouteProviderID(binding.credential_id)
   return {
-    source_type: form.source_type,
+    route_group: binding.route_group || '',
+    provider_id: providerID,
+    provider_model_id: binding.provider_model_id || '',
+    is_enabled: binding.is_enabled,
+    priority: String(binding.priority ?? 0),
+    capacity_weight: String(binding.capacity_weight ?? 1),
+    max_concurrency: String(binding.max_concurrency ?? 0),
+  }
+}
+
+function catalogRoutePayload(form: CatalogRouteForm): Record<string, unknown> {
+  return {
     route_group: form.route_group.trim(),
-    credential_id: !isNewAPI && form.credential_id ? Number(form.credential_id) : undefined,
+    provider_id: form.provider_id.trim(),
+    provider_model_id: form.provider_model_id.trim(),
     is_enabled: form.is_enabled,
     priority: parseInt(form.priority, 10) || 0,
     capacity_weight: Math.max(1, parseInt(form.capacity_weight, 10) || 1),
     max_concurrency: Math.max(0, parseInt(form.max_concurrency, 10) || 0),
   }
+}
+
+function localProviderRouteProviderID(credentialID?: number): string {
+  return credentialID ? `local_provider:${credentialID}` : ''
 }
 
 function modelCatalogCapabilities(entry: Pick<AIModelCatalogEntry, 'capabilities'>): string[] {
@@ -1454,6 +1730,32 @@ function modelManagementRoute(view: ModelManagementViewMode): string {
   }
 }
 
+const modelManagementSectionMeta: Array<{
+  id: ModelManagementViewMode
+  icon: typeof Settings2
+  label: string
+  description: string
+}> = [
+  {
+    id: 'providers',
+    icon: Settings2,
+    label: 'Provider 接入',
+    description: '本地 credential、provider instance、认证和健康检查',
+  },
+  {
+    id: 'catalog',
+    icon: Database,
+    label: 'Model Catalog',
+    description: '稳定 model id、能力、参数和价格语义',
+  },
+  {
+	    id: 'routes',
+	    icon: RouteIcon,
+	    label: 'Route 线路',
+	    description: 'Catalog Entry 到 provider lane 的绑定',
+  },
+]
+
 function providerInstanceRef(instance: ProviderInstance): ProviderInstance['ref'] {
   return instance.ref
 }
@@ -1479,7 +1781,7 @@ function ModelRouteMatrix({
         <div>
           <p className="text-sm font-medium text-foreground">{t('admin.models.routeMatrixTitle', { defaultValue: 'Catalog Entry → Model Route' })}</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {t('admin.models.routeMatrixHint', { defaultValue: '先定义系统识别的模型，再把它路由到 provider credential 和 route group。' })}
+	            {t('admin.models.routeMatrixHint', { defaultValue: '先定义系统识别的模型，再把它路由到 provider lane 和 route group。' })}
           </p>
         </div>
         <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
@@ -1519,11 +1821,11 @@ function ModelRouteMatrix({
                   <p className="rounded-md border border-dashed border-border bg-background px-3 py-2 text-xs text-muted-foreground">
                     {t('admin.modelCatalog.noRoutes')}
                   </p>
-                ) : routes.map((binding) => {
-                  const credential = binding.credential_id ? credentialByID.get(binding.credential_id) : undefined
-                  const routeLabel = binding.source_type === 'new_api'
-                    ? (binding.route_group || t('admin.modelCatalog.defaultRouteGroup', { defaultValue: '默认分组' }))
-                    : (credential?.display_name || `credential #${binding.credential_id ?? '-'}`)
+	                ) : routes.map((binding) => {
+	                  const credential = binding.credential_id ? credentialByID.get(binding.credential_id) : undefined
+	                  const routeLabel = binding.source_type === 'new_api'
+	                    ? (binding.route_group || t('admin.modelCatalog.defaultRouteGroup', { defaultValue: '默认分组' }))
+	                    : (credential?.display_name || binding.provider_id || 'provider lane')
                   const groupLabel = binding.route_group ? ` · group ${binding.route_group}` : ''
                   return (
                     <div key={binding.ID} className="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2 text-xs">
@@ -1546,13 +1848,127 @@ function ModelRouteMatrix({
               <div className="flex items-start justify-end">
                 <Button type="button" variant="outline" size="sm" onClick={() => onOpenRouteForm(entry.ID)}>
                   <Plus size={13} className="mr-1.5" />
-                  {t('admin.modelCatalog.addRoute')}
+                  {t('admin.modelCatalog.manageRoutes')}
                 </Button>
               </div>
             </div>
           )
         })}
       </div>
+    </div>
+  )
+}
+
+function ModelManagementLayerNav({
+  activeView,
+  onChange,
+}: {
+  activeView: ModelManagementViewMode
+  onChange: (view: ModelManagementViewMode) => void
+}) {
+  return (
+    <nav className="inline-flex w-full flex-col gap-1 rounded-lg border border-border bg-muted/30 p-1 md:w-auto md:flex-row" aria-label="AI provider configuration layers" role="tablist">
+      {modelManagementSectionMeta.map((section) => {
+        const Icon = section.icon
+        const active = section.id === activeView
+        return (
+          <button
+            key={section.id}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => onChange(section.id)}
+            className={`min-w-0 rounded-md px-3 py-2 text-left transition-colors md:w-64 ${active ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:bg-background/70 hover:text-foreground'}`}
+          >
+            <span className="flex items-center gap-2 text-sm font-medium">
+              <Icon size={15} />
+              {section.label}
+            </span>
+            <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">{section.description}</span>
+          </button>
+        )
+      })}
+    </nav>
+  )
+}
+
+function ModelManagementBoundaryOverview({
+  viewMode,
+  credentials,
+  providerInstances,
+  entries,
+}: {
+  viewMode: ModelManagementViewMode
+  credentials: AICredential[]
+  providerInstances: ProviderInstance[]
+  entries: AIModelCatalogEntry[]
+}) {
+  if (viewMode === 'providers') {
+    const enabledCredentials = credentials.filter((credential) => credential.is_enabled).length
+    const editableInstances = providerInstances.filter((instance) => instance.config_editable).length
+    return (
+      <section className="grid gap-3 md:grid-cols-3">
+        <BoundaryInfoCard
+          icon={<Settings2 size={16} />}
+          title="本页负责"
+          description="本地 provider credential、provider instance、Base URL、API key 和连接测试。"
+        />
+        <BoundaryMetricCard label="Credentials" value={String(credentials.length)} detail={`${enabledCredentials} 个已启用`} />
+        <BoundaryMetricCard label="Provider Instances" value={String(providerInstances.length)} detail={`${editableInstances} 个可配置`} />
+      </section>
+    )
+  }
+
+  if (viewMode === 'catalog') {
+    const enabledEntries = entries.filter((entry) => entry.is_enabled).length
+    const capabilityCount = new Set(entries.flatMap((entry) => modelCatalogCapabilities(entry))).size
+    const withRoutes = entries.filter((entry) => (entry.route_bindings ?? []).length > 0).length
+    return (
+      <section className="grid gap-3 md:grid-cols-4">
+        <BoundaryMetricCard label="Catalog Entries" value={String(entries.length)} detail="MovScript 对外模型身份" />
+        <BoundaryMetricCard label="Enabled" value={String(enabledEntries)} detail="可被调用的模型" />
+        <BoundaryMetricCard label="With Routes" value={String(withRoutes)} detail="已有 provider route" />
+        <BoundaryMetricCard label="Capabilities" value={String(capabilityCount)} detail="已声明能力类型数" />
+      </section>
+    )
+  }
+
+	  const bindings = entries.flatMap((entry) => entry.route_bindings ?? [])
+	  const localBindings = bindings.filter((binding) => binding.source_type !== 'new_api')
+	  const enabledBindings = localBindings.filter((binding) => binding.is_enabled).length
+	  const providerTargets = new Set(localBindings.map((binding) => binding.provider_id || localProviderRouteProviderID(binding.credential_id)).filter(Boolean)).size
+	  return (
+	    <section className="grid gap-3 md:grid-cols-4">
+	      <BoundaryMetricCard label="Route Bindings" value={String(localBindings.length)} detail="Catalog 到 provider lane 的绑定" />
+	      <BoundaryMetricCard label="Enabled" value={String(enabledBindings)} detail="当前启用的线路" />
+	      <BoundaryMetricCard label="Provider Lanes" value={String(providerTargets)} detail="被 route 使用的 provider lane" />
+      <BoundaryInfoCard
+        icon={<Database size={16} />}
+        title="不在这里改"
+        description="public model id、能力、参数和价格语义仍属于 Catalog。"
+      />
+    </section>
+  )
+}
+
+function BoundaryInfoCard({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+        {icon}
+        {title}
+      </div>
+      <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{description}</p>
+    </div>
+  )
+}
+
+function BoundaryMetricCard({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="mt-2 truncate text-xl font-semibold tracking-normal text-foreground">{value}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
     </div>
   )
 }
@@ -1615,12 +2031,6 @@ export function ModelManagementPage({ view = defaultModelManagementViewMode() }:
     }
   })
 
-  const runtimeHealthQuery = useQuery<RuntimeProviderHealthResponse>({
-    queryKey: ['admin', 'model-runtime-health'],
-    queryFn: () => api.get('/admin/debug/model-runtime-health').then((r) => r.data),
-    enabled: viewMode === 'routes',
-    refetchInterval: viewMode === 'routes' ? 5000 : false,
-  })
   const deleteCredential = useMutation({
     mutationFn: (id: number) => api.delete(`/admin/credentials/${id}`),
     onMutate: () => setModelAdminError(''),
@@ -1722,13 +2132,23 @@ export function ModelManagementPage({ view = defaultModelManagementViewMode() }:
   }
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6 max-w-6xl">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-base font-semibold text-foreground">{t('admin.models.title')}</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">{t('admin.models.description')}</p>
+          <p className="text-xs font-medium uppercase text-muted-foreground">AI Provider</p>
+          <h2 className="mt-1 text-xl font-semibold text-foreground">Provider / Catalog / Route</h2>
+          <p className="mt-1 text-sm text-muted-foreground">三层配置独立维护：Provider 接入上游，Catalog 定义模型身份，Route 决定请求线路。</p>
         </div>
       </div>
+
+      <ModelManagementLayerNav activeView={viewMode} onChange={setViewMode} />
+
+      <ModelManagementBoundaryOverview
+        viewMode={viewMode}
+        credentials={credentials}
+        providerInstances={providerInstances}
+        entries={topologyCatalogEntries}
+      />
 
       <div className="rounded-lg border border-border bg-card px-4 py-3 text-xs text-muted-foreground">
         {viewMode === 'providers'
@@ -2067,7 +2487,7 @@ export function ModelManagementPage({ view = defaultModelManagementViewMode() }:
 	                  <div className="rounded-md border border-border bg-background p-3 text-xs text-muted-foreground">
                     <p className="font-medium text-foreground">{t('admin.models.catalogOwnsModelsTitle', { defaultValue: '模型身份由 Catalog Entry 管理' })}</p>
                     <p className="mt-1 leading-relaxed">
-                      {t('admin.models.catalogOwnsModelsHint', { defaultValue: 'Provider 只保存 base URL、API Key 和连接状态。模型能力、参数、价格与到该 provider 的路由请在 Catalog Entry 中维护。' })}
+                      {t('admin.models.catalogOwnsModelsHint', { defaultValue: 'Provider 只保存 base URL、API Key 和连接状态。模型能力、参数、价格在 Catalog 维护，线路绑定在 Route 维护。' })}
                     </p>
                     <Button type="button" size="sm" variant="outline" className="mt-3" onClick={() => setViewMode('catalog')}>
                       {t('admin.models.viewCatalog')}
@@ -2185,35 +2605,7 @@ export function ModelManagementPage({ view = defaultModelManagementViewMode() }:
 
       {viewMode === 'catalog' && <ModelCatalogSection credentials={credentials} />}
 
-      {viewMode === 'routes' && (
-        <div className="space-y-4">
-          <ModelRouteMatrix entries={topologyCatalogEntries} credentials={credentials} onOpenRouteForm={() => setViewMode('catalog')} />
-
-          <div className="grid gap-3 md:grid-cols-3">
-            <div className="rounded-lg border border-border bg-background p-4">
-              <p className="text-sm font-medium text-foreground">{t('admin.models.routeRuleTitle')}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{t('admin.models.routeRuleBody')}</p>
-            </div>
-            <div className="rounded-lg border border-border bg-background p-4">
-              <p className="text-sm font-medium text-foreground">{t('admin.models.routePriorityTitle')}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{t('admin.models.routePriorityBody')}</p>
-            </div>
-            <div className="rounded-lg border border-border bg-background p-4">
-              <p className="text-sm font-medium text-foreground">{t('admin.models.routeSourceTitle')}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{t('admin.models.routeSourceBody')}</p>
-            </div>
-          </div>
-
-          <RuntimeModelHealthSection
-            items={runtimeHealthQuery.data?.items ?? []}
-            isLoading={runtimeHealthQuery.isLoading}
-            isFetching={runtimeHealthQuery.isFetching}
-            error={runtimeHealthQuery.error}
-            onRefresh={() => runtimeHealthQuery.refetch()}
-          />
-
-        </div>
-      )}
+      {viewMode === 'routes' && <ModelRoutesSection credentials={credentials} />}
     </div>
   )
 }
