@@ -66,6 +66,8 @@ import {
   createAppServerRpcTransport,
   type AppServerTransport,
 } from '@/shared/infrastructure/app-server/appServerRpcTransport'
+import { AppServerHubClient, appServerHubClientForURL } from '@/shared/infrastructure/app-server/appServerHubClient'
+import type { AppServerClient } from '@/shared/infrastructure/app-server/appServerClientTypes'
 import type { AgentChatThreadReadInput } from '@movscript/core/agent/chat'
 
 export { appServerScopedEnvURLKeys, appServerURL } from '@/shared/infrastructure/app-server/appServerRpcClientConfig'
@@ -91,10 +93,17 @@ type DeferredServerRequest = {
   request: AppServerJsonRpcServerRequest
 }
 
-let configuredClient: AppServerRpcClient | undefined
+let configuredClient: AppServerClient | undefined
 
-export function appServerRpcClientForURL(url: string): AppServerRpcClient {
-  if (!configuredClient || configuredClient.url !== url) configuredClient = new AppServerRpcClient(url)
+export function appServerClientForURL(url: string): AppServerClient {
+  const hubClient = appServerHubClientForURL(url)
+  if (hubClient) {
+    configuredClient = hubClient
+    return hubClient
+  }
+  if (!configuredClient || configuredClient.url !== url || configuredClient instanceof AppServerHubClient) {
+    configuredClient = new AppServerDirectRpcClient(url)
+  }
   return configuredClient
 }
 
@@ -102,10 +111,10 @@ export async function ensureAppServerURL(provider?: ProviderConfig): Promise<str
   return resolveAppServerEndpoint(provider)
 }
 
-export async function ensureAppServerRpcClient(provider?: ProviderConfig): Promise<AppServerRpcClient | undefined> {
+export async function ensureAppServerClient(provider?: ProviderConfig): Promise<AppServerClient | undefined> {
   const url = await ensureAppServerURL(provider)
   if (!url) return undefined
-  return appServerRpcClientForURL(url)
+  return appServerClientForURL(url)
 }
 
 export function getAppServerStatus(input?: ElectronAppServerStatusInput): Promise<ElectronAppServerStatus | undefined> {
@@ -124,7 +133,7 @@ export function stopAppServer(input?: ElectronAppServerStopInput): Promise<Elect
   return stopAppServerFromLifecycle(input)
 }
 
-export class AppServerRpcClient {
+export class AppServerDirectRpcClient implements AppServerClient {
   private transport?: AppServerTransport
   private connectPromise?: Promise<void>
   private initializePromise?: Promise<void>

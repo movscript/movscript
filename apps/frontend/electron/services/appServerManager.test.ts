@@ -801,6 +801,7 @@ test('custom app-server executable resolution uses provider app-server env overr
 test('Mova app-server executable resolution discovers sibling debug app-server before CLI fallback', () => {
   const root = mkdtempSync(join(tmpdir(), 'movscript-mova-discovery-'))
   const cwd = join(root, 'movscript')
+  const repoBinCandidate = join(root, 'app-server-bin', 'mova', 'app-server')
   const neutralAppServerCandidate = join(root, 'mova', 'codex-rs', 'target', 'debug', 'app-server')
   const appServerCandidate = join(root, 'mova', 'codex-rs', 'target', 'debug', 'mova-app-server')
   const transitionalAppServerCandidate = join(root, 'mova', 'codex-rs', 'target', 'debug', ['codex', 'app-server'].join('-'))
@@ -814,6 +815,14 @@ test('Mova app-server executable resolution discovers sibling debug app-server b
     sourceDir,
     env: {} as NodeJS.ProcessEnv,
     exists: (path) => path === neutralAppServerCandidate || path === appServerCandidate || path === cliCandidate,
+  })
+  const repoBinResolved = resolveAppServerExecutablePath({
+    provider: 'mova',
+    profile: movaExecutableProfile(),
+    cwd,
+    sourceDir,
+    env: {} as NodeJS.ProcessEnv,
+    exists: (path) => path === repoBinCandidate || path === neutralAppServerCandidate,
   })
   const appServerResolved = resolveAppServerExecutablePath({
     provider: 'mova',
@@ -840,10 +849,43 @@ test('Mova app-server executable resolution discovers sibling debug app-server b
     exists: (path) => path === cliCandidate,
   })
 
+  assert.equal(repoBinResolved, repoBinCandidate)
   assert.equal(neutralAppServerResolved, neutralAppServerCandidate)
   assert.equal(appServerResolved, appServerCandidate)
   assert.equal(transitionalAppServerResolved, transitionalAppServerCandidate)
   assert.equal(cliResolved, cliCandidate)
+})
+
+test('app-server manager fails before spawn when executable discovery misses', async () => {
+  const workspaceDir = fakeWorkspaceDir()
+  let spawnCount = 0
+  const manager = new AppServerManager({
+    distributeConfig: appServerDistributionForLaunch,
+    ensurePlugin: () => appServerPluginFixture(),
+    reservePort: async () => 41234,
+    waitReady: async () => undefined,
+    spawnProcess: (() => {
+      spawnCount += 1
+      return fakeChildProcess()
+    }) as never,
+    defaultWorkspaceDir: () => workspaceDir,
+  })
+
+  const status = await manager.ensure({
+    profile: movaExecutableProfile({
+      candidateRootRelativePaths: [],
+      candidateBinaryNames: [],
+    }),
+  })
+
+  assert.equal(spawnCount, 0)
+  assert.equal(status.ok, false)
+  assert.equal(status.running, false)
+  assert.equal(status.managed, true)
+  assert.equal(status.profileId, 'mova-movscript-home')
+  assert.equal(status.executablePath, 'mova')
+  assert.equal(status.executableDiagnostic?.ok, false)
+  assert.match(status.error ?? '', /app-server executable was not found/)
 })
 
 test('Mova app-server executable resolution explains PATH fallback when discovery fails', () => {
@@ -1027,22 +1069,21 @@ test('Codex app-server executable resolution explains PATH fallback when discove
   assert.ok(resolution.diagnostic?.candidatePaths?.some((path: string) => path.endsWith('codex/codex-rs/target/debug/codex-app-server')))
 })
 
-test('app-server manager preserves Mova spawn ENOENT diagnostics through readiness failure', async () => {
+test('app-server manager blocks Mova PATH fallback before spawn when discovery fails', async () => {
   const previousMovaBin = process.env.MOVSCRIPT_MOVA_BIN
   const workspaceDir = fakeWorkspaceDir()
-  const child = fakeChildProcess()
+  let spawnCount = 0
   try {
     delete process.env.MOVSCRIPT_MOVA_BIN
     const manager = new AppServerManager({
       distributeConfig: () => movaDistributionFixture(),
       ensurePlugin: () => appServerPluginFixture(),
       reservePort: async () => 41234,
-      waitReady: async () => {
-        const error = Object.assign(new Error('spawn mova ENOENT'), { code: 'ENOENT', path: 'mova' })
-        child.emit('error', error)
-        throw new Error('readiness failed')
-      },
-      spawnProcess: (() => child) as never,
+      waitReady: async () => undefined,
+      spawnProcess: (() => {
+        spawnCount += 1
+        return fakeChildProcess()
+      }) as never,
       defaultWorkspaceDir: () => workspaceDir,
     })
 
@@ -1061,10 +1102,10 @@ test('app-server manager preserves Mova spawn ENOENT diagnostics through readine
     })
 
     assert.equal(status.running, false)
-    assert.match(status.error ?? '', /spawn mova ENOENT/)
+    assert.equal(spawnCount, 0)
+    assert.match(status.error ?? '', /app-server executable was not found/)
     assert.match(status.error ?? '', /MOVSCRIPT_APP_SERVER_BIN/)
     assert.match(status.error ?? '', /MOVSCRIPT_MOVA_BIN/)
-    assert.match(status.error ?? '', /readiness failed/)
     assert.equal(status.executableDiagnostic?.ok, false)
   } finally {
     if (previousMovaBin === undefined) delete process.env.MOVSCRIPT_MOVA_BIN
@@ -1227,6 +1268,8 @@ function movaExecutableProfile(patch: Partial<ElectronAppServerProfile> = {}): E
     executableEnvVar: 'MOVSCRIPT_MOVA_APP_SERVER_BIN',
     compatibilityBinEnvNames: ['MOVSCRIPT_MOVA_BIN'],
     candidateRootRelativePaths: [
+      '../app-server-bin/mova',
+      '../../app-server-bin/mova',
       '../mova/codex-rs/target/debug',
       '../../mova/codex-rs/target/debug',
       '../../../mova/codex-rs/target/debug',
@@ -1251,6 +1294,8 @@ function codexExecutableProfile(patch: Partial<ElectronAppServerProfile> = {}): 
     executableEnvVar: 'MOVSCRIPT_CODEX_APP_SERVER_BIN',
     compatibilityBinEnvNames: ['MOVSCRIPT_CODEX_BIN'],
     candidateRootRelativePaths: [
+      '../app-server-bin/codex',
+      '../../app-server-bin/codex',
       '../codex/codex-rs/target/debug',
       '../../codex/codex-rs/target/debug',
       '../../../codex/codex-rs/target/debug',

@@ -10,6 +10,7 @@ import { contentCanvasKeys } from '@/features/content/application/contentCanvasQ
 import { resourceCandidateKeys } from '@/features/resources/application/resourceQueryKeys'
 import { hydrateAppWindowContext } from '@/shared/infrastructure/appWindowContext'
 import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
+import { useAppWindowContextStore } from '@/shared/infrastructure/appWindowContext'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 
 export function AppStartupTasks({ settingsHydrated }: { settingsHydrated: boolean }) {
@@ -46,6 +47,7 @@ export function AppStartupTasks({ settingsHydrated }: { settingsHydrated: boolea
     if (!settingsHydrated) return
     void hydrateAppWindowContext().catch((error) => {
       console.warn('[window] failed to hydrate app window context', error)
+      useAppWindowContextStore.getState().setContext(null)
     })
   }, [settingsHydrated])
 

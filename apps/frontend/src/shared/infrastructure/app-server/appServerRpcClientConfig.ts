@@ -119,7 +119,7 @@ export function debugAppServerRpc(label: string, payload: Record<string, unknown
   const shouldLog = appServerRpcDebugEnabled()
     || (label === 'request' && method ? APP_SERVER_RPC_DEBUG_METHODS.has(method) : false)
     || (label === 'notification' && method ? APP_SERVER_RPC_DEBUG_NOTIFICATIONS.has(method) : false)
-    || label.startsWith('relay:')
+    || label.startsWith('hub:')
   if (!shouldLog) return
   const logger = options.trace && typeof console.trace === 'function' ? console.trace : console.debug
   logger(`[app-server rpc ${label}]`, payload)

@@ -98,6 +98,34 @@ test('app settings secrets merge shot library tokens into memory only', () => {
   assert.equal(sanitizeAppSettingsForPersistence(merged).shotLibrarySources?.[0]?.authToken, undefined)
 })
 
+test('app settings store remembers cloud and local service URLs separately', () => {
+  useAppSettingsStore.setState({
+    settings: {
+      apiBaseURL: 'https://cloud.example',
+      cloudAPIBaseURL: 'https://cloud.example',
+      localAPIBaseURL: 'http://localhost:8766',
+      launchMode: 'cloud',
+      workMode: 'project',
+      onboardingCompleted: true,
+    },
+    savedAt: '2026-06-18T00:00:00.000Z',
+    hydrated: true,
+  })
+
+  useAppSettingsStore.getState().setLaunchMode('local')
+  assert.equal(useAppSettingsStore.getState().settings.apiBaseURL, 'http://localhost:8766')
+  assert.equal(useAppSettingsStore.getState().settings.cloudAPIBaseURL, 'https://cloud.example')
+
+  useAppSettingsStore.getState().setAPIBaseURL('http://localhost:9876/api/v1')
+  assert.equal(useAppSettingsStore.getState().settings.apiBaseURL, 'http://localhost:9876')
+  assert.equal(useAppSettingsStore.getState().settings.localAPIBaseURL, 'http://localhost:9876')
+  assert.equal(useAppSettingsStore.getState().settings.cloudAPIBaseURL, 'https://cloud.example')
+
+  useAppSettingsStore.getState().setLaunchMode('cloud')
+  assert.equal(useAppSettingsStore.getState().settings.apiBaseURL, 'https://cloud.example')
+  assert.equal(useAppSettingsStore.getState().settings.localAPIBaseURL, 'http://localhost:9876')
+})
+
 function pickOnboardingSettings(settings: ReturnType<typeof useAppSettingsStore.getState>['settings']) {
   return {
     apiBaseURL: settings.apiBaseURL,

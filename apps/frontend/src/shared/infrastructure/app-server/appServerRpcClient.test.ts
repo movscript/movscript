@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { AppServerRpcClient, appServerScopedEnvURLKeys, appServerURL, ensureAppServerRpcClient, ensureAppServerURL } from '@/shared/infrastructure/app-server/appServerRpcClient'
+import { AppServerDirectRpcClient, appServerScopedEnvURLKeys, appServerURL, ensureAppServerClient, ensureAppServerURL } from '@/shared/infrastructure/app-server/appServerRpcClient'
 import type { ProviderConfig } from '@/shared/infrastructure/providerConfigStore'
 
 test('app-server rpc client sends thread and turn requests over the app-server wire protocol', async () => {
@@ -15,7 +15,7 @@ test('app-server rpc client sends thread and turn requests over the app-server w
   } as unknown as typeof WebSocket
 
   try {
-    const client = new AppServerRpcClient('ws://127.0.0.1:48765')
+    const client = new AppServerDirectRpcClient('ws://127.0.0.1:48765')
     const threadPromise = client.startThread({ cwd: '/tmp/project', threadSource: 'user' })
 
     const socket = await waitFor(() => sockets[0])
@@ -249,7 +249,7 @@ test('app-server rpc client shares one initialize handshake across concurrent re
   } as unknown as typeof WebSocket
 
   try {
-    const client = new AppServerRpcClient('ws://127.0.0.1:48768')
+    const client = new AppServerDirectRpcClient('ws://127.0.0.1:48768')
     const listPromise = client.listThreads()
     const readPromise = client.readThread('thread_1', {
       includeTurns: true,
@@ -315,7 +315,7 @@ test('app-server rpc client recovers from already initialized handshake errors',
   } as unknown as typeof WebSocket
 
   try {
-    const client = new AppServerRpcClient('ws://127.0.0.1:48769')
+    const client = new AppServerDirectRpcClient('ws://127.0.0.1:48769')
     const listPromise = client.listThreads()
 
     const socket = await waitFor(() => sockets[0])
@@ -351,7 +351,7 @@ test('app-server rpc client returns protocol-shaped fallback server request resp
   } as unknown as typeof WebSocket
 
   try {
-    const client = new AppServerRpcClient('ws://127.0.0.1:48766')
+    const client = new AppServerDirectRpcClient('ws://127.0.0.1:48766')
     const initializePromise = client.initialize()
     const socket = await waitFor(() => sockets[0])
     const initialize = await waitForSent(socket, 'initialize')
@@ -393,7 +393,7 @@ test('app-server rpc client defers early server requests until the UI handler is
   } as unknown as typeof WebSocket
 
   try {
-    const client = new AppServerRpcClient('ws://127.0.0.1:48767')
+    const client = new AppServerDirectRpcClient('ws://127.0.0.1:48767')
     const initializePromise = client.initialize()
     const socket = await waitFor(() => sockets[0])
     const initialize = await waitForSent(socket, 'initialize')
@@ -446,7 +446,7 @@ test('app-server rpc client keeps MCP elicitation requests pending without a UI 
   } as unknown as typeof WebSocket
 
   try {
-    const client = new AppServerRpcClient('ws://127.0.0.1:48770', 0)
+    const client = new AppServerDirectRpcClient('ws://127.0.0.1:48770', 0)
     const initializePromise = client.initialize()
     const socket = await waitFor(() => sockets[0])
     const initialize = await waitForSent(socket, 'initialize')
@@ -486,7 +486,7 @@ test('app-server rpc client lets later server request handlers answer when earli
   } as unknown as typeof WebSocket
 
   try {
-    const client = new AppServerRpcClient('ws://127.0.0.1:48771')
+    const client = new AppServerDirectRpcClient('ws://127.0.0.1:48771')
     const initializePromise = client.initialize()
     const socket = await waitFor(() => sockets[0])
     const initialize = await waitForSent(socket, 'initialize')
@@ -635,43 +635,47 @@ test('app-server ensure sends neutral provider home through neutral Electron API
   assert.equal(ensuredProfile?.providerKey, 'mova')
 })
 
-test('app-server rpc client relays managed endpoints through Electron IPC', async () => {
+test('app-server rpc client prefers Electron app-server hub when available', async () => {
   const sentPayloads: string[] = []
-  const messageHandlers: Array<(message: { connectionId: string, kind: string, data?: string }) => void> = []
+  const hubMessageHandlers: Array<(message: { connectionId: string, kind: string, data?: string }) => void> = []
   let connectedURL = ''
+  let connectedProfileId: string | undefined
+  let legacyRelayUsed = false
   await withFakeWindow('', new Map(), async () => {
-    const client = new AppServerRpcClient('managed:///mova-movscript-home')
+    const client = new AppServerDirectRpcClient('managed:///mova-movscript-home')
     const initializePromise = client.initialize()
     const initialize = await waitFor(() => sentPayloads.map((payload) => JSON.parse(payload) as SentMessage).find((message) => message.method === 'initialize'))
-    for (const handler of messageHandlers) {
+    for (const handler of hubMessageHandlers) {
       handler({
-        connectionId: 'connection-1',
+        connectionId: 'hub-connection-1',
         kind: 'message',
-        data: JSON.stringify({ id: initialize.id, result: { userAgent: 'app-server-test' } }),
+        data: JSON.stringify({ id: initialize.id, result: { userAgent: 'app-server-hub-test' } }),
       })
     }
     await initializePromise
-    await waitFor(() => sentPayloads.map((payload) => JSON.parse(payload) as SentMessage).find((message) => message.method === 'initialized'))
     await client.close()
   }, {
-    appServerConnect: async (input: { url: string }) => {
+    appServerHubConnect: async (input: { url: string; profileId?: string }) => {
       connectedURL = input.url
-      return { connectionId: 'connection-1' }
+      connectedProfileId = input.profileId
+      return { connectionId: 'hub-connection-1', upstreamKey: 'profile:mova-movscript-home', url: input.url }
     },
-    appServerSend: async (input: { payload: string }) => {
+    appServerHubSend: async (input: { payload: string }) => {
       sentPayloads.push(input.payload)
     },
-    appServerClose: async () => undefined,
-    onAppServerMessage: (handler: (message: { connectionId: string, kind: string, data?: string }) => void) => {
-      messageHandlers.push(handler)
+    appServerHubClose: async () => undefined,
+    onAppServerHubMessage: (handler: (message: { connectionId: string, kind: string, data?: string }) => void) => {
+      hubMessageHandlers.push(handler)
       return () => undefined
     },
   })
 
   assert.equal(connectedURL, 'managed:///mova-movscript-home')
+  assert.equal(connectedProfileId, 'mova-movscript-home')
+  assert.equal(legacyRelayUsed, false)
 })
 
-test('default Mova provider initializes through a managed Electron relay endpoint', async () => {
+test('app-server provider client uses main-process hub request API in Electron', async () => {
   const provider: ProviderConfig = {
     id: 'mova',
     kind: 'mova',
@@ -687,24 +691,60 @@ test('default Mova provider initializes through a managed Electron relay endpoin
       lifecycle: 'movscript-owned',
     },
   }
-  const sentPayloads: string[] = []
-  const messageHandlers: Array<(message: { connectionId: string, kind: string, data?: string }) => void> = []
-  let ensuredProfile: Record<string, unknown> | undefined
-  let connectedURL = ''
+  const hubRequests: Array<{ url: string; profileId?: string; method: string; params?: unknown }> = []
   await withFakeWindow('', new Map(), async () => {
-    const client = await ensureAppServerRpcClient(provider)
+    const client = await ensureAppServerClient(provider)
     assert.ok(client)
-    const initializePromise = client.initialize()
-    const initialize = await waitFor(() => sentPayloads.map((payload) => JSON.parse(payload) as SentMessage).find((message) => message.method === 'initialize'))
-    for (const handler of messageHandlers) {
-      handler({
-        connectionId: 'connection-1',
-        kind: 'message',
-        data: JSON.stringify({ id: initialize.id, result: { userAgent: 'mova-test' } }),
-      })
-    }
-    await initializePromise
-    await client.close()
+    const page = await client.listThreads({ limit: 3 })
+    assert.deepEqual(page, { data: [], nextCursor: null })
+  }, {
+    ensureAppServer: async () => ({
+      ok: true,
+      running: true,
+      managed: true,
+      profileId: 'mova-movscript-home',
+      endpoint: 'managed:///mova-movscript-home',
+    }),
+    appServerHubConnect: async (input: { url: string; profileId?: string }) => ({
+      connectionId: 'hub-connection-1',
+      upstreamKey: `profile:${input.profileId ?? 'mova-movscript-home'}`,
+      url: input.url,
+    }),
+    appServerHubRequest: async (input: { url: string; profileId?: string; method: string; params?: unknown }) => {
+      hubRequests.push(input)
+      return { data: [], nextCursor: null }
+    },
+    onAppServerHubMessage: () => () => undefined,
+  })
+
+  assert.equal(hubRequests.length, 1)
+  assert.equal(hubRequests[0].url, 'managed:///mova-movscript-home')
+  assert.equal(hubRequests[0].profileId, 'mova-movscript-home')
+  assert.equal(hubRequests[0].method, 'thread/list')
+})
+
+test('default Mova provider uses a managed Electron hub endpoint', async () => {
+  const provider: ProviderConfig = {
+    id: 'mova',
+    kind: 'mova',
+    protocol: 'app-server',
+    messageAdapter: 'thread-turn-item',
+    label: 'Mova',
+    enabled: true,
+    appServerProfile: {
+      id: 'mova-movscript-home',
+      label: 'Mova',
+      providerKey: 'mova',
+      home: '.mova',
+      lifecycle: 'movscript-owned',
+    },
+  }
+  let ensuredProfile: Record<string, unknown> | undefined
+  const hubRequests: string[] = []
+  await withFakeWindow('', new Map(), async () => {
+    const client = await ensureAppServerClient(provider)
+    assert.ok(client)
+    await client.listThreads({ limit: 1 })
   }, {
     ensureAppServer: async (input: { profile: Record<string, unknown> }) => {
       ensuredProfile = input.profile
@@ -716,23 +756,21 @@ test('default Mova provider initializes through a managed Electron relay endpoin
         endpoint: 'managed:///mova-movscript-home',
       }
     },
-    appServerConnect: async (input: { url: string }) => {
-      connectedURL = input.url
-      return { connectionId: 'connection-1' }
+    appServerHubConnect: async (input: { url: string; profileId?: string }) => ({
+      connectionId: 'hub-connection-1',
+      upstreamKey: `profile:${input.profileId ?? 'mova-movscript-home'}`,
+      url: input.url,
+    }),
+    appServerHubRequest: async (input: { method: string }) => {
+      hubRequests.push(input.method)
+      return { data: [], nextCursor: null }
     },
-    appServerSend: async (input: { payload: string }) => {
-      sentPayloads.push(input.payload)
-    },
-    appServerClose: async () => undefined,
-    onAppServerMessage: (handler: (message: { connectionId: string, kind: string, data?: string }) => void) => {
-      messageHandlers.push(handler)
-      return () => undefined
-    },
+    onAppServerHubMessage: () => () => undefined,
   })
 
   assert.equal(ensuredProfile?.providerKey, 'mova')
   assert.equal(ensuredProfile?.home, '.mova')
-  assert.equal(connectedURL, 'managed:///mova-movscript-home')
+  assert.deepEqual(hubRequests, ['thread/list'])
 })
 
 interface SentMessage {

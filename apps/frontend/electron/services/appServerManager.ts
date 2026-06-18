@@ -561,6 +561,24 @@ export class AppServerManager {
     const executablePath = executableResolution.executablePath
     const executableDiagnostic = executableResolution.diagnostic ?? fallbackAppServerExecutableDiagnostic(providerKey, executablePath, profile)
     const home = resolveAppServerHome(profile?.home?.trim(), workspaceDir, providerKey)
+    if (executableDiagnostic && !executableDiagnostic.ok) {
+      return {
+        status: {
+          ok: false,
+          running: false,
+          managed: true,
+          profileId,
+          ...(label ? { label } : {}),
+          executablePath,
+          home,
+          workspaceDir,
+          workspaceContext,
+          providerSessionCwd,
+          executableDiagnostic,
+          error: formatExecutableDiagnostic(executableDiagnostic),
+        },
+      }
+    }
     const configDistribution = this.dependencies.distributeConfig({
       workspaceDir,
       home,

@@ -1,9 +1,5 @@
 import type { ElectronMovScriptWorkspaceContext } from './electronApiWorkspaceContext'
 
-export type ElectronAppServerConnectInput = {
-  url: string
-}
-
 export type ElectronAppServerLifecycle = 'movscript-owned'
 export type ElectronLocalTerminalCreateInput = {
   sessionId?: string
@@ -152,24 +148,72 @@ export type ElectronAppServerStatus = {
   error?: string
 }
 
-export type ElectronAppServerConnection = {
-  connectionId: string
+export type ElectronAppServerHubConnectInput = {
+  url: string
+  profileId?: string
 }
 
-export type ElectronAppServerSendInput = {
+export type ElectronAppServerHubConnection = {
+  connectionId: string
+  upstreamKey: string
+  url: string
+}
+
+export type ElectronAppServerHubSendInput = {
   connectionId: string
   payload: string
 }
 
-export type ElectronAppServerCloseInput = {
+export type ElectronAppServerHubRequestInput = {
+  url: string
+  profileId?: string
+  method: string
+  params?: unknown
+}
+
+export type ElectronAppServerHubNotifyInput = {
+  url: string
+  profileId?: string
+  method: string
+  params?: unknown
+}
+
+export type ElectronAppServerHubCloseInput = {
   connectionId: string
 }
 
-export type ElectronAppServerMessage = {
+export type ElectronAppServerHubSnapshotInput = {
+  connectionId: string
+}
+
+export type ElectronAppServerHubMessage = {
   connectionId: string
   kind: 'message' | 'error' | 'close'
   data?: string
   error?: string
+}
+
+export type ElectronAppServerHubSnapshot = {
+  connectionId: string
+  upstreamKey: string
+  url: string
+  subscriberCount: number
+  cacheKeys: string[]
+  cacheEntries: Array<{
+    key: string
+    method: string
+    updatedAt: number
+  }>
+  pendingServerRequests: Array<{
+    id: string | number
+    method: string
+    params?: unknown
+    receivedAt: number
+  }>
+  pendingClientRequestCount: number
+  pendingServerRequestCount: number
+  initialized: boolean
+  initializedNotificationSent: boolean
 }
 
 export type ElectronAppServerLogEvent = {

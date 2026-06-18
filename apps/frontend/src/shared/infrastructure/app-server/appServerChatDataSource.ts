@@ -9,7 +9,7 @@ import {
   agentChatThreadFromAppServerThreadTurnItem,
   agentChatTurnFromAppServerThreadTurnItem,
 } from '@/shared/infrastructure/app-server/appServerThreadTurnItemAdapter'
-import type { AppServerRpcClient } from '@/shared/infrastructure/app-server/appServerRpcClient'
+import type { AppServerClient } from '@/shared/infrastructure/app-server/appServerClientTypes'
 import {
   appServerThreadIdFromParams,
   createAppServerChatCapabilities,
@@ -45,7 +45,7 @@ export interface AppServerChatDataSourceOptions {
 
 export type AppServerChatMessageAdapterKind = 'thread-turn-item' | (string & {})
 
-export function createAppServerChatDataSource(client: AppServerRpcClient, options: AppServerChatDataSourceOptions = {}): AgentChatDataSource {
+export function createAppServerChatDataSource(client: AppServerClient, options: AppServerChatDataSourceOptions = {}): AgentChatDataSource {
   const provider = options.provider ?? MOVA_PROVIDER_ID
   const adapter = appServerMessageAdapter(options.messageAdapter, {
     provider,

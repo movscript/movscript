@@ -16,6 +16,8 @@ export const DEFAULT_CODEX_MOVSCRIPT_HOME_PROFILE: AppServerProfile = {
   executableEnvVar: 'MOVSCRIPT_CODEX_APP_SERVER_BIN',
   compatibilityBinEnvNames: ['MOVSCRIPT_CODEX_BIN'],
   candidateRootRelativePaths: [
+    '../app-server-bin/codex',
+    '../../app-server-bin/codex',
     '../codex/codex-rs/target/debug',
     '../../codex/codex-rs/target/debug',
     '../../../codex/codex-rs/target/debug',
@@ -38,6 +40,8 @@ export const DEFAULT_MOVA_MOVSCRIPT_HOME_PROFILE: AppServerProfile = {
   executableEnvVar: 'MOVSCRIPT_MOVA_APP_SERVER_BIN',
   compatibilityBinEnvNames: ['MOVSCRIPT_MOVA_BIN'],
   candidateRootRelativePaths: [
+    '../app-server-bin/mova',
+    '../../app-server-bin/mova',
     '../mova/codex-rs/target/debug',
     '../../mova/codex-rs/target/debug',
     '../../../mova/codex-rs/target/debug',

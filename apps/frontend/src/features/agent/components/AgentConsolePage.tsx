@@ -278,7 +278,7 @@ export default function AgentConsolePage() {
 
             <ConsolePanel title="管理入口" icon={<Terminal size={14} />}>
               <AgentConsoleGrid>
-                <ManagementLink to={ROUTES.modelProviders} icon={<Settings size={14} />} title="Provider / Catalog / Route" detail="管理 provider/new-api 来源、Catalog Entry 和 Route；高级直连覆盖仅用于临时外部模型服务。" />
+                <ManagementLink to={ROUTES.modelProviders} icon={<Settings size={14} />} title="Provider / Catalog / Route" detail="管理 provider/new-api 来源，查看 Catalog Entry 和 Route；高级直连覆盖仅用于临时外部模型服务。" />
                 {appServerProvidersForManagement.map((provider) => (
                   <ManagementLink
                     key={provider.id}

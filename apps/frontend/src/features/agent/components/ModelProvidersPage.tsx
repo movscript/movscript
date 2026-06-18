@@ -50,19 +50,15 @@ import {
 import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
 import { IdentityBadge, IdentityMark } from '@/features/agent/components/AgentIdentityUi'
 import {
-  createAgentModelCatalogEntry,
   fetchAgentBackendModels,
   fetchAgentModelCatalogEntries,
-  stringifyAgentModelSupportedParams,
-  updateAgentModelCatalogEntry,
   type AgentModelCatalogEntry,
-  type AgentModelCatalogEntryInput,
   type AgentModelRouteBinding,
 } from '@/features/agent/application/agentModelCatalogApi'
 import { agentProviderKeys } from '@/features/agent/application/agentQueryKeys'
 import { publicModelId, publicModelLabel } from '@/shared/domain/modelDisplay'
 import { providerSessionClient, type MovScriptWorkspaceConfig } from '@/shared/infrastructure/providerSessionClient'
-import type { ParamDef, PublicModel } from '@/types'
+import type { PublicModel } from '@/types'
 
 type ModelProviderAPIKind = 'openai_responses' | 'openai_chat_completions' | 'anthropic_messages'
 
@@ -87,21 +83,7 @@ type BackendModelProvider = {
 }
 
 type ModelProviderLayer = 'providers' | 'catalog' | 'routes'
-type CatalogDraft = {
-  id?: number
-  publicModelID: string
-  providerModelID: string
-  displayName: string
-  shortName: string
-  isEnabled: boolean
-  capabilities: string[]
-  pricingMode: string
-  acceptsImage: boolean
-  maxInputImages: string
-  maxInputVideos: string
-  imageEditField: string
-  supportedParams: ParamDef[]
-}
+
 const DEFAULT_PROVIDER: WorkspaceModelProvider = {
   id: 'openai',
   label: 'OpenAI',
@@ -115,126 +97,6 @@ const API_KIND_OPTIONS: Array<{ value: ModelProviderAPIKind; label: string }> = 
   { value: 'openai_responses', label: 'OpenAI Responses' },
   { value: 'openai_chat_completions', label: 'OpenAI Chat Completions' },
   { value: 'anthropic_messages', label: 'Anthropic Messages' },
-]
-
-type CatalogEntryTemplate = {
-  id: string
-  label: string
-  draft: Omit<CatalogDraft, 'id'>
-}
-
-const CATALOG_CAPABILITY_OPTIONS = [
-  { value: 'text', label: 'Text' },
-  { value: 'reasoning', label: 'Reasoning' },
-  { value: 'image', label: 'Image' },
-  { value: 'image_edit', label: 'Image Edit' },
-  { value: 'video', label: 'Video' },
-  { value: 'video_i2v', label: 'I2V' },
-  { value: 'video_v2v', label: 'V2V' },
-  { value: 'audio_tts', label: 'TTS' },
-  { value: 'audio_stt', label: 'STT' },
-] as const
-
-const CATALOG_PRICING_OPTIONS = [
-  { value: '', label: '未设置' },
-  { value: 'per_token', label: '按 Token' },
-  { value: 'per_image', label: '按图片' },
-  { value: 'per_second', label: '按秒' },
-  { value: 'per_call', label: '按调用' },
-]
-
-const TEXT_PARAMS: ParamDef[] = [
-  { key: 'temperature', label: 'Temperature', type: 'number', min: 0, max: 2, step: 0.1 },
-  { key: 'top_p', label: 'Top P', type: 'number', min: 0, max: 1, step: 0.05 },
-  { key: 'max_tokens', label: 'Max Tokens', type: 'number', min: 1, step: 1 },
-  { key: 'response_format', label: 'Response Format', type: 'select', options: ['text', 'json_object'], default: 'text' },
-]
-
-const IMAGE_PARAMS: ParamDef[] = [
-  { key: 'image_size', label: '画面尺寸', type: 'select', options: ['1024x1024', '1024x1536', '1536x1024'], default: '1024x1024' },
-  { key: 'quality', label: '质量', type: 'select', options: ['low', 'medium', 'high'], default: 'medium' },
-  { key: 'image_count', label: '生成张数', type: 'number', min: 1, max: 4, step: 1, default: 1 },
-]
-
-const VIDEO_PARAMS: ParamDef[] = [
-  { key: 'duration', label: '时长(秒)', type: 'number', min: 1, max: 10, step: 1, default: 5 },
-  { key: 'resolution', label: '分辨率', type: 'select', options: ['720p', '1080p'], default: '720p' },
-  { key: 'aspect_ratio', label: '画面比例', type: 'select', options: ['16:9', '9:16', '1:1'], default: '16:9' },
-]
-
-const CATALOG_ENTRY_TEMPLATES: CatalogEntryTemplate[] = [
-  {
-    id: 'text-reasoning',
-    label: '文本/推理',
-    draft: {
-      publicModelID: '',
-      providerModelID: '',
-      displayName: '',
-      shortName: '',
-      isEnabled: true,
-      capabilities: ['text', 'reasoning'],
-      pricingMode: 'per_token',
-      acceptsImage: false,
-      maxInputImages: '0',
-      maxInputVideos: '0',
-      imageEditField: '',
-      supportedParams: TEXT_PARAMS,
-    },
-  },
-  {
-    id: 'openai-compatible-image',
-    label: '图像生成',
-    draft: {
-      publicModelID: '',
-      providerModelID: '',
-      displayName: '',
-      shortName: '',
-      isEnabled: true,
-      capabilities: ['image'],
-      pricingMode: 'per_image',
-      acceptsImage: false,
-      maxInputImages: '0',
-      maxInputVideos: '0',
-      imageEditField: '',
-      supportedParams: IMAGE_PARAMS,
-    },
-  },
-  {
-    id: 'image-edit',
-    label: '图像编辑',
-    draft: {
-      publicModelID: '',
-      providerModelID: '',
-      displayName: '',
-      shortName: '',
-      isEnabled: true,
-      capabilities: ['image_edit'],
-      pricingMode: 'per_image',
-      acceptsImage: true,
-      maxInputImages: '1',
-      maxInputVideos: '0',
-      imageEditField: 'image[]',
-      supportedParams: IMAGE_PARAMS,
-    },
-  },
-  {
-    id: 'video',
-    label: '视频',
-    draft: {
-      publicModelID: '',
-      providerModelID: '',
-      displayName: '',
-      shortName: '',
-      isEnabled: true,
-      capabilities: ['video'],
-      pricingMode: 'per_second',
-      acceptsImage: false,
-      maxInputImages: '0',
-      maxInputVideos: '0',
-      imageEditField: '',
-      supportedParams: VIDEO_PARAMS,
-    },
-  },
 ]
 
 export default function ModelProvidersPage() {
@@ -260,9 +122,6 @@ export default function ModelProvidersPage() {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [testResults, setTestResults] = useState<Record<string, string>>({})
   const [showLocalOverrides, setShowLocalOverrides] = useState(false)
-  const [catalogDraft, setCatalogDraft] = useState<CatalogDraft>(() => catalogDraftFromTemplate(CATALOG_ENTRY_TEMPLATES[0]))
-  const [catalogSaveStatus, setCatalogSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
-  const [catalogSaveError, setCatalogSaveError] = useState<string | null>(null)
 
   useEffect(() => {
     if (workspaceConfigQuery.data) setProviders(normalizeWorkspaceModelProviders(workspaceConfigQuery.data))
@@ -323,74 +182,6 @@ export default function ModelProvidersPage() {
       ? `配置可用：${provider.apiKind} / ${provider.baseURL}`
       : '需要填写有效 Base URL；启用的 provider 也需要 API Key。'
     setTestResults((current) => ({ ...current, [provider.id]: result }))
-  }
-
-  function editCatalogEntry(entry: AgentModelCatalogEntry) {
-    setCatalogDraft(catalogDraftFromEntry(entry))
-    setCatalogSaveError(null)
-    setCatalogSaveStatus('idle')
-  }
-
-  function newCatalogEntry(template: CatalogEntryTemplate = CATALOG_ENTRY_TEMPLATES[0]) {
-    setCatalogDraft(catalogDraftFromTemplate(template))
-    setCatalogSaveError(null)
-    setCatalogSaveStatus('idle')
-  }
-
-  function patchCatalogDraft(patch: Partial<CatalogDraft>) {
-    setCatalogDraft((current) => ({ ...current, ...patch }))
-    setCatalogSaveError(null)
-    setCatalogSaveStatus('idle')
-  }
-
-  function patchCatalogParam(index: number, patch: Partial<ParamDef>) {
-    setCatalogDraft((current) => ({
-      ...current,
-      supportedParams: current.supportedParams.map((param, paramIndex) => paramIndex === index ? { ...param, ...patch } : param),
-    }))
-    setCatalogSaveError(null)
-    setCatalogSaveStatus('idle')
-  }
-
-  function addCatalogParam() {
-    setCatalogDraft((current) => ({
-      ...current,
-      supportedParams: [
-        ...current.supportedParams,
-        { key: 'custom_param', label: 'Custom Param', type: 'string' },
-      ],
-    }))
-    setCatalogSaveError(null)
-    setCatalogSaveStatus('idle')
-  }
-
-  function removeCatalogParam(index: number) {
-    setCatalogDraft((current) => ({
-      ...current,
-      supportedParams: current.supportedParams.filter((_, paramIndex) => paramIndex !== index),
-    }))
-    setCatalogSaveError(null)
-    setCatalogSaveStatus('idle')
-  }
-
-  async function saveCatalogEntry() {
-    const input = catalogDraftToInput(catalogDraft)
-    if (!input.public_model_id || !input.provider_model_id || catalogSaveStatus === 'saving') return
-    setCatalogSaveStatus('saving')
-    setCatalogSaveError(null)
-    try {
-      if (catalogDraft.id) {
-        await updateAgentModelCatalogEntry(catalogDraft.id, input)
-      } else {
-        await createAgentModelCatalogEntry(input)
-      }
-      await modelCatalogQuery.refetch()
-      setCatalogSaveStatus('saved')
-      window.setTimeout(() => setCatalogSaveStatus('idle'), 1800)
-    } catch (error) {
-      setCatalogSaveStatus('idle')
-      setCatalogSaveError(errorMessage(error))
-    }
   }
 
   return (
@@ -498,7 +289,7 @@ export default function ModelProvidersPage() {
             {backendModelsQuery.error ? <AgentConsoleInlineError>{errorMessage(backendModelsQuery.error)}</AgentConsoleInlineError> : null}
             {!backendModelsQuery.error && backendProviders.length === 0 ? (
               <AgentConsoleCallout tone="warning" compact>
-                后端当前没有返回可用模型。请先配置 Provider，再创建 Catalog Entry 和 Route。
+                后端当前没有返回可用模型。请先配置 Provider，并在 Admin 中维护 Catalog Entry 和 Route。
               </AgentConsoleCallout>
             ) : null}
 
@@ -552,15 +343,11 @@ export default function ModelProvidersPage() {
             <AgentConsoleStack spacing="loose">
               <AgentConsoleIntroRow>
                 <AgentConsoleDescription>
-                  Catalog Entry 是系统识别模型的列表。这里承载能力、supported params、输入要求和定价；它不表达使用哪个 key 或路由分组。
+                  Catalog Entry 是系统识别模型的列表。这里仅展示当前档案；新增和调整请在 Admin 模型目录中完成。
                 </AgentConsoleDescription>
                 <AgentConsoleToolbar>
-                  <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={() => newCatalogEntry()}>
-                    <Plus size={14} />
-                    新建目录项
-                  </AgentConsoleActionButton>
                   <AgentConsoleStatusBadge intent="neutral" emphasis="soft">
-                    semantic model identity
+                    Admin 管理
                   </AgentConsoleStatusBadge>
                 </AgentConsoleToolbar>
               </AgentConsoleIntroRow>
@@ -602,121 +389,9 @@ export default function ModelProvidersPage() {
                         Params：{supportedParamsSummary(entry.supported_params)}
                       </AgentConsoleCallout>
                     </AgentConsoleLocalToolFields>
-                    <AgentConsoleLocalToolActions>
-                      <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={() => editCatalogEntry(entry)}>
-                        编辑档案
-                      </AgentConsoleActionButton>
-                    </AgentConsoleLocalToolActions>
                   </AgentConsoleLocalToolCard>
                 ))}
               </AgentConsoleGrid>
-              <AgentConsoleLocalToolCard>
-                <AgentConsoleLocalToolHeader>
-                  <AgentConsoleLocalToolCopy>
-                    <AgentConsoleLocalToolTitle>{catalogDraft.id ? '编辑 Catalog Entry' : '新建 Catalog Entry'}</AgentConsoleLocalToolTitle>
-                    <AgentConsoleLocalToolDetail>
-                      模板负责快速生成能力和参数，保存后 Catalog Entry 才成为系统识别模型的标准档案。
-                    </AgentConsoleLocalToolDetail>
-                  </AgentConsoleLocalToolCopy>
-                  <AgentConsoleLocalToolControls>
-                    {catalogSaveStatus === 'saved' ? <AgentConsoleSavedText>已保存</AgentConsoleSavedText> : null}
-                    <AgentConsoleStatusBadge intent={catalogDraft.id ? 'success' : 'neutral'} emphasis="soft">
-                      {catalogDraft.id ? `#${catalogDraft.id}` : 'draft'}
-                    </AgentConsoleStatusBadge>
-                  </AgentConsoleLocalToolControls>
-                </AgentConsoleLocalToolHeader>
-                <AgentConsoleLocalToolFields>
-                  <AgentConsoleCallout compact>
-                    模板：{CATALOG_ENTRY_TEMPLATES.map((template) => (
-                      <AgentConsoleActionButton key={template.id} type="button" size="xs" variant="outline" onClick={() => newCatalogEntry(template)}>
-                        {template.label}
-                      </AgentConsoleActionButton>
-                    ))}
-                  </AgentConsoleCallout>
-                  <AgentConsoleGrid columns="server">
-                    <AgentConsoleFormField label="Public Model ID" value={catalogDraft.publicModelID} onChange={(event) => patchCatalogDraft({ publicModelID: event.target.value })} placeholder="gpt-4.1" />
-                    <AgentConsoleFormField label="Provider Model ID" value={catalogDraft.providerModelID} onChange={(event) => patchCatalogDraft({ providerModelID: event.target.value })} placeholder="gpt-4.1" />
-                    <AgentConsoleFormField label="显示名称" value={catalogDraft.displayName} onChange={(event) => patchCatalogDraft({ displayName: event.target.value })} placeholder="GPT-4.1" />
-                    <AgentConsoleFormField label="短名称" value={catalogDraft.shortName} onChange={(event) => patchCatalogDraft({ shortName: event.target.value })} placeholder="4.1" />
-                    <AgentConsoleSelectField label="计费模式" value={catalogDraft.pricingMode} onChange={(event) => patchCatalogDraft({ pricingMode: event.target.value })}>
-                      {CATALOG_PRICING_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                    </AgentConsoleSelectField>
-                    <AgentConsoleFormField label="图片输入上限" type="number" value={catalogDraft.maxInputImages} onChange={(event) => patchCatalogDraft({ maxInputImages: event.target.value })} />
-                    <AgentConsoleFormField label="视频输入上限" type="number" value={catalogDraft.maxInputVideos} onChange={(event) => patchCatalogDraft({ maxInputVideos: event.target.value })} />
-                    <AgentConsoleFormField label="Image Edit Field" value={catalogDraft.imageEditField} onChange={(event) => patchCatalogDraft({ imageEditField: event.target.value })} placeholder="image[]" />
-                  </AgentConsoleGrid>
-                  <AgentConsoleCallout compact>
-                    能力：{CATALOG_CAPABILITY_OPTIONS.map((option) => (
-                      <label key={option.value} className="agent-console-inline-option">
-                        <input
-                          type="checkbox"
-                          checked={catalogDraft.capabilities.includes(option.value)}
-                          onChange={(event) => patchCatalogDraft({ capabilities: toggleString(catalogDraft.capabilities, option.value, event.target.checked) })}
-                        />
-                        {option.label}
-                      </label>
-                    ))}
-                  </AgentConsoleCallout>
-                  <AgentConsoleCallout compact>
-                    <label className="agent-console-inline-option">
-                      <input type="checkbox" checked={catalogDraft.isEnabled} onChange={(event) => patchCatalogDraft({ isEnabled: event.target.checked })} />
-                      启用目录项
-                    </label>
-                    <label className="agent-console-inline-option">
-                      <input type="checkbox" checked={catalogDraft.acceptsImage} onChange={(event) => patchCatalogDraft({ acceptsImage: event.target.checked })} />
-                      接受图片输入
-                    </label>
-                  </AgentConsoleCallout>
-                  <AgentConsoleStack>
-                    <AgentConsoleIntroRow>
-                      <AgentConsoleDescription>Supported Params</AgentConsoleDescription>
-                      <AgentConsoleToolbar>
-                        <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={addCatalogParam}>
-                          <Plus size={14} />
-                          添加参数
-                        </AgentConsoleActionButton>
-                      </AgentConsoleToolbar>
-                    </AgentConsoleIntroRow>
-                    {catalogDraft.supportedParams.length === 0 ? (
-                      <AgentConsoleCallout compact>当前模板没有参数；文本模型可以保持为空，图像、视频、音频模型建议声明可交互参数。</AgentConsoleCallout>
-                    ) : null}
-                    {catalogDraft.supportedParams.map((param, index) => (
-                      <AgentConsoleLocalToolCard key={`${index}:${param.key || 'param'}`}>
-                        <AgentConsoleLocalToolFields>
-                          <AgentConsoleGrid columns="server">
-                            <AgentConsoleFormField label="Key" value={param.key} onChange={(event) => patchCatalogParam(index, { key: event.target.value })} />
-                            <AgentConsoleFormField label="Label" value={param.label} onChange={(event) => patchCatalogParam(index, { label: event.target.value })} />
-                            <AgentConsoleSelectField label="Type" value={param.type} onChange={(event) => patchCatalogParam(index, { type: event.target.value as ParamDef['type'] })}>
-                              <option value="string">string</option>
-                              <option value="number">number</option>
-                              <option value="boolean">boolean</option>
-                              <option value="select">select</option>
-                            </AgentConsoleSelectField>
-                            <AgentConsoleFormField label="Default" value={paramDefaultValue(param.default)} onChange={(event) => patchCatalogParam(index, { default: paramValueFromInput(event.target.value, param.type) })} />
-                            <AgentConsoleFormField label="Options" value={param.options?.join(', ') ?? ''} onChange={(event) => patchCatalogParam(index, { options: stringList(event.target.value) })} placeholder="low, medium, high" />
-                            <AgentConsoleFormField label="Min" type="number" value={param.min ?? ''} onChange={(event) => patchCatalogParam(index, { min: optionalNumber(event.target.value) })} />
-                            <AgentConsoleFormField label="Max" type="number" value={param.max ?? ''} onChange={(event) => patchCatalogParam(index, { max: optionalNumber(event.target.value) })} />
-                            <AgentConsoleFormField label="Step" type="number" value={param.step ?? ''} onChange={(event) => patchCatalogParam(index, { step: optionalNumber(event.target.value) })} />
-                          </AgentConsoleGrid>
-                        </AgentConsoleLocalToolFields>
-                        <AgentConsoleLocalToolActions>
-                          <AgentConsoleActionButton type="button" size="sm" variant="outline" intent="danger" onClick={() => removeCatalogParam(index)}>
-                            <Trash2 size={14} />
-                            删除参数
-                          </AgentConsoleActionButton>
-                        </AgentConsoleLocalToolActions>
-                      </AgentConsoleLocalToolCard>
-                    ))}
-                  </AgentConsoleStack>
-                  {catalogSaveError ? <AgentConsoleCallout tone="danger" compact>保存失败：{catalogSaveError}</AgentConsoleCallout> : null}
-                </AgentConsoleLocalToolFields>
-                <AgentConsoleLocalToolActions>
-                  <AgentConsoleActionButton type="button" size="sm" onClick={() => void saveCatalogEntry()} disabled={catalogSaveStatus === 'saving' || !catalogDraft.publicModelID.trim() || !catalogDraft.providerModelID.trim()}>
-                    <Save size={14} />
-                    {catalogSaveStatus === 'saving' ? '保存中...' : catalogDraft.id ? '保存目录项' : '创建目录项'}
-                  </AgentConsoleActionButton>
-                </AgentConsoleLocalToolActions>
-              </AgentConsoleLocalToolCard>
             </AgentConsoleStack>
           </AgentConsolePanel>
         ) : null}
@@ -928,125 +603,6 @@ function ModelProviderLayerButton({
       {layer.label}
     </AgentConsoleActionButton>
   )
-}
-
-function catalogDraftFromTemplate(template: CatalogEntryTemplate | undefined): CatalogDraft {
-  const draft = template?.draft ?? CATALOG_ENTRY_TEMPLATES[0].draft
-  return {
-    ...draft,
-    capabilities: [...draft.capabilities],
-    supportedParams: cloneParams(draft.supportedParams),
-  }
-}
-
-function catalogDraftFromEntry(entry: AgentModelCatalogEntry): CatalogDraft {
-  return {
-    id: entry.id,
-    publicModelID: entry.public_model_id,
-    providerModelID: entry.provider_model_id,
-    displayName: entry.display_name,
-    shortName: entry.short_name ?? '',
-    isEnabled: entry.is_enabled,
-    capabilities: catalogEntryCapabilities(entry),
-    pricingMode: entry.pricing_mode ?? '',
-    acceptsImage: Boolean(entry.accepts_image),
-    maxInputImages: String(entry.max_input_images ?? 0),
-    maxInputVideos: String(entry.max_input_videos ?? 0),
-    imageEditField: entry.image_edit_field ?? '',
-    supportedParams: parseSupportedParams(entry.supported_params),
-  }
-}
-
-function catalogDraftToInput(draft: CatalogDraft): AgentModelCatalogEntryInput {
-  return {
-    public_model_id: draft.publicModelID.trim(),
-    provider_model_id: draft.providerModelID.trim(),
-    display_name: draft.displayName.trim() || draft.publicModelID.trim(),
-    ...(draft.shortName.trim() ? { short_name: draft.shortName.trim() } : {}),
-    is_enabled: draft.isEnabled,
-    capabilities: draft.capabilities.join(','),
-    ...(draft.pricingMode ? { pricing_mode: draft.pricingMode } : {}),
-    accepts_image: draft.acceptsImage,
-    max_input_images: positiveInteger(draft.maxInputImages),
-    max_input_videos: positiveInteger(draft.maxInputVideos),
-    ...(draft.imageEditField.trim() ? { image_edit_field: draft.imageEditField.trim() } : {}),
-    supported_params: stringifyAgentModelSupportedParams(draft.supportedParams),
-  }
-}
-
-function parseSupportedParams(value: string | undefined): ParamDef[] {
-  if (!value?.trim()) return []
-  try {
-    const parsed = JSON.parse(value) as unknown
-    if (!Array.isArray(parsed)) return []
-    return parsed.map(paramDefFromUnknown).filter((param): param is ParamDef => Boolean(param))
-  } catch {
-    return []
-  }
-}
-
-function paramDefFromUnknown(value: unknown): ParamDef | undefined {
-  if (!value || typeof value !== 'object') return undefined
-  const record = value as Record<string, unknown>
-  const key = stringField(record.key)
-  if (!key) return undefined
-  const type = paramDefType(record.type)
-  return {
-    key,
-    label: stringField(record.label) ?? key,
-    type,
-    ...(stringArray(record.options).length > 0 ? { options: stringArray(record.options) } : {}),
-    ...(record.default !== undefined ? { default: paramValueFromInput(String(record.default), type) } : {}),
-    ...(optionalNumber(record.min) !== undefined ? { min: optionalNumber(record.min) } : {}),
-    ...(optionalNumber(record.max) !== undefined ? { max: optionalNumber(record.max) } : {}),
-    ...(optionalNumber(record.step) !== undefined ? { step: optionalNumber(record.step) } : {}),
-  }
-}
-
-function cloneParams(params: ParamDef[]): ParamDef[] {
-  return params.map((param) => ({
-    ...param,
-    ...(param.options ? { options: [...param.options] } : {}),
-  }))
-}
-
-function toggleString(values: string[], value: string, checked: boolean): string[] {
-  if (checked) return values.includes(value) ? values : [...values, value]
-  return values.filter((item) => item !== value)
-}
-
-function paramDefaultValue(value: ParamDef['default']): string {
-  if (value === undefined) return ''
-  return String(value)
-}
-
-function paramValueFromInput(value: string, type: ParamDef['type']): string | number | boolean | undefined {
-  const trimmed = value.trim()
-  if (!trimmed) return undefined
-  if (type === 'boolean') return trimmed === 'true'
-  if (type === 'number') return Number(trimmed)
-  return trimmed
-}
-
-function paramDefType(value: unknown): ParamDef['type'] {
-  return value === 'number' || value === 'boolean' || value === 'select' ? value : 'string'
-}
-
-function optionalNumber(value: unknown): number | undefined {
-  if (value === '' || value === undefined || value === null) return undefined
-  const numberValue = Number(value)
-  return Number.isFinite(numberValue) ? numberValue : undefined
-}
-
-function positiveInteger(value: string): number {
-  const parsed = Number.parseInt(value, 10)
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
-}
-
-function stringArray(value: unknown): string[] {
-  if (Array.isArray(value)) return value.map((item) => typeof item === 'string' ? item.trim() : '').filter(Boolean)
-  if (typeof value === 'string') return stringList(value)
-  return []
 }
 
 function normalizeWorkspaceModelProviders(config: MovScriptWorkspaceConfig): WorkspaceModelProvider[] {

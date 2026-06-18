@@ -29,6 +29,8 @@ interface AppSettingsStore {
 
 const defaultSettings: AppSettings = {
   apiBaseURL: getDefaultAPIBaseURL(),
+  cloudAPIBaseURL: getDefaultAPIBaseURL(),
+  localAPIBaseURL: getLocalAPIBaseURL(),
   launchMode: 'cloud',
   workMode: 'project',
   onboardingCompleted: true,
@@ -73,13 +75,35 @@ export function mergeAppSettingsSecrets(settings: AppSettings, secrets: Electron
   return normalizeSettings({ ...settings, shotLibrarySources })
 }
 
-async function hydrateElectronAppSettingsSecrets(): Promise<void> {
+async function hydrateElectronAppSettings(): Promise<void> {
   const api = readElectronApi()
-  if (!api?.getAppSettingsSecrets) return
-  const secrets = await api.getAppSettingsSecrets()
-  const current = useAppSettingsStore.getState().settings
-  const next = mergeAppSettingsSecrets(current, secrets)
-  useAppSettingsStore.setState({ settings: next })
+  if (api?.getAppSettings && !useAppSettingsStore.getState().savedAt) {
+    const desktopSettings = await withTimeout(api.getAppSettings(), 2_000)
+    if (desktopSettings) {
+      useAppSettingsStore.setState({ settings: normalizeSettings(desktopSettings) })
+    }
+  }
+  if (api?.getAppSettingsSecrets) {
+    const secrets = await withTimeout(api.getAppSettingsSecrets(), 2_000)
+    const current = useAppSettingsStore.getState().settings
+    const next = mergeAppSettingsSecrets(current, secrets)
+    useAppSettingsStore.setState({ settings: next })
+  }
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`Timed out after ${timeoutMs}ms`)), timeoutMs)
+    promise.then(resolve, reject).finally(() => clearTimeout(timer))
+  })
+}
+
+function scheduleAppSettingsHydration(callback: () => void): void {
+  if (typeof queueMicrotask === 'function') {
+    queueMicrotask(callback)
+    return
+  }
+  void Promise.resolve().then(callback)
 }
 
 export const useAppSettingsStore = create<AppSettingsStore>()(
@@ -109,16 +133,14 @@ export const useAppSettingsStore = create<AppSettingsStore>()(
       },
       setLaunchMode: (launchMode) => {
         const current = useAppSettingsStore.getState().settings
-        const currentAPIBaseURL = normalizeAPIBaseURL(current.apiBaseURL)
-        const localAPIBaseURL = getLocalAPIBaseURL()
+        const cloudAPIBaseURL = current.cloudAPIBaseURL ?? getDefaultAPIBaseURL()
+        const localAPIBaseURL = current.localAPIBaseURL ?? getLocalAPIBaseURL()
         const next = normalizeSettings({
           ...current,
           launchMode,
-          apiBaseURL: launchMode === 'local'
-            ? localAPIBaseURL
-            : currentAPIBaseURL === localAPIBaseURL
-              ? getDefaultAPIBaseURL()
-              : current.apiBaseURL,
+          cloudAPIBaseURL,
+          localAPIBaseURL,
+          apiBaseURL: launchMode === 'local' ? localAPIBaseURL : cloudAPIBaseURL,
         })
         set({ settings: next, savedAt: new Date().toISOString() })
         syncElectronSettings(next)
@@ -129,7 +151,15 @@ export const useAppSettingsStore = create<AppSettingsStore>()(
         syncElectronSettings(next)
       },
       setAPIBaseURL: (apiBaseURL) => {
-        const next = normalizeSettings({ ...useAppSettingsStore.getState().settings, apiBaseURL })
+        const current = useAppSettingsStore.getState().settings
+        const normalizedAPIBaseURL = normalizeAPIBaseURL(apiBaseURL)
+        const next = normalizeSettings({
+          ...current,
+          apiBaseURL: normalizedAPIBaseURL,
+          ...(current.launchMode === 'local'
+            ? { localAPIBaseURL: normalizedAPIBaseURL }
+            : { cloudAPIBaseURL: normalizedAPIBaseURL }),
+        })
         set({ settings: next, savedAt: new Date().toISOString() })
         syncElectronSettings(next)
       },
@@ -162,16 +192,22 @@ export const useAppSettingsStore = create<AppSettingsStore>()(
           ...currentState,
           ...persisted,
           settings,
-          hydrated: true,
+          hydrated: false,
         }
       },
       onRehydrateStorage: () => (state) => {
-        if (!state) return
+        if (!state) {
+          scheduleAppSettingsHydration(() => useAppSettingsStore.setState({ hydrated: true }))
+          return
+        }
         state.settings = normalizeSettings(state.settings)
-        state.hydrated = true
-        void hydrateElectronAppSettingsSecrets()
-          .then(() => syncElectronSettings(useAppSettingsStore.getState().settings))
-          .catch(() => null)
+        state.hydrated = false
+        scheduleAppSettingsHydration(() => {
+          void hydrateElectronAppSettings()
+            .then(() => syncElectronSettings(useAppSettingsStore.getState().settings))
+            .catch(() => null)
+            .finally(() => useAppSettingsStore.setState({ hydrated: true }))
+        })
       },
     }
   )

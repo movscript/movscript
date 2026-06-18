@@ -3,7 +3,7 @@ import test from 'node:test'
 
 import { createAppServerChatDataSource } from '@/shared/infrastructure/app-server/appServerChatDataSource'
 import { appServerThreadTurnItemServerRequestResponseFromAgentChat } from '@/shared/infrastructure/app-server/appServerThreadTurnItemProtocolAdapter'
-import type { AppServerRpcClient } from '@/shared/infrastructure/app-server/appServerRpcClient'
+import type { AppServerClient } from '@/shared/infrastructure/app-server/appServerClientTypes'
 import { agentRunProfilePresetById } from '@/features/agent/domain/agentRunProfilePreset'
 import {
   resetCrossPageNotificationDedupeForTests,
@@ -17,7 +17,7 @@ test('app-server thread-turn-item data source maps provider-neutral thread lifec
       requests.push({ method, params })
       return { thread: appServerThread({ name: method }) }
     },
-  } as unknown as AppServerRpcClient
+  } as unknown as AppServerClient
 
   const dataSource = createAppServerChatDataSource(client)
   const renamed = await dataSource.renameThread?.({ threadId: 'thread_1', name: 'Renamed' })
@@ -39,7 +39,7 @@ test('app-server protocol data source preserves injected provider identity', asy
     listThreads: async () => ({ data: [appServerThread()], nextCursor: null }),
     readThread: async () => ({ thread: appServerThread({ id: 'thread_read' }) }),
     startThread: async () => ({ thread: appServerThread({ id: 'thread_started' }) }),
-  } as unknown as AppServerRpcClient
+  } as unknown as AppServerClient
 
   const dataSource = createAppServerChatDataSource(client, {
     provider: 'mova',
@@ -75,7 +75,7 @@ test('app-server protocol data source reads thread turns through paged turns lis
         backwardsCursor: null,
       }
     },
-  } as unknown as AppServerRpcClient
+  } as unknown as AppServerClient
 
   const dataSource = createAppServerChatDataSource(client)
   const thread = await dataSource.readThread('thread_1', {
@@ -116,7 +116,7 @@ test('app-server protocol data source reads metadata only for newer turn pages',
         backwardsCursor: null,
       }
     },
-  } as unknown as AppServerRpcClient
+  } as unknown as AppServerClient
 
   const dataSource = createAppServerChatDataSource(client)
   const thread = await dataSource.readThread('thread_1', {
@@ -158,7 +158,7 @@ test('app-server protocol data source falls back to thread/read when turns list 
       calls.push({ method: 'thread/turns/list', params })
       throw new Error('thread/turns/list method not found')
     },
-  } as unknown as AppServerRpcClient
+  } as unknown as AppServerClient
 
   const dataSource = createAppServerChatDataSource(client)
   const thread = await dataSource.readThread('thread_1', {
@@ -208,7 +208,7 @@ test('app-server protocol data source treats pre-message materialization errors 
       calls.push({ method: 'thread/turns/list', params })
       throw new Error('thread 019eb75c-31ee-75f2-85ad-2b52ed95be04 is not materialized yet; thread/turns/list is unavailable before first user message')
     },
-  } as unknown as AppServerRpcClient
+  } as unknown as AppServerClient
 
   const dataSource = createAppServerChatDataSource(client)
   const thread = await dataSource.readThread('019eb75c-31ee-75f2-85ad-2b52ed95be04', {
@@ -236,7 +236,7 @@ test('app-server protocol data source treats pre-message materialization errors 
 test('app-server protocol data source exposes provider thread and session tree ids explicitly', async () => {
   const client = {
     readThread: async () => ({ thread: appServerThread({ id: 'thread_read', sessionId: 'session_tree_1' }) }),
-  } as unknown as AppServerRpcClient
+  } as unknown as AppServerClient
 
   const dataSource = createAppServerChatDataSource(client)
   const thread = await dataSource.readThread('thread_read')
@@ -250,7 +250,7 @@ test('app-server protocol data source exposes provider thread and session tree i
 test('app-server protocol data source preserves thread cwd for project grouping', async () => {
   const client = {
     readThread: async () => ({ thread: appServerThread({ id: 'thread_project', cwd: '/workspace/user/7/projects/project_42' }) }),
-  } as unknown as AppServerRpcClient
+  } as unknown as AppServerClient
 
   const dataSource = createAppServerChatDataSource(client)
   const thread = await dataSource.readThread('thread_project')
@@ -261,7 +261,7 @@ test('app-server protocol data source preserves thread cwd for project grouping'
 test('app-server protocol data source does not fabricate session tree ids from thread ids', async () => {
   const client = {
     readThread: async () => ({ thread: appServerThread({ id: 'thread_without_tree', sessionId: '' }) }),
-  } as unknown as AppServerRpcClient
+  } as unknown as AppServerClient
 
   const dataSource = createAppServerChatDataSource(client)
   const thread = await dataSource.readThread('thread_without_tree')
@@ -278,7 +278,7 @@ test('app-server protocol data source resumes threads through app-server resume 
       calls.push(params)
       return { thread: appServerThread({ id: params.threadId }) }
     },
-  } as unknown as AppServerRpcClient
+  } as unknown as AppServerClient
 
   const dataSource = createAppServerChatDataSource(client, {
     defaultThreadCwd: '/workspace/project',
@@ -294,7 +294,7 @@ test('app-server protocol data source resumes threads through app-server resume 
 })
 
 test('app-server protocol data source builds default labels from provider keys', () => {
-  const client = {} as unknown as AppServerRpcClient
+  const client = {} as unknown as AppServerClient
   const dataSource = createAppServerChatDataSource(client, { provider: 'studio-agent' })
 
   assert.equal(dataSource.provider, 'studio-agent')
@@ -309,7 +309,7 @@ test('app-server protocol data source preserves provider identity in thread noti
       return () => undefined
     },
     onServerRequest: () => () => undefined,
-  } as unknown as AppServerRpcClient
+  } as unknown as AppServerClient
   const dataSource = createAppServerChatDataSource(client, {
     provider: 'mova',
     label: 'Mova',
@@ -337,7 +337,7 @@ test('app-server protocol data source only dispatches notifications scoped to th
       return () => undefined
     },
     onServerRequest: () => () => undefined,
-  } as unknown as AppServerRpcClient
+  } as unknown as AppServerClient
   const dataSource = createAppServerChatDataSource(client)
   const notifications: unknown[] = []
 
@@ -380,7 +380,7 @@ test('app-server protocol data source only dispatches realtime notifications sco
       notificationHandlers.push(handler)
       return () => undefined
     },
-  } as unknown as AppServerRpcClient
+  } as unknown as AppServerClient
   const dataSource = createAppServerChatDataSource(client)
   const notifications: unknown[] = []
 
@@ -427,7 +427,7 @@ test('app-server thread-turn-item data source forwards model selection to thread
         },
       }
     },
-  } as unknown as AppServerRpcClient
+  } as unknown as AppServerClient
 
   const dataSource = createAppServerChatDataSource(client)
   await dataSource.startThread({ model: 'gpt-5.4', modelProvider: 'movscript' })
@@ -467,7 +467,7 @@ test('app-server thread-turn-item data source only forwards API-ready image URLs
         },
       }
     },
-  } as unknown as AppServerRpcClient
+  } as unknown as AppServerClient
 
   const dataSource = createAppServerChatDataSource(client)
   await dataSource.startTurn?.({
@@ -580,7 +580,7 @@ test('app-server thread-turn-item data source forwards run profiles to thread an
         },
       }
     },
-  } as unknown as AppServerRpcClient
+  } as unknown as AppServerClient
 
   const dataSource = createAppServerChatDataSource(client)
   await dataSource.startThread({ runProfile: agentRunProfilePresetById('full-access') })
@@ -630,7 +630,7 @@ test('app-server thread-turn-item data source updates active thread permissions 
         },
       }
     },
-  } as unknown as AppServerRpcClient
+  } as unknown as AppServerClient
 
   const dataSource = createAppServerChatDataSource(client)
   const settings = await dataSource.updateThreadSettings?.({
@@ -683,7 +683,7 @@ test('app-server thread-turn-item data source forwards thread controls and goals
       calls.push({ method, params })
       return { goal: { objective: params.objective, status: params.status } }
     },
-  } as unknown as AppServerRpcClient
+  } as unknown as AppServerClient
 
   const dataSource = createAppServerChatDataSource(client, {
     resolveModelForRequest: () => ({ model: 'gpt-5.5' }),
@@ -748,7 +748,7 @@ test('app-server thread-turn-item data source omits collaboration mode when plan
         },
       }
     },
-  } as unknown as AppServerRpcClient
+  } as unknown as AppServerClient
 
   const dataSource = createAppServerChatDataSource(client)
   await dataSource.startTurn?.({
@@ -776,7 +776,7 @@ test('app-server protocol data source forwards the scoped thread cwd', async () 
       calls.push(params)
       return { thread: appServerThread() }
     },
-  } as unknown as AppServerRpcClient
+  } as unknown as AppServerClient
 
   const dataSource = createAppServerChatDataSource(client, {
     defaultThreadCwd: '/workspace/user/7/projects/project_42',
@@ -797,7 +797,7 @@ test('app-server protocol data source injects workspace boundary instructions fo
       calls.push(params)
       return { thread: appServerThread() }
     },
-  } as unknown as AppServerRpcClient
+  } as unknown as AppServerClient
 
   const dataSource = createAppServerChatDataSource(client, {
     defaultThreadCwd: '/workspace/local/projects/project_42',
@@ -820,7 +820,7 @@ test('app-server protocol data source injects global workspace MCP project-id gu
       calls.push(params)
       return { thread: appServerThread() }
     },
-  } as unknown as AppServerRpcClient
+  } as unknown as AppServerClient
 
   const dataSource = createAppServerChatDataSource(client, {
     defaultThreadCwd: '/workspace/local',
@@ -851,7 +851,7 @@ test('app-server thread-turn-item data source exposes global server request subs
         if (index >= 0) handlers.splice(index, 1)
       }
     },
-  } as unknown as AppServerRpcClient
+  } as unknown as AppServerClient
 
   const dataSource = createAppServerChatDataSource(client)
   const seenRequests: unknown[] = []
@@ -957,7 +957,7 @@ test('app-server protocol data source publishes global MCP status to cross-page 
       return () => undefined
     },
     onServerRequest: () => () => undefined,
-  } as unknown as AppServerRpcClient
+  } as unknown as AppServerClient
   const dataSource = createAppServerChatDataSource(client, {
     provider: 'mova',
     label: 'Mova',

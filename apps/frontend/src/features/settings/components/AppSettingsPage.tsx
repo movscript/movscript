@@ -65,14 +65,12 @@ export function AppSettingsPanel({ host = 'page' }: { host?: 'page' | 'dialog' }
   const canOpenAdmin = user?.system_role === 'super_admin'
 
   function chooseLaunchMode(mode: AppSettings['launchMode']) {
-    const currentLocalURL = getLocalAPIBaseURL()
+    const nextAPIBaseURL = mode === 'local'
+      ? settings.localAPIBaseURL ?? getLocalAPIBaseURL()
+      : settings.cloudAPIBaseURL ?? getDefaultAPIBaseURL()
     setLaunchMode(mode)
     setSaved(false)
-    if (mode === 'local') {
-      setAPIBaseURLInput(currentLocalURL)
-    } else if (normalizeAPIBaseURL(apiBaseURL) === currentLocalURL) {
-      setAPIBaseURLInput(getDefaultAPIBaseURL())
-    }
+    setAPIBaseURLInput(nextAPIBaseURL)
   }
 
   function saveSettings() {

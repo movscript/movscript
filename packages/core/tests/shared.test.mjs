@@ -90,6 +90,8 @@ test('core shared app settings normalize URLs, modes, and shot library sources',
     localAPIBaseURL: 'http://localhost:8766',
   }), {
     apiBaseURL: 'http://api.test',
+    cloudAPIBaseURL: 'http://localhost:8765',
+    localAPIBaseURL: 'http://api.test',
     launchMode: 'local',
     workMode: 'agent',
     onboardingCompleted: true,
@@ -100,6 +102,28 @@ test('core shared app settings normalize URLs, modes, and shot library sources',
       { id: 'default', name: 'Movscript', baseURL: 'http://api.test', enabled: true, readOnly: false },
     ],
     defaultShotLibrarySourceId: 'custom',
+  })
+
+  assert.deepEqual(normalizeAppSettings({
+    cloudAPIBaseURL: ' https://cloud.example/api/v1 ',
+    localAPIBaseURL: ' http://localhost:8766 ',
+    launchMode: 'cloud',
+  }, {
+    defaultSettings,
+    localAPIBaseURL: 'http://localhost:8766',
+  }), {
+    apiBaseURL: 'https://cloud.example',
+    cloudAPIBaseURL: 'https://cloud.example',
+    localAPIBaseURL: 'http://localhost:8766',
+    launchMode: 'cloud',
+    workMode: 'project',
+    onboardingCompleted: false,
+    movScriptWorkspaceDir: undefined,
+    localDisplayName: undefined,
+    shotLibrarySources: [
+      { id: 'default', name: 'Movscript', baseURL: 'https://cloud.example', enabled: true, readOnly: false },
+    ],
+    defaultShotLibrarySourceId: 'default',
   })
 })
 

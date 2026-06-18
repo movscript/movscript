@@ -6,6 +6,8 @@ export interface AppSettings {
   launchMode: AppLaunchMode
   workMode: AppWorkMode
   onboardingCompleted: boolean
+  cloudAPIBaseURL?: string
+  localAPIBaseURL?: string
   movScriptWorkspaceDir?: string
   localDisplayName?: string
   shotLibrarySources?: ShotLibrarySourceConfig[]
@@ -43,9 +45,18 @@ export function normalizeAppSettings(
   settings: Partial<AppSettings> | null | undefined,
   options: NormalizeAppSettingsOptions,
 ): AppSettings {
+  const cloudAPIBaseURL = normalizeOptionalAPIBaseURL(settings?.cloudAPIBaseURL)
+    ?? (settings?.launchMode === 'cloud' ? normalizeOptionalAPIBaseURL(settings?.apiBaseURL) : undefined)
+    ?? options.defaultSettings.cloudAPIBaseURL
+    ?? options.defaultSettings.apiBaseURL
+  const localAPIBaseURL = normalizeOptionalAPIBaseURL(settings?.localAPIBaseURL)
+    ?? (settings?.launchMode === 'local' ? normalizeOptionalAPIBaseURL(settings?.apiBaseURL) : undefined)
+    ?? options.localAPIBaseURL
+    ?? options.defaultSettings.localAPIBaseURL
+    ?? options.defaultSettings.apiBaseURL
   const fallbackAPIBaseURL = settings?.launchMode === 'local'
-    ? options.localAPIBaseURL ?? options.defaultSettings.apiBaseURL
-    : options.defaultSettings.apiBaseURL
+    ? localAPIBaseURL
+    : cloudAPIBaseURL
   const apiBaseURL = normalizeAPIBaseURL(settings?.apiBaseURL || fallbackAPIBaseURL)
   const shotLibrarySources = normalizeShotLibrarySources(settings?.shotLibrarySources, apiBaseURL)
   const defaultShotLibrarySourceId = normalizeDefaultShotLibrarySourceId(settings?.defaultShotLibrarySourceId, shotLibrarySources)
@@ -55,12 +66,18 @@ export function normalizeAppSettings(
     launchMode: settings?.launchMode === 'local' ? 'local' : 'cloud',
     workMode: normalizeWorkMode(settings?.workMode, options.defaultSettings.workMode),
     onboardingCompleted: settings?.onboardingCompleted ?? options.defaultSettings.onboardingCompleted,
+    cloudAPIBaseURL,
+    localAPIBaseURL,
     movScriptWorkspaceDir: settings?.movScriptWorkspaceDir?.trim() || undefined,
     localDisplayName: settings?.localDisplayName?.trim() || undefined,
     apiBaseURL,
     shotLibrarySources,
     defaultShotLibrarySourceId,
   }
+}
+
+function normalizeOptionalAPIBaseURL(value: string | undefined): string | undefined {
+  return value?.trim() ? normalizeAPIBaseURL(value) : undefined
 }
 
 function normalizeWorkMode(value: unknown, fallback: AppWorkMode): AppWorkMode {

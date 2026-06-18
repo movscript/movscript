@@ -15,44 +15,57 @@ export interface AppServerRpcTransportOptions {
 
 export async function createAppServerRpcTransport(options: AppServerRpcTransportOptions): Promise<AppServerTransport> {
   const electronApi = readElectronApi()
-  if (electronApi?.appServerConnect
-    && electronApi.appServerSend
-    && electronApi.onAppServerMessage) {
-    return createElectronRelayTransport(electronApi, options)
+  if (electronApi?.appServerHubConnect
+    && electronApi.appServerHubSend
+    && electronApi.onAppServerHubMessage) {
+    return createElectronHubTransport(electronApi, options)
   }
   return createBrowserWebSocketTransport(options)
 }
 
-async function createElectronRelayTransport(
+async function createElectronHubTransport(
   electronApi: NonNullable<ReturnType<typeof readElectronApi>>,
   options: AppServerRpcTransportOptions,
 ): Promise<AppServerTransport> {
-  const connect = electronApi.appServerConnect
-  const send = electronApi.appServerSend
-  const close = electronApi.appServerClose
-  const onMessage = electronApi.onAppServerMessage
-  const { connectionId } = await connect?.({ url: options.url }) ?? {}
-  if (!connectionId) throw new Error(`Failed to open app-server relay: ${options.url}`)
-  debugAppServerRpc('relay:connected', { url: options.url, connectionId }, { trace: false })
+  const connect = electronApi.appServerHubConnect
+  const send = electronApi.appServerHubSend
+  const close = electronApi.appServerHubClose
+  const onMessage = electronApi.onAppServerHubMessage
+  const { connectionId, upstreamKey } = await connect?.({
+    url: options.url,
+    profileId: appServerProfileIdFromURL(options.url),
+  }) ?? {}
+  if (!connectionId) throw new Error(`Failed to open app-server hub: ${options.url}`)
+  debugAppServerRpc('hub:connected', { url: options.url, connectionId, upstreamKey }, { trace: false })
   const unsubscribe = onMessage?.((message) => {
     if (message.connectionId !== connectionId) return
     if (message.kind === 'message') options.onMessage(message.data)
     if (message.kind === 'error') {
-      debugAppServerRpc('relay:error', { url: options.url, connectionId, error: message.error }, { trace: false })
-      options.onRelayError(new Error(message.error || `app-server relay failed: ${options.url}`))
+      debugAppServerRpc('hub:error', { url: options.url, connectionId, error: message.error }, { trace: false })
+      options.onRelayError(new Error(message.error || `app-server hub failed: ${options.url}`))
     }
     if (message.kind === 'close') {
-      debugAppServerRpc('relay:closed', { url: options.url, connectionId }, { trace: false })
-      options.onClosed(new Error(`app-server relay closed: ${options.url}`))
+      debugAppServerRpc('hub:closed', { url: options.url, connectionId }, { trace: false })
+      options.onClosed(new Error(`app-server hub closed: ${options.url}`))
     }
   })
   return {
     send: (payload) => send?.({ connectionId, payload }),
     close: async () => {
       unsubscribe?.()
-      debugAppServerRpc('relay:close-request', { url: options.url, connectionId }, { trace: false })
+      debugAppServerRpc('hub:close-request', { url: options.url, connectionId }, { trace: false })
       await close?.({ connectionId })
     },
+  }
+}
+
+function appServerProfileIdFromURL(url: string): string | undefined {
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol !== 'managed:') return undefined
+    return parsed.pathname.replace(/^\/+/, '') || undefined
+  } catch {
+    return undefined
   }
 }
 

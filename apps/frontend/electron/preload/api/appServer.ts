@@ -1,15 +1,15 @@
 import type { IpcRenderer } from 'electron'
 import type {
   ElectronAPI,
+  ElectronAppServerHubMessage,
   ElectronAppServerLogEvent,
-  ElectronAppServerMessage,
 } from '../../../src/shared/contracts/electronApi'
 
-type AppServerMessageHandler = (message: ElectronAppServerMessage) => void
+type AppServerHubMessageHandler = (message: ElectronAppServerHubMessage) => void
 type AppServerLogHandler = (event: ElectronAppServerLogEvent) => void
 
-export function createAppServerAPI(ipcRenderer: IpcRenderer): Pick<ElectronAPI, 'distributeAppServerConfig' | 'ensureAppServer' | 'getAppServerStatus' | 'stopAppServer' | 'appServerConnect' | 'appServerSend' | 'appServerClose' | 'onAppServerMessage' | 'onAppServerLog'> {
-  const appServerMessages = createMessageSubscription<ElectronAppServerMessage, AppServerMessageHandler>(ipcRenderer, 'app-server:message')
+export function createAppServerAPI(ipcRenderer: IpcRenderer): Pick<ElectronAPI, 'distributeAppServerConfig' | 'ensureAppServer' | 'getAppServerStatus' | 'stopAppServer' | 'appServerHubConnect' | 'appServerHubSend' | 'appServerHubRequest' | 'appServerHubNotify' | 'appServerHubClose' | 'getAppServerHubSnapshot' | 'onAppServerHubMessage' | 'onAppServerLog'> {
+  const appServerHubMessages = createMessageSubscription<ElectronAppServerHubMessage, AppServerHubMessageHandler>(ipcRenderer, 'app-server-hub:message')
   const appServerLogs = createMessageSubscription<ElectronAppServerLogEvent, AppServerLogHandler>(ipcRenderer, 'app-server:log')
 
   return {
@@ -17,10 +17,13 @@ export function createAppServerAPI(ipcRenderer: IpcRenderer): Pick<ElectronAPI, 
     ensureAppServer: (input) => ipcRenderer.invoke('app-server:ensure', input),
     getAppServerStatus: (input) => ipcRenderer.invoke('app-server:status', input),
     stopAppServer: (input) => ipcRenderer.invoke('app-server:stop', input),
-    appServerConnect: (input) => ipcRenderer.invoke('app-server:connect', input),
-    appServerSend: (input) => ipcRenderer.invoke('app-server:send', input),
-    appServerClose: (input) => ipcRenderer.invoke('app-server:close', input),
-    onAppServerMessage: appServerMessages.subscribe,
+    appServerHubConnect: (input) => ipcRenderer.invoke('app-server-hub:connect', input),
+    appServerHubSend: (input) => ipcRenderer.invoke('app-server-hub:send', input),
+    appServerHubRequest: (input) => ipcRenderer.invoke('app-server-hub:request', input),
+    appServerHubNotify: (input) => ipcRenderer.invoke('app-server-hub:notify', input),
+    appServerHubClose: (input) => ipcRenderer.invoke('app-server-hub:close', input),
+    getAppServerHubSnapshot: (input) => ipcRenderer.invoke('app-server-hub:snapshot', input),
+    onAppServerHubMessage: appServerHubMessages.subscribe,
     onAppServerLog: appServerLogs.subscribe,
   }
 }

@@ -4,9 +4,9 @@ import { AgentChatDataSourceShell } from '@/features/agent/components/AgentChatD
 import type { AgentChatDataSourceShellLoadResult } from '@/features/agent/application/agentChatDataSourceShellTypes'
 import { createAppServerChatDataSource } from '@/shared/infrastructure/app-server/appServerChatDataSource'
 import {
-  appServerRpcClientForURL,
+  appServerClientForURL,
   ensureAppServer,
-  ensureAppServerRpcClient,
+  ensureAppServerClient,
 } from '@/shared/infrastructure/app-server/appServerRpcClient'
 import { fetchAgentBackendModels } from '@/features/agent/application/agentModelCatalogApi'
 import { agentModelKeys } from '@/features/agent/application/agentModelQueryKeys'
@@ -79,7 +79,7 @@ function AppServerChatShellContent({
   const providerLabel = provider?.label?.trim() || 'App-server Provider'
   const loadDataSource = useCallback(async (): Promise<AgentChatDataSourceShellLoadResult> => {
     if (provider) await ensureDefaultAgentProviderFromBackend({ provider, ...(textModels.length > 0 ? { models: textModels } : {}) })
-    const client = await ensureAppServerRpcClient(provider)
+    const client = await ensureAppServerClient(provider)
     return appServerDataSourceLoadResult({
       clientURL: client?.url,
       provider,
@@ -183,7 +183,7 @@ function appServerDataSourceLoadResult(input: {
   resolveModelForRequest: () => { model?: string }
   defaultThreadCwd?: string
 }): AgentChatDataSourceShellLoadResult {
-  const client = input.clientURL ? appServerRpcClientForURL(input.clientURL) : undefined
+  const client = input.clientURL ? appServerClientForURL(input.clientURL) : undefined
   return {
     dataSource: client ? createAppServerChatDataSource(client, {
       provider: input.provider?.kind ?? MOVA_PROVIDER_ID,

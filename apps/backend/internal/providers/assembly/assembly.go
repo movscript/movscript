@@ -120,17 +120,13 @@ func BuildExternalResourceProvider(providerKey string, providerConfig map[string
 }
 
 func BuildAIRegistry(ctx context.Context, db *gorm.DB, cfg *config.Config, encryptionKey []byte) (*ai.Registry, error) {
+	_ = ctx
 	if cfg == nil {
 		cfg = &config.Config{}
 	}
 	providerMode := providercontract.AdapterLocal
-	configureLocalDefaults := false
-	if mode, configureDefaults, ok := editionAIRegistryProviderMode(cfg); ok {
+	if mode, ok := editionAIRegistryProviderMode(cfg); ok {
 		providerMode = mode
-		configureLocalDefaults = configureDefaults
-	}
-	if err := ai.ConfigureLocalGatewayDefaults(ctx, db, configureLocalDefaults); err != nil {
-		return nil, err
 	}
 	return ai.NewRegistryWithProviderMode(db, encryptionKey, providerMode), nil
 }

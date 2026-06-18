@@ -9,8 +9,8 @@ import (
 )
 
 func TestCommunityDoesNotOverrideAIRegistryProviderMode(t *testing.T) {
-	mode, configureDefaults, ok := editionAIRegistryProviderMode(&config.Config{AIGatewayProvider: "future"})
-	if ok || mode != "" || configureDefaults {
-		t.Fatalf("editionAIRegistryProviderMode() = mode %q configureDefaults %v ok %v, want empty false false", mode, configureDefaults, ok)
+	mode, ok := editionAIRegistryProviderMode(&config.Config{AIGatewayProvider: "future"})
+	if ok || mode != "" {
+		t.Fatalf("editionAIRegistryProviderMode() = mode %q ok %v, want empty false", mode, ok)
 	}
 }

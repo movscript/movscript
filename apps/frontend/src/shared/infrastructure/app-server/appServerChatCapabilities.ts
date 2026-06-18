@@ -1,13 +1,13 @@
 import type { AgentChatCapabilities, AgentChatNotification, AgentChatProviderKind } from '@movscript/core/agent/chat'
 import type { AppServerJsonRpcNotification } from '@/shared/infrastructure/app-server/appServerProtocol'
-import type { AppServerRpcClient } from '@/shared/infrastructure/app-server/appServerRpcClient'
+import type { AppServerClient } from '@/shared/infrastructure/app-server/appServerClientTypes'
 
 export interface AppServerChatNotificationAdapter {
   notification(notification: AppServerJsonRpcNotification, provider: AgentChatProviderKind): unknown
 }
 
 export function createAppServerChatCapabilities(
-  client: AppServerRpcClient,
+  client: AppServerClient,
   provider: AgentChatProviderKind,
   adapter: AppServerChatNotificationAdapter,
 ): AgentChatCapabilities {

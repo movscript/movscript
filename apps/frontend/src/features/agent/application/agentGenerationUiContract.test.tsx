@@ -373,7 +373,7 @@ test('agent console architecture separates model providers, agents, plugins, and
   assertNotIncludes(zh, 'selectNewConversationAgent')
 
   assertIncludes(modelProvidersSource, "queryFn: () => fetchAgentBackendModels()")
-  assertIncludes(modelProvidersSource, 'title="Provider / new-api"')
+  assertIncludes(modelProvidersSource, '<AgentConsoleHeaderTitle>Provider / Catalog / Route</AgentConsoleHeaderTitle>')
   assertIncludes(modelProvidersSource, 'title="Local Providers"')
   assertIncludes(modelProvidersSource, 'function groupBackendModelProviders')
   assertIncludes(modelProvidersSource, '高级本地覆盖只保存在当前 runtime profile config 中')
@@ -977,7 +977,7 @@ test('agent settings exposes provider model API mode controls', () => {
   assertIncludes(consoleNavSource, '插件和 workspace root 是全局入口')
   assertNotIncludes(consoleNavSource, "label: '模型与能力配置'")
   assertIncludes(consoleSource, 'title="Provider / Catalog / Route"')
-  assertIncludes(consoleSource, '管理 provider/new-api 来源、Catalog Entry 和 Route；高级直连覆盖仅用于临时外部模型服务。')
+  assertIncludes(consoleSource, '管理 provider/new-api 来源，查看 Catalog Entry 和 Route；高级直连覆盖仅用于临时外部模型服务。')
   assertIncludes(consoleSource, 'appServerProvidersForManagement.map((provider) =>')
   assertIncludes(consoleSource, 'title={provider.label}')
   assertIncludes(consoleSource, 'title="Workspace"')

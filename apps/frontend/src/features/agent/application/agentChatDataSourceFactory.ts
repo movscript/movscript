@@ -9,9 +9,9 @@ import {
 } from '@/shared/infrastructure/providerConfigStore'
 import { createAppServerChatDataSource } from '@/shared/infrastructure/app-server/appServerChatDataSource'
 import {
-  appServerRpcClientForURL,
+  appServerClientForURL,
   ensureAppServer,
-  ensureAppServerRpcClient,
+  ensureAppServerClient,
   getAppServerStatus,
 } from '@/shared/infrastructure/app-server/appServerRpcClient'
 import { publicModelId } from '@/shared/domain/modelDisplay'
@@ -37,8 +37,8 @@ export async function createAgentChatDataSourceForProvider(
     ? await ensureScopedAppServer(provider, options.workspaceContext)
     : undefined
   const client = ensured?.client ?? (options.appServerPolicy === 'status-only'
-    ? await currentAppServerRpcClient(provider)
-    : await ensureAppServerRpcClient(provider))
+    ? await currentAppServerClient(provider)
+    : await ensureAppServerClient(provider))
   if (!client) throw new Error(`${provider.label} app-server is not available`)
   return createAppServerChatDataSource(client, {
     provider: provider.kind,
@@ -60,16 +60,16 @@ async function ensureScopedAppServer(provider: ProviderConfig, workspaceContext:
   })
   if (!status?.ok || !status.endpoint) throw new Error(status?.error || `${provider.label} app-server failed to start: ${profile.id}`)
   return {
-    client: appServerRpcClientForURL(status.endpoint),
+    client: appServerClientForURL(status.endpoint),
     providerSessionCwd: status.providerSessionCwd,
   }
 }
 
-async function currentAppServerRpcClient(provider: ProviderConfig) {
+async function currentAppServerClient(provider: ProviderConfig) {
   const profile = resolveAppServerProfile(provider)
   const status = await getAppServerStatus({ profileId: profile.id })
   if (!status?.ok || !status.endpoint) throw new Error(status?.error || `${provider.label} app-server is not running: ${profile.id}`)
-  return appServerRpcClientForURL(status.endpoint)
+  return appServerClientForURL(status.endpoint)
 }
 
 function selectedAgentModel(textModels: Awaited<ReturnType<typeof fetchAgentBackendModels>>): AgentChatModelSelection {

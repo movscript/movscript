@@ -8,13 +8,17 @@ import type {
   ContentSourceWorkspaceSnapshot,
 } from '@movscript/core/content'
 import type {
-  ElectronAppServerCloseInput,
-  ElectronAppServerConnectInput,
-  ElectronAppServerConnection,
   ElectronAppServerEnsureInput,
+  ElectronAppServerHubCloseInput,
+  ElectronAppServerHubConnectInput,
+  ElectronAppServerHubConnection,
+  ElectronAppServerHubMessage,
+  ElectronAppServerHubNotifyInput,
+  ElectronAppServerHubRequestInput,
+  ElectronAppServerHubSendInput,
+  ElectronAppServerHubSnapshot,
+  ElectronAppServerHubSnapshotInput,
   ElectronAppServerLogEvent,
-  ElectronAppServerMessage,
-  ElectronAppServerSendInput,
   ElectronAppServerStatus,
   ElectronAppServerStatusInput,
   ElectronAppServerStopInput,
@@ -136,6 +140,7 @@ export type ElectronAPI = {
   updateMCPContext?: (snapshot: MCPContextUpdate) => Promise<void>
   getMCPStatus?: () => Promise<ElectronMCPServerStatus>
   setAppSettings?: (settings: AppSettings) => Promise<void>
+  getAppSettings?: () => Promise<AppSettings | null>
   getAppSettingsSecrets?: () => Promise<ElectronAppSettingsSecrets>
   getRuntimeConfig?: () => Promise<ElectronRuntimeConfig>
   setGenerationToolsSettings?: (settings: GenerationToolsSettings) => Promise<void>
@@ -167,10 +172,13 @@ export type ElectronAPI = {
   ensureAppServer?: (input: ElectronAppServerEnsureInput) => Promise<ElectronAppServerStatus>
   getAppServerStatus?: (input?: ElectronAppServerStatusInput) => Promise<ElectronAppServerStatus>
   stopAppServer?: (input?: ElectronAppServerStopInput) => Promise<ElectronAppServerStatus>
-  appServerConnect?: (input: ElectronAppServerConnectInput) => Promise<ElectronAppServerConnection>
-  appServerSend?: (input: ElectronAppServerSendInput) => Promise<void>
-  appServerClose?: (input: ElectronAppServerCloseInput) => Promise<void>
-  onAppServerMessage?: (handler: (message: ElectronAppServerMessage) => void) => () => void
+  appServerHubConnect?: (input: ElectronAppServerHubConnectInput) => Promise<ElectronAppServerHubConnection>
+  appServerHubSend?: (input: ElectronAppServerHubSendInput) => Promise<void>
+  appServerHubRequest?: <T = unknown>(input: ElectronAppServerHubRequestInput) => Promise<T>
+  appServerHubNotify?: (input: ElectronAppServerHubNotifyInput) => Promise<void>
+  appServerHubClose?: (input: ElectronAppServerHubCloseInput) => Promise<void>
+  getAppServerHubSnapshot?: (input: ElectronAppServerHubSnapshotInput) => Promise<ElectronAppServerHubSnapshot>
+  onAppServerHubMessage?: (handler: (message: ElectronAppServerHubMessage) => void) => () => void
   onAppServerLog?: (handler: (event: ElectronAppServerLogEvent) => void) => () => void
   createLocalTerminal?: (input: ElectronLocalTerminalCreateInput) => Promise<ElectronLocalTerminalCreateResult>
   writeLocalTerminal?: (input: ElectronLocalTerminalWriteInput) => Promise<void>

@@ -917,7 +917,7 @@ test('agent chat UI owns a provider-neutral protocol and adapts app-server provi
   assert.match(appServerChatCapabilities, /command\/exec/)
   assert.match(appServerDataSource, /appServerThreadTurnItemAdapter/)
   assert.match(appServerDataSource, /appServerThreadTurnItemUserInputFromAgentChat/)
-  assert.match(appServerChatCapabilities, /AppServerRpcClient/)
+  assert.match(appServerChatCapabilities, /AppServerClient/)
   assert.match(appServerThreadTurnItemAdapter, /appServerThreadTurnItemProtocolAdapter/)
   assert.doesNotMatch(appServerThreadTurnItemAdapter, /codexAgentChatProtocolAdapter|agentChatThreadFromCodex/)
   assert.doesNotMatch(appServerDataSource, /codexAgentChatProtocolAdapter|agentChatThreadFromCodex|agentChatTurnFromCodex|codexUserInputFromAgentChat|codexServerRequestResponseFromAgentChat/)
@@ -959,10 +959,13 @@ test('agent chat UI owns a provider-neutral protocol and adapts app-server provi
   assert.match(appServerRpcClientBoundary, /unscopedEnvURL\(env\)/)
   assert.doesNotMatch(appServerRpcClientBoundary, /codexAppServerWsUrl|VITE_CODEX_APP_SERVER_WS_URL|VITE_MOVSCRIPT_CODEX_APP_SERVER_WS_URL|movscript\.codexAppServerWsUrl/)
   assert.match(appServerRpcClientBoundary, /export function appServerURL/)
-  assert.match(appServerRpcClient, /export function appServerRpcClientForURL/)
+  assert.match(appServerRpcClient, /export function appServerClientForURL/)
   assert.match(appServerRpcClient, /export async function ensureAppServerURL/)
-  assert.match(appServerRpcClient, /export async function ensureAppServerRpcClient/)
-  assert.match(appServerRpcClient, /export class AppServerRpcClient/)
+  assert.match(appServerRpcClient, /export async function ensureAppServerClient/)
+  assert.match(appServerRpcClient, /export class AppServerDirectRpcClient/)
+  assert.doesNotMatch(appServerRpcClient, new RegExp(['app', 'Server', 'Rpc', 'Client', 'For', 'URL'].join('')))
+  assert.doesNotMatch(appServerRpcClient, new RegExp(['ensure', 'App', 'Server', 'Rpc', 'Client'].join('')))
+  assert.doesNotMatch(appServerRpcClient, new RegExp(['App', 'Server', 'Rpc', 'Client'].join('')))
   assert.doesNotMatch(appServerRpcClient, new RegExp([
     ['ensure', 'Codex', 'App', 'Server'].join(''),
     ['Codex', 'App', 'Server', 'Rpc', 'Client'].join(''),
@@ -1072,6 +1075,8 @@ test('agent chat UI owns a provider-neutral protocol and adapts app-server provi
   assert.match(dataSourceFactory, /messageAdapter: provider\.messageAdapter/)
   assert.match(appServerShell, /messageAdapter: input\.provider\?\.messageAdapter/)
   assert.match(dataSourceFactory, /@\/shared\/infrastructure\/app-server\/appServerChatDataSource/)
+  assert.match(dataSourceFactory, /ensureAppServerClient/)
+  assert.match(dataSourceFactory, /appServerClientForURL/)
   assert.match(dataSourceFactory, /@\/shared\/infrastructure\/app-server\/appServerRpcClient/)
   assert.match(appServerDataSource, /messageAdapter\?: AppServerChatMessageAdapterKind/)
   assert.match(appServerDataSource, /function appServerMessageAdapter/)
@@ -1084,12 +1089,13 @@ test('agent chat UI owns a provider-neutral protocol and adapts app-server provi
   assert.doesNotMatch(runProfilePreset, /@\/shared\/infrastructure\/app-server\/appServerProtocol/)
   assert.match(appServerProtocol, /app-server\/app-server-protocol\/v2/)
   assert.doesNotMatch(runProfilePreset, new RegExp(`${['codex', 'app-server'].join('-')}\\/app-server-protocol`))
-  assert.match(appServerRpcClient, /AppServerRpcClient/)
+  assert.match(appServerRpcClient, /AppServerDirectRpcClient/)
+  assert.doesNotMatch(appServerRpcClient, new RegExp(['App', 'Server', 'Rpc', 'Client'].join('')))
   assert.match(appServerRpcClientBoundary, /resolveDefaultProvider/)
   assert.match(appServerRpcClientBoundary, /useProviderConfigStore/)
   assert.doesNotMatch(appServerRpcClient, /resolveDefaultAgentProvider|useAgentProviderConfigStore|AgentProviderConfig/)
   assert.doesNotMatch(appServerRpcClient, new RegExp([
-    `${['Codex', 'App', 'Server', 'Rpc', 'Client'].join('')} as AppServerRpcClient`,
+    `${['Codex', 'App', 'Server', 'Rpc', 'Client'].join('')} as ${['App', 'Server', 'Rpc', 'Client'].join('')}`,
     `${['ensure', 'Codex', 'App', 'Server', 'URL'].join('')} as ensureAppServerURL`,
   ].join('|')))
   assert.doesNotMatch(dataSourceFactory, new RegExp(`@\\/shared\\/infrastructure\\/${['codex', 'app-server'].join('-')}\\/codexAgentChatDataSource`))
