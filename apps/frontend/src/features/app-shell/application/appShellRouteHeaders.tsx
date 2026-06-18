@@ -1,8 +1,14 @@
 import { useEffect, type ReactNode } from 'react'
-import { AudioLines, Bot, BriefcaseBusiness, Cable, CircleUserRound, Clapperboard, GitBranch, HardDrive, Image as ImageIcon, Plug, Scissors, Settings, Video, Workflow, Zap, type LucideIcon } from 'lucide-react'
+import { AudioLines, BriefcaseBusiness, CircleUserRound, Clapperboard, GitBranch, HardDrive, Image as ImageIcon, Plug, Scissors, Settings, Video, Workflow, Zap, type LucideIcon } from 'lucide-react'
 import { runtimeNavItems } from '@runtime'
 import { ROUTES } from '@/routes/projectRoutes'
 import type { AccountSettingsPageTab } from '@/features/app-shell/components/AccountSettingsDialog'
+import {
+  agentConsoleEnvironmentLinks,
+  agentConsoleSectionForTab,
+  agentConsoleTabFromLocation,
+  isAgentConsoleTab,
+} from '@/features/agent/application/agentConsoleRouteModel'
 import i18n from '@/i18n'
 import { readBrowserStorageItem, writeBrowserStorageItem } from '@/shared/infrastructure/browserStorage'
 
@@ -35,6 +41,8 @@ export function toolRouteHeaderTitle(pathname: string): ReactNode | undefined {
     { match: (value) => value === ROUTES.externalResources, icon: ImageIcon, title: i18n.t('header.titles.externalResources', { defaultValue: '外部资源' }) },
     { match: (value) => value === ROUTES.shotLibrary, icon: Clapperboard, title: i18n.t('header.titles.shotLibrary') },
     { match: (value) => value === ROUTES.jobs, icon: BriefcaseBusiness, title: i18n.t('header.titles.jobs') },
+    { match: (value) => value === ROUTES.plugins, icon: Plug, title: i18n.t('sidebar.items.plugins') },
+    { match: (value) => value === ROUTES.workspaceConfig || value === ROUTES.workspaceReview, icon: HardDrive, title: 'Workspace' },
     { match: (value) => value === ROUTES.tools.refImageGen, icon: ImageIcon, title: i18n.t('sidebar.items.refImageGen') },
     { match: (value) => value === ROUTES.tools.refVideoGen, icon: Video, title: i18n.t('sidebar.items.refVideoGen') },
     { match: (value) => value === ROUTES.tools.audioGen, icon: AudioLines, title: i18n.t('sidebar.items.audioGen') },
@@ -62,14 +70,13 @@ function routeHeaderTitleFrom(
 export function accountSettingsTabForLocation(pathname: string, search: string): AccountSettingsPageTab | undefined {
   if (pathname === ROUTES.user) return 'profile'
   if (pathname === ROUTES.orgSettings) return 'workspace'
-  if (pathname === ROUTES.agentConsole) return 'console'
-  if (pathname === ROUTES.agentSettings || /^\/agents\/[^/]+\/?$/.test(pathname)) return 'console:agents'
+  if (pathname === ROUTES.plugins) return 'environment:plugins'
+  if (pathname === ROUTES.workspaceConfig || pathname === ROUTES.workspaceReview) return 'environment:workspace'
+  const consoleTab = agentConsoleTabFromLocation(pathname, search)
+  if (consoleTab) return consoleTab
   if (pathname !== ROUTES.appSettings) return undefined
 
   const runtimeTab = new URLSearchParams(search).get('tab')
-  if (runtimeTab?.startsWith('console')) {
-    return runtimeTab as AccountSettingsPageTab
-  }
   if (runtimeTab?.startsWith('runtime:')) {
     return `runtime:${runtimeTab.slice('runtime:'.length)}` as AccountSettingsPageTab
   }
@@ -94,12 +101,15 @@ export function useRememberSettingsReturnPath(pathname: string, search: string) 
 export function accountSettingsRouteHeaderTitle(tab: AccountSettingsPageTab): ReactNode {
   if (tab === 'profile') return <AppRouteHeaderTitle icon={CircleUserRound} title={i18n.t('user.title')} />
   if (tab === 'workspace') return <AppRouteHeaderTitle icon={BriefcaseBusiness} title={i18n.t('sidebar.items.workspace')} />
-  if (tab === 'console') return <AppRouteHeaderTitle icon={Bot} title={i18n.t('sidebar.items.agentConsole')} />
-  if (tab === 'console:model-providers') return <AppRouteHeaderTitle icon={Settings} title="Provider / Catalog / Route" />
-  if (tab === 'console:agents') return <AppRouteHeaderTitle icon={Bot} title="Agents" />
-  if (tab === 'console:connections') return <AppRouteHeaderTitle icon={Cable} title="Connections" />
-  if (tab === 'console:plugins') return <AppRouteHeaderTitle icon={Plug} title="Plugins" />
-  if (tab === 'console:workspace') return <AppRouteHeaderTitle icon={HardDrive} title="Workspace" />
+  if (isAgentConsoleTab(tab)) {
+    const section = agentConsoleSectionForTab(tab)
+    return <AppRouteHeaderTitle icon={section.icon} title={tab === 'console' ? i18n.t('sidebar.items.agentConsole') : section.label} />
+  }
+  if (tab.startsWith('environment:')) {
+    const id = tab.slice('environment:'.length)
+    const environmentLink = agentConsoleEnvironmentLinks.find((link) => link.id === id)
+    if (environmentLink) return <AppRouteHeaderTitle icon={environmentLink.icon} title={environmentLink.label} />
+  }
   if (tab.startsWith('runtime:')) {
     const path = tab.slice('runtime:'.length)
     const runtimeItem = runtimeNavItems.find((item) => item.to === path)

@@ -67,8 +67,8 @@ export function useAgentControlCenter() {
   const defaultProvider = providerSettings.providers.find((provider) => provider.id === providerSettings.defaultProviderId)
   const appServerProvider = useMemo(() => {
     if (providerSupportsAppServerRuntime(defaultProvider)) return defaultProvider
-    return enabledProvidersForConsole.find((provider) => providerSupportsAppServerRuntime(provider))
-  }, [defaultProvider, enabledProvidersForConsole])
+    return undefined
+  }, [defaultProvider])
   const appServerProfile = useMemo(() => appServerProvider ? resolveAppServerProfile(appServerProvider) : undefined, [appServerProvider])
   const appServerStatusQuery = useQuery({
     queryKey: agentConsoleKeys.controlAppServerStatus(appServerProvider?.id ?? 'none', appServerProfile?.id ?? 'none'),

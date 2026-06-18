@@ -59,28 +59,15 @@ test('release workflow verifies readiness before packaging and smoke-tests runna
   assert.match(releaseWorkflow, /pnpm run release -- smoke-desktop-package --platform=\$\{\{\s*matrix\.package-platform\s*\}\} --arch=\$\{\{\s*matrix\.package-arch\s*\}\}/)
 })
 
-test('release workflow checks out and builds pinned private app-server dependencies', () => {
-  assert.match(releaseWorkflow, /^\s+app-server-deps:\s*$/m)
-  assert.match(releaseWorkflow, /name:\s+Build app-server deps \$\{\{\s*matrix\.name\s*\}\}/)
-  assert.match(releaseWorkflow, /uses:\s+actions\/create-github-app-token@v1/)
-  assert.match(releaseWorkflow, /app-id:\s+\$\{\{\s*vars\.MOVSCRIPT_DEPS_APP_ID \|\| secrets\.MOVSCRIPT_DEPS_APP_ID\s*\}\}/)
-  assert.match(releaseWorkflow, /repository:\s+\$\{\{\s*steps\.binary-deps\.outputs\.mova_repository\s*\}\}/)
-  assert.match(releaseWorkflow, /repository:\s+\$\{\{\s*steps\.binary-deps\.outputs\.codex_repository\s*\}\}/)
-  assert.match(releaseWorkflow, /uses:\s+actions\/cache@v4/)
-  assert.match(releaseWorkflow, /deps\/mova\/codex-rs\/target/)
-  assert.match(releaseWorkflow, /deps\/codex\/codex-rs\/target/)
-  assert.match(releaseWorkflow, /steps\.binary-deps\.outputs\.mova_ref/)
-  assert.match(releaseWorkflow, /steps\.binary-deps\.outputs\.codex_ref/)
-  assert.match(releaseWorkflow, /sudo dpkg --add-architecture arm64/)
-  assert.match(releaseWorkflow, /sudo apt-get install -y gcc-aarch64-linux-gnu pkg-config libssl-dev:arm64/)
-  assert.match(releaseWorkflow, /pnpm run release -- build-app-server-deps --platform=\$\{\{\s*matrix\.package-platform\s*\}\} --arch=\$\{\{\s*matrix\.package-arch\s*\}\}/)
-  assert.match(releaseWorkflow, /name:\s+app-server-deps-\$\{\{\s*matrix\.package-platform\s*\}\}-\$\{\{\s*matrix\.package-arch\s*\}\}/)
-  assert.match(releaseWorkflow, /path:\s+release-binary-deps\/\$\{\{\s*matrix\.package-platform\s*\}\}-\$\{\{\s*matrix\.package-arch\s*\}\}\//)
-})
-
-test('release workflow packages desktop from reusable app-server dependency artifacts', () => {
-  assert.match(releaseWorkflow, /needs:\s+\[app-server-deps]/)
-  assert.match(releaseWorkflow, /uses:\s+actions\/download-artifact@v4[\s\S]*name:\s+app-server-deps-\$\{\{\s*matrix\.package-platform\s*\}\}-\$\{\{\s*matrix\.package-arch\s*\}\}[\s\S]*path:\s+release-binary-deps\/\$\{\{\s*matrix\.package-platform\s*\}\}-\$\{\{\s*matrix\.package-arch\s*\}\}/)
+test('release workflow does not build or download app-server binaries for GitHub packages', () => {
+  assert.doesNotMatch(releaseWorkflow, /^\s+app-server-deps:\s*$/m)
+  assert.doesNotMatch(releaseWorkflow, /Build app-server deps/)
+  assert.doesNotMatch(releaseWorkflow, /create-github-app-token@v1/)
+  assert.doesNotMatch(releaseWorkflow, /build-app-server-deps/)
+  assert.doesNotMatch(releaseWorkflow, /app-server-deps-\$\{\{\s*matrix\.package-platform/)
+  assert.doesNotMatch(releaseWorkflow, /release-binary-deps\/\$\{\{\s*matrix\.package-platform/)
+  assert.doesNotMatch(releaseWorkflow, /needs:\s+\[app-server-deps]/)
+  assert.doesNotMatch(releaseWorkflow, /Download app-server dependency artifacts/)
 })
 
 test('release workflow does not package Windows ARM64 without a vetted ffmpeg-static source', () => {

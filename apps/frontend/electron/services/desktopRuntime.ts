@@ -145,8 +145,18 @@ function materializeWorkspaceMovScriptServer(input: {
   if (shouldCopyBinary(source, runtimePaths.movscriptServerPath)) {
     copyFileSync(source, runtimePaths.movscriptServerPath)
   }
-  if ((input.platform ?? process.platform) !== 'win32') chmodSync(runtimePaths.movscriptServerPath, 0o755)
+  const platform = input.platform ?? process.platform
+  if (platform !== 'win32') chmodSync(runtimePaths.movscriptServerPath, 0o755)
+  sanitizeMaterializedExecutable(runtimePaths.movscriptServerPath, platform)
   return runtimePaths.movscriptServerPath
+}
+
+function sanitizeMaterializedExecutable(path: string, platform: NodeJS.Platform): void {
+  if (platform !== 'darwin') return
+  for (const attribute of ['com.apple.quarantine', 'com.apple.provenance']) {
+    spawnSync('xattr', ['-d', attribute, path], { stdio: 'ignore' })
+  }
+  spawnSync('codesign', ['--force', '--sign', '-', path], { stdio: 'ignore' })
 }
 
 function movScriptServerSourceCandidates(input: {

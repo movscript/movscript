@@ -68,8 +68,8 @@ export const DEFAULT_MOVA_MOVSCRIPT_HOME_PROFILE: AppServerProfile = {
 }
 
 export const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
-  defaultProviderId: MOVA_PROVIDER_ID,
-  newConversationProviderId: undefined,
+  defaultProviderId: CODEX_PROVIDER_ID,
+  newConversationProviderId: CODEX_PROVIDER_ID,
   providers: [
     {
       id: MOVA_PROVIDER_ID,
@@ -93,9 +93,9 @@ export const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
       label: 'MovScript Codex',
       enabled: true,
       runtime: {
-        id: 'codex-app-server',
-        api: 'app-server',
-        label: 'Codex app-server',
+        id: 'codex-codex-sdk',
+        api: 'codex-sdk',
+        label: 'Codex SDK',
         packageName: '@openai/codex',
         sdkPackageName: '@openai/codex-sdk',
         apiEnvVar: CODEX_RUNTIME_API_ENV,

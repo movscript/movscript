@@ -50,16 +50,20 @@ import type { AgentControlIssue } from '@/features/agent/application/agentContro
 import {
   providerRuntimeApiOptions,
   providerRuntimeProfile,
+  providerSupportsAppServerRuntime,
   providerWithRuntimeApi,
+  resolveAppServerProfile,
   type ProviderConfig,
   type ProviderRuntimeApi,
   type ProviderSettings,
 } from '@/shared/infrastructure/providerConfigStore'
+import { providerRuntimeApiContract } from '@/shared/infrastructure/providerRuntimeApiCatalog'
 
 type ConsoleIssueTone = AgentConsoleIssueTone
 type ConsoleIssue = AgentControlIssue
 
 export function AgentControlMatrixPanel({
+  appServerAvailable,
   appServerLabel,
   appServerConfigRoute,
   appServerEnabled,
@@ -74,6 +78,7 @@ export function AgentControlMatrixPanel({
   onStopAppServer,
   onRestartAppServer,
 }: {
+  appServerAvailable: boolean
   appServerLabel: string
   appServerConfigRoute: string
   appServerEnabled: boolean
@@ -104,18 +109,21 @@ export function AgentControlMatrixPanel({
     >
       <AgentConsoleIntroRow>
         <AgentConsoleDescription>
-          这里只管理 app-server runtime 的生命周期：启动、停止和刷新运行状态。SDK runtime 不需要 app-server 账号投影，能力状态会在 Provider 探针里通过 runtime/probe 检查。
+          这里只管理 app-server runtime 的生命周期：启动、停止和刷新运行状态。SDK runtime 按需加载，不需要在这里启动进程，能力状态会在 Provider 探针里通过 runtime/probe 检查。
         </AgentConsoleDescription>
         <AgentConsoleToolbar>
-          <AgentConsoleStatusBadge intent={appServerRunning ? 'success' : 'warning'} emphasis="soft">
-            {appServerRunning ? '1 个运行中' : '未启动'}
+          <AgentConsoleStatusBadge intent={!appServerAvailable ? 'neutral' : appServerRunning ? 'success' : 'warning'} emphasis="soft">
+            {!appServerAvailable ? '当前无 app-server runtime' : appServerRunning ? '1 个运行中' : '未启动'}
           </AgentConsoleStatusBadge>
         </AgentConsoleToolbar>
       </AgentConsoleIntroRow>
 
       {error ? <AgentConsoleInlineError>{error}</AgentConsoleInlineError> : null}
 
-      <AgentConsoleGrid columns="single">
+      {!appServerAvailable ? (
+        <AgentConsoleEmptyText>当前启用的 provider 使用 SDK runtime 或其他非 app-server runtime，无需启动 app-server。请在 Provider Runtime 面板检查 SDK 包和 runtime/probe 状态。</AgentConsoleEmptyText>
+      ) : (
+        <AgentConsoleGrid columns="single">
         <AgentConsoleLocalToolCard invalid={Boolean(error) || !appServerEnabled}>
           <AgentConsoleLocalToolHeader>
             <AgentConsoleLocalToolCopy>
@@ -158,6 +166,7 @@ export function AgentControlMatrixPanel({
           </AgentConsoleLocalToolActions>
         </AgentConsoleLocalToolCard>
       </AgentConsoleGrid>
+      )}
     </ConsolePanel>
   )
 }
@@ -202,20 +211,28 @@ export function ProviderRuntimeSwitchPanel({
             const runtime = providerRuntimeProfile(provider)
             const options = providerRuntimeApiOptions(provider)
             const canSwitch = options.length > 1
+            const contract = providerRuntimeApiContract(runtime.api)
+            const appServerRuntime = providerSupportsAppServerRuntime(provider)
             return (
               <AgentConsoleLocalToolCard key={provider.id}>
                 <AgentConsoleLocalToolHeader>
                   <AgentConsoleLocalToolCopy>
                     <AgentConsoleLocalToolTitle>{provider.label}</AgentConsoleLocalToolTitle>
-                    <AgentConsoleLocalToolDetail>{provider.kind} / {runtime.packageVersion ?? runtime.sdkPackageName ?? runtime.packageName ?? runtime.api}</AgentConsoleLocalToolDetail>
+                    <AgentConsoleLocalToolDetail>{provider.kind} / {runtimeTransportLabel(contract?.transport)} / {runtimePackageDetail(provider)}</AgentConsoleLocalToolDetail>
                   </AgentConsoleLocalToolCopy>
                   <AgentConsoleLocalToolControls>
-                    <AgentConsoleStatusBadge intent={runtime.api === 'app-server' ? 'warning' : 'success'} emphasis="soft">
+                    <AgentConsoleStatusBadge intent={appServerRuntime ? 'warning' : 'success'} emphasis="soft">
                       {runtime.api}
+                    </AgentConsoleStatusBadge>
+                    <AgentConsoleStatusBadge intent={contract?.adapterStatus === 'available' ? 'success' : 'warning'} emphasis="soft">
+                      {contract?.adapterStatus === 'available' ? 'adapter ready' : 'adapter pending'}
                     </AgentConsoleStatusBadge>
                   </AgentConsoleLocalToolControls>
                 </AgentConsoleLocalToolHeader>
                 <AgentConsoleLocalToolFields>
+                  <AgentConsoleCallout compact>
+                    {runtimeHomeDetail(provider)}
+                  </AgentConsoleCallout>
                   {canSwitch ? (
                     <AgentConsoleSelectField
                       label="Runtime"
@@ -239,6 +256,32 @@ export function ProviderRuntimeSwitchPanel({
       )}
     </ConsolePanel>
   )
+}
+
+function runtimeTransportLabel(transport?: string): string {
+  if (transport === 'sdk-client') return 'SDK client'
+  if (transport === 'app-server-json-rpc') return 'app-server JSON-RPC'
+  return 'custom transport'
+}
+
+function runtimePackageDetail(provider: ProviderConfig): string {
+  const runtime = providerRuntimeProfile(provider)
+  return runtime.packageVersion
+    ?? runtime.sdkPackageName
+    ?? runtime.packageName
+    ?? runtime.binaryPackageName
+    ?? (providerSupportsAppServerRuntime(provider) ? resolveAppServerProfile(provider).id : runtime.api)
+}
+
+function runtimeHomeDetail(provider: ProviderConfig): string {
+  const runtime = providerRuntimeProfile(provider)
+  if (providerSupportsAppServerRuntime(provider)) {
+    const profile = resolveAppServerProfile(provider)
+    return `app-server runtime：启动进程使用 profile=${profile.id}，home=${profile.home}，账号投影由 app-server 配置分发负责。`
+  }
+  if (runtime.api === 'codex-sdk') return 'SDK runtime：按需加载 @openai/codex-sdk，运行时注入 CODEX_HOME=<workspace>/.codex，并继承后台 baseURL / API Key 配置。'
+  if (runtime.api === 'claude-sdk') return 'SDK runtime：按需加载 @anthropic-ai/claude-agent-sdk，运行时注入 CLAUDE_CONFIG_DIR=<workspace>/.claude，并通过 env 继承后台 baseURL / API Key 配置。'
+  return `自定义 runtime：${runtime.label}。`
 }
 
 export function ConsolePanel({ title, icon, action, children }: { title: string; icon: ReactNode; action?: ReactNode; children: ReactNode }) {

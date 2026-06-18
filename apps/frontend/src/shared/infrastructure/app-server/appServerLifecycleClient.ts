@@ -2,7 +2,7 @@ import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
 import {
   resolveAppServerProfile,
   resolveDefaultProvider,
-  usesAppServerProtocol,
+  providerSupportsAppServerRuntime,
   useProviderConfigStore,
   type ProviderConfig,
 } from '@/shared/infrastructure/providerConfigStore'
@@ -28,7 +28,7 @@ export async function resolveAppServerEndpoint(provider?: ProviderConfig): Promi
   const explicitURL = appServerURL(activeProvider)
   const electronApi = readElectronApi()
   const ensureAppServer = electronApi?.ensureAppServer
-  if (ensureAppServer && activeProvider && usesAppServerProtocol(activeProvider)) {
+  if (ensureAppServer && providerSupportsAppServerRuntime(activeProvider)) {
     const profile = resolveAppServerProfile(activeProvider)
     const status = await ensureAppServer({
       profile,

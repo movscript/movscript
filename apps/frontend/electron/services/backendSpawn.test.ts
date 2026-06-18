@@ -10,6 +10,7 @@ test('backend spawn env defaults to local dependency providers', () => {
   })
 
   assert.equal(env.MOVSCRIPT_DEPENDENCY_PROFILE, 'local')
+  assert.equal(env.GIN_MODE, 'release')
   assert.equal(env.DB_DRIVER, 'sqlite')
   assert.equal(env.STORAGE_BACKEND, 'filesystem')
   assert.equal(env.CACHE_BACKEND, 'memory')
@@ -21,6 +22,18 @@ test('backend spawn env defaults to local dependency providers', () => {
   assert.equal(env.MOVSCRIPT_GITEA_ADMIN_USERNAME, '')
   assert.equal(env.MOVSCRIPT_GITEA_ADMIN_PASSWORD, '')
   assert.equal(Object.keys(env).some((key) => key.includes('ADMIN_DIR')), false)
+})
+
+test('backend spawn env preserves explicit gin mode', () => {
+  const env = buildBackendSpawnEnv({
+    dataDir: '/tmp/data',
+    localSecret: 'secret',
+    inheritedEnv: {
+      GIN_MODE: 'debug',
+    },
+  })
+
+  assert.equal(env.GIN_MODE, 'debug')
 })
 
 test('backend spawn env can select external dependency providers', () => {

@@ -130,17 +130,16 @@ test('prepareDesktopPackage runs prerequisite build steps after ffmpeg validatio
   })
 
   assert.equal(exitCode, 0)
-  assert.equal(calls.length, 5)
-  assert.deepEqual(calls[0], ['Stage app-server binaries', 'node', ['scripts/release/stage-app-server-binaries.mjs', '--platform=darwin', '--arch=arm64'], { cwd: root }])
-  assert.deepEqual(calls[1], ['Build workspace packages', 'pnpm', ['--filter', './packages/*', 'build'], { cwd: root }])
-  assert.deepEqual(calls[2], ['Build admin app', 'pnpm', ['--filter', '@movscript/admin', 'build'], { cwd: root }])
-  assert.equal(calls[3][0], 'Build backend binary')
-  assert.equal(calls[3][1], 'pnpm')
-  assert.deepEqual(calls[3][2], ['--filter', '@movscript/backend', 'build'])
-  assert.equal(calls[3][3].cwd, root)
-  assert.equal(calls[3][3].env.GOOS, 'darwin')
-  assert.equal(calls[3][3].env.GOARCH, 'arm64')
-  assert.deepEqual(calls[4], ['Copy admin assets into backend bundle', 'node', ['apps/backend/scripts/build.mjs', 'copy-admin-assets'], { cwd: root }])
+  assert.equal(calls.length, 4)
+  assert.deepEqual(calls[0], ['Build workspace packages', 'pnpm', ['--filter', './packages/*', 'build'], { cwd: root }])
+  assert.deepEqual(calls[1], ['Build admin app', 'pnpm', ['--filter', '@movscript/admin', 'build'], { cwd: root }])
+  assert.equal(calls[2][0], 'Build backend binary')
+  assert.equal(calls[2][1], 'pnpm')
+  assert.deepEqual(calls[2][2], ['--filter', '@movscript/backend', 'build'])
+  assert.equal(calls[2][3].cwd, root)
+  assert.equal(calls[2][3].env.GOOS, 'darwin')
+  assert.equal(calls[2][3].env.GOARCH, 'arm64')
+  assert.deepEqual(calls[3], ['Copy admin assets into backend bundle', 'node', ['apps/backend/scripts/build.mjs', 'copy-admin-assets'], { cwd: root }])
 })
 
 test('prepareDesktopPackage skips ffmpeg run checks for cross-architecture targets', () => {
@@ -163,7 +162,7 @@ test('prepareDesktopPackage skips ffmpeg run checks for cross-architecture targe
     exit: () => {},
   })
 
-  assert.equal(stepCalls.length, 5)
+  assert.equal(stepCalls.length, 4)
   assert.deepEqual(verifyCalls[0][4], { arch: 'arm64', runCheck: false })
 })
 

@@ -297,11 +297,11 @@ test('route layout registry declares agent and workspace split panes', () => {
   assertWorkspacePanes('/workspace/config', [
     WORKSPACE_CONFIG_FILE_TREE_PANE_ID,
     WORKSPACE_CONFIG_EDITOR_PANE_ID,
-  ])
+  ], 'settings')
   assertWorkspacePanes('/workspace/review', [
     WORKSPACE_REVIEW_SUMMARY_PANE_ID,
     WORKSPACE_REVIEW_RAW_PANE_ID,
-  ])
+  ], 'settings')
 })
 
 test('route layout registry has one exported spec per registered route id', () => {
@@ -373,9 +373,10 @@ function projectEntryRoute(pathname: string) {
   }
 }
 
-function assertWorkspacePanes(pathname: string, paneIds: string[]) {
+function assertWorkspacePanes(pathname: string, paneIds: string[], expectedSurface: 'tool' | 'settings' = 'tool') {
   const spec = routeLayoutSpecForPathname(pathname)
-  assert.equal(spec.surface, 'tool')
+  assert.equal(spec.surface, expectedSurface)
+  if (expectedSurface === 'settings') assert.equal(spec.chrome, 'settings')
   assert.equal(spec.scrollMode, 'workspace')
   assert.equal(appRouteViewportScrollForMode(spec.scrollMode), 'owned')
   for (const paneId of paneIds) {

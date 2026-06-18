@@ -31,6 +31,7 @@ import {
   useProviderConfigStore,
 } from '@/shared/infrastructure/providerConfigStore'
 import { ROUTES } from '@/routes/projectRoutes'
+import { isAgentConsoleTab } from '@/features/agent/application/agentConsoleRouteModel'
 import {
   AgentConnectionsPage,
   AgentModeCanvasListPage,
@@ -177,8 +178,8 @@ function AgentModeRoute({ children }: { children: ReactNode }) {
 function AccountSettingsRoute({ tab = 'settings' }: { tab?: AccountSettingsPageTab }) {
   const { search } = useLocation()
   const runtimeTab = new URLSearchParams(search).get('tab')
-  const activeTab: AccountSettingsPageTab = runtimeTab?.startsWith('console')
-    ? runtimeTab as AccountSettingsPageTab
+  const activeTab: AccountSettingsPageTab = isAgentConsoleTab(runtimeTab)
+    ? runtimeTab
     : runtimeTab?.startsWith('runtime:')
     ? (`runtime:${runtimeTab.slice('runtime:'.length)}` as AccountSettingsPageTab)
     : tab

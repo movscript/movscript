@@ -57,7 +57,6 @@ import {
 } from '@/features/agent/components/AgentPageWorkspaceUi'
 import { AppFeedbackText } from '@movscript/ui/business/app'
 import { Button } from '@movscript/ui/primitives'
-import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
 import { requireWorkspaceFilesAPI, requireWorkspaceRootAPI } from '@/features/agent/application/movScriptWorkspaceElectron'
 import { movScriptWorkspaceKeys } from '@/features/agent/application/movScriptWorkspaceQueryKeys'
 import { invalidateMovScriptWorkspaceMutationResult, workspaceFileChangedResult, workspaceFilesChangedResult } from '@/features/agent/application/movScriptWorkspaceMutationInvalidation'
@@ -222,8 +221,6 @@ export default function MovScriptWorkspaceFilesPage() {
           </AgentConsoleHeaderActions>
         </AgentConsoleHeader>
       </AgentPageShellHeader>
-
-      <AgentConsoleNav compact />
 
       <AgentWorkspacesPageBody>
         <AgentWorkspacesPageSidebar data-testid="movscript-workspace-files-sidebar">

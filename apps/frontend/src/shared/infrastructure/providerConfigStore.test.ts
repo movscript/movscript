@@ -59,13 +59,16 @@ test('provider defaults expose Codex as one optional MovScript-managed app-serve
   assert.deepEqual(resolveAppServerProfile(codexProvider), DEFAULT_CODEX_MOVSCRIPT_HOME_PROFILE)
 })
 
-test('default settings expose Mova as a separate app-server protocol provider', () => {
+test('default settings use Codex SDK while still exposing Mova as an app-server provider', () => {
   const settings = normalizeProviderSettings(DEFAULT_PROVIDER_SETTINGS)
   const movaProvider = settings.providers.find((provider) => provider.id === MOVA_PROVIDER_ID)
+  const codexProvider = settings.providers.find((provider) => provider.id === CODEX_PROVIDER_ID)
 
-  assert.equal(settings.defaultProviderId, MOVA_PROVIDER_ID)
+  assert.equal(settings.defaultProviderId, CODEX_PROVIDER_ID)
+  assert.equal(settings.newConversationProviderId, CODEX_PROVIDER_ID)
   assert.equal(settings.providers[0]?.id, MOVA_PROVIDER_ID)
   assert.deepEqual(settings.providers.map((provider) => provider.kind).sort(), ['claude', 'codex', 'mova'])
+  assert.equal(providerRuntimeApi(codexProvider!), 'codex-sdk')
   assert.equal(movaProvider?.kind, 'mova')
   assert.ok(movaProvider?.appServerProfile)
   assert.equal(hasOwn(movaProvider, ['codex', 'Profile'].join('')), false)
@@ -76,18 +79,19 @@ test('default settings expose Mova as a separate app-server protocol provider', 
   assert.deepEqual(resolveAppServerProfile(movaProvider), DEFAULT_MOVA_MOVSCRIPT_HOME_PROFILE)
 })
 
-test('new conversations use the default app-server provider unless explicitly selected', () => {
+test('new conversations use the default SDK provider unless explicitly selected', () => {
   const settings = normalizeProviderSettings({
     ...DEFAULT_PROVIDER_SETTINGS,
-    defaultProviderId: MOVA_PROVIDER_ID,
-  })
-  const explicitCodex = normalizeProviderSettings({
-    ...settings,
+    defaultProviderId: CODEX_PROVIDER_ID,
     newConversationProviderId: CODEX_PROVIDER_ID,
   })
+  const explicitMova = normalizeProviderSettings({
+    ...settings,
+    newConversationProviderId: MOVA_PROVIDER_ID,
+  })
 
-  assert.equal(resolveNewConversationProvider(settings).id, MOVA_PROVIDER_ID)
-  assert.equal(resolveNewConversationProvider(explicitCodex).id, CODEX_PROVIDER_ID)
+  assert.equal(resolveNewConversationProvider(settings).id, CODEX_PROVIDER_ID)
+  assert.equal(resolveNewConversationProvider(explicitMova).id, MOVA_PROVIDER_ID)
 })
 
 test('startup environment can default SDK dev launches to Codex without locking runtime selection', () => {
@@ -119,7 +123,38 @@ test('startup environment can default SDK dev launches to Codex without locking 
   assert.equal(providerRuntimeProfile(refreshedCodex).apiSource, 'user')
 })
 
-test('default provider resolution falls back to Mova rather than provider array order', () => {
+test('legacy persisted Mova defaults migrate to Codex SDK unless the user selected app-server runtime', () => {
+  const migrated = normalizeProviderSettings({
+    defaultProviderId: MOVA_PROVIDER_ID,
+    providers: [{
+      id: CODEX_PROVIDER_ID,
+      kind: 'codex',
+      enabled: true,
+      runtime: { api: 'app-server' },
+    }],
+  })
+  const migratedCodex = migrated.providers.find((provider) => provider.id === CODEX_PROVIDER_ID)
+
+  assert.equal(migrated.defaultProviderId, CODEX_PROVIDER_ID)
+  assert.equal(migrated.newConversationProviderId, CODEX_PROVIDER_ID)
+  assert.equal(providerRuntimeApi(migratedCodex), 'codex-sdk')
+
+  const preserved = normalizeProviderSettings({
+    defaultProviderId: MOVA_PROVIDER_ID,
+    providers: [{
+      id: CODEX_PROVIDER_ID,
+      kind: 'codex',
+      enabled: true,
+      runtime: { api: 'app-server', apiSource: 'user' },
+    }],
+  })
+  const preservedCodex = preserved.providers.find((provider) => provider.id === CODEX_PROVIDER_ID)
+
+  assert.equal(preserved.defaultProviderId, MOVA_PROVIDER_ID)
+  assert.equal(providerRuntimeApi(preservedCodex), 'app-server')
+})
+
+test('default provider resolution falls back to Codex rather than provider array order', () => {
   const settings = normalizeProviderSettings({
     providers: [
       { id: CODEX_PROVIDER_ID, kind: 'codex', enabled: false },
@@ -127,8 +162,8 @@ test('default provider resolution falls back to Mova rather than provider array 
     ],
   })
 
-  assert.equal(settings.defaultProviderId, MOVA_PROVIDER_ID)
-  assert.equal(resolveDefaultProvider(settings).id, MOVA_PROVIDER_ID)
+  assert.equal(settings.defaultProviderId, CODEX_PROVIDER_ID)
+  assert.equal(resolveDefaultProvider(settings).id, CODEX_PROVIDER_ID)
 })
 
 test('normalizes future Claude providers without binding them to the app-server protocol', () => {
@@ -169,9 +204,9 @@ test('default provider runtime profiles keep SDK package metadata out of app-ser
   assert.ok(codexProvider)
   assert.ok(claudeProvider)
   assert.deepEqual(providerRuntimeProfile(codexProvider), {
-    id: 'codex-app-server',
-    api: 'app-server',
-    label: 'Codex app-server',
+    id: 'codex-codex-sdk',
+    api: 'codex-sdk',
+    label: 'Codex SDK',
     packageName: '@openai/codex',
     sdkPackageName: '@openai/codex-sdk',
     apiEnvVar: CODEX_RUNTIME_API_ENV,
@@ -402,8 +437,8 @@ test('thread refs include provider and profile identity to prevent cross-provide
   })
 
   assert.equal(ref.providerKind, 'codex')
-  assert.equal(ref.providerInstanceId, CODEX_MOVSCRIPT_HOME_PROFILE_ID)
-  assert.equal(providerThreadRefKey(ref), 'codex:codex:codex-movscript-home:/workspace/project:thread_1')
+  assert.equal(ref.providerInstanceId, 'codex-codex-sdk')
+  assert.equal(providerThreadRefKey(ref), 'codex:codex:codex-codex-sdk:/workspace/project:thread_1')
 })
 
 test('default Codex profile can resolve a workspace debug app-server before PATH fallback', () => {

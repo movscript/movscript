@@ -261,7 +261,6 @@ export function prepareDesktopPackage(root = repoRoot, options = {}) {
     GOARCH: goarchForDesktopArch(arch),
   }
   const targetSteps = [
-    ['Stage app-server binaries', 'node', ['scripts/release/stage-app-server-binaries.mjs', `--platform=${platform}`, `--arch=${arch}`]],
     ...prepareDesktopSteps.slice(0, 2),
     ['Build backend binary', pnpmCommand, ['--filter', '@movscript/backend', 'build'], { env: buildEnv }],
     ...prepareDesktopSteps.slice(2),

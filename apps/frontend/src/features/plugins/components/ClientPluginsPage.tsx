@@ -70,7 +70,6 @@ import {
   ProviderPluginCard,
 } from '@/features/plugins/components/ClientPluginsPageViews'
 import { Button } from '@movscript/ui/primitives'
-import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
 
 type Tab = 'installed' | 'marketplace'
 
@@ -225,8 +224,6 @@ export default function ClientPluginsPage() {
           </AgentConsoleHeaderActions>
         </AgentConsoleHeader>
       </AgentPageShellHeader>
-
-      <AgentConsoleNav compact />
 
       <PluginPageShellBody>
         {fileError && (

@@ -635,6 +635,47 @@ test('app-server ensure sends neutral provider home through neutral Electron API
   assert.equal(ensuredProfile?.providerKey, 'mova')
 })
 
+test('app-server endpoint resolver does not start app-server for SDK runtime providers', async () => {
+  const provider: ProviderConfig = {
+    id: 'codex',
+    kind: 'codex',
+    protocol: 'app-server',
+    messageAdapter: 'thread-turn-item',
+    label: 'Codex',
+    enabled: true,
+    runtime: {
+      id: 'codex-codex-sdk',
+      api: 'codex-sdk',
+      label: 'Codex SDK',
+    },
+    appServerProfile: {
+      id: 'codex-movscript-home',
+      label: 'Codex',
+      providerKey: 'codex',
+      home: '.codex',
+      lifecycle: 'movscript-owned',
+    },
+  }
+  let ensureCalled = false
+  await withFakeWindow('', new Map(), async () => {
+    const endpoint = await ensureAppServerURL(provider)
+    assert.equal(endpoint, undefined)
+  }, {
+    ensureAppServer: async () => {
+      ensureCalled = true
+      return {
+        ok: true,
+        running: true,
+        managed: true,
+        profileId: 'codex-movscript-home',
+        endpoint: 'managed:///codex-movscript-home',
+      }
+    },
+  })
+
+  assert.equal(ensureCalled, false)
+})
+
 test('app-server rpc client prefers Electron app-server hub when available', async () => {
   const sentPayloads: string[] = []
   const hubMessageHandlers: Array<(message: { connectionId: string, kind: string, data?: string }) => void> = []

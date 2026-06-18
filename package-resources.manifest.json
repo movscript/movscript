@@ -24,27 +24,6 @@
       ]
     },
     {
-      "id": "app-server",
-      "category": "managed-binary",
-      "from": "vendor/app-server",
-      "to": "app-server",
-      "filter": [
-        "**/app-server",
-        "**/app-server.exe"
-      ],
-      "source": "staged-build-artifact",
-      "required": true,
-      "owner": "app-server-runtime",
-      "license": "LicenseRef-provider-runtime",
-      "updatePolicy": "bundled-with-app",
-      "platforms": ["darwin", "linux", "win32"],
-      "arches": ["x64", "arm64"],
-      "verification": [
-        "stage-app-server-binaries",
-        "verifyBundledDesktopAppServers"
-      ]
-    },
-    {
       "id": "backend",
       "category": "managed-binary",
       "from": "../backend/bin",
@@ -88,25 +67,6 @@
         "download-ffmpeg-static",
         "verifyDesktopFFmpeg",
         "verifyBundledDesktopFFmpeg"
-      ]
-    },
-    {
-      "id": "sdk-runtimes",
-      "category": "agent-sdk-runtime",
-      "from": "vendor/sdk-runtimes",
-      "to": "sdk-runtimes",
-      "filter": [
-        "**/*"
-      ],
-      "source": "prepared-npm-artifact",
-      "required": true,
-      "owner": "agent-runtime",
-      "license": "LicenseRef-sdk-runtime-dependencies",
-      "updatePolicy": "bundled-with-app",
-      "verification": [
-        "prepare-sdk-runtime-seed",
-        "electron-builder extraResources parity",
-        "verifyDesktopPackage requiredPaths"
       ]
     },
     {
@@ -168,6 +128,25 @@
       "verification": [
         "pnpm --filter @movscript/admin build",
         "copy-admin-assets",
+        "verifyDesktopPackage requiredPaths"
+      ]
+    },
+    {
+      "id": "sdk-runtimes",
+      "category": "managed-agent",
+      "from": "vendor/sdk-runtimes",
+      "to": "sdk-runtimes",
+      "filter": [
+        "**/*"
+      ],
+      "source": "staged-build-artifact",
+      "required": true,
+      "owner": "agent-runtime",
+      "license": "LicenseRef-sdk-runtime-dependencies",
+      "updatePolicy": "bundled-with-app",
+      "verification": [
+        "prepare-sdk-runtime-seed",
+        "electron-builder extraResources parity",
         "verifyDesktopPackage requiredPaths"
       ]
     }

@@ -39,6 +39,26 @@
   padding: var(--ms-space-3) var(--ms-space-2);
 }
 
+.account-settings-page__nav-group {
+  display: grid;
+  gap: 2px;
+}
+
+.account-settings-page__nav-group + .account-settings-page__nav-group {
+  margin-top: var(--ms-space-3);
+  padding-top: var(--ms-space-3);
+  border-top: 1px solid color-mix(in srgb, var(--ms-color-border) 72%, transparent);
+}
+
+.account-settings-page__nav-group-title {
+  padding: 0 12px var(--ms-space-1);
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-tiny);
+  font-weight: 600;
+  line-height: var(--ms-leading-tiny);
+  text-transform: uppercase;
+}
+
 .account-settings-page__nav-button {
   display: flex;
   height: auto;

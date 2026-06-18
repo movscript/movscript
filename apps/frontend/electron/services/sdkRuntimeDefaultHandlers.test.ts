@@ -146,6 +146,9 @@ test('Codex SDK runtime handler injects backend service base URL and API key', a
   const options = constructed[0] as { baseUrl?: string; apiKey?: string; env?: Record<string, string | undefined> }
   assert.equal(options.baseUrl, 'http://127.0.0.1:8766/v1')
   assert.equal(options.apiKey, 'mv1.backend-session-token')
+  assert.equal(options.env?.OPENAI_API_KEY, 'mv1.backend-session-token')
+  assert.equal(options.env?.OPENAI_BASE_URL, 'http://127.0.0.1:8766/v1')
+  assert.equal(options.env?.OPENAI_API_BASE_URL, 'http://127.0.0.1:8766/v1')
   assert.equal(options.env?.CODEX_HOME, join(workspaceDir, '.codex'))
 })
 

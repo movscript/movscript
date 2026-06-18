@@ -16,12 +16,12 @@ test('package resource manifest matches electron-builder contract', () => {
   assert.deepEqual(manifest.packageFiles, ['out/**', 'package.json'])
   assert.deepEqual(manifest.resources.map((resource) => resource.id), [
     'app-icon',
-    'app-server',
     'backend',
     'ffmpeg',
     'movcli',
     'provider-plugin',
     'renderer-admin',
+    'sdk-runtimes',
   ])
 })
 

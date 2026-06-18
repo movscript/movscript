@@ -41,7 +41,6 @@ import {
   AgentWorkspacesPageBody,
   AgentWorkspacesPageFullMain
 } from '@/features/agent/components/AgentPageWorkspaceUi'
-import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
 import { requireWorkspaceFileReadAPI } from '@/features/agent/application/movScriptWorkspaceElectron'
 import { movScriptWorkspaceKeys } from '@/features/agent/application/movScriptWorkspaceQueryKeys'
 import type { ElectronMovScriptWorkspaceFileReadResult } from '@/shared/contracts/electronApi'
@@ -110,8 +109,6 @@ export default function MovScriptWorkspaceReviewPage() {
           </AgentConsoleHeaderActions>
         </AgentConsoleHeader>
       </AgentPageShellHeader>
-
-      <AgentConsoleNav compact />
 
       <AgentWorkspacesPageBody>
         {!reviewPath ? (

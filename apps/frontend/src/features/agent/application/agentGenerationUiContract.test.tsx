@@ -256,8 +256,13 @@ test('agent console architecture separates model providers, agents, plugins, and
   const appRoutingSource = [
     appSource,
     readFileSync(resolve('src/features/app-shell/application/AppRouterConfig.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/app-shell/application/appShellRouteHeaders.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/app-shell/components/AccountSettingsDialog.tsx'), 'utf8'),
   ].join('\n')
-  const navSource = readFileSync(resolve('src/features/agent/components/AgentConsoleNav.tsx'), 'utf8')
+  const navSource = [
+    readFileSync(resolve('src/features/agent/components/AgentConsoleNav.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/application/agentConsoleRouteModel.ts'), 'utf8'),
+  ].join('\n')
   const consoleSource = [
     readFileSync(resolve('src/features/agent/components/AgentConsolePage.tsx'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/AgentConsolePageSections.tsx'), 'utf8'),
@@ -318,7 +323,12 @@ test('agent console architecture separates model providers, agents, plugins, and
   assertIncludes(appRoutingSource, '<Route path={ROUTES.plugins} element={<ClientPluginsPage />} />')
   assertIncludes(routeLayoutRegistrySource, "routeId: 'plugins'")
   assertIncludes(routeLayoutRegistrySource, 'pathnamePattern: ROUTES.plugins')
-  assertIncludes(routeLayoutRegistrySource, '...TOOL_DOCUMENT_ROUTE')
+  assertIncludes(routeLayoutRegistrySource, '...AGENT_SETTINGS_DOCUMENT_ROUTE')
+  assertIncludes(routeLayoutRegistrySource, "routeId: 'workspace.config'")
+  assertIncludes(routeLayoutRegistrySource, '...SETTINGS_WORKSPACE_ROUTE')
+  assertIncludes(routeLayoutRegistrySource, 'panes: [...SETTINGS_WORKSPACE_ROUTE.panes, ...WORKSPACE_CONFIG_PANES]')
+  assertIncludes(appRoutingSource, "if (pathname === ROUTES.plugins) return 'environment:plugins'")
+  assertIncludes(appRoutingSource, "if (pathname === ROUTES.workspaceConfig || pathname === ROUTES.workspaceReview) return 'environment:workspace'")
   assertNotIncludes(appRoutingSource, `ROUTES.${['legacy', 'Agent', 'Plugins'].join('')}`)
   assertIncludes(appRoutingSource, '<Route path={ROUTES.modelProviders} element={<ModelProvidersPage />} />')
   assertNotIncludes(appRoutingSource, '<Route path={ROUTES.agentsMovscript} element={<AgentsPage />} />')
@@ -333,10 +343,15 @@ test('agent console architecture separates model providers, agents, plugins, and
   assertIncludes(navSource, "label: 'Overview'")
   assertIncludes(navSource, "label: 'Provider / Catalog / Route'")
   assertIncludes(navSource, "label: 'Agents'")
-  assertIncludes(navSource, "label: 'Plugins'")
-  assertIncludes(navSource, "label: 'Workspace'")
-  assertIncludes(navSource, "match: [ROUTES.workspaceConfig, ROUTES.workspaceReview]")
-  assertIncludes(consoleSource, 'title="App Server"')
+  assertNotIncludes(navSource, "tab: 'console:plugins'")
+  assertNotIncludes(navSource, "tab: 'console:workspace'")
+  assertIncludes(navSource, 'export const agentConsoleEnvironmentLinks')
+  assertIncludes(navSource, "id: 'plugins'")
+  assertIncludes(navSource, "id: 'workspace'")
+  assertIncludes(appRoutingSource, 'AccountSettingsSidebarGroup label="全局环境"')
+  assertIncludes(appRoutingSource, 'environmentTabs = agentConsoleEnvironmentLinks.map')
+  assertIncludes(appRoutingSource, "key: `environment:${link.id}`")
+  assertIncludes(consoleSource, 'title="Runtime"')
   assertIncludes(consoleSource, 'Runtime ThreadRef 索引记录')
   assertIncludes(consoleSource, 'title="Model Runtime"')
   assertIncludes(consoleSource, 'Runtime Endpoint')
@@ -351,7 +366,7 @@ test('agent console architecture separates model providers, agents, plugins, and
   assertNotIncludes(readFileSync(resolve('../../packages/ui/src/components/business/index.ts'), 'utf8'), 'AgentConversationListPanel')
   assertIncludes(pluginsPageSource, '<AgentPageShell data-testid="client-plugins-page">')
   assertIncludes(pluginsPageSource, '<AgentConsoleHeader>')
-  assertIncludes(pluginsPageSource, '<AgentConsoleNav compact />')
+  assertNotIncludes(pluginsPageSource, '<AgentConsoleNav compact />')
   assertIncludes(pluginsPageSource, '<PluginPageShellBody>')
   assertNotIncludes(pluginsPageSource, 'className="plugin-page-layout"')
   assertNotIncludes(pluginsPageSource, '<PluginPageLayout>')
@@ -468,7 +483,10 @@ test('agent console architecture separates model providers, agents, plugins, and
   assertIncludes(consoleSource, 'providerWithRuntimeApi(item, api)')
   assertIncludes(consoleSource, '配置当前 Agent')
   assertIncludes(consoleSource, '这里只管理 app-server runtime 的生命周期')
-  assertIncludes(consoleSource, 'SDK runtime 不需要 app-server 账号投影')
+  assertIncludes(consoleSource, 'SDK runtime 按需加载，不需要在这里启动进程')
+  assertIncludes(consoleSource, 'runtimeTransportLabel(contract?.transport)')
+  assertIncludes(consoleSource, 'CODEX_HOME=<workspace>/.codex')
+  assertIncludes(consoleSource, 'CLAUDE_CONFIG_DIR=<workspace>/.claude')
   assertNotIncludes(consoleSource, '控制台是 Agent 生命周期入口')
   assertNotIncludes(consoleSource, '刷新 Agent 状态')
   assertNotIncludes(controlCenterSource, ['await window.api.', 'stop', 'Agent', 'Runtime', '()'].join(''))
@@ -589,7 +607,10 @@ test('agent settings exposes catalog-only model routing controls', () => {
     readFileSync(resolve('src/features/agent/components/AgentConsoleSessionIntegrationPanel.tsx'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/AgentConsoleCapabilityPanels.tsx'), 'utf8'),
   ].join('\n')
-  const consoleNavSource = readFileSync(resolve('src/features/agent/components/AgentConsoleNav.tsx'), 'utf8')
+  const consoleNavSource = [
+    readFileSync(resolve('src/features/agent/components/AgentConsoleNav.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/application/agentConsoleRouteModel.ts'), 'utf8'),
+  ].join('\n')
   const coreSnapshotSource = readFileSync(resolve('../../packages/core/src/agent/settingsSnapshot.ts'), 'utf8')
   const clientSource = readProviderSessionClientContractSource()
   const sendCompletionSource = readFileSync(resolve('src/features/agent/application/agentSendCompletion.ts'), 'utf8')
@@ -948,7 +969,7 @@ test('agent settings exposes catalog-only model routing controls', () => {
   assertIncludes(consoleSource, "agentSettingsSectionPath('agent-settings-skills')")
   assertIncludes(consoleSource, "agentSettingsSectionPath('agent-settings-tools')")
   assertNotIncludes(consoleSource, 'agentSettingsManagementPath')
-  assertIncludes(consoleSource, '聚合 Provider / Catalog / Route、Agents、Plugins 和 Workspace Root 的状态')
+  assertIncludes(consoleSource, '聚合 Agents、Runtime、Provider / Catalog / Route 与会话运行态')
   assertIncludes(consoleSource, 'title="Provider 数据流与能力探针"')
   assertIncludes(consoleSource, "appServerPolicy: providerSupportsAppServerRuntime(provider) ? 'status-only' : 'ensure'")
   assertIncludes(consoleSource, 'runtime/probe')
@@ -959,9 +980,10 @@ test('agent settings exposes catalog-only model routing controls', () => {
   assertIncludes(consoleNavSource, "label: 'Provider / Catalog / Route'")
   assertIncludes(consoleNavSource, "description: '已发布模型来源、Catalog 和 Route'")
   assertIncludes(consoleNavSource, "label: 'Agents'")
-  assertIncludes(consoleNavSource, "label: 'Plugins'")
-  assertIncludes(consoleNavSource, "label: 'Workspace'")
-  assertIncludes(consoleNavSource, '插件和 workspace root 是全局入口')
+  assertNotIncludes(consoleNavSource, "tab: 'console:plugins'")
+  assertNotIncludes(consoleNavSource, "tab: 'console:workspace'")
+  assertIncludes(consoleNavSource, 'Agent Console 只聚焦 Agent、Runtime 和会话运行态')
+  assertIncludes(consoleNavSource, 'Plugins 与 Workspace 已归到全局环境入口')
   assertNotIncludes(consoleNavSource, "label: '模型与能力配置'")
   assertIncludes(consoleSource, 'title="Provider / Catalog / Route"')
   assertIncludes(consoleSource, '查看 Admin 已发布的 Provider 来源、Catalog Entry 和 Route；配置变更在 Admin 完成。')
@@ -969,13 +991,15 @@ test('agent settings exposes catalog-only model routing controls', () => {
   assertNotIncludes(consoleSource, '高级直连覆盖仅用于临时外部模型服务')
   assertIncludes(consoleSource, 'appServerProvidersForManagement.map((provider) =>')
   assertIncludes(consoleSource, 'title={provider.label}')
-  assertIncludes(consoleSource, 'title="Workspace"')
+  assertIncludes(consoleSource, 'title="全局环境"')
+  assertIncludes(consoleSource, 'agentConsoleEnvironmentLinks.map')
+  assertIncludes(consoleNavSource, "id: 'workspace'")
   assertIncludes(consoleSource, 'title="Skills"')
   assertIncludes(consoleSource, '管理当前配置文件的 Skill 激活候选、依赖和冲突。')
   assertNotIncludes(consoleSource, '编辑 Skill instruction，管理当前配置文件启用、依赖、冲突和运行时解释。')
   assertIncludes(consoleSource, 'title="Tools"')
-  assertIncludes(consoleSource, 'title="Plugins"')
-  assertIncludes(consoleSource, '插件是全局扩展入口')
+  assertIncludes(consoleNavSource, "id: 'plugins'")
+  assertIncludes(consoleNavSource, '全局插件、Provider Pack、Skills/Tools 贡献')
   assertNotIncludes(consoleSource, 'title="MovScript 运行记录"')
   assertNotIncludes(consoleSource, 'title="高级诊断"')
   assertIncludes(source, 'id="agent-settings-model"')

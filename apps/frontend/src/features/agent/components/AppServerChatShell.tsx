@@ -11,6 +11,7 @@ import {
 import { fetchAgentBackendModels } from '@/features/agent/application/agentModelCatalogApi'
 import { agentModelKeys } from '@/features/agent/application/agentModelQueryKeys'
 import { ensureDefaultAgentProviderFromBackend } from '@/features/agent/application/defaultAgentProvider'
+import { createAgentChatDataSourceForProvider } from '@/features/agent/application/agentChatDataSourceFactory'
 import { publicModelId } from '@/shared/domain/modelDisplay'
 import { useAgentThreadRegistryHydration } from '@/features/agent/application/useAgentThreadRegistryHydration'
 import { publishAgentChatThreadOpen } from '@/features/agent/application/agentChatThreadBridge'
@@ -19,6 +20,7 @@ import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import {
   providerInstanceId,
   providerProtocol,
+  providerSupportsAppServerRuntime,
   resolveAppServerProfile,
   MOVA_PROVIDER_ID,
   type ProviderConfig,
@@ -78,6 +80,13 @@ function AppServerChatShellContent({
   }), [selectedModel])
   const providerLabel = provider?.label?.trim() || 'App-server Provider'
   const loadDataSource = useCallback(async (): Promise<AgentChatDataSourceShellLoadResult> => {
+    if (provider && !providerSupportsAppServerRuntime(provider)) {
+      return {
+        dataSource: await createAgentChatDataSourceForProvider(provider, {
+          loadTextModels: async () => textModels,
+        }),
+      }
+    }
     if (provider) await ensureDefaultAgentProviderFromBackend({ provider, ...(textModels.length > 0 ? { models: textModels } : {}) })
     const client = await ensureAppServerClient(provider)
     return appServerDataSourceLoadResult({
@@ -89,6 +98,14 @@ function AppServerChatShellContent({
   }, [provider, providerLabel, resolveModelForRequest, textModels])
   const loadDataSourceForNewThread = useCallback(async (input: AgentPanelNewConversationPayload): Promise<AgentChatDataSourceShellLoadResult> => {
     if (!provider || !input.workspaceContext) return loadDataSource()
+    if (!providerSupportsAppServerRuntime(provider)) {
+      return {
+        dataSource: await createAgentChatDataSourceForProvider(provider, {
+          loadTextModels: async () => textModels,
+          workspaceContext: input.workspaceContext,
+        }),
+      }
+    }
     await ensureDefaultAgentProviderFromBackend({ provider, ...(textModels.length > 0 ? { models: textModels } : {}) })
     return loadScopedAppServerDataSource({
       provider,
@@ -132,7 +149,7 @@ function AppServerChatShellContent({
       threadListLabel={`${providerLabel} Threads`}
       emptyThreadListLabel={`No ${providerLabel} threads yet.`}
       emptyThreadLabel={emptyThreadLabel}
-      unavailableLabel={`${providerLabel} app-server URL is not configured.`}
+      unavailableLabel={`${providerLabel} runtime is not available.`}
       composerPlaceholder="随心输入"
       newThreadLabel={`New ${providerLabel} thread`}
       composerWorkspaceContextLocked={composerWorkspaceContextLocked}

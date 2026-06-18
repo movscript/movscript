@@ -299,7 +299,7 @@ const routeLayoutRegistry: RouteLayoutRegistryEntry[] = [
   route({
     routeId: 'plugins',
     pathnamePattern: ROUTES.plugins,
-    ...TOOL_DOCUMENT_ROUTE,
+    ...AGENT_SETTINGS_DOCUMENT_ROUTE,
   }, exact(ROUTES.plugins)),
   route({
     routeId: 'agent.console',
@@ -332,14 +332,14 @@ const routeLayoutRegistry: RouteLayoutRegistryEntry[] = [
   route({
     routeId: 'workspace.config',
     pathnamePattern: ROUTES.workspaceConfig,
-    ...TOOL_WORKSPACE_ROUTE,
-    panes: [...TOOL_WORKSPACE_ROUTE.panes, ...WORKSPACE_CONFIG_PANES],
+    ...SETTINGS_WORKSPACE_ROUTE,
+    panes: [...SETTINGS_WORKSPACE_ROUTE.panes, ...WORKSPACE_CONFIG_PANES],
   }, exact(ROUTES.workspaceConfig)),
   route({
     routeId: 'workspace.review',
     pathnamePattern: ROUTES.workspaceReview,
-    ...TOOL_WORKSPACE_ROUTE,
-    panes: [...TOOL_WORKSPACE_ROUTE.panes, ...WORKSPACE_REVIEW_PANES],
+    ...SETTINGS_WORKSPACE_ROUTE,
+    panes: [...SETTINGS_WORKSPACE_ROUTE.panes, ...WORKSPACE_REVIEW_PANES],
   }, exact(ROUTES.workspaceReview)),
   route({
     routeId: 'agent.settings',

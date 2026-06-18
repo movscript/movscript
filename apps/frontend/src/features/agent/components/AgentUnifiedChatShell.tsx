@@ -8,12 +8,15 @@ import {
   enabledProviders,
   providerInstanceId,
   providerProtocol,
+  providerRuntimeProfile,
+  providerSupportsAppServerRuntime,
+  resolveAppServerProfile,
   resolveNewConversationProvider,
-  usesAppServerProtocol,
   useProviderConfigStore,
   type ProviderConfig,
   type ProviderSettings,
 } from '@/shared/infrastructure/providerConfigStore'
+import { providerRuntimeApiContract } from '@/shared/infrastructure/providerRuntimeApiCatalog'
 import { selectActiveAgentConversationRegistryRecord, type AgentConversationRegistryState } from '@movscript/core/agent'
 import type { Project } from '@/types'
 
@@ -42,7 +45,7 @@ export function AgentUnifiedChatShell(props: AgentUnifiedChatShellProps) {
     [providerSettings, props.userId, registryState],
   )
 
-  if (!usesAppServerProtocol(activeProvider)) return null
+  if (!providerSupportsAgentChatRuntime(activeProvider)) return null
 
   return (
     <AppServerChatShell
@@ -67,13 +70,19 @@ export function resolveAgentChatShellProvider(
 ): ProviderConfig {
   const selectedProvider = resolveNewConversationProvider(settings)
   if (selectActiveProviderConversation(registryState, userId, selectedProvider)) return selectedProvider
-  const appServerProviders = enabledProviders(settings).filter(usesAppServerProtocol)
-  const activeProvider = appServerProviders
+  const agentChatProviders = enabledProviders(settings).filter(providerSupportsAgentChatRuntime)
+  const activeProvider = agentChatProviders
     .find((provider) => selectActiveProviderConversation(registryState, userId, provider))
   if (activeProvider) return activeProvider
-  return usesAppServerProtocol(selectedProvider)
+  return providerSupportsAgentChatRuntime(selectedProvider)
     ? selectedProvider
-    : appServerProviders[0] ?? selectedProvider
+    : agentChatProviders[0] ?? selectedProvider
+}
+
+function providerSupportsAgentChatRuntime(provider: ProviderConfig | undefined): boolean {
+  if (!provider) return false
+  if (providerSupportsAppServerRuntime(provider)) return true
+  return providerRuntimeApiContract(providerRuntimeProfile(provider).api)?.transport === 'sdk-client'
 }
 
 function selectActiveProviderConversation(
@@ -81,11 +90,20 @@ function selectActiveProviderConversation(
   userId: string,
   provider: ProviderConfig,
 ) {
-  return selectActiveAgentConversationRegistryRecord(registryState, {
+  const activeRecord = selectActiveAgentConversationRegistryRecord(registryState, {
     userId,
     provider: provider.kind,
     providerId: provider.id,
     providerInstanceId: providerInstanceId(provider),
     providerProtocol: providerProtocol(provider),
+  })
+  if (activeRecord) return activeRecord
+  if (providerProtocol(provider) !== 'app-server') return undefined
+  return selectActiveAgentConversationRegistryRecord(registryState, {
+    userId,
+    provider: provider.kind,
+    providerId: provider.id,
+    providerInstanceId: resolveAppServerProfile(provider).id,
+    providerProtocol: 'app-server',
   })
 }

@@ -293,12 +293,20 @@ function providerHomeDir(home: string | undefined, workspaceDir: string, fallbac
 }
 
 function codexOptionsFromAccount(account: AgentRuntimeAccountConfig, envOverrides: NodeJS.ProcessEnv): Record<string, unknown> | undefined {
+  const shouldSetBaseURL = account.backendProviderSelected || account.baseURL !== DEFAULT_OPENAI_BASE_URL
   const next: Record<string, unknown> = {
     baseUrl: account.baseURL,
     ...(account.kind === 'apiKey' ? { apiKey: account.apiKey } : {}),
     env: {
       ...process.env,
       ...envOverrides,
+      ...(account.kind === 'apiKey' ? { OPENAI_API_KEY: account.apiKey } : {}),
+      ...(shouldSetBaseURL
+        ? {
+            OPENAI_BASE_URL: account.baseURL,
+            OPENAI_API_BASE_URL: account.baseURL,
+          }
+        : {}),
     },
   }
   return Object.keys(next).length ? next : undefined

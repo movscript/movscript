@@ -19,6 +19,7 @@ export function buildBackendSpawnEnv(input: {
     MOVSCRIPT_DEPENDENCY_PROFILE: dependencyProfile,
     MOVSCRIPT_APP_MODE: inheritedEnv.MOVSCRIPT_APP_MODE || 'local',
     MOVSCRIPT_DATA_DIR: inheritedEnv.MOVSCRIPT_DATA_DIR || input.dataDir,
+    GIN_MODE: inheritedEnv.GIN_MODE || 'release',
     SERVER_PORT: inheritedEnv.SERVER_PORT || LOCAL_BACKEND_PORT,
     DB_DRIVER: inheritedEnv.DB_DRIVER || (externalDependencies ? 'postgres' : 'sqlite'),
     DB_PATH: inheritedEnv.DB_PATH || join(input.dataDir, 'movscript-frontend.db'),

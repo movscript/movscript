@@ -89,14 +89,14 @@ export function buildBackendDefaultAgentProviderConfig<TModel extends AgentBacke
       mode: 'backendKey',
       modelProviderRef: providerRef,
     },
-	    defaultAgentProvider: {
-	      source: 'backend-model',
-	      providerRef,
-	      model: modelId,
-	      providerId,
-	    },
-	  }
-	}
+    defaultAgentProvider: {
+      source: 'backend-model',
+      providerRef,
+      model: modelId,
+      providerId,
+    },
+  }
+}
 
 export function selectDefaultAgentProviderModel<TModel extends AgentBackendPublicModel>(models: TModel[]): TModel | undefined {
   return models.find((model) => model.is_default) ?? models[0]

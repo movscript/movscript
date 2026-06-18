@@ -24,6 +24,9 @@ const agentConsolePages = [
     path: 'src/features/agent/components/AgentConnectionsPage.tsx',
     body: 'AgentThreePanePageBody',
   },
+] as const
+
+const globalEnvironmentPages = [
   {
     label: 'plugins',
     path: 'src/features/plugins/components/ClientPluginsPage.tsx',
@@ -53,16 +56,31 @@ test('agent console pages share the shell header nav body layout contract', () =
   }
 })
 
+test('global environment pages stay outside agent console navigation', () => {
+  for (const page of globalEnvironmentPages) {
+    const source = readFileSync(resolve(page.path), 'utf8')
+
+    assert.match(source, /<AgentPageShell[\s>]/, `${page.label} should keep the shared page shell`)
+    assert.match(source, /<AgentPageShellHeader>/, `${page.label} should keep the shared page header slot`)
+    assert.match(source, new RegExp(`<${page.body}[\\s>]`), `${page.label} should render the expected body primitive`)
+    assert.doesNotMatch(source, /<AgentConsoleNav compact \/>/, `${page.label} should not render agent console nav`)
+  }
+})
+
 test('agent console nav stays inside settings-hosted console tabs', () => {
   const navSource = readFileSync(resolve('src/features/agent/components/AgentConsoleNav.tsx'), 'utf8')
+  const routeModelSource = readFileSync(resolve('src/features/agent/application/agentConsoleRouteModel.ts'), 'utf8')
 
-  assert.match(navSource, /tab: 'console:model-providers'/)
-  assert.match(navSource, /tab: 'console:agents'/)
-  assert.match(navSource, /settingsHostedConsoleTab\(location\.pathname, location\.search\)/)
-  assert.match(navSource, /settingsHostedConsoleRoute\(section\.tab\)/)
-  assert.match(navSource, /\$\{ROUTES\.appSettings\}\?tab=\$\{encodeURIComponent\(tab\)\}/)
-  assert.match(navSource, /pathname === ROUTES\.agentConsole\)[\s\S]*return 'console'/)
-  assert.match(navSource, /settingsConsoleTab === section\.tab/)
+  assert.match(routeModelSource, /tab: 'console:model-providers'/)
+  assert.match(routeModelSource, /tab: 'console:agents'/)
+  assert.doesNotMatch(routeModelSource, /tab: 'console:plugins'/)
+  assert.doesNotMatch(routeModelSource, /tab: 'console:workspace'/)
+  assert.match(routeModelSource, /export const agentConsoleEnvironmentLinks/)
+  assert.match(routeModelSource, /export function agentConsoleSettingsRoute/)
+  assert.match(routeModelSource, /export function agentConsoleTabFromLocation/)
+  assert.match(navSource, /agentConsoleTabFromLocation\(location\.pathname, location\.search\)/)
+  assert.match(navSource, /agentConsoleSettingsRoute\(section\.tab\)/)
+  assert.match(navSource, /activeConsoleTab === section\.tab/)
 })
 
 test('agent console document pages use shared content flow primitives', () => {

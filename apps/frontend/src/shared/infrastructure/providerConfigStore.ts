@@ -218,6 +218,7 @@ function persistedProviderConfigStore(value: unknown): { settings?: PersistedPro
 }
 
 export function normalizeProviderSettings(settings: PersistedProviderSettings | null | undefined): ProviderSettings {
+  settings = migrateLegacyDefaultProviderSettings(settings)
   const inputProviders = Array.isArray(settings?.providers) ? settings.providers : []
   const providersById = new Map<string, ProviderConfig>()
   for (const provider of DEFAULT_PROVIDER_SETTINGS.providers) {
@@ -266,6 +267,29 @@ export function normalizeProviderSettings(settings: PersistedProviderSettings | 
     providers,
     defaultProviderId,
     ...(newConversationProviderId ? { newConversationProviderId } : {}),
+  }
+}
+
+function migrateLegacyDefaultProviderSettings(settings: PersistedProviderSettings | null | undefined): PersistedProviderSettings | null | undefined {
+  if (!settings || settings.defaultProviderId !== MOVA_PROVIDER_ID || settings.newConversationProviderId) return settings
+  const codexProvider = settings.providers?.find((provider) => provider.id === CODEX_PROVIDER_ID || provider.kind === CODEX_PROVIDER_ID)
+  if (codexProvider?.runtime?.apiSource === 'user') return settings
+  return {
+    ...settings,
+    defaultProviderId: CODEX_PROVIDER_ID,
+    newConversationProviderId: CODEX_PROVIDER_ID,
+    providers: settings.providers?.map((provider) => {
+      if (provider.id !== CODEX_PROVIDER_ID && provider.kind !== CODEX_PROVIDER_ID) return provider
+      return {
+        ...provider,
+        runtime: {
+          ...(provider.runtime ?? {}),
+          id: 'codex-codex-sdk',
+          api: 'codex-sdk',
+          label: 'Codex SDK',
+        },
+      }
+    }),
   }
 }
 
@@ -498,7 +522,7 @@ function isSupportedProviderRuntimeApi(api: string, kind: ProviderKind, protocol
 }
 
 function defaultProviderRuntimeApi(kind: ProviderKind, protocol: ProviderProtocol): ProviderRuntimeApi {
-  if (kind === 'codex') return 'app-server'
+  if (kind === 'codex') return 'codex-sdk'
   if (kind === 'claude') return 'claude-sdk'
   if (protocol === 'app-server') return 'app-server'
   return protocol

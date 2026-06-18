@@ -24,24 +24,30 @@ import { openAdminConsole } from '@/shared/infrastructure/adminConsole'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { ROUTES } from '@/routes/projectRoutes'
 import { runtimeNavItems, runtimeRoutes } from '@runtime'
+import {
+  agentConsoleEnvironmentLinks,
+  agentConsoleSettingsRoute,
+  isAgentConsoleTab,
+  type AgentConsoleTab,
+} from '@/features/agent/application/agentConsoleRouteModel'
 import './AccountSettingsDialog.css'
 
 const AgentConsolePage = React.lazy(() => import('@/pages/agent/AgentConsolePage'))
 const ModelProvidersPage = React.lazy(() => import('@/pages/agent/ModelProvidersPage'))
 const AgentsPage = React.lazy(() => import('@/pages/agent/AgentsPage'))
 const AgentConnectionsPage = React.lazy(() => import('@/pages/agent/AgentConnectionsPage'))
-const ClientPluginsPage = React.lazy(() => import('@/pages/plugins/ClientPluginsPage'))
-const MovScriptWorkspaceFilesPage = React.lazy(() => import('@/pages/agent/MovScriptWorkspaceFilesPage'))
 
-type AccountSettingsConsoleTab =
-  | 'console'
-  | 'console:model-providers'
-  | 'console:agents'
-  | 'console:connections'
-  | 'console:plugins'
-  | 'console:workspace'
+type AccountSettingsRuntimeTab = `runtime:${string}`
+type AccountSettingsEnvironmentTab = `environment:${(typeof agentConsoleEnvironmentLinks)[number]['id']}`
 
-export type AccountSettingsPageTab = AccountSettingsDialogTab | AccountSettingsConsoleTab
+export type AccountSettingsPageTab = AccountSettingsDialogTab | AgentConsoleTab | AccountSettingsRuntimeTab | AccountSettingsEnvironmentTab
+
+const agentConsolePanels: Record<AgentConsoleTab, React.LazyExoticComponent<React.ComponentType<unknown>>> = {
+  console: AgentConsolePage,
+  'console:model-providers': ModelProvidersPage,
+  'console:agents': AgentsPage,
+  'console:connections': AgentConnectionsPage,
+}
 
 const baseTabs: Array<{ key: AccountSettingsPageTab; icon: LucideIcon; labelKey: string }> = [
   { key: 'profile', icon: CircleUserRound, labelKey: 'user.title' },
@@ -84,7 +90,12 @@ export function AccountSettingsPageSidebar({
   const runtimeTabs = runtimeNavItems
     .filter((item) => (item.section ?? 'manage') === 'manage')
     .map((item) => ({ key: `runtime:${item.to}` as AccountSettingsPageTab, icon: item.icon, label: item.label }))
-  const tabs = [...baseTabs, ...runtimeTabs]
+  const managementTabs = [...baseTabs, ...runtimeTabs]
+  const environmentTabs = agentConsoleEnvironmentLinks.map((link) => ({
+    key: `environment:${link.id}` as AccountSettingsPageTab,
+    icon: link.icon,
+    label: link.label,
+  }))
 
   function selectTab(tab: AccountSettingsPageTab) {
     navigate(routeForSettingsTab(tab))
@@ -97,25 +108,48 @@ export function AccountSettingsPageSidebar({
       onHide={onHide}
     >
       <AppSidebarNav className="account-settings-page__nav" aria-label={t('appSettings.title')}>
-        {tabs.map((tab) => {
-          const Icon = tab.icon
-          const label = 'labelKey' in tab ? t(tab.labelKey) : tab.label
-          return (
-            <Button
-              key={tab.key}
-              type="button"
-              variant="ghost"
-              size="sm"
-              fullWidth
-              align="start"
-              className="account-settings-page__nav-button"
-              data-active={settingsSidebarTabActive(activeTab, tab.key) ? 'true' : undefined}
-              onClick={() => selectTab(tab.key)}
-            >
-              <AppSidebarNavItemContent icon={Icon} label={label} />
-            </Button>
-          )
-        })}
+        <AccountSettingsSidebarGroup label="Settings">
+          {managementTabs.map((tab) => {
+            const Icon = tab.icon
+            const label = 'labelKey' in tab ? t(tab.labelKey) : tab.label
+            return (
+              <Button
+                key={tab.key}
+                type="button"
+                variant="ghost"
+                size="sm"
+                fullWidth
+                align="start"
+                className="account-settings-page__nav-button"
+                data-active={settingsSidebarTabActive(activeTab, tab.key) ? 'true' : undefined}
+                onClick={() => selectTab(tab.key)}
+              >
+                <AppSidebarNavItemContent icon={Icon} label={label} />
+              </Button>
+            )
+          })}
+        </AccountSettingsSidebarGroup>
+
+        <AccountSettingsSidebarGroup label="全局环境">
+          {environmentTabs.map((tab) => {
+            const Icon = tab.icon
+            return (
+              <Button
+                key={tab.key}
+                type="button"
+                variant="ghost"
+                size="sm"
+                fullWidth
+                align="start"
+                className="account-settings-page__nav-button"
+                data-active={settingsSidebarTabActive(activeTab, tab.key) ? 'true' : undefined}
+                onClick={() => selectTab(tab.key)}
+              >
+                <AppSidebarNavItemContent icon={Icon} label={tab.label} />
+              </Button>
+            )
+          })}
+        </AccountSettingsSidebarGroup>
       </AppSidebarNav>
       {onExitSettings || currentUser?.system_role === 'super_admin' ? (
         <AppSidebarFooter className="account-settings-page__footer">
@@ -138,6 +172,21 @@ export function AccountSettingsPageSidebar({
         </AppSidebarFooter>
       ) : null}
     </AccountSettingsSidebarFrame>
+  )
+}
+
+function AccountSettingsSidebarGroup({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <section className="account-settings-page__nav-group" aria-label={label}>
+      <div className="account-settings-page__nav-group-title">{label}</div>
+      {children}
+    </section>
   )
 }
 
@@ -204,8 +253,11 @@ export function AccountSettingsPageContent({
 export function routeForSettingsTab(tab: AccountSettingsPageTab): string {
   if (tab === 'profile') return ROUTES.user
   if (tab === 'workspace') return ROUTES.orgSettings
-  if (tab === 'console') return ROUTES.agentConsole
-  if (tab.startsWith('console:')) return `${ROUTES.appSettings}?tab=${encodeURIComponent(tab)}`
+  if (isAgentConsoleTab(tab)) return agentConsoleSettingsRoute(tab)
+  if (tab.startsWith('environment:')) {
+    const id = tab.slice('environment:'.length)
+    return agentConsoleEnvironmentLinks.find((link) => link.id === id)?.canonicalPath ?? ROUTES.agentConsole
+  }
   if (tab.startsWith('runtime:')) return `${ROUTES.appSettings}?tab=${encodeURIComponent(tab)}`
   return ROUTES.appSettings
 }
@@ -214,45 +266,11 @@ function AccountSettingsPagePanel({ activeTab }: { activeTab: AccountSettingsPag
   if (activeTab === 'profile') return <UserProfilePanel />
   if (activeTab === 'settings') return <AppSettingsPanel host="dialog" />
   if (activeTab === 'workspace') return <OrgSelectPage />
-  if (activeTab === 'console') {
+  if (isAgentConsoleTab(activeTab)) {
+    const ConsolePanel = agentConsolePanels[activeTab]
     return (
       <Suspense fallback={<div className="account-settings-page__loading">Loading...</div>}>
-        <AgentConsolePage />
-      </Suspense>
-    )
-  }
-  if (activeTab === 'console:model-providers') {
-    return (
-      <Suspense fallback={<div className="account-settings-page__loading">Loading...</div>}>
-        <ModelProvidersPage />
-      </Suspense>
-    )
-  }
-  if (activeTab === 'console:agents') {
-    return (
-      <Suspense fallback={<div className="account-settings-page__loading">Loading...</div>}>
-        <AgentsPage />
-      </Suspense>
-    )
-  }
-  if (activeTab === 'console:connections') {
-    return (
-      <Suspense fallback={<div className="account-settings-page__loading">Loading...</div>}>
-        <AgentConnectionsPage />
-      </Suspense>
-    )
-  }
-  if (activeTab === 'console:plugins') {
-    return (
-      <Suspense fallback={<div className="account-settings-page__loading">Loading...</div>}>
-        <ClientPluginsPage />
-      </Suspense>
-    )
-  }
-  if (activeTab === 'console:workspace') {
-    return (
-      <Suspense fallback={<div className="account-settings-page__loading">Loading...</div>}>
-        <MovScriptWorkspaceFilesPage />
+        <ConsolePanel />
       </Suspense>
     )
   }
