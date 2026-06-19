@@ -108,40 +108,40 @@ export async function getMediaPipelineCapabilities(): Promise<MediaPipelineCapab
 
 export async function saveMediaPipelineEditingProject(
   editingProject: MediaPipelineEditingProject,
-  options: { userDataDir: string; expectedRevision?: number },
+  options: { homeDir: string; expectedRevision?: number },
 ) {
   return writeStoredMediaPipelineEditingProject(editingProject, options)
 }
 
 export async function getMediaPipelineEditingProject(
   input: { projectId?: string; editingProjectId: string },
-  options: { userDataDir: string },
+  options: { homeDir: string },
 ) {
   return readStoredMediaPipelineEditingProject(input, options)
 }
 
 export async function listMediaPipelineEditingProjects(
-  options: { userDataDir: string },
+  options: { homeDir: string },
 ) {
   return readStoredMediaPipelineEditingProjects(options)
 }
 
 export async function deleteMediaPipelineEditingProject(
   input: { projectId?: string; editingProjectId: string },
-  options: { userDataDir: string },
+  options: { homeDir: string },
 ) {
   return deleteStoredMediaPipelineEditingProject(input, options)
 }
 
 export async function createMediaPipelineTask(
   request: MediaPipelineTaskRequest,
-  options: { userDataDir: string },
+  options: { homeDir: string },
 ): Promise<MediaPipelineTaskState> {
   const taskId = makeTaskId(request.taskType)
-  registerMediaPipelineLocalHlsRoot(options.userDataDir)
+  registerMediaPipelineLocalHlsRoot(options.homeDir)
   const now = new Date().toISOString()
   const workspace = await prepareMediaWorkspace({
-    userDataDir: options.userDataDir,
+    homeDir: options.homeDir,
     projectId: request.projectId,
     taskId,
   })
@@ -649,10 +649,10 @@ async function runMediaPipelineReframeTask(input: {
 
 export async function cancelMediaPipelineTask(
   taskId: string,
-  options?: { projectId?: string; userDataDir?: string },
+  options?: { projectId?: string; homeDir?: string },
 ): Promise<MediaPipelineTaskState> {
-  const restored = !getMediaPipelineTask(taskId) && options?.projectId && options.userDataDir
-    ? await readStoredTaskManifestForIdentity({ projectId: options.projectId, taskId }, { userDataDir: options.userDataDir })
+  const restored = !getMediaPipelineTask(taskId) && options?.projectId && options.homeDir
+    ? await readStoredTaskManifestForIdentity({ projectId: options.projectId, taskId }, { homeDir: options.homeDir })
     : undefined
   const state = getMediaPipelineTask(taskId) ?? restored?.state
   if (!state) throw new Error(`Media pipeline task not found: ${taskId}`)

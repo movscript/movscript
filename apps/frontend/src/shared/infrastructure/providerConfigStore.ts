@@ -1,6 +1,8 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware'
 import { getRuntimeConfigSnapshot } from '@/shared/infrastructure/config'
+import { readBrowserStorageItem, removeBrowserStorageItem, writeBrowserStorageItem } from '@/shared/infrastructure/browserStorage'
+import { createDesktopStateStorage } from '@/shared/infrastructure/desktopStateStorage'
 import {
   CLAUDE_PROVIDER_ID,
   CLAUDE_RUNTIME_API_ENV,
@@ -8,6 +10,7 @@ import {
   CLAUDE_RUNTIME_PACKAGE_ENV,
   CLAUDE_RUNTIME_PACKAGE_VERSION_ENV,
   CODEX_PROVIDER_ID,
+  CODEX_RUNTIME_EXECUTABLE_ENV,
   CODEX_RUNTIME_PACKAGE_ENV,
   CODEX_RUNTIME_PACKAGE_VERSION_ENV,
   CODEX_RUNTIME_API_ENV,
@@ -16,6 +19,7 @@ import {
   MOVA_PROVIDER_ID,
   MOVA_RUNTIME_API_ENV,
   MOVA_RUNTIME_BINARY_PACKAGE_ENV,
+  MOVA_RUNTIME_EXECUTABLE_ENV,
   MOVA_RUNTIME_PACKAGE_ENV,
   MOVA_RUNTIME_PACKAGE_VERSION_ENV,
   PROVIDER_CONFIG_STORAGE_KEY,
@@ -27,7 +31,7 @@ export type BuiltInProviderProtocol = 'sdk' | 'claude-code'
 export type ProviderProtocol = BuiltInProviderProtocol | (string & {})
 export type BuiltInProviderMessageAdapterKind = 'thread-turn-item' | 'claude-thread-message'
 export type ProviderMessageAdapterKind = BuiltInProviderMessageAdapterKind | (string & {})
-export type BuiltInProviderRuntimeApi = 'codex-sdk' | 'mova-sdk' | 'claude-sdk'
+export type BuiltInProviderRuntimeApi = 'codex-app-server' | 'mova-app-server' | 'codex-sdk' | 'mova-sdk' | 'claude-sdk'
 export type ProviderRuntimeApi = BuiltInProviderRuntimeApi | (string & {})
 
 export type MovScriptWorkspaceScope = 'global' | 'project' | 'production'
@@ -101,6 +105,7 @@ export {
   CLAUDE_RUNTIME_PACKAGE_ENV,
   CLAUDE_RUNTIME_PACKAGE_VERSION_ENV,
   CODEX_PROVIDER_ID,
+  CODEX_RUNTIME_EXECUTABLE_ENV,
   CODEX_RUNTIME_PACKAGE_ENV,
   CODEX_RUNTIME_PACKAGE_VERSION_ENV,
   CODEX_RUNTIME_API_ENV,
@@ -109,6 +114,7 @@ export {
   MOVA_PROVIDER_ID,
   MOVA_RUNTIME_API_ENV,
   MOVA_RUNTIME_BINARY_PACKAGE_ENV,
+  MOVA_RUNTIME_EXECUTABLE_ENV,
   MOVA_RUNTIME_PACKAGE_ENV,
   MOVA_RUNTIME_PACKAGE_VERSION_ENV,
   PROVIDER_CONFIG_STORAGE_KEY,
@@ -119,6 +125,28 @@ const builtInProviderIds = new Set<string>([
   MOVA_PROVIDER_ID,
   CLAUDE_PROVIDER_ID,
 ])
+
+const memoryProviderConfigStorage: StateStorage = (() => {
+  const values = new Map<string, string>()
+  return {
+    getItem: (name) => values.get(name) ?? null,
+    setItem: (name, value) => {
+      values.set(name, value)
+    },
+    removeItem: (name) => {
+      values.delete(name)
+    },
+  }
+})()
+
+function getProviderConfigStorage(): StateStorage {
+  const fallback: StateStorage = typeof window === 'undefined' ? memoryProviderConfigStorage : {
+    getItem: (name) => readBrowserStorageItem('local', name),
+    setItem: (name, value) => writeBrowserStorageItem('local', name, value),
+    removeItem: (name) => removeBrowserStorageItem('local', name),
+  }
+  return createDesktopStateStorage(PROVIDER_CONFIG_STORAGE_KEY, fallback)
+}
 
 export interface ProviderThreadRef {
   providerId: string
@@ -158,6 +186,7 @@ export const useProviderConfigStore = create<ProviderConfigStore>()(
     }),
     {
       name: PROVIDER_CONFIG_STORAGE_KEY,
+      storage: createJSONStorage(getProviderConfigStorage),
       merge: (persisted, current) => {
         const persistedStore = persistedProviderConfigStore(persisted)
         return {
@@ -234,7 +263,38 @@ export function normalizeProviderSettings(settings: PersistedProviderSettings | 
 }
 
 function migrateLegacyDefaultProviderSettings(settings: PersistedProviderSettings | null | undefined): PersistedProviderSettings | null | undefined {
-  return settings
+  if (!settings?.providers?.length) return settings
+  return {
+    ...settings,
+    providers: settings.providers.map((provider) => {
+      const kind = provider.kind ?? provider.id
+      const apiSource = provider.runtime?.apiSource
+      if ((apiSource === 'user' || apiSource === 'env') || !provider.runtime?.api) return provider
+      if ((provider.id === CODEX_PROVIDER_ID || kind === CODEX_PROVIDER_ID) && provider.runtime.api === 'codex-sdk') {
+        return {
+          ...provider,
+          runtime: {
+            ...provider.runtime,
+            id: 'codex-codex-app-server',
+            api: 'codex-app-server',
+            label: 'Codex app-server',
+          },
+        }
+      }
+      if ((provider.id === MOVA_PROVIDER_ID || kind === MOVA_PROVIDER_ID) && provider.runtime.api === 'mova-sdk') {
+        return {
+          ...provider,
+          runtime: {
+            ...provider.runtime,
+            id: 'mova-mova-app-server',
+            api: 'mova-app-server',
+            label: 'Mova app-server',
+          },
+        }
+      }
+      return provider
+    }),
+  }
 }
 
 export function normalizeProviderSettingsWithRuntimeEnv(settings: PersistedProviderSettings | null | undefined): ProviderSettings {
@@ -284,8 +344,14 @@ export function providerRuntimeApi(provider: ProviderConfig): ProviderRuntimeApi
 }
 
 export function providerRuntimeApiOptions(provider: ProviderConfig): Array<{ api: ProviderRuntimeApi; label: string }> {
-  if (provider.kind === CODEX_PROVIDER_ID) return [{ api: 'codex-sdk', label: providerRuntimeLabel(provider.kind, 'codex-sdk') }]
-  if (provider.kind === MOVA_PROVIDER_ID) return [{ api: 'mova-sdk', label: providerRuntimeLabel(provider.kind, 'mova-sdk') }]
+  if (provider.kind === CODEX_PROVIDER_ID) return [
+    { api: 'codex-app-server', label: providerRuntimeLabel(provider.kind, 'codex-app-server') },
+    { api: 'codex-sdk', label: providerRuntimeLabel(provider.kind, 'codex-sdk') },
+  ]
+  if (provider.kind === MOVA_PROVIDER_ID) return [
+    { api: 'mova-app-server', label: providerRuntimeLabel(provider.kind, 'mova-app-server') },
+    { api: 'mova-sdk', label: providerRuntimeLabel(provider.kind, 'mova-sdk') },
+  ]
   if (provider.kind === CLAUDE_PROVIDER_ID) return [{ api: 'claude-sdk', label: providerRuntimeLabel(provider.kind, 'claude-sdk') }]
   return [{ api: providerRuntimeApi(provider), label: providerRuntimeProfile(provider).label }]
 }
@@ -412,7 +478,7 @@ function normalizeProviderRuntimeProfile(
     ...normalizedRuntimeStringField('binaryPackageName', runtime?.binaryPackageName ?? fallback?.binaryPackageName),
     ...normalizedRuntimeStringField('packageVersion', runtime?.packageVersion ?? fallback?.packageVersion),
     ...normalizedRuntimeStringField('executableCommand', runtime?.executableCommand ?? fallback?.executableCommand),
-    ...normalizedRuntimeEnvField('executableEnvVar', runtime?.executableEnvVar ?? fallback?.executableEnvVar),
+    ...normalizedRuntimeEnvField('executableEnvVar', runtime?.executableEnvVar ?? fallback?.executableEnvVar ?? defaultProviderRuntimeExecutableEnvVar(kind)),
     ...normalizedRuntimeEnvField('apiEnvVar', runtime?.apiEnvVar ?? fallback?.apiEnvVar ?? defaultProviderRuntimeApiEnvVar(kind)),
     ...normalizedRuntimeEnvField('packageNameEnvVar', runtime?.packageNameEnvVar ?? fallback?.packageNameEnvVar ?? defaultProviderRuntimePackageEnvVar(kind)),
     ...normalizedRuntimeEnvField('sdkPackageNameEnvVar', runtime?.sdkPackageNameEnvVar ?? fallback?.sdkPackageNameEnvVar ?? defaultProviderRuntimeSdkPackageEnvVar(kind)),
@@ -440,15 +506,15 @@ function normalizeProviderRuntimeApi(
 }
 
 function isSupportedProviderRuntimeApi(api: string, kind: ProviderKind, protocol: ProviderProtocol): boolean {
-  if (kind === 'codex') return api === 'codex-sdk'
-  if (kind === 'mova') return api === 'mova-sdk'
+  if (kind === 'codex') return api === 'codex-app-server' || api === 'codex-sdk'
+  if (kind === 'mova') return api === 'mova-app-server' || api === 'mova-sdk'
   if (kind === 'claude') return api === 'claude-sdk'
   return Boolean(protocol && api)
 }
 
 function defaultProviderRuntimeApi(kind: ProviderKind, protocol: ProviderProtocol): ProviderRuntimeApi {
-  if (kind === 'codex') return 'codex-sdk'
-  if (kind === 'mova') return 'mova-sdk'
+  if (kind === 'codex') return 'codex-app-server'
+  if (kind === 'mova') return 'mova-app-server'
   if (kind === 'claude') return 'claude-sdk'
   return protocol
 }
@@ -458,6 +524,8 @@ function providerRuntimeId(kind: ProviderKind, api: ProviderRuntimeApi): string 
 }
 
 function providerRuntimeLabel(kind: ProviderKind, api: ProviderRuntimeApi): string {
+  if (api === 'codex-app-server') return 'Codex app-server'
+  if (api === 'mova-app-server') return 'Mova app-server'
   if (api === 'codex-sdk') return 'Codex SDK'
   if (api === 'mova-sdk') return 'Mova SDK'
   if (api === 'claude-sdk') return 'Claude Agent SDK'
@@ -508,8 +576,15 @@ function defaultProviderRuntimeSdkPackageEnvVar(kind: ProviderKind): string | un
 }
 
 function defaultProviderRuntimeBinaryPackageEnvVar(kind: ProviderKind): string | undefined {
+  if (kind === CODEX_PROVIDER_ID) return undefined
   if (kind === MOVA_PROVIDER_ID) return MOVA_RUNTIME_BINARY_PACKAGE_ENV
   if (kind === CLAUDE_PROVIDER_ID) return CLAUDE_RUNTIME_BINARY_PACKAGE_ENV
+  return undefined
+}
+
+function defaultProviderRuntimeExecutableEnvVar(kind: ProviderKind): string | undefined {
+  if (kind === CODEX_PROVIDER_ID) return CODEX_RUNTIME_EXECUTABLE_ENV
+  if (kind === MOVA_PROVIDER_ID) return MOVA_RUNTIME_EXECUTABLE_ENV
   return undefined
 }
 
@@ -526,11 +601,24 @@ function runtimePackageFieldsFromEnv(
   env: Record<string, string | undefined>,
 ): Partial<ProviderRuntimeProfile> {
   return {
+    ...runtimeStringFieldFromEnv('executableCommand', runtimeExecutableEnvNames(provider, runtime), env),
     ...runtimeStringFieldFromEnv('packageName', runtimePackageEnvNames(provider, runtime, 'packageNameEnvVar', 'RUNTIME_PACKAGE'), env),
     ...runtimeStringFieldFromEnv('sdkPackageName', runtimePackageEnvNames(provider, runtime, 'sdkPackageNameEnvVar', 'RUNTIME_SDK_PACKAGE'), env),
     ...runtimeStringFieldFromEnv('binaryPackageName', runtimePackageEnvNames(provider, runtime, 'binaryPackageNameEnvVar', 'RUNTIME_BINARY_PACKAGE'), env),
     ...runtimeStringFieldFromEnv('packageVersion', runtimePackageEnvNames(provider, runtime, 'packageVersionEnvVar', 'RUNTIME_PACKAGE_VERSION'), env),
   }
+}
+
+function runtimeExecutableEnvNames(
+  provider: ProviderConfig,
+  runtime: ProviderRuntimeProfile,
+): string[] {
+  const providerEnvPrefix = provider.kind.toUpperCase().replace(/-/g, '_')
+  return [
+    runtime.executableEnvVar,
+    defaultProviderRuntimeExecutableEnvVar(provider.kind),
+    `MOVSCRIPT_${providerEnvPrefix}_RUNTIME_EXECUTABLE`,
+  ].filter(Boolean) as string[]
 }
 
 function runtimePackageEnvNames(
@@ -546,7 +634,7 @@ function runtimePackageEnvNames(
   ].filter(Boolean) as string[]
 }
 
-function runtimeStringFieldFromEnv<K extends 'packageName' | 'sdkPackageName' | 'binaryPackageName' | 'packageVersion'>(
+function runtimeStringFieldFromEnv<K extends 'executableCommand' | 'packageName' | 'sdkPackageName' | 'binaryPackageName' | 'packageVersion'>(
   key: K,
   names: string[],
   env: Record<string, string | undefined>,

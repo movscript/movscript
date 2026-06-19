@@ -7,6 +7,8 @@ export const PROVIDER_CONFIG_STORAGE_KEY = 'movscript-provider-config'
 export const CODEX_RUNTIME_API_ENV = 'MOVSCRIPT_CODEX_RUNTIME_API'
 export const MOVA_RUNTIME_API_ENV = 'MOVSCRIPT_MOVA_RUNTIME_API'
 export const CLAUDE_RUNTIME_API_ENV = 'MOVSCRIPT_CLAUDE_RUNTIME_API'
+export const CODEX_RUNTIME_EXECUTABLE_ENV = 'MOVSCRIPT_CODEX_APP_SERVER'
+export const MOVA_RUNTIME_EXECUTABLE_ENV = 'MOVSCRIPT_MOVA_APP_SERVER'
 export const CODEX_RUNTIME_PACKAGE_ENV = 'MOVSCRIPT_CODEX_PACKAGE'
 export const CODEX_RUNTIME_SDK_PACKAGE_ENV = 'MOVSCRIPT_CODEX_SDK_PACKAGE'
 export const CODEX_RUNTIME_PACKAGE_VERSION_ENV = 'MOVSCRIPT_CODEX_SDK_PACKAGE_VERSION'
@@ -29,10 +31,11 @@ export const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
       label: 'Mova',
       enabled: true,
       runtime: {
-        id: 'mova-mova-sdk',
-        api: 'mova-sdk',
-        label: 'Mova SDK',
+        id: 'mova-mova-app-server',
+        api: 'mova-app-server',
+        label: 'Mova app-server',
         binaryPackageName: '@movscript/mova',
+        executableEnvVar: MOVA_RUNTIME_EXECUTABLE_ENV,
         apiEnvVar: MOVA_RUNTIME_API_ENV,
         packageNameEnvVar: MOVA_RUNTIME_PACKAGE_ENV,
         binaryPackageNameEnvVar: MOVA_RUNTIME_BINARY_PACKAGE_ENV,
@@ -47,11 +50,13 @@ export const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
       label: 'Codex',
       enabled: true,
       runtime: {
-        id: 'codex-codex-sdk',
-        api: 'codex-sdk',
-        label: 'Codex SDK',
+        id: 'codex-codex-app-server',
+        api: 'codex-app-server',
+        label: 'Codex app-server',
         packageName: '@openai/codex',
         sdkPackageName: '@openai/codex-sdk',
+        binaryPackageName: '@openai/codex',
+        executableEnvVar: CODEX_RUNTIME_EXECUTABLE_ENV,
         apiEnvVar: CODEX_RUNTIME_API_ENV,
         packageNameEnvVar: CODEX_RUNTIME_PACKAGE_ENV,
         sdkPackageNameEnvVar: CODEX_RUNTIME_SDK_PACKAGE_ENV,

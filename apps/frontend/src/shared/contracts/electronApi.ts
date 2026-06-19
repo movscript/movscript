@@ -15,6 +15,11 @@ import type {
   ElectronSdkRuntimeServerRequestEvent,
   ElectronSdkRuntimeServerRequestResponseInput,
   ElectronAdminAuthSessionInput,
+  ElectronAgentSessionStateResult,
+  ElectronAgentSessionStateSaveInput,
+  ElectronDesktopStateInput,
+  ElectronDesktopStateResult,
+  ElectronDesktopStateSaveInput,
   ElectronAppUpdateStatus,
   ElectronAppWindowContext,
   ElectronAppSettingsSecrets,
@@ -134,6 +139,11 @@ export type ElectronAPI = {
   setAppSettings?: (settings: AppSettings) => Promise<void>
   getAppSettings?: () => Promise<AppSettings | null>
   getAppSettingsSecrets?: () => Promise<ElectronAppSettingsSecrets>
+  getAgentSessionState?: (input?: ElectronMovScriptHomeInput) => Promise<ElectronAgentSessionStateResult>
+  setAgentSessionState?: (input: ElectronMovScriptHomeInput & ElectronAgentSessionStateSaveInput) => Promise<ElectronAgentSessionStateResult>
+  getDesktopState?: (input: ElectronDesktopStateInput) => Promise<ElectronDesktopStateResult>
+  setDesktopState?: (input: ElectronDesktopStateSaveInput) => Promise<ElectronDesktopStateResult>
+  removeDesktopState?: (input: ElectronDesktopStateInput) => Promise<{ ok: true; key: string; movScriptHomeDir: string; workspaceDir: string; path: string }>
   setAgentRuntimeApiKey?: (input: { providerKey?: string; providerKeys?: string[]; apiKey?: string | null }) => Promise<ElectronAppSettingsSecrets>
   getRuntimeConfig?: () => Promise<ElectronRuntimeConfig>
   setGenerationToolsSettings?: (settings: GenerationToolsSettings) => Promise<void>

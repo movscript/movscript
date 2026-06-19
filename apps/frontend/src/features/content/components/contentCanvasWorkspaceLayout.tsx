@@ -25,6 +25,7 @@ import {
   clearContentCanvasNodePositions,
   mergeContentCanvasNodePositions,
   readContentCanvasViewState,
+  subscribeContentCanvasViewState,
   type ContentCanvasNodePosition,
   type ContentCanvasViewStateScope,
 } from '../application/contentCanvasViewState'
@@ -128,7 +129,9 @@ export function useContentCanvasRadialLayout({
   ))
 
   useEffect(() => {
-    setPositions(readContentCanvasViewState(projectId, scope)?.nodePositions ?? {})
+    const syncPositions = () => setPositions(readContentCanvasViewState(projectId, scope)?.nodePositions ?? {})
+    syncPositions()
+    return subscribeContentCanvasViewState(projectId, scope, syncPositions)
   }, [projectId, scope])
 
   const applyNodePositions = useCallback((nodes: RadialNode[]) => (
@@ -176,4 +179,3 @@ export function ContentCanvasResizeHandle({
     />
   )
 }
-

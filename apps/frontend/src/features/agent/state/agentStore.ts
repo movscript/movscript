@@ -1,8 +1,9 @@
 import { create } from 'zustand'
-import { persist, type PersistStorage, type StorageValue } from 'zustand/middleware'
+import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware'
 import { isRecord } from '@/shared/domain/jsonValue'
 import { createInstrumentedAgentStateStorage } from '@/features/agent/state/agentPerformanceStore'
 import { removeBrowserStorageItem } from '@/shared/infrastructure/browserStorage'
+import { createDesktopStateStorage } from '@/shared/infrastructure/desktopStateStorage'
 import { MOVA_PROVIDER_ID } from '@/shared/infrastructure/providerConfigStore'
 import type {
   AgentAttachment as ProtocolAgentAttachment,
@@ -136,8 +137,9 @@ const DEFAULT_AGENT_SETTINGS: AgentSettings = {
 const MAX_AGENT_SETTINGS_IMPORT_BACKUP_BYTES = 1024 * 1024
 const MAX_AGENT_TOOL_PERMISSIONS_FILTER_PRESETS = 12
 
+export const AGENT_STORE_STORAGE_KEY = 'agent-store-v4'
 const REMOVED_CONVERSATION_SESSION_STORAGE_KEYS = ['agent-store-v3', 'agent-session-store-v1']
-const agentStoreStorage = createInstrumentedAgentStateStorage('agent_store')
+const agentStoreBrowserStorage = createInstrumentedAgentStateStorage('agent_store')
 const agentStorePartialize = createAgentStorePartialize()
 
 if (typeof window !== 'undefined') {
@@ -169,8 +171,8 @@ export const useAgentStore = create<AgentStore>()(
       })),
     }),
     {
-      name: 'agent-store-v4',
-      storage: createAgentStorePersistStorage(),
+      name: AGENT_STORE_STORAGE_KEY,
+      storage: createJSONStorage(getAgentStoreStorage),
       partialize: agentStorePartialize,
       merge: (persistedState, currentState) => {
         const persisted = persistedState as Partial<AgentStore> | undefined
@@ -189,6 +191,10 @@ export const useAgentStore = create<AgentStore>()(
 
 type AgentStorePersistedState = Pick<AgentStore, 'settings'>
 
+function getAgentStoreStorage(): StateStorage {
+  return createDesktopStateStorage(AGENT_STORE_STORAGE_KEY, agentStoreBrowserStorage)
+}
+
 function createAgentStorePartialize(): (state: AgentStore) => AgentStorePersistedState {
   let previousSettings: AgentSettings | undefined
   let previousResult: AgentStorePersistedState | undefined
@@ -205,46 +211,6 @@ function createAgentStorePartialize(): (state: AgentStore) => AgentStorePersiste
       },
     }
     return previousResult
-  }
-}
-
-function createAgentStorePersistStorage(): PersistStorage<AgentStorePersistedState> {
-  let lastState: AgentStorePersistedState | undefined
-  let lastVersion: number | undefined
-  let lastSerialized: string | undefined
-  return {
-    getItem: (name) => {
-      const raw = agentStoreStorage.getItem(name)
-      if (!raw) return null
-      try {
-        const parsed = JSON.parse(raw) as StorageValue<AgentStorePersistedState>
-        lastState = parsed.state
-        lastVersion = parsed.version
-        lastSerialized = raw
-        return parsed
-      } catch {
-        return null
-      }
-    },
-    setItem: (name, value) => {
-      if (lastState === value.state && lastVersion === value.version) return
-      const serialized = JSON.stringify(value)
-      if (serialized === lastSerialized) {
-        lastState = value.state
-        lastVersion = value.version
-        return
-      }
-      lastState = value.state
-      lastVersion = value.version
-      lastSerialized = serialized
-      agentStoreStorage.setItem(name, serialized)
-    },
-    removeItem: (name) => {
-      lastState = undefined
-      lastVersion = undefined
-      lastSerialized = undefined
-      agentStoreStorage.removeItem(name)
-    },
   }
 }
 

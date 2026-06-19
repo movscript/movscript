@@ -44,10 +44,24 @@ import {
 } from './sdkRuntimeConfigInjector'
 import { emitClaudeSdkRuntimeTurnEvents } from './claudeSdkRuntimeStreamAdapter'
 import {
+  runCodexLikeSdkPrompt,
+  type CodexLikeThread,
+} from './codexSdkRuntimeStreamAdapter'
+import {
+  sdkRuntimeClaudePermissionMode,
+  sdkRuntimeProviderRequestCallbacks,
+  sdkRuntimeProviderRunProfileOptions,
+} from './sdkRuntimeServerRequestAdapter'
+import {
   handleSdkRuntimeRequest,
   sdkRuntimeProviderResumeTokenFromResult,
   syncProviderThreadResumeToken,
 } from './sdkRuntimeRequestHandler'
+import {
+  createCodexAppServerRuntimeHandler,
+  createMovaAppServerRuntimeHandler,
+  type AppServerRuntimeHandlerOptions,
+} from './appServerRuntimeHandler'
 
 type CodexConstructor = new (...args: unknown[]) => CodexClient
 type CodexClient = {
@@ -58,18 +72,25 @@ type CodexThread = {
   id?: string
   threadId?: string
   run(prompt: string, options?: Record<string, unknown>): Promise<unknown>
+  runStreamed?: (prompt: string, options?: Record<string, unknown>) => Promise<unknown> | unknown
 }
 type CodexLikeRuntimeApi = 'codex-sdk' | 'mova-sdk'
 
 type ClaudeQuery = (input: { prompt: string; options?: Record<string, unknown> }) => AsyncIterable<unknown>
 
-interface SdkRuntimeDefaultHandlerOptions {
+interface SdkRuntimeDefaultHandlerOptions extends AppServerRuntimeHandlerOptions {
   moduleLoader?: SdkRuntimeModuleLoader
   defaultWorkspaceDir?: () => string
 }
 
 export function installDefaultSdkRuntimeHandlers(options: SdkRuntimeDefaultHandlerOptions = {}): () => void {
   const disposers = [
+    registerSdkRuntimeHandler('codex-app-server', createCodexAppServerRuntimeHandler(options), {
+      supportedMethods: SDK_RUNTIME_REQUIRED_RPC_METHODS,
+    }),
+    registerSdkRuntimeHandler('mova-app-server', createMovaAppServerRuntimeHandler(options), {
+      supportedMethods: SDK_RUNTIME_REQUIRED_RPC_METHODS,
+    }),
     registerSdkRuntimeHandler('codex-sdk', createCodexSdkRuntimeHandler(options), {
       supportedMethods: SDK_RUNTIME_REQUIRED_RPC_METHODS,
     }),
@@ -136,7 +157,9 @@ async function codexRuntime(
   assertSdkRuntimePackageContract(packageName, loaded.module, contract.requiredPackageExports)
   const Codex = requiredExport<CodexConstructor>(loaded.module, 'Codex', packageName)
   const account = resolveSdkRuntimeAccountConfig(params, workspaceDir)
-  const codex = new Codex(codexOptionsFromAccount(account, resolveAgentRuntimeHomeEnv(params, workspaceDir)))
+  const codex = new Codex(codexOptionsFromAccount(account, resolveAgentRuntimeHomeEnv(params, workspaceDir), {
+    disableBackendWebsockets: api === 'codex-sdk',
+  }))
   return {
     workspaceDir,
     describe: describeRuntime(params, contract, packageName, sdkRuntimePackageVersion(packageName, params.runtime.packageVersion)),
@@ -148,13 +171,13 @@ async function codexRuntime(
       providerThread: unknown,
       prompt: string,
       turn?: Record<string, unknown>,
-      _events?: SdkRuntimeRunPromptEventSink,
+      events?: SdkRuntimeRunPromptEventSink,
     ) => {
       if (!providerThread || typeof providerThread !== 'object' || typeof (providerThread as CodexThread).run !== 'function') {
         throw new Error(`${packageName} returned a thread without run().`)
       }
       try {
-        return await (providerThread as CodexThread).run(prompt, codexRuntimeOptions(turn))
+        return await runCodexLikeSdkPrompt(providerThread as CodexLikeThread, prompt, codexRuntimeOptions(turn, events), events)
       } catch (error) {
         throw normalizeCodexLikeSdkRuntimeError(error, api)
       }
@@ -341,6 +364,9 @@ async function claudeRuntime(params: SdkRuntimeRpcRequestMap[SdkRuntimeRpcMethod
           ...(turn?.cwd ? { cwd: turn.cwd } : {}),
           ...(turn?.model ? { model: turn.model } : {}),
           ...(resume ? { resume } : {}),
+          ...sdkRuntimeProviderRunProfileOptions(turn),
+          ...(sdkRuntimeClaudePermissionMode(turn) ? { permissionMode: sdkRuntimeClaudePermissionMode(turn) } : {}),
+          ...sdkRuntimeProviderRequestCallbacks(events),
         }
         const stream = query({
           prompt,
@@ -458,10 +484,15 @@ function normalizeCodexLikeSdkRuntimeError(error: unknown, api: CodexLikeRuntime
   return error instanceof Error ? error : new Error(message)
 }
 
-function codexRuntimeOptions(input?: Record<string, unknown>): Record<string, unknown> | undefined {
+function codexRuntimeOptions(
+  input?: Record<string, unknown>,
+  events?: SdkRuntimeRunPromptEventSink,
+): Record<string, unknown> | undefined {
   const next = {
     ...(typeof input?.cwd === 'string' ? { workingDirectory: input.cwd } : {}),
     ...(typeof input?.model === 'string' ? { model: input.model } : {}),
+    ...sdkRuntimeProviderRunProfileOptions(input),
+    ...sdkRuntimeProviderRequestCallbacks(events),
   }
   return Object.keys(next).length ? next : undefined
 }

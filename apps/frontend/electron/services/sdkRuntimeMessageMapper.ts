@@ -6,6 +6,12 @@ export interface SdkRuntimeTurnItemMappingInput {
 }
 
 export function sdkRuntimeTurnItemsFromResult(input: SdkRuntimeTurnItemMappingInput): AgentChatThreadItem[] {
+  if (isRecord(input.result) && Array.isArray(input.result.items)) {
+    const items = input.result.items
+      .map((message, index) => sdkRuntimeThreadItemFromMessage(message, input.turnId, index))
+      .filter((item): item is AgentChatThreadItem => Boolean(item))
+    if (items.length > 0) return items
+  }
   const messages = Array.isArray(input.result) ? input.result : [input.result]
   const items: AgentChatThreadItem[] = []
   for (const [index, message] of messages.entries()) {
@@ -33,7 +39,7 @@ export function sdkRuntimeTextFromResult(result: unknown): string {
   return JSON.stringify(result)
 }
 
-function sdkRuntimeThreadItemFromMessage(message: unknown, turnId: string, index: number): AgentChatThreadItem | null {
+export function sdkRuntimeThreadItemFromMessage(message: unknown, turnId: string, index: number): AgentChatThreadItem | null {
   if (typeof message === 'string') return agentMessageItem(turnId, message, message, index)
   if (!isRecord(message)) return null
   const type = stringField(message, 'type') ?? stringField(message, 'role') ?? ''
@@ -48,6 +54,67 @@ function sdkRuntimeThreadItemFromMessage(message: unknown, turnId: string, index
       id: itemId(turnId, 'reasoning', message, index),
       summary: text ? [text] : [],
       content: [],
+      raw: message,
+    }
+  }
+  if (type === 'command_execution') {
+    return {
+      type: 'commandExecution',
+      id: itemId(turnId, 'command', message, index),
+      command: stringField(message, 'command') ?? '',
+      status: stringField(message, 'status') ?? undefined,
+      aggregatedOutput: stringField(message, 'aggregated_output') ?? stringField(message, 'aggregatedOutput') ?? null,
+      exitCode: numberField(message, 'exit_code') ?? numberField(message, 'exitCode') ?? null,
+      raw: message,
+    }
+  }
+  if (type === 'file_change') {
+    return {
+      type: 'fileChange',
+      id: itemId(turnId, 'file_change', message, index),
+      status: stringField(message, 'status') ?? undefined,
+      changes: Array.isArray(message.changes) ? message.changes : undefined,
+      raw: message,
+    }
+  }
+  if (type === 'mcp_tool_call') {
+    return {
+      type: 'mcpToolCall',
+      id: itemId(turnId, 'tool', message, index),
+      server: stringField(message, 'server') ?? 'sdk',
+      tool: stringField(message, 'tool') ?? stringField(message, 'name') ?? 'tool',
+      status: stringField(message, 'status') ?? undefined,
+      arguments: message.arguments,
+      result: message.result,
+      error: message.error,
+      raw: message,
+    }
+  }
+  if (type === 'web_search') {
+    return {
+      type: 'webSearch',
+      id: itemId(turnId, 'web_search', message, index),
+      query: stringField(message, 'query') ?? '',
+      raw: message,
+    }
+  }
+  if (type === 'todo_list') {
+    const items = Array.isArray(message.items)
+      ? message.items.map((item) => isRecord(item) ? {
+          text: stringField(item, 'text') ?? '',
+          status: Boolean(item.completed) ? 'completed' : 'pending',
+          raw: item,
+        } : {
+          text: String(item),
+          status: 'pending',
+          raw: item,
+        })
+      : []
+    return {
+      type: 'plan',
+      id: itemId(turnId, 'todo', message, index),
+      text: items.map((item) => item.text).filter(Boolean).join('\n'),
+      items,
       raw: message,
     }
   }
@@ -127,7 +194,11 @@ function stringField(record: Record<string, unknown>, field: string): string | u
   return typeof value === 'string' && value.trim() ? value : undefined
 }
 
+function numberField(record: Record<string, unknown>, field: string): number | undefined {
+  const value = record[field]
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
-

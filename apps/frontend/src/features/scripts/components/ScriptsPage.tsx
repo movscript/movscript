@@ -63,7 +63,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
   const [fileError, setFileError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const restoredSessionRef = useRef(false)
-  const sessionSnapshot = useProjectEntrySessionStore((state) => state.snapshotFor(projectId, 'scripts'))
+  const sessionSnapshot = useProjectEntrySessionStore((state) => state.snapshotFor(projectId, 'orchestration_production'))
   const upsertProjectEntrySessionSnapshot = useProjectEntrySessionStore((state) => state.upsertSnapshot)
   const hasExplicitSessionSearch = useMemo(
     () => hasExplicitProjectEntrySearchParam(searchParams, ['script_id']),
@@ -114,7 +114,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
     if (!selectedId) return
     upsertProjectEntrySessionSnapshot({
       projectId,
-      projectEntryId: 'scripts',
+      projectEntryId: 'orchestration_production',
       route: ROUTES.project.scripts,
       search: `script_id=${selectedId}`,
       filters: { scriptId: selectedId },
@@ -217,7 +217,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
   return (
     <WorkbenchProjectShell
       className="script-workbench-project-shell"
-      workbenchId="scripts"
+      workbenchId="orchestration_production"
       icon={ScrollText}
       kicker="剧本"
       title="剧本编辑工作台"

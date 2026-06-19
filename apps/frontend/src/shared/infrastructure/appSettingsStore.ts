@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
-import { persist } from 'zustand/middleware'
+import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware'
+import { readBrowserStorageItem, removeBrowserStorageItem, writeBrowserStorageItem } from '@/shared/infrastructure/browserStorage'
 import {
   APP_SETTINGS_STORAGE_KEY,
   getDefaultAPIBaseURL,
@@ -34,6 +35,23 @@ const defaultSettings: AppSettings = {
   launchMode: 'cloud',
   workMode: 'project',
   onboardingCompleted: true,
+}
+
+const appSettingsBrowserStorage: StateStorage = {
+  getItem: (key) => readBrowserStorageItem('local', key),
+  setItem: (key, value) => {
+    if (isElectronAppSettingsStorage()) {
+      removeBrowserStorageItem('local', key)
+      return
+    }
+    writeBrowserStorageItem('local', key, value)
+  },
+  removeItem: (key) => removeBrowserStorageItem('local', key),
+}
+
+function isElectronAppSettingsStorage(): boolean {
+  const api = readElectronApi()
+  return Boolean(api?.getAppSettings || api?.setAppSettings)
 }
 
 function normalizeSettings(settings?: Partial<AppSettings> | null): AppSettings {
@@ -77,10 +95,13 @@ export function mergeAppSettingsSecrets(settings: AppSettings, secrets: Electron
 
 async function hydrateElectronAppSettings(): Promise<void> {
   const api = readElectronApi()
-  if (api?.getAppSettings && !useAppSettingsStore.getState().savedAt) {
+  if (api?.getAppSettings) {
     const desktopSettings = await withTimeout(api.getAppSettings(), 2_000)
     if (desktopSettings) {
-      useAppSettingsStore.setState({ settings: normalizeSettings(desktopSettings) })
+      useAppSettingsStore.setState({
+        settings: normalizeSettings(desktopSettings),
+        savedAt: new Date().toISOString(),
+      })
     }
   }
   if (api?.getAppSettingsSecrets) {
@@ -184,6 +205,7 @@ export const useAppSettingsStore = create<AppSettingsStore>()(
     }),
     {
       name: APP_SETTINGS_STORAGE_KEY,
+      storage: createJSONStorage(() => appSettingsBrowserStorage),
       partialize: (state) => ({ settings: sanitizeAppSettingsForPersistence(state.settings), savedAt: state.savedAt }),
       merge: (persistedState, currentState) => {
         const persisted = persistedState as Partial<AppSettingsStore> | undefined

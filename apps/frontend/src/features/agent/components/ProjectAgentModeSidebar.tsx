@@ -135,7 +135,10 @@ export function ProjectAgentModeSidebar({
     () => conversations.filter((conversation) => conversation.archived !== true && conversationsById[conversation.id]?.open !== false),
     [conversations, conversationsById],
   )
-  const openConversations = useMemo(() => sortAgentModeOpenConversations(rawOpenConversations), [rawOpenConversations])
+  const openConversations = useMemo(
+    () => sortAgentModeOpenConversations({ conversations: rawOpenConversations, conversationsById }),
+    [conversationsById, rawOpenConversations],
+  )
   const providerSessionStatusLights = useAgentConversationTabProviderSessionStatusLights(openConversations)
   const archivedConversations = useMemo(
     () => conversations

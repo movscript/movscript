@@ -80,7 +80,7 @@ export function deleteMediaPipelineTaskRun(taskId: string): void {
 
 export async function getStoredMediaPipelineTask(
   input: { projectId: string; taskId: string },
-  options: { userDataDir: string },
+  options: { homeDir: string },
 ): Promise<MediaPipelineTaskState | undefined> {
   const manifest = await readStoredTaskManifestForIdentity(input, options)
   const state = manifest?.state
@@ -91,14 +91,14 @@ export async function getStoredMediaPipelineTask(
 
 export async function readStoredTaskManifestForIdentity(
   input: { projectId: string; taskId: string },
-  options: { userDataDir: string },
+  options: { homeDir: string },
 ): Promise<StoredMediaPipelineTaskManifest | undefined> {
   const manifest = await readTaskManifest(mediaWorkspaceTaskRoot({
-    userDataDir: options.userDataDir,
+    homeDir: options.homeDir,
     projectId: input.projectId,
     taskId: input.taskId,
   })) ?? await readTaskManifest(legacyMediaWorkspaceTaskRoot({
-    userDataDir: options.userDataDir,
+    homeDir: options.homeDir,
     projectId: input.projectId,
     taskId: input.taskId,
   }))
@@ -111,11 +111,11 @@ export async function readStoredTaskManifestForIdentity(
 
 export async function getMediaPipelineTaskLogs(
   taskId: string,
-  options?: { projectId?: string; userDataDir?: string },
+  options?: { projectId?: string; homeDir?: string },
 ): Promise<MediaPipelineTaskLogs> {
   const state = tasks.get(taskId)
-    ?? (options?.projectId && options.userDataDir
-      ? await getStoredMediaPipelineTask({ projectId: options.projectId, taskId }, { userDataDir: options.userDataDir })
+    ?? (options?.projectId && options.homeDir
+      ? await getStoredMediaPipelineTask({ projectId: options.projectId, taskId }, { homeDir: options.homeDir })
       : undefined)
   if (!state?.workspacePath) {
     return {

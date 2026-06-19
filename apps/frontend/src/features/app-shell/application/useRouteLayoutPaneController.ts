@@ -1,6 +1,7 @@
 import React from 'react'
 
-import { readBrowserStorageItem, writeBrowserStorageItem } from '@/shared/infrastructure/browserStorage'
+import { readBrowserStorageItem, removeBrowserStorageItem, writeBrowserStorageItem } from '@/shared/infrastructure/browserStorage'
+import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
 import type {
   RouteLayoutPaneSpec,
   RouteLayoutPaneState,
@@ -32,6 +33,13 @@ interface UseRouteLayoutPaneControllerOptions {
 }
 
 const PANE_STATE_STORAGE_SUFFIX = '.state'
+const ROUTE_LAYOUT_PANE_DESKTOP_PREFIX = 'movscript-route-layout-pane-v1'
+const ROUTE_LAYOUT_PANE_STORAGE_CHANGED_EVENT = 'movscript:route-layout-pane-storage-changed'
+
+const routeLayoutPaneStorageCache = new Map<string, string | undefined>()
+const routeLayoutPaneStorageHydrations = new Set<string>()
+const routeLayoutPaneStorageVersions = new Map<string, number>()
+let routeLayoutPaneStorageWindow: Window | undefined
 
 export function routeLayoutPaneById(
   routeLayout: Pick<RouteLayoutSpec, 'panes'>,
@@ -143,6 +151,32 @@ export function useRouteLayoutPaneController({
     writeStoredPaneSize(sizeStorageKey, size)
   }, [size, sizeStorageKey, state])
 
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+    if (typeof window.addEventListener !== 'function' || typeof window.removeEventListener !== 'function') return undefined
+    const keys = new Set([stateStorageKey, sizeStorageKey].filter((key): key is string => !!key))
+    if (!keys.size) return undefined
+    const handleStoredPaneValueChanged = (event: Event) => {
+      const changedKey = (event as CustomEvent<{ key?: string }>).detail?.key
+      if (changedKey && !keys.has(changedKey)) return
+      if (controlledState === undefined) {
+        setUncontrolledState({
+          storageKey: stateStorageKey,
+          value: readRouteLayoutPaneState(pane, stateStorageKey, fallbackState),
+        })
+      }
+      setSizeValue({
+        storageKey: sizeStorageKey,
+        defaultSize,
+        value: readRouteLayoutPaneSize(sizeStorageKey, defaultSize, clampSize),
+      })
+    }
+    window.addEventListener(ROUTE_LAYOUT_PANE_STORAGE_CHANGED_EVENT, handleStoredPaneValueChanged)
+    return () => {
+      window.removeEventListener(ROUTE_LAYOUT_PANE_STORAGE_CHANGED_EVENT, handleStoredPaneValueChanged)
+    }
+  }, [clampSize, controlledState, defaultSize, fallbackState, pane, sizeStorageKey, stateStorageKey])
+
   const setSize = React.useCallback((nextSize: number) => {
     const nextValue = clampSize(nextSize)
     setSizeValue({
@@ -198,7 +232,7 @@ export function readRouteLayoutPaneSize(
 
 function readStoredPaneState(storageKey: string | undefined): RouteLayoutPaneState | undefined {
   if (!storageKey) return undefined
-  const value = readBrowserStorageItem('local', storageKey)
+  const value = readStoredPaneValue(storageKey)
   if (isRouteLayoutPaneState(value)) return value
   if (value === '1') return 'default'
   if (value === '0') return 'hidden'
@@ -209,7 +243,7 @@ function readStoredPaneState(storageKey: string | undefined): RouteLayoutPaneSta
 
 function readStoredPaneSize(storageKey: string | undefined): number | undefined {
   if (!storageKey) return undefined
-  const storedValue = readBrowserStorageItem('local', storageKey)
+  const storedValue = readStoredPaneValue(storageKey)
   if (storedValue === null) return undefined
   const value = Number(storedValue)
   return Number.isFinite(value) ? value : undefined
@@ -217,12 +251,108 @@ function readStoredPaneSize(storageKey: string | undefined): number | undefined 
 
 function writeStoredPaneState(storageKey: string | undefined, state: RouteLayoutPaneState): void {
   if (!storageKey) return
-  writeBrowserStorageItem('local', storageKey, state)
+  writeStoredPaneValue(storageKey, state)
 }
 
 function writeStoredPaneSize(storageKey: string | undefined, size: number): void {
   if (!storageKey) return
-  writeBrowserStorageItem('local', storageKey, String(size))
+  writeStoredPaneValue(storageKey, String(size))
+}
+
+function readStoredPaneValue(storageKey: string): string | null {
+  syncRouteLayoutPaneStorageWindow()
+  const api = readElectronApi()
+  if (!api?.getDesktopState) return readBrowserStorageItem('local', storageKey)
+  hydrateStoredPaneValue(storageKey)
+  if (routeLayoutPaneStorageCache.has(storageKey)) return routeLayoutPaneStorageCache.get(storageKey) ?? null
+  const legacy = readBrowserStorageItem('local', storageKey)
+  routeLayoutPaneStorageCache.set(storageKey, legacy ?? undefined)
+  return legacy
+}
+
+function writeStoredPaneValue(storageKey: string, value: string): void {
+  syncRouteLayoutPaneStorageWindow()
+  routeLayoutPaneStorageCache.set(storageKey, value)
+  routeLayoutPaneStorageHydrations.add(storageKey)
+  bumpRouteLayoutPaneStorageVersion(storageKey)
+  dispatchRouteLayoutPaneStorageChanged(storageKey)
+
+  const api = readElectronApi()
+  if (!api?.getDesktopState || !api.setDesktopState) {
+    writeBrowserStorageItem('local', storageKey, value)
+    return
+  }
+  void api.setDesktopState({ key: routeLayoutPaneDesktopKey(storageKey), value })
+    .then(() => removeBrowserStorageItem('local', storageKey))
+    .catch(() => writeBrowserStorageItem('local', storageKey, value))
+}
+
+function hydrateStoredPaneValue(storageKey: string): void {
+  if (routeLayoutPaneStorageHydrations.has(storageKey)) return
+  routeLayoutPaneStorageHydrations.add(storageKey)
+  const legacy = readBrowserStorageItem('local', storageKey)
+  if (!routeLayoutPaneStorageCache.has(storageKey)) {
+    routeLayoutPaneStorageCache.set(storageKey, legacy ?? undefined)
+  }
+  const hydrationVersion = routeLayoutPaneStorageVersions.get(storageKey) ?? 0
+  const api = readElectronApi()
+  if (!api?.getDesktopState) return
+  void api.getDesktopState({ key: routeLayoutPaneDesktopKey(storageKey) }).then((result) => {
+    if ((routeLayoutPaneStorageVersions.get(storageKey) ?? 0) !== hydrationVersion) return
+    if (typeof result.value === 'string') {
+      routeLayoutPaneStorageCache.set(storageKey, result.value)
+      removeBrowserStorageItem('local', storageKey)
+      dispatchRouteLayoutPaneStorageChanged(storageKey)
+      return
+    }
+    if (legacy !== null && api.setDesktopState) {
+      void api.setDesktopState({ key: routeLayoutPaneDesktopKey(storageKey), value: legacy })
+        .then(() => removeBrowserStorageItem('local', storageKey))
+        .catch(() => undefined)
+    }
+  }).catch(() => undefined)
+}
+
+function syncRouteLayoutPaneStorageWindow(): void {
+  if (typeof window === 'undefined') {
+    if (routeLayoutPaneStorageWindow !== undefined) {
+      routeLayoutPaneStorageCache.clear()
+      routeLayoutPaneStorageHydrations.clear()
+      routeLayoutPaneStorageVersions.clear()
+      routeLayoutPaneStorageWindow = undefined
+    }
+    return
+  }
+  if (routeLayoutPaneStorageWindow === window) return
+  routeLayoutPaneStorageCache.clear()
+  routeLayoutPaneStorageHydrations.clear()
+  routeLayoutPaneStorageVersions.clear()
+  routeLayoutPaneStorageWindow = window
+}
+
+function bumpRouteLayoutPaneStorageVersion(storageKey: string): void {
+  routeLayoutPaneStorageVersions.set(storageKey, (routeLayoutPaneStorageVersions.get(storageKey) ?? 0) + 1)
+}
+
+function dispatchRouteLayoutPaneStorageChanged(storageKey: string): void {
+  if (typeof window === 'undefined') return
+  if (typeof window.dispatchEvent !== 'function' || typeof CustomEvent === 'undefined') return
+  window.dispatchEvent(new CustomEvent(ROUTE_LAYOUT_PANE_STORAGE_CHANGED_EVENT, {
+    detail: { key: storageKey },
+  }))
+}
+
+function routeLayoutPaneDesktopKey(storageKey: string): string {
+  return `${ROUTE_LAYOUT_PANE_DESKTOP_PREFIX}.${stableHash(storageKey)}`
+}
+
+function stableHash(value: string): string {
+  let hash = 2166136261
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return (hash >>> 0).toString(36)
 }
 
 function isRouteLayoutPaneState(value: unknown): value is RouteLayoutPaneState {

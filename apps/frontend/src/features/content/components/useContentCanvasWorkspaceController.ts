@@ -1,9 +1,19 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 
+import {
+  hasExplicitProjectEntrySearchParam,
+  useProjectEntrySessionStore,
+} from '@/features/project/application/projectEntrySessionStore'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { toast } from '@/shared/ui/toastStore'
+import { ROUTES } from '@/routes/projectRoutes'
 import { contentCanvasKeys } from '../application/contentCanvasQueryKeys'
+import {
+  buildContentCanvasProjectEntrySessionSearch,
+  resolveContentCanvasProjectEntrySessionState,
+} from '../application/contentCanvasProjectEntrySession'
 import {
   contentCanvasProjectChangedResult,
   invalidateContentCanvasMutationResult,
@@ -43,6 +53,10 @@ export function useContentCanvasWorkspaceController() {
   const queryClient = useQueryClient()
   const project = useProjectStore((state) => state.current)
   const projectId = project?.ID
+  const [searchParams] = useSearchParams()
+  const restoredSessionRef = useRef(false)
+  const restoredSessionKeyRef = useRef('')
+  const skipNextSessionPersistRef = useRef(false)
   const [settingQuery, setSettingQuery] = useState('')
   const [activeKind, setActiveKind] = useState<SettingKind | 'all'>('all')
   const [canvasMode, setCanvasMode] = useState<CanvasMode>('scene_moment')
@@ -58,6 +72,14 @@ export function useContentCanvasWorkspaceController() {
   const [pendingCanvasAction, setPendingCanvasAction] = useState<string | null>(null)
   const [settingCreateDialog, setSettingCreateDialog] = useState<SettingCreateDialogState | null>(null)
   const [structureCreateDialog, setStructureCreateDialog] = useState<StructureCreateDialogState | null>(null)
+  const sessionSnapshot = useProjectEntrySessionStore((state) => (
+    projectId ? state.snapshotFor(projectId, 'content') : null
+  ))
+  const upsertProjectEntrySessionSnapshot = useProjectEntrySessionStore((state) => state.upsertSnapshot)
+  const hasExplicitSessionSearch = useMemo(
+    () => hasExplicitProjectEntrySearchParam(searchParams, ['node', 'mode', 'kind', 'settingKind']),
+    [searchParams],
+  )
   const gateway = useMemo(
     () => projectId ? createElectronContentCanvasWorkspaceGateway(projectId) : null,
     [projectId],
@@ -394,6 +416,79 @@ export function useContentCanvasWorkspaceController() {
       return { ...currentByScene, [sceneKey]: nextGroups }
     })
   }, [viewModel.activeScene?.id])
+
+  useEffect(() => {
+    if (!projectId || (!hasExplicitSessionSearch && restoredSessionRef.current)) return
+    const sessionState = resolveContentCanvasProjectEntrySessionState({
+      hasExplicitSearch: hasExplicitSessionSearch,
+      searchParams,
+      snapshot: sessionSnapshot,
+    })
+    if (!sessionState) return
+    const sessionKey = [
+      sessionState.canvasMode,
+      sessionState.selectionKind,
+      sessionState.selectedNodeId,
+      sessionState.activeKind ?? '',
+    ].join(':')
+    if (hasExplicitSessionSearch && restoredSessionKeyRef.current === sessionKey) return
+    if (sessionState.selectedNodeId !== 'scene-main' && !viewModel.graphIndex.nodeById.has(sessionState.selectedNodeId)) return
+    restoredSessionRef.current = true
+    restoredSessionKeyRef.current = sessionKey
+    skipNextSessionPersistRef.current = true
+    if (sessionState.activeKind) setActiveKind(sessionState.activeKind)
+    setCanvasMode(sessionState.canvasMode)
+    const node = viewModel.graphIndex.nodeById.get(sessionState.selectedNodeId)
+    if (node?.kind === 'scene_moment') {
+      setActiveProductionId(null)
+      setActiveSceneId(node.id)
+      setSelection({ kind: 'scene_moment', nodeId: node.id })
+      setCreateSelection(null)
+      return
+    }
+    if (node?.kind === 'production') {
+      setActiveProductionId(node.id)
+      setSelection({ kind: 'other', nodeId: node.id })
+      setCreateSelection(null)
+      return
+    }
+    if (node?.kind === 'setting') {
+      setActiveSettingId(node.id)
+      setSelection({ kind: 'setting', nodeId: node.id })
+      setCreateSelection(null)
+      return
+    }
+    setSelection({ kind: sessionState.selectionKind, nodeId: sessionState.selectedNodeId })
+    setCreateSelection(null)
+  }, [hasExplicitSessionSearch, projectId, searchParams, sessionSnapshot, viewModel.graphIndex])
+
+  useEffect(() => {
+    if (!projectId) return
+    if (!hasExplicitSessionSearch && sessionSnapshot && !restoredSessionRef.current) return
+    if (skipNextSessionPersistRef.current) {
+      skipNextSessionPersistRef.current = false
+      return
+    }
+    const search = buildContentCanvasProjectEntrySessionSearch({
+      activeKind,
+      canvasMode,
+      selectedNodeId: selection.nodeId,
+      selectionKind: selection.kind,
+    })
+    upsertProjectEntrySessionSnapshot({
+      projectId,
+      projectEntryId: 'content',
+      route: ROUTES.project.content,
+      search,
+      filters: {
+        activeKind,
+        canvasMode,
+        selectedNodeId: selection.nodeId,
+        selectionKind: selection.kind,
+      },
+      selection: undefined,
+    })
+  }, [activeKind, canvasMode, hasExplicitSessionSearch, projectId, selection.kind, selection.nodeId, sessionSnapshot, upsertProjectEntrySessionSnapshot])
 
   return {
     activeKind,

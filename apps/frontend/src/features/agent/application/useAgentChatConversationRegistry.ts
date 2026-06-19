@@ -8,11 +8,13 @@ import {
 } from '@movscript/core/agent/chat'
 import {
   agentChatComposerConversationId,
+  agentChatConversationRecordForThread,
   agentChatConversationWorkspaceIsEmpty,
   agentConversationUsesProviderSession,
   buildAgentChatConversationPatchInput,
   buildAgentChatConversationRegistryIndex,
   buildAgentChatProviderIdentity,
+  buildAgentChatThreadDeckOrderUpdates,
 } from '@/features/agent/presentation/agentChatDataSourceShellModel'
 import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import type {
@@ -93,6 +95,20 @@ export function useAgentChatConversationRegistry({
     }))
   }, [providerIdentity, userId])
 
+  const syncThreadConversationTitle = useCallback((threadId: string, title: string | null | undefined) => {
+    const normalizedThreadId = threadId.trim()
+    const normalizedTitle = title?.trim()
+    if (!normalizedThreadId || !normalizedTitle) return
+    const store = useAgentSessionStore.getState()
+    const record = agentChatConversationRecordForThread({
+      records: store.conversationsById,
+      threadId: normalizedThreadId,
+      providerIdentity,
+      userId,
+    })
+    if (record) store.updateConversationTitle(userId, record.id, normalizedTitle)
+  }, [providerIdentity, userId])
+
   const markThreadOpen = useCallback((threadId: string) => {
     const store = useAgentSessionStore.getState()
     const conversationId = store.upsertConversation(conversationPatchInputForThread(threadId, true))
@@ -109,6 +125,19 @@ export function useAgentChatConversationRegistry({
       store.setActiveConversation(userId, null)
     }
   }, [conversationPatchInputForThread, readCurrentActiveThreadId, userId])
+
+  const reorderOpenThreads = useCallback((draggedThreadId: string, targetThreadId: string, position: 'before' | 'after') => {
+    const store = useAgentSessionStore.getState()
+    const updates = buildAgentChatThreadDeckOrderUpdates({
+      draggedThreadId,
+      targetThreadId,
+      position,
+      providerIdentity,
+      records: Object.values(store.conversationsById),
+      userId,
+    })
+    if (updates.length > 0) store.setConversationDeckOrders(updates)
+  }, [providerIdentity, userId])
 
   const clearUnavailableActiveThread = useCallback((threadId: string) => {
     if (readCurrentActiveThreadId() === threadId) setActiveThreadIdValue(null)
@@ -142,6 +171,8 @@ export function useAgentChatConversationRegistry({
     openThreadIds,
     providerIdentity,
     registerThreadConversation,
+    reorderOpenThreads,
+    syncThreadConversationTitle,
     threadOrderIndex,
   }
 }

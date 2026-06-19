@@ -1,0 +1,41 @@
+{
+  "schema": "movscript.project-plugin-lock.v1",
+  "updatedAt": "2026-06-19T07:23:08.509Z",
+  "plugins": [
+    {
+      "id": "movscript",
+      "name": "movscript",
+      "marketplaceName": "movscript-bundled",
+      "pluginKey": "movscript@movscript-bundled",
+      "sourceType": "local",
+      "sourcePath": "/Users/zhaoqian/Code/Github/migua/movscript/movscript/plugins/movscript",
+      "providerTargets": [
+        "codex",
+        "mova",
+        "claude"
+      ],
+      "enabled": true,
+      "installedAt": "2026-06-19T07:23:08.509Z",
+      "prepared": {
+        "providerTargets": [
+          "codex",
+          "mova",
+          "claude"
+        ],
+        "providerConfigPaths": {
+          "codex": "/Users/zhaoqian/Code/Github/migua/movscript/movscript/apps/frontend/.codex/config.toml",
+          "mova": "/Users/zhaoqian/Code/Github/migua/movscript/movscript/apps/frontend/.mova/config.toml"
+        },
+        "desktopPluginCacheDir": "/Users/zhaoqian/Code/Github/migua/movscript/movscript/apps/frontend/plugin-cache/movscript-bundled/movscript/9cc8f9d8c6628c1a",
+        "providerSkillDirs": {
+          "codex": "/Users/zhaoqian/Code/Github/migua/movscript/movscript/apps/frontend/.codex/skills/plugins/movscript_movscript-bundled",
+          "mova": "/Users/zhaoqian/Code/Github/migua/movscript/movscript/apps/frontend/.mova/skills/plugins/movscript_movscript-bundled",
+          "claude": "/Users/zhaoqian/Code/Github/migua/movscript/movscript/apps/frontend/.claude/skills/plugins/movscript_movscript-bundled"
+        },
+        "catalogSkillsDir": "/Users/zhaoqian/Code/Github/migua/movscript/movscript/apps/frontend/.agents/plugins/catalog/skills/plugins/movscript_movscript-bundled",
+        "projectMarketplacePath": "/Users/zhaoqian/Code/Github/migua/movscript/movscript/apps/frontend/.agents/plugins/marketplace.json",
+        "projectPluginBundleDir": "/Users/zhaoqian/Code/Github/migua/movscript/movscript/apps/frontend/.agents/plugins/bundles/movscript_movscript-bundled"
+      }
+    }
+  ]
+}

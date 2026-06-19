@@ -18,6 +18,8 @@ export type {
 } from '@/features/agent/presentation/agentChatThreadProjectionModel'
 export {
   agentChatSourceThreadHasContent,
+  agentChatConversationIdForThread,
+  agentChatConversationRecordForThread,
   agentChatThreadFromRegistryRecord,
   agentChatThreadProviderSessionState,
   agentConversationRecordMatchesProviderIdentity,
@@ -26,6 +28,7 @@ export {
   buildAgentChatConversationRegistryIndex,
   buildAgentChatOpenThreadCandidates,
   buildAgentChatProviderIdentity,
+  buildAgentChatThreadDeckOrderUpdates,
   buildAgentChatThreadTabs,
   formatAgentChatTime,
   mergeAgentChatThreadListPage,

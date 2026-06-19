@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import './ResourcesPage.css'
 import type { ExternalResourceItem, ExternalResourceSearchResult, ExternalResourceSource, RawResource } from '@/types'
@@ -9,8 +9,10 @@ import {
   externalResourceSearchInitialData,
   loadExternalResourceSearchSnapshot,
   saveExternalResourceSearchSnapshot,
+  subscribeExternalResourceSearchSnapshot,
   type ExternalMediaFilter,
   type ExternalOrientationFilter,
+  type ExternalResourceSearchSnapshot,
 } from '@/features/resources/application/externalResourceSearchSnapshot'
 import { externalResourceKeys } from '@/features/resources/application/resourceQueryKeys'
 import { invalidateResourceMutationResult, resourceLibraryChangedResult } from '@/features/resources/application/resourceMutationInvalidation'
@@ -50,7 +52,9 @@ const EXTERNAL_ORIENTATION_OPTIONS = [
 
 export function ExternalResourceSearchView() {
   const qc = useQueryClient()
-  const [searchSnapshot] = useState(() => loadExternalResourceSearchSnapshot())
+  const [searchSnapshot, setSearchSnapshot] = useState(() => loadExternalResourceSearchSnapshot())
+  const externalSearchUserEditedRef = useRef(false)
+  const appliedSnapshotSignatureRef = useRef(externalResourceSearchSnapshotSignature(searchSnapshot))
   const [selectedSourceId, setSelectedSourceId] = useState<number | null>(searchSnapshot?.sourceId ?? null)
   const [query, setQuery] = useState(searchSnapshot?.query ?? '')
   const [submittedQuery, setSubmittedQuery] = useState(searchSnapshot?.submittedQuery ?? '')
@@ -59,6 +63,26 @@ export function ExternalResourceSearchView() {
   const [page, setPage] = useState<number>(searchSnapshot?.page ?? 1)
   const [selectedExternalKeys, setSelectedExternalKeys] = useState<Set<string>>(() => new Set())
   const [previewItem, setPreviewItem] = useState<ExternalResourceItem | null>(null)
+
+  useEffect(() => {
+    const applyHydratedSnapshot = (snapshot: ExternalResourceSearchSnapshot | null) => {
+      if (!snapshot || externalSearchUserEditedRef.current) return
+      const snapshotSignature = externalResourceSearchSnapshotSignature(snapshot)
+      if (snapshotSignature === appliedSnapshotSignatureRef.current) return
+      appliedSnapshotSignatureRef.current = snapshotSignature
+      setSearchSnapshot(snapshot)
+      setSelectedSourceId(snapshot.sourceId ?? null)
+      setQuery(snapshot.query ?? snapshot.submittedQuery ?? '')
+      setSubmittedQuery(snapshot.submittedQuery ?? '')
+      setSelectedMediaTypes(new Set(snapshot.mediaTypes?.length ? snapshot.mediaTypes : ['image', 'video']))
+      setOrientation(snapshot.orientation ?? 'all')
+      setPage(snapshot.page ?? 1)
+      setSelectedExternalKeys(new Set())
+    }
+    const unsubscribe = subscribeExternalResourceSearchSnapshot(applyHydratedSnapshot)
+    applyHydratedSnapshot(loadExternalResourceSearchSnapshot())
+    return unsubscribe
+  }, [])
 
   const { data: sources = [], isLoading: sourcesLoading } = useQuery<ExternalResourceSource[]>({
     queryKey: externalResourceKeys.sources,
@@ -143,6 +167,7 @@ export function ExternalResourceSearchView() {
   }, [mediaTypeKey, orientation, page, searchQuery.data, selectedSource?.ID, submittedQuery])
 
   function submitSearch() {
+    externalSearchUserEditedRef.current = true
     const nextQuery = query.trim()
     if (!nextQuery) return
     setSubmittedQuery(nextQuery)
@@ -174,6 +199,7 @@ export function ExternalResourceSearchView() {
   })
 
   function toggleMediaType(mediaType: ExternalMediaFilter) {
+    externalSearchUserEditedRef.current = true
     setSelectedMediaTypes(current => {
       const next = new Set(current)
       if (next.has(mediaType)) {
@@ -189,18 +215,21 @@ export function ExternalResourceSearchView() {
   }
 
   function updateOrientation(nextOrientation: ExternalOrientationFilter) {
+    externalSearchUserEditedRef.current = true
     setOrientation(nextOrientation)
     setPage(1)
     setSelectedExternalKeys(new Set())
   }
 
   function updateSelectedSource(nextSourceId: number) {
+    externalSearchUserEditedRef.current = true
     setSelectedSourceId(nextSourceId)
     setPage(1)
     setSelectedExternalKeys(new Set())
   }
 
   function updateSelectedProvider(nextProviderKey: string) {
+    externalSearchUserEditedRef.current = true
     const providerSource = enabledSources.find(source => source.provider_key === nextProviderKey)
     if (!providerSource) return
     setSelectedSourceId(providerSource.ID)
@@ -236,7 +265,10 @@ export function ExternalResourceSearchView() {
         <ResourcePageSearchField
           icon={Search}
           value={query}
-          onChange={event => setQuery(event.target.value)}
+          onChange={event => {
+            externalSearchUserEditedRef.current = true
+            setQuery(event.target.value)
+          }}
           onKeyDown={event => {
             if (event.key === 'Enter') submitSearch()
           }}
@@ -366,7 +398,11 @@ export function ExternalResourceSearchView() {
             <ResourcePageActionButton
               variant="outline"
               size="sm"
-              onClick={() => { setPage(p => Math.max(1, p - 1)); setSelectedExternalKeys(new Set()) }}
+              onClick={() => {
+                externalSearchUserEditedRef.current = true
+                setPage(p => Math.max(1, p - 1))
+                setSelectedExternalKeys(new Set())
+              }}
               disabled={page <= 1 || searchQuery.isFetching}
             >
               <ChevronLeft size={14} />
@@ -375,7 +411,11 @@ export function ExternalResourceSearchView() {
             <ResourcePageActionButton
               variant="outline"
               size="sm"
-              onClick={() => { setPage(p => Math.min(pageCount, p + 1)); setSelectedExternalKeys(new Set()) }}
+              onClick={() => {
+                externalSearchUserEditedRef.current = true
+                setPage(p => Math.min(pageCount, p + 1))
+                setSelectedExternalKeys(new Set())
+              }}
               disabled={page >= pageCount || searchQuery.isFetching}
             >
               下一页
@@ -394,6 +434,10 @@ export function ExternalResourceSearchView() {
       ) : null}
     </>
   )
+}
+
+function externalResourceSearchSnapshotSignature(snapshot: ExternalResourceSearchSnapshot | null): string {
+  return snapshot ? JSON.stringify(snapshot) : ''
 }
 
 export function ExternalResourceSearchPage({

@@ -4,6 +4,7 @@ import { WorkspaceShell, useResizablePanel } from '@movscript/ui/layout'
 import { Sidebar, clampSidebarWidth } from '@/features/app-shell/components/Sidebar'
 import { Header } from '@/features/app-shell/components/Header'
 import { ProjectGitHeaderActions } from '@/features/app-shell/components/ProjectGitHeaderActions'
+import { ProjectEntryDeckHeader } from '@/features/project/components/ProjectEntryDeckHeader'
 import {
   AccountSettingsPageSidebar,
 } from '@/features/app-shell/components/AccountSettingsDialog'
@@ -131,9 +132,11 @@ export function ShellLayout({ children, requireOrg = true }: { children: React.R
     ? accountSettingsRouteHeaderTitle(accountSettingsActiveTab)
     : toolRouteHeaderTitle(pathname)
   const projectCenterContent = currentProject?.name ? (
-    <div className="app-window-route-title app-window-no-drag">
-      <span className="app-window-route-title__text">{currentProject.name}</span>
-    </div>
+    <ProjectEntryDeckHeader
+      activeEntryId={routeLayout.projectEntryId}
+      projectId={currentProject.ID}
+      projectName={currentProject.name}
+    />
   ) : projectRouteHeaderTitle(pathname)
   const terminalWorkspaceContext = React.useMemo(() => {
     if (currentProject?.ID) {

@@ -19,21 +19,21 @@ export interface MediaWorkspacePaths {
 }
 
 export function mediaWorkspaceProjectRoot(input: {
-  userDataDir: string
+  homeDir: string
   projectId: string
 }): string {
-  return join(input.userDataDir, 'media-workspaces', stableMediaWorkspacePathPart(input.projectId))
+  return join(input.homeDir, 'media-workspaces', stableMediaWorkspacePathPart(input.projectId))
 }
 
 export function legacyMediaWorkspaceProjectRoot(input: {
-  userDataDir: string
+  homeDir: string
   projectId: string
 }): string {
-  return join(input.userDataDir, 'media-workspaces', legacySanitizedPathPart(input.projectId))
+  return join(input.homeDir, 'media-workspaces', legacySanitizedPathPart(input.projectId))
 }
 
 export function mediaWorkspaceTaskRoot(input: {
-  userDataDir: string
+  homeDir: string
   projectId: string
   taskId: string
 }): string {
@@ -41,7 +41,7 @@ export function mediaWorkspaceTaskRoot(input: {
 }
 
 export function legacyMediaWorkspaceTaskRoot(input: {
-  userDataDir: string
+  homeDir: string
   projectId: string
   taskId: string
 }): string {
@@ -49,11 +49,11 @@ export function legacyMediaWorkspaceTaskRoot(input: {
 }
 
 export async function prepareMediaWorkspace(input: {
-  userDataDir: string
+  homeDir: string
   projectId: string
   taskId: string
 }): Promise<MediaWorkspacePaths> {
-  const root = join(input.userDataDir, 'media-workspaces')
+  const root = join(input.homeDir, 'media-workspaces')
   const projectRoot = mediaWorkspaceProjectRoot(input)
   const taskRoot = mediaWorkspaceTaskRoot(input)
   const paths: MediaWorkspacePaths = {

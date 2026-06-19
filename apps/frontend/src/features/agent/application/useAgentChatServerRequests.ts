@@ -14,6 +14,7 @@ import {
   storeAgentChatPersistentServerRequest,
 } from '@/features/agent/application/agentChatRuntimeCache'
 import { replayAgentChatPersistentServerRequests } from '@/features/agent/application/agentChatServerRequestReplay'
+import { agentChatThreadTitleUpdateFromNotification } from '@/features/agent/application/agentChatThreadTitleSync'
 import {
   agentChatServerRequestResponseForAction,
   agentChatThreadIdForServerRequest,
@@ -33,6 +34,7 @@ interface UseAgentChatServerRequestsInput {
   markThreadOpen: (threadId: string) => void
   nextRecentEventSequence: () => number
   setActiveThreadIdValue: (threadId: string | null) => void
+  syncThreadConversationTitle?: (threadId: string, title: string) => void
   threadScopeKey: string
 }
 
@@ -44,6 +46,7 @@ export function useAgentChatServerRequests({
   markThreadOpen,
   nextRecentEventSequence,
   setActiveThreadIdValue,
+  syncThreadConversationTitle,
   threadScopeKey,
 }: UseAgentChatServerRequestsInput) {
   const projectedNotificationKeysRef = useRef<Set<string>>(new Set())
@@ -88,6 +91,11 @@ export function useAgentChatServerRequests({
     dispatchRuntime({ type: 'enqueueServerRequest', request, resolve: persistentResolve })
   }, [activateRequestThread, dispatchRuntime, threadScopeKey])
 
+  const syncNotificationThreadTitle = useCallback((notification: AgentChatNotification) => {
+    const update = agentChatThreadTitleUpdateFromNotification(notification)
+    if (update) syncThreadConversationTitle?.(update.threadId, update.title)
+  }, [syncThreadConversationTitle])
+
   useEffect(() => {
     function replayPendingDecisionRequests() {
       for (let payload = consumeAgentPanelDecisionRequest(); payload; payload = consumeAgentPanelDecisionRequest()) {
@@ -108,13 +116,14 @@ export function useAgentChatServerRequests({
   const handleNotification = useCallback((notification: AgentChatNotification) => {
     markAgentChatNotificationProjected(projectedNotificationKeysRef, notification)
     applyAgentChatPersistentServerRequestNotification(threadScopeKey, notification)
+    syncNotificationThreadTitle(notification)
     dispatchRuntime({
       type: 'applyNotification',
       notification,
       nowMs: Date.now(),
       recentEventSequence: nextRecentEventSequence(),
     })
-  }, [dispatchRuntime, nextRecentEventSequence, threadScopeKey])
+  }, [dispatchRuntime, nextRecentEventSequence, syncNotificationThreadTitle, threadScopeKey])
 
   useEffect(() => {
     return subscribeCrossPageNotifications((event) => {
@@ -129,9 +138,12 @@ export function useAgentChatServerRequests({
       const notification = event.topic === 'agent-chat' || event.topic === 'mcp-status' || event.topic === 'capability'
         ? (event.payload as { notification?: AgentChatNotification } | undefined)?.notification
         : undefined
-      if (notification) applyAgentChatPersistentServerRequestNotification(threadScopeKey, notification)
+      if (notification) {
+        applyAgentChatPersistentServerRequestNotification(threadScopeKey, notification)
+        syncNotificationThreadTitle(notification)
+      }
     })
-  }, [activeThreadId, dispatchRuntime, nextRecentEventSequence, threadScopeKey])
+  }, [activeThreadId, dispatchRuntime, nextRecentEventSequence, syncNotificationThreadTitle, threadScopeKey])
 
   useEffect(() => {
     if (!dataSource?.subscribeServerRequests) return undefined

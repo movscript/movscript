@@ -188,9 +188,7 @@ export function AgentChatShellView({
   return (
     <AgentShell density="compact" data-agent-chat-host={resolvedHost} className={shellClassName}>
       <AgentMain
-        className={surface === 'page'
-          ? `agent-page-chat-main${!hasChatContent ? ' agent-page-chat-main--empty' : ''}`
-          : 'ai-agent-panel-main'}
+        className={surface === 'page' ? 'agent-page-chat-main' : 'ai-agent-panel-main'}
         data-agent-chat-host={resolvedHost}
       >
         {surface === 'panel' ? (

@@ -2,11 +2,16 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  EXTERNAL_RESOURCE_SEARCH_DESKTOP_STATE_KEY,
+  EXTERNAL_RESOURCE_SEARCH_STORAGE_KEY,
   externalResourceSearchInitialData,
+  loadExternalResourceSearchSnapshot,
   normalizeExternalMediaTypes,
   normalizeExternalOrientation,
   normalizeExternalSnapshotPage,
   parseExternalResourceSearchSnapshot,
+  saveExternalResourceSearchSnapshot,
+  type ExternalResourceSearchSnapshot,
 } from './externalResourceSearchSnapshot'
 
 const result = {
@@ -87,3 +92,199 @@ test('external resource search filter normalizers provide stable defaults', () =
   assert.equal(normalizeExternalSnapshotPage(4.8), 4)
   assert.equal(normalizeExternalSnapshotPage(-1), 1)
 })
+
+test('external resource search snapshot uses browser storage as the web fallback', () => {
+  const previousWindow = globalThis.window
+  const storage = new Map<string, string>()
+  globalThis.window = {
+    localStorage: {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        storage.set(key, value)
+      },
+      removeItem: (key: string) => {
+        storage.delete(key)
+      },
+    },
+  } as typeof window
+
+  try {
+    const snapshot = externalResourceSearchSnapshot()
+
+    assert.equal(loadExternalResourceSearchSnapshot(), null)
+
+    saveExternalResourceSearchSnapshot(snapshot)
+
+    assert.equal(storage.get(EXTERNAL_RESOURCE_SEARCH_STORAGE_KEY), JSON.stringify(snapshot))
+    assert.deepEqual(loadExternalResourceSearchSnapshot(), snapshot)
+  } finally {
+    globalThis.window = previousWindow
+  }
+})
+
+test('external resource search snapshot hydrates from MovScript Home desktop state', async () => {
+  const previousWindow = globalThis.window
+  const legacySnapshot = externalResourceSearchSnapshot({ submittedQuery: 'legacy' })
+  const homeSnapshot = externalResourceSearchSnapshot({ submittedQuery: 'home', query: 'home', page: 3 })
+  const storage = new Map<string, string>([[EXTERNAL_RESOURCE_SEARCH_STORAGE_KEY, JSON.stringify(legacySnapshot)]])
+  const desktopReads: Array<{ key: string }> = []
+  globalThis.window = {
+    localStorage: {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        storage.set(key, value)
+      },
+      removeItem: (key: string) => {
+        storage.delete(key)
+      },
+    },
+    api: {
+      getDesktopState: async (input: { key: string }) => {
+        desktopReads.push(input)
+        return {
+          key: input.key,
+          movScriptHomeDir: '/tmp/movscript-home',
+          workspaceDir: '/tmp/movscript-home',
+          path: '',
+          version: '',
+          value: JSON.stringify(homeSnapshot),
+        }
+      },
+    },
+  } as typeof window
+
+  try {
+    assert.equal(loadExternalResourceSearchSnapshot(), null)
+    assert.equal(desktopReads[0]?.key, EXTERNAL_RESOURCE_SEARCH_DESKTOP_STATE_KEY)
+
+    await waitForAsyncStorage()
+
+    assert.deepEqual(loadExternalResourceSearchSnapshot(), homeSnapshot)
+    assert.equal(storage.has(EXTERNAL_RESOURCE_SEARCH_STORAGE_KEY), false)
+  } finally {
+    globalThis.window = previousWindow
+  }
+})
+
+test('external resource search snapshot migrates legacy browser state into MovScript Home', async () => {
+  const previousWindow = globalThis.window
+  const legacySnapshot = externalResourceSearchSnapshot({ submittedQuery: 'legacy', query: 'legacy', page: 2 })
+  const storage = new Map<string, string>([[EXTERNAL_RESOURCE_SEARCH_STORAGE_KEY, JSON.stringify(legacySnapshot)]])
+  const desktopWrites: Array<{ key: string; value: unknown }> = []
+  globalThis.window = {
+    localStorage: {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        storage.set(key, value)
+      },
+      removeItem: (key: string) => {
+        storage.delete(key)
+      },
+    },
+    api: {
+      getDesktopState: async (input: { key: string }) => ({
+        key: input.key,
+        movScriptHomeDir: '/tmp/movscript-home',
+        workspaceDir: '/tmp/movscript-home',
+        path: '',
+        version: '',
+        value: null,
+      }),
+      setDesktopState: async (input: { key: string; value: unknown }) => {
+        desktopWrites.push(input)
+        return {
+          key: input.key,
+          movScriptHomeDir: '/tmp/movscript-home',
+          workspaceDir: '/tmp/movscript-home',
+          path: '',
+          version: '',
+          value: input.value,
+        }
+      },
+    },
+  } as typeof window
+
+  try {
+    assert.equal(loadExternalResourceSearchSnapshot(), null)
+
+    await waitForAsyncStorage()
+
+    assert.deepEqual(loadExternalResourceSearchSnapshot(), legacySnapshot)
+    assert.equal(desktopWrites.length, 1)
+    assert.equal(desktopWrites[0]?.key, EXTERNAL_RESOURCE_SEARCH_DESKTOP_STATE_KEY)
+    assert.equal(desktopWrites[0]?.value, JSON.stringify(legacySnapshot))
+    assert.equal(storage.has(EXTERNAL_RESOURCE_SEARCH_STORAGE_KEY), false)
+  } finally {
+    globalThis.window = previousWindow
+  }
+})
+
+test('external resource search snapshot writes updates to MovScript Home desktop state', async () => {
+  const previousWindow = globalThis.window
+  const snapshot = externalResourceSearchSnapshot({ submittedQuery: 'mountain', query: 'mountain' })
+  const storage = new Map<string, string>([[EXTERNAL_RESOURCE_SEARCH_STORAGE_KEY, '{}']])
+  const desktopWrites: Array<{ key: string; value: unknown }> = []
+  globalThis.window = {
+    localStorage: {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        storage.set(key, value)
+      },
+      removeItem: (key: string) => {
+        storage.delete(key)
+      },
+    },
+    api: {
+      getDesktopState: async (input: { key: string }) => ({
+        key: input.key,
+        movScriptHomeDir: '/tmp/movscript-home',
+        workspaceDir: '/tmp/movscript-home',
+        path: '',
+        version: '',
+        value: null,
+      }),
+      setDesktopState: async (input: { key: string; value: unknown }) => {
+        desktopWrites.push(input)
+        return {
+          key: input.key,
+          movScriptHomeDir: '/tmp/movscript-home',
+          workspaceDir: '/tmp/movscript-home',
+          path: '',
+          version: '',
+          value: input.value,
+        }
+      },
+    },
+  } as typeof window
+
+  try {
+    saveExternalResourceSearchSnapshot(snapshot)
+
+    await waitForAsyncStorage()
+
+    assert.deepEqual(loadExternalResourceSearchSnapshot(), snapshot)
+    assert.equal(desktopWrites.length, 1)
+    assert.equal(desktopWrites[0]?.key, EXTERNAL_RESOURCE_SEARCH_DESKTOP_STATE_KEY)
+    assert.equal(desktopWrites[0]?.value, JSON.stringify(snapshot))
+    assert.equal(storage.has(EXTERNAL_RESOURCE_SEARCH_STORAGE_KEY), false)
+  } finally {
+    globalThis.window = previousWindow
+  }
+})
+
+function externalResourceSearchSnapshot(input: Partial<ExternalResourceSearchSnapshot> = {}): ExternalResourceSearchSnapshot {
+  return {
+    sourceId: 7,
+    query: 'city',
+    submittedQuery: 'city',
+    mediaTypes: ['image'],
+    orientation: 'landscape',
+    page: 2,
+    result,
+    ...input,
+  } as NonNullable<ReturnType<typeof parseExternalResourceSearchSnapshot>>
+}
+
+function waitForAsyncStorage(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0))
+}

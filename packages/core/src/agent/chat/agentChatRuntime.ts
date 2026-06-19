@@ -1,6 +1,7 @@
 import { agentChatRecentCapabilityEventEntryId } from './agentChatRecentCapabilityEvents.js'
 import {
   agentChatNotificationEventShouldDisplayAsRecent,
+  agentChatVisibleThreadItemViewId,
   buildAgentChatVisibleItems,
   dispatchAgentChatNotification,
   type AgentChatVisibleThreadItem,
@@ -187,6 +188,7 @@ export function agentChatRuntimeReducer(
       return requestAgentChatRuntimeActiveThreadResume({
         ...state,
         threads: action.threads,
+        pendingUserItems: removeAgentChatRuntimeConfirmedPendingUserItems(state.pendingUserItems, action.threads),
         threadReadStates: updateAgentChatRuntimeThreadReadStates(state.threadReadStates, action.threads),
       })
     case 'updateThreads':
@@ -361,7 +363,7 @@ export function selectAgentChatRuntimeView(state: AgentChatRuntimeState): AgentC
         state.realtimeTranscriptItems,
         state.realtimeAudioItems,
       )
-      : [],
+      : buildAgentChatPendingUserVisibleItems(state.pendingUserItems, state.activeThreadId),
     visiblePendingServerRequests,
     visibleStatusItems: agentChatRuntimeVisibleStatusItems(state, visiblePendingServerRequests),
   }
@@ -546,6 +548,7 @@ function upsertAgentChatRuntimeThreadResult(
   return requestAgentChatRuntimeActiveThreadResume({
     ...state,
     threads: upsertAgentChatRuntimeThread(state.threads, mergedThread),
+    pendingUserItems: removeAgentChatRuntimeConfirmedPendingUserItems(state.pendingUserItems, [mergedThread]),
     threadReadStates: {
       ...state.threadReadStates,
       [mergedThread.id]: agentChatRuntimeThreadReadInputIsIncremental(input)
@@ -705,6 +708,55 @@ function mergeAgentChatRuntimeThreadItems(
 
 function agentChatRuntimeThreadItems(thread: AgentChatThread): AgentChatThreadItem[] {
   return thread.turns.flatMap((turn) => turn.items)
+}
+
+function buildAgentChatPendingUserVisibleItems(
+  pendingUserItems: AgentChatPendingUserItem[],
+  activeThreadId: string | null,
+): AgentChatVisibleThreadItem[] {
+  if (!activeThreadId) return []
+  const viewIds = new Set<string>()
+  const items: AgentChatVisibleThreadItem[] = []
+  for (const pending of pendingUserItems) {
+    if (pending.threadId !== activeThreadId) continue
+    const viewId = agentChatVisibleThreadItemViewId('pending', pending.item)
+    if (viewIds.has(viewId)) continue
+    viewIds.add(viewId)
+    items.push({ viewId, item: pending.item, streaming: false })
+  }
+  return items
+}
+
+function removeAgentChatRuntimeConfirmedPendingUserItems(
+  pendingUserItems: AgentChatPendingUserItem[],
+  threads: AgentChatThread[],
+): AgentChatPendingUserItem[] {
+  const confirmedByThread = new Map<string, { itemIds: Set<string>; clientIds: Set<string> }>()
+  for (const thread of threads) {
+    const itemIds = new Set<string>()
+    const clientIds = new Set<string>()
+    for (const item of agentChatRuntimeThreadItems(thread)) {
+      if (item.type !== 'userMessage') continue
+      itemIds.add(item.id)
+      const clientId = agentChatRuntimeUserMessageClientId(item)
+      if (clientId) clientIds.add(clientId)
+    }
+    if (itemIds.size > 0 || clientIds.size > 0) {
+      confirmedByThread.set(thread.id, { itemIds, clientIds })
+    }
+  }
+  if (confirmedByThread.size === 0) return pendingUserItems
+  return pendingUserItems.filter((pending) => {
+    const confirmed = confirmedByThread.get(pending.threadId)
+    if (!confirmed) return true
+    const pendingClientId = agentChatRuntimeUserMessageClientId(pending.item)
+    if (pendingClientId && confirmed.clientIds.has(pendingClientId)) return false
+    return !confirmed.itemIds.has(pending.item.id)
+  })
+}
+
+function agentChatRuntimeUserMessageClientId(item: AgentChatThreadItem): string | null {
+  return item.type === 'userMessage' && item.clientId?.trim() ? item.clientId.trim() : null
 }
 
 function agentChatRuntimeThreadReadInputIsIncremental(input: AgentChatThreadReadInput): boolean {

@@ -25,7 +25,7 @@ The unified Agent Chat is one UI over provider-specific protocols. Its domain la
 
 Server-initiated requests are first-class chat state, not side effects hidden in a tool row. If a provider asks for approval, user input, elicitation, or a dynamic tool result, the adapter must emit an `AgentChatServerRequest` with enough scoped IDs to resolve it. If the protocol event lacks executable IDs, the adapter must recover them from authoritative pending state or expose the item as non-actionable instead of fabricating an approval path.
 
-`agentChatRuntime` owns the unified chat's runtime state machine in core. Components dispatch provider-neutral events and user intents into the runtime, then render the runtime view selectors. Frontend components keep orchestration concerns: loading a data source, subscribing to notifications, reading canonical threads, routing local events, and syncing browser storage.
+`agentChatRuntime` owns the unified chat's runtime state machine in core. Components dispatch provider-neutral events and user intents into the runtime, then render the runtime view selectors. Frontend components keep orchestration concerns: loading a data source, subscribing to notifications, reading canonical threads, routing local events, and syncing MovScript Home-backed desktop state with browser fallback only for web/legacy compatibility.
 
 Timeline pagination and stream-event merge rules are service-level state logic. `packages/core/src/agent/timelineState.ts` owns item sorting, dedupe, page replacement/merge, reset handling, and stale-event rejection. Frontend timeline hooks fetch pages, subscribe to streams, record performance, and map timeline items into UI messages.
 

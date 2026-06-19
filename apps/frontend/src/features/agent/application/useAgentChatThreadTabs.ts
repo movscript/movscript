@@ -30,9 +30,11 @@ interface UseAgentChatThreadTabsInput {
   projectId?: unknown
   providerIdentity: ReturnType<typeof buildAgentChatProviderIdentity>
   readHistoryThread: (threadId: string) => Promise<{ thread: AgentChatThread; input: AgentChatThreadReadInput }>
+  reorderOpenThreads: (draggedThreadId: string, targetThreadId: string, position: 'before' | 'after') => void
   setActiveThreadIdValue: (threadId: string | null) => void
   setError: Dispatch<SetStateAction<string | null>>
   sourceThreadList: AgentChatThread[]
+  syncThreadConversationTitle: (threadId: string, title: string | null | undefined) => void
   threadOrderIndex: Map<string, number>
   threads: AgentChatThread[]
   upsertThread: (thread: AgentChatThread) => void
@@ -52,9 +54,11 @@ export function useAgentChatThreadTabs({
   projectId,
   providerIdentity,
   readHistoryThread,
+  reorderOpenThreads,
   setActiveThreadIdValue,
   setError,
   sourceThreadList,
+  syncThreadConversationTitle,
   threadOrderIndex,
   threads,
   upsertThread,
@@ -108,26 +112,30 @@ export function useAgentChatThreadTabs({
     }
   }, [activeThreadId, markThreadClosed, markThreadOpen, openThreadCandidates, readHistoryThread, setActiveThreadIdValue, setError, threads, upsertThreadReadResult])
 
-  const reorderThreadTab = useCallback((_draggedId: string, _targetId: string, _position: 'before' | 'after') => {
-    // Tab order is registry-derived. Drag persistence belongs in the core registry once product sorting rules are finalized.
-  }, [])
+  const reorderThreadTab = useCallback((draggedId: string, targetId: string, position: 'before' | 'after') => {
+    reorderOpenThreads(draggedId, targetId, position)
+  }, [reorderOpenThreads])
 
   const renameThread = useCallback(async (threadId: string, name: string) => {
     if (!dataSource?.renameThread) return
     setError(null)
     try {
       const response = await dataSource.renameThread({ threadId, name })
-      if (isAgentChatThread(response)) upsertThread(response)
+      if (isAgentChatThread(response)) {
+        upsertThread(response)
+        syncThreadConversationTitle(response.id, response.name ?? name)
+      }
       else {
         dispatchRuntime({
           type: 'updateThreads',
-          update: (current) => current.map((thread) => thread.id === threadId ? { ...thread, name, updatedAt: Date.now() } : thread),
+          update: (current) => current.map((thread) => thread.id === threadId ? { ...thread, name, updatedAt: Math.floor(Date.now() / 1000) } : thread),
         })
+        syncThreadConversationTitle(threadId, name)
       }
     } catch (nextError) {
       setError(errorMessage(nextError))
     }
-  }, [dataSource, dispatchRuntime, setError, upsertThread])
+  }, [dataSource, dispatchRuntime, setError, syncThreadConversationTitle, upsertThread])
 
   const threadTabs = useMemo(() => buildAgentChatThreadTabs({
     threadOrderIndex,

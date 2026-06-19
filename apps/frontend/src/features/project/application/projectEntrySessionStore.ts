@@ -3,6 +3,7 @@ import { createJSONStorage, persist, type StateStorage } from 'zustand/middlewar
 
 import type { ProjectEntryId } from '@/features/project/domain/projectEntryRegistry'
 import { readBrowserStorageItem, removeBrowserStorageItem, writeBrowserStorageItem } from '@/shared/infrastructure/browserStorage'
+import { createDesktopStateStorage } from '@/shared/infrastructure/desktopStateStorage'
 
 export const PROJECT_ENTRY_SESSION_STORAGE_KEY = 'movscript-workbench-session-v1'
 export const PROJECT_ENTRY_SESSION_SCHEMA_VERSION = 1
@@ -25,6 +26,8 @@ export interface ProjectEntrySessionSnapshot {
   schemaVersion: typeof PROJECT_ENTRY_SESSION_SCHEMA_VERSION
   projectId: number
   projectEntryId: ProjectEntrySessionId
+  deckOrder?: number
+  open?: boolean
   route?: string
   search?: string
   updatedAt: string
@@ -37,6 +40,8 @@ interface ProjectEntrySessionStore {
   hydrated: boolean
   snapshotFor: (projectId: number | null | undefined, projectEntryId: ProjectEntrySessionId) => ProjectEntrySessionSnapshot | null
   upsertSnapshot: (snapshot: Omit<ProjectEntrySessionSnapshot, 'schemaVersion' | 'updatedAt'> & { updatedAt?: string }) => void
+  setEntryDeckOrders: (projectId: number | null | undefined, orders: Array<{ projectEntryId: ProjectEntrySessionId; deckOrder: number }>) => void
+  setEntryOpen: (projectId: number | null | undefined, projectEntryId: ProjectEntrySessionId, open: boolean) => void
   clearSnapshot: (projectId: number | null | undefined, projectEntryId: ProjectEntrySessionId) => void
 }
 
@@ -76,11 +81,12 @@ const memoryProjectEntrySessionStorage: StateStorage = (() => {
 })()
 
 function getProjectEntrySessionStorage(): StateStorage {
-  return typeof window === 'undefined' ? memoryProjectEntrySessionStorage : {
+  const fallback: StateStorage = typeof window === 'undefined' ? memoryProjectEntrySessionStorage : {
     getItem: (name) => readBrowserStorageItem('local', name),
     setItem: (name, value) => writeBrowserStorageItem('local', name, value),
     removeItem: (name) => removeBrowserStorageItem('local', name),
   }
+  return createDesktopStateStorage(PROJECT_ENTRY_SESSION_STORAGE_KEY, fallback)
 }
 
 function normalizeProjectEntrySessionSnapshot(input: unknown): ProjectEntrySessionSnapshot | null {
@@ -95,6 +101,8 @@ function normalizeProjectEntrySessionSnapshot(input: unknown): ProjectEntrySessi
     schemaVersion: PROJECT_ENTRY_SESSION_SCHEMA_VERSION,
     projectId,
     projectEntryId: projectEntryId as ProjectEntrySessionId,
+    deckOrder: normalizeProjectEntrySessionDeckOrder(record.deckOrder),
+    open: typeof record.open === 'boolean' ? record.open : undefined,
     route: typeof record.route === 'string' ? record.route : undefined,
     search: typeof record.search === 'string' ? record.search : undefined,
     updatedAt: typeof record.updatedAt === 'string' ? record.updatedAt : new Date(0).toISOString(),
@@ -161,6 +169,36 @@ export const useProjectEntrySessionStore = create<ProjectEntrySessionStore>()(
           snapshots: buildProjectEntrySessionSnapshots(state.snapshots, key, snapshot),
         }))
       },
+      setEntryDeckOrders: (projectId, orders) => {
+        const normalizedProjectId = Number(projectId) || 0
+        if (normalizedProjectId <= 0 || orders.length === 0) return
+        set((state) => {
+          let snapshots = state.snapshots
+          for (const order of orders) {
+            const deckOrder = normalizeProjectEntrySessionDeckOrder(order.deckOrder)
+            if (deckOrder === undefined) continue
+            const key = projectEntrySessionKey(normalizedProjectId, order.projectEntryId)
+            snapshots = buildProjectEntrySessionSnapshots(snapshots, key, {
+              projectId: normalizedProjectId,
+              projectEntryId: order.projectEntryId,
+              deckOrder,
+            })
+          }
+          return { snapshots }
+        })
+      },
+      setEntryOpen: (projectId, projectEntryId, open) => {
+        const normalizedProjectId = Number(projectId) || 0
+        if (normalizedProjectId <= 0) return
+        const key = projectEntrySessionKey(normalizedProjectId, projectEntryId)
+        set((state) => ({
+          snapshots: buildProjectEntrySessionSnapshots(state.snapshots, key, {
+            projectId: normalizedProjectId,
+            projectEntryId,
+            open,
+          }),
+        }))
+      },
       clearSnapshot: (projectId, projectEntryId) => {
         const key = projectEntrySessionKey(projectId, projectEntryId)
         set((state) => {
@@ -197,6 +235,7 @@ function buildProjectEntrySessionSnapshots(
   snapshot: Omit<ProjectEntrySessionSnapshot, 'schemaVersion' | 'updatedAt'> & { updatedAt?: string },
 ): Record<string, ProjectEntrySessionSnapshot> {
   const existing = snapshots[key]
+  const hasSelection = Object.prototype.hasOwnProperty.call(snapshot, 'selection')
   return {
     ...snapshots,
     [key]: {
@@ -208,7 +247,12 @@ function buildProjectEntrySessionSnapshots(
         ...(existing?.filters ?? {}),
         ...(snapshot.filters ?? {}),
       },
-      selection: snapshot.selection,
+      selection: hasSelection ? snapshot.selection : existing?.selection,
     },
   }
+}
+
+function normalizeProjectEntrySessionDeckOrder(value: unknown): number | undefined {
+  const numeric = Number(value)
+  return Number.isInteger(numeric) && numeric >= 0 ? numeric : undefined
 }

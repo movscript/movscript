@@ -1,4 +1,3 @@
-import { app } from 'electron'
 import {
   ensurePluginCatalogPackStoreDirs as ensureSharedPluginCatalogPackStoreDirs,
   installPluginCatalogPack as installSharedPluginCatalogPack,
@@ -9,10 +8,11 @@ import {
   type InstallPluginCatalogPackInput,
   type UninstallPluginCatalogPackInput,
 } from '@movscript/core/plugins/node'
+import { resolveDesktopDefaultMovScriptWorkspaceDir } from './movscriptWorkspaceDefaults'
 
 export function resolvePluginCatalogPackStoreDirs(): PluginCatalogPackStoreDirs {
   return resolveSharedPluginCatalogPackStoreDirs({
-    dataDir: app.getPath('userData'),
+    dataDir: resolveDesktopDefaultMovScriptWorkspaceDir(),
     env: process.env,
   })
 }

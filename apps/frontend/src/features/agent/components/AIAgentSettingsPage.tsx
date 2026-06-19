@@ -187,7 +187,7 @@ export default function AIAgentSettingsPage() {
       agentLabel: selectedAgentProfile?.label ?? selectedProviderProfileLabel,
       agentEnabled: selectedAgentProfile?.enabled ?? false,
       runtimeLabel: selectedAgentProfile?.connectionLabel ?? t('agents.settings.statusCardRuntimeFallback'),
-      runtimeAvailable: selectedAgentProfile?.connectionKind === 'sdk',
+      runtimeAvailable: selectedAgentProfile ? selectedAgentProfile.connectionKind !== 'unavailable' : false,
       authEnv: selectedAgentProfile?.provider.kind === 'claude' ? 'ANTHROPIC_API_KEY' : undefined,
       pendingChanges: 0,
     }), [

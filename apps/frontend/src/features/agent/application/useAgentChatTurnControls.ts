@@ -1,6 +1,7 @@
 import { useCallback, useEffect, type Dispatch, type MutableRefObject, type RefObject, type SetStateAction } from 'react'
 import {
   agentChatInputsFromTextAndAttachments,
+  agentChatVisibleThreadItemViewId,
   buildAgentChatRuntimeThreadReadInput,
   ensureAgentChatThreadReadyForTurn,
   type AgentChatDataSource,
@@ -9,6 +10,7 @@ import {
   type AgentChatModelSelection,
   type AgentChatRuntimeAction,
   type AgentChatRuntimeState,
+  type AgentChatRuntimeView,
   type AgentChatThread,
   type AgentChatThreadControlOptions,
   type AgentChatThreadReadInput,
@@ -51,6 +53,24 @@ export type AgentComposerQueuedInput = AgentChatQueuedInputState<
   AgentComposerController['selectedWorkspaceContext']
 >
 
+type AgentChatVisibleItem = AgentChatRuntimeView['visibleItems'][number]
+
+export function upsertAgentChatOptimisticUserItem(
+  items: AgentChatVisibleItem[],
+  item: AgentChatVisibleItem,
+): AgentChatVisibleItem[] {
+  const existingIndex = items.findIndex((candidate) => candidate.viewId === item.viewId)
+  if (existingIndex < 0) return [...items, item]
+  return items.map((candidate, index) => (index === existingIndex ? item : candidate))
+}
+
+export function removeAgentChatOptimisticUserItem(
+  items: AgentChatVisibleItem[],
+  viewId: string,
+): AgentChatVisibleItem[] {
+  return items.filter((item) => item.viewId !== viewId)
+}
+
 interface UseAgentChatTurnControlsInput {
   activeThread: AgentChatThread | null
   activeTurn: AgentChatTurn | null
@@ -72,6 +92,7 @@ interface UseAgentChatTurnControlsInput {
   setQueuedInputs: Dispatch<SetStateAction<AgentComposerQueuedInput[]>>
   setQueuedInputsCollapsed: Dispatch<SetStateAction<boolean>>
   setSending: Dispatch<SetStateAction<boolean>>
+  setOptimisticUserItems: Dispatch<SetStateAction<AgentChatRuntimeView['visibleItems']>>
   setStoppingTurn: Dispatch<SetStateAction<boolean>>
   startThreadResult: (input?: AgentChatStartThreadInput) => Promise<AgentChatStartThreadResult | null>
   stoppingTurn: boolean
@@ -107,6 +128,7 @@ export function useAgentChatTurnControls({
   setQueuedInputs,
   setQueuedInputsCollapsed,
   setSending,
+  setOptimisticUserItems,
   setStoppingTurn,
   startThreadResult,
   stoppingTurn,
@@ -176,6 +198,23 @@ export function useAgentChatTurnControls({
     const sentAttachments = composer.composerAttachments
     const inputs = agentChatInputsFromTextAndAttachments(text, sentAttachments)
     if (inputs.length === 0) return
+    const clientUserMessageId = `agent_user_${Date.now()}`
+    const optimisticUserMessage = {
+      type: 'userMessage' as const,
+      id: clientUserMessageId,
+      clientId: clientUserMessageId,
+      content: inputs,
+    }
+    const optimisticUserItem: AgentChatVisibleItem = {
+      viewId: agentChatVisibleThreadItemViewId('pending', optimisticUserMessage),
+      item: optimisticUserMessage,
+      streaming: false,
+    }
+    const shouldShowOptimisticUserItem = !activeTurn
+    const clearOptimisticUserItem = () => {
+      if (!shouldShowOptimisticUserItem) return
+      setOptimisticUserItems((current) => removeAgentChatOptimisticUserItem(current, optimisticUserItem.viewId))
+    }
     const previousWorkspace = {
       input: composerInput,
       attachments: composer.attachments,
@@ -183,6 +222,9 @@ export function useAgentChatTurnControls({
     }
     let restoreConversationId = composerConversationId
     const sourceConversationId = composerConversationId
+    if (shouldShowOptimisticUserItem) {
+      setOptimisticUserItems((current) => upsertAgentChatOptimisticUserItem(current, optimisticUserItem))
+    }
     setSending(true)
     setError(null)
     try {
@@ -209,9 +251,27 @@ export function useAgentChatTurnControls({
           workspaceContext: composer.selectedWorkspaceContext,
           ...(selectedWorkspaceProjectId !== undefined ? { projectId: selectedWorkspaceProjectId } : {}),
         })
-        if (!started) return
+        if (!started) {
+          clearOptimisticUserItem()
+          return
+        }
         thread = started.thread
         turnDataSource = started.dataSource
+      }
+      if (!activeTurn) {
+        dispatchRuntime({
+          type: 'appendPendingUserItem',
+          item: {
+            threadId: thread.id,
+            item: {
+              type: 'userMessage',
+              id: clientUserMessageId,
+              clientId: clientUserMessageId,
+              content: inputs,
+            },
+          },
+        })
+        clearOptimisticUserItem()
       }
       if (firstTurnDraftControls?.goalModeEnabled && turnDataSource.setThreadGoal && !activeTurn) {
         await turnDataSource.setThreadGoal({
@@ -235,7 +295,6 @@ export function useAgentChatTurnControls({
       })
       composer.updateWorkspace({ input: '', attachments: [] })
       clearAgentChatComposerEditor(composerInputRef.current)
-      const clientUserMessageId = `agent_user_${Date.now()}`
       if (activeTurn) {
         setQueuedInputs((current) => [
           ...current,
@@ -254,18 +313,6 @@ export function useAgentChatTurnControls({
         setQueuedInputsCollapsed(false)
         return
       }
-      dispatchRuntime({
-        type: 'appendPendingUserItem',
-        item: {
-          threadId: thread.id,
-          item: {
-            type: 'userMessage',
-            id: clientUserMessageId,
-            clientId: clientUserMessageId,
-            content: inputs,
-          },
-        },
-      })
       if (!firstTurnDraftControls) {
         await syncThreadRunProfileSettingsForTurn(turnDataSource, thread, runProfile)
       }
@@ -290,13 +337,14 @@ export function useAgentChatTurnControls({
       }
       composer.revokeAttachmentPreviewUrls(sentAttachments)
     } catch (nextError) {
+      clearOptimisticUserItem()
       useAgentSessionStore.getState().updateConversationWorkspace(userId, restoreConversationId, previousWorkspace)
       composer.updateWorkspace(previousWorkspace)
       setError(errorMessage(nextError))
     } finally {
       setSending(false)
     }
-  }, [activeThread, activeTurn, collaborationMode, composer, composerConversationId, composerInputRef, composerPlaceholder, dataSource, dispatchRuntime, goalModeEnabled, profilePresetId, selectedModelSelectionForRequest, sending, setError, setQueuedInputs, setQueuedInputsCollapsed, setSending, startThreadResult, syncThreadRunProfileSettingsForTurn, threadScopeKey, upsertThread, userId])
+  }, [activeThread, activeTurn, collaborationMode, composer, composerConversationId, composerInputRef, composerPlaceholder, dataSource, dispatchRuntime, goalModeEnabled, profilePresetId, selectedModelSelectionForRequest, sending, setError, setOptimisticUserItems, setQueuedInputs, setQueuedInputsCollapsed, setSending, startThreadResult, syncThreadRunProfileSettingsForTurn, threadScopeKey, upsertThread, userId])
 
   const submitQueuedInputsAsTurn = useCallback(async (ids: string[]) => {
     if (!dataSource || sending) return

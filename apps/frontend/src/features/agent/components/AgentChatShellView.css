@@ -10,10 +10,6 @@
   background: inherit;
 }
 
-.agent-page-chat-main--empty {
-  justify-content: center;
-}
-
 .agent-page-chat-actions {
   position: absolute;
   top: 8px;
@@ -74,18 +70,27 @@
 }
 
 .agent-page-chat-empty {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
   display: flex;
   width: 100%;
   min-height: 0;
-  flex: 0 0 auto;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
-  padding: 0 clamp(18px, 5vw, 72px);
+  justify-content: center;
+  padding: 0 clamp(18px, 5vw, 72px) 24px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--ms-duration-fast) var(--ms-easing-standard);
+}
+
+.agent-page-chat-empty[data-visible="true"] {
+  opacity: 1;
 }
 
 .agent-page-chat-empty-title {
-  margin: 0 0 48px;
+  margin: 0;
   max-width: min(100%, 980px);
   color: var(--ms-color-foreground);
   text-align: center;
@@ -137,11 +142,12 @@
 }
 
 .agent-page-chat-thread-shell--empty {
-  flex: 0 0 auto;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .agent-page-chat-thread {
+  position: relative;
+  z-index: 0;
   display: flex;
   min-height: 0;
   flex: 1 1 auto;
@@ -157,12 +163,6 @@
   width: 100%;
   flex: 0 0 auto;
   padding: 8px 0 12px;
-}
-
-.agent-page-chat-empty-composer {
-  width: 90%;
-  margin-inline: auto;
-  padding: 0 0 12px;
 }
 
 .agent-page-chat-composer .ai-agent-panel-input-card[data-chrome="card"] {
@@ -181,23 +181,6 @@
 .agent-page-chat-composer .ai-agent-panel-input-card[data-chrome="flush"] {
   width: 100%;
   margin: 0;
-}
-
-.agent-page-chat-thread-shell--empty .agent-page-chat-composer .ai-agent-panel-input-card {
-  overflow: visible;
-  box-shadow: none;
-}
-
-.agent-page-chat-thread-shell--empty .agent-page-chat-composer .ai-agent-panel-composer {
-  border-radius: 24px;
-  padding: 0;
-}
-
-.agent-page-chat-thread-shell--empty .agent-page-chat-composer .ai-agent-panel-mention-editor {
-  min-height: 92px;
-  font-size: var(--ms-text-label);
-  font-weight: 400;
-  line-height: var(--ms-leading-label);
 }
 
 .project-agent-chat-shell .ai-agent-panel-input-card[data-chrome="card"] {

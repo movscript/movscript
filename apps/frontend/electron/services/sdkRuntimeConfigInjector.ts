@@ -6,11 +6,13 @@ export const DEFAULT_ANTHROPIC_MODEL_ENDPOINT_BASE_URL = 'https://api.anthropic.
 export function codexOptionsFromAccount(
   account: AgentRuntimeAccountConfig,
   envOverrides: NodeJS.ProcessEnv,
+  options: { disableBackendWebsockets?: boolean } = {},
 ): Record<string, unknown> | undefined {
   const modelEndpointBaseURL = account.modelEndpointBaseURL
   const shouldSetBaseURL = account.backendProviderSelected || modelEndpointBaseURL !== DEFAULT_OPENAI_MODEL_ENDPOINT_BASE_URL
   const next: Record<string, unknown> = {
     baseUrl: modelEndpointBaseURL,
+    ...(account.backendProviderSelected && options.disableBackendWebsockets ? { config: codexBackendProviderConfig(modelEndpointBaseURL) } : {}),
     ...(account.kind === 'apiKey' ? { apiKey: account.apiKey } : {}),
     env: {
       ...process.env,
@@ -25,6 +27,21 @@ export function codexOptionsFromAccount(
     },
   }
   return Object.keys(next).length ? next : undefined
+}
+
+function codexBackendProviderConfig(modelEndpointBaseURL: string): Record<string, unknown> {
+  return {
+    model_provider: 'movscript-backend-openai',
+    model_providers: {
+      'movscript-backend-openai': {
+        name: 'Movscript Backend',
+        base_url: modelEndpointBaseURL,
+        env_key: 'OPENAI_API_KEY',
+        wire_api: 'responses',
+        supports_websockets: false,
+      },
+    },
+  }
 }
 
 export function claudeOptionsFromAccount(

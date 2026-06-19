@@ -27,6 +27,7 @@ export interface AgentSessionStore {
   createProviderSessionConversation: (userId: string, input: { threadId: string; sessionId?: string; title?: string; createdAt?: number; updatedAt?: number; projectId?: number; provider?: AgentChatProviderKind | string; providerId?: string; providerInstanceId?: string; providerProtocol?: string; providerThreadCwd?: string; workspaceContext?: AgentSessionWorkspaceContext }) => string
   removeProviderSessionConversation: (userId: string, conversationId: string) => void
   setActiveConversation: (userId: string, conversationId: string | null) => void
+  setConversationDeckOrders: (orders: Array<{ conversationId: string; deckOrder: number }>) => void
   getActiveConversationId: (userId: string) => string | null
   updateConversationTitle: (userId: string, conversationId: string, title: string) => void
   getConversationWorkspace: (userId: string, conversationId: string) => ConversationWorkspace

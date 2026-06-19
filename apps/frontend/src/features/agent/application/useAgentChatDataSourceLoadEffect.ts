@@ -1,5 +1,5 @@
 import { useEffect, type Dispatch, type SetStateAction } from 'react'
-import { type AgentChatDataSource, type AgentChatRuntimeAction } from '@movscript/core/agent/chat'
+import { type AgentChatDataSource, type AgentChatRuntimeAction, type AgentChatRuntimeView } from '@movscript/core/agent/chat'
 import { errorMessage } from '@/features/agent/presentation/agentChatDataSourceShellModel'
 import type { AgentComposerQueuedInput } from '@/features/agent/application/useAgentChatTurnControls'
 import type { AgentChatDataSourceShellLoadResult } from '@/features/agent/application/agentChatDataSourceShellTypes'
@@ -20,6 +20,7 @@ interface UseAgentChatDataSourceLoadEffectInput {
   setEndpoint: Dispatch<SetStateAction<string | undefined>>
   setError: Dispatch<SetStateAction<string | null>>
   setLoading: Dispatch<SetStateAction<boolean>>
+  setOptimisticUserItems: Dispatch<SetStateAction<AgentChatRuntimeView['visibleItems']>>
   setQueuedInputs: Dispatch<SetStateAction<AgentComposerQueuedInput[]>>
   setSending: Dispatch<SetStateAction<boolean>>
   setStoppingTurn: Dispatch<SetStateAction<boolean>>
@@ -37,6 +38,7 @@ export function useAgentChatDataSourceLoadEffect({
   setEndpoint,
   setError,
   setLoading,
+  setOptimisticUserItems,
   setQueuedInputs,
   setSending,
   setStoppingTurn,
@@ -49,6 +51,7 @@ export function useAgentChatDataSourceLoadEffect({
     setEndpoint(undefined)
     recentCapabilityEventSequenceRef.current = 0
     setSending(false)
+    setOptimisticUserItems([])
     setQueuedInputs([])
     setStoppingTurn(false)
     resetThreadListFromCache()
@@ -82,6 +85,7 @@ export function useAgentChatDataSourceLoadEffect({
     setEndpoint,
     setError,
     setLoading,
+    setOptimisticUserItems,
     setQueuedInputs,
     setSending,
     setStoppingTurn,

@@ -30,3 +30,21 @@ test('SDK runtime message mapper converts assistant, reasoning, tool and notice 
   assert.equal(items[3]?.type === 'systemNotice' ? items[3].level : '', 'warning')
 })
 
+test('SDK runtime message mapper preserves Codex streamed result item ids', () => {
+  const items = sdkRuntimeTurnItemsFromResult({
+    turnId: 'turn_1',
+    result: {
+      items: [
+        { id: 'cmd_1', type: 'command_execution', command: 'pnpm test', aggregated_output: 'ok', status: 'completed', exit_code: 0 },
+        { id: 'msg_1', type: 'agent_message', text: 'done' },
+      ],
+      finalResponse: 'done',
+      usage: null,
+    },
+  })
+
+  assert.deepEqual(items.map((item) => item.type), ['commandExecution', 'agentMessage'])
+  assert.equal(items[0]?.id, 'cmd_1')
+  assert.equal(items[1]?.id, 'msg_1')
+  assert.equal(items[1]?.type === 'agentMessage' ? items[1].text : '', 'done')
+})

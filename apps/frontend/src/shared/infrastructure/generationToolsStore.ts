@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
-import { persist } from 'zustand/middleware'
+import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware'
+import { readBrowserStorageItem, removeBrowserStorageItem, writeBrowserStorageItem } from '@/shared/infrastructure/browserStorage'
+import { createDesktopStateStorage } from '@/shared/infrastructure/desktopStateStorage'
 import {
   createGenerationToolServer,
   DEFAULT_GENERATION_TOOLS_SETTINGS,
@@ -33,6 +35,30 @@ interface GenerationToolsStore {
   reset: () => void
 }
 
+export const GENERATION_TOOLS_SETTINGS_STORAGE_KEY = 'movscript-generation-tools-settings-v1'
+
+const memoryGenerationToolsStorage: StateStorage = (() => {
+  const values = new Map<string, string>()
+  return {
+    getItem: (name) => values.get(name) ?? null,
+    setItem: (name, value) => {
+      values.set(name, value)
+    },
+    removeItem: (name) => {
+      values.delete(name)
+    },
+  }
+})()
+
+function getGenerationToolsStorage(): StateStorage {
+  const fallback: StateStorage = typeof window === 'undefined' ? memoryGenerationToolsStorage : {
+    getItem: (name) => readBrowserStorageItem('local', name),
+    setItem: (name, value) => writeBrowserStorageItem('local', name, value),
+    removeItem: (name) => removeBrowserStorageItem('local', name),
+  }
+  return createDesktopStateStorage(GENERATION_TOOLS_SETTINGS_STORAGE_KEY, fallback)
+}
+
 function syncElectronGenerationTools(settings: GenerationToolsSettings): void {
   if (typeof window === 'undefined') return
   void readElectronApi()?.setGenerationToolsSettings?.(settings)
@@ -61,7 +87,8 @@ export const useGenerationToolsStore = create<GenerationToolsStore>()(
       },
     }),
     {
-      name: 'movscript-generation-tools-settings-v1',
+      name: GENERATION_TOOLS_SETTINGS_STORAGE_KEY,
+      storage: createJSONStorage(getGenerationToolsStorage),
       partialize: (state) => ({ settings: state.settings, savedAt: state.savedAt }),
       merge: (persistedState, currentState) => {
         const persisted = persistedState as Partial<GenerationToolsStore> | undefined

@@ -10,6 +10,7 @@ import type {
   ContentSourceWorkspaceStoryboardTimelinePatch,
   ContentSourceWorkspaceTransitionPatch,
 } from '@movscript/core/content'
+import type { ElectronMovScriptHomeInput } from './electronApiCore'
 import type { ElectronMovScriptWorkspaceContext } from './electronApiWorkspaceContext'
 
 export type ElectronMovScriptWorkspaceConfig = {
@@ -23,12 +24,6 @@ export type ElectronMovScriptWorkspaceConfig = {
   permissions?: Record<string, unknown>
   environment?: Record<string, string>
   providers?: Record<string, Record<string, unknown>>
-}
-
-export type ElectronMovScriptHomeInput = {
-  movScriptHomeDir?: string
-  /** @deprecated Use movScriptHomeDir for the desktop control/home directory. */
-  workspaceDir?: string
 }
 
 export type ElectronMovScriptWorkspaceConfigSaveInput = {

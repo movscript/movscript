@@ -92,7 +92,7 @@ export function useAgentChatThreadLifecycleEffects({
     void Promise.resolve(dataSource.subscribeThread({
       threadId: activeThreadId,
       signal: controller.signal,
-      onNotification: handleNotification,
+      onNotification: dataSource.subscribeServerRequests ? undefined : handleNotification,
       onServerRequest: dataSource.subscribeServerRequests && dataSource.serverRequestSubscriptionMode !== 'globalWithThreadFallback'
         ? undefined
         : handleServerRequest,

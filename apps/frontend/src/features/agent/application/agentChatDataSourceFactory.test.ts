@@ -57,6 +57,27 @@ test('factory routes codex-sdk runtime to injected SDK data source adapter', asy
   assert.deepEqual(capturedModelLoad?.apiKinds, ['openai_responses', 'openai_chat_completions'])
 })
 
+test('factory routes codex app-server runtime to the runtime data source adapter', async () => {
+  const provider = requiredProvider(DEFAULT_PROVIDER_SETTINGS.providers.find((item) => item.id === CODEX_PROVIDER_ID))
+  let captured: AgentRuntimeDataSourceFactoryInput | undefined
+
+  const dataSource = await createAgentChatDataSourceForProvider(provider, {
+    loadTextModels: async () => [],
+    runtimeDataSources: {
+      'codex-app-server': (input) => {
+        captured = input
+        return fakeDataSource(input)
+      },
+    },
+  })
+
+  assert.equal(providerRuntimeApi(provider), 'codex-app-server')
+  assert.equal(dataSource.provider, 'codex')
+  assert.equal(dataSource.providerInstanceId, 'codex-codex-app-server')
+  assert.equal(captured?.runtime.api, 'codex-app-server')
+  assert.equal(captured?.contract.transport, 'app-server')
+})
+
 test('factory routes claude-sdk runtime to injected SDK data source adapter', async () => {
   const settings = providerSettingsWithRuntimeEnv(DEFAULT_PROVIDER_SETTINGS, {})
   const provider = requiredProvider(settings.providers.find((item) => item.id === CLAUDE_PROVIDER_ID))

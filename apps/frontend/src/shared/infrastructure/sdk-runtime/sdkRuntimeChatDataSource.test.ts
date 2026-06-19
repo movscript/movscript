@@ -37,6 +37,10 @@ test('SDK runtime data source maps neutral chat operations to runtime RPC method
   await dataSource.interruptTurn?.({ threadId: thread.id, turnId: turn.id, reason: 'user' })
   await dataSource.listThreads({ limit: 5, cursor: null })
   await dataSource.capabilities?.runtime?.probe()
+  await dataSource.capabilities?.skills?.list({ cwds: ['/repo'], forceReload: true })
+  await dataSource.capabilities?.config?.listPermissionProfiles?.()
+  await dataSource.capabilities?.mcp?.listServers()
+  await dataSource.capabilities?.mcp?.readResource({ server: 'workspace', uri: 'resource://project/context', threadId: thread.id })
 
   assert.deepEqual(requests.map((request) => request.method), [
     'thread/start',
@@ -44,6 +48,10 @@ test('SDK runtime data source maps neutral chat operations to runtime RPC method
     'turn/interrupt',
     'thread/list',
     'runtime/probe',
+    'skills/list',
+    'permissionProfile/list',
+    'mcpServerStatus/list',
+    'mcpServer/resource/read',
   ])
   assert.equal((requests[0]?.params as { model?: string }).model, 'gpt-5.4')
   assert.deepEqual((requests[0]?.params as { workspaceContext?: unknown }).workspaceContext, { scope: 'project', projectId: 42 })
@@ -51,10 +59,12 @@ test('SDK runtime data source maps neutral chat operations to runtime RPC method
   assert.equal((requests[1]?.params as { text?: string }).text, 'hello')
   assert.equal((requests[2]?.params as { reason?: string }).reason, 'user')
   assert.equal(dataSource.providerInstanceId, 'codex-codex-sdk')
+  assert.equal((requests[5]?.params as { cwds?: string[] }).cwds?.[0], '/repo')
+  assert.equal((requests[8]?.params as { uri?: string }).uri, 'resource://project/context')
   assert.equal(dataSource.capabilities?.command, undefined)
   assert.equal(dataSource.capabilities?.fs, undefined)
-  assert.equal(dataSource.capabilities?.mcp, undefined)
-  assert.equal(dataSource.capabilities?.config, undefined)
+  assert.equal(Boolean(dataSource.capabilities?.mcp?.listServers), true)
+  assert.equal(Boolean(dataSource.capabilities?.config?.listPermissionProfiles), true)
   assert.equal(dataSource.capabilities?.account, undefined)
 })
 
@@ -141,6 +151,33 @@ async function fakeRequest<M extends SdkRuntimeRpcMethod>(
       },
     } as SdkRuntimeRpcResponseMap[M]
   }
+  if (method === 'capabilities/get') {
+    return {
+      ok: true,
+      runtime: { id: 'runtime', api: 'codex-sdk', label: 'Runtime' },
+      provider: { id: 'codex', kind: 'codex', label: 'Codex' },
+      capabilities: {
+        tools: true,
+        permissions: true,
+        mcp: true,
+        config: true,
+        account: true,
+        serverRequests: true,
+        skillsList: true,
+        defaultSkillBootstrap: true,
+        mcpBridge: true,
+        permissionProfiles: true,
+      },
+      warnings: [],
+      unsupported: {},
+    } as SdkRuntimeRpcResponseMap[M]
+  }
+  if (method === 'skills/list') return { data: [], skills: [] } as SdkRuntimeRpcResponseMap[M]
+  if (method === 'permissionProfile/list') return { permissionProfiles: [] } as SdkRuntimeRpcResponseMap[M]
+  if (method === 'mcpServerStatus/list') return { servers: [] } as SdkRuntimeRpcResponseMap[M]
+  if (method === 'mcpServer/tool/call') return { result: null } as SdkRuntimeRpcResponseMap[M]
+  if (method === 'plugin/list' || method === 'plugin/installed') return { marketplaces: [] } as SdkRuntimeRpcResponseMap[M]
+  if (method === 'plugin/install' || method === 'plugin/uninstall' || method === 'skills/extraRoots/set') return { ok: true } as SdkRuntimeRpcResponseMap[M]
   return undefined as SdkRuntimeRpcResponseMap[M]
 }
 

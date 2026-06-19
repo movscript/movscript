@@ -18,6 +18,8 @@ import { createLocalTerminalAPI } from './api/localTerminal'
 import { createCrossPageNotificationAPI } from './api/crossPageNotifications'
 import { createMediaPipelineAPI } from './api/mediaPipeline'
 import { createDockShortcutAPI } from './api/dockShortcuts'
+import { createAgentSessionPersistenceAPI } from './api/agentSessionPersistence'
+import { createDesktopStateStoreAPI } from './api/desktopStateStore'
 
 export function createElectronAPI(ipcRenderer: IpcRenderer, platform: NodeJS.Platform): ElectronAPI {
   return {
@@ -25,6 +27,8 @@ export function createElectronAPI(ipcRenderer: IpcRenderer, platform: NodeJS.Pla
     ...createDialogAPI(ipcRenderer),
     ...createMCPAPI(ipcRenderer),
     ...createSettingsAPI(ipcRenderer),
+    ...createDesktopStateStoreAPI(ipcRenderer),
+    ...createAgentSessionPersistenceAPI(ipcRenderer),
     ...createRuntimeConfigAPI(ipcRenderer),
     ...createBackendAPI(ipcRenderer),
     ...createBackendAuthAPI(ipcRenderer),

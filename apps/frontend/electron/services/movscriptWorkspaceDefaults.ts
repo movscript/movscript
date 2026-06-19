@@ -19,8 +19,14 @@ export function resolveDesktopDefaultMovScriptWorkspaceDir(): string {
   if (process.env.MOVSCRIPT_HOME || process.env.MOVSCRIPT_WORKSPACE_DIR) {
     return resolveDefaultMovScriptWorkspaceDir()
   }
-  if (electron.app.isPackaged) {
+  const app = getElectronApp()
+  if (app?.isPackaged) {
     return resolveDesktopIdentity().homeDir || fallbackUserMovScriptHomeDir()
   }
   return process.cwd()
+}
+
+function getElectronApp(): Electron.App | undefined {
+  const candidate = (electron as unknown as { app?: Electron.App }).app
+  return candidate && typeof candidate.getPath === 'function' ? candidate : undefined
 }

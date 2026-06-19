@@ -24,6 +24,7 @@ interface UseAgentChatShellPresentationStateInput {
   onSelectedModelChange?: (modelId: string | null) => void
   recentCapabilityEvents: AgentChatRuntimeRecentCapabilityEvent[]
   selectedModelId?: string | null
+  sending: boolean
   setProfilePresetId: Dispatch<SetStateAction<AgentRunProfilePresetId>>
   setThreadModelOverrides: Dispatch<SetStateAction<Record<string, string>>>
   surface: 'panel' | 'page'
@@ -41,6 +42,7 @@ export function useAgentChatShellPresentationState({
   onSelectedModelChange,
   recentCapabilityEvents,
   selectedModelId,
+  sending,
   setProfilePresetId,
   setThreadModelOverrides,
   surface,
@@ -85,6 +87,7 @@ export function useAgentChatShellPresentationState({
   const hasThreadBodyContent = Boolean(
     visibleItems.length
     || recentCapabilityEvents.length
+    || sending
     || error,
   )
   const hasChatContent = hasThreadBodyContent || hasComposerActionLayer

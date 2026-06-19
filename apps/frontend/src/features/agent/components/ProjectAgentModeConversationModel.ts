@@ -95,6 +95,7 @@ export function agentRuntimeConversationRecordsFromSourceThreads(input: {
       ...(registryInput.title ? { title: registryInput.title } : {}),
       ...(registryInput.status ? { status: registryInput.status } : {}),
       ...(typeof registryInput.projectId === 'number' ? { projectId: registryInput.projectId } : {}),
+      ...(typeof existing?.deckOrder === 'number' ? { deckOrder: existing.deckOrder } : {}),
     })
   }
   const sourceThreadIds = new Set(input.sourceThreads.map((thread) => thread.id))

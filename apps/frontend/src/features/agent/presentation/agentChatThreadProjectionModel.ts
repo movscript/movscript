@@ -2,7 +2,13 @@ import {
   type AgentChatDataSource,
   type AgentChatThread,
 } from '@movscript/core/agent/chat'
-import type { AgentConversationRegistryInput, AgentConversationRegistryRecord } from '@movscript/core/agent'
+import {
+  agentConversationIdForRegistryInput,
+  buildSessionDeckIndex,
+  reorderSessionDeckEntries,
+  type AgentConversationRegistryInput,
+  type AgentConversationRegistryRecord,
+} from '@movscript/core/agent'
 import { agentProtocolUsesProviderSession } from '@/features/agent/domain/agentProviderSessionProtocol'
 
 export function agentChatSourceThreadHasContent(thread: Pick<AgentChatThread, 'name' | 'preview' | 'turns'>): boolean {
@@ -57,6 +63,39 @@ export function buildAgentChatProviderIdentity(input: {
   }
 }
 
+export function agentChatConversationIdForThread(
+  threadId: string,
+  identity: Parameters<typeof agentConversationRecordMatchesProviderIdentity>[1],
+): string {
+  return agentConversationIdForRegistryInput({
+    providerThreadId: threadId,
+    ...(identity.provider ? { provider: identity.provider } : {}),
+    ...(identity.providerId ? { providerId: identity.providerId } : {}),
+    ...(identity.providerInstanceId ? { providerInstanceId: identity.providerInstanceId } : {}),
+    ...(identity.providerProtocol ? { providerProtocol: identity.providerProtocol } : {}),
+  })
+}
+
+export function agentChatConversationRecordForThread(input: {
+  records: Record<string, AgentConversationRegistryRecord>
+  threadId: string | null | undefined
+  providerIdentity: Parameters<typeof agentConversationRecordMatchesProviderIdentity>[1]
+  userId?: string
+}): AgentConversationRegistryRecord | undefined {
+  const threadId = input.threadId?.trim()
+  if (!threadId) return undefined
+  const canonicalId = agentChatConversationIdForThread(threadId, input.providerIdentity)
+  const direct = input.records[canonicalId] ?? input.records[threadId]
+  if (direct && (!input.userId || direct.userId === input.userId) && agentConversationRecordMatchesProviderIdentity(direct, input.providerIdentity)) {
+    return direct
+  }
+  return Object.values(input.records).find((record) => (
+    record.providerThreadId === threadId
+    && (!input.userId || record.userId === input.userId)
+    && agentConversationRecordMatchesProviderIdentity(record, input.providerIdentity)
+  ))
+}
+
 export function buildAgentChatConversationPatchInput(input: {
   nowMs: number
   open: boolean
@@ -93,17 +132,43 @@ export function buildAgentChatConversationRegistryIndex(input: {
     record.userId === input.userId
     && agentConversationRecordMatchesProviderIdentity(record, input.providerIdentity)
   ))
-  const closedThreadIds = new Set(matchingRecords
-    .filter((record) => record.open === false)
-    .map((record) => record.providerThreadId))
-  const openRecords = matchingRecords
-    .filter((record) => record.open !== false)
-    .sort((a, b) => b.updatedAt - a.updatedAt)
+  const deck = buildSessionDeckIndex({
+    entries: matchingRecords,
+    idForEntry: (record) => record.providerThreadId,
+  })
   return {
-    closedThreadIds,
-    openThreadIds: new Set(openRecords.map((record) => record.providerThreadId)),
-    threadOrderIndex: new Map(openRecords.map((record, index) => [record.providerThreadId, index])),
+    closedThreadIds: deck.closedIds,
+    openThreadIds: deck.openIds,
+    threadOrderIndex: deck.orderIndex,
   }
+}
+
+export function buildAgentChatThreadDeckOrderUpdates(input: {
+  draggedThreadId: string
+  position: 'before' | 'after'
+  providerIdentity: Parameters<typeof agentConversationRecordMatchesProviderIdentity>[1]
+  records: AgentConversationRegistryRecord[]
+  targetThreadId: string
+  userId: string
+}): Array<{ conversationId: string; deckOrder: number }> {
+  const matchingRecords = input.records.filter((record) => (
+    record.userId === input.userId
+    && record.open !== false
+    && record.archived !== true
+    && Boolean(record.providerThreadId.trim())
+    && agentConversationRecordMatchesProviderIdentity(record, input.providerIdentity)
+  ))
+  const conversationIdByThreadId = new Map(matchingRecords.map((record) => [record.providerThreadId, record.id]))
+  return reorderSessionDeckEntries({
+    entries: matchingRecords,
+    draggedId: input.draggedThreadId,
+    targetId: input.targetThreadId,
+    position: input.position,
+    idForEntry: (record) => record.providerThreadId,
+  }).flatMap((order) => {
+    const conversationId = conversationIdByThreadId.get(order.id)
+    return conversationId ? [{ conversationId, deckOrder: order.deckOrder }] : []
+  })
 }
 
 export function agentConversationUsesProviderSession(

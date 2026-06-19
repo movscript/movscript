@@ -11,14 +11,14 @@ export function resolveAgentRuntimeHomeEnv(
   if (params.provider.kind === 'claude' || params.runtime.api === 'claude-sdk') {
     return { CLAUDE_CONFIG_DIR: ensureRuntimeHomeDir(join(workspaceDir, '.claude')) }
   }
-  if (params.provider.kind === 'mova' || params.runtime.api === 'mova-sdk') {
+  if (params.provider.kind === 'mova' || params.runtime.api === 'mova-sdk' || params.runtime.api === 'mova-app-server') {
     const home = ensureRuntimeHomeDir(join(workspaceDir, '.mova'))
     return {
       MOVA_HOME: home,
       CODEX_HOME: home,
     }
   }
-  if (params.provider.kind === 'codex' || params.runtime.api === 'codex-sdk') {
+  if (params.provider.kind === 'codex' || params.runtime.api === 'codex-sdk' || params.runtime.api === 'codex-app-server') {
     return { CODEX_HOME: ensureRuntimeHomeDir(join(workspaceDir, '.codex')) }
   }
   return {}

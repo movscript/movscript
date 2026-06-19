@@ -66,7 +66,7 @@ function electronSdkRuntimeSubscribe(
     const disposeServerRequest = electronApi.onSdkRuntimeServerRequest?.((event) => {
       if (!sdkRuntimeEventMatchesSubscription(event, input, subscription)) return
       const response = subscription.onServerRequest?.(event.request)
-      if (response && electronApi.sdkRuntimeRespondToServerRequest) {
+      if (electronApi.sdkRuntimeRespondToServerRequest) {
         void Promise.resolve(response).then((resolved) => electronApi.sdkRuntimeRespondToServerRequest?.({
           runtimeId: event.runtimeId,
           requestId: event.request.id,

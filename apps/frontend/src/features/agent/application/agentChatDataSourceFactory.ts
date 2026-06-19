@@ -64,7 +64,7 @@ async function createRuntimeDataSourceForProvider(
   const contract = providerRuntimeApiContract(runtime.api)
   if (contract && !contract.providerKinds.includes(provider.kind)) throw new Error(`${provider.label} runtime ${runtime.api} does not support provider kind ${provider.kind}.`)
   const adapter = agentRuntimeDataSourceFactoryForProvider(runtime.api, provider.kind, options.runtimeDataSources)
-  if (!contract || contract.transport !== 'sdk-client') throw new Error(unsupportedProviderRuntimeMessage(provider))
+  if (!contract || (contract.transport !== 'sdk-client' && contract.transport !== 'app-server')) throw new Error(unsupportedProviderRuntimeMessage(provider))
   if (!adapter && !options.runtimeClient && !electronSdkRuntimeClientAvailable()) throw new Error(unsupportedProviderRuntimeMessage(provider))
   const textModels = await loadTextModels(options, runtime)
   const input: AgentRuntimeDataSourceFactoryInput = {
@@ -84,7 +84,7 @@ function unsupportedProviderRuntimeMessage(provider: ProviderConfig): string {
   const api = providerRuntimeApi(provider)
   const contract = providerRuntimeApiContract(api)
   if (contract?.adapterStatus === 'pending') return `${provider.label} is configured for ${api}, but the ${contract.label} data source adapter is not installed yet.`
-  if (contract?.transport === 'sdk-client') return `${provider.label} is configured for ${api}, but no ${contract.label} runtime client is available in this environment.`
+  if (contract?.transport === 'sdk-client' || contract?.transport === 'app-server') return `${provider.label} is configured for ${api}, but no ${contract.label} runtime client is available in this environment.`
   return `${provider.label} does not expose a supported AgentChatDataSource runtime: ${api}`
 }
 

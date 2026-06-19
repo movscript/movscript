@@ -1,8 +1,17 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 import type { Project } from '@/types'
-import { useProjectStore } from './projectStore'
+import { PROJECT_SESSION_STORAGE_KEY, useProjectStore } from './projectStore'
+
+test('project session persistence is routed through desktop Home storage', () => {
+  const source = readFileSync(resolve('src/shared/infrastructure/session/projectStore.ts'), 'utf8')
+
+  assert.equal(PROJECT_SESSION_STORAGE_KEY, 'movscript-project')
+  assert.match(source, /createDesktopStateStorage\(PROJECT_SESSION_STORAGE_KEY, fallback\)/)
+})
 
 test('project store exposes explicit project session state', () => {
   useProjectStore.setState({

@@ -8,18 +8,22 @@ const scriptDir = fileURLToPath(new URL('.', import.meta.url))
 const appDir = resolve(scriptDir, '..')
 const repoDir = resolve(appDir, '../..')
 const workspaceDir = resolve(process.env.MOVSCRIPT_HOME || process.env.MOVSCRIPT_WORKSPACE_DIR || resolve(repoDir, '.movscript-dev', '.movscript'))
+const userDataDir = resolve(process.env.MOVSCRIPT_DESKTOP_USER_DATA_DIR || resolve(repoDir, '.movscript-dev', 'user-data'))
 
 mkdirSync(workspaceDir, { recursive: true })
+mkdirSync(userDataDir, { recursive: true })
 
 const env = {
   ...process.env,
   MOVSCRIPT_HOME: workspaceDir,
   MOVSCRIPT_WORKSPACE_DIR: workspaceDir,
+  MOVSCRIPT_DESKTOP_USER_DATA_DIR: userDataDir,
   MOVSCRIPT_BROWSER_DIAGNOSTICS: process.env.MOVSCRIPT_BROWSER_DIAGNOSTICS || '1',
   VITE_MOVSCRIPT_RENDER_DIAGNOSTICS: process.env.VITE_MOVSCRIPT_RENDER_DIAGNOSTICS || '1',
 }
 
 console.info(`[desktop] using debug workspace: ${workspaceDir}`)
+console.info(`[desktop] using debug userData: ${userDataDir}`)
 
 const child = spawn('electron-vite', ['dev'], {
   cwd: appDir,

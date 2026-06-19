@@ -12,6 +12,7 @@ const AGENT_CHAT_OLDER_ITEMS_SCROLL_THRESHOLD_PX = 96
 interface UseAgentChatThreadViewportInput {
   activeThreadId: string | null
   dispatchRuntime: Dispatch<AgentChatRuntimeAction>
+  optimisticVisibleItems: AgentChatRuntimeView['visibleItems']
   pendingUserItems: AgentChatRuntimeState['pendingUserItems']
   realtimeAudioItems: AgentChatRuntimeState['realtimeAudioItems']
   realtimeTranscriptItems: AgentChatRuntimeState['realtimeTranscriptItems']
@@ -25,6 +26,7 @@ interface UseAgentChatThreadViewportInput {
 export function useAgentChatThreadViewport({
   activeThreadId,
   dispatchRuntime,
+  optimisticVisibleItems,
   pendingUserItems,
   realtimeAudioItems,
   realtimeTranscriptItems,
@@ -48,23 +50,28 @@ export function useAgentChatThreadViewport({
     thread.scrollTop = anchor.scrollTop + Math.max(0, thread.scrollHeight - anchor.scrollHeight)
   }, [threads, visibleThreadItemCount])
 
+  const viewportVisibleItems = useMemo(
+    () => mergeAgentChatViewportVisibleItems(runtimeVisibleItems, optimisticVisibleItems),
+    [optimisticVisibleItems, runtimeVisibleItems],
+  )
+
   useEffect(() => {
     if (suppressNextAutoScrollRef.current) {
       suppressNextAutoScrollRef.current = false
       return
     }
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
-  }, [threads, pendingUserItems, streamingAgentItems, realtimeTranscriptItems, realtimeAudioItems, activeThreadId])
+  }, [threads, pendingUserItems, streamingAgentItems, realtimeTranscriptItems, realtimeAudioItems, viewportVisibleItems, activeThreadId])
 
   useEffect(() => {
     setVisibleThreadItemCount(AGENT_CHAT_VISIBLE_ITEM_WINDOW_INITIAL_SIZE)
   }, [activeThreadId])
 
   const visibleItemWindow = useMemo(() => buildAgentChatVisibleItemWindow({
-    items: runtimeVisibleItems,
+    items: viewportVisibleItems,
     visibleCount: visibleThreadItemCount,
     keepItem: (item) => item.streaming,
-  }), [runtimeVisibleItems, visibleThreadItemCount])
+  }), [viewportVisibleItems, visibleThreadItemCount])
   const visibleItems = visibleItemWindow.visibleItems
   const activeThreadReadState = activeThreadId ? threadReadStates[activeThreadId] : undefined
   const olderThreadReadPending = Boolean(activeThreadId && threadReadRequests.some((request) => (
@@ -115,4 +122,19 @@ export function useAgentChatThreadViewport({
     visibleItemWindow,
     visibleItems,
   }
+}
+
+export function mergeAgentChatViewportVisibleItems(
+  runtimeVisibleItems: AgentChatRuntimeView['visibleItems'],
+  optimisticVisibleItems: AgentChatRuntimeView['visibleItems'],
+): AgentChatRuntimeView['visibleItems'] {
+  if (optimisticVisibleItems.length === 0) return runtimeVisibleItems
+  const viewIds = new Set(runtimeVisibleItems.map((item) => item.viewId))
+  const merged = [...runtimeVisibleItems]
+  for (const item of optimisticVisibleItems) {
+    if (viewIds.has(item.viewId)) continue
+    viewIds.add(item.viewId)
+    merged.push(item)
+  }
+  return merged
 }

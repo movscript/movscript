@@ -1,4 +1,4 @@
-import { app, ipcMain } from 'electron'
+import { ipcMain } from 'electron'
 import {
   getProjectPluginSnapshot,
   installProjectPlugin,
@@ -8,12 +8,12 @@ import type { ElectronMovScriptHomeInput, ElectronProjectPluginInstallInput, Ele
 
 export function registerProjectPluginStoreIpcHandlers(): void {
   ipcMain.handle('project-plugin-store:snapshot', (_event, input?: ElectronMovScriptHomeInput & { projectId?: string | number; userId?: string | number; orgId?: string | number }) => {
-    return getProjectPluginSnapshot({ ...input, desktopDataDir: app.getPath('userData') })
+    return getProjectPluginSnapshot(input)
   })
   ipcMain.handle('project-plugin-store:install', (_event, input: ElectronProjectPluginInstallInput) => {
-    return installProjectPlugin({ ...input, desktopDataDir: app.getPath('userData') })
+    return installProjectPlugin(input)
   })
   ipcMain.handle('project-plugin-store:skill-enabled', (_event, input: ElectronProjectSkillToggleInput) => {
-    return setProjectSkillEnabled({ ...input, desktopDataDir: app.getPath('userData') })
+    return setProjectSkillEnabled(input)
   })
 }

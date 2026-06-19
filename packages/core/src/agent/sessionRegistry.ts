@@ -24,6 +24,7 @@ export interface AgentConversationRegistryRecord {
   status?: string
   activeRunId?: string
   lastRunId?: string
+  deckOrder?: number
   open: boolean
   archived: boolean
   createdAt: number
@@ -156,6 +157,27 @@ export function setAgentConversationRegistryOpen(
   }
 }
 
+export function setAgentConversationRegistryDeckOrders(
+  records: Record<string, AgentConversationRegistryRecord>,
+  orders: Array<{ conversationId: string; deckOrder: number }>,
+): Record<string, AgentConversationRegistryRecord> {
+  if (orders.length === 0) return records
+  let changed = false
+  const next = { ...records }
+  for (const order of orders) {
+    const conversationId = order.conversationId.trim()
+    const current = next[conversationId]
+    const deckOrder = Number.isFinite(order.deckOrder) ? Math.max(0, Math.floor(order.deckOrder)) : undefined
+    if (!current || deckOrder === undefined || current.deckOrder === deckOrder) continue
+    changed = true
+    next[conversationId] = {
+      ...current,
+      deckOrder,
+    }
+  }
+  return changed ? next : records
+}
+
 export function setAgentRegistryActiveConversation(
   state: AgentConversationRegistryState,
   userId: string,
@@ -255,6 +277,7 @@ export function normalizeAgentConversationRegistryRecord(
     ...(record.providerThreadCwd?.trim() ? { providerThreadCwd: record.providerThreadCwd.trim() } : {}),
     ...(record.title?.trim() ? { title: record.title.trim() } : {}),
     ...(projectId !== undefined ? { projectId } : {}),
+    ...(typeof record.deckOrder === 'number' && Number.isFinite(record.deckOrder) ? { deckOrder: Math.max(0, Math.floor(record.deckOrder)) } : {}),
     open: record.open !== false,
     archived: record.archived === true,
     createdAt: normalizedTimestamp(record.createdAt, Date.now()),

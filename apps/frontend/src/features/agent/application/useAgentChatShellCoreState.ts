@@ -6,6 +6,8 @@ import { useAgentMentionEditorSync } from '@/features/agent/presentation/useAgen
 import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import {
   agentChatComposerConversationId,
+  agentChatConversationRecordForThread,
+  buildAgentChatProviderIdentity,
   buildAgentChatModelSelectionForRequest,
   createAgentChatDraftConversationId,
   positiveInteger,
@@ -23,6 +25,7 @@ import {
   type AgentChatCollaborationMode,
   type AgentChatDataSource,
   type AgentChatModelSelection,
+  type AgentChatRuntimeView,
   type AgentChatThread,
 } from '@movscript/core/agent/chat'
 import type { Project, PublicModel } from '@/types'
@@ -39,6 +42,10 @@ interface UseAgentChatShellCoreStateInput {
   modelOptions: PublicModel[]
   onCollaborationModeChange?: (mode: AgentChatCollaborationMode) => void
   onGoalModeEnabledChange?: (enabled: boolean) => void
+  provider?: string
+  providerId?: string
+  providerInstanceId?: string
+  providerProtocol?: string
   readActiveThreadId?: () => string | null
   resolveModelForRequest: () => AgentChatModelSelection
   selectedModelId?: string | null
@@ -56,6 +63,10 @@ export function useAgentChatShellCoreState({
   modelOptions,
   onCollaborationModeChange,
   onGoalModeEnabledChange,
+  provider,
+  providerId,
+  providerInstanceId,
+  providerProtocol,
   readActiveThreadId,
   resolveModelForRequest,
   selectedModelId,
@@ -70,13 +81,24 @@ export function useAgentChatShellCoreState({
     () => readActiveThreadIdRef.current?.() ?? null,
     [],
   )
+  const providerIdentity = useMemo(() => buildAgentChatProviderIdentity({
+    provider,
+    providerId,
+    providerInstanceId,
+    providerProtocol,
+  }), [provider, providerId, providerInstanceId, providerProtocol])
   const readRestorableActiveThreadId = useCallback(() => {
     const threadId = readCurrentActiveThreadId()
     if (!threadId) return null
-    const registryRecord = useAgentSessionStore.getState().conversationsById[threadId]
+    const registryRecord = agentChatConversationRecordForThread({
+      records: useAgentSessionStore.getState().conversationsById,
+      threadId,
+      providerIdentity,
+      userId,
+    })
     if (registryRecord?.open !== false) return threadId
     return null
-  }, [readCurrentActiveThreadId])
+  }, [providerIdentity, readCurrentActiveThreadId, userId])
   const resetDraftModeSettings = useCallback(() => {
     if (collaborationMode !== 'default') onCollaborationModeChange?.('default')
     if (goalModeEnabled) onGoalModeEnabledChange?.(false)
@@ -137,6 +159,7 @@ export function useAgentChatShellCoreState({
 
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
+  const [optimisticUserItems, setOptimisticUserItems] = useState<AgentChatRuntimeView['visibleItems']>([])
   const [queuedInputs, setQueuedInputs] = useState<AgentComposerQueuedInput[]>([])
   const [queuedInputsCollapsed, setQueuedInputsCollapsed] = useState(true)
   const [stoppingTurn, setStoppingTurn] = useState(false)
@@ -145,6 +168,7 @@ export function useAgentChatShellCoreState({
   const [draftConversationId, setDraftConversationId] = useState(() => createAgentChatDraftConversationId(threadScopeKey))
   useEffect(() => {
     setDraftConversationId(createAgentChatDraftConversationId(threadScopeKey))
+    setOptimisticUserItems([])
   }, [threadScopeKey])
 
   const composerConversationId = activeThreadId ? agentChatComposerConversationId(threadScopeKey, activeThreadId) : draftConversationId
@@ -202,6 +226,7 @@ export function useAgentChatShellCoreState({
     pendingThreadReadRequests,
     pendingThreadResumeRequests,
     pendingUserItems,
+    optimisticUserItems,
     profilePresetId,
     queuedInputs,
     queuedInputsCollapsed,
@@ -227,6 +252,7 @@ export function useAgentChatShellCoreState({
     setError,
     setHistoryOpen,
     setLoading,
+    setOptimisticUserItems,
     setProfilePresetId,
     setQueuedInputs,
     setQueuedInputsCollapsed,

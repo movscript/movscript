@@ -181,6 +181,51 @@ test('core agent chat notification dispatcher records active permission profile 
   assert.equal(threads[0].executionSettings.approvalsReviewer, 'user')
 })
 
+test('core agent chat notification dispatcher applies provider thread title updates', () => {
+  let threads = [{
+    provider: 'mova',
+    id: 'thread_1',
+    preview: '',
+    name: null,
+    createdAt: 1,
+    updatedAt: 1,
+    status: 'idle',
+    turns: [],
+  }]
+  const target = {
+    upsertThread: (thread) => {
+      threads = [thread]
+    },
+    updateThreads: (updater) => {
+      threads = updater(threads)
+    },
+    activeThreadId: 'thread_1',
+    setActiveThreadId: () => undefined,
+    updatePendingUserItems: () => undefined,
+    updatePendingServerRequests: () => undefined,
+    updateStreamingAgentItems: () => undefined,
+    readThread: () => undefined,
+  }
+
+  agentChat.dispatchAgentChatNotification({
+    method: 'thread/name/updated',
+    params: { threadId: 'thread_1', threadName: '  Agent inferred title  ' },
+  }, target)
+  assert.equal(threads[0].name, 'Agent inferred title')
+
+  agentChat.dispatchAgentChatNotification({
+    method: 'thread/name/updated',
+    params: { threadId: 'thread_1', name: 'Legacy SDK title' },
+  }, target)
+  assert.equal(threads[0].name, 'Legacy SDK title')
+
+  agentChat.dispatchAgentChatNotification({
+    method: 'thread/name/updated',
+    params: { threadId: 'thread_1' },
+  }, target)
+  assert.equal(threads[0].name, 'Legacy SDK title')
+})
+
 test('core agent chat system item views summarize approval reviews and permission context', () => {
   const view = agentChat.agentChatSystemItemView({
     type: 'approvalReview',
@@ -1329,6 +1374,118 @@ test('core reads one older turn at a time and prepends it to the in-memory threa
     direction: 'older',
   })
   assert.equal(state.threadReadStates.thread_1.hasCompleteHistory, false)
+})
+
+test('core renders one user message when pending and confirmed items share a client id', () => {
+  const confirmed = {
+    type: 'userMessage',
+    id: 'turn_1_user',
+    clientId: 'agent_user_1',
+    content: [{ type: 'text', text: 'Hello', textElements: [] }],
+  }
+  const pending = {
+    type: 'userMessage',
+    id: 'agent_user_1',
+    clientId: 'agent_user_1',
+    content: [{ type: 'text', text: 'Hello', textElements: [] }],
+  }
+  const visibleItems = agentChat.buildAgentChatVisibleItems(
+    testThread({ turns: [testTurn({ items: [confirmed] })] }),
+    [{ threadId: 'thread_1', item: pending }],
+    {},
+  )
+
+  assert.deepEqual(visibleItems.map((item) => item.viewId), ['user:agent_user_1'])
+  assert.deepEqual(visibleItems.map((item) => item.item.id), ['turn_1_user'])
+})
+
+test('core clears confirmed pending user messages by client id', () => {
+  const confirmed = {
+    type: 'userMessage',
+    id: 'turn_1_user',
+    clientId: 'agent_user_1',
+    content: [{ type: 'text', text: 'Hello', textElements: [] }],
+  }
+  const pending = {
+    type: 'userMessage',
+    id: 'agent_user_1',
+    clientId: 'agent_user_1',
+    content: [{ type: 'text', text: 'Hello', textElements: [] }],
+  }
+
+  let state = agentChat.createAgentChatRuntimeState('thread_1')
+  state = agentChat.agentChatRuntimeReducer(state, { type: 'upsertThread', thread: testThread() })
+  state = agentChat.agentChatRuntimeReducer(state, { type: 'appendPendingUserItem', item: { threadId: 'thread_1', item: pending } })
+  state = agentChat.agentChatRuntimeReducer(state, {
+    type: 'applyNotification',
+    nowMs: 1000,
+    recentEventSequence: 1,
+    notification: {
+      method: 'turn/started',
+      params: {
+        threadId: 'thread_1',
+        turn: testTurn({ items: [confirmed] }),
+      },
+    },
+  })
+
+  assert.equal(state.pendingUserItems.length, 0)
+  assert.deepEqual(
+    agentChat.selectAgentChatRuntimeView(state).visibleItems.map((item) => item.viewId),
+    ['user:agent_user_1'],
+  )
+
+  state = agentChat.agentChatRuntimeReducer(state, { type: 'appendPendingUserItem', item: { threadId: 'thread_1', item: pending } })
+  state = agentChat.agentChatRuntimeReducer(state, {
+    type: 'upsertThreadReadResult',
+    thread: testThread({ turns: [testTurn({ items: [confirmed] })] }),
+  })
+
+  assert.equal(state.pendingUserItems.length, 0)
+})
+
+test('core shows pending user messages before the active thread is loaded', () => {
+  const pending = {
+    type: 'userMessage',
+    id: 'agent_user_1',
+    clientId: 'agent_user_1',
+    content: [{ type: 'text', text: 'Hello', textElements: [] }],
+  }
+
+  let state = agentChat.createAgentChatRuntimeState('thread_1')
+  state = agentChat.agentChatRuntimeReducer(state, {
+    type: 'appendPendingUserItem',
+    item: { threadId: 'thread_1', item: pending },
+  })
+
+  const view = agentChat.selectAgentChatRuntimeView(state)
+  assert.equal(view.activeThread, null)
+  assert.deepEqual(view.visibleItems.map((item) => item.viewId), ['user:agent_user_1'])
+  assert.deepEqual(view.visibleItems.map((item) => item.item.id), ['agent_user_1'])
+})
+
+test('core shows pending user messages in the active empty thread timeline', () => {
+  const pending = {
+    type: 'userMessage',
+    id: 'agent_user_1',
+    clientId: 'agent_user_1',
+    content: [{ type: 'text', text: 'Hello', textElements: [] }],
+  }
+
+  let state = agentChat.createAgentChatRuntimeState('thread_1')
+  state = agentChat.agentChatRuntimeReducer(state, {
+    type: 'upsertThread',
+    thread: testThread({ turns: [] }),
+  })
+  state = agentChat.agentChatRuntimeReducer(state, {
+    type: 'appendPendingUserItem',
+    item: { threadId: 'thread_1', item: pending },
+  })
+
+  const view = agentChat.selectAgentChatRuntimeView(state)
+  assert.equal(view.activeThread?.id, 'thread_1')
+  assert.deepEqual(view.visibleItems.map((item) => item.viewId), ['user:agent_user_1'])
+  assert.deepEqual(view.visibleItems.map((item) => item.item.id), ['agent_user_1'])
 })
 
 test('core windows visible chat items while keeping live items visible', () => {

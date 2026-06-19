@@ -6,13 +6,12 @@ import {
 } from '@/features/agent/components/AgentRuntimeChatShell'
 import {
   enabledProviders,
-  providerRuntimeProfile,
   resolveNewConversationProvider,
   useProviderConfigStore,
   type ProviderConfig,
   type ProviderSettings,
 } from '@/shared/infrastructure/providerConfigStore'
-import { providerRuntimeApiContract } from '@/shared/infrastructure/providerRuntimeApiCatalog'
+import { providerSupportsAgentProfile } from '@/features/agent/application/agentProfileModel'
 import type { AgentConversationRegistryState } from '@movscript/core/agent'
 import type { Project } from '@/types'
 
@@ -35,7 +34,7 @@ export function AgentUnifiedChatShell(props: AgentUnifiedChatShellProps) {
     [providerSettings, props.userId],
   )
 
-  if (!providerSupportsAgentChatRuntime(activeProvider)) return null
+  if (!providerSupportsAgentProfile(activeProvider)) return null
 
   return (
     <AgentRuntimeChatShell
@@ -60,13 +59,8 @@ export function resolveAgentChatShellProvider(
   _registryState?: AgentConversationRegistryState,
 ): ProviderConfig {
   const selectedProvider = resolveNewConversationProvider(settings)
-  const agentChatProviders = enabledProviders(settings).filter(providerSupportsAgentChatRuntime)
-  return providerSupportsAgentChatRuntime(selectedProvider)
+  const agentChatProviders = enabledProviders(settings).filter(providerSupportsAgentProfile)
+  return providerSupportsAgentProfile(selectedProvider)
     ? selectedProvider
     : agentChatProviders[0] ?? selectedProvider
-}
-
-function providerSupportsAgentChatRuntime(provider: ProviderConfig | undefined): boolean {
-  if (!provider) return false
-  return providerRuntimeApiContract(providerRuntimeProfile(provider).api)?.transport === 'sdk-client'
 }

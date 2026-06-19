@@ -23,9 +23,26 @@ import {
   sdkRuntimeTurnItemsFromResult,
 } from './sdkRuntimeMessageMapper'
 import { sdkRuntimeNotificationFromTurnEvent } from './sdkRuntimeNotificationMapper'
+import { sdkRuntimeCapabilitiesResponse } from './sdkRuntimeCapabilities'
+import {
+  callSdkRuntimeMcpTool,
+  listSdkRuntimeMcpServers,
+  readSdkRuntimeMcpResource,
+} from './sdkRuntimeMcpBridge'
+import {
+  installSdkRuntimeBundledPlugin,
+  listSdkRuntimeBundledPlugins,
+} from './sdkRuntimePluginCatalog'
+import { listSdkRuntimePermissionProfiles } from './sdkRuntimePermissionProfiles'
+import {
+  ensureSdkRuntimeDefaultSkills,
+  listSdkRuntimeSkills,
+  setSdkRuntimeExtraSkillRoots,
+} from './sdkRuntimeSkillService'
 import type { SdkRuntimeRunPromptEventSink, SdkRuntimeTurnEvent } from './sdkRuntimeTurnEvents'
 import {
   notificationEventFromContext,
+  requestSdkRuntimeServerRequest,
   publishSdkRuntimeNotification,
 } from './sdkRuntimeHost'
 import {
@@ -59,6 +76,34 @@ export async function handleSdkRuntimeRequest(
   runtime: SdkRuntimeResolvedRuntime,
 ): Promise<unknown> {
   if (input.method === 'runtime/describe') return runtime.describe
+  if (input.method === 'capabilities/get') return sdkRuntimeCapabilitiesResponse(paramsFor(input, 'capabilities/get'))
+  if (input.method === 'permissionProfile/list') return listSdkRuntimePermissionProfiles()
+  if (input.method === 'skills/list') {
+    const params = paramsFor(input, 'skills/list')
+    return listSdkRuntimeSkills({
+      provider: params.provider,
+      runtime: params.runtime,
+      workspaceDir: runtime.workspaceDir,
+      cwds: params.cwds,
+    })
+  }
+  if (input.method === 'skills/extraRoots/set') {
+    const params = paramsFor(input, 'skills/extraRoots/set')
+    return setSdkRuntimeExtraSkillRoots({
+      provider: params.provider,
+      runtime: params.runtime,
+      extraRoots: params.extraRoots,
+    })
+  }
+  if (input.method === 'plugin/list' || input.method === 'plugin/installed') return listSdkRuntimeBundledPlugins({ workspaceDir: runtime.workspaceDir })
+  if (input.method === 'plugin/install') return installSdkRuntimeBundledPlugin({
+    ...paramsFor(input, 'plugin/install'),
+    workspaceDir: runtime.workspaceDir,
+  })
+  if (input.method === 'plugin/uninstall') return { ok: true, pluginId: paramsFor(input, 'plugin/uninstall').pluginId ?? null }
+  if (input.method === 'mcpServerStatus/list') return listSdkRuntimeMcpServers()
+  if (input.method === 'mcpServer/resource/read') return readSdkRuntimeMcpResource(paramsFor(input, 'mcpServer/resource/read'))
+  if (input.method === 'mcpServer/tool/call') return callSdkRuntimeMcpTool(paramsFor(input, 'mcpServer/tool/call'))
   if (input.method === 'thread/list') return { threads: listSdkRuntimeThreads(input.params.runtime.id) }
   if (input.method === 'thread/read') {
     const params = paramsFor(input, 'thread/read')
@@ -100,6 +145,12 @@ async function startRuntimeThread(
   runtime: SdkRuntimeResolvedRuntime,
 ): Promise<AgentChatThread> {
   const options = runtimeOptions(params, runtime.workspaceDir)
+  ensureSdkRuntimeDefaultSkills({
+    cwd: stringField(options, 'cwd') ?? params.cwd ?? undefined,
+    workspaceDir: runtime.workspaceDir,
+    provider: params.provider,
+    runtime: params.runtime,
+  })
   const providerThread = runtime.startProviderThread(undefined, options)
   const threadId = providerThreadId(providerThread) ?? `${params.provider.kind}_${randomId()}`
   const thread = createSdkRuntimeBaseThread(params.provider.kind, params.runtime.id, threadId, params.title, stringField(options, 'cwd') ?? params.cwd)
@@ -116,6 +167,12 @@ async function resumeRuntimeThread(
   const existing = getSdkRuntimeThreadRecord(params.runtime.id, params.threadId)
   if (existing) return existing.thread
   const options = runtimeOptions(params, runtime.workspaceDir)
+  ensureSdkRuntimeDefaultSkills({
+    cwd: stringField(options, 'cwd') ?? params.cwd ?? undefined,
+    workspaceDir: runtime.workspaceDir,
+    provider: params.provider,
+    runtime: params.runtime,
+  })
   const providerThread = runtime.startProviderThread(params.threadId, options)
   const thread = createSdkRuntimeBaseThread(params.provider.kind, params.runtime.id, params.threadId, null, stringField(options, 'cwd') ?? params.cwd)
   setSdkRuntimeThreadRecord(params.runtime.id, params.threadId, { thread, providerThread, providerThreadOptions: options })
@@ -149,6 +206,12 @@ async function startRuntimeTextTurn(
     ...(record.thread.executionSettings ?? {}),
     ...params,
   }, runtime.workspaceDir, record.thread.cwd)
+  ensureSdkRuntimeDefaultSkills({
+    cwd: stringField(options, 'cwd'),
+    workspaceDir: runtime.workspaceDir,
+    provider: params.provider,
+    runtime: params.runtime,
+  })
   if (sdkRuntimeProviderThreadNeedsRefresh(record, options)) {
     record.providerThread = runtime.startProviderThread(undefined, options)
     record.providerThreadOptions = options
@@ -166,6 +229,7 @@ async function startRuntimeTextTurn(
         if (event.type === 'agent.delta') streamedAssistantDelta = true
         publishRuntimeTurnEvent(params, event)
       },
+      requestServer: (request) => requestSdkRuntimeServerRequest(params, request),
     })
   } catch (error) {
     const failedAtMs = Date.now()
@@ -246,7 +310,7 @@ async function renameRuntimeThread(
     updatedAt: unixSecondsNow(),
   }
   record.thread = updated
-  publishThreadNotification(params, 'thread/name/updated', { name: params.name })
+  publishThreadNotification(params, 'thread/name/updated', { threadName: params.name })
   return updated
 }
 
@@ -382,10 +446,19 @@ function providerResumeTokenFromSdkMessage(message: unknown, depth = 0): string 
 function runtimeOptions(params: object, workspaceDir: string, fallbackCwd?: string | null): Record<string, unknown> {
   const record = params as Record<string, unknown>
   const cwd = resolveSdkRuntimeCwd(record, workspaceDir, fallbackCwd)
+  const runProfile = isRecord(record.runProfile) ? record.runProfile : undefined
   return {
     ...(cwd ? { cwd } : {}),
     ...(typeof record.model === 'string' ? { model: record.model } : {}),
     ...(typeof record.threadId === 'string' ? { threadId: record.threadId } : {}),
+    ...(typeof record.approvalPolicy === 'string' ? { approvalPolicy: record.approvalPolicy } : {}),
+    ...(typeof record.approvalsReviewer === 'string' ? { approvalsReviewer: record.approvalsReviewer } : {}),
+    ...(typeof record.permissions === 'string' ? { permissions: record.permissions } : {}),
+    ...(Object.prototype.hasOwnProperty.call(record, 'sandbox') ? { sandbox: record.sandbox } : {}),
+    ...(typeof runProfile?.approvalPolicy === 'string' ? { approvalPolicy: runProfile.approvalPolicy } : {}),
+    ...(typeof runProfile?.approvalsReviewer === 'string' ? { approvalsReviewer: runProfile.approvalsReviewer } : {}),
+    ...(typeof runProfile?.permissionProfileId === 'string' ? { permissions: runProfile.permissionProfileId } : {}),
+    ...(Object.prototype.hasOwnProperty.call(runProfile ?? {}, 'fallbackSandbox') ? { sandbox: runProfile?.fallbackSandbox } : {}),
   }
 }
 

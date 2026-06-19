@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   applyAgentChatThreadExecutionSettings,
+  agentChatConversationIdForThread,
+  agentChatConversationRecordForThread,
   agentChatThreadFromRegistryRecord,
   agentConversationUsesProviderSession,
   buildAgentChatConversationPatchInput,
@@ -10,6 +12,7 @@ import {
   buildAgentChatConversationRegistryIndex,
   buildAgentChatOpenThreadCandidates,
   buildAgentChatProviderIdentity,
+  buildAgentChatThreadDeckOrderUpdates,
   buildAgentChatQueuedInputDraft,
   buildAgentChatQueuedTurnSubmission,
   buildAgentChatThreadTabs,
@@ -92,6 +95,77 @@ test('agent chat conversation registry index filters by user and provider identi
   assert.deepEqual([...index.threadOrderIndex.entries()], [
     ['thread-newer', 0],
     ['thread-older', 1],
+  ])
+
+  const deckOrderedIndex = buildAgentChatConversationRegistryIndex({
+    userId: 'user-1',
+    providerIdentity: {
+      provider: 'mova',
+      providerId: 'mova',
+      providerInstanceId: 'runtime-a',
+      providerProtocol: 'provider-session',
+    },
+    records: [
+      registryRecord({ id: 'activity-newer', providerThreadId: 'thread-activity-newer', deckOrder: 2, updatedAt: 900 }),
+      registryRecord({ id: 'deck-first', providerThreadId: 'thread-deck-first', deckOrder: 0, updatedAt: 100 }),
+      registryRecord({ id: 'deck-second', providerThreadId: 'thread-deck-second', deckOrder: 1, updatedAt: 200 }),
+    ],
+  })
+
+  assert.deepEqual([...deckOrderedIndex.threadOrderIndex.entries()], [
+    ['thread-deck-first', 0],
+    ['thread-deck-second', 1],
+    ['thread-activity-newer', 2],
+  ])
+
+  assert.match(agentChatConversationIdForThread('thread-a', {
+    provider: 'mova',
+    providerId: 'mova',
+    providerInstanceId: 'runtime-a',
+    providerProtocol: 'provider-session',
+  }), /^provider:provider-session:mova:mova:runtime-a:thread:thread-a$/)
+
+  const canonicalRecord = registryRecord({
+    id: 'provider:provider-session:mova:mova:runtime-a:thread:thread-a',
+    providerThreadId: 'thread-a',
+    open: false,
+  })
+  assert.equal(agentChatConversationRecordForThread({
+    records: {
+      [canonicalRecord.id]: canonicalRecord,
+      'thread-a': registryRecord({ id: 'legacy-other-provider', providerId: 'other', providerThreadId: 'thread-a' }),
+    },
+    threadId: 'thread-a',
+    providerIdentity: {
+      provider: 'mova',
+      providerId: 'mova',
+      providerInstanceId: 'runtime-a',
+      providerProtocol: 'provider-session',
+    },
+    userId: 'user-1',
+  }), canonicalRecord)
+
+  assert.deepEqual(buildAgentChatThreadDeckOrderUpdates({
+    draggedThreadId: 'thread-c',
+    targetThreadId: 'thread-a',
+    position: 'before',
+    providerIdentity: {
+      provider: 'mova',
+      providerId: 'mova',
+      providerInstanceId: 'runtime-a',
+      providerProtocol: 'provider-session',
+    },
+    userId: 'user-1',
+    records: [
+      registryRecord({ id: 'conversation-a', providerThreadId: 'thread-a', deckOrder: 0 }),
+      registryRecord({ id: 'conversation-b', providerThreadId: 'thread-b', deckOrder: 1 }),
+      registryRecord({ id: 'conversation-c', providerThreadId: 'thread-c', deckOrder: 2 }),
+      registryRecord({ id: 'conversation-closed', providerThreadId: 'thread-closed', deckOrder: 3, open: false }),
+    ],
+  }), [
+    { conversationId: 'conversation-c', deckOrder: 0 },
+    { conversationId: 'conversation-a', deckOrder: 1 },
+    { conversationId: 'conversation-b', deckOrder: 2 },
   ])
 })
 

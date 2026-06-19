@@ -125,6 +125,53 @@ test('agent chat composer uses the same chrome in page and detail surfaces', () 
   assert.doesNotMatch(dataSourceShellSource, /chrome=\{surface === 'page' \? 'flush' : 'bottom-bar'\}/)
 })
 
+test('agent page chat keeps a stable layout shell when the first message is sent', () => {
+  const dataSourceShellSource = readFileSync(resolve('src/features/agent/components/AgentChatDataSourceShell.tsx'), 'utf8')
+  const shellViewSource = readFileSync(resolve('src/features/agent/components/AgentChatShellView.tsx'), 'utf8')
+  const shellPartsSource = readFileSync(resolve('src/features/agent/components/AgentChatDataSourceShellParts.tsx'), 'utf8')
+  const shellCssSource = readFileSync(resolve('src/features/agent/components/AgentChatShellView.css'), 'utf8')
+  const presentationStateSource = readFileSync(resolve('src/features/agent/presentation/useAgentChatShellPresentationState.ts'), 'utf8')
+  const pageThreadShellBlock = sourceBetween(
+    shellPartsSource,
+    'export function AgentChatDataSourcePageThreadShell',
+    'export function AgentChatDataSourceThreadBody',
+  )
+  const composerPanelBlock = sourceBetween(
+    shellPartsSource,
+    'export function AgentChatDataSourceComposerPanel',
+    'interface AgentComposerActionLayerProps',
+  )
+  const emptyOverlayCss = sourceBetween(
+    shellCssSource,
+    '.agent-page-chat-empty {',
+    '.agent-page-chat-empty-title',
+  )
+  const emptyShellCss = sourceBetween(
+    shellCssSource,
+    '.agent-page-chat-thread-shell--empty {',
+    '.agent-page-chat-thread {',
+  )
+
+  assert.match(shellViewSource, /className=\{surface === 'page' \? 'agent-page-chat-main' : 'ai-agent-panel-main'\}/)
+  assert.doesNotMatch(shellViewSource, /agent-page-chat-main--empty/)
+  assert.match(dataSourceShellSource, /useAgentChatShellPresentationState\(\{[\s\S]*sending,[\s\S]*visibleItems,/)
+  assert.match(presentationStateSource, /sending: boolean/)
+  assert.match(presentationStateSource, /visibleItems\.length[\s\S]*\|\| sending[\s\S]*\|\| error/)
+  assert.match(pageThreadShellBlock, /<div className="agent-page-chat-thread">/)
+  assert.match(pageThreadShellBlock, /<AgentChatDataSourceThreadBody/)
+  assert.match(pageThreadShellBlock, /data-visible=\{!hasChatContent \? 'true' : undefined\}/)
+  assert.match(pageThreadShellBlock, /emptyThreadLabel=\{hasChatContent \? emptyThreadLabel : undefined\}/)
+  assert.doesNotMatch(pageThreadShellBlock, /!\s*hasChatContent\s*&&\s*emptyThreadLabel\s*\?/)
+  assert.match(composerPanelBlock, /\? 'agent-page-chat-composer relative z-30'/)
+  assert.match(composerPanelBlock, /data-has-chat-content=\{hasChatContent \? 'true' : 'false'\}/)
+  assert.doesNotMatch(composerPanelBlock, /agent-page-chat-empty-composer/)
+  assert.match(emptyOverlayCss, /position: absolute;/)
+  assert.match(emptyOverlayCss, /inset: 0;/)
+  assert.match(emptyOverlayCss, /opacity: 0;/)
+  assert.match(shellCssSource, /\.agent-page-chat-empty\[data-visible="true"\]/)
+  assert.doesNotMatch(emptyShellCss, /flex:\s*0 0 auto/)
+})
+
 test('agent mode sidebar keeps conversations scoped to unbound chats', () => {
   const agentModePageSource = [
     readFileSync(resolve('src/features/agent/components/ProjectAgentModePage.tsx'), 'utf8'),

@@ -1,6 +1,8 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware'
 import type { CanvasPortValue, CanvasRunStatus, CanvasTaskStatus, RawResource } from '@/types'
+import { readBrowserStorageItem, removeBrowserStorageItem, writeBrowserStorageItem } from '@/shared/infrastructure/browserStorage'
+import { createDesktopStateStorage } from '@/shared/infrastructure/desktopStateStorage'
 
 export interface CanvasRuntimeTask {
   id: string
@@ -42,6 +44,30 @@ interface CanvasRuntimeStore {
   failTask: (canvasId: string, runId: string, nodeId: string, error: string) => void
   finishRun: (canvasId: string, runId: string, status: CanvasRunStatus, outputValues?: Record<string, CanvasPortValue>, error?: string) => void
   clearCanvasRuns: (canvasId: string) => void
+}
+
+export const CANVAS_RUNTIME_STORAGE_KEY = 'movscript.canvasRuntime.v1'
+
+const memoryCanvasRuntimeStorage: StateStorage = (() => {
+  const values = new Map<string, string>()
+  return {
+    getItem: (name) => values.get(name) ?? null,
+    setItem: (name, value) => {
+      values.set(name, value)
+    },
+    removeItem: (name) => {
+      values.delete(name)
+    },
+  }
+})()
+
+function getCanvasRuntimeStorage(): StateStorage {
+  const fallback: StateStorage = typeof window === 'undefined' ? memoryCanvasRuntimeStorage : {
+    getItem: (name) => readBrowserStorageItem('local', name),
+    setItem: (name, value) => writeBrowserStorageItem('local', name, value),
+    removeItem: (name) => removeBrowserStorageItem('local', name),
+  }
+  return createDesktopStateStorage(CANVAS_RUNTIME_STORAGE_KEY, fallback)
 }
 
 export const useCanvasRuntimeStore = create<CanvasRuntimeStore>()(
@@ -128,7 +154,8 @@ export const useCanvasRuntimeStore = create<CanvasRuntimeStore>()(
       },
     }),
     {
-      name: 'movscript.canvasRuntime.v1',
+      name: CANVAS_RUNTIME_STORAGE_KEY,
+      storage: createJSONStorage(getCanvasRuntimeStorage),
       partialize: (state) => ({ runsByCanvasId: state.runsByCanvasId }),
     },
   ),

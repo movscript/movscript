@@ -7,12 +7,38 @@ import {
 import type { AgentModeHistoryItem, AgentModeProjectConversationGroup, } from '@/features/agent/components/ProjectAgentModeSidebarParts'
 import type { Conversation } from '@/features/agent/state/agentStore'
 import type { AgentConversationThreadBinding, useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
-import type { AgentConversationRegistryRecord } from '@movscript/core/agent'
+import {
+  buildSessionDeckIndex,
+  type AgentConversationRegistryRecord,
+} from '@movscript/core/agent'
 import type { AgentSessionSummary, AgentThreadSummary } from '@movscript/core/agent/protocol'
 
-export function sortAgentModeOpenConversations(conversations: Conversation[]): Conversation[] {
+export function sortAgentModeOpenConversations(input: {
+  conversations: Conversation[]
+  conversationsById: Record<string, AgentConversationRegistryRecord>
+}): Conversation[] {
+  const { conversations, conversationsById } = input
   const sourceIndex = new Map(conversations.map((conversation, index) => [conversation.id, index]))
-  return [...conversations].sort((a, b) => b.updatedAt - a.updatedAt || (sourceIndex.get(a.id) ?? 0) - (sourceIndex.get(b.id) ?? 0))
+  const deck = buildSessionDeckIndex({
+    entries: conversations.map((conversation) => {
+      const record = conversationsById[conversation.id]
+      return {
+        id: conversation.id,
+        open: record?.open,
+        archived: record?.archived ?? conversation.archived,
+        createdAt: record?.createdAt ?? conversation.createdAt,
+        updatedAt: record?.updatedAt ?? conversation.updatedAt,
+        deckOrder: record?.deckOrder,
+      }
+    }),
+  })
+  return [...conversations].sort((a, b) => {
+    const leftOrder = deck.orderIndex.get(a.id) ?? Number.MAX_SAFE_INTEGER
+    const rightOrder = deck.orderIndex.get(b.id) ?? Number.MAX_SAFE_INTEGER
+    return leftOrder - rightOrder
+      || b.updatedAt - a.updatedAt
+      || (sourceIndex.get(a.id) ?? 0) - (sourceIndex.get(b.id) ?? 0)
+  })
 }
 
 export function buildProjectAgentModeConversationScopes(input: {

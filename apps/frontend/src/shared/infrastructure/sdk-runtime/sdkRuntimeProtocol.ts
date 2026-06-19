@@ -21,6 +21,17 @@ import type { ProviderRuntimeApiContract } from '../providerRuntimeApiCatalog'
 export type SdkRuntimeRpcMethod =
   | 'runtime/probe'
   | 'runtime/describe'
+  | 'capabilities/get'
+  | 'permissionProfile/list'
+  | 'skills/list'
+  | 'skills/extraRoots/set'
+  | 'plugin/list'
+  | 'plugin/installed'
+  | 'plugin/install'
+  | 'plugin/uninstall'
+  | 'mcpServerStatus/list'
+  | 'mcpServer/resource/read'
+  | 'mcpServer/tool/call'
   | 'thread/list'
   | 'thread/read'
   | 'thread/start'
@@ -41,6 +52,17 @@ export type SdkRuntimeRpcMethod =
 export const SDK_RUNTIME_REQUIRED_RPC_METHODS: SdkRuntimeRpcMethod[] = [
   'runtime/probe',
   'runtime/describe',
+  'capabilities/get',
+  'permissionProfile/list',
+  'skills/list',
+  'skills/extraRoots/set',
+  'plugin/list',
+  'plugin/installed',
+  'plugin/install',
+  'plugin/uninstall',
+  'mcpServerStatus/list',
+  'mcpServer/resource/read',
+  'mcpServer/tool/call',
   'thread/list',
   'thread/read',
   'thread/start',
@@ -111,6 +133,21 @@ export interface SdkRuntimeCredentialProbe {
   detail?: string
 }
 
+export interface SdkRuntimeCapabilitiesResponse {
+  ok: boolean
+  runtime: Pick<ProviderRuntimeProfile, 'id' | 'api' | 'label'>
+  provider: Pick<ProviderConfig, 'id' | 'kind' | 'label'>
+  capabilities: ProviderRuntimeApiContract['capabilities'] & {
+    serverRequests: boolean
+    skillsList: boolean
+    defaultSkillBootstrap: boolean
+    mcpBridge: boolean
+    permissionProfiles: boolean
+  }
+  warnings: string[]
+  unsupported: Record<string, string>
+}
+
 export interface SdkRuntimeRequestContext {
   provider: ProviderConfig
   runtime: ProviderRuntimeProfile
@@ -166,6 +203,43 @@ export type SdkRuntimeInterruptTurnParams = SdkRuntimeRequestContext & {
   reason?: string | null
 }
 
+export type SdkRuntimeSkillsListParams = SdkRuntimeRequestContext & {
+  cwds?: string[]
+  forceReload?: boolean
+}
+
+export type SdkRuntimeSkillsExtraRootsSetParams = SdkRuntimeRequestContext & {
+  extraRoots?: string[]
+}
+
+export type SdkRuntimePluginListParams = SdkRuntimeRequestContext & {
+  marketplaceKinds?: string[]
+}
+
+export type SdkRuntimePluginInstallParams = SdkRuntimeRequestContext & {
+  pluginName?: string
+  remoteMarketplaceName?: string
+  marketplacePath?: string
+}
+
+export type SdkRuntimePluginUninstallParams = SdkRuntimeRequestContext & {
+  pluginId?: string
+}
+
+export type SdkRuntimeMcpToolCallParams = SdkRuntimeRequestContext & {
+  threadId?: string
+  server: string
+  tool: string
+  arguments?: unknown
+  _meta?: unknown
+}
+
+export type SdkRuntimeMcpResourceReadParams = SdkRuntimeRequestContext & {
+  server: string
+  uri: string
+  threadId?: string
+}
+
 export type SdkRuntimeThreadMutationParams = SdkRuntimeRequestContext & {
   threadId: string
 }
@@ -185,6 +259,17 @@ export type SdkRuntimeUpdateThreadSettingsParams = SdkRuntimeResumeThreadParams
 export interface SdkRuntimeRpcRequestMap {
   'runtime/probe': SdkRuntimeRequestContext
   'runtime/describe': SdkRuntimeRequestContext
+  'capabilities/get': SdkRuntimeRequestContext
+  'permissionProfile/list': SdkRuntimeRequestContext
+  'skills/list': SdkRuntimeSkillsListParams
+  'skills/extraRoots/set': SdkRuntimeSkillsExtraRootsSetParams
+  'plugin/list': SdkRuntimePluginListParams
+  'plugin/installed': SdkRuntimePluginListParams
+  'plugin/install': SdkRuntimePluginInstallParams
+  'plugin/uninstall': SdkRuntimePluginUninstallParams
+  'mcpServerStatus/list': SdkRuntimeRequestContext
+  'mcpServer/resource/read': SdkRuntimeMcpResourceReadParams
+  'mcpServer/tool/call': SdkRuntimeMcpToolCallParams
   'thread/list': SdkRuntimeListThreadsParams
   'thread/read': SdkRuntimeReadThreadParams
   'thread/start': SdkRuntimeStartThreadParams
@@ -206,6 +291,17 @@ export interface SdkRuntimeRpcRequestMap {
 export interface SdkRuntimeRpcResponseMap {
   'runtime/probe': SdkRuntimeProbeResponse
   'runtime/describe': SdkRuntimeDescribeResponse
+  'capabilities/get': SdkRuntimeCapabilitiesResponse
+  'permissionProfile/list': unknown
+  'skills/list': unknown
+  'skills/extraRoots/set': unknown
+  'plugin/list': unknown
+  'plugin/installed': unknown
+  'plugin/install': unknown
+  'plugin/uninstall': unknown
+  'mcpServerStatus/list': unknown
+  'mcpServer/resource/read': unknown
+  'mcpServer/tool/call': unknown
   'thread/list': { threads: AgentChatThread[]; nextCursor?: string | null }
   'thread/read': AgentChatThread
   'thread/start': AgentChatThread

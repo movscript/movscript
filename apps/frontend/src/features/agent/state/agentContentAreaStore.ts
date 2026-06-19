@@ -1,12 +1,14 @@
 import { create } from 'zustand'
-import { createJSONStorage, persist } from 'zustand/middleware'
+import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware'
 
 import { createInstrumentedAgentStateStorage } from '@/features/agent/state/agentPerformanceStore'
+import { createDesktopStateStorage } from '@/shared/infrastructure/desktopStateStorage'
 
 export const DEFAULT_AGENT_CONTENT_AREA_ID = 'agent-content-empty'
 export const AGENT_PROJECT_HOME_TAB_ID = 'project_home'
 export const AGENT_BLANK_TAB_ID = 'blank_home'
 export const AGENT_SESSION_OUTPUT_TAB_ID = 'session_output'
+export const AGENT_CONTENT_AREA_STORAGE_KEY = 'agent-content-area-store-v1'
 export type AgentBrowserDefaultTabKind = 'project_home' | 'blank'
 
 export type AgentBrowserWebTabState = {
@@ -256,8 +258,8 @@ export const useAgentContentAreaStore = create<AgentContentAreaStore>()(
       },
     }),
     {
-      name: 'agent-content-area-store-v1',
-      storage: createJSONStorage(() => createInstrumentedAgentStateStorage('agent_content_area_store')),
+      name: AGENT_CONTENT_AREA_STORAGE_KEY,
+      storage: createJSONStorage(getAgentContentAreaStorage),
       partialize: (state) => ({
         contentAreasByConversation: sanitizePersistedContentAreas(state.contentAreasByConversation),
       }),
@@ -271,3 +273,10 @@ export const useAgentContentAreaStore = create<AgentContentAreaStore>()(
     },
   ),
 )
+
+function getAgentContentAreaStorage(): StateStorage {
+  return createDesktopStateStorage(
+    AGENT_CONTENT_AREA_STORAGE_KEY,
+    createInstrumentedAgentStateStorage('agent_content_area_store'),
+  )
+}

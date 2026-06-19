@@ -5,6 +5,7 @@ import { resolve } from 'node:path'
 
 import { conversationIdForProviderThread } from '@/features/agent/domain/agentConversation'
 import { recentAppEventSnapshots, resetAppEventDedupeForTests } from '@/shared/application/appEvents'
+import { persistedAgentSessionState } from './agentSessionStoreTypes'
 import { pageTaskStatusFromProviderSession, useAgentSessionStore } from './agentSessionStore'
 
 test('agent session store delegates conversation and task state transitions', () => {
@@ -109,7 +110,7 @@ test('agent session persistence stores registry state and excludes provider-sess
     conversationRuntimeStates: {},
   })
 
-  const partialized = useAgentSessionStore.persist.getOptions().partialize?.(useAgentSessionStore.getState())
+  const partialized = persistedAgentSessionState(useAgentSessionStore.getState())
 
   assert.deepEqual(partialized, {
     activeConversationIdsByUser: { user_1: 'conv_1' },

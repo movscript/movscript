@@ -1,0 +1,39 @@
+.project-entry-deck-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: min(720px, 68vw);
+}
+
+.project-entry-deck-header__project {
+  flex: 0 1 180px;
+  min-width: 72px;
+}
+
+.project-entry-deck-header__tab-bar {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.project-entry-deck-header__tab-bar .workbench-app-tab-bar__tabs {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.project-entry-deck-header__tab {
+  flex: 0 1 104px;
+  min-width: 0;
+  height: 26px;
+  padding-inline: 8px;
+  cursor: grab;
+}
+
+.project-entry-deck-header__tab:active {
+  cursor: grabbing;
+}
+
+.project-entry-deck-header__tab .workbench-app-tab-button__label {
+  min-width: 0;
+}

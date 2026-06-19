@@ -3,7 +3,7 @@ import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node
 import { createRequire } from 'node:module'
 import { isAbsolute, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import * as electron from 'electron'
+import { resolveDesktopDefaultMovScriptWorkspaceDir } from './movscriptWorkspaceDefaults'
 import type { SdkRuntimeModuleLoader } from './sdkRuntimePackageLoader'
 
 export interface SdkRuntimePackageStorePaths {
@@ -14,7 +14,7 @@ export interface SdkRuntimePackageStorePaths {
 }
 
 export interface SdkRuntimePackageStoreOptions {
-  userDataDir?: string
+  baseDir?: string
   env?: NodeJS.ProcessEnv
 }
 
@@ -48,7 +48,7 @@ export function resolveSdkRuntimePackageStorePaths(options: SdkRuntimePackageSto
   const env = options.env ?? process.env
   const root = resolve(
     env.MOVSCRIPT_SDK_RUNTIME_DIR?.trim()
-      || join(options.userDataDir?.trim() || electron.app?.getPath('userData') || process.cwd(), 'sdk-runtimes'),
+      || join(resolveSdkRuntimeBaseDir(options, env), 'sdk-runtimes'),
   )
   return {
     root,
@@ -56,6 +56,15 @@ export function resolveSdkRuntimePackageStorePaths(options: SdkRuntimePackageSto
     nodeModulesDir: join(root, 'node_modules'),
     seedRoot: resolveSdkRuntimePackageSeedRoot(env),
   }
+}
+
+function resolveSdkRuntimeBaseDir(options: SdkRuntimePackageStoreOptions, env: NodeJS.ProcessEnv): string {
+  const explicitBaseDir = options.baseDir?.trim()
+    || env.MOVSCRIPT_HOME?.trim()
+    || env.MOVSCRIPT_WORKSPACE_DIR?.trim()
+  if (explicitBaseDir) return explicitBaseDir
+  if (options.env) return process.cwd()
+  return resolveDesktopDefaultMovScriptWorkspaceDir()
 }
 
 export function ensureSdkRuntimePackageStore(options: SdkRuntimePackageStoreOptions = {}): SdkRuntimePackageStorePaths {

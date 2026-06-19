@@ -612,7 +612,7 @@ provider-native skill dirs in cwd/global home
 
 | Scope | 生命周期 | 典型内容 | 存储原则 |
 | --- | --- | --- | --- |
-| Global skill | 当前用户安装，跨 workspace 可用 | `$CODEX_HOME`、`$CLAUDE_CONFIG_DIR`、`$MOVA_HOME` 下的用户级 Skill/commands/settings | 存在 provider global home 或桌面/user data；不进入项目仓库 |
+| Global skill | 当前用户安装，跨 workspace 可用 | `$CODEX_HOME`、`$CLAUDE_CONFIG_DIR`、`$MOVA_HOME` 下的用户级 Skill/commands/settings | 存在 provider global home 或 MovScript Home 管理目录；不得用 Electron `userData` 或 browser storage 承载业务状态；不进入项目仓库 |
 | Project skill | 跟随当前 `cwd`，团队可复现 | `cwd/.codex/**`、`cwd/.claude/**`、`cwd/.mova/**` | provider-native 目录就是运行真相，可提交的项目配置应放这里 |
 | Builtin skill | 应用/插件随包分发 | MovScript core/project/planning/editing/generation/review skill | 只读来源；版本由应用或插件包管理 |
 | Managed plugin skill | 由 MovScript UI 安装/启用的 Skill 包 | 插件 bundle、lock、可选物化到 `.codex` / `.claude` / `.mova` | lock 记录来源；provider-native 目录负责被 SDK 消费 |

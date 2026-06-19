@@ -107,6 +107,18 @@ test('project plugin install writes project manifest, lock, provider config, and
   }
 })
 
+test('project plugin cache defaults under the MovScript Home workspace', () => {
+  const root = mkdtempSync(join(tmpdir(), 'movscript-project-plugin-cache-home-'))
+  try {
+    const workspaceDir = join(root, 'workspace')
+    const snapshot = getProjectPluginSnapshot({ workspaceDir, projectId: 42 })
+
+    assert.equal(snapshot.desktopPluginCacheRoot, join(workspaceDir, 'plugin-cache'))
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
 test('project plugin install requires explicit provider targets', () => {
   const root = mkdtempSync(join(tmpdir(), 'movscript-project-plugin-targets-'))
   try {

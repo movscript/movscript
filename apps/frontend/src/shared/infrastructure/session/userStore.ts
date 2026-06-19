@@ -1,7 +1,11 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware'
 import type { User, OrgMembership } from '@/types'
 import { syncElectronBackendAuthSession } from './backendAuthSessionSync'
+import { readBrowserStorageItem, removeBrowserStorageItem, writeBrowserStorageItem } from '@/shared/infrastructure/browserStorage'
+import { createDesktopStateStorage } from '@/shared/infrastructure/desktopStateStorage'
+
+export const USER_SESSION_STORAGE_KEY = 'movscript-user'
 
 interface UserStore {
   currentUser: User | null
@@ -59,6 +63,28 @@ function normalizeUser(user: User | AuthUserPayload): User {
   }
 }
 
+const memoryUserSessionStorage: StateStorage = (() => {
+  const values = new Map<string, string>()
+  return {
+    getItem: (name) => values.get(name) ?? null,
+    setItem: (name, value) => {
+      values.set(name, value)
+    },
+    removeItem: (name) => {
+      values.delete(name)
+    },
+  }
+})()
+
+function getUserSessionStorage(): StateStorage {
+  const fallback: StateStorage = typeof window === 'undefined' ? memoryUserSessionStorage : {
+    getItem: (name) => readBrowserStorageItem('local', name),
+    setItem: (name, value) => writeBrowserStorageItem('local', name, value),
+    removeItem: (name) => removeBrowserStorageItem('local', name),
+  }
+  return createDesktopStateStorage(USER_SESSION_STORAGE_KEY, fallback)
+}
+
 export const useUserStore = create<UserStore>()(
   persist(
     (set) => ({
@@ -104,7 +130,8 @@ export const useUserStore = create<UserStore>()(
       setCurrentOrg: (orgId: number | null) => set({ currentOrgID: orgId }),
     }),
     {
-      name: 'movscript-user',
+      name: USER_SESSION_STORAGE_KEY,
+      storage: createJSONStorage(getUserSessionStorage),
       merge: (persistedState, currentState) => {
         const persisted = persistedState as Partial<UserStore> | undefined
         return {

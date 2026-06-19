@@ -24,7 +24,7 @@ test('agent cross-page projection accepts global and active-thread events only',
   const activeThreadEvent = crossPageEventFromAgentChatNotification({
     notification: {
       method: 'thread/name/updated',
-      params: { threadId: 'thread_1', name: 'Thread one' },
+      params: { threadId: 'thread_1', threadName: 'Thread one' },
     },
     transport: 'sdk-runtime-ipc',
     source: 'Mova',
@@ -32,7 +32,7 @@ test('agent cross-page projection accepts global and active-thread events only',
   const otherThreadEvent = crossPageEventFromAgentChatNotification({
     notification: {
       method: 'thread/name/updated',
-      params: { threadId: 'thread_2', name: 'Thread two' },
+      params: { threadId: 'thread_2', threadName: 'Thread two' },
     },
     transport: 'sdk-runtime-ipc',
     source: 'Mova',
@@ -81,7 +81,7 @@ test('agent cross-page projection skips events already handled by direct subscri
   const seenKeysRef = { current: new Set<string>() }
   const notification = {
     method: 'thread/name/updated',
-    params: { threadId: 'thread_1', name: 'Thread one' },
+    params: { threadId: 'thread_1', threadName: 'Thread one' },
   }
   markAgentChatNotificationProjected(seenKeysRef, notification)
   const event = crossPageEventFromAgentChatNotification({

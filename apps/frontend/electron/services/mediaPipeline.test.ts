@@ -69,10 +69,10 @@ test('media pipeline home follows the configured desktop MovScript workspace', (
 })
 
 test('prepares isolated media workspace directories for a project task', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-workspace-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-workspace-'))
   try {
     const workspace = await prepareMediaWorkspace({
-      userDataDir,
+      homeDir,
       projectId: 'project:with spaces',
       taskId: 'timeline/render 1',
     })
@@ -92,20 +92,20 @@ test('prepares isolated media workspace directories for a project task', async (
       assert.equal((await stat(path)).isDirectory(), true)
     }
   } finally {
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('media workspace path parts remain distinct after readable id sanitization', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-workspace-collision-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-workspace-collision-'))
   try {
     const first = await prepareMediaWorkspace({
-      userDataDir,
+      homeDir,
       projectId: 'project/a:b',
       taskId: 'render/task:1',
     })
     const second = await prepareMediaWorkspace({
-      userDataDir,
+      homeDir,
       projectId: 'project:a/b',
       taskId: 'render:task/1',
     })
@@ -115,15 +115,15 @@ test('media workspace path parts remain distinct after readable id sanitization'
     assert.match(basename(first.projectRoot), /^project_a_b--[a-f0-9]{10}$/)
     assert.match(basename(second.projectRoot), /^project_a_b--[a-f0-9]{10}$/)
   } finally {
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('reports media pipeline capabilities without starting an editing task', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-capabilities-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-capabilities-'))
   const originalFFmpegPath = process.env.FFMPEG_PATH
   try {
-    process.env.FFMPEG_PATH = await writeFakeMediaPipelineFFmpeg(userDataDir)
+    process.env.FFMPEG_PATH = await writeFakeMediaPipelineFFmpeg(homeDir)
 
     const capabilities = await getMediaPipelineCapabilities()
 
@@ -140,19 +140,19 @@ test('reports media pipeline capabilities without starting an editing task', asy
   } finally {
     if (originalFFmpegPath === undefined) delete process.env.FFMPEG_PATH
     else process.env.FFMPEG_PATH = originalFFmpegPath
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('local HLS protocol maps only registered media workspace files and rewrites manifest URIs', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-hls-protocol-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-hls-protocol-'))
   try {
     const workspace = await prepareMediaWorkspace({
-      userDataDir,
+      homeDir,
       projectId: 'project-1',
       taskId: 'timeline_hls_1',
     })
-    registerMediaPipelineLocalHlsRoot(userDataDir)
+    registerMediaPipelineLocalHlsRoot(homeDir)
     const hlsDir = join(workspace.taskOutputs, 'hls')
     await mkdir(hlsDir, { recursive: true })
     await writeFile(join(hlsDir, 'index.m3u8'), '#EXTM3U\n#EXT-X-MAP:URI="init.mp4"\n#EXTINF:1,\nsegment-00000.m4s\n')
@@ -173,12 +173,12 @@ test('local HLS protocol maps only registered media workspace files and rewrites
     const outsideUrl = createMediaPipelineLocalHlsURL(join(tmpdir(), 'outside.m3u8'))
     assert.equal(resolveMediaPipelineLocalHlsPath(outsideUrl), null)
   } finally {
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('persists and reads media editing projects from the Electron media workspace', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-project-store-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-project-store-'))
   try {
     const editingProject = {
       version: 1 as const,
@@ -201,7 +201,7 @@ test('persists and reads media editing projects from the Electron media workspac
       revision: 1,
     }
 
-    const saved = await saveMediaPipelineEditingProject(editingProject, { userDataDir })
+    const saved = await saveMediaPipelineEditingProject(editingProject, { homeDir })
     assert.equal(saved.status, 'ok')
     assert.equal(saved.editingProject.projectId, 'standalone')
     assert.match(saved.projectPath, /media-workspaces\/standalone--[a-f0-9]{10}\/projects\/editing_project_main--[a-f0-9]{10}\.json$/)
@@ -212,22 +212,22 @@ test('persists and reads media editing projects from the Electron media workspac
 
     const loaded = await getMediaPipelineEditingProject({
       editingProjectId: editingProject.id,
-    }, { userDataDir })
+    }, { homeDir })
     assert.equal(loaded.status, 'ok')
     assert.equal(loaded.editingProject.id, editingProject.id)
     assert.equal(loaded.editingProject.projectId, 'standalone')
 
     const missing = await getMediaPipelineEditingProject({
       editingProjectId: 'missing',
-    }, { userDataDir })
+    }, { homeDir })
     assert.equal(missing.status, 'not_found')
   } finally {
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('emits media editing project events after successful project saves', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-project-events-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-project-events-'))
   const events: MediaPipelineEditingProjectEvent[] = []
   const unsubscribe = onMediaPipelineEditingProjectEvent((event) => {
     events.push(event)
@@ -254,7 +254,7 @@ test('emits media editing project events after successful project saves', async 
       revision: 1,
     }
 
-    const saved = await saveMediaPipelineEditingProject(editingProject, { userDataDir })
+    const saved = await saveMediaPipelineEditingProject(editingProject, { homeDir })
 
     assert.equal(saved.status, 'ok')
     assert.equal(events.length, 1)
@@ -267,12 +267,12 @@ test('emits media editing project events after successful project saves', async 
     assert.equal(events[0].projectPath, saved.projectPath)
   } finally {
     unsubscribe()
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('rejects stale media editing project saves with an optimistic revision conflict', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-project-conflict-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-project-conflict-'))
   try {
     const editingProject = {
       version: 1 as const,
@@ -294,14 +294,14 @@ test('rejects stale media editing project saves with an optimistic revision conf
       updatedAt: '2026-06-17T00:00:00.000Z',
       revision: 1,
     }
-    const saved = await saveMediaPipelineEditingProject(editingProject, { userDataDir })
+    const saved = await saveMediaPipelineEditingProject(editingProject, { homeDir })
     assert.equal(saved.status, 'ok')
 
     const staleSave = await saveMediaPipelineEditingProject({
       ...editingProject,
       title: 'Stale overwrite',
       revision: 2,
-    }, { userDataDir, expectedRevision: 0 })
+    }, { homeDir, expectedRevision: 0 })
 
     assert.equal(staleSave.status, 'conflict')
     assert.equal(staleSave.code, 'EDITING_PROJECT_REVISION_CONFLICT')
@@ -312,17 +312,17 @@ test('rejects stale media editing project saves with an optimistic revision conf
 
     const loaded = await getMediaPipelineEditingProject({
       editingProjectId: editingProject.id,
-    }, { userDataDir })
+    }, { homeDir })
     assert.equal(loaded.status, 'ok')
     assert.equal(loaded.editingProject.title, 'Stored cut')
     assert.equal(loaded.editingProject.revision, 1)
   } finally {
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('media project store paths remain distinct for ids with the same readable sanitized prefix', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-project-store-collision-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-project-store-collision-'))
   try {
     const baseProject = {
       version: 1 as const,
@@ -353,18 +353,18 @@ test('media project store paths remain distinct for ids with the same readable s
       projectId: 'project:a/b',
     }
 
-    const first = await saveMediaPipelineEditingProject(firstProject, { userDataDir })
-    const second = await saveMediaPipelineEditingProject(secondProject, { userDataDir })
+    const first = await saveMediaPipelineEditingProject(firstProject, { homeDir })
+    const second = await saveMediaPipelineEditingProject(secondProject, { homeDir })
     assert.notEqual(first.projectPath, second.projectPath)
     assert.match(basename(first.projectPath), /^editing_project_main--[a-f0-9]{10}\.json$/)
     assert.match(basename(second.projectPath), /^editing_project_main--[a-f0-9]{10}\.json$/)
 
     const loadedFirst = await getMediaPipelineEditingProject({
       editingProjectId: firstProject.id,
-    }, { userDataDir })
+    }, { homeDir })
     const loadedSecond = await getMediaPipelineEditingProject({
       editingProjectId: secondProject.id,
-    }, { userDataDir })
+    }, { homeDir })
     assert.equal(loadedFirst.status, 'ok')
     assert.equal(loadedFirst.editingProject.id, firstProject.id)
     assert.equal(loadedFirst.editingProject.projectId, 'standalone')
@@ -372,22 +372,22 @@ test('media project store paths remain distinct for ids with the same readable s
     assert.equal(loadedSecond.editingProject.id, secondProject.id)
     assert.equal(loadedSecond.editingProject.projectId, 'standalone')
 
-    const listed = await listMediaPipelineEditingProjects({ userDataDir })
+    const listed = await listMediaPipelineEditingProjects({ homeDir })
     assert.equal(listed.status, 'ok')
     assert.deepEqual(listed.editingProjects.map((project) => project.id).sort(), [firstProject.id, secondProject.id].sort())
     assert.deepEqual(listed.projects.map((project) => project.projectPath).sort(), [first.projectPath, second.projectPath].sort())
 
-    const deleted = await deleteMediaPipelineEditingProject({ editingProjectId: firstProject.id }, { userDataDir })
+    const deleted = await deleteMediaPipelineEditingProject({ editingProjectId: firstProject.id }, { homeDir })
     assert.equal(deleted.status, 'ok')
-    const afterDelete = await listMediaPipelineEditingProjects({ userDataDir })
+    const afterDelete = await listMediaPipelineEditingProjects({ homeDir })
     assert.deepEqual(afterDelete.editingProjects.map((project) => project.id), [secondProject.id])
   } finally {
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('rejects invalid or mismatched media editing project files during restore', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-project-store-invalid-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-project-store-invalid-'))
   try {
     const editingProject = {
       version: 1 as const,
@@ -410,7 +410,7 @@ test('rejects invalid or mismatched media editing project files during restore',
       revision: 1,
     }
 
-    const saved = await saveMediaPipelineEditingProject(editingProject, { userDataDir })
+    const saved = await saveMediaPipelineEditingProject(editingProject, { homeDir })
     await writeFile(saved.projectPath, `${JSON.stringify({
       schema: 'movscript.media_editing_project.v1',
       editingProject: {
@@ -421,7 +421,7 @@ test('rejects invalid or mismatched media editing project files during restore',
     await assert.rejects(
       () => getMediaPipelineEditingProject({
         editingProjectId: editingProject.id,
-      }, { userDataDir }),
+      }, { homeDir }),
       /Media editing project identity mismatch/,
     )
 
@@ -435,16 +435,16 @@ test('rejects invalid or mismatched media editing project files during restore',
     await assert.rejects(
       () => getMediaPipelineEditingProject({
         editingProjectId: editingProject.id,
-      }, { userDataDir }),
+      }, { homeDir }),
       /Invalid media editing project file/,
     )
   } finally {
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('rejects invalid media editing projects before saving to the workspace', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-project-store-save-invalid-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-project-store-save-invalid-'))
   try {
     await assert.rejects(
       () => saveMediaPipelineEditingProject({
@@ -455,21 +455,21 @@ test('rejects invalid media editing projects before saving to the workspace', as
         source: { kind: 'manual' },
         timeline: { version: 1, id: 'timeline-main' },
         assets: { assets: [] },
-      } as never, { userDataDir }),
+      } as never, { homeDir }),
       /Invalid media editing project file/,
     )
 
     const missing = await getMediaPipelineEditingProject({
       editingProjectId: 'bad-project',
-    }, { userDataDir })
+    }, { homeDir })
     assert.equal(missing.status, 'not_found')
   } finally {
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('records unsupported media pipeline task requests as failed task manifests', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-pipeline-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-pipeline-'))
   const taskEvents: Array<{ taskId: string; event: string; state?: { status?: string } }> = []
   const unsubscribe = onMediaPipelineTaskEvent((event) => {
     taskEvents.push(event as { taskId: string; event: string; state?: { status?: string } })
@@ -481,7 +481,7 @@ test('records unsupported media pipeline task requests as failed task manifests'
         taskType: 'unsupported_task' as never,
         output: { format: 'mp4', filename: 'out.mp4' },
       },
-      { userDataDir },
+      { homeDir },
     )
     assert.equal(initialState.status, 'running')
     const state = await waitForTerminalTask(initialState.taskId)
@@ -515,16 +515,16 @@ test('records unsupported media pipeline task requests as failed task manifests'
     assert.equal(relatedEvents.some((event) => event.event === 'task.failed' && event.state?.status === 'failed'), true)
   } finally {
     unsubscribe()
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('media_transcode task transcodes a source asset into MP4 output', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-transcode-task-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-transcode-task-'))
   const originalFFmpegPath = process.env.FFMPEG_PATH
   try {
-    process.env.FFMPEG_PATH = await writeFakeMediaPipelineFFmpeg(userDataDir)
-    const sourcePath = join(userDataDir, 'source.mov')
+    process.env.FFMPEG_PATH = await writeFakeMediaPipelineFFmpeg(homeDir)
+    const sourcePath = join(homeDir, 'source.mov')
     await writeFile(sourcePath, new Uint8Array([4, 5, 6]))
 
     const initialState = await createMediaPipelineTask(
@@ -546,7 +546,7 @@ test('media_transcode task transcodes a source asset into MP4 output', async () 
         },
         output: { format: 'mp4', filename: 'transcoded.mp4' },
       },
-      { userDataDir },
+      { homeDir },
     )
 
     assert.equal(initialState.status, 'running')
@@ -574,18 +574,18 @@ test('media_transcode task transcodes a source asset into MP4 output', async () 
   } finally {
     if (originalFFmpegPath === undefined) delete process.env.FFMPEG_PATH
     else process.env.FFMPEG_PATH = originalFFmpegPath
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('media_transcode task can import MP4 output as RawResource with derivative provenance', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-transcode-import-task-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-transcode-import-task-'))
   const originalFFmpegPath = process.env.FFMPEG_PATH
   const originalFetch = globalThis.fetch
   setMovScriptBackendAPIBaseURL('http://media-pipeline.test')
   try {
-    process.env.FFMPEG_PATH = await writeFakeMediaPipelineFFmpeg(userDataDir)
-    const sourcePath = join(userDataDir, 'source.mov')
+    process.env.FFMPEG_PATH = await writeFakeMediaPipelineFFmpeg(homeDir)
+    const sourcePath = join(homeDir, 'source.mov')
     await writeFile(sourcePath, new Uint8Array([4, 5, 6]))
     globalThis.fetch = async (input, init) => {
       assert.equal(String(input), 'http://media-pipeline.test/api/v1/resources/upload')
@@ -639,7 +639,7 @@ test('media_transcode task can import MP4 output as RawResource with derivative 
           importToResource: true,
         },
       },
-      { userDataDir },
+      { homeDir },
     )
 
     const state = await waitForTerminalTask(initialState.taskId)
@@ -651,16 +651,16 @@ test('media_transcode task can import MP4 output as RawResource with derivative 
     else process.env.FFMPEG_PATH = originalFFmpegPath
     globalThis.fetch = originalFetch
     setMovScriptBackendAPIBaseURL('http://localhost:8765')
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('media_reframe task mechanically crops or pads a source into the target aspect', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-reframe-task-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-reframe-task-'))
   const originalFFmpegPath = process.env.FFMPEG_PATH
   try {
-    process.env.FFMPEG_PATH = await writeFakeMediaPipelineFFmpeg(userDataDir)
-    const sourcePath = join(userDataDir, 'wide.mp4')
+    process.env.FFMPEG_PATH = await writeFakeMediaPipelineFFmpeg(homeDir)
+    const sourcePath = join(homeDir, 'wide.mp4')
     await writeFile(sourcePath, new Uint8Array([1, 2, 3]))
 
     const initialState = await createMediaPipelineTask(
@@ -682,7 +682,7 @@ test('media_reframe task mechanically crops or pads a source into the target asp
         },
         output: { format: 'mp4', filename: 'vertical.mp4' },
       },
-      { userDataDir },
+      { homeDir },
     )
 
     assert.equal(initialState.status, 'running')
@@ -711,18 +711,18 @@ test('media_reframe task mechanically crops or pads a source into the target asp
   } finally {
     if (originalFFmpegPath === undefined) delete process.env.FFMPEG_PATH
     else process.env.FFMPEG_PATH = originalFFmpegPath
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('media_reframe task can import MP4 output as RawResource with derivative provenance', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-reframe-import-task-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-reframe-import-task-'))
   const originalFFmpegPath = process.env.FFMPEG_PATH
   const originalFetch = globalThis.fetch
   setMovScriptBackendAPIBaseURL('http://media-pipeline.test')
   try {
-    process.env.FFMPEG_PATH = await writeFakeMediaPipelineFFmpeg(userDataDir)
-    const sourcePath = join(userDataDir, 'wide.mp4')
+    process.env.FFMPEG_PATH = await writeFakeMediaPipelineFFmpeg(homeDir)
+    const sourcePath = join(homeDir, 'wide.mp4')
     await writeFile(sourcePath, new Uint8Array([1, 2, 3]))
     globalThis.fetch = async (input, init) => {
       assert.equal(String(input), 'http://media-pipeline.test/api/v1/resources/upload')
@@ -776,7 +776,7 @@ test('media_reframe task can import MP4 output as RawResource with derivative pr
           importToResource: true,
         },
       },
-      { userDataDir },
+      { homeDir },
     )
 
     const state = await waitForTerminalTask(initialState.taskId)
@@ -788,7 +788,7 @@ test('media_reframe task can import MP4 output as RawResource with derivative pr
     else process.env.FFMPEG_PATH = originalFFmpegPath
     globalThis.fetch = originalFetch
     setMovScriptBackendAPIBaseURL('http://localhost:8765')
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
@@ -1002,20 +1002,20 @@ test('mediaPipeline subtitle renderer resolves text and file burn-in settings', 
 })
 
 test('mediaPipeline timeline renderer materializes timeline recipes into export inputs', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-timeline-input-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-timeline-input-'))
   try {
-    const videoPath = join(userDataDir, 'clip.mp4')
-    const overlayVideoPath = join(userDataDir, 'overlay-video.mp4')
-    const audioPath = join(userDataDir, 'music.m4a')
-    const imagePath = join(userDataDir, 'overlay.png')
-    const subtitlePath = join(userDataDir, 'captions.ass')
+    const videoPath = join(homeDir, 'clip.mp4')
+    const overlayVideoPath = join(homeDir, 'overlay-video.mp4')
+    const audioPath = join(homeDir, 'music.m4a')
+    const imagePath = join(homeDir, 'overlay.png')
+    const subtitlePath = join(homeDir, 'captions.ass')
     await writeFile(videoPath, new Uint8Array([1]))
     await writeFile(overlayVideoPath, new Uint8Array([5]))
     await writeFile(audioPath, new Uint8Array([2]))
     await writeFile(imagePath, new Uint8Array([3]))
     await writeFile(subtitlePath, 'Dialogue: 0,0:00:00.00,0:00:01.00,Default,,0,0,0,,Hello')
 
-    const workspace = await prepareMediaWorkspace({ userDataDir, projectId: 'project-1', taskId: 'task-1' })
+    const workspace = await prepareMediaWorkspace({ homeDir, projectId: 'project-1', taskId: 'task-1' })
     const exportInput = await mediaPipelineTimelineToVideoExportInput({
       version: 1,
       id: 'timeline-1',
@@ -1200,16 +1200,16 @@ test('mediaPipeline timeline renderer materializes timeline recipes into export 
       scalePercent: 50,
     }])
   } finally {
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('materializes local files by validating and returning their original path', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-local-asset-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-local-asset-'))
   try {
-    const sourcePath = join(userDataDir, 'source.mp4')
+    const sourcePath = join(homeDir, 'source.mp4')
     await writeFile(sourcePath, 'video-bytes')
-    const workspace = await prepareMediaWorkspace({ userDataDir, projectId: 'project-1', taskId: 'task-1' })
+    const workspace = await prepareMediaWorkspace({ homeDir, projectId: 'project-1', taskId: 'task-1' })
     const materialized = await materializeMediaPipelineAsset({
       workspace,
       asset: {
@@ -1225,12 +1225,12 @@ test('materializes local files by validating and returning their original path',
     assert.equal(materialized.cached, false)
     assert.equal(materialized.sizeBytes, 'video-bytes'.length)
   } finally {
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('materializes backend resources into the media workspace cache', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-backend-asset-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-backend-asset-'))
   const originalFetch = globalThis.fetch
   let requestCount = 0
   setMovScriptBackendAPIBaseURL('http://media-pipeline.test')
@@ -1244,7 +1244,7 @@ test('materializes backend resources into the media workspace cache', async () =
       })
     }
 
-    const workspace = await prepareMediaWorkspace({ userDataDir, projectId: 'project-1', taskId: 'task-1' })
+    const workspace = await prepareMediaWorkspace({ homeDir, projectId: 'project-1', taskId: 'task-1' })
     const asset = {
       id: 'asset-backend',
       sourceKind: 'backend_resource' as const,
@@ -1266,12 +1266,12 @@ test('materializes backend resources into the media workspace cache', async () =
   } finally {
     globalThis.fetch = originalFetch
     setMovScriptBackendAPIBaseURL('http://localhost:8765')
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('reports backend resource download progress while materializing assets', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-backend-progress-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-backend-progress-'))
   const originalFetch = globalThis.fetch
   const progressEvents: Array<{ receivedBytes: number; totalBytes?: number; done: boolean; attempt: number; resourceId: number }> = []
   setMovScriptBackendAPIBaseURL('http://media-pipeline.test')
@@ -1293,7 +1293,7 @@ test('reports backend resource download progress while materializing assets', as
       })
     }
 
-    const workspace = await prepareMediaWorkspace({ userDataDir, projectId: 'project-1', taskId: 'task-1' })
+    const workspace = await prepareMediaWorkspace({ homeDir, projectId: 'project-1', taskId: 'task-1' })
     const materialized = await materializeMediaPipelineAsset({
       workspace,
       options: {
@@ -1325,12 +1325,12 @@ test('reports backend resource download progress while materializing assets', as
   } finally {
     globalThis.fetch = originalFetch
     setMovScriptBackendAPIBaseURL('http://localhost:8765')
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('resource version changes invalidate backend resource cache identity', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-backend-versioned-asset-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-backend-versioned-asset-'))
   const originalFetch = globalThis.fetch
   let requestCount = 0
   setMovScriptBackendAPIBaseURL('http://media-pipeline.test')
@@ -1344,7 +1344,7 @@ test('resource version changes invalidate backend resource cache identity', asyn
       })
     }
 
-    const workspace = await prepareMediaWorkspace({ userDataDir, projectId: 'project-1', taskId: 'task-1' })
+    const workspace = await prepareMediaWorkspace({ homeDir, projectId: 'project-1', taskId: 'task-1' })
     const first = await materializeMediaPipelineAsset({
       workspace,
       asset: {
@@ -1375,12 +1375,12 @@ test('resource version changes invalidate backend resource cache identity', asyn
   } finally {
     globalThis.fetch = originalFetch
     setMovScriptBackendAPIBaseURL('http://localhost:8765')
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('materialize resource cache quota can be configured per task', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-backend-cache-options-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-backend-cache-options-'))
   const originalFetch = globalThis.fetch
   let requestCount = 0
   setMovScriptBackendAPIBaseURL('http://media-pipeline.test')
@@ -1394,7 +1394,7 @@ test('materialize resource cache quota can be configured per task', async () => 
       })
     }
 
-    const workspace = await prepareMediaWorkspace({ userDataDir, projectId: 'project-1', taskId: 'task-1' })
+    const workspace = await prepareMediaWorkspace({ homeDir, projectId: 'project-1', taskId: 'task-1' })
     const first = await materializeMediaPipelineAsset({
       workspace,
       options: { resourceCache: { maxEntries: 1 } },
@@ -1424,12 +1424,12 @@ test('materialize resource cache quota can be configured per task', async () => 
   } finally {
     globalThis.fetch = originalFetch
     setMovScriptBackendAPIBaseURL('http://localhost:8765')
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('retries transient backend resource download failures before caching materialized assets', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-backend-retry-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-backend-retry-'))
   const originalFetch = globalThis.fetch
   let requestCount = 0
   setMovScriptBackendAPIBaseURL('http://media-pipeline.test')
@@ -1446,7 +1446,7 @@ test('retries transient backend resource download failures before caching materi
       })
     }
 
-    const workspace = await prepareMediaWorkspace({ userDataDir, projectId: 'project-1', taskId: 'task-1' })
+    const workspace = await prepareMediaWorkspace({ homeDir, projectId: 'project-1', taskId: 'task-1' })
     const materialized = await materializeMediaPipelineAsset({
       workspace,
       asset: {
@@ -1464,12 +1464,12 @@ test('retries transient backend resource download failures before caching materi
   } finally {
     globalThis.fetch = originalFetch
     setMovScriptBackendAPIBaseURL('http://localhost:8765')
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('materialize backend resource download attempts can be configured', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-backend-no-retry-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-backend-no-retry-'))
   const originalFetch = globalThis.fetch
   let requestCount = 0
   setMovScriptBackendAPIBaseURL('http://media-pipeline.test')
@@ -1480,7 +1480,7 @@ test('materialize backend resource download attempts can be configured', async (
       return new Response('temporary backend failure', { status: 503 })
     }
 
-    const workspace = await prepareMediaWorkspace({ userDataDir, projectId: 'project-1', taskId: 'task-1' })
+    const workspace = await prepareMediaWorkspace({ homeDir, projectId: 'project-1', taskId: 'task-1' })
     await assert.rejects(
       () => materializeMediaPipelineAsset({
         workspace,
@@ -1499,16 +1499,16 @@ test('materialize backend resource download attempts can be configured', async (
   } finally {
     globalThis.fetch = originalFetch
     setMovScriptBackendAPIBaseURL('http://localhost:8765')
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('uploads media pipeline exports to the RawResource library', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-export-upload-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-export-upload-'))
   const originalFetch = globalThis.fetch
   setMovScriptBackendAPIBaseURL('http://media-pipeline.test')
   try {
-    const outputPath = join(userDataDir, 'render.mp4')
+    const outputPath = join(homeDir, 'render.mp4')
     await writeFile(outputPath, new Uint8Array([1, 2, 3, 4]))
     globalThis.fetch = async (input, init) => {
       assert.equal(String(input), 'http://media-pipeline.test/api/v1/resources/upload')
@@ -1553,15 +1553,15 @@ test('uploads media pipeline exports to the RawResource library', async () => {
   } finally {
     globalThis.fetch = originalFetch
     setMovScriptBackendAPIBaseURL('http://localhost:8765')
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('saves media pipeline exports to an explicit local file path', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-export-save-local-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-export-save-local-'))
   try {
-    const outputPath = join(userDataDir, 'outputs', 'render.mp4')
-    const savePath = join(userDataDir, 'saved', 'final-cut.mp4')
+    const outputPath = join(homeDir, 'outputs', 'render.mp4')
+    const savePath = join(homeDir, 'saved', 'final-cut.mp4')
     await mkdir(dirname(outputPath), { recursive: true })
     await writeFile(outputPath, new Uint8Array([5, 6, 7, 8]))
 
@@ -1577,15 +1577,15 @@ test('saves media pipeline exports to an explicit local file path', async () => 
     assert.equal(saved.sizeBytes, 4)
     assert.deepEqual(Array.from(await readFile(savePath)), [5, 6, 7, 8])
   } finally {
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('rejects saving only an HLS manifest as a local export file', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-export-save-hls-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-export-save-hls-'))
   try {
-    const outputPath = join(userDataDir, 'outputs', 'index.m3u8')
-    const savePath = join(userDataDir, 'saved', 'index.m3u8')
+    const outputPath = join(homeDir, 'outputs', 'index.m3u8')
+    const savePath = join(homeDir, 'saved', 'index.m3u8')
     await mkdir(dirname(outputPath), { recursive: true })
     await writeFile(outputPath, '#EXTM3U\n#EXTINF:1,\nsegment-00000.m4s\n')
 
@@ -1597,15 +1597,15 @@ test('rejects saving only an HLS manifest as a local export file', async () => {
       /USE_EDITING_EXPORT_PUBLISH_HLS/,
     )
   } finally {
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('saves a complete HLS bundle to a local directory', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-export-save-hls-dir-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-export-save-hls-dir-'))
   try {
-    const hlsDirectory = join(userDataDir, 'outputs', 'hls')
-    const saveDirectory = join(userDataDir, 'saved-hls')
+    const hlsDirectory = join(homeDir, 'outputs', 'hls')
+    const saveDirectory = join(homeDir, 'saved-hls')
     const manifestPath = join(hlsDirectory, 'index.m3u8')
     const initPath = join(hlsDirectory, 'init.mp4')
     const segmentPath = join(hlsDirectory, 'segment-00000.m4s')
@@ -1630,16 +1630,16 @@ test('saves a complete HLS bundle to a local directory', async () => {
     assert.equal(await readFile(join(saveDirectory, 'init.mp4'), 'utf8'), 'init')
     assert.equal(await readFile(join(saveDirectory, 'segment-00000.m4s'), 'utf8'), 'segment')
   } finally {
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('packages rendered MP4 outputs into local HLS manifest and segments', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-hls-packager-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-hls-packager-'))
   try {
-    const ffmpegPath = await writeFakeMediaPipelineFFmpeg(userDataDir)
-    const sourcePath = join(userDataDir, 'source.mp4')
-    const outputDirectory = join(userDataDir, 'hls')
+    const ffmpegPath = await writeFakeMediaPipelineFFmpeg(homeDir)
+    const sourcePath = join(homeDir, 'source.mp4')
+    const outputDirectory = join(homeDir, 'hls')
     await writeFile(sourcePath, new Uint8Array([1, 2, 3]))
 
     const hls = await packageMediaPipelineHls({
@@ -1656,16 +1656,16 @@ test('packages rendered MP4 outputs into local HLS manifest and segments', async
     assert.equal(await readFile(hls.segmentPaths[0], 'utf8'), 'init')
     assert.equal(await readFile(hls.segmentPaths[1], 'utf8'), 'segment')
   } finally {
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('packages rendered MP4 outputs into variant HLS master playlist', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-hls-variants-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-hls-variants-'))
   try {
-    const ffmpegPath = await writeFakeMediaPipelineFFmpeg(userDataDir)
-    const sourcePath = join(userDataDir, 'source.mp4')
-    const outputDirectory = join(userDataDir, 'hls')
+    const ffmpegPath = await writeFakeMediaPipelineFFmpeg(homeDir)
+    const sourcePath = join(homeDir, 'source.mp4')
+    const outputDirectory = join(homeDir, 'hls')
     await writeFile(sourcePath, new Uint8Array([1, 2, 3]))
 
     const hls = await packageMediaPipelineHls({
@@ -1695,16 +1695,16 @@ test('packages rendered MP4 outputs into variant HLS master playlist', async () 
     assert.match(master, /#EXT-X-STREAM-INF:BANDWIDTH=2628000,RESOLUTION=1280x720\n720p\.m3u8/)
     assert.match(await readFile(join(outputDirectory, '360p.m3u8'), 'utf8'), /#EXT-X-MAP:URI="360p-init\.mp4"/)
   } finally {
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('timeline_hls task renders a timeline and records local HLS outputs', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-hls-task-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-hls-task-'))
   const originalFFmpegPath = process.env.FFMPEG_PATH
   try {
-    process.env.FFMPEG_PATH = await writeFakeMediaPipelineFFmpeg(userDataDir)
-    const sourcePath = join(userDataDir, 'clip.mp4')
+    process.env.FFMPEG_PATH = await writeFakeMediaPipelineFFmpeg(homeDir)
+    const sourcePath = join(homeDir, 'clip.mp4')
     await writeFile(sourcePath, new Uint8Array([9, 8, 7]))
 
     const initialState = await createMediaPipelineTask(
@@ -1743,7 +1743,7 @@ test('timeline_hls task renders a timeline and records local HLS outputs', async
           hlsVariants: [{ name: '360p', width: 640, height: 360, videoBitrateKbps: 900 }],
         },
       },
-      { userDataDir },
+      { homeDir },
     )
 
     assert.equal(initialState.status, 'running')
@@ -1779,18 +1779,18 @@ test('timeline_hls task renders a timeline and records local HLS outputs', async
   } finally {
     if (originalFFmpegPath === undefined) delete process.env.FFMPEG_PATH
     else process.env.FFMPEG_PATH = originalFFmpegPath
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('timeline_render task renders video with image overlay, text caption, and audio clip', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-composite-render-task-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-composite-render-task-'))
   const originalFFmpegPath = process.env.FFMPEG_PATH
   try {
-    process.env.FFMPEG_PATH = await writeFakeMediaPipelineFFmpeg(userDataDir)
-    const videoPath = join(userDataDir, 'clip.mp4')
-    const imagePath = join(userDataDir, 'overlay.png')
-    const audioPath = join(userDataDir, 'music.m4a')
+    process.env.FFMPEG_PATH = await writeFakeMediaPipelineFFmpeg(homeDir)
+    const videoPath = join(homeDir, 'clip.mp4')
+    const imagePath = join(homeDir, 'overlay.png')
+    const audioPath = join(homeDir, 'music.m4a')
     await writeFile(videoPath, new Uint8Array([9, 8, 7]))
     await writeFile(imagePath, new Uint8Array([1, 2, 3]))
     await writeFile(audioPath, new Uint8Array([4, 5, 6]))
@@ -1887,7 +1887,7 @@ test('timeline_render task renders video with image overlay, text caption, and a
         },
         output: { format: 'mp4', filename: 'composite.mp4' },
       },
-      { userDataDir },
+      { homeDir },
     )
 
     assert.equal(initialState.status, 'running')
@@ -1906,18 +1906,18 @@ test('timeline_render task renders video with image overlay, text caption, and a
   } finally {
     if (originalFFmpegPath === undefined) delete process.env.FFMPEG_PATH
     else process.env.FFMPEG_PATH = originalFFmpegPath
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('timeline_render task exports a full local editing project with video image audio and subtitles', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-editing-project-e2e-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-editing-project-e2e-'))
   const originalFFmpegPath = process.env.FFMPEG_PATH
   try {
-    process.env.FFMPEG_PATH = await writeFakeMediaPipelineFFmpeg(userDataDir)
-    const videoPath = join(userDataDir, 'local-video.mp4')
-    const imagePath = join(userDataDir, 'local-overlay.png')
-    const audioPath = join(userDataDir, 'local-music.m4a')
+    process.env.FFMPEG_PATH = await writeFakeMediaPipelineFFmpeg(homeDir)
+    const videoPath = join(homeDir, 'local-video.mp4')
+    const imagePath = join(homeDir, 'local-overlay.png')
+    const audioPath = join(homeDir, 'local-music.m4a')
     await writeFile(videoPath, new Uint8Array([1, 2, 3, 4]))
     await writeFile(imagePath, new Uint8Array([5, 6, 7, 8]))
     await writeFile(audioPath, new Uint8Array([9, 10, 11, 12]))
@@ -2055,7 +2055,7 @@ test('timeline_render task exports a full local editing project with video image
         },
         output: { format: 'mp4', filename: 'local-edit.mp4' },
       },
-      { userDataDir },
+      { homeDir },
     )
 
     assert.equal(initialState.status, 'running')
@@ -2073,16 +2073,16 @@ test('timeline_render task exports a full local editing project with video image
   } finally {
     if (originalFFmpegPath === undefined) delete process.env.FFMPEG_PATH
     else process.env.FFMPEG_PATH = originalFFmpegPath
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('timeline_render task burns ASS subtitle assets through the local media pipeline', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-ass-subtitle-task-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-ass-subtitle-task-'))
   const originalFFmpegPath = process.env.FFMPEG_PATH
   try {
-    process.env.FFMPEG_PATH = await writeFakeMediaPipelineFFmpeg(userDataDir)
-    const sourcePath = join(userDataDir, 'clip.mp4')
+    process.env.FFMPEG_PATH = await writeFakeMediaPipelineFFmpeg(homeDir)
+    const sourcePath = join(homeDir, 'clip.mp4')
     await writeFile(sourcePath, new Uint8Array([9, 8, 7]))
 
     const initialState = await createMediaPipelineTask(
@@ -2139,7 +2139,7 @@ test('timeline_render task burns ASS subtitle assets through the local media pip
         },
         output: { format: 'mp4', filename: 'ass-subtitle.mp4' },
       },
-      { userDataDir },
+      { homeDir },
     )
 
     assert.equal(initialState.status, 'running')
@@ -2155,18 +2155,18 @@ test('timeline_render task burns ASS subtitle assets through the local media pip
   } finally {
     if (originalFFmpegPath === undefined) delete process.env.FFMPEG_PATH
     else process.env.FFMPEG_PATH = originalFFmpegPath
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('timeline_render task can import MP4 output as RawResource with derivative provenance', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-render-import-task-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-render-import-task-'))
   const originalFFmpegPath = process.env.FFMPEG_PATH
   const originalFetch = globalThis.fetch
   setMovScriptBackendAPIBaseURL('http://media-pipeline.test')
   try {
-    process.env.FFMPEG_PATH = await writeFakeMediaPipelineFFmpeg(userDataDir)
-    const sourcePath = join(userDataDir, 'clip.mp4')
+    process.env.FFMPEG_PATH = await writeFakeMediaPipelineFFmpeg(homeDir)
+    const sourcePath = join(homeDir, 'clip.mp4')
     await writeFile(sourcePath, new Uint8Array([9, 8, 7]))
     globalThis.fetch = async (input, init) => {
       assert.equal(String(input), 'http://media-pipeline.test/api/v1/resources/upload')
@@ -2230,7 +2230,7 @@ test('timeline_render task can import MP4 output as RawResource with derivative 
           importToResource: true,
         },
       },
-      { userDataDir },
+      { homeDir },
     )
 
     const state = await waitForTerminalTask(initialState.taskId)
@@ -2244,18 +2244,18 @@ test('timeline_render task can import MP4 output as RawResource with derivative 
     else process.env.FFMPEG_PATH = originalFFmpegPath
     globalThis.fetch = originalFetch
     setMovScriptBackendAPIBaseURL('http://localhost:8765')
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('publishes local HLS outputs to backend MediaStreamArtifact hosting', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-hls-publish-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-hls-publish-'))
   const originalFetch = globalThis.fetch
   setMovScriptBackendAPIBaseURL('http://media-pipeline.test')
   try {
-    const manifestPath = join(userDataDir, 'index.m3u8')
-    const initPath = join(userDataDir, 'init.mp4')
-    const segmentPath = join(userDataDir, 'segment-00000.m4s')
+    const manifestPath = join(homeDir, 'index.m3u8')
+    const initPath = join(homeDir, 'init.mp4')
+    const segmentPath = join(homeDir, 'segment-00000.m4s')
     await writeFile(manifestPath, '#EXTM3U\n#EXT-X-MAP:URI="init.mp4"\n#EXTINF:1,\nsegment-00000.m4s\n')
     await writeFile(initPath, 'init')
     await writeFile(segmentPath, 'segment')
@@ -2301,16 +2301,16 @@ test('publishes local HLS outputs to backend MediaStreamArtifact hosting', async
   } finally {
     globalThis.fetch = originalFetch
     setMovScriptBackendAPIBaseURL('http://localhost:8765')
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('imports an existing local editing export to the RawResource library', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-export-import-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-export-import-'))
   const originalFetch = globalThis.fetch
   setMovScriptBackendAPIBaseURL('http://media-pipeline.test')
   try {
-    const outputPath = join(userDataDir, 'final-cut.mp4')
+    const outputPath = join(homeDir, 'final-cut.mp4')
     await writeFile(outputPath, new Uint8Array([9, 8, 7]))
     globalThis.fetch = async (input, init) => {
       assert.equal(String(input), 'http://media-pipeline.test/api/v1/resources/upload')
@@ -2346,12 +2346,12 @@ test('imports an existing local editing export to the RawResource library', asyn
   } finally {
     globalThis.fetch = originalFetch
     setMovScriptBackendAPIBaseURL('http://localhost:8765')
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('normalizes permanent backend resource download failures into editing materialize error codes', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-backend-not-found-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-backend-not-found-'))
   const originalFetch = globalThis.fetch
   let requestCount = 0
   setMovScriptBackendAPIBaseURL('http://media-pipeline.test')
@@ -2362,7 +2362,7 @@ test('normalizes permanent backend resource download failures into editing mater
       return new Response('missing resource', { status: 404 })
     }
 
-    const workspace = await prepareMediaWorkspace({ userDataDir, projectId: 'project-1', taskId: 'task-1' })
+    const workspace = await prepareMediaWorkspace({ homeDir, projectId: 'project-1', taskId: 'task-1' })
     await assert.rejects(
       () => materializeMediaPipelineAsset({
         workspace,
@@ -2380,14 +2380,14 @@ test('normalizes permanent backend resource download failures into editing mater
   } finally {
     globalThis.fetch = originalFetch
     setMovScriptBackendAPIBaseURL('http://localhost:8765')
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('cleans media resource cache by LRU while protecting active files', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-cache-cleanup-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-cache-cleanup-'))
   try {
-    const workspace = await prepareMediaWorkspace({ userDataDir, projectId: 'project-1', taskId: 'task-1' })
+    const workspace = await prepareMediaWorkspace({ homeDir, projectId: 'project-1', taskId: 'task-1' })
     const oldPath = join(workspace.cacheResources, 'old.mp4')
     const newerPath = join(workspace.cacheResources, 'newer.mp4')
     const protectedPath = join(workspace.cacheResources, 'protected.mp4')
@@ -2412,14 +2412,14 @@ test('cleans media resource cache by LRU while protecting active files', async (
     await assert.rejects(() => stat(oldPath), /ENOENT/)
     await assert.rejects(() => stat(newerPath), /ENOENT/)
   } finally {
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('materializes byte assets into the task input directory', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-byte-asset-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-byte-asset-'))
   try {
-    const workspace = await prepareMediaWorkspace({ userDataDir, projectId: 'project-1', taskId: 'task-1' })
+    const workspace = await prepareMediaWorkspace({ homeDir, projectId: 'project-1', taskId: 'task-1' })
     const first = await materializeMediaPipelineAsset({
       workspace,
       asset: {
@@ -2451,12 +2451,12 @@ test('materializes byte assets into the task input directory', async () => {
     assert.equal(second.path.endsWith('.m4a'), true)
     assert.deepEqual([...(await readFile(second.path))], [1, 2, 3])
   } finally {
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('cancels running media pipeline tasks and persists canceled state', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-cancel-task-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-cancel-task-'))
   const originalFetch = globalThis.fetch
   let requestCount = 0
   let resolveFetch: ((response: Response) => void) | undefined
@@ -2502,7 +2502,7 @@ test('cancels running media pipeline tasks and persists canceled state', async (
         },
         output: { format: 'mp4', filename: 'out.mp4' },
       },
-      { userDataDir },
+      { homeDir },
     )
 
     assert.equal(initialState.status, 'running')
@@ -2531,7 +2531,7 @@ test('cancels running media pipeline tasks and persists canceled state', async (
   } finally {
     globalThis.fetch = originalFetch
     setMovScriptBackendAPIBaseURL('http://localhost:8765')
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
@@ -2616,7 +2616,7 @@ test('mediaPipeline task entrypoint depends on local renderer and ffmpeg facades
 })
 
 test('timeline render task reports materializer errors before invoking ffmpeg export', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-render-materialize-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-render-materialize-'))
   try {
     const initialState = await createMediaPipelineTask(
       {
@@ -2648,7 +2648,7 @@ test('timeline render task reports materializer errors before invoking ffmpeg ex
         },
         output: { format: 'mp4', filename: 'out.mp4' },
       },
-      { userDataDir },
+      { homeDir },
     )
     assert.equal(initialState.status, 'running')
     const state = await waitForTerminalTask(initialState.taskId)
@@ -2664,12 +2664,12 @@ test('timeline render task reports materializer errors before invoking ffmpeg ex
     assert.equal(logs.logs?.some((line) => line.includes('"event":"task.failed"')), true)
     assert.match(logs.text ?? '', /ASSET_RESOURCE_ID_REQUIRED/)
   } finally {
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('timeline render task reports missing byte asset payloads', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-render-bytes-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-render-bytes-'))
   try {
     const initialState = await createMediaPipelineTask(
       {
@@ -2702,7 +2702,7 @@ test('timeline render task reports missing byte asset payloads', async () => {
         },
         output: { format: 'mp4', filename: 'out.mp4' },
       },
-      { userDataDir },
+      { homeDir },
     )
     assert.equal(initialState.status, 'running')
     const state = await waitForTerminalTask(initialState.taskId)
@@ -2711,7 +2711,7 @@ test('timeline render task reports missing byte asset payloads', async () => {
     assert.equal(state.errorCode, 'ASSET_BYTES_REQUIRED')
     assert.match(state.errorMessage ?? '', /Clip clip-bytes/)
   } finally {
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
@@ -2722,10 +2722,10 @@ test('returns not_found logs for unknown media pipeline tasks', async () => {
 })
 
 test('restores legacy task manifests and logs from sanitized workspace paths', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-task-store-legacy-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-task-store-legacy-'))
   try {
     const taskRoot = join(
-      userDataDir,
+      homeDir,
       'media-workspaces',
       'project_with_spaces',
       'tasks',
@@ -2761,27 +2761,27 @@ test('restores legacy task manifests and logs from sanitized workspace paths', a
     const restored = await getStoredMediaPipelineTask({
       projectId: state.projectId,
       taskId: state.taskId,
-    }, { userDataDir })
+    }, { homeDir })
     assert.equal(restored?.status, 'succeeded')
     assert.equal(restored?.manifestPath, manifestPath)
 
     const logs = await getMediaPipelineTaskLogs(state.taskId, {
       projectId: state.projectId,
-      userDataDir,
+      homeDir,
     })
     assert.equal(logs.status, 'ok')
     assert.equal(logs.logPath, logPath)
     assert.equal(logs.logs?.length, 1)
   } finally {
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 
 test('cancels restored task manifests from legacy sanitized workspace paths', async () => {
-  const userDataDir = await mkdtemp(join(tmpdir(), 'movscript-media-task-cancel-legacy-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-task-cancel-legacy-'))
   try {
     const taskRoot = join(
-      userDataDir,
+      homeDir,
       'media-workspaces',
       'project_with_spaces',
       'tasks',
@@ -2813,7 +2813,7 @@ test('cancels restored task manifests from legacy sanitized workspace paths', as
 
     const canceled = await cancelMediaPipelineTask(state.taskId, {
       projectId: state.projectId,
-      userDataDir,
+      homeDir,
     })
 
     assert.equal(canceled.status, 'canceled')
@@ -2831,12 +2831,12 @@ test('cancels restored task manifests from legacy sanitized workspace paths', as
 
     const logs = await getMediaPipelineTaskLogs(state.taskId, {
       projectId: state.projectId,
-      userDataDir,
+      homeDir,
     })
     assert.equal(logs.status, 'ok')
     assert.equal(logs.logs?.some((line) => line.includes('"event":"task.canceled"')), true)
   } finally {
-    await rm(userDataDir, { recursive: true, force: true })
+    await rm(homeDir, { recursive: true, force: true })
   }
 })
 

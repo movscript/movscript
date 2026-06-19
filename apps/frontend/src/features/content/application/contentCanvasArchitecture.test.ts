@@ -46,6 +46,7 @@ import {
 } from './contentCanvasViewPlan'
 import {
   applyContentCanvasPresentationNodes,
+  CONTENT_CANVAS_VIEW_STATE_DESKTOP_PREFIX,
   clearContentCanvasViewState,
   createContentCanvasPresentationGroupNode,
   readContentCanvasViewState,
@@ -759,6 +760,17 @@ test('content canvas view state is scoped by graph mode with legacy fallback', (
   } finally {
     restoreWindow()
   }
+})
+
+test('content canvas view state persistence is routed through desktop Home storage', () => {
+  const source = readFileSync(resolve('src/features/content/application/contentCanvasViewState.ts'), 'utf8')
+  const layoutSource = readFileSync(resolve('src/features/content/components/contentCanvasWorkspaceLayout.tsx'), 'utf8')
+
+  assert.equal(CONTENT_CANVAS_VIEW_STATE_DESKTOP_PREFIX, 'movscript-content-canvas-view-state-v1')
+  assert.match(source, /api\.getDesktopState\(\{ key: desktopKey \}\)/)
+  assert.match(source, /api\.setDesktopState\(\{ key: contentCanvasViewStateDesktopKey\(projectId, scope\), value: serialized \}\)/)
+  assert.match(source, /api\.removeDesktopState\(\{ key: contentCanvasViewStateDesktopKey\(projectId, scope\) \}\)/)
+  assert.match(layoutSource, /subscribeContentCanvasViewState\(projectId, scope, syncPositions\)/)
 })
 
 test('content canvas presentation groups persist locally and merge into graph view only', () => {

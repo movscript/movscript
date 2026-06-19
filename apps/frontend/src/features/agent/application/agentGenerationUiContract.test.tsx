@@ -295,6 +295,7 @@ test('agent console architecture separates model providers, agents, plugins, and
   const providerRoutesSource = readFileSync(resolve('src/features/agent/application/providerRoutes.ts'), 'utf8')
   const packageJson = JSON.parse(readFileSync(resolve('package.json'), 'utf8')) as { scripts?: Record<string, string> }
   const electronApiSource = readFileSync(resolve('src/shared/contracts/electronApi.ts'), 'utf8')
+  const electronApiCoreSource = readFileSync(resolve('src/shared/contracts/electronApiCore.ts'), 'utf8')
   const electronWorkspaceApiSource = readFileSync(resolve('src/shared/contracts/electronApiWorkspace.ts'), 'utf8')
   const workspaceConfigIpcSource = readFileSync(resolve('../../apps/frontend/electron/ipc/movscriptWorkspaceConfigIpc.ts'), 'utf8')
   const workspacePreloadSource = readFileSync(resolve('../../apps/frontend/electron/preload/api/movscriptWorkspace.ts'), 'utf8')
@@ -416,7 +417,7 @@ test('agent console architecture separates model providers, agents, plugins, and
   assertNotIncludes(modelProvidersSource, 'return providers.length > 0 ? providers : [DEFAULT_PROVIDER]')
 
   assertIncludes(agentsSource, '<AgentConsoleHeaderTitle>当前 Agent</AgentConsoleHeaderTitle>')
-  assertIncludes(agentsSource, '运行时统一通过 SDK Host 接入')
+  assertIncludes(agentsSource, '运行时统一通过 Runtime Host 接入')
   assertIncludes(agentsSource, 'Agent 设置')
   assertNotIncludes(agentsSource, "queryFn: () => fetchAgentBackendModels()")
   assertNotIncludes(agentsSource, 'function ProviderSelect')
@@ -557,8 +558,9 @@ test('agent console architecture separates model providers, agents, plugins, and
   assertIncludes(workspaceConfigIpcSource, "applyNullableField(next, 'providers', input.providers)")
   assertIncludes(electronWorkspaceApiSource, 'export type ElectronMovScriptWorkspaceConfig = {')
   assertIncludes(electronWorkspaceApiSource, 'export type ElectronMovScriptWorkspaceConfigSaveInput = {')
-  assertIncludes(electronWorkspaceApiSource, 'export type ElectronMovScriptHomeInput = {')
-  assertIncludes(electronWorkspaceApiSource, 'movScriptHomeDir?: string')
+  assertNotIncludes(electronWorkspaceApiSource, 'export type ElectronMovScriptHomeInput = {')
+  assertIncludes(electronApiCoreSource, 'export type ElectronMovScriptHomeInput = {')
+  assertIncludes(electronApiCoreSource, 'movScriptHomeDir?: string')
   assertIncludes(electronWorkspaceApiSource, 'providerProfileKey?: string')
   assertIncludes(electronApiSource, 'getMovScriptWorkspaceRoot?: (input?: ElectronMovScriptHomeInput) => Promise<ElectronMovScriptWorkspaceRootResult>')
   assertIncludes(electronApiSource, 'getMovScriptWorkspaceConfig?: (input?: ElectronMovScriptHomeInput & { providerProfileKey?: string }) => Promise<ElectronMovScriptWorkspaceConfig>')

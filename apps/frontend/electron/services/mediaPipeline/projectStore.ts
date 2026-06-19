@@ -74,12 +74,12 @@ export function onMediaPipelineEditingProjectEvent(listener: (event: MediaPipeli
 
 export async function saveMediaPipelineEditingProject(
   editingProject: MediaPipelineEditingProject,
-  options: { userDataDir: string; expectedRevision?: number },
+  options: { homeDir: string; expectedRevision?: number },
 ): Promise<MediaPipelineProjectSaveResult> {
   const storedProject = normalizeStandaloneEditingProject(editingProject)
   assertMediaPipelineEditingProject(storedProject, 'save request')
   const projectPath = editingProjectPath({
-    userDataDir: options.userDataDir,
+    homeDir: options.homeDir,
     editingProjectId: storedProject.id,
   })
   if (options.expectedRevision !== undefined) {
@@ -133,10 +133,10 @@ export async function saveMediaPipelineEditingProject(
 
 export async function getMediaPipelineEditingProject(
   input: { projectId?: string; editingProjectId: string },
-  options: { userDataDir: string },
+  options: { homeDir: string },
 ): Promise<MediaPipelineProjectGetResult> {
   const projectPath = editingProjectPath({
-    userDataDir: options.userDataDir,
+    homeDir: options.homeDir,
     editingProjectId: input.editingProjectId,
   })
   const readResult = await readProjectStoreFile(projectPath)
@@ -167,9 +167,9 @@ export async function getMediaPipelineEditingProject(
 }
 
 export async function listMediaPipelineEditingProjects(
-  options: { userDataDir: string },
+  options: { homeDir: string },
 ): Promise<MediaPipelineProjectListResult> {
-  const projectsDir = editingProjectsDir(options.userDataDir)
+  const projectsDir = editingProjectsDir(options.homeDir)
   const entries = await readdir(projectsDir, { withFileTypes: true }).catch((error) => {
     if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') return []
     throw error
@@ -209,10 +209,10 @@ export async function listMediaPipelineEditingProjects(
 
 export async function deleteMediaPipelineEditingProject(
   input: { projectId?: string; editingProjectId: string },
-  options: { userDataDir: string },
+  options: { homeDir: string },
 ): Promise<MediaPipelineProjectDeleteResult> {
   const projectPath = editingProjectPath({
-    userDataDir: options.userDataDir,
+    homeDir: options.homeDir,
     editingProjectId: input.editingProjectId,
   })
   const deleted = await unlink(projectPath).then(
@@ -272,9 +272,9 @@ function normalizeStandaloneEditingProject(editingProject: MediaPipelineEditingP
   }
 }
 
-function editingProjectsDir(userDataDir: string): string {
+function editingProjectsDir(homeDir: string): string {
   return join(
-    userDataDir,
+    homeDir,
     'media-workspaces',
     stableMediaWorkspacePathPart(STANDALONE_MEDIA_EDITING_PROJECT_ID),
     'projects',
@@ -282,11 +282,11 @@ function editingProjectsDir(userDataDir: string): string {
 }
 
 function editingProjectPath(input: {
-  userDataDir: string
+  homeDir: string
   editingProjectId: string
 }): string {
   return join(
-    editingProjectsDir(input.userDataDir),
+    editingProjectsDir(input.homeDir),
     `${stableMediaWorkspacePathPart(input.editingProjectId)}.json`,
   )
 }

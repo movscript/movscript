@@ -5,14 +5,14 @@ const MEDIA_PROTOCOL_SCHEME = 'movscript-media'
 const HLS_HOST = 'hls'
 const mediaWorkspaceRoots = new Set<string>()
 
-export function registerMediaPipelineLocalHlsRoot(userDataDir: string): string {
-  const root = resolve(userDataDir, 'media-workspaces')
+export function registerMediaPipelineLocalHlsRoot(homeDir: string): string {
+  const root = resolve(homeDir, 'media-workspaces')
   mediaWorkspaceRoots.add(root)
   return root
 }
 
-export function createMediaPipelineLocalHlsURL(filePath: string, input?: { userDataDir?: string }): string {
-  if (input?.userDataDir) registerMediaPipelineLocalHlsRoot(input.userDataDir)
+export function createMediaPipelineLocalHlsURL(filePath: string, input?: { homeDir?: string }): string {
+  if (input?.homeDir) registerMediaPipelineLocalHlsRoot(input.homeDir)
   const directory = resolve(dirname(filePath))
   const filename = encodeURIComponent(filePathBasename(filePath))
   return `${MEDIA_PROTOCOL_SCHEME}://${HLS_HOST}/${encodePathToken(directory)}/${filename}`

@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { useResizablePanel } from '@movscript/ui/layout'
 
 import {
@@ -9,10 +9,13 @@ import {
   EDITING_TIMELINE_MAX_HEIGHT,
   EDITING_TIMELINE_MIN_HEIGHT,
 } from '../domain/constants'
-import { persistEditingLayoutSizes, readEditingLayoutSizes } from './layoutPersistence'
+import { persistEditingLayoutSizes, readEditingLayoutSizes, subscribeEditingLayoutSizes } from './layoutPersistence'
 
 export function useEditingWorkspaceLayout() {
   const [layoutSizes, setLayoutSizes] = useState(readEditingLayoutSizes)
+  useEffect(() => subscribeEditingLayoutSizes(() => {
+    setLayoutSizes(readEditingLayoutSizes())
+  }), [])
   const layoutStyle = {
     '--editing-library-width': `${layoutSizes.libraryWidth}px`,
     '--editing-inspector-width': `${layoutSizes.inspectorWidth}px`,

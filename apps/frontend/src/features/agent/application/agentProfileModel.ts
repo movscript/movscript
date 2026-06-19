@@ -3,10 +3,10 @@ import {
   type ProviderConfig,
   type ProviderSettings,
 } from '@/shared/infrastructure/providerConfigStore'
-import { providerRuntimeApiContract } from '@/shared/infrastructure/providerRuntimeApiCatalog'
+import { providerRuntimeApiContract, type ProviderRuntimeTransport } from '@/shared/infrastructure/providerRuntimeApiCatalog'
 import { providerRouteForKey, providerRouteKey } from '@/features/agent/application/providerRoutes'
 
-export type AgentProfileConnectionKind = 'sdk' | 'unavailable'
+export type AgentProfileConnectionKind = 'app-server' | 'sdk' | 'unavailable'
 
 export interface AgentProfile {
   id: string
@@ -66,21 +66,30 @@ export function fallbackAgentProfileRoute(settings: ProviderSettings): string {
 export function providerSupportsAgentProfile(provider: ProviderConfig | undefined): provider is ProviderConfig {
   if (!provider) return false
   const runtime = providerRuntimeProfile(provider)
-  return providerRuntimeApiContract(runtime.api)?.transport === 'sdk-client'
+  return providerRuntimeTransportSupportsAgentProfile(providerRuntimeApiContract(runtime.api)?.transport)
 }
 
 function agentProfileConnectionKind(provider: ProviderConfig): AgentProfileConnectionKind {
   const runtime = providerRuntimeProfile(provider)
-  return providerRuntimeApiContract(runtime.api)?.transport === 'sdk-client' ? 'sdk' : 'unavailable'
+  const transport = providerRuntimeApiContract(runtime.api)?.transport
+  if (transport === 'app-server') return 'app-server'
+  if (transport === 'sdk-client') return 'sdk'
+  return 'unavailable'
 }
 
 function agentProfileConnectionLabel(kind: AgentProfileConnectionKind): string {
+  if (kind === 'app-server') return 'app-server 连接'
   if (kind === 'sdk') return 'SDK 连接'
   return '暂不可用'
 }
 
 function agentProfileDetail(provider: ProviderConfig, kind: AgentProfileConnectionKind): string {
   if (!provider.enabled) return '已停用，启用后才能设为当前 Agent。'
+  if (kind === 'app-server') return '系统通过 Runtime Host 按需连接 app-server，交互、工具审批和状态同步由 app-server 协议承载。'
   if (kind === 'sdk') return '系统在发送消息时按需连接 SDK，不需要手动启动本地进程。'
   return '当前连接方式尚未接入统一 Agent 会话。'
+}
+
+function providerRuntimeTransportSupportsAgentProfile(transport: ProviderRuntimeTransport | undefined): boolean {
+  return transport === 'sdk-client' || transport === 'app-server'
 }

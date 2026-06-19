@@ -8,6 +8,7 @@ const scriptDir = fileURLToPath(new URL('.', import.meta.url))
 const appDir = resolve(scriptDir, '..')
 const repoDir = resolve(appDir, '../..')
 const workspaceDir = resolve(process.env.MOVSCRIPT_HOME || process.env.MOVSCRIPT_WORKSPACE_DIR || resolve(repoDir, '.movscript-dev', '.movscript'))
+const userDataDir = resolve(process.env.MOVSCRIPT_DESKTOP_USER_DATA_DIR || resolve(repoDir, '.movscript-dev', 'user-data'))
 const runtimeDir = resolve(process.env.MOVSCRIPT_SDK_RUNTIME_DIR || resolve(repoDir, '.movscript-dev', 'sdk-runtimes'))
 const localMovaSdkEntry = resolve(repoDir, '../mova/sdk/typescript/dist/index.js')
 const movaSdkPackage = process.env.MOVSCRIPT_MOVA_SDK_PACKAGE || (existsSync(localMovaSdkEntry) ? localMovaSdkEntry : '')
@@ -15,6 +16,7 @@ const movaSdkPackage = process.env.MOVSCRIPT_MOVA_SDK_PACKAGE || (existsSync(loc
 const sdkRuntimeEnv = {
   MOVSCRIPT_HOME: workspaceDir,
   MOVSCRIPT_WORKSPACE_DIR: workspaceDir,
+  MOVSCRIPT_DESKTOP_USER_DATA_DIR: userDataDir,
   MOVSCRIPT_SDK_RUNTIME_DIR: runtimeDir,
   MOVSCRIPT_CODEX_RUNTIME_API: process.env.MOVSCRIPT_CODEX_RUNTIME_API || 'codex-sdk',
   MOVSCRIPT_CODEX_SDK_PACKAGE: process.env.MOVSCRIPT_CODEX_SDK_PACKAGE || '@openai/codex-sdk',
@@ -33,9 +35,11 @@ const sdkRuntimeEnv = {
 }
 
 mkdirSync(workspaceDir, { recursive: true })
+mkdirSync(userDataDir, { recursive: true })
 mkdirSync(runtimeDir, { recursive: true })
 
 console.info(`[desktop] using debug workspace: ${workspaceDir}`)
+console.info(`[desktop] using debug userData: ${userDataDir}`)
 console.info(`[desktop] using SDK runtime cache: ${runtimeDir}`)
 console.info(`[desktop] Codex runtime: ${sdkRuntimeEnv.MOVSCRIPT_CODEX_RUNTIME_API} ${sdkRuntimeEnv.MOVSCRIPT_CODEX_SDK_PACKAGE}@${sdkRuntimeEnv.MOVSCRIPT_CODEX_SDK_PACKAGE_VERSION}`)
 console.info(`[desktop] Mova runtime: ${sdkRuntimeEnv.MOVSCRIPT_MOVA_RUNTIME_API} ${sdkRuntimeEnv.MOVSCRIPT_MOVA_SDK_PACKAGE || 'not configured'}`)

@@ -17,6 +17,7 @@ export type { AppSettings }
 export { isLocalLaunchMode, normalizeAPIBaseURL, trimTrailingSlash }
 
 function readStoredAPIBaseURL(): string | null {
+  if (readElectronApi()?.getRuntimeConfig) return null
   try {
     const raw = readBrowserStorageItem('local', APP_SETTINGS_STORAGE_KEY)
     if (!raw) return null

@@ -1,6 +1,4 @@
 import { create } from 'zustand'
-import { createJSONStorage, persist } from 'zustand/middleware'
-import { createInstrumentedAgentStateStorage } from '@/features/agent/state/agentPerformanceStore'
 import type { AgentRun } from '@movscript/core/agent/protocol'
 import {
   EMPTY_CONVERSATION_WORKSPACE,
@@ -44,6 +42,7 @@ import {
 } from '@/features/agent/state/agentSessionStoreTypes'
 import {
   agentConversationIdForRegistryInput,
+  setAgentConversationRegistryDeckOrders,
   upsertAgentConversationRegistryRecord,
 } from '@movscript/core/agent'
 import {
@@ -52,6 +51,9 @@ import {
   type AgentActivityStatus,
   type AgentActivityTopic,
 } from '@/features/agent/application/agentActivityEvents'
+import { readBrowserStorageItem, removeBrowserStorageItem } from '@/shared/infrastructure/browserStorage'
+import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
+import type { ElectronAgentSessionState } from '@/shared/contracts/electronApi'
 
 export {
   pageTaskStatusFromProviderSession,
@@ -75,9 +77,9 @@ export {
   EMPTY_CONVERSATION_WORKSPACE,
 } from '@/features/agent/state/agentSessionRuntimeModel'
 
-export const useAgentSessionStore = create<AgentSessionStore>()(
-  persist(
-    (set, get) => ({
+const AGENT_SESSION_LEGACY_STORAGE_KEY = 'agent-session-store-v2'
+
+export const useAgentSessionStore = create<AgentSessionStore>()((set, get) => ({
       activeConversationIdsByUser: {},
       conversationsById: {},
       workspacesByUser: {},
@@ -147,6 +149,10 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
           },
         }
       }),
+
+      setConversationDeckOrders: (orders) => set((state) => ({
+        conversationsById: setAgentConversationRegistryDeckOrders(state.conversationsById, orders),
+      })),
 
       getActiveConversationId: (userId) => activeConversationIdForUser(get(), userId),
 
@@ -445,23 +451,182 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
           publishAgentRunInteractionRequests(undefined, undefined, task.run)
         }
       },
-    }),
-    {
-      name: 'agent-session-store-v2',
-      storage: createJSONStorage(() => createInstrumentedAgentStateStorage('agent_session_store')),
-      partialize: persistedAgentSessionState,
-      merge: (persistedState, currentState) => {
-        const persisted = persistedState as Partial<PersistedAgentSessionStore> | undefined
-        return {
-          ...currentState,
-          activeConversationIdsByUser: persisted?.activeConversationIdsByUser ?? {},
-          conversationsById: persisted?.conversationsById ?? {},
-          workspacesByUser: persisted?.workspacesByUser ?? {},
-        }
-      },
+}))
+
+let agentSessionPersistenceInstalled = false
+let agentSessionHydratedFromHome = false
+let agentSessionSaveTimer: ReturnType<typeof setTimeout> | undefined
+let agentSessionSaveInFlight: Promise<unknown> | undefined
+let agentSessionSaveQueued = false
+
+installAgentSessionHomePersistence()
+
+function installAgentSessionHomePersistence(): void {
+  if (agentSessionPersistenceInstalled || typeof window === 'undefined') return
+  agentSessionPersistenceInstalled = true
+  useAgentSessionStore.subscribe(() => {
+    if (!agentSessionHydratedFromHome) return
+    scheduleAgentSessionHomeSave()
+  })
+  void hydrateAgentSessionStoreFromHome()
+  window.addEventListener('pagehide', flushAgentSessionHomeSave)
+  window.addEventListener('beforeunload', flushAgentSessionHomeSave)
+}
+
+async function hydrateAgentSessionStoreFromHome(): Promise<void> {
+  const api = readElectronApi()
+  const legacyState = readLegacyAgentSessionState()
+  if (!api?.getAgentSessionState) {
+    if (legacyState && hasPersistedAgentSessionState(legacyState)) {
+      useAgentSessionStore.setState((current) => mergePersistedAgentSessionState(current, legacyState))
+    }
+    agentSessionHydratedFromHome = true
+    return
+  }
+
+  try {
+    const result = await api.getAgentSessionState()
+    const homeState = result.state
+    const homeHasState = hasPersistedAgentSessionState(homeState)
+    const state = homeHasState ? homeState : legacyState
+    if (state && hasPersistedAgentSessionState(state)) {
+      useAgentSessionStore.setState((current) => mergePersistedAgentSessionState(current, state))
+    }
+    if (legacyState) removeBrowserStorageItem('local', AGENT_SESSION_LEGACY_STORAGE_KEY)
+    agentSessionHydratedFromHome = true
+    if (!homeHasState && legacyState && api.setAgentSessionState) {
+      await saveAgentSessionHomeState()
+    }
+  } catch {
+    if (legacyState && hasPersistedAgentSessionState(legacyState)) {
+      useAgentSessionStore.setState((current) => mergePersistedAgentSessionState(current, legacyState))
+    }
+    agentSessionHydratedFromHome = true
+  }
+}
+
+function scheduleAgentSessionHomeSave(): void {
+  if (agentSessionSaveTimer) return
+  agentSessionSaveTimer = setTimeout(() => {
+    agentSessionSaveTimer = undefined
+    void saveAgentSessionHomeState()
+  }, 250)
+}
+
+function flushAgentSessionHomeSave(): void {
+  if (agentSessionSaveTimer) {
+    clearTimeout(agentSessionSaveTimer)
+    agentSessionSaveTimer = undefined
+  }
+  void saveAgentSessionHomeState()
+}
+
+async function saveAgentSessionHomeState(): Promise<void> {
+  const api = readElectronApi()
+  if (!api?.setAgentSessionState || !agentSessionHydratedFromHome) return
+  if (agentSessionSaveInFlight) {
+    agentSessionSaveQueued = true
+    return agentSessionSaveInFlight.then(() => undefined)
+  }
+  const state = persistedAgentSessionState(useAgentSessionStore.getState())
+  agentSessionSaveInFlight = api.setAgentSessionState({ state })
+    .catch(() => null)
+    .finally(() => {
+      agentSessionSaveInFlight = undefined
+      if (agentSessionSaveQueued) {
+        agentSessionSaveQueued = false
+        void saveAgentSessionHomeState()
+      }
+    })
+  await agentSessionSaveInFlight
+}
+
+function readLegacyAgentSessionState(): PersistedAgentSessionStore | null {
+  const raw = readBrowserStorageItem('local', AGENT_SESSION_LEGACY_STORAGE_KEY)
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    const state = isRecord(parsed) && isRecord(parsed.state) ? parsed.state : parsed
+    return normalizePersistedAgentSessionState(state)
+  } catch {
+    return null
+  }
+}
+
+function normalizePersistedAgentSessionState(value: unknown): PersistedAgentSessionStore | null {
+  if (!isRecord(value)) return null
+  return {
+    activeConversationIdsByUser: normalizeStringNullableRecord(value.activeConversationIdsByUser),
+    conversationsById: normalizeRecordMap(value.conversationsById) as unknown as PersistedAgentSessionStore['conversationsById'],
+    workspacesByUser: normalizeNestedRecordMap(value.workspacesByUser) as unknown as PersistedAgentSessionStore['workspacesByUser'],
+  }
+}
+
+function mergePersistedAgentSessionState(current: AgentSessionStore, persisted: ElectronAgentSessionState): Partial<AgentSessionStore> {
+  return {
+    activeConversationIdsByUser: {
+      ...persisted.activeConversationIdsByUser,
+      ...current.activeConversationIdsByUser,
     },
-  ),
-)
+    conversationsById: {
+      ...persisted.conversationsById,
+      ...current.conversationsById,
+    },
+    workspacesByUser: mergeNestedRecordMap(persisted.workspacesByUser, current.workspacesByUser),
+  }
+}
+
+function hasPersistedAgentSessionState(state: PersistedAgentSessionStore | ElectronAgentSessionState | null | undefined): boolean {
+  return Boolean(state && (
+    Object.keys(state.activeConversationIdsByUser).length > 0
+    || Object.keys(state.conversationsById).length > 0
+    || Object.keys(state.workspacesByUser).length > 0
+  ))
+}
+
+function mergeNestedRecordMap<T>(base: Record<string, Record<string, T>>, overlay: Record<string, Record<string, T>>): Record<string, Record<string, T>> {
+  const output: Record<string, Record<string, T>> = { ...base }
+  for (const [key, value] of Object.entries(overlay)) {
+    output[key] = {
+      ...(output[key] ?? {}),
+      ...value,
+    }
+  }
+  return output
+}
+
+function normalizeStringNullableRecord(input: unknown): Record<string, string | null> {
+  if (!isRecord(input)) return {}
+  const output: Record<string, string | null> = {}
+  for (const [key, value] of Object.entries(input)) {
+    if (typeof value === 'string') output[key] = value
+    else if (value === null) output[key] = null
+  }
+  return output
+}
+
+function normalizeRecordMap(input: unknown): Record<string, Record<string, unknown>> {
+  if (!isRecord(input)) return {}
+  const output: Record<string, Record<string, unknown>> = {}
+  for (const [key, value] of Object.entries(input)) {
+    if (isRecord(value)) output[key] = value
+  }
+  return output
+}
+
+function normalizeNestedRecordMap(input: unknown): Record<string, Record<string, Record<string, unknown>>> {
+  if (!isRecord(input)) return {}
+  const output: Record<string, Record<string, Record<string, unknown>>> = {}
+  for (const [key, value] of Object.entries(input)) {
+    const normalized = normalizeRecordMap(value)
+    if (Object.keys(normalized).length > 0) output[key] = normalized
+  }
+  return output
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
 
 function publishAgentTaskActivity(
   topic: AgentActivityTopic,

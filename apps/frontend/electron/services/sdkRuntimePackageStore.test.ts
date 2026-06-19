@@ -18,16 +18,22 @@ import {
   probeSdkRuntimePackageContract,
 } from './sdkRuntimePackageLoader'
 
-test('SDK runtime package store resolves under desktop user data by default', () => {
-  const paths = resolveSdkRuntimePackageStorePaths({ userDataDir: '/tmp/movscript-user-data', env: {} })
+test('SDK runtime package store resolves under explicit base directory', () => {
+  const paths = resolveSdkRuntimePackageStorePaths({ baseDir: '/tmp/movscript-runtime-base', env: {} })
 
-  assert.equal(paths.root, '/tmp/movscript-user-data/sdk-runtimes')
-  assert.equal(paths.packageJsonPath, '/tmp/movscript-user-data/sdk-runtimes/package.json')
+  assert.equal(paths.root, '/tmp/movscript-runtime-base/sdk-runtimes')
+  assert.equal(paths.packageJsonPath, '/tmp/movscript-runtime-base/sdk-runtimes/package.json')
+})
+
+test('SDK runtime package store resolves under MovScript Home env when no explicit base is passed', () => {
+  const paths = resolveSdkRuntimePackageStorePaths({ env: { MOVSCRIPT_HOME: '/tmp/movscript-home' } })
+
+  assert.equal(paths.root, '/tmp/movscript-home/sdk-runtimes')
 })
 
 test('SDK runtime package store honors explicit runtime directory env override', () => {
   const paths = resolveSdkRuntimePackageStorePaths({
-    userDataDir: '/tmp/ignored',
+    baseDir: '/tmp/ignored',
     env: { MOVSCRIPT_SDK_RUNTIME_DIR: '/tmp/custom-runtime' },
   })
 
@@ -36,7 +42,7 @@ test('SDK runtime package store honors explicit runtime directory env override',
 
 test('SDK runtime package store resolves bundled seed directory from env', () => {
   const paths = resolveSdkRuntimePackageStorePaths({
-    userDataDir: '/tmp/ignored',
+    baseDir: '/tmp/ignored',
     env: {
       MOVSCRIPT_SDK_RUNTIME_DIR: '/tmp/custom-runtime',
       MOVSCRIPT_SDK_RUNTIME_SEED_DIR: '/tmp/seed-runtime',
@@ -49,7 +55,7 @@ test('SDK runtime package store resolves bundled seed directory from env', () =>
 test('SDK runtime package store initializes an isolated package.json', () => {
   const tmp = mkdtempSync(join(tmpdir(), 'movscript-sdk-runtime-store-'))
   try {
-    const paths = ensureSdkRuntimePackageStore({ userDataDir: tmp, env: {} })
+    const paths = ensureSdkRuntimePackageStore({ baseDir: tmp, env: {} })
     const manifest = JSON.parse(readFileSync(paths.packageJsonPath, 'utf8')) as { private?: boolean; name?: string }
 
     assert.equal(manifest.private, true)
@@ -64,7 +70,7 @@ test('SDK runtime package install uses npm prefix against the runtime store', ()
   const calls: Array<{ command: string; args: string[]; cwd?: string }> = []
   try {
     const result = installSdkRuntimePackage({
-      userDataDir: tmp,
+      baseDir: tmp,
       env: {},
       packageName: '@openai/codex-sdk',
       packageVersion: '1.2.3',
@@ -90,7 +96,7 @@ test('SDK runtime installing loader installs missing packages before retrying re
   let installed = false
   try {
     const loader = createInstallingSdkRuntimePackageStoreLoader({
-      userDataDir: tmp,
+      baseDir: tmp,
       env: {},
       packageVersions: { 'fake-sdk': '0.0.1' },
       spawn: (_command, _args, _options) => {
@@ -106,7 +112,7 @@ test('SDK runtime installing loader installs missing packages before retrying re
     const loaded = await loader('fake-sdk') as { ok?: boolean }
     assert.equal(installed, true)
     assert.deepEqual(installCalls[0], ['install', '--prefix', join(tmp, 'sdk-runtimes'), '--save-exact', 'fake-sdk@0.0.1'])
-    assert.equal(installedSdkRuntimePackageVersion('fake-sdk', { userDataDir: tmp, env: {} }), '0.0.1')
+    assert.equal(installedSdkRuntimePackageVersion('fake-sdk', { baseDir: tmp, env: {} }), '0.0.1')
     assert.equal(loaded.ok, true)
   } finally {
     rmSync(tmp, { recursive: true, force: true })
@@ -124,7 +130,7 @@ test('SDK runtime installing loader seeds bundled packages before using npm', as
     writeFileSync(join(packageDir, 'package.json'), JSON.stringify({ name: 'seeded-sdk', version: '0.0.7', main: 'index.mjs' }))
     writeFileSync(join(packageDir, 'index.mjs'), 'export const version = "0.0.7"\n')
     const loader = createInstallingSdkRuntimePackageStoreLoader({
-      userDataDir: join(tmp, 'user-data'),
+      baseDir: join(tmp, 'user-data'),
       env: {
         MOVSCRIPT_SDK_RUNTIME_SEED_DIR: seed,
       },
@@ -138,11 +144,11 @@ test('SDK runtime installing loader seeds bundled packages before using npm', as
     const loaded = await loader('seeded-sdk') as { version?: string }
 
     assert.equal(seedSdkRuntimePackageStore({
-      userDataDir: join(tmp, 'user-data'),
+      baseDir: join(tmp, 'user-data'),
       env: { MOVSCRIPT_SDK_RUNTIME_SEED_DIR: seed },
     }), true)
     assert.equal(installedSdkRuntimePackageVersion('seeded-sdk', {
-      userDataDir: join(tmp, 'user-data'),
+      baseDir: join(tmp, 'user-data'),
       env: { MOVSCRIPT_SDK_RUNTIME_SEED_DIR: seed },
     }), '0.0.7')
     assert.equal(loaded.version, '0.0.7')
@@ -158,7 +164,7 @@ test('SDK runtime installing loader deduplicates concurrent package installs', a
   let installCount = 0
   try {
     const loader = createInstallingSdkRuntimePackageStoreLoader({
-      userDataDir: tmp,
+      baseDir: tmp,
       env: {},
       spawn: (_command, _args, _options) => {
         installCount += 1
@@ -191,7 +197,7 @@ test('SDK runtime installing loader installs requested version when local packag
     writeFileSync(join(packageDir, 'package.json'), JSON.stringify({ name: 'versioned-sdk', version: '0.0.1', main: 'index.mjs' }))
     writeFileSync(join(packageDir, 'index.mjs'), 'export const version = "0.0.1"\n')
     const loader = createInstallingSdkRuntimePackageStoreLoader({
-      userDataDir: tmp,
+      baseDir: tmp,
       env: {},
       packageVersions: { 'versioned-sdk': '0.0.2' },
       spawn: (_command, _args, _options) => {
@@ -205,7 +211,7 @@ test('SDK runtime installing loader installs requested version when local packag
     const loaded = await loader('versioned-sdk') as { version?: string }
 
     assert.deepEqual(installCalls[0], ['install', '--prefix', join(tmp, 'sdk-runtimes'), '--save-exact', 'versioned-sdk@0.0.2'])
-    assert.equal(installedSdkRuntimePackageVersion('versioned-sdk', { userDataDir: tmp, env: {} }), '0.0.2')
+    assert.equal(installedSdkRuntimePackageVersion('versioned-sdk', { baseDir: tmp, env: {} }), '0.0.2')
     assert.equal(loaded.version, '0.0.2')
   } finally {
     rmSync(tmp, { recursive: true, force: true })
@@ -232,7 +238,7 @@ test('SDK runtime package store loads ESM-only packages with import-only exports
     writeFileSync(join(packageDir, 'dist', 'index.js'), 'export const Codex = class Codex {}\n')
 
     const loader = createInstallingSdkRuntimePackageStoreLoader({
-      userDataDir: tmp,
+      baseDir: tmp,
       env: {},
     })
     const loaded = await loader('esm-only-sdk') as { Codex?: unknown }

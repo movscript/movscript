@@ -39,7 +39,7 @@ export function createSdkRuntimeChatDataSource(
     providerInstanceId: runtime.id,
     label: provider.label,
     serverRequestSubscriptionMode: 'globalWithThreadFallback',
-    capabilities: sdkRuntimeCapabilities(() => client.request('runtime/probe', context())),
+    capabilities: sdkRuntimeCapabilities(client, context),
     listThreads(input) {
       return client.request('thread/list', compactParams({
         ...context(),
@@ -159,10 +159,59 @@ export function createSdkRuntimeChatDataSource(
   }
 }
 
-function sdkRuntimeCapabilities(probeRuntime: () => Promise<unknown>): AgentChatCapabilities {
+function sdkRuntimeCapabilities(
+  client: SdkRuntimeClient,
+  context: () => SdkRuntimeRequestContext,
+): AgentChatCapabilities {
   return {
     runtime: {
-      probe: probeRuntime,
+      probe: () => client.request('runtime/probe', context()),
+    },
+    mcp: {
+      listServers: () => client.request('mcpServerStatus/list', context()),
+      readResource: (input) => client.request('mcpServer/resource/read', compactParams({
+        ...context(),
+        ...input,
+      })),
+      callTool: (input) => client.request('mcpServer/tool/call', compactParams({
+        ...context(),
+        ...input,
+      })),
+    },
+    plugins: {
+      list: (input) => client.request('plugin/list', compactParams({
+        ...context(),
+        ...(input ?? {}),
+      })),
+      installed: (input) => client.request('plugin/installed', compactParams({
+        ...context(),
+        ...(input ?? {}),
+      })),
+      install: (input) => client.request('plugin/install', compactParams({
+        ...context(),
+        ...input,
+      })),
+      uninstall: (input) => client.request('plugin/uninstall', compactParams({
+        ...context(),
+        ...input,
+      })),
+    },
+    skills: {
+      list: (input) => client.request('skills/list', compactParams({
+        ...context(),
+        ...(input ?? {}),
+      })),
+      setExtraRoots: (input) => client.request('skills/extraRoots/set', compactParams({
+        ...context(),
+        ...input,
+      })),
+    },
+    config: {
+      read: () => client.request('capabilities/get', context()),
+      listPermissionProfiles: (input) => client.request('permissionProfile/list', compactParams({
+        ...context(),
+        ...(input ?? {}),
+      })),
     },
   }
 }

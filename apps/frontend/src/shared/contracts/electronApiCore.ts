@@ -1,3 +1,12 @@
+import type { AgentConversationRegistryRecord } from '@movscript/core/agent'
+import type { AgentConversationWorkspace } from '@movscript/core/agent/protocol'
+
+export type ElectronMovScriptHomeInput = {
+  movScriptHomeDir?: string
+  /** @deprecated Use movScriptHomeDir for the desktop control/home directory. */
+  workspaceDir?: string
+}
+
 export type ElectronBackendStatus = {
   state: 'idle' | 'starting' | 'ready' | 'error' | 'stopped'
   baseURL: string
@@ -19,6 +28,45 @@ export type ElectronRuntimeConfig = {
 export type ElectronAppSettingsSecrets = {
   shotLibrarySourceAuthTokens: Record<string, string>
   agentRuntimeApiKeys: Record<string, string>
+}
+
+export type ElectronAgentSessionState = {
+  activeConversationIdsByUser: Record<string, string | null>
+  conversationsById: Record<string, AgentConversationRegistryRecord>
+  workspacesByUser: Record<string, Record<string, AgentConversationWorkspace>>
+}
+
+export type ElectronAgentSessionStateResult = {
+  movScriptHomeDir: string
+  /** @deprecated Use movScriptHomeDir for the desktop control/home directory. */
+  workspaceDir: string
+  path: string
+  version: string
+  state: ElectronAgentSessionState
+}
+
+export type ElectronAgentSessionStateSaveInput = {
+  state: ElectronAgentSessionState
+  expectedVersion?: string | null
+}
+
+export type ElectronDesktopStateInput = ElectronMovScriptHomeInput & {
+  key: string
+}
+
+export type ElectronDesktopStateResult = {
+  key: string
+  movScriptHomeDir: string
+  /** @deprecated Use movScriptHomeDir for the desktop control/home directory. */
+  workspaceDir: string
+  path: string
+  version: string
+  value: unknown | null
+}
+
+export type ElectronDesktopStateSaveInput = ElectronDesktopStateInput & {
+  value: unknown
+  expectedVersion?: string | null
 }
 
 export type ElectronBackendAuthSessionInput = {

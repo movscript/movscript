@@ -120,18 +120,17 @@ export function AgentChatDataSourcePageThreadShell({
 }: AgentChatDataSourcePageThreadShellProps) {
   return (
     <section className={`agent-page-chat-thread-shell${!hasChatContent ? ' agent-page-chat-thread-shell--empty' : ''}`} aria-label={ariaLabel}>
-      {!hasChatContent && emptyThreadLabel ? (
-        <div className="agent-page-chat-empty">
+      {emptyThreadLabel ? (
+        <div className="agent-page-chat-empty" aria-hidden={hasChatContent ? 'true' : undefined} data-visible={!hasChatContent ? 'true' : undefined}>
           <h1 className="agent-page-chat-empty-title">{emptyThreadLabel}</h1>
         </div>
-      ) : (
-        <div className="agent-page-chat-thread">
-          <AgentChatDataSourceThreadBody
-            emptyThreadLabel={emptyThreadLabel}
-            {...threadBodyProps}
-          />
-        </div>
-      )}
+      ) : null}
+      <div className="agent-page-chat-thread">
+        <AgentChatDataSourceThreadBody
+          emptyThreadLabel={hasChatContent ? emptyThreadLabel : undefined}
+          {...threadBodyProps}
+        />
+      </div>
     </section>
   )
 }
@@ -281,8 +280,9 @@ export function AgentChatDataSourceComposerPanel({
 }: AgentChatDataSourceComposerPanelProps) {
   return (
     <div className={surface === 'page'
-      ? `agent-page-chat-composer relative z-30${!hasChatContent ? ' agent-page-chat-empty-composer' : ''}`
+      ? 'agent-page-chat-composer relative z-30'
       : 'ai-agent-panel-composer-wrap relative z-30'}
+      data-has-chat-content={hasChatContent ? 'true' : 'false'}
     >
       <AgentComposerActionLayer
         pendingServerRequests={pendingServerRequests}

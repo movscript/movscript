@@ -112,7 +112,8 @@ export function dispatchAgentChatNotification<
     return
   }
   if (notification.method === 'thread/name/updated') {
-    const name = stringField(params.threadName) ?? null
+    const name = agentChatThreadNameFromNotificationParams(params)
+    if (name === undefined) return
     target.updateThreads((current) => current.map((thread) => thread.id === threadId ? { ...thread, name, updatedAt: Math.max(thread.updatedAt, unixSecondsNow()) } : thread))
     return
   }
@@ -151,11 +152,12 @@ export function dispatchAgentChatNotification<
   if (notification.method === 'thread/metadata/updated') {
     const status = agentChatThreadStatusField(params.status)
     const updatedAt = numberField(params.updatedAt) ?? unixSecondsNow()
+    const name = agentChatThreadNameFromNotificationParams(params)
     target.updateThreads((current) => current.map((thread) => {
       if (thread.id !== threadId) return thread
       return {
         ...thread,
-        ...(Object.prototype.hasOwnProperty.call(params, 'threadName') ? { name: params.threadName === null ? null : stringField(params.threadName) ?? thread.name } : {}),
+        ...(name !== undefined ? { name } : {}),
         ...(typeof params.preview === 'string' ? { preview: params.preview } : {}),
         ...(status ? { status } : {}),
         updatedAt: Math.max(thread.updatedAt, updatedAt),
@@ -167,6 +169,7 @@ export function dispatchAgentChatNotification<
     const turn = isRecord(params.turn) ? normalizeAgentChatNotificationTurn(params.turn) : null
     if (!turn) return
     target.updateThreads((current) => current.map((thread) => thread.id === threadId ? upsertAgentChatTurn(thread, turn) : thread))
+    target.updatePendingUserItems((current) => removeConfirmedPendingUserItems(current, threadId, turn.items))
     return
   }
   if (notification.method === 'turn/plan/updated') {
@@ -394,12 +397,22 @@ export function buildAgentChatVisibleItems(
   realtimeTranscriptItems: Record<string, AgentChatRealtimeTranscriptItem> = {},
   realtimeAudioItems: Record<string, AgentChatRealtimeAudioItem> = {},
 ): AgentChatVisibleThreadItem[] {
-  const items = thread.turns.flatMap((turn) => turn.items.map((item) => ({ viewId: `${turn.id}:${item.id}`, item, streaming: false })))
+  const items = thread.turns.flatMap((turn) => turn.items.map((item) => ({ viewId: agentChatVisibleThreadItemViewId(turn.id, item), item, streaming: false })))
   const itemIds = new Set(items.map((item) => item.item.id).filter(Boolean))
+  const userClientIds = new Set(items.flatMap((item) => {
+    const clientId = agentChatUserMessageClientId(item.item)
+    return clientId ? [clientId] : []
+  }))
   for (const pending of pendingUserItems) {
-    if (pending.threadId === thread.id && !itemIds.has(pending.item.id)) {
-      items.push({ viewId: `pending:${pending.item.id}`, item: pending.item, streaming: false })
+    const pendingClientId = agentChatUserMessageClientId(pending.item)
+    if (
+      pending.threadId === thread.id
+      && !itemIds.has(pending.item.id)
+      && (!pendingClientId || !userClientIds.has(pendingClientId))
+    ) {
+      items.push({ viewId: agentChatVisibleThreadItemViewId('pending', pending.item), item: pending.item, streaming: false })
       itemIds.add(pending.item.id)
+      if (pendingClientId) userClientIds.add(pendingClientId)
     }
   }
   for (const streaming of Object.values(streamingAgentItems)) {
@@ -437,6 +450,37 @@ export function buildAgentChatVisibleItems(
     itemIds.add(audio.id)
   }
   return items
+}
+
+export function agentChatVisibleThreadItemViewId(turnId: string, item: AgentChatThreadItem): string {
+  const clientId = agentChatUserMessageClientId(item)
+  return clientId ? `user:${clientId}` : `${turnId}:${item.id}`
+}
+
+function removeConfirmedPendingUserItems(
+  current: AgentChatPendingUserItem[],
+  threadId: string,
+  items: AgentChatThreadItem[],
+): AgentChatPendingUserItem[] {
+  const userItemIds = new Set<string>()
+  const userClientIds = new Set<string>()
+  for (const item of items) {
+    if (item.type !== 'userMessage') continue
+    userItemIds.add(item.id)
+    const clientId = agentChatUserMessageClientId(item)
+    if (clientId) userClientIds.add(clientId)
+  }
+  if (userItemIds.size === 0 && userClientIds.size === 0) return current
+  return current.filter((pending) => {
+    if (pending.threadId !== threadId) return true
+    const pendingClientId = agentChatUserMessageClientId(pending.item)
+    if (pendingClientId && userClientIds.has(pendingClientId)) return false
+    return !userItemIds.has(pending.item.id)
+  })
+}
+
+function agentChatUserMessageClientId(item: AgentChatThreadItem): string | null {
+  return item.type === 'userMessage' && item.clientId?.trim() ? item.clientId.trim() : null
 }
 
 function agentChatRealtimeTranscriptVisibleItem(transcript: AgentChatRealtimeTranscriptItem): AgentChatThreadItem {
@@ -972,4 +1016,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function stringField(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined
+}
+
+function agentChatThreadNameFromNotificationParams(params: Record<string, unknown>): string | null | undefined {
+  if (!Object.prototype.hasOwnProperty.call(params, 'threadName') && !Object.prototype.hasOwnProperty.call(params, 'name')) return undefined
+  const value = Object.prototype.hasOwnProperty.call(params, 'threadName') ? params.threadName : params.name
+  if (value === null) return null
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }

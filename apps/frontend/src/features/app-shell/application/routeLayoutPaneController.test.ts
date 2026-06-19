@@ -160,6 +160,105 @@ test('route layout pane controller restores persisted terminal dock height', () 
   }
 })
 
+test('route layout pane controller hydrates pane values from MovScript Home desktop state', async () => {
+  const previousWindow = globalThis.window
+  const storage = new Map<string, string>()
+  const desktopReads: Array<{ key: string }> = []
+  globalThis.window = {
+    localStorage: {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        storage.set(key, value)
+      },
+      removeItem: (key: string) => {
+        storage.delete(key)
+      },
+    },
+    api: {
+      getDesktopState: async (input: { key: string }) => {
+        desktopReads.push(input)
+        return {
+          key: input.key,
+          movScriptHomeDir: '/tmp/movscript-home',
+          workspaceDir: '/tmp/movscript-home',
+          path: '',
+          version: '',
+          value: '430',
+        }
+      },
+    },
+  } as typeof window
+
+  try {
+    const routeLayout = routeLayoutSpecForPathname('/project/agent')
+    const terminalPane = routeLayoutPaneById(routeLayout, APP_SHELL_TERMINAL_DOCK_PANE_ID)
+
+    assert.equal(readRouteLayoutPaneSize(terminalPane?.storageKey, terminalPane?.defaultSize ?? 0), APP_SHELL_TERMINAL_DOCK_DEFAULT_HEIGHT)
+    assert.match(desktopReads[0]?.key ?? '', /^movscript-route-layout-pane-v1\.[a-z0-9]+$/)
+
+    await waitForAsyncStorage()
+
+    assert.equal(readRouteLayoutPaneSize(terminalPane?.storageKey, terminalPane?.defaultSize ?? 0), 430)
+    assert.equal(storage.has(APP_SHELL_TERMINAL_DOCK_HEIGHT_STORAGE_KEY), false)
+  } finally {
+    globalThis.window = previousWindow
+  }
+})
+
+test('route layout pane controller migrates legacy browser pane values into MovScript Home desktop state', async () => {
+  const previousWindow = globalThis.window
+  const storage = new Map<string, string>([[APP_SHELL_TERMINAL_DOCK_HEIGHT_STORAGE_KEY, '420']])
+  const desktopWrites: Array<{ key: string; value: unknown }> = []
+  globalThis.window = {
+    localStorage: {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        storage.set(key, value)
+      },
+      removeItem: (key: string) => {
+        storage.delete(key)
+      },
+    },
+    api: {
+      getDesktopState: async (input: { key: string }) => ({
+        key: input.key,
+        movScriptHomeDir: '/tmp/movscript-home',
+        workspaceDir: '/tmp/movscript-home',
+        path: '',
+        version: '',
+        value: null,
+      }),
+      setDesktopState: async (input: { key: string; value: unknown }) => {
+        desktopWrites.push(input)
+        return {
+          key: input.key,
+          movScriptHomeDir: '/tmp/movscript-home',
+          workspaceDir: '/tmp/movscript-home',
+          path: '',
+          version: '',
+          value: input.value,
+        }
+      },
+    },
+  } as typeof window
+
+  try {
+    const routeLayout = routeLayoutSpecForPathname('/project/agent')
+    const terminalPane = routeLayoutPaneById(routeLayout, APP_SHELL_TERMINAL_DOCK_PANE_ID)
+
+    assert.equal(readRouteLayoutPaneSize(terminalPane?.storageKey, terminalPane?.defaultSize ?? 0), 420)
+
+    await waitForAsyncStorage()
+
+    assert.equal(desktopWrites.length, 1)
+    assert.match(desktopWrites[0]?.key ?? '', /^movscript-route-layout-pane-v1\.[a-z0-9]+$/)
+    assert.equal(desktopWrites[0]?.value, '420')
+    assert.equal(storage.has(APP_SHELL_TERMINAL_DOCK_HEIGHT_STORAGE_KEY), false)
+  } finally {
+    globalThis.window = previousWindow
+  }
+})
+
 test('route layout pane controller clamps restored agent pane sizes', () => {
   const previousWindow = globalThis.window
   const storage = new Map<string, string>()
@@ -436,3 +535,7 @@ test('agent workspace split pages use the shared split primitive', () => {
   assert.match(agentConsoleStyles, /\.agent-console-page-body \{[\s\S]*display: flex;[\s\S]*flex-direction: column;/)
   assert.doesNotMatch(agentConsoleStyles, /\.agent-console-main-grid\[data-layout="control-logs"\] > \.agent-console-main-column,[\s\S]*overflow-y: auto;/)
 })
+
+function waitForAsyncStorage(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0))
+}

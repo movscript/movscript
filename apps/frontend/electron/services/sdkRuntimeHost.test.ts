@@ -4,6 +4,8 @@ import test from 'node:test'
 import {
   notificationEventFromContext,
   publishSdkRuntimeNotification,
+  requestSdkRuntimeServerRequest,
+  respondToSdkRuntimeServerRequest,
   registerSdkRuntimeSubscription,
   registerSdkRuntimeHandler,
   requestSdkRuntime,
@@ -50,6 +52,33 @@ test('SDK runtime host dispatches registered SDK handlers', async () => {
 
   try {
     assert.deepEqual(await requestSdkRuntime(requestInput()), { threads: [] })
+  } finally {
+    unregister()
+  }
+})
+
+test('SDK runtime host dispatches registered app-server handlers', async () => {
+  const input = {
+    ...requestInput(),
+    params: {
+      ...requestInput().params,
+      runtime: {
+        ...requestInput().params.runtime,
+        id: 'codex-codex-app-server',
+        api: 'codex-app-server',
+        label: 'Codex app-server',
+      },
+    },
+  }
+  const unregister = registerSdkRuntimeHandler('codex-app-server', async (request) => {
+    assert.equal(request.method, 'thread/list')
+    return { threads: [] }
+  }, {
+    supportedMethods: SDK_RUNTIME_REQUIRED_RPC_METHODS,
+  })
+
+  try {
+    assert.deepEqual(await requestSdkRuntime(input), { threads: [] })
   } finally {
     unregister()
   }
@@ -121,6 +150,107 @@ test('SDK runtime host publishes notifications to matching runtime subscriptions
   } finally {
     unregister()
   }
+})
+
+test('SDK runtime host prefers thread subscriptions over matching global notification subscriptions for the same target', () => {
+  const input = requestInput()
+  const received: string[] = []
+  const unregisterGlobal = registerSdkRuntimeSubscription({
+    subscriptionId: 'target-1:global',
+    targetId: 'target-1',
+    runtimeId: input.params.runtime.id,
+    providerId: input.params.provider.id,
+    sendNotification: () => received.push('global'),
+  })
+  const unregisterThread = registerSdkRuntimeSubscription({
+    subscriptionId: 'target-1:thread_1',
+    targetId: 'target-1',
+    runtimeId: input.params.runtime.id,
+    providerId: input.params.provider.id,
+    threadId: 'thread_1',
+    sendNotification: () => received.push('thread'),
+  })
+  const unregisterOtherTargetGlobal = registerSdkRuntimeSubscription({
+    subscriptionId: 'target-2:global',
+    targetId: 'target-2',
+    runtimeId: input.params.runtime.id,
+    providerId: input.params.provider.id,
+    sendNotification: () => received.push('other-global'),
+  })
+
+  try {
+    publishSdkRuntimeNotification(notificationEventFromContext({
+      ...input.params,
+      threadId: 'thread_1',
+    }, {
+      method: 'item/agentMessage/delta',
+      params: {
+        threadId: 'thread_1',
+        turnId: 'turn_1',
+        itemId: 'assistant_1',
+        delta: 'hello',
+      },
+    }))
+
+    assert.deepEqual(received, ['thread', 'other-global'])
+  } finally {
+    unregisterGlobal()
+    unregisterThread()
+    unregisterOtherTargetGlobal()
+  }
+})
+
+test('SDK runtime host brokers server requests and resolves renderer responses', async () => {
+  const input = requestInput()
+  const received: unknown[] = []
+  const unregister = registerSdkRuntimeSubscription({
+    subscriptionId: 'server-request-subscription',
+    runtimeId: input.params.runtime.id,
+    providerId: input.params.provider.id,
+    sendNotification: (event) => received.push(event.notification),
+    sendServerRequest: (event) => {
+      received.push(event.request)
+      void respondToSdkRuntimeServerRequest({
+        runtimeId: event.runtimeId,
+        requestId: event.request.id,
+        response: { action: 'approve' },
+      })
+    },
+  })
+
+  try {
+    const response = await requestSdkRuntimeServerRequest(input.params, {
+      id: 'request_1',
+      method: 'item/permissions/requestApproval',
+      params: { permissions: { filesystem: 'workspace' } },
+    })
+
+    assert.deepEqual(response, { action: 'approve' })
+    assert.deepEqual(received, [
+      {
+        id: 'request_1',
+        method: 'item/permissions/requestApproval',
+        params: { permissions: { filesystem: 'workspace' } },
+      },
+      {
+        method: 'serverRequest/resolved',
+        params: { requestId: 'request_1' },
+      },
+    ])
+  } finally {
+    unregister()
+  }
+})
+
+test('SDK runtime host resolves server requests when no renderer is subscribed', async () => {
+  const input = requestInput()
+  const response = await requestSdkRuntimeServerRequest(input.params, {
+    id: 'unsubscribed_request',
+    method: 'item/permissions/requestApproval',
+    params: { permissions: { filesystem: 'workspace' } },
+  })
+
+  assert.equal(response, undefined)
 })
 
 function requestInput() {

@@ -20,6 +20,8 @@ import { registerProjectGitIpcHandlers } from './projectGitIpc'
 import { registerLocalTerminalIpcHandlers } from './localTerminalIpc'
 import { registerMediaPipelineIpcHandlers } from './mediaPipelineIpc'
 import { registerDockShortcutIpcHandlers } from './dockShortcutIpc'
+import { registerAgentSessionPersistenceIpcHandlers } from './agentSessionPersistenceIpc'
+import { registerDesktopStateStoreIpcHandlers } from './desktopStateStoreIpc'
 
 export interface IpcHandlerDependencies {
   broadcastBackendStatus: (status: BackendStatus) => void
@@ -38,6 +40,8 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
   registerPluginCatalogPackStoreIpcHandlers()
   registerProjectPluginStoreIpcHandlers()
   registerSettingsIpcHandlers(deps)
+  registerDesktopStateStoreIpcHandlers()
+  registerAgentSessionPersistenceIpcHandlers()
   registerMovScriptWorkspaceConfigIpcHandlers()
   registerMovScriptEngineIpcHandlers()
   registerMovScriptWorkspaceRootIpcHandlers()

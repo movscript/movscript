@@ -83,6 +83,7 @@ function sdkRuntimeSubscriptionForNotify(sender: WebContents, input?: ElectronSd
   ].join(':')
   return registerSdkRuntimeSubscription({
     subscriptionId,
+    targetId: String(sender.id),
     runtimeId: params.runtime.id,
     providerId: params.provider.id,
     providerKind: params.provider.kind,

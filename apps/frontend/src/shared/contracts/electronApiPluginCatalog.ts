@@ -1,4 +1,4 @@
-import type { ElectronMovScriptHomeInput } from './electronApiWorkspace'
+import type { ElectronMovScriptHomeInput } from './electronApiCore'
 
 export type ElectronPluginCatalogPackStoreDirs = {
   rootDir: string

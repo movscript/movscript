@@ -26,6 +26,7 @@ export interface ProviderPluginMarketplaceItem {
   sourceType: ProviderPluginSourceType
   sourceLabel: string
   sourcePath?: string
+  providerTargets?: string[]
   installed: boolean
   enabled: boolean
   installPolicy?: string
@@ -79,6 +80,7 @@ export function normalizeProviderPluginMarketplace(
           sourceType,
           sourceLabel: providerPluginSourceLabel(sourceType, sourcePath),
           ...(sourcePath ? { sourcePath } : {}),
+          ...(stringArray(plugin.providerTargets).length ? { providerTargets: stringArray(plugin.providerTargets) } : {}),
           installed: installedHere,
           enabled: booleanField(plugin.enabled) !== false,
           ...(stringField(plugin.installPolicy) ? { installPolicy: stringField(plugin.installPolicy) } : {}),

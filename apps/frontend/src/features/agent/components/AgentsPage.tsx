@@ -139,7 +139,7 @@ export default function AgentsPage() {
               {workspaceConfigQuery.isLoading && <AgentConsoleSyncBadge>同步中</AgentConsoleSyncBadge>}
             </AgentConsoleHeaderTitleRow>
             <AgentConsoleHeaderDescription>
-              这里只选择当前助手。运行时统一通过 SDK Host 接入，模型、账号和权限偏好在 Agent 设置中管理。
+              这里只选择当前助手。运行时统一通过 Runtime Host 接入，模型、账号和权限偏好在 Agent 设置中管理。
             </AgentConsoleHeaderDescription>
           </AgentConsoleHeaderCopy>
           <AgentConsoleHeaderActions>

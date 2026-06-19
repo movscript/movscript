@@ -18,6 +18,10 @@ import { ProjectStandardsWorkspaceReviewPanel } from '@/features/project-standar
 import { saveProjectStandardsWorkspaceEdit } from '@/features/project-standards/application/projectStandardsWorkspaceRepository'
 import { projectStandardsKeys } from '@/features/project-standards/application/projectStandardsQueryKeys'
 import { useProjectEntryShellProps } from '@/features/project/application/useProjectEntryShellProps'
+import {
+  hasExplicitProjectEntrySearchParam,
+  useProjectEntrySessionStore,
+} from '@/features/project/application/projectEntrySessionStore'
 import { buildPageKey } from '@/features/agent/domain/agentCommandInput'
 import {
   STYLE_REFERENCE_RULE_KEY,
@@ -98,6 +102,16 @@ export function ProjectStandardsContent() {
   const [deletingStyleReferenceId, setDeletingStyleReferenceId] = useState<number | null>(null)
   const [lastUploadedStyleReferences, setLastUploadedStyleReferences] = useState<RawResource[]>([])
   const openedWorkspaceId = searchParams.get('workspaceId')?.trim() || ''
+  const restoredSessionRef = useRef(false)
+  const skipNextSessionPersistRef = useRef(false)
+  const sessionSnapshot = useProjectEntrySessionStore((state) => (
+    projectId ? state.snapshotFor(projectId, 'project_standards') : null
+  ))
+  const upsertProjectEntrySessionSnapshot = useProjectEntrySessionStore((state) => state.upsertSnapshot)
+  const hasExplicitSessionSearch = useMemo(
+    () => hasExplicitProjectEntrySearchParam(searchParams, ['workspaceId', 'tab', 'view']),
+    [searchParams],
+  )
 
   const queryKey = ['project-workspace', projectId] as const
 
@@ -121,6 +135,33 @@ export function ProjectStandardsContent() {
     setActiveWorkspaceId(openedWorkspaceId || null)
     if (openedWorkspaceId) setReviewDialogOpen(true)
   }, [openedWorkspaceId])
+
+  useEffect(() => {
+    if (hasExplicitSessionSearch || restoredSessionRef.current || !sessionSnapshot?.search) return
+    restoredSessionRef.current = true
+    skipNextSessionPersistRef.current = true
+    setSearchParams(new URLSearchParams(sessionSnapshot.search), { replace: true })
+  }, [hasExplicitSessionSearch, sessionSnapshot, setSearchParams])
+
+  useEffect(() => {
+    if (!projectId) return
+    if (skipNextSessionPersistRef.current) {
+      skipNextSessionPersistRef.current = false
+      return
+    }
+    const workspaceId = openedWorkspaceId || activeWorkspaceId || ''
+    upsertProjectEntrySessionSnapshot({
+      projectId,
+      projectEntryId: 'project_standards',
+      route: ROUTES.project.standards,
+      search: searchParams.toString(),
+      filters: {
+        workspaceId,
+        reviewDialogOpen,
+      },
+      selection: undefined,
+    })
+  }, [activeWorkspaceId, openedWorkspaceId, projectId, reviewDialogOpen, searchParams, upsertProjectEntrySessionSnapshot])
 
   const workspaceArtifactsQuery = useQuery<ProjectStandardsWorkspaceArtifact[]>({
     queryKey: projectStandardsKeys.workspaceArtifacts(projectId, pageKey, activeWorkspaceId, openedWorkspaceId),

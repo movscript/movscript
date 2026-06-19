@@ -3,8 +3,10 @@ import { createJSONStorage, persist, type StateStorage } from 'zustand/middlewar
 import type { Project } from '@/types'
 import { projectAppEventScope, publishAppEvent } from '@/shared/application/appEvents'
 import { readBrowserStorageItem, removeBrowserStorageItem, writeBrowserStorageItem } from '@/shared/infrastructure/browserStorage'
+import { createDesktopStateStorage } from '@/shared/infrastructure/desktopStateStorage'
 
 export type ProjectSessionSyncStatus = 'idle' | 'syncing' | 'dirty' | 'conflict' | 'error'
+export const PROJECT_SESSION_STORAGE_KEY = 'movscript-project'
 
 const memoryProjectStorage: StateStorage = (() => {
   const values = new Map<string, string>()
@@ -20,11 +22,12 @@ const memoryProjectStorage: StateStorage = (() => {
 })()
 
 function getProjectStorage(): StateStorage {
-  return typeof window === 'undefined' ? memoryProjectStorage : {
+  const fallback: StateStorage = typeof window === 'undefined' ? memoryProjectStorage : {
     getItem: (name) => readBrowserStorageItem('local', name),
     setItem: (name, value) => writeBrowserStorageItem('local', name, value),
     removeItem: (name) => removeBrowserStorageItem('local', name),
   }
+  return createDesktopStateStorage(PROJECT_SESSION_STORAGE_KEY, fallback)
 }
 
 interface ProjectStore {
@@ -104,7 +107,7 @@ export const useProjectStore = create<ProjectStore>()(
       },
     }),
     {
-      name: 'movscript-project',
+      name: PROJECT_SESSION_STORAGE_KEY,
       storage: createJSONStorage(getProjectStorage),
       merge: (persistedState, currentState) => {
         const persisted = persistedState as Partial<ProjectStore> | undefined

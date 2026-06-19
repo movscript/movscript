@@ -21,7 +21,10 @@ import {
   MOVA_PROVIDER_ID,
   providerRuntimeProfile,
 } from '../../src/shared/infrastructure/providerConfigStore'
-import { registerSdkRuntimeSubscription } from './sdkRuntimeHost'
+import {
+  registerSdkRuntimeSubscription,
+  respondToSdkRuntimeServerRequest,
+} from './sdkRuntimeHost'
 import { SDK_RUNTIME_REQUIRED_RPC_METHODS } from '../../src/shared/infrastructure/sdk-runtime/sdkRuntimeProtocol'
 import { writeAgentRuntimeApiKey } from './appSettingsSecrets'
 
@@ -70,6 +73,96 @@ test('Codex SDK runtime handler calls Codex startThread and thread.run', async (
   assert.deepEqual(calls, ['start:/repo', 'run:fix tests:gpt-5.4'])
   assert.equal(turn.items[1]?.type, 'agentMessage')
   assert.equal(turn.items[1]?.type === 'agentMessage' ? turn.items[1].text : '', 'done')
+})
+
+test('Codex SDK runtime handler passes run profile options and brokers provider server requests', async () => {
+  const providerResponses: unknown[] = []
+  let runOptions: Record<string, unknown> | undefined
+  async function* streamEvents() {
+    yield {
+      type: 'item/permissions/requestApproval',
+      id: 'codex-permission-req-1',
+      params: {
+        toolName: 'shell',
+        permission: 'workspace-write',
+        reason: 'needs write access',
+      },
+      respond: (response: unknown) => providerResponses.push(response),
+    }
+    yield { type: 'item.completed', item: { id: 'item_1', type: 'agent_message', text: 'approved' } }
+  }
+  class Codex {
+    startThread() {
+      return {
+        id: 'codex_profile_thread',
+        run: async () => {
+          throw new Error('unexpected buffered run')
+        },
+        runStreamed: async (_prompt: string, options?: Record<string, unknown>) => {
+          runOptions = options
+          return { events: streamEvents() }
+        },
+      }
+    }
+    resumeThread() {
+      return this.startThread()
+    }
+  }
+  const context = {
+    ...codexContext(),
+    runtime: {
+      ...codexContext().runtime,
+      id: 'codex-profile-runtime',
+    },
+  }
+  const serverRequests: string[] = []
+  const unregister = registerSdkRuntimeSubscription({
+    subscriptionId: 'codex-profile-server-requests',
+    runtimeId: context.runtime.id,
+    threadId: 'codex_profile_thread',
+    sendNotification: () => {},
+    sendServerRequest: (event) => {
+      serverRequests.push(event.request.method)
+      void respondToSdkRuntimeServerRequest({
+        runtimeId: event.runtimeId,
+        requestId: event.request.id,
+        response: { action: 'approve', scope: 'turn' },
+      })
+    },
+  })
+  const handler = createCodexSdkRuntimeHandler({
+    moduleLoader: async () => ({ Codex }),
+  })
+
+  try {
+    const thread = await handler({
+      method: 'thread/start',
+      params: context,
+    })
+    await handler({
+      method: 'turn/text/start',
+      params: {
+        ...context,
+        threadId: thread.id,
+        text: 'use a tool',
+        runProfile: {
+          approvalPolicy: 'on-request',
+          approvalsReviewer: 'user',
+          permissionProfileId: ':workspace',
+          fallbackSandbox: 'workspace-write',
+        },
+      },
+    })
+
+    assert.equal(runOptions?.approvalPolicy, 'on-request')
+    assert.equal(runOptions?.permissions, ':workspace')
+    assert.equal(runOptions?.sandboxMode, 'workspace-write')
+    assert.equal(typeof runOptions?.requestServer, 'function')
+    assert.deepEqual(serverRequests, ['item/permissions/requestApproval'])
+    assert.deepEqual(providerResponses, [{ action: 'approve', scope: 'turn' }])
+  } finally {
+    unregister()
+  }
 })
 
 test('Codex SDK runtime handler applies updated model before the first provider turn starts', async () => {
@@ -270,9 +363,21 @@ test('Codex SDK runtime handler injects backend service base URL and API key', a
     params: codexContext(),
   })
 
-  const options = constructed[0] as { baseUrl?: string; apiKey?: string; env?: Record<string, string | undefined> }
+  const options = constructed[0] as { baseUrl?: string; apiKey?: string; env?: Record<string, string | undefined>; config?: Record<string, unknown> }
   assert.equal(options.baseUrl, 'http://127.0.0.1:8766/v1')
   assert.equal(options.apiKey, 'mv1.backend-session-token')
+  assert.deepEqual(options.config, {
+    model_provider: 'movscript-backend-openai',
+    model_providers: {
+      'movscript-backend-openai': {
+        name: 'Movscript Backend',
+        base_url: 'http://127.0.0.1:8766/v1',
+        env_key: 'OPENAI_API_KEY',
+        wire_api: 'responses',
+        supports_websockets: false,
+      },
+    },
+  })
   assert.equal(options.env?.OPENAI_API_KEY, 'mv1.backend-session-token')
   assert.equal(options.env?.OPENAI_BASE_URL, 'http://127.0.0.1:8766/v1')
   assert.equal(options.env?.OPENAI_API_BASE_URL, 'http://127.0.0.1:8766/v1')
@@ -305,9 +410,21 @@ test('Codex SDK runtime handler defaults to the workspace backend session', asyn
     params: codexContext(),
   })
 
-  const options = constructed[0] as { baseUrl?: string; apiKey?: string; env?: Record<string, string | undefined> }
+  const options = constructed[0] as { baseUrl?: string; apiKey?: string; env?: Record<string, string | undefined>; config?: Record<string, unknown> }
   assert.equal(options.baseUrl, 'http://127.0.0.1:8766/v1')
   assert.equal(options.apiKey, 'mv1.workspace-backend-token')
+  assert.deepEqual(options.config, {
+    model_provider: 'movscript-backend-openai',
+    model_providers: {
+      'movscript-backend-openai': {
+        name: 'Movscript Backend',
+        base_url: 'http://127.0.0.1:8766/v1',
+        env_key: 'OPENAI_API_KEY',
+        wire_api: 'responses',
+        supports_websockets: false,
+      },
+    },
+  })
   assert.equal(options.env?.OPENAI_API_KEY, 'mv1.workspace-backend-token')
   assert.equal(options.env?.OPENAI_BASE_URL, 'http://127.0.0.1:8766/v1')
   assert.equal(options.env?.OPENAI_API_BASE_URL, 'http://127.0.0.1:8766/v1')
@@ -497,6 +614,73 @@ test('Claude SDK runtime handler calls query and maps streamed result messages',
   assert.equal(typeof firstCall.options?.env, 'object')
   const agentMessages = turn.items.filter((item): item is Extract<typeof item, { type: 'agentMessage' }> => item.type === 'agentMessage')
   assert.equal(agentMessages.at(-1)?.text, 'finished')
+})
+
+test('Claude SDK runtime handler passes run profile options and canUseTool approval callback', async () => {
+  const calls: unknown[] = []
+  const callbackResults: unknown[] = []
+  async function* query(input: unknown) {
+    calls.push(input)
+    const options = (input as { options?: Record<string, unknown> }).options
+    assert.equal(typeof options?.canUseTool, 'function')
+    callbackResults.push(await (options.canUseTool as (...args: unknown[]) => Promise<unknown>)('Bash', { command: 'echo hello' }, {}))
+    yield { type: 'result', result: 'allowed' }
+  }
+  const context = {
+    ...claudeContext(),
+    runtime: {
+      ...claudeContext().runtime,
+      id: 'claude-profile-runtime',
+    },
+  }
+  const serverRequests: string[] = []
+  const handler = createClaudeSdkRuntimeHandler({
+    moduleLoader: async () => ({ query }),
+  })
+  const thread = await handler({
+    method: 'thread/start',
+    params: context,
+  })
+  const unregister = registerSdkRuntimeSubscription({
+    subscriptionId: 'claude-profile-server-requests',
+    runtimeId: context.runtime.id,
+    threadId: thread.id,
+    sendNotification: () => {},
+    sendServerRequest: (event) => {
+      serverRequests.push(event.request.method)
+      void respondToSdkRuntimeServerRequest({
+        runtimeId: event.runtimeId,
+        requestId: event.request.id,
+        response: { action: 'approve', scope: 'turn' },
+      })
+    },
+  })
+
+  try {
+    await handler({
+      method: 'turn/text/start',
+      params: {
+        ...context,
+        threadId: thread.id,
+        text: 'use bash',
+        runProfile: {
+          approvalPolicy: 'on-request',
+          approvalsReviewer: 'user',
+          permissionProfileId: ':workspace',
+          fallbackSandbox: 'workspace-write',
+        },
+      },
+    })
+
+    const firstCall = calls[0] as { options?: Record<string, unknown> }
+    assert.equal(firstCall.options?.approvalPolicy, 'on-request')
+    assert.equal(firstCall.options?.permissionProfileId, ':workspace')
+    assert.equal(firstCall.options?.sandboxMode, 'workspace-write')
+    assert.deepEqual(serverRequests, ['item/permissions/requestApproval'])
+    assert.deepEqual(callbackResults, [{ behavior: 'allow' }])
+  } finally {
+    unregister()
+  }
 })
 
 test('Claude SDK runtime handler resolves workspace context cwd and CLAUDE_CONFIG_DIR', async () => {
@@ -1023,6 +1207,173 @@ test('SDK runtime handlers publish neutral thread and turn notifications', async
       'turn/completed',
       'thread/status/changed',
     ])
+  } finally {
+    unregister()
+  }
+})
+
+test('Codex SDK runtime publishes streamed assistant deltas before the turn settles', async () => {
+  let releaseStream!: () => void
+  const streamBlocker = new Promise<void>((resolve) => {
+    releaseStream = resolve
+  })
+  async function* streamEvents() {
+    yield { type: 'item.updated', item: { id: 'item_1', type: 'agent_message', text: 'hel' } }
+    await streamBlocker
+    yield { type: 'item.completed', item: { id: 'item_1', type: 'agent_message', text: 'hello' } }
+    yield {
+      type: 'turn.completed',
+      usage: {
+        cached_input_tokens: 0,
+        input_tokens: 1,
+        output_tokens: 1,
+        reasoning_output_tokens: 0,
+      },
+    }
+  }
+  const calls: string[] = []
+  class Codex {
+    startThread() {
+      return {
+        id: 'codex_stream_thread',
+        run: async () => {
+          throw new Error('unexpected buffered run')
+        },
+        runStreamed: async (prompt: string, options?: Record<string, unknown>) => {
+          calls.push(`stream:${prompt}:${options?.model}`)
+          return { events: streamEvents() }
+        },
+      }
+    }
+    resumeThread() {
+      return this.startThread()
+    }
+  }
+  const context = {
+    ...codexContext(),
+    runtime: {
+      ...codexContext().runtime,
+      id: 'codex-streaming-runtime',
+    },
+  }
+  const handler = createCodexSdkRuntimeHandler({
+    moduleLoader: async () => ({ Codex }),
+  })
+  const thread = await handler({
+    method: 'thread/start',
+    params: context,
+  })
+  const received: Array<{ method: string; delta?: string }> = []
+  const unregister = registerSdkRuntimeSubscription({
+    subscriptionId: 'codex-streaming-notifications',
+    runtimeId: context.runtime.id,
+    threadId: thread.id,
+    sendNotification: (event) => {
+      const params = event.notification.params as { delta?: string } | undefined
+      received.push({ method: event.notification.method, ...(params?.delta ? { delta: params.delta } : {}) })
+    },
+  })
+
+  try {
+    const turnPromise = handler({
+      method: 'turn/text/start',
+      params: {
+        ...context,
+        threadId: thread.id,
+        text: 'hello',
+        model: 'gpt-5.4',
+      },
+    })
+    await new Promise((resolve) => setImmediate(resolve))
+
+    assert.deepEqual(received.filter((event) => event.method === 'item/agentMessage/delta'), [
+      { method: 'item/agentMessage/delta', delta: 'hel' },
+    ])
+    assert.equal(received.some((event) => event.method === 'turn/completed'), false)
+
+    releaseStream()
+    const turn = await turnPromise
+    const agentMessages = turn.items.filter((item): item is Extract<typeof item, { type: 'agentMessage' }> => item.type === 'agentMessage')
+    assert.deepEqual(calls, ['stream:hello:gpt-5.4'])
+    assert.equal(agentMessages.at(-1)?.id, 'item_1')
+    assert.equal(agentMessages.at(-1)?.text, 'hello')
+    assert.deepEqual(received.filter((event) => event.method === 'item/agentMessage/delta'), [
+      { method: 'item/agentMessage/delta', delta: 'hel' },
+      { method: 'item/agentMessage/delta', delta: 'lo' },
+    ])
+    assert.equal(received.at(-2)?.method, 'turn/completed')
+  } finally {
+    unregister()
+    releaseStream()
+  }
+})
+
+test('Codex SDK runtime preserves direct delta-only stream text as final turn output', async () => {
+  async function* streamEvents() {
+    yield { type: 'agent.delta', itemId: 'assistant_direct_1', delta: 'hello ' }
+    yield { type: 'agent.delta', itemId: 'assistant_direct_1', delta: 'world' }
+    yield {
+      type: 'turn.completed',
+      usage: {
+        cached_input_tokens: 0,
+        input_tokens: 1,
+        output_tokens: 2,
+        reasoning_output_tokens: 0,
+      },
+    }
+  }
+  class Codex {
+    startThread() {
+      return {
+        id: 'codex_direct_delta_thread',
+        run: async () => {
+          throw new Error('unexpected buffered run')
+        },
+        runStreamed: async () => ({ events: streamEvents() }),
+      }
+    }
+    resumeThread() {
+      return this.startThread()
+    }
+  }
+  const context = {
+    ...codexContext(),
+    runtime: {
+      ...codexContext().runtime,
+      id: 'codex-direct-delta-runtime',
+    },
+  }
+  const received: string[] = []
+  const unregister = registerSdkRuntimeSubscription({
+    subscriptionId: 'codex-direct-delta-notifications',
+    runtimeId: context.runtime.id,
+    threadId: 'codex_direct_delta_thread',
+    sendNotification: (event) => {
+      const params = event.notification.params as { delta?: string } | undefined
+      if (event.notification.method === 'item/agentMessage/delta' && params?.delta) received.push(params.delta)
+    },
+  })
+  const handler = createCodexSdkRuntimeHandler({
+    moduleLoader: async () => ({ Codex }),
+  })
+
+  try {
+    const thread = await handler({
+      method: 'thread/start',
+      params: context,
+    })
+    const turn = await handler({
+      method: 'turn/text/start',
+      params: {
+        ...context,
+        threadId: thread.id,
+        text: 'hello',
+      },
+    })
+
+    assert.deepEqual(received, ['hello ', 'world'])
+    const agentMessages = turn.items.filter((item): item is Extract<typeof item, { type: 'agentMessage' }> => item.type === 'agentMessage')
+    assert.equal(agentMessages.at(-1)?.text, 'hello world')
   } finally {
     unregister()
   }

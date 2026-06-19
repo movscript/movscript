@@ -1,4 +1,8 @@
 import type { AgentChatThreadItem } from '@movscript/core/agent/chat'
+import type {
+  AgentChatServerRequest,
+  AgentChatServerRequestResponse,
+} from '@movscript/core/agent/chat'
 
 export type SdkRuntimeTurnEvent =
   | {
@@ -46,4 +50,5 @@ export type SdkRuntimeTurnEvent =
 export interface SdkRuntimeRunPromptEventSink {
   turnId: string
   emit(event: SdkRuntimeTurnEvent): void
+  requestServer?(request: AgentChatServerRequest): Promise<AgentChatServerRequestResponse | undefined>
 }

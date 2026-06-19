@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import test from 'node:test'
 import {
+  AGENT_STORE_STORAGE_KEY,
   agentSettingsModelIdForProvider,
   agentSettingsModelSelectionPatch,
   appendSettingsAuditEntry,
@@ -8,6 +11,13 @@ import {
   normalizeAgentSettingsWithOptions,
   useAgentStore,
 } from './agentStore'
+
+test('agent settings persistence is routed through desktop Home storage', () => {
+  const source = readFileSync(resolve('src/features/agent/state/agentStore.ts'), 'utf8')
+
+  assert.equal(AGENT_STORE_STORAGE_KEY, 'agent-store-v4')
+  assert.match(source, /createDesktopStateStorage\(AGENT_STORE_STORAGE_KEY, agentStoreBrowserStorage\)/)
+})
 
 test('agent store persistence excludes conversations and workspaces', () => {
   const partialized = useAgentStore.persist.getOptions().partialize?.(useAgentStore.getState()) as Record<string, unknown>

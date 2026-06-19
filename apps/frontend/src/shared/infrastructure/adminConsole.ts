@@ -1,4 +1,5 @@
 import { resolveAdminConsoleURL } from '@movscript/core/backend'
+import { readBrowserStorageItem } from '@/shared/infrastructure/browserStorage'
 import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
 import { getAPIBaseURL } from '@/shared/infrastructure/config'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
@@ -48,10 +49,5 @@ function resolveAdminLanguage(): 'zh-CN' | 'en-US' {
 }
 
 function resolveAdminTheme(): 'light' | 'dark' {
-  try {
-    const value = window.localStorage.getItem(MOVSCRIPT_THEME_STORAGE_KEY)
-    return value === 'dark' ? 'dark' : 'light'
-  } catch {
-    return 'light'
-  }
+  return readBrowserStorageItem('local', MOVSCRIPT_THEME_STORAGE_KEY) === 'dark' ? 'dark' : 'light'
 }
