@@ -352,7 +352,7 @@ export function requiredDesktopPackagePrerequisites(root, manifest, platform = p
   const backendBinDir = resolve(root, 'apps/backend/bin')
   const required = []
   if (manifestHasResource(manifest, 'backend')) {
-    required.push(resolve(backendBinDir, platform === 'win32' ? 'server.exe' : 'server'))
+    required.push(resolve(backendBinDir, platform === 'win32' ? 'movscript-server.exe' : 'movscript-server'))
   }
   if (manifestHasResource(manifest, 'renderer-admin') || manifestResource(manifest, 'backend')?.filter?.includes('admin/**')) {
     required.push(resolve(backendBinDir, 'admin/index.html'))

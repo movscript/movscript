@@ -1,5 +1,6 @@
 import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction } from 'react'
 import {
+  agentChatRuntimeThreadCanReadTurns,
   buildAgentChatRuntimeThreadReadInput,
   type AgentChatDataSource,
   type AgentChatRuntimeAction,
@@ -13,6 +14,7 @@ import {
   provisionalAgentChatThread,
   selectAgentChatInitialSourceThread,
 } from '@/features/agent/presentation/agentChatDataSourceShellModel'
+import { debugAgentChatShellLoad } from '@/features/agent/application/agentChatShellDebug'
 
 interface UseAgentChatThreadBootstrapInput {
   clearUnavailableActiveThread: (threadId: string) => void
@@ -51,7 +53,24 @@ export function useAgentChatThreadBootstrap({
 }: UseAgentChatThreadBootstrapInput) {
   const readHistoryThread = useCallback(async (threadId: string) => {
     if (!dataSource) throw new Error('Agent data source is not available')
+    const lifecycle = runtimeRef.current.threadLifecycles[threadId]
+    if (!agentChatRuntimeThreadCanReadTurns(runtimeRef.current, threadId)) {
+      debugAgentChatShellLoad('thread-read-bootstrap-skipped', {
+        threadId,
+        lifecycleStatus: lifecycle?.status ?? 'unknown',
+        reason: 'thread lifecycle is not ready for turn reads',
+      })
+      return null
+    }
     const input = buildAgentChatRuntimeThreadReadInput(runtimeRef.current, threadId)
+    debugAgentChatShellLoad('thread-read-bootstrap-start', {
+      threadId,
+      lifecycleStatus: lifecycle?.status ?? 'ready-or-untracked',
+      direction: input.direction ?? 'newer',
+      includeTurns: input.includeTurns,
+      beforeTurnId: input.beforeTurnId ?? null,
+      afterTurnId: input.afterTurnId ?? null,
+    })
     const thread = await dataSource.readThread(threadId, input)
     return { thread, input }
   }, [dataSource, runtimeRef])
@@ -75,9 +94,11 @@ export function useAgentChatThreadBootstrap({
         setActiveThreadIdValue(firstOpenThread.id)
         markThreadOpen(firstOpenThread.id)
         try {
-          const { thread, input } = await readHistoryThread(firstOpenThread.id)
-          registerThreadConversation(thread)
-          upsertThreadReadResult(thread, input)
+          const result = await readHistoryThread(firstOpenThread.id)
+          if (result) {
+            registerThreadConversation(result.thread)
+            upsertThreadReadResult(result.thread, result.input)
+          }
         } catch (readError) {
           if (!isUnavailableThreadReadError(readError)) throw readError
           const removedEmptyConversation = clearUnavailableStoredThread(firstOpenThread.id)
@@ -88,8 +109,8 @@ export function useAgentChatThreadBootstrap({
       setActiveThreadIdValue(stored)
       markThreadOpen(stored)
       try {
-        const { thread, input } = await readHistoryThread(stored)
-        upsertThreadReadResult(thread, input)
+        const result = await readHistoryThread(stored)
+        if (result) upsertThreadReadResult(result.thread, result.input)
       } catch (readError) {
         if (!isUnavailableThreadReadError(readError)) throw readError
         const removedEmptyConversation = clearUnavailableStoredThread(stored)
@@ -114,9 +135,11 @@ export function useAgentChatThreadBootstrap({
     setActiveThreadIdValue(stored)
     dispatchRuntime({ type: 'upsertThread', thread: provisionalAgentChatThread(stored, dataSource) })
     try {
-      const { thread, input } = await readHistoryThread(stored)
-      registerThreadConversation(thread)
-      upsertThreadReadResult(thread, input)
+      const result = await readHistoryThread(stored)
+      if (result) {
+        registerThreadConversation(result.thread)
+        upsertThreadReadResult(result.thread, result.input)
+      }
     } catch (nextError) {
       if (isUnavailableThreadReadError(nextError)) {
         clearUnavailableStoredThread(stored)
@@ -134,9 +157,11 @@ export function useAgentChatThreadBootstrap({
     markThreadOpen(threadId)
     setError(null)
     try {
-      const { thread, input } = await readHistoryThread(threadId)
-      registerThreadConversation(thread)
-      upsertThreadReadResult(thread, input)
+      const result = await readHistoryThread(threadId)
+      if (result) {
+        registerThreadConversation(result.thread)
+        upsertThreadReadResult(result.thread, result.input)
+      }
       setHistoryOpen(false)
     } catch (nextError) {
       if (isUnavailableThreadReadError(nextError)) {

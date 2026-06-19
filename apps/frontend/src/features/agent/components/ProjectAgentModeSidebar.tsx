@@ -280,12 +280,16 @@ export function ProjectAgentModeSidebar({
 
   async function setRuntimeThreadArchived(threadId: string, archived: boolean, provider: ProviderConfig = activeAgentProvider) {
     const dataSource = await agentRuntimeDataSource(provider)
-    if (archived) await dataSource.archiveThread?.({ threadId })
+    if (archived) {
+      await dataSource.archiveThread?.({ threadId })
+      return true
+    }
     else {
       try {
         await dataSource.unarchiveThread?.({ threadId })
+        return true
       } catch (error) {
-        if (isMissingArchivedRuntimeThread(error)) return
+        if (isMissingArchivedRuntimeThread(error)) return false
         throw error
       }
     }
@@ -307,8 +311,18 @@ export function ProjectAgentModeSidebar({
         ?? (id.startsWith('thread_') ? id : undefined)
       const targetProvider = providerForConversation(id)
       if (providerThreadId) {
+        const providerIdentity = agentThreadRegistryProviderIdentity(targetProvider)
+        const conversationId = agentRuntimeConversationIdForThread(providerThreadId, providerIdentity)
+        const restored = await setRuntimeThreadArchived(providerThreadId, false, targetProvider)
+        if (!restored) {
+          removeProviderSessionConversation(userId, conversationId)
+          if (id !== conversationId) removeProviderSessionConversation(userId, id)
+          removeContentArea(conversationId)
+          removeContentArea(id)
+          void refetchSourceThreads()
+          return
+        }
         upsertAgentRuntimeConversationForThread(providerThreadId, targetProvider, true)
-        await setRuntimeThreadArchived(providerThreadId, false, targetProvider)
         void refetchSourceThreads()
       }
       setNewConversationProviderId(targetProvider.id)

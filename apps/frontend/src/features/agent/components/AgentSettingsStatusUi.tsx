@@ -53,19 +53,17 @@ export function AgentSettingsToggleRow({
   description: ReactNode;
 }) {
   return (
-    <AgentDataBlock asChild>
-      <CheckboxField
-        checked={checked}
-        onCheckedChange={onChange}
-        variant="subtle"
-        className="agent-settings-toggle-row"
-      >
-        <span className="agent-settings-item-body">
-          <span className="ms-type-label agent-settings-item-title">{title}</span>
-          <span className="ms-type-caption agent-settings-item-detail">{description}</span>
-        </span>
-      </CheckboxField>
-    </AgentDataBlock>
+    <CheckboxField
+      checked={checked}
+      onCheckedChange={onChange}
+      variant="subtle"
+      className={cn("ms-agent-field ms-agent-data-block", "agent-settings-toggle-row")}
+    >
+      <span className="agent-settings-item-body">
+        <span className="ms-type-label agent-settings-item-title">{title}</span>
+        <span className="ms-type-caption agent-settings-item-detail">{description}</span>
+      </span>
+    </CheckboxField>
   );
 }
 

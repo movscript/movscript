@@ -3,7 +3,10 @@ productName: Movscript
 asar: true
 asarUnpack:
   - node_modules/node-pty/**
-  - node_modules/@movscript/mova*/vendor/**
+  - node_modules/@movscript/mova*/vendor/**/bin/codex-app-server*
+  - node_modules/@movscript/mova*/vendor/**/codex-path/**
+  - node_modules/@movscript/mova*/vendor/**/codex-resources/**
+  - node_modules/@movscript/mova*/vendor/**/codex-package.json
 
 directories:
   output: release
@@ -12,6 +15,7 @@ directories:
 files:
   - out/**
   - package.json
+  - "!node_modules/@movscript/mova*/vendor/**/bin/mova*"
 
 extraResources:
   - from: ../../assets/logo.png
@@ -21,8 +25,6 @@ extraResources:
     filter:
       - movscript-server
       - movscript-server.exe
-      - server
-      - server.exe
   - from: ../admin/dist
     to: admin
     filter:
@@ -48,11 +50,6 @@ extraResources:
       - bin/**
       - dist/**
       - package.json
-  - from: vendor/sdk-runtimes
-    to: sdk-runtimes
-    filter:
-      - "**/*"
-
 mac:
   icon: build/icon.icns
   hardenedRuntime: true

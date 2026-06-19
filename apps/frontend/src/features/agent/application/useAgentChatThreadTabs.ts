@@ -29,7 +29,7 @@ interface UseAgentChatThreadTabsInput {
   openThreadIds: Set<string>
   projectId?: unknown
   providerIdentity: ReturnType<typeof buildAgentChatProviderIdentity>
-  readHistoryThread: (threadId: string) => Promise<{ thread: AgentChatThread; input: AgentChatThreadReadInput }>
+  readHistoryThread: (threadId: string) => Promise<{ thread: AgentChatThread; input: AgentChatThreadReadInput } | null>
   reorderOpenThreads: (draggedThreadId: string, targetThreadId: string, position: 'before' | 'after') => void
   setActiveThreadIdValue: (threadId: string | null) => void
   setError: Dispatch<SetStateAction<string | null>>
@@ -105,8 +105,8 @@ export function useAgentChatThreadTabs({
     markThreadOpen(nextThread.id)
     setError(null)
     try {
-      const { thread: nextThreadResult, input } = await readHistoryThread(nextThread.id)
-      upsertThreadReadResult(nextThreadResult, input)
+      const result = await readHistoryThread(nextThread.id)
+      if (result) upsertThreadReadResult(result.thread, result.input)
     } catch (nextError) {
       setError(errorMessage(nextError))
     }

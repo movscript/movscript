@@ -11,7 +11,7 @@
     "dev:render-debug": "pnpm --filter @movscript/desktop^... --if-present build && pnpm --filter @movscript/cli build && node scripts/run-with-env.mjs MOVSCRIPT_CHROMIUM_RENDER_DIAGNOSTICS=1 MOVSCRIPT_BROWSER_DIAGNOSTICS=1 VITE_MOVSCRIPT_RENDER_DIAGNOSTICS=1 electron-vite dev",
     "dev:local": "node scripts/run-with-env.mjs MOVSCRIPT_BACKEND_POLICY=spawn MOVSCRIPT_AI_STREAM_DEBUG=1 pnpm run dev",
     "build": "electron-vite build",
-    "dist": "pnpm --filter @movscript/admin build && node ../../scripts/prepare-sdk-runtime-seed.mjs --output vendor/sdk-runtimes && pnpm run build && electron-builder --publish never",
+    "dist": "pnpm --filter @movscript/admin build && pnpm run build && electron-builder --publish never",
     "test": "node ../../scripts/run-node-tests.mjs \"src/**/*.test.ts\" \"src/**/*.test.tsx\" \"electron/**/*.test.ts\"",
     "test:agent-run-debugging": "node ../../scripts/run-node-tests.mjs --suite agent-run-debugging && pnpm run typecheck",
     "test:generation-contract": "node ../../scripts/run-node-tests.mjs --suite generation-contract",

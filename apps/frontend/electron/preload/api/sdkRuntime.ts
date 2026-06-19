@@ -8,11 +8,13 @@ import type {
 type SdkRuntimeNotificationHandler = (event: ElectronSdkRuntimeNotificationEvent) => void
 type SdkRuntimeServerRequestHandler = (event: ElectronSdkRuntimeServerRequestEvent) => void
 
-export function createSdkRuntimeAPI(ipcRenderer: IpcRenderer): Pick<ElectronAPI, 'sdkRuntimeRequest' | 'sdkRuntimeNotify' | 'sdkRuntimeRespondToServerRequest' | 'onSdkRuntimeNotification' | 'onSdkRuntimeServerRequest'> {
+export function createSdkRuntimeAPI(ipcRenderer: IpcRenderer): Pick<ElectronAPI, 'sdkRuntimeRequest' | 'sdkRuntimePackageStatus' | 'sdkRuntimeCancelPackageInstall' | 'sdkRuntimeNotify' | 'sdkRuntimeRespondToServerRequest' | 'onSdkRuntimeNotification' | 'onSdkRuntimeServerRequest'> {
   const notifications = createMessageSubscription<ElectronSdkRuntimeNotificationEvent, SdkRuntimeNotificationHandler>(ipcRenderer, 'sdk-runtime:notification')
   const serverRequests = createMessageSubscription<ElectronSdkRuntimeServerRequestEvent, SdkRuntimeServerRequestHandler>(ipcRenderer, 'sdk-runtime:server-request')
   return {
     sdkRuntimeRequest: (input) => ipcRenderer.invoke('sdk-runtime:request', input),
+    sdkRuntimePackageStatus: (input) => ipcRenderer.invoke('sdk-runtime:package-status', input),
+    sdkRuntimeCancelPackageInstall: (input) => ipcRenderer.invoke('sdk-runtime:package-install-cancel', input),
     sdkRuntimeNotify: (input) => ipcRenderer.invoke('sdk-runtime:notify', input),
     sdkRuntimeRespondToServerRequest: (input) => ipcRenderer.invoke('sdk-runtime:server-request-response', input),
     onSdkRuntimeNotification: notifications.subscribe,

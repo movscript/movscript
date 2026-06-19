@@ -351,20 +351,20 @@ test('requiredDesktopPackagePrerequisites follows the package resource manifest'
     ],
   }
   assert.deepEqual(requiredDesktopPackagePrerequisites(root, communityManifest, 'linux', 'x64'), [
-    resolve(root, 'apps/backend/bin/server'),
+    resolve(root, 'apps/backend/bin/movscript-server'),
     resolve(root, 'apps/backend/bin/admin/index.html'),
     resolve(root, 'apps/frontend/vendor/ffmpeg/linux/x64/ffmpeg'),
   ])
 
   const enterpriseManifest = {
     resources: [
-      { id: 'backend', filter: ['server', 'server.exe', 'admin/**'] },
+      { id: 'backend', filter: ['movscript-server', 'movscript-server.exe', 'admin/**'] },
       { id: 'ffmpeg' },
       { id: 'movscript-agent' },
     ],
   }
   assert.deepEqual(requiredDesktopPackagePrerequisites(root, enterpriseManifest, 'win32', 'x64'), [
-    resolve(root, 'apps/backend/bin/server.exe'),
+    resolve(root, 'apps/backend/bin/movscript-server.exe'),
     resolve(root, 'apps/backend/bin/admin/index.html'),
     resolve(root, 'apps/frontend/vendor/ffmpeg/win32/x64/ffmpeg.exe'),
   ])
@@ -413,8 +413,8 @@ test('verifyDesktopPackage accepts enterprise manifest resources without retired
       '  - from: ../backend/bin',
       '    to: backend',
       '    filter:',
-      '      - server',
-      '      - server.exe',
+      '      - movscript-server',
+      '      - movscript-server.exe',
       '      - admin/**',
       '  - from: vendor/ffmpeg',
       '    to: ffmpeg',
@@ -442,7 +442,7 @@ test('verifyDesktopPackage accepts enterprise manifest resources without retired
           category: 'managed-binary',
           from: '../backend/bin',
           to: 'backend',
-          filter: ['server', 'server.exe', 'admin/**'],
+          filter: ['movscript-server', 'movscript-server.exe', 'admin/**'],
           source: 'enterprise-build-artifact',
           required: true,
           owner: 'enterprise-backend',
@@ -480,10 +480,10 @@ test('verifyDesktopPackage accepts enterprise manifest resources without retired
       forbiddenPackagePaths: ['node_modules/**'],
     }, null, 2)}\n`, 'utf8')
 
-    await writeFile(join(root, 'apps/backend/bin/server'), 'fake server', 'utf8')
+    await writeFile(join(root, 'apps/backend/bin/movscript-server'), 'fake server', 'utf8')
     await writeFile(join(root, 'apps/backend/bin/admin/index.html'), '<html></html>', 'utf8')
     await writeFile(join(root, 'apps/frontend/release/app.AppImage'), 'fake app image', 'utf8')
-    await writeFile(join(root, 'apps/frontend/release/linux-unpacked/resources/backend/server'), 'fake server', 'utf8')
+    await writeFile(join(root, 'apps/frontend/release/linux-unpacked/resources/backend/movscript-server'), 'fake server', 'utf8')
     await writeFile(join(root, 'apps/frontend/release/linux-unpacked/resources/movscript-agent/package.json'), '{}\n', 'utf8')
     await writeFile(join(root, 'apps/frontend/vendor/ffmpeg/linux/x64/ffmpeg'), 'fake ffmpeg', 'utf8')
     await writeFile(join(root, 'apps/frontend/release/linux-unpacked/resources/ffmpeg/linux/x64/ffmpeg'), 'fake ffmpeg', 'utf8')

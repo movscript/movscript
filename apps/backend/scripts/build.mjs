@@ -36,6 +36,8 @@ export function buildBackend(root = repoRoot) {
 
   mkdirSync(binDir, { recursive: true })
   rmSync(outputPath, { force: true })
+  rmSync(resolve(binDir, isWindows ? 'server.exe' : 'server'), { force: true })
+  if (isWindows) rmSync(resolve(binDir, 'server'), { force: true })
 
   const startedAt = Date.now()
   console.log('[build-backend] Command: go build -o <output> ./cmd/server')
@@ -68,13 +70,6 @@ export function buildBackend(root = repoRoot) {
 
   if (!existsSync(outputPath)) {
     throw new Error(`backend binary was not created: ${outputPath}`)
-  }
-
-  if (isWindows) {
-    cpSync(outputPath, resolve(binDir, 'server.exe'))
-    cpSync(outputPath, resolve(binDir, 'server'))
-  } else {
-    cpSync(outputPath, resolve(binDir, 'server'))
   }
 
   console.log(`[build-backend] Built backend binary: ${outputPath} (${elapsedSeconds}s)`)

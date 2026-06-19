@@ -20,6 +20,7 @@ import {
   performanceNow,
   recordAgentPerformanceMetric,
 } from '@/features/agent/state/agentPerformanceStore'
+import { debugAgentChatShellLoad } from '@/features/agent/application/agentChatShellDebug'
 import {
   type AgentChatCollaborationMode,
   type AgentChatDataSource,
@@ -130,6 +131,11 @@ export function useAgentChatThreadCreation({
         ...(workspaceContext ? { workspaceContext } : {}),
         ...(typeof threadInput.projectId === 'number' ? { projectId: threadInput.projectId } : {}),
       })
+      debugAgentChatShellLoad('thread-materializing', {
+        threadId: thread.id,
+        source: 'startThread',
+        providerSessionTreeId: thread.providerSessionTreeId?.trim() || null,
+      })
       upsertThread(thread, { lifecycleStatus: 'materializing' })
       setActiveThreadIdValue(thread.id)
       markThreadOpen(thread.id)
@@ -184,6 +190,12 @@ export function useAgentChatThreadCreation({
           })
         : undefined
       if (turn) {
+        debugAgentChatShellLoad('thread-ready', {
+          threadId: thread.id,
+          source: 'workspace-auto-send',
+          turnId: turn.id,
+          turnStatus: turn.status,
+        })
         markThreadReady(thread.id)
         requestThreadRead(thread.id)
       }

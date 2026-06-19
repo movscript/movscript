@@ -91,11 +91,7 @@ export function AgentDebugDialogOverlay({ className, ...props }: HTMLAttributes<
 }
 
 export function AgentDebugDialogSurface({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return (
-    <AgentSurfaceBlock asChild className={cn('agent-debug-dialog-surface', className)}>
-      <div {...props} />
-    </AgentSurfaceBlock>
-  )
+  return <AgentSurfaceBlock className={cn('agent-debug-dialog-surface', className)} {...props} />
 }
 
 export function AgentDebugDialogHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
@@ -273,11 +269,7 @@ export function AgentDebugCardDetail({ className, ...props }: HTMLAttributes<HTM
 }
 
 export function AgentDebugHttpRequestShell({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return (
-    <AgentSurfaceBlock asChild className={cn('agent-debug-http-request', className)}>
-      <div {...props} />
-    </AgentSurfaceBlock>
-  )
+  return <AgentSurfaceBlock className={cn('agent-debug-http-request', className)} {...props} />
 }
 
 export function AgentDebugHttpRequestHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
@@ -302,11 +294,7 @@ export function AgentDebugHttpRequestUrl({ method, url }: { method: ReactNode; u
 }
 
 export function AgentDebugWorkspaceDiffShell({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return (
-    <AgentSurfaceBlock asChild className={cn('agent-debug-workspace-diff', className)}>
-      <div {...props} />
-    </AgentSurfaceBlock>
-  )
+  return <AgentSurfaceBlock className={cn('agent-debug-workspace-diff', className)} {...props} />
 }
 
 export function AgentDebugWorkspaceDiffHeader({

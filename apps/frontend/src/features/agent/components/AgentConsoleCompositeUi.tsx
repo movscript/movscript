@@ -28,9 +28,15 @@ export function AgentConsoleRunSummaryLink({
 }: {
   children: ReactNode;
 }) {
+  const child = isSingleElementChild(children)
+    ? cloneElement(children as ReactElement<{ className?: string }>, {
+      className: cn((children as ReactElement<{ className?: string }>).props.className, "agent-console-run-summary-link"),
+    })
+    : <div className="agent-console-run-summary-link">{children}</div>;
+
   return (
     <AgentSurfaceBlock asChild variant="subtle">
-      <AsChildSlot className="agent-console-run-summary-link">{children}</AsChildSlot>
+      {child}
     </AgentSurfaceBlock>
   );
 }

@@ -259,6 +259,7 @@ export function useAgentChatDataSourceShellController({
   useEffect(() => {
     if (!dataSource) return
     if (registryActiveThreadId === activeThreadId) return
+    if (registryActiveThreadId === activeThreadIdRef.current) return
     if (registryActiveThreadId) {
       void openThread(registryActiveThreadId)
       return
@@ -330,6 +331,7 @@ export function useAgentChatDataSourceShellController({
     pendingThreadReadRequests,
     pendingThreadResumeRequests,
     profilePresetId,
+    runtimeRef,
     selectedModelSelectionForRequest,
     setError,
     threads,

@@ -1,4 +1,4 @@
-import { spawnSync, type SpawnSyncReturns } from 'node:child_process'
+import { spawn, spawnSync, type SpawnSyncReturns } from 'node:child_process'
 import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { isAbsolute, join, resolve } from 'node:path'
@@ -43,6 +43,7 @@ export interface SdkRuntimePackageInstallResult {
 }
 
 const sdkRuntimePackageInstalls = new Map<string, Promise<SdkRuntimePackageInstallResult>>()
+const sdkRuntimePackageInstallControllers = new Map<string, AbortController>()
 
 export function resolveSdkRuntimePackageStorePaths(options: SdkRuntimePackageStoreOptions = {}): SdkRuntimePackageStorePaths {
   const env = options.env ?? process.env
@@ -152,11 +153,21 @@ export function installSdkRuntimePackageOnce(options: SdkRuntimePackageInstallOp
   const key = sdkRuntimePackageInstallKey(options)
   const existing = sdkRuntimePackageInstalls.get(key)
   if (existing) return existing
-  const install = Promise.resolve().then(() => installSdkRuntimePackage(options)).finally(() => {
+  const install = Promise.resolve().then(() => (
+    options.spawn ? installSdkRuntimePackage(options) : installSdkRuntimePackageAsync(options)
+  )).finally(() => {
     sdkRuntimePackageInstalls.delete(key)
+    sdkRuntimePackageInstallControllers.delete(key)
   })
   sdkRuntimePackageInstalls.set(key, install)
   return install
+}
+
+export function cancelSdkRuntimePackageInstall(options: Pick<SdkRuntimePackageInstallOptions, 'packageName' | 'packageVersion' | 'packageManager' | 'baseDir' | 'env'>): boolean {
+  const controller = sdkRuntimePackageInstallControllers.get(sdkRuntimePackageInstallKey(options))
+  if (!controller) return false
+  controller.abort()
+  return true
 }
 
 export function installSdkRuntimePackage(options: SdkRuntimePackageInstallOptions): SdkRuntimePackageInstallResult {
@@ -201,6 +212,83 @@ export function installSdkRuntimePackage(options: SdkRuntimePackageInstallOption
   }
 }
 
+async function installSdkRuntimePackageAsync(options: SdkRuntimePackageInstallOptions): Promise<SdkRuntimePackageInstallResult> {
+  const paths = ensureSdkRuntimePackageStore(options)
+  const command = sdkRuntimePackageManager(options)
+  const packageSpec = sdkRuntimePackageSpec(options)
+  const args = ['install', '--prefix', paths.root, '--save-exact', packageSpec]
+  const controller = new AbortController()
+  sdkRuntimePackageInstallControllers.set(sdkRuntimePackageInstallKey(options), controller)
+  return new Promise((resolveResult) => {
+    const stdout: Buffer[] = []
+    const stderr: Buffer[] = []
+    const child = spawn(command, args, {
+      cwd: paths.root,
+      env: {
+        ...process.env,
+        ...(options.env ?? {}),
+      },
+      signal: controller.signal,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    child.stdout?.on('data', (chunk: Buffer) => stdout.push(chunk))
+    child.stderr?.on('data', (chunk: Buffer) => stderr.push(chunk))
+    child.once('error', (error) => {
+      resolveResult({
+        ok: false,
+        packageName: options.packageName,
+        ...(options.packageVersion ? { packageVersion: options.packageVersion } : {}),
+        root: paths.root,
+        command,
+        args,
+        error: sdkRuntimeInstallError(command, args, {
+          status: null,
+          signal: null,
+          output: [],
+          stdout: Buffer.concat(stdout).toString('utf8'),
+          stderr: Buffer.concat(stderr).toString('utf8'),
+          pid: child.pid ?? 0,
+          error,
+        } as SpawnSyncReturns<string>),
+      })
+    })
+    child.once('close', (status, signal) => {
+      const result = {
+        status,
+        signal,
+        output: [],
+        stdout: Buffer.concat(stdout).toString('utf8'),
+        stderr: Buffer.concat(stderr).toString('utf8'),
+        pid: child.pid ?? 0,
+      } as SpawnSyncReturns<string>
+      if (status === 0 && !signal) {
+        resolveResult({
+          ok: true,
+          packageName: options.packageName,
+          ...(options.packageVersion ? { packageVersion: options.packageVersion } : {}),
+          root: paths.root,
+          command,
+          args,
+          status,
+        })
+        return
+      }
+      resolveResult({
+        ok: false,
+        packageName: options.packageName,
+        ...(options.packageVersion ? { packageVersion: options.packageVersion } : {}),
+        root: paths.root,
+        command,
+        args,
+        status,
+        error: controller.signal.aborted
+          ? `SDK runtime install was cancelled: ${options.packageName}`
+          : sdkRuntimeInstallError(command, args, result),
+      })
+    })
+  })
+}
+
 export function installedSdkRuntimePackageVersion(packageName: string, options: SdkRuntimePackageStoreOptions = {}): string | undefined {
   const paths = resolveSdkRuntimePackageStorePaths(options)
   const packageJsonPath = join(paths.nodeModulesDir, packageName, 'package.json')
@@ -235,7 +323,7 @@ function resolveInstalledSdkRuntimePackageEntry(packageName: string, paths: SdkR
   }
 }
 
-function sdkRuntimePackageInstallKey(options: SdkRuntimePackageInstallOptions): string {
+function sdkRuntimePackageInstallKey(options: Pick<SdkRuntimePackageInstallOptions, 'packageName' | 'packageVersion' | 'packageManager' | 'baseDir' | 'env'>): string {
   const paths = resolveSdkRuntimePackageStorePaths(options)
   return [
     paths.root,
@@ -246,6 +334,19 @@ function sdkRuntimePackageInstallKey(options: SdkRuntimePackageInstallOptions): 
       || process.env.MOVSCRIPT_SDK_RUNTIME_PACKAGE_MANAGER?.trim()
       || 'npm',
   ].join('\0')
+}
+
+function sdkRuntimePackageManager(options: Pick<SdkRuntimePackageInstallOptions, 'packageManager' | 'env'>): string {
+  return options.packageManager?.trim()
+    || options.env?.MOVSCRIPT_SDK_RUNTIME_PACKAGE_MANAGER?.trim()
+    || process.env.MOVSCRIPT_SDK_RUNTIME_PACKAGE_MANAGER?.trim()
+    || 'npm'
+}
+
+function sdkRuntimePackageSpec(options: Pick<SdkRuntimePackageInstallOptions, 'packageName' | 'packageVersion'>): string {
+  return options.packageVersion?.trim()
+    ? `${options.packageName}@${options.packageVersion.trim()}`
+    : options.packageName
 }
 
 function resolveSdkRuntimePackageSeedRoot(env: NodeJS.ProcessEnv): string | undefined {

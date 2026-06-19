@@ -10,6 +10,10 @@ import type {
 import type {
   ElectronSdkRuntimeNotifyInput,
   ElectronSdkRuntimeNotificationEvent,
+  ElectronSdkRuntimePackageCancelInput,
+  ElectronSdkRuntimePackageCancelResult,
+  ElectronSdkRuntimePackageStatus,
+  ElectronSdkRuntimePackageStatusInput,
   ElectronSdkRuntimeRequestInput,
   ElectronSdkRuntimeRequestResult,
   ElectronSdkRuntimeServerRequestEvent,
@@ -177,6 +181,8 @@ export type ElectronAPI = {
   embeddedBrowserStop?: (input?: { tabId?: string }) => Promise<ElectronEmbeddedBrowserState>
   onEmbeddedBrowserState?: (handler: (state: ElectronEmbeddedBrowserState) => void) => () => void
   sdkRuntimeRequest?: <T = ElectronSdkRuntimeRequestResult>(input: ElectronSdkRuntimeRequestInput) => Promise<T>
+  sdkRuntimePackageStatus?: (input: ElectronSdkRuntimePackageStatusInput) => Promise<ElectronSdkRuntimePackageStatus>
+  sdkRuntimeCancelPackageInstall?: (input: ElectronSdkRuntimePackageCancelInput) => Promise<ElectronSdkRuntimePackageCancelResult>
   sdkRuntimeNotify?: (input: ElectronSdkRuntimeNotifyInput) => Promise<void>
   sdkRuntimeRespondToServerRequest?: (input: ElectronSdkRuntimeServerRequestResponseInput) => Promise<void>
   onSdkRuntimeNotification?: (handler: (event: ElectronSdkRuntimeNotificationEvent) => void) => () => void

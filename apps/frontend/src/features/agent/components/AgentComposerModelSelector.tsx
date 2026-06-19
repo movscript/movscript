@@ -1,10 +1,4 @@
-import { IdentityMark } from '@/features/agent/components/AgentIdentityUi'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-} from '@movscript/ui/primitives'
+import { NativeSelect } from '@movscript/ui/primitives'
 import type { PublicModel } from '@/types'
 import { publicModelId } from '@/shared/domain/modelDisplay'
 
@@ -23,45 +17,29 @@ export function AgentComposerModelSelector({
 }: AgentComposerModelSelectorProps) {
   if (modelOptions.length === 0 || modelValue === undefined || !onModelChange) return null
 
-  const selectedModel = modelValue ? modelOptions.find((model) => publicModelId(model) === modelValue) : undefined
-  const selectedModelId = selectedModel ? agentComposerModelId(selectedModel) : undefined
-
   return (
-    <Select
+    <NativeSelect
+      controlSize="sm"
       value={modelValue === null ? 'auto' : modelValue}
-      onValueChange={(value) => onModelChange(value === 'auto' ? null : value)}
+      onChange={(event) => onModelChange(event.currentTarget.value === 'auto' ? null : event.currentTarget.value)}
       disabled={disabled}
+      className="ai-agent-model-select h-7 max-w-[180px] min-w-0 type-tiny"
     >
-      <SelectTrigger size="sm" className="ai-agent-model-select h-7 max-w-[180px] min-w-0 type-tiny">
-        <span className="ai-agent-model-select__value">
-          <span className="ai-agent-model-select__id">{selectedModelId ?? 'Auto model'}</span>
-        </span>
-      </SelectTrigger>
-      <SelectContent align="end" className="ai-agent-model-select__content min-w-64">
-        <SelectItem value="auto">
-          <span className="ai-agent-model-select__option">
-            <span className="ai-agent-model-select__option-copy">
-              <span className="ai-agent-model-select__id">Auto model</span>
-              <span className="ai-agent-model-select__meta">backend default</span>
-            </span>
-          </span>
-        </SelectItem>
-        {modelOptions.map((model) => (
-          <SelectItem key={publicModelId(model)} value={publicModelId(model)}>
-            <span className="ai-agent-model-select__option">
-              <IdentityMark kind="model" id={agentComposerModelId(model)} />
-              <span className="ai-agent-model-select__option-copy">
-                <span className="ai-agent-model-select__id">{agentComposerModelId(model)}</span>
-                {model.provider_name ? <span className="ai-agent-model-select__meta">{model.provider_name}</span> : null}
-              </span>
-            </span>
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+      <option value="auto">Auto model - backend default</option>
+      {modelOptions.map((model) => (
+        <option key={publicModelId(model)} value={publicModelId(model)}>
+          {agentComposerModelOptionLabel(model)}
+        </option>
+      ))}
+    </NativeSelect>
   )
 }
 
 function agentComposerModelId(model: PublicModel): string {
   return publicModelId(model)
+}
+
+function agentComposerModelOptionLabel(model: PublicModel): string {
+  const modelId = agentComposerModelId(model)
+  return model.provider_name ? `${modelId} - ${model.provider_name}` : modelId
 }

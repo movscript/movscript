@@ -288,6 +288,7 @@
 }
 
 .agent-mode-conversation {
+  --agent-conversation-action-width: 20px;
   --agent-conversation-icon-align-self: center;
   --agent-conversation-icon-margin-top: 0;
   --agent-conversation-indicator-display: none;
@@ -295,10 +296,10 @@
   --agent-conversation-meta-font-size: var(--ms-text-label);
   --agent-conversation-meta-font-weight: 500;
   --agent-conversation-meta-line-height: var(--ms-leading-label);
-  --agent-conversation-meta-min-width: 48px;
+  --agent-conversation-meta-min-width: 12px;
   --agent-conversation-meta-text-align: right;
   --agent-conversation-title-active-color: var(--ms-color-foreground);
-  --agent-conversation-title-active-font-weight: 600;
+  --agent-conversation-title-active-font-weight: var(--agent-conversation-title-font-weight);
   --agent-conversation-title-color: var(--agent-mode-sidebar-text);
   --agent-conversation-title-font-size: var(--ms-text-label);
   --agent-conversation-title-font-weight: 500;
@@ -325,13 +326,13 @@
 }
 
 .agent-mode-conversation:hover {
-  background: color-mix(in srgb, var(--ms-color-surface) 48%, transparent);
+  background: var(--agent-mode-sidebar-selection);
   color: var(--ms-color-foreground);
 }
 
 .agent-mode-conversation[data-active="true"] {
   border-color: transparent;
-  background: color-mix(in srgb, var(--ms-color-surface) 86%, var(--ms-color-background));
+  background: var(--agent-mode-sidebar-selection);
   color: var(--ms-color-foreground);
   box-shadow: none;
 }
@@ -392,26 +393,38 @@
 }
 
 .agent-mode-conversation--with-action {
-  padding-right: 32px;
+  padding-right: 6px;
+}
+
+.agent-mode-conversation--with-action .ms-agent-conversation__meta {
+  transition:
+    color var(--ms-duration-fast) var(--ms-easing-standard),
+    opacity var(--ms-duration-fast) var(--ms-easing-standard);
 }
 
 .agent-mode-conversation__archive {
   position: absolute;
   top: 50%;
-  right: 4px;
-  width: 20px;
+  right: 6px;
+  width: var(--agent-conversation-action-width);
   height: 20px;
   color: color-mix(in srgb, var(--ms-color-muted-foreground) 50%, transparent);
   opacity: 0;
+  pointer-events: none;
   transform: translateY(-50%);
   transition:
     color var(--ms-duration-fast) var(--ms-easing-standard),
     opacity var(--ms-duration-fast) var(--ms-easing-standard);
 }
 
+.agent-mode-conversation-row:hover .agent-mode-conversation--with-action .ms-agent-conversation__meta {
+  opacity: 0;
+}
+
 .agent-mode-conversation-row:hover .agent-mode-conversation__archive,
 .agent-mode-conversation__archive:focus-visible {
   opacity: 1;
+  pointer-events: auto;
 }
 
 .agent-mode-conversation__archive:hover {

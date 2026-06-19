@@ -95,7 +95,7 @@ export function AgentSidebarConversation({
   deleteLabel?: string
 }) {
   const relativeTime = formatAgentRelativeTime(conversation.updatedAt, locale, now)
-  const showArchiveAction = Boolean(active && onArchive && !archived)
+  const showArchiveAction = Boolean(onArchive && !archived)
   const showDeleteAction = Boolean(archived && onDelete)
 
   return (

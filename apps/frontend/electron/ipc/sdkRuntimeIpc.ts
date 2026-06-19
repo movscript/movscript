@@ -6,14 +6,25 @@ import {
   respondToAgentRuntimeServerRequest,
 } from '../services/agentRuntimeHost'
 import { installAgentRuntimeDefaultHandlers } from '../services/agentRuntimeDefaultHandlers'
+import {
+  cancelSdkRuntimePackageInstall,
+  installedSdkRuntimePackageVersion,
+  resolveSdkRuntimePackageStorePaths,
+} from '../services/sdkRuntimePackageStore'
 import type {
   ElectronSdkRuntimeNotifyInput,
+  ElectronSdkRuntimePackageCancelInput,
+  ElectronSdkRuntimePackageCancelResult,
+  ElectronSdkRuntimePackageStatus,
+  ElectronSdkRuntimePackageStatusInput,
   ElectronSdkRuntimeRequestInput,
 } from '../../src/shared/contracts/electronApi'
 import type { AgentRuntimeRpcRequestMap } from '../../src/shared/infrastructure/agent-runtime/agentRuntimeProtocol'
 
 const SDK_RUNTIME_IPC_CHANNELS = {
   request: 'sdk-runtime:request',
+  packageStatus: 'sdk-runtime:package-status',
+  packageInstallCancel: 'sdk-runtime:package-install-cancel',
   notify: 'sdk-runtime:notify',
   response: 'sdk-runtime:server-request-response',
   notification: 'sdk-runtime:notification',
@@ -38,6 +49,35 @@ export function registerSdkRuntimeIpcHandlers(): void {
         error: errorMessage(error),
       }))
       throw error
+    }
+  })
+
+  ipcMain.handle(SDK_RUNTIME_IPC_CHANNELS.packageStatus, (_event, input?: ElectronSdkRuntimePackageStatusInput): ElectronSdkRuntimePackageStatus => {
+    const packageName = input?.packageName?.trim()
+    if (!packageName) throw new Error('SDK runtime packageName is required.')
+    const packageVersion = input?.packageVersion?.trim()
+    const installedVersion = installedSdkRuntimePackageVersion(packageName)
+    const paths = resolveSdkRuntimePackageStorePaths()
+    return {
+      packageName,
+      ...(packageVersion ? { packageVersion } : {}),
+      installed: packageVersion ? installedVersion === packageVersion : Boolean(installedVersion),
+      ...(installedVersion ? { installedVersion } : {}),
+      root: paths.root,
+    }
+  })
+
+  ipcMain.handle(SDK_RUNTIME_IPC_CHANNELS.packageInstallCancel, (_event, input?: ElectronSdkRuntimePackageCancelInput): ElectronSdkRuntimePackageCancelResult => {
+    const packageName = input?.packageName?.trim()
+    if (!packageName) throw new Error('SDK runtime packageName is required.')
+    const packageVersion = input?.packageVersion?.trim()
+    return {
+      packageName,
+      ...(packageVersion ? { packageVersion } : {}),
+      cancelled: cancelSdkRuntimePackageInstall({
+        packageName,
+        ...(packageVersion ? { packageVersion } : {}),
+      }),
     }
   })
 

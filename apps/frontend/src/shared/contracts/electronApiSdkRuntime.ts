@@ -43,6 +43,30 @@ export interface ElectronAgentRuntimeServerRequestResponseInput {
   response?: AgentChatServerRequestResponse
 }
 
+export interface ElectronSdkRuntimePackageStatusInput {
+  packageName: string
+  packageVersion?: string
+}
+
+export interface ElectronSdkRuntimePackageStatus {
+  packageName: string
+  packageVersion?: string
+  installed: boolean
+  installedVersion?: string
+  root: string
+}
+
+export interface ElectronSdkRuntimePackageCancelInput {
+  packageName: string
+  packageVersion?: string
+}
+
+export interface ElectronSdkRuntimePackageCancelResult {
+  packageName: string
+  packageVersion?: string
+  cancelled: boolean
+}
+
 export type ElectronSdkRuntimeRequestInput<M extends AgentRuntimeRpcMethod = AgentRuntimeRpcMethod> = ElectronAgentRuntimeRequestInput<M>
 export type ElectronSdkRuntimeNotifyInput<M extends AgentRuntimeRpcMethod = AgentRuntimeRpcMethod> = ElectronAgentRuntimeNotifyInput<M>
 export type ElectronSdkRuntimeRequestResult<M extends AgentRuntimeRpcMethod = AgentRuntimeRpcMethod> = ElectronAgentRuntimeRequestResult<M>

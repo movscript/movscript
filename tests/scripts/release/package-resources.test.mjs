@@ -13,7 +13,7 @@ test('package resource manifest matches electron-builder contract', () => {
 
   assert.equal(manifest.schema, 'movscript.package-resources.v1')
   assert.equal(manifest.edition, 'community')
-  assert.deepEqual(manifest.packageFiles, ['out/**', 'package.json'])
+  assert.deepEqual(manifest.packageFiles, ['out/**', 'package.json', '!node_modules/@movscript/mova*/vendor/**/bin/mova*'])
   assert.deepEqual(manifest.resources.map((resource) => resource.id), [
     'app-icon',
     'backend',
@@ -21,7 +21,6 @@ test('package resource manifest matches electron-builder contract', () => {
     'movcli',
     'provider-plugin',
     'renderer-admin',
-    'sdk-runtimes',
   ])
 })
 

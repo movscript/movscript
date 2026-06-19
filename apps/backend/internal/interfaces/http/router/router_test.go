@@ -414,21 +414,31 @@ func TestRegisterPreflightAllowsLocalViteOrigin(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := New(Dependencies{Config: &config.Config{}})
 
-	req := httptest.NewRequest(http.MethodOptions, "/api/v1/auth/register", nil)
-	req.Header.Set("Origin", "http://localhost:5173")
-	req.Header.Set("Access-Control-Request-Method", http.MethodPost)
-	req.Header.Set("Access-Control-Request-Headers", "content-type,x-movscript-route-tier")
-	w := httptest.NewRecorder()
+	for _, origin := range []string{
+		"http://localhost:5173",
+		"http://localhost:8765",
+		"http://127.0.0.1:8765",
+		"http://localhost:8766",
+		"http://127.0.0.1:8766",
+	} {
+		t.Run(origin, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodOptions, "/api/v1/auth/register", nil)
+			req.Header.Set("Origin", origin)
+			req.Header.Set("Access-Control-Request-Method", http.MethodPost)
+			req.Header.Set("Access-Control-Request-Headers", "content-type,x-movscript-route-tier")
+			w := httptest.NewRecorder()
 
-	r.ServeHTTP(w, req)
+			r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusNoContent {
-		t.Fatalf("status = %d, want %d; body = %q", w.Code, http.StatusNoContent, w.Body.String())
-	}
-	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "http://localhost:5173" {
-		t.Fatalf("Access-Control-Allow-Origin = %q, want %q", got, "http://localhost:5173")
-	}
-	if got := w.Header().Get("Access-Control-Allow-Headers"); !strings.Contains(strings.ToLower(got), "x-movscript-route-tier") {
-		t.Fatalf("Access-Control-Allow-Headers = %q, want x-movscript-route-tier", got)
+			if w.Code != http.StatusNoContent {
+				t.Fatalf("status = %d, want %d; body = %q", w.Code, http.StatusNoContent, w.Body.String())
+			}
+			if got := w.Header().Get("Access-Control-Allow-Origin"); got != origin {
+				t.Fatalf("Access-Control-Allow-Origin = %q, want %q", got, origin)
+			}
+			if got := w.Header().Get("Access-Control-Allow-Headers"); !strings.Contains(strings.ToLower(got), "x-movscript-route-tier") {
+				t.Fatalf("Access-Control-Allow-Headers = %q, want x-movscript-route-tier", got)
+			}
+		})
 	}
 }

@@ -6,7 +6,8 @@
   "builderConfig": "apps/frontend/electron-builder.yml",
   "packageFiles": [
     "out/**",
-    "package.json"
+    "package.json",
+    "!node_modules/@movscript/mova*/vendor/**/bin/mova*"
   ],
   "resources": [
     {
@@ -30,9 +31,7 @@
       "to": "backend",
       "filter": [
         "movscript-server",
-        "movscript-server.exe",
-        "server",
-        "server.exe"
+        "movscript-server.exe"
       ],
       "source": "build-artifact",
       "required": true,
@@ -130,31 +129,13 @@
         "copy-admin-assets",
         "verifyDesktopPackage requiredPaths"
       ]
-    },
-    {
-      "id": "sdk-runtimes",
-      "category": "managed-agent",
-      "from": "vendor/sdk-runtimes",
-      "to": "sdk-runtimes",
-      "filter": [
-        "**/*"
-      ],
-      "source": "staged-build-artifact",
-      "required": true,
-      "owner": "agent-runtime",
-      "license": "LicenseRef-sdk-runtime-dependencies",
-      "updatePolicy": "bundled-with-app",
-      "verification": [
-        "prepare-sdk-runtime-seed",
-        "electron-builder extraResources parity",
-        "verifyDesktopPackage requiredPaths"
-      ]
     }
   ],
   "forbiddenPackagePaths": [
     ".git/**",
     ".build/**",
     ".movscript-dev/**",
+    "sdk-runtimes/**",
     "node_modules/**",
     "apps/frontend/release/**",
     "apps/backend/vendor/**",

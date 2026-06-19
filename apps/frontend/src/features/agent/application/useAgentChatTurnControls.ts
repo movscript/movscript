@@ -26,6 +26,7 @@ import {
   type AgentChatStartThreadResult,
 } from '@/features/agent/application/useAgentChatThreadCreation'
 import { clearAgentChatComposerEditor } from '@/features/agent/application/agentComposerEditorDom'
+import { debugAgentChatShellLoad } from '@/features/agent/application/agentChatShellDebug'
 import {
   agentChatComposerConversationId,
   buildAgentChatDraftThreadControlOptions,
@@ -344,6 +345,10 @@ export function useAgentChatTurnControls({
           ...selectedModelSelectionForRequest(thread),
         })
       }
+      debugAgentChatShellLoad('thread-ready', {
+        threadId: thread.id,
+        source: 'send-message',
+      })
       markThreadReady(thread.id)
       dispatchRuntime({ type: 'requestThreadRead', threadId: thread.id })
       composer.revokeAttachmentPreviewUrls(sentAttachments)
@@ -392,6 +397,10 @@ export function useAgentChatTurnControls({
           ...selectedModelSelectionForRequest(thread),
         })
       }
+      debugAgentChatShellLoad('thread-ready', {
+        threadId: thread.id,
+        source: 'queued-inputs',
+      })
       markThreadReady(thread.id)
       dispatchRuntime({ type: 'requestThreadRead', threadId: thread.id })
       for (const item of threadItems) composer.revokeAttachmentPreviewUrls(item.attachments)
