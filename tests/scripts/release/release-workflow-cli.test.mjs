@@ -6,6 +6,7 @@ import { releaseSubcommands, releaseWorkflowSteps, runReleaseWorkflowCli } from 
 test('release workflow exposes the curated release subcommand surface', () => {
   assert.deepEqual(releaseSubcommands(), [
     'audit-ffmpeg',
+    'bump-version',
     'collect',
     'download-ffmpeg-static',
     'package-desktop',
@@ -90,6 +91,20 @@ test('runReleaseWorkflowCli dispatches release subcommands', () => {
 
   assert.equal(exitCode, 0)
   assert.deepEqual(calls[0].slice(0, 2), ['node', ['scripts/release/stage-ffmpeg.mjs', '--inspect', '--platform=darwin']])
+})
+
+test('runReleaseWorkflowCli dispatches release version bumping', () => {
+  const calls = []
+  runReleaseWorkflowCli(['bump-version', '0.1.3', '--dry-run'], {
+    exit: () => undefined,
+    log: () => undefined,
+    spawn: (command, args, options) => {
+      calls.push([command, args, options])
+      return { status: 0 }
+    },
+  })
+
+  assert.deepEqual(calls[0].slice(0, 2), ['node', ['scripts/release/bump-version.mjs', '0.1.3', '--dry-run']])
 })
 
 test('runReleaseWorkflowCli dispatches package resource verification', () => {

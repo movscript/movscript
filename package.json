@@ -1,6 +1,6 @@
 {
   "name": "movscript",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "packageManager": "pnpm@10.32.1",
   "scripts": {
@@ -45,6 +45,7 @@
       "tests/scripts/backend/*.test.mjs",
       "tests/scripts/frontend/*.test.mjs",
       "tests/scripts/release/audit-ffmpeg.test.mjs",
+      "tests/scripts/release/bump-version.test.mjs",
       "tests/scripts/release/collect-artifacts.test.mjs",
       "tests/scripts/release/desktop-package-verification.test.mjs",
       "tests/scripts/release/download-ffmpeg-static.test.mjs",

@@ -65,17 +65,22 @@ test('SDK runtime package store initializes an isolated package.json', () => {
   }
 })
 
-test('SDK runtime package install uses npm prefix against the runtime store', () => {
+test('SDK runtime package install uses npm prefix and normalized PATH against the runtime store', () => {
   const tmp = mkdtempSync(join(tmpdir(), 'movscript-sdk-runtime-install-'))
-  const calls: Array<{ command: string; args: string[]; cwd?: string }> = []
+  const calls: Array<{ command: string; args: string[]; cwd?: string; path?: string }> = []
   try {
     const result = installSdkRuntimePackage({
       baseDir: tmp,
-      env: {},
+      env: { PATH: '/custom/bin' },
       packageName: '@openai/codex-sdk',
       packageVersion: '1.2.3',
       spawn: (command, args, options) => {
-        calls.push({ command, args: args as string[], cwd: options?.cwd?.toString() })
+        calls.push({
+          command,
+          args: args as string[],
+          cwd: options?.cwd?.toString(),
+          path: options?.env?.PATH?.toString(),
+        })
         return { status: 0, stdout: '', stderr: '', pid: 1, output: [] } as SpawnSyncReturns<string>
       },
     })
@@ -84,6 +89,8 @@ test('SDK runtime package install uses npm prefix against the runtime store', ()
     assert.equal(calls[0]?.command, 'npm')
     assert.deepEqual(calls[0]?.args, ['install', '--prefix', join(tmp, 'sdk-runtimes'), '--save-exact', '@openai/codex-sdk@1.2.3'])
     assert.equal(calls[0]?.cwd, join(tmp, 'sdk-runtimes'))
+    assert.equal(calls[0]?.path?.endsWith('/custom/bin'), true)
+    if (process.platform === 'darwin') assert.equal(calls[0]?.path?.includes('/opt/homebrew/bin'), true)
   } finally {
     rmSync(tmp, { recursive: true, force: true })
   }

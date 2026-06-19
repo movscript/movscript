@@ -136,10 +136,11 @@ async function handleAppServerRuntimeRequest<M extends AgentRuntimeRpcMethod>(
     }
     case 'thread/read': {
       const params = paramsFor(input, 'thread/read')
-      const response = await requestAppServerWithTransientHistoryRetry(connection, 'thread/read', {
-        threadId: params.threadId,
-        includeTurns: params.read?.includeTurns !== false,
-      })
+      const response = await requestAppServerThreadRead(
+        connection,
+        params.threadId,
+        params.read?.includeTurns !== false,
+      )
       return requireAppServerThread(response, context)
     }
     case 'thread/start': {
@@ -250,11 +251,44 @@ export async function requestAppServerWithTransientHistoryRetry(
   }
 }
 
+export async function requestAppServerThreadRead(
+  connection: Pick<AppServerConnection, 'request'>,
+  threadId: string,
+  includeTurns: boolean,
+  retryDelaysMs: readonly number[] = APP_SERVER_TRANSIENT_HISTORY_RETRY_DELAYS_MS,
+): Promise<unknown> {
+  const params = { threadId, includeTurns }
+  if (!includeTurns) return connection.request('thread/read', params)
+
+  try {
+    return await requestAppServerWithTransientHistoryRetry(connection, 'thread/read', params, retryDelaysMs)
+  } catch (error) {
+    if (!isAppServerIncludeTurnsFallbackError(error)) throw error
+    return connection.request('thread/read', { threadId, includeTurns: false })
+  }
+}
+
 export function isTransientAppServerThreadHistoryError(error: unknown): boolean {
   const message = errorMessage(error).toLowerCase()
+  return isAppServerEmptyRolloutHistoryErrorMessage(message)
+    || isAppServerUnmaterializedIncludeTurnsErrorMessage(message)
+}
+
+export function isAppServerIncludeTurnsFallbackError(error: unknown): boolean {
+  const message = errorMessage(error).toLowerCase()
+  return isAppServerUnmaterializedIncludeTurnsErrorMessage(message)
+    || message.includes('ephemeral threads do not support includeturns')
+}
+
+function isAppServerEmptyRolloutHistoryErrorMessage(message: string): boolean {
   return message.includes('failed to load thread history')
     && message.includes('rollout')
     && message.includes('is empty')
+}
+
+function isAppServerUnmaterializedIncludeTurnsErrorMessage(message: string): boolean {
+  return message.includes('not materialized yet')
+    && message.includes('includeturns is unavailable before first user message')
 }
 
 function sleep(delayMs: number): Promise<void> {

@@ -4,6 +4,7 @@ import { createRequire } from 'node:module'
 import { isAbsolute, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { resolveDesktopDefaultMovScriptWorkspaceDir } from './movscriptWorkspaceDefaults'
+import { normalizedSdkRuntimeEnv } from './sdkRuntimeConfigInjector'
 import type { SdkRuntimeModuleLoader } from './sdkRuntimePackageLoader'
 
 export interface SdkRuntimePackageStorePaths {
@@ -184,10 +185,10 @@ export function installSdkRuntimePackage(options: SdkRuntimePackageInstallOption
   const result = spawn(command, args, {
     cwd: paths.root,
     encoding: 'utf8',
-    env: {
+    env: normalizedSdkRuntimeEnv({
       ...process.env,
       ...(options.env ?? {}),
-    },
+    }),
   })
   if (result.status === 0 && !result.error) {
     return {
@@ -224,10 +225,10 @@ async function installSdkRuntimePackageAsync(options: SdkRuntimePackageInstallOp
     const stderr: Buffer[] = []
     const child = spawn(command, args, {
       cwd: paths.root,
-      env: {
+      env: normalizedSdkRuntimeEnv({
         ...process.env,
         ...(options.env ?? {}),
-      },
+      }),
       signal: controller.signal,
       stdio: ['ignore', 'pipe', 'pipe'],
     })

@@ -1,6 +1,6 @@
 {
   "name": "@movscript/prompt",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "description": "Prompt compiler for turning MovScript content unit references into backend-ready resource prompts.",
   "license": "MIT",

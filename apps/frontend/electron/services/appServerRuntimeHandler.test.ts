@@ -2,7 +2,9 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  isAppServerIncludeTurnsFallbackError,
   isTransientAppServerThreadHistoryError,
+  requestAppServerThreadRead,
   requestAppServerWithTransientHistoryRetry,
 } from './appServerRuntimeHandler'
 
@@ -43,8 +45,54 @@ test('app-server runtime does not retry unrelated request errors', async () => {
   assert.deepEqual(calls, ['turn/start'])
 })
 
-test('app-server empty rollout detection is intentionally narrow', () => {
+test('app-server thread/read retries unmaterialized includeTurns before falling back to metadata', async () => {
+  const calls: Array<{ method: string; params?: unknown }> = []
+  const connection = {
+    async request(method: string, params?: unknown) {
+      calls.push({ method, params })
+      if ((params as { includeTurns?: boolean } | undefined)?.includeTurns) {
+        throw new Error('mova-app-server app-server error: thread thr_1 is not materialized yet; includeTurns is unavailable before first user message')
+      }
+      return { thread: { id: 'thr_1', turns: [] } }
+    },
+  }
+
+  const response = await requestAppServerThreadRead(connection, 'thr_1', true, [0])
+
+  assert.deepEqual(response, { thread: { id: 'thr_1', turns: [] } })
+  assert.deepEqual(calls, [
+    { method: 'thread/read', params: { threadId: 'thr_1', includeTurns: true } },
+    { method: 'thread/read', params: { threadId: 'thr_1', includeTurns: true } },
+    { method: 'thread/read', params: { threadId: 'thr_1', includeTurns: false } },
+  ])
+})
+
+test('app-server thread/read falls back when includeTurns is unsupported for ephemeral threads', async () => {
+  const calls: Array<{ method: string; params?: unknown }> = []
+  const connection = {
+    async request(method: string, params?: unknown) {
+      calls.push({ method, params })
+      if ((params as { includeTurns?: boolean } | undefined)?.includeTurns) {
+        throw new Error('codex-app-server app-server error: ephemeral threads do not support includeTurns')
+      }
+      return { thread: { id: 'thr_ephemeral', turns: [] } }
+    },
+  }
+
+  const response = await requestAppServerThreadRead(connection, 'thr_ephemeral', true, [0])
+
+  assert.deepEqual(response, { thread: { id: 'thr_ephemeral', turns: [] } })
+  assert.deepEqual(calls, [
+    { method: 'thread/read', params: { threadId: 'thr_ephemeral', includeTurns: true } },
+    { method: 'thread/read', params: { threadId: 'thr_ephemeral', includeTurns: false } },
+  ])
+})
+
+test('app-server history error detection is intentionally narrow', () => {
   assert.equal(isTransientAppServerThreadHistoryError(new Error('failed to load thread history: rollout at /tmp/a.jsonl is empty')), true)
+  assert.equal(isTransientAppServerThreadHistoryError(new Error('thread thr_1 is not materialized yet; includeTurns is unavailable before first user message')), true)
   assert.equal(isTransientAppServerThreadHistoryError(new Error('failed to load thread history: permission denied')), false)
   assert.equal(isTransientAppServerThreadHistoryError(new Error('rollout at /tmp/a.jsonl is empty')), false)
+  assert.equal(isAppServerIncludeTurnsFallbackError(new Error('ephemeral threads do not support includeTurns')), true)
+  assert.equal(isAppServerIncludeTurnsFallbackError(new Error('thread not loaded: thr_1')), false)
 })

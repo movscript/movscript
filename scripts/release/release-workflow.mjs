@@ -23,6 +23,7 @@ import {
 const repoRoot = resolve(import.meta.dirname, '../..')
 const releaseCommands = new Map([
   ['audit-ffmpeg', ['scripts/release/audit-ffmpeg.mjs']],
+  ['bump-version', ['scripts/release/bump-version.mjs']],
   ['collect', ['builtin:collect']],
   ['download-ffmpeg-static', ['scripts/release/download-ffmpeg-static.mjs']],
   ['package-desktop', ['builtin:package-desktop']],
