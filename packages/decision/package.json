@@ -1,6 +1,6 @@
 {
   "name": "@movscript/decision",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "private": true,
   "description": "MovScript decision layer for candidate selection and lock semantics.",
   "license": "MIT",

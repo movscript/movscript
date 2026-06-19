@@ -1,29 +1,26 @@
-# Movscript v0.1.1
+# Movscript v0.1.6
 
 ## Release Summary
 
-Movscript v0.1.1 is the first desktop release candidate focused on the macOS Apple Silicon app package. It packages the local-first Movscript desktop workspace with the backend service, admin console, provider plugin bundle, SDK runtime seed, and ffmpeg runtime resources.
+Movscript v0.1.6 is a release housekeeping update for the macOS Apple Silicon desktop package. It bumps the release manifests to 0.1.6 and restores the release notes that were missed in v0.1.5.
 
-This release is intended for early community testing of the desktop workflow: project planning, assets, scripts, generation jobs, provider configuration, assistant workflows, and rough-cut production flows.
+This release continues to target early community testing of the desktop workflow: project planning, assets, scripts, generation jobs, provider configuration, assistant workflows, and rough-cut production flows.
 
 ## Highlights
 
-- Publish a macOS Apple Silicon / arm64 desktop DMG.
-- Bundle the local backend service into the desktop app so Movscript can run as a local-first workspace.
-- Bundle admin assets, the Movscript provider plugin, movcli resources, SDK runtime seed packages, and ffmpeg resources into the desktop package.
-- Improve local backend startup diagnostics with a backend log path and recent backend output surfaced in the desktop boot screen.
-- Hide the internal local provider adapter from the admin provider picker.
-- Refresh the README and Chinese README around the current community edition scope, downloads, Docker setup, and early-release status.
-- Tighten release packaging checks for package resources, ffmpeg metadata, packaged app smoke testing, DMG checksum verification, and mounted app verification.
+- Bump the Movscript release manifests from 0.1.5 to 0.1.6.
+- Backfill the missing v0.1.5 changelog and release-note coverage.
+- Carry forward the v0.1.5 desktop runtime improvements:
+  - Allow `file://` origins in backend CORS handling for local desktop runtime flows.
+  - Handle MCP server requests with explicit request ids in the Electron SDK runtime client.
+- Continue publishing the macOS Apple Silicon / arm64 desktop DMG.
 
 ## Packaging And Verification
 
-- Release readiness check passed for `v0.1.1`.
-- Package resource contract verification passed.
-- macOS packaged app smoke test passed.
-- DMG checksum verification passed.
-- Mounted DMG app code signature verification passed.
-- Mounted DMG app icon verification passed.
+- Release readiness check is expected to validate tag `v0.1.6` against package version `0.1.6`.
+- Package resource contract verification runs as part of the release workflow.
+- The macOS packaged app smoke test runs as part of the release workflow.
+- DMG checksum verification and mounted app verification run as part of the release workflow.
 - SHA256 checksums are attached with the release artifacts.
 
 ## Known Issues
@@ -35,7 +32,7 @@ This release is intended for early community testing of the desktop workflow: pr
 
 ## Checks
 
-- Release readiness verified
-- Package resources verified
-- Desktop smoke test passed
-- SHA256 checksums attached
+- Release readiness verified by GitHub Actions
+- Package resources verified by GitHub Actions
+- Desktop smoke test verified by GitHub Actions
+- SHA256 checksums attached by GitHub Actions
