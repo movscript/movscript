@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process'
-import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
-import { basename, resolve } from 'node:path'
+import { createRequire } from 'node:module'
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { basename, dirname, join, resolve } from 'node:path'
 
 import {
   desktopFFmpegBinaryName,
@@ -91,9 +93,11 @@ export function runReleaseWorkflowCli(args = [], options = {}) {
         exit,
         defaults: options.defaults,
         node: options.node,
+        patchMacOSDMGBuilder: options.patchMacOSDMGBuilder,
         pnpm: options.pnpm,
         preparePackage: options.preparePackage,
         root: options.root,
+        verifyMacOSDMG: options.verifyMacOSDMG,
         verifyPackage: options.verifyPackage,
       })
       return
@@ -131,7 +135,7 @@ function normalizePnpmArgs(args) {
 
 export function frontendBuilderArgsForTarget(platform, arch, explicitArch = true) {
   if (platform === 'darwin') {
-    return explicitArch ? ['--mac', `--${arch}`, '--publish', 'never'] : ['--mac', '--publish', 'never']
+    return explicitArch ? ['--mac', 'dmg', `--${arch}`, '--publish', 'never'] : ['--mac', 'dmg', '--publish', 'never']
   }
   if (platform === 'linux') return ['--linux', `--${arch}`, '--publish', 'never']
   if (platform === 'win32') {
@@ -178,6 +182,7 @@ export function runDesktopPackageCli(args = [], options = {}) {
 
   const preparePackage = options.preparePackage ?? prepareDesktopPackage
   const verifyPackage = options.verifyPackage ?? verifyDesktopPackage
+  const root = options.root ?? repoRoot
   const target = {
     platform: parseDesktopPlatformArg(plan.targetArgs, options.defaults?.platform ?? process.platform, 'desktop package'),
     currentPlatform: options.defaults?.platform ?? process.platform,
@@ -186,8 +191,19 @@ export function runDesktopPackageCli(args = [], options = {}) {
     exit,
   }
   log('[package-desktop] Prepare desktop package prerequisites')
-  const prepared = preparePackage(options.root ?? repoRoot, target)
+  const prepared = preparePackage(root, target)
   if (prepared === false) return
+
+  if (target.platform === 'darwin') {
+    try {
+      const patchMacOSDMGBuilder = options.patchMacOSDMGBuilder ?? patchDmgBuilderAPFSAliasCompatibility
+      patchMacOSDMGBuilder(root, log)
+    } catch (error) {
+      logError(error instanceof Error ? error.message : String(error))
+      exit(1)
+      return
+    }
+  }
 
   const steps = [
     ['Build frontend desktop bundle', pnpm, ['--filter', '@movscript/desktop', 'build']],
@@ -196,7 +212,10 @@ export function runDesktopPackageCli(args = [], options = {}) {
 
   for (const [label, command, commandArgs] of steps) {
     log(`[package-desktop] ${label}`)
-    const result = spawn(command, commandArgs, { stdio: 'inherit' })
+    const result = spawn(command, commandArgs, {
+      stdio: 'inherit',
+      env: target.platform === 'darwin' && label === 'Build frontend desktop artifact' ? dmgBuilderEnv(process.env) : process.env,
+    })
     if (result.error) {
       logError(result.error.message)
       exit(1)
@@ -209,11 +228,22 @@ export function runDesktopPackageCli(args = [], options = {}) {
   }
 
   log('[package-desktop] Verify desktop package')
-  verifyPackage(options.root ?? repoRoot, {
+  const verified = verifyPackage(root, {
     ...target,
     log,
     logError,
   })
+  if (verified === false) return
+
+  if (target.platform === 'darwin') {
+    try {
+      const verifyMacOSDMG = options.verifyMacOSDMG ?? verifyMacOSDMGArtifacts
+      verifyMacOSDMG(root, { arch: target.arch, log, spawn })
+    } catch (error) {
+      logError(error instanceof Error ? error.message : String(error))
+      exit(1)
+    }
+  }
 }
 
 export function prepareDesktopPackage(root = repoRoot, options = {}) {
@@ -399,6 +429,148 @@ export function normalizeArtifactPrefix(value) {
 
 export function sha256(path) {
   return sha256File(path)
+}
+
+export function dmgBuilderEnv(env) {
+  const nextEnv = { ...env }
+  const explicit = env.PYTHON_PATH?.trim()
+  if (explicit) {
+    nextEnv.PYTHON_PATH = explicit
+  } else {
+    delete nextEnv.PYTHON_PATH
+  }
+  return nextEnv
+}
+
+export function patchDmgBuilderAPFSAliasCompatibility(root = repoRoot, log = console.log) {
+  const corePath = resolveDmgBuilderCorePath(root)
+  const source = readFileSync(corePath, 'utf8')
+  const original = [
+    '    elif background_file:',
+    '      alias = Alias.for_file(background_file)',
+    '      background_bmk = Bookmark.for_file(background_file)',
+    '',
+    "      icvp['backgroundType'] = 2",
+    "      icvp['backgroundImageAlias'] = biplist.Data(alias.to_bytes())",
+  ].join('\n')
+  const patched = [
+    '    elif background_file:',
+    '      background_bmk = Bookmark.for_file(background_file)',
+    '',
+    "      icvp['backgroundType'] = 2",
+    '      try:',
+    '        alias = Alias.for_file(background_file)',
+    "        icvp['backgroundImageAlias'] = biplist.Data(alias.to_bytes())",
+    '      except Exception:',
+    '        pass',
+  ].join('\n')
+  if (source.includes(patched)) return
+  if (!source.includes(original)) {
+    throw new Error(`Unable to patch dmg-builder APFS alias compatibility: unexpected core.py at ${corePath}`)
+  }
+  writeFileSync(corePath, source.replace(original, patched), 'utf8')
+  log(`[package-desktop] Patched dmg-builder APFS background alias compatibility: ${corePath}`)
+}
+
+export function verifyMacOSDMGArtifacts(root = repoRoot, options = {}) {
+  const {
+    env = process.env,
+    log = console.log,
+    spawn = spawnSync,
+  } = options
+  const releaseDir = resolve(root, 'apps/frontend/release')
+  const dmgPath = latestDMG(releaseDir)
+  runCheckedTool('Verify DMG checksum', 'hdiutil', ['verify', dmgPath], { cwd: root, log, spawn })
+  verifyMountedDMG(root, dmgPath, { env, log, spawn })
+}
+
+function resolveDmgBuilderCorePath(root) {
+  const frontendRequire = createRequire(resolve(root, 'apps/frontend/package.json'))
+  const electronBuilderPackagePath = frontendRequire.resolve('electron-builder/package.json')
+  const electronBuilderRequire = createRequire(electronBuilderPackagePath)
+  const dmgBuilderPackagePath = electronBuilderRequire.resolve('dmg-builder/package.json')
+  return resolve(dirname(dmgBuilderPackagePath), 'vendor/dmgbuild/core.py')
+}
+
+function latestDMG(directory) {
+  const dmgs = readdirSync(directory)
+    .filter((name) => name.endsWith('.dmg'))
+    .map((name) => resolve(directory, name))
+    .sort((left, right) => statSync(right).mtimeMs - statSync(left).mtimeMs)
+  if (dmgs.length === 0) throw new Error(`No DMG was created in ${directory}`)
+  return dmgs[0]
+}
+
+function verifyMountedDMG(root, dmgPath, options = {}) {
+  const {
+    env = process.env,
+    log = console.log,
+    spawn = spawnSync,
+  } = options
+  const iconPath = resolve(root, 'apps/frontend/build/icon.icns')
+  const mountPoint = mkdtempSync(join(tmpdir(), 'movscript-dmg.'))
+  let attached = false
+  try {
+    runCheckedTool('Attach DMG for mounted app verification', 'hdiutil', [
+      'attach',
+      '-nobrowse',
+      '-readonly',
+      '-mountpoint',
+      mountPoint,
+      dmgPath,
+    ], { cwd: root, log, spawn })
+    attached = true
+    const mountedApp = resolve(mountPoint, 'Movscript.app')
+    const signatureResult = runCheckedTool('Verify mounted app code signature', 'codesign', [
+      '--verify',
+      '--deep',
+      '--strict',
+      '--verbose=2',
+      mountedApp,
+    ], { allowFailure: true, cwd: root, log, spawn })
+    if (signatureResult.status !== 0 || signatureResult.signal || signatureResult.error) {
+      if (macOSSigningRequired(env)) {
+        throw new Error(`Verify mounted app code signature failed: status=${signatureResult.status ?? 'none'} signal=${signatureResult.signal ?? 'none'}`)
+      }
+      log('[package-desktop] Mounted app code signature verification skipped because release signing is not configured')
+    }
+    const mountedIcon = resolve(mountedApp, 'Contents/Resources/icon.icns')
+    const expectedIconHash = sha256File(iconPath)
+    const mountedIconHash = sha256File(mountedIcon)
+    if (expectedIconHash !== mountedIconHash) {
+      throw new Error(`Mounted app icon hash mismatch: expected ${expectedIconHash}, got ${mountedIconHash}`)
+    }
+    log(`[package-desktop] Mounted app icon OK: ${basename(mountedIcon)}`)
+  } finally {
+    if (attached) spawn('hdiutil', ['detach', mountPoint], { stdio: 'ignore' })
+    rmSync(mountPoint, { recursive: true, force: true })
+  }
+}
+
+function runCheckedTool(label, command, args, options = {}) {
+  const {
+    allowFailure = false,
+    cwd = repoRoot,
+    log = console.log,
+    spawn = spawnSync,
+  } = options
+  log(`[package-desktop] ${label}`)
+  const result = spawn(command, args, {
+    cwd,
+    stdio: 'inherit',
+    shell: isWindows,
+  })
+  if (result.error && !allowFailure) throw result.error
+  if (!allowFailure && (result.status !== 0 || result.signal)) {
+    throw new Error(`${label} failed: status=${result.status ?? 'none'} signal=${result.signal ?? 'none'}`)
+  }
+  return result
+}
+
+function macOSSigningRequired(env) {
+  return env.MOVSCRIPT_RELEASE_REQUIRE_SIGNING === '1' ||
+    Boolean(env.CSC_LINK?.trim()) ||
+    Boolean(env.CSC_NAME?.trim())
 }
 
 function runStep(label, command, commandArgs, { spawn, log, logError, exit }) {

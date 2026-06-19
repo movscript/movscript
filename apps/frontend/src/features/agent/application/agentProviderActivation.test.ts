@@ -71,13 +71,37 @@ test('agent profile activation selects by profile identity without reading provi
     setSettings: (value) => {
       savedSettings = value
     },
-    setActiveConversation: (userId, conversationId) => {
+    clearActiveConversations: (userId) => {
+      const conversationId = null
       activeConversations.push({ userId, conversationId })
     },
   })
 
   assert.equal(savedSettings?.defaultProviderId, 'codex')
   assert.deepEqual(activeConversations, [{ userId: 'user_2', conversationId: null }])
+})
+
+test('agent profile activation clears active conversations for the user', async () => {
+  const mova = sdkProvider('mova')
+  const claude = sdkProvider('claude')
+  const settings: ProviderSettings = {
+    providers: [mova, claude],
+    defaultProviderId: 'mova',
+    newConversationProviderId: 'mova',
+  }
+  const clearedUsers: string[] = []
+
+  await commitAgentProfileActivation({
+    settings,
+    profile: { id: 'claude', enabled: true },
+    userId: 'user_2',
+    setSettings: () => {},
+    clearActiveConversations: (userId) => {
+      clearedUsers.push(userId)
+    },
+  })
+
+  assert.deepEqual(clearedUsers, ['user_2'])
 })
 
 test('agent provider activation clears the current conversation and persists to Electron workspace config', async () => {
@@ -99,7 +123,8 @@ test('agent provider activation clears the current conversation and persists to 
     setSettings: (next) => {
       savedSettings = next
     },
-    setActiveConversation: (userId, conversationId) => {
+    clearActiveConversations: (userId) => {
+      const conversationId = null
       activeConversations.push({ userId, conversationId })
     },
     saveWorkspaceConfig: async (input) => {

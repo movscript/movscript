@@ -55,6 +55,8 @@ export type {
 } from './appServerRuntimeCommand'
 export type { AppServerRuntimeHandlerOptions } from './appServerRuntimeContext'
 
+const APP_SERVER_TRANSIENT_HISTORY_RETRY_DELAYS_MS = [80, 160, 320]
+
 export function createCodexAppServerRuntimeHandler(options: AppServerRuntimeHandlerOptions = {}) {
   return createAppServerRuntimeHandler('codex-app-server', options)
 }
@@ -134,7 +136,7 @@ async function handleAppServerRuntimeRequest<M extends AgentRuntimeRpcMethod>(
     }
     case 'thread/read': {
       const params = paramsFor(input, 'thread/read')
-      const response = await connection.request('thread/read', {
+      const response = await requestAppServerWithTransientHistoryRetry(connection, 'thread/read', {
         threadId: params.threadId,
         includeTurns: params.read?.includeTurns !== false,
       })
@@ -154,7 +156,11 @@ async function handleAppServerRuntimeRequest<M extends AgentRuntimeRpcMethod>(
     case 'thread/resume': {
       const params = paramsFor(input, 'thread/resume')
       await ensureAppServerBundledPluginInstalled(connection, context)
-      const response = await connection.request('thread/resume', appServerThreadResumeParams(params, context))
+      const response = await requestAppServerWithTransientHistoryRetry(
+        connection,
+        'thread/resume',
+        appServerThreadResumeParams(params, context),
+      )
       return requireAppServerThread(response, context)
     }
     case 'thread/rename': {
@@ -200,7 +206,7 @@ async function handleAppServerRuntimeRequest<M extends AgentRuntimeRpcMethod>(
     case 'turn/text/start': {
       const params = paramsFor(input, 'turn/text/start')
       await ensureAppServerBundledPluginInstalled(connection, context)
-      const response = await connection.request('turn/start', appServerTurnStartParams({
+      const response = await requestAppServerWithTransientHistoryRetry(connection, 'turn/start', appServerTurnStartParams({
         ...params,
         inputs: [{ type: 'text', text: params.text, textElements: [] }],
       }, context))
@@ -209,7 +215,7 @@ async function handleAppServerRuntimeRequest<M extends AgentRuntimeRpcMethod>(
     case 'turn/start': {
       const params = paramsFor(input, 'turn/start')
       await ensureAppServerBundledPluginInstalled(connection, context)
-      const response = await connection.request('turn/start', appServerTurnStartParams(params, context))
+      const response = await requestAppServerWithTransientHistoryRetry(connection, 'turn/start', appServerTurnStartParams(params, context))
       return requireAppServerTurn(response)
     }
     case 'turn/steer': {
@@ -226,6 +232,37 @@ async function handleAppServerRuntimeRequest<M extends AgentRuntimeRpcMethod>(
     default:
       throw new Error(`Unsupported app-server runtime method: ${input.method}`)
   }
+}
+
+export async function requestAppServerWithTransientHistoryRetry(
+  connection: Pick<AppServerConnection, 'request'>,
+  method: string,
+  params?: unknown,
+  retryDelaysMs: readonly number[] = APP_SERVER_TRANSIENT_HISTORY_RETRY_DELAYS_MS,
+): Promise<unknown> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await connection.request(method, params)
+    } catch (error) {
+      if (!isTransientAppServerThreadHistoryError(error) || attempt >= retryDelaysMs.length) throw error
+      await sleep(retryDelaysMs[attempt] ?? 0)
+    }
+  }
+}
+
+export function isTransientAppServerThreadHistoryError(error: unknown): boolean {
+  const message = errorMessage(error).toLowerCase()
+  return message.includes('failed to load thread history')
+    && message.includes('rollout')
+    && message.includes('is empty')
+}
+
+function sleep(delayMs: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, Math.max(0, delayMs)))
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 async function readThreadAfterMutation(

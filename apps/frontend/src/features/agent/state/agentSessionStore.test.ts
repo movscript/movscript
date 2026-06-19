@@ -358,6 +358,37 @@ test('setActiveConversation keeps project and agent focus scopes independent', (
   assert.equal(useAgentSessionStore.getState().getActiveConversationId('user_1'), null)
 })
 
+test('clearActiveConversations clears every active focus scope for a user without deleting conversations', () => {
+  useAgentSessionStore.setState({
+    activeConversationIdsByUser: { user_1: 'global_conv', user_2: 'other_global_conv' },
+    activeConversationIdsByScope: {},
+    conversationsById: {
+      global_conv: { id: 'global_conv', userId: 'user_1', providerThreadId: 'thread_global', open: true, archived: false, createdAt: 1, updatedAt: 1 },
+      agent_conv: { id: 'agent_conv', userId: 'user_1', providerThreadId: 'thread_agent', open: true, archived: false, createdAt: 1, updatedAt: 1 },
+      project_conv: { id: 'project_conv', userId: 'user_1', providerThreadId: 'thread_project', open: true, archived: false, createdAt: 1, updatedAt: 1 },
+      other_conv: { id: 'other_conv', userId: 'user_2', providerThreadId: 'thread_other', open: true, archived: false, createdAt: 1, updatedAt: 1 },
+    },
+    workspacesByUser: {},
+    conversationThreadBindings: {},
+    conversationRuntimeStates: {},
+    pageTasks: {},
+    standaloneTasks: {},
+  })
+  useAgentSessionStore.getState().setActiveConversation('user_1', 'agent_conv', AGENT_MODE_CONVERSATION_FOCUS_SCOPE)
+  useAgentSessionStore.getState().setActiveConversation('user_1', 'project_conv', projectConversationFocusScope(42))
+  useAgentSessionStore.getState().setActiveConversation('user_2', 'other_conv', AGENT_MODE_CONVERSATION_FOCUS_SCOPE)
+
+  useAgentSessionStore.getState().clearActiveConversations('user_1')
+
+  assert.equal(useAgentSessionStore.getState().getActiveConversationId('user_1'), null)
+  assert.equal(useAgentSessionStore.getState().getActiveConversationId('user_1', AGENT_MODE_CONVERSATION_FOCUS_SCOPE), null)
+  assert.equal(useAgentSessionStore.getState().getActiveConversationId('user_1', projectConversationFocusScope(42)), null)
+  assert.equal(useAgentSessionStore.getState().getActiveConversationId('user_2'), 'other_global_conv')
+  assert.equal(useAgentSessionStore.getState().getActiveConversationId('user_2', AGENT_MODE_CONVERSATION_FOCUS_SCOPE), 'other_conv')
+  assert.equal(useAgentSessionStore.getState().conversationsById.global_conv?.providerThreadId, 'thread_global')
+  assert.equal(useAgentSessionStore.getState().conversationsById.agent_conv?.providerThreadId, 'thread_agent')
+})
+
 test('agent session task actions preserve page task and standalone task lifecycles', () => {
   useAgentSessionStore.setState({
     activeConversationIdsByUser: {},

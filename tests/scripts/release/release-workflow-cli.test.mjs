@@ -162,20 +162,25 @@ test('runReleaseWorkflowCli dispatches release artifact collection as a builtin 
 
 test('runReleaseWorkflowCli dispatches desktop packaging through release command map', () => {
   const calls = []
+  const patchCalls = []
   const prepareCalls = []
   const verifyCalls = []
+  const verifyDMGCalls = []
   runReleaseWorkflowCli(['package-desktop', '--platform=darwin', '--arch=arm64'], {
     exit: () => undefined,
     log: () => undefined,
     defaults: { platform: 'darwin', arch: 'x64' },
+    patchMacOSDMGBuilder: (...args) => patchCalls.push(args),
     preparePackage: (...args) => prepareCalls.push(args),
     verifyPackage: (...args) => verifyCalls.push(args),
+    verifyMacOSDMG: (...args) => verifyDMGCalls.push(args),
     spawn: (command, args, options) => {
       calls.push([command, args, options])
       return { status: 0 }
     },
   })
 
+  assert.equal(patchCalls.length, 1)
   assert.equal(prepareCalls.length, 1)
   assert.deepEqual({ ...prepareCalls[0][1], exit: undefined }, {
     platform: 'darwin',
@@ -194,9 +199,15 @@ test('runReleaseWorkflowCli dispatches desktop packaging through release command
     log: undefined,
     logError: undefined,
   })
+  assert.equal(verifyDMGCalls.length, 1)
+  assert.deepEqual({ ...verifyDMGCalls[0][1], log: undefined, spawn: undefined }, {
+    arch: 'arm64',
+    log: undefined,
+    spawn: undefined,
+  })
   assert.deepEqual(calls.map((call) => call.slice(0, 2)), [
     ['pnpm', ['--filter', '@movscript/desktop', 'build']],
-    ['pnpm', ['--filter', '@movscript/desktop', 'exec', 'electron-builder', '--mac', '--arm64', '--publish', 'never']],
+    ['pnpm', ['--filter', '@movscript/desktop', 'exec', 'electron-builder', '--mac', 'dmg', '--arm64', '--publish', 'never']],
   ])
 })
 

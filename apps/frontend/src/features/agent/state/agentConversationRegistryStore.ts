@@ -25,6 +25,7 @@ export interface AgentConversationRegistryActions {
   setConversationOpen: AgentSessionStore['setConversationOpen']
   removeProviderSessionConversation: AgentSessionStore['removeProviderSessionConversation']
   setActiveConversation: AgentSessionStore['setActiveConversation']
+  clearActiveConversations: AgentSessionStore['clearActiveConversations']
   setConversationDeckOrders: AgentSessionStore['setConversationDeckOrders']
   getActiveConversationId: AgentSessionStore['getActiveConversationId']
   updateConversationTitle: AgentSessionStore['updateConversationTitle']
@@ -88,6 +89,7 @@ export function agentConversationRegistryActions(): AgentConversationRegistryAct
     setConversationOpen: state.setConversationOpen,
     removeProviderSessionConversation: state.removeProviderSessionConversation,
     setActiveConversation: state.setActiveConversation,
+    clearActiveConversations: state.clearActiveConversations,
     setConversationDeckOrders: state.setConversationDeckOrders,
     getActiveConversationId: state.getActiveConversationId,
     updateConversationTitle: state.updateConversationTitle,

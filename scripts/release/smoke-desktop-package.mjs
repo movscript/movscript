@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
 
@@ -73,6 +73,8 @@ export function smokeDesktopPackage(root = repoRoot, options = {}) {
 
   const providedUserDataDir = env.MOVSCRIPT_DESKTOP_SMOKE_USER_DATA_DIR?.trim()
   const userDataDir = providedUserDataDir || mkdtempSync(join(tmpdir(), 'movscript-electron-user-data.'))
+  const providedSmokeHome = env.MOVSCRIPT_HOME?.trim() || env.MOVSCRIPT_WORKSPACE_DIR?.trim()
+  const smokeHome = providedSmokeHome || mkdtempSync(join(tmpdir(), 'movscript-smoke-home.'))
   const markerFile = `${userDataDir}.marker`
   const smokeArgs = ['--movscript-desktop-smoke-test', `--user-data-dir=${userDataDir}`]
   const runner = desktopSmokeRunner(executable, platform, env, smokeArgs)
@@ -84,9 +86,11 @@ export function smokeDesktopPackage(root = repoRoot, options = {}) {
       env: {
         ...env,
         ELECTRON_ENABLE_LOGGING: env.ELECTRON_ENABLE_LOGGING ?? '1',
+        MOVSCRIPT_HOME: env.MOVSCRIPT_HOME?.trim() || smokeHome,
         MOVSCRIPT_DESKTOP_SMOKE_MARKER_FILE: markerFile,
         MOVSCRIPT_DESKTOP_SMOKE_TEST: '1',
         MOVSCRIPT_DESKTOP_SMOKE_USER_DATA_DIR: userDataDir,
+        MOVSCRIPT_WORKSPACE_DIR: env.MOVSCRIPT_WORKSPACE_DIR?.trim() || smokeHome,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
       timeout: timeoutMs,
@@ -111,7 +115,9 @@ export function smokeDesktopPackage(root = repoRoot, options = {}) {
       ].filter(Boolean).join('\n'))
     }
   } finally {
+    stopSmokeLocalBackend(smokeHome)
     if (!providedUserDataDir) rmSync(userDataDir, { recursive: true, force: true })
+    if (!providedSmokeHome) rmSync(smokeHome, { recursive: true, force: true })
     rmSync(markerFile, { force: true })
   }
 
@@ -176,6 +182,55 @@ function waitForSmokeMarker(markerFile, timeoutMs) {
     if (existsSync(markerFile)) return true
   }
   return false
+}
+
+function stopSmokeLocalBackend(smokeHome) {
+  const pid = readSmokeBackendPid(smokeHome)
+  if (!pid) return
+  terminatePid(pid, 'SIGTERM')
+  waitForPidExit(pid, 2_000)
+  terminatePid(pid, 'SIGKILL')
+  waitForPidExit(pid, 1_000)
+}
+
+function readSmokeBackendPid(smokeHome) {
+  try {
+    const raw = readFileSync(join(smokeHome, 'backend/local-data/movscript-backend.pid'), 'utf8').trim()
+    const pid = Number(raw)
+    return Number.isInteger(pid) && pid > 0 ? pid : 0
+  } catch {
+    return 0
+  }
+}
+
+function terminatePid(pid, signal) {
+  try {
+    process.kill(pid, signal)
+  } catch {
+    // The smoke process can exit on its own between the pid read and cleanup.
+  }
+}
+
+function waitForPidExit(pid, timeoutMs) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (!isPidRunning(pid)) return true
+    sleep(100)
+  }
+  return !isPidRunning(pid)
+}
+
+function isPidRunning(pid) {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function sleep(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
 }
 
 function executableScore(path, platform) {

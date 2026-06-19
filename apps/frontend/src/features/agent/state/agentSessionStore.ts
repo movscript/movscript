@@ -201,6 +201,22 @@ export const useAgentSessionStore = create<AgentSessionStore>()((set, get) => ({
         })
       },
 
+      clearActiveConversations: (userId) => {
+        const current = get()
+        const hasUserActiveConversation = current.activeConversationIdsByUser[userId] !== null
+          && current.activeConversationIdsByUser[userId] !== undefined
+        const hasScopedActiveConversation = Object.entries(current.activeConversationIdsByScope ?? {})
+          .some(([key, value]) => value !== null && key.endsWith(`\u0000${userId}`))
+        if (!hasUserActiveConversation && !hasScopedActiveConversation) return
+        set((state) => clearActiveConversationsStorePatch(state, userId))
+        publishAgentSessionRegistryEvent(get, {
+          kind: 'active-conversation-changed',
+          userId,
+          conversationId: null,
+          activeConversationId: null,
+        })
+      },
+
       setConversationDeckOrders: (orders) => {
         set((state) => ({
           conversationsById: setAgentConversationRegistryDeckOrders(state.conversationsById, orders),
@@ -722,6 +738,23 @@ function activeConversationStorePatch(
       ...(state.activeConversationIdsByUser ?? {}),
       [userId]: conversationId,
     },
+  }
+}
+
+function clearActiveConversationsStorePatch(
+  state: AgentSessionStore,
+  userId: string,
+): Partial<AgentSessionStore> {
+  const activeConversationIdsByScope = { ...(state.activeConversationIdsByScope ?? {}) }
+  for (const key of Object.keys(activeConversationIdsByScope)) {
+    if (key.endsWith(`\u0000${userId}`)) activeConversationIdsByScope[key] = null
+  }
+  return {
+    activeConversationIdsByUser: {
+      ...(state.activeConversationIdsByUser ?? {}),
+      [userId]: null,
+    },
+    activeConversationIdsByScope,
   }
 }
 

@@ -72,6 +72,8 @@ test('smokeDesktopPackage runs same-host package executable and requires the smo
     assert.match(calls[0].options.env.MOVSCRIPT_DESKTOP_SMOKE_MARKER_FILE, /movscript-electron-user-data.*\.marker$/)
     assert.equal(calls[0].options.env.MOVSCRIPT_DESKTOP_SMOKE_TEST, '1')
     assert.match(calls[0].options.env.MOVSCRIPT_DESKTOP_SMOKE_USER_DATA_DIR, /movscript-electron-user-data/)
+    assert.match(calls[0].options.env.MOVSCRIPT_HOME, /movscript-smoke-home/)
+    assert.match(calls[0].options.env.MOVSCRIPT_WORKSPACE_DIR, /movscript-smoke-home/)
   } finally {
     await rm(root, { recursive: true, force: true })
   }

@@ -56,7 +56,7 @@ export async function commitAgentProviderActivation(input: {
   provider: ProviderConfig
   userId?: string
   setSettings: (settings: ProviderSettings) => void
-  setActiveConversation: (userId: string, conversationId: string | null) => void
+  clearActiveConversations: (userId: string) => void
   saveWorkspaceConfig?: (input: MovScriptWorkspaceConfigSaveInput) => Promise<unknown>
 }): Promise<void> {
   if (!input.provider.enabled) return
@@ -71,12 +71,12 @@ export async function commitAgentProfileActivation(input: {
   profile: Pick<AgentProfile, 'id' | 'enabled'>
   userId?: string
   setSettings: (settings: ProviderSettings) => void
-  setActiveConversation: (userId: string, conversationId: string | null) => void
+  clearActiveConversations: (userId: string) => void
   saveWorkspaceConfig?: (input: MovScriptWorkspaceConfigSaveInput) => Promise<unknown>
 }): Promise<void> {
   if (!input.profile.enabled) return
   const settings = agentProfileActivationSettings(input.settings, input.profile)
   input.setSettings(settings)
-  if (input.userId) input.setActiveConversation(input.userId, null)
+  if (input.userId) input.clearActiveConversations(input.userId)
   await input.saveWorkspaceConfig?.({ agentSelection: agentProviderSelectionConfigFromSettings(settings) })
 }

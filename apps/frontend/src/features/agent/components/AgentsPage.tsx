@@ -85,7 +85,7 @@ export default function AgentsPage() {
   const setSettings = useProviderConfigStore((state) => state.setSettings)
   const updateAgentSettings = useAgentStore((state) => state.updateSettings)
   const currentUser = useUserStore((state) => state.currentUser)
-  const setActiveConversation = agentConversationRegistryActions().setActiveConversation
+  const clearActiveConversations = agentConversationRegistryActions().clearActiveConversations
   const hydratedAgentSelectionUpdatedAtRef = useRef<string | null>(null)
   const [claudeRuntimeDownload, setClaudeRuntimeDownload] = useState<ClaudeRuntimeDownloadState | null>(null)
   const settings = useMemo(() => normalizeProviderSettingsWithRuntimeEnv(savedSettings), [savedSettings])
@@ -161,7 +161,7 @@ export default function AgentsPage() {
       profile,
       ...(currentUser?.ID ? { userId: String(currentUser.ID) } : {}),
       setSettings,
-      setActiveConversation,
+      clearActiveConversations,
       saveWorkspaceConfig: async (input) => {
         await saveAgentProviderWorkspaceConfig(input)
         await workspaceConfigQuery.refetch()
@@ -275,7 +275,7 @@ export default function AgentsPage() {
           </AgentConsoleAgentList>
 
           <AgentConsoleCallout compact tone="neutral">
-            同一时间只会有一个 Agent 生效。当前选择：{selectedProfile?.label ?? settings.defaultProviderId}。可用 Agent：{enabledCount}。
+            同一时间只会有一个 Agent 生效。当前选择：{selectedProfile?.label ?? settings.defaultProviderId}。已启用 Agent：{enabledCount}。
           </AgentConsoleCallout>
 
           {workspaceConfigQuery.error ? <AgentConsoleInlineError>{errorMessage(workspaceConfigQuery.error)}</AgentConsoleInlineError> : null}
