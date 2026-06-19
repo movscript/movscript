@@ -4,6 +4,7 @@ import type {
 import type {
   AgentPageTaskPayload, AgentPageTaskRun, AgentPageTaskRunningPatch, AgentPageTaskState, AgentPageTaskThread, } from '@/features/agent/state/agentSessionTaskModel'
 import type { ConversationWorkspace } from '@/features/agent/state/agentStore'
+import type { AgentConversationFocusScope } from '@/features/agent/state/agentConversationFocusScope'
 import type { AgentRun, AgentThread } from '@movscript/core/agent/protocol'
 import type {
   AgentConversationRegistryInput,
@@ -14,6 +15,7 @@ import type { AgentChatProviderKind } from '@movscript/core/agent/chat'
 
 export interface AgentSessionStore {
   activeConversationIdsByUser: Record<string, string | null>
+  activeConversationIdsByScope: Record<string, string | null>
   conversationsById: Record<string, AgentConversationRegistryRecord>
   workspacesByUser: Record<string, Record<string, ConversationWorkspace>>
   pageTasks: Record<string, AgentPageTaskState>
@@ -23,12 +25,12 @@ export interface AgentSessionStore {
 
   enqueuePageTask: (payload: AgentPageTaskPayload) => AgentPageTaskPayload & { requestId: string; taskType: string }
   upsertConversation: (input: AgentConversationRegistryInput) => string
-  setConversationOpen: (userId: string, conversationId: string, open: boolean) => void
+  setConversationOpen: (userId: string, conversationId: string, open: boolean, focusScope?: AgentConversationFocusScope) => void
   createProviderSessionConversation: (userId: string, input: AgentProviderSessionConversationInput) => string
   removeProviderSessionConversation: (userId: string, conversationId: string) => void
-  setActiveConversation: (userId: string, conversationId: string | null) => void
+  setActiveConversation: (userId: string, conversationId: string | null, focusScope?: AgentConversationFocusScope) => void
   setConversationDeckOrders: (orders: Array<{ conversationId: string; deckOrder: number }>) => void
-  getActiveConversationId: (userId: string) => string | null
+  getActiveConversationId: (userId: string, focusScope?: AgentConversationFocusScope) => string | null
   updateConversationTitle: (userId: string, conversationId: string, title: string) => void
   getConversationWorkspace: (userId: string, conversationId: string) => ConversationWorkspace
   updateConversationWorkspace: (userId: string, conversationId: string, patch: Partial<ConversationWorkspace>) => void
@@ -63,13 +65,15 @@ export interface AgentProviderSessionConversationInput {
   providerProtocol?: string
   providerThreadCwd?: string
   workspaceContext?: AgentSessionWorkspaceContext
+  focusScope?: AgentConversationFocusScope
 }
 
-export type PersistedAgentSessionStore = Pick<AgentSessionStore, 'activeConversationIdsByUser' | 'conversationsById' | 'workspacesByUser'>
+export type PersistedAgentSessionStore = Pick<AgentSessionStore, 'activeConversationIdsByUser' | 'activeConversationIdsByScope' | 'conversationsById' | 'workspacesByUser'>
 
 export function persistedAgentSessionState(state: AgentSessionStore): PersistedAgentSessionStore {
   return {
     activeConversationIdsByUser: state.activeConversationIdsByUser,
+    activeConversationIdsByScope: state.activeConversationIdsByScope,
     conversationsById: state.conversationsById,
     workspacesByUser: state.workspacesByUser,
   }

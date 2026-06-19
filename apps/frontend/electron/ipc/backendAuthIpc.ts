@@ -4,6 +4,12 @@ import {
   writeMovScriptBackendAuth,
   writeMovScriptBackendConfig,
 } from '@movscript/core/backend/node'
+import {
+  ensureMovScriptWorkspaceRoot,
+  resolveMovScriptWorkspaceRootPaths,
+  writeMovScriptWorkspaceRootManifest,
+  type MovScriptWorkspaceRealm,
+} from '@movscript/core/workspace/node'
 
 import type { ElectronBackendAuthSessionInput } from '../../src/shared/contracts/electronApi'
 import { resolveDesktopDefaultMovScriptWorkspaceDir } from '../services/movscriptWorkspaceDefaults'
@@ -12,6 +18,8 @@ import {
   suspendNonHomeWindowsForAuthExpired,
 } from '../services/appWindowRegistry'
 import { projectEngineRegistry } from '../services/projectEngineRegistry'
+import { readDesktopAppSettings } from '../services/appSettings'
+import { cloudRealmId } from '../services/workspaceRealm'
 
 export function registerBackendAuthIpcHandlers(): void {
   ipcMain.handle('backend-auth:set-session', (_event, session?: ElectronBackendAuthSessionInput | null) => {
@@ -23,8 +31,10 @@ export function registerBackendAuthIpcHandlers(): void {
       return
     }
 
+    const realm = activeRealmForBackendSession(workspaceDir, session.baseURL)
     writeMovScriptBackendAuth(workspaceDir, {
       token,
+      realm,
       ...(session.expiresAt ? { expiresAt: session.expiresAt } : {}),
       ...(session.user ? { user: normalizeBackendAuthUser(session.user) } : {}),
       ...(session.gitCredential ? { gitCredential: normalizeGitCredential(session.gitCredential) } : {}),
@@ -34,7 +44,12 @@ export function registerBackendAuthIpcHandlers(): void {
       const userId = idField(session.user?.id) ?? idField(session.user?.ID)
       writeMovScriptBackendConfig(workspaceDir, {
         baseURL: session.baseURL,
+        realm,
         ...(userId !== undefined ? { activeUserId: userId } : {}),
+      })
+      writeActiveWorkspaceManifestState(workspaceDir, {
+        realm,
+        ...(userId !== undefined && typeof userId === 'number' ? { activeUserId: userId } : {}),
       })
     }
     projectEngineRegistry.clear()
@@ -46,6 +61,25 @@ export function registerBackendAuthIpcHandlers(): void {
     clearMovScriptBackendAuth(workspaceDir)
     projectEngineRegistry.clear()
     return suspendNonHomeWindowsForAuthExpired()
+  })
+}
+
+function activeRealmForBackendSession(workspaceDir: string, baseURL: string | undefined): MovScriptWorkspaceRealm {
+  const settings = readDesktopAppSettings(workspaceDir)
+  if (settings?.launchMode === 'local') return { kind: 'local', id: 'local' }
+  return { kind: 'cloud', id: cloudRealmId(baseURL) }
+}
+
+function writeActiveWorkspaceManifestState(
+  workspaceDir: string,
+  input: { realm: MovScriptWorkspaceRealm; activeUserId?: number },
+): void {
+  const root = resolveMovScriptWorkspaceRootPaths(workspaceDir)
+  const current = ensureMovScriptWorkspaceRoot(root)
+  writeMovScriptWorkspaceRootManifest(root.manifestPath, {
+    ...current,
+    activeRealm: input.realm,
+    ...(input.activeUserId !== undefined ? { activeUserId: input.activeUserId } : {}),
   })
 }
 

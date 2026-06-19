@@ -45,9 +45,11 @@ import type {
 } from '../../src/shared/contracts/electronApi'
 import { resolveMovScriptHomeDir } from './movscriptHomeInput'
 import { writeMovScriptWorkspaceFile } from './movscriptWorkspaceFiles'
+import { resolveDesktopWorkspaceContextPaths } from './workspaceRealm'
 
 type NormalizedProjectEngineInput = {
   workspaceDir: string
+  realm: { kind: 'local' | 'cloud'; id: string }
   userId?: number | string
   orgId?: number | string
   projectId?: number | string
@@ -65,6 +67,7 @@ class ProjectEngineRegistry {
     const key = projectEngineKey(context)
     const session = resolveMovScriptBackendSession({
       workspaceDir: context.workspaceDir,
+      realm: context.realm,
       ...(context.userId !== undefined ? { userId: context.userId } : {}),
     })
     engineContextByCacheKey.set(key, context)
@@ -415,17 +418,29 @@ async function workspaceMutation<T>(
 export function normalizeProjectEngineInput(
   input?: ElectronMovScriptEngineProjectInput,
 ): NormalizedProjectEngineInput {
-  return {
+  const paths = resolveDesktopWorkspaceContextPaths({
     workspaceDir: resolveMovScriptHomeDir(input),
-    ...(input?.userId !== undefined ? { userId: input.userId } : {}),
-    ...(input?.orgId !== undefined ? { orgId: input.orgId } : {}),
-    ...(input?.projectId !== undefined ? { projectId: input.projectId } : {}),
+    workspaceContext: {
+      scope: input?.projectId !== undefined ? 'project' : 'global',
+      ...(input?.userId !== undefined ? { userId: input.userId } : {}),
+      ...(input?.orgId !== undefined ? { orgId: input.orgId } : {}),
+      ...(input?.projectId !== undefined ? { projectId: input.projectId } : {}),
+    },
+  })
+  return {
+    workspaceDir: paths.workspaceDir,
+    realm: paths.context.realm,
+    ...(paths.context.userId !== undefined ? { userId: paths.context.userId } : {}),
+    ...(paths.context.orgId !== undefined ? { orgId: paths.context.orgId } : {}),
+    ...(paths.context.projectId !== undefined ? { projectId: paths.context.projectId } : {}),
   }
 }
 
 function projectEngineKey(input: NormalizedProjectEngineInput): string {
   return [
     input.workspaceDir,
+    input.realm.kind,
+    input.realm.id,
     input.userId ?? '',
     input.orgId ?? '',
     input.projectId ?? '',

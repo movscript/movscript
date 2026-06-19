@@ -30,6 +30,7 @@ import type {
   ProviderKind,
   ProviderProtocol,
 } from '@/shared/infrastructure/providerConfigStore'
+import type { AgentConversationFocusScope } from '@/features/agent/state/agentConversationFocusScope'
 
 interface UseAgentChatConversationRegistryInput {
   dispatchRuntime: Dispatch<AgentChatRuntimeAction>
@@ -37,6 +38,7 @@ interface UseAgentChatConversationRegistryInput {
   providerId?: string
   providerInstanceId?: string
   providerProtocol?: ProviderProtocol
+  focusScope?: AgentConversationFocusScope
   readCurrentActiveThreadId: () => string | null
   setActiveThreadIdValue: (threadId: string | null) => void
   threadScopeKey: string
@@ -49,6 +51,7 @@ export function useAgentChatConversationRegistry({
   providerId,
   providerInstanceId,
   providerProtocol,
+  focusScope,
   readCurrentActiveThreadId,
   setActiveThreadIdValue,
   threadScopeKey,
@@ -74,7 +77,6 @@ export function useAgentChatConversationRegistry({
   }), [conversations, providerIdentity, userId])
 
   const conversationPatchInputForThread = useCallback((threadId: string, open: boolean) => buildAgentChatConversationPatchInput({
-    nowMs: Date.now(),
     open,
     provider,
     providerId,
@@ -121,19 +123,19 @@ export function useAgentChatConversationRegistry({
   const markThreadOpen = useCallback((threadId: string) => {
     const store = agentConversationRegistryActions()
     const conversationId = store.upsertConversation(conversationPatchInputForThread(threadId, true))
-    store.setConversationOpen(userId, conversationId, true)
-    store.setActiveConversation(userId, conversationId)
-  }, [conversationPatchInputForThread, userId])
+    store.setConversationOpen(userId, conversationId, true, focusScope)
+    store.setActiveConversation(userId, conversationId, focusScope)
+  }, [conversationPatchInputForThread, focusScope, userId])
 
   const markThreadClosed = useCallback((threadId: string, clearActive: boolean) => {
     const activeThreadClosed = readCurrentActiveThreadId() === threadId
     const store = agentConversationRegistryActions()
     const conversationId = store.upsertConversation(conversationPatchInputForThread(threadId, false))
-    store.setConversationOpen(userId, conversationId, false)
+    store.setConversationOpen(userId, conversationId, false, focusScope)
     if (clearActive || activeThreadClosed) {
-      store.setActiveConversation(userId, null)
+      store.setActiveConversation(userId, null, focusScope)
     }
-  }, [conversationPatchInputForThread, readCurrentActiveThreadId, userId])
+  }, [conversationPatchInputForThread, focusScope, readCurrentActiveThreadId, userId])
 
   const reorderOpenThreads = useCallback((draggedThreadId: string, targetThreadId: string, position: 'before' | 'after') => {
     const store = agentConversationRegistryActions()

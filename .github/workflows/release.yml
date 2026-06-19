@@ -42,41 +42,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: macos
+          - name: macos-arm64
             os: macos-latest
             package-platform: darwin
             package-arch: arm64
             artifact: movscript-desktop-macos-arm64
             ffmpeg-platform: darwin
             ffmpeg-arch: arm64
-          - name: macos-x64
-            os: macos-latest
-            package-platform: darwin
-            package-arch: x64
-            artifact: movscript-desktop-macos-x64
-            ffmpeg-platform: darwin
-            ffmpeg-arch: x64
-          - name: linux-x64
-            os: ubuntu-latest
-            package-platform: linux
-            package-arch: x64
-            artifact: movscript-desktop-linux-x64
-            ffmpeg-platform: linux
-            ffmpeg-arch: x64
-          - name: linux-arm64
-            os: ubuntu-latest
-            package-platform: linux
-            package-arch: arm64
-            artifact: movscript-desktop-linux-arm64
-            ffmpeg-platform: linux
-            ffmpeg-arch: arm64
-          - name: windows-x64
-            os: windows-latest
-            package-platform: win32
-            package-arch: x64
-            artifact: movscript-desktop-windows-x64
-            ffmpeg-platform: win32
-            ffmpeg-arch: x64
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout

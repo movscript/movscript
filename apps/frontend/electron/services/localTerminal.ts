@@ -3,14 +3,9 @@ import { chmodSync, existsSync, statSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { userInfo } from 'node:os'
 import { dirname, join } from 'node:path'
-import {
-  ensureMovScriptWorkspaceContext,
-  resolveMovScriptWorkspaceContextPaths,
-  type MovScriptWorkspaceContextInput,
-  type MovScriptWorkspaceContextPaths,
-} from '@movscript/core/workspace/node'
+import type { MovScriptWorkspaceContextPaths } from '@movscript/core/workspace/node'
 import { localTerminalEnv } from './localTerminalEnv'
-import { resolveDesktopDefaultMovScriptWorkspaceDir } from './movscriptWorkspaceDefaults'
+import { resolveDesktopWorkspaceContextPaths } from './workspaceRealm'
 import type {
   ElectronLocalTerminalCreateInput,
   ElectronLocalTerminalCreateResult,
@@ -194,19 +189,7 @@ function ensureNodePtySpawnHelperExecutable(): void {
 }
 
 function resolveLocalTerminalWorkspace(context: ElectronMovScriptWorkspaceContext | undefined): MovScriptWorkspaceContextPaths {
-  const scope = context?.scope === 'project' || context?.scope === 'production'
-    ? 'project'
-    : 'global'
-  const normalizedContext: MovScriptWorkspaceContextInput = {
-    scope,
-    ...(context?.userId !== undefined ? { userId: String(context.userId) } : {}),
-    ...(context?.orgId !== undefined ? { orgId: String(context.orgId) } : {}),
-    ...(context?.projectId !== undefined ? { projectId: String(context.projectId) } : {}),
-  }
-  return ensureMovScriptWorkspaceContext(resolveMovScriptWorkspaceContextPaths({
-    workspaceDir: resolveDesktopDefaultMovScriptWorkspaceDir(),
-    ...normalizedContext,
-  }))
+  return resolveDesktopWorkspaceContextPaths({ workspaceContext: context })
 }
 
 function localTerminalShell(): { command: string; args: string[] } {

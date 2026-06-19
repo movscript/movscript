@@ -18,16 +18,28 @@ export function AppShellTerminalToggle({ open, onToggle }: { open: boolean; onTo
   )
 }
 
-export function AppShellHomeControl() {
+export function AppShellHomeControl({
+  onClick,
+  title = '回到首页',
+  ariaLabel = title,
+}: {
+  onClick?: () => void | Promise<void>
+  title?: string
+  ariaLabel?: string
+} = {}) {
   return (
     <AppWindowIconButton
       type="button"
       className="app-window-sidebar-toggle app-window-home-button"
       onClick={() => {
+        if (onClick) {
+          void onClick()
+          return
+        }
         void openHomeWindow()
       }}
-      title="回到首页"
-      aria-label="回到首页"
+      title={title}
+      aria-label={ariaLabel}
     >
       <Home size={13} />
     </AppWindowIconButton>

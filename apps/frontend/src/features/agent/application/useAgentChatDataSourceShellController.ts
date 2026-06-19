@@ -1,4 +1,4 @@
-import type { ClipboardEvent, DragEvent } from 'react'
+import { useEffect, type ClipboardEvent, type DragEvent } from 'react'
 import type { AgentChatDataSourceShellProps } from '@/features/agent/application/agentChatDataSourceShellTypes'
 import type { AgentRunProfilePresetId } from '@/features/agent/domain/agentRunProfilePreset'
 import {
@@ -35,6 +35,8 @@ export function useAgentChatDataSourceShellController({
   providerInstanceId,
   providerProtocol,
   threadScopeKey,
+  conversationFocusScope,
+  registryActiveThreadId,
   readActiveThreadId,
   openThreadEventName,
   providerLabel,
@@ -130,6 +132,7 @@ export function useAgentChatDataSourceShellController({
     providerId,
     providerInstanceId,
     providerProtocol,
+    conversationFocusScope,
     readActiveThreadId,
     resolveModelForRequest,
     selectedModelId,
@@ -209,6 +212,7 @@ export function useAgentChatDataSourceShellController({
     providerInstanceId,
     providerProtocol,
     readCurrentActiveThreadId,
+    focusScope: conversationFocusScope,
     setActiveThreadIdValue,
     threadScopeKey,
     userId,
@@ -243,9 +247,21 @@ export function useAgentChatDataSourceShellController({
     setDraftConversationId,
     setError,
     setHistoryOpen,
+    focusScope: conversationFocusScope,
     threadScopeKey,
     userId,
   })
+
+  useEffect(() => {
+    if (!dataSource) return
+    if (registryActiveThreadId === activeThreadId) return
+    if (registryActiveThreadId) {
+      void openThread(registryActiveThreadId)
+      return
+    }
+    setActiveThreadIdValue(null)
+    setError(null)
+  }, [activeThreadId, dataSource, openThread, registryActiveThreadId, setActiveThreadIdValue, setError])
 
   const {
     startThreadResult,

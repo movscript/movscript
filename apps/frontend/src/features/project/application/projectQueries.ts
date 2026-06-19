@@ -11,7 +11,7 @@ export const projectKeys = {
 export const projectOverviewKeys = {
   detail: (projectId: number | undefined) => ['project-page', projectId] as const,
   workspaceRoot: ['project-page-workspace-root'] as const,
-  plugins: (workspaceDir: string | undefined, projectId: string | number | undefined) => ['project-page-plugins', workspaceDir, projectId] as const,
+  plugins: (workspaceDir: string | undefined, projectId: string | number | undefined, ownerId?: string | number) => ['project-page-plugins', workspaceDir, projectId, ownerId ?? 'none'] as const,
   observedSkills: (projectCwd: string | undefined, enabledSkillCount: number | undefined) => ['project-page-observed-skills', projectCwd, enabledSkillCount] as const,
   pluginMarketplace: ['project-page-plugin-marketplace'] as const,
 }

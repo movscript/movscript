@@ -124,10 +124,13 @@ export function registerAgentRuntimeSubscription(subscription: AgentRuntimeSubsc
 export function publishAgentRuntimeNotification(event: ElectronAgentRuntimeNotificationEvent): void {
   const matchingSubscriptions = Array.from(agentRuntimeSubscriptions.values())
     .filter((subscription) => subscriptionMatchesEvent(subscription, event))
+  let delivered = 0
   for (const subscription of matchingSubscriptions) {
     if (!shouldDeliverNotificationToSubscription(subscription, matchingSubscriptions, event)) continue
+    delivered += 1
     subscription.sendNotification(event)
   }
+  logAgentRuntimeNotificationDelivery(event, matchingSubscriptions.length, delivered)
 }
 
 export function publishAgentRuntimeServerRequest(event: ElectronAgentRuntimeServerRequestEvent): number {
@@ -189,6 +192,27 @@ export async function respondToAgentRuntimeServerRequest(input: ElectronAgentRun
 
 function agentRuntimeServerRequestKey(runtimeId: string, requestId: string): string {
   return `${runtimeId}:${requestId}`
+}
+
+function logAgentRuntimeNotificationDelivery(
+  event: ElectronAgentRuntimeNotificationEvent,
+  matchingSubscriptions: number,
+  deliveredSubscriptions: number,
+): void {
+  const params = isRecord(event.notification.params) ? event.notification.params : {}
+  const delta = typeof params.delta === 'string' ? params.delta : undefined
+  console.log('[Movscript Agent runtime flow] host.notificationDelivery', JSON.stringify({
+    method: event.notification.method,
+    providerId: event.providerId,
+    providerKind: event.providerKind,
+    runtimeId: event.runtimeId,
+    threadId: event.threadId,
+    itemId: typeof params.itemId === 'string' ? params.itemId : undefined,
+    turnId: typeof params.turnId === 'string' ? params.turnId : undefined,
+    deltaLength: delta?.length,
+    matchingSubscriptions,
+    deliveredSubscriptions,
+  }))
 }
 
 function requireAgentRuntimeRequestInput<M extends AgentRuntimeRpcMethod>(
@@ -268,4 +292,8 @@ function agentRuntimeSubscriptionsShareNotificationTarget(
 ): boolean {
   if (left.targetId || right.targetId) return left.targetId === right.targetId
   return left.subscriptionId === right.subscriptionId
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

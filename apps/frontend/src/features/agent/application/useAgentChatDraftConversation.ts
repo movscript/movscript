@@ -9,6 +9,7 @@ import {
 } from '@/features/agent/presentation/agentChatDataSourceShellModel'
 import { agentConversationRegistryActions } from '@/features/agent/state/agentConversationRegistryStore'
 import { updateAgentConversationWorkspace } from '@/features/agent/state/agentConversationDraftStore'
+import type { AgentConversationFocusScope } from '@/features/agent/state/agentConversationFocusScope'
 
 interface UseAgentChatDraftConversationInput {
   composerInputRef: MutableRefObject<HTMLDivElement | null>
@@ -16,6 +17,7 @@ interface UseAgentChatDraftConversationInput {
   setDraftConversationId: Dispatch<SetStateAction<string>>
   setError: Dispatch<SetStateAction<string | null>>
   setHistoryOpen: Dispatch<SetStateAction<boolean>>
+  focusScope?: AgentConversationFocusScope
   threadScopeKey: string
   userId: string
 }
@@ -26,6 +28,7 @@ export function useAgentChatDraftConversation({
   setDraftConversationId,
   setError,
   setHistoryOpen,
+  focusScope,
   threadScopeKey,
   userId,
 }: UseAgentChatDraftConversationInput) {
@@ -34,7 +37,7 @@ export function useAgentChatDraftConversation({
     const draftId = createAgentChatDraftConversationId(threadScopeKey)
     setDraftConversationId(draftId)
     setActiveThreadIdValue(null)
-    agentConversationRegistryActions().setActiveConversation(userId, draftId)
+    agentConversationRegistryActions().setActiveConversation(userId, draftId, focusScope)
     setHistoryOpen(false)
     setError(null)
     updateAgentConversationWorkspace(userId, draftId, {
@@ -44,5 +47,5 @@ export function useAgentChatDraftConversation({
     })
     clearAgentChatComposerEditor(composerInputRef.current)
     return draftId
-  }, [composerInputRef, setActiveThreadIdValue, setDraftConversationId, setError, setHistoryOpen, threadScopeKey, userId])
+  }, [composerInputRef, focusScope, setActiveThreadIdValue, setDraftConversationId, setError, setHistoryOpen, threadScopeKey, userId])
 }

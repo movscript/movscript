@@ -71,10 +71,13 @@ async function spawnBackend(onStatus?: BackendStatusListener): Promise<BackendSt
     console.info(`[backend] exited code=${code ?? 'null'} signal=${signal ?? 'null'}`)
     if (proc === child) proc = null
     clearBackendPid()
+    const recentOutput = diagnostics.recentOutput().trim()
     setBackendStatus({
       state: code === 0 || signal ? 'stopped' : 'error',
       baseURL: LOCAL_BACKEND_URL,
       message: code === 0 || signal ? undefined : `Local backend exited with code ${code ?? 'null'}`,
+      logPath: diagnostics.logPath,
+      recentOutput: recentOutput || undefined,
     }, onStatus)
   })
 
@@ -84,7 +87,15 @@ async function spawnBackend(onStatus?: BackendStatusListener): Promise<BackendSt
     return setBackendStatus(status, onStatus)
   } catch (error) {
     const message = formatBackendStartupFailure({ error, diagnostics, exitInfo })
-    const status: BackendStatus = { state: 'error', baseURL: LOCAL_BACKEND_URL, pid: child.pid, message }
+    const recentOutput = diagnostics.recentOutput().trim()
+    const status: BackendStatus = {
+      state: 'error',
+      baseURL: LOCAL_BACKEND_URL,
+      pid: child.pid,
+      message,
+      logPath: diagnostics.logPath,
+      recentOutput: recentOutput || undefined,
+    }
     return setBackendStatus(status, onStatus)
   }
 }

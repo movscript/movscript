@@ -20,6 +20,8 @@ test('user session store normalizes auth payloads and clears sensitive session s
     gitCredential: null,
     orgMemberships: [],
     currentOrgID: null,
+    activeRealmKey: 'local',
+    sessionsByRealm: {},
     hydrated: true,
   })
 
@@ -38,10 +40,27 @@ test('user session store normalizes auth payloads and clears sensitive session s
   assert.equal(useUserStore.getState().currentUser?.system_role, 'super_admin')
   assert.equal(useUserStore.getState().token, 'session-token')
   assert.equal(useUserStore.getState().currentOrgID, 2)
+  assert.equal(useUserStore.getState().sessionsByRealm.local?.currentUser?.ID, 7)
+
+  useUserStore.getState().setActiveRealm('cloud:demo')
+  assert.equal(useUserStore.getState().currentUser, null)
+  assert.equal(useUserStore.getState().token, null)
+
+  useUserStore.getState().setSession({
+    user: { id: '8', username: 'cloud-user', systemRole: 'user' },
+    token: 'cloud-token',
+  })
+  assert.equal(useUserStore.getState().currentUser?.ID, 8)
+
+  useUserStore.getState().setActiveRealm('local')
+  assert.equal(useUserStore.getState().currentUser?.ID, 7)
+  assert.equal(useUserStore.getState().token, 'session-token')
 
   useUserStore.getState().setSession(null)
   assert.equal(useUserStore.getState().currentUser, null)
   assert.equal(useUserStore.getState().token, null)
   assert.equal(useUserStore.getState().gitCredential, null)
   assert.deepEqual(useUserStore.getState().orgMemberships, [])
+  assert.equal(useUserStore.getState().sessionsByRealm.local, undefined)
+  assert.equal(useUserStore.getState().sessionsByRealm['cloud:demo']?.currentUser?.ID, 8)
 })

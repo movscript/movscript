@@ -1,9 +1,20 @@
 import type { AgentChatThread } from './chat/index.js'
 
 export type AgentSessionWorkspaceScope = 'global' | 'project' | 'production' | (string & {})
+export type AgentSessionWorkspaceRealmKind = 'local' | 'cloud'
+
+export interface AgentSessionWorkspaceRealm {
+  kind: AgentSessionWorkspaceRealmKind
+  id: string
+}
 
 export interface AgentSessionWorkspaceContext {
+  realm?: AgentSessionWorkspaceRealm
+  realmKind?: AgentSessionWorkspaceRealmKind
+  realmId?: string | number
   scope?: AgentSessionWorkspaceScope
+  userId?: string | number
+  orgId?: string | number
   projectId?: string | number
   productionId?: string | number
 }
@@ -87,7 +98,7 @@ export function upsertAgentConversationRegistryRecord(
   )
   const now = Date.now()
   const createdAt = normalizedTimestamp(input.createdAt, existing?.createdAt ?? now)
-  const updatedAt = normalizedTimestamp(input.updatedAt, now)
+  const updatedAt = normalizedTimestamp(input.updatedAt, existing?.updatedAt ?? now)
   const next = { ...records }
   if (legacyId !== id && existing === legacyRecord) delete next[legacyId]
   return {
@@ -146,13 +157,14 @@ export function setAgentConversationRegistryOpen(
 ): Record<string, AgentConversationRegistryRecord> {
   const current = records[conversationId]
   if (!current) return records
+  const archived = open ? false : current.archived
+  if (current.open === open && current.archived === archived) return records
   return {
     ...records,
     [conversationId]: {
       ...current,
       open,
-      archived: open ? false : current.archived,
-      updatedAt: Date.now(),
+      archived,
     },
   }
 }

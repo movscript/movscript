@@ -14,6 +14,7 @@ import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 test('agent conversation registry facade exposes registry state without draft/task/runtime buckets', () => {
   useAgentSessionStore.setState({
     activeConversationIdsByUser: { user_1: 'conv_1' },
+    activeConversationIdsByScope: {},
     conversationsById: {
       conv_1: {
         id: 'conv_1',
@@ -65,6 +66,7 @@ test('agent conversation registry facade exposes registry state without draft/ta
   const snapshot = readAgentConversationRegistrySnapshot()
 
   assert.deepEqual(Object.keys(snapshot).sort(), [
+    'activeConversationIdsByScope',
     'activeConversationIdsByUser',
     'conversationThreadBindings',
     'conversationsById',

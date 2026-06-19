@@ -48,6 +48,9 @@ type AuthConfig = {
   bootstrap_required?: boolean
 }
 
+const LOCAL_DEFAULT_ADMIN_USERNAME = 'admin'
+const LOCAL_DEFAULT_ADMIN_PASSWORD = 'admin12345'
+
 declare global {
   interface Window {
     turnstile?: {
@@ -80,14 +83,25 @@ export default function AuthPage() {
   const config = authConfig.data
   const localMode = isLocalLaunchMode(settings)
   const bootstrapRequired = !!config?.bootstrap_required
-  const registrationEnabled = !!config?.registration_enabled || localMode || bootstrapRequired
-  const requiresEmail = tab === 'register' && !localMode && !bootstrapRequired && !!config?.require_email_verification
+  const localBootstrapMode = localMode && bootstrapRequired
+  const registrationEnabled = !!config?.registration_enabled || bootstrapRequired
+  const requiresEmail = tab === 'register' && !bootstrapRequired && !!config?.require_email_verification
   const turnstileEnabled = !localMode && !bootstrapRequired && !!config?.turnstile?.enabled && !!config?.turnstile?.site_key
   const turnstileReady = !turnstileEnabled || !!turnstileToken
   const clearTurnstileChallenge = useCallback(() => {
     setTurnstileToken('')
     setTurnstileResetSignal((current) => current + 1)
   }, [])
+
+  useEffect(() => {
+    if (!localMode) return
+    setUsername((current) => current || LOCAL_DEFAULT_ADMIN_USERNAME)
+    setPassword((current) => current || LOCAL_DEFAULT_ADMIN_PASSWORD)
+    if (bootstrapRequired) {
+      setTab('register')
+      setConfirm((current) => current || LOCAL_DEFAULT_ADMIN_PASSWORD)
+    }
+  }, [bootstrapRequired, localMode])
 
   const login = useMutation({
     mutationFn: () => api.post('/auth/login', { username, password, turnstile: turnstileToken }).then((r) => r.data as AuthSession),
@@ -97,17 +111,21 @@ export default function AuthPage() {
   })
 
   const register = useMutation({
-    mutationFn: () => api.post('/auth/register', {
-      username,
-      password,
-      challengeId,
-      code,
-      localAdmin: localMode || bootstrapRequired,
-      turnstile: turnstileToken,
-    }).then((r) => r.data as AuthSession),
+    mutationFn: () => (
+      localBootstrapMode
+        ? api.post('/auth/local-bootstrap', { displayName: username, password })
+        : api.post('/auth/register', {
+          username,
+          password,
+          challengeId,
+          code,
+          localAdmin: bootstrapRequired,
+          turnstile: turnstileToken,
+        })
+    ).then((r) => r.data as AuthSession),
     onSuccess: finishAuth,
     onSettled: () => { if (turnstileEnabled) clearTurnstileChallenge() },
-    onError: (e: any) => setError(translateApiError(e.response?.data, 'auth.registerFailed'))
+    onError: (e: any) => setError(translateApiError(e.response?.data, localBootstrapMode ? 'auth.localBootstrapFailed' : 'auth.registerFailed'))
   })
   const startCode = useMutation({
     mutationFn: () => api.post('/auth/code/start', { target: email, purpose: 'register', turnstile: turnstileToken }).then((r) => r.data as { challengeId: string; expiresIn: number; devCode?: string }),
@@ -158,7 +176,12 @@ export default function AuthPage() {
         <AuthTagline>{t('auth.tagline')}</AuthTagline>
         {bootstrapRequired && (
           <AuthStateMessage>
-            {t('auth.bootstrapRequiredHint')}
+            {t(localBootstrapMode ? 'auth.localBootstrapRequiredHint' : 'auth.bootstrapRequiredHint')}
+          </AuthStateMessage>
+        )}
+        {localMode && !bootstrapRequired && (
+          <AuthStateMessage>
+            {t('auth.localDefaultCredentialsHint')}
           </AuthStateMessage>
         )}
 
@@ -169,7 +192,7 @@ export default function AuthPage() {
               active={tab === tabName}
               onClick={() => { setTab(tabName); setError('') }}
             >
-              {tabName === 'login' ? t('auth.login') : t('auth.register')}
+              {tabName === 'login' ? t('auth.login') : t(localBootstrapMode ? 'auth.initializeLocalAdmin' : 'auth.register')}
             </AuthTabButton>
           ))}
         </AuthTabs>
@@ -235,7 +258,7 @@ export default function AuthPage() {
             onClick={handleSubmit}
             disabled={loading || !username.trim() || !password || !turnstileReady}
           >
-            {loading ? t('auth.pleaseWait') : tab === 'login' ? t('auth.login') : t('auth.register')}
+            {loading ? t('auth.pleaseWait') : tab === 'login' ? t('auth.login') : t(localBootstrapMode ? 'auth.initializeLocalAdmin' : 'auth.register')}
           </AuthSubmitButton>
         </AuthFormStack>
 
@@ -250,7 +273,9 @@ export default function AuthPage() {
 
         {tab === 'login' && (
           <AuthRegisterPrompt>
-            {registrationEnabled ? (
+            {localMode ? (
+              t('auth.localAdminLoginHint')
+            ) : registrationEnabled ? (
               <>
                 {t('auth.noAccount')}
                 <AuthInlineLinkButton onClick={() => setTab('register')}>

@@ -6,6 +6,12 @@ import { tmpdir } from 'node:os'
 import test from 'node:test'
 
 import {
+  readMovScriptBackendAuth,
+  resolveMovScriptBackendPaths,
+  writeMovScriptBackendAuth,
+  writeMovScriptBackendConfig,
+} from '../dist/backend/node/index.js'
+import {
   defaultMovScriptHomeConfig,
   ensureMovScriptWorkspaceContext,
   ensureMovScriptWorkspaceRoot,
@@ -29,16 +35,60 @@ test('core workspace resolves project cwd by user, org, and project ids', () => 
 
   assert.equal(
     resolveMovScriptProjectCwd({ workspaceDir, userId: 7, projectId: 'demo' }),
-    '/tmp/movscript-root/user/7/projects/project_demo',
+    '/tmp/movscript-root/realms/local/user/7/projects/project_demo',
   )
   assert.equal(
     resolveMovScriptProjectWorkspacePaths({ workspaceDir, orgId: 'team_a', projectId: 42 }).projectDir,
-    '/tmp/movscript-root/org/team_a/projects/project_42',
+    '/tmp/movscript-root/realms/local/org/team_a/projects/project_42',
   )
-  assert.equal(
-    resolveMovScriptProjectCwd({ workspaceDir }),
-    '/tmp/movscript-root/local/projects/project',
+  assert.throws(
+    () => resolveMovScriptProjectCwd({ workspaceDir }),
+    /requires userId or orgId/,
   )
+})
+
+test('core workspace isolates local and cloud realms for the same user and project ids', async () => {
+  const workspaceDir = await mkdtemp(join(tmpdir(), 'movscript-core-realm-'))
+  try {
+    const localProject = resolveMovScriptProjectCwd({
+      workspaceDir,
+      userId: 1,
+      projectId: 42,
+    })
+    const cloudProject = resolveMovScriptProjectCwd({
+      workspaceDir,
+      realm: { kind: 'cloud', id: 'cloud_a' },
+      userId: 1,
+      projectId: 42,
+    })
+
+    assert.equal(localProject, join(workspaceDir, 'realms', 'local', 'user', '1', 'projects', 'project_42'))
+    assert.equal(cloudProject, join(workspaceDir, 'realms', 'cloud', 'cloud_a', 'user', '1', 'projects', 'project_42'))
+    assert.notEqual(localProject, cloudProject)
+
+    writeMovScriptBackendConfig(workspaceDir, {
+      baseURL: 'https://cloud.example',
+      realm: { kind: 'cloud', id: 'cloud_a' },
+      activeUserId: 1,
+    })
+    writeMovScriptBackendAuth(workspaceDir, {
+      realm: { kind: 'local', id: 'local' },
+      token: 'local-token',
+      user: { id: 1, username: 'admin' },
+    })
+    writeMovScriptBackendAuth(workspaceDir, {
+      realm: { kind: 'cloud', id: 'cloud_a' },
+      token: 'cloud-token',
+      user: { id: 1, username: 'admin' },
+    })
+
+    assert.equal(resolveMovScriptBackendPaths(workspaceDir, { kind: 'local', id: 'local' }).authPath, join(workspaceDir, 'backend', 'realms', 'local', 'auth.json'))
+    assert.equal(resolveMovScriptBackendPaths(workspaceDir, { kind: 'cloud', id: 'cloud_a' }).authPath, join(workspaceDir, 'backend', 'realms', 'cloud', 'cloud_a', 'auth.json'))
+    assert.equal(readMovScriptBackendAuth(workspaceDir, { kind: 'local', id: 'local' })?.token, 'local-token')
+    assert.equal(readMovScriptBackendAuth(workspaceDir, { kind: 'cloud', id: 'cloud_a' })?.token, 'cloud-token')
+  } finally {
+    await rm(workspaceDir, { recursive: true, force: true })
+  }
 })
 
 test('core workspace context forwards project cwd as provider session cwd', () => {
@@ -49,9 +99,9 @@ test('core workspace context forwards project cwd as provider session cwd', () =
   })
 
   assert.equal(paths.scope, 'project')
-  assert.equal(paths.projectCwd, '/tmp/movscript-root/user/alice/projects/project_trailer')
+  assert.equal(paths.projectCwd, '/tmp/movscript-root/realms/local/user/alice/projects/project_trailer')
   assert.equal(paths.providerSessionCwd, paths.projectCwd)
-  assert.equal(paths.contextKey, 'project/trailer')
+  assert.equal(paths.contextKey, 'local/local/user/alice/project/trailer')
 })
 
 test('core workspace root and context only create app workspace directories', async () => {

@@ -59,8 +59,13 @@ function electronSdkRuntimeSubscribe(
 ): SdkRuntimeClient['subscribe'] | undefined {
   if (!electronApi.sdkRuntimeNotify || !electronApi.onSdkRuntimeNotification) return undefined
   return (subscription) => {
+    const subscriptionKind = subscription.threadId ? 'thread' : 'global'
     const disposeNotification = electronApi.onSdkRuntimeNotification?.((event) => {
       if (!sdkRuntimeEventMatchesSubscription(event, input, subscription)) return
+      console.log('[Movscript Agent runtime flow] renderer.notification', stableLogJSON(sdkRuntimeNotificationLogPayload(event, {
+        subscriptionKind,
+        handlesNotification: Boolean(subscription.onNotification),
+      })))
       subscription.onNotification?.(event.notification)
     })
     const disposeServerRequest = electronApi.onSdkRuntimeServerRequest?.((event) => {
@@ -96,6 +101,29 @@ function electronSdkRuntimeSubscribe(
     }
     subscription.signal?.addEventListener('abort', cleanup, { once: true })
     return cleanup
+  }
+}
+
+function sdkRuntimeNotificationLogPayload(
+  event: { runtimeId: string; providerId?: string; providerKind?: string; threadId?: string; notification?: { method?: string; params?: unknown } },
+  subscription: {
+    subscriptionKind: 'global' | 'thread'
+    handlesNotification: boolean
+  },
+): Record<string, unknown> {
+  const params = isRecord(event.notification?.params) ? event.notification.params : {}
+  const delta = typeof params.delta === 'string' ? params.delta : undefined
+  return {
+    subscriptionKind: subscription.subscriptionKind,
+    handlesNotification: subscription.handlesNotification,
+    method: event.notification?.method,
+    providerId: event.providerId,
+    providerKind: event.providerKind,
+    runtimeId: event.runtimeId,
+    threadId: event.threadId,
+    itemId: typeof params.itemId === 'string' ? params.itemId : undefined,
+    turnId: typeof params.turnId === 'string' ? params.turnId : undefined,
+    deltaLength: delta?.length,
   }
 }
 
@@ -169,6 +197,10 @@ function errorMessage(error: unknown): string {
 
 function stableLogJSON(value: unknown): string {
   return JSON.stringify(value)
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function sdkRuntimeEventMatchesSubscription(

@@ -165,7 +165,23 @@ export function ShellLayout({ children, requireOrg = true }: { children: React.R
   const terminalHeaderControl = (
     <AppShellTerminalToggle open={terminalOpen} onToggle={terminalOpen ? terminalPane.hide : terminalPane.show} />
   )
+  const navigateProjectHome = React.useCallback(() => {
+    navigate(ROUTES.project.home, { replace: true })
+  }, [navigate])
   const homeHeaderControl = <AppShellHomeControl />
+  const projectHomeHeaderControl = (
+    <AppShellHomeControl
+      onClick={navigateProjectHome}
+      title="回到项目 Home"
+      ariaLabel="回到项目 Home"
+    />
+  )
+  const useProjectHomeHeaderControl = !!currentProject && (
+    projectChrome
+    || agentChrome
+    || (settingsActive && (settingsExitPath ?? '').startsWith(ROUTES.project.root))
+  )
+  const navigationHomeControl = useProjectHomeHeaderControl ? projectHomeHeaderControl : homeHeaderControl
   const settingsExitControl = (
     <AppShellSettingsExitControl
       active={settingsActive}
@@ -246,17 +262,17 @@ export function ShellLayout({ children, requireOrg = true }: { children: React.R
       {agentSettingsActive ? null : <AppShellHistoryNavigationControls navClassName="agent-sidebar-window-controls__nav" />}
     </div>
   )
-  const agentNavigationControls = <>{homeHeaderControl}{settingsExitControl}</>
+  const agentNavigationControls = <>{navigationHomeControl}{settingsExitControl}</>
   const toolLeftHeader = toolChrome && !toolSidebarHidden ? (
     <Header
       showAppControls={false}
       showFallbackBrand={false}
-      navigationControls={<>{homeHeaderControl}{settingsExitControl}</>}
+      navigationControls={<>{navigationHomeControl}{settingsExitControl}</>}
       layoutControls={accountSettingsActiveTab ? settingsSidebarLayoutControls : toolSidebarLayoutControls}
       leftControlsLayout="fill"
     />
   ) : undefined
-  const toolCenterNavigationControls = toolChrome && toolSidebarHidden ? <>{homeHeaderControl}{settingsExitControl}</> : undefined
+  const toolCenterNavigationControls = toolChrome && toolSidebarHidden ? <>{navigationHomeControl}{settingsExitControl}</> : undefined
   const toolCenterLayoutControls = toolChrome && toolSidebarHidden
     ? accountSettingsActiveTab ? settingsSidebarLayoutControls : toolSidebarLayoutControls
     : undefined
@@ -276,7 +292,7 @@ export function ShellLayout({ children, requireOrg = true }: { children: React.R
     <Header
       showAppControls={false}
       showFallbackBrand={false}
-      navigationControls={<>{homeHeaderControl}{settingsExitControl}</>}
+      navigationControls={<>{navigationHomeControl}{settingsExitControl}</>}
       layoutControls={settingsSidebarLayoutControls}
       leftControlsLayout="fill"
     />
@@ -287,7 +303,7 @@ export function ShellLayout({ children, requireOrg = true }: { children: React.R
       showAppControls
       showFallbackBrand={false}
       showSettingsAction={false}
-      navigationControls={settingsSidebarHidden ? <>{homeHeaderControl}{settingsExitControl}</> : undefined}
+      navigationControls={settingsSidebarHidden ? <>{navigationHomeControl}{settingsExitControl}</> : undefined}
       layoutControls={settingsSidebarHidden ? settingsSidebarLayoutControls : undefined}
       contextActions={terminalHeaderControl}
       centerContent={accountSettingsActiveTab ? accountSettingsRouteHeaderTitle(accountSettingsActiveTab) : undefined}
@@ -306,7 +322,7 @@ export function ShellLayout({ children, requireOrg = true }: { children: React.R
       showWindowControls
       showAppControls
       showFallbackBrand={false}
-      navigationControls={<>{homeHeaderControl}{projectHistoryNavigationControls}</>}
+      navigationControls={<>{navigationHomeControl}{projectHistoryNavigationControls}</>}
       primaryActions={<ProjectGitHeaderActions compact />}
       contextActions={projectAgentPanelClosed ? <>{projectAgentPanelHeaderControl}{terminalHeaderControl}</> : undefined}
       globalActions={projectAgentPanelClosed ? undefined : <></>}

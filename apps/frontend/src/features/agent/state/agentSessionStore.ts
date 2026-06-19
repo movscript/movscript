@@ -36,6 +36,10 @@ import {
   updateAgentStandaloneTask,
 } from '@/features/agent/state/agentSessionTaskState'
 import {
+  agentConversationFocusStorageKey,
+  type AgentConversationFocusScope,
+} from '@/features/agent/state/agentConversationFocusScope'
+import {
   persistedAgentSessionState,
   type AgentSessionStore,
   type PersistedAgentSessionStore,
@@ -87,6 +91,7 @@ const AGENT_SESSION_LEGACY_STORAGE_KEY = 'agent-session-store-v2'
 
 export const useAgentSessionStore = create<AgentSessionStore>()((set, get) => ({
       activeConversationIdsByUser: {},
+      activeConversationIdsByScope: {},
       conversationsById: {},
       workspacesByUser: {},
       ...initialAgentSessionVolatileState(),
@@ -138,9 +143,9 @@ export const useAgentSessionStore = create<AgentSessionStore>()((set, get) => ({
         return conversationId
       },
 
-      setConversationOpen: (userId, conversationId, open) => {
+      setConversationOpen: (userId, conversationId, open, focusScope) => {
         const current = get().conversationsById[conversationId]
-        set((state) => setAgentSessionConversationOpenState(state, { conversationId, open, userId }))
+        set((state) => setAgentSessionConversationOpenState(state, { conversationId, open, userId, focusScope }))
         if (current) {
           publishAgentSessionRegistryEvent(get, {
             kind: 'conversation-open-changed',
@@ -183,20 +188,16 @@ export const useAgentSessionStore = create<AgentSessionStore>()((set, get) => ({
         }
       },
 
-      setActiveConversation: (userId, conversationId) => {
-        const current = activeConversationIdForUser(get(), userId)
+      setActiveConversation: (userId, conversationId, focusScope) => {
+        const current = activeConversationIdForUser(get(), userId, focusScope)
         if (current === conversationId) return
-        set((state) => ({
-          activeConversationIdsByUser: {
-            ...(state.activeConversationIdsByUser ?? {}),
-            [userId]: conversationId,
-          },
-        }))
+        set((state) => activeConversationStorePatch(state, userId, conversationId, focusScope))
         publishAgentSessionRegistryEvent(get, {
           kind: 'active-conversation-changed',
           userId,
           conversationId,
           activeConversationId: conversationId,
+          ...(focusScope !== undefined ? { focusScope } : {}),
         })
       },
 
@@ -212,7 +213,7 @@ export const useAgentSessionStore = create<AgentSessionStore>()((set, get) => ({
         }
       },
 
-      getActiveConversationId: (userId) => activeConversationIdForUser(get(), userId),
+      getActiveConversationId: (userId, focusScope) => activeConversationIdForUser(get(), userId, focusScope),
 
       updateConversationTitle: (_userId, conversationId, title) => {
         const trimmed = title.trim()
@@ -225,7 +226,6 @@ export const useAgentSessionStore = create<AgentSessionStore>()((set, get) => ({
               [conversationId]: {
                 ...state.conversationsById[conversationId],
                 title: trimmed,
-                updatedAt: Date.now(),
               },
             }
             : state.conversationsById,
@@ -447,7 +447,6 @@ export const useAgentSessionStore = create<AgentSessionStore>()((set, get) => ({
               [conversationId]: {
                 ...conversation,
                 providerSessionId: normalizedProviderSessionTreeId,
-                updatedAt: Date.now(),
               },
             },
           }
@@ -630,6 +629,7 @@ function normalizePersistedAgentSessionState(value: unknown): PersistedAgentSess
   if (!isRecord(value)) return null
   return {
     activeConversationIdsByUser: normalizeStringNullableRecord(value.activeConversationIdsByUser),
+    activeConversationIdsByScope: normalizeStringNullableRecord(value.activeConversationIdsByScope),
     conversationsById: normalizeRecordMap(value.conversationsById) as unknown as PersistedAgentSessionStore['conversationsById'],
     workspacesByUser: normalizeNestedRecordMap(value.workspacesByUser) as unknown as PersistedAgentSessionStore['workspacesByUser'],
   }
@@ -640,6 +640,10 @@ function mergePersistedAgentSessionState(current: AgentSessionStore, persisted: 
     activeConversationIdsByUser: {
       ...persisted.activeConversationIdsByUser,
       ...current.activeConversationIdsByUser,
+    },
+    activeConversationIdsByScope: {
+      ...(persisted.activeConversationIdsByScope ?? {}),
+      ...(current.activeConversationIdsByScope ?? {}),
     },
     conversationsById: {
       ...persisted.conversationsById,
@@ -671,6 +675,10 @@ function applyRemoteAgentSessionRegistryEvent(
       ...current.activeConversationIdsByUser,
       ...event.snapshot.activeConversationIdsByUser,
     },
+    activeConversationIdsByScope: {
+      ...(current.activeConversationIdsByScope ?? {}),
+      ...(event.snapshot.activeConversationIdsByScope ?? {}),
+    },
     conversationsById,
     workspacesByUser,
   }
@@ -689,9 +697,32 @@ function publishAgentSessionRegistryEvent(
 function hasPersistedAgentSessionState(state: PersistedAgentSessionStore | ElectronAgentSessionState | null | undefined): boolean {
   return Boolean(state && (
     Object.keys(state.activeConversationIdsByUser).length > 0
+    || Object.keys(state.activeConversationIdsByScope ?? {}).length > 0
     || Object.keys(state.conversationsById).length > 0
     || Object.keys(state.workspacesByUser).length > 0
   ))
+}
+
+function activeConversationStorePatch(
+  state: AgentSessionStore,
+  userId: string,
+  conversationId: string | null,
+  focusScope?: AgentConversationFocusScope,
+): Partial<AgentSessionStore> {
+  if (focusScope !== undefined) {
+    return {
+      activeConversationIdsByScope: {
+        ...(state.activeConversationIdsByScope ?? {}),
+        [agentConversationFocusStorageKey(userId, focusScope)]: conversationId,
+      },
+    }
+  }
+  return {
+    activeConversationIdsByUser: {
+      ...(state.activeConversationIdsByUser ?? {}),
+      [userId]: conversationId,
+    },
+  }
 }
 
 function mergeNestedRecordMap<T>(base: Record<string, Record<string, T>>, overlay: Record<string, Record<string, T>>): Record<string, Record<string, T>> {

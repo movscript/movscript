@@ -27,7 +27,7 @@ test('provider session index is stored under the provider profile sessions direc
       now: new Date('2026-06-05T01:02:03.000Z'),
     })
 
-    const recordPath = join(workspaceDir, 'providers', 'codex', 'sessions', 'codex-movscript-home.json')
+    const recordPath = join(workspaceDir, 'realms', 'local', 'providers', 'codex', 'sessions', 'codex-movscript-home.json')
     assert.equal(existsSync(recordPath), true)
     const raw = JSON.parse(readFileSync(recordPath, 'utf8'))
     assert.equal(raw.schema, MOVSCRIPT_PROVIDER_SESSION_SCHEMA)
@@ -92,7 +92,7 @@ test('provider session index exposes project id from workspace context and cwd',
         scope: 'project',
         projectId: 42,
       },
-      providerSessionCwd: join(workspaceDir, 'user', '7', 'projects', 'project_42'),
+      providerSessionCwd: join(workspaceDir, 'realms', 'local', 'user', '7', 'projects', 'project_42'),
       status: 'running',
       now: new Date('2026-06-05T01:02:05.000Z'),
     })

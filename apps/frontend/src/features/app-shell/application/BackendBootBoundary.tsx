@@ -50,6 +50,10 @@ export function BackendBootBoundary() {
     baseURL: settings.apiBaseURL,
   }
   const isError = displayStatus.state === 'error'
+  const errorDescription = isError
+    ? firstLine(displayStatus.message) || i18n.t('backendBoot.errorDescription')
+    : i18n.t('backendBoot.startingDescription')
+  const errorDetails = isError ? backendBootErrorDetails(displayStatus) : null
   async function retryLocalBackend() {
     setRetrying(true)
     updateBackendStatus({ state: 'starting', baseURL: settings.apiBaseURL })
@@ -82,8 +86,9 @@ export function BackendBootBoundary() {
       tone={isError ? 'danger' : 'info'}
       icon={isError ? <AlertTriangle size={20} /> : <Loader2 size={20} className="animate-spin" />}
       title={isError ? i18n.t('backendBoot.errorTitle') : i18n.t('backendBoot.startingTitle')}
-      description={isError ? (displayStatus.message || i18n.t('backendBoot.errorDescription')) : i18n.t('backendBoot.startingDescription')}
+      description={errorDescription}
       baseURL={displayStatus.baseURL}
+      details={errorDetails}
       actions={isError ? (
         <>
           <AppBackendBootActionButton
@@ -103,4 +108,24 @@ export function BackendBootBoundary() {
       ) : null}
     />
   )
+}
+
+function firstLine(value: string | undefined): string {
+  return value?.split(/\r?\n/, 1)[0]?.trim() ?? ''
+}
+
+function backendBootErrorDetails(status: BackendBootStatus): string {
+  const details: string[] = []
+  if (status.logPath) details.push(`${i18n.t('backendBoot.logFile')}: ${status.logPath}`)
+  const messageRemainder = status.message
+    ?.split(/\r?\n/)
+    .slice(1)
+    .filter((line) => !/^Log file:/i.test(line.trim()))
+    .join('\n')
+    .trim()
+  if (messageRemainder) details.push(messageRemainder)
+  if (status.recentOutput?.trim() && !/Recent backend output:/i.test(messageRemainder ?? '')) {
+    details.push(`${i18n.t('backendBoot.recentOutput')}:\n${status.recentOutput.trim()}`)
+  }
+  return details.join('\n\n')
 }

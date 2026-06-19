@@ -77,6 +77,13 @@ function emptyMCPContextSnapshot() {
   }
 }
 
+function localAdminMCPContextSnapshot() {
+  return {
+    ...emptyMCPContextSnapshot(),
+    user: { id: 1, username: 'admin' },
+  }
+}
+
 async function callTool(name, args, id = name) {
   const response = await handleJSONRPC({
     jsonrpc: '2.0',
@@ -278,7 +285,7 @@ test('MCP project resources read project workspace data without backend entity e
   const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
   const originalFetch = globalThis.fetch
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-project-resources-'))
-  const projectDir = join(workspaceDir, 'user', '1', 'projects', 'project_14')
+  const projectDir = join(workspaceDir, 'realms', 'local', 'user', '1', 'projects', 'project_14')
   process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
   try {
     updateMCPContextSnapshot({
@@ -333,7 +340,7 @@ test('MCP project resources read project workspace data without backend entity e
     }
   } finally {
     globalThis.fetch = originalFetch
-    updateMCPContextSnapshot(emptyMCPContextSnapshot())
+    updateMCPContextSnapshot(localAdminMCPContextSnapshot())
     if (previousWorkspaceDir === undefined) delete process.env.MOVSCRIPT_WORKSPACE_DIR
     else process.env.MOVSCRIPT_WORKSPACE_DIR = previousWorkspaceDir
     await rm(workspaceDir, { recursive: true, force: true })
@@ -1470,10 +1477,10 @@ test('MCP shot group tools create, read, and append normalized shot ranges', asy
 test('MCP domain tool can create a storyboard source record', async () => {
   const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-storyboard-tool-'))
-  const projectDir = join(workspaceDir, 'local', 'projects', 'project_6')
+  const projectDir = join(workspaceDir, 'realms', 'local', 'user', '1', 'projects', 'project_6')
   process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
   try {
-    updateMCPContextSnapshot(emptyMCPContextSnapshot())
+    updateMCPContextSnapshot(localAdminMCPContextSnapshot())
     const response = await handleJSONRPC({
       jsonrpc: '2.0',
       id: 'storyboard-upsert',
@@ -1519,10 +1526,10 @@ test('MCP domain tool can create a storyboard source record', async () => {
 test('MCP domain tools can create shot and keyframe source records', async () => {
   const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-shot-tool-'))
-  const projectDir = join(workspaceDir, 'local', 'projects', 'project_7')
+  const projectDir = join(workspaceDir, 'realms', 'local', 'user', '1', 'projects', 'project_7')
   process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
   try {
-    updateMCPContextSnapshot(emptyMCPContextSnapshot())
+    updateMCPContextSnapshot(localAdminMCPContextSnapshot())
     const shotResponse = await handleJSONRPC({
       jsonrpc: '2.0',
       id: 'shot-upsert',
@@ -1600,7 +1607,7 @@ test('MCP content unit candidate flow writes source records and refreshes interp
   const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
   const originalFetch = globalThis.fetch
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-content-candidate-'))
-  const projectDir = join(workspaceDir, 'local', 'projects', 'project_8')
+  const projectDir = join(workspaceDir, 'realms', 'local', 'user', '1', 'projects', 'project_8')
   const decisionContexts = new Map()
   const selectionRequests = []
   process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
@@ -1663,7 +1670,7 @@ test('MCP content unit candidate flow writes source records and refreshes interp
     return notFound()
   }
   try {
-    updateMCPContextSnapshot(emptyMCPContextSnapshot())
+    updateMCPContextSnapshot(localAdminMCPContextSnapshot())
 
     const contentUnitResponse = await handleJSONRPC({
       jsonrpc: '2.0',
@@ -1888,7 +1895,7 @@ test('MCP production timeline tools read and edit selected scene_moment outputs'
     return notFound()
   }
   try {
-    updateMCPContextSnapshot(emptyMCPContextSnapshot())
+    updateMCPContextSnapshot(localAdminMCPContextSnapshot())
     await callTool('domain_upsert_production', {
       projectId: 10,
       productionId: 'pilot',
@@ -2035,7 +2042,7 @@ test('MCP backend prompt tool returns blockers from backend decision context', a
   const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
   const originalFetch = globalThis.fetch
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-backend-prompt-'))
-  const projectDir = join(workspaceDir, 'local', 'projects', 'project_9')
+  const projectDir = join(workspaceDir, 'realms', 'local', 'user', '1', 'projects', 'project_9')
   const requests = []
   process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
   globalThis.fetch = async (url, init) => {
@@ -2048,7 +2055,7 @@ test('MCP backend prompt tool returns blockers from backend decision context', a
     }
   }
   try {
-    updateMCPContextSnapshot(emptyMCPContextSnapshot())
+    updateMCPContextSnapshot(localAdminMCPContextSnapshot())
     await mkdir(join(projectDir, 'settings', 'hero', 'states', 'rain', 'assets', 'wet_hair'), { recursive: true })
     await writeFile(join(projectDir, 'settings', 'hero', 'states', 'rain', 'assets', 'wet_hair', 'asset.json'), JSON.stringify({
       schema: 'movscript.asset.v1',
@@ -2139,7 +2146,7 @@ test('MCP backend prompt tool returns blockers from backend decision context', a
 test('MCP domain tools expose get_model inspect and interpret over source/.interpret', async () => {
   const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-workspace-tools-'))
-  const projectDir = join(workspaceDir, 'user', '1', 'projects', 'project_6')
+  const projectDir = join(workspaceDir, 'realms', 'local', 'user', '1', 'projects', 'project_6')
   process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
   try {
     updateMCPContextSnapshot({
@@ -2261,6 +2268,7 @@ test('MCP upsert setting accepts legacy record body without payload error', asyn
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-upsert-setting-record-'))
   process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
   try {
+    updateMCPContextSnapshot(localAdminMCPContextSnapshot())
     const response = await handleJSONRPC({
       jsonrpc: '2.0',
       id: 'upsert-setting-record',
@@ -2282,7 +2290,10 @@ test('MCP upsert setting accepts legacy record body without payload error', asyn
     assert.equal(response?.result?.data?.path, 'settings/setting_legacy/setting.json')
     const written = JSON.parse(readFileSync(join(
       workspaceDir,
+      'realms',
       'local',
+      'user',
+      '1',
       'projects',
       'project_6',
       'settings',
@@ -2292,6 +2303,7 @@ test('MCP upsert setting accepts legacy record body without payload error', asyn
     assert.equal(written.title, 'Legacy Body')
     assert.equal(written.setting_kind, 'character')
   } finally {
+    updateMCPContextSnapshot(emptyMCPContextSnapshot())
     if (previousWorkspaceDir === undefined) delete process.env.MOVSCRIPT_WORKSPACE_DIR
     else process.env.MOVSCRIPT_WORKSPACE_DIR = previousWorkspaceDir
   }

@@ -11,6 +11,9 @@ export {
   MOVSCRIPT_WORKSPACE_MANIFEST_FILE_NAME,
   MOVSCRIPT_WORKSPACE_MANIFEST_SCHEMA,
   MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME,
+  MOVSCRIPT_WORKSPACE_REALMS_DIR_NAME,
+  type MovScriptWorkspaceRealm,
+  type MovScriptWorkspaceRealmInput,
   type MovScriptWorkspaceContext,
   type MovScriptWorkspaceContextInput,
   type MovScriptWorkspaceContextPaths,
@@ -26,6 +29,9 @@ import {
   MOVSCRIPT_WORKSPACE_MANIFEST_FILE_NAME,
   MOVSCRIPT_WORKSPACE_MANIFEST_SCHEMA,
   MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME,
+  MOVSCRIPT_WORKSPACE_REALMS_DIR_NAME,
+  type MovScriptWorkspaceRealm,
+  type MovScriptWorkspaceRealmInput,
   type MovScriptWorkspaceContext,
   type MovScriptWorkspaceContextInput,
   type MovScriptWorkspaceContextPaths,
@@ -37,6 +43,8 @@ import {
 export interface MovScriptProjectWorkspacePaths {
   workspaceDir: string
   controlDir: string
+  realm: MovScriptWorkspaceRealm
+  realmDir: string
   projectCwd: string
   projectDir: string
 }
@@ -44,13 +52,15 @@ export interface MovScriptProjectWorkspacePaths {
 export function resolveMovScriptWorkspaceRootPaths(workspaceDir = process.cwd()): MovScriptWorkspaceRootPaths {
   const rootDir = resolveMovScriptHomeDir(workspaceDir)
   const controlDir = rootDir
+  const realmsDir = join(controlDir, MOVSCRIPT_WORKSPACE_REALMS_DIR_NAME)
   return {
     workspaceDir: rootDir,
     rootDir,
     controlDir,
     configTomlPath: join(controlDir, MOVSCRIPT_WORKSPACE_CONFIG_TOML_FILE_NAME),
     manifestPath: join(controlDir, MOVSCRIPT_WORKSPACE_MANIFEST_FILE_NAME),
-    providersDir: join(controlDir, MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME),
+    realmsDir,
+    providersDir: join(realmsDir, 'local', MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME),
     backendDir: join(controlDir, MOVSCRIPT_WORKSPACE_BACKEND_DIR_NAME),
     binDir: join(controlDir, MOVSCRIPT_WORKSPACE_BIN_DIR_NAME),
   }
@@ -69,6 +79,7 @@ export function resolveMovScriptHomeDir(workspaceDir?: string): string {
 export function ensureMovScriptWorkspaceRoot(paths: MovScriptWorkspaceRootPaths): MovScriptWorkspaceRootManifest {
   mkdirSync(paths.controlDir, { recursive: true })
   mkdirSync(paths.rootDir, { recursive: true })
+  mkdirSync(paths.realmsDir, { recursive: true })
   mkdirSync(paths.providersDir, { recursive: true })
   mkdirSync(paths.backendDir, { recursive: true })
   mkdirSync(paths.binDir, { recursive: true })
@@ -98,6 +109,7 @@ export function readMovScriptWorkspaceRootManifest(manifestPath: string): MovScr
   const workspaceId = stringField(parsed.workspaceId)
   if (!workspaceId) return undefined
   const backend = normalizeBackend(parsed.backend)
+  const activeRealm = normalizeRealmRecord(parsed.activeRealm)
   const activeUserId = numberField(parsed.activeUserId)
   return {
     schema: MOVSCRIPT_WORKSPACE_MANIFEST_SCHEMA,
@@ -105,6 +117,7 @@ export function readMovScriptWorkspaceRootManifest(manifestPath: string): MovScr
     createdAt: stringField(parsed.createdAt) ?? new Date().toISOString(),
     updatedAt: stringField(parsed.updatedAt) ?? new Date().toISOString(),
     ...(backend ? { backend } : {}),
+    ...(activeRealm ? { activeRealm } : {}),
     ...(activeUserId !== undefined ? { activeUserId } : {}),
     layout: normalizeWorkspaceLayout(parsed.layout),
   }
@@ -124,17 +137,24 @@ export function writeMovScriptWorkspaceRootManifest(
 
 export function resolveMovScriptProjectWorkspacePaths(input: {
   workspaceDir?: string
+  realm?: MovScriptWorkspaceRealmInput | string
+  realmKind?: MovScriptWorkspaceRealm['kind']
+  realmId?: string | number
   userId?: string | number
   orgId?: string | number
   projectId?: string | number
 } = {}): MovScriptProjectWorkspacePaths {
   const root = resolveMovScriptWorkspaceRootPaths(input.workspaceDir)
+  const realm = normalizeMovScriptWorkspaceRealm(input)
+  const realmDir = resolveMovScriptWorkspaceRealmDir(root.workspaceDir, realm)
   const ownerPath = projectWorkspaceOwnerPath(input)
   const projectSegment = input.projectId === undefined ? 'project' : `project_${safeIdSegment(input.projectId)}`
-  const projectCwd = join(root.controlDir, ...ownerPath, 'projects', projectSegment)
+  const projectCwd = join(realmDir, ...ownerPath, 'projects', projectSegment)
   return {
     workspaceDir: root.workspaceDir,
     controlDir: root.controlDir,
+    realm,
+    realmDir,
     projectCwd,
     projectDir: projectCwd,
   }
@@ -142,6 +162,9 @@ export function resolveMovScriptProjectWorkspacePaths(input: {
 
 export function resolveMovScriptProjectCwd(input: {
   workspaceDir?: string
+  realm?: MovScriptWorkspaceRealmInput | string
+  realmKind?: MovScriptWorkspaceRealm['kind']
+  realmId?: string | number
   userId?: string | number
   orgId?: string | number
   projectId?: string | number
@@ -150,24 +173,32 @@ export function resolveMovScriptProjectCwd(input: {
 }
 
 export function normalizeMovScriptWorkspaceContext(input: MovScriptWorkspaceContextInput = {}): MovScriptWorkspaceContext {
+  const realm = normalizeMovScriptWorkspaceRealm(input)
   const scope = input.scope ?? inferredWorkspaceScope(input)
   const userId = input.userId === undefined ? undefined : safeIdSegment(input.userId)
   const orgId = input.orgId === undefined ? undefined : safeIdSegment(input.orgId)
   const projectId = input.projectId === undefined ? undefined : safeIdSegment(input.projectId)
-  if (scope === 'global') return { scope, ...(userId ? { userId } : {}), ...(orgId ? { orgId } : {}) }
-  if (scope === 'project') return { scope, ...(userId ? { userId } : {}), ...(orgId ? { orgId } : {}), ...(projectId ? { projectId } : {}) }
-  return { scope, ...(userId ? { userId } : {}), ...(orgId ? { orgId } : {}), ...(projectId ? { projectId } : {}) }
+  if (scope === 'global') return { realm, scope, ...requiredOwnerContext({ userId, orgId }) }
+  if (scope === 'project') return { realm, scope, ...requiredOwnerContext({ userId, orgId }), ...(projectId ? { projectId } : {}) }
+  return { realm, scope, ...requiredOwnerContext({ userId, orgId }), ...(projectId ? { projectId } : {}) }
 }
 
 export function resolveMovScriptWorkspaceContextPaths(input: MovScriptWorkspaceContextInput = {}): MovScriptWorkspaceContextPaths {
   const root = resolveMovScriptWorkspaceRootPaths(input.workspaceDir)
   const context = normalizeMovScriptWorkspaceContext(input)
-  const contextKey = context.projectId ? `project/${context.projectId}` : 'project'
-  const ownerCwd = join(root.controlDir, ...workspaceOwnerPath(context))
+  const contextKey = [
+    context.realm.kind,
+    context.realm.id,
+    context.orgId ? `org/${context.orgId}` : `user/${context.userId}`,
+    context.projectId ? `project/${context.projectId}` : 'global',
+  ].join('/')
+  const realmDir = resolveMovScriptWorkspaceRealmDir(root.workspaceDir, context.realm)
+  const ownerCwd = join(realmDir, ...workspaceOwnerPath(context))
   const projectPaths = context.scope === 'global'
     ? undefined
     : resolveMovScriptProjectWorkspacePaths({
         workspaceDir: root.workspaceDir,
+        realm: context.realm,
         userId: context.userId,
         orgId: context.orgId,
         projectId: context.projectId,
@@ -179,9 +210,33 @@ export function resolveMovScriptWorkspaceContextPaths(input: MovScriptWorkspaceC
     scope: context.scope,
     context,
     contextKey,
+    realmDir,
     projectCwd,
     providerSessionCwd: projectCwd,
   }
+}
+
+export function normalizeMovScriptWorkspaceRealm(input: Pick<MovScriptWorkspaceContextInput, 'realm' | 'realmKind' | 'realmId'> = {}): MovScriptWorkspaceRealm {
+  if (typeof input.realm === 'string') {
+    return normalizeMovScriptWorkspaceRealm({ realmId: input.realm })
+  }
+  const kind = input.realm?.kind ?? input.realmKind ?? (input.realm?.id || input.realmId ? 'cloud' : 'local')
+  const rawId = input.realm?.id ?? input.realmId
+  if (kind === 'cloud' && rawId === undefined) {
+    throw new Error('MovScript cloud workspace realm requires realmId')
+  }
+  const id = kind === 'local' ? 'local' : safeIdSegment(rawId as string | number)
+  return { kind, id }
+}
+
+export function resolveMovScriptWorkspaceRealmDir(
+  workspaceDir = process.cwd(),
+  realmInput: MovScriptWorkspaceRealmInput | string = { kind: 'local', id: 'local' },
+): string {
+  const root = resolveMovScriptWorkspaceRootPaths(workspaceDir)
+  const realm = normalizeMovScriptWorkspaceRealm(typeof realmInput === 'string' ? { realmId: realmInput } : { realm: realmInput })
+  if (realm.kind === 'local') return join(root.realmsDir, 'local')
+  return join(root.realmsDir, 'cloud', realm.id)
 }
 
 export function fallbackUserMovScriptHomeDir(): string {
@@ -213,7 +268,13 @@ function projectWorkspaceOwnerPath(input: Pick<MovScriptWorkspaceContextInput, '
 function workspaceOwnerPath(input: Pick<MovScriptWorkspaceContextInput, 'userId' | 'orgId'>): string[] {
   if (input.orgId !== undefined) return ['org', safeIdSegment(input.orgId)]
   if (input.userId !== undefined) return ['user', safeIdSegment(input.userId)]
-  return ['local']
+  throw new Error('MovScript workspace owner requires userId or orgId')
+}
+
+function requiredOwnerContext(input: { userId?: string; orgId?: string }): Pick<MovScriptWorkspaceContext, 'userId' | 'orgId'> {
+  if (input.orgId) return { orgId: input.orgId }
+  if (input.userId) return { userId: input.userId }
+  throw new Error('MovScript workspace context requires userId or orgId')
 }
 
 function normalizeBackend(value: unknown): MovScriptWorkspaceRootManifest['backend'] | undefined {
@@ -221,6 +282,15 @@ function normalizeBackend(value: unknown): MovScriptWorkspaceRootManifest['backe
   const kind = value.kind === 'local' || value.kind === 'cloud' || value.kind === 'custom' ? value.kind : undefined
   const baseURL = stringField(value.baseURL)
   return kind || baseURL ? { ...(kind ? { kind } : {}), ...(baseURL ? { baseURL } : {}) } : undefined
+}
+
+function normalizeRealmRecord(value: unknown): MovScriptWorkspaceRealm | undefined {
+  if (!isRecord(value)) return undefined
+  const kind = value.kind === 'local' || value.kind === 'cloud' ? value.kind : undefined
+  if (!kind) return undefined
+  if (kind === 'local') return { kind, id: 'local' }
+  const id = stringField(value.id)
+  return id ? { kind, id: safeIdSegment(id) } : undefined
 }
 
 function safeIdSegment(value: string | number): string {

@@ -5,12 +5,17 @@ import {
 } from '@/features/agent/state/agentSessionRuntimeModel'
 import type { AgentSessionStore } from '@/features/agent/state/agentSessionStoreTypes'
 import {
+  agentConversationFocusStorageKey,
+  type AgentConversationFocusScope,
+} from '@/features/agent/state/agentConversationFocusScope'
+import {
   activeAgentConversationIdForUser, agentConversationIdForRegistryInput, removeAgentConversationRegistryRecord, setAgentConversationRegistryOpen, upsertAgentConversationRegistryRecord, } from '@movscript/core/agent'
 import type { AgentRun } from '@movscript/core/agent/protocol'
 
 type AgentSessionConversationState = Pick<
   AgentSessionStore,
   | 'activeConversationIdsByUser'
+  | 'activeConversationIdsByScope'
   | 'conversationsById'
   | 'conversationRuntimeStates'
   | 'conversationThreadBindings'
@@ -18,22 +23,24 @@ type AgentSessionConversationState = Pick<
   | 'workspacesByUser'
 >
 
-export function activeConversationIdForUser(state: Pick<AgentSessionStore, 'activeConversationIdsByUser'>, userId: string): string | null {
+export function activeConversationIdForUser(
+  state: Pick<AgentSessionStore, 'activeConversationIdsByUser' | 'activeConversationIdsByScope'>,
+  userId: string,
+  focusScope?: AgentConversationFocusScope,
+): string | null {
+  if (focusScope !== undefined) {
+    return state.activeConversationIdsByScope[agentConversationFocusStorageKey(userId, focusScope)] ?? null
+  }
   return activeAgentConversationIdForUser(state, userId)
 }
 
 export function setAgentSessionConversationOpenState(
   state: AgentSessionConversationState,
-  input: { conversationId: string; open: boolean; userId: string },
+  input: { conversationId: string; open: boolean; userId: string; focusScope?: AgentConversationFocusScope },
 ): Partial<AgentSessionStore> {
   return {
     conversationsById: setAgentConversationRegistryOpen(state.conversationsById, input.conversationId, input.open),
-    activeConversationIdsByUser: {
-      ...(state.activeConversationIdsByUser ?? {}),
-      [input.userId]: !input.open && activeConversationIdForUser(state, input.userId) === input.conversationId
-        ? null
-        : activeConversationIdForUser(state, input.userId),
-    },
+    ...activeConversationPatchForOpenState(state, input),
   }
 }
 
@@ -63,14 +70,11 @@ export function createProviderSessionConversationState(
     archived: false,
   }
   const conversationId = agentConversationIdForRegistryInput(conversationInput)
-  if (!conversationId) return { conversationId: activeConversationIdForUser(state, userId) ?? '', patch: null }
+  if (!conversationId) return { conversationId: activeConversationIdForUser(state, userId, input.focusScope) ?? '', patch: null }
   return {
     conversationId,
     patch: {
-      activeConversationIdsByUser: {
-        ...(state.activeConversationIdsByUser ?? {}),
-        [userId]: conversationId,
-      },
+      ...activeConversationPatch(state, userId, conversationId, input.focusScope),
       conversationsById: upsertAgentConversationRegistryRecord(state.conversationsById, conversationInput),
       ...(threadId
         ? {
@@ -109,10 +113,7 @@ export function removeProviderSessionConversationState(
     delete workspacesByUser[input.userId][input.conversationId]
   }
   return {
-    activeConversationIdsByUser: {
-      ...(state.activeConversationIdsByUser ?? {}),
-      [input.userId]: activeConversationIdForUser(state, input.userId) === input.conversationId ? null : activeConversationIdForUser(state, input.userId),
-    },
+    ...removeActiveConversationReferences(state, input),
     conversationsById,
     conversationThreadBindings,
     conversationRuntimeStates,
@@ -120,6 +121,68 @@ export function removeProviderSessionConversationState(
     pageTasks: Object.fromEntries(
       Object.entries(state.pageTasks).filter(([, task]) => task.conversationId !== input.conversationId),
     ),
+  }
+}
+
+function activeConversationPatch(
+  state: AgentSessionConversationState,
+  userId: string,
+  conversationId: string | null,
+  focusScope?: AgentConversationFocusScope,
+): Pick<AgentSessionStore, 'activeConversationIdsByUser'> | Pick<AgentSessionStore, 'activeConversationIdsByScope'> {
+  if (focusScope !== undefined) {
+    return {
+      activeConversationIdsByScope: {
+        ...(state.activeConversationIdsByScope ?? {}),
+        [agentConversationFocusStorageKey(userId, focusScope)]: conversationId,
+      },
+    }
+  }
+  return {
+    activeConversationIdsByUser: {
+      ...(state.activeConversationIdsByUser ?? {}),
+      [userId]: conversationId,
+    },
+  }
+}
+
+function activeConversationPatchForOpenState(
+  state: AgentSessionConversationState,
+  input: { conversationId: string; open: boolean; userId: string; focusScope?: AgentConversationFocusScope },
+): Partial<Pick<AgentSessionStore, 'activeConversationIdsByUser' | 'activeConversationIdsByScope'>> {
+  if (input.focusScope !== undefined) {
+    const current = activeConversationIdForUser(state, input.userId, input.focusScope)
+    return {
+      activeConversationIdsByScope: {
+        ...(state.activeConversationIdsByScope ?? {}),
+        [agentConversationFocusStorageKey(input.userId, input.focusScope)]: !input.open && current === input.conversationId ? null : current,
+      },
+    }
+  }
+  const current = activeConversationIdForUser(state, input.userId)
+  return {
+    activeConversationIdsByUser: {
+      ...(state.activeConversationIdsByUser ?? {}),
+      [input.userId]: !input.open && current === input.conversationId ? null : current,
+    },
+  }
+}
+
+function removeActiveConversationReferences(
+  state: AgentSessionConversationState,
+  input: { conversationId: string; userId: string },
+): Partial<Pick<AgentSessionStore, 'activeConversationIdsByUser' | 'activeConversationIdsByScope'>> {
+  const activeConversationIdsByUser = {
+    ...(state.activeConversationIdsByUser ?? {}),
+    [input.userId]: activeConversationIdForUser(state, input.userId) === input.conversationId ? null : activeConversationIdForUser(state, input.userId),
+  }
+  const activeConversationIdsByScope = { ...(state.activeConversationIdsByScope ?? {}) }
+  for (const [key, value] of Object.entries(activeConversationIdsByScope)) {
+    if (value === input.conversationId) activeConversationIdsByScope[key] = null
+  }
+  return {
+    activeConversationIdsByUser,
+    activeConversationIdsByScope,
   }
 }
 
@@ -185,7 +248,7 @@ export function bindConversationToProviderThreadState(
       providerThreadId,
       ...(providerSessionTreeId ? { providerSessionId: providerSessionTreeId } : {}),
       ...(input.providerThreadCwd ? { providerThreadCwd: input.providerThreadCwd } : {}),
-      updatedAt: now,
+      ...(input.updatedAt !== undefined ? { updatedAt: input.updatedAt } : {}),
     }),
     conversationThreadBindings: {
       ...state.conversationThreadBindings,

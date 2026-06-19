@@ -54,6 +54,7 @@ const DESKTOP_PLUGIN_CACHE_DIR_NAME = 'plugin-cache'
 const PROJECT_PLUGIN_BUNDLES_DIR_NAME = 'bundles'
 const MOVSCRIPT_PLUGIN_NAME = 'movscript'
 const MOVSCRIPT_BUNDLED_MARKETPLACE_NAME = 'movscript-bundled'
+const MOVSCRIPT_BUNDLED_PLUGIN_KEY = `${MOVSCRIPT_PLUGIN_NAME}@${MOVSCRIPT_BUNDLED_MARKETPLACE_NAME}`
 const DESKTOP_PLUGIN_CACHE_METADATA_FILE_NAME = 'metadata.json'
 
 type ProjectPluginRecord = {
@@ -177,6 +178,9 @@ export function installSystemPlugin(input: ElectronSystemPluginInstallInput & { 
 
 export function uninstallSystemPlugin(input: ElectronSystemPluginUninstallInput & { desktopDataDir?: string }): ElectronProjectPluginSnapshot {
   const paths = resolveProjectPluginPaths(input, input.desktopDataDir)
+  if (isBundledMovScriptPluginKey(input.pluginKey)) {
+    throw new Error('MovScript bundled plugin is managed by the application and cannot be removed.')
+  }
   const plugin = systemPluginRecord(paths.desktopPluginCacheRoot, input.pluginKey)
   if (plugin?.cacheDir) {
     const pluginBaseDir = dirname(plugin.cacheDir)
@@ -297,8 +301,7 @@ function resolveProjectPluginPaths(input?: ProjectPluginPathInput | string, desk
 }
 
 function listSystemPluginRecords(cacheRoot: string): SystemPluginRecord[] {
-  if (!existsSync(cacheRoot)) return []
-  return findCacheMetadataFiles(cacheRoot)
+  const cacheRecords = existsSync(cacheRoot) ? findCacheMetadataFiles(cacheRoot)
     .flatMap((metadataPath) => {
       const metadata = readJSON(metadataPath)
       if (!isRecord(metadata)) return []
@@ -328,11 +331,32 @@ function listSystemPluginRecords(cacheRoot: string): SystemPluginRecord[] {
         ...(stringField(metadata.cachedAt) ? { cachedAt: stringField(metadata.cachedAt) } : {}),
       } satisfies SystemPluginRecord]
     })
-    .sort((left, right) => left.pluginKey.localeCompare(right.pluginKey))
+    : []
+  const byKey = new Map<string, SystemPluginRecord>()
+  for (const plugin of [...cacheRecords, bundledMovScriptSystemPluginRecord()]) byKey.set(plugin.pluginKey, plugin)
+  return [...byKey.values()].sort((left, right) => left.pluginKey.localeCompare(right.pluginKey))
 }
 
 function systemPluginRecord(cacheRoot: string, pluginKey: string): SystemPluginRecord | undefined {
   return listSystemPluginRecords(cacheRoot).find((plugin) => plugin.pluginKey === pluginKey)
+}
+
+function bundledMovScriptSystemPluginRecord(): SystemPluginRecord {
+  const sourcePath = resolveMovScriptBundledPluginSource()
+  return {
+    id: MOVSCRIPT_BUNDLED_PLUGIN_KEY,
+    name: MOVSCRIPT_PLUGIN_NAME,
+    marketplaceName: MOVSCRIPT_BUNDLED_MARKETPLACE_NAME,
+    pluginKey: MOVSCRIPT_BUNDLED_PLUGIN_KEY,
+    displayName: 'MovScript',
+    description: 'Built-in MovScript agent capabilities managed by the application.',
+    sourceType: 'builtin',
+    sourcePath,
+    providerTargets: PROJECT_SKILL_PROVIDER_TARGETS,
+    enabled: true,
+    installed: true,
+    cacheDir: sourcePath,
+  }
 }
 
 function projectSystemPluginRecords(input: {
@@ -361,8 +385,9 @@ function projectSystemPluginRecords(input: {
     const globalLock = globalLockByKey.get(pluginKey)
     const base = system ?? projectManifest ?? projectLock
     if (!base) return []
+    const bundledMovScript = isBundledMovScriptPluginKey(pluginKey)
     const projectEnabled = Boolean(projectLock) && projectManifest?.enabled !== false
-    const globalEnabled = Boolean(globalLock) && globalManifest?.enabled !== false
+    const globalEnabled = bundledMovScript || (Boolean(globalLock) && globalManifest?.enabled !== false)
     return [{
       id: base.id,
       name: base.name,
@@ -381,12 +406,16 @@ function projectSystemPluginRecords(input: {
       ...(system?.contentHash ? { contentHash: system.contentHash } : {}),
       globalEnabled,
       projectEnabled,
-      enabled: projectEnabled,
+      enabled: projectEnabled || globalEnabled,
       declared: Boolean(projectManifest),
       prepared: Boolean(projectLock),
       preparedPaths: projectLock?.prepared,
     }]
   })
+}
+
+function isBundledMovScriptPluginKey(pluginKey: string): boolean {
+  return pluginKey === MOVSCRIPT_BUNDLED_PLUGIN_KEY
 }
 
 function findCacheMetadataFiles(cacheRoot: string): string[] {

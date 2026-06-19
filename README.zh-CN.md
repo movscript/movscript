@@ -13,253 +13,88 @@
 </p>
 
 <p align="center">
-  <a href="#快速开始">快速开始</a> |
-  <a href="#核心能力">核心能力</a> |
-  <a href="#工作区模型">工作区模型</a> |
-  <a href="#开发">开发</a> |
-  <a href="#文档入口">文档入口</a>
+  <a href="#介绍">介绍</a> |
+  <a href="#产物">产物</a> |
+  <a href="#docker">Docker</a>
 </p>
 
 <p align="center">
   <img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue" />
-  <img alt="Node.js" src="https://img.shields.io/badge/node-%3E%3D20-43853d" />
-  <img alt="Go" src="https://img.shields.io/badge/go-%3E%3D1.25-00add8" />
-  <img alt="pnpm" src="https://img.shields.io/badge/pnpm-10.32.1-f69220" />
 </p>
 
-## Movscript 是什么？
+## 介绍
 
-Movscript 是一个 Vibe Motion 创作工具：创作者不必先从时间线和关键帧开始，而是先描述意图、感觉、节奏和结构，再让系统把这些创意方向转化为可规划、可编辑、可预览的视频工作流。
+Movscript 是一个面向 Vibe Motion、AI 规划成片与自动剪辑的视频创作工具。它帮助创作者把脚本、参考素材和创意方向转化为可规划、可编辑、可预览的视频工作流。
 
-社区版是一个 local-first 桌面工作台，面向 AI 规划成片和自动剪辑。它把项目策划、剧本、素材、分镜、镜头、生成任务、模型管理、插件和由 provider 支撑的助手工作流放在一个应用里。
+Movscript 的核心思路是先描述动态影像的意图、感觉、节奏和结构，再让系统协助组织项目、剧本、素材、分镜、镜头、生成任务、模型配置、助手工作流和粗剪版本。
 
-Movscript 当前聚焦三个产品理念：
+项目仍处于早期阶段。功能、文件格式、插件行为和工作流在稳定版本发布前可能继续调整。
 
-- **Vibe Motion**：用感觉、节奏、视觉意图和结构来导演动态影像。
-- **AI 规划成片**：让 AI 把脚本和参考拆成场景、镜头、素材缺口、生成任务和剪辑计划。
-- **自动剪辑**：把生成或导入的镜头组织成可预览 rough cut，再继续审看、修改和精修。
+## 产物
 
-项目仍处于早期阶段。API、插件 manifest、工作区契约和 provider 行为在稳定版本发布前可能继续调整。当前更适合本地开发、工作流探索、插件集成和社区反馈。
+### 桌面应用
 
-## 快速开始
+当前发布目标：
 
-### 环境要求
+- macOS Apple Silicon / arm64
 
-- Go 1.25+
-- Node.js 20+
-- pnpm 10+
-- Docker 和 Docker Compose，仅在本地使用 PostgreSQL、MinIO、Redis、Gitea 或观测栈时需要
+最新桌面包可以在 [GitHub Releases](https://github.com/movscript/movscript/releases/latest) 下载。
 
-### 启动桌面应用
+每个版本的更新内容、已知问题、校验文件和历史版本会记录在 [Movscript releases 页面](https://github.com/movscript/movscript/releases)。
+
+Intel Mac、Windows 和 Linux 桌面包暂未发布，后续版本再补充。
+
+## Docker
+
+Docker 配置用于运行后端服务栈，方便集成和部署测试。它不是桌面应用的替代品。
+
+包含服务：
+
+- Backend API
+- PostgreSQL
+- MinIO
+- Redis
+- Gitea
+- 可选 Prometheus 和 Grafana 观测栈
+
+### 启动服务
 
 ```bash
-pnpm install
-make dev-frontend-local
+docker compose up -d --build
 ```
 
-推荐的本地模式会由 Electron 启动后端到 `http://localhost:8766`。默认使用 SQLite、文件系统对象存储、本地 Git HTTP backend provider、本地 AI gateway 模式和内存缓存。
+默认本地地址：
 
-管理后台地址：
-
-```text
-http://localhost:8766/admin
-```
-
-## 核心能力
-
-| 领域 | 社区版能力 |
+| 服务 | 地址 |
 | --- | --- |
-| 桌面工作台 | Electron + Vite + React 本地生产应用 |
-| 后端 API | Go API server、数据库模型、AI adapters、生成任务与 worker 路径 |
-| Vibe Motion 模型 | 意图、节奏、结构、剧本、素材、分镜、镜头、关键帧、音频 cue 和 content unit |
-| AI 规划成片 | 剧本拆解、镜头规划、素材缺口识别、生成任务编排和剪辑计划交接 |
-| 自动剪辑 | rough cut 组织、候选审看、版本选择和 timeline-compatible output |
-| 助手工作流 | Provider-backed sessions、模型路由、领域工具、资源工具和生成工具 |
-| 工作区引擎 | Source review、interpret、diagnostics 和确定性 read-model refresh |
-| 管理后台 | 凭据、模型、路由、用户和运行设置 |
-| 插件系统 | 第一方 provider 插件包，包含 MCP bridge、skills 和 manifests |
-| 本地依赖 | 默认 SQLite 和文件系统存储；可用 PostgreSQL、MinIO、Redis、Gitea 测试 external profile |
-| 观测能力 | 可选 Prometheus 和 Grafana 栈，覆盖后端、前端、provider 与 Web Vitals 信号 |
+| Backend API | `http://localhost:8765` |
+| MinIO Console | `http://localhost:9001` |
+| Gitea | `http://localhost:3003` |
 
-## 项目结构
-
-```text
-movscript/
-├── apps/backend/          Go API server、数据库模型、AI adapters、任务 worker
-├── apps/frontend/         Electron + Vite + React 桌面应用
-├── apps/admin/            凭据、模型、路由和用户管理后台
-├── apps/cli/              Movscript 命令行工具
-├── packages/              共享 UI、tokens、workspace、interpreter 和领域包
-├── plugins/               第一方 provider 插件包
-├── docs/                  架构说明、审计记录和原型
-└── docker-compose.yml     可选 PostgreSQL、MinIO、Redis、Gitea、Prometheus、Grafana 服务
-```
-
-## 工作区模型
-
-Movscript 把选中的本地目录视为 project workspace root。在 Git-backed project 工作流里，这个 root 就是项目仓库。产品状态应由 source files 加 Movscript 结构化 domain APIs 表达；生成出来的 interpreter/debug artifacts 不是 source of truth。
-
-```text
-project-workspace/
-├── project.json
-├── project_standards.json
-├── settings/
-├── scripts/
-├── content_units/
-├── productions/
-├── .movscript/
-│   ├── manifest.json       本地工作区控制契约
-│   ├── providers/          Provider configs、sessions、runs 与 cache
-│   └── backend/            本地 backend auth 与连接配置
-└── .interpret/             可选 interpreter diagnostics 与 debug output
-```
-
-Agent 和产品代码应使用 source files 加 Movscript domain APIs 写入持久状态。`.movscript/` 是本地控制状态，`.interpret/` 是可以重新生成的调试输出。
-
-## 高级本地启动
-
-### 分开启动后端和前端
+### 启动观测栈
 
 ```bash
-cp apps/backend/.env.example apps/backend/.env
-docker compose up -d db
-pnpm --filter @movscript/backend dev
+docker compose --profile observability up -d --build
 ```
 
-再另开一个终端启动桌面前端：
+默认观测地址：
 
-```bash
-cp apps/frontend/.env.example apps/frontend/.env
-pnpm --filter @movscript/desktop dev
-```
-
-后端健康检查：
-
-```bash
-curl http://localhost:8765/health
-```
-
-### 依赖 profile
-
-桌面本地启动默认使用 `MOVSCRIPT_DEPENDENCY_PROFILE=local`：
-
-| 依赖 | local profile |
+| 服务 | 地址 |
 | --- | --- |
-| 数据库 | SQLite |
-| 对象存储 | 文件系统 |
-| Workspace backend | 本地 Git HTTP backend provider |
-| AI gateway | Local mode |
-| 缓存 | Memory |
+| Grafana | `http://localhost:3002` |
+| Prometheus | `http://localhost:9091` |
 
-使用 `MOVSCRIPT_DEPENDENCY_PROFILE=external` 可以测试外部服务集成：
-
-| 依赖 | external profile |
-| --- | --- |
-| 数据库 | PostgreSQL |
-| 对象存储 | MinIO |
-| Workspace backend | Gitea |
-| AI gateway | Local mode |
-| 缓存 | Redis |
-
-`DB_DRIVER`、`STORAGE_BACKEND`、`MOVSCRIPT_WORKSPACE_STORAGE_BACKEND`、`CACHE_BACKEND` 等单项环境变量仍然可以覆盖 profile 默认值。社区版 AI gateway 固定使用 Local mode；外部模型网关、计量和套餐绑定属于商业发行层。
-
-### 观测栈
-
-启动社区版观测栈，包括后端、Prometheus、Grafana、node-exporter 和 cAdvisor：
+### 停止服务
 
 ```bash
-docker compose --profile observability up --build
+docker compose down
 ```
 
-Grafana 默认地址为 `http://localhost:3002`。Prometheus 会抓取后端 `/metrics`，包含 HTTP 路由指标、镜头向量指标、助手前端关键阶段、provider 网络耗时、Web Vitals、前端错误和隐私安全的 telemetry 采集健康指标。
-
-### 隔离调试 workspace
-
-开发助手流程时，可以用隔离的调试 workspace 启动桌面端：
+同时清理本地 Docker 数据卷：
 
 ```bash
-pnpm --filter @movscript/desktop dev:workspace
+docker compose down -v
 ```
-
-默认会把本地调试状态放在 `.movscript-dev`。如果某次调试需要完全隔离，可以指定自己的 workspace：
-
-```bash
-MOVSCRIPT_WORKSPACE_DIR=/tmp/movscript-debug pnpm --filter @movscript/desktop dev:workspace
-```
-
-### SDK runtimes 一键启动
-
-如果要直接用 Codex SDK runtime 和 Claude SDK runtime 启动桌面端：
-
-```bash
-pnpm run dev:sdk-runtimes
-```
-
-这个命令会使用 `.movscript-dev/.movscript` 作为调试 workspace，并把 SDK 包缓存到 `.movscript-dev/sdk-runtimes`。默认启用：
-
-- `MOVSCRIPT_CODEX_RUNTIME_API=codex-sdk`
-- `@openai/codex-sdk@0.141.0`
-- `@anthropic-ai/claude-agent-sdk@0.3.181`
-
-同版本 SDK 只会准备一次；后续启动会复用缓存。可以通过环境变量覆盖包名、版本或 runtime 缓存目录，例如：
-
-```bash
-MOVSCRIPT_CODEX_SDK_PACKAGE_VERSION=0.141.0 \
-MOVSCRIPT_CLAUDE_SDK_PACKAGE_VERSION=0.3.181 \
-MOVSCRIPT_SDK_RUNTIME_DIR=/tmp/movscript-sdk-runtimes \
-pnpm run dev:sdk-runtimes
-```
-
-正式桌面包默认会内置这两个 SDK runtime。打包时 `pnpm --filter @movscript/desktop dist` 会先运行 `scripts/prepare-sdk-runtime-seed.mjs`，把 SDK 准备到 `apps/frontend/vendor/sdk-runtimes`，再由 electron-builder 放进应用 resources。用户首次使用时会复制到自己的 userData runtime 缓存；不需要预装 Codex、Claude SDK、npm 或其它命令行工具。
-
-## 开发
-
-常用命令：
-
-```bash
-pnpm run test
-pnpm run build
-pnpm run typecheck
-pnpm --filter @movscript/backend test
-pnpm --filter @movscript/cli dev -- workspace review --workspace /path/to/project-repo
-pnpm --filter "./plugins/*" build
-```
-
-准备统一 Agent Chat 使用的本地 SDK runtime 包：
-
-```bash
-pnpm prepare:sdk-runtimes
-```
-
-对 SDK runtime 入口做 smoke test：
-
-```bash
-pnpm smoke:sdk-runtimes
-```
-
-项目级 skill 会投放到 provider 原生的 workspace 目录，例如 `.codex/skills`、`.mova/skills`、`.claude/skills`。全局 skill 保留在对应 provider home 下，例如 `~/.codex/skills` 或 `~/.claude/skills`。
-
-## 文档入口
-
-| 主题 | 链接 |
-| --- | --- |
-| CLI | [apps/cli/README.md](apps/cli/README.md) |
-| Workspace package | [packages/workspace/README.md](packages/workspace/README.md) |
-| Engine package | [packages/engine/README.md](packages/engine/README.md) |
-| Interpreter package | [packages/interpreter/README.md](packages/interpreter/README.md) |
-| Prompt package | [packages/prompt/README.md](packages/prompt/README.md) |
-| Decision package | [packages/decision/README.md](packages/decision/README.md) |
-| App-server plugin | [plugins/movscript/README.md](plugins/movscript/README.md) |
-| Observability | [apps/backend/observability/README.md](apps/backend/observability/README.md) |
-| 架构说明 | [docs/](docs/) |
-| Provider / Model / Route 与 Console 边界 | [docs/provider-model-route-console-boundaries.zh-CN.md](docs/provider-model-route-console-boundaries.zh-CN.md) |
-| 上线前清理原则 | [docs/release-cleanup-principles.zh-CN.md](docs/release-cleanup-principles.zh-CN.md) |
-
-## 社区版范围
-
-这份 README 描述开源社区版。Enterprise overlays、hosted operations、组织级私有工作流和私有部署策略，除非已经发布到社区版目录，否则不在本文档范围内。
-
-欢迎通过 issue 和 pull request 参与贡献。适合的贡献包括 bug report、工作流反馈、文档改进、provider 集成、插件示例、测试和聚焦的修复。
 
 ## 许可证
 

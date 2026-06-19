@@ -1,3 +1,5 @@
+import { closeSync, fstatSync, openSync, readFileSync, readSync } from 'fs'
+
 export interface BackendOutputCapture {
   append(chunk: Buffer | string): void
   tail(): string
@@ -7,6 +9,7 @@ export interface BackendProcessDiagnostics {
   binary: string
   cwd: string
   dataDir: string
+  logPath: string
   recentOutput(): string
 }
 
@@ -28,6 +31,26 @@ export function createBackendOutputCapture(maxChars = 8000): BackendOutputCaptur
   }
 }
 
+export function readTextFileTail(path: string, maxBytes = 8000): string {
+  let fd: number | undefined
+  try {
+    fd = openSync(path, 'r')
+    const size = fstatSync(fd).size
+    const length = Math.min(size, maxBytes)
+    const buffer = Buffer.alloc(length)
+    readSync(fd, buffer, 0, length, Math.max(0, size - length))
+    return buffer.toString('utf8')
+  } catch {
+    try {
+      return readFileSync(path, 'utf8').slice(-maxBytes)
+    } catch {
+      return ''
+    }
+  } finally {
+    if (fd !== undefined) closeSync(fd)
+  }
+}
+
 export function formatBackendStartupFailure(input: {
   error: unknown
   diagnostics: BackendProcessDiagnostics
@@ -40,6 +63,7 @@ export function formatBackendStartupFailure(input: {
     `Binary: ${input.diagnostics.binary}`,
     `CWD: ${input.diagnostics.cwd}`,
     `Data dir: ${input.diagnostics.dataDir}`,
+    `Log file: ${input.diagnostics.logPath}`,
   ].filter((line): line is string => Boolean(line))
 
   const recentOutput = input.diagnostics.recentOutput().trim()

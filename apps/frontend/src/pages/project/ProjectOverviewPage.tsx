@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertCircle, Blocks, FilePlus2, FileText, LayoutDashboard, Power } from 'lucide-react'
+import { AlertCircle, Blocks, FilePlus2, FileText, LayoutDashboard } from 'lucide-react'
 import { AppContentLayout, ProjectSurfaceHeader } from '@movscript/ui/layout'
 import { Button } from '@movscript/ui/primitives'
 
@@ -23,7 +23,6 @@ import {
   ProjectOverviewScriptCard,
   ProjectSystemPluginCard,
   ProjectOverviewWorkbenchCard,
-  ProjectSkillCard,
 } from '@/features/project/components/ProjectOverviewCards'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
@@ -35,8 +34,6 @@ import { requireWorkspaceRootAPI } from '@/features/agent/application/movScriptW
 import {
   loadProjectPluginSnapshot,
   setProjectPluginEnabled,
-  setProjectSkillEnabled,
-  type ProjectLocalSkill,
   type ProjectPluginContext,
   type ProjectPluginSnapshot,
 } from '@/features/plugins/application/projectPlugins'
@@ -51,8 +48,6 @@ export default function ProjectOverviewPage() {
   const projectId = project?.ID
   const [pluginTogglingKey, setPluginTogglingKey] = useState<string>()
   const [pluginToggleError, setPluginToggleError] = useState<string>()
-  const [skillTogglingId, setSkillTogglingId] = useState<string>()
-  const [skillToggleError, setSkillToggleError] = useState<string>()
   const currentUser = useUserStore((state) => state.currentUser)
   const currentOrgID = useUserStore((state) => state.currentOrgID)
   const orgMemberships = useUserStore((state) => state.orgMemberships)
@@ -76,27 +71,16 @@ export default function ProjectOverviewPage() {
   const projectPluginContext = useMemo<ProjectPluginContext>(() => ({
     ...(movScriptHomeDir ? { movScriptHomeDir, workspaceDir: movScriptHomeDir } : {}),
     ...(projectId ? { projectId } : {}),
-  }), [movScriptHomeDir, projectId])
+    ...workspaceContext,
+  }), [movScriptHomeDir, projectId, workspaceContext])
   const projectPluginsQuery = useQuery({
-    queryKey: projectOverviewKeys.plugins(projectPluginContext.movScriptHomeDir ?? projectPluginContext.workspaceDir, projectPluginContext.projectId),
+    queryKey: projectOverviewKeys.plugins(projectPluginContext.movScriptHomeDir ?? projectPluginContext.workspaceDir, projectPluginContext.projectId, projectPluginContext.userId ?? projectPluginContext.orgId),
     queryFn: () => loadProjectPluginSnapshot(projectPluginContext),
     enabled: !!projectId && !!movScriptHomeDir,
   })
 
-  async function handleProjectSkillToggle(skill: ProjectLocalSkill, enabled: boolean) {
-    setSkillTogglingId(skill.id)
-    setSkillToggleError(undefined)
-    try {
-      await setProjectSkillEnabled(projectPluginContext, skill.id, enabled)
-      await projectPluginsQuery.refetch()
-    } catch (error) {
-      setSkillToggleError(error instanceof Error ? error.message : String(error))
-    } finally {
-      setSkillTogglingId(undefined)
-    }
-  }
-
   async function handleProjectPluginToggle(plugin: ProjectPluginSnapshot['systemPlugins'][number], enabled: boolean) {
+    if (plugin.globalEnabled) return
     setPluginTogglingKey(plugin.pluginKey)
     setPluginToggleError(undefined)
     try {
@@ -111,7 +95,6 @@ export default function ProjectOverviewPage() {
 
   const overviewModel = useMemo(() => buildProjectOverviewModel({ data, project }), [data, project])
   const projectSystemPlugins = projectPluginsQuery.data?.systemPlugins ?? []
-  const projectSkills = projectPluginsQuery.data?.skills ?? []
   const scripts = useMemo(() => (scriptsQuery.data ?? []).slice().sort((a, b) => (a.order || 0) - (b.order || 0) || a.ID - b.ID), [scriptsQuery.data])
   const createScript = useMutation({
     mutationFn: () => {
@@ -162,34 +145,6 @@ export default function ProjectOverviewPage() {
               plugin={plugin}
               busy={pluginTogglingKey === plugin.pluginKey}
               onToggle={(enabled) => void handleProjectPluginToggle(plugin, enabled)}
-            />
-          ))}
-        </div>
-      </section>
-
-      <section className="rounded-lg border border-border bg-background p-4">
-        <div className="mb-4 flex items-center gap-2 type-body font-semibold text-foreground">
-          <Power size={16} className="text-muted-foreground" />
-          本地 Skills
-        </div>
-        {skillToggleError ? (
-          <PluginStateBanner tone="danger" icon={<AlertCircle size={12} />}>
-            {skillToggleError}
-          </PluginStateBanner>
-        ) : null}
-        <div className={`${skillToggleError ? 'mt-4 ' : ''}grid gap-3 lg:grid-cols-2`}>
-          {projectPluginsQuery.isLoading ? (
-            <div className="rounded-md border border-border bg-muted/20 p-4 type-label text-muted-foreground">正在读取本地 Skills...</div>
-          ) : projectSkills.length === 0 ? (
-            <div className="rounded-md border border-border bg-muted/20 p-4 type-label text-muted-foreground">
-              当前没有本地 Skill。可以先从插件市场下载安装到本机缓存，再为项目启用。
-            </div>
-          ) : projectSkills.map((skill) => (
-            <ProjectSkillCard
-              key={skill.id}
-              skill={skill}
-              busy={skillTogglingId === skill.id}
-              onToggle={(enabled) => void handleProjectSkillToggle(skill, enabled)}
             />
           ))}
         </div>

@@ -9,13 +9,27 @@ import { projectAppEventScope, publishAppEvent } from '@/shared/application/appE
 import { hydrateAppWindowContext } from '@/shared/infrastructure/appWindowContext'
 import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
 import { useAppWindowContextStore } from '@/shared/infrastructure/appWindowContext'
+import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
+import { authRealmKey } from '@/shared/infrastructure/session/authRealm'
 import { useSystemStatusStore } from '@/shared/infrastructure/systemStatusStore'
 import { refreshRuntimeConfigSnapshot } from '@/shared/infrastructure/config'
 import { refreshProviderSettingsRuntimeEnv } from '@/shared/infrastructure/providerConfigStore'
 
 export function AppStartupTasks({ settingsHydrated }: { settingsHydrated: boolean }) {
   const queryClient = useQueryClient()
+  const settings = useAppSettingsStore((s) => s.settings)
+
+  useEffect(() => {
+    if (!settingsHydrated) return
+    useUserStore.getState().setActiveRealm(authRealmKey(settings))
+  }, [
+    settingsHydrated,
+    settings.apiBaseURL,
+    settings.cloudAPIBaseURL,
+    settings.launchMode,
+    settings.localAPIBaseURL,
+  ])
 
   useEffect(() => {
     const detachBroadcastBridge = attachCrossPageNotificationBroadcastBridge()

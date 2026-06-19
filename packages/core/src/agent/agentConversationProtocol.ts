@@ -29,10 +29,20 @@ export interface AgentConversation {
 }
 
 export type AgentConversationWorkspaceScope = 'global' | 'project' | 'production'
+export type AgentConversationWorkspaceRealmKind = 'local' | 'cloud'
+
+export interface AgentConversationWorkspaceRealm {
+  kind: AgentConversationWorkspaceRealmKind
+  id: string
+}
 
 export interface AgentConversationWorkspaceContext {
+  realm?: AgentConversationWorkspaceRealm
+  realmKind?: AgentConversationWorkspaceRealmKind
+  realmId?: string | number
   scope?: AgentConversationWorkspaceScope
   userId?: string | number
+  orgId?: string | number
   projectId?: string | number
   productionId?: string | number
 }

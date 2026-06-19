@@ -318,7 +318,7 @@ export default function ClientPluginsPage() {
                   <SystemPluginCard
                     key={plugin.pluginKey}
                     item={plugin}
-                    onUninstall={() => void uninstallSystemPlugin(workspaceDir ?? {}, plugin.pluginKey).then(setProjectPluginSnapshot)}
+                    onUninstall={plugin.sourceType === 'builtin' ? undefined : () => void uninstallSystemPlugin(workspaceDir ?? {}, plugin.pluginKey).then(setProjectPluginSnapshot)}
                   />
                 ))}
                 {plugins.map((plugin) => (

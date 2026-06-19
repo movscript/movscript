@@ -11,6 +11,7 @@ import {
   AGENT_MODE_CONTENT_PANEL_MIN_WIDTH,
   clampAgentModeContentPanelWidth,
 } from '@/features/agent/presentation/agentModePanelSizing'
+import { projectConversationFocusScope } from '@/features/agent/state/agentConversationFocusScope'
 import type { Project } from '@/types'
 
 export function ProjectAIAssistantPanel({
@@ -29,6 +30,7 @@ export function ProjectAIAssistantPanel({
   onWidthChange?: (width: number) => void
 }) {
   const panelWidth = clampAgentModeContentPanelWidth(width ?? AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH)
+  const conversationFocusScope = projectConversationFocusScope(project?.ID)
   const setPanelWidth = useCallback((nextWidth: number) => {
     onWidthChange?.(clampAgentModeContentPanelWidth(nextWidth))
   }, [onWidthChange])
@@ -56,6 +58,7 @@ export function ProjectAIAssistantPanel({
       <AgentUnifiedChatShell
         userId={userId}
         currentProject={project}
+        conversationFocusScope={conversationFocusScope}
         composerWorkspaceContextLocked
         hideComposerWorkspaceProjectSelector
         emptyThreadLabel={project?.name ? `${project.name}` : '我们做些什么'}

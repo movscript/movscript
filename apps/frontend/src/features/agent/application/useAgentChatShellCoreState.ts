@@ -32,10 +32,12 @@ import {
 import type { Project, PublicModel } from '@/types'
 import type { AgentComposerQueuedInput } from '@/features/agent/application/useAgentChatTurnControls'
 import type { AgentChatDataSourceShellLoadResult } from '@/features/agent/application/agentChatDataSourceShellTypes'
+import type { AgentConversationFocusScope } from '@/features/agent/state/agentConversationFocusScope'
 
 interface UseAgentChatShellCoreStateInput {
   collaborationMode: AgentChatCollaborationMode
   composerWorkspaceContextLocked?: boolean
+  conversationFocusScope?: AgentConversationFocusScope
   currentProject?: Project | null
   emptyThreadLabel?: string
   goalModeEnabled: boolean

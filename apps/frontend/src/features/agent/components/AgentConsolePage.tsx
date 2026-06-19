@@ -355,6 +355,7 @@ function GlobalPluginCard({
   busy: boolean
   onToggle: (enabled: boolean) => void
 }) {
+  const builtin = plugin.sourceType === 'builtin'
   const enabled = plugin.globalEnabled || plugin.projectEnabled
   return (
     <article className="rounded-md border border-border bg-muted/10 p-3">
@@ -368,7 +369,7 @@ function GlobalPluginCard({
         </div>
         <Switch
           checked={enabled}
-          disabled={busy || !plugin.installed}
+          disabled={busy || !plugin.installed || builtin}
           aria-label={`${enabled ? '关闭' : '开启'} ${plugin.displayName ?? plugin.name}`}
           onCheckedChange={onToggle}
         />
@@ -378,8 +379,9 @@ function GlobalPluginCard({
           {enabled ? '全局已开启' : '全局未开启'}
         </Badge>
         <Badge variant={plugin.installed ? 'outline' : 'solid'} tone={plugin.installed ? 'neutral' : 'warning'}>
-          {plugin.installed ? '系统缓存' : '缓存缺失'}
+          {builtin ? '系统内置' : plugin.installed ? '系统缓存' : '缓存缺失'}
         </Badge>
+        {builtin ? <Badge variant="outline">系统托管</Badge> : null}
         {plugin.version ? <Badge variant="outline">v{plugin.version}</Badge> : null}
         {plugin.providerTargets.map((target) => (
           <Badge key={target} variant="outline">{providerTargetLabel(target)}</Badge>

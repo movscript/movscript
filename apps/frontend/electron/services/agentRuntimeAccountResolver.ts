@@ -9,6 +9,7 @@ import {
   type MovScriptWorkspaceConfig,
 } from '@movscript/core/workspace/node'
 import { readAgentRuntimeApiKey } from './appSettingsSecrets'
+import { resolveDesktopWorkspaceRealm } from './workspaceRealm'
 import {
   resolveModelEndpointBaseURL,
   resolveRuntimeModelEndpointConfig,
@@ -132,9 +133,10 @@ function readRuntimeWorkspaceConfigSource(
   workspaceDir: string,
   providerKey: string,
 ): { config: MovScriptWorkspaceConfig; sourceConfigPath: string } {
-  const defaultPaths = resolveMovScriptWorkspacePaths(workspaceDir)
+  const realm = resolveDesktopWorkspaceRealm(workspaceDir)
+  const defaultPaths = resolveMovScriptWorkspacePaths(workspaceDir, { realm })
   const defaultConfig = readMovScriptWorkspaceConfig(defaultPaths.configPath)
-  const providerConfigPaths = resolveMovScriptWorkspacePaths(workspaceDir, { configDirName: providerKey })
+  const providerConfigPaths = resolveMovScriptWorkspacePaths(workspaceDir, { configDirName: providerKey, realm })
   const providerConfig = readMovScriptWorkspaceConfig(providerConfigPaths.configPath)
 
   if (!hasProviderScopedRuntimeConfig(providerConfig, providerKey)) {

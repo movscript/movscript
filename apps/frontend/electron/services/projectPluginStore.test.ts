@@ -13,12 +13,15 @@ import {
   uninstallSystemPlugin,
 } from './projectPluginStore'
 
+const MOVSCRIPT_BUNDLED_PLUGIN_KEY = 'movscript@movscript-bundled'
+const PROJECT_OWNER = { userId: 1 }
+
 test('project plugin install writes project manifest, lock, provider config, and provider-native skills', () => {
     const root = mkdtempSync(join(tmpdir(), 'movscript-project-plugin-'))
     try {
       const workspaceDir = join(root, 'workspace')
       const projectId = 42
-      const projectCwd = resolveMovScriptProjectCwd({ workspaceDir, projectId })
+      const projectCwd = resolveMovScriptProjectCwd({ workspaceDir, projectId, ...PROJECT_OWNER })
       const desktopDataDir = join(root, 'desktop-data')
       const source = join(root, 'plugin-source')
     mkdirSync(join(source, 'skills', 'story'), { recursive: true })
@@ -35,6 +38,7 @@ test('project plugin install writes project manifest, lock, provider config, and
       const snapshot = installProjectPlugin({
         workspaceDir,
         projectId,
+        ...PROJECT_OWNER,
         desktopDataDir,
         id: 'story-pack',
       name: 'story-pack',
@@ -47,12 +51,18 @@ test('project plugin install writes project manifest, lock, provider config, and
     })
 
     assert.equal(snapshot.plugins.length, 1)
-    assert.equal(snapshot.systemPlugins.length, 1)
+    const storySystemPlugin = systemPlugin(snapshot, 'story-pack@local')
+    const bundledMovScript = systemPlugin(snapshot, MOVSCRIPT_BUNDLED_PLUGIN_KEY)
+
+    assert.equal(snapshot.systemPlugins.length, 2)
+    assert.equal(bundledMovScript.installed, true)
+    assert.equal(bundledMovScript.globalEnabled, true)
+    assert.equal(bundledMovScript.sourceType, 'builtin')
     assert.equal(snapshot.projectCwd, projectCwd)
     assert.equal(snapshot.plugins[0]?.prepared, true)
-    assert.equal(snapshot.systemPlugins[0]?.installed, true)
-    assert.equal(snapshot.systemPlugins[0]?.projectEnabled, true)
-    assert.equal(snapshot.systemPlugins[0]?.globalEnabled, false)
+    assert.equal(storySystemPlugin.installed, true)
+    assert.equal(storySystemPlugin.projectEnabled, true)
+    assert.equal(storySystemPlugin.globalEnabled, false)
     assert.deepEqual(snapshot.plugins[0]?.providerTargets, ['codex', 'mova', 'claude'])
     assert.equal(snapshot.skills.length, 3)
     assert.equal(snapshot.skills[0]?.name, 'story')
@@ -84,7 +94,7 @@ test('project plugin install writes project manifest, lock, provider config, and
     assert.equal(existsSync(join(desktopDataDir, 'plugin-cache', 'local', 'story-pack', '0.0.0')), false)
     const cacheDir = snapshot.plugins[0]?.preparedPaths?.desktopPluginCacheDir
     assert.equal(Boolean(cacheDir), true)
-    assert.equal(snapshot.systemPlugins[0]?.cacheDir, cacheDir)
+    assert.equal(storySystemPlugin.cacheDir, cacheDir)
     assert.equal(existsSync(join(cacheDir!, 'skills', 'story', 'SKILL.md')), true)
     assert.match(readFileSync(join(cacheDir!, 'metadata.json'), 'utf8'), /"schema": "movscript\.desktop-plugin-cache\.v1"/)
     assert.match(readFileSync(join(cacheDir!, 'metadata.json'), 'utf8'), /"providerTargets": \[/)
@@ -92,7 +102,7 @@ test('project plugin install writes project manifest, lock, provider config, and
     assert.match(readFileSync(join(projectCwd, '.agents', 'plugins', 'marketplace.json'), 'utf8'), /"path": "\.\/bundles\/story-pack_local"/)
     assert.equal(existsSync(join(projectCwd, '.agents', 'plugins', 'catalog', 'skills', 'plugins', 'story-pack_local', 'story', 'SKILL.md')), true)
 
-    const reread = getProjectPluginSnapshot({ workspaceDir, projectId, desktopDataDir })
+    const reread = getProjectPluginSnapshot({ workspaceDir, projectId, ...PROJECT_OWNER, desktopDataDir })
     assert.equal(reread.plugins[0]?.pluginKey, 'story-pack@local')
     assert.equal(reread.plugins[0]?.preparedPaths?.desktopPluginCacheDir, cacheDir)
     assert.equal(reread.plugins[0]?.preparedPaths?.providerSkillDirs?.codex?.endsWith('story-pack_local'), true)
@@ -103,7 +113,7 @@ test('project plugin install writes project manifest, lock, provider config, and
 
     const movaSkill = reread.skills.find((skill) => skill.providerTarget === 'mova')
     assert.ok(movaSkill)
-    const disabled = setProjectSkillEnabled({ workspaceDir, projectId, desktopDataDir, skillId: movaSkill.id, enabled: false })
+    const disabled = setProjectSkillEnabled({ workspaceDir, projectId, ...PROJECT_OWNER, desktopDataDir, skillId: movaSkill.id, enabled: false })
     assert.equal(disabled.skills.find((skill) => skill.providerTarget === 'mova')?.enabled, false)
     assert.equal(disabled.skills.find((skill) => skill.providerTarget === 'codex')?.enabled, true)
     assert.equal(existsSync(join(projectCwd, '.codex', 'skills', 'plugins', 'story-pack_local', 'story', 'SKILL.md')), true)
@@ -111,16 +121,17 @@ test('project plugin install writes project manifest, lock, provider config, and
     assert.equal(existsSync(join(projectCwd, '.claude', 'skills', 'plugins', 'story-pack_local', 'story', 'SKILL.md')), true)
     assert.equal(existsSync(join(projectCwd, '.agents', 'skills')), false)
 
-    const enabled = setProjectSkillEnabled({ workspaceDir, projectId, desktopDataDir, skillId: movaSkill.id, enabled: true })
+    const enabled = setProjectSkillEnabled({ workspaceDir, projectId, ...PROJECT_OWNER, desktopDataDir, skillId: movaSkill.id, enabled: true })
     assert.equal(enabled.skills.find((skill) => skill.providerTarget === 'mova')?.enabled, true)
     assert.equal(existsSync(join(projectCwd, '.codex', 'skills', 'plugins', 'story-pack_local', 'story', 'SKILL.md')), true)
     assert.equal(existsSync(join(projectCwd, '.mova', 'skills', 'plugins', 'story-pack_local', 'story', 'SKILL.md')), true)
     assert.equal(existsSync(join(projectCwd, '.claude', 'skills', 'plugins', 'story-pack_local', 'story', 'SKILL.md')), true)
     assert.equal(existsSync(join(projectCwd, '.agents', 'skills')), false)
 
-    const projectDisabled = setProjectPluginEnabled({ workspaceDir, projectId, desktopDataDir, pluginKey: 'story-pack@local', enabled: false })
-    assert.equal(projectDisabled.systemPlugins[0]?.installed, true)
-    assert.equal(projectDisabled.systemPlugins[0]?.projectEnabled, false)
+    const projectDisabled = setProjectPluginEnabled({ workspaceDir, projectId, ...PROJECT_OWNER, desktopDataDir, pluginKey: 'story-pack@local', enabled: false })
+    const projectDisabledStory = systemPlugin(projectDisabled, 'story-pack@local')
+    assert.equal(projectDisabledStory.installed, true)
+    assert.equal(projectDisabledStory.projectEnabled, false)
     assert.equal(projectDisabled.plugins[0]?.enabled, false)
     assert.equal(projectDisabled.plugins[0]?.prepared, false)
     assert.equal(existsSync(join(cacheDir!, 'skills', 'story', 'SKILL.md')), true)
@@ -142,7 +153,7 @@ test('system plugin install only populates the desktop cache until the project e
   try {
     const workspaceDir = join(root, 'workspace')
     const projectId = 77
-    const projectCwd = resolveMovScriptProjectCwd({ workspaceDir, projectId })
+    const projectCwd = resolveMovScriptProjectCwd({ workspaceDir, projectId, ...PROJECT_OWNER })
     const desktopDataDir = join(root, 'desktop-data')
     const source = join(root, 'plugin-source')
     mkdirSync(join(source, 'skills', 'beat'), { recursive: true })
@@ -159,6 +170,7 @@ test('system plugin install only populates the desktop cache until the project e
     const installed = installSystemPlugin({
       workspaceDir,
       projectId,
+      ...PROJECT_OWNER,
       desktopDataDir,
       id: 'beat-pack',
       name: 'beat-pack',
@@ -171,10 +183,12 @@ test('system plugin install only populates the desktop cache until the project e
     })
 
     assert.equal(installed.plugins.length, 0)
-    assert.equal(installed.systemPlugins.length, 1)
-    assert.equal(installed.systemPlugins[0]?.installed, true)
-    assert.equal(installed.systemPlugins[0]?.projectEnabled, false)
-    assert.equal(existsSync(join(installed.systemPlugins[0]!.cacheDir, 'skills', 'beat', 'SKILL.md')), true)
+    const installedBeat = systemPlugin(installed, 'beat-pack@local')
+    assert.equal(installed.systemPlugins.length, 2)
+    assert.equal(systemPlugin(installed, MOVSCRIPT_BUNDLED_PLUGIN_KEY).globalEnabled, true)
+    assert.equal(installedBeat.installed, true)
+    assert.equal(installedBeat.projectEnabled, false)
+    assert.equal(existsSync(join(installedBeat.cacheDir, 'skills', 'beat', 'SKILL.md')), true)
     assert.equal(existsSync(join(projectCwd, '.codex')), false)
     assert.equal(existsSync(join(projectCwd, '.mova')), false)
     assert.equal(existsSync(join(projectCwd, '.claude')), false)
@@ -182,16 +196,16 @@ test('system plugin install only populates the desktop cache until the project e
     assert.deepEqual(installed.skills.map((skill) => skill.providerTarget).sort(), ['codex', 'mova'])
     assert.equal(installed.skills.every((skill) => !skill.enabled), true)
 
-    const enabled = setProjectPluginEnabled({ workspaceDir, projectId, desktopDataDir, pluginKey: 'beat-pack@local', enabled: true })
+    const enabled = setProjectPluginEnabled({ workspaceDir, projectId, ...PROJECT_OWNER, desktopDataDir, pluginKey: 'beat-pack@local', enabled: true })
     assert.equal(enabled.plugins.length, 1)
-    assert.equal(enabled.systemPlugins[0]?.projectEnabled, true)
+    assert.equal(systemPlugin(enabled, 'beat-pack@local').projectEnabled, true)
     assert.equal(existsSync(join(projectCwd, '.codex', 'plugins', 'cache', 'local', 'beat-pack', 'local', 'skills', 'beat', 'SKILL.md')), true)
     assert.equal(existsSync(join(projectCwd, '.mova', 'plugins', 'cache', 'local', 'beat-pack', 'local', 'skills', 'beat', 'SKILL.md')), true)
     assert.equal(existsSync(join(projectCwd, '.claude')), false)
 
-    const uninstalled = uninstallSystemPlugin({ workspaceDir, projectId, desktopDataDir, pluginKey: 'beat-pack@local' })
-    assert.equal(uninstalled.systemPlugins[0]?.installed, false)
-    assert.equal(existsSync(installed.systemPlugins[0]!.cacheDir), false)
+    const uninstalled = uninstallSystemPlugin({ workspaceDir, projectId, ...PROJECT_OWNER, desktopDataDir, pluginKey: 'beat-pack@local' })
+    assert.equal(systemPlugin(uninstalled, 'beat-pack@local').installed, false)
+    assert.equal(existsSync(installedBeat.cacheDir), false)
     assert.equal(existsSync(join(projectCwd, '.codex', 'plugins', 'cache', 'local', 'beat-pack', 'local', 'skills', 'beat', 'SKILL.md')), true)
   } finally {
     rmSync(root, { recursive: true, force: true })
@@ -203,7 +217,7 @@ test('global plugin enable writes workspace provider homes and is visible from p
   try {
     const workspaceDir = join(root, 'workspace')
     const projectId = 78
-    const projectCwd = resolveMovScriptProjectCwd({ workspaceDir, projectId })
+    const projectCwd = resolveMovScriptProjectCwd({ workspaceDir, projectId, ...PROJECT_OWNER })
     const desktopDataDir = join(root, 'desktop-data')
     const source = join(root, 'plugin-source')
     mkdirSync(join(source, 'skills', 'outline'), { recursive: true })
@@ -231,16 +245,16 @@ test('global plugin enable writes workspace provider homes and is visible from p
     })
 
     const globalEnabled = setProjectPluginEnabled({ workspaceDir, desktopDataDir, pluginKey: 'outline-pack@local', enabled: true })
-    assert.equal(globalEnabled.systemPlugins[0]?.globalEnabled, true)
-    assert.equal(globalEnabled.systemPlugins[0]?.projectEnabled, true)
+    assert.equal(systemPlugin(globalEnabled, 'outline-pack@local').globalEnabled, true)
+    assert.equal(systemPlugin(globalEnabled, 'outline-pack@local').projectEnabled, true)
     assert.equal(existsSync(join(workspaceDir, '.codex', 'plugins', 'cache', 'local', 'outline-pack', 'local', 'skills', 'outline', 'SKILL.md')), true)
     assert.equal(existsSync(join(workspaceDir, '.claude', 'plugins', 'cache', 'local', 'outline-pack', 'local', 'skills', 'outline', 'SKILL.md')), true)
     assert.equal(existsSync(join(workspaceDir, '.mova')), false)
     assert.match(readFileSync(join(workspaceDir, '.codex', 'config.toml'), 'utf8'), /\[plugins\."outline-pack@local"]\nenabled = true/)
 
-    const projectSnapshot = getProjectPluginSnapshot({ workspaceDir, projectId, desktopDataDir })
-    assert.equal(projectSnapshot.systemPlugins[0]?.globalEnabled, true)
-    assert.equal(projectSnapshot.systemPlugins[0]?.projectEnabled, false)
+    const projectSnapshot = getProjectPluginSnapshot({ workspaceDir, projectId, ...PROJECT_OWNER, desktopDataDir })
+    assert.equal(systemPlugin(projectSnapshot, 'outline-pack@local').globalEnabled, true)
+    assert.equal(systemPlugin(projectSnapshot, 'outline-pack@local').projectEnabled, false)
     assert.equal(projectSnapshot.plugins.length, 0)
     assert.equal(existsSync(join(projectCwd, '.codex')), false)
     assert.equal(projectSnapshot.skills.filter((skill) => skill.enabled).length, 0)
@@ -253,9 +267,10 @@ test('project plugin cache defaults under the MovScript Home workspace', () => {
   const root = mkdtempSync(join(tmpdir(), 'movscript-project-plugin-cache-home-'))
   try {
     const workspaceDir = join(root, 'workspace')
-    const snapshot = getProjectPluginSnapshot({ workspaceDir, projectId: 42 })
+    const snapshot = getProjectPluginSnapshot({ workspaceDir, projectId: 42, ...PROJECT_OWNER })
 
     assert.equal(snapshot.desktopPluginCacheRoot, join(workspaceDir, 'plugin-cache'))
+    assert.equal(systemPlugin(snapshot, MOVSCRIPT_BUNDLED_PLUGIN_KEY).globalEnabled, true)
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
@@ -266,7 +281,7 @@ test('project plugin install requires explicit provider targets', () => {
   try {
     const workspaceDir = join(root, 'workspace')
     const projectId = 42
-    const projectCwd = resolveMovScriptProjectCwd({ workspaceDir, projectId })
+    const projectCwd = resolveMovScriptProjectCwd({ workspaceDir, projectId, ...PROJECT_OWNER })
     const source = join(root, 'plugin-source')
     mkdirSync(join(source, 'skills', 'story'), { recursive: true })
     writeFileSync(join(source, 'skills', 'story', 'SKILL.md'), 'Use story planning.\n', 'utf8')
@@ -275,6 +290,7 @@ test('project plugin install requires explicit provider targets', () => {
       () => installProjectPlugin({
         workspaceDir,
         projectId,
+        ...PROJECT_OWNER,
         id: 'story-pack',
         name: 'story-pack',
         marketplaceName: 'local',
@@ -292,3 +308,29 @@ test('project plugin install requires explicit provider targets', () => {
     rmSync(root, { recursive: true, force: true })
   }
 })
+
+test('bundled MovScript plugin is always visible and cannot be removed from system plugins', () => {
+  const root = mkdtempSync(join(tmpdir(), 'movscript-bundled-system-plugin-'))
+  try {
+    const workspaceDir = join(root, 'workspace')
+    const snapshot = getProjectPluginSnapshot({ workspaceDir, projectId: 42, ...PROJECT_OWNER })
+    const bundled = systemPlugin(snapshot, MOVSCRIPT_BUNDLED_PLUGIN_KEY)
+
+    assert.equal(bundled.displayName, 'MovScript')
+    assert.equal(bundled.sourceType, 'builtin')
+    assert.equal(bundled.installed, true)
+    assert.equal(bundled.globalEnabled, true)
+    assert.throws(
+      () => uninstallSystemPlugin({ workspaceDir, pluginKey: MOVSCRIPT_BUNDLED_PLUGIN_KEY }),
+      /managed by the application and cannot be removed/,
+    )
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+function systemPlugin(snapshot: ReturnType<typeof getProjectPluginSnapshot>, pluginKey: string) {
+  const plugin = snapshot.systemPlugins.find((item) => item.pluginKey === pluginKey)
+  assert.ok(plugin, `expected system plugin ${pluginKey}`)
+  return plugin
+}

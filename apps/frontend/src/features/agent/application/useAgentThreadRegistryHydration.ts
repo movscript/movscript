@@ -311,8 +311,7 @@ function agentChatThreadTimestampIso(timestampSeconds: number): string {
 function projectIdFromProviderSessionCwd(cwd: string | null | undefined): number | undefined {
   const normalized = cwd?.replace(/\\/g, '/')
   if (!normalized) return undefined
-  const match = /(?:^|\/)\.movscript\/(?:local|user\/[^/]+|org\/[^/]+)\/projects\/project_(\d+)(?:\/|$)/.exec(normalized)
-    ?? /(?:^|\/)(?:local|user\/[^/]+|org\/[^/]+)\/projects\/project_(\d+)(?:\/|$)/.exec(normalized)
+  const match = /(?:^|\/)(?:\.movscript\/)?realms\/(?:local|cloud\/[^/]+)\/(?:user|org)\/[^/]+\/projects\/project_(\d+)(?:\/|$)/.exec(normalized)
   if (!match?.[1]) return undefined
   const projectId = Number(match[1])
   return Number.isInteger(projectId) && projectId > 0 ? projectId : undefined

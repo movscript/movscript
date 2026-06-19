@@ -5,7 +5,7 @@ import { localTerminalEnv } from './localTerminalEnv'
 
 test('localTerminalEnv injects backend auth and base URL for movcli', () => {
   const workspaceDir = resolve('/tmp/movscript-workspace')
-  const projectDir = resolve(workspaceDir, 'local/projects/project_42')
+  const projectDir = resolve(workspaceDir, 'realms/local/user/1/projects/project_42')
   const cliBinDir = resolve(workspaceDir, 'bin')
   const env = localTerminalEnv({
     inheritedEnv: {

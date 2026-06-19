@@ -107,32 +107,55 @@ function stringOrNumber(value: unknown): string | number | undefined {
 
 function normalizeConversationWorkspaceContext(value: unknown): AgentConversationWorkspaceContext | undefined {
   if (!isRecord(value)) return undefined
+  const realm = normalizeConversationWorkspaceRealm(value.realm)
+  const realmKind = value.realmKind === 'local' || value.realmKind === 'cloud' ? value.realmKind : undefined
+  const realmId = stringOrNumber(value.realmId)
   const scope = value.scope === 'production' || value.scope === 'project' || value.scope === 'global'
     ? value.scope
     : undefined
   const userId = stringOrNumber(value.userId)
+  const orgId = stringOrNumber(value.orgId)
   const projectId = stringOrNumber(value.projectId)
   const productionId = stringOrNumber(value.productionId)
-  if (!scope && userId === undefined && projectId === undefined && productionId === undefined) return undefined
+  const realmFields: Pick<AgentConversationWorkspaceContext, 'realm' | 'realmKind' | 'realmId'> = {
+    ...(realm ? { realm } : {}),
+    ...(realmKind ? { realmKind } : {}),
+    ...(realmId !== undefined ? { realmId } : {}),
+  }
+  const ownerFields = {
+    ...(userId !== undefined ? { userId } : {}),
+    ...(orgId !== undefined ? { orgId } : {}),
+  }
+  if (!scope && !realm && realmKind === undefined && realmId === undefined && userId === undefined && orgId === undefined && projectId === undefined && productionId === undefined) return undefined
   if (scope === 'production' && projectId !== undefined && productionId !== undefined) {
     return {
+      ...realmFields,
       scope,
-      ...(userId !== undefined ? { userId } : {}),
+      ...ownerFields,
       projectId,
       productionId,
     }
   }
   if ((scope === 'project' || projectId !== undefined) && projectId !== undefined) {
     return {
+      ...realmFields,
       scope: 'project',
-      ...(userId !== undefined ? { userId } : {}),
+      ...ownerFields,
       projectId,
     }
   }
   return {
+    ...realmFields,
     scope: 'global',
-    ...(userId !== undefined ? { userId } : {}),
+    ...ownerFields,
   }
+}
+
+function normalizeConversationWorkspaceRealm(value: unknown): AgentConversationWorkspaceContext['realm'] | undefined {
+  if (!isRecord(value)) return undefined
+  const kind = value.kind === 'local' || value.kind === 'cloud' ? value.kind : undefined
+  const id = stringOrNumber(value.id)
+  return kind && id !== undefined ? { kind, id: String(id) } : undefined
 }
 
 export function normalizeAttachments<Attachment extends AgentAttachment = AgentAttachment>(

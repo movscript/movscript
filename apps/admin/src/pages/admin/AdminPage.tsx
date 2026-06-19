@@ -74,12 +74,18 @@ import {
 
 interface TestResult { success: boolean; message: string; latency_ms: number }
 
+const HIDDEN_ADMIN_PROVIDER_ADAPTERS = new Set(['local'])
+
 function adapterDisplayName(adapter: Pick<AdapterDef, 'adapter_type' | 'display_name'>, t: (key: string, options?: Record<string, unknown>) => string) {
   return t(`admin.adapters.${adapter.adapter_type}.name`, { defaultValue: adapter.display_name })
 }
 
 function adapterDescription(adapter: Pick<AdapterDef, 'adapter_type' | 'description'>, t: (key: string, options?: Record<string, unknown>) => string) {
   return t(`admin.adapters.${adapter.adapter_type}.description`, { defaultValue: adapter.description })
+}
+
+function selectableAdminProviderAdapters(adapters: AdapterDef[]): AdapterDef[] {
+  return adapters.filter((adapter) => !HIDDEN_ADMIN_PROVIDER_ADAPTERS.has(adapter.adapter_type))
 }
 
 function credentialFieldLabel(key: string, fallback: string, t: (key: string, options?: Record<string, unknown>) => string) {
@@ -2433,6 +2439,7 @@ export function ModelManagementPage({ view = defaultModelManagementViewMode() }:
     queryKey: ['admin', 'adapters'],
     queryFn: () => api.get('/admin/adapters').then((r) => r.data),
   })
+  const providerPickerAdapters = useMemo(() => selectableAdminProviderAdapters(adapters), [adapters])
 
   const { data: credentials = [], error: credentialsQueryError } = useQuery<AICredential[]>({
     queryKey: ['admin', 'credentials'],
@@ -2614,7 +2621,7 @@ export function ModelManagementPage({ view = defaultModelManagementViewMode() }:
 
       {viewMode === 'providers' && addStep === 'pick' && (
         <AdapterPicker
-          adapters={adapters}
+          adapters={providerPickerAdapters}
           onPick={(a) => { setSelectedAdapter(a); setAddStep('fill') }}
           onCancel={() => setAddStep('idle')}
         />

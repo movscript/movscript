@@ -12,11 +12,12 @@ import {
   useAgentActiveConversationId,
   useAgentConversationRecordsById,
 } from '@/features/agent/state/agentConversationRegistryStore'
+import { AGENT_MODE_CONVERSATION_FOCUS_SCOPE } from '@/features/agent/state/agentConversationFocusScope'
 import { useProviderConfigStore } from '@/shared/infrastructure/providerConfigStore'
 
 function ProjectAgentChatSurface({ userId }: { userId: string }) {
   const providerSettings = useProviderConfigStore((s) => s.settings)
-  const activeConversationId = useAgentActiveConversationId(userId)
+  const activeConversationId = useAgentActiveConversationId(userId, AGENT_MODE_CONVERSATION_FOCUS_SCOPE)
   const conversationsById = useAgentConversationRecordsById()
   const activeRegistryState = useMemo(() => ({
     activeConversationIdsByUser: { [userId]: activeConversationId },
@@ -46,7 +47,7 @@ function ProjectAgentChatSurface({ userId }: { userId: string }) {
     if (!shouldRestoreProjectAgentActiveConversation({ activeConversationId, activeConversationOpen })) {
       return
     }
-    setActiveConversation(userId, openConversations[0]?.id ?? null)
+    setActiveConversation(userId, openConversations[0]?.id ?? null, AGENT_MODE_CONVERSATION_FOCUS_SCOPE)
   }, [activeConversationId, activeConversationOpen, openConversations, setActiveConversation, userId])
 
   return (
@@ -54,6 +55,7 @@ function ProjectAgentChatSurface({ userId }: { userId: string }) {
       <AgentModeChatSurfaceInner>
         <AgentUnifiedChatShell
           userId={userId}
+          conversationFocusScope={AGENT_MODE_CONVERSATION_FOCUS_SCOPE}
           emptyThreadLabel={emptyThreadLabel}
           onCollapse={() => { }}
           showCollapse={false}

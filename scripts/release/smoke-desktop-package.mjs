@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process'
-import { existsSync, readdirSync, statSync } from 'node:fs'
-import { basename, dirname, resolve } from 'node:path'
+import { existsSync, mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { basename, dirname, join, resolve } from 'node:path'
 
 import {
   isDirectRun,
@@ -70,38 +71,48 @@ export function smokeDesktopPackage(root = repoRoot, options = {}) {
     throw new Error(`No packaged desktop executable found in ${releaseDir} for ${platform}`)
   }
 
-  const command = linuxSmokeRunner(platform, env) || executable
-  const args = command === executable
-    ? ['--movscript-desktop-smoke-test']
-    : ['-a', executable, '--movscript-desktop-smoke-test']
-  const result = spawn(command, args, {
-    cwd: root,
-    encoding: 'utf8',
-    env: {
-      ...env,
-      ELECTRON_ENABLE_LOGGING: env.ELECTRON_ENABLE_LOGGING ?? '1',
-      MOVSCRIPT_DESKTOP_SMOKE_TEST: '1',
-    },
-    stdio: ['ignore', 'pipe', 'pipe'],
-    timeout: timeoutMs,
-  })
+  const providedUserDataDir = env.MOVSCRIPT_DESKTOP_SMOKE_USER_DATA_DIR?.trim()
+  const userDataDir = providedUserDataDir || mkdtempSync(join(tmpdir(), 'movscript-electron-user-data.'))
+  const markerFile = `${userDataDir}.marker`
+  const smokeArgs = ['--movscript-desktop-smoke-test', `--user-data-dir=${userDataDir}`]
+  const runner = desktopSmokeRunner(executable, platform, env, smokeArgs)
+  let result
+  try {
+    result = spawn(runner.command, runner.args, {
+      cwd: root,
+      encoding: 'utf8',
+      env: {
+        ...env,
+        ELECTRON_ENABLE_LOGGING: env.ELECTRON_ENABLE_LOGGING ?? '1',
+        MOVSCRIPT_DESKTOP_SMOKE_MARKER_FILE: markerFile,
+        MOVSCRIPT_DESKTOP_SMOKE_TEST: '1',
+        MOVSCRIPT_DESKTOP_SMOKE_USER_DATA_DIR: userDataDir,
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: timeoutMs,
+    })
 
-  const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`
-  if (result.error || result.status !== 0 || result.signal) {
-    const timedOut = result.error?.code === 'ETIMEDOUT' || result.signal === 'SIGTERM'
-    throw new Error([
-      `Packaged desktop smoke failed: ${executable}`,
-      timedOut ? `timed out after ${Math.round(timeoutMs / 1000)}s` : '',
-      result.error?.message,
-      `status=${result.status ?? 'none'} signal=${result.signal ?? 'none'}`,
-      output.trim(),
-    ].filter(Boolean).join('\n'))
-  }
-  if (!output.includes(smokeOkMarker)) {
-    throw new Error([
-      `Packaged desktop smoke did not emit ${smokeOkMarker}: ${executable}`,
-      output.trim(),
-    ].filter(Boolean).join('\n'))
+    const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`
+    const sawSmokeMarker = output.includes(smokeOkMarker) || waitForSmokeMarker(markerFile, platform === 'darwin' ? timeoutMs : 0)
+    if ((result.error || result.status !== 0 || result.signal) && !sawSmokeMarker) {
+      const timedOut = result.error?.code === 'ETIMEDOUT' || result.signal === 'SIGTERM'
+      throw new Error([
+        `Packaged desktop smoke failed: ${executable}`,
+        timedOut ? `timed out after ${Math.round(timeoutMs / 1000)}s` : '',
+        result.error?.message,
+        `status=${result.status ?? 'none'} signal=${result.signal ?? 'none'}`,
+        output.trim(),
+      ].filter(Boolean).join('\n'))
+    }
+    if (!sawSmokeMarker) {
+      throw new Error([
+        `Packaged desktop smoke did not emit ${smokeOkMarker}: ${executable}`,
+        output.trim(),
+      ].filter(Boolean).join('\n'))
+    }
+  } finally {
+    if (!providedUserDataDir) rmSync(userDataDir, { recursive: true, force: true })
+    rmSync(markerFile, { force: true })
   }
 
   return { executable, skipped: false }
@@ -135,6 +146,36 @@ function linuxSmokeRunner(platform, env) {
   if (platform !== 'linux' || env.DISPLAY) return ''
   const runner = '/usr/bin/xvfb-run'
   return existsSync(runner) ? runner : ''
+}
+
+function desktopSmokeRunner(executable, platform, env, smokeArgs) {
+  const linuxRunner = linuxSmokeRunner(platform, env)
+  if (linuxRunner) return { command: linuxRunner, args: ['-a', executable, ...smokeArgs] }
+  if (platform === 'darwin') {
+    return {
+      command: '/usr/bin/open',
+      args: ['-W', '-n', darwinAppBundlePath(executable), '--args', ...smokeArgs],
+    }
+  }
+  return { command: executable, args: smokeArgs }
+}
+
+function darwinAppBundlePath(executable) {
+  const normalized = executable.replace(/\\/g, '/')
+  const marker = '.app/'
+  const index = normalized.indexOf(marker)
+  if (index < 0) throw new Error(`Packaged macOS executable is not inside an .app bundle: ${executable}`)
+  return executable.slice(0, index + marker.length - 1)
+}
+
+function waitForSmokeMarker(markerFile, timeoutMs) {
+  if (existsSync(markerFile)) return true
+  const deadline = Date.now() + Math.max(0, timeoutMs)
+  while (Date.now() < deadline) {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100)
+    if (existsSync(markerFile)) return true
+  }
+  return false
 }
 
 function executableScore(path, platform) {

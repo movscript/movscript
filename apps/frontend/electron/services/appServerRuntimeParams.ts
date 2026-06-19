@@ -6,10 +6,8 @@ import type {
   AgentRuntimeRpcRequestMap,
 } from '../../src/shared/infrastructure/agent-runtime/agentRuntimeProtocol'
 import {
-  ensureMovScriptWorkspaceContext,
-  resolveMovScriptWorkspaceContextPaths,
-  type MovScriptWorkspaceContextInput,
-} from '@movscript/core/workspace/node'
+  resolveDesktopWorkspaceContextPaths,
+} from './workspaceRealm'
 
 export interface AppServerRuntimeParamsContext {
   workspaceDir: string
@@ -150,11 +148,11 @@ function resolveAppServerRuntimeCwd(input: Record<string, unknown>, workspaceDir
   const workspaceContext = isRecord(input.workspaceContext) ? input.workspaceContext : undefined
   const projectId = input.projectId
   if (!workspaceContext && typeof projectId !== 'number' && typeof projectId !== 'string') return workspaceDir
-  return ensureMovScriptWorkspaceContext(resolveMovScriptWorkspaceContextPaths({
+  return resolveDesktopWorkspaceContextPaths({
     workspaceDir,
-    ...(workspaceContext as MovScriptWorkspaceContextInput | undefined),
+    workspaceContext,
     ...(projectId !== undefined && !workspaceContext?.projectId ? { projectId: projectId as string | number } : {}),
-  })).providerSessionCwd
+  }).providerSessionCwd
 }
 
 function sandboxPolicyFromMode(mode: string | undefined, cwd: string | undefined): unknown {

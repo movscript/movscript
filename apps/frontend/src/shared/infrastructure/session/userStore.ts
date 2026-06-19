@@ -14,9 +14,12 @@ interface UserStore {
   gitCredential: AuthGitCredential | null
   orgMemberships: OrgMembership[]
   currentOrgID: number | null
+  activeRealmKey: string
+  sessionsByRealm: Record<string, UserSessionSnapshot>
   hydrated: boolean
   setSession: (session: AuthSession | null) => void
   setCurrentUser: (u: User | null) => void
+  setActiveRealm: (realmKey: string) => void
   setOrgMemberships: (memberships: OrgMembership[], preferredOrgId?: number | null) => void
   setCurrentOrg: (orgId: number | null) => void
 }
@@ -46,6 +49,15 @@ interface AuthUserPayload {
   username: string
   system_role?: 'super_admin' | 'user'
   systemRole?: 'super_admin' | 'user'
+}
+
+interface UserSessionSnapshot {
+  currentUser: User | null
+  token: string | null
+  tokenExpiresAt: string | null
+  gitCredential: AuthGitCredential | null
+  orgMemberships: OrgMembership[]
+  currentOrgID: number | null
 }
 
 function resolveInitialOrg(memberships: OrgMembership[], preferredOrgId?: number | null): number | null {
@@ -87,47 +99,128 @@ function getUserSessionStorage(): StateStorage {
 
 export const useUserStore = create<UserStore>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       currentUser: null,
       token: null,
       tokenExpiresAt: null,
       gitCredential: null,
       orgMemberships: [],
       currentOrgID: null,
+      activeRealmKey: 'local',
+      sessionsByRealm: {},
       hydrated: false,
       setSession: (session: AuthSession | null) => {
+        const realmKey = get().activeRealmKey
         if (!session) {
-          set({ currentUser: null, token: null, tokenExpiresAt: null, gitCredential: null, orgMemberships: [], currentOrgID: null })
+          set((state) => {
+            const sessionsByRealm = { ...state.sessionsByRealm }
+            delete sessionsByRealm[realmKey]
+            return { ...emptyUserSession(), sessionsByRealm }
+          })
           void syncElectronBackendAuthSession(null)
           return
         }
         const memberships = session.org_memberships ?? []
-        set({
+        const snapshot: UserSessionSnapshot = {
           currentUser: normalizeUser(session.user),
           token: session.token ?? null,
           tokenExpiresAt: session.expires_at ?? null,
           gitCredential: session.git_credential ?? null,
           orgMemberships: memberships,
           currentOrgID: resolveInitialOrg(memberships),
-        })
+        }
+        set((state) => ({
+          ...snapshot,
+          sessionsByRealm: {
+            ...state.sessionsByRealm,
+            [realmKey]: snapshot,
+          },
+        }))
         void syncElectronBackendAuthSession(session)
       },
-      setCurrentUser: (u: User | null) => {
-        if (!u) void syncElectronBackendAuthSession(null)
-        set((state: UserStore) => ({
-          currentUser: u,
-          token: u ? state.token : null,
-          tokenExpiresAt: u ? state.tokenExpiresAt : null,
-          gitCredential: u ? state.gitCredential : null,
-          orgMemberships: u ? state.orgMemberships : [],
-          currentOrgID: u ? state.currentOrgID : null,
+      setActiveRealm: (realmKey: string) => {
+        const normalized = realmKey.trim() || 'local'
+        const snapshot = get().sessionsByRealm[normalized] ?? emptyUserSession()
+        set((state) => ({
+          activeRealmKey: normalized,
+          ...snapshot,
         }))
+        if (snapshot.currentUser && snapshot.token) {
+          void syncElectronBackendAuthSession({
+            token: snapshot.token,
+            expires_at: snapshot.tokenExpiresAt ?? undefined,
+            user: snapshot.currentUser,
+            git_credential: snapshot.gitCredential ?? undefined,
+          })
+        } else {
+          void syncElectronBackendAuthSession(null)
+        }
       },
-      setOrgMemberships: (memberships: OrgMembership[], preferredOrgId?: number | null) => set({
-        orgMemberships: memberships,
-        currentOrgID: resolveInitialOrg(memberships, preferredOrgId),
+      setCurrentUser: (u: User | null) => {
+        if (!u) {
+          const realmKey = get().activeRealmKey
+          void syncElectronBackendAuthSession(null)
+          set((state: UserStore) => {
+            const sessionsByRealm = { ...state.sessionsByRealm }
+            delete sessionsByRealm[realmKey]
+            return { ...emptyUserSession(), sessionsByRealm }
+          })
+          return
+        }
+        set((state: UserStore) => {
+          const snapshot: UserSessionSnapshot = {
+            currentUser: u,
+            token: state.token,
+            tokenExpiresAt: state.tokenExpiresAt,
+            gitCredential: state.gitCredential,
+            orgMemberships: state.orgMemberships,
+            currentOrgID: state.currentOrgID,
+          }
+          return {
+            ...snapshot,
+            sessionsByRealm: {
+              ...state.sessionsByRealm,
+              [state.activeRealmKey]: snapshot,
+            },
+          }
+        })
+      },
+      setOrgMemberships: (memberships: OrgMembership[], preferredOrgId?: number | null) => {
+        set((state) => {
+          const snapshot: UserSessionSnapshot = {
+            currentUser: state.currentUser,
+            token: state.token,
+            tokenExpiresAt: state.tokenExpiresAt,
+            gitCredential: state.gitCredential,
+            orgMemberships: memberships,
+            currentOrgID: resolveInitialOrg(memberships, preferredOrgId),
+          }
+          return {
+            ...snapshot,
+            sessionsByRealm: state.currentUser ? {
+              ...state.sessionsByRealm,
+              [state.activeRealmKey]: snapshot,
+            } : state.sessionsByRealm,
+          }
+        })
+      },
+      setCurrentOrg: (orgId: number | null) => set((state) => {
+        const snapshot: UserSessionSnapshot = {
+          currentUser: state.currentUser,
+          token: state.token,
+          tokenExpiresAt: state.tokenExpiresAt,
+          gitCredential: state.gitCredential,
+          orgMemberships: state.orgMemberships,
+          currentOrgID: orgId,
+        }
+        return {
+          ...snapshot,
+          sessionsByRealm: state.currentUser ? {
+            ...state.sessionsByRealm,
+            [state.activeRealmKey]: snapshot,
+          } : state.sessionsByRealm,
+        }
       }),
-      setCurrentOrg: (orgId: number | null) => set({ currentOrgID: orgId }),
     }),
     {
       name: USER_SESSION_STORAGE_KEY,
@@ -138,6 +231,8 @@ export const useUserStore = create<UserStore>()(
           ...currentState,
           ...persisted,
           currentUser: persisted?.currentUser ? normalizeUser(persisted.currentUser) : null,
+          activeRealmKey: persisted?.activeRealmKey || 'local',
+          sessionsByRealm: normalizeSessionsByRealm(persisted?.sessionsByRealm, persisted),
           orgMemberships: persisted?.orgMemberships ?? [],
           currentOrgID: persisted?.currentOrgID ?? null,
           hydrated: true,
@@ -158,3 +253,52 @@ export const useUserStore = create<UserStore>()(
     }
   )
 )
+
+function emptyUserSession(): UserSessionSnapshot {
+  return {
+    currentUser: null,
+    token: null,
+    tokenExpiresAt: null,
+    gitCredential: null,
+    orgMemberships: [],
+    currentOrgID: null,
+  }
+}
+
+function normalizeSessionsByRealm(
+  value: unknown,
+  persisted: Partial<UserStore> | undefined,
+): Record<string, UserSessionSnapshot> {
+  const sessions: Record<string, UserSessionSnapshot> = {}
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    for (const [realmKey, item] of Object.entries(value)) {
+      const snapshot = normalizeSessionSnapshot(item)
+      if (snapshot) sessions[realmKey] = snapshot
+    }
+  }
+  if (Object.keys(sessions).length === 0 && persisted?.currentUser) {
+    sessions[persisted.activeRealmKey || 'local'] = {
+      currentUser: normalizeUser(persisted.currentUser),
+      token: persisted.token ?? null,
+      tokenExpiresAt: persisted.tokenExpiresAt ?? null,
+      gitCredential: persisted.gitCredential ?? null,
+      orgMemberships: persisted.orgMemberships ?? [],
+      currentOrgID: persisted.currentOrgID ?? null,
+    }
+  }
+  return sessions
+}
+
+function normalizeSessionSnapshot(value: unknown): UserSessionSnapshot | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const item = value as Partial<UserSessionSnapshot>
+  if (!item.currentUser) return null
+  return {
+    currentUser: normalizeUser(item.currentUser),
+    token: typeof item.token === 'string' ? item.token : null,
+    tokenExpiresAt: typeof item.tokenExpiresAt === 'string' ? item.tokenExpiresAt : null,
+    gitCredential: item.gitCredential ?? null,
+    orgMemberships: item.orgMemberships ?? [],
+    currentOrgID: item.currentOrgID ?? null,
+  }
+}

@@ -7,6 +7,7 @@ import { conversationIdForProviderThread } from '@/features/agent/domain/agentCo
 import { recentAppEventSnapshots, resetAppEventDedupeForTests } from '@/shared/application/appEvents'
 import { persistedAgentSessionState } from './agentSessionStoreTypes'
 import { pageTaskStatusFromProviderSession, useAgentSessionStore } from './agentSessionStore'
+import { AGENT_MODE_CONVERSATION_FOCUS_SCOPE, projectConversationFocusScope } from './agentConversationFocusScope'
 
 test('agent session store delegates conversation and task state transitions', () => {
   const storeSource = readFileSync(resolve('src/features/agent/state/agentSessionStore.ts'), 'utf8')
@@ -114,6 +115,7 @@ test('agent session persistence stores registry state and excludes provider-sess
 
   assert.deepEqual(partialized, {
     activeConversationIdsByUser: { user_1: 'conv_1' },
+    activeConversationIdsByScope: {},
     conversationsById: {
       conv_1: {
         id: 'conv_1',
@@ -289,6 +291,7 @@ test('conversation runtime patches update conversation runtime states', () => {
 test('setActiveConversation ignores duplicate active conversation ids', () => {
   useAgentSessionStore.setState({
     activeConversationIdsByUser: { user_1: 'conv_1' },
+    activeConversationIdsByScope: {},
     conversationsById: {},
     workspacesByUser: {},
     conversationThreadBindings: {},
@@ -301,6 +304,58 @@ test('setActiveConversation ignores duplicate active conversation ids', () => {
   useAgentSessionStore.getState().setActiveConversation('user_1', 'conv_1')
 
   assert.equal(useAgentSessionStore.getState().activeConversationIdsByUser, before)
+})
+
+test('opening and selecting a conversation preserves its activity timestamp', () => {
+  useAgentSessionStore.setState({
+    activeConversationIdsByUser: {},
+    activeConversationIdsByScope: {},
+    conversationsById: {
+      conv_1: {
+        id: 'conv_1',
+        userId: 'user_1',
+        providerThreadId: 'thread_1',
+        open: false,
+        archived: false,
+        createdAt: 1000,
+        updatedAt: 2000,
+      },
+    },
+    workspacesByUser: {},
+    conversationThreadBindings: {},
+    conversationRuntimeStates: {},
+    pageTasks: {},
+    standaloneTasks: {},
+  })
+
+  useAgentSessionStore.getState().setConversationOpen('user_1', 'conv_1', true, AGENT_MODE_CONVERSATION_FOCUS_SCOPE)
+  useAgentSessionStore.getState().setActiveConversation('user_1', 'conv_1', AGENT_MODE_CONVERSATION_FOCUS_SCOPE)
+  useAgentSessionStore.getState().updateConversationTitle('user_1', 'conv_1', 'Renamed')
+
+  const conversation = useAgentSessionStore.getState().conversationsById.conv_1
+  assert.equal(conversation?.open, true)
+  assert.equal(conversation?.title, 'Renamed')
+  assert.equal(conversation?.updatedAt, 2000)
+})
+
+test('setActiveConversation keeps project and agent focus scopes independent', () => {
+  useAgentSessionStore.setState({
+    activeConversationIdsByUser: {},
+    activeConversationIdsByScope: {},
+    conversationsById: {},
+    workspacesByUser: {},
+    conversationThreadBindings: {},
+    conversationRuntimeStates: {},
+    pageTasks: {},
+    standaloneTasks: {},
+  })
+
+  useAgentSessionStore.getState().setActiveConversation('user_1', 'agent_conv', AGENT_MODE_CONVERSATION_FOCUS_SCOPE)
+  useAgentSessionStore.getState().setActiveConversation('user_1', 'project_conv', projectConversationFocusScope(42))
+
+  assert.equal(useAgentSessionStore.getState().getActiveConversationId('user_1', AGENT_MODE_CONVERSATION_FOCUS_SCOPE), 'agent_conv')
+  assert.equal(useAgentSessionStore.getState().getActiveConversationId('user_1', projectConversationFocusScope(42)), 'project_conv')
+  assert.equal(useAgentSessionStore.getState().getActiveConversationId('user_1'), null)
 })
 
 test('agent session task actions preserve page task and standalone task lifecycles', () => {

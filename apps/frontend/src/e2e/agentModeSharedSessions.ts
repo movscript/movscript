@@ -72,7 +72,7 @@ export function buildAgentModeSharedSessionsBootstrap(apiBaseURL: string): E2EBo
           userId: String(AGENT_MODE_SHARED_USER_ID),
           ...PROJECT_PROVIDER_IDENTITY,
           providerThreadId: AGENT_MODE_SHARED_PROJECT_THREAD_ID,
-          providerThreadCwd: `/tmp/movscript-e2e/.movscript/local/projects/project_${AGENT_MODE_SHARED_PROJECT_ID}`,
+          providerThreadCwd: `/tmp/movscript-e2e/.movscript/realms/local/user/${AGENT_MODE_SHARED_USER_ID}/projects/project_${AGENT_MODE_SHARED_PROJECT_ID}`,
           workspaceContext: { scope: 'project', projectId: AGENT_MODE_SHARED_PROJECT_ID },
           projectId: AGENT_MODE_SHARED_PROJECT_ID,
           title: AGENT_MODE_SHARED_PROJECT_TITLE,

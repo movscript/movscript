@@ -9,6 +9,7 @@ import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { useUserStore, type AuthSession } from '@/shared/infrastructure/session/userStore'
 import type { Project } from '@/types'
 import { normalizeAgentConversationRegistryRecord, type AgentConversationRegistryRecord } from '@movscript/core/agent'
+import { AGENT_MODE_CONVERSATION_FOCUS_SCOPE, agentConversationFocusStorageKey } from '@/features/agent/state/agentConversationFocusScope'
 
 export const E2E_BOOTSTRAP_STORAGE_KEY = 'movscript-e2e-bootstrap'
 
@@ -87,6 +88,10 @@ export function applyE2EBootstrapSeed(seed: E2EBootstrapSeed): void {
         activeConversationIdsByUser: {
           ...state.activeConversationIdsByUser,
           [userId]: seed.agent?.conversations[0]?.conversation.id ?? null,
+        },
+        activeConversationIdsByScope: {
+          ...state.activeConversationIdsByScope,
+          [agentConversationFocusStorageKey(userId, AGENT_MODE_CONVERSATION_FOCUS_SCOPE)]: seed.agent?.conversations[0]?.conversation.id ?? null,
         },
         workspacesByUser: {
           ...state.workspacesByUser,

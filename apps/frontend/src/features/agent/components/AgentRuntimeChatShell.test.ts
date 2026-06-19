@@ -130,6 +130,7 @@ test('agent chat provider resolution follows the selected agent over stale activ
 
   const resolvedProfile = resolveAgentChatShellProfile(settings, 'user_1', {
     activeConversationIdsByUser: { user_1: 'thread_1' },
+    activeConversationIdsByScope: {},
     conversationsById: {
       thread_1: {
         id: 'thread_1',
@@ -173,9 +174,13 @@ test('agent chat active thread state is owned by the session registry', () => {
   const shellModelSource = readAgentChatShellModelSource()
 
   assert.match(agentRuntimeShellSource, /selectActiveAgentConversationRegistryRecord/)
-  assert.match(agentRuntimeShellSource, /selectAgentConversationRegistryRecords/)
+  assert.doesNotMatch(agentRuntimeShellSource, /selectAgentConversationRegistryRecords/)
+  assert.match(agentRuntimeShellSource, /isAgentChatDraftConversationId\(activeConversationId\)/)
   assert.match(agentRuntimeShellSource, /const readActiveThreadId = useCallback\(\(\) => activeThreadId, \[activeThreadId\]\)/)
+  assert.match(agentRuntimeShellSource, /registryActiveThreadId=\{activeThreadId\}/)
   assert.match(agentRuntimeShellSource, /readActiveThreadId=\{readActiveThreadId\}/)
+  assert.match(dataSourceShellTypesSource, /conversationFocusScope\?: AgentConversationFocusScope/)
+  assert.match(dataSourceShellTypesSource, /registryActiveThreadId\?: string \| null/)
   assert.match(agentRuntimeShellSource, /threadScopeKey=\{threadScopeKey\}/)
   assert.match(agentRuntimeShellSource, /dataSourceKey=\{threadScopeKey\}/)
   assert.match(unifiedShellSource, /function resolveAgentChatShellProfile/)
@@ -198,10 +203,10 @@ test('agent chat active thread state is owned by the session registry', () => {
   assert.match(dataSourceShellSource, /useAgentChatConversationRegistry\(\{[\s\S]*dispatchRuntime,[\s\S]*readCurrentActiveThreadId,[\s\S]*threadScopeKey,[\s\S]*userId,[\s\S]*\}\)/)
   assert.match(conversationRegistrySource, /const conversationPatchInputForThread = useCallback\(\(threadId: string, open: boolean\) => buildAgentChatConversationPatchInput\(\{/)
   assert.match(conversationRegistrySource, /const conversationId = store\.upsertConversation\(conversationPatchInputForThread\(threadId, true\)\)/)
-  assert.match(conversationRegistrySource, /store\.setConversationOpen\(userId, conversationId, true\)/)
-  assert.match(conversationRegistrySource, /store\.setActiveConversation\(userId, conversationId\)/)
+  assert.match(conversationRegistrySource, /store\.setConversationOpen\(userId, conversationId, true, focusScope\)/)
+  assert.match(conversationRegistrySource, /store\.setActiveConversation\(userId, conversationId, focusScope\)/)
   assert.match(conversationRegistrySource, /const conversationId = store\.upsertConversation\(conversationPatchInputForThread\(threadId, false\)\)/)
-  assert.match(conversationRegistrySource, /store\.setConversationOpen\(userId, conversationId, false\)/)
+  assert.match(conversationRegistrySource, /store\.setConversationOpen\(userId, conversationId, false, focusScope\)/)
   assert.match(conversationRegistrySource, /const providerIdentity = useMemo\(\(\) => buildAgentChatProviderIdentity\(\{/)
   assert.match(conversationRegistrySource, /const reorderOpenThreads = useCallback/)
   assert.match(conversationRegistrySource, /buildAgentChatThreadDeckOrderUpdates\(\{[\s\S]*draggedThreadId,[\s\S]*targetThreadId,[\s\S]*providerIdentity,[\s\S]*records: Object\.values\(snapshot\.conversationsById\),[\s\S]*\}\)/)
@@ -230,7 +235,9 @@ test('agent chat active thread state is owned by the session registry', () => {
   assert.match(threadListSource, /setSourceThreadList\(\(current\) => \{[\s\S]*mergeAgentChatThreadListPage\(current, response\.threads\)[\s\S]*writeAgentChatSourceThreadListCache\(threadScopeKey/)
   assert.match(dataSourceShellSource, /from '@\/features\/agent\/application\/useAgentChatThreadLifecycleEffects'/)
   assert.match(threadLifecycleEffectsSource, /if \(!dataSource \|\| surface !== 'panel' \|\| !historyOpen \|\| sourceThreadListLoaded \|\| loading\) return[\s\S]*void refreshThreadList\(\)/)
-  assert.match(threadLifecycleEffectsSource, /onNotification: dataSource\.subscribeServerRequests \? undefined : handleNotification/)
+  assert.match(threadLifecycleEffectsSource, /const threadSubscriptionOwnsNotifications = !dataSource\.subscribeServerRequests/)
+  assert.match(threadLifecycleEffectsSource, /onNotification: threadSubscriptionOwnsNotifications \? handleNotification : undefined/)
+  assert.match(threadLifecycleEffectsSource, /onServerRequest: threadSubscriptionOwnsNotifications \? handleServerRequest : undefined/)
   assert.match(dataSourceShellSource, /historyPanel: buildAgentChatShellHistoryPanel\(\{[\s\S]*hasMoreThreadPages: Boolean\(threadListNextCursor\),[\s\S]*onLoadThreads: refreshThreadList/)
   assert.match(shellViewSource, /historyPanel: AgentChatShellHistoryPanelProps/)
   assert.match(shellViewSource, /hasMoreThreadPages=\{historyPanel\.hasMoreThreadPages\}/)
@@ -295,7 +302,7 @@ test('project agent chat surface respects registry-open restored conversations',
   assert.match(chatSurfaceSource, /selectAgentConversationRegistryRecords\(conversationsById, \{ userId, \.\.\.activeProviderIdentity \}\)/)
   assert.doesNotMatch(chatSurfaceSource, /providerInstanceId\(activeProfile\?\.provider|providerProtocol\(activeProfile\?\.provider/)
   assert.match(chatSurfaceSource, /const activeConversationOpen = !!activeConversationId[\s\S]*&& openConversations\.some\(\(record\) => record\.id === activeConversationId\)/)
-  assert.match(chatSurfaceSource, /setActiveConversation\(userId, openConversations\[0\]\?\.id \?\? null\)/)
+  assert.match(chatSurfaceSource, /setActiveConversation\(userId, openConversations\[0\]\?\.id \?\? null, AGENT_MODE_CONVERSATION_FOCUS_SCOPE\)/)
   assert.doesNotMatch(chatSurfaceSource, /readAgentConversationOpenState|writeLastAgentModeActiveThreadId/)
 })
 
@@ -363,8 +370,9 @@ test('project agent mode agent runtime conversations use thread titles and proje
   assert.match(hydrationSource, /\.\.\.\(projectId !== undefined \? \{ projectId \} : \{\}\)/)
   assert.match(hydrationSource, /function projectIdFromProviderSessionCwd/)
   assert.ok(cwdProjectIdSource.includes('\\.movscript\\/'))
-  assert.ok(cwdProjectIdSource.includes('local|user\\/[^/]+|org\\/[^/]+'))
-  assert.ok(cwdProjectIdSource.includes('?? /(?:^|\\/)'))
+  assert.ok(cwdProjectIdSource.includes('local|cloud\\/[^/]+'))
+  assert.ok(cwdProjectIdSource.includes('(?:user|org)\\/[^/]+'))
+  assert.ok(cwdProjectIdSource.includes('projects\\/project_(\\d+)'))
   assert.match(projectIdSource, /conversationsById: Record<string, AgentConversationRegistryRecord>/)
   assert.match(projectIdSource, /const recordProjectId = conversation\.id \? context\.conversationsById\[conversation\.id\]\?\.projectId : undefined/)
   assert.match(projectAgentSource, /getConversationTitle=\{\(conversation\) => conversationDisplayTitle\(conversation, t\)\}/)

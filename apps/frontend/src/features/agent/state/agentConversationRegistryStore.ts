@@ -2,6 +2,7 @@ import type {
   AgentConversationRegistryInput,
   AgentConversationRegistryRecord,
 } from '@movscript/core/agent'
+import type { AgentConversationFocusScope } from '@/features/agent/state/agentConversationFocusScope'
 import type { AgentConversationThreadBinding } from '@/features/agent/state/agentSessionRuntimeModel'
 import type { AgentSessionStore } from '@/features/agent/state/agentSessionStoreTypes'
 import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
@@ -14,6 +15,7 @@ export {
 
 export interface AgentConversationRegistrySnapshot {
   activeConversationIdsByUser: Record<string, string | null>
+  activeConversationIdsByScope: Record<string, string | null>
   conversationsById: Record<string, AgentConversationRegistryRecord>
   conversationThreadBindings: Record<string, AgentConversationThreadBinding>
 }
@@ -31,6 +33,7 @@ export interface AgentConversationRegistryActions {
 type AgentConversationRegistryState = Pick<
   AgentSessionStore,
   | 'activeConversationIdsByUser'
+  | 'activeConversationIdsByScope'
   | 'conversationsById'
   | 'conversationThreadBindings'
 >
@@ -47,8 +50,8 @@ export function useAgentActiveConversationIdsByUser(): Record<string, string | n
   return useAgentSessionStore((state) => state.activeConversationIdsByUser)
 }
 
-export function useAgentActiveConversationId(userId: string): string | null {
-  return useAgentSessionStore((state) => state.activeConversationIdsByUser[userId] ?? null)
+export function useAgentActiveConversationId(userId: string, focusScope?: AgentConversationFocusScope): string | null {
+  return useAgentSessionStore((state) => state.getActiveConversationId(userId, focusScope))
 }
 
 export function useAgentConversationThreadBindings(): Record<string, AgentConversationThreadBinding> {
@@ -72,6 +75,7 @@ export function selectAgentConversationRegistrySnapshot(
 ): AgentConversationRegistrySnapshot {
   return {
     activeConversationIdsByUser: state.activeConversationIdsByUser,
+    activeConversationIdsByScope: state.activeConversationIdsByScope,
     conversationsById: state.conversationsById,
     conversationThreadBindings: state.conversationThreadBindings,
   }

@@ -1,4 +1,6 @@
 import { app, BrowserWindow, dialog } from 'electron'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { dirname } from 'node:path'
 import { installChromiumRenderDiagnostics } from './diagnostics/rendering'
 import { installApplicationMenu } from './appMenu'
 import {
@@ -50,6 +52,7 @@ app.whenReady().then(async () => {
   }
 
   if (desktopSmokeTest) {
+    writeDesktopSmokeMarker()
     console.log('MOVSCRIPT_DESKTOP_SMOKE_OK')
     await shutdownManagedServices()
     app.exit(0)
@@ -95,3 +98,10 @@ registerIpcHandlers({
   broadcastBackendStatus,
   ensureMCPServerReady,
 })
+
+function writeDesktopSmokeMarker(): void {
+  const markerFile = process.env.MOVSCRIPT_DESKTOP_SMOKE_MARKER_FILE?.trim()
+  if (!markerFile) return
+  mkdirSync(dirname(markerFile), { recursive: true })
+  writeFileSync(markerFile, 'MOVSCRIPT_DESKTOP_SMOKE_OK\n', 'utf8')
+}

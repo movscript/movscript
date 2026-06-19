@@ -97,7 +97,6 @@ export function agentChatConversationRecordForThread(input: {
 }
 
 export function buildAgentChatConversationPatchInput(input: {
-  nowMs: number
   open: boolean
   provider?: string
   providerId?: string
@@ -115,7 +114,6 @@ export function buildAgentChatConversationPatchInput(input: {
     providerThreadId: input.threadId,
     open: input.open,
     archived: false,
-    updatedAt: input.nowMs,
   }
 }
 

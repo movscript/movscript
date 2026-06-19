@@ -5,6 +5,7 @@ import type {
   AgentChatModelSelection,
 } from '@movscript/core/agent/chat'
 import type { ProviderKind, ProviderProtocol } from '@/shared/infrastructure/providerConfigStore'
+import type { AgentConversationFocusScope } from '@/features/agent/state/agentConversationFocusScope'
 import type { Project, PublicModel } from '@/types'
 
 export interface AgentChatDataSourceShellLoadResult {
@@ -22,6 +23,8 @@ export interface AgentChatDataSourceShellProps {
   providerInstanceId?: string
   providerProtocol?: ProviderProtocol
   threadScopeKey: string
+  conversationFocusScope?: AgentConversationFocusScope
+  registryActiveThreadId?: string | null
   readActiveThreadId?: () => string | null
   openThreadEventName: string
   providerLabel: string

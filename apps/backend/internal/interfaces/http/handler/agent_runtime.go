@@ -202,7 +202,7 @@ func (h *AgentRuntimeHandler) proxyRuntime(c *gin.Context, method string, endpoi
 
 	copyAgentRuntimeResponseHeaders(c.Writer.Header(), resp.Header)
 	c.Status(resp.StatusCode)
-	_, _ = io.Copy(c.Writer, resp.Body)
+	_, _ = copyAgentRuntimeResponseBody(c.Writer, resp.Body)
 }
 
 func (h *AgentRuntimeHandler) runtimeURL(endpoint string, rawQuery string) (string, error) {
@@ -251,6 +251,27 @@ func copyAgentRuntimeResponseHeaders(dst http.Header, src http.Header) {
 			dst.Add(key, value)
 		}
 	}
+}
+
+type flushingAgentRuntimeWriter struct {
+	writer  io.Writer
+	flusher http.Flusher
+}
+
+func (w flushingAgentRuntimeWriter) Write(data []byte) (int, error) {
+	n, err := w.writer.Write(data)
+	if n > 0 {
+		w.flusher.Flush()
+	}
+	return n, err
+}
+
+func copyAgentRuntimeResponseBody(dst http.ResponseWriter, src io.Reader) (int64, error) {
+	flusher, ok := dst.(http.Flusher)
+	if !ok {
+		return io.Copy(dst, src)
+	}
+	return io.Copy(flushingAgentRuntimeWriter{writer: dst, flusher: flusher}, src)
 }
 
 func mergeAuditMetadata(base map[string]any, extra map[string]any) map[string]any {

@@ -1,6 +1,6 @@
 {
   "name": "movscript",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "packageManager": "pnpm@10.32.1",
   "scripts": {
@@ -50,6 +50,7 @@
       "tests/scripts/release/download-ffmpeg-static.test.mjs",
       "tests/scripts/release/package-desktop-prepare.test.mjs",
       "tests/scripts/release/package-desktop.test.mjs",
+      "tests/scripts/release/package-macos-local-dmg.test.mjs",
       "tests/scripts/release/package-resources.test.mjs",
       "tests/scripts/release/release-workflow-cli.test.mjs",
       "tests/scripts/release/release-workflow.test.mjs",

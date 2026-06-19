@@ -7,6 +7,7 @@ import {
   type MovScriptWorkspaceConfig,
 } from '@movscript/core/workspace/node'
 import { resolveMovScriptHomeDir } from '../services/movscriptHomeInput'
+import { resolveDesktopWorkspaceRealm } from '../services/workspaceRealm'
 import type { ElectronMovScriptHomeInput, ElectronMovScriptWorkspaceConfigSaveInput } from '../../src/shared/contracts/electronApi'
 
 export function registerMovScriptWorkspaceConfigIpcHandlers(): void {
@@ -19,7 +20,11 @@ export function registerMovScriptWorkspaceConfigIpcHandlers(): void {
 }
 
 function workspaceConfigPath(input?: ElectronMovScriptHomeInput & { providerProfileKey?: string }) {
-  const paths = resolveMovScriptWorkspacePaths(resolveMovScriptHomeDir(input), { configDirName: input?.providerProfileKey })
+  const workspaceDir = resolveMovScriptHomeDir(input)
+  const paths = resolveMovScriptWorkspacePaths(workspaceDir, {
+    configDirName: input?.providerProfileKey,
+    realm: resolveDesktopWorkspaceRealm(workspaceDir),
+  })
   ensureMovScriptWorkspace(paths)
   return paths.configPath
 }

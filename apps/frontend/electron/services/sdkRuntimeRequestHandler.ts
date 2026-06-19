@@ -6,11 +6,6 @@ import type {
   AgentThreadExecutionSettings,
   AgentThreadGoalState,
 } from '@movscript/core/agent/chat'
-import {
-  ensureMovScriptWorkspaceContext,
-  resolveMovScriptWorkspaceContextPaths,
-  type MovScriptWorkspaceContextInput,
-} from '@movscript/core/workspace/node'
 import type {
   ElectronSdkRuntimeRequestInput,
 } from '../../src/shared/contracts/electronApi'
@@ -39,6 +34,7 @@ import {
   listSdkRuntimeSkills,
   setSdkRuntimeExtraSkillRoots,
 } from './sdkRuntimeSkillService'
+import { resolveDesktopWorkspaceContextPaths } from './workspaceRealm'
 import type { SdkRuntimeRunPromptEventSink, SdkRuntimeTurnEvent } from './sdkRuntimeTurnEvents'
 import {
   notificationEventFromContext,
@@ -469,11 +465,11 @@ function resolveSdkRuntimeCwd(record: Record<string, unknown>, workspaceDir: str
   const workspaceContext = isRecord(record.workspaceContext) ? record.workspaceContext : undefined
   const projectId = record.projectId
   if (!workspaceContext && typeof projectId !== 'number' && typeof projectId !== 'string') return undefined
-  return ensureMovScriptWorkspaceContext(resolveMovScriptWorkspaceContextPaths({
+  return resolveDesktopWorkspaceContextPaths({
     workspaceDir,
-    ...(workspaceContext as MovScriptWorkspaceContextInput | undefined),
+    workspaceContext,
     ...(projectId !== undefined && !workspaceContext?.projectId ? { projectId: projectId as string | number } : {}),
-  })).providerSessionCwd
+  }).providerSessionCwd
 }
 
 function paramsFor<M extends SdkRuntimeRpcMethod>(

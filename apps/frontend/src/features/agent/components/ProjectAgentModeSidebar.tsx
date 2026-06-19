@@ -45,6 +45,7 @@ import {
   useAgentConversationRecordsById,
   useAgentConversationThreadBindings,
 } from '@/features/agent/state/agentConversationRegistryStore'
+import { AGENT_MODE_CONVERSATION_FOCUS_SCOPE } from '@/features/agent/state/agentConversationFocusScope'
 import { useAgentPageTasks } from '@/features/agent/state/agentTaskQueueStore'
 import {
   enabledProviders,
@@ -76,7 +77,7 @@ export function ProjectAgentModeSidebar({
   const removeProviderSessionConversation = registryActions.removeProviderSessionConversation
   const setActiveConversation = registryActions.setActiveConversation
   const setConversationOpenInRegistry = registryActions.setConversationOpen
-  const activeConversationId = useAgentActiveConversationId(userId)
+  const activeConversationId = useAgentActiveConversationId(userId, AGENT_MODE_CONVERSATION_FOCUS_SCOPE)
   const conversationsById = useAgentConversationRecordsById()
   const pageTasks = useAgentPageTasks()
   const conversationThreadBindings = useAgentConversationThreadBindings()
@@ -258,7 +259,7 @@ export function ProjectAgentModeSidebar({
       open,
       archived: false,
     })
-    setConversationOpenInRegistry(userId, conversationId, open)
+    setConversationOpenInRegistry(userId, conversationId, open, AGENT_MODE_CONVERSATION_FOCUS_SCOPE)
     return conversationId
   }
 
@@ -302,8 +303,8 @@ export function ProjectAgentModeSidebar({
       const conversationId = providerThreadId
         ? agentRuntimeConversationIdForThread(providerThreadId, agentThreadRegistryProviderIdentity(targetProvider))
         : id
-      setActiveConversation(userId, conversationId)
-      setConversationOpenInRegistry(userId, conversationId, true)
+      setActiveConversation(userId, conversationId, AGENT_MODE_CONVERSATION_FOCUS_SCOPE)
+      setConversationOpenInRegistry(userId, conversationId, true, AGENT_MODE_CONVERSATION_FOCUS_SCOPE)
       if (providerThreadId) {
         window.setTimeout(() => {
           openAgentRuntimeThread({ threadId: providerThreadId, provider: targetProvider })
@@ -322,9 +323,9 @@ export function ProjectAgentModeSidebar({
         window.alert(t('agents.chat.stopBeforeClosingConversation'))
         return
       }
-      setConversationOpenInRegistry(userId, conversation.id, false)
-      if (getActiveConversationId(userId) === conversation.id) {
-        setActiveConversation(userId, null)
+      setConversationOpenInRegistry(userId, conversation.id, false, AGENT_MODE_CONVERSATION_FOCUS_SCOPE)
+      if (getActiveConversationId(userId, AGENT_MODE_CONVERSATION_FOCUS_SCOPE) === conversation.id) {
+        setActiveConversation(userId, null, AGENT_MODE_CONVERSATION_FOCUS_SCOPE)
       }
     })().catch((error) => {
       console.error('[agent] failed to archive agent runtime conversation', error)
@@ -401,8 +402,8 @@ export function ProjectAgentModeSidebar({
     const targetProvider = providerForIdentity(providerIdentity)
     const conversationId = upsertAgentRuntimeConversationForThread(threadId, targetProvider, true)
     setNewConversationProviderId(targetProvider.id)
-    setConversationOpenInRegistry(userId, conversationId, true)
-    setActiveConversation(userId, conversationId)
+    setConversationOpenInRegistry(userId, conversationId, true, AGENT_MODE_CONVERSATION_FOCUS_SCOPE)
+    setActiveConversation(userId, conversationId, AGENT_MODE_CONVERSATION_FOCUS_SCOPE)
     navigate(ROUTES.project.agent)
     window.setTimeout(() => {
       openAgentRuntimeThread({ threadId, provider: targetProvider })

@@ -2,7 +2,6 @@ import { lstat, mkdir, readdir, readFile, rm, stat } from 'node:fs/promises'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import {
   ensureMovScriptWorkspaceRoot,
-  resolveMovScriptProjectCwd,
   resolveMovScriptWorkspaceRootPaths,
 } from '@movscript/core/workspace/node'
 import type {
@@ -14,6 +13,7 @@ import type {
 } from '../../src/shared/contracts/electronApi'
 import { resolveMovScriptHomeDir } from './movscriptHomeInput'
 import { writeTextFileAtomic } from './atomicWrite'
+import { resolveDesktopWorkspaceContextPaths } from './workspaceRealm'
 
 const MAX_TEXT_FILE_BYTES = 2 * 1024 * 1024
 const MAX_MEDIA_PREVIEW_FILE_BYTES = 32 * 1024 * 1024
@@ -124,12 +124,15 @@ async function resolveMovScriptWorkspaceFilePath(input?: ElectronMovScriptWorksp
   const workspaceRoot = resolveMovScriptWorkspaceRootPaths(workspaceDir)
   ensureMovScriptWorkspaceRoot(workspaceRoot)
   const rootPath = input?.projectId !== undefined
-    ? resolveMovScriptProjectCwd({
+    ? resolveDesktopWorkspaceContextPaths({
         workspaceDir,
-        ...(input.userId !== undefined ? { userId: input.userId } : {}),
-        ...(input.orgId !== undefined ? { orgId: input.orgId } : {}),
-        projectId: input.projectId,
-      })
+        workspaceContext: {
+          scope: 'project',
+          ...(input.userId !== undefined ? { userId: input.userId } : {}),
+          ...(input.orgId !== undefined ? { orgId: input.orgId } : {}),
+          projectId: input.projectId,
+        },
+      }).projectCwd
     : workspaceRoot.rootDir
   const rawRelativePath = typeof input?.path === 'string' ? input.path : ''
   const normalizedRelativePath = rawRelativePath.replace(/^[/\\]+/, '')

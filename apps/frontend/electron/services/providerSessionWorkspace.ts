@@ -10,6 +10,7 @@ import {
 import type { ElectronProviderSessionSummary } from '../../src/shared/contracts/electronApi'
 import type { ElectronMovScriptHomeInput } from '../../src/shared/contracts/electronApi'
 import { resolveMovScriptHomeDir } from './movscriptHomeInput'
+import { resolveDesktopWorkspaceRealm } from './workspaceRealm'
 
 export const MOVSCRIPT_PROVIDER_SESSION_SCHEMA = 'movscript.provider-session.v1'
 
@@ -44,19 +45,21 @@ export type ProviderSessionWorkspaceUpsertInput = ElectronMovScriptHomeInput & {
 
 export function listProviderSessionsFromWorkspace(input: ElectronMovScriptHomeInput & { providerProfileKey?: string } = {}): { sessions: ElectronProviderSessionSummary[] } {
   const workspaceDir = resolveMovScriptHomeDir(input)
+  const realm = resolveDesktopWorkspaceRealm(workspaceDir)
   const requestedProfile = normalizeMovScriptWorkspaceConfigDirName(input.providerProfileKey)
   const root = resolveMovScriptWorkspaceRootPaths(workspaceDir)
+  const realmPaths = resolveMovScriptWorkspacePaths(workspaceDir, { realm })
   ensureMovScriptWorkspaceRoot(root)
-  mkdirSync(root.providersDir, { recursive: true })
+  mkdirSync(realmPaths.providerConfigsDir, { recursive: true })
 
   const profileNames = requestedProfile
     ? [requestedProfile]
-    : readdirSync(root.providersDir, { withFileTypes: true })
+    : readdirSync(realmPaths.providerConfigsDir, { withFileTypes: true })
       .filter((entry) => entry.isDirectory())
       .map((entry) => entry.name)
 
   const sessions = profileNames.flatMap((profileName) => {
-    const paths = resolveMovScriptWorkspacePaths(workspaceDir, { configDirName: profileName })
+    const paths = resolveMovScriptWorkspacePaths(workspaceDir, { configDirName: profileName, realm })
     const sessionDir = paths.sessionsDir
     if (!existsSync(sessionDir)) return []
     return readdirSync(sessionDir, { withFileTypes: true })
@@ -73,8 +76,9 @@ export function listProviderSessionsFromWorkspace(input: ElectronMovScriptHomeIn
 
 export function upsertProviderSessionInWorkspace(input: ProviderSessionWorkspaceUpsertInput): ProviderSessionWorkspaceRecord {
   const workspaceDir = resolveMovScriptHomeDir(input)
+  const realm = resolveDesktopWorkspaceRealm(workspaceDir)
   const providerProfileKey = normalizeMovScriptWorkspaceConfigDirName(input.providerProfileKey) ?? input.providerKey ?? 'default'
-  const paths = resolveMovScriptWorkspacePaths(workspaceDir, { configDirName: providerProfileKey })
+  const paths = resolveMovScriptWorkspacePaths(workspaceDir, { configDirName: providerProfileKey, realm })
   ensureMovScriptWorkspace(paths)
   const recordPath = join(paths.sessionsDir, `${safeSessionFileName(input.providerProfileId)}.json`)
   const previous = readProviderSessionRecord(recordPath)
@@ -189,7 +193,7 @@ function projectIdFromWorkspaceContext(context: ElectronProviderSessionSummary['
 function projectIdFromProviderSessionCwd(cwd: string | undefined): number | undefined {
   const normalized = cwd?.replace(/\\/g, '/')
   if (!normalized) return undefined
-  const match = /(?:^|\/)(?:\.movscript\/)?(?:local|user\/[^/]+|org\/[^/]+)\/projects\/project_(\d+)(?:\/|$)/.exec(normalized)
+  const match = /(?:^|\/)realms\/(?:local|cloud\/[^/]+)\/(?:user\/[^/]+|org\/[^/]+)\/projects\/project_(\d+)(?:\/|$)/.exec(normalized)
   if (!match?.[1]) return undefined
   const projectId = Number(match[1])
   return Number.isInteger(projectId) && projectId > 0 ? projectId : undefined

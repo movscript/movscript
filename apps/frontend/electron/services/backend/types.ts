@@ -5,6 +5,8 @@ export interface BackendStatus {
   baseURL: string
   pid?: number
   message?: string
+  logPath?: string
+  recentOutput?: string
 }
 
 export type BackendStatusListener = (status: BackendStatus) => void

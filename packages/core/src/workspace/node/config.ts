@@ -4,7 +4,9 @@ import {
   ensureMovScriptWorkspaceRoot,
   fallbackUserMovScriptHomeDir,
   MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME,
+  normalizeMovScriptWorkspaceRealm,
   resolveMovScriptHomeDir,
+  resolveMovScriptWorkspaceRealmDir,
   resolveMovScriptWorkspaceRootPaths,
 } from './paths.js'
 export {
@@ -16,6 +18,7 @@ import {
   type MovScriptWorkspaceConfig,
 } from '../config.js'
 import type { ProviderCatalogConfigFile } from '../../agent/protocol.js'
+import type { MovScriptWorkspaceRealm, MovScriptWorkspaceRealmInput } from '../root.js'
 
 export const MOVSCRIPT_WORKSPACE_CONFIG_DIR_NAME = 'default'
 export const MOVSCRIPT_WORKSPACE_CACHE_DIR_NAME = 'cache'
@@ -25,6 +28,7 @@ export const MOVSCRIPT_WORKSPACE_CONFIG_FILE_NAME = 'config.json'
 export interface MovScriptWorkspacePaths {
   workspaceDir: string
   rootDir: string
+  realmDir: string
   configDirName: string
   providerConfigsDir: string
   configDir: string
@@ -36,15 +40,23 @@ export interface MovScriptWorkspacePaths {
 
 export function resolveMovScriptWorkspacePaths(
   workspaceDir = process.cwd(),
-  input: { configDirName?: string } = {},
+  input: {
+    configDirName?: string
+    realm?: MovScriptWorkspaceRealmInput | string
+    realmKind?: MovScriptWorkspaceRealm['kind']
+    realmId?: string | number
+  } = {},
 ): MovScriptWorkspacePaths {
   const rootDir = resolveMovScriptHomeDir(workspaceDir)
+  const realm = normalizeMovScriptWorkspaceRealm(input)
+  const realmDir = resolveMovScriptWorkspaceRealmDir(rootDir, realm)
   const configDirName = normalizeMovScriptWorkspaceConfigDirName(input.configDirName) ?? MOVSCRIPT_WORKSPACE_CONFIG_DIR_NAME
-  const providerConfigsDir = join(rootDir, MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME)
+  const providerConfigsDir = join(realmDir, MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME)
   const configDir = join(providerConfigsDir, configDirName)
   return {
     workspaceDir: rootDir,
     rootDir,
+    realmDir,
     configDirName,
     providerConfigsDir,
     configDir,

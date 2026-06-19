@@ -1,6 +1,10 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { ensureMovScriptWorkspaceRoot, resolveMovScriptWorkspaceRootPaths } from '../../workspace/node/paths.js'
+import {
+  ensureMovScriptWorkspaceRoot,
+  resolveMovScriptWorkspaceRootPaths,
+  type MovScriptWorkspaceRealm,
+} from '../../workspace/node/paths.js'
 
 export const MOVSCRIPT_BACKEND_CONFIG_SCHEMA = 'movscript.backend-config.v1'
 export const MOVSCRIPT_BACKEND_AUTH_SCHEMA = 'movscript.backend-auth.v1'
@@ -12,6 +16,7 @@ export interface MovScriptBackendPaths {
   workspaceDir: string
   controlDir: string
   backendDir: string
+  backendRealmsDir: string
   configPath: string
   authPath: string
 }
@@ -19,6 +24,7 @@ export interface MovScriptBackendPaths {
 export interface MovScriptBackendConfig {
   schema: typeof MOVSCRIPT_BACKEND_CONFIG_SCHEMA
   baseURL: string
+  realm?: MovScriptWorkspaceRealm
   activeUserId?: string | number
   updatedAt: string
 }
@@ -27,6 +33,7 @@ export interface MovScriptBackendAuth {
   schema: typeof MOVSCRIPT_BACKEND_AUTH_SCHEMA
   tokenType: 'Bearer'
   token: string
+  realm?: MovScriptWorkspaceRealm
   gitCredential?: MovScriptBackendGitCredential
   user?: {
     id?: string | number
@@ -66,16 +73,20 @@ export interface MovScriptBackendSessionInput {
   server?: string
   token?: string
   userId?: string | number
+  realm?: MovScriptWorkspaceRealm
 }
 
-export function resolveMovScriptBackendPaths(workspaceDir = process.cwd()): MovScriptBackendPaths {
+export function resolveMovScriptBackendPaths(workspaceDir = process.cwd(), realm?: MovScriptWorkspaceRealm): MovScriptBackendPaths {
   const root = resolveMovScriptWorkspaceRootPaths(workspaceDir)
+  const backendRealmsDir = join(root.backendDir, 'realms')
+  const authRealm = normalizeRealm(realm) ?? { kind: 'local' as const, id: 'local' }
   return {
     workspaceDir: root.workspaceDir,
     controlDir: root.controlDir,
     backendDir: root.backendDir,
+    backendRealmsDir,
     configPath: join(root.backendDir, MOVSCRIPT_BACKEND_CONFIG_FILE_NAME),
-    authPath: join(root.backendDir, MOVSCRIPT_BACKEND_AUTH_FILE_NAME),
+    authPath: join(backendRealmsDir, ...backendRealmPath(authRealm), MOVSCRIPT_BACKEND_AUTH_FILE_NAME),
   }
 }
 
@@ -92,10 +103,12 @@ export function readMovScriptBackendConfig(workspaceDir = process.cwd()): MovScr
   const parsed = readJSON(paths.configPath)
   if (!isRecord(parsed) || parsed.schema !== MOVSCRIPT_BACKEND_CONFIG_SCHEMA) return defaultMovScriptBackendConfig()
   const baseURL = stringField(parsed.baseURL) ?? MOVSCRIPT_DEFAULT_BACKEND_BASE_URL
+  const realm = normalizeRealm(parsed.realm)
   const activeUserId = idField(parsed.activeUserId)
   return {
     schema: MOVSCRIPT_BACKEND_CONFIG_SCHEMA,
     baseURL: normalizeBackendBaseURL(baseURL),
+    ...(realm ? { realm } : {}),
     ...(activeUserId !== undefined ? { activeUserId } : {}),
     updatedAt: stringField(parsed.updatedAt) ?? new Date().toISOString(),
   }
@@ -107,6 +120,7 @@ export function writeMovScriptBackendConfig(workspaceDir: string | undefined, co
   const next: MovScriptBackendConfig = {
     schema: MOVSCRIPT_BACKEND_CONFIG_SCHEMA,
     baseURL: normalizeBackendBaseURL(config.baseURL),
+    ...(normalizeRealm(config.realm) ? { realm: normalizeRealm(config.realm) } : {}),
     ...(config.activeUserId !== undefined ? { activeUserId: config.activeUserId } : {}),
     updatedAt: new Date().toISOString(),
   }
@@ -114,8 +128,10 @@ export function writeMovScriptBackendConfig(workspaceDir: string | undefined, co
   return next
 }
 
-export function readMovScriptBackendAuth(workspaceDir = process.cwd()): MovScriptBackendAuth | undefined {
-  const paths = resolveMovScriptBackendPaths(workspaceDir)
+export function readMovScriptBackendAuth(workspaceDir = process.cwd(), realmInput?: MovScriptWorkspaceRealm): MovScriptBackendAuth | undefined {
+  const config = readMovScriptBackendConfig(workspaceDir)
+  const requestedRealm = normalizeRealm(realmInput) ?? config.realm
+  const paths = resolveMovScriptBackendPaths(workspaceDir, requestedRealm)
   const parsed = readJSON(paths.authPath)
   if (!isRecord(parsed) || parsed.schema !== MOVSCRIPT_BACKEND_AUTH_SCHEMA) return undefined
   const token = stringField(parsed.token)
@@ -124,10 +140,12 @@ export function readMovScriptBackendAuth(workspaceDir = process.cwd()): MovScrip
   if (!tokenType) return undefined
   const user = normalizeAuthUser(parsed.user)
   const gitCredential = normalizeGitCredential(parsed.gitCredential ?? parsed.git_credential)
+  const realm = normalizeRealm(parsed.realm) ?? requestedRealm
   return {
     schema: MOVSCRIPT_BACKEND_AUTH_SCHEMA,
     tokenType,
     token,
+    ...(realm ? { realm } : {}),
     ...(gitCredential ? { gitCredential } : {}),
     ...(user ? { user } : {}),
     ...(stringField(parsed.expiresAt) ? { expiresAt: stringField(parsed.expiresAt) } : {}),
@@ -136,12 +154,14 @@ export function readMovScriptBackendAuth(workspaceDir = process.cwd()): MovScrip
 }
 
 export function writeMovScriptBackendAuth(workspaceDir: string | undefined, auth: Omit<MovScriptBackendAuth, 'schema' | 'updatedAt' | 'tokenType'> & Partial<MovScriptBackendAuth>): MovScriptBackendAuth {
-  const paths = resolveMovScriptBackendPaths(workspaceDir)
+  const realm = normalizeRealm(auth.realm) ?? readMovScriptBackendConfig(workspaceDir).realm
+  const paths = resolveMovScriptBackendPaths(workspaceDir, realm)
   ensureMovScriptWorkspaceRoot(resolveMovScriptWorkspaceRootPaths(paths.workspaceDir))
   const next: MovScriptBackendAuth = {
     schema: MOVSCRIPT_BACKEND_AUTH_SCHEMA,
     tokenType: 'Bearer',
     token: auth.token,
+    ...(realm ? { realm } : {}),
     ...(normalizeGitCredential(auth.gitCredential) ? { gitCredential: normalizeGitCredential(auth.gitCredential) } : {}),
     ...(normalizeAuthUser(auth.user) ? { user: normalizeAuthUser(auth.user) } : {}),
     ...(auth.expiresAt ? { expiresAt: auth.expiresAt } : {}),
@@ -152,14 +172,16 @@ export function writeMovScriptBackendAuth(workspaceDir: string | undefined, auth
 }
 
 export function clearMovScriptBackendAuth(workspaceDir = process.cwd()): void {
-  const paths = resolveMovScriptBackendPaths(workspaceDir)
+  const paths = resolveMovScriptBackendPaths(workspaceDir, readMovScriptBackendConfig(workspaceDir).realm)
   rmSync(paths.authPath, { force: true })
 }
 
 export function resolveMovScriptBackendSession(input: MovScriptBackendSessionInput = {}): MovScriptBackendSession {
-  const paths = resolveMovScriptBackendPaths(input.workspaceDir)
-  const config = readMovScriptBackendConfig(paths.workspaceDir)
-  const auth = readMovScriptBackendAuth(paths.workspaceDir)
+  const root = resolveMovScriptBackendPaths(input.workspaceDir)
+  const config = readMovScriptBackendConfig(root.workspaceDir)
+  const realm = normalizeRealm(input.realm) ?? config.realm
+  const paths = resolveMovScriptBackendPaths(root.workspaceDir, realm)
+  const auth = readMovScriptBackendAuth(paths.workspaceDir, realm)
   const token = stringField(input.token) ?? stringField(process.env.MOVCLI_TOKEN) ?? auth?.token
   const userId = idField(input.userId)
     ?? idField(auth?.user?.id)
@@ -176,6 +198,11 @@ export function resolveMovScriptBackendSession(input: MovScriptBackendSessionInp
     configPath: paths.configPath,
     authPath: paths.authPath,
   }
+}
+
+function backendRealmPath(realm: MovScriptWorkspaceRealm): string[] {
+  if (realm.kind === 'local') return ['local']
+  return ['cloud', String(realm.id)]
 }
 
 export function normalizeBackendBaseURL(value: string): string {
@@ -303,6 +330,15 @@ function normalizeGitCredential(value: unknown): MovScriptBackendGitCredential |
     ...(status ? { status } : {}),
     ...(lastError ? { lastError } : {}),
   }
+}
+
+function normalizeRealm(value: unknown): MovScriptWorkspaceRealm | undefined {
+  if (!isRecord(value)) return undefined
+  const kind = value.kind === 'local' || value.kind === 'cloud' ? value.kind : undefined
+  if (!kind) return undefined
+  if (kind === 'local') return { kind, id: 'local' }
+  const id = idField(value.id)
+  return id ? { kind, id: String(id) } : undefined
 }
 
 function stringField(value: unknown): string | undefined {

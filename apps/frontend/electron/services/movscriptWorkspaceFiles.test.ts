@@ -17,7 +17,7 @@ test('listing the MovScript workspace root initializes core control directories'
     const listed = await listMovScriptWorkspaceFiles({ workspaceDir })
     const entryNames = listed.entries.map((entry) => entry.name).sort()
     assert.equal(listed.path, '')
-    assert.deepEqual(entryNames, ['backend', 'bin', 'manifest.json', 'providers'])
+    assert.deepEqual(entryNames, ['backend', 'bin', 'manifest.json', 'realms'])
   } finally {
     await rm(workspaceDir, { recursive: true, force: true })
   }
@@ -37,7 +37,7 @@ test('manages MovScript workspace files under the project workspace root', async
 
     assert.equal(written.path, 'edit/project.json')
     assert.equal(written.content, '{"title":"Project"}')
-    assert.equal(written.rootPath, join(workspaceDir, 'user', '1', 'projects', 'project_6'))
+    assert.equal(written.rootPath, join(workspaceDir, 'realms', 'local', 'user', '1', 'projects', 'project_6'))
 
     const read = await readMovScriptWorkspaceFile({ workspaceDir, userId: 1, projectId: 6, path: 'edit/project.json' })
     assert.equal(read.content, '{"title":"Project"}')
@@ -58,6 +58,7 @@ test('rejects stale workspace file writes when expected version no longer matche
   try {
 	    const written = await writeMovScriptWorkspaceFile({
 	      workspaceDir,
+	      userId: 1,
 	      projectId: 6,
 	      path: 'edit/project.json',
 	      content: '{"title":"Project"}',
@@ -68,6 +69,7 @@ test('rejects stale workspace file writes when expected version no longer matche
     await assert.rejects(
       writeMovScriptWorkspaceFile({
         workspaceDir,
+        userId: 1,
         projectId: 6,
         path: 'edit/project.json',
         content: '{"title":"Saved"}',
@@ -86,6 +88,7 @@ test('rejects workspace file writes without an expected version', async () => {
     await assert.rejects(
       writeMovScriptWorkspaceFile({
         workspaceDir,
+        userId: 1,
         projectId: 6,
         path: 'edit/project.json',
         content: '{"title":"Project"}',
@@ -112,24 +115,43 @@ test('manages organization MovScript workspace files under org project root', as
 
     assert.equal(written.path, 'scripts/script_1/script.md')
     assert.equal(written.content, 'Org script')
-    assert.equal(written.rootPath, join(workspaceDir, 'org', '3', 'projects', 'project_6'))
+    assert.equal(written.rootPath, join(workspaceDir, 'realms', 'local', 'org', '3', 'projects', 'project_6'))
   } finally {
     await rm(workspaceDir, { recursive: true, force: true })
   }
 })
 
-test('manages anonymous MovScript workspace files under local project root', async () => {
+test('manages local admin MovScript workspace files under local user project root', async () => {
   const workspaceDir = await mkdtemp(join(tmpdir(), 'movscript-workspace-files-local-'))
   try {
 	    const written = await writeMovScriptWorkspaceFile({
 	      workspaceDir,
+	      userId: 1,
 	      projectId: 6,
 	      path: 'scripts/script_1/script.md',
 	      content: 'Local script',
 	      expectedVersion: null,
 	    })
 
-    assert.equal(written.rootPath, join(workspaceDir, 'local', 'projects', 'project_6'))
+    assert.equal(written.rootPath, join(workspaceDir, 'realms', 'local', 'user', '1', 'projects', 'project_6'))
+  } finally {
+    await rm(workspaceDir, { recursive: true, force: true })
+  }
+})
+
+test('rejects project workspace files without a user or organization owner', async () => {
+  const workspaceDir = await mkdtemp(join(tmpdir(), 'movscript-workspace-files-owner-required-'))
+  try {
+    await assert.rejects(
+      writeMovScriptWorkspaceFile({
+        workspaceDir,
+        projectId: 6,
+        path: 'scripts/script_1/script.md',
+        content: 'Local script',
+        expectedVersion: null,
+      }),
+      /active user session|requires userId or orgId/,
+    )
   } finally {
     await rm(workspaceDir, { recursive: true, force: true })
   }
@@ -172,6 +194,7 @@ test('previews large workspace images without using the text editor read limit',
   try {
 	    const setup = await writeMovScriptWorkspaceFile({
 	      workspaceDir,
+	      userId: 1,
 	      projectId: 6,
 	      path: 'artifacts/.keep',
 	      content: '',
@@ -184,10 +207,10 @@ test('previews large workspace images without using the text editor read limit',
     ]))
 
     await assert.rejects(
-      readMovScriptWorkspaceFile({ workspaceDir, projectId: 6, path: 'artifacts/large.png' }),
+      readMovScriptWorkspaceFile({ workspaceDir, userId: 1, projectId: 6, path: 'artifacts/large.png' }),
       /workspace file is too large to edit/,
     )
-    const preview = await readMovScriptWorkspaceMediaFile({ workspaceDir, projectId: 6, path: 'artifacts/large.png' })
+    const preview = await readMovScriptWorkspaceMediaFile({ workspaceDir, userId: 1, projectId: 6, path: 'artifacts/large.png' })
     assert.equal(preview.mimeType, 'image/png')
     assert.match(preview.dataUrl, /^data:image\/png;base64,/)
   } finally {

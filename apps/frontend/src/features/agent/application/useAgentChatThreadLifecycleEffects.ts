@@ -89,13 +89,12 @@ export function useAgentChatThreadLifecycleEffects({
     if (!dataSource || !activeThreadId || !dataSource.subscribeThread) return undefined
     const controller = new AbortController()
     let dispose: (() => void) | undefined
+    const threadSubscriptionOwnsNotifications = !dataSource.subscribeServerRequests
     void Promise.resolve(dataSource.subscribeThread({
       threadId: activeThreadId,
       signal: controller.signal,
-      onNotification: dataSource.subscribeServerRequests ? undefined : handleNotification,
-      onServerRequest: dataSource.subscribeServerRequests && dataSource.serverRequestSubscriptionMode !== 'globalWithThreadFallback'
-        ? undefined
-        : handleServerRequest,
+      onNotification: threadSubscriptionOwnsNotifications ? handleNotification : undefined,
+      onServerRequest: threadSubscriptionOwnsNotifications ? handleServerRequest : undefined,
     })).then((cleanup) => {
       if (typeof cleanup === 'function') dispose = cleanup
     })

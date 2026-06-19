@@ -37,7 +37,7 @@ test('workspace config initialization creates the MovScript workspace root manif
   assert.equal(existsSync(root.backendDir), true)
   assert.equal(existsSync(paths.configPath), true)
   assert.equal(paths.providerConfigsDir, root.providersDir)
-  assert.equal(paths.configPath, join(root.providersDir, 'default', 'config.json'))
+  assert.equal(paths.configPath, join(root.realmsDir, 'local', 'providers', 'default', 'config.json'))
 
   const manifest = readMovScriptWorkspaceRootManifest(root.manifestPath)
   assert.equal(manifest?.schema, MOVSCRIPT_WORKSPACE_MANIFEST_SCHEMA)
@@ -67,7 +67,7 @@ test('workspace root initialization preserves an existing manifest identity', ()
 test('project workspace paths resolve only the project cwd', () => {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-workspace-paths-'))
   const project = resolveMovScriptProjectWorkspacePaths({ workspaceDir, userId: 7, projectId: 42 })
-  const projectDir = join(workspaceDir, 'user', '7', 'projects', 'project_42')
+  const projectDir = join(workspaceDir, 'realms', 'local', 'user', '7', 'projects', 'project_42')
 
   assert.equal(project.projectCwd, projectDir)
   assert.equal(project.projectDir, projectDir)
@@ -77,19 +77,17 @@ test('project workspace paths resolve only the project cwd', () => {
 
 test('workspace context paths use local, user, and project cwd as provider session cwd', () => {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-context-paths-'))
-  const global = resolveMovScriptWorkspaceContextPaths({ workspaceDir })
   const user = resolveMovScriptWorkspaceContextPaths({ workspaceDir, scope: 'global', userId: 7 })
   const project = resolveMovScriptWorkspaceContextPaths({ workspaceDir, scope: 'project', userId: 7, projectId: 42 })
   const production = resolveMovScriptWorkspaceContextPaths({ workspaceDir, scope: 'production', userId: 7, projectId: 42, productionId: 99 })
 
-  assert.equal(global.providerSessionCwd, join(workspaceDir, 'local'))
-  assert.equal(global.projectCwd, join(workspaceDir, 'local'))
-  assert.equal(user.providerSessionCwd, join(workspaceDir, 'user', '7'))
-  assert.equal(user.projectCwd, join(workspaceDir, 'user', '7'))
-  assert.equal(project.providerSessionCwd, join(workspaceDir, 'user', '7', 'projects', 'project_42'))
-  assert.equal(project.projectCwd, join(workspaceDir, 'user', '7', 'projects', 'project_42'))
-  assert.equal(production.providerSessionCwd, join(workspaceDir, 'user', '7', 'projects', 'project_42'))
-  assert.equal(production.projectCwd, join(workspaceDir, 'user', '7', 'projects', 'project_42'))
+  assert.throws(() => resolveMovScriptWorkspaceContextPaths({ workspaceDir }), /requires userId or orgId/)
+  assert.equal(user.providerSessionCwd, join(workspaceDir, 'realms', 'local', 'user', '7'))
+  assert.equal(user.projectCwd, join(workspaceDir, 'realms', 'local', 'user', '7'))
+  assert.equal(project.providerSessionCwd, join(workspaceDir, 'realms', 'local', 'user', '7', 'projects', 'project_42'))
+  assert.equal(project.projectCwd, join(workspaceDir, 'realms', 'local', 'user', '7', 'projects', 'project_42'))
+  assert.equal(production.providerSessionCwd, join(workspaceDir, 'realms', 'local', 'user', '7', 'projects', 'project_42'))
+  assert.equal(production.projectCwd, join(workspaceDir, 'realms', 'local', 'user', '7', 'projects', 'project_42'))
 })
 
 test('project cwd ids reject path traversal segments', () => {
@@ -141,7 +139,7 @@ test('codex provider profile config is separate from the managed .codex runtime 
   ensureMovScriptWorkspace(paths)
 
   assert.equal(aliasPaths.configPath, paths.configPath)
-  assert.equal(paths.configPath, join(root.providersDir, 'codex', 'config.json'))
+  assert.equal(paths.configPath, join(root.realmsDir, 'local', 'providers', 'codex', 'config.json'))
   assert.notEqual(paths.configDir, join(root.controlDir, '.codex'))
   assert.equal(existsSync(join(root.controlDir, '.codex', 'config.json')), false)
 })

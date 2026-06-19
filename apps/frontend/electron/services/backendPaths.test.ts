@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import { resolveMovScriptWorkspaceRootPaths } from '@movscript/core/workspace/node'
-import { resolveLocalDataDir, resolveLocalSecret } from './backend/paths'
+import { resolveLocalBackendLogPath, resolveLocalDataDir, resolveLocalSecret } from './backend/paths'
 
 test('local backend data dir defaults inside the selected MovScript workspace', () => {
   const previous = process.env.MOVSCRIPT_DATA_DIR
@@ -31,6 +31,15 @@ test('local backend data dir keeps explicit MOVSCRIPT_DATA_DIR override', () => 
     if (previous === undefined) delete process.env.MOVSCRIPT_DATA_DIR
     else process.env.MOVSCRIPT_DATA_DIR = previous
   }
+})
+
+test('local backend log path lives under the selected MovScript home backend logs dir', () => {
+  const movScriptHomeDir = mkdtempSync(join(tmpdir(), 'movscript-backend-log-home-'))
+
+  assert.equal(
+    resolveLocalBackendLogPath(movScriptHomeDir),
+    join(resolveMovScriptWorkspaceRootPaths(movScriptHomeDir).backendDir, 'logs', 'local-backend.log'),
+  )
 })
 
 test('local backend secret is persisted independently of data dir changes', () => {

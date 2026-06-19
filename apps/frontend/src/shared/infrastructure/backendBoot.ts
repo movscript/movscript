@@ -9,6 +9,8 @@ export interface BackendBootStatus {
   baseURL: string
   pid?: number
   message?: string
+  logPath?: string
+  recentOutput?: string
 }
 
 export class BackendBootError extends Error {

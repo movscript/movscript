@@ -16,6 +16,7 @@ import {
   type AgentProfile,
 } from '@/features/agent/application/agentProfileModel'
 import type { AgentConversationRegistryState } from '@movscript/core/agent'
+import type { AgentConversationFocusScope } from '@/features/agent/state/agentConversationFocusScope'
 import type { Project } from '@/types'
 
 export interface AgentUnifiedChatShellProps {
@@ -26,6 +27,7 @@ export interface AgentUnifiedChatShellProps {
   host?: 'dock-panel' | 'floating-panel' | 'immersive'
   surface?: 'panel' | 'page'
   currentProject?: Project | null
+  conversationFocusScope?: AgentConversationFocusScope
   composerWorkspaceContextLocked?: boolean
   hideComposerWorkspaceProjectSelector?: boolean
 }
@@ -48,6 +50,7 @@ export function AgentUnifiedChatShell(props: AgentUnifiedChatShellProps) {
       host={props.host}
       surface={props.surface}
       currentProject={props.currentProject}
+      conversationFocusScope={props.conversationFocusScope}
       composerWorkspaceContextLocked={props.composerWorkspaceContextLocked}
       hideComposerWorkspaceProjectSelector={props.hideComposerWorkspaceProjectSelector}
       showCollapse={props.showCollapse}

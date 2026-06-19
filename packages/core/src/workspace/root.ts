@@ -6,11 +6,26 @@ export const MOVSCRIPT_WORKSPACE_MANIFEST_SCHEMA = 'movscript.project-workspace.
 export const MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME = 'providers'
 export const MOVSCRIPT_WORKSPACE_BACKEND_DIR_NAME = 'backend'
 export const MOVSCRIPT_WORKSPACE_BIN_DIR_NAME = 'bin'
+export const MOVSCRIPT_WORKSPACE_REALMS_DIR_NAME = 'realms'
 
 export type MovScriptWorkspaceScope = 'global' | 'project' | 'production'
+export type MovScriptWorkspaceRealmKind = 'local' | 'cloud'
+
+export interface MovScriptWorkspaceRealm {
+  kind: MovScriptWorkspaceRealmKind
+  id: string
+}
+
+export interface MovScriptWorkspaceRealmInput {
+  kind?: MovScriptWorkspaceRealmKind
+  id?: string | number
+}
 
 export interface MovScriptWorkspaceContextInput {
   workspaceDir?: string
+  realm?: MovScriptWorkspaceRealmInput | string
+  realmKind?: MovScriptWorkspaceRealmKind
+  realmId?: string | number
   scope?: MovScriptWorkspaceScope
   userId?: string | number
   orgId?: string | number
@@ -18,6 +33,7 @@ export interface MovScriptWorkspaceContextInput {
 }
 
 export interface MovScriptWorkspaceContext {
+  realm: MovScriptWorkspaceRealm
   scope: MovScriptWorkspaceScope
   userId?: string
   orgId?: string
@@ -30,6 +46,7 @@ export interface MovScriptWorkspaceRootPaths {
   controlDir: string
   configTomlPath: string
   manifestPath: string
+  realmsDir: string
   providersDir: string
   backendDir: string
   binDir: string
@@ -44,6 +61,7 @@ export interface MovScriptWorkspaceRootManifest {
     kind?: 'local' | 'cloud' | 'custom'
     baseURL?: string
   }
+  activeRealm?: MovScriptWorkspaceRealm
   activeUserId?: number
   layout: {
     providerConfigRoot: typeof MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME
@@ -56,6 +74,7 @@ export interface MovScriptWorkspaceContextPaths {
   scope: MovScriptWorkspaceScope
   context: MovScriptWorkspaceContext
   contextKey: string
+  realmDir: string
   projectCwd: string
   providerSessionCwd: string
 }

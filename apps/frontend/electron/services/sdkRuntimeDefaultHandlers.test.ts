@@ -291,6 +291,12 @@ test('Codex SDK runtime handler recreates failed empty provider threads when mod
 
 test('Codex SDK runtime handler resolves workspace context cwd and CODEX_HOME', async () => {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-codex-sdk-workspace-'))
+  writeMovScriptBackendConfig(workspaceDir, {
+    baseURL: 'http://localhost:8766',
+    activeUserId: 1,
+    realm: { kind: 'local', id: 'local' },
+  })
+  writeMovScriptBackendAuth(workspaceDir, { token: 'mv1.local-session', userId: 1, realm: { kind: 'local', id: 'local' } })
   const constructed: unknown[] = []
   const starts: unknown[] = []
   class Codex {
@@ -318,7 +324,7 @@ test('Codex SDK runtime handler resolves workspace context cwd and CODEX_HOME', 
     },
   })
 
-  const expectedCwd = join(workspaceDir, 'local', 'projects', 'project_42')
+  const expectedCwd = join(workspaceDir, 'realms', 'local', 'user', '1', 'projects', 'project_42')
   assert.equal(thread.cwd, expectedCwd)
   assert.equal((starts[0] as { workingDirectory?: string }).workingDirectory, expectedCwd)
   const options = constructed[0] as { env?: Record<string, string | undefined> }
@@ -685,6 +691,12 @@ test('Claude SDK runtime handler passes run profile options and canUseTool appro
 
 test('Claude SDK runtime handler resolves workspace context cwd and CLAUDE_CONFIG_DIR', async () => {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-claude-sdk-workspace-'))
+  writeMovScriptBackendConfig(workspaceDir, {
+    baseURL: 'http://localhost:8766',
+    activeUserId: 1,
+    realm: { kind: 'local', id: 'local' },
+  })
+  writeMovScriptBackendAuth(workspaceDir, { token: 'mv1.local-session', userId: 1, realm: { kind: 'local', id: 'local' } })
   const calls: unknown[] = []
   async function* query(input: unknown) {
     calls.push(input)
@@ -711,7 +723,7 @@ test('Claude SDK runtime handler resolves workspace context cwd and CLAUDE_CONFI
     },
   })
 
-  const expectedCwd = join(workspaceDir, 'local', 'projects', 'project_42')
+  const expectedCwd = join(workspaceDir, 'realms', 'local', 'user', '1', 'projects', 'project_42')
   const options = (calls[0] as { options?: Record<string, unknown> }).options ?? {}
   assert.equal(thread.cwd, expectedCwd)
   assert.equal(options.cwd, expectedCwd)

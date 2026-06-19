@@ -1,5 +1,6 @@
 import { createEventBus } from '@/shared/application/eventBus'
 import type { PersistedAgentSessionStore } from '@/features/agent/state/agentSessionStoreTypes'
+import type { AgentConversationFocusScope } from '@/features/agent/state/agentConversationFocusScope'
 
 export type AgentConversationRegistryEventKind =
   | 'conversation-upserted'
@@ -20,6 +21,7 @@ export interface AgentConversationRegistryEvent {
   open?: boolean
   title?: string
   activeConversationId?: string | null
+  focusScope?: AgentConversationFocusScope
   timestamp: number
   sourceId: string
   delivery?: 'local' | 'cross-window'

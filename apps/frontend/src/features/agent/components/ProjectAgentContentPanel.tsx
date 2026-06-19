@@ -29,6 +29,7 @@ import {
   useAgentConversationRecordsById,
   useAgentConversationThreadBinding,
 } from '@/features/agent/state/agentConversationRegistryStore'
+import { AGENT_MODE_CONVERSATION_FOCUS_SCOPE } from '@/features/agent/state/agentConversationFocusScope'
 import { useProviderConfigStore } from '@/shared/infrastructure/providerConfigStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import type { Project } from '@/types'
@@ -50,7 +51,7 @@ export function ProjectAgentContentPanel({
   const currentOrgID = useUserStore((s) => s.currentOrgID)
   const userId = currentUser ? String(currentUser.ID) : ''
   const providerSettings = useProviderConfigStore((s) => s.settings)
-  const activeConversationId = useAgentActiveConversationId(userId)
+  const activeConversationId = useAgentActiveConversationId(userId, AGENT_MODE_CONVERSATION_FOCUS_SCOPE)
   const conversationsById = useAgentConversationRecordsById()
   const activeRegistryState = useMemo(() => ({
     activeConversationIdsByUser: { [userId]: activeConversationId },
@@ -140,8 +141,7 @@ export function ProjectAgentContentPanel({
 function projectIdFromProviderSessionCwd(cwd: string | null | undefined): number | undefined {
   const normalized = cwd?.replace(/\\/g, '/')
   if (!normalized) return undefined
-  const match = /(?:^|\/)\.movscript\/(?:local|user\/[^/]+|org\/[^/]+)\/projects\/project_(\d+)(?:\/|$)/.exec(normalized)
-    ?? /(?:^|\/)(?:local|user\/[^/]+|org\/[^/]+)\/projects\/project_(\d+)(?:\/|$)/.exec(normalized)
+  const match = /(?:^|\/)(?:\.movscript\/)?realms\/(?:local|cloud\/[^/]+)\/(?:user|org)\/[^/]+\/projects\/project_(\d+)(?:\/|$)/.exec(normalized)
   if (!match?.[1]) return undefined
   const projectId = Number(match[1])
   return Number.isInteger(projectId) && projectId > 0 ? projectId : undefined

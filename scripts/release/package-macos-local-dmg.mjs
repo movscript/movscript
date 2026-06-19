@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs'
+import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
@@ -109,6 +109,7 @@ export async function runPackageMacOSLocalDMGCli(root = repoRoot, env = process.
           `--release-dir=${releaseDir}`,
         ], { cwd: root, env: smokeEnv })
       } finally {
+        stopSmokeLocalBackend(smokeHome)
         rmSync(smokeHome, { recursive: true, force: true })
       }
     } else {
@@ -116,6 +117,7 @@ export async function runPackageMacOSLocalDMGCli(root = repoRoot, env = process.
     }
 
     removeDMGArtifacts(releaseDir)
+    patchDmgBuilderAPFSAliasCompatibility(root, log)
     runStep('Build DMG from signed app', 'pnpm', [
       'exec',
       'electron-builder',
@@ -128,7 +130,7 @@ export async function runPackageMacOSLocalDMGCli(root = repoRoot, env = process.
       '-c.mac.notarize=false',
       '--prepackaged',
       relativePrepackagedPath(arch),
-    ], { cwd: frontendRoot })
+    ], { cwd: frontendRoot, env: dmgBuilderEnv(env) })
 
     const dmgPath = latestDMG(releaseDir)
     runStep('Verify DMG checksum', 'hdiutil', ['verify', dmgPath], { cwd: root })
@@ -254,4 +256,102 @@ function macAppDirForArch(root, arch) {
 
 function relativePrepackagedPath(arch) {
   return arch === 'arm64' ? 'release/mac-arm64' : 'release/mac'
+}
+
+function patchDmgBuilderAPFSAliasCompatibility(root, log = console.log) {
+  const corePath = resolveDmgBuilderCorePath(root)
+  const source = readFileSync(corePath, 'utf8')
+  const original = [
+    '    elif background_file:',
+    '      alias = Alias.for_file(background_file)',
+    '      background_bmk = Bookmark.for_file(background_file)',
+    '',
+    "      icvp['backgroundType'] = 2",
+    "      icvp['backgroundImageAlias'] = biplist.Data(alias.to_bytes())",
+  ].join('\n')
+  const patched = [
+    '    elif background_file:',
+    '      background_bmk = Bookmark.for_file(background_file)',
+    '',
+    "      icvp['backgroundType'] = 2",
+    '      try:',
+    '        alias = Alias.for_file(background_file)',
+    "        icvp['backgroundImageAlias'] = biplist.Data(alias.to_bytes())",
+    '      except Exception:',
+    '        pass',
+  ].join('\n')
+  if (source.includes(patched)) return
+  if (!source.includes(original)) {
+    throw new Error(`Unable to patch dmg-builder APFS alias compatibility: unexpected core.py at ${corePath}`)
+  }
+  writeFileSync(corePath, source.replace(original, patched), 'utf8')
+  log(`[package-macos-local-dmg] Patched dmg-builder APFS background alias compatibility: ${corePath}`)
+}
+
+function resolveDmgBuilderCorePath(root) {
+  const frontendRequire = createRequire(resolve(root, 'apps/frontend/package.json'))
+  const electronBuilderPackagePath = frontendRequire.resolve('electron-builder/package.json')
+  const electronBuilderRequire = createRequire(electronBuilderPackagePath)
+  const dmgBuilderPackagePath = electronBuilderRequire.resolve('dmg-builder/package.json')
+  return resolve(dirname(dmgBuilderPackagePath), 'vendor/dmgbuild/core.py')
+}
+
+export function dmgBuilderEnv(env) {
+  const nextEnv = { ...env }
+  const explicit = env.PYTHON_PATH?.trim()
+  if (explicit) {
+    nextEnv.PYTHON_PATH = explicit
+  } else {
+    delete nextEnv.PYTHON_PATH
+  }
+  return nextEnv
+}
+
+function stopSmokeLocalBackend(smokeHome) {
+  const pid = readSmokeBackendPid(smokeHome)
+  if (!pid) return
+  terminatePid(pid, 'SIGTERM')
+  waitForPidExit(pid, 2_000)
+  terminatePid(pid, 'SIGKILL')
+  waitForPidExit(pid, 1_000)
+}
+
+function readSmokeBackendPid(smokeHome) {
+  try {
+    const raw = readFileSync(join(smokeHome, 'backend/local-data/movscript-backend.pid'), 'utf8').trim()
+    const pid = Number(raw)
+    return Number.isInteger(pid) && pid > 0 ? pid : 0
+  } catch {
+    return 0
+  }
+}
+
+function terminatePid(pid, signal) {
+  try {
+    process.kill(pid, signal)
+  } catch {
+    // The smoke process can exit on its own between the pid read and cleanup.
+  }
+}
+
+function waitForPidExit(pid, timeoutMs) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (!isPidRunning(pid)) return true
+    sleep(100)
+  }
+  return !isPidRunning(pid)
+}
+
+function isPidRunning(pid) {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function sleep(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
 }

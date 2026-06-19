@@ -18,6 +18,7 @@ const AGENT_SESSION_FILE_NAME = 'sessions.json'
 export function emptyDesktopAgentSessionState(): ElectronAgentSessionState {
   return {
     activeConversationIdsByUser: {},
+    activeConversationIdsByScope: {},
     conversationsById: {},
     workspacesByUser: {},
   }
@@ -75,6 +76,7 @@ function normalizeAgentSessionState(input: unknown): ElectronAgentSessionState {
   if (!isRecord(input)) return emptyDesktopAgentSessionState()
   return {
     activeConversationIdsByUser: normalizeStringNullableRecord(input.activeConversationIdsByUser),
+    activeConversationIdsByScope: normalizeStringNullableRecord(input.activeConversationIdsByScope),
     conversationsById: normalizeRecordMap(input.conversationsById) as unknown as ElectronAgentSessionState['conversationsById'],
     workspacesByUser: normalizeNestedRecordMap(input.workspacesByUser) as unknown as ElectronAgentSessionState['workspacesByUser'],
   }

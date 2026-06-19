@@ -135,6 +135,7 @@ export function SystemPluginCard({ item, onUninstall }: {
   item: ProjectPluginSnapshot['systemPlugins'][number]
   onUninstall?: () => void
 }) {
+  const builtin = item.sourceType === 'builtin'
   return (
     <PluginCardSurface>
       <PluginCardHeader>
@@ -145,7 +146,7 @@ export function SystemPluginCard({ item, onUninstall }: {
           </PluginCardMeta>
         </PluginCardCopy>
         <PluginCardActions>
-          <PluginStatusMeta>{item.installed ? '系统缓存' : '缺失'}</PluginStatusMeta>
+          <PluginStatusMeta>{builtin ? '系统内置' : item.installed ? '系统缓存' : '缺失'}</PluginStatusMeta>
           {onUninstall ? (
             <Button size="icon-sm" variant="ghost" tone="danger" onClick={onUninstall}>
               <Trash2 size={14} />
@@ -161,7 +162,7 @@ export function SystemPluginCard({ item, onUninstall }: {
       <PluginCardFooter>
         <PluginCardId>{item.pluginKey}</PluginCardId>
         <PluginStatusMeta>
-          {item.projectEnabled ? '本项目已开启' : item.globalEnabled ? '全局已开启' : '未开启'}
+          {item.projectEnabled ? '本项目已开启' : item.globalEnabled ? '全局已开启' : builtin ? '系统托管' : '未开启'}
         </PluginStatusMeta>
       </PluginCardFooter>
     </PluginCardSurface>

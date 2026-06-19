@@ -7,6 +7,7 @@ import { resolveDesktopDefaultMovScriptWorkspaceDir } from '../movscriptWorkspac
 
 const LOCAL_BACKEND_SECRET_FILE_NAME = 'local-backend-secret.json'
 const LOCAL_BACKEND_SECRET_SCHEMA = 'movscript.local-backend-secret.v1'
+const LOCAL_BACKEND_LOG_FILE_NAME = 'local-backend.log'
 
 export function resolveBackendBinary(): string {
   const envPath = process.env.MOVSCRIPT_BACKEND_BIN?.trim()
@@ -42,6 +43,10 @@ export function resolveLocalDataDir(movScriptHomeDir = resolveDesktopDefaultMovS
   const explicit = process.env.MOVSCRIPT_DATA_DIR?.trim()
   if (explicit) return explicit
   return join(resolveMovScriptWorkspaceRootPaths(movScriptHomeDir).backendDir, 'local-data')
+}
+
+export function resolveLocalBackendLogPath(movScriptHomeDir = resolveDesktopDefaultMovScriptWorkspaceDir()): string {
+  return join(resolveMovScriptWorkspaceRootPaths(movScriptHomeDir).backendDir, 'logs', LOCAL_BACKEND_LOG_FILE_NAME)
 }
 
 export function resolveLocalSecret(dataDir: string): string {

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { AlertCircle, ArrowRight, Download, FileText, Loader2, PackageCheck, Power, RefreshCw, Store } from 'lucide-react'
+import { AlertCircle, ArrowRight, Download, FileText, Loader2, PackageCheck, RefreshCw, Store } from 'lucide-react'
 import { Badge, Button, Progress, StatusBadge, Switch } from '@movscript/ui/primitives'
 import { toneTextClass } from '@movscript/ui/semantic'
 
@@ -9,10 +9,7 @@ import {
   type ProjectOverviewWorkLane,
 } from '@/features/project/presentation/projectOverviewModel'
 import { projectLaneStateRecipe } from '@/features/project/presentation/projectSemanticUi'
-import type {
-  ProjectLocalSkill,
-  ProjectPluginSnapshot,
-} from '@/features/plugins/application/projectPlugins'
+import type { ProjectPluginSnapshot } from '@/features/plugins/application/projectPlugins'
 import type { ProviderPluginMarketplaceItem } from '@/features/plugins/application/providerPluginMarketplace'
 import {
   PluginButtonIcon,
@@ -100,48 +97,6 @@ export function ProjectOverviewPluginInfoTile({
   )
 }
 
-export function ProjectSkillCard({
-  skill,
-  busy,
-  onToggle,
-}: {
-  skill: ProjectLocalSkill
-  busy: boolean
-  onToggle: (enabled: boolean) => void
-}) {
-  return (
-    <article className="flex min-h-[132px] flex-col rounded-md border border-border bg-muted/10 p-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <Power size={14} className={skill.enabled ? toneTextClass('success') : 'text-muted-foreground'} />
-            <h3 className="truncate type-body font-semibold text-foreground">{skill.name}</h3>
-          </div>
-          <p className="mt-1 line-clamp-2 type-label leading-5 text-muted-foreground">
-            {skill.description ?? '本地 Skill，启用后会投影到当前项目。'}
-          </p>
-        </div>
-        <Switch
-          checked={skill.enabled}
-          disabled={busy}
-          aria-label={`${skill.enabled ? '关闭' : '启用'} ${skill.name}`}
-          onCheckedChange={onToggle}
-        />
-      </div>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <Badge variant={skill.enabled ? 'solid' : 'outline'} tone={skill.enabled ? 'success' : 'neutral'}>{skill.enabled ? '已启用' : '未启用'}</Badge>
-        <Badge variant="outline">{projectSkillProviderLabel(skill.providerScope)}</Badge>
-        <Badge variant="outline">{projectSkillScopeLabel(skill.sourceScope)}</Badge>
-        <Badge variant="outline">{projectSkillSourceLabel(skill.sourceType)}</Badge>
-        {skill.pluginName ? <Badge variant="outline">{skill.pluginName}</Badge> : null}
-        {skill.version ? <Badge variant="outline">v{skill.version}</Badge> : null}
-        {busy ? <Badge variant="outline">切换中</Badge> : null}
-      </div>
-      <p className="mt-3 truncate type-caption text-muted-foreground">{skill.projectRelativePath ?? skill.id}</p>
-    </article>
-  )
-}
-
 export function ProjectSystemPluginCard({
   plugin,
   busy,
@@ -151,13 +106,15 @@ export function ProjectSystemPluginCard({
   busy: boolean
   onToggle: (enabled: boolean) => void
 }) {
-  const disabled = busy || !plugin.installed
+  const builtin = plugin.sourceType === 'builtin'
+  const enabled = plugin.globalEnabled || plugin.projectEnabled
+  const disabled = busy || !plugin.installed || plugin.globalEnabled || builtin
   return (
     <article className="flex min-h-[148px] flex-col rounded-md border border-border bg-muted/10 p-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <PackageCheck size={14} className={plugin.projectEnabled ? toneTextClass('success') : 'text-muted-foreground'} />
+            <PackageCheck size={14} className={enabled ? toneTextClass('success') : 'text-muted-foreground'} />
             <h3 className="truncate type-body font-semibold text-foreground">{plugin.displayName ?? plugin.name}</h3>
           </div>
           <p className="mt-1 line-clamp-2 type-label leading-5 text-muted-foreground">
@@ -165,20 +122,20 @@ export function ProjectSystemPluginCard({
           </p>
         </div>
         <Switch
-          checked={plugin.projectEnabled}
+          checked={enabled}
           disabled={disabled}
-          aria-label={`${plugin.projectEnabled ? '关闭' : '启用'} ${plugin.displayName ?? plugin.name}`}
+          aria-label={`${enabled ? '关闭' : '启用'} ${plugin.displayName ?? plugin.name}`}
           onCheckedChange={onToggle}
         />
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
-        <Badge variant={plugin.projectEnabled ? 'solid' : 'outline'} tone={plugin.projectEnabled ? 'success' : 'neutral'}>
-          {plugin.projectEnabled ? '本项目已开启' : '本项目未开启'}
+        <Badge variant={enabled ? 'solid' : 'outline'} tone={enabled ? 'success' : 'neutral'}>
+          {plugin.globalEnabled ? '全局已开启' : plugin.projectEnabled ? '本项目已开启' : '本项目未开启'}
         </Badge>
         <Badge variant={plugin.installed ? 'outline' : 'solid'} tone={plugin.installed ? 'neutral' : 'warning'}>
-          {plugin.installed ? '系统缓存' : '系统缓存缺失'}
+          {builtin ? '系统内置' : plugin.installed ? '系统缓存' : '系统缓存缺失'}
         </Badge>
-        {plugin.globalEnabled ? <Badge variant="outline" tone="success">全局已开启</Badge> : null}
+        {plugin.globalEnabled || builtin ? <Badge variant="outline">项目只读</Badge> : null}
         {plugin.version ? <Badge variant="outline">v{plugin.version}</Badge> : null}
         {plugin.providerTargets.map((target) => (
           <Badge key={target} variant="outline">{projectSkillProviderLabel(target)}</Badge>
@@ -190,23 +147,10 @@ export function ProjectSystemPluginCard({
   )
 }
 
-function projectSkillSourceLabel(sourceType: ProjectLocalSkill['sourceType']) {
-  if (sourceType === 'desktop-cache') return 'Desktop 缓存'
-  if (sourceType === 'project') return '项目'
-  if (sourceType === 'project-catalog') return '项目目录'
-  return '插件来源'
-}
-
-function projectSkillProviderLabel(providerScope: ProjectLocalSkill['providerScope']) {
+function projectSkillProviderLabel(providerScope: ProjectPluginSnapshot['systemPlugins'][number]['providerTargets'][number]) {
   if (providerScope === 'codex') return 'Codex'
   if (providerScope === 'mova') return 'Mova'
   return 'Claude'
-}
-
-function projectSkillScopeLabel(sourceScope: ProjectLocalSkill['sourceScope']) {
-  if (sourceScope === 'global') return '全局'
-  if (sourceScope === 'builtin') return '内置'
-  return '项目'
 }
 
 export function ProjectPluginMarketplaceDialog({

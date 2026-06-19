@@ -28,9 +28,10 @@ import { providerRuntimeModelAPIKinds } from '@/shared/infrastructure/providerRu
 import type { AgentPanelNewConversationPayload } from '@/features/agent/application/agentPanelBridge'
 import {
   selectActiveAgentConversationRegistryRecord,
-  selectAgentConversationRegistryRecords,
 } from '@movscript/core/agent'
 import type { Project } from '@/types'
+import type { AgentConversationFocusScope } from '@/features/agent/state/agentConversationFocusScope'
+import { isAgentChatDraftConversationId } from '@/features/agent/presentation/agentChatDataSourceShellModel'
 
 export const AGENT_RUNTIME_THREAD_OPEN_EVENT = 'movscript:agent-runtime-thread-open'
 
@@ -41,6 +42,7 @@ export interface AgentRuntimeChatShellProps {
   host?: 'dock-panel' | 'floating-panel' | 'immersive'
   surface?: 'panel' | 'page'
   currentProject?: Project | null
+  conversationFocusScope?: AgentConversationFocusScope
   composerWorkspaceContextLocked?: boolean
   hideComposerWorkspaceProjectSelector?: boolean
   showCollapse?: boolean
@@ -61,6 +63,7 @@ function AgentRuntimeChatShellContent({
   host,
   surface = 'panel',
   currentProject,
+  conversationFocusScope,
   composerWorkspaceContextLocked,
   hideComposerWorkspaceProjectSelector,
   showCollapse,
@@ -108,9 +111,10 @@ function AgentRuntimeChatShellContent({
     providerInstanceId: providerInstanceId(provider),
     providerProtocol: providerProtocol(provider),
   } : { providerProtocol: 'sdk' }
-  const activeConversationId = useAgentActiveConversationId(userId)
+  const activeConversationId = useAgentActiveConversationId(userId, conversationFocusScope)
   const conversationsById = useAgentConversationRecordsById()
   const activeThreadId = useMemo(() => {
+    if (!activeConversationId || isAgentChatDraftConversationId(activeConversationId)) return null
     const registryState = {
       activeConversationIdsByUser: { [userId]: activeConversationId },
       conversationsById,
@@ -119,12 +123,7 @@ function AgentRuntimeChatShellContent({
       userId,
       ...providerIdentity,
     })
-    return activeRecord?.providerThreadId
-      ?? selectAgentConversationRegistryRecords(conversationsById, {
-        userId,
-        ...providerIdentity,
-      })[0]?.providerThreadId
-      ?? null
+    return activeRecord?.providerThreadId ?? null
   }, [activeConversationId, conversationsById, providerIdentity, userId])
   const readActiveThreadId = useCallback(() => activeThreadId, [activeThreadId])
 
@@ -139,6 +138,8 @@ function AgentRuntimeChatShellContent({
       providerInstanceId={provider ? providerInstanceId(provider) : undefined}
       providerProtocol={provider ? providerProtocol(provider) : undefined}
       threadScopeKey={threadScopeKey}
+      conversationFocusScope={conversationFocusScope}
+      registryActiveThreadId={activeThreadId}
       readActiveThreadId={readActiveThreadId}
       openThreadEventName={openThreadEventName}
       providerLabel={providerLabel}

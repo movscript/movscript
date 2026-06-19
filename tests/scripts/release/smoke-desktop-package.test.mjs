@@ -59,8 +59,19 @@ test('smokeDesktopPackage runs same-host package executable and requires the smo
 
     assert.equal(result.skipped, false)
     assert.equal(calls.length, 1)
-    assert.deepEqual(calls[0].args, ['--movscript-desktop-smoke-test'])
+    if (process.platform === 'darwin') {
+      assert.equal(calls[0].command, '/usr/bin/open')
+      assert.deepEqual(calls[0].args.slice(0, 3), ['-W', '-n', path.join(releaseDir, 'mac-arm64/Movscript.app')])
+      assert.equal(calls[0].args[3], '--args')
+      assert.equal(calls[0].args[4], '--movscript-desktop-smoke-test')
+      assert.match(calls[0].args[5], /^--user-data-dir=/)
+    } else {
+      assert.equal(calls[0].args[0], '--movscript-desktop-smoke-test')
+      assert.match(calls[0].args[1], /^--user-data-dir=/)
+    }
+    assert.match(calls[0].options.env.MOVSCRIPT_DESKTOP_SMOKE_MARKER_FILE, /movscript-electron-user-data.*\.marker$/)
     assert.equal(calls[0].options.env.MOVSCRIPT_DESKTOP_SMOKE_TEST, '1')
+    assert.match(calls[0].options.env.MOVSCRIPT_DESKTOP_SMOKE_USER_DATA_DIR, /movscript-electron-user-data/)
   } finally {
     await rm(root, { recursive: true, force: true })
   }
@@ -78,6 +89,7 @@ test('smokeDesktopPackage fails when the packaged app exits without the smoke ma
         platform: process.platform,
         releaseDir,
         spawn: () => ({ status: 0, stdout: 'booted\n', stderr: '' }),
+        timeoutMs: 1,
       }),
       /did not emit MOVSCRIPT_DESKTOP_SMOKE_OK/,
     )

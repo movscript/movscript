@@ -12,6 +12,8 @@ export type ElectronBackendStatus = {
   baseURL: string
   pid?: number
   message?: string
+  logPath?: string
+  recentOutput?: string
 }
 
 export type ElectronRuntimeConfig = {
@@ -36,6 +38,7 @@ export type ElectronAgentRuntimeCredentialSummary = {
 
 export type ElectronAgentSessionState = {
   activeConversationIdsByUser: Record<string, string | null>
+  activeConversationIdsByScope: Record<string, string | null>
   conversationsById: Record<string, AgentConversationRegistryRecord>
   workspacesByUser: Record<string, Record<string, AgentConversationWorkspace>>
 }
