@@ -118,6 +118,111 @@ test('electron SDK runtime client subscribes to matching runtime notifications',
   }
 })
 
+test('electron SDK runtime client does not auto-respond from subscriptions without server request handlers', async () => {
+  const previousWindow = globalThis.window
+  const input = clientInput()
+  const serverRequests: Array<(event: {
+    runtimeId: string
+    providerId?: string
+    providerKind?: string
+    threadId?: string
+    request: { id: string; method: string; params: unknown }
+  }) => void> = []
+  const responses: unknown[] = []
+  setGlobalWindow({
+    api: {
+      sdkRuntimeRequest: async () => ({}),
+      sdkRuntimeNotify: async () => undefined,
+      onSdkRuntimeNotification: () => () => undefined,
+      onSdkRuntimeServerRequest: (handler: typeof serverRequests[number]) => {
+        serverRequests.push(handler)
+        return () => {
+          const index = serverRequests.indexOf(handler)
+          if (index >= 0) serverRequests.splice(index, 1)
+        }
+      },
+      sdkRuntimeRespondToServerRequest: async (response: unknown) => {
+        responses.push(response)
+      },
+    },
+  })
+
+  try {
+    const client = electronSdkRuntimeClient(input)
+    assert.ok(client?.subscribe)
+    const cleanup = client.subscribe({
+      provider: input.provider,
+      runtime: input.runtime,
+      threadId: 'thread_1',
+    })
+
+    serverRequests[0]?.(serverRequestEvent(input, 'request_1'))
+    await Promise.resolve()
+
+    assert.deepEqual(responses, [])
+    if (typeof cleanup === 'function') cleanup()
+    assert.equal(serverRequests.length, 0)
+  } finally {
+    setGlobalWindow(previousWindow)
+  }
+})
+
+test('electron SDK runtime client responds to server requests only through explicit handlers', async () => {
+  const previousWindow = globalThis.window
+  const input = clientInput()
+  const serverRequests: Array<(event: {
+    runtimeId: string
+    providerId?: string
+    providerKind?: string
+    threadId?: string
+    request: { id: string; method: string; params: unknown }
+  }) => void> = []
+  const responses: unknown[] = []
+  setGlobalWindow({
+    api: {
+      sdkRuntimeRequest: async () => ({}),
+      sdkRuntimeNotify: async () => undefined,
+      onSdkRuntimeNotification: () => () => undefined,
+      onSdkRuntimeServerRequest: (handler: typeof serverRequests[number]) => {
+        serverRequests.push(handler)
+        return () => {
+          const index = serverRequests.indexOf(handler)
+          if (index >= 0) serverRequests.splice(index, 1)
+        }
+      },
+      sdkRuntimeRespondToServerRequest: async (response: unknown) => {
+        responses.push(response)
+      },
+    },
+  })
+
+  try {
+    const client = electronSdkRuntimeClient(input)
+    assert.ok(client?.subscribe)
+    const cleanup = client.subscribe({
+      provider: input.provider,
+      runtime: input.runtime,
+      threadId: 'thread_1',
+      onServerRequest: (request) => {
+        assert.equal(request.id, 'request_1')
+        return { action: 'approve' }
+      },
+    })
+
+    serverRequests[0]?.(serverRequestEvent(input, 'request_1'))
+    await Promise.resolve()
+
+    assert.deepEqual(responses, [{
+      runtimeId: input.runtime.id,
+      requestId: 'request_1',
+      response: { action: 'approve' },
+    }])
+    if (typeof cleanup === 'function') cleanup()
+  } finally {
+    setGlobalWindow(previousWindow)
+  }
+})
+
 function clientInput() {
   const provider = DEFAULT_PROVIDER_SETTINGS.providers.find((item) => item.id === CODEX_PROVIDER_ID)!
   const runtime = {
@@ -127,6 +232,20 @@ function clientInput() {
   }
   const contract = providerRuntimeApiContract('codex-sdk')!
   return { provider, runtime, contract }
+}
+
+function serverRequestEvent(input: ReturnType<typeof clientInput>, requestId: string) {
+  return {
+    runtimeId: input.runtime.id,
+    providerId: input.provider.id,
+    providerKind: input.provider.kind,
+    threadId: 'thread_1',
+    request: {
+      id: requestId,
+      method: 'item/permissions/requestApproval',
+      params: { permissions: { filesystem: 'workspace' } },
+    },
+  }
 }
 
 function setGlobalWindow(value: unknown): void {
