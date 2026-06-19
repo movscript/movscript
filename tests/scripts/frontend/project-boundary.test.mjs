@@ -93,6 +93,13 @@ test('project overview delegates card and marketplace UI components', () => {
     'ProjectSkillCard',
   ]) {
     assert.match(projectOverviewCardsSource, new RegExp(`export function ${componentName}\\b`))
+  }
+
+  for (const componentName of [
+    'ProjectOverviewScriptCard',
+    'ProjectOverviewWorkbenchCard',
+    'ProjectSkillCard',
+  ]) {
     assert.match(projectOverviewPageSource, new RegExp(`<${componentName}\\b`))
   }
 
@@ -106,6 +113,10 @@ test('project overview delegates card and marketplace UI components', () => {
     assert.doesNotMatch(projectOverviewPageSource, new RegExp(removedPageLocal))
   }
   assert.match(projectOverviewCardsSource, /function projectSkillSourceLabel/)
+  assert.match(projectOverviewCardsSource, /function projectSkillProviderLabel/)
+  assert.match(projectOverviewCardsSource, /function projectSkillScopeLabel/)
+  assert.match(projectOverviewCardsSource, /skill\.providerScope/)
+  assert.match(projectOverviewCardsSource, /skill\.sourceScope/)
   assert.match(projectOverviewCardsSource, /withRouteParams\(ROUTES\.project\.scripts/)
   assert.match(projectOverviewCardsSource, /PluginDialogOverlay/)
 })

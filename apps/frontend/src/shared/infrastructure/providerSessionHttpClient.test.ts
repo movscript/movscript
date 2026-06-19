@@ -15,40 +15,57 @@ import { resetAgentTelemetrySink, setAgentTelemetrySink, type AgentPerformanceMe
 
 test('provider session workspace config electron API is owned by the workspace config helper', () => {
   const clientSource = readFileSync(resolve('src/shared/infrastructure/providerSessionHttpClient.ts'), 'utf8')
+  const runtimeClientSource = readFileSync(resolve('src/shared/infrastructure/provider-session-client/providerSessionRuntimeClient.ts'), 'utf8')
+  const catalogClientSource = readFileSync(resolve('src/shared/infrastructure/provider-session-client/providerSessionCatalogClient.ts'), 'utf8')
+  const workspaceClientSource = readFileSync(resolve('src/shared/infrastructure/provider-session-client/providerSessionWorkspaceClient.ts'), 'utf8')
   const workspaceConfigSource = readFileSync(resolve('src/shared/infrastructure/provider-session-client/providerSessionWorkspaceConfigClient.ts'), 'utf8')
 
-  assert.match(clientSource, /from '@\/shared\/infrastructure\/provider-session-client\/providerSessionWorkspaceConfigClient'/)
-  assert.match(clientSource, /listProviderSessionsFromElectronWorkspace\(input, this\)/)
-  assert.match(clientSource, /getProviderSessionWorkspaceConfig\(input, this\)/)
-  assert.match(clientSource, /saveProviderSessionWorkspaceConfig\(input, this\)/)
-  assert.match(clientSource, /inspectProviderSessionCatalogFromWorkspace\(this/)
-  assert.match(clientSource, /saveProviderSessionConfigFile\(input, this/)
-  assert.match(clientSource, /deleteProviderSessionConfigFile\(input, this/)
-  assert.match(clientSource, /saveActiveProviderSessionConfigFile\(input, this/)
-  assert.match(clientSource, /getProviderSessionProviderModelConfig\(this\)/)
-  assert.match(clientSource, /saveProviderSessionProviderModelConfig\(input, this\)/)
-  assert.match(clientSource, /clearProviderSessionProviderModelConfig\(this\)/)
+  assert.match(clientSource, /extends ProviderSessionWorkspaceClient/)
+  assert.match(clientSource, /from '@\/shared\/infrastructure\/provider-session-client\/providerSessionWorkspaceClient'/)
+  assert.doesNotMatch(clientSource, /from '@\/shared\/infrastructure\/provider-session-client\/providerSessionWorkspaceConfigClient'/)
+  assert.match(runtimeClientSource, /listProviderSessionsFromElectronWorkspace\(input, this\)/)
+  assert.match(runtimeClientSource, /inspectProviderSessionCatalogFromWorkspace\(this/)
+  assert.match(catalogClientSource, /saveProviderSessionConfigFile\(input, this/)
+  assert.match(catalogClientSource, /deleteProviderSessionConfigFile\(input, this/)
+  assert.match(catalogClientSource, /saveActiveProviderSessionConfigFile\(input, this/)
+  assert.match(workspaceClientSource, /getProviderSessionWorkspaceConfig\(input, this\)/)
+  assert.match(workspaceClientSource, /saveProviderSessionWorkspaceConfig\(input, this\)/)
   assert.doesNotMatch(clientSource, /readElectronApi/)
   assert.doesNotMatch(clientSource, /getMovScriptWorkspaceConfig/)
   assert.doesNotMatch(clientSource, /saveMovScriptWorkspaceConfig/)
   assert.match(workspaceConfigSource, /readElectronApi/)
   assert.match(workspaceConfigSource, /providerSessionWorkspaceScope\(input, context\)/)
-  assert.match(workspaceConfigSource, /providerModelConfigPublicFromWorkspaceConfig/)
+  assert.doesNotMatch(workspaceConfigSource, /ProviderModelConfig/)
   assert.match(workspaceConfigSource, /mergeProviderCatalogInspectWithWorkspaceConfig/)
   assert.match(workspaceConfigSource, /agentCatalog/)
 })
 
 test('provider session run APIs are owned by the run client helper', () => {
   const clientSource = readFileSync(resolve('src/shared/infrastructure/providerSessionHttpClient.ts'), 'utf8')
+  const threadClientSource = readFileSync(resolve('src/shared/infrastructure/provider-session-client/providerSessionThreadClient.ts'), 'utf8')
+  const runtimeClientSource = readFileSync(resolve('src/shared/infrastructure/provider-session-client/providerSessionRuntimeClient.ts'), 'utf8')
+  const catalogClientSource = readFileSync(resolve('src/shared/infrastructure/provider-session-client/providerSessionCatalogClient.ts'), 'utf8')
+  const workspaceClientSource = readFileSync(resolve('src/shared/infrastructure/provider-session-client/providerSessionWorkspaceClient.ts'), 'utf8')
   const runClientSource = readFileSync(resolve('src/shared/infrastructure/provider-session-client/providerSessionRunClient.ts'), 'utf8')
+  const publicTypesSource = readFileSync(resolve('src/shared/infrastructure/provider-session-client/publicTypes.ts'), 'utf8')
+  const typesSource = readFileSync(resolve('src/shared/infrastructure/provider-session-client/types.ts'), 'utf8')
 
-  assert.match(clientSource, /extends ProviderSessionRunClient/)
-  assert.match(clientSource, /from '@\/shared\/infrastructure\/provider-session-client\/providerSessionRunClient'/)
+  assert.match(clientSource, /extends ProviderSessionWorkspaceClient/)
+  assert.match(workspaceClientSource, /extends ProviderSessionCatalogClient/)
+  assert.match(catalogClientSource, /extends ProviderSessionRuntimeClient/)
+  assert.match(runtimeClientSource, /extends ProviderSessionThreadClient/)
+  assert.match(threadClientSource, /extends ProviderSessionRunClient/)
   assert.doesNotMatch(clientSource, /async listRuns\(/)
   assert.doesNotMatch(clientSource, /async cancelRun\(/)
   assert.doesNotMatch(clientSource, /async createTaskGraph\(/)
   assert.doesNotMatch(clientSource, /async dispatchTaskGraph\(/)
   assert.doesNotMatch(clientSource, /async answerRunInput\(/)
+  assert.match(threadClientSource, /listThreads\(query: AgentThreadListQuery/)
+  assert.match(threadClientSource, /createSessionMessageRun\(sessionId: string/)
+  assert.doesNotMatch(threadClientSource, /startProvisionalConversation/)
+  assert.doesNotMatch(runtimeClientSource, /acquireProviderSessionLease|releaseProviderSessionLease/)
+  assert.doesNotMatch(publicTypesSource, /ProviderSessionLease/)
+  assert.doesNotMatch(typesSource, /interface ProviderSessionLease/)
   assert.match(runClientSource, /export abstract class ProviderSessionRunClient/)
   assert.match(runClientSource, /async listRuns\(/)
   assert.match(runClientSource, /async cancelRun\(/)
@@ -587,148 +604,11 @@ test('createSessionMessageRun sends provider-session limits without legacy wire 
   })
 })
 
-test('runMessageStream sends messages through the scoped provider session', async () => {
-  const requests: string[] = []
-  const runBodies: Array<Record<string, unknown>> = []
-  const sourceMessages: Array<{ messageId: string; runId: string }> = []
-  const phases: Array<{ name: string; details?: Record<string, unknown> }> = []
-  const thread = threadFixture('thread_active')
-  const run = runFixture('run_1', 'thread_active', 'completed')
-  await withFetch(async (input, init) => {
-    const url = new URL(String(input))
-    requests.push(`${init?.method ?? 'GET'} ${url.pathname}`)
-    if (url.pathname === '/sessions/session_1') {
-      return jsonResponse({
-        id: 'session_1',
-        activeThreadId: 'thread_active',
-        interactiveThreadId: 'thread_root',
-        rootThreadId: 'thread_root',
-        createdAt: '2026-05-16T00:00:00.000Z',
-        updatedAt: '2026-05-16T00:00:01.000Z',
-      })
-    }
-    if (url.pathname === '/sessions/session_1/runs') {
-      runBodies.push(parseJSONBody(init?.body))
-      return jsonResponse({
-        run,
-        message: messageFixture('msg_1', 'thread_active', 'continue'),
-        providerSessionInput: {
-          accepted: false,
-          runId: 'run_1',
-          messageId: 'msg_1',
-          deliveryStatus: 'accepted',
-        },
-      })
-    }
-    if (url.pathname === '/threads/thread_active/stream') {
-      return new Response(`data: ${JSON.stringify(providerSessionRunEvent(run, 1))}\n\n`, {
-        status: 200,
-        headers: { 'Content-Type': 'text/event-stream' },
-      })
-    }
-    if (url.pathname === '/threads/thread_active') return jsonResponse(thread)
-    return new Response('not found', { status: 404 })
-  }, async () => {
-    const result = await new ProviderSessionClient(fetchTransport('http://local.test'), { sessionId: 'session_1' }).runMessageStream({
-      message: 'continue',
-      sourceMessageId: 'local_msg_1',
-      title: 'Session conversation',
-      projectId: 7,
-    }, {
-      onSourceMessage: (message, run) => {
-        sourceMessages.push({ messageId: message.id, runId: run.id })
-      },
-      onPhase: (name, details) => phases.push({ name, details }),
-      timeoutMs: 1,
-      pollMs: 1,
-    })
-
-    assert.equal(result.thread.id, 'thread_active')
-    assert.equal(result.sourceMessage?.id, 'msg_1')
-    assert.deepEqual(result.threadResolution, {
-      threadId: 'thread_active',
-      reusedExistingThread: true,
-      createdNewThread: false,
-      missingRequestedThread: false,
-    })
-    assert.deepEqual(requests.slice(0, 4), [
-      'GET /sessions/session_1',
-      'POST /sessions/session_1/runs',
-      'GET /threads/thread_active/stream',
-      'GET /threads/thread_active',
-    ])
-    assert.equal(runBodies[0]?.message, 'continue')
-    assert.equal(runBodies[0]?.sourceMessageId, 'local_msg_1')
-    assert.equal(runBodies[0]?.activeRunMode, 'runtime_input')
-    assert.equal(runBodies[0]?.title, 'Session conversation')
-    assert.equal(runBodies[0]?.projectId, 7)
-    const createDonePhase = phases.find((phase) => phase.name === 'create_session_message_run_done')
-    assert.equal(createDonePhase?.details?.providerSessionInputAccepted, false)
-    assert.deepEqual(sourceMessages, [{ messageId: 'msg_1', runId: 'run_1' }])
-  })
-})
-
-test('runMessageStream rejects client-selected thread targets', async () => {
-  const requests: string[] = []
-  await withFetch(async (input, init) => {
-    const url = new URL(String(input))
-    requests.push(`${init?.method ?? 'GET'} ${url.pathname}`)
-    return new Response('not found', { status: 404 })
-  }, async () => {
-    await assert.rejects(
-      () => new ProviderSessionClient(fetchTransport('http://local.test'), { sessionId: 'session_1' }).runMessageStream({
-        threadId: 'thread_existing',
-        message: 'continue',
-      }, { timeoutMs: 1, pollMs: 1 }),
-      /client-selected thread/,
-    )
-
-    assert.deepEqual(requests, [])
-  })
-})
-
-test('runMessageStream requires a provider session', async () => {
-  const requests: string[] = []
-  await withFetch(async (input, init) => {
-    const url = new URL(String(input))
-    requests.push(`${init?.method ?? 'GET'} ${url.pathname}`)
-    return new Response('not found', { status: 404 })
-  }, async () => {
-    await assert.rejects(
-      () => new ProviderSessionClient(fetchTransport('http://local.test')).runMessageStream({
-        message: 'start',
-      }, { timeoutMs: 1, pollMs: 1 }),
-      /requires a provider session/,
-    )
-
-    assert.deepEqual(requests, [])
-  })
-})
-
-test('runMessageStream only rejects thread ids before network requests', async () => {
-  const requests: string[] = []
-  await withFetch(async (input, init) => {
-    const url = new URL(String(input))
-    requests.push(`${init?.method ?? 'GET'} ${url.pathname}`)
-    return new Response('not found', { status: 404 })
-  }, async () => {
-    await assert.rejects(
-      () => new ProviderSessionClient(fetchTransport('http://local.test')).runMessageStream({
-        threadId: 'thread_missing',
-        message: 'continue',
-      }, { timeoutMs: 1, pollMs: 1 }),
-      /client-selected thread/,
-    )
-
-    assert.deepEqual(requests, [])
-  })
-})
-
 test('provider session client unwraps JSON error response bodies', async () => {
   await withFetch(async (input, init) => {
     const url = new URL(String(input))
-    if (url.pathname === '/model-config' && init?.method === 'POST') {
-      return new Response(JSON.stringify({ error: 'model must be a non-empty string' }), {
+    if (url.pathname === '/agent-catalog/reload' && init?.method === 'POST') {
+      return new Response(JSON.stringify({ error: 'catalog reload failed' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
       })
@@ -737,15 +617,15 @@ test('provider session client unwraps JSON error response bodies', async () => {
   }, async () => {
     await assert.rejects(async () => {
       try {
-        await new ProviderSessionClient(fetchTransport('http://local.test')).saveModelConfig({ model: '' })
+        await new ProviderSessionClient(fetchTransport('http://local.test')).reloadProviderCatalog()
       } catch (error) {
         assert.ok(error instanceof ProviderSessionHTTPError)
         assert.equal(error.status, 400)
-        assert.equal(error.responseText, '{"error":"model must be a non-empty string"}')
-        assert.equal(error.message, 'provider session returned 400: model must be a non-empty string')
+        assert.equal(error.responseText, '{"error":"catalog reload failed"}')
+        assert.equal(error.message, 'provider session returned 400: catalog reload failed')
         throw error
       }
-    }, /provider session returned 400: model must be a non-empty string/)
+    }, /provider session returned 400: catalog reload failed/)
   })
 })
 
@@ -953,108 +833,6 @@ test('getThreadProviderSessionSnapshot reads the combined thread provider-sessio
     assert.equal(result.entities.threads?.[0]?.id, 'thread_1')
     assert.deepEqual(result.entities.runs?.map((run) => run.id), ['run_1'])
     assert.deepEqual(requests, ['GET /threads/thread_1/runtime'])
-  })
-})
-
-test('runMessageStream reports thread resolution on the streaming path', async () => {
-  const requests: string[] = []
-  const runBodies: Array<Record<string, unknown>> = []
-  const sourceMessages: Array<{ messageId: string; runId: string }> = []
-  const thread = threadFixture('thread_stream')
-  const run = runFixture('run_stream', 'thread_stream', 'completed')
-  await withFetch(async (input, init) => {
-    const url = new URL(String(input))
-    requests.push(`${init?.method ?? 'GET'} ${url.pathname}`)
-    if (url.pathname === '/sessions/session_stream') {
-      return jsonResponse({
-        id: 'session_stream',
-        activeThreadId: 'thread_stream',
-        interactiveThreadId: 'thread_stream',
-        rootThreadId: 'thread_stream',
-        createdAt: '2026-05-16T00:00:00.000Z',
-        updatedAt: '2026-05-16T00:00:01.000Z',
-      })
-    }
-    if (url.pathname === '/threads/thread_stream') return jsonResponse(thread)
-    if (url.pathname === '/sessions/session_stream/runs') {
-      runBodies.push(parseJSONBody(init?.body))
-      return jsonResponse({ run, message: messageFixture('msg_stream', 'thread_stream', 'continue') })
-    }
-    if (url.pathname === '/threads/thread_stream/stream') {
-      return new Response(`data: ${JSON.stringify(providerSessionRunEvent(run, 1))}\n\n`, {
-        status: 200,
-        headers: { 'Content-Type': 'text/event-stream' },
-      })
-    }
-    return new Response('not found', { status: 404 })
-  }, async () => {
-    const result = await new ProviderSessionClient(fetchTransport('http://local.test'), { sessionId: 'session_stream' }).runMessageStream({
-      message: 'continue',
-      sourceMessageId: 'local_msg_stream',
-    }, {
-      onSourceMessage: (message, run) => {
-        sourceMessages.push({ messageId: message.id, runId: run.id })
-      },
-      timeoutMs: 1000,
-      pollMs: 1,
-    })
-
-    assert.equal(result.run.id, 'run_stream')
-    assert.equal(result.sourceMessage?.id, 'msg_stream')
-    assert.equal(result.thread.id, 'thread_stream')
-    assert.deepEqual(result.threadResolution, {
-      threadId: 'thread_stream',
-      reusedExistingThread: true,
-      createdNewThread: false,
-      missingRequestedThread: false,
-    })
-    assert.ok(requests.includes('GET /threads/thread_stream/stream'))
-    assert.equal(requests.includes('GET /runs/run_stream/stream'), false)
-    assert.equal(runBodies[0]?.message, 'continue')
-    assert.equal(runBodies[0]?.sourceMessageId, 'local_msg_stream')
-    assert.equal(runBodies[0]?.activeRunMode, 'runtime_input')
-    assert.deepEqual(sourceMessages, [{ messageId: 'msg_stream', runId: 'run_stream' }])
-  })
-})
-
-test('runMessageStream falls back to run stream when thread stream is unavailable', async () => {
-  const requests: string[] = []
-  const thread = threadFixture('thread_stream')
-  const run = runFixture('run_stream', 'thread_stream', 'completed')
-  await withFetch(async (input, init) => {
-    const url = new URL(String(input))
-    requests.push(`${init?.method ?? 'GET'} ${url.pathname}`)
-    if (url.pathname === '/sessions/session_stream') {
-      return jsonResponse({
-        id: 'session_stream',
-        activeThreadId: 'thread_stream',
-        interactiveThreadId: 'thread_stream',
-        rootThreadId: 'thread_stream',
-        createdAt: '2026-05-16T00:00:00.000Z',
-        updatedAt: '2026-05-16T00:00:01.000Z',
-      })
-    }
-    if (url.pathname === '/threads/thread_stream') return jsonResponse(thread)
-    if (url.pathname === '/sessions/session_stream/runs') {
-      return jsonResponse({ run, message: messageFixture('msg_stream', 'thread_stream', 'continue') })
-    }
-    if (url.pathname === '/threads/thread_stream/stream') return new Response('not found', { status: 404 })
-    if (url.pathname === '/runs/run_stream') return jsonResponse(run)
-    if (url.pathname === '/runs/run_stream/stream') {
-      return new Response(`data: ${JSON.stringify(providerSessionRunEvent(run, 1))}\n\n`, {
-        status: 200,
-        headers: { 'Content-Type': 'text/event-stream' },
-      })
-    }
-    return new Response('not found', { status: 404 })
-  }, async () => {
-    const result = await new ProviderSessionClient(fetchTransport('http://local.test'), { sessionId: 'session_stream' }).runMessageStream({
-      message: 'continue',
-    }, { timeoutMs: 1000, pollMs: 1 })
-
-    assert.equal(result.run.id, 'run_stream')
-    assert.ok(requests.includes('GET /threads/thread_stream/stream'))
-    assert.ok(requests.includes('GET /runs/run_stream/stream'))
   })
 })
 

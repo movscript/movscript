@@ -323,11 +323,7 @@ test('agent workspace split pages use the shared split primitive', () => {
   const workspaceReviewSource = readFileSync(resolve('src/features/agent/components/MovScriptWorkspaceReviewPage.tsx'), 'utf8')
   const agentConnectionsSource = readFileSync(resolve('src/features/agent/components/AgentConnectionsPage.tsx'), 'utf8')
   const agentConsoleSource = readFileSync(resolve('src/features/agent/components/AgentConsolePage.tsx'), 'utf8')
-  const agentConsoleRealtimeLogPanelSource = readFileSync(
-    resolve('src/features/agent/components/AgentConsoleRealtimeLogPanel.tsx'),
-    'utf8',
-  )
-  const agentConsoleSurfaceSource = `${agentConsoleSource}\n${agentConsoleRealtimeLogPanelSource}`
+  const agentConsoleSurfaceSource = agentConsoleSource
   const agentPageUiSource = readFileSync(resolve('src/features/agent/components/AgentPageUi.tsx'), 'utf8')
   const agentPageUiStyles = readFileSync(resolve('src/features/agent/components/AgentPageUi.css'), 'utf8')
   const agentPageWorkspaceUiSource = readFileSync(resolve('src/features/agent/components/AgentPageWorkspaceUi.tsx'), 'utf8')
@@ -431,9 +427,11 @@ test('agent workspace split pages use the shared split primitive', () => {
   assert.match(agentConsoleSource, /<AgentConsoleMainGrid layout="control-logs">/)
   assert.match(agentConsoleSource, /<AgentConsoleMainColumn pane="config">/)
   assert.match(agentConsoleSource, /<AgentConsoleSidebar pane="logs">/)
-  assert.match(agentConsoleSurfaceSource, /AgentConsoleLogSummary/)
-  assert.match(agentConsoleSurfaceSource, /AgentConsoleLogStream/)
-  assert.match(agentConsoleSurfaceSource, /AgentConsoleLogLineText/)
+  assert.match(agentConsoleSurfaceSource, /AgentCapabilityHealthPanel/)
+  assert.match(agentConsoleSurfaceSource, /AgentSessionIntegrationPanel/)
+  assert.doesNotMatch(agentConsoleSurfaceSource, /AgentConsoleLogSummary/)
+  assert.doesNotMatch(agentConsoleSurfaceSource, /AgentConsoleLogStream/)
+  assert.doesNotMatch(agentConsoleSurfaceSource, /AgentConsoleLogLineText/)
   assert.doesNotMatch(agentConsoleSurfaceSource, /className="agent-console-log-/)
   assert.match(agentConsoleStyles, /\.agent-console-page-body \{[\s\S]*display: flex;[\s\S]*flex-direction: column;/)
   assert.doesNotMatch(agentConsoleStyles, /\.agent-console-main-grid\[data-layout="control-logs"\] > \.agent-console-main-column,[\s\S]*overflow-y: auto;/)

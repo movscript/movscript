@@ -1,4 +1,4 @@
-import type { ProviderManifest } from '@/shared/infrastructure/providerSessionClient'
+import type { ProviderManifest } from '@movscript/core/agent/protocol'
 
 export interface ConversationAgentContextConfig {
   enabled: boolean

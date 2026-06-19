@@ -1,7 +1,7 @@
 import { runInteractionAnswerEchoesForMessages } from '@/features/agent/domain/agentRunInteraction'
 import { buildInteractionRunsByResultMessageId } from '@/features/agent/domain/agentRunInteractionAnchors'
 import { timelineActivitiesFromItems } from '@/features/agent/domain/agentTimelineActivityItems'
-import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun, AgentTimelineItem } from '@movscript/core/agent/protocol'
 import type { ChatMessage } from '@/features/agent/state/agentStore'
 
 export interface AgentConversationProjectionRunInteractions {

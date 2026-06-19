@@ -1,10 +1,11 @@
 import { ROUTES } from '@/routes/projectRoutes'
-import { providerSessionClient, type ProviderSessionSummary, type AgentThreadClearResult, type AgentThreadSummary } from '@/shared/infrastructure/providerSessionClient'
+import { ProviderSessionClient, providerSessionClient } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentThreadClearResult, AgentThreadSummary } from '@movscript/core/agent/protocol'
+import type { ProviderSessionSummary } from '@/shared/contracts/electronApiProviderSessions'
 import type { ProviderSessionRunListItem } from '@/features/agent/application/providerSessionThreadQueryCache'
 import type { ProviderConfig } from '@/shared/infrastructure/providerConfigStore'
 import { createAgentChatDataSourceForProvider } from '@/features/agent/application/agentChatDataSourceFactory'
 import type { AgentChatDataSource } from '@movscript/core/agent/chat'
-import { providerProtocol } from '@/shared/infrastructure/providerConfigStore'
 import { providerRoute } from '@/features/agent/application/providerRoutes'
 
 export type AgentControlIssueTone = 'action' | 'warning' | 'ready'
@@ -33,6 +34,7 @@ export interface AgentControlProviderCapabilityHealth {
   providerLabel: string
   ok: boolean
   warningCount: number
+  credential?: AgentControlCredentialHealth
   toolCount: number
   blockedToolCount: number
   mcpServerCount: number
@@ -40,6 +42,15 @@ export interface AgentControlProviderCapabilityHealth {
   skillCount: number
   pluginCount: number
   warnings: string[]
+}
+
+export interface AgentControlCredentialHealth {
+  ok: boolean
+  configured: boolean
+  env: string
+  source: string
+  modelEndpointBaseURL?: string
+  detail?: string
 }
 
 export interface AgentControlToolSummary {
@@ -84,6 +95,14 @@ export const EMPTY_AGENT_CONTROL_CAPABILITY_HEALTH: AgentControlCapabilityHealth
   providers: [],
 }
 
+export async function listAgentControlProviderSessions(input: { providerProfileKey?: string } = {}): Promise<ProviderSessionSummary[]> {
+  const providerProfileKey = input.providerProfileKey?.trim()
+  const client = providerProfileKey
+    ? new ProviderSessionClient(undefined, { providerProfileKey })
+    : providerSessionClient
+  return client.listProviderSessionsFromWorkspace().then((result) => result.sessions)
+}
+
 export async function inspectAgentControlProviderCapabilities(providers: ProviderConfig[]): Promise<AgentControlCapabilityHealth> {
   const providerHealth = await Promise.all(providers.map(inspectAgentControlProviderCapability))
   return summarizeAgentControlCapabilityHealth(providerHealth, providers.length)
@@ -123,7 +142,7 @@ export function buildAgentControlIssues(input: {
   blockedTools: number
   capabilityWarnings: number
   checkedCapabilityProviders?: number
-  appServerProvider?: ProviderConfig
+  connectionProvider?: ProviderConfig
 }): AgentControlIssue[] {
   const issues: AgentControlIssue[] = []
   if (input.sessionIndexError) {
@@ -132,7 +151,7 @@ export function buildAgentControlIssues(input: {
       tone: 'action',
       title: 'Session 索引不可用',
       detail: errorMessage(input.sessionIndexError),
-      to: input.appServerProvider ? providerRoute(input.appServerProvider) : ROUTES.agents,
+      to: input.connectionProvider ? providerRoute(input.connectionProvider) : ROUTES.agents,
     })
   }
   if (!input.modelConfigured || input.modelError) {
@@ -141,7 +160,7 @@ export function buildAgentControlIssues(input: {
       tone: 'action',
       title: '模型配置需要确认',
       detail: input.modelError ? errorMessage(input.modelError) : '未配置模型时，Agent 无法稳定执行聊天、规划或工具调用。',
-      to: ROUTES.modelProviders,
+      to: ROUTES.agentSettings,
     })
   }
   if (input.waitingRuns > 0) {
@@ -219,7 +238,7 @@ function summarizeThreadClearResults(results: AgentThreadClearResult[]): { threa
 
 async function inspectAgentControlProviderCapability(provider: ProviderConfig): Promise<AgentControlProviderCapabilityHealth> {
   try {
-    const dataSource = await createAgentChatDataSourceForProvider(provider, { appServerPolicy: 'status-only' })
+    const dataSource = await createAgentChatDataSourceForProvider(provider)
     return await inspectAgentControlDataSourceCapabilities(provider, dataSource)
   } catch (error) {
     return failedAgentControlProviderCapabilityHealth(provider, error)
@@ -233,25 +252,33 @@ export async function inspectAgentControlDataSourceCapabilities(
   const warnings: string[] = []
   const commandAvailable = Boolean(dataSource.capabilities?.command?.exec)
   const fsAvailable = Boolean(dataSource.capabilities?.fs?.readFile)
-  const mcp = await inspectCapabilityCall('MCP', () => dataSource.capabilities?.mcp?.listServers?.() ?? Promise.resolve(null))
-  const plugins = await inspectCapabilityCall('Plugins', () => inspectAgentControlInstalledPlugins(dataSource))
-  const skills = await inspectCapabilityCall('Skills', () => dataSource.capabilities?.skills?.list?.() ?? Promise.resolve(null))
-  const appServerProtocol = providerProtocol(provider) === 'app-server'
+  const runtime = dataSource.capabilities?.runtime?.probe
+    ? await inspectCapabilityCall('Runtime', () => dataSource.capabilities?.runtime?.probe?.() ?? Promise.resolve(null))
+    : okCapabilityCall('Runtime', null)
+  const mcp = dataSource.capabilities?.mcp?.listServers
+    ? await inspectCapabilityCall('MCP', () => dataSource.capabilities?.mcp?.listServers?.() ?? Promise.resolve(null))
+    : okCapabilityCall('MCP', null)
+  const plugins = dataSource.capabilities?.plugins?.installed || dataSource.capabilities?.plugins?.list
+    ? await inspectCapabilityCall('Plugins', () => inspectAgentControlInstalledPlugins(dataSource))
+    : okCapabilityCall('Plugins', null)
+  const skills = dataSource.capabilities?.skills?.list
+    ? await inspectCapabilityCall('Skills', () => dataSource.capabilities?.skills?.list?.() ?? Promise.resolve(null))
+    : okCapabilityCall('Skills', null)
 
-  if (appServerProtocol && !commandAvailable) warnings.push('未实现 command/exec。')
-  if (appServerProtocol && !fsAvailable) warnings.push('未实现 fs/readFile。')
-  if (appServerProtocol && !dataSource.capabilities?.mcp?.listServers) warnings.push('未实现 mcpServerStatus/list。')
-  if (!dataSource.capabilities?.plugins?.installed && !dataSource.capabilities?.plugins?.list) warnings.push('未实现 plugin/installed 或 plugin/list。')
-  if (!dataSource.capabilities?.skills?.list) warnings.push('未实现 skills/list。')
-  for (const result of [mcp, plugins, skills]) {
+  for (const result of [runtime, mcp, plugins, skills]) {
     if (!result.ok) warnings.push(`${result.label}：${result.error}`)
   }
+  const credential = runtime.ok ? agentControlCredentialHealthFromProbe(runtime.value) : undefined
+  if (runtime.ok && runtimeProbeFailed(runtime.value) && !credential) {
+    warnings.push(`Runtime：${runtimeProbeError(runtime.value) ?? 'SDK runtime probe failed.'}`)
+  }
+  if (credential && !credential.ok) warnings.push(`SDK 凭据：${credential.detail ?? `${credential.env} 未配置。`}`)
 
   const mcpServerCount = mcp.ok ? countMcpServers(mcp.value) : 0
   const mcpToolCount = mcp.ok ? countMcpTools(mcp.value) : 0
   const pluginCount = plugins.ok ? countPluginItems(plugins.value) : 0
   const skillCount = skills.ok ? countSkillItems(skills.value) : 0
-  const directToolCount = appServerProtocol ? [commandAvailable, fsAvailable].filter(Boolean).length : 0
+  const directToolCount = [commandAvailable, fsAvailable].filter(Boolean).length
   const catalogToolCount = skills.ok ? countResolvedTools(skills.value, 'available') : 0
   const blockedToolCount = skills.ok ? countResolvedTools(skills.value, 'blocked') : 0
 
@@ -261,6 +288,7 @@ export async function inspectAgentControlDataSourceCapabilities(
     providerLabel: provider.label,
     ok: warnings.length === 0,
     warningCount: warnings.length,
+    ...(credential ? { credential } : {}),
     toolCount: directToolCount + mcpToolCount + catalogToolCount,
     blockedToolCount,
     mcpServerCount,
@@ -314,6 +342,13 @@ function failedAgentControlProviderCapabilityHealth(
     providerLabel: provider.label,
     ok: false,
     warningCount: 1,
+    credential: {
+      ok: false,
+      configured: false,
+      env: '-',
+      source: 'unknown',
+      detail: errorMessage(error),
+    },
     toolCount: 0,
     blockedToolCount: 0,
     mcpServerCount: 0,
@@ -322,6 +357,29 @@ function failedAgentControlProviderCapabilityHealth(
     pluginCount: 0,
     warnings: [errorMessage(error)],
   }
+}
+
+function agentControlCredentialHealthFromProbe(value: unknown): AgentControlCredentialHealth | undefined {
+  if (!isRecord(value)) return undefined
+  const raw = isRecord(value.credentials) ? value.credentials : isRecord(value.checks) && isRecord(value.checks.credentials) ? value.checks.credentials : undefined
+  if (!raw) return undefined
+  const env = stringField(raw.env) ?? '-'
+  return {
+    ok: raw.ok === true || raw.configured === true,
+    configured: raw.configured === true,
+    env,
+    source: stringField(raw.source) ?? 'unknown',
+    ...(stringField(raw.modelEndpointBaseURL) ? { modelEndpointBaseURL: stringField(raw.modelEndpointBaseURL) } : {}),
+    ...(stringField(raw.detail) ? { detail: stringField(raw.detail) } : {}),
+  }
+}
+
+function runtimeProbeFailed(value: unknown): boolean {
+  return isRecord(value) && value.ok === false
+}
+
+function runtimeProbeError(value: unknown): string | undefined {
+  return isRecord(value) ? stringField(value.error) : undefined
 }
 
 async function inspectCapabilityCall(label: string, fn: () => Promise<unknown>): Promise<{ ok: true; label: string; value: unknown } | { ok: false; label: string; error: string }> {
@@ -336,6 +394,10 @@ function inspectAgentControlInstalledPlugins(dataSource: AgentChatDataSource): P
   if (dataSource.capabilities?.plugins?.installed) return dataSource.capabilities.plugins.installed()
   if (dataSource.capabilities?.plugins?.list) return dataSource.capabilities.plugins.list()
   return Promise.resolve(null)
+}
+
+function okCapabilityCall(label: string, value: unknown): { ok: true; label: string; value: unknown } {
+  return { ok: true, label, value }
 }
 
 function countMcpServers(value: unknown): number {
@@ -395,4 +457,8 @@ function extractCollection(value: unknown, keys: string[]): unknown[] {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value))
+}
+
+function stringField(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }

@@ -10,7 +10,7 @@ import {
 } from '@/features/agent/components/AgentSettingsUi'
 import { AppInlineError } from '@movscript/ui/business/app'
 import { AgentSettingsConfigFileEditorHeader } from '@/features/agent/components/AgentSettingsConfigFileUi'
-import type { ProviderCatalogConfigFile } from '@/shared/infrastructure/providerSessionClient'
+import type { ProviderCatalogConfigFile } from '@movscript/core/agent/protocol'
 
 export function AIAgentSettingsConfigFileEditorHeaderSection({
   selectedConfigFile,

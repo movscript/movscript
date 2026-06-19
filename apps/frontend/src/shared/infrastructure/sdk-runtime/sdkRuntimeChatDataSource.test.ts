@@ -51,6 +51,11 @@ test('SDK runtime data source maps neutral chat operations to runtime RPC method
   assert.equal((requests[1]?.params as { text?: string }).text, 'hello')
   assert.equal((requests[2]?.params as { reason?: string }).reason, 'user')
   assert.equal(dataSource.providerInstanceId, 'codex-codex-sdk')
+  assert.equal(dataSource.capabilities?.command, undefined)
+  assert.equal(dataSource.capabilities?.fs, undefined)
+  assert.equal(dataSource.capabilities?.mcp, undefined)
+  assert.equal(dataSource.capabilities?.config, undefined)
+  assert.equal(dataSource.capabilities?.account, undefined)
 })
 
 test('SDK runtime data source delegates subscriptions to the runtime client', async () => {

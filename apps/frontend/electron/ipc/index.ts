@@ -8,8 +8,6 @@ import { registerMovScriptWorkspaceRootIpcHandlers } from './movscriptWorkspaceR
 import { registerBackendIpcHandlers } from './backendIpc'
 import { registerBackendAuthIpcHandlers } from './backendAuthIpc'
 import { registerRuntimeConfigIpcHandlers } from './runtimeConfigIpc'
-import { registerAppServerIpcHandlers } from './appServerIpc'
-import { registerAppServerHubIpcHandlers } from './appServerHubIpc'
 import { registerSdkRuntimeIpcHandlers } from './sdkRuntimeIpc'
 import { registerAppUpdateIpcHandlers } from './appUpdateIpc'
 import { registerDialogIpcHandlers } from './dialogIpc'
@@ -46,8 +44,6 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
   registerMovScriptWorkspaceFilesIpcHandlers()
   registerProjectGitIpcHandlers()
   registerProviderSessionsIpcHandlers()
-  registerAppServerIpcHandlers()
-  registerAppServerHubIpcHandlers()
   registerSdkRuntimeIpcHandlers()
   registerLocalTerminalIpcHandlers()
   registerMediaPipelineIpcHandlers()

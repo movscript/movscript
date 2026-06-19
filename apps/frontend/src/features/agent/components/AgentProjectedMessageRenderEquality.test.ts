@@ -6,7 +6,7 @@ import {
   agentProjectedTranscriptMessageItemsEqual,
 } from '@/features/agent/components/AgentProjectedMessageRenderEquality'
 import type { AgentConversationProjectionContentItem } from '@/features/agent/domain/agentConversationProjectionTypes'
-import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 import type { ChatMessage } from '@/features/agent/state/agentStore'
 
 type ProjectedMessageItem = Extract<AgentConversationProjectionContentItem, { type: 'message' }>['item']

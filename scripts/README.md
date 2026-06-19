@@ -8,12 +8,12 @@ Desktop package resources are governed by `package-resources.manifest.json`.
 Run `pnpm run verify:package-resources` after changing `apps/frontend/electron-builder.yml`,
 desktop runtime binaries, plugin bundle layout, or release staging paths.
 
-Only cross-workspace runners, shared verifier helpers, and provider-neutral app-server integration entrypoints may live directly under `scripts/`:
+Only cross-workspace runners, shared verifier helpers, and SDK runtime preparation entrypoints may live directly under `scripts/`:
 
 - `run-node-tests.mjs`
 - `verifier-utils.mjs`
-- `install-app-server-plugin.mjs`
-- `sync-app-server-protocol.mjs`
+- `prepare-sdk-runtime-seed.mjs`
+- `smoke-sdk-runtimes.mjs`
 - `movscript-lang-deps.mjs`
 - `movscript-lang-cwd.mjs`
 

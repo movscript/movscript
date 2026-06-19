@@ -15,6 +15,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 )
 
@@ -27,6 +28,7 @@ type Worker struct {
 	client         *http.Client
 	workerID       string
 	systemMessages *systemstream.Hub
+	wg             sync.WaitGroup
 }
 
 const (

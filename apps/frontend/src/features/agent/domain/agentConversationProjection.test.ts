@@ -2,12 +2,9 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { buildAgentConversationProjection } from '@/features/agent/domain/agentConversationProjection'
-import type {
-  AgentConversationProjectionContentItem,
-  AgentConversationProjectionItem,
-} from '@/features/agent/domain/agentConversationProjectionTypes'
+import type { AgentConversationProjectionContentItem, AgentConversationProjectionItem, } from '@/features/agent/domain/agentConversationProjectionTypes'
 import type { AgentConversationLiveBlock } from '@/features/agent/domain/agentConversationLiveBlocks'
-import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun, AgentTimelineItem } from '@movscript/core/agent/protocol'
 import type { ChatMessage, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 test('buildAgentConversationProjection inserts live blocks inside the active run turn', () => {

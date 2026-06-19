@@ -1,4 +1,5 @@
-import type { MovScriptWorkspaceKind, AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun } from '@movscript/core/agent/protocol'
+import type { MovScriptWorkspaceKind } from '@/shared/contracts/workspaceArtifact'
 import { isRecord } from '@/shared/domain/jsonValue'
 
 export interface AgentTaskArtifactRef {

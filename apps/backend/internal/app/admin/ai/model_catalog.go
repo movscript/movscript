@@ -36,6 +36,7 @@ type ModelRouteBindingInput struct {
 	RouteGroup      string `json:"route_group"`
 	ProviderID      string `json:"provider_id"`
 	ProviderModelID string `json:"provider_model_id"`
+	APIKinds        string `json:"api_kinds"`
 	IsEnabled       *bool  `json:"is_enabled"`
 	Priority        int    `json:"priority"`
 	CapacityWeight  int    `json:"capacity_weight"`
@@ -138,6 +139,9 @@ func (s *Service) CreateModelRouteBinding(ctx context.Context, catalogEntryID st
 	input = normalizeEditionModelRouteBindingInput(input)
 	binding := modelRouteBindingFromInput(entryID, input)
 	normalizeModelRouteBindingProviderID(&binding)
+	if err := normalizeModelRouteBindingAPIKinds(&binding); err != nil {
+		return binding, err
+	}
 	if strings.TrimSpace(binding.SourceType) == "" {
 		return binding, ErrInvalidModelCatalog
 	}
@@ -162,6 +166,9 @@ func (s *Service) UpdateModelRouteBinding(ctx context.Context, id string, input 
 	input = normalizeEditionModelRouteBindingInput(input)
 	next := modelRouteBindingFromInput(binding.CatalogEntryID, input)
 	normalizeModelRouteBindingProviderID(&next)
+	if err := normalizeModelRouteBindingAPIKinds(&next); err != nil {
+		return next, err
+	}
 	next.ID = binding.ID
 	next.CreatedAt = binding.CreatedAt
 	if next.SourceType == "" {
@@ -362,6 +369,32 @@ func normalizeModelRouteBindingProviderID(binding *persistencemodel.AIModelRoute
 	}
 }
 
+func normalizeModelRouteBindingAPIKinds(binding *persistencemodel.AIModelRouteBinding) error {
+	raw := strings.TrimSpace(binding.APIKinds)
+	if raw == "" {
+		binding.APIKinds = ""
+		return nil
+	}
+	seen := map[string]bool{}
+	out := make([]string, 0)
+	for _, part := range strings.Split(raw, ",") {
+		kind := strings.TrimSpace(part)
+		if kind == "" {
+			continue
+		}
+		if !infraai.ValidModelAPIKind(kind) {
+			return fmt.Errorf("%w: api_kind %q is not supported", ErrInvalidModelCatalog, kind)
+		}
+		if seen[kind] {
+			continue
+		}
+		seen[kind] = true
+		out = append(out, kind)
+	}
+	binding.APIKinds = strings.Join(out, ",")
+	return nil
+}
+
 func localProviderCredentialIDFromProviderID(providerID string) (uint, bool) {
 	providerID = strings.TrimSpace(providerID)
 	if providerID == "" {
@@ -404,6 +437,7 @@ func modelRouteBindingFromInput(catalogEntryID uint, input ModelRouteBindingInpu
 		RouteGroup:      strings.TrimSpace(input.RouteGroup),
 		ProviderID:      strings.TrimSpace(input.ProviderID),
 		ProviderModelID: strings.TrimSpace(input.ProviderModelID),
+		APIKinds:        strings.TrimSpace(input.APIKinds),
 		IsEnabled:       enabled,
 		Priority:        input.Priority,
 		CapacityWeight:  input.CapacityWeight,

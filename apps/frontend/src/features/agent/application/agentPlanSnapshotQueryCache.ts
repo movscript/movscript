@@ -1,4 +1,4 @@
-import type { AgentRun, AgentTaskGraphSnapshot, ProviderSessionEventV2 } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun, AgentTaskGraphSnapshot, ProviderSessionEventV2 } from '@movscript/core/agent/protocol'
 
 export interface AgentPlanSnapshotQueryCacheWriter {
   setQueryData: <TData>(

@@ -28,6 +28,8 @@ type ModelRouteRequest struct {
 	CatalogEntryID        uint
 	RouteBindingID        uint
 	Capability            string
+	APIKind               string
+	APIKinds              []string
 	RouteGroup            string
 	PreferredAdapterTypes []string
 	EstimatedUsage        UsageEstimate
@@ -44,6 +46,7 @@ type ModelRoute struct {
 	RouteGroup      string
 	ProviderID      string
 	ProviderModelID string
+	APIKind         string
 	SelectionReason string
 	EstimatedCost   float64
 }

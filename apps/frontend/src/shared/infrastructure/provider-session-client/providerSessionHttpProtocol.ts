@@ -1,5 +1,3 @@
-import { PROVIDER_MODEL_API_KINDS } from '@movscript/core/agent/protocol'
-
 import type {
   AgentRun,
   AgentRunPreview,
@@ -12,8 +10,6 @@ import type {
   DispatchTaskGraphResult,
   ProviderManifest,
   ProviderMemory,
-  ProviderModelAPIKind,
-  ProviderModelConfigPublic,
   ProviderPluginFile,
   ProviderSessionLimitsOverride,
   ProviderSessionSnapshotV2,
@@ -26,7 +22,7 @@ export function providerPluginCatalogFilesWireKey(): string {
   return ['agent', 'Catalog', 'Files'].join('')
 }
 
-export function providerCatalogWireRoute(kind: 'catalog' | 'config-files' | 'skills', suffix?: string): string {
+export function providerCatalogWireRoute(kind: 'catalog' | 'config-files', suffix?: string): string {
   const base = `/${['agent', kind].join('-')}`
   return suffix ? `${base}/${suffix}` : base
 }
@@ -229,78 +225,6 @@ export function normalizeProviderManifestCarrier<T extends { providerManifest?: 
 
 export function normalizeOptionalProviderManifestCarrier<T extends { providerManifest?: ProviderManifest; agentManifest?: ProviderManifest }>(input: T | undefined): (T & { providerManifest?: ProviderManifest }) | undefined {
   return input ? normalizeProviderManifestCarrier(input) : undefined
-}
-
-export type ProviderModelConfigSaveInput = {
-  model: string
-  apiKind?: ProviderModelAPIKind
-  baseURL?: string
-  apiKey?: string
-  useForChat?: boolean
-  useForPlanner?: boolean
-}
-
-export function providerModelConfigPublicFromWorkspaceConfig(modelConfig: Record<string, unknown> | undefined): ProviderModelConfigPublic {
-  if (!modelConfig) {
-    return {
-      configured: false,
-      provider: 'backend-model-config',
-      model: 'movscript-default-chat',
-      apiKind: 'openai_responses',
-      apiKeyConfigured: false,
-      useForChat: true,
-      useForPlanner: true,
-      source: 'none',
-      credentialStatus: {
-        required: false,
-        configured: false,
-        sourceEnv: [],
-        acceptedEnv: [],
-      },
-    }
-  }
-  const input = modelConfigInputFromRecord(modelConfig)
-  return {
-    configured: Boolean(input.model?.trim()),
-    provider: 'backend-model-config',
-    model: input.model || 'movscript-default-chat',
-    apiKind: input.apiKind ?? 'openai_responses',
-    ...(input.baseURL ? { baseURL: input.baseURL } : {}),
-    apiKeyConfigured: Boolean(input.apiKey?.trim()),
-    useForChat: input.useForChat ?? true,
-    useForPlanner: input.useForPlanner ?? true,
-    updatedAt: typeof modelConfig.updatedAt === 'string' ? modelConfig.updatedAt : undefined,
-    source: input.model ? 'file' : 'none',
-    credentialStatus: {
-      required: Boolean(input.baseURL?.trim()),
-      configured: Boolean(input.apiKey?.trim()),
-      sourceEnv: [],
-      acceptedEnv: [],
-    },
-  }
-}
-
-export function modelConfigInputFromRecord(value: Record<string, unknown>): ProviderModelConfigSaveInput {
-  const model = stringField(value.model) || ''
-  return {
-    model,
-    ...(providerModelAPIKindField(value.apiKind) ? { apiKind: providerModelAPIKindField(value.apiKind) } : {}),
-    ...(stringField(value.baseURL) ? { baseURL: stringField(value.baseURL) } : {}),
-    ...(stringField(value.apiKey) ? { apiKey: stringField(value.apiKey) } : {}),
-    ...(typeof value.useForChat === 'boolean' ? { useForChat: value.useForChat } : {}),
-    ...(typeof value.useForPlanner === 'boolean' ? { useForPlanner: value.useForPlanner } : {}),
-  }
-}
-
-function stringField(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim() ? value.trim() : undefined
-}
-
-
-function providerModelAPIKindField(value: unknown): ProviderModelAPIKind | undefined {
-  return typeof value === 'string' && (PROVIDER_MODEL_API_KINDS as readonly string[]).includes(value)
-    ? value as ProviderModelAPIKind
-    : undefined
 }
 
 export function isPlainRecord(value: unknown): value is Record<string, unknown> {

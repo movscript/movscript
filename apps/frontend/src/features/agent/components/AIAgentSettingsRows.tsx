@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { AgentSettingsSkillCard, AgentSettingsToolPermissionsRow } from '@/features/agent/components/AgentSettingsUi'
 import { skillSourceLabel } from '@/features/agent/presentation/agentSettingsSkillModel'
 import type { SkillConfigWorkspace, ToolGrantWorkspace } from '@movscript/core/agent'
-import type { ProviderCatalogSkill, ProviderToolDescriptor } from '@/shared/infrastructure/providerSessionClient'
+import type { ProviderCatalogSkill, ProviderToolDescriptor } from '@movscript/core/agent/protocol'
 
 export function SkillRow({
   skill,

@@ -15,22 +15,21 @@ import {
   agentConsoleTabFromLocation,
 } from '@/features/agent/application/agentConsoleRouteModel'
 import {
-  enabledProviders,
   normalizeProviderSettings,
-  usesAppServerProtocol,
   useProviderConfigStore,
 } from '@/shared/infrastructure/providerConfigStore'
+import {
+  activeAgentProfileForRoute,
+  agentProfilesFromProviderSettings,
+} from '@/features/agent/application/agentProfileModel'
 
 export function AgentConsoleNav({ compact = false }: { compact?: boolean }) {
   const location = useLocation()
   const activeConsoleTab = agentConsoleTabFromLocation(location.pathname, location.search)
   const savedSettings = useProviderConfigStore((state) => state.settings)
   const settings = normalizeProviderSettings(savedSettings)
-  const enabledProviderList = enabledProviders(settings)
-  const defaultProvider = settings.providers.find((provider) => provider.id === settings.defaultProviderId)
-  const currentAgentProvider = usesAppServerProtocol(defaultProvider)
-    ? defaultProvider
-    : enabledProviderList.find(usesAppServerProtocol)
+  const profiles = agentProfilesFromProviderSettings(settings)
+  const currentAgent = activeAgentProfileForRoute(profiles, undefined)
   return (
     <AgentConsoleNavShell compact={compact}>
       <nav aria-label="Agent 控制台全局导航">
@@ -40,8 +39,8 @@ export function AgentConsoleNav({ compact = false }: { compact?: boolean }) {
             const active = activeConsoleTab
               ? activeConsoleTab === section.tab
               : agentConsoleSectionMatchesPath(section, location.pathname)
-            const description = section.label === 'Agents'
-              ? `当前：${currentAgentProvider?.label ?? '未选择'}`
+            const description = section.tab === 'console:agents'
+              ? `当前：${currentAgent?.label ?? '未选择'}`
               : section.description
             const to = agentConsoleSettingsRoute(section.tab)
             return (
@@ -62,7 +61,7 @@ export function AgentConsoleNav({ compact = false }: { compact?: boolean }) {
         {!compact && (
           <AgentConsoleNavMetaRow>
             <AgentConsoleNavMeta icon={ClipboardList}>
-              Agent Console 只聚焦 Agent、Runtime 和会话运行态
+              Agent Console 只聚焦当前 Agent、会话和待处理状态
             </AgentConsoleNavMeta>
             <AgentConsoleNavMeta>
               Plugins 与 Workspace 已归到全局环境入口

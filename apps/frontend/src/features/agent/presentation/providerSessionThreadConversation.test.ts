@@ -4,7 +4,7 @@ import test from 'node:test'
 import {
   conversationFromProviderSessionThreadSummary,
 } from '@/features/agent/presentation/providerSessionThreadConversation'
-import type { AgentThreadSummary } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentThreadSummary } from '@movscript/core/agent/protocol'
 
 test('conversationFromProviderSessionThreadSummary prefers frontend metadata title', () => {
   const conversation = conversationFromProviderSessionThreadSummary(makeThread({

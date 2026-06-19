@@ -124,8 +124,9 @@ export function useAgentChatShellCoreState({
   const composerInputRef = useRef<HTMLDivElement | null>(null)
   const composerFileRef = useRef<HTMLInputElement | null>(null)
   const selectedModelSelectionForRequest = useCallback((thread?: AgentChatThread | null): AgentChatModelSelection => {
+    const baseSelection = resolveModelForRequest()
     return buildAgentChatModelSelectionForRequest({
-      baseSelection: resolveModelForRequest(),
+      baseSelection,
       modelIdForOption: publicModelId,
       modelOptions,
       selectedModelId,

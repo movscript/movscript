@@ -11,7 +11,7 @@ import {
 } from '@/features/agent/application/useAgentThreadRegistryHydration'
 import type { Conversation } from '@/features/agent/state/agentStore'
 import type { AgentConversationThreadBinding, useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
-import type { AgentSessionSummary, AgentThreadSummary } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentSessionSummary, AgentThreadSummary } from '@movscript/core/agent/protocol'
 
 type ProviderIdentity = {
   provider: string
@@ -49,7 +49,7 @@ export function conversationProjectId(
   return typeof threadProjectId === 'number' ? threadProjectId : undefined
 }
 
-export function appServerConversationIdForThread(
+export function agentRuntimeConversationIdForThread(
   threadId: string,
   providerIdentity: ProviderIdentity,
 ): string {
@@ -59,7 +59,7 @@ export function appServerConversationIdForThread(
   })
 }
 
-export function appServerConversationRecordsFromSourceThreads(input: {
+export function agentRuntimeConversationRecordsFromSourceThreads(input: {
   conversationsById: Record<string, AgentConversationRegistryRecord>
   providerIdentity: ProviderIdentity
   sourceThreads: AgentThreadSummary[]
@@ -68,7 +68,7 @@ export function appServerConversationRecordsFromSourceThreads(input: {
   const records: AgentConversationRegistryRecord[] = []
   const sourceRecordIds = new Set<string>()
   for (const thread of input.sourceThreads) {
-    const canonicalId = appServerConversationIdForThread(thread.id, input.providerIdentity)
+    const canonicalId = agentRuntimeConversationIdForThread(thread.id, input.providerIdentity)
     const existing = input.conversationsById[canonicalId] ?? input.conversationsById[thread.id]
     if (!shouldHydrateAgentThreadSummary(thread, existing)) continue
     const registryInput = agentConversationRegistryInputFromThreadSummary({

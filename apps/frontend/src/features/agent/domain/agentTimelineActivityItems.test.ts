@@ -8,7 +8,7 @@ import {
   timelineItemsContainRunActivity,
   timelineActivityByMessageId,
 } from '@/features/agent/domain/agentTimelineActivityItems'
-import type { AgentTimelineItem } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentTimelineItem } from '@movscript/core/agent/protocol'
 import type { ChatRunActivity, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 test('runIdsWithTimelineActivityItems reads embedded activity from timeline items', () => {

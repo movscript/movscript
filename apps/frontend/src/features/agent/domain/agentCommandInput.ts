@@ -1,4 +1,4 @@
-import type { ProviderSessionClientInput } from '@/shared/infrastructure/providerSessionClient'
+import type { ProviderSessionClientInput } from '@movscript/core/agent/protocol'
 import { ROUTES } from '@/routes/projectRoutes'
 
 type AgentSelectionHint = {

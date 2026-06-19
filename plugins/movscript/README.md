@@ -1,11 +1,11 @@
-# MovScript App-Server Plugin
+# MovScript Provider Plugin
 
-App-server workspace plugin for MovScript.
+Provider-native workspace plugin bundle for MovScript.
 
-MovScript keeps a provider-neutral manifest and also ships the upstream compatibility manifest required by current app-server providers:
+MovScript keeps a provider-neutral manifest and a Codex-compatible plugin manifest for providers that read that shape directly:
 
 - `.provider-plugin/plugin.json`
-- upstream compatibility manifest at `.codex-plugin/plugin.json`
+- Codex-compatible manifest at `.codex-plugin/plugin.json`
 - `skills/domain/SKILL.md`
 - `skills/project/SKILL.md`
 - `skills/planning/SKILL.md`
@@ -15,11 +15,11 @@ MovScript keeps a provider-neutral manifest and also ships the upstream compatib
 - compatibility guidance at `skills/workspace/SKILL.md`
 - `.mcp.json`
 
-The `.mcp.json` file starts a small app-server stdio bridge at `bin/mcp-stdio-bridge.mjs`. The MCP server key is `movscript`, so provider tool grants use names such as `mcp__movscript__domain_interpret`. The bridge exposes MovScript tools to app-server providers and forwards tool calls to the MovScript core MCP server over local HTTP. MovScript keeps business source files in the project Git workspace; `.interpret/` is interpreter debug output, not product state.
+The `.mcp.json` file starts a small provider stdio bridge at `bin/mcp-stdio-bridge.mjs`. The MCP server key is `movscript`, so provider tool grants use names such as `mcp__movscript__domain_interpret`. The bridge exposes MovScript tools to provider SDK runtimes and forwards tool calls to the MovScript core MCP server over local HTTP. MovScript keeps business source files in the project Git workspace; `.interpret/` is interpreter debug output, not product state.
 
 Inside a MovScript project workspace, the selected local folder is the project repo root. `.movscript/manifest.json` is the local control contract. Agent/UI edits target source paths such as `project.json`, `project_standards.json`, `settings/**`, `scripts/**`, `content_units/**`, and `productions/**`. Agents should use domain query/read tools for derived context rather than reading interpreter debug files. Provider config/cache/run/session indexes live under `.movscript/providers/{profile}`.
 
-The bridge now exposes these MCP surfaces to app-server providers:
+The bridge exposes these MCP surfaces to provider runtimes:
 
 - MCP resources: `resources/list` and `resources/read` are forwarded to MovScript Desktop when it is running. These are read-only context/catalog entries, not generation input resources.
 - System tools: `system_focus_get`, `system_project_create`, `system_model_list`, `system_generate_image`, `system_generate_video`, audio/subtitle generation, generation job polling, resource-library search, shot-library search, external media search, image/video inspection, annotation, and resource upload.
@@ -38,7 +38,7 @@ For `tools/list`, the bridge asks MovScript Desktop for the full dynamic tool li
 
 The static bootstrap set also advertises the dedicated `editing_*` tool family. Runtime task tools still require MovScript Desktop/Electron to be running because `editing_task_*` work is executed by Electron `mediaPipeline`, not by the provider process or backend server.
 
-The app-server provider starts the bridge by itself, but it does not start MovScript Desktop. Start MovScript Desktop first, or otherwise run the core MCP server, before using workspace, project/script, or generation tools.
+The selected provider runtime starts the bridge by itself, but it does not start MovScript Desktop. Start MovScript Desktop first, or otherwise run the core MCP server, before using workspace, project/script, or generation tools.
 
 By default the bridge forwards tool calls to:
 
@@ -48,26 +48,19 @@ http://127.0.0.1:18765/mcp
 
 MovScript Desktop also defaults to port `18765`. If that port is occupied and Desktop auto-selects another port, a separately launched provider process will not discover that dynamic value automatically. For direct provider use, prefer starting Desktop with `MOVSCRIPT_MCP_PORT=18765`, or launch the provider with `MOVSCRIPT_MCP_ENDPOINT` set to the endpoint printed by Desktop.
 
-## Install locally
+## Runtime and skills
 
 From the MovScript repo root:
 
 ```bash
-pnpm app-server:install-plugin -- --provider mova
+pnpm prepare:sdk-runtimes
+pnpm smoke:sdk-runtimes
 ```
 
-The installer links this plugin into the selected provider's personal app-server plugin root, updates that provider's marketplace manifest, enables plugins in the selected provider home, and runs the selected provider CLI `plugin add movscript@personal` unless `--no-add` is passed.
+Project skills are materialized into the current workspace's provider-native folders:
 
-Provider-neutral environment variables are preferred for scripted setup: `MOVSCRIPT_APP_SERVER_PROVIDER`, `MOVSCRIPT_APP_SERVER_HOME`, `MOVSCRIPT_APP_SERVER_BIN`, and `MOVSCRIPT_APP_SERVER_PLUGIN_SOURCE`.
+- Codex: `.codex/skills`
+- Mova: `.mova/skills`
+- Claude: `.claude/skills`
 
-For another app-server provider, pass its provider key, for example `--provider codex`. After installing, restart the provider so plugin-provided MCP servers are loaded during session initialization.
-
-## Verify app-server startup
-
-From the MovScript repo root:
-
-```bash
-pnpm --filter @movscript/desktop verify:app-server -- --provider mova
-```
-
-The verifier defaults to `--transport stdio`, matching the MovScript-managed desktop launch path and avoiding local port binding requirements. It auto-discovers sibling Mova debug builds named `app-server`, `mova-app-server`, `codex`, plus the transitional upstream app-server binary name; use `--app-server-bin` only when overriding that discovery. The stdio smoke initializes the app-server session, verifies `thread/list`, creates a thread with `thread/start`, and checks that `plugin/list` plus `skills/list` expose the bundled MovScript plugin. Use `--transport websocket` only when explicitly checking an app-server build's local WebSocket listener and `/readyz` endpoint.
+Global skills stay under the matching provider home, such as `~/.codex/skills`, `~/.mova/skills`, or `~/.claude/skills`. The neutral `.agents` area may track manifests, source records, catalogs, and locks, but it is not a runtime skill directory.

@@ -153,7 +153,7 @@ export interface ProviderModelConfigPublic {
   provider: 'backend-model-config'
   model: string
   apiKind: ProviderModelAPIKind
-  baseURL?: string
+  modelEndpointBaseURL?: string
   apiKeyConfigured: boolean
   useForChat: boolean
   useForPlanner: boolean
@@ -183,7 +183,7 @@ export type AgentSettingsSnapshot = {
     model: string
     catalogEntryId?: string
     apiKind?: ProviderModelAPIKind
-    baseURL?: string
+    modelEndpointBaseURL?: string
     useForChat?: boolean
     useForPlanner?: boolean
   }
@@ -225,7 +225,7 @@ function buildSnapshotModel(config: ProviderModelConfigPublic | null): AgentSett
   return {
     model: config.model,
     ...(config.apiKind ? { apiKind: config.apiKind } : {}),
-    ...(config.baseURL ? { baseURL: stripSensitiveURLSecrets(config.baseURL) } : {}),
+    ...(config.modelEndpointBaseURL ? { modelEndpointBaseURL: stripSensitiveURLSecrets(config.modelEndpointBaseURL) } : {}),
     useForChat: config.useForChat,
     useForPlanner: config.useForPlanner,
   }
@@ -394,7 +394,7 @@ function validateSnapshotModelReference(
 }
 
 function parseSnapshotModel(input: Record<string, unknown>): NonNullable<AgentSettingsSnapshot['model']> {
-  assertAllowedKeys(input, 'agent settings snapshot model', ['model', 'catalogEntryId', 'apiKind', 'baseURL', 'useForChat', 'useForPlanner'])
+  assertAllowedKeys(input, 'agent settings snapshot model', ['model', 'catalogEntryId', 'apiKind', 'modelEndpointBaseURL', 'useForChat', 'useForPlanner'])
   const model = typeof input.model === 'string' && input.model.trim() ? input.model.trim() : ''
   if (!model) throw new Error('agent settings snapshot model.model is required')
   const apiKind = parseSnapshotAPIKind(input.apiKind)
@@ -402,9 +402,9 @@ function parseSnapshotModel(input: Record<string, unknown>): NonNullable<AgentSe
     throw new Error('agent settings snapshot model.model must not include API keys, bearer tokens, or secret URL credentials')
   }
   const catalogEntryId = parseOptionalNonEmptyString(input.catalogEntryId, 'agent settings snapshot model.catalogEntryId')
-  const baseURL = parseOptionalNonEmptyString(input.baseURL, 'agent settings snapshot model.baseURL')
-  if (hasSensitiveURLSecret(baseURL)) {
-    throw new Error('agent settings snapshot model.baseURL must not include secret URL credentials')
+  const modelEndpointBaseURL = parseOptionalNonEmptyString(input.modelEndpointBaseURL, 'agent settings snapshot model.modelEndpointBaseURL')
+  if (hasSensitiveURLSecret(modelEndpointBaseURL)) {
+    throw new Error('agent settings snapshot model.modelEndpointBaseURL must not include secret URL credentials')
   }
   if (input.useForChat !== undefined && typeof input.useForChat !== 'boolean') {
     throw new Error('agent settings snapshot model.useForChat must be boolean')
@@ -419,7 +419,7 @@ function parseSnapshotModel(input: Record<string, unknown>): NonNullable<AgentSe
     model,
     ...(catalogEntryId ? { catalogEntryId } : {}),
     ...(apiKind ? { apiKind } : {}),
-    ...(baseURL ? { baseURL } : {}),
+    ...(modelEndpointBaseURL ? { modelEndpointBaseURL } : {}),
     ...(typeof input.useForChat === 'boolean' ? { useForChat: input.useForChat } : {}),
     ...(typeof input.useForPlanner === 'boolean' ? { useForPlanner: input.useForPlanner } : {}),
   }

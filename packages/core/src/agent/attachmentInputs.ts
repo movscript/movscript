@@ -2,7 +2,7 @@ import type {
   AgentAttachment,
   AgentAttachmentSource,
   ProviderSessionClientAttachmentRef,
-} from './protocol.js'
+} from './agentAttachmentProtocol.js'
 
 export interface AgentAttachmentResolveInput {
   attachment: AgentAttachment

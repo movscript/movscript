@@ -18,6 +18,7 @@ export type ElectronRuntimeConfig = {
 
 export type ElectronAppSettingsSecrets = {
   shotLibrarySourceAuthTokens: Record<string, string>
+  agentRuntimeApiKeys: Record<string, string>
 }
 
 export type ElectronBackendAuthSessionInput = {

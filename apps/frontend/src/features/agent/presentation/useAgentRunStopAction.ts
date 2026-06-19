@@ -1,12 +1,13 @@
 import { useCallback, useMemo } from 'react'
 import type { MutableRefObject } from 'react'
 import { api } from '@/shared/infrastructure/api'
+import { createAgentProviderSessionCommandService } from '@/features/agent/application/agentProviderSessionCommandService'
 import {
   createProviderSessionStopAbortError,
   stopProviderSessionRunAction,
   type StopProviderSessionRunActionDeps,
 } from '@/features/agent/domain/agentRunControl'
-import { providerSessionClient, type AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 import type { GenerationProgressState } from '@/features/agent/domain/agentGenerationMedia'
 import type { AgentThinkingState } from '@/features/agent/domain/agentThinkingState'
 
@@ -53,12 +54,10 @@ export function useAgentRunStopAction({
   setConversationRun,
   updateConversationRuntimeState,
 }: UseAgentRunStopActionInput) {
-  const providerSessionRunClient = useMemo(() => sessionId?.trim()
-    ? providerSessionClient.forSession({
-        sessionId: sessionId.trim(),
-        ...(workspaceDir?.trim() ? { workspaceDir: workspaceDir.trim() } : {}),
-      })
-    : providerSessionClient, [sessionId, workspaceDir])
+  const commandService = useMemo(() => createAgentProviderSessionCommandService({
+    sessionId,
+    workspaceDir,
+  }), [sessionId, workspaceDir])
   const deps = useMemo<StopProviderSessionRunActionDeps>(() => ({
     abortActiveSend: () => {
       const sendController = activeSendAbortControllerRef.current
@@ -73,14 +72,14 @@ export function useAgentRunStopAction({
     cancelGenerationJobIfActive: () => {
       void cancelGenerationJobIfActive(generationProgressState)
     },
-    cancelRun: (runId, input) => providerSessionRunClient.cancelRun(runId, input),
-    getRun: (runId) => providerSessionRunClient.getRun(runId),
+    cancelRun: (runId, input) => commandService.cancelRun(runId, input),
+    getRun: (runId) => commandService.getRun(runId),
   }), [
     activeSendAbortControllerRef,
     conversationId,
     generationProgressState,
     resetStreamingAssistant,
-    providerSessionRunClient,
+    commandService,
     setConversationRun,
     updateConversationRuntimeState,
     setPendingAssistantState,

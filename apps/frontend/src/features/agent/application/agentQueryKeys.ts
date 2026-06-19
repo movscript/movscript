@@ -1,7 +1,6 @@
 export const agentSettingsKeys = {
-  providerModelConfig: (profileId: string, baseURL: string) => ['agent-settings-provider-model-config', profileId, baseURL] as const,
-  skillCatalog: (profileId: string, baseURL: string) => ['agent-settings-skill-catalog', profileId, baseURL] as const,
-  toolPermissions: (profileId: string, baseURL: string) => ['agent-settings-tool-permissions', profileId, baseURL] as const,
+  skillCatalog: (profileId: string) => ['agent-settings-skill-catalog', profileId] as const,
+  toolPermissions: (profileId: string) => ['agent-settings-tool-permissions', profileId] as const,
 }
 
 export const agentProviderKeys = {
@@ -10,7 +9,6 @@ export const agentProviderKeys = {
   backendModels: ['agents-backend-models'] as const,
   modelProvidersBackendModels: ['workspace-model-providers-backend-models'] as const,
   modelCatalogEntries: ['workspace-model-catalog-entries'] as const,
-  appServerStatus: (providerKey: string, profileId: string) => ['agents-app-server-status', providerKey, profileId] as const,
 }
 
 export const agentBrowserKeys = {
@@ -23,20 +21,17 @@ export const agentBrowserKeys = {
 }
 
 export const agentArtifactKeys = {
-  messageWorkspaceArtifacts: (baseURL: string, workspaceIds: readonly string[]) => ['agent-message-workspace-artifacts', baseURL, workspaceIds] as const,
+  messageWorkspaceArtifacts: (workspaceIds: readonly string[]) => ['agent-message-workspace-artifacts', workspaceIds] as const,
 }
 
 export const agentPlanKeys = {
   taskGraphSnapshot: (
-    baseURL: string,
     sessionId: string | null,
     taskGraphId: string | null,
-  ) => ['provider-session-taskGraph-snapshot', baseURL, sessionId, taskGraphId] as const,
+  ) => ['agent-plan-task-graph-snapshot', sessionId, taskGraphId] as const,
 }
 
 export const agentConsoleKeys = {
   providerCapabilityProbe: (providerSignature: string) => ['agent-console-provider-capability-probe', providerSignature] as const,
-  providerModelConfig: ['agent-console-provider-model-config'] as const,
-  controlAppServerStatus: (providerId: string, profileId: string) => ['agent-console-control-app-server-status', providerId, profileId] as const,
   controlCapabilityHealth: (providerSignature: string) => ['agent-control-capability-health', providerSignature] as const,
 }

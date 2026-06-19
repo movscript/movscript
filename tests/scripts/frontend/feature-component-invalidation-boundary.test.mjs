@@ -12,6 +12,7 @@ const appSettingsSource = [
   readSource('apps/frontend/src/features/settings/components/ExternalResourceSourceSettingsSection.tsx'),
 ].join('\n')
 const agentSessionOutputSource = readSource('apps/frontend/src/features/agent/components/AgentSessionOutputPane.tsx')
+const agentSessionOutputServiceSource = readSource('apps/frontend/src/features/agent/application/agentSessionOutputService.ts')
 const resourceQueryKeysSource = readSource('apps/frontend/src/features/resources/application/resourceQueryKeys.ts')
 const agentSessionOutputQueryKeysSource = readSource('apps/frontend/src/features/agent/application/agentSessionOutputQueryKeys.ts')
 const agentSessionOutputMutationSource = readSource('apps/frontend/src/features/agent/application/agentSessionOutputMutationInvalidation.ts')
@@ -33,6 +34,11 @@ test('remaining feature components delegate query invalidation to application he
   assert.match(agentSessionOutputMutationSource, /export function invalidateAgentSessionOutputMutationResult/)
   assert.match(agentSessionOutputSource, /agentSessionOutputKeys\.threadRuns/)
   assert.match(agentSessionOutputSource, /agentSessionOutputKeys\.contentWorkspace\(projectId\)/)
+  assert.match(agentSessionOutputSource, /listAgentSessionThreadRuns\(/)
+  assert.doesNotMatch(agentSessionOutputSource, /providerSessionClient/)
+  assert.doesNotMatch(agentSessionOutputSource, /baseURL/)
+  assert.match(agentSessionOutputServiceSource, /providerSessionClient/)
+  assert.doesNotMatch(agentSessionOutputQueryKeysSource, /baseURL/)
   assert.doesNotMatch(agentSessionOutputSource, /queryKey: \['agent-session-output-/)
 })
 

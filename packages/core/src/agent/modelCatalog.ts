@@ -1,3 +1,5 @@
+import type { ProviderModelAPIKind } from './providerModelProtocol.js'
+
 export const AGENT_BACKEND_MODEL_CAPABILITY_QUERY = 'text,reasoning'
 
 export interface AgentBackendPublicModel {
@@ -11,6 +13,7 @@ export interface AgentBackendPublicModel {
   logical_model_id?: string
   provider_variant_count?: number
   capabilities: string[]
+  supported_api_kinds?: ProviderModelAPIKind[] | string[]
   accepts_image_input: boolean
   is_default?: boolean
   model_def_id?: string
@@ -27,11 +30,20 @@ export interface AgentBackendModelCatalogClient<TModel extends AgentBackendPubli
   get(path: string, options?: { params?: Record<string, unknown> }): Promise<{ data: TModel[] }>
 }
 
+export interface AgentBackendModelCatalogOptions {
+  apiKinds?: readonly ProviderModelAPIKind[] | readonly string[]
+}
+
 export async function fetchAgentBackendModels<TModel extends AgentBackendPublicModel>(
   client: AgentBackendModelCatalogClient<TModel>,
+  options: AgentBackendModelCatalogOptions = {},
 ): Promise<TModel[]> {
+  const apiKinds = normalizeAgentBackendModelAPIKinds(options.apiKinds)
   const response = await client.get('/models', {
-    params: { capability: AGENT_BACKEND_MODEL_CAPABILITY_QUERY },
+    params: {
+      capability: AGENT_BACKEND_MODEL_CAPABILITY_QUERY,
+      ...(apiKinds.length > 0 ? { api_kind: apiKinds.join(',') } : {}),
+    },
   })
   return mergeAgentBackendModels(response.data)
 }
@@ -42,12 +54,17 @@ export function mergeAgentBackendModels<TModel extends AgentBackendPublicModel>(
     const id = publicAgentBackendModelId(model)
     const existing = byModelId.get(id)
     if (!existing) {
-      byModelId.set(id, { ...model, capabilities: [...model.capabilities] })
+      byModelId.set(id, {
+        ...model,
+        capabilities: [...model.capabilities],
+        supported_api_kinds: normalizeAgentBackendModelAPIKinds(model.supported_api_kinds),
+      })
       continue
     }
     byModelId.set(id, {
       ...existing,
       capabilities: mergeCapabilities(existing.capabilities, model.capabilities),
+      supported_api_kinds: mergeStringValues(existing.supported_api_kinds ?? [], model.supported_api_kinds ?? []),
       accepts_image_input: existing.accepts_image_input || model.accepts_image_input,
       provider_variant_count: (existing.provider_variant_count ?? 1) + Math.max(0, (model.provider_variant_count ?? 1) - 1),
     })
@@ -60,6 +77,14 @@ export function publicAgentBackendModelId(model: Pick<AgentBackendPublicModel, '
 }
 
 function mergeCapabilities(left: string[], right: string[]): string[] {
+  return mergeStringValues(left, right)
+}
+
+function normalizeAgentBackendModelAPIKinds(values: readonly string[] | undefined): ProviderModelAPIKind[] {
+  return mergeStringValues([], values ?? []) as ProviderModelAPIKind[]
+}
+
+function mergeStringValues(left: readonly string[], right: readonly string[]): string[] {
   const seen = new Set<string>()
   const merged: string[] = []
   for (const value of [...left, ...right]) {

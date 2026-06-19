@@ -10,6 +10,7 @@ import type { BackendLaunchPolicy, BackendStatus, BackendStatusListener } from '
 
 let proc: ChildProcess | null = null
 let startPromise: Promise<BackendStatus> | null = null
+const BACKEND_GRACEFUL_STOP_TIMEOUT_MS = 10_000
 
 export { LOCAL_BACKEND_PORT, LOCAL_BACKEND_URL }
 export { getBackendLaunchPolicy }
@@ -103,14 +104,26 @@ export async function stopBackend(
   onStatus?: BackendStatusListener,
   options: { terminate?: boolean } = {},
 ): Promise<void> {
+  const child = proc
   const pid = proc?.pid ?? readBackendPid()
   proc = null
   if (pid && isProcessRunning(pid)) {
     if (options.terminate || !app.isPackaged) {
       try {
-        process.kill(pid)
+        process.kill(pid, 'SIGTERM')
       } catch {
         // If the process disappears between detection and termination, treat it as stopped.
+      }
+      try {
+        await waitForBackendExit({ pid, child, timeoutMs: BACKEND_GRACEFUL_STOP_TIMEOUT_MS })
+      } catch (error) {
+        console.warn('[backend] graceful stop timed out; forcing process termination', error)
+        try {
+          if (isProcessRunning(pid)) process.kill(pid, 'SIGKILL')
+        } catch {
+          // If the process disappears between detection and force-kill, treat it as stopped.
+        }
+        await waitForBackendExit({ pid, child, timeoutMs: 1_000 }).catch(() => undefined)
       }
       clearBackendPid()
       setBackendStatus({ state: 'stopped', baseURL: LOCAL_BACKEND_URL }, onStatus)
@@ -121,4 +134,45 @@ export async function stopBackend(
   }
   clearBackendPid()
   setBackendStatus({ state: 'stopped', baseURL: LOCAL_BACKEND_URL }, onStatus)
+}
+
+function waitForBackendExit(input: {
+  pid: number
+  child: ChildProcess | null
+  timeoutMs: number
+}): Promise<void> {
+  const { pid, child, timeoutMs } = input
+  if (!isProcessRunning(pid)) return Promise.resolve()
+  if (child && child.exitCode !== null) return Promise.resolve()
+  return new Promise((resolve, reject) => {
+    let timer: ReturnType<typeof setTimeout>
+    let poll: ReturnType<typeof setInterval> | undefined
+    const cleanup = () => {
+      clearTimeout(timer)
+      if (poll) clearInterval(poll)
+      child?.off('exit', onExit)
+      child?.off('error', onError)
+    }
+    const onExit = () => {
+      cleanup()
+      resolve()
+    }
+    const onError = (error: Error) => {
+      cleanup()
+      reject(error)
+    }
+    const checkProcess = () => {
+      if (isProcessRunning(pid)) return
+      cleanup()
+      resolve()
+    }
+    timer = setTimeout(() => {
+      cleanup()
+      reject(new Error(`timed out waiting ${timeoutMs}ms for backend process exit`))
+    }, timeoutMs)
+    child?.once('exit', onExit)
+    child?.once('error', onError)
+    poll = setInterval(checkProcess, 200)
+    checkProcess()
+  })
 }

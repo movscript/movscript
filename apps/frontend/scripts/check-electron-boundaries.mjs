@@ -22,9 +22,7 @@ const allowedRendererMCPPaths = new Set([
   'src/shared/contracts/mcpContext.ts',
 ])
 
-const ignoredRendererMCPPathPrefixes = [
-  'src/shared/infrastructure/app-server/app-server-protocol/',
-]
+const ignoredRendererMCPPathPrefixes = []
 
 const removedRendererMCPPaths = [
   'src/mcp',

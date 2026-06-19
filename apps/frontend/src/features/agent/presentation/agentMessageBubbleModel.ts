@@ -3,9 +3,9 @@ import { transcriptAssistantProviderSessionRunId } from '@/features/agent/domain
 import { providerSessionMessageRef } from '@movscript/core/agent/protocol'
 import { agentMessageDividerLabel } from '@/features/agent/presentation/agentMessageDivider'
 import type { AgentMessageFacts } from '@/features/agent/domain/agentMessageFacts'
-import { activeRunInputDeliveryBadge, type AgentActiveRunInputDeliveryBadge } from '@/features/agent/presentation/agentActiveRunInputDeliveryBadge'
+import { activeRunInputDeliveryBadge, AgentActiveRunInputDeliveryBadge } from '@/features/agent/presentation/agentActiveRunInputDeliveryBadge'
 import { needsModelSetupAction } from '@/shared/domain/actionableErrors'
-import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 import type { AgentAttachment, ChatMessage, ChatRunActivity, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 type ChatMessageMeta = NonNullable<ChatMessage['meta']>

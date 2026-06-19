@@ -1,4 +1,4 @@
-import type { AgentTraceEvent } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentTraceEvent } from '@movscript/core/agent/protocol'
 
 export type AgentTraceCategory = 'context' | 'action' | 'impact' | 'http' | 'decision' | 'attention'
 

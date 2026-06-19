@@ -1,5 +1,5 @@
 import { generationProgressListFromEvents, type GenerationProgressState } from '@/features/agent/domain/agentGenerationMedia'
-import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun, AgentTimelineItem } from '@movscript/core/agent/protocol'
 import type { ChatMessage, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 export function generationProgressStatesForPinnedStatus(input: {

@@ -7,10 +7,7 @@ import test from 'node:test'
 import {
   findUnpackedResourceDirs,
   requiredDesktopPackagePrerequisites,
-  resolveDesktopAppServerPath,
   verifyBundledPackageResources,
-  verifyBundledDesktopAppServers,
-  verifyDesktopAppServerBinary,
   verifyDesktopPackage,
   verifyBundledDesktopFFmpeg,
   verifyDesktopFFmpeg,
@@ -52,13 +49,6 @@ test('resolveDesktopFFmpegPath uses platform-specific binary names', () => {
   assert.equal(resolveDesktopFFmpegPath(root, 'win32', 'arm64'), resolve(root, 'apps/frontend/vendor/ffmpeg/win32/arm64/ffmpeg.exe'))
 })
 
-test('resolveDesktopAppServerPath uses provider platform directories', () => {
-  const root = resolve('/repo')
-  assert.equal(resolveDesktopAppServerPath(root, 'codex', 'darwin', 'arm64'), resolve(root, 'apps/frontend/vendor/app-server/codex/darwin/arm64/app-server'))
-  assert.equal(resolveDesktopAppServerPath(root, 'mova', 'linux', 'x64'), resolve(root, 'apps/frontend/vendor/app-server/mova/linux/x64/app-server'))
-  assert.equal(resolveDesktopAppServerPath(root, 'codex', 'win32', 'x64'), resolve(root, 'apps/frontend/vendor/app-server/codex/win32/x64/app-server.exe'))
-})
-
 test('parseDesktopPlatform supports current and explicit desktop targets', () => {
   assert.equal(parseDesktopPlatform([], 'darwin'), 'darwin')
   assert.equal(parseDesktopPlatform(['--platform=win32'], 'darwin'), 'win32')
@@ -76,21 +66,6 @@ test('parseDesktopArch supports current and explicit desktop targets', () => {
 test('verifyDesktopFFmpeg reports missing binaries', () => {
   const message = verifyDesktopFFmpeg(resolve('/missing/ffmpeg'))
   assert.match(message, /ffmpeg prerequisite is missing/)
-})
-
-test('verifyDesktopAppServerBinary reports missing and non-executable binaries', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'movscript-verify-app-server-'))
-  try {
-    const appServer = join(dir, 'app-server')
-    assert.match(verifyDesktopAppServerBinary(appServer), /app-server prerequisite is missing/)
-    await writeFile(appServer, 'fake app-server', 'utf8')
-    await chmod(appServer, 0o644)
-    assert.match(verifyDesktopAppServerBinary(appServer), /not executable/)
-    await chmod(appServer, 0o755)
-    assert.equal(verifyDesktopAppServerBinary(appServer), '')
-  } finally {
-    await rm(dir, { recursive: true, force: true })
-  }
 })
 
 test('verifyDesktopFFmpeg runs -version against existing binaries', async () => {
@@ -343,15 +318,12 @@ test('requiredDesktopPackagePrerequisites follows the package resource manifest'
       { id: 'backend' },
       { id: 'renderer-admin' },
       { id: 'ffmpeg' },
-      { id: 'app-server' },
     ],
   }
   assert.deepEqual(requiredDesktopPackagePrerequisites(root, communityManifest, 'linux', 'x64'), [
     resolve(root, 'apps/backend/bin/server'),
     resolve(root, 'apps/backend/bin/admin/index.html'),
     resolve(root, 'apps/frontend/vendor/ffmpeg/linux/x64/ffmpeg'),
-    resolve(root, 'apps/frontend/vendor/app-server/codex/linux/x64/app-server'),
-    resolve(root, 'apps/frontend/vendor/app-server/mova/linux/x64/app-server'),
   ])
 
   const enterpriseManifest = {
@@ -392,7 +364,7 @@ test('verifyBundledPackageResources checks every required manifest target', asyn
   }
 })
 
-test('verifyDesktopPackage accepts enterprise manifest resources without app-server', async () => {
+test('verifyDesktopPackage accepts enterprise manifest resources without retired agent binaries', async () => {
   const root = await mkdtemp(join(tmpdir(), 'movscript-verify-enterprise-package-'))
   try {
     await mkdir(join(root, 'apps/frontend'), { recursive: true })
@@ -557,52 +529,6 @@ test('verifyBundledDesktopFFmpeg compares bundled ffmpeg with staged source', as
   } finally {
     await rm(dir, { recursive: true, force: true })
     await rm(sourceDir, { recursive: true, force: true })
-  }
-})
-
-test('verifyBundledDesktopAppServers requires Codex and Mova resources', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'movscript-verify-app-server-release-'))
-  try {
-    const resources = join(dir, 'linux-unpacked/resources')
-    await mkdir(resources, { recursive: true })
-    assert.match(verifyBundledDesktopAppServers(dir, 'linux', { arch: 'x64' }), /app-server binaries are missing/)
-
-    for (const provider of ['codex', 'mova']) {
-      const appServerDir = join(resources, 'app-server', provider, 'linux', 'x64')
-      await mkdir(appServerDir, { recursive: true })
-      const appServer = join(appServerDir, 'app-server')
-      await writeFile(appServer, `fake ${provider} app-server`, 'utf8')
-      await chmod(appServer, 0o755)
-    }
-    assert.equal(verifyBundledDesktopAppServers(dir, 'linux', { arch: 'x64' }), '')
-  } finally {
-    await rm(dir, { recursive: true, force: true })
-  }
-})
-
-test('verifyBundledDesktopAppServers compares bundled binaries with staged source', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'movscript-verify-app-server-release-'))
-  const root = await mkdtemp(join(tmpdir(), 'movscript-verify-app-server-source-'))
-  try {
-    for (const provider of ['codex', 'mova']) {
-      const bundledDir = join(dir, 'linux-unpacked/resources/app-server', provider, 'linux', 'x64')
-      const sourceDir = join(root, 'apps/frontend/vendor/app-server', provider, 'linux', 'x64')
-      await mkdir(bundledDir, { recursive: true })
-      await mkdir(sourceDir, { recursive: true })
-      await writeFile(join(bundledDir, 'app-server'), `bundled ${provider}`, 'utf8')
-      await writeFile(join(sourceDir, 'app-server'), `source ${provider}`, 'utf8')
-      await chmod(join(bundledDir, 'app-server'), 0o755)
-      await chmod(join(sourceDir, 'app-server'), 0o755)
-    }
-    assert.match(verifyBundledDesktopAppServers(dir, 'linux', { root, arch: 'x64' }), /does not match staged source/)
-
-    for (const provider of ['codex', 'mova']) {
-      await writeFile(join(root, 'apps/frontend/vendor/app-server', provider, 'linux', 'x64', 'app-server'), `bundled ${provider}`, 'utf8')
-    }
-    assert.equal(verifyBundledDesktopAppServers(dir, 'linux', { root, arch: 'x64' }), '')
-  } finally {
-    await rm(dir, { recursive: true, force: true })
-    await rm(root, { recursive: true, force: true })
   }
 })
 

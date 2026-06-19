@@ -42,7 +42,7 @@ Movscript 还没有正式对外稳定发布时，开发期形成的迁移历史�
 应保留的契约：
 
 - 当前 Electron preload 与 renderer 的 IPC 类型边界。
-- 当前前后端 API 或 app-server wire shape。
+- 当前前后端 API 或 SDK runtime wire shape。
 - 当前导入、导出、快照、调试包仍会读写的格式。
 - 当前 provider/runtime 必须共享的能力声明。
 

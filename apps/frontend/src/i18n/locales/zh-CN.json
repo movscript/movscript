@@ -1603,7 +1603,7 @@
     },
     "settings": {
       "title": "Agent 设置",
-      "description": "管理 Agent runtime 配置文件、已安装能力、Skills、工具权限、模型、运行限制和配置快照。",
+      "description": "选择当前 Agent，并查看后续会话使用的 SDK runtime。只有 Agent 明确暴露目录能力时，才显示高级能力和权限配置。",
       "scope": {
         "controlPlane": "控制面：配置后续新 Run",
         "futureRuns": "不展示单次运行诊断",
@@ -1616,15 +1616,36 @@
       "copySettingsStatus": "复制状态",
       "settingsStatusCopied": "状态已复制",
       "refresh": "刷新",
+      "statusCardTitle": "Agent 状态",
+      "statusCardDescription": "确认当前 Agent、运行时连接，以及后续新 Run 会使用的配置边界。",
+      "statusCardRuntimeFallback": "SDK runtime",
+      "statusCardRuntimeDetail": "运行时由当前 Agent 决定，设置页不在此切换 Provider。",
+      "statusCardCapabilityLabel": "配置能力",
+      "statusCardCatalogCapability": "目录与权限可配置",
+      "statusCardCatalogCapabilityDetail": "该 Agent 暴露 Catalog、Skill 和工具权限工作区，可在下方高级区块调整。",
+      "statusCardSdkCapability": "SDK 按需连接",
+      "statusCardSdkCapabilityDetail": "该 Agent 不暴露目录工作区；这里只展示当前状态和后续运行边界。",
+      "statusCardModelsLabel": "可用模型",
+      "statusCardModelsDetail": "来自后端 AI Gateway，并按当前 Agent 支持的调用方式过滤。",
+      "statusCardModelsLoading": "正在读取模型列表…",
+      "statusCardModelsEmpty": "暂无可用文本/推理模型。",
+      "statusCardModelsError": "模型列表读取失败：{{reason}}",
+      "statusCardModelsMore": "+{{count}} 个",
+      "statusCardModelCapabilities": "能力：{{capabilities}}",
+      "statusCardModelCurrent": "当前",
+      "statusCardModelDefault": "默认",
+      "providerProfileReadonly": "Provider 配置跟随当前 Agent，只读展示。",
       "providerProfileConfigLabel": "Provider 配置",
       "selectProviderProfileConfig": "选择 Provider 配置",
       "providerProfileConfigs": {
         "mova": "Mova",
-        "codex": "Codex"
+        "codex": "Codex",
+        "claude": "Claude Code"
       },
       "providerProfileConfigDescriptions": {
-        "mova": "配置 providers/mova 下的 Mova runtime profile；托管 app-server home 使用 .mova。",
-        "codex": "配置 providers/codex 下的 Codex runtime profile；托管 app-server home 使用 .codex。"
+        "mova": "配置 providers/mova 下的 Mova SDK runtime；Mova SDK runtime 使用 .mova 作为默认工作区 home。",
+        "codex": "配置 providers/codex 下的 Codex SDK runtime；Codex SDK runtime 使用 .codex 作为默认工作区 home。",
+        "claude": "配置 providers/claude 下的 Claude Code SDK runtime。"
       },
       "modelPanel": "模型路由",
       "modelLabel": "后端文本模型",
@@ -1645,9 +1666,6 @@
       "providerCredentialHelp": "Agent Settings 不保存 Provider API key；请在 Admin Provider 接入页维护凭证。",
       "apiKindLabel": "调用模式",
       "selectApiKind": "选择调用模式",
-      "baseUrlLabel": "Provider Base URL",
-      "baseUrlHelp": "Agent Settings 不保存 Provider Base URL；请在 Admin Provider 接入页维护。",
-      "baseUrlSecretsBlocked": "Base URL 包含 username/password 或 token、api_key、signature 等敏感字段。请清除旧配置，并在 Admin Provider 接入中维护模型凭证。",
       "apiKinds": {
         "backendChatCompletions": "Backend Gateway / Chat Completions",
         "openaiResponses": "OpenAI / Responses",
@@ -2127,7 +2145,6 @@
         "modelIdSensitive": "已保存模型 ID 可能包含密钥",
         "apiModeCompatibility": "调用模式仍是兼容模式",
         "modelCredentialsMissing": "Provider 凭证未加载",
-        "modelBaseURLSensitive": "旧 Base URL 配置可能包含密钥",
         "routesInvalid": "模型路由不可用",
         "routesMissing": "没有生效模型路由",
         "configFileMissing": "激活配置文件缺失",
@@ -2144,7 +2161,6 @@
         "modelIdSensitive": "已保存的旧模型 ID 看起来包含 API key、Bearer token 或带密钥参数的 URL。请清除该配置，并从 Catalog 选择模型；凭证应在 Admin Provider 接入中维护。",
         "apiModeCompatibility": "Chat Completions 可用于兼容旧流程；如果不是迁移期，新 runtime-session run 建议切到 OpenAI Responses。",
         "modelCredentialsMissing": "Provider 凭证中未检测到 {{env}}；Admin 路由的模型调用可能失败。",
-        "modelBaseURLSensitive": "旧 Base URL 包含 username/password 或 token、api_key、signature 等敏感字段；模型凭证应在 Admin Provider 接入中维护。",
         "routesInvalid": "至少启用对话或规划中的一个用途路由。",
         "routesMissing": "检查模型路由和用途开关，确保后续运行有可用模型路由。",
         "configFileMissing": "选择并保存一个激活配置文件。",
@@ -2169,6 +2185,8 @@
         "more": "另有 {{count}} 项"
       },
       "readiness": {
+        "agent": "当前 Agent",
+        "runtime": "SDK runtime",
         "model": "模型路由",
         "apiMode": "调用模式",
         "modelCredentials": "模型凭证",
@@ -2187,6 +2205,11 @@
       "copyReadiness": "复制就绪度",
       "readinessCopied": "就绪度已复制",
       "readinessDetails": {
+        "agentReady": "{{agent}} 已选中并可用。",
+        "agentDisabled": "{{agent}} 已停用，启用后才能用于新会话。",
+        "runtimeSdkReady": "{{runtime}} 由 SDK Host 按需连接。",
+        "runtimeUnavailable": "{{runtime}} 当前不可用于这个 Agent。",
+        "sdkCredentialsEnvPreferred": "默认从启动 Movscript 的环境读取 {{env}}；修改后请重启应用。",
         "modelReady": "当前模型：{{model}}。",
         "modelMissing": "当前配置文件尚未保存模型路由。",
         "modelIdSensitive": "已保存模型 ID 看起来包含密钥，导出快照时会跳过该模型路由。",
@@ -2212,7 +2235,7 @@
         "noPendingChanges": "当前配置已保存。"
       },
       "settingsSnapshotPanel": "配置导入 / 导出",
-      "settingsSnapshotHelp": "导出会包含模型路由、激活配置文件、运行限制、Skill 启用选择与 instruction、工具权限，并会移除 Base URL 中的 URL 密钥凭据；导入只会应用选中的配置段，并按模型、配置文件、运行限制、Skills、Tools 的顺序执行，且会拒绝包含 URL 密钥凭据的 Base URL。",
+      "settingsSnapshotHelp": "导出会包含模型路由、激活配置文件、运行限制、Skill 启用选择与 instruction、工具权限，并会移除模型端点 URL 中的密钥凭据；导入只会应用选中的配置段，并按模型、配置文件、运行限制、Skills、Tools 的顺序执行，且会拒绝包含 URL 密钥凭据的模型端点 URL。",
       "settingsSnapshotPlaceholder": "在这里生成或粘贴 Agent Settings Snapshot JSON。",
       "settingsSnapshotSummary": "快照摘要",
       "settingsSnapshotFields": {

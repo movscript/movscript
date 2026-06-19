@@ -243,19 +243,21 @@ export function AgentSettingsReadinessPanel({
 }: {
   items: AgentSettingsStatusItem[];
   copied?: boolean;
-  copyLabel: ReactNode;
-  copiedLabel: ReactNode;
+  copyLabel?: ReactNode;
+  copiedLabel?: ReactNode;
   copyIcon?: ReactNode;
-  onCopy: () => void;
+  onCopy?: () => void;
 }) {
   return (
     <div className="agent-settings-stack">
-      <div className="ms-action-row agent-settings-copy-row">
-        <Button type="button" size="sm" variant="outline" onClick={onCopy} data-testid="agent-settings-copy-readiness">
-          {copyIcon}
-          {copied ? copiedLabel : copyLabel}
-        </Button>
-      </div>
+      {onCopy ? (
+        <div className="ms-action-row agent-settings-copy-row">
+          <Button type="button" size="sm" variant="outline" onClick={onCopy} data-testid="agent-settings-copy-readiness">
+            {copyIcon}
+            {copied ? copiedLabel : copyLabel}
+          </Button>
+        </div>
+      ) : null}
       {items.map((item) => <AgentSettingsReadinessRow key={item.id} item={item} />)}
     </div>
   );

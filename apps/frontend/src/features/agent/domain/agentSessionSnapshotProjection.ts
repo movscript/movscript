@@ -1,10 +1,4 @@
-import type {
-  ProviderSessionSnapshotV2,
-  AgentRun,
-  AgentTaskGraphSnapshot,
-  AgentThread,
-  ProviderWork,
-} from '@/shared/infrastructure/providerSessionClient'
+import type { ProviderSessionSnapshotV2, AgentRun, AgentTaskGraphSnapshot, AgentThread, ProviderWork } from '@movscript/core/agent/protocol'
 
 export interface AgentSessionSnapshotView {
   sessionId: string

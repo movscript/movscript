@@ -3298,7 +3298,6 @@ test('agent surface blocks own reusable shell and row styling', () => {
     readProjectFile('apps/frontend/src/features/agent/components/AgentConsolePage.tsx'),
     readProjectFile('apps/frontend/src/features/agent/components/AgentConsolePageSections.tsx'),
   ].join('\n')
-  const agentConsoleRealtimeLogPanelSource = readProjectFile('apps/frontend/src/features/agent/components/AgentConsoleRealtimeLogPanel.tsx')
   const agentConsoleCapabilityPanelsSource = readProjectFile('apps/frontend/src/features/agent/components/AgentConsoleCapabilityPanels.tsx')
   const agentConsoleSurfaceSource = `${agentConsoleSource}\n${agentConsoleCapabilityPanelsSource}`
   const agentConsoleUiSource = readProjectFile('apps/frontend/src/features/agent/components/AgentConsoleUi.tsx')
@@ -3435,8 +3434,9 @@ test('agent surface blocks own reusable shell and row styling', () => {
   assert.doesNotMatch(movScriptWorkspaceFilesSource, /\bAIWorkspacesPage\b/)
   assert.doesNotMatch(movScriptWorkspaceFilesSource, /\bagentWorkspaceFiles\b/)
   assert.match(agentConsoleSurfaceSource, /<AgentConsoleLocalToolCard invalid=\{!provider\.ok\}>/)
-  assert.match(agentConsoleSurfaceSource, /<AgentConsoleLocalToolCard invalid=\{!result\.ok\}>/)
-  assert.match(agentConsoleSource, /<AgentConsoleLocalToolCard invalid=\{Boolean\(error\) \|\| !appServerEnabled\}>/)
+  assert.match(agentConsoleSurfaceSource, /function AgentCapabilityHealthCard/)
+  assert.doesNotMatch(agentConsoleSurfaceSource, /invalid=\{!result\.ok\}/)
+  assert.doesNotMatch(agentConsoleSource, /appServerEnabled/)
   assert.match(agentConsoleSource, /function ConsoleMetricCard[\s\S]*?<AgentConsoleMetricCard/)
   assert.match(agentConsoleUiSource, /function AgentConsoleLocalToolCard[\s\S]*?<AgentConsoleToneSurfaceBlock[\s\S]*?tone=\{invalid \? "danger" : undefined\}/)
   assert.match(agentConsoleUiSource, /AgentConsoleToneSurfaceBlock[\s\S]*?toneSurfaceClass\(tone\)/)
@@ -3655,7 +3655,9 @@ test('agent surface blocks own reusable shell and row styling', () => {
   assert.match(agentSettingsSectionSource, /statusProps: agentSettingsStatusRecipe/)
   assert.match(agentSettingsSource, /<AgentSettingsStateMessage[\s\S]*?text=\{t\('common\.loading'\)\}/)
   assert.match(agentSettingsSectionSource, /<AgentSettingsKeyValue[\s\S]*?label=\{t\('agents\.settings\.fields\.modelId'\)\}/)
-  assert.match(agentSettingsSectionSource, /<AgentSettingsCallout[\s\S]*?data-testid="agent-settings-provider-model-id-secret-warning"/)
+  assert.match(agentSettingsSectionSource, /<AgentSettingsCallout compact tone=\{legacyDirectModelConfig \? 'warning' : 'neutral'\}>/)
+  assert.match(agentSettingsSectionSource, /agents\.settings\.modelCatalogOnlyNotice/)
+  assert.doesNotMatch(agentSettingsSectionSource, /agent-settings-provider-model-id-secret-warning/)
   assert.match(agentSettingsSectionSource, /<AgentSettingsToneText[\s\S]*?tone="warning"[\s\S]*?agents\.settings\.toolPermissionsWorkspaceIssues/)
   assert.doesNotMatch(agentSettingsSectionSource, /\b(?:AppStateMessage|AppKeyValue|ReviewCallout|toneTextClass)\b/)
   assert.match(agentSettingsApiModePanelsSource, /badgeProps=\{agentSettingsApiModeBadgeRecipe\(mode\.badge\)\}/)
@@ -3911,7 +3913,6 @@ test('agent panel and page surfaces use package agent styles', () => {
   const agentsPageSource = readProjectFile('apps/frontend/src/features/agent/components/AgentsPage.tsx')
   const modelProvidersPageSource = readProjectFile('apps/frontend/src/features/agent/components/ModelProvidersPage.tsx')
   const agentConnectionsPageSource = readProjectFile('apps/frontend/src/features/agent/components/AgentConnectionsPage.tsx')
-  const agentConsoleRealtimeLogPanelSource = readProjectFile('apps/frontend/src/features/agent/components/AgentConsoleRealtimeLogPanel.tsx')
   const agentPageUiSource = readProjectFile('apps/frontend/src/features/agent/components/AgentPageUi.tsx')
   const agentPageUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentPageUi.css')
   const agentModeCanvasListPageSource = readProjectFile('apps/frontend/src/features/agent/components/AgentModeCanvasListPage.tsx')
@@ -3936,7 +3937,7 @@ test('agent panel and page surfaces use package agent styles', () => {
   const agentModeFeatureSource = readProjectFile('apps/frontend/src/features/agent/components/AgentModeUi.tsx')
   const agentModeFeatureCss = readProjectFile('apps/frontend/src/features/agent/components/AgentModeUi.css')
   const agentModeFeatureSidebarCss = readProjectFile('apps/frontend/src/features/agent/components/AgentModeUi.sidebar.css')
-  const agentDebugPreviewSource = readProjectFile('apps/frontend/src/features/agent/components/AgentDebugPreviewDialog.tsx')
+  const agentDebugWorkspaceDiffSource = readProjectFile('apps/frontend/src/features/agent/components/AgentDebugPreviewWorkspaceDiff.tsx')
   const agentDebugPreviewUiSource = readProjectFile('apps/frontend/src/features/agent/components/AgentDebugPreviewUi.tsx')
   const agentDebugPreviewUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentDebugPreviewUi.css')
   const agentConsoleRealtimeLogUiSource = readProjectFile('apps/frontend/src/features/agent/components/AgentConsoleRealtimeLogUi.tsx')
@@ -3945,7 +3946,6 @@ test('agent panel and page surfaces use package agent styles', () => {
   const agentConsoleUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentConsoleUi.css')
   const agentComposerPanelUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentComposerPanelUi.css')
   const agentChatToolbarUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentChatToolbarUi.css')
-  const agentConversationHistoryUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentConversationHistoryUi.css')
   const agentConversationTabsUiCss = [
     'apps/frontend/src/features/agent/components/AgentConversationTabsUi.css',
     'apps/frontend/src/features/agent/components/conversation-tabs-ui/panel/styles.css',
@@ -3958,9 +3958,9 @@ test('agent panel and page surfaces use package agent styles', () => {
   const agentPanelShellLayoutUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentPanelShellLayoutUi.css')
   const agentPanelThreadMessageUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentPanelThreadMessageUi.css')
   const agentChatItemsUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentChatItemsUi.css')
-  const agentChatHeaderSource = readProjectFile('apps/frontend/src/features/agent/components/AgentChatHeaderSection.tsx')
   const agentComposerUiSource = readProjectFile('apps/frontend/src/shared/ui/AgentComposerUi.tsx')
   const conversationTabsSource = readProjectFile('apps/frontend/src/features/agent/components/AgentConversationTabs.tsx')
+  const agentChatDataSourceShellPartsSource = readProjectFile('apps/frontend/src/features/agent/components/AgentChatDataSourceShellParts.tsx')
   const projectAgentContentPanelSource = readProjectFile('apps/frontend/src/features/agent/components/ProjectAgentContentPanel.tsx')
 
   for (const sharedClass of [
@@ -4064,15 +4064,13 @@ test('agent panel and page surfaces use package agent styles', () => {
   }
   for (const conversationHistoryClass of [
     'ai-agent-panel-empty-history',
-    'ai-agent-panel-empty-history-divider',
     'ai-agent-panel-empty-history-header',
     'ai-agent-panel-empty-history-list',
     'ai-agent-panel-empty-history-item',
     'ai-agent-panel-empty-history-more',
     'ai-agent-panel-empty-history-empty',
-    'ai-agent-panel-empty-history-close',
   ]) {
-    assert.match(agentConversationHistoryUiCss, cssClassSelectorPattern(conversationHistoryClass), `${conversationHistoryClass} styles must be owned by the app agent conversation history UI`)
+    assert.match(agentPanelShellLayoutUiCss, cssClassSelectorPattern(conversationHistoryClass), `${conversationHistoryClass} styles must be owned by the app agent panel shell layout UI`)
     assert.doesNotMatch(agentCss, cssClassSelectorPattern(conversationHistoryClass), `${conversationHistoryClass} styles must not remain in @movscript/ui agent`)
   }
   for (const chatToolbarClass of [
@@ -4146,9 +4144,10 @@ test('agent panel and page surfaces use package agent styles', () => {
   assert.doesNotMatch(readProjectFile('apps/frontend/src/features/agent/components/AgentConversationTabs.tsx'), /from '@movscript\/ui\/business\/agent'/)
   assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/chat/history/index.tsx')), false, 'agent conversation history panel must be feature-owned')
   assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/chat/history/styles.css')), false, 'agent conversation history styles must be feature-owned')
-  assert.match(readProjectFile('apps/frontend/src/index.css'), /@import "@\/features\/agent\/components\/AgentConversationHistoryUi\.css";/)
-  assert.match(readProjectFile('apps/frontend/src/features/agent/components/AgentChatPanelLayout.tsx'), /from '@\/features\/agent\/components\/AgentConversationHistoryUi'/)
-  assert.doesNotMatch(readProjectFile('apps/frontend/src/features/agent/components/AgentChatPanelLayout.tsx'), /AgentConversationHistoryPanel[\s\S]*from '@movscript\/ui\/business\/agent'/)
+  assert.equal(existsSync(path.join(root, 'apps/frontend/src/features/agent/components/AgentConversationHistoryUi.css')), false)
+  assert.equal(existsSync(path.join(root, 'apps/frontend/src/features/agent/components/AgentChatPanelLayout.tsx')), false)
+  assert.doesNotMatch(readProjectFile('apps/frontend/src/index.css'), /AgentConversationHistoryUi\.css/)
+  assert.match(agentChatDataSourceShellPartsSource, /className="ai-agent-panel-empty-history"/)
   assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/chat/styles.css')), false, 'agent chat aggregate styles must not remain as an empty package entry')
   assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/chat/toolbar/styles.css')), false, 'agent chat toolbar styles must be feature-owned')
   assert.match(readProjectFile('apps/frontend/src/index.css'), /@import "@\/features\/agent\/components\/AgentChatToolbarUi\.css";/)
@@ -4237,14 +4236,15 @@ test('agent panel and page surfaces use package agent styles', () => {
     assert.match(agentPageThreePaneUiCss, cssClassSelectorPattern(migratedThreePaneClass), `${migratedThreePaneClass} styles must live with AgentPageThreePaneUi`)
   }
   assert.match(agentSettingsModelPanelSource, /<Select value=\{selectedModelId\} onValueChange=\{setSelectedModelId\}>/)
-  assert.match(agentDebugPreviewSource, /from '@\/features\/agent\/components\/AgentDebugPreviewUi'/)
+  assert.equal(existsSync(path.join(root, 'apps/frontend/src/features/agent/components/AgentDebugPreviewDialog.tsx')), false)
+  assert.match(agentDebugWorkspaceDiffSource, /from '@\/features\/agent\/components\/AgentDebugPreviewUi'/)
   assert.match(agentDebugPreviewUiSource, /import '\.\/AgentDebugPreviewUi\.css'/)
   assert.match(agentDebugPreviewUiSource, /export function AgentDebugDialogSurface/)
   assert.match(agentDebugPreviewUiSource, /export function AgentDebugWorkspaceDiffLine/)
   assert.match(agentDebugPreviewUiCss, cssClassSelectorPattern('agent-debug-dialog-overlay'))
   assert.doesNotMatch(readProjectFile('packages/ui/src/components/business/agent/index.tsx'), /export \* from "\.\/debug"/)
   assert.doesNotMatch(readProjectFile('packages/ui/src/components/business/agent/styles.css'), /@import "\.\/debug\/styles\.css"/)
-  assert.match(agentConsoleRealtimeLogPanelSource, /from '@\/features\/agent\/components\/AgentConsoleRealtimeLogUi'/)
+  assert.equal(existsSync(path.join(root, 'apps/frontend/src/features/agent/components/AgentConsoleRealtimeLogPanel.tsx')), false)
   assert.doesNotMatch(agentConsoleRealtimeLogUiSource, /AgentConsoleRealtimeLogUi\.css/)
   assert.match(readProjectFile('apps/frontend/src/index.css'), /@import "@\/features\/agent\/components\/AgentConsoleRealtimeLogUi\.css";/)
   assert.match(agentConsoleRealtimeLogUiSource, /export function AgentConsoleLogSummary/)
@@ -4274,7 +4274,7 @@ test('agent panel and page surfaces use package agent styles', () => {
   assert.doesNotMatch(projectAgentModeSource, /\b(?:Button|AgentNavItem|AgentConversationItem|Separator|Avatar|AvatarFallback)\b/)
   assert.match(conversationTabsSource, /AgentConversationTabsPanel/)
   assert.match(readAgentChatSource(), /<Button/)
-  assert.match(agentChatHeaderSource, /<Button/)
+  assert.equal(existsSync(path.join(root, 'apps/frontend/src/features/agent/components/AgentChatHeaderSection.tsx')), false)
   assert.doesNotMatch(agentCss, /\.app-page\s*\{/)
 })
 
@@ -4282,7 +4282,6 @@ test('agent layout primitives share internal layout classes', () => {
   const agentSource = readAgentSource()
   const uiCss = readProjectFile('packages/ui/src/base.css')
   const agentCss = readAgentCss()
-  const agentChatHeaderSource = readProjectFile('apps/frontend/src/features/agent/components/AgentChatHeaderSection.tsx')
   const agentComposerUiSource = readProjectFile('apps/frontend/src/shared/ui/AgentComposerUi.tsx')
   const agentMessageUiSource = readProjectFile('apps/frontend/src/shared/ui/AgentMessageUi.tsx')
   const conversationTabsSource = readProjectFile('apps/frontend/src/features/agent/components/AgentConversationTabs.tsx')
@@ -4366,11 +4365,12 @@ test('agent layout primitives share internal layout classes', () => {
   assert.match(readAgentChatSource(), /role="tab"[\s\S]*?className="ai-agent-panel-conversation-tab-main"/)
   assert.match(readAgentChatSource(), /className="ai-agent-panel-conversation-tab-close"/)
   assert.doesNotMatch(conversationTabsSource, /<button\b/)
-  assert.match(agentChatHeaderSource, /\bButton\b/)
-  assert.match(agentChatHeaderSource, /<DropdownMenuItem[\s\S]*?onSelect=\{closeMenuConversation\}/)
-  assert.match(agentChatHeaderSource, /<DropdownMenuItem[\s\S]*?onSelect=\{closeAllMenuConversations\}/)
-  assert.match(agentChatHeaderSource, /<DropdownMenuTrigger asChild>[\s\S]*?<Button[\s\S]*?className="ai-agent-panel-tab-context-menu-anchor"/)
-  assert.doesNotMatch(agentChatHeaderSource, /<button\b/)
+  assert.equal(existsSync(path.join(root, 'apps/frontend/src/features/agent/components/AgentChatHeaderSection.tsx')), false)
+  assert.match(readAgentChatSource(), /\bButton\b/)
+  assert.match(readAgentChatSource(), /onContextMenu=\{\(event\) => onOpenMenu\(event, item\.id\)\}/)
+  assert.match(readAgentChatSource(), /onKeyDown=\{\(event\) => onOpenKeyboardMenu\(event, item\.id\)\}/)
+  assert.match(readAgentChatSource(), /onCloseTabContextMenu\(\)/)
+  assert.doesNotMatch(readAgentChatSource(), /<button\b/)
   assert.doesNotMatch(projectAgentModeSource, /function AgentModeProjectSelectCard\b/)
   assert.match(projectAgentModeSource, /<AgentModeProjectGroupToggle[\s\S]*?aria-expanded=\{open\}/)
   assert.match(agentModeFeatureSource, /function AgentModeProjectGroupToggle[\s\S]*?<AgentNavItem/)

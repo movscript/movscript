@@ -91,6 +91,7 @@ func (h *ModelGatewayHandler) ChatCompletions(c *gin.Context) {
 	input := modelgatewayapp.ChatInput{
 		Principal: modelgatewayapp.Principal{UserID: principal.UserID, Key: principal.Key},
 		Model:     req.Model,
+		APIKind:   ai.ModelAPIKindOpenAIChatCompletions,
 		Text:      textReq,
 		ProjectID: req.ProjectID,
 	}
@@ -195,6 +196,7 @@ func (h *ModelGatewayHandler) Responses(c *gin.Context) {
 	input := modelgatewayapp.ResponsesInput{
 		Principal: modelgatewayapp.Principal{UserID: principal.UserID, Key: principal.Key},
 		Model:     req.Model,
+		APIKind:   ai.ModelAPIKindOpenAIResponses,
 		Text:      textReq,
 		Responses: ai.ResponsesRequest{
 			Input:        req.Input,
@@ -307,10 +309,6 @@ func (h *ModelGatewayHandler) AnthropicMessages(c *gin.Context) {
 		writeOpenAIError(c, http.StatusBadRequest, err.Error(), "invalid_request_error", "", "invalid_request")
 		return
 	}
-	if req.Stream {
-		writeOpenAIError(c, http.StatusBadRequest, "anthropic messages streaming is not implemented by the MovScript gateway yet", "invalid_request_error", "stream", "unsupported_parameter")
-		return
-	}
 
 	messages, ok := normalizeAnthropicGatewayMessages(c, req)
 	if !ok {
@@ -331,9 +329,15 @@ func (h *ModelGatewayHandler) AnthropicMessages(c *gin.Context) {
 	input := modelgatewayapp.ChatInput{
 		Principal: modelgatewayapp.Principal{UserID: principal.UserID, Key: principal.Key},
 		Model:     req.Model,
+		APIKind:   ai.ModelAPIKindAnthropicMessages,
 		Text:      textReq,
 		ProjectID: req.ProjectID,
 	}
+	if req.Stream {
+		h.streamAnthropicMessages(c, input)
+		return
+	}
+
 	result, err := h.service.CallChat(c.Request.Context(), input)
 	if err != nil {
 		writeGatewayChatError(c, err, "")
@@ -354,6 +358,291 @@ func (h *ModelGatewayHandler) AnthropicMessages(c *gin.Context) {
 			CacheReadInputTokens: resp.Usage.CachedInputTokens,
 		},
 	})
+}
+
+func (h *ModelGatewayHandler) streamAnthropicMessages(c *gin.Context, input modelgatewayapp.ChatInput) {
+	result, err := h.service.CallChatStream(c.Request.Context(), input)
+	if err != nil {
+		writeGatewayChatError(c, err, "stream")
+		return
+	}
+
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Status(http.StatusOK)
+	flusher, _ := c.Writer.(http.Flusher)
+	writeAnthropicMessagesEventStream(c, flusher, result.ResponseModel, result.Events)
+}
+
+func writeAnthropicMessagesEventStream(c *gin.Context, flusher http.Flusher, model string, events <-chan ai.TextStreamEvent) {
+	messageID := "msg_" + randomHex(12)
+	blockOpen := false
+	currentBlockKind := ""
+	currentIndex := 0
+	nextIndex := 0
+	toolBlockIndexes := map[int]int{}
+	finishReason := ""
+	usage := ai.TokenUsage{}
+	usedTool := false
+	started := false
+
+	ensureStarted := func() {
+		if started {
+			return
+		}
+		started = true
+		writeAnthropicMessagesSSE(c, flusher, "message_start", anthropicMessagesStreamEvent{
+			Type: "message_start",
+			Message: &anthropicMessagesStreamMessage{
+				ID:           messageID,
+				Type:         "message",
+				Role:         "assistant",
+				Model:        model,
+				Content:      []anthropicContentBlock{},
+				StopReason:   nil,
+				StopSequence: nil,
+				Usage: anthropicMessagesUsage{
+					InputTokens:          usage.InputTokens,
+					CacheReadInputTokens: usage.CachedInputTokens,
+				},
+			},
+		})
+	}
+
+	closeBlock := func() {
+		if !blockOpen {
+			return
+		}
+		index := currentIndex
+		writeAnthropicMessagesSSE(c, flusher, "content_block_stop", anthropicMessagesStreamEvent{
+			Type:  "content_block_stop",
+			Index: &index,
+		})
+		blockOpen = false
+		currentBlockKind = ""
+	}
+	startTextBlock := func() {
+		if blockOpen && currentBlockKind == "text" {
+			return
+		}
+		closeBlock()
+		index := nextIndex
+		nextIndex++
+		currentIndex = index
+		currentBlockKind = "text"
+		blockOpen = true
+		writeAnthropicMessagesSSE(c, flusher, "content_block_start", anthropicMessagesStreamEvent{
+			Type:         "content_block_start",
+			Index:        &index,
+			ContentBlock: anthropicTextStreamStartBlock(),
+		})
+	}
+	startToolBlock := func(delta ai.ToolCallDelta) int {
+		if blockIndex, ok := toolBlockIndexes[delta.Index]; ok {
+			return blockIndex
+		}
+		closeBlock()
+		blockIndex := nextIndex
+		nextIndex++
+		toolBlockIndexes[delta.Index] = blockIndex
+		currentIndex = blockIndex
+		currentBlockKind = "tool_use"
+		blockOpen = true
+		usedTool = true
+		toolID := delta.ID
+		if strings.TrimSpace(toolID) == "" {
+			toolID = fmt.Sprintf("toolu_%d", delta.Index)
+		}
+		writeAnthropicMessagesSSE(c, flusher, "content_block_start", anthropicMessagesStreamEvent{
+			Type:  "content_block_start",
+			Index: &blockIndex,
+			ContentBlock: &anthropicStreamContentBlock{
+				Type:  "tool_use",
+				ID:    toolID,
+				Name:  delta.Function.Name,
+				Input: json.RawMessage(`{}`),
+			},
+		})
+		return blockIndex
+	}
+
+	for event := range events {
+		if event.Usage.InputTokens > 0 || event.Usage.OutputTokens > 0 || event.Usage.CachedInputTokens > 0 || event.Usage.ReasoningTokens > 0 {
+			usage = event.Usage
+		}
+		if event.FinishReason != "" {
+			finishReason = event.FinishReason
+		}
+		ensureStarted()
+		if event.Error != "" {
+			writeAnthropicMessagesSSE(c, flusher, "error", anthropicMessagesStreamEvent{
+				Type:  "error",
+				Error: &anthropicMessagesStreamError{Type: "api_error", Message: event.Error},
+			})
+			return
+		}
+		if event.ContentDelta != "" {
+			startTextBlock()
+			index := currentIndex
+			writeAnthropicMessagesSSE(c, flusher, "content_block_delta", anthropicMessagesStreamEvent{
+				Type:  "content_block_delta",
+				Index: &index,
+				Delta: &anthropicMessagesStreamDelta{Type: "text_delta", Text: event.ContentDelta},
+			})
+		}
+		for _, delta := range event.ToolCallDeltas {
+			blockIndex := startToolBlock(delta)
+			if delta.Function.Arguments == "" {
+				continue
+			}
+			index := blockIndex
+			writeAnthropicMessagesSSE(c, flusher, "content_block_delta", anthropicMessagesStreamEvent{
+				Type:  "content_block_delta",
+				Index: &index,
+				Delta: &anthropicMessagesStreamDelta{Type: "input_json_delta", PartialJSON: delta.Function.Arguments},
+			})
+		}
+		if event.Done {
+			if !blockOpen {
+				startTextBlock()
+			}
+			closeBlock()
+			writeAnthropicMessagesStreamStop(c, flusher, finishReason, usedTool, usage)
+			return
+		}
+	}
+	ensureStarted()
+	if !blockOpen {
+		startTextBlock()
+	}
+	closeBlock()
+	writeAnthropicMessagesStreamStop(c, flusher, finishReason, usedTool, usage)
+}
+
+func writeAnthropicMessagesStreamStop(c *gin.Context, flusher http.Flusher, finishReason string, usedTool bool, usage ai.TokenUsage) {
+	stopReason := anthropicStopReasonFromFinishReason(finishReason, usedTool)
+	writeAnthropicMessagesSSE(c, flusher, "message_delta", anthropicMessagesStreamEvent{
+		Type:  "message_delta",
+		Delta: &anthropicMessagesStreamDelta{StopReason: stopReason},
+		Usage: &anthropicMessagesUsage{
+			InputTokens:          usage.InputTokens,
+			OutputTokens:         usage.OutputTokens,
+			CacheReadInputTokens: usage.CachedInputTokens,
+		},
+	})
+	writeAnthropicMessagesSSE(c, flusher, "message_stop", anthropicMessagesStreamEvent{Type: "message_stop"})
+}
+
+func writeAnthropicMessagesStream(c *gin.Context, flusher http.Flusher, model string, resp ai.TextResponse) {
+	messageID := "msg_" + randomHex(12)
+	writeAnthropicMessagesSSE(c, flusher, "message_start", anthropicMessagesStreamEvent{
+		Type: "message_start",
+		Message: &anthropicMessagesStreamMessage{
+			ID:           messageID,
+			Type:         "message",
+			Role:         "assistant",
+			Model:        model,
+			Content:      []anthropicContentBlock{},
+			StopReason:   nil,
+			StopSequence: nil,
+			Usage: anthropicMessagesUsage{
+				InputTokens:          resp.Usage.InputTokens,
+				OutputTokens:         0,
+				CacheReadInputTokens: resp.Usage.CachedInputTokens,
+			},
+		},
+	})
+
+	blocks := anthropicContentFromTextResponse(resp)
+	if len(blocks) == 0 {
+		blocks = []anthropicContentBlock{{Type: "text"}}
+	}
+	for index, block := range blocks {
+		index := index
+		writeAnthropicMessagesSSE(c, flusher, "content_block_start", anthropicMessagesStreamEvent{
+			Type:         "content_block_start",
+			Index:        &index,
+			ContentBlock: anthropicStreamStartBlock(block),
+		})
+		writeAnthropicMessagesContentDelta(c, flusher, index, block)
+		writeAnthropicMessagesSSE(c, flusher, "content_block_stop", anthropicMessagesStreamEvent{
+			Type:  "content_block_stop",
+			Index: &index,
+		})
+	}
+
+	stopReason := anthropicStopReason(resp)
+	writeAnthropicMessagesSSE(c, flusher, "message_delta", anthropicMessagesStreamEvent{
+		Type: "message_delta",
+		Delta: &anthropicMessagesStreamDelta{
+			StopReason: stopReason,
+		},
+		Usage: &anthropicMessagesUsage{
+			OutputTokens: resp.Usage.OutputTokens,
+		},
+	})
+	writeAnthropicMessagesSSE(c, flusher, "message_stop", anthropicMessagesStreamEvent{Type: "message_stop"})
+}
+
+func anthropicStreamStartBlock(block anthropicContentBlock) *anthropicStreamContentBlock {
+	switch block.Type {
+	case "tool_use":
+		return &anthropicStreamContentBlock{
+			Type:  "tool_use",
+			ID:    block.ID,
+			Name:  block.Name,
+			Input: json.RawMessage(`{}`),
+		}
+	default:
+		return anthropicTextStreamStartBlock()
+	}
+}
+
+func anthropicTextStreamStartBlock() *anthropicStreamContentBlock {
+	text := ""
+	return &anthropicStreamContentBlock{Type: "text", Text: &text}
+}
+
+func writeAnthropicMessagesContentDelta(c *gin.Context, flusher http.Flusher, index int, block anthropicContentBlock) {
+	switch block.Type {
+	case "tool_use":
+		partialJSON := strings.TrimSpace(string(block.Input))
+		if partialJSON == "" {
+			partialJSON = "{}"
+		}
+		writeAnthropicMessagesSSE(c, flusher, "content_block_delta", anthropicMessagesStreamEvent{
+			Type:  "content_block_delta",
+			Index: &index,
+			Delta: &anthropicMessagesStreamDelta{
+				Type:        "input_json_delta",
+				PartialJSON: partialJSON,
+			},
+		})
+	default:
+		if block.Text == "" {
+			return
+		}
+		writeAnthropicMessagesSSE(c, flusher, "content_block_delta", anthropicMessagesStreamEvent{
+			Type:  "content_block_delta",
+			Index: &index,
+			Delta: &anthropicMessagesStreamDelta{
+				Type: "text_delta",
+				Text: block.Text,
+			},
+		})
+	}
+}
+
+func writeAnthropicMessagesSSE(c *gin.Context, flusher http.Flusher, eventName string, event anthropicMessagesStreamEvent) {
+	payload, _ := json.Marshal(event)
+	if strings.TrimSpace(eventName) != "" {
+		fmt.Fprintf(c.Writer, "event: %s\n", eventName)
+	}
+	fmt.Fprintf(c.Writer, "data: %s\n\n", payload)
+	if flusher != nil {
+		flusher.Flush()
+	}
 }
 
 func (h *ModelGatewayHandler) streamChatCompletions(c *gin.Context, input modelgatewayapp.ChatInput) {

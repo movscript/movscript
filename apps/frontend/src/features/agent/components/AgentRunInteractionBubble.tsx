@@ -23,12 +23,12 @@ import {
   WorkspaceDiff,
   isWorkspaceApplyPreview,
   safeJSONStringify,
-} from '@/features/agent/components/AgentDebugPreviewDialog'
+} from '@/features/agent/components/AgentDebugPreviewWorkspaceDiff'
 import { AgentActivityFeedView } from '@/features/agent/components/AgentActivityFeed'
 import { type ProviderSessionApprovalRequest } from '@/features/agent/components/providerSessionInteractions'
 import { formatAgentDividerTime } from '@/features/agent/presentation/agentMessageDivider'
 import { ResourceFileImage } from '@/shared/ui/ResourceFileImage'
-import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 import type {
   AgentInputAnswer,
   AgentPendingApprovalRequest,

@@ -3,8 +3,12 @@ import {
   providerSessionStatusLightFromStatusRecord,
   type ProviderSessionStatusLight,
 } from '@movscript/core/agent'
+import {
+  createAgentProviderSessionStatusLightStreamClient,
+  type AgentProviderSessionStatusLightEvent,
+  type AgentProviderSessionStatusLightStreamClient,
+} from '@/features/agent/application/agentProviderSessionStatusLightStreamService'
 import { STOPPED_PROVIDER_SESSION_STATUS_LIGHT } from '@/features/agent/presentation/providerSessionStatusLightFallback'
-import { providerSessionClient, type ProviderSessionEventV2 } from '@/shared/infrastructure/providerSessionClient'
 
 export interface ProviderSessionStatusLightWatchTarget {
   conversationId: string
@@ -38,11 +42,7 @@ export const useProviderSessionStatusLightStore = create<ProviderSessionStatusLi
   }),
 }))
 
-export interface ProviderSessionStatusLightClient {
-  forSession?: (input: { sessionId: string; workspaceDir?: string }) => ProviderSessionStatusLightClient
-  streamSession: (sessionId: string, options: { onProviderEvent?: (event: ProviderSessionEventV2) => void; signal?: AbortSignal }) => Promise<void>
-  streamThread: (threadId: string, options: { onProviderEvent?: (event: ProviderSessionEventV2) => void; signal?: AbortSignal }) => Promise<void>
-}
+export type ProviderSessionStatusLightClient = AgentProviderSessionStatusLightStreamClient
 
 interface ProviderSessionStatusLightSink {
   setTargetStatusLight: (targetKey: string, statusLight: ProviderSessionStatusLight) => void
@@ -141,7 +141,7 @@ export class ProviderSessionStatusLightController {
     return this.client.forSession({ sessionId })
   }
 
-  private applyStatusEvent(connection: ProviderSessionStatusConnection, event: ProviderSessionEventV2): void {
+  private applyStatusEvent(connection: ProviderSessionStatusConnection, event: AgentProviderSessionStatusLightEvent): void {
     if (!this.connections.has(connection.targetKey) || connection.controller.signal.aborted) return
     if (event.kind !== 'runtime_status.upserted' || event.entity?.type !== 'runtime_status') return
     const statusLight = providerSessionStatusLightFromStatusRecord(event.entity.value)
@@ -216,7 +216,7 @@ function logProviderSessionStatusLightDiagnostic(event: string, connection: Prov
 }
 
 export const providerSessionStatusLightController = createProviderSessionStatusLightController({
-  client: providerSessionClient,
+  client: createAgentProviderSessionStatusLightStreamClient(),
   sink: {
     setTargetStatusLight: (targetKey, statusLight) => {
       useProviderSessionStatusLightStore.getState().setProviderSessionStatusLightForTarget(targetKey, statusLight)

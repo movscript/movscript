@@ -3,44 +3,14 @@ import type { ReactNode } from 'react'
 import { ChevronLeft, ChevronRight, Copy, MoreHorizontal, Route } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import {
-  AgentActivityCardItem,
-  AgentActivityCodePanel,
-  AgentActivityDividerActions,
-  AgentActivityDuration,
-  AgentActivityFeedRoot,
-  AgentActivityFrame,
-  AgentActivityFrameHeader,
-  AgentActivityFrameLine,
-  AgentActivityFrameLines,
-  AgentActivityFrameTitle,
-  AgentActivityLineItem,
-  AgentActivityLineRow,
-  AgentActivityLineText,
-  AgentActivityMenuButton,
-  AgentActivityMenuContent,
-  AgentActivityMenuIcon,
-  AgentActivityRound,
-  AgentActivityRoundEmpty,
-  AgentActivityRoundHeader,
-  AgentActivityRoundItems,
-  AgentActivityStatusLine,
-  AgentActivityKindLabel,
-  AgentActivityTotals
+  AgentActivityCardItem, AgentActivityCodePanel, AgentActivityDividerActions, AgentActivityDuration, AgentActivityFeedRoot, AgentActivityFrame, AgentActivityFrameHeader, AgentActivityFrameLine, AgentActivityFrameLines, AgentActivityFrameTitle, AgentActivityLineItem, AgentActivityLineRow, AgentActivityLineText, AgentActivityMenuButton, AgentActivityMenuContent, AgentActivityMenuIcon, AgentActivityRound, AgentActivityRoundEmpty, AgentActivityRoundHeader, AgentActivityRoundItems, AgentActivityStatusLine, AgentActivityKindLabel, AgentActivityTotals
 } from '@movscript/ui/business/agent'
 import { DropdownMenu, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@movscript/ui/primitives'
 import {
-  agentActivityFeedMarkdown,
-  agentActivityTraceJSON,
-  buildAgentActivityFeed,
-  feedTotalsLine,
-  type AgentActivityDebugDetail,
-  type AgentActivityFeed,
-  type AgentActivityItem,
-  type AgentActivityRound as AgentActivityRoundModel,
-} from '@/features/agent/presentation/agentActivityFeed'
+  agentActivityFeedMarkdown, agentActivityTraceJSON, buildAgentActivityFeed, feedTotalsLine, AgentActivityDebugDetail, AgentActivityFeed, AgentActivityItem, AgentActivityRound as AgentActivityRoundModel, } from '@/features/agent/presentation/agentActivityFeed'
 import { ROUTES } from '@/routes/projectRoutes'
-import { ProviderSessionApprovalRequestCard, ProviderSessionInputRequestCard, type ProviderSessionApprovalRequest } from '@/features/agent/components/providerSessionInteractions'
-import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import { ProviderSessionApprovalRequestCard, ProviderSessionInputRequestCard, ProviderSessionApprovalRequest } from '@/features/agent/components/providerSessionInteractions'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 import type { AgentInputAnswer } from '@/features/agent/domain/agentRunInteraction'
 import type { ChatRunActivity, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 import {

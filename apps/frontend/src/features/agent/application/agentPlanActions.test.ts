@@ -11,7 +11,7 @@ import {
   type AgentPlanActionDeps,
   type PlanDispatchSettings,
 } from '@/features/agent/application/agentPlanActions'
-import type { AgentTaskGraphSnapshot, AgentRun, AgentTask, DispatchTaskGraphResult, UpdateTaskGraphResult } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentTaskGraphSnapshot, AgentRun, AgentTask, DispatchTaskGraphResult, UpdateTaskGraphResult } from '@movscript/core/agent/protocol'
 
 const settings: PlanDispatchSettings = {
   maxWorkers: 3,

@@ -7,8 +7,6 @@ const agentConsoleSource = [
   readSource('apps/frontend/src/features/agent/components/AgentConsolePage.tsx'),
   readSource('apps/frontend/src/features/agent/components/AgentConsolePageSections.tsx'),
 ].join('\n')
-const agentConsoleLogPanelSource = readSource('apps/frontend/src/features/agent/components/AgentConsoleRealtimeLogPanel.tsx')
-const appServerLogElectronSource = readSource('apps/frontend/src/features/agent/application/appServerLogElectron.ts')
 const agentTerminalSource = readSource('apps/frontend/src/features/agent/components/AgentTerminalPanel.tsx')
 const localTerminalElectronSource = readSource('apps/frontend/src/features/agent/application/localTerminalElectron.ts')
 const agentBrowserSource = readSource('apps/frontend/src/features/agent/components/AgentBrowserPanel.tsx')
@@ -20,16 +18,9 @@ const movScriptWorkspaceQueryKeysSource = readSource('apps/frontend/src/features
 const movScriptWorkspaceMutationSource = readSource('apps/frontend/src/features/agent/application/movScriptWorkspaceMutationInvalidation.ts')
 const generationAssertionsSource = readSource('apps/frontend/src/e2e/generationAssertions.ts')
 
-test('agent console delegates app-server log Electron subscription', () => {
-  assert.match(agentConsoleSource, /from '@\/features\/agent\/components\/AgentConsoleRealtimeLogPanel'/)
-  assert.match(agentConsoleLogPanelSource, /from '@\/features\/agent\/application\/appServerLogElectron'/)
-  assert.match(agentConsoleLogPanelSource, /subscribeAppServerLogs\(\(event\) =>/)
+test('agent console does not expose app-server log subscriptions', () => {
+  assert.doesNotMatch(agentConsoleSource, /AgentConsoleRealtimeLogPanel|appServerLogElectron|subscribeAppServerLogs/)
   assert.doesNotMatch(agentConsoleSource, /window\.api/)
-  assert.doesNotMatch(agentConsoleLogPanelSource, /window\.api/)
-
-  assert.match(appServerLogElectronSource, /export function subscribeAppServerLogs/)
-  assert.match(appServerLogElectronSource, /readElectronApi\(\)\?\.onAppServerLog/)
-  assert.doesNotMatch(appServerLogElectronSource, /window\.api/)
 })
 
 test('MovScript workspace pages delegate Electron file APIs', () => {

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { generationProgressStatesForPinnedStatus } from '@/features/agent/domain/agentPinnedStatus'
-import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun, AgentTimelineItem } from '@movscript/core/agent/protocol'
 import type { ChatMessage } from '@/features/agent/state/agentStore'
 
 test('generationProgressStatesForPinnedStatus restores completed generation jobs from historical messages', () => {

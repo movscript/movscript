@@ -1,4 +1,4 @@
-import type { AgentRun, ProviderSessionEventV2, AgentTraceEvent } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun, ProviderSessionEventV2, AgentTraceEvent } from '@movscript/core/agent/protocol'
 import { isRecord } from '@/shared/domain/jsonValue'
 import type { ChatRunActivity, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 import { providerSessionRunIdFromEvent, providerSessionTraceFromEvent } from '@/shared/infrastructure/provider-session-client/providerSessionEventFacts'

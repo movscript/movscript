@@ -41,6 +41,7 @@ type AIModelRouteBinding struct {
 	RouteGroup      string               `gorm:"default:'';index" json:"route_group"`
 	ProviderID      string               `gorm:"default:'';index" json:"provider_id,omitempty"`
 	ProviderModelID string               `gorm:"default:'';index" json:"provider_model_id"`
+	APIKinds        string               `gorm:"default:''" json:"api_kinds,omitempty"`
 	CredentialID    *uint                `gorm:"index" json:"credential_id,omitempty"`
 	IsEnabled       bool                 `gorm:"default:true;index" json:"is_enabled"`
 	Priority        int                  `gorm:"default:0" json:"priority"`

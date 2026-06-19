@@ -109,6 +109,10 @@ export const AGENT_CHAT_NOTIFICATION_METHOD_DISPATCH_COVERAGE: Record<string, {
     handling: ['thread-state', 'pending-state', 'streaming-state'],
     note: 'Commits the completed turn from the live connection and clears transient user/server/streaming turn state.',
   },
+  'turn/failed': {
+    handling: ['thread-state', 'pending-state', 'streaming-state'],
+    note: 'Commits a failed turn from the live connection and clears transient user/server/streaming turn state.',
+  },
 }
 
 export const AGENT_CHAT_NOTIFICATION_EVENT_DISPATCH_COVERAGE: Record<AgentChatNotificationEvent['type'], {

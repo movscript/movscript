@@ -1,4 +1,4 @@
-import type { AgentRun, AgentRunStep, AgentTraceEvent } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun, AgentRunStep, AgentTraceEvent } from '@movscript/core/agent/protocol'
 import type { AgentTaskArtifactRef } from '@/features/agent/domain/agentArtifacts'
 import type { AgentPageTaskState, AgentConversationRuntimeState } from '@/features/agent/state/agentSessionStore'
 

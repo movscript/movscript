@@ -80,7 +80,7 @@ export function buildBackendDefaultAgentProviderConfig<TModel extends AgentBacke
     providerRef,
     configSource: 'backend',
     defaultModel: modelId,
-    baseURL: `${input.apiBaseURL.replace(/\/+$/, '')}/v1`,
+    modelEndpointBaseURL: `${input.apiBaseURL.replace(/\/+$/, '')}/v1`,
     config: {
       mode: 'backendKey',
       modelProviderRef: providerRef,
@@ -122,8 +122,7 @@ export function hasExplicitAgentProviderConfig(provider: Record<string, unknown>
     stringField(provider.providerRef)
       || stringField(provider.configSource)
       || stringField(provider.authSource)
-      || stringField(provider.baseURL)
-      || stringField(provider.baseUrl)
+      || stringField(provider.modelEndpointBaseURL)
       || isRecord(provider.config)
       || isRecord(provider.auth),
   )

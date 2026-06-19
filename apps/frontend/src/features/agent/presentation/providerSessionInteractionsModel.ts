@@ -2,7 +2,7 @@ import type { TFunction } from 'i18next'
 import { approvalImpactLabel, runStatusLabel } from '@/features/agent/domain/agentRunUi'
 import { agentPermissionLabel, agentRiskLabel, agentToolNameLabel } from '@/features/agent/domain/agentToolDisplay'
 import type { ChatRunActivityApproval, ChatRunActivityInputRequest } from '@/features/agent/state/agentStore'
-import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 
 export type ProviderSessionApprovalRequest = NonNullable<AgentRun['pendingApprovals']>[number] | ChatRunActivityApproval
 export type ProviderSessionInputRequest = NonNullable<AgentRun['pendingInputRequests']>[number] | ChatRunActivityInputRequest

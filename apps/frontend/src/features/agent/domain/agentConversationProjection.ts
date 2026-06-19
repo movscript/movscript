@@ -3,14 +3,11 @@ import { finalizeAgentConversationProjection } from '@/features/agent/domain/age
 import { prepareAgentConversationProjectionContext } from '@/features/agent/domain/agentConversationProjectionPrepare'
 import { projectionItemsForThreadItems } from '@/features/agent/domain/agentConversationProjectionRunTurns'
 import { buildAgentTranscriptMessageItems } from '@/features/agent/domain/agentTranscriptMessageItems'
-import type {
-  AgentConversationProjection,
-  AgentConversationProjectionItem,
-} from '@/features/agent/domain/agentConversationProjectionTypes'
+import type { AgentConversationProjection, AgentConversationProjectionItem, } from '@/features/agent/domain/agentConversationProjectionTypes'
 import type { AgentConversationProjectionRunInteractions } from '@/features/agent/domain/agentConversationProjectionRunInteractions'
 import type { AgentConversationLiveBlock } from '@/features/agent/domain/agentConversationLiveBlocks'
 import type { AgentThinkingState } from '@/features/agent/domain/agentThinkingState'
-import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun, AgentTimelineItem } from '@movscript/core/agent/protocol'
 import type { ChatMessage } from '@/features/agent/state/agentStore'
 
 export function buildAgentConversationProjection(input: {

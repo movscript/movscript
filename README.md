@@ -77,7 +77,7 @@ http://localhost:8766/admin
 | Assistant workflows | Provider-backed sessions, model routing, domain tools, resource tools, and generation tools |
 | Workspace engine | Source review, interpretation, diagnostics, and deterministic read-model refresh |
 | Admin console | Credentials, models, routing, users, and operational settings |
-| Plugin system | First-party app-server plugin example with MCP bridge, skills, and manifests |
+| Plugin system | First-party provider plugin bundle with MCP bridge, skills, and manifests |
 | Local dependencies | SQLite and filesystem storage by default; PostgreSQL, MinIO, Redis, and Gitea available for external profile testing |
 | Observability | Optional Prometheus and Grafana stack with backend, frontend, provider, and Web Vitals signals |
 
@@ -90,7 +90,7 @@ movscript/
 ├── apps/admin/            Admin console for credentials, models, routing, and users
 ├── apps/cli/              Movscript command-line tool
 ├── packages/              Shared UI, tokens, workspace, interpreter, and domain packages
-├── plugins/               First-party app-server plugin example
+├── plugins/               First-party provider plugin bundle
 ├── docs/                  Architecture notes, audits, and prototypes
 └── docker-compose.yml     Optional local PostgreSQL, MinIO, Redis, Gitea, Prometheus, and Grafana services
 ```
@@ -225,17 +225,19 @@ pnpm --filter @movscript/cli dev -- workspace review --workspace /path/to/projec
 pnpm --filter "./plugins/*" build
 ```
 
-Install the bundled app-server plugin locally:
+Prepare the local SDK runtime packages used by the unified Agent Chat:
 
 ```bash
-pnpm app-server:install-plugin -- --provider mova
+pnpm prepare:sdk-runtimes
 ```
 
-Verify app-server startup for the desktop-managed path:
+Smoke-test the SDK runtime entrypoints:
 
 ```bash
-pnpm --filter @movscript/desktop verify:app-server -- --provider mova
+pnpm smoke:sdk-runtimes
 ```
+
+Project skills are materialized into provider-native workspace folders such as `.codex/skills`, `.mova/skills`, and `.claude/skills`. Global skills stay under the matching provider home, for example `~/.codex/skills` or `~/.claude/skills`.
 
 ## Documentation
 

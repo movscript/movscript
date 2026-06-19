@@ -6,7 +6,8 @@ import {
   rejectRunInteractionAction,
   type AgentRunInteractionActionDeps,
 } from '@/features/agent/application/agentRunInteractionActions'
-import { providerSessionClient, type AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import { createAgentProviderSessionCommandService } from '@/features/agent/application/agentProviderSessionCommandService'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 import type { AgentInputAnswer } from '@/features/agent/domain/agentRunInteraction'
 
 export interface UseAgentRunInteractionActionBindingsInput {
@@ -32,9 +33,7 @@ export function useAgentRunInteractionActionBindings({
   setConversationRun,
   streamFollowUpRun,
 }: UseAgentRunInteractionActionBindingsInput) {
-  const providerSessionRunClient = useMemo(() => sessionId?.trim()
-    ? providerSessionClient.forSession({ sessionId: sessionId.trim() })
-    : providerSessionClient, [sessionId])
+  const commandService = useMemo(() => createAgentProviderSessionCommandService({ sessionId }), [sessionId])
 
   const deps = useMemo<AgentRunInteractionActionDeps>(() => ({
     conversationId,
@@ -62,10 +61,10 @@ export function useAgentRunInteractionActionBindings({
       run,
       approvalIds,
       approvalDecision,
-      approveInteraction: (interactionId, decision) => providerSessionRunClient.approveInteraction(interactionId, decision),
+      approveInteraction: (interactionId, decision) => commandService.approveInteraction(interactionId, decision),
       deps,
     })
-  }, [deps, providerSessionRunClient, runById])
+  }, [commandService, deps, runById])
 
   const rejectRun = useCallback(async (runId: string, approvalIds?: string[]) => {
     const run = runById.get(runId)
@@ -73,10 +72,10 @@ export function useAgentRunInteractionActionBindings({
     await rejectRunInteractionAction({
       run,
       approvalIds,
-      rejectInteraction: (interactionId) => providerSessionRunClient.rejectInteraction(interactionId),
+      rejectInteraction: (interactionId) => commandService.rejectInteraction(interactionId),
       deps,
     })
-  }, [deps, providerSessionRunClient, runById])
+  }, [commandService, deps, runById])
 
   const answerRunInput = useCallback(async (runId: string, requestId: string, answer: AgentInputAnswer) => {
     const run = runById.get(runId)
@@ -85,10 +84,10 @@ export function useAgentRunInteractionActionBindings({
       run,
       requestId,
       answer,
-      answerRunInput: (runId, input) => providerSessionRunClient.answerRunInput(runId, input),
+      answerRunInput: (runId, input) => commandService.answerRunInput(runId, input),
       deps,
     })
-  }, [approving, deps, providerSessionRunClient, runById])
+  }, [approving, commandService, deps, runById])
 
   const approveActiveRun = useCallback(async (approvalIds?: string[], approvalDecision?: AgentRunApprovalDecisionInput) => {
     if (!actionableRun) return

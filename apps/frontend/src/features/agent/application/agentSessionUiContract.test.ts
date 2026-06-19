@@ -36,9 +36,9 @@ test('agent session UI keeps worker trace summary contracts without run detail p
 
   assert.match(planOverviewSource, /const \[traceSummaries, setTraceSummaries\]/)
   assert.match(planOverviewSource, /const \[traceEventsByRunId, setTraceEventsByRunId\]/)
-  assert.match(planOverviewSource, /providerSessionClient\.forSession\(\{ sessionId: snapshotSessionId \}\)/)
-  assert.match(planOverviewSource, /providerSessionTraceClient\.getRunTraceSummary\(runId\)/)
-  assert.match(planOverviewSource, /providerSessionTraceClient\.getRunTraceEvents\(runId, \{ limit: 8/)
+  assert.match(planOverviewSource, /getAgentRunTraceSummary\(\{/)
+  assert.match(planOverviewSource, /listAgentRunTraceEvents\(\{/)
+  assert.doesNotMatch(planOverviewSource, /providerSessionClient|providerSessionTraceClient|shared\/infrastructure\/providerSessionClient/)
   assert.match(planOverviewSource, /navigate\(ROUTES\.agentConsole\)/)
   assert.match(planOverviewSource, /traceEventHasMoreByRunId/)
   assert.match(planOverviewSource, /traceEventKindFilters/)
@@ -71,7 +71,8 @@ test('agent composer supports clipboard file uploads with a blocking resource tr
   const composerShellSource = readFileSync(resolve('src/features/agent/components/AgentComposerSection.tsx'), 'utf8')
   const composerToolbarSource = readFileSync(resolve('src/features/agent/components/AgentComposerToolbarSection.tsx'), 'utf8')
   const mentionEditorSource = readFileSync(resolve('src/features/agent/components/AgentMentionEditor.tsx'), 'utf8')
-  const layoutPropsSource = readFileSync(resolve('src/features/agent/presentation/agentChatViewLayoutProps.ts'), 'utf8')
+  const dataSourceShellSource = readFileSync(resolve('src/features/agent/components/AgentChatDataSourceShell.tsx'), 'utf8')
+  const shellViewSource = readFileSync(resolve('src/features/agent/components/AgentChatShellView.tsx'), 'utf8')
 
   assert.match(composerControllerSource, /function agentComposerClipboardFiles\(event: ClipboardEvent\): File\[\]/)
   assert.match(composerControllerSource, /acceptAgentComposerDropDragOver\(event\.dataTransfer\)/)
@@ -106,7 +107,8 @@ test('agent composer supports clipboard file uploads with a blocking resource tr
   assert.match(composerSectionSource, /onPaste=\{onComposerPaste\}/)
   assert.match(mentionEditorSource, /onPaste\?\.\(event\)/)
   assert.match(mentionEditorSource, /if \(event\.defaultPrevented\) return/)
-  assert.match(layoutPropsSource, /onComposerPaste: composer\.handleComposerPaste/)
+  assert.match(dataSourceShellSource, /onComposerPaste=\{\(event\) => void composer\.handleComposerPaste\(event\)\}/)
+  assert.match(shellViewSource, /onComposerPaste=\{onComposerPaste\}/)
 })
 
 test('agent chat composer uses the same chrome in page and detail surfaces', () => {
@@ -177,7 +179,6 @@ test('agent composer locks workspace context after a session starts', () => {
   const shellCoreStateSource = readFileSync(resolve('src/features/agent/application/useAgentChatShellCoreState.ts'), 'utf8')
   const shellViewSource = readFileSync(resolve('src/features/agent/components/AgentChatShellView.tsx'), 'utf8')
   const turnControlsSource = readFileSync(resolve('src/features/agent/application/useAgentChatTurnControls.ts'), 'utf8')
-  const layoutPropsSource = readFileSync(resolve('src/features/agent/presentation/agentChatViewLayoutProps.ts'), 'utf8')
   const sessionStoreSource = [
     readFileSync(resolve('src/features/agent/state/agentSessionStore.ts'), 'utf8'),
     readFileSync(resolve('src/features/agent/state/agentSessionConversationState.ts'), 'utf8'),
@@ -199,7 +200,6 @@ test('agent composer locks workspace context after a session starts', () => {
   assert.match(dataSourceShellSource, /composerWorkspaceContextLocked=\{composerWorkspaceContextLocked\}/)
   assert.match(shellViewSource, /workspaceProjectLocked=\{composerWorkspaceContextLocked\}/)
   assert.match(turnControlsSource, /workspaceContext: composer\.selectedWorkspaceContext/)
-  assert.match(layoutPropsSource, /workspaceProjectLocked: conversationEstablished/)
   assert.match(sessionStoreSource, /const workspaceContext = userWorkspaces\[input\.conversationId\]\?\.workspaceContext/)
   assert.match(sessionStoreSource, /input: '',[\s\S]*attachments: \[\],[\s\S]*workspaceContext/)
   assert.match(composerPanelCssSource, /\.ms-agent-composer \.ai-agent-model-select[\s\S]*border-color: transparent;[\s\S]*background: transparent;/)
@@ -227,13 +227,8 @@ test('agent new conversation drafts bind selected project without starting a thr
   const agentContentAreaStoreSource = readFileSync(resolve('src/features/agent/state/agentContentAreaStore.ts'), 'utf8')
   const headerSource = readFileSync(resolve('src/features/app-shell/components/Header.tsx'), 'utf8')
   const topControlsSource = readFileSync(resolve('src/features/app-shell/components/AppTopControls.tsx'), 'utf8')
-  const layoutPropsSource = readFileSync(resolve('src/features/agent/presentation/agentChatViewLayoutProps.ts'), 'utf8')
-  const viewControllerSource = readFileSync(resolve('src/features/agent/presentation/useAgentChatViewController.ts'), 'utf8')
-  const contextStateSource = readFileSync(resolve('src/features/agent/presentation/useAgentChatContextState.ts'), 'utf8')
-  const interactionInputTypesSource = readFileSync(resolve('src/features/agent/presentation/agentChatInteractionInputTypes.ts'), 'utf8')
-  const sendPipelineSource = readFileSync(resolve('src/features/agent/presentation/agentChatSendPipelineInputs.ts'), 'utf8')
-  const sendWorkspaceSource = readFileSync(resolve('src/features/agent/application/agentSendWorkspace.ts'), 'utf8')
   const shellCoreStateSource = readFileSync(resolve('src/features/agent/application/useAgentChatShellCoreState.ts'), 'utf8')
+  const runtimeShellSource = readFileSync(resolve('src/features/agent/components/AgentRuntimeChatShell.tsx'), 'utf8')
   const threadRuntimeEffectsSource = readFileSync(resolve('src/features/agent/application/useAgentChatThreadRuntimeEffects.ts'), 'utf8')
   const runProfileSettingsSource = readFileSync(resolve('src/features/agent/application/useAgentChatRunProfileSettings.ts'), 'utf8')
   const normalizeWorkspaceContextBlock = sourceFunctionBlock(composerControllerSource, 'normalizeAgentWorkspaceContext')
@@ -263,20 +258,16 @@ test('agent new conversation drafts bind selected project without starting a thr
   assert.doesNotMatch(agentModePageSource, /await dataSource\.startThread/)
   assert.doesNotMatch(agentModePageSource, /startSharedProvisionalConversation\(/)
   assert.doesNotMatch(agentModePageSource, /projectId: selectedNewConversationProjectId/)
-  assert.match(sendPipelineSource, /workspaceContext: composer\.selectedWorkspaceContext/)
-  assert.match(interactionInputTypesSource, /conversationEstablished: boolean/)
-  assert.match(viewControllerSource, /conversationEstablished,/)
-  assert.match(sendPipelineSource, /const draftThreadControl = conversationEstablished[\s\S]*\? undefined[\s\S]*composer\.collaborationMode/)
-  assert.match(sendPipelineSource, /const threadControl = draftThreadControl && Object\.keys\(draftThreadControl\)\.length > 0/)
-  assert.match(sendPipelineSource, /\.\.\.\(threadControl \? \{ threadControl \} : \{\}\)/)
-  assert.match(layoutPropsSource, /selectedWorkspaceProjectId/)
-  assert.match(layoutPropsSource, /projectId: selectedWorkspaceProjectId/)
-  assert.doesNotMatch(layoutPropsSource, /projectId: currentProject\?\.ID/)
-  assert.match(viewControllerSource, /selectedWorkspaceProjectName/)
-  assert.match(viewControllerSource, /composer\.selectedWorkspaceContext\.scope === 'project'/)
-  assert.match(contextStateSource, /selectedProjectName/)
-  assert.doesNotMatch(contextStateSource, /currentProject\?\.name/)
-  assert.match(sendWorkspaceSource, /resolveProviderSessionProjectId/)
+  assertRetiredProviderSessionChatFilesRemoved()
+  assert.match(turnControlsSource, /workspaceContext: composer\.selectedWorkspaceContext/)
+  assert.match(turnControlsSource, /const selectedWorkspaceProjectId = typeof composer\.selectedWorkspaceContext\.projectId === 'number'/)
+  assert.match(turnControlsSource, /projectId: selectedWorkspaceProjectId/)
+  assert.match(sendMessageBlock, /let firstTurnDraftControls/)
+  assert.match(sendMessageBlock, /firstTurnDraftControls = buildAgentChatDraftThreadControlOptions\(\{ collaborationMode, goalModeEnabled \}\)/)
+  assert.match(sendMessageBlock, /startThreadResult\(\{[\s\S]*useDraftModeSettings: true/)
+  assert.match(runtimeShellSource, /agentSettingsModelSelectionPatch\(/)
+  assert.match(runtimeShellSource, /agentSettingsModelIdForProvider\(/)
+  assert.doesNotMatch(runtimeShellSource, /updateSettings\(\{ modelId/)
   assert.match(agentStoreSource, /resetDraftModeSettings/)
   assert.match(agentStoreSource, /goalModeEnabled: DEFAULT_AGENT_SETTINGS\.goalModeEnabled/)
   assert.match(threadCreationSource, /type AgentChatStartThreadInput[\s\S]*useDraftModeSettings\?: boolean/)
@@ -285,8 +276,6 @@ test('agent new conversation drafts bind selected project without starting a thr
   assert.match(threadCreationSource, /useDraftModeSettings \? buildAgentChatDraftThreadControlOptions\(\{ collaborationMode, goalModeEnabled \}\) : \{\}/)
   assert.doesNotMatch(resumeThreadBlock, /collaborationMode|goalModeEnabled/)
   assert.doesNotMatch(updateThreadSettingsBlock, /collaborationMode|goalModeEnabled/)
-  assert.match(sendMessageBlock, /let firstTurnDraftControls/)
-  assert.match(sendMessageBlock, /firstTurnDraftControls = buildAgentChatDraftThreadControlOptions\(\{ collaborationMode, goalModeEnabled \}\)/)
   assert.doesNotMatch(sendMessageBlock, /ensureAgentChatThreadReadyForTurn\(\{[\s\S]*controls:/)
   assert.doesNotMatch(sendMessageBlock, /\.\.\.\(collaborationMode === 'plan'/)
   assert.doesNotMatch(sendMessageBlock, /\.\.\.\(goalModeEnabled/)
@@ -294,7 +283,6 @@ test('agent new conversation drafts bind selected project without starting a thr
   assert.match(draftConversationSource, /workspaceContextFromNewConversationPayload\(input\)/)
   assert.match(dataSourceShellSource, /const createDraftConversation = useAgentChatDraftConversation/)
   assert.match(dataSourceShellSource, /resetDraftModeSettings\(\)[\s\S]*createDraftConversation\(/)
-  assert.match(sendMessageBlock, /startThreadResult\(\{[\s\S]*useDraftModeSettings: true/)
   const appShellLayoutSource = readFileSync(resolve('src/features/app-shell/application/AppShellLayout.tsx'), 'utf8')
   assert.doesNotMatch(appShellLayoutSource, /showProjectControls=/)
   assert.doesNotMatch(headerSource, /showProjectControls/)
@@ -318,4 +306,17 @@ function readAgentComposerControllerContractSource(): string {
     readFileSync(resolve('src/features/agent/presentation/agentComposerClipboardFiles.ts'), 'utf8'),
     readFileSync(resolve('src/features/agent/presentation/agentComposerWorkspaceModel.ts'), 'utf8'),
   ].join('\n')
+}
+
+function assertRetiredProviderSessionChatFilesRemoved(): void {
+  for (const relativePath of [
+    'src/features/agent/presentation/agentChatViewLayoutProps.ts',
+    'src/features/agent/presentation/useAgentChatViewController.ts',
+    'src/features/agent/presentation/useAgentChatContextState.ts',
+    'src/features/agent/presentation/agentChatInteractionInputTypes.ts',
+    'src/features/agent/presentation/agentChatSendPipelineInputs.ts',
+    'src/features/agent/application/agentSendWorkspace.ts',
+  ]) {
+    assert.equal(existsSync(resolve(relativePath)), false, `${relativePath} should stay deleted`)
+  }
 }

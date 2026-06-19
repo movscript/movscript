@@ -6,7 +6,6 @@ import {
   SelectTrigger,
 } from '@movscript/ui/primitives'
 import type { PublicModel } from '@/types'
-import { selectDefaultAgentModel } from '@/features/agent/application/agentDefaultModelSelection'
 import { publicModelId } from '@/shared/domain/modelDisplay'
 
 export interface AgentComposerModelSelectorProps {
@@ -24,8 +23,7 @@ export function AgentComposerModelSelector({
 }: AgentComposerModelSelectorProps) {
   if (modelOptions.length === 0 || modelValue === undefined || !onModelChange) return null
 
-  const defaultModel = selectDefaultAgentModel(modelOptions)
-  const selectedModel = modelOptions.find((model) => publicModelId(model) === modelValue) ?? defaultModel
+  const selectedModel = modelValue ? modelOptions.find((model) => publicModelId(model) === modelValue) : undefined
   const selectedModelId = selectedModel ? agentComposerModelId(selectedModel) : undefined
 
   return (
@@ -42,10 +40,9 @@ export function AgentComposerModelSelector({
       <SelectContent align="end" className="ai-agent-model-select__content min-w-64">
         <SelectItem value="auto">
           <span className="ai-agent-model-select__option">
-            {selectedModelId ? <IdentityMark kind="model" id={selectedModelId} /> : null}
             <span className="ai-agent-model-select__option-copy">
               <span className="ai-agent-model-select__id">Auto model</span>
-              <span className="ai-agent-model-select__meta">{selectedModelId ?? 'backend default'}</span>
+              <span className="ai-agent-model-select__meta">backend default</span>
             </span>
           </span>
         </SelectItem>

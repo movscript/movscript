@@ -20,7 +20,7 @@ import {
   parseManagedConfigFileExportText,
   settingsSnapshotImportPreflightError,
 } from '@/features/agent/application/agentSettingsConfigFile'
-import type { ProviderCatalogConfigFile } from '@/shared/infrastructure/providerSessionClient'
+import type { ProviderCatalogConfigFile } from '@movscript/core/agent/protocol'
 import type { AgentSettingsSnapshot } from '@movscript/core/agent'
 
 const t = (key: string, values?: Record<string, string | number>) => values ? `${key}:${JSON.stringify(values)}` : key
@@ -265,7 +265,7 @@ test('settings snapshot import preflight delegates catalog requirements', () => 
   }) ?? '', /settingsSnapshotCatalogUnavailable/)
 })
 
-test('settings snapshot write plan combines provider model and config file writes', () => {
+test('settings snapshot write plan combines model selection and config file writes', () => {
   const snapshot = settingsSnapshotFixture({
     model: {
       model: 'gpt-deep',
@@ -283,39 +283,41 @@ test('settings snapshot write plan combines provider model and config file write
     t,
   })
 
-  assert.equal(plan.providerModelConfig?.model, 'gpt-deep')
-  assert.equal(plan.providerModelConfig?.useForPlanner, false)
+  assert.equal(plan.modelSelection?.modelId, 'gpt-deep')
+  assert.equal(plan.modelSelection?.useForPlanner, false)
   assert.equal(plan.requiresProviderSession, true)
   assert.equal(plan.writesProviderCatalog, true)
   assert.equal(plan.writes[0]?.configFile.id, 'config_file.base')
   assert.equal(plan.writes[0]?.activate, true)
 })
 
-test('settings snapshot write plan can update only provider model config', () => {
+test('settings snapshot write plan can update only model selection', () => {
   const plan = buildSettingsSnapshotWritePlan({
     snapshot: settingsSnapshotFixture({
       model: {
         model: 'manual-model',
-        baseURL: 'https://example.test/v1',
+        modelEndpointBaseURL: 'https://example.test/v1',
+        useForChat: false,
       },
     }),
     currentConfigFile: null,
     t,
   })
 
-  assert.equal(plan.providerModelConfig?.model, 'manual-model')
-  assert.equal(plan.providerModelConfig?.baseURL, 'https://example.test/v1')
+  assert.equal(plan.modelSelection?.modelId, 'manual-model')
+  assert.equal(plan.modelSelection?.useForChat, false)
+  assert.equal(plan.modelSelection?.useForPlanner, true)
   assert.equal(plan.requiresProviderSession, false)
   assert.equal(plan.writesProviderCatalog, false)
   assert.equal(plan.writes.length, 0)
 })
 
-test('settings snapshot write commit saves provider model config and refetches model config', async () => {
+test('settings snapshot write commit skips provider model config for model-only imports', async () => {
   const plan = buildSettingsSnapshotWritePlan({
     snapshot: settingsSnapshotFixture({
       model: {
         model: 'manual-model',
-        baseURL: 'https://example.test/v1',
+        modelEndpointBaseURL: 'https://example.test/v1',
       },
     }),
     currentConfigFile: null,
@@ -326,15 +328,11 @@ test('settings snapshot write commit saves provider model config and refetches m
   await commitSettingsSnapshotWritePlan({
     client: fakeConfigFileCommitClient(calls),
     plan,
-    refetchProviderModelConfig: async () => calls.push('refetchProviderModelConfig'),
     refetchCatalog: async () => calls.push('refetchCatalog'),
     refetchCapabilities: async () => calls.push('refetchCapabilities'),
   })
 
-  assert.deepEqual(calls, [
-    'saveModel:manual-model',
-    'refetchProviderModelConfig',
-  ])
+  assert.deepEqual(calls, [])
 })
 
 test('settings snapshot write commit saves catalog writes, activates snapshot target, and refetches shared data', async () => {
@@ -354,16 +352,13 @@ test('settings snapshot write commit saves catalog writes, activates snapshot ta
   await commitSettingsSnapshotWritePlan({
     client: fakeConfigFileCommitClient(calls),
     plan,
-    refetchProviderModelConfig: async () => calls.push('refetchProviderModelConfig'),
     refetchCatalog: async () => calls.push('refetchCatalog'),
     refetchCapabilities: async () => calls.push('refetchCapabilities'),
   })
 
   assert.deepEqual(calls, [
     'ensureRunning',
-    'saveModel:gpt-deep',
     'save:config_file.target:true',
-    'refetchProviderModelConfig',
     'refetchCatalog',
     'refetchCapabilities',
   ])
@@ -450,9 +445,6 @@ function fakeConfigFileCommitClient(calls: string[]) {
     },
     async saveProviderConfigFile({ configFile, activate }: { configFile: ProviderCatalogConfigFile; activate: boolean }) {
       calls.push(`save:${configFile.id}:${String(activate)}`)
-    },
-    async saveProviderModelConfig({ model }: { model: string }) {
-      calls.push(`saveModel:${model}`)
     },
     async saveActiveProviderConfigFile({ configFileId }: { configFileId: string }) {
       calls.push(`activate:${configFileId}`)

@@ -16,6 +16,7 @@ export interface AgentChatDataSourceShellProps {
   userId: string
   loadDataSource: () => Promise<AgentChatDataSourceShellLoadResult>
   loadDataSourceForNewThread?: (input: AgentPanelNewConversationPayload) => Promise<AgentChatDataSourceShellLoadResult>
+  dataSourceKey?: string
   provider?: ProviderKind
   providerId?: string
   providerInstanceId?: string

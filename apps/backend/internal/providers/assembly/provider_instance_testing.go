@@ -88,8 +88,7 @@ func coreStartupProviderInstanceTest(ctx context.Context, cfg *config.Config, in
 		return testMediaProcessingConfig(ctx, cfg), true
 	case providercontract.TypeAgentRuntime + ":" + providercontract.AdapterDesktopManagedAgent,
 		providercontract.TypeAgentRuntime + ":" + providercontract.AdapterRemoteAgentRuntime,
-		providercontract.TypeAgentRuntime + ":" + providercontract.AdapterMova,
-		providercontract.TypeAgentRuntime + ":" + providercontract.AdapterAppServer:
+		providercontract.TypeAgentRuntime + ":" + providercontract.AdapterMova:
 		return testAgentRuntimeConfig(ctx, cfg), true
 	default:
 		return nil, false

@@ -2,10 +2,8 @@ import type { AgentTranscriptMessageItem } from '@/features/agent/domain/agentTr
 import { transcriptMessageItemRelatedRunId } from '@/features/agent/domain/agentMessageBoundaries'
 import { isAgentRunTerminalStatus } from '@movscript/core/agent/protocol'
 import type {
-  AgentConversationProjectionContentItem,
-  AgentConversationProjectionItem,
-} from '@/features/agent/domain/agentConversationProjectionTypes'
-import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
+  AgentConversationProjectionContentItem, AgentConversationProjectionItem, } from '@/features/agent/domain/agentConversationProjectionTypes'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 
 type ProjectedMessageItem = Extract<AgentConversationProjectionContentItem, { type: 'message' }>['item']
 

@@ -317,7 +317,7 @@ test('frontend quality check rejects agent query key literals outside the factor
   try {
     await writeFixtureFile(root, 'src/features/agent/application/agentQueryKeys.ts', [
       "export const agentSettingsKeys = {",
-      "  skillCatalog: (profileId, baseURL) => ['agent-settings-skill-catalog', profileId, baseURL] as const,",
+      "  skillCatalog: (profileId) => ['agent-settings-skill-catalog', profileId] as const,",
       "}",
     ].join('\n'))
     await writeFixtureFile(root, 'src/features/agent/components/AgentPanel.tsx', [

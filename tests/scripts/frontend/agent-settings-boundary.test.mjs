@@ -28,6 +28,7 @@ const summaryCopySource = readSource('apps/frontend/src/features/agent/applicati
 const configFileControllerSource = readSource('apps/frontend/src/features/agent/application/useAgentSettingsConfigFileController.ts')
 const modelControllerSource = readSource('apps/frontend/src/features/agent/application/useAgentSettingsModelController.ts')
 const snapshotControllerSource = readSource('apps/frontend/src/features/agent/application/useAgentSettingsSnapshotController.ts')
+const catalogCommitServiceSource = readSource('apps/frontend/src/features/agent/application/agentSettingsCatalogCommitService.ts')
 const workspaceConfigControllerSource = readSource('apps/frontend/src/features/agent/application/useAgentSettingsWorkspaceConfigController.ts')
 const pagePartsSource = readSource('apps/frontend/src/features/agent/components/AIAgentSettingsPageParts.tsx')
 const apiModePanelsSource = readSource('apps/frontend/src/features/agent/components/AIAgentSettingsApiModePanels.tsx')
@@ -46,6 +47,13 @@ const configFileRollbackBackupPanelSource = readSource('apps/frontend/src/featur
 const configFileDetailsSectionSource = readSource('apps/frontend/src/features/agent/components/AIAgentSettingsConfigFileDetailsSection.tsx')
 const skillSectionSource = readSource('apps/frontend/src/features/agent/components/AIAgentSettingsSkillSection.tsx')
 const toolPermissionsSectionSource = readSource('apps/frontend/src/features/agent/components/AIAgentSettingsToolPermissionsSection.tsx')
+const catalogPresentationSource = [
+  skillModelSource,
+  toolPermissionsModelSource,
+  skillSectionSource,
+  toolPermissionsSectionSource,
+  rowsSource,
+].join('\n')
 const settingsSharedUiSource = [
   readSource('apps/frontend/src/features/agent/components/AgentSettingsUi.tsx'),
   readSource('apps/frontend/src/features/agent/components/AgentSettingsStatusUi.tsx'),
@@ -110,6 +118,16 @@ test('agent settings page delegates config file and snapshot data transforms', (
   assert.doesNotMatch(pageSource, /settingsProviderSessionClient\.saveActiveProviderConfigFile/)
   assert.doesNotMatch(pageSource, /deleteProviderConfigFile\(\{ configFileId: deletePlan\.configFileId \}\)/)
   assert.doesNotMatch(pageSource, /settingsProviderSessionClient\.deleteProviderConfigFile/)
+  assert.doesNotMatch(pageSource, /ProviderSessionClient/)
+  assert.doesNotMatch(pageSource, /new ProviderSessionClient/)
+  assert.match(pageSource, /createAgentSettingsCatalogCommitClient\(selectedProviderProfileConfig\)/)
+  assert.match(pageSource, /settingsCatalogCommitClient/)
+  assert.match(configFileControllerSource, /client: ProviderConfigFileCommitClient/)
+  assert.doesNotMatch(configFileControllerSource, /ProviderSessionClient/)
+  assert.match(snapshotControllerSource, /client: SettingsSnapshotWriteCommitClient/)
+  assert.doesNotMatch(snapshotControllerSource, /ProviderSessionClient/)
+  assert.match(catalogCommitServiceSource, /createAgentSettingsCatalogCommitClient/)
+  assert.match(catalogCommitServiceSource, /new ProviderSessionClient/)
   assert.doesNotMatch(pageSource, /Promise\.all\(\[catalogQuery\.refetch\(\), capabilitiesQuery\.refetch\(\)\]\)/)
   assert.doesNotMatch(pageSource, /Promise\.all\(\[providerModelConfigQuery\.refetch\(\), catalogQuery\.refetch\(\), capabilitiesQuery\.refetch\(\)\]\)/)
 
@@ -196,7 +214,10 @@ test('agent settings page delegates config file state and commands to an applica
 
 test('agent settings page delegates model config state and commands to an application controller', () => {
   assert.match(pageSource, /from '@\/features\/agent\/application\/useAgentSettingsModelController'/)
-  assert.match(pageSource, /const model = useAgentSettingsModelController\(\{[\s\S]*storedModelId: agentSettings\.modelId,[\s\S]*\}\)/)
+  assert.match(pageSource, /const selectedSettingsModelId = agentSettingsModelIdForProvider\(agentSettings, selectedProviderProfileConfig\.id\)/)
+  assert.match(pageSource, /const updateSelectedSettingsModelId = \(modelId: string \| null\) => updateAgentSettings\(agentSettingsModelSelectionPatch\(agentSettings, selectedProviderProfileConfig\.id, modelId\)\)/)
+  assert.match(pageSource, /const model = useAgentSettingsModelController\(\{[\s\S]*storedModelId: selectedSettingsModelId,[\s\S]*updateSelectedModelId: updateSelectedSettingsModelId,[\s\S]*\}\)/)
+  assert.match(pageSource, /updateSelectedModelId: updateSelectedSettingsModelId/)
   assert.match(configFilesPanelSource, /<AIAgentSettingsModelPanel[\s\S]*effectiveConfig=\{model\.effectiveConfig\}[\s\S]*legacyDirectModelConfig=\{model\.legacyDirectModelConfig\}[\s\S]*onSave=\{model\.saveSettings\}[\s\S]*onClearModelConfig=\{model\.clearModelConfig\}/)
   assert.doesNotMatch(configFilesPanelSource, /selectedApiKind=\{model\.selectedApiKind\}|baseURL=\{model\.baseURL\}|modelApiKey=\{model\.modelApiKey\}|directModelId=\{model\.directModelId\}/)
   assert.doesNotMatch(pageSource, /const \[selectedModelId, setSelectedModelId\]/)
@@ -207,7 +228,8 @@ test('agent settings page delegates model config state and commands to an applic
   assert.doesNotMatch(pageSource, /providerModelSettingsHasUnsavedChanges\(/)
   assert.match(modelControllerSource, /export function useAgentSettingsModelController\(/)
   assert.match(modelControllerSource, /const \[selectedModelId, setSelectedModelId\] = useState<string>\(NO_MODEL_VALUE\)/)
-  assert.match(modelControllerSource, /useQuery\(\{[\s\S]*agentSettingsKeys\.providerModelConfig/)
+  assert.doesNotMatch(modelControllerSource, /agentSettingsKeys\.providerModelConfig/)
+  assert.match(modelControllerSource, /providerModelConfigFromSelection\(\{/)
   assert.match(modelControllerSource, /function resetWorkspaceFromEffectiveConfig\(\)/)
   assert.match(modelControllerSource, /async function saveSettings\(\)/)
   assert.match(modelControllerSource, /async function testSettings\(\)/)
@@ -233,6 +255,12 @@ test('agent settings page delegates skill catalog view model rules', () => {
   }
   assert.match(skillModelSource, /export const SKILL_SOURCE_FILTERS/)
   assert.doesNotMatch(pageSource, /\.\.\.\(skill\.toolGrants \?\? \[\]\),\s*\n\s*\.\.\.\(skill\.toolGrants \?\? \[\]\),/)
+})
+
+test('agent settings catalog presentation uses core protocol types instead of provider session client types', () => {
+  assert.doesNotMatch(catalogPresentationSource, /@\/shared\/infrastructure\/providerSessionClient/)
+  assert.doesNotMatch(catalogPresentationSource, /@\/shared\/infrastructure\/provider-session-client/)
+  assert.match(catalogPresentationSource, /@movscript\/core\/agent\/protocol/)
 })
 
 test('agent settings page delegates tool permissions view model rules', () => {
@@ -274,13 +302,9 @@ test('agent settings page delegates provider model and profile rules', () => {
     'buildProviderProfileConfigOptions',
     'normalizeProviderProfileConfigId',
     'selectedProviderModel',
-    'providerModelBaseURLState',
-    'providerModelDraftState',
+    'providerModelEndpointBaseURLState',
     'providerModelSettingsHasUnsavedChanges',
-    'providerModelSecretValidationIssue',
-    'buildProviderModelConfigRequest',
-    'buildProviderModelOperationPlan',
-    'buildProviderModelTestRequest',
+    'providerModelConfigFromSelection',
     'providerModelValue',
     'modelDisplayName',
     'providerConfigModelHasSecret',
@@ -288,16 +312,24 @@ test('agent settings page delegates provider model and profile rules', () => {
     'providerModelWorkspaceDraftFromConfig',
     'clearedProviderModelWorkspaceDraft',
     'storedProviderModelWorkspaceId',
-    'buildProviderModelConfigFromSnapshotModel',
-    'apiKindBaseURLPlaceholder',
-    'isBackendCompatibleBaseURL',
-    'toCompatibleGatewayBaseURL',
+    'isBackendCompatibleModelEndpointBaseURL',
+    'toCompatibleModelGatewayBaseURL',
   ]) {
     assert.match(providerModelSource, new RegExp(`export function ${helperName}\\b`))
     assert.doesNotMatch(pageSource, new RegExp(`function ${helperName}\\b`))
   }
+  for (const removedHelperName of [
+    'buildProviderModelConfigRequest',
+    'buildProviderModelOperationPlan',
+    'buildProviderModelTestRequest',
+    'buildProviderModelConfigFromSnapshotModel',
+    'apiKindBaseURLPlaceholder',
+  ]) {
+    assert.doesNotMatch(providerModelSource, new RegExp(`export function ${removedHelperName}\\b`))
+  }
   assert.match(providerModelSource, /BUILT_IN_PROVIDER_PROFILE_CONFIG_FALLBACKS/)
   assert.doesNotMatch(pageSource, /const usesModelCatalog = !baseURLValue \|\| usesBackendCompatibleBaseURL/)
+  assert.doesNotMatch(providerModelSource, /providerModelBaseURLState|isBackendCompatibleBaseURL|toCompatibleGatewayBaseURL|baseURLValue/)
   assert.doesNotMatch(pageSource, /const directModelIdHasSecret = usesManualModelId && hasSensitiveTextSecret/)
   assert.doesNotMatch(pageSource, /const providerModelConfigValue = usesModelCatalog \?/)
   assert.doesNotMatch(pageSource, /providerModelConfigValue !== effectiveModelValue \|\|/)
@@ -483,13 +515,14 @@ test('agent settings page delegates header section', () => {
   assert.doesNotMatch(pageSource, /agentConfigStatusRecipe/)
 
   assert.match(headerSectionSource, /export function AIAgentSettingsHeaderSection/)
-  assert.match(headerSectionSource, /import type \{ ProviderProfileConfigOption \}/)
   assert.match(headerSectionSource, /<AgentSettingsHeaderContent\b/)
-  assert.match(headerSectionSource, /<AgentSettingsHeaderActions\b/)
-  assert.match(headerSectionSource, /data-testid="agent-settings-workspace-profile"/)
-  assert.match(headerSectionSource, /data-testid="agent-settings-copy-status"/)
-  assert.match(headerSectionSource, /data-testid="agent-settings-refresh"/)
-  assert.match(headerSectionSource, /agentConfigStatusRecipe\(configured\)/)
+  assert.match(headerSectionSource, /<AgentSettingsHeaderTitle\b/)
+  assert.doesNotMatch(headerSectionSource, /ProviderProfileConfigOption/)
+  assert.doesNotMatch(headerSectionSource, /<AgentSettingsHeaderActions\b/)
+  assert.doesNotMatch(headerSectionSource, /data-testid="agent-settings-workspace-profile"/)
+  assert.doesNotMatch(headerSectionSource, /data-testid="agent-settings-copy-status"/)
+  assert.doesNotMatch(headerSectionSource, /data-testid="agent-settings-refresh"/)
+  assert.doesNotMatch(headerSectionSource, /agentConfigStatusRecipe/)
 })
 
 test('agent settings page delegates model configuration panel', () => {

@@ -29,20 +29,18 @@ import {
   type ConfigFileApprovalDefaultKey,
   type ConfigFileApprovalDefaultWorkspaceValue,
   type ConfigFileLimitKey,
+  type ProviderConfigFileCommitClient,
   type ProviderConfigFileCommitPlan,
 } from '@/features/agent/application/agentSettingsConfigFile'
 import { MAX_CONFIG_FILE_BYTES, settingsErrorMessage } from '@/features/agent/presentation/agentSettingsPageModel'
 import type { AgentSettingsAuditEntry, AgentSettingsConfigFileBackup } from '@/features/agent/state/agentStore'
-import type {
-  ProviderCatalogInspectResponse,
-  ProviderSessionClient,
-} from '@/shared/infrastructure/providerSessionClient'
+import type { ProviderCatalogInspectResponse } from '@movscript/core/agent/protocol'
 import { copyTextToClipboard, downloadTextFile } from '@/shared/ui/browserActions'
 
 interface UseAgentSettingsConfigFileControllerInput {
   backup: AgentSettingsConfigFileBackup | null
   catalog?: ProviderCatalogInspectResponse
-  client: ProviderSessionClient
+  client: ProviderConfigFileCommitClient
   recordSettingsAudit: (entry: Omit<AgentSettingsAuditEntry, 'id' | 'createdAt'> & { createdAt?: string }) => void
   refetchCapabilities: () => Promise<unknown>
   refetchCatalog: () => Promise<unknown>

@@ -1,17 +1,27 @@
 # Agent Frontend Boundaries
 
-This feature keeps provider-session facts, timeline projection, and UI render surfaces on separate paths.
+This feature keeps provider/runtime facts, timeline projection, and UI render surfaces on separate paths.
+
+## Agent Management Surface
+
+User-facing Agent management is expressed through `AgentProfile`, not raw provider/runtime records. A profile answers who the current assistant is, whether it is enabled, how it is reached at a product level, and where the user can adjust visible settings. Provider kind, runtime API, SDK package, and home/config projection remain infrastructure details.
+
+- `src/features/agent/application/agentProfileModel.ts` is the product projection from provider settings to Agent profiles.
+- `AgentConsolePage` is a status overview: current Agent, model summary, capability health, conversations, and attention items. It must not expose provider/catalog/route as Console tabs, runtime selectors, process lifecycle controls, or raw SDK package controls.
+- `AgentsPage` chooses the current Agent. It may render a local connection configuration panel only for profiles that need user confirmation of connection source; SDK/on-demand profiles should remain simple user-facing choices.
+- `ModelProvidersPage` is a read-only governance view. Admin owns provider, catalog, route, credentials, and route bindings.
+- Connection diagnostics may show raw transport facts, but diagnostics should not be the default Agent management path.
 
 ## Unified Agent Chat Contract
 
 The unified Agent Chat is one UI over provider-specific protocols. Its domain layer must be the superset that the UI renders; provider protocols are adapted only at infrastructure boundaries.
 
-- Provider-session protocol types, schema constants, status helpers, telemetry payload helpers, media provider contracts, and run/task graph data contracts live in `packages/core/src/agent/protocol.ts`. Frontend code must import these directly from `@movscript/core/agent/protocol`; do not keep a frontend compatibility alias.
+- Provider-session status helpers, run/task graph data contracts, and re-exported provider contracts live behind `@movscript/core/agent/protocol`, which is a thin re-export entry only. Focused core definitions are split underneath it: attachment/client-input contracts in `agentAttachmentProtocol.ts`, conversation/status projection contracts in `agentConversationProtocol.ts`, telemetry in `agentTelemetry.ts`, generation job/audit contracts in `agentGenerationProtocol.ts`, plan contracts in `agentPlanProtocol.ts`, protocol version in `agentProtocolVersion.ts`, prompt/context/debug preview contracts in `agentPromptDebugProtocol.ts`, run contracts in `agentRunProtocol.ts`, status helpers in `agentStatusProtocol.ts`, task graph contracts in `agentTaskGraphProtocol.ts`, thread/session/message contracts in `agentThreadProtocol.ts`, timeline item/stream/activity contracts in `agentTimelineProtocol.ts`, tool-call contracts in `agentToolProtocol.ts`, trace event/query contracts in `agentTraceProtocol.ts`, media provider contracts in `mediaArtifacts.ts`, provider catalog/tool/skill/capability contracts in `providerCatalog.ts`, approval/input/work/continuation contracts in `providerInteractionProtocol.ts`, model API/config/test contracts in `providerModelProtocol.ts`, provider-session snapshot/event contracts in `providerSessionProtocol.ts`, and shared JSON types in `protocolJson.ts`. Frontend code must import the public contract from `@movscript/core/agent/protocol`; do not keep a frontend compatibility alias.
 - Neutral chat protocol and runtime live under `packages/core/src/agent/chat`. Frontend code must import migrated service-level chat modules directly from `@movscript/core/agent/chat`; do not keep frontend compatibility aliases for thread items, notification events, pending server requests, server-request action/form models, runtime state, or response intents. Core owns that service logic and must not import React, UI component types, browser APIs, app-server clients, Codex, MovScript-owned agent internals, or Claude.
 - UI renderers live under `src/features/agent/components/agent-chat-*` plus `AgentChatDataSourceShell`. They render only neutral domain values and helper view models. Provider-neutral chat view-model helpers, copy, labels, collapse thresholds, and inspect-section grouping live in `packages/core/src/agent/chat`; frontend keeps component composition, orchestration, and product-specific display classifiers. Renderers must not branch on provider protocol types.
-- App-server thread-turn-item mapping is reached through `src/shared/infrastructure/app-server/appServerThreadTurnItemAdapter.ts`. Provider-specific compatibility aliases must not be reintroduced; Codex, Mova, and future app-server providers share this neutral adapter unless their wire protocol genuinely differs.
-- Mova reuses the app-server protocol through provider configuration. The neutral UI should reach it through the provider factory, not a separate provider session chat adapter.
-- SDK-backed runtimes are adapted through `src/shared/infrastructure/sdk-runtime` and selected by provider runtime config. Codex can run through either the app-server runtime or the Codex SDK runtime; Claude reaches the unified shell through the Claude SDK runtime. Provider SDK names may appear in runtime infrastructure, factory selection, and API contract tests, but must not leak into neutral shell renderers or core chat service modules.
+- Agent runtimes are adapted through `src/shared/infrastructure/sdk-runtime` and selected by provider runtime config. The built-in Agents are Codex through `codex-sdk`, Mova through `mova-sdk`, and Claude Code through `claude-sdk`.
+- Mova's SDK is Codex-compatible at the interface boundary. Until the package is published, the runtime package must be supplied by local path or environment, for example `MOVSCRIPT_MOVA_SDK_PACKAGE`; default provider config must not point at a non-existent package.
+- Normal Agent chat must reach providers through `createAgentChatDataSourceForProvider` and SDK runtime contracts. It must not start app-server processes, depend on provider-session app-server clients, or expose app-server lifecycle as the management path.
 
 Server-initiated requests are first-class chat state, not side effects hidden in a tool row. If a provider asks for approval, user input, elicitation, or a dynamic tool result, the adapter must emit an `AgentChatServerRequest` with enough scoped IDs to resolve it. If the protocol event lacks executable IDs, the adapter must recover them from authoritative pending state or expose the item as non-actionable instead of fabricating an approval path.
 
@@ -29,7 +39,7 @@ Attachment reachability is a core protocol fact, not a UI heuristic. `AgentAttac
 
 - Frontend upload/paste flows may create object URLs or localhost resource URLs for preview, but those URLs are display-only unless core classifies them as model-reachable.
 - Provider-session sends must build attachment refs through `prepareProviderSessionAttachmentRefs` or `providerSessionAttachmentRef`. These helpers resolve local files and backend resources to `data:image/...` only when bytes are available; unresolved local/private URLs stay metadata-only and emit warnings.
-- App-server user input and dynamic tool output must use the same model-reachability rule. Only `data:image/...` and public HTTP(S) URLs become native image inputs; localhost, private-network, blob, file, and relative URLs become mentions/resources/text references.
+- Agent runtime adapters for user input and dynamic tool output must use the same model-reachability rule. Only `data:image/...` and public HTTP(S) URLs become native image inputs; localhost, private-network, blob, file, and relative URLs become mentions/resources/text references.
 - History restore keeps local resource images as resource mentions, preserving preview URL metadata for display without reclassifying it as prompt-ready model input.
 - New attachment entry points must carry `source` across protocol boundaries instead of deriving behavior from `url` alone.
 
@@ -58,8 +68,8 @@ When adding a new agent surface, choose exactly one owner first and add the prot
 
 MovScript-owned tools should not fall back to provider-native tool cards once the UI can recognize them. The tool catalog is owned by core MCP registration (`packages/core/src/mcp/node/server/toolRegistry.ts`), while chat rendering stays in the neutral frontend domain.
 
-- Core is the authoritative list of tool names, schemas, and descriptions. Browser UI must not import the Node-only MCP registry directly; use provider/app-server capability data or a serialized catalog snapshot when a full catalog is needed.
-- The app-server adapter should preserve protocol facts. A wire `mcpToolCall` remains a neutral `mcpToolCall` with `raw`, `arguments`, `result`, and `error` intact.
+- Core is the authoritative list of tool names, schemas, and descriptions. Browser UI must not import the Node-only MCP registry directly; use Agent runtime capability data or a serialized catalog snapshot when a full catalog is needed.
+- Runtime adapters should preserve protocol facts. A wire `mcpToolCall` remains a neutral `mcpToolCall` with `raw`, `arguments`, `result`, and `error` intact.
 - Internal tool UI recognition lives in the frontend domain as a classifier from neutral tool-call items to a display view model. Renderers ask the classifier first and fall back to the generic tool card for unknown or third-party tools.
 - Prefer explicit adapters for high-value tools, backed by prefix/family fallback rules for broad groups such as `domain_*`, `system_*`, `movscript_*`, `workspace_*`, and `generation_*`.
 - Each adapter should expose concise business status, key arguments, result summaries, and an inspect section with raw protocol payload for debugging.

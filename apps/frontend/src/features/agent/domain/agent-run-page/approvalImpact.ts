@@ -1,7 +1,7 @@
 import { approvalStatusLabel } from '@/features/agent/domain/agentRunUi'
 import { recordArray, stringArray, stringValue } from '@/features/agent/domain/agent-run-page/runConfigurationSnapshot'
 import { isRecord } from '@/shared/domain/jsonValue'
-import type { AgentRun, AgentTraceEvent } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun, AgentTraceEvent } from '@movscript/core/agent/protocol'
 
 export interface AgentApprovalImpactItem {
   id: string

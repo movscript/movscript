@@ -1,7 +1,7 @@
 import { buildPendingActiveRunInputQueueItems } from '@movscript/core/agent/protocol'
 import { isStoppableAgentRun, isTerminalAgentRun } from '@/features/agent/domain/agentRunControl'
 import type { AgentPendingInputRequest } from '@/features/agent/domain/agentRunInteraction'
-import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 import type { ChatMessage } from '@/features/agent/state/agentStore'
 
 export interface AgentChatComposerViewStateInput {

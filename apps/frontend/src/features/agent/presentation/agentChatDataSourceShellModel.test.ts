@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   applyAgentChatThreadExecutionSettings,
+  agentChatThreadFromRegistryRecord,
+  agentConversationUsesProviderSession,
   buildAgentChatConversationPatchInput,
   buildAgentChatDraftThreadControlOptions,
   buildAgentChatModelSelectionForRequest,
@@ -21,6 +23,7 @@ import {
   resolveAgentChatEmptyThreadLabel,
   resolveAgentChatGoalObjective,
   resolveAgentChatNextThreadAfterClose,
+  provisionalAgentChatThread,
   selectAgentChatInitialSourceThread,
   selectDraftAgentChatQueuedInputsForThread,
   selectAgentChatClosedHistoryThreads,
@@ -35,32 +38,32 @@ const modelIdForOption = (model: { id: number; model: string }) => model.model
 
 test('agent chat conversation registry index filters by user and provider identity', () => {
   assert.deepEqual(buildAgentChatProviderIdentity({
-    provider: 'app-server',
+    provider: 'mova',
     providerId: ' mova ',
     providerInstanceId: ' runtime-a ',
-    providerProtocol: 'app-server',
+    providerProtocol: 'provider-session',
   }), {
-    provider: 'app-server',
+    provider: 'mova',
     providerId: 'mova',
     providerInstanceId: 'runtime-a',
-    providerProtocol: 'app-server',
+    providerProtocol: 'provider-session',
   })
 
   assert.deepEqual(buildAgentChatConversationPatchInput({
     nowMs: 123,
     open: false,
-    provider: 'app-server',
+    provider: 'mova',
     providerId: ' mova ',
     providerInstanceId: ' runtime-a ',
-    providerProtocol: 'app-server',
+    providerProtocol: 'provider-session',
     threadId: 'thread-a',
     userId: 'user-1',
   }), {
     userId: 'user-1',
-    provider: 'app-server',
+    provider: 'mova',
     providerId: 'mova',
     providerInstanceId: 'runtime-a',
-    providerProtocol: 'app-server',
+    providerProtocol: 'provider-session',
     providerThreadId: 'thread-a',
     open: false,
     archived: false,
@@ -70,10 +73,10 @@ test('agent chat conversation registry index filters by user and provider identi
   const index = buildAgentChatConversationRegistryIndex({
     userId: 'user-1',
     providerIdentity: {
-      provider: 'app-server',
+      provider: 'mova',
       providerId: 'mova',
       providerInstanceId: 'runtime-a',
-      providerProtocol: 'app-server',
+      providerProtocol: 'provider-session',
     },
     records: [
       registryRecord({ id: 'newer', providerThreadId: 'thread-newer', updatedAt: 300 }),
@@ -92,10 +95,47 @@ test('agent chat conversation registry index filters by user and provider identi
   ])
 })
 
+test('SDK agent runtime ids are not projected as provider-session ids', () => {
+  const sdkDataSource = {
+    ...agentChatDataSource(),
+    provider: 'codex' as const,
+    providerId: 'codex',
+    providerInstanceId: 'codex-codex-sdk',
+    label: 'Codex',
+  } satisfies AgentChatDataSource
+
+  const provisional = provisionalAgentChatThread('codex_thread_1', sdkDataSource)
+  assert.equal(provisional.providerThreadId, 'codex_thread_1')
+  assert.equal(provisional.providerSessionTreeId, undefined)
+  assert.equal(agentConversationUsesProviderSession({ providerProtocol: 'sdk' }), false)
+  assert.equal(agentConversationUsesProviderSession({ providerProtocol: 'claude-code' }), false)
+  assert.equal(agentConversationUsesProviderSession({}), false)
+  assert.equal(agentConversationUsesProviderSession({ providerProtocol: 'provider-session' }), true)
+
+  const sdkThread = agentChatThreadFromRegistryRecord(registryRecord({
+    provider: 'codex',
+    providerId: 'codex',
+    providerInstanceId: 'codex-codex-sdk',
+    providerProtocol: 'sdk',
+    providerThreadId: 'codex_thread_1',
+    providerSessionId: 'codex-codex-sdk',
+  }), sdkDataSource)
+  assert.equal(sdkThread.providerSessionTreeId, undefined)
+  assert.equal(sdkThread.sessionId, undefined)
+
+  const providerSessionThread = agentChatThreadFromRegistryRecord(registryRecord({
+    providerProtocol: 'provider-session',
+    providerSessionId: 'session_tree_1',
+  }), agentChatDataSource())
+  assert.equal(providerSessionThread.providerSessionTreeId, 'session_tree_1')
+  assert.equal(providerSessionThread.sessionId, 'session_tree_1')
+})
+
 test('agent chat model selection prefers thread overrides then execution settings', () => {
   const modelOptions = [
     { id: 1, model: 'model-a' },
     { id: 2, model: 'model-b', is_default: true },
+    { id: 3, model: 'model-c' },
   ]
 
   assert.deepEqual(buildAgentChatModelSelectionForRequest({
@@ -114,10 +154,32 @@ test('agent chat model selection prefers thread overrides then execution setting
     modelIdForOption,
     modelOptions,
     selectedModelId: 'model-a',
-    thread: { id: 'thread-a', executionSettings: { model: 'model-from-thread' } },
-    threadModelOverrides: { 'thread-a': 'model-override' },
+    thread: { id: 'thread-a', executionSettings: { model: 'model-b' } },
+    threadModelOverrides: { 'thread-a': 'model-c' },
   }), {
-    model: 'model-override',
+    model: 'model-c',
+  })
+
+  assert.deepEqual(buildAgentChatModelSelectionForRequest({
+    baseSelection: {},
+    modelIdForOption,
+    modelOptions,
+    selectedModelId: 'model-a',
+    thread: { id: 'thread-a', executionSettings: { model: 'model-b' } },
+    threadModelOverrides: {},
+  }), {
+    model: 'model-b',
+  })
+
+  assert.deepEqual(buildAgentChatModelSelectionForRequest({
+    baseSelection: {},
+    modelIdForOption,
+    modelOptions,
+    selectedModelId: 'model-a',
+    thread: { id: 'thread-a', executionSettings: { model: 'stale-thread-model' } },
+    threadModelOverrides: { 'thread-a': 'stale-override-model' },
+  }), {
+    model: 'model-a',
   })
 
   assert.equal(resolveAgentChatActiveModelValue({
@@ -151,8 +213,36 @@ test('agent chat model selection prefers thread overrides then execution setting
     modelOptions,
     selectedModelId: null,
     threadModelOverrides: {},
+  }), {})
+
+  assert.deepEqual(buildAgentChatModelSelectionForRequest({
+    baseSelection: {},
+    modelIdForOption,
+    modelOptions: [],
+    selectedModelId: 'model-a',
+    threadModelOverrides: {},
   }), {
-    model: 'model-b',
+    model: 'model-a',
+  })
+
+  assert.deepEqual(buildAgentChatModelSelectionForRequest({
+    baseSelection: {},
+    modelIdForOption,
+    modelOptions: [],
+    selectedModelId: null,
+    thread: { id: 'thread-a', executionSettings: { model: 'stale-thread-model' } },
+    threadModelOverrides: {},
+  }), {})
+
+  assert.deepEqual(buildAgentChatModelSelectionForRequest({
+    baseSelection: {},
+    modelIdForOption,
+    modelOptions: [],
+    selectedModelId: null,
+    thread: { id: 'thread-a', executionSettings: { model: 'stale-thread-model' } },
+    threadModelOverrides: { 'thread-a': 'model-a' },
+  }), {
+    model: 'model-a',
   })
 })
 
@@ -214,10 +304,10 @@ test('agent chat thread execution settings merge into the matching thread', () =
 
 test('agent chat open thread candidates and tab views stay presentation-model owned', () => {
   const dataSource = {
-    provider: 'app-server' as const,
+    provider: 'mova' as const,
     providerId: 'mova',
     providerInstanceId: 'runtime-a',
-    label: 'App Server',
+    label: 'Mova',
     listThreads: async () => ({ threads: [] }),
     readThread: async (threadId: string) => agentThread({ id: threadId }),
     startThread: async () => agentThread(),
@@ -245,10 +335,10 @@ test('agent chat open thread candidates and tab views stay presentation-model ow
     dataSource,
     openThreadIds: new Set(['source-open']),
     providerIdentity: {
-      provider: 'app-server',
+      provider: 'mova',
       providerId: 'mova',
       providerInstanceId: 'runtime-a',
-      providerProtocol: 'app-server',
+      providerProtocol: 'provider-session',
     },
     sourceThreadList: [
       agentThread({ id: 'source-open', preview: 'Source open' }),
@@ -348,10 +438,10 @@ test('agent chat thread candidates can be scoped to the current project', () => 
     openThreadIds: new Set(['source-project', 'source-cwd-project', 'source-other']),
     projectId: 42,
     providerIdentity: {
-      provider: 'app-server',
+      provider: 'mova',
       providerId: 'mova',
       providerInstanceId: 'runtime-a',
-      providerProtocol: 'app-server',
+      providerProtocol: 'provider-session',
     },
     sourceThreadList: [
       agentThread({ id: 'source-project', preview: 'Source project' }),
@@ -492,10 +582,10 @@ function registryRecord(patch: Partial<AgentConversationRegistryRecord>): AgentC
   return {
     id: 'conversation',
     userId: 'user-1',
-    provider: 'app-server',
+    provider: 'mova',
     providerId: 'mova',
     providerInstanceId: 'runtime-a',
-    providerProtocol: 'app-server',
+    providerProtocol: 'provider-session',
     providerThreadId: 'thread',
     open: true,
     archived: false,
@@ -507,10 +597,10 @@ function registryRecord(patch: Partial<AgentConversationRegistryRecord>): AgentC
 
 function agentChatDataSource(): AgentChatDataSource {
   return {
-    provider: 'app-server' as const,
+    provider: 'mova' as const,
     providerId: 'mova',
     providerInstanceId: 'runtime-a',
-    label: 'App Server',
+    label: 'Mova',
     listThreads: async () => ({ threads: [] }),
     readThread: async (threadId: string) => agentThread({ id: threadId }),
     startThread: async () => agentThread(),

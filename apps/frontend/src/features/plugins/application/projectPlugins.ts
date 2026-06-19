@@ -3,12 +3,12 @@ import { createAgentChatDataSourceForProvider } from '@/features/agent/applicati
 import {
   enabledProviders,
   normalizeProviderSettings,
-  usesAppServerProtocol,
   useProviderConfigStore,
 } from '@/shared/infrastructure/providerConfigStore'
 import type {
   ElectronProjectLocalSkill,
   ElectronProjectPluginSnapshot,
+  ElectronProjectSkillProviderTarget,
 } from '@/shared/contracts/electronApi'
 import {
   installProviderMarketplacePlugin,
@@ -68,6 +68,7 @@ export async function installProviderMarketplacePluginToProject(
     pluginKey: `${item.name}@${PROJECT_PLUGIN_MARKETPLACE_NAME}`,
     sourceType: item.sourceType,
     sourcePath: installedSourcePath ?? item.sourcePath,
+    providerTargets: providerTargetsForMarketplaceItem(item),
     enabled: true,
   })
 }
@@ -91,6 +92,24 @@ function normalizeProjectPluginContext(context: ProjectPluginContext | string): 
   }
 }
 
+function providerTargetsForMarketplaceItem(item: ProviderPluginMarketplaceItem): ElectronProjectSkillProviderTarget[] {
+  const explicitTargets = normalizeProjectSkillProviderTargets((item as { providerTargets?: unknown }).providerTargets)
+  if (explicitTargets.length > 0) return explicitTargets
+  if (isProjectSkillProviderTarget(item.providerKind)) return [item.providerKind]
+  throw new Error(`Plugin ${item.displayName || item.name} does not declare a project skill provider target.`)
+}
+
+function isProjectSkillProviderTarget(value: string): value is ElectronProjectSkillProviderTarget {
+  return value === 'codex' || value === 'mova' || value === 'claude'
+}
+
+function normalizeProjectSkillProviderTargets(value: unknown): ElectronProjectSkillProviderTarget[] {
+  const input = Array.isArray(value) ? value : typeof value === 'string' ? [value] : []
+  return Array.from(new Set(input
+    .map((item) => typeof item === 'string' ? item.trim().toLowerCase() : '')
+    .filter((item): item is ElectronProjectSkillProviderTarget => isProjectSkillProviderTarget(item))))
+}
+
 function sourcePathFromProviderInstallResult(value: unknown): string | undefined {
   if (!isRecord(value)) return undefined
   return stringField(value.installedPath)
@@ -101,10 +120,10 @@ function sourcePathFromProviderInstallResult(value: unknown): string | undefined
 
 export async function observeProjectSkills(workspaceDir: string): Promise<ProjectSkillObservation> {
   const providers = enabledProviders(normalizeProviderSettings(useProviderConfigStore.getState().settings))
-  const provider = providers.find(usesAppServerProtocol)
-  if (!provider) return unavailableProjectSkillObservation('没有可用的 app-server provider')
+  const provider = providers[0]
+  if (!provider) return unavailableProjectSkillObservation('没有可用的 Agent provider')
   try {
-    const dataSource = await createAgentChatDataSourceForProvider(provider, { appServerPolicy: 'status-only' })
+    const dataSource = await createAgentChatDataSourceForProvider(provider)
     const response = await dataSource.capabilities?.skills?.list({ cwds: [workspaceDir], forceReload: true })
     return normalizeProjectSkillObservation(response, workspaceDir, provider.label)
   } catch (error) {
@@ -114,7 +133,7 @@ export async function observeProjectSkills(workspaceDir: string): Promise<Projec
 
 function normalizeProjectSkillObservation(response: unknown, workspaceDir: string, providerLabel: string): ProjectSkillObservation {
   if (!isRecord(response) || !Array.isArray(response.data)) {
-    return unavailableProjectSkillObservation('app-server skills/list 返回格式不可识别', providerLabel)
+    return unavailableProjectSkillObservation('Agent skill catalog 返回格式不可识别', providerLabel)
   }
   const entry = response.data.find((item) => isRecord(item) && item.cwd === workspaceDir) ?? response.data.find(isRecord)
   if (!isRecord(entry)) {

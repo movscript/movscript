@@ -2,14 +2,12 @@ import { setMovScriptBackendAPIBaseURL } from '@movscript/core/backend/node'
 import {
   readMovScriptHomeConfig,
   resolveMovScriptHomeConfigPaths,
-  type MovScriptAgentLaunchPolicy,
 } from '@movscript/core/workspace/node'
 import {
   getBackendLaunchPolicy,
   LOCAL_BACKEND_URL,
   startBackend,
 } from '../services/backend'
-import { appServerManager } from '../services/appServerManager'
 import {
   formatDesktopRuntimePreflightFailure,
   prepareDesktopRuntimeDependencies,
@@ -17,31 +15,6 @@ import {
 import { resolveDesktopDefaultMovScriptWorkspaceDir } from '../services/movscriptWorkspaceDefaults'
 import { broadcastBackendStatus } from './backendStatus'
 import { ensureMCPServerReady } from './mcp'
-import type { ElectronAppServerProfile } from '../../src/shared/contracts/electronApi'
-
-const DEFAULT_BOOTSTRAP_AGENT_PROFILE: ElectronAppServerProfile = {
-  id: 'mova-movscript-home',
-  label: 'MovScript Mova',
-  providerKey: 'mova',
-  executableCommand: 'mova',
-  executableEnvVar: 'MOVSCRIPT_MOVA_APP_SERVER_BIN',
-  compatibilityBinEnvNames: ['MOVSCRIPT_MOVA_BIN'],
-  candidateRootRelativePaths: [
-    '../mova/codex-rs/target/debug',
-    '../../mova/codex-rs/target/debug',
-    '../../../mova/codex-rs/target/debug',
-  ],
-  candidateBinaryNames: [
-    'app-server',
-    'mova-app-server',
-    ['codex', 'app-server'].join('-'),
-    'codex',
-  ],
-  pathFallbackReady: false,
-  home: '.mova',
-  compatibilityHomeEnvNames: ['CODEX_HOME'],
-  lifecycle: 'movscript-owned',
-}
 
 async function bootstrapBackendServices(policy: ReturnType<typeof getBackendLaunchPolicy>): Promise<boolean> {
   console.info(`[bootstrap] backend policy=${policy}`)
@@ -58,19 +31,6 @@ async function bootstrapBackendServices(policy: ReturnType<typeof getBackendLaun
   return true
 }
 
-async function bootstrapAgentServices(policy: MovScriptAgentLaunchPolicy): Promise<void> {
-  if (policy !== 'prewarm') {
-    console.info(`[bootstrap] agent policy=${policy}; app-server will start on demand`)
-    return
-  }
-  console.info('[bootstrap] agent policy=prewarm; starting managed app-server')
-  const status = await appServerManager.ensure({ profile: DEFAULT_BOOTSTRAP_AGENT_PROFILE })
-  if (!status.ok || !status.running) {
-    throw new Error(status.error ?? 'Managed app-server failed to start')
-  }
-  console.info(`[bootstrap] managed app-server ready at ${status.endpoint ?? 'managed endpoint'}`)
-}
-
 export async function bootstrapManagedServicesBeforeWindow(): Promise<void> {
   const workspaceDir = resolveDesktopDefaultMovScriptWorkspaceDir()
   const homeConfig = readMovScriptHomeConfig(resolveMovScriptHomeConfigPaths(workspaceDir).configPath)
@@ -85,5 +45,5 @@ export async function bootstrapManagedServicesBeforeWindow(): Promise<void> {
   }
   await bootstrapBackendServices(policy)
   await ensureMCPServerReady()
-  await bootstrapAgentServices(homeConfig.startup.agentPolicy)
+  console.info(`[bootstrap] agent policy=${homeConfig.startup.agentPolicy}; SDK runtimes initialize on demand`)
 }

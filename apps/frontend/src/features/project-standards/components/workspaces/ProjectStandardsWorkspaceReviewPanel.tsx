@@ -19,7 +19,7 @@ import {
   ProjectStandardsWorkspaceReviewSummaryCallout,
 } from './ProjectStandardsWorkspaceReviewUi'
 
-import type { WorkspaceArtifact } from '@/shared/infrastructure/providerSessionClient'
+import type { WorkspaceArtifact } from '@/shared/contracts/workspaceArtifact'
 import type { ProjectStandardsReviewWorkspace } from '@/features/project-standards/application/projectStandardsModel'
 import { ROUTES } from '@/routes/projectRoutes'
 import { projectStandardsWorkspaceStatusRecipe } from '@/features/project-standards/presentation/projectStandardsSemanticUi'

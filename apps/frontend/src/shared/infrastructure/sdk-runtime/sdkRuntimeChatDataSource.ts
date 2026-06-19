@@ -25,10 +25,13 @@ export function createSdkRuntimeChatDataSource(
   const { provider, runtime, contract } = options
   const context = (): SdkRuntimeRequestContext => ({ provider, runtime })
   const workspaceParams = () => options.workspaceContext ? { workspaceContext: options.workspaceContext } : {}
-  const withModel = <T extends object>(input: T): T & AgentChatModelSelection => ({
-    ...options.resolveModelForRequest?.(),
-    ...input,
-  })
+  const withModel = <T extends object>(input: T): T & AgentChatModelSelection => {
+    const resolvedModel = options.resolveModelForRequest?.() ?? {}
+    return {
+      ...resolvedModel,
+      ...input,
+    } as T & AgentChatModelSelection
+  }
 
   return {
     provider: provider.kind,
@@ -36,7 +39,7 @@ export function createSdkRuntimeChatDataSource(
     providerInstanceId: runtime.id,
     label: provider.label,
     serverRequestSubscriptionMode: 'globalWithThreadFallback',
-    capabilities: sdkRuntimeCapabilities(contract, () => client.request('runtime/probe', context())),
+    capabilities: sdkRuntimeCapabilities(() => client.request('runtime/probe', context())),
     listThreads(input) {
       return client.request('thread/list', compactParams({
         ...context(),
@@ -156,48 +159,11 @@ export function createSdkRuntimeChatDataSource(
   }
 }
 
-function sdkRuntimeCapabilities(contract: ProviderRuntimeApiContract, probeRuntime: () => Promise<unknown>): AgentChatCapabilities {
+function sdkRuntimeCapabilities(probeRuntime: () => Promise<unknown>): AgentChatCapabilities {
   return {
     runtime: {
       probe: probeRuntime,
     },
-    ...(contract.capabilities.tools ? { command: unsupportedCommandCapability(), fs: unsupportedFsCapability() } : {}),
-    ...(contract.capabilities.mcp ? { mcp: unsupportedMcpCapability() } : {}),
-    ...(contract.capabilities.config ? { config: unsupportedConfigCapability() } : {}),
-    ...(contract.capabilities.account ? { account: unsupportedAccountCapability() } : {}),
-  }
-}
-
-function unsupportedCommandCapability(): NonNullable<AgentChatCapabilities['command']> {
-  return {
-    exec: () => Promise.reject(new Error('SDK runtime command capability is exposed through turn events, not direct UI command execution.')),
-  }
-}
-
-function unsupportedFsCapability(): NonNullable<AgentChatCapabilities['fs']> {
-  return {
-    readFile: () => Promise.reject(new Error('SDK runtime filesystem capability is exposed through turn events, not direct UI filesystem execution.')),
-    writeFile: () => Promise.reject(new Error('SDK runtime filesystem capability is exposed through turn events, not direct UI filesystem execution.')),
-  }
-}
-
-function unsupportedMcpCapability(): NonNullable<AgentChatCapabilities['mcp']> {
-  return {
-    listServers: () => Promise.reject(new Error('SDK runtime MCP capability is not directly queryable by the UI adapter yet.')),
-    readResource: () => Promise.reject(new Error('SDK runtime MCP capability is not directly queryable by the UI adapter yet.')),
-    callTool: () => Promise.reject(new Error('SDK runtime MCP capability is not directly queryable by the UI adapter yet.')),
-  }
-}
-
-function unsupportedConfigCapability(): NonNullable<AgentChatCapabilities['config']> {
-  return {
-    read: () => Promise.reject(new Error('SDK runtime config capability is not directly queryable by the UI adapter yet.')),
-  }
-}
-
-function unsupportedAccountCapability(): NonNullable<AgentChatCapabilities['account']> {
-  return {
-    read: () => Promise.reject(new Error('SDK runtime account capability is not directly queryable by the UI adapter yet.')),
   }
 }
 

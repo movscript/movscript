@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { buildAgentConversationProjectionRunInteractions } from '@/features/agent/domain/agentConversationProjectionRunInteractions'
-import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun, AgentTimelineItem } from '@movscript/core/agent/protocol'
 import type { ChatMessage, ChatRunActivity } from '@/features/agent/state/agentStore'
 
 test('buildAgentConversationProjectionRunInteractions maps anchored runs and leaves unanchored runs standalone', () => {

@@ -127,6 +127,8 @@ export function ProjectSkillCard({
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
         <Badge variant={skill.enabled ? 'solid' : 'outline'} tone={skill.enabled ? 'success' : 'neutral'}>{skill.enabled ? '已启用' : '未启用'}</Badge>
+        <Badge variant="outline">{projectSkillProviderLabel(skill.providerScope)}</Badge>
+        <Badge variant="outline">{projectSkillScopeLabel(skill.sourceScope)}</Badge>
         <Badge variant="outline">{projectSkillSourceLabel(skill.sourceType)}</Badge>
         {skill.pluginName ? <Badge variant="outline">{skill.pluginName}</Badge> : null}
         {skill.version ? <Badge variant="outline">v{skill.version}</Badge> : null}
@@ -142,6 +144,18 @@ function projectSkillSourceLabel(sourceType: ProjectLocalSkill['sourceType']) {
   if (sourceType === 'project') return '项目'
   if (sourceType === 'project-catalog') return '项目目录'
   return '插件来源'
+}
+
+function projectSkillProviderLabel(providerScope: ProjectLocalSkill['providerScope']) {
+  if (providerScope === 'codex') return 'Codex'
+  if (providerScope === 'mova') return 'Mova'
+  return 'Claude'
+}
+
+function projectSkillScopeLabel(sourceScope: ProjectLocalSkill['sourceScope']) {
+  if (sourceScope === 'global') return '全局'
+  if (sourceScope === 'builtin') return '内置'
+  return '项目'
 }
 
 export function ProjectPluginMarketplaceDialog({
@@ -168,7 +182,7 @@ export function ProjectPluginMarketplaceDialog({
       <PluginDialogSurface layout="project-marketplace">
         <PluginDialogTitle>项目插件市场</PluginDialogTitle>
         <PluginDialogDescription>
-          安装到当前项目后，MovScript 会写入项目插件清单，并准备 Desktop cache、.codex/skills、.agents/skills 与项目 marketplace。
+          安装到当前项目后，MovScript 会写入项目插件清单，并准备 Desktop cache、provider-native skills 与项目 marketplace。
         </PluginDialogDescription>
         <PluginDialogActions>
           <Button size="sm" variant="outline" onClick={onRefresh} disabled={loading} loading={loading}>
@@ -189,7 +203,7 @@ export function ProjectPluginMarketplaceDialog({
         ) : null}
         <PluginPageScrollBody layout="project-marketplace">
           {loading && items.length === 0 ? (
-            <PluginEmptyState icon={Loader2} title="正在读取插件市场" detail="从当前 app-server provider 汇总可安装插件。" layout="marketplace" />
+            <PluginEmptyState icon={Loader2} title="正在读取插件市场" detail="从当前 Agent provider 汇总可安装插件。" layout="marketplace" />
           ) : items.length === 0 ? (
             <PluginEmptyState icon={Store} title="暂无可安装插件" detail="当前 provider 没有返回插件市场内容。" layout="marketplace" />
           ) : (

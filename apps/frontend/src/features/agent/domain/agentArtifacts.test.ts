@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { extractAgentTaskArtifacts } from '@/features/agent/domain/agentArtifacts'
-import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 
 test('extractAgentTaskArtifacts ignores non-plain workspace result objects', () => {
   class ProviderWorkspaceResult {

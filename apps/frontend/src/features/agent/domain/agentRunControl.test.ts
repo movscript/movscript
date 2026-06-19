@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { createProviderSessionStopAbortError, isStoppableAgentRun, isTerminalAgentRun, stopProviderSessionRunAction, type StopProviderSessionRunActionDeps } from '@/features/agent/domain/agentRunControl'
-import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 
 test('run status helpers classify stoppable and terminal runs', () => {
   assert.equal(isStoppableAgentRun(makeRun({ status: 'queued' })), true)

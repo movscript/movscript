@@ -8,7 +8,7 @@ import {
   type AgentRunActivityRoundIndex as ConversationRunActivityRoundIndex,
   type AgentRunActivityRound as ConversationRunActivityRound,
 } from '@/features/agent/domain/agentConversation'
-import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 import type { ChatRunActivity, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 import type {
   AgentActivityDecisionItem,

@@ -380,9 +380,9 @@ func (c *Config) ValidateStartup() error {
 		problems = append(problems, "MOVSCRIPT_MEDIA_WORKER_BASE_URL is required when MOVSCRIPT_MEDIA_PROCESSING_PROVIDER=external-worker")
 	}
 	switch strings.TrimSpace(c.AgentRuntimeProvider) {
-	case "", providercontract.AdapterDesktopManagedAgent, providercontract.AdapterRemoteAgentRuntime, providercontract.AdapterMova, providercontract.AdapterAppServer:
+	case "", providercontract.AdapterDesktopManagedAgent, providercontract.AdapterRemoteAgentRuntime, providercontract.AdapterMova:
 	default:
-		problems = append(problems, "MOVSCRIPT_AGENT_RUNTIME_PROVIDER must be one of: desktop-managed, remote-runtime, mova, app-server")
+		problems = append(problems, "MOVSCRIPT_AGENT_RUNTIME_PROVIDER must be one of: desktop-managed, remote-runtime, mova")
 	}
 	if strings.TrimSpace(c.AgentRuntimeProvider) == providercontract.AdapterRemoteAgentRuntime && strings.TrimSpace(c.AgentRuntimeBaseURL) == "" {
 		problems = append(problems, "MOVSCRIPT_AGENT_RUNTIME_BASE_URL is required when MOVSCRIPT_AGENT_RUNTIME_PROVIDER=remote-runtime")
@@ -762,8 +762,7 @@ func configuredAgentRuntime(c *Config, adapter string) bool {
 	}
 	switch strings.TrimSpace(adapter) {
 	case providercontract.AdapterDesktopManagedAgent,
-		providercontract.AdapterMova,
-		providercontract.AdapterAppServer:
+		providercontract.AdapterMova:
 		return true
 	case providercontract.AdapterRemoteAgentRuntime:
 		return strings.TrimSpace(c.AgentRuntimeBaseURL) != ""

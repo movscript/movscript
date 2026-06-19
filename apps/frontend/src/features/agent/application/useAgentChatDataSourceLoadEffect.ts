@@ -10,6 +10,7 @@ interface MutableRefValue<T> {
 
 interface UseAgentChatDataSourceLoadEffectInput {
   activeThreadIdRef: MutableRefValue<string | null>
+  dataSourceKey?: string
   dispatchRuntime: Dispatch<AgentChatRuntimeAction>
   loadDataSourceRef: MutableRefValue<() => Promise<AgentChatDataSourceShellLoadResult>>
   readRestorableActiveThreadId: () => string | null
@@ -26,6 +27,7 @@ interface UseAgentChatDataSourceLoadEffectInput {
 
 export function useAgentChatDataSourceLoadEffect({
   activeThreadIdRef,
+  dataSourceKey,
   dispatchRuntime,
   loadDataSourceRef,
   readRestorableActiveThreadId,
@@ -70,6 +72,7 @@ export function useAgentChatDataSourceLoadEffect({
     }
   }, [
     activeThreadIdRef,
+    dataSourceKey,
     dispatchRuntime,
     loadDataSourceRef,
     readRestorableActiveThreadId,

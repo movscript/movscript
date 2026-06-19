@@ -12,8 +12,8 @@ import {
   conversationPageTasks,
   type AgentSessionGenerationRecord,
 } from '@/features/agent/domain/agentSessionGenerationProjection'
-import { providerSessionClient } from '@/shared/infrastructure/providerSessionClient'
 import { agentSessionOutputKeys } from '@/features/agent/application/agentSessionOutputQueryKeys'
+import { listAgentSessionThreadRuns } from '@/features/agent/application/agentSessionOutputService'
 import { agentSessionOutputContentWorkspaceChangedResult, invalidateAgentSessionOutputMutationResult } from '@/features/agent/application/agentSessionOutputMutationInvalidation'
 import {
   agentActivityEventMatches,
@@ -64,13 +64,11 @@ export function AgentSessionOutputPane({ conversationId, projectId }: AgentSessi
   const providerThreadId = threadBinding?.providerThreadId?.trim()
   const providerSessionTreeId = threadBinding?.providerSessionTreeId?.trim()
   const providerThreadRunsQuery = useQuery({
-    queryKey: agentSessionOutputKeys.threadRuns(providerSessionClient.baseURL, providerSessionTreeId, providerThreadId),
-    queryFn: () => {
-      const client = providerSessionTreeId
-        ? providerSessionClient.forSession({ sessionId: providerSessionTreeId })
-        : providerSessionClient
-      return client.listRunsByThread(providerThreadId!)
-    },
+    queryKey: agentSessionOutputKeys.threadRuns(providerSessionTreeId, providerThreadId),
+    queryFn: () => listAgentSessionThreadRuns({
+      providerSessionTreeId,
+      providerThreadId: providerThreadId!,
+    }),
     enabled: Boolean(providerThreadId),
     retry: false,
   })

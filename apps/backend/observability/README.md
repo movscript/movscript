@@ -1,6 +1,6 @@
 # Movscript Backend Observability
 
-The backend exposes Prometheus metrics at `GET /metrics`. This stack starts Prometheus and Grafana with provisioned dashboards for the backend, provider-session and app-server behavior, frontend health, infrastructure pressure, and alerts.
+The backend exposes Prometheus metrics at `GET /metrics`. This stack starts Prometheus and Grafana with provisioned dashboards for the backend, provider sessions, Agent runtime behavior, frontend health, infrastructure pressure, and alerts.
 
 ## Start
 
@@ -15,7 +15,6 @@ Ports:
 - Prometheus: `http://127.0.0.1:9091`
 - Grafana: `http://127.0.0.1:3002`
 - Backend metrics target inside compose: `http://backend:8765/metrics`
-- Optional local provider-session app-server target from compose: `http://host.docker.internal:28765/metrics`
 - Host metrics target inside compose: `http://node-exporter:9100/metrics`
 - Container metrics target inside compose: `http://cadvisor:8080/metrics`
 
@@ -39,7 +38,6 @@ Ports:
 - Prometheus: `http://127.0.0.1:9091`
 - Grafana: `http://127.0.0.1:3002`
 - Backend metrics target: `http://host.docker.internal:8765/metrics`
-- Optional local provider-session app-server target: `http://host.docker.internal:28765/metrics`
 - Host metrics target: `http://127.0.0.1:9100/metrics`
 - Container metrics target: `http://127.0.0.1:8081/metrics`
 
@@ -68,7 +66,7 @@ Grafana provisions all JSON dashboards under `grafana/dashboards`. The current d
 - `MovScript Overview`: first-screen system health, HTTP/Agent/frontend status, and active alerts.
 - `Mova`: assistant client operations, provider spans, phase latency, slow stages, local storage/trace store health, and failure evidence.
 - `MovScript Frontend`: Web Vitals, frontend errors, network latency, Long Task, frontend storage latency, Agent send-stage latency, and composer input latency.
-- `MovScript Backend`: HTTP traffic, route latency/errors, DB query latency, object storage latency, shot vector metrics, and app-server panels.
+- `MovScript Backend`: HTTP traffic, route latency/errors, DB query latency, object storage latency, shot vector metrics, and Agent runtime panels.
 - `MovScript Infrastructure`: host CPU/memory/disk/network, container CPU/memory, and scrape target health.
 - `MovScript Alerts`: firing/pending alerts, telemetry rejection, down targets, and alert evidence.
 
@@ -103,7 +101,7 @@ Frontend and Agent telemetry share the same generic sample shape for extensibili
 
 The desktop frontend telemetry contract lives in `packages/core/src/agent/protocol.ts`: `AGENT_CLIENT_TELEMETRY_SCHEMA`, `AGENT_TELEMETRY_LABEL_KEYS`, `AGENT_TELEMETRY_REPORTABLE_METRICS`, `createAgentTelemetryMetricSample`, `createAgentTelemetryLogSample`, and `isAgentTelemetryReportableMetricName`. Frontend and provider collectors should keep provider-specific observation code separate, then adapt samples through this shared runtime contract instead of introducing one-off metric payloads. The backend keeps only allowlisted low-cardinality labels and drops arbitrary labels.
 
-The desktop frontend also polls the local provider-session app-server telemetry snapshot after authentication and forwards reportable provider metrics through the same backend telemetry endpoint. This keeps Enterprise and community Grafana dashboards useful even when Prometheus cannot directly scrape a user's local app-server process.
+The desktop frontend forwards reportable Agent runtime and provider-session telemetry through the same backend telemetry endpoint after authentication. This keeps Enterprise and community Grafana dashboards useful without scraping a user-local runtime process directly.
 
 ## Agent Client Metrics
 

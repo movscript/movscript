@@ -1,3 +1,5 @@
+import type { ProviderModelAPIKind } from '@movscript/core/agent'
+
 // AICredential stores authentication credentials for one adapter type.
 export interface AICredential {
   ID: number
@@ -101,6 +103,7 @@ export interface PublicModel {
   logical_model_id?: string
   provider_variant_count?: number
   capabilities: string[]       // e.g. ["text"], ["image"], ["video"], ["image_edit"]
+  supported_api_kinds?: ProviderModelAPIKind[]
   accepts_image_input: boolean // true for image_edit and i2v models
   is_default?: boolean         // true when admin-pinned as the default for this capability
   model_def_id?: string

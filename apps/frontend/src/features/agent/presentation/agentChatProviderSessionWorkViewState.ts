@@ -1,5 +1,5 @@
 import { isAgentAsyncWorkHandoffRun } from '@/features/agent/domain/agentAsyncWorkHandoff'
-import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 
 export interface AgentChatProviderSessionWorkViewStateInput {
   activeRun: AgentRun | null

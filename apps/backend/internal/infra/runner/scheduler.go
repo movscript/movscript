@@ -13,10 +13,36 @@ import (
 
 // Start launches n worker goroutines. Cancel ctx to stop them gracefully.
 func (w *Worker) Start(ctx context.Context, n int) {
-	go w.reaperLoop(ctx)
+	w.startLoop(ctx, w.reaperLoop)
 	for i := 0; i < n; i++ {
-		go w.loop(ctx)
+		w.startLoop(ctx, w.loop)
 	}
+}
+
+func (w *Worker) Wait() {
+	w.wg.Wait()
+}
+
+func (w *Worker) WaitContext(ctx context.Context) error {
+	done := make(chan struct{})
+	go func() {
+		w.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (w *Worker) startLoop(ctx context.Context, run func(context.Context)) {
+	w.wg.Add(1)
+	go func() {
+		defer w.wg.Done()
+		run(ctx)
+	}()
 }
 
 func (w *Worker) loop(ctx context.Context) {

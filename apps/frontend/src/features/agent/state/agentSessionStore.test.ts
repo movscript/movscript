@@ -191,7 +191,7 @@ test('createProviderSessionConversation scopes identical thread ids by provider 
     provider: 'codex',
     providerId: 'codex',
     providerInstanceId: 'codex-home',
-    providerProtocol: 'app-server',
+    providerProtocol: 'provider-session',
     title: 'Codex thread',
   })
   const movaConversationId = useAgentSessionStore.getState().createProviderSessionConversation('user_1', {
@@ -199,7 +199,7 @@ test('createProviderSessionConversation scopes identical thread ids by provider 
     provider: 'mova',
     providerId: 'mova',
     providerInstanceId: 'mova-home',
-    providerProtocol: 'app-server',
+    providerProtocol: 'provider-session',
     title: 'Mova thread',
   })
 

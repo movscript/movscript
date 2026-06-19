@@ -1,4 +1,4 @@
-import type { AgentThreadSummary } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentThreadSummary } from '@movscript/core/agent/protocol'
 import type { Conversation } from '@/features/agent/state/agentStore'
 
 type TranslationFn = (key: string, options?: Record<string, unknown>) => string

@@ -12,7 +12,7 @@ import {
   AgentSettingsConfigFileList,
   AgentSettingsConfigFileListButton,
 } from '@/features/agent/components/AgentSettingsConfigFileUi'
-import type { ProviderCatalogConfigFile } from '@/shared/infrastructure/providerSessionClient'
+import type { ProviderCatalogConfigFile } from '@movscript/core/agent/protocol'
 import { configFileListSummary } from '@/features/agent/components/AIAgentSettingsPageParts'
 
 export function AIAgentSettingsConfigFileBrowserSection({

@@ -6,28 +6,43 @@ import { AGENT_BACKEND_MODEL_CAPABILITY_QUERY, mergeAgentBackendModels } from '.
 import type { PublicModel } from '@/types'
 
 test('fetchAgentBackendModels asks backend for text and reasoning models', async () => {
-  const requests: Array<{ path: string; capability: unknown }> = []
+  const requests: Array<{ path: string; capability: unknown; apiKind: unknown }> = []
   const client = {
     async get(path: string, options?: { params?: Record<string, unknown> }) {
-      requests.push({ path, capability: options?.params?.capability })
+      requests.push({ path, capability: options?.params?.capability, apiKind: options?.params?.api_kind })
       return { data: [modelFixture({ id: 1, model_id: 'gpt-5.4', capabilities: ['reasoning'] })] }
     },
   }
 
-  const models = await fetchAgentBackendModels(client)
+  const models = await fetchAgentBackendModels({ apiKinds: ['openai_responses', 'openai_chat_completions'] }, client)
 
-  assert.deepEqual(requests, [{ path: '/models', capability: AGENT_BACKEND_MODEL_CAPABILITY_QUERY }])
+  assert.deepEqual(requests, [{ path: '/models', capability: AGENT_BACKEND_MODEL_CAPABILITY_QUERY, apiKind: 'openai_responses,openai_chat_completions' }])
   assert.equal(models[0]?.model_id, 'gpt-5.4')
+})
+
+test('fetchAgentBackendModels keeps the legacy client-first call shape', async () => {
+  const requests: Array<{ path: string; params?: Record<string, unknown> }> = []
+  const client = {
+    async get(path: string, options?: { params?: Record<string, unknown> }) {
+      requests.push({ path, params: options?.params })
+      return { data: [modelFixture({ id: 1, model_id: 'gpt-5.4' })] }
+    },
+  }
+
+  await fetchAgentBackendModels(client)
+
+  assert.deepEqual(requests, [{ path: '/models', params: { capability: AGENT_BACKEND_MODEL_CAPABILITY_QUERY } }])
 })
 
 test('mergeAgentBackendModels deduplicates text and reasoning views of the same backend model', () => {
   const models = mergeAgentBackendModels([
     modelFixture({ id: 1, model_id: 'gpt-5.4', capabilities: ['text'], provider_variant_count: 1 }),
-    modelFixture({ id: 2, model_id: 'gpt-5.4', capabilities: ['reasoning'], provider_variant_count: 1 }),
+    modelFixture({ id: 2, model_id: 'gpt-5.4', capabilities: ['reasoning'], provider_variant_count: 1, supported_api_kinds: ['anthropic_messages'] }),
   ])
 
   assert.equal(models.length, 1)
   assert.deepEqual(models[0]?.capabilities, ['text', 'reasoning'])
+  assert.deepEqual(models[0]?.supported_api_kinds, ['anthropic_messages'])
 })
 
 test('normalizeAgentModelCatalogEntries maps backend gorm IDs to frontend IDs', () => {

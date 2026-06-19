@@ -1,7 +1,6 @@
 import type { AgentSettingsSnapshot, ToolGrantWorkspace } from '@movscript/core/agent'
-import type { ProviderCatalogConfigFile, ProviderCatalogInspectResponse } from '@/shared/infrastructure/providerSessionClient'
+import type { ProviderCatalogConfigFile, ProviderCatalogInspectResponse } from '@movscript/core/agent/protocol'
 import type { AgentSettingsConfigFileBackup } from '@/features/agent/state/agentStore'
-import type { buildProviderModelConfigFromSnapshotModel } from '@/features/agent/application/agentSettingsProviderModel'
 
 export const CONFIG_FILE_LIMIT_KEYS = [
   'maxToolCalls',
@@ -59,7 +58,11 @@ export type SettingsSnapshotConfigFileWritePlan = {
   activeConfigFileId?: string
 }
 export type SettingsSnapshotWritePlan = SettingsSnapshotConfigFileWritePlan & {
-  providerModelConfig: ReturnType<typeof buildProviderModelConfigFromSnapshotModel> | null
+  modelSelection: {
+    modelId: string
+    useForChat: boolean
+    useForPlanner: boolean
+  } | null
   requiresProviderSession: boolean
 }
 export type ConfigFileRollbackRestorePlan = {
@@ -100,7 +103,6 @@ export type ProviderConfigFileCommitClient = {
   deleteProviderConfigFile: (input: { configFileId: string }) => Promise<unknown>
 }
 export type SettingsSnapshotWriteCommitClient = ProviderConfigFileCommitClient & {
-  saveProviderModelConfig: (input: NonNullable<SettingsSnapshotWritePlan['providerModelConfig']>) => Promise<unknown>
 }
 export type SettingsSnapshotImportRequirements = {
   needsCatalog: boolean

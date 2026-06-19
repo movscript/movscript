@@ -10,7 +10,7 @@ const threadBridgeSource = readSource('apps/frontend/src/features/agent/applicat
 const editorDomSource = readSource('apps/frontend/src/features/agent/application/agentComposerEditorDom.ts')
 const draftConversationSource = readSource('apps/frontend/src/features/agent/application/useAgentChatDraftConversation.ts')
 const escapeKeySource = readSource('apps/frontend/src/features/agent/application/useAgentChatEscapeKey.ts')
-const appServerShellSource = readSource('apps/frontend/src/features/agent/components/AppServerChatShell.tsx')
+const agentRuntimeShellSource = readSource('apps/frontend/src/features/agent/components/AgentRuntimeChatShell.tsx')
 const runtimeCacheSource = readSource('apps/frontend/src/features/agent/application/agentChatRuntimeCache.ts')
 const runtimeControllerSource = readSource('apps/frontend/src/features/agent/application/useAgentChatRuntimeController.ts')
 const panelCommandsSource = readSource('apps/frontend/src/features/agent/application/useAgentChatPanelCommands.ts')
@@ -60,8 +60,8 @@ test('agent chat thread channel events live in the application bridge', () => {
   assert.doesNotMatch(shellSource, /window\.addEventListener/)
   assert.doesNotMatch(shellSource, /window\.removeEventListener/)
 
-  assert.match(appServerShellSource, /publishAgentChatThreadOpen\(\{[\s\S]*channel: appServerThreadOpenEvent\(input\.provider\),[\s\S]*threadId: input\.threadId,[\s\S]*\}\)/)
-  assert.doesNotMatch(appServerShellSource, /window\.dispatchEvent/)
+  assert.match(agentRuntimeShellSource, /publishAgentChatThreadOpen\(\{[\s\S]*channel: agentRuntimeThreadOpenEvent\(input\.provider\),[\s\S]*threadId: input\.threadId,[\s\S]*\}\)/)
+  assert.doesNotMatch(agentRuntimeShellSource, /window\.dispatchEvent/)
 
   assert.match(threadBridgeSource, /createEventBus/)
   assert.match(threadBridgeSource, /export function publishAgentChatThreadOpen/)

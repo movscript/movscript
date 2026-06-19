@@ -1,17 +1,3 @@
-import { isAbsolute, join } from 'node:path'
-import type {
-  AgentChatInput,
-  AgentChatThread,
-  AgentChatThreadItem,
-  AgentChatTurn,
-  AgentThreadExecutionSettings,
-  AgentThreadGoalState,
-} from '@movscript/core/agent/chat'
-import {
-  ensureMovScriptWorkspaceContext,
-  resolveMovScriptWorkspaceContextPaths,
-  type MovScriptWorkspaceContextInput,
-} from '@movscript/core/workspace/node'
 import {
   providerRuntimeApiContract,
   type ProviderRuntimeApiContract,
@@ -21,6 +7,7 @@ import type {
   ElectronSdkRuntimeRequestResult,
 } from '../../src/shared/contracts/electronApi'
 import type {
+  SdkRuntimeCredentialProbe,
   SdkRuntimeDescribeResponse,
   SdkRuntimeProbeResponse,
   SdkRuntimeRpcMethod,
@@ -40,19 +27,27 @@ import {
   createInstallingSdkRuntimePackageStoreLoader,
   installedSdkRuntimePackageVersion,
 } from './sdkRuntimePackageStore'
+import type { SdkRuntimeRunPromptEventSink } from './sdkRuntimeTurnEvents'
 import {
-  sdkRuntimeTurnItemsFromResult,
-} from './sdkRuntimeMessageMapper'
-import {
-  notificationEventFromContext,
-  publishSdkRuntimeNotification,
   registerSdkRuntimeHandler,
 } from './sdkRuntimeHost'
 import {
   resolveAgentRuntimeAccountConfig,
   type AgentRuntimeAccountConfig,
-} from './appServerConfigDistribution'
+} from './agentRuntimeAccountResolver'
+import { resolveAgentRuntimeHomeEnv } from './agentRuntimeHomeResolver'
 import { resolveDesktopDefaultMovScriptWorkspaceDir } from './movscriptWorkspaceDefaults'
+import {
+  claudeOptionsFromAccount,
+  codexOptionsFromAccount,
+  normalizeClaudeSdkBaseURL,
+} from './sdkRuntimeConfigInjector'
+import { emitClaudeSdkRuntimeTurnEvents } from './claudeSdkRuntimeStreamAdapter'
+import {
+  handleSdkRuntimeRequest,
+  sdkRuntimeProviderResumeTokenFromResult,
+  syncProviderThreadResumeToken,
+} from './sdkRuntimeRequestHandler'
 
 type CodexConstructor = new (...args: unknown[]) => CodexClient
 type CodexClient = {
@@ -64,6 +59,7 @@ type CodexThread = {
   threadId?: string
   run(prompt: string, options?: Record<string, unknown>): Promise<unknown>
 }
+type CodexLikeRuntimeApi = 'codex-sdk' | 'mova-sdk'
 
 type ClaudeQuery = (input: { prompt: string; options?: Record<string, unknown> }) => AsyncIterable<unknown>
 
@@ -72,18 +68,12 @@ interface SdkRuntimeDefaultHandlerOptions {
   defaultWorkspaceDir?: () => string
 }
 
-interface RuntimeThreadRecord {
-  thread: AgentChatThread
-  providerThread?: unknown
-  activeQuery?: { interrupt?: () => void; abort?: () => void; close?: () => void }
-}
-
-const runtimeThreads = new Map<string, RuntimeThreadRecord>()
-const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com/v1'
-
 export function installDefaultSdkRuntimeHandlers(options: SdkRuntimeDefaultHandlerOptions = {}): () => void {
   const disposers = [
     registerSdkRuntimeHandler('codex-sdk', createCodexSdkRuntimeHandler(options), {
+      supportedMethods: SDK_RUNTIME_REQUIRED_RPC_METHODS,
+    }),
+    registerSdkRuntimeHandler('mova-sdk', createMovaSdkRuntimeHandler(options), {
       supportedMethods: SDK_RUNTIME_REQUIRED_RPC_METHODS,
     }),
     registerSdkRuntimeHandler('claude-sdk', createClaudeSdkRuntimeHandler(options), {
@@ -96,17 +86,25 @@ export function installDefaultSdkRuntimeHandlers(options: SdkRuntimeDefaultHandl
 }
 
 export function createCodexSdkRuntimeHandler(options: SdkRuntimeDefaultHandlerOptions = {}) {
+  return createCodexLikeSdkRuntimeHandler('codex-sdk', options)
+}
+
+export function createMovaSdkRuntimeHandler(options: SdkRuntimeDefaultHandlerOptions = {}) {
+  return createCodexLikeSdkRuntimeHandler('mova-sdk', options)
+}
+
+function createCodexLikeSdkRuntimeHandler(api: CodexLikeRuntimeApi, options: SdkRuntimeDefaultHandlerOptions = {}) {
   return async <M extends SdkRuntimeRpcMethod>(
     input: ElectronSdkRuntimeRequestInput<M>,
   ): Promise<ElectronSdkRuntimeRequestResult<M>> => {
     if (input.method === 'runtime/probe') {
       const params = paramsFor(input, 'runtime/probe')
-      const contract = requiredContract('codex-sdk')
-      const packageName = params.runtime.sdkPackageName ?? contract.sdkPackageName ?? 'missing-codex-sdk-package'
-      return probeRuntimePackage(params, contract, packageName, options) as ElectronSdkRuntimeRequestResult<M>
+      const contract = requiredContract(api)
+      const packageName = codexLikeSdkPackageName(params, contract, api)
+      return probeRuntimePackage(params, contract, packageName, options, api) as ElectronSdkRuntimeRequestResult<M>
     }
-    const runtime = await codexRuntime(input.params, options)
-    return handleRuntimeRequest(input, runtime) as Promise<ElectronSdkRuntimeRequestResult<M>>
+    const runtime = await codexRuntime(input.params, options, api)
+    return handleSdkRuntimeRequest(input, runtime) as Promise<ElectronSdkRuntimeRequestResult<M>>
   }
 }
 
@@ -118,23 +116,27 @@ export function createClaudeSdkRuntimeHandler(options: SdkRuntimeDefaultHandlerO
       const params = paramsFor(input, 'runtime/probe')
       const contract = requiredContract('claude-sdk')
       const packageName = params.runtime.packageName ?? contract.packageName ?? 'missing-claude-sdk-package'
-      return probeRuntimePackage(params, contract, packageName, options) as ElectronSdkRuntimeRequestResult<M>
+      return probeRuntimePackage(params, contract, packageName, options, 'claude-sdk') as ElectronSdkRuntimeRequestResult<M>
     }
     const runtime = await claudeRuntime(input.params, options)
-    return handleRuntimeRequest(input, runtime) as Promise<ElectronSdkRuntimeRequestResult<M>>
+    return handleSdkRuntimeRequest(input, runtime) as Promise<ElectronSdkRuntimeRequestResult<M>>
   }
 }
 
-async function codexRuntime(params: SdkRuntimeRpcRequestMap[SdkRuntimeRpcMethod], options: SdkRuntimeDefaultHandlerOptions) {
-  const contract = requiredContract('codex-sdk')
-  const packageName = params.runtime.sdkPackageName ?? contract.sdkPackageName ?? 'missing-codex-sdk-package'
+async function codexRuntime(
+  params: SdkRuntimeRpcRequestMap[SdkRuntimeRpcMethod],
+  options: SdkRuntimeDefaultHandlerOptions,
+  api: CodexLikeRuntimeApi = 'codex-sdk',
+) {
+  const contract = requiredContract(api)
+  const packageName = codexLikeSdkPackageName(params, contract, api)
   const workspaceDir = resolveSdkRuntimeWorkspaceDir(options)
   const loaded = await loadSdkRuntimePackage(packageName, options.moduleLoader ?? runtimeStoreLoader(packageName, params.runtime.packageVersion))
   if (!loaded.ok) throw new Error(loaded.error)
   assertSdkRuntimePackageContract(packageName, loaded.module, contract.requiredPackageExports)
   const Codex = requiredExport<CodexConstructor>(loaded.module, 'Codex', packageName)
   const account = resolveSdkRuntimeAccountConfig(params, workspaceDir)
-  const codex = new Codex(codexOptionsFromAccount(account, sdkRuntimeHomeEnv(params, workspaceDir)))
+  const codex = new Codex(codexOptionsFromAccount(account, resolveAgentRuntimeHomeEnv(params, workspaceDir)))
   return {
     workspaceDir,
     describe: describeRuntime(params, contract, packageName, sdkRuntimePackageVersion(packageName, params.runtime.packageVersion)),
@@ -142,12 +144,96 @@ async function codexRuntime(params: SdkRuntimeRpcRequestMap[SdkRuntimeRpcMethod]
       const options = codexRuntimeOptions(start)
       return threadId ? codex.resumeThread(threadId, options) : codex.startThread(options)
     },
-    runPrompt: async (providerThread: unknown, prompt: string, turn?: Record<string, unknown>) => {
+    runPrompt: async (
+      providerThread: unknown,
+      prompt: string,
+      turn?: Record<string, unknown>,
+      _events?: SdkRuntimeRunPromptEventSink,
+    ) => {
       if (!providerThread || typeof providerThread !== 'object' || typeof (providerThread as CodexThread).run !== 'function') {
         throw new Error(`${packageName} returned a thread without run().`)
       }
-      return (providerThread as CodexThread).run(prompt, codexRuntimeOptions(turn))
+      try {
+        return await (providerThread as CodexThread).run(prompt, codexRuntimeOptions(turn))
+      } catch (error) {
+        throw normalizeCodexLikeSdkRuntimeError(error, api)
+      }
     },
+  }
+}
+
+function codexLikeSdkPackageName(
+  params: SdkRuntimeRpcRequestMap['runtime/probe'] | SdkRuntimeRpcRequestMap[SdkRuntimeRpcMethod],
+  contract: ProviderRuntimeApiContract,
+  api: CodexLikeRuntimeApi,
+): string {
+  if (api === 'codex-sdk') return params.runtime.sdkPackageName ?? contract.sdkPackageName ?? 'missing-codex-sdk-package'
+  return params.runtime.packageName ?? ''
+}
+
+function sdkRuntimeCredentialProbe(
+  params: SdkRuntimeRpcRequestMap['runtime/probe'],
+  options: SdkRuntimeDefaultHandlerOptions,
+  api: CodexLikeRuntimeApi | 'claude-sdk',
+): SdkRuntimeCredentialProbe {
+  const workspaceDir = resolveSdkRuntimeWorkspaceDir(options)
+  const account = resolveSdkRuntimeAccountConfig(params, workspaceDir)
+  if (api === 'claude-sdk') {
+    return sdkRuntimeCredentialProbeForAccount({
+      account,
+      modelEndpointBaseURL: normalizeClaudeSdkBaseURL(account.modelEndpointBaseURL),
+      env: 'ANTHROPIC_API_KEY',
+      directEnvReady: Boolean(process.env.ANTHROPIC_API_KEY?.trim()),
+      missingDetail: 'Claude Agent SDK credentials are missing. Set ANTHROPIC_API_KEY in the Movscript launch environment, or save a Claude API key in the Agent console.',
+    })
+  }
+  return sdkRuntimeCredentialProbeForAccount({
+    account,
+    env: 'OPENAI_API_KEY',
+    directEnvReady: Boolean(process.env.OPENAI_API_KEY?.trim()),
+    missingDetail: `${api === 'mova-sdk' ? 'Mova SDK' : 'Codex SDK'} credentials are missing. Sign in to Movscript so the workspace backend has a token, or set OPENAI_API_KEY in the Movscript launch environment for direct OpenAI.`,
+  })
+}
+
+function sdkRuntimeCredentialProbeForAccount(input: {
+  account: AgentRuntimeAccountConfig
+  modelEndpointBaseURL?: string
+  env: string
+  directEnvReady: boolean
+  missingDetail: string
+}): SdkRuntimeCredentialProbe {
+  const acceptedEnv = [input.env]
+  const modelEndpointBaseURL = input.modelEndpointBaseURL ?? input.account.modelEndpointBaseURL
+  if (input.account.kind === 'apiKey') {
+    return {
+      ok: true,
+      configured: true,
+      env: input.env,
+      acceptedEnv,
+      source: input.account.accountSource,
+      modelEndpointBaseURL,
+      detail: `Credentials loaded from ${input.account.accountSource}.`,
+    }
+  }
+  if (input.directEnvReady) {
+    return {
+      ok: true,
+      configured: true,
+      env: input.env,
+      acceptedEnv,
+      source: 'launch-env',
+      modelEndpointBaseURL,
+      detail: `Credentials loaded from ${input.env}.`,
+    }
+  }
+  return {
+    ok: false,
+    configured: false,
+    env: input.env,
+    acceptedEnv,
+    source: 'none',
+    modelEndpointBaseURL,
+    detail: input.missingDetail,
   }
 }
 
@@ -156,10 +242,12 @@ async function probeRuntimePackage(
   contract: ProviderRuntimeApiContract,
   packageName: string,
   options: SdkRuntimeDefaultHandlerOptions,
+  api: CodexLikeRuntimeApi | 'claude-sdk',
 ): Promise<SdkRuntimeProbeResponse> {
   const loaded = await loadSdkRuntimePackage(packageName, options.moduleLoader ?? runtimeStoreLoader(packageName, params.runtime.packageVersion))
   const requiredRpcMethods = contract.requiredRpcMethods ?? []
   const missingRpcMethods = requiredRpcMethods.filter((method) => !SDK_RUNTIME_REQUIRED_RPC_METHODS.includes(method))
+  const credentials = sdkRuntimeCredentialProbe(params, options, api)
   const base = {
     runtime: runtimeDescription(params),
     sdk: {
@@ -191,12 +279,17 @@ async function probeRuntimePackage(
           required: [...requiredRpcMethods],
           missing: missingRpcMethods,
         },
+        credentials,
       },
+      credentials,
       ...(loaded.error ? { error: loaded.error } : {}),
     }
   }
   const exportProbe = probeSdkRuntimePackageContract(packageName, loaded.module, contract.requiredPackageExports)
-  const ok = exportProbe.ok && missingRpcMethods.length === 0
+  const ok = exportProbe.ok && missingRpcMethods.length === 0 && credentials.ok
+  const error = exportProbe.error
+    ?? (missingRpcMethods.length > 0 ? `SDK runtime ${contract.api} is missing required RPC methods: ${missingRpcMethods.join(', ')}` : undefined)
+    ?? credentials.detail
   return {
     ok,
     ...base,
@@ -213,8 +306,10 @@ async function probeRuntimePackage(
         required: [...requiredRpcMethods],
         missing: missingRpcMethods,
       },
+      credentials,
     },
-    ...(!ok ? { error: exportProbe.error ?? `SDK runtime ${contract.api} is missing required RPC methods: ${missingRpcMethods.join(', ')}` } : {}),
+    credentials,
+    ...(!ok && error ? { error } : {}),
   }
 }
 
@@ -227,23 +322,41 @@ async function claudeRuntime(params: SdkRuntimeRpcRequestMap[SdkRuntimeRpcMethod
   assertSdkRuntimePackageContract(packageName, loaded.module, contract.requiredPackageExports)
   const query = requiredExport<ClaudeQuery>(loaded.module, 'query', packageName)
   const account = resolveSdkRuntimeAccountConfig(params, workspaceDir)
-  const accountOptions = claudeOptionsFromAccount(account, sdkRuntimeHomeEnv(params, workspaceDir))
+  const accountOptions = claudeOptionsFromAccount(account, resolveAgentRuntimeHomeEnv(params, workspaceDir))
   return {
     workspaceDir,
     describe: describeRuntime(params, contract, packageName, sdkRuntimePackageVersion(packageName, params.runtime.packageVersion)),
     startProviderThread: (threadId?: string) => ({ id: threadId ?? `claude_${randomId()}` }),
-    runPrompt: async (_providerThread: unknown, prompt: string, turn?: Record<string, unknown>) => {
+    runPrompt: async (
+      _providerThread: unknown,
+      prompt: string,
+      turn?: Record<string, unknown>,
+      events?: SdkRuntimeRunPromptEventSink,
+    ) => {
       const messages: unknown[] = []
-      const stream = query({
-        prompt,
-        options: {
+      const resume = claudeProviderThreadResumeToken(_providerThread)
+      try {
+        const queryOptions: Record<string, unknown> = {
           ...accountOptions,
           ...(turn?.cwd ? { cwd: turn.cwd } : {}),
           ...(turn?.model ? { model: turn.model } : {}),
-          ...(turn?.threadId ? { resume: turn.threadId } : {}),
-        },
-      })
-      for await (const message of stream) messages.push(message)
+          ...(resume ? { resume } : {}),
+        }
+        const stream = query({
+          prompt,
+          options: queryOptions,
+        })
+        let index = 0
+        for await (const message of stream) {
+          messages.push(message)
+          emitClaudeSdkRuntimeTurnEvents(message, index, events)
+          index += 1
+        }
+      } catch (error) {
+        throw normalizeClaudeSdkRuntimeError(error)
+      }
+      const resumeToken = sdkRuntimeProviderResumeTokenFromResult(messages)
+      if (resumeToken) syncProviderThreadResumeToken(_providerThread, resumeToken)
       return messages
     },
   }
@@ -253,11 +366,20 @@ function resolveSdkRuntimeAccountConfig(
   params: SdkRuntimeRpcRequestMap[SdkRuntimeRpcMethod],
   workspaceDir: string,
 ): AgentRuntimeAccountConfig {
-  return resolveAgentRuntimeAccountConfig({
+  const account = resolveAgentRuntimeAccountConfig({
     workspaceDir,
     providerKey: params.provider.id || params.provider.kind,
     provider: params.provider as unknown as Record<string, unknown>,
+    runtimeApi: params.runtime.api,
+    preferBackendSession: params.provider.kind === 'codex'
+      || params.provider.kind === 'mova'
+      || params.provider.kind === 'claude'
+      || params.runtime.api === 'codex-sdk'
+      || params.runtime.api === 'mova-sdk'
+      || params.runtime.api === 'claude-sdk',
+    appSettingsWorkspaceDirs: [resolveDefaultSdkRuntimeWorkspaceDir()],
   })
+  return account
 }
 
 function resolveSdkRuntimeWorkspaceDir(options: SdkRuntimeDefaultHandlerOptions): string {
@@ -270,279 +392,6 @@ function resolveDefaultSdkRuntimeWorkspaceDir(): string {
   } catch {
     return process.cwd()
   }
-}
-
-function sdkRuntimeHomeEnv(
-  params: SdkRuntimeRpcRequestMap[SdkRuntimeRpcMethod],
-  workspaceDir: string,
-): NodeJS.ProcessEnv {
-  if (params.provider.kind === 'claude' || params.runtime.api === 'claude-sdk') {
-    return { CLAUDE_CONFIG_DIR: join(workspaceDir, '.claude') }
-  }
-  if (params.provider.kind === 'codex' || params.runtime.api === 'codex-sdk') {
-    const home = providerHomeDir(params.provider.appServerProfile?.home, workspaceDir, '.codex')
-    const envNames = new Set(['CODEX_HOME', ...(params.provider.appServerProfile?.compatibilityHomeEnvNames ?? [])])
-    return Object.fromEntries(Array.from(envNames).map((name) => [name, home]))
-  }
-  return {}
-}
-
-function providerHomeDir(home: string | undefined, workspaceDir: string, fallback: string): string {
-  const value = home?.trim() || fallback
-  return isAbsolute(value) ? value : join(workspaceDir, value)
-}
-
-function codexOptionsFromAccount(account: AgentRuntimeAccountConfig, envOverrides: NodeJS.ProcessEnv): Record<string, unknown> | undefined {
-  const shouldSetBaseURL = account.backendProviderSelected || account.baseURL !== DEFAULT_OPENAI_BASE_URL
-  const next: Record<string, unknown> = {
-    baseUrl: account.baseURL,
-    ...(account.kind === 'apiKey' ? { apiKey: account.apiKey } : {}),
-    env: {
-      ...process.env,
-      ...envOverrides,
-      ...(account.kind === 'apiKey' ? { OPENAI_API_KEY: account.apiKey } : {}),
-      ...(shouldSetBaseURL
-        ? {
-            OPENAI_BASE_URL: account.baseURL,
-            OPENAI_API_BASE_URL: account.baseURL,
-          }
-        : {}),
-    },
-  }
-  return Object.keys(next).length ? next : undefined
-}
-
-function claudeOptionsFromAccount(account: AgentRuntimeAccountConfig, envOverrides: NodeJS.ProcessEnv): Record<string, unknown> {
-  const shouldSetBaseURL = account.backendProviderSelected || account.baseURL !== DEFAULT_OPENAI_BASE_URL
-  const env: NodeJS.ProcessEnv = {
-    ...process.env,
-    ...envOverrides,
-    ...(account.kind === 'apiKey' ? { ANTHROPIC_API_KEY: account.apiKey } : {}),
-    ...(shouldSetBaseURL
-      ? {
-          ANTHROPIC_BASE_URL: account.baseURL,
-          ANTHROPIC_API_BASE_URL: account.baseURL,
-        }
-      : {}),
-  }
-  return { env }
-}
-
-async function handleRuntimeRequest(
-  input: ElectronSdkRuntimeRequestInput,
-  runtime: Awaited<ReturnType<typeof codexRuntime>> | Awaited<ReturnType<typeof claudeRuntime>>,
-): Promise<unknown> {
-  if (input.method === 'runtime/describe') return runtime.describe
-  if (input.method === 'thread/list') return { threads: threadsForRuntime(input.params.runtime.id) }
-  if (input.method === 'thread/read') {
-    const params = paramsFor(input, 'thread/read')
-    return readRuntimeThread(params.runtime.id, params.threadId)
-  }
-  if (input.method === 'thread/start') return startRuntimeThread(paramsFor(input, 'thread/start'), runtime)
-  if (input.method === 'thread/resume') return resumeRuntimeThread(paramsFor(input, 'thread/resume'), runtime)
-  if (input.method === 'thread/rename') return renameRuntimeThread(paramsFor(input, 'thread/rename'))
-  if (input.method === 'thread/archive') return archiveRuntimeThread(paramsFor(input, 'thread/archive'), true)
-  if (input.method === 'thread/unarchive') return archiveRuntimeThread(paramsFor(input, 'thread/unarchive'), false)
-  if (input.method === 'thread/delete') return deleteRuntimeThread(paramsFor(input, 'thread/delete'))
-  if (input.method === 'thread/settings/update') return updateRuntimeThreadSettings(paramsFor(input, 'thread/settings/update'))
-  if (input.method === 'thread/goal/set') return setRuntimeThreadGoal(paramsFor(input, 'thread/goal/set'))
-  if (input.method === 'turn/text/start') return startRuntimeTextTurn(paramsFor(input, 'turn/text/start'), runtime)
-  if (input.method === 'turn/start') {
-    const params = paramsFor(input, 'turn/start')
-    return startRuntimeTextTurn({
-      ...params,
-      text: promptFromInputs(params.inputs),
-    }, runtime)
-  }
-  if (input.method === 'turn/steer') {
-    const params = paramsFor(input, 'turn/steer')
-    return startRuntimeTextTurn({
-      ...params,
-      text: promptFromInputs(params.inputs),
-    }, runtime)
-  }
-  if (input.method === 'turn/interrupt') {
-    const params = paramsFor(input, 'turn/interrupt')
-    return interruptRuntimeTurn(params.runtime.id, params.threadId)
-  }
-  if (input.method === 'runtime/notify/threadSubscribe' || input.method === 'runtime/notify/serverRequestsSubscribe') return undefined
-  throw new Error(`SDK runtime method is not implemented yet: ${input.method}`)
-}
-
-async function startRuntimeThread(
-  params: SdkRuntimeRpcRequestMap['thread/start'],
-  runtime: Awaited<ReturnType<typeof codexRuntime>> | Awaited<ReturnType<typeof claudeRuntime>>,
-): Promise<AgentChatThread> {
-  const options = runtimeOptions(params, runtime.workspaceDir)
-  const providerThread = runtime.startProviderThread(undefined, options)
-  const threadId = providerThreadId(providerThread) ?? `${params.provider.kind}_${randomId()}`
-  const thread = baseThread(params.provider.kind, params.runtime.id, threadId, params.title, stringField(options, 'cwd') ?? params.cwd)
-  runtimeThreads.set(runtimeThreadKey(params.runtime.id, threadId), { thread, providerThread })
-  publishThreadNotification({ ...params, threadId }, 'thread/started', { thread })
-  return thread
-}
-
-async function resumeRuntimeThread(
-  params: SdkRuntimeRpcRequestMap['thread/resume'],
-  runtime: Awaited<ReturnType<typeof codexRuntime>> | Awaited<ReturnType<typeof claudeRuntime>>,
-): Promise<AgentChatThread> {
-  const key = runtimeThreadKey(params.runtime.id, params.threadId)
-  const existing = runtimeThreads.get(key)
-  if (existing) return existing.thread
-  const options = runtimeOptions(params, runtime.workspaceDir)
-  const providerThread = runtime.startProviderThread(params.threadId, options)
-  const thread = baseThread(params.provider.kind, params.runtime.id, params.threadId, null, stringField(options, 'cwd') ?? params.cwd)
-  runtimeThreads.set(key, { thread, providerThread })
-  publishThreadNotification(params, 'thread/started', { thread })
-  return thread
-}
-
-async function startRuntimeTextTurn(
-  params: SdkRuntimeRpcRequestMap['turn/text/start'],
-  runtime: Awaited<ReturnType<typeof codexRuntime>> | Awaited<ReturnType<typeof claudeRuntime>>,
-): Promise<AgentChatTurn> {
-  const thread = await resumeRuntimeThread(params, runtime)
-  const record = runtimeThreads.get(runtimeThreadKey(params.runtime.id, params.threadId))
-  if (!record) throw new Error(`SDK runtime thread is not available: ${params.threadId}`)
-  const startedAt = Date.now()
-  const turnId = `turn_${randomId()}`
-  const pendingTurn: AgentChatTurn = {
-    id: turnId,
-    items: [userMessageItem(turnId, params.text, params.clientUserMessageId)],
-    itemsView: 'full',
-    status: 'inProgress',
-    error: null,
-    startedAt,
-    completedAt: null,
-    durationMs: null,
-  }
-  publishThreadNotification(params, 'thread/status/changed', { status: 'running' })
-  publishThreadNotification(params, 'turn/started', { turn: pendingTurn })
-  const options = runtimeOptions(params, runtime.workspaceDir, record.thread.cwd)
-  if (typeof options.cwd === 'string' && record.thread.cwd !== options.cwd) {
-    record.thread = { ...record.thread, cwd: options.cwd }
-  }
-  const result = await runtime.runPrompt(record.providerThread, params.text, options)
-  const completedAt = Date.now()
-  const resultItems = sdkRuntimeTurnItemsFromResult({ turnId, result })
-  const turn: AgentChatTurn = {
-    id: turnId,
-    items: [
-      userMessageItem(turnId, params.text, params.clientUserMessageId),
-      ...resultItems,
-    ],
-    itemsView: 'full',
-    status: 'completed',
-    error: null,
-    startedAt,
-    completedAt,
-    durationMs: completedAt - startedAt,
-    raw: result,
-  }
-  const assistantItem = turn.items.find((item): item is Extract<AgentChatThreadItem, { type: 'agentMessage' }> => item.type === 'agentMessage')
-  if (assistantItem?.text) {
-    publishThreadNotification(params, 'item/agentMessage/delta', {
-      turnId,
-      itemId: assistantItem.id,
-      delta: assistantItem.text,
-      phase: null,
-    })
-  }
-  thread.turns = [...thread.turns, turn]
-  thread.status = 'idle'
-  thread.updatedAt = completedAt
-  thread.preview = params.text
-  publishThreadNotification(params, 'turn/completed', { turn })
-  publishThreadNotification(params, 'thread/status/changed', { status: 'idle' })
-  return turn
-}
-
-function renameRuntimeThread(params: SdkRuntimeRpcRequestMap['thread/rename']): AgentChatThread {
-  const record = requireRuntimeThreadRecord(params.runtime.id, params.threadId)
-  const updated = {
-    ...record.thread,
-    name: params.name,
-    updatedAt: Date.now(),
-  }
-  record.thread = updated
-  publishThreadNotification(params, 'thread/name/updated', { name: params.name })
-  return updated
-}
-
-function archiveRuntimeThread(
-  params: SdkRuntimeRpcRequestMap['thread/archive'] | SdkRuntimeRpcRequestMap['thread/unarchive'],
-  archived: boolean,
-): AgentChatThread {
-  const record = requireRuntimeThreadRecord(params.runtime.id, params.threadId)
-  const updated = {
-    ...record.thread,
-    updatedAt: Date.now(),
-    raw: {
-      ...(isRecord(record.thread.raw) ? record.thread.raw : {}),
-      archived,
-    },
-  }
-  record.thread = updated
-  publishThreadNotification(params, archived ? 'thread/archived' : 'thread/unarchived', { threadId: params.threadId })
-  return updated
-}
-
-function deleteRuntimeThread(params: SdkRuntimeRpcRequestMap['thread/delete']): { ok: true } {
-  runtimeThreads.delete(runtimeThreadKey(params.runtime.id, params.threadId))
-  publishThreadNotification(params, 'thread/closed', { threadId: params.threadId })
-  return { ok: true }
-}
-
-function updateRuntimeThreadSettings(params: SdkRuntimeRpcRequestMap['thread/settings/update']): AgentThreadExecutionSettings {
-  const record = requireRuntimeThreadRecord(params.runtime.id, params.threadId)
-  const executionSettings: AgentThreadExecutionSettings = {
-    ...(record.thread.executionSettings ?? {}),
-    ...(typeof params.cwd === 'string' || params.cwd === null ? { cwd: params.cwd } : {}),
-    ...(typeof params.model === 'string' ? { model: params.model } : {}),
-    ...(typeof params.modelProvider === 'string' ? { modelProvider: params.modelProvider } : {}),
-    ...(typeof params.runProfile?.approvalPolicy === 'string' ? { approvalPolicy: params.runProfile.approvalPolicy } : {}),
-    ...(typeof params.runProfile?.approvalsReviewer === 'string' ? { approvalsReviewer: params.runProfile.approvalsReviewer } : {}),
-    ...(typeof params.runProfile?.permissionProfileId === 'string' ? { permissions: params.runProfile.permissionProfileId } : {}),
-    ...(params.runProfile?.fallbackSandbox !== undefined ? { sandbox: params.runProfile.fallbackSandbox } : {}),
-  }
-  record.thread = {
-    ...record.thread,
-    ...(executionSettings.cwd !== undefined ? { cwd: executionSettings.cwd } : {}),
-    executionSettings,
-    updatedAt: Date.now(),
-  }
-  publishThreadNotification(params, 'thread/settings/updated', { threadSettings: executionSettings })
-  return executionSettings
-}
-
-function setRuntimeThreadGoal(params: SdkRuntimeRpcRequestMap['thread/goal/set']): AgentThreadGoalState {
-  const record = requireRuntimeThreadRecord(params.runtime.id, params.threadId)
-  const now = Date.now()
-  const previous = record.thread.goal ?? undefined
-  const goal: AgentThreadGoalState = {
-    objective: params.objective ?? previous?.objective ?? '',
-    status: params.status ?? previous?.status ?? 'active',
-    ...(params.tokenBudget !== undefined ? { tokenBudget: params.tokenBudget } : previous?.tokenBudget !== undefined ? { tokenBudget: previous.tokenBudget } : {}),
-    ...(previous?.tokensUsed !== undefined ? { tokensUsed: previous.tokensUsed } : {}),
-    ...(previous?.timeUsedSeconds !== undefined ? { timeUsedSeconds: previous.timeUsedSeconds } : {}),
-    createdAt: previous?.createdAt ?? now,
-    updatedAt: now,
-  }
-  record.thread = {
-    ...record.thread,
-    goal,
-    updatedAt: now,
-  }
-  publishThreadNotification(params, 'thread/goal/updated', { goal })
-  return goal
-}
-
-function interruptRuntimeTurn(runtimeId: string, threadId: string): unknown {
-  const record = runtimeThreads.get(runtimeThreadKey(runtimeId, threadId))
-  record?.activeQuery?.interrupt?.()
-  record?.activeQuery?.abort?.()
-  record?.activeQuery?.close?.()
-  return { ok: true }
 }
 
 function describeRuntime(
@@ -585,79 +434,28 @@ function runtimeDescription(
   }
 }
 
-function baseThread(provider: string, runtimeId: string, threadId: string, title?: string | null, cwd?: string | null): AgentChatThread {
-  const now = Date.now()
-  return {
-    provider,
-    id: threadId,
-    providerThreadId: threadId,
-    providerSessionTreeId: runtimeId,
-    preview: '',
-    name: title ?? null,
-    createdAt: now,
-    updatedAt: now,
-    status: 'idle',
-    ...(cwd ? { cwd } : {}),
-    turns: [],
-  }
-}
-
-function userMessageItem(turnId: string, text: string, clientId?: string | null): AgentChatThreadItem {
-  return {
-    type: 'userMessage',
-    id: `${turnId}_user`,
-    clientId: clientId ?? null,
-    content: [{ type: 'text', text, textElements: [] }],
-  }
-}
-
-function readRuntimeThread(runtimeId: string, threadId: string): AgentChatThread {
-  return requireRuntimeThreadRecord(runtimeId, threadId).thread
-}
-
-function threadsForRuntime(runtimeId: string): AgentChatThread[] {
-  return Array.from(runtimeThreads.entries())
-    .filter(([key]) => key.startsWith(`${runtimeId}:`))
-    .map(([, record]) => record.thread)
-}
-
-function requireRuntimeThreadRecord(runtimeId: string, threadId: string): RuntimeThreadRecord {
-  const record = runtimeThreads.get(runtimeThreadKey(runtimeId, threadId))
-  if (!record) throw new Error(`SDK runtime thread not found: ${threadId}`)
-  return record
-}
-
-function promptFromInputs(inputs: AgentChatInput[]): string {
-  return inputs.map((input) => input.type === 'text' ? input.text : `[${input.type}] ${'name' in input ? input.name : ''}`.trim()).join('\n').trim()
-}
-
-function providerThreadId(providerThread: unknown): string | undefined {
+function claudeProviderThreadResumeToken(providerThread: unknown): string | undefined {
   if (!isRecord(providerThread)) return undefined
-  return stringField(providerThread, 'id') ?? stringField(providerThread, 'threadId')
+  return stringField(providerThread, 'resumeToken')
+    ?? stringField(providerThread, 'claudeSessionId')
+    ?? stringField(providerThread, 'session_id')
 }
 
-function runtimeOptions(params: object, workspaceDir: string, fallbackCwd?: string | null): Record<string, unknown> {
-  const record = params as Record<string, unknown>
-  const cwd = resolveSdkRuntimeCwd(record, workspaceDir, fallbackCwd)
-  return {
-    ...(cwd ? { cwd } : {}),
-    ...(typeof record.model === 'string' ? { model: record.model } : {}),
-    ...(typeof record.threadId === 'string' ? { threadId: record.threadId } : {}),
+function normalizeClaudeSdkRuntimeError(error: unknown): Error {
+  const message = errorMessage(error)
+  if (/not logged in|please run\s+\/login/i.test(message)) {
+    return new Error('Claude Agent SDK credentials are missing. Save a Claude API key in Agent Console, or set ANTHROPIC_API_KEY in the Movscript launch environment. If you intentionally use Claude Code login instead, run `claude` in a terminal and enter `/login` with the same CLAUDE_CONFIG_DIR.')
   }
+  return error instanceof Error ? error : new Error(message)
 }
 
-function resolveSdkRuntimeCwd(record: Record<string, unknown>, workspaceDir: string, fallbackCwd?: string | null): string | undefined {
-  if (typeof record.cwd === 'string' && record.cwd.trim()) return record.cwd
-  if (record.cwd === null) return undefined
-  if (typeof fallbackCwd === 'string' && fallbackCwd.trim()) return fallbackCwd
-  const workspaceContext = isRecord(record.workspaceContext) ? record.workspaceContext : undefined
-  const projectId = record.projectId
-  if (!workspaceContext && typeof projectId !== 'number' && typeof projectId !== 'string') return undefined
-  return ensureMovScriptWorkspaceContext(resolveMovScriptWorkspaceContextPaths({
-    workspaceDir,
-    ...(workspaceContext as MovScriptWorkspaceContextInput | undefined),
-    ...(projectId !== undefined && !workspaceContext?.projectId ? { projectId: projectId as string | number } : {}),
-  })).providerSessionCwd
+function normalizeCodexLikeSdkRuntimeError(error: unknown, api: CodexLikeRuntimeApi): Error {
+  const message = errorMessage(error)
+  if (/401|unauthorized|missing bearer|missing .*authentication/i.test(message)) {
+    const label = api === 'mova-sdk' ? 'Mova SDK' : 'Codex SDK'
+    return new Error(`${label} credentials are missing. Movscript SDK mode uses the backend model gateway by default when a backend session is available. Sign in to Movscript so the workspace backend has a token, or set OPENAI_API_KEY in the Movscript launch environment for direct OpenAI.`)
+  }
+  return error instanceof Error ? error : new Error(message)
 }
 
 function codexRuntimeOptions(input?: Record<string, unknown>): Record<string, unknown> | undefined {
@@ -676,7 +474,7 @@ function paramsFor<M extends SdkRuntimeRpcMethod>(
   return input.params as SdkRuntimeRpcRequestMap[M]
 }
 
-function requiredContract(api: 'codex-sdk' | 'claude-sdk'): ProviderRuntimeApiContract {
+function requiredContract(api: 'codex-sdk' | 'mova-sdk' | 'claude-sdk'): ProviderRuntimeApiContract {
   const contract = providerRuntimeApiContract(api)
   if (!contract) throw new Error(`Missing runtime contract: ${api}`)
   return contract
@@ -694,13 +492,13 @@ function sdkRuntimePackageVersion(packageName: string, configuredVersion?: strin
   return configuredVersion?.trim() || installedSdkRuntimePackageVersion(packageName)
 }
 
-function runtimeThreadKey(runtimeId: string, threadId: string): string {
-  return `${runtimeId}:${threadId}`
-}
-
 function stringField(record: Record<string, unknown>, field: string): string | undefined {
   const value = record[field]
   return typeof value === 'string' && value.trim() ? value : undefined
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -709,19 +507,4 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function randomId(): string {
   return Math.random().toString(36).slice(2, 10)
-}
-
-function publishThreadNotification(
-  context: (SdkRuntimeRpcRequestMap[SdkRuntimeRpcMethod] & { threadId?: string }),
-  method: string,
-  params: Record<string, unknown>,
-): void {
-  publishSdkRuntimeNotification(notificationEventFromContext(context, {
-    method,
-    params: {
-      ...params,
-      ...(context.threadId ? { threadId: context.threadId } : {}),
-      runtimeId: context.runtime.id,
-    },
-  }))
 }

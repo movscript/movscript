@@ -284,6 +284,29 @@ func TestModelCatalogRejectsDuplicateRouteBindingForSameSourceAndGroup(t *testin
 	}
 }
 
+func TestModelCatalogNormalizesRouteBindingAPIKinds(t *testing.T) {
+	service := newTestService(t)
+	ctx := context.Background()
+
+	entry, err := service.CreateModelCatalogEntry(ctx, ModelCatalogEntryInput{
+		PublicModelID: "writer-api-kind",
+		DisplayName:   "Writer API Kind",
+		Capabilities:  "text",
+	})
+	if err != nil {
+		t.Fatalf("CreateModelCatalogEntry() error = %v", err)
+	}
+	input := validTestModelRouteBindingInput(151, "api-kind")
+	input.APIKinds = " openai_responses,anthropic_messages,openai_responses "
+	binding, err := service.CreateModelRouteBinding(ctx, strconvID(entry.ID), input)
+	if err != nil {
+		t.Fatalf("CreateModelRouteBinding() error = %v", err)
+	}
+	if binding.APIKinds != "openai_responses,anthropic_messages" {
+		t.Fatalf("api kinds = %q, want normalized values", binding.APIKinds)
+	}
+}
+
 func TestModelCatalogRejectsInvalidRouteBindingContracts(t *testing.T) {
 	service := newTestService(t)
 	ctx := context.Background()
@@ -300,6 +323,8 @@ func TestModelCatalogRejectsInvalidRouteBindingContracts(t *testing.T) {
 	negativeCapacityInput.CapacityWeight = -1
 	negativeMaxConcurrencyInput := validTestModelRouteBindingInput(2, "invalid-concurrency")
 	negativeMaxConcurrencyInput.MaxConcurrency = -1
+	invalidAPIKindInput := validTestModelRouteBindingInput(3, "invalid-api-kind")
+	invalidAPIKindInput.APIKinds = "openai_responses,claude-ish"
 
 	tests := []struct {
 		name  string
@@ -315,6 +340,11 @@ func TestModelCatalogRejectsInvalidRouteBindingContracts(t *testing.T) {
 			name:  "negative max concurrency",
 			input: negativeMaxConcurrencyInput,
 			want:  "max_concurrency",
+		},
+		{
+			name:  "invalid api kind",
+			input: invalidAPIKindInput,
+			want:  "api_kind",
 		},
 	}
 	if supportsNewAPIRouteBindings() {

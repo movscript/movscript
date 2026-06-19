@@ -29,7 +29,8 @@ test('core default agent provider decision creates backend provider config from 
   })
   assert.equal(decision.providerConfig?.enabled, true)
   assert.equal(decision.providerConfig?.configSource, 'backend')
-  assert.equal(decision.providerConfig?.baseURL, 'http://localhost:8765/api/v1')
+  assert.equal(decision.providerConfig?.modelEndpointBaseURL, 'http://localhost:8765/api/v1')
+  assert.equal(decision.providerConfig?.baseURL, undefined)
   assert.deepEqual(decision.providerConfig?.config, { mode: 'backendKey', modelProviderRef: 'backend:local_provider:20' })
   assert.deepEqual(decision.providerConfig?.auth, { mode: 'backendKey', modelProviderRef: 'backend:local_provider:20' })
   assert.deepEqual(decision.providerConfig?.defaultAgentProvider, {
@@ -57,6 +58,8 @@ test('core default agent provider decision keeps explicit provider config unchan
   assert.equal(decision.result.providerKey, 'mova')
   assert.equal(decision.providerConfig, undefined)
   assert.equal(hasExplicitAgentProviderConfig(currentProvider), true)
+  assert.equal(hasExplicitAgentProviderConfig({ baseURL: 'http://legacy.example.test/v1' }), false)
+  assert.equal(hasExplicitAgentProviderConfig({ modelEndpointBaseURL: 'http://models.example.test/v1' }), true)
 })
 
 test('core default agent provider model helpers prefer backend defaults and normalize keys', () => {

@@ -15,6 +15,7 @@ export function readAppSettingsSecrets(movScriptHomeDir: string): ElectronAppSet
   if (!isRecord(parsed) || parsed.schema !== APP_SETTINGS_SECRETS_SCHEMA) return emptyAppSettingsSecrets()
   return {
     shotLibrarySourceAuthTokens: stringRecord(parsed.shotLibrarySourceAuthTokens),
+    agentRuntimeApiKeys: stringRecord(parsed.agentRuntimeApiKeys),
   }
 }
 
@@ -31,9 +32,36 @@ export function writeAppSettingsSecretsFromSettings(movScriptHomeDir: string, se
       tokens[id] = current.shotLibrarySourceAuthTokens[id]
     }
   }
-  const secrets: ElectronAppSettingsSecrets = { shotLibrarySourceAuthTokens: tokens }
+  const secrets: ElectronAppSettingsSecrets = {
+    shotLibrarySourceAuthTokens: tokens,
+    agentRuntimeApiKeys: current.agentRuntimeApiKeys,
+  }
   writeAppSettingsSecrets(movScriptHomeDir, secrets)
   return secrets
+}
+
+export function writeAgentRuntimeApiKey(movScriptHomeDir: string, input: { providerKey?: string; providerKeys?: string[]; apiKey?: string | null }): ElectronAppSettingsSecrets {
+  const providerKeys = normalizeSecretKeys([input.providerKey, ...(input.providerKeys ?? [])])
+  if (providerKeys.length === 0) return readAppSettingsSecrets(movScriptHomeDir)
+  const current = readAppSettingsSecrets(movScriptHomeDir)
+  const agentRuntimeApiKeys = { ...current.agentRuntimeApiKeys }
+  const apiKey = input.apiKey?.trim()
+  for (const providerKey of providerKeys) {
+    if (apiKey) agentRuntimeApiKeys[providerKey] = apiKey
+    else delete agentRuntimeApiKeys[providerKey]
+  }
+  const secrets: ElectronAppSettingsSecrets = {
+    ...current,
+    agentRuntimeApiKeys,
+  }
+  writeAppSettingsSecrets(movScriptHomeDir, secrets)
+  return secrets
+}
+
+export function readAgentRuntimeApiKey(movScriptHomeDir: string, providerKey: string | undefined): string | undefined {
+  const key = normalizeSecretKey(providerKey)
+  if (!key) return undefined
+  return readAppSettingsSecrets(movScriptHomeDir).agentRuntimeApiKeys[key]
 }
 
 export function mergeAppSettingsSecrets(settings: AppSettings, secrets: ElectronAppSettingsSecrets): AppSettings {
@@ -51,6 +79,7 @@ function writeAppSettingsSecrets(movScriptHomeDir: string, secrets: ElectronAppS
     schema: APP_SETTINGS_SECRETS_SCHEMA,
     updatedAt: new Date().toISOString(),
     shotLibrarySourceAuthTokens: secrets.shotLibrarySourceAuthTokens,
+    agentRuntimeApiKeys: secrets.agentRuntimeApiKeys,
   })
 }
 
@@ -61,7 +90,7 @@ function resolveAppSettingsSecretsPath(movScriptHomeDir: string): string {
 }
 
 function emptyAppSettingsSecrets(): ElectronAppSettingsSecrets {
-  return { shotLibrarySourceAuthTokens: {} }
+  return { shotLibrarySourceAuthTokens: {}, agentRuntimeApiKeys: {} }
 }
 
 function readJSON(filePath: string): unknown {
@@ -87,6 +116,18 @@ function stringRecord(value: unknown): Record<string, string> {
     if (typeof token === 'string' && token.trim()) result[key] = token.trim()
   }
   return result
+}
+
+function normalizeSecretKey(value: string | undefined): string | undefined {
+  const key = value?.trim().toLowerCase()
+  return key && /^[a-z][a-z0-9_-]{0,63}$/.test(key) ? key : undefined
+}
+
+function normalizeSecretKeys(values: Array<string | undefined>): string[] {
+  return Array.from(new Set(values.flatMap((value) => {
+    const key = normalizeSecretKey(value)
+    return key ? [key] : []
+  })))
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

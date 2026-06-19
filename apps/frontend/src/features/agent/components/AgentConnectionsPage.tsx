@@ -109,7 +109,7 @@ export default function AgentConnectionsPage() {
               </AgentConsoleStatusBadge>
             </AgentConsoleHeaderTitleRow>
             <AgentConsoleHeaderDescription>
-              前端统一记录 app-server RPC 的裸请求和裸返回；每个 thread 保留最近 500 条。
+              前端统一记录 Agent runtime 的请求与返回；每个 thread 保留最近 500 条。
             </AgentConsoleHeaderDescription>
           </AgentConsoleHeaderCopy>
           <AgentConsoleHeaderActions>

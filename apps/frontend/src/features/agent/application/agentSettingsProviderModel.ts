@@ -1,21 +1,15 @@
 import {
   hasSensitiveTextSecret,
-  type AgentSettingsSnapshot,
-  type ProviderModelAPIKind,
+  type ProviderModelCapabilityRoutePublic,
 } from '@movscript/core/agent'
 import { publicModelId, publicModelLabel } from '@/shared/domain/modelDisplay'
 import { getAPIBaseURL } from '@/shared/infrastructure/config'
 import {
   MOVA_PROVIDER_ID,
   normalizeProviderSettings,
-  providerProtocol,
-  type ProviderConfig,
   type ProviderSettings,
 } from '@/shared/infrastructure/providerConfigStore'
-import {
-  ProviderSessionClient,
-  type ProviderModelConfigPublic,
-} from '@/shared/infrastructure/providerSessionClient'
+import type { ProviderModelConfigPublic } from '@movscript/core/agent/protocol'
 import type { PublicModel } from '@/types'
 
 export type ProviderProfileConfigOption = {
@@ -28,28 +22,32 @@ export type ProviderProfileConfigOption = {
 }
 
 const BUILT_IN_PROVIDER_PROFILE_CONFIG_FALLBACKS: Record<string, ProviderProfileConfigOption> = {
-  mova: { id: 'mova', providerProfileKey: 'mova', label: 'Mova', labelKey: 'agents.settings.providerProfileConfigs.mova', descriptionKey: 'agents.settings.providerProfileConfigDescriptions.mova', supportsWorkspaceCatalogInspection: true },
+  mova: { id: 'mova', providerProfileKey: 'mova', label: 'Mova', labelKey: 'agents.settings.providerProfileConfigs.mova', descriptionKey: 'agents.settings.providerProfileConfigDescriptions.mova', supportsWorkspaceCatalogInspection: false },
   codex: { id: 'codex', providerProfileKey: 'codex', label: 'Codex', labelKey: 'agents.settings.providerProfileConfigs.codex', descriptionKey: 'agents.settings.providerProfileConfigDescriptions.codex', supportsWorkspaceCatalogInspection: false },
+  claude: { id: 'claude', providerProfileKey: 'claude', label: 'Claude Code', labelKey: 'agents.settings.providerProfileConfigs.claude', descriptionKey: 'agents.settings.providerProfileConfigDescriptions.claude', supportsWorkspaceCatalogInspection: false },
 }
 
 export function buildProviderProfileConfigOptions(settings: ProviderSettings): ProviderProfileConfigOption[] {
   const profiles = new Map<string, ProviderProfileConfigOption>()
   for (const provider of normalizeProviderSettings(settings).providers) {
-    if (providerProtocol(provider) !== 'app-server' || !provider.appServerProfile) continue
-    const profileId = normalizeProviderProfileConfigId(provider.appServerProfile.providerKey ?? provider.kind)
+    const profileId = normalizeProviderProfileConfigId(provider.id || provider.kind)
     const fallback = BUILT_IN_PROVIDER_PROFILE_CONFIG_FALLBACKS[profileId]
-    const label = provider.label?.trim() || provider.appServerProfile.label?.trim() || fallback?.label || profileId
+    const label = provider.label?.trim() || fallback?.label || profileId
     profiles.set(profileId, {
       id: profileId,
       providerProfileKey: profileId,
       label,
       ...(fallback?.labelKey && label === fallback.label ? { labelKey: fallback.labelKey } : {}),
       ...(fallback?.descriptionKey ? { descriptionKey: fallback.descriptionKey } : {}),
-      supportsWorkspaceCatalogInspection: supportsProviderSessionWorkspaceCatalog(provider, fallback),
+      supportsWorkspaceCatalogInspection: fallback?.supportsWorkspaceCatalogInspection ?? false,
     })
   }
   const options = Array.from(profiles.values())
-  return options.length > 0 ? options : [BUILT_IN_PROVIDER_PROFILE_CONFIG_FALLBACKS.mova]
+  return options.length > 0 ? options : [
+    BUILT_IN_PROVIDER_PROFILE_CONFIG_FALLBACKS.codex,
+    BUILT_IN_PROVIDER_PROFILE_CONFIG_FALLBACKS.mova,
+    BUILT_IN_PROVIDER_PROFILE_CONFIG_FALLBACKS.claude,
+  ]
 }
 
 export function normalizeProviderProfileConfigId(value: unknown): string {
@@ -74,13 +72,13 @@ export function selectedProviderModel(models: PublicModel[], selectedModelId: st
   return models.find((model) => publicModelId(model) === selectedModelId) ?? null
 }
 
-export function providerModelBaseURLState(baseURL: string) {
-  const baseURLValue = baseURL.trim()
-  const usesBackendCompatibleBaseURL = isBackendCompatibleBaseURL(baseURLValue)
-  const usesModelCatalog = !baseURLValue || usesBackendCompatibleBaseURL
+export function providerModelEndpointBaseURLState(modelEndpointBaseURL: string) {
+  const modelEndpointBaseURLValue = modelEndpointBaseURL.trim()
+  const usesBackendCompatibleModelEndpoint = isBackendCompatibleModelEndpointBaseURL(modelEndpointBaseURLValue)
+  const usesModelCatalog = !modelEndpointBaseURLValue || usesBackendCompatibleModelEndpoint
   return {
-    baseURLValue,
-    usesBackendCompatibleBaseURL,
+    modelEndpointBaseURLValue,
+    usesBackendCompatibleModelEndpoint,
     usesModelCatalog,
     usesManualModelId: !usesModelCatalog,
   }
@@ -111,11 +109,6 @@ export type ProviderModelWorkspaceDraft = {
   useForChat: boolean
   useForPlanner: boolean
 }
-export type ProviderModelConfigRequest = Parameters<ProviderSessionClient['saveProviderModelConfig']>[0]
-export type ProviderModelOperationPlan = {
-  request: ProviderModelConfigRequest
-  storedModelId: string | null
-}
 
 export function providerModelWorkspaceDraftFromConfig(input: {
   config: ProviderModelConfigPublic
@@ -144,87 +137,87 @@ export function storedProviderModelWorkspaceId(models: PublicModel[], storedMode
   return storedModel ? publicModelId(storedModel) : null
 }
 
-export function buildProviderModelConfigRequest(input: {
-  selectedModel: PublicModel | null
-  usesModelCatalog: boolean
-  model: string
-  apiKind: ProviderModelAPIKind
-  baseURL: string
-  apiKey: string
+export function providerModelConfigFromSelection(input: {
+  modelId: string
+  useForChat?: boolean
+  useForPlanner?: boolean
+  updatedAt?: string
+}): ProviderModelConfigPublic {
+  const modelId = input.modelId.trim()
+  const useForChat = input.useForChat !== false
+  const useForPlanner = input.useForPlanner !== false
+  return {
+    configured: Boolean(modelId),
+    provider: 'backend-model-config',
+    model: modelId,
+    apiKind: 'openai_responses',
+    apiKeyConfigured: false,
+    useForChat,
+    useForPlanner,
+    ...(input.updatedAt ? { updatedAt: input.updatedAt } : {}),
+    source: modelId ? 'file' : 'none',
+    credentialStatus: {
+      required: false,
+      configured: false,
+      sourceEnv: [],
+      acceptedEnv: [],
+    },
+    capabilities: buildProviderModelSelectionRoutes({ modelId, useForChat, useForPlanner }),
+  }
+}
+
+function buildProviderModelSelectionRoutes(input: {
+  modelId: string
   useForChat: boolean
   useForPlanner: boolean
-}): ProviderModelConfigRequest {
-  return {
-    model: input.model,
-    apiKind: input.apiKind,
-    ...(input.baseURL ? { baseURL: input.baseURL } : {}),
-    ...(input.apiKey.trim() ? { apiKey: input.apiKey.trim() } : {}),
-    useForChat: input.useForChat,
-    useForPlanner: input.useForPlanner,
-  }
+}): ProviderModelCapabilityRoutePublic[] {
+  return [
+    providerModelSelectionRoute({
+      capability: 'text',
+      enabled: input.useForChat,
+      modelId: input.modelId,
+    }),
+    providerModelSelectionRoute({
+      capability: 'planning',
+      enabled: input.useForPlanner,
+      modelId: input.modelId,
+    }),
+  ]
 }
 
-export function buildProviderModelOperationPlan(input: Parameters<typeof buildProviderModelConfigRequest>[0]): ProviderModelOperationPlan {
+function providerModelSelectionRoute(input: {
+  capability: ProviderModelCapabilityRoutePublic['capability']
+  enabled: boolean
+  modelId: string
+}): ProviderModelCapabilityRoutePublic {
   return {
-    request: buildProviderModelConfigRequest(input),
-    storedModelId: input.usesModelCatalog && input.selectedModel ? publicModelId(input.selectedModel) : null,
-  }
-}
-
-export function buildProviderModelTestRequest(input: {
-  request: ProviderModelConfigRequest
-  message: string
-  fallbackMessage: string
-}): ProviderModelConfigRequest & { message: string } {
-  return {
-    message: input.message.trim() || input.fallbackMessage,
-    ...input.request,
+    capability: input.capability,
+    configured: input.enabled && Boolean(input.modelId),
+    ...(input.enabled && input.modelId ? {
+      provider: 'backend-model-config' as const,
+      model: input.modelId,
+    } : {}),
+    source: input.enabled && input.modelId ? 'configured' : 'disabled',
   }
 }
 
 export function providerConfigUsesModelCatalog(config: ProviderModelConfigPublic): boolean {
-  const baseURL = config.baseURL?.trim() ?? ''
-  return !baseURL || isBackendCompatibleBaseURL(baseURL)
+  const modelEndpointBaseURL = config.modelEndpointBaseURL?.trim() ?? ''
+  return !modelEndpointBaseURL || isBackendCompatibleModelEndpointBaseURL(modelEndpointBaseURL)
 }
 
-export function buildProviderModelConfigFromSnapshotModel(
-  model: NonNullable<AgentSettingsSnapshot['model']>,
-): Parameters<ProviderSessionClient['saveModelConfig']>[0] {
-  return {
-    model: model.model,
-    apiKind: 'openai_responses',
-    useForChat: model.useForChat !== false,
-    useForPlanner: model.useForPlanner !== false,
-  }
-}
-
-export function apiKindBaseURLPlaceholder(apiKind: ProviderModelAPIKind): string {
-  if (apiKind === 'openai_chat_completions') return `${getAPIBaseURL()}/v1`
-  if (apiKind === 'openai_responses') return `${getAPIBaseURL()}/v1`
-  if (apiKind === 'anthropic_messages') return `${getAPIBaseURL()}/v1`
-  return `${getAPIBaseURL()}/v1`
-}
-
-export function isBackendCompatibleBaseURL(value: string): boolean {
+export function isBackendCompatibleModelEndpointBaseURL(value: string): boolean {
   if (!value.trim()) return true
   try {
-    return new URL(toCompatibleGatewayBaseURL(value)).origin === new URL(toCompatibleGatewayBaseURL(getAPIBaseURL())).origin
+    return new URL(toCompatibleModelGatewayBaseURL(value)).origin === new URL(toCompatibleModelGatewayBaseURL(getAPIBaseURL())).origin
   } catch {
     return false
   }
 }
 
-export function toCompatibleGatewayBaseURL(value: string): string {
+export function toCompatibleModelGatewayBaseURL(value: string): string {
   const normalized = value.trim().replace(/\/+$/, '')
   if (normalized.endsWith('/api/v1')) return `${normalized.slice(0, -'/api/v1'.length)}/v1`
   if (normalized.endsWith('/v1')) return normalized
   return `${normalized}/v1`
-}
-
-function supportsProviderSessionWorkspaceCatalog(
-  provider: ProviderConfig,
-  fallback?: ProviderProfileConfigOption,
-): boolean {
-  if (providerProtocol(provider) !== 'app-server') return false
-  return fallback?.supportsWorkspaceCatalogInspection ?? true
 }

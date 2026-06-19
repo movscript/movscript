@@ -9,7 +9,7 @@ import {
   shouldHydrateAgentThreadSummary,
 } from '@/features/agent/application/useAgentThreadRegistryHydration'
 import type { AgentConversationRegistryRecord } from '@movscript/core/agent'
-import type { AgentThreadSummary } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentThreadSummary } from '@movscript/core/agent/protocol'
 
 test('agent thread registry hydration ignores new empty threads', () => {
   const thread = threadSummary({ messageCount: 0, title: undefined })

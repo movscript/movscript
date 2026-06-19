@@ -1,6 +1,6 @@
 import { isAgentTranscriptAssistantMessage } from '@movscript/core/agent/protocol'
 import i18n from '@/i18n'
-import type { AgentRun, AgentThread } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun, AgentThread } from '@movscript/core/agent/protocol'
 
 export function formatProviderSessionAssistantContent(run: AgentRun, thread: Pick<AgentThread, 'messages'>) {
   const t = i18n.t.bind(i18n)

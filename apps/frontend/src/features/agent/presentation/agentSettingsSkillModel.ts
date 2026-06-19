@@ -2,7 +2,7 @@ import type { SkillConfigWorkspace } from '@movscript/core/agent'
 import type {
   ProviderCatalogConfigFile,
   ProviderCatalogSkill,
-} from '@/shared/infrastructure/providerSessionClient'
+} from '@movscript/core/agent/protocol'
 import type { SkillConfigIssue } from '@/features/agent/application/agentSettingsReadiness'
 
 export type SkillSourceKind = 'core' | 'plugin' | 'local' | 'team' | 'mcp' | 'catalog'

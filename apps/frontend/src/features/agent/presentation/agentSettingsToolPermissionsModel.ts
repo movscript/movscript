@@ -1,10 +1,10 @@
 import type { ToolGrantWorkspace } from '@movscript/core/agent'
-import type { ToolPermissionsWorkspaceIssue } from '@/features/agent/application/agentSettingsReadiness'
 import type {
   ProviderCatalogConfigFile,
   ProviderSessionCapabilitiesResponse,
   ProviderToolDescriptor,
-} from '@/shared/infrastructure/providerSessionClient'
+} from '@movscript/core/agent/protocol'
+import type { ToolPermissionsWorkspaceIssue } from '@/features/agent/application/agentSettingsReadiness'
 
 export const TOOL_PERMISSIONS_FILTER_OPTIONS = ['all', 'available', 'blocked', 'config_file_granted', 'requires_approval', 'write_risk'] as const
 export type ToolPermissionsFilter = (typeof TOOL_PERMISSIONS_FILTER_OPTIONS)[number]

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { buildTraceEventLink, canCancelWorkerRun, traceDeepLinkMissing, traceEventIdFromHash } from '@/features/agent/domain/agentRunUi'
-import type { AgentTraceEvent } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentTraceEvent } from '@movscript/core/agent/protocol'
 
 function traceEvent(id: string): AgentTraceEvent {
   return {

@@ -1,4 +1,4 @@
-import type { AgentTraceEvent } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentTraceEvent } from '@movscript/core/agent/protocol'
 import { agentToolNameWithId } from '@/features/agent/domain/agentToolDisplay'
 import type { AgentTraceMessageDetail, AgentTraceModelDetail, AgentTraceModelMessageDetail, AgentTraceToolDetail } from './types'
 import { traceEventStatusLabel } from './labels'

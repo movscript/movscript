@@ -95,8 +95,20 @@ export interface SdkRuntimeProbeResponse {
       required: SdkRuntimeRpcMethod[]
       missing: SdkRuntimeRpcMethod[]
     }
+    credentials?: SdkRuntimeCredentialProbe
   }
+  credentials?: SdkRuntimeCredentialProbe
   error?: string
+}
+
+export interface SdkRuntimeCredentialProbe {
+  ok: boolean
+  configured: boolean
+  env: string
+  acceptedEnv: string[]
+  source: string
+  modelEndpointBaseURL?: string
+  detail?: string
 }
 
 export interface SdkRuntimeRequestContext {

@@ -19,10 +19,10 @@ test('runtime data source registry registers and unregisters SDK factories', () 
   assert.equal(agentRuntimeDataSourceFactories()['codex-sdk'], undefined)
 })
 
-test('runtime data source registry rejects non-SDK runtime APIs', () => {
+test('runtime data source registry rejects unknown runtime APIs', () => {
   assert.throws(
-    () => registerAgentRuntimeDataSourceFactory('app-server', () => fakeDataSource()),
-    /not SDK-backed/,
+    () => registerAgentRuntimeDataSourceFactory('legacy-runtime', () => fakeDataSource()),
+    /Unknown provider runtime API: legacy-runtime/,
   )
 })
 

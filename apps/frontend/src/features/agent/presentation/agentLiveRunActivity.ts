@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState, type SetStateAction } from 'react'
 import { liveTraceEventKey, mergeLiveRunActivityEvent, projectLiveRunProviderSessionTraceEvent } from '@/features/agent/domain/agentRunActivity'
 import type { AgentThinkingState } from '@/features/agent/domain/agentThinkingState'
-import type { ProviderSessionEventV2 } from '@/shared/infrastructure/providerSessionClient'
+import type { ProviderSessionEventV2 } from '@movscript/core/agent/protocol'
 import type { ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 export function mergeVisibleActivityEvents(liveTraceEvents: ChatRunActivityEvent[], pendingHttpEvents: ChatRunActivityEvent[]): ChatRunActivityEvent[] {

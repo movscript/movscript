@@ -90,6 +90,7 @@ type Principal struct {
 type ChatInput struct {
 	Principal   Principal
 	Model       string
+	APIKind     string
 	Text        ai.TextRequest
 	ProjectID   *uint
 	RequireChat bool
@@ -98,6 +99,7 @@ type ChatInput struct {
 type ResponsesInput struct {
 	Principal Principal
 	Model     string
+	APIKind   string
 	Text      ai.TextRequest
 	Responses ai.ResponsesRequest
 	ProjectID *uint
@@ -254,6 +256,11 @@ func (s *Service) ListChatModels(ctx context.Context, principal Principal) ([]Ch
 	ctx = s.providerRouteContextForPrincipal(ctx, principal)
 	descriptors, err := s.catalog.ListModels(ctx, providercontract.AIModelListFilter{
 		Capabilities: []string{ai.CapabilityText, ai.CapabilityReasoning},
+		APIKinds: []string{
+			ai.ModelAPIKindOpenAIChatCompletions,
+			ai.ModelAPIKindOpenAIResponses,
+			ai.ModelAPIKindAnthropicMessages,
+		},
 	})
 	if err != nil {
 		return nil, err
@@ -286,6 +293,7 @@ func (s *Service) CallResponses(ctx context.Context, input ResponsesInput) (Chat
 	route, responseModel, textReq, err := s.prepareChat(ctx, ChatInput{
 		Principal: input.Principal,
 		Model:     input.Model,
+		APIKind:   input.APIKind,
 		Text:      input.Text,
 		ProjectID: input.ProjectID,
 	})
@@ -319,6 +327,7 @@ func (s *Service) CallResponsesStream(ctx context.Context, input ResponsesInput)
 	route, responseModel, textReq, err := s.prepareChat(ctx, ChatInput{
 		Principal: input.Principal,
 		Model:     input.Model,
+		APIKind:   input.APIKind,
 		Text:      input.Text,
 		ProjectID: input.ProjectID,
 	})
@@ -375,11 +384,11 @@ func chatResultFromRoute(route providercontract.AIGatewayModelRoute, responseMod
 
 func (s *Service) prepareChat(ctx context.Context, input ChatInput) (providercontract.AIGatewayModelRoute, string, ai.TextRequest, error) {
 	ctx = s.providerRouteContextForPrincipal(ctx, input.Principal)
-	routeLookupID, responseModel, err := s.ResolveTextModel(ctx, input.Model)
+	routeLookupID, responseModel, err := s.ResolveTextModel(ctx, input.Model, input.APIKind)
 	if err != nil {
 		return providercontract.AIGatewayModelRoute{}, responseModel, ai.TextRequest{}, err
 	}
-	route, err := s.resolveRuntimeTextRouteForRequest(ctx, input.Model, routeLookupID)
+	route, err := s.resolveRuntimeTextRouteForRequest(ctx, input.Model, routeLookupID, input.APIKind)
 	if err != nil {
 		return providercontract.AIGatewayModelRoute{}, responseModel, ai.TextRequest{}, err
 	}
@@ -415,6 +424,7 @@ func aiRouteFromGateway(route providercontract.AIGatewayModelRoute) ai.ModelRout
 		RouteGroup:      route.RouteGroup,
 		ProviderID:      route.ProviderID,
 		ProviderModelID: route.ProviderModelID,
+		APIKind:         route.APIKind,
 		SelectionReason: route.SelectionReason,
 		EstimatedCost:   route.EstimatedCost,
 	}
@@ -424,23 +434,28 @@ func (s *Service) resolveRuntimeTextRoute(ctx context.Context, catalogEntryID ui
 	return s.resolveRuntimeRoute(ctx, catalogEntryID, ai.CapabilityText, ai.CapabilityReasoning)
 }
 
-func (s *Service) resolveRuntimeTextRouteForRequest(ctx context.Context, requestedModel string, catalogEntryID uint) (providercontract.AIGatewayModelRoute, error) {
+func (s *Service) resolveRuntimeTextRouteForRequest(ctx context.Context, requestedModel string, catalogEntryID uint, apiKinds ...string) (providercontract.AIGatewayModelRoute, error) {
 	requested := strings.TrimSpace(requestedModel)
 	if requested != "" && requested != DefaultChatModel {
-		return s.resolveRuntimeModelIDRoute(ctx, requested, ai.CapabilityText, ai.CapabilityReasoning)
+		return s.resolveRuntimeModelIDRouteWithAPIKinds(ctx, requested, apiKinds, ai.CapabilityText, ai.CapabilityReasoning)
 	}
-	return s.resolveRuntimeTextRoute(ctx, catalogEntryID)
+	return s.resolveRuntimeRouteWithAPIKinds(ctx, catalogEntryID, apiKinds, ai.CapabilityText, ai.CapabilityReasoning)
 }
 
 func (s *Service) resolveRuntimeRouteForProxyRequest(ctx context.Context, requestedModel string, catalogEntryID uint, capability string) (providercontract.AIGatewayModelRoute, error) {
 	requested := strings.TrimSpace(requestedModel)
+	apiKinds := []string{ai.ModelAPIKindOpenAIChatCompletions, ai.ModelAPIKindOpenAIResponses}
 	if requested != "" {
-		return s.resolveRuntimeModelIDRoute(ctx, requested, capability)
+		return s.resolveRuntimeModelIDRouteWithAPIKinds(ctx, requested, apiKinds, capability)
 	}
-	return s.resolveRuntimeRoute(ctx, catalogEntryID, capability)
+	return s.resolveRuntimeRouteWithAPIKinds(ctx, catalogEntryID, apiKinds, capability)
 }
 
 func (s *Service) resolveRuntimeModelIDRoute(ctx context.Context, modelID string, capabilities ...string) (providercontract.AIGatewayModelRoute, error) {
+	return s.resolveRuntimeModelIDRouteWithAPIKinds(ctx, modelID, nil, capabilities...)
+}
+
+func (s *Service) resolveRuntimeModelIDRouteWithAPIKinds(ctx context.Context, modelID string, apiKinds []string, capabilities ...string) (providercontract.AIGatewayModelRoute, error) {
 	if s.routing == nil {
 		return providercontract.AIGatewayModelRoute{}, ErrModelUnavailable
 	}
@@ -449,6 +464,7 @@ func (s *Service) resolveRuntimeModelIDRoute(ctx context.Context, modelID string
 		route, err := s.routing.ResolveGatewayModelRoute(ctx, providercontract.AIGatewayRouteRequest{
 			ModelID:    modelID,
 			Capability: capability,
+			APIKinds:   apiKinds,
 		})
 		if err == nil {
 			return route, nil
@@ -462,6 +478,10 @@ func (s *Service) resolveRuntimeModelIDRoute(ctx context.Context, modelID string
 }
 
 func (s *Service) resolveRuntimeRoute(ctx context.Context, catalogEntryID uint, capabilities ...string) (providercontract.AIGatewayModelRoute, error) {
+	return s.resolveRuntimeRouteWithAPIKinds(ctx, catalogEntryID, nil, capabilities...)
+}
+
+func (s *Service) resolveRuntimeRouteWithAPIKinds(ctx context.Context, catalogEntryID uint, apiKinds []string, capabilities ...string) (providercontract.AIGatewayModelRoute, error) {
 	if s.routing == nil {
 		return providercontract.AIGatewayModelRoute{}, ErrModelUnavailable
 	}
@@ -470,6 +490,7 @@ func (s *Service) resolveRuntimeRoute(ctx context.Context, catalogEntryID uint, 
 		route, err := s.routing.ResolveGatewayModelRoute(ctx, providercontract.AIGatewayRouteRequest{
 			CatalogEntryID: catalogEntryID,
 			Capability:     capability,
+			APIKinds:       apiKinds,
 		})
 		if err == nil {
 			return route, nil
@@ -501,7 +522,10 @@ func (s *Service) resolveOpenAIProxyModel(ctx context.Context, modelID string, c
 }
 
 func (s *Service) resolveModelForCapability(ctx context.Context, modelID string, capability string) (uint, string, error) {
-	descriptors, err := s.catalog.ListModels(ctx, providercontract.AIModelListFilter{Capability: capability})
+	descriptors, err := s.catalog.ListModels(ctx, providercontract.AIModelListFilter{
+		Capability: capability,
+		APIKinds:   []string{ai.ModelAPIKindOpenAIChatCompletions, ai.ModelAPIKindOpenAIResponses},
+	})
 	if err != nil {
 		return 0, strings.TrimSpace(modelID), err
 	}
@@ -540,6 +564,7 @@ func (s *Service) resolveModelIDRouteForCapability(ctx context.Context, modelID 
 	return s.routing.ResolveGatewayModelRoute(ctx, providercontract.AIGatewayRouteRequest{
 		ModelID:    strings.TrimSpace(modelID),
 		Capability: capability,
+		APIKinds:   []string{ai.ModelAPIKindOpenAIChatCompletions, ai.ModelAPIKindOpenAIResponses},
 	})
 }
 
@@ -560,12 +585,13 @@ func compactOpenAIProxyCapabilities(capabilities []string) []string {
 	return out
 }
 
-func (s *Service) ResolveTextModel(ctx context.Context, modelID string) (uint, string, error) {
+func (s *Service) ResolveTextModel(ctx context.Context, modelID string, apiKinds ...string) (uint, string, error) {
 	if s.catalog == nil {
 		return 0, strings.TrimSpace(modelID), ErrModelUnavailable
 	}
 	descriptors, err := s.catalog.ListModels(ctx, providercontract.AIModelListFilter{
 		Capabilities: []string{ai.CapabilityText, ai.CapabilityReasoning},
+		APIKinds:     apiKinds,
 	})
 	if err != nil {
 		return 0, strings.TrimSpace(modelID), err

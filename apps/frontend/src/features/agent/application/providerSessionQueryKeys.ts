@@ -10,23 +10,23 @@ export interface ProviderSessionQueryIdentity {
 export type ProviderSessionThreadSurface = 'agent-mode-sidebar' | 'agent-content-panel'
 
 export const providerSessionThreadKeys = {
-  all: (baseURL: string) => ['provider-session-threads', baseURL] as const,
-  list: (baseURL: string, identity: ProviderSessionQueryIdentity, surface: ProviderSessionThreadSurface) => [
+  all: ['provider-session-threads'] as const,
+  list: (identity: ProviderSessionQueryIdentity, surface: ProviderSessionThreadSurface) => [
     'provider-session-threads',
-    baseURL,
     identity,
     surface,
   ] as const,
-  panelHistory: (baseURL: string) => ['provider-session-panel-thread-history', baseURL] as const,
+  panelHistory: ['provider-session-panel-thread-history'] as const,
   console: ['agent-console-threads', 'provider-sessions'] as const,
+  consoleProfile: (providerProfileKey: string) => ['agent-console-threads', 'provider-sessions', providerProfileKey] as const,
 }
 
 export const providerSessionKeys = {
   workspace: ['agent-console-provider-sessions', 'workspace'] as const,
-  health: (baseURL: string, sessionId: string | null) => ['provider-session-health', baseURL, sessionId] as const,
-  list: (baseURL: string, identity: ProviderSessionQueryIdentity, surface: ProviderSessionThreadSurface) => [
+  workspaceProfile: (providerProfileKey: string) => ['agent-console-provider-sessions', 'workspace', providerProfileKey] as const,
+  health: (sessionId: string | null) => ['provider-session-health', sessionId] as const,
+  list: (identity: ProviderSessionQueryIdentity, surface: ProviderSessionThreadSurface) => [
     'provider-sessions',
-    baseURL,
     identity,
     surface,
   ] as const,
@@ -34,10 +34,14 @@ export const providerSessionKeys = {
 
 export const providerSessionRunKeys = {
   console: ['agent-console-runs', 'provider-sessions'] as const,
+  consoleProfile: (providerProfileKey: string) => ['agent-console-runs', 'provider-sessions', providerProfileKey] as const,
 }
 
-export function isProviderSessionThreadListQueryKey(queryKey: QueryKey, baseURL: string): boolean {
+export const providerSessionConsoleProfileKey = (providerProfileKey: string | undefined): string => (
+  providerProfileKey?.trim() || 'none'
+)
+
+export function isProviderSessionThreadListQueryKey(queryKey: QueryKey): boolean {
   return Array.isArray(queryKey)
-    && queryKey[0] === providerSessionThreadKeys.all(baseURL)[0]
-    && queryKey[1] === baseURL
+    && queryKey[0] === providerSessionThreadKeys.all[0]
 }

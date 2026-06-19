@@ -29,6 +29,10 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .agent-settings-status-card__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .agent-settings-tool-permissions-row__controls {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -44,5 +48,11 @@
 
   .agent-settings-grid--three {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1180px) {
+  .agent-settings-status-card__grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }

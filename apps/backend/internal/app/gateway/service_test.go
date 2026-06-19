@@ -85,6 +85,9 @@ func TestListChatModelsFiltersGatewayKeyAllowedCatalogEntries(t *testing.T) {
 	if len(models) != 1 || models[0].CatalogEntryID != 2 || models[0].ModelID != "public-b" {
 		t.Fatalf("models = %#v, want only allowed catalog entry 2", models)
 	}
+	if !containsString(catalog.lastFilter.APIKinds, ai.ModelAPIKindAnthropicMessages) {
+		t.Fatalf("ListChatModels APIKinds = %#v, want Anthropic Messages included", catalog.lastFilter.APIKinds)
+	}
 }
 
 func TestChatModelFromDescriptorUsesCatalogEntryIDAsVisibleID(t *testing.T) {
@@ -99,13 +102,24 @@ func TestChatModelFromDescriptorUsesCatalogEntryIDAsVisibleID(t *testing.T) {
 }
 
 type fakeGatewayModelCatalog struct {
-	models []providercontract.AIModelDescriptor
+	models     []providercontract.AIModelDescriptor
+	lastFilter providercontract.AIModelListFilter
 }
 
-func (f *fakeGatewayModelCatalog) ListModels(context.Context, providercontract.AIModelListFilter) ([]providercontract.AIModelDescriptor, error) {
+func (f *fakeGatewayModelCatalog) ListModels(_ context.Context, filter providercontract.AIModelListFilter) ([]providercontract.AIModelDescriptor, error) {
+	f.lastFilter = filter
 	return f.models, nil
 }
 
 func (f *fakeGatewayModelCatalog) ResolveModel(context.Context, providercontract.AIModelResolveRequest) (providercontract.AIModelBinding, error) {
 	return providercontract.AIModelBinding{}, errors.New("not implemented")
+}
+
+func containsString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }

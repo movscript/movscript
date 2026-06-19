@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"strings"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
@@ -16,15 +18,136 @@ type AnthropicAdapter struct {
 
 func NewAnthropicAdapter(apiKey, baseURL string) *AnthropicAdapter {
 	opts := []option.RequestOption{option.WithAPIKey(apiKey)}
-	if baseURL != "" {
-		opts = append(opts, option.WithBaseURL(baseURL))
+	if normalizedBaseURL := normalizeAnthropicBaseURL(baseURL); normalizedBaseURL != "" {
+		opts = append(opts, option.WithBaseURL(normalizedBaseURL))
 	}
 	c := anthropic.NewClient(opts...)
 	return &AnthropicAdapter{client: &c}
 }
 
+func normalizeAnthropicBaseURL(baseURL string) string {
+	value := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if value == "" {
+		return ""
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return value
+	}
+	parsed.Path = strings.TrimRight(parsed.Path, "/")
+	if parsed.Path == "/v1" {
+		parsed.Path = ""
+	}
+	return strings.TrimRight(parsed.String(), "/")
+}
+
 func (a *AnthropicAdapter) TextGenerate(ctx context.Context, req TextRequest) (TextResponse, error) {
 	attachTextPromptDebug(ctx, req)
+	params := anthropicMessageParams(req)
+	resp, err := a.client.Messages.New(ctx, params)
+	if err != nil {
+		return TextResponse{}, err
+	}
+	if len(resp.Content) == 0 {
+		return TextResponse{}, fmt.Errorf("no content returned")
+	}
+	text := ""
+	toolCalls := make([]ToolCall, 0)
+	for _, block := range resp.Content {
+		if block.Type == "text" {
+			text += block.Text
+		} else if block.Type == "tool_use" {
+			toolCalls = append(toolCalls, ToolCall{
+				ID:   block.ID,
+				Type: "function",
+				Function: ToolFunction{
+					Name:      block.Name,
+					Arguments: marshalAnthropicToolInput(block.Input),
+				},
+			})
+		}
+	}
+	return TextResponse{
+		Content:      text,
+		ToolCalls:    toolCalls,
+		FinishReason: string(resp.StopReason),
+		Usage: TokenUsage{
+			InputTokens:       int(resp.Usage.InputTokens),
+			OutputTokens:      int(resp.Usage.OutputTokens),
+			CachedInputTokens: int(resp.Usage.CacheReadInputTokens),
+		},
+		Debug: takeDebug(ctx),
+	}, nil
+}
+
+func (a *AnthropicAdapter) TextStream(ctx context.Context, req TextRequest) (<-chan TextStreamEvent, error) {
+	attachTextPromptDebug(ctx, req)
+	stream := a.client.Messages.NewStreaming(ctx, anthropicMessageParams(req))
+	out := make(chan TextStreamEvent)
+	go func() {
+		defer close(out)
+		for stream.Next() {
+			event := stream.Current()
+			switch event.Type {
+			case "message_start":
+				if event.Message.Usage.InputTokens > 0 || event.Message.Usage.CacheReadInputTokens > 0 {
+					out <- TextStreamEvent{Usage: TokenUsage{
+						InputTokens:       int(event.Message.Usage.InputTokens),
+						CachedInputTokens: int(event.Message.Usage.CacheReadInputTokens),
+					}}
+				}
+			case "content_block_start":
+				if event.ContentBlock.Type == "tool_use" {
+					out <- TextStreamEvent{ToolCallDeltas: []ToolCallDelta{{
+						Index: int(event.Index),
+						ID:    event.ContentBlock.ID,
+						Type:  "function",
+						Function: ToolFunction{
+							Name: event.ContentBlock.Name,
+						},
+					}}}
+				}
+			case "content_block_delta":
+				out <- anthropicTextStreamDelta(event)
+			case "message_delta":
+				out <- TextStreamEvent{
+					FinishReason: string(event.Delta.StopReason),
+					Usage: TokenUsage{
+						InputTokens:       int(event.Usage.InputTokens),
+						OutputTokens:      int(event.Usage.OutputTokens),
+						CachedInputTokens: int(event.Usage.CacheReadInputTokens),
+					},
+				}
+			case "message_stop":
+				out <- TextStreamEvent{Done: true}
+			}
+		}
+		if err := stream.Err(); err != nil {
+			out <- TextStreamEvent{Error: fmt.Sprintf("anthropic text stream receive: %v", err)}
+		}
+	}()
+	return out, nil
+}
+
+func anthropicTextStreamDelta(event anthropic.MessageStreamEventUnion) TextStreamEvent {
+	switch event.Delta.Type {
+	case "text_delta":
+		return TextStreamEvent{ContentDelta: event.Delta.Text}
+	case "thinking_delta":
+		return TextStreamEvent{ReasoningDelta: event.Delta.Thinking}
+	case "input_json_delta":
+		return TextStreamEvent{ToolCallDeltas: []ToolCallDelta{{
+			Index: int(event.Index),
+			Function: ToolFunction{
+				Arguments: event.Delta.PartialJSON,
+			},
+		}}}
+	default:
+		return TextStreamEvent{}
+	}
+}
+
+func anthropicMessageParams(req TextRequest) anthropic.MessageNewParams {
 	var system string
 	msgs := make([]anthropic.MessageParam, 0, len(req.Messages))
 	for _, m := range req.Messages {
@@ -66,41 +189,7 @@ func (a *AnthropicAdapter) TextGenerate(ctx context.Context, req TextRequest) (T
 	if choice, ok := anthropicToolChoice(req.ToolChoice); ok {
 		params.ToolChoice = choice
 	}
-
-	resp, err := a.client.Messages.New(ctx, params)
-	if err != nil {
-		return TextResponse{}, err
-	}
-	if len(resp.Content) == 0 {
-		return TextResponse{}, fmt.Errorf("no content returned")
-	}
-	text := ""
-	toolCalls := make([]ToolCall, 0)
-	for _, block := range resp.Content {
-		if block.Type == "text" {
-			text += block.Text
-		} else if block.Type == "tool_use" {
-			toolCalls = append(toolCalls, ToolCall{
-				ID:   block.ID,
-				Type: "function",
-				Function: ToolFunction{
-					Name:      block.Name,
-					Arguments: marshalAnthropicToolInput(block.Input),
-				},
-			})
-		}
-	}
-	return TextResponse{
-		Content:      text,
-		ToolCalls:    toolCalls,
-		FinishReason: string(resp.StopReason),
-		Usage: TokenUsage{
-			InputTokens:       int(resp.Usage.InputTokens),
-			OutputTokens:      int(resp.Usage.OutputTokens),
-			CachedInputTokens: int(resp.Usage.CacheReadInputTokens),
-		},
-		Debug: takeDebug(ctx),
-	}, nil
+	return params
 }
 
 func anthropicMessageContentBlocks(message Message) []anthropic.ContentBlockParamUnion {

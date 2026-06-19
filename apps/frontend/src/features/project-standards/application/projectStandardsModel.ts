@@ -5,7 +5,7 @@ import {
   type SemanticEntityKind,
   type SemanticEntityRecord,
 } from '@/shared/infrastructure/api/semanticEntities'
-import type { WorkspaceArtifact } from '@/shared/infrastructure/providerSessionClient'
+import type { WorkspaceArtifact } from '@/shared/contracts/workspaceArtifact'
 import {
   CORE_STANDARD_DEFS,
   coreStandardText,

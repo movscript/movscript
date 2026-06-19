@@ -8,7 +8,7 @@ import {
   providerSessionStatusLightTargetsSignature,
   type ProviderSessionStatusLightClient,
 } from '@/features/agent/presentation/providerSessionStatusLightController'
-import type { ProviderSessionEventV2 } from '@/shared/infrastructure/providerSessionClient'
+import type { ProviderSessionEventV2 } from '@movscript/core/agent/protocol'
 import type { ProviderSessionStatusLight } from '@movscript/core/agent'
 
 test('provider session status light controller shares one stream per target across owners', async () => {

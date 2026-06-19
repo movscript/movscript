@@ -1,6 +1,6 @@
 import { compactRunActivity, liveTraceEventKey, mergeRunActivityEvents } from '@/features/agent/domain/agentRunActivity'
 import { isRecord } from '@/shared/domain/jsonValue'
-import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 import type { ChatRunActivity, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 export interface RunActivitySnapshotInput {

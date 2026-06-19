@@ -1,7 +1,7 @@
 import { spawnSync, type SpawnSyncReturns } from 'node:child_process'
 import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { join, resolve } from 'node:path'
+import { isAbsolute, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import * as electron from 'electron'
 import type { SdkRuntimeModuleLoader } from './sdkRuntimePackageLoader'
@@ -83,6 +83,7 @@ export function createSdkRuntimePackageStoreLoader(options: SdkRuntimePackageSto
 export function createInstallingSdkRuntimePackageStoreLoader(options: InstallingSdkRuntimePackageStoreLoaderOptions = {}): SdkRuntimeModuleLoader {
   const baseLoader = createSdkRuntimePackageStoreLoader(options)
   return async (specifier) => {
+    if (isLocalSdkRuntimeSpecifier(specifier)) return loadLocalSdkRuntimeSpecifier(specifier)
     await ensureSdkRuntimePackageInstalled({
       ...options,
       packageName: specifier,
@@ -107,6 +108,18 @@ export function createInstallingSdkRuntimePackageStoreLoader(options: Installing
       return baseLoader(specifier)
     }
   }
+}
+
+function isLocalSdkRuntimeSpecifier(specifier: string): boolean {
+  const value = specifier.trim()
+  return value.startsWith('file://') || isAbsolute(value) || value.startsWith('./') || value.startsWith('../')
+}
+
+async function loadLocalSdkRuntimeSpecifier(specifier: string): Promise<unknown> {
+  const value = specifier.trim()
+  const importURL = value.startsWith('file://') ? value : pathToFileURL(resolve(value)).href
+  const dynamicImport = new Function('specifier', 'return import(specifier)') as (next: string) => Promise<unknown>
+  return dynamicImport(importURL)
 }
 
 export async function ensureSdkRuntimePackageInstalled(options: SdkRuntimePackageInstallOptions): Promise<SdkRuntimePackageInstallResult | undefined> {

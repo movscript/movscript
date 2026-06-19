@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import { createInstrumentedAgentStateStorage } from '@/features/agent/state/agentPerformanceStore'
-import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 import {
   EMPTY_CONVERSATION_WORKSPACE,
   type AgentConversationRunPatch,

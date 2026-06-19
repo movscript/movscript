@@ -23,13 +23,11 @@ import {
   RouteContentShell,
   RouteSuspense,
 } from '@/features/app-shell/application/AppRouteBoundaries'
-import { providerRoute, providerRouteForKey } from '@/features/agent/application/providerRoutes'
 import {
-  enabledProviders,
   normalizeProviderSettings,
-  usesAppServerProtocol,
   useProviderConfigStore,
 } from '@/shared/infrastructure/providerConfigStore'
+import { fallbackAgentProfileRoute } from '@/features/agent/application/agentProfileModel'
 import { ROUTES } from '@/routes/projectRoutes'
 import { isAgentConsoleTab } from '@/features/agent/application/agentConsoleRouteModel'
 import {
@@ -159,12 +157,7 @@ export function AuthenticatedAppRouter() {
 function AgentsRedirect() {
   const savedSettings = useProviderConfigStore((state) => state.settings)
   const settings = normalizeProviderSettings(savedSettings)
-  const enabledProviderList = enabledProviders(settings)
-  const defaultProvider = settings.providers.find((provider) => provider.id === settings.defaultProviderId)
-  const appServerProvider = usesAppServerProtocol(defaultProvider)
-    ? defaultProvider
-    : enabledProviderList.find(usesAppServerProtocol)
-  return <Navigate to={appServerProvider ? providerRoute(appServerProvider) : providerRouteForKey('mova')} replace />
+  return <Navigate to={fallbackAgentProfileRoute(settings)} replace />
 }
 
 function ProjectAgentModeRoute() {

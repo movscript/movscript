@@ -33,7 +33,6 @@ import {
 import './AccountSettingsDialog.css'
 
 const AgentConsolePage = React.lazy(() => import('@/pages/agent/AgentConsolePage'))
-const ModelProvidersPage = React.lazy(() => import('@/pages/agent/ModelProvidersPage'))
 const AgentsPage = React.lazy(() => import('@/pages/agent/AgentsPage'))
 const AgentConnectionsPage = React.lazy(() => import('@/pages/agent/AgentConnectionsPage'))
 
@@ -44,7 +43,6 @@ export type AccountSettingsPageTab = AccountSettingsDialogTab | AgentConsoleTab 
 
 const agentConsolePanels: Record<AgentConsoleTab, React.LazyExoticComponent<React.ComponentType<unknown>>> = {
   console: AgentConsolePage,
-  'console:model-providers': ModelProvidersPage,
   'console:agents': AgentsPage,
   'console:connections': AgentConnectionsPage,
 }

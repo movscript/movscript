@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 function readAppShellContractSource(): string {
@@ -112,7 +112,7 @@ test('shared resizable panel controller supports horizontal and vertical pane ed
   const workspaceSource = readFileSync(resolve('../../packages/ui/src/components/layout/workspace/resize.ts'), 'utf8')
   const workspaceStyles = readFileSync(resolve('../../packages/ui/src/components/layout/workspace/styles.css'), 'utf8')
   const agentPanelStyles = readFileSync(resolve('../../packages/ui/src/components/business/agent/panel/frame/styles.css'), 'utf8')
-  const agentHistoryStyles = readFileSync(resolve('src/features/agent/components/AgentConversationHistoryUi.css'), 'utf8')
+  const agentPanelShellLayoutStyles = readFileSync(resolve('src/features/agent/components/AgentPanelShellLayoutUi.css'), 'utf8')
 
   assert.match(workspaceSource, /export type ResizablePanelEdge = "left" \| "right" \| "top" \| "bottom"/)
   assert.match(workspaceSource, /RESIZABLE_PANEL_RESIZING_BODY_CLASS = "ui-resizable-panel-resizing"/)
@@ -125,11 +125,12 @@ test('shared resizable panel controller supports horizontal and vertical pane ed
   assert.match(workspaceStyles, /body\.ui-resizable-panel-resizing--y,[\s\S]*cursor: row-resize;/)
   assert.match(agentPanelStyles, /body\.ui-resizable-panel-resizing--x \.ai-agent-panel \{[\s\S]*transition: none;/)
   assert.doesNotMatch(agentPanelStyles, /ai-agent-panel-resizing/)
-  assert.doesNotMatch(agentHistoryStyles, /cursor: row-resize !important/)
+  assert.equal(existsSync(resolve('src/features/agent/components/AgentConversationHistoryUi.css')), false)
+  assert.doesNotMatch(agentPanelShellLayoutStyles, /cursor: row-resize !important/)
 })
 
 test('agent chat tabs and history keep fixed rows with scroll overflow', () => {
-  const agentHistoryStyles = readFileSync(resolve('src/features/agent/components/AgentConversationHistoryUi.css'), 'utf8')
+  const agentHistoryStyles = readFileSync(resolve('src/features/agent/components/AgentPanelShellLayoutUi.css'), 'utf8')
   const agentTabItemStyles = readFileSync(resolve('src/features/agent/components/conversation-tabs-ui/item/styles.css'), 'utf8')
 
   assert.match(agentHistoryStyles, /\.ai-agent-panel-empty-history \{[\s\S]*flex: 0 0 min\(260px, 42%\);/)
@@ -344,7 +345,9 @@ test('account settings page layout is owned by named shell styles', () => {
   assert.match(settingsSource, /className="account-settings-page__sidebar"/)
   assert.match(settingsSource, /account-settings-page__main/)
   assert.match(settingsSource, /const agentConsolePanels: Record<AgentConsoleTab/)
-  assert.match(settingsSource, /'console:model-providers': ModelProvidersPage/)
+  assert.doesNotMatch(settingsSource, /'console:model-providers': ModelProvidersPage/)
+  assert.match(settingsSource, /'console:agents': AgentsPage/)
+  assert.match(settingsSource, /'console:connections': AgentConnectionsPage/)
   assert.match(settingsSource, /isAgentConsoleTab\(activeTab\)/)
   assert.doesNotMatch(settingsSource, /AppSidebarHeader/)
   assert.doesNotMatch(settingsSource, /AppSidebarSection/)

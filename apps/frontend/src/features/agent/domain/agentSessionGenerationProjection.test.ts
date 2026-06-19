@@ -5,7 +5,7 @@ import {
   buildAgentSessionGenerationProjection,
   conversationPageTasks,
 } from '@/features/agent/domain/agentSessionGenerationProjection.ts'
-import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 import type { AgentPageTaskState } from '@/features/agent/state/agentSessionStore'
 
 test('conversation generation projection extracts records and content unit ids from visible task state', () => {

@@ -1,10 +1,9 @@
 import { runIdsWithTimelineActivityItems } from '@/features/agent/domain/agentTimelineActivityItems'
 import type { AgentConversationLiveBlock } from '@/features/agent/domain/agentConversationLiveBlocks'
 import type {
-  AgentConversationProjectionContentItem,
-} from '@/features/agent/domain/agentConversationProjectionTypes'
+  AgentConversationProjectionContentItem, } from '@/features/agent/domain/agentConversationProjectionTypes'
 import type { AgentThinkingState } from '@/features/agent/domain/agentThinkingState'
-import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun, AgentTimelineItem } from '@movscript/core/agent/protocol'
 import type { ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 export function renderableLiveBlocksForProjection(input: {

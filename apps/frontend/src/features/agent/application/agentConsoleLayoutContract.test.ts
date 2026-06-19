@@ -71,8 +71,9 @@ test('agent console nav stays inside settings-hosted console tabs', () => {
   const navSource = readFileSync(resolve('src/features/agent/components/AgentConsoleNav.tsx'), 'utf8')
   const routeModelSource = readFileSync(resolve('src/features/agent/application/agentConsoleRouteModel.ts'), 'utf8')
 
-  assert.match(routeModelSource, /tab: 'console:model-providers'/)
+  assert.doesNotMatch(routeModelSource, /tab: 'console:model-providers'/)
   assert.match(routeModelSource, /tab: 'console:agents'/)
+  assert.match(routeModelSource, /tab: 'console:connections'/)
   assert.doesNotMatch(routeModelSource, /tab: 'console:plugins'/)
   assert.doesNotMatch(routeModelSource, /tab: 'console:workspace'/)
   assert.match(routeModelSource, /export const agentConsoleEnvironmentLinks/)
@@ -85,11 +86,7 @@ test('agent console nav stays inside settings-hosted console tabs', () => {
 
 test('agent console document pages use shared content flow primitives', () => {
   const modelProvidersSource = readFileSync(resolve('src/features/agent/components/ModelProvidersPage.tsx'), 'utf8')
-  const agentsSource = [
-    readFileSync(resolve('src/features/agent/components/AgentsPage.tsx'), 'utf8'),
-    readFileSync(resolve('src/features/agent/components/AgentsPageAppServerPanel.tsx'), 'utf8'),
-    readFileSync(resolve('src/features/agent/components/AgentsPageAppServerPanelModel.tsx'), 'utf8'),
-  ].join('\n')
+  const agentsSource = readFileSync(resolve('src/features/agent/components/AgentsPage.tsx'), 'utf8')
   const pluginsSource = readFileSync(resolve('src/features/plugins/components/ClientPluginsPage.tsx'), 'utf8')
   const pluginsViewSource = readFileSync(resolve('src/features/plugins/components/ClientPluginsPageViews.tsx'), 'utf8')
   const pluginsLayoutSource = [
@@ -102,12 +99,17 @@ test('agent console document pages use shared content flow primitives', () => {
   const realtimeLogUiStyles = readFileSync(resolve('src/features/agent/components/AgentConsoleRealtimeLogUi.css'), 'utf8')
   const pluginStyles = readFileSync(resolve('src/features/plugins/components/PluginsPageUi.css'), 'utf8')
 
-  for (const source of [modelProvidersSource, agentsSource]) {
+  for (const source of [modelProvidersSource]) {
     assert.match(source, /AgentConsoleStack/)
     assert.match(source, /AgentConsoleIntroRow/)
     assert.doesNotMatch(source, /className="space-y-/)
     assert.doesNotMatch(source, /className="flex flex-wrap/)
   }
+  assert.match(agentsSource, /AgentConsoleStack/)
+  assert.match(agentsSource, /AgentConsoleAgentList/)
+  assert.match(agentsSource, /AgentConsoleCallout/)
+  assert.doesNotMatch(agentsSource, /className="space-y-/)
+  assert.doesNotMatch(agentsSource, /className="flex flex-wrap/)
 
   assert.doesNotMatch(agentsSource, /className="gap-2"/)
   assert.match(consoleSource, /export function AgentConsoleTabList/)

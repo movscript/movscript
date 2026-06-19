@@ -1,14 +1,12 @@
 import { startTransition, useEffect, useRef, useState } from 'react'
 import { buildAgentConversationProjection } from '@/features/agent/domain/agentConversationProjection'
-import type {
-  AgentConversationProjection,
-} from '@/features/agent/domain/agentConversationProjectionTypes'
+import type { AgentConversationProjection, } from '@/features/agent/domain/agentConversationProjectionTypes'
 import { buildAgentConversationLiveBlocks } from '@/features/agent/domain/agentConversationLiveBlocks'
 import { buildAgentConversationProjectionRunInteractions } from '@/features/agent/domain/agentConversationProjectionRunInteractions'
 import { visibleStreamingAssistantTextForTranscript } from '@/features/agent/domain/agentMessageBoundaries'
 import { filterActivityEventsForRun, timelineItemsContainRunActivity } from '@/features/agent/domain/agentTimelineActivityItems'
-import { getAgentThinkingState, type AgentThinkingState } from '@/features/agent/domain/agentThinkingState'
-import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/providerSessionClient'
+import { getAgentThinkingState, AgentThinkingState } from '@/features/agent/domain/agentThinkingState'
+import type { AgentRun, AgentTimelineItem } from '@movscript/core/agent/protocol'
 import type { ChatMessage, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 export interface AgentChatConversationProjectionStateInput {

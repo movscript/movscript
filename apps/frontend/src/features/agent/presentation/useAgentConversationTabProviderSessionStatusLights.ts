@@ -8,6 +8,7 @@ import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import type { Conversation } from '@/features/agent/state/agentStore'
 import type { AgentConversationRuntimeState, AgentConversationThreadBinding } from '@/features/agent/state/agentSessionStore'
 import { STOPPED_PROVIDER_SESSION_STATUS_LIGHT } from '@/features/agent/presentation/providerSessionStatusLightFallback'
+import { agentProtocolUsesProviderSession } from '@/features/agent/domain/agentProviderSessionProtocol'
 import {
   providerSessionStatusLightController,
   providerSessionStatusLightTargetKeys,
@@ -143,24 +144,22 @@ export function buildAgentConversationTabProviderSessionTargets(input: {
   conversationsById?: Record<string, AgentConversationRegistryRecord>
 }): AgentConversationTabProviderSessionTarget[] {
   return input.conversations.flatMap((conversation) => {
-    if (conversationProviderProtocol(conversation, input.conversationsById) === 'app-server') return []
     const binding = input.conversationThreadBindings?.[conversation.id]
-    const sessionId = (binding?.providerSessionTreeId ?? conversation.providerSessionId ?? '').trim()
-    const threadId = (binding?.providerThreadId ?? conversation.providerThreadId ?? '').trim()
+    const providerProtocol = (conversation as Conversation & { providerProtocol?: string }).providerProtocol
+      ?? input.conversationsById?.[conversation.id]?.providerProtocol
+    const usesProviderSession = agentProtocolUsesProviderSession({
+      providerProtocol,
+    })
+    const sessionId = usesProviderSession
+      ? (binding?.providerSessionTreeId ?? conversation.providerSessionId ?? '').trim()
+      : ''
+    const threadId = usesProviderSession
+      ? (binding?.providerThreadId ?? conversation.providerThreadId ?? '').trim()
+      : ''
     return [{
       conversationId: conversation.id,
       ...(sessionId ? { sessionId } : {}),
       threadId,
     }]
   })
-}
-
-function conversationProviderProtocol(
-  conversation: Conversation,
-  conversationsById: Record<string, AgentConversationRegistryRecord> | undefined,
-): string | undefined {
-  const recordProtocol = conversationsById?.[conversation.id]?.providerProtocol?.trim()
-  if (recordProtocol) return recordProtocol
-  const conversationProtocol = (conversation as Conversation & { providerProtocol?: unknown }).providerProtocol
-  return typeof conversationProtocol === 'string' ? conversationProtocol.trim() || undefined : undefined
 }

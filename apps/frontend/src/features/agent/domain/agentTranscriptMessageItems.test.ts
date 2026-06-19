@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { buildAgentTranscriptMessageItems } from '@/features/agent/domain/agentTranscriptMessageItems'
-import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun, AgentTimelineItem } from '@movscript/core/agent/protocol'
 import type { ChatMessage, ChatRunActivity } from '@/features/agent/state/agentStore'
 
 test('buildAgentTranscriptMessageItems filters run interaction answer echoes', () => {

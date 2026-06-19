@@ -1,20 +1,10 @@
 import type { AgentTaskArtifactRef } from '@/features/agent/domain/agentArtifacts'
 import type {
-  AgentConversationRunPatch,
-  AgentConversationRuntimePatch,
-  AgentConversationRuntimeState,
-  AgentConversationThreadBinding,
-  AgentStandaloneTaskState,
-} from '@/features/agent/state/agentSessionRuntimeModel'
+  AgentConversationRunPatch, AgentConversationRuntimePatch, AgentConversationRuntimeState, AgentConversationThreadBinding, AgentStandaloneTaskState, } from '@/features/agent/state/agentSessionRuntimeModel'
 import type {
-  AgentPageTaskPayload,
-  AgentPageTaskRun,
-  AgentPageTaskRunningPatch,
-  AgentPageTaskState,
-  AgentPageTaskThread,
-} from '@/features/agent/state/agentSessionTaskModel'
+  AgentPageTaskPayload, AgentPageTaskRun, AgentPageTaskRunningPatch, AgentPageTaskState, AgentPageTaskThread, } from '@/features/agent/state/agentSessionTaskModel'
 import type { ConversationWorkspace } from '@/features/agent/state/agentStore'
-import type { AgentRun, AgentThread } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun, AgentThread } from '@movscript/core/agent/protocol'
 import type {
   AgentConversationRegistryInput,
   AgentConversationRegistryRecord,

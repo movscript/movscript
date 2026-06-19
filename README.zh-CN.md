@@ -77,7 +77,7 @@ http://localhost:8766/admin
 | 助手工作流 | Provider-backed sessions、模型路由、领域工具、资源工具和生成工具 |
 | 工作区引擎 | Source review、interpret、diagnostics 和确定性 read-model refresh |
 | 管理后台 | 凭据、模型、路由、用户和运行设置 |
-| 插件系统 | 第一方 app-server 插件示例，包含 MCP bridge、skills 和 manifests |
+| 插件系统 | 第一方 provider 插件包，包含 MCP bridge、skills 和 manifests |
 | 本地依赖 | 默认 SQLite 和文件系统存储；可用 PostgreSQL、MinIO、Redis、Gitea 测试 external profile |
 | 观测能力 | 可选 Prometheus 和 Grafana 栈，覆盖后端、前端、provider 与 Web Vitals 信号 |
 
@@ -90,7 +90,7 @@ movscript/
 ├── apps/admin/            凭据、模型、路由和用户管理后台
 ├── apps/cli/              Movscript 命令行工具
 ├── packages/              共享 UI、tokens、workspace、interpreter 和领域包
-├── plugins/               第一方 app-server 插件示例
+├── plugins/               第一方 provider 插件包
 ├── docs/                  架构说明、审计记录和原型
 └── docker-compose.yml     可选 PostgreSQL、MinIO、Redis、Gitea、Prometheus、Grafana 服务
 ```
@@ -225,17 +225,19 @@ pnpm --filter @movscript/cli dev -- workspace review --workspace /path/to/projec
 pnpm --filter "./plugins/*" build
 ```
 
-安装内置 app-server 插件到本地 provider：
+准备统一 Agent Chat 使用的本地 SDK runtime 包：
 
 ```bash
-pnpm app-server:install-plugin -- --provider mova
+pnpm prepare:sdk-runtimes
 ```
 
-验证 desktop-managed app-server 启动路径：
+对 SDK runtime 入口做 smoke test：
 
 ```bash
-pnpm --filter @movscript/desktop verify:app-server -- --provider mova
+pnpm smoke:sdk-runtimes
 ```
+
+项目级 skill 会投放到 provider 原生的 workspace 目录，例如 `.codex/skills`、`.mova/skills`、`.claude/skills`。全局 skill 保留在对应 provider home 下，例如 `~/.codex/skills` 或 `~/.claude/skills`。
 
 ## 文档入口
 

@@ -28,8 +28,17 @@ export function registerSdkRuntimeIpcHandlers(): void {
     defaultHandlersInstalled = true
   }
 
-  ipcMain.handle(SDK_RUNTIME_IPC_CHANNELS.request, (_event, input?: ElectronSdkRuntimeRequestInput) => {
-    return requestSdkRuntime(input)
+  ipcMain.handle(SDK_RUNTIME_IPC_CHANNELS.request, async (_event, input?: ElectronSdkRuntimeRequestInput) => {
+    console.log('[Movscript SDK runtime flow] ipc.request', JSON.stringify(sdkRuntimeInputLogPayload(input)))
+    try {
+      return await requestSdkRuntime(input)
+    } catch (error) {
+      console.error('[Movscript SDK runtime flow] ipc.requestError', JSON.stringify({
+        ...sdkRuntimeInputLogPayload(input),
+        error: errorMessage(error),
+      }))
+      throw error
+    }
   })
 
   ipcMain.handle(SDK_RUNTIME_IPC_CHANNELS.notify, (event, input?: ElectronSdkRuntimeNotifyInput) => {
@@ -41,6 +50,23 @@ export function registerSdkRuntimeIpcHandlers(): void {
   ipcMain.handle(SDK_RUNTIME_IPC_CHANNELS.response, (_event, input) => {
     return respondToSdkRuntimeServerRequest(input)
   })
+}
+
+function sdkRuntimeInputLogPayload(input?: ElectronSdkRuntimeRequestInput): Record<string, unknown> {
+  const params = input?.params
+  return {
+    method: input?.method,
+    providerId: params?.provider.id,
+    providerKind: params?.provider.kind,
+    runtimeId: params?.runtime.id,
+    runtimeApi: params?.runtime.api,
+    threadId: params && 'threadId' in params ? params.threadId : undefined,
+    model: params && 'model' in params ? params.model : undefined,
+  }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 function sdkRuntimeSubscriptionForNotify(sender: WebContents, input?: ElectronSdkRuntimeNotifyInput): (() => void) | undefined {

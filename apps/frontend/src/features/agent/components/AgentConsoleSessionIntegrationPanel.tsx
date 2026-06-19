@@ -29,7 +29,8 @@ import {
 } from '@/features/agent/components/AgentConsoleUi'
 import { runStatusLabel } from '@/features/agent/domain/agentRunUi'
 import { agentRunStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
-import type { ProviderSessionSummary, AgentThreadSummary } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentThreadSummary } from '@movscript/core/agent/protocol'
+import type { ProviderSessionSummary } from '@/shared/contracts/electronApiProviderSessions'
 import type { ProviderSessionRunListItem } from '@/features/agent/application/providerSessionThreadQueryCache'
 import {
   errorMessage,
@@ -37,8 +38,6 @@ import {
   summarizeAgentControlThreads,
 } from '@/features/agent/application/agentControlCenter'
 import {
-  resolveAppServerProfile,
-  usesAppServerProtocol,
   type ProviderConfig,
 } from '@/shared/infrastructure/providerConfigStore'
 
@@ -71,34 +70,34 @@ export function AgentSessionIntegrationPanel({
 
   return (
     <AgentConsolePanel
-      title="会话集成模型"
+      title="会话状态"
       icon={<MessageSquare size={14} />}
       action={
         <AgentConsolePanelActions>
           {loading && <AgentConsoleSyncBadge>同步中</AgentConsoleSyncBadge>}
-          <AgentConsoleStatusBadge intent={threadSummary.requiresAction > 0 ? 'warning' : 'success'} emphasis="soft">
-            {threadSummary.total} 个 ThreadRef
+        <AgentConsoleStatusBadge intent={threadSummary.requiresAction > 0 ? 'warning' : 'success'} emphasis="soft">
+            {threadSummary.total} 个会话
           </AgentConsoleStatusBadge>
         </AgentConsolePanelActions>
       }
     >
       <AgentConsoleIntroRow>
         <AgentConsoleDescription>
-          先把用户看到的 Conversation 和 runtime 内部 thread/session 拆开：控制台负责注册和恢复映射，聊天壳只负责渲染选中的统一数据源。
+          Conversation 是用户可见的会话；内部线程和连接映射只作为恢复与排障信息保留。
         </AgentConsoleDescription>
         <AgentConsoleToolbar>
           <AgentConsoleStatusBadge intent={providers.length > 0 ? 'success' : 'warning'} emphasis="soft">
-            {providers.length} 个 Runtime source
+            {providers.length} 个 Agent
           </AgentConsoleStatusBadge>
           <AgentConsoleStatusBadge intent={providerSessions.length > 0 ? 'success' : 'neutral'} emphasis="soft">
-            {providerSessions.length} 个 Runtime session
+            {providerSessions.length} 个连接记录
           </AgentConsoleStatusBadge>
         </AgentConsoleToolbar>
       </AgentConsoleIntroRow>
 
       <AgentConsoleGrid columns="three">
         <AgentConsoleBoundaryCard title="Conversation Record" detail="面板、项目页和历史列表共用一个会话对象；不再按 provider 分散保存 activeThreadId。" />
-        <AgentConsoleBoundaryCard title="Runtime ThreadRef" detail="ThreadRef 携带 providerId、providerInstanceId、threadId、runtime session 或 session tree、workspaceDir，避免跨 runtime 冲突。" />
+        <AgentConsoleBoundaryCard title="Thread Binding" detail="内部线程引用携带 Agent、threadId 和 workspace 范围，避免跨 Agent 恢复错位。" />
         <AgentConsoleBoundaryCard title="Participants" detail="主会话可以挂多个 worker/subagent thread，Pinned Status 和 Trace 从 participant refs 聚合。" />
       </AgentConsoleGrid>
 
@@ -108,8 +107,8 @@ export function AgentSessionIntegrationPanel({
             <ProviderConversationSourceCard
               key={provider.id}
               provider={provider}
-              threadCount={0}
-              sessionCount={0}
+              threadCount={providers.length === 1 ? threads.length : 0}
+              sessionCount={providers.length === 1 ? providerSessions.length : 0}
             />
           ))}
         </AgentConsoleGrid>
@@ -119,7 +118,7 @@ export function AgentSessionIntegrationPanel({
         <AgentConsoleInlineError>{errorMessage(error)}</AgentConsoleInlineError>
       ) : threads.length === 0 ? (
         <AgentConsoleDivider>
-          <AgentConsoleEmptyText>当前 workspace 还没有可注册的 Agent Runtime 会话。任一 runtime adapter 都可以接入同一个 registry。</AgentConsoleEmptyText>
+          <AgentConsoleEmptyText>当前 workspace 还没有可恢复的 Agent 会话。</AgentConsoleEmptyText>
         </AgentConsoleDivider>
       ) : (
         <AgentConsoleDivider>
@@ -148,17 +147,13 @@ function ProviderConversationSourceCard({
   threadCount: number
   sessionCount: number
 }) {
-  const isAppServer = usesAppServerProtocol(provider)
-  const profile = isAppServer ? resolveAppServerProfile(provider) : undefined
   return (
     <AgentConsoleLocalToolCard>
       <AgentConsoleLocalToolHeader>
         <AgentConsoleLocalToolCopy>
           <AgentConsoleLocalToolTitle>{provider.label}</AgentConsoleLocalToolTitle>
           <AgentConsoleLocalToolDetail>
-            {isAppServer
-              ? `${provider.label} app-server / ${profile?.id ?? provider.id}`
-              : 'MovScript runtime profile'}
+            SDK runtime / {provider.kind}
           </AgentConsoleLocalToolDetail>
         </AgentConsoleLocalToolCopy>
         <AgentConsoleLocalToolControls>
@@ -169,13 +164,13 @@ function ProviderConversationSourceCard({
       </AgentConsoleLocalToolHeader>
       <AgentConsoleLocalToolFields>
         <AgentConsoleTestResult tone="neutral">
-          <Network size={12} /> source：{isAppServer ? 'thread/list + realtime subscription' : 'runtime sessions + event stream'}
+          <Network size={12} /> source：runtime thread list + events
         </AgentConsoleTestResult>
         <AgentConsoleTestResult tone="neutral">
-          <PlugZap size={12} /> registry key：{provider.kind}:{provider.id}:{profile?.id ?? provider.id}
+          <PlugZap size={12} /> binding key：{provider.kind}:{provider.id}
         </AgentConsoleTestResult>
-        <AgentConsoleTestResult tone={isAppServer || threadCount > 0 ? 'success' : 'warning'}>
-          {isAppServer ? '等待 app-server thread list 接入' : `${sessionCount} session / ${threadCount} thread`}
+        <AgentConsoleTestResult tone={threadCount > 0 ? 'success' : 'neutral'}>
+          {sessionCount} connection / {threadCount} thread
         </AgentConsoleTestResult>
       </AgentConsoleLocalToolFields>
     </AgentConsoleLocalToolCard>
@@ -201,7 +196,7 @@ function ConversationThreadRefRow({
         <AgentConsoleLocalToolCopy>
           <AgentConsoleLocalToolTitle>{thread.title || thread.id}</AgentConsoleLocalToolTitle>
           <AgentConsoleLocalToolDetail>
-            provider={providerKey} / runtime session={thread.sessionId ?? '-'} / thread={thread.id}
+            agent={providerKey} / connection={thread.sessionId ?? '-'} / thread={thread.id}
           </AgentConsoleLocalToolDetail>
         </AgentConsoleLocalToolCopy>
         <AgentConsoleLocalToolControls>
@@ -212,10 +207,10 @@ function ConversationThreadRefRow({
       </AgentConsoleLocalToolHeader>
       <AgentConsoleLocalToolFields>
         <AgentConsoleTestResult tone="neutral">
-          conversation key：{providerKey}:{thread.sessionId ?? 'runtime-session'}:{thread.id}
+          conversation key：{providerKey}:{thread.sessionId ?? 'connection'}:{thread.id}
         </AgentConsoleTestResult>
         <AgentConsoleTestResult tone={session?.state?.status === 'running' || session?.state?.status === 'requires_action' ? 'success' : 'neutral'}>
-          runtime session：{session?.state?.status ?? 'indexed'} / messages={thread.messageCount ?? 0}
+          connection：{session?.state?.status ?? 'indexed'} / messages={thread.messageCount ?? 0}
         </AgentConsoleTestResult>
         <AgentConsoleTestResult tone={latestRun?.status === 'failed' ? 'danger' : latestRun?.status === 'requires_action' ? 'warning' : 'neutral'}>
           latest run：{latestRun ? `${latestRun.id} / ${runStatusLabel(latestRun.status)}` : 'none'}

@@ -9,7 +9,8 @@ import {
   type AgentPlanActionDeps,
   type PlanDispatchSettings,
 } from '@/features/agent/application/agentPlanActions'
-import { providerSessionClient, type AgentTaskGraphSnapshot, type AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import { createAgentProviderSessionCommandService } from '@/features/agent/application/agentProviderSessionCommandService'
+import type { AgentTaskGraphSnapshot, AgentRun } from '@movscript/core/agent/protocol'
 
 export interface UseAgentPlanActionBindingsInput {
   conversationId: string
@@ -36,20 +37,18 @@ export function useAgentPlanActionBindings({
   updateConversationRuntimeState,
   refetchPlanSnapshot,
 }: UseAgentPlanActionBindingsInput) {
-  const providerSessionPlanClient = useMemo(() => sessionId?.trim()
-    ? providerSessionClient.forSession({ sessionId: sessionId.trim() })
-    : providerSessionClient, [sessionId])
+  const commandService = useMemo(() => createAgentProviderSessionCommandService({ sessionId }), [sessionId])
   const deps = useMemo<AgentPlanActionDeps>(() => ({
     setBusy,
     setConversationRun: (nextRun, patch) => setConversationRun(conversationId, nextRun, patch),
     reportError: (message) => updateConversationRuntimeState(conversationId, { error: message, loading: false }),
-    dispatchTaskGraph: (taskGraphId, input) => providerSessionPlanClient.dispatchTaskGraph(taskGraphId, input),
-    replanRun: (runId, input) => providerSessionPlanClient.replanRun(runId, input),
-    updateTask: (taskId, input) => providerSessionPlanClient.updateTask(taskId, input),
-    cancelRunTree: (runId, input) => providerSessionPlanClient.cancelRunTree(runId, input),
-    getRun: (runId) => providerSessionPlanClient.getRun(runId),
+    dispatchTaskGraph: (taskGraphId, input) => commandService.dispatchTaskGraph(taskGraphId, input),
+    replanRun: (runId, input) => commandService.replanRun(runId, input),
+    updateTask: (taskId, input) => commandService.updateTask(taskId, input),
+    cancelRunTree: (runId, input) => commandService.cancelRunTree(runId, input),
+    getRun: (runId) => commandService.getRun(runId),
     refetchPlanSnapshot,
-  }), [conversationId, providerSessionPlanClient, refetchPlanSnapshot, setBusy, setConversationRun, updateConversationRuntimeState])
+  }), [commandService, conversationId, refetchPlanSnapshot, setBusy, setConversationRun, updateConversationRuntimeState])
 
   const dispatchActiveTaskGraph = useCallback(async () => {
     if (busy) return

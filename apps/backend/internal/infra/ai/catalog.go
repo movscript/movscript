@@ -1,6 +1,9 @@
 package ai
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"strings"
+)
 
 // PricingMode defines how credits are charged per model call.
 type PricingMode string
@@ -24,6 +27,41 @@ const (
 	AdapterElevenLabs   = "elevenlabs"
 	AdapterLocal        = "local"
 )
+
+const (
+	ModelAPIKindOpenAIChatCompletions = "openai_chat_completions"
+	ModelAPIKindOpenAIResponses       = "openai_responses"
+	ModelAPIKindAnthropicMessages     = "anthropic_messages"
+)
+
+func ValidModelAPIKind(value string) bool {
+	switch strings.TrimSpace(value) {
+	case ModelAPIKindOpenAIChatCompletions, ModelAPIKindOpenAIResponses, ModelAPIKindAnthropicMessages:
+		return true
+	default:
+		return false
+	}
+}
+
+func NormalizeModelAPIKinds(values []string) []string {
+	seen := map[string]bool{}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		for _, part := range strings.Split(value, ",") {
+			kind := strings.TrimSpace(part)
+			if kind == "" || !ValidModelAPIKind(kind) || seen[kind] {
+				continue
+			}
+			seen[kind] = true
+			out = append(out, kind)
+		}
+	}
+	return out
+}
+
+func SplitModelAPIKinds(value string) []string {
+	return NormalizeModelAPIKinds([]string{value})
+}
 
 // ParamDef describes a user-configurable generation parameter for a model.
 // The frontend renders these as form controls so users can tune generation without

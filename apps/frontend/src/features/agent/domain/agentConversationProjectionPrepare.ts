@@ -7,7 +7,7 @@ import {
 } from '@/features/agent/domain/agentConversationProjectionLiveBlocks'
 import type { AgentConversationLiveBlock } from '@/features/agent/domain/agentConversationLiveBlocks'
 import type { AgentConversationProjectionRunInteractions } from '@/features/agent/domain/agentConversationProjectionRunInteractions'
-import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun, AgentTimelineItem } from '@movscript/core/agent/protocol'
 import type { ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 export interface AgentConversationProjectionPreparedContext {

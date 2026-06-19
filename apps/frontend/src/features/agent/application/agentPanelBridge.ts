@@ -1,4 +1,4 @@
-import type { AgentRun, AgentThread } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun, AgentThread } from '@movscript/core/agent/protocol'
 import { useAgentSessionStore, type AgentPageTaskPayload } from '@/features/agent/state/agentSessionStore'
 import type { AgentTaskArtifactRef } from '@/features/agent/domain/agentArtifacts'
 import type { MovScriptWorkspaceContext } from '@/shared/infrastructure/providerConfigStore'

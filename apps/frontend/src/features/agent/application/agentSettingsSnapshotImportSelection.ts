@@ -3,7 +3,7 @@ import {
   type AgentSettingsSnapshot,
   type ConfigFileToolPermissionOverrides,
 } from '@movscript/core/agent'
-import type { ProviderCatalogConfigFile, ProviderCatalogInspectResponse } from '@/shared/infrastructure/providerSessionClient'
+import type { ProviderCatalogConfigFile, ProviderCatalogInspectResponse } from '@movscript/core/agent/protocol'
 import { duplicateSnapshotConfigFile } from '@/features/agent/application/agentSettingsConfigFileManagement'
 import {
   SETTINGS_SNAPSHOT_IMPORT_PRESETS,

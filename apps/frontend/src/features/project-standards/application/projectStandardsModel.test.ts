@@ -16,7 +16,7 @@ import {
   splitListText,
   type WorkspaceRecord,
 } from './projectStandardsModel'
-import type { WorkspaceArtifact } from '@/shared/infrastructure/providerSessionClient'
+import type { WorkspaceArtifact } from '@/shared/contracts/workspaceArtifact'
 
 function project(input: Partial<WorkspaceRecord>): WorkspaceRecord {
   return { ID: 7, entity_type: 'project', ...input } as WorkspaceRecord

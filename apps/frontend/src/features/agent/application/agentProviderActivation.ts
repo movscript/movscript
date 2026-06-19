@@ -3,7 +3,7 @@ import {
   type ProviderConfig,
   type ProviderSettings,
 } from '@/shared/infrastructure/providerConfigStore'
-import type { MovScriptWorkspaceConfig, MovScriptWorkspaceConfigSaveInput } from '@/shared/infrastructure/providerSessionClient'
+import { providerSessionClient, type MovScriptWorkspaceConfig, type MovScriptWorkspaceConfigSaveInput } from '@/shared/infrastructure/providerSessionClient'
 
 export type AgentProviderSelectionConfig = NonNullable<MovScriptWorkspaceConfig['agentSelection']>
 
@@ -31,6 +31,14 @@ export function agentProviderSettingsWithWorkspaceSelection(settings: ProviderSe
     ...(selection.defaultProviderId ? { defaultProviderId: selection.defaultProviderId } : {}),
     ...(selection.newConversationProviderId ? { newConversationProviderId: selection.newConversationProviderId } : {}),
   })
+}
+
+export function loadAgentProviderWorkspaceConfig(): Promise<MovScriptWorkspaceConfig> {
+  return providerSessionClient.getWorkspaceConfig()
+}
+
+export function saveAgentProviderWorkspaceConfig(input: MovScriptWorkspaceConfigSaveInput): Promise<MovScriptWorkspaceConfig> {
+  return providerSessionClient.saveWorkspaceConfig(input)
 }
 
 export async function commitAgentProviderActivation(input: {

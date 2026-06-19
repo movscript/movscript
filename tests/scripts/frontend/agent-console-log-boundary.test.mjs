@@ -5,7 +5,6 @@ import test from 'node:test'
 
 const agentConsoleUiSource = readSource('apps/frontend/src/features/agent/components/AgentConsoleUi.tsx')
 const agentConsoleUiCss = readSource('apps/frontend/src/features/agent/components/AgentConsoleUi.css')
-const realtimeLogPanelSource = readSource('apps/frontend/src/features/agent/components/AgentConsoleRealtimeLogPanel.tsx')
 const realtimeLogUiSource = readSource('apps/frontend/src/features/agent/components/AgentConsoleRealtimeLogUi.tsx')
 const realtimeLogUiCss = readSource('apps/frontend/src/features/agent/components/AgentConsoleRealtimeLogUi.css')
 
@@ -28,8 +27,7 @@ test('agent console realtime log UI is feature-owned, not package console API', 
   }
 
   assert.doesNotMatch(realtimeLogUiSource, /AgentConsoleRealtimeLogUi\.css/)
-  assert.match(realtimeLogPanelSource, /from '@\/features\/agent\/components\/AgentConsoleRealtimeLogUi'/)
-  assert.match(realtimeLogPanelSource, /from '@\/features\/agent\/components\/AgentConsoleUi'/)
+  assert.equal(existsSync(resolve('apps/frontend/src/features/agent/components/AgentConsoleRealtimeLogPanel.tsx')), false)
 
   for (const selector of [
     '.agent-console-log-summary',

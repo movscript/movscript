@@ -1,4 +1,4 @@
-import type { AgentApprovalRequest, AgentRun, AgentTraceEvent } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentApprovalRequest, AgentRun, AgentTraceEvent } from '@movscript/core/agent/protocol'
 import { isRecord } from '@/shared/domain/jsonValue'
 import { agentPermissionLabel, agentRiskLabel } from '@/features/agent/domain/agentToolDisplay'
 import type { AgentTraceCategory } from './types'

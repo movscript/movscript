@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { ClipboardCheck, Route } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -61,7 +61,11 @@ import {
   DEFAULT_TASK_GRAPH_DISPATCH_SETTINGS,
 } from '@/features/agent/components/AgentPlanOverviewPanelSections'
 import { AgentPlanOverviewWorkerSection } from '@/features/agent/components/AgentPlanOverviewWorkerSection'
-import { providerSessionClient, type AgentTaskGraphSnapshot, type AgentRunTraceSummary, type AgentTraceEvent } from '@/shared/infrastructure/providerSessionClient'
+import {
+  getAgentRunTraceSummary,
+  listAgentRunTraceEvents,
+} from '@/features/agent/application/agentRunTraceService'
+import type { AgentTaskGraphSnapshot, AgentRunTraceSummary, AgentTraceEvent } from '@movscript/core/agent/protocol'
 import { ROUTES } from '@/routes/projectRoutes'
 import type { PlanDispatchSettings } from '@/features/agent/application/agentPlanActions'
 
@@ -103,10 +107,6 @@ export function AgentPlanOverviewPanel({
   const [traceEventErrors, setTraceEventErrors] = useState<Record<string, string>>({})
   const [traceEventKindFilters, setTraceEventKindFilters] = useState<Record<string, 'all' | AgentTraceEvent['kind']>>({})
   const snapshotSessionId = snapshot?.taskGraph.sessionId?.trim()
-  const providerSessionTraceClient = useMemo(() => snapshotSessionId
-    ? providerSessionClient.forSession({ sessionId: snapshotSessionId })
-    : providerSessionClient,
-  [snapshotSessionId])
   if (!snapshot) return null
   const taskViews = buildPlanTaskViews(snapshot)
   const artifactSummary = buildPlanArtifactSummary(snapshot)
@@ -145,7 +145,10 @@ export function AgentPlanOverviewPanel({
       return next
     })
     try {
-      const summary = await providerSessionTraceClient.getRunTraceSummary(runId)
+      const summary = await getAgentRunTraceSummary({
+        sessionId: snapshotSessionId,
+        runId,
+      })
       setTraceSummaries((current) => ({ ...current, [runId]: summary }))
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e)
@@ -165,7 +168,12 @@ export function AgentPlanOverviewPanel({
     try {
       const currentEvents = traceEventsByRunId[runId] ?? []
       const cursor = mode === 'more' ? currentEvents.at(-1)?.id : undefined
-      const response = await providerSessionTraceClient.getRunTraceEvents(runId, { limit: 8, ...(cursor ? { cursor } : {}) })
+      const response = await listAgentRunTraceEvents({
+        sessionId: snapshotSessionId,
+        runId,
+        limit: 8,
+        ...(cursor ? { cursor } : {}),
+      })
       setTraceEventsByRunId((current) => ({
         ...current,
         [runId]: mode === 'more' ? [...(current[runId] ?? []), ...response.events] : response.events,

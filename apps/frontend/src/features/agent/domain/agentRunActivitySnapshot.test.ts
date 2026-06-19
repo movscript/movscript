@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { buildRunActivitySnapshot } from '@/features/agent/domain/agentRunActivitySnapshot'
-import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 import type { ChatRunActivity, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 test('buildRunActivitySnapshot preserves all live model rounds and totals token usage', () => {

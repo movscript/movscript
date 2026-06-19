@@ -2,13 +2,11 @@ import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
   AlertTriangle,
-  Blocks,
   Bot,
   Cable,
   ClipboardList,
   RefreshCw,
   Settings,
-  Terminal,
   Trash2,
 } from 'lucide-react'
 import {
@@ -36,9 +34,8 @@ import {
   AgentConsoleSyncBadge,
 } from '@/features/agent/components/AgentConsoleUi'
 import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
-import { agentConsoleEnvironmentLinks, agentConsoleSettingsRoute } from '@/features/agent/application/agentConsoleRouteModel'
+import { agentConsoleSettingsRoute } from '@/features/agent/application/agentConsoleRouteModel'
 import {
-  AgentControlMatrixPanel,
   BoundaryCard,
   ConsoleMetricCard,
   ConsolePanel,
@@ -46,7 +43,6 @@ import {
   HistoryClearControl,
   IssueRow,
   ManagementLink,
-  ProviderRuntimeSwitchPanel,
 } from '@/features/agent/components/AgentConsolePageSections'
 import { ROUTES } from '@/routes/projectRoutes'
 import { useAgentControlCenter } from '@/features/agent/presentation/useAgentControlCenter'
@@ -54,40 +50,26 @@ import {
   errorMessage,
   modelDisplay,
 } from '@/features/agent/application/agentControlCenter'
-import {
-  providerRuntimeProfile,
-  providerSupportsAppServerRuntime,
-  resolveAppServerProfile,
-  useProviderConfigStore,
-} from '@/shared/infrastructure/providerConfigStore'
-import {
-  AgentCapabilityHealthPanel,
-  AgentCapabilityProbePanel,
-} from '@/features/agent/components/AgentConsoleCapabilityPanels'
-import {
-  AppServerRealtimeLogPanel,
-  useAppServerRealtimeLogs,
-} from '@/features/agent/components/AgentConsoleRealtimeLogPanel'
+import { AgentCapabilityHealthPanel, AgentRuntimeCredentialPanel } from '@/features/agent/components/AgentConsoleCapabilityPanels'
 import { AgentSessionIntegrationPanel } from '@/features/agent/components/AgentConsoleSessionIntegrationPanel'
+import {
+  activeAgentProfileForRoute,
+  agentProfilesFromProviderSettings,
+} from '@/features/agent/application/agentProfileModel'
 
 export default function AgentConsolePage() {
   const controlCenter = useAgentControlCenter()
-  const setProviderSettings = useProviderConfigStore((state) => state.setSettings)
   const {
     providerSessionsQuery,
     modelQuery,
     runsQuery,
     threadsQuery,
-    appServerStatusQuery,
     capabilityHealthQuery,
     providerSessions,
     runs,
     threads,
-    enabledProvidersForConsole,
     providerSettings,
     defaultProvider,
-    appServerProvider,
-    appServerProfile,
     threadSummary,
     runSummary,
     capabilityHealth,
@@ -97,43 +79,17 @@ export default function AgentConsolePage() {
     attentionIssues,
     loading,
     consoleStatusRecipe,
-    onlineProviderSessionCount,
-    appServerRunning,
-    controlAction,
-    controlError,
     clearConfirming,
     clearingHistory,
     clearHistoryError,
     clearHistoryResult,
     refreshAll,
-    runControlAction,
-    ensureAppServer,
-    stopAppServer,
-    restartAppServer,
     clearThreadHistory,
     setClearConfirming,
   } = controlCenter
   const executingHistoryRunCount = runSummary.active
-  const defaultRuntime = defaultProvider ? providerRuntimeProfile(defaultProvider) : undefined
-  const appServerProvidersForManagement = useMemo(
-    () => providerSettings.providers.filter(providerSupportsAppServerRuntime),
-    [providerSettings],
-  )
-  const appServerLogProfiles = useMemo(
-    () => (appServerProvider ? [appServerProvider] : []).flatMap((provider) => {
-      try {
-        const profile = resolveAppServerProfile(provider)
-        return [{
-          profileId: profile.id,
-          providerLabel: provider.label,
-        }]
-      } catch {
-        return []
-      }
-    }),
-    [appServerProvider],
-  )
-  const appServerLogs = useAppServerRealtimeLogs(appServerLogProfiles)
+  const agentProfiles = useMemo(() => agentProfilesFromProviderSettings(providerSettings), [providerSettings])
+  const currentAgent = activeAgentProfileForRoute(agentProfiles, undefined)
   const hostedAgentsRoute = agentConsoleSettingsRoute('console:agents')
 
   return (
@@ -150,14 +106,14 @@ export default function AgentConsolePage() {
               {loading && <AgentConsoleSyncBadge>同步中</AgentConsoleSyncBadge>}
             </AgentConsoleHeaderTitleRow>
             <AgentConsoleHeaderDescription>
-              聚合 Agents、Runtime、Provider / Catalog / Route 与会话运行态；Plugins 和 Workspace 作为全局环境独立管理。
+              展示当前 Agent、会话健康和需要处理的事项；连接方式和模型治理由系统后台与 Admin 边界处理。
             </AgentConsoleHeaderDescription>
           </AgentConsoleHeaderCopy>
           <AgentConsoleHeaderActions>
             <AgentConsoleActionButton asChild size="sm" variant="outline">
               <Link to={hostedAgentsRoute}>
                 <Settings size={14} />
-                选择 / 配置 Agent
+                当前 Agent
               </Link>
             </AgentConsoleActionButton>
             <AgentConsoleActionButton
@@ -168,7 +124,7 @@ export default function AgentConsolePage() {
               disabled={clearingHistory || executingHistoryRunCount > 0 || (threads.length === 0 && runSummary.total === 0)}
               title={executingHistoryRunCount > 0 ? '请先取消运行中的 Run' : '清空历史会话记录'}
               data-testid="agent-console-header-clear-history"
-             intent={clearConfirming ? 'danger' : 'neutral'}>
+              intent={clearConfirming ? 'danger' : 'neutral'}>
               <Trash2 size={14} />
               {clearingHistory ? '清空中...' : clearConfirming ? '确认清空历史' : '清空历史'}
             </AgentConsoleActionButton>
@@ -185,37 +141,33 @@ export default function AgentConsolePage() {
       <AgentConsolePageBody>
         <AgentConsoleMetricGrid>
           <ConsoleMetricCard
-            title="默认 Provider"
-            value={defaultProvider?.label ?? '未选择'}
-            detail={defaultRuntime ? `${defaultRuntime.api} / ${defaultRuntime.packageVersion ?? defaultRuntime.sdkPackageName ?? defaultRuntime.packageName ?? 'runtime configured'}` : '配置入口已连接'}
-            tone={defaultProvider?.enabled ? 'ready' : 'action'}
+            title="当前 Agent"
+            value={currentAgent?.label ?? '未选择'}
+            detail={currentAgent?.detail ?? '选择一个 Agent 后即可开始会话。'}
+            tone={currentAgent?.enabled ? 'ready' : 'action'}
           />
           <ConsoleMetricCard
-            title="Model Runtime"
+            title="模型"
             value={modelQuery.data?.configured ? modelDisplay(modelQuery.data.model) : '模型未配置'}
-            detail={modelQuery.error ? errorMessage(modelQuery.error) : `${modelQuery.data?.apiKind ?? '模型'}；来自当前 workspace provider 配置`}
+            detail={modelQuery.error ? errorMessage(modelQuery.error) : `${modelQuery.data?.apiKind ?? '模型'}；治理配置由 Admin 提供，Agent 只消费 public model`}
             tone={modelQuery.data?.configured ? 'ready' : 'action'}
           />
           <ConsoleMetricCard
-            title="Runtime"
-            value={defaultRuntime?.api ?? '未选择'}
-            detail={appServerProvider
-              ? (appServerStatusQuery.data?.endpoint ?? `${providerSessions.length} 个 Runtime ThreadRef 索引记录`)
-              : defaultRuntime?.api?.endsWith('-sdk')
-                ? 'SDK runtime 按需加载，通过 runtime/probe 检查包和 RPC 覆盖'
-                : '当前默认 runtime 不需要 app-server 启动'}
-            tone={providerSessionsQuery.error ? 'action' : appServerProvider ? appServerRunning ? 'ready' : 'warning' : 'ready'}
+            title="连接"
+            value={currentAgent?.connectionLabel ?? '未选择'}
+            detail={providerSessionsQuery.error ? errorMessage(providerSessionsQuery.error) : `${providerSessions.length} 个会话索引记录；系统负责连接与恢复`}
+            tone={providerSessionsQuery.error ? 'action' : currentAgent?.enabled ? 'ready' : 'warning'}
           />
           <ConsoleMetricCard
-            title="Capabilities"
-            value={capabilityHealth.checkedProviderCount > 0 ? `${toolSummary.available} 工具 / ${skillSummary.enabled} Skills` : '等待运行中 Provider'}
+            title="能力"
+            value={capabilityHealth.checkedProviderCount > 0 ? `${toolSummary.available} 工具 / ${skillSummary.enabled} Skills` : '等待当前 Agent'}
             detail={capabilityHealth.checkedProviderCount > 0
-              ? `${pluginSummary.enabled} Plugins；已检查 ${capabilityHealth.checkedProviderCount}/${capabilityHealth.providerCount} 个运行中 Agent`
-              : '刷新 Provider 能力探针后读取 app-server 或 SDK runtime 的真实能力入口'}
+              ? `${pluginSummary.enabled} Plugins；已检查当前 Agent 能力`
+              : '连接当前 Agent 后读取工具、Skills 和插件状态'}
             tone={capabilityHealth.warningCount > 0 ? 'warning' : capabilityHealth.checkedProviderCount > 0 ? 'ready' : 'warning'}
           />
           <ConsoleMetricCard
-            title="Conversation"
+            title="会话"
             value={`${threadSummary.total} 个会话 / ${runSummary.total} 个 Run`}
             detail={`${threadSummary.running + runSummary.active} 运行中 / ${threadSummary.requiresAction + runSummary.requiresAction} 待处理 / ${threadSummary.failed + runSummary.failed} 失败`}
             tone={threadSummary.requiresAction || runSummary.failed ? 'warning' : 'ready'}
@@ -224,27 +176,9 @@ export default function AgentConsolePage() {
 
         <AgentConsoleMainGrid layout="control-logs">
           <AgentConsoleMainColumn pane="config">
-            <AgentControlMatrixPanel
-              appServerAvailable={Boolean(appServerProvider)}
-              appServerLabel={appServerProvider?.label ?? 'App Server Agent'}
-              appServerConfigRoute={hostedAgentsRoute}
-              appServerEnabled={appServerProvider?.enabled === true}
-              appServerRunning={appServerRunning}
-              appServerProfileId={appServerProfile?.id ?? 'none'}
-              appServerEndpoint={appServerStatusQuery.data?.endpoint}
-              loading={Boolean(controlAction) || providerSessionsQuery.isFetching || appServerStatusQuery.isFetching}
-              action={controlAction}
-              error={controlError}
-              onRefresh={refreshAll}
-              onStartAppServer={() => void runControlAction('start-app-server', ensureAppServer)}
-              onStopAppServer={() => void runControlAction('stop-app-server', stopAppServer)}
-              onRestartAppServer={() => void runControlAction('restart-app-server', restartAppServer)}
-            />
-
-            <ProviderRuntimeSwitchPanel
-              providers={enabledProvidersForConsole}
-              settings={providerSettings}
-              onSettingsChange={setProviderSettings}
+            <AgentRuntimeCredentialPanel
+              provider={defaultProvider}
+              onCredentialSaved={refreshAll}
             />
 
             <AgentCapabilityHealthPanel
@@ -252,13 +186,11 @@ export default function AgentConsolePage() {
               loading={capabilityHealthQuery.isFetching}
             />
 
-            <AgentCapabilityProbePanel />
-
             <AgentSessionIntegrationPanel
               providerSessions={providerSessions}
               threads={threads}
               runs={runs}
-              providers={enabledProvidersForConsole}
+              providers={currentAgent?.provider ? [currentAgent.provider] : []}
               loading={threadsQuery.isLoading || providerSessionsQuery.isLoading}
               error={threadsQuery.error ?? providerSessionsQuery.error}
             />
@@ -266,19 +198,11 @@ export default function AgentConsolePage() {
           </AgentConsoleMainColumn>
 
           <AgentConsoleSidebar pane="logs">
-            <AppServerRealtimeLogPanel
-              logs={appServerLogs}
-              status={appServerStatusQuery.data}
-              profiles={appServerLogProfiles}
-              primaryProfileId={appServerProfile?.id ?? 'none'}
-              primaryProviderLabel={appServerProvider?.label ?? 'App Server Agent'}
-            />
-
             <ConsolePanel title="当前边界" icon={<ClipboardList size={14} />}>
               <AgentConsoleGrid>
-                <BoundaryCard title="业务前台" detail="Agent 面板发起任务，业务页面负责对比、审阅和应用建议。" />
-                <BoundaryCard title="控制台" detail="集中处理 Provider 配置、runtime 选择、会话注册和 app-server 生命周期。" />
-                <BoundaryCard title="线程详情" detail="app-server 与 SDK runtime 都通过中立 thread/list、turn/start 接入统一会话。" />
+                <BoundaryCard title="用户入口" detail="只选择当前 Agent、查看会话状态，并处理需要人工介入的事项。" />
+                <BoundaryCard title="系统后台" detail="连接、进程、SDK 包和线程恢复由统一适配层处理，不作为普通管理项暴露。" />
+                <BoundaryCard title="治理入口" detail="Provider、Catalog、Route 和密钥策略由 Admin 管理，Agent 只消费已发布模型能力。" />
               </AgentConsoleGrid>
             </ConsolePanel>
 
@@ -292,29 +216,13 @@ export default function AgentConsolePage() {
               )}
             </ConsolePanel>
 
-            <ConsolePanel title="管理入口" icon={<Terminal size={14} />}>
+            <ConsolePanel title="常用入口" icon={<Cable size={14} />}>
               <AgentConsoleGrid>
-                <ManagementLink to={ROUTES.modelProviders} icon={<Settings size={14} />} title="Provider / Catalog / Route" detail="查看 Admin 已发布的 Provider 来源、Catalog Entry 和 Route；配置变更在 Admin 完成。" />
-                {appServerProvidersForManagement.map((provider) => (
-                  <ManagementLink
-                    key={provider.id}
-                    to={hostedAgentsRoute}
-                    icon={<Terminal size={14} />}
-                    title={provider.label}
-                    detail={`管理 ${provider.label} 的 app-server、托管 home 和运行状态。`}
-                  />
-                ))}
-                {enabledProvidersForConsole.filter((provider) => !providerSupportsAppServerRuntime(provider)).map((provider) => (
-                  <ManagementLink
-                    key={provider.id}
-                    to={hostedAgentsRoute}
-                    icon={<Terminal size={14} />}
-                    title={provider.label}
-                    detail={`查看 ${provider.label} 的 SDK runtime、包状态和 Provider 能力探针。`}
-                  />
-                ))}
+                <ManagementLink to={hostedAgentsRoute} icon={<Bot size={14} />} title="当前 Agent" detail="选择当前助手，只在必要时显示本地连接配置。" />
+                <ManagementLink to={ROUTES.agentSettings} icon={<Settings size={14} />} title="Agent 设置" detail="管理技能、工具授权、配置文件和模型偏好。" />
+                <ManagementLink to={ROUTES.agentConnections} icon={<Cable size={14} />} title="连接诊断" detail="查看原始事件、连接状态和线程流，供排障使用。" />
                 <ManagementLink to={agentSettingsSectionPath('agent-settings-skills')} icon={<Cable size={14} />} title="Skills" detail="管理当前配置文件的 Skill 激活候选、依赖和冲突。" />
-                <ManagementLink to={agentSettingsSectionPath('agent-settings-tools')} icon={<Terminal size={14} />} title="Tools" detail="管理当前配置文件的工具授权、审批、风险和运行可用性。" />
+                <ManagementLink to={agentSettingsSectionPath('agent-settings-tools')} icon={<Cable size={14} />} title="Tools" detail="管理当前配置文件的工具授权、审批、风险和运行可用性。" />
               </AgentConsoleGrid>
               <AgentConsoleDivider>
                 <HistoryClearControl
@@ -329,23 +237,6 @@ export default function AgentConsolePage() {
                   onCancel={() => setClearConfirming(false)}
                 />
               </AgentConsoleDivider>
-            </ConsolePanel>
-
-            <ConsolePanel title="全局环境" icon={<Blocks size={14} />}>
-              <AgentConsoleGrid>
-                {agentConsoleEnvironmentLinks.map((link) => {
-                  const Icon = link.icon
-                  return (
-                    <ManagementLink
-                      key={link.id}
-                      to={link.canonicalPath}
-                      icon={<Icon size={14} />}
-                      title={link.label}
-                      detail={link.description}
-                    />
-                  )
-                })}
-              </AgentConsoleGrid>
             </ConsolePanel>
           </AgentConsoleSidebar>
         </AgentConsoleMainGrid>

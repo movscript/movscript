@@ -1,12 +1,5 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import {
-  appServerProviderKindForProvider,
-  normalizeAppServerProfile,
-  normalizeProviderKey,
-  providerLabel,
-  type PersistedAppServerProfile,
-} from '@/shared/infrastructure/providerConfigAppServerProfile'
 import { getRuntimeConfigSnapshot } from '@/shared/infrastructure/config'
 import {
   CLAUDE_PROVIDER_ID,
@@ -15,55 +8,34 @@ import {
   CLAUDE_RUNTIME_PACKAGE_ENV,
   CLAUDE_RUNTIME_PACKAGE_VERSION_ENV,
   CODEX_PROVIDER_ID,
-  CODEX_MOVSCRIPT_HOME_PROFILE_ID,
   CODEX_RUNTIME_PACKAGE_ENV,
   CODEX_RUNTIME_PACKAGE_VERSION_ENV,
   CODEX_RUNTIME_API_ENV,
   CODEX_RUNTIME_SDK_PACKAGE_ENV,
-  DEFAULT_CODEX_MOVSCRIPT_HOME_PROFILE,
-  DEFAULT_MOVA_MOVSCRIPT_HOME_PROFILE,
   DEFAULT_PROVIDER_SETTINGS,
   MOVA_PROVIDER_ID,
-  MOVA_MOVSCRIPT_HOME_PROFILE_ID,
-  MOVSCRIPT_MANAGED_CODEX_HOME,
-  MOVSCRIPT_MANAGED_MOVA_HOME,
+  MOVA_RUNTIME_API_ENV,
+  MOVA_RUNTIME_BINARY_PACKAGE_ENV,
+  MOVA_RUNTIME_PACKAGE_ENV,
+  MOVA_RUNTIME_PACKAGE_VERSION_ENV,
   PROVIDER_CONFIG_STORAGE_KEY,
 } from '@/shared/infrastructure/providerConfigDefaults'
 
 export type BuiltInProviderKind = 'codex' | 'mova' | 'claude'
 export type ProviderKind = BuiltInProviderKind | (string & {})
-export type AppServerProviderKind = 'codex' | 'mova' | (string & {})
-export type BuiltInProviderProtocol = 'app-server' | 'claude-code'
+export type BuiltInProviderProtocol = 'sdk' | 'claude-code'
 export type ProviderProtocol = BuiltInProviderProtocol | (string & {})
 export type BuiltInProviderMessageAdapterKind = 'thread-turn-item' | 'claude-thread-message'
 export type ProviderMessageAdapterKind = BuiltInProviderMessageAdapterKind | (string & {})
-export type BuiltInProviderRuntimeApi = 'app-server' | 'codex-sdk' | 'claude-sdk'
+export type BuiltInProviderRuntimeApi = 'codex-sdk' | 'mova-sdk' | 'claude-sdk'
 export type ProviderRuntimeApi = BuiltInProviderRuntimeApi | (string & {})
 
-export type AppServerLifecycle = 'movscript-owned'
 export type MovScriptWorkspaceScope = 'global' | 'project' | 'production'
 
 export interface MovScriptWorkspaceContext {
   scope?: MovScriptWorkspaceScope
   projectId?: string | number
   productionId?: string | number
-}
-
-export interface AppServerProfile {
-  id: string
-  label: string
-  providerKey?: AppServerProviderKind
-  executablePath?: string
-  executableCommand?: string
-  executableEnvVar?: string
-  compatibilityBinEnvNames?: string[]
-  candidateRootRelativePaths?: string[]
-  candidateBinaryNames?: string[]
-  pathFallbackReady?: boolean
-  home: string
-  compatibilityHomeEnvNames?: string[]
-  workspaceDir?: string
-  lifecycle: AppServerLifecycle
 }
 
 export interface ProviderConfig {
@@ -74,7 +46,6 @@ export interface ProviderConfig {
   label: string
   enabled: boolean
   runtime?: ProviderRuntimeProfile
-  appServerProfile?: AppServerProfile
 }
 
 export interface ProviderRuntimeProfile {
@@ -102,13 +73,12 @@ export interface ProviderSettings {
   newConversationProviderId?: string
 }
 
-type PersistedProviderConfig = Partial<Omit<ProviderConfig, 'protocol' | 'messageAdapter' | 'runtime' | 'appServerProfile'>> & {
+type PersistedProviderConfig = Partial<Omit<ProviderConfig, 'protocol' | 'messageAdapter' | 'runtime'>> & {
   id?: string
   kind?: ProviderKind
   protocol?: ProviderProtocol
   messageAdapter?: ProviderMessageAdapterKind
   runtime?: Partial<ProviderRuntimeProfile>
-  appServerProfile?: PersistedAppServerProfile
 }
 
 type PersistedProviderSettings = Partial<Omit<ProviderSettings, 'providers'>> & {
@@ -131,22 +101,24 @@ export {
   CLAUDE_RUNTIME_PACKAGE_ENV,
   CLAUDE_RUNTIME_PACKAGE_VERSION_ENV,
   CODEX_PROVIDER_ID,
-  CODEX_MOVSCRIPT_HOME_PROFILE_ID,
   CODEX_RUNTIME_PACKAGE_ENV,
   CODEX_RUNTIME_PACKAGE_VERSION_ENV,
   CODEX_RUNTIME_API_ENV,
   CODEX_RUNTIME_SDK_PACKAGE_ENV,
-  DEFAULT_CODEX_MOVSCRIPT_HOME_PROFILE,
-  DEFAULT_MOVA_MOVSCRIPT_HOME_PROFILE,
   DEFAULT_PROVIDER_SETTINGS,
   MOVA_PROVIDER_ID,
-  MOVA_MOVSCRIPT_HOME_PROFILE_ID,
-  MOVSCRIPT_MANAGED_CODEX_HOME,
-  MOVSCRIPT_MANAGED_MOVA_HOME,
+  MOVA_RUNTIME_API_ENV,
+  MOVA_RUNTIME_BINARY_PACKAGE_ENV,
+  MOVA_RUNTIME_PACKAGE_ENV,
+  MOVA_RUNTIME_PACKAGE_VERSION_ENV,
   PROVIDER_CONFIG_STORAGE_KEY,
 }
 
-export { normalizeAppServerProfile } from '@/shared/infrastructure/providerConfigAppServerProfile'
+const builtInProviderIds = new Set<string>([
+  CODEX_PROVIDER_ID,
+  MOVA_PROVIDER_ID,
+  CLAUDE_PROVIDER_ID,
+])
 
 export interface ProviderThreadRef {
   providerId: string
@@ -238,18 +210,9 @@ export function normalizeProviderSettings(settings: PersistedProviderSettings | 
       kind,
       protocol,
       messageAdapter,
-      label: provider.label?.trim() || fallback?.label || providerLabel(kind),
-      enabled: provider.enabled !== false,
+      label: builtInProviderIds.has(id) ? fallback?.label || providerLabel(kind) : provider.label?.trim() || fallback?.label || providerLabel(kind),
+      enabled: builtInProviderIds.has(id) ? true : provider.enabled !== false,
       runtime,
-      ...(protocol === 'app-server'
-        ? {
-            appServerProfile: normalizeAppServerProfile(
-              persistedAppServerProfileForKind(provider),
-              appServerProviderKindForProvider(provider, kind),
-              persistedAppServerProfileForKind(fallback),
-            ),
-          }
-        : {}),
     })
   }
   const providers = Array.from(providersById.values())
@@ -271,26 +234,7 @@ export function normalizeProviderSettings(settings: PersistedProviderSettings | 
 }
 
 function migrateLegacyDefaultProviderSettings(settings: PersistedProviderSettings | null | undefined): PersistedProviderSettings | null | undefined {
-  if (!settings || settings.defaultProviderId !== MOVA_PROVIDER_ID || settings.newConversationProviderId) return settings
-  const codexProvider = settings.providers?.find((provider) => provider.id === CODEX_PROVIDER_ID || provider.kind === CODEX_PROVIDER_ID)
-  if (codexProvider?.runtime?.apiSource === 'user') return settings
-  return {
-    ...settings,
-    defaultProviderId: CODEX_PROVIDER_ID,
-    newConversationProviderId: CODEX_PROVIDER_ID,
-    providers: settings.providers?.map((provider) => {
-      if (provider.id !== CODEX_PROVIDER_ID && provider.kind !== CODEX_PROVIDER_ID) return provider
-      return {
-        ...provider,
-        runtime: {
-          ...(provider.runtime ?? {}),
-          id: 'codex-codex-sdk',
-          api: 'codex-sdk',
-          label: 'Codex SDK',
-        },
-      }
-    }),
-  }
+  return settings
 }
 
 export function normalizeProviderSettingsWithRuntimeEnv(settings: PersistedProviderSettings | null | undefined): ProviderSettings {
@@ -340,14 +284,9 @@ export function providerRuntimeApi(provider: ProviderConfig): ProviderRuntimeApi
 }
 
 export function providerRuntimeApiOptions(provider: ProviderConfig): Array<{ api: ProviderRuntimeApi; label: string }> {
-  if (provider.kind === CODEX_PROVIDER_ID) {
-    return [
-      { api: 'codex-sdk', label: providerRuntimeLabel(provider.kind, 'codex-sdk') },
-      { api: 'app-server', label: providerRuntimeLabel(provider.kind, 'app-server') },
-    ]
-  }
+  if (provider.kind === CODEX_PROVIDER_ID) return [{ api: 'codex-sdk', label: providerRuntimeLabel(provider.kind, 'codex-sdk') }]
+  if (provider.kind === MOVA_PROVIDER_ID) return [{ api: 'mova-sdk', label: providerRuntimeLabel(provider.kind, 'mova-sdk') }]
   if (provider.kind === CLAUDE_PROVIDER_ID) return [{ api: 'claude-sdk', label: providerRuntimeLabel(provider.kind, 'claude-sdk') }]
-  if (providerProtocol(provider) === 'app-server') return [{ api: 'app-server', label: providerRuntimeLabel(provider.kind, 'app-server') }]
   return [{ api: providerRuntimeApi(provider), label: providerRuntimeProfile(provider).label }]
 }
 
@@ -366,27 +305,8 @@ export function providerWithRuntimeApi(provider: ProviderConfig, api: ProviderRu
   }
 }
 
-export function usesAppServerProtocol(provider: ProviderConfig | undefined): boolean {
-  return Boolean(provider && providerProtocol(provider) === 'app-server')
-}
-
 export function usesRuntimeApi(provider: ProviderConfig | undefined, api: ProviderRuntimeApi): boolean {
   return Boolean(provider && providerRuntimeApi(provider) === api)
-}
-
-export function providerSupportsAppServerRuntime(provider: ProviderConfig | undefined): boolean {
-  return Boolean(provider && usesAppServerProtocol(provider) && usesRuntimeApi(provider, 'app-server'))
-}
-
-export function resolveAppServerProfile(provider: ProviderConfig): AppServerProfile {
-  if (!usesAppServerProtocol(provider) && !provider.appServerProfile) {
-    throw new Error(`Provider ${provider.id} does not expose an app-server profile.`)
-  }
-  const kind = appServerProviderKindForProvider(provider, provider.kind)
-  return normalizeAppServerProfile(
-    persistedAppServerProfileForKind(provider),
-    kind,
-  )
 }
 
 export function providerSettingsWithRuntimeEnv(
@@ -435,9 +355,9 @@ function normalizeProviderProtocol(
   kind: ProviderKind,
 ): ProviderProtocol {
   const normalized = normalizeProviderKey(protocol)
-  if (normalized) return normalized
+  if (normalized && isSupportedProviderProtocol(normalized, kind)) return normalized
   const fallbackProtocol = normalizeProviderKey(fallback)
-  if (fallbackProtocol) return fallbackProtocol
+  if (fallbackProtocol && isSupportedProviderProtocol(fallbackProtocol, kind)) return fallbackProtocol
   return defaultProviderProtocol(kind)
 }
 
@@ -455,13 +375,18 @@ function normalizeProviderMessageAdapter(
 }
 
 function isSupportedProviderMessageAdapter(adapter: string, protocol: ProviderProtocol): boolean {
-  if (protocol !== 'app-server') return true
+  if (protocol === 'claude-code') return adapter === 'claude-thread-message'
   return adapter === 'thread-turn-item'
+}
+
+function isSupportedProviderProtocol(protocol: string, kind: ProviderKind): boolean {
+  if (kind === 'claude') return protocol === 'claude-code'
+  return protocol === 'sdk'
 }
 
 function defaultProviderProtocol(kind: ProviderKind): ProviderProtocol {
   if (kind === 'claude') return 'claude-code'
-  return 'app-server'
+  return 'sdk'
 }
 
 function defaultProviderMessageAdapter(kind: ProviderKind): ProviderMessageAdapterKind {
@@ -515,16 +440,16 @@ function normalizeProviderRuntimeApi(
 }
 
 function isSupportedProviderRuntimeApi(api: string, kind: ProviderKind, protocol: ProviderProtocol): boolean {
-  if (kind === 'codex') return api === 'app-server' || api === 'codex-sdk'
+  if (kind === 'codex') return api === 'codex-sdk'
+  if (kind === 'mova') return api === 'mova-sdk'
   if (kind === 'claude') return api === 'claude-sdk'
-  if (protocol === 'app-server') return api === 'app-server'
-  return true
+  return Boolean(protocol && api)
 }
 
 function defaultProviderRuntimeApi(kind: ProviderKind, protocol: ProviderProtocol): ProviderRuntimeApi {
   if (kind === 'codex') return 'codex-sdk'
+  if (kind === 'mova') return 'mova-sdk'
   if (kind === 'claude') return 'claude-sdk'
-  if (protocol === 'app-server') return 'app-server'
   return protocol
 }
 
@@ -533,8 +458,8 @@ function providerRuntimeId(kind: ProviderKind, api: ProviderRuntimeApi): string 
 }
 
 function providerRuntimeLabel(kind: ProviderKind, api: ProviderRuntimeApi): string {
-  if (api === 'app-server') return `${providerLabel(kind)} app-server`
   if (api === 'codex-sdk') return 'Codex SDK'
+  if (api === 'mova-sdk') return 'Mova SDK'
   if (api === 'claude-sdk') return 'Claude Agent SDK'
   return `${providerLabel(kind)} ${api}`
 }
@@ -565,12 +490,14 @@ function providerIdFromEnv(value: string | undefined, settings: ProviderSettings
 
 function defaultProviderRuntimeApiEnvVar(kind: ProviderKind): string | undefined {
   if (kind === CODEX_PROVIDER_ID) return CODEX_RUNTIME_API_ENV
+  if (kind === MOVA_PROVIDER_ID) return MOVA_RUNTIME_API_ENV
   if (kind === CLAUDE_PROVIDER_ID) return CLAUDE_RUNTIME_API_ENV
   return undefined
 }
 
 function defaultProviderRuntimePackageEnvVar(kind: ProviderKind): string | undefined {
   if (kind === CODEX_PROVIDER_ID) return CODEX_RUNTIME_PACKAGE_ENV
+  if (kind === MOVA_PROVIDER_ID) return MOVA_RUNTIME_PACKAGE_ENV
   if (kind === CLAUDE_PROVIDER_ID) return CLAUDE_RUNTIME_PACKAGE_ENV
   return undefined
 }
@@ -581,12 +508,14 @@ function defaultProviderRuntimeSdkPackageEnvVar(kind: ProviderKind): string | un
 }
 
 function defaultProviderRuntimeBinaryPackageEnvVar(kind: ProviderKind): string | undefined {
+  if (kind === MOVA_PROVIDER_ID) return MOVA_RUNTIME_BINARY_PACKAGE_ENV
   if (kind === CLAUDE_PROVIDER_ID) return CLAUDE_RUNTIME_BINARY_PACKAGE_ENV
   return undefined
 }
 
 function defaultProviderRuntimePackageVersionEnvVar(kind: ProviderKind): string | undefined {
   if (kind === CODEX_PROVIDER_ID) return CODEX_RUNTIME_PACKAGE_VERSION_ENV
+  if (kind === MOVA_PROVIDER_ID) return MOVA_RUNTIME_PACKAGE_VERSION_ENV
   if (kind === CLAUDE_PROVIDER_ID) return CLAUDE_RUNTIME_PACKAGE_VERSION_ENV
   return undefined
 }
@@ -672,19 +601,25 @@ function defaultProviderFallback(): ProviderConfig {
   return fallback
 }
 
-function persistedAppServerProfileForKind(
-  provider: ProviderConfig | PersistedProviderConfig | undefined,
-): AppServerProfile | PersistedAppServerProfile | undefined {
-  if (!provider) return undefined
-  return provider.appServerProfile
-}
-
 function normalizeProviderKind(kind: unknown): ProviderKind | undefined {
   return normalizeProviderKey(kind) as ProviderKind | undefined
 }
 
+function normalizeProviderKey(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const key = value.trim().toLowerCase()
+  return /^[a-z][a-z0-9_-]{0,63}$/.test(key) ? key : undefined
+}
+
+function providerLabel(kind: string): string {
+  return kind
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ') || kind
+}
+
 export function providerInstanceId(provider: ProviderConfig): string {
-  if (providerSupportsAppServerRuntime(provider)) return resolveAppServerProfile(provider).id
   return providerRuntimeProfile(provider).id
 }
 

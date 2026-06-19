@@ -1,5 +1,5 @@
 import { plannerRunIdForPlanAction } from '@/features/agent/domain/agentPlanUi'
-import type { AgentTaskGraphSnapshot, AgentRun, AgentTask, DispatchTaskGraphResult, UpdateTaskGraphResult } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentTaskGraphSnapshot, AgentRun, AgentTask, DispatchTaskGraphResult, UpdateTaskGraphResult } from '@movscript/core/agent/protocol'
 
 export type PlanDispatchSettings = {
   maxWorkers: number

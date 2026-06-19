@@ -4,7 +4,7 @@ import test from 'node:test'
 import { buildAgentConversationProjectionRenderWindow } from '@/features/agent/components/AgentConversationProjectionRenderWindow'
 import { buildAgentConversationProjection } from '@/features/agent/domain/agentConversationProjection'
 import type { AgentConversationLiveBlock } from '@/features/agent/domain/agentConversationLiveBlocks'
-import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 import type { ChatMessage } from '@/features/agent/state/agentStore'
 
 test('buildAgentConversationProjectionRenderWindow keeps the active run turn visible', () => {

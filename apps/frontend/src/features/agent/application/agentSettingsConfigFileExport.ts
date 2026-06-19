@@ -2,7 +2,7 @@ import {
   buildConfigFileExportText,
   parseConfigFileExport,
 } from '@movscript/core/agent'
-import type { ProviderCatalogConfigFile } from '@/shared/infrastructure/providerSessionClient'
+import type { ProviderCatalogConfigFile } from '@movscript/core/agent/protocol'
 import type { AgentSettingsTranslate } from '@/features/agent/application/agentSettingsConfigFileTypes'
 import { markConfigFileManaged } from '@/features/agent/application/agentSettingsConfigFileManagement'
 

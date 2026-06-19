@@ -1,30 +1,18 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import test from 'node:test'
 
 const storeSource = readSource('apps/frontend/src/shared/infrastructure/providerConfigStore.ts')
 const defaultsSource = readSource('apps/frontend/src/shared/infrastructure/providerConfigDefaults.ts')
-const appServerProfileSource = readSource('apps/frontend/src/shared/infrastructure/providerConfigAppServerProfile.ts')
 
-test('provider config store delegates defaults and app-server profile normalization', () => {
+test('provider config store delegates defaults without app-server profile compatibility', () => {
   assert.match(storeSource, /from '@\/shared\/infrastructure\/providerConfigDefaults'/)
-  assert.match(storeSource, /from '@\/shared\/infrastructure\/providerConfigAppServerProfile'/)
-  assert.match(storeSource, /export \{ normalizeAppServerProfile \} from '@\/shared\/infrastructure\/providerConfigAppServerProfile'/)
-
   assert.match(defaultsSource, /export const DEFAULT_PROVIDER_SETTINGS/)
-  assert.match(defaultsSource, /export const DEFAULT_CODEX_MOVSCRIPT_HOME_PROFILE/)
-  assert.match(defaultsSource, /export const DEFAULT_MOVA_MOVSCRIPT_HOME_PROFILE/)
-  assert.match(appServerProfileSource, /export function normalizeAppServerProfile/)
-  assert.match(appServerProfileSource, /export function appServerProviderKindForProvider/)
-  assert.match(appServerProfileSource, /function normalizedStringListField/)
-  assert.match(appServerProfileSource, /function managedAppServerHome/)
-
+  assert.equal(existsSync(resolve('apps/frontend/src/shared/infrastructure/providerConfigAppServerProfile.ts')), false)
+  assert.doesNotMatch(storeSource, /providerConfigAppServerProfile|normalizeAppServerProfile|appServerProfile|usesAppServerProtocol|resolveAppServerProfile/)
   assert.doesNotMatch(storeSource, /export const DEFAULT_PROVIDER_SETTINGS =/)
-  assert.doesNotMatch(storeSource, /export const DEFAULT_CODEX_MOVSCRIPT_HOME_PROFILE =/)
-  assert.doesNotMatch(storeSource, /export function normalizeAppServerProfile\(/)
-  assert.doesNotMatch(storeSource, /function normalizedStringListField/)
-  assert.doesNotMatch(storeSource, /function managedAppServerHome/)
+  assert.doesNotMatch(defaultsSource, /DEFAULT_CODEX_MOVSCRIPT_HOME_PROFILE|DEFAULT_MOVA_MOVSCRIPT_HOME_PROFILE|MOVSCRIPT_MANAGED_CODEX_HOME|MOVSCRIPT_MANAGED_MOVA_HOME/)
 })
 
 function readSource(path) {

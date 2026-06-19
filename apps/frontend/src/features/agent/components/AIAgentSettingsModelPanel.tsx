@@ -26,7 +26,7 @@ import { Select, SelectContent, SelectItem, SelectValue } from '@movscript/ui/pr
 import { redactAgentTraceDebugText } from '@movscript/core/agent'
 import { publicModelId, publicModelLabel } from '@/shared/domain/modelDisplay'
 import type { PublicModel } from '@/types'
-import type { ProviderModelConfigPublic, ProviderModelTestResult } from '@/shared/infrastructure/providerSessionClient'
+import type { ProviderModelConfigPublic, ProviderModelTestResult } from '@movscript/core/agent/protocol'
 import { agentTestResultRecipe } from '@/features/agent/presentation/agentSemanticUi'
 import { NO_MODEL_VALUE } from '@/features/agent/presentation/agentSettingsPageModel'
 

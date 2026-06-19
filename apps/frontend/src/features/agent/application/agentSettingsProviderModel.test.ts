@@ -1,14 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
-  buildProviderModelConfigFromSnapshotModel,
-  buildProviderModelOperationPlan,
-  buildProviderModelTestRequest,
   clearedProviderModelWorkspaceDraft,
+  providerModelConfigFromSelection,
   providerModelWorkspaceDraftFromConfig,
   storedProviderModelWorkspaceId,
 } from '@/features/agent/application/agentSettingsProviderModel'
-import type { ProviderModelConfigPublic } from '@/shared/infrastructure/providerSessionClient'
+import type { ProviderModelConfigPublic } from '@movscript/core/agent/protocol'
 import type { PublicModel } from '@/types'
 
 const textModels: PublicModel[] = [
@@ -39,7 +37,7 @@ test('provider model workspace draft keeps legacy direct model ids out of catalo
   const draft = providerModelWorkspaceDraftFromConfig({
     config: providerConfig({
       model: 'claude-3-5-sonnet',
-      baseURL: 'https://example.test/v1',
+      modelEndpointBaseURL: 'https://example.test/v1',
       apiKind: undefined,
       useForChat: false,
       useForPlanner: true,
@@ -69,61 +67,40 @@ test('cleared provider model workspace draft resets model workspace defaults', (
   })
 })
 
-test('provider model operation plan builds catalog requests and stored ids', () => {
-  const plan = buildProviderModelOperationPlan({
-    selectedModel: textModels[0],
-    usesModelCatalog: true,
-    model: 'gpt-fast',
-    apiKind: 'openai_responses',
-    baseURL: '',
-    apiKey: '  secret  ',
+test('provider model selection builds neutral display config and routes', () => {
+  assert.deepEqual(providerModelConfigFromSelection({
+    modelId: 'gpt-fast',
     useForChat: true,
     useForPlanner: false,
-  })
-
-  assert.deepEqual(plan, {
-    request: {
-      model: 'gpt-fast',
-      apiKind: 'openai_responses',
-      apiKey: 'secret',
-      useForChat: true,
-      useForPlanner: false,
+  }), {
+    configured: true,
+    provider: 'backend-model-config',
+    model: 'gpt-fast',
+    apiKind: 'openai_responses',
+    apiKeyConfigured: false,
+    useForChat: true,
+    useForPlanner: false,
+    source: 'file',
+    credentialStatus: {
+      required: false,
+      configured: false,
+      sourceEnv: [],
+      acceptedEnv: [],
     },
-    storedModelId: 'gpt-fast',
-  })
-})
-
-test('snapshot model import uses public model id without restoring direct provider fields', () => {
-  assert.deepEqual(buildProviderModelConfigFromSnapshotModel({
-    model: 'gpt-fast',
-    apiKind: 'anthropic_messages',
-    baseURL: 'https://example.test/v1',
-    useForChat: true,
-    useForPlanner: false,
-  }), {
-    model: 'gpt-fast',
-    apiKind: 'openai_responses',
-    useForChat: true,
-    useForPlanner: false,
-  })
-})
-
-test('provider model test request keeps save request fields and normalizes message', () => {
-  const request = {
-    model: 'manual-model',
-    apiKind: 'anthropic_messages' as const,
-    baseURL: 'https://example.test/v1',
-    useForChat: false,
-    useForPlanner: true,
-  }
-
-  assert.deepEqual(buildProviderModelTestRequest({
-    request,
-    message: '  ',
-    fallbackMessage: 'hello',
-  }), {
-    message: 'hello',
-    ...request,
+    capabilities: [
+      {
+        capability: 'text',
+        configured: true,
+        provider: 'backend-model-config',
+        model: 'gpt-fast',
+        source: 'configured',
+      },
+      {
+        capability: 'planning',
+        configured: false,
+        source: 'disabled',
+      },
+    ],
   })
 })
 

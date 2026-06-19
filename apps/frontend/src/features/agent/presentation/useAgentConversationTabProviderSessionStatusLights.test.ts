@@ -12,13 +12,15 @@ test('buildAgentConversationTabProviderSessionTargets prefers session anchors an
     conversations: [
       conversation({
         id: 'conv_session',
+        providerProtocol: 'provider-session',
         providerSessionId: 'session_persisted',
         providerThreadId: 'thread_persisted',
-      }),
+      } as Partial<Conversation> & { providerProtocol: string }),
       conversation({
         id: 'conv_compat',
+        providerProtocol: 'provider-session',
         providerThreadId: 'thread_compat',
-      }),
+      } as Partial<Conversation> & { providerProtocol: string }),
     ],
     conversationThreadBindings: {
       conv_session: {
@@ -58,24 +60,26 @@ test('buildAgentConversationTabProviderSessionTargets leaves unanchored conversa
   ])
 })
 
-test('buildAgentConversationTabProviderSessionTargets skips app-server conversations', () => {
+test('buildAgentConversationTabProviderSessionTargets keeps runtime-thread conversations', () => {
   const targets = buildAgentConversationTabProviderSessionTargets({
     conversations: [
       conversation({
-        id: 'conv_app_server',
-        providerThreadId: 'thread_app_server',
-      }),
+        id: 'conv_sdk',
+        providerProtocol: 'sdk',
+        providerThreadId: 'thread_sdk',
+      } as Partial<Conversation> & { providerProtocol: string }),
       conversation({
         id: 'conv_provider_session',
+        providerProtocol: 'provider-session',
         providerThreadId: 'thread_provider_session',
       }),
     ],
     conversationsById: {
-      conv_app_server: {
-        id: 'conv_app_server',
+      conv_sdk: {
+        id: 'conv_sdk',
         userId: 'user_1',
-        providerProtocol: 'app-server',
-        providerThreadId: 'thread_app_server',
+        providerProtocol: 'sdk',
+        providerThreadId: 'thread_sdk',
         open: true,
         archived: false,
         createdAt: 1,
@@ -86,8 +90,72 @@ test('buildAgentConversationTabProviderSessionTargets skips app-server conversat
 
   assert.deepEqual(targets, [
     {
+      conversationId: 'conv_sdk',
+      threadId: '',
+    },
+    {
       conversationId: 'conv_provider_session',
       threadId: 'thread_provider_session',
+    },
+  ])
+})
+
+test('buildAgentConversationTabProviderSessionTargets does not stream SDK runtime ids through provider-session endpoints', () => {
+  const targets = buildAgentConversationTabProviderSessionTargets({
+    conversations: [
+      conversation({
+        id: 'conv_codex',
+        providerProtocol: 'sdk',
+        providerSessionId: 'codex-codex-sdk',
+        providerThreadId: 'codex_thread_1',
+      } as Partial<Conversation> & { providerProtocol: string }),
+      conversation({
+        id: 'conv_claude',
+        providerProtocol: 'claude-code',
+        providerSessionId: 'claude-sdk',
+        providerThreadId: 'claude_thread_1',
+      } as Partial<Conversation> & { providerProtocol: string }),
+      conversation({
+        id: 'conv_registry_codex',
+        providerSessionId: 'codex-codex-sdk',
+        providerThreadId: 'codex_thread_2',
+      }),
+    ],
+    conversationThreadBindings: {
+      conv_codex: {
+        conversationId: 'conv_codex',
+        providerSessionTreeId: 'codex-codex-sdk',
+        providerThreadId: 'codex_thread_1',
+        updatedAt: 1,
+      },
+    },
+    conversationsById: {
+      conv_registry_codex: {
+        id: 'conv_registry_codex',
+        userId: 'user_1',
+        providerProtocol: 'sdk',
+        providerThreadId: 'codex_thread_2',
+        providerSessionId: 'codex-codex-sdk',
+        open: true,
+        archived: false,
+        createdAt: 1,
+        updatedAt: 2,
+      },
+    },
+  })
+
+  assert.deepEqual(targets, [
+    {
+      conversationId: 'conv_codex',
+      threadId: '',
+    },
+    {
+      conversationId: 'conv_claude',
+      threadId: '',
+    },
+    {
+      conversationId: 'conv_registry_codex',
+      threadId: '',
     },
   ])
 })

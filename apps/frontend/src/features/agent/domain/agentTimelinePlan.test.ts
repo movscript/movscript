@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { latestPlanFromTimelineItems } from '@/features/agent/domain/agentTimelinePlan'
-import type { AgentPlan, AgentTimelineItem } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentPlan, AgentTimelineItem } from '@movscript/core/agent/protocol'
 
 test('latestPlanFromTimelineItems returns the newest plan status timeline item', () => {
   const olderPlan = plan('older')

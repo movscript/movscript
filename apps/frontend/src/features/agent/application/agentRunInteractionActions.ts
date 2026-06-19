@@ -4,7 +4,7 @@ import {
   upsertInteractionRunSnapshot,
   type AgentInputAnswer,
 } from '@/features/agent/domain/agentRunInteraction'
-import type { AgentRun, ProviderInteraction } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun, ProviderInteraction } from '@movscript/core/agent/protocol'
 import {
   beginAgentPerformanceOperation,
   finishAgentPerformanceOperation,

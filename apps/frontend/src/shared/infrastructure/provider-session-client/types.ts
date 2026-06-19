@@ -7,8 +7,6 @@ import type {
   AgentRun,
   ProviderSessionLimits,
   ProviderSessionEventV2,
-  ProviderModelCapabilityRoutePublic,
-  ProviderModelConfigPublic,
   ToolCall,
 } from '@/shared/infrastructure/provider-session-client/coreTypes'
 
@@ -21,18 +19,6 @@ export type AgentToolCall = ToolCall
 export type ProviderSessionSummary = ElectronProviderSessionSummary
 export type MovScriptWorkspaceConfig = ElectronMovScriptWorkspaceConfig
 export type MovScriptWorkspaceConfigSaveInput = ElectronMovScriptWorkspaceConfigSaveInput
-
-export interface ProviderSessionLease {
-  ok: boolean
-  sessionId?: string
-  leaseId: string
-  ttlMs?: number
-  expiresAt?: string
-  activeLeases?: number
-  activeStreams?: number
-  released?: boolean
-  holder?: string
-}
 
 export interface ProviderPluginFileManifest {
   id: string
@@ -128,11 +114,7 @@ export interface ProviderSessionHealth {
     workspacePath: string
     toolResultPath: string
     catalogStatePath: string
-    modelConfigPath: string
   }
-  modelConfigPath?: string
-  modelConfig?: ProviderModelConfigPublic
-  modelCapabilities?: ProviderModelCapabilityRoutePublic[]
   pluginCatalog?: {
     skillsDir: string
     toolsDir: string
@@ -147,7 +129,12 @@ export interface ProviderSessionHealth {
 export type ProviderMemoryScope = 'global' | 'project' | 'thread'
 export type ProviderMemoryKind = 'preference' | 'fact' | 'entity_ref' | 'workspace' | 'decision' | 'warning'
 export type { MovScriptWorkspaceKind }
-export type WorkspaceArtifactStatus = 'workspace' | 'accepted' | 'rejected' | 'applied' | 'superseded'
+export type {
+  WorkspaceArtifact,
+  WorkspaceArtifactApplyPreview,
+  WorkspaceArtifactApplyReview,
+  WorkspaceArtifactStatus,
+} from '@/shared/contracts/workspaceArtifact'
 
 export interface ProviderMemory {
   id: string
@@ -162,57 +149,12 @@ export interface ProviderMemory {
   updatedAt: string
 }
 
-export interface WorkspaceArtifact {
-  id: string
-  filePath?: string
-  projectId?: number
-  kind: MovScriptWorkspaceKind
-  title: string
-  content: string
-  status: WorkspaceArtifactStatus
-  source?: Record<string, unknown>
-  target?: Record<string, unknown>
-  createdByRunId?: string
-  createdByThreadId?: string
-  appliedByUserId?: number | string
-  appliedAt?: string
-  rejectedReason?: string
-  metadata?: Record<string, unknown>
-  createdAt: string
-  updatedAt: string
-}
-
-export interface WorkspaceArtifactApplyReview {
-  workspaceId: string
-  workspaceTitle: string
-  workspaceKind: MovScriptWorkspaceKind
-  target: Record<string, unknown>
-  currentValue: unknown
-  proposedValue: unknown
-  risk: 'write'
-  sideEffect: string
-  requiresBackendApply: boolean
-}
-
-export interface WorkspaceArtifactApplyPreview {
-  status: 'preview' | 'applied'
-  review: WorkspaceArtifactApplyReview
-  workspace: WorkspaceArtifact
-  message: string
-  backendApply?: Record<string, unknown>
-}
-
 export interface RunMessageOptions {
   onRunUpdate?: (run: AgentRun) => void
-  onSourceMessage?: (message: AgentMessage, run: AgentRun) => void
   onProviderEvent?: (event: ProviderSessionEventV2) => void
-  onPhase?: (name: string, details?: Record<string, unknown>) => void
   timeoutMs?: number
   streamRequestTimeoutMs?: number
   pollMs?: number
-  providerManifest?: ProviderManifest
-  agentManifest?: ProviderManifest
-  providerSessionLimits?: ProviderSessionLimitsOverride
   signal?: AbortSignal
 }
 

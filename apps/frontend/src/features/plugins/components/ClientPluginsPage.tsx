@@ -270,7 +270,7 @@ export default function ClientPluginsPage() {
 
         {projectPluginSnapshot && projectPluginSnapshot.plugins.length > 0 ? (
           <PluginStateBanner icon={<Blocks size={12} />}>
-            当前项目已声明 {projectPluginSnapshot.plugins.length} 个插件；安装会写入 .movscript/plugins 与项目 .codex 配置。
+            当前项目已声明 {projectPluginSnapshot.plugins.length} 个插件；安装会写入 .agents/plugins，并按 provider target 物化到项目原生目录。
           </PluginStateBanner>
         ) : null}
 

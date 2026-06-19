@@ -6,14 +6,12 @@ import {
 } from '@movscript/core/agent'
 import { fetchAgentBackendModels } from '@/features/agent/application/agentModelCatalogApi'
 import { agentModelKeys } from '@/features/agent/application/agentModelQueryKeys'
-import { agentSettingsKeys } from '@/features/agent/application/agentQueryKeys'
 import {
-  buildProviderModelOperationPlan,
-  buildProviderModelTestRequest,
   clearedProviderModelWorkspaceDraft,
   modelDisplayName,
   providerConfigModelHasSecret,
   providerConfigUsesModelCatalog,
+  providerModelConfigFromSelection,
   providerModelSettingsHasUnsavedChanges,
   providerModelValue,
   providerModelWorkspaceDraftFromConfig,
@@ -25,35 +23,33 @@ import {
   buildModelRouteIssues,
 } from '@/features/agent/application/agentSettingsReadiness'
 import {
-  DEFAULT_API_KIND,
   NO_MODEL_VALUE,
   modelAuditSummaryValues,
   settingsErrorMessage,
 } from '@/features/agent/presentation/agentSettingsPageModel'
 import type { AgentSettingsAuditEntry } from '@/features/agent/state/agentStore'
 import type {
-  ProviderSessionClient,
   ProviderModelConfigPublic,
   ProviderModelTestResult,
-} from '@/shared/infrastructure/providerSessionClient'
+} from '@movscript/core/agent/protocol'
 import { publicModelLabel } from '@/shared/domain/modelDisplay'
 import { publicModelId } from '@/shared/domain/modelDisplay'
 import type { PublicModel } from '@/types'
 
 interface UseAgentSettingsModelControllerInput {
-  client: ProviderSessionClient
   providerProfileConfigId: string
+  enabled?: boolean
   recordSettingsAudit: (entry: Omit<AgentSettingsAuditEntry, 'id' | 'createdAt'> & { createdAt?: string }) => void
   storedModelId: string | null | undefined
-  updateAgentSettings: (settings: { modelId: string | null }) => void
+  updateSelectedModelId: (modelId: string | null) => void
 }
 
 export function useAgentSettingsModelController({
-  client,
   providerProfileConfigId,
+  enabled = true,
   recordSettingsAudit,
   storedModelId,
-  updateAgentSettings,
+  updateSelectedModelId,
 }: UseAgentSettingsModelControllerInput) {
   const { t } = useTranslation()
   const [selectedModelId, setSelectedModelId] = useState<string>(NO_MODEL_VALUE)
@@ -69,15 +65,10 @@ export function useAgentSettingsModelController({
   const [testResult, setTestResult] = useState<ProviderModelTestResult | null>(null)
   const [testError, setTestError] = useState<string | null>(null)
 
-  const configQuery = useQuery({
-    queryKey: agentSettingsKeys.providerModelConfig(providerProfileConfigId, client.baseURL),
-    queryFn: () => client.getProviderModelConfig(),
-    retry: false,
-  })
-
   const modelsQuery = useQuery<PublicModel[]>({
     queryKey: agentModelKeys.backendCatalog('default-backend'),
     queryFn: () => fetchAgentBackendModels(),
+    enabled,
   })
 
   const textModels = modelsQuery.data ?? []
@@ -85,7 +76,18 @@ export function useAgentSettingsModelController({
   const providerModelConfigValue = selectedModel ? publicModelId(selectedModel) : ''
   const modelValueMissing = !providerModelConfigValue
   const canSaveModelConfig = Boolean(providerModelConfigValue)
-  const effectiveConfig = savedConfig ?? configQuery.data ?? null
+  const storedSelectionConfig = useMemo(() => {
+    const nextStoredModelId = storedProviderModelWorkspaceId(textModels, storedModelId)
+    return nextStoredModelId ? providerModelConfigFromSelection({ modelId: nextStoredModelId }) : null
+  }, [storedModelId, textModels])
+  const effectiveConfig = enabled ? savedConfig ?? storedSelectionConfig : null
+  const configQuery = useMemo(() => ({
+    data: effectiveConfig,
+    error: null,
+    isFetching: false,
+    isLoading: false,
+    refetch: async () => ({ data: effectiveConfig }),
+  }), [effectiveConfig])
   const legacyDirectModelConfig = Boolean(effectiveConfig?.configured && !providerConfigUsesModelCatalog(effectiveConfig))
   const modelRoutes = effectiveConfig?.capabilities ?? []
   const savedDirectModelIdHasSecret = providerConfigModelHasSecret(effectiveConfig)
@@ -102,7 +104,7 @@ export function useAgentSettingsModelController({
       ? t('agents.settings.modelCredentialStatus.configured', { env: modelCredentialStatus.sourceEnv.join(', ') })
       : t('agents.settings.modelCredentialStatus.missing', { env: modelCredentialAcceptedEnv })
     : t('agents.settings.modelCredentialStatus.notRequired')
-  const hasUnsavedChanges = providerModelSettingsHasUnsavedChanges({
+  const hasUnsavedChanges = enabled && providerModelSettingsHasUnsavedChanges({
     effectiveConfig,
     providerModelConfigValue,
     effectiveModelValue,
@@ -129,10 +131,9 @@ export function useAgentSettingsModelController({
   }
 
   useEffect(() => {
-    if (!configQuery.data) return
-    if (configQuery.data.configured) {
+    if (storedSelectionConfig?.configured) {
       applyWorkspaceDraft(providerModelWorkspaceDraftFromConfig({
-        config: configQuery.data,
+        config: storedSelectionConfig,
         models: textModels,
         noModelValue: NO_MODEL_VALUE,
       }))
@@ -140,7 +141,7 @@ export function useAgentSettingsModelController({
     }
     const nextStoredModelId = storedProviderModelWorkspaceId(textModels, storedModelId)
     if (nextStoredModelId) setSelectedModelId(nextStoredModelId)
-  }, [configQuery.data, storedModelId, textModels])
+  }, [storedSelectionConfig, storedModelId, textModels])
 
   useEffect(() => {
     setModelConfigClearConfirming(false)
@@ -157,16 +158,13 @@ export function useAgentSettingsModelController({
     })
   }
 
-  function buildModelOperationPlan() {
-    return buildProviderModelOperationPlan({
-      selectedModel,
-      usesModelCatalog: true,
-      model: providerModelConfigValue,
-      apiKind: DEFAULT_API_KIND,
-      baseURL: '',
-      apiKey: '',
+  function buildSelectedConfig(updatedAt = new Date().toISOString()) {
+    if (!providerModelConfigValue) return null
+    return providerModelConfigFromSelection({
+      modelId: providerModelConfigValue,
       useForChat,
       useForPlanner,
+      updatedAt,
     })
   }
 
@@ -180,17 +178,15 @@ export function useAgentSettingsModelController({
   }
 
   async function saveSettings() {
-    if (!providerModelConfigValue) return
+    const nextConfig = buildSelectedConfig()
+    if (!nextConfig) return
     setSaving(true)
     setSaveError(null)
     setTestResult(null)
     setTestError(null)
     try {
-      const modelOperationPlan = buildModelOperationPlan()
-      const nextConfig = await client.saveProviderModelConfig(modelOperationPlan.request)
       setSavedConfig(nextConfig)
-      updateAgentSettings({ modelId: modelOperationPlan.storedModelId })
-      await configQuery.refetch()
+      updateSelectedModelId(nextConfig.model)
       recordSettingsAudit({
         action: 'model_saved',
         target: 'model',
@@ -206,23 +202,20 @@ export function useAgentSettingsModelController({
   }
 
   async function testSettings() {
-    if (!providerModelConfigValue) return
+    const nextConfig = buildSelectedConfig()
+    if (!nextConfig) return
     setTesting(true)
     setTestResult(null)
     setTestError(null)
     setSaveError(null)
     try {
-      const modelOperationPlan = buildModelOperationPlan()
-      await client.saveProviderModelConfig(modelOperationPlan.request)
-      updateAgentSettings({ modelId: modelOperationPlan.storedModelId })
-      await client.ensureRunning()
-      const result = await client.testModelConfig(buildProviderModelTestRequest({
-        request: modelOperationPlan.request,
-        message: testMessage,
-        fallbackMessage: t('agents.settings.testMessageDefault'),
+      setSavedConfig(nextConfig)
+      updateSelectedModelId(nextConfig.model)
+      setTestResult(buildLocalModelSelectionTestResult({
+        config: nextConfig,
+        message: testMessage.trim() || t('agents.settings.testMessageDefault'),
+        providerProfileConfigId,
       }))
-      setTestResult(result)
-      await configQuery.refetch()
       recordSettingsAudit({
         action: 'model_tested',
         target: 'model',
@@ -250,12 +243,10 @@ export function useAgentSettingsModelController({
     setTestError(null)
     setTestResult(null)
     try {
-      const nextConfig = await client.clearProviderModelConfig()
-      setSavedConfig(nextConfig)
+      setSavedConfig(null)
       applyWorkspaceDraft(clearedProviderModelWorkspaceDraft({ noModelValue: NO_MODEL_VALUE }))
       setModelConfigClearConfirming(false)
-      updateAgentSettings({ modelId: null })
-      await configQuery.refetch()
+      updateSelectedModelId(null)
       recordSettingsAudit({
         action: 'model_cleared',
         target: 'model',
@@ -319,5 +310,30 @@ export function useAgentSettingsModelController({
     legacyDirectModelConfig,
     saving,
     applyWorkspaceDraft,
+  }
+}
+
+function buildLocalModelSelectionTestResult(input: {
+  config: ProviderModelConfigPublic
+  message: string
+  providerProfileConfigId: string
+}): ProviderModelTestResult {
+  return {
+    ok: true,
+    provider: input.config.provider,
+    model: input.config.model,
+    apiKind: input.config.apiKind,
+    latencyMs: 0,
+    content: input.message,
+    request: {
+      url: `agent-settings://${input.providerProfileConfigId}/model-selection`,
+      method: 'POST',
+      headers: {},
+      body: {
+        model: input.config.model,
+        messages: [{ role: 'user', content: input.message }],
+        stream: false,
+      },
+    },
   }
 }

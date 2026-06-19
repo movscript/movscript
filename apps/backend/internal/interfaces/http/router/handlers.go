@@ -69,7 +69,7 @@ func newHandlers(deps Dependencies) handlers {
 		canvases:          handler.NewCanvasHandler(db, registry, aiService, store),
 		models:            handler.NewModelsHandler(aiService, cacheStore),
 		jobs:              handler.NewJobHandler(db, aiService, deps.SystemMessages),
-		modelGateway:      handler.NewModelGatewayHandler(db, aiService),
+		modelGateway:      handler.NewModelGatewayHandler(db, aiService, tokens),
 		debug:             handler.NewDebugHandlerWithGatewayHealth(db, deps.EncryptionKey, aiService),
 		plugin:            handler.NewPluginHandler(db),
 		hub:               handler.NewHubHandler(db, store, cfg.HubAdminToken),

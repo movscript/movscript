@@ -10,6 +10,8 @@ const frontendAgentConsolePageSource = readSource('apps/frontend/src/features/ag
 const frontendAgentConsoleNavSource = readSource('apps/frontend/src/features/agent/components/AgentConsoleNav.tsx')
 const frontendAgentSettingsModelPanelSource = readSource('apps/frontend/src/features/agent/components/AIAgentSettingsModelPanel.tsx')
 const frontendAgentSettingsModelControllerSource = readSource('apps/frontend/src/features/agent/application/useAgentSettingsModelController.ts')
+const frontendAgentSettingsProviderModelSource = readSource('apps/frontend/src/features/agent/application/agentSettingsProviderModel.ts')
+const frontendAgentsPageSource = readSource('apps/frontend/src/features/agent/components/AgentsPage.tsx')
 const frontendModelProvidersSource = readSource('apps/frontend/src/features/agent/components/ModelProvidersPage.tsx')
 const frontendModelCatalogApiSource = readSource('apps/frontend/src/features/agent/application/agentModelCatalogApi.ts')
 const frontendZhLocaleSource = readSource('apps/frontend/src/i18n/locales/zh-CN.json')
@@ -47,10 +49,11 @@ test('provider/model/route console boundary is documented and discoverable', () 
 })
 
 test('frontend agent model providers page remains a read-only governance view for catalog routes', () => {
-  assert.match(frontendAgentConsoleNavSource, /已发布模型来源、Catalog 和 Route/)
+  assert.match(frontendAgentConsoleNavSource, /Agent Console 只聚焦当前 Agent、会话和待处理状态/)
+  assert.match(frontendAgentConsoleNavSource, /Plugins 与 Workspace 已归到全局环境入口/)
   assert.doesNotMatch(frontendAgentConsoleNavSource, /provider\/new-api、Catalog 和 Route/)
 
-  assert.match(frontendAgentConsolePageSource, /查看 Admin 已发布的 Provider 来源、Catalog Entry 和 Route；配置变更在 Admin 完成。/)
+  assert.match(frontendAgentConsolePageSource, /展示当前 Agent、会话健康和需要处理的事项；连接方式和模型治理由系统后台与 Admin 边界处理。/)
   assert.doesNotMatch(frontendAgentConsolePageSource, /管理 provider\/new-api 来源/)
   assert.doesNotMatch(frontendAgentConsolePageSource, /高级直连覆盖仅用于临时外部模型服务/)
 
@@ -63,6 +66,8 @@ test('frontend agent model providers page remains a read-only governance view fo
 
   assert.match(frontendModelProvidersSource, /fetchAgentBackendModels/)
   assert.match(frontendModelProvidersSource, /fetchAgentModelCatalogEntries/)
+  assert.match(frontendModelProvidersSource, /Provider \/ Catalog \/ Route/)
+  assert.match(frontendModelProvidersSource, /Provider Ownership/)
   assert.match(frontendModelProvidersSource, /新增和调整请在 Admin 模型目录中完成/)
   assert.match(frontendModelProvidersSource, /新增和调整请在 Admin 中完成/)
   assert.match(frontendModelProvidersSource, /Admin 管理/)
@@ -95,18 +100,26 @@ test('frontend agent settings only selects admin-published catalog models', () =
   assert.doesNotMatch(frontendAgentSettingsModelPanelSource, /agent-settings-advanced-model-routing-toggle/)
   assert.doesNotMatch(frontendAgentSettingsModelPanelSource, /apiKindBaseURLPlaceholder|<ApiModeCapabilityMatrix|<ApiModeSwitchPlanPanel/)
 
-  const modelOperationPlanSource = between(
-    frontendAgentSettingsModelControllerSource,
-    'function buildModelOperationPlan()',
-    'function modelAuditValues()',
+  assert.match(frontendAgentSettingsModelControllerSource, /providerModelConfigFromSelection/)
+  assert.match(frontendAgentSettingsModelControllerSource, /fetchAgentBackendModels/)
+  assert.match(frontendAgentSettingsModelControllerSource, /updateSelectedModelId\(nextConfig\.model\)/)
+  assert.doesNotMatch(frontendAgentSettingsModelControllerSource, /saveProviderModelConfig|clearProviderModelConfig|buildProviderModelConfigRequest|buildProviderModelOperationPlan/)
+  assert.doesNotMatch(frontendAgentSettingsModelControllerSource, /baseURLValue|modelApiKey|selectedApiKind/)
+
+  const selectionConfigSource = between(
+    frontendAgentSettingsProviderModelSource,
+    'export function providerModelConfigFromSelection',
+    'function buildProviderModelSelectionRoutes',
   )
-  assert.match(modelOperationPlanSource, /usesModelCatalog: true/)
-  assert.match(modelOperationPlanSource, /apiKind: DEFAULT_API_KIND/)
-  assert.match(modelOperationPlanSource, /baseURL: ''/)
-  assert.match(modelOperationPlanSource, /apiKey: ''/)
-  assert.doesNotMatch(modelOperationPlanSource, /apiKind: selectedApiKind/)
-  assert.doesNotMatch(modelOperationPlanSource, /baseURL: baseURLValue/)
-  assert.doesNotMatch(modelOperationPlanSource, /apiKey: modelApiKey/)
+  assert.match(selectionConfigSource, /provider: 'backend-model-config'/)
+  assert.match(selectionConfigSource, /apiKind: 'openai_responses'/)
+  assert.match(selectionConfigSource, /apiKeyConfigured: false/)
+  assert.doesNotMatch(selectionConfigSource, /baseURL:|apiKey:|modelApiKey|baseURLValue|selectedApiKind|usesModelCatalog/)
+
+  assert.match(frontendAgentsPageSource, /loadAgentProviderWorkspaceConfig/)
+  assert.match(frontendAgentsPageSource, /saveAgentProviderWorkspaceConfig/)
+  assert.doesNotMatch(frontendAgentsPageSource, /providerSessionClient/)
+  assert.doesNotMatch(frontendAgentsPageSource, /agentSettingsKeys\.providerModelConfig/)
 })
 
 test('enterprise admin owns provider catalog and route configuration surfaces', () => {
@@ -183,8 +196,11 @@ test('community admin keeps catalog import separate from route strategy editing'
   assert.doesNotMatch(catalogSection, /route-bindings/)
   assert.doesNotMatch(catalogSection, /createRouteBinding|deleteRouteBinding/)
 
-  assert.match(communityAdminPageSource, /admin\.modelCatalog\.manageRoutes/)
-  assert.match(routeSection, /Catalog 路由策略/)
+  assert.match(communityAdminZhLocaleSource, /"manageRoutes": "管理线路"/)
+  assert.match(communityAdminEnLocaleSource, /"manageRoutes": "Manage Routes"/)
+  assert.match(communityAdminZhLocaleSource, /"routesHint": "这里维护 Catalog 层的路由策略/)
+  assert.match(communityAdminEnLocaleSource, /"routesHint": "Maintain route policy for the Catalog layer here/)
+  assert.match(routeSection, /admin\.models\.routeEditorTitle/)
   assert.match(routeSection, /api\.post\(`\/admin\/model-catalog\/\$\{entryId\}\/route-bindings`/)
   assert.match(routeSection, /api\.put\(`\/admin\/model-catalog\/\$\{entryId\}\/route-bindings\/\$\{bindingId\}`/)
   assert.match(routeSection, /api\.delete\(`\/admin\/model-catalog\/\$\{entryId\}\/route-bindings\/\$\{bindingId\}`/)

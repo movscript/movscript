@@ -44,7 +44,7 @@ import { AgentActivityDividerMenu, AgentActivityFeedView } from '@/features/agen
 import { providerSessionApprovalDetails } from '@/features/agent/components/AgentRunInteractionBubble'
 import { shallowReferenceArrayEqual } from '@/features/agent/components/AgentRenderEquality'
 import { useAgentMessageBubbleModel } from '@/features/agent/presentation/useAgentMessageFactsModel'
-import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 import type { AgentInputAnswer } from '@/features/agent/domain/agentRunInteraction'
 import type { AgentRunApprovalDecisionInput } from '@/features/agent/application/agentRunInteractionActions'
 import type { ChatMessage, ChatRunActivity, ChatRunActivityEvent } from '@/features/agent/state/agentStore'

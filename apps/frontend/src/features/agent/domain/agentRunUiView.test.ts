@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { agentPermissionLabel } from '@/features/agent/domain/agentToolDisplay'
 import { agentPlanStatusLabel, agentTraceView, approvalImpactLabel, approvalPermissionLabel, approvalRiskLabel, approvalStatusLabel, formatTraceEventDuration, hasUnloadedTraceEvents, inputTypeLabel, runApprovalModeLabel, runRoleLabel, runStatusLabel, toolApprovalLabel, toolGrantModeLabel, traceCategoryLabel, traceEventDurationMs, traceEventStatusLabel, traceKindLabel } from '@/features/agent/domain/agentRunUi'
-import type { AgentTraceEvent } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentTraceEvent } from '@movscript/core/agent/protocol'
 
 function traceEvent(overrides: Partial<AgentTraceEvent>): AgentTraceEvent {
   return {

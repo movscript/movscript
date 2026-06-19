@@ -1,7 +1,7 @@
 import {
   type ToolGrantWorkspace,
 } from '@movscript/core/agent'
-import type { ProviderCatalogConfigFile } from '@/shared/infrastructure/providerSessionClient'
+import type { ProviderCatalogConfigFile } from '@movscript/core/agent/protocol'
 import type { AgentSettingsConfigFileBackup } from '@/features/agent/state/agentStore'
 import {
   type ConfigFileActivatePlan,
@@ -285,12 +285,10 @@ export async function commitProviderConfigFilePlan(input: {
 export async function commitSettingsSnapshotWritePlan(input: {
   client: SettingsSnapshotWriteCommitClient
   plan: SettingsSnapshotWritePlan
-  refetchProviderModelConfig: () => Promise<unknown>
   refetchCatalog: () => Promise<unknown>
   refetchCapabilities: () => Promise<unknown>
 }): Promise<void> {
   if (input.plan.requiresProviderSession) await input.client.ensureRunning()
-  if (input.plan.providerModelConfig) await input.client.saveProviderModelConfig(input.plan.providerModelConfig)
   for (const write of input.plan.writes) {
     await input.client.saveProviderConfigFile({
       configFile: write.configFile,
@@ -302,7 +300,6 @@ export async function commitSettingsSnapshotWritePlan(input: {
   }
 
   const refetches = [
-    ...(input.plan.providerModelConfig ? [input.refetchProviderModelConfig()] : []),
     ...(input.plan.writesProviderCatalog ? [input.refetchCatalog(), input.refetchCapabilities()] : []),
   ]
   await Promise.all(refetches)

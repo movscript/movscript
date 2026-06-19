@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { buildAgentSessionSnapshotView } from '@/features/agent/domain/agentSessionSnapshotProjection'
-import type { ProviderSessionSnapshotV2 } from '@/shared/infrastructure/providerSessionClient'
+import type { ProviderSessionSnapshotV2 } from '@movscript/core/agent/protocol'
 
 test('buildAgentSessionSnapshotView separates session plans, child agents, and generation works', () => {
   const snapshot: ProviderSessionSnapshotV2 = {

@@ -6,15 +6,11 @@ import { releaseSubcommands, releaseWorkflowSteps, runReleaseWorkflowCli } from 
 test('release workflow exposes the curated release subcommand surface', () => {
   assert.deepEqual(releaseSubcommands(), [
     'audit-ffmpeg',
-    'build-app-server-deps',
     'collect',
     'download-ffmpeg-static',
     'package-desktop',
-    'resolve-binary-deps',
     'smoke-desktop-package',
-    'stage-app-server-binaries',
     'stage-ffmpeg',
-    'update-binary-deps',
     'verify-package-resources',
     'verify-release-readiness',
   ])
@@ -94,62 +90,6 @@ test('runReleaseWorkflowCli dispatches release subcommands', () => {
 
   assert.equal(exitCode, 0)
   assert.deepEqual(calls[0].slice(0, 2), ['node', ['scripts/release/stage-ffmpeg.mjs', '--inspect', '--platform=darwin']])
-})
-
-test('runReleaseWorkflowCli dispatches app-server binary staging', () => {
-  const calls = []
-  runReleaseWorkflowCli(['stage-app-server-binaries', '--platform=darwin', '--arch=arm64'], {
-    exit: () => undefined,
-    log: () => undefined,
-    spawn: (command, args, options) => {
-      calls.push([command, args, options])
-      return { status: 0 }
-    },
-  })
-
-  assert.deepEqual(calls[0].slice(0, 2), ['node', ['scripts/release/stage-app-server-binaries.mjs', '--platform=darwin', '--arch=arm64']])
-})
-
-test('runReleaseWorkflowCli dispatches app-server dependency builds', () => {
-  const calls = []
-  runReleaseWorkflowCli(['build-app-server-deps', '--platform=darwin', '--arch=arm64'], {
-    exit: () => undefined,
-    log: () => undefined,
-    spawn: (command, args, options) => {
-      calls.push([command, args, options])
-      return { status: 0 }
-    },
-  })
-
-  assert.deepEqual(calls[0].slice(0, 2), ['node', ['scripts/release/build-app-server-deps.mjs', '--platform=darwin', '--arch=arm64']])
-})
-
-test('runReleaseWorkflowCli dispatches binary dependency resolution', () => {
-  const calls = []
-  runReleaseWorkflowCli(['resolve-binary-deps', '--manifest=binary-deps.manifest.json'], {
-    exit: () => undefined,
-    log: () => undefined,
-    spawn: (command, args, options) => {
-      calls.push([command, args, options])
-      return { status: 0 }
-    },
-  })
-
-  assert.deepEqual(calls[0].slice(0, 2), ['node', ['scripts/release/resolve-binary-deps.mjs', '--manifest=binary-deps.manifest.json']])
-})
-
-test('runReleaseWorkflowCli dispatches binary dependency updates', () => {
-  const calls = []
-  runReleaseWorkflowCli(['update-binary-deps', '--branch=main'], {
-    exit: () => undefined,
-    log: () => undefined,
-    spawn: (command, args, options) => {
-      calls.push([command, args, options])
-      return { status: 0 }
-    },
-  })
-
-  assert.deepEqual(calls[0].slice(0, 2), ['node', ['scripts/release/update-binary-deps.mjs', '--branch=main']])
 })
 
 test('runReleaseWorkflowCli dispatches package resource verification', () => {

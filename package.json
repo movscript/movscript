@@ -16,11 +16,8 @@
     "frontend:audit": "node apps/frontend/scripts/check-frontend-quality.mjs",
     "frontend:contracts": "pnpm quality:frontend && node scripts/run-node-tests.mjs --suite frontend-contracts",
     "frontend:state-consistency": "pnpm --filter @movscript/core build && node scripts/run-node-tests.mjs --suite frontend-state-consistency",
-    "app-server:install-plugin": "node scripts/install-app-server-plugin.mjs",
     "prepare:sdk-runtimes": "node scripts/prepare-sdk-runtime-seed.mjs",
     "smoke:sdk-runtimes": "node scripts/smoke-sdk-runtimes.mjs",
-    "binary-deps:update": "node scripts/release/update-binary-deps.mjs",
-    "sync:app-server-protocol": "node scripts/sync-app-server-protocol.mjs",
     "verify:package-resources": "node scripts/release/verify-package-resources.mjs",
     "movscript-lang:local": "node scripts/movscript-lang-cwd.mjs --cwd ../movscript-lang",
     "movscript-lang:link": "node scripts/movscript-lang-deps.mjs local --path ../movscript-lang",
@@ -39,7 +36,7 @@
       "tests/scripts/frontend/resource-mutation-event-boundary.test.mjs"
     ],
     "scripts": [
-      "tests/scripts/app-server-entrypoints.test.mjs",
+      "tests/scripts/sdk-runtime-entrypoints.test.mjs",
       "tests/scripts/run-node-tests.test.mjs",
       "tests/scripts/run-with-env.test.mjs",
       "tests/scripts/movscript-lang-deps.test.mjs",
@@ -47,7 +44,6 @@
       "tests/scripts/backend/*.test.mjs",
       "tests/scripts/frontend/*.test.mjs",
       "tests/scripts/release/audit-ffmpeg.test.mjs",
-      "tests/scripts/release/binary-deps.test.mjs",
       "tests/scripts/release/collect-artifacts.test.mjs",
       "tests/scripts/release/desktop-package-verification.test.mjs",
       "tests/scripts/release/download-ffmpeg-static.test.mjs",
@@ -57,7 +53,6 @@
       "tests/scripts/release/release-workflow-cli.test.mjs",
       "tests/scripts/release/release-workflow.test.mjs",
       "tests/scripts/release/smoke-desktop-package.test.mjs",
-      "tests/scripts/release/stage-app-server-binaries.test.mjs",
       "tests/scripts/release/stage-ffmpeg.test.mjs",
       "tests/scripts/release/verify-release-readiness.test.mjs"
     ]

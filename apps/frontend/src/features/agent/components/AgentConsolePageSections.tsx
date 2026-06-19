@@ -1,22 +1,11 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import {
-  Play,
-  Power,
-  RefreshCw,
-  RotateCw,
-  Settings,
-  SlidersHorizontal,
-  Square,
-} from 'lucide-react'
 
 import {
   AgentConsoleActionButton,
   AgentConsoleBoundaryCard,
   AgentConsoleCallout,
-  AgentConsoleDescription,
   AgentConsoleEmptyText,
-  AgentConsoleGrid,
   AgentConsoleHistoryClearActions,
   AgentConsoleHistoryClearBody,
   AgentConsoleHistoryClearDetail,
@@ -24,264 +13,21 @@ import {
   AgentConsoleHistoryClearLayout,
   AgentConsoleHistoryClearSurface,
   AgentConsoleHistoryClearTitle,
-  AgentConsoleInlineError,
-  AgentConsoleIntroRow,
   AgentConsoleIssueRowSurface,
   type AgentConsoleIssueTone,
-  AgentConsoleLocalToolActions,
-  AgentConsoleLocalToolCard,
-  AgentConsoleLocalToolControls,
-  AgentConsoleLocalToolCopy,
-  AgentConsoleLocalToolDetail,
-  AgentConsoleLocalToolFields,
-  AgentConsoleLocalToolHeader,
-  AgentConsoleLocalToolTitle,
   AgentConsoleManagementLink,
   AgentConsoleMetricCard,
   AgentConsolePanel,
-  AgentConsolePanelActions,
-  AgentConsoleSelectField,
   AgentConsoleStatusBadge,
-  AgentConsoleSyncBadge,
-  AgentConsoleToolbar,
 } from '@/features/agent/components/AgentConsoleUi'
 import { agentSeverityStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
 import type { AgentControlIssue } from '@/features/agent/application/agentControlCenter'
-import {
-  providerRuntimeApiOptions,
-  providerRuntimeProfile,
-  providerSupportsAppServerRuntime,
-  providerWithRuntimeApi,
-  resolveAppServerProfile,
-  type ProviderConfig,
-  type ProviderRuntimeApi,
-  type ProviderSettings,
-} from '@/shared/infrastructure/providerConfigStore'
-import { providerRuntimeApiContract } from '@/shared/infrastructure/providerRuntimeApiCatalog'
 
 type ConsoleIssueTone = AgentConsoleIssueTone
 type ConsoleIssue = AgentControlIssue
 
-export function AgentControlMatrixPanel({
-  appServerAvailable,
-  appServerLabel,
-  appServerConfigRoute,
-  appServerEnabled,
-  appServerRunning,
-  appServerProfileId,
-  appServerEndpoint,
-  loading,
-  action,
-  error,
-  onRefresh,
-  onStartAppServer,
-  onStopAppServer,
-  onRestartAppServer,
-}: {
-  appServerAvailable: boolean
-  appServerLabel: string
-  appServerConfigRoute: string
-  appServerEnabled: boolean
-  appServerRunning: boolean
-  appServerProfileId: string
-  appServerEndpoint?: string
-  loading: boolean
-  action: string | null
-  error: string | null
-  onRefresh: () => void
-  onStartAppServer: () => void
-  onStopAppServer: () => void
-  onRestartAppServer: () => void
-}) {
-  return (
-    <ConsolePanel
-      title="当前 Agent 启动与配置"
-      icon={<Power size={14} />}
-      action={(
-        <AgentConsolePanelActions>
-          {loading && <AgentConsoleSyncBadge>同步中</AgentConsoleSyncBadge>}
-          <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={onRefresh} disabled={loading}>
-            <RefreshCw size={14} />
-            刷新状态
-          </AgentConsoleActionButton>
-        </AgentConsolePanelActions>
-      )}
-    >
-      <AgentConsoleIntroRow>
-        <AgentConsoleDescription>
-          这里只管理 app-server runtime 的生命周期：启动、停止和刷新运行状态。SDK runtime 按需加载，不需要在这里启动进程，能力状态会在 Provider 探针里通过 runtime/probe 检查。
-        </AgentConsoleDescription>
-        <AgentConsoleToolbar>
-          <AgentConsoleStatusBadge intent={!appServerAvailable ? 'neutral' : appServerRunning ? 'success' : 'warning'} emphasis="soft">
-            {!appServerAvailable ? '当前无 app-server runtime' : appServerRunning ? '1 个运行中' : '未启动'}
-          </AgentConsoleStatusBadge>
-        </AgentConsoleToolbar>
-      </AgentConsoleIntroRow>
-
-      {error ? <AgentConsoleInlineError>{error}</AgentConsoleInlineError> : null}
-
-      {!appServerAvailable ? (
-        <AgentConsoleEmptyText>当前启用的 provider 使用 SDK runtime 或其他非 app-server runtime，无需启动 app-server。请在 Provider Runtime 面板检查 SDK 包和 runtime/probe 状态。</AgentConsoleEmptyText>
-      ) : (
-        <AgentConsoleGrid columns="single">
-        <AgentConsoleLocalToolCard invalid={Boolean(error) || !appServerEnabled}>
-          <AgentConsoleLocalToolHeader>
-            <AgentConsoleLocalToolCopy>
-              <AgentConsoleLocalToolTitle>{appServerLabel}</AgentConsoleLocalToolTitle>
-              <AgentConsoleLocalToolDetail>profile={appServerProfileId} / {appServerEndpoint ?? 'endpoint pending'}</AgentConsoleLocalToolDetail>
-            </AgentConsoleLocalToolCopy>
-            <AgentConsoleLocalToolControls>
-              <AgentConsoleStatusBadge intent={appServerEnabled ? 'success' : 'neutral'} emphasis="soft">
-                {appServerEnabled ? '启用' : '停用'}
-              </AgentConsoleStatusBadge>
-              <AgentConsoleStatusBadge intent={appServerRunning ? 'success' : 'warning'} emphasis="soft">
-                {appServerRunning ? '运行中' : '未启动'}
-              </AgentConsoleStatusBadge>
-            </AgentConsoleLocalToolControls>
-          </AgentConsoleLocalToolHeader>
-          <AgentConsoleLocalToolFields>
-            <AgentConsoleCallout compact>
-              app-server 由 MovScript 托管，home path 由对应 runtime profile 投影给启动进程；只有 app-server runtime 需要在 Agents 中配置继承本机账号或使用托管 home。
-            </AgentConsoleCallout>
-          </AgentConsoleLocalToolFields>
-          <AgentConsoleLocalToolActions>
-            <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={onStartAppServer} disabled={!appServerEnabled || action === 'start-app-server'}>
-              <Play size={14} />
-              {appServerRunning ? '重连' : '启动'}
-            </AgentConsoleActionButton>
-            <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={onStopAppServer} disabled={!appServerRunning || action === 'stop-app-server'}>
-              <Square size={14} />
-              停止
-            </AgentConsoleActionButton>
-            <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={onRestartAppServer} disabled={!appServerEnabled || !appServerRunning || action === 'restart-app-server'}>
-              <RotateCw size={14} />
-              重启
-            </AgentConsoleActionButton>
-            <AgentConsoleActionButton asChild size="sm" variant="outline">
-              <Link to={appServerConfigRoute}>
-                <Settings size={14} />
-                配置当前 Agent
-              </Link>
-            </AgentConsoleActionButton>
-          </AgentConsoleLocalToolActions>
-        </AgentConsoleLocalToolCard>
-      </AgentConsoleGrid>
-      )}
-    </ConsolePanel>
-  )
-}
-
 export function ConsoleMetricCard({ title, value, detail, tone }: { title: string; value: string; detail: string; tone: ConsoleIssueTone }) {
   return <AgentConsoleMetricCard title={title} value={value} detail={detail} tone={tone} />
-}
-
-export function ProviderRuntimeSwitchPanel({
-  providers,
-  settings,
-  onSettingsChange,
-}: {
-  providers: ProviderConfig[]
-  settings: ProviderSettings
-  onSettingsChange: (settings: ProviderSettings) => void
-}) {
-  const changeProviderRuntime = (provider: ProviderConfig, api: ProviderRuntimeApi) => {
-    onSettingsChange({
-      ...settings,
-      providers: settings.providers.map((item) => item.id === provider.id ? providerWithRuntimeApi(item, api) : item),
-    })
-  }
-
-  return (
-    <ConsolePanel
-      title="Provider Runtime"
-      icon={<SlidersHorizontal size={14} />}
-      action={(
-        <AgentConsolePanelActions>
-          <AgentConsoleStatusBadge intent={providers.length > 0 ? 'success' : 'warning'} emphasis="soft">
-            {providers.length > 0 ? `${providers.length} 个已启用` : '无可用 Provider'}
-          </AgentConsoleStatusBadge>
-        </AgentConsolePanelActions>
-      )}
-    >
-      {providers.length === 0 ? (
-        <AgentConsoleEmptyText>启用 provider 后可以在这里选择运行时。</AgentConsoleEmptyText>
-      ) : (
-        <AgentConsoleGrid columns="single">
-          {providers.map((provider) => {
-            const runtime = providerRuntimeProfile(provider)
-            const options = providerRuntimeApiOptions(provider)
-            const canSwitch = options.length > 1
-            const contract = providerRuntimeApiContract(runtime.api)
-            const appServerRuntime = providerSupportsAppServerRuntime(provider)
-            return (
-              <AgentConsoleLocalToolCard key={provider.id}>
-                <AgentConsoleLocalToolHeader>
-                  <AgentConsoleLocalToolCopy>
-                    <AgentConsoleLocalToolTitle>{provider.label}</AgentConsoleLocalToolTitle>
-                    <AgentConsoleLocalToolDetail>{provider.kind} / {runtimeTransportLabel(contract?.transport)} / {runtimePackageDetail(provider)}</AgentConsoleLocalToolDetail>
-                  </AgentConsoleLocalToolCopy>
-                  <AgentConsoleLocalToolControls>
-                    <AgentConsoleStatusBadge intent={appServerRuntime ? 'warning' : 'success'} emphasis="soft">
-                      {runtime.api}
-                    </AgentConsoleStatusBadge>
-                    <AgentConsoleStatusBadge intent={contract?.adapterStatus === 'available' ? 'success' : 'warning'} emphasis="soft">
-                      {contract?.adapterStatus === 'available' ? 'adapter ready' : 'adapter pending'}
-                    </AgentConsoleStatusBadge>
-                  </AgentConsoleLocalToolControls>
-                </AgentConsoleLocalToolHeader>
-                <AgentConsoleLocalToolFields>
-                  <AgentConsoleCallout compact>
-                    {runtimeHomeDetail(provider)}
-                  </AgentConsoleCallout>
-                  {canSwitch ? (
-                    <AgentConsoleSelectField
-                      label="Runtime"
-                      value={runtime.api}
-                      onChange={(event) => changeProviderRuntime(provider, event.target.value as ProviderRuntimeApi)}
-                    >
-                      {options.map((option) => (
-                        <option key={option.api} value={option.api}>{option.label}</option>
-                      ))}
-                    </AgentConsoleSelectField>
-                  ) : (
-                    <AgentConsoleCallout compact>
-                      当前 provider 只有一个可用 runtime：{runtime.label}。
-                    </AgentConsoleCallout>
-                  )}
-                </AgentConsoleLocalToolFields>
-              </AgentConsoleLocalToolCard>
-            )
-          })}
-        </AgentConsoleGrid>
-      )}
-    </ConsolePanel>
-  )
-}
-
-function runtimeTransportLabel(transport?: string): string {
-  if (transport === 'sdk-client') return 'SDK client'
-  if (transport === 'app-server-json-rpc') return 'app-server JSON-RPC'
-  return 'custom transport'
-}
-
-function runtimePackageDetail(provider: ProviderConfig): string {
-  const runtime = providerRuntimeProfile(provider)
-  return runtime.packageVersion
-    ?? runtime.sdkPackageName
-    ?? runtime.packageName
-    ?? runtime.binaryPackageName
-    ?? (providerSupportsAppServerRuntime(provider) ? resolveAppServerProfile(provider).id : runtime.api)
-}
-
-function runtimeHomeDetail(provider: ProviderConfig): string {
-  const runtime = providerRuntimeProfile(provider)
-  if (providerSupportsAppServerRuntime(provider)) {
-    const profile = resolveAppServerProfile(provider)
-    return `app-server runtime：启动进程使用 profile=${profile.id}，home=${profile.home}，账号投影由 app-server 配置分发负责。`
-  }
-  if (runtime.api === 'codex-sdk') return 'SDK runtime：按需加载 @openai/codex-sdk，运行时注入 CODEX_HOME=<workspace>/.codex，并继承后台 baseURL / API Key 配置。'
-  if (runtime.api === 'claude-sdk') return 'SDK runtime：按需加载 @anthropic-ai/claude-agent-sdk，运行时注入 CLAUDE_CONFIG_DIR=<workspace>/.claude，并通过 env 继承后台 baseURL / API Key 配置。'
-  return `自定义 runtime：${runtime.label}。`
 }
 
 export function ConsolePanel({ title, icon, action, children }: { title: string; icon: ReactNode; action?: ReactNode; children: ReactNode }) {
@@ -343,7 +89,7 @@ export function HistoryClearControl({
         <AgentConsoleHistoryClearBody>
           <AgentConsoleHistoryClearTitle>历史会话记录</AgentConsoleHistoryClearTitle>
           <AgentConsoleHistoryClearDetail>
-            {threadCount} 个会话 / {runCount} 个 Run。清空会物理删除 provider 会话、Run、计划、运行态记录和 trace 文件。
+            {threadCount} 个会话 / {runCount} 个 Run。清空会删除会话历史、运行记录、计划状态和调试文件。
           </AgentConsoleHistoryClearDetail>
           {blocked && (
             <AgentConsoleCallout tone="warning" compact>

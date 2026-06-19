@@ -91,13 +91,6 @@ const PROBES: ProbeDefinition[] = [
     run: (dataSource) => dataSource.capabilities?.plugins?.list() ?? Promise.resolve(null),
   },
   {
-    id: 'skills',
-    label: 'Skills',
-    method: 'skills/list',
-    supported: (dataSource) => Boolean(dataSource.capabilities?.skills?.list),
-    run: (dataSource) => dataSource.capabilities?.skills?.list() ?? Promise.resolve(null),
-  },
-  {
     id: 'models',
     label: 'Models',
     method: 'model/list',

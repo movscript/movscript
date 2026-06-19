@@ -1,4 +1,4 @@
-import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 import { isAgentRunStoppableStatus, isAgentRunTerminalStatus } from '@movscript/core/agent/protocol'
 
 export type RunControlProviderSessionPatch = {

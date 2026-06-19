@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { buildAgentChatProviderSessionWorkViewState } from '@/features/agent/presentation/agentChatProviderSessionWorkViewState'
-import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 
 test('buildAgentChatProviderSessionWorkViewState keeps normal loading input-blocking', () => {
   const state = sessionState({

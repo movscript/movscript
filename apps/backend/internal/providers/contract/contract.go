@@ -60,7 +60,6 @@ const (
 	AdapterDesktopManagedAgent = "desktop-managed"
 	AdapterRemoteAgentRuntime  = "remote-runtime"
 	AdapterMova                = "mova"
-	AdapterAppServer           = "app-server"
 )
 
 type OwnerType string
@@ -418,6 +417,8 @@ type DebugPromptMessage struct {
 type AIModelListFilter struct {
 	Capability       string   `json:"capability,omitempty"`
 	Capabilities     []string `json:"capabilities,omitempty"`
+	APIKind          string   `json:"api_kind,omitempty"`
+	APIKinds         []string `json:"api_kinds,omitempty"`
 	ProviderVariants bool     `json:"provider_variants,omitempty"`
 	RouteGroup       string   `json:"route_group,omitempty"`
 }
@@ -435,6 +436,7 @@ type AIModelDescriptor struct {
 	ProviderName      string                   `json:"provider_name,omitempty"`
 	AdapterType       string                   `json:"adapter_type,omitempty"`
 	Capabilities      []string                 `json:"capabilities,omitempty"`
+	SupportedAPIKinds []string                 `json:"supported_api_kinds,omitempty"`
 	PricingMode       string                   `json:"pricing_mode,omitempty"`
 	AcceptsImageInput bool                     `json:"accepts_image_input,omitempty"`
 	IsDefault         bool                     `json:"is_default,omitempty"`
@@ -475,6 +477,8 @@ type AIGatewayRouteRequest struct {
 	CatalogEntryID        uint            `json:"catalog_entry_id,omitempty"`
 	RouteBindingID        uint            `json:"route_binding_id,omitempty"`
 	Capability            string          `json:"capability"`
+	APIKind               string          `json:"api_kind,omitempty"`
+	APIKinds              []string        `json:"api_kinds,omitempty"`
 	PreferredAdapterTypes []string        `json:"preferred_adapter_types,omitempty"`
 	EstimatedUsage        AIUsageEstimate `json:"estimated_usage,omitempty"`
 	MaxEstimatedCost      float64         `json:"max_estimated_cost,omitempty"`
@@ -490,6 +494,7 @@ type AIGatewayModelRoute struct {
 	ProviderID      string  `json:"provider_id,omitempty"`
 	ProviderModelID string  `json:"provider_model_id"`
 	Capability      string  `json:"capability,omitempty"`
+	APIKind         string  `json:"api_kind,omitempty"`
 	SelectionReason string  `json:"selection_reason,omitempty"`
 	EstimatedCost   float64 `json:"estimated_cost,omitempty"`
 }

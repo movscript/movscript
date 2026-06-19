@@ -12,7 +12,7 @@ import type {
   ConfigFileDiffSection,
   ToolPermissionsDiffItem,
 } from '@/features/agent/application/agentSettingsConfigFile'
-import type { ProviderCatalogConfigFile } from '@/shared/infrastructure/providerSessionClient'
+import type { ProviderCatalogConfigFile } from '@movscript/core/agent/protocol'
 import { copyTextToClipboard, scheduleUiReset } from '@/shared/ui/browserActions'
 
 export function ConfigFileDiffPanel({ diff }: { diff: ConfigFileDiff }) {

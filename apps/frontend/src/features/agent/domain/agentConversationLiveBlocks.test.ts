@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { buildAgentConversationLiveBlocks } from '@/features/agent/domain/agentConversationLiveBlocks'
-import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 
 const baseRun: AgentRun = {
   id: 'run_1',

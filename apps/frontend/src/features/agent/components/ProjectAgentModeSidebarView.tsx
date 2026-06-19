@@ -2,23 +2,11 @@ import type { ComponentProps, ReactNode } from 'react'
 import { SquarePen } from 'lucide-react'
 
 import {
-  AgentModeIconSlot,
-  AgentModeLabel,
-  AgentModePrimaryNavItem,
-  AgentModeResizeHandle,
-  AgentModeSidebar,
-  AgentModeSidebarScroll,
-  AgentModeSidebarTop,
-} from '@/features/agent/components/AgentModeUi'
+  AgentModeIconSlot, AgentModeLabel, AgentModePrimaryNavItem, AgentModeResizeHandle, AgentModeSidebar, AgentModeSidebarScroll, AgentModeSidebarTop, } from '@/features/agent/components/AgentModeUi'
 import {
-  ProjectAgentModeChatConversationsSection,
-  ProjectAgentModeHistorySection,
-  ProjectAgentModeProjectGroupsSection,
-  type AgentModeHistoryItem,
-  type AgentModeProjectConversationGroup,
-} from '@/features/agent/components/ProjectAgentModeSidebarParts'
+  ProjectAgentModeChatConversationsSection, ProjectAgentModeHistorySection, ProjectAgentModeProjectGroupsSection, AgentModeHistoryItem, AgentModeProjectConversationGroup, } from '@/features/agent/components/ProjectAgentModeSidebarParts'
 import type { Conversation } from '@/features/agent/state/agentStore'
-import type { AgentThreadSummary } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentThreadSummary } from '@movscript/core/agent/protocol'
 import type { ProviderSessionStatusLight } from '@movscript/core/agent'
 
 export function ProjectAgentModeSidebarView({

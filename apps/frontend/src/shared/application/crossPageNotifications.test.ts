@@ -18,7 +18,7 @@ test('cross-page notifications wrap agent chat notifications with thread scope',
       method: 'thread/name/updated',
       params: { threadId: 'thread_1', name: 'Thread one' },
     },
-    transport: 'app-server-rpc',
+    transport: 'sdk-runtime-ipc',
     source: 'Mova',
   })
 
@@ -39,7 +39,7 @@ test('cross-page notifications classify MCP status as global capability state', 
         status: 'ready',
       },
     },
-    transport: 'app-server-rpc',
+    transport: 'sdk-runtime-ipc',
     source: 'Mova',
   })
 
@@ -59,7 +59,7 @@ test('cross-page notification bus publishes once per stable envelope id', () => 
       method: 'serverRequest/resolved',
       params: { threadId: 'thread_1', requestId: 'request_1' },
     },
-    transport: 'app-server-rpc',
+    transport: 'sdk-runtime-ipc',
     source: 'Mova',
   })
 
@@ -92,7 +92,7 @@ test('cross-page BroadcastChannel bridge forwards local events and accepts remot
       method: 'thread/name/updated',
       params: { threadId: 'thread_1', name: 'Thread one' },
     },
-    transport: 'app-server-rpc',
+    transport: 'sdk-runtime-ipc',
     source: 'Mova',
   })
   const remoteEvent = crossPageEventFromAgentChatNotification({
@@ -100,7 +100,7 @@ test('cross-page BroadcastChannel bridge forwards local events and accepts remot
       method: 'mcpServer/startupStatus/updated',
       params: { name: 'filesystem', status: 'ready' },
     },
-    transport: 'app-server-rpc',
+    transport: 'sdk-runtime-ipc',
     source: 'Remote Mova',
   })
 

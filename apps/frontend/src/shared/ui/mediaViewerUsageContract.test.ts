@@ -324,7 +324,6 @@ test('resource file URL synthesis is limited to data normalization and shared re
     'src/features/canvas/runtime/runtimeValues.ts',
     'src/features/content/application/contentCanvasMedia.ts',
     'src/features/shot-library/domain/shotReferenceLibrary.ts',
-    'src/shared/infrastructure/app-server/appServerThreadTurnItemItems.ts',
     'src/shared/ui/ResourceFileAudio.tsx',
     'src/shared/ui/ResourceFileImage.tsx',
     'src/shared/ui/ResourceFileVideo.tsx',

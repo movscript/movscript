@@ -5,8 +5,11 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { AgentSurfaceBlock } from '@movscript/ui/business/agent'
 import { Badge, StatusBadge, Button } from '@movscript/ui/primitives'
-import { providerSessionClient, type WorkspaceArtifact } from '@/shared/infrastructure/providerSessionClient'
 import { agentArtifactKeys } from '@/features/agent/application/agentQueryKeys'
+import {
+  listAgentMessageWorkspaceArtifacts,
+  type AgentWorkspaceArtifact,
+} from '@/features/agent/application/agentWorkspaceArtifactService'
 import { buildWorkspaceArtifactReviewPath, buildWorkspaceReviewPath } from '@/features/agent/domain/workspaceDomainModel'
 import { workspaceArtifactStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
 import { ROUTES } from '@/routes/projectRoutes'
@@ -23,21 +26,15 @@ export function AgentArtifactResultCards({ artifacts }: { artifacts?: AgentTaskA
     return map
   }, [artifacts])
   const workspacesQuery = useQuery({
-    queryKey: agentArtifactKeys.messageWorkspaceArtifacts(providerSessionClient.baseURL, workspaceIds),
-    queryFn: async () => Promise.all(workspaceIds.map(async (workspaceId) => {
-      try {
-        return await providerSessionClient.getWorkspaceArtifact(workspaceId)
-      } catch {
-        return null
-      }
-    })),
+    queryKey: agentArtifactKeys.messageWorkspaceArtifacts(workspaceIds),
+    queryFn: () => listAgentMessageWorkspaceArtifacts(workspaceIds),
     enabled: workspaceIds.length > 0,
     staleTime: 5_000,
     retry: false,
   })
   if (workspaceIds.length === 0) return null
 
-  const workspacesById = new Map((workspacesQuery.data ?? []).filter((workspace): workspace is WorkspaceArtifact => !!workspace).map((workspace) => [workspace.id, workspace]))
+  const workspacesById = new Map((workspacesQuery.data ?? []).filter((workspace): workspace is AgentWorkspaceArtifact => !!workspace).map((workspace) => [workspace.id, workspace]))
   const artifactCards = dedupeArtifactResultCards(workspaceIds, artifactsById, workspacesById)
 
   return (
@@ -84,9 +81,9 @@ export function AgentArtifactResultCards({ artifacts }: { artifacts?: AgentTaskA
 function dedupeArtifactResultCards(
   workspaceIds: string[],
   artifactsById: Map<string, AgentTaskArtifactRef>,
-  workspacesById: Map<string, WorkspaceArtifact>,
-): Array<{ workspaceId: string; artifact?: AgentTaskArtifactRef; workspace?: WorkspaceArtifact }> {
-  const cards: Array<{ workspaceId: string; artifact?: AgentTaskArtifactRef; workspace?: WorkspaceArtifact }> = []
+  workspacesById: Map<string, AgentWorkspaceArtifact>,
+): Array<{ workspaceId: string; artifact?: AgentTaskArtifactRef; workspace?: AgentWorkspaceArtifact }> {
+  const cards: Array<{ workspaceId: string; artifact?: AgentTaskArtifactRef; workspace?: AgentWorkspaceArtifact }> = []
   const seen = new Set<string>()
   for (const workspaceId of workspaceIds) {
     const artifact = artifactsById.get(workspaceId)

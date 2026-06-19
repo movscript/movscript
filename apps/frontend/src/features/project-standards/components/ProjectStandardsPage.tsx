@@ -47,11 +47,15 @@ import {
   uploadProjectStandardsStyleReferenceImages,
 } from '@/features/project-standards/application/projectStandardsStyleReferenceUpload'
 import {
+  listProjectStandardsWorkspaceArtifacts,
+  updateProjectStandardsWorkspaceArtifact,
+  type ProjectStandardsWorkspaceArtifact,
+} from '@/features/project-standards/application/projectStandardsWorkspaceArtifactService'
+import {
   CORE_STANDARD_GROUPS,
   coreCards,
   type StandardWorkbenchGroup,
 } from '@/features/project-standards/presentation/projectStandardsBoardModel'
-import { isProviderSessionNotFoundError, providerSessionClient, type WorkspaceArtifact } from '@/shared/infrastructure/providerSessionClient'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { toast } from '@/shared/ui/toastStore'
 import { ROUTES } from '@/routes/projectRoutes'
@@ -118,22 +122,16 @@ export function ProjectStandardsContent() {
     if (openedWorkspaceId) setReviewDialogOpen(true)
   }, [openedWorkspaceId])
 
-  const workspaceArtifactsQuery = useQuery<WorkspaceArtifact[]>({
+  const workspaceArtifactsQuery = useQuery<ProjectStandardsWorkspaceArtifact[]>({
     queryKey: projectStandardsKeys.workspaceArtifacts(projectId, pageKey, activeWorkspaceId, openedWorkspaceId),
     queryFn: async () => {
       if (!projectId || !pageKey) return []
       const scopedWorkspaceId = openedWorkspaceId || activeWorkspaceId
-      try {
-        if (scopedWorkspaceId) {
-          const workspace = await providerSessionClient.getWorkspaceArtifact(scopedWorkspaceId)
-          return workspace.kind === 'project_standards_workspace' ? [workspace] : []
-        }
-        const { workspaces } = await providerSessionClient.listWorkspaceArtifacts({ projectId, kind: 'project_standards_workspace', pageKey, limit: 20 })
-        return workspaces
-      } catch (error) {
-        if (isProviderSessionNotFoundError(error)) return []
-        throw error
-      }
+      return listProjectStandardsWorkspaceArtifacts({
+        projectId,
+        pageKey,
+        ...(scopedWorkspaceId ? { workspaceId: scopedWorkspaceId } : {}),
+      })
     },
     enabled: !!projectId && !!pageKey,
     retry: false,
@@ -161,13 +159,13 @@ export function ProjectStandardsContent() {
     }, { replace: true })
   }
 
-  async function applyWorkspace(workspace: WorkspaceArtifact) {
+  async function applyWorkspace(workspace: ProjectStandardsWorkspaceArtifact) {
     if (!projectId) return
     if (workspace.kind === 'project_standards_workspace') {
       setApplyingWorkspaceId(workspace.id)
       try {
         const proposedValue = buildProjectStyleApplyPayload(workspace)
-        await providerSessionClient.updateWorkspaceArtifact(workspace.id, {
+        await updateProjectStandardsWorkspaceArtifact(workspace.id, {
           metadata: {
             ...(isRecord(workspace.metadata) ? workspace.metadata : {}),
             reviewedFrom: 'project-standards-workbench',
@@ -181,7 +179,7 @@ export function ProjectStandardsContent() {
           currentProject: data.project,
           projectStyle: isRecord(workspacePayload.project_style) ? workspacePayload.project_style : {},
         })
-        await providerSessionClient.updateWorkspaceArtifact(workspace.id, {
+        await updateProjectStandardsWorkspaceArtifact(workspace.id, {
           status: 'applied',
           target: {
             projectId,

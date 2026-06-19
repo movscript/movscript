@@ -7,7 +7,7 @@ import {
   AgentDebugWorkspaceDiffRows,
   AgentDebugWorkspaceDiffShell,
 } from '@/features/agent/components/AgentDebugPreviewUi'
-import type { WorkspaceArtifactApplyPreview } from '@/shared/infrastructure/providerSessionClient'
+import type { WorkspaceArtifactApplyPreview } from '@/shared/contracts/workspaceArtifact'
 
 function emptyLabel(t: ReturnType<typeof useTranslation>['t']) {
   return t('agents.chat.panel.providerSession.empty')
@@ -70,4 +70,12 @@ export function isWorkspaceApplyPreview(value: unknown): value is WorkspaceArtif
     && typeof record.review === 'object'
     && typeof record.review.workspaceId === 'string'
     && !!record.workspace
+}
+
+export function safeJSONStringify(value: unknown) {
+  try {
+    return JSON.stringify(value, null, 2)
+  } catch {
+    return String(value)
+  }
 }

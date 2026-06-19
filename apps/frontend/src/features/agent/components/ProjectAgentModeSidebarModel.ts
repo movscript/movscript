@@ -4,14 +4,11 @@ import {
 import {
   shouldHydrateAgentThreadSummary,
 } from '@/features/agent/application/useAgentThreadRegistryHydration'
-import type {
-  AgentModeHistoryItem,
-  AgentModeProjectConversationGroup,
-} from '@/features/agent/components/ProjectAgentModeSidebarParts'
+import type { AgentModeHistoryItem, AgentModeProjectConversationGroup, } from '@/features/agent/components/ProjectAgentModeSidebarParts'
 import type { Conversation } from '@/features/agent/state/agentStore'
 import type { AgentConversationThreadBinding, useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import type { AgentConversationRegistryRecord } from '@movscript/core/agent'
-import type { AgentSessionSummary, AgentThreadSummary } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentSessionSummary, AgentThreadSummary } from '@movscript/core/agent/protocol'
 
 export function sortAgentModeOpenConversations(conversations: Conversation[]): Conversation[] {
   const sourceIndex = new Map(conversations.map((conversation, index) => [conversation.id, index]))

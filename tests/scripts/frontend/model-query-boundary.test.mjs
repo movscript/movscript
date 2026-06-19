@@ -5,7 +5,7 @@ import test from 'node:test'
 
 const modelQueryKeysSource = readSource('apps/frontend/src/shared/application/modelQueryKeys.ts')
 const agentModelQueryKeysSource = readSource('apps/frontend/src/features/agent/application/agentModelQueryKeys.ts')
-const appServerChatShellSource = readSource('apps/frontend/src/features/agent/components/AppServerChatShell.tsx')
+const agentRuntimeChatShellSource = readSource('apps/frontend/src/features/agent/components/AgentRuntimeChatShell.tsx')
 const agentSettingsSource = readSource('apps/frontend/src/features/agent/components/AIAgentSettingsPage.tsx')
 const agentSettingsModelControllerSource = readSource('apps/frontend/src/features/agent/application/useAgentSettingsModelController.ts')
 const agentChatDataSourcesSource = readSource('apps/frontend/src/features/agent/presentation/useAgentChatDataSources.ts')
@@ -17,9 +17,10 @@ test('model query keys are delegated to model key factories', () => {
   assert.match(modelQueryKeysSource, /export const modelKeys/)
   assert.match(modelQueryKeysSource, /capability: \(capability: string \| undefined\) => \['models', capability\] as const/)
   assert.match(agentModelQueryKeysSource, /export const agentModelKeys/)
-  assert.match(agentModelQueryKeysSource, /backendCatalog: \(scope = 'default-backend'\) => \['models', 'agent-backend', AGENT_BACKEND_MODEL_CAPABILITY_QUERY, scope\] as const/)
+  assert.match(agentModelQueryKeysSource, /backendCatalog: \(scope = 'default-backend', apiKinds: readonly string\[\] = \[\]\) => \[/)
+  assert.match(agentModelQueryKeysSource, /apiKinds\.join\(','\) \|\| 'all-api-kinds'/)
 
-  assert.match(appServerChatShellSource, /agentModelKeys\.backendCatalog\(\)/)
+  assert.match(agentRuntimeChatShellSource, /agentModelKeys\.backendCatalog\('runtime-chat', modelAPIKinds\)/)
   assert.match(agentSettingsModelControllerSource, /agentModelKeys\.backendCatalog\('default-backend'\)/)
   assert.match(agentChatDataSourcesSource, /agentModelKeys\.backendCatalog\(\)/)
   assert.match(canvasGenerationNodesSource, /modelKeys\.capability\(capability\)/)
@@ -27,7 +28,7 @@ test('model query keys are delegated to model key factories', () => {
   assert.match(modelSelectorSource, /modelKeys\.capability\(queryCapability\)/)
 
   for (const source of [
-    appServerChatShellSource,
+    agentRuntimeChatShellSource,
     agentSettingsModelControllerSource,
     agentSettingsSource,
     agentChatDataSourcesSource,

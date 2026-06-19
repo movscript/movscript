@@ -1,4 +1,4 @@
-import type { AgentAttachmentSource } from '../protocol.js'
+import type { AgentAttachmentSource } from '../agentAttachmentProtocol.js'
 import { isModelReachableRemoteUrl } from '../attachmentInputs.js'
 
 export type AgentChatInput =

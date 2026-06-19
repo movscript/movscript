@@ -1,6 +1,6 @@
 import { runApprovalModeLabel } from '@/features/agent/domain/agentRunUi'
 import { isRecord } from '@/shared/domain/jsonValue'
-import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 
 export interface AgentRunConfigurationSnapshotView {
   capturedAt: string

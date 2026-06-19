@@ -8,7 +8,6 @@ import {
 import {
   enabledProviders,
   normalizeProviderSettings,
-  usesAppServerProtocol,
   useProviderConfigStore,
   type ProviderConfig,
 } from '@/shared/infrastructure/providerConfigStore'
@@ -62,13 +61,11 @@ export async function uninstallProviderMarketplacePlugin(item: ProviderPluginMar
 
 export async function loadProviderPluginMarketplaceForProvider(provider: ProviderConfig): Promise<ProviderPluginMarketplaceProviderState> {
   try {
-    const dataSource = await createAgentChatDataSourceForProvider(provider, { appServerPolicy: 'status-only' })
+    const dataSource = await createAgentChatDataSourceForProvider(provider)
     const plugins = dataSource.capabilities?.plugins
     if (!plugins?.list && !plugins?.installed) throw new Error('Provider does not expose plugin/list or plugin/installed')
     const installed = await (plugins.installed?.({}).catch(() => undefined) ?? Promise.resolve(undefined))
-    const listed = usesAppServerProtocol(provider)
-      ? installed
-      : await plugins.list?.({ marketplaceKinds: ['local', 'workspace-directory', 'shared-with-me'] })
+    const listed = await plugins.list?.({ marketplaceKinds: ['local', 'workspace-directory', 'shared-with-me'] }) ?? installed
     return {
       provider,
       ok: true,

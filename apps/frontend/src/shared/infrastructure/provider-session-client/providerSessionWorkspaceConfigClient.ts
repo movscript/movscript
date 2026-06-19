@@ -1,9 +1,4 @@
 import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
-import {
-  isPlainRecord,
-  modelConfigInputFromRecord,
-  providerModelConfigPublicFromWorkspaceConfig,
-} from '@/shared/infrastructure/provider-session-client/providerSessionHttpProtocol'
 import { providerSessionWorkspaceScope, type ProviderSessionWorkspaceScopeInput } from '@/shared/infrastructure/provider-session-client/providerSessionHttpRoutes'
 import type {
   MovScriptWorkspaceConfig,
@@ -11,38 +6,13 @@ import type {
   ProviderCatalogConfigFile,
   ProviderCatalogInspectResponse,
   ProviderManifest,
-  ProviderModelAPIKind,
-  ProviderModelConfigPublic,
   ProviderSessionSummary,
 } from '@/shared/infrastructure/provider-session-client/types'
 
 export interface ProviderSessionWorkspaceScopeContext extends ProviderSessionWorkspaceScopeInput {}
 
-export interface ProviderModelConfigSaveInput {
-  model: string
-  apiKind?: ProviderModelAPIKind
-  baseURL?: string
-  apiKey?: string
-  useForChat?: boolean
-  useForPlanner?: boolean
-}
-
-function modelConfigSaveInputRecord(input: ProviderModelConfigSaveInput): Record<string, unknown> {
-  return {
-    model: input.model,
-    ...(input.apiKind !== undefined ? { apiKind: input.apiKind } : {}),
-    ...(input.baseURL !== undefined ? { baseURL: input.baseURL } : {}),
-    ...(input.apiKey !== undefined ? { apiKey: input.apiKey } : {}),
-    ...(input.useForChat !== undefined ? { useForChat: input.useForChat } : {}),
-    ...(input.useForPlanner !== undefined ? { useForPlanner: input.useForPlanner } : {}),
-  }
-}
-
 export interface ProviderSessionWorkspaceConfigContext extends ProviderSessionWorkspaceScopeContext {
-  clearModelConfig(): Promise<ProviderModelConfigPublic>
-  getModelConfig(): Promise<ProviderModelConfigPublic>
   getWorkspaceConfig(input?: ProviderSessionWorkspaceScopeInput): Promise<MovScriptWorkspaceConfig>
-  saveModelConfig(input: ProviderModelConfigSaveInput): Promise<ProviderModelConfigPublic>
   saveWorkspaceConfig(input: MovScriptWorkspaceConfigSaveInput): Promise<MovScriptWorkspaceConfig>
 }
 
@@ -95,8 +65,6 @@ export async function saveProviderSessionWorkspaceConfig(
       ...input,
     })
   }
-  if (input.modelConfig && isPlainRecord(input.modelConfig)) await context.saveModelConfig(modelConfigInputFromRecord(input.modelConfig))
-  if (input.modelConfig === null) await context.clearModelConfig()
   return context.getWorkspaceConfig()
 }
 
@@ -154,37 +122,6 @@ export async function saveActiveProviderSessionConfigFile(
     agentCatalog: nextAgentCatalogConfig(config, { activeConfigFileId: input.configFileId }),
   })
   return await bestEffortRuntimeSync(runtimeSaveActive) ?? emptyProviderManifest(input.configFileId)
-}
-
-export async function getProviderSessionProviderModelConfig(
-  context: ProviderSessionWorkspaceConfigContext,
-): Promise<ProviderModelConfigPublic> {
-  if (typeof readElectronApi()?.getMovScriptWorkspaceConfig === 'function') {
-    const config = await context.getWorkspaceConfig()
-    return providerModelConfigPublicFromWorkspaceConfig(config.modelConfig)
-  }
-  return context.getModelConfig()
-}
-
-export async function saveProviderSessionProviderModelConfig(
-  input: ProviderModelConfigSaveInput,
-  context: ProviderSessionWorkspaceConfigContext,
-): Promise<ProviderModelConfigPublic> {
-  if (typeof readElectronApi()?.saveMovScriptWorkspaceConfig === 'function') {
-    const config = await context.saveWorkspaceConfig({ modelConfig: modelConfigSaveInputRecord(input) })
-    return providerModelConfigPublicFromWorkspaceConfig(config.modelConfig)
-  }
-  return context.saveModelConfig(input)
-}
-
-export async function clearProviderSessionProviderModelConfig(
-  context: ProviderSessionWorkspaceConfigContext,
-): Promise<ProviderModelConfigPublic> {
-  if (typeof readElectronApi()?.saveMovScriptWorkspaceConfig === 'function') {
-    const config = await context.saveWorkspaceConfig({ modelConfig: null })
-    return providerModelConfigPublicFromWorkspaceConfig(config.modelConfig)
-  }
-  return context.clearModelConfig()
 }
 
 function mergeProviderCatalogInspectWithWorkspaceConfig(

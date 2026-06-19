@@ -3,35 +3,12 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Check, ChevronLeft, ChevronRight, ListChecks, Loader2, ShieldCheck, Route, X } from 'lucide-react'
 import {
-  AgentRunInteractionActionButton,
-  AgentRunInteractionMarkerDot,
-  AgentRunInteractionMetaBadge,
-  AgentRunInteractionRequestCard,
-  AgentRunInteractionRequestCopy,
-  AgentRunInteractionRequestDetail,
-  AgentRunInteractionRequestHeader,
-  AgentRunInteractionRequestSummary,
-  AgentRunInteractionRequestTitle,
-  AgentRunInteractionProviderSessionHeader,
-  AgentRunInteractionProviderSessionPanel,
-  AgentRunInteractionProviderSessionStatusBadge,
-  AgentRunInteractionProviderSessionTitle,
-  AgentRunInteractionSection,
-  AgentRunInteractionSectionActions,
-  AgentRunInteractionSectionHeader,
-  AgentRunInteractionSectionTitle,
-  AgentRunInteractionStack,
-  AgentRunInteractionStatusBadge,
-} from '@/features/agent/components/run-interaction-ui'
-import { buildAgentRunActivityTimeline, type AgentRunActivityTimelineItem } from '@/features/agent/presentation/agentRunActivityTimeline'
+  AgentRunInteractionActionButton, AgentRunInteractionMarkerDot, AgentRunInteractionMetaBadge, AgentRunInteractionRequestCard, AgentRunInteractionRequestCopy, AgentRunInteractionRequestDetail, AgentRunInteractionRequestHeader, AgentRunInteractionRequestSummary, AgentRunInteractionRequestTitle, AgentRunInteractionProviderSessionHeader, AgentRunInteractionProviderSessionPanel, AgentRunInteractionProviderSessionStatusBadge, AgentRunInteractionProviderSessionTitle, AgentRunInteractionSection, AgentRunInteractionSectionActions, AgentRunInteractionSectionHeader, AgentRunInteractionSectionTitle, AgentRunInteractionStack, AgentRunInteractionStatusBadge, } from '@/features/agent/components/run-interaction-ui'
+import { buildAgentRunActivityTimeline, AgentRunActivityTimelineItem } from '@/features/agent/presentation/agentRunActivityTimeline'
 import { agentRunStatusRecipe, agentRunInteractionActionStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
 import {
-  clampPage,
-  interactionRunStatusLabel,
-  runInteractionApprovalSectionTitle,
-  type ProviderSessionApprovalRequest,
-} from '@/features/agent/presentation/providerSessionInteractionsModel'
-import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
+  clampPage, interactionRunStatusLabel, runInteractionApprovalSectionTitle, ProviderSessionApprovalRequest, } from '@/features/agent/presentation/providerSessionInteractionsModel'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 import type { ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 import {
   ProviderSessionApprovalRequestCard,

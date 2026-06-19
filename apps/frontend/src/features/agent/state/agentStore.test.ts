@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { appendSettingsAuditEntry, normalizeAgentSettings, normalizeAgentSettingsWithOptions, useAgentStore } from './agentStore'
+import {
+  agentSettingsModelIdForProvider,
+  agentSettingsModelSelectionPatch,
+  appendSettingsAuditEntry,
+  normalizeAgentSettings,
+  normalizeAgentSettingsWithOptions,
+  useAgentStore,
+} from './agentStore'
 
 test('agent store persistence excludes conversations and workspaces', () => {
   const partialized = useAgentStore.persist.getOptions().partialize?.(useAgentStore.getState()) as Record<string, unknown>
@@ -40,7 +47,8 @@ test('normalizeAgentSettings falls back from invalid persisted base settings', (
     includeRecentResources: 1 as unknown as boolean,
   })
 
-  assert.equal(settings.modelId, 'current-model')
+  assert.equal(settings.modelId, null)
+  assert.equal(agentSettingsModelIdForProvider(settings, 'mova'), 'current-model')
   assert.equal(settings.includeProjectContext, true)
   assert.equal(settings.includeRecentResources, true)
 })
@@ -68,10 +76,38 @@ test('normalizeAgentSettings preserves custom provider profile config ids', () =
   assert.equal(normalizeAgentSettings({ activeProviderProfileConfigId: '../bad' }).activeProviderProfileConfigId, 'mova')
 })
 
-test('normalizeAgentSettings keeps current string model ids only', () => {
-  assert.equal(normalizeAgentSettings({ modelId: 'gpt-current' }).modelId, 'gpt-current')
-  assert.equal(normalizeAgentSettings({ modelId: 42 as unknown as string }).modelId, null)
-  assert.equal(normalizeAgentSettings({ modelId: '' }).modelId, null)
+test('normalizeAgentSettings keeps provider-scoped model ids only', () => {
+  assert.equal(agentSettingsModelIdForProvider(normalizeAgentSettings({ modelId: 'gpt-current' }), 'mova'), 'gpt-current')
+  assert.equal(agentSettingsModelIdForProvider(normalizeAgentSettings({ modelId: 42 as unknown as string }), 'mova'), null)
+  assert.equal(agentSettingsModelIdForProvider(normalizeAgentSettings({ modelId: '' }), 'mova'), null)
+  const settings = normalizeAgentSettings({
+    modelIdByProviderProfile: {
+      mova: 'gpt-mova',
+      claude: 'claude-opus-4-6',
+      '../bad': 'ignored-key-model',
+      codex: '',
+    },
+  })
+  assert.equal(settings.modelId, null)
+  assert.equal(agentSettingsModelIdForProvider(settings, 'mova'), 'gpt-mova')
+  assert.equal(agentSettingsModelIdForProvider(settings, 'claude'), 'claude-opus-4-6')
+  assert.equal(agentSettingsModelIdForProvider(settings, 'codex'), null)
+})
+
+test('agentSettingsModelSelectionPatch updates one provider model without touching others', () => {
+  const settings = normalizeAgentSettings({
+    modelIdByProviderProfile: {
+      mova: 'gpt-mova',
+      claude: 'claude-opus-4-6',
+    },
+  })
+  const next = normalizeAgentSettings({
+    ...settings,
+    ...agentSettingsModelSelectionPatch(settings, 'codex', 'gpt-5.4'),
+  })
+  assert.equal(agentSettingsModelIdForProvider(next, 'mova'), 'gpt-mova')
+  assert.equal(agentSettingsModelIdForProvider(next, 'claude'), 'claude-opus-4-6')
+  assert.equal(agentSettingsModelIdForProvider(next, 'codex'), 'gpt-5.4')
 })
 
 test('normalizeAgentSettings normalizes persisted tool permission filter presets', () => {

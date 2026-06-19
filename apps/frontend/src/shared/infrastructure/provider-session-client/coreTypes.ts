@@ -47,7 +47,6 @@ export type {
   AgentThreadListPage,
   AgentThreadRole,
   AgentConversationLifecycle,
-  AgentThreadResolution,
   AgentThreadSummary,
   AgentThreadStatus,
   AgentTraceEvent,
@@ -63,11 +62,9 @@ export type {
   ProviderModelCredentialStatusPublic,
   ProviderModelTestResult,
   CreateMessageRunResult,
-  RunMessageResult,
   ProviderContinuation,
   ProviderInteraction,
   ProviderWork,
   ToolCall,
   UpdateTaskGraphResult,
 } from '@movscript/core/agent/protocol'
-

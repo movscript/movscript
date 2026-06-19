@@ -1,14 +1,17 @@
 import {
   useEffect,
+  useMemo,
   useRef,
-  useMemo } from 'react'
-import { Link,
+} from 'react'
+import {
   useLocation,
-  useNavigate } from 'react-router-dom'
+  useNavigate,
+} from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Cable,
+import {
   ChevronRight,
-  RefreshCw } from 'lucide-react'
+  RefreshCw,
+} from 'lucide-react'
 import {
   AgentPageShell,
   AgentPageShellHeader,
@@ -33,34 +36,28 @@ import {
 } from '@/features/agent/components/AgentConsoleUi'
 import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
 import { IdentityBadge, IdentityMark } from '@/features/agent/components/AgentIdentityUi'
+import { useAgentStore } from '@/features/agent/state/agentStore'
 import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
-import {
-  activeProviderKeyFromPath,
-  AppServerPanel,
-  buildProviderOptions,
-  providerMatchesRouteKey,
-  providerRoute,
-} from '@/features/agent/components/AgentsPageAppServerPanel'
-import { fetchAgentBackendModels } from '@/features/agent/application/agentModelCatalogApi'
 import { agentProviderKeys } from '@/features/agent/application/agentQueryKeys'
 import {
   agentProviderSettingsWithWorkspaceSelection,
   commitAgentProviderActivation,
+  loadAgentProviderWorkspaceConfig,
+  saveAgentProviderWorkspaceConfig,
 } from '@/features/agent/application/agentProviderActivation'
 import {
-  appServerKey,
-  providerRouteKey,
+  activeProviderKeyFromPath,
+  providerMatchesRouteKey,
 } from '@/features/agent/application/providerRoutes'
 import {
-  DEFAULT_PROVIDER_SETTINGS,
   MOVA_PROVIDER_ID,
-  enabledProviders,
-  normalizeProviderSettings,
-  usesAppServerProtocol,
+  normalizeProviderSettingsWithRuntimeEnv,
   useProviderConfigStore,
-  type ProviderConfig,
 } from '@/shared/infrastructure/providerConfigStore'
-import { ProviderSessionClient, providerSessionClient } from '@/shared/infrastructure/providerSessionClient'
+import {
+  activeAgentProfileForRoute,
+  agentProfilesFromProviderSettings,
+} from '@/features/agent/application/agentProfileModel'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { ROUTES } from '@/routes/projectRoutes'
 
@@ -69,67 +66,42 @@ export default function AgentsPage() {
   const navigate = useNavigate()
   const savedSettings = useProviderConfigStore((state) => state.settings)
   const setSettings = useProviderConfigStore((state) => state.setSettings)
+  const updateAgentSettings = useAgentStore((state) => state.updateSettings)
   const currentUser = useUserStore((state) => state.currentUser)
   const setActiveConversation = useAgentSessionStore((state) => state.setActiveConversation)
   const hydratedAgentSelectionUpdatedAtRef = useRef<string | null>(null)
-  const settings = useMemo(() => normalizeProviderSettings(savedSettings), [savedSettings])
+  const settings = useMemo(() => normalizeProviderSettingsWithRuntimeEnv(savedSettings), [savedSettings])
   const providers = settings.providers
-  const appServerProviders = useMemo(() => providers.filter(usesAppServerProtocol), [providers])
-  const selectedProvider = appServerProviders.find((provider) => provider.id === settings.defaultProviderId)
-    ?? appServerProviders.find((provider) => provider.enabled)
-    ?? appServerProviders[0]
-  const activeProviderKey = activeProviderKeyFromPath(location.pathname, appServerProviders)
-    ?? (selectedProvider ? providerRouteKey(selectedProvider) : appServerProviders[0] ? providerRouteKey(appServerProviders[0]) : MOVA_PROVIDER_ID)
-  const activeProvider = appServerProviders.find((provider) => providerMatchesRouteKey(provider, activeProviderKey))
-  const activeAppServerKey = activeProvider ? appServerKey(activeProvider) : activeProviderKey
-  const enabledCount = enabledProviders(settings).length
-  const defaultWorkspaceConfigQuery = useQuery({
-    queryKey: agentProviderKeys.workspaceConfig('default'),
-    queryFn: () => providerSessionClient.getWorkspaceConfig(),
-    retry: false,
-  })
-  const activeProfileSessionClient = useMemo(() => new ProviderSessionClient(undefined, { providerProfileKey: activeAppServerKey }), [activeAppServerKey])
+  const agentProfiles = useMemo(() => agentProfilesFromProviderSettings(settings), [settings])
+  const selectedProfile = agentProfiles.find((profile) => profile.current)
+    ?? agentProfiles.find((profile) => profile.enabled)
+    ?? agentProfiles[0]
+  const routeProviderKey = activeProviderKeyFromPath(location.pathname, providers)
+  const activeProfile = activeAgentProfileForRoute(agentProfiles, routeProviderKey)
+    ?? selectedProfile
+  const activeProviderKey = activeProfile?.routeKey ?? MOVA_PROVIDER_ID
+  const enabledCount = agentProfiles.filter((profile) => profile.enabled).length
   const workspaceConfigQuery = useQuery({
-    queryKey: agentProviderKeys.workspaceConfig(activeAppServerKey),
-    queryFn: () => activeProfileSessionClient.getWorkspaceConfig(),
+    queryKey: agentProviderKeys.workspaceConfig('default'),
+    queryFn: () => loadAgentProviderWorkspaceConfig(),
     retry: false,
   })
-  const backendModelsQuery = useQuery({
-    queryKey: agentProviderKeys.backendModels,
-    queryFn: () => fetchAgentBackendModels(),
-    retry: false,
-  })
-  const providerOptions = useMemo(() => {
-    return buildProviderOptions(defaultWorkspaceConfigQuery.data, backendModelsQuery.data ?? [])
-  }, [defaultWorkspaceConfigQuery.data, backendModelsQuery.data])
 
   useEffect(() => {
-    const config = defaultWorkspaceConfigQuery.data
+    const config = workspaceConfigQuery.data
     if (!config?.agentSelection || hydratedAgentSelectionUpdatedAtRef.current === config.updatedAt) return
     hydratedAgentSelectionUpdatedAtRef.current = config.updatedAt
     const nextSettings = agentProviderSettingsWithWorkspaceSelection(useProviderConfigStore.getState().settings, config.agentSelection)
     setSettings(nextSettings)
-  }, [defaultWorkspaceConfigQuery.data, setSettings])
-
-  function patchProvider(id: string, patch: Partial<ProviderConfig>) {
-    const provider = providers.find((item) => item.id === id)
-      ?? DEFAULT_PROVIDER_SETTINGS.providers.find((item) => item.id === id)
-    if (!provider) return
-    const nextProvider = { ...provider, ...patch }
-    const nextProviders = providers.some((item) => item.id === id)
-      ? providers.map((item) => item.id === id ? nextProvider : item)
-      : [...providers, nextProvider]
-    setSettings(normalizeProviderSettings({
-      ...settings,
-      providers: nextProviders,
-    }))
-  }
+  }, [workspaceConfigQuery.data, setSettings])
 
   function refreshConfig() {
-    void Promise.all([defaultWorkspaceConfigQuery.refetch(), workspaceConfigQuery.refetch(), backendModelsQuery.refetch()])
+    void workspaceConfigQuery.refetch()
   }
 
-  function activateProvider(provider: ProviderConfig) {
+  function activateProvider(providerId: string) {
+    const provider = providers.find((item) => item.id === providerId)
+    if (!provider) return
     void commitAgentProviderActivation({
       settings,
       provider,
@@ -137,10 +109,20 @@ export default function AgentsPage() {
       setSettings,
       setActiveConversation,
       saveWorkspaceConfig: async (input) => {
-        await providerSessionClient.saveWorkspaceConfig(input)
-        await defaultWorkspaceConfigQuery.refetch()
+        await saveAgentProviderWorkspaceConfig(input)
+        await workspaceConfigQuery.refetch()
       },
     })
+  }
+
+  function openAgentSettings(profileId: string) {
+    updateAgentSettings({ activeProviderProfileConfigId: profileId })
+    navigate(ROUTES.agentSettings)
+  }
+
+  function selectAgentProfile(profile: NonNullable<typeof agentProfiles[number]>) {
+    if (profile.enabled && !profile.current) activateProvider(profile.provider.id)
+    openAgentSettings(profile.id)
   }
 
   return (
@@ -151,25 +133,19 @@ export default function AgentsPage() {
             <AgentConsoleHeaderTitleRow>
               <IdentityMark kind="agent" id="mova" />
               <AgentConsoleHeaderTitle>当前 Agent</AgentConsoleHeaderTitle>
-              <AgentConsoleStatusBadge intent={selectedProvider ? 'success' : 'warning'} emphasis="soft">
-                {selectedProvider?.label ?? '未选择'}
+              <AgentConsoleStatusBadge intent={selectedProfile ? 'success' : 'warning'} emphasis="soft">
+                {selectedProfile?.label ?? '未选择'}
               </AgentConsoleStatusBadge>
-              {(defaultWorkspaceConfigQuery.isLoading || workspaceConfigQuery.isLoading || backendModelsQuery.isLoading) && <AgentConsoleSyncBadge>同步中</AgentConsoleSyncBadge>}
+              {workspaceConfigQuery.isLoading && <AgentConsoleSyncBadge>同步中</AgentConsoleSyncBadge>}
             </AgentConsoleHeaderTitleRow>
             <AgentConsoleHeaderDescription>
-              列表中的开关只负责选择唯一生效的 app-server Agent；点击列表项进入对应配置。
+              这里只选择当前助手。运行时统一通过 SDK Host 接入，模型、账号和权限偏好在 Agent 设置中管理。
             </AgentConsoleHeaderDescription>
           </AgentConsoleHeaderCopy>
           <AgentConsoleHeaderActions>
             <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={refreshConfig}>
               <RefreshCw size={14} />
               刷新配置
-            </AgentConsoleActionButton>
-            <AgentConsoleActionButton asChild size="sm" variant="outline">
-              <Link to={ROUTES.modelProviders}>
-                <Cable size={14} />
-                Provider / Catalog / Route
-              </Link>
             </AgentConsoleActionButton>
           </AgentConsoleHeaderActions>
         </AgentConsoleHeader>
@@ -180,38 +156,37 @@ export default function AgentsPage() {
       <AgentConsoleDocumentBody>
         <AgentConsoleStack spacing="loose">
           <AgentConsoleAgentList aria-label="Agent 切换列表">
-            {appServerProviders.map((provider) => {
-              const key = providerRouteKey(provider)
-              const current = provider.id === settings.defaultProviderId
-              const viewing = providerMatchesRouteKey(provider, activeProviderKey)
+            {agentProfiles.map((profile) => {
+              const provider = profile.provider
+              const viewing = profile.routeKey === activeProviderKey || providerMatchesRouteKey(provider, activeProviderKey)
               return (
                 <AgentConsoleAgentListRow
                   key={provider.id}
                   active={viewing}
-                  onClick={() => navigate(providerRoute(key))}
+                  onClick={() => selectAgentProfile(profile)}
                   onKeyDown={(event) => {
                     if (event.key !== 'Enter' && event.key !== ' ') return
                     event.preventDefault()
-                    navigate(providerRoute(key))
+                    selectAgentProfile(profile)
                   }}
-                  aria-label={`配置 ${provider.label}`}
+                  aria-label={`选择并配置 ${profile.label}`}
                 >
                   <span className="agent-console-local-tool-card__copy">
-                    <span className="agent-console-local-tool-card__title">{provider.label}</span>
+                    <span className="agent-console-local-tool-card__title">{profile.label}</span>
                     <span className="agent-console-local-tool-card__detail">
-                      <IdentityBadge kind="agent" id={key} label={key} size="xs" /> {viewing ? '正在配置' : '点击修改配置'}
+                      <IdentityBadge kind="agent" id={profile.routeKey} label={profile.routeKey} size="xs" /> {profile.connectionLabel} · 点击选择并配置
                     </span>
                   </span>
-                  <AgentConsoleStatusBadge intent={current ? 'success' : provider.enabled ? 'neutral' : 'warning'} emphasis="soft">
-                    {current ? '当前启用' : provider.enabled ? '可切换' : '已停用'}
+                  <AgentConsoleStatusBadge intent={profile.current ? 'success' : provider.enabled ? 'neutral' : 'warning'} emphasis="soft">
+                    {profile.current ? '当前启用' : provider.enabled ? '可切换' : '已停用'}
                   </AgentConsoleStatusBadge>
                   <AgentConsoleAgentSwitch
-                    checked={current}
-                    disabled={!provider.enabled || current}
-                    aria-label={`启用 ${provider.label}`}
+                    checked={profile.current}
+                    disabled={!provider.enabled || profile.current}
+                    aria-label={`启用 ${profile.label}`}
                     onClick={(event) => {
                       event.stopPropagation()
-                      if (!current) activateProvider(provider)
+                      if (!profile.current) activateProvider(provider.id)
                     }}
                   />
                   <ChevronRight size={16} aria-hidden="true" />
@@ -221,23 +196,20 @@ export default function AgentsPage() {
           </AgentConsoleAgentList>
 
           <AgentConsoleCallout compact tone="neutral">
-            同一时间只会有一个 Agent 生效。当前选择：{selectedProvider?.label ?? settings.defaultProviderId}。已配置可用项：{enabledCount}。
+            同一时间只会有一个 Agent 生效。当前选择：{selectedProfile?.label ?? settings.defaultProviderId}。可用 Agent：{enabledCount}。
           </AgentConsoleCallout>
 
-          {defaultWorkspaceConfigQuery.error ? <AgentConsoleInlineError>{errorMessage(defaultWorkspaceConfigQuery.error)}</AgentConsoleInlineError> : null}
           {workspaceConfigQuery.error ? <AgentConsoleInlineError>{errorMessage(workspaceConfigQuery.error)}</AgentConsoleInlineError> : null}
-          {backendModelsQuery.error ? <AgentConsoleInlineError>{errorMessage(backendModelsQuery.error)}</AgentConsoleInlineError> : null}
 
-          <AppServerPanel
-            providerKey={activeAppServerKey}
-            provider={activeProvider}
-            providerOptions={providerOptions}
-            backendModels={backendModelsQuery.data ?? []}
-            workspaceConfig={workspaceConfigQuery.data}
-            onConfigSaved={() => void workspaceConfigQuery.refetch()}
-            providerSessionClient={activeProfileSessionClient}
-            onPatch={patchProvider}
-          />
+          {activeProfile ? (
+            <AgentConsoleCallout compact tone={activeProfile.enabled ? 'success' : 'warning'}>
+              {activeProfile.label}：{activeProfile.detail}
+            </AgentConsoleCallout>
+          ) : (
+            <AgentConsoleCallout compact tone="warning">
+              当前没有可用 Agent。请先在 Agent 设置中启用一个 Agent。
+            </AgentConsoleCallout>
+          )}
         </AgentConsoleStack>
       </AgentConsoleDocumentBody>
     </AgentPageShell>

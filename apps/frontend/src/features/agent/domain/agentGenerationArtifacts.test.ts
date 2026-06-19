@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 import { generationParamAuditsFromRun, generationValidationErrorsFromRun, selectLatestGeneratedResource } from '@/features/agent/domain/agentGenerationArtifacts'
 
 function runWithResults(results: unknown[]): AgentRun {

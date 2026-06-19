@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { actionableRunForTaskGraph, actionableRunsForTaskGraph, activeWorkerRunCount, buildPlanArtifactSummary, buildPlanNameConflictViews, buildPlanOverviewStats, buildPlanStatusExplanation, buildPlanTaskViews, buildTaskArtifactViews, interactionRunsForTaskGraph, plannerRunIdForPlanAction, runNeedsUserAction, shouldPollPlanSnapshot } from '@/features/agent/domain/agentPlanUi'
-import type { AgentTaskGraphSnapshot, AgentRun, AgentTask } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentTaskGraphSnapshot, AgentRun, AgentTask } from '@movscript/core/agent/protocol'
 
 function run(input: Partial<AgentRun> & { id: string }): AgentRun {
   return {

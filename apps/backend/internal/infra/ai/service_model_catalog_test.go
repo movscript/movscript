@@ -73,6 +73,75 @@ func TestAIServiceModelCatalogContractMergesLogicalModels(t *testing.T) {
 	}
 }
 
+func TestAIServiceModelCatalogFiltersRoutesByAPIKind(t *testing.T) {
+	resetFailoverTestState()
+	db := testutil.OpenSQLite(t, "ai-model-catalog-api-kind-filter.db",
+		&persistencemodel.AICredential{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
+	)
+	createCatalogRouteVariant(t, db, 1, "OpenAI provider", AdapterOpenAICompat, "agent-writer", "openai-writer", 10, CapabilityText)
+	createCatalogRouteVariant(t, db, 2, "Anthropic provider", AdapterAnthropic, "agent-writer", "claude-writer", 20, CapabilityText)
+	service := NewAIService(db, NewRegistry(db, nil))
+
+	allModels, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{Capability: CapabilityText})
+	if err != nil {
+		t.Fatalf("ListModels(all) error = %v", err)
+	}
+	if len(allModels) != 1 || allModels[0].ProviderVariants != 2 {
+		t.Fatalf("all models = %#v, want one merged model with two route variants", allModels)
+	}
+	if !hasString(allModels[0].SupportedAPIKinds, ModelAPIKindOpenAIResponses) || !hasString(allModels[0].SupportedAPIKinds, ModelAPIKindAnthropicMessages) {
+		t.Fatalf("supported api kinds = %#v, want OpenAI and Anthropic kinds merged", allModels[0].SupportedAPIKinds)
+	}
+
+	claudeModels, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{
+		Capability: CapabilityText,
+		APIKind:    ModelAPIKindAnthropicMessages,
+	})
+	if err != nil {
+		t.Fatalf("ListModels(anthropic) error = %v", err)
+	}
+	if len(claudeModels) != 1 || claudeModels[0].ProviderVariants != 1 || !hasString(claudeModels[0].SupportedAPIKinds, ModelAPIKindAnthropicMessages) || hasString(claudeModels[0].SupportedAPIKinds, ModelAPIKindOpenAIResponses) {
+		t.Fatalf("anthropic models = %#v, want only Anthropic route support", claudeModels)
+	}
+
+	responsesModels, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{
+		Capability: CapabilityText,
+		APIKind:    ModelAPIKindOpenAIResponses,
+	})
+	if err != nil {
+		t.Fatalf("ListModels(responses) error = %v", err)
+	}
+	if len(responsesModels) != 1 || responsesModels[0].ProviderVariants != 1 || !hasString(responsesModels[0].SupportedAPIKinds, ModelAPIKindOpenAIResponses) || hasString(responsesModels[0].SupportedAPIKinds, ModelAPIKindAnthropicMessages) {
+		t.Fatalf("responses models = %#v, want only OpenAI-compatible route support", responsesModels)
+	}
+
+	anthropicRoute, err := service.ResolveModelRoute(ModelRouteRequest{
+		ModelID:    "agent-writer",
+		Capability: CapabilityText,
+		APIKind:    ModelAPIKindAnthropicMessages,
+	})
+	if err != nil {
+		t.Fatalf("ResolveModelRoute(anthropic) error = %v", err)
+	}
+	if anthropicRoute.ProviderModelID != "claude-writer" || anthropicRoute.APIKind != ModelAPIKindAnthropicMessages {
+		t.Fatalf("anthropic route = %#v, want Anthropic provider route", anthropicRoute)
+	}
+
+	responsesRoute, err := service.ResolveModelRoute(ModelRouteRequest{
+		ModelID:    "agent-writer",
+		Capability: CapabilityText,
+		APIKind:    ModelAPIKindOpenAIResponses,
+	})
+	if err != nil {
+		t.Fatalf("ResolveModelRoute(responses) error = %v", err)
+	}
+	if responsesRoute.ProviderModelID != "openai-writer" || responsesRoute.APIKind != ModelAPIKindOpenAIResponses {
+		t.Fatalf("responses route = %#v, want OpenAI-compatible provider route", responsesRoute)
+	}
+}
+
 func TestAIServiceModelCatalogUsesCatalogEntriesAndRouteBindings(t *testing.T) {
 	db := testutil.OpenSQLite(t, "ai-model-catalog-entry-contract.db",
 		&persistencemodel.AIModelCatalogEntry{},

@@ -24,7 +24,7 @@ import type { AgentSettingsConfigFileBackup, AgentToolPermissionsFilterPreset } 
 import type { SkillSourceFilter } from '@/features/agent/presentation/agentSettingsSkillModel'
 import type { ToolPermissionsBulkAction, ToolPermissionsFilter } from '@/features/agent/presentation/agentSettingsToolPermissionsModel'
 import { settingsErrorMessage } from '@/features/agent/presentation/agentSettingsPageModel'
-import type { ProviderCatalogInspectResponse, ProviderSessionCapabilitiesResponse } from '@/shared/infrastructure/providerSessionClient'
+import type { ProviderCatalogInspectResponse, ProviderSessionCapabilitiesResponse } from '@movscript/core/agent/protocol'
 import type {
   ToolPermissionsDiffItem,
 } from '@/features/agent/application/agentSettingsConfigFile'

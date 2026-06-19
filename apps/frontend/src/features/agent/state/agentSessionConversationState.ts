@@ -5,13 +5,8 @@ import {
 } from '@/features/agent/state/agentSessionRuntimeModel'
 import type { AgentSessionStore } from '@/features/agent/state/agentSessionStoreTypes'
 import {
-  activeAgentConversationIdForUser,
-  agentConversationIdForRegistryInput,
-  removeAgentConversationRegistryRecord,
-  setAgentConversationRegistryOpen,
-  upsertAgentConversationRegistryRecord,
-} from '@movscript/core/agent'
-import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
+  activeAgentConversationIdForUser, agentConversationIdForRegistryInput, removeAgentConversationRegistryRecord, setAgentConversationRegistryOpen, upsertAgentConversationRegistryRecord, } from '@movscript/core/agent'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 
 type AgentSessionConversationState = Pick<
   AgentSessionStore,

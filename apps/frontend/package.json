@@ -17,7 +17,6 @@
     "test:generation-contract": "node ../../scripts/run-node-tests.mjs --suite generation-contract",
     "test:model-capability-contract": "pnpm run test:generation-contract && pnpm run typecheck",
     "check:electron-boundaries": "node scripts/check-electron-boundaries.mjs",
-    "verify:app-server": "node scripts/verify-app-server.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.electron.json --noEmit"
   },
   "testSuites": {

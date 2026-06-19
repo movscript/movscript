@@ -1,4 +1,4 @@
-import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 import type { ChatMessage, ChatRunActivity } from '@/features/agent/state/agentStore'
 
 export type AgentInputAnswer = { choiceIds?: string[]; text?: string }

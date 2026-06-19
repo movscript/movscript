@@ -33,9 +33,9 @@ import { useTranslation } from 'react-i18next'
 import { generationJobBadge, generationProgressTitle, generationStatusText } from '@/features/agent/domain/agentGenerationDisplay'
 import type { GenerationProgressState } from '@/features/agent/domain/agentGenerationMedia'
 import { buildPlanOverviewStats, buildPlanTaskViews } from '@/features/agent/domain/agentPlanUi'
-import { resolveAgentPinnedStatusView, type AgentPinnedStatusView } from '@/features/agent/presentation/agentPinnedStatusView'
+import { resolveAgentPinnedStatusView, AgentPinnedStatusView } from '@/features/agent/presentation/agentPinnedStatusView'
 import { agentPlanStatusLabel, runStatusLabel } from '@/features/agent/domain/agentRunUi'
-import type { AgentPlan, AgentPlanTaskStatus, AgentRun, AgentTaskGraphSnapshot } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentPlan, AgentPlanTaskStatus, AgentRun, AgentTaskGraphSnapshot } from '@movscript/core/agent/protocol'
 
 export interface AgentPinnedStatusShelfProps {
   plan?: AgentPlan

@@ -117,6 +117,13 @@ type CatalogEntryTemplate = {
   form: CatalogEntryForm
 }
 
+type ModelRouteGroup = {
+  key: string
+  entry: AIModelCatalogEntry
+  routeGroup: string
+  bindings: AIModelRouteBinding[]
+}
+
 const PRICING_LABEL_KEYS: Record<string, string> = {
   per_token: 'admin.pricingMode.perToken',
   per_image: 'admin.pricingMode.perImage',
@@ -756,10 +763,10 @@ function ModelRoutesSection({ credentials }: { credentials: AICredential[] }) {
     onError: (err: any) => setRouteError(translateAPIRequestError(err)),
   })
 
-  function openRouteForm(entryId: number) {
+  function openRouteForm(entryId: number, routeGroup = '') {
     const entry = entries.find((item) => item.ID === entryId)
     setRouteFormFor(entryId)
-    setRouteForm(emptyCatalogRouteForm(localProviders[0]?.ID, entry?.public_model_id ?? ''))
+    setRouteForm(emptyCatalogRouteForm(localProviders[0]?.ID, entry?.public_model_id ?? '', routeGroup))
     setRouteDialogOpen(true)
   }
 
@@ -777,12 +784,22 @@ function ModelRoutesSection({ credentials }: { credentials: AICredential[] }) {
         <div className="rounded-lg border border-border bg-card">
           <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
             <div>
-              <p className="text-sm font-medium text-foreground">Catalog 路由策略</p>
+              <p className="text-sm font-medium text-foreground">{t('admin.models.routeEditorTitle', { defaultValue: 'Route Binding 编辑器' })}</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                  选择 Catalog Entry 后，在这里维护 provider lane、route group、priority、capacity 和 concurrency。
+                {t('admin.models.routeEditorHint', { defaultValue: '选择一个 Catalog Entry，维护它的 provider lane、provider model id、route group、priority、capacity 和 concurrency。' })}
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <select
+                value={activeEntry?.ID ?? ''}
+                onChange={(event) => setRouteFormFor(Number(event.target.value))}
+                className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                disabled={entries.length === 0}
+              >
+                {entries.map((entry) => (
+                  <option key={entry.ID} value={entry.ID}>{entry.public_model_id}</option>
+                ))}
+              </select>
               {activeEntry && (
                 <StatusBadge intent={activeEntry.is_enabled ? 'success' : 'neutral'}>
                   {activeEntry.is_enabled ? t('admin.modelCatalog.enabled') : t('admin.modelCatalog.disabled')}
@@ -790,15 +807,24 @@ function ModelRoutesSection({ credentials }: { credentials: AICredential[] }) {
               )}
               <Button type="button" size="sm" onClick={() => openRouteForm(activeEntry?.ID ?? entries[0]?.ID ?? 0)} disabled={entries.length === 0}>
                 <Plus size={14} className="mr-1.5" />
-                新增 Route
+                {t('admin.models.addRouteCandidate', { defaultValue: '新增候选' })}
               </Button>
             </div>
           </div>
           {activeEntry ? (
             <div className="divide-y divide-border">
+              <div className="hidden grid-cols-[minmax(160px,1fr)_minmax(150px,1fr)_minmax(120px,0.8fr)_90px_90px_110px_auto] gap-2 bg-muted/30 px-4 py-2 text-[11px] font-medium uppercase text-muted-foreground md:grid">
+                <span>{t('admin.models.providerLane', { defaultValue: 'Provider Lane' })}</span>
+                <span>{t('admin.modelCatalog.providerModelId')}</span>
+                <span>{t('admin.modelCatalog.routeGroup')}</span>
+                <span>{t('admin.models.priority')}</span>
+                <span>{t('admin.models.capacityWeight')}</span>
+                <span>{t('admin.models.maxConcurrency')}</span>
+                <span className="text-right">{t('common.actions', { defaultValue: 'Actions' })}</span>
+              </div>
               {(activeEntry.route_bindings ?? []).length === 0 ? (
                 <p className="px-4 py-6 text-sm text-muted-foreground">{t('admin.modelCatalog.noRoutes')}</p>
-              ) : (activeEntry.route_bindings ?? []).map((binding) => (
+              ) : sortRouteBindings(activeEntry.route_bindings ?? []).map((binding) => (
                 <CommunityRouteBindingEditor
                   key={binding.ID}
                   binding={binding}
@@ -819,7 +845,7 @@ function ModelRoutesSection({ credentials }: { credentials: AICredential[] }) {
       {routeDialogOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <form
-            className="w-full max-w-lg rounded-lg border border-border bg-card p-4 shadow-xl"
+            className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-lg border border-border bg-card p-4 shadow-xl"
             onSubmit={(event) => {
               event.preventDefault()
               if (activeEntry) createRouteBinding.mutate({ entryId: activeEntry.ID, form: routeForm })
@@ -827,9 +853,9 @@ function ModelRoutesSection({ credentials }: { credentials: AICredential[] }) {
           >
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
-                <p className="text-sm font-medium text-foreground">新增 Route Binding</p>
+                <p className="text-sm font-medium text-foreground">{t('admin.models.createRouteBindingTitle', { defaultValue: '新增 Route Binding' })}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  当前模型：{activeEntry?.public_model_id || '未选择'}
+                  {t('admin.models.createRouteBindingHint', { defaultValue: '把 Public Model ID 映射到一个 provider lane 和实际 provider model id。' })}
                 </p>
               </div>
               <button type="button" onClick={() => setRouteDialogOpen(false)} className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" aria-label={t('common.close')}>
@@ -837,38 +863,73 @@ function ModelRoutesSection({ credentials }: { credentials: AICredential[] }) {
               </button>
             </div>
             <label className="mb-2 block text-xs text-muted-foreground">
-              Catalog Entry
+              {t('admin.modelCatalog.publicModelId')}
               <select
                 value={activeEntry?.ID ?? ''}
                 onChange={(event) => {
                   const entryID = Number(event.target.value)
                   const entry = entries.find((item) => item.ID === entryID)
                   setRouteFormFor(entryID)
-                  setRouteForm(emptyCatalogRouteForm(localProviders[0]?.ID, entry?.public_model_id ?? ''))
+                  setRouteForm((form) => ({
+                    ...emptyCatalogRouteForm(localProviders[0]?.ID, entry?.public_model_id ?? '', form.route_group),
+                    provider_id: form.provider_id || localProviderRouteProviderID(localProviders[0]?.ID),
+                  }))
                 }}
                 className="mt-1 h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
               >
                 {entries.map((entry) => (
-                  <option key={entry.ID} value={entry.ID}>{entry.public_model_id}</option>
+                  <option key={entry.ID} value={entry.ID}>{entry.public_model_id} · {catalogEntryLabel(entry)}</option>
                 ))}
               </select>
             </label>
             <label className="mb-2 block text-xs text-muted-foreground">
-              Provider lane
+              {t('admin.models.providerLane', { defaultValue: 'Provider Lane' })}
               <select value={routeForm.provider_id} onChange={(event) => setRouteForm({ ...routeForm, provider_id: event.target.value })} className="mt-1 h-8 w-full rounded-md border border-input bg-background px-2 text-xs">
                 <option value="">{t('admin.modelCatalog.pickCredential')}</option>
                 {localProviders.map((credential) => <option key={credential.ID} value={localProviderRouteProviderID(credential.ID)}>{credential.display_name}</option>)}
               </select>
             </label>
-            <Input value={routeForm.route_group} onChange={(event) => setRouteForm({ ...routeForm, route_group: event.target.value })} placeholder={t('admin.modelCatalog.routeGroup')} className="mb-2 h-8 text-xs" />
-            <div className="grid grid-cols-3 gap-2">
-              <Input value={routeForm.priority} onChange={(event) => setRouteForm({ ...routeForm, priority: event.target.value })} placeholder="priority" className="h-8 text-xs" />
-              <Input value={routeForm.capacity_weight} onChange={(event) => setRouteForm({ ...routeForm, capacity_weight: event.target.value })} placeholder="capacity" className="h-8 text-xs" />
-              <Input value={routeForm.max_concurrency} onChange={(event) => setRouteForm({ ...routeForm, max_concurrency: event.target.value })} placeholder="concurrency" className="h-8 text-xs" />
+            <label className="mb-2 block text-xs text-muted-foreground">
+              {t('admin.modelCatalog.providerModelId')}
+              <Input
+                value={routeForm.provider_model_id}
+                onChange={(event) => setRouteForm({ ...routeForm, provider_model_id: event.target.value })}
+                placeholder={activeEntry?.public_model_id || 'gpt-4.1'}
+                className="mt-1 h-8 text-xs font-mono"
+              />
+              <span className="mt-1 block text-[11px] leading-relaxed text-muted-foreground">
+                {t('admin.models.providerModelIdHint', { defaultValue: '这是实际发给 Provider API 的 model 字段，可以和 Public Model ID 不同。' })}
+              </span>
+            </label>
+            <label className="mb-2 block text-xs text-muted-foreground">
+              {t('admin.modelCatalog.routeGroup')}
+              <Input
+                value={routeForm.route_group}
+                onChange={(event) => setRouteForm({ ...routeForm, route_group: event.target.value })}
+                placeholder={t('admin.models.defaultRouteGroupPlaceholder', { defaultValue: '留空为默认分组' })}
+                className="mt-1 h-8 text-xs"
+              />
+              <span className="mt-1 block text-[11px] leading-relaxed text-muted-foreground">
+                {t('admin.models.routeGroupHint', { defaultValue: '请求指定同名 route group 时，只会在这个分组的候选 provider 里选择。' })}
+              </span>
+            </label>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <label className="block text-xs text-muted-foreground">
+                {t('admin.models.priority')}
+                <Input value={routeForm.priority} onChange={(event) => setRouteForm({ ...routeForm, priority: event.target.value })} placeholder="0" className="mt-1 h-8 text-xs" />
+              </label>
+              <label className="block text-xs text-muted-foreground">
+                {t('admin.models.capacityWeight')}
+                <Input value={routeForm.capacity_weight} onChange={(event) => setRouteForm({ ...routeForm, capacity_weight: event.target.value })} placeholder="1" className="mt-1 h-8 text-xs" />
+              </label>
+              <label className="block text-xs text-muted-foreground">
+                {t('admin.models.maxConcurrency')}
+                <Input value={routeForm.max_concurrency} onChange={(event) => setRouteForm({ ...routeForm, max_concurrency: event.target.value })} placeholder="0" className="mt-1 h-8 text-xs" />
+              </label>
             </div>
             <label className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
               <input type="checkbox" checked={routeForm.is_enabled} onChange={(event) => setRouteForm({ ...routeForm, is_enabled: event.target.checked })} />
-              启用 route binding
+              {t('admin.models.enableRouteBinding', { defaultValue: '启用 route binding' })}
             </label>
             <div className="mt-4 flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setRouteDialogOpen(false)}>
@@ -1052,10 +1113,10 @@ function catalogEntryPayload(form: CatalogEntryForm): Record<string, unknown> {
   }
 }
 
-function emptyCatalogRouteForm(credentialID?: number, providerModelID = ''): CatalogRouteForm {
+function emptyCatalogRouteForm(credentialID?: number, providerModelID = '', routeGroup = ''): CatalogRouteForm {
   const providerID = localProviderRouteProviderID(credentialID)
   return {
-    route_group: '',
+    route_group: routeGroup,
     provider_id: providerID,
     provider_model_id: providerModelID,
     is_enabled: true,
@@ -1767,21 +1828,23 @@ function ModelRouteMatrix({
 }: {
   entries: AIModelCatalogEntry[]
   credentials: AICredential[]
-  onOpenRouteForm: (entryId: number) => void
+  onOpenRouteForm: (entryId: number, routeGroup?: string) => void
 }) {
   const { t } = useTranslation()
   const credentialByID = new Map(credentials.map((credential) => [credential.ID, credential]))
   const enabledEntries = entries.filter((entry) => entry.is_enabled).length
-  const routeBindings = entries.flatMap((entry) => (entry.route_bindings ?? []).map((binding) => ({ entry, binding })))
-  const localRoutes = routeBindings.filter((item) => item.binding.source_type !== 'new_api').length
+  const routeGroups = buildModelRouteGroups(entries)
+  const routeBindings = routeGroups.flatMap((group) => group.bindings)
+  const enabledCandidates = routeBindings.filter((binding) => binding.is_enabled).length
+  const unmappedEntries = entries.filter((entry) => (entry.route_bindings ?? []).length === 0).length
 
   return (
     <div className="rounded-lg border border-border bg-card">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-4 py-3">
         <div>
-          <p className="text-sm font-medium text-foreground">{t('admin.models.routeMatrixTitle', { defaultValue: 'Catalog Entry → Model Route' })}</p>
+          <p className="text-sm font-medium text-foreground">{t('admin.models.routeMatrixTitle', { defaultValue: 'Route Resolution Table' })}</p>
           <p className="mt-1 text-xs text-muted-foreground">
-              {t('admin.models.routeMatrixHint', { defaultValue: '先定义系统识别的模型，再把它路由到 provider lane 和 route group。' })}
+            {t('admin.models.routeMatrixHint', { defaultValue: '按 Public Model ID + Route Group 聚合，展示运行时会进入的 provider 候选列表。' })}
           </p>
         </div>
         <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
@@ -1789,66 +1852,119 @@ function ModelRouteMatrix({
             {t('admin.models.routeMatrixEnabledEntries', { defaultValue: '{{count}} 个启用 entry', count: enabledEntries })}
           </span>
           <span className="rounded-md border border-border bg-background px-2 py-1">
-            {t('admin.models.routeMatrixLocalRoutes', { defaultValue: '{{count}} 条 provider route', count: localRoutes })}
+            {t('admin.models.routeMatrixGroups', { defaultValue: '{{count}} 个 model+group', count: routeGroups.length })}
           </span>
+          <span className="rounded-md border border-border bg-background px-2 py-1">
+            {t('admin.models.routeMatrixCandidates', { defaultValue: '{{count}} 个启用候选', count: enabledCandidates })}
+          </span>
+          {unmappedEntries > 0 && (
+            <span className="rounded-md border border-warning/40 bg-warning/10 px-2 py-1 text-muted-foreground">
+              {t('admin.models.routeMatrixUnmapped', { defaultValue: '{{count}} 个未映射', count: unmappedEntries })}
+            </span>
+          )}
         </div>
       </div>
-      <div className="divide-y divide-border">
+      <div className="space-y-2 p-3">
         {entries.length === 0 ? (
           <p className="px-4 py-6 text-center text-sm text-muted-foreground">{t('admin.modelCatalog.empty')}</p>
-        ) : entries.map((entry) => {
-          const routes = entry.route_bindings ?? []
+        ) : routeGroups.map((group) => {
+          const sortedBindings = sortRouteBindings(group.bindings)
+          const activePool = routeGroupActivePool(sortedBindings)
+          const fallbackPriorities = routeGroupFallbackPriorities(sortedBindings)
           return (
-            <div key={entry.ID} className="grid gap-3 px-4 py-3 md:grid-cols-[minmax(0,1fr)_minmax(280px,1.4fr)_auto]">
+            <div key={group.key} className="grid gap-3 rounded-lg border border-border bg-background p-3 md:grid-cols-[minmax(210px,0.95fr)_minmax(0,1.75fr)_minmax(150px,0.6fr)_auto]">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="truncate text-sm font-medium text-foreground">{catalogEntryLabel(entry)}</p>
-                  <StatusBadge intent={entry.is_enabled ? 'success' : 'neutral'}>
-                    {entry.is_enabled ? t('admin.modelCatalog.enabled') : t('admin.modelCatalog.disabled')}
+                  <p className="truncate text-sm font-medium text-foreground">{catalogEntryLabel(group.entry)}</p>
+                  <StatusBadge intent={group.entry.is_enabled ? 'success' : 'neutral'}>
+                    {group.entry.is_enabled ? t('admin.modelCatalog.enabled') : t('admin.modelCatalog.disabled')}
                   </StatusBadge>
                 </div>
-                <p className="mt-1 truncate font-mono text-xs text-muted-foreground">{entry.public_model_id}</p>
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {modelCatalogCapabilities(entry).slice(0, 4).map((capability) => (
+                <p className="mt-1 truncate font-mono text-xs text-foreground">{group.entry.public_model_id}</p>
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <span className="rounded-md border border-border bg-card px-2 py-1 text-[11px] text-muted-foreground">
+                    {t('admin.modelCatalog.routeGroup')}: {routeGroupDisplayName(group.routeGroup, t)}
+                  </span>
+                  {modelCatalogCapabilities(group.entry).slice(0, 3).map((capability) => (
                     <StatusBadge key={capability} intent={CAPABILITY_STATUS_INTENT[capability] ?? 'neutral'}>
                       {t(CAPABILITY_TRANSLATION_KEYS[capability] ?? capability)}
                     </StatusBadge>
                   ))}
                 </div>
               </div>
-              <div className="min-w-0 space-y-1.5">
-                {routes.length === 0 ? (
-                  <p className="rounded-md border border-dashed border-border bg-background px-3 py-2 text-xs text-muted-foreground">
-                    {t('admin.modelCatalog.noRoutes')}
+              <div className="min-w-0">
+                {sortedBindings.length === 0 ? (
+                  <p className="rounded-md border border-dashed border-border bg-card px-3 py-3 text-xs text-muted-foreground">
+                    {t('admin.models.routeMatrixNoCandidates', { defaultValue: '这个 model+group 还没有候选 provider。' })}
                   </p>
-                  ) : routes.map((binding) => {
-                    const credential = binding.credential_id ? credentialByID.get(binding.credential_id) : undefined
-                    const routeLabel = binding.source_type === 'new_api'
-                      ? (binding.route_group || t('admin.modelCatalog.defaultRouteGroup', { defaultValue: '默认分组' }))
-                      : (credential?.display_name || binding.provider_id || 'provider lane')
-                  const groupLabel = binding.route_group ? ` · group ${binding.route_group}` : ''
-                  return (
-                    <div key={binding.ID} className="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2 text-xs">
-                      <div className="min-w-0">
-                        <p className="truncate font-medium text-foreground">
-                          {binding.source_type === 'new_api' ? t('admin.modelCatalog.newAPIRoute') : t('admin.modelCatalog.localProviderRoute')}
-                          <span className="ml-2 font-normal text-muted-foreground">{routeLabel}{groupLabel}</span>
-                        </p>
-                        <p className="mt-0.5 truncate text-muted-foreground">
-                          priority {binding.priority ?? 0} · capacity {binding.capacity_weight ?? 1} · concurrency {binding.max_concurrency ?? '-'}
-                        </p>
-                      </div>
-                      <StatusBadge intent={binding.is_enabled ? 'success' : 'neutral'}>
-                        {binding.is_enabled ? t('admin.modelCatalog.enabled') : t('admin.modelCatalog.disabled')}
-                      </StatusBadge>
-                    </div>
-                  )
-                })}
+                ) : (
+                  <div className="grid gap-2 lg:grid-cols-2">
+                    {sortedBindings.map((binding) => {
+                      const credential = credentialForRouteBinding(binding, credentialByID)
+                      return (
+                        <div key={binding.ID} className={cn('rounded-md border px-3 py-2 text-xs', binding.is_enabled ? 'border-border bg-card' : 'border-border bg-muted/30 opacity-75')}>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="truncate font-medium text-foreground">
+                                {routeBindingProviderLabel(binding, credential, t)}
+                              </p>
+                              <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">
+                                {binding.provider_id || localProviderRouteProviderID(binding.credential_id) || binding.source_type || '-'}
+                              </p>
+                            </div>
+                            <StatusBadge intent={binding.is_enabled ? 'success' : 'neutral'} className="shrink-0 text-[11px]">
+                              {binding.is_enabled ? t('admin.modelCatalog.enabled') : t('admin.modelCatalog.disabled')}
+                            </StatusBadge>
+                          </div>
+                          <div className="mt-2 rounded border border-border bg-background px-2 py-1.5 font-mono text-[11px] text-muted-foreground">
+                            <span className="text-foreground">{group.entry.public_model_id}</span>
+                            <span className="px-1.5">=&gt;</span>
+                            <span className="text-foreground">{binding.provider_model_id || group.entry.public_model_id}</span>
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+                            <span>{t('admin.models.priority')}: {binding.priority ?? 0}</span>
+                            <span>{t('admin.models.capacityWeight')}: {binding.capacity_weight ?? 1}</span>
+                            <span>{t('admin.models.maxConcurrency')}: {binding.max_concurrency > 0 ? binding.max_concurrency : t('admin.models.runtimeHealthUnlimited')}</span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+              <div className="min-w-0 rounded-md border border-border bg-card px-3 py-2 text-xs">
+                {activePool ? (
+                  <>
+                    <p className="font-medium text-foreground">
+                      {t('admin.models.routeMatrixActivePool', { defaultValue: '当前运行池' })}
+                    </p>
+                    <p className="mt-1 text-muted-foreground">
+                      {t('admin.models.routeMatrixPriorityPool', { defaultValue: '优先级 {{priority}} · {{count}} 个候选', priority: activePool.priority, count: activePool.count })}
+                    </p>
+                    {fallbackPriorities.length > 0 && (
+                      <p className="mt-1 truncate text-muted-foreground">
+                        {t('admin.models.routeMatrixFallbackPool', { defaultValue: 'fallback: {{priorities}}', priorities: fallbackPriorities.join(', ') })}
+                      </p>
+                    )}
+                  </>
+                ) : sortedBindings.length > 0 ? (
+                  <>
+                    <p className="font-medium text-muted-foreground">{t('admin.models.routeMatrixAllDisabled', { defaultValue: '全部停用' })}</p>
+                    <p className="mt-1 text-muted-foreground">{t('admin.models.routeMatrixDisabledHint', { defaultValue: '这个 model+group 当前不会接流量。' })}</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-medium text-muted-foreground">{t('admin.models.routeMatrixUnconfigured', { defaultValue: '未配置' })}</p>
+                    <p className="mt-1 text-muted-foreground">{t('admin.modelCatalog.noRoutes')}</p>
+                  </>
+                )}
               </div>
               <div className="flex items-start justify-end">
-                <Button type="button" variant="outline" size="sm" onClick={() => onOpenRouteForm(entry.ID)}>
+                <Button type="button" variant="outline" size="sm" onClick={() => onOpenRouteForm(group.entry.ID, group.routeGroup)}>
                   <Plus size={13} className="mr-1.5" />
-                  {t('admin.modelCatalog.manageRoutes')}
+                  {sortedBindings.length === 0
+                    ? t('admin.modelCatalog.addRoute')
+                    : t('admin.models.addRouteCandidate', { defaultValue: '新增候选' })}
                 </Button>
               </div>
             </div>
@@ -1857,6 +1973,105 @@ function ModelRouteMatrix({
       </div>
     </div>
   )
+}
+
+function buildModelRouteGroups(entries: AIModelCatalogEntry[]): ModelRouteGroup[] {
+  return entries.flatMap((entry) => {
+    const bindings = entry.route_bindings ?? []
+    if (bindings.length === 0) {
+      return [{
+        key: modelRouteGroupKey(entry.ID, ''),
+        entry,
+        routeGroup: '',
+        bindings: [],
+      }]
+    }
+    const groups = new Map<string, ModelRouteGroup>()
+    bindings.forEach((binding) => {
+      const routeGroup = (binding.route_group ?? '').trim()
+      const key = modelRouteGroupKey(entry.ID, routeGroup)
+      const group = groups.get(key) ?? {
+        key,
+        entry,
+        routeGroup,
+        bindings: [],
+      }
+      group.bindings.push(binding)
+      groups.set(key, group)
+    })
+    return [...groups.values()].sort((a, b) => {
+      if (a.routeGroup === b.routeGroup) return 0
+      if (!a.routeGroup) return -1
+      if (!b.routeGroup) return 1
+      return a.routeGroup.localeCompare(b.routeGroup)
+    })
+  })
+}
+
+function modelRouteGroupKey(entryID: number, routeGroup: string): string {
+  return `${entryID}:${routeGroup || '__default__'}`
+}
+
+function sortRouteBindings(bindings: AIModelRouteBinding[]): AIModelRouteBinding[] {
+  return [...bindings].sort((a, b) => (
+    Number(b.is_enabled) - Number(a.is_enabled) ||
+    (b.priority ?? 0) - (a.priority ?? 0) ||
+    (b.capacity_weight ?? 1) - (a.capacity_weight ?? 1) ||
+    routeBindingStableKey(a).localeCompare(routeBindingStableKey(b))
+  ))
+}
+
+function routeBindingStableKey(binding: AIModelRouteBinding): string {
+  return [
+    binding.provider_id || '',
+    binding.credential_id ? String(binding.credential_id) : '',
+    binding.provider_model_id || '',
+    String(binding.ID),
+  ].join(':')
+}
+
+function routeGroupDisplayName(routeGroup: string, t: (key: string, options?: Record<string, unknown>) => string): string {
+  return routeGroup.trim() || t('admin.modelCatalog.defaultRouteGroup', { defaultValue: '默认分组' })
+}
+
+function credentialForRouteBinding(binding: AIModelRouteBinding, credentialByID: Map<number, AICredential>): AICredential | undefined {
+  if (binding.credential_id) return credentialByID.get(binding.credential_id)
+  const credentialID = credentialIDFromProviderID(binding.provider_id)
+  return credentialID ? credentialByID.get(credentialID) : undefined
+}
+
+function credentialIDFromProviderID(providerID?: string): number | null {
+  const value = providerID?.trim() ?? ''
+  if (!value.startsWith('local_provider:')) return null
+  const id = Number(value.slice('local_provider:'.length))
+  return Number.isFinite(id) && id > 0 ? id : null
+}
+
+function routeBindingProviderLabel(binding: AIModelRouteBinding, credential: AICredential | undefined, t: (key: string, options?: Record<string, unknown>) => string): string {
+  if (binding.source_type === 'new_api') {
+    return t('admin.modelCatalog.newAPIRoute')
+  }
+  return credential?.display_name || binding.provider_id || t('admin.modelCatalog.localProviderRoute')
+}
+
+function routeGroupActivePool(bindings: AIModelRouteBinding[]): { priority: number; count: number } | null {
+  const enabled = bindings.filter((binding) => binding.is_enabled)
+  if (enabled.length === 0) return null
+  const priority = Math.max(...enabled.map((binding) => binding.priority ?? 0))
+  return {
+    priority,
+    count: enabled.filter((binding) => (binding.priority ?? 0) === priority).length,
+  }
+}
+
+function routeGroupFallbackPriorities(bindings: AIModelRouteBinding[]): number[] {
+  const active = routeGroupActivePool(bindings)
+  if (!active) return []
+  return [...new Set(
+    bindings
+      .filter((binding) => binding.is_enabled && (binding.priority ?? 0) < active.priority)
+      .map((binding) => binding.priority ?? 0),
+  )].sort((a, b) => b - a)
 }
 
 function ModelManagementLayerNav({

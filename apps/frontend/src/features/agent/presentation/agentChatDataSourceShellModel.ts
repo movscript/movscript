@@ -21,6 +21,7 @@ export {
   agentChatThreadFromRegistryRecord,
   agentChatThreadProviderSessionState,
   agentConversationRecordMatchesProviderIdentity,
+  agentConversationUsesProviderSession,
   buildAgentChatConversationPatchInput,
   buildAgentChatConversationRegistryIndex,
   buildAgentChatOpenThreadCandidates,
@@ -143,14 +144,17 @@ export function buildAgentChatModelSelectionForRequest<TModel extends AgentChatM
   thread?: Pick<AgentChatThread, 'id' | 'executionSettings'> | null
   threadModelOverrides: Record<string, string>
 }): AgentChatModelSelection {
-  const threadModel = (input.thread?.id ? input.threadModelOverrides[input.thread.id] : undefined)
-    || input.thread?.executionSettings?.model?.trim()
-    || undefined
-  const selectedModel = selectedAgentChatModelOption(input.modelOptions, input.selectedModelId, input.modelIdForOption)
-  const model = selectedModel ? input.modelIdForOption(selectedModel) : undefined
+  const threadModel = selectedAgentChatThreadModelId({
+    modelIdForOption: input.modelIdForOption,
+    modelOptions: input.modelOptions,
+    overrideModelId: input.thread?.id ? input.threadModelOverrides[input.thread.id] : undefined,
+    threadModelId: input.thread?.executionSettings?.model,
+  })
+  const selectedModelId = selectedAgentChatModelId(input.modelOptions, input.selectedModelId, input.modelIdForOption)
+  const model = threadModel ?? selectedModelId
   return {
     ...input.baseSelection,
-    ...(threadModel || model ? { model: threadModel ?? model } : {}),
+    ...(model ? { model } : {}),
   }
 }
 
@@ -184,14 +188,35 @@ export function updateAgentChatThreadModelOverrides<TModel extends AgentChatMode
   return next
 }
 
-function selectedAgentChatModelOption<TModel extends AgentChatModelOptionLike>(
+function selectedAgentChatModelId<TModel extends AgentChatModelOptionLike>(
   modelOptions: TModel[],
   selectedModelId: string | null | undefined,
   modelIdForOption: (model: TModel) => string,
-): TModel | undefined {
-  const defaultModel = modelOptions.find((model) => model.is_default) ?? modelOptions[0]
-  if (selectedModelId === undefined || selectedModelId === null) return defaultModel
-  return modelOptions.find((model) => modelIdForOption(model) === selectedModelId) ?? defaultModel
+): string | undefined {
+  if (selectedModelId === undefined || selectedModelId === null) return undefined
+  if (modelOptions.length === 0) return selectedModelId
+  const model = modelOptions.find((option) => modelIdForOption(option) === selectedModelId)
+  return model ? modelIdForOption(model) : undefined
+}
+
+function selectedAgentChatThreadModelId<TModel extends AgentChatModelOptionLike>(input: {
+  modelIdForOption: (model: TModel) => string
+  modelOptions: TModel[]
+  overrideModelId?: string
+  threadModelId?: string | null
+}): string | undefined {
+  const overrideModelId = input.overrideModelId?.trim()
+  if (overrideModelId) {
+    if (input.modelOptions.length === 0) return overrideModelId
+    const overrideModel = input.modelOptions.find((option) => input.modelIdForOption(option) === overrideModelId)
+    if (overrideModel) return input.modelIdForOption(overrideModel)
+  }
+  const threadModelId = input.threadModelId?.trim()
+  if (threadModelId && input.modelOptions.length > 0) {
+    const threadModel = input.modelOptions.find((option) => input.modelIdForOption(option) === threadModelId)
+    if (threadModel) return input.modelIdForOption(threadModel)
+  }
+  return undefined
 }
 
 export function workspaceContextFromNewConversationPayload(

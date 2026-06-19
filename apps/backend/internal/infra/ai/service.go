@@ -328,7 +328,7 @@ func (s *AIService) getAnyTextModelFromCatalog() (runtimeModelID uint, modelID s
 		if !modelDefMatchesAnyCapability(def, textRuntimeCapabilities()) {
 			continue
 		}
-		for _, binding := range catalogEntryBindingsForFilter(entry.RouteBindings, "") {
+		for _, binding := range catalogEntryBindingsForFilter(entry.RouteBindings, "", nil, nil) {
 			publicModelID := strings.TrimSpace(entry.PublicModelID)
 			candidates = append(candidates, candidate{
 				runtimeModelID: entry.ID,

@@ -1,15 +1,12 @@
-import type {
-  AgentConversationThreadItem,
-} from '@/features/agent/domain/agentConversationThreadItems'
+import type { AgentConversationThreadItem, } from '@/features/agent/domain/agentConversationThreadItems'
 import type { AgentTranscriptMessageItem } from '@/features/agent/domain/agentTranscriptMessageItems'
 import { projectionLiveBlockItem } from '@/features/agent/domain/agentConversationProjectionLiveBlocks'
 import { projectionMessageItems } from '@/features/agent/domain/agentConversationProjectionMessages'
 import type {
-  AgentConversationProjectionItem,
-} from '@/features/agent/domain/agentConversationProjectionTypes'
+  AgentConversationProjectionItem, } from '@/features/agent/domain/agentConversationProjectionTypes'
 import type { AgentConversationLiveBlock } from '@/features/agent/domain/agentConversationLiveBlocks'
 import type { AgentThinkingState } from '@/features/agent/domain/agentThinkingState'
-import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 import type { ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 export function projectionItemsForThreadItems(input: {

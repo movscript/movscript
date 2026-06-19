@@ -40,13 +40,11 @@ import type {
   ProviderCatalogConfigFile,
   ProviderCatalogInspectResponse,
   ProviderSessionCapabilitiesResponse,
-  ProviderSessionClient,
-} from '@/shared/infrastructure/providerSessionClient'
+} from '@movscript/core/agent/protocol'
 
 interface UseAgentSettingsWorkspaceConfigControllerInput {
   catalog?: ProviderCatalogInspectResponse
   capabilities?: ProviderSessionCapabilitiesResponse
-  client: ProviderSessionClient
   commitCatalogPlan: (
     plan: ProviderConfigFileCommitPlan,
     options?: { refetchCapabilities?: boolean; backupUpdate?: 'when-present' | 'always' },
@@ -69,7 +67,6 @@ interface UseAgentSettingsWorkspaceConfigControllerInput {
 export function useAgentSettingsWorkspaceConfigController({
   catalog,
   capabilities,
-  client,
   commitCatalogPlan,
   currentConfigFile,
   filterPresets,
@@ -167,7 +164,6 @@ export function useAgentSettingsWorkspaceConfigController({
       if (savePlan) {
         await commitCatalogPlan({ operation: 'save', ...savePlan })
       } else {
-        await client.ensureRunning()
         await refetchCatalog()
       }
       recordSettingsAudit({

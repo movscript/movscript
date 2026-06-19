@@ -2,7 +2,7 @@ import { generationStatusText } from '@/features/agent/domain/agentGenerationDis
 import { buildRunActivitySnapshot } from '@/features/agent/domain/agentRunActivitySnapshot'
 import { agentTraceView, approvalStatusLabel, traceEventStatusLabel, traceKindLabel } from '@/features/agent/domain/agentRunUi'
 import { agentToolNameLabel } from '@/features/agent/domain/agentToolDisplay'
-import type { AgentRun, AgentTraceEvent } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun, AgentTraceEvent } from '@movscript/core/agent/protocol'
 import type { ChatRunActivity, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 import type { JSONValue } from '@movscript/core/agent/protocol'
 

@@ -46,7 +46,6 @@ func BuiltIns() []Descriptor {
 		{contract.TypeAgentRuntime, contract.AdapterDesktopManagedAgent},
 		{contract.TypeAgentRuntime, contract.AdapterRemoteAgentRuntime},
 		{contract.TypeAgentRuntime, contract.AdapterMova},
-		{contract.TypeAgentRuntime, contract.AdapterAppServer},
 	}
 	pairs = append(pairs, editionBuiltInProviders()...)
 	out := make([]Descriptor, 0, len(pairs))
@@ -127,8 +126,6 @@ func label(providerType string, adapter string) string {
 		return "Remote Agent Runtime"
 	case contract.TypeAgentRuntime + ":" + contract.AdapterMova:
 		return "Mova"
-	case contract.TypeAgentRuntime + ":" + contract.AdapterAppServer:
-		return "App Server"
 	default:
 		if adapter == "" {
 			return "Not configured"
@@ -180,8 +177,7 @@ func capabilities(providerType string, adapter string) []string {
 			contract.AgentRuntimeCapabilitySessionProxy,
 			contract.AgentRuntimeCapabilityPermissionProbe,
 		}
-	case contract.TypeAgentRuntime + ":" + contract.AdapterMova,
-		contract.TypeAgentRuntime + ":" + contract.AdapterAppServer:
+	case contract.TypeAgentRuntime + ":" + contract.AdapterMova:
 		return []string{"agent_runtime.ensure", "agent_session.start", "agent_session.message", "agent_tool.list", "agent_session.stop"}
 	default:
 		return nil

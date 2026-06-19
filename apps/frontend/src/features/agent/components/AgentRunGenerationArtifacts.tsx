@@ -1,6 +1,6 @@
 import { GenerationParamAuditCard, GenerationValidationErrorCard } from '@/features/agent/components/GenerationCards'
 import { generationParamAuditsFromRun, generationValidationErrorsFromRun } from '@/features/agent/domain/agentGenerationArtifacts'
-import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 
 export function AgentRunGenerationArtifacts({ run }: { run?: AgentRun }) {
   const generationParamAudits = generationParamAuditsFromRun(run)

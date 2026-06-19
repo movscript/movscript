@@ -3,7 +3,7 @@ import test from 'node:test'
 
 import { hiddenActivityActionItemIdsFromProjectionItems } from '@/features/agent/components/AgentConversationProjectionActivityFilters'
 import { buildAgentConversationProjection } from '@/features/agent/domain/agentConversationProjection'
-import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 import type { ChatMessage } from '@/features/agent/state/agentStore'
 
 test('hiddenActivityActionItemIdsFromProjectionItems reads projected interaction action ids', () => {

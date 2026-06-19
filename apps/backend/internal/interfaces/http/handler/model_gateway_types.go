@@ -6,16 +6,22 @@ import (
 	modelgatewayapp "github.com/movscript/movscript/internal/app/gateway"
 	domaingateway "github.com/movscript/movscript/internal/domain/gateway"
 	"github.com/movscript/movscript/internal/infra/ai"
+	tokenauth "github.com/movscript/movscript/internal/infra/auth"
 	"gorm.io/gorm"
 )
 
 type ModelGatewayHandler struct {
 	db      *gorm.DB
+	tokens  *tokenauth.Manager
 	service *modelgatewayapp.Service
 }
 
-func NewModelGatewayHandler(db *gorm.DB, svc *ai.AIService) *ModelGatewayHandler {
-	return &ModelGatewayHandler{db: db, service: modelgatewayapp.NewService(db, svc)}
+func NewModelGatewayHandler(db *gorm.DB, svc *ai.AIService, tokens ...*tokenauth.Manager) *ModelGatewayHandler {
+	var manager *tokenauth.Manager
+	if len(tokens) > 0 {
+		manager = tokens[0]
+	}
+	return &ModelGatewayHandler{db: db, tokens: manager, service: modelgatewayapp.NewService(db, svc)}
 }
 
 type chatCompletionRequest struct {
@@ -160,6 +166,48 @@ type anthropicMessagesUsage struct {
 	OutputTokens             int `json:"output_tokens"`
 	CacheReadInputTokens     int `json:"cache_read_input_tokens,omitempty"`
 	CacheCreationInputTokens int `json:"cache_creation_input_tokens,omitempty"`
+}
+
+type anthropicMessagesStreamEvent struct {
+	Type         string                          `json:"type"`
+	Message      *anthropicMessagesStreamMessage `json:"message,omitempty"`
+	Index        *int                            `json:"index,omitempty"`
+	ContentBlock *anthropicStreamContentBlock    `json:"content_block,omitempty"`
+	Delta        *anthropicMessagesStreamDelta   `json:"delta,omitempty"`
+	Usage        *anthropicMessagesUsage         `json:"usage,omitempty"`
+	Error        *anthropicMessagesStreamError   `json:"error,omitempty"`
+}
+
+type anthropicStreamContentBlock struct {
+	Type  string          `json:"type"`
+	Text  *string         `json:"text,omitempty"`
+	ID    string          `json:"id,omitempty"`
+	Name  string          `json:"name,omitempty"`
+	Input json.RawMessage `json:"input,omitempty"`
+}
+
+type anthropicMessagesStreamMessage struct {
+	ID           string                  `json:"id"`
+	Type         string                  `json:"type"`
+	Role         string                  `json:"role"`
+	Model        string                  `json:"model"`
+	Content      []anthropicContentBlock `json:"content"`
+	StopReason   *string                 `json:"stop_reason"`
+	StopSequence *string                 `json:"stop_sequence"`
+	Usage        anthropicMessagesUsage  `json:"usage"`
+}
+
+type anthropicMessagesStreamDelta struct {
+	Type         string  `json:"type,omitempty"`
+	Text         string  `json:"text,omitempty"`
+	PartialJSON  string  `json:"partial_json,omitempty"`
+	StopReason   string  `json:"stop_reason,omitempty"`
+	StopSequence *string `json:"stop_sequence,omitempty"`
+}
+
+type anthropicMessagesStreamError struct {
+	Type    string `json:"type"`
+	Message string `json:"message"`
 }
 
 type gatewayPrincipal struct {

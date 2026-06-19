@@ -9,6 +9,7 @@ import {
 import {
   agentChatComposerConversationId,
   agentChatConversationWorkspaceIsEmpty,
+  agentConversationUsesProviderSession,
   buildAgentChatConversationPatchInput,
   buildAgentChatConversationRegistryIndex,
   buildAgentChatProviderIdentity,
@@ -73,13 +74,15 @@ export function useAgentChatConversationRegistry({
     userId,
   }), [provider, providerId, providerInstanceId, providerProtocol, userId])
 
-  const registerThreadConversation = useCallback((thread: Pick<AgentChatThread, 'id' | 'name' | 'preview' | 'status' | 'createdAt' | 'updatedAt' | 'cwd' | 'providerSessionTreeId'>, input?: {
+  const registerThreadConversation = useCallback((thread: Pick<AgentChatThread, 'id' | 'name' | 'preview' | 'status' | 'createdAt' | 'updatedAt' | 'cwd' | 'providerSessionTreeId' | 'sessionId'>, input?: {
     workspaceContext?: MovScriptWorkspaceContext
     projectId?: number
   }) => {
     const threadId = thread.id.trim()
     if (!threadId) return
-    const sessionId = thread.providerSessionTreeId?.trim()
+    const sessionId = agentConversationUsesProviderSession(providerIdentity)
+      ? thread.sessionId?.trim() || thread.providerSessionTreeId?.trim()
+      : ''
     useAgentSessionStore.getState().upsertConversation(agentConversationRegistryRecordFromChatThread({
       userId,
       ...providerIdentity,

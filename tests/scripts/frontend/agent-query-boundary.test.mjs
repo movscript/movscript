@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import test from 'node:test'
 
@@ -8,14 +8,13 @@ const agentSettingsSource = readSource('apps/frontend/src/features/agent/compone
 const agentSettingsModelControllerSource = readSource('apps/frontend/src/features/agent/application/useAgentSettingsModelController.ts')
 const agentsPageSource = [
   readSource('apps/frontend/src/features/agent/components/AgentsPage.tsx'),
-  readSource('apps/frontend/src/features/agent/components/AgentsPageAppServerPanel.tsx'),
-  readSource('apps/frontend/src/features/agent/components/AgentsPageAppServerPanelModel.tsx'),
 ].join('\n')
 const modelProvidersSource = readSource('apps/frontend/src/features/agent/components/ModelProvidersPage.tsx')
 const agentConsoleSource = [
   readSource('apps/frontend/src/features/agent/components/AgentConsolePage.tsx'),
   readSource('apps/frontend/src/features/agent/components/AgentConsolePageSections.tsx'),
 ].join('\n')
+const agentControlCenterSource = readSource('apps/frontend/src/features/agent/presentation/useAgentControlCenter.ts')
 const agentConsoleCapabilityPanelsSource = readSource('apps/frontend/src/features/agent/components/AgentConsoleCapabilityPanels.tsx')
 const agentArtifactsSource = readSource('apps/frontend/src/features/agent/components/AgentArtifactResultCards.tsx')
 const agentBrowserSource = [
@@ -26,14 +25,22 @@ const agentBrowserSource = [
 ].join('\n')
 const agentBrowserProjectHomeSource = readSource('apps/frontend/src/features/agent/components/AgentBrowserProjectHomePage.tsx')
 const providerThreadCacheSource = readSource('apps/frontend/src/features/agent/application/providerSessionThreadQueryCache.ts')
-const agentChatStoreBindingsSource = readSource('apps/frontend/src/features/agent/presentation/useAgentChatStoreBindings.ts')
+const agentChatConversationRegistrySource = readSource('apps/frontend/src/features/agent/application/useAgentChatConversationRegistry.ts')
 const activePlanSnapshotSource = readSource('apps/frontend/src/features/agent/presentation/useAgentActivePlanSnapshot.ts')
+const agentPlanSnapshotServiceSource = readSource('apps/frontend/src/features/agent/application/agentPlanSnapshotService.ts')
 const agentPlanSnapshotCacheSource = readSource('apps/frontend/src/features/agent/application/agentPlanSnapshotQueryCache.ts')
+const agentCommandServiceSource = readSource('apps/frontend/src/features/agent/application/agentProviderSessionCommandService.ts')
+const agentStatusLightControllerSource = readSource('apps/frontend/src/features/agent/presentation/providerSessionStatusLightController.ts')
+const agentStatusLightStreamServiceSource = readSource('apps/frontend/src/features/agent/application/agentProviderSessionStatusLightStreamService.ts')
+const agentRunCommandHookSources = [
+  readSource('apps/frontend/src/features/agent/presentation/useAgentRunStopAction.ts'),
+  readSource('apps/frontend/src/features/agent/presentation/useAgentRunInteractionActionBindings.ts'),
+  readSource('apps/frontend/src/features/agent/presentation/useAgentRunResultActions.ts'),
+  readSource('apps/frontend/src/features/agent/presentation/useAgentPlanActionBindings.ts'),
+].join('\n')
 const agentSessionStoreSource = readSource('apps/frontend/src/features/agent/state/agentSessionStore.ts')
 const agentSessionTaskStateSource = readSource('apps/frontend/src/features/agent/state/agentSessionTaskState.ts')
 const agentSessionStoreTypesSource = readSource('apps/frontend/src/features/agent/state/agentSessionStoreTypes.ts')
-const agentSendCommitSource = readSource('apps/frontend/src/features/agent/application/agentSendCommit.ts')
-const agentSendCompletionSource = readSource('apps/frontend/src/features/agent/application/agentSendCompletion.ts')
 
 test('agent surfaces delegate query keys to agent query factories', () => {
   assert.match(agentQueryKeysSource, /export const agentSettingsKeys/)
@@ -43,25 +50,41 @@ test('agent surfaces delegate query keys to agent query factories', () => {
   assert.match(agentQueryKeysSource, /export const agentPlanKeys/)
   assert.match(agentQueryKeysSource, /export const agentConsoleKeys/)
 
-  assert.match(agentSettingsModelControllerSource, /agentSettingsKeys\.providerModelConfig\(/)
+  assert.doesNotMatch(agentSettingsModelControllerSource, /agentSettingsKeys\.providerModelConfig\(/)
+  assert.doesNotMatch(agentQueryKeysSource, /providerModelConfig/)
   assert.match(agentSettingsSource, /agentSettingsKeys\.skillCatalog\(/)
   assert.match(agentSettingsSource, /agentSettingsKeys\.toolPermissions\(/)
   assert.match(agentsPageSource, /agentProviderKeys\.workspaceConfig\('default'\)/)
-  assert.match(agentsPageSource, /agentProviderKeys\.workspaceConfig\(activeAppServerKey\)/)
-  assert.match(agentsPageSource, /agentProviderKeys\.backendModels/)
-  assert.match(agentsPageSource, /agentProviderKeys\.appServerStatus\(providerKey, profile\.id\)/)
+  assert.match(agentsPageSource, /loadAgentProviderWorkspaceConfig\(\)/)
+  assert.match(agentsPageSource, /saveAgentProviderWorkspaceConfig\(input\)/)
+  assert.doesNotMatch(agentsPageSource, /providerSessionClient/)
+  assert.doesNotMatch(agentsPageSource, /agentProviderKeys\.backendModels/)
+  assert.doesNotMatch(agentsPageSource, /activeAppServerKey|appServerStatus|AppServer/)
   assert.match(modelProvidersSource, /agentProviderKeys\.modelProvidersBackendModels/)
   assert.match(modelProvidersSource, /agentProviderKeys\.modelCatalogEntries/)
-  assert.match(agentConsoleCapabilityPanelsSource, /agentConsoleKeys\.providerCapabilityProbe\(/)
-  assert.match(agentArtifactsSource, /agentArtifactKeys\.messageWorkspaceArtifacts\(/)
+  assert.match(agentControlCenterSource, /agentConsoleKeys\.controlCapabilityHealth\(/)
+  assert.doesNotMatch(agentConsoleCapabilityPanelsSource, /agentConsoleKeys\.providerCapabilityProbe\(/)
+  assert.match(agentArtifactsSource, /agentArtifactKeys\.messageWorkspaceArtifacts\(workspaceIds\)/)
+  assert.match(agentArtifactsSource, /listAgentMessageWorkspaceArtifacts\(workspaceIds\)/)
+  assert.doesNotMatch(agentArtifactsSource, /providerSessionClient|getWorkspaceArtifact|providerSessionClient\.baseURL/)
   assert.match(agentBrowserProjectHomeSource, /agentBrowserKeys\.navigationScripts\(/)
   assert.match(agentBrowserProjectHomeSource, /agentBrowserKeys\.navigationEntity\(projectId, 'settings'\)/)
   assert.match(activePlanSnapshotSource, /agentPlanKeys\.taskGraphSnapshot\(/)
+  assert.match(activePlanSnapshotSource, /fetchAgentPlanTaskGraphSnapshot\(/)
+  assert.match(activePlanSnapshotSource, /streamAgentPlanTaskGraphSnapshot\(/)
   assert.match(activePlanSnapshotSource, /applyAgentPlanProviderSessionEventToCache\(queryClient, queryKey, event, taskGraphId\)/)
+  assert.doesNotMatch(activePlanSnapshotSource, /providerSessionClient|ProviderSessionClient|baseURL/)
   assert.doesNotMatch(activePlanSnapshotSource, /setQueryData/)
   assert.doesNotMatch(activePlanSnapshotSource, /\['provider-session-taskGraph-snapshot'/)
+  assert.match(agentPlanSnapshotServiceSource, /providerSessionClient/)
   assert.match(agentPlanSnapshotCacheSource, /export function applyAgentPlanProviderSessionEventToCache/)
   assert.match(agentPlanSnapshotCacheSource, /queryClient\.setQueryData<AgentTaskGraphSnapshot \| undefined>/)
+  assert.match(agentRunCommandHookSources, /createAgentProviderSessionCommandService/)
+  assert.doesNotMatch(agentRunCommandHookSources, /providerSessionClient|ProviderSessionClient|shared\/infrastructure\/providerSessionClient/)
+  assert.match(agentCommandServiceSource, /providerSessionClient/)
+  assert.match(agentStatusLightControllerSource, /createAgentProviderSessionStatusLightStreamClient\(\)/)
+  assert.doesNotMatch(agentStatusLightControllerSource, /providerSessionClient|shared\/infrastructure\/providerSessionClient/)
+  assert.match(agentStatusLightStreamServiceSource, /providerSessionClient/)
 
   for (const source of [
     agentSettingsModelControllerSource,
@@ -90,20 +113,29 @@ test('provider thread mutations publish standard cache update results', () => {
   assert.match(providerThreadCacheSource, /export function providerThreadUpdatedResult/)
   assert.match(providerThreadCacheSource, /export function applyProviderSessionThreadMutationResult/)
   assert.match(providerThreadCacheSource, /export function applyProviderSessionThreadMutationEvent/)
-  assert.match(providerThreadCacheSource, /isProviderSessionThreadListQueryKey\(query\.queryKey, event\.baseURL\)/)
+  assert.match(providerThreadCacheSource, /isProviderSessionThreadListQueryKey\(query\.queryKey\)/)
+  assert.doesNotMatch(providerThreadCacheSource, /event\.baseURL|providerSessionClient\.baseURL/)
   assert.doesNotMatch(providerThreadCacheSource, /export function upsertCachedProviderSessionThread/)
+  assert.doesNotMatch(providerThreadCacheSource, /startSharedProvisionalConversation|startProvisionalConversation|provisionalConversation/)
 
-  assert.match(agentChatStoreBindingsSource, /applyProviderSessionThreadMutationResult\(queryClient, providerThreadUpdatedResult\(\{ thread: providerSessionThreadSummaryFromThread\(thread\) \}\)\)/)
-  assert.doesNotMatch(agentChatStoreBindingsSource, /upsertCachedProviderSessionThread/)
+  assert.equal(existsSync(resolve('apps/frontend/src/features/agent/presentation/useAgentChatStoreBindings.ts')), false)
+  assert.match(agentChatConversationRegistrySource, /agentConversationRegistryRecordFromChatThread/)
+  assert.doesNotMatch(agentChatConversationRegistrySource, /applyProviderSessionThreadMutationResult/)
+  assert.doesNotMatch(agentChatConversationRegistrySource, /upsertCachedProviderSessionThread/)
 })
 
 test('agent session store does not keep provider-session projection compatibility state', () => {
+  for (const relativePath of [
+    'apps/frontend/src/features/agent/presentation/useAgentChatStoreBindings.ts',
+    'apps/frontend/src/features/agent/application/agentSendCommit.ts',
+    'apps/frontend/src/features/agent/application/agentSendCompletion.ts',
+  ]) {
+    assert.equal(existsSync(resolve(relativePath)), false, `${relativePath} should stay deleted`)
+  }
   for (const source of [
     agentSessionStoreSource,
     agentSessionStoreTypesSource,
-    agentChatStoreBindingsSource,
-    agentSendCommitSource,
-    agentSendCompletionSource,
+    agentChatConversationRegistrySource,
   ]) {
     assert.doesNotMatch(source, /conversationProviderSessionStates/)
     assert.doesNotMatch(source, /setConversationProviderSessionState/)
@@ -137,8 +169,6 @@ test('agent session store does not keep provider-session projection compatibilit
   assert.match(agentSessionTaskStateSource, /conversationRuntimeStates: Record<string, AgentConversationRuntimeState>/)
   assert.match(agentSessionTaskStateSource, /export function enqueueAgentPageTask/)
   assert.match(agentSessionTaskStateSource, /export function updateAgentPageTaskFromProviderSession/)
-  assert.match(agentSendCommitSource, /setConversationProviderSessionTreeId/)
-  assert.match(agentSendCommitSource, /setConversationProviderThreadBindingId/)
 })
 
 function readSource(path) {

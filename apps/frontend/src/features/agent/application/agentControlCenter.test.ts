@@ -67,7 +67,7 @@ test('agent control capability health counts tools, skills, and plugins from pro
   assert.equal(summary.warningCount, 0)
 })
 
-test('agent control capability health reports missing provider capability surfaces', async () => {
+test('agent control capability health treats absent optional SDK capability surfaces as empty', async () => {
   const health = await inspectAgentControlDataSourceCapabilities(providerFixture(), {
     provider: 'codex',
     label: 'Codex',
@@ -78,17 +78,54 @@ test('agent control capability health reports missing provider capability surfac
     startTextTurn: async () => { throw new Error('not used') },
   } satisfies AgentChatDataSource)
 
-  assert.equal(health.ok, false)
+  assert.equal(health.ok, true)
   assert.equal(health.toolCount, 0)
-  assert.match(health.warnings.join('\n'), /command\/exec/)
-  assert.match(health.warnings.join('\n'), /skills\/list/)
+  assert.equal(health.warningCount, 0)
+  assert.deepEqual(health.warnings, [])
 
   const summary = summarizeAgentControlCapabilityHealth([health], 1)
   assert.equal(summary.toolSummary.blocked, 0)
   assert.equal(summary.warningCount, health.warningCount)
 })
 
-test('agent control capability health counts Mova app-server capability surfaces and resolved catalog tools', async () => {
+test('agent control capability health surfaces SDK credential readiness', async () => {
+  const health = await inspectAgentControlDataSourceCapabilities(providerFixture({ kind: 'claude', label: 'Claude Code' }), {
+    provider: 'claude',
+    label: 'Claude Code',
+    capabilities: {
+      runtime: {
+        probe: async () => ({
+          ok: false,
+          credentials: {
+            ok: false,
+            configured: false,
+            env: 'ANTHROPIC_API_KEY',
+            acceptedEnv: ['ANTHROPIC_API_KEY'],
+            source: 'none',
+            detail: 'Set ANTHROPIC_API_KEY.',
+          },
+        }),
+      },
+    },
+    listThreads: async () => ({ threads: [] }),
+    readThread: async () => { throw new Error('not used') },
+    startThread: async () => { throw new Error('not used') },
+    startTextTurn: async () => { throw new Error('not used') },
+  } satisfies AgentChatDataSource)
+
+  assert.equal(health.ok, false)
+  assert.equal(health.warningCount, 1)
+  assert.deepEqual(health.credential, {
+    ok: false,
+    configured: false,
+    env: 'ANTHROPIC_API_KEY',
+    source: 'none',
+    detail: 'Set ANTHROPIC_API_KEY.',
+  })
+  assert.deepEqual(health.warnings, ['SDK 凭据：Set ANTHROPIC_API_KEY.'])
+})
+
+test('agent control capability health counts Mova SDK capability surfaces and resolved catalog tools', async () => {
   const health = await inspectAgentControlDataSourceCapabilities(providerFixture({ kind: 'mova' }), {
     provider: 'mova',
     label: 'Mova',

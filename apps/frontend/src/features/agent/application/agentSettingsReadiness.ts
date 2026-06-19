@@ -1,8 +1,6 @@
 import { redactAgentTraceDebugText } from '@movscript/core/agent'
-import type {
-  ProviderCatalogConfigFile,
-  ProviderModelConfigPublic,
-} from '@/shared/infrastructure/providerSessionClient'
+import type { ProviderCatalogConfigFile } from '@movscript/core/agent/protocol'
+import type { ProviderModelConfigPublic } from '@movscript/core/agent/protocol'
 import {
   buildSettingsActionItemsFromInput,
   type BuildSettingsActionItemsInput,
@@ -86,6 +84,51 @@ export type AgentSettingsToolStats = {
   discovered: number
   available: number
   blocked: number
+}
+
+export function buildSdkAgentReadinessItems(input: {
+  agentLabel: string
+  agentEnabled: boolean
+  runtimeLabel: string
+  runtimeAvailable: boolean
+  authEnv?: string
+  pendingChanges: number
+}): SettingsReadinessItem[] {
+  const items: SettingsReadinessItem[] = [
+    {
+      id: 'agent',
+      status: input.agentEnabled ? 'ready' : 'action',
+      labelKey: 'agents.settings.readiness.agent',
+      detailKey: input.agentEnabled
+        ? 'agents.settings.readinessDetails.agentReady'
+        : 'agents.settings.readinessDetails.agentDisabled',
+      detailValues: { agent: input.agentLabel },
+    },
+    {
+      id: 'runtime',
+      status: input.runtimeAvailable ? 'ready' : 'action',
+      labelKey: 'agents.settings.readiness.runtime',
+      detailKey: input.runtimeAvailable
+        ? 'agents.settings.readinessDetails.runtimeSdkReady'
+        : 'agents.settings.readinessDetails.runtimeUnavailable',
+      detailValues: { runtime: input.runtimeLabel },
+    },
+    ...(input.authEnv ? [{
+      id: 'sdk-credentials',
+      status: 'warning' as const,
+      labelKey: 'agents.settings.readiness.modelCredentials',
+      detailKey: 'agents.settings.readinessDetails.sdkCredentialsEnvPreferred',
+      detailValues: { env: input.authEnv },
+    }] : []),
+    {
+      id: 'pending',
+      status: input.pendingChanges > 0 ? 'warning' : 'ready',
+      labelKey: 'agents.settings.readiness.pendingChanges',
+      detailKey: input.pendingChanges > 0 ? 'agents.settings.readinessDetails.pendingChanges' : 'agents.settings.readinessDetails.noPendingChanges',
+      detailValues: { count: input.pendingChanges },
+    },
+  ]
+  return items
 }
 
 export function buildModelRouteIssues(input: { useForChat: boolean; useForPlanner: boolean }): string[] {

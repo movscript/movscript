@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { answerRunInteractionInputAction, approveRunInteractionAction, rejectRunInteractionAction, type AgentRunInteractionActionDeps } from './agentRunInteractionActions'
-import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 
 test('approveRunInteractionAction applies optimistic approval and streams follow-up', async () => {
   const calls: string[] = []

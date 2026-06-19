@@ -1,4 +1,4 @@
-import type { AgentRun, AgentThread } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun, AgentThread } from '@movscript/core/agent/protocol'
 import type { ConversationWorkspace } from '@/features/agent/state/agentStore'
 import type { AgentPageTaskRun } from '@/features/agent/state/agentSessionTaskModel'
 import type { AgentSessionWorkspaceContext } from '@movscript/core/agent'

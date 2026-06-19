@@ -5,7 +5,9 @@ import { join } from 'node:path'
 import test from 'node:test'
 import {
   mergeAppSettingsSecrets,
+  readAgentRuntimeApiKey,
   readAppSettingsSecrets,
+  writeAgentRuntimeApiKey,
   writeAppSettingsSecretsFromSettings,
 } from './appSettingsSecrets'
 
@@ -86,6 +88,73 @@ test('app settings secrets drop tokens for removed shot library sources', () => 
   assert.deepEqual(readAppSettingsSecrets(movScriptHomeDir).shotLibrarySourceAuthTokens, {})
 })
 
+test('app settings secrets persist agent runtime API keys', () => {
+  const movScriptHomeDir = mkdtempSync(join(tmpdir(), 'movscript-app-settings-secrets-agent-key-'))
+
+  writeAgentRuntimeApiKey(movScriptHomeDir, {
+    providerKey: 'Claude',
+    apiKey: 'sk-ant-secret',
+  })
+
+  assert.equal(readAgentRuntimeApiKey(movScriptHomeDir, 'claude'), 'sk-ant-secret')
+  assert.deepEqual(readAppSettingsSecrets(movScriptHomeDir).agentRuntimeApiKeys, {
+    claude: 'sk-ant-secret',
+  })
+})
+
+test('app settings secrets persist agent runtime API keys for provider aliases', () => {
+  const movScriptHomeDir = mkdtempSync(join(tmpdir(), 'movscript-app-settings-secrets-agent-key-aliases-'))
+
+  writeAgentRuntimeApiKey(movScriptHomeDir, {
+    providerKey: 'claude',
+    providerKeys: ['claude-code', 'claude-sdk'],
+    apiKey: 'sk-ant-secret',
+  })
+
+  assert.equal(readAgentRuntimeApiKey(movScriptHomeDir, 'claude'), 'sk-ant-secret')
+  assert.equal(readAgentRuntimeApiKey(movScriptHomeDir, 'claude-code'), 'sk-ant-secret')
+  assert.equal(readAgentRuntimeApiKey(movScriptHomeDir, 'claude-sdk'), 'sk-ant-secret')
+  assert.deepEqual(readAppSettingsSecrets(movScriptHomeDir).agentRuntimeApiKeys, {
+    claude: 'sk-ant-secret',
+    'claude-code': 'sk-ant-secret',
+    'claude-sdk': 'sk-ant-secret',
+  })
+})
+
+test('app settings secrets preserve agent runtime API keys when app settings are synced', () => {
+  const movScriptHomeDir = mkdtempSync(join(tmpdir(), 'movscript-app-settings-secrets-agent-key-preserve-'))
+  writeAgentRuntimeApiKey(movScriptHomeDir, {
+    providerKey: 'claude',
+    apiKey: 'sk-ant-secret',
+  })
+
+  writeAppSettingsSecretsFromSettings(movScriptHomeDir, {
+    apiBaseURL: 'http://localhost:8765',
+    launchMode: 'cloud',
+    workMode: 'project',
+    onboardingCompleted: true,
+    shotLibrarySources: [],
+  })
+
+  assert.equal(readAgentRuntimeApiKey(movScriptHomeDir, 'claude'), 'sk-ant-secret')
+})
+
+test('app settings secrets clear agent runtime API keys', () => {
+  const movScriptHomeDir = mkdtempSync(join(tmpdir(), 'movscript-app-settings-secrets-agent-key-clear-'))
+  writeAgentRuntimeApiKey(movScriptHomeDir, {
+    providerKey: 'claude',
+    apiKey: 'sk-ant-secret',
+  })
+
+  writeAgentRuntimeApiKey(movScriptHomeDir, {
+    providerKey: 'claude',
+    apiKey: null,
+  })
+
+  assert.equal(readAgentRuntimeApiKey(movScriptHomeDir, 'claude'), undefined)
+  assert.deepEqual(readAppSettingsSecrets(movScriptHomeDir).agentRuntimeApiKeys, {})
+})
+
 test('app settings secrets merge tokens back into runtime settings', () => {
   const settings = {
     apiBaseURL: 'http://localhost:8765',
@@ -100,7 +169,7 @@ test('app settings secrets merge tokens back into runtime settings', () => {
   }
 
   assert.equal(
-    mergeAppSettingsSecrets(settings, { shotLibrarySourceAuthTokens: { external: 'secret-token' } })
+    mergeAppSettingsSecrets(settings, { shotLibrarySourceAuthTokens: { external: 'secret-token' }, agentRuntimeApiKeys: {} })
       .shotLibrarySources?.[0]?.authToken,
     'secret-token',
   )

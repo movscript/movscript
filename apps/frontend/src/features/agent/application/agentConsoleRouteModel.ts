@@ -1,10 +1,9 @@
-import { BarChart3, Blocks, Bot, Cable, Database, FileCog, type LucideIcon } from 'lucide-react'
+import { BarChart3, Blocks, Bot, Cable, FileCog, type LucideIcon } from 'lucide-react'
 
 import { ROUTES } from '@/routes/projectRoutes'
 
 export type AgentConsoleTab =
   | 'console'
-  | 'console:model-providers'
   | 'console:agents'
   | 'console:connections'
 
@@ -31,30 +30,23 @@ export const agentConsoleRouteSections = [
     tab: 'console',
     canonicalPath: ROUTES.agentConsole,
     label: 'Overview',
-    description: '全局状态、健康检查和待关注事项',
+    description: '当前 Agent、会话和待关注事项',
     icon: BarChart3,
     end: true,
   },
   {
-    tab: 'console:model-providers',
-    canonicalPath: ROUTES.modelProviders,
-    label: 'Provider / Catalog / Route',
-    description: '已发布模型来源、Catalog 和 Route',
-    icon: Database,
-  },
-  {
     tab: 'console:agents',
     canonicalPath: ROUTES.agents,
-    label: 'Agents',
-    description: 'Provider 启用与生命周期',
+    label: 'Agent',
+    description: '选择当前 Agent 与用户可见配置',
     icon: Bot,
     matchPaths: [ROUTES.agents, ROUTES.agentSettings],
   },
   {
     tab: 'console:connections',
     canonicalPath: ROUTES.agentConnections,
-    label: 'Connections',
-    description: '裸请求、裸返回和 thread 流状态',
+    label: 'Diagnostics',
+    description: '连接、事件流和原始诊断',
     icon: Cable,
   },
 ] as const satisfies readonly AgentConsoleRouteSection[]

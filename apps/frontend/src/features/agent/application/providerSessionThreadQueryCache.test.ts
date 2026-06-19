@@ -1,20 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
+import { applyProviderSessionThreadMutationResult, listProviderSessionRunSummariesFromProviderSessions, listProviderSessionSummariesFromWorkspace, listProviderSessionThreadPageFromWorkspace, listProviderSessionThreadSummariesFromWorkspace, providerThreadUpdatedResult, providerSessionRunSummariesFromProviderSession, providerSessionThreadSummaryFromProviderSession, providerSessionThreadSummaryFromThread, } from '@/features/agent/application/providerSessionThreadQueryCache'
 import {
-  applyProviderSessionThreadMutationResult,
-  listProviderSessionRunSummariesFromProviderSessions,
-  listProviderSessionSummariesFromWorkspace,
-  listProviderSessionThreadPageFromWorkspace,
-  listProviderSessionThreadSummariesFromWorkspace,
-  providerThreadUpdatedResult,
-  providerSessionRunSummariesFromProviderSession,
-  providerSessionThreadSummaryFromProviderSession,
-  providerSessionThreadSummaryFromThread,
-} from '@/features/agent/application/providerSessionThreadQueryCache'
-import { isProviderSessionThreadListQueryKey, providerSessionKeys, providerSessionRunKeys, providerSessionThreadKeys } from '@/features/agent/application/providerSessionQueryKeys'
+  isProviderSessionThreadListQueryKey, providerSessionConsoleProfileKey, providerSessionKeys, providerSessionRunKeys, providerSessionThreadKeys, } from '@/features/agent/application/providerSessionQueryKeys'
 import { providerSessionClient } from '@/shared/infrastructure/providerSessionClient'
-import type { ProviderSessionSummary, AgentThread } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentThread } from '@movscript/core/agent/protocol'
+import type { ProviderSessionSummary } from '@/shared/contracts/electronApiProviderSessions'
 
 test('provider session query keys own thread and console cache prefixes', () => {
   const identity = {
@@ -24,24 +16,27 @@ test('provider session query keys own thread and console cache prefixes', () => 
     providerProtocol: 'provider-session',
   }
 
-  assert.deepEqual(providerSessionThreadKeys.list('http://localhost:4123', identity, 'agent-mode-sidebar'), [
+  assert.deepEqual(providerSessionThreadKeys.list(identity, 'agent-mode-sidebar'), [
     'provider-session-threads',
-    'http://localhost:4123',
     identity,
     'agent-mode-sidebar',
   ])
-  assert.deepEqual(providerSessionKeys.list('http://localhost:4123', identity, 'agent-mode-sidebar'), [
+  assert.deepEqual(providerSessionKeys.list(identity, 'agent-mode-sidebar'), [
     'provider-sessions',
-    'http://localhost:4123',
     identity,
     'agent-mode-sidebar',
   ])
-  assert.deepEqual(providerSessionThreadKeys.panelHistory('http://localhost:4123'), ['provider-session-panel-thread-history', 'http://localhost:4123'])
+  assert.deepEqual(providerSessionThreadKeys.panelHistory, ['provider-session-panel-thread-history'])
   assert.deepEqual(providerSessionKeys.workspace, ['agent-console-provider-sessions', 'workspace'])
+  assert.deepEqual(providerSessionKeys.workspaceProfile('codex'), ['agent-console-provider-sessions', 'workspace', 'codex'])
   assert.deepEqual(providerSessionRunKeys.console, ['agent-console-runs', 'provider-sessions'])
+  assert.deepEqual(providerSessionRunKeys.consoleProfile('codex'), ['agent-console-runs', 'provider-sessions', 'codex'])
   assert.deepEqual(providerSessionThreadKeys.console, ['agent-console-threads', 'provider-sessions'])
-  assert.equal(isProviderSessionThreadListQueryKey(providerSessionThreadKeys.list('http://localhost:4123', identity, 'agent-mode-sidebar'), 'http://localhost:4123'), true)
-  assert.equal(isProviderSessionThreadListQueryKey(providerSessionThreadKeys.panelHistory('http://localhost:4123'), 'http://localhost:4123'), false)
+  assert.deepEqual(providerSessionThreadKeys.consoleProfile('codex'), ['agent-console-threads', 'provider-sessions', 'codex'])
+  assert.equal(providerSessionConsoleProfileKey(undefined), 'none')
+  assert.equal(providerSessionConsoleProfileKey(' codex '), 'codex')
+  assert.equal(isProviderSessionThreadListQueryKey(providerSessionThreadKeys.list(identity, 'agent-mode-sidebar')), true)
+  assert.equal(isProviderSessionThreadListQueryKey(providerSessionThreadKeys.panelHistory), false)
 })
 
 test('provider session thread cache summaries count only projected transcript messages', () => {
@@ -129,7 +124,6 @@ test('provider thread updated result owns list cache updates', () => {
     },
   }
   const result = providerThreadUpdatedResult({
-    baseURL: 'http://localhost:4123',
     thread: {
       id: 'thread_1',
       title: 'New',
@@ -308,5 +302,43 @@ test('provider session index helpers do not start a provider process when filesy
     client.ensureRunning = original.ensureRunning
     client.listThreads = original.listThreads
     client.listSessions = original.listSessions
+  }
+})
+
+test('provider session run summaries are scoped by provider profile key', async () => {
+  const client = providerSessionClient as typeof providerSessionClient & {
+    listProviderSessionsFromWorkspace: typeof providerSessionClient.listProviderSessionsFromWorkspace
+  }
+  const original = client.listProviderSessionsFromWorkspace
+  const calls: unknown[] = []
+  try {
+    client.listProviderSessionsFromWorkspace = async (input?: unknown) => {
+      calls.push(input)
+      return {
+        sessions: [{
+          session: {
+            id: 'session_1',
+            createdAt: '2026-06-03T00:00:00.000Z',
+            updatedAt: '2026-06-03T00:00:01.000Z',
+          },
+          runs: [{
+            id: 'run_1',
+            threadId: 'thread_1',
+            status: 'requires_action',
+            createdAt: '2026-06-03T00:00:02.000Z',
+            updatedAt: '2026-06-03T00:00:03.000Z',
+            steps: [],
+          }],
+        }],
+      }
+    }
+
+    const runs = await listProviderSessionRunSummariesFromProviderSessions({ providerProfileKey: 'codex' })
+
+    assert.deepEqual(calls, [{ providerProfileKey: 'codex' }])
+    assert.equal(runs.length, 1)
+    assert.equal(runs[0]?.id, 'run_1')
+  } finally {
+    client.listProviderSessionsFromWorkspace = original
   }
 })

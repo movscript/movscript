@@ -7,7 +7,6 @@ import { createBackendAPI } from './api/backend'
 import { createBackendAuthAPI } from './api/backendAuth'
 import { createRuntimeConfigAPI } from './api/runtimeConfig'
 import { createAppUpdateAPI } from './api/appUpdate'
-import { createAppServerAPI } from './api/appServer'
 import { createSdkRuntimeAPI } from './api/sdkRuntime'
 import { createDialogAPI } from './api/dialog'
 import { createMCPAPI } from './api/mcp'
@@ -37,7 +36,6 @@ export function createElectronAPI(ipcRenderer: IpcRenderer, platform: NodeJS.Pla
     ...createProjectPluginStoreAPI(ipcRenderer),
     ...createMovScriptEngineAPI(ipcRenderer),
     ...createMovScriptWorkspaceAPI(ipcRenderer),
-    ...createAppServerAPI(ipcRenderer),
     ...createSdkRuntimeAPI(ipcRenderer),
     ...createLocalTerminalAPI(ipcRenderer),
     ...createMediaPipelineAPI(ipcRenderer),

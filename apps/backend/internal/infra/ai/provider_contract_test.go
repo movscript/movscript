@@ -29,4 +29,5 @@ var (
 	_ providercontract.AIGatewayVideoTaskCancelProvider = (*VolcenAdapter)(nil)
 	_ providercontract.AIGatewayFileUploader            = (*OpenAIFileUploader)(nil)
 	_ providercontract.AIGatewayFileUploader            = (*VolcenFileUploader)(nil)
+	_ providercontract.AIGatewayTextStreamProvider      = (*AnthropicAdapter)(nil)
 )

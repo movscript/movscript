@@ -9,7 +9,6 @@ import { normalizeOptionalAgentRun, parseTimelineEvent } from '@/shared/infrastr
 import { createProviderSessionAbortError, normalizePositiveTimeoutMs, sleepWithAbort } from '@/shared/infrastructure/provider-session-client/requestSignal'
 import { ProviderSessionHttpBaseClient } from '@/shared/infrastructure/provider-session-client/providerSessionHttpBaseClient'
 import type {
-  AgentMessage,
   AgentRun,
   AgentSession,
   AgentTimelineStreamOptions,
@@ -22,7 +21,6 @@ import type {
   ProviderSessionEventV2,
   ProviderSessionLimitsOverride,
   RunMessageOptions,
-  RunMessageResult,
   SessionStreamOptions,
   ThreadStreamOptions,
 } from '@/shared/infrastructure/provider-session-client/types'
@@ -42,20 +40,6 @@ export interface ProviderSessionCreateMessageRunInput {
   providerSessionInputMode?: 'soft' | 'hard'
   title?: string
   projectId?: number
-}
-
-interface ProviderSessionRunMessageStreamInput {
-  threadId?: string
-  message: string
-  sourceMessageId?: string
-  title?: string
-  projectId?: number
-  clientInput?: ProviderSessionClientInput
-  toolCall?: AgentToolCall
-  approvedToolNames?: string[]
-  activeRunMode?: 'runtime_input' | 'new_run'
-  runProfile?: AgentRunProfileSelection
-  threadControl?: Partial<AgentThreadControlState>
 }
 
 export abstract class ProviderSessionStreamingClient extends ProviderSessionHttpBaseClient {
@@ -173,17 +157,6 @@ export abstract class ProviderSessionStreamingClient extends ProviderSessionHttp
 
   async streamPlan(taskGraphId: string, options: PlanStreamOptions = {}): Promise<void> {
     await this.streamProviderEvents(`/plans/${encodeURIComponent(taskGraphId)}/stream`, options)
-  }
-
-  async runMessageStream(input: ProviderSessionRunMessageStreamInput, options: RunMessageOptions = {}): Promise<RunMessageResult> {
-    if (input.threadId?.trim()) {
-      throw new Error('message send no longer accepts a client-selected thread')
-    }
-    const sessionId = this.sessionId?.trim()
-    if (!sessionId) {
-      throw new Error('message send requires a provider session')
-    }
-    return await this.runSessionMessageStream(sessionId, input, options)
   }
 
   private async streamProviderEvents(
@@ -308,82 +281,4 @@ export abstract class ProviderSessionStreamingClient extends ProviderSessionHttp
     return { run: latestRun }
   }
 
-  private async runSessionMessageStream(sessionId: string, input: ProviderSessionRunMessageStreamInput, options: RunMessageOptions = {}): Promise<RunMessageResult> {
-    options.onPhase?.('resolve_session_start', { sessionId })
-    const session = await this.getSession(sessionId, options.signal)
-    options.onPhase?.('resolve_session_done', {
-      sessionId: session.id,
-      activeThreadId: session.activeThreadId,
-      interactiveThreadId: session.interactiveThreadId,
-      rootThreadId: session.rootThreadId,
-    })
-    options.onPhase?.('create_session_message_run_start', {
-      sessionId,
-      activeRunMode: input.activeRunMode ?? 'runtime_input',
-      hasClientInput: Boolean(input.clientInput),
-      hasProviderManifest: Boolean(options.providerManifest ?? options.agentManifest),
-      hasProviderSessionLimits: Boolean(options.providerSessionLimits),
-    })
-    const providerManifest = options.providerManifest ?? options.agentManifest
-    const created = await this.createSessionMessageRun(sessionId, {
-      message: input.message,
-      ...(input.sourceMessageId ? { sourceMessageId: input.sourceMessageId } : {}),
-      ...(input.toolCall ? { toolCall: input.toolCall } : {}),
-      ...(providerManifest ? { providerManifest } : {}),
-      ...(input.approvedToolNames?.length ? { approvedToolNames: input.approvedToolNames } : {}),
-      ...(input.clientInput ? { clientInput: input.clientInput } : {}),
-      activeRunMode: input.activeRunMode ?? 'runtime_input',
-      ...(options.providerSessionLimits ? { providerSessionLimits: options.providerSessionLimits } : {}),
-      ...(input.runProfile ? { runProfile: input.runProfile } : {}),
-      ...(input.threadControl ? { threadControl: input.threadControl } : {}),
-      ...(input.title ? { title: input.title } : {}),
-      ...(typeof input.projectId === 'number' ? { projectId: input.projectId } : {}),
-    }, options.signal)
-    const run = created.run
-    const providerSessionInput = created.providerSessionInput
-    const threadId = run.threadId || created.message.threadId
-    options.onPhase?.('create_session_message_run_done', {
-      sessionId,
-      threadId,
-      runId: run.id,
-      runStatus: run.status,
-      sourceMessageId: created.message.id,
-      providerSessionInputAccepted: Boolean(providerSessionInput?.accepted),
-    })
-    options.onSourceMessage?.(created.message as AgentMessage, run)
-    options.onRunUpdate?.(run)
-    if (providerSessionInput?.accepted) {
-      options.onPhase?.('provider_session_input_final_thread_start', { sessionId, threadId, runId: run.id })
-      const finalThread = await this.getThread(threadId)
-      options.onPhase?.('provider_session_input_final_thread_done', { sessionId, threadId: finalThread.id, runId: run.id })
-      return {
-        run,
-        thread: finalThread,
-        threadResolution: {
-          threadId: finalThread.id,
-          reusedExistingThread: true,
-          createdNewThread: false,
-          missingRequestedThread: false,
-        },
-        sourceMessage: created.message,
-      }
-    }
-    options.onPhase?.('run_stream_start', { sessionId, threadId, runId: run.id })
-    const finalRun = await this.streamRunFromThread(threadId, run.id, options, run)
-    options.onPhase?.('run_stream_done_client', { sessionId, threadId, runId: finalRun.id, runStatus: finalRun.status })
-    options.onPhase?.('final_session_thread_fetch_start', { sessionId, threadId, runId: finalRun.id })
-    const finalThread = await this.getThread(threadId)
-    options.onPhase?.('final_session_thread_fetch_done', { sessionId, threadId: finalThread.id, runId: finalRun.id })
-    return {
-      run: finalRun,
-      thread: finalThread,
-      threadResolution: {
-        threadId: finalThread.id,
-        reusedExistingThread: true,
-        createdNewThread: false,
-        missingRequestedThread: false,
-      },
-      sourceMessage: created.message,
-    }
-  }
 }

@@ -1,9 +1,8 @@
 import type { AgentTranscriptMessageItem } from '@/features/agent/domain/agentTranscriptMessageItems'
 import { projectionInteractionRunsForMessageItem } from '@/features/agent/domain/agentConversationProjectionInteractions'
 import type {
-  AgentConversationProjectionContentItem,
-} from '@/features/agent/domain/agentConversationProjectionTypes'
-import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
+  AgentConversationProjectionContentItem, } from '@/features/agent/domain/agentConversationProjectionTypes'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 import type { ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 type ProjectedMessageItem = Extract<AgentConversationProjectionContentItem, { type: 'message' }>['item']

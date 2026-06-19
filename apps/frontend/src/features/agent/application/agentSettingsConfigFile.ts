@@ -12,10 +12,9 @@ import type {
   ProviderCatalogConfigFile,
   ProviderCatalogInspectResponse,
   ProviderSessionCapabilitiesResponse,
-} from '@/shared/infrastructure/providerSessionClient'
+} from '@movscript/core/agent/protocol'
 import type { AgentSettingsConfigFileBackup } from '@/features/agent/state/agentStore'
 import type { ToolPermissionsWorkspaceIssue } from '@/features/agent/application/agentSettingsReadiness'
-import { buildProviderModelConfigFromSnapshotModel } from '@/features/agent/application/agentSettingsProviderModel'
 import {
   buildConfigFileRollbackBackupFromConfigFile,
   buildConfigFileWithSkillIds,
@@ -136,7 +135,7 @@ export function settingsSnapshotImportRequirementsForSnapshot(snapshot: AgentSet
 }
 
 function snapshotModelNeedsCatalog(model: AgentSettingsSnapshot['model'] | undefined): boolean {
-  return Boolean(model?.model && !model.baseURL)
+  return Boolean(model?.model && !model.modelEndpointBaseURL)
 }
 
 export function settingsSnapshotReferenceIssuesForImport(input: {
@@ -310,12 +309,16 @@ export function buildSettingsSnapshotWritePlan(input: {
   t: AgentSettingsTranslate
 }): SettingsSnapshotWritePlan {
   const configFilePlan = buildSettingsSnapshotConfigFileWritePlan(input)
-  const providerModelConfig = input.snapshot.model
-    ? buildProviderModelConfigFromSnapshotModel(input.snapshot.model)
+  const modelSelection = input.snapshot.model?.model?.trim()
+    ? {
+        modelId: input.snapshot.model.model.trim(),
+        useForChat: input.snapshot.model.useForChat !== false,
+        useForPlanner: input.snapshot.model.useForPlanner !== false,
+      }
     : null
   return {
     ...configFilePlan,
-    providerModelConfig,
+    modelSelection,
     requiresProviderSession: configFilePlan.writesProviderCatalog,
   }
 }

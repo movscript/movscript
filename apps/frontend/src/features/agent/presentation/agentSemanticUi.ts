@@ -1,6 +1,7 @@
 import { defineFeatureStatusRecipeGroup, type UiStatusRecipe } from '@/shared/presentation/semanticRecipe'
 import type { GenerationJobBadgeState } from '@/features/agent/domain/agentGenerationDisplay'
-import type { WorkspaceArtifactStatus, AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun } from '@movscript/core/agent/protocol'
+import type { WorkspaceArtifactStatus } from '@/shared/contracts/workspaceArtifact'
 
 export type AgentStatusRecipe = UiStatusRecipe
 

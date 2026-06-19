@@ -22,6 +22,7 @@ export function AgentChatDataSourceShell({
   userId,
   loadDataSource,
   loadDataSourceForNewThread,
+  dataSourceKey,
   provider,
   providerId,
   providerInstanceId,
@@ -159,6 +160,7 @@ export function AgentChatDataSourceShell({
 
   useAgentChatDataSourceLoadEffect({
     activeThreadIdRef,
+    dataSourceKey,
     dispatchRuntime,
     loadDataSourceRef,
     readRestorableActiveThreadId,

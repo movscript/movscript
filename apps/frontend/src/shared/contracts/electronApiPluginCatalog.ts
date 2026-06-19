@@ -57,23 +57,29 @@ export type ElectronProjectPluginInstallInput = ElectronMovScriptHomeInput & {
   pluginKey?: string
   sourceType?: string
   sourcePath?: string
+  providerTargets?: ElectronProjectSkillProviderTarget[]
   enabled?: boolean
 }
+
+export type ElectronProjectSkillProviderTarget = 'codex' | 'mova' | 'claude'
 
 export type ElectronProjectLocalSkill = {
   id: string
   name: string
   description?: string
   sourceType: 'desktop-cache' | 'project' | 'project-catalog' | 'plugin-source'
+  sourceScope: 'global' | 'project' | 'builtin'
+  providerTarget: ElectronProjectSkillProviderTarget
+  providerScope: ElectronProjectSkillProviderTarget
   sourcePath: string
   sourceSkillDir: string
+  contentHash: string
   projectRelativePath?: string
   pluginKey?: string
   pluginName?: string
   version?: string
   enabled: boolean
-  enabledCodexPath?: string
-  enabledRepoPath?: string
+  enabledProviderPath?: string
 }
 
 export type ElectronProjectSkillToggleInput = ElectronMovScriptHomeInput & {
@@ -82,6 +88,7 @@ export type ElectronProjectSkillToggleInput = ElectronMovScriptHomeInput & {
   orgId?: string | number
   skillId: string
   enabled: boolean
+  providerTargets?: ElectronProjectSkillProviderTarget[]
 }
 
 export type ElectronProjectPluginSnapshot = {
@@ -92,9 +99,8 @@ export type ElectronProjectPluginSnapshot = {
   projectCwd: string
   manifestPath: string
   lockPath: string
-  codexConfigPath: string
-  codexSkillsDir: string
-  repoSkillsDir: string
+  providerConfigPaths: Partial<Record<ElectronProjectSkillProviderTarget, string>>
+  providerSkillDirs: Record<ElectronProjectSkillProviderTarget, string>
   desktopPluginCacheRoot: string
   projectMarketplacePath: string
   catalogSkillsDir: string
@@ -111,13 +117,14 @@ export type ElectronProjectPluginSnapshot = {
     description?: string
     sourceType?: string
     sourcePath?: string
+    providerTargets: ElectronProjectSkillProviderTarget[]
     enabled: boolean
     declared: boolean
     prepared: boolean
     preparedPaths?: {
-      codexConfigPath: string
-      codexSkillsDir?: string
-      repoSkillsDir?: string
+      providerTargets: ElectronProjectSkillProviderTarget[]
+      providerConfigPaths?: Partial<Record<ElectronProjectSkillProviderTarget, string>>
+      providerSkillDirs?: Partial<Record<ElectronProjectSkillProviderTarget, string>>
       desktopPluginCacheDir?: string
       projectMarketplacePath?: string
       projectPluginBundleDir?: string

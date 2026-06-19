@@ -1,4 +1,4 @@
-import type { AgentPlan, AgentTimelineItem } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentPlan, AgentTimelineItem } from '@movscript/core/agent/protocol'
 
 export function latestPlanFromTimelineItems(items: AgentTimelineItem[]): AgentPlan | undefined {
   for (let index = items.length - 1; index >= 0; index -= 1) {

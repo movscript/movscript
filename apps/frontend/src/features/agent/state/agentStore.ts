@@ -38,6 +38,7 @@ export type ConversationWorkspace = AgentConversationWorkspace
 
 export interface AgentSettings {
   activeProviderProfileConfigId: AgentSettingsProviderProfileConfigId
+  modelIdByProviderProfile: Record<string, string>
   modelId: string | null
   collaborationMode: 'default' | 'plan'
   goalModeEnabled: boolean
@@ -117,6 +118,7 @@ function genId() {
 
 const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   activeProviderProfileConfigId: MOVA_PROVIDER_ID,
+  modelIdByProviderProfile: {},
   modelId: null,
   collaborationMode: 'default',
   goalModeEnabled: false,
@@ -265,10 +267,17 @@ export function normalizeAgentSettingsWithOptions(
   const workerOptions = [1, 2, 3, 4]
   const attemptOptions = [1, 2, 3]
   const timeoutOptions = [5 * 60_000, 15 * 60_000, 30 * 60_000, 60 * 60_000]
+  const activeProviderProfileConfigId = normalizeAgentSettingsProviderProfileConfigId(merged.activeProviderProfileConfigId)
+  const modelIdByProviderProfile = normalizeModelIdByProviderProfile(merged.modelIdByProviderProfile)
+  const legacyModelId = normalizePersistedModelId(merged.modelId)
+  if (legacyModelId && !modelIdByProviderProfile[activeProviderProfileConfigId]) {
+    modelIdByProviderProfile[activeProviderProfileConfigId] = legacyModelId
+  }
   return {
     ...merged,
-    activeProviderProfileConfigId: normalizeAgentSettingsProviderProfileConfigId(merged.activeProviderProfileConfigId),
-    modelId: normalizePersistedModelId(merged.modelId),
+    activeProviderProfileConfigId,
+    modelIdByProviderProfile,
+    modelId: null,
     collaborationMode: options.resetDraftModeSettings
       ? DEFAULT_AGENT_SETTINGS.collaborationMode
       : merged.collaborationMode === 'plan' ? 'plan' : DEFAULT_AGENT_SETTINGS.collaborationMode,
@@ -293,11 +302,53 @@ export function normalizeAgentSettingsWithOptions(
   }
 }
 
-function normalizeAgentSettingsProviderProfileConfigId(value: unknown): AgentSettingsProviderProfileConfigId {
-  if (typeof value !== 'string') return MOVA_PROVIDER_ID
-  const key = value.trim().toLowerCase()
-  return /^[a-z][a-z0-9_-]{0,63}$/.test(key) ? key : MOVA_PROVIDER_ID
+export function agentSettingsModelIdForProvider(
+  settings: Pick<AgentSettings, 'modelIdByProviderProfile' | 'modelId'>,
+  providerProfileConfigId: string,
+): string | null {
+  const providerKey = normalizeAgentSettingsProviderProfileConfigId(providerProfileConfigId)
+  return normalizePersistedModelId(settings.modelIdByProviderProfile?.[providerKey])
 }
+
+export function agentSettingsModelSelectionPatch(
+  settings: Pick<AgentSettings, 'modelIdByProviderProfile'>,
+  providerProfileConfigId: string,
+  modelId: string | null,
+): Pick<AgentSettings, 'modelIdByProviderProfile' | 'modelId'> {
+  const providerKey = normalizeAgentSettingsProviderProfileConfigId(providerProfileConfigId)
+  const next = { ...(settings.modelIdByProviderProfile ?? {}) }
+  const normalizedModelId = normalizePersistedModelId(modelId)
+  if (normalizedModelId) {
+    next[providerKey] = normalizedModelId
+  } else {
+    delete next[providerKey]
+  }
+  return { modelIdByProviderProfile: next, modelId: null }
+}
+
+function normalizeAgentSettingsProviderProfileConfigId(value: unknown): AgentSettingsProviderProfileConfigId {
+  return normalizeOptionalAgentSettingsProviderProfileConfigId(value) ?? MOVA_PROVIDER_ID
+}
+
+function normalizeOptionalAgentSettingsProviderProfileConfigId(value: unknown): AgentSettingsProviderProfileConfigId | null {
+  if (typeof value !== 'string') return null
+  const key = value.trim().toLowerCase()
+  return /^[a-z][a-z0-9_-]{0,63}$/.test(key) ? key : null
+}
+
+function normalizeModelIdByProviderProfile(value: unknown): Record<string, string> {
+  if (!isRecord(value)) return {}
+  const out: Record<string, string> = {}
+  for (const [rawKey, rawModelId] of Object.entries(value)) {
+    const key = normalizeOptionalAgentSettingsProviderProfileConfigId(rawKey)
+    if (!key) continue
+    const modelId = normalizePersistedModelId(rawModelId)
+    if (!modelId) continue
+    out[key] = modelId
+  }
+  return out
+}
+
 
 function normalizeToolPermissionsFilterPresets(value: unknown): AgentToolPermissionsFilterPreset[] {
   if (!Array.isArray(value)) return []

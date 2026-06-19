@@ -4,7 +4,7 @@ import test from 'node:test'
 import { buildAgentMessageFacts } from '@/features/agent/domain/agentMessageFacts'
 import { agentMessageBubbleModel } from '@/features/agent/presentation/agentMessageBubbleModel'
 import { cachedAgentMessageFacts } from '@/features/agent/presentation/useAgentMessageFactsModel'
-import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 import type { AgentAttachment, ChatMessage, ChatRunActivity } from '@/features/agent/state/agentStore'
 
 test('agentMessageBubbleModel keeps message body and footer visibility in presentation', () => {

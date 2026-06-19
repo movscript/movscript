@@ -1,8 +1,7 @@
 import { createEventBus } from '@/shared/application/eventBus'
-import type { AppServerJsonRpcNotification } from '@/shared/infrastructure/app-server/appServerProtocol'
 import type { AgentChatNotification, AgentChatProviderKind } from '@movscript/core/agent/chat'
 
-export type CrossPageNotificationTransport = 'app-server-rpc' | 'electron-ipc' | 'backend-ws' | 'dom' | 'local'
+export type CrossPageNotificationTransport = 'sdk-runtime-ipc' | 'electron-ipc' | 'backend-ws' | 'dom' | 'local'
 export type CrossPageNotificationScopeKind = 'thread' | 'project' | 'workspace' | 'global'
 export type CrossPageNotificationTopic = 'agent-chat' | 'mcp-status' | 'generation-job' | 'capability' | 'navigation'
 
@@ -145,22 +144,6 @@ export function crossPageEventFromAgentChatNotification(input: {
     },
     raw: input.notification.raw ?? input.notification,
   }
-}
-
-export function crossPageEventFromAppServerNotification(input: {
-  notification: AppServerJsonRpcNotification
-  agentNotification: AgentChatNotification
-  provider?: AgentChatProviderKind
-  source?: string
-  emittedAt?: string
-}): CrossPageNotificationEvent {
-  return crossPageEventFromAgentChatNotification({
-    notification: input.agentNotification,
-    provider: input.provider,
-    transport: 'app-server-rpc',
-    source: input.source ?? 'app-server',
-    emittedAt: input.emittedAt,
-  })
 }
 
 export function resetCrossPageNotificationDedupeForTests(): void {

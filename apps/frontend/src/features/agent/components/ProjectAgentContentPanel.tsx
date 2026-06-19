@@ -7,9 +7,7 @@ import {
 import { useResizablePanel } from '@movscript/ui/layout'
 import { AgentBrowserPanel } from '@/features/agent/components/AgentBrowserPanel'
 import { resolveAgentChatShellProvider } from '@/features/agent/components/AgentUnifiedChatShell'
-import { listProviderSessionThreadSummariesFromWorkspace } from '@/features/agent/application/providerSessionThreadQueryCache'
-import { providerSessionThreadKeys } from '@/features/agent/application/providerSessionQueryKeys'
-import { providerSessionClient, type AgentThreadSummary } from '@/shared/infrastructure/providerSessionClient'
+import { useAgentThreadRegistryHydration } from '@/features/agent/application/useAgentThreadRegistryHydration'
 import { api } from '@/shared/infrastructure/api'
 import { projectKeys } from '@/features/project/application/projectQueries'
 import {
@@ -29,7 +27,6 @@ import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import {
   providerInstanceId,
   providerProtocol,
-  usesAppServerProtocol,
   useProviderConfigStore,
 } from '@/shared/infrastructure/providerConfigStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
@@ -68,37 +65,32 @@ export function ProjectAgentContentPanel({
     providerInstanceId: providerInstanceId(activeProvider),
     providerProtocol: providerProtocol(activeProvider),
   }), [activeProvider])
-  const appServerMode = usesAppServerProtocol(activeProvider)
-  const appServerActiveRecord = useMemo(() => selectActiveAgentConversationRegistryRecord({
+  const activeRecord = useMemo(() => selectActiveAgentConversationRegistryRecord({
     activeConversationIdsByUser: { [userId]: activeConversationId },
     conversationsById,
   }, {
     userId,
     ...activeProviderIdentity,
   }), [activeConversationId, activeProviderIdentity, conversationsById, userId])
-  const sessionConversationId = appServerMode
-    ? appServerActiveRecord?.id ?? activeConversationId
-    : activeConversationId
+  const sessionConversationId = activeRecord?.id ?? null
   const sessionWorkspaceContext = useAgentSessionStore((s) => (
     sessionConversationId ? s.workspacesByUser[userId]?.[sessionConversationId]?.workspaceContext : undefined
   ))
   const sessionThreadBinding = useAgentSessionStore((s) => (
     sessionConversationId ? s.conversationThreadBindings[sessionConversationId] : undefined
   ))
-  const { data: providerSessionThreads = [] } = useQuery<AgentThreadSummary[]>({
-    queryKey: providerSessionThreadKeys.list(providerSessionClient.baseURL, activeProviderIdentity, 'agent-content-panel'),
-    queryFn: () => listProviderSessionThreadSummariesFromWorkspace({ includeProvisional: true, providerProfileKey: activeProvider.id }),
-    enabled: !appServerMode,
-    retry: false,
+  const runtimeThreadHydration = useAgentThreadRegistryHydration({
+    userId,
+    provider: activeProvider,
+    enabled: Boolean(activeProvider),
   })
   const providerThreadProjectId = useMemo(() => {
-    const providerThreadId = appServerActiveRecord?.providerThreadId
-      ?? (activeConversationId ? conversationsById[activeConversationId]?.providerThreadId : undefined)
+    const providerThreadId = activeRecord?.providerThreadId
     if (!providerThreadId) return undefined
-    return providerSessionThreads.find((thread) => thread.id === providerThreadId)?.projectId
-  }, [activeConversationId, appServerActiveRecord, conversationsById, providerSessionThreads])
+    return runtimeThreadHydration.sourceThreads.find((thread) => thread.id === providerThreadId)?.projectId
+  }, [activeRecord, runtimeThreadHydration.sourceThreads])
   const sessionProjectId = positiveInteger(sessionWorkspaceContext?.projectId)
-    ?? positiveInteger(appServerActiveRecord?.projectId)
+    ?? positiveInteger(activeRecord?.projectId)
     ?? positiveInteger(providerThreadProjectId)
     ?? projectIdFromProviderSessionCwd(sessionThreadBinding?.providerThreadCwd)
   const { data: projects = [] } = useQuery<Project[]>({
@@ -124,9 +116,7 @@ export function ProjectAgentContentPanel({
     collapseMode: 'after-min',
     ariaLabel: '调整对话区宽度',
   })
-  const contentAreaId = appServerMode
-    ? appServerActiveRecord?.providerThreadId ?? activeConversationId ?? DEFAULT_AGENT_CONTENT_AREA_ID
-    : activeConversationId ?? DEFAULT_AGENT_CONTENT_AREA_ID
+  const contentAreaId = activeRecord?.providerThreadId ?? DEFAULT_AGENT_CONTENT_AREA_ID
 
   return (
     <AgentModeContentPanel

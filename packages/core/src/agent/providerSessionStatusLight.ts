@@ -1,9 +1,7 @@
-import type {
-  ProviderSessionStatusLightState,
-  ProviderSessionStatusRecord,
-} from './protocol.js'
+import type { ProviderSessionStatusLightState } from './agentConversationProtocol.js'
+import type { ProviderSessionStatusRecord } from './agentThreadProtocol.js'
 
-export type { ProviderSessionStatusLightState } from './protocol.js'
+export type { ProviderSessionStatusLightState } from './agentConversationProtocol.js'
 
 export interface ProviderSessionStatusLight {
   state: ProviderSessionStatusLightState

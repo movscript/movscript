@@ -1,25 +1,11 @@
 import type { ReactNode } from 'react'
 import { Archive, ChevronDown, ChevronRight, Folder, History, MessageSquare, Plus, Trash2 } from 'lucide-react'
 import {
-  AgentModeCompactNavItem,
-  AgentModeConversationArchiveButton,
-  AgentModeConversationItem,
-  AgentModeConversationRow,
-  AgentModeEmptyText,
-  AgentModeGroup,
-  AgentModeGroupBody,
-  AgentModeGroupList,
-  AgentModeGroupToggle,
-  AgentModeIconSlot,
-  AgentModeLabel,
-  AgentModeMeta,
-  AgentModeProjectGroup,
-  AgentModeProjectGroupToggle,
-} from '@/features/agent/components/AgentModeUi'
+  AgentModeCompactNavItem, AgentModeConversationArchiveButton, AgentModeConversationItem, AgentModeConversationRow, AgentModeEmptyText, AgentModeGroup, AgentModeGroupBody, AgentModeGroupList, AgentModeGroupToggle, AgentModeIconSlot, AgentModeLabel, AgentModeMeta, AgentModeProjectGroup, AgentModeProjectGroupToggle, } from '@/features/agent/components/AgentModeUi'
 
 import { formatAgentDate, formatAgentRelativeTime } from '@/features/agent/presentation/agentConversationLabels'
 import type { Conversation } from '@/features/agent/state/agentStore'
-import type { AgentThreadSummary } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentThreadSummary } from '@movscript/core/agent/protocol'
 import type { ProviderSessionStatusLight } from '@movscript/core/agent'
 
 export type AgentModeProjectConversationGroup = {

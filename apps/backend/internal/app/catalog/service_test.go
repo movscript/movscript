@@ -20,6 +20,7 @@ func TestServiceListByCapabilityUsesGatewayModelCatalogContract(t *testing.T) {
 			ProviderName:      "Primary provider",
 			AdapterType:       "openai_compat",
 			Capabilities:      []string{"text", "reasoning"},
+			SupportedAPIKinds: []string{"openai_responses", "openai_chat_completions"},
 			PricingMode:       "per_token",
 			AcceptsImageInput: true,
 			ProviderVariants:  2,
@@ -35,7 +36,10 @@ func TestServiceListByCapabilityUsesGatewayModelCatalogContract(t *testing.T) {
 	}
 	service := NewService(fake)
 
-	models, err := service.ListByCapability(context.Background(), "text,reasoning", true)
+	models, err := service.ListByCapabilityWithOptions(context.Background(), "text,reasoning", ListOptions{
+		ProviderVariants: true,
+		APIKinds:         []string{"openai_responses"},
+	})
 	if err != nil {
 		t.Fatalf("ListByCapability() error = %v", err)
 	}
@@ -46,7 +50,7 @@ func TestServiceListByCapabilityUsesGatewayModelCatalogContract(t *testing.T) {
 		t.Fatalf("contract calls = %d, want 1", len(fake.filters))
 	}
 	filter := fake.filters[0]
-	if !filter.ProviderVariants || len(filter.Capabilities) != 2 || filter.Capabilities[0] != "text" || filter.Capabilities[1] != "reasoning" {
+	if !filter.ProviderVariants || len(filter.Capabilities) != 2 || filter.Capabilities[0] != "text" || filter.Capabilities[1] != "reasoning" || len(filter.APIKinds) != 1 || filter.APIKinds[0] != "openai_responses" {
 		t.Fatalf("filter = %#v, want provider variants text+reasoning", filter)
 	}
 	model := models[0]
@@ -55,6 +59,9 @@ func TestServiceListByCapabilityUsesGatewayModelCatalogContract(t *testing.T) {
 	}
 	if len(model.SupportedParams) != 1 || model.InputRequirements.Image.Max != 1 || model.ParamsSchema["type"] != "object" {
 		t.Fatalf("model contract fields = %#v, want params/input/schema preserved", model)
+	}
+	if len(model.SupportedAPIKinds) != 2 || model.SupportedAPIKinds[0] != "openai_responses" || model.SupportedAPIKinds[1] != "openai_chat_completions" {
+		t.Fatalf("model supported api kinds = %#v, want descriptor values preserved", model.SupportedAPIKinds)
 	}
 }
 

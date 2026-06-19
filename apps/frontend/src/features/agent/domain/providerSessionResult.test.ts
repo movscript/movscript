@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { formatProviderSessionAssistantContent } from './providerSessionResult'
-import type { AgentMessage, AgentRun, AgentThread } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentMessage, AgentRun, AgentThread } from '@movscript/core/agent/protocol'
 
 test('formatProviderSessionAssistantContent does not reuse a previous run assistant message', () => {
   const previousAssistant = makeMessage({

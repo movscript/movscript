@@ -8,10 +8,8 @@ import {
 } from '@/features/agent/domain/agentConversationProjectionLiveBlocks'
 import type { AgentConversationLiveBlock } from '@/features/agent/domain/agentConversationLiveBlocks'
 import type {
-  AgentConversationProjection,
-  AgentConversationProjectionItem,
-} from '@/features/agent/domain/agentConversationProjectionTypes'
-import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
+  AgentConversationProjection, AgentConversationProjectionItem, } from '@/features/agent/domain/agentConversationProjectionTypes'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 
 export function finalizeAgentConversationProjection(input: {
   items: AgentConversationProjectionItem[]

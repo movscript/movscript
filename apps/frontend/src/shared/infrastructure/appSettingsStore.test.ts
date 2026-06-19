@@ -92,6 +92,7 @@ test('app settings secrets merge shot library tokens into memory only', () => {
 
   const merged = mergeAppSettingsSecrets(settings, {
     shotLibrarySourceAuthTokens: { external: 'secret-token' },
+    agentRuntimeApiKeys: {},
   })
 
   assert.equal(merged.shotLibrarySources?.[0]?.authToken, 'secret-token')

@@ -14,14 +14,17 @@ import {
 import {
   createAgentChatDataSourceForProvider,
   type AgentRuntimeDataSourceFactoryInput,
+  type AgentTextModelCatalogLoadInput,
 } from '@/features/agent/application/agentChatDataSourceFactory'
 import { registerAgentRuntimeDataSourceFactory } from '@/features/agent/application/agentRuntimeDataSourceRegistry'
+import { agentSettingsModelSelectionPatch, useAgentStore } from '@/features/agent/state/agentStore'
 import type {
   SdkRuntimeClient,
   SdkRuntimeRpcMethod,
   SdkRuntimeRpcRequestMap,
   SdkRuntimeRpcResponseMap,
 } from '@/shared/infrastructure/sdk-runtime/sdkRuntimeProtocol'
+import type { PublicModel } from '@/types'
 
 test('factory routes codex-sdk runtime to injected SDK data source adapter', async () => {
   const settings = providerSettingsWithRuntimeEnv(DEFAULT_PROVIDER_SETTINGS, {
@@ -29,9 +32,13 @@ test('factory routes codex-sdk runtime to injected SDK data source adapter', asy
   })
   const provider = requiredProvider(settings.providers.find((item) => item.id === CODEX_PROVIDER_ID))
   let captured: AgentRuntimeDataSourceFactoryInput | undefined
+  let capturedModelLoad: AgentTextModelCatalogLoadInput | undefined
 
   const dataSource = await createAgentChatDataSourceForProvider(provider, {
-    loadTextModels: async () => [],
+    loadTextModels: async (input) => {
+      capturedModelLoad = input
+      return []
+    },
     runtimeDataSources: {
       'codex-sdk': (input) => {
         captured = input
@@ -47,15 +54,20 @@ test('factory routes codex-sdk runtime to injected SDK data source adapter', asy
   assert.equal(captured?.runtime.sdkPackageName, '@openai/codex-sdk')
   assert.equal(captured?.contract.transport, 'sdk-client')
   assert.equal(captured?.resolveModelForRequest().model, undefined)
+  assert.deepEqual(capturedModelLoad?.apiKinds, ['openai_responses', 'openai_chat_completions'])
 })
 
 test('factory routes claude-sdk runtime to injected SDK data source adapter', async () => {
   const settings = providerSettingsWithRuntimeEnv(DEFAULT_PROVIDER_SETTINGS, {})
   const provider = requiredProvider(settings.providers.find((item) => item.id === CLAUDE_PROVIDER_ID))
   let captured: AgentRuntimeDataSourceFactoryInput | undefined
+  let capturedModelLoad: AgentTextModelCatalogLoadInput | undefined
 
   const dataSource = await createAgentChatDataSourceForProvider(provider, {
-    loadTextModels: async () => [],
+    loadTextModels: async (input) => {
+      capturedModelLoad = input
+      return []
+    },
     runtimeDataSources: {
       'claude-sdk': (input) => {
         captured = input
@@ -71,6 +83,45 @@ test('factory routes claude-sdk runtime to injected SDK data source adapter', as
   assert.equal(dataSource.providerInstanceId, 'claude-sdk')
   assert.equal(captured?.contract.capabilities.permissions, true)
   assert.equal(captured?.contract.capabilities.account, false)
+  assert.deepEqual(capturedModelLoad?.apiKinds, ['anthropic_messages'])
+})
+
+test('factory only forwards explicitly selected catalog models to SDK requests', async () => {
+  const settings = providerSettingsWithRuntimeEnv(DEFAULT_PROVIDER_SETTINGS, {
+    [CODEX_RUNTIME_API_ENV]: 'codex-sdk',
+  })
+  const provider = requiredProvider(settings.providers.find((item) => item.id === CODEX_PROVIDER_ID))
+  const previousModelIdByProviderProfile = useAgentStore.getState().settings.modelIdByProviderProfile
+  let captured: AgentRuntimeDataSourceFactoryInput | undefined
+
+  try {
+    useAgentStore.getState().updateSettings(agentSettingsModelSelectionPatch(useAgentStore.getState().settings, provider.id, 'gpt-5.4'))
+    await createAgentChatDataSourceForProvider(provider, {
+      loadTextModels: async () => [modelFixture({ id: 1, model_id: 'gpt-5.4' })],
+      runtimeDataSources: {
+        'codex-sdk': (input) => {
+          captured = input
+          return fakeDataSource(input)
+        },
+      },
+    })
+    assert.equal(captured?.resolveModelForRequest().model, 'gpt-5.4')
+
+    captured = undefined
+    useAgentStore.getState().updateSettings(agentSettingsModelSelectionPatch(useAgentStore.getState().settings, provider.id, 'gpt-5.5'))
+    await createAgentChatDataSourceForProvider(provider, {
+      loadTextModels: async () => [modelFixture({ id: 1, model_id: 'gpt-5.4' })],
+      runtimeDataSources: {
+        'codex-sdk': (input) => {
+          captured = input
+          return fakeDataSource(input)
+        },
+      },
+    })
+    assert.equal(captured?.resolveModelForRequest().model, undefined)
+  } finally {
+    useAgentStore.getState().updateSettings({ modelIdByProviderProfile: previousModelIdByProviderProfile, modelId: null })
+  }
 })
 
 test('factory uses registered SDK data source adapters when no test override is supplied', async () => {
@@ -131,11 +182,18 @@ test('factory creates SDK runtime data sources from runtime clients when no adap
 })
 
 test('factory rejects mismatched runtime adapter provider kinds before invoking adapter', async () => {
-  const settings = providerSettingsWithRuntimeEnv(DEFAULT_PROVIDER_SETTINGS, {})
-  const provider = requiredProvider(settings.providers.find((item) => item.id === CLAUDE_PROVIDER_ID))
   const mismatchedProvider = {
-    ...provider,
-    kind: 'mova',
+    id: 'custom-claude-runtime',
+    kind: 'custom-agent',
+    protocol: 'sdk',
+    label: 'Custom Claude Runtime',
+    enabled: true,
+    runtime: {
+      id: 'custom-claude-runtime',
+      api: 'claude-sdk',
+      label: 'Claude Agent SDK',
+      packageName: '@anthropic-ai/claude-agent-sdk',
+    },
   }
   let invoked = false
 
@@ -149,7 +207,7 @@ test('factory rejects mismatched runtime adapter provider kinds before invoking 
         },
       },
     }),
-    /does not support provider kind mova/,
+    /does not support provider kind custom-agent/,
   )
   assert.equal(invoked, false)
 })
@@ -236,4 +294,13 @@ async function sdkRuntimeResponse<M extends SdkRuntimeRpcMethod>(
 function requiredProvider<T>(provider: T | undefined): T {
   assert.ok(provider)
   return provider
+}
+
+function modelFixture(patch: Pick<PublicModel, 'id' | 'model_id'> & Partial<PublicModel>): PublicModel {
+  return {
+    display_name: patch.model_id,
+    capabilities: ['text'],
+    accepts_image_input: false,
+    ...patch,
+  }
 }

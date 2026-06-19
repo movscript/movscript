@@ -1,4 +1,4 @@
-import type { AgentTaskGraphSnapshot, AgentTaskGraphStatus, AgentRun, AgentTask } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentTaskGraphSnapshot, AgentTaskGraphStatus, AgentRun, AgentTask } from '@movscript/core/agent/protocol'
 import { agentPlanStatusLabel, runStatusLabel } from '@/features/agent/domain/agentRunUi'
 import { runHasRunInteraction } from '@/features/agent/domain/agentRunInteraction'
 import { isAgentRunStoppableStatus, isAgentRunTerminalStatus } from '@movscript/core/agent/protocol'

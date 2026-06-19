@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { actionableRunsForTaskGraph, interactionRunsForTaskGraph } from '@/features/agent/domain/agentPlanUi'
 import { firstPendingInputRequest, interactionRunsForChat } from '@/features/agent/domain/agentRunInteraction'
-import type { AgentTaskGraphSnapshot, AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentTaskGraphSnapshot, AgentRun } from '@movscript/core/agent/protocol'
 
 interface UseAgentChatRunInteractionStateInput {
   activePlanSnapshot?: AgentTaskGraphSnapshot

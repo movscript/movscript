@@ -8,75 +8,149 @@ import {
   CLAUDE_RUNTIME_PACKAGE_ENV,
   CLAUDE_RUNTIME_PACKAGE_VERSION_ENV,
   CODEX_PROVIDER_ID,
-  CODEX_MOVSCRIPT_HOME_PROFILE_ID,
+  CODEX_RUNTIME_API_ENV,
   CODEX_RUNTIME_PACKAGE_ENV,
   CODEX_RUNTIME_PACKAGE_VERSION_ENV,
-  CODEX_RUNTIME_API_ENV,
   CODEX_RUNTIME_SDK_PACKAGE_ENV,
-  DEFAULT_CODEX_MOVSCRIPT_HOME_PROFILE,
-  DEFAULT_MOVA_MOVSCRIPT_HOME_PROFILE,
   DEFAULT_PROVIDER_SETTINGS,
   MOVA_PROVIDER_ID,
-  MOVA_MOVSCRIPT_HOME_PROFILE_ID,
-  MOVSCRIPT_MANAGED_CODEX_HOME,
+  MOVA_RUNTIME_API_ENV,
+  MOVA_RUNTIME_BINARY_PACKAGE_ENV,
+  MOVA_RUNTIME_PACKAGE_ENV,
+  MOVA_RUNTIME_PACKAGE_VERSION_ENV,
+  createProviderThreadRef,
+  normalizeProviderSettings,
+  normalizeProviderSettingsWithRuntimeEnv,
   providerMessageAdapter,
   providerProtocol,
   providerRuntimeApi,
   providerRuntimeApiOptions,
   providerRuntimeProfile,
-  providerWithRuntimeApi,
-  normalizeProviderSettingsWithRuntimeEnv,
   providerSettingsWithRuntimeEnv,
   providerThreadRefKey,
-  createProviderThreadRef,
-  normalizeProviderSettings,
+  providerWithRuntimeApi,
   resolveDefaultProvider,
-  resolveProviderByKind,
-  resolveAppServerProfile,
   resolveNewConversationProvider,
+  resolveProviderByKind,
 } from '@/shared/infrastructure/providerConfigStore'
 import { setRuntimeConfigSnapshot } from '@/shared/infrastructure/config'
 
-test('built-in Codex provider is a MovScript-managed app-server profile using the Codex compatibility home', () => {
-  const provider = resolveProviderByKind(DEFAULT_PROVIDER_SETTINGS, 'codex')
-
-  assert.equal(provider?.id, CODEX_PROVIDER_ID)
-  assert.equal(hasOwn(provider, 'endpoint'), false)
-  assert.deepEqual(resolveAppServerProfile(provider), DEFAULT_CODEX_MOVSCRIPT_HOME_PROFILE)
-})
-
-test('provider defaults expose Codex as one optional MovScript-managed app-server provider', () => {
+test('default settings expose exactly the three built-in SDK agents', () => {
   const settings = normalizeProviderSettings(DEFAULT_PROVIDER_SETTINGS)
-  const codexProviders = settings.providers.filter((provider) => provider.kind === 'codex')
-  const codexProvider = settings.providers.find((provider) => provider.id === CODEX_PROVIDER_ID)
-
-  assert.equal(codexProviders.length, 1)
-  assert.equal(codexProvider?.kind, 'codex')
-  assert.equal(hasOwn(codexProvider, 'endpoint'), false)
-  assert.ok(codexProvider?.appServerProfile)
-  assert.equal(hasOwn(codexProvider, ['codex', 'Profile'].join('')), false)
-  assert.equal(hasOwn(codexProvider, ['mova', 'Profile'].join('')), false)
-  assert.deepEqual(resolveAppServerProfile(codexProvider), DEFAULT_CODEX_MOVSCRIPT_HOME_PROFILE)
-})
-
-test('default settings use Codex SDK while still exposing Mova as an app-server provider', () => {
-  const settings = normalizeProviderSettings(DEFAULT_PROVIDER_SETTINGS)
-  const movaProvider = settings.providers.find((provider) => provider.id === MOVA_PROVIDER_ID)
-  const codexProvider = settings.providers.find((provider) => provider.id === CODEX_PROVIDER_ID)
 
   assert.equal(settings.defaultProviderId, CODEX_PROVIDER_ID)
   assert.equal(settings.newConversationProviderId, CODEX_PROVIDER_ID)
-  assert.equal(settings.providers[0]?.id, MOVA_PROVIDER_ID)
   assert.deepEqual(settings.providers.map((provider) => provider.kind).sort(), ['claude', 'codex', 'mova'])
-  assert.equal(providerRuntimeApi(codexProvider!), 'codex-sdk')
-  assert.equal(movaProvider?.kind, 'mova')
-  assert.ok(movaProvider?.appServerProfile)
-  assert.equal(hasOwn(movaProvider, ['codex', 'Profile'].join('')), false)
-  assert.equal(hasOwn(movaProvider, ['mova', 'Profile'].join('')), false)
-  assert.equal(providerProtocol(movaProvider!), 'app-server')
-  assert.equal(providerMessageAdapter(movaProvider!), 'thread-turn-item')
-  assert.equal(providerRuntimeApi(movaProvider!), 'app-server')
-  assert.deepEqual(resolveAppServerProfile(movaProvider), DEFAULT_MOVA_MOVSCRIPT_HOME_PROFILE)
+  assert.deepEqual(settings.providers.map((provider) => provider.id).sort(), [CLAUDE_PROVIDER_ID, CODEX_PROVIDER_ID, MOVA_PROVIDER_ID])
+
+  for (const provider of settings.providers) {
+    assert.equal(provider.enabled, true)
+    assert.equal(hasOwn(provider, 'endpoint'), false)
+  }
+})
+
+test('legacy disabled built-in agents are re-enabled by the SDK-only provider model', () => {
+  const settings = normalizeProviderSettings({
+    ...DEFAULT_PROVIDER_SETTINGS,
+    providers: DEFAULT_PROVIDER_SETTINGS.providers.map((provider) => ({
+      ...provider,
+      enabled: false,
+    })),
+  })
+
+  assert.deepEqual(settings.providers.map((provider) => [provider.id, provider.enabled]), [
+    [MOVA_PROVIDER_ID, true],
+    [CODEX_PROVIDER_ID, true],
+    [CLAUDE_PROVIDER_ID, true],
+  ])
+  assert.equal(resolveProviderByKind(settings, 'claude')?.id, CLAUDE_PROVIDER_ID)
+})
+
+test('legacy built-in agent labels are normalized to user-facing agent names', () => {
+  const settings = normalizeProviderSettings({
+    ...DEFAULT_PROVIDER_SETTINGS,
+    providers: [
+      {
+        ...DEFAULT_PROVIDER_SETTINGS.providers.find((provider) => provider.id === MOVA_PROVIDER_ID)!,
+        label: 'MovScript Mova',
+      },
+      {
+        ...DEFAULT_PROVIDER_SETTINGS.providers.find((provider) => provider.id === CODEX_PROVIDER_ID)!,
+        label: 'MovScript Codex',
+      },
+      {
+        ...DEFAULT_PROVIDER_SETTINGS.providers.find((provider) => provider.id === CLAUDE_PROVIDER_ID)!,
+        label: 'Claude',
+      },
+    ],
+  })
+
+  assert.equal(settings.providers.find((provider) => provider.id === MOVA_PROVIDER_ID)?.label, 'Mova')
+  assert.equal(settings.providers.find((provider) => provider.id === CODEX_PROVIDER_ID)?.label, 'Codex')
+  assert.equal(settings.providers.find((provider) => provider.id === CLAUDE_PROVIDER_ID)?.label, 'Claude Code')
+})
+
+test('Codex defaults to the Codex SDK runtime', () => {
+  const provider = resolveProviderByKind(DEFAULT_PROVIDER_SETTINGS, 'codex')
+
+  assert.equal(provider?.id, CODEX_PROVIDER_ID)
+  assert.equal(providerProtocol(provider!), 'sdk')
+  assert.equal(providerMessageAdapter(provider!), 'thread-turn-item')
+  assert.equal(providerRuntimeApi(provider!), 'codex-sdk')
+  assert.deepEqual(providerRuntimeApiOptions(provider!).map((option) => option.api), ['codex-sdk'])
+  assert.deepEqual(providerRuntimeProfile(provider!), {
+    id: 'codex-codex-sdk',
+    api: 'codex-sdk',
+    label: 'Codex SDK',
+    packageName: '@openai/codex',
+    sdkPackageName: '@openai/codex-sdk',
+    apiEnvVar: CODEX_RUNTIME_API_ENV,
+    packageNameEnvVar: CODEX_RUNTIME_PACKAGE_ENV,
+    sdkPackageNameEnvVar: CODEX_RUNTIME_SDK_PACKAGE_ENV,
+    packageVersionEnvVar: CODEX_RUNTIME_PACKAGE_VERSION_ENV,
+  })
+})
+
+test('Mova defaults to a Codex-compatible Mova SDK runtime without a published package name', () => {
+  const provider = resolveProviderByKind(DEFAULT_PROVIDER_SETTINGS, 'mova')
+
+  assert.equal(provider?.id, MOVA_PROVIDER_ID)
+  assert.equal(providerProtocol(provider!), 'sdk')
+  assert.equal(providerMessageAdapter(provider!), 'thread-turn-item')
+  assert.equal(providerRuntimeApi(provider!), 'mova-sdk')
+  assert.deepEqual(providerRuntimeApiOptions(provider!).map((option) => option.api), ['mova-sdk'])
+  assert.deepEqual(providerRuntimeProfile(provider!), {
+    id: 'mova-mova-sdk',
+    api: 'mova-sdk',
+    label: 'Mova SDK',
+    binaryPackageName: '@movscript/mova',
+    apiEnvVar: MOVA_RUNTIME_API_ENV,
+    packageNameEnvVar: MOVA_RUNTIME_PACKAGE_ENV,
+    binaryPackageNameEnvVar: MOVA_RUNTIME_BINARY_PACKAGE_ENV,
+    packageVersionEnvVar: MOVA_RUNTIME_PACKAGE_VERSION_ENV,
+  })
+  assert.equal(hasOwn(providerRuntimeProfile(provider!), 'packageName'), false)
+})
+
+test('Claude Code defaults to the Claude SDK runtime', () => {
+  const provider = resolveProviderByKind(DEFAULT_PROVIDER_SETTINGS, 'claude')
+
+  assert.equal(provider?.id, CLAUDE_PROVIDER_ID)
+  assert.equal(providerProtocol(provider!), 'claude-code')
+  assert.equal(providerMessageAdapter(provider!), 'claude-thread-message')
+  assert.equal(providerRuntimeApi(provider!), 'claude-sdk')
+  assert.deepEqual(providerRuntimeApiOptions(provider!).map((option) => option.api), ['claude-sdk'])
+  assert.deepEqual(providerRuntimeProfile(provider!), {
+    id: 'claude-sdk',
+    api: 'claude-sdk',
+    label: 'Claude Agent SDK',
+    packageName: '@anthropic-ai/claude-agent-sdk',
+    binaryPackageName: '@anthropic-ai/claude-code',
+    apiEnvVar: CLAUDE_RUNTIME_API_ENV,
+    packageNameEnvVar: CLAUDE_RUNTIME_PACKAGE_ENV,
+    binaryPackageNameEnvVar: CLAUDE_RUNTIME_BINARY_PACKAGE_ENV,
+    packageVersionEnvVar: CLAUDE_RUNTIME_PACKAGE_VERSION_ENV,
+  })
 })
 
 test('new conversations use the default SDK provider unless explicitly selected', () => {
@@ -90,168 +164,65 @@ test('new conversations use the default SDK provider unless explicitly selected'
     newConversationProviderId: MOVA_PROVIDER_ID,
   })
 
+  assert.equal(resolveDefaultProvider(settings).id, CODEX_PROVIDER_ID)
   assert.equal(resolveNewConversationProvider(settings).id, CODEX_PROVIDER_ID)
   assert.equal(resolveNewConversationProvider(explicitMova).id, MOVA_PROVIDER_ID)
 })
 
-test('startup environment can default SDK dev launches to Codex without locking runtime selection', () => {
-  const settings = providerSettingsWithRuntimeEnv(DEFAULT_PROVIDER_SETTINGS, {
-    [CODEX_RUNTIME_API_ENV]: 'codex-sdk',
-    MOVSCRIPT_DEFAULT_PROVIDER: CODEX_PROVIDER_ID,
-    MOVSCRIPT_NEW_CONVERSATION_PROVIDER: CODEX_PROVIDER_ID,
-  })
-  const codexProvider = settings.providers.find((provider) => provider.id === CODEX_PROVIDER_ID)
-  assert.ok(codexProvider)
-
-  assert.equal(settings.defaultProviderId, CODEX_PROVIDER_ID)
-  assert.equal(resolveNewConversationProvider(settings).id, CODEX_PROVIDER_ID)
-  assert.equal(providerRuntimeApi(codexProvider), 'codex-sdk')
-  assert.deepEqual(providerRuntimeApiOptions(codexProvider).map((option) => option.api), ['codex-sdk', 'app-server'])
-
-  const userSelectedAppServer = normalizeProviderSettings({
-    ...settings,
-    providers: settings.providers.map((provider) => provider.id === CODEX_PROVIDER_ID
-      ? providerWithRuntimeApi(provider, 'app-server')
-      : provider),
-  })
-  const afterEnvRefresh = providerSettingsWithRuntimeEnv(userSelectedAppServer, {
-    [CODEX_RUNTIME_API_ENV]: 'codex-sdk',
-  })
-  const refreshedCodex = afterEnvRefresh.providers.find((provider) => provider.id === CODEX_PROVIDER_ID)
-  assert.ok(refreshedCodex)
-  assert.equal(providerRuntimeApi(refreshedCodex), 'app-server')
-  assert.equal(providerRuntimeProfile(refreshedCodex).apiSource, 'user')
-})
-
-test('legacy persisted Mova defaults migrate to Codex SDK unless the user selected app-server runtime', () => {
-  const migrated = normalizeProviderSettings({
-    defaultProviderId: MOVA_PROVIDER_ID,
+test('built-in providers reject unsupported runtime selection even when persisted or env-provided', () => {
+  const settings = normalizeProviderSettings({
     providers: [{
       id: CODEX_PROVIDER_ID,
       kind: 'codex',
+      protocol: 'legacy-protocol',
       enabled: true,
-      runtime: { api: 'app-server' },
+      runtime: { api: 'legacy-runtime', apiSource: 'user' },
     }],
   })
-  const migratedCodex = migrated.providers.find((provider) => provider.id === CODEX_PROVIDER_ID)
-
-  assert.equal(migrated.defaultProviderId, CODEX_PROVIDER_ID)
-  assert.equal(migrated.newConversationProviderId, CODEX_PROVIDER_ID)
-  assert.equal(providerRuntimeApi(migratedCodex), 'codex-sdk')
-
-  const preserved = normalizeProviderSettings({
-    defaultProviderId: MOVA_PROVIDER_ID,
-    providers: [{
-      id: CODEX_PROVIDER_ID,
-      kind: 'codex',
-      enabled: true,
-      runtime: { api: 'app-server', apiSource: 'user' },
-    }],
-  })
-  const preservedCodex = preserved.providers.find((provider) => provider.id === CODEX_PROVIDER_ID)
-
-  assert.equal(preserved.defaultProviderId, MOVA_PROVIDER_ID)
-  assert.equal(providerRuntimeApi(preservedCodex), 'app-server')
-})
-
-test('default provider resolution falls back to Codex rather than provider array order', () => {
-  const settings = normalizeProviderSettings({
-    providers: [
-      { id: CODEX_PROVIDER_ID, kind: 'codex', enabled: false },
-      { id: MOVA_PROVIDER_ID, kind: 'mova', enabled: false },
-    ],
-  })
-
-  assert.equal(settings.defaultProviderId, CODEX_PROVIDER_ID)
-  assert.equal(resolveDefaultProvider(settings).id, CODEX_PROVIDER_ID)
-})
-
-test('normalizes future Claude providers without binding them to the app-server protocol', () => {
-  const settings = normalizeProviderSettings({
-    providers: [{
-      id: CLAUDE_PROVIDER_ID,
-      kind: 'claude',
-      label: 'Claude',
-      enabled: false,
-    }],
-  })
-  const provider = settings.providers.find((item) => item.kind === 'claude')
-
-  assert.ok(provider)
-  assert.equal(provider?.id, CLAUDE_PROVIDER_ID)
-  assert.equal(provider?.enabled, false)
-  assert.equal(providerProtocol(provider), 'claude-code')
-  assert.equal(providerMessageAdapter(provider), 'claude-thread-message')
-  assert.equal(providerRuntimeApi(provider), 'claude-sdk')
-  assert.deepEqual(providerRuntimeProfile(provider), {
-    id: 'claude-sdk',
-    api: 'claude-sdk',
-    label: 'Claude Agent SDK',
-    packageName: '@anthropic-ai/claude-agent-sdk',
-    binaryPackageName: '@anthropic-ai/claude-code',
-    apiEnvVar: CLAUDE_RUNTIME_API_ENV,
-    packageNameEnvVar: CLAUDE_RUNTIME_PACKAGE_ENV,
-    binaryPackageNameEnvVar: CLAUDE_RUNTIME_BINARY_PACKAGE_ENV,
-    packageVersionEnvVar: CLAUDE_RUNTIME_PACKAGE_VERSION_ENV,
-  })
-})
-
-test('default provider runtime profiles keep SDK package metadata out of app-server profile config', () => {
-  const settings = normalizeProviderSettings(DEFAULT_PROVIDER_SETTINGS)
-  const codexProvider = settings.providers.find((provider) => provider.id === CODEX_PROVIDER_ID)
-  const claudeProvider = settings.providers.find((provider) => provider.id === CLAUDE_PROVIDER_ID)
-
-  assert.ok(codexProvider)
-  assert.ok(claudeProvider)
-  assert.deepEqual(providerRuntimeProfile(codexProvider), {
-    id: 'codex-codex-sdk',
-    api: 'codex-sdk',
-    label: 'Codex SDK',
-    packageName: '@openai/codex',
-    sdkPackageName: '@openai/codex-sdk',
-    apiEnvVar: CODEX_RUNTIME_API_ENV,
-    packageNameEnvVar: CODEX_RUNTIME_PACKAGE_ENV,
-    sdkPackageNameEnvVar: CODEX_RUNTIME_SDK_PACKAGE_ENV,
-    packageVersionEnvVar: CODEX_RUNTIME_PACKAGE_VERSION_ENV,
-  })
-  assert.equal(resolveAppServerProfile(codexProvider).executableEnvVar, 'MOVSCRIPT_CODEX_APP_SERVER_BIN')
-  assert.equal(hasOwn(resolveAppServerProfile(codexProvider), 'packageName'), false)
-  assert.equal(providerRuntimeApi(claudeProvider), 'claude-sdk')
-  assert.equal(hasOwn(claudeProvider, 'appServerProfile'), false)
-})
-
-test('runtime API can be selected from startup environment without changing provider identity', () => {
-  const settings = providerSettingsWithRuntimeEnv(DEFAULT_PROVIDER_SETTINGS, {
-    [CODEX_RUNTIME_API_ENV]: 'codex-sdk',
-  })
-  const codexProvider = settings.providers.find((provider) => provider.id === CODEX_PROVIDER_ID)
+  const codexProvider = resolveProviderByKind(settings, 'codex')
   assert.ok(codexProvider)
 
+  assert.equal(providerProtocol(codexProvider), 'sdk')
   assert.equal(providerRuntimeApi(codexProvider), 'codex-sdk')
-  assert.equal(providerProtocol(codexProvider), 'app-server')
-  assert.equal(providerRuntimeProfile(codexProvider).id, 'codex-codex-sdk')
-  assert.equal(createProviderThreadRef({
-    provider: codexProvider,
-    threadId: 'thread_1',
-  }).providerInstanceId, 'codex-codex-sdk')
+  assert.deepEqual(providerRuntimeApiOptions(codexProvider).map((option) => option.api), ['codex-sdk'])
+
+  const afterEnvRefresh = providerSettingsWithRuntimeEnv(settings, {
+    [CODEX_RUNTIME_API_ENV]: 'legacy-runtime',
+    [MOVA_RUNTIME_API_ENV]: 'legacy-runtime',
+    [CLAUDE_RUNTIME_API_ENV]: 'legacy-runtime',
+  })
+  assert.equal(providerRuntimeApi(resolveProviderByKind(afterEnvRefresh, 'codex')!), 'codex-sdk')
+  assert.equal(providerRuntimeApi(resolveProviderByKind(afterEnvRefresh, 'mova')!), 'mova-sdk')
+  assert.equal(providerRuntimeApi(resolveProviderByKind(afterEnvRefresh, 'claude')!), 'claude-sdk')
+
+  const unsupportedSelected = providerWithRuntimeApi(codexProvider, 'legacy-runtime')
+  assert.equal(providerRuntimeApi(unsupportedSelected), 'codex-sdk')
 })
 
 test('runtime package metadata can be selected from startup environment without changing provider identity', () => {
   const settings = providerSettingsWithRuntimeEnv(DEFAULT_PROVIDER_SETTINGS, {
-    [CODEX_RUNTIME_API_ENV]: 'codex-sdk',
     [CODEX_RUNTIME_SDK_PACKAGE_ENV]: '@example/codex-sdk',
     [CODEX_RUNTIME_PACKAGE_VERSION_ENV]: '1.2.3',
+    [MOVA_RUNTIME_PACKAGE_ENV]: '/local/mova-sdk/dist/index.js',
+    [MOVA_RUNTIME_BINARY_PACKAGE_ENV]: '@example/mova-binary',
+    [MOVA_RUNTIME_PACKAGE_VERSION_ENV]: '2.3.4',
     [CLAUDE_RUNTIME_PACKAGE_ENV]: '@example/claude-agent-sdk',
     [CLAUDE_RUNTIME_PACKAGE_VERSION_ENV]: '4.5.6',
   })
-  const codexProvider = settings.providers.find((provider) => provider.id === CODEX_PROVIDER_ID)
-  const claudeProvider = settings.providers.find((provider) => provider.id === CLAUDE_PROVIDER_ID)
+  const codexProvider = resolveProviderByKind(settings, 'codex')
+  const movaProvider = resolveProviderByKind(settings, 'mova')
+  const claudeProvider = resolveProviderByKind(settings, 'claude')
   assert.ok(codexProvider)
+  assert.ok(movaProvider)
   assert.ok(claudeProvider)
 
   assert.equal(providerRuntimeProfile(codexProvider).id, 'codex-codex-sdk')
   assert.equal(providerRuntimeProfile(codexProvider).sdkPackageName, '@example/codex-sdk')
   assert.equal(providerRuntimeProfile(codexProvider).packageVersion, '1.2.3')
+  assert.equal(providerRuntimeProfile(movaProvider).id, 'mova-mova-sdk')
+  assert.equal(providerRuntimeProfile(movaProvider).packageName, '/local/mova-sdk/dist/index.js')
+  assert.equal(providerRuntimeProfile(movaProvider).binaryPackageName, '@example/mova-binary')
+  assert.equal(providerRuntimeProfile(movaProvider).packageVersion, '2.3.4')
   assert.equal(providerRuntimeProfile(claudeProvider).id, 'claude-sdk')
   assert.equal(providerRuntimeProfile(claudeProvider).packageName, '@example/claude-agent-sdk')
   assert.equal(providerRuntimeProfile(claudeProvider).packageVersion, '4.5.6')
@@ -265,87 +236,28 @@ test('runtime environment snapshot is applied when normalizing provider settings
     apiV1BaseURL: 'http://localhost:8766/api/v1',
     localAPIBaseURL: 'http://localhost:8766',
     providerRuntimeEnv: {
-      [CODEX_RUNTIME_API_ENV]: 'codex-sdk',
       [CODEX_RUNTIME_SDK_PACKAGE_ENV]: '@example/codex-sdk',
-      [CODEX_RUNTIME_PACKAGE_VERSION_ENV]: '1.2.3',
+      [MOVA_RUNTIME_PACKAGE_ENV]: '/snapshot/mova-sdk/dist/index.js',
+      [MOVA_RUNTIME_PACKAGE_VERSION_ENV]: '9.9.9',
     },
     backendStatus: { state: 'ready', baseURL: 'http://localhost:8766' },
   })
   try {
     const settings = normalizeProviderSettingsWithRuntimeEnv(DEFAULT_PROVIDER_SETTINGS)
-    const codexProvider = settings.providers.find((provider) => provider.id === CODEX_PROVIDER_ID)
+    const codexProvider = resolveProviderByKind(settings, 'codex')
+    const movaProvider = resolveProviderByKind(settings, 'mova')
 
     assert.ok(codexProvider)
-    assert.equal(providerRuntimeApi(codexProvider), 'codex-sdk')
+    assert.ok(movaProvider)
     assert.equal(providerRuntimeProfile(codexProvider).sdkPackageName, '@example/codex-sdk')
-    assert.equal(providerRuntimeProfile(codexProvider).packageVersion, '1.2.3')
+    assert.equal(providerRuntimeProfile(movaProvider).packageName, '/snapshot/mova-sdk/dist/index.js')
+    assert.equal(providerRuntimeProfile(movaProvider).packageVersion, '9.9.9')
   } finally {
     setRuntimeConfigSnapshot(null)
   }
 })
 
-test('runtime API env ignores unsupported provider/runtime combinations', () => {
-  const settings = providerSettingsWithRuntimeEnv(DEFAULT_PROVIDER_SETTINGS, {
-    [CLAUDE_RUNTIME_API_ENV]: 'app-server',
-  })
-  const claudeProvider = settings.providers.find((provider) => provider.id === CLAUDE_PROVIDER_ID)
-  assert.ok(claudeProvider)
-
-  assert.equal(providerRuntimeApi(claudeProvider), 'claude-sdk')
-  assert.equal(providerRuntimeProfile(claudeProvider).id, 'claude-sdk')
-})
-
-test('normalizes custom app-server providers without binding them to Codex or Mova', () => {
-  const settings = normalizeProviderSettings({
-    providers: [{
-      id: 'studio-agent',
-      kind: 'studio-agent',
-      label: 'Studio Agent',
-      protocol: 'app-server',
-      messageAdapter: 'thread-turn-item',
-      enabled: true,
-      appServerProfile: {
-        id: 'studio-agent-home',
-        providerKey: 'studio-agent',
-        label: 'Studio Agent',
-        home: '.studio-agent',
-        lifecycle: 'movscript-owned',
-      },
-    }],
-  })
-  const provider = settings.providers.find((item) => item.id === 'studio-agent')
-
-  assert.ok(provider)
-  assert.equal(provider.kind, 'studio-agent')
-  assert.equal(providerProtocol(provider), 'app-server')
-  assert.equal(providerMessageAdapter(provider), 'thread-turn-item')
-  assert.deepEqual(resolveAppServerProfile(provider), {
-    id: 'studio-agent-home',
-    label: 'Studio Agent',
-    providerKey: 'studio-agent',
-    home: '.studio-agent',
-    lifecycle: 'movscript-owned',
-  })
-})
-
-test('drops unsupported persisted app-server message adapters back to the neutral adapter', () => {
-  const settings = normalizeProviderSettings({
-    providers: [{
-      id: CODEX_PROVIDER_ID,
-      kind: 'codex',
-      protocol: 'app-server',
-      messageAdapter: 'codex-thread-turn-item',
-      label: 'Codex',
-      enabled: true,
-    }],
-  })
-  const provider = settings.providers.find((item) => item.id === CODEX_PROVIDER_ID)
-
-  assert.ok(provider)
-  assert.equal(providerMessageAdapter(provider), 'thread-turn-item')
-})
-
-test('preserves future provider protocols and message adapters without forcing app-server defaults', () => {
+test('future custom providers fall back to SDK-compatible protocol defaults', () => {
   const settings = normalizeProviderSettings({
     providers: [{
       id: 'studio-protocol',
@@ -354,119 +266,43 @@ test('preserves future provider protocols and message adapters without forcing a
       protocol: 'studio-session',
       messageAdapter: 'studio-thread-message',
       enabled: true,
+      runtime: {
+        id: 'studio-runtime',
+        api: 'studio-sdk',
+        label: 'Studio SDK',
+      },
     }],
   })
   const provider = settings.providers.find((item) => item.id === 'studio-protocol')
 
   assert.ok(provider)
-  assert.equal(provider.kind, 'studio-agent')
-  assert.equal(providerProtocol(provider), 'studio-session')
-  assert.equal(providerMessageAdapter(provider), 'studio-thread-message')
-  assert.equal(hasOwn(provider, 'appServerProfile'), false)
+  assert.equal(providerProtocol(provider), 'sdk')
+  assert.equal(providerMessageAdapter(provider), 'thread-turn-item')
+  assert.equal(providerRuntimeApi(provider), 'studio-sdk')
 })
 
-test('normalizes custom app-server profiles through the shared app-server profile contract', () => {
-  const settings = normalizeProviderSettings({
-    providers: [{
-      id: CODEX_PROVIDER_ID,
-      kind: 'codex',
-      label: 'Codex',
-      enabled: true,
-      appServerProfile: {
-        id: CODEX_MOVSCRIPT_HOME_PROFILE_ID,
-        label: 'MovScript Codex',
-        executablePath: '/opt/movscript/codex',
-        home: MOVSCRIPT_MANAGED_CODEX_HOME,
-        workspaceDir: '/workspace/project',
-        lifecycle: 'movscript-owned',
-      },
-    }],
-  })
-
-  const provider = resolveProviderByKind(settings, 'codex')
-  assert.ok(provider)
-  assert.deepEqual(resolveAppServerProfile(provider), {
-    ...DEFAULT_CODEX_MOVSCRIPT_HOME_PROFILE,
-    executablePath: '/opt/movscript/codex',
-    workspaceDir: '/workspace/project',
-  })
-})
-
-test('preserves built-in app-server profile ids for provider instance isolation', () => {
-  const settings = normalizeProviderSettings({
-    providers: [{
-      id: 'mova-sandbox',
-      kind: 'mova',
-      label: 'Mova Sandbox',
-      protocol: 'app-server',
-      messageAdapter: 'thread-turn-item',
-      enabled: true,
-      appServerProfile: {
-        id: 'mova-sandbox-home',
-        label: 'Mova Sandbox',
-        providerKey: 'mova',
-        home: '.mova/sandbox',
-        lifecycle: 'movscript-owned',
-      },
-    }],
-  })
-  const provider = settings.providers.find((item) => item.id === 'mova-sandbox')
-  assert.ok(provider)
-
-  assert.deepEqual(resolveAppServerProfile(provider), {
-    id: 'mova-sandbox-home',
-    label: 'Mova Sandbox',
-    providerKey: 'mova',
-    home: '.mova/sandbox',
-    lifecycle: 'movscript-owned',
-  })
-  assert.equal(createProviderThreadRef({
-    provider,
-    threadId: 'thread_1',
-  }).providerInstanceId, 'mova-sandbox-home')
-})
-
-test('thread refs include provider and profile identity to prevent cross-provider collisions', () => {
-  const provider = resolveProviderByKind(DEFAULT_PROVIDER_SETTINGS, 'codex')
-  assert.ok(provider)
-
-  const ref = createProviderThreadRef({
-    provider,
-    threadId: 'thread_1',
-    workspaceDir: '/workspace/project',
-  })
-
-  assert.equal(ref.providerKind, 'codex')
-  assert.equal(ref.providerInstanceId, 'codex-codex-sdk')
-  assert.equal(providerThreadRefKey(ref), 'codex:codex:codex-codex-sdk:/workspace/project:thread_1')
-})
-
-test('default Codex profile can resolve a workspace debug app-server before PATH fallback', () => {
-  const provider = resolveProviderByKind(DEFAULT_PROVIDER_SETTINGS, 'codex')
-  assert.ok(provider)
-
-  assert.equal(provider.appServerProfile?.executableCommand, 'codex')
-  assert.equal(provider.appServerProfile?.executableEnvVar, 'MOVSCRIPT_CODEX_APP_SERVER_BIN')
-  assert.deepEqual(provider.appServerProfile?.compatibilityBinEnvNames, ['MOVSCRIPT_CODEX_BIN'])
-  assert.ok(provider.appServerProfile?.candidateRootRelativePaths?.some((path) => path.includes('../codex/codex-rs/target/debug')))
-  assert.ok(provider.appServerProfile?.candidateBinaryNames?.includes('codex-app-server'))
-  assert.equal(provider.appServerProfile?.pathFallbackReady, false)
-})
-
-test('Mova thread refs use a distinct provider identity while sharing the app-server protocol', () => {
+test('thread refs include provider and SDK runtime identity to prevent cross-provider collisions', () => {
   const settings = normalizeProviderSettings(DEFAULT_PROVIDER_SETTINGS)
-  const provider = settings.providers.find((item) => item.kind === 'mova')
-  assert.ok(provider)
+  const codex = resolveProviderByKind(settings, 'codex')
+  const mova = resolveProviderByKind(settings, 'mova')
+  const claude = resolveProviderByKind(settings, 'claude')
+  assert.ok(codex)
+  assert.ok(mova)
+  assert.ok(claude)
 
-  const ref = createProviderThreadRef({
-    provider,
-    threadId: 'thread_1',
-    workspaceDir: '/workspace/project',
-  })
+  const codexRef = createProviderThreadRef({ provider: codex, threadId: 'thread_1', workspaceDir: '/workspace/project' })
+  const movaRef = createProviderThreadRef({ provider: mova, threadId: 'thread_1', workspaceDir: '/workspace/project' })
+  const claudeRef = createProviderThreadRef({ provider: claude, threadId: 'thread_1', workspaceDir: '/workspace/project' })
 
-  assert.equal(ref.providerKind, 'mova')
-  assert.equal(ref.providerInstanceId, MOVA_MOVSCRIPT_HOME_PROFILE_ID)
-  assert.equal(providerThreadRefKey(ref), 'mova:mova:mova-movscript-home:/workspace/project:thread_1')
+  assert.equal(codexRef.providerKind, 'codex')
+  assert.equal(codexRef.providerInstanceId, 'codex-codex-sdk')
+  assert.equal(providerThreadRefKey(codexRef), 'codex:codex:codex-codex-sdk:/workspace/project:thread_1')
+  assert.equal(movaRef.providerKind, 'mova')
+  assert.equal(movaRef.providerInstanceId, 'mova-mova-sdk')
+  assert.equal(providerThreadRefKey(movaRef), 'mova:mova:mova-mova-sdk:/workspace/project:thread_1')
+  assert.equal(claudeRef.providerKind, 'claude')
+  assert.equal(claudeRef.providerInstanceId, 'claude-sdk')
+  assert.equal(providerThreadRefKey(claudeRef), 'claude:claude:claude-sdk:/workspace/project:thread_1')
 })
 
 function hasOwn(value: unknown, key: PropertyKey): boolean {

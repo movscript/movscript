@@ -27,8 +27,7 @@ func BuildAgentRuntimeProvider(cfg *config.Config) (providercontract.AgentRuntim
 	switch adapter {
 	case providercontract.AdapterDesktopManagedAgent,
 		providercontract.AdapterRemoteAgentRuntime,
-		providercontract.AdapterMova,
-		providercontract.AdapterAppServer:
+		providercontract.AdapterMova:
 		provider := AgentRuntimeProvider{adapter: adapter, client: &http.Client{Timeout: 5 * time.Second}}
 		if cfg != nil {
 			provider.baseURL = strings.TrimSpace(cfg.AgentRuntimeBaseURL)
@@ -68,9 +67,7 @@ func (p AgentRuntimeProvider) Health(ctx context.Context) providercontract.Provi
 		}
 		health.Message = "remote agent runtime health probe succeeded"
 	case providercontract.AdapterMova:
-		health.Message = "Mova app-server runtime is managed by the desktop host"
-	case providercontract.AdapterAppServer:
-		health.Message = "app-server runtime is managed by the desktop host"
+		health.Message = "Mova SDK runtime is managed by the desktop host"
 	default:
 		health.Status = providercontract.HealthStatusMissingConfig
 		health.Message = "agent runtime provider is not configured"
@@ -167,8 +164,7 @@ func (p AgentRuntimeProvider) unsupportedDirectSessionError() error {
 func agentRuntimeState(adapter string) string {
 	switch adapter {
 	case providercontract.AdapterDesktopManagedAgent,
-		providercontract.AdapterMova,
-		providercontract.AdapterAppServer:
+		providercontract.AdapterMova:
 		return "desktop_managed"
 	case providercontract.AdapterRemoteAgentRuntime:
 		return "remote_configured"
@@ -183,8 +179,7 @@ func agentRuntimeCapabilities(adapter string) []string {
 		return []string{providercontract.AgentRuntimeCapabilityDesktop, "agent_session.local", "agent_tool.local", providercontract.AgentRuntimeCapabilityHealthProbe}
 	case providercontract.AdapterRemoteAgentRuntime:
 		return []string{providercontract.AgentRuntimeCapabilityRemote, providercontract.AgentRuntimeCapabilityHealthProbe}
-	case providercontract.AdapterMova,
-		providercontract.AdapterAppServer:
+	case providercontract.AdapterMova:
 		return []string{"agent_runtime.ensure", "agent_session.start", "agent_session.message", "agent_tool.list", "agent_session.stop", providercontract.AgentRuntimeCapabilityHealthProbe}
 	default:
 		return nil

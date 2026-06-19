@@ -63,6 +63,14 @@ export async function requestSdkRuntime<M extends SdkRuntimeRpcMethod>(
   const normalized = requireSdkRuntimeRequestInput(input)
   const runtimeApi = normalized.params.runtime.api
   const providerKind = normalized.params.provider.kind
+  console.log('[Movscript SDK runtime flow] host.request', JSON.stringify({
+    method: normalized.method,
+    providerId: normalized.params.provider.id,
+    providerKind,
+    runtimeId: normalized.params.runtime.id,
+    runtimeApi,
+    hasHandler: sdkRuntimeHandlers.has(runtimeApi),
+  }))
   if (!providerRuntimeApiSupportsKind(runtimeApi, providerKind)) {
     throw new Error(`SDK runtime ${runtimeApi} does not support provider kind ${providerKind}.`)
   }

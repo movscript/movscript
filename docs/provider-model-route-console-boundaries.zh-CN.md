@@ -139,19 +139,19 @@ Admin 是 provider / catalog / route 的权威配置面。社区版和企业版�
 - `movscript/apps/frontend/src/features/agent/components/ModelProvidersPage.tsx`
 - `movscript/apps/frontend/src/features/agent/application/agentModelCatalogApi.ts`
 
-Frontend Agent Console 聚合当前 workspace / agent 运行态，包括：
+Frontend Agent Console 是用户状态面，只聚合当前 workspace 下用户关心的 Agent 状态，包括：
 
-- 当前 agent provider 是否运行。
-- app-server 状态、实时日志、capability health。
-- provider session、thread、run、plugin、skill 状态。
-- 读取 backend model catalog，用于展示 Provider / Catalog / Route 的运行视图。
-- 管理当前 workspace / agent runtime 的 app-server 和会话状态。
+- 当前 Agent 是谁、是否可用、是否需要用户处理。
+- 当前会话、Run、工具、Skill、Plugin 的健康摘要。
+- Conversation 与内部 thread binding 的恢复状态。
+- 指向 Agent 设置、连接诊断和 Skills/Tools 的入口。
 
 边界规则：
 
-- Frontend 可以读取 catalog 和 route 信息用于展示、诊断、选择。
-- Frontend 不创建、更新或删除 route binding；`ModelProvidersPage` 中 Provider、Catalog 和 Route 面板均提示由 Admin 管理。
+- Frontend 可以读取 catalog 和 route 信息用于展示、诊断、选择，但这些信息不再作为 Agent Console 的一等 tab。
+- Frontend 不创建、更新或删除 route binding；`ModelProvidersPage` 仅作为只读治理视图，配置变更在 Admin 完成。
 - Frontend 不保存模型 Provider 的 base URL / API Key override；这些入口属于 Admin Provider 接入层。
+- SDK package、runtime host、home/config 投影等细节属于系统后台或具体 Agent 的高级连接配置，不是 Console 主入口。
 - 业务页面应该消费已经配置好的能力和 public model id，不应该直接承担 provider 或 new-api 治理。
 
 ### Hub Admin Console：生态分发治理面
@@ -183,7 +183,7 @@ Hub Admin Console 管的是 Hub 包分发和审核：
 | Catalog Entry | public model id、能力、参数、价格 | provider model id、具体 credential、请求用户的线路选择 |
 | Route Binding | catalog 到 route group / provider lane 的绑定、provider model id、优先级和容量 | 模型能力定义、provider secret、token 解析 |
 | Movscript Admin | 全局 provider/catalog/route 配置与运营治理 | workspace-local agent 运行状态 |
-| Frontend Agent Console | workspace/agent 运行态、诊断、能力展示、app-server 生命周期 | 全局 provider/catalog/route 治理配置 |
+| Frontend Agent Console | 当前 Agent、会话状态、能力摘要、待处理事项、连接诊断入口 | 全局 provider/catalog/route 治理配置、runtime 选择器、进程生命周期总控 |
 | Hub Admin Console | Hub 包审核、举报、下载审计、发版 | AI gateway provider/model/route |
 | new-api Console | 上游渠道、quota、new-api 自身管理 | MovScript catalog public model id 语义 |
 
@@ -197,7 +197,7 @@ Hub Admin Console 管的是 Hub 包分发和审核：
    - 是：放 Admin Route。
 3. 是否改变上游网关连接、token、SSO、quota ownership 或 provider lane 如何解析 credential/token？
    - 是：Community 放 Admin Provider；Enterprise 展示 new-api 状态，实际上游动作留在 new-api。
-4. 是否只影响当前桌面 workspace、当前 agent runtime 或本地 app-server？
+4. 是否只影响当前桌面 workspace 或当前 agent SDK runtime？
    - 是：放 Frontend Agent Console 或 workspace settings。
 5. 是否是 Hub 包审核、创作者认证、下载审计或发版？
    - 是：放 Hub Admin Console。

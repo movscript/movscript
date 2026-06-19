@@ -3,6 +3,7 @@ import {
   type AgentChatThread,
 } from '@movscript/core/agent/chat'
 import type { AgentConversationRegistryInput, AgentConversationRegistryRecord } from '@movscript/core/agent'
+import { agentProtocolUsesProviderSession } from '@/features/agent/domain/agentProviderSessionProtocol'
 
 export function agentChatSourceThreadHasContent(thread: Pick<AgentChatThread, 'name' | 'preview' | 'turns'>): boolean {
   if (thread.name?.trim() || thread.preview?.trim()) return true
@@ -105,6 +106,12 @@ export function buildAgentChatConversationRegistryIndex(input: {
   }
 }
 
+export function agentConversationUsesProviderSession(
+  conversation: Pick<AgentConversationRegistryRecord, 'providerProtocol'> | { providerProtocol?: string | null } | undefined,
+): boolean {
+  return agentProtocolUsesProviderSession(conversation)
+}
+
 export function resolveAgentChatEmptyThreadLabel(input: {
   emptyThreadLabel?: string
   selectedProjectId?: number
@@ -129,10 +136,13 @@ export function mergeAgentChatThreadListPage(current: AgentChatThread[], page: A
 export function agentChatThreadFromRegistryRecord(record: AgentConversationRegistryRecord, dataSource: AgentChatDataSource): AgentChatThread {
   const threadId = record.providerThreadId.trim()
   const title = record.title?.trim()
+  const providerSessionId = agentConversationUsesProviderSession(record)
+    ? record.providerSessionId?.trim()
+    : ''
   return {
     provider: dataSource.provider,
     ...(threadId ? { providerThreadId: threadId } : {}),
-    ...(record.providerSessionId?.trim() ? { providerSessionTreeId: record.providerSessionId.trim(), sessionId: record.providerSessionId.trim() } : {}),
+    ...(providerSessionId ? { providerSessionTreeId: providerSessionId, sessionId: providerSessionId } : {}),
     id: threadId,
     preview: title || 'Loading thread...',
     name: title || null,
@@ -150,7 +160,6 @@ export function provisionalAgentChatThread(threadId: string, dataSource: AgentCh
   return {
     provider: dataSource.provider,
     ...(dataSource.providerId ? { providerThreadId: threadId } : {}),
-    ...(dataSource.providerInstanceId ? { providerSessionTreeId: dataSource.providerInstanceId } : {}),
     id: threadId,
     preview: normalizedTitle || 'Loading thread...',
     name: normalizedTitle || null,

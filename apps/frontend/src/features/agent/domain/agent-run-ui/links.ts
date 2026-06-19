@@ -1,4 +1,4 @@
-import type { AgentRun, AgentTraceEvent } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun, AgentTraceEvent } from '@movscript/core/agent/protocol'
 import { isAgentRunTerminalStatus } from '@movscript/core/agent/protocol'
 
 export function traceEventIdFromHash(hash: string | undefined): string | undefined {

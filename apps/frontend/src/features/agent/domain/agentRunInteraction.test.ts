@@ -13,7 +13,7 @@ import {
   interactionRunsForChat,
   runInteractionFromActivity,
 } from '@/features/agent/domain/agentRunInteraction'
-import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 import type { ChatMessage, ChatRunActivity } from '@/features/agent/state/agentStore'
 
 test('optimisticApprovalRun updates targeted pending approvals only', () => {

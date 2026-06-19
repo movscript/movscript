@@ -237,11 +237,11 @@
 
 .ms-agent-bubble {
   min-width: 0;
-  border: 1px solid color-mix(in srgb, var(--ms-color-border) 78%, transparent);
-  border-radius: var(--ms-radius-md);
-  background: var(--ms-color-surface);
-  color: var(--ms-color-foreground);
-  box-shadow: var(--ms-shadow-sm);
+  border: var(--agent-message-content-border, 1px solid color-mix(in srgb, var(--ms-color-border) 78%, transparent));
+  border-radius: var(--agent-message-content-border-radius, var(--ms-radius-md));
+  background: var(--agent-message-content-background, var(--ms-color-surface));
+  color: var(--agent-message-content-color, var(--ms-color-foreground));
+  box-shadow: var(--agent-message-content-box-shadow, var(--ms-shadow-sm));
 }
 
 .ms-agent-message-section {

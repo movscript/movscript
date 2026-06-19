@@ -1,5 +1,5 @@
 import type { AgentConversationProjectionItem } from '@/features/agent/domain/agentConversationProjectionTypes'
-import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 
 export function hiddenActivityActionItemIdsFromProjectionItems(items: AgentConversationProjectionItem[]): Set<string> {
   const ids = new Set<string>()

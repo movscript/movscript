@@ -19,6 +19,7 @@ const modelsCacheTTL = 5 * time.Minute
 type ListOptions struct {
 	ProviderVariants bool
 	RouteGroup       string
+	APIKinds         []string
 }
 
 type PublicModel struct {
@@ -31,6 +32,7 @@ type PublicModel struct {
 	ProviderName      string                                    `json:"provider_name,omitempty"`
 	AdapterType       string                                    `json:"adapter_type,omitempty"`
 	Capabilities      []string                                  `json:"capabilities"`
+	SupportedAPIKinds []string                                  `json:"supported_api_kinds,omitempty"`
 	PricingMode       string                                    `json:"pricing_mode,omitempty"`
 	AcceptsImageInput bool                                      `json:"accepts_image_input"`
 	IsDefault         bool                                      `json:"is_default,omitempty"`
@@ -63,7 +65,8 @@ func (s *Service) ListByCapability(ctx context.Context, capability string, provi
 }
 
 func (s *Service) ListByCapabilityWithOptions(ctx context.Context, capability string, opts ListOptions) ([]PublicModel, error) {
-	key := "models:capability:" + capability + modelsCacheVariantSuffix(opts.ProviderVariants)
+	apiKinds := splitModelAPIKindQuery(opts.APIKinds...)
+	key := "models:capability:" + capability + modelsCacheVariantSuffix(opts.ProviderVariants, apiKinds)
 	var cached []PublicModel
 	cacheable := strings.TrimSpace(opts.RouteGroup) == ""
 	if cacheable {
@@ -74,6 +77,7 @@ func (s *Service) ListByCapabilityWithOptions(ctx context.Context, capability st
 	capabilities := splitCapabilityQuery(capability)
 	filter := providercontract.AIModelListFilter{
 		Capabilities:     capabilities,
+		APIKinds:         apiKinds,
 		ProviderVariants: opts.ProviderVariants,
 		RouteGroup:       strings.TrimSpace(opts.RouteGroup),
 	}
@@ -113,6 +117,7 @@ func publicModelFromDescriptor(descriptor providercontract.AIModelDescriptor) Pu
 		ProviderName:      descriptor.ProviderName,
 		AdapterType:       descriptor.AdapterType,
 		Capabilities:      append([]string(nil), descriptor.Capabilities...),
+		SupportedAPIKinds: append([]string(nil), descriptor.SupportedAPIKinds...),
 		PricingMode:       descriptor.PricingMode,
 		AcceptsImageInput: descriptor.AcceptsImageInput,
 		IsDefault:         descriptor.IsDefault,
@@ -166,9 +171,29 @@ func splitCapabilityQuery(capability string) []string {
 	return out
 }
 
-func modelsCacheVariantSuffix(providerVariants bool) string {
-	if providerVariants {
-		return ":provider_variants"
+func splitModelAPIKindQuery(values ...string) []string {
+	seen := map[string]bool{}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		for _, part := range strings.Split(value, ",") {
+			kind := strings.TrimSpace(part)
+			if kind == "" || seen[kind] {
+				continue
+			}
+			seen[kind] = true
+			out = append(out, kind)
+		}
 	}
-	return ":logical"
+	return out
+}
+
+func modelsCacheVariantSuffix(providerVariants bool, apiKinds []string) string {
+	kindSuffix := ""
+	if len(apiKinds) > 0 {
+		kindSuffix = ":api_kinds:" + strings.Join(apiKinds, ",")
+	}
+	if providerVariants {
+		return ":provider_variants" + kindSuffix
+	}
+	return ":logical" + kindSuffix
 }

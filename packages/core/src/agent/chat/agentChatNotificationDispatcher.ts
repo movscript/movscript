@@ -348,6 +348,43 @@ export function dispatchAgentChatNotification<
     })
     clearAgentChatRealtimeItemsForThread(target, threadId)
   }
+  if (notification.method === 'turn/failed') {
+    const turnId = stringField(params.turnId)
+    if (!turnId) return
+    const error = agentChatTurnErrorFromNotification(params.error)
+    const completedAt = numberField(params.completedAt) ?? unixSecondsNow()
+    target.updateThreads((current) => current.map((thread) => {
+      if (thread.id !== threadId) return thread
+      const existing = thread.turns.find((turn) => turn.id === turnId)
+      return {
+        ...upsertAgentChatTurn(thread, {
+          id: turnId,
+          items: existing?.items ?? [],
+          itemsView: existing?.itemsView ?? 'full',
+          status: 'failed',
+          error,
+          startedAt: existing?.startedAt ?? null,
+          completedAt,
+          durationMs: existing?.startedAt ? Math.max(0, completedAt * 1000 - existing.startedAt * 1000) : existing?.durationMs ?? null,
+          raw: params,
+        }),
+        status: 'failed',
+      }
+    }))
+    target.updatePendingUserItems((current) => current.filter((pending) => pending.threadId !== threadId))
+    target.updatePendingServerRequests((current) => dropAgentChatPendingServerRequests(current, (pending) => {
+      if (pending.request.threadId !== threadId) return false
+      return !pending.request.turnId || pending.request.turnId === turnId
+    }))
+    target.updateStreamingAgentItems((current) => {
+      const next = { ...current }
+      for (const [itemId, item] of Object.entries(current)) {
+        if (item.threadId === threadId && item.turnId === turnId) delete next[itemId]
+      }
+      return next
+    })
+    clearAgentChatRealtimeItemsForThread(target, threadId)
+  }
 }
 
 export function buildAgentChatVisibleItems(
@@ -908,6 +945,17 @@ function agentChatThreadStatusField(value: unknown): AgentChatThread['status'] |
   }
   if (!isRecord(value)) return undefined
   return agentChatThreadStatusField(value.type)
+}
+
+function agentChatTurnErrorFromNotification(value: unknown): { message?: string; [key: string]: unknown } {
+  if (isRecord(value)) {
+    return {
+      ...value,
+      ...(typeof value.message === 'string' ? { message: value.message } : {}),
+    }
+  }
+  if (typeof value === 'string') return { message: value }
+  return { message: 'Turn failed.' }
 }
 
 function numberField(value: unknown): number | undefined {

@@ -34,7 +34,7 @@ import {
   agentStepTypeLabel,
   formatAgentPlanDate,
 } from '@/features/agent/presentation/AgentPlanOverviewPanelModel'
-import type { AgentRunTraceSummary, AgentTraceEvent } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRunTraceSummary, AgentTraceEvent } from '@movscript/core/agent/protocol'
 
 type AgentPlanTaskView = ReturnType<typeof buildPlanTaskViews>[number]
 type TraceEventKindFilter = 'all' | AgentTraceEvent['kind']

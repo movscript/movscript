@@ -1,18 +1,18 @@
+import { useEffect, useMemo, useState } from 'react'
 import {
-  useMemo } from 'react'
-import { Cable,
+  KeyRound,
   PlugZap,
-  RefreshCw } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+  Save,
+  Trash2,
+} from 'lucide-react'
 
 import {
   AgentConsoleActionButton,
-  AgentConsoleDescription,
   AgentConsoleEmptyText,
+  AgentConsoleFormField,
   AgentConsoleGrid,
-  AgentConsoleIcon,
   AgentConsoleInlineError,
-  AgentConsoleIntroRow,
+  AgentConsoleLocalToolActions,
   AgentConsoleLocalToolCard,
   AgentConsoleLocalToolControls,
   AgentConsoleLocalToolCopy,
@@ -26,91 +26,35 @@ import {
   AgentConsoleStatusBadge,
   AgentConsoleSyncBadge,
   AgentConsoleTestResult,
-  AgentConsoleToolbar,
 } from '@/features/agent/components/AgentConsoleUi'
-import {
-  failedAgentChatCapabilityProbeResult,
-  probeAgentChatDataSourceCapabilities,
-  type AgentChatCapabilityProbeItem,
-  type AgentChatCapabilityProbeResult,
-} from '@movscript/core/agent/chat'
-import { agentConsoleKeys } from '@/features/agent/application/agentQueryKeys'
-import { createAgentChatDataSourceForProvider } from '@/features/agent/application/agentChatDataSourceFactory'
-import { errorMessage } from '@/features/agent/application/agentControlCenter'
 import { useAgentControlCenter } from '@/features/agent/presentation/useAgentControlCenter'
-import { agentReadinessStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
-import {
-  enabledProviders,
-  normalizeProviderSettingsWithRuntimeEnv,
-  providerRuntimeApi,
-  providerRuntimeProfile,
-  resolveAppServerProfile,
-  providerSupportsAppServerRuntime,
-  useProviderConfigStore,
-  type ProviderConfig,
-} from '@/shared/infrastructure/providerConfigStore'
+import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
+import type { ProviderConfig } from '@/shared/infrastructure/providerConfigStore'
 
-export function AgentCapabilityProbePanel() {
-  const savedSettings = useProviderConfigStore((state) => state.settings)
-  const providers = useMemo(() => enabledProviders(normalizeProviderSettingsWithRuntimeEnv(savedSettings)), [savedSettings])
-  const probeQuery = useQuery({
-    queryKey: agentConsoleKeys.providerCapabilityProbe(providers.map(providerProbeKey).join('|')),
-    queryFn: async () => Promise.all(providers.map(async (provider) => {
-      try {
-        const dataSource = await createAgentChatDataSourceForProvider(provider, {
-          appServerPolicy: providerSupportsAppServerRuntime(provider) ? 'status-only' : 'ensure',
-        })
-        return await probeAgentChatDataSourceCapabilities({ provider, dataSource })
-      } catch (error) {
-        return failedAgentChatCapabilityProbeResult({ provider, error })
-      }
-    })),
-    enabled: false,
-    retry: false,
-  })
-  const results = probeQuery.data ?? []
-  const supportedCount = results.reduce((count, result) => count + result.supportedCount, 0)
-  const warningCount = results.reduce((count, result) => count + result.warningCount, 0)
-  const readiness = agentReadinessStatusRecipe(results.length > 0 && warningCount === 0)
-
+export function AgentRuntimeCredentialPanel({
+  provider,
+  onCredentialSaved,
+}: {
+  provider?: ProviderConfig
+  onCredentialSaved?: () => void
+}) {
+  if (!provider || provider.kind !== 'claude') return null
   return (
     <AgentConsolePanel
-      title="Provider 数据流与能力探针"
-      icon={<Cable size={14} />}
+      title="SDK 凭据"
+      icon={<KeyRound size={14} />}
       action={
         <AgentConsolePanelActions>
-          {results.length > 0 ? (
-            <AgentConsoleStatusBadge intent={readiness.intent} emphasis={readiness.emphasis}>
-              {supportedCount} 个入口 / {warningCount} 项需关注
-            </AgentConsoleStatusBadge>
-          ) : null}
-          <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={() => void probeQuery.refetch()} disabled={probeQuery.isFetching || providers.length === 0}>
-            <AgentConsoleIcon icon={RefreshCw} size={14} spinning={probeQuery.isFetching} />
-            {probeQuery.isFetching ? '探测中' : '刷新 Provider 能力'}
-          </AgentConsoleActionButton>
+          <AgentConsoleStatusBadge intent="warning" emphasis="soft">ANTHROPIC_API_KEY</AgentConsoleStatusBadge>
         </AgentConsolePanelActions>
       }
     >
-      <AgentConsoleIntroRow>
-        <AgentConsoleDescription>
-          通过统一数据源 capability 探测每个已启用 provider。SDK runtime 会直接走 runtime/probe；app-server runtime 只读取已运行状态，不会因为刷新探针而隐式启动或触发账号配置流程。
-        </AgentConsoleDescription>
-        <AgentConsoleToolbar>
-          <AgentConsoleStatusBadge intent={providers.length > 0 ? 'success' : 'warning'} emphasis="soft">
-            {providers.length > 0 ? `${providers.length} 个 Provider 可探测` : '没有已启用 Provider'}
-          </AgentConsoleStatusBadge>
-        </AgentConsoleToolbar>
-      </AgentConsoleIntroRow>
-
-      {probeQuery.error ? (
-        <AgentConsoleInlineError>{errorMessage(probeQuery.error)}</AgentConsoleInlineError>
-      ) : results.length === 0 ? (
-        <AgentConsoleEmptyText>点击刷新后，控制台会通过统一数据源读取线程、模型、配置、插件、Skills、账号、MCP 和 realtime 能力摘要。</AgentConsoleEmptyText>
-      ) : (
-        <AgentConsoleGrid columns="server" data-testid="agent-console-capability-probe-grid">
-          {results.map((result) => <AgentCapabilityProbeCard key={result.providerId} result={result} />)}
-        </AgentConsoleGrid>
-      )}
+      <AgentRuntimeCredentialEditor
+        providerId={provider.id}
+        providerKind={provider.kind}
+        providerLabel={provider.label}
+        onSaved={onCredentialSaved}
+      />
     </AgentConsolePanel>
   )
 }
@@ -124,19 +68,19 @@ export function AgentCapabilityHealthPanel({
 }) {
   return (
     <AgentConsolePanel
-      title="运行中 Provider 能力健康"
+      title="当前 Agent 能力健康"
       icon={<PlugZap size={14} />}
       action={
         <AgentConsolePanelActions>
           {loading && <AgentConsoleSyncBadge>同步中</AgentConsoleSyncBadge>}
           <AgentConsoleStatusBadge intent={capabilityHealth.warningCount > 0 ? 'warning' : capabilityHealth.checkedProviderCount > 0 ? 'success' : 'neutral'} emphasis="soft">
-            {capabilityHealth.checkedProviderCount > 0 ? `${capabilityHealth.checkedProviderCount} 个已检查` : '等待运行中 Agent'}
+            {capabilityHealth.checkedProviderCount > 0 ? `${capabilityHealth.checkedProviderCount} 个已检查` : '等待当前 Agent'}
           </AgentConsoleStatusBadge>
         </AgentConsolePanelActions>
       }
     >
       {capabilityHealth.providers.length === 0 ? (
-        <AgentConsoleEmptyText>启动或连接任一 provider runtime 后，控制台会读取统一能力入口并汇总 Tools、Skills、Plugins 和 MCP 状态。</AgentConsoleEmptyText>
+        <AgentConsoleEmptyText>当前 Agent 连接可用后，这里会汇总 Tools、Skills、Plugins 和 MCP 状态。</AgentConsoleEmptyText>
       ) : (
         <AgentConsoleGrid columns="single">
           {capabilityHealth.providers.map((provider) => (
@@ -168,6 +112,12 @@ function AgentCapabilityHealthCard({
       </AgentConsoleLocalToolHeader>
       <AgentConsoleLocalToolFields>
         <AgentConsoleStack>
+          {provider.credential ? (
+            <AgentConsoleTestResult tone={provider.credential.ok ? 'success' : 'warning'}>
+              SDK 凭据：{provider.credential.configured ? '已配置' : '未配置'} / {provider.credential.source} / {provider.credential.env}
+              {provider.credential.modelEndpointBaseURL ? ` / ${provider.credential.modelEndpointBaseURL}` : ''}
+            </AgentConsoleTestResult>
+          ) : null}
           <AgentConsoleTestResult tone={provider.blockedToolCount > 0 ? 'warning' : 'success'}>
             Tools：{provider.toolCount} 可用 / {provider.blockedToolCount} 受限
           </AgentConsoleTestResult>
@@ -188,58 +138,133 @@ function AgentCapabilityHealthCard({
   )
 }
 
-function AgentCapabilityProbeCard({ result }: { result: AgentChatCapabilityProbeResult }) {
-  const readiness = agentReadinessStatusRecipe(result.ok)
+function AgentRuntimeCredentialEditor({
+  providerId,
+  providerKind,
+  providerLabel,
+  onSaved,
+}: {
+  providerId: string
+  providerKind: string
+  providerLabel: string
+  onSaved?: () => void
+}) {
+  const [apiKey, setApiKey] = useState('')
+  const [savedProviderKeys, setSavedProviderKeys] = useState<string[]>([])
+  const [checking, setChecking] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const providerKeys = useMemo(() => runtimeCredentialProviderKeys(providerId, providerKind), [providerId, providerKind])
+  const configured = providerKeys.some((key) => savedProviderKeys.includes(key))
+  const canSave = apiKey.trim().length > 0
+
+  useEffect(() => {
+    void refreshSavedKeys()
+  }, [providerKeys.join('|')])
+
+  async function refreshSavedKeys() {
+    const electronApi = readElectronApi()
+    if (!electronApi?.getAppSettingsSecrets) return
+    setChecking(true)
+    try {
+      const secrets = await electronApi.getAppSettingsSecrets()
+      setSavedProviderKeys(Object.keys(secrets.agentRuntimeApiKeys ?? {}))
+    } catch (readError) {
+      setError(errorMessage(readError))
+    } finally {
+      setChecking(false)
+    }
+  }
+
+  async function saveKey(nextKey: string | null) {
+    const electronApi = readElectronApi()
+    if (!electronApi?.setAgentRuntimeApiKey) throw new Error('当前运行环境不支持保存 SDK 凭据。')
+    const result = await electronApi.setAgentRuntimeApiKey({
+      providerKey: providerId || providerKind,
+      providerKeys,
+      apiKey: nextKey,
+    })
+    console.log('[Movscript Claude credential flow] console.saveAgentRuntimeApiKey', JSON.stringify({
+      providerId,
+      providerKind,
+      providerKeys,
+      hasApiKey: Boolean(nextKey?.trim()),
+      savedProviderKeys: Object.keys(result.agentRuntimeApiKeys),
+    }))
+    setSavedProviderKeys(Object.keys(result.agentRuntimeApiKeys))
+  }
+
+  async function submit() {
+    setSaving(true)
+    setError(null)
+    setMessage(null)
+    try {
+      await saveKey(apiKey.trim())
+      setApiKey('')
+      setMessage('Claude API Key 已保存。')
+      onSaved?.()
+    } catch (saveError) {
+      setError(errorMessage(saveError))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function clear() {
+    setSaving(true)
+    setError(null)
+    setMessage(null)
+    try {
+      await saveKey(null)
+      setApiKey('')
+      setMessage('Claude API Key 已移除。')
+      onSaved?.()
+    } catch (saveError) {
+      setError(errorMessage(saveError))
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
-    <AgentConsoleLocalToolCard invalid={!result.ok}>
-      <AgentConsoleLocalToolHeader>
-        <AgentConsoleLocalToolCopy>
-          <AgentConsoleLocalToolTitle>{result.providerLabel}</AgentConsoleLocalToolTitle>
-          <AgentConsoleLocalToolDetail>{result.dataSourceLabel} / {result.providerKind}</AgentConsoleLocalToolDetail>
-        </AgentConsoleLocalToolCopy>
-        <AgentConsoleLocalToolControls>
-          <AgentConsoleStatusBadge intent={readiness.intent} emphasis={readiness.emphasis}>
-            {result.ok ? '能力正常' : `${result.warningCount} 项需关注`}
-          </AgentConsoleStatusBadge>
-        </AgentConsoleLocalToolControls>
-      </AgentConsoleLocalToolHeader>
-      <AgentConsoleLocalToolFields>
-        <AgentConsoleStack>
-          {result.items.map((item) => (
-            <AgentConsoleTestResult key={item.id} tone={capabilityProbeItemTone(item)}>
-              {item.label} · {item.method}：{item.detail}
-            </AgentConsoleTestResult>
-          ))}
-        </AgentConsoleStack>
-      </AgentConsoleLocalToolFields>
-    </AgentConsoleLocalToolCard>
+    <AgentConsoleStack>
+      <AgentConsoleTestResult tone={configured ? 'success' : 'warning'}>
+        {providerLabel} API Key：{checking ? '检查中...' : configured ? '已保存' : '未保存'}
+        {savedProviderKeys.length > 0 ? ` / ${savedProviderKeys.join(', ')}` : ''}
+      </AgentConsoleTestResult>
+      <AgentConsoleFormField
+        label={<><KeyRound size={12} /> Claude API Key</>}
+        type="password"
+        value={apiKey}
+        placeholder="sk-ant-..."
+        autoComplete="off"
+        onChange={(event) => setApiKey(event.currentTarget.value)}
+      />
+      <AgentConsoleLocalToolActions>
+        <AgentConsoleActionButton type="button" size="sm" variant="solid" onClick={() => void submit()} disabled={saving || !canSave}>
+          <Save size={14} />
+          {saving ? '保存中...' : '保存'}
+        </AgentConsoleActionButton>
+        <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={() => void clear()} disabled={saving}>
+          <Trash2 size={14} />
+          移除
+        </AgentConsoleActionButton>
+      </AgentConsoleLocalToolActions>
+      {message ? <AgentConsoleTestResult tone="success">{message}</AgentConsoleTestResult> : null}
+      {error ? <AgentConsoleInlineError>{error}</AgentConsoleInlineError> : null}
+    </AgentConsoleStack>
   )
 }
 
-function capabilityProbeItemTone(item: AgentChatCapabilityProbeItem): 'success' | 'warning' | 'danger' {
-  if (item.tone === 'ready') return 'success'
-  if (item.tone === 'warning') return 'warning'
-  return 'danger'
+function runtimeCredentialProviderKeys(providerId: string | undefined, providerKind: string | undefined): string[] {
+  const keys = [providerId, providerKind]
+  if (providerKind === 'claude') {
+    keys.push('claude', 'claude-code', 'claude-sdk')
+  }
+  return Array.from(new Set(keys.filter((key): key is string => Boolean(key?.trim()))))
 }
 
-function providerProbeKey(provider: ProviderConfig): string {
-  const runtime = providerRuntimeProfile(provider)
-  const profile = providerSupportsAppServerRuntime(provider) ? resolveAppServerProfile(provider) : undefined
-  return [
-    provider.id,
-    provider.kind,
-    provider.enabled ? 'enabled' : 'disabled',
-    provider.label,
-    runtime.id,
-    runtime.api,
-    runtime.packageName ?? '',
-    runtime.sdkPackageName ?? '',
-    runtime.binaryPackageName ?? '',
-    runtime.packageVersion ?? '',
-    providerRuntimeApi(provider),
-    profile?.id ?? '',
-    profile?.executablePath ?? '',
-    profile?.home ?? '',
-    profile?.workspaceDir ?? '',
-  ].join(':')
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }

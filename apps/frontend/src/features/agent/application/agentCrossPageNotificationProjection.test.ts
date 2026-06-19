@@ -18,7 +18,7 @@ test('agent cross-page projection accepts global and active-thread events only',
       method: 'mcpServer/startupStatus/updated',
       params: { name: 'filesystem', status: 'ready' },
     },
-    transport: 'app-server-rpc',
+    transport: 'sdk-runtime-ipc',
     source: 'Mova',
   })
   const activeThreadEvent = crossPageEventFromAgentChatNotification({
@@ -26,7 +26,7 @@ test('agent cross-page projection accepts global and active-thread events only',
       method: 'thread/name/updated',
       params: { threadId: 'thread_1', name: 'Thread one' },
     },
-    transport: 'app-server-rpc',
+    transport: 'sdk-runtime-ipc',
     source: 'Mova',
   })
   const otherThreadEvent = crossPageEventFromAgentChatNotification({
@@ -34,7 +34,7 @@ test('agent cross-page projection accepts global and active-thread events only',
       method: 'thread/name/updated',
       params: { threadId: 'thread_2', name: 'Thread two' },
     },
-    transport: 'app-server-rpc',
+    transport: 'sdk-runtime-ipc',
     source: 'Mova',
   })
 
@@ -53,7 +53,7 @@ test('agent cross-page projection dispatches and deduplicates notifications', ()
   }
   const event = crossPageEventFromAgentChatNotification({
     notification,
-    transport: 'app-server-rpc',
+    transport: 'sdk-runtime-ipc',
     source: 'Mova',
   })
 
@@ -86,7 +86,7 @@ test('agent cross-page projection skips events already handled by direct subscri
   markAgentChatNotificationProjected(seenKeysRef, notification)
   const event = crossPageEventFromAgentChatNotification({
     notification,
-    transport: 'app-server-rpc',
+    transport: 'sdk-runtime-ipc',
     source: 'Mova',
   })
 

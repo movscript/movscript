@@ -384,6 +384,68 @@ test('core agent chat runtime drops turn-completed pending requests without resp
   assert.deepEqual(state.threadReadRequests, [])
 })
 
+test('core agent chat runtime commits failed turn notifications and clears streaming state', () => {
+  let state = agentChat.createAgentChatRuntimeState('thread_1')
+  state = agentChat.agentChatRuntimeReducer(state, {
+    type: 'upsertThread',
+    thread: {
+      provider: 'mova',
+      id: 'thread_1',
+      preview: '',
+      name: null,
+      createdAt: 1,
+      updatedAt: 1,
+      status: 'running',
+      turns: [{
+        id: 'turn_1',
+        items: [],
+        itemsView: 'full',
+        status: 'inProgress',
+        error: null,
+        startedAt: 10,
+        completedAt: null,
+        durationMs: null,
+      }],
+    },
+  })
+  state = agentChat.agentChatRuntimeReducer(state, {
+    type: 'applyNotification',
+    notification: {
+      method: 'item/agentMessage/delta',
+      params: {
+        threadId: 'thread_1',
+        turnId: 'turn_1',
+        itemId: 'assistant_1',
+        delta: 'partial',
+      },
+    },
+    nowMs: 100,
+    recentEventSequence: 1,
+  })
+
+  assert.equal(state.streamingAgentItems.assistant_1.text, 'partial')
+
+  state = agentChat.agentChatRuntimeReducer(state, {
+    type: 'applyNotification',
+    notification: {
+      method: 'turn/failed',
+      params: {
+        threadId: 'thread_1',
+        turnId: 'turn_1',
+        error: { message: 'provider exploded' },
+        completedAt: 12,
+      },
+    },
+    nowMs: 200,
+    recentEventSequence: 2,
+  })
+
+  assert.equal(state.streamingAgentItems.assistant_1, undefined)
+  assert.equal(state.threads[0].status, 'failed')
+  assert.equal(state.threads[0].turns[0].status, 'failed')
+  assert.equal(state.threads[0].turns[0].error.message, 'provider exploded')
+})
+
 test('core agent chat system item views classify diagnostics and summarize raw items', () => {
   assert.deepEqual(agentChat.agentChatSystemItemView({
     type: 'systemNotice',
@@ -1326,7 +1388,7 @@ test('core probes provider-neutral agent data-source capabilities', async () => 
     provider: testProvider(),
     dataSource: {
       provider: 'mova',
-      label: 'Mova app-server',
+      label: 'Mova SDK runtime',
       listThreads: async () => {
         requestedMethods.push('thread/list')
         return { threads: [], nextCursor: null }
@@ -1361,12 +1423,6 @@ test('core probes provider-neutral agent data-source capabilities', async () => 
           list: async () => {
             requestedMethods.push('plugin/list')
             return { plugins: [{ name: 'docs' }] }
-          },
-        },
-        skills: {
-          list: async () => {
-            requestedMethods.push('skills/list')
-            return { skills: [{ name: 'review' }] }
           },
         },
         models: {
@@ -1412,7 +1468,7 @@ test('core probes provider-neutral agent data-source capabilities', async () => 
 
   assert.equal(result.providerId, 'mova')
   assert.equal(result.providerKind, 'mova')
-  assert.equal(result.dataSourceLabel, 'Mova app-server')
+  assert.equal(result.dataSourceLabel, 'Mova SDK runtime')
   assert.equal(result.ok, true)
   assert.equal(result.items.find((item) => item.id === 'command-exec')?.detail, '已实现命令/终端流入口；探针不会主动执行命令。')
   assert.equal(result.items.find((item) => item.id === 'filesystem')?.detail, '已实现文件系统流入口；探针不会主动读取路径。')
@@ -1425,7 +1481,6 @@ test('core probes provider-neutral agent data-source capabilities', async () => 
     'permissionProfile/list',
     'plugin/list',
     'runtime/probe',
-    'skills/list',
     'thread/list',
     'thread/realtime/listVoices',
   ].sort())
@@ -1445,9 +1500,6 @@ test('core marks missing or failing chat capabilities as warnings', async () => 
         plugins: {
           list: async () => { throw new Error('catalog unavailable') },
         },
-        skills: {
-          list: async () => ({ skills: [] }),
-        },
         config: {
           read: async () => ({ config: {} }),
         },
@@ -1459,19 +1511,19 @@ test('core marks missing or failing chat capabilities as warnings', async () => 
   assert.equal(result.items.find((item) => item.id === 'plugins')?.tone, 'action')
   assert.equal(result.items.find((item) => item.id === 'plugins')?.error, 'catalog unavailable')
   assert.equal(result.items.find((item) => item.id === 'command-exec')?.tone, 'warning')
-  assert.equal(result.items.find((item) => item.id === 'skills')?.tone, 'ready')
+  assert.equal(result.items.find((item) => item.id === 'skills'), undefined)
 })
 
 test('core builds a failed chat capability probe result', () => {
   const result = agentChat.failedAgentChatCapabilityProbeResult({
     provider: testProvider(),
-    error: new Error('Mova app-server failed to start'),
+    error: new Error('Mova SDK runtime failed to start'),
   })
 
   assert.equal(result.ok, false)
   assert.equal(result.warningCount, 1)
   assert.equal(result.items[0]?.method, 'createAgentChatDataSourceForProvider')
-  assert.equal(result.items[0]?.detail, 'Mova app-server failed to start')
+  assert.equal(result.items[0]?.detail, 'Mova SDK runtime failed to start')
 })
 
 test('core agent chat dynamic tool output view extracts text images and media resources', () => {

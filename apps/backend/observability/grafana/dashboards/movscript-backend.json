@@ -696,7 +696,7 @@
         "type": "prometheus",
         "uid": "Prometheus"
       },
-      "description": "Optional local provider-session stage latency. It is populated when Prometheus also scrapes the provider-session app-server /metrics target.",
+      "description": "Optional local provider-session stage latency populated from reportable Agent runtime telemetry.",
       "fieldConfig": {
         "defaults": {
           "unit": "ms"

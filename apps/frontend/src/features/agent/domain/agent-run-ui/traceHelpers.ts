@@ -1,4 +1,4 @@
-import type { AgentTraceEvent } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentTraceEvent } from '@movscript/core/agent/protocol'
 import { isRecord } from '@/shared/domain/jsonValue'
 import type {
   AgentTraceContextGroup,

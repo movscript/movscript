@@ -48,6 +48,7 @@ func (s *AIService) listModelsFromCatalogEntries(ctx context.Context, filter pro
 		return nil, true, err
 	}
 	capabilities := compactModelCatalogCapabilities(filter)
+	apiKinds := compactModelCatalogAPIKinds(filter)
 	routeGroup := strings.TrimSpace(filter.RouteGroup)
 	if routeGroup == "" {
 		routeGroup = strings.TrimSpace(providerRouteGroupFromContext(ctx))
@@ -59,13 +60,18 @@ func (s *AIService) listModelsFromCatalogEntries(ctx context.Context, filter pro
 		if !modelDefMatchesAnyCapability(def, capabilities) {
 			continue
 		}
-		bindings := catalogEntryBindingsForFilter(entry.RouteBindings, routeGroup)
+		bindings := catalogEntryBindingsForFilter(entry.RouteBindings, routeGroup, apiKinds, credentials)
+		if len(bindings) == 0 && len(apiKinds) > 0 {
+			if len(entry.RouteBindings) > 0 || !modelAPIKindsIntersect(catalogRouteBindingSupportedAPIKinds(nil, credentials), apiKinds) {
+				continue
+			}
+		}
 		if routeGroup != "" && len(bindings) == 0 {
 			continue
 		}
 		if filter.ProviderVariants && len(bindings) > 0 {
 			for _, binding := range bindings {
-				out = append(out, catalogEntryDescriptor(entry, def, &binding, credentials))
+				out = append(out, catalogEntryDescriptor(entry, def, &binding, credentials, true))
 			}
 			continue
 		}
@@ -73,7 +79,8 @@ func (s *AIService) listModelsFromCatalogEntries(ctx context.Context, filter pro
 		if len(bindings) > 0 {
 			binding = catalogEntryBestBinding(bindings)
 		}
-		descriptor := catalogEntryDescriptor(entry, def, binding, nil)
+		descriptor := catalogEntryDescriptor(entry, def, binding, credentials, false)
+		descriptor.SupportedAPIKinds = catalogRouteBindingsSupportedAPIKinds(bindings, credentials)
 		descriptor.ProviderVariants = len(bindings)
 		if descriptor.ProviderVariants == 0 {
 			descriptor.ProviderVariants = 1
@@ -160,6 +167,7 @@ func mergeCatalogDescriptor(left, right providercontract.AIModelDescriptor) prov
 		right.ProviderVariants += left.ProviderVariants
 		right.CapacityWeight += left.CapacityWeight
 		right.Capabilities = mergeCapabilities(left.Capabilities, right.Capabilities)
+		right.SupportedAPIKinds = mergeModelAPIKinds(left.SupportedAPIKinds, right.SupportedAPIKinds)
 		if left.MaxConcurrency == 0 || right.MaxConcurrency == 0 {
 			right.MaxConcurrency = 0
 		} else {
@@ -170,6 +178,7 @@ func mergeCatalogDescriptor(left, right providercontract.AIModelDescriptor) prov
 	left.ProviderVariants += right.ProviderVariants
 	left.CapacityWeight += right.CapacityWeight
 	left.Capabilities = mergeCapabilities(left.Capabilities, right.Capabilities)
+	left.SupportedAPIKinds = mergeModelAPIKinds(left.SupportedAPIKinds, right.SupportedAPIKinds)
 	if left.MaxConcurrency == 0 || right.MaxConcurrency == 0 {
 		left.MaxConcurrency = 0
 	} else {
@@ -205,10 +214,13 @@ func modelDefMatchesAnyCapability(def *ModelDef, capabilities []string) bool {
 	return false
 }
 
-func catalogEntryBindingsForFilter(bindings []persistencemodel.AIModelRouteBinding, routeGroup string) []persistencemodel.AIModelRouteBinding {
+func catalogEntryBindingsForFilter(bindings []persistencemodel.AIModelRouteBinding, routeGroup string, apiKinds []string, credentials map[uint]persistencemodel.AICredential) []persistencemodel.AIModelRouteBinding {
 	out := make([]persistencemodel.AIModelRouteBinding, 0, len(bindings))
 	for _, binding := range bindings {
 		if routeGroup != "" && strings.TrimSpace(binding.RouteGroup) != routeGroup {
+			continue
+		}
+		if len(apiKinds) > 0 && !catalogRouteBindingMatchesAPIKinds(binding, apiKinds, credentials) {
 			continue
 		}
 		out = append(out, binding)
@@ -216,7 +228,99 @@ func catalogEntryBindingsForFilter(bindings []persistencemodel.AIModelRouteBindi
 	return out
 }
 
-func catalogEntryDescriptor(entry persistencemodel.AIModelCatalogEntry, def *ModelDef, binding *persistencemodel.AIModelRouteBinding, credentials map[uint]persistencemodel.AICredential) providercontract.AIModelDescriptor {
+func catalogRouteBindingMatchesAPIKinds(binding persistencemodel.AIModelRouteBinding, requested []string, credentials map[uint]persistencemodel.AICredential) bool {
+	return modelAPIKindsIntersect(catalogRouteBindingSupportedAPIKinds(&binding, credentials), requested)
+}
+
+func catalogRouteBindingsSupportedAPIKinds(bindings []persistencemodel.AIModelRouteBinding, credentials map[uint]persistencemodel.AICredential) []string {
+	if len(bindings) == 0 {
+		return catalogRouteBindingSupportedAPIKinds(nil, credentials)
+	}
+	out := make([]string, 0)
+	for _, binding := range bindings {
+		out = mergeModelAPIKinds(out, catalogRouteBindingSupportedAPIKinds(&binding, credentials))
+	}
+	return out
+}
+
+func catalogRouteBindingSupportedAPIKinds(binding *persistencemodel.AIModelRouteBinding, credentials map[uint]persistencemodel.AICredential) []string {
+	if binding == nil {
+		return modelAPIKindsForAdapter(AdapterOpenAICompat)
+	}
+	if explicit := SplitModelAPIKinds(binding.APIKinds); len(explicit) > 0 {
+		return explicit
+	}
+	switch strings.TrimSpace(binding.SourceType) {
+	case persistencemodel.ModelRouteSourceLocalProvider:
+		if binding.CredentialID != nil {
+			if credential, ok := credentials[*binding.CredentialID]; ok {
+				return modelAPIKindsForAdapter(credential.AdapterType)
+			}
+		}
+		return modelAPIKindsForAdapter(AdapterOpenAICompat)
+	case persistencemodel.ModelRouteSourceNewAPI:
+		return modelAPIKindsForAdapter(AdapterOpenAICompat)
+	default:
+		return modelAPIKindsForAdapter(AdapterOpenAICompat)
+	}
+}
+
+func modelAPIKindsForAdapter(adapterType string) []string {
+	switch strings.TrimSpace(adapterType) {
+	case AdapterAnthropic:
+		return []string{ModelAPIKindAnthropicMessages}
+	case AdapterOpenAICompat, AdapterVolcen, AdapterGemini, AdapterDashScope, AdapterLocal, "":
+		return []string{ModelAPIKindOpenAIChatCompletions, ModelAPIKindOpenAIResponses}
+	default:
+		return []string{ModelAPIKindOpenAIChatCompletions, ModelAPIKindOpenAIResponses}
+	}
+}
+
+func mergeModelAPIKinds(left, right []string) []string {
+	return NormalizeModelAPIKinds(append(append([]string{}, left...), right...))
+}
+
+func modelAPIKindsIntersect(left, right []string) bool {
+	if len(right) == 0 {
+		return true
+	}
+	left = NormalizeModelAPIKinds(left)
+	right = NormalizeModelAPIKinds(right)
+	if len(left) == 0 || len(right) == 0 {
+		return false
+	}
+	set := make(map[string]bool, len(left))
+	for _, kind := range left {
+		set[kind] = true
+	}
+	for _, kind := range right {
+		if set[kind] {
+			return true
+		}
+	}
+	return false
+}
+
+func firstMatchingModelAPIKind(supported, requested []string) string {
+	if len(requested) == 0 {
+		if normalized := NormalizeModelAPIKinds(supported); len(normalized) > 0 {
+			return normalized[0]
+		}
+		return ""
+	}
+	supportedSet := map[string]bool{}
+	for _, kind := range NormalizeModelAPIKinds(supported) {
+		supportedSet[kind] = true
+	}
+	for _, kind := range NormalizeModelAPIKinds(requested) {
+		if supportedSet[kind] {
+			return kind
+		}
+	}
+	return ""
+}
+
+func catalogEntryDescriptor(entry persistencemodel.AIModelCatalogEntry, def *ModelDef, binding *persistencemodel.AIModelRouteBinding, credentials map[uint]persistencemodel.AICredential, includeProviderDetails bool) providercontract.AIModelDescriptor {
 	providerModelID := catalogRouteProviderModelID(entry, binding)
 	publicModelID := strings.TrimSpace(entry.PublicModelID)
 	if publicModelID == "" {
@@ -233,9 +337,12 @@ func catalogEntryDescriptor(entry persistencemodel.AIModelCatalogEntry, def *Mod
 		providerID = catalogRouteProviderID(binding)
 		if binding.CredentialID != nil {
 			credentialID = *binding.CredentialID
-			if credential, ok := credentials[credentialID]; ok {
-				providerName = credential.DisplayName
-				adapterType = credential.AdapterType
+			if includeProviderDetails {
+				credential, ok := credentials[credentialID]
+				if ok {
+					providerName = credential.DisplayName
+					adapterType = credential.AdapterType
+				}
 			}
 		}
 		priority = binding.Priority
@@ -255,6 +362,7 @@ func catalogEntryDescriptor(entry persistencemodel.AIModelCatalogEntry, def *Mod
 		ProviderName:      providerName,
 		AdapterType:       adapterType,
 		Capabilities:      append([]string(nil), def.Capabilities...),
+		SupportedAPIKinds: catalogRouteBindingSupportedAPIKinds(binding, credentials),
 		PricingMode:       string(def.PricingMode),
 		AcceptsImageInput: def.AcceptsImageInput,
 		LogicalModelID:    publicModelID,
@@ -294,7 +402,12 @@ func (s *AIService) resolveCatalogModelRoutePlan(req ModelRouteRequest, capabili
 		return ModelRoutePlan{}, false, nil
 	}
 
+	credentials, err := s.catalogRouteCredentialIndex(context.Background(), entries)
+	if err != nil {
+		return ModelRoutePlan{}, true, err
+	}
 	routeGroup := strings.TrimSpace(req.RouteGroup)
+	apiKinds := compactModelRouteRequestAPIKinds(req)
 	type catalogRouteCandidate struct {
 		route     ModelRoute
 		priority  int
@@ -306,7 +419,7 @@ func (s *AIService) resolveCatalogModelRoutePlan(req ModelRouteRequest, capabili
 		if !modelHasCapability(def, capability) {
 			continue
 		}
-		bindings := catalogEntryBindingsForFilter(entry.RouteBindings, routeGroup)
+		bindings := catalogEntryBindingsForFilter(entry.RouteBindings, routeGroup, apiKinds, credentials)
 		if len(bindings) == 0 {
 			continue
 		}
@@ -340,6 +453,7 @@ func (s *AIService) resolveCatalogModelRoutePlan(req ModelRouteRequest, capabili
 					RouteGroup:      strings.TrimSpace(binding.RouteGroup),
 					ProviderID:      catalogRouteProviderID(&binding),
 					ProviderModelID: catalogRouteProviderModelID(entry, &binding),
+					APIKind:         firstMatchingModelAPIKind(catalogRouteBindingSupportedAPIKinds(&binding, credentials), apiKinds),
 					SelectionReason: reason,
 					EstimatedCost:   estimateCatalogRouteCost(entry, def, capability, req.EstimatedUsage),
 				},
@@ -386,6 +500,9 @@ func (s *AIService) resolveCatalogModelRoutePlan(req ModelRouteRequest, capabili
 		}
 		if routeGroup != "" {
 			return ModelRoutePlan{}, true, fmt.Errorf("model %q is not available for route group %q and capability %s", requested, routeGroup, capability)
+		}
+		if len(apiKinds) > 0 {
+			return ModelRoutePlan{}, true, fmt.Errorf("model %q is not available for api kind %q and capability %s", requested, strings.Join(apiKinds, ","), capability)
 		}
 		return ModelRoutePlan{}, true, fmt.Errorf("model %q is not available for capability %s", requested, capability)
 	}
@@ -441,6 +558,16 @@ func (s *AIService) resolveRouteBindingModelRoutePlan(req ModelRouteRequest, cap
 	if binding.CatalogEntry == nil || binding.CatalogEntry.ID == 0 {
 		return ModelRoutePlan{}, true, fmt.Errorf("route binding id=%d has no catalog entry", req.RouteBindingID)
 	}
+	credentials, err := s.catalogRouteCredentialIndex(context.Background(), []persistencemodel.AIModelCatalogEntry{{
+		RouteBindings: []persistencemodel.AIModelRouteBinding{binding},
+	}})
+	if err != nil {
+		return ModelRoutePlan{}, true, err
+	}
+	apiKinds := compactModelRouteRequestAPIKinds(req)
+	if len(apiKinds) > 0 && !catalogRouteBindingMatchesAPIKinds(binding, apiKinds, credentials) {
+		return ModelRoutePlan{}, true, fmt.Errorf("route binding id=%d does not support api kind %q", req.RouteBindingID, strings.Join(apiKinds, ","))
+	}
 	entry := *binding.CatalogEntry
 	if !entry.IsEnabled {
 		return ModelRoutePlan{}, true, fmt.Errorf("catalog entry id=%d is disabled", entry.ID)
@@ -464,6 +591,7 @@ func (s *AIService) resolveRouteBindingModelRoutePlan(req ModelRouteRequest, cap
 		RouteGroup:      strings.TrimSpace(binding.RouteGroup),
 		ProviderID:      catalogRouteProviderID(&binding),
 		ProviderModelID: catalogRouteProviderModelID(entry, &binding),
+		APIKind:         firstMatchingModelAPIKind(catalogRouteBindingSupportedAPIKinds(&binding, credentials), apiKinds),
 		SelectionReason: "route_binding_id",
 	}
 	return ModelRoutePlan{
@@ -775,6 +903,22 @@ func compactModelCatalogCapabilities(filter providercontract.AIModelListFilter) 
 		out = append(out, item)
 	}
 	return out
+}
+
+func compactModelCatalogAPIKinds(filter providercontract.AIModelListFilter) []string {
+	items := append([]string{}, filter.APIKinds...)
+	if strings.TrimSpace(filter.APIKind) != "" {
+		items = append(items, filter.APIKind)
+	}
+	return NormalizeModelAPIKinds(items)
+}
+
+func compactModelRouteRequestAPIKinds(req ModelRouteRequest) []string {
+	items := append([]string{}, req.APIKinds...)
+	if strings.TrimSpace(req.APIKind) != "" {
+		items = append(items, req.APIKind)
+	}
+	return NormalizeModelAPIKinds(items)
 }
 
 func allModelCatalogCapabilities() []string {

@@ -1,6 +1,6 @@
 import { providerThreadTitle } from '@/features/agent/presentation/agentConversationLabels'
 import type { Conversation } from '@/features/agent/state/agentStore'
-import type { AgentSessionSummary, AgentThread, AgentThreadSummary } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentSessionSummary, AgentThread, AgentThreadSummary } from '@movscript/core/agent/protocol'
 
 type TranslationFn = (key: string, options?: Record<string, unknown>) => string
 

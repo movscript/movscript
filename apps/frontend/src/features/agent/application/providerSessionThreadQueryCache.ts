@@ -1,13 +1,16 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { isAgentTranscriptExcludedAssistantMessage } from '@movscript/core/agent/protocol'
 import { isProviderSessionThreadListQueryKey } from '@/features/agent/application/providerSessionQueryKeys'
-import { providerSessionClient, type AgentRunRole, type AgentRunStatus, type ProviderSessionSummary, type AgentSessionSummary, type AgentThread, type AgentThreadListPage, type AgentThreadSummary } from '@/shared/infrastructure/providerSessionClient'
-
-type StartProvisionalConversationInput = Parameters<typeof providerSessionClient.startProvisionalConversation>[0] & {
-  movScriptHomeDir?: string
-  /** @deprecated Use movScriptHomeDir for the desktop control/home directory. */
-  workspaceDir?: string
-}
+import { providerSessionClient } from '@/shared/infrastructure/providerSessionClient'
+import type {
+  AgentRunRole,
+  AgentRunStatus,
+  AgentSessionSummary,
+  AgentThread,
+  AgentThreadListPage,
+  AgentThreadSummary,
+} from '@movscript/core/agent/protocol'
+import type { ProviderSessionSummary } from '@/shared/contracts/electronApiProviderSessions'
 
 export interface ProviderSessionRunListItem {
   id: string
@@ -40,7 +43,6 @@ export interface ProviderSessionRunListItem {
 export type ProviderSessionThreadMutationEvent =
   | {
     type: 'ProviderThreadUpdated'
-    baseURL: string
     thread: AgentThreadSummary
     changedIds: readonly string[]
     changedPaths: readonly string[]
@@ -53,8 +55,6 @@ export interface ProviderSessionThreadMutationResult {
   changedPaths: readonly string[]
   snapshotVersion?: number
 }
-
-const pendingProvisionalConversations = new Map<string, Promise<AgentThread>>()
 
 export function providerSessionThreadSummaryFromThread(thread: AgentThread): AgentThreadSummary {
   const transcriptMessages = thread.messages?.filter(isProviderSessionThreadSummaryTranscriptMessage) ?? []
@@ -217,8 +217,10 @@ export function providerSessionRunSummariesFromProviderSession(summary: Provider
   })
 }
 
-export async function listProviderSessionRunSummariesFromProviderSessions(): Promise<ProviderSessionRunListItem[]> {
-  const providerSessions = await providerSessionClient.listProviderSessionsFromWorkspace()
+export async function listProviderSessionRunSummariesFromProviderSessions(input: { providerProfileKey?: string } = {}): Promise<ProviderSessionRunListItem[]> {
+  const providerSessions = await providerSessionClient.listProviderSessionsFromWorkspace({
+    ...(input.providerProfileKey?.trim() ? { providerProfileKey: input.providerProfileKey.trim() } : {}),
+  })
   return providerSessions.sessions
     .flatMap(providerSessionRunSummariesFromProviderSession)
     .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))
@@ -230,13 +232,11 @@ function isProviderSessionThreadSummaryTranscriptMessage(message: AgentThread['m
 
 export function providerThreadUpdatedResult(input: {
   thread: AgentThreadSummary
-  baseURL?: string
   changedPaths?: readonly string[]
   snapshotVersion?: number
 }): ProviderSessionThreadMutationResult {
   const event: ProviderSessionThreadMutationEvent = {
     type: 'ProviderThreadUpdated',
-    baseURL: input.baseURL ?? providerSessionClient.baseURL,
     thread: input.thread,
     changedIds: [input.thread.id],
     changedPaths: input.changedPaths ?? [],
@@ -273,7 +273,7 @@ function applyProviderThreadUpdated(
   event: Extract<ProviderSessionThreadMutationEvent, { type: 'ProviderThreadUpdated' }>,
 ) {
   queryClient.setQueriesData<AgentThreadSummary[]>({
-    predicate: (query) => isProviderSessionThreadListQueryKey(query.queryKey, event.baseURL),
+    predicate: (query) => isProviderSessionThreadListQueryKey(query.queryKey),
   }, (threads) => {
     if (!threads) return [event.thread]
     const existing = threads.some((item) => item.id === event.thread.id)
@@ -282,45 +282,8 @@ function applyProviderThreadUpdated(
   })
 }
 
-
-export async function startSharedProvisionalConversation(input: StartProvisionalConversationInput = {}): Promise<AgentThread> {
-  const key = provisionalConversationKey(input)
-  const pending = pendingProvisionalConversations.get(key)
-  if (pending) return pending
-
-  const promise = (async () => {
-    const sessionId = input.sessionId?.trim() || makeProviderSessionId()
-    const movScriptHomeDir = input.movScriptHomeDir?.trim() || input.workspaceDir?.trim()
-    const client = providerSessionClient.forSession({
-      sessionId,
-      ...(movScriptHomeDir ? { movScriptHomeDir, workspaceDir: movScriptHomeDir } : {}),
-    })
-    await client.ensureRunning()
-    return client.startProvisionalConversation(provisionalConversationThreadInput(input, sessionId))
-  })().finally(() => {
-    pendingProvisionalConversations.delete(key)
-  })
-  pendingProvisionalConversations.set(key, promise)
-  return promise
-}
-
-function provisionalConversationKey(input: StartProvisionalConversationInput = {}) {
-  return JSON.stringify({
-    sessionId: input.sessionId?.trim() ?? '',
-    movScriptHomeDir: input.movScriptHomeDir?.trim() || input.workspaceDir?.trim() || '',
-    workspaceDir: input.movScriptHomeDir?.trim() || input.workspaceDir?.trim() || '',
-    title: input.title?.trim() ?? '',
-    projectId: typeof input.projectId === 'number' ? input.projectId : null,
-    expiresAt: input.expiresAt ?? null,
-  })
-}
-
 function providerSessionHomeDir(summary: ProviderSessionSummary): string | undefined {
   return summary.movScriptHomeDir?.trim() || summary.workspaceDir?.trim() || undefined
-}
-
-function makeProviderSessionId(): string {
-  return `session_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
 }
 
 function workspaceCursorOffset(cursor: string | undefined): number {
@@ -355,13 +318,4 @@ function pendingStatusRecord(value: unknown): Array<{ status?: string }> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return []
   const status = (value as { status?: unknown }).status
   return [{ ...(typeof status === 'string' ? { status } : {}) }]
-}
-
-function provisionalConversationThreadInput(input: StartProvisionalConversationInput, sessionId: string): Parameters<typeof providerSessionClient.startProvisionalConversation>[0] {
-  return {
-    sessionId,
-    ...(input.title?.trim() ? { title: input.title.trim() } : {}),
-    ...(typeof input.projectId === 'number' ? { projectId: input.projectId } : {}),
-    ...(input.expiresAt ? { expiresAt: input.expiresAt } : {}),
-  }
 }

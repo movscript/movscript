@@ -398,8 +398,6 @@ func providerInstanceAdapterEnvPatch(instance ProviderInstance) map[string]strin
 		return map[string]string{"MOVSCRIPT_AGENT_RUNTIME_PROVIDER": "remote-runtime"}
 	case "agent_runtime:mova":
 		return map[string]string{"MOVSCRIPT_AGENT_RUNTIME_PROVIDER": "mova"}
-	case "agent_runtime:app-server":
-		return map[string]string{"MOVSCRIPT_AGENT_RUNTIME_PROVIDER": "app-server"}
 	default:
 		return map[string]string{}
 	}

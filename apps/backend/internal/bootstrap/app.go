@@ -3,11 +3,13 @@ package bootstrap
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -44,6 +46,7 @@ type App struct {
 	SystemMessages *systemstream.Hub
 	Worker         *runner.Worker
 	Router         *gin.Engine
+	background     sync.WaitGroup
 }
 
 func New() (*App, error) {
@@ -155,31 +158,87 @@ func (a *App) StartMediaStreamCleanup(ctx context.Context) {
 	}
 	limit := mediaStreamCleanupLimit()
 	service := mediastreamapp.NewService(a.DB, a.Store)
-	go service.RunExpiredCleanupLoop(ctx, mediastreamapp.CleanupLoopOptions{
-		Interval: interval,
-		Limit:    limit,
-		OnResult: func(result mediastreamapp.CleanupExpiredResult) {
-			if result.Candidates == 0 && result.Deleted == 0 {
-				return
-			}
-			observability.Logger().Info(
-				"media_stream_expired_gc_completed",
-				slog.String("backend", result.Backend),
-				slog.Int("candidates", result.Candidates),
-				slog.Int("deleted", result.Deleted),
-				slog.Int("objects_deleted", result.ObjectsDeleted),
-				slog.Int64("freed_bytes", result.FreedBytes),
-			)
-		},
-		OnError: func(err error) {
-			observability.Logger().Warn("media_stream_expired_gc_failed", slog.String("error", err.Error()))
-		},
-	})
+	a.background.Add(1)
+	go func() {
+		defer a.background.Done()
+		service.RunExpiredCleanupLoop(ctx, mediastreamapp.CleanupLoopOptions{
+			Interval: interval,
+			Limit:    limit,
+			OnResult: func(result mediastreamapp.CleanupExpiredResult) {
+				if result.Candidates == 0 && result.Deleted == 0 {
+					return
+				}
+				observability.Logger().Info(
+					"media_stream_expired_gc_completed",
+					slog.String("backend", result.Backend),
+					slog.Int("candidates", result.Candidates),
+					slog.Int("deleted", result.Deleted),
+					slog.Int("objects_deleted", result.ObjectsDeleted),
+					slog.Int64("freed_bytes", result.FreedBytes),
+				)
+			},
+			OnError: func(err error) {
+				observability.Logger().Warn("media_stream_expired_gc_failed", slog.String("error", err.Error()))
+			},
+		})
+	}()
 	observability.Logger().Info(
 		"media_stream_expired_gc_started",
 		slog.Duration("interval", interval),
 		slog.Int("limit", limit),
 	)
+}
+
+func (a *App) WaitForBackground(ctx context.Context) error {
+	if a == nil {
+		return nil
+	}
+	return errors.Join(a.waitForWorkers(ctx), waitGroupContext(ctx, &a.background))
+}
+
+func (a *App) Close() error {
+	if a == nil {
+		return nil
+	}
+	var errs []error
+	if a.Cache != nil {
+		if err := a.Cache.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("close cache: %w", err))
+		}
+	}
+	if a.DB != nil {
+		sqlDB, err := a.DB.DB()
+		if err != nil {
+			errs = append(errs, fmt.Errorf("resolve database handle: %w", err))
+		} else if err := sqlDB.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("close database: %w", err))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func (a *App) waitForWorkers(ctx context.Context) error {
+	if a == nil || a.Worker == nil {
+		return nil
+	}
+	return a.Worker.WaitContext(ctx)
+}
+
+func waitGroupContext(ctx context.Context, wg *sync.WaitGroup) error {
+	if wg == nil {
+		return nil
+	}
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func shouldRunStartupMigrations() bool {

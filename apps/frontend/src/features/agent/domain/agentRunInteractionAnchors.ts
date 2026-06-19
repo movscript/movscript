@@ -1,6 +1,6 @@
 import { isTranscriptAssistantChatMessage, transcriptAssistantRelatedRunId } from '@/features/agent/domain/agentMessageBoundaries'
 import { providerSessionMessageRef } from '@movscript/core/agent/protocol'
-import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 import type { ChatMessage } from '@/features/agent/state/agentStore'
 
 export type AgentRunInteractionDisplayAnchorPlacement = 'before' | 'after'

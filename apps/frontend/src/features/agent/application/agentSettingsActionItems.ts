@@ -1,8 +1,8 @@
 import type {
   ProviderCatalogConfigFile,
-  ProviderModelConfigPublic,
   ProviderSessionCapabilitiesResponse,
-} from '@/shared/infrastructure/providerSessionClient'
+} from '@movscript/core/agent/protocol'
+import type { ProviderModelConfigPublic } from '@movscript/core/agent/protocol'
 import type {
   AgentSettingsToolStats,
   SettingsActionItem,

@@ -12,7 +12,7 @@ import {
   AgentSettingsConfigFileEditor,
   AgentSettingsConfigFileEditorPane,
 } from '@/features/agent/components/AgentSettingsConfigFileUi'
-import type { ProviderCatalogConfigFile } from '@/shared/infrastructure/providerSessionClient'
+import type { ProviderCatalogConfigFile } from '@movscript/core/agent/protocol'
 import { AIAgentSettingsConfigFileBrowserSection } from '@/features/agent/components/AIAgentSettingsConfigFileBrowserSection'
 
 export function AIAgentSettingsConfigFileEditorShell({

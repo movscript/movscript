@@ -24,7 +24,7 @@ test('core settings snapshot exports model, config files, provider-session limit
       provider: 'backend-model-config',
       model: 'gpt-test',
       apiKind: 'openai_responses',
-      baseURL: 'https://api.openai.com/v1',
+      modelEndpointBaseURL: 'https://api.openai.com/v1',
       apiKeyConfigured: true,
       useForChat: true,
       useForPlanner: false,
@@ -76,7 +76,7 @@ test('core settings snapshot strips URL secrets and omits secret model IDs', () 
       provider: 'backend-model-config',
       model: 'gpt-test',
       apiKind: 'openai_responses',
-      baseURL: 'https://user:pass@api.openai.com/v1?api_key=secret&project=demo&signature=sig',
+      modelEndpointBaseURL: 'https://user:pass@api.openai.com/v1?api_key=secret&project=demo&signature=sig',
       apiKeyConfigured: true,
       useForChat: true,
       useForPlanner: false,
@@ -89,7 +89,7 @@ test('core settings snapshot strips URL secrets and omits secret model IDs', () 
     skillConfig: [],
     toolPermissionOverrides: [],
   })
-  assert.equal(urlSnapshot.model?.baseURL, 'https://api.openai.com/v1?project=demo')
+  assert.equal(urlSnapshot.model?.modelEndpointBaseURL, 'https://api.openai.com/v1?project=demo')
 
   const secretModelSnapshot = buildSettingsSnapshot({
     config: {

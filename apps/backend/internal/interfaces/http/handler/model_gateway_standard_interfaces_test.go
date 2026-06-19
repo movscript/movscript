@@ -150,6 +150,106 @@ func TestResponsesSSEWritesCodexCompatibleCompletedEvent(t *testing.T) {
 	}
 }
 
+func TestAnthropicMessagesSSEWritesSDKCompatibleTextEvents(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+
+	writeAnthropicMessagesStream(c, nil, "claude-test", ai.TextResponse{
+		Content:      "pong",
+		FinishReason: "stop",
+		Usage:        ai.TokenUsage{InputTokens: 7, OutputTokens: 3, CachedInputTokens: 2},
+	})
+
+	body := recorder.Body.String()
+	for _, eventName := range []string{
+		"message_start",
+		"content_block_start",
+		"content_block_delta",
+		"content_block_stop",
+		"message_delta",
+		"message_stop",
+	} {
+		if !strings.Contains(body, "event: "+eventName+"\n") {
+			t.Fatalf("missing %s event in SSE body:\n%s", eventName, body)
+		}
+	}
+
+	start := ssePayloadForEvent(t, body, "message_start")
+	message, ok := start["message"].(map[string]any)
+	if !ok {
+		t.Fatalf("missing message_start.message: %#v", start)
+	}
+	if message["model"] != "claude-test" || message["role"] != "assistant" {
+		t.Fatalf("unexpected message_start payload: %#v", message)
+	}
+	usage, ok := message["usage"].(map[string]any)
+	if !ok || usage["input_tokens"] != float64(7) || usage["cache_read_input_tokens"] != float64(2) {
+		t.Fatalf("unexpected message_start usage: %#v", message["usage"])
+	}
+
+	delta := ssePayloadForEvent(t, body, "content_block_delta")
+	deltaBody, ok := delta["delta"].(map[string]any)
+	if !ok || deltaBody["type"] != "text_delta" || deltaBody["text"] != "pong" {
+		t.Fatalf("unexpected content delta: %#v", delta)
+	}
+	blockStart := ssePayloadForEvent(t, body, "content_block_start")
+	contentBlock, ok := blockStart["content_block"].(map[string]any)
+	if !ok || contentBlock["type"] != "text" || contentBlock["text"] != "" {
+		t.Fatalf("unexpected content_block_start payload: %#v", blockStart)
+	}
+
+	messageDelta := ssePayloadForEvent(t, body, "message_delta")
+	stopDelta, ok := messageDelta["delta"].(map[string]any)
+	if !ok || stopDelta["stop_reason"] != "end_turn" {
+		t.Fatalf("unexpected message_delta: %#v", messageDelta)
+	}
+}
+
+func TestAnthropicMessagesEventStreamWritesSDKCompatibleTextEvents(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	events := make(chan ai.TextStreamEvent, 4)
+	events <- ai.TextStreamEvent{Usage: ai.TokenUsage{InputTokens: 5, CachedInputTokens: 1}}
+	events <- ai.TextStreamEvent{ContentDelta: "po"}
+	events <- ai.TextStreamEvent{ContentDelta: "ng", FinishReason: "end_turn", Usage: ai.TokenUsage{InputTokens: 5, OutputTokens: 2, CachedInputTokens: 1}}
+	events <- ai.TextStreamEvent{Done: true}
+	close(events)
+
+	writeAnthropicMessagesEventStream(c, nil, "claude-test", events)
+
+	body := recorder.Body.String()
+	start := ssePayloadForEvent(t, body, "message_start")
+	message, ok := start["message"].(map[string]any)
+	if !ok {
+		t.Fatalf("missing message_start.message: %#v", start)
+	}
+	startUsage, ok := message["usage"].(map[string]any)
+	if !ok || startUsage["input_tokens"] != float64(5) || startUsage["cache_read_input_tokens"] != float64(1) {
+		t.Fatalf("unexpected message_start usage: %#v", message["usage"])
+	}
+	deltas := ssePayloadsForEvent(t, body, "content_block_delta")
+	if len(deltas) != 2 {
+		t.Fatalf("content deltas = %d, want 2\n%s", len(deltas), body)
+	}
+	firstDelta, _ := deltas[0]["delta"].(map[string]any)
+	secondDelta, _ := deltas[1]["delta"].(map[string]any)
+	if firstDelta["text"] != "po" || secondDelta["text"] != "ng" {
+		t.Fatalf("unexpected content deltas: %#v %#v", firstDelta, secondDelta)
+	}
+	blockStart := ssePayloadForEvent(t, body, "content_block_start")
+	contentBlock, ok := blockStart["content_block"].(map[string]any)
+	if !ok || contentBlock["type"] != "text" || contentBlock["text"] != "" {
+		t.Fatalf("unexpected content_block_start payload: %#v", blockStart)
+	}
+	messageDelta := ssePayloadForEvent(t, body, "message_delta")
+	usage, ok := messageDelta["usage"].(map[string]any)
+	if !ok || usage["input_tokens"] != float64(5) || usage["output_tokens"] != float64(2) {
+		t.Fatalf("unexpected stream usage: %#v", messageDelta)
+	}
+}
+
 func TestAnthropicMessagePartsNormalizeToolUseAndToolResult(t *testing.T) {
 	text, calls, results, err := anthropicMessageParts(json.RawMessage(`[
 		{"type":"text","text":"checking"},
@@ -194,4 +294,30 @@ func TestAnthropicContentFromTextResponseMapsToolCalls(t *testing.T) {
 	if blocks[1].Type != "tool_use" || blocks[1].ID != "call_1" || blocks[1].Name != "movscript_get_context" {
 		t.Fatalf("unexpected tool block: %#v", blocks[1])
 	}
+}
+
+func ssePayloadForEvent(t *testing.T, body string, eventName string) map[string]any {
+	t.Helper()
+	payloads := ssePayloadsForEvent(t, body, eventName)
+	if len(payloads) == 0 {
+		t.Fatalf("missing %s event in body:\n%s", eventName, body)
+	}
+	return payloads[0]
+}
+
+func ssePayloadsForEvent(t *testing.T, body string, eventName string) []map[string]any {
+	t.Helper()
+	var payloads []map[string]any
+	for _, chunk := range strings.Split(body, "\n\n") {
+		if !strings.HasPrefix(chunk, "event: "+eventName+"\n") {
+			continue
+		}
+		data := strings.TrimPrefix(strings.TrimSpace(strings.TrimPrefix(chunk, "event: "+eventName+"\n")), "data: ")
+		var payload map[string]any
+		if err := json.Unmarshal([]byte(data), &payload); err != nil {
+			t.Fatalf("decode %s payload: %v\n%s", eventName, err, chunk)
+		}
+		payloads = append(payloads, payload)
+	}
+	return payloads
 }

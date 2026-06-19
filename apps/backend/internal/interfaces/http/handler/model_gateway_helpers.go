@@ -340,11 +340,20 @@ func anthropicContentFromTextResponse(resp ai.TextResponse) []anthropicContentBl
 }
 
 func anthropicStopReason(resp ai.TextResponse) string {
-	if len(resp.ToolCalls) > 0 {
+	return anthropicStopReasonFromFinishReason(resp.FinishReason, len(resp.ToolCalls) > 0)
+}
+
+func anthropicStopReasonFromFinishReason(finishReason string, usedTool bool) string {
+	if usedTool {
 		return "tool_use"
 	}
-	if resp.FinishReason == "length" {
+	switch finishReason {
+	case "max_tokens", "length":
 		return "max_tokens"
+	case "tool_use", "tool_calls":
+		return "tool_use"
+	case "stop_sequence":
+		return "stop_sequence"
 	}
 	return "end_turn"
 }

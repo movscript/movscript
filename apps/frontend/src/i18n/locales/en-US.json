@@ -1603,7 +1603,7 @@
     },
     "settings": {
       "title": "Agent Settings",
-      "description": "Manage agent runtime config files, installed capabilities, Skills, tool permissions, model, runtime-session limits, and settings snapshots.",
+      "description": "Choose the current Agent and review the SDK runtime used for future conversations. Advanced catalog and permission controls appear only for agents that expose them.",
       "scope": {
         "controlPlane": "Control plane: configures future new runs",
         "futureRuns": "Does not show per-run diagnostics",
@@ -1616,15 +1616,36 @@
       "copySettingsStatus": "Copy Status",
       "settingsStatusCopied": "Status Copied",
       "refresh": "Refresh",
+      "statusCardTitle": "Agent Status",
+      "statusCardDescription": "Review the current Agent, runtime connection, and configuration boundary used by future new runs.",
+      "statusCardRuntimeFallback": "SDK runtime",
+      "statusCardRuntimeDetail": "The runtime follows the current Agent; this Settings page does not switch providers.",
+      "statusCardCapabilityLabel": "Configuration capability",
+      "statusCardCatalogCapability": "Catalog and permissions configurable",
+      "statusCardCatalogCapabilityDetail": "This Agent exposes Catalog, Skill, and tool-permission workspaces for the advanced sections below.",
+      "statusCardSdkCapability": "SDK connects on demand",
+      "statusCardSdkCapabilityDetail": "This Agent does not expose a catalog workspace here; the page shows current status and future-run boundaries.",
+      "statusCardModelsLabel": "Available models",
+      "statusCardModelsDetail": "Loaded from the backend AI Gateway and filtered by the current Agent's supported API modes.",
+      "statusCardModelsLoading": "Loading models...",
+      "statusCardModelsEmpty": "No text or reasoning models are available.",
+      "statusCardModelsError": "Model list could not be loaded: {{reason}}",
+      "statusCardModelsMore": "+{{count}} more",
+      "statusCardModelCapabilities": "Capabilities: {{capabilities}}",
+      "statusCardModelCurrent": "Current",
+      "statusCardModelDefault": "Default",
+      "providerProfileReadonly": "Provider configuration follows the current Agent and is shown read-only.",
       "providerProfileConfigLabel": "Runtime Profile",
       "selectProviderProfileConfig": "Select Runtime Profile",
       "providerProfileConfigs": {
         "mova": "Mova",
-        "codex": "Codex"
+        "codex": "Codex",
+        "claude": "Claude Code"
       },
       "providerProfileConfigDescriptions": {
-        "mova": "Configures the Mova runtime profile under providers/mova; its managed app-server home is .mova.",
-        "codex": "Configures the Codex runtime profile under providers/codex; its managed app-server home is .codex."
+        "mova": "Configures the Mova SDK runtime under providers/mova; Mova SDK runtime uses .mova as the default workspace home.",
+        "codex": "Configures the Codex SDK runtime under providers/codex; Codex SDK runtime uses .codex as the default workspace home.",
+        "claude": "Configures the Claude Code SDK runtime under providers/claude."
       },
       "modelPanel": "Model Routing",
       "modelLabel": "Backend text model",
@@ -1645,9 +1666,6 @@
       "providerCredentialHelp": "Agent Settings does not save Provider API keys. Maintain credentials in Admin Provider Access.",
       "apiKindLabel": "Call mode",
       "selectApiKind": "Select call mode",
-      "baseUrlLabel": "Provider Base URL",
-      "baseUrlHelp": "Agent Settings does not save Provider Base URLs. Maintain them in Admin Provider Access.",
-      "baseUrlSecretsBlocked": "The Base URL contains username/password credentials or sensitive fields such as token, api_key, or signature. Clear the legacy config and manage model credentials in Admin Provider Access.",
       "apiKinds": {
         "backendChatCompletions": "Backend Gateway / Chat Completions",
         "openaiResponses": "OpenAI / Responses",
@@ -2127,7 +2145,6 @@
         "modelIdSensitive": "Saved model ID may contain secrets",
         "apiModeCompatibility": "Call mode is still compatibility mode",
         "modelCredentialsMissing": "Provider credentials are not loaded",
-        "modelBaseURLSensitive": "Legacy Base URL config may contain secrets",
         "routesInvalid": "Model routes are unavailable",
         "routesMissing": "No model route is active",
         "configFileMissing": "Active config file is missing",
@@ -2144,7 +2161,6 @@
         "modelIdSensitive": "The saved legacy model ID looks like it contains an API key, Bearer token, or URL with secret parameters. Clear this config and select a Catalog model; manage credentials in Admin Provider Access.",
         "apiModeCompatibility": "Chat Completions is available for older flows; unless this is a migration period, switch new runtime-session runs to OpenAI Responses.",
         "modelCredentialsMissing": "Provider credentials did not detect {{env}}; Admin-routed model calls may fail.",
-        "modelBaseURLSensitive": "The legacy Base URL contains username/password credentials or sensitive fields such as token, api_key, or signature. Manage model credentials in Admin Provider Access.",
         "routesInvalid": "Enable at least one usage route for chat or planning.",
         "routesMissing": "Check model routing and usage toggles so future runs have an available model route.",
         "configFileMissing": "Select and save an active config file.",
@@ -2169,6 +2185,8 @@
         "more": "{{count}} more"
       },
       "readiness": {
+        "agent": "Current Agent",
+        "runtime": "SDK runtime",
         "model": "Model routing",
         "apiMode": "Call mode",
         "modelCredentials": "Model credentials",
@@ -2187,6 +2205,11 @@
       "copyReadiness": "Copy Readiness",
       "readinessCopied": "Readiness Copied",
       "readinessDetails": {
+        "agentReady": "{{agent}} is selected and available.",
+        "agentDisabled": "{{agent}} is disabled. Enable it before using it for new conversations.",
+        "runtimeSdkReady": "{{runtime}} is managed by the SDK host and connects on demand.",
+        "runtimeUnavailable": "{{runtime}} is not available for this Agent.",
+        "sdkCredentialsEnvPreferred": "By default, this runtime reads {{env}} from the environment that launched Movscript. Restart the app after changing it.",
         "modelReady": "Current model: {{model}}.",
         "modelMissing": "The current config file has no saved model routing.",
         "modelIdSensitive": "The saved model ID looks like it contains secrets; settings snapshot export will skip this model routing.",
@@ -2212,7 +2235,7 @@
         "noPendingChanges": "Current configuration is saved."
       },
       "settingsSnapshotPanel": "Config Import / Export",
-      "settingsSnapshotHelp": "Export includes model routing, active config file, runtime-session limits, Skill enablement and instruction, and Tool Permissions, and strips secret URL credentials from Base URLs. Import applies only the selected sections, in model, config file, runtime-session limits, skills, then tools order, and rejects Base URLs that contain secret URL credentials.",
+      "settingsSnapshotHelp": "Export includes model routing, active config file, runtime-session limits, Skill enablement and instruction, and Tool Permissions, and strips secret credentials from model endpoint URLs. Import applies only the selected sections, in model, config file, runtime-session limits, skills, then tools order, and rejects model endpoint URLs that contain secret URL credentials.",
       "settingsSnapshotPlaceholder": "Generate or paste Agent Settings Snapshot JSON here.",
       "settingsSnapshotSummary": "Snapshot Summary",
       "settingsSnapshotFields": {

@@ -1,4 +1,8 @@
-import { fetchAgentBackendModels as fetchAgentBackendModelsWithClient, type AgentBackendModelCatalogClient } from '@movscript/core/agent'
+import {
+  fetchAgentBackendModels as fetchAgentBackendModelsWithClient,
+  type AgentBackendModelCatalogClient,
+  type AgentBackendModelCatalogOptions,
+} from '@movscript/core/agent'
 
 import { api } from '@/shared/infrastructure/api'
 import type { PublicModel } from '@/types'
@@ -12,6 +16,7 @@ export type AgentModelRouteBinding = {
   route_group?: string
   provider_id?: string
   provider_model_id?: string
+  api_kinds?: string
   is_enabled: boolean
   priority?: number
   capacity_weight?: number
@@ -50,10 +55,17 @@ type AgentModelCatalogEntryResponse = Omit<AgentModelCatalogEntry, 'id' | 'route
   route_bindings?: AgentModelRouteBindingResponse[]
 }
 
+export function fetchAgentBackendModels(): Promise<PublicModel[]>
+export function fetchAgentBackendModels(client: AgentBackendModelCatalogClient<PublicModel>): Promise<PublicModel[]>
+export function fetchAgentBackendModels(options: AgentBackendModelCatalogOptions, client?: AgentBackendModelCatalogClient<PublicModel>): Promise<PublicModel[]>
 export function fetchAgentBackendModels(
-  client: AgentBackendModelCatalogClient<PublicModel> = api,
+  first?: AgentBackendModelCatalogClient<PublicModel> | AgentBackendModelCatalogOptions,
+  second: AgentBackendModelCatalogClient<PublicModel> = api,
 ): Promise<PublicModel[]> {
-  return fetchAgentBackendModelsWithClient(client)
+  if (isAgentBackendModelCatalogClient(first)) {
+    return fetchAgentBackendModelsWithClient(first)
+  }
+  return fetchAgentBackendModelsWithClient(second, first ?? {})
 }
 
 export async function fetchAgentModelCatalogEntries(): Promise<AgentModelCatalogEntry[]> {
@@ -87,4 +99,8 @@ function normalizedId(record: { id?: number; ID?: number }): number {
   const id = record.id ?? record.ID
   if (typeof id === 'number' && Number.isFinite(id)) return id
   throw new Error('model catalog response is missing a numeric ID')
+}
+
+function isAgentBackendModelCatalogClient(value: unknown): value is AgentBackendModelCatalogClient<PublicModel> {
+  return Boolean(value && typeof value === 'object' && typeof (value as AgentBackendModelCatalogClient<PublicModel>).get === 'function')
 }

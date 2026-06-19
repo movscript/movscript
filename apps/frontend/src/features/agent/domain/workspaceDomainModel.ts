@@ -1,6 +1,6 @@
 import type { AgentTaskArtifactRef } from '@/features/agent/domain/agentArtifacts'
 import { isRecord } from '@/shared/domain/jsonValue'
-import type { WorkspaceArtifact, MovScriptWorkspaceKind } from '@/shared/infrastructure/providerSessionClient'
+import type { MovScriptWorkspaceKind, WorkspaceArtifact } from '@/shared/contracts/workspaceArtifact'
 import { buildProjectEntryReviewPath, getProjectEntryDefinition } from '@/features/project/domain/projectEntryRegistry'
 import { ROUTES, withRouteParams } from '@/routes/projectRoutes'
 

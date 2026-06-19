@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { buildAgentChatGenerationProgressViewState } from '@/features/agent/presentation/agentChatGenerationProgressViewState'
-import type { AgentTimelineItem } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentTimelineItem } from '@movscript/core/agent/protocol'
 import type { ChatMessage, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 test('buildAgentChatGenerationProgressViewState exposes current generation progress', () => {

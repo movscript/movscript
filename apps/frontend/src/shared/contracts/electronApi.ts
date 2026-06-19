@@ -8,20 +8,6 @@ import type {
   ContentSourceWorkspaceSnapshot,
 } from '@movscript/core/content'
 import type {
-  ElectronAppServerEnsureInput,
-  ElectronAppServerHubCloseInput,
-  ElectronAppServerHubConnectInput,
-  ElectronAppServerHubConnection,
-  ElectronAppServerHubMessage,
-  ElectronAppServerHubNotifyInput,
-  ElectronAppServerHubRequestInput,
-  ElectronAppServerHubSendInput,
-  ElectronAppServerHubSnapshot,
-  ElectronAppServerHubSnapshotInput,
-  ElectronAppServerLogEvent,
-  ElectronAppServerStatus,
-  ElectronAppServerStatusInput,
-  ElectronAppServerStopInput,
   ElectronSdkRuntimeNotifyInput,
   ElectronSdkRuntimeNotificationEvent,
   ElectronSdkRuntimeRequestInput,
@@ -148,6 +134,7 @@ export type ElectronAPI = {
   setAppSettings?: (settings: AppSettings) => Promise<void>
   getAppSettings?: () => Promise<AppSettings | null>
   getAppSettingsSecrets?: () => Promise<ElectronAppSettingsSecrets>
+  setAgentRuntimeApiKey?: (input: { providerKey?: string; providerKeys?: string[]; apiKey?: string | null }) => Promise<ElectronAppSettingsSecrets>
   getRuntimeConfig?: () => Promise<ElectronRuntimeConfig>
   setGenerationToolsSettings?: (settings: GenerationToolsSettings) => Promise<void>
   testGenerationToolServer?: (server: Partial<GenerationToolServer>) => Promise<ElectronGenerationToolServerTestResult>
@@ -174,18 +161,6 @@ export type ElectronAPI = {
   embeddedBrowserReload?: (input?: { tabId?: string }) => Promise<ElectronEmbeddedBrowserState>
   embeddedBrowserStop?: (input?: { tabId?: string }) => Promise<ElectronEmbeddedBrowserState>
   onEmbeddedBrowserState?: (handler: (state: ElectronEmbeddedBrowserState) => void) => () => void
-  distributeAppServerConfig?: (input: ElectronAppServerEnsureInput) => Promise<ElectronAppServerStatus>
-  ensureAppServer?: (input: ElectronAppServerEnsureInput) => Promise<ElectronAppServerStatus>
-  getAppServerStatus?: (input?: ElectronAppServerStatusInput) => Promise<ElectronAppServerStatus>
-  stopAppServer?: (input?: ElectronAppServerStopInput) => Promise<ElectronAppServerStatus>
-  appServerHubConnect?: (input: ElectronAppServerHubConnectInput) => Promise<ElectronAppServerHubConnection>
-  appServerHubSend?: (input: ElectronAppServerHubSendInput) => Promise<void>
-  appServerHubRequest?: <T = unknown>(input: ElectronAppServerHubRequestInput) => Promise<T>
-  appServerHubNotify?: (input: ElectronAppServerHubNotifyInput) => Promise<void>
-  appServerHubClose?: (input: ElectronAppServerHubCloseInput) => Promise<void>
-  getAppServerHubSnapshot?: (input: ElectronAppServerHubSnapshotInput) => Promise<ElectronAppServerHubSnapshot>
-  onAppServerHubMessage?: (handler: (message: ElectronAppServerHubMessage) => void) => () => void
-  onAppServerLog?: (handler: (event: ElectronAppServerLogEvent) => void) => () => void
   sdkRuntimeRequest?: <T = ElectronSdkRuntimeRequestResult>(input: ElectronSdkRuntimeRequestInput) => Promise<T>
   sdkRuntimeNotify?: (input: ElectronSdkRuntimeNotifyInput) => Promise<void>
   sdkRuntimeRespondToServerRequest?: (input: ElectronSdkRuntimeServerRequestResponseInput) => Promise<void>

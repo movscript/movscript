@@ -1,16 +1,8 @@
 import type { AgentTaskArtifactRef } from '@/features/agent/domain/agentArtifacts'
 import type { AgentStandaloneTaskState, AgentConversationThreadBinding, AgentConversationRuntimeState } from '@/features/agent/state/agentSessionRuntimeModel'
 import {
-  isTerminalAgentPageTaskRun,
-  normalizeTaskPayload,
-  pageTaskStatusFromProviderSession,
-  type AgentPageTaskPayload,
-  type AgentPageTaskRunningPatch,
-  type AgentPageTaskRun,
-  type AgentPageTaskState,
-  type AgentPageTaskThread,
-} from '@/features/agent/state/agentSessionTaskModel'
-import type { AgentRun, AgentThread } from '@/shared/infrastructure/providerSessionClient'
+  isTerminalAgentPageTaskRun, normalizeTaskPayload, pageTaskStatusFromProviderSession, AgentPageTaskPayload, AgentPageTaskRunningPatch, AgentPageTaskRun, AgentPageTaskState, AgentPageTaskThread, } from '@/features/agent/state/agentSessionTaskModel'
+import type { AgentRun, AgentThread } from '@movscript/core/agent/protocol'
 
 export interface AgentSessionVolatileState {
   pageTasks: Record<string, AgentPageTaskState>

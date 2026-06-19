@@ -1,3 +1,4 @@
+import type { ProviderModelAPIKind } from '@movscript/core/agent'
 import type {
   ProviderKind,
   ProviderRuntimeApi,
@@ -5,7 +6,7 @@ import type {
 import type { SdkRuntimeRpcMethod } from './sdk-runtime/sdkRuntimeProtocol'
 
 export type ProviderRuntimeAdapterStatus = 'available' | 'pending'
-export type ProviderRuntimeTransport = 'app-server-json-rpc' | 'sdk-client'
+export type ProviderRuntimeTransport = 'sdk-client'
 
 export interface ProviderRuntimeApiContract {
   api: ProviderRuntimeApi
@@ -13,6 +14,7 @@ export interface ProviderRuntimeApiContract {
   transport: ProviderRuntimeTransport
   adapterStatus: ProviderRuntimeAdapterStatus
   providerKinds: ProviderKind[]
+  modelAPIKinds: ProviderModelAPIKind[]
   packageName?: string
   sdkPackageName?: string
   binaryPackageName?: string
@@ -37,11 +39,35 @@ export interface ProviderRuntimeApiContract {
 
 export const PROVIDER_RUNTIME_API_CONTRACTS: ProviderRuntimeApiContract[] = [
   {
-    api: 'app-server',
-    label: 'App Server JSON-RPC',
-    transport: 'app-server-json-rpc',
+    api: 'codex-sdk',
+    label: 'Codex SDK',
+    transport: 'sdk-client',
     adapterStatus: 'available',
-    providerKinds: ['codex', 'mova'],
+    providerKinds: ['codex'],
+    modelAPIKinds: ['openai_responses', 'openai_chat_completions'],
+    packageName: '@openai/codex',
+    sdkPackageName: '@openai/codex-sdk',
+    requiredPackageExports: ['Codex'],
+    requiredRpcMethods: [
+      'runtime/probe',
+      'runtime/describe',
+      'thread/list',
+      'thread/read',
+      'thread/start',
+      'thread/resume',
+      'thread/rename',
+      'thread/archive',
+      'thread/unarchive',
+      'thread/delete',
+      'thread/settings/update',
+      'thread/goal/set',
+      'turn/start',
+      'turn/text/start',
+      'turn/steer',
+      'turn/interrupt',
+      'runtime/notify/threadSubscribe',
+      'runtime/notify/serverRequestsSubscribe',
+    ],
     thread: {
       list: true,
       read: true,
@@ -59,13 +85,13 @@ export const PROVIDER_RUNTIME_API_CONTRACTS: ProviderRuntimeApiContract[] = [
     },
   },
   {
-    api: 'codex-sdk',
-    label: 'Codex SDK',
+    api: 'mova-sdk',
+    label: 'Mova SDK',
     transport: 'sdk-client',
     adapterStatus: 'available',
-    providerKinds: ['codex'],
-    packageName: '@openai/codex',
-    sdkPackageName: '@openai/codex-sdk',
+    providerKinds: ['mova'],
+    modelAPIKinds: ['openai_responses', 'openai_chat_completions'],
+    binaryPackageName: '@movscript/mova',
     requiredPackageExports: ['Codex'],
     requiredRpcMethods: [
       'runtime/probe',
@@ -109,6 +135,7 @@ export const PROVIDER_RUNTIME_API_CONTRACTS: ProviderRuntimeApiContract[] = [
     transport: 'sdk-client',
     adapterStatus: 'available',
     providerKinds: ['claude'],
+    modelAPIKinds: ['anthropic_messages'],
     packageName: '@anthropic-ai/claude-agent-sdk',
     binaryPackageName: '@anthropic-ai/claude-code',
     requiredPackageExports: ['query'],
@@ -161,4 +188,8 @@ export function providerRuntimeAdapterAvailable(api: ProviderRuntimeApi): boolea
 export function providerRuntimeApiSupportsKind(api: ProviderRuntimeApi, kind: ProviderKind): boolean {
   const contract = providerRuntimeApiContract(api)
   return Boolean(contract?.providerKinds.includes(kind))
+}
+
+export function providerRuntimeModelAPIKinds(api: ProviderRuntimeApi): ProviderModelAPIKind[] {
+  return [...(providerRuntimeApiContract(api)?.modelAPIKinds ?? [])]
 }

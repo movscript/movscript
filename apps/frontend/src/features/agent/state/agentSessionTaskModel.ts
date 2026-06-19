@@ -1,10 +1,6 @@
 import type { AgentTaskArtifactRef } from '@/features/agent/domain/agentArtifacts'
 import type {
-  AgentRun,
-  AgentThread,
-  ProviderManifest,
-  ProviderSessionClientInput,
-} from '@/shared/infrastructure/providerSessionClient'
+  AgentRun, AgentThread, ProviderManifest, ProviderSessionClientInput } from '@movscript/core/agent/protocol'
 
 export type AgentPageTaskStatus = 'queued' | 'claimed' | 'running' | 'completed' | 'error' | 'cancelled'
 export type AgentTaskRenderMode = 'chat' | 'panel' | 'page'

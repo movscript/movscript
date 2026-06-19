@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
-import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun } from '@movscript/core/agent/protocol'
 
 interface UseAgentConversationRunResetInput {
   activeRunId?: string | null

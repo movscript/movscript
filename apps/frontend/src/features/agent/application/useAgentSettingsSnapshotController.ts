@@ -22,6 +22,7 @@ import {
   toggleSettingsSnapshotImportScopes,
   type SettingsSnapshotImportPresetId,
   type SettingsSnapshotImportScope,
+  type SettingsSnapshotWriteCommitClient,
 } from '@/features/agent/application/agentSettingsConfigFile'
 import {
   settingsErrorMessage,
@@ -33,23 +34,22 @@ import type { AgentSettingsAuditEntry, AgentSettingsImportBackup } from '@/featu
 import type {
   ProviderCatalogConfigFile,
   ProviderCatalogInspectResponse,
-  ProviderModelConfigPublic,
   ProviderSessionCapabilitiesResponse,
-  ProviderSessionClient,
-} from '@/shared/infrastructure/providerSessionClient'
+} from '@movscript/core/agent/protocol'
+import type { ProviderModelConfigPublic } from '@movscript/core/agent/protocol'
+import { providerModelConfigFromSelection } from '@/features/agent/application/agentSettingsProviderModel'
 import { copyTextToClipboard, downloadTextFile } from '@/shared/ui/browserActions'
 import type { PublicModel } from '@/types'
 
 interface UseAgentSettingsSnapshotControllerInput {
   catalog?: ProviderCatalogInspectResponse
   capabilities?: ProviderSessionCapabilitiesResponse
-  client: ProviderSessionClient
+  client: SettingsSnapshotWriteCommitClient
   currentConfigFile: ProviderCatalogConfigFile | null
   currentConfigFileId: string
   effectiveConfig: ProviderModelConfigPublic | null
   refetchCapabilities: () => Promise<unknown>
   refetchCatalog: () => Promise<unknown>
-  refetchProviderModelConfig: () => Promise<unknown>
   recordSettingsAudit: (entry: Omit<AgentSettingsAuditEntry, 'id' | 'createdAt'> & { createdAt?: string }) => void
   selectedConfigFileId?: string | null
   setSavedConfig: (config: ProviderModelConfigPublic | null) => void
@@ -58,6 +58,7 @@ interface UseAgentSettingsSnapshotControllerInput {
   textModels?: PublicModel[]
   toolGrantWorkspaces: ToolGrantWorkspace[]
   updateAgentSettings: (settings: { lastImportBackup: AgentSettingsImportBackup | null }) => void
+  updateSelectedModelId: (modelId: string | null) => void
 }
 
 export function useAgentSettingsSnapshotController({
@@ -69,7 +70,6 @@ export function useAgentSettingsSnapshotController({
   effectiveConfig,
   refetchCapabilities,
   refetchCatalog,
-  refetchProviderModelConfig,
   recordSettingsAudit,
   selectedConfigFileId,
   setSavedConfig,
@@ -78,6 +78,7 @@ export function useAgentSettingsSnapshotController({
   textModels,
   toolGrantWorkspaces,
   updateAgentSettings,
+  updateSelectedModelId,
 }: UseAgentSettingsSnapshotControllerInput) {
   const { t } = useTranslation()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -170,10 +171,18 @@ export function useAgentSettingsSnapshotController({
     await commitSettingsSnapshotWritePlan({
       client,
       plan: writePlan,
-      refetchProviderModelConfig,
       refetchCatalog,
       refetchCapabilities,
     })
+    if (writePlan.modelSelection) {
+      updateSelectedModelId(writePlan.modelSelection.modelId)
+      setSavedConfig(providerModelConfigFromSelection({
+        modelId: writePlan.modelSelection.modelId,
+        useForChat: writePlan.modelSelection.useForChat,
+        useForPlanner: writePlan.modelSelection.useForPlanner,
+        updatedAt: new Date().toISOString(),
+      }))
+    }
   }
 
   function updateText(nextText: string) {

@@ -1,5 +1,5 @@
 import type { ToolGrantWorkspace } from '@movscript/core/agent'
-import type { ProviderCatalogConfigFile } from '@/shared/infrastructure/providerSessionClient'
+import type { ProviderCatalogConfigFile } from '@movscript/core/agent/protocol'
 import {
   CONFIG_FILE_APPROVAL_DEFAULT_KEYS,
   CONFIG_FILE_LIMIT_KEYS,

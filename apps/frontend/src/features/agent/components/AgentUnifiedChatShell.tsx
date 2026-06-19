@@ -1,23 +1,19 @@
 import { useMemo } from 'react'
 
 import {
-  AppServerChatShell,
-} from '@/features/agent/components/AppServerChatShell'
-import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
+  AgentRuntimeChatShell,
+  agentRuntimeThreadScopeKey,
+} from '@/features/agent/components/AgentRuntimeChatShell'
 import {
   enabledProviders,
-  providerInstanceId,
-  providerProtocol,
   providerRuntimeProfile,
-  providerSupportsAppServerRuntime,
-  resolveAppServerProfile,
   resolveNewConversationProvider,
   useProviderConfigStore,
   type ProviderConfig,
   type ProviderSettings,
 } from '@/shared/infrastructure/providerConfigStore'
 import { providerRuntimeApiContract } from '@/shared/infrastructure/providerRuntimeApiCatalog'
-import { selectActiveAgentConversationRegistryRecord, type AgentConversationRegistryState } from '@movscript/core/agent'
+import type { AgentConversationRegistryState } from '@movscript/core/agent'
 import type { Project } from '@/types'
 
 export interface AgentUnifiedChatShellProps {
@@ -34,21 +30,16 @@ export interface AgentUnifiedChatShellProps {
 
 export function AgentUnifiedChatShell(props: AgentUnifiedChatShellProps) {
   const providerSettings = useProviderConfigStore((s) => s.settings)
-  const activeConversationIdsByUser = useAgentSessionStore((state) => state.activeConversationIdsByUser)
-  const conversationsById = useAgentSessionStore((state) => state.conversationsById)
-  const registryState = useMemo(() => ({
-    activeConversationIdsByUser,
-    conversationsById,
-  }), [activeConversationIdsByUser, conversationsById])
   const activeProvider = useMemo(
-    () => resolveAgentChatShellProvider(providerSettings, props.userId, registryState),
-    [providerSettings, props.userId, registryState],
+    () => resolveAgentChatShellProvider(providerSettings, props.userId),
+    [providerSettings, props.userId],
   )
 
   if (!providerSupportsAgentChatRuntime(activeProvider)) return null
 
   return (
-    <AppServerChatShell
+    <AgentRuntimeChatShell
+      key={agentRuntimeThreadScopeKey(activeProvider)}
       userId={props.userId}
       provider={activeProvider}
       emptyThreadLabel={props.emptyThreadLabel}
@@ -65,15 +56,11 @@ export function AgentUnifiedChatShell(props: AgentUnifiedChatShellProps) {
 
 export function resolveAgentChatShellProvider(
   settings: ProviderSettings,
-  userId: string,
-  registryState: AgentConversationRegistryState,
+  _userId: string,
+  _registryState?: AgentConversationRegistryState,
 ): ProviderConfig {
   const selectedProvider = resolveNewConversationProvider(settings)
-  if (selectActiveProviderConversation(registryState, userId, selectedProvider)) return selectedProvider
   const agentChatProviders = enabledProviders(settings).filter(providerSupportsAgentChatRuntime)
-  const activeProvider = agentChatProviders
-    .find((provider) => selectActiveProviderConversation(registryState, userId, provider))
-  if (activeProvider) return activeProvider
   return providerSupportsAgentChatRuntime(selectedProvider)
     ? selectedProvider
     : agentChatProviders[0] ?? selectedProvider
@@ -81,29 +68,5 @@ export function resolveAgentChatShellProvider(
 
 function providerSupportsAgentChatRuntime(provider: ProviderConfig | undefined): boolean {
   if (!provider) return false
-  if (providerSupportsAppServerRuntime(provider)) return true
   return providerRuntimeApiContract(providerRuntimeProfile(provider).api)?.transport === 'sdk-client'
-}
-
-function selectActiveProviderConversation(
-  registryState: AgentConversationRegistryState,
-  userId: string,
-  provider: ProviderConfig,
-) {
-  const activeRecord = selectActiveAgentConversationRegistryRecord(registryState, {
-    userId,
-    provider: provider.kind,
-    providerId: provider.id,
-    providerInstanceId: providerInstanceId(provider),
-    providerProtocol: providerProtocol(provider),
-  })
-  if (activeRecord) return activeRecord
-  if (providerProtocol(provider) !== 'app-server') return undefined
-  return selectActiveAgentConversationRegistryRecord(registryState, {
-    userId,
-    provider: provider.kind,
-    providerId: provider.id,
-    providerInstanceId: resolveAppServerProfile(provider).id,
-    providerProtocol: 'app-server',
-  })
 }

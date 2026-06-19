@@ -1,7 +1,8 @@
 import { useCallback, useMemo } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
+import type { AgentRun, ProviderSessionEventV2 } from '@movscript/core/agent/protocol'
 import { upsertInteractionRunSnapshot } from '@/features/agent/domain/agentRunInteraction'
-import { providerSessionClient, type AgentRun, type ProviderSessionEventV2 } from '@/shared/infrastructure/providerSessionClient'
+import { createAgentProviderSessionCommandService } from '@/features/agent/application/agentProviderSessionCommandService'
 import { providerSessionAssistantProgressFromEvent } from '@/shared/infrastructure/provider-session-client/providerSessionEventFacts'
 import type { AgentConversationRuntimePatch } from '@/features/agent/state/agentSessionStore'
 
@@ -22,12 +23,10 @@ export function useAgentRunResultActions({
   recordLiveTraceEvent,
   updateStreamingAssistantText,
 }: UseAgentRunResultActionsInput) {
-  const providerSessionRunClient = useMemo(() => sessionId?.trim()
-    ? providerSessionClient.forSession({ sessionId: sessionId.trim() })
-    : providerSessionClient, [sessionId])
+  const commandService = useMemo(() => createAgentProviderSessionCommandService({ sessionId }), [sessionId])
 
   const streamFollowUpRun = useCallback(async (runId: string) => {
-    return await providerSessionRunClient.streamRun(runId, {
+    return await commandService.streamRun(runId, {
       timeoutMs: 900_000,
       pollMs: 1000,
       onRunUpdate: (nextRun) => {
@@ -42,7 +41,7 @@ export function useAgentRunResultActions({
         }
       },
     })
-  }, [conversationId, providerSessionRunClient, recordLiveTraceEvent, setConversationRun, setSubmittedInteractionRuns, updateStreamingAssistantText])
+  }, [commandService, conversationId, recordLiveTraceEvent, setConversationRun, setSubmittedInteractionRuns, updateStreamingAssistantText])
 
   return {
     streamFollowUpRun,
