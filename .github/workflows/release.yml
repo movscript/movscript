@@ -32,6 +32,7 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
   NODE_VERSION: '23'
   PNPM_VERSION: '10.32.1'
+  PYTHON_VERSION: '3.11'
   GO_VERSION: '1.25.x'
   CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
@@ -73,6 +74,11 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
+
+      - name: Set up Python for native modules
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
