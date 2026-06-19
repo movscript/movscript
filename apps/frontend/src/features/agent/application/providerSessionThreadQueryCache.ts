@@ -1,7 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { isAgentTranscriptExcludedAssistantMessage } from '@movscript/core/agent/protocol'
 import { isProviderSessionThreadListQueryKey } from '@/features/agent/application/providerSessionQueryKeys'
-import { providerSessionClient } from '@/shared/infrastructure/providerSessionClient'
+import { agentProviderSessionCompatibilityClient } from '@/features/agent/infrastructure/agentProviderSessionCompatibility'
 import type {
   AgentRunRole,
   AgentRunStatus,
@@ -14,7 +14,9 @@ import type { ProviderSessionSummary } from '@/shared/contracts/electronApiProvi
 
 export interface ProviderSessionRunListItem {
   id: string
-  sessionId?: string
+  providerSessionTreeId?: string
+  /** @deprecated Prefer providerSessionTreeId for related-thread provider-session trees. */
+  sessionId?: string // deprecated providerSessionTreeId compatibility mirror
   movScriptHomeDir?: string
   /** @deprecated Use movScriptHomeDir for the desktop control/home directory. */
   workspaceDir?: string
@@ -75,7 +77,8 @@ export function providerSessionThreadSummaryFromProviderSession(summary: Provide
   const title = providerSessionThreadTitleFromSummary(summary)
   return {
     id: threadId.trim(),
-    sessionId: summary.session.id,
+    providerSessionTreeId: summary.session.id,
+    sessionId: summary.session.id, // deprecated providerSessionTreeId compatibility mirror
     ...(title ? { title } : {}),
     ...(typeof summary.state?.projectId === 'number' ? { projectId: summary.state.projectId } : typeof summary.session.projectId === 'number' ? { projectId: summary.session.projectId } : {}),
     archived: summary.state?.archived === true || summary.session.archived === true,
@@ -103,7 +106,8 @@ export function providerSessionSummaryFromProviderSession(summary: ProviderSessi
 }
 
 export async function listProviderSessionThreadSummariesFromWorkspace(input: { includeProvisional?: boolean; providerProfileKey?: string; signal?: AbortSignal } = {}): Promise<AgentThreadSummary[]> {
-  const providerSessions = await providerSessionClient.listProviderSessionsFromWorkspace({
+  const compatibilityClient = agentProviderSessionCompatibilityClient('legacy-thread-cache')
+  const providerSessions = await compatibilityClient.listProviderSessionsFromWorkspace({
     ...(input.providerProfileKey?.trim() ? { providerProfileKey: input.providerProfileKey.trim() } : {}),
   })
   const sessionThreads = providerSessions.sessions.flatMap((summary) => providerSessionThreadSummaryFromProviderSession(summary) ?? [])
@@ -117,7 +121,8 @@ export async function listProviderSessionThreadPageFromWorkspace(input: {
   cursor?: string
   signal?: AbortSignal
 } = {}): Promise<AgentThreadListPage> {
-  const providerSessions = await providerSessionClient.listProviderSessionsFromWorkspace({
+  const compatibilityClient = agentProviderSessionCompatibilityClient('legacy-thread-cache')
+  const providerSessions = await compatibilityClient.listProviderSessionsFromWorkspace({
     ...(input.providerProfileKey?.trim() ? { providerProfileKey: input.providerProfileKey.trim() } : {}),
   })
   const sessionThreads = await mergeWorkspaceThreadSummariesWithLiveThreads(
@@ -140,14 +145,21 @@ export async function listProviderSessionThreadPageFromWorkspace(input: {
 async function mergeWorkspaceThreadSummariesWithLiveThreads(threads: AgentThreadSummary[], input: { includeProvisional?: boolean; signal?: AbortSignal } = {}): Promise<AgentThreadSummary[]> {
   if (threads.length === 0) return threads
   try {
-    const livePage = await providerSessionClient.listThreads({
+    const compatibilityClient = agentProviderSessionCompatibilityClient('legacy-thread-cache')
+    const livePage = await compatibilityClient.listThreads({
       limit: Math.max(threads.length, 100),
       includeProvisional: input.includeProvisional,
     }, input.signal)
     const liveThreadsById = new Map(livePage.threads.map((thread) => [thread.id, thread]))
     return threads.map((thread) => {
       const liveThread = liveThreadsById.get(thread.id)
-      return liveThread ? { ...thread, ...liveThread, sessionId: liveThread.sessionId ?? thread.sessionId } : thread
+      if (!liveThread) return thread
+      const providerSessionTreeId = liveThread.providerSessionTreeId ?? liveThread.sessionId ?? thread.providerSessionTreeId ?? thread.sessionId
+      return {
+        ...thread,
+        ...liveThread,
+        ...(providerSessionTreeId ? { providerSessionTreeId, sessionId: providerSessionTreeId } : {}),
+      }
     })
   } catch {
     return threads
@@ -177,7 +189,8 @@ function firstTrimmedString(...values: unknown[]): string | undefined {
 }
 
 export async function listProviderSessionSummariesFromWorkspace(input: { providerProfileKey?: string } = {}): Promise<AgentSessionSummary[]> {
-  const providerSessions = await providerSessionClient.listProviderSessionsFromWorkspace({
+  const compatibilityClient = agentProviderSessionCompatibilityClient('legacy-thread-cache')
+  const providerSessions = await compatibilityClient.listProviderSessionsFromWorkspace({
     ...(input.providerProfileKey?.trim() ? { providerProfileKey: input.providerProfileKey.trim() } : {}),
   })
   return providerSessions.sessions.map(providerSessionSummaryFromProviderSession)
@@ -191,7 +204,8 @@ export function providerSessionRunSummariesFromProviderSession(summary: Provider
     if (!run.id.trim() || !run.threadId.trim() || !run.createdAt.trim() || !run.updatedAt.trim()) return []
     return [{
       id: run.id.trim(),
-      sessionId: run.sessionId?.trim() || summary.session.id,
+      providerSessionTreeId: run.providerSessionTreeId?.trim() || run.sessionId?.trim() || summary.session.id,
+      sessionId: run.providerSessionTreeId?.trim() || run.sessionId?.trim() || summary.session.id,
       ...(movScriptHomeDir ? { movScriptHomeDir, workspaceDir: movScriptHomeDir } : {}),
       threadId: run.threadId.trim(),
       status,
@@ -218,7 +232,8 @@ export function providerSessionRunSummariesFromProviderSession(summary: Provider
 }
 
 export async function listProviderSessionRunSummariesFromProviderSessions(input: { providerProfileKey?: string } = {}): Promise<ProviderSessionRunListItem[]> {
-  const providerSessions = await providerSessionClient.listProviderSessionsFromWorkspace({
+  const compatibilityClient = agentProviderSessionCompatibilityClient('legacy-thread-cache')
+  const providerSessions = await compatibilityClient.listProviderSessionsFromWorkspace({
     ...(input.providerProfileKey?.trim() ? { providerProfileKey: input.providerProfileKey.trim() } : {}),
   })
   return providerSessions.sessions

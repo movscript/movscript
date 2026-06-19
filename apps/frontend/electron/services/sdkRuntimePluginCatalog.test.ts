@@ -5,20 +5,24 @@ import { join } from 'node:path'
 import test from 'node:test'
 
 import {
+  installAgentRuntimeBundledPlugin,
+  listAgentRuntimeBundledPlugins,
+} from './agentRuntimeBundledPluginCatalog'
+import {
   installSdkRuntimeBundledPlugin,
   listSdkRuntimeBundledPlugins,
 } from './sdkRuntimePluginCatalog'
 
-test('SDK runtime bundled plugin install materializes MovScript at workspace root for every provider target', () => {
-  const root = mkdtempSync(join(tmpdir(), 'movscript-sdk-runtime-plugin-'))
+test('agent runtime bundled plugin install materializes MovScript at workspace root for every provider target', () => {
+  const root = mkdtempSync(join(tmpdir(), 'movscript-agent-runtime-plugin-'))
   try {
     const workspaceDir = join(root, 'workspace')
-    const before = listSdkRuntimeBundledPlugins({ workspaceDir })
+    const before = listAgentRuntimeBundledPlugins({ workspaceDir })
     const beforePlugin = before.marketplaces[0]?.plugins[0]
     assert.equal(beforePlugin?.installed, false)
     assert.equal(beforePlugin?.sourceAvailable, true)
 
-    const installed = installSdkRuntimeBundledPlugin({ workspaceDir })
+    const installed = installAgentRuntimeBundledPlugin({ workspaceDir })
     assert.equal(installed.pluginName, 'movscript')
     assert.equal(installed.marketplaceName, 'movscript-bundled')
     assert.equal(installed.projectCwd, workspaceDir)
@@ -31,7 +35,7 @@ test('SDK runtime bundled plugin install materializes MovScript at workspace roo
     assert.equal(existsSync(join(workspaceDir, '.mova', 'skills', 'plugins', 'movscript_movscript-bundled', 'domain', 'SKILL.md')), true)
     assert.equal(existsSync(join(workspaceDir, '.claude', 'skills', 'plugins', 'movscript_movscript-bundled', 'domain', 'SKILL.md')), true)
 
-    const after = listSdkRuntimeBundledPlugins({ workspaceDir })
+    const after = listAgentRuntimeBundledPlugins({ workspaceDir })
     const afterPlugin = after.marketplaces[0]?.plugins[0]
     assert.equal(afterPlugin?.installed, true)
     assert.equal(afterPlugin?.prepared, true)
@@ -39,4 +43,9 @@ test('SDK runtime bundled plugin install materializes MovScript at workspace roo
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
+})
+
+test('sdk runtime bundled plugin catalog keeps legacy aliases for existing callers', () => {
+  assert.equal(listSdkRuntimeBundledPlugins, listAgentRuntimeBundledPlugins)
+  assert.equal(installSdkRuntimeBundledPlugin, installAgentRuntimeBundledPlugin)
 })

@@ -1,5 +1,10 @@
 import type { AgentRun, AgentThread } from '@movscript/core/agent/protocol'
-import { useAgentSessionStore, type AgentPageTaskPayload } from '@/features/agent/state/agentSessionStore'
+import {
+  claimNextAgentQueuedPageTask,
+  enqueueAgentQueuedPageTask,
+  updateAgentQueuedPageTaskFromProviderSession,
+} from '@/features/agent/state/agentTaskQueueStore'
+import type { AgentPageTaskPayload } from '@/features/agent/state/agentSessionTaskModel'
 import type { AgentTaskArtifactRef } from '@/features/agent/domain/agentArtifacts'
 import type { MovScriptWorkspaceContext } from '@/shared/infrastructure/providerConfigStore'
 import type { AgentChatServerRequest, AgentChatServerRequestResponse } from '@movscript/core/agent/chat'
@@ -14,14 +19,16 @@ export const AGENT_PANEL_DECISION_REQUEST_EVENT = 'movscript:agent-panel-decisio
 export type AgentPanelSettledRun = AgentRun | {
   id: string
   threadId?: string
-  sessionId?: string
+  providerSessionTreeId?: string
+  sessionId?: string // legacy providerSessionTreeId fallback
   status?: string
   error?: string | null
 }
 
 export type AgentPanelSettledThread = AgentThread | {
   id: string
-  sessionId?: string
+  providerSessionTreeId?: string
+  sessionId?: string // legacy providerSessionTreeId fallback
 }
 
 export interface AgentPanelRunSettledPayload {
@@ -41,7 +48,8 @@ export type AgentPanelWorkspacePayload = AgentPageTaskPayload
 
 export interface AgentPanelThreadPayload {
   threadId: string
-  sessionId?: string
+  providerSessionTreeId?: string
+  sessionId?: string // legacy providerSessionTreeId fallback
 }
 
 export interface AgentPanelNewConversationPayload {
@@ -66,7 +74,7 @@ type AgentPanelEventMap = {
 const agentPanelEventBus = createEventBus<AgentPanelEventMap>()
 
 export function openAgentPanelWorkspace(payload: AgentPanelWorkspacePayload) {
-  const normalized = useAgentSessionStore.getState().enqueuePageTask(payload)
+  const normalized = enqueueAgentQueuedPageTask(payload)
   agentPanelEventBus.publish(AGENT_PANEL_WORKSPACE_EVENT, normalized)
 }
 
@@ -74,15 +82,19 @@ export function openAgentPanelNewConversation(payload: AgentPanelNewConversation
   agentPanelEventBus.publishReplay(AGENT_PANEL_NEW_CONVERSATION_EVENT, payload)
 }
 
-export function openAgentPanelThread(input: string | AgentPanelThreadPayload, sessionId?: string) {
+export function openAgentPanelThread(input: string | AgentPanelThreadPayload, providerSessionTreeId?: string) {
   const payload = typeof input === 'string'
-    ? { threadId: input, ...(sessionId?.trim() ? { sessionId: sessionId.trim() } : {}) }
+    ? { threadId: input, ...(providerSessionTreeId?.trim() ? { providerSessionTreeId: providerSessionTreeId.trim() } : {}) }
     : input
   const normalizedThreadId = payload.threadId.trim()
   if (!normalizedThreadId) return
+  const normalizedProviderSessionTreeId = agentPanelProviderSessionTreeId(payload)
   const normalizedPayload = {
     threadId: normalizedThreadId,
-    ...(payload.sessionId?.trim() ? { sessionId: payload.sessionId.trim() } : {}),
+    ...(normalizedProviderSessionTreeId ? {
+      providerSessionTreeId: normalizedProviderSessionTreeId,
+      sessionId: normalizedProviderSessionTreeId, // legacy providerSessionTreeId compatibility mirror
+    } : {}),
   }
   agentPanelEventBus.publishReplay(AGENT_PANEL_THREAD_EVENT, normalizedPayload)
 }
@@ -92,7 +104,7 @@ export function openAgentPanelDecisionRequest(payload: AgentPanelDecisionRequest
 }
 
 export function consumeAgentPanelWorkspace() {
-  return useAgentSessionStore.getState().claimNextQueuedPageTask()
+  return claimNextAgentQueuedPageTask()
 }
 
 export function consumeAgentPanelNewConversation() {
@@ -117,14 +129,37 @@ export function registerAgentPanelPageTool(requestId: string, tool: AgentPanelPa
 }
 
 export function notifyAgentPanelRunSettled(payload: AgentPanelRunSettledPayload) {
-  useAgentSessionStore.getState().updatePageTaskFromProviderSession(payload)
-  agentPanelEventBus.publish(AGENT_PANEL_RUN_SETTLED_EVENT, payload)
-  if (!payload.requestId) return
-  const tool = pageToolsByRequestId.get(payload.requestId)
+  const normalized = normalizeAgentPanelRunSettledPayload(payload)
+  updateAgentQueuedPageTaskFromProviderSession(normalized)
+  agentPanelEventBus.publish(AGENT_PANEL_RUN_SETTLED_EVENT, normalized)
+  if (!normalized.requestId) return
+  const tool = pageToolsByRequestId.get(normalized.requestId)
   if (!tool) return
-  Promise.resolve(tool(payload)).catch((error) => {
+  Promise.resolve(tool(normalized)).catch((error) => {
     console.error('[agent-panel] page tool failed', error)
   })
+}
+
+function normalizeAgentPanelRunSettledPayload(payload: AgentPanelRunSettledPayload): AgentPanelRunSettledPayload {
+  return {
+    ...payload,
+    ...(payload.thread ? { thread: normalizeAgentPanelProviderSessionRef(payload.thread) } : {}),
+    ...(payload.run ? { run: normalizeAgentPanelProviderSessionRef(payload.run) } : {}),
+  }
+}
+
+function normalizeAgentPanelProviderSessionRef<T extends { providerSessionTreeId?: string; sessionId?: string }>(ref: T): T {
+  const providerSessionTreeId = agentPanelProviderSessionTreeId(ref)
+  if (!providerSessionTreeId) return ref
+  return {
+    ...ref,
+    providerSessionTreeId,
+    sessionId: providerSessionTreeId,
+  }
+}
+
+function agentPanelProviderSessionTreeId(input: { providerSessionTreeId?: string; sessionId?: string }): string | undefined {
+  return input.providerSessionTreeId?.trim() || input.sessionId?.trim() || undefined
 }
 
 export function subscribeAgentPanelWorkspace(handler: (payload: AgentPanelWorkspacePayload) => void) {

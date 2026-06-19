@@ -2,6 +2,8 @@ import type { ElectronMovScriptWorkspaceContext } from './electronApiWorkspaceCo
 
 export type ElectronProviderRunSummary = {
   id: string
+  providerSessionTreeId?: string
+  /** @deprecated Prefer providerSessionTreeId for related-thread provider-session trees. */
   sessionId?: string
   threadId: string
   status: string

@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import { createWriteStream, chmodSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { get as httpsGet } from 'node:https'
 import { tmpdir } from 'node:os'
@@ -85,6 +86,7 @@ export async function downloadAndStageFFmpegStatic(root = repoRoot, options = {}
   try {
     await download(plan.sourceUrl, tempBinary)
     chmodSync(tempBinary, 0o755)
+    prepareMacOSExecutableForLaunch(tempBinary)
     let stagedVersion = version
     if (runCheck) {
       const checked = readFFmpegVersion(tempBinary, root)
@@ -102,6 +104,12 @@ export async function downloadAndStageFFmpegStatic(root = repoRoot, options = {}
   } finally {
     rmSync(tempDir, { recursive: true, force: true })
   }
+}
+
+function prepareMacOSExecutableForLaunch(path) {
+  if (process.platform !== 'darwin') return
+  spawnSync('xattr', ['-cr', path], { stdio: 'ignore' })
+  spawnSync('codesign', ['--force', '--sign', '-', path], { stdio: 'ignore' })
 }
 
 export async function downloadGzipFile(url, destinationPath) {

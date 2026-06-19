@@ -3,8 +3,10 @@ import test from 'node:test'
 
 import {
   agentProviderSelectionConfigFromSettings,
+  agentProfileActivationSettings,
   agentProviderActivationSettings,
   agentProviderSettingsWithWorkspaceSelection,
+  commitAgentProfileActivation,
   commitAgentProviderActivation,
 } from '@/features/agent/application/agentProviderActivation'
 import type { ProviderConfig, ProviderSettings } from '@/shared/infrastructure/providerConfigStore'
@@ -45,6 +47,37 @@ test('agent provider selection maps to and from Electron workspace config', () =
 
   assert.equal(next.defaultProviderId, 'codex')
   assert.equal(next.newConversationProviderId, 'codex')
+})
+
+test('agent profile activation selects by profile identity without reading provider internals', async () => {
+  const mova = sdkProvider('mova')
+  const codex = sdkProvider('codex')
+  const settings: ProviderSettings = {
+    providers: [mova, codex],
+    defaultProviderId: 'mova',
+    newConversationProviderId: 'mova',
+  }
+  let savedSettings: ProviderSettings | null = null
+  const activeConversations: Array<{ userId: string; conversationId: string | null }> = []
+
+  const next = agentProfileActivationSettings(settings, { id: 'codex', enabled: true })
+  assert.equal(next.defaultProviderId, 'codex')
+  assert.equal(next.newConversationProviderId, 'codex')
+
+  await commitAgentProfileActivation({
+    settings,
+    profile: { id: 'codex', enabled: true },
+    userId: 'user_2',
+    setSettings: (value) => {
+      savedSettings = value
+    },
+    setActiveConversation: (userId, conversationId) => {
+      activeConversations.push({ userId, conversationId })
+    },
+  })
+
+  assert.equal(savedSettings?.defaultProviderId, 'codex')
+  assert.deepEqual(activeConversations, [{ userId: 'user_2', conversationId: null }])
 })
 
 test('agent provider activation clears the current conversation and persists to Electron workspace config', async () => {

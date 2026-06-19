@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertCircle, ArrowRight, Database, FilePlus2, FileText, LayoutDashboard } from 'lucide-react'
+import { AlertCircle, Blocks, FilePlus2, FileText, LayoutDashboard, Power } from 'lucide-react'
 import { AppContentLayout, ProjectSurfaceHeader } from '@movscript/ui/layout'
-import { Badge, Button, StatusBadge } from '@movscript/ui/primitives'
+import { Button } from '@movscript/ui/primitives'
 
 import { projectOverviewKeys } from '@/features/project/application/projectQueries'
 import {
@@ -12,7 +12,6 @@ import {
 } from '@/features/project/application/projectOverviewData'
 import {
   buildProjectOverviewModel,
-  projectOverviewNextActionLabel,
 } from '@/features/project/presentation/projectOverviewModel'
 import { scriptKeys } from '@/features/scripts/application/scriptQueryKeys'
 import { createWorkspaceScript, listWorkspaceScripts } from '@/features/scripts/application/scriptWorkspaceRepository'
@@ -21,10 +20,8 @@ import {
   scriptCreatedResult,
 } from '@/features/scripts/application/scriptMutationInvalidation'
 import {
-  projectBlockedSummaryRecipe,
-} from '@/features/project/presentation/projectSemanticUi'
-import {
   ProjectOverviewScriptCard,
+  ProjectSystemPluginCard,
   ProjectOverviewWorkbenchCard,
   ProjectSkillCard,
 } from '@/features/project/components/ProjectOverviewCards'
@@ -37,9 +34,11 @@ import { toast } from '@/shared/ui/toastStore'
 import { requireWorkspaceRootAPI } from '@/features/agent/application/movScriptWorkspaceElectron'
 import {
   loadProjectPluginSnapshot,
+  setProjectPluginEnabled,
   setProjectSkillEnabled,
   type ProjectLocalSkill,
   type ProjectPluginContext,
+  type ProjectPluginSnapshot,
 } from '@/features/plugins/application/projectPlugins'
 import {
   PluginStateBanner,
@@ -50,6 +49,8 @@ export default function ProjectOverviewPage() {
   const queryClient = useQueryClient()
   const project = useProjectStore((state) => state.current)
   const projectId = project?.ID
+  const [pluginTogglingKey, setPluginTogglingKey] = useState<string>()
+  const [pluginToggleError, setPluginToggleError] = useState<string>()
   const [skillTogglingId, setSkillTogglingId] = useState<string>()
   const [skillToggleError, setSkillToggleError] = useState<string>()
   const currentUser = useUserStore((state) => state.currentUser)
@@ -60,7 +61,7 @@ export default function ProjectOverviewPage() {
     [currentOrgID, currentUser?.ID, orgMemberships],
   )
 
-  const { data = emptyProjectOverviewData, isFetching } = useQuery({
+  const { data = emptyProjectOverviewData } = useQuery({
     queryKey: projectOverviewKeys.detail(projectId),
     queryFn: () => loadProjectOverviewData(projectId!),
     enabled: !!projectId,
@@ -95,7 +96,21 @@ export default function ProjectOverviewPage() {
     }
   }
 
+  async function handleProjectPluginToggle(plugin: ProjectPluginSnapshot['systemPlugins'][number], enabled: boolean) {
+    setPluginTogglingKey(plugin.pluginKey)
+    setPluginToggleError(undefined)
+    try {
+      await setProjectPluginEnabled(projectPluginContext, plugin.pluginKey, enabled)
+      await projectPluginsQuery.refetch()
+    } catch (error) {
+      setPluginToggleError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setPluginTogglingKey(undefined)
+    }
+  }
+
   const overviewModel = useMemo(() => buildProjectOverviewModel({ data, project }), [data, project])
+  const projectSystemPlugins = projectPluginsQuery.data?.systemPlugins ?? []
   const projectSkills = projectPluginsQuery.data?.skills ?? []
   const scripts = useMemo(() => (scriptsQuery.data ?? []).slice().sort((a, b) => (a.order || 0) - (b.order || 0) || a.ID - b.ID), [scriptsQuery.data])
   const createScript = useMutation({
@@ -117,53 +132,46 @@ export default function ProjectOverviewPage() {
     },
     onError: () => toast.error('创建剧本失败，请重试'),
   })
-  const nextActionIsScriptWorkbench = overviewModel.nextLane?.definition.id === 'orchestration_production'
-
   return (
     <AppContentLayout variant="contained" width="wide" contentClassName="space-y-5 py-5">
       <ProjectSurfaceHeader
         icon={LayoutDashboard}
         title={project?.name ?? '项目首页'}
-        description={project?.description || '项目首页汇总当前项目的规范、剧本、内容编排和素材准备状态。'}
-        meta={(
-          <>
-            <StatusBadge {...projectBlockedSummaryRecipe(overviewModel.blockedCount)}>
-              {overviewModel.blockedCount > 0 ? `${overviewModel.blockedCount} 个事项待处理` : '可继续推进'}
-            </StatusBadge>
-            {isFetching ? <Badge variant="outline">同步中</Badge> : null}
-          </>
-        )}
-        actions={(
-          <>
-            <Button asChild variant="outline" className="gap-2">
-              <Link to={ROUTES.projects}>
-                <Database size={14} />
-                切换项目
-              </Link>
-            </Button>
-            {nextActionIsScriptWorkbench ? (
-              <Button
-                type="button"
-                className="gap-2"
-                disabled={createScript.isPending || !projectId}
-                onClick={() => createScript.mutate()}
-              >
-                <FilePlus2 size={14} />
-                {createScript.isPending ? '创建中' : '添加剧本'}
-              </Button>
-            ) : (
-              <Button asChild className="gap-2">
-                <Link to={overviewModel.nextLane?.definition.route ?? ROUTES.project.home}>
-                  {overviewModel.nextLane ? projectOverviewNextActionLabel(overviewModel.nextLane.definition) : '进入工作台'}
-                  <ArrowRight size={14} />
-                </Link>
-              </Button>
-            )}
-          </>
-        )}
       />
 
       <section className="rounded-lg border border-border bg-background p-4">
+        <div className="mb-4 flex items-center gap-2 type-body font-semibold text-foreground">
+          <Blocks size={16} className="text-muted-foreground" />
+          项目插件
+        </div>
+        {pluginToggleError ? (
+          <PluginStateBanner tone="danger" icon={<AlertCircle size={12} />}>
+            {pluginToggleError}
+          </PluginStateBanner>
+        ) : null}
+        <div className={`${pluginToggleError ? 'mt-4 ' : ''}grid gap-3 lg:grid-cols-2`}>
+          {projectPluginsQuery.isLoading ? (
+            <div className="rounded-md border border-border bg-muted/20 p-4 type-label text-muted-foreground">正在读取系统插件缓存...</div>
+          ) : projectSystemPlugins.length === 0 ? (
+            <div className="rounded-md border border-border bg-muted/20 p-4 type-label text-muted-foreground">
+              系统缓存暂无插件。请先到插件市场安装。
+            </div>
+          ) : projectSystemPlugins.map((plugin) => (
+            <ProjectSystemPluginCard
+              key={plugin.pluginKey}
+              plugin={plugin}
+              busy={pluginTogglingKey === plugin.pluginKey}
+              onToggle={(enabled) => void handleProjectPluginToggle(plugin, enabled)}
+            />
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-border bg-background p-4">
+        <div className="mb-4 flex items-center gap-2 type-body font-semibold text-foreground">
+          <Power size={16} className="text-muted-foreground" />
+          本地 Skills
+        </div>
         {skillToggleError ? (
           <PluginStateBanner tone="danger" icon={<AlertCircle size={12} />}>
             {skillToggleError}

@@ -10,7 +10,8 @@ import {
   shouldHydrateAgentThreadSummary,
 } from '@/features/agent/application/useAgentThreadRegistryHydration'
 import type { Conversation } from '@/features/agent/state/agentStore'
-import type { AgentConversationThreadBinding, useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
+import type { AgentConversationThreadBinding } from '@/features/agent/state/agentSessionRuntimeModel'
+import type { AgentPageTaskState } from '@/features/agent/state/agentSessionTaskModel'
 import type { AgentSessionSummary, AgentThreadSummary } from '@movscript/core/agent/protocol'
 
 type ProviderIdentity = {
@@ -20,6 +21,22 @@ type ProviderIdentity = {
   providerProtocol: string
 }
 
+export type AgentRuntimeConversationProviderIdentity = ProviderIdentity
+
+export interface AgentRuntimeConversationProviderSource {
+  providerIdentity: ProviderIdentity
+  sourceThreads: AgentThreadSummary[]
+}
+
+export function agentRuntimeProviderIdentityKey(input: Partial<ProviderIdentity>): string {
+  return [
+    input.providerProtocol?.trim() || 'unknown-protocol',
+    input.provider?.trim() || 'unknown-provider',
+    input.providerId?.trim() || input.provider?.trim() || 'unknown-id',
+    input.providerInstanceId?.trim() || input.providerId?.trim() || input.provider?.trim() || 'default',
+  ].join('\u0000')
+}
+
 export function conversationProjectId(
   conversation: Conversation,
   context: {
@@ -27,7 +44,7 @@ export function conversationProjectId(
     providerSessionThreadsById: Map<string, AgentThreadSummary>
     conversationThreadBindings: Record<string, AgentConversationThreadBinding>
     providerSessionsById: Map<string, AgentSessionSummary>
-    pageTasks: ReturnType<typeof useAgentSessionStore.getState>['pageTasks']
+    pageTasks: Record<string, AgentPageTaskState>
   },
 ) {
   const taskProjectId = Object.values(context.pageTasks)
@@ -37,8 +54,8 @@ export function conversationProjectId(
   if (taskProjectId !== undefined) return taskProjectId
 
   const binding = context.conversationThreadBindings[conversation.id]
-  const sessionId = binding?.providerSessionTreeId ?? conversation.providerSessionId
-  const sessionProjectId = sessionId ? context.providerSessionsById.get(sessionId)?.projectId : undefined
+  const providerSessionTreeId = binding?.providerSessionTreeId ?? conversation.providerSessionId
+  const sessionProjectId = providerSessionTreeId ? context.providerSessionsById.get(providerSessionTreeId)?.projectId : undefined
   if (typeof sessionProjectId === 'number') return sessionProjectId
 
   const recordProjectId = conversation.id ? context.conversationsById[conversation.id]?.projectId : undefined
@@ -78,6 +95,11 @@ export function agentRuntimeConversationRecordsFromSourceThreads(input: {
       open: agentThreadSummaryRegistryOpenState(thread, existing),
     })
     const id = existing?.id ?? canonicalId
+    const projectId = typeof registryInput.projectId === 'number'
+      ? registryInput.projectId
+      : typeof existing?.projectId === 'number'
+        ? existing.projectId
+        : undefined
     sourceRecordIds.add(id)
     records.push({
       id,
@@ -92,9 +114,11 @@ export function agentRuntimeConversationRecordsFromSourceThreads(input: {
       ...(registryInput.providerInstanceId ? { providerInstanceId: registryInput.providerInstanceId } : {}),
       ...(registryInput.providerProtocol ? { providerProtocol: registryInput.providerProtocol } : {}),
       ...(registryInput.providerSessionId ? { providerSessionId: registryInput.providerSessionId } : {}),
-      ...(registryInput.title ? { title: registryInput.title } : {}),
+      ...(existing?.providerThreadCwd ? { providerThreadCwd: existing.providerThreadCwd } : {}),
+      ...(existing?.workspaceContext ? { workspaceContext: existing.workspaceContext } : {}),
+      ...(registryInput.title ? { title: registryInput.title } : existing?.title ? { title: existing.title } : {}),
       ...(registryInput.status ? { status: registryInput.status } : {}),
-      ...(typeof registryInput.projectId === 'number' ? { projectId: registryInput.projectId } : {}),
+      ...(projectId !== undefined ? { projectId } : {}),
       ...(typeof existing?.deckOrder === 'number' ? { deckOrder: existing.deckOrder } : {}),
     })
   }
@@ -109,6 +133,26 @@ export function agentRuntimeConversationRecordsFromSourceThreads(input: {
     records.push(record)
   }
   return records.sort((left, right) => right.updatedAt - left.updatedAt || left.id.localeCompare(right.id))
+}
+
+export function agentRuntimeConversationRecordsFromProviderSources(input: {
+  conversationsById: Record<string, AgentConversationRegistryRecord>
+  providerSources: AgentRuntimeConversationProviderSource[]
+  userId: string
+}): AgentConversationRegistryRecord[] {
+  const recordsById = new Map<string, AgentConversationRegistryRecord>()
+  for (const source of input.providerSources) {
+    for (const record of agentRuntimeConversationRecordsFromSourceThreads({
+      conversationsById: input.conversationsById,
+      providerIdentity: source.providerIdentity,
+      sourceThreads: source.sourceThreads,
+      userId: input.userId,
+    })) {
+      recordsById.set(record.id, record)
+    }
+  }
+  return Array.from(recordsById.values())
+    .sort((left, right) => right.updatedAt - left.updatedAt || left.id.localeCompare(right.id))
 }
 
 export function conversationFromRegistryRecord(record: AgentConversationRegistryRecord): Conversation {

@@ -63,6 +63,35 @@ export type ElectronProjectPluginInstallInput = ElectronMovScriptHomeInput & {
 
 export type ElectronProjectSkillProviderTarget = 'codex' | 'mova' | 'claude'
 
+export type ElectronSystemPluginInstallInput = ElectronMovScriptHomeInput & {
+  id?: string
+  name?: string
+  displayName?: string
+  version?: string
+  description?: string
+  marketplaceName?: string
+  marketplacePath?: string
+  sourceMarketplaceName?: string
+  sourceMarketplacePath?: string
+  pluginKey?: string
+  sourceType?: string
+  sourcePath?: string
+  providerTargets?: ElectronProjectSkillProviderTarget[]
+}
+
+export type ElectronSystemPluginUninstallInput = ElectronMovScriptHomeInput & {
+  pluginKey: string
+}
+
+export type ElectronProjectPluginToggleInput = ElectronMovScriptHomeInput & {
+  projectId?: string | number
+  userId?: string | number
+  orgId?: string | number
+  pluginKey: string
+  enabled: boolean
+  providerTargets?: ElectronProjectSkillProviderTarget[]
+}
+
 export type ElectronProjectLocalSkill = {
   id: string
   name: string
@@ -101,10 +130,43 @@ export type ElectronProjectPluginSnapshot = {
   lockPath: string
   providerConfigPaths: Partial<Record<ElectronProjectSkillProviderTarget, string>>
   providerSkillDirs: Record<ElectronProjectSkillProviderTarget, string>
+  providerPluginCacheDirs: Record<ElectronProjectSkillProviderTarget, string>
   desktopPluginCacheRoot: string
   projectMarketplacePath: string
   catalogSkillsDir: string
   skills: ElectronProjectLocalSkill[]
+  systemPlugins: Array<{
+    id: string
+    name: string
+    marketplaceName: string
+    sourceMarketplaceName?: string
+    sourceMarketplacePath?: string
+    pluginKey: string
+    displayName?: string
+    version?: string
+    description?: string
+    sourceType?: string
+    sourcePath?: string
+    providerTargets: ElectronProjectSkillProviderTarget[]
+    installed: boolean
+    cacheDir: string
+    contentHash?: string
+    globalEnabled: boolean
+    projectEnabled: boolean
+    enabled: boolean
+    declared: boolean
+    prepared: boolean
+    preparedPaths?: {
+      providerTargets: ElectronProjectSkillProviderTarget[]
+      providerConfigPaths?: Partial<Record<ElectronProjectSkillProviderTarget, string>>
+      providerSkillDirs?: Partial<Record<ElectronProjectSkillProviderTarget, string>>
+      providerPluginCacheDirs?: Partial<Record<ElectronProjectSkillProviderTarget, string>>
+      desktopPluginCacheDir?: string
+      projectMarketplacePath?: string
+      projectPluginBundleDir?: string
+      catalogSkillsDir?: string
+    }
+  }>
   plugins: Array<{
     id: string
     name: string
@@ -125,6 +187,7 @@ export type ElectronProjectPluginSnapshot = {
       providerTargets: ElectronProjectSkillProviderTarget[]
       providerConfigPaths?: Partial<Record<ElectronProjectSkillProviderTarget, string>>
       providerSkillDirs?: Partial<Record<ElectronProjectSkillProviderTarget, string>>
+      providerPluginCacheDirs?: Partial<Record<ElectronProjectSkillProviderTarget, string>>
       desktopPluginCacheDir?: string
       projectMarketplacePath?: string
       projectPluginBundleDir?: string

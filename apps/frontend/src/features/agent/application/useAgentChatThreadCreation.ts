@@ -116,7 +116,7 @@ export function useAgentChatThreadCreation({
       markAgentPerformancePhase(operationId, 'provider_session_thread_start_request_done', {
         details: {
           threadId: thread.id,
-          sessionId: thread.providerSessionTreeId?.trim() || undefined,
+          providerSessionTreeId: thread.providerSessionTreeId?.trim() || undefined,
         },
       })
       markAgentPerformancePhase(operationId, 'provider_session_conversation_create_start')
@@ -167,7 +167,7 @@ export function useAgentChatThreadCreation({
     })
     if (!started) return
     const { thread, dataSource: taskDataSource } = started
-    const threadSessionId = thread.providerSessionTreeId?.trim() || undefined
+    const providerSessionTreeId = thread.providerSessionTreeId?.trim() || undefined
     try {
       const turn = payload.autoSend && payload.message.trim()
         ? await taskDataSource.startTextTurn({
@@ -183,13 +183,13 @@ export function useAgentChatThreadCreation({
           status: 'completed',
           thread: {
             id: thread.id,
-            sessionId: threadSessionId,
+            providerSessionTreeId,
           },
           ...(turn ? {
             run: {
               id: turn.id,
               threadId: thread.id,
-              sessionId: threadSessionId,
+              providerSessionTreeId,
               status: turn.status,
               error: turn.error?.message ?? null,
             },
@@ -203,7 +203,7 @@ export function useAgentChatThreadCreation({
           status: 'error',
           thread: {
             id: thread.id,
-            sessionId: threadSessionId,
+            providerSessionTreeId,
           },
           error: errorMessage(nextError),
         })

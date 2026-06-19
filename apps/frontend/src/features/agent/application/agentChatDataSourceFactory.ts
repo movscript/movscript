@@ -13,17 +13,17 @@ import { publicModelId } from '@/shared/domain/modelDisplay'
 import type { MovScriptWorkspaceContext } from '@/shared/infrastructure/providerConfigStore'
 import { providerRuntimeApiContract, providerRuntimeModelAPIKinds, type ProviderRuntimeApiContract } from '@/shared/infrastructure/providerRuntimeApiCatalog'
 import { agentRuntimeDataSourceFactoryForProvider } from '@/features/agent/application/agentRuntimeDataSourceRegistry'
-import { createSdkRuntimeChatDataSource } from '@/shared/infrastructure/sdk-runtime/sdkRuntimeChatDataSource'
+import { createAgentRuntimeChatDataSource } from '@/shared/infrastructure/agent-runtime/agentRuntimeChatDataSource'
 import {
-  electronSdkRuntimeClient,
-  electronSdkRuntimeClientAvailable,
-} from '@/shared/infrastructure/sdk-runtime/electronSdkRuntimeClient'
-import type { SdkRuntimeClient } from '@/shared/infrastructure/sdk-runtime/sdkRuntimeProtocol'
+  electronAgentRuntimeClient,
+  electronAgentRuntimeClientAvailable,
+} from '@/shared/infrastructure/agent-runtime/electronAgentRuntimeClient'
+import type { AgentRuntimeClient } from '@/shared/infrastructure/agent-runtime/agentRuntimeProtocol'
 
 export interface AgentChatDataSourceFactoryOptions {
   workspaceContext?: MovScriptWorkspaceContext
   runtimeDataSources?: AgentRuntimeDataSourceFactories
-  runtimeClient?: (input: AgentRuntimeDataSourceFactoryInput) => SdkRuntimeClient | undefined | Promise<SdkRuntimeClient | undefined>
+  runtimeClient?: (input: AgentRuntimeDataSourceFactoryInput) => AgentRuntimeClient | undefined | Promise<AgentRuntimeClient | undefined>
   loadTextModels?: (input: AgentTextModelCatalogLoadInput) => Promise<AgentTextModelCatalog>
 }
 
@@ -65,7 +65,7 @@ async function createRuntimeDataSourceForProvider(
   if (contract && !contract.providerKinds.includes(provider.kind)) throw new Error(`${provider.label} runtime ${runtime.api} does not support provider kind ${provider.kind}.`)
   const adapter = agentRuntimeDataSourceFactoryForProvider(runtime.api, provider.kind, options.runtimeDataSources)
   if (!contract || (contract.transport !== 'sdk-client' && contract.transport !== 'app-server')) throw new Error(unsupportedProviderRuntimeMessage(provider))
-  if (!adapter && !options.runtimeClient && !electronSdkRuntimeClientAvailable()) throw new Error(unsupportedProviderRuntimeMessage(provider))
+  if (!adapter && !options.runtimeClient && !electronAgentRuntimeClientAvailable()) throw new Error(unsupportedProviderRuntimeMessage(provider))
   const textModels = await loadTextModels(options, runtime)
   const input: AgentRuntimeDataSourceFactoryInput = {
     provider,
@@ -75,8 +75,8 @@ async function createRuntimeDataSourceForProvider(
     resolveModelForRequest: () => selectedAgentModel(textModels, provider),
   }
   if (adapter) return adapter(input)
-  const client = await (options.runtimeClient ?? electronSdkRuntimeClient)(input)
-  if (client) return createSdkRuntimeChatDataSource(client, input)
+  const client = await (options.runtimeClient ?? electronAgentRuntimeClient)(input)
+  if (client) return createAgentRuntimeChatDataSource(client, input)
   throw new Error(unsupportedProviderRuntimeMessage(provider))
 }
 

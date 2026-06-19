@@ -26,9 +26,9 @@ export const agentArtifactKeys = {
 
 export const agentPlanKeys = {
   taskGraphSnapshot: (
-    sessionId: string | null,
+    providerSessionTreeId: string | null,
     taskGraphId: string | null,
-  ) => ['agent-plan-task-graph-snapshot', sessionId, taskGraphId] as const,
+  ) => ['agent-plan-task-graph-snapshot', providerSessionTreeId, taskGraphId] as const,
 }
 
 export const agentConsoleKeys = {

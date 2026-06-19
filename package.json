@@ -19,6 +19,7 @@
     "prepare:sdk-runtimes": "node scripts/prepare-sdk-runtime-seed.mjs",
     "smoke:sdk-runtimes": "node scripts/smoke-sdk-runtimes.mjs",
     "verify:package-resources": "node scripts/release/verify-package-resources.mjs",
+    "package:mac:dmg": "node scripts/release/package-macos-local-dmg.mjs",
     "movscript-lang:local": "node scripts/movscript-lang-cwd.mjs --cwd ../movscript-lang",
     "movscript-lang:link": "node scripts/movscript-lang-deps.mjs local --path ../movscript-lang",
     "movscript-lang:latest": "node scripts/movscript-lang-deps.mjs latest",

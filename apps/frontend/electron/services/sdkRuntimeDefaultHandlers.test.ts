@@ -1015,6 +1015,27 @@ test('SDK runtime describe reports configured package versions', async () => {
   assert.equal(description.sdk?.version, '1.2.3')
   assert.deepEqual(description.contract.requiredPackageExports, ['Codex'])
   assert.deepEqual(description.contract.requiredRpcMethods, SDK_RUNTIME_REQUIRED_RPC_METHODS)
+  assert.equal(description.contract.support.capabilities.account.supported, true)
+  assert.equal(description.contract.support.thread.stream.level, 'supported')
+})
+
+test('SDK runtime capabilities expose structured backend support gaps', async () => {
+  async function* query() {
+    yield { type: 'result', result: 'finished' }
+  }
+  const handler = createClaudeSdkRuntimeHandler({
+    moduleLoader: async () => ({ query }),
+  })
+
+  const capabilities = await handler({
+    method: 'capabilities/get',
+    params: claudeContext(),
+  })
+
+  assert.equal(capabilities.support.capabilities.config.supported, false)
+  assert.equal(capabilities.support.capabilities.config.level, 'unsupported')
+  assert.match(capabilities.unsupported.config, /Claude Agent SDK/)
+  assert.deepEqual(capabilities.warnings, Object.values(capabilities.unsupported))
 })
 
 test('SDK runtime handlers implement the neutral thread management RPC surface', async () => {

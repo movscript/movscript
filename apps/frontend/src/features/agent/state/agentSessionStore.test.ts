@@ -163,7 +163,7 @@ test('createProviderSessionConversation writes conversation thread bindings', ()
 
   const conversationId = useAgentSessionStore.getState().createProviderSessionConversation('user_1', {
     threadId: 'thread_1',
-    sessionId: 'session_tree_1',
+    providerSessionTreeId: 'session_tree_1',
   })
 
   assert.equal(conversationId, 'thread_1')
@@ -174,6 +174,26 @@ test('createProviderSessionConversation writes conversation thread bindings', ()
     providerSessionTreeId: 'session_tree_1',
     updatedAt: useAgentSessionStore.getState().conversationThreadBindings[conversationId]?.updatedAt,
   })
+})
+
+test('createProviderSessionConversation accepts legacy sessionId as provider session tree id', () => {
+  useAgentSessionStore.setState({
+    activeConversationIdsByUser: {},
+    conversationsById: {},
+    workspacesByUser: {},
+    conversationThreadBindings: {},
+    conversationRuntimeStates: {},
+    pageTasks: {},
+    standaloneTasks: {},
+  })
+
+  const conversationId = useAgentSessionStore.getState().createProviderSessionConversation('user_1', {
+    threadId: 'thread_legacy_session',
+    sessionId: 'legacy_session_tree_1',
+  })
+
+  assert.equal(useAgentSessionStore.getState().conversationsById[conversationId]?.providerSessionId, 'legacy_session_tree_1')
+  assert.equal(useAgentSessionStore.getState().conversationThreadBindings[conversationId]?.providerSessionTreeId, 'legacy_session_tree_1')
 })
 
 test('createProviderSessionConversation scopes identical thread ids by provider identity', () => {
@@ -308,17 +328,19 @@ test('agent session task actions preserve page task and standalone task lifecycl
 
   useAgentSessionStore.getState().attachPageTaskConversation('task_1', 'conv_1')
   useAgentSessionStore.getState().setPageTaskRunning('task_1', {
-    run: { id: 'run_1', threadId: 'thread_1', sessionId: 'session_1', status: 'in_progress' } as any,
+    run: { id: 'run_1', threadId: 'thread_1', providerSessionTreeId: 'session_tree_1', status: 'in_progress' } as any,
   })
   assert.equal(useAgentSessionStore.getState().pageTasks.task_1?.conversationId, 'conv_1')
   assert.equal(useAgentSessionStore.getState().pageTasks.task_1?.status, 'running')
+  assert.equal(useAgentSessionStore.getState().pageTasks.task_1?.providerSessionTreeId, 'session_tree_1')
   assert.equal(useAgentSessionStore.getState().pageTasks.task_1?.threadId, 'thread_1')
 
   useAgentSessionStore.getState().updatePageTaskFromProviderSession({
     requestId: 'task_1',
-    run: { id: 'run_1', threadId: 'thread_1', sessionId: 'session_1', status: 'completed' } as any,
+    run: { id: 'run_1', threadId: 'thread_1', providerSessionTreeId: 'session_tree_1', status: 'completed' } as any,
   })
   assert.equal(useAgentSessionStore.getState().pageTasks.task_1?.status, 'completed')
+  assert.equal(useAgentSessionStore.getState().pageTasks.task_1?.providerSessionTreeId, 'session_tree_1')
   assert.equal(typeof useAgentSessionStore.getState().pageTasks.task_1?.settledAt, 'number')
 
   useAgentSessionStore.getState().startStandaloneTask({
@@ -389,6 +411,7 @@ test('agent session actions publish activity events for content surfaces', () =>
     } as any,
     artifacts: [{ type: 'workspace', workspaceId: 'workspace_1', projectId: 7 }],
   })
+  assert.equal(useAgentSessionStore.getState().pageTasks.task_activity_1?.providerSessionTreeId, 'session_activity_1')
 
   useAgentSessionStore.getState().startStandaloneTask({
     taskId: 'standalone_activity_1',

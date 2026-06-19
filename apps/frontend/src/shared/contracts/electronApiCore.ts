@@ -30,6 +30,10 @@ export type ElectronAppSettingsSecrets = {
   agentRuntimeApiKeys: Record<string, string>
 }
 
+export type ElectronAgentRuntimeCredentialSummary = {
+  savedProviderKeys: string[]
+}
+
 export type ElectronAgentSessionState = {
   activeConversationIdsByUser: Record<string, string | null>
   conversationsById: Record<string, AgentConversationRegistryRecord>

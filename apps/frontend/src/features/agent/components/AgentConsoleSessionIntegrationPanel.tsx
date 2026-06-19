@@ -37,22 +37,20 @@ import {
   sortAgentControlRuns,
   summarizeAgentControlThreads,
 } from '@/features/agent/application/agentControlCenter'
-import {
-  type ProviderConfig,
-} from '@/shared/infrastructure/providerConfigStore'
+import type { AgentProfile } from '@/features/agent/application/agentProfileModel'
 
 export function AgentSessionIntegrationPanel({
   providerSessions,
   threads,
   runs,
-  providers,
+  profiles,
   loading,
   error,
 }: {
   providerSessions: ProviderSessionSummary[]
   threads: AgentThreadSummary[]
   runs: ProviderSessionRunListItem[]
-  providers: ProviderConfig[]
+  profiles: AgentProfile[]
   loading: boolean
   error: unknown
 }) {
@@ -86,8 +84,8 @@ export function AgentSessionIntegrationPanel({
           Conversation 是用户可见的会话；内部线程和连接映射只作为恢复与排障信息保留。
         </AgentConsoleDescription>
         <AgentConsoleToolbar>
-          <AgentConsoleStatusBadge intent={providers.length > 0 ? 'success' : 'warning'} emphasis="soft">
-            {providers.length} 个 Agent
+          <AgentConsoleStatusBadge intent={profiles.length > 0 ? 'success' : 'warning'} emphasis="soft">
+            {profiles.length} 个 Agent
           </AgentConsoleStatusBadge>
           <AgentConsoleStatusBadge intent={providerSessions.length > 0 ? 'success' : 'neutral'} emphasis="soft">
             {providerSessions.length} 个连接记录
@@ -103,12 +101,12 @@ export function AgentSessionIntegrationPanel({
 
       <AgentConsoleDivider>
         <AgentConsoleGrid columns="server">
-          {providers.map((provider) => (
-            <ProviderConversationSourceCard
-              key={provider.id}
-              provider={provider}
-              threadCount={providers.length === 1 ? threads.length : 0}
-              sessionCount={providers.length === 1 ? providerSessions.length : 0}
+          {profiles.map((profile) => (
+            <AgentConversationSourceCard
+              key={profile.id}
+              profile={profile}
+              threadCount={profiles.length === 1 ? threads.length : 0}
+              sessionCount={profiles.length === 1 ? providerSessions.length : 0}
             />
           ))}
         </AgentConsoleGrid>
@@ -127,7 +125,7 @@ export function AgentSessionIntegrationPanel({
               <ConversationThreadRefRow
                 key={thread.id}
                 thread={thread}
-                session={thread.sessionId ? sessionsById.get(thread.sessionId) : undefined}
+                session={sessionsById.get(providerSessionTreeIdForThread(thread) ?? '')}
                 runs={runsByThreadId.get(thread.id) ?? []}
               />
             ))}
@@ -138,12 +136,12 @@ export function AgentSessionIntegrationPanel({
   )
 }
 
-function ProviderConversationSourceCard({
-  provider,
+function AgentConversationSourceCard({
+  profile,
   threadCount,
   sessionCount,
 }: {
-  provider: ProviderConfig
+  profile: AgentProfile
   threadCount: number
   sessionCount: number
 }) {
@@ -151,14 +149,14 @@ function ProviderConversationSourceCard({
     <AgentConsoleLocalToolCard>
       <AgentConsoleLocalToolHeader>
         <AgentConsoleLocalToolCopy>
-          <AgentConsoleLocalToolTitle>{provider.label}</AgentConsoleLocalToolTitle>
+          <AgentConsoleLocalToolTitle>{profile.label}</AgentConsoleLocalToolTitle>
           <AgentConsoleLocalToolDetail>
-            SDK runtime / {provider.kind}
+            {profile.runtimeBackend.label} / {profile.connectionLabel}
           </AgentConsoleLocalToolDetail>
         </AgentConsoleLocalToolCopy>
         <AgentConsoleLocalToolControls>
-          <AgentConsoleStatusBadge intent={provider.enabled ? 'success' : 'neutral'} emphasis="soft">
-            {provider.enabled ? '启用' : '停用'}
+          <AgentConsoleStatusBadge intent={profile.enabled ? 'success' : 'neutral'} emphasis="soft">
+            {profile.enabled ? '启用' : '停用'}
           </AgentConsoleStatusBadge>
         </AgentConsoleLocalToolControls>
       </AgentConsoleLocalToolHeader>
@@ -167,7 +165,7 @@ function ProviderConversationSourceCard({
           <Network size={12} /> source：runtime thread list + events
         </AgentConsoleTestResult>
         <AgentConsoleTestResult tone="neutral">
-          <PlugZap size={12} /> binding key：{provider.kind}:{provider.id}
+          <PlugZap size={12} /> binding key：{profile.routeKey}:{profile.runtimeBackend.id}
         </AgentConsoleTestResult>
         <AgentConsoleTestResult tone={threadCount > 0 ? 'success' : 'neutral'}>
           {sessionCount} connection / {threadCount} thread
@@ -190,13 +188,14 @@ function ConversationThreadRefRow({
   const statusRecipe = agentRunStatusRecipe(status === 'running' ? 'in_progress' : status === 'requires_action' ? 'requires_action' : status === 'failed' ? 'failed' : 'completed')
   const latestRun = sortAgentControlRuns(runs)[0]
   const providerKey = providerKeyForThreadRef(thread, session)
+  const providerSessionTreeId = providerSessionTreeIdForThread(thread)
   return (
     <AgentConsoleLocalToolCard invalid={status === 'failed'}>
       <AgentConsoleLocalToolHeader>
         <AgentConsoleLocalToolCopy>
           <AgentConsoleLocalToolTitle>{thread.title || thread.id}</AgentConsoleLocalToolTitle>
           <AgentConsoleLocalToolDetail>
-            agent={providerKey} / connection={thread.sessionId ?? '-'} / thread={thread.id}
+            agent={providerKey} / connection={providerSessionTreeId ?? '-'} / thread={thread.id}
           </AgentConsoleLocalToolDetail>
         </AgentConsoleLocalToolCopy>
         <AgentConsoleLocalToolControls>
@@ -207,7 +206,7 @@ function ConversationThreadRefRow({
       </AgentConsoleLocalToolHeader>
       <AgentConsoleLocalToolFields>
         <AgentConsoleTestResult tone="neutral">
-          conversation key：{providerKey}:{thread.sessionId ?? 'connection'}:{thread.id}
+          conversation key：{providerKey}:{providerSessionTreeId ?? 'connection'}:{thread.id}
         </AgentConsoleTestResult>
         <AgentConsoleTestResult tone={session?.state?.status === 'running' || session?.state?.status === 'requires_action' ? 'success' : 'neutral'}>
           connection：{session?.state?.status ?? 'indexed'} / messages={thread.messageCount ?? 0}
@@ -218,6 +217,10 @@ function ConversationThreadRefRow({
       </AgentConsoleLocalToolFields>
     </AgentConsoleLocalToolCard>
   )
+}
+
+function providerSessionTreeIdForThread(thread: AgentThreadSummary): string | undefined {
+  return thread.providerSessionTreeId?.trim() || thread.sessionId?.trim() || undefined
 }
 
 function providerKeyForThreadRef(thread: AgentThreadSummary, session?: ProviderSessionSummary): string {

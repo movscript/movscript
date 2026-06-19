@@ -230,21 +230,22 @@ type ModelDef struct {
 // CatalogTemplate is a read-only admin UI template for quickly filling the add-model form.
 // Runtime routing and generation parameter controls never consult this list.
 type CatalogTemplate struct {
-	ID                string      `json:"id"`
-	ModelID           string      `json:"model_id"`
-	DisplayName       string      `json:"display_name"`
-	Capabilities      []string    `json:"capabilities"`
-	PricingMode       PricingMode `json:"pricing_mode"`
-	AdapterType       string      `json:"adapter_type"`
-	AcceptsImageInput bool        `json:"accepts_image_input"`
-	MaxInputImages    int         `json:"max_input_images"`
-	MaxInputVideos    int         `json:"max_input_videos"`
-	ImageEditField    string      `json:"image_edit_field,omitempty"`
-	SupportedParams   []ParamDef  `json:"supported_params,omitempty"`
-	RefInputUSDPer1M  float64     `json:"ref_input_usd_per_1m,omitempty"`
-	RefOutputUSDPer1M float64     `json:"ref_output_usd_per_1m,omitempty"`
-	RefUSDPerImage    float64     `json:"ref_usd_per_image,omitempty"`
-	RefUSDPerSecond   float64     `json:"ref_usd_per_second,omitempty"`
+	ID                   string      `json:"id"`
+	DefaultPublicModelID string      `json:"default_public_model_id"`
+	ModelID              string      `json:"model_id"`
+	DisplayName          string      `json:"display_name"`
+	Capabilities         []string    `json:"capabilities"`
+	PricingMode          PricingMode `json:"pricing_mode"`
+	AdapterType          string      `json:"adapter_type"`
+	AcceptsImageInput    bool        `json:"accepts_image_input"`
+	MaxInputImages       int         `json:"max_input_images"`
+	MaxInputVideos       int         `json:"max_input_videos"`
+	ImageEditField       string      `json:"image_edit_field,omitempty"`
+	SupportedParams      []ParamDef  `json:"supported_params,omitempty"`
+	RefInputUSDPer1M     float64     `json:"ref_input_usd_per_1m,omitempty"`
+	RefOutputUSDPer1M    float64     `json:"ref_output_usd_per_1m,omitempty"`
+	RefUSDPerImage       float64     `json:"ref_usd_per_image,omitempty"`
+	RefUSDPerSecond      float64     `json:"ref_usd_per_second,omitempty"`
 }
 
 // CredField describes one credential input field for an adapter.
@@ -697,24 +698,35 @@ func CatalogTemplates() []CatalogTemplate {
 	result := make([]CatalogTemplate, 0, len(catalogTemplateSources))
 	for _, def := range catalogTemplateSources {
 		result = append(result, CatalogTemplate{
-			ID:                def.ID,
-			ModelID:           def.ModelID,
-			DisplayName:       def.DisplayName,
-			Capabilities:      def.Capabilities,
-			PricingMode:       def.PricingMode,
-			AdapterType:       def.AdapterType,
-			AcceptsImageInput: def.AcceptsImageInput,
-			MaxInputImages:    def.MaxInputImages,
-			MaxInputVideos:    def.MaxInputVideos,
-			ImageEditField:    def.ImageEditField,
-			SupportedParams:   NormalizeParamDefsForUI(cloneParamDefs(def.SupportedParams)),
-			RefInputUSDPer1M:  def.RefInputUSDPer1M,
-			RefOutputUSDPer1M: def.RefOutputUSDPer1M,
-			RefUSDPerImage:    def.RefUSDPerImage,
-			RefUSDPerSecond:   def.RefUSDPerSecond,
+			ID:                   def.ID,
+			DefaultPublicModelID: defaultPublicModelIDForTemplate(def),
+			ModelID:              def.ModelID,
+			DisplayName:          def.DisplayName,
+			Capabilities:         def.Capabilities,
+			PricingMode:          def.PricingMode,
+			AdapterType:          def.AdapterType,
+			AcceptsImageInput:    def.AcceptsImageInput,
+			MaxInputImages:       def.MaxInputImages,
+			MaxInputVideos:       def.MaxInputVideos,
+			ImageEditField:       def.ImageEditField,
+			SupportedParams:      NormalizeParamDefsForUI(cloneParamDefs(def.SupportedParams)),
+			RefInputUSDPer1M:     def.RefInputUSDPer1M,
+			RefOutputUSDPer1M:    def.RefOutputUSDPer1M,
+			RefUSDPerImage:       def.RefUSDPerImage,
+			RefUSDPerSecond:      def.RefUSDPerSecond,
 		})
 	}
 	return result
+}
+
+func defaultPublicModelIDForTemplate(def ModelDef) string {
+	if _, publicID, ok := strings.Cut(strings.TrimSpace(def.ID), ":"); ok && strings.TrimSpace(publicID) != "" {
+		return strings.TrimSpace(publicID)
+	}
+	if modelID := strings.TrimSpace(def.ModelID); modelID != "" {
+		return modelID
+	}
+	return strings.TrimSpace(def.ID)
 }
 
 // GetAdapterDef returns the AdapterDef for the given adapter type, or nil if not found.

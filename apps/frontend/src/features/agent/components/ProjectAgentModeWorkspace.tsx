@@ -5,34 +5,35 @@ import {
 } from '@/features/agent/components/AgentModeUi'
 import { selectAgentConversationRegistryRecords } from '@movscript/core/agent'
 
-import { AgentUnifiedChatShell, resolveAgentChatShellProvider } from '@/features/agent/components/AgentUnifiedChatShell'
+import { AgentUnifiedChatShell, resolveAgentChatShellProfile } from '@/features/agent/components/AgentUnifiedChatShell'
 import { shouldRestoreProjectAgentActiveConversation } from '@/features/agent/presentation/agentModeActiveConversation'
-import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import {
-  providerInstanceId,
-  providerProtocol,
-  useProviderConfigStore,
-} from '@/shared/infrastructure/providerConfigStore'
+  agentConversationRegistryActions,
+  useAgentActiveConversationId,
+  useAgentConversationRecordsById,
+} from '@/features/agent/state/agentConversationRegistryStore'
+import { useProviderConfigStore } from '@/shared/infrastructure/providerConfigStore'
 
 function ProjectAgentChatSurface({ userId }: { userId: string }) {
   const providerSettings = useProviderConfigStore((s) => s.settings)
-  const activeConversationId = useAgentSessionStore((s) => s.activeConversationIdsByUser?.[userId] ?? null)
-  const conversationsById = useAgentSessionStore((s) => s.conversationsById)
+  const activeConversationId = useAgentActiveConversationId(userId)
+  const conversationsById = useAgentConversationRecordsById()
   const activeRegistryState = useMemo(() => ({
     activeConversationIdsByUser: { [userId]: activeConversationId },
     conversationsById,
   }), [activeConversationId, conversationsById, userId])
-  const activeProvider = useMemo(
-    () => resolveAgentChatShellProvider(providerSettings, userId, activeRegistryState),
+  const activeProfile = useMemo(
+    () => resolveAgentChatShellProfile(providerSettings, userId, activeRegistryState),
     [activeRegistryState, providerSettings, userId],
   )
+  const activeProviderProfile = activeProfile?.providerProfile
   const activeProviderIdentity = useMemo(() => ({
-    provider: activeProvider.kind,
-    providerId: activeProvider.id,
-    providerInstanceId: providerInstanceId(activeProvider),
-    providerProtocol: providerProtocol(activeProvider),
-  }), [activeProvider])
-  const setActiveConversation = useAgentSessionStore((s) => s.setActiveConversation)
+    provider: activeProviderProfile?.kind ?? 'mova',
+    providerId: activeProviderProfile?.id,
+    providerInstanceId: activeProviderProfile?.instanceId,
+    providerProtocol: activeProviderProfile?.protocol,
+  }), [activeProviderProfile])
+  const setActiveConversation = agentConversationRegistryActions().setActiveConversation
   const openConversations = useMemo(
     () => selectAgentConversationRegistryRecords(conversationsById, { userId, ...activeProviderIdentity }),
     [activeProviderIdentity, conversationsById, userId],

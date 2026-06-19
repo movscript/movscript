@@ -23,7 +23,6 @@ import type {
   AgentChatServerRequest,
   AgentChatServerRequestResponse,
   AgentChatThread,
-  AgentChatVisibleItemWindow,
   AgentThreadGoalState,
 } from '@movscript/core/agent/chat'
 import type { AgentRunProfilePresetId } from '@/features/agent/domain/agentRunProfilePreset'
@@ -33,33 +32,25 @@ import './AgentChatShellView.css'
 type AgentComposerController = ReturnType<typeof useAgentComposerController>
 type AgentChatVisibleItem = AgentChatRuntimeView['visibleItems'][number]
 
-interface AgentChatShellViewProps {
-  activeThread: AgentChatThread | null
-  activeThreadId: string | null
-  activeThreadModelValue: string | null | undefined
-  canSend: boolean
-  canShowOlderThreadItems: boolean
-  canStopActiveTurn: boolean
-  closedHistoryThreads: AgentChatThread[]
-  collaborationMode: AgentChatCollaborationMode
+export interface AgentChatShellComposerPanelProps {
   composer: AgentComposerController
-  composerFileRef: RefObject<HTMLInputElement | null>
-  composerInputRef: RefObject<HTMLDivElement | null>
-  composerPlaceholder: string
-  composerWorkspaceContextLocked: boolean
-  dataSource?: AgentChatDataSource
-  emptyThreadListLabel: string
-  endpoint?: string
-  error: string | null
-  goalModeEnabled: boolean
-  handleModelChange: (modelId: string | null) => void
-  handleProfilePresetChange: (profilePresetId: AgentRunProfilePresetId) => void
+  fileRef: RefObject<HTMLInputElement | null>
+  inputRef: RefObject<HTMLDivElement | null>
+  placeholder: string
+  workspaceContextLocked: boolean
+  hideWorkspaceProjectSelector: boolean
   hasChatContent: boolean
-  hideComposerWorkspaceProjectSelector: boolean
-  historyOpen: boolean
+  pendingServerRequests: AgentChatRuntimePendingServerRequest[]
+  canSend: boolean
+  canStopActiveRun: boolean
   loading: boolean
   modelOptions: PublicModel[]
+  modelValue: string | null | undefined
+  collaborationMode: AgentChatCollaborationMode
+  goalModeEnabled: boolean
+  goalState: AgentThreadGoalState | null
   profilePresetId: AgentRunProfilePresetId
+  stoppingActiveRun: boolean
   queuedInputHandlers: {
     onCollapseChange: (collapsed: boolean) => void
     onDelete: (id: string) => void
@@ -71,105 +62,75 @@ interface AgentChatShellViewProps {
   queuedInputSteerEnabled: boolean
   queuedInputs: AgentComposerSectionProps['queuedInputs']
   queuedInputsCollapsed: boolean
-  recentCapabilityEvents: AgentChatRuntimeRecentCapabilityEvent[]
-  reorderThreadTab: (draggedId: string, targetId: string, position: 'before' | 'after') => void
-  resolvedEmptyThreadLabel?: string
-  resolvedHost: 'dock-panel' | 'floating-panel' | 'immersive'
-  scrollRef: { current: HTMLDivElement | null }
-  sending: boolean
-  shellClassName: string
-  showOlderThreadItems: () => void
-  stoppingTurn: boolean
-  surface: 'panel' | 'page'
-  threadListLabel: string
-  threadListLoadingMore: boolean
-  threadListNextCursor: string | null | undefined
-  threadTabs: AgentConversationTabItem[]
-  unavailableLabel: string
-  visibleItemWindow: Pick<AgentChatVisibleItemWindow<AgentChatVisibleItem>, 'hiddenCount'>
-  visibleItems: AgentChatVisibleItem[]
-  visiblePendingServerRequests: AgentChatRuntimePendingServerRequest[]
-  visibleStatusItems: AgentPinnedStatusSummaryItem[]
-  onCloseThreadTab: (threadId: string) => void
+  onDrop: AgentComposerSectionProps['onComposerDrop']
+  onPaste: AgentComposerSectionProps['onComposerPaste']
   onCollaborationModeChange?: (mode: AgentChatCollaborationMode) => void
-  onComposerDrop: AgentComposerSectionProps['onComposerDrop']
-  onComposerPaste: AgentComposerSectionProps['onComposerPaste']
   onGoalModeEnabledChange?: (enabled: boolean) => void
+  onModelChange: (modelId: string | null) => void
+  onProfilePresetChange: (profilePresetId: AgentRunProfilePresetId) => void
+  onResolveServerRequest: (request: AgentChatServerRequest, response: AgentChatServerRequestResponse | undefined) => void
+  onSend: (profilePresetId?: AgentRunProfilePresetId) => void
+  onStopActiveRun: () => void
+}
+
+export interface AgentChatShellHistoryPanelProps {
+  open: boolean
+  dataSourceLabel: string
+  emptyThreadListLabel: string
+  endpoint?: string
+  hasMoreThreadPages: boolean
+  historyThreads: AgentChatThread[]
+  loading: boolean
+  loadingMore: boolean
+  threadListLabel: string
   onLoadMoreThreads: () => Promise<void>
   onLoadThreads: () => Promise<void>
-  onNewConversation: () => void
   onOpenThread: (threadId: string) => Promise<void>
-  onResolveServerRequest: (request: AgentChatServerRequest, response: AgentChatServerRequestResponse | undefined) => void
+  onToggle: () => void
+}
+
+export interface AgentChatShellThreadSurfaceProps {
+  activeConversationId: string
+  conversationTabs: AgentConversationTabItem[]
+  emptyThreadLabel?: string
+  error: string | null
+  hasChatContent: boolean
+  recentCapabilityEvents: AgentChatRuntimeRecentCapabilityEvent[]
+  scrollRef: { current: HTMLDivElement | null }
+  statusItems: AgentPinnedStatusSummaryItem[]
+  hiddenItemCount: number
+  canLoadEarlierItems: boolean
+  visibleItems: AgentChatVisibleItem[]
+  onCloseConversation: (threadId: string) => void
+  onNewConversation: () => void
+  onOpenConversation: (threadId: string) => void
+  onReorderConversation: (draggedId: string, targetId: string, position: 'before' | 'after') => void
   onScroll: UIEventHandler<HTMLDivElement>
-  onSend: (profilePresetId?: AgentRunProfilePresetId) => void
-  onStopActiveTurn: () => void
-  onToggleHistory: () => void
+  onShowOlderItems: () => void
+}
+
+export interface AgentChatShellViewProps {
+  composerPanel: AgentChatShellComposerPanelProps
+  dataSource?: AgentChatDataSource
+  error: string | null
+  historyPanel: AgentChatShellHistoryPanelProps
+  resolvedHost: 'dock-panel' | 'floating-panel' | 'immersive'
+  shellClassName: string
+  surface: 'panel' | 'page'
+  threadSurface: AgentChatShellThreadSurfaceProps
+  unavailableLabel: string
 }
 
 export function AgentChatShellView({
-  activeThread,
-  activeThreadId,
-  activeThreadModelValue,
-  canSend,
-  canShowOlderThreadItems,
-  canStopActiveTurn,
-  closedHistoryThreads,
-  collaborationMode,
-  composer,
-  composerFileRef,
-  composerInputRef,
-  composerPlaceholder,
-  composerWorkspaceContextLocked,
+  composerPanel,
   dataSource,
-  emptyThreadListLabel,
-  endpoint,
   error,
-  goalModeEnabled,
-  handleModelChange,
-  handleProfilePresetChange,
-  hasChatContent,
-  hideComposerWorkspaceProjectSelector,
-  historyOpen,
-  loading,
-  modelOptions,
-  profilePresetId,
-  queuedInputHandlers,
-  queuedInputSteerEnabled,
-  queuedInputs,
-  queuedInputsCollapsed,
-  recentCapabilityEvents,
-  reorderThreadTab,
-  resolvedEmptyThreadLabel,
+  historyPanel,
   resolvedHost,
-  scrollRef,
-  sending,
   shellClassName,
-  showOlderThreadItems,
-  stoppingTurn,
   surface,
-  threadListLabel,
-  threadListLoadingMore,
-  threadListNextCursor,
-  threadTabs,
+  threadSurface,
   unavailableLabel,
-  visibleItemWindow,
-  visibleItems,
-  visiblePendingServerRequests,
-  visibleStatusItems,
-  onCloseThreadTab,
-  onCollaborationModeChange,
-  onComposerDrop,
-  onComposerPaste,
-  onGoalModeEnabledChange,
-  onLoadMoreThreads,
-  onLoadThreads,
-  onNewConversation,
-  onOpenThread,
-  onResolveServerRequest,
-  onScroll,
-  onSend,
-  onStopActiveTurn,
-  onToggleHistory,
 }: AgentChatShellViewProps) {
   if (!dataSource) {
     return (
@@ -183,7 +144,7 @@ export function AgentChatShellView({
     )
   }
 
-  const goalState: AgentThreadGoalState | null = activeThread?.goal ?? null
+  const { composer } = composerPanel
 
   return (
     <AgentShell density="compact" data-agent-chat-host={resolvedHost} className={shellClassName}>
@@ -193,83 +154,83 @@ export function AgentChatShellView({
       >
         {surface === 'panel' ? (
           <AgentChatDataSourcePanelCard
-            activeConversationId={activeThreadId ?? '__draft__'}
-            conversationTabs={threadTabs}
-            conversationTabsLabel={threadListLabel}
-            emptyThreadLabel={resolvedEmptyThreadLabel}
-            error={error}
-            hasChatContent={hasChatContent}
-            historyOpen={historyOpen}
-            recentCapabilityEvents={recentCapabilityEvents}
-            scrollRef={scrollRef}
-            statusItems={visibleStatusItems}
-            hiddenItemCount={visibleItemWindow.hiddenCount}
-            canLoadEarlierItems={canShowOlderThreadItems}
-            visibleItems={visibleItems}
-            onCloseConversation={onCloseThreadTab}
-            onNewConversation={onNewConversation}
-            onOpenConversation={(threadId) => void onOpenThread(threadId)}
-            onReorderConversation={reorderThreadTab}
-            onScroll={onScroll}
-            onShowOlderItems={showOlderThreadItems}
-            onToggleHistory={onToggleHistory}
+            activeConversationId={threadSurface.activeConversationId}
+            conversationTabs={threadSurface.conversationTabs}
+            conversationTabsLabel={historyPanel.threadListLabel}
+            emptyThreadLabel={threadSurface.emptyThreadLabel}
+            error={threadSurface.error}
+            hasChatContent={threadSurface.hasChatContent}
+            historyOpen={historyPanel.open}
+            recentCapabilityEvents={threadSurface.recentCapabilityEvents}
+            scrollRef={threadSurface.scrollRef}
+            statusItems={threadSurface.statusItems}
+            hiddenItemCount={threadSurface.hiddenItemCount}
+            canLoadEarlierItems={threadSurface.canLoadEarlierItems}
+            visibleItems={threadSurface.visibleItems}
+            onCloseConversation={threadSurface.onCloseConversation}
+            onNewConversation={threadSurface.onNewConversation}
+            onOpenConversation={threadSurface.onOpenConversation}
+            onReorderConversation={threadSurface.onReorderConversation}
+            onScroll={threadSurface.onScroll}
+            onShowOlderItems={threadSurface.onShowOlderItems}
+            onToggleHistory={historyPanel.onToggle}
           />
         ) : (
           <AgentChatDataSourcePageThreadShell
-            ariaLabel={composerPlaceholder}
-            emptyThreadLabel={resolvedEmptyThreadLabel}
-            error={error}
-            hasChatContent={hasChatContent}
-            recentCapabilityEvents={recentCapabilityEvents}
-            scrollRef={scrollRef}
-            statusItems={visibleStatusItems}
-            hiddenItemCount={visibleItemWindow.hiddenCount}
-            canLoadEarlierItems={canShowOlderThreadItems}
-            visibleItems={visibleItems}
-            onScroll={onScroll}
-            onShowOlderItems={showOlderThreadItems}
+            ariaLabel={composerPanel.placeholder}
+            emptyThreadLabel={threadSurface.emptyThreadLabel}
+            error={threadSurface.error}
+            hasChatContent={threadSurface.hasChatContent}
+            recentCapabilityEvents={threadSurface.recentCapabilityEvents}
+            scrollRef={threadSurface.scrollRef}
+            statusItems={threadSurface.statusItems}
+            hiddenItemCount={threadSurface.hiddenItemCount}
+            canLoadEarlierItems={threadSurface.canLoadEarlierItems}
+            visibleItems={threadSurface.visibleItems}
+            onScroll={threadSurface.onScroll}
+            onShowOlderItems={threadSurface.onShowOlderItems}
           />
         )}
         <AgentChatDataSourceComposerPanel
-          hasChatContent={hasChatContent}
-          pendingServerRequests={visiblePendingServerRequests}
+          hasChatContent={composerPanel.hasChatContent}
+          pendingServerRequests={composerPanel.pendingServerRequests}
           surface={surface}
-          onResolveServerRequest={onResolveServerRequest}
+          onResolveServerRequest={composerPanel.onResolveServerRequest}
           answeringPendingInput={false}
           addMentionTrigger={composer.addMentionTrigger}
           buildingSendWorkspace={false}
-          canSend={canSend}
+          canSend={composerPanel.canSend}
           canAnswerPendingInputWithText={false}
-          canStopActiveRun={canStopActiveTurn}
+          canStopActiveRun={composerPanel.canStopActiveRun}
           chrome="flush"
           composerAttachmentEntries={composer.composerAttachmentEntries}
           composerAttachmentsCount={composer.composerAttachments.length}
           composerInput={composer.input}
-          composerPlaceholder={composerPlaceholder}
+          composerPlaceholder={composerPanel.placeholder}
           debugBeforeSend={false}
           draggingFiles={composer.draggingFiles}
-          fileRef={composerFileRef as AgentComposerSectionProps['fileRef']}
-          inputRef={composerInputRef as AgentComposerSectionProps['inputRef']}
-          loading={sending}
+          fileRef={composerPanel.fileRef as AgentComposerSectionProps['fileRef']}
+          inputRef={composerPanel.inputRef as AgentComposerSectionProps['inputRef']}
+          loading={composerPanel.loading}
           mentionRangeActive={!!composer.mentionRange}
           mentionResults={composer.mentionResults}
-          modelOptions={modelOptions}
-          modelValue={activeThreadModelValue}
-          collaborationMode={collaborationMode}
-          goalModeEnabled={goalModeEnabled}
-          goalState={goalState}
-          hideWorkspaceProjectSelector={hideComposerWorkspaceProjectSelector}
-          queuedInputs={queuedInputs}
-          queuedInputsCollapsed={queuedInputsCollapsed}
-          queuedInputSteerEnabled={queuedInputSteerEnabled}
+          modelOptions={composerPanel.modelOptions}
+          modelValue={composerPanel.modelValue}
+          collaborationMode={composerPanel.collaborationMode}
+          goalModeEnabled={composerPanel.goalModeEnabled}
+          goalState={composerPanel.goalState}
+          hideWorkspaceProjectSelector={composerPanel.hideWorkspaceProjectSelector}
+          queuedInputs={composerPanel.queuedInputs}
+          queuedInputsCollapsed={composerPanel.queuedInputsCollapsed}
+          queuedInputSteerEnabled={composerPanel.queuedInputSteerEnabled}
           pendingActiveRunInputQueue={[]}
-          profilePresetId={profilePresetId}
-          stoppingActiveRun={stoppingTurn}
+          profilePresetId={composerPanel.profilePresetId}
+          stoppingActiveRun={composerPanel.stoppingActiveRun}
           uploadedFileCount={composer.uploadedFileCount}
           uploading={composer.uploading}
           uploadingFileNames={composer.uploadingFileNames}
           workspaceProjectOptions={composer.workspaceProjectOptions}
-          workspaceProjectLocked={composerWorkspaceContextLocked}
+          workspaceProjectLocked={composerPanel.workspaceContextLocked}
           workspaceProjectValue={composer.workspaceProjectValue}
           workspaceProjectsLoading={composer.workspaceProjectsLoading}
           onAcceptMention={() => {
@@ -282,26 +243,26 @@ export function AgentChatShellView({
           onComposerDragEnter={composer.handleComposerDragEnter}
           onComposerDragLeave={composer.handleComposerDragLeave}
           onComposerDragOver={composer.handleComposerDragOver}
-          onComposerDrop={onComposerDrop}
-          onComposerPaste={onComposerPaste}
+          onComposerDrop={composerPanel.onDrop}
+          onComposerPaste={composerPanel.onPaste}
           onDebugBeforeSendChange={() => undefined}
           onInputChange={composer.updateInputDraft}
           onMentionEscape={() => composer.setMentionRange(null)}
           onMentionSelect={composer.insertResourceMention}
           onMentionState={composer.updateMentionState}
-          onCollaborationModeChange={onCollaborationModeChange}
-          onGoalModeEnabledChange={onGoalModeEnabledChange}
-          onModelChange={handleModelChange}
-          onProfilePresetChange={handleProfilePresetChange}
-          onQueuedInputCollapseChange={queuedInputHandlers.onCollapseChange}
-          onQueuedInputDelete={queuedInputHandlers.onDelete}
-          onQueuedInputEdit={queuedInputHandlers.onEdit}
-          onQueuedInputEditCancel={queuedInputHandlers.onEditCancel}
-          onQueuedInputSteerNow={queuedInputHandlers.onSteerNow}
-          onQueuedInputTextChange={queuedInputHandlers.onTextChange}
+          onCollaborationModeChange={composerPanel.onCollaborationModeChange}
+          onGoalModeEnabledChange={composerPanel.onGoalModeEnabledChange}
+          onModelChange={composerPanel.onModelChange}
+          onProfilePresetChange={composerPanel.onProfilePresetChange}
+          onQueuedInputCollapseChange={composerPanel.queuedInputHandlers.onCollapseChange}
+          onQueuedInputDelete={composerPanel.queuedInputHandlers.onDelete}
+          onQueuedInputEdit={composerPanel.queuedInputHandlers.onEdit}
+          onQueuedInputEditCancel={composerPanel.queuedInputHandlers.onEditCancel}
+          onQueuedInputSteerNow={composerPanel.queuedInputHandlers.onSteerNow}
+          onQueuedInputTextChange={composerPanel.queuedInputHandlers.onTextChange}
           onRemoveAttachment={composer.removeAttachment}
-          onSend={onSend}
-          onStopActiveRun={onStopActiveTurn}
+          onSend={composerPanel.onSend}
+          onStopActiveRun={composerPanel.onStopActiveRun}
           onUploadFiles={(files) => void composer.uploadFiles(files)}
           onWorkspaceProjectChange={composer.changeWorkspaceProject}
           showApprovalPresetSelector
@@ -309,19 +270,19 @@ export function AgentChatShellView({
           showDebugPreview={false}
           showMentionTools
         />
-        {surface === 'panel' && historyOpen ? (
+        {surface === 'panel' && historyPanel.open ? (
           <AgentChatDataSourceHistoryPanel
-            dataSourceLabel={dataSource.label}
-            emptyThreadListLabel={emptyThreadListLabel}
-            endpoint={endpoint}
-            hasMoreThreadPages={Boolean(threadListNextCursor)}
-            historyThreads={closedHistoryThreads}
-            loading={loading}
-            loadingMore={threadListLoadingMore}
-            threadListLabel={threadListLabel}
-            onLoadMoreThreads={onLoadMoreThreads}
-            onLoadThreads={onLoadThreads}
-            onOpenThread={onOpenThread}
+            dataSourceLabel={historyPanel.dataSourceLabel}
+            emptyThreadListLabel={historyPanel.emptyThreadListLabel}
+            endpoint={historyPanel.endpoint}
+            hasMoreThreadPages={historyPanel.hasMoreThreadPages}
+            historyThreads={historyPanel.historyThreads}
+            loading={historyPanel.loading}
+            loadingMore={historyPanel.loadingMore}
+            threadListLabel={historyPanel.threadListLabel}
+            onLoadMoreThreads={historyPanel.onLoadMoreThreads}
+            onLoadThreads={historyPanel.onLoadThreads}
+            onOpenThread={historyPanel.onOpenThread}
           />
         ) : null}
       </AgentMain>

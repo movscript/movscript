@@ -41,6 +41,12 @@ import {
   type PersistedAgentSessionStore,
 } from '@/features/agent/state/agentSessionStoreTypes'
 import {
+  attachAgentConversationRegistryBroadcastBridge,
+  publishAgentConversationRegistryEvent,
+  subscribeAgentConversationRegistryEvents,
+  type AgentConversationRegistryEvent,
+} from '@/features/agent/state/agentConversationRegistryEvents'
+import {
   agentConversationIdForRegistryInput,
   setAgentConversationRegistryDeckOrders,
   upsertAgentConversationRegistryRecord,
@@ -121,10 +127,30 @@ export const useAgentSessionStore = create<AgentSessionStore>()((set, get) => ({
             [input.userId]: state.activeConversationIdsByUser[input.userId] ?? conversationId,
           },
         }))
+        if (conversationId) {
+          publishAgentSessionRegistryEvent(get, {
+            kind: 'conversation-upserted',
+            userId: input.userId,
+            conversationId,
+            providerThreadId: input.providerThreadId,
+          })
+        }
         return conversationId
       },
 
-      setConversationOpen: (userId, conversationId, open) => set((state) => setAgentSessionConversationOpenState(state, { conversationId, open, userId })),
+      setConversationOpen: (userId, conversationId, open) => {
+        const current = get().conversationsById[conversationId]
+        set((state) => setAgentSessionConversationOpenState(state, { conversationId, open, userId }))
+        if (current) {
+          publishAgentSessionRegistryEvent(get, {
+            kind: 'conversation-open-changed',
+            userId,
+            conversationId,
+            providerThreadId: current.providerThreadId,
+            open,
+          })
+        }
+      },
 
       createProviderSessionConversation: (userId, input) => {
         let conversationId = ''
@@ -133,32 +159,65 @@ export const useAgentSessionStore = create<AgentSessionStore>()((set, get) => ({
           conversationId = result.conversationId
           return result.patch ?? {}
         })
+        if (conversationId) {
+          publishAgentSessionRegistryEvent(get, {
+            kind: 'provider-session-conversation-created',
+            userId,
+            conversationId,
+            providerThreadId: input.threadId,
+          })
+        }
         return conversationId
       },
 
       removeProviderSessionConversation: (userId, conversationId) => {
+        const current = get().conversationsById[conversationId]
         set((state) => removeProviderSessionConversationState(state, { conversationId, userId }))
+        if (current) {
+          publishAgentSessionRegistryEvent(get, {
+            kind: 'conversation-removed',
+            userId,
+            conversationId,
+            providerThreadId: current.providerThreadId,
+          })
+        }
       },
 
-      setActiveConversation: (userId, conversationId) => set((state) => {
-        if (activeConversationIdForUser(state, userId) === conversationId) return {}
-        return {
+      setActiveConversation: (userId, conversationId) => {
+        const current = activeConversationIdForUser(get(), userId)
+        if (current === conversationId) return
+        set((state) => ({
           activeConversationIdsByUser: {
             ...(state.activeConversationIdsByUser ?? {}),
             [userId]: conversationId,
           },
-        }
-      }),
+        }))
+        publishAgentSessionRegistryEvent(get, {
+          kind: 'active-conversation-changed',
+          userId,
+          conversationId,
+          activeConversationId: conversationId,
+        })
+      },
 
-      setConversationDeckOrders: (orders) => set((state) => ({
-        conversationsById: setAgentConversationRegistryDeckOrders(state.conversationsById, orders),
-      })),
+      setConversationDeckOrders: (orders) => {
+        set((state) => ({
+          conversationsById: setAgentConversationRegistryDeckOrders(state.conversationsById, orders),
+        }))
+        if (orders.length > 0) {
+          publishAgentSessionRegistryEvent(get, {
+            kind: 'conversation-deck-order-changed',
+            conversationIds: orders.map((order) => order.conversationId),
+          })
+        }
+      },
 
       getActiveConversationId: (userId) => activeConversationIdForUser(get(), userId),
 
       updateConversationTitle: (_userId, conversationId, title) => {
         const trimmed = title.trim()
         if (!trimmed) return
+        const current = get().conversationsById[conversationId]
         set((state) => ({
           conversationsById: state.conversationsById[conversationId]
             ? {
@@ -171,6 +230,15 @@ export const useAgentSessionStore = create<AgentSessionStore>()((set, get) => ({
             }
             : state.conversationsById,
         }))
+        if (current) {
+          publishAgentSessionRegistryEvent(get, {
+            kind: 'conversation-title-changed',
+            userId: current.userId,
+            conversationId,
+            providerThreadId: current.providerThreadId,
+            title: trimmed,
+          })
+        }
       },
 
       getConversationWorkspace: (userId, conversationId) => get().workspacesByUser[userId]?.[conversationId] ?? EMPTY_CONVERSATION_WORKSPACE,
@@ -349,24 +417,24 @@ export const useAgentSessionStore = create<AgentSessionStore>()((set, get) => ({
       },
 
       setConversationProviderThreadBindingId: (conversationId, providerThreadId) => {
-        const sessionId = get().conversationThreadBindings[conversationId]?.providerSessionTreeId
+        const providerSessionTreeId = get().conversationThreadBindings[conversationId]?.providerSessionTreeId
           ?? get().conversationsById[conversationId]?.providerSessionId
         get().bindConversationToProviderThread({
           conversationId,
           providerThreadId,
-          ...(sessionId ? { providerSessionTreeId: sessionId } : {}),
+          ...(providerSessionTreeId ? { providerSessionTreeId } : {}),
         })
       },
 
       setConversationProviderSessionTreeId: (conversationId, providerSessionTreeId) => {
-        const sessionId = providerSessionTreeId.trim()
-        if (!sessionId) return
+        const normalizedProviderSessionTreeId = providerSessionTreeId.trim()
+        if (!normalizedProviderSessionTreeId) return
         const threadId = get().conversationThreadBindings[conversationId]?.providerThreadId
         if (threadId) {
           get().bindConversationToProviderThread({
             conversationId,
             providerThreadId: threadId,
-            providerSessionTreeId: sessionId,
+            providerSessionTreeId: normalizedProviderSessionTreeId,
           })
           return
         }
@@ -378,7 +446,7 @@ export const useAgentSessionStore = create<AgentSessionStore>()((set, get) => ({
               ...state.conversationsById,
               [conversationId]: {
                 ...conversation,
-                providerSessionId: sessionId,
+                providerSessionId: normalizedProviderSessionTreeId,
                 updatedAt: Date.now(),
               },
             },
@@ -464,6 +532,11 @@ installAgentSessionHomePersistence()
 function installAgentSessionHomePersistence(): void {
   if (agentSessionPersistenceInstalled || typeof window === 'undefined') return
   agentSessionPersistenceInstalled = true
+  attachAgentConversationRegistryBroadcastBridge()
+  subscribeAgentConversationRegistryEvents((event) => {
+    if (event.delivery !== 'cross-window' || !event.snapshot) return
+    useAgentSessionStore.setState((current) => applyRemoteAgentSessionRegistryEvent(current, event))
+  })
   useAgentSessionStore.subscribe(() => {
     if (!agentSessionHydratedFromHome) return
     scheduleAgentSessionHomeSave()
@@ -574,6 +647,43 @@ function mergePersistedAgentSessionState(current: AgentSessionStore, persisted: 
     },
     workspacesByUser: mergeNestedRecordMap(persisted.workspacesByUser, current.workspacesByUser),
   }
+}
+
+function applyRemoteAgentSessionRegistryEvent(
+  current: AgentSessionStore,
+  event: AgentConversationRegistryEvent,
+): Partial<AgentSessionStore> {
+  if (!event.snapshot) return {}
+  const conversationsById = {
+    ...current.conversationsById,
+    ...event.snapshot.conversationsById,
+  }
+  const workspacesByUser = mergeNestedRecordMap(current.workspacesByUser, event.snapshot.workspacesByUser)
+  if (event.kind === 'conversation-removed' && event.conversationId) {
+    delete conversationsById[event.conversationId]
+    if (event.userId && workspacesByUser[event.userId]) {
+      workspacesByUser[event.userId] = { ...workspacesByUser[event.userId] }
+      delete workspacesByUser[event.userId][event.conversationId]
+    }
+  }
+  return {
+    activeConversationIdsByUser: {
+      ...current.activeConversationIdsByUser,
+      ...event.snapshot.activeConversationIdsByUser,
+    },
+    conversationsById,
+    workspacesByUser,
+  }
+}
+
+function publishAgentSessionRegistryEvent(
+  getState: () => AgentSessionStore,
+  event: Parameters<typeof publishAgentConversationRegistryEvent>[0],
+): void {
+  publishAgentConversationRegistryEvent({
+    ...event,
+    snapshot: persistedAgentSessionState(getState()),
+  })
 }
 
 function hasPersistedAgentSessionState(state: PersistedAgentSessionStore | ElectronAgentSessionState | null | undefined): boolean {

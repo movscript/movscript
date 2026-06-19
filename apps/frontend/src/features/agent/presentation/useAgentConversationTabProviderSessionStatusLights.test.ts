@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import test from 'node:test'
 import {
   buildAgentConversationTabProviderSessionTargets,
@@ -35,7 +37,7 @@ test('buildAgentConversationTabProviderSessionTargets prefers session anchors an
   assert.deepEqual(targets, [
     {
       conversationId: 'conv_session',
-      sessionId: 'session_tree_binding',
+      providerSessionTreeId: 'session_tree_binding',
       threadId: 'thread_binding',
     },
     {
@@ -252,6 +254,14 @@ test('providerSessionStatusLightFromConversationState does not mark queued draft
       detail: 'Runtime 会话当前不会自行触发新的 run，需要新的用户输入。',
     },
   })
+})
+
+test('conversation tab provider-session lights read session state through split stores', () => {
+  const source = readFileSync(resolve('src/features/agent/presentation/useAgentConversationTabProviderSessionStatusLights.ts'), 'utf8')
+
+  assert.match(source, /agentConversationRegistryStore/)
+  assert.match(source, /agentConversationRuntimeStore/)
+  assert.doesNotMatch(source, /useAgentSessionStore/)
 })
 
 function conversation(overrides: Partial<Conversation>): Conversation {

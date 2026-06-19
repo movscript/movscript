@@ -17,6 +17,10 @@ func (h *AIHandler) ListModelCatalogEntries(c *gin.Context) {
 	c.JSON(http.StatusOK, entries)
 }
 
+func (h *AIHandler) ListModelCatalogTemplates(c *gin.Context) {
+	c.JSON(http.StatusOK, h.service.ListModelCatalogTemplates(c.Request.Context()))
+}
+
 func (h *AIHandler) CreateModelCatalogEntry(c *gin.Context) {
 	var req adminai.ModelCatalogEntryInput
 	if err := c.ShouldBindJSON(&req); err != nil {

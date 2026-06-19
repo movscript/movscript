@@ -10,8 +10,9 @@ import (
 
 func TestCatalogTemplateJSONUsesPricingMode(t *testing.T) {
 	body, err := json.Marshal(CatalogTemplate{
-		ID:          "test",
-		PricingMode: PricingPerImage,
+		ID:                   "test",
+		DefaultPublicModelID: "test",
+		PricingMode:          PricingPerImage,
 		SupportedParams: []ParamDef{{
 			Key:     "duration",
 			Label:   "Duration",
@@ -27,11 +28,40 @@ func TestCatalogTemplateJSONUsesPricingMode(t *testing.T) {
 	if !strings.Contains(got, `"pricing_mode":"per_image"`) {
 		t.Fatalf("missing pricing_mode in JSON: %s", got)
 	}
+	if !strings.Contains(got, `"default_public_model_id":"test"`) {
+		t.Fatalf("missing default_public_model_id in JSON: %s", got)
+	}
 	if strings.Contains(got, "billing_mode") {
 		t.Fatalf("unexpected legacy billing_mode in JSON: %s", got)
 	}
 	if !strings.Contains(got, `"supported_params"`) || !strings.Contains(got, `"duration"`) {
 		t.Fatalf("missing supported_params in JSON: %s", got)
+	}
+}
+
+func TestCatalogTemplatesExposeDisplaySafeDefaultPublicModelID(t *testing.T) {
+	templates := CatalogTemplates()
+	if len(templates) == 0 {
+		t.Fatal("expected catalog templates")
+	}
+	byID := map[string]CatalogTemplate{}
+	for _, template := range templates {
+		byID[template.ID] = template
+		if strings.TrimSpace(template.DefaultPublicModelID) == "" {
+			t.Fatalf("template %s has empty default_public_model_id", template.ID)
+		}
+		if strings.Contains(template.DefaultPublicModelID, ":") {
+			t.Fatalf("template %s exposes provider namespace in default_public_model_id %q", template.ID, template.DefaultPublicModelID)
+		}
+	}
+
+	openAICompat := byID["volcengine:seedream-5-0"]
+	arkNative := byID["volcengine-ark:seedream-5-0"]
+	if openAICompat.DefaultPublicModelID == "" || arkNative.DefaultPublicModelID == "" {
+		t.Fatal("expected Seedream 5.0 templates")
+	}
+	if openAICompat.DefaultPublicModelID != arkNative.DefaultPublicModelID {
+		t.Fatalf("same model across adapters should share default public id, got %q and %q", openAICompat.DefaultPublicModelID, arkNative.DefaultPublicModelID)
 	}
 }
 

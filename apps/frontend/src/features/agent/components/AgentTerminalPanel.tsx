@@ -362,7 +362,7 @@ export function AgentTerminalPanel({ workspaceContext, open: controlledOpen, onO
               key={`${shellResetNonce}_${session.id}`}
               active={session.id === activeShellId}
               disabled={disabled}
-              sessionId={session.id}
+              shellId={session.id}
               runtimeFor={runtimeFor}
               resizeShell={resizeShell}
               sendShellData={sendShellData}

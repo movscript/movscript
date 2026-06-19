@@ -1,6 +1,11 @@
 import { getAPIV1BaseURL } from '@/shared/infrastructure/config'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
-import { providerSessionClient, type ProviderSessionTelemetryLogEntry, type ProviderSessionTelemetryMetricSample, type ProviderSessionTelemetrySnapshot } from '@/shared/infrastructure/providerSessionClient'
+import {
+  agentProviderSessionCompatibilityClient,
+  type ProviderSessionTelemetryLogEntry,
+  type ProviderSessionTelemetryMetricSample,
+  type ProviderSessionTelemetrySnapshot,
+} from '@/features/agent/infrastructure/agentProviderSessionCompatibility'
 import {
   AGENT_CLIENT_TELEMETRY_SCHEMA,
   createAgentTelemetryLogSample,
@@ -248,7 +253,7 @@ async function pollProviderSessionTelemetry(): Promise<void> {
   }
   providerSessionTelemetryPolling = true
   try {
-    const snapshot = await providerSessionClient.getProviderSessionTelemetry()
+    const snapshot = await agentProviderSessionCompatibilityClient('telemetry-collection').getProviderSessionTelemetry()
     queueProviderSessionTelemetrySnapshot(snapshot)
   } catch {
     // Local provider session telemetry is optional and must never affect Agent UX.

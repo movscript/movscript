@@ -4,7 +4,14 @@ import { LOCAL_BACKEND_URL, startBackend, stopBackend, type BackendStatus } from
 import { resolveDesktopDefaultMovScriptWorkspaceDir, setDesktopDefaultMovScriptWorkspaceDir } from '../services/movscriptWorkspaceDefaults'
 import { setMovScriptBackendAPIBaseURL, writeMovScriptBackendConfig } from '@movscript/core/backend/node'
 import { readDesktopAppSettings, writeDesktopAppSettings } from '../services/appSettings'
-import { readAppSettingsSecrets, writeAgentRuntimeApiKey, writeAppSettingsSecretsFromSettings } from '../services/appSettingsSecrets'
+import {
+  agentRuntimeCredentialSummary,
+  readAgentRuntimeCredentialSummary,
+  readAppSettingsSecrets,
+  rendererAppSettingsSecrets,
+  writeAgentRuntimeApiKey,
+  writeAppSettingsSecretsFromSettings,
+} from '../services/appSettingsSecrets'
 
 export interface SettingsIpcDependencies {
   broadcastBackendStatus: (status: BackendStatus) => void
@@ -34,18 +41,22 @@ export function registerSettingsIpcHandlers(deps: SettingsIpcDependencies): void
     return readDesktopAppSettings(resolveDesktopDefaultMovScriptWorkspaceDir())
   })
   ipcMain.handle('app:get-settings-secrets', () => {
-    return readAppSettingsSecrets(resolveDesktopDefaultMovScriptWorkspaceDir())
+    return rendererAppSettingsSecrets(readAppSettingsSecrets(resolveDesktopDefaultMovScriptWorkspaceDir()))
+  })
+  ipcMain.handle('app:get-agent-runtime-credential-summary', () => {
+    return readAgentRuntimeCredentialSummary(resolveDesktopDefaultMovScriptWorkspaceDir())
   })
   ipcMain.handle('app:set-agent-runtime-api-key', (_event, input?: { providerKey?: string; providerKeys?: string[]; apiKey?: string | null }) => {
     const workspaceDir = resolveDesktopDefaultMovScriptWorkspaceDir()
     const result = writeAgentRuntimeApiKey(workspaceDir, input ?? {})
+    const summary = agentRuntimeCredentialSummary(result)
     console.log('[Movscript Claude credential flow] ipc.setAgentRuntimeApiKey', JSON.stringify({
       workspaceDir,
       providerKey: input?.providerKey,
       providerKeys: input?.providerKeys ?? [],
       hasApiKey: Boolean(input?.apiKey?.trim()),
-      savedProviderKeys: Object.keys(result.agentRuntimeApiKeys),
+      savedProviderKeys: summary.savedProviderKeys,
     }))
-    return result
+    return summary
   })
 }

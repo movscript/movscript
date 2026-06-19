@@ -4,16 +4,22 @@ import type {
 
 export type AgentPageTaskStatus = 'queued' | 'claimed' | 'running' | 'completed' | 'error' | 'cancelled'
 export type AgentTaskRenderMode = 'chat' | 'panel' | 'page'
-export type AgentPageTaskRun = AgentRun | {
+export interface AgentPageTaskProviderSessionRef {
+  providerSessionTreeId?: string
+  sessionId?: string // deprecated legacy provider-session input; normalize to providerSessionTreeId.
+}
+export type AgentPageTaskRun = (AgentRun & AgentPageTaskProviderSessionRef) | {
   id: string
   threadId?: string
-  sessionId?: string
+  providerSessionTreeId?: string
+  sessionId?: string // deprecated legacy provider-session input; normalize to providerSessionTreeId.
   status?: string
   error?: string | null
 }
-export type AgentPageTaskThread = AgentThread | {
+export type AgentPageTaskThread = (AgentThread & AgentPageTaskProviderSessionRef) | {
   id: string
-  sessionId?: string
+  providerSessionTreeId?: string
+  sessionId?: string // deprecated legacy provider-session input; normalize to providerSessionTreeId.
 }
 
 export interface AgentPageTaskPayload {
@@ -38,7 +44,7 @@ export interface AgentPageTaskState {
   payload: AgentPageTaskPayload & { requestId: string; taskType: string }
   artifacts?: AgentTaskArtifactRef[]
   conversationId?: string
-  sessionId?: string
+  providerSessionTreeId?: string
   threadId?: string
   runId?: string
   run?: AgentPageTaskRun
@@ -51,7 +57,8 @@ export interface AgentPageTaskState {
 
 export interface AgentPageTaskRunningPatch {
   conversationId?: string
-  sessionId?: string
+  providerSessionTreeId?: string
+  sessionId?: string // deprecated legacy provider-session input; normalize to providerSessionTreeId.
   run?: AgentRun
   thread?: AgentThread
   threadId?: string

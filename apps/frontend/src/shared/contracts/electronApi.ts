@@ -23,6 +23,7 @@ import type {
   ElectronAppUpdateStatus,
   ElectronAppWindowContext,
   ElectronAppSettingsSecrets,
+  ElectronAgentRuntimeCredentialSummary,
   ElectronBackendAuthSessionInput,
   ElectronRuntimeConfig,
   ElectronBackendStatus,
@@ -77,8 +78,11 @@ import type {
   ElectronPluginCatalogPackUninstallInput,
   ElectronPluginCatalogPackUninstallResult,
   ElectronProjectPluginInstallInput,
+  ElectronProjectPluginToggleInput,
   ElectronProjectPluginSnapshot,
   ElectronProjectSkillToggleInput,
+  ElectronSystemPluginInstallInput,
+  ElectronSystemPluginUninstallInput,
   ElectronProjectGitActionInput,
   ElectronProjectGitActionResult,
   ElectronProviderSessionSummary,
@@ -139,12 +143,13 @@ export type ElectronAPI = {
   setAppSettings?: (settings: AppSettings) => Promise<void>
   getAppSettings?: () => Promise<AppSettings | null>
   getAppSettingsSecrets?: () => Promise<ElectronAppSettingsSecrets>
+  getAgentRuntimeCredentialSummary?: () => Promise<ElectronAgentRuntimeCredentialSummary>
   getAgentSessionState?: (input?: ElectronMovScriptHomeInput) => Promise<ElectronAgentSessionStateResult>
   setAgentSessionState?: (input: ElectronMovScriptHomeInput & ElectronAgentSessionStateSaveInput) => Promise<ElectronAgentSessionStateResult>
   getDesktopState?: (input: ElectronDesktopStateInput) => Promise<ElectronDesktopStateResult>
   setDesktopState?: (input: ElectronDesktopStateSaveInput) => Promise<ElectronDesktopStateResult>
   removeDesktopState?: (input: ElectronDesktopStateInput) => Promise<{ ok: true; key: string; movScriptHomeDir: string; workspaceDir: string; path: string }>
-  setAgentRuntimeApiKey?: (input: { providerKey?: string; providerKeys?: string[]; apiKey?: string | null }) => Promise<ElectronAppSettingsSecrets>
+  setAgentRuntimeApiKey?: (input: { providerKey?: string; providerKeys?: string[]; apiKey?: string | null }) => Promise<ElectronAgentRuntimeCredentialSummary>
   getRuntimeConfig?: () => Promise<ElectronRuntimeConfig>
   setGenerationToolsSettings?: (settings: GenerationToolsSettings) => Promise<void>
   testGenerationToolServer?: (server: Partial<GenerationToolServer>) => Promise<ElectronGenerationToolServerTestResult>
@@ -227,7 +232,10 @@ export type ElectronAPI = {
   installPluginCatalogPack?: (input: ElectronPluginCatalogPackInstallInput) => Promise<ElectronPluginCatalogPackInstallResult>
   uninstallPluginCatalogPack?: (input: ElectronPluginCatalogPackUninstallInput) => Promise<ElectronPluginCatalogPackUninstallResult>
   getProjectPluginSnapshot?: (input?: ElectronMovScriptHomeInput & { projectId?: string | number; userId?: string | number; orgId?: string | number }) => Promise<ElectronProjectPluginSnapshot>
+  installSystemPlugin?: (input: ElectronSystemPluginInstallInput) => Promise<ElectronProjectPluginSnapshot>
+  uninstallSystemPlugin?: (input: ElectronSystemPluginUninstallInput) => Promise<ElectronProjectPluginSnapshot>
   installProjectPlugin?: (input: ElectronProjectPluginInstallInput) => Promise<ElectronProjectPluginSnapshot>
+  setProjectPluginEnabled?: (input: ElectronProjectPluginToggleInput) => Promise<ElectronProjectPluginSnapshot>
   setProjectSkillEnabled?: (input: ElectronProjectSkillToggleInput) => Promise<ElectronProjectPluginSnapshot>
   renderMediaPipelineSingleClip?: (input: ElectronVideoClipInput) => Promise<ElectronVideoClipResult>
   renderMediaPipelineTimelineVideo?: (input: ElectronTimelineVideoInput) => Promise<ElectronTimelineVideoResult>

@@ -55,7 +55,7 @@ export const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
         label: 'Codex app-server',
         packageName: '@openai/codex',
         sdkPackageName: '@openai/codex-sdk',
-        binaryPackageName: '@openai/codex',
+        binaryPackageName: '@movscript/mova',
         executableEnvVar: CODEX_RUNTIME_EXECUTABLE_ENV,
         apiEnvVar: CODEX_RUNTIME_API_ENV,
         packageNameEnvVar: CODEX_RUNTIME_PACKAGE_ENV,

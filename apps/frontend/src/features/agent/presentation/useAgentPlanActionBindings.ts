@@ -14,7 +14,8 @@ import type { AgentTaskGraphSnapshot, AgentRun } from '@movscript/core/agent/pro
 
 export interface UseAgentPlanActionBindingsInput {
   conversationId: string
-  sessionId?: string
+  providerSessionTreeId?: string
+  sessionId?: string // legacy provider-session input; prefer providerSessionTreeId.
   run: AgentRun | null
   snapshot?: AgentTaskGraphSnapshot | null
   busy: boolean
@@ -27,7 +28,8 @@ export interface UseAgentPlanActionBindingsInput {
 
 export function useAgentPlanActionBindings({
   conversationId,
-  sessionId,
+  providerSessionTreeId,
+  sessionId: legacySessionId,
   run,
   snapshot,
   busy,
@@ -37,7 +39,8 @@ export function useAgentPlanActionBindings({
   updateConversationRuntimeState,
   refetchPlanSnapshot,
 }: UseAgentPlanActionBindingsInput) {
-  const commandService = useMemo(() => createAgentProviderSessionCommandService({ sessionId }), [sessionId])
+  const normalizedProviderSessionTreeId = providerSessionTreeId?.trim() || legacySessionId?.trim() || undefined
+  const commandService = useMemo(() => createAgentProviderSessionCommandService({ providerSessionTreeId: normalizedProviderSessionTreeId }), [normalizedProviderSessionTreeId])
   const deps = useMemo<AgentPlanActionDeps>(() => ({
     setBusy,
     setConversationRun: (nextRun, patch) => setConversationRun(conversationId, nextRun, patch),

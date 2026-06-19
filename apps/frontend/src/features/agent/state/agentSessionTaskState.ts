@@ -40,7 +40,7 @@ export function enqueueAgentPageTask(input: {
         status: existing?.status ?? 'queued',
         payload: normalized,
         conversationId: existing?.conversationId,
-        sessionId: existing?.sessionId,
+        providerSessionTreeId: existing?.providerSessionTreeId,
         threadId: existing?.threadId,
         runId: existing?.runId,
         run: existing?.run,
@@ -103,13 +103,18 @@ export function setAgentPageTaskRunning(input: {
   if (!task) return null
   const run = input.patch.run ?? task.run
   const thread = input.patch.thread ?? task.thread
-  const sessionId = input.patch.sessionId ?? thread?.sessionId ?? run?.sessionId ?? task.sessionId
+  const providerSessionTreeId = providerSessionTreeIdForPageTask(
+    input.patch,
+    thread,
+    run,
+    task,
+  )
   return {
     ...input.pageTasks,
     [input.requestId]: {
       ...task,
       conversationId: input.patch.conversationId ?? task.conversationId,
-      sessionId,
+      providerSessionTreeId,
       threadId: input.patch.threadId ?? thread?.id ?? run?.threadId ?? task.threadId,
       runId: run?.id ?? task.runId,
       run,
@@ -144,7 +149,7 @@ export function updateAgentPageTaskFromProviderSession(input: {
       status: pageTaskStatusFromProviderSession(input.payload, task.status),
       run: input.payload.run ?? task.run,
       thread: input.payload.thread ?? task.thread,
-      sessionId: input.payload.thread?.sessionId ?? input.payload.run?.sessionId ?? task.sessionId,
+      providerSessionTreeId: providerSessionTreeIdForPageTask(input.payload.thread, input.payload.run, task),
       runId: input.payload.run?.id ?? task.runId,
       threadId: input.payload.thread?.id ?? input.payload.run?.threadId ?? task.threadId,
       artifacts: input.payload.artifacts ?? task.artifacts,
@@ -155,6 +160,18 @@ export function updateAgentPageTaskFromProviderSession(input: {
         : task.settledAt,
     },
   }
+}
+
+function providerSessionTreeIdForPageTask(
+  ...refs: Array<{ providerSessionTreeId?: string; sessionId?: string } | undefined>
+): string | undefined {
+  for (const ref of refs) {
+    const providerSessionTreeId = ref?.providerSessionTreeId?.trim()
+    if (providerSessionTreeId) return providerSessionTreeId
+    const legacySessionId = ref?.sessionId?.trim()
+    if (legacySessionId) return legacySessionId
+  }
+  return undefined
 }
 
 export function startAgentStandaloneTask(input: {

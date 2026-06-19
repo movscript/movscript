@@ -17,7 +17,9 @@ export interface AgentMessage {
 
 export interface AgentThread {
   id: string
-  sessionId?: string
+  providerSessionTreeId?: string
+  /** @deprecated Prefer providerSessionTreeId for related-thread provider-session trees. */
+  sessionId?: string // deprecated providerSessionTreeId compatibility mirror
   lifecycle?: AgentConversationLifecycle
   expiresAt?: string
   title?: string
@@ -81,7 +83,9 @@ export interface AgentSessionSummary extends AgentSession {
 
 export interface AgentThreadSummary {
   id: string
-  sessionId?: string
+  providerSessionTreeId?: string
+  /** @deprecated Prefer providerSessionTreeId for related-thread provider-session trees. */
+  sessionId?: string // deprecated providerSessionTreeId compatibility mirror
   lifecycle?: AgentConversationLifecycle
   expiresAt?: string
   title?: string

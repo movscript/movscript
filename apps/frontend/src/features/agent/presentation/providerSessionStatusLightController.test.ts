@@ -28,8 +28,8 @@ test('provider session status light controller shares one stream per target acro
     },
   })
 
-  controller.setOwnerTargets('page', [{ conversationId: 'conv_1', sessionId: 'session_1', threadId: 'thread_1' }])
-  controller.setOwnerTargets('header', [{ conversationId: 'conv_1', sessionId: 'session_1', threadId: 'thread_1' }])
+  controller.setOwnerTargets('page', [{ conversationId: 'conv_1', providerSessionTreeId: 'session_1', threadId: 'thread_1' }])
+  controller.setOwnerTargets('header', [{ conversationId: 'conv_1', providerSessionTreeId: 'session_1', threadId: 'thread_1' }])
   await settle()
 
   assert.equal(client.sessionStreams.length, 1)
@@ -86,13 +86,13 @@ test('provider session status light controller ignores non-status-light provider
 })
 
 test('provider session status light target helpers prefer sessions and keep thread fallbacks', () => {
-  assert.equal(providerSessionStatusLightTargetKey({ conversationId: 'conv_1', sessionId: ' session_1 ', threadId: ' thread_1 ' }), 'session:session_1')
-  assert.deepEqual(providerSessionStatusLightTargetKeys({ conversationId: 'conv_1', sessionId: ' session_1 ', threadId: ' thread_1 ' }), ['session:session_1', 'thread:thread_1'])
+  assert.equal(providerSessionStatusLightTargetKey({ conversationId: 'conv_1', providerSessionTreeId: ' session_1 ', threadId: ' thread_1 ' }), 'session:session_1')
+  assert.deepEqual(providerSessionStatusLightTargetKeys({ conversationId: 'conv_1', providerSessionTreeId: ' session_1 ', threadId: ' thread_1 ' }), ['session:session_1', 'thread:thread_1'])
   assert.equal(providerSessionStatusLightTargetKey({ conversationId: 'conv_1', threadId: ' thread_1 ' }), 'thread:thread_1')
-  assert.equal(providerSessionStatusLightTargetKey({ conversationId: 'conv_1', sessionId: ' session_1 ' }), 'session:session_1')
+  assert.equal(providerSessionStatusLightTargetKey({ conversationId: 'conv_1', providerSessionTreeId: ' session_1 ' }), 'session:session_1')
   assert.equal(providerSessionStatusLightTargetKey({ conversationId: 'conv_1' }), undefined)
   assert.equal(providerSessionStatusLightTargetsSignature([
-    { conversationId: 'conv_1', sessionId: 'session_1', threadId: 'thread_1' },
+    { conversationId: 'conv_1', providerSessionTreeId: 'session_1', threadId: 'thread_1' },
     { conversationId: 'conv_2' },
   ]), 'conv_1:session:session_1,thread:thread_1|conv_2:none')
 })
@@ -110,7 +110,7 @@ test('provider session status light controller falls back to session streams whe
     },
   })
 
-  controller.setOwnerTargets('page', [{ conversationId: 'conv_1', sessionId: 'session_1' }])
+  controller.setOwnerTargets('page', [{ conversationId: 'conv_1', providerSessionTreeId: 'session_1' }])
   await settle()
 
   assert.equal(client.sessionStreams.length, 1)

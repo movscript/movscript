@@ -44,10 +44,11 @@ export function createProviderSessionConversationState(
 ): { conversationId: string; patch: Partial<AgentSessionStore> | null } {
   const title = input.title?.trim()
   const threadId = input.threadId.trim()
+  const providerSessionTreeId = providerSessionTreeIdForConversationInput(input)
   const conversationInput = {
     userId,
     providerThreadId: threadId,
-    ...(input.sessionId?.trim() ? { providerSessionId: input.sessionId.trim() } : {}),
+    ...(providerSessionTreeId ? { providerSessionId: providerSessionTreeId } : {}),
     ...(input.provider ? { provider: input.provider } : {}),
     ...(input.providerId?.trim() ? { providerId: input.providerId.trim() } : {}),
     ...(input.providerInstanceId?.trim() ? { providerInstanceId: input.providerInstanceId.trim() } : {}),
@@ -79,7 +80,7 @@ export function createProviderSessionConversationState(
                 ...(state.conversationThreadBindings[conversationId] ?? {}),
                 conversationId,
                 providerThreadId: threadId,
-                ...(input.sessionId?.trim() ? { providerSessionTreeId: input.sessionId.trim() } : {}),
+                ...(providerSessionTreeId ? { providerSessionTreeId } : {}),
                 updatedAt: Date.now(),
               },
             },
@@ -87,6 +88,10 @@ export function createProviderSessionConversationState(
         : {}),
     },
   }
+}
+
+function providerSessionTreeIdForConversationInput(input: { providerSessionTreeId?: string; sessionId?: string }): string | undefined {
+  return input.providerSessionTreeId?.trim() || input.sessionId?.trim() || undefined
 }
 
 export function removeProviderSessionConversationState(

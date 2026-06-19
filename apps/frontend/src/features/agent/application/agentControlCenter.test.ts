@@ -122,7 +122,7 @@ test('agent control capability health surfaces SDK credential readiness', async 
     source: 'none',
     detail: 'Set ANTHROPIC_API_KEY.',
   })
-  assert.deepEqual(health.warnings, ['SDK 凭据：Set ANTHROPIC_API_KEY.'])
+  assert.deepEqual(health.warnings, ['Runtime 凭据：Set ANTHROPIC_API_KEY.'])
 })
 
 test('agent control capability health counts Mova SDK capability surfaces and resolved catalog tools', async () => {

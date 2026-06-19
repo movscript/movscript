@@ -1,7 +1,11 @@
-import { providerSessionClient } from '@/shared/infrastructure/providerSessionClient'
+import {
+  agentProviderSessionCompatibilityClient,
+  agentProviderSessionTreeIdForCompatibilityInput,
+} from '@/features/agent/infrastructure/agentProviderSessionCompatibility'
 
 export interface AgentProviderSessionCommandScope {
-  sessionId?: string
+  providerSessionTreeId?: string
+  sessionId?: string // deprecated legacy provider-session input; normalize to providerSessionTreeId.
   workspaceDir?: string
 }
 
@@ -24,11 +28,12 @@ export function createAgentProviderSessionCommandService(scope: AgentProviderSes
 export type AgentProviderSessionCommandService = ReturnType<typeof createAgentProviderSessionCommandService>
 
 function scopedProviderSessionCommandClient(scope: AgentProviderSessionCommandScope) {
-  const sessionId = scope.sessionId?.trim()
-  return sessionId
-    ? providerSessionClient.forSession({
-        sessionId,
+  const providerSessionTreeId = agentProviderSessionTreeIdForCompatibilityInput(scope)
+  const compatibilityClient = agentProviderSessionCompatibilityClient('provider-session-command-compat')
+  return providerSessionTreeId
+    ? compatibilityClient.forSession({
+        sessionId: providerSessionTreeId,
         ...(scope.workspaceDir?.trim() ? { workspaceDir: scope.workspaceDir.trim() } : {}),
       })
-    : providerSessionClient
+    : compatibilityClient
 }

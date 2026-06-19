@@ -23,15 +23,14 @@ import {
   } from '@/features/plugins/application/clientPlugins'
 import { ensureBundledClientPluginsInstalled } from '@/features/plugins/application/builtinClientPlugins'
 import {
-  installProviderMarketplacePlugin,
   loadProviderPluginMarketplaceState,
-  uninstallProviderMarketplacePlugin,
   type ProviderPluginMarketplaceItem,
   type ProviderPluginMarketplaceState,
   } from '@/features/plugins/application/providerPluginMarketplace'
 import {
-  installProviderMarketplacePluginToProject,
+  installProviderMarketplacePluginToSystem,
   loadProjectPluginSnapshot,
+  uninstallSystemPlugin,
   type ProjectPluginSnapshot,
   } from '@/features/plugins/application/projectPlugins'
 import { requireWorkspaceRootAPI } from '@/features/agent/application/movScriptWorkspaceElectron'
@@ -67,7 +66,7 @@ import {
 import {
   MarketplaceView,
   PluginCard,
-  ProviderPluginCard,
+  SystemPluginCard,
 } from '@/features/plugins/components/ClientPluginsPageViews'
 import { Button } from '@movscript/ui/primitives'
 
@@ -156,8 +155,8 @@ export default function ClientPluginsPage() {
     }
   }, [refreshProjectPlugins])
 
-  const installedProviderPlugins = useMemo(() => providerPluginState.items.filter((item) => item.installed), [providerPluginState.items])
-  const installedCount = plugins.length + installedProviderPlugins.length
+  const installedSystemPlugins = useMemo(() => projectPluginSnapshot?.systemPlugins.filter((item) => item.installed) ?? [], [projectPluginSnapshot])
+  const installedCount = plugins.length + installedSystemPlugins.length
 
   async function handleRemove(id: string) {
     const plugin = plugins.find((item) => item.id === id)
@@ -167,17 +166,15 @@ export default function ClientPluginsPage() {
   }
 
   async function handleProviderPluginInstall(item: ProviderPluginMarketplaceItem) {
-    await installProviderMarketplacePlugin(item)
+    const snapshot = await installProviderMarketplacePluginToSystem(item, workspaceDir)
+    setProjectPluginSnapshot(snapshot)
     refreshProviderPlugins()
   }
 
-  async function handleProviderPluginInstallProject(item: ProviderPluginMarketplaceItem) {
-    const snapshot = await installProviderMarketplacePluginToProject(item, workspaceDir)
-    setProjectPluginSnapshot(snapshot)
-  }
-
   async function handleProviderPluginUninstall(item: ProviderPluginMarketplaceItem) {
-    await uninstallProviderMarketplacePlugin(item)
+    const pluginKey = item.id.includes('@') ? item.id : `${item.name}@${item.marketplaceName}`
+    const snapshot = await uninstallSystemPlugin(workspaceDir ?? {}, pluginKey)
+    setProjectPluginSnapshot(snapshot)
     refreshProviderPlugins()
   }
 
@@ -270,7 +267,7 @@ export default function ClientPluginsPage() {
 
         {projectPluginSnapshot && projectPluginSnapshot.plugins.length > 0 ? (
           <PluginStateBanner icon={<Blocks size={12} />}>
-            当前项目已声明 {projectPluginSnapshot.plugins.length} 个插件；安装会写入 .agents/plugins，并按 provider target 物化到项目原生目录。
+            当前项目已声明 {projectPluginSnapshot.plugins.length} 个插件；Project Home 负责把系统缓存插件开启到本项目。
           </PluginStateBanner>
         ) : null}
 
@@ -290,7 +287,6 @@ export default function ClientPluginsPage() {
             errors={providerPluginState.errors}
             loading={providerPluginLoading}
             onInstall={handleProviderPluginInstall}
-            onInstallProject={handleProviderPluginInstallProject}
             onUninstall={handleProviderPluginUninstall}
             onRefresh={refreshProviderPlugins}
           />
@@ -298,7 +294,7 @@ export default function ClientPluginsPage() {
 
         {tab === 'installed' && (
           <PluginPageScrollBody>
-            {plugins.length === 0 && installedProviderPlugins.length === 0 ? (
+            {plugins.length === 0 && installedSystemPlugins.length === 0 ? (
               <PluginEmptyState
                 icon={Plus}
                 title={t('plugins.empty')}
@@ -318,11 +314,11 @@ export default function ClientPluginsPage() {
               />
             ) : (
               <PluginPageCardGrid>
-                {installedProviderPlugins.map((plugin) => (
-                  <ProviderPluginCard
-                    key={plugin.key}
+                {installedSystemPlugins.map((plugin) => (
+                  <SystemPluginCard
+                    key={plugin.pluginKey}
                     item={plugin}
-                    onUninstall={() => void handleProviderPluginUninstall(plugin)}
+                    onUninstall={() => void uninstallSystemPlugin(workspaceDir ?? {}, plugin.pluginKey).then(setProjectPluginSnapshot)}
                   />
                 ))}
                 {plugins.map((plugin) => (

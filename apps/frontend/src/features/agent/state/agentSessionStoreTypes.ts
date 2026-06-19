@@ -24,7 +24,7 @@ export interface AgentSessionStore {
   enqueuePageTask: (payload: AgentPageTaskPayload) => AgentPageTaskPayload & { requestId: string; taskType: string }
   upsertConversation: (input: AgentConversationRegistryInput) => string
   setConversationOpen: (userId: string, conversationId: string, open: boolean) => void
-  createProviderSessionConversation: (userId: string, input: { threadId: string; sessionId?: string; title?: string; createdAt?: number; updatedAt?: number; projectId?: number; provider?: AgentChatProviderKind | string; providerId?: string; providerInstanceId?: string; providerProtocol?: string; providerThreadCwd?: string; workspaceContext?: AgentSessionWorkspaceContext }) => string
+  createProviderSessionConversation: (userId: string, input: AgentProviderSessionConversationInput) => string
   removeProviderSessionConversation: (userId: string, conversationId: string) => void
   setActiveConversation: (userId: string, conversationId: string | null) => void
   setConversationDeckOrders: (orders: Array<{ conversationId: string; deckOrder: number }>) => void
@@ -47,6 +47,22 @@ export interface AgentSessionStore {
   startStandaloneTask: (input: { taskId: string; taskType: string; title?: string; prompt: string }) => void
   updateStandaloneTask: (taskId: string, patch: Partial<Omit<AgentStandaloneTaskState, 'taskId' | 'taskType' | 'prompt' | 'startedAt'>>) => void
   settleStandaloneTask: (payload: { taskId: string; status: 'completed' | 'cancelled' | 'error' | 'requires_action'; run?: AgentRun; thread?: AgentThread; result?: string; error?: string }) => void
+}
+
+export interface AgentProviderSessionConversationInput {
+  threadId: string
+  providerSessionTreeId?: string
+  sessionId?: string // legacy providerSessionTreeId fallback
+  title?: string
+  createdAt?: number
+  updatedAt?: number
+  projectId?: number
+  provider?: AgentChatProviderKind | string
+  providerId?: string
+  providerInstanceId?: string
+  providerProtocol?: string
+  providerThreadCwd?: string
+  workspaceContext?: AgentSessionWorkspaceContext
 }
 
 export type PersistedAgentSessionStore = Pick<AgentSessionStore, 'activeConversationIdsByUser' | 'conversationsById' | 'workspacesByUser'>

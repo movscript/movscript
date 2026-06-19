@@ -37,17 +37,16 @@ import {
 import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
 import { IdentityBadge, IdentityMark } from '@/features/agent/components/AgentIdentityUi'
 import { useAgentStore } from '@/features/agent/state/agentStore'
-import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
+import { agentConversationRegistryActions } from '@/features/agent/state/agentConversationRegistryStore'
 import { agentProviderKeys } from '@/features/agent/application/agentQueryKeys'
 import {
   agentProviderSettingsWithWorkspaceSelection,
-  commitAgentProviderActivation,
+  commitAgentProfileActivation,
   loadAgentProviderWorkspaceConfig,
   saveAgentProviderWorkspaceConfig,
 } from '@/features/agent/application/agentProviderActivation'
 import {
   activeProviderKeyFromPath,
-  providerMatchesRouteKey,
 } from '@/features/agent/application/providerRoutes'
 import {
   MOVA_PROVIDER_ID,
@@ -68,7 +67,7 @@ export default function AgentsPage() {
   const setSettings = useProviderConfigStore((state) => state.setSettings)
   const updateAgentSettings = useAgentStore((state) => state.updateSettings)
   const currentUser = useUserStore((state) => state.currentUser)
-  const setActiveConversation = useAgentSessionStore((state) => state.setActiveConversation)
+  const setActiveConversation = agentConversationRegistryActions().setActiveConversation
   const hydratedAgentSelectionUpdatedAtRef = useRef<string | null>(null)
   const settings = useMemo(() => normalizeProviderSettingsWithRuntimeEnv(savedSettings), [savedSettings])
   const providers = settings.providers
@@ -99,12 +98,10 @@ export default function AgentsPage() {
     void workspaceConfigQuery.refetch()
   }
 
-  function activateProvider(providerId: string) {
-    const provider = providers.find((item) => item.id === providerId)
-    if (!provider) return
-    void commitAgentProviderActivation({
+  function activateProfile(profile: NonNullable<typeof agentProfiles[number]>) {
+    void commitAgentProfileActivation({
       settings,
-      provider,
+      profile,
       ...(currentUser?.ID ? { userId: String(currentUser.ID) } : {}),
       setSettings,
       setActiveConversation,
@@ -121,7 +118,7 @@ export default function AgentsPage() {
   }
 
   function selectAgentProfile(profile: NonNullable<typeof agentProfiles[number]>) {
-    if (profile.enabled && !profile.current) activateProvider(profile.provider.id)
+    if (profile.enabled && !profile.current) activateProfile(profile)
     openAgentSettings(profile.id)
   }
 
@@ -157,11 +154,10 @@ export default function AgentsPage() {
         <AgentConsoleStack spacing="loose">
           <AgentConsoleAgentList aria-label="Agent 切换列表">
             {agentProfiles.map((profile) => {
-              const provider = profile.provider
-              const viewing = profile.routeKey === activeProviderKey || providerMatchesRouteKey(provider, activeProviderKey)
+              const viewing = profile.routeKey === activeProviderKey
               return (
                 <AgentConsoleAgentListRow
-                  key={provider.id}
+                  key={profile.id}
                   active={viewing}
                   onClick={() => selectAgentProfile(profile)}
                   onKeyDown={(event) => {
@@ -177,16 +173,16 @@ export default function AgentsPage() {
                       <IdentityBadge kind="agent" id={profile.routeKey} label={profile.routeKey} size="xs" /> {profile.connectionLabel} · 点击选择并配置
                     </span>
                   </span>
-                  <AgentConsoleStatusBadge intent={profile.current ? 'success' : provider.enabled ? 'neutral' : 'warning'} emphasis="soft">
-                    {profile.current ? '当前启用' : provider.enabled ? '可切换' : '已停用'}
+                  <AgentConsoleStatusBadge intent={profile.current ? 'success' : profile.enabled ? 'neutral' : 'warning'} emphasis="soft">
+                    {profile.current ? '当前启用' : profile.enabled ? '可切换' : '已停用'}
                   </AgentConsoleStatusBadge>
                   <AgentConsoleAgentSwitch
                     checked={profile.current}
-                    disabled={!provider.enabled || profile.current}
+                    disabled={!profile.enabled || profile.current}
                     aria-label={`启用 ${profile.label}`}
                     onClick={(event) => {
                       event.stopPropagation()
-                      if (!profile.current) activateProvider(provider.id)
+                      if (!profile.current) activateProfile(profile)
                     }}
                   />
                   <ChevronRight size={16} aria-hidden="true" />

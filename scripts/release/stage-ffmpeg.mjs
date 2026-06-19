@@ -6,6 +6,7 @@ import { buildFFmpegMetadata, desktopFFmpegBinaryName, isDirectRun, isFFmpegVers
 
 const repoRoot = resolve(import.meta.dirname, '../..')
 const FFMPEG_VERSION_TIMEOUT_MS = 30000
+const FFMPEG_VERSION_ATTEMPTS = 2
 
 if (isDirectRun(import.meta.url)) {
   runStageFFmpegCli(repoRoot, process.env, process.argv.slice(2))
@@ -142,6 +143,7 @@ export function stageFFmpegBinary(source, target, cwd = process.cwd(), spawn = s
   mkdirSync(dirname(target), { recursive: true })
   copyFileSync(resolvedSource, target)
   if (basename(target) !== 'ffmpeg.exe') chmodSync(target, 0o755)
+  prepareMacOSExecutableForLaunch(target)
   if (runCheck) {
     const targetVersion = readFFmpegVersion(target, cwd, spawn)
     const targetCheck = targetVersion.error
@@ -219,26 +221,42 @@ export function verifyRunnableFFmpeg(path, cwd = process.cwd(), spawn = spawnSyn
   return readFFmpegVersion(path, cwd, spawn).error
 }
 
-export function readFFmpegVersion(path, cwd = process.cwd(), spawn = spawnSync, timeoutMs = FFMPEG_VERSION_TIMEOUT_MS) {
-  const result = spawn(path, ['-version'], {
-    cwd,
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-    timeout: timeoutMs,
-  })
-  if (!result.error && result.status === 0) {
-    return { version: result.stdout?.split(/\r?\n/)[0]?.trim() || 'ffmpeg', error: '' }
+export function readFFmpegVersion(path, cwd = process.cwd(), spawn = spawnSync, timeoutMs = FFMPEG_VERSION_TIMEOUT_MS, attempts = FFMPEG_VERSION_ATTEMPTS) {
+  let result
+  const boundedAttempts = Math.max(1, attempts)
+  for (let attempt = 1; attempt <= boundedAttempts; attempt += 1) {
+    result = spawn(path, ['-version'], {
+      cwd,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: timeoutMs,
+    })
+    if (!result.error && result.status === 0) {
+      return { version: result.stdout?.split(/\r?\n/)[0]?.trim() || 'ffmpeg', error: '' }
+    }
+    if (!isTimedOutSpawnResult(result)) break
   }
-  const timedOut = result.error?.code === 'ETIMEDOUT' || result.signal === 'SIGTERM'
+  const timedOut = isTimedOutSpawnResult(result)
   return {
     version: '',
     error: [
       `ffmpeg is not runnable: ${path}`,
       timedOut ? `ffmpeg -version timed out after ${Math.round(timeoutMs / 1000)}s` : '',
+      timedOut && boundedAttempts > 1 ? `ffmpeg -version did not complete after ${boundedAttempts} attempts` : '',
       result.error?.message,
       result.stderr?.trim(),
     ].filter(Boolean).join('\n'),
   }
+}
+
+function isTimedOutSpawnResult(result) {
+  return result?.error?.code === 'ETIMEDOUT' || result?.signal === 'SIGTERM'
+}
+
+function prepareMacOSExecutableForLaunch(path) {
+  if (process.platform !== 'darwin') return
+  spawnSync('xattr', ['-cr', path], { stdio: 'ignore' })
+  spawnSync('codesign', ['--force', '--sign', '-', path], { stdio: 'ignore' })
 }
 
 export function writeFFmpegMetadata({ target, source, version, sizeBytes, sha256 = sha256File(target), sourceUrl, license, arch, now = new Date() }) {

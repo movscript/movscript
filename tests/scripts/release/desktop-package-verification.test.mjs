@@ -199,6 +199,36 @@ test('verifyDesktopFFmpeg reports timed out -version checks clearly', async () =
   }
 })
 
+test('verifyDesktopFFmpeg retries a timed out first -version check', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'movscript-verify-ffmpeg-'))
+  const fakeFFmpeg = join(dir, 'ffmpeg')
+  await writeFile(fakeFFmpeg, 'fake ffmpeg', 'utf8')
+  await writeMetadata(dir)
+  try {
+    let calls = 0
+    const message = verifyDesktopFFmpeg(fakeFFmpeg, dir, (_command, args) => {
+      calls += 1
+      if (args.includes('-filters')) {
+        return { status: 0, stdout: fullFilterOutput, stderr: '' }
+      }
+      if (calls === 1) {
+        return {
+          error: Object.assign(new Error('spawnSync ffmpeg ETIMEDOUT'), { code: 'ETIMEDOUT' }),
+          signal: 'SIGTERM',
+          status: null,
+          stdout: '',
+          stderr: '',
+        }
+      }
+      return { status: 0, stdout: 'ffmpeg version test', stderr: '' }
+    })
+    assert.equal(message, '')
+    assert.equal(calls, 3)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
 test('verifyDesktopFFmpeg compares metadata version with the runnable binary', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'movscript-verify-ffmpeg-'))
   const fakeFFmpeg = join(dir, 'ffmpeg')

@@ -1603,7 +1603,7 @@
     },
     "settings": {
       "title": "Agent Settings",
-      "description": "Choose the current Agent and review the SDK runtime used for future conversations. Advanced catalog and permission controls appear only for agents that expose them.",
+      "description": "Choose the current Agent and review the runtime backend used for future conversations. Advanced catalog and permission controls appear only for agents that expose them.",
       "scope": {
         "controlPlane": "Control plane: configures future new runs",
         "futureRuns": "Does not show per-run diagnostics",
@@ -1618,13 +1618,19 @@
       "refresh": "Refresh",
       "statusCardTitle": "Agent Status",
       "statusCardDescription": "Review the current Agent, runtime connection, and configuration boundary used by future new runs.",
-      "statusCardRuntimeFallback": "SDK runtime",
+      "statusCardRuntimeFallback": "Runtime backend",
       "statusCardRuntimeDetail": "The runtime follows the current Agent; this Settings page does not switch providers.",
       "statusCardCapabilityLabel": "Configuration capability",
       "statusCardCatalogCapability": "Catalog and permissions configurable",
       "statusCardCatalogCapabilityDetail": "This Agent exposes Catalog, Skill, and tool-permission workspaces for the advanced sections below.",
-      "statusCardSdkCapability": "SDK connects on demand",
+      "statusCardSdkCapability": "Runtime connects on demand",
       "statusCardSdkCapabilityDetail": "This Agent does not expose a catalog workspace here; the page shows current status and future-run boundaries.",
+      "statusCardRuntimeCapabilityFull": "Runtime capabilities complete",
+      "statusCardRuntimeCapabilityFullDetail": "{{supported}}/{{total}} Runtime capabilities are declared as fully supported; Settings shows entries from the contract.",
+      "statusCardRuntimeCapabilityLimited": "Runtime capabilities limited",
+      "statusCardRuntimeCapabilityLimitedDetail": "{{supported}}/{{total}} Runtime capabilities are fully supported and {{limited}} are limited; {{reason}}",
+      "statusCardRuntimeCapabilityUnavailable": "Runtime capabilities unavailable",
+      "statusCardRuntimeCapabilityUnavailableDetail": "The current Runtime backend has no available capability contract; this page can only show the basic run boundary.",
       "statusCardModelsLabel": "Available models",
       "statusCardModelsDetail": "Loaded from the backend AI Gateway and filtered by the current Agent's supported API modes.",
       "statusCardModelsLoading": "Loading models...",
@@ -1643,9 +1649,9 @@
         "claude": "Claude Code"
       },
       "providerProfileConfigDescriptions": {
-        "mova": "Configures the Mova SDK runtime under providers/mova; Mova SDK runtime uses .mova as the default workspace home.",
-        "codex": "Configures the Codex SDK runtime under providers/codex; Codex SDK runtime uses .codex as the default workspace home.",
-        "claude": "Configures the Claude Code SDK runtime under providers/claude."
+        "mova": "Configures the Mova runtime backend under providers/mova; the default workspace home is .mova.",
+        "codex": "Configures the Codex runtime backend under providers/codex; the default workspace home is .codex.",
+        "claude": "Configures the Claude Code runtime backend under providers/claude."
       },
       "modelPanel": "Model Routing",
       "modelLabel": "Backend text model",
@@ -2186,7 +2192,7 @@
       },
       "readiness": {
         "agent": "Current Agent",
-        "runtime": "SDK runtime",
+        "runtime": "Runtime backend",
         "model": "Model routing",
         "apiMode": "Call mode",
         "modelCredentials": "Model credentials",
@@ -2510,6 +2516,7 @@
         "plugins": "Plugins",
         "project": "Project",
         "conversations": "Chats",
+        "globalConversations": "Global chats",
         "noProjectConversations": "No project chats yet",
         "startConversation": "Start a new chat",
         "showMoreProjects": "Show {{count}} more projects",

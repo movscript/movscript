@@ -3,7 +3,8 @@ import { publicModelId } from '@/shared/domain/modelDisplay'
 import { useAgentChatRecentResources } from '@/features/agent/application/useAgentChatRecentResources'
 import { useAgentComposerController } from '@/features/agent/presentation/useAgentComposerController'
 import { useAgentMentionEditorSync } from '@/features/agent/presentation/useAgentMentionEditorSync'
-import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
+import { useAgentConversationWorkspace } from '@/features/agent/state/agentConversationDraftStore'
+import { readAgentConversationRecordsById } from '@/features/agent/state/agentConversationRegistryStore'
 import {
   agentChatComposerConversationId,
   agentChatConversationRecordForThread,
@@ -91,7 +92,7 @@ export function useAgentChatShellCoreState({
     const threadId = readCurrentActiveThreadId()
     if (!threadId) return null
     const registryRecord = agentChatConversationRecordForThread({
-      records: useAgentSessionStore.getState().conversationsById,
+      records: readAgentConversationRecordsById(),
       threadId,
       providerIdentity,
       userId,
@@ -172,7 +173,7 @@ export function useAgentChatShellCoreState({
   }, [threadScopeKey])
 
   const composerConversationId = activeThreadId ? agentChatComposerConversationId(threadScopeKey, activeThreadId) : draftConversationId
-  const composerWorkspace = useAgentSessionStore((state) => state.getConversationWorkspace(userId, composerConversationId))
+  const composerWorkspace = useAgentConversationWorkspace(userId, composerConversationId)
   const composerWorkspaceContextLocked = forceComposerWorkspaceContextLocked || Boolean(activeThreadId)
   const recentResources = useAgentChatRecentResources()
   const composer = useAgentComposerController({

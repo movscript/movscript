@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { AgentChatDataSourceShell } from '@/features/agent/components/AgentChatDataSourceShell'
 import type { AgentChatDataSourceShellLoadResult } from '@/features/agent/application/agentChatDataSourceShellTypes'
@@ -12,7 +12,10 @@ import {
   agentSettingsModelSelectionPatch,
   useAgentStore,
 } from '@/features/agent/state/agentStore'
-import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
+import {
+  useAgentActiveConversationId,
+  useAgentConversationRecordsById,
+} from '@/features/agent/state/agentConversationRegistryStore'
 import {
   providerInstanceId,
   providerProtocol,
@@ -105,18 +108,24 @@ function AgentRuntimeChatShellContent({
     providerInstanceId: providerInstanceId(provider),
     providerProtocol: providerProtocol(provider),
   } : { providerProtocol: 'sdk' }
-  const activeThreadId = useAgentSessionStore((state) => {
-    const activeRecord = selectActiveAgentConversationRegistryRecord(state, {
+  const activeConversationId = useAgentActiveConversationId(userId)
+  const conversationsById = useAgentConversationRecordsById()
+  const activeThreadId = useMemo(() => {
+    const registryState = {
+      activeConversationIdsByUser: { [userId]: activeConversationId },
+      conversationsById,
+    }
+    const activeRecord = selectActiveAgentConversationRegistryRecord(registryState, {
       userId,
       ...providerIdentity,
     })
     return activeRecord?.providerThreadId
-      ?? selectAgentConversationRegistryRecords(state.conversationsById, {
+      ?? selectAgentConversationRegistryRecords(conversationsById, {
         userId,
         ...providerIdentity,
       })[0]?.providerThreadId
       ?? null
-  })
+  }, [activeConversationId, conversationsById, providerIdentity, userId])
   const readActiveThreadId = useCallback(() => activeThreadId, [activeThreadId])
 
   return (
@@ -136,7 +145,7 @@ function AgentRuntimeChatShellContent({
       threadListLabel={`${providerLabel} Threads`}
       emptyThreadListLabel={`No ${providerLabel} threads yet.`}
       emptyThreadLabel={emptyThreadLabel}
-      unavailableLabel={`${providerLabel} SDK runtime is not available.`}
+      unavailableLabel={`${providerLabel} runtime is not available.`}
       composerPlaceholder="随心输入"
       newThreadLabel={`New ${providerLabel} thread`}
       composerWorkspaceContextLocked={composerWorkspaceContextLocked}

@@ -43,6 +43,11 @@ type ModelRouteBindingInput struct {
 	MaxConcurrency  int    `json:"max_concurrency"`
 }
 
+func (s *Service) ListModelCatalogTemplates(ctx context.Context) []infraai.CatalogTemplate {
+	_ = ctx
+	return infraai.CatalogTemplates()
+}
+
 func (s *Service) ListModelCatalogEntries(ctx context.Context) ([]persistencemodel.AIModelCatalogEntry, error) {
 	var entries []persistencemodel.AIModelCatalogEntry
 	err := s.db.WithContext(ctx).

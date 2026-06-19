@@ -32,8 +32,10 @@ const releaseCommands = new Map([
 const isWindows = process.platform === 'win32'
 const pnpmCommand = 'pnpm'
 const prepareDesktopSteps = [
-  ['Build workspace packages', pnpmCommand, ['--filter', './packages/*', 'build']],
+  ['Build workspace packages', pnpmCommand, ['--workspace-concurrency=1', '--filter', './packages/*', 'build']],
+  ['Build movcli', pnpmCommand, ['--filter', '@movscript/cli', 'build']],
   ['Build admin app', pnpmCommand, ['--filter', '@movscript/admin', 'build']],
+  ['Build provider plugins', pnpmCommand, ['-r', '--filter', './plugins/*', '--if-present', 'build']],
   ['Copy admin assets into backend bundle', 'node', ['apps/backend/scripts/build.mjs', 'copy-admin-assets']],
 ]
 const releaseAssetExtensions = new Set([
@@ -257,9 +259,9 @@ export function prepareDesktopPackage(root = repoRoot, options = {}) {
     GOARCH: goarchForDesktopArch(arch),
   }
   const targetSteps = [
-    ...prepareDesktopSteps.slice(0, 2),
+    ...prepareDesktopSteps.slice(0, 4),
     ['Build backend binary', pnpmCommand, ['--filter', '@movscript/backend', 'build'], { env: buildEnv }],
-    ...prepareDesktopSteps.slice(2),
+    ...prepareDesktopSteps.slice(4),
   ]
 
   for (const [stepName, command, commandArgs, stepOptions = {}] of targetSteps) {

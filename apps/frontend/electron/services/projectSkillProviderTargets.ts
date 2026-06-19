@@ -30,6 +30,13 @@ export function projectProviderSkillDirs(projectCwd: string): Record<ElectronPro
   ])) as Record<ElectronProjectSkillProviderTarget, string>
 }
 
+export function projectProviderPluginCacheDirs(projectCwd: string): Record<ElectronProjectSkillProviderTarget, string> {
+  return Object.fromEntries(PROJECT_SKILL_PROVIDER_TARGETS.map((target) => [
+    target,
+    join(projectCwd, PROVIDER_CONFIG_DIR_NAMES[target], 'plugins', 'cache'),
+  ])) as Record<ElectronProjectSkillProviderTarget, string>
+}
+
 export function normalizeProjectSkillProviderTargets(
   value: unknown,
   fallback: ElectronProjectSkillProviderTarget[] = [],

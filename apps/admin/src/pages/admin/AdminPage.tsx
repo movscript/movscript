@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { AICredential, AIModelCatalogEntry, AIModelRouteBinding, AdapterDef, PublicModel, ParamDef, ModelParamProfile, Project, User, RawResource, ResourceBinding, PaginatedResponse, ProviderInstance, ProviderInstanceConfigActivationResult, ProviderInstanceConfigApplyResult, ProviderInstanceConfigDraft, ProviderInstancesResponse } from '@/types'
+import type { AICredential, AIModelCatalogEntry, AIModelCatalogTemplate, AIModelRouteBinding, AdapterDef, PublicModel, ParamDef, ModelParamProfile, Project, User, RawResource, ResourceBinding, PaginatedResponse, ProviderInstance, ProviderInstanceConfigActivationResult, ProviderInstanceConfigApplyResult, ProviderInstanceConfigDraft, ProviderInstancesResponse } from '@/types'
 import type { AgentCompactParamContract, ParamRuleTypeSummary } from '@admin/lib/modelParamContract'
 import { useUserStore } from '@/store/userStore'
 import { Plus, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, ShieldAlert, ArrowLeft, Pencil, Check, X, RefreshCw, Sparkles, Copy, ArrowUpRight, Settings2, FolderKanban, HardDrive, CloudUpload, ScrollText, BarChart3, UsersRound, Building2, Bug, Download, Database, Route as RouteIcon } from 'lucide-react'
@@ -111,12 +111,6 @@ type CatalogRouteForm = {
   max_concurrency: string
 }
 
-type CatalogEntryTemplate = {
-  id: string
-  label: string
-  form: CatalogEntryForm
-}
-
 type ModelRouteGroup = {
   key: string
   entry: AIModelCatalogEntry
@@ -145,23 +139,12 @@ function inputLimitErrors(maxInputImages: number, maxInputVideos: number, t: (ke
 const canUseCustomPricingMode = runtimeCapabilities.customPricingMode
 const disabledBaseRoutePaths = new Set(runtimeCapabilities.disabledBaseRoutes ?? [])
 
-const CATALOG_ENTRY_TEMPLATES: CatalogEntryTemplate[] = [
-  { id: 'text', label: 'Text', form: catalogEntryTemplateForm({ capabilities: ['text'], pricing_mode: 'per_token' }) },
-  { id: 'image', label: 'Image', form: catalogEntryTemplateForm({ capabilities: ['image'], pricing_mode: 'per_image' }) },
-  { id: 'video', label: 'Video', form: catalogEntryTemplateForm({ capabilities: ['video'], pricing_mode: 'per_second' }) },
-  { id: 'tts', label: 'TTS', form: catalogEntryTemplateForm({ capabilities: ['audio_tts'], pricing_mode: 'per_call' }) },
-]
-
 function adminBaseRouteDisabled(path: string): boolean {
   return disabledBaseRoutePaths.has(path)
 }
 
 function catalogEntryTemplateForm(patch: Partial<CatalogEntryForm>): CatalogEntryForm {
   return { ...emptyCatalogEntryForm(), ...patch, price: { ...defaultPriceForm(), ...patch.price } }
-}
-
-function cloneCatalogEntryForm(form: CatalogEntryForm): CatalogEntryForm {
-  return { ...form, capabilities: [...form.capabilities], price: { ...form.price } }
 }
 
 type PriceDef = {
@@ -432,13 +415,29 @@ function ModelCatalogSection({ credentials }: { credentials: AICredential[] }) {
   const [catalogForm, setCatalogForm] = useState<CatalogEntryForm>(() => emptyCatalogEntryForm())
   const [editingCatalogId, setEditingCatalogId] = useState<number | null>(null)
   const [remoteCredentialId, setRemoteCredentialId] = useState(() => credentials.find((credential) => credential.is_enabled)?.ID ? String(credentials.find((credential) => credential.is_enabled)?.ID) : '')
+  const [templateSearch, setTemplateSearch] = useState('')
+  const [templateAdapter, setTemplateAdapter] = useState('')
+  const [appliedCatalogTemplate, setAppliedCatalogTemplate] = useState<AIModelCatalogTemplate | null>(null)
   const [catalogError, setCatalogError] = useState('')
 
   const catalogQuery = useQuery<AIModelCatalogEntry[]>({
     queryKey: ['admin', 'model-catalog'],
     queryFn: () => api.get('/admin/model-catalog').then((r) => r.data),
   })
+  const catalogTemplatesQuery = useQuery<AIModelCatalogTemplate[]>({
+    queryKey: ['admin', 'model-catalog-templates'],
+    queryFn: () => api.get('/admin/model-catalog/templates').then((r) => r.data),
+  })
   const entries = catalogQuery.data ?? []
+  const catalogTemplates = catalogTemplatesQuery.data ?? []
+  const templateAdapterOptions = useMemo(
+    () => Array.from(new Set(catalogTemplates.map((template) => template.adapter_type).filter(Boolean))).sort(),
+    [catalogTemplates],
+  )
+  const filteredCatalogTemplates = useMemo(
+    () => filterCatalogTemplates(catalogTemplates, templateSearch, templateAdapter).slice(0, 24),
+    [catalogTemplates, templateSearch, templateAdapter],
+  )
   const localProviders = useMemo(
     () => credentials.filter((credential) => credential.is_enabled),
     [credentials],
@@ -470,6 +469,7 @@ function ModelCatalogSection({ credentials }: { credentials: AICredential[] }) {
       setCatalogError('')
       setEditingCatalogId(null)
       setCatalogForm(emptyCatalogEntryForm())
+      setAppliedCatalogTemplate(null)
       qc.invalidateQueries({ queryKey: ['admin', 'model-catalog'] })
     },
     onError: (err: any) => setCatalogError(translateAPIRequestError(err)),
@@ -481,6 +481,7 @@ function ModelCatalogSection({ credentials }: { credentials: AICredential[] }) {
     onSuccess: () => {
       setCatalogError('')
       setEditingCatalogId(null)
+      setAppliedCatalogTemplate(null)
       qc.invalidateQueries({ queryKey: ['admin', 'model-catalog'] })
     },
     onError: (err: any) => setCatalogError(translateAPIRequestError(err)),
@@ -489,11 +490,13 @@ function ModelCatalogSection({ credentials }: { credentials: AICredential[] }) {
   function startEdit(entry: AIModelCatalogEntry) {
     setEditingCatalogId(entry.ID)
     setCatalogForm(catalogEntryFormFromEntry(entry))
+    setAppliedCatalogTemplate(null)
   }
 
   function cancelEdit() {
     setEditingCatalogId(null)
     setCatalogForm(emptyCatalogEntryForm())
+    setAppliedCatalogTemplate(null)
   }
 
   function toggleCatalogCapability(capability: string) {
@@ -513,6 +516,13 @@ function ModelCatalogSection({ credentials }: { credentials: AICredential[] }) {
     })
     setEditingCatalogId(null)
     setCatalogForm(imported)
+    setAppliedCatalogTemplate(null)
+  }
+
+  function applyCatalogTemplate(template: AIModelCatalogTemplate) {
+    setEditingCatalogId(null)
+    setCatalogForm(catalogEntryFormFromTemplate(template))
+    setAppliedCatalogTemplate(template)
   }
 
   const catalogInputErrors = inputLimitErrors(catalogForm.max_input_images, catalogForm.max_input_videos, t)
@@ -555,6 +565,67 @@ function ModelCatalogSection({ credentials }: { credentials: AICredential[] }) {
         )}
       </div>
 
+      <div className="rounded-lg border border-border bg-card p-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-sm font-medium text-foreground">从模型模板创建 Catalog</p>
+            <p className="mt-1 text-xs text-muted-foreground">模板来自后端 ModelDef，Public Model ID 会使用不含 provider 前缀的默认值；Provider Model ID 会在 Route 里使用。</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Input
+              value={templateSearch}
+              onChange={(event) => setTemplateSearch(event.target.value)}
+              placeholder="搜索模型或 provider id"
+              className="h-8 w-52 text-xs"
+            />
+            <select value={templateAdapter} onChange={(event) => setTemplateAdapter(event.target.value)} className="h-8 rounded-md border border-input bg-background px-2 text-xs">
+              <option value="">全部 Adapter</option>
+              {templateAdapterOptions.map((adapter) => (
+                <option key={adapter} value={adapter}>{adapter}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        {catalogTemplatesQuery.error && <AppInlineError className="mt-3">{translateAPIRequestError(catalogTemplatesQuery.error)}</AppInlineError>}
+        {catalogTemplatesQuery.isLoading ? (
+          <p className="mt-3 rounded-md border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">正在加载模型模板...</p>
+        ) : filteredCatalogTemplates.length === 0 ? (
+          <p className="mt-3 rounded-md border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">没有匹配的模型模板。</p>
+        ) : (
+          <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+            {filteredCatalogTemplates.map((template) => (
+              <button
+                key={template.id}
+                type="button"
+                onClick={() => applyCatalogTemplate(template)}
+                className={cn(
+                  'min-w-0 rounded-lg border bg-background p-3 text-left transition-colors hover:border-ring',
+                  appliedCatalogTemplate?.id === template.id ? 'border-ring ring-1 ring-ring/30' : 'border-border',
+                )}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-foreground">{template.display_name || template.default_public_model_id}</p>
+                    <p className="mt-1 truncate font-mono text-[11px] text-muted-foreground">{template.default_public_model_id}</p>
+                  </div>
+                  <StatusBadge intent="neutral">{template.adapter_type}</StatusBadge>
+                </div>
+                <p className="mt-2 truncate font-mono text-[11px] text-muted-foreground">provider: {template.model_id}</p>
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {template.capabilities.slice(0, 4).map((capability) => (
+                    <StatusBadge key={capability} intent={CAPABILITY_STATUS_INTENT[capability] ?? 'neutral'}>
+                      {t(CAPABILITY_TRANSLATION_KEYS[capability] ?? capability)}
+                    </StatusBadge>
+                  ))}
+                  {template.capabilities.length > 4 && <StatusBadge intent="neutral">+{template.capabilities.length - 4}</StatusBadge>}
+                  {(template.supported_params?.length ?? 0) > 0 && <StatusBadge intent="neutral">{template.supported_params?.length} params</StatusBadge>}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div className="rounded-lg border border-border bg-card p-4 space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -562,11 +633,6 @@ function ModelCatalogSection({ credentials }: { credentials: AICredential[] }) {
             <p className="mt-1 text-xs text-muted-foreground">{t('admin.modelCatalog.formHint')}</p>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
-            {!editingCatalogId && CATALOG_ENTRY_TEMPLATES.map((template) => (
-              <Button key={template.id} type="button" variant="outline" size="sm" onClick={() => setCatalogForm(cloneCatalogEntryForm(template.form))}>
-                {template.label}
-              </Button>
-            ))}
             {editingCatalogId && (
               <Button type="button" variant="outline" size="sm" onClick={cancelEdit}>{t('common.cancel')}</Button>
             )}
@@ -627,7 +693,12 @@ function ModelCatalogSection({ credentials }: { credentials: AICredential[] }) {
           </div>
         </div>
         {catalogInputErrors.map((message) => <AppFeedbackText key={message}>{message}</AppFeedbackText>)}
-        <PriceFields def={{ pricing_mode: catalogForm.pricing_mode }} form={catalogForm.price} onChange={(price) => setCatalogForm({ ...catalogForm, price })} />
+        {appliedCatalogTemplate && (
+          <AppFeedbackText tone="neutral">
+            模板已填入：Public Model ID 为 {appliedCatalogTemplate.default_public_model_id}，Route 建议使用 provider model id {appliedCatalogTemplate.model_id}。
+          </AppFeedbackText>
+        )}
+        <PriceFields def={catalogTemplatePriceDef(appliedCatalogTemplate, catalogForm.pricing_mode)} form={catalogForm.price} onChange={(price) => setCatalogForm({ ...catalogForm, price })} />
         <CatalogParamBuilder value={catalogForm.supported_params} onChange={(supported_params) => setCatalogForm({ ...catalogForm, supported_params })} />
         <div className="flex justify-end gap-2">
           <Button type="button" onClick={() => saveCatalogEntry.mutate({ id: editingCatalogId ?? undefined, form: catalogForm })} disabled={saveCatalogEntry.isPending || !canSaveCatalog}>
@@ -709,12 +780,17 @@ function ModelRoutesSection({ credentials }: { credentials: AICredential[] }) {
     queryKey: ['admin', 'model-catalog'],
     queryFn: () => api.get('/admin/model-catalog').then((r) => r.data),
   })
+  const catalogTemplatesQuery = useQuery<AIModelCatalogTemplate[]>({
+    queryKey: ['admin', 'model-catalog-templates'],
+    queryFn: () => api.get('/admin/model-catalog/templates').then((r) => r.data),
+  })
   const runtimeHealthQuery = useQuery<RuntimeProviderHealthResponse>({
     queryKey: ['admin', 'model-runtime-health'],
     queryFn: () => api.get('/admin/debug/model-runtime-health').then((r) => r.data),
     refetchInterval: 5000,
   })
   const entries = catalogQuery.data ?? []
+  const catalogTemplates = catalogTemplatesQuery.data ?? []
   const localProviders = useMemo(
     () => credentials.filter((credential) => credential.is_enabled),
     [credentials],
@@ -765,12 +841,18 @@ function ModelRoutesSection({ credentials }: { credentials: AICredential[] }) {
 
   function openRouteForm(entryId: number, routeGroup = '') {
     const entry = entries.find((item) => item.ID === entryId)
+    const providerID = localProviderRouteProviderID(localProviders[0]?.ID)
+    const providerModelID = suggestedProviderModelIDForEntry(entry, providerID, catalogTemplates, credentials)
     setRouteFormFor(entryId)
-    setRouteForm(emptyCatalogRouteForm(localProviders[0]?.ID, entry?.public_model_id ?? '', routeGroup))
+    setRouteForm({
+      ...emptyCatalogRouteForm(localProviders[0]?.ID, providerModelID || entry?.public_model_id || '', routeGroup),
+      provider_id: providerID,
+    })
     setRouteDialogOpen(true)
   }
 
   const activeEntry = selectedEntry ? selectedEntry : null
+  const routeTemplateSuggestion = activeEntry ? matchingCatalogTemplateForRoute(activeEntry, routeForm.provider_id, catalogTemplates, credentials) : null
   const canSaveRoute = Boolean(activeEntry && routeForm.provider_id.trim() && routeForm.provider_model_id.trim())
 
   return (
@@ -842,6 +924,8 @@ function ModelRoutesSection({ credentials }: { credentials: AICredential[] }) {
 
       </section>
 
+      {catalogTemplatesQuery.error && <AppInlineError>{translateAPIRequestError(catalogTemplatesQuery.error)}</AppInlineError>}
+
       {routeDialogOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <form
@@ -869,10 +953,12 @@ function ModelRoutesSection({ credentials }: { credentials: AICredential[] }) {
                 onChange={(event) => {
                   const entryID = Number(event.target.value)
                   const entry = entries.find((item) => item.ID === entryID)
+                  const providerID = routeForm.provider_id || localProviderRouteProviderID(localProviders[0]?.ID)
+                  const providerModelID = suggestedProviderModelIDForEntry(entry, providerID, catalogTemplates, credentials)
                   setRouteFormFor(entryID)
                   setRouteForm((form) => ({
-                    ...emptyCatalogRouteForm(localProviders[0]?.ID, entry?.public_model_id ?? '', form.route_group),
-                    provider_id: form.provider_id || localProviderRouteProviderID(localProviders[0]?.ID),
+                    ...emptyCatalogRouteForm(localProviders[0]?.ID, providerModelID || entry?.public_model_id || '', form.route_group),
+                    provider_id: providerID,
                   }))
                 }}
                 className="mt-1 h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
@@ -884,7 +970,21 @@ function ModelRoutesSection({ credentials }: { credentials: AICredential[] }) {
             </label>
             <label className="mb-2 block text-xs text-muted-foreground">
               {t('admin.models.providerLane', { defaultValue: 'Provider Lane' })}
-              <select value={routeForm.provider_id} onChange={(event) => setRouteForm({ ...routeForm, provider_id: event.target.value })} className="mt-1 h-8 w-full rounded-md border border-input bg-background px-2 text-xs">
+              <select
+                value={routeForm.provider_id}
+                onChange={(event) => {
+                  const providerID = event.target.value
+                  const providerModelID = suggestedProviderModelIDForEntry(activeEntry, providerID, catalogTemplates, credentials)
+                  setRouteForm({
+                    ...routeForm,
+                    provider_id: providerID,
+                    provider_model_id: shouldReplaceRouteProviderModelID(routeForm.provider_model_id, activeEntry, catalogTemplates)
+                      ? providerModelID || activeEntry?.public_model_id || ''
+                      : routeForm.provider_model_id,
+                  })
+                }}
+                className="mt-1 h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
+              >
                 <option value="">{t('admin.modelCatalog.pickCredential')}</option>
                 {localProviders.map((credential) => <option key={credential.ID} value={localProviderRouteProviderID(credential.ID)}>{credential.display_name}</option>)}
               </select>
@@ -900,6 +1000,15 @@ function ModelRoutesSection({ credentials }: { credentials: AICredential[] }) {
               <span className="mt-1 block text-[11px] leading-relaxed text-muted-foreground">
                 {t('admin.models.providerModelIdHint', { defaultValue: '这是实际发给 Provider API 的 model 字段，可以和 Public Model ID 不同。' })}
               </span>
+              {routeTemplateSuggestion && (
+                <button
+                  type="button"
+                  onClick={() => setRouteForm({ ...routeForm, provider_model_id: routeTemplateSuggestion.model_id })}
+                  className="mt-1 block text-left font-mono text-[11px] text-primary hover:underline"
+                >
+                  使用模板上游 ID：{routeTemplateSuggestion.model_id}
+                </button>
+              )}
             </label>
             <label className="mb-2 block text-xs text-muted-foreground">
               {t('admin.modelCatalog.routeGroup')}
@@ -1092,6 +1201,61 @@ function catalogEntryFormFromEntry(entry: AIModelCatalogEntry): CatalogEntryForm
   }
 }
 
+function catalogEntryFormFromTemplate(template: AIModelCatalogTemplate): CatalogEntryForm {
+  const publicModelID = firstNonEmptyString(template.default_public_model_id, template.model_id, template.id)
+  return catalogEntryTemplateForm({
+    public_model_id: publicModelID,
+    display_name: template.display_name || publicModelID,
+    short_name: publicModelID,
+    capabilities: [...template.capabilities],
+    pricing_mode: template.pricing_mode || inferPricingMode(template.capabilities),
+    accepts_image: Boolean(template.accepts_image_input),
+    max_input_images: template.max_input_images ?? 0,
+    max_input_videos: template.max_input_videos ?? 0,
+    image_edit_field: template.image_edit_field ?? '',
+    supported_params: catalogTemplateSupportedParamsValue(template),
+  })
+}
+
+function catalogTemplateSupportedParamsValue(template: AIModelCatalogTemplate): string {
+  const params = template.supported_params ?? []
+  return params.length > 0 ? serializeParamDefs(params) : ''
+}
+
+function catalogTemplatePriceDef(template: AIModelCatalogTemplate | null, pricingMode: string): PriceDef {
+  return {
+    pricing_mode: pricingMode,
+    ref_input_usd_per_1m: template?.ref_input_usd_per_1m,
+    ref_output_usd_per_1m: template?.ref_output_usd_per_1m,
+    ref_usd_per_image: template?.ref_usd_per_image,
+    ref_usd_per_second: template?.ref_usd_per_second,
+  }
+}
+
+function filterCatalogTemplates(templates: AIModelCatalogTemplate[], search: string, adapter: string): AIModelCatalogTemplate[] {
+  const needle = search.trim().toLowerCase()
+  return templates.filter((template) => {
+    if (adapter && template.adapter_type !== adapter) return false
+    if (!needle) return true
+    return [
+      template.id,
+      template.default_public_model_id,
+      template.model_id,
+      template.display_name,
+      template.adapter_type,
+      ...template.capabilities,
+    ].some((value) => value.toLowerCase().includes(needle))
+  })
+}
+
+function firstNonEmptyString(...values: Array<string | undefined>): string {
+  for (const value of values) {
+    const next = value?.trim()
+    if (next) return next
+  }
+  return ''
+}
+
 function catalogEntryPayload(form: CatalogEntryForm): Record<string, unknown> {
   return {
     public_model_id: form.public_model_id.trim(),
@@ -1153,6 +1317,56 @@ function catalogRoutePayload(form: CatalogRouteForm): Record<string, unknown> {
 
 function localProviderRouteProviderID(credentialID?: number): string {
   return credentialID ? `local_provider:${credentialID}` : ''
+}
+
+function localProviderCredentialIDFromProviderID(providerID: string): number | null {
+  const prefix = 'local_provider:'
+  if (!providerID.startsWith(prefix)) return null
+  const parsed = Number(providerID.slice(prefix.length))
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+}
+
+function matchingCatalogTemplateForRoute(
+  entry: AIModelCatalogEntry | null | undefined,
+  providerID: string,
+  templates: AIModelCatalogTemplate[],
+  credentials: AICredential[],
+): AIModelCatalogTemplate | null {
+  if (!entry) return null
+  const publicModelID = entry.public_model_id.trim()
+  if (!publicModelID) return null
+  const candidates = templates.filter((template) => {
+    return template.default_public_model_id === publicModelID || template.model_id === publicModelID
+  })
+  if (candidates.length === 0) return null
+  const adapterType = adapterTypeForRouteProviderID(providerID, credentials)
+  if (adapterType) {
+    const adapterMatch = candidates.find((template) => template.adapter_type === adapterType)
+    if (adapterMatch) return adapterMatch
+  }
+  return candidates[0]
+}
+
+function suggestedProviderModelIDForEntry(
+  entry: AIModelCatalogEntry | null | undefined,
+  providerID: string,
+  templates: AIModelCatalogTemplate[],
+  credentials: AICredential[],
+): string {
+  return matchingCatalogTemplateForRoute(entry, providerID, templates, credentials)?.model_id ?? ''
+}
+
+function adapterTypeForRouteProviderID(providerID: string, credentials: AICredential[]): string {
+  const credentialID = localProviderCredentialIDFromProviderID(providerID)
+  if (!credentialID) return providerID === 'new_api' ? 'openai_compat' : ''
+  return credentials.find((credential) => credential.ID === credentialID)?.adapter_type ?? ''
+}
+
+function shouldReplaceRouteProviderModelID(current: string, entry: AIModelCatalogEntry | null, templates: AIModelCatalogTemplate[]): boolean {
+  const value = current.trim()
+  if (!value) return true
+  if (entry && value === entry.public_model_id) return true
+  return templates.some((template) => template.model_id === value)
 }
 
 function modelCatalogCapabilities(entry: Pick<AIModelCatalogEntry, 'capabilities'>): string[] {

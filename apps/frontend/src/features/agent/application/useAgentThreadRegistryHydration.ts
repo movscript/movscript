@@ -1,11 +1,14 @@
-import { useEffect, useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useCallback, useEffect, useMemo } from 'react'
+import { useQueries, useQuery } from '@tanstack/react-query'
 import { agentConversationIdForRegistryInput, type AgentConversationRegistryInput, type AgentConversationRegistryRecord } from '@movscript/core/agent'
 import type { AgentChatThread, AgentChatThreadStatus } from '@movscript/core/agent/chat'
 
 import { createAgentChatDataSourceForProvider } from '@/features/agent/application/agentChatDataSourceFactory'
 import { agentProtocolUsesProviderSession } from '@/features/agent/domain/agentProviderSessionProtocol'
-import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
+import {
+  readAgentConversationRecordsById,
+  registerAgentConversation,
+} from '@/features/agent/state/agentConversationRegistryStore'
 import type { AgentThreadSummary } from '@movscript/core/agent/protocol'
 import {
   providerInstanceId,
@@ -16,8 +19,38 @@ import {
 export const AGENT_THREAD_REGISTRY_HYDRATION_PAGE_SIZE = 80
 const EMPTY_AGENT_THREAD_SUMMARIES: AgentThreadSummary[] = []
 
+export type AgentThreadRegistryProviderIdentity = {
+  provider: string
+  providerId: string
+  providerInstanceId: string
+  providerProtocol: string
+}
+
+export interface AgentThreadRegistryProviderHydration {
+  provider: ProviderConfig
+  providerIdentity: AgentThreadRegistryProviderIdentity
+  sourceThreads: AgentThreadSummary[]
+  isLoading: boolean
+  refetch: () => Promise<unknown>
+}
+
 export function agentRuntimeThreadRegistryHydrationQueryKey(provider: ProviderConfig) {
   return ['agent-runtime-threads', provider.id, providerInstanceId(provider), 'agent-thread-registry-hydration'] as const
+}
+
+export function agentThreadRegistryProviderIdentity(provider: ProviderConfig): AgentThreadRegistryProviderIdentity {
+  return {
+    provider: provider.kind,
+    providerId: provider.id,
+    providerInstanceId: providerInstanceId(provider),
+    providerProtocol: providerProtocol(provider),
+  }
+}
+
+export async function listAgentThreadSummariesForProvider(provider: ProviderConfig): Promise<AgentThreadSummary[]> {
+  const dataSource = await createAgentChatDataSourceForProvider(provider)
+  const page = await dataSource.listThreads({ limit: AGENT_THREAD_REGISTRY_HYDRATION_PAGE_SIZE })
+  return page.threads.map(agentThreadSummaryFromAgentChatThread)
 }
 
 export function useAgentThreadRegistryHydration({
@@ -31,14 +64,8 @@ export function useAgentThreadRegistryHydration({
 }) {
   const providerIdentity = useMemo(() => {
     if (!provider) return null
-    return {
-      provider: provider.kind,
-      providerId: provider.id,
-      providerInstanceId: providerInstanceId(provider),
-      providerProtocol: providerProtocol(provider),
-    }
+    return agentThreadRegistryProviderIdentity(provider)
   }, [provider?.id, provider?.kind, provider?.protocol, provider?.runtime?.id])
-  const upsertConversation = useAgentSessionStore((state) => state.upsertConversation)
 
   const query = useQuery<AgentThreadSummary[]>({
     queryKey: provider
@@ -46,9 +73,7 @@ export function useAgentThreadRegistryHydration({
       : ['agent-runtime-threads', 'missing-provider', 'agent-thread-registry-hydration'],
     queryFn: async () => {
       if (!provider) return []
-      const dataSource = await createAgentChatDataSourceForProvider(provider)
-      const page = await dataSource.listThreads({ limit: AGENT_THREAD_REGISTRY_HYDRATION_PAGE_SIZE })
-      return page.threads.map(agentThreadSummaryFromAgentChatThread)
+      return listAgentThreadSummariesForProvider(provider)
     },
     enabled: enabled && Boolean(userId) && Boolean(provider),
     staleTime: Infinity,
@@ -61,27 +86,94 @@ export function useAgentThreadRegistryHydration({
 
   useEffect(() => {
     if (!providerIdentity || sourceThreads.length === 0) return
-    const currentRecords = useAgentSessionStore.getState().conversationsById
-    for (const thread of sourceThreads) {
-      const existing = agentConversationRegistryRecordForThread(currentRecords, {
-        providerIdentity,
-        threadId: thread.id,
-        userId,
-      })
-      if (!shouldHydrateAgentThreadSummary(thread, existing)) continue
-      upsertConversation(agentConversationRegistryInputFromThreadSummary({
-        thread,
-        userId,
-        providerIdentity,
-        open: agentThreadSummaryRegistryOpenState(thread, existing),
-      }))
-    }
-  }, [providerIdentity, sourceThreads, upsertConversation, userId])
+    hydrateAgentThreadRegistryFromSummaries({ providerIdentity, sourceThreads, userId })
+  }, [providerIdentity, sourceThreads, userId])
 
   return {
     ...query,
     providerIdentity,
     sourceThreads,
+  }
+}
+
+export function useAgentThreadRegistryHydrations({
+  enabled = true,
+  providers,
+  userId,
+}: {
+  enabled?: boolean
+  providers: ProviderConfig[]
+  userId: string
+}) {
+  const providerEntries = useMemo(() => providers.map((provider) => ({
+    provider,
+    providerIdentity: agentThreadRegistryProviderIdentity(provider),
+  })), [providers])
+  const queries = useQueries({
+    queries: providerEntries.map((entry) => ({
+      queryKey: agentRuntimeThreadRegistryHydrationQueryKey(entry.provider),
+      queryFn: () => listAgentThreadSummariesForProvider(entry.provider),
+      enabled: enabled && Boolean(userId),
+      staleTime: Infinity,
+      refetchOnMount: false,
+      refetchOnReconnect: false,
+      refetchOnWindowFocus: false,
+      retry: false,
+    })),
+  })
+  const providerHydrations = useMemo<AgentThreadRegistryProviderHydration[]>(() => (
+    providerEntries.map((entry, index) => ({
+      ...entry,
+      sourceThreads: queries[index]?.data ?? EMPTY_AGENT_THREAD_SUMMARIES,
+      isLoading: queries[index]?.isLoading === true,
+      refetch: () => queries[index]?.refetch() ?? Promise.resolve(undefined),
+    }))
+  ), [providerEntries, queries])
+
+  useEffect(() => {
+    if (!userId) return
+    for (const hydration of providerHydrations) {
+      if (hydration.sourceThreads.length === 0) continue
+      hydrateAgentThreadRegistryFromSummaries({
+        providerIdentity: hydration.providerIdentity,
+        sourceThreads: hydration.sourceThreads,
+        userId,
+      })
+    }
+  }, [providerHydrations, userId])
+
+  const refetch = useCallback(() => Promise.all(providerHydrations.map((hydration) => hydration.refetch())), [providerHydrations])
+
+  return {
+    providerHydrations,
+    sourceThreads: providerHydrations.flatMap((hydration) => hydration.sourceThreads),
+    isLoading: providerHydrations.some((hydration) => hydration.isLoading),
+    refetch,
+  }
+}
+
+export function hydrateAgentThreadRegistryFromSummaries(input: {
+  providerIdentity: AgentThreadRegistryProviderIdentity
+  sourceThreads: AgentThreadSummary[]
+  userId: string
+}): void {
+  let currentRecords = readAgentConversationRecordsById()
+  for (const thread of input.sourceThreads) {
+    const existing = agentConversationRegistryRecordForThread(currentRecords, {
+      providerIdentity: input.providerIdentity,
+      threadId: thread.id,
+      userId: input.userId,
+    })
+    if (!shouldHydrateAgentThreadSummary(thread, existing)) continue
+    const registryInput = agentConversationRegistryInputFromThreadSummary({
+      thread,
+      userId: input.userId,
+      providerIdentity: input.providerIdentity,
+      open: agentThreadSummaryRegistryOpenState(thread, existing),
+    })
+    if (existing && agentConversationRegistryRecordMatchesInput(existing, registryInput)) continue
+    registerAgentConversation(registryInput)
+    currentRecords = readAgentConversationRecordsById()
   }
 }
 
@@ -97,8 +189,8 @@ export function agentConversationRegistryInputFromThreadSummary(input: {
   open: boolean
 }): AgentConversationRegistryInput {
   const { providerIdentity, thread } = input
-  const providerSessionId = agentProtocolUsesProviderSession(providerIdentity)
-    ? thread.sessionId?.trim()
+  const providerSessionTreeId = agentProtocolUsesProviderSession(providerIdentity)
+    ? thread.providerSessionTreeId?.trim() || thread.sessionId?.trim()
     : ''
   return {
     userId: input.userId,
@@ -106,7 +198,7 @@ export function agentConversationRegistryInputFromThreadSummary(input: {
     providerId: providerIdentity.providerId,
     providerInstanceId: providerIdentity.providerInstanceId,
     providerProtocol: providerIdentity.providerProtocol,
-    ...(providerSessionId ? { providerSessionId } : {}),
+    ...(providerSessionTreeId ? { providerSessionId: providerSessionTreeId } : {}),
     providerThreadId: thread.id,
     ...(thread.title?.trim() ? { title: thread.title.trim() } : {}),
     ...(typeof thread.projectId === 'number' ? { projectId: thread.projectId } : {}),
@@ -188,11 +280,10 @@ function agentThreadSummaryFromAgentChatThread(thread: AgentChatThread): AgentTh
   ), 0)
   const preview = thread.preview?.trim()
   const projectId = projectIdFromProviderSessionCwd(thread.cwd)
+  const providerSessionTreeId = thread.providerSessionTreeId?.trim() || thread.sessionId?.trim()
   return {
     id: thread.id,
-    ...(thread.sessionId?.trim() || thread.providerSessionTreeId?.trim()
-      ? { sessionId: thread.sessionId?.trim() || thread.providerSessionTreeId?.trim() }
-      : {}),
+    ...(providerSessionTreeId ? { providerSessionTreeId, sessionId: providerSessionTreeId } : {}),
     title: thread.name?.trim() || preview || undefined,
     ...(projectId !== undefined ? { projectId } : {}),
     archived: false,

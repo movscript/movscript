@@ -4,9 +4,14 @@ import {
   type AgentConversationRegistryRecord,
   type ProviderSessionStatusLight,
 } from '@movscript/core/agent'
-import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import type { Conversation } from '@/features/agent/state/agentStore'
-import type { AgentConversationRuntimeState, AgentConversationThreadBinding } from '@/features/agent/state/agentSessionStore'
+import type { AgentConversationThreadBinding } from '@/features/agent/state/agentSessionRuntimeModel'
+import type { AgentConversationRuntimeState } from '@/features/agent/state/agentSessionRuntimeModel'
+import {
+  useAgentConversationRecordsById,
+  useAgentConversationThreadBindings,
+} from '@/features/agent/state/agentConversationRegistryStore'
+import { useAgentConversationRuntimeStates } from '@/features/agent/state/agentConversationRuntimeStore'
 import { STOPPED_PROVIDER_SESSION_STATUS_LIGHT } from '@/features/agent/presentation/providerSessionStatusLightFallback'
 import { agentProtocolUsesProviderSession } from '@/features/agent/domain/agentProviderSessionProtocol'
 import {
@@ -20,9 +25,9 @@ import {
 let nextProviderSessionStatusLightOwnerId = 0
 
 export function useAgentConversationTabProviderSessionStatusLights(conversations: Conversation[]): Record<string, ProviderSessionStatusLight> {
-  const conversationThreadBindings = useAgentSessionStore((state) => state.conversationThreadBindings)
-  const conversationsById = useAgentSessionStore((state) => state.conversationsById)
-  const conversationRuntimeStates = useAgentSessionStore((state) => state.conversationRuntimeStates)
+  const conversationThreadBindings = useAgentConversationThreadBindings()
+  const conversationsById = useAgentConversationRecordsById()
+  const conversationRuntimeStates = useAgentConversationRuntimeStates()
   const tabProviderSessionTargets = useMemo(() => buildAgentConversationTabProviderSessionTargets({
     conversations,
     conversationThreadBindings,
@@ -134,7 +139,7 @@ export function providerSessionStatusLightFromConversationState(
 
 export interface AgentConversationTabProviderSessionTarget extends ProviderSessionStatusLightWatchTarget {
   conversationId: string
-  sessionId?: string
+  providerSessionTreeId?: string
   threadId: string
 }
 
@@ -150,7 +155,7 @@ export function buildAgentConversationTabProviderSessionTargets(input: {
     const usesProviderSession = agentProtocolUsesProviderSession({
       providerProtocol,
     })
-    const sessionId = usesProviderSession
+    const providerSessionTreeId = usesProviderSession
       ? (binding?.providerSessionTreeId ?? conversation.providerSessionId ?? '').trim()
       : ''
     const threadId = usesProviderSession
@@ -158,7 +163,7 @@ export function buildAgentConversationTabProviderSessionTargets(input: {
       : ''
     return [{
       conversationId: conversation.id,
-      ...(sessionId ? { sessionId } : {}),
+      ...(providerSessionTreeId ? { providerSessionTreeId } : {}),
       threadId,
     }]
   })

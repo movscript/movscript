@@ -1,11 +1,14 @@
-import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import { selectAgentConversationRegistryRecords } from '@movscript/core/agent'
+import {
+  useAgentActiveConversationIdsByUser,
+  useAgentConversationRecordsById,
+} from '@/features/agent/state/agentConversationRegistryStore'
 
 export function useHasOpenAgentConversations(userId: string) {
-  const hasActiveConversation = useAgentSessionStore((state) => Boolean(state.activeConversationIdsByUser?.[userId]))
-  const hasOpenConversation = useAgentSessionStore((state) => (
-    selectAgentConversationRegistryRecords(state.conversationsById, { userId }).length > 0
-  ))
+  const activeConversationIdsByUser = useAgentActiveConversationIdsByUser()
+  const conversationsById = useAgentConversationRecordsById()
+  const hasActiveConversation = Boolean(activeConversationIdsByUser?.[userId])
+  const hasOpenConversation = selectAgentConversationRegistryRecords(conversationsById, { userId }).length > 0
 
   return hasActiveConversation || hasOpenConversation
 }

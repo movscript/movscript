@@ -7,15 +7,15 @@ import type {
 } from '@movscript/core/agent/chat'
 import { CODEX_PROVIDER_ID, DEFAULT_PROVIDER_SETTINGS, providerRuntimeProfile } from '@/shared/infrastructure/providerConfigStore'
 import { providerRuntimeApiContract } from '@/shared/infrastructure/providerRuntimeApiCatalog'
-import { createSdkRuntimeChatDataSource } from '@/shared/infrastructure/sdk-runtime/sdkRuntimeChatDataSource'
+import { createAgentRuntimeChatDataSource } from '@/shared/infrastructure/agent-runtime/agentRuntimeChatDataSource'
 import type {
-  SdkRuntimeClient,
-  SdkRuntimeRpcMethod,
-  SdkRuntimeRpcRequestMap,
-  SdkRuntimeRpcResponseMap,
-} from '@/shared/infrastructure/sdk-runtime/sdkRuntimeProtocol'
+  AgentRuntimeClient,
+  AgentRuntimeRpcMethod,
+  AgentRuntimeRpcRequestMap,
+  AgentRuntimeRpcResponseMap,
+} from '@/shared/infrastructure/agent-runtime/agentRuntimeProtocol'
 
-test('SDK runtime data source maps neutral chat operations to runtime RPC methods', async () => {
+test('Agent runtime data source maps neutral chat operations to runtime RPC methods', async () => {
   const provider = DEFAULT_PROVIDER_SETTINGS.providers.find((item) => item.id === CODEX_PROVIDER_ID)!
   const runtime = {
     ...providerRuntimeProfile(provider),
@@ -23,8 +23,8 @@ test('SDK runtime data source maps neutral chat operations to runtime RPC method
     api: 'codex-sdk',
   }
   const contract = providerRuntimeApiContract('codex-sdk')!
-  const requests: Array<{ method: SdkRuntimeRpcMethod; params: unknown }> = []
-  const dataSource = createSdkRuntimeChatDataSource(fakeClient(requests), {
+  const requests: Array<{ method: AgentRuntimeRpcMethod; params: unknown }> = []
+  const dataSource = createAgentRuntimeChatDataSource(fakeClient(requests), {
     provider,
     runtime,
     contract,
@@ -68,12 +68,12 @@ test('SDK runtime data source maps neutral chat operations to runtime RPC method
   assert.equal(dataSource.capabilities?.account, undefined)
 })
 
-test('SDK runtime data source delegates subscriptions to the runtime client', async () => {
+test('Agent runtime data source delegates subscriptions to the runtime client', async () => {
   const provider = DEFAULT_PROVIDER_SETTINGS.providers.find((item) => item.id === CODEX_PROVIDER_ID)!
   const runtime = providerRuntimeProfile(provider)
   const contract = providerRuntimeApiContract('codex-sdk')!
   let subscribedThreadId: string | undefined
-  const dataSource = createSdkRuntimeChatDataSource({
+  const dataSource = createAgentRuntimeChatDataSource({
     request: fakeRequest,
     subscribe: (input) => {
       subscribedThreadId = input.threadId
@@ -102,7 +102,7 @@ test('SDK runtime data source delegates subscriptions to the runtime client', as
   assert.equal(subscribedThreadId, undefined)
 })
 
-function fakeClient(requests: Array<{ method: SdkRuntimeRpcMethod; params: unknown }>): SdkRuntimeClient {
+function fakeClient(requests: Array<{ method: AgentRuntimeRpcMethod; params: unknown }>): AgentRuntimeClient {
   return {
     request: async (method, params) => {
       requests.push({ method, params })
@@ -111,14 +111,14 @@ function fakeClient(requests: Array<{ method: SdkRuntimeRpcMethod; params: unkno
   }
 }
 
-async function fakeRequest<M extends SdkRuntimeRpcMethod>(
+async function fakeRequest<M extends AgentRuntimeRpcMethod>(
   method: M,
-  params: SdkRuntimeRpcRequestMap[M],
-): Promise<SdkRuntimeRpcResponseMap[M]> {
-  if (method === 'thread/list') return { threads: [fakeThread('thread_1')] } as SdkRuntimeRpcResponseMap[M]
-  if (method === 'thread/read') return fakeThread((params as { threadId: string }).threadId) as SdkRuntimeRpcResponseMap[M]
-  if (method === 'thread/start' || method === 'thread/resume') return fakeThread('thread_1') as SdkRuntimeRpcResponseMap[M]
-  if (method === 'turn/start' || method === 'turn/text/start') return fakeTurn('turn_1') as SdkRuntimeRpcResponseMap[M]
+  params: AgentRuntimeRpcRequestMap[M],
+): Promise<AgentRuntimeRpcResponseMap[M]> {
+  if (method === 'thread/list') return { threads: [fakeThread('thread_1')] } as AgentRuntimeRpcResponseMap[M]
+  if (method === 'thread/read') return fakeThread((params as { threadId: string }).threadId) as AgentRuntimeRpcResponseMap[M]
+  if (method === 'thread/start' || method === 'thread/resume') return fakeThread('thread_1') as AgentRuntimeRpcResponseMap[M]
+  if (method === 'turn/start' || method === 'turn/text/start') return fakeTurn('turn_1') as AgentRuntimeRpcResponseMap[M]
   if (method === 'runtime/describe') {
     return {
       runtime: { id: 'runtime', api: 'codex-sdk', label: 'Runtime' },
@@ -130,7 +130,7 @@ async function fakeRequest<M extends SdkRuntimeRpcMethod>(
         thread: { list: true, read: true, start: true, resume: true, interrupt: true, stream: true },
         capabilities: { tools: true, permissions: true, mcp: true, config: true, account: true },
       },
-    } as SdkRuntimeRpcResponseMap[M]
+    } as AgentRuntimeRpcResponseMap[M]
   }
   if (method === 'runtime/probe') {
     return {
@@ -149,7 +149,7 @@ async function fakeRequest<M extends SdkRuntimeRpcMethod>(
         requiredExports: { ok: true, required: ['Codex'], missing: [] },
         requiredRpcMethods: { ok: true, required: ['runtime/probe'], missing: [] },
       },
-    } as SdkRuntimeRpcResponseMap[M]
+    } as AgentRuntimeRpcResponseMap[M]
   }
   if (method === 'capabilities/get') {
     return {
@@ -170,15 +170,15 @@ async function fakeRequest<M extends SdkRuntimeRpcMethod>(
       },
       warnings: [],
       unsupported: {},
-    } as SdkRuntimeRpcResponseMap[M]
+    } as AgentRuntimeRpcResponseMap[M]
   }
-  if (method === 'skills/list') return { data: [], skills: [] } as SdkRuntimeRpcResponseMap[M]
-  if (method === 'permissionProfile/list') return { permissionProfiles: [] } as SdkRuntimeRpcResponseMap[M]
-  if (method === 'mcpServerStatus/list') return { servers: [] } as SdkRuntimeRpcResponseMap[M]
-  if (method === 'mcpServer/tool/call') return { result: null } as SdkRuntimeRpcResponseMap[M]
-  if (method === 'plugin/list' || method === 'plugin/installed') return { marketplaces: [] } as SdkRuntimeRpcResponseMap[M]
-  if (method === 'plugin/install' || method === 'plugin/uninstall' || method === 'skills/extraRoots/set') return { ok: true } as SdkRuntimeRpcResponseMap[M]
-  return undefined as SdkRuntimeRpcResponseMap[M]
+  if (method === 'skills/list') return { data: [], skills: [] } as AgentRuntimeRpcResponseMap[M]
+  if (method === 'permissionProfile/list') return { permissionProfiles: [] } as AgentRuntimeRpcResponseMap[M]
+  if (method === 'mcpServerStatus/list') return { servers: [] } as AgentRuntimeRpcResponseMap[M]
+  if (method === 'mcpServer/tool/call') return { result: null } as AgentRuntimeRpcResponseMap[M]
+  if (method === 'plugin/list' || method === 'plugin/installed') return { marketplaces: [] } as AgentRuntimeRpcResponseMap[M]
+  if (method === 'plugin/install' || method === 'plugin/uninstall' || method === 'skills/extraRoots/set') return { ok: true } as AgentRuntimeRpcResponseMap[M]
+  return undefined as AgentRuntimeRpcResponseMap[M]
 }
 
 function fakeThread(id: string): AgentChatThread {

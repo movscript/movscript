@@ -70,6 +70,26 @@ test('readFFmpegVersion applies a bounded release-script timeout', () => {
   assert.deepEqual(calls[0][2].stdio, ['ignore', 'pipe', 'pipe'])
 })
 
+test('readFFmpegVersion retries a timed out first run', () => {
+  let calls = 0
+  const result = readFFmpegVersion('/tmp/ffmpeg', process.cwd(), () => {
+    calls += 1
+    if (calls === 1) {
+      return {
+        error: Object.assign(new Error('spawnSync ffmpeg ETIMEDOUT'), { code: 'ETIMEDOUT' }),
+        signal: 'SIGTERM',
+        status: null,
+        stdout: '',
+        stderr: '',
+      }
+    }
+    return { status: 0, stdout: 'ffmpeg version retry-ok\nbuilt with test', stderr: '' }
+  }, 1234)
+
+  assert.deepEqual(result, { version: 'ffmpeg version retry-ok', error: '' })
+  assert.equal(calls, 2)
+})
+
 test('stageFFmpegFromEnv requires source, source URL, and license before staging', () => {
   const staged = []
   const errors = []

@@ -19,6 +19,9 @@ import {
   type ClientPluginManifest,
 } from '@/features/plugins/application/clientPlugins'
 import type {
+  ProjectPluginSnapshot,
+} from '@/features/plugins/application/projectPlugins'
+import type {
   ProviderPluginMarketplaceItem,
   ProviderPluginMarketplaceState,
 } from '@/features/plugins/application/providerPluginMarketplace'
@@ -128,19 +131,54 @@ export function ProviderPluginCard({ item, onUninstall }: {
   )
 }
 
-export function MarketplaceView({ items, errors, loading, onInstall, onInstallProject, onUninstall, onRefresh }: {
+export function SystemPluginCard({ item, onUninstall }: {
+  item: ProjectPluginSnapshot['systemPlugins'][number]
+  onUninstall?: () => void
+}) {
+  return (
+    <PluginCardSurface>
+      <PluginCardHeader>
+        <PluginCardCopy>
+          <PluginCardTitle>{item.displayName ?? item.name}</PluginCardTitle>
+          <PluginCardMeta>
+            {item.marketplaceName}{item.version ? ` · v${item.version}` : ''}
+          </PluginCardMeta>
+        </PluginCardCopy>
+        <PluginCardActions>
+          <PluginStatusMeta>{item.installed ? '系统缓存' : '缺失'}</PluginStatusMeta>
+          {onUninstall ? (
+            <Button size="icon-sm" variant="ghost" tone="danger" onClick={onUninstall}>
+              <Trash2 size={14} />
+            </Button>
+          ) : null}
+        </PluginCardActions>
+      </PluginCardHeader>
+
+      {item.description && (
+        <PluginCardDescription>{item.description}</PluginCardDescription>
+      )}
+
+      <PluginCardFooter>
+        <PluginCardId>{item.pluginKey}</PluginCardId>
+        <PluginStatusMeta>
+          {item.projectEnabled ? '本项目已开启' : item.globalEnabled ? '全局已开启' : '未开启'}
+        </PluginStatusMeta>
+      </PluginCardFooter>
+    </PluginCardSurface>
+  )
+}
+
+export function MarketplaceView({ items, errors, loading, onInstall, onUninstall, onRefresh }: {
   items: ProviderPluginMarketplaceItem[]
   errors: ProviderPluginMarketplaceState['errors']
   loading: boolean
   onInstall: (item: ProviderPluginMarketplaceItem) => Promise<void>
-  onInstallProject: (item: ProviderPluginMarketplaceItem) => Promise<void>
   onUninstall: (item: ProviderPluginMarketplaceItem) => Promise<void>
   onRefresh: () => void
 }) {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
   const [installing, setInstalling] = useState<string>()
-  const [projectInstalling, setProjectInstalling] = useState<string>()
 
   const filtered = useMemo(() => {
     if (!search.trim()) return items
@@ -171,15 +209,6 @@ export function MarketplaceView({ items, errors, loading, onInstall, onInstallPr
       await onUninstall(item)
     } finally {
       setInstalling(undefined)
-    }
-  }
-
-  async function handleInstallProject(item: ProviderPluginMarketplaceItem) {
-    setProjectInstalling(item.key)
-    try {
-      await onInstallProject(item)
-    } finally {
-      setProjectInstalling(undefined)
     }
   }
 
@@ -224,7 +253,6 @@ export function MarketplaceView({ items, errors, loading, onInstall, onInstallPr
         <PluginPageCardGrid>
           {filtered.map((entry) => {
             const isInstalling = installing === entry.key
-            const isProjectInstalling = projectInstalling === entry.key
             const installBlocked = entry.installPolicy === 'NOT_AVAILABLE' || entry.availability === 'DISABLED_BY_ADMIN'
             return (
               <PluginCardSurface key={entry.key} spacing="compact">
@@ -244,10 +272,6 @@ export function MarketplaceView({ items, errors, loading, onInstall, onInstallPr
                     </PluginCardActions>
                   ) : (
                     <PluginCardActions>
-                      <Button size="sm" variant="outline" onClick={() => void handleInstallProject(entry)} disabled={isProjectInstalling || installBlocked} loading={isProjectInstalling}>
-                        {!isProjectInstalling ? <PluginButtonIcon><Download size={12} /></PluginButtonIcon> : null}
-                        安装到项目
-                      </Button>
                       <Button size="sm" onClick={() => void handleInstall(entry)} disabled={isInstalling || installBlocked} loading={isInstalling}>
                         {isInstalling
                           ? t('plugins.install')

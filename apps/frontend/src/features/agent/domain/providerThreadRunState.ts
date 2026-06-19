@@ -99,9 +99,9 @@ export function conversationIdForProviderThread(input: ProviderThreadConversatio
     ?.[0]
 }
 
-export function conversationIdForProviderSession(input: ProviderThreadConversationSessionState & { sessionId: string }): string | undefined {
+export function conversationIdForProviderSession(input: ProviderThreadConversationSessionState & { providerSessionTreeId: string }): string | undefined {
   return Object.entries(input.conversationThreadBindings ?? {})
-    .filter(([, binding]) => binding.providerSessionTreeId === input.sessionId)
+    .filter(([, binding]) => binding.providerSessionTreeId === input.providerSessionTreeId)
     .sort(([, left], [, right]) => (right.updatedAt ?? 0) - (left.updatedAt ?? 0))[0]
     ?.[0]
 }
@@ -121,13 +121,13 @@ export function existingConversationIdForProviderThread<Conversation extends Pic
 }
 
 export function existingConversationIdForProviderSession<Conversation extends Pick<AgentConversationShape, 'id' | 'providerSessionId'>>(
-  sessionId: string,
+  providerSessionTreeId: string,
   conversations: Conversation[],
   sessionState: ProviderThreadConversationSessionState,
 ): string | undefined {
-  const persistedConversationId = conversations.find((conversation) => conversation.providerSessionId === sessionId)?.id
+  const persistedConversationId = conversations.find((conversation) => conversation.providerSessionId === providerSessionTreeId)?.id
   const mappedConversationId = persistedConversationId ?? conversationIdForProviderSession({
-    sessionId,
+    providerSessionTreeId,
     conversationThreadBindings: sessionState.conversationThreadBindings,
   })
   if (!mappedConversationId) return undefined

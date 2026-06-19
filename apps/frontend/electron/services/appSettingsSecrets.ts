@@ -5,7 +5,7 @@ import {
   resolveMovScriptWorkspaceRootPaths,
 } from '@movscript/core/workspace/node'
 import type { AppSettings } from '../../src/shared/contracts/appSettings'
-import type { ElectronAppSettingsSecrets } from '../../src/shared/contracts/electronApi'
+import type { ElectronAgentRuntimeCredentialSummary, ElectronAppSettingsSecrets } from '../../src/shared/contracts/electronApi'
 
 const APP_SETTINGS_SECRETS_FILE_NAME = 'app-settings-secrets.json'
 const APP_SETTINGS_SECRETS_SCHEMA = 'movscript.desktop-app-settings-secrets.v1'
@@ -56,6 +56,23 @@ export function writeAgentRuntimeApiKey(movScriptHomeDir: string, input: { provi
   }
   writeAppSettingsSecrets(movScriptHomeDir, secrets)
   return secrets
+}
+
+export function readAgentRuntimeCredentialSummary(movScriptHomeDir: string): ElectronAgentRuntimeCredentialSummary {
+  return agentRuntimeCredentialSummary(readAppSettingsSecrets(movScriptHomeDir))
+}
+
+export function agentRuntimeCredentialSummary(secrets: ElectronAppSettingsSecrets): ElectronAgentRuntimeCredentialSummary {
+  return {
+    savedProviderKeys: Object.keys(secrets.agentRuntimeApiKeys).sort(),
+  }
+}
+
+export function rendererAppSettingsSecrets(secrets: ElectronAppSettingsSecrets): ElectronAppSettingsSecrets {
+  return {
+    shotLibrarySourceAuthTokens: secrets.shotLibrarySourceAuthTokens,
+    agentRuntimeApiKeys: {},
+  }
 }
 
 export function readAgentRuntimeApiKey(movScriptHomeDir: string, providerKey: string | undefined): string | undefined {

@@ -106,7 +106,7 @@ export function AgentPlanOverviewPanel({
   const [loadingTraceEventsRunId, setLoadingTraceEventsRunId] = useState<string | null>(null)
   const [traceEventErrors, setTraceEventErrors] = useState<Record<string, string>>({})
   const [traceEventKindFilters, setTraceEventKindFilters] = useState<Record<string, 'all' | AgentTraceEvent['kind']>>({})
-  const snapshotSessionId = snapshot?.taskGraph.sessionId?.trim()
+  const snapshotProviderSessionTreeId = snapshot?.taskGraph.providerSessionTreeId?.trim() || snapshot?.taskGraph.sessionId?.trim()
   if (!snapshot) return null
   const taskViews = buildPlanTaskViews(snapshot)
   const artifactSummary = buildPlanArtifactSummary(snapshot)
@@ -146,7 +146,7 @@ export function AgentPlanOverviewPanel({
     })
     try {
       const summary = await getAgentRunTraceSummary({
-        sessionId: snapshotSessionId,
+        providerSessionTreeId: snapshotProviderSessionTreeId,
         runId,
       })
       setTraceSummaries((current) => ({ ...current, [runId]: summary }))
@@ -169,7 +169,7 @@ export function AgentPlanOverviewPanel({
       const currentEvents = traceEventsByRunId[runId] ?? []
       const cursor = mode === 'more' ? currentEvents.at(-1)?.id : undefined
       const response = await listAgentRunTraceEvents({
-        sessionId: snapshotSessionId,
+        providerSessionTreeId: snapshotProviderSessionTreeId,
         runId,
         limit: 8,
         ...(cursor ? { cursor } : {}),

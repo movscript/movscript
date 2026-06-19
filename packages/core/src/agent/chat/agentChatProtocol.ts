@@ -74,7 +74,7 @@ export interface AgentChatThread {
    * means a related-thread tree, or provider-specific runtime session fields
    * when it means a runtime session.
    */
-  sessionId?: string
+  sessionId?: string // deprecated providerSessionTreeId compatibility mirror
   preview: string
   name: string | null
   createdAt: number

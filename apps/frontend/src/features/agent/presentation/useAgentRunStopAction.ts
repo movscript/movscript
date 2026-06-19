@@ -24,7 +24,8 @@ export async function cancelGenerationJobIfActive(state: GenerationProgressState
 export interface UseAgentRunStopActionInput {
   conversationId: string
   workspaceDir?: string
-  sessionId?: string
+  providerSessionTreeId?: string
+  sessionId?: string // legacy provider-session input; prefer providerSessionTreeId.
   run: AgentRun | null
   loading: boolean
   building: boolean
@@ -41,7 +42,8 @@ export interface UseAgentRunStopActionInput {
 export function useAgentRunStopAction({
   conversationId,
   workspaceDir,
-  sessionId,
+  providerSessionTreeId,
+  sessionId: legacySessionId,
   run,
   loading,
   building,
@@ -54,10 +56,11 @@ export function useAgentRunStopAction({
   setConversationRun,
   updateConversationRuntimeState,
 }: UseAgentRunStopActionInput) {
+  const normalizedProviderSessionTreeId = providerSessionTreeId?.trim() || legacySessionId?.trim() || undefined
   const commandService = useMemo(() => createAgentProviderSessionCommandService({
-    sessionId,
+    providerSessionTreeId: normalizedProviderSessionTreeId,
     workspaceDir,
-  }), [sessionId, workspaceDir])
+  }), [normalizedProviderSessionTreeId, workspaceDir])
   const deps = useMemo<StopProviderSessionRunActionDeps>(() => ({
     abortActiveSend: () => {
       const sendController = activeSendAbortControllerRef.current

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { AlertCircle, ArrowRight, Download, FileText, Loader2, Power, RefreshCw, Store } from 'lucide-react'
+import { AlertCircle, ArrowRight, Download, FileText, Loader2, PackageCheck, Power, RefreshCw, Store } from 'lucide-react'
 import { Badge, Button, Progress, StatusBadge, Switch } from '@movscript/ui/primitives'
 import { toneTextClass } from '@movscript/ui/semantic'
 
@@ -9,7 +9,10 @@ import {
   type ProjectOverviewWorkLane,
 } from '@/features/project/presentation/projectOverviewModel'
 import { projectLaneStateRecipe } from '@/features/project/presentation/projectSemanticUi'
-import type { ProjectLocalSkill } from '@/features/plugins/application/projectPlugins'
+import type {
+  ProjectLocalSkill,
+  ProjectPluginSnapshot,
+} from '@/features/plugins/application/projectPlugins'
 import type { ProviderPluginMarketplaceItem } from '@/features/plugins/application/providerPluginMarketplace'
 import {
   PluginButtonIcon,
@@ -139,6 +142,54 @@ export function ProjectSkillCard({
   )
 }
 
+export function ProjectSystemPluginCard({
+  plugin,
+  busy,
+  onToggle,
+}: {
+  plugin: ProjectPluginSnapshot['systemPlugins'][number]
+  busy: boolean
+  onToggle: (enabled: boolean) => void
+}) {
+  const disabled = busy || !plugin.installed
+  return (
+    <article className="flex min-h-[148px] flex-col rounded-md border border-border bg-muted/10 p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <PackageCheck size={14} className={plugin.projectEnabled ? toneTextClass('success') : 'text-muted-foreground'} />
+            <h3 className="truncate type-body font-semibold text-foreground">{plugin.displayName ?? plugin.name}</h3>
+          </div>
+          <p className="mt-1 line-clamp-2 type-label leading-5 text-muted-foreground">
+            {plugin.description ?? '系统缓存插件'}
+          </p>
+        </div>
+        <Switch
+          checked={plugin.projectEnabled}
+          disabled={disabled}
+          aria-label={`${plugin.projectEnabled ? '关闭' : '启用'} ${plugin.displayName ?? plugin.name}`}
+          onCheckedChange={onToggle}
+        />
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Badge variant={plugin.projectEnabled ? 'solid' : 'outline'} tone={plugin.projectEnabled ? 'success' : 'neutral'}>
+          {plugin.projectEnabled ? '本项目已开启' : '本项目未开启'}
+        </Badge>
+        <Badge variant={plugin.installed ? 'outline' : 'solid'} tone={plugin.installed ? 'neutral' : 'warning'}>
+          {plugin.installed ? '系统缓存' : '系统缓存缺失'}
+        </Badge>
+        {plugin.globalEnabled ? <Badge variant="outline" tone="success">全局已开启</Badge> : null}
+        {plugin.version ? <Badge variant="outline">v{plugin.version}</Badge> : null}
+        {plugin.providerTargets.map((target) => (
+          <Badge key={target} variant="outline">{projectSkillProviderLabel(target)}</Badge>
+        ))}
+        {busy ? <Badge variant="outline">切换中</Badge> : null}
+      </div>
+      <p className="mt-3 truncate type-caption text-muted-foreground">{plugin.pluginKey}</p>
+    </article>
+  )
+}
+
 function projectSkillSourceLabel(sourceType: ProjectLocalSkill['sourceType']) {
   if (sourceType === 'desktop-cache') return 'Desktop 缓存'
   if (sourceType === 'project') return '项目'
@@ -180,9 +231,9 @@ export function ProjectPluginMarketplaceDialog({
   return (
     <PluginDialogOverlay>
       <PluginDialogSurface layout="project-marketplace">
-        <PluginDialogTitle>项目插件市场</PluginDialogTitle>
+        <PluginDialogTitle>插件市场</PluginDialogTitle>
         <PluginDialogDescription>
-          安装到当前项目后，MovScript 会写入项目插件清单，并准备 Desktop cache、provider-native skills 与项目 marketplace。
+          安装后进入系统缓存，项目开启在 Project Home 完成。
         </PluginDialogDescription>
         <PluginDialogActions>
           <Button size="sm" variant="outline" onClick={onRefresh} disabled={loading} loading={loading}>
@@ -222,7 +273,7 @@ export function ProjectPluginMarketplaceDialog({
                       <PluginCardActions>
                         <Button size="sm" onClick={() => onInstall(item)} disabled={installing} loading={installing}>
                           {!installing ? <PluginButtonIcon><Download size={12} /></PluginButtonIcon> : null}
-                          安装到项目
+                          安装到系统
                         </Button>
                       </PluginCardActions>
                     </PluginCardHeader>

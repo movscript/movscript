@@ -24,7 +24,7 @@ export const providerSessionThreadKeys = {
 export const providerSessionKeys = {
   workspace: ['agent-console-provider-sessions', 'workspace'] as const,
   workspaceProfile: (providerProfileKey: string) => ['agent-console-provider-sessions', 'workspace', providerProfileKey] as const,
-  health: (sessionId: string | null) => ['provider-session-health', sessionId] as const,
+  health: (providerSessionTreeId: string | null) => ['provider-session-health', providerSessionTreeId] as const,
   list: (identity: ProviderSessionQueryIdentity, surface: ProviderSessionThreadSurface) => [
     'provider-sessions',
     identity,

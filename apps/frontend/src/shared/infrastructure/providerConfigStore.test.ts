@@ -42,6 +42,7 @@ test('provider config defaults Codex and Mova to app-server runtimes', () => {
   assert.equal(providerRuntimeApi(codex), 'codex-app-server')
   assert.equal(providerRuntimeProfile(codex).id, 'codex-codex-app-server')
   assert.equal(providerRuntimeProfile(codex).executableEnvVar, 'MOVSCRIPT_CODEX_APP_SERVER')
+  assert.equal(providerRuntimeProfile(codex).binaryPackageName, '@movscript/mova')
   assert.deepEqual(providerRuntimeApiOptions(codex).map((option) => option.api), ['codex-app-server', 'codex-sdk'])
 
   assert.equal(providerRuntimeApi(mova), 'mova-app-server')
@@ -79,4 +80,24 @@ test('provider config migrates built-in SDK defaults without overriding explicit
 
   const envSelected = providerSettingsWithRuntimeEnv(migrated, { [CODEX_RUNTIME_API_ENV]: 'codex-sdk' })
   assert.equal(providerRuntimeApi(envSelected.providers.find((item) => item.id === CODEX_PROVIDER_ID)!), 'codex-sdk')
+})
+
+test('provider config migrates bundled Codex app-server binary package to Mova while Codex package is unavailable', () => {
+  const settings = normalizeProviderSettings({
+    providers: [
+      {
+        id: CODEX_PROVIDER_ID,
+        kind: 'codex',
+        runtime: {
+          id: 'codex-codex-app-server',
+          api: 'codex-app-server',
+          label: 'Codex app-server',
+          binaryPackageName: '@openai/codex',
+        },
+      },
+    ],
+  })
+  const codex = settings.providers.find((item) => item.id === CODEX_PROVIDER_ID)!
+
+  assert.equal(providerRuntimeProfile(codex).binaryPackageName, '@movscript/mova')
 })

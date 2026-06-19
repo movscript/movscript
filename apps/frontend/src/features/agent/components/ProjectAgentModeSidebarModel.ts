@@ -1,4 +1,6 @@
 import {
+  agentRuntimeConversationIdForThread,
+  type AgentRuntimeConversationProviderIdentity,
   conversationProjectId,
 } from '@/features/agent/components/ProjectAgentModeConversationModel'
 import {
@@ -6,7 +8,8 @@ import {
 } from '@/features/agent/application/useAgentThreadRegistryHydration'
 import type { AgentModeHistoryItem, AgentModeProjectConversationGroup, } from '@/features/agent/components/ProjectAgentModeSidebarParts'
 import type { Conversation } from '@/features/agent/state/agentStore'
-import type { AgentConversationThreadBinding, useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
+import type { AgentConversationThreadBinding } from '@/features/agent/state/agentSessionRuntimeModel'
+import type { AgentPageTaskState } from '@/features/agent/state/agentSessionTaskModel'
 import {
   buildSessionDeckIndex,
   type AgentConversationRegistryRecord,
@@ -46,7 +49,7 @@ export function buildProjectAgentModeConversationScopes(input: {
   conversationsById: Record<string, AgentConversationRegistryRecord>
   locale: string | undefined
   openConversations: Conversation[]
-  pageTasks: ReturnType<typeof useAgentSessionStore.getState>['pageTasks']
+  pageTasks: Record<string, AgentPageTaskState>
   projectFallbackLabel: string
   projectNamesById: Map<number, string>
   providerSessionThreadsById: Map<string, AgentThreadSummary>
@@ -84,11 +87,14 @@ export function buildProjectAgentModeConversationScopes(input: {
 
 export function buildProjectAgentModeHistoryItems(input: {
   archivedConversations: Conversation[]
-  archivedProviderThreadIds: Set<string>
+  archivedConversationIds: Set<string>
   closedConversations: Conversation[]
-  closedProviderThreadIds: Set<string>
-  openProviderThreadIds: Set<string>
-  sourceThreads: AgentThreadSummary[]
+  closedConversationIds: Set<string>
+  openConversationIds: Set<string>
+  sourceThreads: Array<{
+    providerIdentity: AgentRuntimeConversationProviderIdentity
+    thread: AgentThreadSummary
+  }>
 }): AgentModeHistoryItem[] {
   return [
     ...input.archivedConversations.map((conversation) => ({
@@ -104,31 +110,35 @@ export function buildProjectAgentModeHistoryItems(input: {
       conversation,
     })),
     ...input.sourceThreads
-      .filter((thread) => (
+      .filter((sourceThread) => (
         shouldIncludeProviderThreadHistoryItem({
-          archivedProviderThreadIds: input.archivedProviderThreadIds,
-          closedProviderThreadIds: input.closedProviderThreadIds,
-          openProviderThreadIds: input.openProviderThreadIds,
-          thread,
+          archivedConversationIds: input.archivedConversationIds,
+          closedConversationIds: input.closedConversationIds,
+          openConversationIds: input.openConversationIds,
+          providerIdentity: sourceThread.providerIdentity,
+          thread: sourceThread.thread,
         })
       ))
-      .map((thread) => ({
+      .map((sourceThread) => ({
         type: 'provider-thread' as const,
-        id: thread.id,
-        timestamp: Date.parse(thread.updatedAt) || 0,
-        thread,
+        id: agentRuntimeConversationIdForThread(sourceThread.thread.id, sourceThread.providerIdentity),
+        timestamp: Date.parse(sourceThread.thread.updatedAt) || 0,
+        providerIdentity: sourceThread.providerIdentity,
+        thread: sourceThread.thread,
       })),
   ].sort((a, b) => b.timestamp - a.timestamp)
 }
 
 function shouldIncludeProviderThreadHistoryItem(input: {
-  archivedProviderThreadIds: Set<string>
-  closedProviderThreadIds: Set<string>
-  openProviderThreadIds: Set<string>
+  archivedConversationIds: Set<string>
+  closedConversationIds: Set<string>
+  openConversationIds: Set<string>
+  providerIdentity: AgentRuntimeConversationProviderIdentity
   thread: AgentThreadSummary
 }): boolean {
+  const conversationId = agentRuntimeConversationIdForThread(input.thread.id, input.providerIdentity)
   return shouldHydrateAgentThreadSummary(input.thread)
-    && !input.archivedProviderThreadIds.has(input.thread.id)
-    && !input.closedProviderThreadIds.has(input.thread.id)
-    && !input.openProviderThreadIds.has(input.thread.id)
+    && !input.archivedConversationIds.has(conversationId)
+    && !input.closedConversationIds.has(conversationId)
+    && !input.openConversationIds.has(conversationId)
 }

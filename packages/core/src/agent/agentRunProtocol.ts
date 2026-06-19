@@ -30,7 +30,9 @@ export interface AgentRunStep {
 
 export interface AgentRun {
   id: string
-  sessionId?: string
+  providerSessionTreeId?: string
+  /** @deprecated Prefer providerSessionTreeId for related-thread provider-session trees. */
+  sessionId?: string // deprecated providerSessionTreeId compatibility mirror
   threadId: string
   status: AgentRunStatus
   role?: AgentRunRole

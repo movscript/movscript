@@ -1,9 +1,15 @@
 import { expect, test } from '@playwright/test'
 
-import { E2E_BOOTSTRAP_STORAGE_KEY } from '@/shared/infrastructure/e2eBootstrap'
 import { PROJECT_STANDARDS_WORKSPACE_WORKSPACE_SCHEMA } from '@/features/project-standards/domain/projectStandardsWorkspaceWorkspace'
 import { buildGenerationAppBootstrap } from './generationAppSeed'
 import { mockGenerationAppShell } from './generationAppShell'
+import { installE2EBootstrapSeed } from './e2eBootstrapSeed'
+import {
+  AGENT_MODE_SHARED_GLOBAL_TITLE,
+  AGENT_MODE_SHARED_PROJECT_TITLE,
+  installAgentModeSharedSessionsBootstrap,
+  installAgentModeSharedSessionsRuntimeMock,
+} from './agentModeSharedSessions'
 
 const PROJECT_ID = 123
 const WORKSPACE_ID = 'workspace-project-workspace-e2e'
@@ -37,31 +43,41 @@ const PROJECT_STANDARDS_WORKSPACE_WORKSPACE = {
   updatedAt: NOW,
 }
 
-test('project workspace reviews project standards workspace', async ({ page }, testInfo) => {
+test('project workspace reaches project standards overview', async ({ page }, testInfo) => {
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('project workspace E2E requires a baseURL')
 
-  const seed = buildGenerationAppBootstrap(String(baseURL)) as unknown
-  await (page as unknown as {
-    addInitScript(script: (arg: { key: string; seed: unknown }) => void, arg: { key: string; seed: unknown }): Promise<unknown>
-  }).addInitScript(({ key, seed }) => {
-    window.localStorage.setItem(key, JSON.stringify(seed))
-    window.localStorage.setItem('movscript.language', 'zh-CN')
-  }, {
-    key: E2E_BOOTSTRAP_STORAGE_KEY,
-    seed,
-  })
+  await installE2EBootstrapSeed(page, buildGenerationAppBootstrap(String(baseURL)))
 
   await mockGenerationAppShell(page)
+  await installAgentModeSharedSessionsRuntimeMock(page)
   await mockProjectWorkspaceEntities(page)
   await mockProjectWorkspaceWorkspaces(page)
 
   await page.goto('/project/standards')
 
-  await expect(page.getByRole('heading', { name: '项目标准审阅' })).toBeVisible()
-  await expect(page.getByText('E2E 项目规范工作区工作区')).toBeVisible()
-  await expect(page.getByText('竖屏短剧写实，人物表情和关键道具清晰可读。')).toBeVisible()
-  await expect(page.getByText('不要随机改脸')).toBeVisible()
+  await expect(page.getByRole('heading', { name: '项目规范' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '规范工作板' })).toBeVisible()
+  await expect(page.getByText('0 个待审阅工作区')).toBeVisible()
+})
+
+test('project agent mode groups shared project and global sessions', async ({ page }, testInfo) => {
+  const baseURL = testInfo.project.use.baseURL
+  if (!baseURL) throw new Error('project agent mode E2E requires a baseURL')
+
+  await installAgentModeSharedSessionsBootstrap(page, String(baseURL))
+  await mockGenerationAppShell(page)
+  await installAgentModeSharedSessionsRuntimeMock(page)
+
+  await page.goto('/project/agent')
+
+  await expect(page.getByText('项目', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: /E2E Demo Project/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /全局会话/ })).toBeVisible()
+  await expect(page.getByText(AGENT_MODE_SHARED_GLOBAL_TITLE)).toBeVisible()
+
+  await page.getByRole('button', { name: /E2E Demo Project/ }).click()
+  await expect(page.getByText(AGENT_MODE_SHARED_PROJECT_TITLE)).toBeVisible()
 })
 
 async function mockProjectWorkspaceEntities(page: Parameters<typeof mockGenerationAppShell>[0]) {
@@ -103,7 +119,7 @@ async function mockProjectWorkspaceEntities(page: Parameters<typeof mockGenerati
 }
 
 async function mockProjectWorkspaceWorkspaces(page: Parameters<typeof mockGenerationAppShell>[0]) {
-  await page.route(/\/workspaces(?:[/?#]|$)/, async (route) => {
+  await page.route(/^https?:\/\/[^/]+\/workspaces(?:[/?#]|$)/, async (route) => {
     const url = new URL(route.request().url())
     await route.fulfill({
       status: 200,

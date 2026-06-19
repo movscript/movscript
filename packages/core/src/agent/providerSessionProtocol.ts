@@ -79,7 +79,9 @@ export type ProviderSessionEventKind =
   | 'scope.done'
 
 export interface ProviderSessionEventCausalityV2 {
-  sessionId?: string
+  providerSessionTreeId?: string
+  /** @deprecated Prefer providerSessionTreeId for related-thread provider-session trees. */
+  sessionId?: string // deprecated providerSessionTreeId compatibility mirror
   threadId?: string
   runId?: string
   messageId?: string

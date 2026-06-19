@@ -840,10 +840,12 @@ function agentChatApprovalReviewItemFromNotification(
 function normalizeAgentChatNotificationThread(value: Record<string, unknown>): AgentChatThread | null {
   const id = stringField(value.id)
   if (!id) return null
+  const providerSessionTreeId = stringField(value.providerSessionTreeId) ?? stringField(value.sessionId) ?? id
   return {
     provider: agentChatProviderKind(value.provider),
     id,
-    sessionId: stringField(value.sessionId) ?? id,
+    providerSessionTreeId,
+    sessionId: providerSessionTreeId, // deprecated providerSessionTreeId compatibility mirror
     preview: stringField(value.preview) ?? '',
     name: stringField(value.name) ?? null,
     createdAt: numberField(value.createdAt) ?? unixSecondsNow(),

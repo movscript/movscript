@@ -7,21 +7,23 @@ import { providerSessionKeys } from '@/features/agent/application/providerSessio
 
 export interface UseProviderSessionContextControllerOptions {
   enabled?: boolean
-  sessionId?: string
+  providerSessionTreeId?: string
+  sessionId?: string // legacy provider-session input; prefer providerSessionTreeId.
 }
 
 export function useProviderSessionContextController({
   enabled = true,
-  sessionId,
+  providerSessionTreeId,
+  sessionId: legacySessionId,
 }: UseProviderSessionContextControllerOptions) {
-  const trimmedSessionId = sessionId?.trim() || null
+  const normalizedProviderSessionTreeId = providerSessionTreeId?.trim() || legacySessionId?.trim() || null
   const {
     data: providerSessionHealth,
     error: providerSessionHealthError,
     refetch: refetchProviderSessionHealth,
   } = useQuery<AgentProviderSessionHealth>({
-    queryKey: providerSessionKeys.health(trimmedSessionId),
-    queryFn: () => ensureAgentProviderSessionHealth({ sessionId: trimmedSessionId ?? undefined }),
+    queryKey: providerSessionKeys.health(normalizedProviderSessionTreeId),
+    queryFn: () => ensureAgentProviderSessionHealth({ providerSessionTreeId: normalizedProviderSessionTreeId ?? undefined }),
     enabled,
     retry: false,
     refetchInterval: enabled ? 5000 : false,

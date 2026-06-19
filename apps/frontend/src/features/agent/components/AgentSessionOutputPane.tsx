@@ -6,7 +6,9 @@ import type { ContentSourceWorkspaceData } from '@movscript/core/content'
 
 import { loadContentSourceWorkspaceData, selectContentSourceWorkspaceCandidate } from '@/features/content/integrations/contentSourceWorkspaceElectron'
 import type { PreviewAssetCandidate, PreviewAssetReferenceUnit, PreviewCandidate, PreviewContentUnit, SelectionState } from '@/features/content/integrations/sourceWorkspaceTypes'
-import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
+import { useAgentConversationRuntimeState } from '@/features/agent/state/agentConversationRuntimeStore'
+import { useAgentConversationThreadBinding } from '@/features/agent/state/agentConversationRegistryStore'
+import { useAgentPageTasks } from '@/features/agent/state/agentTaskQueueStore'
 import {
   buildAgentSessionGenerationProjection,
   conversationPageTasks,
@@ -49,9 +51,9 @@ interface SessionCandidateView {
 }
 
 export function AgentSessionOutputPane({ conversationId, projectId }: AgentSessionOutputPaneProps) {
-  const pageTasksById = useAgentSessionStore((state) => state.pageTasks)
-  const threadBinding = useAgentSessionStore((state) => state.conversationThreadBindings[conversationId])
-  const runtimeState = useAgentSessionStore((state) => state.conversationRuntimeStates[conversationId])
+  const pageTasksById = useAgentPageTasks()
+  const threadBinding = useAgentConversationThreadBinding(conversationId)
+  const runtimeState = useAgentConversationRuntimeState(conversationId)
   const [selectingCandidateKey, setSelectingCandidateKey] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [activityEvents, setActivityEvents] = useState<AgentActivityAppEvent[]>(() => recentAgentActivityEvents({ conversationId, projectId, limit: 12 }))

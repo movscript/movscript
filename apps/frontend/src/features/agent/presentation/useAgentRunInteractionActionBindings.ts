@@ -12,7 +12,8 @@ import type { AgentInputAnswer } from '@/features/agent/domain/agentRunInteracti
 
 export interface UseAgentRunInteractionActionBindingsInput {
   conversationId: string
-  sessionId?: string
+  providerSessionTreeId?: string
+  sessionId?: string // legacy provider-session input; prefer providerSessionTreeId.
   actionableRun: AgentRun | null
   interactionRuns?: AgentRun[]
   approving: boolean
@@ -24,7 +25,8 @@ export interface UseAgentRunInteractionActionBindingsInput {
 
 export function useAgentRunInteractionActionBindings({
   conversationId,
-  sessionId,
+  providerSessionTreeId,
+  sessionId: legacySessionId,
   actionableRun,
   interactionRuns,
   approving,
@@ -33,7 +35,8 @@ export function useAgentRunInteractionActionBindings({
   setConversationRun,
   streamFollowUpRun,
 }: UseAgentRunInteractionActionBindingsInput) {
-  const commandService = useMemo(() => createAgentProviderSessionCommandService({ sessionId }), [sessionId])
+  const normalizedProviderSessionTreeId = providerSessionTreeId?.trim() || legacySessionId?.trim() || undefined
+  const commandService = useMemo(() => createAgentProviderSessionCommandService({ providerSessionTreeId: normalizedProviderSessionTreeId }), [normalizedProviderSessionTreeId])
 
   const deps = useMemo<AgentRunInteractionActionDeps>(() => ({
     conversationId,

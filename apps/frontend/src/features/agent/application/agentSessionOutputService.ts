@@ -1,4 +1,4 @@
-import { providerSessionClient } from '@/shared/infrastructure/providerSessionClient'
+import { agentProviderSessionCompatibilityClient } from '@/features/agent/infrastructure/agentProviderSessionCompatibility'
 import type { AgentRun } from '@movscript/core/agent/protocol'
 
 export interface AgentSessionThreadRunsResult {
@@ -11,9 +11,10 @@ export async function listAgentSessionThreadRuns(input: {
   providerThreadId: string
 }): Promise<AgentSessionThreadRunsResult> {
   const providerThreadId = input.providerThreadId.trim()
-  const sessionId = input.providerSessionTreeId?.trim()
-  const client = sessionId
-    ? providerSessionClient.forSession({ sessionId })
-    : providerSessionClient
+  const providerSessionTreeId = input.providerSessionTreeId?.trim()
+  const compatibilityClient = agentProviderSessionCompatibilityClient('session-output-diagnostics')
+  const client = providerSessionTreeId
+    ? compatibilityClient.forSession({ sessionId: providerSessionTreeId })
+    : compatibilityClient
   return client.listRunsByThread(providerThreadId)
 }

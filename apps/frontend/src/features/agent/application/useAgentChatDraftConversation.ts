@@ -7,7 +7,8 @@ import {
   createAgentChatDraftConversationId,
   workspaceContextFromNewConversationPayload,
 } from '@/features/agent/presentation/agentChatDataSourceShellModel'
-import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
+import { agentConversationRegistryActions } from '@/features/agent/state/agentConversationRegistryStore'
+import { updateAgentConversationWorkspace } from '@/features/agent/state/agentConversationDraftStore'
 
 interface UseAgentChatDraftConversationInput {
   composerInputRef: MutableRefObject<HTMLDivElement | null>
@@ -33,10 +34,10 @@ export function useAgentChatDraftConversation({
     const draftId = createAgentChatDraftConversationId(threadScopeKey)
     setDraftConversationId(draftId)
     setActiveThreadIdValue(null)
-    useAgentSessionStore.getState().setActiveConversation(userId, draftId)
+    agentConversationRegistryActions().setActiveConversation(userId, draftId)
     setHistoryOpen(false)
     setError(null)
-    useAgentSessionStore.getState().updateConversationWorkspace(userId, draftId, {
+    updateAgentConversationWorkspace(userId, draftId, {
       input: '',
       attachments: [],
       ...(workspaceContext ? { workspaceContext } : {}),

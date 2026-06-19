@@ -5,13 +5,16 @@ import {
   agentRuntimeThreadScopeKey,
 } from '@/features/agent/components/AgentRuntimeChatShell'
 import {
-  enabledProviders,
   resolveNewConversationProvider,
   useProviderConfigStore,
   type ProviderConfig,
   type ProviderSettings,
 } from '@/shared/infrastructure/providerConfigStore'
-import { providerSupportsAgentProfile } from '@/features/agent/application/agentProfileModel'
+import {
+  activeAgentProfileForRoute,
+  agentProfilesFromProviderSettings,
+  type AgentProfile,
+} from '@/features/agent/application/agentProfileModel'
 import type { AgentConversationRegistryState } from '@movscript/core/agent'
 import type { Project } from '@/types'
 
@@ -29,18 +32,18 @@ export interface AgentUnifiedChatShellProps {
 
 export function AgentUnifiedChatShell(props: AgentUnifiedChatShellProps) {
   const providerSettings = useProviderConfigStore((s) => s.settings)
-  const activeProvider = useMemo(
-    () => resolveAgentChatShellProvider(providerSettings, props.userId),
+  const activeProfile = useMemo(
+    () => resolveAgentChatShellProfile(providerSettings, props.userId),
     [providerSettings, props.userId],
   )
 
-  if (!providerSupportsAgentProfile(activeProvider)) return null
+  if (!activeProfile) return null
 
   return (
     <AgentRuntimeChatShell
-      key={agentRuntimeThreadScopeKey(activeProvider)}
+      key={agentRuntimeThreadScopeKey(activeProfile.provider)}
       userId={props.userId}
-      provider={activeProvider}
+      provider={activeProfile.provider}
       emptyThreadLabel={props.emptyThreadLabel}
       host={props.host}
       surface={props.surface}
@@ -53,14 +56,22 @@ export function AgentUnifiedChatShell(props: AgentUnifiedChatShellProps) {
   )
 }
 
-export function resolveAgentChatShellProvider(
+export function resolveAgentChatShellProfile(
   settings: ProviderSettings,
   _userId: string,
   _registryState?: AgentConversationRegistryState,
-): ProviderConfig {
+): AgentProfile | undefined {
+  const profiles = agentProfilesFromProviderSettings(settings)
   const selectedProvider = resolveNewConversationProvider(settings)
-  const agentChatProviders = enabledProviders(settings).filter(providerSupportsAgentProfile)
-  return providerSupportsAgentProfile(selectedProvider)
-    ? selectedProvider
-    : agentChatProviders[0] ?? selectedProvider
+  return profiles.find((profile) => profile.id === selectedProvider.id)
+    ?? activeAgentProfileForRoute(profiles, undefined)
+}
+
+export function resolveAgentChatShellProvider(
+  settings: ProviderSettings,
+  userId: string,
+  registryState?: AgentConversationRegistryState,
+): ProviderConfig {
+  return resolveAgentChatShellProfile(settings, userId, registryState)?.provider
+    ?? resolveNewConversationProvider(settings)
 }

@@ -30,9 +30,9 @@ import {
   readSdkRuntimeMcpResource,
 } from './sdkRuntimeMcpBridge'
 import {
-  installSdkRuntimeBundledPlugin,
-  listSdkRuntimeBundledPlugins,
-} from './sdkRuntimePluginCatalog'
+  installAgentRuntimeBundledPlugin,
+  listAgentRuntimeBundledPlugins,
+} from './agentRuntimeBundledPluginCatalog'
 import { listSdkRuntimePermissionProfiles } from './sdkRuntimePermissionProfiles'
 import {
   ensureSdkRuntimeDefaultSkills,
@@ -95,8 +95,8 @@ export async function handleSdkRuntimeRequest(
       extraRoots: params.extraRoots,
     })
   }
-  if (input.method === 'plugin/list' || input.method === 'plugin/installed') return listSdkRuntimeBundledPlugins({ workspaceDir: runtime.workspaceDir })
-  if (input.method === 'plugin/install') return installSdkRuntimeBundledPlugin({
+  if (input.method === 'plugin/list' || input.method === 'plugin/installed') return listAgentRuntimeBundledPlugins({ workspaceDir: runtime.workspaceDir })
+  if (input.method === 'plugin/install') return installAgentRuntimeBundledPlugin({
     ...paramsFor(input, 'plugin/install'),
     workspaceDir: runtime.workspaceDir,
   })
@@ -137,7 +137,7 @@ export async function handleSdkRuntimeRequest(
     return interruptSdkRuntimeTurn(params.runtime.id, params.threadId)
   }
   if (input.method === 'runtime/notify/threadSubscribe' || input.method === 'runtime/notify/serverRequestsSubscribe') return undefined
-  throw new Error(`SDK runtime method is not implemented yet: ${input.method}`)
+  throw new Error(`Unsupported SDK runtime method: ${input.method}`)
 }
 
 async function startRuntimeThread(

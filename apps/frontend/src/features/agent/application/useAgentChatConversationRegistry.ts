@@ -16,7 +16,15 @@ import {
   buildAgentChatProviderIdentity,
   buildAgentChatThreadDeckOrderUpdates,
 } from '@/features/agent/presentation/agentChatDataSourceShellModel'
-import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
+import {
+  agentConversationRegistryActions,
+  readAgentConversationRegistrySnapshot,
+  useAgentConversationRecordsById,
+} from '@/features/agent/state/agentConversationRegistryStore'
+import {
+  readAgentConversationWorkspace,
+  updateAgentConversationWorkspace,
+} from '@/features/agent/state/agentConversationDraftStore'
 import type {
   MovScriptWorkspaceContext,
   ProviderKind,
@@ -46,7 +54,7 @@ export function useAgentChatConversationRegistry({
   threadScopeKey,
   userId,
 }: UseAgentChatConversationRegistryInput) {
-  const conversationsById = useAgentSessionStore((state) => state.conversationsById)
+  const conversationsById = useAgentConversationRecordsById()
   const conversations = useMemo(() => Object.values(conversationsById), [conversationsById])
   const providerIdentity = useMemo(() => buildAgentChatProviderIdentity({
     provider,
@@ -82,13 +90,13 @@ export function useAgentChatConversationRegistry({
   }) => {
     const threadId = thread.id.trim()
     if (!threadId) return
-    const sessionId = agentConversationUsesProviderSession(providerIdentity)
-      ? thread.sessionId?.trim() || thread.providerSessionTreeId?.trim()
+    const providerSessionTreeId = agentConversationUsesProviderSession(providerIdentity)
+      ? thread.providerSessionTreeId?.trim() || thread.sessionId?.trim()
       : ''
-    useAgentSessionStore.getState().upsertConversation(agentConversationRegistryRecordFromChatThread({
+    agentConversationRegistryActions().upsertConversation(agentConversationRegistryRecordFromChatThread({
       userId,
       ...providerIdentity,
-      ...(sessionId ? { providerSessionId: sessionId } : {}),
+      ...(providerSessionTreeId ? { providerSessionId: providerSessionTreeId } : {}),
       thread,
       ...(input?.workspaceContext ? { workspaceContext: input.workspaceContext } : {}),
       ...(typeof input?.projectId === 'number' ? { projectId: input.projectId } : {}),
@@ -99,9 +107,10 @@ export function useAgentChatConversationRegistry({
     const normalizedThreadId = threadId.trim()
     const normalizedTitle = title?.trim()
     if (!normalizedThreadId || !normalizedTitle) return
-    const store = useAgentSessionStore.getState()
+    const store = agentConversationRegistryActions()
+    const snapshot = readAgentConversationRegistrySnapshot()
     const record = agentChatConversationRecordForThread({
-      records: store.conversationsById,
+      records: snapshot.conversationsById,
       threadId: normalizedThreadId,
       providerIdentity,
       userId,
@@ -110,7 +119,7 @@ export function useAgentChatConversationRegistry({
   }, [providerIdentity, userId])
 
   const markThreadOpen = useCallback((threadId: string) => {
-    const store = useAgentSessionStore.getState()
+    const store = agentConversationRegistryActions()
     const conversationId = store.upsertConversation(conversationPatchInputForThread(threadId, true))
     store.setConversationOpen(userId, conversationId, true)
     store.setActiveConversation(userId, conversationId)
@@ -118,7 +127,7 @@ export function useAgentChatConversationRegistry({
 
   const markThreadClosed = useCallback((threadId: string, clearActive: boolean) => {
     const activeThreadClosed = readCurrentActiveThreadId() === threadId
-    const store = useAgentSessionStore.getState()
+    const store = agentConversationRegistryActions()
     const conversationId = store.upsertConversation(conversationPatchInputForThread(threadId, false))
     store.setConversationOpen(userId, conversationId, false)
     if (clearActive || activeThreadClosed) {
@@ -127,13 +136,14 @@ export function useAgentChatConversationRegistry({
   }, [conversationPatchInputForThread, readCurrentActiveThreadId, userId])
 
   const reorderOpenThreads = useCallback((draggedThreadId: string, targetThreadId: string, position: 'before' | 'after') => {
-    const store = useAgentSessionStore.getState()
+    const store = agentConversationRegistryActions()
+    const snapshot = readAgentConversationRegistrySnapshot()
     const updates = buildAgentChatThreadDeckOrderUpdates({
       draggedThreadId,
       targetThreadId,
       position,
       providerIdentity,
-      records: Object.values(store.conversationsById),
+      records: Object.values(snapshot.conversationsById),
       userId,
     })
     if (updates.length > 0) store.setConversationDeckOrders(updates)
@@ -145,14 +155,14 @@ export function useAgentChatConversationRegistry({
   }, [markThreadClosed, readCurrentActiveThreadId, setActiveThreadIdValue])
 
   const clearUnavailableStoredThread = useCallback((threadId: string): boolean => {
-    const store = useAgentSessionStore.getState()
+    const store = agentConversationRegistryActions()
     const conversationId = agentChatComposerConversationId(threadScopeKey, threadId)
-    const workspace = store.getConversationWorkspace(userId, conversationId)
+    const workspace = readAgentConversationWorkspace(userId, conversationId)
     const emptyWorkspace = agentChatConversationWorkspaceIsEmpty(workspace)
 
     if (!emptyWorkspace) {
       const draftConversationId = agentChatComposerConversationId(threadScopeKey, null)
-      store.updateConversationWorkspace(userId, draftConversationId, workspace)
+      updateAgentConversationWorkspace(userId, draftConversationId, workspace)
     }
 
     if (readCurrentActiveThreadId() === threadId) setActiveThreadIdValue(null)

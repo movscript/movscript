@@ -34,6 +34,7 @@ export type ProjectPluginMaterializerPaths = {
   pluginsDir: string
   providerConfigPaths: Partial<Record<ElectronProjectSkillProviderTarget, string>>
   providerSkillDirs: Record<ElectronProjectSkillProviderTarget, string>
+  providerPluginCacheDirs: Record<ElectronProjectSkillProviderTarget, string>
   catalogSkillsDir: string
   desktopPluginCacheRoot: string
   projectMarketplacePath: string
@@ -44,6 +45,7 @@ export type ProjectPluginPreparedPaths = {
   providerTargets: ElectronProjectSkillProviderTarget[]
   providerConfigPaths?: Partial<Record<ElectronProjectSkillProviderTarget, string>>
   providerSkillDirs?: Partial<Record<ElectronProjectSkillProviderTarget, string>>
+  providerPluginCacheDirs?: Partial<Record<ElectronProjectSkillProviderTarget, string>>
   desktopPluginCacheDir?: string
   projectMarketplacePath?: string
   projectPluginBundleDir?: string
@@ -72,7 +74,7 @@ export function materializeProjectPluginInstall(input: {
   for (const target of plugin.providerTargets) {
     const configPath = paths.providerConfigPaths[target]
     if (!configPath) continue
-    ensureProviderPluginEnabled(configPath, plugin.pluginKey)
+    setProviderPluginEnabled(configPath, plugin.pluginKey, true)
     providerConfigPaths[target] = configPath
   }
   if (Object.keys(providerConfigPaths).length > 0) prepared.providerConfigPaths = providerConfigPaths
@@ -82,30 +84,36 @@ export function materializeProjectPluginInstall(input: {
     : undefined
   if (cachedSource) prepared.desktopPluginCacheDir = cachedSource.cacheDir
   const materializedSourcePath = cachedSource?.cacheDir ?? sourcePath
+  return {
+    ...prepared,
+    ...(materializedSourcePath
+      ? materializeProjectPluginProjectionFromSource({
+          paths,
+          plugin,
+          sourcePath: materializedSourcePath,
+          desktopPluginCacheDir: cachedSource?.cacheDir,
+        })
+      : {}),
+  }
+}
 
-  const sourceSkillsDir = materializedSourcePath ? join(materializedSourcePath, SKILLS_DIR_NAME) : undefined
-  if (sourceSkillsDir && existsSync(sourceSkillsDir)) {
-    const skillSegment = safePathSegment(plugin.pluginKey)
-    const providerSkillDirs: Partial<Record<ElectronProjectSkillProviderTarget, string>> = {}
-    const catalogTarget = join(paths.catalogSkillsDir, PLUGINS_DIR_NAME, skillSegment)
-    for (const target of plugin.providerTargets) {
-      const providerTarget = join(paths.providerSkillDirs[target], PLUGINS_DIR_NAME, skillSegment)
-      replaceDirectory(sourceSkillsDir, providerTarget)
-      providerSkillDirs[target] = providerTarget
-    }
-    replaceDirectory(sourceSkillsDir, catalogTarget)
-    prepared.providerSkillDirs = providerSkillDirs
-    prepared.catalogSkillsDir = catalogTarget
-  }
-  if (materializedSourcePath && existsSync(materializedSourcePath)) {
-    const bundleSegment = safePathSegment(plugin.pluginKey)
-    const bundleTarget = join(paths.projectPluginBundlesDir, bundleSegment)
-    replaceDirectory(materializedSourcePath, bundleTarget)
-    ensureProjectMarketplacePlugin(paths.projectMarketplacePath, plugin, `./${PROJECT_PLUGIN_BUNDLES_DIR_NAME}/${bundleSegment}`)
-    prepared.projectMarketplacePath = paths.projectMarketplacePath
-    prepared.projectPluginBundleDir = bundleTarget
-  }
-  return prepared
+export function materializeProjectPluginProjection(input: {
+  paths: ProjectPluginMaterializerPaths
+  plugin: ProjectPluginMaterializerPlugin
+  sourcePath: string
+}): ProjectPluginPreparedPaths {
+  return materializeProjectPluginProjectionFromSource({
+    ...input,
+    desktopPluginCacheDir: input.sourcePath,
+  })
+}
+
+export function materializeSystemPluginCache(input: {
+  cacheRoot: string
+  plugin: ProjectPluginMaterializerPlugin
+  sourcePath: string
+}): { cacheDir: string; contentHash: string } {
+  return materializeDesktopPluginCache(input.cacheRoot, input.plugin, input.sourcePath)
 }
 
 export function replaceDirectory(source: string, destination: string): void {
@@ -142,6 +150,8 @@ function materializeDesktopPluginCache(
     marketplaceName: plugin.marketplaceName,
     ...(plugin.sourceMarketplaceName ? { sourceMarketplaceName: plugin.sourceMarketplaceName } : {}),
     ...(plugin.sourceMarketplacePath ? { sourceMarketplacePath: plugin.sourceMarketplacePath } : {}),
+    ...(plugin.displayName ? { displayName: plugin.displayName } : {}),
+    ...(plugin.description ? { description: plugin.description } : {}),
     ...(plugin.version ? { version: plugin.version } : {}),
     providerTargets: plugin.providerTargets,
     contentHash,
@@ -151,11 +161,86 @@ function materializeDesktopPluginCache(
   return { cacheDir, contentHash }
 }
 
-function ensureProviderPluginEnabled(configPath: string, pluginKey: string): void {
+function materializeProjectPluginProjectionFromSource(input: {
+  paths: ProjectPluginMaterializerPaths
+  plugin: ProjectPluginMaterializerPlugin
+  sourcePath?: string
+  desktopPluginCacheDir?: string
+}): ProjectPluginPreparedPaths {
+  const { paths, plugin, sourcePath } = input
+  if (plugin.providerTargets.length === 0) {
+    throw new Error('Project plugin projection requires at least one provider target.')
+  }
+  mkdirSync(paths.pluginsDir, { recursive: true })
+  for (const target of plugin.providerTargets) {
+    mkdirSync(paths.providerSkillDirs[target], { recursive: true })
+    mkdirSync(paths.providerPluginCacheDirs[target], { recursive: true })
+  }
+  mkdirSync(paths.catalogSkillsDir, { recursive: true })
+  mkdirSync(paths.projectPluginBundlesDir, { recursive: true })
+
+  const prepared: ProjectPluginPreparedPaths = {
+    providerTargets: plugin.providerTargets,
+    ...(input.desktopPluginCacheDir ? { desktopPluginCacheDir: input.desktopPluginCacheDir } : {}),
+  }
+  const providerConfigPaths: Partial<Record<ElectronProjectSkillProviderTarget, string>> = {}
+  for (const target of plugin.providerTargets) {
+    const configPath = paths.providerConfigPaths[target]
+    if (!configPath) continue
+    setProviderPluginEnabled(configPath, plugin.pluginKey, true)
+    providerConfigPaths[target] = configPath
+  }
+  if (Object.keys(providerConfigPaths).length > 0) prepared.providerConfigPaths = providerConfigPaths
+
+  if (sourcePath && existsSync(sourcePath)) {
+    const providerPluginCacheDirs: Partial<Record<ElectronProjectSkillProviderTarget, string>> = {}
+    for (const target of plugin.providerTargets) {
+      const providerPluginCacheDir = providerPluginCacheTarget(paths.providerPluginCacheDirs[target], plugin)
+      replaceDirectory(sourcePath, providerPluginCacheDir)
+      providerPluginCacheDirs[target] = providerPluginCacheDir
+    }
+    prepared.providerPluginCacheDirs = providerPluginCacheDirs
+  }
+
+  const sourceSkillsDir = sourcePath ? join(sourcePath, SKILLS_DIR_NAME) : undefined
+  if (sourceSkillsDir && existsSync(sourceSkillsDir)) {
+    const skillSegment = safePathSegment(plugin.pluginKey)
+    const providerSkillDirs: Partial<Record<ElectronProjectSkillProviderTarget, string>> = {}
+    const catalogTarget = join(paths.catalogSkillsDir, PLUGINS_DIR_NAME, skillSegment)
+    for (const target of plugin.providerTargets) {
+      const providerTarget = join(paths.providerSkillDirs[target], PLUGINS_DIR_NAME, skillSegment)
+      replaceDirectory(sourceSkillsDir, providerTarget)
+      providerSkillDirs[target] = providerTarget
+    }
+    replaceDirectory(sourceSkillsDir, catalogTarget)
+    prepared.providerSkillDirs = providerSkillDirs
+    prepared.catalogSkillsDir = catalogTarget
+  }
+  if (sourcePath && existsSync(sourcePath)) {
+    const bundleSegment = safePathSegment(plugin.pluginKey)
+    const bundleTarget = join(paths.projectPluginBundlesDir, bundleSegment)
+    replaceDirectory(sourcePath, bundleTarget)
+    ensureProjectMarketplacePlugin(paths.projectMarketplacePath, plugin, `./${PROJECT_PLUGIN_BUNDLES_DIR_NAME}/${bundleSegment}`)
+    prepared.projectMarketplacePath = paths.projectMarketplacePath
+    prepared.projectPluginBundleDir = bundleTarget
+  }
+  return prepared
+}
+
+function providerPluginCacheTarget(cacheRoot: string, plugin: ProjectPluginMaterializerPlugin): string {
+  return join(
+    cacheRoot,
+    safePathSegment(plugin.marketplaceName),
+    safePathSegment(plugin.name),
+    safePathSegment(plugin.version ?? 'local'),
+  )
+}
+
+export function setProviderPluginEnabled(configPath: string, pluginKey: string, enabled: boolean): void {
   const current = existsSync(configPath) ? readFileSync(configPath, 'utf8') : ''
   let next = current
   next = setTomlSectionValue(next, '[features]', /^plugins\s*=/, 'plugins = true')
-  next = setTomlSectionValue(next, `[plugins.${tomlString(pluginKey)}]`, /^enabled\s*=/, 'enabled = true')
+  next = setTomlSectionValue(next, `[plugins.${tomlString(pluginKey)}]`, /^enabled\s*=/, `enabled = ${enabled ? 'true' : 'false'}`)
   if (next !== current) writeTextAtomic(configPath, next)
 }
 

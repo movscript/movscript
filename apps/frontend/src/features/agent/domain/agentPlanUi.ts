@@ -47,7 +47,9 @@ export interface AgentPlanTaskView {
 
 export interface AgentPlanWorkerView {
   id: string
-  sessionId?: string
+  providerSessionTreeId?: string
+  /** @deprecated Prefer providerSessionTreeId for related-thread provider-session trees. */
+  sessionId?: string // deprecated providerSessionTreeId compatibility mirror
   subagentName?: string
   status: AgentRun['status']
   role?: AgentRun['role']
@@ -301,9 +303,10 @@ function taskStatusExplanation(input: {
 }
 
 function formatWorkerView(run: AgentRun): AgentPlanWorkerView {
+  const providerSessionTreeId = run.providerSessionTreeId?.trim() || run.sessionId?.trim()
   return {
     id: run.id,
-    sessionId: run.sessionId,
+    ...(providerSessionTreeId ? { providerSessionTreeId, sessionId: providerSessionTreeId } : {}),
     subagentName: runSubagentName(run),
     status: run.status,
     role: run.role,

@@ -5,6 +5,7 @@ import "github.com/gin-gonic/gin"
 func registerAdminRoutes(admin *gin.RouterGroup, h handlers) {
 	// Provider, catalog, and route configuration.
 	admin.GET("/adapters", h.ai.ListAdapters)
+	admin.GET("/model-catalog/templates", h.ai.ListModelCatalogTemplates)
 	admin.GET("/model-catalog", h.ai.ListModelCatalogEntries)
 	admin.POST("/model-catalog", h.ai.CreateModelCatalogEntry)
 	admin.PUT("/model-catalog/:id", h.ai.UpdateModelCatalogEntry)

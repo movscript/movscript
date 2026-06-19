@@ -14,6 +14,13 @@ export type AgentModeProjectConversationGroup = {
   conversations: Conversation[]
 }
 
+export type AgentModeProviderIdentity = {
+  provider: string
+  providerId: string
+  providerInstanceId: string
+  providerProtocol: string
+}
+
 export type AgentModeHistoryItem =
   | {
       type: 'conversation'
@@ -25,6 +32,7 @@ export type AgentModeHistoryItem =
       type: 'provider-thread'
       id: string
       timestamp: number
+      providerIdentity: AgentModeProviderIdentity
       thread: AgentThreadSummary
     }
 
@@ -350,8 +358,8 @@ export function ProjectAgentModeHistorySection({
   onToggleShowAll: () => void
   onSelectConversation: (conversationId: string) => void
   onDeleteConversation: (conversation: Conversation) => void
-  onRestoreThread: (threadId: string) => void
-  onDeleteThread: (threadId: string) => void
+  onRestoreThread: (threadId: string, providerIdentity: AgentModeProviderIdentity) => void
+  onDeleteThread: (threadId: string, providerIdentity: AgentModeProviderIdentity) => void
   getConversationTitle: (conversation: Conversation) => string
   getThreadTitle: (thread: AgentThreadSummary) => string
   getThreadDescription: (thread: AgentThreadSummary) => string
@@ -396,12 +404,12 @@ export function ProjectAgentModeHistorySection({
                   title={getThreadTitle(thread)}
                   description={getThreadDescription(thread)}
                   meta={formatAgentDate(thread.updatedAt, locale)}
-                  onClick={() => onRestoreThread(thread.id)}
+                  onClick={() => onRestoreThread(thread.id, item.providerIdentity)}
                   hasAction
                 />
                 <AgentModeConversationArchiveButton
                   type="button"
-                  onClick={() => onDeleteThread(thread.id)}
+                  onClick={() => onDeleteThread(thread.id, item.providerIdentity)}
                   aria-label={labels.deleteConversation}
                   title={labels.deleteConversation}
                 >

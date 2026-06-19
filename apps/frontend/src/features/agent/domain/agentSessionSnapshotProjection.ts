@@ -1,7 +1,8 @@
 import type { ProviderSessionSnapshotV2, AgentRun, AgentTaskGraphSnapshot, AgentThread, ProviderWork } from '@movscript/core/agent/protocol'
 
 export interface AgentSessionSnapshotView {
-  sessionId: string
+  providerSessionTreeId: string
+  sessionId: string // deprecated providerSessionTreeId compatibility mirror
   rootThread?: AgentThread
   interactiveThread?: AgentThread
   activeThread?: AgentThread
@@ -52,8 +53,10 @@ export function buildAgentSessionSnapshotView(snapshot: ProviderSessionSnapshotV
     ? threadsById.get(session.activeThreadId)
     : undefined
 
+  const providerSessionTreeId = session?.id ?? snapshot.scope.id
   return {
-    sessionId: session?.id ?? snapshot.scope.id,
+    providerSessionTreeId,
+    sessionId: providerSessionTreeId, // deprecated providerSessionTreeId compatibility mirror
     rootThread,
     interactiveThread,
     activeThread,

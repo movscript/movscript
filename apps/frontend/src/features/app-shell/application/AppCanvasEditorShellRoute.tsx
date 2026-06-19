@@ -157,7 +157,7 @@ function CanvasHeaderTitle({ fallbackName }: { fallbackName?: string }) {
     return (
       <Input
         ref={titleEditor.inputRef}
-        className="app-window-no-drag absolute left-1/2 top-1/2 h-7 w-[min(360px,38vw)] -translate-x-1/2 -translate-y-1/2 border-none bg-transparent px-2 text-center type-label font-semibold text-foreground outline-none"
+        className="app-window-no-drag app-window-inline-title app-window-inline-title-input"
         value={effectiveCanvasName}
         onChange={(event) => {
           titleEditor.setWorkspace(event.target.value)
@@ -175,7 +175,7 @@ function CanvasHeaderTitle({ fallbackName }: { fallbackName?: string }) {
       type="button"
       variant="ghost"
       size="sm"
-      className="app-window-no-drag absolute left-1/2 top-1/2 h-7 w-[min(360px,38vw)] -translate-x-1/2 -translate-y-1/2 truncate rounded-sm border-none bg-transparent px-2 text-center type-label font-semibold text-foreground outline-none hover:bg-muted focus-visible:bg-muted"
+      className="app-window-no-drag app-window-inline-title app-window-inline-title-button"
       onDoubleClick={titleEditor.startEditing}
       onKeyDown={titleEditor.handleDisplayKeyDown}
       title={i18n.t('canvas.editor.renameTitle', { defaultValue: '双击重命名' })}

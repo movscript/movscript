@@ -47,15 +47,13 @@ import { useAgentSettingsModelController } from '@/features/agent/application/us
 import { useAgentSettingsSnapshotController } from '@/features/agent/application/useAgentSettingsSnapshotController'
 import { useAgentSettingsSummaryCopy } from '@/features/agent/application/useAgentSettingsSummaryCopy'
 import { useAgentSettingsWorkspaceConfigController } from '@/features/agent/application/useAgentSettingsWorkspaceConfigController'
-import {
-  providerRuntimeProfile,
-  useProviderConfigStore,
-} from '@/shared/infrastructure/providerConfigStore'
+import { useProviderConfigStore } from '@/shared/infrastructure/providerConfigStore'
 import { providerRuntimeModelAPIKinds } from '@/shared/infrastructure/providerRuntimeApiCatalog'
 import { publicModelId, publicModelLabel } from '@/shared/domain/modelDisplay'
 import type { PublicModel } from '@/types'
 import {
   agentProfilesFromProviderSettings,
+  type AgentRuntimeCapabilitySummary,
 } from '@/features/agent/application/agentProfileModel'
 import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
 import { agentSkillCatalogService } from '@/features/agent/application/agentSkillCatalogService'
@@ -83,7 +81,7 @@ export default function AIAgentSettingsPage() {
     : undefined
   const usesWorkspaceCatalogSettings = Boolean(selectedProviderProfileConfig.supportsWorkspaceCatalogInspection)
   const settingsModelAPIKinds = selectedAgentProfile
-    ? providerRuntimeModelAPIKinds(providerRuntimeProfile(selectedAgentProfile.provider).api)
+    ? providerRuntimeModelAPIKinds(selectedAgentProfile.runtimeBackend.api)
     : []
   const agentModelsQuery = useQuery<PublicModel[]>({
     queryKey: agentModelKeys.backendCatalog(`agent-settings-${selectedProviderProfileConfig.id}`, settingsModelAPIKinds),
@@ -186,18 +184,18 @@ export default function AIAgentSettingsPage() {
     : buildSdkAgentReadinessItems({
       agentLabel: selectedAgentProfile?.label ?? selectedProviderProfileLabel,
       agentEnabled: selectedAgentProfile?.enabled ?? false,
-      runtimeLabel: selectedAgentProfile?.connectionLabel ?? t('agents.settings.statusCardRuntimeFallback'),
+      runtimeLabel: selectedAgentProfile?.runtimeBackend.label ?? t('agents.settings.statusCardRuntimeFallback'),
       runtimeAvailable: selectedAgentProfile ? selectedAgentProfile.connectionKind !== 'unavailable' : false,
-      authEnv: selectedAgentProfile?.provider.kind === 'claude' ? 'ANTHROPIC_API_KEY' : undefined,
+      authEnv: selectedAgentProfile?.credentialHint?.env,
       pendingChanges: 0,
     }), [
     currentConfigFile,
     usesWorkspaceCatalogSettings,
     selectedAgentProfile?.connectionKind,
-    selectedAgentProfile?.connectionLabel,
+    selectedAgentProfile?.credentialHint?.env,
     selectedAgentProfile?.enabled,
     selectedAgentProfile?.label,
-    selectedAgentProfile?.provider.kind,
+    selectedAgentProfile?.runtimeBackend.label,
     selectedProviderProfileLabel,
     t,
     model.effectiveConfig,
@@ -375,13 +373,12 @@ export default function AIAgentSettingsPage() {
                 agentDetail: selectedAgentProfile?.detail,
                 providerProfileLabel: selectedProviderProfileLabel,
                 providerProfileDescription: selectedProviderProfileDescription,
-                runtimeLabel: selectedAgentProfile?.connectionLabel ?? t('agents.settings.statusCardRuntimeFallback'),
-                capabilityLabel: usesWorkspaceCatalogSettings
-                  ? t('agents.settings.statusCardCatalogCapability')
-                  : t('agents.settings.statusCardSdkCapability'),
-                capabilityDetail: usesWorkspaceCatalogSettings
-                  ? t('agents.settings.statusCardCatalogCapabilityDetail')
-                  : t('agents.settings.statusCardSdkCapabilityDetail'),
+                runtimeLabel: selectedAgentProfile?.runtimeBackend.label ?? t('agents.settings.statusCardRuntimeFallback'),
+                capabilityLabel: t(runtimeCapabilityLabelKey(selectedAgentProfile?.runtimeBackend.capabilitySummary)),
+                capabilityDetail: t(
+                  runtimeCapabilityDetailKey(selectedAgentProfile?.runtimeBackend.capabilitySummary),
+                  runtimeCapabilityDetailValues(selectedAgentProfile?.runtimeBackend.capabilitySummary),
+                ),
                 copied: settingsSummaryCopy.statusCopied,
                 refreshing: statusRefreshing || agentModelsQuery.isFetching,
                 canRefresh: true,
@@ -490,4 +487,25 @@ export default function AIAgentSettingsPage() {
       </AgentPageShellBody>
     </AgentPageShell>
   )
+}
+
+function runtimeCapabilityLabelKey(summary: AgentRuntimeCapabilitySummary | undefined): string {
+  if (summary?.status === 'supported') return 'agents.settings.statusCardRuntimeCapabilityFull'
+  if (summary?.status === 'limited') return 'agents.settings.statusCardRuntimeCapabilityLimited'
+  return 'agents.settings.statusCardRuntimeCapabilityUnavailable'
+}
+
+function runtimeCapabilityDetailKey(summary: AgentRuntimeCapabilitySummary | undefined): string {
+  if (summary?.status === 'supported') return 'agents.settings.statusCardRuntimeCapabilityFullDetail'
+  if (summary?.status === 'limited') return 'agents.settings.statusCardRuntimeCapabilityLimitedDetail'
+  return 'agents.settings.statusCardRuntimeCapabilityUnavailableDetail'
+}
+
+function runtimeCapabilityDetailValues(summary: AgentRuntimeCapabilitySummary | undefined): Record<string, string | number> {
+  return {
+    supported: summary?.supportedCount ?? 0,
+    total: summary?.totalCount ?? 0,
+    limited: summary?.limitedCount ?? 0,
+    reason: summary?.limitedReasons[0] ?? '-',
+  }
 }

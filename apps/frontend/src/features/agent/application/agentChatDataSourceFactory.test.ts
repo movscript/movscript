@@ -19,11 +19,11 @@ import {
 import { registerAgentRuntimeDataSourceFactory } from '@/features/agent/application/agentRuntimeDataSourceRegistry'
 import { agentSettingsModelSelectionPatch, useAgentStore } from '@/features/agent/state/agentStore'
 import type {
-  SdkRuntimeClient,
-  SdkRuntimeRpcMethod,
-  SdkRuntimeRpcRequestMap,
-  SdkRuntimeRpcResponseMap,
-} from '@/shared/infrastructure/sdk-runtime/sdkRuntimeProtocol'
+  AgentRuntimeClient,
+  AgentRuntimeRpcMethod,
+  AgentRuntimeRpcRequestMap,
+  AgentRuntimeRpcResponseMap,
+} from '@/shared/infrastructure/agent-runtime/agentRuntimeProtocol'
 import type { PublicModel } from '@/types'
 
 test('factory routes codex-sdk runtime to injected SDK data source adapter', async () => {
@@ -183,16 +183,16 @@ test('factory reports missing SDK runtime clients without touching model catalog
   assert.equal(loadedModels, false)
 })
 
-test('factory creates SDK runtime data sources from runtime clients when no adapter is registered', async () => {
+test('factory creates Agent runtime data sources from runtime clients when no adapter is registered', async () => {
   const settings = providerSettingsWithRuntimeEnv(DEFAULT_PROVIDER_SETTINGS, {
     [CODEX_RUNTIME_API_ENV]: 'codex-sdk',
   })
   const provider = requiredProvider(settings.providers.find((item) => item.id === CODEX_PROVIDER_ID))
-  const requests: Array<{ method: SdkRuntimeRpcMethod; params: unknown }> = []
+  const requests: Array<{ method: AgentRuntimeRpcMethod; params: unknown }> = []
 
   const dataSource = await createAgentChatDataSourceForProvider(provider, {
     loadTextModels: async () => [],
-    runtimeClient: async () => sdkRuntimeClient(requests),
+    runtimeClient: async () => agentRuntimeClient(requests),
   })
 
   assert.equal(dataSource.provider, 'codex')
@@ -277,7 +277,7 @@ function fakeThread(input: AgentRuntimeDataSourceFactoryInput, threadId: string)
   }
 }
 
-function sdkRuntimeClient(requests: Array<{ method: SdkRuntimeRpcMethod; params: unknown }>): SdkRuntimeClient {
+function agentRuntimeClient(requests: Array<{ method: AgentRuntimeRpcMethod; params: unknown }>): AgentRuntimeClient {
   return {
     request: async (method, params) => {
       requests.push({ method, params })
@@ -286,15 +286,15 @@ function sdkRuntimeClient(requests: Array<{ method: SdkRuntimeRpcMethod; params:
   }
 }
 
-async function sdkRuntimeResponse<M extends SdkRuntimeRpcMethod>(
+async function sdkRuntimeResponse<M extends AgentRuntimeRpcMethod>(
   method: M,
-  params: SdkRuntimeRpcRequestMap[M],
-): Promise<SdkRuntimeRpcResponseMap[M]> {
+  params: AgentRuntimeRpcRequestMap[M],
+): Promise<AgentRuntimeRpcResponseMap[M]> {
   const input = {
     provider: { kind: 'codex' },
     runtime: { id: 'codex-codex-sdk' },
   } as AgentRuntimeDataSourceFactoryInput
-  if (method === 'thread/start') return fakeThread(input, 'thread_1') as SdkRuntimeRpcResponseMap[M]
+  if (method === 'thread/start') return fakeThread(input, 'thread_1') as AgentRuntimeRpcResponseMap[M]
   if (method === 'turn/text/start') {
     return {
       id: 'turn_1',
@@ -305,11 +305,11 @@ async function sdkRuntimeResponse<M extends SdkRuntimeRpcMethod>(
       startedAt: null,
       completedAt: null,
       durationMs: null,
-    } as SdkRuntimeRpcResponseMap[M]
+    } as AgentRuntimeRpcResponseMap[M]
   }
-  if (method === 'thread/list') return { threads: [] } as SdkRuntimeRpcResponseMap[M]
-  if (method === 'thread/read') return fakeThread(input, (params as { threadId: string }).threadId) as SdkRuntimeRpcResponseMap[M]
-  return undefined as SdkRuntimeRpcResponseMap[M]
+  if (method === 'thread/list') return { threads: [] } as AgentRuntimeRpcResponseMap[M]
+  if (method === 'thread/read') return fakeThread(input, (params as { threadId: string }).threadId) as AgentRuntimeRpcResponseMap[M]
+  return undefined as AgentRuntimeRpcResponseMap[M]
 }
 
 function requiredProvider<T>(provider: T | undefined): T {

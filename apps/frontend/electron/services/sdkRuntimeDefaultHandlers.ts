@@ -13,9 +13,7 @@ import type {
   SdkRuntimeRpcMethod,
   SdkRuntimeRpcRequestMap,
 } from '../../src/shared/infrastructure/sdk-runtime/sdkRuntimeProtocol'
-import {
-  SDK_RUNTIME_REQUIRED_RPC_METHODS,
-} from '../../src/shared/infrastructure/sdk-runtime/sdkRuntimeProtocol'
+import { SDK_RUNTIME_REQUIRED_RPC_METHODS } from '../../src/shared/infrastructure/sdk-runtime/sdkRuntimeProtocol'
 import {
   assertSdkRuntimePackageContract,
   loadSdkRuntimePackage,
@@ -28,9 +26,6 @@ import {
   installedSdkRuntimePackageVersion,
 } from './sdkRuntimePackageStore'
 import type { SdkRuntimeRunPromptEventSink } from './sdkRuntimeTurnEvents'
-import {
-  registerSdkRuntimeHandler,
-} from './sdkRuntimeHost'
 import {
   resolveAgentRuntimeAccountConfig,
   type AgentRuntimeAccountConfig,
@@ -57,11 +52,6 @@ import {
   sdkRuntimeProviderResumeTokenFromResult,
   syncProviderThreadResumeToken,
 } from './sdkRuntimeRequestHandler'
-import {
-  createCodexAppServerRuntimeHandler,
-  createMovaAppServerRuntimeHandler,
-  type AppServerRuntimeHandlerOptions,
-} from './appServerRuntimeHandler'
 
 type CodexConstructor = new (...args: unknown[]) => CodexClient
 type CodexClient = {
@@ -78,32 +68,9 @@ type CodexLikeRuntimeApi = 'codex-sdk' | 'mova-sdk'
 
 type ClaudeQuery = (input: { prompt: string; options?: Record<string, unknown> }) => AsyncIterable<unknown>
 
-interface SdkRuntimeDefaultHandlerOptions extends AppServerRuntimeHandlerOptions {
+export interface SdkRuntimeDefaultHandlerOptions {
   moduleLoader?: SdkRuntimeModuleLoader
   defaultWorkspaceDir?: () => string
-}
-
-export function installDefaultSdkRuntimeHandlers(options: SdkRuntimeDefaultHandlerOptions = {}): () => void {
-  const disposers = [
-    registerSdkRuntimeHandler('codex-app-server', createCodexAppServerRuntimeHandler(options), {
-      supportedMethods: SDK_RUNTIME_REQUIRED_RPC_METHODS,
-    }),
-    registerSdkRuntimeHandler('mova-app-server', createMovaAppServerRuntimeHandler(options), {
-      supportedMethods: SDK_RUNTIME_REQUIRED_RPC_METHODS,
-    }),
-    registerSdkRuntimeHandler('codex-sdk', createCodexSdkRuntimeHandler(options), {
-      supportedMethods: SDK_RUNTIME_REQUIRED_RPC_METHODS,
-    }),
-    registerSdkRuntimeHandler('mova-sdk', createMovaSdkRuntimeHandler(options), {
-      supportedMethods: SDK_RUNTIME_REQUIRED_RPC_METHODS,
-    }),
-    registerSdkRuntimeHandler('claude-sdk', createClaudeSdkRuntimeHandler(options), {
-      supportedMethods: SDK_RUNTIME_REQUIRED_RPC_METHODS,
-    }),
-  ]
-  return () => {
-    for (const dispose of disposers) dispose()
-  }
 }
 
 export function createCodexSdkRuntimeHandler(options: SdkRuntimeDefaultHandlerOptions = {}) {
@@ -437,6 +404,7 @@ function describeRuntime(
       ...(contract.requiredRpcMethods ? { requiredRpcMethods: contract.requiredRpcMethods } : {}),
       thread: contract.thread,
       capabilities: contract.capabilities,
+      support: contract.support,
     },
     sdk: {
       packageName,

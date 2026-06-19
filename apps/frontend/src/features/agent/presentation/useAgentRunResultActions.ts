@@ -3,12 +3,13 @@ import type { Dispatch, SetStateAction } from 'react'
 import type { AgentRun, ProviderSessionEventV2 } from '@movscript/core/agent/protocol'
 import { upsertInteractionRunSnapshot } from '@/features/agent/domain/agentRunInteraction'
 import { createAgentProviderSessionCommandService } from '@/features/agent/application/agentProviderSessionCommandService'
-import { providerSessionAssistantProgressFromEvent } from '@/shared/infrastructure/provider-session-client/providerSessionEventFacts'
-import type { AgentConversationRuntimePatch } from '@/features/agent/state/agentSessionStore'
+import { providerSessionAssistantProgressFromEvent } from '@/features/agent/infrastructure/agentProviderSessionCompatibility'
+import type { AgentConversationRuntimePatch } from '@/features/agent/state/agentSessionRuntimeModel'
 
 export interface UseAgentRunResultActionsInput {
   conversationId: string
-  sessionId?: string
+  providerSessionTreeId?: string
+  sessionId?: string // legacy provider-session input; prefer providerSessionTreeId.
   setConversationRun: (conversationId: string, run: AgentRun, patch?: AgentConversationRuntimePatch) => void
   setSubmittedInteractionRuns: Dispatch<SetStateAction<AgentRun[]>>
   recordLiveTraceEvent: (event: ProviderSessionEventV2) => void
@@ -17,13 +18,15 @@ export interface UseAgentRunResultActionsInput {
 
 export function useAgentRunResultActions({
   conversationId,
-  sessionId,
+  providerSessionTreeId,
+  sessionId: legacySessionId,
   setConversationRun,
   setSubmittedInteractionRuns,
   recordLiveTraceEvent,
   updateStreamingAssistantText,
 }: UseAgentRunResultActionsInput) {
-  const commandService = useMemo(() => createAgentProviderSessionCommandService({ sessionId }), [sessionId])
+  const normalizedProviderSessionTreeId = providerSessionTreeId?.trim() || legacySessionId?.trim() || undefined
+  const commandService = useMemo(() => createAgentProviderSessionCommandService({ providerSessionTreeId: normalizedProviderSessionTreeId }), [normalizedProviderSessionTreeId])
 
   const streamFollowUpRun = useCallback(async (runId: string) => {
     return await commandService.streamRun(runId, {

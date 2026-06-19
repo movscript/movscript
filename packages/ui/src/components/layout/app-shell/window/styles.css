@@ -159,6 +159,49 @@
   transform: none;
 }
 
+.app-window-inline-title {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(360px, 38vw);
+  max-width: min(360px, 38vw);
+  height: 28px;
+  transform: translate(-50%, -50%);
+  border: 0;
+  background: transparent;
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-caption);
+  font-weight: 650;
+  line-height: 1;
+  text-align: center;
+}
+
+.app-window-inline-title-input {
+  padding-inline: var(--ms-space-2);
+  outline: none;
+}
+
+.app-window-inline-title-button {
+  justify-content: center;
+  border-radius: var(--ms-radius-sm);
+  padding-inline: var(--ms-space-2);
+}
+
+.app-window-inline-title-button .ms-button__content {
+  width: 100%;
+  min-width: 0;
+  justify-content: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-window-inline-title-button:hover:not(:disabled),
+.app-window-inline-title-button:active:not(:disabled),
+.app-window-inline-title-button:focus-visible {
+  transform: translate(-50%, -50%);
+}
+
 .app-window-brand-button {
   position: absolute;
   left: 50%;

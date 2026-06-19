@@ -13,29 +13,31 @@ interface UseAgentActivePlanSnapshotInput {
   activeRun: AgentRun | null
   providerSessionEnabled: boolean
   providerSessionOnline: boolean
-  sessionId?: string
+  providerSessionTreeId?: string
+  sessionId?: string // legacy provider-session input; prefer providerSessionTreeId.
 }
 
 export function useAgentActivePlanSnapshot({
   activeRun,
   providerSessionEnabled,
   providerSessionOnline,
-  sessionId,
+  providerSessionTreeId,
+  sessionId: legacySessionId,
 }: UseAgentActivePlanSnapshotInput) {
   const queryClient = useQueryClient()
   const taskGraphId = activeRun?.taskGraphId
   const enabled = providerSessionEnabled && providerSessionOnline && !!taskGraphId
-  const trimmedSessionId = sessionId?.trim() || null
+  const normalizedProviderSessionTreeId = providerSessionTreeId?.trim() || legacySessionId?.trim() || null
   const queryKey = useMemo(
-    () => agentPlanKeys.taskGraphSnapshot(trimmedSessionId, taskGraphId ?? null),
-    [trimmedSessionId, taskGraphId],
+    () => agentPlanKeys.taskGraphSnapshot(normalizedProviderSessionTreeId, taskGraphId ?? null),
+    [normalizedProviderSessionTreeId, taskGraphId],
   )
   const query = useQuery<AgentTaskGraphSnapshot>({
     queryKey,
     queryFn: async () => {
       if (!taskGraphId) throw new Error('active run is not attached to a task graph')
       return fetchAgentPlanTaskGraphSnapshot({
-        sessionId: trimmedSessionId ?? undefined,
+        providerSessionTreeId: normalizedProviderSessionTreeId ?? undefined,
         taskGraphId,
       })
     },
@@ -59,7 +61,7 @@ export function useAgentActivePlanSnapshot({
     if (!enabled || !taskGraphId) return
     const controller = new AbortController()
     void streamAgentPlanTaskGraphSnapshot({
-      sessionId: trimmedSessionId ?? undefined,
+      providerSessionTreeId: normalizedProviderSessionTreeId ?? undefined,
       taskGraphId,
       signal: controller.signal,
       onProviderEvent: (event) => {
@@ -70,7 +72,7 @@ export function useAgentActivePlanSnapshot({
     return () => {
       controller.abort()
     }
-  }, [enabled, queryClient, queryKey, taskGraphId, trimmedSessionId])
+  }, [enabled, queryClient, queryKey, taskGraphId, normalizedProviderSessionTreeId])
 
   return query
 }

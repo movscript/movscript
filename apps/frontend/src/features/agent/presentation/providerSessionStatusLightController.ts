@@ -12,7 +12,7 @@ import { STOPPED_PROVIDER_SESSION_STATUS_LIGHT } from '@/features/agent/presenta
 
 export interface ProviderSessionStatusLightWatchTarget {
   conversationId: string
-  sessionId?: string
+  providerSessionTreeId?: string
   threadId?: string
 }
 
@@ -58,14 +58,14 @@ interface ProviderSessionStatusWatchRef {
   targetKey: string
   kind: 'session' | 'thread'
   id: string
-  sessionId?: string
+  providerSessionTreeId?: string
 }
 
 interface ProviderSessionStatusConnection {
   targetKey: string
   kind: 'session' | 'thread'
   id: string
-  sessionId?: string
+  providerSessionTreeId?: string
   controller: AbortController
 }
 
@@ -136,9 +136,9 @@ export class ProviderSessionStatusLightController {
   }
 
   private clientForConnection(connection: ProviderSessionStatusConnection): ProviderSessionStatusLightClient {
-    const sessionId = connection.sessionId?.trim()
-    if (!sessionId || !this.client.forSession) return this.client
-    return this.client.forSession({ sessionId })
+    const providerSessionTreeId = connection.providerSessionTreeId?.trim()
+    if (!providerSessionTreeId || !this.client.forSession) return this.client
+    return this.client.forSession({ sessionId: providerSessionTreeId })
   }
 
   private applyStatusEvent(connection: ProviderSessionStatusConnection, event: AgentProviderSessionStatusLightEvent): void {
@@ -175,8 +175,8 @@ export function providerSessionStatusLightTargetKey(target: ProviderSessionStatu
 
 export function providerSessionStatusLightTargetKeys(target: ProviderSessionStatusLightWatchTarget): string[] {
   const keys: string[] = []
-  const sessionId = target.sessionId?.trim()
-  if (sessionId) keys.push(`session:${sessionId}`)
+  const providerSessionTreeId = target.providerSessionTreeId?.trim()
+  if (providerSessionTreeId) keys.push(`session:${providerSessionTreeId}`)
   const threadId = target.threadId?.trim()
   if (threadId) keys.push(`thread:${threadId}`)
   return keys
@@ -190,10 +190,24 @@ export function providerSessionStatusLightTargetsSignature(targets: ProviderSess
 
 function providerSessionStatusWatchRefFromTarget(target: ProviderSessionStatusLightWatchTarget): ProviderSessionStatusWatchRef[] {
   const refs: ProviderSessionStatusWatchRef[] = []
-  const sessionId = target.sessionId?.trim()
-  if (sessionId) refs.push({ targetKey: `session:${sessionId}`, kind: 'session', id: sessionId, sessionId })
+  const providerSessionTreeId = target.providerSessionTreeId?.trim()
+  if (providerSessionTreeId) {
+    refs.push({
+      targetKey: `session:${providerSessionTreeId}`,
+      kind: 'session',
+      id: providerSessionTreeId,
+      providerSessionTreeId,
+    })
+  }
   const threadId = target.threadId?.trim()
-  if (threadId) refs.push({ targetKey: `thread:${threadId}`, kind: 'thread', id: threadId, ...(sessionId ? { sessionId } : {}) })
+  if (threadId) {
+    refs.push({
+      targetKey: `thread:${threadId}`,
+      kind: 'thread',
+      id: threadId,
+      ...(providerSessionTreeId ? { providerSessionTreeId } : {}),
+    })
+  }
   return refs
 }
 
@@ -210,7 +224,7 @@ function logProviderSessionStatusLightDiagnostic(event: string, connection: Prov
     targetKey: connection.targetKey,
     kind: connection.kind,
     id: connection.id,
-    sessionId: connection.sessionId,
+    providerSessionTreeId: connection.providerSessionTreeId,
     ...details,
   })
 }

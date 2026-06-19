@@ -21,7 +21,7 @@ import {
   sdkRuntimeProviderTarget,
 } from './agentCapabilityResolver'
 import { resolveMovScriptBundledPluginSource } from './movscriptBundledPluginSource'
-import { ensureSdkRuntimeRootBundledPlugin } from './sdkRuntimePluginCatalog'
+import { ensureAgentRuntimeRootBundledPlugin } from './agentRuntimeBundledPluginCatalog'
 
 const DEFAULT_SKILL_LOCK_PATH = ['.agents', 'plugins', 'default-skills-lock.json']
 
@@ -60,7 +60,7 @@ export function ensureSdkRuntimeDefaultSkills(input: {
   let rootPluginPrepared = false
 
   if (!containsSkillDoc(workspaceTargetDir) && !defaultSkillTargetWasDisabled(workspaceDir, target, workspaceTargetDir)) {
-    const materialized = ensureSdkRuntimeRootBundledPlugin({ workspaceDir, providerTarget: target })
+    const materialized = ensureAgentRuntimeRootBundledPlugin({ workspaceDir, providerTarget: target })
     installed = materialized.installed
     rootPluginPrepared = materialized.prepared
   }

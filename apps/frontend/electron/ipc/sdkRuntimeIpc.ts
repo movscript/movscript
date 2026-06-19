@@ -1,16 +1,16 @@
 import { ipcMain, type WebContents } from 'electron'
 import {
-  notifySdkRuntime,
-  registerSdkRuntimeSubscription,
-  requestSdkRuntime,
-  respondToSdkRuntimeServerRequest,
-} from '../services/sdkRuntimeHost'
-import { installDefaultSdkRuntimeHandlers } from '../services/sdkRuntimeDefaultHandlers'
+  notifyAgentRuntime,
+  registerAgentRuntimeSubscription,
+  requestAgentRuntime,
+  respondToAgentRuntimeServerRequest,
+} from '../services/agentRuntimeHost'
+import { installAgentRuntimeDefaultHandlers } from '../services/agentRuntimeDefaultHandlers'
 import type {
   ElectronSdkRuntimeNotifyInput,
   ElectronSdkRuntimeRequestInput,
 } from '../../src/shared/contracts/electronApi'
-import type { SdkRuntimeRpcRequestMap } from '../../src/shared/infrastructure/sdk-runtime/sdkRuntimeProtocol'
+import type { AgentRuntimeRpcRequestMap } from '../../src/shared/infrastructure/agent-runtime/agentRuntimeProtocol'
 
 const SDK_RUNTIME_IPC_CHANNELS = {
   request: 'sdk-runtime:request',
@@ -24,17 +24,17 @@ let defaultHandlersInstalled = false
 
 export function registerSdkRuntimeIpcHandlers(): void {
   if (!defaultHandlersInstalled) {
-    installDefaultSdkRuntimeHandlers()
+    installAgentRuntimeDefaultHandlers()
     defaultHandlersInstalled = true
   }
 
   ipcMain.handle(SDK_RUNTIME_IPC_CHANNELS.request, async (_event, input?: ElectronSdkRuntimeRequestInput) => {
-    console.log('[Movscript SDK runtime flow] ipc.request', JSON.stringify(sdkRuntimeInputLogPayload(input)))
+    console.log('[Movscript Agent runtime flow] ipc.request', JSON.stringify(agentRuntimeInputLogPayload(input)))
     try {
-      return await requestSdkRuntime(input)
+      return await requestAgentRuntime(input)
     } catch (error) {
-      console.error('[Movscript SDK runtime flow] ipc.requestError', JSON.stringify({
-        ...sdkRuntimeInputLogPayload(input),
+      console.error('[Movscript Agent runtime flow] ipc.requestError', JSON.stringify({
+        ...agentRuntimeInputLogPayload(input),
         error: errorMessage(error),
       }))
       throw error
@@ -42,17 +42,17 @@ export function registerSdkRuntimeIpcHandlers(): void {
   })
 
   ipcMain.handle(SDK_RUNTIME_IPC_CHANNELS.notify, (event, input?: ElectronSdkRuntimeNotifyInput) => {
-    const dispose = sdkRuntimeSubscriptionForNotify(event.sender, input)
+    const dispose = agentRuntimeSubscriptionForNotify(event.sender, input)
     if (dispose) event.sender.once('destroyed', dispose)
-    return notifySdkRuntime(input)
+    return notifyAgentRuntime(input)
   })
 
   ipcMain.handle(SDK_RUNTIME_IPC_CHANNELS.response, (_event, input) => {
-    return respondToSdkRuntimeServerRequest(input)
+    return respondToAgentRuntimeServerRequest(input)
   })
 }
 
-function sdkRuntimeInputLogPayload(input?: ElectronSdkRuntimeRequestInput): Record<string, unknown> {
+function agentRuntimeInputLogPayload(input?: ElectronSdkRuntimeRequestInput): Record<string, unknown> {
   const params = input?.params
   return {
     method: input?.method,
@@ -69,11 +69,11 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
-function sdkRuntimeSubscriptionForNotify(sender: WebContents, input?: ElectronSdkRuntimeNotifyInput): (() => void) | undefined {
+function agentRuntimeSubscriptionForNotify(sender: WebContents, input?: ElectronSdkRuntimeNotifyInput): (() => void) | undefined {
   if (!input || (input.method !== 'runtime/notify/threadSubscribe' && input.method !== 'runtime/notify/serverRequestsSubscribe')) return undefined
   const params = input.params
   const threadParams = input.method === 'runtime/notify/threadSubscribe'
-    ? params as SdkRuntimeRpcRequestMap['runtime/notify/threadSubscribe']
+    ? params as AgentRuntimeRpcRequestMap['runtime/notify/threadSubscribe']
     : undefined
   const subscriptionId = [
     sender.id,
@@ -81,7 +81,7 @@ function sdkRuntimeSubscriptionForNotify(sender: WebContents, input?: ElectronSd
     params.provider.id,
     threadParams?.threadId ?? 'global',
   ].join(':')
-  return registerSdkRuntimeSubscription({
+  return registerAgentRuntimeSubscription({
     subscriptionId,
     targetId: String(sender.id),
     runtimeId: params.runtime.id,

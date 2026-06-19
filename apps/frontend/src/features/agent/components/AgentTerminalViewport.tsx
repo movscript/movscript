@@ -12,7 +12,7 @@ import {
 export function ShellTerminalViewport({
   active,
   disabled,
-  sessionId,
+  shellId,
   runtimeFor,
   resizeShell,
   sendShellData,
@@ -20,7 +20,7 @@ export function ShellTerminalViewport({
 }: {
   active: boolean
   disabled: boolean
-  sessionId: string
+  shellId: string
   runtimeFor: (id: string) => ShellRuntime
   resizeShell: (id: string) => void
   sendShellData: (id: string, data: string) => void
@@ -31,7 +31,7 @@ export function ShellTerminalViewport({
   useEffect(() => {
     const host = hostRef.current
     if (!host) return undefined
-    const runtime = runtimeFor(sessionId)
+    const runtime = runtimeFor(shellId)
     if (runtime.terminal) return undefined
     runtime.host = host
 
@@ -56,12 +56,12 @@ export function ShellTerminalViewport({
     runtime.fitAddon = fitAddon
     if (runtime.outputBuffer) terminal.write(runtime.outputBuffer)
 
-    const inputDisposable = terminal.onData((data) => sendShellData(sessionId, data))
-    const resizeObserver = new ResizeObserver(() => resizeShell(sessionId))
+    const inputDisposable = terminal.onData((data) => sendShellData(shellId, data))
+    const resizeObserver = new ResizeObserver(() => resizeShell(shellId))
     resizeObserver.observe(host)
     const frame = window.requestAnimationFrame(() => {
-      resizeShell(sessionId)
-      if (active) void startShell(sessionId)
+      resizeShell(shellId)
+      if (active) void startShell(shellId)
     })
 
     return () => {
@@ -74,13 +74,13 @@ export function ShellTerminalViewport({
       if (runtime.host === host) runtime.host = null
       disposeTerminal(terminal)
     }
-  }, [active, disabled, resizeShell, runtimeFor, sendShellData, sessionId, startShell])
+  }, [active, disabled, resizeShell, runtimeFor, sendShellData, shellId, startShell])
 
   useEffect(() => {
     if (!active) return
-    runtimeFor(sessionId).terminal?.focus()
-    resizeShell(sessionId)
-  }, [active, resizeShell, runtimeFor, sessionId])
+    runtimeFor(shellId).terminal?.focus()
+    resizeShell(shellId)
+  }, [active, resizeShell, runtimeFor, shellId])
 
   return (
     <div

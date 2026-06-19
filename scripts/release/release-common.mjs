@@ -21,6 +21,7 @@ export const ffmpegStaticLicense = 'GPL-3.0-or-later'
 export const ffmpegStaticBaseUrl = 'https://github.com/eugeneware/ffmpeg-static/releases/download'
 export const ffmpegStaticDefaultVersion = 'ffmpeg version 6.1.1-static'
 export const ffmpegVersionTimeoutMs = 30000
+export const ffmpegProbeAttempts = 2
 
 export const ffmpegMetadataFields = Object.freeze([
   'arch',
@@ -398,12 +399,7 @@ export function verifyDesktopFFmpeg(path, cwd = process.cwd(), spawn = spawnSync
   const metadataError = verifyDesktopFFmpegMetadata(path, expected)
   if (metadataError) return metadataError
   if (expected.runCheck === false) return ''
-  const result = spawn(path, ['-version'], {
-    cwd,
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-    timeout: timeoutMs,
-  })
+  const result = runFFmpegProbe(path, ['-version'], cwd, spawn, timeoutMs)
   if (!result.error && result.status === 0) {
     const version = result.stdout?.split(/\r?\n/)[0]?.trim() || 'ffmpeg'
     const metadata = readDesktopFFmpegMetadata(path)
@@ -414,10 +410,11 @@ export function verifyDesktopFFmpeg(path, cwd = process.cwd(), spawn = spawnSync
     if (filtersError) return filtersError
     return ''
   }
-  const timedOut = result.error?.code === 'ETIMEDOUT' || result.signal === 'SIGTERM'
+  const timedOut = isTimedOutSpawnResult(result)
   const details = [
     `Desktop package ffmpeg prerequisite is not runnable: ${path}`,
     timedOut ? `ffmpeg -version timed out after ${Math.round(timeoutMs / 1000)}s` : '',
+    timedOut ? `ffmpeg -version did not complete after ${ffmpegProbeAttempts} attempts` : '',
     result.error?.message,
     result.stderr?.trim(),
   ].filter(Boolean)
@@ -425,17 +422,13 @@ export function verifyDesktopFFmpeg(path, cwd = process.cwd(), spawn = spawnSync
 }
 
 export function verifyDesktopFFmpegFilters(path, cwd = process.cwd(), spawn = spawnSync, timeoutMs = ffmpegVersionTimeoutMs, filters = requiredFFmpegFilters) {
-  const result = spawn(path, ['-hide_banner', '-filters'], {
-    cwd,
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-    timeout: timeoutMs,
-  })
+  const result = runFFmpegProbe(path, ['-hide_banner', '-filters'], cwd, spawn, timeoutMs)
   if (result.error || result.status !== 0) {
-    const timedOut = result.error?.code === 'ETIMEDOUT' || result.signal === 'SIGTERM'
+    const timedOut = isTimedOutSpawnResult(result)
     return [
       `Desktop package ffmpeg filters are not inspectable: ${path}`,
       timedOut ? `ffmpeg -filters timed out after ${Math.round(timeoutMs / 1000)}s` : '',
+      timedOut ? `ffmpeg -filters did not complete after ${ffmpegProbeAttempts} attempts` : '',
       result.error?.message,
       result.stderr?.trim(),
     ].filter(Boolean).join('\n')
@@ -539,6 +532,24 @@ export function verifyDesktopFFmpegMetadata(path, expected = {}) {
     return `Desktop package ffmpeg metadata sha256 mismatch: ${metadataPath}\nExpected ${metadata.sha256}, got ${actualSha}`
   }
   return ''
+}
+
+function runFFmpegProbe(path, args, cwd, spawn, timeoutMs) {
+  let result
+  for (let attempt = 1; attempt <= ffmpegProbeAttempts; attempt += 1) {
+    result = spawn(path, args, {
+      cwd,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: timeoutMs,
+    })
+    if (!isTimedOutSpawnResult(result)) return result
+  }
+  return result
+}
+
+function isTimedOutSpawnResult(result) {
+  return result?.error?.code === 'ETIMEDOUT' || result?.signal === 'SIGTERM'
 }
 
 export function readDesktopFFmpegMetadata(path) {

@@ -50,27 +50,63 @@ export async function installProviderMarketplacePluginToProject(
   context: ProjectPluginContext | string = {},
 ): Promise<ProjectPluginSnapshot> {
   const api = readElectronApi()
-  if (!api?.installProjectPlugin) throw new Error('当前窗口没有项目插件安装能力')
+  if (!api?.setProjectPluginEnabled) throw new Error('当前窗口没有项目插件启用能力')
+  await installProviderMarketplacePluginToSystem(item, context)
+  return api.setProjectPluginEnabled({
+    ...normalizeProjectPluginContext(context),
+    pluginKey: systemPluginKeyForMarketplaceItem(item),
+    enabled: true,
+    providerTargets: providerTargetsForMarketplaceItem(item),
+  })
+}
+
+export async function installProviderMarketplacePluginToSystem(
+  item: ProviderPluginMarketplaceItem,
+  context: ProjectPluginContext | string = {},
+): Promise<ProjectPluginSnapshot> {
+  const api = readElectronApi()
+  if (!api?.installSystemPlugin) throw new Error('当前窗口没有系统插件安装能力')
   const providerInstallResult = item.sourceType === 'local'
     ? undefined
     : await installProviderMarketplacePlugin(item)
   const installedSourcePath = sourcePathFromProviderInstallResult(providerInstallResult)
-  return api.installProjectPlugin({
+  const sourcePath = installedSourcePath ?? item.sourcePath
+  if (!sourcePath) throw new Error(`插件 ${item.displayName || item.name} 没有可缓存的本地来源`)
+  return api.installSystemPlugin({
     ...normalizeProjectPluginContext(context),
     id: item.id,
     name: item.name,
     displayName: item.displayName,
     version: item.version,
     description: item.description,
-    marketplaceName: PROJECT_PLUGIN_MARKETPLACE_NAME,
+    marketplaceName: item.marketplaceName,
+    marketplacePath: item.marketplacePath,
     sourceMarketplaceName: item.marketplaceName,
     sourceMarketplacePath: item.marketplacePath,
-    pluginKey: `${item.name}@${PROJECT_PLUGIN_MARKETPLACE_NAME}`,
+    pluginKey: systemPluginKeyForMarketplaceItem(item),
     sourceType: item.sourceType,
-    sourcePath: installedSourcePath ?? item.sourcePath,
+    sourcePath,
     providerTargets: providerTargetsForMarketplaceItem(item),
-    enabled: true,
   })
+}
+
+export async function uninstallSystemPlugin(
+  context: ProjectPluginContext | string,
+  pluginKey: string,
+): Promise<ProjectPluginSnapshot> {
+  const api = readElectronApi()
+  if (!api?.uninstallSystemPlugin) throw new Error('当前窗口没有系统插件卸载能力')
+  return api.uninstallSystemPlugin({ ...normalizeProjectPluginContext(context), pluginKey })
+}
+
+export async function setProjectPluginEnabled(
+  context: ProjectPluginContext | string,
+  pluginKey: string,
+  enabled: boolean,
+): Promise<ProjectPluginSnapshot> {
+  const api = readElectronApi()
+  if (!api?.setProjectPluginEnabled) throw new Error('当前窗口没有项目插件启停能力')
+  return api.setProjectPluginEnabled({ ...normalizeProjectPluginContext(context), pluginKey, enabled })
 }
 
 export async function setProjectSkillEnabled(
@@ -97,6 +133,10 @@ function providerTargetsForMarketplaceItem(item: ProviderPluginMarketplaceItem):
   if (explicitTargets.length > 0) return explicitTargets
   if (isProjectSkillProviderTarget(item.providerKind)) return [item.providerKind]
   throw new Error(`Plugin ${item.displayName || item.name} does not declare a project skill provider target.`)
+}
+
+function systemPluginKeyForMarketplaceItem(item: ProviderPluginMarketplaceItem): string {
+  return item.id.includes('@') ? item.id : `${item.name}@${item.marketplaceName}`
 }
 
 function isProjectSkillProviderTarget(value: string): value is ElectronProjectSkillProviderTarget {

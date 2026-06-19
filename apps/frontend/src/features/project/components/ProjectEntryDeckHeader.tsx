@@ -65,8 +65,8 @@ export function ProjectEntryDeckHeader({
 
   return (
     <div className="project-entry-deck-header app-window-no-drag">
-      <div className="app-window-route-title project-entry-deck-header__project">
-        <span className="app-window-route-title__text">{projectName}</span>
+      <div className="project-entry-deck-header__project" title={projectName}>
+        <span className="project-entry-deck-header__project-text">{projectName}</span>
       </div>
       <WorkbenchAppTabBar
         className="project-entry-deck-header__tab-bar"

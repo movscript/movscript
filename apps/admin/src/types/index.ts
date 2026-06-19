@@ -396,6 +396,25 @@ export interface AIModelCatalogEntry {
   UpdatedAt: string
 }
 
+export interface AIModelCatalogTemplate {
+  id: string
+  default_public_model_id: string
+  model_id: string
+  display_name: string
+  capabilities: string[]
+  pricing_mode: string
+  adapter_type: string
+  accepts_image_input: boolean
+  max_input_images: number
+  max_input_videos: number
+  image_edit_field?: string
+  supported_params?: ParamDef[]
+  ref_input_usd_per_1m?: number
+  ref_output_usd_per_1m?: number
+  ref_usd_per_image?: number
+  ref_usd_per_second?: number
+}
+
 // CredField describes one credential input field for an adapter.
 export interface CredField {
   key: string

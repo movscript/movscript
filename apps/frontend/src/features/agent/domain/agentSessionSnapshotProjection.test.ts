@@ -118,6 +118,7 @@ test('buildAgentSessionSnapshotView separates session plans, child agents, and g
 
   const view = buildAgentSessionSnapshotView(snapshot)
 
+  assert.equal(view.providerSessionTreeId, 'session_1')
   assert.equal(view.sessionId, 'session_1')
   assert.equal(view.rootThread?.id, 'thread_root')
   assert.equal(view.interactiveThread?.id, 'thread_root')

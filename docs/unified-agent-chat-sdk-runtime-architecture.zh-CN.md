@@ -1,5 +1,7 @@
 # Unified Agent Chat SDK Runtime 架构设计
 
+> 状态：历史设计文档。当前 Agent runtime 边界以 [Agent Runtime 边界重构规范](./agent-runtime-boundary-refactor.zh-CN.md) 为准。本文中关于 “SDK runtime 是唯一普通聊天执行路径” 和 “app-server 彻底废弃” 的表述已经过时；app-server 现在应被视为 Codex/Mova 的一等 `RuntimeBackend`。
+
 本文定义 MovScript 桌面端统一 Agent Chat 的目标架构。目标不是建设多 Agent 协作编排系统，而是建设一个用户可以在 Codex、Mova、Claude 之间切换的统一 Agent Chat。系统需要保持同一套聊天 UI、同一套会话索引、同一套运行时契约，同时允许每个 provider 通过自己的 SDK 执行。
 
 本文是面向重构和验收的设计文档。它描述目标边界、模块职责、数据模型、调用链、迁移计划和验收标准。
@@ -22,8 +24,8 @@ Frontend Agent UI
 
 - 用户看到的是 `AgentProfile`，不是 runtime、SDK package、app-server 进程或 provider-session。
 - UI 只依赖 `AgentChatDataSource`，不直接依赖 Codex、Mova、Claude 私有协议。
-- SDK runtime 是唯一普通聊天执行路径。
-- `app-server` 彻底废弃，不再作为普通 Agent Chat 的运行、鉴权、配置或会话路径。
+- 历史目标曾要求 SDK runtime 成为唯一普通聊天执行路径；当前以 `AgentRuntime` + 多 `RuntimeBackend` 为准。
+- 历史目标曾要求 `app-server` 退出普通 Agent Chat；当前 `app-server` 是 Codex/Mova 的一等 `RuntimeBackend`。
 - 切换当前 Agent 只影响新会话，不改变历史会话绑定的 provider/runtime。
 - 模型选择按 provider/runtime 隔离，不能继续作为全局单值长期存在。
 
@@ -892,9 +894,9 @@ Settings/Console
 
 Readiness 必须是结构化数据，UI 再投影成 copy。
 
-## app-server 废弃边界
+## 历史 app-server 迁移边界
 
-以下能力全部废弃：
+以下是本文历史目标下计划迁移的 app-server 能力；当前是否保留以 `agent-runtime-boundary-refactor.zh-CN.md` 为准：
 
 - app-server binary discovery。
 - app-server process lifecycle。

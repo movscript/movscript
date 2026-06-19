@@ -3,16 +3,26 @@ import {
   type ProviderConfig,
   type ProviderSettings,
 } from '@/shared/infrastructure/providerConfigStore'
-import { providerSessionClient, type MovScriptWorkspaceConfig, type MovScriptWorkspaceConfigSaveInput } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentProfile } from '@/features/agent/application/agentProfileModel'
+import {
+  agentProviderSessionCompatibilityClient,
+  type MovScriptWorkspaceConfig,
+  type MovScriptWorkspaceConfigSaveInput,
+} from '@/features/agent/infrastructure/agentProviderSessionCompatibility'
 
 export type AgentProviderSelectionConfig = NonNullable<MovScriptWorkspaceConfig['agentSelection']>
 
 export function agentProviderActivationSettings(settings: ProviderSettings, provider: ProviderConfig): ProviderSettings {
   if (!provider.enabled) return normalizeProviderSettings(settings)
+  return agentProfileActivationSettings(settings, provider)
+}
+
+export function agentProfileActivationSettings(settings: ProviderSettings, profile: Pick<AgentProfile, 'id' | 'enabled'>): ProviderSettings {
+  if (!profile.enabled) return normalizeProviderSettings(settings)
   return normalizeProviderSettings({
     ...settings,
-    defaultProviderId: provider.id,
-    newConversationProviderId: provider.id,
+    defaultProviderId: profile.id,
+    newConversationProviderId: profile.id,
   })
 }
 
@@ -34,11 +44,11 @@ export function agentProviderSettingsWithWorkspaceSelection(settings: ProviderSe
 }
 
 export function loadAgentProviderWorkspaceConfig(): Promise<MovScriptWorkspaceConfig> {
-  return providerSessionClient.getWorkspaceConfig()
+  return agentProviderSessionCompatibilityClient('provider-activation-settings-compat').getWorkspaceConfig()
 }
 
 export function saveAgentProviderWorkspaceConfig(input: MovScriptWorkspaceConfigSaveInput): Promise<MovScriptWorkspaceConfig> {
-  return providerSessionClient.saveWorkspaceConfig(input)
+  return agentProviderSessionCompatibilityClient('provider-activation-settings-compat').saveWorkspaceConfig(input)
 }
 
 export async function commitAgentProviderActivation(input: {
@@ -50,7 +60,22 @@ export async function commitAgentProviderActivation(input: {
   saveWorkspaceConfig?: (input: MovScriptWorkspaceConfigSaveInput) => Promise<unknown>
 }): Promise<void> {
   if (!input.provider.enabled) return
-  const settings = agentProviderActivationSettings(input.settings, input.provider)
+  await commitAgentProfileActivation({
+    ...input,
+    profile: input.provider,
+  })
+}
+
+export async function commitAgentProfileActivation(input: {
+  settings: ProviderSettings
+  profile: Pick<AgentProfile, 'id' | 'enabled'>
+  userId?: string
+  setSettings: (settings: ProviderSettings) => void
+  setActiveConversation: (userId: string, conversationId: string | null) => void
+  saveWorkspaceConfig?: (input: MovScriptWorkspaceConfigSaveInput) => Promise<unknown>
+}): Promise<void> {
+  if (!input.profile.enabled) return
+  const settings = agentProfileActivationSettings(input.settings, input.profile)
   input.setSettings(settings)
   if (input.userId) input.setActiveConversation(input.userId, null)
   await input.saveWorkspaceConfig?.({ agentSelection: agentProviderSelectionConfigFromSettings(settings) })

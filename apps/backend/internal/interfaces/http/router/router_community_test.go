@@ -52,6 +52,7 @@ func TestNewCommunityRegistersAdminRoutes(t *testing.T) {
 
 	expected := []string{
 		"GET /api/v1/admin/adapters",
+		"GET /api/v1/admin/model-catalog/templates",
 		"GET /api/v1/admin/model-catalog",
 		"POST /api/v1/admin/model-catalog",
 		"PUT /api/v1/admin/model-catalog/:id",

@@ -29,6 +29,7 @@ test('provider session query keys own thread and console cache prefixes', () => 
   assert.deepEqual(providerSessionThreadKeys.panelHistory, ['provider-session-panel-thread-history'])
   assert.deepEqual(providerSessionKeys.workspace, ['agent-console-provider-sessions', 'workspace'])
   assert.deepEqual(providerSessionKeys.workspaceProfile('codex'), ['agent-console-provider-sessions', 'workspace', 'codex'])
+  assert.deepEqual(providerSessionKeys.health('session_tree_1'), ['provider-session-health', 'session_tree_1'])
   assert.deepEqual(providerSessionRunKeys.console, ['agent-console-runs', 'provider-sessions'])
   assert.deepEqual(providerSessionRunKeys.consoleProfile('codex'), ['agent-console-runs', 'provider-sessions', 'codex'])
   assert.deepEqual(providerSessionThreadKeys.console, ['agent-console-threads', 'provider-sessions'])
@@ -106,6 +107,7 @@ test('provider session thread cache maps provider session summaries to thread su
   } satisfies ProviderSessionSummary)
 
   assert.equal(summary?.id, 'thread_interactive')
+  assert.equal(summary?.providerSessionTreeId, 'session_1')
   assert.equal(summary?.sessionId, 'session_1')
   assert.equal(summary?.title, 'Thread title')
   assert.equal(summary?.projectId, 13)
@@ -212,6 +214,8 @@ test('provider session thread list overlays workspace index with live thread tit
     assert.equal(summaries.length, 1)
     assert.equal(summaries[0]?.title, '真正的 Thread 标题')
     assert.equal(summaries[0]?.messageCount, 5)
+    assert.equal(summaries[0]?.providerSessionTreeId, 'session_1')
+    assert.equal(summaries[0]?.sessionId, 'session_1')
   } finally {
     client.listProviderSessionsFromWorkspace = original.listProviderSessionsFromWorkspace
     client.listThreads = original.listThreads
@@ -251,6 +255,7 @@ test('provider session run cache maps provider session summaries to run list ite
 
   assert.equal(runs.length, 1)
   assert.equal(runs[0]?.id, 'run_1')
+  assert.equal(runs[0]?.providerSessionTreeId, 'session_1')
   assert.equal(runs[0]?.sessionId, 'session_1')
   assert.equal(runs[0]?.workspaceDir, '/tmp/movscript-workspace')
   assert.equal(runs[0]?.status, 'requires_action')

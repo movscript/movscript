@@ -71,7 +71,7 @@ test('agent composer supports clipboard file uploads with a blocking resource tr
   const composerShellSource = readFileSync(resolve('src/features/agent/components/AgentComposerSection.tsx'), 'utf8')
   const composerToolbarSource = readFileSync(resolve('src/features/agent/components/AgentComposerToolbarSection.tsx'), 'utf8')
   const mentionEditorSource = readFileSync(resolve('src/features/agent/components/AgentMentionEditor.tsx'), 'utf8')
-  const dataSourceShellSource = readFileSync(resolve('src/features/agent/components/AgentChatDataSourceShell.tsx'), 'utf8')
+  const dataSourceShellSource = readAgentChatDataSourceShellContractSource()
   const shellViewSource = readFileSync(resolve('src/features/agent/components/AgentChatShellView.tsx'), 'utf8')
 
   assert.match(composerControllerSource, /function agentComposerClipboardFiles\(event: ClipboardEvent\): File\[\]/)
@@ -107,12 +107,13 @@ test('agent composer supports clipboard file uploads with a blocking resource tr
   assert.match(composerSectionSource, /onPaste=\{onComposerPaste\}/)
   assert.match(mentionEditorSource, /onPaste\?\.\(event\)/)
   assert.match(mentionEditorSource, /if \(event\.defaultPrevented\) return/)
-  assert.match(dataSourceShellSource, /onComposerPaste=\{\(event\) => void composer\.handleComposerPaste\(event\)\}/)
-  assert.match(shellViewSource, /onComposerPaste=\{onComposerPaste\}/)
+  assert.match(dataSourceShellSource, /composerPanel: buildAgentChatShellComposerPanel\(\{[\s\S]*onPaste: \(event: ClipboardEvent\) => void composer\.handleComposerPaste\(event\)/)
+  assert.match(shellViewSource, /onComposerPaste=\{composerPanel\.onPaste\}/)
+  assert.doesNotMatch(shellViewSource, /onComposerPaste=\{onComposerPaste\}/)
 })
 
 test('agent chat composer uses the same chrome in page and detail surfaces', () => {
-  const dataSourceShellSource = readFileSync(resolve('src/features/agent/components/AgentChatDataSourceShell.tsx'), 'utf8')
+  const dataSourceShellSource = readAgentChatDataSourceShellContractSource()
   const shellViewSource = readFileSync(resolve('src/features/agent/components/AgentChatShellView.tsx'), 'utf8')
   const shellPartsSource = readFileSync(resolve('src/features/agent/components/AgentChatDataSourceShellParts.tsx'), 'utf8')
   const panelShellLayoutCss = readFileSync(resolve('src/features/agent/components/AgentPanelShellLayoutUi.css'), 'utf8')
@@ -126,7 +127,7 @@ test('agent chat composer uses the same chrome in page and detail surfaces', () 
 })
 
 test('agent page chat keeps a stable layout shell when the first message is sent', () => {
-  const dataSourceShellSource = readFileSync(resolve('src/features/agent/components/AgentChatDataSourceShell.tsx'), 'utf8')
+  const dataSourceShellSource = readAgentChatDataSourceShellContractSource()
   const shellViewSource = readFileSync(resolve('src/features/agent/components/AgentChatShellView.tsx'), 'utf8')
   const shellPartsSource = readFileSync(resolve('src/features/agent/components/AgentChatDataSourceShellParts.tsx'), 'utf8')
   const shellCssSource = readFileSync(resolve('src/features/agent/components/AgentChatShellView.css'), 'utf8')
@@ -222,7 +223,7 @@ test('agent composer locks workspace context after a session starts', () => {
   const composerControllerSource = readAgentComposerControllerContractSource()
   const composerSectionSource = readFileSync(resolve('src/features/agent/components/AgentComposerSection.tsx'), 'utf8')
   const composerToolbarSource = readFileSync(resolve('src/features/agent/components/AgentComposerToolbarSection.tsx'), 'utf8')
-  const dataSourceShellSource = readFileSync(resolve('src/features/agent/components/AgentChatDataSourceShell.tsx'), 'utf8')
+  const dataSourceShellSource = readAgentChatDataSourceShellContractSource()
   const shellCoreStateSource = readFileSync(resolve('src/features/agent/application/useAgentChatShellCoreState.ts'), 'utf8')
   const shellViewSource = readFileSync(resolve('src/features/agent/components/AgentChatShellView.tsx'), 'utf8')
   const turnControlsSource = readFileSync(resolve('src/features/agent/application/useAgentChatTurnControls.ts'), 'utf8')
@@ -244,8 +245,9 @@ test('agent composer locks workspace context after a session starts', () => {
   assert.match(shellCoreStateSource, /const composerWorkspaceContextLocked = forceComposerWorkspaceContextLocked \|\| Boolean\(activeThreadId\)/)
   assert.match(dataSourceShellSource, /composerWorkspaceContextLocked: forceComposerWorkspaceContextLocked = false/)
   assert.match(dataSourceShellSource, /composerWorkspaceContextLocked: forceComposerWorkspaceContextLocked/)
-  assert.match(dataSourceShellSource, /composerWorkspaceContextLocked=\{composerWorkspaceContextLocked\}/)
-  assert.match(shellViewSource, /workspaceProjectLocked=\{composerWorkspaceContextLocked\}/)
+  assert.match(dataSourceShellSource, /composerWorkspaceContextLocked,/)
+  assert.match(shellViewSource, /composerPanel: AgentChatShellComposerPanelProps/)
+  assert.match(shellViewSource, /workspaceProjectLocked=\{composerPanel\.workspaceContextLocked\}/)
   assert.match(turnControlsSource, /workspaceContext: composer\.selectedWorkspaceContext/)
   assert.match(sessionStoreSource, /const workspaceContext = userWorkspaces\[input\.conversationId\]\?\.workspaceContext/)
   assert.match(sessionStoreSource, /input: '',[\s\S]*attachments: \[\],[\s\S]*workspaceContext/)
@@ -260,7 +262,7 @@ test('agent new conversation drafts bind selected project without starting a thr
     readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebarView.tsx'), 'utf8'),
   ].join('\n')
   const agentStoreSource = readFileSync(resolve('src/features/agent/state/agentStore.ts'), 'utf8')
-  const dataSourceShellSource = readFileSync(resolve('src/features/agent/components/AgentChatDataSourceShell.tsx'), 'utf8')
+  const dataSourceShellSource = readAgentChatDataSourceShellContractSource()
   const turnControlsSource = readFileSync(resolve('src/features/agent/application/useAgentChatTurnControls.ts'), 'utf8')
   const draftConversationSource = readFileSync(resolve('src/features/agent/application/useAgentChatDraftConversation.ts'), 'utf8')
   const threadCreationSource = readFileSync(resolve('src/features/agent/application/useAgentChatThreadCreation.ts'), 'utf8')
@@ -352,6 +354,14 @@ function readAgentComposerControllerContractSource(): string {
     readFileSync(resolve('src/features/agent/presentation/agentComposerAttachmentLifecycle.ts'), 'utf8'),
     readFileSync(resolve('src/features/agent/presentation/agentComposerClipboardFiles.ts'), 'utf8'),
     readFileSync(resolve('src/features/agent/presentation/agentComposerWorkspaceModel.ts'), 'utf8'),
+  ].join('\n')
+}
+
+function readAgentChatDataSourceShellContractSource(): string {
+  return [
+    readFileSync(resolve('src/features/agent/components/AgentChatDataSourceShell.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/application/useAgentChatDataSourceShellController.ts'), 'utf8'),
+    readFileSync(resolve('src/features/agent/application/agentChatShellViewModels.ts'), 'utf8'),
   ].join('\n')
 }
 

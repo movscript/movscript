@@ -4,24 +4,24 @@ import type {
   AgentChatServerRequestResponse,
 } from '@movscript/core/agent/chat'
 import type {
-  SdkRuntimeRpcMethod,
-  SdkRuntimeRpcRequestMap,
-  SdkRuntimeRpcResponseMap,
-} from '../infrastructure/sdk-runtime/sdkRuntimeProtocol'
+  AgentRuntimeRpcMethod,
+  AgentRuntimeRpcRequestMap,
+  AgentRuntimeRpcResponseMap,
+} from '../infrastructure/agent-runtime/agentRuntimeProtocol'
 
-export type ElectronSdkRuntimeRequestInput<M extends SdkRuntimeRpcMethod = SdkRuntimeRpcMethod> = {
+export type ElectronAgentRuntimeRequestInput<M extends AgentRuntimeRpcMethod = AgentRuntimeRpcMethod> = {
   method: M
-  params: SdkRuntimeRpcRequestMap[M]
+  params: AgentRuntimeRpcRequestMap[M]
 }
 
-export type ElectronSdkRuntimeNotifyInput<M extends SdkRuntimeRpcMethod = SdkRuntimeRpcMethod> = {
+export type ElectronAgentRuntimeNotifyInput<M extends AgentRuntimeRpcMethod = AgentRuntimeRpcMethod> = {
   method: M
-  params: SdkRuntimeRpcRequestMap[M]
+  params: AgentRuntimeRpcRequestMap[M]
 }
 
-export type ElectronSdkRuntimeRequestResult<M extends SdkRuntimeRpcMethod = SdkRuntimeRpcMethod> = SdkRuntimeRpcResponseMap[M]
+export type ElectronAgentRuntimeRequestResult<M extends AgentRuntimeRpcMethod = AgentRuntimeRpcMethod> = AgentRuntimeRpcResponseMap[M]
 
-export interface ElectronSdkRuntimeNotificationEvent {
+export interface ElectronAgentRuntimeNotificationEvent {
   runtimeId: string
   providerId?: string
   providerKind?: string
@@ -29,7 +29,7 @@ export interface ElectronSdkRuntimeNotificationEvent {
   notification: AgentChatNotification
 }
 
-export interface ElectronSdkRuntimeServerRequestEvent {
+export interface ElectronAgentRuntimeServerRequestEvent {
   runtimeId: string
   providerId?: string
   providerKind?: string
@@ -37,8 +37,15 @@ export interface ElectronSdkRuntimeServerRequestEvent {
   request: AgentChatServerRequest
 }
 
-export interface ElectronSdkRuntimeServerRequestResponseInput {
+export interface ElectronAgentRuntimeServerRequestResponseInput {
   runtimeId: string
   requestId: string
   response?: AgentChatServerRequestResponse
 }
+
+export type ElectronSdkRuntimeRequestInput<M extends AgentRuntimeRpcMethod = AgentRuntimeRpcMethod> = ElectronAgentRuntimeRequestInput<M>
+export type ElectronSdkRuntimeNotifyInput<M extends AgentRuntimeRpcMethod = AgentRuntimeRpcMethod> = ElectronAgentRuntimeNotifyInput<M>
+export type ElectronSdkRuntimeRequestResult<M extends AgentRuntimeRpcMethod = AgentRuntimeRpcMethod> = ElectronAgentRuntimeRequestResult<M>
+export type ElectronSdkRuntimeNotificationEvent = ElectronAgentRuntimeNotificationEvent
+export type ElectronSdkRuntimeServerRequestEvent = ElectronAgentRuntimeServerRequestEvent
+export type ElectronSdkRuntimeServerRequestResponseInput = ElectronAgentRuntimeServerRequestResponseInput

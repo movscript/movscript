@@ -60,7 +60,7 @@ test('activeRunInputDeliveryBadge reads provider-session input refs through the 
 })
 
 test('active run input delivery coverage matches every MovScript delivery status', () => {
-  const protocol = readFileSync(resolve('../../packages/core/src/agent/protocol.ts'), 'utf8')
+  const protocol = readFileSync(resolve('../../packages/core/src/agent/providerSessionProtocol.ts'), 'utf8')
   const statuses = Object.keys(PROVIDER_SESSION_INPUT_DELIVERY_STATUS_COVERAGE).sort() as Array<keyof typeof PROVIDER_SESSION_INPUT_DELIVERY_STATUS_COVERAGE>
   const badges = statuses.map((status) => activeRunInputDeliveryBadge(message({
     meta: {

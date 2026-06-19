@@ -1,4 +1,4 @@
-import { ProviderSessionClient } from '@/shared/infrastructure/providerSessionClient'
+import { createAgentProviderSessionCompatibilityClient } from '@/features/agent/infrastructure/agentProviderSessionCompatibility'
 import type { ProviderProfileConfigOption } from '@/features/agent/application/agentSettingsProviderModel'
 import type {
   ProviderConfigFileCommitClient,
@@ -12,7 +12,7 @@ export type AgentSettingsCatalogCommitClient =
 export function createAgentSettingsCatalogCommitClient(
   input: Pick<ProviderProfileConfigOption, 'providerProfileKey'>,
 ): AgentSettingsCatalogCommitClient {
-  return new ProviderSessionClient(undefined, {
+  return createAgentProviderSessionCompatibilityClient('settings-catalog-compat', {
     providerProfileKey: input.providerProfileKey,
   })
 }

@@ -4,7 +4,7 @@ import { SquarePen } from 'lucide-react'
 import {
   AgentModeIconSlot, AgentModeLabel, AgentModePrimaryNavItem, AgentModeResizeHandle, AgentModeSidebar, AgentModeSidebarScroll, AgentModeSidebarTop, } from '@/features/agent/components/AgentModeUi'
 import {
-  ProjectAgentModeChatConversationsSection, ProjectAgentModeHistorySection, ProjectAgentModeProjectGroupsSection, AgentModeHistoryItem, AgentModeProjectConversationGroup, } from '@/features/agent/components/ProjectAgentModeSidebarParts'
+  ProjectAgentModeChatConversationsSection, ProjectAgentModeHistorySection, ProjectAgentModeProjectGroupsSection, AgentModeHistoryItem, AgentModeProjectConversationGroup, type AgentModeProviderIdentity, } from '@/features/agent/components/ProjectAgentModeSidebarParts'
 import type { Conversation } from '@/features/agent/state/agentStore'
 import type { AgentThreadSummary } from '@movscript/core/agent/protocol'
 import type { ProviderSessionStatusLight } from '@movscript/core/agent'
@@ -96,8 +96,8 @@ export function ProjectAgentModeSidebarView({
   onHistoryOpenChange: (open: boolean) => void
   onToggleShowAllHistoryConversations: () => void
   onDeleteConversation: (conversation: Conversation) => void
-  onRestoreThread: (threadId: string) => void
-  onDeleteThread: (threadId: string) => void
+  onRestoreThread: (threadId: string, providerIdentity: AgentModeProviderIdentity) => void
+  onDeleteThread: (threadId: string, providerIdentity: AgentModeProviderIdentity) => void
   getConversationTitle: (conversation: Conversation) => string
   getThreadTitle: (thread: AgentThreadSummary) => string
   getThreadDescription: (thread: AgentThreadSummary) => string

@@ -22,7 +22,10 @@ import {
 import { createObjectUrl, revokeObjectUrl } from '@/shared/ui/objectUrl'
 import { registerAgentLocalFile } from '@/features/agent/application/agentLocalFileRegistry'
 import type { AgentAttachment } from '@/features/agent/state/agentStore'
-import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
+import {
+  readAgentConversationWorkspace,
+  updateAgentConversationWorkspace,
+} from '@/features/agent/state/agentConversationDraftStore'
 import type { MovScriptWorkspaceContext } from '@/shared/infrastructure/providerConfigStore'
 import type { Project, RawResource } from '@/types'
 import {
@@ -65,7 +68,6 @@ export function useAgentComposerController({
   workspaceContextLocked = false,
 }: UseAgentComposerControllerInput) {
   const qc = useQueryClient()
-  const updateConversationWorkspace = useAgentSessionStore((s) => s.updateConversationWorkspace)
   const [mentionRange, setMentionRange] = useState<AgentMentionRange | null>(null)
   const [uploading, setUploading] = useState(false)
   const [uploadingFileNames, setUploadingFileNames] = useState<string[]>([])
@@ -143,7 +145,7 @@ export function useAgentComposerController({
       delete nextPatch.input
     }
     if (Object.keys(nextPatch).length === 0) return
-    updateConversationWorkspace(userId, conversationId, nextPatch)
+    updateAgentConversationWorkspace(userId, conversationId, nextPatch)
   }
 
   function changeWorkspaceProject(value: string) {
@@ -192,7 +194,7 @@ export function useAgentComposerController({
           ...(kind === 'image' ? { dataUrl: await fileToDataURL(file) } : {}),
         } satisfies AgentAttachment
       }))
-      const currentAttachments = useAgentSessionStore.getState().getConversationWorkspace(userId, conversationId).attachments
+      const currentAttachments = readAgentConversationWorkspace(userId, conversationId).attachments
       updateWorkspace({ attachments: [...currentAttachments, ...pending] })
       const uploaded: AgentAttachment[] = []
       for (const [index, file] of list.entries()) {
@@ -208,7 +210,7 @@ export function useAgentComposerController({
           ...(pending[index]?.dataUrl ? { dataUrl: pending[index].dataUrl } : {}),
         })
       }
-      const latestAttachments = useAgentSessionStore.getState().getConversationWorkspace(userId, conversationId).attachments
+      const latestAttachments = readAgentConversationWorkspace(userId, conversationId).attachments
       const uploadedByPendingId = new Map(uploaded.map((attachment) => [attachment.id, attachment]))
       updateWorkspace({
         attachments: latestAttachments.map((attachment) => uploadedByPendingId.get(attachment.id) ?? attachment),
@@ -216,7 +218,7 @@ export function useAgentComposerController({
       setMentionRange(null)
       invalidateResourceMutationResult(qc, resourceLibraryChangedResult({ changedIds: uploaded.map(attachment => attachment.resourceId).filter((id): id is number => id !== undefined) }))
     } catch (e) {
-      const latestAttachments = useAgentSessionStore.getState().getConversationWorkspace(userId, conversationId).attachments
+      const latestAttachments = readAgentConversationWorkspace(userId, conversationId).attachments
       const pendingIds = new Set(pending.map((attachment) => attachment.id))
       updateWorkspace({ attachments: latestAttachments.filter((attachment) => !pendingIds.has(attachment.id)) })
       revokeAttachmentPreviewUrls(pending)
@@ -250,7 +252,7 @@ export function useAgentComposerController({
     const { resourceId } = droppedResourcePayload
     const resource = droppedResourcePayload.resource ?? await fetchResourceById(resourceId)
     const nextAttachment = resource ? attachmentFromResource(resource) : placeholderAttachment(resourceId)
-    const latestWorkspace = useAgentSessionStore.getState().getConversationWorkspace(userId, conversationId)
+    const latestWorkspace = readAgentConversationWorkspace(userId, conversationId)
     const latestInput = getInput()
     const nextInput = latestInput.includes(resourceMentionToken(resourceId))
       ? latestInput

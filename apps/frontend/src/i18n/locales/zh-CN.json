@@ -1603,7 +1603,7 @@
     },
     "settings": {
       "title": "Agent 设置",
-      "description": "选择当前 Agent，并查看后续会话使用的 SDK runtime。只有 Agent 明确暴露目录能力时，才显示高级能力和权限配置。",
+      "description": "选择当前 Agent，并查看后续会话使用的 runtime backend。只有 Agent 明确暴露目录能力时，才显示高级能力和权限配置。",
       "scope": {
         "controlPlane": "控制面：配置后续新 Run",
         "futureRuns": "不展示单次运行诊断",
@@ -1618,13 +1618,19 @@
       "refresh": "刷新",
       "statusCardTitle": "Agent 状态",
       "statusCardDescription": "确认当前 Agent、运行时连接，以及后续新 Run 会使用的配置边界。",
-      "statusCardRuntimeFallback": "SDK runtime",
+      "statusCardRuntimeFallback": "Runtime backend",
       "statusCardRuntimeDetail": "运行时由当前 Agent 决定，设置页不在此切换 Provider。",
       "statusCardCapabilityLabel": "配置能力",
       "statusCardCatalogCapability": "目录与权限可配置",
       "statusCardCatalogCapabilityDetail": "该 Agent 暴露 Catalog、Skill 和工具权限工作区，可在下方高级区块调整。",
-      "statusCardSdkCapability": "SDK 按需连接",
+      "statusCardSdkCapability": "Runtime 按需连接",
       "statusCardSdkCapabilityDetail": "该 Agent 不暴露目录工作区；这里只展示当前状态和后续运行边界。",
+      "statusCardRuntimeCapabilityFull": "Runtime 能力完整",
+      "statusCardRuntimeCapabilityFullDetail": "{{supported}}/{{total}} 项 Runtime 能力已声明完整支持；Settings 会按 contract 展示配置入口。",
+      "statusCardRuntimeCapabilityLimited": "Runtime 能力部分受限",
+      "statusCardRuntimeCapabilityLimitedDetail": "{{supported}}/{{total}} 项 Runtime 能力完整支持，{{limited}} 项受限；{{reason}}",
+      "statusCardRuntimeCapabilityUnavailable": "Runtime 能力不可用",
+      "statusCardRuntimeCapabilityUnavailableDetail": "当前 Runtime backend 没有可用 capability contract；这里只能展示基础运行边界。",
       "statusCardModelsLabel": "可用模型",
       "statusCardModelsDetail": "来自后端 AI Gateway，并按当前 Agent 支持的调用方式过滤。",
       "statusCardModelsLoading": "正在读取模型列表…",
@@ -1643,9 +1649,9 @@
         "claude": "Claude Code"
       },
       "providerProfileConfigDescriptions": {
-        "mova": "配置 providers/mova 下的 Mova SDK runtime；Mova SDK runtime 使用 .mova 作为默认工作区 home。",
-        "codex": "配置 providers/codex 下的 Codex SDK runtime；Codex SDK runtime 使用 .codex 作为默认工作区 home。",
-        "claude": "配置 providers/claude 下的 Claude Code SDK runtime。"
+        "mova": "配置 providers/mova 下的 Mova runtime backend；默认工作区 home 为 .mova。",
+        "codex": "配置 providers/codex 下的 Codex runtime backend；默认工作区 home 为 .codex。",
+        "claude": "配置 providers/claude 下的 Claude Code runtime backend。"
       },
       "modelPanel": "模型路由",
       "modelLabel": "后端文本模型",
@@ -2186,7 +2192,7 @@
       },
       "readiness": {
         "agent": "当前 Agent",
-        "runtime": "SDK runtime",
+        "runtime": "Runtime backend",
         "model": "模型路由",
         "apiMode": "调用模式",
         "modelCredentials": "模型凭证",
@@ -2510,6 +2516,7 @@
         "plugins": "插件",
         "project": "项目",
         "conversations": "对话",
+        "globalConversations": "全局会话",
         "noProjectConversations": "暂无项目会话",
         "startConversation": "开始一个新对话",
         "showMoreProjects": "展开更多 {{count}} 个项目",

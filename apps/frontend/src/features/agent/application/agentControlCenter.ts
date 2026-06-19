@@ -1,5 +1,8 @@
 import { ROUTES } from '@/routes/projectRoutes'
-import { ProviderSessionClient, providerSessionClient } from '@/shared/infrastructure/providerSessionClient'
+import {
+  agentProviderSessionCompatibilityClient,
+  createAgentProviderSessionCompatibilityClient,
+} from '@/features/agent/infrastructure/agentProviderSessionCompatibility'
 import type { AgentThreadClearResult, AgentThreadSummary } from '@movscript/core/agent/protocol'
 import type { ProviderSessionSummary } from '@/shared/contracts/electronApiProviderSessions'
 import type { ProviderSessionRunListItem } from '@/features/agent/application/providerSessionThreadQueryCache'
@@ -98,8 +101,8 @@ export const EMPTY_AGENT_CONTROL_CAPABILITY_HEALTH: AgentControlCapabilityHealth
 export async function listAgentControlProviderSessions(input: { providerProfileKey?: string } = {}): Promise<ProviderSessionSummary[]> {
   const providerProfileKey = input.providerProfileKey?.trim()
   const client = providerProfileKey
-    ? new ProviderSessionClient(undefined, { providerProfileKey })
-    : providerSessionClient
+    ? createAgentProviderSessionCompatibilityClient('control-center-diagnostics', { providerProfileKey })
+    : agentProviderSessionCompatibilityClient('control-center-diagnostics')
   return client.listProviderSessionsFromWorkspace().then((result) => result.sessions)
 }
 
@@ -111,19 +114,19 @@ export async function inspectAgentControlProviderCapabilities(providers: Provide
 export async function clearWorkspaceSessionThreadHistory(sessions: ProviderSessionSummary[]): Promise<{ threadCount: number; runCount: number }> {
   const scopedSessions = sessions
     .map((session) => ({
-      sessionId: session.session.id.trim(),
+      providerSessionTreeId: session.session.id.trim(),
       movScriptHomeDir: session.movScriptHomeDir?.trim() || session.workspaceDir?.trim(),
     }))
-    .filter((session) => session.sessionId)
+    .filter((session) => session.providerSessionTreeId)
 
   if (scopedSessions.length === 0) {
     throw new Error('没有可清理的 workspace session 索引。请先刷新控制台。')
   }
 
   const results = await Promise.all(scopedSessions.map((session) => (
-    providerSessionClient
+    agentProviderSessionCompatibilityClient('control-center-diagnostics')
       .forSession({
-        sessionId: session.sessionId,
+        sessionId: session.providerSessionTreeId,
         ...(session.movScriptHomeDir ? { movScriptHomeDir: session.movScriptHomeDir, workspaceDir: session.movScriptHomeDir } : {}),
       })
       .deleteAllThreads()
@@ -270,9 +273,9 @@ export async function inspectAgentControlDataSourceCapabilities(
   }
   const credential = runtime.ok ? agentControlCredentialHealthFromProbe(runtime.value) : undefined
   if (runtime.ok && runtimeProbeFailed(runtime.value) && !credential) {
-    warnings.push(`Runtime：${runtimeProbeError(runtime.value) ?? 'SDK runtime probe failed.'}`)
+    warnings.push(`Runtime：${runtimeProbeError(runtime.value) ?? 'Agent runtime probe failed.'}`)
   }
-  if (credential && !credential.ok) warnings.push(`SDK 凭据：${credential.detail ?? `${credential.env} 未配置。`}`)
+  if (credential && !credential.ok) warnings.push(`Runtime 凭据：${credential.detail ?? `${credential.env} 未配置。`}`)
 
   const mcpServerCount = mcp.ok ? countMcpServers(mcp.value) : 0
   const mcpToolCount = mcp.ok ? countMcpTools(mcp.value) : 0

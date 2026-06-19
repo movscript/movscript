@@ -9,13 +9,14 @@ export function conversationFromProviderSessionThreadSummary(thread: AgentThread
   const updatedAt = Date.parse(thread.updatedAt)
   const title = providerSessionThreadConversationTitle(thread, t)
   const lastTranscriptAt = thread.lastMessageAt ? Date.parse(thread.lastMessageAt) : Number.NaN
+  const providerSessionTreeId = thread.providerSessionTreeId?.trim() || thread.sessionId?.trim()
   return {
     id: thread.id,
     title,
     transcriptMessages: [],
     transcriptMessageCount: thread.messageCount,
     ...(Number.isFinite(lastTranscriptAt) ? { lastTranscriptAt } : {}),
-    ...(thread.sessionId ? { providerSessionId: thread.sessionId } : {}),
+    ...(providerSessionTreeId ? { providerSessionId: providerSessionTreeId } : {}),
     providerThreadId: thread.id,
     archived: thread.archived,
     createdAt: Number.isFinite(createdAt) ? createdAt : Date.now(),

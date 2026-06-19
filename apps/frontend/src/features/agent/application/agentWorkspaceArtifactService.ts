@@ -1,10 +1,10 @@
-import { providerSessionClient } from '@/shared/infrastructure/providerSessionClient'
+import { agentProviderSessionCompatibilityClient } from '@/features/agent/infrastructure/agentProviderSessionCompatibility'
 import type { WorkspaceArtifact } from '@/shared/contracts/workspaceArtifact'
 
 export type AgentWorkspaceArtifact = WorkspaceArtifact
 
 export async function getAgentWorkspaceArtifact(workspaceId: string): Promise<AgentWorkspaceArtifact> {
-  return providerSessionClient.getWorkspaceArtifact(workspaceId)
+  return agentProviderSessionCompatibilityClient('workspace-artifact-compat').getWorkspaceArtifact(workspaceId)
 }
 
 export async function listAgentMessageWorkspaceArtifacts(workspaceIds: readonly string[]): Promise<Array<AgentWorkspaceArtifact | null>> {

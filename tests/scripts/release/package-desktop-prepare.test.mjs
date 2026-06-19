@@ -130,16 +130,18 @@ test('prepareDesktopPackage runs prerequisite build steps after ffmpeg validatio
   })
 
   assert.equal(exitCode, 0)
-  assert.equal(calls.length, 4)
-  assert.deepEqual(calls[0], ['Build workspace packages', 'pnpm', ['--filter', './packages/*', 'build'], { cwd: root }])
-  assert.deepEqual(calls[1], ['Build admin app', 'pnpm', ['--filter', '@movscript/admin', 'build'], { cwd: root }])
-  assert.equal(calls[2][0], 'Build backend binary')
-  assert.equal(calls[2][1], 'pnpm')
-  assert.deepEqual(calls[2][2], ['--filter', '@movscript/backend', 'build'])
-  assert.equal(calls[2][3].cwd, root)
-  assert.equal(calls[2][3].env.GOOS, 'darwin')
-  assert.equal(calls[2][3].env.GOARCH, 'arm64')
-  assert.deepEqual(calls[3], ['Copy admin assets into backend bundle', 'node', ['apps/backend/scripts/build.mjs', 'copy-admin-assets'], { cwd: root }])
+  assert.equal(calls.length, 6)
+  assert.deepEqual(calls[0], ['Build workspace packages', 'pnpm', ['--workspace-concurrency=1', '--filter', './packages/*', 'build'], { cwd: root }])
+  assert.deepEqual(calls[1], ['Build movcli', 'pnpm', ['--filter', '@movscript/cli', 'build'], { cwd: root }])
+  assert.deepEqual(calls[2], ['Build admin app', 'pnpm', ['--filter', '@movscript/admin', 'build'], { cwd: root }])
+  assert.deepEqual(calls[3], ['Build provider plugins', 'pnpm', ['-r', '--filter', './plugins/*', '--if-present', 'build'], { cwd: root }])
+  assert.equal(calls[4][0], 'Build backend binary')
+  assert.equal(calls[4][1], 'pnpm')
+  assert.deepEqual(calls[4][2], ['--filter', '@movscript/backend', 'build'])
+  assert.equal(calls[4][3].cwd, root)
+  assert.equal(calls[4][3].env.GOOS, 'darwin')
+  assert.equal(calls[4][3].env.GOARCH, 'arm64')
+  assert.deepEqual(calls[5], ['Copy admin assets into backend bundle', 'node', ['apps/backend/scripts/build.mjs', 'copy-admin-assets'], { cwd: root }])
 })
 
 test('prepareDesktopPackage skips ffmpeg run checks for cross-architecture targets', () => {
@@ -162,7 +164,7 @@ test('prepareDesktopPackage skips ffmpeg run checks for cross-architecture targe
     exit: () => {},
   })
 
-  assert.equal(stepCalls.length, 4)
+  assert.equal(stepCalls.length, 6)
   assert.deepEqual(verifyCalls[0][4], { arch: 'arm64', runCheck: false })
 })
 

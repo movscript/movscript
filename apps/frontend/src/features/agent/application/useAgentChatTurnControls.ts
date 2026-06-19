@@ -43,7 +43,10 @@ import {
   type AgentChatQueuedInputState,
   updateAgentChatQueuedInputText,
 } from '@/features/agent/presentation/agentChatDataSourceShellModel'
-import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
+import {
+  clearAgentConversationWorkspace,
+  updateAgentConversationWorkspace,
+} from '@/features/agent/state/agentConversationDraftStore'
 import type { useAgentComposerController } from '@/features/agent/presentation/useAgentComposerController'
 
 type AgentComposerController = ReturnType<typeof useAgentComposerController>
@@ -286,9 +289,9 @@ export function useAgentChatTurnControls({
       }
       restoreConversationId = agentChatComposerConversationId(threadScopeKey, thread.id)
       if (sourceConversationId !== restoreConversationId) {
-        useAgentSessionStore.getState().clearConversationWorkspace(userId, sourceConversationId)
+        clearAgentConversationWorkspace(userId, sourceConversationId)
       }
-      useAgentSessionStore.getState().updateConversationWorkspace(userId, restoreConversationId, {
+      updateAgentConversationWorkspace(userId, restoreConversationId, {
         input: '',
         attachments: [],
         workspaceContext: composer.selectedWorkspaceContext,
@@ -338,7 +341,7 @@ export function useAgentChatTurnControls({
       composer.revokeAttachmentPreviewUrls(sentAttachments)
     } catch (nextError) {
       clearOptimisticUserItem()
-      useAgentSessionStore.getState().updateConversationWorkspace(userId, restoreConversationId, previousWorkspace)
+      updateAgentConversationWorkspace(userId, restoreConversationId, previousWorkspace)
       composer.updateWorkspace(previousWorkspace)
       setError(errorMessage(nextError))
     } finally {

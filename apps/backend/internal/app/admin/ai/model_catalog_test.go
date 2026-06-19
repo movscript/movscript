@@ -50,6 +50,22 @@ func TestModelCatalogRejectsDuplicateEntryForSamePublicID(t *testing.T) {
 	}
 }
 
+func TestListModelCatalogTemplatesReturnsDisplaySafeDefaults(t *testing.T) {
+	service := newTestService(t)
+	templates := service.ListModelCatalogTemplates(context.Background())
+	if len(templates) == 0 {
+		t.Fatal("expected catalog templates")
+	}
+	for _, template := range templates {
+		if strings.TrimSpace(template.DefaultPublicModelID) == "" {
+			t.Fatalf("template %s has empty default_public_model_id", template.ID)
+		}
+		if strings.Contains(template.DefaultPublicModelID, ":") {
+			t.Fatalf("template %s exposes provider namespace in default_public_model_id %q", template.ID, template.DefaultPublicModelID)
+		}
+	}
+}
+
 func TestProviderRemoteModelDiscoveryDoesNotMutateCatalogOrRoutes(t *testing.T) {
 	service := newTestService(t)
 	service.registry = infraai.NewRegistry(service.db, nil)

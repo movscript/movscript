@@ -14,6 +14,8 @@ apps/frontend/vendor/ffmpeg/*/
 apps/frontend/vendor/sdk-runtimes/
 apps/frontend/test-results/
 apps/frontend/playwright-report/
+release-artifacts/
+downloaded-artifacts/
 .movscript-dev
 
 # Go

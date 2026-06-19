@@ -6,7 +6,7 @@ import {
 } from '@/features/agent/components/AgentModeUi'
 import { useResizablePanel } from '@movscript/ui/layout'
 import { AgentBrowserPanel } from '@/features/agent/components/AgentBrowserPanel'
-import { resolveAgentChatShellProvider } from '@/features/agent/components/AgentUnifiedChatShell'
+import { resolveAgentChatShellProfile } from '@/features/agent/components/AgentUnifiedChatShell'
 import { useAgentThreadRegistryHydration } from '@/features/agent/application/useAgentThreadRegistryHydration'
 import { api } from '@/shared/infrastructure/api'
 import { projectKeys } from '@/features/project/application/projectQueries'
@@ -23,12 +23,13 @@ import {
 import {
   selectActiveAgentConversationRegistryRecord,
 } from '@movscript/core/agent'
-import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
+import { useAgentConversationWorkspace } from '@/features/agent/state/agentConversationDraftStore'
 import {
-  providerInstanceId,
-  providerProtocol,
-  useProviderConfigStore,
-} from '@/shared/infrastructure/providerConfigStore'
+  useAgentActiveConversationId,
+  useAgentConversationRecordsById,
+  useAgentConversationThreadBinding,
+} from '@/features/agent/state/agentConversationRegistryStore'
+import { useProviderConfigStore } from '@/shared/infrastructure/providerConfigStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import type { Project } from '@/types'
 
@@ -49,22 +50,23 @@ export function ProjectAgentContentPanel({
   const currentOrgID = useUserStore((s) => s.currentOrgID)
   const userId = currentUser ? String(currentUser.ID) : ''
   const providerSettings = useProviderConfigStore((s) => s.settings)
-  const activeConversationId = useAgentSessionStore((s) => s.activeConversationIdsByUser?.[userId] ?? null)
-  const conversationsById = useAgentSessionStore((s) => s.conversationsById)
+  const activeConversationId = useAgentActiveConversationId(userId)
+  const conversationsById = useAgentConversationRecordsById()
   const activeRegistryState = useMemo(() => ({
     activeConversationIdsByUser: { [userId]: activeConversationId },
     conversationsById,
   }), [activeConversationId, conversationsById, userId])
-  const activeProvider = useMemo(
-    () => resolveAgentChatShellProvider(providerSettings, userId, activeRegistryState),
+  const activeProfile = useMemo(
+    () => resolveAgentChatShellProfile(providerSettings, userId, activeRegistryState),
     [activeRegistryState, providerSettings, userId],
   )
+  const activeProviderProfile = activeProfile?.providerProfile
   const activeProviderIdentity = useMemo(() => ({
-    provider: activeProvider.kind,
-    providerId: activeProvider.id,
-    providerInstanceId: providerInstanceId(activeProvider),
-    providerProtocol: providerProtocol(activeProvider),
-  }), [activeProvider])
+    provider: activeProviderProfile?.kind ?? 'mova',
+    providerId: activeProviderProfile?.id,
+    providerInstanceId: activeProviderProfile?.instanceId,
+    providerProtocol: activeProviderProfile?.protocol,
+  }), [activeProviderProfile])
   const activeRecord = useMemo(() => selectActiveAgentConversationRegistryRecord({
     activeConversationIdsByUser: { [userId]: activeConversationId },
     conversationsById,
@@ -73,16 +75,13 @@ export function ProjectAgentContentPanel({
     ...activeProviderIdentity,
   }), [activeConversationId, activeProviderIdentity, conversationsById, userId])
   const sessionConversationId = activeRecord?.id ?? null
-  const sessionWorkspaceContext = useAgentSessionStore((s) => (
-    sessionConversationId ? s.workspacesByUser[userId]?.[sessionConversationId]?.workspaceContext : undefined
-  ))
-  const sessionThreadBinding = useAgentSessionStore((s) => (
-    sessionConversationId ? s.conversationThreadBindings[sessionConversationId] : undefined
-  ))
+  const sessionWorkspace = useAgentConversationWorkspace(userId, sessionConversationId ?? '')
+  const sessionWorkspaceContext = sessionConversationId ? sessionWorkspace.workspaceContext : undefined
+  const sessionThreadBinding = useAgentConversationThreadBinding(sessionConversationId ?? '')
   const runtimeThreadHydration = useAgentThreadRegistryHydration({
     userId,
-    provider: activeProvider,
-    enabled: Boolean(activeProvider),
+    provider: activeProfile?.provider,
+    enabled: Boolean(activeProfile?.provider),
   })
   const providerThreadProjectId = useMemo(() => {
     const providerThreadId = activeRecord?.providerThreadId

@@ -75,7 +75,9 @@ export interface ProviderWorkExternalHandle {
 
 export interface ProviderWork {
   id: string
-  sessionId?: string
+  providerSessionTreeId?: string
+  /** @deprecated Prefer providerSessionTreeId for related-thread provider-session trees. */
+  sessionId?: string // deprecated providerSessionTreeId compatibility mirror
   threadId: string
   runId: string
   kind: ProviderWorkKind
@@ -97,7 +99,9 @@ export interface ProviderWork {
 }
 
 export interface ProviderWorkStartInput {
-  sessionId?: string
+  providerSessionTreeId?: string
+  /** @deprecated Prefer providerSessionTreeId for related-thread provider-session trees. */
+  sessionId?: string // deprecated providerSessionTreeId compatibility mirror
   threadId: string
   runId: string
   kind: ProviderWorkKind
@@ -138,7 +142,9 @@ export interface ProviderInteraction {
   id: string
   threadId: string
   runId: string
-  sessionId?: string
+  providerSessionTreeId?: string
+  /** @deprecated Prefer providerSessionTreeId for related-thread provider-session trees. */
+  sessionId?: string // deprecated providerSessionTreeId compatibility mirror
   originThreadId?: string
   originRunId?: string
   displayThreadId?: string

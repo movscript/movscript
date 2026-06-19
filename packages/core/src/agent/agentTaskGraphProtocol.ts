@@ -36,7 +36,9 @@ export interface AgentTask {
 
 export interface AgentTaskGraph {
   id: string
-  sessionId?: string
+  providerSessionTreeId?: string
+  /** @deprecated Prefer providerSessionTreeId for related-thread provider-session trees. */
+  sessionId?: string // deprecated providerSessionTreeId compatibility mirror
   threadId: string
   rootRunId?: string
   title: string

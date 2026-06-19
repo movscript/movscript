@@ -24,13 +24,13 @@ export function electronSdkRuntimeClient(input: ElectronSdkRuntimeClientInput): 
   return {
     id: `electron:${input.runtime.id}`,
     request(method, params) {
-      console.log('[Movscript SDK runtime flow] renderer.request', stableLogJSON(sdkRuntimeRequestLogPayload(method, params)))
+      console.log('[Movscript Agent runtime flow] renderer.request', stableLogJSON(sdkRuntimeRequestLogPayload(method, params)))
       void logClaudeCredentialPreflight(electronApi, method, params)
       return electronApi.sdkRuntimeRequest?.({
         method,
         params,
       })?.catch((error) => {
-        console.error('[Movscript SDK runtime flow] renderer.requestError', stableLogJSON({
+        console.error('[Movscript Agent runtime flow] renderer.requestError', stableLogJSON({
           ...sdkRuntimeRequestLogPayload(method, params),
           error: errorMessage(error),
         }))
@@ -105,27 +105,27 @@ async function logClaudeCredentialPreflight<M extends SdkRuntimeRpcMethod>(
   params: SdkRuntimeRpcRequestMap[M],
 ): Promise<void> {
   if (params.provider.kind !== 'claude' && params.runtime.api !== 'claude-sdk') return
-  if (!electronApi.getAppSettingsSecrets) {
+  if (!electronApi.getAgentRuntimeCredentialSummary) {
     console.log('[Movscript Claude credential flow] renderer.savedKeyPreflight', stableLogJSON({
       ...sdkRuntimeRequestLogPayload(method, params),
-      canReadSecrets: false,
+      canReadCredentialSummary: false,
     }))
     return
   }
   try {
-    const [settings, secrets] = await Promise.all([
+    const [settings, credentialSummary] = await Promise.all([
       electronApi.getAppSettings?.(),
-      electronApi.getAppSettingsSecrets(),
+      electronApi.getAgentRuntimeCredentialSummary(),
     ])
-    const savedProviderKeys = Object.keys(secrets.agentRuntimeApiKeys ?? {})
+    const savedProviderKeys = credentialSummary.savedProviderKeys
     const lookupKeys = claudeCredentialLookupKeys(params)
     console.log('[Movscript Claude credential flow] renderer.savedKeyPreflight', stableLogJSON({
       ...sdkRuntimeRequestLogPayload(method, params),
-      canReadSecrets: true,
+      canReadCredentialSummary: true,
       workspaceDir: settings?.movScriptWorkspaceDir,
       lookupKeys,
       savedProviderKeys,
-      hasMatchingClaudeKey: lookupKeys.some((key) => Boolean(secrets.agentRuntimeApiKeys?.[key])),
+      hasMatchingClaudeKey: lookupKeys.some((key) => savedProviderKeys.includes(key)),
     }))
   } catch (error) {
     console.error('[Movscript Claude credential flow] renderer.savedKeyPreflightError', stableLogJSON({

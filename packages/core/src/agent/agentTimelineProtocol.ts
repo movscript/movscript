@@ -33,7 +33,9 @@ export function agentTimelineStatusFromRunStatus(status: AgentRunStatus): AgentT
 }
 
 export interface AgentTimelineProviderSessionRefs {
-  sessionId?: string
+  providerSessionTreeId?: string
+  /** @deprecated Prefer providerSessionTreeId for related-thread provider-session trees. */
+  sessionId?: string // deprecated providerSessionTreeId compatibility mirror
   threadId: string
   messageId?: string
   runId?: string
@@ -48,7 +50,9 @@ export interface AgentTimelineMeta {
 
 export interface AgentTimelineItem {
   id: string
-  sessionId?: string
+  providerSessionTreeId?: string
+  /** @deprecated Prefer providerSessionTreeId for related-thread provider-session trees. */
+  sessionId?: string // deprecated providerSessionTreeId compatibility mirror
   threadId: string
   /** Provider-session/user/agent source. This is not a UI surface decision by itself. */
   origin: AgentTimelineOrigin
