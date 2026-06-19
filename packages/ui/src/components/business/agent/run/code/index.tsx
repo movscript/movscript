@@ -9,7 +9,7 @@ import { AgentSurfaceBlock, type AgentSurfaceBlockProps } from "../../surface-bl
 
 export interface AgentCodeBlockProps extends AgentSurfaceBlockProps {}
 
-export const AgentCodeBlock = React.forwardRef<HTMLDivElement, AgentCodeBlockProps>(
+export const AgentCodeBlock = React.forwardRef<HTMLElement, AgentCodeBlockProps>(
   ({ className, variant = "surface", ...props }, ref) => {
     return (
       <AgentSurfaceBlock

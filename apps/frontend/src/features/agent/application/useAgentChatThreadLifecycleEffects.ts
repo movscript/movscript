@@ -16,6 +16,7 @@ type AgentChatServerRequestHandler = NonNullable<Parameters<NonNullable<AgentCha
 
 interface UseAgentChatThreadLifecycleEffectsInput {
   activeThread: AgentChatThread | null
+  activeThreadCanReadTurns: boolean
   activeThreadId: string | null
   autoLoadThreads: boolean
   dataSource?: AgentChatDataSource
@@ -38,6 +39,7 @@ interface UseAgentChatThreadLifecycleEffectsInput {
 
 export function useAgentChatThreadLifecycleEffects({
   activeThread,
+  activeThreadCanReadTurns,
   activeThreadId,
   autoLoadThreads,
   dataSource,
@@ -106,6 +108,7 @@ export function useAgentChatThreadLifecycleEffects({
 
   useEffect(() => {
     if (!dataSource || !activeThreadId || activeThread || visiblePendingServerRequests.length === 0) return
+    if (!activeThreadCanReadTurns) return
     dispatchRuntime({ type: 'requestThreadRead', threadId: activeThreadId })
-  }, [activeThread, activeThreadId, dataSource, dispatchRuntime, visiblePendingServerRequests.length])
+  }, [activeThread, activeThreadCanReadTurns, activeThreadId, dataSource, dispatchRuntime, visiblePendingServerRequests.length])
 }

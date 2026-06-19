@@ -43,16 +43,19 @@ interface UseAgentChatThreadCreationInput {
   endpoint?: string
   goalModeEnabled: boolean
   loadDataSourceForNewThread?: (input: AgentPanelNewConversationPayload) => Promise<{ dataSource?: AgentChatDataSource; endpoint?: string }>
+  markThreadFailed: (threadId: string, error?: string) => void
+  markThreadReady: (threadId: string) => void
   markThreadOpen: (threadId: string) => void
   profilePresetId: AgentRunProfilePresetId
   registerThreadConversation: (thread: AgentChatThread, input?: { workspaceContext?: AgentPanelNewConversationPayload['workspaceContext']; projectId?: number }) => void
+  requestThreadRead: (threadId: string) => void
   selectedModelSelectionForRequest: (thread?: AgentChatThread | null) => AgentChatModelSelection
   setActiveThreadIdValue: (threadId: string | null) => void
   setDataSource: Dispatch<SetStateAction<AgentChatDataSource | undefined>>
   setEndpoint: Dispatch<SetStateAction<string | undefined>>
   setError: Dispatch<SetStateAction<string | null>>
   setHistoryOpen: Dispatch<SetStateAction<boolean>>
-  upsertThread: (thread: AgentChatThread) => void
+  upsertThread: (thread: AgentChatThread, input?: { lifecycleStatus?: 'draft' | 'materializing' | 'ready' | 'failed' }) => void
 }
 
 export function useAgentChatThreadCreation({
@@ -61,9 +64,12 @@ export function useAgentChatThreadCreation({
   endpoint,
   goalModeEnabled,
   loadDataSourceForNewThread,
+  markThreadFailed,
+  markThreadReady,
   markThreadOpen,
   profilePresetId,
   registerThreadConversation,
+  requestThreadRead,
   selectedModelSelectionForRequest,
   setActiveThreadIdValue,
   setDataSource,
@@ -124,7 +130,7 @@ export function useAgentChatThreadCreation({
         ...(workspaceContext ? { workspaceContext } : {}),
         ...(typeof threadInput.projectId === 'number' ? { projectId: threadInput.projectId } : {}),
       })
-      upsertThread(thread)
+      upsertThread(thread, { lifecycleStatus: 'materializing' })
       setActiveThreadIdValue(thread.id)
       markThreadOpen(thread.id)
       setHistoryOpen(false)
@@ -177,6 +183,10 @@ export function useAgentChatThreadCreation({
             ...selectedModelSelectionForRequest(thread),
           })
         : undefined
+      if (turn) {
+        markThreadReady(thread.id)
+        requestThreadRead(thread.id)
+      }
       if (payload.requestId) {
         notifyAgentPanelRunSettled({
           requestId: payload.requestId,
@@ -197,6 +207,7 @@ export function useAgentChatThreadCreation({
         })
       }
     } catch (nextError) {
+      markThreadFailed(thread.id, errorMessage(nextError))
       if (payload.requestId) {
         notifyAgentPanelRunSettled({
           requestId: payload.requestId,
@@ -210,7 +221,7 @@ export function useAgentChatThreadCreation({
       }
       throw nextError
     }
-  }, [dataSource, profilePresetId, selectedModelSelectionForRequest, startThreadResult])
+  }, [dataSource, markThreadFailed, markThreadReady, profilePresetId, requestThreadRead, selectedModelSelectionForRequest, startThreadResult])
 
   return {
     startThreadResult,

@@ -10,7 +10,7 @@ interface AgentAttachmentPreviewCardProps extends AgentSurfaceBlockProps {
   density?: AgentAttachmentPreviewDensity
 }
 
-export const AgentAttachmentPreviewCard = React.forwardRef<HTMLDivElement, AgentAttachmentPreviewCardProps>(
+export const AgentAttachmentPreviewCard = React.forwardRef<HTMLElement, AgentAttachmentPreviewCardProps>(
   ({ className, density = 'default', variant = 'surface', ...props }, ref) => (
     <AgentSurfaceBlock
       ref={ref}

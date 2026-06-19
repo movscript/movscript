@@ -18,7 +18,7 @@ export interface AgentActivityFrameProps extends AgentSurfaceBlockProps {
   expandable?: boolean;
 }
 
-export const AgentActivityFrame = React.forwardRef<HTMLDivElement, AgentActivityFrameProps>(
+export const AgentActivityFrame = React.forwardRef<HTMLElement, AgentActivityFrameProps>(
   ({ className, kind = "default", expandable = false, variant = "subtle", ...props }, ref) => {
     return (
       <AgentSurfaceBlock

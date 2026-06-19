@@ -4,7 +4,7 @@ import * as React from "react";
 import { cn } from "../../../../../lib/cn";
 import { AgentSurfaceBlock, type AgentSurfaceBlockProps } from "../../surface-block";
 
-export const AgentDiagnosticToolItem = React.forwardRef<HTMLDivElement, AgentSurfaceBlockProps>(
+export const AgentDiagnosticToolItem = React.forwardRef<HTMLElement, AgentSurfaceBlockProps>(
   ({ className, variant = "card", ...props }, ref) => {
     return <AgentSurfaceBlock ref={ref} variant={variant} className={cn("ms-agent-diagnostic-tool", className)} {...props} />;
   }

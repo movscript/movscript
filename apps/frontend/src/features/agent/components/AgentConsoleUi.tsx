@@ -281,17 +281,15 @@ export function AgentConsolePanel({
   children: ReactNode;
 }) {
   return (
-    <AgentSurfaceBlock asChild>
-      <section className="agent-console-panel">
-        <div className="agent-console-panel__header">
-          <div className="agent-console-panel__title-row">
-            {icon}
-            <h2 className="agent-console-panel__title">{title}</h2>
-          </div>
-          {action}
+    <AgentSurfaceBlock as="section" className="agent-console-panel">
+      <div className="agent-console-panel__header">
+        <div className="agent-console-panel__title-row">
+          {icon}
+          <h2 className="agent-console-panel__title">{title}</h2>
         </div>
-        <div className="agent-console-panel__body">{children}</div>
-      </section>
+        {action}
+      </div>
+      <div className="agent-console-panel__body">{children}</div>
     </AgentSurfaceBlock>
   );
 }

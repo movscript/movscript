@@ -84,6 +84,14 @@ export interface AgentChatRuntimeManagedThreadResumeState {
   error?: string
 }
 
+export type AgentChatRuntimeThreadLifecycleStatus = 'draft' | 'materializing' | 'ready' | 'failed'
+
+export interface AgentChatRuntimeThreadLifecycleState {
+  threadId: string
+  status: AgentChatRuntimeThreadLifecycleStatus
+  error?: string
+}
+
 export interface AgentChatRuntimeState {
   threads: AgentChatThread[]
   activeThreadId: string | null
@@ -100,6 +108,7 @@ export interface AgentChatRuntimeState {
   threadResumeRequests: AgentChatRuntimeThreadResumeRequest[]
   nextThreadResumeRequestId: number
   managedThreadResumes: Record<string, AgentChatRuntimeManagedThreadResumeState>
+  threadLifecycles: Record<string, AgentChatRuntimeThreadLifecycleState>
 }
 
 export interface AgentChatRuntimeView {
@@ -129,7 +138,7 @@ export type AgentChatRuntimeAction =
   | { type: 'setActiveThreadId'; threadId: string | null }
   | { type: 'setThreads'; threads: AgentChatThread[] }
   | { type: 'updateThreads'; update: (current: AgentChatThread[]) => AgentChatThread[] }
-  | { type: 'upsertThread'; thread: AgentChatThread }
+  | { type: 'upsertThread'; thread: AgentChatThread; lifecycleStatus?: AgentChatRuntimeThreadLifecycleStatus }
   | { type: 'upsertThreadReadResult'; thread: AgentChatThread; input?: AgentChatThreadReadInput }
   | { type: 'removeThread'; threadId: string }
   | { type: 'appendPendingUserItem'; item: AgentChatPendingUserItem }
@@ -149,6 +158,9 @@ export type AgentChatRuntimeAction =
   | { type: 'beginThreadResumeRequest'; requestId: number }
   | { type: 'completeThreadResumeRequest'; requestId: number; thread?: AgentChatThread; error?: string }
   | { type: 'clearThreadResumeRequest'; requestId: number }
+  | { type: 'markThreadMaterializing'; threadId: string }
+  | { type: 'markThreadReady'; threadId: string }
+  | { type: 'markThreadFailed'; threadId: string; error?: string }
 
 export function createAgentChatRuntimeState(activeThreadId: string | null = null): AgentChatRuntimeState {
   return {
@@ -167,6 +179,7 @@ export function createAgentChatRuntimeState(activeThreadId: string | null = null
     threadResumeRequests: [],
     nextThreadResumeRequestId: 1,
     managedThreadResumes: {},
+    threadLifecycles: {},
   }
 }
 
@@ -194,7 +207,7 @@ export function agentChatRuntimeReducer(
     case 'updateThreads':
       return { ...state, threads: action.update(state.threads) }
     case 'upsertThread':
-      return upsertAgentChatRuntimeThreadResult(state, action.thread)
+      return upsertAgentChatRuntimeThreadResult(state, action.thread, undefined, action.lifecycleStatus)
     case 'upsertThreadReadResult':
       return upsertAgentChatRuntimeThreadResult(state, action.thread, action.input)
     case 'removeThread':
@@ -269,6 +282,12 @@ export function agentChatRuntimeReducer(
         ...state,
         threadResumeRequests: state.threadResumeRequests.filter((request) => request.id !== action.requestId),
       }
+    case 'markThreadMaterializing':
+      return markAgentChatRuntimeThreadLifecycle(state, action.threadId, 'materializing')
+    case 'markThreadReady':
+      return markAgentChatRuntimeThreadLifecycle(state, action.threadId, 'ready')
+    case 'markThreadFailed':
+      return markAgentChatRuntimeThreadLifecycle(state, action.threadId, 'failed', action.error)
   }
 }
 
@@ -422,6 +441,13 @@ export function selectAgentChatRuntimePendingThreadResumeRequests(
   return state.threadResumeRequests.filter((request) => request.status === 'pending')
 }
 
+export function agentChatRuntimeThreadCanReadTurns(state: AgentChatRuntimeState, threadId: string | null | undefined): boolean {
+  const normalizedThreadId = threadId?.trim()
+  if (!normalizedThreadId) return false
+  const lifecycle = state.threadLifecycles[normalizedThreadId]
+  return !lifecycle || lifecycle.status === 'ready'
+}
+
 export function agentChatThreadShouldKeepResumed(thread: Pick<AgentChatThread, 'status'>): boolean {
   return thread.status === 'running'
 }
@@ -498,6 +524,7 @@ export function queueAgentChatRuntimeThreadReadRequest(
 ): AgentChatRuntimeState {
   const normalizedThreadId = threadId.trim()
   if (!normalizedThreadId) return state
+  if (!agentChatRuntimeThreadCanReadTurns(state, normalizedThreadId)) return state
   const input = buildAgentChatRuntimeThreadReadInput(state, normalizedThreadId, direction)
   const existing = state.threadReadRequests.find((request) => (
     request.threadId === normalizedThreadId
@@ -531,6 +558,7 @@ function upsertAgentChatRuntimeThreadResult(
   state: AgentChatRuntimeState,
   thread: AgentChatThread,
   input: AgentChatThreadReadInput = {},
+  lifecycleStatus: AgentChatRuntimeThreadLifecycleStatus = 'ready',
 ): AgentChatRuntimeState {
   const current = state.threads.find((item) => item.id === thread.id)
   const existingReadState = state.threadReadStates[thread.id]
@@ -545,7 +573,7 @@ function upsertAgentChatRuntimeThreadResult(
     || (limit !== undefined && incomingCount < limit)
     || agentChatRuntimeEarliestCursorUnchanged(existingReadState, mergedReadState)
   )
-  return requestAgentChatRuntimeActiveThreadResume({
+  return requestAgentChatRuntimeActiveThreadResume(markAgentChatRuntimeThreadLifecycle({
     ...state,
     threads: upsertAgentChatRuntimeThread(state.threads, mergedThread),
     pendingUserItems: removeAgentChatRuntimeConfirmedPendingUserItems(state.pendingUserItems, [mergedThread]),
@@ -555,7 +583,7 @@ function upsertAgentChatRuntimeThreadResult(
         ? { ...mergedReadState, hasCompleteHistory: olderReadReachedStart || existingReadState?.hasCompleteHistory || false }
         : mergedReadState,
     },
-  })
+  }, mergedThread.id, lifecycleStatus))
 }
 
 function removeAgentChatRuntimeThread(
@@ -566,6 +594,8 @@ function removeAgentChatRuntimeThread(
   delete nextReadStates[threadId]
   const nextManagedThreadResumes = { ...state.managedThreadResumes }
   delete nextManagedThreadResumes[threadId]
+  const nextThreadLifecycles = { ...state.threadLifecycles }
+  delete nextThreadLifecycles[threadId]
   return {
     ...state,
     threads: state.threads.filter((thread) => thread.id !== threadId),
@@ -573,6 +603,30 @@ function removeAgentChatRuntimeThread(
     threadReadStates: nextReadStates,
     threadResumeRequests: state.threadResumeRequests.filter((request) => request.threadId !== threadId),
     managedThreadResumes: nextManagedThreadResumes,
+    threadLifecycles: nextThreadLifecycles,
+  }
+}
+
+function markAgentChatRuntimeThreadLifecycle(
+  state: AgentChatRuntimeState,
+  threadId: string,
+  status: AgentChatRuntimeThreadLifecycleStatus,
+  error?: string,
+): AgentChatRuntimeState {
+  const normalizedThreadId = threadId.trim()
+  if (!normalizedThreadId) return state
+  const current = state.threadLifecycles[normalizedThreadId]
+  if (current?.status === status && current.error === error) return state
+  return {
+    ...state,
+    threadLifecycles: {
+      ...state.threadLifecycles,
+      [normalizedThreadId]: {
+        threadId: normalizedThreadId,
+        status,
+        ...(error ? { error } : {}),
+      },
+    },
   }
 }
 

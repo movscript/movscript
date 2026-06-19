@@ -1,4 +1,4 @@
-import { useEffect, useState, type UIEvent } from 'react'
+import { useCallback, useEffect, useState, type UIEvent } from 'react'
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import {
   AgentBody,
@@ -147,10 +147,14 @@ export function AgentChatDataSourceThreadBody({
   onScroll,
   onShowOlderItems,
 }: AgentChatDataSourceThreadBodyProps) {
+  const setScrollNode = useCallback((node: HTMLDivElement | null) => {
+    scrollRef.current = node
+  }, [scrollRef])
+
   return (
     <AgentBody className="ai-agent-panel-thread-body">
       <AgentPinnedStatusShelf statusItems={statusItems} defaultExpanded={false} />
-      <AgentThreadFill ref={(node) => { scrollRef.current = node }} className="ms-agent-chat-thread-fill" onScroll={onScroll}>
+      <AgentThreadFill ref={setScrollNode} className="ms-agent-chat-thread-fill" onScroll={onScroll}>
         {error ? (
           <div className="ms-agent-chat-thread-error">{error}</div>
         ) : null}

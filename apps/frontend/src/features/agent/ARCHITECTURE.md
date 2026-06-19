@@ -28,6 +28,10 @@ Server-initiated requests are first-class chat state, not side effects hidden in
 
 `agentChatRuntime` owns the unified chat's runtime state machine in core. Components dispatch provider-neutral events and user intents into the runtime, then render the runtime view selectors. Frontend components keep orchestration concerns: loading a data source, subscribing to notifications, reading canonical threads, routing local events, and syncing MovScript Home-backed desktop state with browser fallback only for web/legacy compatibility.
 
+Thread lifecycle is runtime state, not an implicit side effect of React mount order. A newly started runtime thread may exist before its first user turn is materialized; it must be marked `materializing` and must not issue `thread/read` requests with turn history until the first turn is accepted or a canonical thread read marks it `ready`. Frontend orchestration may show optimistic user items while materialization is pending, but read gating belongs to the core runtime selector so every surface follows the same rule.
+
+Server-request subscriptions are shared by data-source identity. Shells, tabs, remounts, and project/sidebar surfaces must not each open their own global approval/input stream for the same Agent runtime. A frontend coordinator owns the single underlying `subscribeServerRequests` call, broadcasts notifications to listeners, routes executable server requests to the current owner, and aborts/disposes the runtime subscription when the final listener leaves.
+
 Timeline pagination and stream-event merge rules are service-level state logic. `packages/core/src/agent/timelineState.ts` owns item sorting, dedupe, page replacement/merge, reset handling, and stale-event rejection. Frontend timeline hooks fetch pages, subscribe to streams, record performance, and map timeline items into UI messages.
 
 Run profile presets are split by boundary. Permission policy, reviewer routing, permission profile IDs, and fallback sandbox choices live in `packages/core/src/agent/runProfilePreset.ts`; frontend decorates those profiles with labels and descriptions for controls.

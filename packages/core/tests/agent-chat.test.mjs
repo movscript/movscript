@@ -1011,6 +1011,31 @@ test('core dedupes pending thread read requests by thread id', () => {
   assert.equal(state.nextThreadReadRequestId, 2)
 })
 
+test('core gates thread turn reads until a started thread is materialized', () => {
+  let state = agentChat.createAgentChatRuntimeState('thread_1')
+  state = agentChat.agentChatRuntimeReducer(state, {
+    type: 'upsertThread',
+    thread: testThread({ turns: [] }),
+    lifecycleStatus: 'materializing',
+  })
+
+  state = agentChat.agentChatRuntimeReducer(state, { type: 'requestThreadRead', threadId: 'thread_1' })
+
+  assert.equal(agentChat.agentChatRuntimeThreadCanReadTurns(state, 'thread_1'), false)
+  assert.deepEqual(state.threadReadRequests, [])
+
+  state = agentChat.agentChatRuntimeReducer(state, { type: 'markThreadReady', threadId: 'thread_1' })
+  state = agentChat.agentChatRuntimeReducer(state, { type: 'requestThreadRead', threadId: 'thread_1' })
+
+  assert.equal(agentChat.agentChatRuntimeThreadCanReadTurns(state, 'thread_1'), true)
+  assert.deepEqual(state.threadReadRequests, [{
+    id: 1,
+    threadId: 'thread_1',
+    status: 'pending',
+    input: { includeTurns: true, limit: 1, direction: 'newer' },
+  }])
+})
+
 test('core records refresh-after-in-flight for repeated thread read requests', () => {
   let state = agentChat.createAgentChatRuntimeState('thread_1')
   state = agentChat.queueAgentChatRuntimeThreadReadRequest(state, 'thread_1')

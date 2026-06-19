@@ -3,6 +3,7 @@ import {
   selectAgentChatRuntimeView,
   type AgentChatRuntimeAction,
   type AgentChatRuntimeState,
+  type AgentChatRuntimeThreadLifecycleStatus,
   type AgentChatThread,
   type AgentChatThreadReadInput,
 } from '@movscript/core/agent/chat'
@@ -30,18 +31,33 @@ export function useAgentChatRuntimeController({
   const readActiveRuntimeThreadId = useCallback(() => activeThreadIdRef.current, [activeThreadIdRef])
   const nextRecentCapabilityEventSequence = useCallback(() => ++recentCapabilityEventSequenceRef.current, [recentCapabilityEventSequenceRef])
 
-  const upsertThread = useCallback((thread: AgentChatThread) => {
-    dispatchRuntime({ type: 'upsertThread', thread })
+  const upsertThread = useCallback((thread: AgentChatThread, input?: { lifecycleStatus?: AgentChatRuntimeThreadLifecycleStatus }) => {
+    dispatchRuntime({ type: 'upsertThread', thread, lifecycleStatus: input?.lifecycleStatus })
   }, [dispatchRuntime])
 
   const upsertThreadReadResult = useCallback((thread: AgentChatThread, input: AgentChatThreadReadInput) => {
     dispatchRuntime({ type: 'upsertThreadReadResult', thread, input })
   }, [dispatchRuntime])
 
+  const markThreadMaterializing = useCallback((threadId: string) => {
+    dispatchRuntime({ type: 'markThreadMaterializing', threadId })
+  }, [dispatchRuntime])
+
+  const markThreadReady = useCallback((threadId: string) => {
+    dispatchRuntime({ type: 'markThreadReady', threadId })
+  }, [dispatchRuntime])
+
+  const markThreadFailed = useCallback((threadId: string, error?: string) => {
+    dispatchRuntime({ type: 'markThreadFailed', threadId, error })
+  }, [dispatchRuntime])
+
   const runtimeView = useMemo(() => selectAgentChatRuntimeView(runtime), [runtime])
 
   return {
     ...runtimeView,
+    markThreadFailed,
+    markThreadMaterializing,
+    markThreadReady,
     nextRecentCapabilityEventSequence,
     readActiveRuntimeThreadId,
     setActiveThreadIdValue,

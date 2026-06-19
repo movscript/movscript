@@ -183,14 +183,17 @@ export function AgentSettingsConfigFileEditorSection({
   description?: ReactNode
 }) {
   return (
-    <AgentSurfaceBlock asChild variant="card" className={cn('agent-settings-config-file-editor-section', className)}>
-      <section {...props}>
-        <div className="agent-settings-config-file-editor-section__header">
-          <p className="ms-text-truncate ms-type-label agent-settings-card-title agent-settings-card-title--strong">{title}</p>
-          {description ? <p className="ms-type-caption agent-settings-item-detail">{description}</p> : null}
-        </div>
-        <div className="agent-settings-config-file-editor-section__body">{children}</div>
-      </section>
+    <AgentSurfaceBlock
+      as="section"
+      variant="card"
+      className={cn('agent-settings-config-file-editor-section', className)}
+      {...props}
+    >
+      <div className="agent-settings-config-file-editor-section__header">
+        <p className="ms-text-truncate ms-type-label agent-settings-card-title agent-settings-card-title--strong">{title}</p>
+        {description ? <p className="ms-type-caption agent-settings-item-detail">{description}</p> : null}
+      </div>
+      <div className="agent-settings-config-file-editor-section__body">{children}</div>
     </AgentSurfaceBlock>
   )
 }

@@ -1,4 +1,4 @@
-import { useEffect, type ClipboardEvent, type DragEvent } from 'react'
+import { useCallback, useEffect, type ClipboardEvent, type DragEvent } from 'react'
 import type { AgentChatDataSourceShellProps } from '@/features/agent/application/agentChatDataSourceShellTypes'
 import type { AgentRunProfilePresetId } from '@/features/agent/domain/agentRunProfilePreset'
 import {
@@ -24,6 +24,7 @@ import { useAgentChatThreadTabs } from '@/features/agent/application/useAgentCha
 import { useAgentChatThreadViewport } from '@/features/agent/application/useAgentChatThreadViewport'
 import { useAgentChatTurnControls } from '@/features/agent/application/useAgentChatTurnControls'
 import { useAgentChatShellPresentationState } from '@/features/agent/presentation/useAgentChatShellPresentationState'
+import { agentChatRuntimeThreadCanReadTurns } from '@movscript/core/agent/chat'
 
 export function useAgentChatDataSourceShellController({
   userId,
@@ -158,6 +159,9 @@ export function useAgentChatDataSourceShellController({
   const {
     activeThread,
     activeTurn,
+    markThreadFailed,
+    markThreadMaterializing,
+    markThreadReady,
     nextRecentCapabilityEventSequence,
     readActiveRuntimeThreadId,
     setActiveThreadIdValue,
@@ -263,6 +267,10 @@ export function useAgentChatDataSourceShellController({
     setError(null)
   }, [activeThreadId, dataSource, openThread, registryActiveThreadId, setActiveThreadIdValue, setError])
 
+  const requestThreadRead = useCallback((threadId: string) => {
+    dispatchRuntime({ type: 'requestThreadRead', threadId })
+  }, [dispatchRuntime])
+
   const {
     startThreadResult,
     startWorkspaceTask,
@@ -272,9 +280,12 @@ export function useAgentChatDataSourceShellController({
     endpoint,
     goalModeEnabled,
     loadDataSourceForNewThread,
+    markThreadFailed,
+    markThreadReady,
     markThreadOpen,
     profilePresetId,
     registerThreadConversation,
+    requestThreadRead,
     selectedModelSelectionForRequest,
     setActiveThreadIdValue,
     setDataSource,
@@ -368,6 +379,7 @@ export function useAgentChatDataSourceShellController({
     visibleItems,
     visiblePendingServerRequests,
   })
+  const activeThreadCanReadTurns = !activeThreadId || agentChatRuntimeThreadCanReadTurns(runtime, activeThreadId)
   const {
     handleProfilePresetChange,
     syncThreadRunProfileSettingsForTurn,
@@ -385,6 +397,7 @@ export function useAgentChatDataSourceShellController({
   useAgentChatThreadLifecycleEffects({
     activeThread,
     activeThreadId,
+    activeThreadCanReadTurns,
     autoLoadThreads,
     dataSource,
     dispatchRuntime,
@@ -443,6 +456,8 @@ export function useAgentChatDataSourceShellController({
     threadScopeKey,
     upsertThread,
     upsertThreadReadResult,
+    markThreadFailed,
+    markThreadReady,
     userId,
   })
 

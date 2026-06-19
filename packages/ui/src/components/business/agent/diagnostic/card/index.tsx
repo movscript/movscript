@@ -5,7 +5,7 @@ import { Button, type ButtonProps } from "../../../../primitives/button";
 import { cn } from "../../../../../lib/cn";
 import { AgentSurfaceBlock, type AgentSurfaceBlockProps } from "../../surface-block";
 
-export const AgentDiagnosticCard = React.forwardRef<HTMLDivElement, AgentSurfaceBlockProps>(
+export const AgentDiagnosticCard = React.forwardRef<HTMLElement, AgentSurfaceBlockProps>(
   ({ className, variant = "surface", ...props }, ref) => {
     return <AgentSurfaceBlock ref={ref} variant={variant} className={cn("ms-agent-diagnostic-card", className)} {...props} />;
   }

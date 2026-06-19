@@ -15,6 +15,7 @@ import {
 } from '@/features/agent/application/agentChatRuntimeCache'
 import { replayAgentChatPersistentServerRequests } from '@/features/agent/application/agentChatServerRequestReplay'
 import { agentChatThreadTitleUpdateFromNotification } from '@/features/agent/application/agentChatThreadTitleSync'
+import { subscribeSharedAgentChatServerRequests } from '@/features/agent/application/agentChatServerRequestSubscriptionCoordinator'
 import {
   agentChatServerRequestResponseForAction,
   agentChatThreadIdForServerRequest,
@@ -147,19 +148,10 @@ export function useAgentChatServerRequests({
 
   useEffect(() => {
     if (!dataSource?.subscribeServerRequests) return undefined
-    const controller = new AbortController()
-    let dispose: (() => void) | undefined
-    void Promise.resolve(dataSource.subscribeServerRequests({
-      signal: controller.signal,
+    return subscribeSharedAgentChatServerRequests(dataSource, {
       onServerRequest: handleServerRequest,
       onNotification: handleNotification,
-    })).then((cleanup) => {
-      if (typeof cleanup === 'function') dispose = cleanup
     })
-    return () => {
-      controller.abort()
-      dispose?.()
-    }
   }, [dataSource, handleNotification, handleServerRequest])
 
   const resolveServerRequest = useCallback((request: AgentChatServerRequest, response: AgentChatServerRequestResponse | undefined) => {

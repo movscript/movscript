@@ -57,6 +57,11 @@ import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import type { Project } from '@/types'
 
 const DEFAULT_VISIBLE_CHAT_CONVERSATIONS = 5
+const MISSING_ARCHIVED_RUNTIME_THREAD_MESSAGE = 'no archived rollout found'
+
+function isMissingArchivedRuntimeThread(error: unknown): boolean {
+  return error instanceof Error && error.message.includes(MISSING_ARCHIVED_RUNTIME_THREAD_MESSAGE)
+}
 
 export function ProjectAgentModeSidebar({
   headerActions,
@@ -276,7 +281,14 @@ export function ProjectAgentModeSidebar({
   async function setRuntimeThreadArchived(threadId: string, archived: boolean, provider: ProviderConfig = activeAgentProvider) {
     const dataSource = await agentRuntimeDataSource(provider)
     if (archived) await dataSource.archiveThread?.({ threadId })
-    else await dataSource.unarchiveThread?.({ threadId })
+    else {
+      try {
+        await dataSource.unarchiveThread?.({ threadId })
+      } catch (error) {
+        if (isMissingArchivedRuntimeThread(error)) return
+        throw error
+      }
+    }
   }
 
   async function startNewConversation() {

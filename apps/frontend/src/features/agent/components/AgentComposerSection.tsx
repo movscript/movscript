@@ -279,8 +279,12 @@ export function AgentComposerSection({
   )
 
   return (
-    <AgentSurfaceBlock asChild variant="card">
-      <section className={cn('ai-agent-panel-card ai-agent-panel-input-card', `ai-agent-panel-input-card--${chrome}`)} data-chrome={chrome}>
+    <AgentSurfaceBlock
+      as="section"
+      variant="card"
+      className={cn('ai-agent-panel-card ai-agent-panel-input-card', `ai-agent-panel-input-card--${chrome}`)}
+      data-chrome={chrome}
+    >
         <AgentComposerUploadDialog
           open={uploading}
           uploadedFileCount={uploadedFileCount}
@@ -384,7 +388,6 @@ export function AgentComposerSection({
           onWorkspaceProjectChange={onWorkspaceProjectChange}
         />
       </AgentComposer>
-      </section>
     </AgentSurfaceBlock>
   )
 }
