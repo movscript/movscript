@@ -60,6 +60,7 @@ import {
   activeProviderKeyFromPath,
 } from '@/features/agent/application/providerRoutes'
 import {
+  DEFAULT_CLAUDE_RUNTIME_PACKAGE_VERSION,
   MOVA_PROVIDER_ID,
   normalizeProviderSettingsWithRuntimeEnv,
   providerRuntimeProfile,
@@ -219,6 +220,11 @@ export default function AgentsPage() {
               const claudeRuntimeMissing = profile.provider.kind === 'claude'
                 && !profile.current
                 && claudeRuntimeStatusQuery.data?.installed === false
+              const claudeRuntimeActionLabel = claudeRuntimeStatusQuery.data
+                && 'installedVersion' in claudeRuntimeStatusQuery.data
+                && claudeRuntimeStatusQuery.data.installedVersion
+                ? '更新'
+                : '下载'
               const claudeRuntimeStatusLoading = profile.provider.kind === 'claude'
                 && !profile.current
                 && claudeRuntimeStatusQuery.isLoading
@@ -255,7 +261,7 @@ export default function AgentsPage() {
                       }}
                     >
                       <Download size={14} />
-                      下载
+                      {claudeRuntimeActionLabel}
                     </AgentConsoleActionButton>
                   ) : (
                     <AgentConsoleAgentSwitch
@@ -319,7 +325,7 @@ async function shouldDownloadClaudeRuntime(profile: NonNullable<ReturnType<typeo
 function claudeRuntimePackageDescriptor(profile: AgentProfile): { packageName: string; packageVersion: string } {
   return {
     packageName: profile.runtimeBackend.packageName ?? '@anthropic-ai/claude-agent-sdk',
-    packageVersion: profile.runtimeBackend.packageVersion ?? 'latest',
+    packageVersion: profile.runtimeBackend.packageVersion ?? DEFAULT_CLAUDE_RUNTIME_PACKAGE_VERSION,
   }
 }
 
@@ -392,7 +398,7 @@ function ClaudeRuntimeDownloadDialog({
           <div className="min-w-0 flex-1">
             <p className="truncate type-caption text-foreground">{state?.label ?? 'Claude Code'}</p>
             <p className="type-tiny text-muted-foreground">
-              {state ? `${state.packageName}@${state.packageVersion}` : '@anthropic-ai/claude-agent-sdk@latest'}
+              {state ? `${state.packageName}@${state.packageVersion}` : `@anthropic-ai/claude-agent-sdk@${DEFAULT_CLAUDE_RUNTIME_PACKAGE_VERSION}`}
             </p>
           </div>
         </div>

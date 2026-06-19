@@ -11,6 +11,7 @@ import {
 import {
   CLAUDE_PROVIDER_ID,
   CODEX_PROVIDER_ID,
+  DEFAULT_CLAUDE_RUNTIME_PACKAGE_VERSION,
   DEFAULT_PROVIDER_SETTINGS,
   MOVA_PROVIDER_ID,
   providerInstanceId,
@@ -74,6 +75,7 @@ test('agent profiles expose split provider, runtime backend, and account policy 
 
   assert.equal(claudeRuntime.api, 'claude-sdk')
   assert.equal(claudeRuntime.transport, 'sdk-client')
+  assert.equal(claudeRuntime.packageVersion, DEFAULT_CLAUDE_RUNTIME_PACKAGE_VERSION)
   assert.deepEqual(runtimeAccountPolicyFromProvider(claude, claudeRuntime), {
     mode: 'direct',
     backendGateway: false,

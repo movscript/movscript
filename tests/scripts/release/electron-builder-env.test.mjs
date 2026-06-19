@@ -1,23 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { dmgBuilderEnv } from '../../../scripts/release/package-macos-local-dmg.mjs'
+import { dmgBuilderEnv } from '../../../scripts/release/release-workflow.mjs'
 
-test('dmgBuilderEnv lets electron-builder use its Python fallback by default', () => {
-  assert.deepEqual(dmgBuilderEnv({ PATH: '/bin', PYTHON_PATH: '' }), { PATH: '/bin' })
-  assert.deepEqual(dmgBuilderEnv({ PATH: '/bin' }), { PATH: '/bin' })
-})
-
-test('dmgBuilderEnv preserves an explicit Python override', () => {
-  assert.deepEqual(dmgBuilderEnv({ PATH: '/bin', PYTHON_PATH: ' /custom/python ' }), {
-    PATH: '/bin',
-    PYTHON_PATH: '/custom/python',
-  })
-})
-
-test('dmgBuilderEnv removes empty Electron Builder signing environment', () => {
+test('release dmgBuilderEnv removes empty Electron Builder signing environment', () => {
   assert.deepEqual(dmgBuilderEnv({
     PATH: '/bin',
+    PYTHON_PATH: '',
     CSC_LINK: '',
     CSC_NAME: '   ',
     CSC_KEY_PASSWORD: '',
@@ -29,9 +18,10 @@ test('dmgBuilderEnv removes empty Electron Builder signing environment', () => {
   })
 })
 
-test('dmgBuilderEnv trims explicit Electron Builder signing environment', () => {
+test('release dmgBuilderEnv trims explicit Electron Builder signing environment', () => {
   assert.deepEqual(dmgBuilderEnv({
     PATH: '/bin',
+    PYTHON_PATH: ' /usr/bin/python3 ',
     CSC_LINK: ' file:///cert.p12 ',
     CSC_KEY_PASSWORD: ' password ',
     APPLE_API_KEY: ' /key/AuthKey.p8 ',
@@ -39,6 +29,7 @@ test('dmgBuilderEnv trims explicit Electron Builder signing environment', () => 
     APPLE_API_ISSUER: ' ISSUER ',
   }), {
     PATH: '/bin',
+    PYTHON_PATH: '/usr/bin/python3',
     CSC_LINK: 'file:///cert.p12',
     CSC_KEY_PASSWORD: 'password',
     APPLE_API_KEY: '/key/AuthKey.p8',

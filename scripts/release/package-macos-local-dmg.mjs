@@ -298,13 +298,31 @@ function resolveDmgBuilderCorePath(root) {
 
 export function dmgBuilderEnv(env) {
   const nextEnv = { ...env }
-  const explicit = env.PYTHON_PATH?.trim()
-  if (explicit) {
-    nextEnv.PYTHON_PATH = explicit
-  } else {
-    delete nextEnv.PYTHON_PATH
-  }
+  normalizeOptionalBuilderEnv(nextEnv, 'PYTHON_PATH')
+  normalizeOptionalBuilderEnv(nextEnv, 'CSC_LINK')
+  normalizeOptionalBuilderEnv(nextEnv, 'CSC_NAME')
+  normalizeOptionalBuilderEnv(nextEnv, 'CSC_KEY_PASSWORD')
+  normalizeOptionalBuilderEnv(nextEnv, 'CSC_INSTALLER_LINK')
+  normalizeOptionalBuilderEnv(nextEnv, 'CSC_INSTALLER_KEY_PASSWORD')
+  normalizeOptionalBuilderEnv(nextEnv, 'CSC_KEYCHAIN')
+  normalizeOptionalBuilderEnv(nextEnv, 'APPLE_ID')
+  normalizeOptionalBuilderEnv(nextEnv, 'APPLE_APP_SPECIFIC_PASSWORD')
+  normalizeOptionalBuilderEnv(nextEnv, 'APPLE_TEAM_ID')
+  normalizeOptionalBuilderEnv(nextEnv, 'APPLE_API_KEY')
+  normalizeOptionalBuilderEnv(nextEnv, 'APPLE_API_KEY_ID')
+  normalizeOptionalBuilderEnv(nextEnv, 'APPLE_API_ISSUER')
+  normalizeOptionalBuilderEnv(nextEnv, 'APPLE_KEYCHAIN')
+  normalizeOptionalBuilderEnv(nextEnv, 'APPLE_KEYCHAIN_PROFILE')
   return nextEnv
+}
+
+function normalizeOptionalBuilderEnv(env, name) {
+  const value = typeof env[name] === 'string' ? env[name].trim() : ''
+  if (value) {
+    env[name] = value
+  } else {
+    delete env[name]
+  }
 }
 
 function stopSmokeLocalBackend(smokeHome) {

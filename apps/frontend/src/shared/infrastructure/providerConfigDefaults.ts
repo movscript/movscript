@@ -18,6 +18,7 @@ export const MOVA_RUNTIME_PACKAGE_VERSION_ENV = 'MOVSCRIPT_MOVA_SDK_PACKAGE_VERS
 export const CLAUDE_RUNTIME_PACKAGE_ENV = 'MOVSCRIPT_CLAUDE_SDK_PACKAGE'
 export const CLAUDE_RUNTIME_BINARY_PACKAGE_ENV = 'MOVSCRIPT_CLAUDE_BINARY_PACKAGE'
 export const CLAUDE_RUNTIME_PACKAGE_VERSION_ENV = 'MOVSCRIPT_CLAUDE_SDK_PACKAGE_VERSION'
+export const DEFAULT_CLAUDE_RUNTIME_PACKAGE_VERSION = '0.3.183'
 
 export const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
   defaultProviderId: CODEX_PROVIDER_ID,
@@ -75,6 +76,7 @@ export const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
         api: 'claude-sdk',
         label: 'Claude Agent SDK',
         packageName: '@anthropic-ai/claude-agent-sdk',
+        packageVersion: DEFAULT_CLAUDE_RUNTIME_PACKAGE_VERSION,
         binaryPackageName: '@anthropic-ai/claude-code',
         apiEnvVar: CLAUDE_RUNTIME_API_ENV,
         packageNameEnvVar: CLAUDE_RUNTIME_PACKAGE_ENV,
