@@ -37,6 +37,7 @@ export interface AgentChatDataSourceShellProps {
   composerWorkspaceContextLocked?: boolean
   resolveModelForRequest?: () => AgentChatModelSelection
   modelOptions?: PublicModel[]
+  modelUnavailableMessage?: string
   currentProject?: Project | null
   hideComposerWorkspaceProjectSelector?: boolean
   selectedModelId?: string | null

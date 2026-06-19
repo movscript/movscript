@@ -42,6 +42,7 @@ export interface AgentChatShellComposerPanelProps {
   hasChatContent: boolean
   pendingServerRequests: AgentChatRuntimePendingServerRequest[]
   canSend: boolean
+  sendDisabledReason?: string
   canStopActiveRun: boolean
   loading: boolean
   modelOptions: PublicModel[]
@@ -200,6 +201,7 @@ export function AgentChatShellView({
           addMentionTrigger={composer.addMentionTrigger}
           buildingSendWorkspace={false}
           canSend={composerPanel.canSend}
+          sendDisabledReason={composerPanel.sendDisabledReason}
           canAnswerPendingInputWithText={false}
           canStopActiveRun={composerPanel.canStopActiveRun}
           chrome="flush"

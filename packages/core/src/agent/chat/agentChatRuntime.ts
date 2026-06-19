@@ -213,7 +213,7 @@ export function agentChatRuntimeReducer(
     case 'removeThread':
       return removeAgentChatRuntimeThread(state, action.threadId)
     case 'appendPendingUserItem':
-      return { ...state, pendingUserItems: [...state.pendingUserItems, action.item] }
+      return { ...state, pendingUserItems: appendAgentChatRuntimePendingUserItem(state.pendingUserItems, action.item) }
     case 'updatePendingServerRequests':
       return { ...state, pendingServerRequests: action.update(state.pendingServerRequests) }
     case 'enqueueServerRequest':
@@ -779,6 +779,21 @@ function buildAgentChatPendingUserVisibleItems(
     items.push({ viewId, item: pending.item, streaming: false })
   }
   return items
+}
+
+function appendAgentChatRuntimePendingUserItem(
+  pendingUserItems: AgentChatPendingUserItem[],
+  item: AgentChatPendingUserItem,
+): AgentChatPendingUserItem[] {
+  const nextClientId = agentChatRuntimeUserMessageClientId(item.item)
+  const existingIndex = pendingUserItems.findIndex((pending) => {
+    if (pending.threadId !== item.threadId) return false
+    const pendingClientId = agentChatRuntimeUserMessageClientId(pending.item)
+    if (nextClientId && pendingClientId === nextClientId) return true
+    return pending.item.id === item.item.id
+  })
+  if (existingIndex < 0) return [...pendingUserItems, item]
+  return pendingUserItems.map((pending, index) => (index === existingIndex ? item : pending))
 }
 
 function removeAgentChatRuntimeConfirmedPendingUserItems(

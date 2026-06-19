@@ -1,6 +1,6 @@
 {
   "name": "@movscript/engine",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
   "description": "Embeddable MovScript facade for workspace diagnostics, interpret refresh, stores, and candidate workflows.",
   "license": "MIT",

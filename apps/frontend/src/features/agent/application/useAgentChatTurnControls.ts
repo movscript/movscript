@@ -1,4 +1,4 @@
-import { useCallback, useEffect, type Dispatch, type MutableRefObject, type RefObject, type SetStateAction } from 'react'
+import { useCallback, useEffect, useRef, type Dispatch, type MutableRefObject, type RefObject, type SetStateAction } from 'react'
 import {
   agentChatInputsFromTextAndAttachments,
   agentChatVisibleThreadItemViewId,
@@ -93,6 +93,7 @@ interface UseAgentChatTurnControlsInput {
   queuedInputs: AgentComposerQueuedInput[]
   runtimeRef: MutableRefObject<AgentChatRuntimeState>
   selectedModelSelectionForRequest: (thread?: AgentChatThread | null) => AgentChatModelSelection
+  sendDisabledReason?: string
   sending: boolean
   setError: Dispatch<SetStateAction<string | null>>
   setQueuedInputs: Dispatch<SetStateAction<AgentComposerQueuedInput[]>>
@@ -131,6 +132,7 @@ export function useAgentChatTurnControls({
   queuedInputs,
   runtimeRef,
   selectedModelSelectionForRequest,
+  sendDisabledReason,
   sending,
   setError,
   setQueuedInputs,
@@ -146,9 +148,11 @@ export function useAgentChatTurnControls({
   upsertThreadReadResult,
   userId,
 }: UseAgentChatTurnControlsInput) {
+  const turnSubmitInFlightRef = useRef(false)
   const canSend = Boolean(
     dataSource
     && (composer.input.trim() || composer.composerAttachments.length > 0)
+    && !sendDisabledReason
     && !sending
     && !composer.uploading
     && (!activeTurn || dataSource.startTurn || dataSource.startTextTurn),
@@ -199,13 +203,18 @@ export function useAgentChatTurnControls({
   }, [activeThread, activeTurn, composer, dataSource, queuedInputs, setQueuedInputs])
 
   const sendMessage = useCallback(async (nextProfilePresetId: AgentRunProfilePresetId = profilePresetId) => {
-    if (!dataSource || sending) return
+    if (!dataSource || sending || turnSubmitInFlightRef.current) return
+    if (sendDisabledReason) {
+      setError(sendDisabledReason)
+      return
+    }
     const runProfile = agentRunProfilePresetById(nextProfilePresetId)
     const composerInput = composer.getInput()
     const text = composerInput.trim()
     const sentAttachments = composer.composerAttachments
     const inputs = agentChatInputsFromTextAndAttachments(text, sentAttachments)
     if (inputs.length === 0) return
+    turnSubmitInFlightRef.current = true
     const clientUserMessageId = `agent_user_${Date.now()}`
     const optimisticUserMessage = {
       type: 'userMessage' as const,
@@ -360,12 +369,17 @@ export function useAgentChatTurnControls({
       if (startedThreadId) markThreadFailed(startedThreadId, message)
       setError(message)
     } finally {
+      turnSubmitInFlightRef.current = false
       setSending(false)
     }
-  }, [activeThread, activeTurn, collaborationMode, composer, composerConversationId, composerInputRef, composerPlaceholder, dataSource, dispatchRuntime, goalModeEnabled, markThreadFailed, markThreadReady, profilePresetId, selectedModelSelectionForRequest, sending, setError, setOptimisticUserItems, setQueuedInputs, setQueuedInputsCollapsed, setSending, startThreadResult, syncThreadRunProfileSettingsForTurn, threadScopeKey, upsertThread, userId])
+  }, [activeThread, activeTurn, collaborationMode, composer, composerConversationId, composerInputRef, composerPlaceholder, dataSource, dispatchRuntime, goalModeEnabled, markThreadFailed, markThreadReady, profilePresetId, selectedModelSelectionForRequest, sendDisabledReason, sending, setError, setOptimisticUserItems, setQueuedInputs, setQueuedInputsCollapsed, setSending, startThreadResult, syncThreadRunProfileSettingsForTurn, threadScopeKey, upsertThread, userId])
 
   const submitQueuedInputsAsTurn = useCallback(async (ids: string[]) => {
-    if (!dataSource || sending) return
+    if (!dataSource || sending || turnSubmitInFlightRef.current) return
+    if (sendDisabledReason) {
+      setError(sendDisabledReason)
+      return
+    }
     const submission = buildAgentChatQueuedTurnSubmission({
       batchClientUserMessageId: `queued_batch_${Date.now()}`,
       ids,
@@ -376,6 +390,7 @@ export function useAgentChatTurnControls({
     const thread = runtimeRef.current.threads.find((candidate) => candidate.id === threadId)
     if (!thread || thread.status === 'notLoaded') return
     const runProfile = agentRunProfilePresetById(submission.profilePresetId)
+    turnSubmitInFlightRef.current = true
     setSending(true)
     setQueuedInputs((current) => markAgentChatQueuedInputsSending(current, sendingIds))
     try {
@@ -408,9 +423,10 @@ export function useAgentChatTurnControls({
     } catch (nextError) {
       setQueuedInputs((current) => failAgentChatQueuedInputs(current, sendingIds, errorMessage(nextError)))
     } finally {
+      turnSubmitInFlightRef.current = false
       setSending(false)
     }
-  }, [composer, dataSource, dispatchRuntime, markThreadReady, queuedInputs, runtimeRef, selectedModelSelectionForRequest, sending, setQueuedInputs, setSending, syncThreadRunProfileSettingsForTurn])
+  }, [composer, dataSource, dispatchRuntime, markThreadReady, queuedInputs, runtimeRef, selectedModelSelectionForRequest, sendDisabledReason, sending, setError, setQueuedInputs, setSending, syncThreadRunProfileSettingsForTurn])
 
   const submitQueuedInputAsTurn = useCallback(async (id: string) => {
     await submitQueuedInputsAsTurn([id])

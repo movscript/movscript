@@ -2,6 +2,7 @@ import type {
   AgentChatServerRequest,
   AgentChatServerRequestResponse,
 } from './agentChatProtocol.js'
+import { agentChatElicitationFormModel } from './agentChatServerRequestForms.js'
 
 export const MOVSCRIPT_DECISION_REQUEST_METHOD = 'movscript/decision/request'
 
@@ -75,6 +76,7 @@ export function agentChatServerRequestCanApprove(request: AgentChatServerRequest
   return request.method === 'item/commandExecution/requestApproval'
     || request.method === 'item/fileChange/requestApproval'
     || request.method === 'item/permissions/requestApproval'
+    || mcpElicitationRequestCanAcceptWithoutContent(request)
     || request.method === 'applyPatchApproval'
     || request.method === 'execCommandApproval'
 }
@@ -95,7 +97,7 @@ export function agentChatServerRequestCanAnswer(request: AgentChatServerRequest)
 
 export function agentChatServerRequestCanElicit(request: AgentChatServerRequest): boolean {
   const params = isRecord(request.params) ? request.params : {}
-  return request.method === 'mcpServer/elicitation/request' && params.mode === 'form'
+  return request.method === 'mcpServer/elicitation/request' && (params.mode === 'form' || params.mode === 'openai/form')
 }
 
 export function agentChatServerRequestCanSubmitToolResult(request: AgentChatServerRequest): boolean {
@@ -457,6 +459,12 @@ function compactStrings(values: Array<string | undefined | null | false>): strin
 function permissionApprovalRequestHasProfile(request: AgentChatServerRequest): boolean {
   const params = isRecord(request.params) ? request.params : {}
   return request.method === 'item/permissions/requestApproval' && isRecord(params.permissions)
+}
+
+function mcpElicitationRequestCanAcceptWithoutContent(request: AgentChatServerRequest): boolean {
+  if (request.method !== 'mcpServer/elicitation/request') return false
+  if (!agentChatServerRequestCanElicit(request)) return false
+  return agentChatElicitationFormModel(request).fields.length === 0
 }
 
 function agentChatServerRequestCommandActionSummary(value: unknown, index: number): string {

@@ -462,6 +462,17 @@ test('agent chat detailed tabs and agent mode groups share registry-open convers
   assert.match(conversationsByScopeSource, /\}\), \[conversationThreadBindings, conversationRecordsById,/)
 })
 
+test('agent mode sidebar archive actions do not steal row selection clicks', () => {
+  const sidebarPartsSource = readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebarParts.tsx'), 'utf8')
+  const sidebarCssSource = readFileSync(resolve('src/features/agent/components/AgentModeUi.sidebar.css'), 'utf8')
+
+  assert.match(sidebarPartsSource, /onPointerDown=\{stopRowActionPropagation\}/)
+  assert.match(sidebarPartsSource, /onClick=\{\(event\) => \{[\s\S]*event\.stopPropagation\(\)[\s\S]*onArchive\?\.\(\)/)
+  assert.match(sidebarPartsSource, /onClick=\{\(event\) => \{[\s\S]*event\.stopPropagation\(\)[\s\S]*onDelete\?\.\(\)/)
+  assert.match(sidebarCssSource, /\.agent-mode-conversation-row \{[\s\S]*--agent-conversation-action-width: 20px;/)
+  assert.match(sidebarCssSource, /\.agent-mode-conversation--with-action \{[\s\S]*padding-right: calc\(var\(--agent-conversation-action-width\) \+ 8px\);/)
+})
+
 test('agent chat pending server requests survive shell remounts without stale replay', () => {
   const dataSourceShellSource = readAgentChatDataSourceShellContractSource()
   const runtimeCacheSource = readFileSync(resolve('src/features/agent/application/agentChatRuntimeCache.ts'), 'utf8')
@@ -691,6 +702,30 @@ test('agent chat goal state flows from protocol to composer UI', () => {
   assert.match(composerSource, /<AgentQueuedInputPreview[\s\S]*goal=\{goalState\}/)
   assert.match(queuedInputPreviewSource, /function AgentGoalStatusPill/)
   assert.match(queuedInputPreviewSource, /agentThreadGoalStatusLabel\(goal\.status\)/)
+})
+
+test('agent chat blocks sending and surfaces a thread notice when no runtime model is available', () => {
+  const runtimeShellSource = readFileSync(resolve('src/features/agent/components/AgentRuntimeChatShell.tsx'), 'utf8')
+  const dataSourceShellTypesSource = readFileSync(resolve('src/features/agent/application/agentChatDataSourceShellTypes.ts'), 'utf8')
+  const dataSourceShellSource = readAgentChatDataSourceShellContractSource()
+  const turnControlsSource = readFileSync(resolve('src/features/agent/application/useAgentChatTurnControls.ts'), 'utf8')
+  const shellViewSource = readFileSync(resolve('src/features/agent/components/AgentChatShellView.tsx'), 'utf8')
+  const composerSource = readFileSync(resolve('src/features/agent/components/AgentComposerSection.tsx'), 'utf8')
+
+  assert.match(runtimeShellSource, /const agentModelsQuery = useQuery/)
+  assert.match(runtimeShellSource, /const textModels = agentModelsQuery\.data \?\? \[\]/)
+  assert.match(runtimeShellSource, /const modelUnavailableMessage = provider && !modelCatalogLoading && textModels\.length === 0/)
+  assert.match(runtimeShellSource, /modelUnavailableMessage=\{modelUnavailableMessage\}/)
+  assert.match(dataSourceShellTypesSource, /modelUnavailableMessage\?: string/)
+  assert.match(dataSourceShellSource, /const threadError = modelUnavailableMessage \?\? error/)
+  assert.match(dataSourceShellSource, /useAgentChatShellPresentationState\(\{[\s\S]*error: threadError/)
+  assert.match(dataSourceShellSource, /sendDisabledReason: modelUnavailableMessage/)
+  assert.match(dataSourceShellSource, /error: threadError/)
+  assert.match(turnControlsSource, /&& !sendDisabledReason[\s\S]*&& !sending/)
+  assert.match(turnControlsSource, /if \(sendDisabledReason\) \{[\s\S]*setError\(sendDisabledReason\)[\s\S]*return/)
+  assert.match(shellViewSource, /sendDisabledReason=\{composerPanel\.sendDisabledReason\}/)
+  assert.match(composerSource, /const canSubmit = !sendDisabledReason &&/)
+  assert.match(composerSource, /if \(sendDisabledReason\) return/)
 })
 
 test('agent chat queued input summaries prefer text then attachments', async () => {

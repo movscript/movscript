@@ -145,6 +145,33 @@ test('factory only forwards explicitly selected catalog models to SDK requests',
   }
 })
 
+test('factory forwards default catalog model to SDK requests when no explicit model is selected', async () => {
+  const settings = providerSettingsWithRuntimeEnv(DEFAULT_PROVIDER_SETTINGS, {})
+  const provider = requiredProvider(settings.providers.find((item) => item.id === CLAUDE_PROVIDER_ID))
+  const previousModelIdByProviderProfile = useAgentStore.getState().settings.modelIdByProviderProfile
+  let captured: AgentRuntimeDataSourceFactoryInput | undefined
+
+  try {
+    useAgentStore.getState().updateSettings(agentSettingsModelSelectionPatch(useAgentStore.getState().settings, provider.id, null))
+    await createAgentChatDataSourceForProvider(provider, {
+      loadTextModels: async () => [
+        modelFixture({ id: 1, model_id: 'claude-sonnet-4-5' }),
+        modelFixture({ id: 2, model_id: 'claude-opus-4-8[1m]', is_default: true }),
+      ],
+      runtimeDataSources: {
+        'claude-sdk': (input) => {
+          captured = input
+          return fakeDataSource(input)
+        },
+      },
+    })
+
+    assert.equal(captured?.resolveModelForRequest().model, 'claude-opus-4-8[1m]')
+  } finally {
+    useAgentStore.getState().updateSettings({ modelIdByProviderProfile: previousModelIdByProviderProfile, modelId: null })
+  }
+})
+
 test('factory uses registered SDK data source adapters when no test override is supplied', async () => {
   const settings = providerSettingsWithRuntimeEnv(DEFAULT_PROVIDER_SETTINGS, {
     [CODEX_RUNTIME_API_ENV]: 'codex-sdk',

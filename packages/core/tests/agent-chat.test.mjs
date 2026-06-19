@@ -136,6 +136,58 @@ test('core agent chat capability probe includes provider-neutral runtime readine
   assert.equal(runtimeItem?.detail, 'missing SDK export')
 })
 
+test('core agent chat MCP elicitations submit as accepted responses', () => {
+  const emptyFormRequest = {
+    id: 'mcp_elicitation_install',
+    method: 'mcpServer/elicitation/request',
+    threadId: 'thread_1',
+    turnId: 'turn_1',
+    params: {
+      mode: 'form',
+      serverName: 'codex-apps',
+      message: 'Install Google Calendar',
+      _meta: { codex_approval_kind: 'request_plugin_install' },
+      requestedSchema: {
+        type: 'object',
+        properties: {},
+      },
+    },
+  }
+  const emptyFormView = agentChat.agentChatServerRequestView(emptyFormRequest)
+
+  assert.equal(emptyFormView.canElicit, true)
+  assert.equal(emptyFormView.canApprove, true)
+  assert.deepEqual(agentChat.agentChatServerRequestResponseForAction(emptyFormRequest, { type: 'approve' }), {
+    action: 'elicitation',
+    accepted: true,
+    content: null,
+    meta: null,
+  })
+
+  const openAiFormRequest = {
+    id: 'mcp_elicitation_openai_form',
+    method: 'mcpServer/elicitation/request',
+    threadId: 'thread_1',
+    turnId: 'turn_1',
+    params: {
+      mode: 'openai/form',
+      serverName: 'codex-apps',
+      message: 'Pick a template',
+      requestedSchema: {
+        type: 'object',
+        required: ['template'],
+        properties: {
+          template: { type: 'string', title: 'Template' },
+        },
+      },
+    },
+  }
+  const openAiFormView = agentChat.agentChatServerRequestView(openAiFormRequest)
+
+  assert.equal(openAiFormView.canElicit, true)
+  assert.equal(openAiFormView.canApprove, false)
+})
+
 test('core agent chat notification dispatcher records active permission profile settings', () => {
   let threads = [{
     provider: 'mova',
@@ -1511,6 +1563,36 @@ test('core shows pending user messages in the active empty thread timeline', () 
   assert.equal(view.activeThread?.id, 'thread_1')
   assert.deepEqual(view.visibleItems.map((item) => item.viewId), ['user:agent_user_1'])
   assert.deepEqual(view.visibleItems.map((item) => item.item.id), ['agent_user_1'])
+})
+
+test('core dedupes repeated pending user messages by client id', () => {
+  const firstPending = {
+    type: 'userMessage',
+    id: 'agent_user_1',
+    clientId: 'agent_user_1',
+    content: [{ type: 'text', text: 'Hello', textElements: [] }],
+  }
+  const repeatedPending = {
+    type: 'userMessage',
+    id: 'agent_user_1_retry',
+    clientId: 'agent_user_1',
+    content: [{ type: 'text', text: 'Hello again', textElements: [] }],
+  }
+
+  let state = agentChat.createAgentChatRuntimeState('thread_1')
+  state = agentChat.agentChatRuntimeReducer(state, {
+    type: 'appendPendingUserItem',
+    item: { threadId: 'thread_1', item: firstPending },
+  })
+  state = agentChat.agentChatRuntimeReducer(state, {
+    type: 'appendPendingUserItem',
+    item: { threadId: 'thread_1', item: repeatedPending },
+  })
+
+  const view = agentChat.selectAgentChatRuntimeView(state)
+  assert.equal(state.pendingUserItems.length, 1)
+  assert.deepEqual(view.visibleItems.map((item) => item.viewId), ['user:agent_user_1'])
+  assert.deepEqual(view.visibleItems.map((item) => item.item.id), ['agent_user_1_retry'])
 })
 
 test('core windows visible chat items while keeping live items visible', () => {

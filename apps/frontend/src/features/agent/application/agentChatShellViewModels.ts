@@ -20,6 +20,7 @@ export function buildAgentChatShellComposerPanel<TComposer, TQueuedInputs>(input
   hasChatContent: boolean
   pendingServerRequests: AgentChatRuntimePendingServerRequest[]
   canSend: boolean
+  sendDisabledReason?: string
   canStopActiveRun: boolean
   loading: boolean
   modelOptions: PublicModel[]

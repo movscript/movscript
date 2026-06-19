@@ -38,7 +38,7 @@ export function appServerResponseForAgentResponse(
     return { answers: userInputAnswers(response) }
   }
   if (request.method === 'mcpServer/elicitation/request') {
-    return elicitationResponse(response)
+    return elicitationResponse(request, response)
   }
   if (request.method === 'item/tool/call') {
     return dynamicToolResponse(response)
@@ -123,14 +123,28 @@ function answerStrings(value: unknown): string[] {
   return [String(value)]
 }
 
-function elicitationResponse(response: AgentChatServerRequestResponse): unknown {
+function elicitationResponse(
+  request: AgentChatServerRequest,
+  response: AgentChatServerRequestResponse,
+): unknown {
   if (response.action === 'cancel') return { action: 'cancel', content: null, _meta: null }
+  if (response.action === 'approve' && mcpElicitationRequestCanAcceptWithoutContent(request)) {
+    return { action: 'accept', content: null, _meta: null }
+  }
   if (response.action !== 'elicitation' || !response.accepted) return { action: 'decline', content: null, _meta: null }
   return {
     action: 'accept',
     content: response.content ?? null,
     _meta: response.meta ?? null,
   }
+}
+
+function mcpElicitationRequestCanAcceptWithoutContent(request: AgentChatServerRequest): boolean {
+  const params = isRecord(request.params) ? request.params : {}
+  if (params.mode !== 'form' && params.mode !== 'openai/form') return false
+  const schema = isRecord(params.requestedSchema) ? params.requestedSchema : {}
+  const properties = isRecord(schema.properties) ? schema.properties : {}
+  return Object.keys(properties).length === 0
 }
 
 function dynamicToolResponse(response: AgentChatServerRequestResponse): unknown {

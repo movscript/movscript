@@ -72,11 +72,18 @@ function AgentRuntimeChatShellContent({
   const settings = useAgentStore((state) => state.settings)
   const updateSettings = useAgentStore((state) => state.updateSettings)
   const modelAPIKinds = provider ? providerRuntimeModelAPIKinds(providerRuntimeProfile(provider).api) : []
-  const { data: textModels = [] } = useQuery({
+  const agentModelsQuery = useQuery({
     queryKey: agentModelKeys.backendCatalog('runtime-chat', modelAPIKinds),
     queryFn: () => fetchAgentBackendModels({ apiKinds: modelAPIKinds }),
   })
+  const textModels = agentModelsQuery.data ?? []
   const providerLabel = provider?.label?.trim() || 'Agent'
+  const modelCatalogLoading = agentModelsQuery.isPending || agentModelsQuery.isFetching
+  const modelUnavailableMessage = provider && !modelCatalogLoading && textModels.length === 0
+    ? agentModelsQuery.isError
+      ? `${providerLabel} 模型列表加载失败，请检查模型服务后重试。`
+      : `${providerLabel} 当前没有可用模型。请先在模型设置中配置支持当前运行时的模型。`
+    : undefined
   const modelProfileConfigId = provider?.id ?? settings.activeProviderProfileConfigId
   const selectedModelId = agentSettingsModelIdForProvider(settings, modelProfileConfigId)
   const loadDataSource = useCallback(async (): Promise<AgentChatDataSourceShellLoadResult> => {
@@ -151,6 +158,7 @@ function AgentRuntimeChatShellContent({
       newThreadLabel={`New ${providerLabel} thread`}
       composerWorkspaceContextLocked={composerWorkspaceContextLocked}
       modelOptions={textModels}
+      modelUnavailableMessage={modelUnavailableMessage}
       currentProject={currentProject}
       hideComposerWorkspaceProjectSelector={hideComposerWorkspaceProjectSelector}
       selectedModelId={selectedModelId}

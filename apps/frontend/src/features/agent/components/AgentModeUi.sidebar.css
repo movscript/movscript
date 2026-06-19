@@ -283,12 +283,12 @@
 }
 
 .agent-mode-conversation-row {
+  --agent-conversation-action-width: 20px;
   position: relative;
   min-width: 0;
 }
 
 .agent-mode-conversation {
-  --agent-conversation-action-width: 20px;
   --agent-conversation-icon-align-self: center;
   --agent-conversation-icon-margin-top: 0;
   --agent-conversation-indicator-display: none;
@@ -393,7 +393,7 @@
 }
 
 .agent-mode-conversation--with-action {
-  padding-right: 6px;
+  padding-right: calc(var(--agent-conversation-action-width) + 8px);
 }
 
 .agent-mode-conversation--with-action .ms-agent-conversation__meta {

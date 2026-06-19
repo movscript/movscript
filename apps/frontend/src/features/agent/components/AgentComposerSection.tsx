@@ -59,6 +59,7 @@ export interface AgentComposerSectionProps {
   buildingSendWorkspace: boolean
   canAnswerPendingInputWithText: boolean
   canSend: boolean
+  sendDisabledReason?: string
   canStopActiveRun: boolean
   composerAttachmentEntries: { attachment: AgentAttachment }[]
   composerAttachmentsCount: number
@@ -129,6 +130,7 @@ export function AgentComposerSection({
   buildingSendWorkspace,
   canAnswerPendingInputWithText,
   canSend,
+  sendDisabledReason,
   canStopActiveRun,
   composerAttachmentEntries,
   composerAttachmentsCount,
@@ -256,6 +258,7 @@ export function AgentComposerSection({
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
+    if (sendDisabledReason) return
     onSend(profilePresetId)
   }
 
@@ -270,12 +273,14 @@ export function AgentComposerSection({
     onProfilePresetChange?.(nextProfilePresetId)
   }
 
-  const canSubmit = canSend || (
-    draftHasInput
-    && !loading
-    && !uploading
-    && !buildingSendWorkspace
-    && (!answeringPendingInput || canAnswerPendingInputWithText)
+  const canSubmit = !sendDisabledReason && (
+    canSend || (
+      draftHasInput
+      && !loading
+      && !uploading
+      && !buildingSendWorkspace
+      && (!answeringPendingInput || canAnswerPendingInputWithText)
+    )
   )
 
   return (

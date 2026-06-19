@@ -49,6 +49,7 @@ export function useAgentChatDataSourceShellController({
   composerWorkspaceContextLocked: forceComposerWorkspaceContextLocked = false,
   resolveModelForRequest = () => ({}),
   modelOptions = [],
+  modelUnavailableMessage,
   currentProject = null,
   hideComposerWorkspaceProjectSelector = false,
   selectedModelId,
@@ -358,6 +359,7 @@ export function useAgentChatDataSourceShellController({
     threadReadStates,
     threads,
   })
+  const threadError = modelUnavailableMessage ?? error
   const {
     activeThreadModelValue,
     handleModelChange,
@@ -367,7 +369,7 @@ export function useAgentChatDataSourceShellController({
   } = useAgentChatShellPresentationState({
     activeThread,
     activeThreadId,
-    error,
+    error: threadError,
     host,
     modelOptions,
     onSelectedModelChange,
@@ -445,6 +447,7 @@ export function useAgentChatDataSourceShellController({
     queuedInputs,
     runtimeRef,
     selectedModelSelectionForRequest,
+    sendDisabledReason: modelUnavailableMessage,
     sending,
     setError,
     setQueuedInputs,
@@ -510,6 +513,7 @@ export function useAgentChatDataSourceShellController({
       hasChatContent,
       pendingServerRequests: visiblePendingServerRequests,
       canSend,
+      sendDisabledReason: modelUnavailableMessage,
       canStopActiveRun: canStopActiveTurn,
       loading: sending,
       modelOptions,
@@ -564,7 +568,7 @@ export function useAgentChatDataSourceShellController({
       activeThreadId,
       conversationTabs: threadTabs,
       emptyThreadLabel: resolvedEmptyThreadLabel,
-      error,
+      error: threadError,
       hasChatContent,
       recentCapabilityEvents,
       scrollRef,

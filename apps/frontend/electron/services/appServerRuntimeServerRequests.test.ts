@@ -92,6 +92,28 @@ test('app-server server request mapper returns elicitation and dynamic tool resp
     _meta: { source: 'test' },
   })
   assert.deepEqual(appServerResponseForAgentResponse(
+    request('mcpServer/elicitation/request', {
+      mode: 'form',
+      requestedSchema: { type: 'object', properties: {} },
+    }),
+    { action: 'approve' },
+  ), {
+    action: 'accept',
+    content: null,
+    _meta: null,
+  })
+  assert.deepEqual(appServerResponseForAgentResponse(
+    request('mcpServer/elicitation/request', {
+      mode: 'form',
+      requestedSchema: { type: 'object', properties: { email: { type: 'string' } } },
+    }),
+    { action: 'approve' },
+  ), {
+    action: 'decline',
+    content: null,
+    _meta: null,
+  })
+  assert.deepEqual(appServerResponseForAgentResponse(
     request('item/tool/call'),
     { action: 'toolResult', success: true, contentItems: [{ type: 'text', text: 'done' }] },
   ), {

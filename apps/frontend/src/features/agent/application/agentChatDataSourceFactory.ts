@@ -1,6 +1,7 @@
 import type { AgentChatDataSource, AgentChatModelSelection } from '@movscript/core/agent/chat'
 import type { ProviderModelAPIKind } from '@movscript/core/agent'
 import { fetchAgentBackendModels } from '@/features/agent/application/agentModelCatalogApi'
+import { selectDefaultAgentModel } from '@/features/agent/application/agentDefaultModelSelection'
 import { agentSettingsModelIdForProvider, useAgentStore } from '@/features/agent/state/agentStore'
 import {
   providerRuntimeApi,
@@ -97,7 +98,8 @@ function loadTextModels(options: AgentChatDataSourceFactoryOptions, runtime: Pro
 function selectedAgentModel(textModels: Awaited<ReturnType<typeof fetchAgentBackendModels>>, provider: ProviderConfig): AgentChatModelSelection {
   const settings = useAgentStore.getState().settings
   const modelId = agentSettingsModelIdForProvider(settings, provider.id)
-  if (!modelId) return {}
-  const selectedModel = textModels.find((model) => publicModelId(model) === modelId)
+  const selectedModel = modelId
+    ? textModels.find((model) => publicModelId(model) === modelId)
+    : selectDefaultAgentModel(textModels)
   return selectedModel ? { model: publicModelId(selectedModel) } : {}
 }

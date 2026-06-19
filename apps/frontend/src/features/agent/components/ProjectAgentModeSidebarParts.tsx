@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { MouseEvent, PointerEvent, ReactNode } from 'react'
 import { Archive, ChevronDown, ChevronRight, Folder, History, MessageSquare, Plus, Trash2 } from 'lucide-react'
 import {
   AgentModeCompactNavItem, AgentModeConversationArchiveButton, AgentModeConversationItem, AgentModeConversationRow, AgentModeEmptyText, AgentModeGroup, AgentModeGroupBody, AgentModeGroupList, AgentModeGroupToggle, AgentModeIconSlot, AgentModeLabel, AgentModeMeta, AgentModeProjectGroup, AgentModeProjectGroupToggle, } from '@/features/agent/components/AgentModeUi'
@@ -97,6 +97,9 @@ export function AgentSidebarConversation({
   const relativeTime = formatAgentRelativeTime(conversation.updatedAt, locale, now)
   const showArchiveAction = Boolean(onArchive && !archived)
   const showDeleteAction = Boolean(archived && onDelete)
+  const stopRowActionPropagation = (event: MouseEvent<HTMLButtonElement> | PointerEvent<HTMLButtonElement>) => {
+    event.stopPropagation()
+  }
 
   return (
     <AgentModeConversationRow>
@@ -120,7 +123,11 @@ export function AgentSidebarConversation({
       {showArchiveAction ? (
         <AgentModeConversationArchiveButton
           type="button"
-          onClick={onArchive}
+          onPointerDown={stopRowActionPropagation}
+          onClick={(event) => {
+            event.stopPropagation()
+            onArchive?.()
+          }}
           aria-label={archiveLabel}
           title={archiveLabel}
         >
@@ -130,7 +137,11 @@ export function AgentSidebarConversation({
       {showDeleteAction ? (
         <AgentModeConversationArchiveButton
           type="button"
-          onClick={onDelete}
+          onPointerDown={stopRowActionPropagation}
+          onClick={(event) => {
+            event.stopPropagation()
+            onDelete?.()
+          }}
           aria-label={deleteLabel}
           title={deleteLabel}
         >
@@ -409,7 +420,11 @@ export function ProjectAgentModeHistorySection({
                 />
                 <AgentModeConversationArchiveButton
                   type="button"
-                  onClick={() => onDeleteThread(thread.id, item.providerIdentity)}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onDeleteThread(thread.id, item.providerIdentity)
+                  }}
                   aria-label={labels.deleteConversation}
                   title={labels.deleteConversation}
                 >
