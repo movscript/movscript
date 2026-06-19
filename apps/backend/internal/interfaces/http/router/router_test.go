@@ -420,6 +420,7 @@ func TestRegisterPreflightAllowsLocalViteOrigin(t *testing.T) {
 		"http://127.0.0.1:8765",
 		"http://localhost:8766",
 		"http://127.0.0.1:8766",
+		"file://",
 	} {
 		t.Run(origin, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodOptions, "/api/v1/auth/register", nil)

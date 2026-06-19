@@ -21,6 +21,7 @@ import {
   appServerThreadStartParams,
   appServerTurnStartParams,
   appServerTurnSteerParams,
+  type AppServerRuntimeParamsContext,
 } from './appServerRuntimeParams'
 import {
   normalizeAppServerThread,
@@ -191,7 +192,7 @@ async function handleAppServerRuntimeRequest<M extends AgentRuntimeRpcMethod>(
     }
     case 'thread/settings/update': {
       const params = paramsFor(input, 'thread/settings/update')
-      await connection.request('thread/settings/update', appServerThreadSettingsUpdateParams(params, context))
+      await requestAppServerThreadSettingsUpdate(connection, params, context)
       return appServerExecutionSettings(params, context)
     }
     case 'thread/goal/set': {
@@ -268,6 +269,25 @@ export async function requestAppServerThreadRead(
   }
 }
 
+export async function requestAppServerThreadSettingsUpdate(
+  connection: Pick<AppServerConnection, 'request'>,
+  params: AgentRuntimeRpcRequestMap['thread/settings/update'],
+  context: AppServerRuntimeParamsContext,
+): Promise<unknown> {
+  const settingsParams = appServerThreadSettingsUpdateParams(params, context)
+  try {
+    return await connection.request('thread/settings/update', settingsParams)
+  } catch (error) {
+    if (!isAppServerThreadUnavailableForMutationError(error)) throw error
+    await requestAppServerWithTransientHistoryRetry(
+      connection,
+      'thread/resume',
+      appServerThreadResumeParams(params, context),
+    )
+    return connection.request('thread/settings/update', settingsParams)
+  }
+}
+
 export function isTransientAppServerThreadHistoryError(error: unknown): boolean {
   const message = errorMessage(error).toLowerCase()
   return isAppServerEmptyRolloutHistoryErrorMessage(message)
@@ -278,6 +298,13 @@ export function isAppServerIncludeTurnsFallbackError(error: unknown): boolean {
   const message = errorMessage(error).toLowerCase()
   return isAppServerUnmaterializedIncludeTurnsErrorMessage(message)
     || message.includes('ephemeral threads do not support includeturns')
+}
+
+export function isAppServerThreadUnavailableForMutationError(error: unknown): boolean {
+  const message = errorMessage(error).toLowerCase()
+  return message.includes('thread not found:')
+    || message.includes('thread not loaded:')
+    || message.includes('no rollout found for thread id')
 }
 
 function isAppServerEmptyRolloutHistoryErrorMessage(message: string): boolean {

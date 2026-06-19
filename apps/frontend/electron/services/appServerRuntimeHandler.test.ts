@@ -1,9 +1,14 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
+import type {
+  AgentRuntimeRpcRequestMap,
+} from '../../src/shared/infrastructure/agent-runtime/agentRuntimeProtocol'
 import {
   isAppServerIncludeTurnsFallbackError,
+  isAppServerThreadUnavailableForMutationError,
   isTransientAppServerThreadHistoryError,
+  requestAppServerThreadSettingsUpdate,
   requestAppServerThreadRead,
   requestAppServerWithTransientHistoryRetry,
 } from './appServerRuntimeHandler'
@@ -88,6 +93,35 @@ test('app-server thread/read falls back when includeTurns is unsupported for eph
   ])
 })
 
+test('app-server thread/settings/update resumes an unloaded thread before retrying', async () => {
+  const calls: Array<{ method: string; params?: unknown }> = []
+  const params: AgentRuntimeRpcRequestMap['thread/settings/update'] = {
+    provider: { id: 'codex', kind: 'codex', label: 'Codex', enabled: true },
+    runtime: { id: 'codex-codex-app-server', api: 'codex-app-server', label: 'Codex App Server' },
+    threadId: 'thr_1',
+    model: 'gpt-5',
+  }
+  const connection = {
+    async request(method: string, params?: unknown) {
+      calls.push({ method, params })
+      if (method === 'thread/settings/update' && calls.filter((call) => call.method === method).length === 1) {
+        throw new Error('codex-app-server app-server error: thread not found: thr_1')
+      }
+      return method === 'thread/resume' ? { thread: { id: 'thr_1' } } : { ok: true }
+    },
+  }
+
+  const response = await requestAppServerThreadSettingsUpdate(connection, params, { workspaceDir: '/tmp/movscript-workspace' })
+
+  assert.deepEqual(response, { ok: true })
+  assert.deepEqual(calls.map((call) => call.method), [
+    'thread/settings/update',
+    'thread/resume',
+    'thread/settings/update',
+  ])
+  assert.equal((calls[1]?.params as { threadId?: string } | undefined)?.threadId, 'thr_1')
+})
+
 test('app-server history error detection is intentionally narrow', () => {
   assert.equal(isTransientAppServerThreadHistoryError(new Error('failed to load thread history: rollout at /tmp/a.jsonl is empty')), true)
   assert.equal(isTransientAppServerThreadHistoryError(new Error('thread thr_1 is not materialized yet; includeTurns is unavailable before first user message')), true)
@@ -95,4 +129,7 @@ test('app-server history error detection is intentionally narrow', () => {
   assert.equal(isTransientAppServerThreadHistoryError(new Error('rollout at /tmp/a.jsonl is empty')), false)
   assert.equal(isAppServerIncludeTurnsFallbackError(new Error('ephemeral threads do not support includeTurns')), true)
   assert.equal(isAppServerIncludeTurnsFallbackError(new Error('thread not loaded: thr_1')), false)
+  assert.equal(isAppServerThreadUnavailableForMutationError(new Error('thread not found: thr_1')), true)
+  assert.equal(isAppServerThreadUnavailableForMutationError(new Error('thread not loaded: thr_1')), true)
+  assert.equal(isAppServerThreadUnavailableForMutationError(new Error('provider credentials are missing')), false)
 })

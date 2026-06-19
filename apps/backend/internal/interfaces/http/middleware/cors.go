@@ -19,6 +19,7 @@ func CORS(allowedOrigins []string) gin.HandlerFunc {
 		"http://127.0.0.1:8765",
 		"http://localhost:8766",
 		"http://127.0.0.1:8766",
+		"file://",
 		electronAdminOrigin,
 	}
 	if len(allowedOrigins) > 0 {
@@ -32,7 +33,7 @@ func CORS(allowedOrigins []string) gin.HandlerFunc {
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-Org-ID", "X-MovScript-Route-Tier", "Upgrade", "Connection", "Sec-WebSocket-Key", "Sec-WebSocket-Version", "Sec-WebSocket-Protocol"},
 		ExposeHeaders:    []string{"X-Total-Count", "Set-Cookie"},
 		AllowCredentials: true,
-		CustomSchemas:    []string{"movscript-admin://"},
+		CustomSchemas:    []string{"movscript-admin://", "file://"},
 	})
 }
 
