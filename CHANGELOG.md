@@ -11,7 +11,7 @@ This project follows semantic versioning once stable releases begin.
 ### Changed
 
 - Bumped release package manifests to 0.1.7.
-- Updated the desktop release workflow to publish macOS Apple Silicon and Windows x64 packages.
+- Updated the desktop release workflow to publish the macOS Apple Silicon package.
 - Replaced the bundled full Mova package with platform-specific Mova app-server runtime packages for the desktop app-server path.
 
 ## 0.1.6 - 2026-06-20

@@ -9,24 +9,24 @@ test('release workflow packages every desktop target through one parameterized c
   assert.match(releaseWorkflow, /pnpm run release -- package-desktop --platform=\$\{\{\s*matrix\.package-platform\s*\}\} --arch=\$\{\{\s*matrix\.package-arch\s*\}\}/)
   for (const pair of [
     ['package-platform: darwin', 'package-arch: arm64'],
-    ['package-platform: win32', 'package-arch: x64'],
   ]) {
     assert.match(releaseWorkflow, new RegExp(pair[0]))
     assert.match(releaseWorkflow, new RegExp(pair[1]))
   }
   assert.doesNotMatch(releaseWorkflow, /package-platform: linux/)
+  assert.doesNotMatch(releaseWorkflow, /package-platform: win32/)
   assert.doesNotMatch(releaseWorkflow, /package-arch: x64\s+artifact: movscript-desktop-macos-x64/)
 })
 
 test('release workflow downloads ffmpeg-static in each desktop package job', () => {
   for (const pair of [
     ['ffmpeg-platform: darwin', 'ffmpeg-arch: arm64'],
-    ['ffmpeg-platform: win32', 'ffmpeg-arch: x64'],
   ]) {
     assert.match(releaseWorkflow, new RegExp(pair[0]))
     assert.match(releaseWorkflow, new RegExp(pair[1]))
   }
   assert.doesNotMatch(releaseWorkflow, /ffmpeg-platform: linux/)
+  assert.doesNotMatch(releaseWorkflow, /ffmpeg-platform: win32/)
   assert.doesNotMatch(releaseWorkflow, /ffmpeg-platform: darwin\s+ffmpeg-arch: x64/)
   assert.match(releaseWorkflow, /release -- download-ffmpeg-static --platform=\$\{\{\s*matrix\.ffmpeg-platform\s*\}\} --arch=\$\{\{\s*matrix\.ffmpeg-arch\s*\}\}/)
 })
@@ -34,12 +34,12 @@ test('release workflow downloads ffmpeg-static in each desktop package job', () 
 test('release workflow uploads architecture-specific desktop artifact names', () => {
   for (const artifact of [
     'movscript-desktop-macos-arm64',
-    'movscript-desktop-windows-x64',
   ]) {
     assert.match(releaseWorkflow, new RegExp(`artifact: ${artifact}`))
   }
   assert.doesNotMatch(releaseWorkflow, /artifact: movscript-desktop-macos-x64/)
   assert.doesNotMatch(releaseWorkflow, /artifact: movscript-desktop-linux-/)
+  assert.doesNotMatch(releaseWorkflow, /artifact: movscript-desktop-windows-/)
 })
 
 test('release workflow installs locked dependencies without mutating package specs', () => {
