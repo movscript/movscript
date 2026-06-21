@@ -71,8 +71,20 @@ jobs:
       - name: Build core package
         run: pnpm --filter @movscript/core build
 
-      - name: Run Windows-focused frontend service tests
-        run: node scripts/run-node-tests.mjs apps/frontend/electron/services/desktopIdentity.test.ts apps/frontend/electron/services/appServerRuntimeCommand.test.ts apps/frontend/electron/services/movscriptCliPath.test.ts apps/frontend/electron/services/localTerminalEnv.test.ts
+      - name: Test desktop identity paths
+        run: node scripts/run-node-tests.mjs apps/frontend/electron/services/desktopIdentity.test.ts
+
+      - name: Test app-server command parsing
+        run: node scripts/run-node-tests.mjs apps/frontend/electron/services/appServerRuntimeCommand.test.ts
+
+      - name: Test movcli path handling
+        run: node scripts/run-node-tests.mjs apps/frontend/electron/services/movscriptCliPath.test.ts
+
+      - name: Test local terminal env
+        run: node scripts/run-node-tests.mjs apps/frontend/electron/services/localTerminalEnv.test.ts
+
+      - name: Test settings directory picker contract
+        run: node scripts/run-node-tests.mjs apps/frontend/src/features/settings/application/appSettingsLayoutContract.test.ts
 
       - name: Run backend handler tests
         working-directory: apps/backend
