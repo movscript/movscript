@@ -20,11 +20,10 @@ test('release workflow exposes the curated release subcommand surface', () => {
 test('release workflow check runs release gates in order', () => {
   assert.deepEqual(releaseWorkflowSteps('check'), [
     ['Verify release readiness', 'node', ['scripts/release/release-workflow.mjs', 'verify-release-readiness']],
+    ['Build workspace packages', 'pnpm', ['--workspace-concurrency=1', '--filter', './packages/*', 'build']],
     ['Run workspace typecheck', 'pnpm', ['run', 'typecheck']],
-    ['Run workspace tests', 'pnpm', ['run', 'test']],
-    ['Run script and release tests', 'pnpm', ['run', 'test:scripts']],
+    ['Run release script tests', 'node', ['scripts/run-node-tests.mjs', 'tests/scripts/release/*.test.mjs']],
     ['Run UI package quality gate', 'pnpm', ['run', 'quality:ui']],
-    ['Run frontend quality gate', 'pnpm', ['run', 'quality:frontend']],
     ['Verify package resource contract', 'node', ['scripts/release/release-workflow.mjs', 'verify-package-resources']],
   ])
 })
