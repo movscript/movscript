@@ -2,6 +2,16 @@ name: Windows Compatibility
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/windows-compat.yml'
+      - 'apps/backend/**'
+      - 'apps/frontend/**'
+      - 'package-resources.manifest.json'
+      - 'packages/core/**'
+      - 'pnpm-lock.yaml'
+      - 'scripts/release/**'
   pull_request:
     paths:
       - '.github/workflows/windows-compat.yml'
