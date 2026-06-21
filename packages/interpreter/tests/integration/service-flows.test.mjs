@@ -613,10 +613,19 @@ test('initialized project source uses project_id and can interpret immediately',
     title: 'Smoke',
   })
   const project = JSON.parse(files.get('project.json'))
+  const workspace = JSON.parse(files.get('workspace.json'))
+  const localConfig = JSON.parse((await repository.read({ path: '.movscript/config.json' })).content)
 
   assert.equal(initialized.projectId, 'smoke')
+  assert.match(initialized.projectUid, /^prj_/)
   assert.ok(initialized.files.some((file) => file.path === '.gitignore' && file.status === 'created'))
   assert.match(files.get('.gitignore') ?? '', /^\.interpret\/$/m)
+  assert.match(files.get('.gitignore') ?? '', /^\.movscript\/$/m)
+  assert.equal(workspace.schema, 'movscript.workspace.v2')
+  assert.equal(workspace.project_id, 'smoke')
+  assert.equal(workspace.project_uid, initialized.projectUid)
+  assert.equal(localConfig.schema, 'movscript.local_project_config.v1')
+  assert.equal(localConfig.project_uid, initialized.projectUid)
   assert.equal(project.project_id, 'smoke')
   assert.equal(project.title, 'Smoke')
   assert.equal(project.project_name, undefined)
@@ -634,6 +643,55 @@ test('initialized project source uses project_id and can interpret immediately',
   assert.equal(interpretation.status, 'refreshed')
   assert.equal(files.has('.interpret/current/project.json'), true)
   assert.equal(files.has('.interpret/current/project_standards.json'), true)
+})
+
+test('project standards writes sync provider project standard skills', async () => {
+  const files = new Map()
+  const repository = memoryWorkspaceFileRepository(files)
+  const service = createMovScriptWorkspaceService({
+    fileRepository: repository,
+    now: () => new Date('2026-06-07T00:00:00.000Z'),
+  })
+
+  const initialized = await service.initializeProject({
+    projectId: 'smoke',
+    title: 'Smoke',
+    standards: {
+      aspect_ratio: '16:9',
+      visual_style: 'Cold rainy suspense realism.',
+      custom_rules: [{ key: 'style_reference_images', value: 'resource_id: 42' }],
+    },
+  })
+
+  const skillPaths = [
+    '.codex/skills/plugins/movscript_project-standards/project-standards/SKILL.md',
+    '.claude/skills/plugins/movscript_project-standards/project-standards/SKILL.md',
+    '.mova/skills/plugins/movscript_project-standards/project-standards/SKILL.md',
+  ]
+  assert.deepEqual(initialized.standardSkillFiles.map((file) => file.path), skillPaths)
+  for (const path of skillPaths) {
+    const content = files.get(path)
+    assert.match(content, /Generated from `project_standards\.json`/)
+    assert.match(content, /Cold rainy suspense realism\./)
+    assert.match(content, /- 42/)
+  }
+
+  const updated = await service.upsertProjectStandards({
+    record: JSON.parse(files.get('project_standards.json')),
+    projectStyle: {
+      aspect_ratio: '9:16',
+      visual_style: 'Neon documentary realism.',
+      negative_rules: ['cartoon'],
+    },
+  })
+  assert.deepEqual(updated.standardSkillFiles.map((file) => file.path), skillPaths)
+  for (const path of skillPaths) {
+    const content = files.get(path)
+    assert.match(content, /Neon documentary realism\./)
+    assert.match(content, /9:16/)
+    assert.match(content, /- cartoon/)
+    assert.doesNotMatch(content, /Cold rainy suspense realism\./)
+  }
 })
 
 test('initialized project preserves existing gitignore and ensures derived artifacts are ignored', async () => {
@@ -654,6 +712,7 @@ test('initialized project preserves existing gitignore and ensures derived artif
   assert.ok(firstInitialize.files.some((file) => file.path === '.gitignore' && file.status === 'updated'))
   assert.match(gitignore, /^node_modules\/$/m)
   assert.match(gitignore, /^\.interpret\/$/m)
+  assert.match(gitignore, /^\.movscript\/$/m)
 
   const secondInitialize = await service.initializeProject({
     projectId: 'smoke',
@@ -661,7 +720,9 @@ test('initialized project preserves existing gitignore and ensures derived artif
   })
   const secondGitignore = files.get('.gitignore') ?? ''
   assert.ok(secondInitialize.files.some((file) => file.path === '.gitignore' && file.status === 'skipped'))
+  assert.equal(secondInitialize.projectUid, firstInitialize.projectUid)
   assert.equal((secondGitignore.match(/^\.interpret\/$/gm) ?? []).length, 1)
+  assert.equal((secondGitignore.match(/^\.movscript\/$/gm) ?? []).length, 1)
 })
 
 async function snapshotBaseline(repository, now) {

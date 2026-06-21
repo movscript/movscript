@@ -320,11 +320,11 @@ test('Codex SDK runtime handler resolves workspace context cwd and CODEX_HOME', 
     method: 'thread/start',
     params: {
       ...codexContext(),
-      workspaceContext: { scope: 'project', projectId: 42 },
+      workspaceContext: { scope: 'project', projectDir: join(workspaceDir, 'demo-project') },
     },
   })
 
-  const expectedCwd = join(workspaceDir, 'realms', 'local', 'user', '1', 'projects', 'project_42')
+  const expectedCwd = join(workspaceDir, 'demo-project')
   assert.equal(thread.cwd, expectedCwd)
   assert.equal((starts[0] as { workingDirectory?: string }).workingDirectory, expectedCwd)
   const options = constructed[0] as { env?: Record<string, string | undefined> }
@@ -711,7 +711,7 @@ test('Claude SDK runtime handler resolves workspace context cwd and CLAUDE_CONFI
     method: 'thread/start',
     params: {
       ...claudeContext(),
-      workspaceContext: { scope: 'project', projectId: 42 },
+      workspaceContext: { scope: 'project', projectDir: join(workspaceDir, 'demo-project') },
     },
   })
   await handler({
@@ -723,7 +723,7 @@ test('Claude SDK runtime handler resolves workspace context cwd and CLAUDE_CONFI
     },
   })
 
-  const expectedCwd = join(workspaceDir, 'realms', 'local', 'user', '1', 'projects', 'project_42')
+  const expectedCwd = join(workspaceDir, 'demo-project')
   const options = (calls[0] as { options?: Record<string, unknown> }).options ?? {}
   assert.equal(thread.cwd, expectedCwd)
   assert.equal(options.cwd, expectedCwd)

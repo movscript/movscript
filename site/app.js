@@ -5,16 +5,24 @@ const platformPanels = Array.from(document.querySelectorAll("[data-platform-pane
 const copyButtons = Array.from(document.querySelectorAll("[data-copy-command]"));
 const releaseStatuses = Array.from(document.querySelectorAll("[data-release-status]"));
 const releaseAssetLinks = Array.from(document.querySelectorAll("[data-release-asset]"));
+const downloadRecommendations = Array.from(document.querySelectorAll("[data-download-recommendation]"));
 
 const releaseApiUrl = "https://api.github.com/repos/movscript/movscript/releases/latest";
 const releasesUrl = "https://github.com/movscript/movscript/releases/latest";
 const releaseAssetMatchers = {
-  macos: [
+  "macos-arm64": [
     (name) => name.startsWith("movscript-desktop-macos-arm64-") && name.endsWith(".dmg"),
   ],
-  windows: [
+  "macos-x64": [
+    (name) => name.startsWith("movscript-desktop-macos-x64-") && name.endsWith(".dmg"),
+  ],
+  "windows-x64": [
     (name) => name.startsWith("movscript-desktop-windows-x64-") && name.includes("Setup") && name.endsWith(".exe"),
     (name) => name.startsWith("movscript-desktop-windows-x64-") && name.endsWith(".exe"),
+  ],
+  "windows-arm64": [
+    (name) => name.startsWith("movscript-desktop-windows-arm64-") && name.includes("Setup") && name.endsWith(".exe"),
+    (name) => name.startsWith("movscript-desktop-windows-arm64-") && name.endsWith(".exe"),
   ],
 };
 
@@ -35,6 +43,37 @@ function detectPlatform() {
 
   if (value.includes("win")) return "windows";
   return "macos";
+}
+
+async function detectArchitecture() {
+  const values = [
+    navigator.platform,
+    navigator.userAgent,
+  ];
+
+  try {
+    const highEntropy = await navigator.userAgentData?.getHighEntropyValues?.(["architecture", "bitness"]);
+    values.push(highEntropy?.architecture, highEntropy?.bitness);
+  } catch {
+    // Browser privacy settings can reject high entropy hints. Fall back to lower fidelity values.
+  }
+
+  const text = values.filter(Boolean).join(" ").toLowerCase();
+  if (/\b(?:arm64|aarch64|arm)\b/.test(text)) return "arm64";
+  if (/\b(?:x86_64|x64|amd64|wow64|win64|x86)\b/.test(text) || text.includes("macintel")) return "x64";
+  return "";
+}
+
+async function detectDownloadTarget() {
+  const platform = detectPlatform();
+  const arch = await detectArchitecture();
+
+  if (platform === "windows") {
+    return arch === "arm64" ? "windows-arm64" : "windows-x64";
+  }
+
+  if (arch === "x64") return "macos-x64";
+  return "macos-arm64";
 }
 
 function selectLanguage(language) {
@@ -58,6 +97,24 @@ function selectPlatform(platform) {
 
   for (const panel of platformPanels) {
     panel.hidden = panel.dataset.platformPanel !== platform;
+  }
+}
+
+function highlightDownloadTarget(target) {
+  for (const link of releaseAssetLinks) {
+    const selected = link.dataset.releaseAsset === target;
+    link.toggleAttribute("data-recommended-download", selected);
+    link.setAttribute("aria-current", selected ? "true" : "false");
+  }
+
+  const targetLink = releaseAssetLinks.find((link) => link.dataset.releaseAsset === target);
+  const label = targetLink?.querySelector("span")?.textContent?.trim() || targetLink?.textContent?.trim() || "";
+  for (const note of downloadRecommendations) {
+    if (label) {
+      note.textContent = note.closest("[lang='zh-Hans']")
+        ? `已根据当前设备推荐：${label}`
+        : `Recommended for this device: ${label}`;
+    }
   }
 }
 
@@ -160,4 +217,8 @@ async function loadLatestRelease() {
 
 selectLanguage(detectLanguage());
 selectPlatform(detectPlatform());
+detectDownloadTarget().then((target) => {
+  highlightDownloadTarget(target);
+  selectPlatform(target.startsWith("windows") ? "windows" : "macos");
+});
 void loadLatestRelease();

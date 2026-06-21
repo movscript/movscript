@@ -16,7 +16,7 @@ const canvasWorkbenchMeta: Record<CanvasWorkbenchKind, { stage: CanvasStage; can
   },
   production: {
     stage: 'generation',
-    canvasName: '内容编排画布',
+    canvasName: '创作画布',
   },
 }
 

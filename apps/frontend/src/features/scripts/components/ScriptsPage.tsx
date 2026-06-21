@@ -162,7 +162,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
 
   const updateScript = useMutation({
     mutationFn: (data: Partial<Script>) => {
-      if (!selected) throw new Error('请选择剧本')
+      if (!selected) throw new Error('请选择手记')
       return saveWorkspaceScript(projectId, selected.ID, data, workspaceContext)
     },
     onSuccess: (updated: Script) => {
@@ -175,7 +175,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
 
   const createVersion = useMutation({
     mutationFn: async () => {
-      if (!selected) throw new Error('请选择剧本')
+      if (!selected) throw new Error('请选择手记')
       const saved = await saveWorkspaceScript(projectId, selected.ID, workspace, workspaceContext)
       return createScriptVersion(projectId, {
         script_id: saved.ID,
@@ -219,19 +219,19 @@ function ScriptsSection({ projectId }: { projectId: number }) {
       className="script-workbench-project-shell"
       workbenchId="orchestration_production"
       icon={ScrollText}
-      kicker="剧本"
-      title="剧本编辑工作台"
-      description="以 Markdown 作为正文底稿，集中完成写作、大纲和版本管理。"
+      kicker="手记"
+      title="创作手记"
+      description="以 Markdown 记录创作底稿，集中完成写作、大纲和版本管理。"
     >
       <WorkbenchProjectBody padding="none" scroll="hidden" tone="muted">
         <ScriptWorkspaceShell>
           <div className="script-workbench-layout">
             {isLoading ? (
-              <ScriptWorkspaceEmptySelection icon={ScrollText} title="正在读取剧本..." />
+              <ScriptWorkspaceEmptySelection icon={ScrollText} title="正在读取手记..." />
             ) : !selected ? (
               <ScriptWorkspaceEmptySelection
                 icon={ScrollText}
-                title="从项目 Home 选择一份剧本开始创作"
+                title="从项目 Home 选择一份手记开始创作"
                 action={(
                   <Button asChild variant="outline" size="sm">
                     <Link to={ROUTES.project.home}>返回项目 Home</Link>

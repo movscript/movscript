@@ -52,8 +52,10 @@ export async function initLocalProject(args: Record<string, unknown>): Promise<u
     projectDir,
     projectPath: projectDir,
     projectId: initialized.projectId,
+    projectUid: initialized.projectUid,
     project: localProjectSummary(projectDir, {
       projectId: initialized.projectId,
+      projectUid: initialized.projectUid,
       title,
       updatedAt: new Date().toISOString(),
     }),
@@ -64,6 +66,7 @@ export async function initLocalProject(args: Record<string, unknown>): Promise<u
     locator: {
       projectDir,
       projectId: initialized.projectId,
+      projectUid: initialized.projectUid,
     },
     message: `MovScript 项目已初始化：${projectDir}`,
   }
@@ -79,10 +82,12 @@ export async function fetchLocalProject(args: Record<string, unknown>): Promise<
     projectDir,
     projectPath: projectDir,
     projectId: metadata.projectId,
+    projectUid: metadata.projectUid,
     project: localProjectSummary(projectDir, metadata),
     locator: {
       projectDir,
       ...(metadata.projectId !== undefined ? { projectId: metadata.projectId } : {}),
+      ...(metadata.projectUid !== undefined ? { projectUid: metadata.projectUid } : {}),
     },
     message: metadata.hasMetadata
       ? `MovScript 项目已打开：${projectDir}`
@@ -92,13 +97,14 @@ export async function fetchLocalProject(args: Record<string, unknown>): Promise<
 
 async function readProjectMetadata(
   projectDir: string,
-): Promise<{ hasMetadata: boolean; projectId?: string; title?: string; description?: string; updatedAt?: string }> {
-  for (const candidate of ['project.json', 'workspace.json']) {
+): Promise<{ hasMetadata: boolean; projectId?: string; projectUid?: string; title?: string; description?: string; updatedAt?: string }> {
+  for (const candidate of ['workspace.json', 'project.json']) {
     const parsed = await readJSON(resolve(projectDir, candidate))
     if (!isRecord(parsed)) continue
     return {
       hasMetadata: true,
       projectId: getStringField(parsed.project_id ?? parsed.projectId ?? parsed.id),
+      projectUid: getStringField(parsed.project_uid ?? parsed.projectUid),
       title: getStringField(parsed.title ?? parsed.name),
       description: getStringField(parsed.description),
       updatedAt: getStringField(parsed.updated_at ?? parsed.updatedAt),
@@ -109,11 +115,14 @@ async function readProjectMetadata(
 
 function localProjectSummary(
   projectDir: string,
-  metadata: { projectId?: string; title?: string; description?: string; updatedAt?: string },
+  metadata: { projectId?: string; projectUid?: string; title?: string; description?: string; updatedAt?: string },
 ): Record<string, unknown> {
   const now = new Date().toISOString()
   return {
     id: metadata.projectId,
+    uid: metadata.projectUid,
+    projectUid: metadata.projectUid,
+    project_uid: metadata.projectUid,
     name: metadata.title || basename(projectDir) || 'Local Project',
     description: metadata.description || projectDir,
     projectDir,

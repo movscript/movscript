@@ -26,6 +26,9 @@ const CREATED_PROJECT: Project = {
 
 type WindowCall =
   | { type: 'agent' }
+  | { type: 'canvas' }
+  | { type: 'editing' }
+  | { type: 'tool'; input?: { route?: string } }
   | { type: 'project'; input: ElectronOpenProjectWindowInput }
   | { type: 'home' }
 
@@ -49,7 +52,8 @@ test('app home opens agent, project, and canvas entry points', async ({ page }, 
   await expect(page).toHaveURL(/\/$/)
 
   await page.getByRole('button', { name: /Canvas/ }).click()
-  await expect(page).toHaveURL(/\/canvases$/)
+  await expectWindowCall(page, { type: 'canvas' })
+  await expect(page).toHaveURL(/\/$/)
 })
 
 test('app home opens the tool entry point', async ({ page }, testInfo) => {
@@ -58,7 +62,8 @@ test('app home opens the tool entry point', async ({ page }, testInfo) => {
 
   await expect(page.getByRole('button', { name: /Tool/ })).toBeVisible()
   await page.getByRole('button', { name: /Tool/ }).click()
-  await expect(page).toHaveURL(/\/tools\/ref-image-gen$/)
+  await expectWindowCall(page, { type: 'tool', route: '/tools/ref-image-gen' })
+  await expect(page).toHaveURL(/\/$/)
 })
 
 test('app home opens the standalone editing entry point', async ({ page }, testInfo) => {
@@ -66,7 +71,8 @@ test('app home opens the standalone editing entry point', async ({ page }, testI
   await gotoHome(page)
 
   await page.getByRole('button', { name: /剪辑|Editing/ }).click()
-  await expect(page).toHaveURL(/\/editing$/)
+  await expectWindowCall(page, { type: 'editing' })
+  await expect(page).toHaveURL(/\/$/)
 })
 
 test('app home creates project through the launcher dialog', async ({ page }, testInfo) => {
@@ -120,6 +126,15 @@ async function installWindowApiRecorder(page: Page) {
       openAgentWindow: async () => {
         globalWindow.__movscriptWindowCalls?.push({ type: 'agent' })
       },
+      openCanvasWindow: async () => {
+        globalWindow.__movscriptWindowCalls?.push({ type: 'canvas' })
+      },
+      openEditingWindow: async () => {
+        globalWindow.__movscriptWindowCalls?.push({ type: 'editing' })
+      },
+      openToolWindow: async (input?: { route?: string }) => {
+        globalWindow.__movscriptWindowCalls?.push({ type: 'tool', input })
+      },
       openProjectWindow: async (input: ElectronOpenProjectWindowInput) => {
         globalWindow.__movscriptWindowCalls?.push({ type: 'project', input })
       },
@@ -137,11 +152,26 @@ async function mockHomeProjects(page: Page) {
   })
 }
 
-async function expectWindowCall(page: Page, expected: { type: 'agent' } | { type: 'project'; projectId: number; route?: string }) {
+async function expectWindowCall(
+  page: Page,
+  expected:
+    | { type: 'agent' }
+    | { type: 'canvas' }
+    | { type: 'editing' }
+    | { type: 'tool'; route?: string }
+    | { type: 'project'; projectId: number; route?: string },
+) {
   await expect.poll(async () => page.evaluate(() => {
     return ((window as Window & { __movscriptWindowCalls?: WindowCall[] }).__movscriptWindowCalls ?? [])
-  })).toContainEqual(expected.type === 'agent'
-    ? { type: 'agent' }
+  })).toContainEqual(expected.type === 'agent' || expected.type === 'canvas' || expected.type === 'editing'
+    ? { type: expected.type }
+    : expected.type === 'tool'
+      ? expect.objectContaining({
+        type: 'tool',
+        input: expect.objectContaining({
+          ...(expected.route ? { route: expected.route } : {}),
+        }),
+      })
     : expect.objectContaining({
       type: 'project',
       input: expect.objectContaining({

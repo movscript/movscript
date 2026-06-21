@@ -49,10 +49,17 @@ func NewService(db *gorm.DB, cacheStore ...cache.Cache) *Service {
 type CreateInput struct {
 	Name          string `json:"name" binding:"required"`
 	Description   string `json:"description"`
+	ProjectUID    string `json:"project_uid"`
 	TotalEpisodes int    `json:"total_episodes"`
 	AspectRatio   string `json:"aspect_ratio"`
 	VisualStyle   string `json:"visual_style"`
 	ProjectStyle  string `json:"project_style"`
+}
+
+type EnsureInput struct {
+	ProjectUID  string `json:"project_uid" binding:"required"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
 }
 
 type AdminCreateInput struct {
@@ -169,11 +176,50 @@ func (s *Service) AdminCreate(ctx context.Context, input AdminCreateInput) (doma
 }
 
 func (s *Service) Create(ctx context.Context, input CreateInput, ownerID uint, orgID *uint) (domainproject.Project, error) {
+	input.Name = strings.TrimSpace(input.Name)
+	input.ProjectUID = strings.TrimSpace(input.ProjectUID)
+	if input.Name == "" {
+		return domainproject.Project{}, ErrInvalidProjectName
+	}
 	project, err := s.repo.Create(ctx, input, ownerID, orgID)
 	if err == nil {
 		s.bumpProgressVersion(ctx, project.ID)
 	}
 	return project, err
+}
+
+func (s *Service) ResolveByUID(ctx context.Context, projectUID string, orgID *uint) (domainproject.Project, error) {
+	projectUID = strings.TrimSpace(projectUID)
+	if projectUID == "" {
+		return domainproject.Project{}, ErrProjectNotFound
+	}
+	return s.repo.GetByUID(ctx, projectUID, orgID)
+}
+
+func (s *Service) EnsureByUID(ctx context.Context, input EnsureInput, ownerID uint, orgID *uint) (domainproject.Project, bool, error) {
+	projectUID := strings.TrimSpace(input.ProjectUID)
+	if projectUID == "" {
+		return domainproject.Project{}, false, ErrProjectNotFound
+	}
+	if existing, err := s.repo.GetByUID(ctx, projectUID, orgID); err == nil {
+		return existing, false, nil
+	} else if !errors.Is(err, ErrProjectNotFound) {
+		return domainproject.Project{}, false, err
+	}
+	name := strings.TrimSpace(input.Name)
+	if name == "" {
+		name = projectUID
+	}
+	project, err := s.repo.Create(ctx, CreateInput{
+		Name:        name,
+		Description: strings.TrimSpace(input.Description),
+		ProjectUID:  projectUID,
+	}, ownerID, orgID)
+	if err != nil {
+		return domainproject.Project{}, false, err
+	}
+	s.bumpProgressVersion(ctx, project.ID)
+	return project, true, nil
 }
 
 func (s *Service) Get(ctx context.Context, id uint, orgID *uint) (domainproject.Project, error) {

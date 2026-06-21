@@ -29,7 +29,7 @@ export function ProjectHomeBrowserPage({
       <AgentBrowserProjectEmpty
         icon={<FolderOpen size={21} />}
         title="内容导航"
-        description="当前还没有选中的项目。选择项目后可从这里进入剧本、设定、素材、制作、情节和内容。"
+        description="当前还没有选中的项目。选择项目后可从这里进入手记、设定、素材、制作、情节和内容。"
       />
     )
   }

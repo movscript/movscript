@@ -340,6 +340,63 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, project)
 }
 
+func (h *ProjectHandler) Resolve(c *gin.Context) {
+	var req struct {
+		ProjectUID string `json:"project_uid" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
+		return
+	}
+	orgID, ok := requireCurrentOrgID(c)
+	if !ok {
+		return
+	}
+	project, err := h.projects.ResolveByUID(c.Request.Context(), req.ProjectUID, orgID)
+	if err != nil {
+		if errors.Is(err, projectapp.ErrProjectNotFound) {
+			c.JSON(http.StatusNotFound, api.NotFound("项目不存在"))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, api.Internal("查询项目失败"))
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"project": project})
+}
+
+func (h *ProjectHandler) Ensure(c *gin.Context) {
+	var req projectapp.EnsureInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
+		return
+	}
+	orgID, ok := requireCurrentOrgID(c)
+	if !ok {
+		return
+	}
+	var ownerID uint
+	if user := currentUser(c); user != nil {
+		ownerID = user.ID
+	}
+	project, created, err := h.projects.EnsureByUID(c.Request.Context(), req, ownerID, orgID)
+	if err != nil {
+		switch {
+		case errors.Is(err, projectapp.ErrInvalidProjectName):
+			c.JSON(http.StatusBadRequest, api.InvalidInput("项目名称不能为空"))
+		case errors.Is(err, projectapp.ErrProjectNotFound):
+			c.JSON(http.StatusBadRequest, api.InvalidInput("project_uid 不能为空"))
+		default:
+			c.JSON(http.StatusInternalServerError, api.Internal("确保项目失败"))
+		}
+		return
+	}
+	status := http.StatusOK
+	if created {
+		status = http.StatusCreated
+	}
+	c.JSON(status, gin.H{"project": project, "created": created})
+}
+
 func (h *ProjectHandler) Get(c *gin.Context) {
 	orgID, ok := requireCurrentOrgID(c)
 	if !ok {

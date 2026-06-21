@@ -78,6 +78,7 @@ export function installAgentRuntimeBundledPlugin(input: {
   if (input.workspaceDir?.trim()) {
     const snapshot = installProjectPlugin({
       workspaceDir: input.workspaceDir,
+      projectDir: input.workspaceDir,
       id: 'movscript',
       name: 'movscript',
       marketplaceName: BUNDLED_MARKETPLACE_NAME,

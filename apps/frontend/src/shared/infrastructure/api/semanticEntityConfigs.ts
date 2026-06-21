@@ -29,7 +29,7 @@ export const semanticEntityTypeByKind: Partial<Record<SemanticEntityKind, MovScr
 
 function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
   return [
-    cfg('scriptVersions', 'script-versions', '剧本版本', '导入剧本、brief 或修订文本后的稳定版本。', ['title', 'source_type'], [
+    cfg('scriptVersions', 'script-versions', '手记版本', '导入手记、brief 或修订文本后的稳定版本。', ['title', 'source_type'], [
       num('script_id', 'Script ID', true, true),
       textCreateOnly('title', '标题', true),
       selectCreateOnly('source_type', '来源类型', ['raw', 'adapted', 'revised', 'ai']),
@@ -37,10 +37,10 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       areaCreateOnly('raw_source', '原文'),
       areaCreateOnly('summary', '摘要'),
     ]),
-    cfg('scriptBlocks', 'script-blocks', '剧本块', '绑定到剧本版本的可引用文本块。', ['kind', 'speaker', 'content'], [
+    cfg('scriptBlocks', 'script-blocks', '手记块', '绑定到手记版本的可引用文本块。', ['kind', 'speaker', 'content'], [
       num('script_id', 'Script ID', true, true),
       num('script_version_id', 'ScriptVersion ID', true, true),
-      num('parent_block_id', '父剧本块 ID'),
+      num('parent_block_id', '父手记块 ID'),
       num('order', '顺序'),
       select('kind', '类型', ['scene_heading', 'action', 'dialogue', 'transition', 'note']),
       text('speaker', '说话人'),
@@ -89,17 +89,17 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
     ]),
     cfg('storyboardScripts', 'storyboard-scripts', '分镜脚本', '分镜脚本。', ['title'], genericFields()),
     cfg('storyboardVersions', 'storyboard-versions', '分镜版本', '分镜版本。', ['title'], genericFields()),
-    cfg('contentUnits', 'content-units', '制作项', '可生产的内容单元。', ['title', 'kind'], [
+    cfg('contentUnits', 'content-units', '创作片段', '可生产的创作片段。', ['title', 'kind'], [
       num('production_id', 'Production ID'),
       num('scene_moment_id', 'SceneMoment ID'),
-      text('unit_code', '制作项编号'),
+      text('unit_code', '创作片段编号'),
       text('title', '标题', true),
       select('kind', '类型', ['shot', 'voiceover', 'dialogue_audio', 'sound', 'music_beat', 'subtitle', 'caption_card', 'transition'], true),
       area('description', '描述'),
       area('prompt', '提示词'),
       num('duration_sec', '时长'),
     ]),
-    cfg('keyframes', 'keyframes', '关键帧', '制作项或情节下的关键画面。', ['title'], [
+    cfg('keyframes', 'keyframes', '关键帧', '创作片段或情节下的关键画面。', ['title'], [
       num('production_id', 'Production ID'),
       num('scene_moment_id', 'SceneMoment ID'),
       num('content_unit_id', 'ContentUnit ID'),

@@ -1,7 +1,7 @@
-import { resolveMovScriptProjectCwd } from '@movscript/core/workspace/node'
 import { resolveMovScriptBackendSession } from '@movscript/core/backend/node'
+import { readFileSync } from 'node:fs'
 import { stat } from 'node:fs/promises'
-import { resolve } from 'node:path'
+import { join, resolve } from 'node:path'
 import {
   buildContentSourceWorkspaceData,
   loadContentSourceWorkspaceSnapshotFromEngine,
@@ -15,7 +15,11 @@ import {
   NodeMovScriptEngineRegistry,
 } from '@movscript/engine/node'
 import type { MovScriptEngineContentUnitInput } from '@movscript/engine'
-import { createMovScriptBackendDecisionStore } from '@movscript/workspace/repository'
+import {
+  createMovScriptBackendDecisionStore,
+  createMovScriptScopedProjectDataDecisionStore,
+  type MovScriptDecisionStore,
+} from '@movscript/workspace/repository'
 import type { MovScriptWorkspaceService } from '@movscript/workspace'
 
 import type {
@@ -89,17 +93,8 @@ class ProjectEngineRegistry {
     engineContextByCacheKey.set(key, context)
     return this.engines.get({
       cacheKey: key,
-      projectDir: context.projectDir ?? resolveMovScriptProjectCwd(context),
-      ...(context.projectId !== undefined
-        ? {
-            decisionStore: createMovScriptBackendDecisionStore({
-              baseUrl: session.baseURL,
-              projectId: context.projectId,
-              ...(session.token ? { token: session.token } : {}),
-              ...backendDecisionStoreHeaders(context, session.userId),
-            }),
-          }
-        : {}),
+      projectDir: requireProjectDir(context),
+      ...decisionStoreForContext(context, session),
     })
   }
 
@@ -550,22 +545,12 @@ export function normalizeProjectEngineInput(
       ...(input?.projectId !== undefined ? { projectId: input.projectId } : {}),
     }
   }
-  const paths = resolveDesktopWorkspaceContextPaths({
-    workspaceDir,
-    workspaceContext: {
-      scope: input?.projectId !== undefined ? 'project' : 'global',
-      ...(input?.userId !== undefined ? { userId: input.userId } : {}),
-      ...(input?.orgId !== undefined ? { orgId: input.orgId } : {}),
-      ...(input?.projectId !== undefined ? { projectId: input.projectId } : {}),
-    },
-  })
+  const paths = resolveDesktopWorkspaceContextPaths({ workspaceDir, workspaceContext: { scope: 'global' } })
   return {
     workspaceDir: paths.workspaceDir,
     realm: paths.context.realm,
-    ...(projectDir !== undefined ? { projectDir: resolve(projectDir) } : {}),
     ...(paths.context.userId !== undefined ? { userId: paths.context.userId } : {}),
     ...(paths.context.orgId !== undefined ? { orgId: paths.context.orgId } : {}),
-    ...(paths.context.projectId !== undefined ? { projectId: paths.context.projectId } : {}),
   }
 }
 
@@ -673,6 +658,53 @@ function backendDecisionStoreHeaders(
   if (sessionUserId) headers['X-User-ID'] = sessionUserId
   if (context.orgId !== undefined) headers['X-Org-ID'] = String(context.orgId)
   return Object.keys(headers).length ? { headers } : {}
+}
+
+function decisionStoreForContext(
+  context: NormalizedProjectEngineInput,
+  session: ReturnType<typeof resolveMovScriptBackendSession>,
+): { decisionStore?: MovScriptDecisionStore } {
+  const projectDir = requireProjectDir(context)
+  const manifest = readWorkspaceManifest(projectDir)
+  const projectUid = manifest?.project_uid
+  if (projectUid && session.token) {
+    return {
+      decisionStore: createMovScriptScopedProjectDataDecisionStore({
+        baseUrl: session.baseURL,
+        projectUid,
+        ...(manifest?.title ? { title: manifest.title } : {}),
+        ...(context.orgId !== undefined ? { scopeKind: 'org' as const, scopeId: context.orgId } : {}),
+        token: session.token,
+        ...backendDecisionStoreHeaders(context, session.userId),
+      }),
+    }
+  }
+  if (context.projectId === undefined) return {}
+  return {
+    decisionStore: createMovScriptBackendDecisionStore({
+      baseUrl: session.baseURL,
+      projectId: context.projectId,
+      ...(session.token ? { token: session.token } : {}),
+      ...backendDecisionStoreHeaders(context, session.userId),
+    }),
+  }
+}
+
+function requireProjectDir(context: NormalizedProjectEngineInput): string {
+  if (context.projectDir) return context.projectDir
+  throw new Error('MovScript project engine requires projectDir. The legacy projectId workspace path is no longer supported.')
+}
+
+function readWorkspaceManifest(projectDir: string): { project_uid?: string; title?: string } | undefined {
+  try {
+    const parsed = JSON.parse(readFileSync(join(projectDir, 'workspace.json'), 'utf8')) as Record<string, unknown>
+    return {
+      project_uid: stringValue(parsed.project_uid),
+      title: stringValue(parsed.title),
+    }
+  } catch {
+    return undefined
+  }
 }
 
 function contentUnitInputFromWorkspacePayload(payload: MovScriptWorkspaceService['upsertContentUnit'] extends (input: infer Input) => unknown ? Input : never): MovScriptEngineContentUnitInput {

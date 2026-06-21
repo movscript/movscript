@@ -4,13 +4,13 @@ import { objectSchema } from '../schema'
 const workspaceLocator = {
   workspaceDir: { type: 'string', description: 'Optional MovScript workspace container directory. Defaults to the current MovScript workspace dir.' },
   workspace_dir: { type: 'string', description: 'Alias for workspaceDir.' },
-  projectDir: { type: 'string', description: 'Optional MovScript project source directory. When provided, domain tools read and write this path directly and do not require backend project identity.' },
+  projectDir: { type: 'string', description: 'MovScript project source directory. Domain tools read and write this path directly.' },
   project_dir: { type: 'string', description: 'Alias for projectDir.' },
   projectPath: { type: 'string', description: 'Alias for projectDir.' },
   project_path: { type: 'string', description: 'Alias for projectDir.' },
   cwd: { type: 'string', description: 'Alias for projectDir when a provider passes the current project working directory.' },
-  projectId: { type: ['string', 'number'], description: 'Backend project id for managed/cloud projects and backend decision storage. Required only when projectDir is not provided or a tool needs backend decisions.' },
-  project_id: { type: ['string', 'number'], description: 'Alias for projectId.' },
+  projectUid: { type: 'string', description: 'Optional manifest project_uid used for scoped backend candidate metadata.' },
+  project_uid: { type: 'string', description: 'Alias for projectUid.' },
 }
 
 const contentCandidateStatuses = ['queued', 'running', 'succeeded', 'failed', 'canceled', 'imported'] as const

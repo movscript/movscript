@@ -47,6 +47,11 @@ func RegisteredMigrations() []Migration {
 			Name:    "add_route_provider_id",
 			Up:      migrateRouteProviderID,
 		},
+		{
+			Version: "000004",
+			Name:    "add_project_uid",
+			Up:      migrateProjectUID,
+		},
 	}
 	return append(core, editionMigrations()...)
 }
@@ -101,6 +106,10 @@ func migrateRouteProviderID(db *gorm.DB) error {
 		}
 	}
 	return enforceUniqueActiveModelRouteBindings(db)
+}
+
+func migrateProjectUID(db *gorm.DB) error {
+	return db.AutoMigrate(&persistencemodel.Project{})
 }
 
 func routeProviderIDBackfillSQL(db *gorm.DB) string {
@@ -532,6 +541,8 @@ func allModels() []any {
 		&persistencemodel.ProjectRepository{},
 		&persistencemodel.ProjectMember{},
 		&persistencemodel.DecisionContext{},
+		&persistencemodel.ProjectDataSpace{},
+		&persistencemodel.ProjectDataDecisionContext{},
 		&persistencemodel.AICredential{},
 		&persistencemodel.AIModelCatalogEntry{},
 		&persistencemodel.AIModelRouteBinding{},

@@ -1,4 +1,4 @@
-import { type HTMLAttributes, type ReactNode, useEffect, useState } from 'react'
+import { type HTMLAttributes, type ReactNode, useEffect, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   MOVSCRIPT_DECISION_REQUEST_METHOD,
@@ -21,10 +21,14 @@ import { Badge, Button, type BadgeProps, type ButtonProps, SparklesIcon } from '
 import { cn } from '@/shared/ui/cn'
 import { GeneratedCandidateAttachDialog } from '@/features/agent/components/GeneratedCandidateAttachDialog'
 import { resourceMentionToken } from '@/features/agent/presentation/agentMentionEditorModel'
+import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
+import { useUserStore } from '@/shared/infrastructure/session/userStore'
+import { workspaceOwnerContext } from '@/shared/infrastructure/session/workspaceOwnerContext'
 import {
   generatedResultBreadcrumb,
   generatedResultDetailTitle,
 } from '@/features/agent/components/GeneratedResultCardModel'
+import type { Project } from '@/types'
 import './GeneratedResultCard.css'
 
 const AGENT_GENERATED_RESULT_INITIAL_RENDER_LIMIT = 4
@@ -125,6 +129,15 @@ export function GeneratedResultCard({ attachments, projectId }: { attachments: A
   const [candidateDialogAttachments, setCandidateDialogAttachments] = useState<AgentAttachment[] | null>(null)
   const [viewerAttachment, setViewerAttachment] = useState<AgentAttachment | null>(null)
   const [requestedDecisionKeys, setRequestedDecisionKeys] = useState<Set<string>>(() => new Set())
+  const currentProject = useProjectStore((state) => state.current)
+  const currentUser = useUserStore((state) => state.currentUser)
+  const currentOrgID = useUserStore((state) => state.currentOrgID)
+  const orgMemberships = useUserStore((state) => state.orgMemberships)
+  const projectContext = useMemo(() => generatedResultProjectContext({
+    projectId,
+    project: currentProject,
+    owner: workspaceOwnerContext({ currentUser, currentOrgID, orgMemberships }),
+  }), [currentOrgID, currentProject, currentUser, orgMemberships, projectId])
   const generated = attachments.filter(isGeneratedResultAttachment)
   const queryClient = useQueryClient()
   if (generated.length === 0) return null
@@ -140,9 +153,9 @@ export function GeneratedResultCard({ attachments, projectId }: { attachments: A
   }
 
   useEffect(() => {
-    if (!projectId) return
+    if (!projectContext) return
     const requests = generated.flatMap((attachment) => {
-      const request = generatedContentUnitDecisionRequest(projectId, attachment)
+      const request = generatedContentUnitDecisionRequest(projectContext, attachment)
       if (!request || requestedDecisionKeys.has(request.key)) return []
       return [request]
     })
@@ -152,12 +165,14 @@ export function GeneratedResultCard({ attachments, projectId }: { attachments: A
       openAgentPanelDecisionRequest({
         request: request.request,
         onResolve: async (response) => {
-          await handleGeneratedContentUnitDecision(projectId, request, response)
-          invalidateResourceMutationResult(queryClient, assetCandidateSelectedResult({ projectId }))
+          await handleGeneratedContentUnitDecision(projectContext, request, response)
+          if (projectContext.eventProjectId !== undefined) {
+            invalidateResourceMutationResult(queryClient, assetCandidateSelectedResult({ projectId: projectContext.eventProjectId }))
+          }
         },
       })
     }
-  }, [generated, projectId, queryClient, requestedDecisionKeys])
+  }, [generated, projectContext, queryClient, requestedDecisionKeys])
 
   return (
     <GeneratedResultCardShell data-testid="agent-generated-result-card">
@@ -273,11 +288,59 @@ interface GeneratedContentUnitDecisionRequest {
   }
 }
 
-function generatedContentUnitDecisionRequest(projectId: number, attachment: AgentAttachment): GeneratedContentUnitDecisionRequest | undefined {
+interface GeneratedResultProjectContext {
+  projectKey: string
+  eventProjectId?: number
+  serviceContext: {
+    projectId?: number
+    projectDir?: string
+    userId?: number | string
+    orgId?: number | string
+  }
+  requestParams: Record<string, unknown>
+}
+
+function generatedResultProjectContext(input: {
+  projectId?: number
+  project?: Project | null
+  owner: { userId?: number | string; orgId?: number | string }
+}): GeneratedResultProjectContext | undefined {
+  const projectDir = input.project?.workspace_path ?? input.project?.project_path
+  const projectUid = input.project?.project_uid
+  if (projectDir) {
+    return {
+      projectKey: projectUid ?? projectDir,
+      eventProjectId: input.projectId,
+      serviceContext: {
+        projectDir,
+        ...input.owner,
+      },
+      requestParams: {
+        ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
+        ...(projectUid ? { projectUid, project_uid: projectUid } : {}),
+        projectDir,
+      },
+    }
+  }
+  if (!input.projectId) return undefined
+  return {
+    projectKey: String(input.projectId),
+    eventProjectId: input.projectId,
+    serviceContext: {
+      projectId: input.projectId,
+      ...input.owner,
+    },
+    requestParams: {
+      projectId: input.projectId,
+    },
+  }
+}
+
+function generatedContentUnitDecisionRequest(projectContext: GeneratedResultProjectContext, attachment: AgentAttachment): GeneratedContentUnitDecisionRequest | undefined {
   const decisionRef = generatedContentUnitCandidateDecisionRef(attachment)
   if (!decisionRef) return undefined
   const { contentUnitId, candidateId, resourceId } = decisionRef
-  const key = `${projectId}:${String(contentUnitId)}:${String(candidateId)}:${resourceId}`
+  const key = `${projectContext.projectKey}:${String(contentUnitId)}:${String(candidateId)}:${resourceId}`
   return {
     key,
     contentUnitId,
@@ -290,7 +353,7 @@ function generatedContentUnitDecisionRequest(projectId: number, attachment: Agen
         title: `${attachment.name} 已生成`,
         summary: '请选择是否采纳该候选作为后续生产的稳定依赖。',
         question: `如何处理 content unit ${String(contentUnitId)} 的候选 ${String(candidateId)}?`,
-        projectId,
+        ...projectContext.requestParams,
         contentUnitId,
         candidateId,
         resourceId,
@@ -301,12 +364,12 @@ function generatedContentUnitDecisionRequest(projectId: number, attachment: Agen
 }
 
 async function handleGeneratedContentUnitDecision(
-  projectId: number,
+  projectContext: GeneratedResultProjectContext,
   request: GeneratedContentUnitDecisionRequest,
   response: AgentChatServerRequestResponse | undefined,
 ) {
   if (response?.action !== 'decision') return
-  await createElectronMovScriptWorkspaceService({ projectId }).decideContentUnitCandidate({
+  await createElectronMovScriptWorkspaceService(projectContext.serviceContext).decideContentUnitCandidate({
     contentUnitId: request.contentUnitId,
     candidateId: request.candidateId,
     decision: response.decision,

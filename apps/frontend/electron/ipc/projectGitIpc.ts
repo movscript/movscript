@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron'
 import {
   commitProjectGitWorkspace,
+  getProjectGitWorkspaceStatus,
   initProjectGitWorkspace,
   pullProjectGitWorkspace,
   pushProjectGitWorkspace,
@@ -10,6 +11,9 @@ import type { ElectronProjectGitActionInput } from '../../src/shared/contracts/e
 export function registerProjectGitIpcHandlers(): void {
   ipcMain.handle('movscript:project-git-init', (_event, input: ElectronProjectGitActionInput) => {
     return initProjectGitWorkspace(input)
+  })
+  ipcMain.handle('movscript:project-git-status', (_event, input: ElectronProjectGitActionInput) => {
+    return getProjectGitWorkspaceStatus(input)
   })
   ipcMain.handle('movscript:project-git-commit', (_event, input: ElectronProjectGitActionInput) => {
     return commitProjectGitWorkspace(input)

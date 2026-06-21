@@ -19,6 +19,7 @@ import {
   AppShellTerminalDock,
   clampTerminalDockHeight,
 } from '@/features/app-shell/application/AppShellTerminalDock'
+import { agentWorkspaceContextFromProject } from '@/features/agent/presentation/agentComposerWorkspaceModel'
 import { toolRouteHeaderTitle, useRememberSettingsReturnPath } from '@/features/app-shell/application/appShellRouteHeaders'
 import { GlobalNavigationEffects } from '@/features/app-shell/application/GlobalNavigationEffects'
 import { useRouteLayoutPaneController } from '@/features/app-shell/application/useRouteLayoutPaneController'
@@ -60,16 +61,15 @@ export function ToolShellRoute() {
   const terminalWorkspaceContext = React.useMemo(() => {
     if (currentProject?.ID) {
       return {
-        scope: 'project' as const,
+        ...agentWorkspaceContextFromProject(currentProject),
         userId: userId || undefined,
-        projectId: currentProject.ID,
       }
     }
     return {
       scope: 'global' as const,
       userId: userId || undefined,
     }
-  }, [currentProject?.ID, userId])
+  }, [currentProject, userId])
   const terminalHeaderControl = (
     <AppWindowIconButton
       type="button"

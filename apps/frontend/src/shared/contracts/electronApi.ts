@@ -91,6 +91,9 @@ import type {
   ElectronMovScriptWorkspaceFilesListResult,
   ElectronMovScriptWorkspaceMediaFileReadResult,
   ElectronLocalProjectCreateInput,
+  ElectronLocalProjectBindInput,
+  ElectronLocalProjectInspectInput,
+  ElectronLocalProjectInspection,
   ElectronLocalProjectOpenInput,
   ElectronLocalProjectResult,
   ElectronMovScriptWorkspaceInterpretActionInput,
@@ -132,6 +135,7 @@ import type {
   ElectronDockShortcutSnapshot,
   ElectronOpenCanvasWindowInput,
   ElectronOpenEditingProjectWindowInput,
+  ElectronOpenToolWindowInput,
   ElectronUpdateAppWindowRouteContextInput,
   ElectronTimelineVideoInput,
   ElectronTimelineVideoResult,
@@ -161,12 +165,14 @@ export type ElectronAPI = {
   openEditingWindow?: () => Promise<ElectronAppWindowContext>
   openEditingProjectWindow?: (input: ElectronOpenEditingProjectWindowInput) => Promise<ElectronAppWindowContext>
   openCanvasWindow?: (input?: ElectronOpenCanvasWindowInput) => Promise<ElectronAppWindowContext>
+  openToolWindow?: (input?: ElectronOpenToolWindowInput) => Promise<ElectronAppWindowContext>
   updateAppWindowRouteContext?: (input: ElectronUpdateAppWindowRouteContextInput) => Promise<ElectronAppWindowContext>
   updateDockShortcutMenu?: (snapshot: ElectronDockShortcutSnapshot) => Promise<void>
   updateMCPContext?: (snapshot: MCPContextUpdate) => Promise<void>
   getMCPStatus?: () => Promise<ElectronMCPServerStatus>
   setAppSettings?: (settings: AppSettings) => Promise<void>
   getAppSettings?: () => Promise<AppSettings | null>
+  onAppSettingsUpdated?: (handler: (settings: AppSettings) => void) => () => void
   getAppSettingsSecrets?: () => Promise<ElectronAppSettingsSecrets>
   getAgentRuntimeCredentialSummary?: () => Promise<ElectronAgentRuntimeCredentialSummary>
   getAgentSessionState?: (input?: ElectronMovScriptHomeInput) => Promise<ElectronAgentSessionStateResult>
@@ -216,8 +222,10 @@ export type ElectronAPI = {
   onLocalTerminalEvent?: (handler: (event: ElectronLocalTerminalEvent) => void) => () => void
   listProviderSessions?: (input?: ElectronMovScriptHomeInput & { providerProfileKey?: string }) => Promise<{ sessions: ElectronProviderSessionSummary[] }>
   getMovScriptWorkspaceRoot?: (input?: ElectronMovScriptHomeInput) => Promise<ElectronMovScriptWorkspaceRootResult>
+  inspectLocalMovScriptProject?: (input: ElectronLocalProjectInspectInput) => Promise<ElectronLocalProjectInspection>
   createLocalMovScriptProject?: (input: ElectronLocalProjectCreateInput) => Promise<ElectronLocalProjectResult>
   openLocalMovScriptProject?: (input: ElectronLocalProjectOpenInput) => Promise<ElectronLocalProjectResult>
+  bindLocalMovScriptProject?: (input: ElectronLocalProjectBindInput) => Promise<ElectronLocalProjectResult>
   getMovScriptWorkspaceConfig?: (input?: ElectronMovScriptHomeInput & { providerProfileKey?: string }) => Promise<ElectronMovScriptWorkspaceConfig>
   saveMovScriptWorkspaceConfig?: (input: ElectronMovScriptWorkspaceConfigSaveInput) => Promise<ElectronMovScriptWorkspaceConfig>
   listMovScriptWorkspaceFiles?: (input?: ElectronMovScriptWorkspaceFilesInput) => Promise<ElectronMovScriptWorkspaceFilesListResult>
@@ -270,13 +278,14 @@ export type ElectronAPI = {
   syncMovScriptEngineContentWorkspace?: (input: ElectronMovScriptEngineProjectInput) => Promise<void>
   onMovScriptEngineWorkspaceUpdated?: (handler: (event: ElectronMovScriptEngineWorkspaceUpdatedEvent) => void) => () => void
   initProjectGitWorkspace?: (input: ElectronProjectGitActionInput) => Promise<ElectronProjectGitActionResult>
+  getProjectGitWorkspaceStatus?: (input: ElectronProjectGitActionInput) => Promise<ElectronProjectGitActionResult>
   commitProjectGitWorkspace?: (input: ElectronProjectGitActionInput) => Promise<ElectronProjectGitActionResult>
   pullProjectGitWorkspace?: (input: ElectronProjectGitActionInput) => Promise<ElectronProjectGitActionResult>
   pushProjectGitWorkspace?: (input: ElectronProjectGitActionInput) => Promise<ElectronProjectGitActionResult>
   listPluginCatalogPackPlugins?: () => Promise<{ dirs: ElectronPluginCatalogPackStoreDirs; plugins: ElectronPluginCatalogPackPlugin[] }>
   installPluginCatalogPack?: (input: ElectronPluginCatalogPackInstallInput) => Promise<ElectronPluginCatalogPackInstallResult>
   uninstallPluginCatalogPack?: (input: ElectronPluginCatalogPackUninstallInput) => Promise<ElectronPluginCatalogPackUninstallResult>
-  getProjectPluginSnapshot?: (input?: ElectronMovScriptHomeInput & { projectId?: string | number; userId?: string | number; orgId?: string | number }) => Promise<ElectronProjectPluginSnapshot>
+  getProjectPluginSnapshot?: (input?: ElectronMovScriptHomeInput & { projectDir?: string; userId?: string | number; orgId?: string | number }) => Promise<ElectronProjectPluginSnapshot>
   installSystemPlugin?: (input: ElectronSystemPluginInstallInput) => Promise<ElectronProjectPluginSnapshot>
   uninstallSystemPlugin?: (input: ElectronSystemPluginUninstallInput) => Promise<ElectronProjectPluginSnapshot>
   installProjectPlugin?: (input: ElectronProjectPluginInstallInput) => Promise<ElectronProjectPluginSnapshot>

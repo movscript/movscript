@@ -58,7 +58,7 @@ function scriptFromWorkspaceRecord(
   return {
     ID: scriptId,
     project_id: numberValue(value.project_id) ?? projectId,
-    title: stringValue(value.title) ?? `剧本 #${scriptId}`,
+    title: stringValue(value.title) ?? `手记 #${scriptId}`,
     description: stringValue(value.description) ?? '',
     content: body,
     raw_source: body,

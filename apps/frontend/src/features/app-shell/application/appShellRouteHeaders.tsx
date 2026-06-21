@@ -20,9 +20,10 @@ export function projectRouteHeaderTitle(pathname: string): ReactNode | undefined
     icon: LucideIcon
     title: ReactNode
   }> = [
-    { match: (value) => value === ROUTES.project.content, icon: GitBranch, title: 'Content' },
-    { match: (value) => value === ROUTES.project.contentLegacy, icon: GitBranch, title: 'Content' },
-    { match: (value) => value === ROUTES.project.contentLegacyNext, icon: GitBranch, title: 'Content' },
+    { match: (value) => value === ROUTES.project.content, icon: GitBranch, title: '创作' },
+    { match: (value) => value === ROUTES.project.contentLegacy, icon: GitBranch, title: '创作' },
+    { match: (value) => value === ROUTES.project.contentLegacyNext, icon: GitBranch, title: '创作' },
+    { match: (value) => value === ROUTES.project.settings, icon: Settings, title: 'Project Settings' },
   ]
   return routeHeaderTitleFrom(pathname, routeTitles)
 }

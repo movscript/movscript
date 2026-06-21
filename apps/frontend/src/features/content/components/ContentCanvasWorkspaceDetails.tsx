@@ -108,7 +108,7 @@ export function NodeInspector({
       <CreateChildNodeInspector
         eyebrow="Create Keyframe"
         title={`添加关键帧到 ${selection.parent.title}`}
-        description="填写完整后才会写入 keyframe.json，并创建对应制作项。"
+        description="填写完整后才会写入 keyframe.json，并创建对应创作片段。"
         idPlaceholder="kf_visual"
         titlePlaceholder="关键帧标题"
         statusPlaceholder="ready"
@@ -123,7 +123,7 @@ export function NodeInspector({
       <CreateChildNodeInspector
         eyebrow="Create Storyboard"
         title={`添加分镜图到 ${selection.parent.title}`}
-        description="填写完整后才会写入 storyboard.json，并创建对应制作项。"
+        description="填写完整后才会写入 storyboard.json，并创建对应创作片段。"
         idPlaceholder="board_main"
         titlePlaceholder="分镜图标题"
         statusPlaceholder="ready"
@@ -300,7 +300,7 @@ function ContentCanvasInspectorTabs({
           aria-selected={activeTab === 'content_unit'}
           onClick={() => setActiveTab('content_unit')}
         >
-          制作项
+          创作片段
         </button>
       </div>
       {activeTab === 'entity' ? entityInspector : contentUnitInspector}
@@ -354,7 +354,7 @@ function ContentUnitInspector({
             nodes={nodes}
             ownerNode={node}
             candidateSelections={candidateSelections}
-            ariaLabel={`${title} 制作项提示词`}
+            ariaLabel={`${title} 创作片段提示词`}
             onChange={onPromptChange}
             onBlur={onPromptCommit}
             onSelectNode={(referenceNode) => onSelectNode(inspectorKindForNode(referenceNode), referenceNode.id)}
@@ -362,7 +362,7 @@ function ContentUnitInspector({
         </label>
         <PromptReferenceAppendButtons
           nodes={promptReferenceNodes}
-          emptyText="当前命名空间暂无可引用内容单元"
+          emptyText="当前命名空间暂无可引用创作片段"
           onAppend={onReferenceAppend}
         />
       </InspectorSection>

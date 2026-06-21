@@ -206,7 +206,7 @@ test('core production analysis text scopes linked scripts to the production epis
   const scoped = scopeScriptTextForProduction(
     '第 1 集：开端\n第一集正文\n\n第 2 集：变化\n第二集正文',
     { ID: 10, name: '第 2 集制作' },
-    '完整剧本',
+    '完整手记',
   )
 
   assert.equal(scoped.scoped, true)

@@ -1661,7 +1661,7 @@ test('agent settings exposes skill catalog management controls', () => {
   assertNotIncludes(zh, '"baseContext": "基础上下文"')
   assertNotIncludes(zh, '"base_context": "基础上下文"')
   assertIncludes(zh, '"saveSkillConfig": "保存 Skill 配置"')
-  assertIncludes(zh, '"skillInstructionHelp": "Skill 内容编辑放在 Plugins')
+  assertIncludes(zh, '"skillInstructionHelp": "Skill 创作编辑放在 Plugins')
   assertIncludes(zh, '"skillConfigIssues": "当前配置文件的 Skill 选择存在依赖或冲突问题"')
   assertIncludes(zh, '"skillsInvalid": "当前配置文件的 Skill 选择存在 {{count}} 个依赖或冲突问题。"')
   assertNotIncludes(zh, '"triggers": "触发器"')

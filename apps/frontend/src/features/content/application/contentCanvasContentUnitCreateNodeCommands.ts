@@ -64,7 +64,7 @@ export async function createAssetFromSettingState(
     ref: input.id,
     contentUnitType: 'asset_ref',
     outputKind: 'image',
-    title: `${input.title} 制作项`,
+    title: `${input.title} 创作片段`,
     description: `从编排画布基于素材「${input.title}」创建。`,
     prompt: `为设定状态「${stateNode.title}」下的素材「${input.title}」生成可复用参考图。`,
     modelIntent: {
@@ -79,7 +79,7 @@ export async function createAssetFromSettingState(
     affectedNodeIds: [stateNode.id, `asset:${String(result.record.id ?? input.id)}`, `content_unit:${contentUnitId}`],
     focusNodeId: `asset:${String(result.record.id ?? input.id)}`,
     nodePositions: options?.position ? { [`asset:${String(result.record.id ?? input.id)}`]: options.position } : undefined,
-    message: '已创建素材并确保制作项',
+    message: '已创建素材并确保创作片段',
   }
 }
 
@@ -111,7 +111,7 @@ export async function createExpressionUnitFromSceneMoment(
     ref: input.id,
     contentUnitType: 'expression_unit_ref',
     outputKind: contentCanvasExpressionUnitOutputKind(kind),
-    title: `${input.title} 制作项`,
+    title: `${input.title} 创作片段`,
     description: `从编排画布基于表达单元「${input.title}」创建。`,
     prompt: `将情节「${sceneMomentNode.title}」中的表达单元「${input.title}」转化为可制作候选。`,
     modelIntent: {
@@ -126,7 +126,7 @@ export async function createExpressionUnitFromSceneMoment(
     affectedNodeIds: [sceneMomentNode.id, `expression_unit:${input.id}`, `content_unit:${contentUnitId}`],
     focusNodeId: `expression_unit:${input.id}`,
     nodePositions: options?.position ? { [`expression_unit:${input.id}`]: options.position } : undefined,
-    message: '已创建表达单元并确保制作项',
+    message: '已创建表达单元并确保创作片段',
   }
 }
 
@@ -198,7 +198,7 @@ async function createVisualAnchorFromOwner(
     ref: input.id,
     contentUnitType: `${kind}_ref`,
     outputKind: 'image',
-    title: `${input.title} 制作项`,
+    title: `${input.title} 创作片段`,
     description: `从编排画布基于${kind === 'keyframe' ? '关键帧' : '分镜图'}「${input.title}」创建。`,
     prompt: `为${ownerNode.kind === 'expression_unit' ? '表达单元' : '情节'}「${ownerNode.title}」生成${kind === 'keyframe' ? '关键帧' : '分镜图'}视觉候选。`,
     modelIntent: {
@@ -214,6 +214,6 @@ async function createVisualAnchorFromOwner(
     affectedNodeIds: [ownerNode.id, `${kind}:${input.id}`, `content_unit:${contentUnitId}`],
     focusNodeId: `${kind}:${input.id}`,
     nodePositions: options?.position ? { [`${kind}:${input.id}`]: options.position } : undefined,
-    message: kind === 'keyframe' ? '已创建关键帧并确保制作项' : '已创建分镜图并确保制作项',
+    message: kind === 'keyframe' ? '已创建关键帧并确保创作片段' : '已创建分镜图并确保创作片段',
   }
 }

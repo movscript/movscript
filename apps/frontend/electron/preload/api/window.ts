@@ -16,6 +16,7 @@ export function createWindowAPI(ipcRenderer: IpcRenderer): Pick<
     | 'openEditingWindow'
     | 'openEditingProjectWindow'
     | 'openCanvasWindow'
+    | 'openToolWindow'
     | 'updateAppWindowRouteContext'
 > {
   return {
@@ -28,6 +29,7 @@ export function createWindowAPI(ipcRenderer: IpcRenderer): Pick<
     openEditingWindow: () => ipcRenderer.invoke('window:open-editing'),
     openEditingProjectWindow: (input) => ipcRenderer.invoke('window:open-editing-project', input),
     openCanvasWindow: (input) => ipcRenderer.invoke('window:open-canvas', input),
+    openToolWindow: (input) => ipcRenderer.invoke('window:open-tool', input),
     updateAppWindowRouteContext: (input) => ipcRenderer.invoke('window:update-route-context', input),
     onWindowState: (handler: (state: ElectronWindowState) => void) => {
       const listener = (_event: unknown, state: ElectronWindowState) => handler(state)

@@ -21,6 +21,7 @@ type repository interface {
 	AdminCreate(ctx context.Context, input AdminCreateInput) (domainproject.Project, error)
 	Create(ctx context.Context, input CreateInput, ownerID uint, orgID *uint) (domainproject.Project, error)
 	Get(ctx context.Context, id uint, orgID *uint) (domainproject.Project, error)
+	GetByUID(ctx context.Context, projectUID string, orgID *uint) (domainproject.Project, error)
 	BelongsToOrg(ctx context.Context, projectID uint, orgID uint) (bool, error)
 	ResolveRole(ctx context.Context, projectID uint, userID uint, systemRole string) (domainproject.Role, error)
 	Update(ctx context.Context, id uint, input UpdateInput, orgID *uint) (domainproject.Project, error)
@@ -240,6 +241,7 @@ func (r *gormRepository) Create(ctx context.Context, input CreateInput, ownerID 
 	project.AspectRatio = input.AspectRatio
 	project.VisualStyle = input.VisualStyle
 	project.ProjectStyle = input.ProjectStyle
+	project.ProjectUID = strings.TrimSpace(input.ProjectUID)
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&project).Error; err != nil {
 			return err
@@ -251,6 +253,21 @@ func (r *gormRepository) Create(ctx context.Context, input CreateInput, ownerID 
 		return nil
 	})
 	if err != nil {
+		return domainproject.Project{}, err
+	}
+	return domainproject.ProjectFromModel(project), nil
+}
+
+func (r *gormRepository) GetByUID(ctx context.Context, projectUID string, orgID *uint) (domainproject.Project, error) {
+	var project persistencemodel.Project
+	query := r.db.WithContext(ctx).Preload("Owner").Preload("Members.User").Where("project_uid = ?", strings.TrimSpace(projectUID))
+	if orgID != nil {
+		query = query.Where("org_id = ?", *orgID)
+	}
+	if err := query.First(&project).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return domainproject.Project{}, ErrProjectNotFound
+		}
 		return domainproject.Project{}, err
 	}
 	return domainproject.ProjectFromModel(project), nil

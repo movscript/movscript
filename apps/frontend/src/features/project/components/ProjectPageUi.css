@@ -161,6 +161,274 @@
   color: var(--ms-color-foreground);
 }
 
+.project-data-page__actions {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.project-data-list {
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.project-data-row {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1.5fr) minmax(260px, 0.9fr) minmax(120px, 0.4fr) minmax(130px, auto);
+  align-items: center;
+  gap: 18px;
+  border-bottom: 1px solid var(--ms-color-border);
+  border-left: 2px solid transparent;
+  padding: var(--ms-space-4) 0 var(--ms-space-4) 10px;
+  transition: border-color var(--ms-duration-fast) var(--ms-easing-standard);
+}
+
+.project-data-row:last-child {
+  border-bottom: 0;
+}
+
+.project-data-row:hover {
+  border-left-color: var(--ms-color-primary);
+}
+
+.project-data-row__identity,
+.project-data-row__scope,
+.project-data-row__time {
+  min-width: 0;
+}
+
+.project-data-row__title-line {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.project-data-row__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-body);
+  font-weight: 650;
+  line-height: 20px;
+}
+
+.project-data-row__uid {
+  margin-top: 4px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ms-color-muted-foreground);
+  font-family: var(--ms-font-mono);
+  font-size: var(--ms-text-tiny);
+  line-height: 16px;
+}
+
+.project-data-row__stats {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.project-data-row__stats dt,
+.project-data-row__scope,
+.project-data-row__time span {
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-tiny);
+  line-height: 16px;
+}
+
+.project-data-row__stats dd {
+  margin: 2px 0 0;
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-body);
+  font-weight: 650;
+  line-height: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.project-data-row__scope,
+.project-data-row__time {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.project-data-row__scope-id,
+.project-data-row__time strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-label);
+  font-weight: 600;
+  line-height: 18px;
+}
+
+.project-settings-page {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.project-settings-grid {
+  display: grid;
+  min-width: 0;
+  gap: 14px;
+}
+
+.project-settings-panel {
+  min-width: 0;
+  border: 1px solid var(--ms-color-border);
+  border-radius: 8px;
+  background: var(--ms-color-background);
+  padding: 16px;
+}
+
+.project-settings-panel__header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--ms-color-border);
+  padding-bottom: 12px;
+}
+
+.project-settings-panel__title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  color: var(--ms-color-foreground);
+}
+
+.project-settings-panel__title h2 {
+  margin: 0;
+  font-size: var(--ms-text-body);
+  font-weight: 650;
+  line-height: 20px;
+}
+
+.project-settings-kv {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+  padding-top: 14px;
+}
+
+.project-settings-kv div {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.project-settings-kv dt,
+.project-settings-metric span {
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-tiny);
+  line-height: 16px;
+}
+
+.project-settings-kv dd {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ms-color-foreground);
+  font-family: var(--ms-font-mono);
+  font-size: var(--ms-text-label);
+  line-height: 18px;
+}
+
+.project-settings-git-summary {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding-top: 14px;
+}
+
+.project-settings-metric {
+  min-width: 0;
+  border: 1px solid var(--ms-color-border);
+  border-radius: 6px;
+  background: var(--ms-color-muted);
+  padding: 10px;
+}
+
+.project-settings-metric strong {
+  margin-top: 3px;
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-body);
+  font-weight: 650;
+  line-height: 20px;
+}
+
+.project-settings-note {
+  margin-top: 12px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  line-height: 18px;
+}
+
+.project-settings-git-toggle {
+  margin-top: 14px;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--ms-color-border);
+  border-radius: 6px;
+  background: var(--ms-color-muted);
+  padding: 10px;
+}
+
+.project-settings-git-toggle p {
+  margin: 2px 0 0;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-tiny);
+  line-height: 16px;
+}
+
+.project-settings-remote-form {
+  margin-top: 12px;
+  display: flex;
+  min-width: 0;
+  align-items: end;
+  gap: 10px;
+}
+
+.project-settings-actions {
+  margin-top: 14px;
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 @media (max-width: 1180px) {
   .projects-list-row {
     grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr) auto;
@@ -169,6 +437,15 @@
   .projects-list-row__stats {
     grid-column: 1 / -1;
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .project-data-row {
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 0.8fr);
+  }
+
+  .project-data-row__scope,
+  .project-data-row__time {
+    grid-row: 2;
   }
 }
 
@@ -185,5 +462,29 @@
 
   .projects-list-row__actions {
     justify-content: flex-start;
+  }
+
+  .project-data-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--ms-space-3);
+  }
+
+  .project-data-row__stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .project-data-row__scope,
+  .project-data-row__time {
+    grid-row: auto;
+  }
+
+  .project-settings-kv div,
+  .project-settings-git-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .project-settings-remote-form {
+    align-items: stretch;
+    flex-direction: column;
   }
 }

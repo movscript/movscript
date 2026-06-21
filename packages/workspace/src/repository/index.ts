@@ -108,9 +108,11 @@ export {
   contentUnitDecisionContextPath,
   contentUnitDecisionTargetRef,
   createMovScriptBackendDecisionStore,
+  createMovScriptScopedProjectDataDecisionStore,
   normalizeDecisionContext,
   overlayMovScriptDecisionDocuments,
   type MovScriptBackendDecisionStoreOptions,
+  type MovScriptScopedProjectDataDecisionStoreOptions,
   type MovScriptContentUnitCandidateDecisionInput,
   type MovScriptContentUnitDecisionCandidateInput,
   type MovScriptContentUnitDecisionCandidatesInput,
@@ -133,3 +135,12 @@ export {
   type MovScriptProjectStandardsWriteInput,
   type MovScriptProjectStandardsWriteResult,
 } from './projectStandards.js'
+
+export {
+  MOVSCRIPT_PROJECT_STANDARD_SKILL_ID,
+  MOVSCRIPT_PROJECT_STANDARD_SKILL_PATHS,
+  renderMovScriptProjectStandardSkill,
+  syncMovScriptProjectStandardSkills,
+  type MovScriptProjectStandardSkillsSyncInput,
+  type MovScriptProjectStandardSkillsSyncResult,
+} from './projectStandardSkills.js'

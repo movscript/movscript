@@ -399,7 +399,7 @@ function productionWorkActionLabel(type: string): string {
     case 'upsert_entity':
       return '补结构'
     case 'derive_content_unit_artifact':
-      return '刷新内容单元'
+      return '刷新创作片段'
     case 'generate_candidates':
       return '生成候选'
     case 'open_candidate_picker':
@@ -1313,7 +1313,7 @@ function buildAssetReferenceUnits(input: {
       outputKind: 'image',
       editPrompt: editPromptText(contentUnit) ?? '',
       usage: `${titleOf(asset, idText(asset))} 作为 setting/state 下的素材参考输入。`,
-      lockPolicy: '选择变化后，下游引用该 asset_ref 的内容单元需要重新检查。',
+      lockPolicy: '选择变化后，下游引用该 asset_ref 的创作片段需要重新检查。',
       selectionState,
       upstream: [
         ...(ownerSetting ? [{ id: `setting:${idText(ownerSetting)}`, title: titleOf(ownerSetting, idText(ownerSetting)), kind: 'setting' as const, ownerNodeId: nodeId(ownerSetting, 'setting'), state: 'current' as const, summary: ownerSetting.path }] : []),

@@ -437,6 +437,11 @@ export async function domainUpsertKeyframe(args: Args): Promise<unknown> {
     role: stringValue(keyframe.role ?? keyframe.status),
     visualIntent: stringValue(keyframe.visual_intent ?? keyframe.visualIntent ?? keyframe.prompt_hint ?? keyframe.description),
     order: numberValue(keyframe.order),
+    timing: optionalRecord(keyframe.timing),
+    composition: optionalRecord(keyframe.composition),
+    continuity: optionalRecord(keyframe.continuity),
+    referenceAssetRefs: Array.isArray(keyframe.reference_asset_refs) ? keyframe.reference_asset_refs : undefined,
+    referenceKeyframeRefs: Array.isArray(keyframe.reference_keyframe_refs) ? keyframe.reference_keyframe_refs : undefined,
   }))
   return productionWriteResult('keyframe', { productionId, segmentId, sceneMomentId, ...(expressionUnitId ? { expressionUnitId } : {}), keyframeId }, result)
 }
@@ -458,6 +463,8 @@ export async function domainUpsertStoryboard(args: Args): Promise<unknown> {
     title: stringValue(storyboard.title),
     visualIntent: stringValue(storyboard.visual_intent ?? storyboard.visualIntent ?? storyboard.prompt_hint ?? storyboard.description),
     order: numberValue(storyboard.order),
+    timeline: optionalRecord(storyboard.timeline),
+    graph: optionalRecord(storyboard.graph),
   }))
   return {
     status: 'upserted',
@@ -922,13 +929,13 @@ function engineContentUnitInputFromRecord(record: Record<string, unknown>): MovS
     targetRef: record.target_ref ?? record.targetRef,
     generationRole: record.generation_role ?? record.generationRole,
     assetRef: record.asset_ref ?? record.assetRef,
-    productionId: record.production_ref ?? record.productionId ?? record.production_id,
-    segmentId: record.segment_ref ?? record.segmentId ?? record.segment_id,
-    sceneMomentId: record.scene_moment_ref ?? record.sceneMomentId ?? record.scene_moment_id,
-    expressionUnitId: record.expression_unit_ref ?? record.expressionUnitId ?? record.expression_unit_id,
-    storyboardId: record.storyboard_ref ?? record.storyboardId ?? record.storyboard_id,
-    keyframeId: record.keyframe_ref ?? record.keyframeId ?? record.keyframe_id,
-    audioCueId: record.audio_cue_ref ?? record.audioCueId ?? record.audio_cue_id,
+    productionId: record.production_ref ?? record.productionRef ?? record.productionId ?? record.production_id,
+    segmentId: record.segment_ref ?? record.segmentRef ?? record.segmentId ?? record.segment_id,
+    sceneMomentId: record.scene_moment_ref ?? record.sceneMomentRef ?? record.sceneMomentId ?? record.scene_moment_id,
+    expressionUnitId: record.expression_unit_ref ?? record.expressionUnitRef ?? record.expressionUnitId ?? record.expression_unit_id,
+    storyboardId: record.storyboard_ref ?? record.storyboardRef ?? record.storyboardId ?? record.storyboard_id,
+    keyframeId: record.keyframe_ref ?? record.keyframeRef ?? record.keyframeId ?? record.keyframe_id,
+    audioCueId: record.audio_cue_ref ?? record.audioCueRef ?? record.audioCueId ?? record.audio_cue_id,
     prompt: record.prompt ?? editPrompt?.text,
     negativePrompt: record.negative_prompt ?? record.negativePrompt ?? editPrompt?.negative_text,
     description: record.description,

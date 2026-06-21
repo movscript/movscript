@@ -13,7 +13,6 @@ import type {
 } from '../../src/shared/contracts/electronApi'
 import { resolveMovScriptHomeDir } from './movscriptHomeInput'
 import { writeTextFileAtomic } from './atomicWrite'
-import { resolveDesktopWorkspaceContextPaths } from './workspaceRealm'
 
 const MAX_TEXT_FILE_BYTES = 2 * 1024 * 1024
 const MAX_MEDIA_PREVIEW_FILE_BYTES = 32 * 1024 * 1024
@@ -126,17 +125,10 @@ async function resolveMovScriptWorkspaceFilePath(input?: ElectronMovScriptWorksp
   ensureMovScriptWorkspaceRoot(workspaceRoot)
   const rootPath = input?.projectDir?.trim()
     ? resolve(input.projectDir)
-    : input?.projectId !== undefined
-    ? resolveDesktopWorkspaceContextPaths({
-        workspaceDir,
-        workspaceContext: {
-          scope: 'project',
-          ...(input.userId !== undefined ? { userId: input.userId } : {}),
-          ...(input.orgId !== undefined ? { orgId: input.orgId } : {}),
-          projectId: input.projectId,
-        },
-      }).projectCwd
     : workspaceRoot.rootDir
+  if (input?.projectId !== undefined && !input.projectDir?.trim()) {
+    throw new Error('MovScript workspace file access requires projectDir. The legacy projectId workspace path is no longer supported.')
+  }
   const rawRelativePath = typeof input?.path === 'string' ? input.path : ''
   const normalizedRelativePath = rawRelativePath.replace(/^[/\\]+/, '')
   const absolutePath = resolve(rootPath, normalizedRelativePath)

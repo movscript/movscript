@@ -32,6 +32,7 @@ import { ROUTES } from '@/routes/projectRoutes'
 import { isAgentConsoleTab } from '@/features/agent/application/agentConsoleRouteModel'
 import {
   AgentConnectionsPage,
+  AgentResourceLibraryPage,
   AgentModeCanvasListPage,
   AgentModePage,
   AgentsPage,
@@ -48,8 +49,11 @@ import {
   MovScriptWorkspaceFilesPage,
   MovScriptWorkspaceReviewPage,
   OrgSelectPage,
+  ProjectDataPage,
   ProjectOverviewPage,
+  ProjectSettingsPage,
   ProjectStandardsPage,
+  ProjectsPage,
   ResourcesPage,
   ScriptsPage,
   ShotLibraryPage,
@@ -67,6 +71,8 @@ export function AnonymousAppRouter() {
         <BackendBootBoundary />
         <RouteSuspense fullScreen>
           <Routes>
+            <Route path={ROUTES.agentResources} element={<AgentResourceLibraryPage />} />
+            <Route path={ROUTES.codexResources} element={<AgentResourceLibraryPage />} />
             <Route path={ROUTES.invite} element={<InvitePage />} />
             <Route path={ROUTES.appSettings} element={<AppSettingsPage />} />
             <Route path="*" element={<AuthPage />} />
@@ -89,6 +95,8 @@ export function AuthenticatedAppRouter() {
         <AppDockShortcutBridge />
         <RouteSuspense fullScreen>
           <Routes>
+            <Route path={ROUTES.agentResources} element={<AgentResourceLibraryPage />} />
+            <Route path={ROUTES.codexResources} element={<AgentResourceLibraryPage />} />
             <Route path={ROUTES.canvases} element={<CanvasListShellRoute />} />
             <Route path={ROUTES.canvasEditor} element={<CanvasEditorShellRoute />} />
             <Route path={ROUTES.editing} element={<EditingListShellRoute />} />
@@ -104,7 +112,8 @@ export function AuthenticatedAppRouter() {
               <ShellLayout>
                 <Routes>
                   <Route path={ROUTES.root} element={<GlobalHomePage />} />
-                  <Route path={ROUTES.projects} element={<GlobalHomePage />} />
+                  <Route path={ROUTES.projects} element={<ProjectsPage />} />
+                  <Route path={ROUTES.projectData} element={<ProjectDataPage />} />
                   <Route path="/admin/*" element={<Navigate to={ROUTES.root} replace />} />
                   <Route path={ROUTES.appSettings} element={<AccountSettingsRoute tab="settings" />} />
                   <Route path={ROUTES.user} element={<AccountSettingsRoute tab="profile" />} />
@@ -113,6 +122,7 @@ export function AuthenticatedAppRouter() {
 
                   <Route path={ROUTES.project.root} element={<Navigate to={ROUTES.project.home} replace />} />
                   <Route path={ROUTES.project.home} element={<ProjectGuard><ProjectOverviewPage /></ProjectGuard>} />
+                  <Route path={ROUTES.project.settings} element={<ProjectGuard><ProjectSettingsPage /></ProjectGuard>} />
                   <Route path={ROUTES.project.scripts} element={<ProjectGuard><ScriptsPage /></ProjectGuard>} />
                   <Route path={ROUTES.project.agent} element={<ProjectAgentModeRoute />} />
                   <Route path={ROUTES.project.agentCanvases} element={<ProjectGuard><AgentModeRoute><AgentModeCanvasListPage /></AgentModeRoute></ProjectGuard>} />

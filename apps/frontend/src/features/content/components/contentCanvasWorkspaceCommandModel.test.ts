@@ -80,7 +80,7 @@ test('contentUnitNodeForGenerationTask projects generation tasks into content un
     subtitle: 'video',
     summary: 'Create the opening shot',
     status: 'active',
-    metrics: ['制作项 video', '候选 1', '已选择候选'],
+    metrics: ['创作片段 video', '候选 1', '已选择候选'],
     sourcePath: 'script.md',
     record: { prompt: 'Create the opening shot' },
     candidates: node.generationTask?.candidates,

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { AlertCircle, ArrowRight, Download, FileText, Loader2, PackageCheck, RefreshCw, Store } from 'lucide-react'
+import { AlertCircle, ArrowRight, Download, FileText, LayoutDashboard, Loader2, PackageCheck, RefreshCw, Store } from 'lucide-react'
 import { Badge, Button, Progress, StatusBadge, Switch } from '@movscript/ui/primitives'
 import { toneTextClass } from '@movscript/ui/semantic'
 
@@ -61,10 +61,10 @@ export function ProjectOverviewScriptCard({ script }: { script: Script }) {
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-background text-foreground">
             <FileText size={17} />
           </span>
-          <Badge variant="outline">{script.script_type || '剧本'}</Badge>
+          <Badge variant="outline">{script.script_type || '手记'}</Badge>
         </div>
         <div className="mt-4 min-w-0 flex-1">
-          <h3 className="truncate type-body font-semibold text-foreground">{script.title || `剧本 #${script.ID}`}</h3>
+          <h3 className="truncate type-body font-semibold text-foreground">{script.title || `手记 #${script.ID}`}</h3>
           <p className="mt-1 line-clamp-2 type-label leading-5 text-muted-foreground">{description}</p>
         </div>
         <div className="mt-4 flex items-center justify-between gap-3 type-caption text-muted-foreground">
@@ -143,6 +143,44 @@ export function ProjectSystemPluginCard({
         {busy ? <Badge variant="outline">切换中</Badge> : null}
       </div>
       <p className="mt-3 truncate type-caption text-muted-foreground">{plugin.pluginKey}</p>
+    </article>
+  )
+}
+
+export function ProjectBuiltInStandardsPluginCard({ lane }: { lane?: ProjectOverviewWorkLane }) {
+  const statusLabel = lane ? projectOverviewLaneLabel(lane.state) : '内建'
+  return (
+    <article className="flex min-h-[148px] flex-col rounded-md border border-border bg-muted/10 p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <LayoutDashboard size={14} className={lane?.state === 'ready' ? toneTextClass('success') : 'text-muted-foreground'} />
+            <h3 className="truncate type-body font-semibold text-foreground">项目规范</h3>
+          </div>
+          <p className="mt-1 line-clamp-2 type-label leading-5 text-muted-foreground">
+            统一项目级画幅、镜头语言、视觉风格、节奏和生成约束。
+          </p>
+        </div>
+        <Button asChild type="button" size="sm" variant="outline">
+          <Link to={ROUTES.project.standards}>打开</Link>
+        </Button>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Badge variant="solid" tone="success">系统内置</Badge>
+        <Badge variant="outline">项目能力</Badge>
+        <Badge variant="outline">{statusLabel}</Badge>
+      </div>
+      {lane ? (
+        <div className="mt-3">
+          <div className="mb-1 flex items-center justify-between gap-3 type-caption text-muted-foreground">
+            <span className="truncate">{lane.detail}</span>
+            <span className="shrink-0 tabular-nums">{lane.progress}%</span>
+          </div>
+          <Progress value={lane.progress} className="h-1.5" />
+        </div>
+      ) : (
+        <p className="mt-3 truncate type-caption text-muted-foreground">project_standards</p>
+      )}
     </article>
   )
 }

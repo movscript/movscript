@@ -3,7 +3,7 @@ import { api } from '@/shared/infrastructure/api'
 import type { Project } from '@/types'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { openProjectWindow } from '@/shared/infrastructure/appWindowContext'
-import { useState, useEffect } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { Plus, Trash2, ArrowRight, FolderOpen } from 'lucide-react'
 import { AppPageHeader } from '@movscript/ui/layout'
 import {
@@ -23,12 +23,20 @@ import { isLocalLaunchMode } from '@/shared/infrastructure/config'
 import { openAdminConsole } from '@/shared/infrastructure/adminConsole'
 import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
 import { projectKeys } from '@/features/project/application/projectQueries'
+import {
+  backendProjectWithLocalPath,
+  bindLocalProjectToBackend,
+  ensureBackendProjectForLocalProject,
+  resolveBackendProjectByUID,
+  type LocalProjectScope,
+} from '@/features/project/application/localProjectLifecycle'
 import { invalidateProjectMutationResult, projectListChangedResult } from '@/features/project/application/projectMutationInvalidation'
-import { initializeProjectGitWorkspace } from '@/features/project/application/projectGitWorkspace'
 import { readLocalAdminPromptDismissed, saveLocalAdminPromptDismissed } from '@/features/project/presentation/localAdminPromptPreference'
 import { projectStatusRecipe } from '@/features/project/presentation/projectSemanticUi'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
+import { isLocalProjectEntry, mergeRecentProjects, removeLocalProjectRecent, useLocalProjectRecentsStore } from '@/shared/infrastructure/session/localProjectRecentsStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
+import { workspaceOwnerContext } from '@/shared/infrastructure/session/workspaceOwnerContext'
 import { ProjectListPageLayout, ProjectPageActionButton, ProjectPageEmptyState, ProjectPageLocalAdminPrompt } from './ProjectPageUi'
 
 interface ContentUnitProgress {
@@ -57,13 +65,14 @@ function ProjectListRow({
 }: {
   project: Project
   onOpen: (p: Project) => void
-  onDelete: (id: number) => void
+  onDelete: (project: Project) => void
 }) {
   const { t } = useTranslation()
   const currentOrgID = useUserStore((s) => s.currentOrgID)
   const { data: progress } = useQuery<ProjectProgress>({
     queryKey: projectKeys.progress(currentOrgID, project.ID),
     queryFn: () => api.get(`/projects/${project.ID}/progress`).then((r) => r.data),
+    enabled: project.ID > 0,
   })
 
   const contentUnits = progress?.content_units
@@ -134,7 +143,7 @@ function ProjectListRow({
           variant="ghost"
           size="icon-sm"
           tone="danger"
-          onClick={() => onDelete(project.ID)}
+          onClick={() => onDelete(project)}
           aria-label={t('common.delete')}
         >
           <Trash2 size={14} />
@@ -156,6 +165,7 @@ function CreateProjectModal({ onClose, onCreate, onPickPath }: {
 
   function handleSubmit() {
     if (!name.trim()) return
+    if (!projectDir.trim()) return
     onCreate(name.trim(), desc.trim(), projectDir.trim() || undefined)
     onClose()
   }
@@ -199,7 +209,7 @@ function CreateProjectModal({ onClose, onCreate, onPickPath }: {
               <div className="flex gap-2">
                 <Input
                   id="project-path"
-                  placeholder={t('pages.projects.projectPathPlaceholder', '留空则创建云端项目，或选择一个本地目录')}
+                  placeholder={t('pages.projects.projectPathPlaceholder', '选择或输入一个本地项目目录')}
                   value={projectDir}
                   onChange={(e) => setProjectDir(e.target.value)}
                 />
@@ -210,7 +220,7 @@ function CreateProjectModal({ onClose, onCreate, onPickPath }: {
             </div>
             <div className="flex justify-end gap-2 pt-1">
               <ProjectPageActionButton variant="ghost" onClick={onClose}>{t('common.cancel')}</ProjectPageActionButton>
-              <ProjectPageActionButton onClick={handleSubmit} disabled={!name.trim()}>
+              <ProjectPageActionButton onClick={handleSubmit} disabled={!name.trim() || !projectDir.trim()}>
                 <Plus size={14} /> {t('pages.projects.createProject')}
               </ProjectPageActionButton>
             </div>
@@ -227,16 +237,21 @@ export default function ProjectsPage() {
   const setCurrent = useProjectStore((s) => s.setCurrent)
   const currentUser = useUserStore((s) => s.currentUser)
   const currentOrgID = useUserStore((s) => s.currentOrgID)
+  const orgMemberships = useUserStore((s) => s.orgMemberships)
+  const localRecentProjects = useLocalProjectRecentsStore((s) => s.projects)
   const settings = useAppSettingsStore((s) => s.settings)
   const setWorkMode = useAppSettingsStore((s) => s.setWorkMode)
   const [showCreate, setShowCreate] = useState(false)
   const [adminPromptDismissed, setAdminPromptDismissed] = useState(readLocalAdminPromptDismissed)
   const [localProjectError, setLocalProjectError] = useState<string>()
 
-  const { data: projects = [], isLoading } = useQuery<Project[]>({
+  const { data: backendProjects = [], isLoading } = useQuery<Project[]>({
     queryKey: projectKeys.list(currentOrgID),
     queryFn: () => api.get('/projects').then((r) => r.data),
   })
+  const projects = useMemo(() => {
+    return mergeRecentProjects(backendProjects, localRecentProjects)
+  }, [backendProjects, localRecentProjects])
 
   useEffect(() => {
     if (!isLoading && current) {
@@ -244,17 +259,6 @@ export default function ProjectsPage() {
       if (!exists) setCurrent(null)
     }
   }, [projects, isLoading, current, setCurrent])
-
-  const create = useMutation({
-    mutationFn: (p: Partial<Project>) => api.post('/projects', p).then((r) => r.data),
-    onSuccess: (newProject: Project) => {
-      invalidateProjectMutationResult(qc, projectListChangedResult({ orgId: currentOrgID, changedIds: [newProject.ID] }))
-      void initializeProjectGitWorkspace(newProject, currentOrgID)
-      setCurrent(newProject)
-      setWorkMode('project')
-      void openProjectWindow({ projectId: newProject.ID, project: newProject, route: ROUTES.project.home })
-    },
-  })
 
   const remove = useMutation({
     mutationFn: (id: number) => api.delete(`/projects/${id}`),
@@ -264,9 +268,16 @@ export default function ProjectsPage() {
     },
   })
 
+  function currentLocalProjectScope(): LocalProjectScope {
+    const owner = workspaceOwnerContext({ currentUser, currentOrgID, orgMemberships })
+    if (owner.orgId !== undefined) return { scopeKind: 'org', scopeId: String(owner.orgId) }
+    if (owner.userId !== undefined) return { scopeKind: 'user', scopeId: String(owner.userId) }
+    throw new Error('当前用户不可用，无法绑定后端项目')
+  }
+
   async function handleCreate(name: string, desc: string, projectDir?: string) {
     if (!projectDir) {
-      create.mutate({ name, description: desc })
+      setLocalProjectError(t('pages.projects.projectPathRequired', '请选择或输入本地项目目录'))
       return
     }
     const api = readElectronApi()
@@ -276,23 +287,52 @@ export default function ProjectsPage() {
     }
     try {
       setLocalProjectError(undefined)
-      const result = await api.createLocalMovScriptProject({ projectDir, title: name, description: desc })
-      setCurrent(result.project as Project)
+      const inspection = await api.inspectLocalMovScriptProject?.({ projectDir })
+      const overwrite = inspection ? !inspection.canCreateClean : false
+      if (inspection && overwrite && !window.confirm(`该目录已有 MovScript 项目文件：\n${inspection.impacts.join('\n') || '已有文件可能被影响'}\n\n是否强制创建并重新绑定？`)) {
+        return
+      }
+      const result = await api.createLocalMovScriptProject({ projectDir, title: name, description: desc, overwrite })
+      const ensured = await ensureBackendProjectForLocalProject(result)
+      const bound = await bindLocalProjectToBackend(result, ensured.project, currentLocalProjectScope())
+      const project = backendProjectWithLocalPath(ensured.project, bound)
+      setCurrent(project)
       setWorkMode('project')
-      void openProjectWindow({ projectDir: result.projectDir, project: result.project, route: ROUTES.project.home })
+      void openProjectWindow({ projectDir: bound.projectDir, project, route: ROUTES.project.home })
     } catch (error) {
       setLocalProjectError(error instanceof Error ? error.message : String(error))
     }
   }
 
-  function handleOpen(p: Project) {
-    setCurrent(p)
-    setWorkMode('project')
-    if (p.workspace_path || p.project_path) {
-      void openProjectWindow({ projectDir: p.workspace_path ?? p.project_path, project: p, route: ROUTES.project.home })
+  async function handleOpen(p: Project) {
+    let projectToOpen = p
+    let projectDir = p.workspace_path ?? p.project_path
+    if (projectDir) {
+      if (isLocalProjectEntry(p)) {
+        const result = await readElectronApi()?.openLocalMovScriptProject?.({ projectDir }).catch((error: unknown) => {
+          setLocalProjectError(error instanceof Error ? error.message : String(error))
+          return undefined
+        })
+        if (!result) return
+        projectToOpen = result.project as Project
+        projectDir = result.projectDir
+      }
+      setCurrent(projectToOpen)
+      setWorkMode('project')
+      void openProjectWindow({ projectDir, project: projectToOpen, route: ROUTES.project.home })
       return
     }
-    void openProjectWindow({ projectId: p.ID, project: p, route: ROUTES.project.home })
+    setLocalProjectError(t('pages.projects.projectPathRequired', '这个项目没有本地路径，无法打开为路径绑定项目'))
+  }
+
+  function handleDeleteProject(project: Project) {
+    if (project.local || project.ID < 0) {
+      const projectDir = project.workspace_path ?? project.project_path
+      if (projectDir) removeLocalProjectRecent(projectDir)
+      if (current?.ID === project.ID) setCurrent(null)
+      return
+    }
+    remove.mutate(project.ID)
   }
 
   async function handlePickProjectPath(): Promise<string | null> {
@@ -310,10 +350,22 @@ export default function ProjectsPage() {
     }
     try {
       setLocalProjectError(undefined)
+      const inspection = await api.inspectLocalMovScriptProject?.({ projectDir })
+      if (!inspection?.projectUid) {
+        setLocalProjectError(t('pages.projects.projectPathRequired', '该目录缺少 project_uid，无法作为 MovScript 项目打开'))
+        return
+      }
       const result = await api.openLocalMovScriptProject({ projectDir })
-      setCurrent(result.project as Project)
+      const resolved = await resolveBackendProjectByUID(inspection.projectUid)
+      if (!resolved && !window.confirm('后端没有找到这个 project_uid。是否在当前后端空间创建对应项目记录并打开？')) {
+        return
+      }
+      const backendProject = resolved ?? (await ensureBackendProjectForLocalProject(result)).project
+      const bound = await bindLocalProjectToBackend(result, backendProject, currentLocalProjectScope())
+      const project = backendProjectWithLocalPath(backendProject, bound)
+      setCurrent(project)
       setWorkMode('project')
-      void openProjectWindow({ projectDir: result.projectDir, project: result.project, route: ROUTES.project.home })
+      void openProjectWindow({ projectDir: bound.projectDir, project, route: ROUTES.project.home })
     } catch (error) {
       setLocalProjectError(error instanceof Error ? error.message : String(error))
     }
@@ -392,9 +444,9 @@ export default function ProjectsPage() {
               <ProjectListRow
                 key={p.ID}
                 project={p}
-                    onOpen={handleOpen}
-                    onDelete={(id) => remove.mutate(id)}
-                  />
+                onOpen={handleOpen}
+                onDelete={handleDeleteProject}
+              />
             ))}
           </div>
         )}

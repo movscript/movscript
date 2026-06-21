@@ -266,6 +266,46 @@ code {
   text-decoration: none;
 }
 
+.download-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.download-card {
+  width: 100%;
+  min-height: 84px;
+  flex-direction: column;
+  gap: 5px;
+  padding: 16px 18px;
+  line-height: 1.2;
+}
+
+.download-card small {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.download-card[data-recommended-download] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(242, 85, 53, 0.14), var(--shadow);
+}
+
+.download-card[data-recommended-download]::after {
+  content: "Recommended";
+  margin-top: 2px;
+  color: var(--accent-dark);
+  font-size: 12px;
+  font-weight: 760;
+  text-transform: uppercase;
+}
+
+[lang="zh-Hans"] .download-card[data-recommended-download]::after {
+  content: "推荐";
+}
+
 .download-button-secondary {
   min-height: 50px;
   margin-top: 14px;
@@ -282,6 +322,11 @@ code {
 
 .links-note {
   margin-top: 18px;
+}
+
+.recommendation {
+  margin-top: 12px;
+  font-weight: 650;
 }
 
 @media (max-width: 540px) {
@@ -314,6 +359,14 @@ code {
 
   pre {
     padding: 18px 54px 18px 16px;
+  }
+
+  .download-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .download-button {
+    width: 100%;
   }
 
   code {

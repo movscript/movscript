@@ -38,7 +38,7 @@ export function formatScriptBlockOption(record: SemanticEntityRecord) {
   const endLine = record.end_line || '?'
   const content = String(record.content ?? '').trim().replace(/\s+/g, ' ')
   const excerpt = content.length > 40 ? `${content.slice(0, 40)}...` : content
-  return [`剧本块 #${record.ID}`, `行 ${startLine}-${endLine}`, record.speaker || record.kind, excerpt].filter(Boolean).join(' · ')
+  return [`手记块 #${record.ID}`, `行 ${startLine}-${endLine}`, record.speaker || record.kind, excerpt].filter(Boolean).join(' · ')
 }
 
 export function isAdvancedField(kind: SemanticEntityConfig['kind'], key: string) {

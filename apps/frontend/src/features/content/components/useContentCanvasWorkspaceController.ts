@@ -337,7 +337,7 @@ export function useContentCanvasWorkspaceController() {
   const ensureCandidateContentUnitWithPrompt = useCallback(async (node: ContentCanvasNode): Promise<ContentCanvasNode> => {
     if (!projectId || !gateway) throw new Error('内容画布未连接项目工作区')
     const target = contentCanvasGenerationTargetForNode(node)
-    if (!target) throw new Error('当前节点没有可生成的制作项')
+    if (!target) throw new Error('当前节点没有可生成的创作片段')
     const promptDraft = draftPromptForCandidateNode(node)
     const existingPrompt = promptFromContentNode(target.node)
     const promptOverride = promptDraft ?? existingPrompt

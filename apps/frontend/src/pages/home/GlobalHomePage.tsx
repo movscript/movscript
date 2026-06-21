@@ -1,17 +1,18 @@
 import { useMemo, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowRight, Bot, FolderOpen, LayoutGrid, Loader2, Plus, Scissors, Sparkles, Wrench } from 'lucide-react'
+import { ArrowRight, Bot, Database, FolderOpen, LayoutGrid, Loader2, Plus, Scissors, Sparkles, Wrench, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 
 import { useAppShellDialogStore } from '@/features/app-shell/application/appShellDialogStore'
 import { useAgentAvailabilityGuard } from '@/features/agent/application/useAgentAvailabilityGuard'
 import { projectKeys } from '@/features/project/application/projectQueries'
-import { routeForWorkMode } from '@/routes/appRouteModel'
 import { ROUTES } from '@/routes/projectRoutes'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
-import { openAgentWindow, openCanvasWindow, openEditingWindow, openProjectWindow } from '@/shared/infrastructure/appWindowContext'
+import { openAgentWindow, openCanvasWindow, openEditingWindow, openProjectWindow, openToolWindow } from '@/shared/infrastructure/appWindowContext'
 import { api } from '@/shared/infrastructure/api'
+import { dismissRecentProject, isLocalProjectEntry, mergeRecentProjects, recentProjectKey, useLocalProjectRecentsStore } from '@/shared/infrastructure/session/localProjectRecentsStore'
+import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { useLastWorkspaceStore } from '@/shared/infrastructure/session/lastWorkspaceStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
@@ -24,6 +25,9 @@ export default function GlobalHomePage() {
   const setWorkMode = useAppSettingsStore((s) => s.setWorkMode)
   const setCurrentProject = useProjectStore((s) => s.setCurrent)
   const lastWorkspace = useLastWorkspaceStore((s) => s.last)
+  const clearLastWorkspace = useLastWorkspaceStore((s) => s.clear)
+  const localRecentProjects = useLocalProjectRecentsStore((s) => s.projects)
+  const dismissedProjectKeys = useLocalProjectRecentsStore((s) => s.dismissedKeys)
   const openProjectDialog = useAppShellDialogStore((s) => s.openProjectDialog)
   const agentAvailability = useAgentAvailabilityGuard()
   const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
@@ -34,15 +38,16 @@ export default function GlobalHomePage() {
   })
 
   const projects = useMemo(() => {
-    return [...(projectsQuery.data ?? [])]
-      .sort((a, b) => Date.parse(b.UpdatedAt || b.CreatedAt) - Date.parse(a.UpdatedAt || a.CreatedAt))
-  }, [projectsQuery.data])
+    return mergeRecentProjects(projectsQuery.data ?? [], localRecentProjects, dismissedProjectKeys)
+  }, [dismissedProjectKeys, localRecentProjects, projectsQuery.data])
   const lastProject = useMemo(() => {
     if (!lastWorkspace?.projectId) return null
-    return projects.find((project) => project.ID === lastWorkspace.projectId)
+    const project = projects.find((candidate) => candidate.ID === lastWorkspace.projectId)
       ?? lastWorkspace.project
       ?? null
-  }, [lastWorkspace, projects])
+    const key = project ? recentProjectKey(project) : undefined
+    return key && dismissedProjectKeys.includes(key) ? null : project
+  }, [dismissedProjectKeys, lastWorkspace, projects])
   const recentProjects = useMemo(() => {
     return projects
       .filter((project) => project.ID !== lastProject?.ID)
@@ -56,10 +61,27 @@ export default function GlobalHomePage() {
     })
   }
 
-  function enterProject(project: Project) {
-    setCurrentProject(project)
+  async function enterProject(project: Project) {
+    let projectDir = project.workspace_path || project.project_path
+    if (!projectDir) return
+    let projectToOpen = project
+    if (isLocalProjectEntry(project)) {
+      const result = await readElectronApi()?.openLocalMovScriptProject?.({ projectDir }).catch(() => undefined)
+      if (result?.project) {
+        projectDir = result.projectDir
+        projectToOpen = result.project as Project
+      }
+    }
+    setCurrentProject(projectToOpen)
     setWorkMode('project')
-    void openProjectWindow({ projectId: project.ID, project, route: ROUTES.project.home })
+    void openProjectWindow({ projectDir, project: projectToOpen, route: ROUTES.project.home })
+  }
+
+  function removeProjectFromRecent(project: Project) {
+    dismissRecentProject(project)
+    const removedKey = recentProjectKey(project)
+    const lastKey = lastWorkspace?.project ? recentProjectKey(lastWorkspace.project) : undefined
+    if (removedKey && removedKey === lastKey) clearLastWorkspace()
   }
 
   function enterCanvasMode() {
@@ -74,7 +96,11 @@ export default function GlobalHomePage() {
 
   function enterToolMode() {
     setWorkMode('tool')
-    navigate(routeForWorkMode('tool', Boolean(projects[0])))
+    void openToolWindow({ route: ROUTES.tools.refImageGen })
+  }
+
+  function enterProjectData() {
+    navigate(ROUTES.projectData)
   }
 
   return (
@@ -127,53 +153,85 @@ export default function GlobalHomePage() {
               <FolderOpen size={15} className="shrink-0 text-muted-foreground" />
               <h2 className="truncate type-body font-semibold text-foreground">Project</h2>
             </div>
-            <button
-              type="button"
-              onClick={openProjectDialog}
-              className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 type-caption font-medium text-foreground transition hover:border-foreground/25 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <Plus size={13} />
-              {t('pages.projects.newProject', { defaultValue: '新建项目' })}
-            </button>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => openProjectDialog('open')}
+                className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 type-caption font-medium text-foreground transition hover:border-foreground/25 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <FolderOpen size={13} />
+                打开
+              </button>
+              <button
+                type="button"
+                onClick={() => openProjectDialog('create')}
+                className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 type-caption font-medium text-foreground transition hover:border-foreground/25 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <Plus size={13} />
+                新建
+              </button>
+            </div>
           </div>
 
           {lastProject ? (
-            <button
-              type="button"
-              className="mt-3 flex min-h-12 w-full items-center justify-between gap-3 rounded-md border border-primary/25 bg-primary/5 px-3 py-2 text-left transition hover:border-primary/45 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              onClick={() => enterProject(lastProject)}
-            >
-              <span className="min-w-0">
-                <span className="block type-caption text-muted-foreground">
-                  {t('home.launcher.continueProject', { defaultValue: '继续上次项目' })}
+            <div className="mt-3 flex min-h-12 w-full items-center gap-2 rounded-md border border-primary/25 bg-primary/5 px-2 py-2 transition hover:border-primary/45 hover:bg-primary/10">
+              <button
+                type="button"
+                className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => void enterProject(lastProject)}
+              >
+                <span className="min-w-0">
+                  <span className="block type-caption text-muted-foreground">
+                    {t('home.launcher.continueProject', { defaultValue: '继续上次项目' })}
+                  </span>
+                  <span className="block truncate type-body font-semibold text-foreground">{lastProject.name}</span>
                 </span>
-                <span className="block truncate type-body font-semibold text-foreground">{lastProject.name}</span>
-              </span>
-              <ArrowRight size={14} className="shrink-0 text-muted-foreground" />
-            </button>
+                <ArrowRight size={14} className="shrink-0 text-muted-foreground" />
+              </button>
+              <button
+                type="button"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label={t('common.remove', { defaultValue: '移除' })}
+                onClick={() => removeProjectFromRecent(lastProject)}
+              >
+                <X size={14} />
+              </button>
+            </div>
           ) : null}
 
           <div className="mt-3 flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-0.5">
             {recentProjects.map((project) => (
-              <button
+              <div
                 key={project.ID}
-                type="button"
-                className="flex min-h-11 items-center justify-between gap-3 rounded-md border border-border bg-muted/25 px-3 py-2 text-left transition hover:border-foreground/25 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                onClick={() => enterProject(project)}
+                className="flex min-h-11 items-center gap-2 rounded-md border border-border bg-muted/25 px-2 py-2 transition hover:border-foreground/25 hover:bg-accent"
               >
-                <span className="min-w-0">
-                  <span className="block truncate type-label font-medium text-foreground">{project.name}</span>
-                  <span className="block truncate type-caption text-muted-foreground">
-                    {formatProjectTime(project.UpdatedAt || project.CreatedAt, locale)}
+                <button
+                  type="button"
+                  className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  onClick={() => void enterProject(project)}
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate type-label font-medium text-foreground">{project.name}</span>
+                    <span className="block truncate type-caption text-muted-foreground">
+                      {formatProjectTime(project.UpdatedAt || project.CreatedAt, locale)}
+                    </span>
                   </span>
-                </span>
-                <ArrowRight size={13} className="shrink-0 text-muted-foreground" />
-              </button>
+                  <ArrowRight size={13} className="shrink-0 text-muted-foreground" />
+                </button>
+                <button
+                  type="button"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-label={t('common.remove', { defaultValue: '移除' })}
+                  onClick={() => removeProjectFromRecent(project)}
+                >
+                  <X size={14} />
+                </button>
+              </div>
             ))}
             {!projectsQuery.isLoading && projects.length === 0 ? (
               <button
                 type="button"
-                onClick={openProjectDialog}
+                onClick={() => openProjectDialog('create')}
                 className="flex min-h-24 items-center justify-center gap-2 rounded-md border border-dashed border-border bg-muted/20 px-3 py-3 text-center type-label text-muted-foreground transition hover:border-foreground/25 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <Plus size={14} />
@@ -184,7 +242,13 @@ export default function GlobalHomePage() {
         </section>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-3">
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <ModeEntry
+          icon={<Database size={16} />}
+          label={t('sidebar.items.projectData', { defaultValue: 'Project Data' })}
+          description={t('home.mode.projectData', { defaultValue: '查看后端保存的候选、选择和 project_uid 数据空间。' })}
+          onClick={enterProjectData}
+        />
         <ModeEntry
           icon={<LayoutGrid size={16} />}
           label="Canvas"

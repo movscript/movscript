@@ -25,6 +25,7 @@ type Project struct {
 	AspectRatio   string    `json:"aspect_ratio"`
 	VisualStyle   string    `json:"visual_style"`
 	ProjectStyle  string    `json:"project_style"`
+	ProjectUID    string    `json:"project_uid,omitempty"`
 	Members       []Member  `json:"members,omitempty"`
 	CreatedAt     time.Time `json:"CreatedAt"`
 	UpdatedAt     time.Time `json:"UpdatedAt"`

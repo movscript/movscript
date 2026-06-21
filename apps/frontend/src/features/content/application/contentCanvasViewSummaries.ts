@@ -158,7 +158,7 @@ function collapsedKindRank(kind: ContentCanvasNodeKind): number {
 
 function collapsedKindLabel(kind: ContentCanvasNodeKind): string {
   if (kind === 'work_item') return '工作项'
-  if (kind === 'content_unit') return '制作项'
+  if (kind === 'content_unit') return '创作片段'
   if (kind === 'keyframe') return '关键帧'
   if (kind === 'storyboard') return '分镜'
   if (kind === 'expression_unit') return '表达'

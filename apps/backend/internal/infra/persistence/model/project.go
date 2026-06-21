@@ -8,12 +8,13 @@ type Project struct {
 	Description   string          `json:"description"`
 	OwnerID       uint            `json:"owner_id"`
 	Owner         User            `json:"owner,omitempty"`
-	OrgID         *uint           `gorm:"index" json:"org_id,omitempty"`
+	OrgID         *uint           `gorm:"index;index:idx_projects_org_project_uid" json:"org_id,omitempty"`
 	Organization  Organization    `gorm:"foreignKey:OrgID" json:"organization,omitempty"`
 	TotalEpisodes int             `json:"total_episodes"`
 	AspectRatio   string          `gorm:"default:''" json:"aspect_ratio"`
 	VisualStyle   string          `gorm:"type:text" json:"visual_style"`
 	ProjectStyle  string          `gorm:"type:text" json:"project_style"`
+	ProjectUID    string          `gorm:"size:128;index;index:idx_projects_org_project_uid" json:"project_uid,omitempty"`
 	Members       []ProjectMember `gorm:"foreignKey:ProjectID" json:"members,omitempty"`
 }
 

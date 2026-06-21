@@ -4,9 +4,11 @@ import type {
   ElectronOpenCanvasWindowInput,
   ElectronOpenEditingProjectWindowInput,
   ElectronOpenProjectWindowInput,
+  ElectronOpenToolWindowInput,
 } from '@/shared/contracts/electronApi'
 import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
+import { rememberLocalProject } from '@/shared/infrastructure/session/localProjectRecentsStore'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import type { Project } from '@/types'
 
@@ -48,6 +50,10 @@ export async function openAgentWindow(): Promise<void> {
 }
 
 export async function openProjectWindow(input: ElectronOpenProjectWindowInput): Promise<void> {
+  if (!input.projectDir?.trim()) throw new Error('Project window requires projectDir')
+  if (input.project && isLocalProject(input.project as unknown as Project)) {
+    rememberLocalProject(input.project as unknown as Project)
+  }
   const api = readElectronApi()
   if (api?.openProjectWindow) {
     await api.openProjectWindow(input)
@@ -88,6 +94,16 @@ export async function openCanvasWindow(input: ElectronOpenCanvasWindowInput = {}
   window.location.assign(input.route ?? (input.canvasId ? `/canvases/${encodeURIComponent(String(input.canvasId))}` : '/canvases'))
 }
 
+export async function openToolWindow(input: ElectronOpenToolWindowInput = {}): Promise<void> {
+  const api = readElectronApi()
+  if (api?.openToolWindow) {
+    await api.openToolWindow(input)
+    return
+  }
+  useAppSettingsStore.getState().setWorkMode('tool')
+  window.location.assign(input.route ?? '/tools/ref-image-gen')
+}
+
 function applyAppWindowContext(context: ElectronAppWindowContext | null): void {
   useAppWindowContextStore.getState().setContext(context)
   if (!context) return
@@ -98,7 +114,10 @@ function applyAppWindowContext(context: ElectronAppWindowContext | null): void {
       : context.projectDir
         ? localProjectFromWindowContext(context)
         : null
-    if (project) useProjectStore.getState().setCurrent(project)
+    if (project) {
+      useProjectStore.getState().setCurrent(project)
+      if (isLocalProject(project)) rememberLocalProject(project)
+    }
     if (context.projectDir) useProjectStore.getState().setWorkspaceRoot(context.projectDir)
     useAppSettingsStore.getState().setWorkMode('project')
     return
@@ -117,6 +136,10 @@ function applyAppWindowContext(context: ElectronAppWindowContext | null): void {
   if (context.kind === 'tool' || context.kind === 'canvas') {
     useAppSettingsStore.getState().setWorkMode('tool')
   }
+}
+
+function isLocalProject(project: Project): boolean {
+  return project.local === true || project.ID < 0
 }
 
 function localProjectFromWindowContext(context: ElectronAppWindowContext): Project {

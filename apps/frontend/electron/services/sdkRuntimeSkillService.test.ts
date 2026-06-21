@@ -3,7 +3,6 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { resolveMovScriptProjectCwd } from '@movscript/core/workspace/node'
 
 import {
   ensureSdkRuntimeDefaultSkills,
@@ -60,7 +59,7 @@ test('SDK runtime default skills install once at workspace root and project cwd 
   const root = mkdtempSync(join(tmpdir(), 'movscript-sdk-runtime-inherited-skills-'))
   try {
     const workspaceDir = join(root, 'workspace')
-    const projectCwd = resolveMovScriptProjectCwd({ workspaceDir, userId: 7, projectId: 42 })
+    const projectCwd = join(root, 'project')
     mkdirSync(projectCwd, { recursive: true })
 
     const inherited = ensureSdkRuntimeDefaultSkills({

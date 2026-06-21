@@ -85,7 +85,7 @@ func TestBuildOpenAIChatBodyJSONModeAddsJSONInstructionWhenMissing(t *testing.T)
 		JSONMode: true,
 		Messages: []Message{
 			{Role: "system", Content: "输出结构化对象，不要使用 markdown。"},
-			{Role: "user", Content: "分析这个剧本。"},
+			{Role: "user", Content: "分析这个手记。"},
 		},
 	}, true)
 	if err != nil {

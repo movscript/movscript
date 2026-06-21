@@ -33,7 +33,7 @@ const ACTION_TERMS: Record<ProductionActionKey, ProductionTerm> = {
   select_asset: { key: 'select_asset', label: '选素材', state: 'pending', detail: '已有候选，但还没有选定主素材。' },
   selected_asset: { key: 'selected_asset', label: '已选定', state: 'complete', detail: '已经选中主素材，可以进入下游制作。' },
   confirm_content: { key: 'confirm_content', label: '确认内容', state: 'pending', detail: '已有草案或建议，需要人工确认后进入下游。' },
-  split_shots: { key: 'split_shots', label: '拆镜头', state: 'pending', detail: '情节已有基础信息，可以拆成制作项或镜头。' },
+  split_shots: { key: 'split_shots', label: '拆镜头', state: 'pending', detail: '情节已有基础信息，可以拆成创作片段或镜头。' },
   add_keyframe: { key: 'add_keyframe', label: '补关键帧', state: 'blocked', detail: '视觉镜头缺画面锚点，先补首帧、尾帧或关键画面。' },
   ready_to_generate: { key: 'ready_to_generate', label: '可生成', state: 'ready', detail: '生成前条件已满足，可以进入画布或生成任务。' },
   generating: { key: 'generating', label: '生成中', state: 'active', detail: '生成任务正在执行，等待结果或查看任务记录。' },

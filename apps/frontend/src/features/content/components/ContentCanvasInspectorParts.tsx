@@ -133,7 +133,7 @@ export function GenerationTaskPanel({ node }: { node: ContentCanvasNode | undefi
   const task = node?.generationTask
   if (!task) return null
   return (
-    <InspectorSection title="制作项">
+    <InspectorSection title="创作片段">
       <div className="content-canvas-generation-task" data-status={task.status}>
         <span>
           <small>{generationTaskStatusLabel(task.status)}</small>
@@ -142,7 +142,7 @@ export function GenerationTaskPanel({ node }: { node: ContentCanvasNode | undefi
         </span>
         <b>{task.candidates.length} 候选</b>
       </div>
-      <InspectorMeta label="制作项来源" value={task.sourcePath} />
+      <InspectorMeta label="创作片段来源" value={task.sourcePath} />
     </InspectorSection>
   )
 }
@@ -219,7 +219,7 @@ export function CandidateDecisionPanel({
           type="button"
           onClick={() => setShowGenerationDialog(true)}
           disabled={!canGenerateCandidate || !onCandidateCreate}
-          title={canGenerateCandidate ? undefined : '当前制作项暂未接入真实生成接口'}
+          title={canGenerateCandidate ? undefined : '当前创作片段暂未接入真实生成接口'}
         >
           <WandSparkles size={12} aria-hidden="true" />
           {candidates.length ? '再生成候选' : decision.actionLabel}
@@ -679,7 +679,7 @@ function promptBlockerLabel(blocker: Record<string, unknown>): string {
   if (message) return message
   if (ref && contentUnitId) return `引用 ${ref} 暂无可用候选资源（${contentUnitId}）`
   if (ref) return `引用 ${ref} 暂无可用候选资源`
-  if (contentUnitId) return `制作项 ${contentUnitId} 暂无可用候选资源`
+  if (contentUnitId) return `创作片段 ${contentUnitId} 暂无可用候选资源`
   return '提示词引用尚未解析'
 }
 
@@ -693,7 +693,7 @@ function CompiledPromptPreview({
   const text = preview?.compiledText ?? fallbackText
   const parts = compiledPromptParts(text)
   if (!text.trim()) {
-    return <pre>当前制作项提示词为空</pre>
+    return <pre>当前创作片段提示词为空</pre>
   }
   return (
     <div className="content-canvas-generation-candidate-compiled-preview">

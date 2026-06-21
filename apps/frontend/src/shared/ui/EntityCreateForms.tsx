@@ -92,7 +92,7 @@ export function ScriptCreateForm({ projectId, workspaceContext, onSuccess, onCan
             onClick={() => fileInputRef.current?.click()}
           >
             <Upload size={13} />
-            上传剧本
+            上传手记
           </button>
         </>
       )}

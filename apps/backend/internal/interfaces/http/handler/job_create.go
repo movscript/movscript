@@ -20,17 +20,21 @@ func (h *JobHandler) Create(c *gin.Context) {
 	}
 
 	var req struct {
-		ModelID          string `json:"model_id"`
-		JobType          string `json:"job_type"` // image | image_edit | video | video_i2v | video_v2v | audio_tts
-		FeatureKey       string `json:"feature_key"`
-		Title            string `json:"title"`
-		Prompt           string `json:"prompt"`
-		ExtraParams      string `json:"extra_params"`
-		AspectRatio      string `json:"aspect_ratio"`
-		Duration         int    `json:"duration"`
-		InputResourceID  *uint  `json:"input_resource_id"` // legacy single resource
-		InputResourceIDs []uint `json:"input_resource_ids"`
-		ProjectID        *uint  `json:"project_id"`
+		ModelID              string                                 `json:"model_id"`
+		JobType              string                                 `json:"job_type"` // image | image_edit | video | video_i2v | video_v2v | audio_tts
+		FeatureKey           string                                 `json:"feature_key"`
+		Title                string                                 `json:"title"`
+		Prompt               string                                 `json:"prompt"`
+		ExtraParams          string                                 `json:"extra_params"`
+		AspectRatio          string                                 `json:"aspect_ratio"`
+		Duration             int                                    `json:"duration"`
+		InputResourceID      *uint                                  `json:"input_resource_id"` // legacy single resource
+		InputResourceIDs     []uint                                 `json:"input_resource_ids"`
+		ProjectID            *uint                                  `json:"project_id"`
+		ProjectUID           string                                 `json:"project_uid"`
+		ProjectTitle         string                                 `json:"project_title"`
+		ProjectDir           string                                 `json:"project_dir"`
+		ContentUnitCandidate *domainjob.ContentUnitCandidateBinding `json:"content_unit_candidate"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -38,20 +42,24 @@ func (h *JobHandler) Create(c *gin.Context) {
 	}
 
 	job, err := h.service.EnqueueGeneration(c.Request.Context(), jobapp.EnqueueInput{
-		UserID:           user.ID,
-		OrgID:            currentOrgID(c),
-		ModelID:          req.ModelID,
-		JobType:          req.JobType,
-		FeatureKey:       req.FeatureKey,
-		Title:            req.Title,
-		Prompt:           req.Prompt,
-		ExtraParams:      req.ExtraParams,
-		AspectRatio:      req.AspectRatio,
-		Duration:         req.Duration,
-		InputResourceID:  req.InputResourceID,
-		InputResourceIDs: req.InputResourceIDs,
-		ProjectID:        req.ProjectID,
-		CreatedAt:        time.Now(),
+		UserID:               user.ID,
+		OrgID:                currentOrgID(c),
+		ModelID:              req.ModelID,
+		JobType:              req.JobType,
+		FeatureKey:           req.FeatureKey,
+		Title:                req.Title,
+		Prompt:               req.Prompt,
+		ExtraParams:          req.ExtraParams,
+		AspectRatio:          req.AspectRatio,
+		Duration:             req.Duration,
+		InputResourceID:      req.InputResourceID,
+		InputResourceIDs:     req.InputResourceIDs,
+		ProjectID:            req.ProjectID,
+		ProjectUID:           req.ProjectUID,
+		ProjectTitle:         req.ProjectTitle,
+		ProjectDir:           req.ProjectDir,
+		CreatedAt:            time.Now(),
+		ContentUnitCandidate: req.ContentUnitCandidate,
 	})
 	if err != nil {
 		h.writeJobCreateError(c, err)

@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { BrowserWindow, ipcMain } from 'electron'
 import type { AppSettings } from '../../src/shared/contracts/appSettings'
 import { LOCAL_BACKEND_URL, startBackend, stopBackend, type BackendStatus } from '../services/backend'
 import { resolveDesktopDefaultMovScriptWorkspaceDir, setDesktopDefaultMovScriptWorkspaceDir } from '../services/movscriptWorkspaceDefaults'
@@ -25,6 +25,7 @@ export function registerSettingsIpcHandlers(deps: SettingsIpcDependencies): void
     if (settings) {
       writeDesktopAppSettings(movScriptHomeDir, settings)
       writeAppSettingsSecretsFromSettings(movScriptHomeDir, settings)
+      broadcastAppSettingsUpdated(settings)
     }
     if (settings?.launchMode === 'local') {
       deps.broadcastBackendStatus({ state: 'starting', baseURL: LOCAL_BACKEND_URL })
@@ -59,4 +60,12 @@ export function registerSettingsIpcHandlers(deps: SettingsIpcDependencies): void
     }))
     return summary
   })
+}
+
+function broadcastAppSettingsUpdated(settings: AppSettings): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed() && !win.webContents.isDestroyed()) {
+      win.webContents.send('app:settings-updated', settings)
+    }
+  }
 }

@@ -44,6 +44,7 @@ import {
   upsertMovScriptWorkspaceAsset,
   upsertMovScriptWorkspaceSetting,
   upsertMovScriptWorkspaceSettingState,
+  syncMovScriptProjectStandardSkills,
   saveMovScriptProductionWorkspaceSnapshot,
   overlayMovScriptDecisionDocuments,
   contentUnitDecisionContextPath,
@@ -59,6 +60,7 @@ import {
   type MovScriptContentUnitDecisionSelectionResult,
   type MovScriptProjectStandardsWriteInput,
   type MovScriptProjectStandardsWriteResult,
+  type MovScriptProjectStandardSkillsSyncResult,
   type MovScriptWorkspaceEntityDeleteInput,
   type MovScriptWorkspaceEntityWriteInput,
   type MovScriptWorkspaceEntityWriteResult,
@@ -97,6 +99,7 @@ export interface MovScriptWorkspaceServiceOptions {
 
 export interface MovScriptWorkspaceInitializeInput {
   projectId?: string
+  projectUid?: string
   title?: string
   language?: string
   standards?: Record<string, unknown>
@@ -112,7 +115,9 @@ export interface MovScriptWorkspaceInitializeFileResult {
 
 export interface MovScriptWorkspaceInitializeResult {
   projectId: string
+  projectUid: string
   files: MovScriptWorkspaceInitializeFileResult[]
+  standardSkillFiles: MovScriptProjectStandardSkillsSyncResult[]
 }
 
 export interface MovScriptExpressionUnitUpdateInput {
@@ -183,7 +188,7 @@ export interface MovScriptWorkspaceService {
   upsertContentUnit(input: Omit<MovScriptContentUnitWriteInput, 'fileRepository'>): Promise<MovScriptContentUnitWriteResult>
   upsertProjectStandards(
     input: Omit<MovScriptProjectStandardsWriteInput, 'fileRepository'>,
-  ): Promise<MovScriptProjectStandardsWriteResult>
+  ): Promise<MovScriptProjectStandardsWriteResult & { standardSkillFiles: MovScriptProjectStandardSkillsSyncResult[] }>
   updateEntityTransition(
     input: Omit<MovScriptEntityTransitionUpdateInput, 'fileRepository'>,
   ): Promise<MovScriptEntityTransitionUpdateResult>
@@ -237,15 +242,37 @@ export function createMovScriptWorkspaceService(
     async initializeProject(input = {}) {
       const now = options.now?.() ?? new Date()
       const createdAt = now.toISOString()
+      const existingWorkspace = await readJSONArtifact(options.fileRepository, 'workspace.json')
       const title = stringField(input.title) ?? 'MovScript Project'
-      const projectId = stringField(input.projectId) ?? title
+      const projectId = stringField(input.projectId) ?? stringField(existingWorkspace?.project_id) ?? safeProjectSlug(title)
+      const projectUid = stringField(input.projectUid)
+        ?? stringField(existingWorkspace?.project_uid)
+        ?? stringField(existingWorkspace?.projectUid)
+        ?? createMovScriptProjectUid()
+      const standardsRecord = {
+        schema: 'movscript.project_standards.v1',
+        kind: 'project_standards',
+        id: 'project_standards',
+        project_id: projectId,
+        title: 'Project standards',
+        ...(input.standards ?? {}),
+        updated_at: createdAt,
+      }
       const files = [
         await ensureMovScriptGitignore(options.fileRepository),
+        await writeJSONDocument(options.fileRepository, '.movscript/config.json', {
+          schema: 'movscript.local_project_config.v1',
+          project_uid: projectUid,
+          remotes: {},
+          created_at: createdAt,
+          updated_at: createdAt,
+        }, Boolean(input.overwrite)),
         await writeJSONDocument(options.fileRepository, 'workspace.json', {
-          schema: 'movscript.workspace.v1',
+          schema: 'movscript.workspace.v2',
+          project_uid: projectUid,
           project_id: projectId,
           title,
-          created_at: createdAt,
+          created_at: stringField(existingWorkspace?.created_at) ?? createdAt,
           updated_at: createdAt,
         }, Boolean(input.overwrite)),
         await writeJSONDocument(options.fileRepository, 'project.json', {
@@ -257,17 +284,13 @@ export function createMovScriptWorkspaceService(
           created_at: createdAt,
           updated_at: createdAt,
         }, Boolean(input.overwrite)),
-        await writeJSONDocument(options.fileRepository, 'project_standards.json', {
-          schema: 'movscript.project_standards.v1',
-          kind: 'project_standards',
-          id: 'project_standards',
-          project_id: projectId,
-          title: 'Project standards',
-          ...(input.standards ?? {}),
-          updated_at: createdAt,
-        }, Boolean(input.overwrite)),
+        await writeJSONDocument(options.fileRepository, 'project_standards.json', standardsRecord, Boolean(input.overwrite)),
       ]
-      return { projectId, files }
+      const standardSkillFiles = await syncMovScriptProjectStandardSkills({
+        fileRepository: options.fileRepository,
+        standards: standardsRecord,
+      })
+      return { projectId, projectUid, files, standardSkillFiles }
     },
     getModel: getMovScriptWorkspaceModel,
     loadIndex,
@@ -373,12 +396,17 @@ export function createMovScriptWorkspaceService(
         ...input,
       })
     },
-    upsertProjectStandards(input) {
-      return upsertMovScriptProjectStandards({
+    async upsertProjectStandards(input) {
+      const result = await upsertMovScriptProjectStandards({
         fileRepository: options.fileRepository,
         now: options.now?.(),
         ...input,
       })
+      const standardSkillFiles = await syncMovScriptProjectStandardSkills({
+        fileRepository: options.fileRepository,
+        standards: result.record,
+      })
+      return { ...result, standardSkillFiles }
     },
     updateEntityTransition(input) {
       return updateMovScriptEntityTransition({
@@ -420,12 +448,12 @@ export function createMovScriptWorkspaceService(
         })
         return result
       }
-      throw new Error('content unit candidate creation requires a decisionStore')
+      throw new Error('content unit candidate creation requires a backend scoped project data decisionStore')
     },
     async selectContentUnitCandidate(input) {
       const decisionStore = options.decisionStore
       if (!decisionStore) {
-        throw new Error('content unit candidate selection requires a decisionStore')
+        throw new Error('content unit candidate selection requires a backend scoped project data decisionStore')
       }
       const candidate = await readBackendContentCandidateRecord(decisionStore, input.contentUnitId, input.candidateId)
       const resourceId = input.resourceId ?? firstCandidateResourceId(candidate)
@@ -446,7 +474,7 @@ export function createMovScriptWorkspaceService(
     async decideContentUnitCandidate(input) {
       const decisionStore = options.decisionStore
       if (!decisionStore) {
-        throw new Error('content unit candidate decision requires a decisionStore')
+        throw new Error('content unit candidate decision requires a backend scoped project data decisionStore')
       }
       if (input.decision === 'adopt') {
         const candidate = await readBackendContentCandidateRecord(decisionStore, input.contentUnitId, input.candidateId)
@@ -650,9 +678,11 @@ function arrayField(value: unknown): unknown[] {
 
 const MOVSCRIPT_GITIGNORE_PATH = '.gitignore'
 const MOVSCRIPT_INTERPRET_GITIGNORE_ENTRY = '.interpret/'
+const MOVSCRIPT_LOCAL_CONTROL_GITIGNORE_ENTRY = '.movscript/'
 const MOVSCRIPT_INTERPRET_GITIGNORE_BLOCK = [
   '# MovScript generated artifacts',
   MOVSCRIPT_INTERPRET_GITIGNORE_ENTRY,
+  MOVSCRIPT_LOCAL_CONTROL_GITIGNORE_ENTRY,
   '',
 ].join('\n')
 
@@ -676,10 +706,12 @@ async function ensureMovScriptGitignore(
 }
 
 function gitignoreContainsBuildEntry(content: string): boolean {
-  return content
+  const entries = new Set(content
     .split(/\r?\n/)
     .map((line) => line.trim())
-    .some((line) => line === '.interpret' || line === MOVSCRIPT_INTERPRET_GITIGNORE_ENTRY)
+    .filter(Boolean))
+  return (entries.has('.interpret') || entries.has(MOVSCRIPT_INTERPRET_GITIGNORE_ENTRY))
+    && (entries.has('.movscript') || entries.has(MOVSCRIPT_LOCAL_CONTROL_GITIGNORE_ENTRY))
 }
 
 function appendGitignoreBlock(existingContent: string | undefined, block: string): string {
@@ -715,6 +747,18 @@ async function writeJSONDocument(
 
 function stringField(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function safeProjectSlug(value: string): string {
+  const slug = value.trim().toLowerCase().replace(/[^a-z0-9._-]+/g, '_').replace(/^_+|_+$/g, '')
+  return slug || 'movscript_project'
+}
+
+function createMovScriptProjectUid(): string {
+  const randomUUID = globalThis.crypto?.randomUUID?.()
+  if (randomUUID) return `prj_${randomUUID.replace(/-/g, '')}`
+  const random = Math.random().toString(36).slice(2)
+  return `prj_${Date.now().toString(36)}${random}`
 }
 
 function sameEntityId(left: unknown, right: unknown): boolean {

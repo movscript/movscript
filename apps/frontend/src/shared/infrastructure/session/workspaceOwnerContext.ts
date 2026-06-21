@@ -1,6 +1,7 @@
 import type { OrgMembership, User } from '@/types'
 import type { ElectronMovScriptWorkspaceFileRepositoryContext } from '@/shared/infrastructure/workspaceDomainRepository'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
+import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 
 export type WorkspaceOwnerContext = Pick<ElectronMovScriptWorkspaceFileRepositoryContext, 'userId' | 'orgId'>
 
@@ -22,4 +23,12 @@ export function workspaceOwnerContext(input: {
 export function currentWorkspaceOwnerContext(): WorkspaceOwnerContext {
   const { currentUser, currentOrgID, orgMemberships } = useUserStore.getState()
   return workspaceOwnerContext({ currentUser, currentOrgID, orgMemberships })
+}
+
+export function currentWorkspaceProjectDir(): string | undefined {
+  const { current, workspaceRoot } = useProjectStore.getState()
+  return workspaceRoot?.trim()
+    || current?.workspace_path?.trim()
+    || current?.project_path?.trim()
+    || undefined
 }

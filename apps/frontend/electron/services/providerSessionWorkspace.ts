@@ -92,7 +92,6 @@ export function upsertProviderSessionInWorkspace(input: ProviderSessionWorkspace
   const workspaceContext = input.workspaceContext ?? previous?.workspaceContext
   const providerSessionCwd = input.providerSessionCwd?.trim() || previous?.providerSessionCwd
   const projectId = projectIdFromWorkspaceContext(workspaceContext)
-    ?? projectIdFromProviderSessionCwd(providerSessionCwd)
     ?? previous?.state?.projectId
     ?? previous?.session.projectId
   const record: ProviderSessionWorkspaceRecord = {
@@ -133,7 +132,6 @@ function providerSessionSummaryFromRecord(record: ProviderSessionWorkspaceRecord
   const projectId = record.state?.projectId
     ?? record.session.projectId
     ?? projectIdFromWorkspaceContext(record.workspaceContext)
-    ?? projectIdFromProviderSessionCwd(record.providerSessionCwd)
   return {
     session: {
       ...record.session,
@@ -188,15 +186,6 @@ function projectIdFromWorkspaceContext(context: ElectronProviderSessionSummary['
   const value = context?.projectId
   const projectId = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : undefined
   return typeof projectId === 'number' && Number.isInteger(projectId) && projectId > 0 ? projectId : undefined
-}
-
-function projectIdFromProviderSessionCwd(cwd: string | undefined): number | undefined {
-  const normalized = cwd?.replace(/\\/g, '/')
-  if (!normalized) return undefined
-  const match = /(?:^|\/)realms\/(?:local|cloud\/[^/]+)\/(?:user\/[^/]+|org\/[^/]+)\/projects\/project_(\d+)(?:\/|$)/.exec(normalized)
-  if (!match?.[1]) return undefined
-  const projectId = Number(match[1])
-  return Number.isInteger(projectId) && projectId > 0 ? projectId : undefined
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

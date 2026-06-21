@@ -47,7 +47,7 @@ export async function createContentUnitFromAsset(
     ref: assetRef,
     contentUnitType: 'asset_ref',
     outputKind: outputKindForAsset(assetNode),
-    title: `${assetNode.title} 制作项`,
+    title: `${assetNode.title} 创作片段`,
     description: `从编排画布基于素材「${assetNode.title}」创建。`,
     prompt: `基于已绑定素材「${assetNode.title}」生成可制作内容，保持与当前项目编排关系一致。`,
     modelIntent: {
@@ -61,7 +61,7 @@ export async function createContentUnitFromAsset(
     affectedNodeIds: [assetNode.id, createdId],
     focusNodeId: createdId,
     nodePositions: { [createdId]: suggestedContentCanvasChildNodePosition(assetNode, 1) },
-    message: '已确保素材制作项',
+    message: '已确保素材创作片段',
   }
 }
 
@@ -137,7 +137,7 @@ export async function createContentUnitFromSceneMoment(
     ref: sceneMomentNode.entityKey,
     contentUnitType: 'scene_moment_ref',
     outputKind: 'video',
-    title: `${sceneMomentNode.title} 制作项`,
+    title: `${sceneMomentNode.title} 创作片段`,
     description: `从编排画布基于情节「${sceneMomentNode.title}」创建。`,
     prompt: `将情节「${sceneMomentNode.title}」转化为可制作镜头，保留上游叙事目标和已有素材约束。`,
     modelIntent: {
@@ -150,7 +150,7 @@ export async function createContentUnitFromSceneMoment(
     affectedNodeIds: [sceneMomentNode.id, createdId],
     focusNodeId: createdId,
     nodePositions: { [createdId]: suggestedContentCanvasChildNodePosition(sceneMomentNode, 1) },
-    message: '已确保情节制作项',
+    message: '已确保情节创作片段',
   }
 }
 
@@ -183,7 +183,7 @@ export function defaultContentUnitDraftForNode(node: ContentCanvasNode | undefin
       ref,
       contentUnitType: 'asset_ref',
       outputKind: outputKindForAsset(node),
-      title: `${node.title} 制作项`,
+      title: `${node.title} 创作片段`,
       description: `从编排画布基于素材「${node.title}」创建。`,
       prompt: `基于已绑定素材「${node.title}」生成可制作内容，保持与当前项目编排关系一致。`,
       modelIntent: baseModelIntent,
@@ -196,7 +196,7 @@ export function defaultContentUnitDraftForNode(node: ContentCanvasNode | undefin
       ref,
       contentUnitType: 'scene_moment_ref',
       outputKind: 'video',
-      title: `${node.title} 制作项`,
+      title: `${node.title} 创作片段`,
       description: `从编排画布基于情节「${node.title}」创建。`,
       prompt: `将情节「${node.title}」转化为可制作镜头，保留上游叙事目标和已有素材约束。`,
       modelIntent: baseModelIntent,
@@ -210,7 +210,7 @@ export function defaultContentUnitDraftForNode(node: ContentCanvasNode | undefin
       ref,
       contentUnitType: 'expression_unit_ref',
       outputKind: contentCanvasExpressionUnitOutputKind(expressionKind),
-      title: `${node.title} 制作项`,
+      title: `${node.title} 创作片段`,
       description: `从编排画布基于表达单元「${node.title}」创建。`,
       prompt: `将表达单元「${node.title}」转化为可制作候选。`,
       modelIntent: baseModelIntent,
@@ -223,7 +223,7 @@ export function defaultContentUnitDraftForNode(node: ContentCanvasNode | undefin
       ref,
       contentUnitType: 'keyframe_ref',
       outputKind: 'image',
-      title: `${node.title} 制作项`,
+      title: `${node.title} 创作片段`,
       description: `从编排画布基于关键帧「${node.title}」创建。`,
       prompt: `为关键帧「${node.title}」生成视觉候选。`,
       modelIntent: baseModelIntent,
@@ -235,7 +235,7 @@ export function defaultContentUnitDraftForNode(node: ContentCanvasNode | undefin
     ref,
     contentUnitType: 'storyboard_ref',
     outputKind: 'image',
-    title: `${node.title} 制作项`,
+    title: `${node.title} 创作片段`,
     description: `从编排画布基于分镜图「${node.title}」创建。`,
     prompt: `为分镜图「${node.title}」生成视觉候选。`,
     modelIntent: baseModelIntent,
@@ -251,7 +251,7 @@ export async function ensureDefaultContentUnitFromCanvasNode(
   void projectId
   if (node.kind === 'content_unit' && node.sourcePath) return node
   const draft = defaultContentUnitDraftForNode(node)
-  if (!draft) throw new Error('当前节点不支持默认制作项')
+  if (!draft) throw new Error('当前节点不支持默认创作片段')
   const result = await ensureContentUnitForRef(gateway, {
     ...draft,
     prompt: promptOverride ?? draft.prompt,
@@ -266,7 +266,7 @@ export async function ensureDefaultContentUnitFromCanvasNode(
     subtitle: outputKind,
     summary: promptTextFromContentUnitRecord(result.record) ?? promptOverride ?? draft.prompt,
     status: 'ready',
-    metrics: [`制作项 ${outputKind}`],
+    metrics: [`创作片段 ${outputKind}`],
     sourcePath: contentUnitResultPath(result),
     record: result.record,
     candidates: [],
@@ -280,9 +280,9 @@ export async function updateContentUnitPromptFromCanvas(
   promptText: string,
   gateway: ContentCanvasWorkspaceGateway,
 ): Promise<ContentCanvasCommandResult> {
-  assertNodeKind(contentUnitNode, 'content_unit', '制作项')
+  assertNodeKind(contentUnitNode, 'content_unit', '创作片段')
   if (!contentUnitNode.sourcePath) {
-    throw new Error('制作项节点缺少 workspace 路径，无法写入')
+    throw new Error('创作片段节点缺少 workspace 路径，无法写入')
   }
   await gateway.service.updateContentUnitEditPrompt({
     targetPath: contentUnitNode.sourcePath,
@@ -292,7 +292,7 @@ export async function updateContentUnitPromptFromCanvas(
     changedNodeIds: [contentUnitNode.id],
     affectedNodeIds: [contentUnitNode.id],
     focusNodeId: contentUnitNode.id,
-    message: '已保存制作项提示词',
+    message: '已保存创作片段提示词',
   }
 }
 

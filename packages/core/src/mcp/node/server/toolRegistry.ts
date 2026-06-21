@@ -58,6 +58,7 @@ function systemTools(input: {
     ...renameTools(input.project, {
       movscript_project_create: 'system_project_create',
       movscript_project_init: 'system_project_init',
+      movscript_project_open: 'system_project_open',
       movscript_project_fetch: 'system_project_fetch',
     }),
     ...renameTools(input.models, { generation_model_list: 'system_model_list' }),
@@ -82,7 +83,10 @@ function systemTools(input: {
       generation_audio_job_get: 'generation_audio_job_get',
       generation_audio_job_get_batch: 'generation_audio_job_get_batch',
     }),
-    ...renameTools(input.resourceLibrary, { movscript_resource_library_query: 'system_resource_library_query' }),
+    ...renameTools(input.resourceLibrary, {
+      movscript_resource_library_query: 'system_resource_library_query',
+      movscript_resource_library_open: 'system_resource_library_open',
+    }),
     ...renameTools(input.resourceMedia, {
       movscript_resource_image_read: 'system_resource_image_read',
       movscript_resource_image_transform_to_resource: 'system_resource_image_transform_to_resource',

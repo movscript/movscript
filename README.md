@@ -37,21 +37,23 @@ Movscript is still early. Features, file formats, plugin behavior, and workflows
 Current release target:
 
 - macOS Apple Silicon / arm64
+- macOS Intel / x64
 - Windows x64
+- Windows ARM64
 
 Download the latest desktop package from [GitHub Releases](https://github.com/movscript/movscript/releases/latest).
 
-On macOS Apple Silicon, install from the command line:
+On macOS, install from the command line. The installer picks the Apple Silicon or Intel DMG based on your machine:
 
 ```bash
 curl -fsSL https://movscript.github.io/movscript/install.sh | sh
 ```
 
-On Windows x64, download the latest `.exe` installer from [GitHub Releases](https://github.com/movscript/movscript/releases/latest).
+On Windows, download the latest x64 or ARM64 `.exe` installer from [GitHub Releases](https://github.com/movscript/movscript/releases/latest).
 
 All release notes, known issues, checksums, and previous versions are listed on the [Movscript releases page](https://github.com/movscript/movscript/releases).
 
-Intel Mac, Windows arm64, and Linux desktop packages are not published yet. They will be added in later releases.
+Linux desktop packages are not published yet. They will be added in later releases.
 
 ## Docker
 

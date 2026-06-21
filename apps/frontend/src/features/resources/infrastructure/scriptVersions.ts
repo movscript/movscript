@@ -55,7 +55,7 @@ export async function createScriptVersion(projectId: number, payload: CreateScri
   return await createSemanticEntity(projectId, semanticEntityConfig('scriptVersions'), {
     ...payload,
     version_number: versionNumber,
-    title: payload.title ?? `剧本版本 ${versionNumber}`,
+    title: payload.title ?? `手记版本 ${versionNumber}`,
     source_type: payload.source_type ?? 'raw',
     content: payload.content ?? payload.raw_source ?? '',
     raw_source: payload.raw_source ?? payload.content ?? '',

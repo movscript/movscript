@@ -32,8 +32,19 @@ export function projectTools(): MCPTool[] {
       ),
     },
     {
+      name: 'movscript_project_open',
+      description: 'Open or inspect a MovScript project by directory without requiring a backend user/project binding. This does not fetch source data; business source lives in the user chosen Git repository.',
+      inputSchema: objectSchema(
+        {
+          projectDir: { type: 'string', description: 'Absolute or relative MovScript project directory to open.' },
+          project_dir: { type: 'string', description: 'Alias for projectDir.' },
+          cwd: { type: 'string', description: 'Alias for projectDir.' },
+        },
+      ),
+    },
+    {
       name: 'movscript_project_fetch',
-      description: 'Open or inspect a local MovScript project by directory without requiring a backend user/project binding.',
+      description: 'Compatibility alias for movscript_project_open.',
       inputSchema: objectSchema(
         {
           projectDir: { type: 'string', description: 'Absolute or relative MovScript project directory to open.' },

@@ -122,7 +122,7 @@ import {
   getShotGroup,
   queryShotLibrary,
 } from './shot-library/actions'
-import { queryResourceLibrary } from './resource-library/actions'
+import { openResourceLibrary, queryResourceLibrary } from './resource-library/actions'
 import {
   annotateResourceImage,
   composeResourceVideosToResource,
@@ -215,6 +215,9 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
     case 'system_resource_library_query':
     case 'movscript_resource_library_query':
       return toolText(await queryResourceLibrary(args))
+    case 'system_resource_library_open':
+    case 'movscript_resource_library_open':
+      return toolText(openResourceLibrary(args))
     case 'system_resource_image_read':
     case 'movscript_resource_image_read':
       return await readResourceImageForVision(args) as MCPJSONValue
@@ -457,6 +460,8 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
     case 'movscript_project_init':
       return toolText(await initLocalProject(args))
     case 'system_project_fetch':
+    case 'system_project_open':
+    case 'movscript_project_open':
     case 'movscript_project_fetch':
       return toolText(await fetchLocalProject(args))
     default:

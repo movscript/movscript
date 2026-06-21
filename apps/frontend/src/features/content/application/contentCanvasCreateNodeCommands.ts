@@ -96,7 +96,7 @@ async function createSettingFromCanvas(
     id: input.id,
     title: input.title,
     kind: input.settingKind ?? 'other',
-    description: '从内容编排画布创建。',
+    description: '从创作画布创建。',
   })
   const createdId = `setting:${String(result.record.id ?? input.id)}`
   return createdNodeResult(createdId, '已创建设定', options?.position)

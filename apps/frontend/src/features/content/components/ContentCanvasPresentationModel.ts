@@ -8,7 +8,7 @@ export const CONTENT_CANVAS_FILTERS: Array<{ kind: ContentCanvasNodeKind | 'all'
   { kind: 'scene_moment', label: '情节' },
   { kind: 'storyboard', label: '分镜' },
   { kind: 'expression_unit', label: '表达' },
-  { kind: 'content_unit', label: '制作项' },
+  { kind: 'content_unit', label: '创作片段' },
   { kind: 'candidate', label: '候选' },
   { kind: 'selection', label: '选择' },
   { kind: 'resource', label: '资源' },
@@ -62,7 +62,7 @@ export function kindLabel(kind: ContentCanvasNodeKind) {
   if (kind === 'scene_moment') return '情节'
   if (kind === 'storyboard') return '分镜图'
   if (kind === 'expression_unit') return '表达单元'
-  if (kind === 'content_unit') return '制作项'
+  if (kind === 'content_unit') return '创作片段'
   if (kind === 'candidate') return '候选'
   if (kind === 'selection') return '选择'
   if (kind === 'resource') return '资源'

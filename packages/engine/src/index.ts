@@ -151,6 +151,8 @@ export interface MovScriptEngineStoryboardInput {
   title?: string
   visualIntent?: string
   order?: number
+  timeline?: Record<string, unknown>
+  graph?: Record<string, unknown>
 }
 
 export interface MovScriptEngineKeyframeInput {
@@ -163,6 +165,11 @@ export interface MovScriptEngineKeyframeInput {
   role?: string
   visualIntent?: string
   order?: number
+  timing?: Record<string, unknown>
+  composition?: Record<string, unknown>
+  continuity?: Record<string, unknown>
+  referenceAssetRefs?: unknown[]
+  referenceKeyframeRefs?: unknown[]
 }
 
 export interface MovScriptEngineAudioCueInput {
@@ -821,6 +828,11 @@ async function updateEntityBasics(
       title: stringValue(patched.title),
       role: stringValue(patched.role),
       visualIntent: stringValue(patched.visual_intent ?? patched.description),
+      timing: isRecord(patched.timing) ? patched.timing : undefined,
+      composition: isRecord(patched.composition) ? patched.composition : undefined,
+      continuity: isRecord(patched.continuity) ? patched.continuity : undefined,
+      referenceAssetRefs: Array.isArray(patched.reference_asset_refs) ? patched.reference_asset_refs : undefined,
+      referenceKeyframeRefs: Array.isArray(patched.reference_keyframe_refs) ? patched.reference_keyframe_refs : undefined,
     })
   }
   if (entityKind === 'storyboard') {
@@ -832,6 +844,8 @@ async function updateEntityBasics(
       id: input.id ?? idValue(record.id) ?? pathSegmentAfter(input.targetPath ?? '', 'storyboards'),
       title: stringValue(patched.title),
       visualIntent: stringValue(patched.visual_intent ?? patched.description),
+      timeline: isRecord(patched.timeline) ? patched.timeline : undefined,
+      graph: isRecord(patched.graph) ? patched.graph : undefined,
     })
   }
   throw new Error(`Unsupported entity basics update kind: ${entityKind}`)
@@ -957,6 +971,8 @@ function saveStoryboard(
                     title: input.title,
                     visual_intent: input.visualIntent,
                     order: input.order,
+                    timeline: input.timeline,
+                    graph: input.graph,
                   })],
                 }],
               }
@@ -966,6 +982,8 @@ function saveStoryboard(
                   title: input.title,
                   visual_intent: input.visualIntent,
                   order: input.order,
+                  timeline: input.timeline,
+                  graph: input.graph,
                 })],
               }),
         }],
@@ -999,6 +1017,11 @@ function saveKeyframe(
                     role: input.role,
                     visual_intent: input.visualIntent,
                     order: input.order,
+                    timing: input.timing,
+                    composition: input.composition,
+                    continuity: input.continuity,
+                    reference_asset_refs: input.referenceAssetRefs,
+                    reference_keyframe_refs: input.referenceKeyframeRefs,
                   })],
                 }],
               }
@@ -1009,6 +1032,11 @@ function saveKeyframe(
                   role: input.role,
                   visual_intent: input.visualIntent,
                   order: input.order,
+                  timing: input.timing,
+                  composition: input.composition,
+                  continuity: input.continuity,
+                  reference_asset_refs: input.referenceAssetRefs,
+                  reference_keyframe_refs: input.referenceKeyframeRefs,
                 })],
               }),
         }],

@@ -22,6 +22,7 @@ import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
 type ContentWorkspaceOwnerContext = {
   userId?: number | string
   orgId?: number | string
+  projectDir?: string
 }
 
 const uncheckedWorkspaceVersions: Record<string, string | null> = {}

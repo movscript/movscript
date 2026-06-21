@@ -2,6 +2,8 @@ import {
   resourceIdsFromMentions,
   stripResourceMentions,
 } from '@movscript/workspace'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { backendGet, backendPost } from '../../../../backend/node/client.js'
 import {
   buildContentUnitGenerationOutputCandidate,
@@ -20,7 +22,6 @@ import {
 import { listModels } from '../model/actions.js'
 import { getOptionalNumeric, getOptionalString, numericValues } from '../../../tools/shared/params.js'
 import { isRecord } from '../../../tools/shared/record.js'
-import { resolveMCPRequiredProjectId } from '../workspace/locator.js'
 
 type GenerationJobType =
   | 'image'
@@ -72,6 +73,12 @@ type CompiledContentUnitPromptResult = {
   ok?: unknown
   prompt: Record<string, unknown>
   blockers?: unknown[]
+}
+
+type GenerationProjectScope = {
+  projectDir: string
+  projectUid?: string
+  projectTitle?: string
 }
 
 export async function generateImage(args: Record<string, unknown>): Promise<unknown> {
@@ -198,7 +205,7 @@ async function generateContentUnitVisual(
   const selection = kind === 'image'
     ? await resolveModelSelection(nextArgs, built.jobType, built.jobType === 'image_edit' ? 'image' : 'image_edit')
     : await resolveModelSelection(nextArgs, built.jobType, 'video')
-  const projectId = resolveMCPRequiredProjectId(nextArgs)
+  const projectScope = resolveGenerationProjectScope(args)
   const sharedRequest = buildContentUnitGenerationRequest({
     contentUnitId,
     outputKind: kind,
@@ -233,24 +240,19 @@ async function generateContentUnitVisual(
     paramAudit: prepared.audit,
     modelParams,
   }))
-  const submitted = await backendPost(`/projects/${projectId}/content-units/${encodeURIComponent(String(contentUnitId))}/candidates/generate`, {
+  const submitted = await submitGenerationJob({
+    ...args,
+    title: getOptionalString(args, 'title') ?? `Content unit ${kind} generation`,
+  }, selection, built, contentUnitGenerationFeatureKey(kind), {
     candidate_id: getOptionalString(args, 'candidate_id') ?? getOptionalString(args, 'candidateId'),
     output_kind: kind,
-    model_id: selection.modelId,
-    job_type: built.jobType,
-    title: getOptionalString(args, 'title') ?? `Content unit ${kind} generation`,
-    prompt: built.prompt,
-    input_resource_ids: built.refIds,
-    extra_params: JSON.stringify(prepared.extraParams),
-    ...(prepared.aspectRatio !== undefined ? { aspect_ratio: prepared.aspectRatio } : {}),
-    ...(prepared.duration !== undefined ? { duration: prepared.duration } : {}),
     prompt_snapshot: promptSnapshot,
+    content_unit_id: contentUnitId,
   })
-  if (!isRecord(submitted) || !isRecord(submitted.job)) throw new Error('Content unit candidate generation returned an invalid response')
   const monitorTool = contentUnitGenerationSystemMonitorToolName(kind)
-  const result = generationSubmitResult(kind, normalizeJob(submitted.job), monitorTool, prepared.audit)
+  const result = generationSubmitResult(kind, submitted.job, monitorTool, prepared.audit)
   const jobId = idField(result.job_id)
-  const candidateId = isRecord(submitted.candidate) ? stringField(submitted.candidate.id) : undefined
+  const candidateId = getOptionalString(args, 'candidate_id') ?? getOptionalString(args, 'candidateId')
   return {
     ...result,
     contentUnitId,
@@ -261,13 +263,14 @@ async function generateContentUnitVisual(
       tool: monitorTool,
       args: {
         jobId,
-        projectId,
-        project_id: projectId,
         contentUnitId,
         content_unit_id: contentUnitId,
         ...(candidateId ? { candidateId, candidate_id: candidateId } : {}),
         outputKind: kind,
         output_kind: kind,
+        projectDir: projectScope.projectDir,
+        project_dir: projectScope.projectDir,
+        ...(projectScope.projectUid ? { projectUid: projectScope.projectUid, project_uid: projectScope.projectUid } : {}),
         promptSnapshot,
         prompt_snapshot: promptSnapshot,
       },
@@ -506,9 +509,11 @@ async function submitGenerationJob(
   selection: ModelSelection,
   built: BuiltGenerationRequest,
   featureKey: string,
+  contentUnitCandidate?: Record<string, unknown>,
 ): Promise<{ job: Record<string, unknown>; paramAudit: ParamAuditItem[]; modelParams: Record<string, unknown> }> {
   const prepared = prepareGenerationParams(built, selection.model, parameterModeArg(args))
   const modelParams = submittedModelParams(prepared)
+  const projectScope = resolveGenerationProjectScope(args)
   const body: Record<string, unknown> = {
     model_id: selection.modelId,
     job_type: built.jobType,
@@ -516,12 +521,28 @@ async function submitGenerationJob(
     prompt: built.prompt,
     input_resource_ids: built.refIds,
     extra_params: JSON.stringify(prepared.extraParams),
+    project_uid: projectScope.projectUid,
+    project_title: projectScope.projectTitle,
+    project_dir: projectScope.projectDir,
   }
   if (prepared.aspectRatio !== undefined) body.aspect_ratio = prepared.aspectRatio
   if (prepared.duration !== undefined) body.duration = prepared.duration
   const title = getOptionalString(args, 'title')
   if (title) body.title = title
-  body.project_id = resolveMCPRequiredProjectId(args)
+  if (contentUnitCandidate) {
+    body.content_unit_candidate = {
+      ...contentUnitCandidate,
+      ...(projectScope.projectUid ? { project_uid: projectScope.projectUid } : {}),
+    }
+  }
+  body.request_context = JSON.stringify({
+    project: {
+      dir: projectScope.projectDir,
+      ...(projectScope.projectUid ? { uid: projectScope.projectUid } : {}),
+      ...(projectScope.projectTitle ? { title: projectScope.projectTitle } : {}),
+    },
+    ...(contentUnitCandidate ? { content_unit_candidate: contentUnitCandidate } : {}),
+  })
 
   const job = await backendPost('/jobs', body)
   if (!isRecord(job)) throw new Error('Generation job create returned an invalid response')
@@ -540,6 +561,37 @@ function submittedModelParams(prepared: PreparedGenerationParams): Record<string
     ...(prepared.aspectRatio !== undefined ? { aspect_ratio: prepared.aspectRatio } : {}),
     ...(prepared.duration !== undefined ? { duration: prepared.duration } : {}),
   }
+}
+
+function resolveGenerationProjectScope(args: Record<string, unknown>): GenerationProjectScope {
+  const rawDir = getOptionalString(args, 'projectDir')
+    ?? getOptionalString(args, 'project_dir')
+    ?? getOptionalString(args, 'projectPath')
+    ?? getOptionalString(args, 'project_path')
+    ?? getOptionalString(args, 'cwd')
+  if (!rawDir) throw new Error('projectDir or cwd is required for generation tools')
+  const projectDir = resolve(rawDir)
+  const manifest = readProjectManifest(projectDir)
+  return {
+    projectDir,
+    projectUid: getOptionalString(args, 'projectUid') ?? getOptionalString(args, 'project_uid') ?? manifest.projectUid,
+    projectTitle: getOptionalString(args, 'projectTitle') ?? getOptionalString(args, 'project_title') ?? manifest.projectTitle,
+  }
+}
+
+function readProjectManifest(projectDir: string): { projectUid?: string; projectTitle?: string } {
+  for (const name of ['workspace.json', 'project.json']) {
+    try {
+      const parsed = JSON.parse(readFileSync(resolve(projectDir, name), 'utf8')) as Record<string, unknown>
+      return {
+        projectUid: stringField(parsed.project_uid ?? parsed.projectUid),
+        projectTitle: stringField(parsed.title ?? parsed.name),
+      }
+    } catch {
+      // Try the next manifest candidate.
+    }
+  }
+  return {}
 }
 
 function generationSubmitResult(kind: 'image' | 'video' | 'audio', job: Record<string, unknown>, monitorTool: string, paramAudit: ParamAuditItem[] = []): Record<string, unknown> {

@@ -157,7 +157,7 @@ function currentProductFactsForNode(node: ContentCanvasNode): Array<ContentCanva
   if (node.kind === 'content_unit') {
     return [
       stringFact('content-unit-output-kind', '产物类型', node.record.output_kind ?? node.record.outputKind),
-      stringFact('content-unit-type', '制作项类型', node.record.content_unit_type ?? node.record.contentUnitType),
+      stringFact('content-unit-type', '创作片段类型', node.record.content_unit_type ?? node.record.contentUnitType),
       stringFact('content-unit-prompt', 'Edit prompt', promptTextFromRecord(node.record)),
       node.candidates.length ? { id: 'content-unit-candidate-count', label: '候选数', value: `${node.candidates.length}` } : undefined,
       selectedCandidateFact(node),
@@ -239,7 +239,7 @@ function relationAction(direction: 'upstream' | 'downstream', relation: string, 
   if (node.kind === 'selection') return '查看当前采纳'
   if (node.kind === 'resource') return '查看资源输出'
   if (node.kind === 'candidate') return '检查候选选择'
-  if (node.kind === 'content_unit') return direction === 'upstream' ? '打开来源制作项' : '复核下游制作项'
+  if (node.kind === 'content_unit') return direction === 'upstream' ? '打开来源创作片段' : '复核下游创作片段'
   if (direction === 'upstream') return `检查${relation}`
   return `定位${relation}`
 }

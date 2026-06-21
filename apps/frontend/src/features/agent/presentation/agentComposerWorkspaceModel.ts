@@ -13,6 +13,18 @@ export function normalizeAgentWorkspaceContext(
   context: MovScriptWorkspaceContext | undefined,
   lockedProject?: Project | null,
 ): MovScriptWorkspaceContext {
+  const projectDir = nonEmptyString(context?.projectDir)
+  if (context?.scope === 'project' && projectDir) {
+    const projectUid = nonEmptyString(context.projectUid)
+    const projectTitle = nonEmptyString(context.projectTitle)
+    return {
+      scope: 'project',
+      ...(context.projectId !== undefined ? { projectId: context.projectId } : {}),
+      projectDir,
+      ...(projectUid ? { projectUid } : {}),
+      ...(projectTitle ? { projectTitle } : {}),
+    }
+  }
   const projectId = positiveInteger(context?.projectId)
   if ((context?.scope === 'project' || projectId !== undefined) && projectId !== undefined) {
     return {
@@ -21,19 +33,31 @@ export function normalizeAgentWorkspaceContext(
     }
   }
   if (lockedProject?.ID) {
-    return {
-      scope: 'project',
-      projectId: lockedProject.ID,
-    }
+    return agentWorkspaceContextFromProject(lockedProject)
   }
   return {
     scope: 'global',
   }
 }
 
+export function agentWorkspaceContextFromProject(project: Project): MovScriptWorkspaceContext {
+  const projectDir = project.workspace_path || project.project_path
+  return {
+    scope: 'project',
+    projectId: project.ID,
+    ...(projectDir ? { projectDir } : {}),
+    ...(project.project_uid ? { projectUid: project.project_uid } : {}),
+    ...(project.name ? { projectTitle: project.name } : {}),
+  }
+}
+
 export function positiveInteger(value: unknown): number | undefined {
   const numeric = Number(value)
   return Number.isInteger(numeric) && numeric > 0 ? numeric : undefined
+}
+
+function nonEmptyString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
 export function mergeCurrentProject(projects: Project[], currentProject: Project | null): Project[] {

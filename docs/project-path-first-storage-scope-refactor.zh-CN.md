@@ -27,7 +27,7 @@
 
 ### 工作区路径
 
-`packages/core/src/workspace/node/paths.ts` 仍然以 `userId/orgId/projectId` 推导项目目录：
+历史实现中，`packages/core/src/workspace/node/paths.ts` 以 `userId/orgId/projectId` 推导项目目录：
 
 ```ts
 resolveMovScriptProjectWorkspacePaths({
@@ -39,7 +39,7 @@ resolveMovScriptProjectWorkspacePaths({
 })
 ```
 
-其中 `projectId` 会变成 `projects/project_<id>`。如果没有 `projectId`，默认落到 `projects/project`。这说明工作区定位仍然把项目当作 MovScript Home 内部的一块派生空间。
+其中 `projectId` 会变成 `projects/project_<id>`。如果没有 `projectId`，默认落到 `projects/project`。这类路径推导已经从核心路径解析中删除；Project 工作区必须由 `projectDir/cwd` 显式给出。
 
 `packages/workspace/src/node/service.ts` 已经支持 `projectDir`：
 
@@ -116,7 +116,7 @@ currentProjectId: number | null
 - `MOVSCRIPT_PROJECT_DIR` 可作为项目目录。
 - `MOVSCRIPT_PROJECT_ID` 只用于创建 backend decision store。
 
-但 `apps/cli/src/commands/workspace.ts` 仍通过 `resolveMovScriptProjectCwd({ user, org, projectId })` 推导项目目录。CLI 内部还未统一到 `cwd/projectDir`。
+`apps/cli/src/commands/workspace.ts` 也应统一到 `cwd/projectDir/workspace`，不再接受或推导 legacy `--project-id` 工作区路径。
 
 ## 核心问题
 
@@ -198,9 +198,9 @@ Codex 工作目录天然是 cwd。理想契约应该是“工具在 cwd 下工�
 
    登录状态不应该改变本地项目根目录。登录只影响是否可以读写远端 scoped project data。
 
-6. **本地优先，远端可选。**
+6. **本地后端优先，云端可选。**
 
-   没有登录时，决策、候选、选择等可落盘到项目目录。登录后可选择同步或使用远端 scoped project data。
+   候选、选择、资源索引、生成任务等结构化数据始终写入后端 scoped project data。没有云登录时，也应连接本机随应用/CLI 启动的本地后端，而不是绕过后端写文件型 decision store。登录只决定是否使用云端 user/org scope，以及是否同步本地后端中的数据。
 
 7. **兼容旧后端项目，但不扩大旧模型。**
 
@@ -225,6 +225,26 @@ MovScript 项目数据应明确分为两类。
 - `productions/**`
 
 这些数据定义“要做什么”。它们不依赖登录用户，也不依赖后端 Project 表。`movscript init` 和普通文件编辑即可产生完整业务源。
+
+`.movscript/` 应类似 `.git/`，作为本地控制目录，不属于业务源数据，默认写入 `.gitignore`：
+
+```text
+project/
+  .git/
+  .movscript/
+    config.json
+  workspace.json
+  project.json
+  content_units/
+  productions/
+```
+
+其中 Git remote 由 `.git/config` 管，MovScript 候选/选择 remote 由 `.movscript/config.json` 管。两者可以都叫 `origin`，但不是同一个 remote：
+
+```text
+git push origin main       # 推业务源数据
+movscript push origin      # 推候选/选择元数据
+```
 
 ### 候选与运行数据：后端结构化存储
 
@@ -281,6 +301,23 @@ target     = content_unit:content_units/cu_opening
   }
 }
 ```
+
+本地 `.movscript/config.json` 承担 MovScript remote 配置：
+
+```json
+{
+  "schema": "movscript.local_project_config.v1",
+  "project_uid": "01J...",
+  "remotes": {
+    "origin": {
+      "url": "https://api.movscript.example",
+      "scope": { "kind": "org", "id": "9", "name": "Migua Studio" }
+    }
+  }
+}
+```
+
+`init` 不联网、不查重，只生成本地身份。重复 `project_uid` 的检查发生在 `movscript push <remote>`：如果目标 scope 下没有该 uid，就创建候选数据 namespace；如果已有同 uid 且 metadata 匹配，就推送；如果 uid 相同但 remote metadata 不匹配，则拒绝并提示 `fork identity` 或重新设置 remote。
 
 `project.json` 继续是领域源文件：
 
@@ -370,56 +407,80 @@ key        = decisions/content_units/cu_opening
 
 ### 新增 scoped project data storage
 
-新增持久化模型，例如：
+已新增两层持久化模型：
+
+- `ProjectDataSpace`: 后端认识到的 user/org scoped project data namespace。
+- `ProjectDataDecisionContext`: 挂在某个 data space 下的候选/选择上下文。
+
+当前实现位于：
+
+- `apps/backend/internal/infra/persistence/model/decision.go`
+- `apps/backend/internal/app/decision/project_data_service.go`
+- `apps/backend/internal/interfaces/http/handler/project_data.go`
+
+实际模型是：
 
 ```go
-type ScopedProjectDataObject struct {
+type ProjectDataSpace struct {
   gorm.Model
-  ScopeKind  string `gorm:"not null;size:16;uniqueIndex:uidx_scoped_project_data"`
-  ScopeID    string `gorm:"not null;size:128;uniqueIndex:uidx_scoped_project_data"`
-  ProjectUID string `gorm:"not null;size:128;uniqueIndex:uidx_scoped_project_data;index"`
-  DataKind   string `gorm:"not null;size:64;uniqueIndex:uidx_scoped_project_data;index"`
-  TargetKind string `gorm:"size:64;uniqueIndex:uidx_scoped_project_data;index"`
-  TargetRef  string `gorm:"size:512;uniqueIndex:uidx_scoped_project_data;index"`
-  Key        string `gorm:"size:512;uniqueIndex:uidx_scoped_project_data"`
-  ValueJSON  string `gorm:"type:text;not null"`
-  Version    string `gorm:"not null;size:128"`
-  CreatedBy  *uint  `gorm:"index"`
-  UpdatedBy  *uint  `gorm:"index"`
+  ScopeKind  string
+  ScopeID    string
+  ProjectUID string
+  Title      string
+  Status     string
+  CreatedBy  *uint
+  UpdatedBy  *uint
+}
+
+type ProjectDataDecisionContext struct {
+  gorm.Model
+  ProjectDataSpaceID uint
+  TargetKind         string
+  TargetRef          string
+  CandidatesJSON     string
+  SelectionJSON      string
+  Status             string
+  CreatedBy          *uint
+  UpdatedBy          *uint
 }
 ```
 
+这比单表 `ScopedProjectDataObject` 更适合前端 registry：即使一个项目还没有候选，也可以先有一条 `ProjectDataSpace`。未来 generation jobs、resource indexes、audit summaries 也可以挂到同一个 space。
+
 可选扩展：
 
-- `ContentType`
-- `ETag`
-- `DeletedAt`
-- `Visibility`
-- `ExpiresAt`
-- `MetadataJSON`
+- optimistic version / etag
+- archived/deleted lifecycle
+- remote metadata fingerprint
+- resource index summaries
+- generation job summaries
 
 ### API 契约
 
-建议新增：
+已新增：
 
 ```text
+GET    /api/v1/project-data/spaces
+POST   /api/v1/project-data/spaces
 GET    /api/v1/project-data/decisions?scope_kind=org&scope_id=9&project_uid=01J...&target_kind=content_unit&target_ref=...
 POST   /api/v1/project-data/decisions/query
 PUT    /api/v1/project-data/decisions/candidates
 POST   /api/v1/project-data/decisions/candidates
 PUT    /api/v1/project-data/decisions/selection
+DELETE /api/v1/project-data/decisions/selection
 ```
 
 写入 body：
 
 ```json
 {
-  "scope": { "kind": "org", "id": "9" },
+  "scope_kind": "org",
+  "scope_id": "9",
   "project_uid": "01J...",
+  "title": "Demo Film",
   "target_kind": "content_unit",
   "target_ref": "content_units/cu_opening",
-  "candidate": { "id": "candidate_a" },
-  "expected_version": "..."
+  "candidate": { "id": "candidate_a" }
 }
 ```
 
@@ -427,7 +488,8 @@ PUT    /api/v1/project-data/decisions/selection
 
 ```json
 {
-  "scope": { "kind": "org", "id": "9" },
+  "scope_kind": "org",
+  "scope_id": "9",
   "project_uid": "01J...",
   "target_kind": "content_unit",
   "target_refs": [
@@ -436,6 +498,18 @@ PUT    /api/v1/project-data/decisions/selection
   ]
 }
 ```
+
+权限规则：
+
+- `scope_kind=user`: `scope_id` 省略时使用当前用户；显式传入时必须等于当前用户。
+- `scope_kind=org`: `scope_id` 省略时使用当前工作区；显式传入时必须等于当前工作区。
+- 后端不检查 Project membership，也不要求 `projects` 表存在对应记录。
+
+已覆盖测试：
+
+- `apps/backend/internal/app/decision/service_test.go`
+- `apps/backend/internal/interfaces/http/router/router_test.go`
+- `apps/backend/internal/infra/db/migrations_test.go`
 
 权限：
 
@@ -531,29 +605,27 @@ createNodeMovScriptEngine({
 })
 ```
 
-`resolveMovScriptProjectCwd` 保留但标记 legacy，不能再作为新代码默认入口。
+旧的 `resolveMovScriptProjectCwd` / `projectId -> projects/project_<id>` 推导入口应删除，不保留 legacy adapter。需要项目目录的代码必须显式接收 `projectDir` 或使用当前 `cwd`。
 
-### 本地 decision store
+### 本地后端 decision store
 
-为了保证无登录时也能完整工作，需要实现文件型 decision store：
+为了保证无云登录时也能完整工作，需要确保本地后端提供与云端一致的 scoped project data API：
 
 ```ts
-createMovScriptFileDecisionStore({
-  projectDir,
+createMovScriptScopedProjectDataDecisionStore({
+  baseUrl: localBackendBaseUrl,
+  scopeKind: 'user',
+  scopeId: localUserId,
+  projectUid,
+  token: localBackendToken,
 })
-```
-
-建议落盘路径：
-
-```text
-<projectDir>/.movscript/decisions/content_units/<contentUnitId>.json
 ```
 
 说明：
 
-- `.movscript/` 是运行态/本地元数据，不是创作源文件。
-- 是否纳入 git 由项目策略决定，默认可忽略。
-- 如果希望候选选择成为可协作源文件，可以另行设计 `decisions/**` 源目录，但不能和 `.interpret/**` 混淆。
+- 候选/选择元数据不直接写入项目源目录，也不新增文件型 decision store。
+- `.movscript/` 可以保存本地后端连接、storage remote、同步状态等控制配置，但不作为候选主存储。
+- 本地后端和云端后端使用同一套 `project_uid + user/org scope + target_ref` 结构，只是 base URL、凭据和同步策略不同。
 
 ### Project manifest helper
 
@@ -570,7 +642,7 @@ resolveMovScriptProjectEnvironment(input)
 - 如果目录不存在，可创建。
 - 如果没有 `workspace.json`，写入 v2 manifest。
 - 如果已有 v1 manifest，补 `project_uid`。
-- 不访问后端。
+- 不创建后端 Project entity。初始化项目目录不依赖云端项目记录，但运行态候选/选择仍通过本地或云端后端保存。
 
 ## MCP 改造方案
 
@@ -629,7 +701,7 @@ system_project_fetch
 
 如果不传 storage：
 
-- 默认使用本地 file decision store。
+- 默认使用本地后端 scoped project data decision store。
 - 如果 manifest 有 sync 默认 scope，可以使用 manifest。
 - 如果登录态存在但 manifest 无配置，不应自动绑定，除非用户确认。
 
@@ -821,7 +893,7 @@ handleGeneratedContentUnitDecision({
 })
 ```
 
-没有 storage 时写本地 file decision store；有 storage 时写 scoped project data decision store。
+没有云端 storage 时写本地后端 scoped project data；有云端 storage 时写云端 scoped project data。两者接口形态一致，不引入文件型 decision store 分支。
 
 ## 迁移计划
 
@@ -835,27 +907,29 @@ handleGeneratedContentUnitDecision({
 
 - 在 workspace package 新增 manifest helper。
 - `movscript init` 写入 `workspace.json` v2，包括 `project_uid`。
+- `movscript init` 写入 `.movscript/config.json`，并把 `.movscript/` 加入 `.gitignore`。
 - 旧 `workspace.json` 自动补 uid。
 - 增加测试：任意临时目录 init 后无需登录即可 inspect/interpret。
 
-### Phase 2: 本地 decision store
+### Phase 2: 本地后端 scoped decision store
 
-- 实现 `createMovScriptFileDecisionStore({ projectDir })`。
-- Engine 默认在无 storage 时使用本地 decision store。
-- `content unit candidate` 相关 domain 操作在无后端时也可完整读写。
+- 本地后端启动时提供 `/api/v1/project-data/decisions`，与云端 scoped project data API 同形。
+- Engine/MCP 默认连接本地后端 scoped decision store；有云端配置时可切换到云端 storage。
+- `content unit candidate` 相关 domain 操作不依赖后端 Project row，但始终通过本地或云端后端读写结构化候选数据。
 
 ### Phase 3: Scoped project data backend
 
-- 新增 `scoped_storage_objects` 表。
-- 新增 scoped project data API。
-- 实现 `createMovScriptScopedStorageDecisionStore`。
-- 后端权限从 project membership 改为 user/org scope。
+- 新增 `project_data_spaces` 与 `project_data_decision_contexts` 表。已完成。
+- 新增 scoped project data API。已完成基础候选/选择接口与 registry 列表。
+- 实现 `createMovScriptScopedProjectDataDecisionStore`。已完成，并已接入 MCP domain runtime 的 path-first 主路径。
+- 后端权限从 project membership 改为 user/org scope。基础接口已完成。
 
 ### Phase 4: 前端 ProjectRef
 
 - 引入 `ProjectRef`，替换 `Project.ID` 在项目窗口、store、query key、事件 scope 中的核心地位。
 - 项目列表改为 recent projects first。
 - `/projects` 列表变为 legacy/import section。
+- 新增 `/project-data` 页面，展示当前 user/org scope 下后端 data spaces。已完成基础页面。
 
 ### Phase 5: MCP/CLI 接口清理
 
@@ -866,12 +940,12 @@ handleGeneratedContentUnitDecision({
   - local prompt/build/candidate write
   - remote generation job submit with storage scope
 
-### Phase 6: Legacy 后端 Project 迁移
+### Phase 6: Legacy 后端 Project 导出
 
-对旧后端项目提供迁移命令：
+对旧后端项目提供一次性导出/转换命令，命令以“源后端 Project”作为输入，但输出结果必须是普通路径绑定项目；转换完成后运行时不再依赖 legacy id：
 
 ```text
-movcli project migrate-backend --project-id 42 --target-dir ./my-film
+movcli project export-backend 42 --target-dir ./my-film
 ```
 
 流程：
@@ -879,13 +953,13 @@ movcli project migrate-backend --project-id 42 --target-dir ./my-film
 1. 读取 `/projects/42` metadata。
 2. clone 或导出旧 workspace。
 3. 写入 `workspace.json` v2。
-4. 把旧 decisions 复制到 scoped project data 或本地 `.movscript/decisions`。
+4. 把旧 decisions 复制到本地或云端 scoped project data。
 5. 写入 recent projects。
-6. 保留 legacy id 映射：
+6. 如需审计，可写入只读迁移记录，但运行时不得把它当 locator：
 
 ```json
 {
-  "legacy": {
+  "migration": {
     "backend_project_id": 42
   }
 }
@@ -893,16 +967,16 @@ movcli project migrate-backend --project-id 42 --target-dir ./my-film
 
 ## 兼容策略
 
-### 保留 legacy adapter
+### 删除 legacy path adapter
 
-短期保留：
+不保留 `projectId -> <MovScript Home>/realms/.../projects/project_<id>` 的路径兼容层。
+
+短期仍可能存在旧后端 Project API，用于列表展示、导出或兼容旧数据：
 
 - `/projects`
 - `/projects/:id/decisions`
-- `createMovScriptBackendDecisionStore({ projectId })`
-- `resolveMovScriptProjectCwd({ userId, orgId, projectId })`
 
-但新增代码不得直接使用它们。应通过 `ProjectEnvironment` 或 `StorageDecisionStore` adapter。
+但它们不得参与工作区定位。新增 project-scoped 运行时、MCP、Agent、CLI、Electron 服务必须通过 `ProjectEnvironment`、`projectDir/cwd` 或 scoped `ProjectData` storage 工作。
 
 ### 兼容响应
 
@@ -923,15 +997,15 @@ movcli project migrate-backend --project-id 42 --target-dir ./my-film
 ### Core / Workspace
 
 - `createNodeMovScriptEngine({ projectDir })` 在任意临时目录可 init/inspect/interpret。
-- 未登录、无 `projectId` 时 content-unit decision 可写入本地 decision store。
-- `resolveMovScriptProjectCwd` 的新使用点被禁止或 lint 检查。
+- 未云端登录、无 `projectId` 时 content-unit decision 可写入本地后端 scoped project data。
+- 核心包不再导出 `resolveMovScriptProjectCwd`，旧 `projectId` 路径推导没有运行时入口。
 
 ### MCP
 
 - `movscript_project_init({ cwd })` 在任意目录写入 manifest。
 - `domain_overview({ cwd })` 不需要 user/org/projectId。
-- `domain_create_content_candidate({ cwd })` 无 storage 时写本地 store。
-- 有 storage 时写 scoped project data。
+- `domain_create_content_candidate({ cwd })` 默认写本地后端 scoped project data。
+- 有云端 storage 时写云端 scoped project data。
 - 工具 schema 不再要求 `projectId`。
 
 ### Backend
@@ -954,7 +1028,7 @@ movcli project migrate-backend --project-id 42 --target-dir ./my-film
 
 - 在任意目录执行 `movcli init && movcli inspect && movcli interpret` 成功。
 - Codex MCP 只传 cwd 即可完整读取和编辑项目。
-- 无登录环境下不访问后端 project API。
+- 无云端登录环境下不访问后端 Project entity API；候选/选择仍访问本地后端 scoped project data API。
 
 ## 风险与取舍
 
@@ -1035,7 +1109,7 @@ POST /api/v1/generation/content-unit-candidates
 
 - 桌面端任意目录打开。
 - CLI/Codex cwd 复用。
-- 无登录本地创作。
+- 本地后端会话下创作。
 - 登录后可选同步。
 - 后端不需要感知 Project 生命周期。
 - 未来协作和云同步通过 storage scope/namespace 演进，而不是绑死在后端 Project 表。

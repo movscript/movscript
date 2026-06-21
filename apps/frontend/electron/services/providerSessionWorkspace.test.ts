@@ -80,7 +80,7 @@ test('provider session listing filters by provider profile key', () => {
   }
 })
 
-test('provider session index exposes project id from workspace context and cwd', () => {
+test('provider session index exposes project id only from explicit workspace context', () => {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-provider-sessions-project-'))
   try {
     upsertProviderSessionInWorkspace({
@@ -105,6 +105,25 @@ test('provider session index exposes project id from workspace context and cwd',
       scope: 'project',
       projectId: 42,
     })
+
+    upsertProviderSessionInWorkspace({
+      workspaceDir,
+      providerProfileKey: 'mova',
+      providerProfileId: 'mova-path-only',
+      providerKey: 'mova',
+      workspaceContext: {
+        scope: 'project',
+        projectDir: join(workspaceDir, 'outside', 'project'),
+      },
+      providerSessionCwd: join(workspaceDir, 'realms', 'local', 'user', '7', 'projects', 'project_99'),
+      status: 'running',
+      now: new Date('2026-06-05T01:02:06.000Z'),
+    })
+
+    const pathOnly = listProviderSessionsFromWorkspace({ workspaceDir, providerProfileKey: 'mova' })
+      .sessions.find((item) => item.session.id === 'mova-path-only')
+    assert.equal(pathOnly?.session.projectId, undefined)
+    assert.equal(pathOnly?.state?.projectId, undefined)
   } finally {
     rmSync(workspaceDir, { recursive: true, force: true })
   }

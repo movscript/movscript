@@ -11,9 +11,18 @@ export const api = axios.create({
   baseURL: getAPIV1BaseURL()
 })
 
+let agentBrowserAPIV1BaseURL: string | null = null
+
+export function setAgentBrowserAPIV1BaseURL(baseURL: string | null | undefined): void {
+  agentBrowserAPIV1BaseURL = baseURL?.trim() || null
+}
+
 api.interceptors.request.use(async (config) => {
   await waitForLocalBackendReady()
   const { token, currentOrgID } = useUserStore.getState()
+  if (agentBrowserAPIV1BaseURL) {
+    config.baseURL = agentBrowserAPIV1BaseURL
+  }
   if (config.baseURL === undefined || config.baseURL === api.defaults.baseURL) {
     config.baseURL = getAPIV1BaseURL()
   }

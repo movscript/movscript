@@ -583,7 +583,7 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.doesNotMatch(detailsSource, /function CreateChildNodeInspector/)
   assert.match(detailsSource, /function ContentCanvasInspectorTabs/)
   assert.match(detailsSource, />\s*实体\s*<\/button>/)
-  assert.match(detailsSource, />\s*制作项\s*<\/button>/)
+  assert.match(detailsSource, />\s*创作片段\s*<\/button>/)
   assert.match(detailsSource, /function ContentUnitInspector/)
   assert.match(detailsSource, /<PromptReferenceInlineEditor/)
   assert.match(detailsSource, /function ContentUnitInspector[\s\S]*<PromptReferenceAppendButtons/)
@@ -614,7 +614,7 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.match(resourceCandidatePickerSource, /resourceKeys\.contentWorkspaceCandidates/)
   assert.match(resourceCandidatePickerSource, /api\.get\(`\/resources/)
   assert.match(inspectorPartsSource, /export function CreateChildNodeInspector/)
-  assert.match(inspectorPartsSource, /title="制作项"/)
+  assert.match(inspectorPartsSource, /title="创作片段"/)
   assert.doesNotMatch(detailsSource, /InspectorChildGroups/)
   assert.match(detailsSource, /function PromptReferenceAppendButtons/)
   for (const stylesheet of [
@@ -1493,11 +1493,11 @@ test('content canvas relation ledger exposes node-specific current product facts
     ['制作状态', 'needs_candidate'],
   ])
   assert.deepEqual(contentUnitLedger.current.map((fact) => [fact.label, fact.value]), [
-    ['类型', '制作项'],
+    ['类型', '创作片段'],
     ['状态', '推进中'],
     ['来源', 'content_unit/1.json'],
     ['产物类型', 'video'],
-    ['制作项类型', 'shot_render'],
+    ['创作片段类型', 'shot_render'],
     ['Edit prompt', 'Render rain phone shot.'],
     ['候选数', '1'],
     ['已选候选', 'Candidate A'],
@@ -2805,7 +2805,7 @@ test('content canvas read model hydrates asset generation task from matching con
   assert.equal(asset?.generationTask?.status, 'selected')
   assert.deepEqual(asset?.metrics, [
     '素材 image',
-    '制作项 image',
+    '创作片段 image',
     '候选 1',
     '已选择候选',
   ])
@@ -2843,7 +2843,7 @@ test('content canvas read model hydrates keyframe generation task from path ref 
   assert.equal(keyframe?.generationTask?.outputKind, 'image')
   assert.equal(keyframe?.generationTask?.prompt, 'Generate keyframe anchor')
   assert.deepEqual(keyframe?.metrics, [
-    '制作项 image',
+    '创作片段 image',
     '待生成候选',
   ])
 })
@@ -2913,7 +2913,7 @@ test('content canvas content unit ensure delegates matching and naming to engine
     ref: 'phone',
     contentUnitType: 'asset_ref',
     outputKind: 'image',
-    title: 'Phone 制作项',
+    title: 'Phone 创作片段',
     description: 'Create a phone reference.',
     prompt: 'Generate phone.',
   })
@@ -2925,7 +2925,7 @@ test('content canvas content unit ensure delegates matching and naming to engine
       targetKind: 'asset',
       targetRef: 'phone',
       id: 'cu_asset_phone',
-      title: 'Phone 制作项',
+      title: 'Phone 创作片段',
       contentUnitType: 'asset_ref',
       outputKind: 'image',
       description: 'Create a phone reference.',
@@ -2983,7 +2983,7 @@ test('content canvas scene moment generation command ensures a scene_moment_ref 
 
   const result = await createContentUnitFromSceneMoment(7, scene, gateway)
 
-  assert.equal(result.message, '已确保情节制作项')
+  assert.equal(result.message, '已确保情节创作片段')
   assert.deepEqual(result.changedNodeIds, ['content_unit:cu_scene_scene_1'])
   assert.deepEqual(calls[0], {
     kind: 'ensureContentUnitForEntity',
@@ -2991,7 +2991,7 @@ test('content canvas scene moment generation command ensures a scene_moment_ref 
     targetKind: 'scene_moment',
     targetRef: 'scene_1',
     id: 'cu_scene_scene_1',
-    title: 'Scene 1 制作项',
+    title: 'Scene 1 创作片段',
     contentUnitType: 'scene_moment_ref',
     outputKind: 'video',
     description: '从编排画布基于情节「Scene 1」创建。',
@@ -3059,7 +3059,7 @@ test('content canvas expression unit creation also ensures an expression_unit_re
   }, gateway)
 
   assert.deepEqual(calls.map((call) => call.kind), ['createExpressionUnit', 'ensureContentUnitForEntity'])
-  assert.equal(result.message, '已创建表达单元并确保制作项')
+  assert.equal(result.message, '已创建表达单元并确保创作片段')
   assert.deepEqual(result.changedNodeIds, ['expression_unit:expr_1', 'content_unit:cu_expression_expr_1'])
   assert.deepEqual(calls[0].payload, {
     projectId: 7,
@@ -3078,7 +3078,7 @@ test('content canvas expression unit creation also ensures an expression_unit_re
     targetKind: 'expression_unit',
     targetRef: 'expr_1',
     id: 'cu_expression_expr_1',
-    title: 'Line 1 制作项',
+    title: 'Line 1 创作片段',
     contentUnitType: 'expression_unit_ref',
     outputKind: 'audio',
     description: '从编排画布基于表达单元「Line 1」创建。',
@@ -3205,7 +3205,7 @@ test('content canvas scene moment can create keyframe with content unit', async 
     input: { id: 'kf_1', title: 'Hero closeup' },
   }, gateway)
 
-  assert.equal(result.message, '已创建关键帧并确保制作项')
+  assert.equal(result.message, '已创建关键帧并确保创作片段')
   assert.deepEqual(result.changedNodeIds, ['keyframe:kf_1', 'content_unit:cu_keyframe_kf_1'])
   assert.deepEqual(calls[0], {
     kind: 'createKeyframe',
@@ -3225,7 +3225,7 @@ test('content canvas scene moment can create keyframe with content unit', async 
       targetKind: 'keyframe',
       targetRef: 'kf_1',
       id: 'cu_keyframe_kf_1',
-      title: 'Hero closeup 制作项',
+      title: 'Hero closeup 创作片段',
       contentUnitType: 'keyframe_ref',
       outputKind: 'image',
       description: '从编排画布基于关键帧「Hero closeup」创建。',
@@ -3283,7 +3283,7 @@ test('content canvas expression unit can create storyboard with content unit', a
     input: { id: 'board_1', title: 'Main board' },
   }, gateway)
 
-  assert.equal(result.message, '已创建分镜图并确保制作项')
+  assert.equal(result.message, '已创建分镜图并确保创作片段')
   assert.deepEqual(result.changedNodeIds, ['storyboard:board_1', 'content_unit:cu_storyboard_board_1'])
   assert.deepEqual(calls[0], {
     kind: 'createStoryboard',
@@ -3303,7 +3303,7 @@ test('content canvas expression unit can create storyboard with content unit', a
       targetKind: 'storyboard',
       targetRef: 'board_1',
       id: 'cu_storyboard_board_1',
-      title: 'Main board 制作项',
+      title: 'Main board 创作片段',
       contentUnitType: 'storyboard_ref',
       outputKind: 'image',
       description: '从编排画布基于分镜图「Main board」创建。',
@@ -3689,7 +3689,7 @@ test('content canvas asset creation also ensures an asset_ref content unit', asy
   }, gateway)
 
   assert.deepEqual(calls.map((call) => call.kind), ['createAsset', 'ensureContentUnitForEntity'])
-  assert.equal(result.message, '已创建素材并确保制作项')
+  assert.equal(result.message, '已创建素材并确保创作片段')
   assert.deepEqual(calls[0].payload, {
     id: 'phone',
     title: 'Phone',
@@ -3705,7 +3705,7 @@ test('content canvas asset creation also ensures an asset_ref content unit', asy
     targetKind: 'asset',
     targetRef: 'phone',
     id: 'cu_asset_phone',
-    title: 'Phone 制作项',
+    title: 'Phone 创作片段',
     contentUnitType: 'asset_ref',
     outputKind: 'image',
     description: '从编排画布基于素材「Phone」创建。',

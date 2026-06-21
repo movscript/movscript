@@ -517,12 +517,12 @@ test('agent chat thread candidates can be scoped to the current project', () => 
     },
     sourceThreadList: [
       agentThread({ id: 'source-project', preview: 'Source project' }),
-      agentThread({ id: 'source-cwd-project', preview: 'Source cwd project', cwd: '/workspace/realms/local/user/1/projects/project_42' }),
-      agentThread({ id: 'source-other', preview: 'Source other', cwd: '/workspace/realms/local/user/1/projects/project_7' }),
-      agentThread({ id: 'closed-project', preview: 'Closed project', cwd: '/workspace/realms/local/user/1/projects/project_42' }),
+      agentThread({ id: 'source-cwd-project', preview: 'Source cwd project', cwd: '/workspace/projects/demo-film' }),
+      agentThread({ id: 'source-other', preview: 'Source other', cwd: '/workspace/projects/other-film' }),
+      agentThread({ id: 'closed-project', preview: 'Closed project', cwd: '/workspace/projects/demo-film' }),
     ],
     threads: [
-      agentThread({ id: 'runtime-project', preview: 'Runtime project', cwd: '/workspace/realms/local/user/1/projects/project_42' }),
+      agentThread({ id: 'runtime-project', preview: 'Runtime project', cwd: '/workspace/projects/demo-film' }),
       agentThread({ id: 'runtime-other', preview: 'Runtime other' }),
     ],
     userId: 'user-1',
@@ -531,18 +531,16 @@ test('agent chat thread candidates can be scoped to the current project', () => 
   assert.deepEqual(openThreadCandidates.map((thread) => thread.id), [
     'registry-project',
     'source-project',
-    'source-cwd-project',
-    'runtime-project',
   ])
   assert.deepEqual(selectAgentChatClosedHistoryThreads({
     closedThreadIds: new Set(['closed-project', 'closed-other']),
     conversations,
     projectId: 42,
     sourceThreadList: [
-      agentThread({ id: 'closed-project', preview: 'Closed project', cwd: '/workspace/realms/local/user/1/projects/project_42' }),
-      agentThread({ id: 'closed-other', preview: 'Closed other', cwd: '/workspace/realms/local/user/1/projects/project_7' }),
+      agentThread({ id: 'closed-project', preview: 'Closed project', cwd: '/workspace/projects/demo-film' }),
+      agentThread({ id: 'closed-other', preview: 'Closed other', cwd: '/workspace/projects/other-film' }),
     ],
-  }).map((thread) => thread.id), ['closed-project'])
+  }).map((thread) => thread.id), [])
 })
 
 test('agent chat queued input helpers keep send-state transitions pure', () => {

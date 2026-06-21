@@ -132,6 +132,9 @@ type EnqueueInput struct {
 	InputResourceID       *uint
 	InputResourceIDs      []uint
 	ProjectID             *uint
+	ProjectUID            string
+	ProjectTitle          string
+	ProjectDir            string
 	CreatedAt             time.Time
 	ContentUnitCandidate  *domainjob.ContentUnitCandidateBinding
 }
@@ -258,6 +261,7 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (do
 		Duration:             input.Duration,
 		InputResources:       OrderedResources(inputResources.Resources, allIDs),
 		CreatedAt:            createdAt,
+		Project:              projectScopeBinding(input),
 		ContentUnitCandidate: input.ContentUnitCandidate,
 	})
 
@@ -307,6 +311,20 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (do
 	}
 	_ = s.ai.SetReservationJob(ctx, reservation.ID, job.ID)
 	return job, nil
+}
+
+func projectScopeBinding(input EnqueueInput) *domainjob.ProjectScopeBinding {
+	uid := strings.TrimSpace(input.ProjectUID)
+	title := strings.TrimSpace(input.ProjectTitle)
+	dir := strings.TrimSpace(input.ProjectDir)
+	if uid == "" && title == "" && dir == "" {
+		return nil
+	}
+	return &domainjob.ProjectScopeBinding{
+		UID:   uid,
+		Title: title,
+		Dir:   dir,
+	}
 }
 
 func (s *Service) resolveGenerationModelRoute(ctx context.Context, input EnqueueInput) (providercontract.AIGatewayModelRoute, error) {

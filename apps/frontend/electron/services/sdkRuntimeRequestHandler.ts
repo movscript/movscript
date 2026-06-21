@@ -463,12 +463,10 @@ function resolveSdkRuntimeCwd(record: Record<string, unknown>, workspaceDir: str
   if (record.cwd === null) return undefined
   if (typeof fallbackCwd === 'string' && fallbackCwd.trim()) return fallbackCwd
   const workspaceContext = isRecord(record.workspaceContext) ? record.workspaceContext : undefined
-  const projectId = record.projectId
-  if (!workspaceContext && typeof projectId !== 'number' && typeof projectId !== 'string') return undefined
+  if (!workspaceContext) return undefined
   return resolveDesktopWorkspaceContextPaths({
     workspaceDir,
     workspaceContext,
-    ...(projectId !== undefined && !workspaceContext?.projectId ? { projectId: projectId as string | number } : {}),
   }).providerSessionCwd
 }
 

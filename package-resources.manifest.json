@@ -97,6 +97,7 @@
         ".provider-plugin/**",
         ".codex-plugin/**",
         ".mcp.json",
+        "assets/**",
         "bin/**",
         "skills/**",
         "README.md"

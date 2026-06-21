@@ -10,6 +10,7 @@ type handlers struct {
 
 	projects          *handler.ProjectHandler
 	decisions         *handler.DecisionHandler
+	projectData       *handler.ProjectDataHandler
 	contentCandidates *handler.ContentCandidateHandler
 	users             *handler.UserHandler
 	userAdmin         *handler.UserAdminHandler
@@ -57,6 +58,7 @@ func newHandlers(deps Dependencies) handlers {
 		editionHandlers:   newEditionHandlers(deps),
 		projects:          handler.NewProjectHandlerWithConfigEncryptionAndTokens(db, cfg, deps.EncryptionKey, tokens, cacheStore),
 		decisions:         handler.NewDecisionHandler(db),
+		projectData:       handler.NewProjectDataHandler(db),
 		contentCandidates: handler.NewContentCandidateHandler(db, aiService),
 		users:             handler.NewUserHandler(db),
 		userAdmin:         handler.NewUserAdminHandler(db),

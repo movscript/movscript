@@ -4,6 +4,7 @@ import type {
   ElectronOpenCanvasWindowInput,
   ElectronOpenEditingProjectWindowInput,
   ElectronOpenProjectWindowInput,
+  ElectronOpenToolWindowInput,
   ElectronUpdateAppWindowRouteContextInput,
 } from '../../src/shared/contracts/electronApi'
 import { createWindow } from '../appWindow'
@@ -16,11 +17,13 @@ const EDITING_ROUTE = '/editing'
 const EDITING_PROJECT_ROUTE_PREFIX = '/editing'
 const CANVAS_ROUTE = '/canvases'
 const CANVAS_ROUTE_PREFIX = '/canvases'
+const TOOL_ROUTE = '/tools/ref-image-gen'
 
 let homeWindow: BrowserWindow | null = null
 let agentWindow: BrowserWindow | null = null
 let editingWindow: BrowserWindow | null = null
 let canvasHomeWindow: BrowserWindow | null = null
+let toolWindow: BrowserWindow | null = null
 
 const projectWindows = new Map<number | string, BrowserWindow>()
 const editingProjectWindows = new Map<string, BrowserWindow>()
@@ -91,8 +94,7 @@ export function openProjectWindow(input: ElectronOpenProjectWindowInput): Electr
 
   const context: ElectronAppWindowContext = {
     kind: 'project',
-    ...(input.projectId !== undefined ? { projectId: normalizeProjectId(input.projectId) } : {}),
-    ...(input.projectDir ? { projectDir: input.projectDir } : {}),
+    projectDir: input.projectDir,
     project: input.project ?? null,
     route: input.route || PROJECT_HOME_ROUTE,
     ...(input.search ? { search: input.search } : {}),
@@ -122,8 +124,8 @@ export function openEditingWindow(): ElectronAppWindowContext {
   return context
 }
 
-export function isProjectWindowOpen(projectId: number): boolean {
-  const win = projectWindows.get(projectId)
+export function isProjectWindowOpen(projectDir: string): boolean {
+  const win = projectWindows.get(`path:${projectDir.trim()}`)
   return Boolean(win && !win.isDestroyed())
 }
 
@@ -194,6 +196,29 @@ export function openCanvasWindow(input: ElectronOpenCanvasWindowInput = {}): Ele
   canvasHomeWindow = createTrackedWindow(context)
   canvasHomeWindow.once('closed', () => {
     canvasHomeWindow = null
+  })
+  return context
+}
+
+export function openToolWindow(input: ElectronOpenToolWindowInput = {}): ElectronAppWindowContext {
+  const target = normalizeRouteTarget(input.route || TOOL_ROUTE, input.search)
+  const context: ElectronAppWindowContext = {
+    kind: 'tool',
+    route: target.route.startsWith('/tools') ? target.route : TOOL_ROUTE,
+    ...(target.search ? { search: target.search } : {}),
+    ...(input.title ? { title: input.title } : {}),
+  }
+
+  if (toolWindow && !toolWindow.isDestroyed()) {
+    windowContexts.set(toolWindow, context)
+    loadRenderer(toolWindow, context)
+    focusWindow(toolWindow)
+    return context
+  }
+
+  toolWindow = createTrackedWindow(context)
+  toolWindow.once('closed', () => {
+    toolWindow = null
   })
   return context
 }
@@ -271,6 +296,11 @@ export function suspendNonHomeWindowsForAuthExpired(): ElectronAppWindowContext[
     win.close()
   }
 
+  if (toolWindow && !toolWindow.isDestroyed()) {
+    suspended.push(contextForWindow(toolWindow))
+    toolWindow.close()
+  }
+
   if (suspended.length > 0) {
     suspendedAuthWindows = mergeWindowContexts(suspendedAuthWindows, suspended)
   }
@@ -289,10 +319,9 @@ export function restoreSuspendedAuthWindows(): ElectronAppWindowContext[] {
   for (const context of pending) {
     if (context.kind === 'agent') {
       restored.push(openAgentWindow())
-    } else if (context.kind === 'project' && (context.projectId || context.projectDir)) {
+    } else if (context.kind === 'project' && context.projectDir) {
       restored.push(openProjectWindow({
-        ...(context.projectId ? { projectId: context.projectId } : {}),
-        ...(context.projectDir ? { projectDir: context.projectDir } : {}),
+        projectDir: context.projectDir,
         project: context.project ?? null,
         route: context.route,
         search: context.search,
@@ -313,6 +342,12 @@ export function restoreSuspendedAuthWindows(): ElectronAppWindowContext[] {
       }))
     } else if (context.kind === 'tool' && normalizeRoutePath(context.route) === EDITING_ROUTE) {
       restored.push(openEditingWindow())
+    } else if (context.kind === 'tool') {
+      restored.push(openToolWindow({
+        title: context.title,
+        route: context.route,
+        search: context.search,
+      }))
     }
   }
   return restored
@@ -362,7 +397,7 @@ function mergeWindowContexts(
 }
 
 function windowContextKey(context: ElectronAppWindowContext): string {
-  if (context.kind === 'project') return `project:${context.projectDir ? `path:${context.projectDir}` : context.projectId ?? context.route}`
+  if (context.kind === 'project') return `project:path:${context.projectDir ?? context.route}`
   if (context.kind === 'editingProject') return `editingProject:${context.editingProjectId ?? context.route}`
   if (context.kind === 'canvas') return `canvas:${context.canvasId ?? context.route}`
   if (context.kind === 'tool') return `tool:${context.route}`
@@ -371,16 +406,7 @@ function windowContextKey(context: ElectronAppWindowContext): string {
 
 function projectWindowKey(input: ElectronOpenProjectWindowInput): number | string {
   if (input.projectDir?.trim()) return `path:${input.projectDir.trim()}`
-  if (input.projectId !== undefined) return normalizeProjectId(input.projectId)
-  throw new Error('Project window requires projectId or projectDir')
-}
-
-function normalizeProjectId(value: unknown): number {
-  const projectId = Number(value)
-  if (!Number.isInteger(projectId) || projectId <= 0) {
-    throw new Error('projectId must be a positive integer')
-  }
-  return projectId
+  throw new Error('Project window requires projectDir')
 }
 
 function normalizeEditingProjectId(value: unknown): string {
@@ -399,7 +425,7 @@ function inferWindowRouteContext(
   const search = input.search ? normalizeSearch(input.search) : undefined
   const title = input.title
 
-  if (previous.kind === 'project' && previous.projectId) {
+  if (previous.kind === 'project' && previous.projectDir) {
     return { ...previous, route, ...(search ? { search } : {}), ...(title ? { title } : {}) }
   }
 

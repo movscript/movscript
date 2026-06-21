@@ -2,7 +2,7 @@ import type { MovScriptWorkspaceService } from '@movscript/workspace'
 import type {
   ElectronAPI,
 } from '@/shared/contracts/electronApi'
-import { currentWorkspaceOwnerContext } from '@/shared/infrastructure/session/workspaceOwnerContext'
+import { currentWorkspaceOwnerContext, currentWorkspaceProjectDir } from '@/shared/infrastructure/session/workspaceOwnerContext'
 import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
 
 type WorkspaceElectronAPI = Pick<
@@ -147,12 +147,15 @@ function createElectronMovScriptEngineWorkspaceService(
 ): MovScriptWorkspaceService {
   const service: Partial<MovScriptWorkspaceService> = {
     async queryEntities(query) {
+      if (!context.projectDir?.trim()) return []
       return api.queryMovScriptEngineWorkspaceEntities({ ...context, query })
     },
     async querySettings(query) {
+      if (!context.projectDir?.trim()) return []
       return api.queryMovScriptEngineWorkspaceSettings({ ...context, query })
     },
     async queryAssets(query) {
+      if (!context.projectDir?.trim()) return { assets: [] }
       return api.queryMovScriptEngineWorkspaceAssets({ ...context, query })
     },
 	    async upsertSetting(payload) {
@@ -228,10 +231,11 @@ function repositoryArgs(
 function defaultWorkspaceOwnerContext(
   context: ElectronMovScriptWorkspaceFileRepositoryContext,
 ): ElectronMovScriptWorkspaceFileRepositoryContext {
-  if (context.projectDir !== undefined) return context
-  if (context.userId !== undefined || context.orgId !== undefined) return context
+  const projectDir = context.projectDir?.trim() || currentWorkspaceProjectDir()
+  const withProjectDir = projectDir ? { ...context, projectDir } : context
+  if (withProjectDir.userId !== undefined || withProjectDir.orgId !== undefined) return withProjectDir
   return {
-    ...context,
+    ...withProjectDir,
     ...currentWorkspaceOwnerContext(),
   }
 }

@@ -58,13 +58,14 @@ export const useProjectStore = create<ProjectStore>()(
       dirtyScopes: [],
       hydrated: false,
       setCurrent: (p) => {
+        const nextProject = preserveLocalProjectSession(get().current, p)
         set({
-          current: p,
-          currentProjectId: p?.ID ?? null,
-          syncStatus: p ? get().syncStatus : 'idle',
-          dirtyScopes: p ? get().dirtyScopes : [],
+          current: nextProject,
+          currentProjectId: nextProject?.ID ?? null,
+          syncStatus: nextProject ? get().syncStatus : 'idle',
+          dirtyScopes: nextProject ? get().dirtyScopes : [],
         })
-        publishProjectSessionChanged({ current: p, currentProjectId: p?.ID ?? null })
+        publishProjectSessionChanged({ current: nextProject, currentProjectId: nextProject?.ID ?? null })
       },
       setWorkspaceRoot: (root) => {
         const workspaceRoot = root?.trim() || null
@@ -145,4 +146,29 @@ function publishProjectSessionChanged(payload: Record<string, unknown>): void {
       ...payload,
     },
   })
+}
+
+function preserveLocalProjectSession(current: Project | null, next: Project | null): Project | null {
+  if (!current || !next || !isSameProjectIdentity(current, next) || !projectDirForProject(current)) return next
+  const projectDir = projectDirForProject(next) ?? projectDirForProject(current)
+  return {
+    ...next,
+    name: current.name || next.name,
+    description: current.description || next.description,
+    project_uid: next.project_uid ?? current.project_uid,
+    ...(projectDir ? { workspace_path: projectDir, project_path: projectDir } : {}),
+    local: current.local === true || next.local === true ? true : next.local,
+  }
+}
+
+function isSameProjectIdentity(left: Project, right: Project): boolean {
+  if (left.ID > 0 && left.ID === right.ID) return true
+  if (left.project_uid && right.project_uid && left.project_uid === right.project_uid) return true
+  const leftDir = projectDirForProject(left)
+  const rightDir = projectDirForProject(right)
+  return Boolean(leftDir && rightDir && leftDir === rightDir)
+}
+
+function projectDirForProject(project: Project): string | undefined {
+  return (project.workspace_path || project.project_path)?.trim() || undefined
 }

@@ -38,6 +38,7 @@ import { agentProviderKeys } from '@/features/agent/application/agentQueryKeys'
 import { releaseLocalAttachmentSource, releaseLocalAttachmentSources } from '@/features/agent/presentation/agentComposerAttachmentLifecycle'
 import { agentComposerClipboardFiles } from '@/features/agent/presentation/agentComposerClipboardFiles'
 import {
+  agentWorkspaceContextFromProject,
   buildAgentWorkspaceContextSelectOptions,
   mergeCurrentProject,
   normalizeAgentWorkspaceContext,
@@ -156,11 +157,14 @@ export function useAgentComposerController({
     }
     const projectId = positiveInteger(value)
     if (projectId === undefined) return
+    const selectedProject = projects.find((project) => project.ID === projectId)
     updateWorkspace({
-      workspaceContext: {
-        scope: 'project',
-        projectId,
-      },
+      workspaceContext: selectedProject
+        ? agentWorkspaceContextFromProject(selectedProject)
+        : {
+            scope: 'project',
+            projectId,
+          },
     })
   }
 

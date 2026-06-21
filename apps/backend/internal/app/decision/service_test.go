@@ -153,3 +153,79 @@ func TestServiceRejectsSelectionForMissingCandidate(t *testing.T) {
 		t.Fatalf("select missing candidate error = %v, want ErrCandidateNotFound", err)
 	}
 }
+
+func TestProjectDataServiceStoresCandidatesUnderScopedProjectUID(t *testing.T) {
+	db := testutil.OpenSQLite(t, "project-data-decision.db",
+		&persistencemodel.User{},
+		&persistencemodel.ProjectDataSpace{},
+		&persistencemodel.ProjectDataDecisionContext{},
+	)
+
+	service := NewProjectDataService(db)
+	actorID := uint(7)
+	target := ProjectDataTargetInput{
+		ProjectDataSpaceInput: ProjectDataSpaceInput{
+			ProjectDataScopeInput: ProjectDataScopeInput{ScopeKind: ProjectDataScopeUser, ScopeID: "7"},
+			ProjectUID:            "prj_same_uid",
+			Title:                 "Local Project",
+			ActorID:               &actorID,
+		},
+		TargetKind: "content_unit",
+		TargetRef:  "content_units/cu_storyboard_ref",
+	}
+
+	stored, err := service.ReplaceCandidates(context.Background(), ProjectDataReplaceCandidatesInput{
+		ProjectDataTargetInput: target,
+		Candidates: []json.RawMessage{
+			json.RawMessage(`{"id":"candidate_a","resource_id":101}`),
+			json.RawMessage(`{"id":"candidate_b","resource_id":102}`),
+		},
+	})
+	if err != nil {
+		t.Fatalf("replace scoped candidates: %v", err)
+	}
+	if stored.ProjectUID != "prj_same_uid" || stored.ScopeKind != ProjectDataScopeUser || stored.ScopeID != "7" {
+		t.Fatalf("unexpected scoped decision identity: %#v", stored)
+	}
+	if stored.ProjectDataSpaceID == 0 || len(stored.Candidates) != 2 {
+		t.Fatalf("unexpected stored context: %#v", stored)
+	}
+
+	selected, err := service.Select(context.Background(), ProjectDataSelectInput{
+		ProjectDataTargetInput: target,
+		CandidateID:            "candidate_b",
+		Reason:                 "manual_review",
+		SelectedBy:             &actorID,
+	})
+	if err != nil {
+		t.Fatalf("select scoped candidate: %v", err)
+	}
+	if selected.Status != "selected" || len(selected.Selection) == 0 {
+		t.Fatalf("selection not stored: %#v", selected)
+	}
+
+	orgTarget := target
+	orgTarget.ProjectDataScopeInput = ProjectDataScopeInput{ScopeKind: ProjectDataScopeOrg, ScopeID: "7"}
+	if _, err := service.EnsureSpace(context.Background(), orgTarget.ProjectDataSpaceInput); err != nil {
+		t.Fatalf("ensure org scoped data space: %v", err)
+	}
+
+	userSpaces, err := service.ListSpaces(context.Background(), ProjectDataScopeInput{ScopeKind: ProjectDataScopeUser, ScopeID: "7"})
+	if err != nil {
+		t.Fatalf("list user scoped spaces: %v", err)
+	}
+	if len(userSpaces) != 1 {
+		t.Fatalf("user space count = %d, want 1", len(userSpaces))
+	}
+	if userSpaces[0].ProjectUID != "prj_same_uid" || userSpaces[0].CandidateCount != 2 || userSpaces[0].SelectionCount != 1 {
+		t.Fatalf("unexpected user space summary: %#v", userSpaces[0])
+	}
+
+	orgSpaces, err := service.ListSpaces(context.Background(), ProjectDataScopeInput{ScopeKind: ProjectDataScopeOrg, ScopeID: "7"})
+	if err != nil {
+		t.Fatalf("list org scoped spaces: %v", err)
+	}
+	if len(orgSpaces) != 1 || orgSpaces[0].ProjectUID != "prj_same_uid" || orgSpaces[0].DecisionCount != 0 {
+		t.Fatalf("unexpected org space summary: %#v", orgSpaces)
+	}
+}

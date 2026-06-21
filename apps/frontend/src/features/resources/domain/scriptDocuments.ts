@@ -8,5 +8,5 @@ export { SCRIPT_DOCUMENT_ACCEPT, scriptDocumentFileKindFromName }
 
 export function scriptDocumentTitleFromName(fileName: string) {
   const baseName = scriptDocumentBaseTitleFromName(fileName)
-  return baseName || '未命名剧本'
+  return baseName || '未命名手记'
 }

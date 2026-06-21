@@ -89,18 +89,25 @@ export function ProjectAgentContentPanel({
     if (!providerThreadId) return undefined
     return runtimeThreadHydration.sourceThreads.find((thread) => thread.id === providerThreadId)?.projectId
   }, [activeRecord, runtimeThreadHydration.sourceThreads])
-  const sessionProjectId = positiveInteger(sessionWorkspaceContext?.projectId)
+  const legacySessionProjectId = positiveInteger(sessionWorkspaceContext?.projectId)
     ?? positiveInteger(activeRecord?.projectId)
     ?? positiveInteger(providerThreadProjectId)
-    ?? projectIdFromProviderSessionCwd(sessionThreadBinding?.providerThreadCwd)
+  const pathSessionProject = useMemo(() => projectFromAgentWorkspacePath({
+    workspaceContext: sessionWorkspaceContext,
+    providerThreadCwd: sessionThreadBinding?.providerThreadCwd,
+  }), [sessionThreadBinding?.providerThreadCwd, sessionWorkspaceContext])
   const { data: projects = [] } = useQuery<Project[]>({
     queryKey: projectKeys.list(currentOrgID),
     queryFn: () => api.get('/projects').then((response) => response.data),
-    enabled: sessionProjectId !== undefined,
+    enabled: legacySessionProjectId !== undefined,
   })
   const sessionProject = useMemo(() => (
-    sessionProjectId === undefined ? null : projectForAgentContentSession(sessionProjectId, projects)
-  ), [projects, sessionProjectId])
+    pathSessionProject ?? (
+      legacySessionProjectId === undefined
+        ? null
+        : projectForAgentContentSession(legacySessionProjectId, projects)
+    )
+  ), [legacySessionProjectId, pathSessionProject, projects])
   const panelWidth = clampAgentModeContentPanelWidth(width ?? AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH)
   const setPanelWidth = useCallback((nextWidth: number) => {
     onWidthChange?.(clampAgentModeContentPanelWidth(nextWidth))
@@ -138,13 +145,27 @@ export function ProjectAgentContentPanel({
   )
 }
 
-function projectIdFromProviderSessionCwd(cwd: string | null | undefined): number | undefined {
-  const normalized = cwd?.replace(/\\/g, '/')
-  if (!normalized) return undefined
-  const match = /(?:^|\/)(?:\.movscript\/)?realms\/(?:local|cloud\/[^/]+)\/(?:user|org)\/[^/]+\/projects\/project_(\d+)(?:\/|$)/.exec(normalized)
-  if (!match?.[1]) return undefined
-  const projectId = Number(match[1])
-  return Number.isInteger(projectId) && projectId > 0 ? projectId : undefined
+function projectFromAgentWorkspacePath(input: {
+  workspaceContext: { projectDir?: string; projectUid?: string; projectTitle?: string; projectId?: string | number } | undefined
+  providerThreadCwd: string | null | undefined
+}): Project | null {
+  const projectDir = nonEmptyString(input.workspaceContext?.projectDir) ?? nonEmptyString(input.providerThreadCwd)
+  if (!projectDir) return null
+  const projectId = positiveInteger(input.workspaceContext?.projectId) ?? -stablePositiveHash(projectDir)
+  const projectUid = nonEmptyString(input.workspaceContext?.projectUid)
+  const now = new Date(0).toISOString()
+  return {
+    ID: projectId,
+    name: nonEmptyString(input.workspaceContext?.projectTitle) ?? projectDir.split(/[\\/]/).filter(Boolean).pop() ?? 'Local Project',
+    description: projectDir,
+    owner_id: 0,
+    workspace_path: projectDir,
+    project_path: projectDir,
+    ...(projectUid ? { project_uid: projectUid } : {}),
+    local: true,
+    CreatedAt: now,
+    UpdatedAt: now,
+  }
 }
 
 function positiveInteger(value: string | number | null | undefined): number | undefined {
@@ -165,4 +186,17 @@ function projectForAgentContentSession(projectId: number, projects: Project[]): 
     CreatedAt: now,
     UpdatedAt: now,
   }
+}
+
+function nonEmptyString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function stablePositiveHash(value: string): number {
+  let hash = 2166136261
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return Math.abs(hash >>> 0) || 1
 }

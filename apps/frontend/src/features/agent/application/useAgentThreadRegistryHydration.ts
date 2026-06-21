@@ -200,6 +200,7 @@ export function agentConversationRegistryInputFromThreadSummary(input: {
     providerProtocol: providerIdentity.providerProtocol,
     ...(providerSessionTreeId ? { providerSessionId: providerSessionTreeId } : {}),
     providerThreadId: thread.id,
+    ...(thread.providerThreadCwd?.trim() ? { providerThreadCwd: thread.providerThreadCwd.trim() } : {}),
     ...(thread.title?.trim() ? { title: thread.title.trim() } : {}),
     ...(typeof thread.projectId === 'number' ? { projectId: thread.projectId } : {}),
     ...(thread.status ? { status: thread.status } : {}),
@@ -279,13 +280,13 @@ function agentThreadSummaryFromAgentChatThread(thread: AgentChatThread): AgentTh
     count + turn.items.filter((item) => item.type === 'userMessage' || item.type === 'agentMessage').length
   ), 0)
   const preview = thread.preview?.trim()
-  const projectId = projectIdFromProviderSessionCwd(thread.cwd)
   const providerSessionTreeId = thread.providerSessionTreeId?.trim() || thread.sessionId?.trim()
+  const providerThreadCwd = thread.cwd?.trim()
   return {
     id: thread.id,
     ...(providerSessionTreeId ? { providerSessionTreeId, sessionId: providerSessionTreeId } : {}),
+    ...(providerThreadCwd ? { providerThreadCwd } : {}),
     title: thread.name?.trim() || preview || undefined,
-    ...(projectId !== undefined ? { projectId } : {}),
     archived: false,
     ...(status ? { status } : {}),
     createdAt: agentChatThreadTimestampIso(thread.createdAt),
@@ -306,13 +307,4 @@ function agentChatThreadTimestampIso(timestampSeconds: number): string {
     ? timestampSeconds * 1000
     : Date.now()
   return new Date(timestampMs).toISOString()
-}
-
-function projectIdFromProviderSessionCwd(cwd: string | null | undefined): number | undefined {
-  const normalized = cwd?.replace(/\\/g, '/')
-  if (!normalized) return undefined
-  const match = /(?:^|\/)(?:\.movscript\/)?realms\/(?:local|cloud\/[^/]+)\/(?:user|org)\/[^/]+\/projects\/project_(\d+)(?:\/|$)/.exec(normalized)
-  if (!match?.[1]) return undefined
-  const projectId = Number(match[1])
-  return Number.isInteger(projectId) && projectId > 0 ? projectId : undefined
 }

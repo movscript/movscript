@@ -44,6 +44,9 @@ export interface AgentConversationWorkspaceContext {
   userId?: string | number
   orgId?: string | number
   projectId?: string | number
+  projectUid?: string
+  projectDir?: string
+  projectTitle?: string
   productionId?: string | number
 }
 

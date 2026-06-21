@@ -23,7 +23,7 @@ export type ProjectPluginContext = {
   movScriptHomeDir?: string
   /** @deprecated Use movScriptHomeDir for the desktop control/home directory. */
   workspaceDir?: string
-  projectId?: string | number
+  projectDir?: string
   userId?: string | number
   orgId?: string | number
 }
@@ -53,7 +53,7 @@ export async function installProviderMarketplacePluginToProject(
   if (!api?.setProjectPluginEnabled) throw new Error('当前窗口没有项目插件启用能力')
   await installProviderMarketplacePluginToSystem(item, context)
   return api.setProjectPluginEnabled({
-    ...normalizeProjectPluginContext(context),
+    ...requireProjectPluginContext(context),
     pluginKey: systemPluginKeyForMarketplaceItem(item),
     enabled: true,
     providerTargets: providerTargetsForMarketplaceItem(item),
@@ -106,7 +106,7 @@ export async function setProjectPluginEnabled(
 ): Promise<ProjectPluginSnapshot> {
   const api = readElectronApi()
   if (!api?.setProjectPluginEnabled) throw new Error('当前窗口没有项目插件启停能力')
-  return api.setProjectPluginEnabled({ ...normalizeProjectPluginContext(context), pluginKey, enabled })
+  return api.setProjectPluginEnabled({ ...requireProjectPluginContext(context), pluginKey, enabled })
 }
 
 export async function setProjectSkillEnabled(
@@ -116,7 +116,7 @@ export async function setProjectSkillEnabled(
 ): Promise<ProjectPluginSnapshot> {
   const api = readElectronApi()
   if (!api?.setProjectSkillEnabled) throw new Error('当前窗口没有项目 skill 启停能力')
-  return api.setProjectSkillEnabled({ ...normalizeProjectPluginContext(context), skillId, enabled })
+  return api.setProjectSkillEnabled({ ...requireProjectPluginContext(context), skillId, enabled })
 }
 
 function normalizeProjectPluginContext(context: ProjectPluginContext | string): ProjectPluginContext {
@@ -126,6 +126,12 @@ function normalizeProjectPluginContext(context: ProjectPluginContext | string): 
     ...context,
     ...(movScriptHomeDir ? { movScriptHomeDir, workspaceDir: movScriptHomeDir } : {}),
   }
+}
+
+function requireProjectPluginContext(context: ProjectPluginContext | string): ProjectPluginContext & { projectDir: string } {
+  const normalized = normalizeProjectPluginContext(context)
+  if (!normalized.projectDir) throw new Error('项目插件操作需要本地项目路径')
+  return { ...normalized, projectDir: normalized.projectDir }
 }
 
 function providerTargetsForMarketplaceItem(item: ProviderPluginMarketplaceItem): ElectronProjectSkillProviderTarget[] {

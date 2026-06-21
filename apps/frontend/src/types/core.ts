@@ -6,6 +6,7 @@ export interface Project {
   description: string
   owner_id: number
   owner?: User
+  project_uid?: string
   workspace_path?: string
   project_path?: string
   local?: boolean

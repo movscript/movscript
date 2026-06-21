@@ -71,7 +71,7 @@ export function useAgentBrowserProjectHomeController({
     mutationFn: () => {
       const scriptNumber = (scriptsQuery.data?.length ?? 0) + 1
       return createWorkspaceScript(projectId, {
-        title: `新剧本 ${scriptNumber}`,
+        title: `新手记 ${scriptNumber}`,
         script_type: 'uncategorized',
         content: '',
         raw_source: '',
@@ -83,10 +83,10 @@ export function useAgentBrowserProjectHomeController({
         queryKey: agentBrowserKeys.navigationScripts(projectId, workspaceContext.userId, workspaceContext.orgId),
       })
       void queryClient.invalidateQueries({ queryKey: scriptKeys.projectScriptScope(projectId) })
-      toast.success('剧本已创建')
+      toast.success('手记已创建')
       navigate(withRouteParams(ROUTES.project.scripts, { script_id: created.ID }))
     },
-    onError: () => toast.error('创建剧本失败，请重试'),
+    onError: () => toast.error('创建手记失败，请重试'),
   })
 
   const groups: ProjectNavigationGroup[] = [
@@ -112,8 +112,8 @@ export function useAgentBrowserProjectHomeController({
     },
     {
       key: 'scripts',
-      title: '剧本列表',
-      description: '剧本文本、分块和后续编排引用。',
+      title: '手记列表',
+      description: '手记文本、分块和后续编排引用。',
       icon: FileText,
       tone: 'script',
       loading: scriptsQuery.isLoading,
@@ -123,7 +123,7 @@ export function useAgentBrowserProjectHomeController({
           disabled={createScript.isPending}
           onClick={() => createScript.mutate()}
         >
-          {createScript.isPending ? '创建中' : '新建剧本'}
+          {createScript.isPending ? '创建中' : '新建手记'}
         </AgentBrowserContentToolButton>
       ),
       items: (scriptsQuery.data ?? [])
@@ -131,7 +131,7 @@ export function useAgentBrowserProjectHomeController({
         .sort((a, b) => (a.order || 0) - (b.order || 0) || a.ID - b.ID)
         .map((script) => ({
           id: String(script.ID),
-          title: script.title || `剧本 #${script.ID}`,
+          title: script.title || `手记 #${script.ID}`,
           description: agentBrowserProjectFirstText(script.summary, script.description, script.script_type, '暂无摘要'),
           status: script.script_type,
           to: withRouteParams(ROUTES.project.scripts, { script_id: script.ID }),
@@ -200,7 +200,7 @@ export function useAgentBrowserProjectHomeController({
     {
       key: 'content',
       title: '内容列表',
-      description: '内容单元、关键帧、生成上下文和预览挂载。',
+      description: '创作片段、关键帧、生成上下文和预览挂载。',
       icon: LayoutTemplate,
       tone: 'content',
       loading: contentUnitsQuery.isLoading,

@@ -32,7 +32,7 @@ test('agent runtime source thread projection preserves existing project workspac
     id,
     ...codexIdentity,
     providerThreadId: 'thread_1',
-    providerThreadCwd: '/workspace/realms/local/user/1/projects/project_42',
+    providerThreadCwd: '/workspace/projects/demo-film',
     workspaceContext: { scope: 'project', projectId: 42 },
     projectId: 42,
     deckOrder: 3,
@@ -47,7 +47,7 @@ test('agent runtime source thread projection preserves existing project workspac
 
   assert.equal(records.length, 1)
   assert.equal(records[0]?.projectId, 42)
-  assert.equal(records[0]?.providerThreadCwd, '/workspace/realms/local/user/1/projects/project_42')
+  assert.equal(records[0]?.providerThreadCwd, '/workspace/projects/demo-film')
   assert.deepEqual(records[0]?.workspaceContext, { scope: 'project', projectId: 42 })
   assert.equal(records[0]?.deckOrder, 3)
 })
@@ -82,7 +82,7 @@ test('agent runtime source projection includes registry-only provider conversati
     id,
     ...movaIdentity,
     providerThreadId: 'registry_only_thread',
-    providerThreadCwd: '/workspace/realms/local/user/1/projects/project_42',
+    providerThreadCwd: '/workspace/projects/demo-film',
     workspaceContext: { scope: 'project', projectId: 42 },
     projectId: 42,
     title: 'Registry-only project conversation',

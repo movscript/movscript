@@ -3,6 +3,7 @@ import type {
   ElectronOpenCanvasWindowInput,
   ElectronOpenEditingProjectWindowInput,
   ElectronOpenProjectWindowInput,
+  ElectronOpenToolWindowInput,
   ElectronWindowControlAction,
   ElectronWindowState,
 } from '../../src/shared/contracts/electronApi'
@@ -14,6 +15,7 @@ import {
   openEditingProjectWindow,
   openHomeWindow,
   openProjectWindow,
+  openToolWindow,
   updateWindowRouteContext,
 } from '../services/appWindowRegistry'
 
@@ -78,6 +80,10 @@ export function registerWindowIpcHandlers(): void {
 
   ipcMain.handle('window:open-canvas', (_event, input?: ElectronOpenCanvasWindowInput) => {
     return openCanvasWindow(input)
+  })
+
+  ipcMain.handle('window:open-tool', (_event, input?: ElectronOpenToolWindowInput) => {
+    return openToolWindow(input)
   })
 
   ipcMain.handle('window:update-route-context', (event, input) => {

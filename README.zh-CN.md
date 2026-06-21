@@ -26,7 +26,7 @@
 
 Movscript 是一个面向 Vibe Motion、AI 规划成片与自动剪辑的视频创作工具。它帮助创作者把脚本、参考素材和创意方向转化为可规划、可编辑、可预览的视频工作流。
 
-Movscript 的核心思路是先描述动态影像的意图、感觉、节奏和结构，再让系统协助组织项目、剧本、素材、分镜、镜头、生成任务、模型配置、助手工作流和粗剪版本。
+Movscript 的核心思路是先描述动态影像的意图、感觉、节奏和结构，再让系统协助组织项目、手记、素材、分镜、镜头、生成任务、模型配置、助手工作流和粗剪版本。
 
 项目仍处于早期阶段。功能、文件格式、插件行为和工作流在稳定版本发布前可能继续调整。
 
@@ -37,21 +37,23 @@ Movscript 的核心思路是先描述动态影像的意图、感觉、节奏和�
 当前发布目标：
 
 - macOS Apple Silicon / arm64
+- macOS Intel / x64
 - Windows x64
+- Windows ARM64
 
 最新桌面包可以在 [GitHub Releases](https://github.com/movscript/movscript/releases/latest) 下载。
 
-macOS Apple Silicon 可以使用命令行安装：
+macOS 可以使用命令行安装，安装脚本会根据设备自动选择 Apple Silicon 或 Intel DMG：
 
 ```bash
 curl -fsSL https://movscript.github.io/movscript/install.sh | sh
 ```
 
-Windows x64 可以从 [GitHub Releases](https://github.com/movscript/movscript/releases/latest) 下载最新 `.exe` 安装器。
+Windows 可以从 [GitHub Releases](https://github.com/movscript/movscript/releases/latest) 下载最新 x64 或 ARM64 `.exe` 安装器。
 
 每个版本的更新内容、已知问题、校验文件和历史版本会记录在 [Movscript releases 页面](https://github.com/movscript/movscript/releases)。
 
-Intel Mac、Windows arm64 和 Linux 桌面包暂未发布，后续版本再补充。
+Linux 桌面包暂未发布，后续版本再补充。
 
 ## Docker
 

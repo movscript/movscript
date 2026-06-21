@@ -1,11 +1,13 @@
 import type { IpcRenderer } from 'electron'
 import type { ElectronAPI } from '../../../src/shared/contracts/electronApi'
 
-export function createMovScriptWorkspaceAPI(ipcRenderer: IpcRenderer): Pick<ElectronAPI, 'getMovScriptWorkspaceRoot' | 'createLocalMovScriptProject' | 'openLocalMovScriptProject' | 'getMovScriptWorkspaceConfig' | 'saveMovScriptWorkspaceConfig' | 'listMovScriptWorkspaceFiles' | 'readMovScriptWorkspaceFile' | 'readMovScriptWorkspaceMediaFile' | 'writeMovScriptWorkspaceFile' | 'deleteMovScriptWorkspaceFile' | 'reviewMovScriptWorkspace' | 'interpretMovScriptWorkspace' | 'initProjectGitWorkspace' | 'commitProjectGitWorkspace' | 'pullProjectGitWorkspace' | 'pushProjectGitWorkspace' | 'listProviderSessions'> {
+export function createMovScriptWorkspaceAPI(ipcRenderer: IpcRenderer): Pick<ElectronAPI, 'getMovScriptWorkspaceRoot' | 'inspectLocalMovScriptProject' | 'createLocalMovScriptProject' | 'openLocalMovScriptProject' | 'bindLocalMovScriptProject' | 'getMovScriptWorkspaceConfig' | 'saveMovScriptWorkspaceConfig' | 'listMovScriptWorkspaceFiles' | 'readMovScriptWorkspaceFile' | 'readMovScriptWorkspaceMediaFile' | 'writeMovScriptWorkspaceFile' | 'deleteMovScriptWorkspaceFile' | 'reviewMovScriptWorkspace' | 'interpretMovScriptWorkspace' | 'initProjectGitWorkspace' | 'getProjectGitWorkspaceStatus' | 'commitProjectGitWorkspace' | 'pullProjectGitWorkspace' | 'pushProjectGitWorkspace' | 'listProviderSessions'> {
   return {
     getMovScriptWorkspaceRoot: (input) => ipcRenderer.invoke('movscript:workspace-root-get', input),
+    inspectLocalMovScriptProject: (input) => ipcRenderer.invoke('movscript:local-project-inspect', input),
     createLocalMovScriptProject: (input) => ipcRenderer.invoke('movscript:local-project-create', input),
     openLocalMovScriptProject: (input) => ipcRenderer.invoke('movscript:local-project-open', input),
+    bindLocalMovScriptProject: (input) => ipcRenderer.invoke('movscript:local-project-bind', input),
     getMovScriptWorkspaceConfig: (input) => ipcRenderer.invoke('movscript:workspace-config-get', input),
     saveMovScriptWorkspaceConfig: (input) => ipcRenderer.invoke('movscript:workspace-config-save', input),
     listMovScriptWorkspaceFiles: (input) => ipcRenderer.invoke('movscript:workspace-files-list', input),
@@ -16,6 +18,7 @@ export function createMovScriptWorkspaceAPI(ipcRenderer: IpcRenderer): Pick<Elec
     reviewMovScriptWorkspace: (input) => ipcRenderer.invoke('movscript:workspace-review', input),
     interpretMovScriptWorkspace: (input) => ipcRenderer.invoke('movscript:workspace-interpret', input),
     initProjectGitWorkspace: (input) => ipcRenderer.invoke('movscript:project-git-init', input),
+    getProjectGitWorkspaceStatus: (input) => ipcRenderer.invoke('movscript:project-git-status', input),
     commitProjectGitWorkspace: (input) => ipcRenderer.invoke('movscript:project-git-commit', input),
     pullProjectGitWorkspace: (input) => ipcRenderer.invoke('movscript:project-git-pull', input),
     pushProjectGitWorkspace: (input) => ipcRenderer.invoke('movscript:project-git-push', input),

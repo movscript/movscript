@@ -154,6 +154,7 @@ test('MCP discovery exposes core MovScript tools and resources', async () => {
   assert.ok(tools.includes('system_focus_get'))
   assert.ok(tools.includes('system_project_create'))
   assert.ok(tools.includes('system_project_init'))
+  assert.ok(tools.includes('system_project_open'))
   assert.ok(tools.includes('system_project_fetch'))
   assert.ok(tools.includes('system_model_list'))
   assert.ok(tools.includes('system_generate_image'))
@@ -171,6 +172,7 @@ test('MCP discovery exposes core MovScript tools and resources', async () => {
   assert.ok(tools.includes('system_align_subtitle'))
   assert.ok(tools.includes('system_translate_subtitle'))
   assert.ok(tools.includes('system_resource_library_query'))
+  assert.ok(tools.includes('system_resource_library_open'))
   assert.ok(tools.includes('system_resource_image_transform_to_resource'))
   assert.ok(tools.includes('system_resource_video_extract_frames'))
   assert.ok(tools.includes('system_resource_video_probe'))
@@ -212,7 +214,7 @@ test('MCP discovery exposes core MovScript tools and resources', async () => {
   assert.ok(tools.includes('domain_upsert_production'))
   assert.ok(tools.includes('domain_upsert_segment'))
   assert.ok(tools.includes('domain_upsert_scene_moment'))
-  assert.ok(tools.includes('domain_upsert_shot'))
+  assert.equal(tools.includes('domain_upsert_shot'), false)
   assert.ok(tools.includes('domain_upsert_keyframe'))
   assert.ok(tools.includes('domain_upsert_storyboard'))
   assert.ok(tools.includes('domain_upsert_audio_cue'))
@@ -242,6 +244,7 @@ test('MCP discovery exposes core MovScript tools and resources', async () => {
   assert.equal(tools.includes('movscript_script_list'), false)
   assert.equal(tools.includes('movscript_script_locate'), false)
   assert.ok(tools.includes('movscript_resource_library_query'))
+  assert.ok(tools.includes('movscript_resource_library_open'))
   assert.ok(tools.includes('movscript_resource_video_extract_frames'))
   assert.ok(tools.includes('movscript_resource_image_transform_to_resource'))
   assert.ok(tools.includes('movscript_resource_video_probe'))
@@ -291,6 +294,7 @@ test('MCP discovery exposes core MovScript tools and resources', async () => {
   const resources = (resourcesResponse?.result?.resources ?? []).map((resource) => resource.uri)
   assert.ok(resources.includes('movscript://projects'))
   assert.ok(resources.includes('movscript://resource-library'))
+  assert.ok(resources.includes('movscript://resource-library/open'))
   assert.ok(resources.includes('movscript://shot-library'))
   assert.ok(resources.includes('movscript://external-resources'))
 })
@@ -314,8 +318,11 @@ test('MCP local project tools initialize and fetch a path-bound project', async 
     assert.equal(initResponse?.error, undefined)
     assert.equal(initResponse?.result?.data?.status, 'initialized')
     assert.equal(initResponse?.result?.data?.projectDir, projectDir)
+    assert.match(initResponse?.result?.data?.projectUid ?? '', /^prj_/)
     assert.equal(initResponse?.result?.data?.locator?.projectDir, projectDir)
+    assert.equal(initResponse?.result?.data?.locator?.projectUid, initResponse?.result?.data?.projectUid)
     assert.equal(existsSync(join(projectDir, 'workspace.json')), true)
+    assert.equal(JSON.parse(readFileSync(join(projectDir, 'workspace.json'), 'utf8')).project_uid, initResponse?.result?.data?.projectUid)
     assert.equal(JSON.parse(readFileSync(join(projectDir, 'project.json'), 'utf8')).title, 'Loose Path Project')
 
     const fetchResponse = await handleJSONRPC({
@@ -323,7 +330,7 @@ test('MCP local project tools initialize and fetch a path-bound project', async 
       id: 'local-project-fetch',
       method: 'tools/call',
       params: {
-        name: 'system_project_fetch',
+        name: 'system_project_open',
         arguments: { project_dir: projectDir },
       },
     })
@@ -331,6 +338,7 @@ test('MCP local project tools initialize and fetch a path-bound project', async 
     assert.equal(fetchResponse?.error, undefined)
     assert.equal(fetchResponse?.result?.data?.status, 'ready')
     assert.equal(fetchResponse?.result?.data?.projectDir, projectDir)
+    assert.equal(fetchResponse?.result?.data?.projectUid, initResponse?.result?.data?.projectUid)
     assert.equal(fetchResponse?.result?.data?.project?.name, 'Loose Path Project')
   } finally {
     await rm(projectDir, { recursive: true, force: true })
@@ -380,16 +388,77 @@ test('MCP domain runtime can bind directly to a project directory without backen
   }
 })
 
+test('MCP domain runtime uses scoped project data decisions when project uid and auth exist', async () => {
+  const originalFetch = globalThis.fetch
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-mcp-scoped-home-'))
+  const projectDir = mkdtempSync(join(tmpdir(), 'movscript-mcp-scoped-project-'))
+  const requests = []
+  try {
+    await writeFile(join(projectDir, 'workspace.json'), JSON.stringify({
+      schema: 'movscript.workspace.v2',
+      project_uid: 'prj_scoped_runtime',
+      title: 'Scoped Runtime',
+    }))
+    writeMovScriptBackendConfig(workspaceDir, {
+      baseURL: 'https://cloud.example',
+      activeUserId: 99,
+    })
+    writeMovScriptBackendAuth(workspaceDir, {
+      token: 'workspace-token',
+      user: { id: 99, username: 'workspace-user' },
+    })
+    globalThis.fetch = async (url, init = {}) => {
+      requests.push({ url: String(url), init })
+      return new Response(JSON.stringify({
+        id: 1,
+        project_uid: 'prj_scoped_runtime',
+        target_kind: 'content_unit',
+        target_ref: 'content_units/cu_opening',
+        candidates: [{ id: 'candidate_a' }],
+        status: 'open',
+      }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    }
+
+    const runtime = createMovScriptDomainRuntime({ workspaceDir, projectDir, orgId: 12 })
+    assert.ok(runtime.decisionStore)
+
+    await runtime.decisionStore.upsertContentUnitCandidate({
+      contentUnitId: 'opening',
+      candidate: { id: 'candidate_a' },
+    })
+
+    assert.equal(requests.length, 1)
+    assert.equal(requests[0].url, 'https://cloud.example/api/v1/project-data/decisions/candidates')
+    assert.equal(requests[0].init.method, 'POST')
+    assert.equal(requests[0].init.headers.authorization, 'Bearer workspace-token')
+    assert.equal(requests[0].init.headers['X-Org-ID'], '12')
+    const body = JSON.parse(requests[0].init.body)
+    assert.equal(body.scope_kind, 'org')
+    assert.equal(body.scope_id, '12')
+    assert.equal(body.project_uid, 'prj_scoped_runtime')
+    assert.equal(body.title, 'Scoped Runtime')
+    assert.equal(body.target_kind, 'content_unit')
+    assert.equal(body.target_ref, 'content_units/opening')
+  } finally {
+    globalThis.fetch = originalFetch
+    await rm(workspaceDir, { recursive: true, force: true })
+    await rm(projectDir, { recursive: true, force: true })
+  }
+})
+
 test('MCP project resources read project workspace data without backend entity endpoints', async () => {
   const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
   const originalFetch = globalThis.fetch
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-project-resources-'))
-  const projectDir = join(workspaceDir, 'realms', 'local', 'user', '1', 'projects', 'project_14')
+  const projectDir = join(workspaceDir, 'projects', 'project-resources')
   process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
   try {
     updateMCPContextSnapshot({
       route: { pathname: '/project/agent', search: '', hash: '' },
-      project: { id: 14, name: 'Local Project' },
+      project: { id: 14, name: 'Local Project', projectDir },
       productionId: null,
       user: { id: 1, username: 'alice', systemRole: 'user' },
       selection: null,
@@ -482,7 +551,7 @@ test('MCP content candidate schemas expose status enum and default guidance', ()
   assert.match(batchTool.inputSchema.properties?.items?.items?.properties?.status?.description ?? '', /Do not use completed/)
 })
 
-test('MCP project-scoped tool schemas expose explicit project id arguments', () => {
+test('MCP project-scoped tool schemas expose explicit project directory arguments', () => {
   const tools = listTools()
   for (const name of [
     'domain_overview',
@@ -512,8 +581,11 @@ test('MCP project-scoped tool schemas expose explicit project id arguments', () 
   ]) {
     const schema = tools.find((tool) => tool.name === name)?.inputSchema
     assert.ok(schema, `${name} schema should be exposed`)
-    assert.ok(schema.properties?.projectId, `${name} should expose projectId`)
-    assert.ok(schema.properties?.project_id, `${name} should expose project_id`)
+    assert.ok(schema.properties?.projectDir, `${name} should expose projectDir`)
+    assert.ok(schema.properties?.project_dir, `${name} should expose project_dir`)
+    assert.ok(schema.properties?.cwd, `${name} should expose cwd`)
+    assert.equal(schema.properties?.projectId, undefined, `${name} must not expose projectId`)
+    assert.equal(schema.properties?.project_id, undefined, `${name} must not expose project_id`)
     assert.equal(schema.properties?.userId, undefined, `${name} must not expose userId`)
     assert.equal(schema.properties?.user_id, undefined, `${name} must not expose user_id`)
     assert.equal(schema.properties?.orgId, undefined, `${name} must not expose orgId`)
@@ -528,7 +600,7 @@ test('MCP domain model tool routes through the domain workspace model', async ()
   try {
     updateMCPContextSnapshot({
       route: { pathname: '/project/agent', search: '', hash: '' },
-      project: { id: 6, name: 'Workspace Test' },
+      project: { id: 6, name: 'Workspace Test', projectDir: workspaceDir },
       productionId: null,
       user: { id: 1, username: 'alice', systemRole: 'user' },
       selection: null,
@@ -542,7 +614,7 @@ test('MCP domain model tool routes through the domain workspace model', async ()
       params: {
         name: 'domain_get_model',
         arguments: {
-          projectId: 6,
+          projectDir: workspaceDir,
           entityKind: 'scene_moment',
           entityId: 'scene_moment_r72k',
         },
@@ -1263,6 +1335,7 @@ test('MCP generation job get batch returns per-job state and output ids', async 
 
 test('MCP image generation compatible mode maps unsupported aspect ratio to model image size', async () => {
   const originalFetch = globalThis.fetch
+  const projectDir = mkdtempSync(join(tmpdir(), 'movscript-image-generation-'))
   const requests = []
   let postedBody
   setMovScriptBackendAPIBaseURL('http://movscript.test')
@@ -1283,6 +1356,11 @@ test('MCP image generation compatible mode maps unsupported aspect ratio to mode
   }
 
   try {
+    await writeFile(join(projectDir, 'workspace.json'), JSON.stringify({
+      schema: 'movscript.workspace.v2',
+      project_uid: 'prj_image_generation',
+      title: 'Image Generation Project',
+    }), 'utf8')
     globalThis.fetch = async (input, init) => {
       const url = String(input)
       requests.push({ url, method: init?.method ?? 'GET' })
@@ -1304,13 +1382,16 @@ test('MCP image generation compatible mode maps unsupported aspect ratio to mode
       prompt: 'wide cinematic frame',
       model_id: 'volcengine:seedream-4-0',
       aspect_ratio: '16:9',
-      project_id: 7,
+      projectDir,
     })
 
     assert.equal(result.status, 'submitted')
     assert.equal(result.job_id, 91)
     assert.equal(postedBody.model_id, 'volcengine:seedream-4-0')
-    assert.equal(postedBody.project_id, 7)
+    assert.equal(postedBody.project_id, undefined)
+    assert.equal(postedBody.project_uid, 'prj_image_generation')
+    assert.equal(postedBody.project_title, 'Image Generation Project')
+    assert.equal(postedBody.project_dir, projectDir)
     assert.equal(postedBody.aspect_ratio, undefined)
     assert.equal(postedBody.duration, undefined)
     assert.deepEqual(JSON.parse(postedBody.extra_params), { image_size: '2848x1600' })
@@ -1324,11 +1405,13 @@ test('MCP image generation compatible mode maps unsupported aspect ratio to mode
   } finally {
     globalThis.fetch = originalFetch
     setMovScriptBackendAPIBaseURL('http://localhost:8765')
+    await rm(projectDir, { recursive: true, force: true })
   }
 })
 
 test('MCP image generation strict mode rejects explicit unsupported params before submitting', async () => {
   const originalFetch = globalThis.fetch
+  const projectDir = mkdtempSync(join(tmpdir(), 'movscript-image-generation-strict-'))
   let posted = false
   setMovScriptBackendAPIBaseURL('http://movscript.test')
   const seedream4 = {
@@ -1368,7 +1451,7 @@ test('MCP image generation strict mode rejects explicit unsupported params befor
         model_id: 'volcengine:seedream-4-0',
         aspect_ratio: '16:9',
         parameter_mode: 'strict',
-        project_id: 7,
+        projectDir,
       }),
       /parameter "aspect_ratio" is not supported by model "Seedream 4.0"/,
     )
@@ -1376,11 +1459,13 @@ test('MCP image generation strict mode rejects explicit unsupported params befor
   } finally {
     globalThis.fetch = originalFetch
     setMovScriptBackendAPIBaseURL('http://localhost:8765')
+    await rm(projectDir, { recursive: true, force: true })
   }
 })
 
 test('MCP image generation drops unsupported defaults without treating them as strict errors', async () => {
   const originalFetch = globalThis.fetch
+  const projectDir = mkdtempSync(join(tmpdir(), 'movscript-image-generation-defaults-'))
   let postedBody
   setMovScriptBackendAPIBaseURL('http://movscript.test')
   const seedream4 = {
@@ -1415,7 +1500,7 @@ test('MCP image generation drops unsupported defaults without treating them as s
     const result = await generateImage({
       prompt: 'square frame',
       parameter_mode: 'strict',
-      project_id: 7,
+      projectDir,
     })
 
     assert.equal(result.status, 'submitted')
@@ -1427,6 +1512,7 @@ test('MCP image generation drops unsupported defaults without treating them as s
   } finally {
     globalThis.fetch = originalFetch
     setMovScriptBackendAPIBaseURL('http://localhost:8765')
+    await rm(projectDir, { recursive: true, force: true })
   }
 })
 
@@ -1434,6 +1520,7 @@ test('MCP content-unit image generation compiles prompt and monitor auto-creates
   const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
   const originalFetch = globalThis.fetch
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-content-unit-generation-'))
+  const projectDir = join(workspaceDir, 'projects', 'content-unit-generation')
   const decisionContexts = new Map()
   let postedJobBody
   let candidateWriteCount = 0
@@ -1456,7 +1543,16 @@ test('MCP content-unit image generation compiles prompt and monitor auto-creates
   const notFound = () => new Response('', { status: 404 })
 
   try {
-    updateMCPContextSnapshot(localAdminMCPContextSnapshot())
+    await mkdir(projectDir, { recursive: true })
+    await writeFile(join(projectDir, 'workspace.json'), JSON.stringify({
+      schema: 'movscript.workspace.v2',
+      project_uid: 'prj_content_unit_generation',
+      title: 'Content Unit Generation',
+    }), 'utf8')
+    updateMCPContextSnapshot({
+      ...localAdminMCPContextSnapshot(),
+      auth: { token: 'workspace-token' },
+    })
     globalThis.fetch = async (input, init = {}) => {
       const url = new URL(String(input))
       const body = typeof init.body === 'string' && init.body ? JSON.parse(init.body) : {}
@@ -1499,7 +1595,7 @@ test('MCP content-unit image generation compiles prompt and monitor auto-creates
     }
 
     await callTool('domain_upsert_content_unit', {
-      projectId: 12,
+      projectDir,
       unit: {
         id: 'arrival_preview',
         title: 'Arrival preview frame',
@@ -1512,7 +1608,7 @@ test('MCP content-unit image generation compiles prompt and monitor auto-creates
     })
 
     const submitted = await callTool('system_generate_content_unit_image', {
-      projectId: 12,
+      projectDir,
       contentUnitId: 'arrival_preview',
       model_id: 'volcengine:seedream-4-0',
       image_size: '1024x1024',
@@ -1521,13 +1617,19 @@ test('MCP content-unit image generation compiles prompt and monitor auto-creates
     assert.equal(submitted.status, 'submitted')
     assert.equal(submitted.job_id, 94)
     assert.equal(submitted.monitor.tool, 'system_generate_content_unit_image_job_get')
-    assert.equal(submitted.monitor.args.projectId, 12)
-    assert.equal(submitted.monitor.args.project_id, 12)
+    assert.equal(submitted.monitor.args.projectDir, projectDir)
+    assert.equal(submitted.monitor.args.project_dir, projectDir)
+    assert.equal(submitted.monitor.args.projectUid, 'prj_content_unit_generation')
+    assert.equal(submitted.monitor.args.project_uid, 'prj_content_unit_generation')
     assert.equal(submitted.monitor.args.contentUnitId, 'arrival_preview')
     assert.equal(submitted.monitor.args.content_unit_id, 'arrival_preview')
     assert.equal(submitted.monitor.args.promptSnapshot.schema, 'movscript.content_unit_generation_prompt_snapshot.v1')
     assert.deepEqual(submitted.monitor.args.promptSnapshot.model_params, { image_size: '1024x1024' })
     assert.equal(postedJobBody.feature_key, 'electron.generation.content_unit.image')
+    assert.equal(postedJobBody.project_id, undefined)
+    assert.equal(postedJobBody.project_uid, 'prj_content_unit_generation')
+    assert.equal(postedJobBody.project_dir, projectDir)
+    assert.equal(postedJobBody.content_unit_candidate.project_uid, 'prj_content_unit_generation')
     assert.equal(postedJobBody.prompt, 'Generate a cold close-up preview for the arrival shot.')
     assert.deepEqual(JSON.parse(postedJobBody.extra_params), { image_size: '1024x1024' })
 
@@ -1711,7 +1813,7 @@ test('MCP shot group tools create, read, and append normalized shot ranges', asy
 test('MCP domain tool can create a storyboard source record', async () => {
   const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-storyboard-tool-'))
-  const projectDir = join(workspaceDir, 'realms', 'local', 'user', '1', 'projects', 'project_6')
+  const projectDir = join(workspaceDir, 'projects', 'storyboard-tool')
   process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
   try {
     updateMCPContextSnapshot(localAdminMCPContextSnapshot())
@@ -1722,11 +1824,10 @@ test('MCP domain tool can create a storyboard source record', async () => {
       params: {
         name: 'domain_upsert_storyboard',
         arguments: {
-          projectId: 6,
+          projectDir,
           productionId: 'p1',
           segmentId: 'opening',
           sceneMomentId: 'shot_group_scene',
-          shotId: 'shot_001',
           storyboardId: 'shot_001',
           storyboard: {
             title: 'Shot 001',
@@ -1740,12 +1841,12 @@ test('MCP domain tool can create a storyboard source record', async () => {
     assert.equal(response.error, undefined)
     const result = response.result.data
     assert.equal(result.status, 'upserted')
-    const storyboardPath = join(projectDir, 'productions', 'p1', 'segments', 'opening', 'scene_moments', 'shot_group_scene', 'shots', 'shot_001', 'storyboards', 'shot_001', 'storyboard.json')
+    const storyboardPath = join(projectDir, result.storyboardPath)
     const record = JSON.parse(await readFile(storyboardPath, 'utf8'))
     assert.equal(record.kind, 'storyboard')
     assert.equal(record.id, 'shot_001')
     assert.equal(record.title, 'Shot 001')
-    assert.equal(record.shot_ref, 'productions/p1/segments/opening/scene_moments/shot_group_scene/shots/shot_001')
+    assert.equal(record.scene_moment_ref, 'productions/p1/segments/opening/scene_moments/shot_group_scene')
     assert.deepEqual(record.timeline, { caption: 'first recreated shot', duration_sec: 2.4 })
   } finally {
     if (previousWorkspaceDir === undefined) {
@@ -1757,45 +1858,13 @@ test('MCP domain tool can create a storyboard source record', async () => {
   }
 })
 
-test('MCP domain tools can create shot and keyframe source records', async () => {
+test('MCP domain tools can create keyframe source records', async () => {
   const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-shot-tool-'))
-  const projectDir = join(workspaceDir, 'realms', 'local', 'user', '1', 'projects', 'project_7')
+  const projectDir = join(workspaceDir, 'projects', 'keyframe-tool')
   process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
   try {
     updateMCPContextSnapshot(localAdminMCPContextSnapshot())
-    const shotResponse = await handleJSONRPC({
-      jsonrpc: '2.0',
-      id: 'shot-upsert',
-      method: 'tools/call',
-      params: {
-        name: 'domain_upsert_shot',
-        arguments: {
-          projectId: 7,
-          productionId: 'p1',
-          segmentId: 'opening',
-          sceneMomentId: 'arrival',
-          shotId: 'shot_001',
-          shot: {
-            title: 'Arrival close-up',
-            order: 1,
-            shotSize: 'close_up',
-            camera: { movement: 'slow_push_in' },
-          },
-        },
-      },
-    })
-
-    assert.equal(shotResponse.error, undefined)
-    assert.equal(shotResponse.result.data.status, 'upserted')
-    const shotPath = join(projectDir, 'productions', 'p1', 'segments', 'opening', 'scene_moments', 'arrival', 'shots', 'shot_001', 'shot.json')
-    const shot = JSON.parse(await readFile(shotPath, 'utf8'))
-    assert.equal(shot.kind, 'shot')
-    assert.equal(shot.id, 'shot_001')
-    assert.equal(shot.title, 'Arrival close-up')
-    assert.equal(shot.shot_size, 'close_up')
-    assert.deepEqual(shot.camera, { movement: 'slow_push_in' })
-
     const keyframeResponse = await handleJSONRPC({
       jsonrpc: '2.0',
       id: 'keyframe-upsert',
@@ -1803,11 +1872,10 @@ test('MCP domain tools can create shot and keyframe source records', async () =>
       params: {
         name: 'domain_upsert_keyframe',
         arguments: {
-          projectId: 7,
+          projectDir,
           productionId: 'p1',
           segmentId: 'opening',
           sceneMomentId: 'arrival',
-          shotId: 'shot_001',
           keyframeId: 'kf_arrival',
           keyframe: {
             title: 'Arrival anchor',
@@ -1820,7 +1888,7 @@ test('MCP domain tools can create shot and keyframe source records', async () =>
 
     assert.equal(keyframeResponse.error, undefined)
     assert.equal(keyframeResponse.result.data.status, 'upserted')
-    const keyframePath = join(projectDir, 'productions', 'p1', 'segments', 'opening', 'scene_moments', 'arrival', 'shots', 'shot_001', 'keyframes', 'kf_arrival', 'keyframe.json')
+    const keyframePath = join(projectDir, keyframeResponse.result.data.writtenPaths.find((path) => path.endsWith('/keyframe.json')))
     const keyframe = JSON.parse(await readFile(keyframePath, 'utf8'))
     assert.equal(keyframe.kind, 'keyframe')
     assert.equal(keyframe.id, 'kf_arrival')
@@ -1841,7 +1909,7 @@ test('MCP content unit candidate flow writes source records and refreshes interp
   const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
   const originalFetch = globalThis.fetch
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-content-candidate-'))
-  const projectDir = join(workspaceDir, 'realms', 'local', 'user', '1', 'projects', 'project_8')
+  const projectDir = join(workspaceDir, 'projects', 'content-candidate')
   const decisionContexts = new Map()
   const selectionRequests = []
   process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
@@ -1904,7 +1972,16 @@ test('MCP content unit candidate flow writes source records and refreshes interp
     return notFound()
   }
   try {
-    updateMCPContextSnapshot(localAdminMCPContextSnapshot())
+    await mkdir(projectDir, { recursive: true })
+    await writeFile(join(projectDir, 'workspace.json'), JSON.stringify({
+      schema: 'movscript.workspace.v2',
+      project_uid: 'prj_content_candidate',
+      title: 'Content Candidate',
+    }), 'utf8')
+    updateMCPContextSnapshot({
+      ...localAdminMCPContextSnapshot(),
+      auth: { token: 'workspace-token' },
+    })
 
     const contentUnitResponse = await handleJSONRPC({
       jsonrpc: '2.0',
@@ -1913,7 +1990,7 @@ test('MCP content unit candidate flow writes source records and refreshes interp
       params: {
         name: 'domain_upsert_content_unit',
         arguments: {
-          projectId: 8,
+          projectDir,
           unit: {
             id: 'arrival_preview',
             title: 'Arrival preview frame',
@@ -1937,7 +2014,7 @@ test('MCP content unit candidate flow writes source records and refreshes interp
       params: {
         name: 'domain_create_content_candidate',
         arguments: {
-          projectId: 8,
+          projectDir,
           contentUnitId: 'arrival_preview',
           candidateId: 'candidate_a',
           source: 'manual',
@@ -1958,7 +2035,7 @@ test('MCP content unit candidate flow writes source records and refreshes interp
       params: {
         name: 'domain_decide_content_unit_candidate',
         arguments: {
-          projectId: 8,
+          projectDir,
           contentUnitId: 'arrival_preview',
           candidateId: 'candidate_a',
           decision: 'defer',
@@ -1980,7 +2057,7 @@ test('MCP content unit candidate flow writes source records and refreshes interp
       params: {
         name: 'domain_decide_content_unit_candidate',
         arguments: {
-          projectId: 8,
+          projectDir,
           contentUnitId: 'arrival_preview',
           candidateId: 'candidate_a',
           decision: 'adopt',
@@ -2002,7 +2079,7 @@ test('MCP content unit candidate flow writes source records and refreshes interp
       method: 'tools/call',
       params: {
         name: 'domain_inspect',
-        arguments: { projectId: 8 },
+        arguments: { projectDir },
       },
     })
 
@@ -2015,7 +2092,7 @@ test('MCP content unit candidate flow writes source records and refreshes interp
       method: 'tools/call',
       params: {
         name: 'domain_interpret',
-        arguments: { projectId: 8 },
+        arguments: { projectDir },
       },
     })
 
@@ -2049,6 +2126,7 @@ test('MCP production timeline tools read and edit selected scene_moment outputs'
   const originalFFmpegPath = process.env.FFMPEG_PATH
   const originalLog = process.env.MOVSCRIPT_TEST_FFMPEG_LOG
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-production-timeline-'))
+  const projectDir = join(workspaceDir, 'projects', 'production-timeline')
   const logPath = join(workspaceDir, 'ffmpeg.jsonl')
   const decisionContexts = new Map()
   const selectionRequests = []
@@ -2129,27 +2207,36 @@ test('MCP production timeline tools read and edit selected scene_moment outputs'
     return notFound()
   }
   try {
-    updateMCPContextSnapshot(localAdminMCPContextSnapshot())
+    await mkdir(projectDir, { recursive: true })
+    await writeFile(join(projectDir, 'workspace.json'), JSON.stringify({
+      schema: 'movscript.workspace.v2',
+      project_uid: 'prj_production_timeline',
+      title: 'Production Timeline',
+    }), 'utf8')
+    updateMCPContextSnapshot({
+      ...localAdminMCPContextSnapshot(),
+      auth: { token: 'workspace-token' },
+    })
     await callTool('domain_upsert_production', {
-      projectId: 10,
+      projectDir,
       productionId: 'pilot',
       production: { id: 'pilot', title: 'Pilot production' },
     })
     await callTool('domain_upsert_segment', {
-      projectId: 10,
+      projectDir,
       productionId: 'pilot',
       segmentId: 'opening',
       segment: { id: 'opening', title: 'Opening', order: 1 },
     })
     await callTool('domain_upsert_scene_moment', {
-      projectId: 10,
+      projectDir,
       productionId: 'pilot',
       segmentId: 'opening',
       sceneMomentId: 'rain_call',
       sceneMoment: { id: 'rain_call', title: 'Rain call', order: 1 },
     })
     await callTool('domain_upsert_content_unit', {
-      projectId: 10,
+      projectDir,
       unit: {
         id: 'cu_rain_call',
         title: 'Rain call scene output',
@@ -2160,7 +2247,7 @@ test('MCP production timeline tools read and edit selected scene_moment outputs'
       },
     })
     await callTool('domain_upsert_content_unit', {
-      projectId: 10,
+      projectDir,
       unit: {
         id: 'cu_pilot_final',
         title: 'Pilot final production',
@@ -2174,7 +2261,7 @@ test('MCP production timeline tools read and edit selected scene_moment outputs'
       },
     })
     await callTool('domain_create_content_candidate', {
-      projectId: 10,
+      projectDir,
       contentUnitId: 'cu_rain_call',
       candidateId: 'scene_cut_a',
       source: 'manual',
@@ -2183,7 +2270,7 @@ test('MCP production timeline tools read and edit selected scene_moment outputs'
       promptSnapshot: { text: 'Selected scene output.' },
     })
     await callTool('domain_decide_content_unit_candidate', {
-      projectId: 10,
+      projectDir,
       contentUnitId: 'cu_rain_call',
       candidateId: 'scene_cut_a',
       decision: 'adopt',
@@ -2193,11 +2280,11 @@ test('MCP production timeline tools read and edit selected scene_moment outputs'
     assert.equal(selectionRequests.at(-1)?.candidate_id, 'scene_cut_a')
     assert.equal(selectionRequests.at(-1)?.resource_id, 700)
 
-    const interpret = await callTool('domain_interpret', { projectId: 10 })
-    assert.equal(interpret.status, 'refreshed')
+    const interpret = await callTool('domain_interpret', { projectDir })
+    assert.equal(interpret.status, 'refreshed', JSON.stringify(interpret))
 
     const productionEditPlan = await callTool('domain_read_production_edit_plan', {
-      projectId: 10,
+      projectDir,
       productionId: 'pilot',
     })
     assert.equal(productionEditPlan.status, 'ok')
@@ -2206,7 +2293,7 @@ test('MCP production timeline tools read and edit selected scene_moment outputs'
     assert.equal(productionEditPlan.context.resources[0].resource_id, 700)
 
     const editingContext = await callTool('domain_create_editing_project_context', {
-      projectId: 10,
+      projectDir,
       productionId: 'pilot',
     })
     assert.equal(editingContext.status, 'ok')
@@ -2215,7 +2302,7 @@ test('MCP production timeline tools read and edit selected scene_moment outputs'
     assert.equal(editingContext.context.selected_candidates[0].candidate_id, 'scene_cut_a')
 
     const timeline = await callTool('domain_read_production_timeline', {
-      projectId: 10,
+      projectDir,
       productionId: 'pilot',
       now: '2026-06-16T00:00:00.000Z',
     })
@@ -2244,7 +2331,7 @@ test('MCP production timeline tools read and edit selected scene_moment outputs'
         params: {
           name: removedTool,
           arguments: {
-            projectId: 10,
+            projectDir,
             media_editing_project: timeline.media_editing_project,
             timeline_document: { schema: 'movscript.legacy_timeline.v1' },
           },
@@ -2276,7 +2363,7 @@ test('MCP backend prompt tool returns blockers from backend decision context', a
   const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
   const originalFetch = globalThis.fetch
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-backend-prompt-'))
-  const projectDir = join(workspaceDir, 'realms', 'local', 'user', '1', 'projects', 'project_9')
+  const projectDir = join(workspaceDir, 'projects', 'backend-prompt')
   const requests = []
   process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
   globalThis.fetch = async (url, init) => {
@@ -2289,7 +2376,16 @@ test('MCP backend prompt tool returns blockers from backend decision context', a
     }
   }
   try {
-    updateMCPContextSnapshot(localAdminMCPContextSnapshot())
+    await mkdir(projectDir, { recursive: true })
+    await writeFile(join(projectDir, 'workspace.json'), JSON.stringify({
+      schema: 'movscript.workspace.v2',
+      project_uid: 'prj_backend_prompt',
+      title: 'Backend Prompt',
+    }), 'utf8')
+    updateMCPContextSnapshot({
+      ...localAdminMCPContextSnapshot(),
+      auth: { token: 'workspace-token' },
+    })
     await mkdir(join(projectDir, 'settings', 'hero', 'states', 'rain', 'assets', 'wet_hair'), { recursive: true })
     await writeFile(join(projectDir, 'settings', 'hero', 'states', 'rain', 'assets', 'wet_hair', 'asset.json'), JSON.stringify({
       schema: 'movscript.asset.v1',
@@ -2307,7 +2403,7 @@ test('MCP backend prompt tool returns blockers from backend decision context', a
       params: {
         name: 'domain_upsert_content_unit',
         arguments: {
-          projectId: 9,
+          projectDir,
           unit: {
             id: 'cu_wet_hair_ref',
             title: 'Wet hair reference',
@@ -2329,20 +2425,20 @@ test('MCP backend prompt tool returns blockers from backend decision context', a
       params: {
         name: 'domain_upsert_content_unit',
         arguments: {
-          projectId: 9,
+          projectDir,
           unit: {
             id: 'cu_phone_video',
             title: 'Phone video',
-            contentUnitType: 'shot_ref',
+            contentUnitType: 'scene_moment_ref',
             outputKind: 'video',
-            shotRef: 'phone',
+            sceneMomentRef: 'phone',
             editPrompt: { text: 'Use {{asset:wet_hair}} as continuity reference.' },
           },
         },
       },
     })
     assert.equal(targetResponse.error, undefined)
-    assert.equal(targetResponse.result.data.record.shot_ref, 'phone')
+    assert.equal(targetResponse.result.data.record.scene_moment_ref, 'phone')
 
     const response = await handleJSONRPC({
       jsonrpc: '2.0',
@@ -2351,7 +2447,7 @@ test('MCP backend prompt tool returns blockers from backend decision context', a
       params: {
         name: 'domain_build_content_unit_backend_prompt',
         arguments: {
-          projectId: 9,
+          projectDir,
           contentUnitId: 'cu_phone_video',
         },
       },
@@ -2364,7 +2460,7 @@ test('MCP backend prompt tool returns blockers from backend decision context', a
     assert.equal(result.blockers[0]?.code, 'decision_context_missing')
     assert.equal(result.blockers[0]?.content_unit_id, 'cu_wet_hair_ref')
     assert.equal(result.blockers[0]?.ref, '{{asset:wet_hair}}')
-    assert.ok(requests.some((request) => /\/api\/v1\/projects\/9\/decisions/.test(request.url)))
+    assert.ok(requests.some((request) => /\/api\/v1\/project-data\/decisions/.test(request.url)))
   } finally {
     globalThis.fetch = originalFetch
     updateMCPContextSnapshot(emptyMCPContextSnapshot())
@@ -2380,7 +2476,7 @@ test('MCP backend prompt tool returns blockers from backend decision context', a
 test('MCP domain tools expose get_model inspect and interpret over source/.interpret', async () => {
   const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-workspace-tools-'))
-  const projectDir = join(workspaceDir, 'realms', 'local', 'user', '1', 'projects', 'project_6')
+  const projectDir = join(workspaceDir, 'projects', 'workspace-tools')
   process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
   try {
     updateMCPContextSnapshot({
@@ -2406,7 +2502,7 @@ test('MCP domain tools expose get_model inspect and interpret over source/.inter
       method: 'tools/call',
       params: {
         name: 'domain_interpret',
-        arguments: { projectId: 6 },
+        arguments: { projectDir },
       },
     })
     assert.equal(initialBuildResponse.error, undefined)
@@ -2426,7 +2522,7 @@ test('MCP domain tools expose get_model inspect and interpret over source/.inter
       method: 'tools/call',
       params: {
         name: 'domain_get_model',
-        arguments: { projectId: 6, entityKind: 'setting', entityId: 'setting_hero' },
+        arguments: { projectDir, entityKind: 'setting', entityId: 'setting_hero' },
       },
     })
     const model = record(modelResponse?.result?.data)
@@ -2439,7 +2535,7 @@ test('MCP domain tools expose get_model inspect and interpret over source/.inter
       method: 'tools/call',
       params: {
         name: 'domain_inspect',
-        arguments: { projectId: 6 },
+        arguments: { projectDir },
       },
     })
     const review = record(reviewResponse?.result?.data)
@@ -2454,7 +2550,7 @@ test('MCP domain tools expose get_model inspect and interpret over source/.inter
       method: 'tools/call',
       params: {
         name: 'domain_interpret',
-        arguments: { projectId: 6 },
+        arguments: { projectDir },
       },
     })
     const build = record(buildResponse?.result?.data)
@@ -2474,7 +2570,7 @@ test('MCP domain tools expose get_model inspect and interpret over source/.inter
   }
 })
 
-test('MCP domain tools require explicit project id or project dir', async () => {
+test('MCP domain tools require explicit project dir or cwd', async () => {
   const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-project-required-'))
   process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
@@ -2490,7 +2586,7 @@ test('MCP domain tools require explicit project id or project dir', async () => 
     })
 
     assert.equal(response?.error?.code, -32000)
-    assert.match(response?.error?.message ?? '', /projectId or projectDir is required/)
+    assert.match(response?.error?.message ?? '', /projectDir or cwd is required/)
   } finally {
     if (previousWorkspaceDir === undefined) delete process.env.MOVSCRIPT_WORKSPACE_DIR
     else process.env.MOVSCRIPT_WORKSPACE_DIR = previousWorkspaceDir
@@ -2500,6 +2596,7 @@ test('MCP domain tools require explicit project id or project dir', async () => 
 test('MCP upsert setting accepts legacy record body without payload error', async () => {
   const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-upsert-setting-record-'))
+  const projectDir = join(workspaceDir, 'projects', 'upsert-setting-record')
   process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
   try {
     updateMCPContextSnapshot(localAdminMCPContextSnapshot())
@@ -2510,7 +2607,7 @@ test('MCP upsert setting accepts legacy record body without payload error', asyn
       params: {
         name: 'domain_upsert_setting',
         arguments: {
-          projectId: 6,
+          projectDir,
           record: {
             id: 'setting_legacy',
             title: 'Legacy Body',
@@ -2523,13 +2620,7 @@ test('MCP upsert setting accepts legacy record body without payload error', asyn
     assert.equal(response?.error, undefined)
     assert.equal(response?.result?.data?.path, 'settings/setting_legacy/setting.json')
     const written = JSON.parse(readFileSync(join(
-      workspaceDir,
-      'realms',
-      'local',
-      'user',
-      '1',
-      'projects',
-      'project_6',
+      projectDir,
       'settings',
       'setting_legacy',
       'setting.json',

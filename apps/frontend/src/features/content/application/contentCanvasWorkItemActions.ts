@@ -50,7 +50,7 @@ function planActionForTarget(actionLabel: string, targetNode: ContentCanvasNode)
     targetTitle: targetNode.title,
   }
   const selectionIntent = containsAny(text, ['选择', '采纳', 'select', 'choose', 'adopt'])
-  const createIntent = !selectionIntent && containsAny(text, ['制作项', '候选', '生成', '补齐', 'create', 'generate', 'content unit'])
+  const createIntent = !selectionIntent && containsAny(text, ['创作片段', '候选', '生成', '补齐', 'create', 'generate', 'content unit'])
 
   if (targetNode.kind === 'asset' && createIntent) {
     return {

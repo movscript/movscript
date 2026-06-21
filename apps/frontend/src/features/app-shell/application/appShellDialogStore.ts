@@ -6,14 +6,18 @@ export type AccountSettingsDialogTab =
   | 'workspace'
   | `runtime:${string}`
 
+export type ProjectDialogMode = 'create' | 'open'
+
 interface AppShellDialogStore {
   projectDialogOpen: boolean
-  openProjectDialog: () => void
+  projectDialogMode: ProjectDialogMode
+  openProjectDialog: (mode?: ProjectDialogMode) => void
   closeProjectDialog: () => void
 }
 
 export const useAppShellDialogStore = create<AppShellDialogStore>((set) => ({
   projectDialogOpen: false,
-  openProjectDialog: () => set({ projectDialogOpen: true }),
+  projectDialogMode: 'create',
+  openProjectDialog: (mode = 'create') => set({ projectDialogOpen: true, projectDialogMode: mode }),
   closeProjectDialog: () => set({ projectDialogOpen: false }),
 }))

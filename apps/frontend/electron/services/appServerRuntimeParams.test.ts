@@ -40,17 +40,17 @@ test('app-server thread start params include startup source, config, and run pro
 })
 
 test('app-server run params resolve project workspace context cwd', () => {
+  const projectDir = join(context.workspaceDir, 'demo-project')
   const params = appServerThreadStartParams({
     provider: provider(),
     runtime: runtime(),
-    workspaceContext: { scope: 'project', userId: 1, projectId: 42 },
+    workspaceContext: { scope: 'project', userId: 1, projectDir },
     runProfile: {
       fallbackSandbox: 'workspace-write',
     },
   } as never, context)
 
-  const expectedCwd = join(context.workspaceDir, 'realms', 'local', 'user', '1', 'projects', 'project_42')
-  assert.equal(params.cwd, expectedCwd)
+  assert.equal(params.cwd, projectDir)
   assert.equal((params.sandbox as unknown), 'workspace-write')
 })
 
@@ -85,22 +85,22 @@ test('app-server turn start params map neutral inputs and sandbox policy', () =>
 })
 
 test('app-server turn start params resolve project cwd for sandbox policy', () => {
+  const projectDir = join(context.workspaceDir, 'demo-project')
   const params = appServerTurnStartParams({
     provider: provider(),
     runtime: runtime(),
     threadId: 'thread_1',
     inputs: [{ type: 'text', text: 'hello', textElements: [] }],
-    workspaceContext: { scope: 'project', userId: 1, projectId: 42 },
+    workspaceContext: { scope: 'project', userId: 1, projectDir },
     runProfile: {
       fallbackSandbox: 'workspace-write',
     },
   } as never, context)
 
-  const expectedCwd = join(context.workspaceDir, 'realms', 'local', 'user', '1', 'projects', 'project_42')
-  assert.equal(params.cwd, expectedCwd)
+  assert.equal(params.cwd, projectDir)
   assert.deepEqual(params.sandboxPolicy, {
     type: 'workspaceWrite',
-    writableRoots: [expectedCwd],
+    writableRoots: [projectDir],
     networkAccess: false,
     excludeTmpdirEnvVar: false,
     excludeSlashTmp: false,

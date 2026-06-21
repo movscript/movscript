@@ -1,5 +1,5 @@
 import { createElectronMovScriptWorkspaceService } from '@/shared/infrastructure/workspaceDomainRepository'
-import { currentWorkspaceOwnerContext } from '@/shared/infrastructure/session/workspaceOwnerContext'
+import { currentWorkspaceOwnerContext, currentWorkspaceProjectDir } from '@/shared/infrastructure/session/workspaceOwnerContext'
 import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
 import { api } from '@/shared/infrastructure/api'
 import { publicModelId } from '@/shared/domain/modelDisplay'
@@ -26,15 +26,24 @@ import type {
 } from '../application/contentCanvasWorkspaceGateway'
 
 export function createElectronContentCanvasWorkspaceGateway(projectId: number): ContentCanvasWorkspaceGateway {
-  const service = createElectronMovScriptWorkspaceService({ projectId })
+  const projectDir = currentWorkspaceProjectDir()
+  const projectContext = {
+    projectId,
+    ...(projectDir ? { projectDir } : {}),
+  }
+  const service = createElectronMovScriptWorkspaceService(projectContext)
   return {
     service,
-    loadContentSourceWorkspaceData: (inputProjectId) => loadContentSourceWorkspaceData(inputProjectId, currentWorkspaceOwnerContext()),
+    loadContentSourceWorkspaceData: (inputProjectId) => loadContentSourceWorkspaceData(inputProjectId, {
+      ...currentWorkspaceOwnerContext(),
+      ...(projectDir ? { projectDir } : {}),
+    }),
     createSetting: async (input) => {
       const createSetting = readElectronApi()?.createMovScriptEngineSetting
       if (!createSetting) throw new Error('当前窗口没有 MovScript setting 创建能力')
       return createSetting({
         ...currentWorkspaceOwnerContext(),
+        ...(projectDir ? { projectDir } : {}),
         projectId,
         expectedWorkspaceVersions: {},
         payload: input,
@@ -45,6 +54,7 @@ export function createElectronContentCanvasWorkspaceGateway(projectId: number): 
       if (!createSettingState) throw new Error('当前窗口没有 MovScript setting state 创建能力')
       return createSettingState({
         ...currentWorkspaceOwnerContext(),
+        ...(projectDir ? { projectDir } : {}),
         projectId,
         expectedWorkspaceVersions: {},
         payload: input,
@@ -55,6 +65,7 @@ export function createElectronContentCanvasWorkspaceGateway(projectId: number): 
       if (!createAsset) throw new Error('当前窗口没有 MovScript asset 创建能力')
       return createAsset({
         ...currentWorkspaceOwnerContext(),
+        ...(projectDir ? { projectDir } : {}),
         projectId,
         expectedWorkspaceVersions: {},
         payload: input,
@@ -65,6 +76,7 @@ export function createElectronContentCanvasWorkspaceGateway(projectId: number): 
       if (!updateEntityBasics) throw new Error('当前窗口没有 MovScript entity basics 更新能力')
       return updateEntityBasics({
         ...currentWorkspaceOwnerContext(),
+        ...(projectDir ? { projectDir } : {}),
         projectId,
         expectedWorkspaceVersions: {},
         payload: input,
@@ -75,6 +87,7 @@ export function createElectronContentCanvasWorkspaceGateway(projectId: number): 
       if (!connectSetting) throw new Error('当前窗口没有 MovScript scene moment setting 连接能力')
       return connectSetting({
         ...currentWorkspaceOwnerContext(),
+        ...(projectDir ? { projectDir } : {}),
         projectId,
         expectedWorkspaceVersions: {},
         payload: input,
@@ -85,6 +98,7 @@ export function createElectronContentCanvasWorkspaceGateway(projectId: number): 
       if (!createProduction) throw new Error('当前窗口没有 MovScript production 创建能力')
       await createProduction({
         ...currentWorkspaceOwnerContext(),
+        ...(projectDir ? { projectDir } : {}),
         projectId,
         expectedWorkspaceVersions: {},
         payload: {
@@ -98,6 +112,7 @@ export function createElectronContentCanvasWorkspaceGateway(projectId: number): 
       if (!createSegment) throw new Error('当前窗口没有 MovScript segment 创建能力')
       await createSegment({
         ...currentWorkspaceOwnerContext(),
+        ...(projectDir ? { projectDir } : {}),
         projectId,
         expectedWorkspaceVersions: {},
         payload: {
@@ -114,6 +129,7 @@ export function createElectronContentCanvasWorkspaceGateway(projectId: number): 
       if (!createSceneMoment) throw new Error('当前窗口没有 MovScript scene moment 创建能力')
       await createSceneMoment({
         ...currentWorkspaceOwnerContext(),
+        ...(projectDir ? { projectDir } : {}),
         projectId,
         expectedWorkspaceVersions: {},
         payload: {
@@ -130,6 +146,7 @@ export function createElectronContentCanvasWorkspaceGateway(projectId: number): 
       if (!createExpressionUnit) throw new Error('当前窗口没有 MovScript expression unit 创建能力')
       await createExpressionUnit({
         ...currentWorkspaceOwnerContext(),
+        ...(projectDir ? { projectDir } : {}),
         projectId,
         expectedWorkspaceVersions: {},
         payload: {
@@ -149,6 +166,7 @@ export function createElectronContentCanvasWorkspaceGateway(projectId: number): 
       if (!createKeyframe) throw new Error('当前窗口没有 MovScript keyframe 创建能力')
       await createKeyframe({
         ...currentWorkspaceOwnerContext(),
+        ...(projectDir ? { projectDir } : {}),
         projectId,
         expectedWorkspaceVersions: {},
         payload: input,
@@ -159,6 +177,7 @@ export function createElectronContentCanvasWorkspaceGateway(projectId: number): 
       if (!createStoryboard) throw new Error('当前窗口没有 MovScript storyboard 创建能力')
       await createStoryboard({
         ...currentWorkspaceOwnerContext(),
+        ...(projectDir ? { projectDir } : {}),
         projectId,
         expectedWorkspaceVersions: {},
         payload: input,
@@ -169,6 +188,7 @@ export function createElectronContentCanvasWorkspaceGateway(projectId: number): 
       if (!ensureContentUnit) throw new Error('当前窗口没有 MovScript content unit 确保能力')
       return ensureContentUnit({
         ...currentWorkspaceOwnerContext(),
+        ...(projectDir ? { projectDir } : {}),
         projectId,
         expectedWorkspaceVersions: {},
         payload: input,
@@ -228,9 +248,11 @@ export function createElectronContentCanvasWorkspaceGateway(projectId: number): 
     },
     selectContentUnitCandidate: async (input: ContentCanvasContentCandidateSelectInput) => {
       const selectCandidate = readElectronApi()?.selectMovScriptEngineContentUnitCandidate
-      if (!selectCandidate) throw new Error('当前窗口没有内容单元候选选择能力')
+      if (!selectCandidate) throw new Error('当前窗口没有创作片段候选选择能力')
+      const projectDir = currentWorkspaceProjectDir()
       await selectCandidate({
         ...currentWorkspaceOwnerContext(),
+        ...(projectDir ? { projectDir } : {}),
         projectId: input.projectId,
         expectedWorkspaceVersions: {},
         contentUnitId: input.contentUnitId,
@@ -244,9 +266,11 @@ export function createElectronContentCanvasWorkspaceGateway(projectId: number): 
 
 async function createBackendContentCandidate(input: ContentCanvasContentCandidateCreateInput) {
   const createCandidate = readElectronApi()?.createMovScriptEngineContentCandidate
-  if (!createCandidate) throw new Error('当前窗口没有内容单元候选创建能力')
+  if (!createCandidate) throw new Error('当前窗口没有创作片段候选创建能力')
+  const projectDir = currentWorkspaceProjectDir()
   return createCandidate({
     ...currentWorkspaceOwnerContext(),
+    ...(projectDir ? { projectDir } : {}),
     projectId: input.projectId,
     expectedWorkspaceVersions: {},
     contentUnitId: input.contentUnitId,
@@ -295,10 +319,11 @@ async function buildContentUnitBackendPromptForCanvas(
 ): Promise<Record<string, unknown>> {
   const buildPrompt = readElectronApi()?.buildMovScriptEngineContentUnitBackendPrompt
   if (!buildPrompt) {
-    throw new Error('当前窗口没有内容单元提示词编译能力，请重启桌面窗口以加载最新 Electron bridge')
+    throw new Error('当前窗口没有创作片段提示词编译能力，请重启桌面窗口以加载最新 Electron bridge')
   }
   const result = await buildPrompt({
     ...currentWorkspaceOwnerContext(),
+    ...(currentWorkspaceProjectDir() ? { projectDir: currentWorkspaceProjectDir() } : {}),
     projectId: input.projectId,
     contentUnitId: input.contentUnitId,
   })

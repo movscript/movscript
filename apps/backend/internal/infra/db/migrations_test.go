@@ -90,6 +90,8 @@ func TestRunMigrationsInitializesFormalBaselineSchema(t *testing.T) {
 	for _, table := range []any{
 		&model.User{},
 		&model.Project{},
+		&model.ProjectDataSpace{},
+		&model.ProjectDataDecisionContext{},
 		&model.AIModelCatalogEntry{},
 		&model.AIModelRouteBinding{},
 		&model.UsageLog{},

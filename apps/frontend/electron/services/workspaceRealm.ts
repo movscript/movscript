@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { resolve } from 'node:path'
 import {
   ensureMovScriptWorkspaceContext,
   readMovScriptWorkspaceRootManifest,
@@ -32,6 +33,7 @@ export function resolveDesktopWorkspaceContextPaths(input: DesktopWorkspaceRealm
   const workspaceDir = input.workspaceDir?.trim() || resolveDesktopDefaultMovScriptWorkspaceDir()
   const workspaceContext = isRecord(input.workspaceContext) ? input.workspaceContext : undefined
   const explicitCwd = typeof input.fallbackCwd === 'string' && input.fallbackCwd.trim() ? input.fallbackCwd : undefined
+  const projectDir = stringField(workspaceContext, 'projectDir')
   if (explicitCwd) {
     throw new Error('Explicit cwd should be handled before resolving a MovScript workspace context.')
   }
@@ -39,17 +41,27 @@ export function resolveDesktopWorkspaceContextPaths(input: DesktopWorkspaceRealm
   const realm = normalizeWorkspaceContextRealm(workspaceContext) ?? resolveDesktopWorkspaceRealm(workspaceDir)
   const owner = workspaceContextOwner(workspaceContext) ?? activeWorkspaceOwner(workspaceDir, realm)
   const projectId = workspaceContext?.projectId ?? input.projectId
-  const scope = workspaceContext?.scope === 'project' || workspaceContext?.scope === 'production' || projectId !== undefined
+  const scope = workspaceContext?.scope === 'project' || workspaceContext?.scope === 'production' || projectDir
     ? (workspaceContext?.scope === 'production' ? 'production' : 'project')
     : 'global'
+  if (scope !== 'global' && !projectDir) {
+    throw new Error('MovScript project workspace context requires projectDir. The legacy projectId workspace path is no longer supported.')
+  }
   const context: MovScriptWorkspaceContextInput = {
     workspaceDir,
     realm,
     scope,
     ...owner,
+    ...(projectDir !== undefined ? { projectDir } : {}),
     ...(projectId !== undefined ? { projectId: projectId as string | number } : {}),
   }
-  return ensureMovScriptWorkspaceContext(resolveMovScriptWorkspaceContextPaths(context))
+  const paths = ensureMovScriptWorkspaceContext(resolveMovScriptWorkspaceContextPaths(context))
+  if (!projectDir) return paths
+  return {
+    ...paths,
+    projectCwd: resolve(projectDir),
+    providerSessionCwd: resolve(projectDir),
+  }
 }
 
 export function cloudRealmId(baseURL: string | undefined): string {
@@ -98,6 +110,11 @@ function idField(value: unknown): string | number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) return value
   if (typeof value === 'string' && value.trim()) return value.trim()
   return undefined
+}
+
+function stringField(context: Record<string, unknown> | undefined, field: string): string | undefined {
+  const value = context?.[field]
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

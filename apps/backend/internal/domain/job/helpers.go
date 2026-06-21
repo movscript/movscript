@@ -96,11 +96,19 @@ type ContextSnapshotInput struct {
 	FeatureKey           string
 	InputResources       []InputResource
 	CreatedAt            time.Time
+	Project              *ProjectScopeBinding         `json:"project,omitempty"`
 	ContentUnitCandidate *ContentUnitCandidateBinding `json:"content_unit_candidate,omitempty"`
+}
+
+type ProjectScopeBinding struct {
+	UID   string `json:"uid,omitempty"`
+	Title string `json:"title,omitempty"`
+	Dir   string `json:"dir,omitempty"`
 }
 
 type ContentUnitCandidateBinding struct {
 	ProjectID      uint            `json:"project_id,omitempty"`
+	ProjectUID     string          `json:"project_uid,omitempty"`
 	ContentUnitID  string          `json:"content_unit_id,omitempty"`
 	TargetKind     string          `json:"target_kind,omitempty"`
 	TargetRef      string          `json:"target_ref,omitempty"`
@@ -235,6 +243,7 @@ type contextSnapshot struct {
 	Params               paramsSnapshot               `json:"params"`
 	InputResources       []resourceSnapshot           `json:"input_resources,omitempty"`
 	CreatedAt            time.Time                    `json:"created_at"`
+	Project              *ProjectScopeBinding         `json:"project,omitempty"`
 	ContentUnitCandidate *ContentUnitCandidateBinding `json:"content_unit_candidate,omitempty"`
 }
 
@@ -402,6 +411,7 @@ func BuildContextSnapshot(input ContextSnapshotInput) string {
 		Params:               params,
 		InputResources:       resources,
 		CreatedAt:            input.CreatedAt,
+		Project:              input.Project,
 		ContentUnitCandidate: input.ContentUnitCandidate,
 	}
 	b, err := json.Marshal(snapshot)

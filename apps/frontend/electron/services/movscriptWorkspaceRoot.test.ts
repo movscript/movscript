@@ -11,8 +11,6 @@ import {
   readMovScriptWorkspaceConfig,
   readMovScriptWorkspaceRootManifest,
   resolveMovScriptLangCwd,
-  resolveMovScriptProjectCwd,
-  resolveMovScriptProjectWorkspacePaths,
   resolveMovScriptWorkspaceContextPaths,
   resolveMovScriptWorkspacePaths,
   resolveMovScriptWorkspaceRootPaths,
@@ -64,40 +62,39 @@ test('workspace root initialization preserves an existing manifest identity', ()
   assert.equal(second.activeUserId, 7)
 })
 
-test('project workspace paths resolve only the project cwd', () => {
+test('project workspace context uses explicit projectDir as cwd', () => {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-workspace-paths-'))
-  const project = resolveMovScriptProjectWorkspacePaths({ workspaceDir, userId: 7, projectId: 42 })
-  const projectDir = join(workspaceDir, 'realms', 'local', 'user', '7', 'projects', 'project_42')
+  const projectDir = join(workspaceDir, 'projects', 'demo')
+  const project = resolveMovScriptWorkspaceContextPaths({ workspaceDir, scope: 'project', userId: 7, projectDir })
 
   assert.equal(project.projectCwd, projectDir)
-  assert.equal(project.projectDir, projectDir)
-  assert.equal(resolveMovScriptProjectCwd({ workspaceDir, userId: 7, projectId: 42 }), projectDir)
   assert.doesNotMatch(project.projectCwd, /\/(?:\.codex|\.mova|agent)\//)
 })
 
 test('workspace context paths use local, user, and project cwd as provider session cwd', () => {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-context-paths-'))
+  const projectDir = join(workspaceDir, 'projects', 'demo')
   const user = resolveMovScriptWorkspaceContextPaths({ workspaceDir, scope: 'global', userId: 7 })
-  const project = resolveMovScriptWorkspaceContextPaths({ workspaceDir, scope: 'project', userId: 7, projectId: 42 })
-  const production = resolveMovScriptWorkspaceContextPaths({ workspaceDir, scope: 'production', userId: 7, projectId: 42, productionId: 99 })
+  const project = resolveMovScriptWorkspaceContextPaths({ workspaceDir, scope: 'project', userId: 7, projectDir })
+  const production = resolveMovScriptWorkspaceContextPaths({ workspaceDir, scope: 'production', userId: 7, projectDir, productionId: 99 })
 
   assert.throws(() => resolveMovScriptWorkspaceContextPaths({ workspaceDir }), /requires userId or orgId/)
   assert.equal(user.providerSessionCwd, join(workspaceDir, 'realms', 'local', 'user', '7'))
   assert.equal(user.projectCwd, join(workspaceDir, 'realms', 'local', 'user', '7'))
-  assert.equal(project.providerSessionCwd, join(workspaceDir, 'realms', 'local', 'user', '7', 'projects', 'project_42'))
-  assert.equal(project.projectCwd, join(workspaceDir, 'realms', 'local', 'user', '7', 'projects', 'project_42'))
-  assert.equal(production.providerSessionCwd, join(workspaceDir, 'realms', 'local', 'user', '7', 'projects', 'project_42'))
-  assert.equal(production.projectCwd, join(workspaceDir, 'realms', 'local', 'user', '7', 'projects', 'project_42'))
+  assert.equal(project.providerSessionCwd, projectDir)
+  assert.equal(project.projectCwd, projectDir)
+  assert.equal(production.providerSessionCwd, projectDir)
+  assert.equal(production.projectCwd, projectDir)
 })
 
-test('project cwd ids reject path traversal segments', () => {
+test('project workspace context requires explicit projectDir', () => {
   assert.throws(
-    () => resolveMovScriptProjectCwd({
+    () => resolveMovScriptWorkspaceContextPaths({
       workspaceDir: '/tmp/workspace',
       userId: 7,
-      projectId: '../42',
+      projectId: 42,
     }),
-    /invalid MovScript workspace id segment/,
+    /requires projectDir/,
   )
 })
 

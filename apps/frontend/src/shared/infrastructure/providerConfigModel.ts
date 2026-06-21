@@ -35,6 +35,9 @@ export type MovScriptWorkspaceScope = 'global' | 'project' | 'production'
 export interface MovScriptWorkspaceContext {
   scope?: MovScriptWorkspaceScope
   projectId?: string | number
+  projectUid?: string
+  projectDir?: string
+  projectTitle?: string
   productionId?: string | number
 }
 

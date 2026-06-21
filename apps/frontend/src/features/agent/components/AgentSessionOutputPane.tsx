@@ -131,12 +131,12 @@ export function AgentSessionOutputPane({ conversationId, projectId }: AgentSessi
             <ClipboardList size={13} />
             会话产出
           </p>
-          <h2>生成记录与内容单元决策</h2>
-          <p>从当前会话可见的运行结果整理生成记录，并聚合相关内容单元的候选。</p>
+          <h2>生成记录与创作片段决策</h2>
+          <p>从当前会话可见的运行结果整理生成记录，并聚合相关创作片段的候选。</p>
         </div>
         <div className="agent-session-output__stats" aria-label="会话产出统计">
           <span><strong>{projection.records.length}</strong> 记录</span>
-          <span><strong>{contentUnits.length}</strong> 内容单元</span>
+          <span><strong>{contentUnits.length}</strong> 创作片段</span>
         </div>
       </section>
 
@@ -181,17 +181,17 @@ export function AgentSessionOutputPane({ conversationId, projectId }: AgentSessi
       <section className="agent-session-output__section">
         <div className="agent-session-output__section-title">
           <CircleDot size={14} />
-          <span>涉及的内容单元</span>
+          <span>涉及的创作片段</span>
           {contentWorkspaceQuery.isLoading ? <Loader2 className="agent-session-output__spin" size={13} /> : null}
         </div>
         {!projectId ? (
-          <EmptySessionOutput message="当前会话没有绑定项目，无法读取内容单元候选。" />
+          <EmptySessionOutput message="当前会话没有绑定项目，无法读取创作片段候选。" />
         ) : contentWorkspaceQuery.isError ? (
-          <EmptySessionOutput message={contentWorkspaceQuery.error instanceof Error ? contentWorkspaceQuery.error.message : '读取内容单元失败。'} />
+          <EmptySessionOutput message={contentWorkspaceQuery.error instanceof Error ? contentWorkspaceQuery.error.message : '读取创作片段失败。'} />
         ) : contentWorkspaceQuery.isLoading ? (
-          <EmptySessionOutput message="正在读取内容单元候选..." />
+          <EmptySessionOutput message="正在读取创作片段候选..." />
         ) : contentUnits.length === 0 ? (
-          <EmptySessionOutput message="当前会话暂未识别到关联内容单元。" />
+          <EmptySessionOutput message="当前会话暂未识别到关联创作片段。" />
         ) : (
           <div className="agent-session-output__unit-list">
             {contentUnits.map((unit) => (

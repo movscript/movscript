@@ -1,5 +1,4 @@
 import type { Command } from 'commander'
-import { resolveMovScriptProjectCwd } from '@movscript/core/workspace/node'
 import { createNodeMovScriptEngine } from '@movscript/engine/node'
 import { getMovScriptWorkspaceModel } from '@movscript/workspace'
 import type {
@@ -9,10 +8,10 @@ import type {
 
 interface WorkspaceCommandOptions {
   workspace?: string
+  cwd?: string
+  projectDir?: string
   user?: string
   org?: string
-  project?: string
-  projectId?: string
   commit?: string
   json?: boolean
 }
@@ -32,6 +31,8 @@ export function registerWorkspaceCommands(program: Command): void {
     .description('Return the domain workspace model for one editable entity')
     .option('--entity-id <id>', 'Optional entity id used to expand editable path hints')
     .option('--workspace <dir>', 'Project workspace Git repository root')
+    .option('--cwd <dir>', 'Alias for --workspace')
+    .option('--project-dir <dir>', 'Alias for --workspace')
     .option('--user <id>', 'Workspace user id')
     .option('--json', 'Print JSON output')
     .action(async (entityType: string, options: WorkspaceGetModelOptions) => {
@@ -45,11 +46,11 @@ export function registerWorkspaceCommands(program: Command): void {
   workspace
     .command('review')
     .description('Review current MovScript source files and diagnostics without publishing product state')
-    .option('--workspace <dir>', 'MovScript workspace container directory')
+    .option('--workspace <dir>', 'Project workspace Git repository root')
+    .option('--cwd <dir>', 'Alias for --workspace')
+    .option('--project-dir <dir>', 'Alias for --workspace')
     .option('--user <id>', 'Workspace user id')
     .option('--org <id>', 'Workspace organization id')
-    .option('--project <id>', 'Project id')
-    .option('--project-id <id>', 'Project id')
     .option('--commit <ref>', 'Compare current source against a specific git commit/ref')
     .option('--json', 'Print JSON output')
     .action(async (options: WorkspaceCommandOptions, command: Command) => {
@@ -61,11 +62,11 @@ export function registerWorkspaceCommands(program: Command): void {
   workspace
     .command('interpret')
     .description('Validate current MovScript source files and refresh interpreter debug artifacts')
-    .option('--workspace <dir>', 'MovScript workspace container directory')
+    .option('--workspace <dir>', 'Project workspace Git repository root')
+    .option('--cwd <dir>', 'Alias for --workspace')
+    .option('--project-dir <dir>', 'Alias for --workspace')
     .option('--user <id>', 'Workspace user id')
     .option('--org <id>', 'Workspace organization id')
-    .option('--project <id>', 'Project id')
-    .option('--project-id <id>', 'Project id')
     .option('--json', 'Print JSON output')
     .action(async (options: WorkspaceCommandOptions, command: Command) => {
       const result = await workspaceEngine(options, command).interpret() as MovScriptWorkspaceInterpretResult
@@ -76,21 +77,12 @@ export function registerWorkspaceCommands(program: Command): void {
 
 function workspaceDir(options: WorkspaceCommandOptions, command: Command): string | undefined {
   const global = commandGlobalOptions(command)
-  return options.workspace ?? global.workspace
+  return options.projectDir ?? options.cwd ?? options.workspace ?? global.cwd ?? global.workspace
 }
 
 function workspaceEngine(options: WorkspaceCommandOptions, command: Command) {
-  const projectDir = resolveMovScriptProjectCwd({
-    workspaceDir: workspaceDir(options, command),
-    ...(options.user !== undefined ? { userId: options.user } : {}),
-    ...(options.org !== undefined ? { orgId: options.org } : {}),
-    ...(projectId(options) !== undefined ? { projectId: projectId(options) } : {}),
-  })
+  const projectDir = workspaceDir(options, command)
   return createNodeMovScriptEngine({ projectDir })
-}
-
-function projectId(options: WorkspaceCommandOptions): string | undefined {
-  return options.projectId ?? options.project
 }
 
 function inspectInput(options: WorkspaceCommandOptions): { commit?: string } {
@@ -99,11 +91,12 @@ function inspectInput(options: WorkspaceCommandOptions): { commit?: string } {
   }
 }
 
-function commandGlobalOptions(command: Command): { workspace?: string } {
+function commandGlobalOptions(command: Command): { workspace?: string; cwd?: string } {
   const root = command.parent?.parent ?? command.parent ?? command
   const options = root.optsWithGlobals ? root.optsWithGlobals() : root.opts()
   return {
     workspace: typeof options.workspace === 'string' ? options.workspace : undefined,
+    cwd: typeof options.cwd === 'string' ? options.cwd : undefined,
   }
 }
 

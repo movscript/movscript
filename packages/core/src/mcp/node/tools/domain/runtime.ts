@@ -7,16 +7,17 @@ import {
   type NodeMovScriptWorkspaceService,
 } from '@movscript/workspace/node'
 import {
-  createMovScriptBackendDecisionStore,
+  createMovScriptScopedProjectDataDecisionStore,
   type MovScriptDecisionStore,
 } from '@movscript/workspace/repository'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import {
   inspectMovScriptWorkspace,
   overviewMovScriptWorkspace,
   planMovScriptWorkspaceRegeneration,
 } from '@movscript/interpreter/node'
 import { resolveMovScriptBackendSession } from '../../../../backend/node/config.js'
-import { resolveMovScriptProjectCwd } from '../../../../workspace/node/index.js'
 import {
   buildContentSourceWorkspaceData,
   loadContentSourceWorkspaceSnapshotFromEngine,
@@ -30,7 +31,8 @@ export interface MovScriptDomainRuntimeInput {
   projectDir?: string
   userId?: string | number
   orgId?: string | number
-  projectId?: string | number
+  projectUid?: string
+  projectTitle?: string
 }
 
 export type MovScriptDomainRuntime = NodeMovScriptEngine & NodeMovScriptWorkspaceService & {
@@ -99,7 +101,8 @@ function normalizeRuntimeInput(input: MovScriptDomainRuntimeInput): MovScriptDom
     ...(input.projectDir !== undefined ? { projectDir: input.projectDir } : {}),
     ...(input.userId !== undefined ? { userId: input.userId } : {}),
     ...(input.orgId !== undefined ? { orgId: input.orgId } : {}),
-    ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
+    ...(input.projectUid !== undefined ? { projectUid: input.projectUid } : {}),
+    ...(input.projectTitle !== undefined ? { projectTitle: input.projectTitle } : {}),
   }
 }
 
@@ -114,7 +117,7 @@ function runtimeKey(input: MovScriptDomainRuntimeInput): string {
     projectCwd,
     input.userId ?? '',
     input.orgId ?? '',
-    input.projectId ?? '',
+    input.projectUid ?? '',
     session.baseURL,
     session.userId ?? '',
     token,
@@ -122,22 +125,50 @@ function runtimeKey(input: MovScriptDomainRuntimeInput): string {
 }
 
 function createMCPDecisionStore(input: MovScriptDomainRuntimeInput): MovScriptDecisionStore | undefined {
-  if (input.projectId === undefined) {
-    return undefined
-  }
   const session = resolveMovScriptBackendSession({
     workspaceDir: input.workspaceDir,
     userId: input.userId,
   })
   const token = getMCPAuthToken() || session.token
-  return createMovScriptBackendDecisionStore({
-    baseUrl: session.baseURL,
-    projectId: input.projectId,
-    ...(token ? { token } : {}),
-    ...(session.userId ? { headers: { 'X-User-ID': session.userId } } : {}),
-  })
+  const projectCwd = projectCwdFromInput(input)
+  const manifest = readWorkspaceManifest(projectCwd)
+  const projectUid = input.projectUid ?? manifest?.project_uid
+  const projectTitle = input.projectTitle ?? manifest?.title
+  if (projectUid && token) {
+    const headers = {
+      ...(session.userId ? { 'X-User-ID': session.userId } : {}),
+      ...(input.orgId !== undefined ? { 'X-Org-ID': String(input.orgId) } : {}),
+    }
+    return createMovScriptScopedProjectDataDecisionStore({
+      baseUrl: session.baseURL,
+      projectUid,
+      ...(projectTitle ? { title: projectTitle } : {}),
+      ...(input.orgId !== undefined ? { scopeKind: 'org' as const, scopeId: input.orgId } : {}),
+      token,
+      ...(Object.keys(headers).length > 0 ? { headers } : {}),
+    })
+  }
+  return undefined
 }
 
 function projectCwdFromInput(input: MovScriptDomainRuntimeInput): string {
-  return input.projectDir ?? resolveMovScriptProjectCwd(input)
+  if (input.projectDir) return input.projectDir
+  throw new Error('projectDir or cwd is required. The legacy projectId workspace path is no longer supported.')
+}
+
+function readWorkspaceManifest(projectCwd: string): { project_uid?: string; title?: string } | undefined {
+  try {
+    const raw = readFileSync(join(projectCwd, 'workspace.json'), 'utf8')
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    return {
+      project_uid: stringField(parsed.project_uid),
+      title: stringField(parsed.title),
+    }
+  } catch {
+    return undefined
+  }
+}
+
+function stringField(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }

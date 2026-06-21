@@ -54,7 +54,11 @@ function resource(uri: string, name: string): MCPResource {
 }
 
 async function readWorkspaceProjectResource(projectId: number, kind: string): Promise<unknown[]> {
-  const runtime = createMovScriptDomainRuntime(resolveMCPProjectWorkspaceLocator({ projectId }))
+  const snapshot = getMCPContextSnapshot()
+  const projectDir = snapshot.project && snapshot.project.id === projectId
+    ? snapshot.project.projectDir ?? snapshot.project.projectPath ?? snapshot.project.workspacePath ?? snapshot.project.project_path ?? snapshot.project.workspace_path
+    : undefined
+  const runtime = createMovScriptDomainRuntime(resolveMCPProjectWorkspaceLocator({ projectDir }))
   if (kind === 'scripts') {
     const scripts = await runtime.queryEntities({ entityKind: 'script' })
     return Promise.all(scripts.map(async (entity) => ({

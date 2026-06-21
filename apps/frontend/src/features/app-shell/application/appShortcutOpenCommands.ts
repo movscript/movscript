@@ -1,14 +1,12 @@
-import { useNavigate } from 'react-router-dom'
 import { canvasEditorPath, editingProjectPath } from '@/routes/appRouteModel'
 import { ROUTES } from '@/routes/projectRoutes'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
-import { openCanvasWindow, openEditingProjectWindow, openEditingWindow, openHomeWindow, openProjectWindow } from '@/shared/infrastructure/appWindowContext'
+import { openCanvasWindow, openEditingProjectWindow, openEditingWindow, openHomeWindow, openProjectWindow, openToolWindow } from '@/shared/infrastructure/appWindowContext'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import type { Canvas, Project } from '@/types'
 import type { EditingProjectShortcut } from './appShortcutRecentItems'
 
 export function useAppShortcutOpenCommands() {
-  const navigate = useNavigate()
   const setCurrentProject = useProjectStore((s) => s.setCurrent)
   const setWorkMode = useAppSettingsStore((s) => s.setWorkMode)
 
@@ -18,7 +16,7 @@ export function useAppShortcutOpenCommands() {
     },
     openToolHome: () => {
       setWorkMode('tool')
-      navigate(ROUTES.tools.refImageGen)
+      void openToolWindow({ route: ROUTES.tools.refImageGen })
     },
     openEditHome: () => {
       setWorkMode('tool')
@@ -29,9 +27,11 @@ export function useAppShortcutOpenCommands() {
       void openCanvasWindow()
     },
     openProject: (project: Project) => {
+      const projectDir = project.workspace_path || project.project_path
+      if (!projectDir) return
       setCurrentProject(project)
       setWorkMode('project')
-      void openProjectWindow({ projectId: project.ID, project, route: ROUTES.project.home })
+      void openProjectWindow({ projectDir, project, route: ROUTES.project.home })
     },
     openEditingProject: (project: EditingProjectShortcut) => {
       setWorkMode('tool')

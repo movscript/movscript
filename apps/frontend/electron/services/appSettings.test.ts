@@ -15,6 +15,7 @@ test('desktop app settings persist launch mode and service URLs without secrets'
     localAPIBaseURL: 'http://localhost:9876',
     launchMode: 'local',
     workMode: 'agent',
+    language: 'zh-CN',
     onboardingCompleted: true,
     shotLibrarySources: [{
       id: 'external',
@@ -28,6 +29,7 @@ test('desktop app settings persist launch mode and service URLs without secrets'
 
   const restored = readDesktopAppSettings(movScriptHomeDir)
   assert.equal(restored?.launchMode, 'local')
+  assert.equal(restored?.language, 'zh-CN')
   assert.equal(restored?.cloudAPIBaseURL, 'https://cloud.example')
   assert.equal(restored?.localAPIBaseURL, 'http://localhost:9876')
   assert.equal(restored?.shotLibrarySources?.[0]?.authToken, undefined)

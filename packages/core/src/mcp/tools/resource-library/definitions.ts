@@ -44,5 +44,32 @@ export function resourceLibraryTools(): MCPTool[] {
         ['source', 'query', 'page', 'pageSize', 'total', 'count', 'items', 'usage']
       ),
     },
+    {
+      name: 'movscript_resource_library_open',
+      description: 'Return an agent in-app browser URL for the MovScript resource library. The frontend page uses the local MCP proxy so desktop auth is forwarded without exposing the bearer token in the URL.',
+      inputSchema: objectSchema(
+        {
+          frontend_origin: { type: 'string', description: 'Optional frontend origin, such as http://127.0.0.1:5173. Defaults to MOVSCRIPT_FRONTEND_ORIGIN or the dev frontend.' },
+          frontendOrigin: { type: 'string', description: 'Camel-case alias for frontend_origin.' },
+          mcp_base_url: { type: 'string', description: 'Optional MCP server origin. Defaults to MOVSCRIPT_MCP_ENDPOINT origin.' },
+          mcpBaseURL: { type: 'string', description: 'Camel-case alias for mcp_base_url.' },
+        }
+      ),
+      outputSchema: objectSchema(
+        {
+          source: { type: 'string' },
+          kind: { type: 'string' },
+          title: { type: 'string' },
+          url: { type: 'string' },
+          frontend_origin: { type: 'string' },
+          mcp_api_base_url: { type: 'string' },
+          route: { type: 'string' },
+          api_proxy: { type: 'object', additionalProperties: true },
+          backend_api_base_url: { type: 'string' },
+          usage: { type: 'string' },
+        },
+        ['source', 'kind', 'title', 'url', 'frontend_origin', 'mcp_api_base_url', 'route', 'api_proxy', 'usage']
+      ),
+    },
   ]
 }

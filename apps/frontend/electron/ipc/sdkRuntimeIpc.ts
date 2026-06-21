@@ -35,6 +35,7 @@ const SDK_RUNTIME_IPC_CHANNELS = {
 }
 
 let defaultHandlersInstalled = false
+const senderSubscriptionDisposers = new WeakMap<WebContents, Set<() => void>>()
 
 export function registerSdkRuntimeIpcHandlers(): void {
   if (!defaultHandlersInstalled) {
@@ -99,13 +100,27 @@ export function registerSdkRuntimeIpcHandlers(): void {
 
   ipcMain.handle(SDK_RUNTIME_IPC_CHANNELS.notify, (event, input?: ElectronSdkRuntimeNotifyInput) => {
     const dispose = agentRuntimeSubscriptionForNotify(event.sender, input)
-    if (dispose) event.sender.once('destroyed', dispose)
+    if (dispose) trackSenderSubscription(event.sender, dispose)
     return notifyAgentRuntime(input)
   })
 
   ipcMain.handle(SDK_RUNTIME_IPC_CHANNELS.response, (_event, input) => {
     return respondToAgentRuntimeServerRequest(input)
   })
+}
+
+function trackSenderSubscription(sender: WebContents, dispose: () => void): void {
+  let disposers = senderSubscriptionDisposers.get(sender)
+  if (!disposers) {
+    disposers = new Set()
+    senderSubscriptionDisposers.set(sender, disposers)
+    sender.once('destroyed', () => {
+      const current = senderSubscriptionDisposers.get(sender)
+      senderSubscriptionDisposers.delete(sender)
+      for (const currentDispose of current ?? []) currentDispose()
+    })
+  }
+  disposers.add(dispose)
 }
 
 function agentRuntimeInputLogPayload(input?: ElectronSdkRuntimeRequestInput): Record<string, unknown> {

@@ -42,7 +42,7 @@ export type ElectronPluginCatalogPackPlugin = {
 }
 
 export type ElectronProjectPluginInstallInput = ElectronMovScriptHomeInput & {
-  projectId?: string | number
+  projectDir: string
   userId?: string | number
   orgId?: string | number
   id?: string
@@ -84,7 +84,7 @@ export type ElectronSystemPluginUninstallInput = ElectronMovScriptHomeInput & {
 }
 
 export type ElectronProjectPluginToggleInput = ElectronMovScriptHomeInput & {
-  projectId?: string | number
+  projectDir: string
   userId?: string | number
   orgId?: string | number
   pluginKey: string

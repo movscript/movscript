@@ -141,52 +141,17 @@ export function writeMovScriptWorkspaceRootManifest(
   })
 }
 
-export function resolveMovScriptProjectWorkspacePaths(input: {
-  workspaceDir?: string
-  realm?: MovScriptWorkspaceRealmInput | string
-  realmKind?: MovScriptWorkspaceRealm['kind']
-  realmId?: string | number
-  userId?: string | number
-  orgId?: string | number
-  projectId?: string | number
-} = {}): MovScriptProjectWorkspacePaths {
-  const root = resolveMovScriptWorkspaceRootPaths(input.workspaceDir)
-  const realm = normalizeMovScriptWorkspaceRealm(input)
-  const realmDir = resolveMovScriptWorkspaceRealmDir(root.workspaceDir, realm)
-  const ownerPath = projectWorkspaceOwnerPath(input)
-  const projectSegment = input.projectId === undefined ? 'project' : `project_${safeIdSegment(input.projectId)}`
-  const projectCwd = join(realmDir, ...ownerPath, 'projects', projectSegment)
-  return {
-    workspaceDir: root.workspaceDir,
-    controlDir: root.controlDir,
-    realm,
-    realmDir,
-    projectCwd,
-    projectDir: projectCwd,
-  }
-}
-
-export function resolveMovScriptProjectCwd(input: {
-  workspaceDir?: string
-  realm?: MovScriptWorkspaceRealmInput | string
-  realmKind?: MovScriptWorkspaceRealm['kind']
-  realmId?: string | number
-  userId?: string | number
-  orgId?: string | number
-  projectId?: string | number
-} = {}): string {
-  return resolveMovScriptProjectWorkspacePaths(input).projectCwd
-}
-
 export function normalizeMovScriptWorkspaceContext(input: MovScriptWorkspaceContextInput = {}): MovScriptWorkspaceContext {
   const realm = normalizeMovScriptWorkspaceRealm(input)
   const scope = input.scope ?? inferredWorkspaceScope(input)
   const userId = input.userId === undefined ? undefined : safeIdSegment(input.userId)
   const orgId = input.orgId === undefined ? undefined : safeIdSegment(input.orgId)
   const projectId = input.projectId === undefined ? undefined : safeIdSegment(input.projectId)
+  const projectDir = input.projectDir === undefined ? undefined : resolve(input.projectDir)
   if (scope === 'global') return { realm, scope, ...requiredOwnerContext({ userId, orgId }) }
-  if (scope === 'project') return { realm, scope, ...requiredOwnerContext({ userId, orgId }), ...(projectId ? { projectId } : {}) }
-  return { realm, scope, ...requiredOwnerContext({ userId, orgId }), ...(projectId ? { projectId } : {}) }
+  if (!projectDir) throw new Error('MovScript project workspace context requires projectDir')
+  if (scope === 'project') return { realm, scope, ...requiredOwnerContext({ userId, orgId }), projectDir, ...(projectId ? { projectId } : {}) }
+  return { realm, scope, ...requiredOwnerContext({ userId, orgId }), projectDir, ...(projectId ? { projectId } : {}) }
 }
 
 export function resolveMovScriptWorkspaceContextPaths(input: MovScriptWorkspaceContextInput = {}): MovScriptWorkspaceContextPaths {
@@ -196,20 +161,11 @@ export function resolveMovScriptWorkspaceContextPaths(input: MovScriptWorkspaceC
     context.realm.kind,
     context.realm.id,
     context.orgId ? `org/${context.orgId}` : `user/${context.userId}`,
-    context.projectId ? `project/${context.projectId}` : 'global',
+    context.projectDir ? `path/${context.projectDir}` : 'global',
   ].join('/')
   const realmDir = resolveMovScriptWorkspaceRealmDir(root.workspaceDir, context.realm)
   const ownerCwd = join(realmDir, ...workspaceOwnerPath(context))
-  const projectPaths = context.scope === 'global'
-    ? undefined
-    : resolveMovScriptProjectWorkspacePaths({
-        workspaceDir: root.workspaceDir,
-        realm: context.realm,
-        userId: context.userId,
-        orgId: context.orgId,
-        projectId: context.projectId,
-      })
-  const projectCwd = projectPaths?.projectCwd ?? ownerCwd
+  const projectCwd = context.projectDir ?? ownerCwd
   return {
     workspaceDir: root.workspaceDir,
     controlDir: root.controlDir,
@@ -270,12 +226,8 @@ function normalizeWorkspaceLayout(_value: unknown): MovScriptWorkspaceRootManife
 
 function inferredWorkspaceScope(input: MovScriptWorkspaceContextInput): MovScriptWorkspaceScope {
   if (input.scope === 'production') return 'production'
-  if (input.projectId !== undefined) return 'project'
+  if (input.projectDir !== undefined || input.projectId !== undefined) return 'project'
   return 'global'
-}
-
-function projectWorkspaceOwnerPath(input: Pick<MovScriptWorkspaceContextInput, 'userId' | 'orgId'>): string[] {
-  return workspaceOwnerPath(input)
 }
 
 function workspaceOwnerPath(input: Pick<MovScriptWorkspaceContextInput, 'userId' | 'orgId'>): string[] {

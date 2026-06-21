@@ -18,6 +18,7 @@ func ProjectFromModel(project persistencemodel.Project) Project {
 		AspectRatio:   project.AspectRatio,
 		VisualStyle:   project.VisualStyle,
 		ProjectStyle:  project.ProjectStyle,
+		ProjectUID:    project.ProjectUID,
 		Members:       members,
 		CreatedAt:     project.CreatedAt,
 		UpdatedAt:     project.UpdatedAt,
@@ -42,6 +43,7 @@ func (project Project) ApplyToModel(target *persistencemodel.Project) {
 	target.AspectRatio = project.AspectRatio
 	target.VisualStyle = project.VisualStyle
 	target.ProjectStyle = project.ProjectStyle
+	target.ProjectUID = project.ProjectUID
 	target.Members = make([]persistencemodel.ProjectMember, 0, len(project.Members))
 	for _, member := range project.Members {
 		target.Members = append(target.Members, member.ToModel())

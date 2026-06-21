@@ -1,13 +1,14 @@
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { ArrowDown, ArrowUp, Check, Loader2 } from 'lucide-react'
 import { AppTopControlButton } from '@movscript/ui/business/app'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { toast } from '@/shared/ui/toastStore'
 import type { ElectronProjectGitActionInput } from '@/shared/contracts/electronApi'
-import { runProjectGitWorkspaceAction, type ProjectGitWorkspaceAction } from '@/features/project/application/projectGitWorkspace'
+import { projectGitStatusQueryKey, runProjectGitWorkspaceAction, type ProjectGitWorkspaceAction } from '@/features/project/application/projectGitWorkspace'
 
-type GitAction = ProjectGitWorkspaceAction
+type GitAction = Extract<ProjectGitWorkspaceAction, 'commit' | 'pull' | 'push'>
 
 interface ProjectGitHeaderActionsProps {
   compact?: boolean
@@ -17,8 +18,21 @@ export function ProjectGitHeaderActions({ compact = false }: ProjectGitHeaderAct
   const current = useProjectStore((s) => s.current)
   const currentOrgID = useUserStore((s) => s.currentOrgID)
   const [runningAction, setRunningAction] = useState<GitAction | null>(null)
+  const projectDir = current?.workspace_path ?? current?.project_path
+  const gitStatusQuery = useQuery({
+    queryKey: projectGitStatusQueryKey(projectDir, current?.ID),
+    queryFn: async () => {
+      if (!projectDir) return undefined
+      return runProjectGitWorkspaceAction('status', {
+        projectDir,
+        ...(current && current.ID > 0 ? { projectId: current.ID } : {}),
+        ...(currentOrgID ? { orgId: currentOrgID } : {}),
+      })
+    },
+    enabled: Boolean(projectDir),
+  })
 
-  if (!current) return null
+  if (!current || !projectDir || !gitStatusQuery.data?.hasGit) return null
 
   const density = compact ? 'compact' : 'default'
   const iconSize = compact ? 11 : 16
@@ -45,10 +59,15 @@ export function ProjectGitHeaderActions({ compact = false }: ProjectGitHeaderAct
 
   async function runGitAction(action: GitAction) {
     if (!current) return
+    if (!projectDir) {
+      toast.error('项目仓库不可用', '当前项目没有本地路径')
+      return
+    }
     const labels = actionLabels[action]
     console.info('[movscript:project-git-header] action start', { action, projectId: current.ID, orgId: currentOrgID })
     const input: ElectronProjectGitActionInput = {
-      projectId: current.ID,
+      projectDir,
+      ...(current.ID > 0 ? { projectId: current.ID } : {}),
       ...(currentOrgID ? { orgId: currentOrgID } : {}),
     }
     setRunningAction(action)
@@ -64,6 +83,7 @@ export function ProjectGitHeaderActions({ compact = false }: ProjectGitHeaderAct
         return
       }
       toast.success(labels.success, result.path)
+      await gitStatusQuery.refetch()
     } catch (error) {
       console.info('[movscript:project-git-header] action error', { action, error })
       toast.error(labels.failure, error instanceof Error ? error.message : undefined)

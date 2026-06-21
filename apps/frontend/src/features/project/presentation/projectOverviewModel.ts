@@ -56,7 +56,7 @@ export function buildProjectOverviewModel({
       return {
         definition,
         count: standardsDone,
-        detail: `${data.scriptVersions.length} 个剧本版本，${data.settings.length} 个设定可继承规范`,
+        detail: `${data.scriptVersions.length} 个手记版本，${data.settings.length} 个设定可继承规范`,
         progress: standardsProgress,
         state: standardsProgress >= 70 ? 'ready' : standardsProgress > 0 ? 'active' : 'empty',
       }
@@ -65,7 +65,7 @@ export function buildProjectOverviewModel({
       return {
         definition,
         count: contentSignals,
-        detail: `${data.contentUnits.length} 个内容单元，${missingAssets} 个素材缺口`,
+        detail: `${data.contentUnits.length} 个创作片段，${missingAssets} 个素材缺口`,
         progress: contentProgress,
         state: data.productions.length === 0 ? 'blocked' : contentProgress >= 70 ? 'ready' : contentSignals > 0 ? 'active' : 'empty',
       }
@@ -99,8 +99,8 @@ export function projectOverviewLaneLabel(state: ProjectOverviewLaneState) {
 
 export function projectOverviewNextActionLabel(definition: ProjectEntryDefinition) {
   if (definition.id === 'project_standards') return '进入项目规范'
-  if (definition.id === 'orchestration_production') return '进入剧本工作台'
-  if (definition.id === 'content') return '进入 Content'
+  if (definition.id === 'orchestration_production') return '进入创作编排'
+  if (definition.id === 'content') return '进入创作'
   return '进入入口'
 }
 

@@ -82,14 +82,49 @@ export type ElectronLocalProjectOpenInput = {
   projectDir: string
 }
 
+export type ElectronLocalProjectInspectInput = {
+  projectDir: string
+}
+
+export type ElectronLocalProjectInspection = {
+  projectDir: string
+  exists: boolean
+  isDirectory: boolean
+  hasWorkspaceManifest: boolean
+  hasProjectFile: boolean
+  hasLocalConfig: boolean
+  hasMovScriptDir: boolean
+  projectUid?: string
+  projectId?: string
+  title?: string
+  description?: string
+  backendProjectId?: number
+  scopeKind?: 'user' | 'org'
+  scopeId?: string
+  canCreateClean: boolean
+  canOpen: boolean
+  impacts: string[]
+}
+
+export type ElectronLocalProjectBindInput = {
+  projectDir: string
+  projectUid: string
+  backendProjectId: number
+  scopeKind: 'user' | 'org'
+  scopeId: string
+}
+
 export type ElectronLocalProjectResult = {
   projectDir: string
   projectPath: string
+  projectUid?: string
+  projectId?: string
   project: {
     ID: number
     owner_id: number
     name: string
     description: string
+    project_uid?: string
     workspace_path: string
     project_path: string
     local: true
@@ -335,19 +370,27 @@ export type ElectronMovScriptEngineHierarchyNodeWriteInput = ElectronMovScriptEn
 }
 
 export type ElectronProjectGitActionInput = ElectronMovScriptHomeInput & {
-  projectId: number | string
+  projectDir: string
+  projectId?: number | string
   userId?: number | string
   orgId?: number | string
+  remoteURL?: string
 }
 
 export type ElectronProjectGitActionResult = {
   ok: boolean
-  operation: 'commit' | 'init' | 'pull' | 'push'
-  projectId: number
+  operation: 'commit' | 'init' | 'pull' | 'push' | 'status'
+  projectId?: number
   workspaceDir: string
   path: string
   remoteURL?: string
+  remoteName?: string
   branch?: string
+  initialized?: boolean
+  hasGit?: boolean
+  isDirty?: boolean
+  hasHead?: boolean
+  changedFiles?: number
   stdout?: string
   stderr?: string
   error?: string

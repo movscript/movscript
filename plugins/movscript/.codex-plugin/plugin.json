@@ -1,6 +1,6 @@
 {
   "name": "movscript",
-  "version": "0.1.2",
+  "version": "0.1.2+codex.local-20260621-150420",
   "description": "MovScript project focus, domain source editing, planning, review, media query, AI generation, and Electron media editing tools backed by the frontend MCP server.",
   "keywords": [
     "workspace",
@@ -63,6 +63,13 @@
       "domain candidate management",
       "review handoff"
     ],
-    "defaultPrompt": "Use MovScript's system_* tools for current focus, resource-library lookup, shot-library search, external media search, model discovery, and image/video/audio/subtitle generation. Use domain_* tools for MovScript project domain objects: query/read/upsert/update source entities, manage candidates, inspect/review changes, interpret, and read regeneration state. For product video editing, use editing_* tools: create a MediaEditingProject from domain edit_plan context, mutate tracks/clips with editing_timeline_*, check editing_runtime_capabilities_get before local render, and run render/HLS/transcode/reframe through Electron mediaPipeline. Import exports or publish HLS only with explicit editing_export_* tools, and create/adopt/select candidates only when the user or workflow asks for that state change. Resource-level media utilities are only for neutral material preparation, not the main editing path. Treat generation input_resource_ids/reference_resource_ids as MovScript RawResource IDs only. For domain changes, prefer structured domain APIs; when an API does not cover the requested field or structure, call domain_get_model and edit source files under project.json, project_standards.json, settings/**, scripts/**, content_units/**, or productions/**. After each coherent semantic source change, run domain_inspect or domain_review, fix blocking issues, then run domain_interpret. Use domain_regeneration_plan after interpret for affected/stale downstream content units; affected means review, not automatic regeneration."
+    "defaultPrompt": [
+      "Review the current MovScript project state.",
+      "Plan the next MovScript production step.",
+      "Generate or edit media with MovScript tools."
+    ],
+    "websiteURL": "https://movscript.github.io/movscript/",
+    "composerIcon": "./assets/logo.png",
+    "logo": "./assets/logo.png"
   }
 }

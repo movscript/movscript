@@ -4,7 +4,7 @@ import {
 } from '../service.js'
 import type { MovScriptDecisionStore } from '../repository/index.js'
 import { createNodeMovScriptWorkspaceFileRepository } from './fileRepository.js'
-import { resolveMovScriptProjectWorkspacePaths } from './paths.js'
+import { resolve } from 'node:path'
 
 export interface NodeMovScriptWorkspaceServiceInput {
   projectDir?: string
@@ -20,9 +20,7 @@ export type NodeMovScriptWorkspaceService = MovScriptWorkspaceService & {
 export function createNodeMovScriptWorkspaceService(
   input: NodeMovScriptWorkspaceServiceInput = {},
 ): NodeMovScriptWorkspaceService {
-  const projectDir = input.projectDir ?? resolveMovScriptProjectWorkspacePaths({
-    workspaceDir: input.workspaceDir,
-  }).projectDir
+  const projectDir = resolve(input.projectDir ?? input.workspaceDir ?? process.cwd())
   const fileRepository = createNodeMovScriptWorkspaceFileRepository(projectDir)
   const service = createMovScriptWorkspaceService({
     fileRepository,

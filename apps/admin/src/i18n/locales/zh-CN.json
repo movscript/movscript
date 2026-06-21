@@ -107,8 +107,8 @@
     "runningJobRetry": "运行中的任务需失败或超时后才能重试",
     "sceneAlreadyLinked": "该分场已关联到此制作",
     "sceneNotFound": "分场不存在",
-    "scriptContentEmpty": "剧本内容不能为空",
-    "scriptNotFound": "剧本不存在",
+    "scriptContentEmpty": "手记内容不能为空",
+    "scriptNotFound": "手记不存在",
     "shotNotFound": "镜头不存在",
     "storyboardNotFound": "分镜不存在",
     "succeededJobRetry": "成功任务不能重试",
@@ -219,10 +219,10 @@
       "revision": "重改中"
     },
     "scriptTypes": {
-      "main": "主剧本",
-      "mainAlt": "总剧本",
-      "episode": "制作剧本",
-      "scene": "分场剧本"
+      "main": "主手记",
+      "mainAlt": "总手记",
+      "episode": "制作手记",
+      "scene": "分场手记"
     },
     "shotStatus": {
       "workspace": "工作区",
@@ -255,10 +255,10 @@
     }
   },
   "entities": {
-    "scripts": "剧本",
+    "scripts": "手记",
     "segments": "编排段",
     "assetSlots": "素材需求",
-    "contentUnits": "制作项",
+    "contentUnits": "创作片段",
     "keyframes": "关键帧",
     "assets": "素材",
     "episodes": "制作",
@@ -278,7 +278,7 @@
     "description": "描述",
     "descriptionOptional": "描述（可选）",
     "summaryOptional": "简介（可选）",
-    "scriptTitle": "剧本标题",
+    "scriptTitle": "手记标题",
     "assetName": "素材名称",
     "assetTitle": "素材标题",
     "resourceFile": "资源文件",
@@ -299,15 +299,15 @@
     "shotDescription": "镜头描述",
     "locationOptional": "地点（可选）",
     "shootingLocation": "拍摄地点",
-    "linkedScriptOptional": "关联剧本（可选）",
-    "linkedEpisodeScript": "关联制作剧本",
-    "noLinkedEpisodeScript": "暂无关联制作剧本",
+    "linkedScriptOptional": "关联手记（可选）",
+    "linkedEpisodeScript": "关联制作手记",
+    "noLinkedEpisodeScript": "暂无关联制作手记",
     "noScriptDirect": "无（直接制作）",
     "parentSceneOptional": "所属分场（可选）",
     "parentEpisodeOptional": "所属制作（可选）",
     "parentEpisodeRequired": "所属制作 *",
     "selectEpisodeFirst": "请选择制作",
-    "createEpisodeBeforeEpisodeScript": "请先创建制作实体，再创建对应的制作剧本。",
+    "createEpisodeBeforeEpisodeScript": "请先创建制作实体，再创建对应的制作手记。",
     "parentStoryboardOptional": "所属分镜（可选）",
     "parentShotOptional": "所属镜头（可选）",
     "unlinked": "不关联",
@@ -353,8 +353,8 @@
     "noWorkspaceVideo": "暂无底稿视频",
     "generateWorkspace": "AI 生成底稿",
     "contentManagement": "内容管理",
-    "scriptBody": "剧本正文",
-    "scriptSummary": "剧本提纲",
+    "scriptBody": "手记正文",
+    "scriptSummary": "手记提纲",
     "characters": "人物",
     "actions": "动作",
     "dialogue": "对白",
@@ -375,7 +375,7 @@
     "episodeOrder": "集数顺序",
     "hook": "钩子",
     "plotSummary": "剧情推演提纲",
-    "scriptSummaryPlaceholder": "用提纲概括剧本核心内容…",
+    "scriptSummaryPlaceholder": "用提纲概括手记核心内容…",
     "charactersPlaceholder": "人物补充说明…",
     "characterProfiles": "结构化人物档案",
     "characterFreeform": "非结构化人物补充",
@@ -406,7 +406,7 @@
     "episodeHookPlaceholder": "本集核心钩子/看点…",
     "plotSummaryPlaceholder": "本集剧情走向简要描述…",
     "sceneHookPlaceholder": "本场核心内容或目的…",
-    "scriptBodyPlaceholder": "在此输入剧本正文内容…",
+    "scriptBodyPlaceholder": "在此输入手记正文内容…",
     "episodeBodyWorkspace": "制作正文工作区",
     "structureSidebar": "结构侧栏",
     "generatePoints": "正文生成点位",
@@ -449,7 +449,7 @@
   "pages": {
     "projectHome": {
       "badge": "首页",
-      "noDescription": "暂无项目描述。这里会汇总剧本、素材和生产的当前状态。",
+      "noDescription": "暂无项目描述。这里会汇总手记、素材和生产的当前状态。",
       "actions": {
         "continue": "继续推进",
         "viewTasks": "查看任务"
@@ -465,14 +465,14 @@
         "low": "低"
       },
       "metrics": {
-        "scripts": "剧本",
+        "scripts": "手记",
         "episodes": "制作",
         "assets": "素材",
         "storyboards": "分镜",
         "approvedShots": "通过镜头",
         "productionReadiness": "生产就绪度",
         "productionReadinessHint": "按关键阶段综合估算",
-        "scriptAssets": "剧本 / 素材",
+        "scriptAssets": "手记 / 素材",
         "scriptAssetsHint": "内容输入与视觉资产",
         "storyboardShots": "分镜 / 镜头",
         "storyboardShotsHint": "导演拆解与可执行单元",
@@ -494,7 +494,7 @@
       "stages": {
         "script": {
           "title": "制作管理",
-          "description": "导入、分析和校准剧本，为后续资产和镜头拆解提供依据。"
+          "description": "导入、分析和校准手记，为后续资产和镜头拆解提供依据。"
         },
         "references": {
           "title": "设定资料",
@@ -506,11 +506,11 @@
         },
         "production": {
           "title": "制作",
-          "description": "承载一次从剧本、制作管理、资料、素材、内容到成片的完整制作。"
+          "description": "承载一次从手记、制作管理、资料、素材、内容到成片的完整制作。"
         }
       },
       "focus": {
-        "script": "剧本",
+        "script": "手记",
         "storyboard": "分镜",
         "shot": "镜头",
         "nextStep": "下一步",
@@ -745,7 +745,7 @@
         "unknown": "暂无",
         "foundWorkspace": "最近制作管理工作区",
         "noWorkspace": "进入制作管理后会显示最近保存的工作区状态。",
-        "enterProduction": "继续内容制作",
+        "enterProduction": "继续创作",
         "goPreview": "前往制作管理",
         "viewPreview": "查看制作管理"
       }
@@ -776,12 +776,12 @@
       "newProject": "新建项目",
       "enter": "进入",
       "members": "成员",
-      "contentUnitProgress": "制作项进度",
+      "contentUnitProgress": "创作片段进度",
       "storyboardProgress": "分镜进度",
       "approvedCount": "{{approved}}/{{total}} 已通过",
       "status": {
         "planning": "规划",
-        "scriptAnalysis": "剧本分析",
+        "scriptAnalysis": "手记分析",
         "assetPrep": "素材准备",
         "production": "制作",
         "editing": "剪辑",
@@ -793,11 +793,11 @@
       "descriptionPlaceholder": "简单描述一下这个项目",
       "createProject": "创建项目",
       "empty": "还没有项目",
-      "emptyHint": "创建你的第一个短剧项目，开始管理剧本、制作和素材",
+      "emptyHint": "创建你的第一个短剧项目，开始管理手记、制作和素材",
       "createFirst": "创建第一个项目",
       "templateSteps": {
-        "episodeScript": "制作剧本",
-        "sceneScript": "分场剧本"
+        "episodeScript": "制作手记",
+        "sceneScript": "分场手记"
       }
     },
     "jobs": {
@@ -836,9 +836,9 @@
       "emptyHint": "在工具页提交生成任务"
     },
     "scripts": {
-      "empty": "暂无剧本",
+      "empty": "暂无手记",
       "createOne": "新建一个",
-      "createTitle": "新建剧本"
+      "createTitle": "新建手记"
     },
     "episodes": {
       "all": "全部制作",
@@ -1105,7 +1105,7 @@
           "superseded": "已替换"
         },
         "kinds": {
-          "script": "剧本工作区",
+          "script": "手记工作区",
           "setting": "设定资料建议",
           "asset_slot": "素材需求",
           "content_unit": "镜头建议",
@@ -1116,8 +1116,8 @@
           "asset_workspace": "素材候选工作区",
           "project_workspace": "项目工作区",
           "production_workspace": "制作工作区",
-          "content_unit_workspace": "内容单元工作区",
-          "script_split_workspace": "剧本划分工作区"
+          "content_unit_workspace": "创作片段工作区",
+          "script_split_workspace": "手记划分工作区"
         }
       },
       "modes": {
@@ -1139,7 +1139,7 @@
       },
       "suggestions": {
         "planProject": "帮我规划当前项目下一步",
-        "createContentUnit": "根据素材需求创作一个制作项方案",
+        "createContentUnit": "根据素材需求创建一个创作片段方案",
         "reviewAssets": "审查素材需求缺口和风险",
         "buildWorkflow": "拆成可执行工作流"
       },
@@ -1524,10 +1524,10 @@
       "entity_card": "实体"
     },
     "entityTypes": {
-      "script": "剧本",
+      "script": "手记",
       "setting": "设定资料",
       "assetSlot": "素材需求",
-      "contentUnit": "制作项",
+      "contentUnit": "创作片段",
       "asset": "素材",
       "episode": "制作",
       "scene": "分场",
@@ -1816,7 +1816,7 @@
     "description": "描述",
     "shotDescription": "镜头描述",
     "storyboardDescription": "分镜描述",
-    "scriptTitle": "剧本标题",
+    "scriptTitle": "手记标题",
     "attachments": {
       "remove": "移除",
       "upload": "上传"
@@ -1880,9 +1880,9 @@
       "selectProjectFirst": "需要先选择项目"
     },
     "scriptPanel": {
-      "emptyContent": "剧本内容为空",
-      "expandMainScript": "展开总剧本",
-      "noMainScript": "暂无总剧本"
+      "emptyContent": "手记内容为空",
+      "expandMainScript": "展开总手记",
+      "noMainScript": "暂无总手记"
     },
     "toolNode": {
       "fullMode": "完整",
@@ -2694,8 +2694,8 @@
       "members": "成员数",
       "membersTitle": "{{name}} 的项目成员",
       "detailMembers": "成员数",
-      "detailProduction": "内容单元",
-      "detailProductionBreakdown": "{{scripts}} 个剧本 · {{slots}} 个资产槽 · {{resources}} 个资源",
+      "detailProduction": "创作片段",
+      "detailProductionBreakdown": "{{scripts}} 个手记 · {{slots}} 个资产槽 · {{resources}} 个资源",
       "detailUsageCost": "用量成本",
       "detailUsageCalls": "{{count}} 次调用",
       "detailAuditRecords": "审计记录",
@@ -2721,7 +2721,7 @@
       "allStatuses": "全部状态",
       "statuses": {
         "planning": "筹备",
-        "script_analysis": "剧本分析",
+        "script_analysis": "手记分析",
         "asset_prep": "素材准备",
         "production": "制作中",
         "editing": "剪辑中",
@@ -3178,20 +3178,20 @@
       "workbenchPreview": "制作预演",
       "workbenchCreative": "设定准备",
       "workbenchAssets": "素材生成",
-      "workbenchProduction": "内容编排",
+      "workbenchProduction": "创作",
       "workbenchReferenceRelations": "关系校正",
       "assetProductionWorkbench": "素材制作工作台",
-      "contentProductionWorkbench": "内容制作工作台",
-      "scripts": "剧本管理",
+      "contentProductionWorkbench": "创作执行工作台",
+      "scripts": "手记管理",
       "assetSlots": "素材需求",
       "assets": "素材",
       "segments": "编排段",
       "sceneMoments": "情景",
-      "contentUnits": "制作项",
+      "contentUnits": "创作片段",
       "episodes": "制作管理",
       "settings": "设定资料库",
       "referenceRelations": "关系总览",
-      "production": "内容制作",
+      "production": "创作",
       "finalVideos": "成片库",
       "collaboration": "任务",
       "semanticEntities": "语义实体",
@@ -3234,7 +3234,7 @@
     },
     "groups": {},
     "items": {
-      "scripts": "剧本库",
+      "scripts": "手记库",
       "assetSlots": "素材需求",
       "assets": "素材",
       "episodes": "制作",
@@ -3262,14 +3262,14 @@
       "creativeWorkbench": "头脑风暴",
       "projectProduction": "制作",
       "productionOrchestrate": "制作编排",
-      "contentAreaProduction": "制作编排",
-      "script": "剧本",
+      "contentAreaProduction": "创作",
+      "script": "手记",
       "segments": "编排段",
       "sceneMoments": "情景",
       "references": "设定资料",
       "relations": "引用关系",
       "content": "内容",
-      "contentUnits": "制作项",
+      "contentUnits": "创作片段",
       "projectPlan": "筹备总览",
       "semanticEntities": "语义实体",
       "entityManagement": "实体管理",
@@ -3281,7 +3281,7 @@
       "sceneMomentLibrary": "情景库",
       "finalVideoLibrary": "成片库",
       "assetProductionWorkbench": "素材制作工作台",
-      "contentProductionWorkbench": "内容制作工作台",
+      "contentProductionWorkbench": "创作执行工作台",
       "workbench": "一键制作",
       "workbenchScript": "一键制作",
       "workbenchPreview": "制作预演",
@@ -3291,7 +3291,7 @@
       "workbenchReferenceRelations": "关系校正",
       "workbenchProductionPreview": "制作预演",
       "workbenchAssetPreparation": "素材准备",
-      "workbenchContentGeneration": "内容编排",
+      "workbenchContentGeneration": "创作",
       "productionTasks": "任务",
       "user": "用户资料",
       "admin": "管理后台",
@@ -3305,7 +3305,7 @@
       "user": "普通用户"
     },
     "progress": {
-      "scripts": "剧本",
+      "scripts": "手记",
       "episodes": "制作",
       "scenes": "分场",
       "storyboards": "分镜",

@@ -14,23 +14,6 @@ import {
 } from '@/features/agent/components/AgentUnifiedChatShell'
 import type { ProviderConfig, ProviderSettings } from '@/shared/infrastructure/providerConfigStore'
 
-function sourceFunctionBlock(source: string, functionName: string): string {
-  const start = source.indexOf(`function ${functionName}(`)
-  assert.ok(start >= 0, `missing function ${functionName}`)
-  const bodyStart = source.indexOf('{', start)
-  assert.ok(bodyStart >= 0, `missing function body for ${functionName}`)
-  let depth = 0
-  for (let index = bodyStart; index < source.length; index += 1) {
-    const character = source[index]
-    if (character === '{') depth += 1
-    if (character === '}') {
-      depth -= 1
-      if (depth === 0) return source.slice(bodyStart, index + 1)
-    }
-  }
-  assert.fail(`unterminated function ${functionName}`)
-}
-
 function sourceBetween(source: string, startNeedle: string, endNeedle: string): string {
   const start = source.indexOf(startNeedle)
   assert.ok(start >= 0, `missing source marker ${startNeedle}`)
@@ -370,7 +353,7 @@ test('project agent mode project groups only render groups with open conversatio
   assert.doesNotMatch(projectAgentSource, /sourceGroups\.get\(item\.ID\) \?\? \{[\s\S]*threads: \[\]/)
 })
 
-test('project agent mode agent runtime conversations use thread titles and project ids', () => {
+test('project agent mode agent runtime conversations use thread titles and path-first project context', () => {
   const projectAgentSource = [
     readFileSync(resolve('src/features/agent/components/ProjectAgentModePage.tsx'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebar.tsx'), 'utf8'),
@@ -386,7 +369,6 @@ test('project agent mode agent runtime conversations use thread titles and proje
   const sidebarConversationSource = `${projectAgentSidebarPartsSource}\n${projectAgentSidebarItemsSource}`
   const selectConversationSource = projectAgentSource.match(/function selectConversation\(id: string\)[\s\S]*?function archiveConversationFromSidebar/)?.[0] ?? ''
   const projectIdSource = sourceBetween(projectAgentConversationModelSource, 'function conversationProjectId(', 'export function agentRuntimeConversationIdForThread')
-  const cwdProjectIdSource = sourceFunctionBlock(projectAgentContentPanelSource, 'projectIdFromProviderSessionCwd')
 
   assert.match(projectAgentContentPanelSource, /resolveAgentChatShellProfile\(providerSettings, userId, activeRegistryState\)/)
   assert.match(projectAgentContentPanelSource, /const activeProviderProfile = activeProfile\?\.providerProfile/)
@@ -394,13 +376,12 @@ test('project agent mode agent runtime conversations use thread titles and proje
   assert.match(projectAgentContentPanelSource, /providerProtocol: activeProviderProfile\?\.protocol/)
   assert.match(projectAgentContentPanelSource, /provider: activeProfile\?\.provider/)
   assert.doesNotMatch(projectAgentContentPanelSource, /providerInstanceId\(activeProfile\?\.provider|providerProtocol\(activeProfile\?\.provider/)
-  assert.match(hydrationSource, /const projectId = projectIdFromProviderSessionCwd\(thread\.cwd\)/)
-  assert.match(hydrationSource, /\.\.\.\(projectId !== undefined \? \{ projectId \} : \{\}\)/)
-  assert.match(hydrationSource, /function projectIdFromProviderSessionCwd/)
-  assert.ok(cwdProjectIdSource.includes('\\.movscript\\/'))
-  assert.ok(cwdProjectIdSource.includes('local|cloud\\/[^/]+'))
-  assert.ok(cwdProjectIdSource.includes('(?:user|org)\\/[^/]+'))
-  assert.ok(cwdProjectIdSource.includes('projects\\/project_(\\d+)'))
+  assert.match(hydrationSource, /const providerThreadCwd = thread\.cwd\?\.trim\(\)/)
+  assert.match(hydrationSource, /\.\.\.\(providerThreadCwd \? \{ providerThreadCwd \} : \{\}\)/)
+  assert.doesNotMatch(hydrationSource, /projectIdFromProviderSessionCwd/)
+  assert.match(projectAgentContentPanelSource, /projectFromAgentWorkspacePath/)
+  assert.match(projectAgentContentPanelSource, /workspace_path: projectDir/)
+  assert.doesNotMatch(projectAgentContentPanelSource, new RegExp('projects/project_\\\\(\\\\d\\\\+\\\\)'))
   assert.match(projectIdSource, /conversationsById: Record<string, AgentConversationRegistryRecord>/)
   assert.match(projectIdSource, /const recordProjectId = conversation\.id \? context\.conversationsById\[conversation\.id\]\?\.projectId : undefined/)
   assert.match(projectAgentSource, /getConversationTitle: \(conversation: Conversation\) => conversationDisplayTitle\(conversation, t\)/)

@@ -13,6 +13,16 @@ func registerProjectRoutes(protected *gin.RouterGroup, db *gorm.DB, h handlers) 
 
 	protected.GET("/projects", h.projects.List)
 	protected.POST("/projects", h.projects.Create)
+	protected.POST("/projects/resolve", h.projects.Resolve)
+	protected.POST("/projects/ensure", h.projects.Ensure)
+	protected.GET("/project-data/spaces", h.projectData.ListSpaces)
+	protected.POST("/project-data/spaces", h.projectData.EnsureSpace)
+	protected.GET("/project-data/decisions", h.projectData.GetDecision)
+	protected.POST("/project-data/decisions/query", h.projectData.QueryDecisions)
+	protected.PUT("/project-data/decisions/candidates", h.projectData.ReplaceCandidates)
+	protected.POST("/project-data/decisions/candidates", h.projectData.UpsertCandidate)
+	protected.PUT("/project-data/decisions/selection", h.projectData.Select)
+	protected.DELETE("/project-data/decisions/selection", h.projectData.ClearSelection)
 
 	projectRoutes := protected.Group("/projects/:id", middleware.RequireProjectInCurrentOrg(db))
 	{

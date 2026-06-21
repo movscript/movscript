@@ -46,6 +46,48 @@ test('project store exposes explicit project session state', () => {
   assert.equal(useProjectStore.getState().syncStatus, 'idle')
 })
 
+test('project store preserves local project title and path across backend refreshes', () => {
+  useProjectStore.setState({
+    current: null,
+    currentProjectId: null,
+    workspaceRoot: null,
+    lastRoute: null,
+    syncStatus: 'idle',
+    dirtyScopes: [],
+    hydrated: true,
+  })
+
+  useProjectStore.getState().setCurrent(projectFixture({
+    ID: 7,
+    name: 'Readable Local Title',
+    description: 'Local description',
+    project_uid: 'proj_uid_7',
+    workspace_path: '/tmp/readable-local-title',
+    project_path: '/tmp/readable-local-title',
+    local: true,
+  }))
+  useProjectStore.getState().setCurrent(projectFixture({
+    ID: 7,
+    name: 'project 1',
+    description: 'Backend description',
+    project_uid: 'proj_uid_7',
+  }))
+
+  const current = useProjectStore.getState().current
+  assert.equal(current?.name, 'Readable Local Title')
+  assert.equal(current?.description, 'Local description')
+  assert.equal(current?.workspace_path, '/tmp/readable-local-title')
+  assert.equal(current?.project_path, '/tmp/readable-local-title')
+  assert.equal(current?.local, true)
+})
+
+test('project overview plugin query is enabled for path-bound projects', () => {
+  const source = readFileSync(resolve('src/pages/project/ProjectOverviewPage.tsx'), 'utf8')
+
+  assert.match(source, /enabled: Boolean\(projectPluginContext\.projectDir && \(projectPluginContext\.movScriptHomeDir \?\? projectPluginContext\.workspaceDir\)\)/)
+  assert.doesNotMatch(source, /projectPluginsQuery[\s\S]*enabled:[^\n]*!isLocalProject/)
+})
+
 function projectFixture(patch: Partial<Project> = {}): Project {
   return {
     ID: 1,

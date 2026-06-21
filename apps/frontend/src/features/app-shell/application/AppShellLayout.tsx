@@ -28,6 +28,7 @@ import {
   AppShellTerminalDock,
   clampTerminalDockHeight,
 } from '@/features/app-shell/application/AppShellTerminalDock'
+import { agentWorkspaceContextFromProject } from '@/features/agent/presentation/agentComposerWorkspaceModel'
 import {
   clampAgentModeContentPanelWidth,
   clampAgentModeSidebarWidth,
@@ -117,16 +118,15 @@ export function ShellLayout({ children, requireOrg = true }: { children: React.R
   const terminalWorkspaceContext = React.useMemo(() => {
     if (currentProject?.ID) {
       return {
-        scope: 'project' as const,
+        ...agentWorkspaceContextFromProject(currentProject),
         userId: userId || undefined,
-        projectId: currentProject.ID,
       }
     }
     return {
       scope: 'global' as const,
       userId: userId || undefined,
     }
-  }, [currentProject?.ID, userId])
+  }, [currentProject, userId])
   const terminalPlacement = agentChrome ? 'center-right' : 'center'
   const navigateProjectHome = React.useCallback(() => {
     navigate(ROUTES.project.home, { replace: true })

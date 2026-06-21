@@ -32,6 +32,7 @@ import { SUPPORTED_LANGUAGES, type SupportedLanguage } from '@/i18n'
 import { useTheme } from '@/features/app-shell/application/useTheme'
 import { settingsRouteWithReturnPath } from '@/features/app-shell/application/appShellRouteHeaders'
 import { checkForAppUpdate, openAppUpdateDownload, useAppUpdateStatus } from '@/shared/infrastructure/appUpdateStatus'
+import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { runtimeAppTopControls } from '@runtime'
 
 interface AppTopControlsProps {
@@ -51,6 +52,7 @@ export function AppTopControls({
   const { pathname, search } = useLocation()
   const { theme, selectTheme } = useTheme()
   const { t, i18n } = useTranslation()
+  const setLanguage = useAppSettingsStore((s) => s.setLanguage)
   const [globalMenuOpen, setGlobalMenuOpen] = useState(false)
 
   const density = compact ? 'compact' : 'default'
@@ -65,7 +67,7 @@ export function AppTopControls({
 
   function handleLanguageSelect(language: string) {
     if (!(SUPPORTED_LANGUAGES as readonly string[]).includes(language)) return
-    i18n.changeLanguage(language as SupportedLanguage)
+    setLanguage(language as SupportedLanguage)
     setGlobalMenuOpen(false)
   }
 

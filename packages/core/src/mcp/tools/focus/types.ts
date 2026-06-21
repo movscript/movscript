@@ -8,6 +8,11 @@ export interface MCPContextSnapshot {
     id: number
     name: string
     description?: string
+    projectDir?: string
+    projectPath?: string
+    workspacePath?: string
+    project_path?: string
+    workspace_path?: string
     totalEpisodes?: number
   } | null
   productionId?: number | null

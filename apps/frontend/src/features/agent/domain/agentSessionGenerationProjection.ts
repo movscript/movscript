@@ -263,7 +263,7 @@ function runStatusTitle(status: string): string {
 }
 
 function workspaceKindTitle(kind: string | undefined): string | undefined {
-  if (kind === 'content_unit_workspace') return '内容单元工作区'
+  if (kind === 'content_unit_workspace') return '创作片段工作区'
   if (kind === 'asset_workspace') return '素材工作区'
   if (kind === 'production_workspace') return '制作工作区'
   if (kind === 'project_standards_workspace') return '项目规范工作区'
@@ -271,7 +271,7 @@ function workspaceKindTitle(kind: string | undefined): string | undefined {
 }
 
 function toolTitle(toolName: string): string {
-  if (/select|decide/.test(toolName)) return '内容单元候选决策'
+  if (/select|decide/.test(toolName)) return '创作片段候选决策'
   if (/candidate/.test(toolName)) return '候选记录'
   if (/generation|generate/.test(toolName)) return '生成工具调用'
   return toolName || '工具调用'

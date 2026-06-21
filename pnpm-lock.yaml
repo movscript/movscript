@@ -298,6 +298,12 @@ importers:
       '@movscript/mova-app-server-darwin-arm64':
         specifier: 0.0.1-alpha.13
         version: 0.0.1-alpha.13
+      '@movscript/mova-app-server-darwin-x64':
+        specifier: 0.0.1-alpha.13
+        version: 0.0.1-alpha.13
+      '@movscript/mova-app-server-win32-arm64':
+        specifier: 0.0.1-alpha.13
+        version: 0.0.1-alpha.13
       '@movscript/mova-app-server-win32-x64':
         specifier: 0.0.1-alpha.13
         version: 0.0.1-alpha.13
@@ -1009,6 +1015,18 @@ packages:
     engines: {node: '>=16'}
     cpu: [arm64]
     os: [darwin]
+
+  '@movscript/mova-app-server-darwin-x64@0.0.1-alpha.13':
+    resolution: {integrity: sha512-vlffJZdv2u2x+YbsmycZ+w7/bbopRcPTQ/h4+kTUO/5EQf5UaWDpR8ht/BECeC3b+MTyiOxQOO7CweeH25FLfg==}
+    engines: {node: '>=16'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@movscript/mova-app-server-win32-arm64@0.0.1-alpha.13':
+    resolution: {integrity: sha512-OJRy22hVQAAek69AWCmgVx5R+SU7QDklT4Y/Fuj7nrtglQzFQf6Nh3RwGSuNilJKn/iG2RhwWr/+ZSv2BG/G3Q==}
+    engines: {node: '>=16'}
+    cpu: [arm64]
+    os: [win32]
 
   '@movscript/mova-app-server-win32-x64@0.0.1-alpha.13':
     resolution: {integrity: sha512-uvBNYEwJnM44+zyXgDSZjcF2JEfTp7Qluad+9KEAg+YmXdBtvmNCa/QgLoJGbH8puCZPF7z649ogVNlNTXRyEA==}
@@ -4171,6 +4189,12 @@ snapshots:
       - supports-color
 
   '@movscript/mova-app-server-darwin-arm64@0.0.1-alpha.13':
+    optional: true
+
+  '@movscript/mova-app-server-darwin-x64@0.0.1-alpha.13':
+    optional: true
+
+  '@movscript/mova-app-server-win32-arm64@0.0.1-alpha.13':
     optional: true
 
   '@movscript/mova-app-server-win32-x64@0.0.1-alpha.13':

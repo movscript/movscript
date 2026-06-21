@@ -141,6 +141,15 @@ const routeLayoutRegistry: RouteLayoutRegistryEntry[] = [
     projectEntryId: 'project_standards',
   }, exact(ROUTES.project.standards)),
   route({
+    routeId: 'project.settings',
+    pathnamePattern: ROUTES.project.settings,
+    kind: 'page',
+    surface: 'project',
+    scrollMode: 'document',
+    shellLayout: 'stacked',
+    panes: APP_SHELL_PROJECT_PANES,
+  }, exact(ROUTES.project.settings)),
+  route({
     routeId: 'project.scripts',
     pathnamePattern: ROUTES.project.scripts,
     ...PROJECT_WORKSPACE_ROUTE,
@@ -248,6 +257,11 @@ const routeLayoutRegistry: RouteLayoutRegistryEntry[] = [
     pathnamePattern: ROUTES.projects,
     ...TOOL_DOCUMENT_ROUTE,
   }, exact(ROUTES.projects)),
+  route({
+    routeId: 'projectData',
+    pathnamePattern: ROUTES.projectData,
+    ...TOOL_DOCUMENT_ROUTE,
+  }, exact(ROUTES.projectData)),
   route({
     routeId: 'canvases',
     pathnamePattern: ROUTES.canvases,

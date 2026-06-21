@@ -48,8 +48,21 @@ export function writeAccepted(res: ServerResponse): void {
   res.end()
 }
 
-export function setCORSHeaders(res: ServerResponse): void {
-  res.setHeader('Access-Control-Allow-Origin', 'http://localhost')
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+export function setCORSHeaders(res: ServerResponse, origin?: string | string[]): void {
+  const requestOrigin = Array.isArray(origin) ? origin[0] : origin
+  const allowOrigin = requestOrigin && isLocalHTTPOrigin(requestOrigin) ? requestOrigin : 'http://localhost'
+  res.setHeader('Access-Control-Allow-Origin', allowOrigin)
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Org-ID')
+  res.setHeader('Access-Control-Allow-Credentials', 'false')
+}
+
+function isLocalHTTPOrigin(origin: string): boolean {
+  try {
+    const url = new URL(origin)
+    return (url.protocol === 'http:' || url.protocol === 'https:')
+      && ['localhost', '127.0.0.1', '::1', '[::1]'].includes(url.hostname)
+  } catch {
+    return false
+  }
 }

@@ -76,6 +76,11 @@ function contentUnitJobGetTool(name: string, description: string): MCPTool {
       {
         jobId: { type: 'number', minimum: 1 },
         job_id: { type: 'number', minimum: 1 },
+        projectDir: { type: 'string', description: 'MovScript project source directory used when creating successful candidates.' },
+        project_dir: { type: 'string', description: 'Alias for projectDir.' },
+        cwd: { type: 'string', description: 'Alias for projectDir.' },
+        projectUid: { type: 'string', description: 'Optional manifest project_uid used for scoped candidate metadata.' },
+        project_uid: { type: 'string', description: 'Alias for projectUid.' },
         contentUnitId: { type: ['string', 'number'], description: 'Target MovScript content unit id for automatic candidate creation.' },
         content_unit_id: { type: ['string', 'number'], description: 'Alias for contentUnitId.' },
         outputKind: { type: 'string', enum: ['image', 'video'] },

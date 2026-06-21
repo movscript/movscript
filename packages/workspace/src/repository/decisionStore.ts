@@ -72,6 +72,17 @@ export interface MovScriptBackendDecisionStoreOptions {
   fetch?: typeof fetch
 }
 
+export interface MovScriptScopedProjectDataDecisionStoreOptions {
+  baseUrl: string
+  projectUid: string
+  title?: string
+  scopeKind?: 'user' | 'org'
+  scopeId?: string | number
+  token?: string
+  headers?: Record<string, string>
+  fetch?: typeof fetch
+}
+
 export function createMovScriptBackendDecisionStore(
   options: MovScriptBackendDecisionStoreOptions,
 ): MovScriptDecisionStore {
@@ -221,6 +232,178 @@ export function createMovScriptBackendDecisionStore(
     clearContentUnitSelection(input) {
       const targetRef = contentUnitDecisionTargetRef(input.contentUnitId)
       return requiredDecisionContext(request<MovScriptDecisionContext>(`/decisions/selection?target_kind=content_unit&target_ref=${encodeURIComponent(targetRef)}`, {
+        method: 'DELETE',
+      }))
+    },
+  }
+}
+
+export function createMovScriptScopedProjectDataDecisionStore(
+  options: MovScriptScopedProjectDataDecisionStoreOptions,
+): MovScriptDecisionStore {
+  const baseUrl = options.baseUrl.replace(/\/+$/, '')
+  const fetchImpl = options.fetch ?? globalThis.fetch
+  if (!fetchImpl) throw new Error('fetch is required for scoped project data decision store')
+  const headers = (): Record<string, string> => ({
+    'content-type': 'application/json',
+    ...(options.token ? { authorization: `Bearer ${options.token}` } : {}),
+    ...(options.headers ?? {}),
+  })
+  const scopePayload = (): Record<string, unknown> => pruneUndefined({
+    scope_kind: options.scopeKind,
+    scope_id: options.scopeId === undefined ? undefined : String(options.scopeId),
+    project_uid: options.projectUid,
+    title: options.title,
+  })
+  const targetQuery = (targetRef: string): string => {
+    const query = new URLSearchParams()
+    query.set('project_uid', options.projectUid)
+    query.set('target_kind', 'content_unit')
+    query.set('target_ref', targetRef)
+    if (options.scopeKind) query.set('scope_kind', options.scopeKind)
+    if (options.scopeId !== undefined) query.set('scope_id', String(options.scopeId))
+    return query.toString()
+  }
+  const request = async <T>(path: string, init: RequestInit = {}): Promise<T | undefined> => {
+    const response = await fetchImpl(`${baseUrl}/api/v1/project-data${path}`, {
+      ...init,
+      headers: {
+        ...headers(),
+        ...(init.headers ?? {}),
+      },
+    })
+    if (response.status === 404) {
+      console.info('[movscript-decision-store] scoped project data request not found', {
+        projectUid: options.projectUid,
+        scopeKind: options.scopeKind,
+        scopeId: options.scopeId,
+        method: init.method ?? 'GET',
+        path,
+        status: response.status,
+      })
+      return undefined
+    }
+    if (!response.ok) {
+      const body = await response.text().catch(() => '')
+      console.warn('[movscript-decision-store] scoped project data request failed', {
+        projectUid: options.projectUid,
+        scopeKind: options.scopeKind,
+        scopeId: options.scopeId,
+        method: init.method ?? 'GET',
+        path,
+        status: response.status,
+        body,
+      })
+      throw new Error(`scoped project data decision request failed: ${response.status}${body ? ` ${body}` : ''}`)
+    }
+    if (response.status === 204) return undefined
+    return await response.json() as T
+  }
+  return {
+    async getContentUnitDecision(input) {
+      const targetRef = contentUnitDecisionTargetRef(input.contentUnitId)
+      const context = await request<MovScriptDecisionContext>(`/decisions?${targetQuery(targetRef)}`)
+      console.info('[movscript-decision-store] get scoped content unit decision', {
+        projectUid: options.projectUid,
+        contentUnitId: input.contentUnitId,
+        targetRef,
+        found: Boolean(context),
+        candidateCount: context?.candidates.length ?? 0,
+      })
+      return context
+    },
+    async getContentUnitDecisions(input) {
+      const ids = uniqueContentUnitIds(input.contentUnitIds)
+      if (ids.length === 0) return new Map()
+      const contexts = await request<MovScriptDecisionContext[]>('/decisions/query', {
+        method: 'POST',
+        body: JSON.stringify({
+          ...scopePayload(),
+          target_kind: 'content_unit',
+          target_refs: ids.map(contentUnitDecisionTargetRef),
+        }),
+      }) ?? []
+      console.info('[movscript-decision-store] get scoped content unit decisions', {
+        projectUid: options.projectUid,
+        requestedCount: ids.length,
+        foundCount: contexts.length,
+      })
+      const byTargetRef = new Map(contexts.map((context) => [context.target_ref, context]))
+      const out = new Map<string, MovScriptDecisionContext>()
+      for (const id of ids) {
+        const context = byTargetRef.get(contentUnitDecisionTargetRef(id))
+        if (context) out.set(String(id), context)
+      }
+      return out
+    },
+    async replaceContentUnitCandidates(input) {
+      const targetRef = contentUnitDecisionTargetRef(input.contentUnitId)
+      const context = await requiredDecisionContext(request<MovScriptDecisionContext>('/decisions/candidates', {
+        method: 'PUT',
+        body: JSON.stringify({
+          ...scopePayload(),
+          target_kind: 'content_unit',
+          target_ref: targetRef,
+          candidates: input.candidates,
+        }),
+      }))
+      console.info('[movscript-decision-store] replace scoped content unit candidates', {
+        projectUid: options.projectUid,
+        contentUnitId: input.contentUnitId,
+        targetRef,
+        candidateCount: context.candidates.length,
+      })
+      return context
+    },
+    async upsertContentUnitCandidate(input) {
+      const targetRef = contentUnitDecisionTargetRef(input.contentUnitId)
+      const context = await requiredDecisionContext(request<MovScriptDecisionContext>('/decisions/candidates', {
+        method: 'POST',
+        body: JSON.stringify({
+          ...scopePayload(),
+          target_kind: 'content_unit',
+          target_ref: targetRef,
+          candidate: input.candidate,
+        }),
+      }))
+      console.info('[movscript-decision-store] upsert scoped content unit candidate', {
+        projectUid: options.projectUid,
+        contentUnitId: input.contentUnitId,
+        targetRef,
+        candidateId: idField(input.candidate.id),
+        candidateCount: context.candidates.length,
+      })
+      return context
+    },
+    async selectContentUnitCandidate(input) {
+      const targetRef = contentUnitDecisionTargetRef(input.contentUnitId)
+      const context = await requiredDecisionContext(request<MovScriptDecisionContext>('/decisions/selection', {
+        method: 'PUT',
+        body: JSON.stringify({
+          ...scopePayload(),
+          target_kind: 'content_unit',
+          target_ref: targetRef,
+          candidate_id: stringIdField(input.candidateId),
+          resource_id: input.resourceId === undefined ? undefined : requiredResourceId(input.resourceId),
+          stale_policy: input.stalePolicy,
+          reason: input.reason,
+          selected_at: input.selectedAt,
+          metadata: input.metadata,
+        }),
+      }))
+      console.info('[movscript-decision-store] select scoped content unit candidate', {
+        projectUid: options.projectUid,
+        contentUnitId: input.contentUnitId,
+        targetRef,
+        candidateId: stringIdField(input.candidateId),
+        candidateCount: context.candidates.length,
+        hasSelection: Boolean(context.selection),
+      })
+      return context
+    },
+    clearContentUnitSelection(input) {
+      const targetRef = contentUnitDecisionTargetRef(input.contentUnitId)
+      return requiredDecisionContext(request<MovScriptDecisionContext>(`/decisions/selection?${targetQuery(targetRef)}`, {
         method: 'DELETE',
       }))
     },

@@ -328,6 +328,8 @@ test('shell layout consumes mode pane state through the route pane controller', 
   assert.doesNotMatch(appShellSource, /AIAgentPanel/)
   assert.match(appShellSource, /useRouteLayoutPaneController\(\{[\s\S]*paneId: APP_SHELL_TERMINAL_DOCK_PANE_ID[\s\S]*fallbackState: 'hidden'/)
   assert.match(appShellSource, /useRouteLayoutPaneController\(\{[\s\S]*paneId: APP_SHELL_TERMINAL_DOCK_PANE_ID[\s\S]*fallbackSize: APP_SHELL_TERMINAL_DOCK_DEFAULT_HEIGHT[\s\S]*clampSize: clampTerminalDockHeight[\s\S]*fallbackState: 'hidden'/)
+  assert.match(appShellSource, /agentWorkspaceContextFromProject\(currentProject\)/)
+  assert.doesNotMatch(appShellSource, /scope: 'project' as const,[\s\S]*projectId: currentProject\.ID/)
   assert.match(appShellSource, /<AppShellTerminalDock[\s\S]*open=\{terminalOpen\}[\s\S]*paneSize=\{terminalPane\.size\}[\s\S]*onPaneSizeChange=\{terminalPane\.setSize\}/)
   assert.match(appShellTerminalDockSource, /export function clampTerminalDockHeight/)
   assert.match(appShellTerminalDockSource, /useResizablePanel\(\{[\s\S]*size: paneSize[\s\S]*onSizeChange: onPaneSizeChange[\s\S]*resizeEdge: 'top'/)

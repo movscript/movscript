@@ -1,11 +1,13 @@
 export type AppLaunchMode = 'cloud' | 'local'
 export type AppWorkMode = 'project' | 'tool' | 'agent'
+export type AppLanguage = 'zh-CN' | 'en-US'
 
 export interface AppSettings {
   apiBaseURL: string
   launchMode: AppLaunchMode
   workMode: AppWorkMode
   onboardingCompleted: boolean
+  language?: AppLanguage
   cloudAPIBaseURL?: string
   localAPIBaseURL?: string
   movScriptWorkspaceDir?: string
@@ -66,6 +68,7 @@ export function normalizeAppSettings(
     launchMode: settings?.launchMode === 'local' ? 'local' : 'cloud',
     workMode: normalizeWorkMode(settings?.workMode, options.defaultSettings.workMode),
     onboardingCompleted: settings?.onboardingCompleted ?? options.defaultSettings.onboardingCompleted,
+    language: normalizeLanguage(settings?.language, options.defaultSettings.language),
     cloudAPIBaseURL,
     localAPIBaseURL,
     movScriptWorkspaceDir: settings?.movScriptWorkspaceDir?.trim() || undefined,
@@ -83,6 +86,11 @@ function normalizeOptionalAPIBaseURL(value: string | undefined): string | undefi
 function normalizeWorkMode(value: unknown, fallback: AppWorkMode): AppWorkMode {
   if (value === 'agent' || value === 'tool' || value === 'project') return value
   return fallback === 'agent' || fallback === 'tool' ? fallback : 'project'
+}
+
+function normalizeLanguage(value: unknown, fallback: AppLanguage | undefined): AppLanguage | undefined {
+  if (value === 'zh-CN' || value === 'en-US') return value
+  return fallback === 'zh-CN' || fallback === 'en-US' ? fallback : undefined
 }
 
 export function normalizeShotLibrarySources(

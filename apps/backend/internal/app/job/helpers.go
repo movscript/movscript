@@ -18,6 +18,7 @@ type ContextSnapshotInput struct {
 	FeatureKey           string
 	InputResources       []domainjob.InputResource
 	CreatedAt            time.Time
+	Project              *domainjob.ProjectScopeBinding
 	ContentUnitCandidate *domainjob.ContentUnitCandidateBinding
 }
 
@@ -55,6 +56,7 @@ func BuildContextSnapshot(input ContextSnapshotInput) string {
 		FeatureKey:           input.FeatureKey,
 		InputResources:       input.InputResources,
 		CreatedAt:            input.CreatedAt,
+		Project:              input.Project,
 		ContentUnitCandidate: input.ContentUnitCandidate,
 	})
 }

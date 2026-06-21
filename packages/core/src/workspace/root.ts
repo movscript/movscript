@@ -30,6 +30,7 @@ export interface MovScriptWorkspaceContextInput {
   userId?: string | number
   orgId?: string | number
   projectId?: string | number
+  projectDir?: string
 }
 
 export interface MovScriptWorkspaceContext {
@@ -38,6 +39,7 @@ export interface MovScriptWorkspaceContext {
   userId?: string
   orgId?: string
   projectId?: string
+  projectDir?: string
 }
 
 export interface MovScriptWorkspaceRootPaths {

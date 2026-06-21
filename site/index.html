@@ -19,7 +19,7 @@
       <section class="language-panel" lang="en" data-language-panel="en" aria-labelledby="title-en">
         <h1 id="title-en">Movscript</h1>
         <p class="tagline">Video creation for Vibe Motion, AI-planned production, and automatic editing.</p>
-        <p class="support">Movscript currently supports macOS Apple Silicon and Windows x64. Release packages are downloaded from GitHub Releases.</p>
+        <p class="support">Movscript supports macOS Apple Silicon, macOS Intel, Windows x64, and Windows ARM64. Release packages are downloaded from GitHub Releases.</p>
         <p
           class="release-meta"
           data-release-status
@@ -44,13 +44,33 @@
               </button>
             </div>
 
-            <a class="download-button download-button-secondary" href="https://github.com/movscript/movscript/releases/latest" data-release-asset="macos">Download macOS arm64 DMG</a>
-            <p class="note">Paste that in macOS Terminal. The script explains what it will do before installing the latest arm64 desktop app into /Applications.</p>
+            <div class="download-grid" aria-label="macOS downloads">
+              <a class="download-button download-card" href="https://github.com/movscript/movscript/releases/latest" data-release-asset="macos-arm64">
+                <span>Apple Silicon</span>
+                <small>arm64 DMG</small>
+              </a>
+              <a class="download-button download-card" href="https://github.com/movscript/movscript/releases/latest" data-release-asset="macos-x64">
+                <span>Intel Mac</span>
+                <small>x64 DMG</small>
+              </a>
+            </div>
+            <p class="note recommendation" data-download-recommendation>Recommended downloads are selected for your device when detection is available.</p>
+            <p class="note">Paste that in macOS Terminal. The script explains what it will do before installing the latest desktop app into /Applications.</p>
           </div>
 
           <div class="platform-panel" role="tabpanel" data-platform-panel="windows" hidden>
-            <a class="download-button" href="https://github.com/movscript/movscript/releases/latest" data-release-asset="windows">Download Windows x64 installer</a>
-            <p class="note">Download the latest Windows x64 <code>.exe</code> installer from GitHub Releases. The installer lets you choose the program installation directory.</p>
+            <div class="download-grid" aria-label="Windows downloads">
+              <a class="download-button download-card" href="https://github.com/movscript/movscript/releases/latest" data-release-asset="windows-x64">
+                <span>Windows x64</span>
+                <small>Intel / AMD installer</small>
+              </a>
+              <a class="download-button download-card" href="https://github.com/movscript/movscript/releases/latest" data-release-asset="windows-arm64">
+                <span>Windows ARM64</span>
+                <small>Snapdragon / ARM installer</small>
+              </a>
+            </div>
+            <p class="note recommendation" data-download-recommendation>Recommended downloads are selected for your device when detection is available.</p>
+            <p class="note">Download the latest <code>.exe</code> installer from GitHub Releases. The installer lets you choose the program installation directory.</p>
           </div>
 
           <p class="note links-note">Read about <a href="https://github.com/movscript/movscript/blob/main/docs/install.md">installation options</a> or download all packages from <a href="https://github.com/movscript/movscript/releases/latest">GitHub Releases</a>.</p>
@@ -60,7 +80,7 @@
       <section class="language-panel" lang="zh-Hans" data-language-panel="zh" aria-labelledby="title-zh" hidden>
         <h1 id="title-zh">Movscript</h1>
         <p class="tagline">面向 Vibe Motion、AI 规划成片与自动剪辑的视频创作工具。</p>
-        <p class="support">Movscript 目前支持 macOS Apple Silicon 与 Windows x64。桌面安装包从 GitHub Releases 下载。</p>
+        <p class="support">Movscript 目前支持 macOS Apple Silicon、macOS Intel、Windows x64 和 Windows ARM64。桌面安装包从 GitHub Releases 下载。</p>
         <p
           class="release-meta"
           data-release-status
@@ -85,13 +105,33 @@
               </button>
             </div>
 
-            <a class="download-button download-button-secondary" href="https://github.com/movscript/movscript/releases/latest" data-release-asset="macos">下载 macOS arm64 DMG</a>
-            <p class="note">将这段命令粘贴到 macOS 终端中运行。脚本会在安装最新 arm64 桌面应用到 /Applications 前说明将要执行的操作。</p>
+            <div class="download-grid" aria-label="macOS 下载">
+              <a class="download-button download-card" href="https://github.com/movscript/movscript/releases/latest" data-release-asset="macos-arm64">
+                <span>Apple Silicon</span>
+                <small>arm64 DMG</small>
+              </a>
+              <a class="download-button download-card" href="https://github.com/movscript/movscript/releases/latest" data-release-asset="macos-x64">
+                <span>Intel Mac</span>
+                <small>x64 DMG</small>
+              </a>
+            </div>
+            <p class="note recommendation" data-download-recommendation>能识别设备时，会自动为你高亮推荐下载项。</p>
+            <p class="note">将这段命令粘贴到 macOS 终端中运行。脚本会在安装最新桌面应用到 /Applications 前说明将要执行的操作。</p>
           </div>
 
           <div class="platform-panel" role="tabpanel" data-platform-panel="windows" hidden>
-            <a class="download-button" href="https://github.com/movscript/movscript/releases/latest" data-release-asset="windows">下载 Windows x64 安装器</a>
-            <p class="note">从 GitHub Releases 下载最新 Windows x64 <code>.exe</code> 安装器。安装器会让你选择程序安装目录。</p>
+            <div class="download-grid" aria-label="Windows 下载">
+              <a class="download-button download-card" href="https://github.com/movscript/movscript/releases/latest" data-release-asset="windows-x64">
+                <span>Windows x64</span>
+                <small>Intel / AMD 安装器</small>
+              </a>
+              <a class="download-button download-card" href="https://github.com/movscript/movscript/releases/latest" data-release-asset="windows-arm64">
+                <span>Windows ARM64</span>
+                <small>Snapdragon / ARM 安装器</small>
+              </a>
+            </div>
+            <p class="note recommendation" data-download-recommendation>能识别设备时，会自动为你高亮推荐下载项。</p>
+            <p class="note">从 GitHub Releases 下载最新 <code>.exe</code> 安装器。安装器会让你选择程序安装目录。</p>
           </div>
 
           <p class="note links-note">查看<a href="https://github.com/movscript/movscript/blob/main/docs/install.md">安装选项</a>，或从 <a href="https://github.com/movscript/movscript/releases/latest">GitHub Releases</a> 下载所有安装包。</p>

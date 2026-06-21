@@ -129,9 +129,9 @@ export function getProductionAnalysisText(target: ProductionAnalysisTarget, inpu
     return [
       `编排段：${titleOfRecord(segment)}`,
       segment.summary ? `摘要：${segment.summary}` : '',
-      segment.content ? `剧本正文：\n${segment.content}` : '',
+      segment.content ? `手记正文：\n${segment.content}` : '',
       moments.length > 0 ? `情节：\n${moments.map(serializeSceneMoment).join('\n\n')}` : '',
-      units.length > 0 ? `制作项：\n${units.map(serializeContentUnit).join('\n\n')}` : '',
+      units.length > 0 ? `创作片段：\n${units.map(serializeContentUnit).join('\n\n')}` : '',
       refs.length > 0 ? `相关设定资料：\n${refs.map(serializeSetting).join('\n\n')}` : '',
       slots.length > 0 ? `相关素材需求：\n${slots.map(serializeAssetSlot).join('\n\n')}` : '',
     ].filter(Boolean).join('\n\n')
@@ -155,7 +155,7 @@ export function getProductionAnalysisText(target: ProductionAnalysisTarget, inpu
       moment.action_text ? `动作：${moment.action_text}` : '',
       moment.mood ? `情绪：${moment.mood}` : '',
       segmentRecord ? `所属编排段：${titleOfRecord(segmentRecord)}` : '',
-      units.length > 0 ? `制作项：\n${units.map(serializeContentUnit).join('\n\n')}` : '',
+      units.length > 0 ? `创作片段：\n${units.map(serializeContentUnit).join('\n\n')}` : '',
       refs.length > 0 ? `相关设定资料：\n${refs.map(serializeSetting).join('\n\n')}` : '',
       slots.length > 0 ? `相关素材需求：\n${slots.map(serializeAssetSlot).join('\n\n')}` : '',
     ].filter(Boolean).join('\n\n')
@@ -215,7 +215,7 @@ export function getProductionAnalysisText(target: ProductionAnalysisTarget, inpu
     const refs = collectReferencesFromUnitsAndMoments(input.settings, input.assetSlots, moment ? [moment] : [], [unit])
     const slots = input.assetSlots.filter((slot) => slot.owner_type === 'content_unit' && slot.owner_id === unit.ID)
     return [
-      `制作项：${titleOfRecord(unit)}`,
+      `创作片段：${titleOfRecord(unit)}`,
       unit.kind ? `类型：${unit.kind}` : '',
       unit.description ? `描述：${unit.description}` : '',
       unit.prompt ? `提示：${unit.prompt}` : '',
@@ -327,7 +327,7 @@ function formatOwnerLabel(ownerType?: string, ownerId?: number, lookup?: {
   if (!ownerType || !ownerId || !lookup) return ''
   if (ownerType === 'segment') return lookup.segmentById.get(ownerId) ? `编排段 · ${titleOfRecord(lookup.segmentById.get(ownerId))}` : `编排段 #${ownerId}`
   if (ownerType === 'scene_moment') return lookup.sceneMomentById.get(ownerId) ? `情节 · ${titleOfRecord(lookup.sceneMomentById.get(ownerId))}` : `情节 #${ownerId}`
-  if (ownerType === 'content_unit') return lookup.contentUnitById.get(ownerId) ? `制作项 · ${titleOfRecord(lookup.contentUnitById.get(ownerId))}` : `制作项 #${ownerId}`
+  if (ownerType === 'content_unit') return lookup.contentUnitById.get(ownerId) ? `创作片段 · ${titleOfRecord(lookup.contentUnitById.get(ownerId))}` : `创作片段 #${ownerId}`
   if (ownerType === 'setting') return lookup.settingById.get(ownerId) ? `设定资料 · ${titleOfRecord(lookup.settingById.get(ownerId))}` : `设定资料 #${ownerId}`
   return `${ownerType} #${ownerId}`
 }

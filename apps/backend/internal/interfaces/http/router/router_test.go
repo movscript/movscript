@@ -54,6 +54,16 @@ func TestNewRegistersCoreRoutes(t *testing.T) {
 		"POST /api/v1/agent/telemetry",
 		"GET /api/v1/canvases",
 		"GET /api/v1/projects",
+		"POST /api/v1/projects/resolve",
+		"POST /api/v1/projects/ensure",
+		"GET /api/v1/project-data/spaces",
+		"POST /api/v1/project-data/spaces",
+		"GET /api/v1/project-data/decisions",
+		"POST /api/v1/project-data/decisions/query",
+		"PUT /api/v1/project-data/decisions/candidates",
+		"POST /api/v1/project-data/decisions/candidates",
+		"PUT /api/v1/project-data/decisions/selection",
+		"DELETE /api/v1/project-data/decisions/selection",
 		"GET /api/v1/projects/:id/workspace",
 		"GET /api/v1/projects/:id/decisions",
 		"POST /api/v1/projects/:id/decisions/query",
@@ -172,6 +182,158 @@ func TestProjectWorkspaceReturnsTemporaryGitRemoteURL(t *testing.T) {
 	}
 	if claims.Purpose != tokenauth.GitProxyTokenPurpose || claims.ProjectID != project.ID || claims.OrgID != org.ID {
 		t.Fatalf("git token claims = %+v", claims)
+	}
+}
+
+func TestProjectResolveAndEnsureUseProjectUIDWithoutLocalPath(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := testutil.OpenSQLite(t, "router-project-identity.db",
+		&persistencemodel.User{},
+		&persistencemodel.Organization{},
+		&persistencemodel.OrganizationMember{},
+		&persistencemodel.Project{},
+		&persistencemodel.ProjectMember{},
+	)
+	tokens, err := tokenauth.NewManager("0123456789abcdef0123456789abcdef", time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := New(Dependencies{Config: &config.Config{}, DB: db, Tokens: tokens})
+	user := persistencemodel.User{Username: "project-identity-user", Status: "active", SystemRole: domainauth.SystemRoleUser}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatal(err)
+	}
+	org := persistencemodel.Organization{Name: "Project Identity Org", Slug: "project-identity-org", Status: "active", CreatedBy: user.ID}
+	if err := db.Create(&org).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&persistencemodel.OrganizationMember{OrgID: org.ID, UserID: user.ID, Role: "owner"}).Error; err != nil {
+		t.Fatal(err)
+	}
+	bearer, _, err := tokens.Issue(tokenauth.Subject{UserID: user.ID, Username: user.Username, SystemRole: user.SystemRole})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	body := `{"project_uid":"prj_local_identity","name":"Readable Project","description":"desc","local_path":"/tmp/should-not-be-stored"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/projects/ensure", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+bearer)
+	req.Header.Set("X-Org-ID", strconv.FormatUint(uint64(org.ID), 10))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("ensure status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var ensured struct {
+		Created bool `json:"created"`
+		Project struct {
+			ID         uint   `json:"ID"`
+			Name       string `json:"name"`
+			ProjectUID string `json:"project_uid"`
+			LocalPath  string `json:"local_path"`
+		} `json:"project"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &ensured); err != nil {
+		t.Fatalf("decode ensure response: %v", err)
+	}
+	if !ensured.Created || ensured.Project.ProjectUID != "prj_local_identity" || ensured.Project.Name != "Readable Project" || ensured.Project.LocalPath != "" {
+		t.Fatalf("ensure response = %+v", ensured)
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/projects/resolve", strings.NewReader(`{"project_uid":"prj_local_identity"}`))
+	req.Header.Set("Authorization", "Bearer "+bearer)
+	req.Header.Set("X-Org-ID", strconv.FormatUint(uint64(org.ID), 10))
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("resolve status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var resolved struct {
+		Project struct {
+			ID         uint   `json:"ID"`
+			ProjectUID string `json:"project_uid"`
+			LocalPath  string `json:"local_path"`
+		} `json:"project"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resolved); err != nil {
+		t.Fatalf("decode resolve response: %v", err)
+	}
+	if resolved.Project.ID != ensured.Project.ID || resolved.Project.ProjectUID != "prj_local_identity" || resolved.Project.LocalPath != "" {
+		t.Fatalf("resolve response = %+v", resolved)
+	}
+}
+
+func TestProjectDataRoutesUseScopedProjectUID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := testutil.OpenSQLite(t, "router-project-data.db",
+		&persistencemodel.User{},
+		&persistencemodel.Organization{},
+		&persistencemodel.OrganizationMember{},
+		&persistencemodel.ProjectDataSpace{},
+		&persistencemodel.ProjectDataDecisionContext{},
+	)
+	tokens, err := tokenauth.NewManager("0123456789abcdef0123456789abcdef", time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := New(Dependencies{Config: &config.Config{}, DB: db, Tokens: tokens})
+
+	user := persistencemodel.User{Username: "project-data-user", Status: "active", SystemRole: domainauth.SystemRoleUser}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatal(err)
+	}
+	org := persistencemodel.Organization{Name: "Project Data Org", Slug: "project-data-org", Status: "active", CreatedBy: user.ID}
+	if err := db.Create(&org).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&persistencemodel.OrganizationMember{OrgID: org.ID, UserID: user.ID, Role: "owner"}).Error; err != nil {
+		t.Fatal(err)
+	}
+	bearer, _, err := tokens.Issue(tokenauth.Subject{UserID: user.ID, Username: user.Username, SystemRole: user.SystemRole})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	body := `{"project_uid":"prj_http","title":"HTTP Project","target_kind":"content_unit","target_ref":"content_units/cu_a","candidates":[{"id":"candidate_a","resource_id":101}]}`
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/project-data/decisions/candidates", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+bearer)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("replace scoped candidates status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/project-data/spaces?scope_kind=user", nil)
+	req.Header.Set("Authorization", "Bearer "+bearer)
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list scoped spaces status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var spaces struct {
+		Items []struct {
+			ScopeKind      string `json:"scope_kind"`
+			ScopeID        string `json:"scope_id"`
+			ProjectUID     string `json:"project_uid"`
+			CandidateCount int64  `json:"candidate_count"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &spaces); err != nil {
+		t.Fatalf("decode project data spaces: %v", err)
+	}
+	if len(spaces.Items) != 1 || spaces.Items[0].ProjectUID != "prj_http" || spaces.Items[0].CandidateCount != 1 {
+		t.Fatalf("unexpected project data spaces: %#v", spaces.Items)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/project-data/spaces?scope_kind=user&scope_id=999999", nil)
+	req.Header.Set("Authorization", "Bearer "+bearer)
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("foreign user scope status = %d, want 403; body = %s", rec.Code, rec.Body.String())
 	}
 }
 

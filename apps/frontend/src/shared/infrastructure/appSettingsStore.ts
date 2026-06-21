@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
+import i18n, { isSupportedLanguage, type SupportedLanguage } from '@/i18n'
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware'
 import { readBrowserStorageItem, removeBrowserStorageItem, writeBrowserStorageItem } from '@/shared/infrastructure/browserStorage'
 import {
@@ -22,6 +23,7 @@ interface AppSettingsStore {
   setOnboardingSettings: (settings: Partial<AppSettings>) => void
   setLaunchMode: (launchMode: AppSettings['launchMode']) => void
   setWorkMode: (workMode: AppSettings['workMode']) => void
+  setLanguage: (language: SupportedLanguage) => void
   setAPIBaseURL: (apiBaseURL: string) => void
   setMovScriptWorkspaceDir: (workspaceDir: string) => void
   setShotLibrarySources: (sources: ShotLibrarySourceConfig[], defaultSourceId?: string) => void
@@ -34,8 +36,12 @@ const defaultSettings: AppSettings = {
   localAPIBaseURL: getLocalAPIBaseURL(),
   launchMode: 'cloud',
   workMode: 'project',
+  language: isSupportedLanguage(i18n.language) ? i18n.language : undefined,
   onboardingCompleted: true,
 }
+
+let applyingExternalSettings = false
+let appSettingsUpdateListenerInstalled = false
 
 const appSettingsBrowserStorage: StateStorage = {
   getItem: (key) => readBrowserStorageItem('local', key),
@@ -68,7 +74,32 @@ export async function saveElectronAppSettings(settings: AppSettings): Promise<vo
 }
 
 function syncElectronSettings(settings: AppSettings): void {
+  if (applyingExternalSettings) return
   void saveElectronAppSettings(settings)
+}
+
+function applyLanguageFromSettings(settings: AppSettings): void {
+  if (settings.language && settings.language !== i18n.language) {
+    void i18n.changeLanguage(settings.language)
+  }
+}
+
+function installAppSettingsUpdateListener(): void {
+  if (appSettingsUpdateListenerInstalled || typeof window === 'undefined') return
+  appSettingsUpdateListenerInstalled = true
+  readElectronApi()?.onAppSettingsUpdated?.((settings) => {
+    applyingExternalSettings = true
+    try {
+      const next = normalizeSettings(settings)
+      useAppSettingsStore.setState({
+        settings: next,
+        savedAt: new Date().toISOString(),
+      })
+      applyLanguageFromSettings(next)
+    } finally {
+      applyingExternalSettings = false
+    }
+  })
 }
 
 export function sanitizeAppSettingsForPersistence(settings: AppSettings): AppSettings {
@@ -98,10 +129,12 @@ async function hydrateElectronAppSettings(): Promise<void> {
   if (api?.getAppSettings) {
     const desktopSettings = await withTimeout(api.getAppSettings(), 2_000)
     if (desktopSettings) {
+      const settings = normalizeSettings(desktopSettings)
       useAppSettingsStore.setState({
-        settings: normalizeSettings(desktopSettings),
+        settings,
         savedAt: new Date().toISOString(),
       })
+      applyLanguageFromSettings(settings)
     }
   }
   if (api?.getAppSettingsSecrets) {
@@ -171,6 +204,13 @@ export const useAppSettingsStore = create<AppSettingsStore>()(
         set({ settings: next, savedAt: new Date().toISOString() })
         syncElectronSettings(next)
       },
+      setLanguage: (language) => {
+        if (!isSupportedLanguage(language)) return
+        const next = normalizeSettings({ ...useAppSettingsStore.getState().settings, language })
+        set({ settings: next, savedAt: new Date().toISOString() })
+        void i18n.changeLanguage(language)
+        syncElectronSettings(next)
+      },
       setAPIBaseURL: (apiBaseURL) => {
         const current = useAppSettingsStore.getState().settings
         const normalizedAPIBaseURL = normalizeAPIBaseURL(apiBaseURL)
@@ -218,6 +258,7 @@ export const useAppSettingsStore = create<AppSettingsStore>()(
         }
       },
       onRehydrateStorage: () => (state) => {
+        installAppSettingsUpdateListener()
         if (!state) {
           scheduleAppSettingsHydration(() => useAppSettingsStore.setState({ hydrated: true }))
           return

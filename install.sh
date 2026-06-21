@@ -6,7 +6,7 @@ RELEASE="${MOVSCRIPT_RELEASE:-latest}"
 INSTALL_DIR="${MOVSCRIPT_INSTALL_DIR:-/Applications}"
 APP_NAME="${MOVSCRIPT_APP_NAME:-Movscript.app}"
 ASSET="${MOVSCRIPT_ASSET:-}"
-ASSET_PREFIX="${MOVSCRIPT_ASSET_PREFIX:-movscript-desktop-macos-arm64-Movscript}"
+ASSET_PREFIX="${MOVSCRIPT_ASSET_PREFIX:-}"
 CHECKSUM_ASSET="${MOVSCRIPT_CHECKSUM_ASSET:-SHA256SUMS.txt}"
 VERIFY_CHECKSUM=1
 FORCE=0
@@ -123,7 +123,16 @@ while [ "$#" -gt 0 ]; do
 done
 
 [ "$(uname -s)" = "Darwin" ] || fail "only macOS is supported by this installer right now"
-[ "$(uname -m)" = "arm64" ] || fail "only macOS Apple Silicon / arm64 is supported right now"
+MACHINE_ARCH=$(uname -m)
+case "$MACHINE_ARCH" in
+  arm64) DEFAULT_ASSET_PREFIX="movscript-desktop-macos-arm64-Movscript" ;;
+  x86_64) DEFAULT_ASSET_PREFIX="movscript-desktop-macos-x64-Movscript" ;;
+  *) fail "unsupported macOS architecture: $MACHINE_ARCH" ;;
+esac
+
+if [ -z "$ASSET_PREFIX" ]; then
+  ASSET_PREFIX=$DEFAULT_ASSET_PREFIX
+fi
 
 case "$REPO" in
   */*) ;;

@@ -24,50 +24,28 @@ import {
   readMovScriptWorkspaceRootManifest,
   resolveMovScriptHomeConfigPaths,
   resolveMovScriptHomeDir,
-  resolveMovScriptProjectCwd,
-  resolveMovScriptProjectWorkspacePaths,
   resolveMovScriptWorkspaceContextPaths,
   resolveMovScriptWorkspaceRuntimePaths,
   resolveMovScriptWorkspaceRootPaths,
   writeMovScriptHomeConfig,
 } from '../dist/workspace/node/index.js'
 
-test('core workspace resolves project cwd by user, org, and project ids', () => {
+test('core workspace project cwd is explicit projectDir, not derived from ids', () => {
   const workspaceDir = '/tmp/movscript-root'
+  const projectDir = '/tmp/film-project'
 
-  assert.equal(
-    resolveMovScriptProjectCwd({ workspaceDir, userId: 7, projectId: 'demo' }),
-    '/tmp/movscript-root/realms/local/user/7/projects/project_demo',
-  )
-  assert.equal(
-    resolveMovScriptProjectWorkspacePaths({ workspaceDir, orgId: 'team_a', projectId: 42 }).projectDir,
-    '/tmp/movscript-root/realms/local/org/team_a/projects/project_42',
-  )
+  const paths = resolveMovScriptWorkspaceContextPaths({ workspaceDir, userId: 7, scope: 'project', projectDir })
+  assert.equal(paths.projectCwd, projectDir)
+  assert.equal(paths.providerSessionCwd, projectDir)
   assert.throws(
-    () => resolveMovScriptProjectCwd({ workspaceDir }),
-    /requires userId or orgId/,
+    () => resolveMovScriptWorkspaceContextPaths({ workspaceDir, userId: 7, projectId: 'demo' }),
+    /requires projectDir/,
   )
 })
 
-test('core workspace isolates local and cloud realms for the same user and project ids', async () => {
+test('core workspace keeps backend realms isolated without project path derivation', async () => {
   const workspaceDir = await mkdtemp(join(tmpdir(), 'movscript-core-realm-'))
   try {
-    const localProject = resolveMovScriptProjectCwd({
-      workspaceDir,
-      userId: 1,
-      projectId: 42,
-    })
-    const cloudProject = resolveMovScriptProjectCwd({
-      workspaceDir,
-      realm: { kind: 'cloud', id: 'cloud_a' },
-      userId: 1,
-      projectId: 42,
-    })
-
-    assert.equal(localProject, join(workspaceDir, 'realms', 'local', 'user', '1', 'projects', 'project_42'))
-    assert.equal(cloudProject, join(workspaceDir, 'realms', 'cloud', 'cloud_a', 'user', '1', 'projects', 'project_42'))
-    assert.notEqual(localProject, cloudProject)
-
     writeMovScriptBackendConfig(workspaceDir, {
       baseURL: 'https://cloud.example',
       realm: { kind: 'cloud', id: 'cloud_a' },
@@ -94,16 +72,17 @@ test('core workspace isolates local and cloud realms for the same user and proje
 })
 
 test('core workspace context forwards project cwd as provider session cwd', () => {
+  const projectDir = '/tmp/trailer'
   const paths = resolveMovScriptWorkspaceContextPaths({
     workspaceDir: '/tmp/movscript-root',
     userId: 'alice',
-    projectId: 'trailer',
+    projectDir,
   })
 
   assert.equal(paths.scope, 'project')
-  assert.equal(paths.projectCwd, '/tmp/movscript-root/realms/local/user/alice/projects/project_trailer')
+  assert.equal(paths.projectCwd, projectDir)
   assert.equal(paths.providerSessionCwd, paths.projectCwd)
-  assert.equal(paths.contextKey, 'local/local/user/alice/project/trailer')
+  assert.match(paths.contextKey, /local\/local\/user\/alice\/path\//)
 })
 
 test('core workspace root and context only create app workspace directories', async () => {
@@ -114,7 +93,7 @@ test('core workspace root and context only create app workspace directories', as
     const contextPaths = ensureMovScriptWorkspaceContext(resolveMovScriptWorkspaceContextPaths({
       workspaceDir,
       userId: 'alice',
-      projectId: 'demo',
+      projectDir: join(workspaceDir, 'demo-project'),
     }))
 
     assert.equal(manifest.schema, 'movscript.project-workspace.v1')

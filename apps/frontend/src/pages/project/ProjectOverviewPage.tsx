@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertCircle, Blocks, FilePlus2, FileText, LayoutDashboard } from 'lucide-react'
+import { AlertCircle, Blocks, FilePlus2, FileText, LayoutDashboard, Settings } from 'lucide-react'
 import { AppContentLayout, ProjectSurfaceHeader } from '@movscript/ui/layout'
 import { Button } from '@movscript/ui/primitives'
 
@@ -20,6 +20,7 @@ import {
   scriptCreatedResult,
 } from '@/features/scripts/application/scriptMutationInvalidation'
 import {
+  ProjectBuiltInStandardsPluginCard,
   ProjectOverviewScriptCard,
   ProjectSystemPluginCard,
   ProjectOverviewWorkbenchCard,
@@ -68,17 +69,16 @@ export default function ProjectOverviewPage() {
     queryFn: () => listWorkspaceScripts(projectId!, workspaceContext),
     enabled: !!projectId,
   })
-  const workspaceRootQuery = useQuery({ queryKey: projectOverviewKeys.workspaceRoot, queryFn: () => requireWorkspaceRootAPI().getRoot(), enabled: !!projectId && !isLocalProject })
+  const workspaceRootQuery = useQuery({ queryKey: projectOverviewKeys.workspaceRoot, queryFn: () => requireWorkspaceRootAPI().getRoot(), enabled: Boolean(projectId || projectDir) })
   const movScriptHomeDir = workspaceRootQuery.data?.movScriptHomeDir ?? workspaceRootQuery.data?.workspaceDir
   const projectPluginContext = useMemo<ProjectPluginContext>(() => ({
     ...(movScriptHomeDir ? { movScriptHomeDir, workspaceDir: movScriptHomeDir } : {}),
-    ...(projectId ? { projectId } : {}),
     ...workspaceContext,
-  }), [movScriptHomeDir, projectId, workspaceContext])
+  }), [movScriptHomeDir, workspaceContext])
   const projectPluginsQuery = useQuery({
-    queryKey: projectOverviewKeys.plugins(projectPluginContext.movScriptHomeDir ?? projectPluginContext.workspaceDir, projectPluginContext.projectId, projectPluginContext.userId ?? projectPluginContext.orgId),
+    queryKey: projectOverviewKeys.plugins(projectPluginContext.movScriptHomeDir ?? projectPluginContext.workspaceDir, projectPluginContext.projectDir, projectPluginContext.userId ?? projectPluginContext.orgId),
     queryFn: () => loadProjectPluginSnapshot(projectPluginContext),
-    enabled: !!projectId && !!movScriptHomeDir && !isLocalProject,
+    enabled: Boolean(projectPluginContext.projectDir && (projectPluginContext.movScriptHomeDir ?? projectPluginContext.workspaceDir)),
   })
 
   async function handleProjectPluginToggle(plugin: ProjectPluginSnapshot['systemPlugins'][number], enabled: boolean) {
@@ -97,13 +97,15 @@ export default function ProjectOverviewPage() {
 
   const overviewModel = useMemo(() => buildProjectOverviewModel({ data, project }), [data, project])
   const projectSystemPlugins = projectPluginsQuery.data?.systemPlugins ?? []
+  const projectStandardsLane = overviewModel.lanes.find((lane) => lane.definition.id === 'project_standards')
+  const homeEntryLanes = overviewModel.homeEntryLanes.filter((lane) => lane.definition.id !== 'project_standards')
   const scripts = useMemo(() => (scriptsQuery.data ?? []).slice().sort((a, b) => (a.order || 0) - (b.order || 0) || a.ID - b.ID), [scriptsQuery.data])
   const createScript = useMutation({
     mutationFn: () => {
       if (!projectId) throw new Error('请选择项目')
       const scriptNumber = scripts.length + 1
       return createWorkspaceScript(projectId, {
-        title: `新剧本 ${scriptNumber}`,
+        title: `新手记 ${scriptNumber}`,
         script_type: 'uncategorized',
         content: '',
         raw_source: '',
@@ -112,16 +114,23 @@ export default function ProjectOverviewPage() {
     },
     onSuccess: (created) => {
       invalidateScriptMutationResult(queryClient, scriptCreatedResult({ projectId, changedIds: [created.ID] }))
-      toast.success('剧本已创建')
+      toast.success('手记已创建')
       navigate(withRouteParams(ROUTES.project.scripts, { script_id: created.ID }))
     },
-    onError: () => toast.error('创建剧本失败，请重试'),
+    onError: () => toast.error('创建手记失败，请重试'),
   })
   return (
     <AppContentLayout variant="contained" width="wide" contentClassName="space-y-5 py-5">
       <ProjectSurfaceHeader
         icon={LayoutDashboard}
         title={project?.name ?? '项目首页'}
+        actions={(
+          <Button asChild type="button" size="icon" variant="ghost" title="Project Settings" aria-label="Project Settings">
+            <Link to={ROUTES.project.settings}>
+              <Settings size={16} />
+            </Link>
+          </Button>
+        )}
       />
 
       <section className="rounded-lg border border-border bg-background p-4">
@@ -135,11 +144,12 @@ export default function ProjectOverviewPage() {
           </PluginStateBanner>
         ) : null}
         <div className={`${pluginToggleError ? 'mt-4 ' : ''}grid gap-3 lg:grid-cols-2`}>
+          <ProjectBuiltInStandardsPluginCard lane={projectStandardsLane} />
           {projectPluginsQuery.isLoading ? (
             <div className="rounded-md border border-border bg-muted/20 p-4 type-label text-muted-foreground">正在读取系统插件缓存...</div>
           ) : projectSystemPlugins.length === 0 ? (
             <div className="rounded-md border border-border bg-muted/20 p-4 type-label text-muted-foreground">
-              系统缓存暂无插件。请先到插件市场安装。
+              暂无其他项目插件。项目规范已作为内建能力可用。
             </div>
           ) : projectSystemPlugins.map((plugin) => (
             <ProjectSystemPluginCard
@@ -157,10 +167,10 @@ export default function ProjectOverviewPage() {
           <div className="min-w-0">
             <div className="flex items-center gap-2 type-body font-semibold text-foreground">
               <FileText size={16} className="text-muted-foreground" />
-              剧本列表
+              手记列表
             </div>
             <p className="mt-1 type-label text-muted-foreground">
-              从一份剧本进入编辑、版本管理和后续编排上下文。
+              从一份手记进入编辑、版本管理和后续编排上下文。
             </p>
           </div>
           <Button
@@ -172,15 +182,15 @@ export default function ProjectOverviewPage() {
             onClick={() => createScript.mutate()}
           >
             <FilePlus2 size={14} />
-            {createScript.isPending ? '创建中' : '添加剧本'}
+            {createScript.isPending ? '创建中' : '添加手记'}
           </Button>
         </div>
         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {scriptsQuery.isLoading ? (
-            <div className="rounded-md border border-border bg-muted/20 p-4 type-label text-muted-foreground">正在读取剧本...</div>
+            <div className="rounded-md border border-border bg-muted/20 p-4 type-label text-muted-foreground">正在读取手记...</div>
           ) : scripts.length === 0 ? (
             <div className="rounded-md border border-border bg-muted/20 p-4 type-label text-muted-foreground">
-              当前项目还没有剧本。点击添加剧本后会直接进入这份剧本的编辑工作台。
+              当前项目还没有手记。点击添加手记后会直接进入这份创作手记。
             </div>
           ) : scripts.map((script) => (
             <ProjectOverviewScriptCard key={script.ID} script={script} />
@@ -189,7 +199,7 @@ export default function ProjectOverviewPage() {
       </section>
 
       <section className="grid gap-3 lg:grid-cols-2">
-        {overviewModel.homeEntryLanes.map((lane) => (
+        {homeEntryLanes.map((lane) => (
           <ProjectOverviewWorkbenchCard key={lane.definition.id} lane={lane} />
         ))}
       </section>

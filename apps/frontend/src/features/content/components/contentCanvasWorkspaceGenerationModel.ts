@@ -48,7 +48,7 @@ export function contentUnitNodeForGenerationTask(node: ContentCanvasNode | undef
     summary: task.prompt,
     status: task.status === 'needs_candidate' || task.status === 'stale' ? 'active' : 'ready',
     metrics: [
-      `制作项 ${task.outputKind}`,
+      `创作片段 ${task.outputKind}`,
       task.candidates.length ? `候选 ${task.candidates.length}` : undefined,
       task.selectedCandidate ? '已选择候选' : undefined,
     ].filter((item): item is string => Boolean(item)),
@@ -70,7 +70,7 @@ function pendingContentUnitNodeForSource(node: ContentCanvasNode): ContentCanvas
     subtitle: draft.outputKind,
     summary: draft.prompt,
     status: 'active',
-    metrics: [`制作项 ${draft.outputKind}`, '待创建'],
+    metrics: [`创作片段 ${draft.outputKind}`, '待创建'],
     sourcePath: '',
     record: {
       schema: 'movscript.content_unit.v1',

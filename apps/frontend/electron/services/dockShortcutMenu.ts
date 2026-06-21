@@ -16,6 +16,7 @@ import {
   openEditingProjectWindow,
   openHomeRouteWindow,
   openProjectWindow,
+  openToolWindow,
 } from './appWindowRegistry'
 
 const MAX_RECENT_SHORTCUTS = 5
@@ -43,11 +44,11 @@ function refreshDockShortcutMenu(): void {
   const snapshot = dockShortcutSnapshot
   const template: Electron.MenuItemConstructorOptions[] = [
     dockHomeItem('App Home', '/', 'home', isRouteWindowOpen('/')),
-    dockHomeItem('Tool Home', '/tools/ref-image-gen', 'tool', isRouteWindowOpen('/tools/ref-image-gen')),
+    dockHomeItem('Tool Home', '/tools/ref-image-gen', 'tool', isRouteWindowOpen('/tools/ref-image-gen'), () => openToolWindow()),
     dockHomeItem('Edit Home', '/editing', 'editingProject', isRouteWindowOpen('/editing'), () => openEditingWindow()),
     dockHomeItem('Canvas Home', '/canvases', 'canvas', isRouteWindowOpen('/canvases'), () => openCanvasWindow()),
     { type: 'separator' },
-    dockRecentSubmenu('最近 Project', 'project', snapshot.projects ?? [], projectLabel, (project) => isProjectWindowOpen(project.id), openProjectShortcut),
+    dockRecentSubmenu('最近 Project', 'project', snapshot.projects ?? [], projectLabel, (project) => isProjectWindowOpen(project.projectDir), openProjectShortcut),
     dockRecentSubmenu('最近 Edit Project', 'editingProject', snapshot.editingProjects ?? [], editingProjectLabel, (project) => isEditingProjectWindowOpen(project.id), openEditingProjectShortcut),
     dockRecentSubmenu('最近 Canvas', 'canvas', snapshot.canvases ?? [], canvasLabel, (canvas) => isCanvasWindowOpen(canvas.id), openCanvasShortcut),
   ]
@@ -91,10 +92,12 @@ function dockRecentSubmenu<T>(
 
 function openProjectShortcut(project: ElectronDockShortcutProject): void {
   openProjectWindow({
-    projectId: project.id,
+    projectDir: project.projectDir,
     project: project.project ?? {
       ID: project.id,
       name: project.name,
+      workspace_path: project.projectDir,
+      project_path: project.projectDir,
       UpdatedAt: project.updatedAt,
     },
     route: '/project/home',
@@ -122,7 +125,7 @@ function normalizeDockShortcutSnapshot(snapshot: ElectronDockShortcutSnapshot): 
 }
 
 function isValidProjectShortcut(value: ElectronDockShortcutProject): boolean {
-  return Number.isInteger(value.id) && value.id > 0 && typeof value.name === 'string' && value.name.trim().length > 0
+  return Number.isInteger(value.id) && value.id !== 0 && typeof value.name === 'string' && value.name.trim().length > 0 && typeof value.projectDir === 'string' && value.projectDir.trim().length > 0
 }
 
 function isValidEditingProjectShortcut(value: ElectronDockShortcutEditingProject): boolean {

@@ -120,7 +120,7 @@ test('workspace domain repository uses Electron engine workspace API when availa
   })
 
   try {
-	    const service = createElectronMovScriptWorkspaceService({ projectId: 9, orgId: 22 })
+	    const service = createElectronMovScriptWorkspaceService({ projectId: 9, projectDir: '/tmp/movscript-project-9', orgId: 22 })
 	    const entities = await service.queryEntities({ entityKind: 'script' })
     await service.upsertSetting({
       payload: {
@@ -140,6 +140,7 @@ test('workspace domain repository uses Electron engine workspace API when availa
       method: 'queryEntities',
       input: {
         projectId: 9,
+        projectDir: '/tmp/movscript-project-9',
         orgId: 22,
         query: { entityKind: 'script' },
       },
@@ -148,6 +149,7 @@ test('workspace domain repository uses Electron engine workspace API when availa
       method: 'upsertSetting',
       input: {
 	        projectId: 9,
+	        projectDir: '/tmp/movscript-project-9',
 	        orgId: 22,
 	        expectedWorkspaceVersions: { 'settings/setting_1/setting.json': 'v1' },
 	        payload: {
@@ -164,12 +166,64 @@ test('workspace domain repository uses Electron engine workspace API when availa
       method: 'updateContentUnitEditPrompt',
       input: {
         projectId: 9,
+        projectDir: '/tmp/movscript-project-9',
         orgId: 22,
         expectedWorkspaceVersions: {},
         targetPath: 'content_units/canvas_scene_sec01/content_unit.json',
         editPrompt: { text: 'A closer phone insert.' },
       },
     })
+  } finally {
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: previousWindow,
+    })
+  }
+})
+
+test('workspace domain repository read queries stay idle without projectDir', async () => {
+  const previousWindow = globalThis.window
+  let calls = 0
+  const api = {
+    queryMovScriptEngineWorkspaceEntities: async () => {
+      calls += 1
+      throw new Error('should not query engine without projectDir')
+    },
+    queryMovScriptEngineWorkspaceSettings: async () => {
+      calls += 1
+      throw new Error('should not query engine without projectDir')
+    },
+    queryMovScriptEngineWorkspaceAssets: async () => {
+      calls += 1
+      throw new Error('should not query engine without projectDir')
+    },
+    upsertMovScriptEngineWorkspaceSetting: async () => undefined,
+    upsertMovScriptEngineWorkspaceAsset: async () => undefined,
+    upsertMovScriptEngineWorkspaceScript: async () => undefined,
+    readMovScriptEngineWorkspaceScriptSource: async () => '',
+    readMovScriptEngineContentUnitGenerationPrompt: async () => ({}),
+    deleteMovScriptEngineWorkspaceEntity: async () => undefined,
+    saveMovScriptEngineWorkspaceProductionSnapshot: async () => ({}),
+    upsertMovScriptEngineWorkspaceProjectStandards: async () => undefined,
+    upsertMovScriptEngineWorkspaceContentUnit: async () => undefined,
+    updateMovScriptEngineContentUnitEditPrompt: async () => undefined,
+    selectMovScriptEngineWorkspaceCandidate: async () => undefined,
+    appendMovScriptEngineWorkspaceCandidate: async () => undefined,
+    createMovScriptEngineWorkspaceAssetSlotCandidate: async () => undefined,
+    createMovScriptEngineWorkspaceKeyframeCandidate: async () => undefined,
+  }
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: { api },
+  })
+
+  try {
+    const service = createElectronMovScriptWorkspaceService({ projectId: 9 }, api)
+    assert.deepEqual(await service.queryEntities({ entityKind: 'script' }), [])
+    assert.deepEqual(await service.querySettings({}), [])
+    assert.deepEqual(await service.queryAssets({}), { assets: [] })
+    assert.equal(calls, 0)
   } finally {
     Object.defineProperty(globalThis, 'window', {
       configurable: true,

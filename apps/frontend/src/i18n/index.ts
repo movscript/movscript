@@ -9,9 +9,13 @@ export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number]
 
 const LANGUAGE_STORAGE_KEY = 'movscript.language'
 
+export function isSupportedLanguage(value: unknown): value is SupportedLanguage {
+  return value === 'zh-CN' || value === 'en-US'
+}
+
 function detectLanguage(): SupportedLanguage {
   const stored = readBrowserStorageItem('local', LANGUAGE_STORAGE_KEY)
-  if (stored === 'zh-CN' || stored === 'en-US') return stored
+  if (isSupportedLanguage(stored)) return stored
 
   const preferred = typeof navigator !== 'undefined' ? navigator.language.toLowerCase() : 'en-US'
   return preferred.startsWith('zh') ? 'zh-CN' : 'en-US'
@@ -32,7 +36,7 @@ i18n
   })
 
 i18n.on('languageChanged', (language) => {
-  if (language === 'zh-CN' || language === 'en-US') {
+  if (isSupportedLanguage(language)) {
     writeBrowserStorageItem('local', LANGUAGE_STORAGE_KEY, language)
   }
 })

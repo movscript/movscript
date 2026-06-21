@@ -11,7 +11,6 @@ import {
 import { basename, dirname, join, resolve } from 'node:path'
 import {
   ensureMovScriptWorkspaceRoot,
-  resolveMovScriptProjectCwd,
   resolveMovScriptWorkspaceRootPaths,
 } from '@movscript/core/workspace/node'
 import { resolveMovScriptBundledPluginSource } from './movscriptBundledPluginSource'
@@ -96,7 +95,7 @@ type SystemPluginRecord = ProjectPluginRecord & {
 }
 
 type ProjectPluginPathInput = ElectronMovScriptHomeInput & {
-  projectId?: string | number
+  projectDir?: string
   userId?: string | number
   orgId?: string | number
 }
@@ -272,13 +271,8 @@ export function setProjectSkillEnabled(input: ElectronProjectSkillToggleInput & 
 function resolveProjectPluginPaths(input?: ProjectPluginPathInput | string, desktopDataDirInput?: string) {
   const workspaceDir = resolveMovScriptHomeDir(input)
   const root = resolveMovScriptWorkspaceRootPaths(workspaceDir)
-  const projectCwd = typeof input === 'object' && input?.projectId !== undefined
-    ? resolveMovScriptProjectCwd({
-        workspaceDir,
-        projectId: input.projectId,
-        userId: input.userId,
-        orgId: input.orgId,
-      })
+  const projectCwd = typeof input === 'object' && input?.projectDir?.trim()
+    ? resolve(input.projectDir)
     : workspaceDir
   const pluginsDir = join(projectCwd, AGENTS_DIR_NAME, PLUGINS_DIR_NAME)
   const desktopDataDir = desktopDataDirInput?.trim() ? resolve(desktopDataDirInput) : root.controlDir
@@ -482,7 +476,7 @@ function normalizeProjectPluginRecord(
   }
 }
 
-function resolveProjectPluginSourcePath(input: ElectronProjectPluginInstallInput): string | undefined {
+function resolveProjectPluginSourcePath(input: ElectronProjectPluginInstallInput | ElectronSystemPluginInstallInput): string | undefined {
   const name = stringField(input.name) ?? stringField(input.id)
   const marketplaceName = stringField(input.marketplaceName)
   if (name === MOVSCRIPT_PLUGIN_NAME && (!marketplaceName || marketplaceName === MOVSCRIPT_BUNDLED_MARKETPLACE_NAME)) {

@@ -146,12 +146,10 @@ function resolveAppServerRuntimeCwd(input: Record<string, unknown>, workspaceDir
   if (explicitCwd) return explicitCwd
   if (input.cwd === null) return undefined
   const workspaceContext = isRecord(input.workspaceContext) ? input.workspaceContext : undefined
-  const projectId = input.projectId
-  if (!workspaceContext && typeof projectId !== 'number' && typeof projectId !== 'string') return workspaceDir
+  if (!workspaceContext) return workspaceDir
   return resolveDesktopWorkspaceContextPaths({
     workspaceDir,
     workspaceContext,
-    ...(projectId !== undefined && !workspaceContext?.projectId ? { projectId: projectId as string | number } : {}),
   }).providerSessionCwd
 }
 

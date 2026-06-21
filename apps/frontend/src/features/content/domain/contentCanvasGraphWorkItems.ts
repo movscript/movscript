@@ -131,7 +131,7 @@ function workItemActorLabel(actor: ProductionWorkItemView['recommendedActor']) {
 }
 
 function actorSummary(actor: ProductionWorkItemView['recommendedActor']) {
-  if (actor === 'agent') return '适合由 Agent 接手的内容编排任务。'
-  if (actor === 'workflow') return '适合由自动流程继续推进的内容编排任务。'
-  return '需要人工判断或确认的内容编排任务。'
+  if (actor === 'agent') return '适合由 Agent 接手的创作任务。'
+  if (actor === 'workflow') return '适合由自动流程继续推进的创作任务。'
+  return '需要人工判断或确认的创作任务。'
 }

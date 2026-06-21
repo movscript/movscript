@@ -86,6 +86,7 @@ export interface AgentThreadSummary {
   providerSessionTreeId?: string
   /** @deprecated Prefer providerSessionTreeId for related-thread provider-session trees. */
   sessionId?: string // deprecated providerSessionTreeId compatibility mirror
+  providerThreadCwd?: string
   lifecycle?: AgentConversationLifecycle
   expiresAt?: string
   title?: string

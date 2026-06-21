@@ -14,7 +14,7 @@ export async function createCandidateFromContentUnit(
   assertContentUnitNode(contentUnitNode)
   const outputKind = contentUnitOutputKind(contentUnitNode)
   if (outputKind !== 'image' && outputKind !== 'video') {
-    throw new Error(`当前真实生成候选只支持图像/视频制作项，${outputKind} 暂未接入生成接口`)
+    throw new Error(`当前真实生成候选只支持图像/视频创作片段，${outputKind} 暂未接入生成接口`)
   }
   const candidateId = timestampId('canvas_candidate')
   console.log('[content-canvas] create content unit candidate request', {
@@ -50,7 +50,7 @@ export async function createCandidateFromContentUnit(
       [candidateNodeId]: position ?? suggestedCandidateNodePosition(contentUnitNode, contentUnitNode.candidates.length + 1),
     },
     createdCandidates: [{ contentUnitId: contentUnitNode.entityKey, candidate }],
-    message: '已创建后端制作项候选',
+    message: '已创建后端创作片段候选',
   }
 }
 
@@ -121,7 +121,7 @@ export async function selectContentUnitCandidateFromCanvas(
     affectedNodeIds: [contentUnitNode.id],
     createdCandidates: [{ contentUnitId: contentUnitNode.entityKey, candidate: { ...candidate, selected: true } }],
     selectedCandidates: [{ contentUnitId: contentUnitNode.entityKey, candidateId: candidate.id }],
-    message: `已选择制作项候选 ${candidate.title}`,
+    message: `已选择创作片段候选 ${candidate.title}`,
   }
 }
 
@@ -134,7 +134,7 @@ export async function selectCandidateNodeFromCanvas(
   const ownerContentUnitId = typeof candidateNode.record.ownerContentUnitId === 'string' ? candidateNode.record.ownerContentUnitId : ''
   const ownerContentUnitNodeId = typeof candidateNode.record.ownerContentUnitNodeId === 'string' ? candidateNode.record.ownerContentUnitNodeId : ''
   if (!ownerContentUnitId) {
-    throw new Error('候选节点缺少制作项归属，无法选择')
+    throw new Error('候选节点缺少创作片段归属，无法选择')
   }
   const resourceId = typeof candidateNode.record.resourceId === 'number' ? candidateNode.record.resourceId : undefined
   await gateway.selectContentUnitCandidate({
@@ -155,7 +155,7 @@ export async function selectCandidateNodeFromCanvas(
 }
 
 function assertContentUnitNode(node: ContentCanvasNode): void {
-  assertNodeKind(node, 'content_unit', '制作项')
+  assertNodeKind(node, 'content_unit', '创作片段')
 }
 
 function assertNodeKind(node: ContentCanvasNode, kind: ContentCanvasNode['kind'], label: string): void {

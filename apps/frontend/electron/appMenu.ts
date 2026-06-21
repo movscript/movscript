@@ -1,4 +1,5 @@
 import { app, BrowserWindow, Menu, type MenuItemConstructorOptions } from 'electron'
+import { openCanvasWindow, openToolWindow } from './services/appWindowRegistry'
 
 interface NavigationMenuItem {
   label: string
@@ -64,6 +65,14 @@ const navigationGroups: NavigationMenuGroup[] = [
 ]
 
 function openRendererRoute(route: string): void {
+  if (route === '/canvases' || route.startsWith('/canvases/')) {
+    openCanvasWindow({ route })
+    return
+  }
+  if (route.startsWith('/tools/')) {
+    openToolWindow({ route })
+    return
+  }
   const target = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
   target?.webContents.send('mcp:open-route', route)
 }

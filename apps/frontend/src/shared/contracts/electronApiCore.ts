@@ -175,6 +175,7 @@ export type ElectronAppWindowProjectSnapshot = {
   owner_id?: number
   name?: string
   description?: string
+  project_uid?: string
   workspace_path?: string
   project_path?: string
   local?: boolean
@@ -186,7 +187,6 @@ export type ElectronAppWindowContext = {
   kind: ElectronAppWindowKind
   route: string
   search?: string
-  projectId?: number
   projectDir?: string
   project?: ElectronAppWindowProjectSnapshot | null
   editingProjectId?: string
@@ -202,8 +202,7 @@ export type ElectronUpdateAppWindowRouteContextInput = {
 }
 
 export type ElectronOpenProjectWindowInput = {
-  projectId?: number
-  projectDir?: string
+  projectDir: string
   project?: ElectronAppWindowProjectSnapshot | null
   route?: string
   search?: string
@@ -223,9 +222,16 @@ export type ElectronOpenCanvasWindowInput = {
   search?: string
 }
 
+export type ElectronOpenToolWindowInput = {
+  title?: string
+  route?: string
+  search?: string
+}
+
 export type ElectronDockShortcutProject = {
   id: number
   name: string
+  projectDir: string
   updatedAt?: string
   project?: ElectronAppWindowProjectSnapshot | null
 }

@@ -9,6 +9,7 @@ import {
 import { canvasKeys } from '@/features/canvas/application/canvasQueryKeys'
 import { projectKeys } from '@/features/project/application/projectQueries'
 import { api } from '@/shared/infrastructure/api'
+import { mergeRecentProjects, useLocalProjectRecentsStore } from '@/shared/infrastructure/session/localProjectRecentsStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import type { Canvas, Project } from '@/types'
 
@@ -18,6 +19,8 @@ export type EditingProjectShortcut = Pick<EditingProjectSummary, 'id' | 'project
 
 export function useAppShortcutRecentItems(limit = DEFAULT_RECENT_SHORTCUT_LIMIT) {
   const currentOrgID = useUserStore((s) => s.currentOrgID)
+  const localRecentProjects = useLocalProjectRecentsStore((s) => s.projects)
+  const dismissedProjectKeys = useLocalProjectRecentsStore((s) => s.dismissedKeys)
   const editingProjectRegistryVersion = useSyncExternalStore(
     subscribeEditingProjectRegistry,
     editingProjectRegistrySnapshot,
@@ -32,8 +35,8 @@ export function useAppShortcutRecentItems(limit = DEFAULT_RECENT_SHORTCUT_LIMIT)
     queryFn: () => api.get('/canvases').then((response) => response.data),
   })
   const recentProjects = useMemo(() => {
-    return sortRecentProjects(projectsQuery.data ?? []).slice(0, limit)
-  }, [limit, projectsQuery.data])
+    return mergeRecentProjects(projectsQuery.data ?? [], localRecentProjects, dismissedProjectKeys).slice(0, limit)
+  }, [dismissedProjectKeys, limit, localRecentProjects, projectsQuery.data])
   const recentCanvases = useMemo(() => {
     return sortRecentCanvases(canvasesQuery.data ?? []).slice(0, limit)
   }, [canvasesQuery.data, limit])
