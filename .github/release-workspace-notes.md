@@ -1,24 +1,21 @@
-# Movscript v0.1.6
+# Movscript v0.1.7
 
 ## Release Summary
 
-Movscript v0.1.6 is a release housekeeping update for the macOS Apple Silicon and Windows x64 desktop packages. It bumps the release manifests to 0.1.6 and restores the release notes that were missed in v0.1.5.
+Movscript v0.1.7 updates the desktop release packaging to ship macOS Apple Silicon and Windows x64 builds with the Mova app-server runtime bundle.
 
 This release continues to target early community testing of the desktop workflow: project planning, assets, scripts, generation jobs, provider configuration, assistant workflows, and rough-cut production flows.
 
 ## Highlights
 
-- Bump the Movscript release manifests from 0.1.5 to 0.1.6.
-- Backfill the missing v0.1.5 changelog and release-note coverage.
-- Carry forward the v0.1.5 desktop runtime improvements:
-  - Allow `file://` origins in backend CORS handling for local desktop runtime flows.
-  - Handle MCP server requests with explicit request ids in the Electron SDK runtime client.
+- Bump the Movscript release manifests from 0.1.6 to 0.1.7.
 - Publish macOS Apple Silicon / arm64 and Windows x64 desktop packages.
-- Bundle only the Mova app-server runtime package for the desktop app-server path.
+- Bundle only the Mova app-server runtime package for the desktop app-server path instead of the full Mova package.
+- Resolve bundled app-server binaries from the platform-specific `@movscript/mova-app-server-*` packages.
 
 ## Packaging And Verification
 
-- Release readiness check is expected to validate tag `v0.1.6` against package version `0.1.6`.
+- Release readiness check is expected to validate tag `v0.1.7` against package version `0.1.7`.
 - Package resource contract verification runs as part of the release workflow.
 - The macOS and Windows packaged app smoke tests run as part of the release workflow.
 - DMG checksum verification, mounted app verification, and Windows package verification run as part of the release workflow.
