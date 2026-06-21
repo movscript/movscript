@@ -16,18 +16,12 @@ import {
 } from '@/features/project-standards/application/projectStandardsModel'
 import {
   ProjectStandardsBoardHeader,
-  ProjectStandardsMetricsAndStatus,
   ProjectStandardsPromptPreviewAside,
   ProjectStandardsRuleEditorForm,
   ProjectStandardsStandardGroupSection,
 } from '@/features/project-standards/components/ProjectStandardsWorkspacePanels'
 import type { StandardWorkbenchGroup } from '@/features/project-standards/presentation/projectStandardsBoardModel'
 import type { RawResource } from '@/types'
-
-type WorkspaceCounts = {
-  workspace: number
-  applied: number
-}
 
 export function ProjectStandardsLoadingView() {
   return (
@@ -39,13 +33,8 @@ export function ProjectStandardsLoadingView() {
 }
 
 export function ProjectStandardsWorkspaceContent({
-  filledStandardCount,
-  missingStandardLabels,
   visibleCustomRules,
-  enabledCustomRules,
   styleReferenceIds,
-  workspaceCounts,
-  statusSummary,
   standardGroups,
   project,
   ruleForm,
@@ -55,7 +44,6 @@ export function ProjectStandardsWorkspaceContent({
   isFetching,
   workspaceArtifactsFetching,
   onRefreshAll,
-  onOpenReviewDialog,
   projectId,
   onOpenNewRuleForm,
   editingCoreKey,
@@ -79,13 +67,8 @@ export function ProjectStandardsWorkspaceContent({
   onRemoveStyleReferenceImage,
   styleReferenceRule,
 }: {
-  filledStandardCount: number
-  missingStandardLabels: string[]
   visibleCustomRules: ProjectPromptRule[]
-  enabledCustomRules: ProjectPromptRule[]
   styleReferenceIds: number[]
-  workspaceCounts: WorkspaceCounts
-  statusSummary: string
   standardGroups: StandardWorkbenchGroup[]
   project: WorkspaceRecord | null
   ruleForm: ProjectPromptRuleForm | null
@@ -95,7 +78,6 @@ export function ProjectStandardsWorkspaceContent({
   isFetching: boolean
   workspaceArtifactsFetching: boolean
   onRefreshAll: () => void
-  onOpenReviewDialog: () => void
   projectId: number | undefined
   onOpenNewRuleForm: () => void
   editingCoreKey: string | null
@@ -121,25 +103,12 @@ export function ProjectStandardsWorkspaceContent({
 }) {
   return (
     <ProjectStandardsContentLayout>
-      <ProjectStandardsMetricsAndStatus
-        filledStandardCount={filledStandardCount}
-        missingStandardLabels={missingStandardLabels}
-        visibleCustomRuleCount={visibleCustomRules.length}
-        enabledCustomRuleCount={enabledCustomRules.length}
-        styleReferenceCount={styleReferenceIds.length}
-        workspaceCount={workspaceCounts.workspace}
-        statusSummary={statusSummary}
-      />
-
       <ProjectStandardsWorkspaceGrid>
         <ProjectStandardsColumn>
           <ProjectStandardsBoardHeader
             isFetching={isFetching}
             workspaceArtifactsFetching={workspaceArtifactsFetching}
-            workspaceCount={workspaceCounts.workspace}
-            projectId={projectId}
             onRefreshAll={onRefreshAll}
-            onOpenReviewDialog={onOpenReviewDialog}
             onOpenNewRuleForm={onOpenNewRuleForm}
           />
 

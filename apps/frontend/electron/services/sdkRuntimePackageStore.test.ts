@@ -12,6 +12,7 @@ import {
   installedSdkRuntimePackageVersion,
   resolveSdkRuntimePackageStorePaths,
   seedSdkRuntimePackageStore,
+  uninstallSdkRuntimePackage,
 } from './sdkRuntimePackageStore'
 import {
   assertSdkRuntimePackageContract,
@@ -91,6 +92,33 @@ test('SDK runtime package install uses npm prefix and normalized PATH against th
     assert.equal(calls[0]?.cwd, join(tmp, 'sdk-runtimes'))
     assert.equal(calls[0]?.path?.endsWith('/custom/bin'), true)
     if (process.platform === 'darwin') assert.equal(calls[0]?.path?.includes('/opt/homebrew/bin'), true)
+  } finally {
+    rmSync(tmp, { recursive: true, force: true })
+  }
+})
+
+test('SDK runtime package uninstall uses npm prefix against the runtime store', () => {
+  const tmp = mkdtempSync(join(tmpdir(), 'movscript-sdk-runtime-uninstall-'))
+  const calls: Array<{ command: string; args: string[]; cwd?: string }> = []
+  try {
+    const result = uninstallSdkRuntimePackage({
+      baseDir: tmp,
+      env: {},
+      packageName: '@movscript/mova-app-server',
+      spawn: (command, args, options) => {
+        calls.push({
+          command,
+          args: args as string[],
+          cwd: options?.cwd?.toString(),
+        })
+        return { status: 0, stdout: '', stderr: '', pid: 1, output: [] } as SpawnSyncReturns<string>
+      },
+    })
+
+    assert.equal(result.ok, true)
+    assert.equal(calls[0]?.command, 'npm')
+    assert.deepEqual(calls[0]?.args, ['uninstall', '--prefix', join(tmp, 'sdk-runtimes'), '@movscript/mova-app-server'])
+    assert.equal(calls[0]?.cwd, join(tmp, 'sdk-runtimes'))
   } finally {
     rmSync(tmp, { recursive: true, force: true })
   }

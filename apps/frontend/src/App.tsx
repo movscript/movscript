@@ -4,6 +4,7 @@ import { useAppWindowContextStore } from './shared/infrastructure/appWindowConte
 import { LoadingScreen } from './features/app-shell/application/AppRouteBoundaries'
 import { AppStartupTasks } from './features/app-shell/application/AppStartupTasks'
 import { AnonymousAppRouter, AuthenticatedAppRouter } from './features/app-shell/application/AppRouterConfig'
+import { AgentRuntimeOperationsOverlay } from './features/agent/components/AgentRuntimeOperationsOverlay'
 
 export default function App() {
   const user = useUserStore((s) => s.currentUser)
@@ -14,6 +15,7 @@ export default function App() {
   return (
     <>
       <AppStartupTasks settingsHydrated={settingsHydrated} />
+      <AgentRuntimeOperationsOverlay />
       {!settingsHydrated || !userHydrated || !windowContextHydrated ? (
         <LoadingScreen fullScreen />
       ) : user ? (

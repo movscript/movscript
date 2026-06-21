@@ -1,6 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react'
 import {
-  GitBranch,
   Pencil,
   Plus,
   Save,
@@ -9,7 +8,6 @@ import {
 } from 'lucide-react'
 import {
   ProjectStandardsActionButton,
-  ProjectStandardsAppSurface,
   ProjectStandardsBadge,
   ProjectStandardsBodyText,
   ProjectStandardsCheckboxField,
@@ -19,8 +17,6 @@ import {
   ProjectStandardsFormGrid,
   ProjectStandardsIconButton,
   ProjectStandardsInput,
-  ProjectStandardsMetric,
-  ProjectStandardsMetricGrid,
   ProjectStandardsRuleActions,
   ProjectStandardsRuleCard,
   ProjectStandardsRuleCardHeader,
@@ -36,7 +32,6 @@ import {
   ProjectStandardsStatusBadge,
   ProjectStandardsSurfaceItem,
   ProjectStandardsTextarea,
-  ProjectStandardsTinyText,
   ProjectStandardsTitle,
 } from '@/features/project-standards/components/ProjectStandardsUi'
 import {
@@ -57,59 +52,15 @@ import type { StandardWorkbenchGroup } from '@/features/project-standards/presen
 
 export { ProjectStandardsPromptPreviewAside } from '@/features/project-standards/components/ProjectStandardsPromptPreviewAside'
 
-export function ProjectStandardsMetricsAndStatus({
-  filledStandardCount,
-  missingStandardLabels,
-  visibleCustomRuleCount,
-  enabledCustomRuleCount,
-  styleReferenceCount,
-  workspaceCount,
-  statusSummary,
-}: {
-  filledStandardCount: number
-  missingStandardLabels: string[]
-  visibleCustomRuleCount: number
-  enabledCustomRuleCount: number
-  styleReferenceCount: number
-  workspaceCount: number
-  statusSummary: string
-}) {
-  return (
-    <>
-      <ProjectStandardsMetricGrid>
-        <ProjectStandardsMetric label="核心规范" value={`${filledStandardCount}/8`} detail={missingStandardLabels.length > 0 ? `待补充 ${missingStandardLabels.length} 项` : '已覆盖'} tone={missingStandardLabels.length > 0 ? 'warning' : 'success'} compact />
-        <ProjectStandardsMetric label="自定义规则" value={visibleCustomRuleCount} detail={`${enabledCustomRuleCount} 条启用`} compact />
-        <ProjectStandardsMetric label="风格参考" value={styleReferenceCount} detail="参考图" tone={styleReferenceCount > 0 ? 'success' : 'neutral'} compact />
-        <ProjectStandardsMetric label="待审草案" value={workspaceCount} detail="Agent artifact" tone={workspaceCount > 0 ? 'warning' : 'neutral'} compact />
-      </ProjectStandardsMetricGrid>
-      <ProjectStandardsAppSurface className="project-standards-status-strip">
-        <ProjectStandardsTinyText className="text-foreground">{statusSummary}</ProjectStandardsTinyText>
-        <ProjectStandardsStatusBadge {...projectStandardsReadyRecipe(missingStandardLabels.length === 0)}>
-          {missingStandardLabels.length === 0 ? '核心已覆盖' : '待补核心'}
-        </ProjectStandardsStatusBadge>
-        <ProjectStandardsTinyText>
-          {missingStandardLabels.length > 0 ? `待补充：${missingStandardLabels.join('、')}` : '核心规范已覆盖，预览会随编辑实时更新。'}
-        </ProjectStandardsTinyText>
-      </ProjectStandardsAppSurface>
-    </>
-  )
-}
-
 export function ProjectStandardsBoardHeader({
   isFetching,
   workspaceArtifactsFetching,
-  workspaceCount,
-  projectId,
   onRefreshAll,
-  onOpenReviewDialog,
   onOpenNewRuleForm,
 }: {
   isFetching: boolean
   workspaceArtifactsFetching: boolean
-  workspaceCount: number
-  projectId: number | undefined
   onRefreshAll: () => void
-  onOpenReviewDialog: () => void
   onOpenNewRuleForm: () => void
 }) {
   return (
@@ -122,10 +73,6 @@ export function ProjectStandardsBoardHeader({
         <div className="project-standards-board-actions">
           <ProjectStandardsActionButton size="sm" variant="outline" className="type-label" onClick={onRefreshAll} loading={isFetching || workspaceArtifactsFetching}>
             刷新
-          </ProjectStandardsActionButton>
-          <ProjectStandardsActionButton size="sm" variant="outline" className="type-label" onClick={onOpenReviewDialog} disabled={!projectId}>
-            <GitBranch size={12} />
-            工作区{workspaceCount > 0 ? ` ${workspaceCount}` : ''}
           </ProjectStandardsActionButton>
           <ProjectStandardsActionButton size="sm" className="type-label" onClick={onOpenNewRuleForm}>
             <Plus size={12} />

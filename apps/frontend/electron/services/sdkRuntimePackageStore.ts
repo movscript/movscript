@@ -43,6 +43,16 @@ export interface SdkRuntimePackageInstallResult {
   error?: string
 }
 
+export interface SdkRuntimePackageUninstallResult {
+  ok: boolean
+  packageName: string
+  root: string
+  command: string
+  args: string[]
+  status?: number | null
+  error?: string
+}
+
 const sdkRuntimePackageInstalls = new Map<string, Promise<SdkRuntimePackageInstallResult>>()
 const sdkRuntimePackageInstallControllers = new Map<string, AbortController>()
 
@@ -205,6 +215,43 @@ export function installSdkRuntimePackage(options: SdkRuntimePackageInstallOption
     ok: false,
     packageName: options.packageName,
     ...(options.packageVersion ? { packageVersion: options.packageVersion } : {}),
+    root: paths.root,
+    command,
+    args,
+    status: result.status,
+    error: sdkRuntimeInstallError(command, args, result),
+  }
+}
+
+export function uninstallSdkRuntimePackage(options: Omit<SdkRuntimePackageInstallOptions, 'packageVersion'>): SdkRuntimePackageUninstallResult {
+  const paths = ensureSdkRuntimePackageStore(options)
+  const command = options.packageManager?.trim()
+    || options.env?.MOVSCRIPT_SDK_RUNTIME_PACKAGE_MANAGER?.trim()
+    || process.env.MOVSCRIPT_SDK_RUNTIME_PACKAGE_MANAGER?.trim()
+    || 'npm'
+  const args = ['uninstall', '--prefix', paths.root, options.packageName]
+  const spawn = options.spawn ?? spawnSync
+  const result = spawn(command, args, {
+    cwd: paths.root,
+    encoding: 'utf8',
+    env: normalizedSdkRuntimeEnv({
+      ...process.env,
+      ...(options.env ?? {}),
+    }),
+  })
+  if (result.status === 0 && !result.error) {
+    return {
+      ok: true,
+      packageName: options.packageName,
+      root: paths.root,
+      command,
+      args,
+      status: result.status,
+    }
+  }
+  return {
+    ok: false,
+    packageName: options.packageName,
     root: paths.root,
     command,
     args,

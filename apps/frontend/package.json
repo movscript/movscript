@@ -1,6 +1,6 @@
 {
   "name": "@movscript/desktop",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "private": true,
   "type": "module",
   "main": "./out/main/index.js",
@@ -97,11 +97,5 @@
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vite": "^5.4.21"
-  },
-  "optionalDependencies": {
-    "@movscript/mova-app-server-darwin-arm64": "0.0.1-alpha.13",
-    "@movscript/mova-app-server-darwin-x64": "0.0.1-alpha.13",
-    "@movscript/mova-app-server-win32-arm64": "0.0.1-alpha.13",
-    "@movscript/mova-app-server-win32-x64": "0.0.1-alpha.13"
   }
 }

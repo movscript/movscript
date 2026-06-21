@@ -50,6 +50,7 @@ export interface ElectronSdkRuntimePackageStatusInput {
 
 export interface ElectronSdkRuntimePackageStatus {
   packageName: string
+  resolvedPackageName?: string
   packageVersion?: string
   installed: boolean
   installedVersion?: string
@@ -63,6 +64,7 @@ export interface ElectronSdkRuntimePackageCancelInput {
 
 export interface ElectronSdkRuntimePackageCancelResult {
   packageName: string
+  resolvedPackageName?: string
   packageVersion?: string
   cancelled: boolean
 }

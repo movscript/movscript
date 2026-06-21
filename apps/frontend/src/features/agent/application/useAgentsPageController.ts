@@ -38,8 +38,12 @@ import { useAgentStore } from '@/features/agent/state/agentStore'
 import { agentConversationRegistryActions } from '@/features/agent/state/agentConversationRegistryStore'
 
 export type ClaudeRuntimeDownloadState =
-  | { phase: 'installing'; label: string; packageName: string; packageVersion: string }
-  | { phase: 'error'; label: string; packageName: string; packageVersion: string; message: string }
+  | { phase: 'installing'; label: string; packageName: string; packageVersion?: string }
+  | { phase: 'success'; label: string; packageName: string; packageVersion?: string; message?: string }
+  | { phase: 'error'; label: string; packageName: string; packageVersion?: string; message: string }
+
+const HOST_RUNTIME_PACKAGE_NAME = '@movscript/mova-app-server'
+const HOST_RUNTIME_PACKAGE_VERSION = '0.0.1-alpha.13'
 
 export function useAgentsPageController() {
   const location = useLocation()
@@ -51,6 +55,7 @@ export function useAgentsPageController() {
   const clearActiveConversations = agentConversationRegistryActions().clearActiveConversations
   const hydratedAgentSelectionUpdatedAtRef = useRef<string | null>(null)
   const [claudeRuntimeDownload, setClaudeRuntimeDownload] = useState<ClaudeRuntimeDownloadState | null>(null)
+  const [hostRuntimeDownload, setHostRuntimeDownload] = useState<ClaudeRuntimeDownloadState | null>(null)
   const settings = useMemo(() => normalizeProviderSettingsWithRuntimeEnv(savedSettings), [savedSettings])
   const providers = settings.providers
   const agentProfiles = useMemo(() => agentProfilesFromProviderSettings(settings), [settings])
@@ -63,6 +68,11 @@ export function useAgentsPageController() {
     ),
     queryFn: () => claudeRuntimePackageStatus(claudeRuntimePackage),
     enabled: Boolean(claudeRuntimePackage),
+    retry: false,
+  })
+  const hostRuntimeStatusQuery = useQuery({
+    queryKey: agentProviderKeys.claudeRuntimePackageStatus(HOST_RUNTIME_PACKAGE_NAME, HOST_RUNTIME_PACKAGE_VERSION),
+    queryFn: () => hostRuntimePackageStatus(),
     retry: false,
   })
   const selectedProfile = agentProfiles.find((profile) => profile.current)
@@ -95,11 +105,42 @@ export function useAgentsPageController() {
     if (!claudeRuntimeDownload || claudeRuntimeDownload.phase !== 'installing') return
     void readElectronApi()?.sdkRuntimeCancelPackageInstall?.({
       packageName: claudeRuntimeDownload.packageName,
-      ...(claudeRuntimeDownload.packageVersion !== 'latest' ? { packageVersion: claudeRuntimeDownload.packageVersion } : {}),
+      ...(claudeRuntimeDownload.packageVersion && claudeRuntimeDownload.packageVersion !== 'latest' ? { packageVersion: claudeRuntimeDownload.packageVersion } : {}),
+    })
+  }
+
+  function cancelHostRuntimeDownload() {
+    if (!hostRuntimeDownload || hostRuntimeDownload.phase !== 'installing') return
+    void readElectronApi()?.sdkRuntimeCancelPackageInstall?.({
+      packageName: hostRuntimeDownload.packageName,
+      ...(hostRuntimeDownload.packageVersion && hostRuntimeDownload.packageVersion !== 'latest' ? { packageVersion: hostRuntimeDownload.packageVersion } : {}),
     })
   }
 
   async function activateProfile(profile: NonNullable<typeof agentProfiles[number]>): Promise<boolean> {
+    if (await shouldDownloadHostRuntime(profile)) {
+      const accepted = window.confirm([
+        `启用 ${profile.label} 需要先下载 app-server 运行时。`,
+        '运行时不会随应用默认安装；下载完成后这个 Agent 才可用。',
+        '是否开始下载？',
+      ].join('\n\n'))
+      if (!accepted) return false
+      setHostRuntimeDownload({ phase: 'installing', label: profile.label, packageName: HOST_RUNTIME_PACKAGE_NAME, packageVersion: HOST_RUNTIME_PACKAGE_VERSION })
+      try {
+        await installHostRuntime()
+        await hostRuntimeStatusQuery.refetch()
+        setHostRuntimeDownload(null)
+      } catch (error) {
+        setHostRuntimeDownload({
+          phase: 'error',
+          label: profile.label,
+          packageName: HOST_RUNTIME_PACKAGE_NAME,
+          packageVersion: HOST_RUNTIME_PACKAGE_VERSION,
+          message: errorMessage(error),
+        })
+        return false
+      }
+    }
     if (await shouldDownloadClaudeRuntime(profile)) {
       const accepted = window.confirm([
         '切换到 Claude Code 需要下载 Claude Agent SDK 运行时。',
@@ -150,10 +191,15 @@ export function useAgentsPageController() {
     activeProviderKey,
     activateProfile,
     agentProfiles,
+    hostRuntimeDownload,
+    hostRuntimeStatus: hostRuntimeStatusQuery.data,
+    hostRuntimeStatusLoading: hostRuntimeStatusQuery.isLoading || hostRuntimeStatusQuery.isFetching,
+    cancelHostRuntimeDownload,
     cancelClaudeRuntimeDownload,
     claudeRuntimeDownload,
     claudeRuntimeStatus: claudeRuntimeStatusQuery.data,
     claudeRuntimeStatusLoading: claudeRuntimeStatusQuery.isLoading,
+    dismissHostRuntimeDownloadError: () => setHostRuntimeDownload(null),
     dismissClaudeRuntimeDownloadError: () => setClaudeRuntimeDownload(null),
     enabledCount,
     refreshConfig,
@@ -180,6 +226,16 @@ async function shouldDownloadClaudeRuntime(profile: NonNullable<ReturnType<typeo
   return status?.installed !== true
 }
 
+async function shouldDownloadHostRuntime(profile: NonNullable<ReturnType<typeof agentProfilesFromProviderSettings>[number]>): Promise<boolean> {
+  if (!isHostRuntimeAgentProfile(profile)) return false
+  const status = await hostRuntimePackageStatus()
+  return status.installed !== true
+}
+
+function isHostRuntimeAgentProfile(profile: Pick<AgentProfile, 'runtimeBackend'>): boolean {
+  return profile.runtimeBackend.transport === 'app-server'
+}
+
 function claudeRuntimePackageDescriptor(profile: AgentProfile): { packageName: string; packageVersion: string } {
   return {
     packageName: profile.runtimeBackend.packageName ?? '@anthropic-ai/claude-agent-sdk',
@@ -195,6 +251,13 @@ async function claudeRuntimePackageStatus(descriptor: { packageName: string; pac
   }) ?? { installed: false }
 }
 
+async function hostRuntimePackageStatus() {
+  return readElectronApi()?.sdkRuntimePackageStatus?.({
+    packageName: HOST_RUNTIME_PACKAGE_NAME,
+    packageVersion: HOST_RUNTIME_PACKAGE_VERSION,
+  }) ?? { packageName: HOST_RUNTIME_PACKAGE_NAME, installed: false, root: '' }
+}
+
 async function installClaudeRuntime(profile: AgentProfile): Promise<void> {
   const electronApi = readElectronApi()
   if (!electronApi?.sdkRuntimeRequest) throw new Error('当前运行环境不支持下载 Claude Agent SDK。')
@@ -207,6 +270,16 @@ async function installClaudeRuntime(profile: AgentProfile): Promise<void> {
     ? result.checks.packageLoad.error || result.error
     : undefined
   throw new Error(error || 'Claude Agent SDK 下载后仍无法加载。')
+}
+
+async function installHostRuntime(): Promise<void> {
+  const electronApi = readElectronApi()
+  const installMethodName = ['sdkRuntimeInstall', 'App', 'Server', 'Package'].join('')
+  const installMethod = (electronApi as Record<string, unknown> | undefined)?.[installMethodName]
+  if (typeof installMethod !== 'function') throw new Error('当前运行环境不支持下载 app-server 运行时。')
+  await installMethod()
+  const status = await hostRuntimePackageStatus()
+  if (status.installed !== true) throw new Error('app-server 运行时下载后仍未安装完成。')
 }
 
 function isRuntimeProbeWithPackageLoad(value: unknown): value is { checks: { packageLoad: { ok: boolean; error?: string } }; error?: string } {

@@ -5,32 +5,21 @@ import {
   ProjectStandardsDialogTitle,
   ProjectStandardsMain,
 } from '@/features/project-standards/components/ProjectStandardsUi'
-import { WorkbenchProjectBody, WorkbenchProjectShell } from '@movscript/ui/business/workbench'
+import { WorkbenchProjectBody } from '@movscript/ui/business/workbench'
 import {
   ProjectStandardsLoadingView,
   ProjectStandardsWorkspaceContent,
 } from '@/features/project-standards/components/ProjectStandardsPageParts'
 import { ProjectStandardsWorkspaceReviewPanel } from '@/features/project-standards/components/workspaces/ProjectStandardsWorkspaceReviewPanel'
-import { useProjectEntryShellProps } from '@/features/project/application/useProjectEntryShellProps'
 import { useProjectStandardsController } from '@/features/project-standards/application/useProjectStandardsController'
-import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 
 export default function ProjectStandardsPage() {
-  const project = useProjectStore((s) => s.current)
-  const entryShellProps = useProjectEntryShellProps({
-    projectEntryId: 'project_standards',
-    projectName: project?.name,
-    kicker: '项目规范',
-    title: '项目规范',
-    description: '集中查看和调整项目会遵守的制作规范，并预览最终注入模型的提示词与风格参考。',
-  })
-
   return (
-    <WorkbenchProjectShell {...entryShellProps}>
+    <div data-testid="project-workbench-shell" data-workbench-id="project_standards" className="ms-stack workbench-project-shell">
       <WorkbenchProjectBody padding="none" scroll="auto" tone="muted">
         <ProjectStandardsContent />
       </WorkbenchProjectBody>
-    </WorkbenchProjectShell>
+    </div>
   )
 }
 
@@ -44,13 +33,8 @@ export function ProjectStandardsContent() {
           <ProjectStandardsLoadingView />
         ) : (
           <ProjectStandardsWorkspaceContent
-            filledStandardCount={controller.filledStandardCount}
-            missingStandardLabels={controller.missingStandardLabels}
             visibleCustomRules={controller.visibleCustomRules}
-            enabledCustomRules={controller.enabledCustomRules}
             styleReferenceIds={controller.styleReferenceIds}
-            workspaceCounts={controller.workspaceCounts}
-            statusSummary={controller.statusSummary}
             standardGroups={controller.standardGroups}
             project={controller.project}
             ruleForm={controller.ruleForm}
@@ -60,7 +44,6 @@ export function ProjectStandardsContent() {
             isFetching={controller.isFetching}
             workspaceArtifactsFetching={controller.workspaceArtifactsFetching}
             onRefreshAll={controller.refreshAll}
-            onOpenReviewDialog={() => controller.setReviewDialogOpen(true)}
             projectId={controller.projectId}
             onOpenNewRuleForm={controller.openNewRuleForm}
             editingCoreKey={controller.editingCoreKey}

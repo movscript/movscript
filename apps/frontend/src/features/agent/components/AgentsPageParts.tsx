@@ -13,9 +13,6 @@ import {
   Progress,
 } from '@movscript/ui/primitives'
 
-import {
-  DEFAULT_CLAUDE_RUNTIME_PACKAGE_VERSION,
-} from '@/shared/infrastructure/providerConfigStore'
 import type { ClaudeRuntimeDownloadState } from '@/features/agent/application/useAgentsPageController'
 import type { AgentProfile } from '@/features/agent/application/agentProfileModel'
 import { isClaudeAgentProfile } from '@/features/agent/application/agentProfileModel'
@@ -48,6 +45,8 @@ interface AgentsPageBodyProps {
   activeProfile?: AgentProfile
   activeProviderKey: string
   agentProfiles: AgentProfile[]
+  hostRuntimeStatus?: { installed?: boolean; installedVersion?: string }
+  hostRuntimeStatusLoading: boolean
   claudeRuntimeStatus?: { installed?: boolean; installedVersion?: string }
   claudeRuntimeStatusLoading: boolean
   enabledCount: number
@@ -92,6 +91,8 @@ export function AgentsPageBody({
   activeProfile,
   activeProviderKey,
   agentProfiles,
+  hostRuntimeStatus,
+  hostRuntimeStatusLoading,
   claudeRuntimeStatus,
   claudeRuntimeStatusLoading,
   enabledCount,
@@ -108,6 +109,8 @@ export function AgentsPageBody({
           <AgentsPageProfileRow
             key={profile.id}
             activeProviderKey={activeProviderKey}
+            hostRuntimeStatus={hostRuntimeStatus}
+            hostRuntimeStatusLoading={hostRuntimeStatusLoading}
             claudeRuntimeStatus={claudeRuntimeStatus}
             claudeRuntimeStatusLoading={claudeRuntimeStatusLoading}
             onActivateProfile={onActivateProfile}
@@ -138,6 +141,8 @@ export function AgentsPageBody({
 
 function AgentsPageProfileRow({
   activeProviderKey,
+  hostRuntimeStatus,
+  hostRuntimeStatusLoading,
   claudeRuntimeStatus,
   claudeRuntimeStatusLoading,
   onActivateProfile,
@@ -145,6 +150,8 @@ function AgentsPageProfileRow({
   profile,
 }: {
   activeProviderKey: string
+  hostRuntimeStatus?: { installed?: boolean; installedVersion?: string }
+  hostRuntimeStatusLoading: boolean
   claudeRuntimeStatus?: { installed?: boolean; installedVersion?: string }
   claudeRuntimeStatusLoading: boolean
   onActivateProfile: (profile: AgentProfile) => void
@@ -152,10 +159,17 @@ function AgentsPageProfileRow({
   profile: AgentProfile
 }) {
   const viewing = profile.routeKey === activeProviderKey
+  const hostRuntimeMissing = profile.connectionKind === 'app-server'
+    && hostRuntimeStatus?.installed === false
   const claudeRuntimeMissing = isClaudeAgentProfile(profile)
     && !profile.current
     && claudeRuntimeStatus?.installed === false
+  const runtimeMissing = hostRuntimeMissing || claudeRuntimeMissing
+  const hostRuntimeActionLabel = hostRuntimeStatus?.installedVersion ? '更新' : '下载'
   const claudeRuntimeActionLabel = claudeRuntimeStatus?.installedVersion ? '更新' : '下载'
+  const runtimeActionLabel = hostRuntimeMissing ? hostRuntimeActionLabel : claudeRuntimeActionLabel
+  const runtimeStatusLoadingForProfile = (profile.connectionKind === 'app-server' && hostRuntimeStatusLoading)
+    || (isClaudeAgentProfile(profile) && !profile.current && claudeRuntimeStatusLoading)
   const claudeRuntimeStatusLoadingForProfile = isClaudeAgentProfile(profile)
     && !profile.current
     && claudeRuntimeStatusLoading
@@ -177,22 +191,23 @@ function AgentsPageProfileRow({
           <IdentityBadge kind="agent" id={profile.routeKey} label={profile.routeKey} size="xs" /> {profile.connectionLabel} · 点击选择并配置
         </span>
       </span>
-      <AgentConsoleStatusBadge intent={profile.current ? 'success' : profile.enabled ? 'neutral' : 'warning'} emphasis="soft">
-        {profile.current ? '当前启用' : profile.enabled ? '可切换' : '已停用'}
+      <AgentConsoleStatusBadge intent={runtimeMissing ? 'warning' : profile.current ? 'success' : profile.enabled ? 'neutral' : 'warning'} emphasis="soft">
+        {runtimeMissing ? '需下载' : profile.current ? '当前启用' : profile.enabled ? '可切换' : '已停用'}
       </AgentConsoleStatusBadge>
-      {claudeRuntimeMissing ? (
+      {runtimeMissing ? (
         <AgentConsoleActionButton
           type="button"
           size="sm"
           variant="outline"
           aria-label={`下载并启用 ${profile.label}`}
+          disabled={runtimeStatusLoadingForProfile}
           onClick={(event) => {
             event.stopPropagation()
             onActivateProfile(profile)
           }}
         >
           <Download size={14} />
-          {claudeRuntimeActionLabel}
+          {runtimeActionLabel}
         </AgentConsoleActionButton>
       ) : (
         <AgentConsoleAgentSwitch
@@ -214,58 +229,103 @@ export function ClaudeRuntimeDownloadDialog({
   state,
   onCancel,
   onDismissError,
+  runtimeLabel = 'Claude',
 }: {
   state: ClaudeRuntimeDownloadState | null
   onCancel: () => void
   onDismissError: () => void
+  runtimeLabel?: string
 }) {
   return (
-    <Dialog open={Boolean(state)}>
+    <AgentRuntimeOperationsDialog
+      items={state ? [{
+        id: `${state.packageName}:${state.packageVersion ?? 'latest'}:${runtimeLabel}`,
+        state,
+        onCancel,
+        onDismiss: onDismissError,
+      }] : []}
+      runtimeLabel={runtimeLabel}
+    />
+  )
+}
+
+export function AgentRuntimeOperationsDialog({
+  items,
+  runtimeLabel = 'Agent',
+}: {
+  items: Array<{
+    id: string
+    state: ClaudeRuntimeDownloadState
+    onCancel?: () => void
+    onDismiss?: () => void
+  }>
+  runtimeLabel?: string
+}) {
+  const installing = items.some((item) => item.state.phase === 'installing')
+  const errored = items.some((item) => item.state.phase === 'error')
+  const title = errored
+    ? `${runtimeLabel} 运行时任务失败`
+    : installing
+      ? `正在处理 ${runtimeLabel} 运行时`
+      : `${runtimeLabel} 运行时任务完成`
+  return (
+    <Dialog open={items.length > 0}>
       <DialogContent
-        hideClose={state?.phase === 'installing'}
+        hideClose={installing}
         className="w-[min(420px,calc(100vw-32px))]"
         onEscapeKeyDown={(event) => {
-          if (state?.phase === 'installing') event.preventDefault()
+          if (installing) event.preventDefault()
         }}
         onPointerDownOutside={(event) => {
-          if (state?.phase === 'installing') event.preventDefault()
+          if (installing) event.preventDefault()
         }}
       >
         <DialogHeader>
-          <DialogTitle>{state?.phase === 'error' ? 'Claude 运行时下载失败' : '正在下载 Claude 运行时'}</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            {state?.phase === 'error'
-              ? '请检查网络连接或 npm 配置后重试。当前 Agent 不会被切换。'
-              : '正在安装 Claude Agent SDK。请等待下载完成，完成后会自动切换到 Claude Code。'}
+            {errored
+              ? '请检查网络连接或 npm 配置后重试。失败的 Agent 不会被切换。'
+              : installing
+                ? '正在安装 Agent 运行时。请等待下载完成。'
+                : '运行时任务已经完成。'}
           </DialogDescription>
         </DialogHeader>
-        <div className="flex items-center gap-3 rounded-md border border-border bg-muted px-3 py-2">
-          {state?.phase === 'error' ? null : <Loader2 size={16} className="shrink-0 animate-spin text-muted-foreground" />}
-          <div className="min-w-0 flex-1">
-            <p className="truncate type-caption text-foreground">{state?.label ?? 'Claude Code'}</p>
-            <p className="type-tiny text-muted-foreground">
-              {state ? `${state.packageName}@${state.packageVersion}` : `@anthropic-ai/claude-agent-sdk@${DEFAULT_CLAUDE_RUNTIME_PACKAGE_VERSION}`}
-            </p>
-          </div>
+        <div className="grid gap-2">
+          {items.map((item) => (
+            <div key={item.id} className="flex items-center gap-3 rounded-md border border-border bg-muted px-3 py-2">
+              {item.state.phase === 'installing' ? <Loader2 size={16} className="shrink-0 animate-spin text-muted-foreground" /> : null}
+              <div className="min-w-0 flex-1">
+                <p className="truncate type-caption text-foreground">{item.state.label}</p>
+                <p className="type-tiny text-muted-foreground">
+                  {item.state.packageVersion ? `${item.state.packageName}@${item.state.packageVersion}` : item.state.packageName}
+                </p>
+                {item.state.phase !== 'installing' ? (
+                  <p className="type-tiny text-muted-foreground">
+                    {item.state.phase === 'error' ? item.state.message : item.state.message ?? '已完成'}
+                  </p>
+                ) : null}
+              </div>
+              {item.state.phase !== 'installing' && item.onDismiss ? (
+                <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={item.onDismiss}>
+                  关闭
+                </AgentConsoleActionButton>
+              ) : null}
+            </div>
+          ))}
         </div>
         <AgentConsoleStack>
-          <Progress value={state?.phase === 'error' ? 100 : 45} className={state?.phase === 'installing' ? 'animate-pulse' : undefined} />
+          <Progress value={errored || !installing ? 100 : 45} className={installing ? 'animate-pulse' : undefined} />
           <p className="type-tiny text-muted-foreground">
-            {state?.phase === 'error' ? state.message : '正在下载并安装依赖，实际耗时取决于网络速度和 npm 源响应。'}
+            {installing ? '正在下载并安装依赖，实际耗时取决于网络速度和 npm 源响应。' : '可以关闭此窗口。'}
           </p>
         </AgentConsoleStack>
-        {state?.phase === 'installing' ? (
-          <div className="flex justify-end">
-            <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={onCancel}>
-              取消下载
-            </AgentConsoleActionButton>
-          </div>
-        ) : null}
-        {state?.phase === 'error' ? (
-          <div className="flex justify-end">
-            <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={onDismissError}>
-              关闭
-            </AgentConsoleActionButton>
+        {items.some((item) => item.state.phase === 'installing' && item.onCancel) ? (
+          <div className="flex flex-wrap justify-end gap-2">
+            {items.filter((item) => item.state.phase === 'installing' && item.onCancel).map((item) => (
+              <AgentConsoleActionButton key={item.id} type="button" size="sm" variant="outline" onClick={item.onCancel}>
+                取消 {item.state.label}
+              </AgentConsoleActionButton>
+            ))}
           </div>
         ) : null}
       </DialogContent>

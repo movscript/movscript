@@ -18,7 +18,6 @@ import { codexOptionsFromAccount } from './agentRuntimeConfigInjector'
 import type { AppServerConnectionContext } from './appServerRuntimeConnection'
 import {
   resolveAppServerCommand,
-  resolveAppServerCommandWithInstall,
   type AppServerCommand,
   type AppServerCommandResolverInput,
   type AppServerCommandResolverOptions,
@@ -52,37 +51,6 @@ export function appServerContext(
   const env = appServerEnv(codexOptions, homeEnv)
   const config = appServerConfig(codexOptions)
   const command = resolveAppServerCommand({ api, kind, provider: params.provider, runtime: params.runtime }, options)
-  return appServerContextFromResolvedCommand({
-    api,
-    kind,
-    provider: params.provider,
-    runtime: params.runtime,
-    workspaceDir,
-    contract,
-    account,
-    env,
-    config,
-    command,
-  })
-}
-
-export async function appServerContextWithInstall(
-  api: AppServerRuntimeApi,
-  params: AgentRuntimeRpcRequestMap[AgentRuntimeRpcMethod],
-  options: AppServerRuntimeHandlerOptions,
-): Promise<AppServerRuntimeContext> {
-  const contract = requiredAppServerRuntimeContract(api)
-  const kind = appServerKindForApi(api)
-  const workspaceDir = resolveAppServerRuntimeWorkspaceDir(options)
-  const account = resolveAppServerRuntimeAccountConfig(params, workspaceDir)
-  const homeEnv = resolveAgentRuntimeHomeEnv(params, workspaceDir)
-  const codexOptions = codexOptionsFromAccount(account, homeEnv, { disableBackendWebsockets: true })
-  const env = appServerEnv(codexOptions, homeEnv)
-  const config = appServerConfig(codexOptions)
-  const command = await resolveAppServerCommandWithInstall({ api, kind, provider: params.provider, runtime: params.runtime }, {
-    ...options,
-    baseDir: options.baseDir ?? workspaceDir,
-  })
   return appServerContextFromResolvedCommand({
     api,
     kind,

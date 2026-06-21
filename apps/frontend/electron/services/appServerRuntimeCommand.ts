@@ -40,6 +40,7 @@ export interface AppServerCommandResolverOptions extends SdkRuntimePackageStoreO
 
 const require = createRequire(import.meta.url)
 const MOVA_APP_SERVER_PACKAGE = '@movscript/mova-app-server'
+const DEFAULT_MOVA_APP_SERVER_PACKAGE_VERSION = '0.0.1-alpha.13'
 const APP_SERVER_PLATFORM_PACKAGE_BY_TARGET: Record<string, Record<string, string>> = {
   [MOVA_APP_SERVER_PACKAGE]: {
     'x86_64-unknown-linux-musl': '@movscript/mova-app-server-linux-x64',
@@ -64,30 +65,11 @@ export function resolveAppServerCommand(
     const command = executableCommand(candidate)
     if (command) return command
   }
-  throw new Error(`${input.api} app-server binary was not found. Set ${defaultExecutableEnvVar(input.kind)} or runtime.executableCommand.`)
-}
-
-export async function resolveAppServerCommandWithInstall(
-  input: AppServerCommandResolverInput,
-  options: AppServerCommandResolverOptions = {},
-): Promise<AppServerCommand> {
-  const platform = options.platform ?? process.platform
-  const override = options.appServerCommandResolver?.(input)
-  if (override) return override
-  const configured = configuredAppServerCommand(input)
-  if (configured) return assertCommand(parseAppServerExecutableCommand(configured, platform), configured, platform)
-
-  for (const candidate of appServerBinaryCandidates(input)) {
-    const command = executableCommand(candidate)
-    if (command) return command
-  }
-
-  await ensureAppServerRuntimePackageInstalled(input, options)
   for (const candidate of appServerRuntimeStoreBinaryCandidates(input, options)) {
     const command = executableCommand(candidate)
     if (command) return command
   }
-  return resolveAppServerCommand(input, options)
+  throw new Error(`${input.api} app-server binary was not found. Set ${defaultExecutableEnvVar(input.kind)} or runtime.executableCommand.`)
 }
 
 export async function ensureDefaultAppServerRuntimePackageInstalled(
@@ -105,6 +87,7 @@ export async function ensureDefaultAppServerRuntimePackageInstalled(
       api: 'codex-app-server',
       label: 'Codex app-server',
       binaryPackageName: MOVA_APP_SERVER_PACKAGE,
+      packageVersion: DEFAULT_MOVA_APP_SERVER_PACKAGE_VERSION,
     } as ProviderRuntimeProfile,
   }, options)
 }
@@ -135,6 +118,14 @@ export async function ensureAppServerRuntimePackageInstalled(
     : await installSdkRuntimePackageOnce(installOptions)
   if (result && !result.ok) throw new Error(result.error || `Failed to install app-server runtime package ${packageName}.`)
   return result
+}
+
+export function resolveAppServerRuntimePlatformPackageName(
+  packageName: string = MOVA_APP_SERVER_PACKAGE,
+): string | undefined {
+  const targetTriple = currentTargetTriple()
+  if (!targetTriple) return undefined
+  return APP_SERVER_PLATFORM_PACKAGE_BY_TARGET[packageName]?.[targetTriple]
 }
 
 function appServerBinaryCandidates(input: {

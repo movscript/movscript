@@ -10,6 +10,7 @@ export const agentProviderKeys = {
     packageName,
     packageVersion,
   ] as const,
+  runtimeStatus: (scope: string, identity: string) => ['agent-runtime-status', scope, identity] as const,
   composerWorkspaceProjects: ['agent-composer-workspace-projects'] as const,
   backendModels: ['agents-backend-models'] as const,
   modelProvidersBackendModels: ['workspace-model-providers-backend-models'] as const,

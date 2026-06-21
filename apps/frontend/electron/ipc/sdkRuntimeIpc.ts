@@ -11,7 +11,9 @@ import {
   installedSdkRuntimePackageVersion,
   resolveSdkRuntimePackageStorePaths,
 } from '../services/sdkRuntimePackageStore'
-import { ensureDefaultAppServerRuntimePackageInstalled } from '../services/appServerRuntimeCommand'
+import {
+  ensureDefaultAppServerRuntimePackageInstalled,
+} from '../services/appServerRuntimeCommand'
 import type {
   ElectronAppServerRuntimeInstallResult,
   ElectronSdkRuntimeNotifyInput,

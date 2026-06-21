@@ -1,6 +1,6 @@
 {
   "name": "@movscript/core",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "description": "MovScript domain core shared by CLI, frontend, and provider adapters.",
   "license": "MIT",
   "type": "module",

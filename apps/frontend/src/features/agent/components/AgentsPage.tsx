@@ -31,6 +31,8 @@ export default function AgentsPage() {
           activeProfile={controller.activeProfile}
           activeProviderKey={controller.activeProviderKey}
           agentProfiles={controller.agentProfiles}
+          hostRuntimeStatus={controller.hostRuntimeStatus}
+          hostRuntimeStatusLoading={controller.hostRuntimeStatusLoading}
           claudeRuntimeStatus={controller.claudeRuntimeStatus}
           claudeRuntimeStatusLoading={controller.claudeRuntimeStatusLoading}
           enabledCount={controller.enabledCount}
@@ -42,9 +44,16 @@ export default function AgentsPage() {
         />
       </AgentConsoleDocumentBody>
       <ClaudeRuntimeDownloadDialog
+        state={controller.hostRuntimeDownload}
+        onCancel={controller.cancelHostRuntimeDownload}
+        onDismissError={controller.dismissHostRuntimeDownloadError}
+        runtimeLabel="app-server"
+      />
+      <ClaudeRuntimeDownloadDialog
         state={controller.claudeRuntimeDownload}
         onCancel={controller.cancelClaudeRuntimeDownload}
         onDismissError={controller.dismissClaudeRuntimeDownloadError}
+        runtimeLabel="Claude"
       />
     </AgentPageShell>
   )

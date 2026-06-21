@@ -2,7 +2,7 @@
 
 ## Release Summary
 
-This release packages Movscript Desktop for macOS Apple Silicon, macOS Intel, Windows x64, and Windows ARM64 with the bundled Mova app-server runtime.
+This release packages Movscript Desktop for macOS Apple Silicon, macOS Intel, Windows x64, and Windows ARM64 with on-demand Agent runtime downloads.
 
 This release continues to target early community testing of the desktop workflow: project planning, assets, scripts, generation jobs, provider configuration, assistant workflows, and rough-cut production flows.
 
@@ -12,8 +12,11 @@ This release continues to target early community testing of the desktop workflow
 - Publish the macOS Intel / x64 desktop package.
 - Publish the Windows x64 desktop package as an installer and portable artifact.
 - Publish the Windows ARM64 desktop package as an installer and portable artifact.
-- Bundle only the Mova app-server runtime package for the desktop app-server path instead of the full Mova package.
-- Resolve bundled app-server binaries from the platform-specific `@movscript/mova-app-server-*` packages.
+- Stop bundling the app-server runtime by default; Mova and Codex app-server agents now become available only after the runtime is installed.
+- Install the app-server runtime on demand from the `@movscript/mova-app-server` meta package, which resolves the matching platform package.
+- Prevent ordinary runtime requests from auto-installing app-server packages; only the Console download/update action and tray runtime actions can use the install channel.
+- Add tray status and nested download, update, and uninstall actions for the built-in Mova, Codex, and Claude Code agent runtimes.
+- Reuse the same React runtime operation dialog for Console downloads and tray runtime tasks, including simultaneous multi-agent download status.
 - Recommend the matching desktop download on GitHub Pages based on the visitor's OS and architecture when browser detection is available.
 - Use a Windows-specific Movscript Home default under `%LOCALAPPDATA%\Movscript\Home`, with a settings-page directory picker for moving data to a larger drive.
 

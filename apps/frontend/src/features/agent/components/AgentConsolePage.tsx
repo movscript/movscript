@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
   AlertTriangle,
@@ -64,7 +64,6 @@ import {
   type AgentRuntimeCapabilitySummary,
 } from '@/features/agent/application/agentProfileModel'
 import { useAgentConsoleGlobalPlugins } from '@/features/agent/application/useAgentConsoleGlobalPlugins'
-import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
 
 export default function AgentConsolePage() {
   const controlCenter = useAgentControlCenter()
@@ -101,12 +100,6 @@ export default function AgentConsolePage() {
   const capabilityMetric = agentConsoleCapabilityMetric(currentAgent, capabilityHealth, toolSummary, skillSummary, pluginSummary)
   const hostedAgentsRoute = agentConsoleSettingsRoute('console:agents')
   const globalPlugins = useAgentConsoleGlobalPlugins({ onChanged: refreshAll })
-
-  useEffect(() => {
-    void readElectronApi()?.sdkRuntimeInstallAppServerPackage?.().catch((error) => {
-      console.warn('[agent-console] app-server runtime install failed', error)
-    })
-  }, [])
 
   return (
     <AgentPageShell data-testid="agent-console-page">
