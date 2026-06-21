@@ -1,149 +1,40 @@
 import { PanelResizeHandle } from '@movscript/ui/layout'
-import { Film, Plus, Search, Star } from 'lucide-react'
+import { Braces, GitBranch, Plus, Search, SlidersHorizontal } from 'lucide-react'
 
-import type { ContentCanvasCreateNodeInput } from '../application/contentCanvasCommands'
+import type { ContentCanvasCreateNodeInput, ContentCanvasExpressionUnitEditorInput } from '../application/contentCanvasCommands'
+import type { ContentCanvasUploadedResource } from '../application/contentCanvasWorkspaceGateway'
 import type { ContentCanvasNodePosition } from '../application/contentCanvasViewState'
 import type { ContentCanvasCandidate, ContentCanvasNode } from '../domain/contentCanvasTypes'
 import {
-  CONTENT_CANVAS_SETTING_DRAG_TYPE,
   type CandidateSelections,
   type CanvasMode,
   type InspectorSelection,
   type RadialNode,
   type SceneSettingGroup,
-  type SettingKind,
   type StarCanvasAction,
   type TimelineTrack,
   type TreeNodeData,
 } from './contentCanvasWorkspaceTypes'
-import {
-  contentStatusLabel,
-  iconForContentNode,
-  selectedSelectionId,
-} from './contentCanvasWorkspaceModel'
+import { selectedSelectionId } from './contentCanvasWorkspaceModel'
 import { ContentCanvasResizeHandle, type useContentCanvasPaneLayout, type useContentCanvasRadialLayout } from './contentCanvasWorkspaceLayout'
 import { ContentCanvasStarCanvas } from './ContentCanvasStarCanvas'
-import { NodeInspector, SceneTimeline, TreeNode } from './ContentCanvasWorkspaceDetails'
-
-export function SettingCatalogPanel({
-  activeKind,
-  filteredSettings,
-  isLoading,
-  pendingCanvasAction,
-  projectId,
-  settingNodesCount,
-  settingQuery,
-  onActiveKindChange,
-  onCreateSetting,
-  onQueryChange,
-  onSelectSetting,
-  resizeHandleProps,
-}: {
-  activeKind: SettingKind | 'all'
-  filteredSettings: ContentCanvasNode[]
-  isLoading: boolean
-  pendingCanvasAction: string | null
-  projectId: number | undefined
-  settingNodesCount: number
-  settingQuery: string
-  onActiveKindChange: (kind: SettingKind | 'all') => void
-  onCreateSetting: () => void
-  onQueryChange: (query: string) => void
-  onSelectSetting: (setting: ContentCanvasNode) => void
-  resizeHandleProps: ReturnType<typeof useContentCanvasPaneLayout>['settingCatalog']['resizeHandleProps']
-}) {
-  return (
-    <header className="content-canvas-workspace-top">
-      <div className="content-canvas-workspace-top__filter">
-        <label className="content-canvas-workspace-search">
-          <Search size={15} aria-hidden="true" />
-          <input
-            value={settingQuery}
-            onChange={(event) => onQueryChange(event.target.value)}
-            placeholder="筛选 Setting 名称、状态、作用域"
-            aria-label="筛选顶部 Setting 节点"
-          />
-        </label>
-        <div className="content-canvas-workspace-chips" aria-label="Setting 节点筛选">
-          {SETTING_FILTERS.map((filter) => (
-            <button
-              key={filter.kind}
-              type="button"
-              data-active={activeKind === filter.kind ? 'true' : undefined}
-              onClick={() => onActiveKindChange(filter.kind)}
-            >
-              {filter.label}
-            </button>
-          ))}
-        </div>
-        <span className="content-canvas-workspace-count">{filteredSettings.length}/{settingNodesCount} Setting</span>
-        <button
-          type="button"
-          className="content-canvas-workspace-add-setting"
-          disabled={!projectId || pendingCanvasAction === 'root-setting'}
-          onClick={onCreateSetting}
-        >
-          <Plus size={13} aria-hidden="true" />
-          Setting
-        </button>
-      </div>
-
-      <div className="content-canvas-catalog" aria-label="Setting 节点卡片网格">
-        {isLoading ? (
-          <div className="content-canvas-catalog-empty">正在读取项目数据...</div>
-        ) : filteredSettings.length ? filteredSettings.map((item) => (
-          <SettingCatalogCard key={item.id} item={item} onSelect={onSelectSetting} />
-        )) : (
-          <div className="content-canvas-catalog-empty">当前项目暂无 Setting 节点</div>
-        )}
-      </div>
-      <ContentCanvasResizeHandle
-        className="content-canvas-resize-handle content-canvas-resize-handle--top"
-        resizeHandleProps={resizeHandleProps}
-      />
-    </header>
-  )
-}
-
-function SettingCatalogCard({ item, onSelect }: { item: ContentCanvasNode; onSelect: (setting: ContentCanvasNode) => void }) {
-  const Icon = iconForContentNode(item)
-  return (
-    <button
-      type="button"
-      className="content-canvas-catalog-card"
-      data-status={item.status}
-      draggable
-      onDragStart={(event) => {
-        event.dataTransfer.effectAllowed = 'copy'
-        event.dataTransfer.setData(CONTENT_CANVAS_SETTING_DRAG_TYPE, item.id)
-        event.dataTransfer.setData('text/plain', item.title)
-      }}
-      onClick={() => onSelect(item)}
-      aria-label={`${item.title} Setting 节点`}
-    >
-      <span className="content-canvas-catalog-card__icon">
-        <Icon size={16} aria-hidden="true" />
-      </span>
-      <span className="content-canvas-catalog-card__copy">
-        <strong>{item.title}</strong>
-        <small>{item.summary || item.subtitle}</small>
-      </span>
-      <span className="content-canvas-catalog-card__status">{contentStatusLabel(item.status)}</span>
-      <span className="content-canvas-catalog-card__code">SET</span>
-      <span className="content-canvas-catalog-card__scope">{item.subtitle}</span>
-    </button>
-  )
-}
+import { NodeInspector } from './ContentCanvasWorkspaceDetails'
+import type { ContentCanvasCandidateGenerationOptions, ContentCanvasCandidatePromptPreview } from './ContentCanvasInspectorParts'
+import { SceneTimeline, TreeNode } from './ContentCanvasWorkspaceOutline'
 
 export function StructurePanel({
+  isCreatingSetting,
   isCreatingStructure,
+  onCreateSetting,
   onCreateProduction,
   onCreateStructureChild,
   paneLayout,
   tree,
   onSelectStructureNode,
 }: {
+  isCreatingSetting: boolean
   isCreatingStructure: boolean
+  onCreateSetting: () => void
   onCreateProduction: () => void
   onCreateStructureChild: (node: TreeNodeData) => void
   paneLayout: ReturnType<typeof useContentCanvasPaneLayout>
@@ -151,12 +42,14 @@ export function StructurePanel({
   onSelectStructureNode: (node: TreeNodeData) => void
 }) {
   return (
-    <aside className="content-canvas-workspace-sidebar" aria-label="Production Segment Scene Moment 层级">
+    <aside className="content-canvas-workspace-sidebar" aria-label="内容命名空间结构层级">
       <div className="content-canvas-workspace-sidebar__header">
         <div>
           <strong>结构层级</strong>
-          <span>Production / Segment / Scene Moment</span>
+          <span>业务节点命名空间</span>
         </div>
+      </div>
+      <div className="content-canvas-workspace-sidebar__actions">
         <button
           type="button"
           title="添加 Production"
@@ -165,6 +58,17 @@ export function StructurePanel({
           onClick={onCreateProduction}
         >
           <Plus size={15} aria-hidden="true" />
+          Production
+        </button>
+        <button
+          type="button"
+          title="添加 Setting"
+          aria-label="添加 Setting"
+          disabled={isCreatingSetting}
+          onClick={onCreateSetting}
+        >
+          <SlidersHorizontal size={14} aria-hidden="true" />
+          Setting
         </button>
       </div>
       <label className="content-canvas-workspace-sidebar__search">
@@ -180,7 +84,7 @@ export function StructurePanel({
             onSelectStructureNode={onSelectStructureNode}
           />
         )) : null}
-        {!tree.length && <div className="content-canvas-tree-empty">当前项目暂无 Production / Segment / Scene Moment</div>}
+        {!tree.length && <div className="content-canvas-tree-empty">当前项目暂无结构节点</div>}
       </div>
       <PanelResizeHandle
         className="content-canvas-resize-handle content-canvas-resize-handle--left"
@@ -192,20 +96,15 @@ export function StructurePanel({
 }
 
 export function CanvasStagePanel({
-  activeScene,
-  activeSetting,
+  canvasMainNode,
   canvasMode,
   candidateSelections,
   groupedSettingIds,
+  promptRelationNodes,
   radialLayout,
-  sceneCanvasActions,
-  sceneMainNode,
-  sceneRelationNodes,
+  structureRelationNodes,
   sceneSettingGroups,
   selected,
-  settingCanvasActions,
-  settingMainNode,
-  settingRelationNodes,
   onDropSetting,
   onGetNodeContextActions,
   onModeChange,
@@ -213,20 +112,15 @@ export function CanvasStagePanel({
   onSelectNode,
   onSelectSettingGroupNode,
 }: {
-  activeScene: ContentCanvasNode | null
-  activeSetting: ContentCanvasNode | null
+  canvasMainNode: RadialNode
   canvasMode: CanvasMode
   candidateSelections: CandidateSelections
   groupedSettingIds: Set<string>
+  promptRelationNodes: RadialNode[]
   radialLayout: ReturnType<typeof useContentCanvasRadialLayout>
-  sceneCanvasActions: StarCanvasAction[]
-  sceneMainNode: RadialNode
-  sceneRelationNodes: RadialNode[]
+  structureRelationNodes: RadialNode[]
   sceneSettingGroups: SceneSettingGroup[]
   selected: InspectorSelection
-  settingCanvasActions: StarCanvasAction[]
-  settingMainNode: RadialNode | null
-  settingRelationNodes: RadialNode[]
   onDropSetting: (settingId: string, position: ContentCanvasNodePosition) => void
   onGetNodeContextActions: (node: ContentCanvasNode) => StarCanvasAction[]
   onModeChange: (mode: CanvasMode) => void
@@ -235,65 +129,49 @@ export function CanvasStagePanel({
   onSelectSettingGroupNode: (node: ContentCanvasNode) => void
 }) {
   const selectedNodeId = selectedSelectionId(selected)
-  const hasPreviewTarget = Boolean(activeScene || activeSetting)
+  const hasPreviewTarget = Boolean(canvasMainNode.source)
+  const activeNodes = canvasMode === 'structure' ? structureRelationNodes : promptRelationNodes
+  const activeActions = canvasMode === 'structure' && canvasMainNode.source ? onGetNodeContextActions(canvasMainNode.source) : []
+  const canShowSceneSettingGroups = canvasMode === 'structure' && canvasMainNode.source?.kind === 'scene_moment'
+  const visibleSettingGroups = canShowSceneSettingGroups ? sceneSettingGroups : []
   return (
     <main className="content-canvas-workspace-canvas" aria-label="无限画布">
       <div className="content-canvas-workspace-canvas__toolbar">
-        <span>{canvasMode === 'scene_moment' ? 'Scene Moment 主节点画布' : 'Setting 主节点画布'}</span>
-        <div className="content-canvas-workspace-canvas__switch" aria-label="切换主节点类型">
-          <button type="button" data-active={canvasMode === 'scene_moment' ? 'true' : undefined} onClick={() => onModeChange('scene_moment')}>
-            <Film size={13} aria-hidden="true" />
-            Scene
+        <span>{canvasMode === 'structure' ? '命名空间结构画布' : '提示词依赖画布'}</span>
+        <div className="content-canvas-workspace-canvas__switch" aria-label="切换画布视图">
+          <button type="button" data-active={canvasMode === 'structure' ? 'true' : undefined} onClick={() => onModeChange('structure')}>
+            <GitBranch size={13} aria-hidden="true" />
+            结构
           </button>
-          <button type="button" data-active={canvasMode === 'setting' ? 'true' : undefined} onClick={() => onModeChange('setting')}>
-            <Star size={13} aria-hidden="true" />
-            Setting
+          <button type="button" data-active={canvasMode === 'prompt' ? 'true' : undefined} onClick={() => onModeChange('prompt')}>
+            <Braces size={13} aria-hidden="true" />
+            提示词
           </button>
         </div>
       </div>
       {!hasPreviewTarget ? (
         <div className="content-canvas-workspace-canvas__empty">
           <strong>无预览</strong>
-          <span>请选择设定、情节。</span>
+          <span>请从左侧结构或顶部全局库选择一个节点。</span>
         </div>
-      ) : canvasMode === 'scene_moment' ? (
+      ) : (
         <ContentCanvasStarCanvas
-          main={sceneMainNode}
-          nodes={sceneRelationNodes}
-          actions={sceneCanvasActions}
+          main={canvasMainNode}
+          nodes={activeNodes}
+          actions={activeActions}
           selectedNodeId={selectedNodeId}
-          emptyText={sceneMainNode.source ? '这个 Scene Moment 暂无表达单元 / Shot / Keyframe / Storyboard 关系' : '当前项目暂无 Scene Moment'}
-          onSelect={(node) => onSelectNode(node.id === sceneMainNode.id ? 'scene_moment' : 'other', node.id)}
+          emptyText={canvasMode === 'structure' ? '这个节点暂无命名空间子节点' : '这个节点的提示词暂无引用结构'}
+          onSelect={(node) => onSelectNode(selectionKindForContentNode(node.source ?? canvasMainNode.source!), node.id)}
           onNodePositionCommit={radialLayout.commitNodePosition}
           onResetLayout={radialLayout.reset}
           candidateSelections={candidateSelections}
-          settingGroups={sceneSettingGroups}
+          settingGroups={visibleSettingGroups}
           groupedSettingIds={groupedSettingIds}
-          onDropSetting={onDropSetting}
+          onDropSetting={canShowSceneSettingGroups ? onDropSetting : undefined}
           getNodeContextActions={onGetNodeContextActions}
           onSettingGroupPositionCommit={onMoveSettingGroup}
           onSelectSettingGroupNode={onSelectSettingGroupNode}
         />
-      ) : settingMainNode && activeSetting ? (
-        <ContentCanvasStarCanvas
-          main={settingMainNode}
-          nodes={settingRelationNodes}
-          actions={settingCanvasActions}
-          selectedNodeId={selectedNodeId}
-          emptyText="这个 Setting 暂无 State / Asset 关系"
-          onSelect={(node) => {
-            if (node.id === activeSetting.id) onSelectNode('setting', activeSetting.id)
-            else if (node.variant === 'state') onSelectNode('state', node.id)
-            else if (node.variant === 'asset') onSelectNode('asset', node.id)
-            else onSelectNode('other', node.id)
-          }}
-          onNodePositionCommit={radialLayout.commitNodePosition}
-          onResetLayout={radialLayout.reset}
-          candidateSelections={candidateSelections}
-          getNodeContextActions={onGetNodeContextActions}
-        />
-      ) : (
-        <div className="content-canvas-star content-canvas-star--empty">当前项目暂无 Setting</div>
       )}
     </main>
   )
@@ -305,35 +183,45 @@ export function InspectorPanel({
   createSelection,
   draftAssetPrompts,
   draftExpressionPrompts,
-  graphIndex,
   paneLayout,
-  referenceAssets,
+  promptReferenceNodes,
   selection,
   onCandidateSelect,
+  onCandidateCreate,
+  onCandidatePromptPreview,
+  onCandidateResourceSelect,
+  onCandidateUpload,
   onCreateAsset,
   onCreateExpressionUnit,
   onCreateKeyframe,
   onCreateState,
+  onCreateStoryboard,
   onExpressionPromptChange,
+  onExpressionUnitSave,
   onPromptChange,
   onPromptCommit,
   onSelectNode,
 }: {
   activeSetting: ContentCanvasNode | null
   candidateSelections: CandidateSelections
-  createSelection: Extract<InspectorSelection, { kind: 'create_expression_unit' | 'create_state' | 'create_asset' | 'create_keyframe' }> | null
+  createSelection: Extract<InspectorSelection, { kind: 'create_expression_unit' | 'create_keyframe' | 'create_storyboard' | 'create_state' | 'create_asset' }> | null
   draftAssetPrompts: Record<string, string>
   draftExpressionPrompts: Record<string, string>
-  graphIndex: { connectedByNodeId: Map<string, ContentCanvasNode[]>; childNodesByHierarchy: Map<string, ContentCanvasNode[]>; nodeById: Map<string, ContentCanvasNode> }
   paneLayout: ReturnType<typeof useContentCanvasPaneLayout>
-  referenceAssets: ContentCanvasNode[]
+  promptReferenceNodes: ContentCanvasNode[]
   selection: InspectorSelection
   onCandidateSelect: (node: ContentCanvasNode | undefined, candidate: ContentCanvasCandidate) => void
+  onCandidateCreate: (node: ContentCanvasNode | undefined, options?: ContentCanvasCandidateGenerationOptions) => void
+  onCandidatePromptPreview: (node: ContentCanvasNode | undefined) => Promise<ContentCanvasCandidatePromptPreview>
+  onCandidateResourceSelect: (node: ContentCanvasNode | undefined, resource: ContentCanvasUploadedResource) => void
+  onCandidateUpload: (node: ContentCanvasNode | undefined, file: File) => void
   onCreateAsset: (state: ContentCanvasNode, input: ContentCanvasCreateNodeInput) => void
   onCreateExpressionUnit: (scene: ContentCanvasNode, input: ContentCanvasCreateNodeInput) => void
-  onCreateKeyframe: (shot: ContentCanvasNode, input: ContentCanvasCreateNodeInput) => void
+  onCreateKeyframe: (owner: ContentCanvasNode, input: ContentCanvasCreateNodeInput) => void
   onCreateState: (setting: ContentCanvasNode, input: ContentCanvasCreateNodeInput) => void
+  onCreateStoryboard: (owner: ContentCanvasNode, input: ContentCanvasCreateNodeInput) => void
   onExpressionPromptChange: (nodeId: string, prompt: string) => void
+  onExpressionUnitSave: (node: ContentCanvasNode, input: ContentCanvasExpressionUnitEditorInput) => void
   onPromptChange: (assetId: string, prompt: string) => void
   onPromptCommit: (node: ContentCanvasNode | undefined, prompt: string) => void
   onSelectNode: (kind: InspectorSelection['kind'], nodeId: string) => void
@@ -351,17 +239,22 @@ export function InspectorPanel({
         assetPrompts={draftAssetPrompts}
         expressionPrompts={draftExpressionPrompts}
         candidateSelections={candidateSelections}
-        childNodesByHierarchy={graphIndex.childNodesByHierarchy}
-        nodes={Array.from(graphIndex.nodeById.values())}
-        referenceAssets={referenceAssets}
+        nodes={promptReferenceNodes}
+        promptReferenceNodes={promptReferenceNodes}
         onCreateAsset={onCreateAsset}
         onCreateExpressionUnit={onCreateExpressionUnit}
         onCreateKeyframe={onCreateKeyframe}
         onCreateState={onCreateState}
+        onCreateStoryboard={onCreateStoryboard}
         onPromptChange={onPromptChange}
         onPromptCommit={onPromptCommit}
         onExpressionPromptChange={onExpressionPromptChange}
+        onExpressionUnitSave={onExpressionUnitSave}
+        onCandidateCreate={onCandidateCreate}
+        onCandidatePromptPreview={onCandidatePromptPreview}
+        onCandidateResourceSelect={onCandidateResourceSelect}
         onCandidateSelect={onCandidateSelect}
+        onCandidateUpload={onCandidateUpload}
         onSelectNode={onSelectNode}
       />
     </aside>
@@ -397,11 +290,3 @@ export function selectionKindForContentNode(node: ContentCanvasNode): InspectorS
   if (node.kind === 'scene_moment') return 'scene_moment'
   return 'other'
 }
-
-const SETTING_FILTERS: Array<{ kind: SettingKind | 'all'; label: string }> = [
-  { kind: 'all', label: '全部' },
-  { kind: 'character', label: '角色' },
-  { kind: 'location', label: '场景' },
-  { kind: 'prop', label: '道具' },
-  { kind: 'visual_style', label: '视觉' },
-]

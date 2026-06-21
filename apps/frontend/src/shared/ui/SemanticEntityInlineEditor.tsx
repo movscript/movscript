@@ -1,23 +1,15 @@
-import { FormEvent, ReactNode, useEffect, useMemo, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, ChevronLeft, ChevronRight, Pencil, Save, Trash2, X } from 'lucide-react'
 
 import {
   createSemanticEntity,
   deleteSemanticEntity,
-  getSourceLockStatus,
-  listSemanticEntities,
-  semanticEntityConfig,
   updateSemanticEntity,
-  type SemanticEntityConfig,
   type SemanticEntityPayload,
-  type SemanticEntityRecord,
-  type SourceLockStatus,
 } from '@/shared/infrastructure/api/semanticEntities'
-import { semanticEntityKeys } from '@/shared/application/semanticEntityQueryKeys'
 import { invalidateSemanticEntityMutationResult, semanticEntityChangedResult } from '@/shared/application/semanticEntityMutationInvalidation'
 import { toast } from '@/shared/ui/toastStore'
-import { type AccentTone } from '@movscript/ui/semantic'
 import {
   DetailEntityEditorActions,
   DetailEntityEditorEmptyState,
@@ -31,74 +23,16 @@ import { SemanticEntityInlineEditorFieldSections } from '@/shared/ui/SemanticEnt
 import {
   buildInitialForm,
   buildPayload,
-  formatScriptBlockOption,
-  formatSettingOption,
-  formatSettingStateOption,
   isAdvancedField,
   isDeleteProtectedKind,
   isFieldFilled,
   isImmutableKind,
-  sourceLockReasonText,
-  sourceLockSupportedKind,
   type SemanticEntityInlineFormState,
 } from '@/shared/ui/SemanticEntityInlineEditorModel'
+import { useSemanticEntityInlineEditorLookups } from '@/shared/ui/SemanticEntityInlineEditorLookups'
+import type { SemanticEntityInlineEditorProps } from '@/shared/ui/SemanticEntityInlineEditorTypes'
 
-export interface SemanticEntityInlineEditorControlState {
-  formId: string
-  isEditing: boolean
-  canSave: boolean
-  isSaving: boolean
-  isDeleting: boolean
-  isImmutableRecord: boolean
-}
-
-interface SemanticEntityInlineEditorProps {
-  projectId?: number
-  config: SemanticEntityConfig
-  record?: SemanticEntityRecord | null
-  defaults?: Partial<SemanticEntityPayload>
-  queryKey?: readonly unknown[]
-  title?: string
-  description?: string
-  hideHeaderCopy?: boolean
-  hideHeaderActions?: boolean
-  hideDeleteAction?: boolean
-  showAdvancedFields?: boolean
-  hiddenFieldKeys?: string[]
-  editing?: boolean
-  onEditingChange?: (editing: boolean) => void
-  onControlStateChange?: (state: SemanticEntityInlineEditorControlState) => void
-  emptyTitle?: string
-  emptyDescription?: string
-  className?: string
-  surface?: 'default' | 'embedded'
-  hero?: SemanticEntityInlineEditorHero
-  primaryFieldKeys?: string[]
-  collapsed?: boolean
-  collapsedMode?: 'vertical' | 'horizontal'
-  onCollapsedChange?: (collapsed: boolean) => void
-  resetToken?: number
-  idScope?: string
-  editKey?: string | number | null
-  deleteRecord?: (record: SemanticEntityRecord) => Promise<unknown>
-  saveRecord?: (payload: SemanticEntityPayload, record: SemanticEntityRecord | null | undefined) => Promise<SemanticEntityRecord>
-  lookupOptions?: Record<string, Array<{ value: string; label: string }>>
-  onSaved?: (record: SemanticEntityRecord) => void
-  onDeleted?: (record: SemanticEntityRecord) => void
-}
-
-interface SemanticEntityInlineEditorHero {
-  icon?: ReactNode
-  eyebrow?: ReactNode
-  title?: ReactNode
-  subtitle?: ReactNode
-  summary?: ReactNode
-  accentTone?: AccentTone
-  accentClassName?: string
-  compact?: boolean
-  status?: ReactNode
-  stats?: Array<{ label: string; value: ReactNode }>
-}
+export type { SemanticEntityInlineEditorControlState } from '@/shared/ui/SemanticEntityInlineEditorTypes'
 
 export function SemanticEntityInlineEditor({
   projectId,
@@ -144,14 +78,8 @@ export function SemanticEntityInlineEditor({
   const [form, setForm] = useState<SemanticEntityInlineFormState>(() => buildInitialForm(fields, record, defaults))
   const [uncontrolledIsEditing, setUncontrolledIsEditing] = useState(Boolean(!record))
   const isEditing = editing ?? uncontrolledIsEditing
-  const enableSettingLookups = config.kind === 'assetSlots' && Boolean(projectId)
-  const enableScriptBlockLookups = (config.kind === 'contentUnits' || config.kind === 'segments' || config.kind === 'sceneMoments') && Boolean(projectId)
-  const hasExternalSettingOptions = Object.hasOwn(externalLookupOptions ?? {}, 'setting_id')
-  const hasExternalSettingStateOptions = Object.hasOwn(externalLookupOptions ?? {}, 'setting_state_id')
-  const hasExternalScriptBlockOptions = Object.hasOwn(externalLookupOptions ?? {}, 'script_block_id')
   const canDeleteRecord = !hideDeleteAction && !isDeleteProtectedKind(config.kind)
   const isImmutableRecord = Boolean(record && isImmutableKind(config.kind))
-  const sourceLockEnabled = Boolean(projectId && record?.ID && !saveRecord && sourceLockSupportedKind(config.kind))
   const editorDomScope = idScope ?? `${config.kind}-${record?.ID ?? 'new'}`
   const formId = `inline-${editorDomScope}`
   const shellClassName = className ?? (surface === 'embedded' ? 'rounded-none border-0 bg-transparent' : undefined)
@@ -161,61 +89,19 @@ export function SemanticEntityInlineEditor({
     onEditingChange?.(nextEditing)
   }
 
-  const { data: settings = [] } = useQuery({
-    queryKey: semanticEntityKeys.inlineSettings(projectId),
-    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('settings')),
-    enabled: enableSettingLookups && !hasExternalSettingOptions,
+  const {
+    lockedFields,
+    lookupOptions,
+    sourceLock,
+    sourceLockReason,
+  } = useSemanticEntityInlineEditorLookups({
+    projectId,
+    config,
+    record,
+    form,
+    externalLookupOptions,
+    customSaveRecord: Boolean(saveRecord),
   })
-
-  const { data: settingStates = [] } = useQuery({
-    queryKey: semanticEntityKeys.inlineSettingStates(projectId),
-    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('settingStates')),
-    enabled: enableSettingLookups && !hasExternalSettingStateOptions,
-  })
-
-  const { data: scriptBlocks = [] } = useQuery({
-    queryKey: semanticEntityKeys.inlineScriptBlocks(projectId),
-    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('scriptBlocks')),
-    enabled: enableScriptBlockLookups && !hasExternalScriptBlockOptions,
-  })
-
-  const { data: sourceLock } = useQuery<SourceLockStatus>({
-    queryKey: semanticEntityKeys.sourceLock(projectId, config.kind, record?.ID),
-    queryFn: () => getSourceLockStatus(projectId!, config, record!.ID),
-    enabled: sourceLockEnabled,
-  })
-
-  const lockedFields = useMemo(() => new Set(sourceLock?.locked_fields ?? []), [sourceLock])
-  const sourceLockReason = sourceLockReasonText(sourceLock)
-
-  const referenceById = useMemo(() => new Map(settings.map((item) => [item.ID, item])), [settings])
-  const lookupOptions = useMemo(() => {
-    const options: Record<string, Array<{ value: string; label: string }>> = {}
-    if (enableSettingLookups) {
-      const selectedReferenceId = Number(String(form.setting_id ?? '').trim()) || 0
-      const states = selectedReferenceId
-        ? settingStates.filter((item) => Number(item.setting_id) === selectedReferenceId)
-        : settingStates
-      options.setting_id = settings.map((item) => ({
-        value: String(item.ID),
-        label: formatSettingOption(item),
-      }))
-      options.setting_state_id = states.map((item) => ({
-        value: String(item.ID),
-        label: formatSettingStateOption(item, referenceById.get(Number(item.setting_id))),
-      }))
-    }
-    if (enableScriptBlockLookups) {
-      options.script_block_id = scriptBlocks.map((item) => ({
-        value: String(item.ID),
-        label: formatScriptBlockOption(item),
-      }))
-    }
-    for (const [key, value] of Object.entries(externalLookupOptions ?? {})) {
-      options[key] = value
-    }
-    return options
-  }, [settingStates, settings, enableSettingLookups, enableScriptBlockLookups, externalLookupOptions, form.setting_id, referenceById, scriptBlocks])
 
   useEffect(() => {
     setForm(buildInitialForm(fields, record, defaults))

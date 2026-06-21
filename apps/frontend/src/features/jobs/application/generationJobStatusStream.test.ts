@@ -10,7 +10,7 @@ import {
 } from './generationJobStatusStream'
 import { resetCrossPageNotificationDedupeForTests } from '@/shared/application/crossPageNotifications'
 import type { JobsQueryResult } from '@/features/jobs/components/JobsPageParts'
-import type { Job } from '@/types'
+import type { Job, PaginatedResponse } from '@/types'
 
 test('generation job status publishes as a system cross-page topic', () => {
   resetCrossPageNotificationDedupeForTests()
@@ -77,6 +77,51 @@ test('generation job status projection updates cached jobs and invalidates jobs 
   assert.equal(data?.jobs[0]?.status, 'succeeded')
   assert.equal(data?.jobs[0]?.UpdatedAt, '2026-06-16T10:00:00.000Z')
   assert.deepEqual(invalidated, [['jobs']])
+})
+
+test('generation job status projection updates paginated job history caches', () => {
+  let data: PaginatedResponse<Job> | undefined = {
+    items: [jobFixture({ ID: 42, status: 'running', UpdatedAt: '2026-06-16T09:59:00.000Z' })],
+    total: 1,
+    page: 1,
+    page_size: 12,
+  }
+  const queryClient = {
+    setQueriesData<TData>(_filters: { queryKey: readonly unknown[] }, updater: (current: TData | undefined) => TData | undefined) {
+      data = updater(data as TData | undefined) as PaginatedResponse<Job> | undefined
+    },
+    invalidateQueries(_options: { queryKey: readonly unknown[] }) {},
+  }
+
+  applyGenerationJobStatusEventToCache(queryClient, {
+    jobId: 42,
+    status: 'succeeded',
+    updatedAt: '2026-06-16T10:00:00.000Z',
+    source: 'test',
+  })
+
+  assert.equal(data?.items[0]?.status, 'succeeded')
+  assert.equal(data?.items[0]?.UpdatedAt, '2026-06-16T10:00:00.000Z')
+})
+
+test('generation job status projection ignores unrelated job query cache shapes', () => {
+  const originalData = { total: 1, value: 'not-a-jobs-page' }
+  let data: typeof originalData | undefined = originalData
+  const queryClient = {
+    setQueriesData<TData>(_filters: { queryKey: readonly unknown[] }, updater: (current: TData | undefined) => TData | undefined) {
+      data = updater(data as TData | undefined) as typeof originalData | undefined
+    },
+    invalidateQueries(_options: { queryKey: readonly unknown[] }) {},
+  }
+
+  applyGenerationJobStatusEventToCache(queryClient, {
+    jobId: 42,
+    status: 'succeeded',
+    updatedAt: '2026-06-16T10:00:00.000Z',
+    source: 'test',
+  })
+
+  assert.equal(data, originalData)
 })
 
 function jobFixture(patch: Partial<Job> = {}): Job {

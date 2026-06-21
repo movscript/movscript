@@ -79,7 +79,6 @@ function normalizeContentUnitRecord(
     expression_unit_ref: stringValue(unit.expression_unit_ref ?? unit.expressionUnitRef ?? current.expression_unit_ref),
     content_unit_ref: stringValue(unit.content_unit_ref ?? unit.contentUnitRef ?? current.content_unit_ref),
     voice_profile_ref: stringValue(unit.voice_profile_ref ?? unit.voiceProfileRef ?? current.voice_profile_ref),
-    shot_ref: stringValue(unit.shot_ref ?? unit.shotRef ?? current.shot_ref),
     edit_prompt: normalizeEditPrompt(unit.edit_prompt ?? unit.editPrompt ?? unit.prompt ?? current.edit_prompt),
     model_intent: isRecord(unit.model_intent ?? unit.modelIntent) ? unit.model_intent ?? unit.modelIntent : current.model_intent,
     ...(unit.__delete === true ? { __delete: true } : {}),
@@ -100,7 +99,6 @@ function defaultOutputKind(contentUnitType: string): string {
     case 'scene_moment_ref':
     case 'production_ref':
     case 'segment_ref':
-    case 'shot_ref':
       return 'video'
     case 'expression_unit_ref':
       return stringValue(contentUnitType) === 'expression_unit_ref' ? 'metadata' : 'metadata'
@@ -141,8 +139,6 @@ function primaryRefKindForContentUnitType(contentUnitType: string): string | und
       return 'scene_moment'
     case 'expression_unit_ref':
       return 'expression_unit'
-    case 'shot_ref':
-      return 'shot'
     default:
       return undefined
   }
@@ -168,8 +164,6 @@ function primaryRefIdsForContentUnitRecord(record: Record<string, unknown>, kind
       return compactStrings(record.target_kind === 'scene_moment' ? record.target_ref : undefined, record.scene_moment_ref, record.scence_moment_ref)
     case 'expression_unit':
       return compactStrings(record.target_kind === 'expression_unit' ? record.target_ref : undefined, record.expression_unit_ref)
-    case 'shot':
-      return compactStrings(record.shot_ref)
     default:
       return []
   }
@@ -210,7 +204,6 @@ function promptRefKind(value: string | undefined): string | undefined {
     case 'keyframe':
     case 'storyboard':
     case 'scene_moment':
-    case 'shot':
     case 'content_unit':
       return value
     default:

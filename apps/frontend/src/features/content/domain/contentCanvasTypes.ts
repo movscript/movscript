@@ -6,7 +6,6 @@ export type ContentCanvasNodeKind =
   | 'production'
   | 'segment'
   | 'scene_moment'
-  | 'shot'
   | 'storyboard'
   | 'expression_unit'
   | 'content_unit'
@@ -66,6 +65,11 @@ export interface ContentCanvasCandidate {
   artifactRef?: string
   inputHash?: string
   source: string
+  status?: string
+  producer?: Record<string, unknown>
+  outputs?: unknown[]
+  promptSnapshot?: Record<string, unknown>
+  createdAt?: string
   selected: boolean
   notes: string
 }
@@ -140,12 +144,9 @@ export interface ContentCanvasEdge {
     | 'content_unit_candidate'
     | 'content_unit_asset'
     | 'content_unit_keyframe'
-    | 'content_unit_shot'
     | 'content_unit_storyboard'
-    | 'audio_cue_shot'
     | 'audio_cue_storyboard'
     | 'audio_cue_asset'
-    | 'expression_unit_shot'
     | 'expression_unit_storyboard'
     | 'expression_unit_content_unit'
     | 'setting_state_reference'
@@ -176,7 +177,6 @@ export interface ContentCanvasGraphSummary {
   edgeCount: number
   nodeCountByKind: Partial<Record<ContentCanvasNodeKind, number>>
   productionCount: number
-  shotCount: number
   staleCount: number
   needsCandidateCount: number
   missingCount: number
@@ -190,7 +190,6 @@ export interface ContentCanvasProjectData {
   productions: MovScriptWorkspaceIndexedEntity[]
   segments: MovScriptWorkspaceIndexedEntity[]
   sceneMoments: MovScriptWorkspaceIndexedEntity[]
-  shots: MovScriptWorkspaceIndexedEntity[]
   storyboards: MovScriptWorkspaceIndexedEntity[]
   expressionUnits: MovScriptWorkspaceIndexedEntity[]
   contentUnits: MovScriptWorkspaceIndexedEntity[]

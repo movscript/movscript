@@ -96,19 +96,6 @@ function appendSingleContentUnitReferences({
     nodeByPath,
   })
   appendContentUnitReferenceSet({
-    refs: compactStrings(contentUnit.record.shot_ref, contentUnit.record.shot_refs),
-    targetKind: 'shot',
-    collectionSegment: 'shots',
-    edgeId: (target) => `${source.id}->${target.id}:shot-ref`,
-    edgeSource: () => source.id,
-    edgeTarget: (target) => target.id,
-    label: '镜头',
-    relation: 'content_unit_shot',
-    edges,
-    nodeByEntityKindAndKey,
-    nodeByPath,
-  })
-  appendContentUnitReferenceSet({
     refs: compactStrings(contentUnit.record.storyboard_ref, contentUnit.record.storyboard_refs),
     targetKind: 'storyboard',
     collectionSegment: 'storyboards',
@@ -189,19 +176,6 @@ function appendExpressionUnitReferenceEdges({
   for (const expressionUnit of data.expressionUnits) {
     const source = nodeByEntityKindAndKey.get(`expression_unit:${entityKey(expressionUnit, data.projectId)}`)
     if (!source) continue
-    for (const shotRef of compactStrings(expressionUnit.record.shot_ref, expressionUnit.record.shot_refs)) {
-      const target = referencedNodeFor('shot', shotRef, nodeByEntityKindAndKey, nodeByPath, 'shots')
-      if (target) {
-        edges.push({
-          id: `${source.id}->${target.id}:expression-shot-ref:${shotRef}`,
-          source: source.id,
-          target: target.id,
-          label: '表达约束',
-          kind: 'reference',
-          relation: 'expression_unit_shot',
-        })
-      }
-    }
     for (const storyboardRef of expressionStoryboardRefs(expressionUnit.record)) {
       const target = referencedNodeFor('storyboard', storyboardRef, nodeByEntityKindAndKey, nodeByPath, 'storyboards')
       if (target) {
@@ -232,19 +206,6 @@ function appendAudioCueReferenceEdges({
   for (const audioCue of data.audioCues ?? []) {
     const source = nodeByEntityKindAndKey.get(`audio_cue:${entityKey(audioCue, data.projectId)}`)
     if (!source) continue
-    for (const shotRef of compactStrings(audioCue.record.shot_ref, audioCue.record.shot_refs)) {
-      const target = referencedNodeFor('shot', shotRef, nodeByEntityKindAndKey, nodeByPath, 'shots')
-      if (target) {
-        edges.push({
-          id: `${source.id}->${target.id}:audio-shot-ref`,
-          source: source.id,
-          target: target.id,
-          label: '声音约束',
-          kind: 'reference',
-          relation: 'audio_cue_shot',
-        })
-      }
-    }
     for (const storyboardRef of compactStrings(audioCue.record.storyboard_ref, audioCue.record.storyboard_refs)) {
       const target = referencedNodeFor('storyboard', storyboardRef, nodeByEntityKindAndKey, nodeByPath, 'storyboards')
       if (target) {
@@ -286,6 +247,7 @@ function appendSettingStateReferenceEdges({
   nodeByPath: Map<string, ContentCanvasNode>
 }) {
   for (const node of entityNodes) {
+    if (node.kind === 'asset') continue
     for (const stateRef of settingStateRefsForRecord(node.record)) {
       const target = referencedNodeFor('state', stateRef, nodeByEntityKindAndKey, nodeByPath, 'states')
       if (!target || target.id === node.id) continue

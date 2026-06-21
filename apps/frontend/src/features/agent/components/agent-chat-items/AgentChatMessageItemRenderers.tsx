@@ -19,7 +19,7 @@ export function AgentChatUserMessageItem({ item }: { item: Extract<AgentChatThre
   return (
     <AgentChatMessage role="user" avatar="U" data-testid="agent-chat-user-message">
       <AgentChatContentStack>
-        {view.text ? <div className="ms-agent-chat-message-text">{view.text}</div> : null}
+        {view.text ? <div className="agent-chat-message-text">{view.text}</div> : null}
         {view.textElementSummary.length > 0 ? (
           <AgentChatInlineList label="Text spans" values={view.textElementSummary} />
         ) : null}
@@ -40,7 +40,7 @@ export function AgentChatUserMessageItem({ item }: { item: Extract<AgentChatThre
           view.attachments.length > 0 ? { label: 'attachments', value: view.attachments } : null,
           view.rawDetails !== undefined ? { label: 'message', value: view.rawDetails } : null,
         ]} />
-        {!view.text && view.attachments.length === 0 ? <div className="ms-agent-chat-empty-text">Empty user message</div> : null}
+        {!view.text && view.attachments.length === 0 ? <div className="agent-chat-empty-text">Empty user message</div> : null}
       </AgentChatContentStack>
     </AgentChatMessage>
   )
@@ -65,11 +65,11 @@ export function AgentChatAgentMessageItem({ item, streaming }: { item: Extract<A
   return (
     <AgentChatMessage role="assistant" avatar="AI" data-testid="agent-chat-agent-message">
       <AgentChatContentStack>
-        <div className="ms-agent-chat-message-text">{view.text || (streaming ? '...' : '')}</div>
+        <div className="agent-chat-message-text">{view.text || (streaming ? '...' : '')}</div>
         {(view.phaseLabel || view.hasMemoryCitation) ? (
-          <div className="ms-agent-chat-chip-row">
-            {view.phaseLabel ? <span className="ms-agent-chat-chip">{view.phaseLabel}</span> : null}
-            {view.hasMemoryCitation ? <span className="ms-agent-chat-chip">memory citation</span> : null}
+          <div className="agent-chat-chip-row">
+            {view.phaseLabel ? <span className="agent-chat-chip">{view.phaseLabel}</span> : null}
+            {view.hasMemoryCitation ? <span className="agent-chat-chip">memory citation</span> : null}
           </div>
         ) : null}
         {view.memoryCitationSummary.length > 0 ? (

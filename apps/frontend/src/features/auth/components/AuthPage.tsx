@@ -11,6 +11,7 @@ import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { type AuthSession, useUserStore } from '@/shared/infrastructure/session/userStore'
 import {
   AuthActionButton,
+  AuthBrandMark,
   AuthEmailCodeField,
   AuthEmailCodeRow,
   AuthField,
@@ -172,7 +173,9 @@ export default function AuthPage() {
         </Link>
       </AuthSettingsButton>
       <AuthPanel>
-        <AuthTitle>Movscript</AuthTitle>
+        <AuthBrandMark>
+          <AuthTitle>Movscript</AuthTitle>
+        </AuthBrandMark>
         <AuthTagline>{t('auth.tagline')}</AuthTagline>
         {bootstrapRequired && (
           <AuthStateMessage>

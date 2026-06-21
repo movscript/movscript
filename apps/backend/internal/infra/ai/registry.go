@@ -82,9 +82,9 @@ func (r *Registry) buildProvider(cred persistencemodel.AICredential, def *ModelD
 		}
 	}
 
-	adapterType := def.AdapterType
-	if adapterType == "" {
-		adapterType = cred.AdapterType
+	adapterType := cred.AdapterType
+	if adapterType == "" && def != nil {
+		adapterType = def.AdapterType
 	}
 
 	switch adapterType {

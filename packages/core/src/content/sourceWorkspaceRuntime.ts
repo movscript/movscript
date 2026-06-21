@@ -101,7 +101,7 @@ export interface ContentSourceWorkspaceRuntimePort {
     contentUnitId: string
     candidateId: string
     source: 'ai_generate' | 'resource_library'
-    status: 'queued' | 'imported'
+    status: 'queued' | 'pending' | 'running' | 'succeeded' | 'failed' | 'canceled' | 'cancelled' | 'imported'
     producer: Record<string, unknown>
     outputs: ContentSourceWorkspaceCandidateOutput[]
     promptSnapshot: Record<string, unknown>
@@ -476,7 +476,7 @@ export function createContentSourceWorkspaceRuntime(options: {
             title: cue.title,
             cueKind: cue.cueKind,
             promptHint: cue.promptHint,
-            shotRef: cue.shotRef,
+            expressionUnitRef: cue.expressionUnitRef,
             storyboardRef: cue.storyboardRef,
             timing: cue.timing,
             assetRefs: cue.assetRefs,
@@ -572,6 +572,7 @@ function contentSourceWorkspaceCommitResult(value: unknown): ContentSourceWorksp
 
 function isContentSourceWorkspaceDataEmpty(data: ContentSourceWorkspaceData): boolean {
   return data.previewMoments.length === 0
+    && Object.values(data.contentUnitCandidates).every((candidates) => candidates.length === 0)
     && Object.keys(data.assetReferenceUnits).length === 0
 }
 

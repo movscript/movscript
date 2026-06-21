@@ -7,6 +7,7 @@ import type {
 
 export interface ContentCanvasProjectEntrySessionState {
   activeKind?: SettingKind | 'all'
+  activeCanvasNodeId: string
   canvasMode: CanvasMode
   selectedNodeId: string
   selectionKind: InspectorSelectionRef['kind']
@@ -15,6 +16,7 @@ export interface ContentCanvasProjectEntrySessionState {
 export function buildContentCanvasProjectEntrySessionSearch(state: ContentCanvasProjectEntrySessionState): string {
   const params = new URLSearchParams()
   params.set('mode', state.canvasMode)
+  params.set('canvasNode', state.activeCanvasNodeId)
   params.set('node', state.selectedNodeId)
   params.set('kind', state.selectionKind)
   if (state.activeKind && state.activeKind !== 'all') params.set('settingKind', state.activeKind)
@@ -33,8 +35,10 @@ export function resolveContentCanvasProjectEntrySessionState(input: {
 function contentCanvasProjectEntrySessionStateFromSearch(searchParams: URLSearchParams): ContentCanvasProjectEntrySessionState | null {
   const selectedNodeId = searchParams.get('node')?.trim()
   if (!selectedNodeId) return null
-  const canvasMode = normalizeContentCanvasMode(searchParams.get('mode')) ?? 'scene_moment'
+  const activeCanvasNodeId = searchParams.get('canvasNode')?.trim() || selectedNodeId
+  const canvasMode = normalizeContentCanvasMode(searchParams.get('mode')) ?? 'structure'
   return {
+    activeCanvasNodeId,
     canvasMode,
     selectedNodeId,
     selectionKind: normalizeContentCanvasSelectionKind(searchParams.get('kind')) ?? selectionKindForContentCanvasMode(canvasMode),
@@ -45,8 +49,10 @@ function contentCanvasProjectEntrySessionStateFromSearch(searchParams: URLSearch
 function contentCanvasProjectEntrySessionStateFromSnapshot(snapshot: ProjectEntrySessionSnapshot | null | undefined): ContentCanvasProjectEntrySessionState | null {
   const selectedNodeId = stringFilterValue(snapshot?.filters?.selectedNodeId)
   if (!selectedNodeId) return null
-  const canvasMode = normalizeContentCanvasMode(snapshot?.filters?.canvasMode) ?? 'scene_moment'
+  const activeCanvasNodeId = stringFilterValue(snapshot?.filters?.activeCanvasNodeId) ?? selectedNodeId
+  const canvasMode = normalizeContentCanvasMode(snapshot?.filters?.canvasMode) ?? 'structure'
   return {
+    activeCanvasNodeId,
     canvasMode,
     selectedNodeId,
     selectionKind: normalizeContentCanvasSelectionKind(snapshot?.filters?.selectionKind) ?? selectionKindForContentCanvasMode(canvasMode),
@@ -55,7 +61,7 @@ function contentCanvasProjectEntrySessionStateFromSnapshot(snapshot: ProjectEntr
 }
 
 function selectionKindForContentCanvasMode(mode: CanvasMode): InspectorSelectionRef['kind'] {
-  return mode === 'setting' ? 'setting' : 'scene_moment'
+  return mode === 'structure' || mode === 'prompt' ? 'scene_moment' : 'scene_moment'
 }
 
 function stringFilterValue(value: unknown): string | undefined {
@@ -63,7 +69,9 @@ function stringFilterValue(value: unknown): string | undefined {
 }
 
 function normalizeContentCanvasMode(value: unknown): CanvasMode | undefined {
-  return value === 'scene_moment' || value === 'setting' ? value : undefined
+  if (value === 'structure' || value === 'prompt') return value
+  if (value === 'scene_moment' || value === 'setting') return 'structure'
+  return undefined
 }
 
 function normalizeContentCanvasSelectionKind(value: unknown): InspectorSelectionRef['kind'] | undefined {

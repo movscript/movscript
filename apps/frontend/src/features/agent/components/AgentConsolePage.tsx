@@ -1,17 +1,14 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
 import {
   AlertTriangle,
   Bot,
   Cable,
   ClipboardList,
-  PackageCheck,
   RefreshCw,
   Settings,
   Trash2,
 } from 'lucide-react'
-import { Badge, Switch } from '@movscript/ui/primitives'
 import {
   AgentPageShell,
   AgentPageShellHeader,
@@ -59,22 +56,16 @@ import {
 } from '@/features/agent/application/agentControlCenter'
 import { AgentCapabilityHealthPanel, AgentRuntimeCredentialPanel } from '@/features/agent/components/AgentConsoleCapabilityPanels'
 import { AgentSessionIntegrationPanel } from '@/features/agent/components/AgentConsoleSessionIntegrationPanel'
+import { AgentConsoleGlobalPluginPanel } from '@/features/agent/components/AgentConsoleGlobalPluginPanel'
 import {
   activeAgentProfileForRoute,
   agentProfilesFromProviderSettings,
   type AgentProfile,
   type AgentRuntimeCapabilitySummary,
 } from '@/features/agent/application/agentProfileModel'
-import { requireWorkspaceRootAPI } from '@/features/agent/application/movScriptWorkspaceElectron'
-import {
-  loadProjectPluginSnapshot,
-  setProjectPluginEnabled,
-  type ProjectPluginSnapshot,
-} from '@/features/plugins/application/projectPlugins'
+import { useAgentConsoleGlobalPlugins } from '@/features/agent/application/useAgentConsoleGlobalPlugins'
 
 export default function AgentConsolePage() {
-  const [globalPluginTogglingKey, setGlobalPluginTogglingKey] = useState<string>()
-  const [globalPluginError, setGlobalPluginError] = useState<string>()
   const controlCenter = useAgentControlCenter()
   const {
     providerSessionsQuery,
@@ -108,31 +99,7 @@ export default function AgentConsolePage() {
   const currentAgent = activeAgentProfileForRoute(agentProfiles, undefined)
   const capabilityMetric = agentConsoleCapabilityMetric(currentAgent, capabilityHealth, toolSummary, skillSummary, pluginSummary)
   const hostedAgentsRoute = agentConsoleSettingsRoute('console:agents')
-  const globalPluginsQuery = useQuery({
-    queryKey: ['agent-console-global-plugins'],
-    queryFn: async () => {
-      const root = await requireWorkspaceRootAPI().getRoot()
-      const movScriptHomeDir = root.movScriptHomeDir ?? root.workspaceDir
-      return loadProjectPluginSnapshot({ movScriptHomeDir, workspaceDir: movScriptHomeDir })
-    },
-  })
-
-  async function handleGlobalPluginToggle(plugin: ProjectPluginSnapshot['systemPlugins'][number], enabled: boolean) {
-    const snapshot = globalPluginsQuery.data
-    const movScriptHomeDir = snapshot?.movScriptHomeDir ?? snapshot?.workspaceDir
-    if (!movScriptHomeDir) return
-    setGlobalPluginTogglingKey(plugin.pluginKey)
-    setGlobalPluginError(undefined)
-    try {
-      await setProjectPluginEnabled({ movScriptHomeDir, workspaceDir: movScriptHomeDir }, plugin.pluginKey, enabled)
-      await globalPluginsQuery.refetch()
-      refreshAll()
-    } catch (error) {
-      setGlobalPluginError(error instanceof Error ? error.message : String(error))
-    } finally {
-      setGlobalPluginTogglingKey(undefined)
-    }
-  }
+  const globalPlugins = useAgentConsoleGlobalPlugins({ onChanged: refreshAll })
 
   return (
     <AgentPageShell data-testid="agent-console-page">
@@ -227,14 +194,14 @@ export default function AgentConsolePage() {
               loading={capabilityHealthQuery.isFetching}
             />
 
-            <GlobalPluginPanel
-              snapshot={globalPluginsQuery.data}
-              loading={globalPluginsQuery.isLoading}
-              refreshing={globalPluginsQuery.isFetching}
-              error={globalPluginError ?? (globalPluginsQuery.error instanceof Error ? globalPluginsQuery.error.message : undefined)}
-              togglingKey={globalPluginTogglingKey}
-              onRefresh={() => void globalPluginsQuery.refetch()}
-              onToggle={(plugin, enabled) => void handleGlobalPluginToggle(plugin, enabled)}
+            <AgentConsoleGlobalPluginPanel
+              snapshot={globalPlugins.snapshot}
+              loading={globalPlugins.loading}
+              refreshing={globalPlugins.refreshing}
+              error={globalPlugins.error}
+              togglingKey={globalPlugins.togglingKey}
+              onRefresh={globalPlugins.refresh}
+              onToggle={(plugin, enabled) => void globalPlugins.togglePlugin(plugin, enabled)}
             />
 
             <AgentSessionIntegrationPanel
@@ -296,102 +263,6 @@ export default function AgentConsolePage() {
   )
 }
 
-function GlobalPluginPanel({
-  snapshot,
-  loading,
-  refreshing,
-  error,
-  togglingKey,
-  onRefresh,
-  onToggle,
-}: {
-  snapshot?: ProjectPluginSnapshot
-  loading: boolean
-  refreshing: boolean
-  error?: string
-  togglingKey?: string
-  onRefresh: () => void
-  onToggle: (plugin: ProjectPluginSnapshot['systemPlugins'][number], enabled: boolean) => void
-}) {
-  const plugins = snapshot?.systemPlugins ?? []
-  return (
-    <ConsolePanel
-      title="全局插件"
-      icon={<PackageCheck size={14} />}
-      action={(
-        <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={onRefresh} disabled={refreshing}>
-          <AgentConsoleIcon icon={RefreshCw} size={12} spinning={refreshing} />
-          刷新
-        </AgentConsoleActionButton>
-      )}
-    >
-      <AgentConsoleStack>
-        {error ? (
-          <IssueRow issue={{ id: 'global-plugin-error', title: '全局插件读取失败', detail: error, tone: 'action' }} />
-        ) : null}
-        {loading ? (
-          <EmptyText>正在读取系统插件缓存...</EmptyText>
-        ) : plugins.length === 0 ? (
-          <EmptyText>系统缓存暂无插件。</EmptyText>
-        ) : plugins.map((plugin) => (
-          <GlobalPluginCard
-            key={plugin.pluginKey}
-            plugin={plugin}
-            busy={togglingKey === plugin.pluginKey}
-            onToggle={(enabled) => onToggle(plugin, enabled)}
-          />
-        ))}
-      </AgentConsoleStack>
-    </ConsolePanel>
-  )
-}
-
-function GlobalPluginCard({
-  plugin,
-  busy,
-  onToggle,
-}: {
-  plugin: ProjectPluginSnapshot['systemPlugins'][number]
-  busy: boolean
-  onToggle: (enabled: boolean) => void
-}) {
-  const builtin = plugin.sourceType === 'builtin'
-  const enabled = plugin.globalEnabled || plugin.projectEnabled
-  return (
-    <article className="rounded-md border border-border bg-muted/10 p-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <PackageCheck size={14} className={enabled ? 'text-foreground' : 'text-muted-foreground'} />
-            <h3 className="truncate type-body font-semibold text-foreground">{plugin.displayName ?? plugin.name}</h3>
-          </div>
-          <p className="mt-1 truncate type-caption text-muted-foreground">{plugin.pluginKey}</p>
-        </div>
-        <Switch
-          checked={enabled}
-          disabled={busy || !plugin.installed || builtin}
-          aria-label={`${enabled ? '关闭' : '开启'} ${plugin.displayName ?? plugin.name}`}
-          onCheckedChange={onToggle}
-        />
-      </div>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <Badge variant={enabled ? 'solid' : 'outline'} tone={enabled ? 'success' : 'neutral'}>
-          {enabled ? '全局已开启' : '全局未开启'}
-        </Badge>
-        <Badge variant={plugin.installed ? 'outline' : 'solid'} tone={plugin.installed ? 'neutral' : 'warning'}>
-          {builtin ? '系统内置' : plugin.installed ? '系统缓存' : '缓存缺失'}
-        </Badge>
-        {builtin ? <Badge variant="outline">系统托管</Badge> : null}
-        {plugin.version ? <Badge variant="outline">v{plugin.version}</Badge> : null}
-        {plugin.providerTargets.map((target) => (
-          <Badge key={target} variant="outline">{providerTargetLabel(target)}</Badge>
-        ))}
-        {busy ? <Badge variant="outline">切换中</Badge> : null}
-      </div>
-    </article>
-  )
-}
-
 function agentSettingsSectionPath(sectionId: string): string {
   return `${ROUTES.agentSettings}#${encodeURIComponent(sectionId)}`
 }
@@ -442,10 +313,4 @@ function runtimeCapabilityDetail(summary: AgentRuntimeCapabilitySummary): string
     return `Runtime contract 有 ${summary.limitedCount} 项能力受限${reason}`
   }
   return 'Runtime contract 暂不可用'
-}
-
-function providerTargetLabel(target: ProjectPluginSnapshot['systemPlugins'][number]['providerTargets'][number]): string {
-  if (target === 'codex') return 'Codex'
-  if (target === 'mova') return 'Mova'
-  return 'Claude'
 }

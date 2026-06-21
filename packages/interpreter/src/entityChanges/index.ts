@@ -144,7 +144,6 @@ export function sourceEntityKindFromRelativePath(path: string): string | undefin
   if (fileName === 'production.json') return 'production'
   if (fileName === 'segment.json') return 'segment'
   if (fileName === 'scene_moment.json') return 'scene_moment'
-  if (fileName === 'shot.json') return 'shot'
   if (fileName === 'storyboard.json') return 'storyboard'
   if (fileName === 'audio_cue.json') return 'audio_cue'
   if (fileName === 'expression_unit.json') return 'expression_unit'
@@ -161,15 +160,19 @@ export function stableDirectoryIdForSourceEntity(path: string, entityKind: strin
   if (entityKind === 'script_version') return parts[3]
   if (entityKind === 'script_block') return parts[5]
   if (entityKind === 'content_unit') return parts[1]
-  if (entityKind === 'keyframe') return parts[9]
+  if (entityKind === 'keyframe') return pathSegmentAfter(parts, 'keyframes')
   if (entityKind === 'production') return parts[1]
   if (entityKind === 'segment') return parts[3]
   if (entityKind === 'scene_moment') return parts[5]
-  if (entityKind === 'shot') return parts[7]
-  if (entityKind === 'storyboard') return parts[9]
+  if (entityKind === 'storyboard') return pathSegmentAfter(parts, 'storyboards')
   if (entityKind === 'audio_cue') return parts[7]
   if (entityKind === 'expression_unit') return parts[7]
   return undefined
+}
+
+function pathSegmentAfter(parts: string[], segment: string): string | undefined {
+  const index = parts.indexOf(segment)
+  return index >= 0 ? parts[index + 1] : undefined
 }
 
 export function sourceEntityStableId(record: Record<string, unknown>, entityKind: string): string | number | undefined {
@@ -188,7 +191,11 @@ function parseWorkspaceDocument(path: string, content: string): unknown {
 
 function entityKindFromFilePath(path: string, record: Record<string, unknown>): string {
   const schema = typeof record.schema === 'string' ? record.schema : undefined
-  if (schema) return schema.replace(/^movscript\./, '').replace(/\.v\d+$/, '')
+  if (schema) {
+    const schemaKind = schema.replace(/^movscript\./, '').replace(/\.v\d+$/, '')
+    if (schemaKind === 'shot') return 'unknown'
+    if (schemaKind !== 'shot') return schemaKind
+  }
   const fileName = path.split('/').pop() ?? path
   const prefix = /^([a-z_]+)_/.exec(fileName)?.[1]
   return prefix ?? fileName.replace(/\.[^.]+$/, '')

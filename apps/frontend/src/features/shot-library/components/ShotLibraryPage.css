@@ -1,3 +1,6 @@
 @import './ShotLibraryPage.layout.css';
+@import './ShotLibraryPage.detail.css';
 @import './ShotLibraryPage.import-dialog.css';
+@import './ShotLibraryPage.import-dialog.resources.css';
+@import './ShotLibraryPage.import-dialog.workspace.css';
 @import './ShotLibraryPage.upload-responsive.css';

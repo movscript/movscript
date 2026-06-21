@@ -34,6 +34,7 @@ import {
 import type { TimelineClipEditMode, TimelineTrack, TimelineTrackType } from '../domain/types'
 import { formatDuration } from '../domain/utils'
 import { TimelineTrackRow } from './TimelineTrackRow'
+import './TimelinePanel.css'
 
 type TimelinePanelProps = {
   activeProject: ElectronMediaPipelineEditingProject | null

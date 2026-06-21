@@ -133,6 +133,7 @@ type EnqueueInput struct {
 	InputResourceIDs      []uint
 	ProjectID             *uint
 	CreatedAt             time.Time
+	ContentUnitCandidate  *domainjob.ContentUnitCandidateBinding
 }
 
 func (s *Service) List(ctx context.Context, filter ListFilter) (ListResult, error) {
@@ -247,16 +248,17 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (do
 		createdAt = time.Now()
 	}
 	requestContext := BuildContextSnapshot(ContextSnapshotInput{
-		Model:          preflightModelSnapshot(preflight),
-		Credential:     cred,
-		JobType:        input.JobType,
-		FeatureKey:     input.FeatureKey,
-		Prompt:         input.Prompt,
-		ExtraParams:    input.ExtraParams,
-		AspectRatio:    input.AspectRatio,
-		Duration:       input.Duration,
-		InputResources: OrderedResources(inputResources.Resources, allIDs),
-		CreatedAt:      createdAt,
+		Model:                preflightModelSnapshot(preflight),
+		Credential:           cred,
+		JobType:              input.JobType,
+		FeatureKey:           input.FeatureKey,
+		Prompt:               input.Prompt,
+		ExtraParams:          input.ExtraParams,
+		AspectRatio:          input.AspectRatio,
+		Duration:             input.Duration,
+		InputResources:       OrderedResources(inputResources.Resources, allIDs),
+		CreatedAt:            createdAt,
+		ContentUnitCandidate: input.ContentUnitCandidate,
 	})
 
 	estimate, err := s.estimateJobRouteCost(ctx, input.UserID, aiRoute, input.JobType, input.Duration, input.ExtraParams, input.AspectRatio)

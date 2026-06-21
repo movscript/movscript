@@ -4,6 +4,10 @@ import { resolve } from 'node:path'
 import test from 'node:test'
 
 const shellSource = readSource('apps/frontend/src/features/agent/components/AgentChatDataSourceShell.tsx')
+const controllerSource = [
+  readSource('apps/frontend/src/features/agent/application/useAgentChatDataSourceShellController.ts'),
+  readSource('apps/frontend/src/features/agent/application/useAgentChatDataSourceShellRuntimeSetup.ts'),
+].join('\n')
 const shellViewSource = readSource('apps/frontend/src/features/agent/components/AgentChatShellView.tsx')
 const debugSource = readSource('apps/frontend/src/features/agent/application/agentChatShellDebug.ts')
 const threadBridgeSource = readSource('apps/frontend/src/features/agent/application/agentChatThreadBridge.ts')
@@ -27,6 +31,7 @@ const threadListSource = readSource('apps/frontend/src/features/agent/applicatio
 const threadRuntimeEffectsSource = readSource('apps/frontend/src/features/agent/application/useAgentChatThreadRuntimeEffects.ts')
 const threadTabsSource = readSource('apps/frontend/src/features/agent/application/useAgentChatThreadTabs.ts')
 const turnControlsSource = readSource('apps/frontend/src/features/agent/application/useAgentChatTurnControls.ts')
+const queuedInputControlsSource = readSource('apps/frontend/src/features/agent/application/useAgentChatQueuedInputControls.ts')
 const conversationRegistrySource = readSource('apps/frontend/src/features/agent/application/useAgentChatConversationRegistry.ts')
 const shellModelSource = [
   readSource('apps/frontend/src/features/agent/presentation/agentChatDataSourceShellModel.ts'),
@@ -35,9 +40,11 @@ const shellModelSource = [
 const queuedInputModelSource = readSource('apps/frontend/src/features/agent/presentation/agentChatQueuedInputModel.ts')
 const shellPresentationStateSource = readSource('apps/frontend/src/features/agent/presentation/useAgentChatShellPresentationState.ts')
 const shellPartsSource = readSource('apps/frontend/src/features/agent/components/AgentChatDataSourceShellParts.tsx')
+const shellViewBuilderSource = readSource('apps/frontend/src/features/agent/application/agentChatDataSourceShellView.ts')
+const shellControllerViewSource = readSource('apps/frontend/src/features/agent/application/agentChatDataSourceShellControllerView.ts')
 
 test('agent chat data source shell delegates debug storage access', () => {
-  assert.match(shellSource, /from '@\/features\/agent\/application\/useAgentChatThreadLifecycleEffects'/)
+  assert.match(controllerSource, /from '@\/features\/agent\/application\/useAgentChatThreadLifecycleEffects'/)
   assert.match(threadLifecycleEffectsSource, /from '@\/features\/agent\/application\/agentChatShellDebug'/)
   assert.doesNotMatch(shellSource, /localStorage/)
   assert.doesNotMatch(shellSource, /movscript\.debugAgentChatShell/)
@@ -50,7 +57,7 @@ test('agent chat data source shell delegates debug storage access', () => {
 })
 
 test('agent chat thread channel events live in the application bridge', () => {
-  assert.match(shellSource, /from '@\/features\/agent\/application\/useAgentChatPanelCommands'/)
+  assert.match(controllerSource, /from '@\/features\/agent\/application\/useAgentChatPanelCommands'/)
   assert.match(panelCommandsSource, /from '@\/features\/agent\/application\/agentChatThreadBridge'/)
   assert.match(panelCommandsSource, /publishAgentChatThreadOpen\(\{[\s\S]*channel: openThreadEventName,[\s\S]*sourceId,[\s\S]*threadId: activeThreadId,[\s\S]*\}\)/)
   assert.match(panelCommandsSource, /subscribeAgentChatThreadOpen\(openThreadEventName/)
@@ -69,8 +76,8 @@ test('agent chat thread channel events live in the application bridge', () => {
 })
 
 test('agent chat panel command subscriptions are owned by the application layer', () => {
-  assert.match(shellSource, /from '@\/features\/agent\/application\/useAgentChatPanelCommands'/)
-  assert.match(shellSource, /useAgentChatPanelCommands\(\{[\s\S]*createDraftConversation,[\s\S]*openThread,[\s\S]*startWorkspaceTask,[\s\S]*\}\)/)
+  assert.match(controllerSource, /from '@\/features\/agent\/application\/useAgentChatPanelCommands'/)
+  assert.match(controllerSource, /useAgentChatPanelCommands\(\{[\s\S]*createDraftConversation,[\s\S]*openThread,[\s\S]*startWorkspaceTask,[\s\S]*\}\)/)
   assert.doesNotMatch(shellSource, /consumeAgentPanelNewConversation/)
   assert.doesNotMatch(shellSource, /consumeAgentPanelThread/)
   assert.doesNotMatch(shellSource, /consumeAgentPanelWorkspace/)
@@ -88,8 +95,8 @@ test('agent chat panel command subscriptions are owned by the application layer'
 })
 
 test('agent chat escape key listener is isolated behind an application hook', () => {
-  assert.match(shellSource, /from '@\/features\/agent\/application\/useAgentChatEscapeKey'/)
-  assert.match(shellSource, /useAgentChatEscapeKey\(\{[\s\S]*enabled: Boolean\(activeTurn && dataSource\?\.interruptTurn && !stoppingTurn\),[\s\S]*void stopActiveTurn\(\)[\s\S]*\}\)/)
+  assert.match(controllerSource, /from '@\/features\/agent\/application\/useAgentChatEscapeKey'/)
+  assert.match(controllerSource, /useAgentChatEscapeKey\(\{[\s\S]*enabled: Boolean\(setup\.activeTurn && setup\.dataSource\?\.interruptTurn && !setup\.stoppingTurn\),[\s\S]*void turnControls\.stopActiveTurn\(\)[\s\S]*\}\)/)
   assert.match(escapeKeySource, /from '@\/shared\/infrastructure\/windowEvents'/)
   assert.match(escapeKeySource, /listenToWindowEvent\('keydown', handleAgentChatEscapeKey\)/)
   assert.doesNotMatch(escapeKeySource, /window\.addEventListener/)
@@ -97,9 +104,9 @@ test('agent chat escape key listener is isolated behind an application hook', ()
 })
 
 test('agent chat composer editor DOM mutation is isolated in the application layer', () => {
-  assert.match(shellSource, /from '@\/features\/agent\/application\/useAgentChatDraftConversation'/)
-  assert.match(shellSource, /from '@\/features\/agent\/application\/useAgentChatTurnControls'/)
-  assert.match(shellSource, /useAgentChatDraftConversation\(\{[\s\S]*composerInputRef,[\s\S]*setDraftConversationId,[\s\S]*threadScopeKey,[\s\S]*userId,[\s\S]*\}\)/)
+  assert.match(controllerSource, /from '@\/features\/agent\/application\/useAgentChatDraftConversation'/)
+  assert.match(controllerSource, /from '@\/features\/agent\/application\/useAgentChatTurnControls'/)
+  assert.match(controllerSource, /useAgentChatDraftConversation\(\{[\s\S]*composerInputRef,[\s\S]*setDraftConversationId,[\s\S]*threadScopeKey,[\s\S]*userId,[\s\S]*\}\)/)
   assert.match(draftConversationSource, /from '@\/features\/agent\/application\/agentComposerEditorDom'/)
   assert.match(draftConversationSource, /clearAgentChatComposerEditor\(composerInputRef\.current\)/)
   assert.match(turnControlsSource, /from '@\/features\/agent\/application\/agentComposerEditorDom'/)
@@ -113,8 +120,8 @@ test('agent chat composer editor DOM mutation is isolated in the application lay
 })
 
 test('agent chat turn controls and queued sends are owned by the application layer', () => {
-  assert.match(shellSource, /from '@\/features\/agent\/application\/useAgentChatTurnControls'/)
-  assert.match(shellSource, /useAgentChatTurnControls\(\{[\s\S]*activeThread,[\s\S]*composerConversationId,[\s\S]*queuedInputs,[\s\S]*syncThreadRunProfileSettingsForTurn,[\s\S]*upsertThreadReadResult,[\s\S]*\}\)/)
+  assert.match(controllerSource, /from '@\/features\/agent\/application\/useAgentChatTurnControls'/)
+  assert.match(controllerSource, /useAgentChatTurnControls\(\{[\s\S]*activeThread,[\s\S]*composerConversationId,[\s\S]*queuedInputs,[\s\S]*syncThreadRunProfileSettingsForTurn,[\s\S]*upsertThreadReadResult,[\s\S]*\}\)/)
   assert.doesNotMatch(shellSource, /const sendMessage = useCallback/)
   assert.doesNotMatch(shellSource, /const submitQueuedInputsAsTurn = useCallback/)
   assert.doesNotMatch(shellSource, /const stopActiveTurn = useCallback/)
@@ -131,17 +138,33 @@ test('agent chat turn controls and queued sends are owned by the application lay
   assert.match(turnControlsSource, /await dataSource\.interruptTurn/)
 })
 
+test('agent chat queued input controls are isolated from turn submission', () => {
+  assert.match(turnControlsSource, /from '@\/features\/agent\/application\/useAgentChatQueuedInputControls'/)
+  assert.match(turnControlsSource, /useAgentChatQueuedInputControls\(\{[\s\S]*activeThread,[\s\S]*activeTurn,[\s\S]*composer,[\s\S]*dataSource,[\s\S]*queuedInputs,[\s\S]*setQueuedInputs,[\s\S]*\}\)/)
+  assert.match(turnControlsSource, /export type \{ AgentComposerQueuedInput \}/)
+  assert.match(queuedInputControlsSource, /export type AgentComposerQueuedInput = AgentChatQueuedInputState/)
+  assert.match(queuedInputControlsSource, /export function useAgentChatQueuedInputControls/)
+  assert.match(queuedInputControlsSource, /markAgentChatQueuedInputEditing\(current, id\)/)
+  assert.match(queuedInputControlsSource, /updateAgentChatQueuedInputText\(current, id, text\)/)
+  assert.match(queuedInputControlsSource, /cancelAgentChatQueuedInputEdit\(current, id\)/)
+  assert.match(queuedInputControlsSource, /await dataSource\.steerTurn\(\{[\s\S]*clientUserMessageId: item\.clientUserMessageId,[\s\S]*inputs: item\.inputs/)
+  assert.doesNotMatch(turnControlsSource, /const steerQueuedInputNow = useCallback/)
+  assert.doesNotMatch(turnControlsSource, /markAgentChatQueuedInputEditing\(current, id\)/)
+  assert.doesNotMatch(turnControlsSource, /updateAgentChatQueuedInputText\(current, id, text\)/)
+  assert.doesNotMatch(turnControlsSource, /cancelAgentChatQueuedInputEdit\(current, id\)/)
+})
+
 test('agent chat runtime caches are owned by the application layer', () => {
   assert.match(serverRequestsSource, /from '@\/features\/agent\/application\/agentChatRuntimeCache'/)
   assert.match(threadListSource, /from '@\/features\/agent\/application\/agentChatRuntimeCache'/)
-  assert.match(shellSource, /from '@\/features\/agent\/application\/useAgentChatRuntimeController'/)
-  assert.match(shellSource, /useAgentChatRuntimeController\(\{[\s\S]*activeThreadIdRef,[\s\S]*dispatchRuntime,[\s\S]*runtime,[\s\S]*setActiveThreadIdRefValue,[\s\S]*\}\)/)
+  assert.match(controllerSource, /from '@\/features\/agent\/application\/useAgentChatRuntimeController'/)
+  assert.match(controllerSource, /useAgentChatRuntimeController\(\{[\s\S]*activeThreadIdRef,[\s\S]*dispatchRuntime,[\s\S]*runtime,[\s\S]*setActiveThreadIdRefValue,[\s\S]*\}\)/)
   assert.match(runtimeCacheSource, /const persistentPendingServerRequests = new Map<string/)
   assert.match(runtimeCacheSource, /const sourceThreadListCache = new Map<string/)
   assert.match(runtimeControllerSource, /export function useAgentChatRuntimeController/)
   assert.match(runtimeControllerSource, /selectAgentChatRuntimeView\(runtime\)/)
   assert.match(runtimeControllerSource, /dispatchRuntime\(\{ type: 'setActiveThreadId', threadId \}\)/)
-  assert.match(runtimeControllerSource, /dispatchRuntime\(\{ type: 'upsertThread', thread \}\)/)
+  assert.match(runtimeControllerSource, /dispatchRuntime\(\{ type: 'upsertThread', thread, lifecycleStatus: input\?\.lifecycleStatus \}\)/)
   assert.match(runtimeCacheSource, /export function storeAgentChatPersistentServerRequest/)
   assert.match(runtimeCacheSource, /export function readAgentChatPersistentServerRequests/)
   assert.match(runtimeCacheSource, /export function applyAgentChatPersistentServerRequestNotification/)
@@ -157,8 +180,8 @@ test('agent chat runtime caches are owned by the application layer', () => {
 })
 
 test('agent chat server request replay and decision requests are owned by the application layer', () => {
-  assert.match(shellSource, /from '@\/features\/agent\/application\/useAgentChatServerRequests'/)
-  assert.match(shellSource, /useAgentChatServerRequests\(\{[\s\S]*activeThreadId,[\s\S]*dataSource,[\s\S]*dispatchRuntime,[\s\S]*threadScopeKey,[\s\S]*\}\)/)
+  assert.match(controllerSource, /from '@\/features\/agent\/application\/useAgentChatServerRequests'/)
+  assert.match(controllerSource, /useAgentChatServerRequests\(\{[\s\S]*activeThreadId,[\s\S]*dataSource,[\s\S]*dispatchRuntime,[\s\S]*threadScopeKey,[\s\S]*\}\)/)
   assert.doesNotMatch(shellSource, /consumeAgentPanelDecisionRequest/)
   assert.doesNotMatch(shellSource, /subscribeAgentPanelDecisionRequest/)
   assert.doesNotMatch(shellSource, /readAgentChatPersistentServerRequests/)
@@ -180,7 +203,7 @@ test('agent chat server request replay and decision requests are owned by the ap
 })
 
 test('agent chat recent resources query is owned by the application layer', () => {
-  assert.match(shellSource, /from '@\/features\/agent\/application\/useAgentChatShellCoreState'/)
+  assert.match(controllerSource, /from '@\/features\/agent\/application\/useAgentChatShellCoreState'/)
   assert.match(shellCoreStateSource, /from '@\/features\/agent\/application\/useAgentChatRecentResources'/)
   assert.match(shellCoreStateSource, /const recentResources = useAgentChatRecentResources\(\)/)
   assert.doesNotMatch(shellSource, /useQuery/)
@@ -194,8 +217,8 @@ test('agent chat recent resources query is owned by the application layer', () =
 })
 
 test('agent chat thread list cache and pagination are owned by the application layer', () => {
-  assert.match(shellSource, /from '@\/features\/agent\/application\/useAgentChatThreadList'/)
-  assert.match(shellSource, /useAgentChatThreadList\(\{[\s\S]*dataSource,[\s\S]*threadScopeKey,[\s\S]*\}\)/)
+  assert.match(controllerSource, /from '@\/features\/agent\/application\/useAgentChatThreadList'/)
+  assert.match(controllerSource, /useAgentChatThreadList\(\{[\s\S]*dataSource,[\s\S]*threadScopeKey,[\s\S]*\}\)/)
   assert.doesNotMatch(shellSource, /readAgentChatSourceThreadListCache/)
   assert.doesNotMatch(shellSource, /writeAgentChatSourceThreadListCache/)
   assert.doesNotMatch(shellSource, /AGENT_CHAT_THREAD_LIST_PAGE_SIZE/)
@@ -209,8 +232,8 @@ test('agent chat thread list cache and pagination are owned by the application l
 })
 
 test('agent chat thread read and resume effects are owned by the application layer', () => {
-  assert.match(shellSource, /from '@\/features\/agent\/application\/useAgentChatThreadRuntimeEffects'/)
-  assert.match(shellSource, /useAgentChatThreadRuntimeEffects\(\{[\s\S]*pendingThreadReadRequests,[\s\S]*pendingThreadResumeRequests,[\s\S]*threads,[\s\S]*\}\)/)
+  assert.match(controllerSource, /from '@\/features\/agent\/application\/useAgentChatThreadRuntimeEffects'/)
+  assert.match(controllerSource, /useAgentChatThreadRuntimeEffects\(\{[\s\S]*pendingThreadReadRequests,[\s\S]*pendingThreadResumeRequests,[\s\S]*threads,[\s\S]*\}\)/)
   assert.doesNotMatch(shellSource, /inFlightThreadResumeIdsRef/)
   assert.doesNotMatch(shellSource, /type: 'beginThreadReadRequest'/)
   assert.doesNotMatch(shellSource, /type: 'completeThreadReadRequest'/)
@@ -227,8 +250,8 @@ test('agent chat thread read and resume effects are owned by the application lay
 })
 
 test('agent chat conversation registry mutations are owned by the application layer', () => {
-  assert.match(shellSource, /from '@\/features\/agent\/application\/useAgentChatConversationRegistry'/)
-  assert.match(shellSource, /useAgentChatConversationRegistry\(\{[\s\S]*dispatchRuntime,[\s\S]*readCurrentActiveThreadId,[\s\S]*threadScopeKey,[\s\S]*userId,[\s\S]*\}\)/)
+  assert.match(controllerSource, /from '@\/features\/agent\/application\/useAgentChatConversationRegistry'/)
+  assert.match(controllerSource, /useAgentChatConversationRegistry\(\{[\s\S]*dispatchRuntime,[\s\S]*readCurrentActiveThreadId,[\s\S]*threadScopeKey,[\s\S]*userId,[\s\S]*\}\)/)
   assert.doesNotMatch(shellSource, /agentConversationRegistryRecordFromChatThread/)
   assert.doesNotMatch(shellSource, /buildAgentChatConversationPatchInput\(/)
   assert.doesNotMatch(shellSource, /buildAgentChatConversationRegistryIndex\(/)
@@ -242,8 +265,8 @@ test('agent chat conversation registry mutations are owned by the application la
 })
 
 test('agent chat thread bootstrap and restore flows are owned by the application layer', () => {
-  assert.match(shellSource, /from '@\/features\/agent\/application\/useAgentChatThreadBootstrap'/)
-  assert.match(shellSource, /useAgentChatThreadBootstrap\(\{[\s\S]*fetchFirstThreadListPage,[\s\S]*readRestorableActiveThreadId,[\s\S]*runtimeRef,[\s\S]*upsertThreadReadResult,[\s\S]*\}\)/)
+  assert.match(controllerSource, /from '@\/features\/agent\/application\/useAgentChatThreadBootstrap'/)
+  assert.match(controllerSource, /useAgentChatThreadBootstrap\(\{[\s\S]*fetchFirstThreadListPage,[\s\S]*readRestorableActiveThreadId,[\s\S]*runtimeRef,[\s\S]*upsertThreadReadResult,[\s\S]*\}\)/)
   assert.doesNotMatch(shellSource, /const loadThreads = useCallback/)
   assert.doesNotMatch(shellSource, /const restoreStoredThread = useCallback/)
   assert.doesNotMatch(shellSource, /const openThread = useCallback/)
@@ -257,8 +280,8 @@ test('agent chat thread bootstrap and restore flows are owned by the application
 })
 
 test('agent chat thread creation and workspace task flows are owned by the application layer', () => {
-  assert.match(shellSource, /from '@\/features\/agent\/application\/useAgentChatThreadCreation'/)
-  assert.match(shellSource, /useAgentChatThreadCreation\(\{[\s\S]*loadDataSourceForNewThread,[\s\S]*selectedModelSelectionForRequest,[\s\S]*upsertThread,[\s\S]*\}\)/)
+  assert.match(controllerSource, /from '@\/features\/agent\/application\/useAgentChatThreadCreation'/)
+  assert.match(controllerSource, /useAgentChatThreadCreation\(\{[\s\S]*loadDataSourceForNewThread,[\s\S]*selectedModelSelectionForRequest,[\s\S]*upsertThread,[\s\S]*\}\)/)
   assert.doesNotMatch(shellSource, /const startThreadResult = useCallback/)
   assert.doesNotMatch(shellSource, /const startWorkspaceTask = useCallback/)
   assert.doesNotMatch(shellSource, /beginAgentPerformanceOperation\(/)
@@ -271,8 +294,8 @@ test('agent chat thread creation and workspace task flows are owned by the appli
 })
 
 test('agent chat run profile settings sync is owned by the application layer', () => {
-  assert.match(shellSource, /from '@\/features\/agent\/application\/useAgentChatRunProfileSettings'/)
-  assert.match(shellSource, /useAgentChatRunProfileSettings\(\{[\s\S]*activeThreadId,[\s\S]*runtimeRef,[\s\S]*selectedModelSelectionForRequest,[\s\S]*\}\)/)
+  assert.match(controllerSource, /from '@\/features\/agent\/application\/useAgentChatRunProfileSettings'/)
+  assert.match(controllerSource, /useAgentChatRunProfileSettings\(\{[\s\S]*activeThreadId,[\s\S]*runtimeRef,[\s\S]*selectedModelSelectionForRequest,[\s\S]*\}\)/)
   assert.doesNotMatch(shellSource, /const handleProfilePresetChange = useCallback/)
   assert.doesNotMatch(shellSource, /const syncThreadRunProfileSettingsForTurn = useCallback/)
   assert.doesNotMatch(shellSource, /applyAgentChatThreadExecutionSettings\(/)
@@ -284,8 +307,8 @@ test('agent chat run profile settings sync is owned by the application layer', (
 })
 
 test('agent chat thread tabs and history are owned by the application layer', () => {
-  assert.match(shellSource, /from '@\/features\/agent\/application\/useAgentChatThreadTabs'/)
-  assert.match(shellSource, /useAgentChatThreadTabs\(\{[\s\S]*closedThreadIds,[\s\S]*readHistoryThread,[\s\S]*threadOrderIndex,[\s\S]*upsertThreadReadResult,[\s\S]*\}\)/)
+  assert.match(controllerSource, /from '@\/features\/agent\/application\/useAgentChatThreadTabs'/)
+  assert.match(controllerSource, /useAgentChatThreadTabs\(\{[\s\S]*closedThreadIds,[\s\S]*readHistoryThread,[\s\S]*threadOrderIndex,[\s\S]*upsertThreadReadResult,[\s\S]*\}\)/)
   assert.doesNotMatch(shellSource, /const openThreadCandidates = useMemo/)
   assert.doesNotMatch(shellSource, /const closeThreadTab = useCallback/)
   assert.doesNotMatch(shellSource, /const renameThread = useCallback/)
@@ -306,8 +329,8 @@ test('agent chat data source shell delegates pure model helpers', () => {
     shellPresentationStateSource,
     threadListSource,
   ].join('\n')
-  assert.match(shellSource, /from '@\/features\/agent\/application\/useAgentChatShellCoreState'/)
-  assert.match(shellSource, /from '@\/features\/agent\/presentation\/useAgentChatShellPresentationState'/)
+  assert.match(controllerSource, /from '@\/features\/agent\/application\/useAgentChatShellCoreState'/)
+  assert.match(controllerSource, /from '@\/features\/agent\/presentation\/useAgentChatShellPresentationState'/)
   assert.doesNotMatch(shellSource, /from '@\/features\/agent\/presentation\/agentChatDataSourceShellModel'/)
   assert.match(shellModelConsumerSource, /from '@\/features\/agent\/presentation\/agentChatDataSourceShellModel'/)
   const queuedInputHelperNames = new Set([
@@ -408,7 +431,22 @@ test('agent chat data source shell delegates pure model helpers', () => {
 
 test('agent chat data source shell delegates view sections', () => {
   assert.match(shellSource, /from '@\/features\/agent\/components\/AgentChatShellView'/)
-  assert.match(shellSource, /<AgentChatShellView[\s\S]*activeThread=\{activeThread\}[\s\S]*visiblePendingServerRequests=\{visiblePendingServerRequests\}/)
+  assert.match(shellSource, /<AgentChatShellView \{\.\.\.viewProps\} \/>/)
+  assert.match(controllerSource, /from '@\/features\/agent\/application\/agentChatDataSourceShellControllerView'/)
+  assert.match(controllerSource, /return buildAgentChatDataSourceShellControllerView\(\{/)
+  assert.doesNotMatch(controllerSource, /from '@\/features\/agent\/application\/agentChatDataSourceShellView'/)
+  assert.doesNotMatch(controllerSource, /return buildAgentChatDataSourceShellView\(\{/)
+  assert.doesNotMatch(controllerSource, /buildAgentChatShellComposerPanel/)
+  assert.doesNotMatch(controllerSource, /buildAgentChatShellHistoryPanel/)
+  assert.doesNotMatch(controllerSource, /buildAgentChatShellThreadSurface/)
+  assert.match(shellControllerViewSource, /export function buildAgentChatDataSourceShellControllerView/)
+  assert.match(shellControllerViewSource, /buildAgentChatDataSourceShellView\(\{/)
+  assert.match(shellControllerViewSource, /setup\.activeThread/)
+  assert.match(shellControllerViewSource, /turnControls\.sendMessage/)
+  assert.match(shellViewBuilderSource, /export function buildAgentChatDataSourceShellView/)
+  assert.match(shellViewBuilderSource, /buildAgentChatShellComposerPanel/)
+  assert.match(shellViewBuilderSource, /buildAgentChatShellHistoryPanel/)
+  assert.match(shellViewBuilderSource, /buildAgentChatShellThreadSurface/)
   assert.match(shellViewSource, /from '@\/features\/agent\/components\/AgentChatDataSourceShellParts'/)
   for (const componentName of [
     'AgentChatDataSourcePanelCard',

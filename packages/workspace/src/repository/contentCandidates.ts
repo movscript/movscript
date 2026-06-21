@@ -20,7 +20,7 @@ export interface MovScriptContentCandidateWriteInput {
   contentUnitId: string | number
   candidateId?: string | number
   source?: 'ai_generate' | 'upload' | 'shoot' | 'external_delivery' | 'manual' | string
-  status?: 'queued' | 'running' | 'succeeded' | 'failed' | 'canceled' | 'imported'
+  status?: 'queued' | 'pending' | 'running' | 'succeeded' | 'failed' | 'canceled' | 'cancelled' | 'imported'
   producer?: Record<string, unknown>
   outputs: MovScriptContentCandidateOutput[]
   promptSnapshot?: Record<string, unknown>

@@ -20,6 +20,7 @@ import type { SelectedTimelineClip } from '../application/editingCommands'
 import { clipPositionPercent, clipScaleFromPercent, clipScalePercent } from '../domain/clips'
 import { EDITING_FIT_OPTIONS } from '../domain/constants'
 import { clampNumber, formatDuration, numberInput } from '../domain/utils'
+import './InspectorPanel.css'
 
 type InspectorPanelProps = {
   resizeHandleProps: ComponentProps<typeof PanelResizeHandle>

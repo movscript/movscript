@@ -8,6 +8,7 @@ const agentConsoleSource = [
   readSource('apps/frontend/src/features/agent/components/AgentConsolePageSections.tsx'),
 ].join('\n')
 const agentTerminalSource = readSource('apps/frontend/src/features/agent/components/AgentTerminalPanel.tsx')
+const agentTerminalControllerSource = readSource('apps/frontend/src/features/agent/components/useAgentTerminalController.ts')
 const localTerminalElectronSource = readSource('apps/frontend/src/features/agent/application/localTerminalElectron.ts')
 const agentBrowserSource = readSource('apps/frontend/src/features/agent/components/AgentBrowserPanel.tsx')
 const embeddedBrowserElectronSource = readSource('apps/frontend/src/features/agent/application/embeddedBrowserElectron.ts')
@@ -94,14 +95,18 @@ test('agent browser delegates embedded browser Electron API access', () => {
 })
 
 test('agent terminal delegates local terminal Electron API access', () => {
-  assert.match(agentTerminalSource, /from '@\/features\/agent\/application\/localTerminalElectron'/)
-  assert.match(agentTerminalSource, /localTerminalAvailable\(\)/)
-  assert.match(agentTerminalSource, /createLocalTerminal\(/)
-  assert.match(agentTerminalSource, /writeLocalTerminal\(/)
-  assert.match(agentTerminalSource, /resizeLocalTerminal\(/)
-  assert.match(agentTerminalSource, /killLocalTerminal\(/)
-  assert.match(agentTerminalSource, /subscribeLocalTerminalEvents\(/)
+  assert.match(agentTerminalSource, /useAgentTerminalController/)
+  assert.doesNotMatch(agentTerminalSource, /from '@\/features\/agent\/application\/localTerminalElectron'/)
+  assert.doesNotMatch(agentTerminalSource, /createLocalTerminal\(|writeLocalTerminal\(|resizeLocalTerminal\(|killLocalTerminal\(|subscribeLocalTerminalEvents\(/)
+  assert.match(agentTerminalControllerSource, /from '@\/features\/agent\/application\/localTerminalElectron'/)
+  assert.match(agentTerminalControllerSource, /localTerminalAvailable\(\)/)
+  assert.match(agentTerminalControllerSource, /createLocalTerminal\(/)
+  assert.match(agentTerminalControllerSource, /writeLocalTerminal\(/)
+  assert.match(agentTerminalControllerSource, /resizeLocalTerminal\(/)
+  assert.match(agentTerminalControllerSource, /killLocalTerminal\(/)
+  assert.match(agentTerminalControllerSource, /subscribeLocalTerminalEvents\(/)
   assert.doesNotMatch(agentTerminalSource, /window\.api/)
+  assert.doesNotMatch(agentTerminalControllerSource, /window\.api/)
 
   assert.match(localTerminalElectronSource, /readElectronApi\(\)\?\.createLocalTerminal/)
   assert.match(localTerminalElectronSource, /readElectronApi\(\)\?\.writeLocalTerminal/)

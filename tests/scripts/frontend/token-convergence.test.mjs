@@ -129,10 +129,6 @@ const expectedTokenDefinitions = [
 ]
 
 const expectedUiOwnedDefinitions = [
-  '--ms-agent-composer-border',
-  '--ms-agent-composer-control-border',
-  '--ms-agent-composer-control-fill',
-  '--ms-agent-composer-fill',
   '--ms-button-content-display',
   '--ms-button-content-min-width',
   '--ms-button-content-width',

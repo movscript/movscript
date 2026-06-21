@@ -14,8 +14,8 @@ import {
 
 test('entity change layer maps changed json files to source entities and field changes', () => {
   const baselineFiles = [{
-    path: 'productions/p8f3/segments/a19d/scene_moments/r72k/shots/phone/keyframes/scene_anchor/keyframe.json',
-    relativePath: 'productions/p8f3/segments/a19d/scene_moments/r72k/shots/phone/keyframes/scene_anchor/keyframe.json',
+    path: 'productions/p8f3/segments/a19d/scene_moments/r72k/expression_units/phone/keyframes/scene_anchor/keyframe.json',
+    relativePath: 'productions/p8f3/segments/a19d/scene_moments/r72k/expression_units/phone/keyframes/scene_anchor/keyframe.json',
     content: JSON.stringify({
       schema: 'movscript.keyframe.v1',
       kind: 'keyframe',
@@ -58,7 +58,7 @@ test('semantic change layer maps field changes to domain propagation rules', () 
   const changes = semanticChangesFromEntityChanges([{
     entityKind: 'keyframe',
     id: 'scene_anchor',
-    path: 'productions/p8f3/segments/a19d/scene_moments/r72k/shots/phone/keyframes/scene_anchor/keyframe.json',
+    path: 'productions/p8f3/segments/a19d/scene_moments/r72k/expression_units/phone/keyframes/scene_anchor/keyframe.json',
     state: 'modified',
     fieldChanges: [
       { field: 'title', operation: 'modified' },
@@ -88,17 +88,17 @@ test('semantic change layer maps field changes to domain propagation rules', () 
     && change.propagation === 'downstream_reference'
     && change.fields.includes('visual_intent')))
 
-  const shotChanges = semanticChangesFromEntityChanges([{
-    entityKind: 'shot',
+  const expressionUnitChanges = semanticChangesFromEntityChanges([{
+    entityKind: 'expression_unit',
     id: 'phone',
-    path: 'productions/p8f3/segments/a19d/scene_moments/r72k/shots/phone/shot.json',
+    path: 'productions/p8f3/segments/a19d/scene_moments/r72k/expression_units/phone/expression_unit.json',
     state: 'modified',
     fieldChanges: [
       { field: 'angle', operation: 'modified' },
     ],
   }])
-  assert.ok(shotChanges.some((change) => change.kind === 'semantic_input_changed'
-    && change.businessKind === 'shot_changed'
+  assert.ok(expressionUnitChanges.some((change) => change.kind === 'semantic_input_changed'
+    && change.businessKind === 'expression_unit_changed'
     && change.propagation === 'self'
     && change.fields.includes('angle')))
 })
@@ -111,7 +111,7 @@ test('production impact layer maps semantic changes without requiring reshoots',
       businessKind: 'metadata_changed',
       propagation: 'none',
       fields: ['title'],
-      sourceChange: { operation: 'modified', path: 'productions/p8f3/segments/a19d/scene_moments/r72k/shots/phone/keyframes/scene_anchor/keyframe.json' },
+      sourceChange: { operation: 'modified', path: 'productions/p8f3/segments/a19d/scene_moments/r72k/expression_units/phone/keyframes/scene_anchor/keyframe.json' },
     },
     {
       entity: { kind: 'content_unit', id: 'k41m' },
@@ -127,14 +127,14 @@ test('production impact layer maps semantic changes without requiring reshoots',
       businessKind: 'sequence_reordered',
       propagation: 'downstream_reference',
       fields: ['reference_asset_refs'],
-      sourceChange: { operation: 'modified', path: 'productions/p8f3/segments/a19d/scene_moments/r72k/shots/phone/keyframes/scene_anchor/keyframe.json' },
+      sourceChange: { operation: 'modified', path: 'productions/p8f3/segments/a19d/scene_moments/r72k/expression_units/phone/keyframes/scene_anchor/keyframe.json' },
     },
   ], {
     impactReport: {
       changedEntities: [{
         entityKind: 'keyframe',
         id: 'scene_anchor',
-        path: 'productions/p8f3/segments/a19d/scene_moments/r72k/shots/phone/keyframes/scene_anchor/keyframe.json',
+        path: 'productions/p8f3/segments/a19d/scene_moments/r72k/expression_units/phone/keyframes/scene_anchor/keyframe.json',
         affectedContentUnits: [{
           entityKind: 'content_unit',
           id: 'k41m',

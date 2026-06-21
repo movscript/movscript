@@ -2,12 +2,27 @@ import { ipcMain } from 'electron'
 
 import type {
   ElectronMovScriptEngineAudioCueInput,
+  ElectronMovScriptEngineAssetCreateInput,
   ElectronMovScriptEngineContentCandidateCreateInput,
   ElectronMovScriptEngineContentCandidateSelectInput,
+  ElectronMovScriptEngineContentUnitBackendPromptBuildInput,
+  ElectronMovScriptEngineContentUnitCreateInput,
+  ElectronMovScriptEngineContentUnitEnsureInput,
   ElectronMovScriptEngineContentUnitEditPromptInput,
+  ElectronMovScriptEngineContentUnitGenerationPromptReadInput,
+  ElectronMovScriptEngineEntityBasicsUpdateInput,
+  ElectronMovScriptEngineExpressionUnitCreateInput,
   ElectronMovScriptEngineExpressionUnitInput,
   ElectronMovScriptEngineHierarchyNodeWriteInput,
+  ElectronMovScriptEngineKeyframeInput,
+  ElectronMovScriptEngineProductionCreateInput,
   ElectronMovScriptEngineProjectInput,
+  ElectronMovScriptEngineSceneMomentCreateInput,
+  ElectronMovScriptEngineSceneMomentSettingConnectInput,
+  ElectronMovScriptEngineSegmentCreateInput,
+  ElectronMovScriptEngineSettingCreateInput,
+  ElectronMovScriptEngineSettingStateCreateInput,
+  ElectronMovScriptEngineStoryboardInput,
   ElectronMovScriptEngineStoryboardTimelineInput,
   ElectronMovScriptEngineTransitionInput,
   ElectronMovScriptEngineWorkspaceCandidateCreateInput,
@@ -27,12 +42,26 @@ import type {
 } from '../../src/shared/contracts/electronApi'
 import {
   appendMovScriptEngineWorkspaceCandidate,
+  connectMovScriptEngineSceneMomentSetting,
+  createMovScriptEngineAsset,
   createMovScriptEngineWorkspaceAssetSlotCandidate,
   createMovScriptEngineContentCandidate,
+  createMovScriptEngineContentUnit,
+  createMovScriptEngineExpressionUnit,
+  createMovScriptEngineKeyframe,
+  createMovScriptEngineProduction,
+  createMovScriptEngineSceneMoment,
+  createMovScriptEngineSegment,
+  createMovScriptEngineSetting,
+  createMovScriptEngineSettingState,
+  createMovScriptEngineStoryboard,
   createMovScriptEngineWorkspaceKeyframeCandidate,
+  buildMovScriptEngineContentUnitBackendPrompt,
   deleteMovScriptEngineWorkspaceEntity,
+  ensureMovScriptEngineContentUnitForEntity,
   loadMovScriptEngineContentWorkspace,
   loadMovScriptEngineContentWorkspaceSnapshot,
+  readMovScriptEngineContentUnitGenerationPrompt,
   queryMovScriptEngineWorkspaceAssets,
   queryMovScriptEngineWorkspaceEntities,
   queryMovScriptEngineWorkspaceSettings,
@@ -41,6 +70,7 @@ import {
   selectMovScriptEngineWorkspaceCandidate,
   selectMovScriptEngineContentUnitCandidate,
   syncMovScriptEngineContentWorkspace,
+  updateMovScriptEngineEntityBasics,
   updateMovScriptEngineAudioCue,
   updateMovScriptEngineContentUnitEditPrompt,
   updateMovScriptEngineExpressionUnit,
@@ -82,6 +112,12 @@ export function registerMovScriptEngineIpcHandlers(): void {
   ipcMain.handle('movscript:engine-workspace-script-source-read', (_event, input: ElectronMovScriptEngineWorkspaceReadScriptSourceInput) => {
     return readMovScriptEngineWorkspaceScriptSource(input)
   })
+  ipcMain.handle('movscript:engine-content-unit-generation-prompt-read', (_event, input: ElectronMovScriptEngineContentUnitGenerationPromptReadInput) => {
+    return readMovScriptEngineContentUnitGenerationPrompt(input)
+  })
+  ipcMain.handle('movscript:engine-content-unit-backend-prompt-build', (_event, input: ElectronMovScriptEngineContentUnitBackendPromptBuildInput) => {
+    return buildMovScriptEngineContentUnitBackendPrompt(input)
+  })
   ipcMain.handle('movscript:engine-workspace-entity-delete', (_event, input: ElectronMovScriptEngineWorkspaceDeleteEntityInput) => {
     return deleteMovScriptEngineWorkspaceEntity(input)
   })
@@ -93,6 +129,45 @@ export function registerMovScriptEngineIpcHandlers(): void {
   })
   ipcMain.handle('movscript:engine-workspace-content-unit-upsert', (_event, input: ElectronMovScriptEngineWorkspaceUpsertContentUnitInput) => {
     return upsertMovScriptEngineWorkspaceContentUnit(input)
+  })
+  ipcMain.handle('movscript:engine-content-unit-create', (_event, input: ElectronMovScriptEngineContentUnitCreateInput) => {
+    return createMovScriptEngineContentUnit(input)
+  })
+  ipcMain.handle('movscript:engine-content-unit-ensure', (_event, input: ElectronMovScriptEngineContentUnitEnsureInput) => {
+    return ensureMovScriptEngineContentUnitForEntity(input)
+  })
+  ipcMain.handle('movscript:engine-setting-create', (_event, input: ElectronMovScriptEngineSettingCreateInput) => {
+    return createMovScriptEngineSetting(input)
+  })
+  ipcMain.handle('movscript:engine-setting-state-create', (_event, input: ElectronMovScriptEngineSettingStateCreateInput) => {
+    return createMovScriptEngineSettingState(input)
+  })
+  ipcMain.handle('movscript:engine-asset-create', (_event, input: ElectronMovScriptEngineAssetCreateInput) => {
+    return createMovScriptEngineAsset(input)
+  })
+  ipcMain.handle('movscript:engine-entity-basics-update', (_event, input: ElectronMovScriptEngineEntityBasicsUpdateInput) => {
+    return updateMovScriptEngineEntityBasics(input)
+  })
+  ipcMain.handle('movscript:engine-scene-moment-setting-connect', (_event, input: ElectronMovScriptEngineSceneMomentSettingConnectInput) => {
+    return connectMovScriptEngineSceneMomentSetting(input)
+  })
+  ipcMain.handle('movscript:engine-production-create', (_event, input: ElectronMovScriptEngineProductionCreateInput) => {
+    return createMovScriptEngineProduction(input)
+  })
+  ipcMain.handle('movscript:engine-segment-create', (_event, input: ElectronMovScriptEngineSegmentCreateInput) => {
+    return createMovScriptEngineSegment(input)
+  })
+  ipcMain.handle('movscript:engine-scene-moment-create', (_event, input: ElectronMovScriptEngineSceneMomentCreateInput) => {
+    return createMovScriptEngineSceneMoment(input)
+  })
+  ipcMain.handle('movscript:engine-expression-unit-create', (_event, input: ElectronMovScriptEngineExpressionUnitCreateInput) => {
+    return createMovScriptEngineExpressionUnit(input)
+  })
+  ipcMain.handle('movscript:engine-keyframe-create', (_event, input: ElectronMovScriptEngineKeyframeInput) => {
+    return createMovScriptEngineKeyframe(input)
+  })
+  ipcMain.handle('movscript:engine-storyboard-create', (_event, input: ElectronMovScriptEngineStoryboardInput) => {
+    return createMovScriptEngineStoryboard(input)
   })
   ipcMain.handle('movscript:engine-workspace-candidate-select', (_event, input: ElectronMovScriptEngineWorkspaceSelectCandidateInput) => {
     return selectMovScriptEngineWorkspaceCandidate(input)

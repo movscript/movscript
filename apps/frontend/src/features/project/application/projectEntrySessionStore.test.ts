@@ -89,6 +89,52 @@ test('project entry session store merges partial filter updates for the same ent
   assert.deepEqual(snapshot?.selection?.secondary, { entityType: 'scene_moment', entityId: 12 })
 })
 
+test('project entry session store ignores semantically identical snapshot upserts', () => {
+  useProjectEntrySessionStore.setState({ snapshots: {}, hydrated: true })
+
+  useProjectEntrySessionStore.getState().upsertSnapshot({
+    projectId: 9,
+    projectEntryId: 'content',
+    route: '/project/content',
+    search: 'mode=scene_moment&node=scene-main&kind=scene_moment',
+    filters: {
+      activeKind: 'all',
+      canvasMode: 'scene_moment',
+      selectedNodeId: 'scene-main',
+      selectionKind: 'scene_moment',
+    },
+    selection: undefined,
+  })
+  const beforeSnapshots = useProjectEntrySessionStore.getState().snapshots
+  const beforeSnapshot = useProjectEntrySessionStore.getState().snapshotFor(9, 'content')
+  let notificationCount = 0
+  const unsubscribe = useProjectEntrySessionStore.subscribe(() => {
+    notificationCount += 1
+  })
+
+  try {
+    useProjectEntrySessionStore.getState().upsertSnapshot({
+      projectId: 9,
+      projectEntryId: 'content',
+      route: '/project/content',
+      search: 'mode=scene_moment&node=scene-main&kind=scene_moment',
+      filters: {
+        activeKind: 'all',
+        canvasMode: 'scene_moment',
+        selectedNodeId: 'scene-main',
+        selectionKind: 'scene_moment',
+      },
+      selection: undefined,
+    })
+  } finally {
+    unsubscribe()
+  }
+
+  assert.equal(notificationCount, 0)
+  assert.equal(useProjectEntrySessionStore.getState().snapshots, beforeSnapshots)
+  assert.equal(useProjectEntrySessionStore.getState().snapshotFor(9, 'content'), beforeSnapshot)
+})
+
 test('project entry session store keeps deck state without clearing entry context', () => {
   useProjectEntrySessionStore.setState({ snapshots: {}, hydrated: true })
 

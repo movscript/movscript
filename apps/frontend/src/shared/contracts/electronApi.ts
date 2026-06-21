@@ -43,12 +43,28 @@ import type {
   ElectronMovScriptHomeInput,
   ElectronMCPServerStatus,
   ElectronMovScriptEngineAudioCueInput,
+  ElectronMovScriptEngineAssetCreateInput,
   ElectronMovScriptEngineContentCandidateCreateInput,
   ElectronMovScriptEngineContentCandidateSelectInput,
+  ElectronMovScriptEngineContentUnitBackendPromptBuildInput,
+  ElectronMovScriptEngineContentUnitBackendPromptBuildResult,
+  ElectronMovScriptEngineContentUnitCreateInput,
+  ElectronMovScriptEngineContentUnitEnsureInput,
+  ElectronMovScriptEngineContentUnitGenerationPromptReadInput,
   ElectronMovScriptEngineContentUnitEditPromptInput,
+  ElectronMovScriptEngineEntityBasicsUpdateInput,
+  ElectronMovScriptEngineExpressionUnitCreateInput,
   ElectronMovScriptEngineExpressionUnitInput,
   ElectronMovScriptEngineHierarchyNodeWriteInput,
+  ElectronMovScriptEngineKeyframeInput,
+  ElectronMovScriptEngineProductionCreateInput,
   ElectronMovScriptEngineProjectInput,
+  ElectronMovScriptEngineSceneMomentCreateInput,
+  ElectronMovScriptEngineSceneMomentSettingConnectInput,
+  ElectronMovScriptEngineSegmentCreateInput,
+  ElectronMovScriptEngineSettingCreateInput,
+  ElectronMovScriptEngineSettingStateCreateInput,
+  ElectronMovScriptEngineStoryboardInput,
   ElectronMovScriptEngineStoryboardTimelineInput,
   ElectronMovScriptEngineTransitionInput,
   ElectronMovScriptEngineWorkspaceAppendCandidateInput,
@@ -210,6 +226,8 @@ export type ElectronAPI = {
   upsertMovScriptEngineWorkspaceAsset?: (input: ElectronMovScriptEngineWorkspaceUpsertAssetInput) => Promise<Awaited<ReturnType<MovScriptWorkspaceService['upsertAsset']>>>
   upsertMovScriptEngineWorkspaceScript?: (input: ElectronMovScriptEngineWorkspaceUpsertScriptInput) => Promise<Awaited<ReturnType<MovScriptWorkspaceService['upsertScript']>>>
   readMovScriptEngineWorkspaceScriptSource?: (input: ElectronMovScriptEngineWorkspaceReadScriptSourceInput) => Promise<Awaited<ReturnType<MovScriptWorkspaceService['readScriptSource']>>>
+  readMovScriptEngineContentUnitGenerationPrompt?: (input: ElectronMovScriptEngineContentUnitGenerationPromptReadInput) => Promise<Awaited<ReturnType<MovScriptWorkspaceService['readContentUnitGenerationPrompt']>>>
+  buildMovScriptEngineContentUnitBackendPrompt?: (input: ElectronMovScriptEngineContentUnitBackendPromptBuildInput) => Promise<ElectronMovScriptEngineContentUnitBackendPromptBuildResult>
   deleteMovScriptEngineWorkspaceEntity?: (input: ElectronMovScriptEngineWorkspaceDeleteEntityInput) => Promise<void>
   saveMovScriptEngineWorkspaceProductionSnapshot?: (input: ElectronMovScriptEngineWorkspaceSaveProductionSnapshotInput) => Promise<Awaited<ReturnType<MovScriptWorkspaceService['saveProductionSnapshot']>>>
   upsertMovScriptEngineWorkspaceProjectStandards?: (input: ElectronMovScriptEngineWorkspaceUpsertProjectStandardsInput) => Promise<Awaited<ReturnType<MovScriptWorkspaceService['upsertProjectStandards']>>>
@@ -222,7 +240,20 @@ export type ElectronAPI = {
   loadMovScriptEngineContentWorkspace?: (input: ElectronMovScriptEngineProjectInput) => Promise<ContentSourceWorkspaceData>
   createMovScriptEngineContentCandidate?: (input: ElectronMovScriptEngineContentCandidateCreateInput) => Promise<ContentCandidateRecord>
   selectMovScriptEngineContentUnitCandidate?: (input: ElectronMovScriptEngineContentCandidateSelectInput) => Promise<void>
+  createMovScriptEngineContentUnit?: (input: ElectronMovScriptEngineContentUnitCreateInput) => Promise<Awaited<ReturnType<import('@movscript/engine').MovScriptEngine['createContentUnit']>>>
+  ensureMovScriptEngineContentUnitForEntity?: (input: ElectronMovScriptEngineContentUnitEnsureInput) => Promise<Awaited<ReturnType<import('@movscript/engine').MovScriptEngine['ensureContentUnitForEntity']>>>
+  createMovScriptEngineSetting?: (input: ElectronMovScriptEngineSettingCreateInput) => Promise<Awaited<ReturnType<import('@movscript/engine').MovScriptEngine['createSetting']>>>
+  createMovScriptEngineSettingState?: (input: ElectronMovScriptEngineSettingStateCreateInput) => Promise<Awaited<ReturnType<import('@movscript/engine').MovScriptEngine['createSettingState']>>>
+  createMovScriptEngineAsset?: (input: ElectronMovScriptEngineAssetCreateInput) => Promise<Awaited<ReturnType<import('@movscript/engine').MovScriptEngine['createAsset']>>>
+  updateMovScriptEngineEntityBasics?: (input: ElectronMovScriptEngineEntityBasicsUpdateInput) => Promise<Awaited<ReturnType<import('@movscript/engine').MovScriptEngine['updateEntityBasics']>>>
+  connectMovScriptEngineSceneMomentSetting?: (input: ElectronMovScriptEngineSceneMomentSettingConnectInput) => Promise<Awaited<ReturnType<import('@movscript/engine').MovScriptEngine['connectSceneMomentSetting']>>>
+  createMovScriptEngineProduction?: (input: ElectronMovScriptEngineProductionCreateInput) => Promise<Awaited<ReturnType<import('@movscript/engine').MovScriptEngine['createProduction']>>>
+  createMovScriptEngineSegment?: (input: ElectronMovScriptEngineSegmentCreateInput) => Promise<Awaited<ReturnType<import('@movscript/engine').MovScriptEngine['createSegment']>>>
+  createMovScriptEngineSceneMoment?: (input: ElectronMovScriptEngineSceneMomentCreateInput) => Promise<Awaited<ReturnType<import('@movscript/engine').MovScriptEngine['createSceneMoment']>>>
+  createMovScriptEngineExpressionUnit?: (input: ElectronMovScriptEngineExpressionUnitCreateInput) => Promise<Awaited<ReturnType<import('@movscript/engine').MovScriptEngine['createExpressionUnit']>>>
   updateMovScriptEngineContentUnitEditPrompt?: (input: ElectronMovScriptEngineContentUnitEditPromptInput) => Promise<Awaited<ReturnType<MovScriptWorkspaceService['updateContentUnitEditPrompt']>>>
+  createMovScriptEngineKeyframe?: (input: ElectronMovScriptEngineKeyframeInput) => Promise<Awaited<ReturnType<import('@movscript/engine').MovScriptEngine['createKeyframe']>>>
+  createMovScriptEngineStoryboard?: (input: ElectronMovScriptEngineStoryboardInput) => Promise<Awaited<ReturnType<import('@movscript/engine').MovScriptEngine['createStoryboard']>>>
   updateMovScriptEngineExpressionUnit?: (input: ElectronMovScriptEngineExpressionUnitInput) => Promise<void>
   updateMovScriptEngineAudioCue?: (input: ElectronMovScriptEngineAudioCueInput) => Promise<void>
   updateMovScriptEngineTransition?: (input: ElectronMovScriptEngineTransitionInput) => Promise<void>

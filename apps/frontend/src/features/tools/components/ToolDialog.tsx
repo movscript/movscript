@@ -2,18 +2,12 @@ import { useState, useEffect } from 'react'
 import type React from 'react'
 import type { ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useLocation } from 'react-router-dom'
 import { api } from '@/shared/infrastructure/api'
 import type { RawResource, NodeType, Job, PublicModel, PaginatedResponse } from '@/types'
 import {
-  Wand2,
   Bug,
   AlertTriangle,
   PanelRightClose,
-  FolderArchive,
-  Image as ImageIcon,
-  AudioLines,
-  Video,
 } from 'lucide-react'
 import { ModelSelector } from '@/shared/ui/ModelSelector'
 import { ResourcePanel } from '@/shared/ui/ResourcePanel'
@@ -25,16 +19,8 @@ import {
   ToolDialogMain,
   ToolDialogPanel,
   ToolDialogPanelHeader,
-  ToolDialogProgramDescription,
-  ToolDialogProgramHeader,
-  ToolDialogProgramHeaderText,
-  ToolDialogProgramMeta,
-  ToolDialogProgramMetaItem,
-  ToolDialogProgramTitle,
-  ToolDialogResourcePane,
   ToolDialogWarningCallout
 } from './ToolDialogUi'
-import { OverlapPaneRevealButton } from '@movscript/ui/layout'
 import { Button } from '@movscript/ui/primitives'
 import { publicModelId } from '@/shared/domain/modelDisplay'
 import { buildGenerationJobPayload } from '@/features/resources/domain/generationJobPayload'
@@ -43,9 +29,6 @@ import { invalidateJobMutationResult, toolJobsChangedResult } from '@/features/j
 import { resourceKeys } from '@/features/resources/application/resourceQueryKeys'
 import { invalidateResourceMutationResult, resourceLibraryChangedResult } from '@/features/resources/application/resourceMutationInvalidation'
 import { useTranslation } from 'react-i18next'
-import { useRouteLayoutOverlapPaneController } from '@/features/app-shell/application/useRouteLayoutOverlapPaneController'
-import { TOOL_WORKBENCH_RESOURCE_PANE_ID } from '@/features/tools/presentation/toolWorkbenchLayoutSpec'
-import { routeLayoutSpecForPathname } from '@/routes/routeLayoutRegistry'
 import {
   acceptResourceDropDragOver,
   resolveResourceDropResource,
@@ -57,6 +40,10 @@ import {
   resolveGenerationJobType,
 } from '@movscript/core/generation'
 import { ToolDialogHistorySection } from './ToolDialogHistorySection'
+import {
+  type ReferenceWorkbenchPaneControl,
+  ToolDialogReferenceWorkbench,
+} from './ToolDialogReferenceWorkbench'
 
 function buildGenerationJobTitle(jobType: string): string {
   const labels: Record<string, string> = {
@@ -84,11 +71,6 @@ export interface ToolDialogDef {
   layout?: 'default' | 'reference-workbench'
   resourcePane?: ReactNode
   showHistory?: boolean
-}
-
-interface ReferenceWorkbenchPaneControl {
-  collapsed: boolean
-  collapse: () => void
 }
 
 export function ToolDialog({
@@ -408,7 +390,7 @@ export function ToolDialog({
 
   if (layout === 'reference-workbench') {
     return (
-      <ReferenceWorkbenchToolDialog
+      <ToolDialogReferenceWorkbench
         capability={capability}
         capabilityLabel={capabilityLabel}
         inputOutputLabel={inputOutputLabel}
@@ -429,92 +411,6 @@ export function ToolDialog({
 
         {/* Right: scrollable content — drop zone for resources */}
         {renderMainPane()}
-      </ToolDialogBody>
-    </ToolDialogFrame>
-  )
-}
-
-interface ReferenceWorkbenchToolDialogProps {
-  capability: ToolDialogDef['capability']
-  capabilityLabel: string
-  inputOutputLabel: string
-  renderMainPane: (resourcePaneController: ReferenceWorkbenchPaneControl) => ReactNode
-  resourcePaneNode: ReactNode
-  toolDescription: string
-  toolName: string
-}
-
-function ReferenceWorkbenchToolDialog({
-  capability,
-  capabilityLabel,
-  inputOutputLabel,
-  renderMainPane,
-  resourcePaneNode,
-  toolDescription,
-  toolName,
-}: ReferenceWorkbenchToolDialogProps) {
-  const { t } = useTranslation()
-  const location = useLocation()
-  const routeLayout = routeLayoutSpecForPathname(location.pathname)
-  const resourcePaneController = useRouteLayoutOverlapPaneController({
-    routeLayout,
-    paneId: TOOL_WORKBENCH_RESOURCE_PANE_ID,
-    resizeEdge: 'left',
-    ariaLabel: t('common.resize', { defaultValue: '调整宽度' }),
-  })
-  const resourcePaneLabel = resourcePaneController.collapsed
-    ? t('tools.page.resourcePaneHidden', { defaultValue: '资源库已隐藏' })
-    : t('tools.page.resourcePaneVisible', { defaultValue: '资源库已展开' })
-  const mainPane = renderMainPane(resourcePaneController)
-
-  return (
-    <ToolDialogFrame className="tool-dialog-frame--reference-workbench">
-      <ToolDialogProgramHeader>
-        <ToolDialogProgramHeaderText>
-          <ToolDialogProgramTitle>{toolName}</ToolDialogProgramTitle>
-          <ToolDialogProgramDescription>{toolDescription}</ToolDialogProgramDescription>
-        </ToolDialogProgramHeaderText>
-        <ToolDialogProgramMeta>
-          <ToolDialogProgramMetaItem icon={capability === 'video' ? <Video size={13} /> : capability === 'audio' ? <AudioLines size={13} /> : <ImageIcon size={13} />}>
-            {capabilityLabel}
-          </ToolDialogProgramMetaItem>
-          <ToolDialogProgramMetaItem icon={<Wand2 size={13} />}>
-            {inputOutputLabel}
-          </ToolDialogProgramMetaItem>
-          <ToolDialogProgramMetaItem icon={<FolderArchive size={13} />}>
-            {resourcePaneLabel}
-          </ToolDialogProgramMetaItem>
-        </ToolDialogProgramMeta>
-      </ToolDialogProgramHeader>
-      <ToolDialogBody
-        className="tool-dialog-body--reference-workbench"
-        {...resourcePaneController.groupProps}
-      >
-        {mainPane}
-        {!resourcePaneController.collapsed ? (
-          <ToolDialogResourcePane
-            overlapState={resourcePaneController.overlapState}
-            resizeHandleProps={{
-              ...resourcePaneController.resizeHandleProps,
-            }}
-          >
-            {resourcePaneNode}
-          </ToolDialogResourcePane>
-        ) : null}
-        {resourcePaneController.collapsed ? (
-          <OverlapPaneRevealButton
-            action="show"
-            label={t('common.show', { defaultValue: '显示' })}
-            onClick={resourcePaneController.show}
-          />
-        ) : null}
-        {resourcePaneController.expanded ? (
-          <OverlapPaneRevealButton
-            action="restore"
-            label={t('common.restore', { defaultValue: '还原' })}
-            onClick={resourcePaneController.restore}
-          />
-        ) : null}
       </ToolDialogBody>
     </ToolDialogFrame>
   )

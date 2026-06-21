@@ -59,6 +59,7 @@ func TestNewRegistersCoreRoutes(t *testing.T) {
 		"POST /api/v1/projects/:id/decisions/query",
 		"PUT /api/v1/projects/:id/decisions/candidates",
 		"POST /api/v1/projects/:id/decisions/candidates",
+		"POST /api/v1/projects/:id/content-units/:contentUnitId/candidates/generate",
 		"PUT /api/v1/projects/:id/decisions/selection",
 		"DELETE /api/v1/projects/:id/decisions/selection",
 		"GET /api/v1/projects/:id/git/*gitPath",

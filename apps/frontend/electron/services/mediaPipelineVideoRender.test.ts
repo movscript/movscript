@@ -34,6 +34,7 @@ import {
   getMediaPipelineFFmpegStatus,
   parseMediaPipelineFFmpegFilters,
   readMediaPipelineFFmpegFilters,
+  readMediaPipelineHasAudioStream,
   readMediaPipelineFFmpegVersion,
 } from './mediaPipeline/ffmpegProbe'
 import {
@@ -358,6 +359,46 @@ test('readMediaPipelineFFmpegFilters reports stderr from failed filter probes', 
   child.emit('exit', 1)
 
   await assert.rejects(promise, /filter probe failed/)
+})
+
+test('readMediaPipelineHasAudioStream detects audio streams from ffmpeg input output', async () => {
+  const child = new EventEmitter() as EventEmitter & {
+    stdout: EventEmitter
+    stderr: EventEmitter
+    kill: () => boolean
+  }
+  child.stdout = new EventEmitter()
+  child.stderr = new EventEmitter()
+  child.kill = () => true
+
+  const promise = readMediaPipelineHasAudioStream('ffmpeg', '/tmp/clip.mp4', {
+    timeoutMs: 0,
+    spawnProcess: (() => child) as never,
+  })
+  child.stderr.emit('data', 'Stream #0:0: Video: h264\nStream #0:1(eng): Audio: aac, 48000 Hz, stereo\n')
+  child.emit('exit', 1)
+
+  assert.equal(await promise, true)
+})
+
+test('readMediaPipelineHasAudioStream returns false for silent video inputs', async () => {
+  const child = new EventEmitter() as EventEmitter & {
+    stdout: EventEmitter
+    stderr: EventEmitter
+    kill: () => boolean
+  }
+  child.stdout = new EventEmitter()
+  child.stderr = new EventEmitter()
+  child.kill = () => true
+
+  const promise = readMediaPipelineHasAudioStream('ffmpeg', '/tmp/clip.mp4', {
+    timeoutMs: 0,
+    spawnProcess: (() => child) as never,
+  })
+  child.stderr.emit('data', 'Stream #0:0: Video: h264\n')
+  child.emit('exit', 1)
+
+  assert.equal(await promise, false)
 })
 
 test('getRequiredTimelineFFmpegFilters reflects timeline features', () => {

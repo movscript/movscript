@@ -1,5 +1,3 @@
-import type { CSSProperties } from 'react'
-
 import type {
   ElectronMediaPipelineAssetDescriptor,
   ElectronMediaPipelineClip,
@@ -7,8 +5,6 @@ import type {
 } from '@/shared/contracts/electronApiMedia'
 
 import {
-  EDITING_CLIP_MAX_SCALE_PERCENT,
-  EDITING_CLIP_MIN_SCALE_PERCENT,
   EDITING_TIMELINE_FRAME_CELL_MS,
   EDITING_TIMELINE_MIN_CLIP_DURATION_MS,
   EDITING_TIMELINE_SNAP_THRESHOLD_MS,
@@ -16,7 +12,30 @@ import {
 import { collectTimelineSnapPoints, resolveTimelineSnap } from './timelineInteraction'
 import type { ClipForm, TimelineClipEditMode, TimelineTrack } from './types'
 import { clampTimelineRange } from './timelineGeometry'
-import { clampNumber, hashText, numberInput } from './utils'
+import { hashText, numberInput } from './utils'
+import {
+  clipAssetDurationMs,
+  defaultClipDurationMs,
+  normalizeClipSourceStartMs,
+  resolveClipFit,
+} from './clipMediaModel'
+
+export {
+  assetAspectRatio,
+  clipAssetDurationMs,
+  defaultClipDurationMs,
+  normalizeClipSourceStartMs,
+  numberMetadata,
+  resolveClipFit,
+} from './clipMediaModel'
+export {
+  clipPositionPercent,
+  clipScaleFromPercent,
+  clipScalePercent,
+  cssObjectFitForClip,
+  normalizeClipVisualTransformPatch,
+  previewClipFrameStyle,
+} from './clipVisualModel'
 
 type NormalizeClipPlacementOptions = {
   allowTrimEndThroughFollowingClips?: boolean
@@ -62,14 +81,6 @@ export function createClipFromAsset(
   }, project)
 }
 
-export function defaultClipDurationMs(asset: ElectronMediaPipelineAssetDescriptor) {
-  const sourceDurationMs = clipAssetDurationMs(asset)
-  if (sourceDurationMs && (asset.assetType === 'video' || asset.assetType === 'audio')) return sourceDurationMs
-  if (asset.assetType === 'audio') return 10000
-  if (asset.assetType === 'subtitle' || asset.assetType === 'text') return 3000
-  return 5000
-}
-
 export function timelineClipCells(clip: ElectronMediaPipelineClip) {
   const count = timelineClipThumbnailCellCount(clip)
   return Array.from({ length: count }, (_value, index) => index)
@@ -90,70 +101,6 @@ export function timelineWaveformBarHeight(index: number, seed: string) {
   const hash = hashText(`${seed}:${index}`)
   const numeric = Number.parseInt(hash.slice(0, 4), 36)
   return 24 + (numeric % 64)
-}
-
-export function resolveClipFit(
-  asset: ElectronMediaPipelineAssetDescriptor,
-  project: ElectronMediaPipelineEditingProject | undefined,
-  requestedFit: NonNullable<ElectronMediaPipelineClip['fit']>,
-): NonNullable<ElectronMediaPipelineClip['fit']> {
-  if (asset.assetType !== 'video' && asset.assetType !== 'image') return 'none'
-  const assetRatio = assetAspectRatio(asset)
-  const projectRatio = project ? project.timeline.width / project.timeline.height : undefined
-  if (!assetRatio || !projectRatio || !Number.isFinite(projectRatio)) return requestedFit
-  return requestedFit
-}
-
-export function assetAspectRatio(asset: ElectronMediaPipelineAssetDescriptor) {
-  const metadata = asset.metadata ?? {}
-  const width = numberMetadata(metadata.width ?? metadata.videoWidth ?? metadata.imageWidth ?? metadata.naturalWidth)
-  const height = numberMetadata(metadata.height ?? metadata.videoHeight ?? metadata.imageHeight ?? metadata.naturalHeight)
-  if (!width || !height) return undefined
-  return width / height
-}
-
-export function numberMetadata(value: unknown) {
-  const numericValue = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : Number.NaN
-  return Number.isFinite(numericValue) && numericValue > 0 ? numericValue : undefined
-}
-
-export function clipScalePercent(clip: ElectronMediaPipelineClip) {
-  return clampNumber((clip.scale ?? 1) * 100, EDITING_CLIP_MIN_SCALE_PERCENT, EDITING_CLIP_MAX_SCALE_PERCENT, 100)
-}
-
-export function clipScaleFromPercent(value: number) {
-  return clampNumber(value, EDITING_CLIP_MIN_SCALE_PERCENT, EDITING_CLIP_MAX_SCALE_PERCENT, 100) / 100
-}
-
-export function clipPositionPercent(value: unknown) {
-  return clampNumber(value, 0, 100, 50)
-}
-
-export function normalizeClipVisualTransformPatch(
-  patch: Pick<Partial<ElectronMediaPipelineClip>, 'scale' | 'xPercent' | 'yPercent'>,
-): Pick<Partial<ElectronMediaPipelineClip>, 'scale' | 'xPercent' | 'yPercent'> {
-  return {
-    ...(patch.scale !== undefined ? { scale: clipScaleFromPercent(patch.scale * 100) } : {}),
-    ...(patch.xPercent !== undefined ? { xPercent: clipPositionPercent(patch.xPercent) } : {}),
-    ...(patch.yPercent !== undefined ? { yPercent: clipPositionPercent(patch.yPercent) } : {}),
-  }
-}
-
-export function previewClipFrameStyle(clip: ElectronMediaPipelineClip): CSSProperties {
-  const xPercent = clipPositionPercent(clip.xPercent)
-  const yPercent = clipPositionPercent(clip.yPercent)
-  const scale = clipScaleFromPercent(clipScalePercent(clip))
-  return {
-    left: `${xPercent}%`,
-    top: `${yPercent}%`,
-    transform: `translate(-50%, -50%) scale(${scale})`,
-  }
-}
-
-export function cssObjectFitForClip(clip: ElectronMediaPipelineClip): CSSProperties['objectFit'] {
-  if (clip.fit === 'cover' || clip.fit === 'crop') return 'cover'
-  if (clip.fit === 'none') return 'none'
-  return 'contain'
 }
 
 export function assetCanDropOnTrack(
@@ -288,26 +235,6 @@ export function normalizeClipPlacement(
     sourceStartMs,
     sourceEndMs: sourceStartMs + durationMs,
   }
-}
-
-export function clipAssetDurationMs(asset: ElectronMediaPipelineAssetDescriptor): number | undefined {
-  const explicitMs = numberMetadata(asset.metadata?.durationMs ?? asset.metadata?.duration_ms)
-  if (explicitMs) return Math.round(explicitMs)
-  const durationSeconds = numberMetadata(asset.metadata?.duration)
-  return durationSeconds ? Math.round(durationSeconds * 1000) : undefined
-}
-
-export function normalizeClipSourceStartMs(
-  valueMs: number,
-  sourceDurationMs: number | undefined,
-  assetType: ElectronMediaPipelineAssetDescriptor['assetType'],
-): number {
-  if (!sourceDurationMs || assetType === 'image') return Math.max(0, Math.round(valueMs))
-  return clampTimelineRange(
-    Math.round(valueMs),
-    0,
-    Math.max(0, sourceDurationMs - EDITING_TIMELINE_MIN_CLIP_DURATION_MS),
-  )
 }
 
 export function closestNonOverlappingTimelineStart(

@@ -12,7 +12,7 @@ export type SettingKind =
   | 'relationship'
   | 'sound_motif'
 
-export type CanvasMode = 'scene_moment' | 'setting'
+export type CanvasMode = 'structure' | 'prompt'
 
 export type RadialNode = {
   id: string
@@ -22,7 +22,7 @@ export type RadialNode = {
   x: number
   y: number
   Icon: LucideIcon
-  variant?: 'primary' | 'state' | 'asset' | 'expression' | 'shot' | 'keyframe' | 'storyboard'
+  variant?: 'primary' | 'state' | 'asset' | 'expression' | 'keyframe' | 'storyboard'
   parentId?: string
   source?: ContentCanvasNode
 }
@@ -49,9 +49,10 @@ export type InspectorSelection =
   | { kind: 'state', node: RadialNode }
   | { kind: 'asset', node: RadialNode }
   | { kind: 'create_expression_unit', parent: ContentCanvasNode }
+  | { kind: 'create_keyframe', parent: ContentCanvasNode }
+  | { kind: 'create_storyboard', parent: ContentCanvasNode }
   | { kind: 'create_state', parent: ContentCanvasNode }
   | { kind: 'create_asset', parent: ContentCanvasNode }
-  | { kind: 'create_keyframe', parent: ContentCanvasNode }
   | { kind: 'other', node: RadialNode }
 
 export type InspectorSelectionRef = {

@@ -1,0 +1,83 @@
+.agent-debug-workspace-diff-code,
+.agent-debug-workspace-diff-line {
+  min-width: 0;
+}
+
+.agent-debug-workspace-diff {
+  overflow: hidden;
+}
+
+.agent-debug-workspace-diff__header,
+.agent-debug-workspace-diff__columns {
+  display: grid;
+}
+
+.agent-debug-workspace-diff__header {
+  border-bottom: 1px solid var(--ms-color-border);
+  background: color-mix(in srgb, var(--ms-color-muted) 34%, transparent);
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-tiny);
+  font-weight: 500;
+  line-height: var(--ms-leading-tiny);
+}
+
+.agent-debug-workspace-diff__header-cell {
+  padding: 6px var(--ms-space-2);
+}
+
+.agent-debug-workspace-diff__header-cell--current {
+  border-bottom: 1px solid var(--ms-color-border);
+}
+
+.agent-debug-workspace-diff__rows {
+  border-top: 1px solid var(--ms-color-border);
+  background: color-mix(in srgb, var(--ms-color-muted) 20%, transparent);
+  padding: var(--ms-space-2);
+}
+
+.agent-debug-workspace-diff__rows-inner {
+  max-height: 9rem;
+  overflow: auto;
+  font-family: var(--ms-font-mono);
+  font-size: var(--ms-text-tiny);
+}
+
+@media (min-width: 768px) {
+  .agent-debug-workspace-diff__header,
+  .agent-debug-workspace-diff__columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .agent-debug-workspace-diff__header-cell--current {
+    border-right: 1px solid var(--ms-color-border);
+    border-bottom: 0;
+  }
+}
+
+.agent-debug-workspace-diff-code {
+  max-height: 160px;
+  padding: var(--ms-space-2);
+  font-size: var(--ms-text-tiny);
+  line-height: var(--ms-leading-label);
+}
+
+.agent-debug-workspace-diff-code--current {
+  border-bottom: 1px solid var(--ms-color-border);
+}
+
+@media (min-width: 768px) {
+  .agent-debug-workspace-diff-code--current {
+    border-right: 1px solid var(--ms-color-border);
+    border-bottom: 0;
+  }
+}
+
+.agent-debug-workspace-diff-line {
+  padding: 2px var(--ms-space-2);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.agent-debug-workspace-diff-line--same {
+  color: var(--ms-color-muted-foreground);
+}

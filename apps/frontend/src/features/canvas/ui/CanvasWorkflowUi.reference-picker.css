@@ -1,0 +1,128 @@
+.canvas-workflow-reference-picker {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  gap: var(--ms-space-2);
+  padding: var(--ms-space-2);
+}
+
+.canvas-workflow-reference-picker__search {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.canvas-workflow-reference-picker__search > svg {
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  left: var(--ms-space-2);
+  z-index: 1;
+  transform: translateY(-50%);
+  color: var(--ms-color-muted-foreground);
+}
+
+.canvas-workflow-reference-picker__search input {
+  height: 28px;
+  padding-left: 28px;
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+}
+
+.canvas-workflow-reference-picker__body {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+}
+
+.canvas-workflow-reference-picker__state {
+  display: flex;
+  min-height: 96px;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ms-space-2);
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+  text-align: center;
+}
+
+.canvas-workflow-reference-picker__state > svg {
+  animation: ms-spin 900ms linear infinite;
+}
+
+.canvas-workflow-reference-picker__list {
+  display: grid;
+  gap: var(--ms-space-2);
+}
+
+.canvas-workflow-reference-picker__card {
+  display: grid;
+  gap: var(--ms-space-2);
+  border: 1px solid var(--ms-color-border);
+  border-radius: var(--ms-radius-md);
+  background: var(--ms-color-surface);
+  padding: var(--ms-space-2);
+  text-align: left;
+  box-shadow: var(--ms-shadow-sm);
+}
+
+.canvas-workflow-reference-picker__card-main {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: var(--ms-space-2);
+}
+
+.canvas-workflow-reference-picker__card-icon {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--ms-radius-md);
+  background: var(--ms-color-muted);
+  color: var(--ms-color-muted-foreground);
+}
+
+.canvas-workflow-reference-picker__card-text {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.canvas-workflow-reference-picker__card-title {
+  overflow: hidden;
+  color: var(--ms-color-foreground);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--ms-text-label);
+  font-weight: 650;
+  line-height: var(--ms-leading-label);
+}
+
+.canvas-workflow-reference-picker__card-meta {
+  margin-top: 2px;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-tiny);
+  line-height: var(--ms-leading-tiny);
+}
+
+.canvas-workflow-reference-picker__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ms-space-1);
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-tiny);
+  line-height: var(--ms-leading-tiny);
+}
+
+.canvas-workflow-reference-picker__chips > span {
+  max-width: 100%;
+  overflow: hidden;
+  border-radius: var(--ms-radius-sm);
+  background: var(--ms-color-muted);
+  padding: 2px 6px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

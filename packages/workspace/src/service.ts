@@ -43,6 +43,7 @@ import {
   readMovScriptWorkspaceScriptSource,
   upsertMovScriptWorkspaceAsset,
   upsertMovScriptWorkspaceSetting,
+  upsertMovScriptWorkspaceSettingState,
   saveMovScriptProductionWorkspaceSnapshot,
   overlayMovScriptDecisionDocuments,
   contentUnitDecisionContextPath,
@@ -136,7 +137,7 @@ export interface MovScriptAudioCueUpdateInput {
   patch: {
     title?: string
     cueKind?: string
-    shotRef?: string
+    expressionUnitRef?: string
     storyboardRef?: string
     promptHint?: string
     timing?: Record<string, unknown>
@@ -165,6 +166,7 @@ export interface MovScriptWorkspaceService {
   readContentUnitDependencyReport(contentUnitId: string | number): Promise<Record<string, unknown> | undefined>
   readContentUnitSelectionValidity(contentUnitId: string | number): Promise<Record<string, unknown> | undefined>
   upsertSetting(input: Omit<MovScriptWorkspaceEntityWriteInput, 'fileRepository'>): Promise<MovScriptWorkspaceEntityWriteResult>
+  upsertSettingState(input: Omit<MovScriptWorkspaceEntityWriteInput, 'fileRepository'>): Promise<MovScriptWorkspaceEntityWriteResult>
   upsertAsset(input: Omit<MovScriptWorkspaceEntityWriteInput, 'fileRepository'>): Promise<MovScriptWorkspaceEntityWriteResult>
   upsertScript(input: Omit<MovScriptWorkspaceScriptWriteInput, 'fileRepository'>): Promise<MovScriptWorkspaceScriptWriteResult>
   readScriptSource(input: Omit<MovScriptWorkspaceScriptSourceReadInput, 'fileRepository'>): Promise<string>
@@ -308,6 +310,13 @@ export function createMovScriptWorkspaceService(
     },
     upsertSetting(input) {
       return upsertMovScriptWorkspaceSetting({
+        fileRepository: options.fileRepository,
+        now: options.now?.(),
+        ...input,
+      })
+    },
+    upsertSettingState(input) {
+      return upsertMovScriptWorkspaceSettingState({
         fileRepository: options.fileRepository,
         now: options.now?.(),
         ...input,
@@ -561,7 +570,7 @@ async function updateMovScriptAudioCue(
     kind: 'audio_cue',
     title: input.patch.title !== undefined ? input.patch.title : existing.title,
     cue_kind: input.patch.cueKind !== undefined ? input.patch.cueKind : existing.cue_kind,
-    shot_ref: input.patch.shotRef !== undefined ? input.patch.shotRef : existing.shot_ref,
+    expression_unit_ref: input.patch.expressionUnitRef !== undefined ? input.patch.expressionUnitRef : existing.expression_unit_ref,
     storyboard_ref: input.patch.storyboardRef !== undefined ? input.patch.storyboardRef : existing.storyboard_ref,
     timing: input.patch.timing !== undefined ? input.patch.timing : existing.timing,
     prompt_hint: input.patch.promptHint !== undefined ? input.patch.promptHint : existing.prompt_hint,

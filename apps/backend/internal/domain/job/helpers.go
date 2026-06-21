@@ -86,16 +86,27 @@ type InputResource struct {
 }
 
 type ContextSnapshotInput struct {
-	Model          RuntimeModelSnapshotInput
-	Credential     CredentialInput
-	Prompt         string
-	ExtraParams    string
-	AspectRatio    string
-	Duration       int
-	JobType        string
-	FeatureKey     string
-	InputResources []InputResource
-	CreatedAt      time.Time
+	Model                RuntimeModelSnapshotInput
+	Credential           CredentialInput
+	Prompt               string
+	ExtraParams          string
+	AspectRatio          string
+	Duration             int
+	JobType              string
+	FeatureKey           string
+	InputResources       []InputResource
+	CreatedAt            time.Time
+	ContentUnitCandidate *ContentUnitCandidateBinding `json:"content_unit_candidate,omitempty"`
+}
+
+type ContentUnitCandidateBinding struct {
+	ProjectID      uint            `json:"project_id,omitempty"`
+	ContentUnitID  string          `json:"content_unit_id,omitempty"`
+	TargetKind     string          `json:"target_kind,omitempty"`
+	TargetRef      string          `json:"target_ref,omitempty"`
+	CandidateID    string          `json:"candidate_id,omitempty"`
+	OutputKind     string          `json:"output_kind,omitempty"`
+	PromptSnapshot json.RawMessage `json:"prompt_snapshot,omitempty"`
 }
 
 type ListFilter struct {
@@ -217,13 +228,14 @@ const (
 const DefaultMaxAttempts = 3
 
 type contextSnapshot struct {
-	Model          modelSnapshot      `json:"model"`
-	JobType        string             `json:"job_type"`
-	FeatureKey     string             `json:"feature_key,omitempty"`
-	Prompt         string             `json:"prompt"`
-	Params         paramsSnapshot     `json:"params"`
-	InputResources []resourceSnapshot `json:"input_resources,omitempty"`
-	CreatedAt      time.Time          `json:"created_at"`
+	Model                modelSnapshot                `json:"model"`
+	JobType              string                       `json:"job_type"`
+	FeatureKey           string                       `json:"feature_key,omitempty"`
+	Prompt               string                       `json:"prompt"`
+	Params               paramsSnapshot               `json:"params"`
+	InputResources       []resourceSnapshot           `json:"input_resources,omitempty"`
+	CreatedAt            time.Time                    `json:"created_at"`
+	ContentUnitCandidate *ContentUnitCandidateBinding `json:"content_unit_candidate,omitempty"`
 }
 
 type modelSnapshot struct {
@@ -384,12 +396,13 @@ func BuildContextSnapshot(input ContextSnapshotInput) string {
 			ProviderName: input.Credential.DisplayName,
 			CredentialID: input.Model.CredentialID,
 		},
-		JobType:        input.JobType,
-		FeatureKey:     input.FeatureKey,
-		Prompt:         input.Prompt,
-		Params:         params,
-		InputResources: resources,
-		CreatedAt:      input.CreatedAt,
+		JobType:              input.JobType,
+		FeatureKey:           input.FeatureKey,
+		Prompt:               input.Prompt,
+		Params:               params,
+		InputResources:       resources,
+		CreatedAt:            input.CreatedAt,
+		ContentUnitCandidate: input.ContentUnitCandidate,
 	}
 	b, err := json.Marshal(snapshot)
 	if err != nil {

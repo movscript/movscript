@@ -210,6 +210,46 @@ export function readMediaPipelineFFmpegFilters(
   })
 }
 
+export function readMediaPipelineHasAudioStream(
+  ffmpeg: string,
+  mediaPath: string,
+  options: {
+    timeoutMs?: number
+    spawnProcess?: FFmpegVersionSpawn
+  } = {},
+): Promise<boolean> {
+  return new Promise((resolveRun, reject) => {
+    const timeoutMs = options.timeoutMs ?? MEDIA_PIPELINE_FFMPEG_STATUS_TIMEOUT_MS
+    const spawnProcess: FFmpegVersionSpawn = options.spawnProcess ?? spawn
+    const child = spawnProcess(ffmpeg, ['-hide_banner', '-i', mediaPath], { stdio: ['ignore', 'pipe', 'pipe'] })
+    let stderr = ''
+    let settled = false
+    const timeout = timeoutMs > 0
+      ? setTimeout(() => {
+        if (settled) return
+        settled = true
+        child.kill('SIGKILL')
+        reject(new MediaPipelineFFmpegTimeoutError(timeoutMs))
+      }, timeoutMs)
+      : undefined
+    const settle = (handler: () => void) => {
+      if (settled) return
+      settled = true
+      if (timeout) clearTimeout(timeout)
+      handler()
+    }
+    child.stderr?.on('data', (chunk) => {
+      stderr += String(chunk)
+    })
+    child.on('error', (error) => settle(() => reject(error instanceof Error ? error : new Error(String(error)))))
+    child.on('exit', () => {
+      settle(() => {
+        resolveRun(/\bStream #\d+:\d+(?:\[[^\]]+\])?(?:\([^)]+\))?: Audio:/i.test(stderr))
+      })
+    })
+  })
+}
+
 export function parseMediaPipelineFFmpegFilters(output: string): Set<string> {
   const filters = new Set<string>()
   for (const line of output.split(/\r?\n/)) {

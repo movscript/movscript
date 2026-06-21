@@ -22,10 +22,11 @@ const fixtureContentSourceWorkspaceData: ContentSourceWorkspaceData = {
   source: 'fixture',
   hierarchyTree: [],
   previewMoments: [],
+  contentUnitCandidates: {},
   expressionUnitsByMoment: {},
   audioCuesByMoment: {},
-  shotWorkspaceDetails: {},
-  assetReferenceUnits: [],
+  expressionUnitWorkspaceDetails: {},
+  assetReferenceUnits: {},
 }
 
 test('content source workspace data loads through the Electron engine API', async () => {
@@ -141,7 +142,7 @@ test('content source workspace candidate creator sends engine candidate plans', 
       projectId: 457,
       contentUnitId: 'cu_phone',
       outputKind: 'video',
-      promptText: 'Make the shot.',
+      promptText: 'Make the expression clip.',
       resourceId: 81,
       resourceName: 'Chosen resource.mp4',
       resourceType: 'video',
@@ -164,7 +165,7 @@ test('content source workspace candidate creator sends engine candidate plans', 
   assert.equal((plan.producer as Record<string, unknown>).kind, 'content_workbench')
   assert.equal((plan.producer as Record<string, unknown>).model_id, 'resource_library')
   assert.equal((plan.promptSnapshot as Record<string, unknown>).output_kind, 'video')
-  assert.equal((plan.promptSnapshot as Record<string, unknown>).prompt_text, 'Make the shot.')
+  assert.equal((plan.promptSnapshot as Record<string, unknown>).prompt_text, 'Make the expression clip.')
 })
 
 test('content source workspace editors write patches through the Electron engine API', async () => {
@@ -207,7 +208,7 @@ test('content source workspace editors write patches through the Electron engine
 	      title: 'Phone buzz',
       cueKind: 'sound_effect',
       promptHint: 'A sharp phone vibration.',
-      shotRef: 'productions/pilot/shots/phone',
+      expressionUnitRef: 'productions/pilot/segments/opening/scene_moments/rain_call/expression_units/phone_insert/expression_unit.json',
       timing: { start: 'after_action', duration_sec: 1.2 },
       assetRefs: ['phone_screen'],
     })
@@ -235,7 +236,7 @@ test('content source workspace editors write patches through the Electron engine
     method: 'prompt',
 	    input: {
 	      projectId: 789,
-	      expectedWorkspaceVersions: { 'content_units/cu_asset_phone/content_unit.json': null },
+	      expectedWorkspaceVersions: {},
 	      targetPath: 'content_units/cu_asset_phone/content_unit.json',
       editPrompt: { text: 'Updated {{asset:phone_screen}} reference prompt.' },
     },
@@ -244,7 +245,7 @@ test('content source workspace editors write patches through the Electron engine
     method: 'expression',
 	    input: {
 	      projectId: 321,
-	      expectedWorkspaceVersions: { 'productions/pilot/expression_unit.json': null },
+	      expectedWorkspaceVersions: {},
 	      targetPath: 'productions/pilot/expression_unit.json',
       patch: {
         title: 'Hesitation beat',
@@ -260,13 +261,13 @@ test('content source workspace editors write patches through the Electron engine
     method: 'audio',
 	    input: {
 	      projectId: 654,
-	      expectedWorkspaceVersions: { 'productions/pilot/audio_cue.json': null },
+	      expectedWorkspaceVersions: {},
 	      targetPath: 'productions/pilot/audio_cue.json',
       patch: {
         title: 'Phone buzz',
         cueKind: 'sound_effect',
         promptHint: 'A sharp phone vibration.',
-        shotRef: 'productions/pilot/shots/phone',
+        expressionUnitRef: 'productions/pilot/segments/opening/scene_moments/rain_call/expression_units/phone_insert/expression_unit.json',
         storyboardRef: undefined,
         timing: { start: 'after_action', duration_sec: 1.2 },
         assetRefs: ['phone_screen'],
@@ -277,7 +278,7 @@ test('content source workspace editors write patches through the Electron engine
     method: 'transition',
 	    input: {
 	      projectId: 987,
-	      expectedWorkspaceVersions: { 'productions/pilot/shot.json': null },
+	      expectedWorkspaceVersions: {},
 	      targetPath: 'productions/pilot/shot.json',
       transition: {
         in: 'insert_cut',
@@ -290,7 +291,7 @@ test('content source workspace editors write patches through the Electron engine
     method: 'timeline',
 	    input: {
 	      projectId: 988,
-	      expectedWorkspaceVersions: { 'productions/pilot/storyboard.json': null },
+	      expectedWorkspaceVersions: {},
 	      targetPath: 'productions/pilot/storyboard.json',
       timeline: {
         caption: 'Phone glow.',
@@ -313,15 +314,15 @@ test('content source workspace hierarchy add and sync use engine APIs', async ()
   }, async () => {
     await createContentSourceWorkspaceHierarchyNode({
       projectId: 777,
-      type: 'shot',
+      type: 'expression_unit',
       id: 'phone_insert',
       title: 'Phone insert',
-      targetPath: 'productions/pilot/segments/opening/scene_moments/rain_call/shots/phone_insert/shot.json',
+      targetPath: 'productions/pilot/segments/opening/scene_moments/rain_call/expression_units/phone_insert/expression_unit.json',
       parentNode: {
-        id: 'rain_call_shots_group',
+        id: 'rain_call_expression_units_group',
         type: 'group',
-        title: 'Shots',
-        path: 'productions/pilot/segments/opening/scene_moments/rain_call/shots',
+        title: 'Expression Units',
+        path: 'productions/pilot/segments/opening/scene_moments/rain_call/expression_units',
       },
     })
     await syncContentSourceWorkspace({ projectId: 778 })
@@ -330,20 +331,21 @@ test('content source workspace hierarchy add and sync use engine APIs', async ()
   assert.equal(calls[0].method, 'write')
   const writeInput = calls[0].input as Record<string, unknown>
 	  assert.equal(writeInput.projectId, 777)
-	  assert.equal(writeInput.targetPath, 'productions/pilot/segments/opening/scene_moments/rain_call/shots/phone_insert/shot.json')
+	  assert.equal(writeInput.targetPath, 'productions/pilot/segments/opening/scene_moments/rain_call/expression_units/phone_insert/expression_unit.json')
 	  assert.deepEqual(writeInput.expectedWorkspaceVersions, {
-	    'productions/pilot/segments/opening/scene_moments/rain_call/shots/phone_insert/shot.json': null,
+	    'productions/pilot/segments/opening/scene_moments/rain_call/expression_units/phone_insert/expression_unit.json': null,
 	  })
   const record = writeInput.record as Record<string, unknown>
-  assert.equal(record.schema, 'movscript.shot.v1')
-  assert.equal(record.kind, 'shot')
+  assert.equal(record.schema, 'movscript.expression_unit.v1')
+  assert.equal(record.kind, 'expression_unit')
   assert.equal(record.id, 'phone_insert')
   assert.equal(record.title, 'Phone insert')
   assert.equal(record.production_id, 'pilot')
   assert.equal(record.segment_id, 'opening')
   assert.equal(record.scene_moment_id, 'rain_call')
-  assert.deepEqual(record.timing, {})
-  assert.deepEqual(record.reference_asset_refs, [])
+  assert.equal(record.expression_kind, 'action')
+  assert.equal(record.text, '')
+  assert.equal(record.intent, '')
   assert.deepEqual(calls[1], {
     method: 'sync',
     input: { projectId: 778 },
@@ -374,7 +376,6 @@ function emptySnapshot(): ContentSourceWorkspaceSnapshot {
     productions: [],
     segments: [],
     sceneMoments: [],
-    shots: [],
     storyboards: [],
     keyframes: [],
     expressionUnits: [],

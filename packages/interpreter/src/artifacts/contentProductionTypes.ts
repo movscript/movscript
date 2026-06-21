@@ -6,7 +6,7 @@ import type {
 export type ContentUnitOutputKind = 'image' | 'video' | 'audio' | 'text' | 'metadata'
 export type ContentUnitRuntimePanelStatus = 'ready' | 'blocked'
 
-export type ContentUnitPromptRefKind = 'production' | 'segment' | 'asset' | 'keyframe' | 'storyboard' | 'scene_moment' | 'expression_unit' | 'shot' | 'content_unit'
+export type ContentUnitPromptRefKind = 'production' | 'segment' | 'asset' | 'keyframe' | 'storyboard' | 'scene_moment' | 'expression_unit' | 'content_unit'
 
 export interface ContentUnitPromptRef {
   kind: ContentUnitPromptRefKind

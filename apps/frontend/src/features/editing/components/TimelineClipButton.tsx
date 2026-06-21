@@ -14,6 +14,7 @@ import { timelineDurationPercent, timelinePositionPercent } from '../domain/time
 import type { TimelineClipEditMode, TimelineTrack } from '../domain/types'
 import { formatDuration } from '../domain/utils'
 import { TimelineClipFilmstrip } from './TimelineClipFilmstrip'
+import './TimelineClipButton.css'
 
 type TimelineClipButtonProps = {
   clip: ElectronMediaPipelineClip

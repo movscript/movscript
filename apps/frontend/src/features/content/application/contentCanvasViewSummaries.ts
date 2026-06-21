@@ -43,11 +43,13 @@ export function contentCanvasCollapsedSummaries(
   graph: ContentCanvasGraph,
   visibleIds: ReadonlySet<string>,
   hiddenNodeIds: ReadonlySet<string>,
+  options: { excludeKinds?: ReadonlySet<ContentCanvasNodeKind> } = {},
 ): Record<string, ContentCanvasCollapsedRelationSummary[]> {
   const countsByAnchor = new Map<string, Map<ContentCanvasNodeKind, number>>()
   for (const hiddenNodeId of hiddenNodeIds) {
     const hiddenNode = nodeById(graph, hiddenNodeId)
     if (!hiddenNode || !isAggregatedHiddenKind(hiddenNode.kind)) continue
+    if (options.excludeKinds?.has(hiddenNode.kind)) continue
     const anchorId = anchorVisibleNodeForHiddenNode(graph, visibleIds, hiddenNodeId, 3)
     if (!anchorId) continue
     const counts = countsByAnchor.get(anchorId) ?? new Map<ContentCanvasNodeKind, number>()
@@ -77,8 +79,8 @@ function hiddenEdgeRelationRank(relation: ContentCanvasHiddenEdgeSummary['relati
   if (relation === 'content_unit_candidate') return 5
   if (relation === 'asset_downstream') return 6
   if (relation === 'setting_state_reference') return 7
-  if (relation === 'expression_unit_shot' || relation === 'expression_unit_storyboard' || relation === 'expression_unit_content_unit') return 8
-  if (relation === 'audio_cue_shot' || relation === 'audio_cue_storyboard' || relation === 'audio_cue_asset') return 9
+  if (relation === 'expression_unit_storyboard' || relation === 'expression_unit_content_unit') return 8
+  if (relation === 'audio_cue_storyboard' || relation === 'audio_cue_asset') return 9
   return 11
 }
 
@@ -91,8 +93,8 @@ function hiddenEdgeRelationLabel(relation: ContentCanvasHiddenEdgeSummary['relat
   if (relation === 'content_unit_candidate') return '候选边'
   if (relation === 'asset_downstream') return '资产影响边'
   if (relation === 'setting_state_reference') return '设定状态边'
-  if (relation === 'expression_unit_shot' || relation === 'expression_unit_storyboard' || relation === 'expression_unit_content_unit') return '表达约束边'
-  if (relation === 'audio_cue_shot' || relation === 'audio_cue_storyboard') return '声音约束边'
+  if (relation === 'expression_unit_storyboard' || relation === 'expression_unit_content_unit') return '表达约束边'
+  if (relation === 'audio_cue_storyboard') return '声音约束边'
   if (relation === 'audio_cue_asset') return '声音素材边'
   if (relation === 'content_unit_keyframe') return '关键帧边'
   if (relation === 'content_unit_storyboard') return '分镜边'

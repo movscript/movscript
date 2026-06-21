@@ -8,16 +8,17 @@ import (
 )
 
 type ContextSnapshotInput struct {
-	Model          domainjob.RuntimeModelSnapshotInput
-	Credential     domainjob.AICredential
-	Prompt         string
-	ExtraParams    string
-	AspectRatio    string
-	Duration       int
-	JobType        string
-	FeatureKey     string
-	InputResources []domainjob.InputResource
-	CreatedAt      time.Time
+	Model                domainjob.RuntimeModelSnapshotInput
+	Credential           domainjob.AICredential
+	Prompt               string
+	ExtraParams          string
+	AspectRatio          string
+	Duration             int
+	JobType              string
+	FeatureKey           string
+	InputResources       []domainjob.InputResource
+	CreatedAt            time.Time
+	ContentUnitCandidate *domainjob.ContentUnitCandidateBinding
 }
 
 func IDOrNil(id *uint) []uint {
@@ -45,15 +46,16 @@ func BuildContextSnapshot(input ContextSnapshotInput) string {
 			ModelDefID:        input.Model.ModelDefID,
 			CredentialID:      input.Model.CredentialID,
 		},
-		Credential:     domainjob.CredentialInput{DisplayName: input.Credential.DisplayName},
-		Prompt:         input.Prompt,
-		ExtraParams:    input.ExtraParams,
-		AspectRatio:    input.AspectRatio,
-		Duration:       input.Duration,
-		JobType:        input.JobType,
-		FeatureKey:     input.FeatureKey,
-		InputResources: input.InputResources,
-		CreatedAt:      input.CreatedAt,
+		Credential:           domainjob.CredentialInput{DisplayName: input.Credential.DisplayName},
+		Prompt:               input.Prompt,
+		ExtraParams:          input.ExtraParams,
+		AspectRatio:          input.AspectRatio,
+		Duration:             input.Duration,
+		JobType:              input.JobType,
+		FeatureKey:           input.FeatureKey,
+		InputResources:       input.InputResources,
+		CreatedAt:            input.CreatedAt,
+		ContentUnitCandidate: input.ContentUnitCandidate,
 	})
 }
 

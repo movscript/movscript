@@ -21,11 +21,10 @@ test('workspace domain indexes hierarchical source entities', () => {
 
   assert.equal(queryMovScriptWorkspaceSettings(index, { kind: 'character' }).length, 1)
   assert.equal(index.byKind.get('asset')?.length, 1)
-  assert.equal(index.byKind.get('shot')?.length, 1)
   assert.equal(index.byKind.get('storyboard')?.length, 1)
   assert.equal(index.byKind.get('audio_cue')?.length, 1)
   assert.equal(index.byKind.get('content_unit')?.length, 3)
-  assert.equal(index.byKind.get('expression_unit')?.length, 1)
+  assert.equal(index.byKind.get('expression_unit')?.length, 2)
   assert.equal(index.byKind.get('script')?.[0]?.path, 'scripts/main/script.json')
   assert.equal(index.documents.some((document) => document.path === 'scripts/main/script.md'), true)
   assert.equal(queryMovScriptCanonicalEntities(index).some((entity) => entity.path === 'scripts/main/script.md'), false)
@@ -48,7 +47,7 @@ test('workspace domain indexes hierarchical source entities', () => {
   assert.equal(context.scene_moments.length, 1)
   assert.equal(context.storyboards.length, 1)
   assert.equal(context.audio_cues.length, 1)
-  assert.equal(context.expression_units.length, 1)
+  assert.equal(context.expression_units.length, 2)
   assert.equal(context.content_units.length, 3)
 })
 
@@ -86,13 +85,13 @@ test('interpreter derived artifacts are derived from canonical source only', () 
   assert.ok(artifacts.previewTimelines[0].items.some((item) => item.itemType === 'scene_moment' && item.transition.out === 'hold_then_cut'))
   assert.ok(artifacts.previewTimelines[0].items.some((item) => item.itemType === 'audio_cue' && item.entity.id === 'phone_vibration' && item.cueKind === 'sound_effect'))
   assert.ok(artifacts.previewTimelines[0].items.some((item) => item.itemType === 'expression_unit' && item.entity.id === 'caption_1'))
-  assert.ok(artifacts.previewTimelines[0].items.some((item) => item.itemType === 'shot' && item.entity.id === 'phone' && item.contentUnitIds.includes('k41m')))
+  assert.ok(artifacts.previewTimelines[0].items.some((item) => item.itemType === 'expression_unit' && item.entity.id === 'phone' && item.contentUnitIds.includes('k41m')))
   assert.ok(artifacts.previewTimelines[0].items.some((item) => item.itemType === 'keyframe' && item.entity.id === 'scene_anchor' && item.contentUnitIds.includes('cu_scene_anchor_keyframe_ref')))
   assert.ok(artifacts.previewTimelines[0].items.some((item) => item.itemType === 'content_unit' && item.entity.id === 'cu_scene_anchor_keyframe_ref' && item.parentId === 'keyframe:scene_anchor'))
   assert.deepEqual(artifacts.impactReport.changedEntities[0].businessImpacts, ['Content unit changed'])
   assert.ok(artifacts.impactReport.changedEntities[0].editorImpacts.some((impact) => impact.includes('Content production context')))
   assert.equal(artifacts.contentUnitArtifacts.length, 3)
-  assert.equal(artifacts.contentUnitArtifacts.find((artifact) => artifact.contentUnitId === 'k41m')?.runtimePanel.content_unit_type, 'shot_ref')
+  assert.equal(artifacts.contentUnitArtifacts.find((artifact) => artifact.contentUnitId === 'k41m')?.runtimePanel.content_unit_type, 'expression_unit_ref')
   assert.equal(artifacts.contentUnitArtifacts.find((artifact) => artifact.contentUnitId === 'cu_scene_anchor_keyframe_ref')?.runtimePanel.content_unit_type, 'keyframe_ref')
   assert.equal(artifacts.productionWorkPlan.schema, 'movscript.production_work_plan.v1')
   assert.ok(artifacts.productionWorkPlan.items.some((item) => item.kind === 'edit_structure'
@@ -265,7 +264,7 @@ test('interpreter impact report traces planning and asset changes to affected co
       {
         entityKind: 'storyboard',
         id: 'main',
-        path: 'productions/p8f3/segments/a19d/scene_moments/r72k/shots/phone/storyboards/main/storyboard.json',
+        path: 'productions/p8f3/segments/a19d/scene_moments/r72k/expression_units/phone/storyboards/main/storyboard.json',
         state: 'modified',
       },
       {
@@ -277,7 +276,7 @@ test('interpreter impact report traces planning and asset changes to affected co
       {
         entityKind: 'keyframe',
         id: 'scene_anchor',
-        path: 'productions/p8f3/segments/a19d/scene_moments/r72k/shots/phone/keyframes/scene_anchor/keyframe.json',
+        path: 'productions/p8f3/segments/a19d/scene_moments/r72k/expression_units/phone/keyframes/scene_anchor/keyframe.json',
         state: 'modified',
       },
     ],

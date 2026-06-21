@@ -75,7 +75,11 @@ function isGenerationResourceTool(toolName: unknown) {
   return isGenerationSubmitTool(toolName)
     || toolName === 'generation_job_get'
     || toolName === 'generation_image_job_get'
+    || toolName === 'generation_content_unit_image_job_get'
+    || toolName === 'system_generate_content_unit_image_job_get'
     || toolName === 'generation_video_job_get'
+    || toolName === 'generation_content_unit_video_job_get'
+    || toolName === 'system_generate_content_unit_video_job_get'
     || toolName === 'generation_audio_job_get'
     || toolName === 'generation_job_wait'
     || toolName === 'generation_job_list'
@@ -83,7 +87,11 @@ function isGenerationResourceTool(toolName: unknown) {
 
 function isGenerationSubmitTool(toolName: unknown) {
   return toolName === 'generation_image_generate'
+    || toolName === 'generation_content_unit_image_generate'
+    || toolName === 'system_generate_content_unit_image'
     || toolName === 'generation_video_generate'
+    || toolName === 'generation_content_unit_video_generate'
+    || toolName === 'system_generate_content_unit_video'
     || toolName === 'generation_audio_generate'
     || toolName === 'generation_job_create'
 }

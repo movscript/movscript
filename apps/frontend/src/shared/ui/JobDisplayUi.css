@@ -233,16 +233,30 @@
   background: var(--ms-color-muted);
 }
 
-.job-list-media-area__preview > * {
+.job-list-media-area__preview > *,
+.job-list-media-area__preview .resource-media-thumb,
+.job-list-media-area__preview .resource-media-fill-frame,
+.job-list-media-area__preview .resource-media-thumb > span,
+.job-list-media-area__preview .resource-media-thumb > span > *,
+.job-list-media-area__preview .resource-media-thumb > img,
+.job-list-media-area__preview .resource-media-thumb > video,
+.job-list-media-area__preview .resource-media-fill-frame > img,
+.job-list-media-area__preview .resource-media-fill-frame > video {
   width: 100%;
   height: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  max-height: 100%;
   border-radius: 0;
 }
 
 .job-grid-media-area {
   position: relative;
   width: 100%;
+  min-width: 0;
   aspect-ratio: 4 / 3;
+  overflow: hidden;
   background: var(--ms-color-muted);
 }
 
@@ -251,6 +265,40 @@
   inset: 0;
   width: 100%;
   height: 100%;
+  overflow: hidden;
+}
+
+.job-grid-media-area__preview > *,
+.job-grid-media-area__preview .resource-media-thumb,
+.job-grid-media-area__preview .resource-media-fill-frame,
+.job-grid-media-area__preview .resource-media-thumb > span,
+.job-grid-media-area__preview .resource-media-thumb > span > *,
+.job-grid-media-area__preview .resource-media-thumb > img,
+.job-grid-media-area__preview .resource-media-thumb > video,
+.job-grid-media-area__preview .resource-media-fill-frame > img,
+.job-grid-media-area__preview .resource-media-fill-frame > video {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.job-grid-media-area__preview .resource-media-thumb,
+.job-grid-media-area__preview .resource-media-fill-frame {
+  display: block;
+  overflow: hidden;
+  border-radius: 0;
+}
+
+.job-grid-media-area__preview .resource-media-thumb > span,
+.job-grid-media-area__preview .resource-media-thumb > span > *,
+.job-grid-media-area__preview .resource-media-thumb > img,
+.job-grid-media-area__preview .resource-media-thumb > video,
+.job-grid-media-area__preview .resource-media-fill-frame > img,
+.job-grid-media-area__preview .resource-media-fill-frame > video {
+  display: block;
 }
 
 .job-overlay-action {

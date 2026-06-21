@@ -6,7 +6,6 @@ export const CONTENT_CANVAS_FILTERS: Array<{ kind: ContentCanvasNodeKind | 'all'
   { kind: 'production', label: '制作' },
   { kind: 'segment', label: '段落' },
   { kind: 'scene_moment', label: '情节' },
-  { kind: 'shot', label: '镜头' },
   { kind: 'storyboard', label: '分镜' },
   { kind: 'expression_unit', label: '表达' },
   { kind: 'content_unit', label: '制作项' },
@@ -39,7 +38,6 @@ export function countByKind(nodes: ContentCanvasNode[]) {
     production: 0,
     segment: 0,
     scene_moment: 0,
-    shot: 0,
     storyboard: 0,
     expression_unit: 0,
     content_unit: 0,
@@ -62,7 +60,6 @@ export function kindLabel(kind: ContentCanvasNodeKind) {
   if (kind === 'production') return '制作'
   if (kind === 'segment') return '段落'
   if (kind === 'scene_moment') return '情节'
-  if (kind === 'shot') return '镜头'
   if (kind === 'storyboard') return '分镜图'
   if (kind === 'expression_unit') return '表达单元'
   if (kind === 'content_unit') return '制作项'
@@ -85,7 +82,6 @@ export function kindShortCode(kind: ContentCanvasNodeKind) {
   if (kind === 'production') return 'PROD'
   if (kind === 'segment') return 'SEG'
   if (kind === 'scene_moment') return 'SCN'
-  if (kind === 'shot') return 'SHOT'
   if (kind === 'storyboard') return 'STB'
   if (kind === 'expression_unit') return 'EXP'
   if (kind === 'content_unit') return 'UNIT'
@@ -241,12 +237,9 @@ export function contentCanvasEdgeVisualLayer(edge: ContentCanvasEdge): ContentCa
     || edge.relation === 'content_unit_keyframe'
     || edge.relation === 'content_unit_storyboard'
     || edge.relation === 'content_unit_scene'
-    || edge.relation === 'content_unit_shot'
     || edge.relation === 'setting_state_reference'
-    || edge.relation === 'expression_unit_shot'
     || edge.relation === 'expression_unit_storyboard'
     || edge.relation === 'expression_unit_content_unit'
-    || edge.relation === 'audio_cue_shot'
     || edge.relation === 'audio_cue_storyboard'
     || edge.relation === 'audio_cue_asset'
     || edge.relation === 'asset_downstream'
@@ -260,7 +253,6 @@ export function contentCanvasEdgeVisualLayer(edge: ContentCanvasEdge): ContentCa
 function contentCanvasEdgeShouldReverseForFlow(edge: ContentCanvasEdge): boolean {
   return edge.relation === 'content_unit_asset'
     || edge.relation === 'content_unit_keyframe'
-    || edge.relation === 'content_unit_shot'
     || edge.relation === 'content_unit_storyboard'
     || edge.relation === 'setting_state_reference'
     || edge.relation === 'audio_cue_asset'
@@ -312,10 +304,9 @@ function contentCanvasEdgeDashArray(edge: ContentCanvasEdge, layer: ContentCanva
   return undefined
 }
 
-const CONTENT_CANVAS_EDGE_RELATION_COLORS: Record<NonNullable<ContentCanvasEdge['relation']>, string> = {
+const CONTENT_CANVAS_EDGE_RELATION_COLORS: Partial<Record<NonNullable<ContentCanvasEdge['relation']>, string>> = {
   content_unit_scene: '#16a34a',
   content_unit_asset: '#2563eb',
-  content_unit_shot: '#4f46e5',
   content_unit_keyframe: '#d97706',
   content_unit_storyboard: '#db2777',
   content_unit_candidate: '#7c3aed',
@@ -323,10 +314,8 @@ const CONTENT_CANVAS_EDGE_RELATION_COLORS: Record<NonNullable<ContentCanvasEdge[
   selection_candidate: '#22c55e',
   asset_downstream: '#ea580c',
   setting_state_reference: '#65a30d',
-  expression_unit_shot: '#84cc16',
   expression_unit_storyboard: '#a3e635',
   expression_unit_content_unit: '#4d7c0f',
-  audio_cue_shot: '#0284c7',
   audio_cue_storyboard: '#0ea5e9',
   audio_cue_asset: '#0369a1',
   work_item_target: '#dc2626',

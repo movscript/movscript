@@ -88,15 +88,15 @@ export function findEntityByRef(
   return entities.find((entity) => entity.entityKind === entityKind && sameEntityRef(entity.id, ref, entityKind))
 }
 
-export function parentShotForEntity(
+export function parentExpressionUnitForEntity(
   entity: MovScriptWorkspaceIndexedEntity,
   entityByPathDir: Map<string, MovScriptWorkspaceIndexedEntity>,
   entityById: Map<string, MovScriptWorkspaceIndexedEntity>,
 ): MovScriptWorkspaceIndexedEntity | undefined {
-  const shotRef = normalizedRefDir(entity.record.shot_ref)
-  if (shotRef) return entityByPathDir.get(shotRef) ?? entityById.get(entityKey('shot', shotRef))
-  const shotId = pathSegmentAfter(entity.path, 'shots')
-  return shotId ? entityById.get(entityKey('shot', shotId)) : undefined
+  const expressionUnitRef = normalizedRefDir(entity.record.expression_unit_ref)
+  if (expressionUnitRef) return entityByPathDir.get(expressionUnitRef) ?? entityById.get(entityKey('expression_unit', expressionUnitRef))
+  const expressionUnitId = pathSegmentAfter(entity.path, 'expression_units')
+  return expressionUnitId ? entityById.get(entityKey('expression_unit', expressionUnitId)) : undefined
 }
 
 export function pathSegmentAfter(path: string, segment: string): string | undefined {
@@ -154,7 +154,6 @@ export function childEntities(
 function collectionDirForEntityKind(entityKind: SemanticEntityKind): string | undefined {
   if (entityKind === 'segment') return 'segments'
   if (entityKind === 'scene_moment') return 'scene_moments'
-  if (entityKind === 'shot') return 'shots'
   if (entityKind === 'storyboard') return 'storyboards'
   if (entityKind === 'keyframe') return 'keyframes'
   if (entityKind === 'audio_cue') return 'audio_cues'

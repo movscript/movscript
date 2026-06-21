@@ -18,6 +18,8 @@ const globalHomeSource = readSource('apps/frontend/src/pages/home/GlobalHomePage
 const projectAgentModeSource = [
   readSource('apps/frontend/src/features/agent/components/ProjectAgentModePage.tsx'),
   readSource('apps/frontend/src/features/agent/components/ProjectAgentModeSidebar.tsx'),
+  readSource('apps/frontend/src/features/agent/components/useProjectAgentModeSidebarController.ts'),
+  readSource('apps/frontend/src/features/agent/components/useProjectAgentModeSidebarActions.ts'),
   readSource('apps/frontend/src/features/agent/components/ProjectAgentModeSidebarModel.ts'),
   readSource('apps/frontend/src/features/agent/components/ProjectAgentModeSidebarView.tsx'),
 ].join('\n')
@@ -90,7 +92,7 @@ test('project overview delegates card and marketplace UI components', () => {
     'ProjectOverviewScriptCard',
     'ProjectOverviewWorkbenchCard',
     'ProjectPluginMarketplaceDialog',
-    'ProjectSkillCard',
+    'ProjectSystemPluginCard',
   ]) {
     assert.match(projectOverviewCardsSource, new RegExp(`export function ${componentName}\\b`))
   }
@@ -98,7 +100,7 @@ test('project overview delegates card and marketplace UI components', () => {
   for (const componentName of [
     'ProjectOverviewScriptCard',
     'ProjectOverviewWorkbenchCard',
-    'ProjectSkillCard',
+    'ProjectSystemPluginCard',
   ]) {
     assert.match(projectOverviewPageSource, new RegExp(`<${componentName}\\b`))
   }
@@ -112,11 +114,10 @@ test('project overview delegates card and marketplace UI components', () => {
   ]) {
     assert.doesNotMatch(projectOverviewPageSource, new RegExp(removedPageLocal))
   }
-  assert.match(projectOverviewCardsSource, /function projectSkillSourceLabel/)
   assert.match(projectOverviewCardsSource, /function projectSkillProviderLabel/)
-  assert.match(projectOverviewCardsSource, /function projectSkillScopeLabel/)
-  assert.match(projectOverviewCardsSource, /skill\.providerScope/)
-  assert.match(projectOverviewCardsSource, /skill\.sourceScope/)
+  assert.match(projectOverviewCardsSource, /plugin\.sourceType/)
+  assert.match(projectOverviewCardsSource, /plugin\.providerTargets/)
+  assert.match(projectOverviewCardsSource, /item\.sourceLabel/)
   assert.match(projectOverviewCardsSource, /withRouteParams\(ROUTES\.project\.scripts/)
   assert.match(projectOverviewCardsSource, /PluginDialogOverlay/)
 })

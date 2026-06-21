@@ -388,8 +388,9 @@ function validateStoryboardSettingRefs(
 }
 
 function isStoryboardUnderSceneMoment(storyboardDir: string, sceneMomentDir: string): boolean {
-  return /^.+\/shots\/[^/]+\/storyboards\/[^/]+$/.test(storyboardDir)
-    && storyboardDir.startsWith(`${sceneMomentDir}/shots/`)
+  return storyboardDir.startsWith(`${sceneMomentDir}/storyboards/`)
+    || /^.+\/expression_units\/[^/]+\/storyboards\/[^/]+$/.test(storyboardDir)
+      && storyboardDir.startsWith(`${sceneMomentDir}/expression_units/`)
 }
 
 function validateKeyframeReferenceAssetRefs(
@@ -485,12 +486,11 @@ function sourcePathMatchesEntityKind(path: string, entityKind: string): boolean 
     script_version: /^scripts\/[^/]+\/versions\/[^/]+\/script_version\.json$/,
     script_block: /^scripts\/[^/]+\/versions\/[^/]+\/blocks\/[^/]+\/script_block\.json$/,
     content_unit: /^content_units\/[^/]+\/content_unit\.json$/,
-    keyframe: /^productions\/[^/]+\/segments\/[^/]+\/scene_moments\/[^/]+\/shots\/[^/]+\/keyframes\/[^/]+\/keyframe\.json$/,
+    keyframe: /^productions\/[^/]+\/segments\/[^/]+\/scene_moments\/[^/]+\/(keyframes\/[^/]+|expression_units\/[^/]+\/keyframes\/[^/]+)\/keyframe\.json$/,
     production: /^productions\/[^/]+\/production\.json$/,
     segment: /^productions\/[^/]+\/segments\/[^/]+\/segment\.json$/,
     scene_moment: /^productions\/[^/]+\/segments\/[^/]+\/scene_moments\/[^/]+\/scene_moment\.json$/,
-    shot: /^productions\/[^/]+\/segments\/[^/]+\/scene_moments\/[^/]+\/shots\/[^/]+\/shot\.json$/,
-    storyboard: /^productions\/[^/]+\/segments\/[^/]+\/scene_moments\/[^/]+\/shots\/[^/]+\/storyboards\/[^/]+\/storyboard\.json$/,
+    storyboard: /^productions\/[^/]+\/segments\/[^/]+\/scene_moments\/[^/]+\/(storyboards\/[^/]+|expression_units\/[^/]+\/storyboards\/[^/]+)\/storyboard\.json$/,
     audio_cue: /^productions\/[^/]+\/segments\/[^/]+\/scene_moments\/[^/]+\/audio_cues\/[^/]+\/audio_cue\.json$/,
     expression_unit: /^productions\/[^/]+\/segments\/[^/]+\/scene_moments\/[^/]+\/expression_units\/[^/]+\/expression_unit\.json$/,
   }

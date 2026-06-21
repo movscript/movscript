@@ -110,6 +110,7 @@ export const CanvasContextMenuItem = forwardRef<HTMLButtonElement, ButtonProps &
     size={size}
     role={role}
     className={cn('canvas-context-menu__item', className)}
+    contentClassName="canvas-context-menu__item-content"
     {...props}
   >
     {icon ? <CanvasContextMenuItemIcon>{icon}</CanvasContextMenuItemIcon> : null}

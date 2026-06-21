@@ -28,10 +28,12 @@ import {
   APP_SHELL_TERMINAL_DOCK_PANE_ID,
   APP_SHELL_TERMINAL_DOCK_STATE_STORAGE_KEY,
   APP_SHELL_TOOL_SIDEBAR_PANE_ID,
+  CONTENT_CANVAS_STRUCTURE_PANE_ID,
   routeLayoutSpecForPathname,
 } from '@/routes/routeLayoutRegistry'
 import {
   allowedRouteLayoutPaneState,
+  clampRouteLayoutPaneSize,
   readRouteLayoutPaneSize,
   readRouteLayoutPaneState,
   routeLayoutPaneById,
@@ -296,11 +298,24 @@ test('route layout pane controller clamps restored agent pane sizes', () => {
   }
 })
 
+test('route layout pane controller derives default size clamp from numeric route pane specs', () => {
+  const routeLayout = routeLayoutSpecForPathname('/project/content')
+  const structurePane = routeLayoutPaneById(routeLayout, CONTENT_CANVAS_STRUCTURE_PANE_ID)
+
+  assert.ok(!routeLayout.panes.some((pane) => pane.id === 'content-canvas.setting-catalog-pane'))
+  assert.equal(clampRouteLayoutPaneSize(structurePane, 287.6), 288)
+  assert.equal(clampRouteLayoutPaneSize(undefined, Number.NaN, 240), 240)
+})
+
 test('shell layout consumes mode pane state through the route pane controller', () => {
   const appShellSource = readFileSync(resolve('src/features/app-shell/application/AppShellLayout.tsx'), 'utf8')
+  const appShellHeadersSource = readFileSync(resolve('src/features/app-shell/application/AppShellLayoutHeaders.tsx'), 'utf8')
+  const appShellTerminalDockSource = readFileSync(resolve('src/features/app-shell/application/AppShellTerminalDock.tsx'), 'utf8')
   const projectAgentModePageSource = [
     readFileSync(resolve('src/features/agent/components/ProjectAgentModePage.tsx'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebar.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/useProjectAgentModeSidebarController.ts'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/useProjectAgentModeSidebarActions.ts'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebarView.tsx'), 'utf8'),
   ].join('\n')
   const projectAgentContentPanelSource = readFileSync(resolve('src/features/agent/components/ProjectAgentContentPanel.tsx'), 'utf8')
@@ -313,8 +328,10 @@ test('shell layout consumes mode pane state through the route pane controller', 
   assert.doesNotMatch(appShellSource, /AIAgentPanel/)
   assert.match(appShellSource, /useRouteLayoutPaneController\(\{[\s\S]*paneId: APP_SHELL_TERMINAL_DOCK_PANE_ID[\s\S]*fallbackState: 'hidden'/)
   assert.match(appShellSource, /useRouteLayoutPaneController\(\{[\s\S]*paneId: APP_SHELL_TERMINAL_DOCK_PANE_ID[\s\S]*fallbackSize: APP_SHELL_TERMINAL_DOCK_DEFAULT_HEIGHT[\s\S]*clampSize: clampTerminalDockHeight[\s\S]*fallbackState: 'hidden'/)
-  assert.match(appShellSource, /useResizablePanel\(\{[\s\S]*size: terminalPane\.size[\s\S]*onSizeChange: terminalPane\.setSize[\s\S]*resizeEdge: 'top'/)
-  assert.match(appShellSource, /className="app-shell-terminal-resize-handle"[\s\S]*\{...terminalResizeHandleProps\}/)
+  assert.match(appShellSource, /<AppShellTerminalDock[\s\S]*open=\{terminalOpen\}[\s\S]*paneSize=\{terminalPane\.size\}[\s\S]*onPaneSizeChange=\{terminalPane\.setSize\}/)
+  assert.match(appShellTerminalDockSource, /export function clampTerminalDockHeight/)
+  assert.match(appShellTerminalDockSource, /useResizablePanel\(\{[\s\S]*size: paneSize[\s\S]*onSizeChange: onPaneSizeChange[\s\S]*resizeEdge: 'top'/)
+  assert.match(appShellTerminalDockSource, /className="app-shell-terminal-resize-handle"[\s\S]*\{...terminalResizeHandleProps\}/)
   assert.match(appShellSource, /useRouteLayoutPaneController\(\{[\s\S]*paneId: APP_SHELL_AGENT_SIDEBAR_PANE_ID[\s\S]*clampSize: clampAgentModeSidebarWidth[\s\S]*\}\)/)
   assert.match(appShellSource, /useRouteLayoutPaneController\(\{[\s\S]*paneId: APP_SHELL_AGENT_CONTENT_PANE_ID[\s\S]*clampSize: clampAgentModeContentPanelWidth[\s\S]*fallbackState: 'default'[\s\S]*\}\)/)
   assert.match(appShellSource, /toolSidebarPane\.hidden/)
@@ -323,7 +340,7 @@ test('shell layout consumes mode pane state through the route pane controller', 
   assert.match(appShellSource, /settingsSidebarPane\.setSize/)
   assert.match(appShellSource, /sidebar=\{settingsChrome \? \(/)
   assert.match(appShellSource, /: toolChrome \? \(/)
-  assert.match(appShellSource, /centerHeader=\{settingsChrome \? settingsCenterHeader : toolChrome \? toolCenterHeader : homeChrome \? homeCenterHeader : projectCenterHeader\}/)
+  assert.match(appShellSource, /centerHeader=\{settingsChrome \? appShellHeaders\.settingsCenterHeader : toolChrome \? appShellHeaders\.toolCenterHeader : homeChrome \? appShellHeaders\.homeCenterHeader : appShellHeaders\.projectCenterHeader\}/)
   assert.match(appShellSource, /leftPaneHidden=\{settingsChrome \? settingsSidebarHidden : toolChrome \? toolSidebarHidden : false\}/)
   assert.match(appShellSource, /const terminalOpen = !terminalPane\.hidden/)
   assert.doesNotMatch(appShellSource, /agentSidebarPane\.collapse/)
@@ -332,14 +349,15 @@ test('shell layout consumes mode pane state through the route pane controller', 
   assert.match(appShellSource, /const agentSidebarVisible = agentChrome && !agentSidebarPane\.hidden/)
   assert.match(appShellSource, /const agentLeftSlotStyle = appShellHiddenSlotStyle\(!agentSidebarVisible, agentSidebarPane\.size\)/)
   assert.match(appShellSource, /const agentRightSlotStyle = appShellCollapsedSlotStyle\(\{[\s\S]*collapsed: agentContentPane\.collapsed,[\s\S]*size: agentContentPane\.size,[\s\S]*collapsedSize: agentContentPane\.pane\?\.collapsedSize,/)
-  assert.match(appShellSource, /<AppShellAgentContentToggle[\s\S]*closed=\{agentContentPanelClosed\}[\s\S]*onShow=\{agentContentPane\.show\}[\s\S]*onCollapse=\{agentContentPane\.collapse\}/)
+  assert.match(appShellHeadersSource, /<AppShellAgentContentToggle[\s\S]*closed=\{agentContentPanelClosed\}[\s\S]*onShow=\{agentContentPane\.show\}[\s\S]*onCollapse=\{agentContentPane\.collapse\}/)
   assert.doesNotMatch(appShellSource, /showAgentContentPanelShortcut/)
   assert.match(appShellSource, /sidebarCollapsed=\{false\}/)
   assert.match(appShellSource, /leftPaneHidden=\{!agentSidebarVisible\}/)
-  assert.match(appShellSource, /<AppShellLeftPaneToggle hidden=\{!agentSidebarVisible\} onShow=\{agentSidebarPane\.show\} onHide=\{agentSidebarPane\.hide\}/)
+  assert.match(appShellHeadersSource, /<AppShellLeftPaneToggle hidden=\{!agentSidebarVisible\} onShow=\{agentSidebarPane\.show\} onHide=\{agentSidebarPane\.hide\}/)
   assert.match(appShellSource, /<ProjectAgentModeSidebar[\s\S]*width=\{agentSidebarPane\.size\}[\s\S]*onWidthChange=\{agentSidebarPane\.setSize\}/)
   assert.match(appShellSource, /<ProjectAgentContentPanel[\s\S]*collapsed=\{agentContentPane\.collapsed\}[\s\S]*onCollapsedChange=\{\(collapsed\) => \{[\s\S]*agentContentPane\.collapse\(\)[\s\S]*agentContentPane\.show\(\)[\s\S]*width=\{agentContentPane\.size\}[\s\S]*onWidthChange=\{agentContentPane\.setSize\}/)
-  assert.match(appShellSource, /<AgentTerminalPanel[\s\S]*open=\{terminalOpen\}[\s\S]*onOpenChange=\{\(open\) => \{[\s\S]*terminalPane\.show\(\)[\s\S]*terminalPane\.hide\(\)/)
+  assert.match(appShellSource, /onOpenChange=\{\(open\) => \{[\s\S]*terminalPane\.show\(\)[\s\S]*terminalPane\.hide\(\)/)
+  assert.match(appShellTerminalDockSource, /<AgentTerminalPanel[\s\S]*open=\{open\}[\s\S]*onOpenChange=\{onOpenChange\}/)
   assert.doesNotMatch(agentTerminalPanelSource, /AGENT_TERMINAL_PANEL_OPEN_KEY/)
   assert.doesNotMatch(agentTerminalPanelSource, /movscript\.agentMode\.terminal\.open/)
   assert.doesNotMatch(agentTerminalPanelSource, /window\.localStorage\.(getItem|setItem)\(/)
@@ -404,11 +422,11 @@ test('workbench overlap pane group props visibility is normalized by the route l
 
 test('workbench pages consume overlap pane sizing through the route layout adapter', () => {
   const scriptsSource = readFileSync(resolve('src/features/scripts/components/ScriptsPage.tsx'), 'utf8')
-  const toolDialogSource = readFileSync(resolve('src/features/tools/components/ToolDialog.tsx'), 'utf8')
+  const toolDialogSource = readToolDialogWorkbenchSource()
 
   assert.ok(!routeLayoutSpecForPathname('/tools/audio-gen').panes.some((pane) => pane.id === TOOL_WORKBENCH_RESOURCE_PANE_ID))
   assert.match(toolDialogSource, /useRouteLayoutOverlapPaneController\(\{[\s\S]*paneId: TOOL_WORKBENCH_RESOURCE_PANE_ID/)
-  assert.match(toolDialogSource, /function ReferenceWorkbenchToolDialog/)
+  assert.match(toolDialogSource, /function ToolDialogReferenceWorkbench/)
   assert.doesNotMatch(scriptsSource, /useRouteLayoutOverlapPaneController/)
   assert.doesNotMatch(scriptsSource, /routeLayoutOverlapPaneGroupPropsForVisibility/)
   assert.doesNotMatch(toolDialogSource, /usePersistentOverlapPaneController/)
@@ -416,6 +434,13 @@ test('workbench pages consume overlap pane sizing through the route layout adapt
   assert.doesNotMatch(toolDialogSource, /movscript:tools:resource-pane-width/)
   assert.doesNotMatch(scriptsSource, /movscript\.scriptWorkbench\.detailPaneWidth/)
 })
+
+function readToolDialogWorkbenchSource(): string {
+  return [
+    readFileSync(resolve('src/features/tools/components/ToolDialog.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/tools/components/ToolDialogReferenceWorkbench.tsx'), 'utf8'),
+  ].join('\n')
+}
 
 test('agent workspace split pages use the shared split primitive', () => {
   const workspaceFilesSource = readFileSync(resolve('src/features/agent/components/MovScriptWorkspaceFilesPage.tsx'), 'utf8')

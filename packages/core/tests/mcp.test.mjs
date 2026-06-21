@@ -151,8 +151,12 @@ test('MCP discovery exposes core MovScript tools and resources', async () => {
   assert.ok(tools.includes('system_project_create'))
   assert.ok(tools.includes('system_model_list'))
   assert.ok(tools.includes('system_generate_image'))
+  assert.ok(tools.includes('system_generate_content_unit_image'))
+  assert.ok(tools.includes('system_generate_content_unit_image_job_get'))
   assert.ok(tools.includes('system_generate_image_job_get_batch'))
   assert.ok(tools.includes('system_generate_video'))
+  assert.ok(tools.includes('system_generate_content_unit_video'))
+  assert.ok(tools.includes('system_generate_content_unit_video_job_get'))
   assert.ok(tools.includes('system_generate_video_job_get_batch'))
   assert.ok(tools.includes('system_generate_voiceover'))
   assert.ok(tools.includes('system_generate_music'))
@@ -256,8 +260,12 @@ test('MCP discovery exposes core MovScript tools and resources', async () => {
   assert.equal(tools.includes('movscript_production_context_query'), false)
   assert.equal(tools.includes('candidate_keyframe_attach'), false)
   assert.ok(tools.includes('generation_image_generate'))
+  assert.ok(tools.includes('generation_content_unit_image_generate'))
+  assert.ok(tools.includes('generation_content_unit_image_job_get'))
   assert.ok(tools.includes('generation_image_job_get_batch'))
   assert.ok(tools.includes('generation_video_generate'))
+  assert.ok(tools.includes('generation_content_unit_video_generate'))
+  assert.ok(tools.includes('generation_content_unit_video_job_get'))
   assert.ok(tools.includes('generation_video_job_get_batch'))
   assert.ok(tools.includes('generation_audio_generate'))
   assert.ok(tools.includes('generation_voiceover_generate'))
@@ -390,7 +398,9 @@ test('MCP project-scoped tool schemas expose explicit project id arguments', () 
     'domain_get_model',
     'domain_query_entities',
     'generation_image_generate',
+    'generation_content_unit_image_generate',
     'generation_video_generate',
+    'generation_content_unit_video_generate',
     'generation_audio_generate',
     'generation_voiceover_generate',
     'generation_music_generate',
@@ -399,7 +409,9 @@ test('MCP project-scoped tool schemas expose explicit project id arguments', () 
     'generation_subtitle_align',
     'generation_subtitle_translate',
     'system_generate_image',
+    'system_generate_content_unit_image',
     'system_generate_video',
+    'system_generate_content_unit_video',
     'system_generate_voiceover',
     'system_generate_music',
     'system_generate_sfx',
@@ -1324,6 +1336,137 @@ test('MCP image generation drops unsupported defaults without treating them as s
   } finally {
     globalThis.fetch = originalFetch
     setMovScriptBackendAPIBaseURL('http://localhost:8765')
+  }
+})
+
+test('MCP content-unit image generation compiles prompt and monitor auto-creates candidate', async () => {
+  const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
+  const originalFetch = globalThis.fetch
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-content-unit-generation-'))
+  const decisionContexts = new Map()
+  let postedJobBody
+  let candidateWriteCount = 0
+  process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
+  setMovScriptBackendAPIBaseURL('http://movscript.test')
+  const model = {
+    id: 41,
+    model_id: 'volcengine:seedream-4-0',
+    display_name: 'Seedream 4.0',
+    capabilities: ['image'],
+    supported_params: [
+      { key: 'image_size', type: 'select', options: ['1024x1024'], default: '1024x1024' },
+    ],
+  }
+
+  const json = (value, status = 200) => new Response(JSON.stringify(value), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  })
+  const notFound = () => new Response('', { status: 404 })
+
+  try {
+    updateMCPContextSnapshot(localAdminMCPContextSnapshot())
+    globalThis.fetch = async (input, init = {}) => {
+      const url = new URL(String(input))
+      const body = typeof init.body === 'string' && init.body ? JSON.parse(init.body) : {}
+      if (url.href === 'http://movscript.test/api/v1/models?capability=image') return json([model])
+      if (url.href === 'http://movscript.test/api/v1/models?capability=image_edit') return json([])
+      if (url.href === 'http://movscript.test/api/v1/jobs' && init.method === 'POST') {
+        postedJobBody = body
+        return json({ ID: 94, status: 'pending' }, 201)
+      }
+      if (url.href === 'http://movscript.test/api/v1/jobs/94') {
+        return json({ ID: 94, status: 'succeeded', output_resource_ids: [880] })
+      }
+      if (url.pathname.endsWith('/decisions/query') && init.method === 'POST') {
+        return json((Array.isArray(body.target_refs) ? body.target_refs : [])
+          .map((targetRef) => decisionContexts.get(targetRef))
+          .filter(Boolean))
+      }
+      if (url.pathname.endsWith('/decisions') && (init.method ?? 'GET') === 'GET') {
+        return decisionContexts.has(url.searchParams.get('target_ref'))
+          ? json(decisionContexts.get(url.searchParams.get('target_ref')))
+          : notFound()
+      }
+      if (url.pathname.endsWith('/decisions/candidates') && init.method === 'POST') {
+        candidateWriteCount += 1
+        const context = decisionContexts.get(body.target_ref) ?? {
+          schema: 'movscript.decision_context.v1',
+          target_kind: body.target_kind,
+          target_ref: body.target_ref,
+          candidates: [],
+        }
+        const candidateId = body.candidate?.id
+        context.candidates = [
+          ...context.candidates.filter((candidate) => String(candidate.id) !== String(candidateId)),
+          body.candidate,
+        ]
+        decisionContexts.set(body.target_ref, context)
+        return json(context)
+      }
+      throw new Error(`unexpected request: ${url.href} ${init.method ?? 'GET'}`)
+    }
+
+    await callTool('domain_upsert_content_unit', {
+      projectId: 12,
+      unit: {
+        id: 'arrival_preview',
+        title: 'Arrival preview frame',
+        contentUnitType: 'exploration_frame',
+        outputKind: 'image',
+        editPrompt: {
+          text: 'Generate a cold close-up preview for the arrival shot.',
+        },
+      },
+    })
+
+    const submitted = await callTool('system_generate_content_unit_image', {
+      projectId: 12,
+      contentUnitId: 'arrival_preview',
+      model_id: 'volcengine:seedream-4-0',
+      image_size: '1024x1024',
+    })
+
+    assert.equal(submitted.status, 'submitted')
+    assert.equal(submitted.job_id, 94)
+    assert.equal(submitted.monitor.tool, 'system_generate_content_unit_image_job_get')
+    assert.equal(submitted.monitor.args.projectId, 12)
+    assert.equal(submitted.monitor.args.project_id, 12)
+    assert.equal(submitted.monitor.args.contentUnitId, 'arrival_preview')
+    assert.equal(submitted.monitor.args.content_unit_id, 'arrival_preview')
+    assert.equal(submitted.monitor.args.promptSnapshot.schema, 'movscript.content_unit_generation_prompt_snapshot.v1')
+    assert.deepEqual(submitted.monitor.args.promptSnapshot.model_params, { image_size: '1024x1024' })
+    assert.equal(postedJobBody.feature_key, 'electron.generation.content_unit.image')
+    assert.equal(postedJobBody.prompt, 'Generate a cold close-up preview for the arrival shot.')
+    assert.deepEqual(JSON.parse(postedJobBody.extra_params), { image_size: '1024x1024' })
+
+    const firstMonitor = await callTool('system_generate_content_unit_image_job_get', submitted.monitor.args)
+    const secondMonitor = await callTool('system_generate_content_unit_image_job_get', submitted.monitor.args)
+    const context = decisionContexts.get('content_units/arrival_preview')
+
+    assert.equal(firstMonitor.status, 'succeeded')
+    assert.equal(firstMonitor.candidate_created, true)
+    assert.equal(firstMonitor.candidates[0].candidate_id, 'gen_image_94_880')
+    assert.equal(secondMonitor.candidate_created, true)
+    assert.equal(candidateWriteCount, 2)
+    assert.equal(context.candidates.length, 1)
+    assert.equal(context.candidates[0].id, 'gen_image_94_880')
+    assert.equal(context.candidates[0].producer.model_id, 'volcengine:seedream-4-0')
+    assert.deepEqual(context.candidates[0].producer.model_params, { image_size: '1024x1024' })
+    assert.equal(context.candidates[0].outputs[0].resource_id, 880)
+    assert.equal(context.candidates[0].outputs[0].metadata.model_id, 'volcengine:seedream-4-0')
+    assert.equal(context.candidates[0].prompt_snapshot.schema, 'movscript.content_unit_generation_prompt_snapshot.v1')
+    assert.deepEqual(context.candidates[0].prompt_snapshot.model_params, { image_size: '1024x1024' })
+  } finally {
+    globalThis.fetch = originalFetch
+    setMovScriptBackendAPIBaseURL('http://localhost:8765')
+    updateMCPContextSnapshot(emptyMCPContextSnapshot())
+    if (previousWorkspaceDir === undefined) {
+      delete process.env.MOVSCRIPT_WORKSPACE_DIR
+    } else {
+      process.env.MOVSCRIPT_WORKSPACE_DIR = previousWorkspaceDir
+    }
+    await rm(workspaceDir, { recursive: true, force: true })
   }
 })
 

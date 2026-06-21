@@ -4,7 +4,7 @@ import type {
   ContentCanvasIssueActorFilter,
   ContentCanvasIssueSeverityFilter,
   ContentCanvasIssueTargetKindFilter,
-} from './contentCanvasViewPlan'
+} from './contentCanvasViewPlanTypes'
 
 export function issueNodeIdsForFilters(
   graph: ContentCanvasGraph,

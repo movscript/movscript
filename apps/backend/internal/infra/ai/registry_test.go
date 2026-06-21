@@ -19,3 +19,17 @@ func TestRegistryProviderModeDoesNotOverrideCredentialAdapter(t *testing.T) {
 		t.Fatalf("provider = %T, want *OpenAIAdapter", provider)
 	}
 }
+
+func TestRegistryBuildProviderUsesCredentialAdapterOverCatalogModelDef(t *testing.T) {
+	registry := NewRegistry(nil, nil)
+	provider, err := registry.buildProvider(persistencemodel.AICredential{
+		AdapterType: AdapterVolcen,
+		BaseURL:     "https://ark.cn-beijing.volces.com/api/v3",
+	}, &ModelDef{AdapterType: AdapterOpenAICompat})
+	if err != nil {
+		t.Fatalf("buildProvider returned error: %v", err)
+	}
+	if _, ok := provider.(*VolcenAdapter); !ok {
+		t.Fatalf("provider = %T, want *VolcenAdapter", provider)
+	}
+}

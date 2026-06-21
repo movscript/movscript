@@ -18,7 +18,7 @@ import {
   isRecord,
   nearestParentEntity,
   normalizedRefDir,
-  parentShotForEntity,
+  parentExpressionUnitForEntity,
   recordField,
   relationTypeForParent,
 } from './derivedArtifactHelpers.js'
@@ -113,8 +113,8 @@ export function deriveRelationGraph(index: MovScriptWorkspaceDomainIndex): MovSc
     }
 
     if (entity.entityKind === 'storyboard') {
-      const shot = parentShotForEntity(entity, entityByPathDir, entityById)
-      if (shot) relations.push({ type: 'references', from: entityRef(entity), to: entityRef(shot), field: 'shot_ref' })
+      const expressionUnit = parentExpressionUnitForEntity(entity, entityByPathDir, entityById)
+      if (expressionUnit) relations.push({ type: 'references', from: entityRef(entity), to: entityRef(expressionUnit), field: 'expression_unit_ref' })
       for (const settingRef of arrayField(entity.record.setting_refs).filter(isRecord)) {
         const setting = findEntityByRef(entities, 'setting', settingRef.setting_id)
         const settingState = findEntityByRef(entities, 'setting_state', settingRef.setting_state_id)
@@ -124,8 +124,8 @@ export function deriveRelationGraph(index: MovScriptWorkspaceDomainIndex): MovSc
     }
 
     if (entity.entityKind === 'keyframe') {
-      const shot = parentShotForEntity(entity, entityByPathDir, entityById)
-      if (shot) relations.push({ type: 'references', from: entityRef(entity), to: entityRef(shot), field: 'shot_ref' })
+      const expressionUnit = parentExpressionUnitForEntity(entity, entityByPathDir, entityById)
+      if (expressionUnit) relations.push({ type: 'references', from: entityRef(entity), to: entityRef(expressionUnit), field: 'expression_unit_ref' })
       for (const assetRef of arrayField(entity.record.reference_asset_refs)) {
         const asset = findEntityByRef(entities, 'asset', assetRef) ?? entityByPathDir.get(normalizedRefDir(assetRef))
         if (asset) relations.push({ type: 'uses', from: entityRef(entity), to: entityRef(asset), field: 'reference_asset_refs' })

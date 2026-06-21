@@ -59,7 +59,7 @@ test('workspace service facade exposes frontend-oriented domain operations', asy
     transition: { out: 'hard_cut' },
   })
   await service.updateStoryboardTimeline({
-    targetPath: 'productions/p8f3/segments/a19d/scene_moments/r72k/shots/phone/storyboards/main/storyboard.json',
+    targetPath: 'productions/p8f3/segments/a19d/scene_moments/r72k/expression_units/phone/storyboards/main/storyboard.json',
     timeline: {
       gap_after_sec: 0.4,
       caption: 'Phone glow returns.',

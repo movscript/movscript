@@ -2,6 +2,7 @@ import type { ContentCanvasCandidate, ContentCanvasNode } from '../domain/conten
 import { suggestedContentCanvasChildNodePosition } from './contentCanvasCreateNodeCommands'
 import { ensureContentUnitForRef } from './contentCanvasContentUnitCommands'
 import type { ContentCanvasWorkspaceGateway } from './contentCanvasWorkspaceGateway'
+import { contentCanvasExpressionUnitOutputKind } from './contentCanvasExpressionUnitKinds'
 
 export type { ContentCanvasCreateAction, ContentCanvasCreateNodeInput, ContentCanvasExpressionUnitKind, ContentCanvasSettingKind } from './contentCanvasCreateNodeCommands'
 export {
@@ -11,9 +12,17 @@ export {
   suggestedContentCanvasChildNodePosition,
 } from './contentCanvasCreateNodeCommands'
 export {
+  createCandidateFromContentUnit,
+  createCandidateFromResourceForContentUnit,
   selectCandidateNodeFromCanvas,
   selectContentUnitCandidateFromCanvas,
+  uploadCandidateForContentUnit,
 } from './contentCanvasCandidateCommands'
+
+export type ContentCanvasExpressionUnitEditorInput = {
+  title: string
+  kind: string
+}
 
 export interface ContentCanvasCommandResult {
   changedNodeIds: string[]
@@ -31,9 +40,9 @@ export async function createContentUnitFromAsset(
   gateway: ContentCanvasWorkspaceGateway,
 ): Promise<ContentCanvasCommandResult> {
   assertAssetNode(assetNode)
-  const assetRef = assetNode.sourcePath || assetNode.entityKey
+  const assetRef = assetNode.entityKey
   const result = await ensureContentUnitForRef(gateway, {
-    id: `canvas_asset_${safeToken(assetNode.entityKey)}`,
+    id: `cu_asset_${safeToken(assetNode.entityKey)}`,
     refKind: 'asset',
     ref: assetRef,
     contentUnitType: 'asset_ref',
@@ -46,7 +55,7 @@ export async function createContentUnitFromAsset(
       asset_node_id: assetNode.id,
     },
   })
-  const createdId = `content_unit:${String(result.record.id ?? `canvas_asset_${safeToken(assetNode.entityKey)}`)}`
+  const createdId = `content_unit:${String(result.record.id ?? `cu_asset_${safeToken(assetNode.entityKey)}`)}`
   return {
     changedNodeIds: [createdId],
     affectedNodeIds: [assetNode.id, createdId],
@@ -62,13 +71,16 @@ export async function updateCanvasNodeBasics(
   input: { title: string; summary: string },
   gateway: ContentCanvasWorkspaceGateway,
 ): Promise<ContentCanvasCommandResult> {
+  void projectId
   if (!node.sourcePath) {
     throw new Error('当前节点缺少 workspace 路径，无法写入')
   }
-  await gateway.writeHierarchyNode({
-    projectId,
+  await gateway.updateEntityBasics({
+    entityKind: engineEntityKindForNode(node),
     targetPath: node.sourcePath,
-    record: patchNodeBasics(node.record, input),
+    record: node.record,
+    title: input.title,
+    summary: input.summary,
   })
   return {
     changedNodeIds: [node.id],
@@ -93,11 +105,17 @@ export async function connectSceneMomentSettingFromCanvas(
   if (!gateway) throw new Error('Content canvas workspace gateway is required')
 
   const state = stateNode ?? await createDefaultSettingState(projectId, settingNode, gateway)
-  const record = patchSettingReference(sceneMomentNode.record, settingNode, state)
-  await gateway.writeHierarchyNode({
-    projectId,
-    targetPath: sceneMomentNode.sourcePath,
-    record,
+  await gateway.connectSceneMomentSetting({
+    productionId: pathSegmentAfter(sceneMomentNode.sourcePath, 'productions'),
+    segmentId: pathSegmentAfter(sceneMomentNode.sourcePath, 'segments'),
+    sceneMomentId: sceneMomentNode.entityKey,
+    sceneMomentRecord: {
+      ...sceneMomentNode.record,
+      __workspace_path: sceneMomentNode.sourcePath,
+    },
+    settingId: settingNode.entityKey,
+    settingStateId: state.entityKey,
+    role: 'scene_constraint',
   })
   return {
     changedNodeIds: [sceneMomentNode.id, settingNode.id, state.id],
@@ -114,9 +132,9 @@ export async function createContentUnitFromSceneMoment(
 ): Promise<ContentCanvasCommandResult> {
   assertNodeKind(sceneMomentNode, 'scene_moment', '情节')
   const result = await ensureContentUnitForRef(gateway, {
-    id: `canvas_scene_${safeToken(sceneMomentNode.entityKey)}`,
+    id: `cu_scene_${safeToken(sceneMomentNode.entityKey)}`,
     refKind: 'scene_moment',
-    ref: sceneMomentNode.sourcePath || sceneMomentNode.entityKey,
+    ref: sceneMomentNode.entityKey,
     contentUnitType: 'scene_moment_ref',
     outputKind: 'video',
     title: `${sceneMomentNode.title} 制作项`,
@@ -126,13 +144,133 @@ export async function createContentUnitFromSceneMoment(
       scene_moment_node_id: sceneMomentNode.id,
     },
   })
-  const createdId = `content_unit:${String(result.record.id ?? `canvas_scene_${safeToken(sceneMomentNode.entityKey)}`)}`
+  const createdId = `content_unit:${String(result.record.id ?? `cu_scene_${safeToken(sceneMomentNode.entityKey)}`)}`
   return {
     changedNodeIds: [createdId],
     affectedNodeIds: [sceneMomentNode.id, createdId],
     focusNodeId: createdId,
     nodePositions: { [createdId]: suggestedContentCanvasChildNodePosition(sceneMomentNode, 1) },
     message: '已确保情节制作项',
+  }
+}
+
+export type DefaultContentCanvasContentUnitDraft = {
+  id: string
+  refKind: 'asset' | 'scene_moment' | 'expression_unit' | 'keyframe' | 'storyboard'
+  ref: string
+  contentUnitType: string
+  outputKind: string
+  title: string
+  description: string
+  prompt: string
+  modelIntent?: Record<string, unknown>
+}
+
+export function defaultContentUnitDraftForNode(node: ContentCanvasNode | undefined): DefaultContentCanvasContentUnitDraft | null {
+  if (!node) return null
+  if (node.kind === 'content_unit') return pendingContentUnitDraftFromNode(node)
+  if (!isDefaultContentUnitSourceKind(node.kind)) return null
+  const safeKey = safeToken(node.entityKey || node.id)
+  const ref = node.entityKey
+  const baseModelIntent = {
+    source_node_id: node.id,
+    source_node_kind: node.kind,
+  }
+  if (node.kind === 'asset') {
+    return {
+      id: `cu_asset_${safeKey}`,
+      refKind: 'asset',
+      ref,
+      contentUnitType: 'asset_ref',
+      outputKind: outputKindForAsset(node),
+      title: `${node.title} 制作项`,
+      description: `从编排画布基于素材「${node.title}」创建。`,
+      prompt: `基于已绑定素材「${node.title}」生成可制作内容，保持与当前项目编排关系一致。`,
+      modelIntent: baseModelIntent,
+    }
+  }
+  if (node.kind === 'scene_moment') {
+    return {
+      id: `cu_scene_${safeKey}`,
+      refKind: 'scene_moment',
+      ref,
+      contentUnitType: 'scene_moment_ref',
+      outputKind: 'video',
+      title: `${node.title} 制作项`,
+      description: `从编排画布基于情节「${node.title}」创建。`,
+      prompt: `将情节「${node.title}」转化为可制作镜头，保留上游叙事目标和已有素材约束。`,
+      modelIntent: baseModelIntent,
+    }
+  }
+  if (node.kind === 'expression_unit') {
+    const expressionKind = stringValue(node.record.kind ?? node.record.expression_kind ?? node.record.type)
+    return {
+      id: `cu_expression_${safeKey}`,
+      refKind: 'expression_unit',
+      ref,
+      contentUnitType: 'expression_unit_ref',
+      outputKind: contentCanvasExpressionUnitOutputKind(expressionKind),
+      title: `${node.title} 制作项`,
+      description: `从编排画布基于表达单元「${node.title}」创建。`,
+      prompt: `将表达单元「${node.title}」转化为可制作候选。`,
+      modelIntent: baseModelIntent,
+    }
+  }
+  if (node.kind === 'keyframe') {
+    return {
+      id: `cu_keyframe_${safeKey}`,
+      refKind: 'keyframe',
+      ref,
+      contentUnitType: 'keyframe_ref',
+      outputKind: 'image',
+      title: `${node.title} 制作项`,
+      description: `从编排画布基于关键帧「${node.title}」创建。`,
+      prompt: `为关键帧「${node.title}」生成视觉候选。`,
+      modelIntent: baseModelIntent,
+    }
+  }
+  return {
+    id: `cu_storyboard_${safeKey}`,
+    refKind: 'storyboard',
+    ref,
+    contentUnitType: 'storyboard_ref',
+    outputKind: 'image',
+    title: `${node.title} 制作项`,
+    description: `从编排画布基于分镜图「${node.title}」创建。`,
+    prompt: `为分镜图「${node.title}」生成视觉候选。`,
+    modelIntent: baseModelIntent,
+  }
+}
+
+export async function ensureDefaultContentUnitFromCanvasNode(
+  projectId: number,
+  node: ContentCanvasNode,
+  gateway: ContentCanvasWorkspaceGateway,
+  promptOverride?: string,
+): Promise<ContentCanvasNode> {
+  void projectId
+  if (node.kind === 'content_unit' && node.sourcePath) return node
+  const draft = defaultContentUnitDraftForNode(node)
+  if (!draft) throw new Error('当前节点不支持默认制作项')
+  const result = await ensureContentUnitForRef(gateway, {
+    ...draft,
+    prompt: promptOverride ?? draft.prompt,
+  })
+  const id = String(result.record.id ?? draft.id)
+  const outputKind = String(result.record.output_kind ?? draft.outputKind)
+  return {
+    id: `content_unit:${id}`,
+    entityKey: id,
+    kind: 'content_unit',
+    title: String(result.record.title ?? draft.title),
+    subtitle: outputKind,
+    summary: promptTextFromContentUnitRecord(result.record) ?? promptOverride ?? draft.prompt,
+    status: 'ready',
+    metrics: [`制作项 ${outputKind}`],
+    sourcePath: contentUnitResultPath(result),
+    record: result.record,
+    candidates: [],
+    position: node.position,
   }
 }
 
@@ -158,31 +296,31 @@ export async function updateContentUnitPromptFromCanvas(
   }
 }
 
-export async function connectContentUnitRelationFromCanvas(
+export async function updateExpressionUnitFromCanvas(
   projectId: number,
-  firstNode: ContentCanvasNode,
-  secondNode: ContentCanvasNode,
+  expressionUnitNode: ContentCanvasNode,
+  input: ContentCanvasExpressionUnitEditorInput,
   gateway: ContentCanvasWorkspaceGateway,
 ): Promise<ContentCanvasCommandResult> {
-  const contentUnitNode = firstNode.kind === 'content_unit' ? firstNode : secondNode.kind === 'content_unit' ? secondNode : undefined
-  const upstreamNode = contentUnitNode?.id === firstNode.id ? secondNode : firstNode
-  if (!contentUnitNode || !upstreamNode) {
-    throw new Error('请将素材、情节、镜头、分镜图或关键帧连接到制作项')
+  assertNodeKind(expressionUnitNode, 'expression_unit', '表达单元')
+  if (!expressionUnitNode.sourcePath) {
+    throw new Error('表达单元节点缺少 workspace 路径，无法写入')
   }
-  if (!contentUnitNode.sourcePath) {
-    throw new Error('制作项节点缺少 workspace 路径，无法写入关系')
-  }
-  const record = patchContentUnitRelation(contentUnitNode.record, upstreamNode)
-  await gateway.writeHierarchyNode({
+  await gateway.updateExpressionUnit({
     projectId,
-    targetPath: contentUnitNode.sourcePath,
-    record,
+    targetPath: expressionUnitNode.sourcePath,
+    title: input.title,
+    kind: input.kind,
+    text: stringValue(expressionUnitNode.record.text) ?? expressionUnitNode.summary ?? '',
+    summary: stringValue(expressionUnitNode.record.intent ?? expressionUnitNode.record.summary ?? expressionUnitNode.record.description) ?? '',
+    ...(stringValue(expressionUnitNode.record.speaker) ? { speaker: stringValue(expressionUnitNode.record.speaker) } : {}),
+    ...(stringValue(expressionUnitNode.record.note) ? { note: stringValue(expressionUnitNode.record.note) } : {}),
   })
   return {
-    changedNodeIds: [contentUnitNode.id],
-    affectedNodeIds: [upstreamNode.id, contentUnitNode.id],
-    focusNodeId: contentUnitNode.id,
-    message: `已连接${relationLabel(upstreamNode.kind)}到制作项`,
+    changedNodeIds: [expressionUnitNode.id],
+    affectedNodeIds: [expressionUnitNode.id],
+    focusNodeId: expressionUnitNode.id,
+    message: '已保存表达单元',
   }
 }
 
@@ -207,6 +345,48 @@ function outputKindForAsset(node: ContentCanvasNode): string {
   return 'image'
 }
 
+function isDefaultContentUnitSourceKind(kind: ContentCanvasNode['kind']): kind is DefaultContentCanvasContentUnitDraft['refKind'] {
+  return kind === 'asset'
+    || kind === 'scene_moment'
+    || kind === 'expression_unit'
+    || kind === 'keyframe'
+    || kind === 'storyboard'
+}
+
+function pendingContentUnitDraftFromNode(node: ContentCanvasNode): DefaultContentCanvasContentUnitDraft | null {
+  const draft = node.record.__contentCanvasDefaultUnit
+  if (!isDefaultContentUnitDraft(draft)) return null
+  return draft
+}
+
+function isDefaultContentUnitDraft(value: unknown): value is DefaultContentCanvasContentUnitDraft {
+  if (!isRecord(value)) return false
+  const refKind = value.refKind
+  return (refKind === 'asset'
+    || refKind === 'scene_moment'
+    || refKind === 'expression_unit'
+    || refKind === 'keyframe'
+    || refKind === 'storyboard')
+    && typeof value.id === 'string'
+    && typeof value.ref === 'string'
+    && typeof value.contentUnitType === 'string'
+    && typeof value.outputKind === 'string'
+    && typeof value.title === 'string'
+    && typeof value.description === 'string'
+    && typeof value.prompt === 'string'
+}
+
+function promptTextFromContentUnitRecord(record: Record<string, unknown>): string | undefined {
+  const prompt = record.edit_prompt ?? record.editPrompt
+  if (typeof prompt === 'string') return prompt
+  if (isRecord(prompt)) return stringValue(prompt.text)
+  return stringValue(record.prompt)
+}
+
+function contentUnitResultPath(result: { path?: string; contentUnitPath?: string; targetPath?: string; record: Record<string, unknown> }): string {
+  return result.path ?? result.contentUnitPath ?? result.targetPath ?? ''
+}
+
 function timestampId(prefix: string): string {
   return `${prefix}_${Date.now()}`
 }
@@ -218,110 +398,29 @@ function pathSegmentAfter(path: string, segment: string): string | undefined {
   return index >= 0 ? parts[index + 1] : undefined
 }
 
-function patchNodeBasics(
-  record: Record<string, unknown>,
-  input: { title: string; summary: string },
-): Record<string, unknown> {
-  const next = { ...record }
-  if ('title' in next || !('name' in next) && !('label' in next)) {
-    next.title = input.title
-  } else if ('name' in next) {
-    next.name = input.title
-  } else {
-    next.label = input.title
-  }
-
-  if ('summary' in next) {
-    next.summary = input.summary
-  } else if ('description' in next || !('action_text' in next) && !('action' in next) && !('prompt' in next)) {
-    next.description = input.summary
-  } else if ('action_text' in next) {
-    next.action_text = input.summary
-  } else if ('action' in next) {
-    next.action = input.summary
-  } else if (typeof next.prompt === 'string') {
-    next.prompt = input.summary
-  }
-  return next
-}
-
-function patchContentUnitRelation(
-  record: Record<string, unknown>,
-  upstreamNode: ContentCanvasNode,
-): Record<string, unknown> {
-  const ref = upstreamNode.sourcePath || upstreamNode.entityKey
-  if (upstreamNode.kind === 'asset') {
-    return {
-      ...record,
-      asset_ref: ref,
-      content_unit_type: typeof record.content_unit_type === 'string' ? record.content_unit_type : 'asset_ref',
-      output_kind: typeof record.output_kind === 'string' ? record.output_kind : outputKindForAsset(upstreamNode),
-    }
-  }
-  if (upstreamNode.kind === 'scene_moment') {
-    return {
-      ...record,
-      scene_moment_ref: ref,
-      content_unit_type: typeof record.content_unit_type === 'string' ? record.content_unit_type : 'scene_moment_ref',
-      output_kind: typeof record.output_kind === 'string' ? record.output_kind : 'video',
-    }
-  }
-  if (upstreamNode.kind === 'keyframe') {
-    return {
-      ...record,
-      keyframe_ref: ref,
-      content_unit_type: typeof record.content_unit_type === 'string' ? record.content_unit_type : 'keyframe_ref',
-      output_kind: typeof record.output_kind === 'string' ? record.output_kind : 'image',
-    }
-  }
-  if (upstreamNode.kind === 'shot') {
-    return {
-      ...record,
-      shot_ref: ref,
-      content_unit_type: typeof record.content_unit_type === 'string' ? record.content_unit_type : 'shot_ref',
-      output_kind: typeof record.output_kind === 'string' ? record.output_kind : 'video',
-    }
-  }
-  if (upstreamNode.kind === 'storyboard') {
-    return {
-      ...record,
-      storyboard_ref: ref,
-      content_unit_type: typeof record.content_unit_type === 'string' ? record.content_unit_type : 'storyboard_ref',
-      output_kind: typeof record.output_kind === 'string' ? record.output_kind : 'image',
-    }
-  }
-  throw new Error('当前只支持将素材、情节、镜头、分镜图或关键帧连接到制作项')
-}
-
 async function createDefaultSettingState(
   projectId: number,
   settingNode: ContentCanvasNode,
   gateway: ContentCanvasWorkspaceGateway,
 ): Promise<ContentCanvasNode> {
+  void projectId
   const id = timestampId('canvas_state')
-  const settingSlug = pathSegmentAfter(settingNode.sourcePath, 'settings') ?? safeToken(settingNode.entityKey)
-  const targetPath = `settings/${settingSlug}/states/${id}/setting_state.json`
-  const record = {
-    schema: 'movscript.setting_state.v1',
-    kind: 'setting_state',
+  const result = await gateway.createSettingState({
     id,
-    setting_id: settingNode.entityKey,
+    settingId: settingNode.entityKey,
     title: `${settingNode.title} Scene Moment 状态`,
-    state_kind: 'scene_moment',
+    stateKind: 'scene_moment',
     description: '从 Scene Moment 画布添加设定时自动创建。',
-  }
-  await gateway.writeHierarchyNode({
-    projectId,
-    targetPath,
-    record,
   })
+  const record = result.record
+  const targetPath = result.path
   return {
     id: `state:${id}`,
     entityKey: id,
     kind: 'state',
-    title: record.title,
-    subtitle: record.state_kind,
-    summary: record.description,
+    title: stringValue(record.title) ?? `${settingNode.title} Scene Moment 状态`,
+    subtitle: stringValue(record.state_kind) ?? 'scene_moment',
+    summary: stringValue(record.description) ?? '从 Scene Moment 画布添加设定时自动创建。',
     status: 'neutral',
     metrics: [],
     sourcePath: targetPath,
@@ -331,40 +430,9 @@ async function createDefaultSettingState(
   }
 }
 
-function patchSettingReference(
-  record: Record<string, unknown>,
-  settingNode: ContentCanvasNode,
-  stateNode: ContentCanvasNode,
-): Record<string, unknown> {
-  const settingId = settingNode.entityKey
-  const settingStateId = stateNode.entityKey
-  const currentRefs = Array.isArray(record.setting_refs) ? record.setting_refs.filter(isRecord) : []
-  const alreadyLinked = currentRefs.some((ref) => (
-    stringValue(ref.setting_id ?? ref.settingId ?? ref.setting_ref ?? ref.settingRef) === settingId
-    && stringValue(ref.setting_state_id ?? ref.settingStateId ?? ref.setting_state_ref ?? ref.settingStateRef) === settingStateId
-  ))
-  return {
-    ...record,
-    setting_refs: alreadyLinked
-      ? currentRefs
-      : [
-        ...currentRefs,
-        {
-          setting_id: settingId,
-          setting_state_id: settingStateId,
-          role: 'scene_constraint',
-        },
-      ],
-  }
-}
-
-function relationLabel(kind: ContentCanvasNode['kind']): string {
-  if (kind === 'asset') return '素材'
-  if (kind === 'scene_moment') return '情节'
-  if (kind === 'shot') return '镜头'
-  if (kind === 'storyboard') return '分镜图'
-  if (kind === 'keyframe') return '关键帧'
-  return '节点'
+function engineEntityKindForNode(node: ContentCanvasNode): string {
+  if (node.kind === 'state') return 'setting_state'
+  return String(node.record.kind ?? node.kind)
 }
 
 function safeToken(value: string): string {

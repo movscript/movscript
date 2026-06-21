@@ -1,19 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 
-import {
-  hasExplicitProjectEntrySearchParam,
-  useProjectEntrySessionStore,
-} from '@/features/project/application/projectEntrySessionStore'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { toast } from '@/shared/ui/toastStore'
-import { ROUTES } from '@/routes/projectRoutes'
+import { subscribeGenerationJobStatus } from '@/features/jobs/application/generationJobStatusStream'
 import { contentCanvasKeys } from '../application/contentCanvasQueryKeys'
-import {
-  buildContentCanvasProjectEntrySessionSearch,
-  resolveContentCanvasProjectEntrySessionState,
-} from '../application/contentCanvasProjectEntrySession'
 import {
   contentCanvasProjectChangedResult,
   invalidateContentCanvasMutationResult,
@@ -21,13 +13,18 @@ import {
 import type { ContentCanvasNodePosition } from '../application/contentCanvasViewState'
 import { loadContentCanvasProject } from '../application/loadContentCanvasProject'
 import {
-  createChildContentCanvasNode,
-  createRootContentCanvasNode,
+  createCandidateFromResourceForContentUnit,
+  createCandidateFromContentUnit,
+  ensureDefaultContentUnitFromCanvasNode,
   selectContentUnitCandidateFromCanvas,
   updateContentUnitPromptFromCanvas,
+  updateExpressionUnitFromCanvas,
+  uploadCandidateForContentUnit,
   type ContentCanvasCommandResult,
   type ContentCanvasCreateNodeInput,
+  type ContentCanvasExpressionUnitEditorInput,
 } from '../application/contentCanvasCommands'
+import type { ContentCanvasGenerationPromptPreview, ContentCanvasUploadedResource } from '../application/contentCanvasWorkspaceGateway'
 import type { ContentCanvasCandidate, ContentCanvasNode } from '../domain/contentCanvasTypes'
 import { createElectronContentCanvasWorkspaceGateway } from '../integrations/contentCanvasWorkspaceElectronGateway'
 import {
@@ -39,7 +36,6 @@ import {
   type SceneSettingGroup,
   type SettingCreateDialogState,
   type SettingKind,
-  type StarCanvasAction,
   type StructureCreateDialogState,
   type TreeNodeData,
 } from './contentCanvasWorkspaceTypes'
@@ -47,39 +43,46 @@ import {
   radialPoint,
   sceneSettingGroupFromNode,
 } from './contentCanvasWorkspaceModel'
+import {
+  contentCanvasCommandFocusState,
+  contentUnitNodeForGenerationTask,
+} from './contentCanvasWorkspaceCommandModel'
+import { contentCanvasGenerationTargetForNode } from './contentCanvasWorkspaceGenerationModel'
+import { promptFromContentNode } from './contentCanvasWorkspaceNodeModel'
 import { buildContentCanvasWorkspaceViewModel } from './contentCanvasWorkspaceViewModel'
+import {
+  mergeContentCanvasCommandCandidates,
+  mergeContentCanvasCommandSelections,
+  type LocalContentCanvasCandidates,
+  withLocalContentCanvasCandidates,
+} from './contentCanvasWorkspaceCandidateModel'
+import { useContentCanvasWorkspaceSession } from './useContentCanvasWorkspaceSession'
+import { useContentCanvasWorkspaceCreationCommands } from './useContentCanvasWorkspaceCreationCommands'
+
+const lastCommittedPromptByNodeId: Record<string, string> = {}
 
 export function useContentCanvasWorkspaceController() {
   const queryClient = useQueryClient()
   const project = useProjectStore((state) => state.current)
   const projectId = project?.ID
   const [searchParams] = useSearchParams()
-  const restoredSessionRef = useRef(false)
-  const restoredSessionKeyRef = useRef('')
-  const skipNextSessionPersistRef = useRef(false)
   const [settingQuery, setSettingQuery] = useState('')
   const [activeKind, setActiveKind] = useState<SettingKind | 'all'>('all')
-  const [canvasMode, setCanvasMode] = useState<CanvasMode>('scene_moment')
+  const [canvasMode, setCanvasMode] = useState<CanvasMode>('structure')
+  const [activeCanvasNodeId, setActiveCanvasNodeId] = useState<string | null>(null)
   const [activeSettingId, setActiveSettingId] = useState<string | null>(null)
   const [activeProductionId, setActiveProductionId] = useState<string | null>(null)
   const [activeSceneId, setActiveSceneId] = useState<string | null>(null)
   const [selection, setSelection] = useState<InspectorSelectionRef>({ kind: 'scene_moment', nodeId: 'scene-main' })
-  const [createSelection, setCreateSelection] = useState<Extract<InspectorSelection, { kind: 'create_expression_unit' | 'create_state' | 'create_asset' | 'create_keyframe' }> | null>(null)
+  const [createSelection, setCreateSelection] = useState<Extract<InspectorSelection, { kind: 'create_expression_unit' | 'create_keyframe' | 'create_storyboard' | 'create_state' | 'create_asset' }> | null>(null)
   const [draftAssetPrompts, setDraftAssetPrompts] = useState(ASSET_PROMPTS)
   const [draftExpressionPrompts, setDraftExpressionPrompts] = useState<Record<string, string>>({})
   const [candidateSelections, setCandidateSelections] = useState<CandidateSelections>({})
+  const [localContentUnitCandidates, setLocalContentUnitCandidates] = useState<LocalContentCanvasCandidates>({})
   const [manualSceneSettingGroupsBySceneId, setManualSceneSettingGroupsBySceneId] = useState<Record<string, SceneSettingGroup[]>>({})
   const [pendingCanvasAction, setPendingCanvasAction] = useState<string | null>(null)
   const [settingCreateDialog, setSettingCreateDialog] = useState<SettingCreateDialogState | null>(null)
   const [structureCreateDialog, setStructureCreateDialog] = useState<StructureCreateDialogState | null>(null)
-  const sessionSnapshot = useProjectEntrySessionStore((state) => (
-    projectId ? state.snapshotFor(projectId, 'content') : null
-  ))
-  const upsertProjectEntrySessionSnapshot = useProjectEntrySessionStore((state) => state.upsertSnapshot)
-  const hasExplicitSessionSearch = useMemo(
-    () => hasExplicitProjectEntrySearchParam(searchParams, ['node', 'mode', 'kind', 'settingKind']),
-    [searchParams],
-  )
   const gateway = useMemo(
     () => projectId ? createElectronContentCanvasWorkspaceGateway(projectId) : null,
     [projectId],
@@ -91,9 +94,53 @@ export function useContentCanvasWorkspaceController() {
     enabled: Boolean(projectId && gateway),
   })
 
+  useEffect(() => {
+    setCandidateSelections({})
+    setLocalContentUnitCandidates({})
+  }, [projectId])
+
+  const projectDataWithLocalCandidates = useMemo(
+    () => withLocalContentCanvasCandidates(projectQuery.data, localContentUnitCandidates),
+    [localContentUnitCandidates, projectQuery.data],
+  )
+  const hasActiveContentUnitCandidate = useMemo(
+    () => contentCanvasProjectHasActiveCandidate(projectDataWithLocalCandidates),
+    [projectDataWithLocalCandidates],
+  )
+  const activeContentUnitCandidateJobIds = useMemo(
+    () => contentCanvasProjectActiveCandidateJobIds(projectDataWithLocalCandidates),
+    [projectDataWithLocalCandidates],
+  )
+  const activeContentUnitCandidateJobIdKey = activeContentUnitCandidateJobIds.join(',')
+
+  useEffect(() => {
+    if (!projectId || !hasActiveContentUnitCandidate) return undefined
+    const timer = window.setInterval(() => {
+      invalidateContentCanvasMutationResult(queryClient, contentCanvasProjectChangedResult({
+        projectId,
+        changedIds: [],
+      }))
+    }, 3000)
+    return () => window.clearInterval(timer)
+  }, [hasActiveContentUnitCandidate, projectId, queryClient])
+
+  useEffect(() => {
+    if (!projectId || activeContentUnitCandidateJobIds.length === 0) return undefined
+    const activeJobIds = new Set(activeContentUnitCandidateJobIds)
+    return subscribeGenerationJobStatus((event) => {
+      if (event.projectId !== undefined && event.projectId !== projectId) return
+      if (!activeJobIds.has(event.jobId)) return
+      invalidateContentCanvasMutationResult(queryClient, contentCanvasProjectChangedResult({
+        projectId,
+        changedIds: [],
+      }))
+    })
+  }, [activeContentUnitCandidateJobIdKey, activeContentUnitCandidateJobIds, projectId, queryClient])
+
   const viewModel = useMemo(() => buildContentCanvasWorkspaceViewModel({
-    projectData: projectQuery.data,
+    projectData: projectDataWithLocalCandidates,
     activeKind,
+    activeCanvasNodeId,
     activeProductionId,
     activeSceneId,
     activeSettingId,
@@ -101,16 +148,20 @@ export function useContentCanvasWorkspaceController() {
     manualSceneSettingGroupsBySceneId,
     selection,
     settingQuery,
+    draftPromptsByNodeId: { ...draftExpressionPrompts, ...draftAssetPrompts },
   }), [
     activeKind,
+    activeCanvasNodeId,
     activeProductionId,
     activeSceneId,
     activeSettingId,
     canvasMode,
     manualSceneSettingGroupsBySceneId,
-    projectQuery.data,
+    projectDataWithLocalCandidates,
     selection,
     settingQuery,
+    draftAssetPrompts,
+    draftExpressionPrompts,
   ])
 
   const runCanvasCommand = useCallback(async (
@@ -121,32 +172,17 @@ export function useContentCanvasWorkspaceController() {
     setPendingCanvasAction(actionKey)
     try {
       const result = await command()
+      setLocalContentUnitCandidates((current) => mergeContentCanvasCommandCandidates(current, result))
+      setCandidateSelections((current) => mergeContentCanvasCommandSelections(current, result))
       toast.success(result.message)
-      if (result.focusNodeId?.startsWith('setting:')) {
-        setActiveSettingId(result.focusNodeId)
-        setCanvasMode('setting')
-        setSelection({ kind: 'setting', nodeId: result.focusNodeId })
-        setCreateSelection(null)
-      } else if (result.focusNodeId?.startsWith('scene_moment:')) {
-        setActiveProductionId(null)
-        setActiveSceneId(result.focusNodeId)
-        setCanvasMode('scene_moment')
-        setSelection({ kind: 'scene_moment', nodeId: result.focusNodeId })
-        setCreateSelection(null)
-      } else if (result.focusNodeId?.startsWith('state:')) {
-        setCanvasMode('setting')
-        setSelection({ kind: 'state', nodeId: result.focusNodeId })
-        setCreateSelection(null)
-      } else if (result.focusNodeId?.startsWith('asset:')) {
-        setCanvasMode('setting')
-        setSelection({ kind: 'asset', nodeId: result.focusNodeId })
-        setCreateSelection(null)
-      } else if (result.focusNodeId?.startsWith('expression_unit:')) {
-        setCanvasMode('scene_moment')
-        setSelection({ kind: 'other', nodeId: result.focusNodeId })
-        setCreateSelection(null)
-      } else if (result.focusNodeId) {
-        setSelection({ kind: 'other', nodeId: result.focusNodeId })
+      const focusState = contentCanvasCommandFocusState(result.focusNodeId)
+      if (focusState) {
+        if (focusState.activeCanvasNodeId !== undefined) setActiveCanvasNodeId(focusState.activeCanvasNodeId)
+        if (focusState.activeSettingId !== undefined) setActiveSettingId(focusState.activeSettingId)
+        if (focusState.activeProductionId !== undefined) setActiveProductionId(focusState.activeProductionId)
+        if (focusState.activeSceneId !== undefined) setActiveSceneId(focusState.activeSceneId)
+        if (focusState.canvasMode) setCanvasMode(focusState.canvasMode)
+        setSelection(focusState.selection)
         setCreateSelection(null)
       }
       invalidateContentCanvasMutationResult(queryClient, contentCanvasProjectChangedResult({
@@ -161,10 +197,6 @@ export function useContentCanvasWorkspaceController() {
       setPendingCanvasAction(null)
     }
   }, [gateway, projectId, queryClient])
-
-  const firstStateForSetting = useCallback((setting: ContentCanvasNode) => (
-    viewModel.graphIndex.childNodesByHierarchy.get(setting.id)?.find((node) => node.kind === 'state')
-  ), [viewModel.graphIndex])
 
   const addSettingToActiveScene = useCallback((setting: ContentCanvasNode, position?: ContentCanvasNodePosition) => {
     if (!viewModel.activeScene) return
@@ -191,116 +223,20 @@ export function useContentCanvasWorkspaceController() {
     viewModel.sceneSettingGroups.length,
   ])
 
-  const sceneCanvasActions = useMemo<StarCanvasAction[]>(() => ([]), [])
-
-  const settingCanvasActions = useMemo<StarCanvasAction[]>(() => ([
-    {
-      label: '放入 Scene Moment',
-      disabled: !viewModel.activeScene || !viewModel.activeSetting || pendingCanvasAction?.startsWith('scene-setting'),
-      onClick: viewModel.activeSetting ? () => addSettingToActiveScene(viewModel.activeSetting!) : undefined,
-    },
-    {
-      label: '添加素材',
-      disabled: !projectId || !gateway || !viewModel.activeSetting || !firstStateForSetting(viewModel.activeSetting) || pendingCanvasAction === 'setting-asset',
-      onClick: viewModel.activeSetting && firstStateForSetting(viewModel.activeSetting) && projectId && gateway
-        ? () => void runCanvasCommand('setting-asset', () => createChildContentCanvasNode(projectId, firstStateForSetting(viewModel.activeSetting!)!, 'asset', undefined, gateway))
-        : undefined,
-    },
-  ]), [addSettingToActiveScene, firstStateForSetting, gateway, pendingCanvasAction, projectId, runCanvasCommand, viewModel.activeScene, viewModel.activeSetting])
-
-  const createRootSetting = useCallback((input: ContentCanvasCreateNodeInput) => {
-    if (!projectId || !gateway) return
-    void runCanvasCommand('root-setting', () => createRootContentCanvasNode(projectId, 'setting', { input }, gateway))
-  }, [gateway, projectId, runCanvasCommand])
-
-  const createProduction = useCallback((input: ContentCanvasCreateNodeInput) => {
-    if (!projectId || !gateway) return
-    void runCanvasCommand('structure-production', () => createRootContentCanvasNode(projectId, 'production', { input }, gateway))
-  }, [gateway, projectId, runCanvasCommand])
-
-  const createStructureChild = useCallback((treeNode: TreeNodeData, input: ContentCanvasCreateNodeInput) => {
-    if (!projectId || !gateway || !treeNode.id) return
-    const parentNode = viewModel.graphIndex.nodeById.get(treeNode.id)
-    if (!parentNode) return
-    if (parentNode.kind === 'production') {
-      void runCanvasCommand(`structure-segment:${parentNode.id}`, () => createChildContentCanvasNode(projectId, parentNode, 'segment', { input }, gateway))
-    }
-    if (parentNode.kind === 'segment') {
-      void runCanvasCommand(`structure-scene:${parentNode.id}`, () => createChildContentCanvasNode(projectId, parentNode, 'scene_moment', { input }, gateway))
-    }
-  }, [gateway, projectId, runCanvasCommand, viewModel.graphIndex])
-
-  const createExpressionUnitForScene = useCallback((scene: ContentCanvasNode, input: ContentCanvasCreateNodeInput) => {
-    if (!projectId || !gateway) return
-    setActiveSceneId(scene.id)
-    void runCanvasCommand(`scene-expression:${scene.id}`, () => createChildContentCanvasNode(projectId, scene, 'expression_unit', { input }, gateway))
-  }, [gateway, projectId, runCanvasCommand])
-
-  const createStateForSetting = useCallback((setting: ContentCanvasNode, input: ContentCanvasCreateNodeInput) => {
-    if (!projectId || !gateway) return
-    setActiveSettingId(setting.id)
-    void runCanvasCommand(`setting-state:${setting.id}`, () => createChildContentCanvasNode(projectId, setting, 'state', { input }, gateway))
-  }, [gateway, projectId, runCanvasCommand])
-
-  const createAssetForState = useCallback((state: ContentCanvasNode, input: ContentCanvasCreateNodeInput) => {
-    if (!projectId || !gateway) return
-    void runCanvasCommand(`state-asset:${state.id}`, () => createChildContentCanvasNode(projectId, state, 'asset', { input }, gateway))
-  }, [gateway, projectId, runCanvasCommand])
-
-  const createKeyframeForShot = useCallback((shot: ContentCanvasNode, input: ContentCanvasCreateNodeInput) => {
-    if (!projectId || !gateway) return
-    void runCanvasCommand(`shot-keyframe:${shot.id}`, () => createChildContentCanvasNode(projectId, shot, 'keyframe', { input }, gateway))
-  }, [gateway, projectId, runCanvasCommand])
-
-  const nodeContextActions = useCallback((node: ContentCanvasNode): StarCanvasAction[] => {
-    if (node.kind === 'scene_moment') {
-      return [{
-        label: '添加表达单元',
-        disabled: !projectId || pendingCanvasAction?.startsWith('scene-expression'),
-        onClick: () => {
-          setActiveSceneId(node.id)
-          setCanvasMode('scene_moment')
-          setSelection({ kind: 'scene_moment', nodeId: node.id })
-          setCreateSelection({ kind: 'create_expression_unit', parent: node })
-        },
-      }]
-    }
-    if (node.kind === 'setting') {
-      return [{
-        label: '添加状态',
-        disabled: !projectId || pendingCanvasAction?.startsWith('setting-state'),
-        onClick: () => {
-          setActiveSettingId(node.id)
-          setCanvasMode('setting')
-          setSelection({ kind: 'setting', nodeId: node.id })
-          setCreateSelection({ kind: 'create_state', parent: node })
-        },
-      }]
-    }
-    if (node.kind === 'state') {
-      return [{
-        label: '添加 Asset',
-        disabled: !projectId || pendingCanvasAction?.startsWith('state-asset'),
-        onClick: () => {
-          setCanvasMode('setting')
-          setSelection({ kind: 'state', nodeId: node.id })
-          setCreateSelection({ kind: 'create_asset', parent: node })
-        },
-      }]
-    }
-    if (node.kind === 'shot') {
-      return [{
-        label: '添加关键帧',
-        disabled: !projectId || pendingCanvasAction?.startsWith('shot-keyframe'),
-        onClick: () => {
-          setCanvasMode('scene_moment')
-          setSelection({ kind: 'other', nodeId: node.id })
-          setCreateSelection({ kind: 'create_keyframe', parent: node })
-        },
-      }]
-    }
-    return []
-  }, [pendingCanvasAction, projectId])
+  const creationCommands = useContentCanvasWorkspaceCreationCommands({
+    gateway,
+    graphIndex: viewModel.graphIndex,
+    pendingCanvasAction,
+    projectId,
+    runCanvasCommand,
+    setActiveSceneId,
+    setActiveSettingId,
+    setActiveCanvasNodeId,
+    setActiveProductionId,
+    setCanvasMode,
+    setCreateSelection,
+    setSelection,
+  })
 
   const openProductionCreateDialog = useCallback(() => {
     setStructureCreateDialog({ kind: 'production' })
@@ -328,19 +264,20 @@ export function useContentCanvasWorkspaceController() {
   }, [])
 
   const submitSettingCreateDialog = useCallback((input: ContentCanvasCreateNodeInput) => {
-    createRootSetting(input)
+    creationCommands.createRootSetting(input)
     setSettingCreateDialog(null)
-  }, [createRootSetting])
+  }, [creationCommands])
 
   const submitStructureCreateDialog = useCallback((input: ContentCanvasCreateNodeInput) => {
     if (!structureCreateDialog) return
-    if (structureCreateDialog.kind === 'production') createProduction(input)
-    else createStructureChild(structureCreateDialog.parent, input)
+    if (structureCreateDialog.kind === 'production') creationCommands.createProduction(input)
+    else creationCommands.createStructureChild(structureCreateDialog.parent, input)
     setStructureCreateDialog(null)
-  }, [createProduction, createStructureChild, structureCreateDialog])
+  }, [creationCommands, structureCreateDialog])
 
   const selectScene = useCallback((sceneId: string) => {
-    setCanvasMode('scene_moment')
+    setCanvasMode('structure')
+    setActiveCanvasNodeId(sceneId)
     setActiveProductionId(null)
     setActiveSceneId(sceneId)
     setSelection({ kind: 'scene_moment', nodeId: sceneId })
@@ -349,25 +286,22 @@ export function useContentCanvasWorkspaceController() {
 
   const selectStructureNode = useCallback((node: TreeNodeData) => {
     if (!node.id) return
-    if (node.kind === 'production') {
-      setCanvasMode('scene_moment')
-      setActiveProductionId(node.id)
-      setSelection({ kind: 'other', nodeId: node.id })
-      setCreateSelection(null)
-      return
-    }
+    setCanvasMode('structure')
+    setActiveCanvasNodeId(node.id)
+    if (node.kind === 'production') setActiveProductionId(node.id)
     if (node.kind === 'scene_moment') {
-      setCanvasMode('scene_moment')
       setActiveProductionId(null)
       setActiveSceneId(node.id)
-      setSelection({ kind: 'scene_moment', nodeId: node.id })
-      setCreateSelection(null)
     }
+    if (node.kind === 'setting') setActiveSettingId(node.id)
+    setSelection({ kind: selectionKindForContentNodeKind(node.kind), nodeId: node.id })
+    setCreateSelection(null)
   }, [])
 
   const selectSetting = useCallback((setting: ContentCanvasNode) => {
     setActiveSettingId(setting.id)
-    setCanvasMode('setting')
+    setActiveCanvasNodeId(setting.id)
+    setCanvasMode('structure')
     setSelection({ kind: 'setting', nodeId: setting.id })
     setCreateSelection(null)
   }, [])
@@ -378,17 +312,105 @@ export function useContentCanvasWorkspaceController() {
   }, [])
 
   const selectCandidate = useCallback((node: ContentCanvasNode | undefined, candidate: ContentCanvasCandidate) => {
-    if (!node) return
-    setCandidateSelections((current) => ({ ...current, [node.id]: candidate.id }))
-    const contentUnitNode = contentUnitNodeForGenerationTask(node) ?? (node.kind === 'content_unit' ? node : undefined)
-    if (!projectId || !gateway || !contentUnitNode) {
+    const target = contentCanvasGenerationTargetForNode(node)
+    if (!target) return
+    setCandidateSelections((current) => ({
+      ...current,
+      [target.contentUnitNodeId]: candidate.id,
+      [target.contentUnitId]: candidate.id,
+    }))
+    if (!projectId || !gateway) {
       toast.success('已记录候选选择草稿')
       return
     }
-    void runCanvasCommand(`candidate-select:${contentUnitNode.id}:${candidate.id}`, () => (
-      selectContentUnitCandidateFromCanvas(projectId, contentUnitNode, candidate, gateway)
+    void runCanvasCommand(`candidate-select:${target.contentUnitNodeId}:${candidate.id}`, () => (
+      selectContentUnitCandidateFromCanvas(projectId, target.node, candidate, gateway)
     ))
   }, [gateway, projectId, runCanvasCommand])
+
+  const draftPromptForCandidateNode = useCallback((node: ContentCanvasNode | undefined): string | undefined => {
+    if (!node) return undefined
+    if (node.kind === 'asset') return draftAssetPrompts[node.id]
+    return draftExpressionPrompts[node.id]
+  }, [draftAssetPrompts, draftExpressionPrompts])
+
+  const ensureCandidateContentUnitWithPrompt = useCallback(async (node: ContentCanvasNode): Promise<ContentCanvasNode> => {
+    if (!projectId || !gateway) throw new Error('内容画布未连接项目工作区')
+    const target = contentCanvasGenerationTargetForNode(node)
+    if (!target) throw new Error('当前节点没有可生成的制作项')
+    const promptDraft = draftPromptForCandidateNode(node)
+    const existingPrompt = promptFromContentNode(target.node)
+    const promptOverride = promptDraft ?? existingPrompt
+    console.info('[content-canvas] ensure candidate content unit prompt', JSON.stringify({
+      sourceNodeId: node.id,
+      sourceKind: node.kind,
+      contentUnitNodeId: target.contentUnitNodeId,
+      contentUnitId: target.contentUnitId,
+      promptSource: promptDraft !== undefined ? 'draft' : existingPrompt !== undefined ? 'existing' : 'default',
+      promptPreview: (promptOverride ?? '').slice(0, 160),
+    }))
+    const contentUnitNode = await ensureDefaultContentUnitFromCanvasNode(projectId, target.node, gateway, promptOverride)
+    if (promptDraft === undefined) return contentUnitNode
+    if (promptFromContentNode(contentUnitNode) === promptDraft) return contentUnitNode
+    await updateContentUnitPromptFromCanvas(projectId, contentUnitNode, promptDraft, gateway)
+    return contentUnitNodeWithEditPrompt(contentUnitNode, promptDraft)
+  }, [draftPromptForCandidateNode, gateway, projectId])
+
+  const previewCandidatePromptForNode = useCallback(async (node: ContentCanvasNode | undefined): Promise<ContentCanvasGenerationPromptPreview> => {
+    const target = contentCanvasGenerationTargetForNode(node)
+    if (!node || !target || !projectId || !gateway) return emptyPromptPreview()
+    const contentUnitNode = await ensureCandidateContentUnitWithPrompt(node)
+    const outputKind = contentUnitGenerationOutputKind(contentUnitNode)
+    if (outputKind !== 'image' && outputKind !== 'video') return emptyPromptPreview()
+    const preview = await gateway.previewContentUnitGenerationPrompt({
+      projectId,
+      contentUnitId: contentUnitNode.entityKey,
+      candidateId: 'preview',
+      outputKind,
+      promptText: promptFromContentNode(contentUnitNode),
+    })
+    console.info('[content-canvas] preview compiled candidate prompt', JSON.stringify({
+      sourceNodeId: node.id,
+      contentUnitId: contentUnitNode.entityKey,
+      textPreview: preview.text.slice(0, 200),
+      blockerCount: preview.blockers.length,
+      blockers: preview.blockers,
+    }))
+    return preview
+  }, [ensureCandidateContentUnitWithPrompt, gateway, projectId])
+
+  const createCandidateForNode = useCallback((
+    node: ContentCanvasNode | undefined,
+    options: { modelId?: string; params?: Record<string, string | number | boolean> } = {},
+  ) => {
+    const target = contentCanvasGenerationTargetForNode(node)
+    if (!node || !target || !projectId || !gateway) return
+    const sourceNode = node
+    void runCanvasCommand(`candidate-create:${target.contentUnitNodeId}`, () => (
+      ensureCandidateContentUnitWithPrompt(sourceNode)
+        .then((contentUnitNode) => createCandidateFromContentUnit(projectId, contentUnitNode, undefined, gateway, options))
+    ))
+  }, [ensureCandidateContentUnitWithPrompt, gateway, projectId, runCanvasCommand])
+
+  const uploadCandidateForNode = useCallback((node: ContentCanvasNode | undefined, file: File) => {
+    const target = contentCanvasGenerationTargetForNode(node)
+    if (!node || !target || !projectId || !gateway) return
+    const sourceNode = node
+    void runCanvasCommand(`candidate-upload:${target.contentUnitNodeId}`, () => (
+      ensureCandidateContentUnitWithPrompt(sourceNode)
+        .then((contentUnitNode) => uploadCandidateForContentUnit(projectId, contentUnitNode, file, undefined, gateway))
+    ))
+  }, [ensureCandidateContentUnitWithPrompt, gateway, projectId, runCanvasCommand])
+
+  const createResourceCandidateForNode = useCallback((node: ContentCanvasNode | undefined, resource: ContentCanvasUploadedResource) => {
+    const target = contentCanvasGenerationTargetForNode(node)
+    if (!node || !target || !projectId || !gateway) return
+    const sourceNode = node
+    void runCanvasCommand(`candidate-resource:${target.contentUnitNodeId}:${resource.id}`, () => (
+      ensureCandidateContentUnitWithPrompt(sourceNode)
+        .then((contentUnitNode) => createCandidateFromResourceForContentUnit(projectId, contentUnitNode, resource, undefined, gateway))
+    ))
+  }, [ensureCandidateContentUnitWithPrompt, gateway, projectId, runCanvasCommand])
 
   const changeAssetPromptDraft = useCallback((assetId: string, prompt: string) => {
     setDraftAssetPrompts((current) => ({ ...current, [assetId]: prompt }))
@@ -400,8 +422,22 @@ export function useContentCanvasWorkspaceController() {
 
   const commitPromptDraft = useCallback((node: ContentCanvasNode | undefined, prompt: string) => {
     const contentUnitNode = contentUnitNodeForGenerationTask(node) ?? (node?.kind === 'content_unit' ? node : undefined)
-    if (!contentUnitNode || !projectId || !gateway) return
-    void runCanvasCommand(`prompt:${contentUnitNode.id}`, () => updateContentUnitPromptFromCanvas(projectId, contentUnitNode, prompt, gateway))
+    const targetNode = contentUnitNode ?? node
+    if (!targetNode || !projectId || !gateway) return
+    const generationTarget = contentCanvasGenerationTargetForNode(targetNode)
+    const currentPrompt = generationTarget ? promptFromContentNode(generationTarget.node) ?? '' : promptFromContentNode(targetNode) ?? ''
+    const promptKey = generationTarget?.contentUnitNodeId ?? targetNode.id
+    if (prompt === currentPrompt || lastCommittedPromptByNodeId[promptKey] === prompt) return
+    lastCommittedPromptByNodeId[promptKey] = prompt
+    void runCanvasCommand(`prompt:${targetNode.id}`, () => (
+      ensureDefaultContentUnitFromCanvasNode(projectId, targetNode, gateway, prompt)
+        .then((ensuredContentUnitNode) => updateContentUnitPromptFromCanvas(projectId, ensuredContentUnitNode, prompt, gateway))
+    ))
+  }, [gateway, projectId, runCanvasCommand])
+
+  const saveExpressionUnit = useCallback((node: ContentCanvasNode, input: ContentCanvasExpressionUnitEditorInput) => {
+    if (!projectId || !gateway) return
+    void runCanvasCommand(`expression-save:${node.id}`, () => updateExpressionUnitFromCanvas(projectId, node, input, gateway))
   }, [gateway, projectId, runCanvasCommand])
 
   const moveSceneSettingGroup = useCallback((group: SceneSettingGroup, position: ContentCanvasNodePosition) => {
@@ -417,78 +453,23 @@ export function useContentCanvasWorkspaceController() {
     })
   }, [viewModel.activeScene?.id])
 
-  useEffect(() => {
-    if (!projectId || (!hasExplicitSessionSearch && restoredSessionRef.current)) return
-    const sessionState = resolveContentCanvasProjectEntrySessionState({
-      hasExplicitSearch: hasExplicitSessionSearch,
-      searchParams,
-      snapshot: sessionSnapshot,
-    })
-    if (!sessionState) return
-    const sessionKey = [
-      sessionState.canvasMode,
-      sessionState.selectionKind,
-      sessionState.selectedNodeId,
-      sessionState.activeKind ?? '',
-    ].join(':')
-    if (hasExplicitSessionSearch && restoredSessionKeyRef.current === sessionKey) return
-    if (sessionState.selectedNodeId !== 'scene-main' && !viewModel.graphIndex.nodeById.has(sessionState.selectedNodeId)) return
-    restoredSessionRef.current = true
-    restoredSessionKeyRef.current = sessionKey
-    skipNextSessionPersistRef.current = true
-    if (sessionState.activeKind) setActiveKind(sessionState.activeKind)
-    setCanvasMode(sessionState.canvasMode)
-    const node = viewModel.graphIndex.nodeById.get(sessionState.selectedNodeId)
-    if (node?.kind === 'scene_moment') {
-      setActiveProductionId(null)
-      setActiveSceneId(node.id)
-      setSelection({ kind: 'scene_moment', nodeId: node.id })
-      setCreateSelection(null)
-      return
-    }
-    if (node?.kind === 'production') {
-      setActiveProductionId(node.id)
-      setSelection({ kind: 'other', nodeId: node.id })
-      setCreateSelection(null)
-      return
-    }
-    if (node?.kind === 'setting') {
-      setActiveSettingId(node.id)
-      setSelection({ kind: 'setting', nodeId: node.id })
-      setCreateSelection(null)
-      return
-    }
-    setSelection({ kind: sessionState.selectionKind, nodeId: sessionState.selectedNodeId })
-    setCreateSelection(null)
-  }, [hasExplicitSessionSearch, projectId, searchParams, sessionSnapshot, viewModel.graphIndex])
-
-  useEffect(() => {
-    if (!projectId) return
-    if (!hasExplicitSessionSearch && sessionSnapshot && !restoredSessionRef.current) return
-    if (skipNextSessionPersistRef.current) {
-      skipNextSessionPersistRef.current = false
-      return
-    }
-    const search = buildContentCanvasProjectEntrySessionSearch({
-      activeKind,
-      canvasMode,
-      selectedNodeId: selection.nodeId,
-      selectionKind: selection.kind,
-    })
-    upsertProjectEntrySessionSnapshot({
-      projectId,
-      projectEntryId: 'content',
-      route: ROUTES.project.content,
-      search,
-      filters: {
-        activeKind,
-        canvasMode,
-        selectedNodeId: selection.nodeId,
-        selectionKind: selection.kind,
-      },
-      selection: undefined,
-    })
-  }, [activeKind, canvasMode, hasExplicitSessionSearch, projectId, selection.kind, selection.nodeId, sessionSnapshot, upsertProjectEntrySessionSnapshot])
+  useContentCanvasWorkspaceSession({
+    activeKind,
+    activeCanvasNodeId,
+    canvasMode,
+    graphIndex: viewModel.graphIndex,
+    projectId,
+    searchParams,
+    selection,
+    setActiveKind,
+    setActiveCanvasNodeId,
+    setActiveProductionId,
+    setActiveSceneId,
+    setActiveSettingId,
+    setCanvasMode,
+    setCreateSelection,
+    setSelection,
+  })
 
   return {
     activeKind,
@@ -499,19 +480,24 @@ export function useContentCanvasWorkspaceController() {
     changeExpressionPromptDraft,
     closeSettingCreateDialog,
     commitPromptDraft,
-    createAssetForState,
-    createExpressionUnitForScene,
-    createKeyframeForShot,
-    createRootSetting,
-    createProduction,
+    createAssetForState: creationCommands.createAssetForState,
+    createExpressionUnitForScene: creationCommands.createExpressionUnitForScene,
+    createKeyframeForOwner: creationCommands.createKeyframeForOwner,
+    createRootSetting: creationCommands.createRootSetting,
+    createProduction: creationCommands.createProduction,
     createSelection,
-    createStateForSetting,
-    createStructureChild,
+    createStateForSetting: creationCommands.createStateForSetting,
+    createStoryboardForOwner: creationCommands.createStoryboardForOwner,
+    createStructureChild: creationCommands.createStructureChild,
     draftAssetPrompts,
     draftExpressionPrompts,
     closeStructureCreateDialog,
+    createCandidateForNode,
+    previewCandidatePromptForNode,
+    createResourceCandidateForNode,
+    uploadCandidateForNode,
     moveSceneSettingGroup,
-    nodeContextActions,
+    nodeContextActions: creationCommands.nodeContextActions,
     openSettingCreateDialog,
     openProductionCreateDialog,
     openStructureChildCreateDialog,
@@ -519,16 +505,15 @@ export function useContentCanvasWorkspaceController() {
     projectId,
     projectQuery,
     runCanvasCommand,
-    sceneCanvasActions,
     selectCandidate,
     selectNode,
     selectScene,
     selectStructureNode,
     selectSetting,
+    saveExpressionUnit,
     setActiveKind,
     setCanvasMode,
     setSettingQuery,
-    settingCanvasActions,
     settingCreateDialog,
     settingQuery,
     structureCreateDialog,
@@ -538,25 +523,74 @@ export function useContentCanvasWorkspaceController() {
   }
 }
 
-function contentUnitNodeForGenerationTask(node: ContentCanvasNode | undefined): ContentCanvasNode | undefined {
-  const task = node?.generationTask
-  if (!task) return undefined
-  return {
-    id: task.nodeId,
-    entityKey: task.id,
-    kind: 'content_unit',
-    title: task.title,
-    subtitle: task.outputKind,
-    summary: task.prompt,
-    status: task.status === 'needs_candidate' || task.status === 'stale' ? 'active' : 'ready',
-    metrics: [
-      `制作项 ${task.outputKind}`,
-      task.candidates.length ? `候选 ${task.candidates.length}` : undefined,
-      task.selectedCandidate ? '已选择候选' : undefined,
-    ].filter((item): item is string => Boolean(item)),
-    sourcePath: task.sourcePath,
-    record: task.record,
-    candidates: task.candidates,
-    position: node?.position ?? { x: 0, y: 0 },
+function contentCanvasProjectHasActiveCandidate(projectData: ReturnType<typeof withLocalContentCanvasCandidates>): boolean {
+  if (!projectData) return false
+  return Object.values(projectData.contentUnitCandidates).some((candidates) =>
+    candidates.some((candidate) => {
+      const status = candidate.status?.toLowerCase()
+      return status === 'queued' || status === 'pending' || status === 'running'
+    }),
+  )
+}
+
+function contentCanvasProjectActiveCandidateJobIds(projectData: ReturnType<typeof withLocalContentCanvasCandidates>): number[] {
+  if (!projectData) return []
+  const ids = new Set<number>()
+  for (const candidates of Object.values(projectData.contentUnitCandidates)) {
+    for (const candidate of candidates) {
+      const status = candidate.status?.toLowerCase()
+      if (status !== 'queued' && status !== 'pending' && status !== 'running') continue
+      const jobId = numericValue(candidate.producer?.job_id ?? candidate.producer?.jobId)
+      if (jobId !== undefined) ids.add(jobId)
+    }
   }
+  return [...ids].sort((a, b) => a - b)
+}
+
+function numericValue(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value.trim())
+    return Number.isFinite(parsed) ? parsed : undefined
+  }
+  return undefined
+}
+
+function selectionKindForContentNodeKind(kind: TreeNodeData['kind']): InspectorSelectionRef['kind'] {
+  if (kind === 'scene_moment') return 'scene_moment'
+  if (kind === 'setting') return 'setting'
+  if (kind === 'state') return 'state'
+  if (kind === 'asset') return 'asset'
+  return 'other'
+}
+
+function contentUnitNodeWithEditPrompt(node: ContentCanvasNode, prompt: string): ContentCanvasNode {
+  return {
+    ...node,
+    summary: prompt,
+    record: {
+      ...node.record,
+      edit_prompt: {
+        ...(isRecord(node.record.edit_prompt) ? node.record.edit_prompt : {}),
+        text: prompt,
+      },
+    },
+  }
+}
+
+function contentUnitGenerationOutputKind(node: ContentCanvasNode): 'image' | 'video' | 'audio' | 'text' | 'storyboard' {
+  const value = String(node.record.output_kind ?? node.record.outputKind ?? node.subtitle ?? '').toLowerCase()
+  if (value.includes('video')) return 'video'
+  if (value.includes('audio')) return 'audio'
+  if (value.includes('text')) return 'text'
+  if (value.includes('storyboard')) return 'storyboard'
+  return 'image'
+}
+
+function emptyPromptPreview(): ContentCanvasGenerationPromptPreview {
+  return { text: '', compiledText: '', resourceIds: [], replacements: [], blockers: [] }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }

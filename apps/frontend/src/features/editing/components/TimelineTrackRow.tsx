@@ -9,6 +9,7 @@ import type { TimelineTool, TimelineViewport } from '../domain/timelineInteracti
 import type { TimelineClipEditMode, TimelineTrack } from '../domain/types'
 import { TimelineClipButton } from './TimelineClipButton'
 import { TimelineTrackHeader } from './TimelineTrackHeader'
+import './TimelineTrackRow.css'
 
 type TimelineTrackRowProps = {
   activeProject: ElectronMediaPipelineEditingProject | null

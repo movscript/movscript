@@ -1,0 +1,73 @@
+.agent-mode-user-trigger {
+  padding-block: 6px;
+}
+
+.agent-mode-user-avatar {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.agent-mode-user-avatar__fallback {
+  background: var(--ms-color-muted);
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.agent-mode-user-copy {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.agent-mode-user-name,
+.agent-mode-user-meta {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-mode-user-name {
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-label);
+  font-weight: 650;
+  line-height: var(--ms-leading-label);
+}
+
+.agent-mode-user-meta {
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+}
+
+.agent-mode-user-menu {
+  width: 256px;
+}
+
+.agent-mode-user-menu__label {
+  min-width: 0;
+}
+
+.agent-mode-user-menu__name,
+.agent-mode-user-menu__role {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-mode-user-menu__name {
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-label);
+  font-weight: 650;
+  line-height: var(--ms-leading-label);
+}
+
+.agent-mode-user-menu__role {
+  margin-top: 2px;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+}

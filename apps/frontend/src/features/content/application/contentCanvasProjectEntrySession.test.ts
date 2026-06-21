@@ -24,19 +24,21 @@ test('content canvas project entry session builds stable restored search', () =>
   assert.equal(
     buildContentCanvasProjectEntrySessionSearch({
       activeKind: 'character',
-      canvasMode: 'setting',
+      activeCanvasNodeId: 'scene_moment:intro',
+      canvasMode: 'structure',
       selectedNodeId: 'setting:hero',
       selectionKind: 'setting',
     }),
-    'mode=setting&node=setting%3Ahero&kind=setting&settingKind=character',
+    'mode=structure&canvasNode=scene_moment%3Aintro&node=setting%3Ahero&kind=setting&settingKind=character',
   )
 })
 
 test('content canvas project entry session prefers explicit search over snapshot', () => {
   const state = resolveContentCanvasProjectEntrySessionState({
     hasExplicitSearch: true,
-    searchParams: new URLSearchParams('mode=setting&node=setting%3Avillain&kind=setting&settingKind=prop'),
+    searchParams: new URLSearchParams('mode=setting&canvasNode=scene_moment%3Aintro&node=setting%3Avillain&kind=setting&settingKind=prop'),
     snapshot: snapshot({
+      activeCanvasNodeId: 'scene_moment:old',
       canvasMode: 'scene_moment',
       selectedNodeId: 'scene_moment:old',
       selectionKind: 'scene_moment',
@@ -45,7 +47,8 @@ test('content canvas project entry session prefers explicit search over snapshot
 
   assert.deepEqual(state, {
     activeKind: 'prop',
-    canvasMode: 'setting',
+    activeCanvasNodeId: 'scene_moment:intro',
+    canvasMode: 'structure',
     selectedNodeId: 'setting:villain',
     selectionKind: 'setting',
   })
@@ -57,15 +60,32 @@ test('content canvas project entry session restores from snapshot without explic
     searchParams: new URLSearchParams(),
     snapshot: snapshot({
       activeKind: 'visual_style',
+      activeCanvasNodeId: 'scene_moment:intro',
       canvasMode: 'scene_moment',
-      selectedNodeId: 'scene_moment:intro',
-      selectionKind: 'scene_moment',
+      selectedNodeId: 'asset:phone',
+      selectionKind: 'asset',
     }),
   })
 
   assert.deepEqual(state, {
     activeKind: 'visual_style',
-    canvasMode: 'scene_moment',
+    activeCanvasNodeId: 'scene_moment:intro',
+    canvasMode: 'structure',
+    selectedNodeId: 'asset:phone',
+    selectionKind: 'asset',
+  })
+})
+
+test('content canvas project entry session falls back to selected node for legacy links', () => {
+  const state = resolveContentCanvasProjectEntrySessionState({
+    hasExplicitSearch: true,
+    searchParams: new URLSearchParams('mode=structure&node=scene_moment%3Aintro&kind=scene_moment'),
+    snapshot: null,
+  })
+
+  assert.deepEqual(state, {
+    activeCanvasNodeId: 'scene_moment:intro',
+    canvasMode: 'structure',
     selectedNodeId: 'scene_moment:intro',
     selectionKind: 'scene_moment',
   })

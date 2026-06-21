@@ -317,7 +317,55 @@ test('MovScript plugin bridge bootstrap list and generation skill expose batch g
   ]) {
     assert.match(skill, new RegExp(grant))
   }
-  assert.match(skill, /When tracking multiple jobs, use `system_generate_image_job_get_batch`, `system_generate_video_job_get_batch`, or `generation_audio_job_get_batch`/)
+  assert.match(skill, /When tracking multiple low-level jobs, use `system_generate_image_job_get_batch`, `system_generate_video_job_get_batch`, or `generation_audio_job_get_batch`/)
+})
+
+test('MovScript generation skill routes content-unit visual generation through compiler-backed candidate tools', () => {
+  const fallbackNames = new Set(getFallbackToolNames())
+  const skill = readFileSync(resolve(repoRoot, 'plugins/movscript/skills/generation/SKILL.md'), 'utf8')
+  const candidateSelectionFlow = readFileSync(resolve(repoRoot, 'plugins/movscript/skills/generation/references/candidate-selection-flow.md'), 'utf8')
+  const cachedCandidateSelectionFlow = readFileSync(resolve(repoRoot, 'apps/frontend/plugin-cache/movscript-bundled/movscript/9cc8f9d8c6628c1a/skills/generation/references/candidate-selection-flow.md'), 'utf8')
+  const coreDefinitions = readFileSync(resolve(repoRoot, 'packages/core/src/mcp/tools/generation/definitions.ts'), 'utf8')
+  const coreActions = readFileSync(resolve(repoRoot, 'packages/core/src/mcp/node/tools/generation/actions.ts'), 'utf8')
+  const router = readFileSync(resolve(repoRoot, 'packages/core/src/mcp/node/tools/router.ts'), 'utf8')
+
+  for (const name of [
+    'generation_content_unit_image_generate',
+    'system_generate_content_unit_image',
+    'generation_content_unit_image_job_get',
+    'system_generate_content_unit_image_job_get',
+    'generation_content_unit_video_generate',
+    'system_generate_content_unit_video',
+    'generation_content_unit_video_job_get',
+    'system_generate_content_unit_video_job_get',
+  ]) {
+    assert.equal(fallbackNames.has(name), true, `${name} should be exposed by bridge bootstrap list`)
+  }
+
+  for (const grant of [
+    'mcp__movscript__system_generate_content_unit_image',
+    'mcp__movscript__system_generate_content_unit_image_job_get',
+    'mcp__movscript__system_generate_content_unit_video',
+    'mcp__movscript__system_generate_content_unit_video_job_get',
+  ]) {
+    assert.match(skill, new RegExp(grant))
+  }
+
+  assert.match(skill, /edit the content unit `edit_prompt` first, then use `system_generate_content_unit_image` or `system_generate_content_unit_video`/)
+  assert.match(skill, /Do not manually call `domain_create_content_candidate` after `system_generate_content_unit_image` or `system_generate_content_unit_video`/)
+  assert.match(skill, /`system_generate_image` and `system_generate_video` remain low-level prompt channels/)
+  assert.match(candidateSelectionFlow, /Successful terminal polls automatically create or refresh backend content candidates/)
+  assert.match(candidateSelectionFlow, /Do not manually call `domain_create_content_candidate` after `system_generate_content_unit_image` or `system_generate_content_unit_video`/)
+  assert.match(cachedCandidateSelectionFlow, /Successful terminal polls automatically create or refresh backend content candidates/)
+  assert.match(cachedCandidateSelectionFlow, /Do not manually call `domain_create_content_candidate` after `system_generate_content_unit_image` or `system_generate_content_unit_video`/)
+
+  assert.match(coreDefinitions, /generation_content_unit_image_generate/)
+  assert.match(coreDefinitions, /generation_content_unit_video_generate/)
+  assert.match(coreActions, /domainBuildContentUnitBackendPrompt/)
+  assert.match(coreActions, /domainCreateContentCandidate/)
+  assert.match(coreActions, /contentUnitGenerationCandidateId/)
+  assert.match(router, /case 'system_generate_content_unit_image'/)
+  assert.match(router, /case 'system_generate_content_unit_video'/)
 })
 
 test('MovScript editing skill grants match the bridge bootstrap editing tools', () => {

@@ -1,0 +1,62 @@
+.content-canvas-generation-task {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid color-mix(in srgb, var(--cc-accent) 24%, var(--cc-border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--cc-accent) 7%, transparent);
+  padding: 9px 10px;
+}
+
+.content-canvas-generation-task[data-status="selected"] {
+  border-color: color-mix(in srgb, var(--cc-success) 28%, var(--cc-border));
+  background: color-mix(in srgb, var(--cc-success) 8%, transparent);
+}
+
+.content-canvas-generation-task[data-status="stale"],
+.content-canvas-generation-task[data-status="needs_candidate"] {
+  border-color: color-mix(in srgb, var(--cc-warning) 30%, var(--cc-border));
+  background: color-mix(in srgb, var(--cc-warning) 8%, transparent);
+}
+
+.content-canvas-generation-task span,
+.content-canvas-generation-task strong,
+.content-canvas-generation-task small,
+.content-canvas-generation-task em {
+  min-width: 0;
+}
+
+.content-canvas-generation-task span {
+  display: grid;
+  gap: 2px;
+}
+
+.content-canvas-generation-task small,
+.content-canvas-generation-task em {
+  overflow: hidden;
+  color: var(--cc-muted);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 780;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.content-canvas-generation-task strong {
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 820;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.content-canvas-generation-task b {
+  justify-self: end;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--cc-panel) 76%, transparent);
+  color: var(--cc-text);
+  padding: 4px 7px;
+  font-size: 10px;
+  font-weight: 820;
+}

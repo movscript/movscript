@@ -60,12 +60,12 @@ test('workspace source review rejects ambiguous content unit primary refs', asyn
       title: 'B',
       order: 2,
     })],
-    ['productions/p8f3/segments/a19d/scene_moments/b/shots/b/storyboards/b/storyboard.json', JSON.stringify({
+    ['productions/p8f3/segments/a19d/scene_moments/b/storyboards/b/storyboard.json', JSON.stringify({
       schema: 'movscript.storyboard.v1',
       kind: 'storyboard',
       id: 'b',
     })],
-    ['productions/p8f3/segments/a19d/scene_moments/a/shots/a/storyboards/a/storyboard.json', JSON.stringify({
+    ['productions/p8f3/segments/a19d/scene_moments/a/storyboards/a/storyboard.json', JSON.stringify({
       schema: 'movscript.storyboard.v1',
       kind: 'storyboard',
       id: 'a',
@@ -107,9 +107,9 @@ test('workspace source review rejects unresolved storyboard setting refs', async
       title: 'Phone call',
       order: 1,
     })],
-    ['productions/p8f3/segments/a19d/scene_moments/r72k/shots/phone/storyboards/main/storyboard.json', JSON.stringify({
+    ['productions/p8f3/segments/a19d/scene_moments/r72k/expression_units/phone/storyboards/main/storyboard.json', JSON.stringify({
       
-      shot_ref: 'productions/p8f3/segments/a19d/scene_moments/r72k/shots/phone',
+      expression_unit_ref: 'productions/p8f3/segments/a19d/scene_moments/r72k/expression_units/phone',
       setting_refs: [
         { setting_id: 'missing' },
         { setting_id: 'hero', setting_state_id: 'missing' },
@@ -145,7 +145,7 @@ test('workspace source review rejects wrong hierarchy and id directory mismatch'
       id: 'wrong_id',
       slot: 'character_base_portrait',
     })],
-    ['productions/p8f3/segments/a19d/scene_moments/r72k/shots/phone/keyframes/c83x/keyframe.json', JSON.stringify({
+    ['productions/p8f3/segments/a19d/scene_moments/r72k/expression_units/phone/keyframes/c83x/keyframe.json', JSON.stringify({
       schema: 'movscript.keyframe.v1',
       kind: 'keyframe',
       id: 'other',
@@ -360,9 +360,9 @@ test('workspace source review rejects unresolved content unit prompt refs', asyn
       title: 'Phone call',
       order: 1,
     })],
-    ['productions/p8f3/segments/a19d/scene_moments/r72k/shots/phone/storyboards/main/storyboard.json', JSON.stringify({
+    ['productions/p8f3/segments/a19d/scene_moments/r72k/expression_units/phone/storyboards/main/storyboard.json', JSON.stringify({
       
-      shot_ref: 'productions/p8f3/segments/a19d/scene_moments/r72k/shots/phone',
+      expression_unit_ref: 'productions/p8f3/segments/a19d/scene_moments/r72k/expression_units/phone',
     })],
     ['content_units/sound_1/content_unit.json', JSON.stringify({
       schema: 'movscript.content_unit.v1',
@@ -371,7 +371,7 @@ test('workspace source review rejects unresolved content unit prompt refs', asyn
       title: 'Phone vibration sound',
       content_unit_type: 'storyboard_ref',
       output_kind: 'image',
-      storyboard_ref: 'productions/p8f3/segments/a19d/scene_moments/r72k/shots/phone/storyboards/main',
+      storyboard_ref: 'productions/p8f3/segments/a19d/scene_moments/r72k/expression_units/phone/storyboards/main',
       edit_prompt: { text: 'Storyboard with missing keyframe {{keyframe:missing_keyframe}}.' },
     })],
   ])
@@ -397,9 +397,9 @@ test('workspace source review rejects unresolved keyframe reference assets', asy
       title: 'Phone call',
       order: 1,
     })],
-    ['productions/p8f3/segments/a19d/scene_moments/r72k/shots/phone/storyboards/main/storyboard.json', JSON.stringify({
+    ['productions/p8f3/segments/a19d/scene_moments/r72k/expression_units/phone/storyboards/main/storyboard.json', JSON.stringify({
       
-      shot_ref: 'productions/p8f3/segments/a19d/scene_moments/r72k/shots/phone',
+      expression_unit_ref: 'productions/p8f3/segments/a19d/scene_moments/r72k/expression_units/phone',
     })],
     ['content_units/k41m/content_unit.json', JSON.stringify({
       schema: 'movscript.content_unit.v1',
@@ -409,10 +409,10 @@ test('workspace source review rejects unresolved keyframe reference assets', asy
       content_unit_type: 'storyboard_ref',
       output_kind: 'video',
       scene_moment_ref: 'productions/p8f3/segments/a19d/scene_moments/r72k',
-      storyboard_ref: 'productions/p8f3/segments/a19d/scene_moments/r72k/shots/phone/storyboards/main',
+      storyboard_ref: 'productions/p8f3/segments/a19d/scene_moments/r72k/expression_units/phone/storyboards/main',
       keyframe_refs: ['c83x'],
     })],
-    ['productions/p8f3/segments/a19d/scene_moments/r72k/shots/phone/keyframes/c83x/keyframe.json', JSON.stringify({
+    ['productions/p8f3/segments/a19d/scene_moments/r72k/expression_units/phone/keyframes/c83x/keyframe.json', JSON.stringify({
       schema: 'movscript.keyframe.v1',
       kind: 'keyframe',
       id: 'c83x',

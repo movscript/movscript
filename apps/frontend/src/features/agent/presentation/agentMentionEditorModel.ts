@@ -1,15 +1,19 @@
+import {
+  formatResourceMention,
+  parseResourceMentions,
+} from '@movscript/workspace'
 import { attachmentDisplayUrl, placeholderAttachment } from '@/features/agent/domain/agentAttachments'
 import { loadResourceUrlBlob } from '@/shared/ui/resourceBlob'
 import { acquireCachedResourceMediaUrl } from '@/shared/ui/resourceMediaCache'
 import type { AgentAttachment } from '@/features/agent/state/agentStore'
 
-export const RESOURCE_MENTION_RE = /@\[resource:(\d+)\]/g
+export const RESOURCE_MENTION_RE = /@\[resource:(\d+)\]|\[\[resource::(\d+)\]\]/g
 export const RESOURCE_MENTION_TRIGGER_RE = /(?:^|[\s(])@([^\s@\[]*)$/u
 
 const mentionChipMediaReleases = new WeakMap<HTMLImageElement | HTMLVideoElement, () => void>()
 
 export function resourceMentionToken(resourceId: number) {
-  return `@[resource:${resourceId}]`
+  return formatResourceMention(resourceId)
 }
 
 export function normalizeInlineSpacing(text: string): string {
@@ -69,14 +73,12 @@ export function renderMentionEditorValue(editor: HTMLElement, value: string, att
   releaseMentionEditorMedia(editor)
   editor.replaceChildren()
   let lastIndex = 0
-  for (const match of value.matchAll(RESOURCE_MENTION_RE)) {
-    if (match.index === undefined) continue
-    const before = value.slice(lastIndex, match.index)
+  for (const mention of parseResourceMentions(value)) {
+    const before = value.slice(lastIndex, mention.index)
     if (before) editor.appendChild(document.createTextNode(before))
-    const resourceId = Number(match[1])
-    const attachment = attachmentsById.get(resourceId) ?? placeholderAttachment(resourceId)
+    const attachment = attachmentsById.get(mention.id) ?? placeholderAttachment(mention.id)
     editor.appendChild(buildMentionChipElement(attachment))
-    lastIndex = match.index + match[0].length
+    lastIndex = mention.index + mention.token.length
   }
   const rest = value.slice(lastIndex)
   if (rest) editor.appendChild(document.createTextNode(rest))

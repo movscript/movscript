@@ -1,25 +1,13 @@
-import { useRef, useState } from 'react'
-import { useMutation } from '@tanstack/react-query'
 import { Pause, Play, Scissors, X as XIcon } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
 import type { RawResource } from '@/types'
-import { api } from '@/shared/infrastructure/api'
 import { UrlVideo } from '@/shared/ui/UrlMedia'
-import { toast } from '@/shared/ui/toastStore'
 import {
-  clipOutputNameError,
-  clipRangeError,
-  clipSourceError,
-  defaultClipOutputName,
   MAX_CLIP_DURATION_MS,
-  parseClipTimecode,
 } from '@/features/resources/domain/videoClipUi'
-import { trimResourceVideoSegment } from '@/features/resources/application/resourceVideoClipElectron'
-import { clipErrorMessage, sourceErrorMessage } from '@/features/resources/application/resourceVideoClipMessages'
-import { useResourceVideoClipSource } from '@/features/resources/application/useResourceVideoClipSource'
-import { useResourceVideoClipStatus } from '@/features/resources/application/useResourceVideoClipStatus'
+import { sourceErrorMessage } from '@/features/resources/application/resourceVideoClipMessages'
 import { formatResourceBytes } from '@/features/resources/components/resourceLibraryFormatting'
-import { clamp, formatTime, RangeField } from '@/features/resources/components/ResourcesPageVideoClipDialogParts'
+import { formatTime, RangeField } from '@/features/resources/components/ResourcesPageVideoClipDialogParts'
+import { useVideoClipDialogController } from '@/features/resources/components/useVideoClipDialogController'
 import { Dialog } from '@movscript/ui/primitives'
 import {
   ResourceMediaFillFrame,
@@ -46,7 +34,6 @@ import {
   ResourceDialogContent,
   ResourceDialogField,
   ResourceDialogFieldLabel,
-  ResourceDialogFooter,
   ResourceDialogHeader,
   ResourceDialogInput,
   ResourceDialogStack,
@@ -54,8 +41,6 @@ import {
   ResourcePageActionButton,
   ResourceStateMessage,
 } from '@/features/resources/components/ResourcePageUi'
-
-type ClipPhase = 'idle' | 'preparing' | 'clipping' | 'uploading'
 
 export function VideoClipDialog({
   resource,
@@ -68,151 +53,47 @@ export function VideoClipDialog({
   onClose: () => void
   onCreated: (created: RawResource) => void
 }) {
-  const { t } = useTranslation()
-  const videoRef = useRef<HTMLVideoElement>(null)
+  const controller = useVideoClipDialogController({ resource, folderId, onCreated })
   const {
-    sourceBlob,
-    sourceUrl,
-    loadingSource,
-    sourceProgress,
-    sourceError,
-    sourceErrorSize,
-    sourceErrorRetryable,
-    retrySourceLoad,
-  } = useResourceVideoClipSource(resource)
-  const [duration, setDuration] = useState(0)
-  const [startMs, setStartMs] = useState(0)
-  const [endMs, setEndMs] = useState(0)
-  const [currentMs, setCurrentMs] = useState(0)
-  const [outputName, setOutputName] = useState(defaultClipOutputName(resource.name))
-  const [mode, setMode] = useState<'accurate' | 'fast'>('accurate')
-  const [playing, setPlaying] = useState(false)
-  const [clipError, setClipError] = useState('')
-  const [clipPhase, setClipPhase] = useState<ClipPhase>('idle')
-  const clipStatus = useResourceVideoClipStatus()
-
-  const uploadClip = useMutation({
-    mutationFn: async () => {
-      if (!sourceBlob) throw new Error(t('pages.resources.clipSourceMissing'))
-      if (!clipStatus.available) throw new Error(t('pages.resources.clipDesktopOnly'))
-      setClipError('')
-      setClipPhase('preparing')
-      const sourceData = await sourceBlob.arrayBuffer()
-      setClipPhase('clipping')
-      const result = await trimResourceVideoSegment({
-        sourceData,
-        sourceName: resource.name,
-        startMs,
-        endMs,
-        outputName,
-        mode,
-      })
-      if (!result) throw new Error(t('pages.resources.clipDesktopOnly'))
-      if (!result.ok || !result.data) {
-        throw new Error(clipErrorMessage(result.code, result.error, t))
-      }
-      const clipBytes = new Uint8Array(result.data)
-      const clipBuffer = clipBytes.buffer.slice(clipBytes.byteOffset, clipBytes.byteOffset + clipBytes.byteLength) as ArrayBuffer
-      const file = new window.File([clipBuffer], result.outputName || outputName, { type: result.mimeType || 'video/mp4' })
-      const fd = new FormData()
-      fd.append('file', file)
-      if (folderId) fd.append('folder_id', String(folderId))
-      setClipPhase('uploading')
-      const created = await api.post('/resources/upload', fd).then(r => r.data as RawResource)
-      return { created, fallbackApplied: result.fallbackApplied === true }
-    },
-    onSuccess: ({ created, fallbackApplied }) => {
-      setClipPhase('idle')
-      toast.success(t('pages.resources.clipCreated'), fallbackApplied ? t('pages.resources.clipFallbackApplied', { name: created.name }) : created.name)
-      onCreated(created)
-    },
-    onError: (error) => {
-      setClipPhase('idle')
-      setClipError(error instanceof Error ? error.message : t('pages.resources.clipFailed'))
-    },
-  })
-
-  const durationMs = Math.max(0, Math.round(duration * 1000))
-  const selectedDurationMs = Math.max(0, endMs - startMs)
-  const rangeMax = Math.max(durationMs, 1000)
-  const rangeError = clipRangeError(startMs, endMs, MAX_CLIP_DURATION_MS)
-  const sourceSizeError = clipSourceError(sourceBlob?.size ?? resource.size)
-  const outputNameError = clipOutputNameError(outputName)
-  const isBusy = uploadClip.isPending
-  const canClip = Boolean(sourceBlob) && clipStatus.available && !rangeError && !sourceSizeError && !outputNameError && !uploadClip.isPending
-  const progressPct = durationMs > 0 ? Math.min(100, Math.max(0, currentMs / durationMs * 100)) : 0
-  const sourceProgressPct = sourceProgress.total ? Math.min(100, Math.max(0, sourceProgress.loaded / sourceProgress.total * 100)) : 0
-  const selectedPct = durationMs > 0 ? Math.min(100, Math.max(0, selectedDurationMs / durationMs * 100)) : 0
-  const phaseLabel = clipPhase === 'idle' ? '' : t(`pages.resources.clipPhases.${clipPhase}`)
-  const sourceErrorText = sourceError
-    ? sourceError === 'load_failed'
-      ? t('pages.resources.clipLoadSourceFailed')
-      : sourceErrorMessage(sourceError, sourceErrorSize ?? resource.size, t)
-    : ''
-  const clipStatusErrorText = clipStatus.loading || clipStatus.available
-    ? ''
-    : clipStatus.unavailableReason === 'desktop_unavailable'
-      ? t('pages.resources.clipDesktopOnly')
-      : clipStatus.unavailableReason === 'status_failed' || clipStatus.code === 'FFMPEG_NOT_FOUND'
-        ? t('pages.resources.clipFFmpegMissing')
-        : clipStatus.error || t('pages.resources.clipFFmpegMissing')
-
-  function handleMetadata() {
-    const nextDuration = videoRef.current?.duration ?? 0
-    if (!Number.isFinite(nextDuration) || nextDuration <= 0) return
-    const nextDurationMs = Math.round(nextDuration * 1000)
-    setDuration(nextDuration)
-    setStartMs(0)
-    setEndMs(Math.min(nextDurationMs, MAX_CLIP_DURATION_MS))
-  }
-
-  function setStart(value: number) {
-    const next = clamp(value, 0, Math.max(0, endMs - 500))
-    setStartMs(next)
-    seekTo(next)
-  }
-
-  function setEnd(value: number) {
-    const next = clamp(value, startMs + 500, rangeMax)
-    setEndMs(next)
-    if (currentMs > next) seekTo(next)
-  }
-
-  function setStartFromCurrent() {
-    setStart(currentMs)
-  }
-
-  function setEndFromCurrent() {
-    setEnd(currentMs)
-  }
-
-  function setTimecodeTarget(target: 'start' | 'end', value: string) {
-    const parsed = parseClipTimecode(value)
-    if (parsed == null) return
-    if (target === 'start') {
-      setStart(parsed)
-      return
-    }
-    setEnd(parsed)
-  }
-
-  function seekTo(ms: number) {
-    if (videoRef.current) videoRef.current.currentTime = ms / 1000
-    setCurrentMs(ms)
-  }
-
-  function togglePlayback() {
-    const video = videoRef.current
-    if (!video) return
-    if (video.paused) {
-      if (video.currentTime * 1000 < startMs || video.currentTime * 1000 >= endMs) {
-        video.currentTime = startMs / 1000
-      }
-      void video.play()
-    } else {
-      video.pause()
-    }
-  }
+    canClip,
+    clipError,
+    clipStatus,
+    clipStatusErrorText,
+    currentMs,
+    durationMs,
+    endMs,
+    handleMetadata,
+    handleTimeUpdate,
+    isBusy,
+    mode,
+    outputName,
+    outputNameError,
+    phaseLabel,
+    playing,
+    progressPct,
+    rangeError,
+    rangeMax,
+    selectedDurationMs,
+    selectedPct,
+    setEnd,
+    setEndFromCurrent,
+    setMode,
+    setOutputName,
+    setPlaying,
+    setStart,
+    setStartFromCurrent,
+    setTimecodeTarget,
+    source,
+    sourceErrorText,
+    sourceProgressPct,
+    sourceSizeError,
+    startMs,
+    t,
+    togglePlayback,
+    uploadClip,
+    videoRef,
+    seekTo,
+  } = controller
 
   return (
     <Dialog open onOpenChange={v => !v && !isBusy && onClose()}>
@@ -233,24 +114,24 @@ export function VideoClipDialog({
           <ResourceClipLayout>
             <ResourceClipMain>
               <ResourceClipStageFrame>
-                {loadingSource ? (
+                {source.loadingSource ? (
                   <ResourceClipStageState>
                     <ResourceClipStageText>{t('pages.resources.clipLoadingSource')}</ResourceClipStageText>
                     <ResourceClipProgress value={sourceProgressPct} variant="inverse" />
                     <ResourceDialogText tone="faint">
-                      {sourceProgress.total
-                        ? t('pages.resources.clipLoadProgress', { loaded: formatResourceBytes(sourceProgress.loaded), total: formatResourceBytes(sourceProgress.total) })
-                        : formatResourceBytes(sourceProgress.loaded)}
+                      {source.sourceProgress.total
+                        ? t('pages.resources.clipLoadProgress', { loaded: formatResourceBytes(source.sourceProgress.loaded), total: formatResourceBytes(source.sourceProgress.total) })
+                        : formatResourceBytes(source.sourceProgress.loaded)}
                     </ResourceDialogText>
                   </ResourceClipStageState>
                 ) : sourceErrorText ? (
                   <ResourceClipStageState>
                     <ResourceClipStageText>{sourceErrorText}</ResourceClipStageText>
-                    {sourceErrorRetryable && (
+                    {source.sourceErrorRetryable && (
                       <ResourcePageActionButton
                         size="sm"
                         variant="outline"
-                        onClick={retrySourceLoad}
+                        onClick={source.retrySourceLoad}
                         aria-label={t('pages.resources.clipRetryLoad')}
                       >
                         {t('pages.resources.clipRetryLoad')}
@@ -261,20 +142,13 @@ export function VideoClipDialog({
                   <ResourceMediaFillFrame fit="contain">
                     <UrlVideo
                       ref={videoRef}
-                      src={sourceUrl}
+                      src={source.sourceUrl}
                       controls={false}
                       playsInline
                       onLoadedMetadata={handleMetadata}
                       onPlay={() => setPlaying(true)}
                       onPause={() => setPlaying(false)}
-                      onTimeUpdate={(event) => {
-                        const ms = Math.round(event.currentTarget.currentTime * 1000)
-                        setCurrentMs(ms)
-                        if (endMs > startMs && ms >= endMs) {
-                          event.currentTarget.pause()
-                          event.currentTarget.currentTime = startMs / 1000
-                        }
-                      }}
+                      onTimeUpdate={handleTimeUpdate}
                     />
                   </ResourceMediaFillFrame>
                 )}
@@ -285,7 +159,7 @@ export function VideoClipDialog({
                     size="icon-sm"
                     variant="outline"
                     onClick={togglePlayback}
-                    disabled={!sourceBlob}
+                    disabled={!source.sourceBlob}
                     title={playing ? t('pages.resources.clipPause') : t('pages.resources.clipPlaySegment')}
                     aria-label={playing ? t('pages.resources.clipPause') : t('pages.resources.clipPlaySegment')}
                   >
@@ -295,7 +169,7 @@ export function VideoClipDialog({
                     size="sm"
                     variant="outline"
                     onClick={() => seekTo(startMs)}
-                    disabled={!sourceBlob || isBusy}
+                    disabled={!source.sourceBlob || isBusy}
                     aria-label={t('pages.resources.clipGoStart')}
                   >
                     {t('pages.resources.clipGoStart')}
@@ -304,7 +178,7 @@ export function VideoClipDialog({
                     size="sm"
                     variant="outline"
                     onClick={setStartFromCurrent}
-                    disabled={!sourceBlob || isBusy}
+                    disabled={!source.sourceBlob || isBusy}
                     aria-label={t('pages.resources.clipSetStart')}
                   >
                     {t('pages.resources.clipSetStart')}
@@ -313,7 +187,7 @@ export function VideoClipDialog({
                     size="sm"
                     variant="outline"
                     onClick={setEndFromCurrent}
-                    disabled={!sourceBlob || isBusy}
+                    disabled={!source.sourceBlob || isBusy}
                     aria-label={t('pages.resources.clipSetEnd')}
                   >
                     {t('pages.resources.clipSetEnd')}
@@ -372,7 +246,7 @@ export function VideoClipDialog({
                     { label: t('pages.resources.clipDuration'), value: formatTime(selectedDurationMs) },
                     { label: t('pages.resources.clipMaxDuration'), value: formatTime(MAX_CLIP_DURATION_MS) },
                     { label: t('pages.resources.clipSource'), value: resource.name, title: resource.name },
-                    { label: t('pages.resources.clipSourceSize'), value: formatResourceBytes(sourceBlob?.size ?? resource.size) },
+                    { label: t('pages.resources.clipSourceSize'), value: formatResourceBytes(source.sourceBlob?.size ?? resource.size) },
                     { label: t('pages.resources.clipOutput'), value: outputName, title: outputName },
                   ]}
                 />
@@ -393,7 +267,7 @@ export function VideoClipDialog({
                 )}
                 {sourceSizeError && (
                   <ResourceStateMessage tone="danger">
-                    {sourceErrorMessage(sourceSizeError, sourceBlob?.size ?? resource.size, t)}
+                    {sourceErrorMessage(sourceSizeError, source.sourceBlob?.size ?? resource.size, t)}
                   </ResourceStateMessage>
                 )}
                 {outputNameError && (

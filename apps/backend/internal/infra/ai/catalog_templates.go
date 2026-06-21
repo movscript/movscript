@@ -322,7 +322,7 @@ var catalogTemplateSources = []ModelDef{
 		MaxInputImages: 1, MaxInputVideos: 1,
 		RefUSDPerSecond: 0.140, DefaultDurSec: 5, MaxDurSec: 15,
 		SupportedParams: volcenSeedanceParams(
-			[]string{"-1", "4", "5", "10", "15"},
+			[]string{"-1", "4", "5", "10", "11", "15"},
 			[]string{"adaptive", "16:9", "9:16", "1:1", "4:3", "3:4", "21:9"},
 			[]string{"480p", "720p", "1080p"},
 			true, false, false, true, false,
@@ -335,7 +335,7 @@ var catalogTemplateSources = []ModelDef{
 		MaxInputImages: 1, MaxInputVideos: 1,
 		RefUSDPerSecond: 0.070, DefaultDurSec: 5, MaxDurSec: 15,
 		SupportedParams: volcenSeedanceParams(
-			[]string{"-1", "4", "5", "10", "15"},
+			[]string{"-1", "4", "5", "10", "11", "15"},
 			[]string{"adaptive", "16:9", "9:16", "1:1", "4:3", "3:4", "21:9"},
 			[]string{"480p", "720p"},
 			true, false, false, true, false,

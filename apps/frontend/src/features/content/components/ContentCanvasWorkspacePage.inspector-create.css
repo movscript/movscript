@@ -1,0 +1,60 @@
+.content-canvas-inspector-create-form {
+  display: grid;
+  gap: 10px;
+}
+
+.content-canvas-inspector-create-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--cc-text);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.content-canvas-inspector-create-form input,
+.content-canvas-inspector-create-form select,
+.content-canvas-inspector-create-form textarea {
+  height: 34px;
+  width: 100%;
+  border: 1px solid var(--cc-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--cc-panel) 94%, transparent);
+  color: var(--cc-text);
+  padding: 0 10px;
+  font-size: 12px;
+  outline: none;
+}
+
+.content-canvas-inspector-create-form input:focus,
+.content-canvas-inspector-create-form select:focus,
+.content-canvas-inspector-create-form textarea:focus {
+  border-color: color-mix(in srgb, var(--cc-accent) 48%, var(--cc-border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cc-accent) 10%, transparent);
+}
+
+.content-canvas-inspector-create-form textarea {
+  min-height: 96px;
+  height: auto;
+  resize: vertical;
+  padding: 9px 10px;
+  line-height: 1.5;
+}
+
+.content-canvas-inspector-create-form button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 32px;
+  border: 1px solid color-mix(in srgb, var(--cc-accent) 52%, var(--cc-border));
+  border-radius: 7px;
+  background: var(--cc-accent-soft);
+  color: var(--cc-accent);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.content-canvas-inspector-create-form button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}

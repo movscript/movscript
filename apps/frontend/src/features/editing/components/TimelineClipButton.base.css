@@ -1,0 +1,61 @@
+.editing-workspace-clip {
+  position: absolute;
+  top: var(--editing-clip-inset-y);
+  bottom: auto;
+  container-type: inline-size;
+  height: var(--editing-clip-height);
+  min-height: 0;
+  max-height: var(--editing-clip-height);
+  min-width: 42px;
+  overflow: hidden;
+  contain: layout paint;
+  border: 1px solid color-mix(in srgb, #7b8da8 54%, var(--ms-color-border));
+  border-radius: 5px;
+  background: color-mix(in srgb, #52647c 28%, var(--ms-color-background));
+  padding: 0;
+  color: var(--ms-color-foreground);
+  text-align: left;
+  cursor: grab;
+  user-select: none;
+}
+
+.editing-workspace-clip[data-asset-type="video"] {
+  border-color: color-mix(in srgb, #7aa4d8 56%, var(--ms-color-border));
+  background: #050506;
+}
+
+.editing-workspace-clip[data-asset-type="image"] {
+  border-color: color-mix(in srgb, #4ab1a1 58%, var(--ms-color-border));
+  background: color-mix(in srgb, #4ab1a1 22%, var(--ms-color-background));
+}
+
+.editing-workspace-clip[data-asset-type="audio"] {
+  border-color: color-mix(in srgb, #c8a24d 62%, var(--ms-color-border));
+  background: color-mix(in srgb, #c8a24d 22%, var(--ms-color-background));
+}
+
+.editing-workspace-clip[data-asset-type="subtitle"],
+.editing-workspace-clip[data-asset-type="text"] {
+  border-color: color-mix(in srgb, #9c89c8 60%, var(--ms-color-border));
+  background: color-mix(in srgb, #9c89c8 20%, var(--ms-color-background));
+}
+
+.editing-workspace-clip-label span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editing-workspace-clip:active {
+  cursor: grabbing;
+}
+
+.editing-workspace-clip[data-timeline-tool="split"] {
+  cursor: crosshair;
+}
+
+.editing-workspace-clip[data-timeline-tool="trim-start"],
+.editing-workspace-clip[data-timeline-tool="trim-end"] {
+  cursor: ew-resize;
+}

@@ -17,6 +17,7 @@ toolGrants:
   - mcp__movscript__domain_read_content_unit_generation_prompt
   - mcp__movscript__domain_read_content_unit_dependency_report
   - mcp__movscript__domain_read_content_unit_selection_validity
+  - mcp__movscript__domain_read_project_context_snapshot
   - mcp__movscript__domain_upsert_project_standards
   - mcp__movscript__domain_upsert_setting
   - mcp__movscript__domain_upsert_asset
@@ -72,17 +73,22 @@ Open `references/domain-story.md` when the task depends on the meaning of produc
 - `domain_review`: Compatibility diagnostic alias for older review workflows. Prefer `domain_inspect` unless the user explicitly asks for review.
 - `domain_interpret`: Validates current source and refreshes derived diagnostic artifacts when enabled. It is not publish, approval, commit, or user-intent checkpoint.
 - `domain_regeneration_plan`: After interpret, reports downstream content units, prompt bundles, selected outputs, or preview timelines that need review.
+- `domain_read_project_context_snapshot`: Read-only project context harness entrypoint. Use it before project-scoped planning, content-unit work, or generation so house style, prompt rules, negative rules, aspect ratio, and style reference resources are visible to the agent.
 - Except for `content_unit`, entities are production structure or generation prerequisites. Do not create every prerequisite at once unless the user asks for that scope.
 - Content units are top-level production tasks with refs. They are not production hierarchy nodes and not generated resources.
 - Generated/imported resources become effective domain state only through backend-stored candidates and selections. A candidate is not a stable dependency until selected.
 - Content-unit candidate decisions are `adopt`, `reject`, or `defer`. `adopt` selects the candidate as stable output/reference, while `reject` and `defer` only annotate the candidate and must not unblock downstream stable generation.
 - Affected does not mean regenerate. Affected means the downstream target needs an explicit keep, relink, re-prompt, regenerate, re-shoot, deprecate, or accept-stale decision.
+- `setting` must be a concrete film/music production entity to be made or reused, such as `主角-老张`, `道具-玉玺`, a place, an instrument, a costume, or a voice identity. Do not create settings for abstract styles, world rules, genres, moods, or one-off prompt notes; use project standards or the relevant production/expression fields instead.
+- `setting_state` is a namespace under exactly one setting for a named condition/version of that same entity, such as base look, wet hair, damaged prop, side-view variant, formal costume, calm voice, or angry voice.
+- `asset` is a resource slot under a setting state that describes that state, such as front view, side view, turnaround sheet, material reference, voice timbre, or instrument tone. For image asset generation, prefer plain white or very clean backgrounds unless the user explicitly asks for scene context.
 
 ## Tool Map
 
 - Focus and overview: `system_focus_get`, `domain_overview`.
 - Model discovery: `domain_get_model`.
 - Query/read: `domain_query_entities`, `domain_query_settings`, `domain_query_assets`, `domain_query_production_context`, `domain_read_*`.
+- Project context: `domain_read_project_context_snapshot` for read-only context assembly; `domain_upsert_project_standards` only for explicit user-requested standard additions, removals, or edits.
 - Structured writes: `domain_upsert_*`, `domain_update_*`, `domain_delete_entity`. Use production-chain upserts for production, segment, scene_moment, shot, keyframe, storyboard, audio_cue, and expression_unit records when available.
 - Candidate writes: `domain_create_content_candidate`, batch content-candidate tools, `domain_decide_content_unit_candidate`, and content-unit selection tools write backend decision metadata. Inline candidate tools remain compatibility APIs for asset/keyframe/source-entity candidates.
 - Prefer `domain_decide_content_unit_candidate` when recording a user-facing generated-candidate choice. Use `decision: "adopt"` for 采纳, `decision: "reject"` for 放弃, and `decision: "defer"` for 待定. Use direct selection tools only for legacy or explicitly confirmed selection flows.
@@ -93,14 +99,15 @@ Open `references/domain-story.md` when the task depends on the meaning of produc
 ## Edit Workflow
 
 1. Call `system_focus_get` when the request depends on the selected project, production, or entity.
-2. Query existing context with `domain_query_*` or read derived artifact context with `domain_read_*`.
-3. Call `domain_get_model` before changing a domain entity so editable paths, schema ids, and instructions come from MovScript.
-4. Prefer structured `domain_*` write APIs when they cover the requested operation.
-5. Directly edit source files only when no structured API covers the field or structure.
-6. Run `domain_inspect` after any API write or file edit.
-7. Fix diagnostics and re-run `domain_inspect` until the source is ready.
-8. Run `domain_interpret` after the coherent semantic step is ready. Interpret validates source and refreshes derived diagnostic artifacts when enabled; it does not publish, approve, commit, or checkpoint user intent.
-9. Run `domain_regeneration_plan` after interpret when the change can stale generated content, prompts, media, or selections.
+2. For project-scoped planning, content-unit, generation, or style-sensitive work, call `domain_read_project_context_snapshot` before designing or changing source. Treat missing standards as context gaps to mention, not permission to edit.
+3. Query existing context with `domain_query_*` or read derived artifact context with `domain_read_*`.
+4. Call `domain_get_model` before changing a domain entity so editable paths, schema ids, and instructions come from MovScript.
+5. Prefer structured `domain_*` write APIs when they cover the requested operation.
+6. Directly edit source files only when no structured API covers the field or structure.
+7. Run `domain_inspect` after any API write or file edit.
+8. Fix diagnostics and re-run `domain_inspect` until the source is ready.
+9. Run `domain_interpret` after the coherent semantic step is ready. Interpret validates source and refreshes derived diagnostic artifacts when enabled; it does not publish, approve, commit, or checkpoint user intent.
+10. Run `domain_regeneration_plan` after interpret when the change can stale generated content, prompts, media, or selections.
 
 ## Editable Source
 
@@ -123,7 +130,10 @@ Do not directly edit:
 
 - APIs first, source files second. Direct file editing is a controlled fallback, not the default write path.
 - Always pass `projectId` to project-scoped tools, and never use user or organization identity as a project routing shortcut.
+- Read `domain_read_project_context_snapshot` before project-scoped creative work that may depend on house style or constraints. Do not call `domain_upsert_project_standards` merely because the snapshot has missing fields.
+- Use `domain_upsert_project_standards` only when the user explicitly asks to add, remove, refine, replace, or otherwise change project standards. After changing standards, run `domain_inspect`, `domain_interpret`, and `domain_regeneration_plan` when downstream content may be affected.
 - For `domain_upsert_setting` and `domain_upsert_asset`, put the data to write under `payload`; `record` and `entity` are existing-context objects, not the write body.
+- Before calling `domain_upsert_setting`, check that the payload describes a concrete film/music entity, not a style/rule/task. Before calling `domain_upsert_asset`, check that the asset belongs under a named `setting_state` and describes one asset slot for that state.
 - If a direct edit is needed, call `domain_get_model` first and edit only the returned source scope.
 - After completing any user request that changes domain source, run `domain_inspect` and then `domain_interpret` when diagnostics pass and derived domain artifacts should be refreshed. After content candidate, decision, or selection writes, run `domain_interpret` when downstream artifact tools need the latest backend decision metadata.
 - Do not interpret for read-only review, draft-only analysis, or source states with blocking issues; state the reason when interpret is intentionally skipped.

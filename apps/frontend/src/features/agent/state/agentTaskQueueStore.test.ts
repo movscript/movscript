@@ -49,7 +49,11 @@ test('agent task queue facade owns page task enqueue, claim, and settle operatio
 test('agent panel bridge depends on the task queue facade', () => {
   const bridgeSource = readFileSync(resolve('src/features/agent/application/agentPanelBridge.ts'), 'utf8')
   const outputPaneSource = readFileSync(resolve('src/features/agent/components/AgentSessionOutputPane.tsx'), 'utf8')
-  const sidebarSource = readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebar.tsx'), 'utf8')
+  const sidebarSource = [
+    readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebar.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/useProjectAgentModeSidebarController.ts'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/useProjectAgentModeSidebarActions.ts'), 'utf8'),
+  ].join('\n')
   const taskQueueSource = readFileSync(resolve('src/features/agent/state/agentTaskQueueStore.ts'), 'utf8')
 
   assert.match(bridgeSource, /agentTaskQueueStore/)

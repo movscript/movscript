@@ -34,7 +34,7 @@
   line-height: var(--ms-leading-body);
 }
 
-.canvas-context-menu__item .ms-button__content {
+.canvas-context-menu__item-content {
   width: 100%;
   min-width: 0;
   justify-content: flex-start;

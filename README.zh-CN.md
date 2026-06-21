@@ -96,6 +96,10 @@ docker compose down
 docker compose down -v
 ```
 
+## 文档
+
+- [docs/provider-model-route-console-boundaries.zh-CN.md](docs/provider-model-route-console-boundaries.zh-CN.md)
+
 ## 许可证
 
 Movscript 使用 [Apache License 2.0](LICENSE)。

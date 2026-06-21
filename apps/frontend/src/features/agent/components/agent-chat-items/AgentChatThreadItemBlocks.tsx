@@ -17,8 +17,8 @@ const AGENT_CHAT_IMAGE_PREVIEW_THUMBNAIL_MAX_SIZE = 512
 
 export function AgentChatSectionTitle({ title, meta }: { title: string; meta?: Array<string | undefined | null | false> }) {
   return (
-    <div className="ms-agent-chat-section-title">
-      <span className="ms-agent-chat-section-title-text">{title}</span>
+    <div className="agent-chat-section-title">
+      <span className="agent-chat-section-title-text">{title}</span>
       <AgentChatItemMeta values={meta ?? []} />
     </div>
   )
@@ -28,7 +28,7 @@ function AgentChatItemMeta({ values }: { values: Array<string | undefined | null
   const compactValues = values.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
   if (compactValues.length === 0) return null
   return (
-    <span className="ms-agent-chat-meta-list">
+    <span className="agent-chat-meta-list">
       {compactValues.map((value, index) => (
         <AgentChatTinyBadge key={`${index}:${value}`} variant="outline" title={value}>{value}</AgentChatTinyBadge>
       ))}
@@ -41,9 +41,9 @@ export function AgentChatInlineList({ label, values }: { label: string; values: 
   if (compactValues.length === 0) return null
   return (
     <AgentMessageSection title={label} tone="process" defaultOpen={agentChatListDefaultOpen(compactValues.length)}>
-      <div className="ms-agent-chat-inline-list">
+      <div className="agent-chat-inline-list">
         {compactValues.map((value, index) => (
-          <div key={`${index}:${value}`} className="ms-agent-chat-inline-list-item">{value}</div>
+          <div key={`${index}:${value}`} className="agent-chat-inline-list-item">{value}</div>
         ))}
       </div>
     </AgentMessageSection>
@@ -64,14 +64,14 @@ export function AgentChatImagePreviewGrid({
   const hiddenImageCount = visibleImages.length - renderedImages.length
   return (
     <AgentMessageSection title={label} tone="process" defaultOpen>
-      <div className="ms-agent-chat-media-grid" data-kind="image">
+      <div className="agent-chat-media-grid" data-kind="image">
         {renderedImages.map((image, index) => (
           <a
             key={`${index}:${image.url}`}
             href={image.url}
             target="_blank"
             rel="noreferrer"
-            className="ms-agent-chat-media-tile"
+            className="agent-chat-media-tile"
           >
             <ResourceFileImage
               resourceUrl={image.url}
@@ -79,7 +79,7 @@ export function AgentChatImagePreviewGrid({
               loading="lazy"
               decoding="async"
               thumbnailMaxSize={AGENT_CHAT_IMAGE_PREVIEW_THUMBNAIL_MAX_SIZE}
-              className="ms-agent-chat-media-tile__image"
+              className="agent-chat-media-tile__image"
             />
           </a>
         ))}
@@ -107,9 +107,9 @@ export function AgentChatMediaPreviewGrid({
   const hiddenMediaCount = visibleMedia.length - renderedMedia.length
   return (
     <AgentMessageSection title={label} tone="process" defaultOpen>
-      <div className="ms-agent-chat-media-grid" data-kind="media">
+      <div className="agent-chat-media-grid" data-kind="media">
         {renderedMedia.map((item, index) => (
-          <div key={`${index}:${item.url}`} className="ms-agent-chat-media-tile">
+          <div key={`${index}:${item.url}`} className="agent-chat-media-tile">
             {item.kind === 'video' ? (
               <ResourceFileVideo
                 resourceUrl={item.url}
@@ -117,7 +117,7 @@ export function AgentChatMediaPreviewGrid({
                 controls
                 playsInline
                 preload="metadata"
-                className="ms-agent-chat-media-tile__video"
+                className="agent-chat-media-tile__video"
               />
             ) : (
               <ResourceFileAudio
@@ -125,10 +125,10 @@ export function AgentChatMediaPreviewGrid({
                 aria-label={item.label}
                 controls
                 preload="metadata"
-                className="ms-agent-chat-media-tile__audio"
+                className="agent-chat-media-tile__audio"
               />
             )}
-            <div className="ms-agent-chat-media-tile__caption" title={item.mimeType ? `${item.label} ${item.mimeType}` : item.label}>
+            <div className="agent-chat-media-tile__caption" title={item.mimeType ? `${item.label} ${item.mimeType}` : item.label}>
               {item.mimeType ? `${item.label} ${item.mimeType}` : item.label}
             </div>
           </div>
@@ -157,7 +157,7 @@ export function AgentChatPreviewBlock({
   return (
     <AgentMessageSection title={label} tone={tone} defaultOpen={agentChatContentDefaultOpen(contentKind, value)}>
       <AgentChatResultStack>
-        <pre className="ms-agent-chat-pre">{agentChatValuePreview(value)}</pre>
+        <pre className="agent-chat-pre">{agentChatValuePreview(value)}</pre>
       </AgentChatResultStack>
     </AgentMessageSection>
   )
@@ -188,8 +188,8 @@ export function AgentChatInspectBlock({
       tone="neutral"
       defaultOpen={false}
     >
-      <div className="ms-agent-chat-inspect" data-testid="agent-chat-inspect">
-        <div className="ms-agent-chat-inspect-toolbar">
+      <div className="agent-chat-inspect" data-testid="agent-chat-inspect">
+        <div className="agent-chat-inspect-toolbar">
           <span>Protocol payload</span>
           <Button
             type="button"
@@ -205,9 +205,9 @@ export function AgentChatInspectBlock({
         </div>
         <AgentChatResultStack>
           {visibleEntries.map((entry) => (
-            <div key={entry.label} className="ms-agent-chat-inspect-entry" data-tone={entry.tone ?? 'neutral'}>
-              <div className="ms-agent-chat-inspect-label">{entry.label}</div>
-              <pre className="ms-agent-chat-pre">{agentChatValuePreview(entry.value, 8000)}</pre>
+            <div key={entry.label} className="agent-chat-inspect-entry" data-tone={entry.tone ?? 'neutral'}>
+              <div className="agent-chat-inspect-label">{entry.label}</div>
+              <pre className="agent-chat-pre">{agentChatValuePreview(entry.value, 8000)}</pre>
             </div>
           ))}
         </AgentChatResultStack>
@@ -230,7 +230,7 @@ export function AgentChatTextBlock({
   if (!value.trim()) return null
   return (
     <AgentMessageSection title={label} tone={tone} defaultOpen={agentChatContentDefaultOpen(contentKind, value)}>
-      <pre className="ms-agent-chat-pre">{value}</pre>
+      <pre className="agent-chat-pre">{value}</pre>
     </AgentMessageSection>
   )
 }

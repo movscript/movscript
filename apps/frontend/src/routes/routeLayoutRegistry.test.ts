@@ -40,11 +40,6 @@ import {
   CONTENT_CANVAS_INSPECTOR_MIN_WIDTH,
   CONTENT_CANVAS_INSPECTOR_PANE_ID,
   CONTENT_CANVAS_INSPECTOR_WIDTH_STORAGE_KEY,
-  CONTENT_CANVAS_SETTING_CATALOG_DEFAULT_HEIGHT,
-  CONTENT_CANVAS_SETTING_CATALOG_HEIGHT_STORAGE_KEY,
-  CONTENT_CANVAS_SETTING_CATALOG_MAX_HEIGHT,
-  CONTENT_CANVAS_SETTING_CATALOG_MIN_HEIGHT,
-  CONTENT_CANVAS_SETTING_CATALOG_PANE_ID,
   CONTENT_CANVAS_STRUCTURE_DEFAULT_WIDTH,
   CONTENT_CANVAS_STRUCTURE_MAX_WIDTH,
   CONTENT_CANVAS_STRUCTURE_MIN_WIDTH,
@@ -241,14 +236,7 @@ test('route layout registry declares content managed panes', () => {
   assert.equal(route.scrollMode, 'canvas')
   assert.equal(route.projectEntryId, 'content')
 
-  const settingCatalogPane = route.panes.find((pane) => pane.id === CONTENT_CANVAS_SETTING_CATALOG_PANE_ID)
-  assert.equal(settingCatalogPane?.owner, 'workbench')
-  assert.equal(settingCatalogPane?.side, 'top')
-  assert.equal(settingCatalogPane?.defaultSize, CONTENT_CANVAS_SETTING_CATALOG_DEFAULT_HEIGHT)
-  assert.equal(settingCatalogPane?.minSize, CONTENT_CANVAS_SETTING_CATALOG_MIN_HEIGHT)
-  assert.equal(settingCatalogPane?.maxSize, CONTENT_CANVAS_SETTING_CATALOG_MAX_HEIGHT)
-  assert.equal(settingCatalogPane?.storageKey, CONTENT_CANVAS_SETTING_CATALOG_HEIGHT_STORAGE_KEY)
-  assert.equal(settingCatalogPane?.persistState, true)
+  assert.ok(!route.panes.some((pane) => pane.id === 'content-canvas.setting-catalog-pane'))
 
   const structurePane = route.panes.find((pane) => pane.id === CONTENT_CANVAS_STRUCTURE_PANE_ID)
   assert.equal(structurePane?.owner, 'workbench')

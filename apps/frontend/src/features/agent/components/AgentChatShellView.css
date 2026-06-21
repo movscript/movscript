@@ -165,6 +165,12 @@
   padding: 8px 0 12px;
 }
 
+.agent-page-chat-empty-composer {
+  width: min(100%, 760px);
+  margin-top: 18px;
+  pointer-events: auto;
+}
+
 .agent-page-chat-composer .ai-agent-panel-input-card[data-chrome="card"] {
   width: 100%;
   margin: 0;

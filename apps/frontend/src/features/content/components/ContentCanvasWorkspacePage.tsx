@@ -5,7 +5,6 @@ import { useContentCanvasPaneLayout, useContentCanvasRadialLayout } from './cont
 import {
   CanvasStagePanel,
   InspectorPanel,
-  SettingCatalogPanel,
   StructurePanel,
   TimelinePanel,
   selectionKindForContentNode,
@@ -14,29 +13,27 @@ import { useContentCanvasWorkspaceController } from './useContentCanvasWorkspace
 import './ContentCanvasWorkspacePage.css'
 
 export default function ContentCanvasWorkspacePage() {
-  const paneLayout = useContentCanvasPaneLayout()
   const controller = useContentCanvasWorkspaceController()
   const { viewModel } = controller
+  const paneLayout = useContentCanvasPaneLayout({
+    timelineVisible: viewModel.showTimelinePanel,
+  })
   const radialLayout = useContentCanvasRadialLayout({
     projectId: controller.projectId,
     mode: controller.canvasMode,
-    mainNodeId: controller.canvasMode === 'scene_moment' ? viewModel.activeScene?.id : viewModel.activeSetting?.id,
+    mainNodeId: viewModel.activeCanvasNode?.id,
   })
-  const laidOutSceneRelationNodes = useMemo(
-    () => radialLayout.applyNodePositions(viewModel.sceneRelationNodes),
-    [radialLayout, viewModel.sceneRelationNodes],
+  const laidOutStructureRelationNodes = useMemo(
+    () => radialLayout.applyNodePositions(viewModel.structureRelationNodes),
+    [radialLayout, viewModel.structureRelationNodes],
   )
-  const laidOutSceneMainNode = useMemo(
-    () => radialLayout.applyNodePositions([viewModel.sceneMainNode])[0] ?? viewModel.sceneMainNode,
-    [radialLayout, viewModel.sceneMainNode],
+  const laidOutPromptRelationNodes = useMemo(
+    () => radialLayout.applyNodePositions(viewModel.promptRelationNodes),
+    [radialLayout, viewModel.promptRelationNodes],
   )
-  const laidOutSettingRelationNodes = useMemo(
-    () => radialLayout.applyNodePositions(viewModel.settingRelationNodes),
-    [radialLayout, viewModel.settingRelationNodes],
-  )
-  const laidOutSettingMainNode = useMemo(
-    () => viewModel.settingMainNode ? radialLayout.applyNodePositions([viewModel.settingMainNode])[0] : null,
-    [radialLayout, viewModel.settingMainNode],
+  const laidOutCanvasMainNode = useMemo(
+    () => radialLayout.applyNodePositions([viewModel.canvasMainNode])[0] ?? viewModel.canvasMainNode,
+    [radialLayout, viewModel.canvasMainNode],
   )
 
   return (
@@ -46,23 +43,10 @@ export default function ContentCanvasWorkspacePage() {
       data-testid="content-canvas-workspace-page"
       style={paneLayout.style}
     >
-      <SettingCatalogPanel
-        activeKind={controller.activeKind}
-        filteredSettings={viewModel.filteredSettings}
-        isLoading={controller.projectQuery.isLoading}
-        pendingCanvasAction={controller.pendingCanvasAction}
-        projectId={controller.projectId}
-        settingNodesCount={viewModel.settingNodes.length}
-        settingQuery={controller.settingQuery}
-        onActiveKindChange={controller.setActiveKind}
-        onCreateSetting={controller.openSettingCreateDialog}
-        onQueryChange={controller.setSettingQuery}
-        onSelectSetting={controller.selectSetting}
-        resizeHandleProps={paneLayout.settingCatalog.resizeHandleProps}
-      />
-
       <StructurePanel
+        isCreatingSetting={Boolean(controller.pendingCanvasAction?.startsWith('root-setting'))}
         isCreatingStructure={Boolean(controller.pendingCanvasAction?.startsWith('structure-'))}
+        onCreateSetting={controller.openSettingCreateDialog}
         onCreateProduction={controller.openProductionCreateDialog}
         onCreateStructureChild={controller.openStructureChildCreateDialog}
         paneLayout={paneLayout}
@@ -71,20 +55,15 @@ export default function ContentCanvasWorkspacePage() {
       />
 
       <CanvasStagePanel
-        activeScene={viewModel.activeScene}
-        activeSetting={viewModel.activeSetting}
         canvasMode={controller.canvasMode}
         candidateSelections={controller.candidateSelections}
         groupedSettingIds={viewModel.sceneSettingGroupIds}
         radialLayout={radialLayout}
-        sceneCanvasActions={controller.sceneCanvasActions}
-        sceneMainNode={laidOutSceneMainNode}
-        sceneRelationNodes={laidOutSceneRelationNodes}
+        canvasMainNode={laidOutCanvasMainNode}
+        promptRelationNodes={laidOutPromptRelationNodes}
+        structureRelationNodes={laidOutStructureRelationNodes}
         sceneSettingGroups={viewModel.sceneSettingGroups}
         selected={viewModel.inspectorSelection}
-        settingCanvasActions={controller.settingCanvasActions}
-        settingMainNode={laidOutSettingMainNode}
-        settingRelationNodes={laidOutSettingRelationNodes}
         onDropSetting={(settingId, position) => {
           const setting = viewModel.graphIndex.nodeById.get(settingId)
           if (!setting || setting.kind !== 'setting') return
@@ -93,8 +72,6 @@ export default function ContentCanvasWorkspacePage() {
         onGetNodeContextActions={controller.nodeContextActions}
         onModeChange={(mode) => {
           controller.setCanvasMode(mode)
-          if (mode === 'scene_moment' && viewModel.activeScene) controller.selectNode('scene_moment', viewModel.activeScene.id)
-          if (mode === 'setting' && viewModel.activeSetting) controller.selectNode('setting', viewModel.activeSetting.id)
         }}
         onMoveSettingGroup={controller.moveSceneSettingGroup}
         onSelectNode={controller.selectNode}
@@ -107,27 +84,34 @@ export default function ContentCanvasWorkspacePage() {
         draftAssetPrompts={controller.draftAssetPrompts}
         draftExpressionPrompts={controller.draftExpressionPrompts}
         createSelection={controller.createSelection}
-        graphIndex={viewModel.graphIndex}
         paneLayout={paneLayout}
-        referenceAssets={viewModel.sceneSettingAssets}
+        promptReferenceNodes={viewModel.scenePromptReferenceNodes}
         selection={viewModel.inspectorSelection}
+        onCandidateCreate={controller.createCandidateForNode}
+        onCandidatePromptPreview={controller.previewCandidatePromptForNode}
+        onCandidateResourceSelect={controller.createResourceCandidateForNode}
         onCandidateSelect={controller.selectCandidate}
+        onCandidateUpload={controller.uploadCandidateForNode}
         onCreateAsset={controller.createAssetForState}
         onCreateExpressionUnit={controller.createExpressionUnitForScene}
-        onCreateKeyframe={controller.createKeyframeForShot}
+        onCreateKeyframe={controller.createKeyframeForOwner}
         onCreateState={controller.createStateForSetting}
+        onCreateStoryboard={controller.createStoryboardForOwner}
         onExpressionPromptChange={controller.changeExpressionPromptDraft}
+        onExpressionUnitSave={controller.saveExpressionUnit}
         onPromptChange={controller.changeAssetPromptDraft}
         onPromptCommit={controller.commitPromptDraft}
         onSelectNode={controller.selectNode}
       />
 
-      <TimelinePanel
-        emptyText={viewModel.timelineEmptyText}
-        items={viewModel.timelineItems}
-        resizeHandleProps={paneLayout.timeline.resizeHandleProps}
-        title={viewModel.timelineTitle}
-      />
+      {viewModel.showTimelinePanel ? (
+        <TimelinePanel
+          emptyText={viewModel.timelineEmptyText}
+          items={viewModel.timelineItems}
+          resizeHandleProps={paneLayout.timeline.resizeHandleProps}
+          title={viewModel.timelineTitle}
+        />
+      ) : null}
 
       <StructureCreateDialog
         state={controller.structureCreateDialog}
@@ -138,10 +122,11 @@ export default function ContentCanvasWorkspacePage() {
 
       <SettingCreateDialog
         state={controller.settingCreateDialog}
-        isBusy={controller.pendingCanvasAction === 'root-setting'}
+        isBusy={Boolean(controller.pendingCanvasAction?.startsWith('root-setting'))}
         onClose={controller.closeSettingCreateDialog}
         onSubmit={controller.submitSettingCreateDialog}
       />
+
     </section>
   )
 }

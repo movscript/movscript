@@ -156,6 +156,7 @@ export default function InvitePage() {
               ? t('invite.joinButton', { org: invite.org_name })
               : t('invite.registerAndJoin', { org: invite.org_name })}
         </Button>
+
       </div>
     </div>
   )

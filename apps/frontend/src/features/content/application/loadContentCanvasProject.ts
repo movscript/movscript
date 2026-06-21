@@ -13,7 +13,6 @@ export async function loadContentCanvasProject(
     productions,
     segments,
     sceneMoments,
-    shots,
     storyboards,
     expressionUnits,
     contentUnits,
@@ -28,7 +27,6 @@ export async function loadContentCanvasProject(
     service.queryEntities({ entityKind: 'production' }),
     service.queryEntities({ entityKind: 'segment' }),
     service.queryEntities({ entityKind: 'scene_moment' }),
-    service.queryEntities({ entityKind: 'shot' }),
     service.queryEntities({ entityKind: 'storyboard' }),
     service.queryEntities({ entityKind: 'expression_unit' }),
     service.queryEntities({ entityKind: 'content_unit' }),
@@ -70,7 +68,6 @@ export async function loadContentCanvasProject(
     productions: sortEntities(productions),
     segments: sortEntities(segments),
     sceneMoments: sortEntities(sceneMoments),
-    shots: sortEntities(shots),
     storyboards: sortEntities(storyboards),
     expressionUnits: sortEntities(expressionUnits),
     contentUnits: sortEntities(contentUnits),
@@ -110,24 +107,24 @@ function editingProjectsByNodeIdFromWorkspace(
 
 function contentUnitCandidatesFromWorkspace(data: ContentSourceWorkspaceData): Record<string, ContentCanvasCandidate[]> {
   const output: Record<string, ContentCanvasCandidate[]> = {}
+  const directRows: Array<{ contentUnitId: string; candidateCount: number; candidateIds: string[] }> = []
+  for (const [contentUnitId, candidates] of Object.entries(data.contentUnitCandidates ?? {})) {
+    directRows.push({
+      contentUnitId,
+      candidateCount: candidates.length,
+      candidateIds: candidates.map((candidate) => candidate.id),
+    })
+    appendCandidates(output, contentUnitId, candidates.map(contentCanvasCandidateFromPreview))
+  }
   const previewRows: Array<{ contentUnitId: string; candidateCount: number; candidateIds: string[] }> = []
   for (const moment of data.previewMoments) {
-    for (const shot of moment.shots) {
+    for (const expressionUnit of moment.expressionUnits) {
       previewRows.push({
-        contentUnitId: shot.contentUnit.id,
-        candidateCount: shot.contentUnit.candidates.length,
-        candidateIds: shot.contentUnit.candidates.map((candidate) => candidate.id),
+        contentUnitId: expressionUnit.contentUnit.id,
+        candidateCount: expressionUnit.contentUnit.candidates.length,
+        candidateIds: expressionUnit.contentUnit.candidates.map((candidate) => candidate.id),
       })
-      appendCandidates(output, shot.contentUnit.id, shot.contentUnit.candidates.map((candidate): ContentCanvasCandidate => ({
-        id: candidate.id,
-        title: candidate.title,
-        resourceId: candidate.resourceId,
-        resourceKind: candidate.resourceKind,
-        artifactRef: candidate.artifactRef,
-        source: candidate.model,
-        selected: Boolean(candidate.selected),
-        notes: candidate.note || candidate.inputHash,
-      })))
+      appendCandidates(output, expressionUnit.contentUnit.id, expressionUnit.contentUnit.candidates.map(contentCanvasCandidateFromPreview))
     }
   }
   const assetRows: Array<{ contentUnitId: string; assetId: string; candidateCount: number; candidateIds: string[] }> = []
@@ -138,18 +135,10 @@ function contentUnitCandidatesFromWorkspace(data: ContentSourceWorkspaceData): R
       candidateCount: assetUnit.candidates.length,
       candidateIds: assetUnit.candidates.map((candidate) => candidate.id),
     })
-    appendCandidates(output, assetUnit.contentUnitId, assetUnit.candidates.map((candidate): ContentCanvasCandidate => ({
-      id: candidate.id,
-      title: candidate.title,
-      resourceId: candidate.resourceId,
-      resourceKind: candidate.resourceKind,
-      artifactRef: candidate.artifactRef,
-      source: candidate.model,
-      selected: Boolean(candidate.selected),
-      notes: candidate.note || candidate.inputHash,
-    })))
+    appendCandidates(output, assetUnit.contentUnitId, assetUnit.candidates.map(contentCanvasCandidateFromPreview))
   }
   console.log('[content-canvas] map content workspace candidates', {
+    directRows: directRows.filter((row) => row.candidateCount > 0),
     previewRows: previewRows.filter((row) => row.candidateCount > 0),
     assetRows: assetRows.filter((row) => row.candidateCount > 0),
     outputRows: Object.entries(output).map(([contentUnitId, candidates]) => ({
@@ -159,6 +148,27 @@ function contentUnitCandidatesFromWorkspace(data: ContentSourceWorkspaceData): R
     })),
   })
   return output
+}
+
+function contentCanvasCandidateFromPreview(
+  candidate: ContentSourceWorkspaceData['previewMoments'][number]['expressionUnits'][number]['contentUnit']['candidates'][number],
+): ContentCanvasCandidate {
+  return {
+    id: candidate.id,
+    title: candidate.title,
+    resourceId: candidate.resourceId,
+    resourceKind: candidate.resourceKind,
+    artifactRef: candidate.artifactRef,
+    inputHash: candidate.inputHash,
+    source: candidate.source || candidate.model,
+    status: candidate.status,
+    producer: candidate.producer,
+    outputs: candidate.outputs,
+    promptSnapshot: candidate.promptSnapshot,
+    createdAt: candidate.createdAt,
+    selected: Boolean(candidate.selected),
+    notes: candidate.note || candidate.inputHash,
+  }
 }
 
 function appendCandidates(

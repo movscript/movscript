@@ -8,11 +8,15 @@ const packageAgentCss = readSource('packages/ui/src/components/business/agent/st
 const agentModeUiSource = readSource('apps/frontend/src/features/agent/components/AgentModeUi.tsx')
 const agentModeUiCss = readSource('apps/frontend/src/features/agent/components/AgentModeUi.css')
 const agentModeSidebarCss = readSource('apps/frontend/src/features/agent/components/AgentModeUi.sidebar.css')
+const agentModeSidebarConversationCss = readSource('apps/frontend/src/features/agent/components/AgentModeUi.sidebar-conversations.css')
+const agentModeSidebarUserCss = readSource('apps/frontend/src/features/agent/components/AgentModeUi.sidebar-user.css')
 const agentModeWorkspaceCss = readSource('apps/frontend/src/features/agent/components/AgentModeUi.workspace.css')
 const agentModePanelsCss = readSource('apps/frontend/src/features/agent/components/AgentModeUi.panels.css')
 const projectAgentModeSource = [
   readSource('apps/frontend/src/features/agent/components/ProjectAgentModePage.tsx'),
   readSource('apps/frontend/src/features/agent/components/ProjectAgentModeSidebar.tsx'),
+  readSource('apps/frontend/src/features/agent/components/useProjectAgentModeSidebarController.ts'),
+  readSource('apps/frontend/src/features/agent/components/useProjectAgentModeSidebarActions.ts'),
   readSource('apps/frontend/src/features/agent/components/ProjectAgentModeSidebarModel.ts'),
   readSource('apps/frontend/src/features/agent/components/ProjectAgentModeSidebarView.tsx'),
   readSource('apps/frontend/src/features/agent/components/ProjectAgentModeSidebarParts.tsx'),
@@ -28,6 +32,8 @@ test('agent mode UI is owned by the frontend feature boundary', () => {
 
   assert.match(agentModeUiSource, /import '\.\/AgentModeUi\.css'/)
   assert.match(agentModeUiCss, /@import "\.\/AgentModeUi\.sidebar\.css"/)
+  assert.match(agentModeUiCss, /@import "\.\/AgentModeUi\.sidebar-conversations\.css"/)
+  assert.match(agentModeUiCss, /@import "\.\/AgentModeUi\.sidebar-user\.css"/)
   assert.match(agentModeUiCss, /@import "\.\/AgentModeUi\.workspace\.css"/)
   assert.match(agentModeUiCss, /@import "\.\/AgentModeUi\.panels\.css"/)
   assert.match(agentModeUiSource, /from '@movscript\/ui\/layout'/)
@@ -50,6 +56,8 @@ test('agent mode UI is owned by the frontend feature boundary', () => {
   assert.match(agentModeWorkspaceCss, /\.agent-mode-workspace\s*\{/)
   assert.match(agentModePanelsCss, /\.agent-mode-content-panel\s*\{/)
   assert.match(projectAgentModeSource, /from '@\/features\/agent\/components\/AgentModeUi'/)
+  assert.match(agentModeSidebarConversationCss, /\.agent-mode-conversation-row\s*\{/)
+  assert.match(agentModeSidebarUserCss, /\.agent-mode-user-trigger\s*\{/)
   assert.doesNotMatch(projectAgentModeSource, /AgentMode[A-Za-z0-9_]*[\s\S]*from '@movscript\/ui\/business\/agent'/)
 })
 

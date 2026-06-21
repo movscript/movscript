@@ -15,7 +15,7 @@ test('renderer production code accesses window.api only through the Electron API
     const path = relative(root, file)
     const source = readFileSync(file, 'utf8')
     if (path === electronApiAccessPath) {
-      assert.match(source, /return window\.api/)
+      assert.match(source, /return \(window as Window & \{ api\?: ElectronAPI \}\)\.api/)
       continue
     }
     assert.doesNotMatch(source, /window\.api\b/, `${path} must use readElectronApi()`)

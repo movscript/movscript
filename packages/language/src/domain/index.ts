@@ -22,7 +22,6 @@ export {
   projectEntitySchema,
   projectStandardsEntitySchema,
   sceneMomentEntitySchema,
-  shotEntitySchema,
   scriptBlockEntitySchema,
   scriptEntitySchema,
   scriptVersionEntitySchema,

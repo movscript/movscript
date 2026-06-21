@@ -77,6 +77,9 @@ Open `references/domain-story.md` when the task depends on the meaning of produc
 - Generated/imported resources become effective domain state only through backend-stored candidates and selections. A candidate is not a stable dependency until selected.
 - Content-unit candidate decisions are `adopt`, `reject`, or `defer`. `adopt` selects the candidate as stable output/reference, while `reject` and `defer` only annotate the candidate and must not unblock downstream stable generation.
 - Affected does not mean regenerate. Affected means the downstream target needs an explicit keep, relink, re-prompt, regenerate, re-shoot, deprecate, or accept-stale decision.
+- `setting` must be a concrete film/music production entity to be made or reused, such as `主角-老张`, `道具-玉玺`, a place, an instrument, a costume, or a voice identity. Do not create settings for abstract styles, world rules, genres, moods, or one-off prompt notes; use project standards or the relevant production/expression fields instead.
+- `setting_state` is a namespace under exactly one setting for a named condition/version of that same entity, such as base look, wet hair, damaged prop, side-view variant, formal costume, calm voice, or angry voice.
+- `asset` is a resource slot under a setting state that describes that state, such as front view, side view, turnaround sheet, material reference, voice timbre, or instrument tone. For image asset generation, prefer plain white or very clean backgrounds unless the user explicitly asks for scene context.
 
 ## Tool Map
 
@@ -124,6 +127,7 @@ Do not directly edit:
 - APIs first, source files second. Direct file editing is a controlled fallback, not the default write path.
 - Always pass `projectId` to project-scoped tools, and never use user or organization identity as a project routing shortcut.
 - For `domain_upsert_setting` and `domain_upsert_asset`, put the data to write under `payload`; `record` and `entity` are existing-context objects, not the write body.
+- Before calling `domain_upsert_setting`, check that the payload describes a concrete film/music entity, not a style/rule/task. Before calling `domain_upsert_asset`, check that the asset belongs under a named `setting_state` and describes one asset slot for that state.
 - If a direct edit is needed, call `domain_get_model` first and edit only the returned source scope.
 - After completing any user request that changes domain source, run `domain_inspect` and then `domain_interpret` when diagnostics pass and derived domain artifacts should be refreshed. After content candidate, decision, or selection writes, run `domain_interpret` when downstream artifact tools need the latest backend decision metadata.
 - Do not interpret for read-only review, draft-only analysis, or source states with blocking issues; state the reason when interpret is intentionally skipped.

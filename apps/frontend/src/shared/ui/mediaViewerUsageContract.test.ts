@@ -43,7 +43,7 @@ test('canvas resource image previews use ResourceImage instead of direct AuthedI
 })
 
 test('shot library custom clip player uses ResourceVideo for resource playback', () => {
-  const source = readFileSync(resolve('src/features/shot-library/components/ShotLibraryImportDialog.tsx'), 'utf8')
+  const source = readFileSync(resolve('src/features/shot-library/components/ShotLibraryImportClipPlayer.tsx'), 'utf8')
 
   assert.match(source, /import \{ ResourceVideo \}/)
   assert.match(source, /<ResourceVideo[\s\S]*ref=\{videoRef\}[\s\S]*resource=\{resource\}/)
@@ -55,7 +55,7 @@ test('resource page previews use shared MediaViewer primitives', () => {
   const itemsSource = readFileSync(resolve('src/features/resources/components/ResourcesPageItems.tsx'), 'utf8')
 
   assert.match(pageSource, /import \{ MediaViewer \}/)
-  assert.match(pageSource, /<MediaViewer[\s\S]*resource=\{previewResource\}/)
+  assert.match(pageSource, /<MediaViewer[\s\S]*resource=\{controller\.previewResource\}/)
   assert.doesNotMatch(pageSource, /<video/)
   assert.doesNotMatch(pageSource, /<img/)
 
@@ -94,14 +94,16 @@ test('contenteditable resource chips use shared DOM media helpers', () => {
 
 test('video metadata and thumbnail probing is isolated to shared helpers', () => {
   const shotLibrarySource = readFileSync(resolve('src/features/shot-library/components/ShotLibraryPage.tsx'), 'utf8')
+  const shotImportControllerSource = readFileSync(resolve('src/features/shot-library/components/useShotLibraryImportController.ts'), 'utf8')
   const shotPreparationSource = readFileSync(resolve('src/features/shot-library/components/shotLibraryImportPreparation.ts'), 'utf8')
   const probeSource = readFileSync(resolve('src/shared/ui/VideoProbe.ts'), 'utf8')
 
-  assert.match(shotLibrarySource, /loadVideoMetadataFromObjectUrl/)
+  assert.match(shotImportControllerSource, /loadVideoMetadataFromObjectUrl/)
   assert.match(shotPreparationSource, /import \{ captureVideoThumbnails, loadVideoProbeMetadataFromObjectUrl \}/)
   assert.match(shotPreparationSource, /loadVideoProbeMetadataFromObjectUrl\(url, cleanup, VIDEO_METADATA_TIMEOUT_MS\)/)
   assert.match(shotPreparationSource, /captureVideoThumbnails\(/)
   assert.doesNotMatch(shotLibrarySource, /document\.createElement\('video'\)/)
+  assert.doesNotMatch(shotImportControllerSource, /document\.createElement\('video'\)/)
 
   assert.match(probeSource, /document\.createElement\('video'\)/)
   assert.match(probeSource, /document\.createElement\('canvas'\)/)
@@ -146,6 +148,7 @@ test('resource downloads use the shared download helper instead of MediaViewer e
   const mediaViewerSource = readFileSync(resolve('src/shared/ui/MediaViewer.tsx'), 'utf8')
   const downloadSource = readFileSync(resolve('src/shared/ui/resourceDownload.ts'), 'utf8')
   const resourcesSource = readFileSync(resolve('src/features/resources/components/ResourcesPage.tsx'), 'utf8')
+  const resourceLibraryControllerSource = readFileSync(resolve('src/features/resources/components/useResourceLibraryController.ts'), 'utf8')
   const resourceListSource = readFileSync(resolve('src/features/resources/components/ResourcesPageLibraryContent.tsx'), 'utf8')
 
   assert.match(mediaViewerSource, /import \{ downloadResource \}/)
@@ -155,11 +158,13 @@ test('resource downloads use the shared download helper instead of MediaViewer e
   assert.match(downloadSource, /createObjectUrl\(blob\)/)
   assert.match(downloadSource, /a\.download = resource\.name/)
 
-  assert.match(resourcesSource, /import \{ downloadResource \} from '@\/shared\/ui\/resourceDownload'/)
-  assert.match(resourcesSource, /onDownloadResource=\{downloadResource\}/)
+  assert.match(resourceLibraryControllerSource, /import \{ downloadResource \} from '@\/shared\/ui\/resourceDownload'/)
+  assert.match(resourcesSource, /onDownloadResource=\{controller\.downloadResource\}/)
   assert.match(resourceListSource, /onDownload=\{\(\) => onDownloadResource\(resource\)\}/)
   assert.doesNotMatch(resourcesSource, /from '@\/shared\/ui\/MediaViewer'.*downloadResource/)
+  assert.doesNotMatch(resourceLibraryControllerSource, /from '@\/shared\/ui\/MediaViewer'.*downloadResource/)
   assert.doesNotMatch(resourcesSource, /downloadResource\(resolveResourceUrl\(r\), r\.name\)/)
+  assert.doesNotMatch(resourceLibraryControllerSource, /downloadResource\(resolveResourceUrl\(r\), r\.name\)/)
 })
 
 test('resource blob loading is isolated to the shared blob helper', () => {
@@ -170,12 +175,12 @@ test('resource blob loading is isolated to the shared blob helper', () => {
   const authedSource = readFileSync(resolve('src/shared/ui/AuthedImage.tsx'), 'utf8')
   const chipSource = readFileSync(resolve('src/shared/ui/ResourceChipDom.ts'), 'utf8')
   const resourcesSource = readFileSync(resolve('src/features/resources/components/ResourcesPage.tsx'), 'utf8')
-  const shotSource = readFileSync(resolve('src/features/shot-library/components/ShotLibraryPage.tsx'), 'utf8')
+  const shotImportControllerSource = readFileSync(resolve('src/features/shot-library/components/useShotLibraryImportController.ts'), 'utf8')
 
   assert.match(blobSource, /responseType: 'blob'/)
   assert.match(authedSource, /loadResourceUrlBlob\(src\)/)
   assert.match(chipSource, /loadResourceBlob\(resource\)/)
-  assert.match(shotSource, /loadResourceVideoBlob\(resource,/)
+  assert.match(shotImportControllerSource, /loadResourceVideoBlob\(resource,/)
   assert.doesNotMatch(resourcesSource, /loadResourceBlob\(resource,/)
 
   const offenders = listSourceFiles(resolve('src'))
@@ -212,13 +217,13 @@ test('object URL lifecycle is isolated to the shared object URL helper', () => {
   const objectUrlSource = readFileSync(resolve('src/shared/ui/objectUrl.ts'), 'utf8')
   const composerSource = readFileSync(resolve('src/features/agent/presentation/useAgentComposerController.ts'), 'utf8')
   const resourcesSource = readFileSync(resolve('src/features/resources/components/ResourcesPage.tsx'), 'utf8')
-  const shotSource = readFileSync(resolve('src/features/shot-library/components/ShotLibraryPage.tsx'), 'utf8')
+  const shotImportControllerSource = readFileSync(resolve('src/features/shot-library/components/useShotLibraryImportController.ts'), 'utf8')
 
   assert.match(objectUrlSource, /URL\.createObjectURL/)
   assert.match(objectUrlSource, /URL\.revokeObjectURL/)
   assert.match(composerSource, /createObjectUrl\(file\)/)
   assert.doesNotMatch(resourcesSource, /createObjectUrl\(blob\)/)
-  assert.match(shotSource, /revokeObjectUrl\(current\?\.objectUrl\)/)
+  assert.match(shotImportControllerSource, /revokeObjectUrl\(current\?\.objectUrl\)/)
 
   const offenders = listSourceFiles(resolve('src'))
     .map((file) => ({ file, source: readFileSync(file, 'utf8'), relativePath: relative(process.cwd(), file) }))
@@ -437,12 +442,12 @@ test('agent chat attachment previews use authorized resource media primitives', 
 test('agent chat attachment media previews preserve intrinsic media dimensions', () => {
   const source = readFileSync(resolve('src/features/agent/components/AgentChatItemsUi.css'), 'utf8')
 
-  assert.match(source, /\.ms-agent-chat-media-grid \{[\s\S]*display: flex;[\s\S]*flex-wrap: wrap;/)
-  assert.match(source, /\.ms-agent-chat-media-tile \{[\s\S]*width: fit-content;[\s\S]*max-width: 100%;/)
-  assert.match(source, /\.ms-agent-chat-media-tile__image \{[\s\S]*width: auto;[\s\S]*height: auto;[\s\S]*max-width: min\(100%, 520px\);[\s\S]*object-fit: contain;/)
-  assert.match(source, /\.ms-agent-chat-media-tile__video \{[\s\S]*width: auto;[\s\S]*height: auto;[\s\S]*max-width: min\(100%, 560px\);[\s\S]*object-fit: contain;/)
-  assert.doesNotMatch(source, /\.ms-agent-chat-media-tile__image \{[\s\S]*height: 128px;/)
-  assert.doesNotMatch(source, /\.ms-agent-chat-media-tile__video \{[\s\S]*aspect-ratio: 16 \/ 9;/)
+  assert.match(source, /\.agent-chat-media-grid \{[\s\S]*display: flex;[\s\S]*flex-wrap: wrap;/)
+  assert.match(source, /\.agent-chat-media-tile \{[\s\S]*width: fit-content;[\s\S]*max-width: 100%;/)
+  assert.match(source, /\.agent-chat-media-tile__image \{[\s\S]*width: auto;[\s\S]*height: auto;[\s\S]*max-width: min\(100%, 520px\);[\s\S]*object-fit: contain;/)
+  assert.match(source, /\.agent-chat-media-tile__video \{[\s\S]*width: auto;[\s\S]*height: auto;[\s\S]*max-width: min\(100%, 560px\);[\s\S]*object-fit: contain;/)
+  assert.doesNotMatch(source, /\.agent-chat-media-tile__image \{[\s\S]*height: 128px;/)
+  assert.doesNotMatch(source, /\.agent-chat-media-tile__video \{[\s\S]*aspect-ratio: 16 \/ 9;/)
 })
 
 function listSourceFiles(dir: string): string[] {

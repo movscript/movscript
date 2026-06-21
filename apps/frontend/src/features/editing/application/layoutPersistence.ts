@@ -14,6 +14,7 @@ import type { EditingLayoutSizes } from '../domain/types'
 import { clampNumber } from '../domain/utils'
 import { readBrowserStorageItem, removeBrowserStorageItem, writeBrowserStorageItem } from '@/shared/infrastructure/browserStorage'
 import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
+import { listenToWindowEvent, publishWindowEvent } from '@/shared/infrastructure/windowEvents'
 
 const EDITING_LAYOUT_DESKTOP_STATE_KEY = 'movscript-editing-workspace-layout-v1'
 const EDITING_LAYOUT_CHANGED_EVENT = 'movscript:editing-layout-changed'
@@ -34,11 +35,7 @@ export function readEditingLayoutSizes(): EditingLayoutSizes {
 
 export function subscribeEditingLayoutSizes(listener: () => void): () => void {
   if (typeof window === 'undefined') return () => undefined
-  if (typeof window.addEventListener !== 'function' || typeof window.removeEventListener !== 'function') {
-    return () => undefined
-  }
-  window.addEventListener(EDITING_LAYOUT_CHANGED_EVENT, listener)
-  return () => window.removeEventListener(EDITING_LAYOUT_CHANGED_EVENT, listener)
+  return listenToWindowEvent(EDITING_LAYOUT_CHANGED_EVENT, listener)
 }
 
 export function persistEditingLayoutSizes(sizes: EditingLayoutSizes): void {
@@ -124,8 +121,8 @@ function syncEditingLayoutWindow(): void {
 
 function dispatchEditingLayoutChanged(): void {
   if (typeof window === 'undefined') return
-  if (typeof window.dispatchEvent !== 'function' || typeof Event === 'undefined') return
-  window.dispatchEvent(new Event(EDITING_LAYOUT_CHANGED_EVENT))
+  if (typeof Event === 'undefined') return
+  publishWindowEvent(new Event(EDITING_LAYOUT_CHANGED_EVENT))
 }
 
 export function defaultEditingLayoutSizes(): EditingLayoutSizes {

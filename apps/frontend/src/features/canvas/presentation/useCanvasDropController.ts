@@ -32,7 +32,7 @@ export function useCanvasDropController({
   addNodeAt: (type: NodeType, clientPosition?: CanvasClientPoint) => void
   addWorkflowReferenceNodeAt: (workflowCanvas: Canvas, clientPosition: CanvasClientPoint) => Promise<void>
   canvasCoordinateSpace: CanvasFlowCoordinateSpace
-  canvasPaneRef: RefObject<HTMLDivElement>
+  canvasPaneRef: RefObject<HTMLDivElement | null>
   setNodes: Dispatch<SetStateAction<Node[]>>
   t: TFunction
 }) {

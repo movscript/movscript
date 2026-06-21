@@ -2,6 +2,7 @@ import type {
   MovScriptWorkspaceDomainIndex,
   MovScriptWorkspaceIndexedEntity,
 } from '@movscript/workspace/indexer'
+import { formatResourceMention } from '@movscript/workspace'
 import { queryMovScriptWorkspaceEntities } from '@movscript/workspace/indexer'
 import {
   entityPathSlug,
@@ -9,7 +10,7 @@ import {
 } from '@movscript/workspace/layout'
 
 export type MovScriptPromptOutputKind = 'image' | 'video' | 'audio' | 'text' | 'metadata'
-export type MovScriptPromptRefKind = 'production' | 'segment' | 'asset' | 'keyframe' | 'storyboard' | 'scene_moment' | 'expression_unit' | 'shot' | 'content_unit'
+export type MovScriptPromptRefKind = 'production' | 'segment' | 'asset' | 'keyframe' | 'storyboard' | 'scene_moment' | 'expression_unit' | 'content_unit' | 'candidate' | 'resource'
 export type MovScriptPromptRefRole = 'input'
 
 export interface MovScriptPromptRef {
@@ -192,6 +193,19 @@ export async function buildContentUnitBackendPrompt(
   const resolvedRefs: MovScriptResolvedPromptRef[] = []
   for (const ref of refs) {
     const role: MovScriptPromptRefRole = 'input'
+    const directRef = await resolveDirectPromptResourceRef({
+      ref,
+      role,
+      contentUnit: input.contentUnit,
+      contentUnitRef,
+      decisionProvider: input.decisionProvider,
+      decisionCache,
+    })
+    if (directRef) {
+      if (directRef.blocker) blockers.push(directRef.blocker)
+      resolvedRefs.push(directRef)
+      continue
+    }
     const entity = resolvePromptRefEntity(input.index, ref)
     const base: MovScriptResolvedPromptRef = {
       ...ref,
@@ -450,6 +464,101 @@ function blockerForDecision(
   return undefined
 }
 
+async function resolveDirectPromptResourceRef(input: {
+  ref: MovScriptPromptRef
+  role: MovScriptPromptRefRole
+  contentUnit: MovScriptWorkspaceIndexedEntity
+  contentUnitRef: string
+  decisionProvider: MovScriptContentUnitDecisionProvider
+  decisionCache: Map<string, Promise<MovScriptPromptDecisionContext | undefined>>
+}): Promise<MovScriptResolvedPromptRef | undefined> {
+  const { ref, role } = input
+  if (ref.kind === 'resource') {
+    const resourceId = resourceIdField(ref.id)
+    if (resourceId === undefined) {
+      const blocker: MovScriptPromptBuildBlocker = {
+        code: 'ref_not_found',
+        ref: ref.raw,
+        resource_ref: ref.id,
+        message: `prompt resource ref does not resolve: ${ref.raw}`,
+      }
+      return { ...ref, role, blocker }
+    }
+    return {
+      ...ref,
+      role,
+      resolved: {
+        entityKind: 'resource',
+        id: resourceId,
+      },
+      resource_id: resourceId,
+      replacement: resourceToken(resourceId),
+    }
+  }
+  if (ref.kind !== 'candidate') return undefined
+  if (input.contentUnit.id === undefined) {
+    const blocker: MovScriptPromptBuildBlocker = {
+      code: 'content_unit_id_missing',
+      ref: ref.raw,
+      content_unit_ref: input.contentUnitRef,
+      message: `content unit is missing id for candidate ref: ${ref.raw}`,
+    }
+    return { ...ref, role, blocker }
+  }
+  const decision = await decisionFor(
+    input.decisionProvider,
+    input.decisionCache,
+    input.contentUnit.id,
+    input.contentUnitRef,
+  )
+  if (!decision) {
+    const blocker: MovScriptPromptBuildBlocker = {
+      code: 'decision_context_missing',
+      ref: ref.raw,
+      content_unit_ref: input.contentUnitRef,
+      content_unit_id: input.contentUnit.id,
+      message: `prompt candidate ref has no backend decision context: ${ref.raw}`,
+    }
+    return { ...ref, role, blocker }
+  }
+  const candidate = Array.isArray(decision.candidates)
+    ? decision.candidates.find((item) => sameId(item.id, ref.id))
+    : undefined
+  if (!candidate) {
+    const blocker: MovScriptPromptBuildBlocker = {
+      code: 'upstream_candidate_missing',
+      ref: ref.raw,
+      content_unit_ref: input.contentUnitRef,
+      content_unit_id: input.contentUnit.id,
+      message: `prompt candidate ref is missing: ${ref.raw}`,
+    }
+    return { ...ref, role, blocker }
+  }
+  const resourceId = firstCandidateResourceId(candidate)
+  if (resourceId === undefined) {
+    const blocker: MovScriptPromptBuildBlocker = {
+      code: 'upstream_resource_missing',
+      ref: ref.raw,
+      content_unit_ref: input.contentUnitRef,
+      content_unit_id: input.contentUnit.id,
+      message: `prompt candidate ref has no resource_id: ${ref.raw}`,
+    }
+    return { ...ref, role, blocker }
+  }
+  return {
+    ...ref,
+    role,
+    resolved: {
+      entityKind: 'candidate',
+      id: ref.id,
+    },
+    upstream_content_unit_ref: input.contentUnitRef,
+    upstream_content_unit_id: input.contentUnit.id,
+    resource_id: resourceId,
+    replacement: resourceToken(resourceId),
+  }
+}
+
 function selectedDecision(decision: MovScriptPromptDecisionContext): Record<string, unknown> | undefined {
   const selection = recordField(decision.selection)
   return selection && Object.keys(selection).length > 0 ? selection : undefined
@@ -494,6 +603,7 @@ function resolvePromptRefEntity(
   index: MovScriptWorkspaceDomainIndex,
   ref: MovScriptPromptRef,
 ): MovScriptWorkspaceIndexedEntity | undefined {
+  if (ref.kind === 'candidate' || ref.kind === 'resource') return undefined
   if (ref.kind === 'content_unit') {
     return queryMovScriptWorkspaceEntities(index, { entityKind: 'content_unit' })
       .find((entity) => entity.id !== undefined && sameEntityRef(entity.id, ref.id, 'content_unit')
@@ -506,6 +616,7 @@ function resolveContentUnitForPromptRef(
   index: MovScriptWorkspaceDomainIndex,
   ref: MovScriptPromptRef,
 ): MovScriptWorkspaceIndexedEntity | undefined {
+  if (ref.kind === 'candidate' || ref.kind === 'resource') return undefined
   if (ref.kind === 'content_unit') return resolvePromptRefEntity(index, ref)
   const expectedTypes = contentUnitTypesForPromptRefKind(ref.kind)
   return queryMovScriptWorkspaceEntities(index, { entityKind: 'content_unit' })
@@ -544,8 +655,6 @@ function flatPrimaryRefIds(record: Record<string, unknown>, kind: MovScriptPromp
       return compactStrings(record.target_kind === 'scene_moment' ? record.target_ref : undefined, record.scene_moment_ref, record.scence_moment_ref)
     case 'expression_unit':
       return compactStrings(record.target_kind === 'expression_unit' ? record.target_ref : undefined, record.expression_unit_ref)
-    case 'shot':
-      return compactStrings(record.shot_ref)
     case 'content_unit':
       return compactStrings(record.content_unit_ref)
     default:
@@ -576,7 +685,7 @@ function lastPathSegment(value: unknown): string | undefined {
 
 function findEntityByRef(
   index: MovScriptWorkspaceDomainIndex,
-  entityKind: Exclude<MovScriptPromptRefKind, 'content_unit'>,
+  entityKind: Exclude<MovScriptPromptRefKind, 'content_unit' | 'candidate' | 'resource'>,
   ref: unknown,
 ): MovScriptWorkspaceIndexedEntity | undefined {
   const value = idField(ref)
@@ -598,8 +707,9 @@ function promptRefKind(value: string | undefined): MovScriptPromptRefKind | unde
     case 'storyboard':
     case 'scene_moment':
     case 'expression_unit':
-    case 'shot':
     case 'content_unit':
+    case 'candidate':
+    case 'resource':
       return value
     default:
       return undefined
@@ -623,14 +733,13 @@ function primaryRefKindForContentUnitType(contentUnitType: string): MovScriptPro
       return 'scene_moment'
     case 'expression_unit_ref':
       return 'expression_unit'
-    case 'shot_ref':
-      return 'shot'
     default:
       return undefined
   }
 }
 
 function contentUnitTypesForPromptRefKind(kind: MovScriptPromptRefKind): string[] {
+  if (kind === 'candidate' || kind === 'resource') return []
   if (kind === 'scene_moment') return ['scence_moment_ref', 'scene_moment_ref']
   if (kind === 'expression_unit') return ['expression_unit_ref']
   return [`${kind}_ref`]
@@ -689,7 +798,7 @@ function resourceIdsFromValue(value: unknown): number[] {
 }
 
 function resourceToken(resourceId: number): string {
-  return `[[resource::${String(resourceId)}]]`
+  return formatResourceMention(resourceId)
 }
 
 function entityDir(path: string): string {

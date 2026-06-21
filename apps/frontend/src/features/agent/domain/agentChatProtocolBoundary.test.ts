@@ -13,6 +13,7 @@ test('agent chat uses neutral protocol through Agent runtime boundaries', () => 
   const agentRuntimeProtocol = readSource('src/shared/infrastructure/agent-runtime/agentRuntimeProtocol.ts')
   const sdkRuntimeProtocol = readSource('src/shared/infrastructure/sdk-runtime/sdkRuntimeProtocol.ts')
   const runtimeCatalog = readSource('src/shared/infrastructure/providerRuntimeApiCatalog.ts')
+  const runtimeCatalogContracts = readSource('src/shared/infrastructure/providerRuntimeApiCatalogContracts.ts')
   const appServerRuntimeBackend = readSource('electron/services/appServerRuntimeBackend.ts')
   const appServerRuntimeHandler = readSource('electron/services/appServerRuntimeHandler.ts')
   const sdkRuntimeBackend = readSource('electron/services/sdkRuntimeBackend.ts')
@@ -31,6 +32,7 @@ test('agent chat uses neutral protocol through Agent runtime boundaries', () => 
   const sdkRuntimeHost = readSource('electron/services/sdkRuntimeHost.ts')
   const agentRuntimeShell = readSource('src/features/agent/components/AgentRuntimeChatShell.tsx')
   const providerConfigStore = readSource('src/shared/infrastructure/providerConfigStore.ts')
+  const providerConfigModel = readSource('src/shared/infrastructure/providerConfigModel.ts')
   const providerConfigDefaults = readSource('src/shared/infrastructure/providerConfigDefaults.ts')
   const electronApi = readSource('src/shared/contracts/electronApi.ts')
   const electronRuntimeContract = readSource('src/shared/contracts/electronApiSdkRuntime.ts')
@@ -60,7 +62,8 @@ test('agent chat uses neutral protocol through Agent runtime boundaries', () => 
   assert.match(runtimeCatalog, /export interface RuntimeBackendSupportContract/)
   assert.match(runtimeCatalog, /support: RuntimeBackendSupportContract/)
   assert.match(runtimeCatalog, /runtimeBackendSupport/)
-  assert.match(runtimeCatalog, /transport: 'app-server'/)
+  assert.match(runtimeCatalogContracts, /transport: 'app-server'/)
+  assert.match(runtimeCatalogContracts, /AGENT_RUNTIME_REQUIRED_RPC_METHODS/)
   assert.match(agentRuntimeProtocol, /support: ProviderRuntimeApiContract\['support'\]/)
   assert.match(agentRuntimeCapabilities, /export function agentRuntimeCapabilitiesResponse/)
   assert.match(agentRuntimeCapabilities, /runtimeBackendUnsupportedReasons/)
@@ -135,9 +138,11 @@ test('agent chat uses neutral protocol through Agent runtime boundaries', () => 
     assert.doesNotMatch(source, /providerSessionClient/)
   }
 
-  assert.match(providerConfigStore, /export type BuiltInProviderProtocol = 'sdk' \| 'claude-code'/)
-  assert.match(providerConfigStore, /export type BuiltInProviderRuntimeApi = 'codex-app-server' \| 'mova-app-server' \| 'codex-sdk' \| 'mova-sdk' \| 'claude-sdk'/)
+  assert.match(providerConfigStore, /from '@\/shared\/infrastructure\/providerConfigModel'/)
+  assert.match(providerConfigModel, /export type BuiltInProviderProtocol = 'sdk' \| 'claude-code'/)
+  assert.match(providerConfigModel, /export type BuiltInProviderRuntimeApi = 'codex-app-server' \| 'mova-app-server' \| 'codex-sdk' \| 'mova-sdk' \| 'claude-sdk'/)
   assert.doesNotMatch(providerConfigStore, /appServerProfile|usesAppServerProtocol|resolveAppServerProfile|providerSupportsAppServerRuntime/)
+  assert.doesNotMatch(providerConfigModel, /appServerProfile|usesAppServerProtocol|resolveAppServerProfile|providerSupportsAppServerRuntime/)
   assert.doesNotMatch(providerConfigDefaults, /DEFAULT_CODEX_MOVSCRIPT_HOME_PROFILE|DEFAULT_MOVA_MOVSCRIPT_HOME_PROFILE|MOVSCRIPT_MANAGED_CODEX_HOME|MOVSCRIPT_MANAGED_MOVA_HOME/)
   assert.doesNotMatch(electronApi, /ensureAppServer|getAppServerStatus|stopAppServer|distributeAppServerConfig|appServerHub/)
   assert.doesNotMatch(electronContractTypes, /electronApiAppServer/)
@@ -178,7 +183,10 @@ test('agent chat item rendering stays layered around neutral core items', () => 
 
 test('ordinary agent chat surfaces do not import provider-session clients', () => {
   const dataSourceShell = readSource('src/features/agent/components/AgentChatDataSourceShell.tsx')
-  const dataSourceShellController = readSource('src/features/agent/application/useAgentChatDataSourceShellController.ts')
+  const dataSourceShellController = [
+    readSource('src/features/agent/application/useAgentChatDataSourceShellController.ts'),
+    readSource('src/features/agent/application/useAgentChatDataSourceShellRuntimeSetup.ts'),
+  ].join('\n')
   const ordinaryChatSources = [
     dataSourceShell,
     readSource('src/features/agent/components/AgentRuntimeChatShell.tsx'),
@@ -313,6 +321,24 @@ test('provider-session tree ids are explicit in core compatibility models', () =
   assert.match(planUi, /providerSessionTreeId = run\.providerSessionTreeId\?\.trim\(\) \|\| run\.sessionId\?\.trim\(\)/)
 })
 
+test('agent plan artifact projections stay isolated from the plan overview model', () => {
+  const planUi = readSource('src/features/agent/domain/agentPlanUi.ts')
+  const planArtifactUi = readSource('src/features/agent/domain/agentPlanArtifactUi.ts')
+
+  assert.match(planUi, /from '@\/features\/agent\/domain\/agentPlanArtifactUi'/)
+  assert.match(planUi, /buildPlanArtifactSummary/)
+  assert.match(planUi, /buildTaskArtifactViews/)
+  assert.doesNotMatch(planUi, /export function buildPlanArtifactSummary/)
+  assert.doesNotMatch(planUi, /export function buildTaskArtifactViews/)
+  assert.doesNotMatch(planUi, /function formatArtifactView/)
+
+  assert.match(planArtifactUi, /export function buildPlanArtifactSummary/)
+  assert.match(planArtifactUi, /export function buildTaskArtifactViews/)
+  assert.match(planArtifactUi, /export function formatPlanArtifactView/)
+  assert.doesNotMatch(planArtifactUi, /AgentPlanWorkerView/)
+  assert.doesNotMatch(planArtifactUi, /pendingInputRequests|pendingApprovals/)
+})
+
 test('ordinary agent chat render path does not import legacy transcript or timeline projection', () => {
   const ordinaryChatSources = readOrdinaryAgentChatSurfaceSource()
   const legacyConversationTabs = readSource('src/features/agent/components/AgentConversationTabs.tsx')
@@ -376,6 +402,7 @@ function readOrdinaryAgentChatSurfaceSource(): string {
     'src/features/agent/application/useAgentChatConversationRegistry.ts',
     'src/features/agent/application/useAgentChatDataSourceLoadEffect.ts',
     'src/features/agent/application/useAgentChatDataSourceShellController.ts',
+    'src/features/agent/application/useAgentChatDataSourceShellRuntimeSetup.ts',
     'src/features/agent/application/useAgentChatRuntimeController.ts',
     'src/features/agent/application/useAgentChatShellCoreState.ts',
     'src/features/agent/application/useAgentChatThreadCreation.ts',

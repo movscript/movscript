@@ -36,6 +36,19 @@
   gap: 6px;
 }
 
+.jobs-detail-dialog-content {
+  width: min(760px, calc(100vw - 32px));
+  max-height: min(78vh, 720px);
+  overflow: auto;
+  padding: 0;
+}
+
+.jobs-detail-dialog-content .job-detail-panel {
+  border: 0;
+  border-radius: inherit;
+  box-shadow: none;
+}
+
 .jobs-pager {
   display: flex;
   flex: 0 0 auto;

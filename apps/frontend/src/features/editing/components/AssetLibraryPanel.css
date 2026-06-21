@@ -1,0 +1,212 @@
+.editing-workspace-library {
+  --editing-library-border: var(--editing-border, var(--ms-color-border));
+  --editing-library-panel-muted: var(
+    --editing-panel-muted,
+    color-mix(in srgb, var(--ms-color-muted) 46%, transparent)
+  );
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border-right: 1px solid var(--editing-library-border);
+  background: var(--ms-color-background);
+}
+
+.editing-workspace-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--editing-library-border);
+  padding: 12px 14px;
+}
+
+.editing-workspace-panel-header h2 {
+  margin: 0;
+  color: var(--ms-color-foreground);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.editing-workspace-panel-header span {
+  display: block;
+  margin-top: 2px;
+  color: var(--ms-color-muted-foreground);
+  font-size: 12px;
+}
+
+.editing-workspace-library-header {
+  align-items: center;
+  padding-block: 10px;
+}
+
+.editing-workspace-library-tabs {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.editing-workspace-library-tab-list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  width: 100%;
+}
+
+.editing-workspace-library-tab-list [data-ms-slot="trigger"] {
+  min-width: 0;
+  padding-inline: 7px;
+  white-space: nowrap;
+}
+
+.editing-workspace-library-import-button {
+  display: inline-flex;
+  width: 72px;
+  min-width: 72px;
+  flex: 0 0 72px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.editing-workspace-asset-list {
+  display: grid;
+  min-height: 0;
+  flex: 1 1 auto;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 108px));
+  grid-auto-rows: 108px;
+  grid-auto-flow: row dense;
+  align-content: start;
+  justify-content: start;
+  gap: 10px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 10px 12px;
+}
+
+.editing-workspace-asset {
+  position: relative;
+  display: block;
+  height: 100%;
+  min-width: 0;
+  border-radius: 8px;
+  padding: 4px;
+  cursor: grab;
+}
+
+.editing-workspace-asset:hover {
+  background: var(--editing-library-panel-muted);
+}
+
+.editing-workspace-asset:active {
+  cursor: grabbing;
+}
+
+.editing-workspace-asset-main {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  grid-template-rows: 78px 16px;
+  gap: 5px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+}
+
+.editing-workspace-asset-thumb {
+  position: relative;
+  display: grid;
+  width: 100%;
+  height: 78px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--editing-library-border);
+  border-radius: 7px;
+  background: #050506;
+  color: #ffffff;
+}
+
+.editing-workspace-asset-thumb :is(img, video) {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.editing-workspace-asset-thumb--audio {
+  padding: 12px 14px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--ms-color-primary) 12%, transparent), transparent),
+    var(--editing-library-panel-muted);
+  color: var(--ms-color-foreground);
+}
+
+.editing-workspace-asset-thumb--fallback {
+  background: var(--editing-library-panel-muted);
+  color: var(--ms-color-muted-foreground);
+}
+
+.editing-workspace-asset-thumb__badge {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, #000000 64%, transparent);
+  color: #ffffff;
+}
+
+.editing-workspace-asset-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  display: flex;
+  gap: 4px;
+}
+
+.editing-workspace-asset-actions .ms-button {
+  background: color-mix(in srgb, var(--ms-color-background) 72%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.editing-workspace-asset-context-trigger {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 1px;
+  height: 1px;
+  border: 0;
+  opacity: 0;
+  padding: 0;
+  pointer-events: none;
+}
+
+.editing-workspace-asset-context-menu {
+  min-width: 120px;
+}
+
+.editing-workspace-asset-thumb__center-icon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ms-color-muted) 58%, transparent);
+  color: var(--ms-color-muted-foreground);
+}
+
+.editing-workspace-asset-name {
+  display: block;
+  overflow: hidden;
+  color: var(--ms-color-muted-foreground);
+  font-size: 11px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

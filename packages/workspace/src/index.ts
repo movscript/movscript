@@ -71,6 +71,18 @@ export {
 } from './config.js'
 
 export {
+  MOVSCRIPT_LEGACY_RESOURCE_MENTION_PATTERN,
+  MOVSCRIPT_RESOURCE_MENTION_PATTERN,
+  formatResourceMention,
+  parseResourceMentions,
+  resourceIdsFromMentions,
+  splitResourceMentionParts,
+  stripResourceMentions,
+  type MovScriptResourceMention,
+  type MovScriptResourceMentionPart,
+} from './resourceMentions.js'
+
+export {
   deriveMovScriptWorkspacePreviewTimelines,
   type MovScriptWorkspacePreviewTimelineArtifact,
   type MovScriptWorkspacePreviewTimelineEntityRef,

@@ -43,30 +43,10 @@ export interface MovScriptProductionWorkspaceSceneMomentNode {
   transition?: MovScriptProductionWorkspaceTransitionNode
   script_block_id?: string | number | null
   settings?: MovScriptProductionWorkspaceSettingRefNode[]
-  shots?: MovScriptProductionWorkspaceShotNode[]
-  expression_units?: MovScriptProductionWorkspaceExpressionUnitNode[]
-  audio_cues?: MovScriptProductionWorkspaceAudioCueNode[]
-  __delete?: boolean
-}
-
-export interface MovScriptProductionWorkspaceShotNode {
-  id?: string | number
-  client_id?: string
-  title?: string
-  kind?: string
-  order?: number
-  shot_size?: string
-  camera?: Record<string, unknown>
-  blocking?: Record<string, unknown>
-  lighting?: Record<string, unknown>
-  performance?: Array<Record<string, unknown>>
-  sound?: Record<string, unknown>
-  expression?: Record<string, unknown>
-  timing?: Record<string, unknown>
-  transition?: MovScriptProductionWorkspaceTransitionNode
-  reference_asset_refs?: unknown[]
   keyframes?: MovScriptProductionWorkspaceKeyframeNode[]
   storyboards?: MovScriptProductionWorkspaceStoryboardNode[]
+  expression_units?: MovScriptProductionWorkspaceExpressionUnitNode[]
+  audio_cues?: MovScriptProductionWorkspaceAudioCueNode[]
   __delete?: boolean
 }
 
@@ -110,8 +90,7 @@ export interface MovScriptProductionWorkspaceAudioCueNode {
   order?: number
   storyboard_id?: string | number
   storyboard_ref?: string
-  shot_id?: string | number
-  shot_ref?: string
+  expression_unit_ref?: string | number
   timing?: Record<string, unknown>
   prompt_hint?: string
   asset_refs?: unknown[]
@@ -133,6 +112,8 @@ export interface MovScriptProductionWorkspaceTimelineNode {
 export interface MovScriptProductionWorkspaceSettingRefNode {
   id?: string | number
   client_id?: string
+  setting_state_id?: string | number
+  setting_state_ref?: string | number
   kind?: string
   role?: string
   source_label?: string
@@ -160,6 +141,8 @@ export interface MovScriptProductionWorkspaceExpressionUnitNode {
   order?: number
   span?: Record<string, unknown>
   script_block_id?: string | number | null
+  keyframes?: MovScriptProductionWorkspaceKeyframeNode[]
+  storyboards?: MovScriptProductionWorkspaceStoryboardNode[]
   __delete?: boolean
 }
 
@@ -237,89 +220,31 @@ export async function saveMovScriptProductionWorkspaceSnapshot(
         order: finiteNumber(moment.order) ?? finiteNumber(existingMoment.order),
         transition: normalizeTransition(moment.transition ?? existingMoment.transition),
         script_block_id: nullableRef(moment.script_block_id ?? existingMoment.script_block_id, 'script_block'),
+        setting_refs: normalizeSettingRefs(moment.settings, existingMoment.setting_refs),
         ...(moment.__delete === true ? { __delete: true } : {}),
       }))
       writtenPaths.push(momentPath)
 
-      for (const shot of moment.shots ?? []) {
-        const shotId = stableId(shot.id ?? shot.client_id ?? `${momentId}_${writtenPaths.length + 1}`, 'shot')
-        const shotDir = `${momentDir}/shots/${slugId(shotId, 'shot')}`
-        const shotPath = `${shotDir}/shot.json`
-        const existingShot = await readOptionalRecord(input.fileRepository, shotPath)
-        await writeRecord(input.fileRepository, shotPath, pruneUndefined({
-          ...stripWorkspacePrivateFields(existingShot),
-          schema: 'movscript.shot.v1',
-          kind: 'shot',
-          id: shotId,
-          title: stringValue(shot.title ?? existingShot.title) ?? `Shot ${displayId(shotId, 'shot')}`,
-          order: finiteNumber(shot.order) ?? finiteNumber(existingShot.order),
-          shot_kind: stringValue(shot.kind ?? existingShot.shot_kind),
-          scene_moment_ref: momentDir,
-          shot_size: stringValue(shot.shot_size ?? existingShot.shot_size),
-          camera: isRecord(shot.camera) ? shot.camera : (isRecord(existingShot.camera) ? existingShot.camera : undefined),
-          blocking: isRecord(shot.blocking) ? shot.blocking : (isRecord(existingShot.blocking) ? existingShot.blocking : undefined),
-          lighting: isRecord(shot.lighting) ? shot.lighting : (isRecord(existingShot.lighting) ? existingShot.lighting : undefined),
-          performance: Array.isArray(shot.performance) ? shot.performance.filter(isRecord) : existingShot.performance,
-          sound: isRecord(shot.sound) ? shot.sound : (isRecord(existingShot.sound) ? existingShot.sound : undefined),
-          expression: isRecord(shot.expression) ? shot.expression : (isRecord(existingShot.expression) ? existingShot.expression : undefined),
-          timing: isRecord(shot.timing) ? shot.timing : (isRecord(existingShot.timing) ? existingShot.timing : undefined),
-          transition: normalizeTransition(shot.transition ?? existingShot.transition),
-          reference_asset_refs: Array.isArray(shot.reference_asset_refs) ? shot.reference_asset_refs.filter(isString) : existingShot.reference_asset_refs,
-          ...(shot.__delete === true ? { __delete: true } : {}),
-        }))
-        writtenPaths.push(shotPath)
+      await writeKeyframeNodes({
+        fileRepository: input.fileRepository,
+        writtenPaths,
+        ownerDir: momentDir,
+        ownerKind: 'scene_moment',
+        sceneMomentDir: momentDir,
+        ownerTitle: stringValue(moment.title ?? existingMoment.title) ?? displayId(momentId, 'scene_moment'),
+        nodes: moment.keyframes ?? [],
+      })
 
-        for (const keyframe of shot.keyframes ?? []) {
-          const keyframeId = stableId(keyframe.id ?? keyframe.client_id ?? `${shotId}_${writtenPaths.length + 1}`, 'keyframe')
-          const keyframePath = `${shotDir}/keyframes/${slugId(keyframeId, 'keyframe')}/keyframe.json`
-          const existingKeyframe = await readOptionalRecord(input.fileRepository, keyframePath)
-          await writeRecord(input.fileRepository, keyframePath, pruneUndefined({
-            ...stripWorkspacePrivateFields(existingKeyframe),
-            schema: 'movscript.keyframe.v1',
-            kind: 'keyframe',
-            id: keyframeId,
-            title: stringValue(keyframe.title ?? existingKeyframe.title) ?? `Keyframe ${displayId(keyframeId, 'keyframe')}`,
-            scene_moment_ref: momentDir,
-            shot_ref: shotDir,
-            role: stringValue(keyframe.role ?? existingKeyframe.role),
-            visual_intent: stringValue(keyframe.visual_intent ?? existingKeyframe.visual_intent),
-            timing: isRecord(keyframe.timing) ? keyframe.timing : (isRecord(existingKeyframe.timing) ? existingKeyframe.timing : undefined),
-            composition: isRecord(keyframe.composition) ? keyframe.composition : (isRecord(existingKeyframe.composition) ? existingKeyframe.composition : undefined),
-            continuity: isRecord(keyframe.continuity) ? keyframe.continuity : (isRecord(existingKeyframe.continuity) ? existingKeyframe.continuity : undefined),
-            reference_asset_refs: Array.isArray(keyframe.reference_asset_refs) ? keyframe.reference_asset_refs.filter(isString) : existingKeyframe.reference_asset_refs,
-            reference_keyframe_refs: Array.isArray(keyframe.reference_keyframe_refs) ? keyframe.reference_keyframe_refs.filter(isString) : existingKeyframe.reference_keyframe_refs,
-            ...(keyframe.__delete === true ? { __delete: true } : {}),
-          }))
-          writtenPaths.push(keyframePath)
-        }
-
-        for (const [storyboardIndex, storyboard] of (shot.storyboards ?? []).entries()) {
-          const storyboardId = stableId(storyboard.id ?? storyboard.client_id ?? 'main', 'storyboard')
-          const storyboardPath = `${shotDir}/storyboards/${slugId(storyboardId, 'storyboard')}/storyboard.json`
-          const existingStoryboard = await readOptionalRecord(input.fileRepository, storyboardPath)
-          await writeRecord(input.fileRepository, storyboardPath, pruneUndefined({
-            ...stripWorkspacePrivateFields(existingStoryboard),
-            schema: 'movscript.storyboard.v1',
-            kind: 'storyboard',
-            id: storyboardId,
-            title: stringValue(storyboard.title ?? existingStoryboard.title) ?? `${stringValue(shot.title) ?? displayId(shotId, 'shot')} storyboard`,
-            order: finiteNumber(storyboard.order) ?? finiteNumber(existingStoryboard.order) ?? storyboardIndex + 1,
-            slot: stringValue(storyboard.slot ?? existingStoryboard.slot) ?? String(storyboardId),
-            asset_kind: stringValue(storyboard.asset_kind ?? existingStoryboard.asset_kind),
-            shot_ref: shotDir,
-            transition: normalizeTransition(storyboard.transition ?? existingStoryboard.transition),
-            timeline: normalizeTimeline(storyboard.timeline ?? {
-              gap_after_sec: storyboard.gap_after_sec,
-              caption: storyboard.caption,
-              duration_sec: storyboard.duration_sec,
-            }, existingStoryboard.timeline),
-            graph: isRecord(storyboard.graph) ? storyboard.graph : (isRecord(existingStoryboard.graph) ? existingStoryboard.graph : undefined),
-            setting_refs: normalizeSettingRefs(storyboard.settings ?? moment.settings, existingStoryboard.setting_refs),
-            ...(storyboard.__delete === true ? { __delete: true } : {}),
-          }))
-          writtenPaths.push(storyboardPath)
-        }
-      }
+      await writeStoryboardNodes({
+        fileRepository: input.fileRepository,
+        writtenPaths,
+        ownerDir: momentDir,
+        ownerKind: 'scene_moment',
+        sceneMomentDir: momentDir,
+        ownerTitle: stringValue(moment.title ?? existingMoment.title) ?? displayId(momentId, 'scene_moment'),
+        nodes: moment.storyboards ?? [],
+        settings: moment.settings,
+      })
 
       for (const audioCue of moment.audio_cues ?? []) {
         const audioCueId = stableId(audioCue.id ?? audioCue.client_id ?? `${momentId}_${writtenPaths.length + 1}`, 'audio_cue')
@@ -334,8 +259,8 @@ export async function saveMovScriptProductionWorkspaceSnapshot(
           cue_kind: normalizeAudioCueKind(audioCue.cue_kind ?? audioCue.kind ?? existingAudioCue.cue_kind),
           order: finiteNumber(audioCue.order) ?? finiteNumber(existingAudioCue.order),
           scope_ref: momentDir,
-          shot_ref: normalizeShotRef(audioCue.shot_ref ?? existingAudioCue.shot_ref, audioCue.shot_id, momentDir),
-          storyboard_ref: normalizeStoryboardRef(audioCue.storyboard_ref ?? existingAudioCue.storyboard_ref),
+          expression_unit_ref: stringValue(audioCue.expression_unit_ref ?? existingAudioCue.expression_unit_ref),
+          storyboard_ref: normalizeStoryboardRef(audioCue.storyboard_ref ?? audioCue.storyboard_id ?? existingAudioCue.storyboard_ref),
           timing: isRecord(audioCue.timing) ? audioCue.timing : (isRecord(existingAudioCue.timing) ? existingAudioCue.timing : undefined),
           prompt_hint: stringValue(audioCue.prompt_hint ?? existingAudioCue.prompt_hint),
           asset_refs: Array.isArray(audioCue.asset_refs) ? audioCue.asset_refs.filter(isString) : existingAudioCue.asset_refs,
@@ -373,6 +298,25 @@ export async function saveMovScriptProductionWorkspaceSnapshot(
           ...(expression.__delete === true ? { __delete: true } : {}),
         }))
         writtenPaths.push(expressionPath)
+        await writeKeyframeNodes({
+          fileRepository: input.fileRepository,
+          writtenPaths,
+          ownerDir: `${momentDir}/expression_units/${slugId(expressionId, 'expression_unit')}`,
+          ownerKind: 'expression_unit',
+          sceneMomentDir: momentDir,
+          ownerTitle: stringValue(expression.title ?? existingExpression.title) ?? displayId(expressionId, 'expression_unit'),
+          nodes: expression.keyframes ?? [],
+        })
+        await writeStoryboardNodes({
+          fileRepository: input.fileRepository,
+          writtenPaths,
+          ownerDir: `${momentDir}/expression_units/${slugId(expressionId, 'expression_unit')}`,
+          ownerKind: 'expression_unit',
+          sceneMomentDir: momentDir,
+          ownerTitle: stringValue(expression.title ?? existingExpression.title) ?? displayId(expressionId, 'expression_unit'),
+          nodes: expression.storyboards ?? [],
+          settings: moment.settings,
+        })
       }
     }
   }
@@ -384,6 +328,96 @@ export function movScriptProductionWorkspacePath(productionId: string | number):
   return `productions/${slugId(productionId, 'production')}/production.json`
 }
 
+async function writeKeyframeNodes({
+  fileRepository,
+  writtenPaths,
+  ownerDir,
+  ownerKind,
+  sceneMomentDir,
+  ownerTitle,
+  nodes,
+}: {
+  fileRepository: MovScriptWorkspaceFileRepository
+  writtenPaths: string[]
+  ownerDir: string
+  ownerKind: 'scene_moment' | 'expression_unit'
+  sceneMomentDir: string
+  ownerTitle: string
+  nodes: MovScriptProductionWorkspaceKeyframeNode[]
+}) {
+  for (const keyframe of nodes) {
+    const keyframeId = stableId(keyframe.id ?? keyframe.client_id ?? `${ownerTitle}_${writtenPaths.length + 1}`, 'keyframe')
+    const keyframePath = `${ownerDir}/keyframes/${slugId(keyframeId, 'keyframe')}/keyframe.json`
+    const existingKeyframe = await readOptionalRecord(fileRepository, keyframePath)
+    await writeRecord(fileRepository, keyframePath, pruneUndefined({
+      ...stripWorkspacePrivateFields(existingKeyframe),
+      schema: 'movscript.keyframe.v1',
+      kind: 'keyframe',
+      id: keyframeId,
+      title: stringValue(keyframe.title ?? existingKeyframe.title) ?? `Keyframe ${displayId(keyframeId, 'keyframe')}`,
+      scene_moment_ref: sceneMomentDir,
+      ...(ownerKind === 'expression_unit' ? { expression_unit_ref: ownerDir } : {}),
+      role: stringValue(keyframe.role ?? existingKeyframe.role),
+      visual_intent: stringValue(keyframe.visual_intent ?? existingKeyframe.visual_intent),
+      timing: isRecord(keyframe.timing) ? keyframe.timing : (isRecord(existingKeyframe.timing) ? existingKeyframe.timing : undefined),
+      composition: isRecord(keyframe.composition) ? keyframe.composition : (isRecord(existingKeyframe.composition) ? existingKeyframe.composition : undefined),
+      continuity: isRecord(keyframe.continuity) ? keyframe.continuity : (isRecord(existingKeyframe.continuity) ? existingKeyframe.continuity : undefined),
+      reference_asset_refs: Array.isArray(keyframe.reference_asset_refs) ? keyframe.reference_asset_refs.filter(isString) : existingKeyframe.reference_asset_refs,
+      reference_keyframe_refs: Array.isArray(keyframe.reference_keyframe_refs) ? keyframe.reference_keyframe_refs.filter(isString) : existingKeyframe.reference_keyframe_refs,
+      ...(keyframe.__delete === true ? { __delete: true } : {}),
+    }))
+    writtenPaths.push(keyframePath)
+  }
+}
+
+async function writeStoryboardNodes({
+  fileRepository,
+  writtenPaths,
+  ownerDir,
+  ownerKind,
+  sceneMomentDir,
+  ownerTitle,
+  nodes,
+  settings,
+}: {
+  fileRepository: MovScriptWorkspaceFileRepository
+  writtenPaths: string[]
+  ownerDir: string
+  ownerKind: 'scene_moment' | 'expression_unit'
+  sceneMomentDir: string
+  ownerTitle: string
+  nodes: MovScriptProductionWorkspaceStoryboardNode[]
+  settings?: MovScriptProductionWorkspaceSettingRefNode[]
+}) {
+  for (const [storyboardIndex, storyboard] of nodes.entries()) {
+    const storyboardId = stableId(storyboard.id ?? storyboard.client_id ?? 'main', 'storyboard')
+    const storyboardPath = `${ownerDir}/storyboards/${slugId(storyboardId, 'storyboard')}/storyboard.json`
+    const existingStoryboard = await readOptionalRecord(fileRepository, storyboardPath)
+    await writeRecord(fileRepository, storyboardPath, pruneUndefined({
+      ...stripWorkspacePrivateFields(existingStoryboard),
+      schema: 'movscript.storyboard.v1',
+      kind: 'storyboard',
+      id: storyboardId,
+      title: stringValue(storyboard.title ?? existingStoryboard.title) ?? `${ownerTitle} storyboard`,
+      order: finiteNumber(storyboard.order) ?? finiteNumber(existingStoryboard.order) ?? storyboardIndex + 1,
+      slot: stringValue(storyboard.slot ?? existingStoryboard.slot) ?? String(storyboardId),
+      asset_kind: stringValue(storyboard.asset_kind ?? existingStoryboard.asset_kind),
+      scene_moment_ref: sceneMomentDir,
+      ...(ownerKind === 'expression_unit' ? { expression_unit_ref: ownerDir } : {}),
+      transition: normalizeTransition(storyboard.transition ?? existingStoryboard.transition),
+      timeline: normalizeTimeline(storyboard.timeline ?? {
+        gap_after_sec: storyboard.gap_after_sec,
+        caption: storyboard.caption,
+        duration_sec: storyboard.duration_sec,
+      }, existingStoryboard.timeline),
+      graph: isRecord(storyboard.graph) ? storyboard.graph : (isRecord(existingStoryboard.graph) ? existingStoryboard.graph : undefined),
+      setting_refs: normalizeSettingRefs(storyboard.settings ?? settings, existingStoryboard.setting_refs),
+      ...(storyboard.__delete === true ? { __delete: true } : {}),
+    }))
+    writtenPaths.push(storyboardPath)
+  }
+}
+
 function normalizeSettingRefs(
   refs: MovScriptProductionWorkspaceSettingRefNode[] | undefined,
   fallback: unknown,
@@ -391,6 +425,7 @@ function normalizeSettingRefs(
   if (!refs) return Array.isArray(fallback) ? fallback.filter(isRecord) : undefined
   return refs.map((ref) => pruneUndefined({
     setting_id: stableId(ref.id ?? ref.client_id ?? 'unassigned', 'setting'),
+    setting_state_id: ref.setting_state_id ?? ref.setting_state_ref,
     role: stringValue(ref.role),
     notes: stringValue(ref.source_label),
     setting_kind: stringValue(ref.kind),
@@ -401,7 +436,8 @@ function normalizeSettingRefs(
 
 function normalizeExpressionKind(value: unknown): string {
   const kind = stringValue(value)
-  if (kind === 'dialogue' || kind === 'narration' || kind === 'subtitle' || kind === 'caption' || kind === 'action') return kind
+  if (kind === 'shot') return 'shot'
+  if (kind === 'dialogue' || kind === 'narration' || kind === 'subtitle' || kind === 'caption' || kind === 'action' || kind === 'shot') return kind
   if (kind === 'visual' || kind === 'visual_note') return 'visual_note'
   return 'dialogue'
 }
@@ -438,13 +474,6 @@ function normalizeAudioCueKind(value: unknown): string {
 
 function normalizeStoryboardRef(value: unknown): string | undefined {
   return stringValue(value)
-}
-
-function normalizeShotRef(value: unknown, shotId: unknown, sceneMomentDir: string): string | undefined {
-  const direct = stringValue(value)
-  if (direct) return direct
-  const id = stringValue(shotId)
-  return id ? `${sceneMomentDir}/shots/${slugId(id, 'shot')}` : undefined
 }
 
 async function readRecord(fileRepository: MovScriptWorkspaceFileRepository, path: string): Promise<Record<string, unknown>> {

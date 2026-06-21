@@ -4,11 +4,18 @@ import { resolve } from 'node:path'
 import test from 'node:test'
 
 const canvasPageSource = readCanvasEditorContractSource()
+const canvasWorkspaceSource = readSource('apps/frontend/src/features/canvas/components/CanvasWorkspace.tsx')
 const browserGuardsSource = readSource('apps/frontend/src/features/canvas/application/useCanvasBrowserGuards.ts')
 const canvasExitControllerSource = readSource('apps/frontend/src/features/canvas/application/useCanvasExitController.ts')
 const canvasListSource = readSource('apps/frontend/src/features/canvas/components/CanvasListView.tsx')
+const canvasListSectionsSource = readSource('apps/frontend/src/features/canvas/components/CanvasListViewSections.tsx')
+const canvasListRowSource = readSource('apps/frontend/src/features/canvas/components/CanvasListViewRow.tsx')
+const canvasListModelSource = readSource('apps/frontend/src/features/canvas/components/CanvasListViewModel.tsx')
 const canvasListUiSource = readSource('apps/frontend/src/features/canvas/components/CanvasListUi.tsx')
-const canvasListUiCss = readSource('apps/frontend/src/features/canvas/components/CanvasListUi.css')
+const canvasListUiShellCss = readSource('apps/frontend/src/features/canvas/components/CanvasListUi.css')
+const canvasListUiItemCss = readSource('apps/frontend/src/features/canvas/components/CanvasListUi.item.css')
+const canvasListUiCreateDialogCss = readSource('apps/frontend/src/features/canvas/components/CanvasListUi.create-dialog.css')
+const canvasListUiCss = [canvasListUiShellCss, canvasListUiItemCss, canvasListUiCreateDialogCss].join('\n')
 const packageCanvasSource = readSource('packages/ui/src/components/business/canvas/index.tsx')
 const packageCanvasCss = readSource('packages/ui/src/components/business/canvas/styles.css')
 const canvasDocumentSource = readSource('apps/frontend/src/features/canvas/editor/useCanvasDocument.ts')
@@ -18,6 +25,7 @@ const canvasConnectionControllerSource = readSource('apps/frontend/src/features/
 const canvasDropControllerSource = readSource('apps/frontend/src/features/canvas/presentation/useCanvasDropController.ts')
 const canvasContextMenuControllerSource = readSource('apps/frontend/src/features/canvas/presentation/useCanvasContextMenuController.ts')
 const canvasViewStateSource = readSource('apps/frontend/src/features/canvas/presentation/useCanvasEditorViewState.ts')
+const canvasNodeCreationControllerSource = readSource('apps/frontend/src/features/canvas/presentation/useCanvasNodeCreationController.ts')
 const canvasWorkflowReferenceActionsSource = readSource('apps/frontend/src/features/canvas/presentation/useCanvasWorkflowReferenceNodeActions.ts')
 const canvasNodeChangeControllerSource = readSource('apps/frontend/src/features/canvas/presentation/useCanvasNodeChangeController.ts')
 const workflowPanelsSource = [
@@ -34,6 +42,9 @@ const generationNodesSource = readSource('apps/frontend/src/features/canvas/ui/c
 const generationInputPanelSource = readSource('apps/frontend/src/features/canvas/ui/canvasGenerationInputPanel.tsx')
 
 test('canvas editor delegates global browser guards', () => {
+  assert.match(canvasWorkspaceSource, /useCanvasWorkspaceController\(props\)/)
+  assert.match(canvasWorkspaceSource, /<CanvasEditorWorkspaceView \{\.\.\.workspace\} \/>/)
+  assert.doesNotMatch(canvasWorkspaceSource, /useCanvasWorkspaceDocumentState|useCanvasRuntimeControls|useCanvasEditorRenderModel/)
   assert.match(canvasPageSource, /from '@\/features\/canvas\/application\/useCanvasBrowserGuards'/)
   assert.match(canvasPageSource, /from '@\/features\/canvas\/application\/useCanvasExitController'/)
   assert.doesNotMatch(canvasPageSource, /window\.addEventListener/)
@@ -52,9 +63,10 @@ test('canvas editor delegates global browser guards', () => {
 
 test('canvas surfaces delegate query keys and invalidation', () => {
   assert.match(canvasPageSource, /from '@\/features\/canvas\/application\/canvasQueryKeys'/)
-  assert.match(canvasPageSource, /canvasKeys\.detail\(id\)/)
+  assert.match(canvasPageSource, /canvasKeys\.detail\(canvasId\)/)
+  assert.match(canvasPageSource, /from '@\/features\/canvas\/application\/useCanvasWorkspaceDocumentState'/)
   assert.match(canvasPageSource, /from '@\/features\/canvas\/application\/useCanvasRenameController'/)
-  assert.match(canvasPageSource, /useCanvasRenameController\(\{[\s\S]*canvasId: id,[\s\S]*setCanvasName,[\s\S]*t,[\s\S]*\}\)/)
+  assert.match(canvasPageSource, /useCanvasRenameController\(\{[\s\S]*canvasId,[\s\S]*setCanvasName,[\s\S]*t,[\s\S]*\}\)/)
   assert.doesNotMatch(canvasPageSource, /queryKey: \['canvas'/)
   assert.doesNotMatch(canvasPageSource, /queryKey: \['canvases'/)
   assert.doesNotMatch(canvasPageSource, /queryClient\.(cancelQueries|getQueryData|setQueryData)\(/)
@@ -133,6 +145,31 @@ test('canvas list UI is feature-owned, not package canvas API', () => {
   assert.match(canvasListUiSource, /from "@movscript\/ui\/primitives"/)
   assert.match(canvasListUiCss, /\.canvas-list\s*\{/)
   assert.match(canvasListUiCss, /\.canvas-list-create-dialog\s*\{/)
+  assert.match(canvasListUiShellCss, /@import "\.\/CanvasListUi\.item\.css";/)
+  assert.match(canvasListUiShellCss, /@import "\.\/CanvasListUi\.create-dialog\.css";/)
+  assert.doesNotMatch(canvasListUiShellCss, /\.canvas-list-item\s*\{/)
+  assert.match(canvasListUiItemCss, /\.canvas-list-item\s*\{/)
+  assert.doesNotMatch(canvasListUiShellCss, /\.canvas-list-create-dialog\s*\{/)
+  assert.match(canvasListUiCreateDialogCss, /\.canvas-list-create-dialog\s*\{/)
+})
+
+test('canvas list view delegates row, filter, and create dialog sections', () => {
+  assert.match(canvasListSource, /from '\.\/CanvasListViewSections'/)
+  assert.match(canvasListSource, /<CanvasListProgramStrip/)
+  assert.match(canvasListSource, /<CanvasListSearchAndFilters/)
+  assert.match(canvasListSource, /<CanvasListResults/)
+  assert.match(canvasListSource, /<CanvasListCreateModal/)
+  assert.doesNotMatch(canvasListSource, /const TYPE_META/)
+  assert.doesNotMatch(canvasListSource, /<CanvasListItem\b/)
+  assert.doesNotMatch(canvasListSource, /<CanvasListCreateDialog\b/)
+
+  assert.match(canvasListModelSource, /export const CANVAS_LIST_TYPE_META/)
+  assert.match(canvasListSectionsSource, /export function CanvasListProgramStrip/)
+  assert.match(canvasListSectionsSource, /export function CanvasListSearchAndFilters/)
+  assert.match(canvasListSectionsSource, /export function CanvasListResults/)
+  assert.match(canvasListSectionsSource, /export function CanvasListCreateModal/)
+  assert.match(canvasListSectionsSource, /from '\.\/CanvasListViewRow'/)
+  assert.match(canvasListRowSource, /export function CanvasListRow/)
 })
 
 test('canvas editor render model is owned by the presentation layer', () => {
@@ -207,16 +244,32 @@ test('canvas editor view state is owned by the presentation layer', () => {
 })
 
 test('canvas workflow reference node actions are owned by the presentation layer', () => {
-  assert.match(canvasPageSource, /from '@\/features\/canvas\/presentation\/useCanvasWorkflowReferenceNodeActions'/)
-  assert.match(canvasPageSource, /useCanvasWorkflowReferenceNodeActions\(\{[\s\S]*canvasCoordinateSpace,[\s\S]*canvasId: id,[\s\S]*setNodes,[\s\S]*t,[\s\S]*\}\)/)
+  assert.match(canvasNodeCreationControllerSource, /from '@\/features\/canvas\/presentation\/useCanvasWorkflowReferenceNodeActions'/)
+  assert.match(canvasNodeCreationControllerSource, /useCanvasWorkflowReferenceNodeActions\(\{[\s\S]*canvasCoordinateSpace,[\s\S]*canvasId,[\s\S]*setNodes,[\s\S]*t,[\s\S]*\}\)/)
   assert.match(canvasWorkflowReferenceActionsSource, /export function useCanvasWorkflowReferenceNodeActions/)
   assert.match(canvasWorkflowReferenceActionsSource, /String\(workflowCanvas\.ID\) === canvasId/)
   assert.match(canvasWorkflowReferenceActionsSource, /api\.get\(`\/canvases\/\$\{workflowCanvas\.ID\}`\)/)
   assert.match(canvasWorkflowReferenceActionsSource, /createWorkflowReferenceCanvasNode/)
   assert.match(canvasWorkflowReferenceActionsSource, /toast\.error/)
+  assert.doesNotMatch(canvasPageSource, /useCanvasWorkflowReferenceNodeActions/)
   assert.doesNotMatch(canvasPageSource, /createWorkflowReferenceCanvasNode/)
   assert.doesNotMatch(canvasPageSource, /selfReferenceWorkflow/)
   assert.doesNotMatch(canvasPageSource, /workflowReferenceFailed/)
+})
+
+test('canvas node creation is owned by the presentation layer', () => {
+  assert.match(canvasPageSource, /from '@\/features\/canvas\/presentation\/useCanvasNodeCreationController'/)
+  assert.match(canvasPageSource, /useCanvasNodeCreationController\(\{[\s\S]*canvasId,[\s\S]*canvasPaneRef,[\s\S]*canvasType,[\s\S]*menu,[\s\S]*screenToFlowPosition,[\s\S]*setNodes,[\s\S]*t,[\s\S]*\}\)/)
+  assert.match(canvasNodeCreationControllerSource, /export function useCanvasNodeCreationController/)
+  assert.match(canvasNodeCreationControllerSource, /canvasDefaultClientPointFromViewportElement\(canvasPaneRef\.current\)/)
+  assert.match(canvasNodeCreationControllerSource, /isPaletteNodeTypeAvailable\(type, canvasType\)/)
+  assert.match(canvasNodeCreationControllerSource, /SIDEBAR_HIDDEN_NODE_TYPES\.has\(type\)/)
+  assert.match(canvasNodeCreationControllerSource, /createPaletteCanvasNode\(\{ type, position, t, existingNodes: prev \}\)/)
+  assert.match(canvasNodeCreationControllerSource, /useCanvasWorkflowReferenceNodeActions/)
+  assert.doesNotMatch(canvasPageSource, /createPaletteCanvasNode/)
+  assert.doesNotMatch(canvasPageSource, /isPaletteNodeTypeAvailable/)
+  assert.doesNotMatch(canvasPageSource, /SIDEBAR_HIDDEN_NODE_TYPES/)
+  assert.doesNotMatch(canvasPageSource, /canvasDefaultClientPointFromViewportElement/)
 })
 
 test('canvas node change selection handling is owned by the presentation layer', () => {
@@ -226,7 +279,7 @@ test('canvas node change selection handling is owned by the presentation layer',
   assert.match(canvasNodeChangeControllerSource, /isFinalOutputNode/)
   assert.match(canvasNodeChangeControllerSource, /change\.type !== 'remove' \|\| !protectedIds\.has\(change\.id\)/)
   assert.match(canvasNodeChangeControllerSource, /change\.type === 'select'/)
-  assert.doesNotMatch(canvasPageSource, /type NodeChange/)
+  assert.doesNotMatch(canvasPageSource, /type NodeChange\b/)
   assert.doesNotMatch(canvasPageSource, /changes: NodeChange/)
   assert.doesNotMatch(canvasPageSource, /isFinalOutputNode/)
   assert.doesNotMatch(canvasPageSource, /protectedIds/)
@@ -253,5 +306,10 @@ function readCanvasEditorContractSource() {
   return [
     readSource('apps/frontend/src/features/canvas/components/CanvasEditorPage.tsx'),
     readSource('apps/frontend/src/features/canvas/components/CanvasWorkspace.tsx'),
+    readSource('apps/frontend/src/features/canvas/components/useCanvasWorkspaceController.ts'),
+    readSource('apps/frontend/src/features/canvas/components/useCanvasWorkspaceInteractionController.ts'),
+    readSource('apps/frontend/src/features/canvas/components/useCanvasWorkspaceRuntimeController.ts'),
+    readSource('apps/frontend/src/features/canvas/application/useCanvasWorkspaceDocumentState.ts'),
+    readSource('apps/frontend/src/features/canvas/presentation/useCanvasWorkspaceCoreState.ts'),
   ].join('\n')
 }

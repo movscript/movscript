@@ -35,7 +35,7 @@ import {
   ShotLibrarySourceBar,
 } from '@/features/shot-library/components/ShotLibraryBrowserChrome'
 import { ShotReferenceCard } from '@/features/shot-library/components/ShotLibraryReferenceCard'
-import { SHOT_LIBRARY_PAGE_SIZE } from '@/features/shot-library/components/shotLibraryImportPreparation'
+import { SHOT_LIBRARY_PAGE_SIZE } from '@/features/shot-library/components/shotLibraryPagination'
 
 export function ShotLibraryHeader({
   saving,

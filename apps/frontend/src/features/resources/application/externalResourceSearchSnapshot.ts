@@ -1,6 +1,7 @@
 import type { ExternalResourceSearchResult } from '@/types'
 import { readBrowserStorageItem, removeBrowserStorageItem, writeBrowserStorageItem } from '@/shared/infrastructure/browserStorage'
 import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
+import { listenToWindowEvent, publishWindowEvent } from '@/shared/infrastructure/windowEvents'
 import {
   externalResourceSearchInitialData as coreExternalResourceSearchInitialData,
   normalizeExternalMediaTypes,
@@ -44,12 +45,8 @@ export function loadExternalResourceSearchSnapshot(): ExternalResourceSearchSnap
 
 export function subscribeExternalResourceSearchSnapshot(listener: (snapshot: ExternalResourceSearchSnapshot | null) => void): () => void {
   if (typeof window === 'undefined') return () => undefined
-  if (typeof window.addEventListener !== 'function' || typeof window.removeEventListener !== 'function') {
-    return () => undefined
-  }
   const handleSnapshotChanged = () => listener(loadExternalResourceSearchSnapshot())
-  window.addEventListener(EXTERNAL_RESOURCE_SEARCH_CHANGED_EVENT, handleSnapshotChanged)
-  return () => window.removeEventListener(EXTERNAL_RESOURCE_SEARCH_CHANGED_EVENT, handleSnapshotChanged)
+  return listenToWindowEvent(EXTERNAL_RESOURCE_SEARCH_CHANGED_EVENT, handleSnapshotChanged)
 }
 
 export function saveExternalResourceSearchSnapshot(snapshot: ExternalResourceSearchSnapshot): void {
@@ -135,6 +132,6 @@ function syncExternalResourceSearchSnapshotWindow(): void {
 
 function dispatchExternalResourceSearchSnapshotChanged(): void {
   if (typeof window === 'undefined') return
-  if (typeof window.dispatchEvent !== 'function' || typeof Event === 'undefined') return
-  window.dispatchEvent(new Event(EXTERNAL_RESOURCE_SEARCH_CHANGED_EVENT))
+  if (typeof Event === 'undefined') return
+  publishWindowEvent(new Event(EXTERNAL_RESOURCE_SEARCH_CHANGED_EVENT))
 }

@@ -11,8 +11,7 @@
   --cc-success: var(--ms-color-success, var(--ms-color-primary));
   --cc-warning: var(--ms-color-warning, var(--ms-color-primary));
   --cc-danger: var(--ms-color-danger, var(--cc-warning));
-  --content-canvas-setting-catalog-height: 176px;
-  --content-canvas-structure-width: 292px;
+  --content-canvas-structure-width: 236px;
   --content-canvas-inspector-width: 336px;
   --content-canvas-timeline-height: 190px;
   display: grid;
@@ -21,7 +20,6 @@
     minmax(420px, 1fr)
     var(--content-canvas-inspector-width);
   grid-template-rows:
-    var(--content-canvas-setting-catalog-height)
     minmax(300px, 1fr)
     var(--content-canvas-timeline-height);
   width: 100%;
@@ -41,23 +39,6 @@
   font: inherit;
 }
 
-.content-canvas-workspace-top {
-  grid-column: 1 / -1;
-  position: relative;
-  display: grid;
-  grid-template-rows: 42px 1fr;
-  gap: 10px;
-  min-height: 0;
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--cc-border);
-  background: color-mix(in srgb, var(--cc-panel) 88%, transparent);
-  backdrop-filter: blur(14px);
-}
-
-.content-canvas-workspace-top__filter,
-.content-canvas-workspace-chips,
-.content-canvas-workspace-search,
-.content-canvas-catalog-card,
 .content-canvas-workspace-sidebar__header,
 .content-canvas-workspace-sidebar__search,
 .content-canvas-workspace-canvas__toolbar,
@@ -65,27 +46,18 @@
   min-width: 0;
 }
 
-.content-canvas-workspace-top__filter {
-  display: grid;
-  grid-template-columns: minmax(280px, 420px) auto 1fr auto;
-  align-items: center;
-  gap: 10px;
-}
-
-.content-canvas-workspace-search,
 .content-canvas-workspace-sidebar__search {
   display: flex;
   align-items: center;
-  gap: 8px;
-  height: 34px;
+  gap: 7px;
+  height: 30px;
   border: 1px solid var(--cc-border);
   border-radius: 8px;
   background: var(--cc-panel);
-  padding: 0 10px;
+  padding: 0 9px;
   color: var(--cc-muted);
 }
 
-.content-canvas-workspace-search input,
 .content-canvas-workspace-sidebar__search input {
   min-width: 0;
   flex: 1;
@@ -93,169 +65,12 @@
   outline: 0;
   background: transparent;
   color: var(--cc-text);
-  font-size: 12px;
-}
-
-.content-canvas-workspace-chips {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  overflow: hidden;
-}
-
-.content-canvas-workspace-chips button {
-  height: 26px;
-  border: 1px solid var(--cc-border);
-  border-radius: 999px;
-  background: var(--cc-panel);
-  padding: 0 10px;
-  color: var(--cc-muted);
-  font-size: 12px;
-  font-weight: 650;
-}
-
-.content-canvas-workspace-chips button[data-active="true"] {
-  border-color: color-mix(in srgb, var(--cc-accent) 42%, var(--cc-border));
-  background: var(--cc-accent-soft);
-  color: var(--cc-accent);
-}
-
-.content-canvas-workspace-count {
-  justify-self: end;
-  color: var(--cc-muted);
-  font-size: 12px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.content-canvas-workspace-add-setting {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 30px;
-  border: 1px solid color-mix(in srgb, var(--cc-accent) 42%, var(--cc-border));
-  border-radius: 8px;
-  background: var(--cc-accent-soft);
-  padding: 0 10px;
-  color: var(--cc-accent);
-  font-size: 12px;
-  font-weight: 760;
-  white-space: nowrap;
-}
-
-.content-canvas-workspace-add-setting:hover {
-  background: color-mix(in srgb, var(--cc-accent) 15%, transparent);
+  font-size: 11px;
 }
 
 .content-canvas-workspace-page button:disabled {
   cursor: not-allowed;
   opacity: 0.46;
-}
-
-.content-canvas-catalog {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, 188px);
-  grid-auto-rows: 82px;
-  gap: 10px;
-  align-content: start;
-  min-height: 0;
-  justify-content: start;
-  overflow: auto;
-}
-
-.content-canvas-catalog-card {
-  position: relative;
-  display: grid;
-  grid-template-columns: 32px minmax(0, 1fr) auto;
-  grid-template-rows: 32px 20px 16px;
-  align-items: start;
-  gap: 6px 9px;
-  width: 188px;
-  height: 82px;
-  border: 1px solid var(--cc-border);
-  border-radius: 8px;
-  background: var(--cc-panel);
-  padding: 10px;
-  text-align: left;
-  box-shadow: 0 10px 24px color-mix(in srgb, var(--ms-color-foreground) 5%, transparent);
-}
-
-.content-canvas-catalog-card:hover {
-  border-color: color-mix(in srgb, var(--cc-accent) 38%, var(--cc-border));
-  background: color-mix(in srgb, var(--ms-color-accent) 36%, var(--cc-panel));
-  box-shadow: 0 14px 28px color-mix(in srgb, var(--ms-color-foreground) 8%, transparent);
-}
-
-.content-canvas-catalog-card[data-status="locked"] { --card-tone: var(--cc-accent); }
-.content-canvas-catalog-card[data-status="draft"] { --card-tone: var(--cc-muted); }
-.content-canvas-catalog-card[data-status="candidate"] { --card-tone: var(--cc-warning); }
-.content-canvas-catalog-card[data-status="linked"] { --card-tone: var(--cc-success); }
-
-.content-canvas-catalog-card__icon {
-  display: grid;
-  width: 30px;
-  height: 30px;
-  place-items: center;
-  border-radius: 7px;
-  color: var(--card-tone);
-  background: color-mix(in srgb, var(--card-tone) 13%, transparent);
-}
-
-.content-canvas-catalog-card__copy {
-  min-width: 0;
-}
-
-.content-canvas-catalog-card__copy strong,
-.content-canvas-catalog-card__copy small {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.content-canvas-catalog-card__copy strong {
-  font-size: 12px;
-  font-weight: 760;
-}
-
-.content-canvas-catalog-card__copy small {
-  margin-top: 3px;
-  color: var(--cc-muted);
-  font-size: 11px;
-}
-
-.content-canvas-catalog-card__status {
-  max-width: 42px;
-  overflow: hidden;
-  color: var(--cc-muted);
-  font-size: 12px;
-  font-weight: 760;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.content-canvas-catalog-card__code {
-  grid-column: 2;
-  width: max-content;
-  max-width: 100%;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--card-tone) 10%, transparent);
-  padding: 2px 7px;
-  color: var(--card-tone);
-  font-size: 10px;
-  font-weight: 800;
-}
-
-.content-canvas-catalog-card__scope {
-  grid-column: 3;
-  justify-self: end;
-  max-width: 100%;
-  overflow: hidden;
-  color: var(--cc-muted);
-  font-size: 10px;
-  font-weight: 650;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .content-canvas-create-dialog {

@@ -1,0 +1,2 @@
+export const RESOURCE_LIBRARY_PAGE_SIZE = 12
+export const SHOT_LIBRARY_PAGE_SIZE = 12

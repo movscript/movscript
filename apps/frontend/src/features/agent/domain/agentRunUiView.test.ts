@@ -407,6 +407,7 @@ test('run trace labels localize categories and statuses', () => {
   assert.equal(approvalStatusLabel('unknown_status'), '未知审批状态 (unknown_status)')
   assert.equal(approvalImpactLabel({ toolName: 'movscript_publish_assets', permission: 'project.assets.write', risk: 'write', preview: undefined }), '批准后会写入项目数据。')
   assert.equal(approvalImpactLabel({ toolName: 'workspace_apply', permission: 'workspace.apply', risk: 'write', preview: undefined }), '批准后会提交工作区修改，并交给前端审阅视图接收。')
+  assert.equal(approvalImpactLabel({ toolName: 'mcp__movscript__system_generate_content_unit_image', permission: 'generation.create', risk: 'generate', preview: undefined }), '批准后会编译制作项提示词并提交图像生成任务；成功后会写入候选，可能消耗生成额度。')
   assert.equal(approvalImpactLabel({ toolName: 'custom_tool', permission: 'unknown', risk: 'read', preview: { review: { sideEffect: '更新素材标记' } } }), '批准后会执行预览变更：更新素材标记')
   assert.equal(runApprovalModeLabel('auto_readonly'), '只读自动')
   assert.equal(toolApprovalLabel('on_write'), '写入时审批')

@@ -69,8 +69,6 @@ function contentUnitNodeForOwner(
   for (const node of nodes.values()) {
     if (node.kind !== 'content_unit') continue
     if (node.entityKey === ownerNodeId) return node
-    if (stringValue(node.record.shot_id) === ownerNodeId) return node
-    if (compactStrings(node.record.shot_ref, node.record.shot_refs).includes(ownerNodeId)) return node
   }
   return undefined
 }
@@ -88,17 +86,6 @@ function assetDownstreamLabel(state: string): string {
   if (state === 'needs_candidate') return '下游缺候选'
   if (state === 'selected') return '下游已同步'
   return '下游影响'
-}
-
-function compactStrings(...values: unknown[]): string[] {
-  return values.flatMap((value) => {
-    if (Array.isArray(value)) return value.filter((item): item is string => typeof item === 'string' && Boolean(item.trim())).map((item) => item.trim())
-    return typeof value === 'string' && value.trim() ? [value.trim()] : []
-  })
-}
-
-function stringValue(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
 function pathSegmentAfter(path: string | undefined, segment: string): string | undefined {

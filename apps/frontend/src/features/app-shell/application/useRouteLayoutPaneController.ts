@@ -2,6 +2,7 @@ import React from 'react'
 
 import { readBrowserStorageItem, removeBrowserStorageItem, writeBrowserStorageItem } from '@/shared/infrastructure/browserStorage'
 import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
+import { listenToWindowEvent, publishWindowEvent } from '@/shared/infrastructure/windowEvents'
 import type {
   RouteLayoutPaneSpec,
   RouteLayoutPaneState,
@@ -73,12 +74,40 @@ export function allowedRouteLayoutPaneState(
   return allowedStates[0] ?? fallbackState
 }
 
+export function clampRouteLayoutPaneSize(
+  pane: RouteLayoutPaneSpec | undefined,
+  size: number,
+  fallbackSize = 0,
+): number {
+  const roundedSize = Math.round(Number.isFinite(size) ? size : fallbackSize)
+  const minSize = typeof pane?.minSize === 'number' ? pane.minSize : undefined
+  const maxSize = typeof pane?.maxSize === 'number' ? pane.maxSize : undefined
+  const minClampedSize = minSize === undefined ? roundedSize : Math.max(roundedSize, minSize)
+  return maxSize === undefined ? minClampedSize : Math.min(minClampedSize, maxSize)
+}
+
+function sameRouteLayoutPaneSizeState(
+  current: { storageKey: string | undefined; defaultSize: number; value: number },
+  next: { storageKey: string | undefined; defaultSize: number; value: number },
+): boolean {
+  return current.storageKey === next.storageKey &&
+    current.defaultSize === next.defaultSize &&
+    current.value === next.value
+}
+
+function sameRouteLayoutPaneState(
+  current: { storageKey: string | undefined; value: RouteLayoutPaneState },
+  next: { storageKey: string | undefined; value: RouteLayoutPaneState },
+): boolean {
+  return current.storageKey === next.storageKey && current.value === next.value
+}
+
 export function useRouteLayoutPaneController({
   routeLayout,
   paneId,
   fallbackState = 'default',
   fallbackSize = 0,
-  clampSize = (size) => size,
+  clampSize,
   controlledState,
   onStateChange,
 }: UseRouteLayoutPaneControllerOptions): RouteLayoutPaneController {
@@ -86,6 +115,10 @@ export function useRouteLayoutPaneController({
   const stateStorageKey = routeLayoutPaneStateStorageKey(pane)
   const sizeStorageKey = pane?.storageKey
   const defaultSize = pane?.defaultSize ?? fallbackSize
+  const clampPaneSize = React.useCallback((size: number) => {
+    if (clampSize) return clampSize(size)
+    return clampRouteLayoutPaneSize(pane, size, defaultSize)
+  }, [clampSize, defaultSize, pane])
   const [uncontrolledState, setUncontrolledState] = React.useState<{
     storageKey: string | undefined
     value: RouteLayoutPaneState
@@ -107,39 +140,41 @@ export function useRouteLayoutPaneController({
     return {
       storageKey: sizeStorageKey,
       defaultSize,
-      value: readRouteLayoutPaneSize(sizeStorageKey, defaultSize, clampSize),
+      value: readRouteLayoutPaneSize(sizeStorageKey, defaultSize, clampPaneSize),
     }
   })
   const size = sizeState.storageKey === sizeStorageKey && sizeState.defaultSize === defaultSize
     ? sizeState.value
-    : readRouteLayoutPaneSize(sizeStorageKey, defaultSize, clampSize)
+    : readRouteLayoutPaneSize(sizeStorageKey, defaultSize, clampPaneSize)
 
   React.useEffect(() => {
     if (controlledState !== undefined) return
     setUncontrolledState((current) => {
       if (current.storageKey !== stateStorageKey) {
-        return {
+        const next = {
           storageKey: stateStorageKey,
           value: readRouteLayoutPaneState(pane, stateStorageKey, fallbackState),
         }
+        return sameRouteLayoutPaneState(current, next) ? current : next
       }
-      return {
+      const next = {
         storageKey: stateStorageKey,
         value: allowedRouteLayoutPaneState(pane, current.value, routeLayoutPaneDefaultState(pane, fallbackState)),
       }
+      return sameRouteLayoutPaneState(current, next) ? current : next
     })
   }, [controlledState, fallbackState, pane, stateStorageKey])
 
   React.useEffect(() => {
     setSizeValue((current) => {
-      if (current.storageKey === sizeStorageKey && current.defaultSize === defaultSize) return current
-      return {
+      const next = {
         storageKey: sizeStorageKey,
         defaultSize,
-        value: readRouteLayoutPaneSize(sizeStorageKey, defaultSize, clampSize),
+        value: readRouteLayoutPaneSize(sizeStorageKey, defaultSize, clampPaneSize),
       }
+      return sameRouteLayoutPaneSizeState(current, next) ? current : next
     })
-  }, [clampSize, defaultSize, sizeStorageKey])
+  }, [clampPaneSize, defaultSize, sizeStorageKey])
 
   React.useEffect(() => {
     if (!stateStorageKey) return
@@ -152,46 +187,53 @@ export function useRouteLayoutPaneController({
   }, [size, sizeStorageKey, state])
 
   React.useEffect(() => {
-    if (typeof window === 'undefined') return undefined
-    if (typeof window.addEventListener !== 'function' || typeof window.removeEventListener !== 'function') return undefined
     const keys = new Set([stateStorageKey, sizeStorageKey].filter((key): key is string => !!key))
     if (!keys.size) return undefined
     const handleStoredPaneValueChanged = (event: Event) => {
       const changedKey = (event as CustomEvent<{ key?: string }>).detail?.key
       if (changedKey && !keys.has(changedKey)) return
       if (controlledState === undefined) {
-        setUncontrolledState({
-          storageKey: stateStorageKey,
-          value: readRouteLayoutPaneState(pane, stateStorageKey, fallbackState),
+        setUncontrolledState((current) => {
+          const next = {
+            storageKey: stateStorageKey,
+            value: readRouteLayoutPaneState(pane, stateStorageKey, fallbackState),
+          }
+          return sameRouteLayoutPaneState(current, next) ? current : next
         })
       }
-      setSizeValue({
-        storageKey: sizeStorageKey,
-        defaultSize,
-        value: readRouteLayoutPaneSize(sizeStorageKey, defaultSize, clampSize),
+      setSizeValue((current) => {
+        const next = {
+          storageKey: sizeStorageKey,
+          defaultSize,
+          value: readRouteLayoutPaneSize(sizeStorageKey, defaultSize, clampPaneSize),
+        }
+        return sameRouteLayoutPaneSizeState(current, next) ? current : next
       })
     }
-    window.addEventListener(ROUTE_LAYOUT_PANE_STORAGE_CHANGED_EVENT, handleStoredPaneValueChanged)
-    return () => {
-      window.removeEventListener(ROUTE_LAYOUT_PANE_STORAGE_CHANGED_EVENT, handleStoredPaneValueChanged)
-    }
-  }, [clampSize, controlledState, defaultSize, fallbackState, pane, sizeStorageKey, stateStorageKey])
+    return listenToWindowEvent(ROUTE_LAYOUT_PANE_STORAGE_CHANGED_EVENT, handleStoredPaneValueChanged)
+  }, [clampPaneSize, controlledState, defaultSize, fallbackState, pane, sizeStorageKey, stateStorageKey])
 
   const setSize = React.useCallback((nextSize: number) => {
-    const nextValue = clampSize(nextSize)
-    setSizeValue({
-      storageKey: sizeStorageKey,
-      defaultSize,
-      value: nextValue,
+    const nextValue = clampPaneSize(nextSize)
+    setSizeValue((current) => {
+      const next = {
+        storageKey: sizeStorageKey,
+        defaultSize,
+        value: nextValue,
+      }
+      return sameRouteLayoutPaneSizeState(current, next) ? current : next
     })
     if (state !== 'hidden') writeStoredPaneSize(sizeStorageKey, nextValue)
-  }, [clampSize, defaultSize, sizeStorageKey, state])
+  }, [clampPaneSize, defaultSize, sizeStorageKey, state])
   const setAllowedState = React.useCallback((nextState: RouteLayoutPaneState) => {
     const allowedState = allowedRouteLayoutPaneState(pane, nextState, routeLayoutPaneDefaultState(pane, fallbackState))
     if (controlledState === undefined) {
-      setUncontrolledState({
-        storageKey: stateStorageKey,
-        value: allowedState,
+      setUncontrolledState((current) => {
+        const next = {
+          storageKey: stateStorageKey,
+          value: allowedState,
+        }
+        return sameRouteLayoutPaneState(current, next) ? current : next
       })
     }
     writeStoredPaneState(stateStorageKey, allowedState)
@@ -336,8 +378,8 @@ function bumpRouteLayoutPaneStorageVersion(storageKey: string): void {
 
 function dispatchRouteLayoutPaneStorageChanged(storageKey: string): void {
   if (typeof window === 'undefined') return
-  if (typeof window.dispatchEvent !== 'function' || typeof CustomEvent === 'undefined') return
-  window.dispatchEvent(new CustomEvent(ROUTE_LAYOUT_PANE_STORAGE_CHANGED_EVENT, {
+  if (typeof CustomEvent === 'undefined') return
+  publishWindowEvent(new CustomEvent(ROUTE_LAYOUT_PANE_STORAGE_CHANGED_EVENT, {
     detail: { key: storageKey },
   }))
 }

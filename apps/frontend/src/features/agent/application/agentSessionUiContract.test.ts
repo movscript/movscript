@@ -111,7 +111,8 @@ test('agent composer supports clipboard file uploads with a blocking resource tr
   assert.match(composerSectionSource, /onPaste=\{onComposerPaste\}/)
   assert.match(mentionEditorSource, /onPaste\?\.\(event\)/)
   assert.match(mentionEditorSource, /if \(event\.defaultPrevented\) return/)
-  assert.match(dataSourceShellSource, /composerPanel: buildAgentChatShellComposerPanel\(\{[\s\S]*onPaste: \(event: ClipboardEvent\) => void composer\.handleComposerPaste\(event\)/)
+  assert.match(dataSourceShellSource, /buildAgentChatDataSourceShellView\(\{[\s\S]*composer: setup\.composer,[\s\S]*\}\)/)
+  assert.match(dataSourceShellSource, /composerPanel: buildAgentChatShellComposerPanel\(\{[\s\S]*onPaste: \(event: ClipboardEvent\) => void input\.composer\.handleComposerPaste\(event\)/)
   assert.match(shellViewSource, /onComposerPaste=\{composerPanel\.onPaste\}/)
   assert.doesNotMatch(shellViewSource, /onComposerPaste=\{onComposerPaste\}/)
 })
@@ -162,7 +163,7 @@ test('agent page chat keeps a stable layout shell when the first message is sent
 
   assert.match(shellViewSource, /className=\{surface === 'page' \? 'agent-page-chat-main' : 'ai-agent-panel-main'\}/)
   assert.doesNotMatch(shellViewSource, /agent-page-chat-main--empty/)
-  assert.match(dataSourceShellSource, /useAgentChatShellPresentationState\(\{[\s\S]*sending,[\s\S]*visibleItems,/)
+  assert.match(dataSourceShellSource, /useAgentChatShellPresentationState\(\{[\s\S]*sending: setup\.sending,[\s\S]*visibleItems: viewport\.visibleItems,/)
   assert.match(presentationStateSource, /sending: boolean/)
   assert.match(presentationStateSource, /visibleItems\.length[\s\S]*\|\| sending[\s\S]*\|\| error/)
   assert.match(pageThreadShellBlock, /<div className="agent-page-chat-thread">/)
@@ -184,6 +185,8 @@ test('agent mode sidebar keeps conversations scoped to unbound chats', () => {
   const agentModePageSource = [
     readFileSync(resolve('src/features/agent/components/ProjectAgentModePage.tsx'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebar.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/useProjectAgentModeSidebarController.ts'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/useProjectAgentModeSidebarActions.ts'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebarView.tsx'), 'utf8'),
   ].join('\n')
   const agentModeSidebarPartsSource = readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebarParts.tsx'), 'utf8')
@@ -266,6 +269,8 @@ test('agent new conversation drafts bind selected project without starting a thr
   const agentModePageSource = [
     readFileSync(resolve('src/features/agent/components/ProjectAgentModePage.tsx'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebar.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/useProjectAgentModeSidebarController.ts'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/useProjectAgentModeSidebarActions.ts'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebarView.tsx'), 'utf8'),
   ].join('\n')
   const agentStoreSource = readFileSync(resolve('src/features/agent/state/agentStore.ts'), 'utf8')
@@ -368,6 +373,10 @@ function readAgentChatDataSourceShellContractSource(): string {
   return [
     readFileSync(resolve('src/features/agent/components/AgentChatDataSourceShell.tsx'), 'utf8'),
     readFileSync(resolve('src/features/agent/application/useAgentChatDataSourceShellController.ts'), 'utf8'),
+    readFileSync(resolve('src/features/agent/application/useAgentChatDataSourceShellRuntimeSetup.ts'), 'utf8'),
+    readFileSync(resolve('src/features/agent/application/useAgentChatRegistryActiveThreadEffect.ts'), 'utf8'),
+    readFileSync(resolve('src/features/agent/application/agentChatDataSourceShellControllerView.ts'), 'utf8'),
+    readFileSync(resolve('src/features/agent/application/agentChatDataSourceShellView.ts'), 'utf8'),
     readFileSync(resolve('src/features/agent/application/agentChatShellViewModels.ts'), 'utf8'),
   ].join('\n')
 }

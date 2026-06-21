@@ -3,6 +3,7 @@ package ai
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/movscript/movscript/internal/domain/media"
@@ -406,6 +407,54 @@ func TestAIServiceResolveModelRouteByRouteBindingID(t *testing.T) {
 	}
 	if route.ModelID != "image-fast" || route.ProviderModelID != "provider-image-v2" || route.RouteGroup != "priority" {
 		t.Fatalf("route model fields = %#v", route)
+	}
+}
+
+func TestAIServiceCatalogRouteUsesCredentialAdapterForVolcenVideoTasks(t *testing.T) {
+	db := testutil.OpenSQLite(t, "ai-model-catalog-volcen-video-runtime-contract.db",
+		&persistencemodel.AICredential{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
+	)
+	cred := persistencemodel.AICredential{
+		AdapterType: AdapterVolcen,
+		DisplayName: "Volcen Ark",
+		BaseURL:     "https://ark.cn-beijing.volces.com/api/v3",
+		IsEnabled:   true,
+	}
+	if err := db.Create(&cred).Error; err != nil {
+		t.Fatalf("create credential: %v", err)
+	}
+	entry := persistencemodel.AIModelCatalogEntry{
+		PublicModelID: "seedance-2-0",
+		DisplayName:   "Seedance 2.0",
+		IsEnabled:     true,
+		Capabilities:  strings.Join([]string{CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V}, ","),
+		PricingMode:   string(PricingPerSecond),
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	binding := persistencemodel.AIModelRouteBinding{
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
+		ProviderID:      fmt.Sprintf("%s:%d", persistencemodel.ModelRouteSourceLocalProvider, cred.ID),
+		ProviderModelID: "doubao-seedance-2-0-260128",
+		CredentialID:    &cred.ID,
+		IsEnabled:       true,
+		CapacityWeight:  1,
+	}
+	if err := db.Create(&binding).Error; err != nil {
+		t.Fatalf("create route binding: %v", err)
+	}
+	service := NewAIService(db, NewRegistry(db, nil))
+
+	route, err := service.ResolveModelRoute(ModelRouteRequest{RouteBindingID: binding.ID, Capability: CapabilityVideoI2V})
+	if err != nil {
+		t.Fatalf("ResolveModelRoute() error = %v", err)
+	}
+	if !service.SupportsVideoTasksRoute(context.Background(), 1, route) {
+		t.Fatal("SupportsVideoTasksRoute() = false, want true for Volcen credential-backed route")
 	}
 }
 

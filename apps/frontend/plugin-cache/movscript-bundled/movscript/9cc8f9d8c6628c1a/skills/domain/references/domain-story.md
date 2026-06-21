@@ -18,7 +18,7 @@ MovScript planning should first ask what is being made: a single output, a shot,
 
 Settings, assets, keyframes, storyboards, expression units, and audio cues are evidence or scaffolding for that center. Add them when they protect consistency, reuse, or generation quality; skip them when the user wants a quick low-stakes draft.
 
-When a reusable character, location, prop, style, or state will appear across generation tasks, or when the user is dissatisfied with its appearance, stabilize it through `setting` / `setting_state` / `asset` and an adopted/selected `asset_ref` content unit before downstream keyframe, storyboard, or video work. When composition or camera intent is important but underspecified, stabilize storyboard panels/images before keyframes and video.
+When a reusable concrete production entity, such as a character, prop, place, instrument, costume, or voice identity, will appear across generation tasks, or when the user is dissatisfied with its appearance or sound, stabilize it through `setting` / `setting_state` / `asset` and an adopted/selected `asset_ref` content unit before downstream keyframe, storyboard, audio, or video work. Do not use `setting` for abstract style/rules/mood; use project standards or production/expression fields. When composition or camera intent is important but underspecified, stabilize storyboard panels/images before keyframes and video.
 
 ## Structure Before Content Units
 
@@ -26,7 +26,7 @@ Everything except `content_unit` is production structure or a prerequisite for g
 
 - `production`, `segment`, `scene_moment`, and `shot` describe story rhythm, dramatic moments, and camera units.
 - `expression_unit` and `audio_cue` describe narrative expression and sound continuity inside a scene moment.
-- `setting`, `setting_state`, and `asset` describe reusable facts, states, and resource slots.
+- `setting`, `setting_state`, and `asset` describe concrete reusable production entities, their state namespaces, and state-owned resource slots.
 - `storyboard` and `keyframe` describe shot-owned visual organization and visual anchors.
 
 Do not design every segment, scene moment, shot, storyboard, keyframe, expression unit, audio cue, and asset at once by default. Choose the smallest useful prerequisite structure for the user's current goal, then deepen it through review and generation work.

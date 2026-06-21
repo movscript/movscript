@@ -154,12 +154,12 @@ export function AgentChatDataSourceThreadBody({
   return (
     <AgentBody className="ai-agent-panel-thread-body">
       <AgentPinnedStatusShelf statusItems={statusItems} defaultExpanded={false} />
-      <AgentThreadFill ref={setScrollNode} className="ms-agent-chat-thread-fill" onScroll={onScroll}>
+      <AgentThreadFill ref={setScrollNode} className="agent-chat-thread-fill" onScroll={onScroll}>
         {error ? (
-          <div className="ms-agent-chat-thread-error">{error}</div>
+          <div className="agent-chat-thread-error">{error}</div>
         ) : null}
         {recentCapabilityEvents.length > 0 ? (
-          <div className="ms-agent-chat-capability-events" data-testid="agent-chat-capability-events">
+          <div className="agent-chat-capability-events" data-testid="agent-chat-capability-events">
             {recentCapabilityEvents.map((item) => (
               <AgentChatRecentCapabilityEventCard key={item.id} event={item.event} />
             ))}
@@ -172,7 +172,7 @@ export function AgentChatDataSourceThreadBody({
             </Button>
           </div>
         ) : null}
-        <div className="ms-agent-chat-thread-items">
+        <div className="agent-chat-thread-items">
           {visibleItems.map((item) => (
             <AgentChatThreadItemView key={item.viewId} item={item.item} streaming={item.streaming} />
           ))}
@@ -320,13 +320,13 @@ export function AgentComposerActionLayer({
   const nextPage = Math.min(pageCount - 1, safePage + 1)
   return (
     <div
-      className="ms-agent-chat-action-layer"
+      className="agent-chat-action-layer"
       data-testid="agent-composer-action-layer"
       aria-live="polite"
     >
-      <div className="ms-agent-chat-action-layer-surface">
+      <div className="agent-chat-action-layer-surface">
         {pageCount > 1 ? (
-          <div className="ms-agent-chat-action-layer-pager">
+          <div className="agent-chat-action-layer-pager">
             <button
               type="button"
               className="agent-run-interaction-pager__button"

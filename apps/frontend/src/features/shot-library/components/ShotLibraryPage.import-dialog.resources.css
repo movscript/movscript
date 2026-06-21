@@ -1,0 +1,115 @@
+.shot-import-resource-grid {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.shot-import-resource-grid__search {
+  display: grid;
+  flex: 0 0 auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.shot-import-resource-grid__search > svg {
+  color: var(--ms-color-muted-foreground);
+}
+
+.shot-import-resource-grid__list {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+  gap: 8px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.shot-import-resource-grid__card {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border: 1px solid var(--ms-color-border);
+  border-radius: 8px;
+  background: var(--ms-color-muted);
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.shot-import-resource-grid__card:disabled {
+  cursor: default;
+  opacity: 0.68;
+}
+
+.shot-import-resource-grid__card > *:first-child {
+  width: 100%;
+  height: 100%;
+}
+
+.shot-import-resource-grid__card img,
+.shot-import-resource-grid__card video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.shot-import-resource-grid__card--selected {
+  border-color: color-mix(in srgb, var(--ms-color-info) 70%, var(--ms-color-border));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ms-color-info) 28%, transparent);
+}
+
+.shot-import-resource-grid__selected {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--ms-color-info) 60%, white);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ms-color-surface) 92%, transparent);
+  color: var(--ms-color-info);
+  box-shadow: var(--ms-shadow-sm);
+}
+
+.shot-import-resource-grid__state {
+  display: flex;
+  min-height: 140px;
+  grid-column: 1 / -1;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px dashed var(--ms-color-border);
+  border-radius: 8px;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+}
+
+.shot-import-resource-grid__state svg:first-child {
+  color: var(--ms-color-muted-foreground);
+}
+
+.shot-import-resource-grid__spinner {
+  animation: shot-upload-spin 900ms linear infinite;
+}
+
+.shot-import-resource-grid__pager {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+}
+
+.shot-import-resource-grid__pager > div {
+  display: flex;
+  gap: 6px;
+}

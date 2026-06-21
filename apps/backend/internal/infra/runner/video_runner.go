@@ -7,15 +7,15 @@ import (
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
-func (w *Worker) runVideoJob(ctx context.Context, debugCtx context.Context, job *persistencemodel.Job, params generationParams, imageData []ai.MediaData, videoData []ai.MediaData, sm *jobStateMachine, debugResult *ai.DebugCallResult) error {
+func (w *Worker) runVideoJob(ctx context.Context, debugCtx context.Context, job *persistencemodel.Job, params generationParams, imageData []ai.MediaData, videoData []ai.MediaData, audioData []ai.MediaData, sm *jobStateMachine, debugResult *ai.DebugCallResult) error {
 	dur := job.Duration
 	if dur == 0 {
 		dur = params.Int("duration")
 	}
 	// Volcen's Seedance video API rejects base64 for video_url; for reference
 	// images and videos alike we need a provider-reachable public URL.
-	w.prepareVideoInputReferences(job, imageData, videoData)
-	req := w.buildVideoRequest(job, params, dur, imageData, videoData)
+	w.prepareVideoInputReferences(job, imageData, videoData, audioData)
+	req := w.buildVideoRequest(job, params, dur, imageData, videoData, audioData)
 	if job.ProviderTaskID != "" {
 		return w.pollVideoProviderTask(ctx, debugCtx, job, dur, sm, debugResult)
 	}
@@ -29,7 +29,7 @@ func (w *Worker) runVideoJob(ctx context.Context, debugCtx context.Context, job 
 	return w.callVideoProvider(ctx, debugCtx, job, req, sm, debugResult)
 }
 
-func (w *Worker) buildVideoRequest(job *persistencemodel.Job, params generationParams, dur int, imageData []ai.MediaData, videoData []ai.MediaData) ai.VideoRequest {
+func (w *Worker) buildVideoRequest(job *persistencemodel.Job, params generationParams, dur int, imageData []ai.MediaData, videoData []ai.MediaData, audioData []ai.MediaData) ai.VideoRequest {
 	req := ai.VideoRequest{
 		Prompt:                job.Prompt,
 		Duration:              dur,
@@ -57,6 +57,9 @@ func (w *Worker) buildVideoRequest(job *persistencemodel.Job, params generationP
 	}
 	if len(videoData) > 0 {
 		req.InputVideoData = &videoData[0]
+	}
+	if len(audioData) > 0 {
+		req.InputAudioData = &audioData[0]
 	}
 	return req
 }

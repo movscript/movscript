@@ -18,7 +18,7 @@ export interface MovScriptWorkspaceEntityWriteInput {
 
 export interface MovScriptWorkspaceEntityWriteResult {
   path: string
-  entityKind: 'setting' | 'asset'
+  entityKind: 'setting' | 'setting_state' | 'asset'
   record: Record<string, unknown>
 }
 
@@ -103,6 +103,41 @@ export async function upsertMovScriptWorkspaceAsset(
   })
   await input.fileRepository.write({ path, content: serializeWorkspaceRecord(record) })
   return { path, entityKind: 'asset', record }
+}
+
+export async function upsertMovScriptWorkspaceSettingState(
+  input: MovScriptWorkspaceEntityWriteInput,
+): Promise<MovScriptWorkspaceEntityWriteResult> {
+  const sourcePath = input.entity?.path ?? workspacePath(input.record ?? {})
+  const current = stripEntityPrivateFields(input.entity?.record ?? input.record ?? {})
+  const payload = stripEntityPrivateFields(input.payload)
+  const identity = entityIdentity(entityIdentityValue(current, payload, input.now), 'setting_state')
+  const sourcePathSettingId = sourcePath ? pathSegmentAfter(sourcePath, 'settings') : undefined
+  const settingId = entityRef(
+    payload.setting_id ?? payload.settingId ?? payload.setting_ref ?? payload.settingRef
+    ?? current.setting_id ?? current.settingId ?? current.setting_ref ?? current.settingRef,
+    'setting',
+  )
+    ?? sourcePathSettingId
+  if (!settingId) {
+    throw new Error('setting state requires setting_id; states must be stored under settings/{setting}/states/{state}/setting_state.json')
+  }
+  const title = stringValue(payload.title ?? current.title)
+    ?? displayName(identity.id)
+  const path = sourcePath ?? `settings/${entityPathSlug(settingId, 'setting')}/states/${identity.slug}/setting_state.json`
+  const record = pruneUndefined({
+    ...current,
+    ...payload,
+    schema: 'movscript.setting_state.v1',
+    kind: 'setting_state',
+    id: identity.id,
+    title,
+    setting_id: settingId,
+    state_kind: stringValue(payload.state_kind ?? payload.stateKind ?? payload.kind ?? current.state_kind ?? current.stateKind ?? current.kind),
+    description: stringValue(payload.description ?? current.description),
+  })
+  await input.fileRepository.write({ path, content: serializeWorkspaceRecord(record) })
+  return { path, entityKind: 'setting_state', record }
 }
 
 export async function deleteMovScriptWorkspaceEntity(input: MovScriptWorkspaceEntityDeleteInput): Promise<void> {

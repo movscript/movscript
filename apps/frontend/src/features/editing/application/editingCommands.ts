@@ -4,15 +4,11 @@ import type {
   ElectronMediaPipelineEditingProject,
 } from '@/shared/contracts/electronApiMedia'
 import {
-  createMediaEditingProjectService,
   type MediaClip,
   type MediaClipPatch,
-  type MediaEditingProject,
-  type MediaEditingProjectServiceOptions,
-  type MediaTimelineCommand,
-  type MediaTrack,
 } from '@movscript/editing'
 
+import { applyTimelineCommands } from './editingCommandService'
 import { createAudioAssetFromVideo, createLocalAsset, upsertAsset } from '../domain/assets'
 import {
   compareClips,
@@ -25,7 +21,7 @@ import {
 import {
   EDITING_TIMELINE_MIN_CLIP_DURATION_MS,
 } from '../domain/constants'
-import type { ClipForm, TimelineClipEditMode, TimelineTrackType } from '../domain/types'
+import type { ClipForm, TimelineClipEditMode } from '../domain/types'
 import {
   createTrack,
   ensureAlignedAudioTrack,
@@ -37,6 +33,13 @@ import {
   trackTypeForAssetType,
 } from '../domain/tracks'
 import { normalizeTimelineCanvas } from '../domain/project'
+export {
+  addTimelineTrackCommand,
+  deleteTimelineTrackCommand,
+  moveTimelineTrackCommand,
+  toggleTimelineTrackLockedCommand,
+  toggleTimelineTrackMutedCommand,
+} from './editingTrackCommands'
 
 export type SelectedTimelineClip = {
   trackId: string
@@ -44,30 +47,6 @@ export type SelectedTimelineClip = {
 }
 
 export type TimelineClipClipboardItem = SelectedTimelineClip
-
-function mediaProjectForService(project: ElectronMediaPipelineEditingProject): MediaEditingProject {
-  const now = new Date().toISOString()
-  return {
-    ...project,
-    source: project.source ?? { kind: 'manual' },
-    createdAt: project.createdAt ?? now,
-    updatedAt: project.updatedAt ?? now,
-    revision: project.revision ?? 0,
-  } as unknown as MediaEditingProject
-}
-
-function applyTimelineCommands(
-  project: ElectronMediaPipelineEditingProject,
-  commands: MediaTimelineCommand[],
-  options?: MediaEditingProjectServiceOptions,
-): ElectronMediaPipelineEditingProject {
-  const service = createMediaEditingProjectService(mediaProjectForService(project), options)
-  let nextProject = service.getProject()
-  for (const command of commands) {
-    nextProject = service.applyCommand(command)
-  }
-  return nextProject as unknown as ElectronMediaPipelineEditingProject
-}
 
 function clipPatchFromDraft(clip: ElectronMediaPipelineClip): MediaClipPatch {
   const { id: _id, assetType: _assetType, asset: _asset, ...patch } = clip
@@ -401,49 +380,6 @@ export function pasteTimelineClipCommand(
     project: applyTimelineCommands(projectWithTrack, [{ type: 'add_clip', trackId: track.id, clip: clip as unknown as MediaClip }]),
     clip,
     track,
-  }
-}
-
-export function addTimelineTrackCommand(project: ElectronMediaPipelineEditingProject, type: TimelineTrackType) {
-  const track = createTrack(nextTrackId(project, type), type, nextTrackZIndex(project, type))
-  return {
-    project: applyTimelineCommands(project, [{ type: 'add_track', track: track as unknown as MediaTrack }]),
-    track,
-  }
-}
-
-export function deleteTimelineTrackCommand(project: ElectronMediaPipelineEditingProject, trackId: string) {
-  const track = project.timeline.tracks.find((candidate) => candidate.id === trackId)
-  if (!track || track.clips.length > 0) return undefined
-  const nextProject = applyTimelineCommands(project, [{ type: 'remove_track', trackId }])
-  return {
-    project: nextProject,
-    track,
-    nextTracks: nextProject.timeline.tracks,
-  }
-}
-
-export function moveTimelineTrackCommand(project: ElectronMediaPipelineEditingProject, trackId: string, direction: -1 | 1) {
-  const trackIndex = project.timeline.tracks.findIndex((track) => track.id === trackId)
-  const track = project.timeline.tracks[trackIndex]
-  if (!track) return undefined
-  const sameTypeTracks = project.timeline.tracks
-    .map((candidate, index) => ({ track: candidate, index }))
-    .filter((candidate) => candidate.track.type === track.type)
-  const sameTypeIndex = sameTypeTracks.findIndex((candidate) => candidate.track.id === trackId)
-  const swapTarget = sameTypeTracks[sameTypeIndex + direction]
-  if (!swapTarget) return undefined
-  const nextTracks = [...project.timeline.tracks]
-  nextTracks[trackIndex] = swapTarget.track
-  nextTracks[swapTarget.index] = track
-  return {
-    ...project,
-    updatedAt: new Date().toISOString(),
-    revision: (project.revision ?? 0) + 1,
-    timeline: {
-      ...project.timeline,
-      tracks: normalizeTrackLayerOrder(nextTracks),
-    },
   }
 }
 

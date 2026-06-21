@@ -3,7 +3,6 @@ package catalog
 import (
 	"context"
 	"strings"
-	"time"
 
 	"github.com/movscript/movscript/internal/infra/cache"
 	providercontract "github.com/movscript/movscript/internal/providers/contract"
@@ -11,10 +10,7 @@ import (
 
 type Service struct {
 	catalog providercontract.AIGatewayModelCatalog
-	cache   cache.Cache
 }
-
-const modelsCacheTTL = 5 * time.Minute
 
 type ListOptions struct {
 	ProviderVariants bool
@@ -49,14 +45,8 @@ type PublicModel struct {
 }
 
 func NewService(modelCatalog providercontract.AIGatewayModelCatalog, cacheStore ...cache.Cache) *Service {
-	var c cache.Cache
-	if len(cacheStore) > 0 {
-		c = cacheStore[0]
-	}
-	if c == nil {
-		c = cache.NewNoop()
-	}
-	return &Service{catalog: modelCatalog, cache: c}
+	_ = cacheStore
+	return &Service{catalog: modelCatalog}
 }
 
 func (s *Service) ListByCapability(ctx context.Context, capability string, providerVariants ...bool) ([]PublicModel, error) {
@@ -66,14 +56,6 @@ func (s *Service) ListByCapability(ctx context.Context, capability string, provi
 
 func (s *Service) ListByCapabilityWithOptions(ctx context.Context, capability string, opts ListOptions) ([]PublicModel, error) {
 	apiKinds := splitModelAPIKindQuery(opts.APIKinds...)
-	key := "models:capability:" + capability + modelsCacheVariantSuffix(opts.ProviderVariants, apiKinds)
-	var cached []PublicModel
-	cacheable := strings.TrimSpace(opts.RouteGroup) == ""
-	if cacheable {
-		if ok, err := s.cache.GetJSON(ctx, key, &cached); err == nil && ok {
-			return cached, nil
-		}
-	}
 	capabilities := splitCapabilityQuery(capability)
 	filter := providercontract.AIModelListFilter{
 		Capabilities:     capabilities,
@@ -88,9 +70,6 @@ func (s *Service) ListByCapabilityWithOptions(ctx context.Context, capability st
 	models := make([]PublicModel, 0, len(descriptors))
 	for _, descriptor := range descriptors {
 		models = append(models, publicModelFromDescriptor(descriptor))
-	}
-	if cacheable {
-		_ = s.cache.SetJSON(ctx, key, models, modelsCacheTTL)
 	}
 	return models, nil
 }
@@ -185,15 +164,4 @@ func splitModelAPIKindQuery(values ...string) []string {
 		}
 	}
 	return out
-}
-
-func modelsCacheVariantSuffix(providerVariants bool, apiKinds []string) string {
-	kindSuffix := ""
-	if len(apiKinds) > 0 {
-		kindSuffix = ":api_kinds:" + strings.Join(apiKinds, ",")
-	}
-	if providerVariants {
-		return ":provider_variants" + kindSuffix
-	}
-	return ":logical" + kindSuffix
 }

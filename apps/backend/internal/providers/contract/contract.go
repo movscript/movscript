@@ -303,6 +303,8 @@ type VideoRequest struct {
 	InputImageDataList    []MediaData
 	InputVideo            string
 	InputVideoData        *MediaData
+	InputAudio            string
+	InputAudioData        *MediaData
 	Duration              int
 	Frames                int
 	Seed                  *int64

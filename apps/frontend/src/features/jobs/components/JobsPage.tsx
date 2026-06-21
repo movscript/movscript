@@ -15,9 +15,12 @@ import {
   publishGenerationJobStatus,
 } from '@/features/jobs/application/generationJobStatusStream'
 import { useTranslation } from 'react-i18next'
+import { Dialog } from '@movscript/ui/primitives'
 import {
   JobsActionButton,
   JobsCollection,
+  JobsDetailDialogContent,
+  JobsDetailDialogTitle,
   JobsEmptyState,
   JobsFilterBar,
   JobsFilterChipButton,
@@ -28,7 +31,6 @@ import {
   JobsPageShell,
   JobsPager,
   JobsPagerButton,
-  JobsSelectedDetailRegion,
   JobsViewToggle,
 } from '@/features/jobs/components/JobsPageUi'
 import {
@@ -233,11 +235,21 @@ export default function JobsPage() {
         />
       ) : undefined}
     >
-        {selectedJob && (
-          <JobsSelectedDetailRegion>
-            <JobDetailCard job={selectedJob} onClose={() => setSelectedJobId(null)} />
-          </JobsSelectedDetailRegion>
-        )}
+        <Dialog
+          open={Boolean(selectedJob)}
+          onOpenChange={(open) => {
+            if (!open) setSelectedJobId(null)
+          }}
+        >
+          <JobsDetailDialogContent closeLabel={t('common.close')}>
+            <JobsDetailDialogTitle>
+              {selectedJob?.title || t('common.details')}
+            </JobsDetailDialogTitle>
+            {selectedJob ? (
+              <JobDetailCard job={selectedJob} onClose={() => setSelectedJobId(null)} />
+            ) : null}
+          </JobsDetailDialogContent>
+        </Dialog>
 
         {isLoading ? (
           <JobsLoadingState>{t('common.loadingShort')}</JobsLoadingState>

@@ -26,7 +26,7 @@ import {
   PluginToolSurface,
   PluginToolTextarea,
   PluginToolWebviewFrame
-} from '@/features/plugins/components/PluginsPageUi'
+} from '@/features/plugins/components/PluginsToolUi'
 import { ROUTES } from '@/routes/projectRoutes'
 import { PLUGIN_TOOL_NATIVE_MAIN_PANE_ID } from '@/features/plugins/presentation/pluginToolLayoutSpec'
 

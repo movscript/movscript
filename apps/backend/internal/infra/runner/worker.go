@@ -216,7 +216,7 @@ func (w *Worker) execute(ctx context.Context, job *persistencemodel.Job) (err er
 		if err := w.abortIfCancelled(callCtx, job, sm); err != nil {
 			return err
 		}
-		return w.runVideoJob(callCtx, debugCtx, job, params, imageData, videoData, sm, debugResult)
+		return w.runVideoJob(callCtx, debugCtx, job, params, imageData, videoData, audioData, sm, debugResult)
 
 	case ai.CapabilityAudioTTS:
 		if err := w.abortIfCancelled(callCtx, job, sm); err != nil {

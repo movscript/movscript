@@ -52,10 +52,15 @@ test('release workflow installs locked dependencies without mutating package spe
 })
 
 test('release workflow verifies readiness before packaging and smoke-tests runnable packages', () => {
+  assert.match(releaseWorkflow, /^\s+release-checks:\s*$/m)
+  assert.match(releaseWorkflow, /^\s+package:\s*$/m)
+  assert.match(releaseWorkflow, /needs:\s+\[release-checks]/)
+  assert.match(releaseWorkflow, /pnpm run release -- check/)
   assert.match(releaseWorkflow, /pnpm run release -- verify-release-readiness --tag="\$RELEASE_TAG" --platform=\$\{\{\s*matrix\.package-platform\s*\}\}/)
   assert.match(releaseWorkflow, /release_channel:/)
   assert.match(releaseWorkflow, /MOVSCRIPT_RELEASE_ALLOW_TEST_TAG:\s+\$\{\{\s*\(\(github\.event_name == 'workflow_dispatch' && inputs\.release_channel == 'test'\) \|\| contains\(github\.ref_name, '-test\.'\)\) && '1' \|\| '0'\s*\}\}/)
   assert.match(releaseWorkflow, /MOVSCRIPT_RELEASE_REQUIRE_SIGNING:\s+\$\{\{\s*vars\.MOVSCRIPT_RELEASE_REQUIRE_SIGNING \|\| '0'\s*\}\}/)
+  assert.match(releaseWorkflow, /MOVSCRIPT_RELEASE_SIGNING_MODE:\s+\$\{\{\s*vars\.MOVSCRIPT_RELEASE_SIGNING_MODE \|\| 'unsigned'\s*\}\}/)
   assert.match(releaseWorkflow, /pnpm run release -- smoke-desktop-package --platform=\$\{\{\s*matrix\.package-platform\s*\}\} --arch=\$\{\{\s*matrix\.package-arch\s*\}\}/)
 })
 

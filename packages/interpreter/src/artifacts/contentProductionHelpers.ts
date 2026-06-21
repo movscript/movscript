@@ -118,8 +118,6 @@ export function primaryRefKindForContentUnitType(contentUnitType: string): Conte
       return 'scene_moment'
     case 'expression_unit_ref':
       return 'expression_unit'
-    case 'shot_ref':
-      return 'shot'
     default:
       return undefined
   }
@@ -149,8 +147,6 @@ export function primaryRefIdsForContentUnitRecord(
       return compactStrings(record.target_kind === 'scene_moment' ? record.target_ref : undefined, record.scene_moment_ref, record.scence_moment_ref)
     case 'expression_unit':
       return compactStrings(record.target_kind === 'expression_unit' ? record.target_ref : undefined, record.expression_unit_ref)
-    case 'shot':
-      return compactStrings(record.shot_ref)
     case 'content_unit':
       return compactStrings(record.content_unit_ref)
     default:
@@ -190,7 +186,6 @@ export function outputKindForContentUnitType(contentUnitType: string, value: unk
     case 'scene_moment_ref':
     case 'production_ref':
     case 'segment_ref':
-    case 'shot_ref':
       return 'video'
     case 'expression_unit_ref':
       return contentUnitOutputKind(value)
@@ -209,7 +204,6 @@ export function expectedOutputKindForContentUnitType(contentUnitType: string): C
     case 'scene_moment_ref':
     case 'production_ref':
     case 'segment_ref':
-    case 'shot_ref':
       return 'video'
     case 'expression_unit_ref':
       return undefined
@@ -298,7 +292,6 @@ function promptRefKind(value: string | undefined): ContentUnitPromptRefKind | un
     case 'storyboard':
     case 'scene_moment':
     case 'expression_unit':
-    case 'shot':
     case 'content_unit':
       return value
     default:
@@ -342,7 +335,7 @@ export function readSelectedContentUnit(
 
 export function findEntityByRef(
   index: MovScriptWorkspaceDomainIndex,
-  entityKind: 'production' | 'segment' | 'asset' | 'setting' | 'setting_state' | 'scene_moment' | 'expression_unit' | 'shot' | 'storyboard' | 'keyframe',
+  entityKind: 'production' | 'segment' | 'asset' | 'setting' | 'setting_state' | 'scene_moment' | 'expression_unit' | 'storyboard' | 'keyframe',
   ref: unknown,
 ): MovScriptWorkspaceIndexedEntity | undefined {
   const value = idField(ref)
@@ -355,14 +348,14 @@ export function findEntityByRef(
     })
 }
 
-export function parentShotForEntity(
+export function parentExpressionUnitForEntity(
   index: MovScriptWorkspaceDomainIndex,
   entity: MovScriptWorkspaceIndexedEntity,
 ): MovScriptWorkspaceIndexedEntity | undefined {
-  const shotRef = stringField(entity.record.shot_ref)
-  if (shotRef) return findEntityByRef(index, 'shot', shotRef)
-  const shotId = pathSegmentAfter(entity.path, 'shots')
-  return shotId ? findEntityByRef(index, 'shot', shotId) : undefined
+  const expressionUnitRef = stringField(entity.record.expression_unit_ref)
+  if (expressionUnitRef) return findEntityByRef(index, 'expression_unit', expressionUnitRef)
+  const expressionUnitId = pathSegmentAfter(entity.path, 'expression_units')
+  return expressionUnitId ? findEntityByRef(index, 'expression_unit', expressionUnitId) : undefined
 }
 
 export function requiredString(value: unknown, message: string): string {

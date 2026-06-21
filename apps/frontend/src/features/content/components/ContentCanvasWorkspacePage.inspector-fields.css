@@ -1,0 +1,20 @@
+.content-canvas-inspector-section textarea,
+.content-canvas-prompt-editor textarea {
+  width: 100%;
+  min-height: 92px;
+  resize: vertical;
+  border: 1px solid var(--cc-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--cc-panel) 94%, transparent);
+  color: var(--cc-text);
+  padding: 9px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  outline: none;
+}
+
+.content-canvas-inspector-section textarea:focus,
+.content-canvas-prompt-editor textarea:focus {
+  border-color: color-mix(in srgb, var(--cc-accent) 48%, var(--cc-border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cc-accent) 10%, transparent);
+}

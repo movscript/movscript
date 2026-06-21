@@ -20,17 +20,31 @@ test('release workflow exposes the curated release subcommand surface', () => {
 test('release workflow check runs release gates in order', () => {
   assert.deepEqual(releaseWorkflowSteps('check'), [
     ['Verify release readiness', 'node', ['scripts/release/release-workflow.mjs', 'verify-release-readiness']],
+    ['Run workspace typecheck', 'pnpm', ['run', 'typecheck']],
+    ['Run workspace tests', 'pnpm', ['run', 'test']],
+    ['Run script and release tests', 'pnpm', ['run', 'test:scripts']],
+    ['Run UI package quality gate', 'pnpm', ['run', 'quality:ui']],
+    ['Run frontend quality gate', 'pnpm', ['run', 'quality:frontend']],
     ['Verify package resource contract', 'node', ['scripts/release/release-workflow.mjs', 'verify-package-resources']],
-    ['Audit desktop ffmpeg matrix', 'node', ['scripts/release/release-workflow.mjs', 'audit-ffmpeg', '--all', '--all-archs']],
   ])
 })
 
-test('release workflow full runs check, desktop packaging, and collection', () => {
+test('release workflow full runs check, ffmpeg staging, desktop packaging, smoke, and collection', () => {
   assert.deepEqual(releaseWorkflowSteps('full'), [
     ['Run release checks', 'node', ['scripts/release/release-workflow.mjs', 'check']],
-    ['Build desktop package', 'node', ['scripts/release/release-workflow.mjs', 'package-desktop']],
-    ['Build workspace packages', 'pnpm', ['--filter', './packages/*', 'build']],
-    ['Build movcli', 'pnpm', ['--filter', '@movscript/cli', 'build']],
+    ['Download ffmpeg-static release binary', 'node', ['scripts/release/release-workflow.mjs', 'download-ffmpeg-static']],
+    ['Build desktop package', 'node', ['scripts/release/release-workflow.mjs', 'package-desktop', '--unsigned']],
+    ['Smoke test desktop package', 'node', ['scripts/release/release-workflow.mjs', 'smoke-desktop-package']],
+    ['Collect release artifacts', 'node', ['scripts/release/release-workflow.mjs', 'collect']],
+  ])
+})
+
+test('release workflow dry-run forwards desktop target and signing mode args', () => {
+  assert.deepEqual(releaseWorkflowSteps('dry-run', ['--platform=darwin', '--arch=arm64', '--signed']), [
+    ['Run release checks', 'node', ['scripts/release/release-workflow.mjs', 'check']],
+    ['Download ffmpeg-static release binary', 'node', ['scripts/release/release-workflow.mjs', 'download-ffmpeg-static', '--platform=darwin', '--arch=arm64']],
+    ['Build desktop package', 'node', ['scripts/release/release-workflow.mjs', 'package-desktop', '--platform=darwin', '--arch=arm64', '--signed']],
+    ['Smoke test desktop package', 'node', ['scripts/release/release-workflow.mjs', 'smoke-desktop-package', '--platform=darwin', '--arch=arm64']],
     ['Collect release artifacts', 'node', ['scripts/release/release-workflow.mjs', 'collect']],
   ])
 })
@@ -185,6 +199,7 @@ test('runReleaseWorkflowCli dispatches desktop packaging through release command
     exit: () => undefined,
     log: () => undefined,
     defaults: { platform: 'darwin', arch: 'x64' },
+    env: { PATH: '/bin' },
     patchMacOSDMGBuilder: (...args) => patchCalls.push(args),
     preparePackage: (...args) => prepareCalls.push(args),
     verifyPackage: (...args) => verifyCalls.push(args),
@@ -203,6 +218,7 @@ test('runReleaseWorkflowCli dispatches desktop packaging through release command
     currentArch: 'x64',
     arch: 'arm64',
     exit: undefined,
+    signingMode: 'unsigned',
   })
   assert.equal(verifyCalls.length, 1)
   assert.deepEqual({ ...verifyCalls[0][1], exit: undefined, log: undefined, logError: undefined }, {
@@ -211,18 +227,24 @@ test('runReleaseWorkflowCli dispatches desktop packaging through release command
     currentArch: 'x64',
     arch: 'arm64',
     exit: undefined,
+    signingMode: 'unsigned',
     log: undefined,
     logError: undefined,
   })
   assert.equal(verifyDMGCalls.length, 1)
   assert.deepEqual({ ...verifyDMGCalls[0][1], log: undefined, spawn: undefined }, {
     arch: 'arm64',
+    env: {
+      PATH: '/bin',
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false',
+      MOVSCRIPT_RELEASE_SIGNING_MODE: 'unsigned',
+    },
     log: undefined,
     spawn: undefined,
   })
   assert.deepEqual(calls.map((call) => call.slice(0, 2)), [
     ['pnpm', ['--filter', '@movscript/desktop', 'build']],
-    ['pnpm', ['--filter', '@movscript/desktop', 'exec', 'electron-builder', '--mac', 'dmg', '--arm64', '--publish', 'never']],
+    ['pnpm', ['--filter', '@movscript/desktop', 'exec', 'electron-builder', '--mac', 'dmg', '--arm64', '--publish', 'never', '-c.mac.identity=null', '-c.mac.notarize=false']],
   ])
 })
 

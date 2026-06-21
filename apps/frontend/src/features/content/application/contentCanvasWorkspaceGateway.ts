@@ -1,30 +1,46 @@
 import type { ContentCandidateRecord, ContentSourceWorkspaceCandidateCreatePlan, ContentSourceWorkspaceData } from '@movscript/core/content'
 import type { MovScriptWorkspaceService } from '@movscript/workspace'
+import type {
+  MovScriptEngineAssetInput,
+  MovScriptEngineEntityBasicsInput,
+  MovScriptEngineEnsureContentUnitInput,
+  MovScriptEngineKeyframeInput,
+  MovScriptEngineSceneMomentSettingConnectionInput,
+  MovScriptEngineSettingInput,
+  MovScriptEngineSettingStateInput,
+  MovScriptEngineStoryboardInput,
+} from '@movscript/engine'
 
 export type ContentCanvasWorkspaceService = Pick<
   MovScriptWorkspaceService,
   | 'queryEntities'
   | 'querySettings'
   | 'queryAssets'
-  | 'upsertSetting'
-  | 'upsertAsset'
-  | 'upsertContentUnit'
   | 'updateContentUnitEditPrompt'
+  | 'readContentUnitGenerationPrompt'
 >
 
 export interface ContentCanvasWorkspaceGateway {
   service: ContentCanvasWorkspaceService
   loadContentSourceWorkspaceData(projectId: number): Promise<ContentSourceWorkspaceData>
+  createSetting(input: MovScriptEngineSettingInput): Promise<{ path: string; record: Record<string, unknown> }>
+  createSettingState(input: MovScriptEngineSettingStateInput): Promise<{ path: string; record: Record<string, unknown> }>
+  createAsset(input: MovScriptEngineAssetInput): Promise<{ path: string; record: Record<string, unknown> }>
+  updateEntityBasics(input: MovScriptEngineEntityBasicsInput): Promise<unknown>
+  connectSceneMomentSetting(input: MovScriptEngineSceneMomentSettingConnectionInput): Promise<unknown>
   createProduction(input: ContentCanvasProductionCreateInput): Promise<void>
   createSegment(input: ContentCanvasSegmentCreateInput): Promise<void>
   createSceneMoment(input: ContentCanvasSceneMomentCreateInput): Promise<void>
-  createShot(input: ContentCanvasShotCreateInput): Promise<void>
   createExpressionUnit(input: ContentCanvasExpressionUnitCreateInput): Promise<void>
-  createKeyframe(input: ContentCanvasKeyframeCreateInput): Promise<void>
-  createStoryboard(input: ContentCanvasStoryboardCreateInput): Promise<void>
+  createKeyframe(input: MovScriptEngineKeyframeInput): Promise<void>
+  createStoryboard(input: MovScriptEngineStoryboardInput): Promise<void>
+  ensureContentUnitForEntity(input: MovScriptEngineEnsureContentUnitInput): Promise<{ contentUnitPath?: string; path?: string; record: Record<string, unknown> }>
+  updateExpressionUnit(input: ContentCanvasExpressionUnitUpdateInput): Promise<void>
+  uploadResource(input: ContentCanvasResourceUploadInput): Promise<ContentCanvasUploadedResource>
   createContentUnitCandidate(input: ContentCanvasContentCandidateCreateInput): Promise<ContentCandidateRecord>
+  previewContentUnitGenerationPrompt(input: ContentCanvasContentCandidateGenerateInput): Promise<ContentCanvasGenerationPromptPreview>
+  generateContentUnitCandidate(input: ContentCanvasContentCandidateGenerateInput): Promise<ContentCandidateRecord>
   selectContentUnitCandidate(input: ContentCanvasContentCandidateSelectInput): Promise<void>
-  writeHierarchyNode(input: ContentCanvasHierarchyNodeWriteInput): Promise<void>
 }
 
 export type ContentCanvasProductionCreateInput = {
@@ -50,15 +66,6 @@ export type ContentCanvasSceneMomentCreateInput = {
   segmentTitle: string
 }
 
-export type ContentCanvasShotCreateInput = {
-  projectId: number
-  productionId: string
-  segmentId: string
-  sceneMomentId: string
-  id: string
-  title: string
-}
-
 export type ContentCanvasExpressionUnitCreateInput = {
   projectId: number
   productionId: string
@@ -71,29 +78,49 @@ export type ContentCanvasExpressionUnitCreateInput = {
   sceneMomentTitle: string
 }
 
-export type ContentCanvasKeyframeCreateInput = {
+export type ContentCanvasExpressionUnitUpdateInput = {
   projectId: number
-  productionId: string
-  segmentId: string
-  sceneMomentId: string
-  shotId: string
-  id: string
+  targetPath: string
   title: string
-  shotTitle: string
-}
-
-export type ContentCanvasStoryboardCreateInput = {
-  projectId: number
-  productionId: string
-  segmentId: string
-  sceneMomentId: string
-  shotId: string
-  id: string
-  title: string
+  kind: string
+  text: string
+  summary: string
+  speaker?: string
+  note?: string
 }
 
 export type ContentCanvasContentCandidateCreateInput = ContentSourceWorkspaceCandidateCreatePlan & {
   projectId: number
+}
+
+export type ContentCanvasContentCandidateGenerateInput = {
+  projectId: number
+  contentUnitId: string
+  candidateId: string
+  outputKind: 'image' | 'video'
+  modelId?: string
+  params?: Record<string, string | number | boolean>
+  promptText?: string
+}
+
+export type ContentCanvasGenerationPromptPreview = {
+  text: string
+  compiledText?: string
+  resourceIds: number[]
+  replacements: Array<Record<string, unknown>>
+  blockers: Array<Record<string, unknown>>
+}
+
+export type ContentCanvasResourceUploadInput = {
+  projectId: number
+  file: File
+}
+
+export type ContentCanvasUploadedResource = {
+  id: number
+  name: string
+  type: 'image' | 'video' | 'audio' | 'text' | 'file'
+  mimeType?: string
 }
 
 export type ContentCanvasContentCandidateSelectInput = {
@@ -102,10 +129,4 @@ export type ContentCanvasContentCandidateSelectInput = {
   candidateId: string
   resourceId?: number
   reason: 'content_source_workspace_selection'
-}
-
-export type ContentCanvasHierarchyNodeWriteInput = {
-  projectId: number
-  targetPath: string
-  record: Record<string, unknown>
 }

@@ -39,7 +39,6 @@ const CONTENT_UNIT_ADAPTERS: Record<string, ContentUnitAdapter> = {
   scence_moment_ref: refAdapter('scence_moment_ref', 'scene_moment', 'video'),
   scene_moment_ref: refAdapter('scene_moment_ref', 'scene_moment', 'video'),
   expression_unit_ref: expressionUnitAdapter(),
-  shot_ref: refAdapter('shot_ref', 'shot', 'video'),
 }
 
 export function hasSpecializedContentUnitAdapter(contentUnitType: unknown): boolean {

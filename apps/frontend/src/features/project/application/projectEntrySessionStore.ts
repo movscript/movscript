@@ -165,9 +165,11 @@ export const useProjectEntrySessionStore = create<ProjectEntrySessionStore>()(
       upsertSnapshot: (snapshot) => {
         if (!snapshot.projectId) return
         const key = projectEntrySessionKey(snapshot.projectId, snapshot.projectEntryId)
-        set((state) => ({
-          snapshots: buildProjectEntrySessionSnapshots(state.snapshots, key, snapshot),
-        }))
+        set((state) => {
+          const snapshots = buildProjectEntrySessionSnapshots(state.snapshots, key, snapshot)
+          if (snapshots === state.snapshots) return state
+          return { snapshots }
+        })
       },
       setEntryDeckOrders: (projectId, orders) => {
         const normalizedProjectId = Number(projectId) || 0
@@ -184,6 +186,7 @@ export const useProjectEntrySessionStore = create<ProjectEntrySessionStore>()(
               deckOrder,
             })
           }
+          if (snapshots === state.snapshots) return state
           return { snapshots }
         })
       },
@@ -191,17 +194,20 @@ export const useProjectEntrySessionStore = create<ProjectEntrySessionStore>()(
         const normalizedProjectId = Number(projectId) || 0
         if (normalizedProjectId <= 0) return
         const key = projectEntrySessionKey(normalizedProjectId, projectEntryId)
-        set((state) => ({
-          snapshots: buildProjectEntrySessionSnapshots(state.snapshots, key, {
+        set((state) => {
+          const snapshots = buildProjectEntrySessionSnapshots(state.snapshots, key, {
             projectId: normalizedProjectId,
             projectEntryId,
             open,
-          }),
-        }))
+          })
+          if (snapshots === state.snapshots) return state
+          return { snapshots }
+        })
       },
       clearSnapshot: (projectId, projectEntryId) => {
         const key = projectEntrySessionKey(projectId, projectEntryId)
         set((state) => {
+          if (!Object.prototype.hasOwnProperty.call(state.snapshots, key)) return state
           const next = { ...state.snapshots }
           delete next[key]
           return { snapshots: next }
@@ -236,20 +242,70 @@ function buildProjectEntrySessionSnapshots(
 ): Record<string, ProjectEntrySessionSnapshot> {
   const existing = snapshots[key]
   const hasSelection = Object.prototype.hasOwnProperty.call(snapshot, 'selection')
+  const nextSnapshot: ProjectEntrySessionSnapshot = {
+    ...existing,
+    ...snapshot,
+    schemaVersion: PROJECT_ENTRY_SESSION_SCHEMA_VERSION,
+    updatedAt: snapshot.updatedAt ?? new Date().toISOString(),
+    filters: {
+      ...(existing?.filters ?? {}),
+      ...(snapshot.filters ?? {}),
+    },
+    selection: hasSelection ? snapshot.selection : existing?.selection,
+  }
+  if (existing && projectEntrySessionSnapshotsEqual(existing, nextSnapshot, { ignoreUpdatedAt: !snapshot.updatedAt })) {
+    return snapshots
+  }
   return {
     ...snapshots,
-    [key]: {
-      ...existing,
-      ...snapshot,
-      schemaVersion: PROJECT_ENTRY_SESSION_SCHEMA_VERSION,
-      updatedAt: snapshot.updatedAt ?? new Date().toISOString(),
-      filters: {
-        ...(existing?.filters ?? {}),
-        ...(snapshot.filters ?? {}),
-      },
-      selection: hasSelection ? snapshot.selection : existing?.selection,
-    },
+    [key]: nextSnapshot,
   }
+}
+
+function projectEntrySessionSnapshotsEqual(
+  left: ProjectEntrySessionSnapshot,
+  right: ProjectEntrySessionSnapshot,
+  options: { ignoreUpdatedAt?: boolean } = {},
+): boolean {
+  return left.schemaVersion === right.schemaVersion &&
+    left.projectId === right.projectId &&
+    left.projectEntryId === right.projectEntryId &&
+    left.deckOrder === right.deckOrder &&
+    left.open === right.open &&
+    left.route === right.route &&
+    left.search === right.search &&
+    (options.ignoreUpdatedAt || left.updatedAt === right.updatedAt) &&
+    scalarRecordsEqual(left.filters, right.filters) &&
+    projectEntrySessionSelectionsEqual(left.selection, right.selection)
+}
+
+function scalarRecordsEqual(
+  left: Record<string, ProjectEntrySessionScalar> | undefined,
+  right: Record<string, ProjectEntrySessionScalar> | undefined,
+): boolean {
+  if (!left || !right) return !left && !right
+  const leftKeys = Object.keys(left)
+  const rightKeys = Object.keys(right)
+  if (leftKeys.length !== rightKeys.length) return false
+  return leftKeys.every((key) => left[key] === right[key])
+}
+
+function projectEntrySessionSelectionsEqual(
+  left: ProjectEntrySessionSelection | undefined,
+  right: ProjectEntrySessionSelection | undefined,
+): boolean {
+  if (!left || !right) return !left && !right
+  return left.scopeLevel === right.scopeLevel &&
+    projectEntrySessionEntityRefsEqual(left.primary, right.primary) &&
+    projectEntrySessionEntityRefsEqual(left.secondary, right.secondary)
+}
+
+function projectEntrySessionEntityRefsEqual(
+  left: ProjectEntrySessionEntityRef | undefined,
+  right: ProjectEntrySessionEntityRef | undefined,
+): boolean {
+  if (!left || !right) return !left && !right
+  return left.entityType === right.entityType && left.entityId === right.entityId
 }
 
 function normalizeProjectEntrySessionDeckOrder(value: unknown): number | undefined {

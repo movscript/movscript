@@ -1,0 +1,224 @@
+.content-canvas-prompt-editor {
+  display: grid;
+  gap: 7px;
+}
+
+.content-canvas-prompt-editor__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--cc-muted);
+  font-size: 11px;
+  font-weight: 780;
+}
+
+.content-canvas-prompt-inline-editor-shell {
+  display: grid;
+  gap: 8px;
+}
+
+.content-canvas-prompt-inline-editor {
+  display: block;
+  width: 100%;
+  min-height: 178px;
+  overflow: auto;
+  border: 1px solid var(--cc-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--cc-panel) 86%, transparent);
+  color: var(--cc-text);
+  padding: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.55;
+  outline: none;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.content-canvas-prompt-inline-editor[data-empty="true"]::before {
+  color: var(--cc-muted);
+  content: "输入提示词，使用下方按钮添加引用";
+}
+
+.content-canvas-prompt-inline-editor:focus {
+  border-color: color-mix(in srgb, var(--cc-accent) 56%, var(--cc-border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cc-accent) 15%, transparent);
+}
+
+.content-canvas-prompt-inline-reference {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: min(100%, 220px);
+  min-height: 22px;
+  margin: 0 2px;
+  transform: translateY(2px);
+  border: 1px solid color-mix(in srgb, var(--cc-accent) 40%, var(--cc-border));
+  border-radius: 999px;
+  background: var(--cc-accent-soft);
+  color: var(--cc-text);
+  padding: 1px 7px 1px 3px;
+  font-family: inherit;
+  text-align: left;
+  vertical-align: baseline;
+}
+
+.content-canvas-prompt-inline-reference:hover {
+  border-color: color-mix(in srgb, var(--cc-accent) 62%, var(--cc-border));
+  background: color-mix(in srgb, var(--cc-accent) 15%, var(--cc-panel));
+}
+
+.content-canvas-prompt-inline-reference[data-missing="true"] {
+  border-color: color-mix(in srgb, var(--cc-warning) 48%, var(--cc-border));
+  background: color-mix(in srgb, var(--cc-warning) 12%, var(--cc-panel));
+}
+
+.content-canvas-prompt-inline-reference img,
+.content-canvas-prompt-inline-reference video,
+.content-canvas-prompt-inline-reference .content-canvas-prompt-reference-strip__fallback {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+}
+
+.content-canvas-prompt-inline-reference > span:last-child {
+  display: block;
+  min-width: 0;
+  max-width: 178px;
+}
+
+.content-canvas-prompt-inline-reference strong,
+.content-canvas-prompt-inline-reference small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.content-canvas-prompt-inline-reference strong {
+  font-size: 10px;
+  font-weight: 820;
+}
+
+.content-canvas-prompt-inline-reference small {
+  display: none;
+}
+
+.content-canvas-prompt-reference-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+  gap: 7px;
+}
+
+.content-canvas-prompt-reference-strip button {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  border: 1px solid var(--cc-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--cc-panel) 92%, transparent);
+  color: var(--cc-text);
+  padding: 5px 7px;
+  text-align: left;
+}
+
+.content-canvas-prompt-reference-strip button:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--cc-accent) 42%, var(--cc-border));
+  background: var(--cc-accent-soft);
+}
+
+.content-canvas-prompt-reference-strip button:disabled {
+  cursor: default;
+}
+
+.content-canvas-prompt-reference-strip button[data-missing="true"] {
+  border-color: color-mix(in srgb, var(--cc-warning) 42%, var(--cc-border));
+  background: color-mix(in srgb, var(--cc-warning) 10%, var(--cc-panel));
+}
+
+.content-canvas-prompt-reference-strip img,
+.content-canvas-prompt-reference-strip video,
+.content-canvas-prompt-reference-strip__fallback {
+  width: 42px;
+  height: 38px;
+  border-radius: 7px;
+  background: var(--cc-accent-soft);
+  object-fit: cover;
+  overflow: hidden;
+}
+
+.content-canvas-prompt-reference-strip__fallback {
+  display: grid;
+  place-items: center;
+  color: var(--cc-accent);
+}
+
+.content-canvas-prompt-reference-strip strong,
+.content-canvas-prompt-reference-strip small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.content-canvas-prompt-reference-strip strong {
+  font-size: 12px;
+  font-weight: 780;
+}
+
+.content-canvas-prompt-reference-strip small {
+  color: var(--cc-muted);
+  font-size: 10px;
+  font-weight: 680;
+}
+
+.content-canvas-reference-assets {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.content-canvas-reference-assets button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: 30px;
+  border: 1px dashed color-mix(in srgb, var(--cc-success) 38%, var(--cc-border));
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--cc-success) 10%, transparent);
+  color: var(--cc-text);
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 720;
+  text-align: left;
+}
+
+.content-canvas-reference-assets button:hover {
+  border-color: color-mix(in srgb, var(--cc-success) 60%, var(--cc-border));
+  background: color-mix(in srgb, var(--cc-success) 15%, transparent);
+}
+
+.content-canvas-reference-assets button span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.content-canvas-reference-assets__empty {
+  display: grid;
+  min-height: 44px;
+  place-items: center;
+  border: 1px dashed var(--cc-border);
+  border-radius: 7px;
+  color: var(--cc-muted);
+  font-size: 11px;
+  font-weight: 680;
+}

@@ -12,10 +12,25 @@ export function createMovScriptEngineAPI(ipcRenderer: IpcRenderer): Pick<
   | 'upsertMovScriptEngineWorkspaceAsset'
   | 'upsertMovScriptEngineWorkspaceScript'
   | 'readMovScriptEngineWorkspaceScriptSource'
+  | 'readMovScriptEngineContentUnitGenerationPrompt'
+  | 'buildMovScriptEngineContentUnitBackendPrompt'
   | 'deleteMovScriptEngineWorkspaceEntity'
   | 'saveMovScriptEngineWorkspaceProductionSnapshot'
   | 'upsertMovScriptEngineWorkspaceProjectStandards'
   | 'upsertMovScriptEngineWorkspaceContentUnit'
+  | 'createMovScriptEngineContentUnit'
+  | 'ensureMovScriptEngineContentUnitForEntity'
+  | 'createMovScriptEngineSetting'
+  | 'createMovScriptEngineSettingState'
+  | 'createMovScriptEngineAsset'
+  | 'updateMovScriptEngineEntityBasics'
+  | 'connectMovScriptEngineSceneMomentSetting'
+  | 'createMovScriptEngineProduction'
+  | 'createMovScriptEngineSegment'
+  | 'createMovScriptEngineSceneMoment'
+  | 'createMovScriptEngineExpressionUnit'
+  | 'createMovScriptEngineKeyframe'
+  | 'createMovScriptEngineStoryboard'
   | 'selectMovScriptEngineWorkspaceCandidate'
   | 'appendMovScriptEngineWorkspaceCandidate'
   | 'createMovScriptEngineWorkspaceAssetSlotCandidate'
@@ -41,10 +56,25 @@ export function createMovScriptEngineAPI(ipcRenderer: IpcRenderer): Pick<
     upsertMovScriptEngineWorkspaceAsset: (input) => ipcRenderer.invoke('movscript:engine-workspace-asset-upsert', input),
     upsertMovScriptEngineWorkspaceScript: (input) => ipcRenderer.invoke('movscript:engine-workspace-script-upsert', input),
     readMovScriptEngineWorkspaceScriptSource: (input) => ipcRenderer.invoke('movscript:engine-workspace-script-source-read', input),
+    readMovScriptEngineContentUnitGenerationPrompt: (input) => ipcRenderer.invoke('movscript:engine-content-unit-generation-prompt-read', input),
+    buildMovScriptEngineContentUnitBackendPrompt: (input) => ipcRenderer.invoke('movscript:engine-content-unit-backend-prompt-build', input),
     deleteMovScriptEngineWorkspaceEntity: (input) => ipcRenderer.invoke('movscript:engine-workspace-entity-delete', input),
     saveMovScriptEngineWorkspaceProductionSnapshot: (input) => ipcRenderer.invoke('movscript:engine-workspace-production-snapshot-save', input),
     upsertMovScriptEngineWorkspaceProjectStandards: (input) => ipcRenderer.invoke('movscript:engine-workspace-project-standards-upsert', input),
     upsertMovScriptEngineWorkspaceContentUnit: (input) => ipcRenderer.invoke('movscript:engine-workspace-content-unit-upsert', input),
+    createMovScriptEngineContentUnit: (input) => ipcRenderer.invoke('movscript:engine-content-unit-create', input),
+    ensureMovScriptEngineContentUnitForEntity: (input) => ipcRenderer.invoke('movscript:engine-content-unit-ensure', input),
+    createMovScriptEngineSetting: (input) => ipcRenderer.invoke('movscript:engine-setting-create', input),
+    createMovScriptEngineSettingState: (input) => ipcRenderer.invoke('movscript:engine-setting-state-create', input),
+    createMovScriptEngineAsset: (input) => ipcRenderer.invoke('movscript:engine-asset-create', input),
+    updateMovScriptEngineEntityBasics: (input) => ipcRenderer.invoke('movscript:engine-entity-basics-update', input),
+    connectMovScriptEngineSceneMomentSetting: (input) => ipcRenderer.invoke('movscript:engine-scene-moment-setting-connect', input),
+    createMovScriptEngineProduction: (input) => ipcRenderer.invoke('movscript:engine-production-create', input),
+    createMovScriptEngineSegment: (input) => ipcRenderer.invoke('movscript:engine-segment-create', input),
+    createMovScriptEngineSceneMoment: (input) => ipcRenderer.invoke('movscript:engine-scene-moment-create', input),
+    createMovScriptEngineExpressionUnit: (input) => ipcRenderer.invoke('movscript:engine-expression-unit-create', input),
+    createMovScriptEngineKeyframe: (input) => ipcRenderer.invoke('movscript:engine-keyframe-create', input),
+    createMovScriptEngineStoryboard: (input) => ipcRenderer.invoke('movscript:engine-storyboard-create', input),
     selectMovScriptEngineWorkspaceCandidate: (input) => ipcRenderer.invoke('movscript:engine-workspace-candidate-select', input),
     appendMovScriptEngineWorkspaceCandidate: (input) => ipcRenderer.invoke('movscript:engine-workspace-candidate-append', input),
     createMovScriptEngineWorkspaceAssetSlotCandidate: (input) => ipcRenderer.invoke('movscript:engine-workspace-asset-slot-candidate-create', input),

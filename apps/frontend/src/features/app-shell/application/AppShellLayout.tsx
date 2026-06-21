@@ -1,26 +1,19 @@
 import React from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { WorkspaceShell, useResizablePanel } from '@movscript/ui/layout'
+import { WorkspaceShell } from '@movscript/ui/layout'
 import { Sidebar, clampSidebarWidth } from '@/features/app-shell/components/Sidebar'
-import { Header } from '@/features/app-shell/components/Header'
-import { ProjectGitHeaderActions } from '@/features/app-shell/components/ProjectGitHeaderActions'
-import { ProjectEntryDeckHeader } from '@/features/project/components/ProjectEntryDeckHeader'
 import {
   AccountSettingsPageSidebar,
 } from '@/features/app-shell/components/AccountSettingsDialog'
 import {
-  AgentTerminalPanel,
   ProjectAIAssistantPanel,
   ProjectAgentContentPanel,
   ProjectAgentModeSidebar,
 } from '@/features/app-shell/application/appRouteComponents'
 import { RouteErrorBoundary, RouteSuspense, OrgGuard } from '@/features/app-shell/application/AppRouteBoundaries'
 import {
-  accountSettingsRouteHeaderTitle,
   accountSettingsTabForLocation,
-  projectRouteHeaderTitle,
   readSettingsReturnPath,
-  toolRouteHeaderTitle,
   useRememberSettingsReturnPath,
 } from '@/features/app-shell/application/appShellRouteHeaders'
 import { GlobalNavigationEffects } from '@/features/app-shell/application/GlobalNavigationEffects'
@@ -28,18 +21,13 @@ import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import {
-  AppShellAgentContentToggle,
-  AppShellHistoryNavigationControls,
-  AppShellHomeControl,
-  AppShellLeftPaneToggle,
-  AppShellProjectAgentToggle,
-  AppShellSettingsExitControl,
-  AppShellTerminalToggle,
-} from '@/features/app-shell/application/AppShellLayoutControls'
-import {
   appShellCollapsedSlotStyle,
   appShellHiddenSlotStyle,
 } from '@/features/app-shell/application/AppShellLayoutSlots'
+import {
+  AppShellTerminalDock,
+  clampTerminalDockHeight,
+} from '@/features/app-shell/application/AppShellTerminalDock'
 import {
   clampAgentModeContentPanelWidth,
   clampAgentModeSidebarWidth,
@@ -52,18 +40,13 @@ import {
   APP_SHELL_PROJECT_AGENT_PANE_ID,
   APP_SHELL_SETTINGS_SIDEBAR_PANE_ID,
   APP_SHELL_TERMINAL_DOCK_DEFAULT_HEIGHT,
-  APP_SHELL_TERMINAL_DOCK_MAX_HEIGHT,
-  APP_SHELL_TERMINAL_DOCK_MIN_HEIGHT,
   APP_SHELL_TERMINAL_DOCK_PANE_ID,
   APP_SHELL_TOOL_SIDEBAR_PANE_ID,
   appRouteViewportScrollForMode,
 } from '@/routes/routeLayoutRegistry'
 import { useRouteLayoutPaneController } from '@/features/app-shell/application/useRouteLayoutPaneController'
+import { createAppShellLayoutHeaders } from '@/features/app-shell/application/AppShellLayoutHeaders'
 import { AppRouteViewport } from '@movscript/ui/layout'
-
-function clampTerminalDockHeight(size: number): number {
-  return Math.min(APP_SHELL_TERMINAL_DOCK_MAX_HEIGHT, Math.max(APP_SHELL_TERMINAL_DOCK_MIN_HEIGHT, size))
-}
 
 export function ShellLayout({ children, requireOrg = true }: { children: React.ReactNode; requireOrg?: boolean }) {
   const navigate = useNavigate()
@@ -128,16 +111,6 @@ export function ShellLayout({ children, requireOrg = true }: { children: React.R
   const settingsExitPath = settingsActive
     ? readSettingsReturnPath() ?? routeForWorkMode(workMode, !!currentProject)
     : undefined
-  const toolCenterContent = accountSettingsActiveTab
-    ? accountSettingsRouteHeaderTitle(accountSettingsActiveTab)
-    : toolRouteHeaderTitle(pathname)
-  const projectCenterContent = currentProject?.name ? (
-    <ProjectEntryDeckHeader
-      activeEntryId={routeLayout.projectEntryId}
-      projectId={currentProject.ID}
-      projectName={currentProject.name}
-    />
-  ) : projectRouteHeaderTitle(pathname)
   const terminalWorkspaceContext = React.useMemo(() => {
     if (currentProject?.ID) {
       return {
@@ -152,211 +125,57 @@ export function ShellLayout({ children, requireOrg = true }: { children: React.R
     }
   }, [currentProject?.ID, userId])
   const terminalPlacement = agentChrome ? 'center-right' : 'center'
-  const terminalResize = useResizablePanel({
-    size: terminalPane.size,
-    onSizeChange: terminalPane.setSize,
-    minSize: APP_SHELL_TERMINAL_DOCK_MIN_HEIGHT,
-    maxSize: APP_SHELL_TERMINAL_DOCK_MAX_HEIGHT,
-    resizeEdge: 'top',
-    collapsed: !terminalOpen,
-    ariaLabel: '调整 Terminal 高度',
-  })
-  const { active: terminalResizeActive, ...terminalResizeHandleProps } = terminalResize.resizeHandleProps
-  const terminalHeaderControl = (
-    <AppShellTerminalToggle open={terminalOpen} onToggle={terminalOpen ? terminalPane.hide : terminalPane.show} />
-  )
   const navigateProjectHome = React.useCallback(() => {
     navigate(ROUTES.project.home, { replace: true })
   }, [navigate])
-  const homeHeaderControl = <AppShellHomeControl />
-  const projectHomeHeaderControl = (
-    <AppShellHomeControl
-      onClick={navigateProjectHome}
-      title="回到项目 Home"
-      ariaLabel="回到项目 Home"
-    />
-  )
-  const useProjectHomeHeaderControl = !!currentProject && (
-    projectChrome
-    || agentChrome
-    || (settingsActive && (settingsExitPath ?? '').startsWith(ROUTES.project.root))
-  )
-  const navigationHomeControl = useProjectHomeHeaderControl ? projectHomeHeaderControl : homeHeaderControl
-  const settingsExitControl = (
-    <AppShellSettingsExitControl
-      active={settingsActive}
-      onExit={() => navigate(settingsExitPath ?? routeForWorkMode(workMode, !!currentProject), { replace: true })}
-    />
-  )
-  const projectHistoryNavigationControls = <AppShellHistoryNavigationControls navClassName="project-window-controls__nav" />
   const agentContentPanelClosed = agentContentPane.collapsed || agentContentPane.hidden
-  const agentContentPanelHeaderControl = (
-    <AppShellAgentContentToggle
-      closed={agentContentPanelClosed}
-      onShow={agentContentPane.show}
-      onCollapse={agentContentPane.collapse}
-    />
-  )
-  const projectAgentPanelHeaderControl = (
-    <AppShellProjectAgentToggle
-      closed={projectAgentPanelClosed}
-      onShow={projectAgentPane.show}
-      onCollapse={projectAgentPane.collapse}
-    />
-  )
   const terminalPanel = (
-    <div
-      className="app-shell-terminal-panel-frame"
-      data-resizing={terminalResize.resizing ? 'true' : undefined}
-      style={{
-        height: terminalPane.size,
-        minHeight: APP_SHELL_TERMINAL_DOCK_MIN_HEIGHT,
-        maxHeight: APP_SHELL_TERMINAL_DOCK_MAX_HEIGHT,
-        flexBasis: terminalPane.size,
+    <AppShellTerminalDock
+      open={terminalOpen}
+      paneSize={terminalPane.size}
+      placement={terminalPlacement}
+      workspaceContext={terminalWorkspaceContext}
+      onPaneSizeChange={terminalPane.setSize}
+      onOpenChange={(open) => {
+        if (open) terminalPane.show()
+        else terminalPane.hide()
       }}
-    >
-      <div
-        className="app-shell-terminal-resize-handle"
-        data-active={terminalResizeActive ? 'true' : undefined}
-        {...terminalResizeHandleProps}
-      />
-      <React.Suspense fallback={null}>
-        <AgentTerminalPanel
-          open={terminalOpen}
-          onOpenChange={(open) => {
-            if (open) terminalPane.show()
-            else terminalPane.hide()
-          }}
-          shellPlacement={terminalPlacement}
-          workspaceContext={terminalWorkspaceContext}
-        />
-      </React.Suspense>
-    </div>
+    />
   )
-  const showToolSidebar = React.useCallback(() => {
-    toolSidebarPane.show()
-  }, [toolSidebarPane])
   const hideToolSidebar = React.useCallback(() => {
     toolSidebarPane.hide()
   }, [toolSidebarPane])
-  const showSettingsSidebar = React.useCallback(() => {
-    settingsSidebarPane.show()
-  }, [settingsSidebarPane])
   const hideSettingsSidebar = React.useCallback(() => {
     settingsSidebarPane.hide()
   }, [settingsSidebarPane])
-  const toolSidebarLayoutControls = (
-    <div className="tool-sidebar-window-controls flex shrink-0 items-center gap-1">
-      <AppShellLeftPaneToggle hidden={toolSidebarHidden} onShow={showToolSidebar} onHide={hideToolSidebar} />
-      <AppShellHistoryNavigationControls navClassName="tool-sidebar-window-controls__nav" />
-    </div>
-  )
-  const settingsSidebarLayoutControls = (
-    <div className="tool-sidebar-window-controls flex shrink-0 items-center gap-1">
-      <AppShellLeftPaneToggle hidden={settingsSidebarHidden} onShow={showSettingsSidebar} onHide={hideSettingsSidebar} />
-    </div>
-  )
-  const agentSidebarLayoutControls = (
-    <div className="agent-sidebar-window-controls flex shrink-0 items-center gap-1">
-      <AppShellLeftPaneToggle hidden={!agentSidebarVisible} onShow={agentSidebarPane.show} onHide={agentSidebarPane.hide} />
-      {agentSettingsActive ? null : <AppShellHistoryNavigationControls navClassName="agent-sidebar-window-controls__nav" />}
-    </div>
-  )
-  const agentNavigationControls = <>{navigationHomeControl}{settingsExitControl}</>
-  const toolLeftHeader = toolChrome && !toolSidebarHidden ? (
-    <Header
-      showAppControls={false}
-      showFallbackBrand={false}
-      navigationControls={<>{navigationHomeControl}{settingsExitControl}</>}
-      layoutControls={accountSettingsActiveTab ? settingsSidebarLayoutControls : toolSidebarLayoutControls}
-      leftControlsLayout="fill"
-    />
-  ) : undefined
-  const toolCenterNavigationControls = toolChrome && toolSidebarHidden ? <>{navigationHomeControl}{settingsExitControl}</> : undefined
-  const toolCenterLayoutControls = toolChrome && toolSidebarHidden
-    ? accountSettingsActiveTab ? settingsSidebarLayoutControls : toolSidebarLayoutControls
-    : undefined
-  const toolCenterHeader = (
-    <Header
-      showWindowControls={!toolLeftHeader}
-      showAppControls
-      showFallbackBrand={false}
-      showSettingsAction={false}
-      navigationControls={toolCenterNavigationControls}
-      layoutControls={toolCenterLayoutControls}
-      contextActions={terminalHeaderControl}
-      centerContent={toolCenterContent}
-    />
-  )
-  const settingsLeftHeader = settingsChrome && !settingsSidebarHidden ? (
-    <Header
-      showAppControls={false}
-      showFallbackBrand={false}
-      navigationControls={<>{navigationHomeControl}{settingsExitControl}</>}
-      layoutControls={settingsSidebarLayoutControls}
-      leftControlsLayout="fill"
-    />
-  ) : undefined
-  const settingsCenterHeader = (
-    <Header
-      showWindowControls={!settingsLeftHeader}
-      showAppControls
-      showFallbackBrand={false}
-      showSettingsAction={false}
-      navigationControls={settingsSidebarHidden ? <>{navigationHomeControl}{settingsExitControl}</> : undefined}
-      layoutControls={settingsSidebarHidden ? settingsSidebarLayoutControls : undefined}
-      contextActions={terminalHeaderControl}
-      centerContent={accountSettingsActiveTab ? accountSettingsRouteHeaderTitle(accountSettingsActiveTab) : undefined}
-    />
-  )
-  const homeCenterHeader = (
-    <Header
-      showWindowControls
-      showAppControls
-      showFallbackBrand={false}
-      showAppUpdateAction
-    />
-  )
-  const projectCenterHeader = (
-    <Header
-      showWindowControls
-      showAppControls
-      showFallbackBrand={false}
-      navigationControls={<>{navigationHomeControl}{projectHistoryNavigationControls}</>}
-      primaryActions={<ProjectGitHeaderActions compact />}
-      contextActions={projectAgentPanelClosed ? <>{projectAgentPanelHeaderControl}{terminalHeaderControl}</> : undefined}
-      globalActions={projectAgentPanelClosed ? undefined : <></>}
-      centerContent={projectCenterContent}
-    />
-  )
-  const agentLeftHeader = agentSidebarVisible ? (
-    <Header
-      showAppControls={false}
-      showFallbackBrand={false}
-      navigationControls={agentNavigationControls}
-      layoutControls={agentSidebarLayoutControls}
-      leftControlsLayout="fill"
-    />
-  ) : undefined
-  const agentCenterHeader = (
-    <Header
-      titleKey="header.titles.projectAgentMode"
-      showWindowControls={!agentLeftHeader}
-      showAppControls={!agentModeContentPanelOpen}
-      showFallbackBrand={false}
-      navigationControls={!agentSidebarVisible ? agentNavigationControls : undefined}
-      layoutControls={!agentSidebarVisible ? agentSidebarLayoutControls : undefined}
-      contextActions={<>{agentContentPanelClosed ? agentContentPanelHeaderControl : null}{terminalHeaderControl}</>}
-    />
-  )
-  const agentRightHeader = agentModeContentPanelOpen ? (
-    <Header
-      showWindowControls={false}
-      showAppControls
-      showFallbackBrand={false}
-      contextActions={<>{agentContentPanelHeaderControl}{terminalHeaderControl}</>}
-    />
-  ) : undefined
+  const appShellHeaders = createAppShellLayoutHeaders({
+    pathname,
+    routeLayout,
+    currentProject,
+    accountSettingsActiveTab,
+    agentSettingsActive,
+    settingsActive,
+    settingsExitPath,
+    agentChrome,
+    projectChrome,
+    toolChrome,
+    settingsChrome,
+    toolSidebarHidden,
+    settingsSidebarHidden,
+    agentSidebarVisible,
+    terminalOpen,
+    agentModeContentPanelOpen,
+    agentContentPanelClosed,
+    projectAgentPanelClosed,
+    toolSidebarPane,
+    settingsSidebarPane,
+    agentSidebarPane,
+    agentContentPane,
+    projectAgentPane,
+    navigateProjectHome,
+    onExitSettings: () => navigate(settingsExitPath ?? routeForWorkMode(workMode, !!currentProject), { replace: true }),
+    onToggleTerminal: terminalOpen ? terminalPane.hide : terminalPane.show,
+  })
   const agentRightSlotStyle = appShellCollapsedSlotStyle({
     collapsed: agentContentPane.collapsed,
     size: agentContentPane.size,
@@ -387,9 +206,9 @@ export function ShellLayout({ children, requireOrg = true }: { children: React.R
               />
             </React.Suspense>
           )}
-          leftHeader={agentLeftHeader}
-          centerHeader={agentCenterHeader}
-          rightHeader={agentRightHeader}
+          leftHeader={appShellHeaders.agentLeftHeader}
+          centerHeader={appShellHeaders.agentCenterHeader}
+          rightHeader={appShellHeaders.agentRightHeader}
           leftSlotStyle={agentLeftSlotStyle}
           sidebarCollapsed={false}
           leftPaneHidden={!agentSidebarVisible}
@@ -439,21 +258,14 @@ export function ShellLayout({ children, requireOrg = true }: { children: React.R
                 onHide={hideToolSidebar}
               />
           ) : undefined}
-          leftHeader={settingsChrome ? settingsLeftHeader : toolLeftHeader}
-          centerHeader={settingsChrome ? settingsCenterHeader : toolChrome ? toolCenterHeader : homeChrome ? homeCenterHeader : projectCenterHeader}
+          leftHeader={settingsChrome ? appShellHeaders.settingsLeftHeader : appShellHeaders.toolLeftHeader}
+          centerHeader={settingsChrome ? appShellHeaders.settingsCenterHeader : toolChrome ? appShellHeaders.toolCenterHeader : homeChrome ? appShellHeaders.homeCenterHeader : appShellHeaders.projectCenterHeader}
           leftSlotStyle={settingsChrome ? settingsLeftSlotStyle : toolChrome ? toolLeftSlotStyle : undefined}
           terminalPanel={terminalPanel}
           terminalOpen={terminalOpen}
           terminalPlacement={terminalPlacement}
           leftPaneHidden={settingsChrome ? settingsSidebarHidden : toolChrome ? toolSidebarHidden : false}
-          rightHeader={projectChrome && !projectAgentPanelClosed ? (
-            <Header
-              showWindowControls={false}
-              showAppControls
-              showFallbackBrand={false}
-              contextActions={<>{projectAgentPanelHeaderControl}{terminalHeaderControl}</>}
-            />
-          ) : undefined}
+          rightHeader={appShellHeaders.projectRightHeader}
           rightSlotStyle={projectChrome ? projectRightSlotStyle : undefined}
           rightPaneCollapsed={projectChrome ? projectAgentPane.collapsed : true}
           assistantPanel={projectChrome ? (

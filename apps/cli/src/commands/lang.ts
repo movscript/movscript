@@ -96,7 +96,7 @@ interface AddContentUnitOptions extends WorkspaceOptions {
   production?: string
   segment?: string
   sceneMoment?: string
-  shot?: string
+  expressionUnit?: string
   storyboard?: string
   keyframe?: string
   audioCue?: string
@@ -146,24 +146,13 @@ interface AddSceneMomentOptions extends WorkspaceOptions {
   description?: string
 }
 
-interface AddShotOptions extends WorkspaceOptions {
-  id?: string
-  title?: string
-  production?: string
-  segment?: string
-  sceneMoment?: string
-  kind?: string
-  order?: string
-  shotSize?: string
-}
-
 interface AddStoryboardOptions extends WorkspaceOptions {
   id?: string
   title?: string
   production?: string
   segment?: string
   sceneMoment?: string
-  shot?: string
+  expressionUnit?: string
   order?: string
 }
 
@@ -173,7 +162,7 @@ interface AddKeyframeOptions extends WorkspaceOptions {
   production?: string
   segment?: string
   sceneMoment?: string
-  shot?: string
+  expressionUnit?: string
   role?: string
   visualIntent?: string
 }
@@ -184,7 +173,7 @@ interface AddAudioCueOptions extends WorkspaceOptions {
   production?: string
   segment?: string
   sceneMoment?: string
-  shot?: string
+  expressionUnit?: string
   storyboard?: string
   kind?: string
   order?: string
@@ -250,14 +239,14 @@ interface PlanningListOptions extends WorkspaceOptions {
   production?: string
   segment?: string
   sceneMoment?: string
-  shot?: string
+  expressionUnit?: string
 }
 
 interface PlanningDeleteOptions extends WorkspaceOptions {
   production?: string
   segment?: string
   sceneMoment?: string
-  shot?: string
+  expressionUnit?: string
 }
 
 interface InterpreterArtifactsOptions extends WorkspaceOptions {
@@ -427,13 +416,11 @@ Examples:
     .option('--json', 'Print JSON output')
     .action(async (id: string | undefined, options: AddSettingOptions, command: Command) => {
       const merged = mergeGlobalOptions(options, command)
-      const result = await createCliEngine(merged).upsertSetting({
-        payload: pruneUndefined({
-          id: options.id ?? id,
-          title: options.title,
-          setting_kind: options.kind,
-          description: options.description,
-        }),
+      const result = await createCliEngine(merged).createSetting({
+        id: options.id ?? id,
+        title: options.title,
+        kind: options.kind,
+        description: options.description,
       })
       printResult(result, merged)
     })
@@ -475,17 +462,15 @@ Examples:
     .option('--json', 'Print JSON output')
     .action(async (id: string | undefined, options: AddAssetOptions, command: Command) => {
       const merged = mergeGlobalOptions(options, command)
-      const result = await createCliEngine(merged).upsertAsset({
-        payload: pruneUndefined({
-          id: options.id ?? id,
-          title: options.title,
-          setting_id: options.setting,
-          setting_state_id: options.state,
-          slot: options.slot,
-          asset_kind: options.kind,
-          prompt_hint: options.prompt,
-          resource_id: resourceIdOption(options.resourceId),
-        }),
+      const result = await createCliEngine(merged).createAsset({
+        id: options.id ?? id,
+        title: options.title,
+        settingId: options.setting,
+        settingStateId: options.state,
+        slot: options.slot,
+        assetKind: options.kind,
+        promptHint: options.prompt,
+        resourceId: resourceIdOption(options.resourceId),
       })
       printResult(result, merged)
     })
@@ -712,92 +697,6 @@ Examples:
       return deletePlanningEntity('scene_moment', idOrPath, options, command)
     })
 
-  const shot = program
-    .command('shot')
-    .description('Manage shots')
-
-  shot
-    .command('list')
-    .description('List shots')
-    .option('--production <id>', 'Filter by production id')
-    .option('--segment <id-or-path>', 'Filter by segment id or path')
-    .option('--scene-moment <id-or-path>', 'Filter by scene moment id or path')
-    .option('--kind <kind>', 'Filter by shot kind')
-    .option('--query <text>', 'Search text')
-    .option('--limit <number>', 'Maximum rows to print')
-    .option('--json', 'Print JSON output')
-    .action((options: PlanningListOptions, command: Command) => {
-      return printPlanningEntityList('shot', 'Shots', options, command)
-    })
-
-  shot
-    .command('add')
-    .alias('create')
-    .description('Create or update a shot under a scene moment')
-    .option('--id <id>', 'Shot id')
-    .option('--title <title>', 'Shot title')
-    .option('--production <id>', 'Production id')
-    .option('--segment <id-or-path>', 'Segment id or path')
-    .option('--scene-moment <id-or-path>', 'Scene moment id or path')
-    .option('--kind <kind>', 'Shot kind')
-    .option('--order <number>', 'Shot order')
-    .option('--shot-size <value>', 'Shot size')
-    .option('--json', 'Print JSON output')
-    .action(async (options: AddShotOptions, command: Command) => {
-      const merged = mergeGlobalOptions(options, command)
-      const source = parseShotParentOptions(options)
-      const result = await createCliEngine(merged).createShot({
-        id: options.id,
-        productionId: source.productionId,
-        segmentId: source.segmentId,
-        sceneMomentId: source.sceneMomentId,
-        title: options.title,
-        kind: options.kind,
-        order: parseOptionalNumberOption(options.order, 'order'),
-        shotSize: options.shotSize,
-      })
-      printResult(result, merged)
-    })
-
-  shot
-    .command('modify <id>')
-    .description('Modify a shot')
-    .option('--title <title>', 'Shot title')
-    .option('--production <id>', 'Production id')
-    .option('--segment <id-or-path>', 'Segment id or path')
-    .option('--scene-moment <id-or-path>', 'Scene moment id or path')
-    .option('--kind <kind>', 'Shot kind')
-    .option('--order <number>', 'Shot order')
-    .option('--shot-size <value>', 'Shot size')
-    .option('--json', 'Print JSON output')
-    .action(async (id: string, options: AddShotOptions, command: Command) => {
-      const merged = mergeGlobalOptions(options, command)
-      const source = parseShotParentOptions(options)
-      const result = await createCliEngine(merged).updateShot({
-        id,
-        productionId: source.productionId,
-        segmentId: source.segmentId,
-        sceneMomentId: source.sceneMomentId,
-        title: options.title,
-        kind: options.kind,
-        order: parseOptionalNumberOption(options.order, 'order'),
-        shotSize: options.shotSize,
-      })
-      printResult(result, merged)
-    })
-
-  shot
-    .command('delete <idOrPath>')
-    .alias('remove')
-    .description('Delete a shot')
-    .option('--production <id>', 'Filter by production id')
-    .option('--segment <id-or-path>', 'Filter by segment id or path')
-    .option('--scene-moment <id-or-path>', 'Filter by scene moment id or path')
-    .option('--json', 'Print JSON output')
-    .action((idOrPath: string, options: PlanningDeleteOptions, command: Command) => {
-      return deletePlanningEntity('shot', idOrPath, options, command)
-    })
-
   const storyboard = program
     .command('storyboard')
     .description('Manage storyboards')
@@ -808,7 +707,6 @@ Examples:
     .option('--production <id>', 'Filter by production id')
     .option('--segment <id-or-path>', 'Filter by segment id or path')
     .option('--scene-moment <id-or-path>', 'Filter by scene moment id or path')
-    .option('--shot <id-or-path>', 'Filter by shot id or path')
     .option('--query <text>', 'Search text')
     .option('--limit <number>', 'Maximum rows to print')
     .option('--json', 'Print JSON output')
@@ -819,13 +717,13 @@ Examples:
   storyboard
     .command('add')
     .alias('create')
-    .description('Create or update a storyboard under a shot')
+    .description('Create or update a storyboard under a scene moment or expression unit')
     .option('--id <id>', 'Storyboard id')
     .option('--title <title>', 'Storyboard title')
     .option('--production <id>', 'Production id')
     .option('--segment <id-or-path>', 'Segment id or path')
     .option('--scene-moment <id-or-path>', 'Scene moment id or path')
-    .option('--shot <id-or-path>', 'Shot id or path')
+    .option('--expression-unit <id-or-path>', 'Expression unit id or path')
     .option('--order <number>', 'Storyboard order; new storyboards append when omitted')
     .option('--json', 'Print JSON output')
     .action(async (options: AddStoryboardOptions, command: Command) => {
@@ -836,7 +734,7 @@ Examples:
         productionId: source.productionId,
         segmentId: source.segmentId,
         sceneMomentId: source.sceneMomentId,
-        shotId: source.shotId,
+        expressionUnitId: source.expressionUnitId,
         title: options.title,
         order: parseOptionalNumberOption(options.order, 'order'),
       })
@@ -850,7 +748,7 @@ Examples:
     .option('--production <id>', 'Production id')
     .option('--segment <id-or-path>', 'Segment id or path')
     .option('--scene-moment <id-or-path>', 'Scene moment id or path')
-    .option('--shot <id-or-path>', 'Shot id or path')
+    .option('--expression-unit <id-or-path>', 'Expression unit id or path')
     .option('--order <number>', 'Storyboard order')
     .option('--json', 'Print JSON output')
     .action(async (id: string, options: AddStoryboardOptions, command: Command) => {
@@ -861,7 +759,7 @@ Examples:
         productionId: source.productionId,
         segmentId: source.segmentId,
         sceneMomentId: source.sceneMomentId,
-        shotId: source.shotId,
+        expressionUnitId: source.expressionUnitId,
         title: options.title,
         order: parseOptionalNumberOption(options.order, 'order'),
       })
@@ -875,7 +773,7 @@ Examples:
     .option('--production <id>', 'Filter by production id')
     .option('--segment <id-or-path>', 'Filter by segment id or path')
     .option('--scene-moment <id-or-path>', 'Filter by scene moment id or path')
-    .option('--shot <id-or-path>', 'Filter by shot id or path')
+    .option('--expression-unit <id-or-path>', 'Filter by expression unit id or path')
     .option('--json', 'Print JSON output')
     .action((idOrPath: string, options: PlanningDeleteOptions, command: Command) => {
       return deletePlanningEntity('storyboard', idOrPath, options, command)
@@ -883,7 +781,7 @@ Examples:
 
   const keyframe = program
     .command('keyframe')
-    .description('Manage shot keyframes')
+    .description('Manage keyframes')
 
   keyframe
     .command('list')
@@ -891,7 +789,7 @@ Examples:
     .option('--production <id>', 'Filter by production id')
     .option('--segment <id-or-path>', 'Filter by segment id or path')
     .option('--scene-moment <id-or-path>', 'Filter by scene moment id or path')
-    .option('--shot <id-or-path>', 'Filter by shot id or path')
+    .option('--expression-unit <id-or-path>', 'Filter by expression unit id or path')
     .option('--query <text>', 'Search text')
     .option('--limit <number>', 'Maximum rows to print')
     .option('--json', 'Print JSON output')
@@ -902,13 +800,13 @@ Examples:
   keyframe
     .command('add')
     .alias('create')
-    .description('Create or update a keyframe under a shot')
+    .description('Create or update a keyframe under a scene moment or expression unit')
     .option('--id <id>', 'Keyframe id')
     .option('--title <title>', 'Keyframe title')
     .option('--production <id>', 'Production id')
     .option('--segment <id-or-path>', 'Segment id or path')
     .option('--scene-moment <id-or-path>', 'Scene moment id or path')
-    .option('--shot <id-or-path>', 'Shot id or path')
+    .option('--expression-unit <id-or-path>', 'Expression unit id or path')
     .option('--role <role>', 'Keyframe role')
     .option('--visual-intent <text>', 'Visual intent')
     .option('--json', 'Print JSON output')
@@ -946,7 +844,7 @@ Examples:
     .option('--production <id>', 'Production id')
     .option('--segment <id-or-path>', 'Segment id or path')
     .option('--scene-moment <id-or-path>', 'Scene moment id or path')
-    .option('--shot <id-or-path>', 'Shot id or path')
+    .option('--expression-unit <id-or-path>', 'Expression unit id or path')
     .option('--storyboard <id-or-path>', 'Storyboard id or path')
     .option('--order <number>', 'Audio cue order')
     .option('--prompt <text>', 'Audio prompt hint')
@@ -959,7 +857,7 @@ Examples:
         productionId: source.productionId,
         segmentId: source.segmentId,
         sceneMomentId: source.sceneMomentId,
-        shotId: source.shotId,
+        expressionUnitId: source.expressionUnitId,
         storyboardId: source.storyboardId,
         title: options.title,
         kind: options.kind,
@@ -977,7 +875,7 @@ Examples:
     .option('--production <id>', 'Production id')
     .option('--segment <id-or-path>', 'Segment id or path')
     .option('--scene-moment <id-or-path>', 'Scene moment id or path')
-    .option('--shot <id-or-path>', 'Shot id or path')
+    .option('--expression-unit <id-or-path>', 'Expression unit id or path')
     .option('--storyboard <id-or-path>', 'Storyboard id or path')
     .option('--order <number>', 'Audio cue order')
     .option('--prompt <text>', 'Audio prompt hint')
@@ -990,7 +888,7 @@ Examples:
         productionId: source.productionId,
         segmentId: source.segmentId,
         sceneMomentId: source.sceneMomentId,
-        shotId: source.shotId,
+        expressionUnitId: source.expressionUnitId,
         storyboardId: source.storyboardId,
         title: options.title,
         kind: options.kind,
@@ -1180,7 +1078,7 @@ Examples:
     .description('Create or update a project-level content unit with prompt refs')
     .option('--id <id>', 'Content unit id')
     .option('--title <title>', 'Content unit title')
-    .option('--type <type>', 'Content unit type, such as asset_ref, keyframe_ref, storyboard_ref, scence_moment_ref, or shot_ref')
+    .option('--type <type>', 'Content unit type, such as asset_ref, keyframe_ref, storyboard_ref, scence_moment_ref, or expression_unit_ref')
     .option('--content-unit-type <type>', 'Content unit type field; same as --type')
     .option('--kind <kind>', 'Deprecated alias for --type')
     .option('--output-kind <kind>', 'Output kind: image, video, audio, text, or metadata')
@@ -1188,7 +1086,7 @@ Examples:
     .option('--production <id>', 'Production id')
     .option('--segment <id>', 'Segment id')
     .option('--scene-moment <id-or-path>', 'Scene moment id or path')
-    .option('--shot <id-or-path>', 'Shot id or path')
+    .option('--expression-unit <id-or-path>', 'Expression unit id or path')
     .option('--storyboard <id-or-path>', 'Storyboard id or path; storyboard_ref defaults to main when omitted')
     .option('--keyframe <id-or-path>', 'Keyframe id or path for keyframe_ref content units')
     .option('--audio-cue <id-or-path>', 'Audio cue id or path for audio content units')
@@ -1217,7 +1115,7 @@ Examples:
     .command('modify <id>')
     .description('Modify a content unit')
     .option('--title <title>', 'Content unit title')
-    .option('--type <type>', 'Content unit type, such as asset_ref, keyframe_ref, storyboard_ref, scence_moment_ref, or shot_ref')
+    .option('--type <type>', 'Content unit type, such as asset_ref, keyframe_ref, storyboard_ref, scence_moment_ref, or expression_unit_ref')
     .option('--content-unit-type <type>', 'Content unit type field; same as --type')
     .option('--kind <kind>', 'Deprecated alias for --type')
     .option('--output-kind <kind>', 'Output kind: image, video, audio, text, or metadata')
@@ -1225,7 +1123,7 @@ Examples:
     .option('--production <id>', 'Production id')
     .option('--segment <id>', 'Segment id')
     .option('--scene-moment <id-or-path>', 'Scene moment id or path')
-    .option('--shot <id-or-path>', 'Shot id or path')
+    .option('--expression-unit <id-or-path>', 'Expression unit id or path')
     .option('--storyboard <id-or-path>', 'Storyboard id or path')
     .option('--keyframe <id-or-path>', 'Keyframe id or path for keyframe_ref content units')
     .option('--audio-cue <id-or-path>', 'Audio cue id or path for audio content units')
@@ -1590,7 +1488,7 @@ async function addCandidateFromCliOptions(
     const contentUnit = await resolveContentUnitTarget(engine, target)
     const contentUnitId = stringValue(contentUnit.id ?? contentUnit.record.id)
     if (!contentUnitId) throw new Error(`content_unit missing id: ${contentUnit.path}`)
-    return engine.workspaceService.createContentCandidate({
+    return engine.createContentCandidate({
       contentUnitId,
       candidateId: options.id,
       source: options.source,
@@ -1627,7 +1525,7 @@ async function selectCandidateFromCliOptions(
     const contentUnitId = stringValue(contentUnit.id ?? contentUnit.record.id)
     if (!contentUnitId) throw new Error(`content_unit missing id: ${contentUnit.path}`)
     const candidate = await findContentUnitCandidate(engine, contentUnit, candidateId)
-    return engine.workspaceService.selectContentUnitCandidate({
+    return engine.selectContentUnitCandidate({
       contentUnitId,
       candidateId,
       resourceId: candidateResourceId(candidate?.record),
@@ -1864,27 +1762,23 @@ function printCandidateList(candidates: CandidateListItem[], options: WorkspaceO
 async function createKeyframeFromCliOptions(
   engine: CliEngine,
   options: AddKeyframeOptions,
-  source: { productionId: string; segmentId: string; sceneMomentId: string; shotId: string },
+  source: { productionId: string; segmentId: string; sceneMomentId: string; expressionUnitId?: string },
 ): Promise<unknown> {
-  return engine.saveProductionSnapshot({
+  const keyframe = pruneUndefined({
+    id: options.id,
+    title: options.title,
+    role: options.role,
+    visual_intent: options.visualIntent,
+  })
+  return engine.createKeyframe({
+    id: keyframe.id as string | undefined,
+    title: keyframe.title as string | undefined,
+    role: keyframe.role as string | undefined,
+    visualIntent: keyframe.visual_intent as string | undefined,
     productionId: source.productionId,
-    snapshot: {
-      segments: [{
-        id: source.segmentId,
-        scene_moments: [{
-          id: source.sceneMomentId,
-          shots: [{
-            id: source.shotId,
-            keyframes: [pruneUndefined({
-              id: options.id,
-              title: options.title,
-              role: options.role,
-              visual_intent: options.visualIntent,
-            })],
-          }],
-        }],
-      }],
-    },
+    segmentId: source.segmentId,
+    sceneMomentId: source.sceneMomentId,
+    expressionUnitId: source.expressionUnitId,
   })
 }
 
@@ -1945,52 +1839,28 @@ async function saveContentUnitFromCliOptions(
     ?? (requestedType !== undefined ? defaultCliContentUnitOutputKind(requestedType) : undefined)
   if (requestedType !== undefined) validateContentUnitSourceForType(requestedType, source, options)
   const shouldDefaultCapability = config.defaultType !== undefined || requestedType !== undefined || requestedOutputKind !== undefined
-  const preliminaryPrompt = buildContentUnitEditPrompt({
-    text: options.prompt,
-    negativeText: options.negativePrompt,
-  })
-  const preliminaryModelIntent = buildContentUnitModelIntent(options, requestedOutputKind, { defaultCapability: shouldDefaultCapability })
-  const preliminary = await engine.workspaceService.upsertContentUnit({
-    unit: pruneUndefined({
-      id: options.id,
-      title: options.title,
-      content_unit_type: requestedType,
-      output_kind: requestedOutputKind,
-      edit_prompt: preliminaryPrompt,
-      model_intent: preliminaryModelIntent,
-      description: options.description,
-      order: parseOptionalNumberOption(options.order, 'order'),
-    }),
-  })
-
-  const record = isRecord(preliminary.record) ? preliminary.record : {}
-  const contentUnitType = stringValue(record.content_unit_type) ?? requestedType ?? 'storyboard_ref'
-  const outputKind = parseOptionalContentUnitOutputKind(record.output_kind)
-    ?? requestedOutputKind
-    ?? defaultCliContentUnitOutputKind(contentUnitType)
-  const finalRecord = pruneUndefined({
-    ...record,
-    content_unit_type: contentUnitType,
-    output_kind: outputKind,
-    edit_prompt: buildContentUnitEditPrompt({
-      text: options.prompt ?? stringValue(recordField(record.edit_prompt)?.text),
-      negativeText: options.negativePrompt ?? stringValue(recordField(record.edit_prompt)?.negative_text),
-    }),
-    model_intent: buildContentUnitModelIntent(options, outputKind, { defaultCapability: shouldDefaultCapability }) ?? record.model_intent,
-    production_ref: source.productionId,
-    segment_ref: source.segmentId,
-    scene_moment_ref: source.sceneMomentId,
-    shot_ref: source.shotId,
-    storyboard_ref: source.storyboardId,
-    keyframe_ref: source.keyframeId,
-    asset_ref: source.assetRef,
-    audio_cue_ref: source.audioCueId,
-  })
-
+  const contentUnitType = requestedType ?? 'storyboard_ref'
+  const outputKind = requestedOutputKind ?? defaultCliContentUnitOutputKind(contentUnitType)
   validateContentUnitSourceForType(contentUnitType, source, options)
-  const repository = createCliFileRepositoryFromEngine(engine)
-  await repository.write({ path: preliminary.contentUnitPath, content: `${JSON.stringify(finalRecord, null, 2)}\n` })
-  return { ...preliminary, record: finalRecord }
+  return engine.createContentUnit({
+    id: options.id,
+    title: options.title,
+    contentUnitType,
+    outputKind,
+    prompt: options.prompt,
+    negativePrompt: options.negativePrompt,
+    description: options.description,
+    order: parseOptionalNumberOption(options.order, 'order'),
+    modelIntent: buildContentUnitModelIntent(options, outputKind, { defaultCapability: shouldDefaultCapability }),
+    productionId: source.productionId,
+    segmentId: source.segmentId,
+    sceneMomentId: source.sceneMomentId,
+    expressionUnitId: source.expressionUnitId,
+    storyboardId: source.storyboardId,
+    keyframeId: source.keyframeId,
+    assetRef: source.assetRef,
+    audioCueId: source.audioCueId,
+  })
 }
 
 function contentUnitTypeFromOptions(options: AddContentUnitOptions, defaultType?: string): string | undefined {
@@ -2011,8 +1881,10 @@ function normalizeContentUnitType(value: string): string {
     case 'scene':
     case 'moment':
       return 'scence_moment_ref'
-    case 'shot':
-      return 'shot_ref'
+    case 'expression_unit':
+    case 'expression':
+    case 'expr':
+      return 'expression_unit_ref'
     default:
       return value
   }
@@ -2031,7 +1903,7 @@ function defaultCliContentUnitOutputKind(contentUnitType: string): CliContentUni
     case 'keyframe_ref':
       return 'image'
     case 'storyboard_ref':
-    case 'shot_ref':
+    case 'expression_unit_ref':
     case 'scence_moment_ref':
     case 'scene_moment_ref':
       return 'video'
@@ -2049,21 +1921,10 @@ function validateContentUnitSourceForType(
   if (contentUnitType === 'keyframe_ref' && !source.keyframeId) throw new Error('--keyframe is required for keyframe_ref content units')
   if (contentUnitType === 'storyboard_ref' && !source.storyboardId) throw new Error('--storyboard is required for storyboard_ref content units')
   if ((contentUnitType === 'scence_moment_ref' || contentUnitType === 'scene_moment_ref') && !source.sceneMomentId) throw new Error('--scene-moment is required for scence_moment_ref content units')
-  if (contentUnitType === 'shot_ref' && !source.shotId) throw new Error('--shot is required for shot_ref content units')
+  if (contentUnitType === 'expression_unit_ref' && !source.expressionUnitId) throw new Error('--expression-unit is required for expression_unit_ref content units')
   if (contentUnitType === 'storyboard_ref' && !options.storyboard && source.storyboardId === 'main' && !source.sceneMomentId) {
     throw new Error('--scene-moment is required when storyboard_ref uses the default --storyboard main')
   }
-}
-
-function buildContentUnitEditPrompt(input: {
-  text?: string
-  negativeText?: string
-}): Record<string, unknown> | undefined {
-  const text = input.text?.trim() || undefined
-  return pruneUndefined({
-    text,
-    negative_text: input.negativeText,
-  })
 }
 
 function buildContentUnitModelIntent(
@@ -2246,17 +2107,21 @@ function demoProjectFileEntries(projectId: string, title: string): Array<[string
       transition: { out: 'hold_then_cut' },
       action: 'The phone screen lights the hero face while rain taps the window.',
     }],
-    ['productions/p_demo/segments/opening/scene_moments/phone_call/shots/phone/shot.json', {
-      schema: 'movscript.shot.v1',
-      kind: 'shot',
+    ['productions/p_demo/segments/opening/scene_moments/phone_call/expression_units/phone/expression_unit.json', {
+      schema: 'movscript.expression_unit.v1',
+      kind: 'expression_unit',
       id: 'phone',
+      expression_kind: 'shot',
       title: 'Phone close-up',
       order: 1,
-      shot_size: 'close_up',
-      camera: { movement: 'slow_push_in', lens_mm: 50 },
-      lighting: { key: 'cold phone screen blue light' },
+      visual_kind: 'close_up',
+      content: {
+        shot_size: 'close_up',
+        camera: { movement: 'slow_push_in', lens_mm: 50 },
+        lighting: { key: 'cold phone screen blue light' },
+      },
     }],
-    ['productions/p_demo/segments/opening/scene_moments/phone_call/shots/phone/storyboards/main/storyboard.json', {
+    ['productions/p_demo/segments/opening/scene_moments/phone_call/expression_units/phone/storyboards/main/storyboard.json', {
       schema: 'movscript.storyboard.v1',
       kind: 'storyboard',
       id: 'main',
@@ -2264,7 +2129,7 @@ function demoProjectFileEntries(projectId: string, title: string): Array<[string
       order: 1,
       slot: 'main',
       asset_kind: 'video',
-      shot_ref: 'productions/p_demo/segments/opening/scene_moments/phone_call/shots/phone',
+      expression_unit_ref: 'productions/p_demo/segments/opening/scene_moments/phone_call/expression_units/phone',
       timeline: { caption: 'Phone glow returns.', duration_sec: 4 },
       setting_refs: [{ setting_id: 'hero', setting_state_id: 'rain', role: 'subject' }],
     }],
@@ -2276,8 +2141,8 @@ function demoProjectFileEntries(projectId: string, title: string): Array<[string
       cue_kind: 'sound_effect',
       order: 1,
       scope_ref: 'productions/p_demo/segments/opening/scene_moments/phone_call',
-      shot_ref: 'productions/p_demo/segments/opening/scene_moments/phone_call/shots/phone',
-      storyboard_ref: 'productions/p_demo/segments/opening/scene_moments/phone_call/shots/phone/storyboards/main',
+      expression_unit_ref: 'productions/p_demo/segments/opening/scene_moments/phone_call/expression_units/phone',
+      storyboard_ref: 'productions/p_demo/segments/opening/scene_moments/phone_call/expression_units/phone/storyboards/main',
       timing: { start: 'after_action', duration_sec: 1.2 },
       prompt_hint: 'Rain low, phone vibration sharp.',
     }],
@@ -2296,8 +2161,8 @@ function demoProjectFileEntries(projectId: string, title: string): Array<[string
       content_unit_type: 'keyframe_ref',
       output_kind: 'image',
       scene_moment_ref: 'productions/p_demo/segments/opening/scene_moments/phone_call',
-      shot_id: 'phone',
-      storyboard_ref: 'productions/p_demo/segments/opening/scene_moments/phone_call/shots/phone/storyboards/main',
+      expression_unit_ref: 'productions/p_demo/segments/opening/scene_moments/phone_call/expression_units/phone',
+      storyboard_ref: 'productions/p_demo/segments/opening/scene_moments/phone_call/expression_units/phone/storyboards/main',
       keyframe_ref: 'scene_anchor',
       edit_prompt: {
         text: 'Create a scene anchor keyframe for the phone close-up.',
@@ -2305,14 +2170,14 @@ function demoProjectFileEntries(projectId: string, title: string): Array<[string
       },
       model_intent: { capability: 'image', aspect_ratio: '16:9' },
     }],
-    ['productions/p_demo/segments/opening/scene_moments/phone_call/shots/phone/keyframes/scene_anchor/keyframe.json', {
+    ['productions/p_demo/segments/opening/scene_moments/phone_call/expression_units/phone/keyframes/scene_anchor/keyframe.json', {
       schema: 'movscript.keyframe.v1',
       kind: 'keyframe',
       id: 'scene_anchor',
       title: 'Scene anchor',
       scene_moment_ref: 'productions/p_demo/segments/opening/scene_moments/phone_call',
-      shot_ref: 'productions/p_demo/segments/opening/scene_moments/phone_call/shots/phone',
-      storyboard_ref: 'productions/p_demo/segments/opening/scene_moments/phone_call/shots/phone/storyboards/main',
+      expression_unit_ref: 'productions/p_demo/segments/opening/scene_moments/phone_call/expression_units/phone',
+      storyboard_ref: 'productions/p_demo/segments/opening/scene_moments/phone_call/expression_units/phone/storyboards/main',
       role: 'continuity_anchor',
       visual_intent: 'Rainy apartment close-up; cold phone light on frightened face.',
       reference_asset_refs: ['wet_hair'],
@@ -2340,8 +2205,8 @@ function demoProjectFileEntries(projectId: string, title: string): Array<[string
       content_unit_type: 'storyboard_ref',
       output_kind: 'video',
       scene_moment_ref: 'productions/p_demo/segments/opening/scene_moments/phone_call',
-      shot_id: 'phone',
-      storyboard_ref: 'productions/p_demo/segments/opening/scene_moments/phone_call/shots/phone/storyboards/main',
+      expression_unit_ref: 'productions/p_demo/segments/opening/scene_moments/phone_call/expression_units/phone',
+      storyboard_ref: 'productions/p_demo/segments/opening/scene_moments/phone_call/expression_units/phone/storyboards/main',
       keyframe_refs: ['scene_anchor'],
       edit_prompt: {
         text: 'Keep the push-in slow. Preserve wet hair and frightened expression continuity.',
@@ -2508,10 +2373,6 @@ async function dispatchInteractiveSlashCommand(line: string, options: WorkspaceO
   }
   if (command === 'scene-moment' || command === 'moment') {
     await dispatchInteractiveSceneMomentCommand(args, options, engine)
-    return false
-  }
-  if (command === 'shot') {
-    await dispatchInteractiveShotCommand(args, options, engine)
     return false
   }
   if (command === 'storyboard') {
@@ -2725,13 +2586,11 @@ async function dispatchInteractiveSettingCommand(args: string[], options: Worksp
     if (!id && !title) {
       throw new Error('usage: /setting add <id> [--title <title>] [--kind <kind>] [--description <text>]')
     }
-    const result = await engine.upsertSetting({
-      payload: pruneUndefined({
-        id,
-        title,
-        setting_kind: parsed.options.kind ?? 'other',
-        description: parsed.options.description,
-      }),
+    const result = await engine.createSetting({
+      id,
+      title,
+      kind: parsed.options.kind ?? 'other',
+      description: parsed.options.description,
     })
     printResult(result, options)
     return
@@ -2758,17 +2617,15 @@ async function dispatchInteractiveAssetCommand(args: string[], options: Workspac
     if (!id && !title) {
       throw new Error('usage: /asset add <id> [--title <title>] [--setting <id>] [--state <id>] [--slot <slot>] [--kind <kind>] [--prompt <text>]')
     }
-    const result = await engine.upsertAsset({
-      payload: pruneUndefined({
-        id,
-        title,
-        setting_id: parsed.options.setting,
-        setting_state_id: parsed.options.state,
-        slot: parsed.options.slot,
-        asset_kind: parsed.options.kind ?? 'image',
-        prompt_hint: parsed.options.prompt,
-        resource_id: resourceIdOption(parsed.options.resourceId ?? parsed.options['resource-id']),
-      }),
+    const result = await engine.createAsset({
+      id,
+      title,
+      settingId: parsed.options.setting,
+      settingStateId: parsed.options.state,
+      slot: parsed.options.slot,
+      assetKind: parsed.options.kind ?? 'image',
+      promptHint: parsed.options.prompt,
+      resourceId: resourceIdOption(parsed.options.resourceId ?? parsed.options['resource-id']),
     })
     printResult(result, options)
     return
@@ -2836,31 +2693,6 @@ async function dispatchInteractiveSceneMomentCommand(args: string[], options: Wo
   throw new Error(`unknown /scene-moment action: ${action}`)
 }
 
-async function dispatchInteractiveShotCommand(args: string[], options: WorkspaceOptions, engine: CliEngine): Promise<void> {
-  const action = args.shift()
-  const parsed = parseSlashOptions(args)
-  if (action === 'add' || action === 'create' || action === 'upsert') {
-    const source = parseShotParentOptions({
-      production: parsed.options.production,
-      segment: parsed.options.segment,
-      sceneMoment: parsed.options.sceneMoment ?? parsed.options['scene-moment'],
-    })
-    const result = await engine.createShot({
-      id: parsed.options.id,
-      productionId: source.productionId,
-      segmentId: source.segmentId,
-      sceneMomentId: source.sceneMomentId,
-      title: parsed.options.title ?? parsed.positionals[0],
-      kind: parsed.options.kind,
-      order: parseOptionalNumberOption(parsed.options.order, 'order'),
-      shotSize: parsed.options.shotSize ?? parsed.options['shot-size'],
-    })
-    printResult(result, options)
-    return
-  }
-  throw new Error(`unknown /shot action: ${action}`)
-}
-
 async function dispatchInteractiveStoryboardCommand(args: string[], options: WorkspaceOptions, engine: CliEngine): Promise<void> {
   const action = args.shift()
   const parsed = parseSlashOptions(args)
@@ -2869,14 +2701,14 @@ async function dispatchInteractiveStoryboardCommand(args: string[], options: Wor
       production: parsed.options.production,
       segment: parsed.options.segment,
       sceneMoment: parsed.options.sceneMoment ?? parsed.options['scene-moment'],
-      shot: parsed.options.shot,
+      expressionUnit: parsed.options.expressionUnit ?? parsed.options['expression-unit'],
     })
     const result = await engine.createStoryboard({
       id: parsed.options.id ?? 'main',
       productionId: source.productionId,
       segmentId: source.segmentId,
       sceneMomentId: source.sceneMomentId,
-      shotId: source.shotId,
+      expressionUnitId: source.expressionUnitId,
       title: parsed.options.title ?? parsed.positionals[0],
       order: parseOptionalNumberOption(parsed.options.order, 'order'),
     })
@@ -2894,7 +2726,7 @@ async function dispatchInteractiveKeyframeCommand(args: string[], options: Works
       production: parsed.options.production,
       segment: parsed.options.segment,
       sceneMoment: parsed.options.sceneMoment ?? parsed.options['scene-moment'],
-      shot: parsed.options.shot,
+      expressionUnit: parsed.options.expressionUnit ?? parsed.options['expression-unit'],
     })
     const result = await createKeyframeFromCliOptions(engine, {
       id: parsed.options.id,
@@ -2916,7 +2748,7 @@ async function dispatchInteractiveAudioCueCommand(args: string[], options: Works
       production: parsed.options.production,
       segment: parsed.options.segment,
       sceneMoment: parsed.options.sceneMoment ?? parsed.options['scene-moment'],
-      shot: parsed.options.shot,
+      expressionUnit: parsed.options.expressionUnit ?? parsed.options['expression-unit'],
       storyboard: parsed.options.storyboard,
     })
     const result = await engine.createAudioCue({
@@ -2924,7 +2756,7 @@ async function dispatchInteractiveAudioCueCommand(args: string[], options: Works
       productionId: source.productionId,
       segmentId: source.segmentId,
       sceneMomentId: source.sceneMomentId,
-      shotId: source.shotId,
+      expressionUnitId: source.expressionUnitId,
       storyboardId: source.storyboardId,
       title: parsed.options.title ?? parsed.positionals[0],
       kind: parsed.options.kind ?? 'sound_effect',
@@ -3011,7 +2843,7 @@ async function dispatchInteractiveContentUnitCommand(args: string[], options: Wo
       production: parsed.options.production,
       segment: parsed.options.segment,
       sceneMoment: parsed.options.sceneMoment ?? parsed.options['scene-moment'],
-      shot: parsed.options.shot,
+      expressionUnit: parsed.options.expressionUnit ?? parsed.options['expression-unit'],
       storyboard: parsed.options.storyboard,
       keyframe: parsed.options.keyframe,
       audioCue: parsed.options.audioCue ?? parsed.options['audio-cue'],
@@ -3114,9 +2946,9 @@ function printInteractiveHelp(): void {
   /segment add --title <title> [--production <id>] [--id <id>] [--order <n>]
   /scene-moment add --title <title> --segment <id-or-path> [--production <id>] [--id <id>] [--storyboard <id>]
   /storyboard add --scene-moment <id-or-path> [--segment <id-or-path>] [--id <id>] [--title <title>] [--order <n>]
-  /audio-cue add --scene-moment <id-or-path> [--shot <id-or-path>] [--storyboard <id-or-path>] [--id <id>] [--title <title>] [--kind <kind>] [--prompt <text>]
+  /audio-cue add --scene-moment <id-or-path> [--expression-unit <id-or-path>] [--storyboard <id-or-path>] [--id <id>] [--title <title>] [--kind <kind>] [--prompt <text>]
   /expression-unit add --scene-moment <id-or-path> [--id <id>] [--kind <kind>] [--speaker <text>] [--text <text>] [--storyboard <id-or-path>]
-  /content-unit add --title <title> --type <asset_ref|keyframe_ref|storyboard_ref|scence_moment_ref|shot_ref> [--asset <id>] [--keyframe <id>] [--scene-moment <id>] [--shot <id>] [--storyboard <id>] [--output-kind <kind>] [--prompt <text>]
+  /content-unit add --title <title> --type <asset_ref|keyframe_ref|storyboard_ref|scence_moment_ref|expression_unit_ref> [--asset <id>] [--keyframe <id>] [--scene-moment <id>] [--expression-unit <id>] [--storyboard <id>] [--output-kind <kind>] [--prompt <text>]
   /content-unit status <id-or-path>
   /content-unit backend-prompt <id-or-path>
   /language kinds
@@ -3530,7 +3362,6 @@ function planningListInput(options: PlanningListOptions): {
   productionId?: string | number
   segmentId?: string | number
   sceneMomentId?: string | number
-  shotId?: string | number
   limit?: number
 } {
   return pruneUndefined({
@@ -3539,7 +3370,6 @@ function planningListInput(options: PlanningListOptions): {
     productionId: options.production,
     segmentId: options.segment !== undefined ? parseSegmentRefOption(options.segment).segmentId ?? options.segment : undefined,
     sceneMomentId: options.sceneMoment !== undefined ? parseSceneMomentRefOption(options.sceneMoment).sceneMomentId ?? options.sceneMoment : undefined,
-    shotId: options.shot !== undefined ? parseShotRefOption(options.shot).shotId ?? options.shot : undefined,
     limit: options.limit !== undefined ? parsePositiveIntegerOption(options.limit, 'limit') : undefined,
   })
 }
@@ -3548,13 +3378,11 @@ function planningParentInput(options: PlanningDeleteOptions): {
   productionId?: string | number
   segmentId?: string | number
   sceneMomentId?: string | number
-  shotId?: string | number
 } {
   return pruneUndefined({
     productionId: options.production,
     segmentId: options.segment !== undefined ? parseSegmentRefOption(options.segment).segmentId ?? options.segment : undefined,
     sceneMomentId: options.sceneMoment !== undefined ? parseSceneMomentRefOption(options.sceneMoment).sceneMomentId ?? options.sceneMoment : undefined,
-    shotId: options.shot !== undefined ? parseShotRefOption(options.shot).shotId ?? options.shot : undefined,
   })
 }
 
@@ -3566,7 +3394,6 @@ function listPlanningEntities(
   if (entityKind === 'production') return engine.listProductions(input)
   if (entityKind === 'segment') return engine.listSegments(input)
   if (entityKind === 'scene_moment') return engine.listSceneMoments(input)
-  if (entityKind === 'shot') return engine.listShots(input)
   if (entityKind === 'storyboard') return engine.listStoryboards(input)
   if (entityKind === 'audio_cue') return engine.listAudioCues(input)
   if (entityKind === 'expression_unit') return engine.listExpressionUnits(input)
@@ -3577,12 +3404,11 @@ function listPlanningEntities(
 function deletePlanningEntityWithEngine(
   engine: ReturnType<typeof createCliEngine>,
   entityKind: CliSemanticEntityKind,
-  input: { id: string | number; productionId?: string | number; segmentId?: string | number; sceneMomentId?: string | number; shotId?: string | number },
+  input: { id: string | number; productionId?: string | number; segmentId?: string | number; sceneMomentId?: string | number },
 ) {
   if (entityKind === 'production') return engine.deleteProduction(input)
   if (entityKind === 'segment') return engine.deleteSegment(input)
   if (entityKind === 'scene_moment') return engine.deleteSceneMoment(input)
-  if (entityKind === 'shot') return engine.deleteShot(input)
   if (entityKind === 'storyboard') return engine.deleteStoryboard(input)
   if (entityKind === 'audio_cue') return engine.deleteAudioCue(input)
   if (entityKind === 'expression_unit') return engine.deleteExpressionUnit(input)
@@ -3691,7 +3517,6 @@ interface ContentUnitSourceRefs {
   productionId?: string
   segmentId?: string
   sceneMomentId?: string
-  shotId?: string
   storyboardId?: string
   keyframeId?: string
   assetRef?: string
@@ -3702,15 +3527,15 @@ interface ContentUnitSourceRefs {
 function parseContentUnitSourceOptions(options: AddContentUnitOptions, contentUnitType?: string): ContentUnitSourceRefs {
   const asset = parseAssetRefOption(options.asset)
   const sceneMoment = parseSceneMomentRefOption(options.sceneMoment)
-  const shot = parseShotRefOption(options.shot)
+  const expressionUnit = parseExpressionUnitRefOption(options.expressionUnit)
   const storyboard = parseStoryboardRefOption(options.storyboard)
   const keyframe = parseKeyframeRefOption(options.keyframe)
   const audioCue = parseAudioCueRefOption(options.audioCue)
   return pruneUndefined({
-    productionId: options.production ?? keyframe.productionId ?? audioCue.productionId ?? storyboard.productionId ?? shot.productionId ?? sceneMoment.productionId,
-    segmentId: options.segment ?? keyframe.segmentId ?? audioCue.segmentId ?? storyboard.segmentId ?? shot.segmentId ?? sceneMoment.segmentId,
-    sceneMomentId: sceneMoment.sceneMomentId ?? keyframe.sceneMomentId ?? audioCue.sceneMomentId ?? storyboard.sceneMomentId ?? shot.sceneMomentId,
-    shotId: shot.shotId ?? storyboard.shotId ?? plainIdOption(options.shot),
+    productionId: options.production ?? keyframe.productionId ?? audioCue.productionId ?? storyboard.productionId ?? expressionUnit.productionId ?? sceneMoment.productionId,
+    segmentId: options.segment ?? keyframe.segmentId ?? audioCue.segmentId ?? storyboard.segmentId ?? expressionUnit.segmentId ?? sceneMoment.segmentId,
+    sceneMomentId: sceneMoment.sceneMomentId ?? keyframe.sceneMomentId ?? audioCue.sceneMomentId ?? storyboard.sceneMomentId ?? expressionUnit.sceneMomentId,
+    expressionUnitId: expressionUnit.expressionUnitId ?? storyboard.expressionUnitId ?? keyframe.expressionUnitId ?? plainIdOption(options.expressionUnit),
     storyboardId: storyboard.storyboardId ?? (contentUnitType === undefined || contentUnitType === 'storyboard_ref' ? 'main' : undefined),
     keyframeId: keyframe.keyframeId ?? options.keyframe,
     assetRef: asset.assetRef ?? options.asset,
@@ -3729,45 +3554,32 @@ function parsePlanningParentOptions(options: {
   return { productionId, segmentId }
 }
 
-function parseShotParentOptions(options: {
-  production?: string
-  segment?: string
-  sceneMoment?: string
-}): { productionId: string; segmentId: string; sceneMomentId: string } {
-  const segment = parseSegmentRefOption(options.segment)
-  const sceneMoment = parseSceneMomentRefOption(options.sceneMoment)
-  const productionId = options.production ?? sceneMoment.productionId ?? segment.productionId ?? 'main'
-  const segmentId = sceneMoment.segmentId ?? segment.segmentId
-  const sceneMomentId = sceneMoment.sceneMomentId
-  if (!segmentId) throw new Error('--segment is required unless --scene-moment is a path under segments')
-  if (!sceneMomentId) throw new Error('--scene-moment is required')
-  return { productionId, segmentId, sceneMomentId }
-}
-
 function parseStoryboardParentOptions(options: {
   production?: string
   segment?: string
   sceneMoment?: string
-  shot?: string
-}): { productionId: string; segmentId: string; sceneMomentId: string; shotId: string } {
+  expressionUnit?: string
+}): { productionId: string; segmentId: string; sceneMomentId: string; expressionUnitId?: string } {
+  const segment = parseSegmentRefOption(options.segment)
   const sceneMoment = parseSceneMomentRefOption(options.sceneMoment)
-  const shot = parseShotRefOption(options.shot)
-  const productionId = options.production ?? shot.productionId ?? sceneMoment.productionId ?? parseSegmentRefOption(options.segment).productionId ?? 'main'
-  const segmentId = shot.segmentId ?? sceneMoment.segmentId ?? parseSegmentRefOption(options.segment).segmentId
-  const sceneMomentId = shot.sceneMomentId ?? sceneMoment.sceneMomentId
-  const shotId = shot.shotId
-  if (!segmentId) throw new Error('--segment is required unless --scene-moment or --shot is a path under segments')
-  if (!sceneMomentId) throw new Error('--scene-moment is required unless --shot is a path under scene_moments')
-  if (!shotId) throw new Error('--shot is required')
-  return { productionId, segmentId, sceneMomentId, shotId }
+  const expressionUnit = parseExpressionUnitRefOption(options.expressionUnit)
+  const productionId = options.production ?? expressionUnit.productionId ?? sceneMoment.productionId ?? segment.productionId ?? 'main'
+  const segmentId = expressionUnit.segmentId ?? sceneMoment.segmentId ?? segment.segmentId
+  const sceneMomentId = expressionUnit.sceneMomentId ?? sceneMoment.sceneMomentId
+  const expressionUnitId = expressionUnit.expressionUnitId ?? plainIdOption(options.expressionUnit)
+  if (!segmentId) throw new Error('--segment is required unless --scene-moment or --expression-unit is a path under segments')
+  if (!sceneMomentId) throw new Error('--scene-moment is required unless --expression-unit is a path under scene_moments')
+  return expressionUnitId === undefined
+    ? { productionId, segmentId, sceneMomentId }
+    : { productionId, segmentId, sceneMomentId, expressionUnitId }
 }
 
 function parseKeyframeParentOptions(options: {
   production?: string
   segment?: string
   sceneMoment?: string
-  shot?: string
-}): { productionId: string; segmentId: string; sceneMomentId: string; shotId: string } {
+  expressionUnit?: string
+}): { productionId: string; segmentId: string; sceneMomentId: string; expressionUnitId?: string } {
   return parseStoryboardParentOptions(options)
 }
 
@@ -3775,24 +3587,24 @@ function parseAudioCueParentOptions(options: {
   production?: string
   segment?: string
   sceneMoment?: string
-  shot?: string
+  expressionUnit?: string
   storyboard?: string
-}): { productionId: string; segmentId: string; sceneMomentId: string; shotId?: string; storyboardId?: string } {
+}): { productionId: string; segmentId: string; sceneMomentId: string; expressionUnitId?: string; storyboardId?: string } {
   const segment = parseSegmentRefOption(options.segment)
   const sceneMoment = parseSceneMomentRefOption(options.sceneMoment)
-  const shot = parseShotRefOption(options.shot)
+  const expressionUnit = parseExpressionUnitRefOption(options.expressionUnit)
   const storyboard = parseStoryboardRefOption(options.storyboard)
-  const productionId = options.production ?? storyboard.productionId ?? shot.productionId ?? sceneMoment.productionId ?? segment.productionId ?? 'main'
-  const segmentId = storyboard.segmentId ?? shot.segmentId ?? sceneMoment.segmentId ?? segment.segmentId
-  const sceneMomentId = sceneMoment.sceneMomentId ?? storyboard.sceneMomentId ?? shot.sceneMomentId
-  const shotId = shot.shotId ?? storyboard.shotId
-  if (!segmentId) throw new Error('--segment is required unless --scene-moment, --shot, or --storyboard is a path under segments')
-  if (!sceneMomentId) throw new Error('--scene-moment is required unless --shot or --storyboard is a path under scene_moments')
+  const productionId = options.production ?? storyboard.productionId ?? expressionUnit.productionId ?? sceneMoment.productionId ?? segment.productionId ?? 'main'
+  const segmentId = storyboard.segmentId ?? expressionUnit.segmentId ?? sceneMoment.segmentId ?? segment.segmentId
+  const sceneMomentId = sceneMoment.sceneMomentId ?? storyboard.sceneMomentId ?? expressionUnit.sceneMomentId
+  const expressionUnitId = expressionUnit.expressionUnitId ?? storyboard.expressionUnitId
+  if (!segmentId) throw new Error('--segment is required unless --scene-moment, --expression-unit, or --storyboard is a path under segments')
+  if (!sceneMomentId) throw new Error('--scene-moment is required unless --expression-unit or --storyboard is a path under scene_moments')
   return {
     productionId,
     segmentId,
     sceneMomentId,
-    ...(shotId !== undefined ? { shotId } : {}),
+    ...(expressionUnitId !== undefined ? { expressionUnitId } : {}),
     ...(storyboard.storyboardId !== undefined ? { storyboardId: storyboard.storyboardId } : {}),
   }
 }
@@ -3842,6 +3654,12 @@ function parseSceneMomentRefOption(value: string | undefined): ContentUnitSource
   return { sceneMomentId: value }
 }
 
+function parseExpressionUnitRefOption(value: string | undefined): ContentUnitSourceRefs {
+  if (!value) return {}
+  if (value.includes('/')) return parsePlanningSourcePath(value)
+  return { expressionUnitId: value }
+}
+
 function parseStoryboardRefOption(value: string | undefined): ContentUnitSourceRefs {
   if (!value) return {}
   if (value.includes('/')) return parsePlanningSourcePath(value)
@@ -3858,12 +3676,6 @@ function parseAssetRefOption(value: string | undefined): ContentUnitSourceRefs {
   if (!value) return {}
   if (value.includes('/')) return parsePlanningSourcePath(value)
   return { assetRef: value }
-}
-
-function parseShotRefOption(value: string | undefined): ContentUnitSourceRefs {
-  if (!value) return {}
-  if (value.includes('/')) return parsePlanningSourcePath(value)
-  return { shotId: value }
 }
 
 function parseAudioCueRefOption(value: string | undefined): ContentUnitSourceRefs {
@@ -3883,7 +3695,6 @@ function parsePlanningSourcePath(value: string): ContentUnitSourceRefs {
     productionId: pathSegmentAfter(parts, 'productions'),
     segmentId: pathSegmentAfter(parts, 'segments'),
     sceneMomentId: pathSegmentAfter(parts, 'scene_moments'),
-    shotId: pathSegmentAfter(parts, 'shots'),
     storyboardId: pathSegmentAfter(parts, 'storyboards'),
     keyframeId: pathSegmentAfter(parts, 'keyframes'),
     assetRef: pathSegmentAfter(parts, 'assets'),

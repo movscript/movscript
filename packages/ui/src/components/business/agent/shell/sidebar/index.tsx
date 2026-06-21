@@ -71,10 +71,11 @@ export interface AgentConversationItemProps
   title: React.ReactNode;
   description?: React.ReactNode;
   meta?: React.ReactNode;
+  metaClassName?: string;
 }
 
 export const AgentConversationItem = React.forwardRef<HTMLButtonElement, AgentConversationItemProps>(
-  ({ active = false, icon, title, description, meta, className, ...props }, ref) => {
+  ({ active = false, icon, title, description, meta, metaClassName, className, ...props }, ref) => {
     return (
       <button
         ref={ref}
@@ -95,7 +96,11 @@ export const AgentConversationItem = React.forwardRef<HTMLButtonElement, AgentCo
             </span>
           ) : null}
         </span>
-        {meta ? <span className="ms-agent-text ms-text-truncate ms-agent-text--muted ms-type-label ms-agent-conversation__meta">{meta}</span> : null}
+        {meta ? (
+          <span className={cn("ms-agent-text ms-text-truncate ms-agent-text--muted ms-type-label ms-agent-conversation__meta", metaClassName)}>
+            {meta}
+          </span>
+        ) : null}
       </button>
     );
   }

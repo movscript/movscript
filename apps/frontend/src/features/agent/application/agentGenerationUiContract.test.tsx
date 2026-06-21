@@ -38,6 +38,7 @@ function readCoreAgentProtocolContractSource(): string {
 function readAgentSettingsAppContractSource(): string {
   return [
     readFileSync(resolve('src/features/agent/components/AIAgentSettingsPage.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/application/useAIAgentSettingsPageController.ts'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/AIAgentSettingsConfigFilesPanel.tsx'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/AIAgentSettingsPageParts.tsx'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/AIAgentSettingsApiModePanels.tsx'), 'utf8'),
@@ -287,8 +288,15 @@ test('agent console architecture separates model providers, agents, plugins, and
   const pluginsPageSource = readFileSync(resolve('src/features/plugins/components/ClientPluginsPage.tsx'), 'utf8')
   const controlCenterSource = readFileSync(resolve('src/features/agent/presentation/useAgentControlCenter.ts'), 'utf8')
   const pluginToolSource = readFileSync(resolve('src/features/plugins/components/PluginToolPage.tsx'), 'utf8')
-  const modelProvidersSource = readFileSync(resolve('src/features/agent/components/ModelProvidersPage.tsx'), 'utf8')
-  const agentsSource = readFileSync(resolve('src/features/agent/components/AgentsPage.tsx'), 'utf8')
+  const modelProvidersPageSource = readFileSync(resolve('src/features/agent/components/ModelProvidersPage.tsx'), 'utf8')
+  const modelProvidersSectionsSource = readFileSync(resolve('src/features/agent/components/ModelProvidersPageSections.tsx'), 'utf8')
+  const modelProvidersModelSource = readFileSync(resolve('src/features/agent/components/ModelProvidersPageModel.ts'), 'utf8')
+  const modelProvidersSource = [modelProvidersPageSource, modelProvidersSectionsSource, modelProvidersModelSource].join('\n')
+  const agentsSource = [
+    readFileSync(resolve('src/features/agent/components/AgentsPage.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/AgentsPageParts.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/application/useAgentsPageController.ts'), 'utf8'),
+  ].join('\n')
   const defaultAgentProviderSource = readFileSync(resolve('src/features/agent/application/defaultAgentProvider.ts'), 'utf8')
   const coreDefaultProviderSource = readFileSync(resolve('../../packages/core/src/agent/defaultProvider.ts'), 'utf8')
   const agentRuntimeChatShellSource = readFileSync(resolve('src/features/agent/components/AgentRuntimeChatShell.tsx'), 'utf8')
@@ -404,6 +412,15 @@ test('agent console architecture separates model providers, agents, plugins, and
 
   assertIncludes(modelProvidersSource, "queryFn: () => fetchAgentBackendModels()")
   assertIncludes(modelProvidersSource, '<AgentConsoleHeaderTitle>Provider / Catalog / Route</AgentConsoleHeaderTitle>')
+  assertIncludes(modelProvidersPageSource, "from '@/features/agent/components/ModelProvidersPageSections'")
+  assertIncludes(modelProvidersPageSource, '<ModelProviderManagementLayers activeLayer={activeLayer} onActiveLayerChange={setActiveLayer} />')
+  assertNotIncludes(modelProvidersPageSource, 'function groupBackendModelProviders')
+  assertNotIncludes(modelProvidersSectionsSource, 'function groupBackendModelProviders')
+  assertIncludes(modelProvidersModelSource, 'export function groupBackendModelProviders')
+  assertIncludes(modelProvidersModelSource, 'export function flattenCatalogRouteBindings')
+  assertIncludes(modelProvidersSectionsSource, 'export function ModelProviderProvidersSection')
+  assertIncludes(modelProvidersSectionsSource, 'export function ModelProviderCatalogSection')
+  assertIncludes(modelProvidersSectionsSource, 'export function ModelProviderRoutesSection')
   assertIncludes(modelProvidersSource, 'title="Provider Ownership"')
   assertIncludes(modelProvidersSource, 'function groupBackendModelProviders')
   assertIncludes(modelProvidersSource, 'Base URL、API Key、adapter 和 route group 由 Admin 的 Provider 接入页维护')
@@ -1693,7 +1710,7 @@ test('agent settings exposes config-file capability config controls', () => {
   const clientSource = readProviderSessionClientContractSource()
   const commitServiceSource = readFileSync(resolve('src/features/agent/application/agentSettingsCatalogCommitService.ts'), 'utf8')
   const protocolSource = readCoreAgentProtocolContractSource()
-  const storeSource = readFileSync(resolve('src/features/agent/state/agentStore.ts'), 'utf8')
+  const storeSource = readAgentStoreContractSource()
   const zh = readFileSync(resolve('src/i18n/locales/zh-CN.json'), 'utf8')
   const en = readFileSync(resolve('src/i18n/locales/en-US.json'), 'utf8')
 
@@ -2054,7 +2071,7 @@ test('agent console removes the standalone advanced diagnostics page', () => {
 })
 
 test('agent tool diagnostics expose the resolved permission chain', () => {
-  const storeSource = readFileSync(resolve('src/features/agent/state/agentStore.ts'), 'utf8')
+  const storeSource = readAgentStoreContractSource()
   const protocolSource = readCoreAgentProtocolContractSource()
   const debugWorkspaceDiffSource = readFileSync(resolve('src/features/agent/components/AgentDebugPreviewWorkspaceDiff.tsx'), 'utf8')
   const runInteractionSource = readFileSync(resolve('src/features/agent/components/AgentRunInteractionBubble.tsx'), 'utf8')
@@ -2087,6 +2104,13 @@ function assertIncludes(value: string, expected: string) {
 
 function assertNotIncludes(value: string, unexpected: string) {
   assert.equal(value.includes(unexpected), false, `expected output not to include ${unexpected}`)
+}
+
+function readAgentStoreContractSource(): string {
+  return [
+    readFileSync(resolve('src/features/agent/state/agentStore.ts'), 'utf8'),
+    readFileSync(resolve('src/features/agent/state/agentStoreSettingsModel.ts'), 'utf8'),
+  ].join('\n')
 }
 
 function between(source: string, start: string, end: string): string {

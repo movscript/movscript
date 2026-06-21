@@ -1,0 +1,107 @@
+.tool-dialog-debug-panel {
+  display: grid;
+  gap: var(--ms-space-2);
+  padding: var(--ms-space-3);
+  font-family: var(--ms-font-mono);
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+}
+
+.tool-dialog-debug-title {
+  color: var(--ms-color-muted-foreground);
+  font-family: var(--ms-font-sans);
+  font-size: var(--ms-text-label);
+  font-weight: 500;
+  line-height: var(--ms-leading-label);
+}
+
+.tool-dialog-debug-kv {
+  display: flex;
+  min-width: 0;
+  gap: var(--ms-space-2);
+}
+
+.tool-dialog-debug-kv__label {
+  width: 6rem;
+  flex-shrink: 0;
+  color: var(--ms-color-muted-foreground);
+}
+
+.tool-dialog-debug-kv__value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--ms-color-foreground);
+}
+
+.tool-dialog-debug-kv__value--mono {
+  font-family: var(--ms-font-mono);
+}
+
+.tool-dialog-debug-kv__value--sans {
+  font-family: var(--ms-font-sans);
+}
+
+.tool-dialog-debug-section {
+  display: grid;
+  gap: 6px;
+  border-top: 1px solid color-mix(in srgb, var(--ms-color-border) 40%, transparent);
+  padding-top: var(--ms-space-2);
+}
+
+.tool-dialog-debug-section__title {
+  color: var(--ms-color-muted-foreground);
+  font-family: var(--ms-font-sans);
+  font-size: var(--ms-text-tiny);
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: var(--ms-leading-tiny);
+  text-transform: uppercase;
+}
+
+.tool-dialog-debug-endpoint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tool-dialog-debug-headers {
+  display: grid;
+  gap: calc(var(--ms-space-1) * 0.5);
+  padding: var(--ms-space-2);
+}
+
+.tool-dialog-debug-json {
+  position: relative;
+}
+
+.tool-dialog-debug-json__surface {
+  max-height: 8rem;
+  overflow: auto;
+  padding: var(--ms-space-2);
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-caption);
+  line-height: var(--ms-leading-caption);
+}
+
+.tool-dialog-debug-json[data-max-height="large"] .tool-dialog-debug-json__surface {
+  max-height: 12rem;
+}
+
+.tool-dialog-debug-json__action {
+  position: absolute;
+  top: var(--ms-space-1);
+  right: var(--ms-space-1);
+}
+
+.tool-dialog-copy-button {
+  height: 1.75rem;
+  gap: var(--ms-space-1);
+  padding-inline: var(--ms-space-2);
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+}
+
+.tool-dialog-copy-button:hover {
+  color: var(--ms-color-foreground);
+}

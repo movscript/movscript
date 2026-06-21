@@ -76,8 +76,8 @@ function createMovScriptDomainRuntimeFromEngine(
 ): MovScriptDomainRuntime {
   const fileRepository = createNodeMovScriptWorkspaceFileRepository(projectCwd)
   return {
-    ...engine,
     ...engine.workspaceService,
+    ...engine,
     projectCwd,
     projectDir: projectCwd,
     decisionStore,

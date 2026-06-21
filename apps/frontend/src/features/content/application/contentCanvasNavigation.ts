@@ -15,7 +15,6 @@ const NAVIGATOR_KINDS = new Set<ContentCanvasNodeKind>([
   'production',
   'segment',
   'scene_moment',
-  'shot',
 ])
 
 export function buildContentCanvasNavigatorItems(graph: ContentCanvasGraph): ContentCanvasNavigatorItem[] {

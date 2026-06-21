@@ -39,7 +39,7 @@ import {
   type ShotImportWorkspace,
   type ShotTagSuggestions,
 } from '@/features/shot-library/domain/shotLibraryWorkspaceModel'
-import { ShotWorkspaceClipPlayer } from '@/features/shot-library/components/ShotLibraryImportDialog'
+import { ShotWorkspaceClipPlayer } from '@/features/shot-library/components/ShotLibraryImportClipPlayer'
 import { ManualField, StructuredShotEditor, TagInputField } from '@/features/shot-library/components/ShotLibraryWorkspaceFields'
 import { shotReferenceAspectRatio } from '@/features/shot-library/components/shotLibraryVideoPreview'
 

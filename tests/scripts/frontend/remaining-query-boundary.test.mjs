@@ -7,7 +7,11 @@ const authPageSource = readSource('apps/frontend/src/features/auth/components/Au
 const invitePageSource = readSource('apps/frontend/src/features/auth/components/InvitePage.tsx')
 const authQueryKeysSource = readSource('apps/frontend/src/features/auth/application/authQueryKeys.ts')
 const projectQueriesSource = readSource('apps/frontend/src/features/project/application/projectQueries.ts')
-const projectStandardsSource = readSource('apps/frontend/src/features/project-standards/components/ProjectStandardsPage.tsx')
+const projectStandardsSource = [
+  readSource('apps/frontend/src/features/project-standards/components/ProjectStandardsPage.tsx'),
+  readSource('apps/frontend/src/features/project-standards/application/useProjectStandardsController.ts'),
+].join('\n')
+const projectStandardsControllerCommandsSource = readSource('apps/frontend/src/features/project-standards/application/projectStandardsControllerCommands.ts')
 const projectStandardsWorkspaceArtifactServiceSource = readSource('apps/frontend/src/features/project-standards/application/projectStandardsWorkspaceArtifactService.ts')
 const projectStandardsBoardModelSource = readSource('apps/frontend/src/features/project-standards/presentation/projectStandardsBoardModel.ts')
 const projectStandardsModelSource = readSource('apps/frontend/src/features/project-standards/application/projectStandardsModel.ts')
@@ -24,8 +28,11 @@ test('remaining TSX query keys are delegated to factories', () => {
   assert.doesNotMatch(projectQueriesSource, /overview:|project-overview/)
   assert.match(projectStandardsSource, /projectStandardsKeys\.workspaceArtifacts\(projectId, pageKey, activeWorkspaceId, openedWorkspaceId\)/)
   assert.match(projectStandardsSource, /listProjectStandardsWorkspaceArtifacts\(\{/)
-  assert.match(projectStandardsSource, /updateProjectStandardsWorkspaceArtifact\(workspace\.id, \{/)
+  assert.match(projectStandardsSource, /from '@\/features\/project-standards\/application\/projectStandardsControllerCommands'/)
+  assert.match(projectStandardsControllerCommandsSource, /updateProjectStandardsWorkspaceArtifact\(workspace\.id, \{/)
+  assert.match(projectStandardsControllerCommandsSource, /saveProjectStandardsWorkspaceEdit\(/)
   assert.doesNotMatch(projectStandardsSource, /providerSessionClient|isProviderSessionNotFoundError|getWorkspaceArtifact|listWorkspaceArtifacts|updateWorkspaceArtifact/)
+  assert.doesNotMatch(projectStandardsControllerCommandsSource, /providerSessionClient|isProviderSessionNotFoundError|getWorkspaceArtifact|listWorkspaceArtifacts|updateWorkspaceArtifact/)
   assert.match(projectStandardsWorkspaceArtifactServiceSource, /providerSessionClient/)
   assert.match(projectStandardsQueryKeysSource, /export const projectStandardsKeys/)
   assert.doesNotMatch(projectStandardsModelSource, /@deprecated/)

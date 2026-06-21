@@ -13,7 +13,7 @@ Create the necessary upstream structure first, then create the content unit. Do 
 
 ## Specialized Types
 
-- `asset_ref`: image output, requires `asset_ref`. Use to stabilize a reusable character, location, prop, style, or state asset.
+- `asset_ref`: image output, requires `asset_ref`. Use to stabilize a reusable concrete production entity or state asset, such as a character, prop, place, instrument, costume, voice identity, front view, side view, material reference, or tone reference.
 - `keyframe_ref`: image output, uses `scene_moment_ref`, `shot_ref`, `storyboard_ref`, and `keyframe_ref` or `keyframe_refs`. Use to stabilize visual anchors for a shot or storyboard.
 - `storyboard_ref`: image output, requires `storyboard_ref`. Use to stabilize storyboard panels/images for composition, blocking, timing, and shot rhythm before keyframes or final video.
 - `production_ref`: video output, targets one complete production. Prefer `target_kind: production`, `target_ref`, and `production_ref` for new final production records. Use for the selected final assembly candidate produced by production timeline composition.
@@ -30,9 +30,9 @@ For storyboard-panel upload after reference-shot imitation, use a clearly named 
 
 `asset_ref` output should usually be reusable and weakly tied to plot:
 
-- prefer low-background, clean-background, or neutral-background images,
+- prefer plain white or very clean background images,
 - prefer multi-view or reference-sheet style when useful,
-- show identity, state, costume, makeup, prop shape, material, or style,
+- show identity, state, costume, makeup, prop shape, material, voice/tone identity, or instrument character,
 - avoid complex scene lighting, one-off action, specific plot blocking, or final-shot composition.
 
 Put story lighting, camera composition, action, and scene-specific mood in `keyframe` or `storyboard`, not in `asset`.
@@ -47,7 +47,7 @@ setting / setting_state / asset
 -> downstream keyframe/storyboard/video references
 ```
 
-Build asset candidates from simple to complex. Start with base identity, neutral shape, material, or layout; then use the selected base asset to generate multi-view/reference-sheet versions and state variants such as costume, makeup, weather, damage, wet hair, or prop wear. Do not use unselected asset candidates as stable downstream references.
+Build asset candidates from simple to complex. Start with base identity, neutral shape, material, tone, or layout; then use the selected base asset to generate white-background/clean-background multi-view/reference-sheet versions and state variants such as costume, makeup, weather, damage, wet hair, prop wear, or voice mood. Do not use unselected asset candidates as stable downstream references.
 
 ## Scene Moments and Expression Units
 

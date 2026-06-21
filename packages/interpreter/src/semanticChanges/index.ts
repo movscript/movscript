@@ -10,7 +10,7 @@ export type MovScriptBusinessSemanticKind =
   | 'reference_changed'
   | 'selection_changed'
   | 'sequence_reordered'
-  | 'shot_changed'
+  | 'expression_unit_changed'
   | 'storyboard_changed'
   | 'keyframe_changed'
   | 'content_unit_changed'
@@ -63,9 +63,9 @@ interface FieldSemanticRule {
 
 const FIELD_SEMANTIC_RULES: readonly FieldSemanticRule[] = [
   {
-    matches: (entity, fieldChange) => entity.entityKind === 'shot' && isShotSemanticInputField(fieldChange.field),
+    matches: (entity, fieldChange) => entity.entityKind === 'expression_unit' && isExpressionUnitSemanticInputField(fieldChange.field),
     semanticKind: 'semantic_input_changed',
-    businessKind: 'shot_changed',
+    businessKind: 'expression_unit_changed',
     propagation: 'self',
   },
   {
@@ -181,8 +181,8 @@ function semanticCategoryForFieldChange(
 
 function businessKindForEntityChange(entityKind: string): MovScriptBusinessSemanticKind {
   switch (entityKind) {
-    case 'shot':
-      return 'shot_changed'
+    case 'expression_unit':
+      return 'expression_unit_changed'
     case 'storyboard':
       return 'storyboard_changed'
     case 'keyframe':
@@ -204,7 +204,7 @@ function businessKindForEntityChange(entityKind: string): MovScriptBusinessSeman
   }
 }
 
-function isShotSemanticInputField(field: string): boolean {
+function isExpressionUnitSemanticInputField(field: string): boolean {
   return field === '*'
     || field === 'angle'
     || field.startsWith('angle.')

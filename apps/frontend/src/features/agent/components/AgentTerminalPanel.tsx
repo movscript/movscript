@@ -1,34 +1,11 @@
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
-import { ChevronDown, Play, Plus, Terminal as TerminalIcon, X } from 'lucide-react'
-import { Button } from '@movscript/ui/primitives'
-
-import {
-  createLocalTerminal,
-  killLocalTerminal,
-  localTerminalAvailable,
-  resizeLocalTerminal,
-  subscribeLocalTerminalEvents,
-  writeLocalTerminal,
-} from '@/features/agent/application/localTerminalElectron'
 import type { MovScriptWorkspaceContext } from '@/shared/infrastructure/providerConfigStore'
+import { ShellTerminalViewport } from '@/features/agent/components/AgentTerminalViewport'
+import { useAgentTerminalController } from '@/features/agent/components/useAgentTerminalController'
 import {
-  AGENT_TERMINAL_DEFAULT_COLS,
-  AGENT_TERMINAL_DEFAULT_ROWS,
-  FIRST_SHELL_ID,
-  appendShellOutput,
-  compactPath,
-  createInitialAgentTerminalStore,
-  createShellSession,
-  terminalStatusLabel,
-  type AgentTerminalStoreState,
-  type ShellRuntime,
-  type ShellSession,
-  type TerminalStatus,
-} from '@/features/agent/components/AgentTerminalRuntimeModel'
-import {
-  ShellTerminalViewport,
-  canFitTerminal,
-} from '@/features/agent/components/AgentTerminalViewport'
+  AgentTerminalDock,
+  AgentTerminalHeader,
+  AgentTerminalShellList,
+} from '@/features/agent/components/AgentTerminalPanelParts'
 
 export interface AgentTerminalPanelProps {
   workspaceContext: MovScriptWorkspaceContext
@@ -37,292 +14,22 @@ export interface AgentTerminalPanelProps {
   shellPlacement?: 'center' | 'center-right'
 }
 
-const agentTerminalRuntimes = new Map<string, ShellRuntime>()
-const agentTerminalListeners = new Set<() => void>()
-let agentTerminalContextKey = ''
-let agentTerminalStore: AgentTerminalStoreState = createInitialAgentTerminalStore()
-
-function getAgentTerminalStoreSnapshot(): AgentTerminalStoreState {
-  return agentTerminalStore
-}
-
-function subscribeAgentTerminalStore(listener: () => void): () => void {
-  agentTerminalListeners.add(listener)
-  return () => agentTerminalListeners.delete(listener)
-}
-
-function useAgentTerminalStore(): AgentTerminalStoreState {
-  return useSyncExternalStore(
-    subscribeAgentTerminalStore,
-    getAgentTerminalStoreSnapshot,
-    getAgentTerminalStoreSnapshot,
-  )
-}
-
-function updateAgentTerminalStore(updater: (current: AgentTerminalStoreState) => AgentTerminalStoreState): void {
-  agentTerminalStore = updater(agentTerminalStore)
-  for (const listener of Array.from(agentTerminalListeners)) listener()
-}
-
 export function AgentTerminalPanel({ workspaceContext, open: controlledOpen, onOpenChange, shellPlacement = 'center' }: AgentTerminalPanelProps) {
-  const [internalOpen, setInternalOpen] = useState(false)
-  const open = controlledOpen ?? internalOpen
-  const terminalStore = useAgentTerminalStore()
-  const sessions = terminalStore.sessions
-  const activeShellId = terminalStore.activeShellId
-  const shellResetNonce = terminalStore.shellResetNonce
+  const terminal = useAgentTerminalController({
+    controlledOpen,
+    onOpenChange,
+    workspaceContext,
+  })
 
-  const workspaceContextKey = JSON.stringify(workspaceContext)
-  const controlled = controlledOpen !== undefined
-  const disabled = !localTerminalAvailable()
-  const activeSession = sessions.find((session) => session.id === activeShellId) ?? sessions[0]
-  const statusLabel = terminalStatusLabel(activeSession?.status ?? 'idle', disabled)
-  const shortCwd = activeSession?.cwd
-    ? compactPath(activeSession.cwd)
-    : workspaceContext.scope === 'project' ? 'project cwd' : 'workspace cwd'
+  if (!terminal.open && terminal.controlled) return null
 
-  const setOpen = useCallback((nextOpen: boolean) => {
-    if (!controlled) setInternalOpen(nextOpen)
-    onOpenChange?.(nextOpen)
-  }, [controlled, onOpenChange])
-
-  const updateSession = useCallback((id: string, patch: Partial<ShellSession>) => {
-    updateAgentTerminalStore((current) => ({
-      ...current,
-      sessions: current.sessions.map((session) => (
-        session.id === id ? { ...session, ...patch } : session
-      )),
-    }))
-  }, [])
-
-  const setActiveShellId = useCallback((id: string) => {
-    updateAgentTerminalStore((current) => ({
-      ...current,
-      activeShellId: id,
-    }))
-  }, [])
-
-  const runtimeFor = useCallback((id: string): ShellRuntime => {
-    let runtime = agentTerminalRuntimes.get(id)
-    if (!runtime) {
-      runtime = {
-        terminal: null,
-        fitAddon: null,
-        host: null,
-        terminalSessionId: null,
-        status: 'idle',
-        outputBuffer: '',
-        writeChain: Promise.resolve(),
-        runToken: 0,
-        unsubscribe: null,
-      }
-      agentTerminalRuntimes.set(id, runtime)
-    }
-    return runtime
-  }, [])
-
-  const setShellStatus = useCallback((id: string, status: TerminalStatus, patch: Partial<ShellSession> = {}) => {
-    const runtime = runtimeFor(id)
-    runtime.status = status
-    updateSession(id, { ...patch, status })
-  }, [runtimeFor, updateSession])
-
-  const resizeShell = useCallback((id: string) => {
-    const runtime = agentTerminalRuntimes.get(id)
-    const terminal = runtime?.terminal
-    const fitAddon = runtime?.fitAddon
-    if (!runtime || !terminal || !fitAddon) return
-    if (!canFitTerminal(runtime, terminal)) return
-    try {
-      fitAddon.fit()
-    } catch (fitError) {
-      console.warn('[agent-terminal] failed to fit terminal', fitError)
-      return
-    }
-    if (!runtime.terminalSessionId) return
-    void resizeLocalTerminal({
-      sessionId: runtime.terminalSessionId,
-      size: {
-        rows: terminal.rows,
-        cols: terminal.cols,
-      },
-    }).catch((resizeError) => {
-      console.warn('[agent-terminal] failed to resize shell', resizeError)
-    })
-  }, [])
-
-  const sendShellData = useCallback((id: string, data: string) => {
-    const runtime = agentTerminalRuntimes.get(id)
-    if (!runtime || runtime.status !== 'running' || !runtime.terminalSessionId) return
-    runtime.writeChain = runtime.writeChain
-      .catch(() => undefined)
-      .then(() => writeLocalTerminal({
-        sessionId: runtime.terminalSessionId ?? id,
-        data,
-      }))
-      .catch((writeError) => {
-        setShellStatus(id, 'error', {
-          error: writeError instanceof Error ? writeError.message : String(writeError),
-        })
-      })
-  }, [setShellStatus])
-
-  const stopShell = useCallback((id: string) => {
-    const runtime = agentTerminalRuntimes.get(id)
-    if (!runtime) return
-    runtime.runToken += 1
-    runtime.unsubscribe?.()
-    runtime.unsubscribe = null
-    if (runtime.terminalSessionId) void killLocalTerminal({ sessionId: runtime.terminalSessionId })
-    runtime.terminalSessionId = null
-    setShellStatus(id, 'exited')
-  }, [setShellStatus])
-
-  const startShell = useCallback(async (id: string) => {
-    if (!localTerminalAvailable()) {
-      setShellStatus(id, 'error', { error: 'Local terminal is not available in this runtime.' })
-      return
-    }
-
-    const runtime = runtimeFor(id)
-    const terminal = runtime.terminal
-    if (!terminal) return
-    if (runtime.status === 'starting' || runtime.status === 'running') return
-
-    const token = runtime.runToken + 1
-    runtime.runToken = token
-    runtime.unsubscribe?.()
-    runtime.unsubscribe = null
-    runtime.outputBuffer = ''
-    runtime.terminalSessionId = id
-    setShellStatus(id, 'starting', { error: '', cwd: '' })
-    terminal.clear()
-    appendShellOutput(runtime, 'Starting host shell...\r\n')
-
-    try {
-      const result = await createLocalTerminal({
-        sessionId: id,
-        workspaceContext,
-        size: {
-          rows: terminal.rows || AGENT_TERMINAL_DEFAULT_ROWS,
-          cols: terminal.cols || AGENT_TERMINAL_DEFAULT_COLS,
-        },
-      })
-      if (runtime.runToken !== token) return
-      if (!result) throw new Error('Local terminal is not available in this runtime.')
-      runtime.terminalSessionId = result.sessionId
-      updateSession(id, { cwd: result.cwd })
-      setShellStatus(id, 'running')
-      terminal.focus()
-    } catch (startError) {
-      if (runtime.runToken !== token) return
-      runtime.terminalSessionId = null
-      setShellStatus(id, 'error', {
-        error: startError instanceof Error ? startError.message : String(startError),
-      })
-    }
-  }, [runtimeFor, setShellStatus, updateSession, workspaceContext])
-
-  const addShell = useCallback(() => {
-    updateAgentTerminalStore((current) => {
-      const nextShellIndex = current.nextShellIndex + 1
-      const next = createShellSession(nextShellIndex)
-      return {
-        ...current,
-        nextShellIndex,
-        sessions: [...current.sessions, next],
-        activeShellId: next.id,
-      }
-    })
-  }, [])
-
-  const closeShell = useCallback((id: string) => {
-    if (sessions.length <= 1) {
-      stopShell(id)
-      return
-    }
-    stopShell(id)
-    const runtime = agentTerminalRuntimes.get(id)
-    runtime?.unsubscribe?.()
-    agentTerminalRuntimes.delete(id)
-    updateAgentTerminalStore((current) => {
-      const fallback = sessions.find((session) => session.id !== id)
-      return {
-        ...current,
-        sessions: current.sessions.filter((session) => session.id !== id),
-        activeShellId: current.activeShellId === id ? fallback?.id ?? FIRST_SHELL_ID : current.activeShellId,
-      }
-    })
-  }, [sessions, stopShell])
-
-  const resetShells = useCallback(() => {
-    for (const session of sessions) stopShell(session.id)
-    for (const runtime of agentTerminalRuntimes.values()) {
-      runtime.unsubscribe?.()
-    }
-    agentTerminalRuntimes.clear()
-    updateAgentTerminalStore((current) => ({
-      ...createInitialAgentTerminalStore(),
-      shellResetNonce: current.shellResetNonce + 1,
-    }))
-  }, [sessions, stopShell])
-
-  useEffect(() => {
-    if (!agentTerminalContextKey) {
-      agentTerminalContextKey = workspaceContextKey
-      return
-    }
-    if (agentTerminalContextKey === workspaceContextKey) return
-    agentTerminalContextKey = workspaceContextKey
-    resetShells()
-  }, [resetShells, workspaceContextKey])
-
-  useEffect(() => {
-    return subscribeLocalTerminalEvents((event) => {
-      const runtime = agentTerminalRuntimes.get(event.sessionId)
-      if (!runtime) return
-      if (event.kind === 'output') {
-        appendShellOutput(runtime, event.data)
-        return
-      }
-      if (event.kind === 'exit') {
-        runtime.terminalSessionId = null
-        appendShellOutput(runtime, `\r\nShell exited with code ${event.exitCode}.\r\n`)
-        setShellStatus(event.sessionId, 'exited')
-        return
-      }
-      runtime.terminalSessionId = null
-      setShellStatus(event.sessionId, 'error', { error: event.error })
-    })
-  }, [setShellStatus])
-
-  useEffect(() => {
-    if (!open || !activeSession) return
-    const runtime = agentTerminalRuntimes.get(activeSession.id)
-    runtime?.terminal?.focus()
-    resizeShell(activeSession.id)
-    if (activeSession.status === 'idle') void startShell(activeSession.id)
-  }, [activeSession, open, resizeShell, startShell])
-
-  if (!open && controlled) return null
-
-  if (!open) {
+  if (!terminal.open) {
     return (
-      <div className="agent-terminal-dock" data-open="false">
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          className="agent-terminal-dock__toggle"
-          onClick={() => setOpen(true)}
-          disabled={disabled}
-          title={disabled ? '当前运行环境不支持本地 Terminal' : '打开 Terminal'}
-        >
-          <TerminalIcon size={15} />
-          <span>Terminal</span>
-        </Button>
-        <span className="agent-terminal-dock__meta">{statusLabel}</span>
-      </div>
+      <AgentTerminalDock
+        disabled={terminal.disabled}
+        onOpen={() => terminal.setOpen(true)}
+        statusLabel={terminal.statusLabel}
+      />
     )
   }
 
@@ -332,95 +39,45 @@ export function AgentTerminalPanel({ workspaceContext, open: controlledOpen, onO
       data-shell-placement={shellPlacement}
       aria-label="Agent terminal"
       onClick={() => {
-        if (activeShellId) agentTerminalRuntimes.get(activeShellId)?.terminal?.focus()
+        if (terminal.activeShellId) terminal.runtimeSnapshot(terminal.activeShellId)?.terminal?.focus()
       }}
     >
-      <div className="agent-terminal-panel__header">
-        <div className="agent-terminal-panel__title">
-          <TerminalIcon size={15} />
-          <span>Terminal</span>
-          <span className="agent-terminal-panel__status" data-status={activeSession?.status ?? 'idle'}>{statusLabel}</span>
-        </div>
-        <div className="agent-terminal-panel__cwd" title={activeSession?.cwd || shortCwd}>{shortCwd}</div>
-        <div className="agent-terminal-panel__actions">
-          {activeSession && activeSession.status !== 'running' && activeSession.status !== 'starting' ? (
-            <Button type="button" size="icon-sm" variant="ghost" onClick={() => activeSession && void startShell(activeSession.id)} disabled={disabled || !activeSession} aria-label="启动 shell" title="启动 shell">
-              <Play size={14} />
-            </Button>
-          ) : null}
-          {!controlled ? (
-            <Button type="button" size="icon-sm" variant="ghost" onClick={() => setOpen(false)} aria-label="收起 Terminal" title="收起 Terminal">
-              <ChevronDown size={15} />
-            </Button>
-          ) : null}
-        </div>
-      </div>
+      <AgentTerminalHeader
+        activeSession={terminal.activeSession}
+        controlled={terminal.controlled}
+        disabled={terminal.disabled}
+        onCollapse={() => terminal.setOpen(false)}
+        onStartShell={(shellId) => void terminal.startShell(shellId)}
+        shortCwd={terminal.shortCwd}
+        statusLabel={terminal.statusLabel}
+      />
       <div className="agent-terminal-panel__body">
         <div className="agent-terminal-panel__terminal-stack">
-          {sessions.map((session) => (
+          {terminal.sessions.map((session) => (
             <ShellTerminalViewport
-              key={`${shellResetNonce}_${session.id}`}
-              active={session.id === activeShellId}
-              disabled={disabled}
+              key={`${terminal.shellResetNonce}_${session.id}`}
+              active={session.id === terminal.activeShellId}
+              disabled={terminal.disabled}
               shellId={session.id}
-              runtimeFor={runtimeFor}
-              resizeShell={resizeShell}
-              sendShellData={sendShellData}
-              startShell={startShell}
+              runtimeFor={terminal.runtimeFor}
+              resizeShell={terminal.resizeShell}
+              sendShellData={terminal.sendShellData}
+              startShell={terminal.startShell}
             />
           ))}
-          {activeSession?.status === 'starting' && !agentTerminalRuntimes.get(activeSession.id)?.terminal ? (
+          {terminal.activeSession?.status === 'starting' && !terminal.runtimeSnapshot(terminal.activeSession.id)?.terminal ? (
             <div className="agent-terminal-panel__placeholder">Starting shell...</div>
           ) : null}
-          {activeSession?.error ? <div className="agent-terminal-panel__error">{activeSession.error}</div> : null}
+          {terminal.activeSession?.error ? <div className="agent-terminal-panel__error">{terminal.activeSession.error}</div> : null}
         </div>
-        <aside className="agent-terminal-panel__shells" aria-label="Shell sessions">
-          <div className="agent-terminal-panel__shells-header">
-            <span>Shells</span>
-            <Button type="button" size="icon-sm" variant="ghost" onClick={addShell} disabled={disabled} aria-label="新增 shell" title="新增 shell">
-              <Plus size={14} />
-            </Button>
-          </div>
-          <div className="agent-terminal-panel__shell-list">
-            {sessions.map((session) => (
-              <button
-                key={session.id}
-                type="button"
-                className="agent-terminal-panel__shell-item"
-                data-active={session.id === activeShellId ? 'true' : undefined}
-                data-status={session.status}
-                onClick={() => setActiveShellId(session.id)}
-              >
-                <span className="agent-terminal-panel__shell-dot" />
-                <span className="agent-terminal-panel__shell-copy">
-                  <span className="agent-terminal-panel__shell-title">{session.title}</span>
-                  <span className="agent-terminal-panel__shell-meta">{terminalStatusLabel(session.status, disabled)}</span>
-                </span>
-                <span className="agent-terminal-panel__shell-actions">
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    className="agent-terminal-panel__shell-action"
-                    aria-label={`关闭 ${session.title}`}
-                    title={`关闭 ${session.title}`}
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      closeShell(session.id)
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key !== 'Enter' && event.key !== ' ') return
-                      event.preventDefault()
-                      event.stopPropagation()
-                      closeShell(session.id)
-                    }}
-                  >
-                    <X size={12} />
-                  </span>
-                </span>
-              </button>
-            ))}
-          </div>
-        </aside>
+        <AgentTerminalShellList
+          activeShellId={terminal.activeShellId}
+          disabled={terminal.disabled}
+          onAddShell={terminal.addShell}
+          onCloseShell={terminal.closeShell}
+          onSelectShell={terminal.setActiveShellId}
+          sessions={terminal.sessions}
+        />
       </div>
     </section>
   )

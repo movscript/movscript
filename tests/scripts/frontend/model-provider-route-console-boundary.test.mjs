@@ -11,8 +11,16 @@ const frontendAgentConsoleNavSource = readSource('apps/frontend/src/features/age
 const frontendAgentSettingsModelPanelSource = readSource('apps/frontend/src/features/agent/components/AIAgentSettingsModelPanel.tsx')
 const frontendAgentSettingsModelControllerSource = readSource('apps/frontend/src/features/agent/application/useAgentSettingsModelController.ts')
 const frontendAgentSettingsProviderModelSource = readSource('apps/frontend/src/features/agent/application/agentSettingsProviderModel.ts')
-const frontendAgentsPageSource = readSource('apps/frontend/src/features/agent/components/AgentsPage.tsx')
-const frontendModelProvidersSource = readSource('apps/frontend/src/features/agent/components/ModelProvidersPage.tsx')
+const frontendAgentsPageSource = [
+  readSource('apps/frontend/src/features/agent/components/AgentsPage.tsx'),
+  readSource('apps/frontend/src/features/agent/components/AgentsPageParts.tsx'),
+  readSource('apps/frontend/src/features/agent/application/useAgentsPageController.ts'),
+].join('\n')
+const frontendModelProvidersSource = [
+  readSource('apps/frontend/src/features/agent/components/ModelProvidersPage.tsx'),
+  readSource('apps/frontend/src/features/agent/components/ModelProvidersPageSections.tsx'),
+  readSource('apps/frontend/src/features/agent/components/ModelProvidersPageModel.ts'),
+].join('\n')
 const frontendModelCatalogApiSource = readSource('apps/frontend/src/features/agent/application/agentModelCatalogApi.ts')
 const frontendZhLocaleSource = readSource('apps/frontend/src/i18n/locales/zh-CN.json')
 const frontendEnLocaleSource = readSource('apps/frontend/src/i18n/locales/en-US.json')

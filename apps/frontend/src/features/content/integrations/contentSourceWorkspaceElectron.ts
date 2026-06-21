@@ -24,6 +24,8 @@ type ContentWorkspaceOwnerContext = {
   orgId?: number | string
 }
 
+const uncheckedWorkspaceVersions: Record<string, string | null> = {}
+
 export function createContentSourceWorkspaceRuntimePort(
   ownerContext: () => ContentWorkspaceOwnerContext = () => ({}),
 ): ContentSourceWorkspaceRuntimePort {
@@ -64,7 +66,7 @@ export function createContentSourceWorkspaceRuntimePort(
     async updateContentUnitEditPrompt(input) {
 	      await requireContentWorkspaceEngineAPI('updateMovScriptEngineContentUnitEditPrompt')({
 	        ...projectInput(input.projectId),
-	        expectedWorkspaceVersions: { [input.targetPath]: null },
+	        expectedWorkspaceVersions: uncheckedWorkspaceVersions,
 	        targetPath: input.targetPath,
         editPrompt: input.editPrompt,
       })
@@ -72,7 +74,7 @@ export function createContentSourceWorkspaceRuntimePort(
     async updateExpressionUnit(input) {
 	      await requireContentWorkspaceEngineAPI('updateMovScriptEngineExpressionUnit')({
 	        ...projectInput(input.projectId),
-	        expectedWorkspaceVersions: { [input.targetPath]: null },
+	        expectedWorkspaceVersions: uncheckedWorkspaceVersions,
 	        targetPath: input.targetPath,
         patch: input.patch,
       })
@@ -80,7 +82,7 @@ export function createContentSourceWorkspaceRuntimePort(
     async updateAudioCue(input) {
 	      await requireContentWorkspaceEngineAPI('updateMovScriptEngineAudioCue')({
 	        ...projectInput(input.projectId),
-	        expectedWorkspaceVersions: { [input.targetPath]: null },
+	        expectedWorkspaceVersions: uncheckedWorkspaceVersions,
 	        targetPath: input.targetPath,
         patch: input.patch,
       })
@@ -88,7 +90,7 @@ export function createContentSourceWorkspaceRuntimePort(
     async updateEntityTransition(input) {
 	      await requireContentWorkspaceEngineAPI('updateMovScriptEngineTransition')({
 	        ...projectInput(input.projectId),
-	        expectedWorkspaceVersions: { [input.targetPath]: null },
+	        expectedWorkspaceVersions: uncheckedWorkspaceVersions,
 	        targetPath: input.targetPath,
         transition: input.transition,
       })
@@ -96,7 +98,7 @@ export function createContentSourceWorkspaceRuntimePort(
     async updateStoryboardTimeline(input) {
 	      await requireContentWorkspaceEngineAPI('updateMovScriptEngineStoryboardTimeline')({
 	        ...projectInput(input.projectId),
-	        expectedWorkspaceVersions: { [input.targetPath]: null },
+	        expectedWorkspaceVersions: uncheckedWorkspaceVersions,
 	        targetPath: input.targetPath,
         timeline: input.timeline,
       })
@@ -164,7 +166,7 @@ export async function updateContentSourceWorkspaceEditPrompt(input: {
 }): Promise<void> {
 	  await requireContentWorkspaceEngineAPI('updateMovScriptEngineContentUnitEditPrompt')({
 	    projectId: input.projectId,
-	    expectedWorkspaceVersions: { [input.targetPath]: null },
+	    expectedWorkspaceVersions: uncheckedWorkspaceVersions,
 	    ...buildContentSourceWorkspaceEditPromptPatch(input),
   })
 }
@@ -181,7 +183,7 @@ export async function updateContentSourceWorkspaceExpressionUnit(input: {
 }): Promise<void> {
 	  await requireContentWorkspaceEngineAPI('updateMovScriptEngineExpressionUnit')({
 	    projectId: input.projectId,
-	    expectedWorkspaceVersions: { [input.targetPath]: null },
+	    expectedWorkspaceVersions: uncheckedWorkspaceVersions,
 	    ...buildContentSourceWorkspaceExpressionUnitPatch(input),
   })
 }
@@ -192,14 +194,14 @@ export async function updateContentSourceWorkspaceAudioCue(input: {
   title: string
   cueKind: string
   promptHint: string
-  shotRef?: string
+  expressionUnitRef?: string
   storyboardRef?: string
   timing: Record<string, unknown>
   assetRefs: string[]
 }): Promise<void> {
 	  await requireContentWorkspaceEngineAPI('updateMovScriptEngineAudioCue')({
 	    projectId: input.projectId,
-	    expectedWorkspaceVersions: { [input.targetPath]: null },
+	    expectedWorkspaceVersions: uncheckedWorkspaceVersions,
 	    ...buildContentSourceWorkspaceAudioCuePatch(input),
   })
 }
@@ -211,7 +213,7 @@ export async function updateContentSourceWorkspaceTransition(input: {
 }): Promise<void> {
 	  await requireContentWorkspaceEngineAPI('updateMovScriptEngineTransition')({
 	    projectId: input.projectId,
-	    expectedWorkspaceVersions: { [input.targetPath]: null },
+	    expectedWorkspaceVersions: uncheckedWorkspaceVersions,
 	    ...buildContentSourceWorkspaceTransitionPatch(input),
   })
 }
@@ -223,7 +225,7 @@ export async function updateContentSourceWorkspaceStoryboardTimeline(input: {
 }): Promise<void> {
 	  await requireContentWorkspaceEngineAPI('updateMovScriptEngineStoryboardTimeline')({
 	    projectId: input.projectId,
-	    expectedWorkspaceVersions: { [input.targetPath]: null },
+	    expectedWorkspaceVersions: uncheckedWorkspaceVersions,
 	    ...buildContentSourceWorkspaceStoryboardTimelinePatch(input),
   })
 }

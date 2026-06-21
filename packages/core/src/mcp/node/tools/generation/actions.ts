@@ -1,4 +1,22 @@
+import {
+  resourceIdsFromMentions,
+  stripResourceMentions,
+} from '@movscript/workspace'
 import { backendGet, backendPost } from '../../../../backend/node/client.js'
+import {
+  buildContentUnitGenerationOutputCandidate,
+  buildContentUnitGenerationRequest,
+  buildContentUnitGenerationPromptSnapshot,
+  compiledContentUnitGenerationPromptResourceIds,
+  compiledContentUnitGenerationPromptText,
+  contentUnitGenerationCandidateId,
+  contentUnitGenerationFeatureKey,
+  contentUnitGenerationSystemMonitorToolName,
+} from '../../../../generation/index.js'
+import {
+  domainBuildContentUnitBackendPrompt,
+  domainCreateContentCandidate,
+} from '../domain/actions.js'
 import { listModels } from '../model/actions.js'
 import { getOptionalNumeric, getOptionalString, numericValues } from '../../../tools/shared/params.js'
 import { isRecord } from '../../../tools/shared/record.js'
@@ -50,6 +68,12 @@ type PreparedGenerationParams = {
   audit: ParamAuditItem[]
 }
 
+type CompiledContentUnitPromptResult = {
+  ok?: unknown
+  prompt: Record<string, unknown>
+  blockers?: unknown[]
+}
+
 export async function generateImage(args: Record<string, unknown>): Promise<unknown> {
   const built = buildImageRequest(args)
   const selection = await resolveModelSelection(args, built.jobType, built.jobType === 'image_edit' ? 'image' : 'image_edit')
@@ -57,8 +81,16 @@ export async function generateImage(args: Record<string, unknown>): Promise<unkn
   return generationSubmitResult('image', submitted.job, 'generation_image_job_get', submitted.paramAudit)
 }
 
+export async function generateContentUnitImage(args: Record<string, unknown>): Promise<unknown> {
+  return generateContentUnitVisual(args, 'image')
+}
+
 export async function getImageGenerationJob(args: Record<string, unknown>): Promise<unknown> {
   return generationJobGetResult('image', await getGenerationJob(normalizedJobId(args)))
+}
+
+export async function getContentUnitImageGenerationJob(args: Record<string, unknown>): Promise<unknown> {
+  return getContentUnitVisualGenerationJob(args, 'image')
 }
 
 export async function getImageGenerationJobs(args: Record<string, unknown>): Promise<unknown> {
@@ -72,8 +104,16 @@ export async function generateVideo(args: Record<string, unknown>): Promise<unkn
   return generationSubmitResult('video', submitted.job, 'generation_video_job_get', submitted.paramAudit)
 }
 
+export async function generateContentUnitVideo(args: Record<string, unknown>): Promise<unknown> {
+  return generateContentUnitVisual(args, 'video')
+}
+
 export async function getVideoGenerationJob(args: Record<string, unknown>): Promise<unknown> {
   return generationJobGetResult('video', await getGenerationJob(normalizedJobId(args)))
+}
+
+export async function getContentUnitVideoGenerationJob(args: Record<string, unknown>): Promise<unknown> {
+  return getContentUnitVisualGenerationJob(args, 'video')
 }
 
 export async function getVideoGenerationJobs(args: Record<string, unknown>): Promise<unknown> {
@@ -120,6 +160,190 @@ async function generateAudioLike(
   return generationSubmitResult('audio', submitted.job, 'generation_audio_job_get', submitted.paramAudit)
 }
 
+async function generateContentUnitVisual(
+  args: Record<string, unknown>,
+  kind: 'image' | 'video',
+): Promise<unknown> {
+  const contentUnitId = requiredContentUnitId(args)
+  const compiled = await compiledContentUnitPrompt(args, contentUnitId)
+  if (compiled.ok !== true) {
+    return {
+      status: 'blocked',
+      terminal: true,
+      contentUnitId,
+      content_unit_id: contentUnitId,
+      prompt: compiled.prompt,
+      blockers: Array.isArray(compiled.blockers) ? compiled.blockers : compiled.prompt?.blockers ?? [],
+      message: `Content unit ${String(contentUnitId)} ${kind} generation is blocked by unresolved prompt inputs.`,
+    }
+  }
+
+  const prompt = compiledContentUnitGenerationPromptText(compiled.prompt)
+  const compiledRefIds = positiveIntegerIds([
+    ...compiledContentUnitGenerationPromptResourceIds(compiled.prompt),
+    ...(resourceIds(args.input_resource_ids) ?? []),
+    ...(resourceIds(args.reference_resource_ids) ?? []),
+  ])
+  const nextArgs: Record<string, unknown> = {
+    ...args,
+    prompt,
+    input_resource_ids: compiledRefIds,
+  }
+  if (kind === 'image' && getOptionalString(nextArgs, 'negative_prompt') === undefined) {
+    const negative = typeof compiled.prompt.negative_text === 'string' ? compiled.prompt.negative_text.trim() : ''
+    if (negative) nextArgs.negative_prompt = negative
+  }
+
+  const built = kind === 'image' ? buildImageRequest(nextArgs) : buildVideoRequest(nextArgs)
+  const selection = kind === 'image'
+    ? await resolveModelSelection(nextArgs, built.jobType, built.jobType === 'image_edit' ? 'image' : 'image_edit')
+    : await resolveModelSelection(nextArgs, built.jobType, 'video')
+  const projectId = resolveMCPRequiredProjectId(nextArgs)
+  const sharedRequest = buildContentUnitGenerationRequest({
+    contentUnitId,
+    outputKind: kind,
+    compiledPrompt: compiled.prompt,
+    modelId: selection.modelId,
+    additionalInputResourceIds: [
+      ...(resourceIds(args.input_resource_ids) ?? []),
+      ...(resourceIds(args.reference_resource_ids) ?? []),
+    ],
+    paramAudit: [],
+  })
+  const promptSnapshot = {
+    ...sharedRequest.promptSnapshot,
+    ...buildContentUnitGenerationPromptSnapshot({
+      contentUnitId,
+      outputKind: kind,
+      modelId: selection.modelId,
+      compiledPrompt: compiled.prompt,
+      resourceIds: sharedRequest.inputResourceIds,
+      paramAudit: [],
+      modelParams: {},
+    }),
+  }
+  const prepared = prepareGenerationParams(built, selection.model, parameterModeArg(nextArgs))
+  const modelParams = submittedModelParams(prepared)
+  Object.assign(promptSnapshot, buildContentUnitGenerationPromptSnapshot({
+    contentUnitId,
+    outputKind: kind,
+    modelId: selection.modelId,
+    compiledPrompt: compiled.prompt,
+    resourceIds: sharedRequest.inputResourceIds,
+    paramAudit: prepared.audit,
+    modelParams,
+  }))
+  const submitted = await backendPost(`/projects/${projectId}/content-units/${encodeURIComponent(String(contentUnitId))}/candidates/generate`, {
+    candidate_id: getOptionalString(args, 'candidate_id') ?? getOptionalString(args, 'candidateId'),
+    output_kind: kind,
+    model_id: selection.modelId,
+    job_type: built.jobType,
+    title: getOptionalString(args, 'title') ?? `Content unit ${kind} generation`,
+    prompt: built.prompt,
+    input_resource_ids: built.refIds,
+    extra_params: JSON.stringify(prepared.extraParams),
+    ...(prepared.aspectRatio !== undefined ? { aspect_ratio: prepared.aspectRatio } : {}),
+    ...(prepared.duration !== undefined ? { duration: prepared.duration } : {}),
+    prompt_snapshot: promptSnapshot,
+  })
+  if (!isRecord(submitted) || !isRecord(submitted.job)) throw new Error('Content unit candidate generation returned an invalid response')
+  const monitorTool = contentUnitGenerationSystemMonitorToolName(kind)
+  const result = generationSubmitResult(kind, normalizeJob(submitted.job), monitorTool, prepared.audit)
+  const jobId = idField(result.job_id)
+  const candidateId = isRecord(submitted.candidate) ? stringField(submitted.candidate.id) : undefined
+  return {
+    ...result,
+    contentUnitId,
+    content_unit_id: contentUnitId,
+    prompt: compiled.prompt,
+    candidate_policy: 'auto_create_on_success',
+    monitor: {
+      tool: monitorTool,
+      args: {
+        jobId,
+        projectId,
+        project_id: projectId,
+        contentUnitId,
+        content_unit_id: contentUnitId,
+        ...(candidateId ? { candidateId, candidate_id: candidateId } : {}),
+        outputKind: kind,
+        output_kind: kind,
+        promptSnapshot,
+        prompt_snapshot: promptSnapshot,
+      },
+    },
+    ...(candidateId ? { candidateId, candidate_id: candidateId } : {}),
+    message: `Content unit ${String(contentUnitId)} ${kind} generation candidate job submitted (Job #${String(jobId)}). Candidate will be refreshed automatically when the job succeeds.`,
+  }
+}
+
+async function getContentUnitVisualGenerationJob(
+  args: Record<string, unknown>,
+  kind: 'image' | 'video',
+): Promise<unknown> {
+  const contentUnitId = requiredContentUnitId(args)
+  const job = await getGenerationJob(normalizedJobId(args))
+  const base = generationJobGetResult(kind, job)
+  const status = stringField(base.status) ?? ''
+  if (!isSuccessfulStatus(status)) {
+    return {
+      ...base,
+      contentUnitId,
+      content_unit_id: contentUnitId,
+      candidate_created: false,
+      message: `${base.message}. Candidate will be created after a successful terminal result.`,
+    }
+  }
+
+  const outputResourceIds = numericList(base.output_resource_ids)
+  if (outputResourceIds.length === 0) {
+    return {
+      ...base,
+      contentUnitId,
+      content_unit_id: contentUnitId,
+      candidate_created: false,
+      message: `${base.message}. No output resource is available for candidate creation yet.`,
+    }
+  }
+
+  const candidates = []
+  for (const resourceId of outputResourceIds) {
+    const promptSnapshotValue = args.promptSnapshot ?? args.prompt_snapshot
+    const promptSnapshot = isRecord(promptSnapshotValue) ? promptSnapshotValue : undefined
+    const requestedCandidateId = getOptionalString(args, 'candidateId') ?? getOptionalString(args, 'candidate_id')
+    const candidateId = requestedCandidateId ?? contentUnitGenerationCandidateId(kind, idField(base.job_id) ?? normalizedJobId(args), resourceId)
+    const plan = buildContentUnitGenerationOutputCandidate({
+      contentUnitId,
+      outputKind: kind,
+      job,
+      resourceId,
+      candidateId,
+      ...(promptSnapshot ? { promptSnapshot } : {}),
+    })
+    const candidate = await domainCreateContentCandidate({
+      ...args,
+      ...plan,
+    })
+    candidates.push({
+      candidateId,
+      candidate_id: candidateId,
+      resourceId,
+      resource_id: resourceId,
+      result: candidate,
+    })
+  }
+
+  return {
+    ...base,
+    contentUnitId,
+    content_unit_id: contentUnitId,
+    candidate_created: true,
+    candidate_count: candidates.length,
+    candidates,
+    message: `${base.message}. Created or refreshed ${candidates.length} content-unit candidate(s).`,
+  }
+}
+
 export async function getAudioGenerationJob(args: Record<string, unknown>): Promise<unknown> {
   return generationJobGetResult('audio', await getGenerationJob(normalizedJobId(args)))
 }
@@ -129,8 +353,7 @@ export async function getAudioGenerationJobs(args: Record<string, unknown>): Pro
 }
 
 function buildImageRequest(args: Record<string, unknown>): BuiltGenerationRequest {
-  const prompt = promptArg(args)
-  const refIds = resourceIds(args.input_resource_ids) ?? resourceIds(args.reference_resource_ids) ?? []
+  const { prompt, refIds } = promptAndResourceIds(args)
   const params = extraParamsArg(args.extra_params)
   const explicitParamKeys = new Set(Object.keys(params))
   const defaultParamKeys = new Set<string>()
@@ -172,8 +395,7 @@ function buildImageRequest(args: Record<string, unknown>): BuiltGenerationReques
 }
 
 function buildVideoRequest(args: Record<string, unknown>): BuiltGenerationRequest {
-  const prompt = promptArg(args)
-  const refIds = resourceIds(args.input_resource_ids) ?? resourceIds(args.reference_resource_ids) ?? []
+  const { prompt, refIds } = promptAndResourceIds(args)
   const params = { ...extraParamsArg(args.extra_params) }
   const explicitParamKeys = new Set(Object.keys(params))
   const defaultParamKeys = new Set<string>()
@@ -214,8 +436,7 @@ function buildVideoRequest(args: Record<string, unknown>): BuiltGenerationReques
 }
 
 function buildAudioRequest(args: Record<string, unknown>, jobType: Extract<GenerationJobType, 'audio_tts' | 'audio_music' | 'audio_sfx' | 'audio_transcribe' | 'subtitle_align' | 'subtitle_translate'> = 'audio_tts'): BuiltGenerationRequest {
-  const prompt = promptArg(args)
-  const refIds = resourceIds(args.input_resource_ids) ?? resourceIds(args.reference_resource_ids) ?? []
+  const { prompt, refIds } = promptAndResourceIds(args)
   const params = { ...extraParamsArg(args.extra_params) }
   const explicitParamKeys = new Set(Object.keys(params))
   const defaultParamKeys = new Set<string>()
@@ -285,8 +506,9 @@ async function submitGenerationJob(
   selection: ModelSelection,
   built: BuiltGenerationRequest,
   featureKey: string,
-): Promise<{ job: Record<string, unknown>; paramAudit: ParamAuditItem[] }> {
+): Promise<{ job: Record<string, unknown>; paramAudit: ParamAuditItem[]; modelParams: Record<string, unknown> }> {
   const prepared = prepareGenerationParams(built, selection.model, parameterModeArg(args))
+  const modelParams = submittedModelParams(prepared)
   const body: Record<string, unknown> = {
     model_id: selection.modelId,
     job_type: built.jobType,
@@ -303,13 +525,21 @@ async function submitGenerationJob(
 
   const job = await backendPost('/jobs', body)
   if (!isRecord(job)) throw new Error('Generation job create returned an invalid response')
-  return { job: normalizeJob(job), paramAudit: prepared.audit }
+  return { job: normalizeJob(job), paramAudit: prepared.audit, modelParams }
 }
 
 async function getGenerationJob(jobId: number): Promise<Record<string, unknown>> {
   const job = await backendGet(`/jobs/${jobId}`)
   if (!isRecord(job)) throw new Error('Generation job get returned an invalid response')
   return normalizeJob(job)
+}
+
+function submittedModelParams(prepared: PreparedGenerationParams): Record<string, unknown> {
+  return {
+    ...prepared.extraParams,
+    ...(prepared.aspectRatio !== undefined ? { aspect_ratio: prepared.aspectRatio } : {}),
+    ...(prepared.duration !== undefined ? { duration: prepared.duration } : {}),
+  }
 }
 
 function generationSubmitResult(kind: 'image' | 'video' | 'audio', job: Record<string, unknown>, monitorTool: string, paramAudit: ParamAuditItem[] = []): Record<string, unknown> {
@@ -421,6 +651,37 @@ function promptArg(args: Record<string, unknown>): string {
   const prompt = getOptionalString(args, 'prompt')
   if (!prompt) throw new Error('prompt is required')
   return prompt
+}
+
+function promptAndResourceIds(args: Record<string, unknown>): { prompt: string; refIds: number[] } {
+  const rawPrompt = promptArg(args)
+  return {
+    prompt: stripResourceMentions(rawPrompt),
+    refIds: positiveIntegerIds([
+      ...resourceIdsFromMentions(rawPrompt),
+      ...(resourceIds(args.input_resource_ids) ?? []),
+      ...(resourceIds(args.reference_resource_ids) ?? []),
+    ]),
+  }
+}
+
+function requiredContentUnitId(args: Record<string, unknown>): string | number {
+  const value = args.contentUnitId ?? args.content_unit_id
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim()) return value.trim()
+  throw new Error('contentUnitId is required')
+}
+
+async function compiledContentUnitPrompt(args: Record<string, unknown>, contentUnitId: string | number): Promise<CompiledContentUnitPromptResult> {
+  const result = await domainBuildContentUnitBackendPrompt({ ...args, contentUnitId })
+  if (!isRecord(result)) throw new Error('content unit prompt compiler returned an invalid response')
+  const prompt = isRecord(result.prompt) ? result.prompt : undefined
+  if (!prompt) throw new Error('content unit prompt compiler did not return prompt data')
+  return {
+    ok: result.ok,
+    prompt,
+    ...(Array.isArray(result.blockers) ? { blockers: result.blockers } : {}),
+  }
 }
 
 function resourceIds(value: unknown): number[] | undefined {
@@ -728,4 +989,9 @@ function isTerminalStatus(status: string): boolean {
   return TERMINAL_STATUSES.has(status.trim().toLowerCase())
 }
 
+function isSuccessfulStatus(status: string): boolean {
+  return SUCCESS_STATUSES.has(status.trim().toLowerCase())
+}
+
 const TERMINAL_STATUSES = new Set(['succeeded', 'succeed', 'success', 'completed', 'complete', 'done', 'finished', 'failed', 'failure', 'error', 'cancelled', 'canceled'])
+const SUCCESS_STATUSES = new Set(['succeeded', 'succeed', 'success', 'completed', 'complete', 'done', 'finished'])

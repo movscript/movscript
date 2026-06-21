@@ -106,7 +106,7 @@ export const settingEntitySchema = {
     setting_kind: { enum: ['character', 'location', 'prop', 'world_rule', 'style', 'other'] },
     profile: { type: 'object', additionalProperties: true },
   }),
-  promptSummary: 'Setting is a reusable character, location, prop, world rule, or style fact. Assets belong under setting states.',
+  promptSummary: 'Setting is a concrete film/music production entity to be made or reused, such as a character, prop, place, instrument, costume, or voice identity. Do not use setting for abstract style/rules; assets belong under setting states.',
   examples: [{
     title: 'hero',
     content: { schema: 'movscript.setting.v1', kind: 'setting', id: 'hero', setting_kind: 'character', title: 'Hero' },
@@ -123,7 +123,7 @@ export const settingStateEntitySchema = {
     state_kind: { type: 'string' },
     changes: { type: 'object', additionalProperties: true },
   }),
-  promptSummary: 'Setting state is a contextual state variant of a setting, such as wet hair, damaged prop, or rainy location.',
+  promptSummary: 'Setting state is a namespace under one setting for a named condition/version of that entity, such as base look, wet hair, damaged prop, side-view variant, or calm voice.',
   examples: [{
     title: 'rain_panic',
     content: { schema: 'movscript.setting_state.v1', kind: 'setting_state', id: 'rain_panic', title: 'Rain panic' },
@@ -141,7 +141,7 @@ export const assetEntitySchema = {
     asset_kind: { enum: ['image', 'video', 'audio', 'text', 'reference', 'other'] },
     prompt_hint: { type: 'string' },
   }),
-  promptSummary: 'Asset is a setting-state-owned resource slot. Runtime candidates and production decisions are stored outside asset.json.',
+  promptSummary: 'Asset is a setting-state-owned resource slot that describes one state asset, such as front view, side view, turnaround sheet, material reference, voice timbre, or instrument tone. Image assets should prefer plain white or very clean backgrounds.',
   examples: [{
     title: 'portrait',
     content: { schema: 'movscript.asset.v1', kind: 'asset', id: 'base_portrait', slot: 'character_base_portrait' },
@@ -264,48 +264,6 @@ export const sceneMomentEntitySchema = {
   }],
 } satisfies SemanticEntitySchemaDefinition
 
-export const shotEntitySchema = {
-  id: 'movscript.shot.v1',
-  entityKind: 'shot',
-  title: 'Shot',
-  version: '1.0.0',
-  status: 'active',
-  jsonSchema: entitySchema('shot', ['title', 'order'], {
-    shot_kind: { enum: ['establishing', 'coverage', 'close_up', 'insert', 'reaction', 'transition', 'other'] },
-    scene_moment_ref: sourceRefSchema,
-    script_block_id: sourceRefSchema,
-    shot_size: { type: 'string' },
-    camera: { type: 'object', additionalProperties: true },
-    blocking: { type: 'object', additionalProperties: true },
-    lighting: { type: 'object', additionalProperties: true },
-    performance: { type: 'array', items: { type: 'object', additionalProperties: true } },
-    sound: { type: 'object', additionalProperties: true },
-    expression: { type: 'object', additionalProperties: true },
-    timing: objectSchema([], {
-      start: { type: 'string' },
-      end: { type: 'string' },
-      duration_sec: { type: 'number' },
-      gap_after_sec: { type: 'number' },
-    }),
-    transition: transitionSchema,
-    reference_asset_refs: { type: 'array', items: sourceRefSchema },
-  }),
-  promptSummary: 'Shot is the makeable camera unit inside a scene moment. It carries shot order, camera, blocking, lighting, performance, sound/expression notes, timing, transitions, and refs used by storyboard graphs.',
-  examples: [{
-    title: 'phone_close_up',
-    content: {
-      schema: 'movscript.shot.v1',
-      kind: 'shot',
-      id: 'phone_close_up',
-      title: 'Phone light close-up',
-      order: 1,
-      shot_size: 'close_up',
-      camera: { movement: 'slow_push_in' },
-      timing: { duration_sec: 4 },
-    },
-  }],
-} satisfies SemanticEntitySchemaDefinition
-
 export const storyboardEntitySchema = {
   id: 'movscript.storyboard.v1',
   entityKind: 'storyboard',
@@ -315,7 +273,8 @@ export const storyboardEntitySchema = {
   jsonSchema: entitySchema('storyboard', [], {
     asset_kind: { enum: ['image', 'video', 'reference', 'other'] },
     slot: { type: 'string', minLength: 1 },
-    shot_ref: sourceRefSchema,
+    scene_moment_ref: sourceRefSchema,
+    expression_unit_ref: sourceRefSchema,
     transition: transitionSchema,
     timeline: objectSchema([], {
       gap_after_sec: { type: 'number' },
@@ -342,7 +301,7 @@ export const storyboardEntitySchema = {
     storyboard_panels: { type: 'array', items: { type: 'object', additionalProperties: true } },
     prompt_hint: { type: 'string' },
   }),
-  promptSummary: 'Storyboard is a graph-like visual asset for a shot, similar to an asset slot: storyboard.json defines refs, graph nodes/edges, panels, prompt hints, and continuity; runtime candidates and production decisions live outside storyboard.json.',
+  promptSummary: 'Storyboard is a graph-like visual asset for a scene moment or expression unit, similar to an asset slot: storyboard.json defines refs, graph nodes/edges, panels, prompt hints, and continuity; runtime candidates and production decisions live outside storyboard.json.',
   examples: [{
     title: 'main',
     content: {
@@ -375,7 +334,7 @@ export const audioCueEntitySchema = {
   jsonSchema: entitySchema('audio_cue', ['cue_kind', 'title'], {
     cue_kind: { enum: ['sound_effect', 'music', 'ambience', 'dialogue', 'foley', 'other'] },
     scope_ref: sourceRefSchema,
-    shot_ref: sourceRefSchema,
+    expression_unit_ref: sourceRefSchema,
     storyboard_ref: sourceRefSchema,
     timing: objectSchema([], {
       start: { type: 'string' },
@@ -386,7 +345,7 @@ export const audioCueEntitySchema = {
     prompt_hint: { type: 'string' },
     asset_refs: { type: 'array', items: sourceRefSchema },
   }),
-  promptSummary: 'Audio cue is an independent planning object for sound effects, music, ambience, dialogue cues, or foley. It can attach to a scene moment, shot, or storyboard through refs.',
+  promptSummary: 'Audio cue is an independent planning object for sound effects, music, ambience, dialogue cues, or foley. It can attach to a scene moment, expression unit, or storyboard through refs.',
   examples: [{
     title: 'phone_vibration',
     content: {
@@ -396,7 +355,7 @@ export const audioCueEntitySchema = {
       title: 'Phone vibration',
       cue_kind: 'sound_effect',
       scope_ref: 'productions/p8f3/segments/a19d/scene_moments/r72k',
-      storyboard_ref: 'productions/p8f3/segments/a19d/scene_moments/r72k/shots/phone/storyboards/main',
+      storyboard_ref: 'productions/p8f3/segments/a19d/scene_moments/r72k/expression_units/eu_phone_closeup/storyboards/main',
       timing: { start: 'after_action', duration_sec: 1.2 },
       prompt_hint: 'Low, sharp phone vibration under rain ambience.',
     },
@@ -412,7 +371,7 @@ export const expressionUnitEntitySchema = {
   jsonSchema: entitySchema('expression_unit', [], {
     modality: { enum: ['visual', 'verbal', 'audio', 'text', 'interaction', 'metadata'] },
     role: { type: 'string', minLength: 1 },
-    expression_kind: { enum: ['dialogue', 'narration', 'subtitle', 'caption', 'action', 'visual_note'] },
+    expression_kind: { enum: ['dialogue', 'narration', 'subtitle', 'caption', 'action', 'visual_note', 'shot'] },
     visual_kind: { type: 'string' },
     speaker: { type: 'string' },
     speaker_ref: sourceRefSchema,
@@ -512,7 +471,7 @@ export const keyframeEntitySchema = {
   status: 'active',
   jsonSchema: entitySchema('keyframe', [], {
     scene_moment_ref: sourceRefSchema,
-    shot_ref: sourceRefSchema,
+    expression_unit_ref: sourceRefSchema,
     storyboard_ref: sourceRefSchema,
     role: { type: 'string' },
     visual_intent: { type: 'string' },
@@ -522,7 +481,7 @@ export const keyframeEntitySchema = {
     reference_asset_refs: { type: 'array', items: sourceRefSchema },
     reference_keyframe_refs: { type: 'array', items: sourceRefSchema },
   }),
-  promptSummary: 'Keyframe is a shot-owned visual anchor for prompt engineering. It describes timing, composition, continuity, visual intent, and reference assets. Runtime candidates and production decisions are stored outside keyframe.json.',
+  promptSummary: 'Keyframe is a visual anchor for a scene moment or expression unit. It describes timing, composition, continuity, visual intent, and reference assets. Runtime candidates and production decisions are stored outside keyframe.json.',
   examples: [{
     title: 'anchor',
     content: {
@@ -547,7 +506,6 @@ export const SEMANTIC_ENTITY_SCHEMA_REGISTRY = {
   [productionEntitySchema.id]: productionEntitySchema,
   [segmentEntitySchema.id]: segmentEntitySchema,
   [sceneMomentEntitySchema.id]: sceneMomentEntitySchema,
-  [shotEntitySchema.id]: shotEntitySchema,
   [storyboardEntitySchema.id]: storyboardEntitySchema,
   [audioCueEntitySchema.id]: audioCueEntitySchema,
   [expressionUnitEntitySchema.id]: expressionUnitEntitySchema,
@@ -570,7 +528,6 @@ export const WORKSPACE_KIND_VALUES = [
   'production_workspace',
   'segment_workspace',
   'scene_moment_workspace',
-  'shot_workspace',
   'storyboard_workspace',
   'audio_cue_workspace',
   'expression_unit_workspace',
@@ -590,7 +547,6 @@ export const SEMANTIC_ENTITY_KIND_VALUES = [
   'production',
   'segment',
   'scene_moment',
-  'shot',
   'storyboard',
   'audio_cue',
   'expression_unit',

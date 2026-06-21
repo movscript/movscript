@@ -91,6 +91,36 @@ func TestServiceListByCapabilityForRoutePassesRouteGroupAndSkipsCache(t *testing
 	}
 }
 
+func TestServiceListByCapabilityReflectsCatalogChangesImmediately(t *testing.T) {
+	fake := &fakeModelCatalog{}
+	cache := cache.NewMemory()
+	service := NewService(fake, cache)
+
+	models, err := service.ListByCapability(context.Background(), "image")
+	if err != nil {
+		t.Fatalf("ListByCapability() error = %v", err)
+	}
+	if len(models) != 0 {
+		t.Fatalf("models count = %d, want 0 before catalog update", len(models))
+	}
+
+	fake.models = []providercontract.AIModelDescriptor{{
+		ModelID:      "gpt-image-2",
+		DisplayName:  "GPT Image 2",
+		Capabilities: []string{"image", "image_edit"},
+	}}
+	models, err = service.ListByCapability(context.Background(), "image")
+	if err != nil {
+		t.Fatalf("ListByCapability() error = %v", err)
+	}
+	if len(models) != 1 || models[0].ModelID != "gpt-image-2" {
+		t.Fatalf("models = %#v, want newly added image model", models)
+	}
+	if len(fake.filters) != 2 {
+		t.Fatalf("contract calls = %d, want 2 fresh catalog reads", len(fake.filters))
+	}
+}
+
 func TestPublicModelFromDescriptorDoesNotExposeLegacyModelConfigID(t *testing.T) {
 	model := publicModelFromDescriptor(providercontract.AIModelDescriptor{
 		ModelID:     "gpt-5.2",

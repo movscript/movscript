@@ -3,19 +3,12 @@ import { useLocation } from 'react-router-dom'
 import { useResizablePanel } from '@movscript/ui/layout'
 import {
   routeLayoutSpecForPathname,
-  CONTENT_CANVAS_INSPECTOR_DEFAULT_WIDTH,
   CONTENT_CANVAS_INSPECTOR_MAX_WIDTH,
   CONTENT_CANVAS_INSPECTOR_MIN_WIDTH,
   CONTENT_CANVAS_INSPECTOR_PANE_ID,
-  CONTENT_CANVAS_SETTING_CATALOG_DEFAULT_HEIGHT,
-  CONTENT_CANVAS_SETTING_CATALOG_MAX_HEIGHT,
-  CONTENT_CANVAS_SETTING_CATALOG_MIN_HEIGHT,
-  CONTENT_CANVAS_SETTING_CATALOG_PANE_ID,
-  CONTENT_CANVAS_STRUCTURE_DEFAULT_WIDTH,
   CONTENT_CANVAS_STRUCTURE_MAX_WIDTH,
   CONTENT_CANVAS_STRUCTURE_MIN_WIDTH,
   CONTENT_CANVAS_STRUCTURE_PANE_ID,
-  CONTENT_CANVAS_TIMELINE_DEFAULT_HEIGHT,
   CONTENT_CANVAS_TIMELINE_MAX_HEIGHT,
   CONTENT_CANVAS_TIMELINE_MIN_HEIGHT,
   CONTENT_CANVAS_TIMELINE_PANE_ID,
@@ -32,42 +25,26 @@ import {
 import type { CanvasMode, RadialNode } from './contentCanvasWorkspaceTypes'
 import { clampRadialCoordinate, clampRadialYCoordinate } from './contentCanvasWorkspaceModel'
 
-export function useContentCanvasPaneLayout() {
+export function useContentCanvasPaneLayout({
+  timelineVisible = true,
+}: {
+  timelineVisible?: boolean
+} = {}) {
   const location = useLocation()
   const routeLayout = useMemo(() => routeLayoutSpecForPathname(location.pathname), [location.pathname])
-  const settingCatalogPane = useRouteLayoutPaneController({
-    routeLayout,
-    paneId: CONTENT_CANVAS_SETTING_CATALOG_PANE_ID,
-    fallbackSize: CONTENT_CANVAS_SETTING_CATALOG_DEFAULT_HEIGHT,
-    clampSize: (size) => clampPaneSize(size, CONTENT_CANVAS_SETTING_CATALOG_MIN_HEIGHT, CONTENT_CANVAS_SETTING_CATALOG_MAX_HEIGHT),
-  })
   const structurePane = useRouteLayoutPaneController({
     routeLayout,
     paneId: CONTENT_CANVAS_STRUCTURE_PANE_ID,
-    fallbackSize: CONTENT_CANVAS_STRUCTURE_DEFAULT_WIDTH,
-    clampSize: (size) => clampPaneSize(size, CONTENT_CANVAS_STRUCTURE_MIN_WIDTH, CONTENT_CANVAS_STRUCTURE_MAX_WIDTH),
   })
   const inspectorPane = useRouteLayoutPaneController({
     routeLayout,
     paneId: CONTENT_CANVAS_INSPECTOR_PANE_ID,
-    fallbackSize: CONTENT_CANVAS_INSPECTOR_DEFAULT_WIDTH,
-    clampSize: (size) => clampPaneSize(size, CONTENT_CANVAS_INSPECTOR_MIN_WIDTH, CONTENT_CANVAS_INSPECTOR_MAX_WIDTH),
   })
   const timelinePane = useRouteLayoutPaneController({
     routeLayout,
     paneId: CONTENT_CANVAS_TIMELINE_PANE_ID,
-    fallbackSize: CONTENT_CANVAS_TIMELINE_DEFAULT_HEIGHT,
-    clampSize: (size) => clampPaneSize(size, CONTENT_CANVAS_TIMELINE_MIN_HEIGHT, CONTENT_CANVAS_TIMELINE_MAX_HEIGHT),
   })
 
-  const settingCatalogResize = useResizablePanel({
-    size: settingCatalogPane.size,
-    onSizeChange: settingCatalogPane.setSize,
-    minSize: CONTENT_CANVAS_SETTING_CATALOG_MIN_HEIGHT,
-    maxSize: CONTENT_CANVAS_SETTING_CATALOG_MAX_HEIGHT,
-    resizeEdge: 'bottom',
-    ariaLabel: '调整 Setting 目录高度',
-  })
   const structureResize = useResizablePanel({
     size: structurePane.size,
     onSizeChange: structurePane.setSize,
@@ -95,20 +72,14 @@ export function useContentCanvasPaneLayout() {
 
   return {
     style: {
-      '--content-canvas-setting-catalog-height': `${settingCatalogPane.size}px`,
       '--content-canvas-structure-width': `${structurePane.size}px`,
       '--content-canvas-inspector-width': `${inspectorPane.size}px`,
-      '--content-canvas-timeline-height': `${timelinePane.size}px`,
+      '--content-canvas-timeline-height': timelineVisible ? `${timelinePane.size}px` : '0px',
     } as CSSProperties,
-    settingCatalog: settingCatalogResize,
     structure: structureResize,
     inspector: inspectorResize,
     timeline: timelineResize,
   }
-}
-
-function clampPaneSize(size: number, minSize: number, maxSize: number) {
-  return Math.min(Math.max(Math.round(size), minSize), maxSize)
 }
 
 export function useContentCanvasRadialLayout({

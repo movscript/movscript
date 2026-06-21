@@ -69,7 +69,7 @@ export function AgentChatServerRequestCard({
       avatar="!"
       data-testid="agent-chat-server-request"
       actions={(
-        <div className="ms-agent-chat-request-actions">
+        <div className="agent-chat-request-actions">
           {view.canReject ? (
             <Button type="button" size="sm" variant="ghost" onClick={onReject}>
               Reject
@@ -83,20 +83,20 @@ export function AgentChatServerRequestCard({
           {view.canAnswer || view.canElicit || view.canSubmitToolResult ? null : (
             <>
               {allowOptions.length > 0 ? (
-                <details className="ms-agent-chat-request-menu">
-                  <summary className="ms-agent-chat-request-menu-summary">
+                <details className="agent-chat-request-menu">
+                  <summary className="agent-chat-request-menu-summary">
                     More allow options
                   </summary>
                   <div
                     role="menu"
-                    className="ms-agent-chat-request-menu-content"
+                    className="agent-chat-request-menu-content"
                   >
                     {allowOptions.map((option) => (
                       <button
                         key={option.key}
                         type="button"
                         role="menuitem"
-                        className="ms-agent-chat-request-menu-item"
+                        className="agent-chat-request-menu-item"
                         onClick={option.onClick}
                       >
                         {option.label}
@@ -150,7 +150,7 @@ export function AgentChatServerRequestCard({
               href={view.externalUrl}
               target="_blank"
               rel="noreferrer"
-              className="ms-agent-chat-request-link"
+              className="agent-chat-request-link"
             >
               Open URL
             </a>

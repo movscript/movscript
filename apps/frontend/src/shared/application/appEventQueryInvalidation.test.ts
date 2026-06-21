@@ -76,6 +76,37 @@ test('installed query invalidation bridge only handles cross-surface events', ()
   ])
 })
 
+test('project workspace updates refresh workspace, content, resource, and browser entity queries', () => {
+  const queryKeys: readonly unknown[][] = []
+  const queryClient = {
+    invalidateQueries: ({ queryKey }: { queryKey: readonly unknown[] }) => {
+      queryKeys.push(queryKey)
+      return Promise.resolve()
+    },
+  } as unknown as QueryClient
+
+  invalidateAppEventQueries(queryClient, event('project.workspace.updated', { projectId: 7 }))
+
+  assert.deepEqual(queryKeys, [
+    ['movscript-workspace-files'],
+    ['content-canvas', 'project', 7],
+    ['agent-session-output-content-workspace', 7],
+    ['embedded-browser-navigation', 7],
+    ['resource-candidate-targets', 7],
+    ['agent-generated-candidate-targets', 7],
+    ['settings', 7],
+    ['embedded-browser-navigation', 7, 'settings'],
+    ['assetSlots', 7],
+    ['embedded-browser-navigation', 7, 'assetSlots'],
+    ['productions', 7],
+    ['embedded-browser-navigation', 7, 'productions'],
+    ['sceneMoments', 7],
+    ['embedded-browser-navigation', 7, 'sceneMoments'],
+    ['contentUnits', 7],
+    ['embedded-browser-navigation', 7, 'contentUnits'],
+  ])
+})
+
 function event(topic: AppEventTopic, payload: unknown): AppEvent {
   return {
     id: `${topic}:test`,

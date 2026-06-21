@@ -9,7 +9,7 @@ import {
   ProjectWorkspaceReviewLoadingState,
   ProjectWorkspaceReviewNoteList,
   ProjectWorkspaceReviewStatusBadge
-} from '../ProjectStandardsUi'
+} from './ProjectStandardsWorkspaceReviewPrimitives'
 import {
   ProjectStandardsWorkspaceReviewArtifactList,
   ProjectStandardsWorkspaceReviewArtifactPanel,

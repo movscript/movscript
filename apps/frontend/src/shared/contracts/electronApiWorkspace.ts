@@ -1,6 +1,22 @@
 import type { MovScriptWorkspaceConfig, MovScriptWorkspaceRootManifest } from '@movscript/core/workspace'
 import type { MovScriptWorkspaceService } from '@movscript/workspace'
 import type {
+  MovScriptEngineContentUnitInput,
+  MovScriptEngineAssetInput,
+  MovScriptEngineEntityBasicsInput,
+  MovScriptEngineEnsureContentUnitInput,
+  MovScriptEngineExpressionUnitInput,
+  MovScriptEngineKeyframeInput,
+  MovScriptEngineProductionInput,
+  MovScriptEngineSceneMomentInput,
+  MovScriptEngineSceneMomentSettingConnectionInput,
+  MovScriptEngineSegmentInput,
+  MovScriptEngineSettingInput,
+  MovScriptEngineSettingStateInput,
+  MovScriptEngineStoryboardInput,
+} from '@movscript/engine'
+import type { MovScriptContentUnitPromptBuildResult } from '@movscript/prompt'
+import type {
   ContentCandidateRecord,
   ContentSourceWorkspaceAudioCuePatch,
   ContentSourceWorkspaceData,
@@ -148,6 +164,16 @@ export type ElectronMovScriptEngineWorkspaceReadScriptSourceInput = ElectronMovS
   payload: Parameters<MovScriptWorkspaceService['readScriptSource']>[0]
 }
 
+export type ElectronMovScriptEngineContentUnitGenerationPromptReadInput = ElectronMovScriptEngineProjectInput & {
+  contentUnitId: string | number
+}
+
+export type ElectronMovScriptEngineContentUnitBackendPromptBuildInput = ElectronMovScriptEngineProjectInput & {
+  contentUnitId: string | number
+}
+
+export type ElectronMovScriptEngineContentUnitBackendPromptBuildResult = MovScriptContentUnitPromptBuildResult
+
 export type ElectronMovScriptEngineWorkspaceDeleteEntityInput = ElectronMovScriptEngineProjectInput & {
   payload: Parameters<MovScriptWorkspaceService['deleteEntity']>[0]
 }
@@ -162,6 +188,58 @@ export type ElectronMovScriptEngineWorkspaceUpsertProjectStandardsInput = Electr
 
 export type ElectronMovScriptEngineWorkspaceUpsertContentUnitInput = ElectronMovScriptEngineProjectInput & {
   payload: Parameters<MovScriptWorkspaceService['upsertContentUnit']>[0]
+}
+
+export type ElectronMovScriptEngineContentUnitCreateInput = ElectronMovScriptEngineProjectInput & {
+  payload: MovScriptEngineContentUnitInput
+}
+
+export type ElectronMovScriptEngineContentUnitEnsureInput = ElectronMovScriptEngineProjectInput & {
+  payload: MovScriptEngineEnsureContentUnitInput
+}
+
+export type ElectronMovScriptEngineSettingCreateInput = ElectronMovScriptEngineProjectInput & {
+  payload: MovScriptEngineSettingInput
+}
+
+export type ElectronMovScriptEngineSettingStateCreateInput = ElectronMovScriptEngineProjectInput & {
+  payload: MovScriptEngineSettingStateInput
+}
+
+export type ElectronMovScriptEngineAssetCreateInput = ElectronMovScriptEngineProjectInput & {
+  payload: MovScriptEngineAssetInput
+}
+
+export type ElectronMovScriptEngineEntityBasicsUpdateInput = ElectronMovScriptEngineProjectInput & {
+  payload: MovScriptEngineEntityBasicsInput
+}
+
+export type ElectronMovScriptEngineSceneMomentSettingConnectInput = ElectronMovScriptEngineProjectInput & {
+  payload: MovScriptEngineSceneMomentSettingConnectionInput
+}
+
+export type ElectronMovScriptEngineProductionCreateInput = ElectronMovScriptEngineProjectInput & {
+  payload: MovScriptEngineProductionInput
+}
+
+export type ElectronMovScriptEngineSegmentCreateInput = ElectronMovScriptEngineProjectInput & {
+  payload: MovScriptEngineSegmentInput
+}
+
+export type ElectronMovScriptEngineSceneMomentCreateInput = ElectronMovScriptEngineProjectInput & {
+  payload: MovScriptEngineSceneMomentInput
+}
+
+export type ElectronMovScriptEngineExpressionUnitCreateInput = ElectronMovScriptEngineProjectInput & {
+  payload: MovScriptEngineExpressionUnitInput
+}
+
+export type ElectronMovScriptEngineKeyframeInput = ElectronMovScriptEngineProjectInput & {
+  payload: MovScriptEngineKeyframeInput
+}
+
+export type ElectronMovScriptEngineStoryboardInput = ElectronMovScriptEngineProjectInput & {
+  payload: MovScriptEngineStoryboardInput
 }
 
 export type ElectronMovScriptEngineWorkspaceSelectCandidateInput = ElectronMovScriptEngineProjectInput & {
@@ -181,7 +259,7 @@ export type ElectronMovScriptEngineContentCandidateCreateInput = ElectronMovScri
   contentUnitId: string | number
   candidateId: string | number
   source: 'ai_generate' | 'resource_library'
-  status: 'queued' | 'imported'
+  status: 'queued' | 'pending' | 'running' | 'succeeded' | 'failed' | 'canceled' | 'cancelled' | 'imported'
   producer: Record<string, unknown>
   outputs: Array<{
     kind: 'image' | 'video' | 'audio' | 'text' | 'metadata'

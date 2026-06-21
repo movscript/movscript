@@ -5,6 +5,11 @@ export const agentSettingsKeys = {
 
 export const agentProviderKeys = {
   workspaceConfig: (profileKey: string) => ['agents-workspace-config', profileKey] as const,
+  claudeRuntimePackageStatus: (packageName: string | undefined, packageVersion: string | undefined) => [
+    'agent-claude-runtime-package-status',
+    packageName,
+    packageVersion,
+  ] as const,
   composerWorkspaceProjects: ['agent-composer-workspace-projects'] as const,
   backendModels: ['agents-backend-models'] as const,
   modelProvidersBackendModels: ['workspace-model-providers-backend-models'] as const,
@@ -12,6 +17,8 @@ export const agentProviderKeys = {
 }
 
 export const agentBrowserKeys = {
+  navigationProject: (projectId: number | undefined) => ['embedded-browser-navigation', projectId] as const,
+  navigationScriptsScope: (projectId: number | undefined) => ['embedded-browser-navigation', projectId, 'scripts'] as const,
   navigationScripts: (
     projectId: number | undefined,
     userId: string | number | undefined,
@@ -32,6 +39,7 @@ export const agentPlanKeys = {
 }
 
 export const agentConsoleKeys = {
+  globalPlugins: ['agent-console-global-plugins'] as const,
   providerCapabilityProbe: (providerSignature: string) => ['agent-console-provider-capability-probe', providerSignature] as const,
   controlCapabilityHealth: (providerSignature: string) => ['agent-control-capability-health', providerSignature] as const,
 }

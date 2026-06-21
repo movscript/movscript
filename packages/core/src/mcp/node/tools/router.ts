@@ -29,6 +29,7 @@ import {
   domainReadContentUnitRuntimePanel,
   domainReadContentUnitSelectionValidity,
   domainReadPreviewTimeline,
+  domainReadProjectContextSnapshot,
   domainReadProductionTimeline,
   domainReadProductionEditPlan,
   domainReadSceneMomentEditPlan,
@@ -58,7 +59,6 @@ import {
   domainUpsertSceneMoment,
   domainUpsertSegment,
   domainUpsertSetting,
-  domainUpsertShot,
   domainUpsertStoryboard,
 } from './domain/actions.js'
 import {
@@ -94,16 +94,20 @@ import {
 import { listModels } from './model/actions'
 import {
   generateImage,
+  generateContentUnitImage,
   alignSubtitle,
   generateAudio,
   generateMusic,
   generateSfx,
   generateSubtitle,
   generateVideo,
+  generateContentUnitVideo,
   generateVoiceover,
   translateSubtitle,
   getAudioGenerationJob,
   getAudioGenerationJobs,
+  getContentUnitImageGenerationJob,
+  getContentUnitVideoGenerationJob,
   getImageGenerationJob,
   getImageGenerationJobs,
   getVideoGenerationJob,
@@ -157,18 +161,30 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
     case 'system_generate_image':
     case 'generation_image_generate':
       return toolText(await generateImage(args))
+    case 'system_generate_content_unit_image':
+    case 'generation_content_unit_image_generate':
+      return toolText(await generateContentUnitImage(args))
     case 'system_generate_image_job_get':
     case 'generation_image_job_get':
       return toolText(await getImageGenerationJob(args))
+    case 'system_generate_content_unit_image_job_get':
+    case 'generation_content_unit_image_job_get':
+      return toolText(await getContentUnitImageGenerationJob(args))
     case 'system_generate_image_job_get_batch':
     case 'generation_image_job_get_batch':
       return toolText(await getImageGenerationJobs(args))
     case 'system_generate_video':
     case 'generation_video_generate':
       return toolText(await generateVideo(args))
+    case 'system_generate_content_unit_video':
+    case 'generation_content_unit_video_generate':
+      return toolText(await generateContentUnitVideo(args))
     case 'system_generate_video_job_get':
     case 'generation_video_job_get':
       return toolText(await getVideoGenerationJob(args))
+    case 'system_generate_content_unit_video_job_get':
+    case 'generation_content_unit_video_job_get':
+      return toolText(await getContentUnitVideoGenerationJob(args))
     case 'system_generate_video_job_get_batch':
     case 'generation_video_job_get_batch':
       return toolText(await getVideoGenerationJobs(args))
@@ -281,6 +297,8 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
       return toolText(await domainReadContentWorkspace(args))
     case 'domain_read_content_workspace_snapshot':
       return toolText(await domainReadContentWorkspaceSnapshot(args))
+    case 'domain_read_project_context_snapshot':
+      return toolText(await domainReadProjectContextSnapshot(args))
     case 'domain_derive_content_unit_artifact':
       return toolText(await domainInterpretContentUnitArtifact(args))
     case 'domain_build_content_unit_backend_prompt':
@@ -326,8 +344,6 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
       return toolText(await domainUpsertSegment(args))
     case 'domain_upsert_scene_moment':
       return toolText(await domainUpsertSceneMoment(args))
-    case 'domain_upsert_shot':
-      return toolText(await domainUpsertShot(args))
     case 'domain_upsert_keyframe':
       return toolText(await domainUpsertKeyframe(args))
     case 'domain_upsert_storyboard':

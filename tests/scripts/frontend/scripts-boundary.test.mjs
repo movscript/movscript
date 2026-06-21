@@ -13,6 +13,7 @@ const scriptMutationSource = readSource('apps/frontend/src/features/scripts/appl
 const entityCreateFormsSource = readSource('apps/frontend/src/shared/ui/EntityCreateForms.tsx')
 const scriptsPageUiCssSource = readSource('apps/frontend/src/features/scripts/components/ScriptsPageUi.css')
 const scriptsPageEditorCssSource = readSource('apps/frontend/src/features/scripts/components/ScriptsPageEditor.css')
+const scriptsPageDetailCssSource = readSource('apps/frontend/src/features/scripts/components/ScriptsPageDetail.css')
 const scriptsPageUiSource = readSource('apps/frontend/src/features/scripts/components/ScriptsPageUi.tsx')
 const scriptsPageWorkspaceUiSource = readSource('apps/frontend/src/features/scripts/components/ScriptsPageWorkspaceUi.tsx')
 const scriptsPageEditorUiSource = readSource('apps/frontend/src/features/scripts/components/ScriptsPageEditorUi.tsx')
@@ -77,6 +78,21 @@ test('scripts page editor styles are split from the workbench shell stylesheet',
   assert.match(scriptsPageEditorCssSource, /\.script-editor-form__outline-item\s*\{/)
 })
 
+test('scripts page detail styles are split from the workbench shell stylesheet', () => {
+  assert.match(scriptsPageUiCssSource, /@import "\.\/ScriptsPageDetail\.css"/)
+  for (const selector of [
+    '.script-detail-header',
+    '.script-detail-tabs',
+    '.script-version-card',
+    '.script-version-history-panel',
+    '.script-production-panel',
+  ]) {
+    assert.doesNotMatch(scriptsPageUiCssSource, cssSelectorRulePattern(selector), `${selector} should not grow the workbench shell CSS`)
+    assert.match(scriptsPageDetailCssSource, cssSelectorRulePattern(selector), `${selector} should live in the detail CSS`)
+  }
+  assert.match(scriptsPageUiCssSource, /\.script-workbench-layout\s*\{/)
+})
+
 test('scripts feature UI implementation is split behind a thin barrel', () => {
   assert.match(scriptsPageUiSource, /import "\.\/ScriptsPageUi\.css"/)
   for (const moduleName of [
@@ -101,4 +117,12 @@ test('scripts feature UI implementation is split behind a thin barrel', () => {
 
 function readSource(path) {
   return readFileSync(resolve(path), 'utf8')
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function cssSelectorRulePattern(selector) {
+  return new RegExp(`${escapeRegExp(selector)}(?:\\s*\\{|\\s*,)`)
 }

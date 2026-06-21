@@ -1,3 +1,5 @@
 @import "./AgentModeUi.sidebar.css";
+@import "./AgentModeUi.sidebar-conversations.css";
+@import "./AgentModeUi.sidebar-user.css";
 @import "./AgentModeUi.workspace.css";
 @import "./AgentModeUi.panels.css";

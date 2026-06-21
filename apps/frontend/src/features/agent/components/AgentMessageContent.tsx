@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { splitResourceMentionParts } from '@movscript/workspace'
 import { Check, Copy } from 'lucide-react'
 import { attachmentToResource, formatAgentAttachmentBytes, placeholderAttachment } from '@/features/agent/domain/agentAttachments'
 import { AgentAttachmentIcon, AgentAttachmentMediaPreview } from '@/features/agent/components/AgentAttachmentMediaPreview'
@@ -167,11 +168,11 @@ function parseInlineResourceParts(text: string): InlineResourcePart[] {
   const cacheable = isCacheableParsedText(text)
   const cached = cacheable ? readCached(inlineResourceCache, text) : undefined
   if (cached) return cached
-  const parts = text.split(/(@\[resource:\d+\])/g).map((part, index): InlineResourcePart => {
-    const match = part.match(/^@\[resource:(\d+)\]$/)
-    if (match) return { type: 'resource', key: `resource-${index}-${match[1]}`, resourceId: Number(match[1]) }
-    return { type: 'text', key: `text-${index}`, text: part }
-  })
+  const parts = splitResourceMentionParts(text).map((part): InlineResourcePart => (
+    part.type === 'resource'
+      ? { type: 'resource', key: part.key, resourceId: part.resourceId }
+      : { type: 'text', key: part.key, text: part.text }
+  ))
   if (cacheable) remember(inlineResourceCache, text, parts, INLINE_RESOURCE_CACHE_LIMIT)
   return parts
 }

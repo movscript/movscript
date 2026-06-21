@@ -2,11 +2,74 @@ import { buildContentSourceWorkspaceCandidateCreatePlan, type ContentCandidateRe
 
 import type { ContentCanvasCandidate, ContentCanvasNode } from '../domain/contentCanvasTypes'
 import type { ContentCanvasCommandResult } from './contentCanvasCommands'
-import type { ContentCanvasWorkspaceGateway } from './contentCanvasWorkspaceGateway'
+import type { ContentCanvasUploadedResource, ContentCanvasWorkspaceGateway } from './contentCanvasWorkspaceGateway'
 
 export async function createCandidateFromContentUnit(
   projectId: number,
   contentUnitNode: ContentCanvasNode,
+  position: { x: number; y: number } | undefined,
+  gateway: ContentCanvasWorkspaceGateway,
+  options: { modelId?: string; params?: Record<string, string | number | boolean> } = {},
+): Promise<ContentCanvasCommandResult> {
+  assertContentUnitNode(contentUnitNode)
+  const outputKind = contentUnitOutputKind(contentUnitNode)
+  if (outputKind !== 'image' && outputKind !== 'video') {
+    throw new Error(`当前真实生成候选只支持图像/视频制作项，${outputKind} 暂未接入生成接口`)
+  }
+  const candidateId = timestampId('canvas_candidate')
+  console.log('[content-canvas] create content unit candidate request', {
+    projectId,
+    contentUnitId: contentUnitNode.entityKey,
+    candidateId,
+    outputKind,
+  })
+  const record = await gateway.generateContentUnitCandidate({
+    projectId,
+    contentUnitId: contentUnitNode.entityKey,
+    candidateId,
+    outputKind,
+    ...(options.modelId ? { modelId: options.modelId } : {}),
+    ...(options.params ? { params: options.params } : {}),
+    promptText: editPromptTextFromNode(contentUnitNode),
+  })
+  console.log('[content-canvas] create content unit candidate result', {
+    projectId,
+    contentUnitId: contentUnitNode.entityKey,
+    candidateId: record.id ?? candidateId,
+    source: record.source,
+    status: record.status,
+    outputs: record.outputs,
+  })
+  const resolvedCandidateId = String(record.id ?? candidateId)
+  const candidateNodeId = `candidate:${contentUnitNode.entityKey}:${resolvedCandidateId}`
+  const candidate = contentCanvasCandidateFromContentRecord(record, candidateId)
+  return {
+    changedNodeIds: [contentUnitNode.id, candidateNodeId],
+    affectedNodeIds: [contentUnitNode.id, candidateNodeId],
+    nodePositions: {
+      [candidateNodeId]: position ?? suggestedCandidateNodePosition(contentUnitNode, contentUnitNode.candidates.length + 1),
+    },
+    createdCandidates: [{ contentUnitId: contentUnitNode.entityKey, candidate }],
+    message: '已创建后端制作项候选',
+  }
+}
+
+export async function uploadCandidateForContentUnit(
+  projectId: number,
+  contentUnitNode: ContentCanvasNode,
+  file: File,
+  position: { x: number; y: number } | undefined,
+  gateway: ContentCanvasWorkspaceGateway,
+): Promise<ContentCanvasCommandResult> {
+  assertContentUnitNode(contentUnitNode)
+  const resource = await gateway.uploadResource({ projectId, file })
+  return createCandidateFromResourceForContentUnit(projectId, contentUnitNode, resource, position, gateway)
+}
+
+export async function createCandidateFromResourceForContentUnit(
+  projectId: number,
+  contentUnitNode: ContentCanvasNode,
+  resource: ContentCanvasUploadedResource,
   position: { x: number; y: number } | undefined,
   gateway: ContentCanvasWorkspaceGateway,
 ): Promise<ContentCanvasCommandResult> {
@@ -15,27 +78,15 @@ export async function createCandidateFromContentUnit(
     contentUnitId: contentUnitNode.entityKey,
     outputKind: contentUnitOutputKind(contentUnitNode),
     promptText: editPromptTextFromNode(contentUnitNode),
-    candidateId: timestampId('canvas_candidate'),
-  })
-  console.log('[content-canvas] create content unit candidate request', {
-    projectId,
-    contentUnitId: contentUnitNode.entityKey,
-    candidateId: plan.candidateId,
-    source: plan.source,
-    status: plan.status,
-    outputs: plan.outputs,
+    candidateId: timestampId('resource_candidate'),
+    resourceId: resource.id,
+    resourceName: resource.name,
+    resourceType: resource.type,
+    resourceMimeType: resource.mimeType,
   })
   const record = await gateway.createContentUnitCandidate({
     projectId,
     ...plan,
-  })
-  console.log('[content-canvas] create content unit candidate result', {
-    projectId,
-    contentUnitId: contentUnitNode.entityKey,
-    candidateId: record.id ?? plan.candidateId,
-    source: record.source,
-    status: record.status,
-    outputs: record.outputs,
   })
   const candidateId = String(record.id ?? plan.candidateId)
   const candidateNodeId = `candidate:${contentUnitNode.entityKey}:${candidateId}`
@@ -43,12 +94,11 @@ export async function createCandidateFromContentUnit(
   return {
     changedNodeIds: [contentUnitNode.id, candidateNodeId],
     affectedNodeIds: [contentUnitNode.id, candidateNodeId],
-    focusNodeId: candidateNodeId,
     nodePositions: {
       [candidateNodeId]: position ?? suggestedCandidateNodePosition(contentUnitNode, contentUnitNode.candidates.length + 1),
     },
     createdCandidates: [{ contentUnitId: contentUnitNode.entityKey, candidate }],
-    message: '已创建后端制作项候选',
+    message: `已创建资源候选 ${resource.name}`,
   }
 }
 
@@ -69,7 +119,6 @@ export async function selectContentUnitCandidateFromCanvas(
   return {
     changedNodeIds: [contentUnitNode.id, `candidate:${contentUnitNode.entityKey}:${candidate.id}`],
     affectedNodeIds: [contentUnitNode.id],
-    focusNodeId: `candidate:${contentUnitNode.entityKey}:${candidate.id}`,
     createdCandidates: [{ contentUnitId: contentUnitNode.entityKey, candidate: { ...candidate, selected: true } }],
     selectedCandidates: [{ contentUnitId: contentUnitNode.entityKey, candidateId: candidate.id }],
     message: `已选择制作项候选 ${candidate.title}`,
@@ -98,7 +147,7 @@ export async function selectCandidateNodeFromCanvas(
   return {
     changedNodeIds: [ownerContentUnitNodeId || candidateNode.id, candidateNode.id],
     affectedNodeIds: [ownerContentUnitNodeId || candidateNode.id, candidateNode.id],
-    focusNodeId: candidateNode.id,
+    focusNodeId: ownerContentUnitNodeId || undefined,
     createdCandidates: [{ contentUnitId: ownerContentUnitId, candidate: contentCanvasCandidateFromCandidateNode(candidateNode, true) }],
     selectedCandidates: [{ contentUnitId: ownerContentUnitId, candidateId: candidateNode.entityKey }],
     message: `已选择候选 ${candidateNode.title}`,
@@ -162,6 +211,11 @@ function contentCanvasCandidateFromContentRecord(record: ContentCandidateRecord,
     ...(artifactRef ? { artifactRef } : {}),
     ...(inputHash ? { inputHash } : {}),
     source: stringValue(record.source) ?? 'backend',
+    ...(stringValue(record.status) ? { status: stringValue(record.status) } : {}),
+    ...(isRecord(record.producer) ? { producer: record.producer } : {}),
+    ...(Array.isArray(record.outputs) ? { outputs: record.outputs } : {}),
+    ...(isRecord(record.prompt_snapshot) ? { promptSnapshot: record.prompt_snapshot } : {}),
+    ...(stringValue(record.created_at) ? { createdAt: stringValue(record.created_at) } : {}),
     selected: false,
     notes: stringValue(record.status) ?? inputHash ?? '',
   }
@@ -180,6 +234,11 @@ function contentCanvasCandidateFromCandidateNode(node: ContentCanvasNode, select
     ...(artifactRef ? { artifactRef } : {}),
     ...(inputHash ? { inputHash } : {}),
     source: stringValue(node.record.source) ?? 'backend',
+    ...(stringValue(node.record.status) ? { status: stringValue(node.record.status) } : {}),
+    ...(isRecord(node.record.producer) ? { producer: node.record.producer } : {}),
+    ...(Array.isArray(node.record.outputs) ? { outputs: node.record.outputs } : {}),
+    ...(isRecord(node.record.promptSnapshot) ? { promptSnapshot: node.record.promptSnapshot } : isRecord(node.record.prompt_snapshot) ? { promptSnapshot: node.record.prompt_snapshot } : {}),
+    ...(stringValue(node.record.createdAt ?? node.record.created_at) ? { createdAt: stringValue(node.record.createdAt ?? node.record.created_at) } : {}),
     selected,
     notes: stringValue(node.record.notes ?? node.record.status) ?? inputHash ?? '',
   }

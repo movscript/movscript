@@ -69,14 +69,14 @@ test('json change layer reports field, nested, and order changes', () => {
   const changes = diffMovScriptJsonValues({
     title: 'Phone',
     metadata: { note: 'old' },
-    shots: [
+    beats: [
       { id: 'wide', angle: 'wide' },
       { id: 'close', angle: 'close' },
     ],
   }, {
     title: 'Phone',
     metadata: { note: 'new' },
-    shots: [
+    beats: [
       { id: 'close', angle: 'close' },
       { id: 'wide', angle: 'medium' },
     ],
@@ -86,18 +86,18 @@ test('json change layer reports field, nested, and order changes', () => {
     && change.operation === 'replaced'
     && change.oldValue === 'old'
     && change.newValue === 'new'))
-  assert.ok(changes.some((change) => change.path === '/shots'
+  assert.ok(changes.some((change) => change.path === '/beats'
     && change.operation === 'reordered'))
-  assert.ok(changes.some((change) => change.path === '/shots/0'
+  assert.ok(changes.some((change) => change.path === '/beats/0'
     && change.operation === 'moved'
     && change.itemKey === 'close'
     && change.oldIndex === 1
     && change.newIndex === 0))
-  assert.ok(changes.some((change) => change.path === '/shots/1/angle'
+  assert.ok(changes.some((change) => change.path === '/beats/1/angle'
     && change.operation === 'replaced'
     && change.oldValue === 'wide'
     && change.newValue === 'medium'))
-  assert.equal(jsonPointerToFieldPath('/shots/1/angle'), 'shots.1.angle')
+  assert.equal(jsonPointerToFieldPath('/beats/1/angle'), 'beats.1.angle')
 })
 
 test('json file change layer reports per-file field changes from file changes', () => {

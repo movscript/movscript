@@ -1,5 +1,5 @@
 import { type ComponentProps, type HTMLAttributes, type ReactNode } from "react";
-import { AlertTriangle, CheckCircle2, Trash2, XCircle } from "lucide-react";
+import { Trash2 } from "lucide-react";
 
 import { cn } from "@/shared/ui/cn";
 import { toneSurfaceClass, toneTextClass, type SemanticTone } from "@movscript/ui/semantic";
@@ -9,17 +9,33 @@ import { ReviewCallout } from "@movscript/ui/business/review";
 import {
   Badge,
   Button,
-  Input,
-  Label,
-  NativeSelect,
   StatusBadge,
   type ButtonProps,
-  type InputProps,
-  type NativeSelectProps,
   type StatusBadgeProps,
 } from "@movscript/ui/primitives";
 import type { IconComponent } from "@movscript/ui/primitives";
 import { AgentSurfaceBlock, type AgentSurfaceBlockProps } from "@movscript/ui/business/agent";
+
+export {
+  AgentConsoleIssueRowSurface,
+  AgentConsoleIssueSurfaceBlock,
+  AgentConsoleMetricCard,
+  type AgentConsoleIssueTone,
+} from "@/features/agent/components/AgentConsoleIssueUi";
+
+export {
+  AgentConsoleFormField,
+  AgentConsoleLocalToolActions,
+  AgentConsoleLocalToolCard,
+  AgentConsoleLocalToolControls,
+  AgentConsoleLocalToolCopy,
+  AgentConsoleLocalToolDetail,
+  AgentConsoleLocalToolFields,
+  AgentConsoleLocalToolHeader,
+  AgentConsoleLocalToolTitle,
+  AgentConsoleSelectField,
+  AgentConsoleTestResult,
+} from "@/features/agent/components/AgentConsoleLocalToolUi";
 
 export {
   AgentConsoleHistoryClearActions,
@@ -36,8 +52,6 @@ export {
   AgentConsoleRunSummaryLink,
   AgentConsoleRunSummaryMeta,
 } from "@/features/agent/components/AgentConsoleCompositeUi";
-
-export type AgentConsoleIssueTone = "action" | "warning" | "ready";
 
 export function AgentConsoleCallout({
   className,
@@ -80,49 +94,6 @@ export function AgentConsoleToneSurfaceBlock({
   return (
     <AgentSurfaceBlock
       className={cn("agent-console-tone-surface", tone ? toneSurfaceClass(tone) : undefined, className)}
-      {...props}
-    />
-  );
-}
-
-export function AgentConsoleMetricCard({
-  title,
-  value,
-  detail,
-  tone,
-}: {
-  title: ReactNode;
-  value: ReactNode;
-  detail: ReactNode;
-  tone: AgentConsoleIssueTone;
-}) {
-  const Icon = tone === "ready" ? CheckCircle2 : tone === "action" ? XCircle : AlertTriangle;
-  const semanticTone = agentConsoleIssueTextTone(tone);
-  const surfaceTone = agentConsoleIssueSurfaceTone(tone);
-  return (
-    <AgentConsoleToneSurfaceBlock variant="card" tone={surfaceTone} className="agent-console-metric-card">
-      <div className="agent-console-metric-card__header">
-        <p className="agent-console-metric-card__title">{title}</p>
-        <Icon size={14} className={cn("agent-console-metric-card__icon", toneTextClass(semanticTone))} />
-      </div>
-      <p className="agent-console-metric-card__value" title={typeof value === "string" ? value : undefined}>{value}</p>
-      <p className="agent-console-metric-card__detail" title={typeof detail === "string" ? detail : undefined}>{detail}</p>
-    </AgentConsoleToneSurfaceBlock>
-  );
-}
-
-export function AgentConsoleIssueSurfaceBlock({
-  tone,
-  className,
-  ...props
-}: Omit<AgentSurfaceBlockProps, "tone"> & {
-  tone: Exclude<AgentConsoleIssueTone, "ready">;
-}) {
-  return (
-    <AgentConsoleToneSurfaceBlock
-      variant="subtle"
-      tone={agentConsoleIssueSurfaceTone(tone)}
-      className={cn("agent-console-issue-surface", className)}
       {...props}
     />
   );
@@ -386,130 +357,4 @@ export function AgentConsoleAgentSwitch({
 
 export function AgentConsoleSavedAt({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
   return <p className={cn("agent-console-saved-at", className)} {...props} />;
-}
-
-export function AgentConsoleLocalToolCard({
-  invalid = false,
-  children,
-}: {
-  invalid?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <AgentConsoleToneSurfaceBlock variant="subtle" tone={invalid ? "danger" : undefined} className="agent-console-local-tool-card">
-      {children}
-    </AgentConsoleToneSurfaceBlock>
-  );
-}
-
-export function AgentConsoleLocalToolHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("agent-console-local-tool-card__header", className)} {...props} />;
-}
-
-export function AgentConsoleLocalToolCopy({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
-  return <span className={cn("agent-console-local-tool-card__copy", className)} {...props} />;
-}
-
-export function AgentConsoleLocalToolTitle({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
-  return <span className={cn("agent-console-local-tool-card__title", className)} {...props} />;
-}
-
-export function AgentConsoleLocalToolDetail({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
-  return <span className={cn("agent-console-local-tool-card__detail", className)} {...props} />;
-}
-
-export function AgentConsoleLocalToolControls({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("agent-console-local-tool-card__controls", className)} {...props} />;
-}
-
-export function AgentConsoleLocalToolFields({
-  disabled = false,
-  className,
-  ...props
-}: HTMLAttributes<HTMLDivElement> & {
-  disabled?: boolean;
-}) {
-  return <div data-disabled={disabled ? "true" : undefined} className={cn("agent-console-local-tool-fields", className)} {...props} />;
-}
-
-export function AgentConsoleLocalToolActions({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("agent-console-local-tool-actions", className)} {...props} />;
-}
-
-export function AgentConsoleTestResult({
-  tone,
-  className,
-  ...props
-}: HTMLAttributes<HTMLSpanElement> & {
-  tone: SemanticTone;
-}) {
-  return <AgentConsoleToneText tone={tone} className={cn("agent-console-test-result", className)} {...props} />;
-}
-
-export function AgentConsoleFormField({
-  label,
-  className,
-  ...props
-}: InputProps & {
-  label: ReactNode;
-}) {
-  return (
-    <div className={cn("agent-console-form-field", className)}>
-      <Label className="agent-console-form-field__label">{label}</Label>
-      <Input controlSize="sm" className="agent-console-form-field__input" {...props} />
-    </div>
-  );
-}
-
-export function AgentConsoleSelectField({
-  label,
-  children,
-  className,
-  ...props
-}: NativeSelectProps & {
-  label: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <div className={cn("agent-console-form-field", className)}>
-      <Label className="agent-console-form-field__label">{label}</Label>
-      <NativeSelect controlSize="sm" className="agent-console-form-field__input" {...props}>
-        {children}
-      </NativeSelect>
-    </div>
-  );
-}
-
-export function AgentConsoleIssueRowSurface({
-  tone,
-  title,
-  detail,
-  badge,
-}: {
-  tone: Exclude<AgentConsoleIssueTone, "ready">;
-  title: ReactNode;
-  detail: ReactNode;
-  badge: ReactNode;
-}) {
-  return (
-    <AgentConsoleIssueSurfaceBlock tone={tone} className="agent-console-issue-row">
-      <div className="agent-console-issue-row__header">
-        <p className="agent-console-issue-row__title">{title}</p>
-        {badge}
-      </div>
-      <p className="agent-console-issue-row__detail">{detail}</p>
-    </AgentConsoleIssueSurfaceBlock>
-  );
-}
-
-function agentConsoleIssueTextTone(tone: AgentConsoleIssueTone): SemanticTone {
-  if (tone === "ready") return "success";
-  if (tone === "action") return "danger";
-  return "warning";
-}
-
-function agentConsoleIssueSurfaceTone(tone: AgentConsoleIssueTone): SemanticTone | undefined {
-  if (tone === "action") return "danger";
-  if (tone === "warning") return "warning";
-  return undefined;
 }

@@ -235,6 +235,7 @@ test('runDesktopPackageCli passes parsed targets to preparation', () => {
     currentArch: 'arm64',
     arch: 'x64',
     exit: undefined,
+    signingMode: 'unsigned',
   })
   assert.equal(typeof prepareCalls[0][1].exit, 'function')
   assert.equal(verifyCalls.length, 1)
@@ -245,6 +246,7 @@ test('runDesktopPackageCli passes parsed targets to preparation', () => {
     currentArch: 'arm64',
     arch: 'x64',
     exit: undefined,
+    signingMode: 'unsigned',
     log: undefined,
     logError: undefined,
   })

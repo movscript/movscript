@@ -11,6 +11,7 @@ import {
   mediaPipelineTimelineHasCaptions,
   renderMediaPipelineTimelineCaptions,
 } from './subtitleRenderer'
+import { readMediaPipelineHasAudioStream } from './ffmpegProbe'
 import type { VideoTimelineExportAudioInput, VideoTimelineExportInput, VideoTimelineExportOverlayInput } from './timelineExportTypes'
 import { prepareMediaPipelineTimelineInputFile } from './timelineInputs'
 
@@ -27,21 +28,25 @@ export async function applyMediaPipelineTimelinePostProcessing(input: {
 }): Promise<void> {
   const hasCaptions = mediaPipelineTimelineHasCaptions(input.timeline)
   const overlays = normalizeTimelineOverlays(input.timeline.overlays)
+  const overlaySources: Array<{ overlay: VideoTimelineExportOverlayInput; path: string }> = []
+  for (const [index, overlay] of overlays.entries()) {
+    overlaySources.push({
+      overlay,
+      path: await prepareMediaPipelineTimelineInputFile({
+        sourcePath: overlay.sourcePath,
+        sourceData: overlay.sourceData,
+        sourceName: overlay.sourceName || `timeline-overlay-${index + 1}.png`,
+      }, input.workDir),
+    })
+  }
   const audioClips = normalizeTimelineAudioClips([
     ...(input.timeline.audioClips ?? []),
-    ...overlayAudioClips(overlays),
+    ...await overlayAudioClips(input.ffmpegPath, overlaySources),
   ])
   let currentVideoPath = input.baseVideoPath
 
   if (overlays.length > 0) {
-    const overlayInputPaths: string[] = []
-    for (const [index, overlay] of overlays.entries()) {
-      overlayInputPaths.push(await prepareMediaPipelineTimelineInputFile({
-        sourcePath: overlay.sourcePath,
-        sourceData: overlay.sourceData,
-        sourceName: overlay.sourceName || `timeline-overlay-${index + 1}.png`,
-      }, input.workDir))
-    }
+    const overlayInputPaths = overlaySources.map((source) => source.path)
     const overlayOutputPath = hasCaptions || audioClips.length > 0 ? join(input.workDir, 'timeline-overlays.mp4') : input.outputPath
     await runMediaPipelineFFmpeg(input.ffmpegPath, buildOverlayArgs(currentVideoPath, overlayInputPaths, overlayOutputPath, overlays), {
       signal: input.timeline.signal,
@@ -78,12 +83,16 @@ export async function applyMediaPipelineTimelinePostProcessing(input: {
   }
 }
 
-function overlayAudioClips(overlays: VideoTimelineExportOverlayInput[]): VideoTimelineExportAudioInput[] {
-  return overlays
-    .filter((overlay) => overlay.sourceKind === 'video' && !overlay.muted && (overlay.volume ?? 100) > 0)
-    .map((overlay) => ({
-      sourcePath: overlay.sourcePath,
-      sourceData: overlay.sourceData,
+async function overlayAudioClips(
+  ffmpegPath: string,
+  overlaySources: Array<{ overlay: VideoTimelineExportOverlayInput; path: string }>,
+): Promise<VideoTimelineExportAudioInput[]> {
+  const clips: VideoTimelineExportAudioInput[] = []
+  for (const { overlay, path } of overlaySources) {
+    if (overlay.sourceKind !== 'video' || overlay.muted || (overlay.volume ?? 100) <= 0) continue
+    if (!await readMediaPipelineHasAudioStream(ffmpegPath, path).catch(() => false)) continue
+    clips.push({
+      sourcePath: path,
       sourceName: overlay.sourceName,
       startMs: overlay.sourceStartMs ?? 0,
       endMs: overlay.sourceEndMs ?? (overlay.sourceStartMs ?? 0) + (overlay.endMs - overlay.startMs),
@@ -92,5 +101,7 @@ function overlayAudioClips(overlays: VideoTimelineExportOverlayInput[]): VideoTi
       speed: overlay.speed,
       fadeInMs: overlay.fadeInMs,
       fadeOutMs: overlay.fadeOutMs,
-    }))
+    })
+  }
+  return clips
 }

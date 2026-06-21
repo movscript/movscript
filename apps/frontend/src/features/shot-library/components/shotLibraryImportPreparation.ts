@@ -10,8 +10,6 @@ import { withObjectUrl } from '@/shared/ui/objectUrl'
 import { loadResourceBlob } from '@/shared/ui/resourceBlob'
 import type { RawResource } from '@/types'
 
-export const RESOURCE_LIBRARY_PAGE_SIZE = 12
-export const SHOT_LIBRARY_PAGE_SIZE = 12
 export const SHOT_IMPORT_WORKSPACE_REVEAL_DELAY_MS = 110
 
 const VIDEO_METADATA_TIMEOUT_MS = 8000

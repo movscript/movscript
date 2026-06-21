@@ -1,4 +1,4 @@
-import type { ProviderSettings } from '@/shared/infrastructure/providerConfigStore'
+import type { ProviderSettings } from '@/shared/infrastructure/providerConfigModel'
 
 export const CODEX_PROVIDER_ID = 'codex'
 export const MOVA_PROVIDER_ID = 'mova'

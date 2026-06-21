@@ -1,0 +1,92 @@
+.resource-permission-share-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ms-space-3);
+  padding: var(--ms-space-3);
+}
+
+.resource-permission-share-row__copy {
+  min-width: 0;
+}
+
+.resource-permission-share-row__title {
+  margin: 0;
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-label);
+  font-weight: 500;
+  line-height: var(--ms-leading-label);
+}
+
+.resource-permission-share-row__description {
+  margin: var(--ms-space-1) 0 0;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-caption);
+  line-height: var(--ms-leading-caption);
+}
+
+.resource-permission-share-row__control {
+  flex-shrink: 0;
+}
+
+.resource-permission-user-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ms-space-2);
+  padding: var(--ms-space-2) var(--ms-space-3);
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+}
+
+.resource-permission-user-row__name {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  color: var(--ms-color-foreground);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resource-permission-user-row__meta {
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-caption);
+  line-height: var(--ms-leading-caption);
+}
+
+.resource-permission-user-row__actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--ms-space-1);
+}
+
+.resource-permission-action-group {
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+}
+
+.resource-permission-section {
+  min-height: 0;
+}
+
+.resource-permission-section--divided {
+  border-top: 1px solid var(--ms-color-border);
+  padding-top: var(--ms-space-3);
+}
+
+.resource-permission-section__title {
+  margin: 0 0 var(--ms-space-1);
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-caption);
+  font-weight: 500;
+  line-height: var(--ms-leading-caption);
+}
+
+.resource-permission-empty {
+  padding-block: var(--ms-space-2);
+  color: color-mix(in srgb, var(--ms-color-muted-foreground) 60%, transparent);
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+  text-align: center;
+}

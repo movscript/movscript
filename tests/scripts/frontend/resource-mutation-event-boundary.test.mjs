@@ -11,6 +11,7 @@ const generatedResultCardSource = [
 ].join('\n')
 const attachPanelSource = readSource('apps/frontend/src/shared/ui/ResourceCandidateAttachPanel.tsx')
 const resourcesPageSource = readSource('apps/frontend/src/features/resources/components/ResourcesPage.tsx')
+const resourcesPageControllerSource = readSource('apps/frontend/src/features/resources/components/useResourceLibraryController.ts')
 const appSettingsSource = [
   readSource('apps/frontend/src/features/settings/components/AppSettingsPage.tsx'),
   readSource('apps/frontend/src/features/settings/components/ExternalResourceSourceSettingsSection.tsx'),
@@ -39,13 +40,14 @@ test('resource candidate mutations publish standard domain invalidation results'
 
   assert.match(generatedResultCardSource, /invalidateResourceMutationResult\(queryClient, assetCandidateSelectedResult\(\{ projectId \}\)\)/)
   assert.match(attachPanelSource, /invalidateResourceMutationResult\(queryClient, assetCandidateSelectedResult\(\{ projectId \}\)\)/)
-  assert.match(resourcesPageSource, /resourceLibraryChangedResult/)
-  assert.match(resourcesPageSource, /resourceBindingChangedResult/)
+  assert.match(resourcesPageSource, /useResourceLibraryController/)
+  assert.match(resourcesPageControllerSource, /resourceLibraryChangedResult/)
+  assert.match(resourcesPageControllerSource, /resourceBindingChangedResult/)
   assert.match(appSettingsSource, /queryKey: externalResourceKeys\.sources/)
   assert.match(canvasIntegrationSource, /canvasResourceChangedResult/)
   assert.match(canvasRuntimeSource, /canvasResourceChangedResult/)
   assert.doesNotMatch(
-    generatedResultCardSource + attachPanelSource + resourcesPageSource + appSettingsSource + canvasIntegrationSource + canvasRuntimeSource,
+    generatedResultCardSource + attachPanelSource + resourcesPageSource + resourcesPageControllerSource + appSettingsSource + canvasIntegrationSource + canvasRuntimeSource,
     /invalidateResourceCandidateChangedQueries|invalidateAssetCandidateConsumers|invalidateResourceLibraryQueries|invalidateResourceBindingQueries|invalidateExternalResourceSources|invalidateCanvasResourceQueries|invalidateResourceCandidateTargetQueries/,
   )
 })

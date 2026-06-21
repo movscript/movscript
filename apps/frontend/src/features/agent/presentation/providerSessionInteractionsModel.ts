@@ -111,6 +111,12 @@ function providerSessionApprovalImpactI18nText(approval: ApprovalLike, t: TFunct
 
   const toolName = normalizeToolName(approval.toolName)
   switch (toolName) {
+    case 'generation_content_unit_image_generate':
+    case 'system_generate_content_unit_image':
+      return t('agents.chat.task.approvalImpact.contentUnitImageGenerationCreate', { defaultValue: 'Approving will compile the content-unit prompt, submit image generation, and write candidates after success. It may consume generation quota.' })
+    case 'generation_content_unit_video_generate':
+    case 'system_generate_content_unit_video':
+      return t('agents.chat.task.approvalImpact.contentUnitVideoGenerationCreate', { defaultValue: 'Approving will compile the content-unit prompt, submit video generation, and write candidates after success. It may consume generation quota.' })
     case 'generation_image_generate':
     case 'generation_video_generate':
     case 'generation_audio_generate':

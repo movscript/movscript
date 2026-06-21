@@ -3,7 +3,12 @@ import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
 import {
+  buildContentUnitGenerationOutputCandidate,
+  buildContentUnitGenerationPromptSnapshot,
+  buildContentUnitGenerationRequest,
   buildGenerationJobPayload,
+  compiledContentUnitGenerationPromptResourceIds,
+  compiledContentUnitGenerationPromptText,
   canvasDefaultParamValues,
   canvasGenerationParamDefs,
   canvasParamValue,
@@ -62,6 +67,56 @@ test('core generation job payload keeps non numeric duration in extra params', (
     input_resource_ids: [],
     feature_key: 'tool.video',
   })
+})
+
+test('core content-unit generation candidates preserve submitted model parameters', () => {
+  const promptSnapshot = buildContentUnitGenerationPromptSnapshot({
+    contentUnitId: 'cu_arrival',
+    outputKind: 'image',
+    modelId: 'image.model',
+    compiledPrompt: { text: 'Generate the arrival frame.' },
+    resourceIds: [11],
+    modelParams: { image_size: '1024x1024', quality: 'standard' },
+  })
+
+  const plan = buildContentUnitGenerationOutputCandidate({
+    contentUnitId: 'cu_arrival',
+    outputKind: 'image',
+    job: { ID: 94, status: 'succeeded', job_type: 'image_edit' },
+    resourceId: 880,
+    promptSnapshot,
+  })
+
+  assert.equal(promptSnapshot.model_id, 'image.model')
+  assert.deepEqual(promptSnapshot.model_params, { image_size: '1024x1024', quality: 'standard' })
+  assert.equal(plan.producer.model_id, 'image.model')
+  assert.equal(plan.producer.job_type, 'image_edit')
+  assert.deepEqual(plan.producer.model_params, { image_size: '1024x1024', quality: 'standard' })
+  assert.equal(plan.outputs[0].metadata.model_id, 'image.model')
+  assert.equal(plan.outputs[0].metadata.job_type, 'image_edit')
+  assert.deepEqual(plan.promptSnapshot.model_params, { image_size: '1024x1024', quality: 'standard' })
+})
+
+test('core content-unit generation normalizes resource mentions into structured inputs', () => {
+  const compiledPrompt = {
+    text: 'Use @[resource:7] and [[resource::8]] as references.',
+    negative_text: 'Do not drift from [[resource::9]].',
+    resource_ids: [7, 10],
+  }
+
+  assert.equal(compiledContentUnitGenerationPromptText(compiledPrompt), 'Use and as references.')
+  assert.deepEqual(compiledContentUnitGenerationPromptResourceIds(compiledPrompt), [7, 8, 9, 10])
+
+  const request = buildContentUnitGenerationRequest({
+    contentUnitId: 'cu_ref',
+    outputKind: 'video',
+    compiledPrompt,
+    modelId: 'video.model',
+  })
+
+  assert.equal(request.promptText, 'Use and as references.')
+  assert.deepEqual(request.inputResourceIds, [7, 8, 9, 10])
+  assert.equal(request.jobType, 'video_i2v')
 })
 
 test('core generation job decisions derive effective job type from model capabilities and inputs', () => {

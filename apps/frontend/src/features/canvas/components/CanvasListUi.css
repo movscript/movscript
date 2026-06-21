@@ -1,3 +1,6 @@
+@import "./CanvasListUi.item.css";
+@import "./CanvasListUi.create-dialog.css";
+
 .canvas-list {
   width: 100%;
   max-width: 1040px;
@@ -231,171 +234,6 @@
   min-width: 28px;
 }
 
-.canvas-list-item {
-  display: flex;
-  align-items: center;
-  gap: var(--ms-space-3);
-  border-color: color-mix(in srgb, var(--ms-color-border) 76%, transparent);
-  border-radius: var(--ms-radius-md);
-  padding: 12px 14px;
-  box-shadow: none;
-  transition:
-    border-color 0.16s var(--ms-easing-standard),
-    background-color 0.16s var(--ms-easing-standard);
-}
-
-.canvas-list-item:hover {
-  border-color: color-mix(in srgb, var(--ms-color-primary) 34%, var(--ms-color-border));
-  background: color-mix(in srgb, var(--ms-color-muted) 18%, transparent);
-}
-
-.canvas-list-item__icon,
-.canvas-list-item__type-icon {
-  display: inline-flex;
-  flex-shrink: 0;
-}
-
-.canvas-list-item__icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: var(--ms-radius-md);
-  background: color-mix(in srgb, var(--ms-color-muted) 22%, transparent);
-  color: var(--ms-color-muted-foreground);
-}
-
-.canvas-list-item__icon[data-canvas-type="inspiration"] {
-  color: var(--ms-color-warning, var(--ms-color-primary));
-}
-
-.canvas-list-item__icon[data-canvas-type="workflow"] {
-  color: var(--ms-color-primary);
-}
-
-.canvas-list-item__body {
-  min-width: 0;
-  flex: 1;
-}
-
-.canvas-list-item__name {
-  overflow: hidden;
-  margin: 0;
-  color: var(--ms-color-foreground);
-  font-size: var(--ms-text-body);
-  font-weight: 500;
-  line-height: var(--ms-leading-body);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.canvas-list-item__meta {
-  overflow: hidden;
-  margin: 2px 0 0;
-  color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-caption);
-  line-height: var(--ms-leading-caption);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.canvas-list-item__name-input {
-  height: 32px;
-  font-size: var(--ms-text-body);
-  line-height: var(--ms-leading-body);
-}
-
-.canvas-list-item__type {
-  flex-shrink: 0;
-  gap: var(--ms-space-1);
-  padding: 2px var(--ms-space-2);
-  font-size: var(--ms-text-caption);
-  font-weight: 500;
-  line-height: var(--ms-leading-caption);
-}
-
-.canvas-list-item__actions {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: var(--ms-space-2);
-}
-
-.canvas-list-item__action {
-  flex-shrink: 0;
-}
-
-.canvas-list-item__action[data-muted="true"] {
-  color: var(--ms-color-muted-foreground);
-}
-
-.canvas-list-create-dialog {
-  width: 480px;
-  max-width: 90vw;
-}
-
-.canvas-list-create-dialog__body {
-  display: grid;
-  gap: var(--ms-space-4);
-}
-
-.canvas-list-create-dialog__field {
-  min-width: 0;
-}
-
-.canvas-list-create-dialog__label {
-  margin-bottom: 6px;
-  color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-label);
-  font-weight: 500;
-  line-height: var(--ms-leading-label);
-}
-
-.canvas-list-create-dialog__type-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--ms-space-2);
-}
-
-.canvas-list-create-type {
-  align-items: flex-start;
-  height: auto;
-  text-align: left;
-}
-
-.canvas-list-create-type__label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: inherit;
-  font-size: var(--ms-text-label);
-  font-weight: 500;
-  line-height: var(--ms-leading-label);
-}
-
-.canvas-list-create-type__description {
-  display: block;
-  margin-top: var(--ms-space-1);
-  color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-caption);
-  line-height: var(--ms-leading-caption);
-}
-
-.canvas-list-create-type__description[data-selected="true"] {
-  color: color-mix(in srgb, var(--ms-color-background) 75%, transparent);
-}
-
-.canvas-list-create-dialog__actions {
-  display: flex;
-  gap: var(--ms-space-2);
-  padding-top: var(--ms-space-1);
-}
-
-.canvas-list-create-dialog__action[data-stretch="true"] {
-  flex: 1;
-}
-
 @media (min-width: 720px) {
   .canvas-list__toolbar {
     grid-template-columns: minmax(240px, 1fr) auto;
@@ -414,14 +252,11 @@
 }
 
 @media (max-width: 640px) {
-  .canvas-list__header,
-  .canvas-list-item,
-  .canvas-list-create-dialog__actions {
+  .canvas-list__header {
     align-items: stretch;
   }
 
-  .canvas-list__header,
-  .canvas-list-item {
+  .canvas-list__header {
     flex-direction: column;
   }
 
@@ -429,23 +264,8 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .canvas-list__create-button,
-  .canvas-list-item__actions,
-  .canvas-list-item__action {
+  .canvas-list__create-button {
     width: 100%;
-  }
-
-  .canvas-list-item__actions {
-    justify-content: stretch;
-  }
-
-  .canvas-list-item__actions .ms-button--icon,
-  .canvas-list-item__actions .ms-button--icon-sm {
-    width: 34px;
-  }
-
-  .canvas-list-item__type {
-    align-self: flex-start;
   }
 
   .canvas-list-pagination {

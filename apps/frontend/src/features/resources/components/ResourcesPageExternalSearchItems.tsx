@@ -3,6 +3,7 @@ import { Download, Image as ImageIcon, Video, X as XIcon } from 'lucide-react'
 import type { ExternalResourceItem } from '@/types'
 import { UrlImage, UrlMediaPreview } from '@/shared/ui/UrlMedia'
 import { ResourceTypeIcon } from '@/features/resources/components/ResourceTypeIcon'
+import { externalResourceKey } from '@/features/resources/application/externalResourceSearchModel'
 import {
   ResourceAssetCard,
   ResourceAssetSelectCheckbox,
@@ -21,9 +22,7 @@ import {
 } from '@/features/resources/components/ResourcePageUi'
 import { Dialog } from '@movscript/ui/primitives'
 
-export function externalResourceKey(item: ExternalResourceItem) {
-  return `${item.provider_key}-${item.media_type}-${item.external_id}`
-}
+export { externalResourceKey }
 
 export function ExternalResourceCard({
   item,

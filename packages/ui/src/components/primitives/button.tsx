@@ -34,6 +34,7 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   align?: "center" | "start" | "end";
   loading?: boolean;
   asChild?: boolean;
+  contentClassName?: string;
 }
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
@@ -50,6 +51,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       loading = false,
       disabled,
       asChild = false,
+      contentClassName,
       children,
       ...props
     },
@@ -61,7 +63,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const content = (
       <>
         {loading ? <span className="ms-button__spinner" aria-hidden="true" /> : null}
-        <span className="ms-button__content">{children}</span>
+        <span className={cn("ms-button__content", contentClassName)}>{children}</span>
       </>
     );
 

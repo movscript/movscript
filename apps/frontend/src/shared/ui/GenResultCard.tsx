@@ -1,5 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { splitResourceMentionParts } from '@movscript/workspace'
 import { Cpu, Paperclip, SlidersHorizontal } from 'lucide-react'
 import { MediaViewer } from './MediaViewer'
 import type { Job, RawResource } from '@/types'
@@ -37,13 +38,12 @@ function ResourceChip({ id }: { id: number }) {
 }
 
 export function PromptText({ text, className }: { text: string; className?: string }) {
-  const parts = text.split(/(@\[resource:\d+\])/g)
+  const parts = splitResourceMentionParts(text)
   return (
     <span className={className}>
-      {parts.map((part, i) => {
-        const m = part.match(/^@\[resource:(\d+)\]$/)
-        if (m) return <ResourceChip key={i} id={Number(m[1])} />
-        return <span key={i}>{part}</span>
+      {parts.map((part) => {
+        if (part.type === 'resource') return <ResourceChip key={part.key} id={part.resourceId} />
+        return <span key={part.key}>{part.text}</span>
       })}
     </span>
   )

@@ -8,14 +8,15 @@ import {
 
 test('parses prompt refs from all editable prompt text fields', () => {
   const refs = parseContentUnitEditPromptRefs({
-    text: 'Use {{asset:wet_hair}} for {{shot:phone}}.',
+    text: 'Use {{asset:wet_hair}} for {{candidate:candidate_a}} and {{resource:42}}.',
     negative_text: 'Avoid {{asset:dry_hair}}.',
     notes: 'Match {{storyboard:main}}.',
   })
 
   assert.deepEqual(refs.map((ref) => [ref.kind, ref.id, ref.source.field]), [
     ['asset', 'wet_hair', 'edit_prompt.text'],
-    ['shot', 'phone', 'edit_prompt.text'],
+    ['candidate', 'candidate_a', 'edit_prompt.text'],
+    ['resource', '42', 'edit_prompt.text'],
     ['asset', 'dry_hair', 'edit_prompt.negative_text'],
     ['storyboard', 'main', 'edit_prompt.notes'],
   ])
@@ -41,10 +42,11 @@ test('builds backend prompt by replacing selected upstream refs with resource to
       title: 'Wet hair',
       slot: 'hair',
     }),
-    document('productions/p1/scene_moments/phone/shots/phone/shot.json', {
-      schema: 'movscript.shot.v1',
-      kind: 'shot',
+    document('productions/p1/scene_moments/phone/expression_units/phone/expression_unit.json', {
+      schema: 'movscript.expression_unit.v1',
+      kind: 'expression_unit',
       id: 'phone',
+      expression_kind: 'shot',
       title: 'Phone close-up',
     }),
     document('content_units/cu_wet_hair_ref/content_unit.json', {
@@ -62,11 +64,11 @@ test('builds backend prompt by replacing selected upstream refs with resource to
       kind: 'content_unit',
       id: 'cu_phone_video',
       title: 'Phone video',
-      content_unit_type: 'shot_ref',
+      content_unit_type: 'expression_unit_ref',
       output_kind: 'video',
-      shot_ref: 'phone',
+      expression_unit_ref: 'phone',
       edit_prompt: {
-        text: 'Generate the phone shot using {{asset:wet_hair}} as continuity reference.',
+        text: 'Generate the phone expression using {{asset:wet_hair}} as continuity reference.',
         negative_text: 'Do not change {{asset:wet_hair}}.',
       },
     }),
@@ -92,11 +94,54 @@ test('builds backend prompt by replacing selected upstream refs with resource to
   })
 
   assert.equal(result.ok, true)
-  assert.equal(result.prompt.text, 'Generate the phone shot using [[resource::123]] as continuity reference.')
-  assert.equal(result.prompt.negative_text, 'Do not change [[resource::123]].')
+  assert.equal(result.prompt.text, 'Generate the phone expression using @[resource:123] as continuity reference.')
+  assert.equal(result.prompt.negative_text, 'Do not change @[resource:123].')
   assert.deepEqual(result.prompt.style_reference_resource_ids, [88, 99])
   assert.deepEqual(result.prompt.resource_ids, [123, 88, 99])
-  assert.deepEqual(result.prompt.replacements.map((replacement) => replacement.token), ['[[resource::123]]', '[[resource::123]]'])
+  assert.deepEqual(result.prompt.replacements.map((replacement) => replacement.token), ['@[resource:123]', '@[resource:123]'])
+})
+
+test('builds backend prompt from direct candidate and resource refs', async () => {
+  const index = indexFromDocuments([
+    document('productions/p1/scene_moments/phone/expression_units/phone/expression_unit.json', {
+      schema: 'movscript.expression_unit.v1',
+      kind: 'expression_unit',
+      id: 'phone',
+      expression_kind: 'shot',
+      title: 'Phone close-up',
+    }),
+    document('content_units/cu_phone_video/content_unit.json', {
+      schema: 'movscript.content_unit.v1',
+      kind: 'content_unit',
+      id: 'cu_phone_video',
+      title: 'Phone video',
+      content_unit_type: 'expression_unit_ref',
+      output_kind: 'video',
+      expression_unit_ref: 'phone',
+      edit_prompt: {
+        text: 'Use {{candidate:candidate_seed}} and {{resource:77}} as direct references.',
+      },
+    }),
+  ])
+
+  const result = await buildContentUnitBackendPromptById({
+    index,
+    contentUnitId: 'cu_phone_video',
+    decisionProvider: decisionProvider({
+      cu_phone_video: {
+        candidates: [{
+          id: 'candidate_seed',
+          outputs: [{ kind: 'video', resource_id: 55 }],
+        }],
+        selection: {},
+      },
+    }),
+  })
+
+  assert.equal(result.ok, true)
+  assert.equal(result.prompt.text, 'Use @[resource:55] and @[resource:77] as direct references.')
+  assert.deepEqual(result.prompt.resource_ids, [55, 77])
+  assert.deepEqual(result.prompt.refs.map((ref) => ref.kind), ['candidate', 'resource'])
 })
 
 test('resolves upstream content units from flat primary refs', async () => {
@@ -123,9 +168,9 @@ test('resolves upstream content units from flat primary refs', async () => {
       kind: 'content_unit',
       id: 'cu_phone_video',
       title: 'Phone video',
-      content_unit_type: 'shot_ref',
+      content_unit_type: 'expression_unit_ref',
       output_kind: 'video',
-      shot_ref: 'phone',
+      expression_unit_ref: 'phone',
       edit_prompt: { text: 'Use {{asset:wet_hair}} as continuity reference.' },
     }),
   ])
@@ -142,7 +187,7 @@ test('resolves upstream content units from flat primary refs', async () => {
   })
 
   assert.equal(result.ok, true)
-  assert.equal(result.prompt.text, 'Use [[resource::123]] as continuity reference.')
+  assert.equal(result.prompt.text, 'Use @[resource:123] as continuity reference.')
   assert.deepEqual(result.prompt.resource_ids, [123])
 })
 
@@ -200,7 +245,7 @@ test('resolves production and segment prompt refs from specialized video content
 
   assert.equal(result.ok, true)
   assert.equal(result.prompt.output_kind, 'video')
-  assert.equal(result.prompt.text, 'Use [[resource::701]] as the opening assembly.')
+  assert.equal(result.prompt.text, 'Use @[resource:701] as the opening assembly.')
   assert.deepEqual(result.prompt.resource_ids, [701])
   assert.equal(result.prompt.refs[0]?.kind, 'segment')
   assert.equal(result.prompt.refs[0]?.resolved?.entityKind, 'segment')
@@ -231,9 +276,9 @@ test('returns a blocker when an upstream ref has not been produced in backend de
       kind: 'content_unit',
       id: 'cu_phone_video',
       title: 'Phone video',
-      content_unit_type: 'shot_ref',
+      content_unit_type: 'expression_unit_ref',
       output_kind: 'video',
-      shot_ref: 'phone',
+      expression_unit_ref: 'phone',
       edit_prompt: { text: 'Use {{asset:wet_hair}}.' },
     }),
   ])
@@ -275,9 +320,9 @@ test('returns a blocker when backend selection exists without resource id', asyn
       kind: 'content_unit',
       id: 'cu_phone_video',
       title: 'Phone video',
-      content_unit_type: 'shot_ref',
+      content_unit_type: 'expression_unit_ref',
       output_kind: 'video',
-      shot_ref: 'phone',
+      expression_unit_ref: 'phone',
       edit_prompt: { text: 'Use {{asset:wet_hair}}.' },
     }),
   ])
@@ -321,9 +366,9 @@ test('returns a blocker when backend selection points to a missing candidate', a
       kind: 'content_unit',
       id: 'cu_phone_video',
       title: 'Phone video',
-      content_unit_type: 'shot_ref',
+      content_unit_type: 'expression_unit_ref',
       output_kind: 'video',
-      shot_ref: 'phone',
+      expression_unit_ref: 'phone',
       edit_prompt: { text: 'Use {{asset:wet_hair}}.' },
     }),
   ])
@@ -367,9 +412,9 @@ test('returns a blocker when a specialized content unit is missing its primary r
       kind: 'content_unit',
       id: 'cu_phone_video',
       title: 'Phone video',
-      content_unit_type: 'shot_ref',
+      content_unit_type: 'expression_unit_ref',
       output_kind: 'video',
-      edit_prompt: { text: 'Use {{asset:wet_hair}} without a shot primary ref.' },
+      edit_prompt: { text: 'Use {{asset:wet_hair}} without an expression unit primary ref.' },
     }),
   ])
 
@@ -386,7 +431,7 @@ test('returns a blocker when a specialized content unit is missing its primary r
 
   assert.equal(result.ok, false)
   assert.ok(result.blockers.some((blocker) => blocker.code === 'primary_ref_missing'))
-  assert.equal(result.prompt.text, 'Use [[resource::123]] without a shot primary ref.')
+  assert.equal(result.prompt.text, 'Use @[resource:123] without an expression unit primary ref.')
 })
 
 function indexFromDocuments(documents) {

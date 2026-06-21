@@ -16,6 +16,7 @@ type WorkspaceElectronAPI = Pick<
   | 'upsertMovScriptEngineWorkspaceAsset'
   | 'upsertMovScriptEngineWorkspaceScript'
   | 'readMovScriptEngineWorkspaceScriptSource'
+  | 'readMovScriptEngineContentUnitGenerationPrompt'
   | 'deleteMovScriptEngineWorkspaceEntity'
   | 'saveMovScriptEngineWorkspaceProductionSnapshot'
   | 'upsertMovScriptEngineWorkspaceProjectStandards'
@@ -131,6 +132,7 @@ function createElectronMovScriptEngineWorkspaceService(
     | 'upsertMovScriptEngineWorkspaceAsset'
     | 'upsertMovScriptEngineWorkspaceScript'
     | 'readMovScriptEngineWorkspaceScriptSource'
+    | 'readMovScriptEngineContentUnitGenerationPrompt'
     | 'deleteMovScriptEngineWorkspaceEntity'
     | 'saveMovScriptEngineWorkspaceProductionSnapshot'
     | 'upsertMovScriptEngineWorkspaceProjectStandards'
@@ -164,6 +166,9 @@ function createElectronMovScriptEngineWorkspaceService(
     async readScriptSource(payload) {
       return api.readMovScriptEngineWorkspaceScriptSource({ ...context, payload })
     },
+    async readContentUnitGenerationPrompt(contentUnitId) {
+      return api.readMovScriptEngineContentUnitGenerationPrompt({ ...context, contentUnitId })
+    },
 	    async deleteEntity(payload) {
 	      return api.deleteMovScriptEngineWorkspaceEntity({ ...mutationContext(context, payload), payload })
 	    },
@@ -178,7 +183,7 @@ function createElectronMovScriptEngineWorkspaceService(
 	    },
 	    async updateContentUnitEditPrompt(payload) {
 	      return api.updateMovScriptEngineContentUnitEditPrompt({
-	        ...mutationContext(context, payload, payload.targetPath),
+	        ...mutationContext(context, payload),
 	        ...payload,
 	      })
 	    },
@@ -288,6 +293,7 @@ function hasEngineWorkspaceAPI(value: WorkspaceElectronAPI): value is Required<P
   | 'upsertMovScriptEngineWorkspaceAsset'
   | 'upsertMovScriptEngineWorkspaceScript'
   | 'readMovScriptEngineWorkspaceScriptSource'
+  | 'readMovScriptEngineContentUnitGenerationPrompt'
   | 'deleteMovScriptEngineWorkspaceEntity'
   | 'saveMovScriptEngineWorkspaceProductionSnapshot'
   | 'upsertMovScriptEngineWorkspaceProjectStandards'
@@ -306,6 +312,7 @@ function hasEngineWorkspaceAPI(value: WorkspaceElectronAPI): value is Required<P
     && value.upsertMovScriptEngineWorkspaceAsset
     && value.upsertMovScriptEngineWorkspaceScript
     && value.readMovScriptEngineWorkspaceScriptSource
+    && value.readMovScriptEngineContentUnitGenerationPrompt
     && value.deleteMovScriptEngineWorkspaceEntity
     && value.saveMovScriptEngineWorkspaceProductionSnapshot
     && value.upsertMovScriptEngineWorkspaceProjectStandards

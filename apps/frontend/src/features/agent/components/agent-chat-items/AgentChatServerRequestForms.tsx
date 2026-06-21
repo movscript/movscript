@@ -40,21 +40,21 @@ export function AgentChatMovScriptDecisionForm({
     { decision: 'defer', label: '待定', description: '保留候选，但不解除下游阻塞。' },
   ]
   return (
-    <div className="ms-agent-chat-request-form" data-testid="agent-chat-movscript-decision-form">
-      <div className="ms-agent-chat-request-field">
-        <div className="ms-agent-chat-request-label">{stringField(params.title) ?? '候选产物决策'}</div>
-        <div className="ms-agent-chat-request-help">{question}</div>
-        <div className="ms-agent-chat-request-options">
+    <div className="agent-chat-request-form" data-testid="agent-chat-movscript-decision-form">
+      <div className="agent-chat-request-field">
+        <div className="agent-chat-request-label">{stringField(params.title) ?? '候选产物决策'}</div>
+        <div className="agent-chat-request-help">{question}</div>
+        <div className="agent-chat-request-options">
           {choices.map((choice) => (
             <button
               key={choice.decision}
               type="button"
-              className="ms-agent-chat-request-option"
+              className="agent-chat-request-option"
               onClick={() => onAnswer(agentChatMovScriptDecisionResponse(request, choice.decision))}
             >
               <span>
-                <span className="ms-agent-chat-request-option-label">{choice.label}</span>
-                <span className="ms-agent-chat-request-option-description">{choice.description}</span>
+                <span className="agent-chat-request-option-label">{choice.label}</span>
+                <span className="agent-chat-request-option-description">{choice.description}</span>
               </span>
             </button>
           ))}
@@ -83,101 +83,101 @@ export function AgentChatServerRequestToolResultForm({
   const [resourceUrl, setResourceUrl] = useState('')
   const [resourceMimeType, setResourceMimeType] = useState('')
   return (
-    <div className="ms-agent-chat-request-form" data-testid="agent-chat-server-request-tool-result-form">
-      <label className="ms-agent-chat-request-check">
+    <div className="agent-chat-request-form" data-testid="agent-chat-server-request-tool-result-form">
+      <label className="agent-chat-request-check">
         <input type="checkbox" checked={success} onChange={(event) => setSuccess(event.target.checked)} />
         <span>Tool call succeeded</span>
       </label>
-      <div className="ms-agent-chat-request-field">
-        <div className="ms-agent-chat-request-label">Text output</div>
+      <div className="agent-chat-request-field">
+        <div className="agent-chat-request-label">Text output</div>
         <textarea
-          className="ms-agent-chat-request-textarea"
+          className="agent-chat-request-textarea"
           value={text}
           onChange={(event) => setText(event.target.value)}
         />
       </div>
-      <div className="ms-agent-chat-request-field">
-        <div className="ms-agent-chat-request-label">Image URL</div>
+      <div className="agent-chat-request-field">
+        <div className="agent-chat-request-label">Image URL</div>
         <input
-          className="ms-agent-chat-request-input"
+          className="agent-chat-request-input"
           type="url"
           value={imageUrl}
           onChange={(event) => setImageUrl(event.target.value)}
         />
       </div>
-      <div className="ms-agent-chat-request-field">
-        <div className="ms-agent-chat-request-label">Audio URL</div>
+      <div className="agent-chat-request-field">
+        <div className="agent-chat-request-label">Audio URL</div>
         <input
-          className="ms-agent-chat-request-input"
+          className="agent-chat-request-input"
           type="url"
           value={audioUrl}
           onChange={(event) => setAudioUrl(event.target.value)}
         />
       </div>
-      <div className="ms-agent-chat-request-field">
-        <div className="ms-agent-chat-request-label">Audio MIME type</div>
+      <div className="agent-chat-request-field">
+        <div className="agent-chat-request-label">Audio MIME type</div>
         <input
-          className="ms-agent-chat-request-input"
+          className="agent-chat-request-input"
           type="text"
           value={audioMimeType}
           onChange={(event) => setAudioMimeType(event.target.value)}
         />
       </div>
-      <div className="ms-agent-chat-request-field">
-        <div className="ms-agent-chat-request-label">Video URL</div>
+      <div className="agent-chat-request-field">
+        <div className="agent-chat-request-label">Video URL</div>
         <input
-          className="ms-agent-chat-request-input"
+          className="agent-chat-request-input"
           type="url"
           value={videoUrl}
           onChange={(event) => setVideoUrl(event.target.value)}
         />
       </div>
-      <div className="ms-agent-chat-request-field">
-        <div className="ms-agent-chat-request-label">Video MIME type</div>
+      <div className="agent-chat-request-field">
+        <div className="agent-chat-request-label">Video MIME type</div>
         <input
-          className="ms-agent-chat-request-input"
+          className="agent-chat-request-input"
           type="text"
           value={videoMimeType}
           onChange={(event) => setVideoMimeType(event.target.value)}
         />
       </div>
-      <div className="ms-agent-chat-request-field">
-        <div className="ms-agent-chat-request-label">Resource name</div>
+      <div className="agent-chat-request-field">
+        <div className="agent-chat-request-label">Resource name</div>
         <input
-          className="ms-agent-chat-request-input"
+          className="agent-chat-request-input"
           type="text"
           value={resourceName}
           onChange={(event) => setResourceName(event.target.value)}
         />
       </div>
-      <div className="ms-agent-chat-request-field">
-        <div className="ms-agent-chat-request-label">Resource URI</div>
+      <div className="agent-chat-request-field">
+        <div className="agent-chat-request-label">Resource URI</div>
         <input
-          className="ms-agent-chat-request-input"
+          className="agent-chat-request-input"
           type="text"
           value={resourceUri}
           onChange={(event) => setResourceUri(event.target.value)}
         />
       </div>
-      <div className="ms-agent-chat-request-field">
-        <div className="ms-agent-chat-request-label">Resource URL</div>
+      <div className="agent-chat-request-field">
+        <div className="agent-chat-request-label">Resource URL</div>
         <input
-          className="ms-agent-chat-request-input"
+          className="agent-chat-request-input"
           type="url"
           value={resourceUrl}
           onChange={(event) => setResourceUrl(event.target.value)}
         />
       </div>
-      <div className="ms-agent-chat-request-field">
-        <div className="ms-agent-chat-request-label">Resource MIME type</div>
+      <div className="agent-chat-request-field">
+        <div className="agent-chat-request-label">Resource MIME type</div>
         <input
-          className="ms-agent-chat-request-input"
+          className="agent-chat-request-input"
           type="text"
           value={resourceMimeType}
           onChange={(event) => setResourceMimeType(event.target.value)}
         />
       </div>
-      <div className="ms-agent-chat-request-footer">
+      <div className="agent-chat-request-footer">
         <Button
           type="button"
           size="sm"
@@ -205,15 +205,15 @@ export function AgentChatServerRequestElicitationForm({
   const canSubmit = model.fields.every((field) => agentChatElicitationFieldValueIsValid(field, values[field.name]))
 
   return (
-    <div className="ms-agent-chat-request-form" data-testid="agent-chat-server-request-elicitation-form">
-      {model.message ? <div className="ms-agent-chat-request-help">{model.message}</div> : null}
+    <div className="agent-chat-request-form" data-testid="agent-chat-server-request-elicitation-form">
+      {model.message ? <div className="agent-chat-request-help">{model.message}</div> : null}
       {model.fields.map((field) => (
-        <div key={field.name} className="ms-agent-chat-request-field">
-          <div className="ms-agent-chat-request-label">
+        <div key={field.name} className="agent-chat-request-field">
+          <div className="agent-chat-request-label">
             {field.title || field.name}
-            {field.required ? <span className="ms-agent-chat-request-required">*</span> : null}
+            {field.required ? <span className="agent-chat-request-required">*</span> : null}
           </div>
-          {field.description ? <div className="ms-agent-chat-request-description">{field.description}</div> : null}
+          {field.description ? <div className="agent-chat-request-description">{field.description}</div> : null}
           <ElicitationFieldControl
             field={field}
             value={values[field.name]}
@@ -221,7 +221,7 @@ export function AgentChatServerRequestElicitationForm({
           />
         </div>
       ))}
-      <div className="ms-agent-chat-request-footer">
+      <div className="agent-chat-request-footer">
         <Button
           type="button"
           size="sm"
@@ -250,7 +250,7 @@ function ElicitationFieldControl({
 }) {
   if (field.kind === 'boolean') {
     return (
-      <label className="ms-agent-chat-request-check">
+      <label className="agent-chat-request-check">
         <input type="checkbox" checked={value === true} onChange={(event) => onChange(event.target.checked)} />
         <span>{field.title || field.name}</span>
       </label>
@@ -258,9 +258,9 @@ function ElicitationFieldControl({
   }
   if (field.kind === 'single-select') {
     return (
-      <div className="ms-agent-chat-request-options">
+      <div className="agent-chat-request-options">
         {field.options.map((option) => (
-          <label key={`${field.name}:${option.value}`} className="ms-agent-chat-request-option">
+          <label key={`${field.name}:${option.value}`} className="agent-chat-request-option">
             <input
               type="radio"
               name={`${field.name}:elicitation`}
@@ -278,9 +278,9 @@ function ElicitationFieldControl({
     const selected = Array.isArray(value) ? value : []
     const maxSelected = typeof field.maxItems === 'number' && selected.length >= field.maxItems
     return (
-      <div className="ms-agent-chat-request-options">
+      <div className="agent-chat-request-options">
         {field.options.map((option) => (
-          <label key={`${field.name}:${option.value}`} className="ms-agent-chat-request-option">
+          <label key={`${field.name}:${option.value}`} className="agent-chat-request-option">
             <input
               type="checkbox"
               value={option.value}
@@ -301,7 +301,7 @@ function ElicitationFieldControl({
   }
   return (
     <input
-      className="ms-agent-chat-request-input"
+      className="agent-chat-request-input"
       type={agentChatElicitationInputType(field)}
       value={typeof value === 'string' || typeof value === 'number' ? String(value) : ''}
       min={typeof field.minimum === 'number' ? field.minimum : undefined}
@@ -326,16 +326,16 @@ export function AgentChatServerRequestAnswerForm({
   const canSubmit = agentChatInputRequestFormCanSubmit(model, answers, text)
 
   return (
-    <div className="ms-agent-chat-request-form" data-testid="agent-chat-server-request-answer-form">
+    <div className="agent-chat-request-form" data-testid="agent-chat-server-request-answer-form">
       {model.kind === 'question-form' ? (
         model.questions.map((question) => (
-          <div key={question.id} className="ms-agent-chat-request-field">
-            <div className="ms-agent-chat-request-label">{question.header || question.question}</div>
-            {question.header && question.question ? <div className="ms-agent-chat-request-help">{question.question}</div> : null}
+          <div key={question.id} className="agent-chat-request-field">
+            <div className="agent-chat-request-label">{question.header || question.question}</div>
+            {question.header && question.question ? <div className="agent-chat-request-help">{question.question}</div> : null}
             {question.options.length > 0 ? (
-              <div className="ms-agent-chat-request-options">
+              <div className="agent-chat-request-options">
                 {question.options.map((option) => (
-                  <label key={`${question.id}:${option.value}`} className="ms-agent-chat-request-option">
+                  <label key={`${question.id}:${option.value}`} className="agent-chat-request-option">
                     <input
                       type="checkbox"
                       name={`${request.id}:${question.id}`}
@@ -347,15 +347,15 @@ export function AgentChatServerRequestAnswerForm({
                       }))}
                     />
                     <span>
-                      <span className="ms-agent-chat-request-option-label">{option.label}</span>
-                      {option.description ? <span className="ms-agent-chat-request-option-description">{option.description}</span> : null}
+                      <span className="agent-chat-request-option-label">{option.label}</span>
+                      {option.description ? <span className="agent-chat-request-option-description">{option.description}</span> : null}
                     </span>
                   </label>
                 ))}
               </div>
             ) : (
               <input
-                className="ms-agent-chat-request-input"
+                className="agent-chat-request-input"
                 type={question.isSecret ? 'password' : 'text'}
                 value={agentChatInputAnswerText(answers[question.id])}
                 onChange={(event) => setAnswers((current) => ({ ...current, [question.id]: event.target.value }))}
@@ -364,13 +364,13 @@ export function AgentChatServerRequestAnswerForm({
           </div>
         ))
       ) : (
-        <div className="ms-agent-chat-request-field">
-          <div className="ms-agent-chat-request-label">{model.title}</div>
-          {model.question ? <div className="ms-agent-chat-request-help">{model.question}</div> : null}
+        <div className="agent-chat-request-field">
+          <div className="agent-chat-request-label">{model.title}</div>
+          {model.question ? <div className="agent-chat-request-help">{model.question}</div> : null}
           {model.choices.length > 0 ? (
-            <div className="ms-agent-chat-request-options">
+            <div className="agent-chat-request-options">
               {model.choices.map((choice) => (
-                <label key={choice.id} className="ms-agent-chat-request-option">
+                <label key={choice.id} className="agent-chat-request-option">
                   <input
                     type="radio"
                     name={`${request.id}:choice`}
@@ -379,8 +379,8 @@ export function AgentChatServerRequestAnswerForm({
                     onChange={() => setAnswers({ [model.id]: choice.id })}
                   />
                   <span>
-                    <span className="ms-agent-chat-request-option-label">{choice.label}</span>
-                    {choice.description ? <span className="ms-agent-chat-request-option-description">{choice.description}</span> : null}
+                    <span className="agent-chat-request-option-label">{choice.label}</span>
+                    {choice.description ? <span className="agent-chat-request-option-description">{choice.description}</span> : null}
                   </span>
                 </label>
               ))}
@@ -388,14 +388,14 @@ export function AgentChatServerRequestAnswerForm({
           ) : null}
           {(model.inputType === 'text' || model.allowCustomAnswer) ? (
             <textarea
-              className="ms-agent-chat-request-textarea"
+              className="agent-chat-request-textarea"
               value={text}
               onChange={(event) => setText(event.target.value)}
             />
           ) : null}
         </div>
       )}
-      <div className="ms-agent-chat-request-footer">
+      <div className="agent-chat-request-footer">
         <Button
           type="button"
           size="sm"

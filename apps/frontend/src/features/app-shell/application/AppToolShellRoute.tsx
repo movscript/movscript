@@ -1,13 +1,12 @@
 import React from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Home, PanelLeftClose, PanelLeftOpen, Terminal } from 'lucide-react'
-import { WorkspaceShell, useResizablePanel, AppRouteViewport } from '@movscript/ui/layout'
+import { WorkspaceShell, AppRouteViewport } from '@movscript/ui/layout'
 import { AppWindowIconButton } from '@movscript/ui/business/app'
 import { Header } from '@/features/app-shell/components/Header'
 import { Sidebar, clampSidebarWidth } from '@/features/app-shell/components/Sidebar'
 import { OrgGuard, RouteErrorBoundary, RouteSuspense } from '@/features/app-shell/application/AppRouteBoundaries'
 import {
-  AgentTerminalPanel,
   AudioGenPage,
   MotionImitationPage,
   MultiAnglePage,
@@ -16,6 +15,10 @@ import {
   RefVideoGenPage,
   StyleTransferPage,
 } from '@/features/app-shell/application/appRouteComponents'
+import {
+  AppShellTerminalDock,
+  clampTerminalDockHeight,
+} from '@/features/app-shell/application/AppShellTerminalDock'
 import { toolRouteHeaderTitle, useRememberSettingsReturnPath } from '@/features/app-shell/application/appShellRouteHeaders'
 import { GlobalNavigationEffects } from '@/features/app-shell/application/GlobalNavigationEffects'
 import { useRouteLayoutPaneController } from '@/features/app-shell/application/useRouteLayoutPaneController'
@@ -26,16 +29,10 @@ import { getAppRouteLayoutSpec } from '@/routes/appRouteModel'
 import { ROUTES } from '@/routes/projectRoutes'
 import {
   APP_SHELL_TERMINAL_DOCK_DEFAULT_HEIGHT,
-  APP_SHELL_TERMINAL_DOCK_MAX_HEIGHT,
-  APP_SHELL_TERMINAL_DOCK_MIN_HEIGHT,
   APP_SHELL_TERMINAL_DOCK_PANE_ID,
   APP_SHELL_TOOL_SIDEBAR_PANE_ID,
   appRouteViewportScrollForMode,
 } from '@/routes/routeLayoutRegistry'
-
-function clampTerminalDockHeight(size: number): number {
-  return Math.min(APP_SHELL_TERMINAL_DOCK_MAX_HEIGHT, Math.max(APP_SHELL_TERMINAL_DOCK_MIN_HEIGHT, size))
-}
 
 export function ToolShellRoute() {
   const navigate = useNavigate()
@@ -73,16 +70,6 @@ export function ToolShellRoute() {
       userId: userId || undefined,
     }
   }, [currentProject?.ID, userId])
-  const terminalResize = useResizablePanel({
-    size: terminalPane.size,
-    onSizeChange: terminalPane.setSize,
-    minSize: APP_SHELL_TERMINAL_DOCK_MIN_HEIGHT,
-    maxSize: APP_SHELL_TERMINAL_DOCK_MAX_HEIGHT,
-    resizeEdge: 'top',
-    collapsed: !terminalOpen,
-    ariaLabel: '调整 Terminal 高度',
-  })
-  const { active: terminalResizeActive, ...terminalResizeHandleProps } = terminalResize.resizeHandleProps
   const terminalHeaderControl = (
     <AppWindowIconButton
       type="button"
@@ -96,33 +83,17 @@ export function ToolShellRoute() {
     </AppWindowIconButton>
   )
   const terminalPanel = (
-    <div
-      className="app-shell-terminal-panel-frame"
-      data-resizing={terminalResize.resizing ? 'true' : undefined}
-      style={{
-        height: terminalPane.size,
-        minHeight: APP_SHELL_TERMINAL_DOCK_MIN_HEIGHT,
-        maxHeight: APP_SHELL_TERMINAL_DOCK_MAX_HEIGHT,
-        flexBasis: terminalPane.size,
+    <AppShellTerminalDock
+      open={terminalOpen}
+      paneSize={terminalPane.size}
+      placement="center"
+      workspaceContext={terminalWorkspaceContext}
+      onPaneSizeChange={terminalPane.setSize}
+      onOpenChange={(open) => {
+        if (open) terminalPane.show()
+        else terminalPane.hide()
       }}
-    >
-      <div
-        className="app-shell-terminal-resize-handle"
-        data-active={terminalResizeActive ? 'true' : undefined}
-        {...terminalResizeHandleProps}
-      />
-      <React.Suspense fallback={null}>
-        <AgentTerminalPanel
-          open={terminalOpen}
-          onOpenChange={(open) => {
-            if (open) terminalPane.show()
-            else terminalPane.hide()
-          }}
-          shellPlacement="center"
-          workspaceContext={terminalWorkspaceContext}
-        />
-      </React.Suspense>
-    </div>
+    />
   )
   const showToolSidebar = React.useCallback(() => {
     toolSidebarPane.show()

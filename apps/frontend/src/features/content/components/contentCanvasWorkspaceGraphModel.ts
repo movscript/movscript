@@ -1,4 +1,4 @@
-import { Box, Building2, CircleDot, FileImage, Film, Image, KeyRound, Palette, Rows3, ScrollText, Shirt, SquareStack, Star, TextCursorInput, UserRound, Video, WandSparkles, type LucideIcon } from 'lucide-react'
+import { Box, Building2, CircleDot, FileImage, Film, Image, KeyRound, Palette, Rows3, ScrollText, Shirt, SquareStack, Star, TextCursorInput, UserRound, WandSparkles, type LucideIcon } from 'lucide-react'
 import type { ContentCanvasNodePosition } from '../application/contentCanvasViewState'
 import type { ContentCanvasEdge, ContentCanvasGraph, ContentCanvasNode, ContentCanvasNodeKind } from '../domain/contentCanvasTypes'
 import { CANVAS_WORLD_HEIGHT, CANVAS_WORLD_WIDTH, SCENE_RELATION_RADIUS_X, SCENE_RELATION_RADIUS_Y, type InspectorSelection, type InspectorSelectionRef, type RadialNode, type SceneSettingGroup } from './contentCanvasWorkspaceTypes'
@@ -18,9 +18,10 @@ export function selectedSelectionId(selection: InspectorSelection) {
   if (selection.kind === 'setting') return selection.setting.id
   if (
     selection.kind === 'create_expression_unit'
+    || selection.kind === 'create_keyframe'
+    || selection.kind === 'create_storyboard'
     || selection.kind === 'create_state'
     || selection.kind === 'create_asset'
-    || selection.kind === 'create_keyframe'
   ) return selection.parent.id
   return selection.node.id
 }
@@ -135,12 +136,6 @@ export function radialNodesAround(
   const direct = graphIndex.connectedByNodeId.get(main.id) ?? []
   const expanded = direct.flatMap((node) => {
     if (allowed.has(node.kind)) return [node]
-    if (main.kind === 'scene_moment' && node.kind === 'shot') {
-      return [
-        node,
-        ...(graphIndex.connectedByNodeId.get(node.id) ?? []).filter((child) => allowed.has(child.kind)),
-      ]
-    }
     if (main.kind === 'setting' && node.kind === 'state') {
       return [
         node,
@@ -267,7 +262,7 @@ function sceneScopedNodeIds(
   scene: ContentCanvasNode,
   graphIndex: ReturnType<typeof contentCanvasGraphIndex>,
 ) {
-  const scopedKinds = new Set<ContentCanvasNodeKind>(['scene_moment', 'expression_unit', 'shot', 'storyboard', 'keyframe', 'content_unit', 'audio_cue'])
+  const scopedKinds = new Set<ContentCanvasNodeKind>(['scene_moment', 'expression_unit', 'storyboard', 'keyframe', 'content_unit', 'audio_cue'])
   const scoped = new Set<string>([scene.id])
   const queue = [scene.id]
   while (queue.length) {
@@ -288,13 +283,10 @@ function sceneScopedNodeIds(
 }
 
 function isSceneScopedRelation(relation: ContentCanvasEdge['relation']) {
-  return relation === 'expression_unit_shot'
+  return relation === 'expression_unit_content_unit'
     || relation === 'expression_unit_storyboard'
-    || relation === 'expression_unit_content_unit'
-    || relation === 'content_unit_shot'
     || relation === 'content_unit_keyframe'
     || relation === 'content_unit_storyboard'
-    || relation === 'audio_cue_shot'
     || relation === 'audio_cue_storyboard'
 }
 
@@ -326,7 +318,6 @@ export function radialVariantForKind(kind: ContentCanvasNodeKind): RadialNode['v
   if (kind === 'state') return 'state'
   if (kind === 'asset') return 'asset'
   if (kind === 'expression_unit') return 'expression'
-  if (kind === 'shot') return 'shot'
   if (kind === 'keyframe') return 'keyframe'
   if (kind === 'storyboard') return 'storyboard'
   return undefined
@@ -338,7 +329,6 @@ export function iconForContentNode(node: Pick<ContentCanvasNode, 'kind' | 'subti
   if (node.kind === 'segment') return Rows3
   if (node.kind === 'state') return CircleDot
   if (node.kind === 'asset') return Image
-  if (node.kind === 'shot') return Video
   if (node.kind === 'storyboard') return FileImage
   if (node.kind === 'keyframe') return KeyRound
   if (node.kind === 'expression_unit') return SquareStack

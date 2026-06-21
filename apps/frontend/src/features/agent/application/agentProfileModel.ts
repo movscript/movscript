@@ -7,6 +7,7 @@ import {
   type ProviderKind,
   type ProviderMessageAdapterKind,
   type ProviderProtocol,
+  type ProviderRuntimeProfile,
   type ProviderRuntimeApi,
   type ProviderSettings,
 } from '@/shared/infrastructure/providerConfigStore'
@@ -148,6 +149,20 @@ export function fallbackAgentProfileRoute(settings: ProviderSettings): string {
 export function providerSupportsAgentProfile(provider: ProviderConfig | undefined): provider is ProviderConfig {
   if (!provider) return false
   return providerRuntimeTransportSupportsAgentProfile(runtimeBackendProfileFromProvider(provider).transport)
+}
+
+export function isClaudeAgentProfile(profile: Pick<AgentProfile, 'providerProfile'>): boolean {
+  return profile.providerProfile.kind === 'claude'
+}
+
+export function agentRuntimeProbeParamsForProfile(profile: AgentProfile): {
+  provider: ProviderConfig
+  runtime: ProviderRuntimeProfile
+} {
+  return {
+    provider: profile.provider,
+    runtime: providerRuntimeProfile(profile.provider),
+  }
 }
 
 export function providerProfileFromProvider(provider: ProviderConfig): AgentProviderProfile {

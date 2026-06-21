@@ -20,7 +20,6 @@ export type HierarchyNodeType =
   | 'segment'
   | 'scene_moment'
   | 'group'
-  | 'shot'
   | 'expression_unit'
   | 'audio_cue'
   | 'storyboard'
@@ -36,6 +35,12 @@ export interface PreviewCandidate {
   resourceId?: number
   resourceKind?: string
   artifactRef?: string
+  status?: string
+  source?: string
+  producer?: Record<string, unknown>
+  outputs?: unknown[]
+  promptSnapshot?: Record<string, unknown>
+  createdAt?: string
 }
 
 export interface PreviewAssetCandidate extends PreviewCandidate {
@@ -45,10 +50,10 @@ export interface PreviewAssetCandidate extends PreviewCandidate {
 export interface PreviewAssetDownstream {
   id: string
   title: string
-  kind: 'keyframe' | 'storyboard' | 'shot' | 'content_unit'
+  kind: 'keyframe' | 'storyboard' | 'expression_unit' | 'content_unit'
   ownerNodeId: string
   momentId: string
-  shotId: string
+  expressionUnitId: string
   dependencyHash: string
   state: SelectionState
   action: string
@@ -58,7 +63,7 @@ export interface PreviewAssetDownstream {
 export interface PreviewAssetUpstream {
   id: string
   title: string
-  kind: 'setting' | 'state' | 'asset' | 'shot' | 'content_unit'
+  kind: 'setting' | 'state' | 'asset' | 'expression_unit' | 'content_unit'
   ownerNodeId: string
   state: RefStatus | SelectionState
   summary: string
@@ -83,12 +88,12 @@ export interface PreviewAssetReferenceUnit {
 
 export interface PreviewContentUnit {
   id: string
-  type: 'storyboard_ref' | 'keyframe_ref' | 'scence_moment_ref' | 'scene_moment_ref' | 'shot_video'
+  type: 'storyboard_ref' | 'keyframe_ref' | 'scence_moment_ref' | 'scene_moment_ref' | 'expression_unit_ref'
   outputKind: 'image' | 'video' | 'storyboard'
   path: string
   editPrompt: string
   sceneMomentRef: string
-  shotId: string
+  expressionUnitRef: string
   storyboardRef: string
   keyframeRefs: string[]
   acceptedInputHash?: string
@@ -96,9 +101,10 @@ export interface PreviewContentUnit {
   candidates: PreviewCandidate[]
 }
 
-export interface PreviewShot {
+export interface PreviewExpressionUnit {
   id: string
   title: string
+  kind: string
   camera: string
   duration: string
   expression: string
@@ -119,7 +125,7 @@ export interface PreviewMoment {
   production: string
   segment: string
   settings: string[]
-  shots: PreviewShot[]
+  expressionUnits: PreviewExpressionUnit[]
 }
 
 export interface EditableRef {
@@ -132,7 +138,7 @@ export interface EditableRef {
   downstream: string[]
 }
 
-export interface ShotChildOption {
+export interface ExpressionUnitChildOption {
   id: string
   title: string
   status: ChildStatus
@@ -141,7 +147,7 @@ export interface ShotChildOption {
   contentUnit?: PreviewContentUnit
 }
 
-export interface ShotImpact {
+export interface ExpressionUnitImpact {
   source: string
   kind: 'setting' | 'asset' | 'keyframe' | 'storyboard'
   change: string
@@ -165,10 +171,10 @@ export interface SettingScopeDependency {
   id: string
   title: string
   sourceTitle: string
-  kind: PreviewAssetDownstream['kind'] | ShotImpact['kind'] | 'ref'
+  kind: PreviewAssetDownstream['kind'] | ExpressionUnitImpact['kind'] | 'ref'
   ownerNodeId?: string
   momentId?: string
-  shotId?: string
+  expressionUnitId?: string
   state: SelectionState | RefStatus | ChildStatus
   dependencyHash?: string
   preview: string
@@ -181,12 +187,12 @@ export interface SettingScopeDetails {
   dependencies: SettingScopeDependency[]
 }
 
-export interface ShotWorkspaceDetails {
+export interface ExpressionUnitWorkspaceDetails {
   settings: EditableRef[]
   assets: EditableRef[]
-  keyframes: ShotChildOption[]
-  storyboards: ShotChildOption[]
-  impacts: ShotImpact[]
+  keyframes: ExpressionUnitChildOption[]
+  storyboards: ExpressionUnitChildOption[]
+  impacts: ExpressionUnitImpact[]
 }
 
 export interface HierarchyNode {
@@ -195,7 +201,7 @@ export interface HierarchyNode {
   title: string
   path: string
   state?: SelectionState | RefStatus | ChildStatus
-  shotId?: string
+  expressionUnitId?: string
   momentId?: string
   transition?: HierarchyTransition
   storyboardTimeline?: StoryboardTimeline
@@ -232,7 +238,7 @@ export interface AudioCue {
   path: string
   cueKind: string
   promptHint: string
-  shotRef?: string
+  expressionUnitRef?: string
   storyboardRef?: string
   timing: Record<string, unknown>
   assetRefs: string[]

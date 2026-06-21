@@ -12,7 +12,10 @@ import { AGENT_MODE_CONVERSATION_FOCUS_SCOPE, projectConversationFocusScope } fr
 test('agent session store delegates conversation and task state transitions', () => {
   const storeSource = readFileSync(resolve('src/features/agent/state/agentSessionStore.ts'), 'utf8')
   const conversationStateSource = readFileSync(resolve('src/features/agent/state/agentSessionConversationState.ts'), 'utf8')
+  const taskActionsSource = readFileSync(resolve('src/features/agent/state/agentSessionTaskActions.ts'), 'utf8')
   const taskStateSource = readFileSync(resolve('src/features/agent/state/agentSessionTaskState.ts'), 'utf8')
+
+  assert.match(storeSource, /createAgentSessionTaskActions\(set, get\)/)
 
   for (const helperName of [
     'createProviderSessionConversationState',
@@ -31,8 +34,9 @@ test('agent session store delegates conversation and task state transitions', ()
     'updateAgentPageTaskFromProviderSession',
     'settleAgentStandaloneTask',
   ]) {
-    assert.match(storeSource, new RegExp(`\\b${helperName}\\b`))
+    assert.match(taskActionsSource, new RegExp(`\\b${helperName}\\b`))
     assert.match(taskStateSource, new RegExp(`export function ${helperName}\\b`))
+    assert.doesNotMatch(storeSource, new RegExp(`\\b${helperName}\\b`))
   }
 
   assert.doesNotMatch(storeSource, /Object\.entries\(state\.pageTasks\)\.filter/)

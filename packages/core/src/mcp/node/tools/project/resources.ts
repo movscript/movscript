@@ -28,7 +28,7 @@ export function listProjectResources(): MCPResource[] {
       resource(`movscript://project/${id}/episodes`, 'Episodes'),
       resource(`movscript://project/${id}/scenes`, 'Scenes'),
       resource(`movscript://project/${id}/storyboards`, 'Storyboards'),
-      resource(`movscript://project/${id}/shots`, 'Shots'),
+      resource(`movscript://project/${id}/content-units`, 'Content units'),
     )
   }
 
@@ -96,7 +96,6 @@ function projectResourceEntityKind(kind: string): SemanticEntityKind {
       return 'segment'
     case 'storyboards':
       return 'storyboard'
-    case 'shots':
     case 'content-units':
       return 'content_unit'
     case 'settings':

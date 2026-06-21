@@ -7,7 +7,14 @@ import type {
   ElectronMediaPipelineEditingProject,
 } from '@/shared/contracts/electronApiMedia'
 
-import { copyTimelineClip, deleteClipCommand, detachClipAudioCommand, pasteTimelineClipCommand } from './editingCommands'
+import {
+  copyTimelineClip,
+  deleteClipCommand,
+  detachClipAudioCommand,
+  pasteTimelineClipCommand,
+  toggleTimelineTrackLockedCommand,
+  toggleTimelineTrackMutedCommand,
+} from './editingCommands'
 
 test('pasteTimelineClipCommand duplicates a copied clip at the requested timeline position', () => {
   const asset = videoAsset()
@@ -81,6 +88,26 @@ test('detachClipAudioCommand does not duplicate an already detached audio clip',
     : undefined
 
   assert.equal(duplicateResult, undefined)
+})
+
+test('toggleTimelineTrackLockedCommand toggles only the requested track lock state', () => {
+  const asset = videoAsset()
+  const project = projectFixture(asset, clip('clip_source', asset, 0, 1000))
+
+  const result = toggleTimelineTrackLockedCommand(project, 'track_video_0')
+
+  assert.equal(result.timeline.tracks[0].locked, true)
+  assert.equal(project.timeline.tracks[0].locked, undefined)
+})
+
+test('toggleTimelineTrackMutedCommand toggles only the requested track mute state', () => {
+  const asset = videoAsset()
+  const project = projectFixture(asset, clip('clip_source', asset, 0, 1000))
+
+  const result = toggleTimelineTrackMutedCommand(project, 'track_video_0')
+
+  assert.equal(result.timeline.tracks[0].muted, true)
+  assert.equal(project.timeline.tracks[0].muted, undefined)
 })
 
 function videoAsset(): ElectronMediaPipelineAssetDescriptor {

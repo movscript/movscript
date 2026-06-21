@@ -178,7 +178,7 @@ function businessImpactLabel(businessKind: MovScriptProductionImpactSemanticChan
     reference_changed: 'Reference changed',
     selection_changed: 'Selection changed',
     sequence_reordered: 'Sequence reordered',
-    shot_changed: 'Shot changed',
+    expression_unit_changed: 'Expression unit changed',
     storyboard_changed: 'Storyboard changed',
     keyframe_changed: 'Keyframe changed',
     content_unit_changed: 'Content unit changed',

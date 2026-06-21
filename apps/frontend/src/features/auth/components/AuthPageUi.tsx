@@ -14,6 +14,10 @@ export function AuthPanel({ className, ...props }: HTMLAttributes<HTMLDivElement
   return <div className={cn('auth-panel', className)} {...props} />
 }
 
+export function AuthBrandMark({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn('auth-brand-mark', className)} {...props} />
+}
+
 export function AuthTitle({ className, ...props }: HTMLAttributes<HTMLHeadingElement>) {
   return <h1 className={cn('auth-title', className)} {...props} />
 }
@@ -137,6 +141,14 @@ export function AuthFooterText({ className, ...props }: HTMLAttributes<HTMLParag
 
 export function AuthRegisterPrompt({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
   return <p className={cn('auth-register-prompt', className)} {...props} />
+}
+
+export function AuthWorkModeRoot({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn('auth-work-mode-root', className)} {...props} />
+}
+
+export function AuthWorkModePanel({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn('auth-work-mode-panel', className)} {...props} />
 }
 
 export function AuthInlineMeta({ className, ...props }: ComponentProps<typeof AppInlineMeta>) {

@@ -87,6 +87,60 @@ test('selectLatestGeneratedResource reads agent-owned provider generation output
   })
 })
 
+test('selectLatestGeneratedResource reads content-unit generation candidate monitor resources', () => {
+  const run = runWithToolResults([
+    {
+      toolName: 'generation_content_unit_image_generate',
+      result: { data: { status: 'submitted', jobId: 101, contentUnitId: 12 } },
+    },
+    {
+      toolName: 'generation_content_unit_image_job_get',
+      result: {
+        data: {
+          status: 'succeeded',
+          job_id: 101,
+          content_unit_id: 12,
+          output_resource_ids: [202],
+          candidate_created: true,
+        },
+      },
+    },
+  ])
+
+  assert.deepEqual(selectLatestGeneratedResource(run), {
+    jobId: 101,
+    outputResourceId: 202,
+    outputResourceIds: [202],
+  })
+})
+
+test('selectLatestGeneratedResource reads system content-unit generation alias resources', () => {
+  const run = runWithToolResults([
+    {
+      toolName: 'system_generate_content_unit_video',
+      result: { data: { status: 'submitted', jobId: 301, contentUnitId: 22 } },
+    },
+    {
+      toolName: 'system_generate_content_unit_video_job_get',
+      result: {
+        data: {
+          status: 'succeeded',
+          jobId: 301,
+          contentUnitId: 22,
+          outputResourceIds: [402, 403],
+          candidatesCreated: true,
+        },
+      },
+    },
+  ])
+
+  assert.deepEqual(selectLatestGeneratedResource(run), {
+    jobId: 301,
+    outputResourceId: 402,
+    outputResourceIds: [402, 403],
+  })
+})
+
 test('selectLatestGeneratedResource uses the latest generation result', () => {
   const run = runWithResults([
     { output_resource_id: 201, job: { ID: 101 } },

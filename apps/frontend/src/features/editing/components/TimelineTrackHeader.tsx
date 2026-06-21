@@ -21,6 +21,7 @@ import {
   trackDisplayName,
 } from '../domain/tracks'
 import type { TimelineTrack } from '../domain/types'
+import './TimelineTrackHeader.css'
 
 type TimelineTrackHeaderProps = {
   activeProject: ElectronMediaPipelineEditingProject | null

@@ -66,6 +66,7 @@ export {
   movScriptWorkspaceAssetPath,
   upsertMovScriptWorkspaceAsset,
   upsertMovScriptWorkspaceSetting,
+  upsertMovScriptWorkspaceSettingState,
   type MovScriptWorkspaceEntityDeleteInput,
   type MovScriptWorkspaceEntityWriteInput,
   type MovScriptWorkspaceEntityWriteResult,

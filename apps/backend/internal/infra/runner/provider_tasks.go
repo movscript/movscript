@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	appcontentcandidate "github.com/movscript/movscript/internal/app/contentcandidate"
 	"github.com/movscript/movscript/internal/infra/ai"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"log"
@@ -142,6 +143,9 @@ func (w *Worker) markProviderTaskFailed(job *persistencemodel.Job, resp ai.Video
 	if job.UsageReservationID != nil {
 		_ = w.aiService.ReleaseReservation(context.Background(), *job.UsageReservationID, msg)
 	}
+	if err := appcontentcandidate.SyncJobFailed(context.Background(), w.db, job, StatusFailed); err != nil {
+		log.Printf("[job] job #%d failed but content candidate sync failed: %v", job.ID, err)
+	}
 	w.publishGenerationJobStatus(job, msg)
 	log.Printf("[job] job #%d provider task %s failed: %s", job.ID, job.ProviderTaskID, msg)
 }
@@ -161,6 +165,9 @@ func (w *Worker) markProviderTaskCancelled(job *persistencemodel.Job, resp ai.Vi
 	})
 	if job.UsageReservationID != nil {
 		_ = w.aiService.ReleaseReservation(context.Background(), *job.UsageReservationID, msg)
+	}
+	if err := appcontentcandidate.SyncJobFailed(context.Background(), w.db, job, StatusCancelled); err != nil {
+		log.Printf("[job] job #%d cancelled but content candidate sync failed: %v", job.ID, err)
 	}
 	w.publishGenerationJobStatus(job, msg)
 	log.Printf("[job] job #%d provider task %s cancelled: %s", job.ID, job.ProviderTaskID, msg)
@@ -243,6 +250,9 @@ func (w *Worker) completeVideoSuccess(ctx context.Context, job *persistencemodel
 		sm.cancel("job cancelled")
 		return errJobCancelled
 	}
+	if err := appcontentcandidate.SyncJobSucceeded(ctx, w.db, job, resourceID); err != nil {
+		log.Printf("[job] job #%d succeeded but content candidate sync failed: %v", job.ID, err)
+	}
 	sm.succeed("job marked succeeded")
 	sm.finish(StateSucceeded, fmt.Sprintf("resource #%d", resourceID))
 	w.publishGenerationJobStatus(job, fmt.Sprintf("resource #%d", resourceID))
@@ -293,6 +303,9 @@ func (w *Worker) completeProviderResult(ctx context.Context, job *persistencemod
 		sm.cancel("job cancelled")
 		return errJobCancelled
 	}
+	if err := appcontentcandidate.SyncJobSucceeded(ctx, w.db, job, resourceID); err != nil {
+		log.Printf("[job] job #%d succeeded but content candidate sync failed: %v", job.ID, err)
+	}
 	sm.succeed("job marked succeeded")
 	sm.finish(StateSucceeded, fmt.Sprintf("resource #%d", resourceID))
 	w.publishGenerationJobStatus(job, fmt.Sprintf("resource #%d", resourceID))
@@ -332,6 +345,9 @@ func (w *Worker) completeProviderBytes(ctx context.Context, job *persistencemode
 	if dbResult.RowsAffected == 0 && w.isJobCancelled(job.ID) {
 		sm.cancel("job cancelled")
 		return errJobCancelled
+	}
+	if err := appcontentcandidate.SyncJobSucceeded(ctx, w.db, job, resourceID); err != nil {
+		log.Printf("[job] job #%d succeeded but content candidate sync failed: %v", job.ID, err)
 	}
 	sm.succeed("job marked succeeded")
 	sm.finish(StateSucceeded, fmt.Sprintf("resource #%d", resourceID))

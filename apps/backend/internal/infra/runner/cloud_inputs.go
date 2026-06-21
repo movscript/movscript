@@ -37,13 +37,13 @@ func (w *Worker) prepareImageInputReferences(job *persistencemodel.Job, mediaLis
 	}
 }
 
-// prepareVideoInputReferences uploads reference videos (and any additional reference
-// images) to the configured public object relay so Volcen/Kling-style video APIs
+// prepareVideoInputReferences uploads reference videos, audio, and any additional
+// reference images to the configured public object relay so Volcen/Kling-style video APIs
 // that only accept URLs can reach them. The Seedance contents/generations/tasks
 // endpoint rejects base64 for video_url entirely, so this must succeed for any
 // v2v or multimodal-reference call against Volcen.
-func (w *Worker) prepareVideoInputReferences(job *persistencemodel.Job, imageData, videoData []ai.MediaData) {
-	if len(imageData) == 0 && len(videoData) == 0 {
+func (w *Worker) prepareVideoInputReferences(job *persistencemodel.Job, imageData, videoData, audioData []ai.MediaData) {
+	if len(imageData) == 0 && len(videoData) == 0 && len(audioData) == 0 {
 		return
 	}
 	switch w.modelAdapterTypeForJob(job) {
@@ -56,6 +56,9 @@ func (w *Worker) prepareVideoInputReferences(job *persistencemodel.Job, imageDat
 	}
 	if len(videoData) > 0 {
 		w.preparePublicMediaReferences(job, videoData)
+	}
+	if len(audioData) > 0 {
+		w.preparePublicMediaReferences(job, audioData)
 	}
 }
 

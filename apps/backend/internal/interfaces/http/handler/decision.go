@@ -6,23 +6,29 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	appcontentcandidate "github.com/movscript/movscript/internal/app/contentcandidate"
 	appdecision "github.com/movscript/movscript/internal/app/decision"
 	"gorm.io/gorm"
 )
 
 type DecisionHandler struct {
+	db      *gorm.DB
 	service *appdecision.Service
 }
 
 func NewDecisionHandler(db *gorm.DB) *DecisionHandler {
-	return &DecisionHandler{service: appdecision.NewService(db)}
+	return &DecisionHandler{db: db, service: appdecision.NewService(db)}
 }
 
 func (h *DecisionHandler) Get(c *gin.Context) {
+	projectID := parseID(c.Param("id"))
+	targetKind := c.Query("target_kind")
+	targetRef := c.Query("target_ref")
+	h.reconcileContentUnitCandidates(c, projectID, targetKind, []string{targetRef})
 	result, err := h.service.Get(c.Request.Context(), appdecision.TargetInput{
-		ProjectID:  parseID(c.Param("id")),
-		TargetKind: c.Query("target_kind"),
-		TargetRef:  c.Query("target_ref"),
+		ProjectID:  projectID,
+		TargetKind: targetKind,
+		TargetRef:  targetRef,
 	})
 	if err != nil {
 		h.writeDecisionError(c, err)
@@ -40,8 +46,10 @@ func (h *DecisionHandler) Query(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	projectID := parseID(c.Param("id"))
+	h.reconcileContentUnitCandidates(c, projectID, body.TargetKind, body.TargetRefs)
 	result, err := h.service.Query(c.Request.Context(), appdecision.QueryTargetsInput{
-		ProjectID:  parseID(c.Param("id")),
+		ProjectID:  projectID,
 		TargetKind: body.TargetKind,
 		TargetRefs: body.TargetRefs,
 	})
@@ -158,6 +166,13 @@ func (h *DecisionHandler) ClearSelection(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, result)
+}
+
+func (h *DecisionHandler) reconcileContentUnitCandidates(c *gin.Context, projectID uint, targetKind string, targetRefs []string) {
+	if targetKind != appcontentcandidate.TargetKindContentUnit {
+		return
+	}
+	_ = appcontentcandidate.ReconcileDecisionCandidates(c.Request.Context(), h.db, projectID, targetRefs)
 }
 
 func (h *DecisionHandler) writeDecisionError(c *gin.Context, err error) {

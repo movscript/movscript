@@ -156,6 +156,7 @@ test('core canvas runtime derives prompt and resource inputs from node data and 
 
   assert.equal(runtimePromptForNode(node, inputs), 'use @[resource:55] then @[resource:42]\n\nrough workspace')
   assert.deepEqual(resourceIdsFromCanvasPrompt(node.data.prompt), [55, 42])
+  assert.deepEqual(resourceIdsFromCanvasPrompt('legacy [[resource::55]] then @[resource:42]'), [55, 42])
   assert.deepEqual(inputResourceIdsFromValues(inputs), [42, 77])
   assert.deepEqual(runtimeResourceIdsForNode(node, inputs), [55, 42, 99, 77])
 })

@@ -12,7 +12,7 @@ const contentCandidateStatuses = ['queued', 'running', 'succeeded', 'failed', 'c
 
 const entityQuery = {
   ...workspaceLocator,
-  entityKind: { type: 'string', description: 'Optional semantic entity kind, for example setting, production, scene_moment, content_unit, or keyframe.' },
+  entityKind: { type: 'string', description: 'Optional semantic entity kind, for example setting, production, scene_moment, expression_unit, content_unit, storyboard, or keyframe.' },
   entity_kind: { type: 'string', description: 'Alias for entityKind.' },
   kind: { type: 'string' },
   query: { type: 'string' },
@@ -23,8 +23,8 @@ const entityQuery = {
   segment_id: { type: ['string', 'number'] },
   sceneMomentId: { type: ['string', 'number'] },
   scene_moment_id: { type: ['string', 'number'] },
-  shotId: { type: ['string', 'number'] },
-  shot_id: { type: ['string', 'number'] },
+  expressionUnitId: { type: ['string', 'number'] },
+  expression_unit_id: { type: ['string', 'number'] },
   storyboardId: { type: ['string', 'number'] },
   storyboard_id: { type: ['string', 'number'] },
   contentUnitId: { type: ['string', 'number'] },
@@ -51,7 +51,7 @@ export function domainTools(): MCPTool[] {
       inputSchema: projectSchema(
         {
           ...workspaceLocator,
-          entityKind: { type: 'string', description: 'Domain entity kind, for example setting, asset, production, storyboard, content_unit, or keyframe.' },
+          entityKind: { type: 'string', description: 'Domain entity kind, for example setting, asset, production, expression_unit, storyboard, content_unit, or keyframe.' },
           entity_kind: { type: 'string', description: 'Alias for entityKind.' },
           entityId: { type: ['string', 'number'], description: 'Optional entity id used to expand editable path hints.' },
           entity_id: { type: ['string', 'number'], description: 'Alias for entityId.' },
@@ -66,7 +66,7 @@ export function domainTools(): MCPTool[] {
     },
     {
       name: 'domain_query_settings',
-      description: 'Query MovScript setting domain entities such as characters, locations, props, world rules, and styles.',
+      description: 'Query MovScript setting entities: concrete film/music production entities to be made or reused, such as characters, props, places, instruments, costumes, or voice identities.',
       inputSchema: projectSchema({
         ...workspaceLocator,
         settingId: { type: ['string', 'number'] },
@@ -79,7 +79,7 @@ export function domainTools(): MCPTool[] {
     },
     {
       name: 'domain_query_assets',
-      description: 'Query MovScript setting-owned and setting-state-owned asset slots. Content-unit candidates are queried through domain candidate/decision APIs.',
+      description: 'Query MovScript setting-state-owned asset slots such as front view, side view, turnaround sheet, material reference, voice timbre, or instrument tone. Content-unit candidates are queried through domain candidate/decision APIs.',
       inputSchema: projectSchema({
         ...workspaceLocator,
         assetId: { type: ['string', 'number'] },
@@ -117,13 +117,18 @@ export function domainTools(): MCPTool[] {
       inputSchema: projectSchema(workspaceLocator),
     },
     {
+      name: 'domain_read_project_context_snapshot',
+      description: 'Read and compile project-wide standards into the stable project context snapshot agents should consult before planning, content work, or generation. This is read-only; use domain_upsert_project_standards only when the user explicitly asks to add, remove, or change standards.',
+      inputSchema: projectSchema(workspaceLocator),
+    },
+    {
       name: 'domain_derive_content_unit_artifact',
       description: 'Derive the interpreter artifact bundle for a content unit, including runtime panel, generation prompt, dependency report, and selection validity. Use before generation or candidate selection when content-unit context may be stale.',
       inputSchema: projectSchema({ ...workspaceLocator, contentUnitId: { type: ['string', 'number'] }, content_unit_id: { type: ['string', 'number'] } }),
     },
     {
       name: 'domain_build_content_unit_backend_prompt',
-      description: 'Build a backend-ready prompt for a content unit by resolving prompt refs through backend decision selections. Rewrites selected upstream resources like {{asset:id}} to [[resource::id]] and returns blockers when referenced content has not been produced or selected.',
+      description: 'Build a backend-ready prompt for a content unit by resolving prompt refs through backend decision selections. Rewrites selected upstream resources like {{asset:id}} to @[resource:id] and returns blockers when referenced content has not been produced or selected.',
       inputSchema: projectSchema({ ...workspaceLocator, contentUnitId: { type: ['string', 'number'] }, content_unit_id: { type: ['string', 'number'] } }),
     },
     {
@@ -224,12 +229,12 @@ export function domainTools(): MCPTool[] {
     },
     {
       name: 'domain_upsert_setting',
-      description: 'Create or update a MovScript setting source entity. Put the setting data to write in required payload; record/entity are optional existing-context objects only. Prefer this API over direct file edits for setting records.',
+      description: 'Create or update a MovScript setting source entity. A setting must be a concrete film/music production entity to make or reuse, not an abstract style/rule. Put the setting data to write in required payload; record/entity are optional existing-context objects only. Prefer this API over direct file edits for setting records.',
       inputSchema: projectSchema({ ...workspaceLocator, payload: { type: 'object', additionalProperties: true }, record: { type: 'object', additionalProperties: true }, entity: { type: 'object', additionalProperties: true } }, ['payload']),
     },
     {
       name: 'domain_upsert_asset',
-      description: 'Create or update a MovScript asset slot source entity under a setting or setting state. Put the asset data to write in required payload; record/entity are optional existing-context objects only. Store RawResource references by resource_id, not binaries or external URLs.',
+      description: 'Create or update a MovScript asset slot source entity under a setting state. Assets describe one state asset such as front view, side view, turnaround sheet, material reference, voice timbre, or instrument tone; image assets should prefer plain white or very clean backgrounds. Put the asset data to write in required payload; record/entity are optional existing-context objects only. Store RawResource references by resource_id, not binaries or external URLs.',
       inputSchema: projectSchema({ ...workspaceLocator, payload: { type: 'object', additionalProperties: true }, record: { type: 'object', additionalProperties: true }, entity: { type: 'object', additionalProperties: true } }, ['payload']),
     },
     {
@@ -254,7 +259,7 @@ export function domainTools(): MCPTool[] {
     },
     {
       name: 'domain_upsert_production',
-      description: 'Create or update a production source record under productions/. Use this before adding segment, scene_moment, shot, keyframe, or storyboard planning structure.',
+      description: 'Create or update a production source record under productions/. Use this before adding segment, scene_moment, expression_unit, keyframe, or storyboard planning structure.',
       inputSchema: projectSchema({ ...workspaceLocator, productionId: { type: ['string', 'number'] }, production_id: { type: ['string', 'number'] }, production: { type: 'object', additionalProperties: true }, payload: { type: 'object', additionalProperties: true }, record: { type: 'object', additionalProperties: true } }),
     },
     {
@@ -268,18 +273,13 @@ export function domainTools(): MCPTool[] {
       inputSchema: projectSchema({ ...workspaceLocator, productionId: { type: ['string', 'number'] }, production_id: { type: ['string', 'number'] }, segmentId: { type: ['string', 'number'] }, segment_id: { type: ['string', 'number'] }, sceneMomentId: { type: ['string', 'number'] }, scene_moment_id: { type: ['string', 'number'] }, sceneMoment: { type: 'object', additionalProperties: true }, scene_moment: { type: 'object', additionalProperties: true }, payload: { type: 'object', additionalProperties: true }, segment: { type: 'object', additionalProperties: true }, production: { type: 'object', additionalProperties: true } }),
     },
     {
-      name: 'domain_upsert_shot',
-      description: 'Legacy/auxiliary: create or update a shot source record inside a scene_moment. Prefer expression_unit with modality=visual for new planning; shots are retained only as optional visual material structure.',
-      inputSchema: projectSchema({ ...workspaceLocator, productionId: { type: ['string', 'number'] }, production_id: { type: ['string', 'number'] }, segmentId: { type: ['string', 'number'] }, segment_id: { type: ['string', 'number'] }, sceneMomentId: { type: ['string', 'number'] }, scene_moment_id: { type: ['string', 'number'] }, shotId: { type: ['string', 'number'] }, shot_id: { type: ['string', 'number'] }, shot: { type: 'object', additionalProperties: true }, payload: { type: 'object', additionalProperties: true }, sceneMoment: { type: 'object', additionalProperties: true }, scene_moment: { type: 'object', additionalProperties: true }, segment: { type: 'object', additionalProperties: true }, production: { type: 'object', additionalProperties: true } }),
-    },
-    {
       name: 'domain_upsert_keyframe',
-      description: 'Create or update a keyframe source entity under a shot. Keyframes are shot-owned visual anchors referenced by keyframe_ref or storyboard_ref content units.',
-      inputSchema: projectSchema({ ...workspaceLocator, productionId: { type: ['string', 'number'] }, production_id: { type: ['string', 'number'] }, segmentId: { type: ['string', 'number'] }, segment_id: { type: ['string', 'number'] }, sceneMomentId: { type: ['string', 'number'] }, scene_moment_id: { type: ['string', 'number'] }, shotId: { type: ['string', 'number'] }, shot_id: { type: ['string', 'number'] }, keyframeId: { type: ['string', 'number'] }, keyframe_id: { type: ['string', 'number'] }, keyframe: { type: 'object', additionalProperties: true }, payload: { type: 'object', additionalProperties: true }, shot: { type: 'object', additionalProperties: true }, sceneMoment: { type: 'object', additionalProperties: true }, scene_moment: { type: 'object', additionalProperties: true }, segment: { type: 'object', additionalProperties: true }, production: { type: 'object', additionalProperties: true } }),
+      description: 'Create or update a keyframe source entity under an expression_unit(kind=shot) or directly under a scene_moment. Keyframes are visual anchors referenced by keyframe_ref content units.',
+      inputSchema: projectSchema({ ...workspaceLocator, productionId: { type: ['string', 'number'] }, production_id: { type: ['string', 'number'] }, segmentId: { type: ['string', 'number'] }, segment_id: { type: ['string', 'number'] }, sceneMomentId: { type: ['string', 'number'] }, scene_moment_id: { type: ['string', 'number'] }, expressionUnitId: { type: ['string', 'number'] }, expression_unit_id: { type: ['string', 'number'] }, keyframeId: { type: ['string', 'number'] }, keyframe_id: { type: ['string', 'number'] }, keyframe: { type: 'object', additionalProperties: true }, payload: { type: 'object', additionalProperties: true }, expressionUnit: { type: 'object', additionalProperties: true }, expression_unit: { type: 'object', additionalProperties: true }, sceneMoment: { type: 'object', additionalProperties: true }, scene_moment: { type: 'object', additionalProperties: true }, segment: { type: 'object', additionalProperties: true }, production: { type: 'object', additionalProperties: true } }),
     },
     {
       name: 'domain_upsert_storyboard',
-      description: 'Create or update a storyboard source record under production/segment/scene_moment/shot. Use this when an agent turns shot-group entries into editable MovScript storyboards before creating candidates.',
+      description: 'Create or update a storyboard source record under an expression_unit(kind=shot) or directly under a scene_moment. Use expression units for shot semantics; this tool does not create standalone shot nodes.',
       inputSchema: projectSchema({
         ...workspaceLocator,
         productionId: { type: ['string', 'number'] },
@@ -288,8 +288,8 @@ export function domainTools(): MCPTool[] {
         segment_id: { type: ['string', 'number'] },
         sceneMomentId: { type: ['string', 'number'] },
         scene_moment_id: { type: ['string', 'number'] },
-        shotId: { type: ['string', 'number'] },
-        shot_id: { type: ['string', 'number'] },
+        expressionUnitId: { type: ['string', 'number'] },
+        expression_unit_id: { type: ['string', 'number'] },
         sceneMomentTitle: { type: 'string' },
         scene_moment_title: { type: 'string' },
         segmentTitle: { type: 'string' },
@@ -298,6 +298,8 @@ export function domainTools(): MCPTool[] {
         storyboard_id: { type: ['string', 'number'] },
         storyboard: { type: 'object', additionalProperties: true },
         payload: { type: 'object', additionalProperties: true },
+        expressionUnit: { type: 'object', additionalProperties: true },
+        expression_unit: { type: 'object', additionalProperties: true },
         production: { type: 'object', additionalProperties: true },
       }),
     },
@@ -308,7 +310,7 @@ export function domainTools(): MCPTool[] {
     },
     {
       name: 'domain_upsert_expression_unit',
-      description: 'Create or update an expression_unit source entity under a scene_moment. Expression units are the preferred orthogonal expression layer: modality says visual/verbal/audio/text, role says dramatic function, content carries semantics, and content units generate candidate media from them.',
+      description: 'Create or update an expression_unit source entity under a scene_moment. Use kind=shot for makeable shot expression units; storyboard/keyframe records may live under that expression unit or directly under the scene moment.',
       inputSchema: projectSchema({ ...workspaceLocator, productionId: { type: ['string', 'number'] }, production_id: { type: ['string', 'number'] }, segmentId: { type: ['string', 'number'] }, segment_id: { type: ['string', 'number'] }, sceneMomentId: { type: ['string', 'number'] }, scene_moment_id: { type: ['string', 'number'] }, expressionUnitId: { type: ['string', 'number'] }, expression_unit_id: { type: ['string', 'number'] }, expressionUnit: { type: 'object', additionalProperties: true }, expression_unit: { type: 'object', additionalProperties: true }, payload: { type: 'object', additionalProperties: true }, sceneMoment: { type: 'object', additionalProperties: true }, scene_moment: { type: 'object', additionalProperties: true }, segment: { type: 'object', additionalProperties: true }, production: { type: 'object', additionalProperties: true } }),
     },
     {

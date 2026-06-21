@@ -18,6 +18,8 @@ export type EditingMediaAPI = Pick<
   | 'openFile'
   | 'revealFileInFolder'
   | 'saveMediaEditingProject'
+  | 'listMediaEditingProjects'
+  | 'deleteMediaEditingProject'
   | 'getMediaEditingProject'
   | 'createMediaPipelineTask'
   | 'getMediaPipelineTask'

@@ -19,7 +19,7 @@ Before writing entities, decide what is actually being produced:
 
 1. Decide whether the request is one output, one `shot`, one `scene_moment`, multiple scene moments, segments, or productions.
 2. Choose the working center. Use `shot` when camera framing, blocking, motion, timing, or a single video clip is the main deliverable. Use `scene_moment` when the deliverable is a complete narrative beat that may contain one or more shots.
-3. Decide whether the working center needs evidence for consistency. Use `setting`, `setting_state`, and `asset` for reusable facts or references; `keyframe` and `storyboard` for shot visual anchors; `expression_unit` and `audio_cue` for performance, text, voice, sound, or ambience.
+3. Decide whether the working center needs evidence for consistency. Use `setting`, `setting_state`, and `asset` for concrete reusable production entities, state namespaces, and state asset references; `keyframe` and `storyboard` for shot visual anchors; `expression_unit` and `audio_cue` for performance, text, voice, sound, or ambience.
 4. If consistency requirements are low, do not force setting, asset, keyframe, or storyboard prerequisites. Create the focused `scence_moment_ref` or `shot_ref` content unit and generate a draft.
 5. After writing the content unit, derive or read its artifact bundle, dependency report, runtime panel, and selection validity before generation.
 
@@ -60,14 +60,14 @@ For continuity:
 4. Use `asset_ref` content units to generate/select reusable references.
 5. Require adoption/selection before using the asset reference in keyframes, storyboards, or video.
 
-Asset reference images should usually be clean, low-background or neutral-background, multi-view, and weakly tied to scene plot. Put story lighting, action, composition, and one-off scene details in `keyframe` or `storyboard`, not in `asset`.
+Asset reference images should usually use plain white or very clean backgrounds, multi-view/reference-sheet views when useful, and be weakly tied to scene plot. Put story lighting, action, composition, and one-off scene details in `keyframe` or `storyboard`, not in `asset`.
 
-When a character, location, prop, style, or state will be reused, or when the user is unhappy with its look, use the continuity path before downstream generation. Do not keep retrying final shots or videos while the reusable visual identity is still unresolved.
+When a concrete production entity or state, such as a character, prop, place, instrument, costume, voice identity, or visual/sound variant, will be reused, or when the user is unhappy with its look or sound, use the continuity path before downstream generation. Do not keep retrying final shots, audio, or videos while the reusable identity is still unresolved.
 
 Build reusable assets from simple to complex:
 
 1. Stabilize the base identity, silhouette, shape, material, or location layout.
-2. Generate a neutral multi-view or reference-sheet candidate when it helps future consistency.
+2. Generate a white-background/clean-background multi-view or reference-sheet candidate when it helps future consistency.
 3. Generate state or variant assets such as costume, makeup, wet hair, damaged prop, weather state, or lighting-neutral environment state.
 4. Use the selected simpler asset candidate as a reference for the next more specific asset candidate.
 5. Move story lighting, action, camera composition, and final-shot mood into keyframes or storyboards after the asset is stable.

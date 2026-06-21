@@ -34,6 +34,7 @@ const releaseCommands = new Map([
 ])
 const isWindows = process.platform === 'win32'
 const pnpmCommand = 'pnpm'
+const signingModes = new Set(['signed', 'unsigned'])
 const prepareDesktopSteps = [
   ['Build workspace packages', pnpmCommand, ['--workspace-concurrency=1', '--filter', './packages/*', 'build']],
   ['Build movcli', pnpmCommand, ['--filter', '@movscript/cli', 'build']],
@@ -52,20 +53,25 @@ const releaseAssetExtensions = new Set([
   '.movpkg',
 ])
 
-export function releaseWorkflowSteps(mode) {
+export function releaseWorkflowSteps(mode, args = []) {
   if (mode === 'check') {
     return [
       ['Verify release readiness', 'node', ['scripts/release/release-workflow.mjs', 'verify-release-readiness']],
+      ['Run workspace typecheck', pnpmCommand, ['run', 'typecheck']],
+      ['Run workspace tests', pnpmCommand, ['run', 'test']],
+      ['Run script and release tests', pnpmCommand, ['run', 'test:scripts']],
+      ['Run UI package quality gate', pnpmCommand, ['run', 'quality:ui']],
+      ['Run frontend quality gate', pnpmCommand, ['run', 'quality:frontend']],
       ['Verify package resource contract', 'node', ['scripts/release/release-workflow.mjs', 'verify-package-resources']],
-      ['Audit desktop ffmpeg matrix', 'node', ['scripts/release/release-workflow.mjs', 'audit-ffmpeg', '--all', '--all-archs']],
     ]
   }
-  if (mode === 'full') {
+  if (mode === 'full' || mode === 'dry-run') {
+    const { packageArgs, targetArgs } = releaseDesktopTargetArgs(args)
     return [
       ['Run release checks', 'node', ['scripts/release/release-workflow.mjs', 'check']],
-      ['Build desktop package', 'node', ['scripts/release/release-workflow.mjs', 'package-desktop']],
-      ['Build workspace packages', 'pnpm', ['--filter', './packages/*', 'build']],
-      ['Build movcli', 'pnpm', ['--filter', '@movscript/cli', 'build']],
+      ['Download ffmpeg-static release binary', 'node', ['scripts/release/release-workflow.mjs', 'download-ffmpeg-static', ...targetArgs]],
+      ['Build desktop package', 'node', ['scripts/release/release-workflow.mjs', 'package-desktop', ...packageArgs]],
+      ['Smoke test desktop package', 'node', ['scripts/release/release-workflow.mjs', 'smoke-desktop-package', ...targetArgs]],
       ['Collect release artifacts', 'node', ['scripts/release/release-workflow.mjs', 'collect']],
     ]
   }
@@ -93,6 +99,7 @@ export function runReleaseWorkflowCli(args = [], options = {}) {
         logError,
         exit,
         defaults: options.defaults,
+        env: options.env,
         node: options.node,
         patchMacOSDMGBuilder: options.patchMacOSDMGBuilder,
         pnpm: options.pnpm,
@@ -118,7 +125,7 @@ export function runReleaseWorkflowCli(args = [], options = {}) {
 
   let steps
   try {
-    steps = releaseWorkflowSteps(mode)
+    steps = releaseWorkflowSteps(mode, args.slice(1))
   } catch (error) {
     logError(error instanceof Error ? error.message : String(error))
     exit(2)
@@ -149,9 +156,12 @@ export function frontendBuilderArgsForTarget(platform, arch, explicitArch = true
 export function desktopPackagePlan(args = [], defaults = {}) {
   const hasPlatformArg = hasDesktopPlatformArg(args)
   const hasArchArg = hasDesktopArchArg(args)
+  const signingMode = parseDesktopSigningModeArg(args, defaults.signingMode)
   if (!hasPlatformArg && !hasArchArg) {
+    const platform = defaults.platform ?? process.platform
     return {
-      builderArgs: ['--publish', 'never'],
+      builderArgs: ['--publish', 'never', ...signingBuilderArgsForTarget(platform, signingMode)],
+      signingMode,
       targetArgs: [],
     }
   }
@@ -161,9 +171,38 @@ export function desktopPackagePlan(args = [], defaults = {}) {
   const targetArgs = [`--platform=${platform}`]
   if (hasArchArg) targetArgs.push(`--arch=${arch}`)
   return {
-    builderArgs: frontendBuilderArgsForTarget(platform, arch, hasArchArg),
+    builderArgs: [...frontendBuilderArgsForTarget(platform, arch, hasArchArg), ...signingBuilderArgsForTarget(platform, signingMode)],
+    signingMode,
     targetArgs,
   }
+}
+
+export function parseDesktopSigningModeArg(args = [], defaultMode = process.env.MOVSCRIPT_RELEASE_SIGNING_MODE || 'unsigned') {
+  const explicitMode = args.find((arg) => arg.startsWith('--signing-mode='))?.slice('--signing-mode='.length)
+  const wantsUnsigned = args.includes('--unsigned')
+  const wantsSigned = args.includes('--signed')
+  if ([explicitMode, wantsUnsigned ? 'unsigned' : '', wantsSigned ? 'signed' : ''].filter(Boolean).length > 1) {
+    throw new Error('Desktop package signing mode must be specified only once')
+  }
+  const mode = explicitMode || (wantsUnsigned ? 'unsigned' : '') || (wantsSigned ? 'signed' : '') || defaultMode || 'unsigned'
+  if (!signingModes.has(mode)) {
+    throw new Error(`Unsupported desktop package signing mode: ${mode}`)
+  }
+  return mode
+}
+
+function releaseDesktopTargetArgs(args = []) {
+  const plan = desktopPackagePlan(args)
+  return {
+    packageArgs: [...plan.targetArgs, `--${plan.signingMode}`],
+    targetArgs: plan.targetArgs,
+  }
+}
+
+const unsignedMacOSBuilderArgs = Object.freeze(['-c.mac.identity=null', '-c.mac.notarize=false'])
+
+function signingBuilderArgsForTarget(platform, signingMode) {
+  return platform === 'darwin' && signingMode === 'unsigned' ? [...unsignedMacOSBuilderArgs] : []
 }
 
 export function runDesktopPackageCli(args = [], options = {}) {
@@ -190,6 +229,7 @@ export function runDesktopPackageCli(args = [], options = {}) {
     currentArch: options.defaults?.arch ?? process.arch,
     arch: parseDesktopArchArg(plan.targetArgs, options.defaults?.arch ?? process.arch, 'desktop package'),
     exit,
+    signingMode: plan.signingMode,
   }
   log('[package-desktop] Prepare desktop package prerequisites')
   const prepared = preparePackage(root, target)
@@ -206,6 +246,7 @@ export function runDesktopPackageCli(args = [], options = {}) {
     }
   }
 
+  const packageEnv = desktopPackageEnv(options.env ?? process.env, plan.signingMode)
   const steps = [
     ['Build frontend desktop bundle', pnpm, ['--filter', '@movscript/desktop', 'build']],
     ['Build frontend desktop artifact', pnpm, ['--filter', '@movscript/desktop', 'exec', 'electron-builder', ...plan.builderArgs]],
@@ -215,7 +256,7 @@ export function runDesktopPackageCli(args = [], options = {}) {
     log(`[package-desktop] ${label}`)
     const result = spawn(command, commandArgs, {
       stdio: 'inherit',
-      env: target.platform === 'darwin' && label === 'Build frontend desktop artifact' ? dmgBuilderEnv(process.env) : process.env,
+      env: label === 'Build frontend desktop artifact' ? packageEnv : options.env ?? process.env,
     })
     if (result.error) {
       logError(result.error.message)
@@ -239,7 +280,7 @@ export function runDesktopPackageCli(args = [], options = {}) {
   if (target.platform === 'darwin') {
     try {
       const verifyMacOSDMG = options.verifyMacOSDMG ?? verifyMacOSDMGArtifacts
-      verifyMacOSDMG(root, { arch: target.arch, log, spawn })
+      verifyMacOSDMG(root, { arch: target.arch, env: packageEnv, log, spawn })
     } catch (error) {
       logError(error instanceof Error ? error.message : String(error))
       exit(1)
@@ -452,6 +493,33 @@ export function dmgBuilderEnv(env) {
   return nextEnv
 }
 
+export function desktopPackageEnv(env = process.env, signingMode = parseDesktopSigningModeArg([])) {
+  const nextEnv = dmgBuilderEnv(env)
+  nextEnv.MOVSCRIPT_RELEASE_SIGNING_MODE = signingMode
+  if (signingMode === 'unsigned') {
+    for (const name of [
+      'CSC_LINK',
+      'CSC_NAME',
+      'CSC_KEY_PASSWORD',
+      'CSC_INSTALLER_LINK',
+      'CSC_INSTALLER_KEY_PASSWORD',
+      'CSC_KEYCHAIN',
+      'APPLE_ID',
+      'APPLE_APP_SPECIFIC_PASSWORD',
+      'APPLE_TEAM_ID',
+      'APPLE_API_KEY',
+      'APPLE_API_KEY_ID',
+      'APPLE_API_ISSUER',
+      'APPLE_KEYCHAIN',
+      'APPLE_KEYCHAIN_PROFILE',
+    ]) {
+      delete nextEnv[name]
+    }
+    nextEnv.CSC_IDENTITY_AUTO_DISCOVERY = 'false'
+  }
+  return nextEnv
+}
+
 function normalizeOptionalBuilderEnv(env, name) {
   const value = typeof env[name] === 'string' ? env[name].trim() : ''
   if (value) {
@@ -587,6 +655,8 @@ function runCheckedTool(label, command, args, options = {}) {
 }
 
 function macOSSigningRequired(env) {
+  if (env.MOVSCRIPT_RELEASE_SIGNING_MODE === 'unsigned') return false
+  if (env.MOVSCRIPT_RELEASE_SIGNING_MODE === 'signed') return true
   return env.MOVSCRIPT_RELEASE_REQUIRE_SIGNING === '1' ||
     Boolean(env.CSC_LINK?.trim()) ||
     Boolean(env.CSC_NAME?.trim())
@@ -611,7 +681,7 @@ function runStep(label, command, commandArgs, { spawn, log, logError, exit }) {
 }
 
 function usage() {
-  return `usage: node scripts/release/release-workflow.mjs [check|full|${releaseSubcommands().join('|')}]`
+  return `usage: node scripts/release/release-workflow.mjs [check|full|dry-run|${releaseSubcommands().join('|')}]`
 }
 
 if (isDirectRun(import.meta.url, process.argv)) {

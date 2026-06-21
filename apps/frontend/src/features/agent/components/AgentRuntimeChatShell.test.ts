@@ -249,7 +249,7 @@ test('agent chat active thread state is owned by the session registry', () => {
   assert.match(architectureSource, /Thread lifecycle is runtime state/)
   assert.match(neutralRuntimeSource, /export type AgentChatRuntimeThreadLifecycleStatus = 'draft' \| 'materializing' \| 'ready' \| 'failed'/)
   assert.match(neutralRuntimeSource, /export function agentChatRuntimeThreadCanReadTurns/)
-  assert.match(dataSourceShellSource, /agentChatRuntimeThreadCanReadTurns\(runtime, activeThreadId\)/)
+  assert.match(dataSourceShellSource, /agentChatRuntimeThreadCanReadTurns\(setup\.runtime, setup\.activeThreadId\)/)
   assert.match(threadLifecycleEffectsSource, /if \(!activeThreadCanReadTurns\) return[\s\S]*dispatchRuntime\(\{ type: 'requestThreadRead'/)
   assert.match(threadCreationSource, /upsertThread\(thread, \{ lifecycleStatus: 'materializing' \}\)/)
   assert.match(threadCreationSource, /if \(turn\) \{[\s\S]*markThreadReady\(thread\.id\)[\s\S]*requestThreadRead\(thread\.id\)[\s\S]*\}/)
@@ -259,11 +259,11 @@ test('agent chat active thread state is owned by the session registry', () => {
   assert.match(serverRequestsSource, /subscribeSharedAgentChatServerRequests\(dataSource/)
   assert.match(serverRequestSubscriptionCoordinatorSource, /const serverRequestSubscriptions = new Map/)
   assert.match(serverRequestSubscriptionCoordinatorSource, /current\.controller\.abort\(\)[\s\S]*current\.dispose\?\.\(\)/)
-  assert.match(dataSourceShellSource, /historyPanel: buildAgentChatShellHistoryPanel\(\{[\s\S]*hasMoreThreadPages: Boolean\(threadListNextCursor\),[\s\S]*onLoadThreads: refreshThreadList/)
+  assert.match(dataSourceShellSource, /historyPanel: buildAgentChatShellHistoryPanel\(\{[\s\S]*hasMoreThreadPages: Boolean\(input\.threadListNextCursor\),[\s\S]*onLoadThreads: input\.refreshThreadList/)
   assert.match(shellViewSource, /historyPanel: AgentChatShellHistoryPanelProps/)
   assert.match(shellViewSource, /hasMoreThreadPages=\{historyPanel\.hasMoreThreadPages\}/)
   assert.doesNotMatch(shellViewSource, /hasMoreThreadPages=\{Boolean\(threadListNextCursor\)\}/)
-  assert.match(dataSourceShellSource, /threadSurface: buildAgentChatShellThreadSurface\(\{[\s\S]*activeThreadId,[\s\S]*hiddenItemCount: visibleItemWindow\.hiddenCount,[\s\S]*onOpenConversation: \(threadId: string\) => \{[\s\S]*void openThread\(threadId\)/)
+  assert.match(dataSourceShellSource, /threadSurface: buildAgentChatShellThreadSurface\(\{[\s\S]*activeThreadId: input\.activeThreadId,[\s\S]*hiddenItemCount: input\.visibleItemWindow\.hiddenCount,[\s\S]*onOpenConversation: \(threadId: string\) => \{[\s\S]*void input\.openThread\(threadId\)/)
   assert.match(dataSourceShellSource, /function buildAgentChatShellThreadSurface[\s\S]*activeConversationId: activeThreadId \?\? '__draft__'/)
   assert.match(shellViewSource, /threadSurface: AgentChatShellThreadSurfaceProps/)
   assert.match(shellViewSource, /activeConversationId=\{threadSurface\.activeConversationId\}/)
@@ -356,6 +356,8 @@ test('project agent mode project groups only render groups with open conversatio
   const projectAgentSource = [
     readFileSync(resolve('src/features/agent/components/ProjectAgentModePage.tsx'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebar.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/useProjectAgentModeSidebarController.ts'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/useProjectAgentModeSidebarActions.ts'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebarView.tsx'), 'utf8'),
   ].join('\n')
   const projectAgentSidebarPartsSource = readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebarParts.tsx'), 'utf8')
@@ -372,13 +374,16 @@ test('project agent mode agent runtime conversations use thread titles and proje
   const projectAgentSource = [
     readFileSync(resolve('src/features/agent/components/ProjectAgentModePage.tsx'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebar.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/useProjectAgentModeSidebarController.ts'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/useProjectAgentModeSidebarActions.ts'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebarView.tsx'), 'utf8'),
   ].join('\n')
   const projectAgentConversationModelSource = readFileSync(resolve('src/features/agent/components/ProjectAgentModeConversationModel.ts'), 'utf8')
   const projectAgentContentPanelSource = readFileSync(resolve('src/features/agent/components/ProjectAgentContentPanel.tsx'), 'utf8')
   const projectAgentSidebarPartsSource = readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebarParts.tsx'), 'utf8')
+  const projectAgentSidebarItemsSource = readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebarItems.tsx'), 'utf8')
   const hydrationSource = readFileSync(resolve('src/features/agent/application/useAgentThreadRegistryHydration.ts'), 'utf8')
-  const sidebarConversationSource = projectAgentSidebarPartsSource
+  const sidebarConversationSource = `${projectAgentSidebarPartsSource}\n${projectAgentSidebarItemsSource}`
   const selectConversationSource = projectAgentSource.match(/function selectConversation\(id: string\)[\s\S]*?function archiveConversationFromSidebar/)?.[0] ?? ''
   const projectIdSource = sourceBetween(projectAgentConversationModelSource, 'function conversationProjectId(', 'export function agentRuntimeConversationIdForThread')
   const cwdProjectIdSource = sourceFunctionBlock(projectAgentContentPanelSource, 'projectIdFromProviderSessionCwd')
@@ -398,8 +403,8 @@ test('project agent mode agent runtime conversations use thread titles and proje
   assert.ok(cwdProjectIdSource.includes('projects\\/project_(\\d+)'))
   assert.match(projectIdSource, /conversationsById: Record<string, AgentConversationRegistryRecord>/)
   assert.match(projectIdSource, /const recordProjectId = conversation\.id \? context\.conversationsById\[conversation\.id\]\?\.projectId : undefined/)
-  assert.match(projectAgentSource, /getConversationTitle=\{\(conversation\) => conversationDisplayTitle\(conversation, t\)\}/)
-  assert.match(projectAgentSource, /getThreadTitle=\{\(thread\) => providerThreadTitle\(thread, t\)\}/)
+  assert.match(projectAgentSource, /getConversationTitle: \(conversation: Conversation\) => conversationDisplayTitle\(conversation, t\)/)
+  assert.match(projectAgentSource, /getThreadTitle: \(thread: AgentThreadSummary\) => providerThreadTitle\(thread, t\)/)
   assert.match(sidebarConversationSource, /title=\{title\}/)
   assert.doesNotMatch(sidebarConversationSource, /description=\{threadId\}/)
   assert.match(selectConversationSource, /const conversation = conversations\.find\(\(item\) => item\.id === id\)/)
@@ -412,7 +417,11 @@ test('project agent mode agent runtime conversations use thread titles and proje
 })
 
 test('project agent mode sidebar hydrates all agent providers into one registry view', () => {
-  const projectAgentSidebarSource = readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebar.tsx'), 'utf8')
+  const projectAgentSidebarSource = [
+    readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebar.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/useProjectAgentModeSidebarController.ts'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/useProjectAgentModeSidebarActions.ts'), 'utf8'),
+  ].join('\n')
 
   assert.match(projectAgentSidebarSource, /enabledProviders\(providerSettings\)\.filter\(providerSupportsAgentProfile\)/)
   assert.match(projectAgentSidebarSource, /useAgentThreadRegistryHydrations\(\{[\s\S]*providers: agentProviders/)
@@ -432,6 +441,8 @@ test('agent chat detailed tabs and agent mode groups share registry-open convers
   const projectAgentSource = [
     readFileSync(resolve('src/features/agent/components/ProjectAgentModePage.tsx'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebar.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/useProjectAgentModeSidebarController.ts'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/useProjectAgentModeSidebarActions.ts'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebarView.tsx'), 'utf8'),
   ].join('\n')
   const openThreadCandidatesSource = sourceBetween(threadTabsSource, 'const openThreadCandidates = useMemo', 'const closeThreadTab = useCallback')
@@ -464,11 +475,16 @@ test('agent chat detailed tabs and agent mode groups share registry-open convers
 
 test('agent mode sidebar archive actions do not steal row selection clicks', () => {
   const sidebarPartsSource = readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebarParts.tsx'), 'utf8')
-  const sidebarCssSource = readFileSync(resolve('src/features/agent/components/AgentModeUi.sidebar.css'), 'utf8')
+  const sidebarItemsSource = readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebarItems.tsx'), 'utf8')
+  const sidebarCssSource = [
+    readFileSync(resolve('src/features/agent/components/AgentModeUi.sidebar.css'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/AgentModeUi.sidebar-conversations.css'), 'utf8'),
+  ].join('\n')
 
-  assert.match(sidebarPartsSource, /onPointerDown=\{stopRowActionPropagation\}/)
-  assert.match(sidebarPartsSource, /onClick=\{\(event\) => \{[\s\S]*event\.stopPropagation\(\)[\s\S]*onArchive\?\.\(\)/)
-  assert.match(sidebarPartsSource, /onClick=\{\(event\) => \{[\s\S]*event\.stopPropagation\(\)[\s\S]*onDelete\?\.\(\)/)
+  assert.match(sidebarPartsSource, /from '@\/features\/agent\/components\/ProjectAgentModeSidebarItems'/)
+  assert.match(sidebarItemsSource, /onPointerDown=\{stopRowActionPropagation\}/)
+  assert.match(sidebarItemsSource, /onClick=\{\(event\) => \{[\s\S]*event\.stopPropagation\(\)[\s\S]*onArchive\?\.\(\)/)
+  assert.match(sidebarItemsSource, /onClick=\{\(event\) => \{[\s\S]*event\.stopPropagation\(\)[\s\S]*onDelete\?\.\(\)/)
   assert.match(sidebarCssSource, /\.agent-mode-conversation-row \{[\s\S]*--agent-conversation-action-width: 20px;/)
   assert.match(sidebarCssSource, /\.agent-mode-conversation--with-action \{[\s\S]*padding-right: calc\(var\(--agent-conversation-action-width\) \+ 8px\);/)
 })
@@ -561,7 +577,7 @@ test('agent chat shows the first user message while the thread is still being cr
   const threadCreateIndex = sendMessageSource.indexOf('const started = await startThreadResult(')
 
   assert.match(shellCoreStateSource, /const \[optimisticUserItems, setOptimisticUserItems\] = useState<AgentChatRuntimeView\['visibleItems'\]>\(\[\]\)/)
-  assert.match(dataSourceShellSource, /optimisticVisibleItems: optimisticUserItems/)
+  assert.match(dataSourceShellSource, /optimisticVisibleItems: setup\.optimisticUserItems/)
   assert.match(dataSourceShellSource, /useAgentChatTurnControls\(\{[\s\S]*setOptimisticUserItems,[\s\S]*\}\)/)
   assert.match(viewportSource, /optimisticVisibleItems: AgentChatRuntimeView\['visibleItems'\]/)
   assert.match(viewportSource, /mergeAgentChatViewportVisibleItems\(runtimeVisibleItems, optimisticVisibleItems\)/)
@@ -581,7 +597,7 @@ test('agent chat permission profile updates wait until a thread is loaded', () =
   const profileChangeSource = runProfileSettingsSource.match(/const handleProfilePresetChange = useCallback[\s\S]*?\}, \[activeThreadId/)?.[0] ?? ''
 
   assert.match(dataSourceShellSource, /from '@\/features\/agent\/application\/useAgentChatRunProfileSettings'/)
-  assert.match(dataSourceShellSource, /useAgentChatRunProfileSettings\(\{[\s\S]*activeThreadId,[\s\S]*runtimeRef,[\s\S]*setProfilePresetId,[\s\S]*\}\)/)
+  assert.match(dataSourceShellSource, /useAgentChatRunProfileSettings\(\{[\s\S]*activeThreadId: setup\.activeThreadId,[\s\S]*runtimeRef: setup\.runtimeRef,[\s\S]*setProfilePresetId: setup\.setProfilePresetId,[\s\S]*\}\)/)
   assert.match(profileChangeSource, /setProfilePresetId\(nextProfilePresetId\)/)
   assert.match(profileChangeSource, /if \(!dataSource\?\.updateThreadSettings \|\| !activeThreadId \|\| activeTurn\) return/)
   assert.match(profileChangeSource, /const thread = runtimeRef\.current\.threads\.find\(\(item\) => item\.id === activeThreadId\)/)
@@ -613,6 +629,7 @@ test('agent chat queued composer inputs stay editable until sent or steered', ()
   const shellViewSource = readFileSync(resolve('src/features/agent/components/AgentChatShellView.tsx'), 'utf8')
   const shellCoreStateSource = readFileSync(resolve('src/features/agent/application/useAgentChatShellCoreState.ts'), 'utf8')
   const turnControlsSource = readFileSync(resolve('src/features/agent/application/useAgentChatTurnControls.ts'), 'utf8')
+  const queuedInputControlsSource = readFileSync(resolve('src/features/agent/application/useAgentChatQueuedInputControls.ts'), 'utf8')
   const dataSourceShellModelSource = [
     readAgentChatShellModelSource(),
     readFileSync(resolve('src/features/agent/presentation/agentChatQueuedInputModel.ts'), 'utf8'),
@@ -626,21 +643,23 @@ test('agent chat queued composer inputs stay editable until sent or steered', ()
   assert.match(queuedInputSource, /export interface AgentChatQueuedInputPreviewItem/)
   assert.match(queuedInputSource, /export function agentChatQueuedInputSummary/)
   assert.match(dataSourceShellModelSource, /interface AgentChatQueuedInputState[\s\S]*extends AgentChatQueuedInputPreviewItem/)
-  assert.match(turnControlsSource, /export type AgentComposerQueuedInput = AgentChatQueuedInputState/)
+  assert.match(queuedInputControlsSource, /export type AgentComposerQueuedInput = AgentChatQueuedInputState/)
+  assert.match(turnControlsSource, /export type \{ AgentComposerQueuedInput \}/)
   assert.match(dataSourceShellSource, /from '@\/features\/agent\/application\/useAgentChatShellCoreState'/)
   assert.match(shellCoreStateSource, /const \[queuedInputs, setQueuedInputs\] = useState<AgentComposerQueuedInput\[\]>\(\[\]\)/)
-  assert.match(dataSourceShellSource, /useAgentChatTurnControls\(\{[\s\S]*queuedInputs,[\s\S]*setQueuedInputs,[\s\S]*syncThreadRunProfileSettingsForTurn,[\s\S]*\}\)/)
+  assert.match(dataSourceShellSource, /useAgentChatTurnControls\(\{[\s\S]*queuedInputs: setup\.queuedInputs,[\s\S]*setQueuedInputs: setup\.setQueuedInputs,[\s\S]*syncThreadRunProfileSettingsForTurn: runProfiles\.syncThreadRunProfileSettingsForTurn,[\s\S]*\}\)/)
   assert.match(turnControlsSource, /if \(activeTurn\) \{[\s\S]*setQueuedInputs\(\(current\) => \[[\s\S]*buildAgentChatQueuedInputDraft\(\{/)
   assert.match(turnControlsSource, /workspaceContext: composer\.selectedWorkspaceContext/)
   assert.match(dataSourceShellModelSource, /function buildAgentChatQueuedInputDraft/)
   assert.match(dataSourceShellModelSource, /status: 'draft'[\s\S]*error: null[\s\S]*createdAt: input\.createdAt/)
-  assert.match(turnControlsSource, /markAgentChatQueuedInputEditing\(current, id\)/)
-  assert.match(turnControlsSource, /const updateQueuedInputText = useCallback/)
-  assert.match(turnControlsSource, /updateAgentChatQueuedInputText\(current, id, text\)/)
+  assert.match(turnControlsSource, /useAgentChatQueuedInputControls\(\{[\s\S]*activeThread,[\s\S]*activeTurn,[\s\S]*composer,[\s\S]*queuedInputs,[\s\S]*setQueuedInputs,[\s\S]*\}\)/)
+  assert.match(queuedInputControlsSource, /markAgentChatQueuedInputEditing\(current, id\)/)
+  assert.match(queuedInputControlsSource, /const updateQueuedInputText = useCallback/)
+  assert.match(queuedInputControlsSource, /updateAgentChatQueuedInputText\(current, id, text\)/)
   assert.match(dataSourceShellModelSource, /agentChatQueuedInputsWithText\(item\.inputs, text\)/)
-  assert.match(turnControlsSource, /const cancelQueuedInputEdit = useCallback/)
-  assert.match(turnControlsSource, /const steerQueuedInputNow = useCallback/)
-  assert.match(turnControlsSource, /await dataSource\.steerTurn\(\{[\s\S]*clientUserMessageId: item\.clientUserMessageId,[\s\S]*inputs: item\.inputs/)
+  assert.match(queuedInputControlsSource, /const cancelQueuedInputEdit = useCallback/)
+  assert.match(queuedInputControlsSource, /const steerQueuedInputNow = useCallback/)
+  assert.match(queuedInputControlsSource, /await dataSource\.steerTurn\(\{[\s\S]*clientUserMessageId: item\.clientUserMessageId,[\s\S]*inputs: item\.inputs/)
   assert.match(turnControlsSource, /const submitQueuedInputsAsTurn = useCallback/)
   assert.match(turnControlsSource, /const submitQueuedInputAsTurn = useCallback/)
   assert.match(turnControlsSource, /resolveAgentChatGoalObjective\(\{[\s\S]*attachmentNames: composer\.composerAttachments\.map\(\(attachment\) => attachment\.name\),[\s\S]*fallback: composerPlaceholder,[\s\S]*text/)
@@ -654,10 +673,11 @@ test('agent chat queued composer inputs stay editable until sent or steered', ()
   assert.match(turnControlsSource, /await dataSource\.interruptTurn/)
   assert.match(turnControlsSource, /if \(nextQueuedInputs\.length > 0\) void submitQueuedInputsAsTurn\(nextQueuedInputs\.map\(\(item\) => item\.id\)\)/)
   assert.match(dataSourceShellSource, /from '@\/features\/agent\/application\/useAgentChatEscapeKey'/)
-  assert.match(dataSourceShellSource, /useAgentChatEscapeKey\(\{[\s\S]*enabled: Boolean\(activeTurn && dataSource\?\.interruptTurn && !stoppingTurn\),[\s\S]*void stopActiveTurn\(\)[\s\S]*\}\)/)
+  assert.match(dataSourceShellSource, /useAgentChatEscapeKey\(\{[\s\S]*enabled: Boolean\(setup\.activeTurn && setup\.dataSource\?\.interruptTurn && !setup\.stoppingTurn\),[\s\S]*void turnControls\.stopActiveTurn\(\)[\s\S]*\}\)/)
   assert.doesNotMatch(dataSourceShellSource, /window\.addEventListener\('keydown'/)
-  assert.match(dataSourceShellSource, /composerPanel: buildAgentChatShellComposerPanel\(\{[\s\S]*queuedInputSteerEnabled: Boolean\(activeTurn && dataSource\?\.steerTurn\)/)
-  assert.match(dataSourceShellSource, /composerPanel: buildAgentChatShellComposerPanel\(\{[\s\S]*pendingServerRequests: visiblePendingServerRequests,[\s\S]*modelValue: activeThreadModelValue,[\s\S]*onSend: \(nextProfilePresetId\?: AgentRunProfilePresetId\) => void sendMessage\(nextProfilePresetId\)/)
+  assert.match(dataSourceShellSource, /buildAgentChatDataSourceShellView\(\{[\s\S]*activeTurn: setup\.activeTurn,[\s\S]*visiblePendingServerRequests: setup\.visiblePendingServerRequests,[\s\S]*\}\)/)
+  assert.match(dataSourceShellSource, /composerPanel: buildAgentChatShellComposerPanel\(\{[\s\S]*queuedInputSteerEnabled: Boolean\(input\.activeTurn && input\.dataSource\?\.steerTurn\)/)
+  assert.match(dataSourceShellSource, /composerPanel: buildAgentChatShellComposerPanel\(\{[\s\S]*pendingServerRequests: input\.visiblePendingServerRequests,[\s\S]*modelValue: input\.activeThreadModelValue,[\s\S]*onSend: \(nextProfilePresetId\?: AgentRunProfilePresetId\) => void input\.sendMessage\(nextProfilePresetId\)/)
   assert.match(shellViewSource, /composerPanel: AgentChatShellComposerPanelProps/)
   assert.match(shellViewSource, /pendingServerRequests=\{composerPanel\.pendingServerRequests\}/)
   assert.match(shellViewSource, /modelValue=\{composerPanel\.modelValue\}/)
@@ -696,7 +716,7 @@ test('agent chat goal state flows from protocol to composer UI', () => {
   assert.match(goalStateSource, /export function agentThreadGoalStatusLabel/)
   assert.match(dispatcherSource, /notification\.method === 'thread\/goal\/updated'[\s\S]*agentThreadGoalStateFromUnknown\(params\.goal\)[\s\S]*goal/)
   assert.match(dispatcherSource, /notification\.method === 'thread\/goal\/cleared'[\s\S]*goal: null/)
-  assert.match(dataSourceShellSource, /composerPanel: buildAgentChatShellComposerPanel\(\{[\s\S]*goalState: activeThread\?\.goal \?\? null/)
+  assert.match(dataSourceShellSource, /composerPanel: buildAgentChatShellComposerPanel\(\{[\s\S]*goalState: input\.activeThread\?\.goal \?\? null/)
   assert.match(shellViewSource, /goalState=\{composerPanel\.goalState\}/)
   assert.doesNotMatch(shellViewSource, /const goalState: AgentThreadGoalState \| null = activeThread\?\.goal \?\? null/)
   assert.match(composerSource, /<AgentQueuedInputPreview[\s\S]*goal=\{goalState\}/)
@@ -717,10 +737,10 @@ test('agent chat blocks sending and surfaces a thread notice when no runtime mod
   assert.match(runtimeShellSource, /const modelUnavailableMessage = provider && !modelCatalogLoading && textModels\.length === 0/)
   assert.match(runtimeShellSource, /modelUnavailableMessage=\{modelUnavailableMessage\}/)
   assert.match(dataSourceShellTypesSource, /modelUnavailableMessage\?: string/)
-  assert.match(dataSourceShellSource, /const threadError = modelUnavailableMessage \?\? error/)
+  assert.match(dataSourceShellSource, /const threadError = modelUnavailableMessage \?\? setup\.error/)
   assert.match(dataSourceShellSource, /useAgentChatShellPresentationState\(\{[\s\S]*error: threadError/)
   assert.match(dataSourceShellSource, /sendDisabledReason: modelUnavailableMessage/)
-  assert.match(dataSourceShellSource, /error: threadError/)
+  assert.match(dataSourceShellSource, /error: setup\.error/)
   assert.match(turnControlsSource, /&& !sendDisabledReason[\s\S]*&& !sending/)
   assert.match(turnControlsSource, /if \(sendDisabledReason\) \{[\s\S]*setError\(sendDisabledReason\)[\s\S]*return/)
   assert.match(shellViewSource, /sendDisabledReason=\{composerPanel\.sendDisabledReason\}/)
@@ -780,6 +800,10 @@ function readAgentChatDataSourceShellContractSource(): string {
   return [
     readFileSync(resolve('src/features/agent/components/AgentChatDataSourceShell.tsx'), 'utf8'),
     readFileSync(resolve('src/features/agent/application/useAgentChatDataSourceShellController.ts'), 'utf8'),
+    readFileSync(resolve('src/features/agent/application/useAgentChatDataSourceShellRuntimeSetup.ts'), 'utf8'),
+    readFileSync(resolve('src/features/agent/application/useAgentChatRegistryActiveThreadEffect.ts'), 'utf8'),
+    readFileSync(resolve('src/features/agent/application/agentChatDataSourceShellControllerView.ts'), 'utf8'),
+    readFileSync(resolve('src/features/agent/application/agentChatDataSourceShellView.ts'), 'utf8'),
     readFileSync(resolve('src/features/agent/application/agentChatShellViewModels.ts'), 'utf8'),
   ].join('\n')
 }

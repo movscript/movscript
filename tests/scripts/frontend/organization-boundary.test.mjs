@@ -5,6 +5,11 @@ import test from 'node:test'
 
 const orgSettingsSource = [
   readSource('apps/frontend/src/features/organization/components/OrgSettingsPage.tsx'),
+  readSource('apps/frontend/src/features/organization/components/OrgSettingsTabs.tsx'),
+  readSource('apps/frontend/src/features/organization/components/OrgMembersTab.tsx'),
+  readSource('apps/frontend/src/features/organization/components/OrgInvitationsTab.tsx'),
+  readSource('apps/frontend/src/features/organization/components/OrgUsageTab.tsx'),
+  readSource('apps/frontend/src/features/organization/components/OrgSettingsDetailsTab.tsx'),
   readSource('apps/frontend/src/features/organization/components/OrgGenerationToolsTab.tsx'),
 ].join('\n')
 const organizationQueryKeysSource = readSource('apps/frontend/src/features/organization/application/organizationQueryKeys.ts')

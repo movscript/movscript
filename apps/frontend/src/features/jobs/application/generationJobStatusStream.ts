@@ -5,7 +5,7 @@ import {
   subscribeCrossPageNotifications,
   type CrossPageNotificationEvent,
 } from '@/shared/application/crossPageNotifications'
-import type { Job, JobStatus } from '@/types'
+import type { Job, JobStatus, PaginatedResponse } from '@/types'
 
 export interface GenerationJobStatusEvent {
   jobId: number
@@ -63,7 +63,7 @@ export function applyGenerationJobStatusEventToCache(
   queryClient: GenerationJobStatusQueryClient,
   event: GenerationJobStatusEvent,
 ): void {
-  queryClient.setQueriesData<JobsQueryResult>({ queryKey: jobKeys.all }, (current) => {
+  queryClient.setQueriesData<JobsStatusCacheResult>({ queryKey: jobKeys.all }, (current) => {
     if (!current) return current
     return updateJobsQueryResult(current, event)
   })
@@ -81,15 +81,39 @@ export function generationJobStatusEventFromCrossPage(event: CrossPageNotificati
   return isGenerationJobStatusEvent(event.payload) ? event.payload : undefined
 }
 
-function updateJobsQueryResult(current: JobsQueryResult, event: GenerationJobStatusEvent): JobsQueryResult {
-  const index = current.jobs.findIndex((job) => job.ID === event.jobId)
+type JobsStatusCacheResult = JobsQueryResult | PaginatedResponse<Job>
+
+function updateJobsQueryResult(current: JobsStatusCacheResult, event: GenerationJobStatusEvent): JobsStatusCacheResult {
+  if (hasJobList(current, 'jobs')) {
+    return updateJobListResult(current, 'jobs', event)
+  }
+  if (hasJobList(current, 'items')) {
+    return updateJobListResult(current, 'items', event)
+  }
+  return current
+}
+
+function updateJobListResult<T extends JobsStatusCacheResult, TKey extends 'jobs' | 'items'>(
+  current: T & Record<TKey, Job[]>,
+  key: TKey,
+  event: GenerationJobStatusEvent,
+): T {
+  const jobs = current[key]
+  const index = jobs.findIndex((job) => job.ID === event.jobId)
   if (index < 0) return current
-  const existing = current.jobs[index]
+  const existing = jobs[index]
   const nextJob = mergeJobStatus(existing, event)
   return {
     ...current,
-    jobs: current.jobs.map((job) => job.ID === event.jobId ? nextJob : job),
+    [key]: jobs.map((job) => job.ID === event.jobId ? nextJob : job),
   }
+}
+
+function hasJobList<TKey extends 'jobs' | 'items'>(
+  value: JobsStatusCacheResult,
+  key: TKey,
+): value is JobsStatusCacheResult & Record<TKey, Job[]> {
+  return Array.isArray((value as Partial<Record<TKey, unknown>>)[key])
 }
 
 function mergeJobStatus(job: Job, event: GenerationJobStatusEvent): Job {

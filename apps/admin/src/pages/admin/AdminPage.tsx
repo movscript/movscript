@@ -619,7 +619,7 @@ function ModelCatalogSection({ credentials }: { credentials: AICredential[] }) {
                 <p className="mt-2 truncate font-mono text-[11px] text-muted-foreground">provider: {template.model_id}</p>
                 <div className="mt-2 flex flex-wrap gap-1">
                   {template.capabilities.slice(0, 4).map((capability) => (
-                    <StatusBadge key={capability} intent={CAPABILITY_STATUS_INTENT[capability] ?? 'neutral'}>
+                    <StatusBadge key={capability} intent={CAPABILITY_STATUS_INTENT[capability] ?? 'neutral'} className="text-xs">
                       {t(CAPABILITY_TRANSLATION_KEYS[capability] ?? capability)}
                     </StatusBadge>
                   ))}
@@ -687,11 +687,11 @@ function ModelCatalogSection({ credentials }: { credentials: AICredential[] }) {
           </div>
           <div>
             <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.models.maxInputImages')}</Label>
-            <Input type="number" value={catalogForm.max_input_images} onChange={(event) => setCatalogForm({ ...catalogForm, max_input_images: Number(event.target.value) })} className="h-8 text-xs" />
+            <Input type="number" value={catalogForm.max_input_images} onChange={(event) => setCatalogForm({ ...catalogForm, max_input_images: Number(event.target.value) })} invalid={!isValidInputLimit(catalogForm.max_input_images)} className="h-8 text-xs" />
           </div>
           <div>
             <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.models.maxInputVideos')}</Label>
-            <Input type="number" value={catalogForm.max_input_videos} onChange={(event) => setCatalogForm({ ...catalogForm, max_input_videos: Number(event.target.value) })} className="h-8 text-xs" />
+            <Input type="number" value={catalogForm.max_input_videos} onChange={(event) => setCatalogForm({ ...catalogForm, max_input_videos: Number(event.target.value) })} invalid={!isValidInputLimit(catalogForm.max_input_videos)} className="h-8 text-xs" />
           </div>
           <div>
             <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.modelCatalog.imageEditField')}</Label>
@@ -740,7 +740,7 @@ function ModelCatalogSection({ credentials }: { credentials: AICredential[] }) {
             </div>
             <div className="flex flex-wrap gap-1.5">
               {modelCatalogCapabilities(entry).map((capability) => (
-                <StatusBadge key={capability} intent={CAPABILITY_STATUS_INTENT[capability] ?? 'neutral'}>
+                <StatusBadge key={capability} intent={CAPABILITY_STATUS_INTENT[capability] ?? 'neutral'} className="text-xs">
                   {t(CAPABILITY_TRANSLATION_KEYS[capability] ?? capability)}
                 </StatusBadge>
               ))}
@@ -2078,9 +2078,9 @@ function ModelRouteMatrix({
             {t('admin.models.routeMatrixCandidates', { defaultValue: '{{count}} 个启用候选', count: enabledCandidates })}
           </span>
           {unmappedEntries > 0 && (
-            <span className="rounded-md border border-warning/40 bg-warning/10 px-2 py-1 text-muted-foreground">
+            <StatusBadge intent="warning" className="text-xs">
               {t('admin.models.routeMatrixUnmapped', { defaultValue: '{{count}} 个未映射', count: unmappedEntries })}
-            </span>
+            </StatusBadge>
           )}
         </div>
       </div>
@@ -2106,7 +2106,7 @@ function ModelRouteMatrix({
                     {t('admin.modelCatalog.routeGroup')}: {routeGroupDisplayName(group.routeGroup, t)}
                   </span>
                   {modelCatalogCapabilities(group.entry).slice(0, 3).map((capability) => (
-                    <StatusBadge key={capability} intent={CAPABILITY_STATUS_INTENT[capability] ?? 'neutral'}>
+                    <StatusBadge key={capability} intent={CAPABILITY_STATUS_INTENT[capability] ?? 'neutral'} className="text-xs">
                       {t(CAPABILITY_TRANSLATION_KEYS[capability] ?? capability)}
                     </StatusBadge>
                   ))}
@@ -5435,7 +5435,9 @@ export default function AdminPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2">
-        <ShieldAlert size={18} className="text-muted-foreground" />
+        <AppIconFrame tone="info" className="mt-0.5">
+          <ShieldAlert size={18} />
+        </AppIconFrame>
         <div>
           <h1 className="text-base font-semibold text-foreground">{t('admin.title')}</h1>
           <p className="text-xs text-muted-foreground mt-0.5">{t('admin.subtitle')}</p>

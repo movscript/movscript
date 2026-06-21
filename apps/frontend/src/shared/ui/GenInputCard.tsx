@@ -1,88 +1,25 @@
 import { useRef, useState, useEffect } from 'react'
-import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { Upload, Wand2, Loader2, X, AtSign, ImageIcon, VideoIcon, Library } from 'lucide-react'
+import { formatResourceMention } from '@movscript/workspace'
+import { Upload, Wand2, Loader2, AtSign, Library } from 'lucide-react'
 import { MediaViewer } from './MediaViewer'
 import { AgentComposer, AgentComposerAction, AgentComposerSubmit, AgentComposerToolbar } from '@/shared/ui/AgentComposerUi'
 import {
   GenerationActionHint,
   GenerationAttachmentList,
-  GenerationAttachmentPreview,
-  GenerationAttachmentTag,
   GenerationHiddenFileInput,
-  GenerationInputSlotCard,
   GenerationMentionEmpty,
   GenerationMentionItem,
   GenerationMentionList,
   GenerationMentionMenu,
-  GenerationParamItem,
-  GenerationParamsRow,
   GenerationPromptEditor,
-  GenerationSlotAttachmentList,
-  GenerationSlotAttachmentTag,
-  GenerationSlotEmpty,
-  GenerationSlotList
 } from '@movscript/ui/business/generation'
-import { CheckboxField, Input, NativeSelect } from '@movscript/ui/primitives'
-import { generationParamLabel, generationSlotLabel } from '@/shared/domain/paramLabels'
 import type { RawResource, ParamDef } from '@/types'
-import { api } from '@/shared/infrastructure/api'
 import { applyResourceChipMediaUrl, buildResourceChipElement, loadResourceChipMediaUrl } from '@/shared/ui/ResourceChipDom'
 import { revokeObjectUrls } from '@/shared/ui/objectUrl'
 import { IMAGE_UPLOAD_ACCEPT, MEDIA_UPLOAD_ACCEPT } from '@/shared/domain/mediaTypes'
-import {
-  genInputAttachmentPreviewPositionFromElement,
-  genInputAttachmentPreviewStyleFromPosition,
-  type GenInputAttachmentPreviewPosition,
-} from '@/shared/ui/genInputAttachmentPreviewPlacement'
-
-function AttachmentTag({ resource, onRemove }: { resource: RawResource; onRemove: () => void }) {
-  const { t } = useTranslation()
-  const [showPreview, setShowPreview] = useState(false)
-  const [previewPos, setPreviewPos] = useState<GenInputAttachmentPreviewPosition>({ left: 8, top: 8 })
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const tagRef = useRef<HTMLDivElement>(null)
-
-  function handleMouseEnter() {
-    timerRef.current = setTimeout(() => {
-      if (tagRef.current) {
-        setPreviewPos(genInputAttachmentPreviewPositionFromElement(tagRef.current))
-      }
-      setShowPreview(true)
-    }, 2000)
-  }
-
-  function handleMouseLeave() {
-    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null }
-    setShowPreview(false)
-  }
-
-  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current) }, [])
-
-  return (
-    <>
-      <GenerationAttachmentTag
-        ref={tagRef}
-        media={<MediaViewer resource={resource} lightbox={false} />}
-        label={resource.name}
-        removeIcon={<X size={12} />}
-        onRemove={onRemove}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-      />
-
-      {showPreview && createPortal(
-        <GenerationAttachmentPreview
-          media={<MediaViewer resource={resource} lightbox={false} />}
-          name={resource.name}
-          typeLabel={t(`pages.resources.types.${resource.type}`, { defaultValue: resource.type })}
-          style={genInputAttachmentPreviewStyleFromPosition(previewPos)}
-        />,
-        document.body
-      )}
-    </>
-  )
-}
+import { AttachmentTag, GenerationInputSlots } from '@/shared/ui/GenInputAttachments'
+import { GenerationParamControls } from '@/shared/ui/GenerationParamControls'
 
 export interface InputSlotDef {
   key: string
@@ -112,22 +49,6 @@ export interface GenInputCardProps {
   promptPlaceholder?: string
   uploading: boolean
   imageEditRequired?: boolean
-}
-
-function buildSlotGroups(slots: InputSlotDef[], attachments: RawResource[]) {
-  const used = new Set<number>()
-  return slots.map((slot) => {
-    const items: Array<{ resource: RawResource; index: number }> = []
-    for (let i = 0; i < attachments.length; i++) {
-      if (used.has(i)) continue
-      const r = attachments[i]
-      if (r.type !== slot.type) continue
-      if (slot.maxCount > 0 && items.length >= slot.maxCount) continue
-      used.add(i)
-      items.push({ resource: r, index: i })
-    }
-    return { slot, items }
-  })
 }
 
 export function GenInputCard({
@@ -169,7 +90,7 @@ export function GenInputCard({
   function serialize(node: Node): string {
     if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? ''
     const el = node as HTMLElement
-    if (el.dataset?.resourceId) return `@[resource:${el.dataset.resourceId}] `
+    if (el.dataset?.resourceId) return `${formatResourceMention(Number(el.dataset.resourceId))} `
     return Array.from(node.childNodes).map(serialize).join('')
   }
 
@@ -303,41 +224,11 @@ export function GenInputCard({
 
       {/* Input slots (typed, ordered) — shown when model declares specific input requirements */}
       {inputSlots && inputSlots.length > 0 ? (
-        <GenerationSlotList>
-          {buildSlotGroups(inputSlots, attachments).map(({ slot, items }, i) => {
-            const Icon = slot.type === 'video' ? VideoIcon : ImageIcon
-            const limitText = slot.maxCount > 0 ? t('shared.genInput.maxCount', { count: slot.maxCount }) : t('shared.genInput.multipleAllowed')
-            return (
-              <GenerationInputSlotCard
-                key={slot.key || i}
-                indexLabel={i + 1}
-                icon={<Icon size={12} />}
-                label={generationSlotLabel(slot, t)}
-                requiredLabel={slot.required ? t('shared.genInput.required') : undefined}
-                limitLabel={limitText}
-                state={items.length > 0 ? 'filled' : slot.required ? 'required' : 'optional'}
-              >
-                {items.length > 0 ? (
-                  <GenerationSlotAttachmentList>
-                    {items.map(({ resource, index }) => (
-                      <GenerationSlotAttachmentTag
-                        key={`${resource.ID}-${index}`}
-                        media={<MediaViewer resource={resource} lightbox={false} />}
-                        label={resource.name}
-                        removeIcon={<X size={10} />}
-                        onRemove={() => onRemoveAttachment(index)}
-                      />
-                    ))}
-                  </GenerationSlotAttachmentList>
-                ) : (
-                  <GenerationSlotEmpty icon={<Icon size={12} />}>
-                    {t('shared.genInput.selectOrUploadHint')}
-                  </GenerationSlotEmpty>
-                )}
-              </GenerationInputSlotCard>
-            )
-          })}
-        </GenerationSlotList>
+        <GenerationInputSlots
+          slots={inputSlots}
+          attachments={attachments}
+          onRemoveAttachment={onRemoveAttachment}
+        />
       ) : acceptsMediaInput && attachments.length > 0 ? (
         /* Legacy flat attachment list */
         <GenerationAttachmentList>
@@ -348,51 +239,12 @@ export function GenInputCard({
       ) : null}
 
       {/* Params row */}
-      {params.length > 0 && (
-        <GenerationParamsRow className="ms-agent-composer__workspace-row">
-          {params.map((p) => {
-            const val = paramValues[p.key] ?? p.default ?? ''
-            return (
-              <GenerationParamItem key={p.key} label={generationParamLabel(p, t)}>
-                {p.type === 'select' && p.options ? (
-                  <NativeSelect
-                    controlSize="sm"
-                    className="type-label"
-                    value={String(val)}
-                    onChange={(e) => onParamChange(p.key, e.target.value)}
-                  >
-                    {p.options.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
-                  </NativeSelect>
-                ) : p.type === 'number' ? (
-                  <Input
-                    type="number"
-                    className="h-8 w-16 type-label"
-                    value={Number(val)}
-                    min={p.min}
-                    max={p.max}
-                    step={p.step ?? 1}
-                    onChange={(e) => onParamChange(p.key, Number(e.target.value))}
-                  />
-                ) : p.type === 'boolean' ? (
-                  <CheckboxField
-                    controlSize="sm"
-                    variant="subtle"
-                    checked={Boolean(val)}
-                    onCheckedChange={(checked) => onParamChange(p.key, checked)}
-                  />
-                ) : p.type === 'string' ? (
-                  <Input
-                    type="text"
-                    className="h-8 w-32 type-label"
-                    value={String(val)}
-                    onChange={(e) => onParamChange(p.key, e.target.value)}
-                  />
-                ) : null}
-              </GenerationParamItem>
-            )
-          })}
-        </GenerationParamsRow>
-      )}
+      <GenerationParamControls
+        params={params}
+        values={paramValues}
+        onChange={onParamChange}
+        className="ms-agent-composer__workspace-row"
+      />
 
       {/* Action bar */}
       <AgentComposerToolbar>

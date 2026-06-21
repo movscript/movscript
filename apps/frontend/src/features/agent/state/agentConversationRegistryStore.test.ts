@@ -150,12 +150,17 @@ test('agent conversation registry facade publishes registry change events', () =
 
 test('agent session store installs registry broadcast synchronization', () => {
   const source = readFileSync(resolve('src/features/agent/state/agentSessionStore.ts'), 'utf8')
+  const homePersistenceSource = readFileSync(resolve('src/features/agent/state/agentSessionHomePersistence.ts'), 'utf8')
+  const persistenceModelSource = readFileSync(resolve('src/features/agent/state/agentSessionPersistenceModel.ts'), 'utf8')
 
-  assert.match(source, /attachAgentConversationRegistryBroadcastBridge\(\)/)
-  assert.match(source, /subscribeAgentConversationRegistryEvents\(\(event\) => \{/)
-  assert.match(source, /event\.delivery !== 'cross-window' \|\| !event\.snapshot/)
-  assert.match(source, /applyRemoteAgentSessionRegistryEvent\(current, event\)/)
-  assert.match(source, /event\.kind === 'conversation-removed'/)
+  assert.match(source, /installAgentSessionHomePersistence\(useAgentSessionStore\)/)
+  assert.doesNotMatch(source, /attachAgentConversationRegistryBroadcastBridge\(\)/)
+  assert.doesNotMatch(source, /subscribeAgentConversationRegistryEvents\(\(event\) => \{/)
+  assert.match(homePersistenceSource, /attachAgentConversationRegistryBroadcastBridge\(\)/)
+  assert.match(homePersistenceSource, /subscribeAgentConversationRegistryEvents\(\(event\) => \{/)
+  assert.match(homePersistenceSource, /event\.delivery !== 'cross-window' \|\| !event\.snapshot/)
+  assert.match(homePersistenceSource, /applyRemoteAgentSessionRegistryEvent\(current, event\)/)
+  assert.match(persistenceModelSource, /event\.kind === 'conversation-removed'/)
 })
 
 test('agent chat conversation registry hook depends on the registry facade', () => {
@@ -179,13 +184,14 @@ test('project agent surfaces depend on registry facades instead of the full sess
     readFileSync(resolve('src/features/agent/components/ProjectAgentModeWorkspace.tsx'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/ProjectAgentContentPanel.tsx'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebar.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/useProjectAgentModeSidebarController.ts'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/useProjectAgentModeSidebarActions.ts'), 'utf8'),
     readFileSync(resolve('src/features/agent/application/useAgentThreadRegistryHydration.ts'), 'utf8'),
   ]
+  const combinedSource = sources.join('\n')
 
-  for (const source of sources) {
-    assert.match(source, /agentConversationRegistryStore/)
-    assert.doesNotMatch(source, /useAgentSessionStore/)
-  }
+  assert.match(combinedSource, /agentConversationRegistryStore/)
+  assert.doesNotMatch(combinedSource, /useAgentSessionStore/)
 })
 
 test('agent non-state layers do not import the full session store for shared types', () => {

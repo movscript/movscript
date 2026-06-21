@@ -6,7 +6,10 @@ import test from 'node:test'
 const modelQueryKeysSource = readSource('apps/frontend/src/shared/application/modelQueryKeys.ts')
 const agentModelQueryKeysSource = readSource('apps/frontend/src/features/agent/application/agentModelQueryKeys.ts')
 const agentRuntimeChatShellSource = readSource('apps/frontend/src/features/agent/components/AgentRuntimeChatShell.tsx')
-const agentSettingsSource = readSource('apps/frontend/src/features/agent/components/AIAgentSettingsPage.tsx')
+const agentSettingsSource = [
+  readSource('apps/frontend/src/features/agent/components/AIAgentSettingsPage.tsx'),
+  readSource('apps/frontend/src/features/agent/application/useAIAgentSettingsPageController.ts'),
+].join('\n')
 const agentSettingsModelControllerSource = readSource('apps/frontend/src/features/agent/application/useAgentSettingsModelController.ts')
 const agentChatDataSourcesSource = readSource('apps/frontend/src/features/agent/presentation/useAgentChatDataSources.ts')
 const canvasGenerationNodesSource = readSource('apps/frontend/src/features/canvas/ui/canvasGenerationNodes.tsx')

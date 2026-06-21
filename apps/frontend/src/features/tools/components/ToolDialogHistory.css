@@ -1,0 +1,198 @@
+.tool-dialog-history {
+  min-width: 0;
+  margin-inline: auto;
+  width: 100%;
+  max-width: 46rem;
+}
+
+.tool-dialog-body--reference-workbench .tool-dialog-history {
+  max-height: min(48vh, 420px);
+}
+
+.tool-dialog-body--reference-workbench .tool-dialog-history-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 180px));
+  justify-content: start;
+  gap: 8px;
+  overflow: visible;
+}
+
+.tool-dialog-history-grid-item {
+  --tool-dialog-history-media-height: 112px;
+  min-width: 0;
+}
+
+.tool-dialog-history-grid-item .job-card__body {
+  display: grid;
+  grid-template-rows: var(--tool-dialog-history-media-height) minmax(0, auto);
+}
+
+.tool-dialog-history-grid-item__media {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.tool-dialog-history-grid-item__media .job-grid-media-area {
+  height: var(--tool-dialog-history-media-height);
+  aspect-ratio: auto;
+  overflow: hidden;
+}
+
+.tool-dialog-history-grid-item__info {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.tool-dialog-history-grid-item .job-grid-media-area__preview,
+.tool-dialog-history-grid-item .resource-media-thumb,
+.tool-dialog-history-grid-item .resource-media-thumb > span,
+.tool-dialog-history-grid-item .resource-media-thumb > img,
+.tool-dialog-history-grid-item .resource-media-thumb > video {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.tool-dialog-history-grid-item .job-grid-media-area__preview {
+  overflow: hidden;
+}
+
+.tool-dialog-history-grid-item .resource-media-thumb {
+  display: block;
+  overflow: hidden;
+  border-radius: 0;
+}
+
+.tool-dialog-history-grid-item .resource-media-thumb > img,
+.tool-dialog-history-grid-item .resource-media-thumb > video {
+  display: block;
+}
+
+.tool-dialog-history-grid-item .resource-media-thumb[data-fit="cover"] > img,
+.tool-dialog-history-grid-item .resource-media-thumb[data-fit="cover"] > video {
+  object-fit: cover;
+}
+
+.tool-dialog-history-grid-item .resource-media-thumb[data-fit="contain"] > img,
+.tool-dialog-history-grid-item .resource-media-thumb[data-fit="contain"] > video {
+  object-fit: contain;
+}
+
+.tool-dialog-history-grid-item__reuse {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 12;
+}
+
+.tool-dialog-history-grid-item__timestamp {
+  display: block;
+  margin-top: 2px;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-tiny);
+  line-height: var(--ms-leading-tiny);
+}
+
+.tool-dialog-history-header {
+  display: flex;
+  align-items: center;
+  gap: var(--ms-space-2);
+  margin-bottom: 10px;
+  padding-inline: 2px;
+}
+
+.tool-dialog-history-title {
+  display: flex;
+  align-items: center;
+  gap: var(--ms-space-2);
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: var(--ms-leading-label);
+  text-transform: uppercase;
+}
+
+.tool-dialog-history-count {
+  padding: calc(var(--ms-space-1) * 0.5) 6px;
+  font-size: var(--ms-text-tiny);
+  font-weight: 600;
+  line-height: var(--ms-leading-tiny);
+}
+
+.tool-dialog-history-pager {
+  display: flex;
+  align-items: center;
+  gap: var(--ms-space-1);
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--ms-leading-label);
+}
+
+.tool-dialog-history-list {
+  display: grid;
+  gap: 10px;
+}
+
+.tool-dialog-history-list .generation-result-card {
+  min-width: 0;
+}
+
+.tool-dialog-history-list .generation-result-card__output {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.tool-dialog-history-list .generation-result-card__media {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 176px;
+  min-width: 0;
+  min-height: 0;
+  max-height: 176px;
+  overflow: hidden;
+  aspect-ratio: auto;
+}
+
+.tool-dialog-history-list .generation-result-card__media > .resource-media-thumb,
+.tool-dialog-history-list .generation-result-card__media .resource-media-thumb,
+.tool-dialog-history-list .generation-result-card__media .resource-media-fill-frame,
+.tool-dialog-history-list .generation-result-card__media .resource-media-thumb > span,
+.tool-dialog-history-list .generation-result-card__media .resource-media-thumb > span > *,
+.tool-dialog-history-list .generation-result-card__media .resource-media-thumb > img,
+.tool-dialog-history-list .generation-result-card__media .resource-media-thumb > video,
+.tool-dialog-history-list .generation-result-card__media .resource-media-fill-frame > img,
+.tool-dialog-history-list .generation-result-card__media .resource-media-fill-frame > video {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.tool-dialog-history-list .generation-result-card__media .resource-media-thumb,
+.tool-dialog-history-list .generation-result-card__media .resource-media-fill-frame {
+  display: block;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+.tool-dialog-history-list .generation-result-card__media .resource-media-thumb > span,
+.tool-dialog-history-list .generation-result-card__media .resource-media-thumb > span > *,
+.tool-dialog-history-list .generation-result-card__media .resource-media-thumb > img,
+.tool-dialog-history-list .generation-result-card__media .resource-media-thumb > video,
+.tool-dialog-history-list .generation-result-card__media .resource-media-fill-frame > img,
+.tool-dialog-history-list .generation-result-card__media .resource-media-fill-frame > video {
+  display: block;
+}
+
+.tool-dialog-empty-state {
+  border: 0;
+  background: transparent;
+  padding-block: calc(var(--ms-space-4) + var(--ms-space-3) + var(--ms-space-3));
+  color: color-mix(in srgb, var(--ms-color-muted-foreground) 60%, transparent);
+}

@@ -43,8 +43,10 @@ Use this skill when a user asks to plan or change MovScript creative structure: 
 - Treat `scene_moment` as the final expression aggregation unit. Treat `expression_unit` as multimodal material intent inside the scene moment.
 - Create or update canonical upstream source entities before creating downstream content units, but only create the prerequisite structure needed for the user's current goal.
 - Treat visual shots, dialogue, narration, subtitles, sfx, music, ambience, and interaction beats as `expression_unit` records with orthogonal `modality` and `role` fields. Storyboards and keyframes are optional evidence for visual expression units, not the final design center.
-- Treat setting/state/asset as continuity evidence only when reuse or consistency matters. Asset reference images should usually be low-background, multi-view, and weakly tied to plot.
-- When a character, location, prop, style, or contextual state will appear in more than one generation task, or when the user is dissatisfied with its appearance, stop downstream generation and stabilize it first as `setting` / `setting_state` / `asset` plus an `asset_ref` content unit with an adopted/selected candidate.
+- Treat setting/state/asset as continuity evidence only when reuse or consistency matters. `setting` must be a concrete film/music production entity to be made or reused, such as `主角-老张`, `道具-玉玺`, a place, an instrument, a costume, or a voice identity; do not use it for abstract styles, rules, moods, genres, or one-off prompt notes.
+- Treat `setting_state` as a namespace under one setting for a named condition/version of that entity, such as base look, wet hair, damaged prop, side-view variant, formal costume, calm voice, or angry voice.
+- Treat `asset` as a setting-state-owned resource slot describing one state asset, such as front view, side view, turnaround sheet, material reference, voice timbre, or instrument tone. Asset reference images should usually be white-background or clean-background, multi-view when useful, and weakly tied to plot.
+- When a concrete reusable entity or one of its states will appear in more than one generation task, or when the user is dissatisfied with its appearance or sound, stop downstream generation and stabilize it first as `setting` / `setting_state` / `asset` plus an `asset_ref` content unit with an adopted/selected candidate.
 - Treat setting, asset, keyframe, and storyboard as auxiliary evidence produced on demand. Do not create or generate them just because a production exists; create them when the current output needs continuity, reusable identity, visual anchoring, or downstream dependency tracking.
 - Treat keyframe/storyboard as optional visual evidence for a visual expression unit, not required ceremony for every generation. Their generated outputs still enter candidate/decision flow before becoming stable dependencies.
 - When composition, blocking, camera movement, subject placement, or shot rhythm matters but the user's request is underspecified, plan storyboard panels first and require user/workflow confirmation before generating keyframes or downstream video.
@@ -77,11 +79,11 @@ Use this skill when a user asks to plan or change MovScript creative structure: 
 
 Use this gate before downstream image/video generation when identity consistency matters.
 
-- Trigger it when a person, location, prop, style, costume, makeup, environmental state, or recurring visual detail will be reused across shots, scene moments, productions, or later edits.
-- Trigger it when the user rejects, questions, or wants to refine the look of a character, scene, prop, or state. Treat the refinement as asset stabilization, not as another direct downstream generation attempt.
+- Trigger it when a concrete production entity or state, such as a person, place, prop, costume, makeup, instrument, voice identity, environmental state, or recurring visual/detail sound, will be reused across shots, scene moments, productions, or later edits.
+- Trigger it when the user rejects, questions, or wants to refine the look or sound of a concrete entity/state. Treat the refinement as asset stabilization, not as another direct downstream generation attempt.
 - Create or update the smallest needed `setting`, optional `setting_state`, and `asset` first; then create an `asset_ref` content unit for the reusable reference image.
 - Generate/import asset candidates, record them as content-unit candidates, and wait for `adopt` or selection before using the asset as a stable dependency.
-- Build asset complexity in layers: base identity or shape, neutral multi-view/reference sheet, state/costume/material variants, then scene-specific references. Later layers should use the selected earlier layer as a reference image.
+- Build asset complexity in layers: base identity or shape, white-background/clean-background multi-view or reference sheet, state/costume/material/voice variants, then scene-specific references. Later layers should use the selected earlier layer as a reference image.
 - Do not use an unselected asset candidate as a stable reference for keyframes, storyboards, or video. Continue only as an explicit unstable draft path.
 
 ## Visual Anchor Gate

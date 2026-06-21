@@ -1,30 +1,16 @@
-import { useCallback, useEffect, useRef, type Dispatch, type MutableRefObject, type RefObject, type SetStateAction } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import {
   agentChatInputsFromTextAndAttachments,
   agentChatVisibleThreadItemViewId,
   buildAgentChatRuntimeThreadReadInput,
   ensureAgentChatThreadReadyForTurn,
-  type AgentChatDataSource,
-  type AgentChatCollaborationMode,
   type AgentChatInput,
-  type AgentChatModelSelection,
-  type AgentChatRuntimeAction,
-  type AgentChatRuntimeState,
-  type AgentChatRuntimeView,
-  type AgentChatThread,
   type AgentChatThreadControlOptions,
-  type AgentChatThreadReadInput,
-  type AgentChatTurn,
 } from '@movscript/core/agent/chat'
 import {
   agentRunProfilePresetById,
   type AgentRunProfilePresetId,
-  type AgentRunProfileSelection,
 } from '@/features/agent/domain/agentRunProfilePreset'
-import {
-  type AgentChatStartThreadInput,
-  type AgentChatStartThreadResult,
-} from '@/features/agent/application/useAgentChatThreadCreation'
 import { clearAgentChatComposerEditor } from '@/features/agent/application/agentComposerEditorDom'
 import { debugAgentChatShellLoad } from '@/features/agent/application/agentChatShellDebug'
 import {
@@ -32,87 +18,26 @@ import {
   buildAgentChatDraftThreadControlOptions,
   buildAgentChatQueuedInputDraft,
   buildAgentChatQueuedTurnSubmission,
-  cancelAgentChatQueuedInputEdit,
   errorMessage,
   failAgentChatQueuedInputs,
-  markAgentChatQueuedInputEditing,
   markAgentChatQueuedInputsSending,
-  removeAgentChatQueuedInput,
   removeAgentChatQueuedInputs,
   resolveAgentChatGoalObjective,
   selectDraftAgentChatQueuedInputsForThread,
-  type AgentChatQueuedInputState,
-  updateAgentChatQueuedInputText,
 } from '@/features/agent/presentation/agentChatDataSourceShellModel'
 import {
   clearAgentConversationWorkspace,
   updateAgentConversationWorkspace,
 } from '@/features/agent/state/agentConversationDraftStore'
-import type { useAgentComposerController } from '@/features/agent/presentation/useAgentComposerController'
+import { useAgentChatQueuedInputControls } from '@/features/agent/application/useAgentChatQueuedInputControls'
+import {
+  removeAgentChatOptimisticUserItem,
+  upsertAgentChatOptimisticUserItem,
+  type AgentChatTurnControlsInput,
+  type AgentChatVisibleItem,
+} from '@/features/agent/application/agentChatTurnControlTypes'
 
-type AgentComposerController = ReturnType<typeof useAgentComposerController>
-
-export type AgentComposerQueuedInput = AgentChatQueuedInputState<
-  AgentComposerController['composerAttachments'],
-  AgentComposerController['selectedWorkspaceContext']
->
-
-type AgentChatVisibleItem = AgentChatRuntimeView['visibleItems'][number]
-
-export function upsertAgentChatOptimisticUserItem(
-  items: AgentChatVisibleItem[],
-  item: AgentChatVisibleItem,
-): AgentChatVisibleItem[] {
-  const existingIndex = items.findIndex((candidate) => candidate.viewId === item.viewId)
-  if (existingIndex < 0) return [...items, item]
-  return items.map((candidate, index) => (index === existingIndex ? item : candidate))
-}
-
-export function removeAgentChatOptimisticUserItem(
-  items: AgentChatVisibleItem[],
-  viewId: string,
-): AgentChatVisibleItem[] {
-  return items.filter((item) => item.viewId !== viewId)
-}
-
-interface UseAgentChatTurnControlsInput {
-  activeThread: AgentChatThread | null
-  activeTurn: AgentChatTurn | null
-  collaborationMode: AgentChatCollaborationMode
-  composer: AgentComposerController
-  composerConversationId: string
-  composerInputRef: RefObject<HTMLDivElement | null>
-  composerPlaceholder: string
-  dataSource?: AgentChatDataSource
-  dispatchRuntime: Dispatch<AgentChatRuntimeAction>
-  goalModeEnabled: boolean
-  markThreadFailed: (threadId: string, error?: string) => void
-  markThreadReady: (threadId: string) => void
-  profilePresetId: AgentRunProfilePresetId
-  providerLabel: string
-  queuedInputs: AgentComposerQueuedInput[]
-  runtimeRef: MutableRefObject<AgentChatRuntimeState>
-  selectedModelSelectionForRequest: (thread?: AgentChatThread | null) => AgentChatModelSelection
-  sendDisabledReason?: string
-  sending: boolean
-  setError: Dispatch<SetStateAction<string | null>>
-  setQueuedInputs: Dispatch<SetStateAction<AgentComposerQueuedInput[]>>
-  setQueuedInputsCollapsed: Dispatch<SetStateAction<boolean>>
-  setSending: Dispatch<SetStateAction<boolean>>
-  setOptimisticUserItems: Dispatch<SetStateAction<AgentChatRuntimeView['visibleItems']>>
-  setStoppingTurn: Dispatch<SetStateAction<boolean>>
-  startThreadResult: (input?: AgentChatStartThreadInput) => Promise<AgentChatStartThreadResult | null>
-  stoppingTurn: boolean
-  syncThreadRunProfileSettingsForTurn: (
-    dataSource: AgentChatDataSource,
-    thread: AgentChatThread,
-    runProfile: AgentRunProfileSelection,
-  ) => Promise<void>
-  threadScopeKey: string
-  upsertThread: (thread: AgentChatThread) => void
-  upsertThreadReadResult: (thread: AgentChatThread, input: AgentChatThreadReadInput) => void
-  userId: string
-}
+export type { AgentComposerQueuedInput } from '@/features/agent/application/useAgentChatQueuedInputControls'
 
 export function useAgentChatTurnControls({
   activeThread,
@@ -147,7 +72,7 @@ export function useAgentChatTurnControls({
   upsertThread,
   upsertThreadReadResult,
   userId,
-}: UseAgentChatTurnControlsInput) {
+}: AgentChatTurnControlsInput) {
   const turnSubmitInFlightRef = useRef(false)
   const canSend = Boolean(
     dataSource
@@ -159,48 +84,20 @@ export function useAgentChatTurnControls({
   )
   const canStopActiveTurn = Boolean(activeTurn && dataSource?.interruptTurn && !stoppingTurn)
 
-  const deleteQueuedInput = useCallback((id: string) => {
-    const removed = queuedInputs.find((item) => item.id === id)
-    if (removed) composer.revokeAttachmentPreviewUrls(removed.attachments)
-    setQueuedInputs((current) => removeAgentChatQueuedInput(current, id))
-  }, [composer, queuedInputs, setQueuedInputs])
-
-  const editQueuedInput = useCallback((id: string) => {
-    const item = queuedInputs.find((candidate) => candidate.id === id)
-    if (!item || item.status === 'sending') return
-    setQueuedInputs((current) => markAgentChatQueuedInputEditing(current, id))
-  }, [queuedInputs, setQueuedInputs])
-
-  const updateQueuedInputText = useCallback((id: string, text: string) => {
-    setQueuedInputs((current) => updateAgentChatQueuedInputText(current, id, text))
-  }, [setQueuedInputs])
-
-  const cancelQueuedInputEdit = useCallback((id: string) => {
-    setQueuedInputs((current) => cancelAgentChatQueuedInputEdit(current, id))
-  }, [setQueuedInputs])
-
-  const steerQueuedInputNow = useCallback(async (id: string) => {
-    if (!dataSource?.steerTurn || !activeThread || !activeTurn) return
-    const item = queuedInputs.find((candidate) => candidate.id === id)
-    if (!item || item.status === 'sending') return
-    if (item.threadId !== activeThread.id) {
-      setQueuedInputs((current) => failAgentChatQueuedInputs(current, new Set([id]), 'This queued message belongs to another thread.'))
-      return
-    }
-    setQueuedInputs((current) => markAgentChatQueuedInputsSending(current, new Set([id])))
-    try {
-      await dataSource.steerTurn({
-        threadId: item.threadId,
-        turnId: activeTurn.id,
-        clientUserMessageId: item.clientUserMessageId,
-        inputs: item.inputs,
-      })
-      composer.revokeAttachmentPreviewUrls(item.attachments)
-      setQueuedInputs((current) => removeAgentChatQueuedInput(current, id))
-    } catch (nextError) {
-      setQueuedInputs((current) => failAgentChatQueuedInputs(current, new Set([id]), errorMessage(nextError)))
-    }
-  }, [activeThread, activeTurn, composer, dataSource, queuedInputs, setQueuedInputs])
+  const {
+    cancelQueuedInputEdit,
+    deleteQueuedInput,
+    editQueuedInput,
+    steerQueuedInputNow,
+    updateQueuedInputText,
+  } = useAgentChatQueuedInputControls({
+    activeThread,
+    activeTurn,
+    composer,
+    dataSource,
+    queuedInputs,
+    setQueuedInputs,
+  })
 
   const sendMessage = useCallback(async (nextProfilePresetId: AgentRunProfilePresetId = profilePresetId) => {
     if (!dataSource || sending || turnSubmitInFlightRef.current) return

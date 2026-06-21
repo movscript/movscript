@@ -92,6 +92,36 @@ test('verifyReleaseReadiness rejects mutable movscript-lang release specs', asyn
   }
 })
 
+test('verifyReleaseReadiness skips signing credentials for unsigned releases', async () => {
+  const root = await releaseFixture()
+  try {
+    const result = verifyReleaseReadiness(root, {
+      env: { MOVSCRIPT_RELEASE_SIGNING_MODE: 'unsigned' },
+      tag: 'v0.1.0',
+      platform: 'darwin',
+    })
+    assert.ok(result.checks.includes('signing config check skipped (unsigned release mode)'))
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('verifyReleaseReadiness requires signing credentials for signed releases', async () => {
+  const root = await releaseFixture()
+  try {
+    assert.throws(
+      () => verifyReleaseReadiness(root, {
+        env: { MOVSCRIPT_RELEASE_SIGNING_MODE: 'signed' },
+        tag: 'v0.1.0',
+        platform: 'darwin',
+      }),
+      /Release signing is required for darwin/,
+    )
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 test('verifySigningEnvironment requires macOS signing and notarization secrets when enforced', () => {
   assert.throws(
     () => verifySigningEnvironment('darwin', {}),

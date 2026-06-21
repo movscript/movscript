@@ -13,8 +13,12 @@
   max-width: 24rem;
 }
 
-.auth-title {
+.auth-brand-mark {
   margin-bottom: var(--ms-space-1);
+}
+
+.auth-title {
+  margin-bottom: 0;
   color: var(--ms-color-foreground);
   font-size: 20px;
   font-weight: 700;
@@ -163,4 +167,12 @@
   margin-left: var(--ms-space-1);
   padding-inline: 0;
   color: var(--ms-color-foreground);
+}
+
+.auth-work-mode-root {
+  margin-top: 24px;
+}
+
+.auth-work-mode-panel {
+  display: block;
 }

@@ -12,7 +12,7 @@ export interface MovScriptWorkspacePreviewTimelineEntityRef {
 
 export interface MovScriptWorkspacePreviewTimelineItem {
   id: string
-  itemType: 'segment' | 'scene_moment' | 'shot' | 'storyboard' | 'keyframe' | 'audio_cue' | 'expression_unit' | 'content_unit'
+  itemType: 'segment' | 'scene_moment' | 'storyboard' | 'keyframe' | 'audio_cue' | 'expression_unit' | 'content_unit'
   entity: MovScriptWorkspacePreviewTimelineEntityRef
   order: number
   parentId?: string
@@ -64,30 +64,63 @@ export function deriveMovScriptWorkspacePreviewTimelines(index: MovScriptWorkspa
               parentId: sceneMomentItemId,
             })
           }
-          const shots = childEntities(index, entityDir(sceneMoment.path), 'shot')
-          for (const shot of sortEntities(shots)) {
-            const shotItemId = timelineItemId(shot)
-            const shotContentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, 'shot', shot)
+          for (const storyboard of sortEntities(childEntities(index, entityDir(sceneMoment.path), 'storyboard'))) {
+            const storyboardItemId = timelineItemId(storyboard)
+            const contentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, 'storyboard', storyboard)
+            const timeline = recordField(storyboard.record.timeline)
             items.push({
-              ...timelineItem(shotItemId, 'shot', shot, order++),
+              ...timelineItem(storyboardItemId, 'storyboard', storyboard, order++),
               parentId: sceneMomentItemId,
-              timing: recordField(shot.record.timing),
-              transition: recordField(shot.record.transition),
-              contentUnitIds: shotContentUnits.map((contentUnit) => contentUnit.id).filter(isDefined),
+              caption: stringField(timeline?.caption),
+              gapAfterSec: numberField(timeline?.gap_after_sec),
+              timing: timeline,
+              transition: recordField(storyboard.record.transition),
+              contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined),
             })
-            for (const contentUnit of sortEntities(shotContentUnits)) {
+            for (const contentUnit of sortEntities(contentUnits)) {
               items.push({
                 ...timelineItem(timelineItemId(contentUnit), 'content_unit', contentUnit, order++),
-                parentId: shotItemId,
+                parentId: storyboardItemId,
               })
             }
-            for (const storyboard of sortEntities(childEntities(index, entityDir(shot.path), 'storyboard'))) {
+          }
+          for (const keyframe of sortEntities(childEntities(index, entityDir(sceneMoment.path), 'keyframe'))) {
+            const keyframeItemId = timelineItemId(keyframe)
+            const contentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, 'keyframe', keyframe)
+            items.push({
+              ...timelineItem(keyframeItemId, 'keyframe', keyframe, order++),
+              parentId: sceneMomentItemId,
+              timing: recordField(keyframe.record.timing),
+              contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined),
+            })
+            for (const contentUnit of sortEntities(contentUnits)) {
+              items.push({
+                ...timelineItem(timelineItemId(contentUnit), 'content_unit', contentUnit, order++),
+                parentId: keyframeItemId,
+              })
+            }
+          }
+          for (const expressionUnit of sortEntities(childEntities(index, entityDir(sceneMoment.path), 'expression_unit'))) {
+            const expressionUnitItemId = timelineItemId(expressionUnit)
+            const expressionUnitContentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, 'expression_unit', expressionUnit)
+            items.push({
+              ...timelineItem(expressionUnitItemId, 'expression_unit', expressionUnit, order++),
+              parentId: sceneMomentItemId,
+              contentUnitIds: expressionUnitContentUnits.map((contentUnit) => contentUnit.id).filter(isDefined),
+            })
+            for (const contentUnit of sortEntities(expressionUnitContentUnits)) {
+              items.push({
+                ...timelineItem(timelineItemId(contentUnit), 'content_unit', contentUnit, order++),
+                parentId: expressionUnitItemId,
+              })
+            }
+            for (const storyboard of sortEntities(childEntities(index, entityDir(expressionUnit.path), 'storyboard'))) {
               const storyboardItemId = timelineItemId(storyboard)
               const contentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, 'storyboard', storyboard)
               const timeline = recordField(storyboard.record.timeline)
               items.push({
                 ...timelineItem(storyboardItemId, 'storyboard', storyboard, order++),
-                parentId: shotItemId,
+                parentId: expressionUnitItemId,
                 caption: stringField(timeline?.caption),
                 gapAfterSec: numberField(timeline?.gap_after_sec),
                 timing: timeline,
@@ -101,12 +134,12 @@ export function deriveMovScriptWorkspacePreviewTimelines(index: MovScriptWorkspa
                 })
               }
             }
-            for (const keyframe of sortEntities(childEntities(index, entityDir(shot.path), 'keyframe'))) {
+            for (const keyframe of sortEntities(childEntities(index, entityDir(expressionUnit.path), 'keyframe'))) {
               const keyframeItemId = timelineItemId(keyframe)
               const contentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, 'keyframe', keyframe)
               items.push({
                 ...timelineItem(keyframeItemId, 'keyframe', keyframe, order++),
-                parentId: shotItemId,
+                parentId: expressionUnitItemId,
                 timing: recordField(keyframe.record.timing),
                 contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined),
               })
@@ -117,12 +150,6 @@ export function deriveMovScriptWorkspacePreviewTimelines(index: MovScriptWorkspa
                 })
               }
             }
-          }
-          for (const expressionUnit of sortEntities(childEntities(index, entityDir(sceneMoment.path), 'expression_unit'))) {
-            items.push({
-              ...timelineItem(timelineItemId(expressionUnit), 'expression_unit', expressionUnit, order++),
-              parentId: sceneMomentItemId,
-            })
           }
           for (const audioCue of sortEntities(childEntities(index, entityDir(sceneMoment.path), 'audio_cue'))) {
             items.push({
@@ -175,7 +202,7 @@ function hasSpecializedContentUnitAdapter(contentUnitType: string): boolean {
   return primaryRefKindForContentUnitType(contentUnitType) !== undefined
 }
 
-function primaryRefKindForContentUnitType(contentUnitType: string): 'production' | 'segment' | 'asset' | 'keyframe' | 'storyboard' | 'scene_moment' | 'shot' | undefined {
+function primaryRefKindForContentUnitType(contentUnitType: string): 'production' | 'segment' | 'asset' | 'keyframe' | 'storyboard' | 'scene_moment' | 'expression_unit' | undefined {
   switch (contentUnitType) {
     case 'production_ref':
       return 'production'
@@ -190,8 +217,8 @@ function primaryRefKindForContentUnitType(contentUnitType: string): 'production'
     case 'scence_moment_ref':
     case 'scene_moment_ref':
       return 'scene_moment'
-    case 'shot_ref':
-      return 'shot'
+    case 'expression_unit_ref':
+      return 'expression_unit'
     default:
       return undefined
   }
@@ -223,8 +250,8 @@ function primaryRefIdsForContentUnitRecord(record: Record<string, unknown>, kind
       return compactStrings(record.target_kind === 'segment' ? record.target_ref : undefined, record.segment_ref)
     case 'scene_moment':
       return compactStrings(record.scene_moment_ref, record.scence_moment_ref)
-    case 'shot':
-      return compactStrings(record.shot_ref)
+    case 'expression_unit':
+      return compactStrings(record.expression_unit_ref)
     default:
       return []
   }
@@ -280,7 +307,6 @@ function childEntities(
 function collectionDirForEntityKind(entityKind: SemanticEntityKind): string | undefined {
   if (entityKind === 'segment') return 'segments'
   if (entityKind === 'scene_moment') return 'scene_moments'
-  if (entityKind === 'shot') return 'shots'
   if (entityKind === 'storyboard') return 'storyboards'
   if (entityKind === 'keyframe') return 'keyframes'
   if (entityKind === 'audio_cue') return 'audio_cues'

@@ -1,3 +1,4 @@
+import { resourceIdsFromMentions } from '@movscript/workspace'
 import type { AgentAttachment } from '@/features/agent/state/agentStore'
 import type { RawResource } from '@/types'
 import {
@@ -5,7 +6,6 @@ import {
   attachmentKey,
   placeholderAttachment,
 } from '@/features/agent/domain/agentAttachments'
-import { RESOURCE_MENTION_RE } from '@/features/agent/presentation/agentMentionEditorModel'
 
 export interface AgentComposerAttachmentEntry {
   attachment: AgentAttachment
@@ -34,12 +34,7 @@ export function buildResourceAttachmentIndex(
 }
 
 export function mentionedResourceIdsFromInput(input: string): Set<number> {
-  const ids = new Set<number>()
-  for (const match of input.matchAll(RESOURCE_MENTION_RE)) {
-    const id = Number(match[1])
-    if (Number.isInteger(id) && id > 0) ids.add(id)
-  }
-  return ids
+  return new Set(resourceIdsFromMentions(input))
 }
 
 export function buildMentionCandidates(

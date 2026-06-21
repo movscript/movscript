@@ -122,7 +122,7 @@ test('regeneration module returns V1 empty planning surfaces with review impact 
           fields: ['reference_asset_refs'],
           sourceChange: {
             operation: 'modified',
-            path: 'productions/p8f3/segments/a19d/scene_moments/r72k/shots/phone/keyframes/scene_anchor/keyframe.json',
+            path: 'productions/p8f3/segments/a19d/scene_moments/r72k/expression_units/phone/keyframes/scene_anchor/keyframe.json',
           },
         }],
       }],
@@ -146,7 +146,7 @@ test('regeneration module returns V1 empty planning surfaces with review impact 
   }])
   assert.deepEqual(plan.previewTimelines, [{
     productionId: 'p8f3',
-    path: 'productions/p8f3/segments/a19d/scene_moments/r72k/shots/phone/keyframes/scene_anchor/keyframe.json',
+    path: 'productions/p8f3/segments/a19d/scene_moments/r72k/expression_units/phone/keyframes/scene_anchor/keyframe.json',
     reasons: ['downstream_reference_changed'],
   }])
   assert.equal(plan.summary.changedEntities, 1)

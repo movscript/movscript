@@ -1,6 +1,7 @@
 import type { ElectronMediaPipelineEditingProject } from '@/shared/contracts/electronApiMedia'
 import { readBrowserStorageItem, removeBrowserStorageItem, writeBrowserStorageItem } from '@/shared/infrastructure/browserStorage'
 import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
+import { listenToWindowEvent, publishWindowEvent } from '@/shared/infrastructure/windowEvents'
 
 const EDITING_PROJECT_REGISTRY_KEY = 'movscript.editing-projects.v1'
 const EDITING_PROJECT_REGISTRY_DESKTOP_STATE_KEY = 'movscript-editing-projects-v1'
@@ -53,11 +54,11 @@ export function subscribeEditingProjectRegistry(listener: () => void): () => voi
       listener()
     }
   }
-  window.addEventListener(EDITING_PROJECT_REGISTRY_CHANGED_EVENT, listener)
-  window.addEventListener('storage', handleStorage)
+  const unsubscribeRegistryChanged = listenToWindowEvent(EDITING_PROJECT_REGISTRY_CHANGED_EVENT, listener)
+  const unsubscribeStorage = listenToWindowEvent('storage', handleStorage)
   return () => {
-    window.removeEventListener(EDITING_PROJECT_REGISTRY_CHANGED_EVENT, listener)
-    window.removeEventListener('storage', handleStorage)
+    unsubscribeRegistryChanged()
+    unsubscribeStorage()
   }
 }
 
@@ -120,7 +121,7 @@ function parseEditingProjectRegistry(raw: string): EditingProjectSummary[] {
 
 function dispatchEditingProjectRegistryChanged(): void {
   if (typeof window === 'undefined') return
-  window.dispatchEvent(new Event(EDITING_PROJECT_REGISTRY_CHANGED_EVENT))
+  publishWindowEvent(new Event(EDITING_PROJECT_REGISTRY_CHANGED_EVENT))
 }
 
 function normalizeEditingProjectSummary(value: unknown): EditingProjectSummary | null {

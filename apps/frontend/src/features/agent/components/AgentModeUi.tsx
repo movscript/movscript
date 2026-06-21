@@ -133,6 +133,7 @@ export function AgentModeConversationItem({
       className={cn("agent-mode-conversation", hasAction && "agent-mode-conversation--with-action", className)}
       data-has-description={description ? "true" : undefined}
       description={description}
+      metaClassName="agent-mode-conversation__meta"
       {...props}
     />
   );

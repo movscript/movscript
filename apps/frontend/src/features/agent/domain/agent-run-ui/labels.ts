@@ -133,7 +133,13 @@ export function approvalImpactLabel(approval: Pick<AgentApprovalRequest, 'toolNa
   const toolName = normalizeToolName(approval.toolName)
   switch (toolName) {
     case 'generation_image_generate': return '批准后会提交图像生成任务，可能消耗生成额度。'
+    case 'generation_content_unit_image_generate':
+    case 'system_generate_content_unit_image':
+      return '批准后会编译制作项提示词并提交图像生成任务；成功后会写入候选，可能消耗生成额度。'
     case 'generation_video_generate': return '批准后会提交视频生成任务，可能消耗生成额度。'
+    case 'generation_content_unit_video_generate':
+    case 'system_generate_content_unit_video':
+      return '批准后会编译制作项提示词并提交视频生成任务；成功后会写入候选，可能消耗生成额度。'
     case 'generation_audio_generate': return '批准后会提交音频生成任务，可能消耗生成额度。'
     case 'generation_job_create': return '批准后会创建生成任务，可能消耗生成额度。'
     case 'generation_job_cancel': return '批准后会取消生成任务，未完成的输出可能不再产生。'

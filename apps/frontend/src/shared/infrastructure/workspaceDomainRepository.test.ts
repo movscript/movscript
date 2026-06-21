@@ -55,6 +55,10 @@ test('workspace domain repository uses Electron engine workspace API when availa
       calls.push({ method: 'readScriptSource', input })
       return 'script text'
     },
+    readMovScriptEngineContentUnitGenerationPrompt: async (input: Record<string, unknown>) => {
+      calls.push({ method: 'readContentUnitGenerationPrompt', input })
+      return { promptText: 'prompt text' }
+    },
     deleteMovScriptEngineWorkspaceEntity: async (input: Record<string, unknown>) => {
       calls.push({ method: 'deleteEntity', input })
     },
@@ -118,14 +122,18 @@ test('workspace domain repository uses Electron engine workspace API when availa
   try {
 	    const service = createElectronMovScriptWorkspaceService({ projectId: 9, orgId: 22 })
 	    const entities = await service.queryEntities({ entityKind: 'script' })
-	    await service.upsertSetting({
-	      payload: {
-	        id: 'setting_1',
-	        title: 'A',
-	        __workspace_path: 'settings/setting_1/setting.json',
-	        __workspace_version: 'v1',
-	      },
-	    })
+    await service.upsertSetting({
+      payload: {
+        id: 'setting_1',
+        title: 'A',
+        __workspace_path: 'settings/setting_1/setting.json',
+        __workspace_version: 'v1',
+      },
+    })
+    await service.updateContentUnitEditPrompt({
+      targetPath: 'content_units/canvas_scene_sec01/content_unit.json',
+      editPrompt: { text: 'A closer phone insert.' },
+    })
 
     assert.equal(entities[0]?.id, 'script_1')
     assert.deepEqual(calls[0], {
@@ -151,6 +159,16 @@ test('workspace domain repository uses Electron engine workspace API when availa
 	          },
 	        },
 	      },
+    })
+    assert.deepEqual(calls[2], {
+      method: 'updateContentUnitEditPrompt',
+      input: {
+        projectId: 9,
+        orgId: 22,
+        expectedWorkspaceVersions: {},
+        targetPath: 'content_units/canvas_scene_sec01/content_unit.json',
+        editPrompt: { text: 'A closer phone insert.' },
+      },
     })
   } finally {
     Object.defineProperty(globalThis, 'window', {

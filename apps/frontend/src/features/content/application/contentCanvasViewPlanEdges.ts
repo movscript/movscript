@@ -4,7 +4,7 @@ import type {
   ContentCanvasEdgeFilter,
   ContentCanvasImpactKind,
   ContentCanvasViewMode,
-} from './contentCanvasViewPlan'
+} from './contentCanvasViewPlanTypes'
 
 export function applyContentCanvasEdgeBudget(
   edges: ContentCanvasEdge[],

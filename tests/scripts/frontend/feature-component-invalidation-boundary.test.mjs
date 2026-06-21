@@ -37,7 +37,7 @@ test('remaining feature components delegate query invalidation to application he
   assert.match(agentSessionOutputSource, /listAgentSessionThreadRuns\(/)
   assert.doesNotMatch(agentSessionOutputSource, /providerSessionClient/)
   assert.doesNotMatch(agentSessionOutputSource, /baseURL/)
-  assert.match(agentSessionOutputServiceSource, /providerSessionClient/)
+  assert.match(agentSessionOutputServiceSource, /agentProviderSessionCompatibilityClient/)
   assert.doesNotMatch(agentSessionOutputQueryKeysSource, /baseURL/)
   assert.doesNotMatch(agentSessionOutputSource, /queryKey: \['agent-session-output-/)
 })

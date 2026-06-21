@@ -32,7 +32,7 @@ export async function loadContentSourceWorkspaceSnapshotFromEngine(
     service.queryEntities({ entityKind: 'setting_state', limit: 500 }),
     service.queryAssets({ limit: 500 }),
     service.queryProductionContext({
-      include: ['productions', 'segments', 'scene_moments', 'shots', 'storyboards', 'audio_cues', 'expression_units', 'content_units', 'keyframes'],
+      include: ['productions', 'segments', 'scene_moments', 'storyboards', 'audio_cues', 'expression_units', 'content_units', 'keyframes'],
       limit: 1000,
     }),
     engine.review(),
@@ -82,7 +82,6 @@ export async function loadContentSourceWorkspaceSnapshotFromEngine(
     productions,
     segments: context.segments ?? [],
     sceneMoments,
-    shots: context.shots ?? [],
     storyboards: context.storyboards ?? [],
     keyframes: context.keyframes ?? [],
     expressionUnits: context.expression_units ?? [],

@@ -19,3 +19,29 @@ test('plugin tool route declares and renders the native host layout pane', () =>
   const pageSource = readFileSync(resolve('src/features/plugins/components/PluginToolPage.tsx'), 'utf8')
   assert.match(pageSource, /data-layout-pane-id=\{PLUGIN_TOOL_NATIVE_MAIN_PANE_ID\}/)
 })
+
+test('plugin tool styles stay in the tool companion stylesheet', () => {
+  const pageStyles = readFileSync(resolve('src/features/plugins/components/PluginsPageUi.css'), 'utf8')
+  const toolStyles = readFileSync(resolve('src/features/plugins/components/PluginsToolUi.css'), 'utf8')
+
+  assert.match(pageStyles, /@import "\.\/PluginsToolUi\.css";/)
+  for (const selector of [
+    '.plugin-tool-root',
+    '.plugin-tool-form-stack',
+    '.plugin-tool-state-message',
+    '.plugin-tool-webview-frame',
+  ]) {
+    assert.doesNotMatch(pageStyles, cssSelectorRulePattern(selector), `${selector} should not grow the plugins page CSS`)
+    assert.match(toolStyles, cssSelectorRulePattern(selector), `${selector} should live in the plugin tool CSS`)
+  }
+
+  assert.match(pageStyles, /\.plugin-card-surface\s*\{/)
+})
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function cssSelectorRulePattern(selector: string): RegExp {
+  return new RegExp(`${escapeRegExp(selector)}(?:\\s*\\{|\\s*,)`)
+}

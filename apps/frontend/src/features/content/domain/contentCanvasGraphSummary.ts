@@ -17,7 +17,7 @@ export function withGraphIndexesAndSummary(graph: Pick<ContentCanvasGraph, 'node
 }
 
 export function withStructureSummaryMetrics(nodes: ContentCanvasNode[], edges: ContentCanvasEdge[]): ContentCanvasNode[] {
-  const structureKinds = new Set<ContentCanvasNodeKind>(['project', 'production', 'segment', 'scene_moment', 'shot'])
+  const structureKinds = new Set<ContentCanvasNodeKind>(['project', 'production', 'segment', 'scene_moment', 'expression_unit'])
   const nodeById = new Map(nodes.map((node) => [node.id, node]))
   const childrenByNodeId = new Map<string, string[]>()
   for (const edge of edges) {
@@ -31,8 +31,6 @@ export function withStructureSummaryMetrics(nodes: ContentCanvasNode[], edges: C
     const descendantNodes = scopedNodes.filter((item) => item.id !== node.id)
     const metrics = dedupeMetrics([
       ...node.metrics,
-      structureCountMetric('镜头', descendantNodes, 'shot'),
-      structureCountMetric('制作项', descendantNodes, 'content_unit'),
       structureCountMetric('关键帧', descendantNodes, 'keyframe'),
       structureCountMetric('分镜', descendantNodes, 'storyboard'),
       structureCountMetric('声音', descendantNodes, 'audio_cue'),
@@ -99,7 +97,6 @@ function buildContentCanvasGraphSummary(
     edgeCount: edges.length,
     nodeCountByKind,
     productionCount: nodeCountByKind.production ?? 0,
-    shotCount: nodeCountByKind.shot ?? 0,
     staleCount: issueCountForGraph(nodes, edges, 'stale'),
     needsCandidateCount: issueCountForGraph(nodes, edges, 'needs_candidate'),
     missingCount: issueCountForGraph(nodes, edges, 'missing'),

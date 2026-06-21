@@ -11,9 +11,9 @@ Use current `movscript-lang` entity names in tool calls and source files.
 | script | `script` |
 | script version | `script_version` |
 | script block | `script_block` |
-| setting | `setting` |
-| setting state | `setting_state` |
-| asset slot | `asset` |
+| setting / concrete production entity | `setting` |
+| setting state / entity state namespace | `setting_state` |
+| asset slot / state asset description | `asset` |
 | production / episode / film unit | `production` |
 | segment / rhythm section | `segment` |
 | scene beat / plot beat / 情节 | `scene_moment` |
@@ -40,3 +40,5 @@ Canonical ownership:
 - `content_unit` is top-level and references upstream entities with flat refs.
 
 Except for `content_unit`, these entities are production structure or generation prerequisites. Create only the parts needed for the user's current goal. For new designs, prefer `scene_moment` plus multimodal `expression_unit` records, then generate materials through `expression_unit_ref` content units and compose them through the interpreted edit plan.
+
+`setting` is only for concrete film/music entities to make or reuse, such as a character, prop, place, instrument, costume, or voice identity. `setting_state` is a namespace under one setting for a named condition/version. `asset` belongs under a setting state and describes one asset slot for that state, such as front view, side view, turnaround sheet, material reference, voice timbre, or instrument tone. For image assets, prefer plain white or very clean backgrounds unless scene context is explicitly required.

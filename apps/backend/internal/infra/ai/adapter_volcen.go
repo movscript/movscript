@@ -25,6 +25,11 @@ type VolcenAdapter struct {
 
 const volcenTextMaxTokensLimit = 131072
 const volcenHTTPTimeout = 10 * time.Minute
+const (
+	volcenRoleReferenceImage = "reference_image"
+	volcenRoleReferenceVideo = "reference_video"
+	volcenRoleReferenceAudio = "reference_audio"
+)
 
 func NewVolcenAdapter(baseURL, apiKey string) *VolcenAdapter {
 	if baseURL == "" {
@@ -542,39 +547,39 @@ func buildVolcenVideoTaskRequest(req VideoRequest) (arkmodel.CreateContentGenera
 		{Type: arkmodel.ContentGenerationContentItemTypeText, Text: &prompt},
 	}
 
-	imageURL := req.Image
-	if imageURL == "" && len(req.InputImageDataList) > 0 {
-		img := req.InputImageDataList[0]
-		if img.PresignedURL != "" {
-			imageURL = img.PresignedURL
-		} else if len(img.Bytes) > 0 {
-			// No public URL (e.g. local MinIO); send as base64 data URL.
-			imageURL = "data:" + img.MimeType + ";base64," + base64Encode(img.Bytes)
-		}
-	}
-	if imageURL != "" {
+	imageURLs := volcenVideoImageURLs(req)
+	for _, imageURL := range imageURLs {
+		role := volcenRoleReferenceImage
 		content = append(content, &arkmodel.CreateContentGenerationContentItem{
 			Type:     arkmodel.ContentGenerationContentItemTypeImage,
 			ImageURL: &arkmodel.ImageURL{URL: imageURL},
+			Role:     &role,
 		})
 	}
 
-	videoURL := req.InputVideo
-	if videoURL == "" && req.InputVideoData != nil {
-		vd := req.InputVideoData
-		if vd.PresignedURL != "" {
-			videoURL = vd.PresignedURL
-		} else if len(vd.Bytes) > 0 {
-			// Volcen's contents/generations/tasks endpoint does not accept base64
-			// data URLs for video_url. If we reach this branch, the worker failed
-			// to upload the reference video to a public object relay (e.g. TOS).
-			return arkmodel.CreateContentGenerationTaskRequest{}, nil, fmt.Errorf("volcen video reference requires a public URL; configure a cloud file relay (TOS/S3/OSS) for this credential")
-		}
+	videoURL, err := volcenVideoURL(req)
+	if err != nil {
+		return arkmodel.CreateContentGenerationTaskRequest{}, nil, err
 	}
 	if videoURL != "" {
+		role := volcenRoleReferenceVideo
 		content = append(content, &arkmodel.CreateContentGenerationContentItem{
 			Type:     arkmodel.ContentGenerationContentItemTypeVideo,
 			VideoURL: &arkmodel.VideoUrl{Url: videoURL},
+			Role:     &role,
+		})
+	}
+
+	audioURL, err := volcenAudioURL(req)
+	if err != nil {
+		return arkmodel.CreateContentGenerationTaskRequest{}, nil, err
+	}
+	if audioURL != "" {
+		role := volcenRoleReferenceAudio
+		content = append(content, &arkmodel.CreateContentGenerationContentItem{
+			Type:     arkmodel.ContentGenerationContentItemTypeAudio,
+			AudioURL: &arkmodel.AudioUrl{Url: audioURL},
+			Role:     &role,
 		})
 	}
 
@@ -626,14 +631,8 @@ func buildVolcenVideoTaskRequest(req VideoRequest) (arkmodel.CreateContentGenera
 	}
 
 	debugBody := map[string]any{
-		"model":  req.Model,
-		"prompt": req.Prompt,
-	}
-	if imageURL != "" {
-		debugBody["image_url"] = imageURL
-	}
-	if videoURL != "" {
-		debugBody["video_url"] = videoURL
+		"model":   req.Model,
+		"content": volcenVideoDebugContent(req.Prompt, imageURLs, videoURL, audioURL),
 	}
 	if req.Frames > 0 {
 		debugBody["frames"] = req.Frames
@@ -674,6 +673,97 @@ func buildVolcenVideoTaskRequest(req VideoRequest) (arkmodel.CreateContentGenera
 		debugBody["tools"] = []map[string]any{{"type": "web_search"}}
 	}
 	return createReq, debugBody, nil
+}
+
+func volcenVideoImageURLs(req VideoRequest) []string {
+	urls := make([]string, 0, 1+len(req.InputImages)+len(req.InputImageDataList))
+	if req.Image != "" {
+		urls = append(urls, req.Image)
+	}
+	for _, url := range req.InputImages {
+		if strings.TrimSpace(url) != "" {
+			urls = append(urls, url)
+		}
+	}
+	for _, img := range req.InputImageDataList {
+		if img.PresignedURL != "" {
+			urls = append(urls, img.PresignedURL)
+			continue
+		}
+		if len(img.Bytes) > 0 {
+			mimeType := img.MimeType
+			if mimeType == "" {
+				mimeType = "image/png"
+			}
+			// Ark accepts base64 data URLs for image_url. The worker still
+			// prefers public object URLs so provider-side media fetches are stable.
+			urls = append(urls, "data:"+mimeType+";base64,"+base64Encode(img.Bytes))
+		}
+	}
+	return urls
+}
+
+func volcenVideoURL(req VideoRequest) (string, error) {
+	if req.InputVideo != "" {
+		return req.InputVideo, nil
+	}
+	if req.InputVideoData == nil {
+		return "", nil
+	}
+	vd := req.InputVideoData
+	if vd.PresignedURL != "" {
+		return vd.PresignedURL, nil
+	}
+	if len(vd.Bytes) > 0 {
+		// Volcen's contents/generations/tasks endpoint does not accept base64
+		// data URLs for video_url. If we reach this branch, the worker failed
+		// to upload the reference video to a public object relay (e.g. TOS).
+		return "", fmt.Errorf("volcen video reference requires a public URL; configure a cloud file relay (TOS/S3/OSS) for this credential")
+	}
+	return "", nil
+}
+
+func volcenAudioURL(req VideoRequest) (string, error) {
+	if req.InputAudio != "" {
+		return req.InputAudio, nil
+	}
+	if req.InputAudioData == nil {
+		return "", nil
+	}
+	ad := req.InputAudioData
+	if ad.PresignedURL != "" {
+		return ad.PresignedURL, nil
+	}
+	if len(ad.Bytes) > 0 {
+		return "", fmt.Errorf("volcen audio reference requires a public URL; configure a cloud file relay (TOS/S3/OSS) for this credential")
+	}
+	return "", nil
+}
+
+func volcenVideoDebugContent(prompt string, imageURLs []string, videoURL, audioURL string) []map[string]any {
+	items := []map[string]any{{"type": "text", "text": prompt}}
+	for _, url := range imageURLs {
+		items = append(items, map[string]any{
+			"type":      "image_url",
+			"image_url": map[string]any{"url": url},
+			"role":      volcenRoleReferenceImage,
+		})
+	}
+	if videoURL != "" {
+		items = append(items, map[string]any{
+			"type":      "video_url",
+			"video_url": map[string]any{"url": videoURL},
+			"role":      volcenRoleReferenceVideo,
+		})
+	}
+	if audioURL != "" {
+		items = append(items, map[string]any{
+			"type":      "audio_url",
+			"audio_url": map[string]any{"url": audioURL},
+			"role":      volcenRoleReferenceAudio,
+		})
+	}
+	return items
 }
 
 func buildVolcenImageInput(req ImageRequest) any {

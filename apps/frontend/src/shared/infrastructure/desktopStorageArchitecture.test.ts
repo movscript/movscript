@@ -4,12 +4,12 @@ import { relative, resolve } from 'node:path'
 import test from 'node:test'
 
 const homeBackedBrowserStorageAllowlist = [
-  'features/agent/state/agentSessionStore.ts',
+  'features/agent/state/agentSessionHomePersistence.ts',
   'features/agent/state/agentStore.ts',
   'features/app-shell/application/editingProjectRegistry.ts',
   'features/app-shell/application/useRouteLayoutPaneController.ts',
   'features/canvas/runtime/runHistoryStore.ts',
-  'features/content/application/contentCanvasViewState.ts',
+  'features/content/application/contentCanvasViewStateStore.ts',
   'features/editing/application/layoutPersistence.ts',
   'features/project/application/projectEntrySessionStore.ts',
   'features/resources/application/externalResourceSearchSnapshot.ts',
@@ -161,7 +161,7 @@ test('desktop business stores route through MovScript Home storage', () => {
   assert.match(appSettingsSource, /getAppSettings/)
   assert.match(appSettingsSource, /setAppSettings/)
 
-  const agentSessionSource = readFileSync(resolve('src/features/agent/state/agentSessionStore.ts'), 'utf8')
+  const agentSessionSource = readFileSync(resolve('src/features/agent/state/agentSessionHomePersistence.ts'), 'utf8')
   assert.match(agentSessionSource, /getAgentSessionState/)
   assert.match(agentSessionSource, /setAgentSessionState/)
 
@@ -169,7 +169,7 @@ test('desktop business stores route through MovScript Home storage', () => {
   assert.match(editingRegistrySource, /getDesktopState/)
   assert.match(editingRegistrySource, /setDesktopState/)
 
-  const contentCanvasViewStateSource = readFileSync(resolve('src/features/content/application/contentCanvasViewState.ts'), 'utf8')
+  const contentCanvasViewStateSource = readFileSync(resolve('src/features/content/application/contentCanvasViewStateStore.ts'), 'utf8')
   assert.match(contentCanvasViewStateSource, /getDesktopState/)
   assert.match(contentCanvasViewStateSource, /setDesktopState/)
   assert.match(contentCanvasViewStateSource, /removeDesktopState/)

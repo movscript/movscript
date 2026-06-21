@@ -36,7 +36,7 @@ export function runVerifyReleaseReadinessCli(root = repoRoot, env = process.env,
       tag: argValue(args, '--tag') ?? releaseTagFromEnv(env),
       platform: argValue(args, '--platform') ?? env.MOVSCRIPT_RELEASE_PLATFORM,
       releaseNotesPath: argValue(args, '--release-notes') ?? env.MOVSCRIPT_RELEASE_NOTES_PATH,
-      requireSigning: args.includes('--require-signing') || env.MOVSCRIPT_RELEASE_REQUIRE_SIGNING === '1',
+      requireSigning: args.includes('--require-signing') || env.MOVSCRIPT_RELEASE_REQUIRE_SIGNING === '1' || env.MOVSCRIPT_RELEASE_SIGNING_MODE === 'signed',
       allowTestTag: args.includes('--allow-test-tag') || env.MOVSCRIPT_RELEASE_ALLOW_TEST_TAG === '1',
     })
     log(`Release readiness verification passed (${result.checks.length} checks).`)
@@ -53,7 +53,7 @@ export function verifyReleaseReadiness(root = repoRoot, options = {}) {
     tag = releaseTagFromEnv(env),
     platform = env.MOVSCRIPT_RELEASE_PLATFORM,
     releaseNotesPath = defaultReleaseNotesPath,
-    requireSigning = env.MOVSCRIPT_RELEASE_REQUIRE_SIGNING === '1',
+    requireSigning = env.MOVSCRIPT_RELEASE_REQUIRE_SIGNING === '1' || env.MOVSCRIPT_RELEASE_SIGNING_MODE === 'signed',
     allowTestTag = env.MOVSCRIPT_RELEASE_ALLOW_TEST_TAG === '1',
   } = options
   const checks = []
@@ -109,7 +109,7 @@ export function verifyReleaseReadiness(root = repoRoot, options = {}) {
     const signingChecks = verifySigningEnvironment(signingPlatform, env)
     checks.push(...signingChecks)
   } else {
-    checks.push('signing config check skipped (set MOVSCRIPT_RELEASE_REQUIRE_SIGNING=1 to enforce)')
+    checks.push('signing config check skipped (unsigned release mode)')
   }
 
   return { checks }

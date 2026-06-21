@@ -22,7 +22,8 @@ import {
   upsertMovScriptEngineWorkspaceSetting,
 } from './projectEngineRegistry'
 
-test('project engine registry reuses one engine per project context', () => {
+test('project engine registry reuses one engine per project context', async () => {
+  const workspaceDir = await createTestWorkspaceDir()
   let created = 0
   const restore = __setProjectEngineFactoryForTest((context) => fakeEngine({
     projectDir: `/workspace/${context.projectId}`,
@@ -32,19 +33,21 @@ test('project engine registry reuses one engine per project context', () => {
   }))
 
   try {
-    const first = projectEngineRegistry.get({ workspaceDir: '/workspace', userId: 1, projectId: 7 })
-    const second = projectEngineRegistry.get({ workspaceDir: '/workspace', userId: 1, projectId: 7 })
-    const third = projectEngineRegistry.get({ workspaceDir: '/workspace', userId: 1, projectId: 8 })
+    const first = projectEngineRegistry.get(projectEngineInput(workspaceDir, 7))
+    const second = projectEngineRegistry.get(projectEngineInput(workspaceDir, 7))
+    const third = projectEngineRegistry.get(projectEngineInput(workspaceDir, 8))
 
     assert.equal(first, second)
     assert.notEqual(first, third)
     assert.equal(created, 2)
   } finally {
     restore()
+    await rm(workspaceDir, { recursive: true, force: true })
   }
 })
 
 test('content workspace API builds page data from the project engine', async () => {
+  const workspaceDir = await createTestWorkspaceDir()
   const production = entity('production', 'pilot', 'productions/pilot/production.json', { title: 'Pilot' })
   const moment = entity('scene_moment', 'rain_call', 'productions/pilot/scene_moments/rain_call/scene_moment.json', { title: 'Rain call' })
   const contentUnit = entity('content_unit', 'cu_phone', 'content_units/cu_phone/content_unit.json', {
@@ -78,21 +81,23 @@ test('content workspace API builds page data from the project engine', async () 
   }))
 
   try {
-    const snapshot = await loadMovScriptEngineContentWorkspaceSnapshot({ workspaceDir: '/workspace', projectId: 7 })
+    const snapshot = await loadMovScriptEngineContentWorkspaceSnapshot(projectEngineInput(workspaceDir, 7))
     assert.equal(snapshot.productions[0].id, 'pilot')
     assert.equal(snapshot.sceneMoments[0].id, 'rain_call')
     assert.equal(snapshot.contentUnits[0].id, 'cu_phone')
     assert.equal(snapshot.productionWorkPlan?.summary.ready_to_generate, 1)
 
-    const data = await loadMovScriptEngineContentWorkspace({ workspaceDir: '/workspace', projectId: 7 })
+    const data = await loadMovScriptEngineContentWorkspace(projectEngineInput(workspaceDir, 7))
     assert.equal(data.source, 'workspace')
     assert.equal(data.productionWorkPlan?.summary.readyToGenerate, 1)
   } finally {
     restore()
+    await rm(workspaceDir, { recursive: true, force: true })
   }
 })
 
 test('content candidate mutations invalidate cached project engines', async () => {
+  const workspaceDir = await createTestWorkspaceDir()
   let created = 0
   const calls: unknown[] = []
   const restore = __setProjectEngineFactoryForTest((context) => fakeEngine({
@@ -115,9 +120,10 @@ test('content candidate mutations invalidate cached project engines', async () =
   }))
 
   try {
-    const first = projectEngineRegistry.get({ workspaceDir: '/workspace', projectId: 7 })
+    const first = projectEngineRegistry.get(projectEngineInput(workspaceDir, 7))
 	    await createMovScriptEngineContentCandidate({
-	      workspaceDir: '/workspace',
+	      workspaceDir,
+        userId: 1,
 	      projectId: 7,
 	      expectedWorkspaceVersions: {},
 	      contentUnitId: 'cu_phone',
@@ -129,17 +135,19 @@ test('content candidate mutations invalidate cached project engines', async () =
       promptSnapshot: { input_hash: 'hash_a' },
       createdAt: '2026-06-12T00:00:00.000Z',
     })
-    const second = projectEngineRegistry.get({ workspaceDir: '/workspace', projectId: 7 })
+    const second = projectEngineRegistry.get(projectEngineInput(workspaceDir, 7))
 
     assert.notEqual(first, second)
     assert.equal(calls.length, 1)
     assert.equal((calls[0] as Record<string, unknown>).contentUnitId, 'cu_phone')
   } finally {
     restore()
+    await rm(workspaceDir, { recursive: true, force: true })
   }
 })
 
 test('workspace domain mutations run through project engines and invalidate cached engines', async () => {
+  const workspaceDir = await createTestWorkspaceDir()
   let created = 0
   const snapshots: unknown[] = []
   const restore = __setProjectEngineFactoryForTest((context) => fakeEngine({
@@ -155,9 +163,10 @@ test('workspace domain mutations run through project engines and invalidate cach
   }))
 
   try {
-    const first = projectEngineRegistry.get({ workspaceDir: '/workspace', projectId: 7 })
+    const first = projectEngineRegistry.get(projectEngineInput(workspaceDir, 7))
 	    await saveMovScriptEngineWorkspaceProductionSnapshot({
-	      workspaceDir: '/workspace',
+	      workspaceDir,
+        userId: 1,
 	      projectId: 7,
 	      expectedWorkspaceVersions: {},
 	      payload: {
@@ -168,17 +177,19 @@ test('workspace domain mutations run through project engines and invalidate cach
         },
       },
     })
-    const second = projectEngineRegistry.get({ workspaceDir: '/workspace', projectId: 7 })
+    const second = projectEngineRegistry.get(projectEngineInput(workspaceDir, 7))
 
     assert.notEqual(first, second)
     assert.equal(snapshots.length, 1)
     assert.equal((snapshots[0] as { productionId: string }).productionId, 'pilot')
   } finally {
     restore()
+    await rm(workspaceDir, { recursive: true, force: true })
   }
 })
 
 test('workspace mutations are serialized per project context', async () => {
+  const workspaceDir = await createTestWorkspaceDir()
   const calls: string[] = []
   let releaseFirst: (() => void) | undefined
   const firstStarted = deferred<void>()
@@ -200,7 +211,8 @@ test('workspace mutations are serialized per project context', async () => {
 
   try {
 	    const first = upsertMovScriptEngineWorkspaceSetting({
-	      workspaceDir: '/workspace',
+	      workspaceDir,
+        userId: 1,
 	      projectId: 7,
 	      expectedWorkspaceVersions: {},
 	      payload: { id: 'first' } as never,
@@ -208,7 +220,8 @@ test('workspace mutations are serialized per project context', async () => {
     await firstStarted.promise
 
 	    const second = upsertMovScriptEngineWorkspaceSetting({
-	      workspaceDir: '/workspace',
+	      workspaceDir,
+        userId: 1,
 	      projectId: 7,
 	      expectedWorkspaceVersions: {},
 	      payload: { id: 'second' } as never,
@@ -222,17 +235,19 @@ test('workspace mutations are serialized per project context', async () => {
   } finally {
     restoreBroadcast()
     restoreEngine()
+    await rm(workspaceDir, { recursive: true, force: true })
   }
 })
 
 test('workspace mutation queues do not block different projects', async () => {
+  const workspaceDir = await createTestWorkspaceDir()
   const calls: string[] = []
   let releaseFirst: (() => void) | undefined
   const firstStarted = deferred<void>()
   const restoreEngine = __setProjectEngineFactoryForTest((context) => fakeEngine({
     upsertSetting: async () => {
       calls.push(`start:${context.projectId}`)
-      if (context.projectId === 7) {
+      if (String(context.projectId) === '7') {
         firstStarted.resolve()
         await new Promise<void>((resolve) => {
           releaseFirst = resolve
@@ -246,7 +261,8 @@ test('workspace mutation queues do not block different projects', async () => {
 
   try {
 	    const first = upsertMovScriptEngineWorkspaceSetting({
-	      workspaceDir: '/workspace',
+	      workspaceDir,
+        userId: 1,
 	      projectId: 7,
 	      expectedWorkspaceVersions: {},
 	      payload: { id: 'first' } as never,
@@ -254,7 +270,8 @@ test('workspace mutation queues do not block different projects', async () => {
     await firstStarted.promise
 
 	    await upsertMovScriptEngineWorkspaceSetting({
-	      workspaceDir: '/workspace',
+	      workspaceDir,
+        userId: 1,
 	      projectId: 8,
 	      expectedWorkspaceVersions: {},
 	      payload: { id: 'second' } as never,
@@ -267,10 +284,12 @@ test('workspace mutation queues do not block different projects', async () => {
   } finally {
     restoreBroadcast()
     restoreEngine()
+    await rm(workspaceDir, { recursive: true, force: true })
   }
 })
 
 test('interpret sync emits a project workspace update event after completion', async () => {
+  const workspaceDir = await createTestWorkspaceDir()
   const events: unknown[] = []
   const restoreEngine = __setProjectEngineFactoryForTest(() => fakeEngine({
     interpret: async () => ({ ok: true }),
@@ -280,21 +299,22 @@ test('interpret sync emits a project workspace update event after completion', a
   })
 
   try {
-    await syncMovScriptEngineContentWorkspace({ workspaceDir: '/workspace', projectId: 7, userId: 1 })
+    await syncMovScriptEngineContentWorkspace(projectEngineInput(workspaceDir, 7))
     assert.equal(events.length, 1)
     assert.deepEqual(events[0], {
       type: 'MovScriptEngineWorkspaceUpdated',
       reason: 'interpret-synced',
       sequence: (events[0] as { sequence: number }).sequence,
       updatedAt: (events[0] as { updatedAt: string }).updatedAt,
-      movScriptHomeDir: '/workspace',
-      workspaceDir: '/workspace',
-      userId: 1,
-      projectId: 7,
+      movScriptHomeDir: workspaceDir,
+      workspaceDir,
+      userId: '1',
+      projectId: '7',
     })
   } finally {
     restoreBroadcast()
     restoreEngine()
+    await rm(workspaceDir, { recursive: true, force: true })
   }
 })
 
@@ -325,7 +345,8 @@ test('workspace mutations interpret and reject stale expected workspace versions
   try {
     await assert.rejects(
       upsertMovScriptEngineWorkspaceSetting({
-        workspaceDir: '/workspace',
+        workspaceDir: projectDir,
+        userId: 1,
         projectId: 7,
         expectedWorkspaceVersions: { [targetPath]: initialVersion },
         payload: { id: 'project_standards' } as never,
@@ -341,6 +362,7 @@ test('workspace mutations interpret and reject stale expected workspace versions
 	})
 
 test('workspace mutations reject missing expected workspace versions', async () => {
+  const workspaceDir = await createTestWorkspaceDir()
   const calls: string[] = []
   const restoreEngine = __setProjectEngineFactoryForTest(() => fakeEngine({
     interpret: async () => {
@@ -357,7 +379,8 @@ test('workspace mutations reject missing expected workspace versions', async () 
   try {
     await assert.rejects(
       upsertMovScriptEngineWorkspaceSetting({
-        workspaceDir: '/workspace',
+        workspaceDir,
+        userId: 1,
         projectId: 7,
         payload: { id: 'project_standards' } as never,
       }),
@@ -367,8 +390,17 @@ test('workspace mutations reject missing expected workspace versions', async () 
   } finally {
     restoreBroadcast()
     restoreEngine()
+    await rm(workspaceDir, { recursive: true, force: true })
   }
 })
+
+async function createTestWorkspaceDir(): Promise<string> {
+  return mkdtemp(join(tmpdir(), 'movscript-project-engine-workspace-'))
+}
+
+function projectEngineInput(workspaceDir: string, projectId: number) {
+  return { workspaceDir, userId: 1, projectId }
+}
 
 function fakeEngine(input: {
   projectDir?: string
@@ -414,6 +446,9 @@ function fakeEngine(input: {
       }
     },
     async readPreviewTimeline() {
+      return undefined
+    },
+    async readSceneMomentEditPlan() {
       return undefined
     },
     createContentCandidate: input.createContentCandidate ?? (async (candidateInput) => ({

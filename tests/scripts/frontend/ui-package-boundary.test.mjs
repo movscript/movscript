@@ -55,6 +55,7 @@ function readProjectFile(relativePath) {
 function readScriptsPageFeatureCss() {
   return [
     'apps/frontend/src/features/scripts/components/ScriptsPageUi.css',
+    'apps/frontend/src/features/scripts/components/ScriptsPageDetail.css',
     'apps/frontend/src/features/scripts/components/ScriptsPageEditor.css',
     'apps/frontend/src/features/scripts/components/ScriptsPagePanels.css',
   ].map(readProjectFile).join('\n')
@@ -71,15 +72,26 @@ function readScriptsPageFeatureSource() {
 }
 
 function readResourcePageFeatureCss() {
-  return [
-    'apps/frontend/src/features/resources/components/ResourcePageUi.css',
-    'apps/frontend/src/features/resources/components/ResourcePageDialogs.css',
-  ].map(readProjectFile).join('\n')
+  return readFeatureCssBundle('apps/frontend/src/features/resources/components/ResourcePageUi.css')
+}
+
+function readFeatureCssBundle(relativePath, seen = new Set()) {
+  if (seen.has(relativePath)) return ''
+  seen.add(relativePath)
+  const source = readProjectFile(relativePath)
+  const importedSources = [...source.matchAll(/@import\s+['"]\.\/([^'"]+)['"];/g)].map((match) => {
+    const importedPath = path.posix.join(path.posix.dirname(relativePath), match[1])
+    return readFeatureCssBundle(importedPath, seen)
+  })
+
+  return [source, ...importedSources].join('\n')
 }
 
 function readCanvasWorkflowFeatureCss() {
   return [
     'apps/frontend/src/features/canvas/ui/CanvasWorkflowUi.css',
+    'apps/frontend/src/features/canvas/ui/CanvasWorkflowUi.history.css',
+    'apps/frontend/src/features/canvas/ui/CanvasWorkflowUi.reference-picker.css',
     'apps/frontend/src/features/canvas/ui/CanvasWorkflowReferenceCardUi.css',
     'apps/frontend/src/features/canvas/ui/CanvasWorkflowRunResultsUi.css',
   ].map(readProjectFile).join('\n')
@@ -1519,18 +1531,19 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
   const canvasMediaSource = readProjectFile('packages/ui/src/components/business/canvas/media/index.tsx')
   const canvasMediaCss = readProjectFile('packages/ui/src/components/business/canvas/media/styles.css')
   const canvasResourceShelfUiSource = readProjectFile('apps/frontend/src/features/canvas/ui/CanvasResourceShelfUi.tsx')
+  const canvasResourceShelfCardUiSource = readProjectFile('apps/frontend/src/features/canvas/ui/CanvasResourceShelfCardUi.tsx')
   const canvasResourceShelfUiCss = readProjectFile('apps/frontend/src/features/canvas/ui/CanvasResourceShelfUi.css')
   const canvasResourceShelfPackageDir = path.join(root, 'packages/ui/src/components/business/canvas/resource-shelf')
   const canvasEditorUiSource = [
     readProjectFile('apps/frontend/src/features/canvas/ui/CanvasEditorUi.tsx'),
     readProjectFile('apps/frontend/src/features/canvas/ui/CanvasEditorPaletteUi.tsx'),
   ].join('\n')
-  const canvasEditorUiCss = readProjectFile('apps/frontend/src/features/canvas/ui/CanvasEditorUi.css')
+  const canvasEditorUiCss = readFeatureCssBundle('apps/frontend/src/features/canvas/ui/CanvasEditorUi.css')
   const canvasEditorFlowUiSource = readProjectFile('apps/frontend/src/features/canvas/ui/CanvasEditorFlowUi.tsx')
   const canvasEditorFlowUiCss = readProjectFile('apps/frontend/src/features/canvas/ui/CanvasEditorFlowUi.css')
   const canvasEditorPackageDir = path.join(root, 'packages/ui/src/components/business/canvas/editor')
   const canvasListUiSource = readProjectFile('apps/frontend/src/features/canvas/components/CanvasListUi.tsx')
-  const canvasListUiCss = readProjectFile('apps/frontend/src/features/canvas/components/CanvasListUi.css')
+  const canvasListUiCss = readFeatureCssBundle('apps/frontend/src/features/canvas/components/CanvasListUi.css')
   const canvasListPackageDir = path.join(root, 'packages/ui/src/components/business/canvas/list')
   const canvasMentionSource = readProjectFile('packages/ui/src/components/business/canvas/mention/index.tsx')
   const canvasMentionCss = readProjectFile('packages/ui/src/components/business/canvas/mention/styles.css')
@@ -1542,6 +1555,7 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
   const canvasToolFullCardCss = readCanvasToolFullCardCss()
   const semanticEntityInlineEditorSource = readProjectFile('apps/frontend/src/shared/ui/SemanticEntityInlineEditor.tsx')
   const semanticEntityInlineEditorUiSource = readProjectFile('apps/frontend/src/shared/ui/SemanticEntityInlineEditorUi.tsx')
+  const semanticEntityInlineEditorFieldUiSource = readProjectFile('apps/frontend/src/shared/ui/SemanticEntityInlineEditorFieldUi.tsx')
   const semanticEntityInlineEditorUiCss = readProjectFile('apps/frontend/src/shared/ui/SemanticEntityInlineEditorUi.css')
   const generationCss = readProjectFile('packages/ui/src/components/business/generation/styles.css')
   const generationInputSource = readGenerationInputSource()
@@ -1854,10 +1868,11 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
   assert.doesNotMatch(canvasCss, /@import "\.\/resource-shelf\/styles\.css";/)
   assert.doesNotMatch(canvasPackageSource, /from "\.\/resource-shelf"/)
   assert.match(canvasResourceShelfUiSource, /export function CanvasResourceShelfView/)
-  assert.match(canvasResourceShelfUiSource, /export const CanvasResourceShelfLazyFrame/)
+  assert.match(canvasResourceShelfCardUiSource, /export const CanvasResourceShelfLazyFrame/)
+  assert.match(canvasResourceShelfUiSource, /from "\.\/CanvasResourceShelfCardUi"/)
   assert.match(canvasResourceShelfUiSource, /from "@movscript\/ui\/business\/app"/)
-  assert.match(canvasResourceShelfUiSource, /from "@movscript\/ui\/business\/canvas"/)
   assert.match(canvasResourceShelfUiSource, /from "@movscript\/ui\/primitives"/)
+  assert.match(canvasResourceShelfCardUiSource, /from "@movscript\/ui\/business\/canvas"/)
   assert.match(canvasResourceShelfUiCss, /\.canvas-resource-shelf\s*\{/)
   assert.match(canvasResourceShelfUiCss, /\.canvas-resource-shelf-card\s*\{/)
   assert.equal(existsSync(canvasEditorPackageDir), false, 'canvas editor UI must not remain in packages/ui')
@@ -1923,8 +1938,9 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
   assert.doesNotMatch(frontendViteE2eConfig, /@movscript\/ui\/business\/detail|@movscript\/ui\/styles\/business\/detail\.css/)
   assert.doesNotMatch(adminViteConfig, /@movscript\/ui\/business\/detail|@movscript\/ui\/styles\/business\/detail\.css/)
   assert.match(semanticEntityInlineEditorSource, /from '@\/shared\/ui\/SemanticEntityInlineEditorUi'/)
-  assert.match(semanticEntityInlineEditorUiSource, /export function DetailEntityFieldControl/)
-  assert.match(semanticEntityInlineEditorUiSource, /export function DetailEntitySourceLockNotice/)
+  assert.match(semanticEntityInlineEditorUiSource, /from '@\/shared\/ui\/SemanticEntityInlineEditorFieldUi'/)
+  assert.match(semanticEntityInlineEditorFieldUiSource, /export function DetailEntityFieldControl/)
+  assert.match(semanticEntityInlineEditorFieldUiSource, /export function DetailEntitySourceLockNotice/)
   assert.match(semanticEntityInlineEditorUiSource, /export function DetailEntityHorizontalRail/)
   assert.doesNotMatch(semanticEntityInlineEditorUiSource, /DetailEntityDialogShell/)
   assert.match(semanticEntityInlineEditorUiCss, /\.detail-entity-field__control\s*\{/)
@@ -2030,6 +2046,10 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
   assert.doesNotMatch(generationResultCss, /\.generation-result-card__state--cancelled\s*\{[^}]*line-height:/)
   assert.doesNotMatch(generationResultCss, /\.generation-result-card__error\s*\{[^}]*justify-content:/)
   assert.doesNotMatch(generationResultCss, /\.generation-result-card__media > \*\s*\{/)
+  assert.match(generationResultCss, /\.generation-result-card__media\s*\{[\s\S]*overflow:\s*hidden;/)
+  assert.match(generationResultCss, /\.generation-result-card__media > \.resource-media-thumb,[\s\S]*\.generation-result-card__media \.resource-media-thumb > video\s*\{[\s\S]*height:\s*100%;/)
+  assert.match(generationResultCss, /\.generation-result-card__media \.resource-media-thumb\s*\{[\s\S]*overflow:\s*hidden;/)
+  assert.match(generationResultCss, /\.generation-result-card__media \.resource-media-thumb\[data-fit="contain"\] > img,[\s\S]*object-fit:\s*contain;/)
   assert.doesNotMatch(jobsFeatureSource, /@movscript\/ui\/business\/jobs/)
   assert.doesNotMatch(jobsDisplayUiSource, /export function JobsPageShell/)
   assert.match(jobsDisplayUiSource, /export function JobCardShell/)
@@ -2442,7 +2462,12 @@ test('desktop consumes migrated app and workbench primitives through @movscript/
     readProjectFile('apps/frontend/src/features/scripts/components/ScriptsPageParts.tsx'),
   ].join('\n')
   const scriptsPageFeatureSource = readScriptsPageFeatureSource()
-  const canvasListSource = readProjectFile('apps/frontend/src/features/canvas/components/CanvasListView.tsx')
+  const canvasListSource = [
+    readProjectFile('apps/frontend/src/features/canvas/components/CanvasListView.tsx'),
+    readProjectFile('apps/frontend/src/features/canvas/components/CanvasListViewSections.tsx'),
+    readProjectFile('apps/frontend/src/features/canvas/components/CanvasListViewRow.tsx'),
+    readProjectFile('apps/frontend/src/features/canvas/components/CanvasListViewModel.tsx'),
+  ].join('\n')
 
   assert.doesNotMatch(frontendSources, /@\/components\/app\/AppPage/)
   assert.doesNotMatch(frontendSources, /@\/components\/app\/SemanticStatusBadge/)
@@ -3300,8 +3325,15 @@ test('agent surface blocks own reusable shell and row styling', () => {
   ].join('\n')
   const agentConsoleCapabilityPanelsSource = readProjectFile('apps/frontend/src/features/agent/components/AgentConsoleCapabilityPanels.tsx')
   const agentConsoleSurfaceSource = `${agentConsoleSource}\n${agentConsoleCapabilityPanelsSource}`
-  const agentConsoleUiSource = readProjectFile('apps/frontend/src/features/agent/components/AgentConsoleUi.tsx')
-  const agentConsoleUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentConsoleUi.css')
+  const agentConsoleUiSource = [
+    readProjectFile('apps/frontend/src/features/agent/components/AgentConsoleUi.tsx'),
+    readProjectFile('apps/frontend/src/features/agent/components/AgentConsoleIssueUi.tsx'),
+    readProjectFile('apps/frontend/src/features/agent/components/AgentConsoleLocalToolUi.tsx'),
+  ].join('\n')
+  const agentConsoleUiCss = [
+    'apps/frontend/src/features/agent/components/AgentConsoleUi.css',
+    'apps/frontend/src/features/agent/components/AgentConsoleUi.composite.css',
+  ].map(readProjectFile).join('\n')
   const movScriptWorkspaceFilesSource = readProjectFile('apps/frontend/src/features/agent/components/MovScriptWorkspaceFilesPage.tsx')
   const agentSettingsSource = readProjectFile('apps/frontend/src/features/agent/components/AIAgentSettingsPage.tsx')
   const agentSettingsPartsSource = readProjectFile('apps/frontend/src/features/agent/components/AIAgentSettingsPageParts.tsx')
@@ -3341,12 +3373,18 @@ test('agent surface blocks own reusable shell and row styling', () => {
   const agentBrowserHeaderSource = readProjectFile('apps/frontend/src/features/agent/components/AgentBrowserPanelHeader.tsx')
   const agentBrowserTabContentSource = readProjectFile('apps/frontend/src/features/agent/components/AgentBrowserTabContent.tsx')
   const agentBrowserProjectHomeSource = readProjectFile('apps/frontend/src/features/agent/components/AgentBrowserProjectHomePage.tsx')
+  const agentBrowserProjectHomePartsSource = readProjectFile('apps/frontend/src/features/agent/components/AgentBrowserProjectHomePageParts.tsx')
+  const agentBrowserProjectHomeControllerSource = readProjectFile('apps/frontend/src/features/agent/components/useAgentBrowserProjectHomeController.tsx')
   const agentBrowserBlankWebTabSource = readProjectFile('apps/frontend/src/features/agent/components/AgentBrowserBlankWebTab.tsx')
   const agentBrowserUiSource = readProjectFile('apps/frontend/src/features/agent/components/AgentBrowserUi.tsx')
   const agentBrowserUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentBrowserUi.css')
   const agentBrowserInternalPageUiSource = readProjectFile('apps/frontend/src/features/agent/components/AgentBrowserInternalPageUi.tsx')
-  const agentBrowserInternalPageUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentBrowserInternalPageUi.css')
-  const agentBrowserSurfaceSource = `${agentBrowserSource}\n${agentBrowserHeaderSource}\n${agentBrowserTabContentSource}\n${agentBrowserProjectHomeSource}\n${agentBrowserBlankWebTabSource}`
+  const agentBrowserInternalPageUiCss = [
+    'apps/frontend/src/features/agent/components/AgentBrowserInternalPageUi.css',
+    'apps/frontend/src/features/agent/components/AgentBrowserInternalPage.content-nav.css',
+    'apps/frontend/src/features/agent/components/AgentBrowserInternalPage.session-output.css',
+  ].map(readProjectFile).join('\n')
+  const agentBrowserSurfaceSource = `${agentBrowserSource}\n${agentBrowserHeaderSource}\n${agentBrowserTabContentSource}\n${agentBrowserProjectHomeSource}\n${agentBrowserProjectHomePartsSource}\n${agentBrowserProjectHomeControllerSource}\n${agentBrowserBlankWebTabSource}`
   const pinnedStatusShelfSource = readProjectFile('apps/frontend/src/features/agent/components/AgentPinnedStatusShelf.tsx')
   const pinnedStatusUiSource = readProjectFile('apps/frontend/src/features/agent/components/AgentPinnedStatusUi.tsx')
   const pinnedStatusUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentPinnedStatusUi.css')
@@ -3438,7 +3476,7 @@ test('agent surface blocks own reusable shell and row styling', () => {
   assert.doesNotMatch(agentConsoleSurfaceSource, /invalid=\{!result\.ok\}/)
   assert.doesNotMatch(agentConsoleSource, /appServerEnabled/)
   assert.match(agentConsoleSource, /function ConsoleMetricCard[\s\S]*?<AgentConsoleMetricCard/)
-  assert.match(agentConsoleUiSource, /function AgentConsoleLocalToolCard[\s\S]*?<AgentConsoleToneSurfaceBlock[\s\S]*?tone=\{invalid \? "danger" : undefined\}/)
+  assert.match(agentConsoleUiSource, /function AgentConsoleLocalToolCard[\s\S]*?<AgentSurfaceBlock[\s\S]*?invalid \? toneSurfaceClass\("danger"\) : undefined/)
   assert.match(agentConsoleUiSource, /AgentConsoleToneSurfaceBlock[\s\S]*?toneSurfaceClass\(tone\)/)
   assert.match(agentConsoleUiSource, /AgentConsoleMetricCard[\s\S]*?tone === "action" \? XCircle/)
   assert.match(agentConsoleUiCss, /\.agent-console-panel\s*\{/)
@@ -3609,6 +3647,8 @@ test('agent surface blocks own reusable shell and row styling', () => {
   assert.match(agentSettingsUiCss, /\.agent-settings-title-row\s*\{/)
   assert.match(agentSettingsUiCss, /\.agent-settings-card-title\s*\{/)
   assert.match(agentSettingsUiCss, /\.agent-settings-card-description\s*\{/)
+  assert.match(agentSettingsStatusUiCss, /\.agent-settings-status-card__body\s*\{/)
+  assert.doesNotMatch(agentSettingsUiCss, /\.agent-settings-status-card__body\s*\{/)
   assert.match(agentSettingsStatusUiSource, /export function AgentSettingsToggleRow/)
   assert.match(agentSettingsStatusUiSource, /export function AgentSettingsApiModeCapabilityMatrix/)
   assert.match(agentSettingsStatusUiSource, /export function AgentSettingsStatusPanel/)
@@ -3928,6 +3968,8 @@ test('agent panel and page surfaces use package agent styles', () => {
   const projectAgentModeSource = [
     readProjectFile('apps/frontend/src/features/agent/components/ProjectAgentModePage.tsx'),
     readProjectFile('apps/frontend/src/features/agent/components/ProjectAgentModeSidebar.tsx'),
+    readProjectFile('apps/frontend/src/features/agent/components/useProjectAgentModeSidebarController.ts'),
+    readProjectFile('apps/frontend/src/features/agent/components/useProjectAgentModeSidebarActions.ts'),
     readProjectFile('apps/frontend/src/features/agent/components/ProjectAgentModeSidebarModel.ts'),
     readProjectFile('apps/frontend/src/features/agent/components/ProjectAgentModeSidebarView.tsx'),
     readProjectFile('apps/frontend/src/features/agent/components/ProjectAgentModeSidebarParts.tsx'),
@@ -3937,13 +3979,21 @@ test('agent panel and page surfaces use package agent styles', () => {
   const agentModeFeatureSource = readProjectFile('apps/frontend/src/features/agent/components/AgentModeUi.tsx')
   const agentModeFeatureCss = readProjectFile('apps/frontend/src/features/agent/components/AgentModeUi.css')
   const agentModeFeatureSidebarCss = readProjectFile('apps/frontend/src/features/agent/components/AgentModeUi.sidebar.css')
+  const agentModeFeatureSidebarConversationCss = readProjectFile('apps/frontend/src/features/agent/components/AgentModeUi.sidebar-conversations.css')
+  const agentModeFeatureSidebarUserCss = readProjectFile('apps/frontend/src/features/agent/components/AgentModeUi.sidebar-user.css')
   const agentDebugWorkspaceDiffSource = readProjectFile('apps/frontend/src/features/agent/components/AgentDebugPreviewWorkspaceDiff.tsx')
   const agentDebugPreviewUiSource = readProjectFile('apps/frontend/src/features/agent/components/AgentDebugPreviewUi.tsx')
-  const agentDebugPreviewUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentDebugPreviewUi.css')
+  const agentDebugPreviewUiCss = [
+    'apps/frontend/src/features/agent/components/AgentDebugPreviewUi.css',
+    'apps/frontend/src/features/agent/components/AgentDebugPreviewWorkspaceDiff.css',
+  ].map(readProjectFile).join('\n')
   const agentConsoleRealtimeLogUiSource = readProjectFile('apps/frontend/src/features/agent/components/AgentConsoleRealtimeLogUi.tsx')
   const agentConsoleRealtimeLogUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentConsoleRealtimeLogUi.css')
   const agentConsoleUiSource = readProjectFile('apps/frontend/src/features/agent/components/AgentConsoleUi.tsx')
-  const agentConsoleUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentConsoleUi.css')
+  const agentConsoleUiCss = [
+    'apps/frontend/src/features/agent/components/AgentConsoleUi.css',
+    'apps/frontend/src/features/agent/components/AgentConsoleUi.composite.css',
+  ].map(readProjectFile).join('\n')
   const agentComposerPanelUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentComposerPanelUi.css')
   const agentChatToolbarUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentChatToolbarUi.css')
   const agentConversationTabsUiCss = [
@@ -3969,23 +4019,23 @@ test('agent panel and page surfaces use package agent styles', () => {
     assert.match(`${agentCss}\n${agentChatCss}`, cssClassSelectorPattern(sharedClass), `${sharedClass} agent styles must live in @movscript/ui agent`)
   }
   for (const appChatItemClass of [
-    'ms-agent-chat-thread-fill',
-    'ms-agent-chat-thread-error',
-    'ms-agent-chat-capability-events',
-    'ms-agent-chat-thread-items',
-    'ms-agent-chat-section-title',
-    'ms-agent-chat-meta-list',
-    'ms-agent-chat-inline-list',
-    'ms-agent-chat-message-text',
-    'ms-agent-chat-empty-text',
-    'ms-agent-chat-chip-row',
-    'ms-agent-chat-request-form',
-    'ms-agent-chat-request-menu',
-    'ms-agent-chat-action-layer',
-    'ms-agent-chat-pre',
-    'ms-agent-chat-media-grid',
-    'ms-agent-chat-media-tile',
-    'ms-agent-chat-inspect',
+    'agent-chat-thread-fill',
+    'agent-chat-thread-error',
+    'agent-chat-capability-events',
+    'agent-chat-thread-items',
+    'agent-chat-section-title',
+    'agent-chat-meta-list',
+    'agent-chat-inline-list',
+    'agent-chat-message-text',
+    'agent-chat-empty-text',
+    'agent-chat-chip-row',
+    'agent-chat-request-form',
+    'agent-chat-request-menu',
+    'agent-chat-action-layer',
+    'agent-chat-pre',
+    'agent-chat-media-grid',
+    'agent-chat-media-tile',
+    'agent-chat-inspect',
   ]) {
     assert.match(agentChatItemsUiCss, cssClassSelectorPattern(appChatItemClass), `${appChatItemClass} styles must be owned by app agent chat item UI`)
     assert.doesNotMatch(agentCss, cssClassSelectorPattern(appChatItemClass), `${appChatItemClass} styles must not remain in @movscript/ui agent`)
@@ -4265,9 +4315,13 @@ test('agent panel and page surfaces use package agent styles', () => {
   assert.match(agentModeFeatureSource, /ms-inline-center agent-mode-icon/)
   assert.match(agentModeFeatureSource, /ms-text-truncate agent-mode-label/)
   assert.match(agentModeFeatureCss, /@import "\.\/AgentModeUi\.sidebar\.css"/)
+  assert.match(agentModeFeatureCss, /@import "\.\/AgentModeUi\.sidebar-conversations\.css"/)
+  assert.match(agentModeFeatureCss, /@import "\.\/AgentModeUi\.sidebar-user\.css"/)
   assert.match(agentModeFeatureCss, /@import "\.\/AgentModeUi\.workspace\.css"/)
   assert.match(agentModeFeatureCss, /@import "\.\/AgentModeUi\.panels\.css"/)
   assert.match(agentModeFeatureSidebarCss, cssClassSelectorPattern('agent-mode-root'))
+  assert.match(agentModeFeatureSidebarConversationCss, cssClassSelectorPattern('agent-mode-conversation-row'))
+  assert.match(agentModeFeatureSidebarUserCss, cssClassSelectorPattern('agent-mode-user-trigger'))
   assert.doesNotMatch(agentModeFeatureSidebarCss, /\.agent-mode-label\s*\{[^}]*text-overflow:\s*ellipsis/)
   assert.doesNotMatch(readProjectFile('packages/ui/src/components/business/agent/index.tsx'), /export \* from "\.\/mode"/)
   assert.doesNotMatch(readProjectFile('packages/ui/src/components/business/agent/styles.css'), /@import "\.\/mode\/styles\.css"/)
@@ -4288,6 +4342,8 @@ test('agent layout primitives share internal layout classes', () => {
   const projectAgentModeSource = [
     readProjectFile('apps/frontend/src/features/agent/components/ProjectAgentModePage.tsx'),
     readProjectFile('apps/frontend/src/features/agent/components/ProjectAgentModeSidebar.tsx'),
+    readProjectFile('apps/frontend/src/features/agent/components/useProjectAgentModeSidebarController.ts'),
+    readProjectFile('apps/frontend/src/features/agent/components/useProjectAgentModeSidebarActions.ts'),
     readProjectFile('apps/frontend/src/features/agent/components/ProjectAgentModeSidebarModel.ts'),
     readProjectFile('apps/frontend/src/features/agent/components/ProjectAgentModeSidebarView.tsx'),
     readProjectFile('apps/frontend/src/features/agent/components/ProjectAgentModeSidebarParts.tsx'),
@@ -4502,7 +4558,11 @@ test('core canvas cards use @movscript/ui tone contracts', () => {
   const canvasEditorFlowUiCss = readProjectFile('apps/frontend/src/features/canvas/ui/CanvasEditorFlowUi.css')
   const canvasWorkflowReferenceCardSource = readProjectFile('apps/frontend/src/features/canvas/ui/CanvasWorkflowReferenceCardUi.tsx')
   const canvasWorkflowUiCss = readCanvasWorkflowFeatureCss()
-  const canvasNodeCardFeatureSource = readProjectFile('apps/frontend/src/features/canvas/ui/CanvasNodeCardUi.tsx')
+  const canvasNodeCardFeatureSource = [
+    'apps/frontend/src/features/canvas/ui/CanvasNodeCardUi.tsx',
+    'apps/frontend/src/features/canvas/ui/CanvasNodeCardPrimitives.tsx',
+    'apps/frontend/src/features/canvas/ui/CanvasNodeCardViews.tsx',
+  ].map(readProjectFile).join('\n')
   const uiCanvasCardShellSource = readProjectFile('packages/ui/src/components/business/canvas/card/shell/index.tsx')
   const uiCanvasCardNodeSource = [
     'packages/ui/src/components/business/canvas/card/node/index.tsx',
@@ -5261,9 +5321,23 @@ test('auth and app settings use package surface primitives', () => {
 test('organization workspace pages use feature-owned semantic components', () => {
   const orgSelectSource = readProjectFile('apps/frontend/src/features/organization/components/OrgSelectPage.tsx')
   const orgSettingsSource = readProjectFile('apps/frontend/src/features/organization/components/OrgSettingsPage.tsx')
+  const orgSettingsTabsSource = readProjectFile('apps/frontend/src/features/organization/components/OrgSettingsTabs.tsx')
+  const orgMembersTabSource = readProjectFile('apps/frontend/src/features/organization/components/OrgMembersTab.tsx')
+  const orgInvitationsTabSource = readProjectFile('apps/frontend/src/features/organization/components/OrgInvitationsTab.tsx')
+  const orgUsageTabSource = readProjectFile('apps/frontend/src/features/organization/components/OrgUsageTab.tsx')
+  const orgSettingsDetailsTabSource = readProjectFile('apps/frontend/src/features/organization/components/OrgSettingsDetailsTab.tsx')
   const orgGenerationToolsTabSource = readProjectFile('apps/frontend/src/features/organization/components/OrgGenerationToolsTab.tsx')
   const orgGenerationToolServerCardSource = readProjectFile('apps/frontend/src/features/organization/components/OrgGenerationToolServerCard.tsx')
-  const orgSettingsSurfaceSource = `${orgSettingsSource}\n${orgGenerationToolsTabSource}\n${orgGenerationToolServerCardSource}`
+  const orgSettingsSurfaceSource = [
+    orgSettingsSource,
+    orgSettingsTabsSource,
+    orgMembersTabSource,
+    orgInvitationsTabSource,
+    orgUsageTabSource,
+    orgSettingsDetailsTabSource,
+    orgGenerationToolsTabSource,
+    orgGenerationToolServerCardSource,
+  ].join('\n')
   const organizationFeatureSource = readProjectFile('apps/frontend/src/features/organization/components/OrganizationUi.tsx')
   const organizationFeatureCss = readProjectFile('apps/frontend/src/features/organization/components/OrganizationUi.css')
   const packageJson = JSON.parse(readProjectFile('packages/ui/package.json'))
@@ -5397,7 +5471,7 @@ test('organization workspace pages use feature-owned semantic components', () =>
   assert.doesNotMatch(orgSettingsSurfaceSource, /\btoneTextClass\b/)
   assert.match(orgSettingsSurfaceSource, /invalid=\{invalid\}/)
   assert.match(orgSettingsSurfaceSource, /<OrganizationConnectionStatus success=\{testResult\.success\}>/)
-  assert.match(orgSettingsSource, /function UsageTab[\s\S]*?<OrganizationUsageMetricCard/)
+  assert.match(orgSettingsSurfaceSource, /function UsageTab[\s\S]*?<OrganizationUsageMetricCard/)
   assert.match(orgGenerationToolsTabSource, /settingsQuery\.error[\s\S]*?<OrganizationStatusMessage tone="danger"/)
   assert.match(orgSettingsSource, /tabs\.map[\s\S]*?<OrganizationTabButton[\s\S]*?variant=\{tab === key \? 'solid' : 'ghost'\}/)
   assert.doesNotMatch(orgSettingsSurfaceSource, /<select\b/)
@@ -5410,8 +5484,13 @@ test('plugin tool page uses package form controls', () => {
     readProjectFile('apps/frontend/src/features/plugins/components/ClientPluginsPageViews.tsx'),
   ].join('\n')
   const pluginToolSource = readProjectFile('apps/frontend/src/features/plugins/components/PluginToolPage.tsx')
-  const pluginsFeatureSource = readProjectFile('apps/frontend/src/features/plugins/components/PluginsPageUi.tsx')
-  const pluginsFeatureCss = readProjectFile('apps/frontend/src/features/plugins/components/PluginsPageUi.css')
+  const pluginsPageUiSource = readProjectFile('apps/frontend/src/features/plugins/components/PluginsPageUi.tsx')
+  const pluginsToolUiSource = readProjectFile('apps/frontend/src/features/plugins/components/PluginsToolUi.tsx')
+  const pluginsFeatureSource = [pluginsPageUiSource, pluginsToolUiSource].join('\n')
+  const pluginsFeatureCss = [
+    'apps/frontend/src/features/plugins/components/PluginsPageUi.css',
+    'apps/frontend/src/features/plugins/components/PluginsToolUi.css',
+  ].map(readProjectFile).join('\n')
   const uiPackageJson = JSON.parse(readProjectFile('packages/ui/package.json'))
   const uiBusinessBarrel = readProjectFile('packages/ui/src/components/business/index.ts')
   const uiPluginsComponentDir = path.join(root, 'packages/ui/src/components/business/plugins')
@@ -5424,7 +5503,9 @@ test('plugin tool page uses package form controls', () => {
   assert.equal(Object.hasOwn(uiPackageJson.exports, './business/plugins'), false, 'plugins business entry must not be exported from @movscript/ui')
   assert.equal(Object.hasOwn(uiPackageJson.exports, './styles/business/plugins.css'), false, 'plugins CSS entry must not be exported from @movscript/ui')
   assert.doesNotMatch(uiBusinessBarrel, /plugins/, 'legacy business namespace barrel must not re-export plugins')
-  assert.match(pluginsFeatureSource, /import "\.\/PluginsPageUi\.css"/)
+  assert.match(pluginsPageUiSource, /import "\.\/PluginsPageUi\.css"/)
+  assert.match(pluginToolSource, /from '@\/features\/plugins\/components\/PluginsToolUi'/)
+  assert.doesNotMatch(pluginsPageUiSource, /export (?:function|const) PluginTool[A-Z]/)
 
   for (const exportName of ['AppCodeBlock', 'AppInlineMeta', 'AppStateMessage', 'AppSurfaceItem', 'Button', 'Input', 'NativeSelect', 'Textarea']) {
     assert.match(pluginsFeatureSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be owned by plugins feature UI`)
@@ -5454,13 +5535,13 @@ test('plugin tool page uses package form controls', () => {
     'PluginToolWebviewFrame',
   ]) {
     assert.match(pluginToolSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by plugin tool page`)
-    assert.match(pluginsFeatureSource, new RegExp(`export (?:function|const) ${exportName}\\b`), `${exportName} must be feature-owned`)
+    assert.match(pluginsToolUiSource, new RegExp(`export (?:function|const) ${exportName}\\b`), `${exportName} must be feature-owned`)
   }
   for (const exportName of ['PluginBannerDismissAction', 'PluginButtonIcon', 'PluginCardSurface', 'PluginEmptyState', 'PluginFileInput', 'PluginSearchInput', 'PluginStateBanner', 'PluginStatusMeta', 'PluginTabButton', 'PluginTabCount', 'PluginTabGroup', 'PluginTagMeta', 'PluginToneText', 'Button']) {
     assert.match(clientPluginsSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by client plugins page`)
   }
   for (const exportName of ['AppControlGroup', 'AppEmptyState', 'AppInlineMeta', 'AppStateMessage', 'AppSurfaceItem', 'toneTextClass']) {
-    assert.match(pluginsFeatureSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be owned by plugins feature UI`)
+    assert.match(pluginsPageUiSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be owned by plugins feature UI`)
   }
   assert.match(pluginsFeatureCss, /\.plugin-card-surface/)
   assert.match(pluginsFeatureCss, /\.plugin-state-banner/)
@@ -5501,6 +5582,7 @@ test('top app controls use package form controls', () => {
   const backendBootBoundarySource = readProjectFile('apps/frontend/src/features/app-shell/application/BackendBootBoundary.tsx')
   const canvasShellRouteSource = readProjectFile('apps/frontend/src/features/app-shell/application/AppCanvasEditorShellRoute.tsx')
   const shellLayoutSource = readProjectFile('apps/frontend/src/features/app-shell/application/AppShellLayout.tsx')
+  const shellLayoutHeadersSource = readProjectFile('apps/frontend/src/features/app-shell/application/AppShellLayoutHeaders.tsx')
   const shellLayoutControlsSource = readProjectFile('apps/frontend/src/features/app-shell/application/AppShellLayoutControls.tsx')
   const appShellSource = [
     appSource,
@@ -5508,6 +5590,7 @@ test('top app controls use package form controls', () => {
     backendBootBoundarySource,
     canvasShellRouteSource,
     shellLayoutSource,
+    shellLayoutHeadersSource,
     shellLayoutControlsSource,
   ].join('\n')
   const appTopControlsSource = readProjectFile('apps/frontend/src/features/app-shell/components/AppTopControls.tsx')
@@ -5554,7 +5637,7 @@ test('top app controls use package form controls', () => {
   assert.match(canvasShellRouteSource, /function CanvasHeaderTitle[\s\S]*?<Input[\s\S]*?value=\{effectiveCanvasName\}/)
   assert.match(canvasShellRouteSource, /function CanvasHeaderNavigation[\s\S]*?<AppWindowIconButton[\s\S]*?canvasBackPath\(search\)/)
   assert.match(canvasShellRouteSource, /function CanvasHeaderContextActions[\s\S]*?<AppWindowIconButton[\s\S]*?ROUTES\.resources/)
-  assert.match(shellLayoutSource, /const toolSidebarLayoutControls[\s\S]*?<AppShellLeftPaneToggle/)
+  assert.match(shellLayoutHeadersSource, /const toolSidebarLayoutControls[\s\S]*?<AppShellLeftPaneToggle/)
   assert.match(shellLayoutControlsSource, /function AppShellLeftPaneToggle[\s\S]*?<AppWindowIconButton[\s\S]*?app-window-sidebar-toggle/)
   assert.doesNotMatch(appShellSource, /<button\b/)
   assert.doesNotMatch(appShellSource, /<input\b/)
@@ -5674,6 +5757,7 @@ test('project standards page UI is feature-owned, not project package API', () =
   const projectStandardsFeatureSource = [
     readProjectFile('apps/frontend/src/features/project-standards/components/ProjectStandardsUi.tsx'),
     readProjectFile('apps/frontend/src/features/project-standards/components/workspaces/ProjectStandardsWorkspaceReviewUi.tsx'),
+    readProjectFile('apps/frontend/src/features/project-standards/components/workspaces/ProjectStandardsWorkspaceReviewPrimitives.tsx'),
   ].join('\n')
   const projectStandardsFeatureCss = [
     readProjectFile('apps/frontend/src/features/project-standards/components/ProjectStandardsUi.css'),
@@ -5763,11 +5847,17 @@ test('project standards page UI is feature-owned, not project package API', () =
 test('tools dialog UI is feature-owned, not tools package API', () => {
   const toolsDialogSource = [
     readProjectFile('apps/frontend/src/features/tools/components/ToolDialog.tsx'),
+    readProjectFile('apps/frontend/src/features/tools/components/ToolDialogReferenceWorkbench.tsx'),
     readProjectFile('apps/frontend/src/features/tools/components/ToolDialogHistorySection.tsx'),
     readProjectFile('apps/frontend/src/features/tools/components/ToolDialogJobPanels.tsx'),
   ].join('\n')
   const toolsDialogFeatureSource = readProjectFile('apps/frontend/src/features/tools/components/ToolDialogUi.tsx')
-  const toolsDialogFeatureCss = readProjectFile('apps/frontend/src/features/tools/components/ToolDialogUi.css')
+  const toolsDialogFeatureCss = [
+    readProjectFile('apps/frontend/src/features/tools/components/ToolDialogUi.css'),
+    readProjectFile('apps/frontend/src/features/tools/components/ToolDialogFrame.css'),
+    readProjectFile('apps/frontend/src/features/tools/components/ToolDialogHistory.css'),
+    readProjectFile('apps/frontend/src/features/tools/components/ToolDialogDebug.css'),
+  ].join('\n')
 
   assert.match(toolsDialogSource, /from ['"]\.\/ToolDialogUi['"]/, 'ToolDialog must consume feature-owned dialog UI')
   assert.doesNotMatch(toolsDialogSource, /from ['"]@movscript\/ui\/business\/tools['"]/, 'ToolDialog must not import page dialog UI from the package')
@@ -5789,6 +5879,13 @@ test('tools dialog UI is feature-owned, not tools package API', () => {
   assert.match(toolsDialogFeatureSource, /from ['"]@movscript\/ui\/layout['"]/, 'feature UI may consume shared overlap layout primitives')
   assert.match(toolsDialogFeatureCss, /\.tool-dialog-frame\s*\{/)
   assert.match(toolsDialogFeatureCss, /\.tool-dialog-resource-overlap\s*\{/)
+  assert.match(toolsDialogFeatureCss, /\.tool-dialog-history-grid-item \.job-grid-media-area__preview\s*\{[\s\S]*overflow:\s*hidden;/)
+  assert.match(toolsDialogFeatureCss, /\.tool-dialog-history-grid-item \.resource-media-thumb\s*\{[\s\S]*overflow:\s*hidden;/)
+  assert.match(toolsDialogFeatureCss, /\.tool-dialog-history-grid-item \.resource-media-thumb > img,[\s\S]*\.tool-dialog-history-grid-item \.resource-media-thumb > video\s*\{[\s\S]*display:\s*block;/)
+  assert.match(toolsDialogFeatureCss, /\.tool-dialog-history-grid-item \.resource-media-thumb\[data-fit="cover"\] > img,[\s\S]*object-fit:\s*cover;/)
+  assert.match(toolsDialogFeatureCss, /\.tool-dialog-history-list \.generation-result-card__media\s*\{[\s\S]*height:\s*176px;[\s\S]*overflow:\s*hidden;/)
+  assert.match(toolsDialogFeatureCss, /\.tool-dialog-history-list \.generation-result-card__media \.resource-media-thumb > span > \*,[\s\S]*\.tool-dialog-history-list \.generation-result-card__media \.resource-media-fill-frame > video\s*\{[\s\S]*max-height:\s*100%;/)
+  assert.match(toolsDialogFeatureCss, /\.tool-dialog-history-list \.generation-result-card__media \.resource-media-thumb,[\s\S]*\.tool-dialog-history-list \.generation-result-card__media \.resource-media-fill-frame\s*\{[\s\S]*overflow:\s*hidden;/)
   for (const relativePath of [
     'packages/ui/src/components/business/tools/index.tsx',
     'packages/ui/src/components/business/tools/styles.css',
@@ -5807,9 +5904,10 @@ test('generation cards use package tone contracts', () => {
   const generationResultCardSource = readGenerationResultSource()
   const generationResultCardCss = readGenerationResultCss()
   const generationCardsSource = readProjectFile('apps/frontend/src/features/agent/components/GenerationCards.tsx')
+  const generationDiagnosticsSource = readProjectFile('apps/frontend/src/features/agent/components/GenerationDiagnosticsCards.tsx')
   const generationCardUiSource = readProjectFile('apps/frontend/src/features/agent/components/GenerationCardUi.tsx')
   const generationCardsCss = readProjectFile('apps/frontend/src/features/agent/components/GenerationCards.css')
-  const generationCardSources = [generationCardsSource, generationCardUiSource].join('\n')
+  const generationCardSources = [generationCardsSource, generationDiagnosticsSource, generationCardUiSource].join('\n')
   const sources = [generationCardSources, genResultCardSource, genInputCardSource].join('\n')
   const rawPaletteClassPattern = /\b(?:bg|text|border|from|to|ring|shadow)-(?:sky|cyan|blue|teal|emerald|amber|orange|rose|violet|indigo|zinc|yellow|fuchsia|purple|red|green|gray|slate)-\d/
 
@@ -5845,6 +5943,7 @@ test('generation cards use package tone contracts', () => {
 test('agent generation and provider session interactions use package tone contracts', () => {
   const generationDisplaySource = readProjectFile('apps/frontend/src/features/agent/domain/agentGenerationDisplay.ts')
   const generationCardsSource = readProjectFile('apps/frontend/src/features/agent/components/GenerationCards.tsx')
+  const generationDiagnosticsSource = readProjectFile('apps/frontend/src/features/agent/components/GenerationDiagnosticsCards.tsx')
   const generationCardUiSource = readProjectFile('apps/frontend/src/features/agent/components/GenerationCardUi.tsx')
   const pinnedStatusShelfSource = readProjectFile('apps/frontend/src/features/agent/components/AgentPinnedStatusShelf.tsx')
   const generationCardsCss = readProjectFile('apps/frontend/src/features/agent/components/GenerationCards.css')
@@ -5877,6 +5976,7 @@ test('agent generation and provider session interactions use package tone contra
   const agentArtifactResultCardsSource = readProjectFile('apps/frontend/src/features/agent/components/AgentArtifactResultCards.tsx')
   const sources = [
     generationCardsSource,
+    generationDiagnosticsSource,
     generationCardUiSource,
     pinnedStatusShelfSource,
     providerSessionInteractionsSource,
@@ -5892,7 +5992,7 @@ test('agent generation and provider session interactions use package tone contra
     movScriptWorkspaceFilesSource,
     agentArtifactResultCardsSource,
   ].join('\n'), /toneTextClass|toneSurfaceClass|accent(?:Text|Surface|Soft|Badge|Dot|Gradient|Port)Class/)
-  const generationCardSources = `${generationCardsSource}\n${generationCardUiSource}`
+  const generationCardSources = `${generationCardsSource}\n${generationDiagnosticsSource}\n${generationCardUiSource}`
   assert.match(generationCardSources, /AgentGenerated(?:Card|Item|IntentText|Stat)/)
   assert.match(generationCardUiSource, /toneTextClass/)
   assert.match(generationCardUiSource, /toneSurfaceClass/)
@@ -5979,10 +6079,10 @@ test('agent generation and provider session interactions use package tone contra
   assert.doesNotMatch(pinnedStatusShelfSource, /\bbadge\.tone\b/)
   assert.doesNotMatch(pinnedStatusShelfSource, /\btoneTextClass\b/)
   assert.doesNotMatch(`${generationCardsSource}\n${pinnedStatusShelfSource}`, /function (?:generationProgressTone|pinnedGenerationProgressTone)\b/)
-  assert.match(generationCardsSource, /agentReadinessStatusRecipe/)
-  assert.match(generationCardsSource, /errors\.map[\s\S]*?<AgentGeneratedItem[\s\S]*?intent="danger"/)
-  assert.doesNotMatch(generationCardsSource, /text-destructive/)
-  assert.doesNotMatch(generationCardsSource, /\bReviewCallout\b/)
+  assert.match(generationDiagnosticsSource, /agentReadinessStatusRecipe/)
+  assert.match(generationDiagnosticsSource, /errors\.map[\s\S]*?<AgentGeneratedItem[\s\S]*?intent="danger"/)
+  assert.doesNotMatch(generationCardSources, /text-destructive/)
+  assert.doesNotMatch(generationCardSources, /\bReviewCallout\b/)
   assert.doesNotMatch(providerSessionInteractionsSource, /AgentSurfaceBlock/)
   assert.match(providerSessionInteractionsSource, /from ['"]@\/features\/agent\/components\/run-interaction-ui['"]/)
   assert.match(agentRunInteractionBubbleSource, /from ['"]@\/features\/agent\/components\/run-interaction-ui['"]/)
@@ -6026,7 +6126,7 @@ test('agent generation and provider session interactions use package tone contra
   assert.doesNotMatch(providerSessionInteractionsSource, /runInteractionActionDotProps[\s\S]*?return \{ tone: 'danger' as const \}/)
   assert.doesNotMatch(providerSessionInteractionsSource, /\b(?:accentBadgeClass|accentDotClass|accentSurfaceClass|accentTextClass|toneDotClass|toneSurfaceClass|toneTextClass)\b/)
   assert.doesNotMatch(providerSessionInteractionsSource, /function runInteractionApproval(?:Section|Title|Impact|Item|Rail|Badge)Class\b/)
-  assert.doesNotMatch(generationCardsSource, /ms-semantic-(?:icon|badge|surface|dot)--/)
+  assert.doesNotMatch(generationCardSources, /ms-semantic-(?:icon|badge|surface|dot)--/)
   assert.doesNotMatch(sources, /function (?:generationJobStatusTone|workspaceStatusTone|runInteractionActionBadgeTone)\b/)
   assert.doesNotMatch(sources, /<StatusBadge\b[^>]*\btone=/)
   assert.doesNotMatch(providerSessionInteractionsSource, /<input\b/)
@@ -6037,10 +6137,10 @@ test('agent generation and provider session interactions use package tone contra
   assert.doesNotMatch(providerSessionInteractionsSource, /bg-border/)
   assert.doesNotMatch(providerSessionInteractionsSource, /h-1\.5 w-1\.5 shrink-0 rounded-full/)
   assert.doesNotMatch(providerSessionInteractionsSource, /runInteractionActionDotClass/)
-  assert.doesNotMatch(generationCardsSource, /rounded bg-background\/70 px-2 py-1\.5/)
-  assert.doesNotMatch(generationCardsSource, /rounded-md border border-border\/80 bg-background\/70/)
-  assert.doesNotMatch(generationCardsSource, /rounded border border-border\/80 bg-muted\/20/)
-  assert.doesNotMatch(generationCardsSource, /h-1\.5 overflow-hidden rounded-full bg-muted/)
+  assert.doesNotMatch(generationCardSources, /rounded bg-background\/70 px-2 py-1\.5/)
+  assert.doesNotMatch(generationCardSources, /rounded-md border border-border\/80 bg-background\/70/)
+  assert.doesNotMatch(generationCardSources, /rounded border border-border\/80 bg-muted\/20/)
+  assert.doesNotMatch(generationCardSources, /h-1\.5 overflow-hidden rounded-full bg-muted/)
   assert.doesNotMatch(providerSessionInteractionsSource, /rounded-md border border-border\/80 bg-background\/70/)
   assert.doesNotMatch(providerSessionInteractionsSource, /rounded-md border border-border\/80 bg-muted\/20/)
   assert.doesNotMatch(providerSessionInteractionsSource, /rounded border border-border\/80 bg-background\/70/)
@@ -6052,6 +6152,9 @@ test('jobs status badges use package semantic status contracts', () => {
     readProjectFile('apps/frontend/src/features/jobs/components/JobsPage.tsx'),
     readProjectFile('apps/frontend/src/features/jobs/components/JobsPageParts.tsx'),
     readProjectFile('apps/frontend/src/features/jobs/components/JobsPageCards.tsx'),
+    readProjectFile('apps/frontend/src/features/jobs/components/JobDetailCard.tsx'),
+    readProjectFile('apps/frontend/src/features/jobs/components/JobCollectionCards.tsx'),
+    readProjectFile('apps/frontend/src/features/jobs/components/JobsPageCardModel.tsx'),
   ].join('\n')
   const jobsSemanticUiSource = readProjectFile('apps/frontend/src/features/jobs/presentation/jobsSemanticUi.ts')
   const primitiveBadgeSource = readProjectFile('packages/ui/src/components/primitives/badge.tsx')
@@ -6089,6 +6192,8 @@ test('jobs status badges use package semantic status contracts', () => {
     'JobsActionButton',
     'JobsCollection',
     'JobsEmptyState',
+    'JobsDetailDialogContent',
+    'JobsDetailDialogTitle',
     'JobsFilterBar',
     'JobsFilterChipButton',
     'JobsHeaderStatus',
@@ -6107,6 +6212,8 @@ test('jobs status badges use package semantic status contracts', () => {
     'JobsCategorySection',
     'JobsCollection',
     'JobsCountPill',
+    'JobsDetailDialogContent',
+    'JobsDetailDialogTitle',
     'JobsEmptyState',
     'JobsFilterBar',
     'JobsFilterChipButton',
@@ -6145,16 +6252,27 @@ test('jobs status badges use package semantic status contracts', () => {
   assert.doesNotMatch(jobsSource, /<JobStatusBadge\b[^>]*\btone=/)
   assert.match(jobsPageUiSource, /function JobsEmptyState[\s\S]*?<AppEmptyState/)
   assert.match(jobsPageUiSource, /function JobsActionButton[\s\S]*?<Button/)
+  assert.match(jobsPageUiSource, /function JobsDetailDialogContent[\s\S]*?<DialogContent className="jobs-detail-dialog-content"/)
+  assert.match(jobsPageUiSource, /function JobsDetailDialogTitle[\s\S]*?<DialogTitle className="ms-sr-only"/)
   assert.match(jobsPageUiCss, /\.jobs-header-status\s*\{/)
   assert.match(jobsPageUiCss, /\.jobs-filter-chip-button\s*\{/)
   assert.match(jobsPageUiCss, /\.jobs-loading-state\s*\{/)
   assert.match(jobsPageUiCss, /\.jobs-action-button\s*\{/)
+  assert.match(jobsPageUiCss, /\.jobs-detail-dialog-content\s*\{/)
   assert.match(jobsPageUiCss, /\.jobs-pager-button\s*\{/)
+  assert.match(jobsSource, /from ['"]@movscript\/ui\/primitives['"][\s\S]*\bDialog\b/)
+  assert.match(jobsSource, /<Dialog[\s\S]*open=\{Boolean\(selectedJob\)\}[\s\S]*onOpenChange=\{\(open\) => \{[\s\S]*setSelectedJobId\(null\)/)
+  assert.match(jobsSource, /<JobsDetailDialogContent closeLabel=\{t\('common\.close'\)\}>[\s\S]*<JobsDetailDialogTitle>[\s\S]*<JobDetailCard job=\{selectedJob\} onClose=\{\(\) => setSelectedJobId\(null\)\}/)
+  assert.doesNotMatch(jobsSource, /<JobsSelectedDetailRegion>/)
   assert.match(jobsDisplayUiCss, /\.job-spin-icon\s*\{/)
   assert.match(jobsDisplayUiCss, /\.job-list-media-area__preview\s*\{/)
-  assert.match(jobsDisplayUiCss, /\.job-list-media-area__preview > \*\s*\{[\s\S]*border-radius:\s*0/)
+  assert.match(jobsDisplayUiCss, /\.job-list-media-area__preview > \*,[\s\S]*\.job-list-media-area__preview \.resource-media-fill-frame > video\s*\{[\s\S]*max-height:\s*100%;[\s\S]*border-radius:\s*0/)
   assert.match(jobsDisplayUiCss, /\.job-grid-media-area\s*\{/)
-  assert.match(jobsDisplayUiCss, /\.job-grid-media-area > \.job-grid-media-area__preview\s*\{/)
+  assert.match(jobsDisplayUiCss, /\.job-grid-media-area\s*\{[\s\S]*overflow:\s*hidden;/)
+  assert.match(jobsDisplayUiCss, /\.job-grid-media-area > \.job-grid-media-area__preview\s*\{[\s\S]*overflow:\s*hidden;/)
+  assert.match(jobsDisplayUiCss, /\.job-grid-media-area__preview > \*,[\s\S]*\.job-grid-media-area__preview \.resource-media-fill-frame > video\s*\{[\s\S]*max-height:\s*100%;/)
+  assert.match(jobsDisplayUiCss, /\.job-grid-media-area__preview \.resource-media-thumb,[\s\S]*\.job-grid-media-area__preview \.resource-media-fill-frame\s*\{[\s\S]*overflow:\s*hidden;/)
+  assert.match(jobsSource, /<JobGridMediaPreview>[\s\S]*?<MediaViewer resource=\{out\} fit="contain" lightbox \/>[\s\S]*?<\/JobGridMediaPreview>/)
   assert.match(jobsPageUiCss, /\.jobs-pager\s*\{/)
   assert.match(jobsSource, /\bJobDetailKeyValue\b/)
   assert.match(jobsDisplayUiSource, /function JobDetailKeyValue[\s\S]*?<AppKeyValue/)
@@ -6195,7 +6313,7 @@ test('jobs status badges use package semantic status contracts', () => {
   }
   assert.match(readProjectFile('apps/frontend/src/features/jobs/components/JobsPage.tsx'), /from ['"]@\/features\/jobs\/components\/JobsPageUi['"]/)
   assert.match(readProjectFile('apps/frontend/src/features/jobs/components/JobsPageParts.tsx'), /from ['"]@\/features\/jobs\/components\/JobsPageUi['"]/)
-  assert.match(readProjectFile('apps/frontend/src/features/jobs/components/JobsPageCards.tsx'), /from ['"]@\/features\/jobs\/components\/JobsPageUi['"]/)
+  assert.match(jobsSource, /from ['"]@\/features\/jobs\/components\/JobsPageUi['"]/)
   assert.doesNotMatch(jobsSource, /\bAppKeyValue\b/)
   assert.doesNotMatch(jobsSource, /\bAppCodeBlock\b/)
   assert.doesNotMatch(jobsSource, /\bAppStateMessage\b/)
@@ -6482,7 +6600,7 @@ test('admin status pills use package StatusBadge semantics', () => {
   assert.match(adminPageSource, /runtimeHealthState[\s\S]*?statusProps: Pick<StatusBadgeProps, 'intent' \| 'emphasis'>/, 'runtime health state must return status badge semantics')
   assert.doesNotMatch(adminPageSource, /runtimeHealthState[\s\S]*?className:/, 'runtime health state must not return visual class names')
   assert.match(adminPageSource, /CAPABILITY_STATUS_INTENT: Record<string, StatusBadgeProps\['intent'\]>/, 'admin capability badges must map to status badge semantics')
-  assert.match(adminPageSource, /caps\.map\(\(cap\) => \([\s\S]*?<StatusBadge[\s\S]*?intent=\{CAPABILITY_STATUS_INTENT\[cap\] \?\? 'neutral'\}[\s\S]*?className="text-xs"/, 'admin capability badges must render through package status badge')
+  assert.match(adminPageSource, /\.map\(\(capability\) => \([\s\S]*?<StatusBadge[\s\S]*?intent=\{CAPABILITY_STATUS_INTENT\[capability\] \?\? 'neutral'\}[\s\S]*?className="text-xs"/, 'admin capability badges must render through package status badge')
   assert.match(adminPageSource, /<StatusBadge intent="info">\{t\('admin\.storage\.default'\)\}<\/StatusBadge>/, 'storage default badge must use package status badge')
   assert.match(adminPageSource, /<StatusBadge intent="success" emphasis="plain">\{t\('admin\.storage\.available'\)\}<\/StatusBadge>/, 'storage available badge must use package status badge')
   assert.doesNotMatch(
@@ -6499,7 +6617,7 @@ test('admin status pills use package StatusBadge semantics', () => {
   assert.match(debugPageSource, /<StatusBadge intent=\{item\.status === 'error' \? 'danger' : 'success'\}>/, 'debug LLM call status must use package status badge')
   assert.match(debugPageSource, /<StatusBadge intent=\{STATUS_INTENT\[job\.status\] \?\? 'neutral'\} className="text-xs">/, 'debug job row status must use package status badge')
   assert.match(debugPageSource, /<StatusBadge intent=\{debugHttpStatusIntent\(responseStatus\)\}>/, 'debug prompt HTTP status must use package status badge')
-  assert.match(debugPageSource, /<StatusBadge intent=\{state\.result\.success \? 'success' : 'danger'\} className="text-xs">/, 'debug connectivity result status must use package status badge')
+  assert.match(debugPageSource, /<StatusBadge intent=\{result\.success \? 'success' : 'danger'\} className="text-xs">/, 'debug connectivity result status must use package status badge')
   assert.match(debugPageSource, /<StatusBadge intent=\{result\.success \? 'success' : 'danger'\} className="text-xs">/, 'debug raw call result status must use package status badge')
   assert.match(debugPageSource, /\bAppFeedbackText\b/, 'debug inline feedback must use package semantic feedback text')
   assert.match(debugPageSource, /\bAppStatusSurface\b/, 'debug status containers must use package semantic status surfaces')
@@ -6543,8 +6661,8 @@ test('admin form feedback uses package semantic text components', () => {
   assert.match(adminPageSource, /\bAppStatusToggleButton\b/, 'admin page clickable status pills must use package status toggles')
   assert.match(adminPageSource, /\bAppDataTableRow\b/, 'admin exceptional table rows must use package data table row tones')
   assert.match(adminPageSource, /\bAppMarkerDot\b/, 'admin page semantic markers must use package marker dots')
-  assert.match(adminPageSource, /invalid=\{!isValidInputLimit\(addMaxInputImages\)\}/, 'admin invalid inputs must use primitive invalid API')
-  assert.match(adminPageSource, /invalid=\{!isValidInputLimit\(editForm\.max_input_videos\)\}/, 'admin invalid inputs must use primitive invalid API')
+  assert.match(adminPageSource, /invalid=\{!isValidInputLimit\(catalogForm\.max_input_images\)\}/, 'admin invalid inputs must use primitive invalid API')
+  assert.match(adminPageSource, /invalid=\{!isValidInputLimit\(catalogForm\.max_input_videos\)\}/, 'admin invalid inputs must use primitive invalid API')
   assert.match(adminMainSource, /\bAppFeedbackText\b/, 'admin login feedback must use package feedback text')
 
   assert.doesNotMatch(adminPageSource, /<span className="(?:ml-0\.5 )?text-destructive(?: ml-0\.5)?">\*<\/span>/, 'admin required marks must not hand-roll destructive text')

@@ -71,7 +71,7 @@ test('workspace inline candidate writer updates asset json candidates and locks 
 
 test('workspace inline candidate writer locks existing keyframe candidate', async () => {
   const files = new Map([
-    ['productions/p8f3/segments/a19d/scene_moments/r72k/shots/phone/keyframes/c83x/keyframe.json', JSON.stringify({
+    ['productions/p8f3/segments/a19d/scene_moments/r72k/expression_units/phone/keyframes/c83x/keyframe.json', JSON.stringify({
       schema: 'movscript.keyframe.v1',
       kind: 'keyframe',
       id: 'c83x',
@@ -81,7 +81,7 @@ test('workspace inline candidate writer locks existing keyframe candidate', asyn
 
   await appendMovScriptInlineCandidate({
     fileRepository: repository,
-    targetPath: 'productions/p8f3/segments/a19d/scene_moments/r72k/shots/phone/keyframes/c83x/keyframe.json',
+    targetPath: 'productions/p8f3/segments/a19d/scene_moments/r72k/expression_units/phone/keyframes/c83x/keyframe.json',
     targetKind: 'keyframe',
     nonce: 'fixed',
     payload: {
@@ -93,7 +93,7 @@ test('workspace inline candidate writer locks existing keyframe candidate', asyn
   })
   const locked = await lockMovScriptInlineCandidate({
     fileRepository: repository,
-    targetPath: 'productions/p8f3/segments/a19d/scene_moments/r72k/shots/phone/keyframes/c83x/keyframe.json',
+    targetPath: 'productions/p8f3/segments/a19d/scene_moments/r72k/expression_units/phone/keyframes/c83x/keyframe.json',
     targetKind: 'keyframe',
     candidateId: 'candidate_101_fixed',
     reason: 'selected_for_generation_reference',

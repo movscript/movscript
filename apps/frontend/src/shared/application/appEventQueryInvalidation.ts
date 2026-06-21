@@ -49,7 +49,17 @@ import {
   invalidateSemanticEntityMutationEvent,
   type SemanticEntityMutationEvent,
 } from '@/shared/application/semanticEntityMutationInvalidation'
+import { semanticEntityKeys } from '@/shared/application/semanticEntityQueryKeys'
+import type { SemanticEntityConfig } from '@/shared/infrastructure/api/semanticEntities'
 import { subscribeAppEvents, type AppEvent } from './appEvents'
+
+const PROJECT_WORKSPACE_ENTITY_KINDS = [
+  'settings',
+  'assetSlots',
+  'productions',
+  'sceneMoments',
+  'contentUnits',
+] as const satisfies readonly SemanticEntityConfig['kind'][]
 
 export function installAppEventQueryInvalidationBridge(queryClient: QueryClient): () => void {
   return subscribeAppEvents((event) => {
@@ -115,17 +125,18 @@ function invalidateProjectWorkspaceUpdated(queryClient: QueryClient, payload: un
   if (!projectId) return
   void queryClient.invalidateQueries({ queryKey: contentCanvasKeys.project(projectId) })
   void queryClient.invalidateQueries({ queryKey: agentSessionOutputKeys.contentWorkspace(projectId) })
-  void queryClient.invalidateQueries({ queryKey: ['embedded-browser-navigation', projectId] })
+  void queryClient.invalidateQueries({ queryKey: agentBrowserKeys.navigationProject(projectId) })
   void queryClient.invalidateQueries({ queryKey: resourceCandidateKeys.targetsForProject(projectId) })
   void queryClient.invalidateQueries({ queryKey: resourceCandidateKeys.generatedTargets(projectId) })
-  for (const kind of ['settings', 'assetSlots', 'productions', 'sceneMoments', 'contentUnits']) {
-    void queryClient.invalidateQueries({ queryKey: [kind, projectId] })
+  for (const kind of PROJECT_WORKSPACE_ENTITY_KINDS) {
+    void queryClient.invalidateQueries({ queryKey: semanticEntityKeys.list(kind, projectId) })
+    void queryClient.invalidateQueries({ queryKey: agentBrowserKeys.navigationEntity(projectId, kind) })
   }
 }
 
 function invalidateAgentBrowserNavigationFromScript(queryClient: QueryClient, event: ScriptMutationEvent): void {
   if (!event.projectId) return
-  void queryClient.invalidateQueries({ queryKey: ['embedded-browser-navigation', event.projectId, 'scripts'] })
+  void queryClient.invalidateQueries({ queryKey: agentBrowserKeys.navigationScriptsScope(event.projectId) })
 }
 
 function invalidateAgentBrowserNavigationFromSemanticEntity(queryClient: QueryClient, event: SemanticEntityMutationEvent): void {

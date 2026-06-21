@@ -4,8 +4,8 @@ Use these as workflow shapes, not fixed schemas.
 
 ## From Loose Story
 
-1. Extract or propose settings: characters, locations, props, world/style facts.
-2. Add setting states and asset slots needed for continuity.
+1. Extract or propose settings only for concrete film/music entities to make or reuse: characters, props, places, instruments, costumes, voice identities, or similar production objects.
+2. Add setting states as named namespaces under those settings, then add asset slots such as front view, side view, material reference, voice timbre, or instrument tone only when continuity needs them.
 3. Create a production and segment structure.
 4. Create scene moments as narrative events.
 5. Add expression units and audio cues under scene moments.

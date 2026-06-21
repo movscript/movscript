@@ -17,10 +17,28 @@ type AgentCatalogTool = {
 export function generationTools(): MCPTool[] {
   return [
     mcpTool(imageGenerateTool as AgentCatalogTool),
+    contentUnitGenerateTool(
+      'generation_content_unit_image_generate',
+      'Compile a content-unit backend prompt, submit an image generation job, and bind the job to automatic content-candidate creation when the job succeeds. Use this as the primary content-unit image generation path; system_generate_image remains the low-level prompt channel.',
+      'image',
+    ),
     mcpTool(imageJobGetTool as AgentCatalogTool),
+    contentUnitJobGetTool(
+      'generation_content_unit_image_job_get',
+      'Fetch a content-unit image generation job and automatically create or refresh content-unit candidates for successful output_resource_ids.',
+    ),
     generationJobGetBatchTool('generation_image_job_get_batch', 'Synchronously fetch the latest state of multiple image generation jobs submitted by generation_image_generate. Results are returned in input order with per-job errors.'),
     mcpTool(videoGenerateTool as AgentCatalogTool),
+    contentUnitGenerateTool(
+      'generation_content_unit_video_generate',
+      'Compile a content-unit backend prompt, submit a video generation job, and bind the job to automatic content-candidate creation when the job succeeds. Use this as the primary content-unit video generation path; system_generate_video remains the low-level prompt channel.',
+      'video',
+    ),
     mcpTool(videoJobGetTool as AgentCatalogTool),
+    contentUnitJobGetTool(
+      'generation_content_unit_video_job_get',
+      'Fetch a content-unit video generation job and automatically create or refresh content-unit candidates for successful output_resource_ids.',
+    ),
     generationJobGetBatchTool('generation_video_job_get_batch', 'Synchronously fetch the latest state of multiple video generation jobs submitted by generation_video_generate. Results are returned in input order with per-job errors.'),
     mcpTool(audioGenerateTool as AgentCatalogTool),
     audioSubmitTool('generation_voiceover_generate', 'Submit a voiceover/text-to-speech AI generation job and return its job id. This creates an audio RawResource when complete; it does not edit timelines or write candidates.'),
@@ -32,6 +50,57 @@ export function generationTools(): MCPTool[] {
     mcpTool(audioJobGetTool as AgentCatalogTool),
     generationJobGetBatchTool('generation_audio_job_get_batch', 'Synchronously fetch the latest state of multiple audio generation jobs submitted by generation_audio_generate. Results are returned in input order with per-job errors.'),
   ]
+}
+
+function contentUnitGenerateTool(name: string, description: string, kind: 'image' | 'video'): MCPTool {
+  const base = (kind === 'image' ? imageGenerateTool : videoGenerateTool) as AgentCatalogTool
+  return {
+    name,
+    description,
+    inputSchema: objectSchema(
+      {
+        ...base.inputSchema.properties,
+        contentUnitId: { type: ['string', 'number'], description: 'Target MovScript content unit id. The tool compiles this content unit prompt before generation.' },
+        content_unit_id: { type: ['string', 'number'], description: 'Alias for contentUnitId.' },
+      },
+    ),
+    ...(base.outputSchema ? { outputSchema: base.outputSchema } : {}),
+  }
+}
+
+function contentUnitJobGetTool(name: string, description: string): MCPTool {
+  return {
+    name,
+    description,
+    inputSchema: objectSchema(
+      {
+        jobId: { type: 'number', minimum: 1 },
+        job_id: { type: 'number', minimum: 1 },
+        contentUnitId: { type: ['string', 'number'], description: 'Target MovScript content unit id for automatic candidate creation.' },
+        content_unit_id: { type: ['string', 'number'], description: 'Alias for contentUnitId.' },
+        outputKind: { type: 'string', enum: ['image', 'video'] },
+        output_kind: { type: 'string', enum: ['image', 'video'] },
+        promptSnapshot: { type: 'object', additionalProperties: true },
+        prompt_snapshot: { type: 'object', additionalProperties: true },
+      },
+    ),
+    outputSchema: objectSchema(
+      {
+        status: { type: 'string' },
+        jobId: { type: 'number' },
+        job_id: { type: 'number' },
+        contentUnitId: { type: ['string', 'number'] },
+        content_unit_id: { type: ['string', 'number'] },
+        terminal: { type: 'boolean' },
+        outputResourceIds: { type: 'array', items: { type: 'number' } },
+        output_resource_ids: { type: 'array', items: { type: 'number' } },
+        candidate_created: { type: 'boolean' },
+        candidates: { type: 'array', items: { type: 'object', additionalProperties: true } },
+        job: { type: 'object' },
+      },
+      ['status', 'jobId', 'terminal', 'contentUnitId'],
+    ),
+  }
 }
 
 function mcpTool(tool: AgentCatalogTool): MCPTool {

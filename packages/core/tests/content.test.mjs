@@ -549,6 +549,69 @@ test('core content source workspace exposes production MediaEditingProject timel
   assert.equal(track?.clips[0]?.metadata?.movscript?.targetKind, 'production')
 })
 
+test('core content source workspace exposes scene moment candidates through content unit index', () => {
+  const production = entity('production', 'pilot', 'productions/pilot/production.json', { title: 'Pilot' })
+  const segment = entity('segment', 'opening', 'productions/pilot/segments/opening/segment.json', { title: 'Opening' })
+  const moment = entity('scene_moment', 'rain_call', 'productions/pilot/segments/opening/scene_moments/rain_call/scene_moment.json', { title: 'Rain call' })
+  const contentUnit = entity('content_unit', 'cu_rain_call', 'content_units/cu_rain_call/content_unit.json', {
+    title: 'Rain call render',
+    content_unit_type: 'scene_moment_ref',
+    output_kind: 'video',
+    scene_moment_ref: 'rain_call',
+  })
+  const data = buildContentSourceWorkspaceData({
+    indexDocuments: [
+      { path: contentUnit.path, data: contentUnit.record },
+      {
+        path: 'content_units/cu_rain_call/candidates/cand_scene/content_candidate.json',
+        data: {
+          schema: 'movscript.content_candidate.v1',
+          id: 'cand_scene',
+          content_unit_ref: 'content_units/cu_rain_call',
+          status: 'succeeded',
+          source: 'ai_generate',
+          producer: { job_id: 42, model_id: 'video-model' },
+          outputs: [{ kind: 'video', resource_id: 612, duration_sec: 7 }],
+          prompt_snapshot: { input_hash: 'job:42' },
+        },
+      },
+      {
+        path: '.movscript/decisions/content_units/cu_rain_call/decision_context.json',
+        data: {
+          schema: 'movscript.decision_context.v1',
+          target_kind: 'content_unit',
+          target_ref: 'content_units/cu_rain_call',
+          candidates: [],
+          selection: { candidate_id: 'cand_scene' },
+        },
+      },
+    ],
+    settings: [],
+    settingStates: [],
+    assets: [],
+    productions: [production],
+    segments: [segment],
+    sceneMoments: [moment],
+    storyboards: [],
+    keyframes: [],
+    expressionUnits: [],
+    audioCues: [],
+    contentUnits: [contentUnit],
+    previewTimelines: [{
+      schema: 'movscript.preview_timeline.v1',
+      productionId: 'pilot',
+      productionPath: 'productions/pilot',
+      items: [timelineItem('scene_moment:rain_call', 'scene_moment', moment, 1)],
+    }],
+  })
+
+  assert.deepEqual(data.previewMoments[0].expressionUnits, [])
+  assert.equal(data.contentUnitCandidates.cu_rain_call[0].id, 'cand_scene')
+  assert.equal(data.contentUnitCandidates.cu_rain_call[0].selected, true)
+  assert.equal(data.contentUnitCandidates.cu_rain_call[0].resourceId, 612)
+  assert.equal(data.contentUnitCandidates.cu_rain_call[0].status, 'succeeded')
+})
+
 test('core content source workspace plans writes independently from desktop services', () => {
   const parentNode = {
     id: 'rain_call_shots_group',

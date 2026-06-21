@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { formatResourceMention } from '@movscript/workspace'
 import { FileText, Image, Video, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -44,7 +45,7 @@ function buildCanvasChipElement(resource: RawResource): HTMLElement {
 function serializeCanvasPrompt(node: Node): string {
   if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? ''
   const el = node as HTMLElement
-  if (el.dataset?.resourceId) return `@[resource:${el.dataset.resourceId}]`
+  if (el.dataset?.resourceId) return formatResourceMention(Number(el.dataset.resourceId))
   return Array.from(node.childNodes).map(serializeCanvasPrompt).join('')
 }
 

@@ -98,7 +98,6 @@ function addableChildTypeForNode(node: HierarchyNode): HierarchyNodeType | null 
 
   if (node.type === 'group') {
     const normalizedTitle = node.title.toLowerCase()
-    if (normalizedTitle.includes('shot')) return 'shot'
     if (normalizedTitle.includes('storyboard')) return 'storyboard'
     if (normalizedTitle.includes('keyframe')) return 'keyframe'
     if (normalizedTitle.includes('expression')) return 'expression_unit'
@@ -130,8 +129,6 @@ function childFolderName(type: HierarchyNodeType): string {
       return 'segments'
     case 'scene_moment':
       return 'scene_moments'
-    case 'shot':
-      return 'shots'
     case 'storyboard':
       return 'storyboards'
     case 'keyframe':

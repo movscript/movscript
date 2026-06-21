@@ -1,0 +1,214 @@
+.editing-workspace-clip-content {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+.editing-workspace-clip[data-clip-layout="visual"] .editing-workspace-clip-content {
+  grid-template-rows: 25% 50% 25%;
+}
+
+.editing-workspace-clip[data-clip-layout="audio"] .editing-workspace-clip-content {
+  grid-template-rows: minmax(0, 1fr) minmax(0, 3fr);
+}
+
+.editing-workspace-clip[data-clip-layout="text"] .editing-workspace-clip-content {
+  grid-template-rows: minmax(0, 1fr) minmax(0, 3fr);
+}
+
+.editing-workspace-clip-titlebar,
+.editing-workspace-clip-footerbar {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  align-items: center;
+  overflow: hidden;
+  background: rgb(0 0 0 / 58%);
+  color: #ffffff;
+  white-space: nowrap;
+}
+
+.editing-workspace-clip-titlebar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 30px;
+  grid-row: 1;
+  justify-content: stretch;
+  padding: 0 5px;
+}
+
+.editing-workspace-clip-footerbar {
+  display: flex;
+  grid-row: 3;
+  justify-content: flex-start;
+  gap: 4px;
+  padding: 0 5px;
+  color: rgb(255 255 255 / 78%);
+}
+
+.editing-workspace-clip-titlebar .editing-workspace-clip-label,
+.editing-workspace-clip-duration,
+.editing-workspace-clip-footerbar .editing-workspace-clip-audio-state,
+.editing-workspace-clip-audio-info,
+.editing-workspace-clip-text-body > span {
+  position: static;
+  z-index: auto;
+  display: inline-flex;
+  min-width: 0;
+  height: auto;
+  max-width: none;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  color: inherit;
+  font-size: 7px;
+  font-weight: 650;
+  line-height: 1;
+  text-shadow: none;
+  white-space: nowrap;
+}
+
+.editing-workspace-clip-titlebar .editing-workspace-clip-label {
+  display: inline-flex;
+  width: 100%;
+  max-width: 100%;
+  flex: 1 1 min(100%, 0);
+  align-items: center;
+  gap: 3px;
+  overflow: hidden;
+  font-size: 7px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.editing-workspace-clip-titlebar .editing-workspace-clip-label > span {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.editing-workspace-clip-titlebar .editing-workspace-clip-label svg,
+.editing-workspace-clip-footerbar .editing-workspace-clip-audio-state svg {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+}
+
+.editing-workspace-clip-duration {
+  width: 30px;
+  min-width: 30px;
+  max-width: 30px;
+  color: rgb(255 255 255 / 72%);
+  font-size: 7px;
+  font-weight: 600;
+  line-height: 1;
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.editing-workspace-clip-visual-body,
+.editing-workspace-clip-audio-body,
+.editing-workspace-clip-text-body {
+  position: relative;
+  display: block;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.editing-workspace-clip-visual-body {
+  grid-row: 2;
+}
+
+.editing-workspace-clip-audio-body {
+  background:
+    linear-gradient(to bottom, rgb(255 255 255 / 8%), transparent 34%),
+    color-mix(in srgb, #c8a24d 22%, var(--ms-color-background));
+}
+
+.editing-workspace-clip-footerbar .editing-workspace-clip-audio-state {
+  max-width: 100%;
+  line-height: 1;
+}
+
+@container (max-width: 84px) {
+  .editing-workspace-clip-titlebar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .editing-workspace-clip-duration {
+    display: none;
+  }
+}
+
+@container (max-width: 58px) {
+  .editing-workspace-clip-titlebar {
+    gap: 2px;
+    padding-inline: 4px;
+  }
+
+  .editing-workspace-clip-titlebar .editing-workspace-clip-label svg,
+  .editing-workspace-clip-footerbar .editing-workspace-clip-audio-state svg {
+    display: none;
+  }
+
+  .editing-workspace-clip-footerbar .editing-workspace-clip-audio-state > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+@container (max-width: 38px) {
+  .editing-workspace-clip-titlebar .editing-workspace-clip-label > span,
+  .editing-workspace-clip-footerbar .editing-workspace-clip-audio-state {
+    display: none;
+  }
+}
+
+.editing-workspace-clip-text-body {
+  display: grid;
+  align-items: center;
+  background: color-mix(in srgb, #9c89c8 18%, var(--ms-color-background));
+  padding: 0 8px;
+  color: color-mix(in srgb, var(--ms-color-foreground) 80%, var(--ms-color-muted-foreground));
+  font-size: 10px;
+}
+
+.editing-workspace-clip-content .editing-workspace-clip-media {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  border-radius: 0;
+  opacity: 1;
+}
+
+.editing-workspace-clip-content .editing-workspace-clip-waveform {
+  align-items: center;
+  align-content: center;
+  gap: 1px;
+  padding: 4px 6px;
+  opacity: 0.95;
+}
+
+.editing-workspace-clip-content .editing-workspace-clip-waveform i {
+  background: color-mix(in srgb, #f1bd55 82%, var(--ms-color-background));
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 10%);
+}
+
+.editing-workspace-clip-content .editing-workspace-clip-waveform[data-waveform-ready="true"] i {
+  background: color-mix(in srgb, #ffd27a 86%, var(--ms-color-background));
+}

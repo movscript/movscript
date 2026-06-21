@@ -1,3 +1,4 @@
+import { resourceIdsFromMentions } from '@movscript/workspace'
 import { fromUiHandleId } from './ports.js'
 
 export type CoreCanvasPortType = 'text' | 'image' | 'video' | 'audio' | 'json' | 'number' | 'boolean' | 'resource'
@@ -31,8 +32,6 @@ export interface CoreCanvasRuntimeEdgeLike {
 
 export type CoreCanvasRuntimeOutputValues<TValue extends CoreCanvasPortValue = CoreCanvasPortValue> = Record<string, TValue>
 export type CoreCanvasRuntimeOutputCache<TValue extends CoreCanvasPortValue = CoreCanvasPortValue> = Record<string, CoreCanvasRuntimeOutputValues<TValue>>
-
-const RESOURCE_MENTION_RE = /@\[resource:(\d+)\]/g
 
 export function topoSortCanvasNodes<
   TNode extends { id: string },
@@ -110,15 +109,7 @@ export function runtimePromptForNode<TValue extends Pick<CoreCanvasPortValue, 't
 }
 
 export function resourceIdsFromCanvasPrompt(prompt: string | undefined) {
-  const ids: number[] = []
-  const seen = new Set<number>()
-  for (const match of (prompt ?? '').matchAll(RESOURCE_MENTION_RE)) {
-    const id = Number(match[1])
-    if (!Number.isInteger(id) || id <= 0 || seen.has(id)) continue
-    seen.add(id)
-    ids.push(id)
-  }
-  return ids
+  return resourceIdsFromMentions(prompt)
 }
 
 export function inputResourceIdsFromValues<TValue extends Pick<CoreCanvasPortValue, 'resource_id'>>(

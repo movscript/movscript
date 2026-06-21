@@ -2,7 +2,7 @@ import { forwardRef, type ComponentPropsWithoutRef, type HTMLAttributes, type Re
 
 import { AppEmptyState, AppStateMessage } from '@movscript/ui/business/app'
 import { AppContentLayout } from '@movscript/ui/layout'
-import { Button, Separator, type ButtonProps } from '@movscript/ui/primitives'
+import { Button, DialogContent, DialogTitle, Separator, type ButtonProps } from '@movscript/ui/primitives'
 
 import { cn } from '@/shared/ui/cn'
 
@@ -58,6 +58,14 @@ export function JobsEmptyState(props: ComponentPropsWithoutRef<typeof AppEmptySt
 
 export function JobsActionButton({ className, ...props }: ButtonProps) {
   return <Button className={cn('jobs-action-button', className)} {...props} />
+}
+
+export function JobsDetailDialogContent(props: ComponentPropsWithoutRef<typeof DialogContent>) {
+  return <DialogContent className="jobs-detail-dialog-content" {...props} />
+}
+
+export function JobsDetailDialogTitle(props: ComponentPropsWithoutRef<typeof DialogTitle>) {
+  return <DialogTitle className="ms-sr-only" {...props} />
 }
 
 export function JobsPager({ status, actions, className, ...props }: HTMLAttributes<HTMLDivElement> & { status: ReactNode; actions: ReactNode }) {

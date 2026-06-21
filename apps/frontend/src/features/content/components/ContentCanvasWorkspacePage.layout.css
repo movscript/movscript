@@ -1,6 +1,6 @@
 .content-canvas-workspace-inspector {
   grid-column: 3;
-  grid-row: 2 / 4;
+  grid-row: 1 / 3;
   position: relative;
   border-left: 1px solid var(--cc-border);
   background: color-mix(in srgb, var(--cc-panel) 82%, transparent);
@@ -9,7 +9,7 @@
 
 .content-canvas-workspace-timeline {
   grid-column: 2;
-  grid-row: 3;
+  grid-row: 2;
   position: relative;
   align-self: end;
   height: 100%;
@@ -91,7 +91,7 @@
   width: 1px;
 }
 
-.content-canvas-workspace-page[data-main-node="setting"] .content-canvas-workspace-timeline {
+.content-canvas-workspace-page[data-main-node="prompt"] .content-canvas-workspace-timeline {
   display: none;
 }
 

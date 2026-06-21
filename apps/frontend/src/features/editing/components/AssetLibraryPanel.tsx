@@ -17,6 +17,7 @@ import type { ElectronMediaPipelineAssetDescriptor, ElectronMediaPipelineEditing
 import { trackIdForAssetType } from '../domain/tracks'
 import type { ClipForm } from '../domain/types'
 import { AssetLibraryPreview } from './AssetLibraryPreview'
+import './AssetLibraryPanel.css'
 
 type AssetLibraryFilter = 'all' | 'video' | 'audio' | 'image'
 

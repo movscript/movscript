@@ -17,6 +17,7 @@ const agentConsolePages = [
   {
     label: 'agents',
     path: 'src/features/agent/components/AgentsPage.tsx',
+    companionPaths: ['src/features/agent/components/AgentsPageParts.tsx'],
     body: 'AgentConsoleDocumentBody',
   },
   {
@@ -46,7 +47,10 @@ const globalEnvironmentPages = [
 
 test('agent console pages share the shell header nav body layout contract', () => {
   for (const page of agentConsolePages) {
-    const source = readFileSync(resolve(page.path), 'utf8')
+    const source = [
+      readFileSync(resolve(page.path), 'utf8'),
+      ...('companionPaths' in page ? page.companionPaths.map((path) => readFileSync(resolve(path), 'utf8')) : []),
+    ].join('\n')
 
     assert.match(source, /<AgentPageShell[\s>]/, `${page.label} should render the shared agent page shell`)
     assert.match(source, /<AgentPageShellHeader>/, `${page.label} should render the shared page header slot`)
@@ -85,8 +89,11 @@ test('agent console nav stays inside settings-hosted console tabs', () => {
 })
 
 test('agent console document pages use shared content flow primitives', () => {
-  const modelProvidersSource = readFileSync(resolve('src/features/agent/components/ModelProvidersPage.tsx'), 'utf8')
-  const agentsSource = readFileSync(resolve('src/features/agent/components/AgentsPage.tsx'), 'utf8')
+  const modelProvidersSource = readModelProvidersPageSource()
+  const agentsSource = [
+    readFileSync(resolve('src/features/agent/components/AgentsPage.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/AgentsPageParts.tsx'), 'utf8'),
+  ].join('\n')
   const pluginsSource = readFileSync(resolve('src/features/plugins/components/ClientPluginsPage.tsx'), 'utf8')
   const pluginsViewSource = readFileSync(resolve('src/features/plugins/components/ClientPluginsPageViews.tsx'), 'utf8')
   const pluginsLayoutSource = [
@@ -94,6 +101,8 @@ test('agent console document pages use shared content flow primitives', () => {
     pluginsViewSource,
   ].join('\n')
   const consoleSource = readFileSync(resolve('src/features/agent/components/AgentConsoleUi.tsx'), 'utf8')
+  const consoleIssueSource = readFileSync(resolve('src/features/agent/components/AgentConsoleIssueUi.tsx'), 'utf8')
+  const consoleLocalToolSource = readFileSync(resolve('src/features/agent/components/AgentConsoleLocalToolUi.tsx'), 'utf8')
   const consoleStyles = readFileSync(resolve('src/features/agent/components/AgentConsoleUi.css'), 'utf8')
   const realtimeLogUiSource = readFileSync(resolve('src/features/agent/components/AgentConsoleRealtimeLogUi.tsx'), 'utf8')
   const realtimeLogUiStyles = readFileSync(resolve('src/features/agent/components/AgentConsoleRealtimeLogUi.css'), 'utf8')
@@ -116,6 +125,14 @@ test('agent console document pages use shared content flow primitives', () => {
   assert.match(consoleSource, /export function AgentConsoleTabButton/)
   assert.match(consoleSource, /export function AgentConsoleDocumentBody/)
   assert.match(consoleSource, /export function AgentConsolePageBody/)
+  assert.match(consoleSource, /from "@\/features\/agent\/components\/AgentConsoleIssueUi"/)
+  assert.match(consoleSource, /from "@\/features\/agent\/components\/AgentConsoleLocalToolUi"/)
+  assert.doesNotMatch(consoleSource, /export function AgentConsoleLocalToolCard/)
+  assert.doesNotMatch(consoleSource, /export function AgentConsoleMetricCard/)
+  assert.match(consoleIssueSource, /export function AgentConsoleMetricCard/)
+  assert.match(consoleIssueSource, /export function AgentConsoleIssueRowSurface/)
+  assert.match(consoleLocalToolSource, /export function AgentConsoleLocalToolCard/)
+  assert.match(consoleLocalToolSource, /export function AgentConsoleFormField/)
   assert.doesNotMatch(consoleSource, /export function AgentConsoleLogSummary/)
   assert.doesNotMatch(consoleSource, /export const AgentConsoleLogStream/)
   assert.doesNotMatch(consoleSource, /export function AgentConsoleLogLineText/)
@@ -145,3 +162,11 @@ test('agent console document pages use shared content flow primitives', () => {
   assert.match(pluginStyles, /\.plugin-empty-state\[data-layout="marketplace"\] \{[\s\S]*height: 320px;/)
   assert.match(pluginStyles, /\.plugin-tab-button \{[\s\S]*gap: 0\.375rem;/)
 })
+
+function readModelProvidersPageSource(): string {
+  return [
+    readFileSync(resolve('src/features/agent/components/ModelProvidersPage.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/ModelProvidersPageSections.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/ModelProvidersPageModel.ts'), 'utf8'),
+  ].join('\n')
+}

@@ -9,9 +9,9 @@ Use current MovScript entity names in tool calls and source files. Chinese and p
 | script | `script` |
 | script version | `script_version` |
 | script block | `script_block` |
-| setting / reusable fact | `setting` |
-| setting state / contextual state | `setting_state` |
-| asset slot / reusable reference slot | `asset` |
+| setting / concrete production entity | `setting` |
+| setting state / entity state namespace | `setting_state` |
+| asset slot / state asset description | `asset` |
 | production / episode / film unit | `production` |
 | segment / rhythm section | `segment` |
 | scene beat / plot beat / 情节 | `scene_moment` |
@@ -43,5 +43,7 @@ Use current MovScript entity names in tool calls and source files. Chinese and p
 - `shot` is a legacy/specialized visual anchor. In the final model, shot-like intent is `expression_unit(modality=visual, role=shot)`.
 - `storyboard` and `keyframe` are optional visual evidence for visual expression material.
 - `audio_cue` is a legacy/specialized sound anchor. In the final model, sound intent is `expression_unit(modality=audio, role=sfx/music/ambience/dialogue/foley)`.
-- `asset` is a reusable resource slot under a setting state, not a generated result.
+- `setting` is a concrete film/music production entity to make or reuse, such as a character, prop, place, instrument, costume, or voice identity. It is not an abstract style/rule/mood/genre bucket.
+- `setting_state` is a namespace under one setting for a named condition/version of the same entity.
+- `asset` is a reusable resource slot under a setting state, not a generated result. It describes one state asset, such as front view, side view, turnaround sheet, material reference, voice timbre, or instrument tone. Image assets should prefer plain white or very clean backgrounds.
 - `content_unit` is not a production hierarchy node. It is a production task that creates candidates and selections.

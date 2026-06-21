@@ -41,7 +41,7 @@ test('workspace review carries json array order changes into entity and semantic
     slot: 'character_state_reference',
     prompt_hint: 'Umbrella beads with rain.',
   }))
-  const keyframePath = 'productions/p8f3/segments/a19d/scene_moments/r72k/shots/phone/keyframes/scene_anchor/keyframe.json'
+  const keyframePath = 'productions/p8f3/segments/a19d/scene_moments/r72k/expression_units/phone/keyframes/scene_anchor/keyframe.json'
   const keyframe = JSON.parse(files.get(keyframePath))
   keyframe.reference_asset_refs = ['wet_hair', 'umbrella']
   files.set(keyframePath, JSON.stringify(keyframe))
@@ -156,10 +156,10 @@ test('unknown content unit types are valid but untracked for regeneration', asyn
   assert.equal(selectedValidity?.schema, 'movscript.content_unit_selection_validity.v2')
   assert.equal(selectedValidity?.stale, false)
 
-  const keyframe = JSON.parse(files.get('productions/p8f3/segments/a19d/scene_moments/r72k/shots/phone/keyframes/scene_anchor/keyframe.json'))
+  const keyframe = JSON.parse(files.get('productions/p8f3/segments/a19d/scene_moments/r72k/expression_units/phone/keyframes/scene_anchor/keyframe.json'))
   keyframe.visual_intent = 'Rainy apartment scene anchor after an upstream visual change.'
   keyframe.continuity = { ...keyframe.continuity, lighting: 'colder phone glow after upstream change' }
-  files.set('productions/p8f3/segments/a19d/scene_moments/r72k/shots/phone/keyframes/scene_anchor/keyframe.json', `${JSON.stringify(keyframe, null, 2)}\n`)
+  files.set('productions/p8f3/segments/a19d/scene_moments/r72k/expression_units/phone/keyframes/scene_anchor/keyframe.json', `${JSON.stringify(keyframe, null, 2)}\n`)
 
   const upstreamInterpretation = await interpretMovScriptWorkspace({
     fileRepository: repository,
@@ -233,7 +233,7 @@ test('interpreter interpret reads hierarchical source root and writes derived ar
   assert.ok(domainIndex.entities.some((entity) => entity.entityKind === 'content_unit'))
   assert.equal(previewTimeline.schema, 'movscript.preview_timeline.v1')
   assert.equal(runtimePanel.schema, 'movscript.content_unit_runtime_panel.v1')
-  assert.equal(runtimePanel.content_unit_type, 'shot_ref')
+  assert.equal(runtimePanel.content_unit_type, 'expression_unit_ref')
   assert.equal(runtimePanel.input_hash, undefined)
   assert.equal(runtimePanel.input_version, undefined)
   assert.equal(runtimePanel.dependency_hashes, undefined)
@@ -288,6 +288,7 @@ test('interpreter tracks scence_moment_ref content units as scene videos', async
 
 test('interpreter derives scene moment edit plan from selected expression-unit content units', async () => {
   const files = new Map(sourceFileEntries())
+  files.delete('content_units/k41m/content_unit.json')
   files.set('productions/p8f3/segments/a19d/scene_moments/r72k/expression_units/eu_phone_visual/expression_unit.json', JSON.stringify({
     schema: 'movscript.expression_unit.v1',
     kind: 'expression_unit',
@@ -407,7 +408,7 @@ test('workspace review maps git baseline text diff to entity, semantic, and prod
     const { stdout: headStdout } = await execFileAsync('git', ['-C', rootDir, 'rev-parse', 'HEAD'])
     const head = headStdout.trim()
 
-    const keyframePath = 'productions/p8f3/segments/a19d/scene_moments/r72k/shots/phone/keyframes/scene_anchor/keyframe.json'
+    const keyframePath = 'productions/p8f3/segments/a19d/scene_moments/r72k/expression_units/phone/keyframes/scene_anchor/keyframe.json'
     const keyframe = JSON.parse(await readFile(join(rootDir, keyframePath), 'utf8'))
     keyframe.visual_intent = 'Git workspace change to the scene anchor.'
     await writeFile(join(rootDir, keyframePath), `${JSON.stringify(keyframe, null, 2)}\n`, 'utf8')

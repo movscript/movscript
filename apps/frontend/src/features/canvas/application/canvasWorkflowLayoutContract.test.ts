@@ -26,7 +26,7 @@ test('canvas viewport overlays are owned by an explicit viewport overlay layer',
   const contextMenuSource = readFileSync(resolve('src/features/canvas/ui/ContextMenu.tsx'), 'utf8')
   const contextMenuPlacementSource = readFileSync(resolve('src/features/canvas/presentation/canvasContextMenuPlacement.ts'), 'utf8')
   const canvasEditorComponentSource = readFileSync(resolve('src/features/canvas/ui/CanvasEditorUi.tsx'), 'utf8')
-  const canvasEditorStyles = readFileSync(resolve('src/features/canvas/ui/CanvasEditorUi.css'), 'utf8')
+  const canvasEditorStyles = readCssBundle('src/features/canvas/ui/CanvasEditorUi.css')
   const contextMenuStyles = readFileSync(resolve('src/features/canvas/ui/CanvasContextMenuUi.css'), 'utf8')
   const packageCanvasSource = readFileSync(resolve('../../packages/ui/src/components/business/canvas/index.tsx'), 'utf8')
   const packageCanvasStyles = readFileSync(resolve('../../packages/ui/src/components/business/canvas/styles.css'), 'utf8')
@@ -88,6 +88,7 @@ test('canvas drop target parsing is centralized before page-level commit actions
 test('canvas viewport geometry is owned by the presentation adapter', () => {
   const canvasEditorSource = readCanvasEditorContractSource()
   const contextMenuControllerSource = readFileSync(resolve('src/features/canvas/presentation/useCanvasContextMenuController.ts'), 'utf8')
+  const nodeCreationControllerSource = readFileSync(resolve('src/features/canvas/presentation/useCanvasNodeCreationController.ts'), 'utf8')
   const renderDiagnosticsHookSource = readFileSync(resolve('src/features/canvas/presentation/useCanvasEditorRenderDiagnostics.ts'), 'utf8')
   const viewportPerformanceHookSource = readFileSync(resolve('src/features/canvas/presentation/useCanvasViewportPerformanceState.ts'), 'utf8')
   const viewportGeometrySource = readFileSync(resolve('src/features/canvas/presentation/canvasViewportGeometry.ts'), 'utf8')
@@ -97,11 +98,13 @@ test('canvas viewport geometry is owned by the presentation adapter', () => {
   assert.match(viewportGeometrySource, /export function canvasViewportContextMenuBoundary/)
   assert.match(viewportGeometrySource, /export function canvasViewportSizeFromElement/)
   assert.match(viewportGeometrySource, /export function canvasRenderDiagnosticViewport/)
-  assert.match(canvasEditorSource, /canvasDefaultClientPointFromViewportElement\(canvasPaneRef\.current\)/)
+  assert.match(canvasEditorSource, /useCanvasNodeCreationController\(\{/)
+  assert.match(nodeCreationControllerSource, /canvasDefaultClientPointFromViewportElement\(canvasPaneRef\.current\)/)
   assert.match(contextMenuControllerSource, /canvasOverlayPointFromViewportElement\(point, canvasPaneRef\.current\)/)
   assert.match(contextMenuControllerSource, /boundary: canvasViewportContextMenuBoundary\(canvasPaneRef\.current\)/)
   assert.match(viewportPerformanceHookSource, /const viewportSize = canvasViewportSizeFromElement\(canvasPaneRef\.current\)/)
   assert.match(renderDiagnosticsHookSource, /viewport: canvasRenderDiagnosticViewport\(\)/)
+  assert.doesNotMatch(canvasEditorSource, /canvasDefaultClientPointFromViewportElement/)
   assert.doesNotMatch(canvasEditorSource, /window\.innerWidth/)
   assert.doesNotMatch(canvasEditorSource, /window\.innerHeight/)
   assert.doesNotMatch(canvasEditorSource, /window\.devicePixelRatio/)
@@ -143,12 +146,13 @@ test('canvas render diagnostics reuse layout helpers for rect formatting', () =>
 })
 
 test('canvas text node card layout is keyed by explicit content mode', () => {
-  const nodeCardSource = readFileSync(resolve('src/features/canvas/ui/CanvasNodeCardUi.tsx'), 'utf8')
+  const nodeCardSource = readFileSync(resolve('src/features/canvas/ui/CanvasNodeCardPrimitives.tsx'), 'utf8')
+  const nodeCardViewSource = readFileSync(resolve('src/features/canvas/ui/CanvasNodeCardViews.tsx'), 'utf8')
   const nodeCardStyles = readFileSync(resolve('src/features/canvas/ui/CanvasNodeCardUi.css'), 'utf8')
 
   assert.match(nodeCardSource, /contentMode\?: "text"/)
   assert.match(nodeCardSource, /data-content-mode=\{contentMode\}/)
-  assert.match(nodeCardSource, /<CanvasNodeCard selected=\{selected\} contentMode="text">/)
+  assert.match(nodeCardViewSource, /<CanvasNodeCard selected=\{selected\} contentMode="text">/)
   assert.match(nodeCardStyles, /\.canvas-node-card\[data-content-mode="text"\]/)
   assert.doesNotMatch(nodeCardStyles, /\.canvas-node-card:has\(\.canvas-node-card-(textarea|preview-text)\)/)
 })
@@ -157,5 +161,20 @@ function readCanvasEditorContractSource(): string {
   return [
     readFileSync(resolve('src/features/canvas/components/CanvasEditorPage.tsx'), 'utf8'),
     readFileSync(resolve('src/features/canvas/components/CanvasWorkspace.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/canvas/components/useCanvasWorkspaceController.ts'), 'utf8'),
+    readFileSync(resolve('src/features/canvas/components/useCanvasWorkspaceInteractionController.ts'), 'utf8'),
   ].join('\n')
+}
+
+function readCssBundle(path: string, seen = new Set<string>()): string {
+  const absolutePath = resolve(path)
+  if (seen.has(absolutePath)) return ''
+  seen.add(absolutePath)
+
+  const source = readFileSync(absolutePath, 'utf8')
+  const importedSources = [...source.matchAll(/@import\s+['"]\.\/([^'"]+)['"];/g)].map((match) =>
+    readCssBundle(resolve(absolutePath, '..', match[1]), seen),
+  )
+
+  return [source, ...importedSources].join('\n')
 }

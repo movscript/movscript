@@ -14,9 +14,15 @@ import {
 
 test('agent settings persistence is routed through desktop Home storage', () => {
   const source = readFileSync(resolve('src/features/agent/state/agentStore.ts'), 'utf8')
+  const modelSource = readFileSync(resolve('src/features/agent/state/agentStoreSettingsModel.ts'), 'utf8')
 
   assert.equal(AGENT_STORE_STORAGE_KEY, 'agent-store-v4')
   assert.match(source, /createDesktopStateStorage\(AGENT_STORE_STORAGE_KEY, agentStoreBrowserStorage\)/)
+  assert.match(source, /from '@\/features\/agent\/state\/agentStoreSettingsModel'/)
+  assert.doesNotMatch(source, /function normalizeAgentSettingsWithOptions/)
+  assert.doesNotMatch(source, /function normalizeSettingsBackupConfigFile/)
+  assert.match(modelSource, /export function normalizeAgentSettingsWithOptions/)
+  assert.match(modelSource, /function normalizeSettingsBackupConfigFile/)
 })
 
 test('agent store persistence excludes conversations and workspaces', () => {

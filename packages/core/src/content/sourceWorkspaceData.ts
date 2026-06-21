@@ -20,11 +20,11 @@ import type {
   ProductionWorkItemView,
   ProductionWorkPlanView,
   PreviewMoment,
-  PreviewShot,
+  PreviewExpressionUnit,
   SelectionState,
-  ShotChildOption,
-  ShotImpact,
-  ShotWorkspaceDetails,
+  ExpressionUnitChildOption,
+  ExpressionUnitImpact,
+  ExpressionUnitWorkspaceDetails,
   StoryboardTimeline,
 } from './sourceWorkspaceTypes'
 
@@ -32,9 +32,10 @@ export interface ContentSourceWorkspaceData {
   source: 'fixture' | 'workspace'
   hierarchyTree: HierarchyNode[]
   previewMoments: PreviewMoment[]
+  contentUnitCandidates: Record<string, PreviewCandidate[]>
   expressionUnitsByMoment: Record<string, ExpressionUnit[]>
   audioCuesByMoment: Record<string, AudioCue[]>
-  shotWorkspaceDetails: Record<string, ShotWorkspaceDetails>
+  expressionUnitWorkspaceDetails: Record<string, ExpressionUnitWorkspaceDetails>
   assetReferenceUnits: Record<string, PreviewAssetReferenceUnit>
   editingTimelines: ContentSourceWorkspaceEditingTimeline[]
   productionWorkPlan?: ProductionWorkPlanView
@@ -58,7 +59,7 @@ export interface WorkspacePreviewTimelineArtifact {
 
 export interface WorkspacePreviewTimelineItem {
   id: string
-  itemType: 'segment' | 'scene_moment' | 'shot' | 'storyboard' | 'keyframe' | 'audio_cue' | 'expression_unit' | 'content_unit'
+  itemType: 'segment' | 'scene_moment' | 'storyboard' | 'keyframe' | 'audio_cue' | 'expression_unit' | 'content_unit'
   entity: {
     entityKind: string
     id?: string | number
@@ -111,7 +112,6 @@ export interface ContentSourceWorkspaceSnapshot {
   productions: MovScriptWorkspaceIndexedEntity[]
   segments: MovScriptWorkspaceIndexedEntity[]
   sceneMoments: MovScriptWorkspaceIndexedEntity[]
-  shots: MovScriptWorkspaceIndexedEntity[]
   storyboards: MovScriptWorkspaceIndexedEntity[]
   keyframes: MovScriptWorkspaceIndexedEntity[]
   expressionUnits: MovScriptWorkspaceIndexedEntity[]
@@ -126,7 +126,7 @@ export interface ContentSourceWorkspaceCandidateCreatePlan {
   contentUnitId: string
   candidateId: string
   source: 'ai_generate' | 'resource_library'
-  status: 'queued' | 'imported'
+  status: 'queued' | 'pending' | 'running' | 'succeeded' | 'failed' | 'canceled' | 'cancelled' | 'imported'
   producer: Record<string, unknown>
   outputs: ContentSourceWorkspaceCandidateOutput[]
   promptSnapshot: Record<string, unknown>
@@ -164,11 +164,11 @@ export interface ContentSourceWorkspaceExpressionUnitPatch {
 export interface ContentSourceWorkspaceAudioCuePatch {
   targetPath: string
   patch: {
-    title: string
-    cueKind: string
-    promptHint: string
-    shotRef?: string
-    storyboardRef?: string
+	    title: string
+	    cueKind: string
+	    promptHint: string
+	    expressionUnitRef?: string
+	    storyboardRef?: string
     timing: Record<string, unknown>
     assetRefs: string[]
   }
@@ -196,7 +196,6 @@ export function buildContentSourceWorkspaceData(input: ContentSourceWorkspaceSna
   const productions = input.productions
   const segments = input.segments
   const sceneMoments = input.sceneMoments
-  const shots = input.shots
   const storyboards = input.storyboards
   const expressionUnits = input.expressionUnits
   const audioCues = input.audioCues
@@ -212,11 +211,16 @@ export function buildContentSourceWorkspaceData(input: ContentSourceWorkspaceSna
   const candidateRecordsByContentUnitId = groupContentCandidateRecordsByContentUnitId(input.indexDocuments)
   const selectionRecordsByContentUnitId = groupSelectionRecordsByContentUnitId(input.indexDocuments)
   const selectionByContentUnitId = buildSelectionStateByContentUnitId(contentUnits, selectionRecordsByContentUnitId)
+  const contentUnitCandidates = buildContentUnitCandidates({
+    contentUnits,
+    candidateRecordsByContentUnitId,
+    selectionRecordsByContentUnitId,
+  })
   const previewMoments = buildPreviewMoments({
     productions,
     segments,
     sceneMoments,
-    shots,
+    expressionUnits,
     storyboards,
     keyframes,
     assets,
@@ -228,8 +232,8 @@ export function buildContentSourceWorkspaceData(input: ContentSourceWorkspaceSna
   })
   const expressionUnitsByMoment = buildExpressionUnitsByMoment(expressionUnits)
   const audioCuesByMoment = buildAudioCuesByMoment(audioCues)
-  const shotWorkspaceDetails = buildShotWorkspaceDetails({
-    shots,
+  const expressionUnitWorkspaceDetails = buildExpressionUnitWorkspaceDetails({
+    expressionUnits,
     storyboards,
     keyframes,
     assets,
@@ -243,7 +247,7 @@ export function buildContentSourceWorkspaceData(input: ContentSourceWorkspaceSna
     assets,
     settings,
     settingStates,
-    shots,
+    expressionUnits,
     storyboards,
     keyframes,
     contentUnits,
@@ -262,7 +266,6 @@ export function buildContentSourceWorkspaceData(input: ContentSourceWorkspaceSna
       productions,
       segments,
       sceneMoments,
-      shots,
       storyboards,
       keyframes,
       expressionUnits,
@@ -270,9 +273,10 @@ export function buildContentSourceWorkspaceData(input: ContentSourceWorkspaceSna
       assetReferenceUnits,
     }),
     previewMoments,
+    contentUnitCandidates,
     expressionUnitsByMoment,
     audioCuesByMoment,
-    shotWorkspaceDetails,
+    expressionUnitWorkspaceDetails,
     assetReferenceUnits,
     editingTimelines: input.editingTimelines ?? [],
     productionWorkPlan,
@@ -557,7 +561,7 @@ export function buildContentSourceWorkspaceAudioCuePatch(input: {
   title: string
   cueKind: string
   promptHint: string
-  shotRef?: string
+  expressionUnitRef?: string
   storyboardRef?: string
   timing: Record<string, unknown>
   assetRefs: string[]
@@ -568,7 +572,7 @@ export function buildContentSourceWorkspaceAudioCuePatch(input: {
       title: input.title,
       cueKind: input.cueKind,
       promptHint: input.promptHint,
-      shotRef: input.shotRef,
+      expressionUnitRef: input.expressionUnitRef,
       storyboardRef: input.storyboardRef,
       timing: input.timing,
       assetRefs: input.assetRefs,
@@ -624,25 +628,25 @@ export function updateContentSourceWorkspaceContentUnitPrompt(
     ...data,
     previewMoments: data.previewMoments.map((moment) => ({
       ...moment,
-      shots: moment.shots.map((shot) => (
-        shot.contentUnit.id === contentUnitId
+      expressionUnits: moment.expressionUnits.map((expressionUnit) => (
+        expressionUnit.contentUnit.id === contentUnitId
           ? {
-            ...shot,
+            ...expressionUnit,
             contentUnit: {
-              ...shot.contentUnit,
+              ...expressionUnit.contentUnit,
               editPrompt: text,
             },
           }
-          : shot
+          : expressionUnit
       )),
     })),
-    shotWorkspaceDetails: Object.fromEntries(
-      Object.entries(data.shotWorkspaceDetails).map(([shotId, workspace]) => [
-        shotId,
+    expressionUnitWorkspaceDetails: Object.fromEntries(
+      Object.entries(data.expressionUnitWorkspaceDetails).map(([expressionUnitId, workspace]) => [
+        expressionUnitId,
         {
           ...workspace,
-          keyframes: updateShotChildContentUnitPrompt(workspace.keyframes, contentUnitId, text),
-          storyboards: updateShotChildContentUnitPrompt(workspace.storyboards, contentUnitId, text),
+          keyframes: updateExpressionUnitChildContentUnitPrompt(workspace.keyframes, contentUnitId, text),
+          storyboards: updateExpressionUnitChildContentUnitPrompt(workspace.storyboards, contentUnitId, text),
         },
       ]),
     ),
@@ -656,24 +660,25 @@ export function updateContentSourceWorkspaceContentUnitSelection(
 ): ContentSourceWorkspaceData {
   return {
     ...data,
+    contentUnitCandidates: updateContentUnitCandidateSelection(data.contentUnitCandidates, contentUnitId, candidateId),
     previewMoments: data.previewMoments.map((moment) => ({
       ...moment,
-      shots: moment.shots.map((shot) => (
-        shot.contentUnit.id === contentUnitId
+      expressionUnits: moment.expressionUnits.map((expressionUnit) => (
+        expressionUnit.contentUnit.id === contentUnitId
           ? {
-            ...shot,
-            contentUnit: selectPreviewContentUnitCandidate(shot.contentUnit, candidateId),
+            ...expressionUnit,
+            contentUnit: selectPreviewContentUnitCandidate(expressionUnit.contentUnit, candidateId),
           }
-          : shot
+          : expressionUnit
       )),
     })),
-    shotWorkspaceDetails: Object.fromEntries(
-      Object.entries(data.shotWorkspaceDetails).map(([shotId, workspace]) => [
-        shotId,
+    expressionUnitWorkspaceDetails: Object.fromEntries(
+      Object.entries(data.expressionUnitWorkspaceDetails).map(([expressionUnitId, workspace]) => [
+        expressionUnitId,
         {
           ...workspace,
-          keyframes: updateShotChildContentUnitSelection(workspace.keyframes, contentUnitId, candidateId),
-          storyboards: updateShotChildContentUnitSelection(workspace.storyboards, contentUnitId, candidateId),
+          keyframes: updateExpressionUnitChildContentUnitSelection(workspace.keyframes, contentUnitId, candidateId),
+          storyboards: updateExpressionUnitChildContentUnitSelection(workspace.storyboards, contentUnitId, candidateId),
         },
       ]),
     ),
@@ -687,24 +692,25 @@ export function appendContentSourceWorkspaceContentUnitCandidate(
 ): ContentSourceWorkspaceData {
   return {
     ...data,
+    contentUnitCandidates: appendContentUnitCandidate(data.contentUnitCandidates, contentUnitId, candidate),
     previewMoments: data.previewMoments.map((moment) => ({
       ...moment,
-      shots: moment.shots.map((shot) => (
-        shot.contentUnit.id === contentUnitId
+      expressionUnits: moment.expressionUnits.map((expressionUnit) => (
+        expressionUnit.contentUnit.id === contentUnitId
           ? {
-            ...shot,
-            contentUnit: appendPreviewCandidate(shot.contentUnit, candidate),
+            ...expressionUnit,
+            contentUnit: appendPreviewCandidate(expressionUnit.contentUnit, candidate),
           }
-          : shot
+          : expressionUnit
       )),
     })),
-    shotWorkspaceDetails: Object.fromEntries(
-      Object.entries(data.shotWorkspaceDetails).map(([shotId, workspace]) => [
-        shotId,
+    expressionUnitWorkspaceDetails: Object.fromEntries(
+      Object.entries(data.expressionUnitWorkspaceDetails).map(([expressionUnitId, workspace]) => [
+        expressionUnitId,
         {
           ...workspace,
-          keyframes: updateShotChildContentUnitCandidate(workspace.keyframes, contentUnitId, candidate),
-          storyboards: updateShotChildContentUnitCandidate(workspace.storyboards, contentUnitId, candidate),
+          keyframes: updateExpressionUnitChildContentUnitCandidate(workspace.keyframes, contentUnitId, candidate),
+          storyboards: updateExpressionUnitChildContentUnitCandidate(workspace.storyboards, contentUnitId, candidate),
         },
       ]),
     ),
@@ -799,11 +805,11 @@ export function updateContentSourceWorkspaceHierarchyPlanning(
   }
 }
 
-function updateShotChildContentUnitPrompt(
-  items: ShotChildOption[],
+function updateExpressionUnitChildContentUnitPrompt(
+  items: ExpressionUnitChildOption[],
   contentUnitId: string,
   text: string,
-): ShotChildOption[] {
+): ExpressionUnitChildOption[] {
   return items.map((item) => item.contentUnit?.id === contentUnitId
     ? {
       ...item,
@@ -815,11 +821,11 @@ function updateShotChildContentUnitPrompt(
     : item)
 }
 
-function updateShotChildContentUnitSelection(
-  items: ShotChildOption[],
+function updateExpressionUnitChildContentUnitSelection(
+  items: ExpressionUnitChildOption[],
   contentUnitId: string,
   candidateId: string,
-): ShotChildOption[] {
+): ExpressionUnitChildOption[] {
   return items.map((item) => item.contentUnit?.id === contentUnitId
     ? {
       ...item,
@@ -828,11 +834,11 @@ function updateShotChildContentUnitSelection(
     : item)
 }
 
-function updateShotChildContentUnitCandidate(
-  items: ShotChildOption[],
+function updateExpressionUnitChildContentUnitCandidate(
+  items: ExpressionUnitChildOption[],
   contentUnitId: string,
   candidate: CreatedContentSourceCandidate,
-): ShotChildOption[] {
+): ExpressionUnitChildOption[] {
   return items.map((item) => item.contentUnit?.id === contentUnitId
     ? {
       ...item,
@@ -896,7 +902,6 @@ function buildHierarchyTree(input: {
   productions: MovScriptWorkspaceIndexedEntity[]
   segments: MovScriptWorkspaceIndexedEntity[]
   sceneMoments: MovScriptWorkspaceIndexedEntity[]
-  shots: MovScriptWorkspaceIndexedEntity[]
   storyboards: MovScriptWorkspaceIndexedEntity[]
   keyframes: MovScriptWorkspaceIndexedEntity[]
   expressionUnits: MovScriptWorkspaceIndexedEntity[]
@@ -939,57 +944,66 @@ function buildHierarchyTree(input: {
             const segmentDir = entityDir(segment.path)
             const sceneMoments = childEntities(input.sceneMoments, segmentDir, 'scene_moments')
             return entityNode(segment, 'segment', {
-              children: sortEntities(sceneMoments).map((sceneMoment) => {
-                const momentDir = entityDir(sceneMoment.path)
-                const shots = childEntities(input.shots, momentDir, 'shots')
-                const expressions = childEntities(input.expressionUnits, momentDir, 'expression_units')
-                const audioCues = childEntities(input.audioCues, momentDir, 'audio_cues')
-                const momentId = idText(sceneMoment)
-                const shotGroup: HierarchyNode = {
-                  id: `${nodeId(sceneMoment, 'scene_moment')}_shots_group`,
-                  type: 'group',
-                  title: 'Shots',
-                  path: `${momentDir}/shots`,
-                  momentId,
-                  children: sortEntities(shots).map((shot) => {
-                    const shotDir = entityDir(shot.path)
-                    const shotId = idText(shot)
-                    const storyboards = childEntities(input.storyboards, shotDir, 'storyboards')
-                    const keyframes = childEntities(input.keyframes, shotDir, 'keyframes')
-                    return entityNode(shot, 'shot', {
-                      momentId,
-                      shotId,
-                      children: [
-                        {
-                          id: `${nodeId(shot, 'shot')}_storyboards_group`,
-                          type: 'group',
-                          title: 'Storyboards',
-                          path: `${shotDir}/storyboards`,
-                          momentId,
-                          shotId,
-                          children: sortEntities(storyboards).map((storyboard) => entityNode(storyboard, 'storyboard', { momentId, shotId })),
-                        },
-                        {
-                          id: `${nodeId(shot, 'shot')}_keyframes_group`,
-                          type: 'group',
-                          title: 'Keyframes',
-                          path: `${shotDir}/keyframes`,
-                          momentId,
-                          shotId,
-                          children: sortEntities(keyframes).map((keyframe) => entityNode(keyframe, 'keyframe', { momentId, shotId })),
-                        },
-                      ],
-                    })
-                  }),
-                }
-                const expressionGroup: HierarchyNode = {
-                  id: `${nodeId(sceneMoment, 'scene_moment')}_expression_group`,
-                  type: 'group',
-                  title: 'Expression Units',
-                  path: `${momentDir}/expression_units`,
-                  momentId,
-                  children: sortEntities(expressions).map((expression) => entityNode(expression, 'expression_unit', { momentId })),
-                }
+	              children: sortEntities(sceneMoments).map((sceneMoment) => {
+	                const momentDir = entityDir(sceneMoment.path)
+	                const expressions = childEntities(input.expressionUnits, momentDir, 'expression_units')
+	                const momentStoryboards = childEntities(input.storyboards, momentDir, 'storyboards')
+	                const momentKeyframes = childEntities(input.keyframes, momentDir, 'keyframes')
+	                const audioCues = childEntities(input.audioCues, momentDir, 'audio_cues')
+	                const momentId = idText(sceneMoment)
+	                const expressionGroup: HierarchyNode = {
+	                  id: `${nodeId(sceneMoment, 'scene_moment')}_expression_group`,
+	                  type: 'group',
+	                  title: 'Expression Units',
+	                  path: `${momentDir}/expression_units`,
+	                  momentId,
+	                  children: sortEntities(expressions).map((expression) => {
+	                    const expressionDir = entityDir(expression.path)
+	                    const expressionUnitId = idText(expression)
+	                    const storyboards = childEntities(input.storyboards, expressionDir, 'storyboards')
+	                    const keyframes = childEntities(input.keyframes, expressionDir, 'keyframes')
+	                    return entityNode(expression, 'expression_unit', {
+	                      momentId,
+	                      expressionUnitId,
+	                      children: [
+	                        {
+	                          id: `${nodeId(expression, 'expression_unit')}_storyboards_group`,
+	                          type: 'group',
+	                          title: 'Storyboards',
+	                          path: `${expressionDir}/storyboards`,
+	                          momentId,
+	                          expressionUnitId,
+	                          children: sortEntities(storyboards).map((storyboard) => entityNode(storyboard, 'storyboard', { momentId, expressionUnitId })),
+	                        },
+	                        {
+	                          id: `${nodeId(expression, 'expression_unit')}_keyframes_group`,
+	                          type: 'group',
+	                          title: 'Keyframes',
+	                          path: `${expressionDir}/keyframes`,
+	                          momentId,
+	                          expressionUnitId,
+	                          children: sortEntities(keyframes).map((keyframe) => entityNode(keyframe, 'keyframe', { momentId, expressionUnitId })),
+	                        },
+	                      ],
+	                    })
+	                  }),
+	                }
+	                const storyboardGroup: HierarchyNode = {
+	                  id: `${nodeId(sceneMoment, 'scene_moment')}_storyboards_group`,
+	                  type: 'group',
+	                  title: 'Storyboards',
+	                  path: `${momentDir}/storyboards`,
+	                  momentId,
+	                  children: sortEntities(momentStoryboards).map((storyboard) => entityNode(storyboard, 'storyboard', { momentId })),
+	                }
+	                const keyframeGroup: HierarchyNode = {
+	                  id: `${nodeId(sceneMoment, 'scene_moment')}_keyframes_group`,
+	                  type: 'group',
+	                  title: 'Keyframes',
+	                  path: `${momentDir}/keyframes`,
+	                  momentId,
+	                  children: sortEntities(momentKeyframes).map((keyframe) => entityNode(keyframe, 'keyframe', { momentId })),
+	                }
                 const audioCueGroup: HierarchyNode = {
                   id: `${nodeId(sceneMoment, 'scene_moment')}_audio_group`,
                   type: 'group',
@@ -998,10 +1012,10 @@ function buildHierarchyTree(input: {
                   momentId,
                   children: sortEntities(audioCues).map((audioCue) => entityNode(audioCue, 'audio_cue', { momentId })),
                 }
-                return entityNode(sceneMoment, 'scene_moment', {
-                  momentId,
-                  children: [shotGroup, expressionGroup, audioCueGroup],
-                })
+	                return entityNode(sceneMoment, 'scene_moment', {
+	                  momentId,
+	                  children: [expressionGroup, storyboardGroup, keyframeGroup, audioCueGroup],
+	                })
               }),
             })
           }),
@@ -1015,7 +1029,7 @@ function buildPreviewMoments(input: {
   productions: MovScriptWorkspaceIndexedEntity[]
   segments: MovScriptWorkspaceIndexedEntity[]
   sceneMoments: MovScriptWorkspaceIndexedEntity[]
-  shots: MovScriptWorkspaceIndexedEntity[]
+  expressionUnits: MovScriptWorkspaceIndexedEntity[]
   storyboards: MovScriptWorkspaceIndexedEntity[]
   keyframes: MovScriptWorkspaceIndexedEntity[]
   assets: MovScriptWorkspaceIndexedEntity[]
@@ -1025,31 +1039,31 @@ function buildPreviewMoments(input: {
   selectionRecordsByContentUnitId: Map<string, ContentSelectionRecord>
   selectionByContentUnitId: Map<string, SelectionState>
 }): PreviewMoment[] {
-  return orderedSceneMoments(input.sceneMoments, input.previewTimelines).map((moment, momentIndex) => {
-    const momentDir = entityDir(moment.path)
-    const segment = parentByDir(input.segments, moment.path)
-    const production = segment ? parentByDir(input.productions, segment.path) : undefined
-    const shots = orderedChildEntitiesForTimelineParent(input.shots, input.previewTimelines, timelineItemIdForEntity(moment), 'shot')
-    const momentShots = (shots.length > 0 ? shots : sortEntities(childEntities(input.shots, momentDir, 'shots'))).map((shot, shotIndex) =>
-      previewShot(shot, shotIndex, moment, input),
-    )
-    return {
-      id: idText(moment),
-      title: titleOf(moment, `Scene Moment ${momentIndex + 1}`),
-      path: entityDir(moment.path),
-      selectionState: momentSelectionState(momentShots),
-      priority: momentIndex < 1 ? '高优先级' : momentIndex < 3 ? '中优先级' : '低优先级',
-      production: production ? titleOf(production, idText(production)) : '',
-      segment: segment ? titleOf(segment, idText(segment)) : '',
-      settings: settingRefsForMoment(moment, momentShots, input.assets),
-      shots: momentShots,
-    }
-  })
-}
+	  return orderedSceneMoments(input.sceneMoments, input.previewTimelines).map((moment, momentIndex) => {
+	    const momentDir = entityDir(moment.path)
+	    const segment = parentByDir(input.segments, moment.path)
+	    const production = segment ? parentByDir(input.productions, segment.path) : undefined
+	    const expressionUnits = orderedChildEntitiesForTimelineParent(input.expressionUnits, input.previewTimelines, timelineItemIdForEntity(moment), 'expression_unit')
+	    const momentExpressionUnits = (expressionUnits.length > 0 ? expressionUnits : sortEntities(childEntities(input.expressionUnits, momentDir, 'expression_units'))).map((expressionUnit, expressionUnitIndex) =>
+	      previewExpressionUnit(expressionUnit, expressionUnitIndex, moment, input),
+	    )
+	    return {
+	      id: idText(moment),
+	      title: titleOf(moment, `Scene Moment ${momentIndex + 1}`),
+	      path: entityDir(moment.path),
+	      selectionState: momentSelectionState(momentExpressionUnits),
+	      priority: momentIndex < 1 ? '高优先级' : momentIndex < 3 ? '中优先级' : '低优先级',
+	      production: production ? titleOf(production, idText(production)) : '',
+	      segment: segment ? titleOf(segment, idText(segment)) : '',
+	      settings: settingRefsForMoment(moment, momentExpressionUnits, input.assets),
+	      expressionUnits: momentExpressionUnits,
+	    }
+	  })
+	}
 
-function previewShot(
-  shot: MovScriptWorkspaceIndexedEntity,
-  shotIndex: number,
+function previewExpressionUnit(
+  expressionUnit: MovScriptWorkspaceIndexedEntity,
+  expressionUnitIndex: number,
   moment: MovScriptWorkspaceIndexedEntity,
   input: {
     storyboards: MovScriptWorkspaceIndexedEntity[]
@@ -1060,28 +1074,29 @@ function previewShot(
     selectionRecordsByContentUnitId: Map<string, ContentSelectionRecord>
     selectionByContentUnitId: Map<string, SelectionState>
   },
-): PreviewShot {
-  const shotDir = entityDir(shot.path)
-  const storyboards = sortEntities(childEntities(input.storyboards, shotDir, 'storyboards'))
-  const keyframes = sortEntities(childEntities(input.keyframes, shotDir, 'keyframes'))
+): PreviewExpressionUnit {
+  const expressionUnitDir = entityDir(expressionUnit.path)
+  const storyboards = sortEntities(childEntities(input.storyboards, expressionUnitDir, 'storyboards'))
+  const keyframes = sortEntities(childEntities(input.keyframes, expressionUnitDir, 'keyframes'))
   const primaryStoryboard = storyboards[0]
   const primaryKeyframe = keyframes[0]
   const contentUnit =
-    contentUnitForEntity(input.contentUnitsByPrimaryRef, 'shot', shot)
+    contentUnitForEntity(input.contentUnitsByPrimaryRef, 'expression_unit', expressionUnit)
     ?? (primaryStoryboard ? contentUnitForEntity(input.contentUnitsByPrimaryRef, 'storyboard', primaryStoryboard) : undefined)
     ?? (primaryKeyframe ? contentUnitForEntity(input.contentUnitsByPrimaryRef, 'keyframe', primaryKeyframe) : undefined)
   return {
-    id: idText(shot),
-    title: titleOf(shot, `Shot ${shotIndex + 1}`),
-    camera: shotCameraText(shot),
-    duration: durationText(recordField(shot.record.timing)?.duration_sec ?? recordField(shot.record.timing)?.duration ?? recordField(contentUnit?.record.model_intent)?.duration_sec),
-    expression: shotExpressionText(shot),
-    stillPosition: stillPositionForIndex(shotIndex),
-    path: entityDir(shot.path),
+    id: idText(expressionUnit),
+    title: titleOf(expressionUnit, `Expression Unit ${expressionUnitIndex + 1}`),
+    kind: stringField(expressionUnit.record.kind) ?? 'expression_unit',
+    camera: shotCameraText(expressionUnit),
+    duration: durationText(recordField(expressionUnit.record.timing_intent)?.duration_sec ?? recordField(expressionUnit.record.timing)?.duration_sec ?? recordField(contentUnit?.record.model_intent)?.duration_sec),
+    expression: shotExpressionText(expressionUnit),
+    stillPosition: stillPositionForIndex(expressionUnitIndex),
+    path: entityDir(expressionUnit.path),
     keyframes: keyframes.map((keyframe) => idText(keyframe)),
-    assets: shotAssets(shot, keyframes, input.assets),
+    assets: shotAssets(expressionUnit, keyframes, input.assets),
     storyboard: primaryStoryboard ? nodeId(primaryStoryboard, 'storyboard') : '',
-    contentUnit: previewContentUnit(contentUnit, shot, moment, primaryStoryboard, keyframes, input),
+    contentUnit: previewContentUnit(contentUnit, expressionUnit, moment, primaryStoryboard, keyframes, input),
   }
 }
 
@@ -1135,7 +1150,7 @@ function timelineItemIdForEntity(entity: MovScriptWorkspaceIndexedEntity): strin
 
 function previewContentUnit(
   contentUnit: MovScriptWorkspaceIndexedEntity | undefined,
-  shot: MovScriptWorkspaceIndexedEntity,
+  expressionUnit: MovScriptWorkspaceIndexedEntity,
   moment: MovScriptWorkspaceIndexedEntity,
   storyboard: MovScriptWorkspaceIndexedEntity | undefined,
   keyframes: MovScriptWorkspaceIndexedEntity[],
@@ -1146,7 +1161,7 @@ function previewContentUnit(
   },
 ): PreviewContentUnit {
   const type = contentUnitType(contentUnit)
-  const id = contentUnit ? idText(contentUnit) : `cu_${idText(shot)}`
+  const id = contentUnit ? idText(contentUnit) : `cu_${idText(expressionUnit)}`
   const selection = input.selectionRecordsByContentUnitId.get(id)
   return {
     id,
@@ -1155,7 +1170,7 @@ function previewContentUnit(
     path: contentUnit?.path ?? `content_units/${id}/content_unit.json`,
     editPrompt: editPromptText(contentUnit) ?? '',
     sceneMomentRef: `scene_moment/${idText(moment)}`,
-    shotId: idText(shot),
+    expressionUnitRef: idText(expressionUnit),
     storyboardRef: storyboard ? nodeId(storyboard, 'storyboard') : '',
     keyframeRefs: keyframes.map((keyframe) => idText(keyframe)),
     selectionState: input.selectionByContentUnitId.get(id) ?? selectionStateFromSourceSelection(selection, contentUnit),
@@ -1193,7 +1208,7 @@ function buildAudioCuesByMoment(audioCues: MovScriptWorkspaceIndexedEntity[]): R
       path: audioCue.path,
       cueKind: stringField(audioCue.record.cue_kind ?? audioCue.record.kind) ?? 'sound_effect',
       promptHint: stringField(audioCue.record.prompt_hint) ?? '',
-      shotRef: stringField(audioCue.record.shot_ref),
+      expressionUnitRef: stringField(audioCue.record.expression_unit_ref),
       storyboardRef: stringField(audioCue.record.storyboard_ref),
       timing: recordField(audioCue.record.timing) ?? {},
       assetRefs: arrayField(audioCue.record.asset_refs).map(String),
@@ -1226,8 +1241,8 @@ function storyboardTimelineFromEntity(entity: MovScriptWorkspaceIndexedEntity): 
   return Object.values(value).some((item) => item !== undefined) ? value : undefined
 }
 
-function buildShotWorkspaceDetails(input: {
-  shots: MovScriptWorkspaceIndexedEntity[]
+function buildExpressionUnitWorkspaceDetails(input: {
+  expressionUnits: MovScriptWorkspaceIndexedEntity[]
   storyboards: MovScriptWorkspaceIndexedEntity[]
   keyframes: MovScriptWorkspaceIndexedEntity[]
   assets: MovScriptWorkspaceIndexedEntity[]
@@ -1236,19 +1251,19 @@ function buildShotWorkspaceDetails(input: {
   candidateRecordsByContentUnitId: Map<string, ContentCandidateRecord[]>
   selectionRecordsByContentUnitId: Map<string, ContentSelectionRecord>
   selectionByContentUnitId: Map<string, SelectionState>
-}): Record<string, ShotWorkspaceDetails> {
-  return Object.fromEntries(input.shots.map((shot) => {
-    const shotDir = entityDir(shot.path)
-    const keyframes = sortEntities(childEntities(input.keyframes, shotDir, 'keyframes'))
-    const storyboards = sortEntities(childEntities(input.storyboards, shotDir, 'storyboards'))
-    const refs = shotAssets(shot, keyframes, input.assets)
+}): Record<string, ExpressionUnitWorkspaceDetails> {
+  return Object.fromEntries(input.expressionUnits.map((expressionUnit) => {
+    const expressionUnitDir = entityDir(expressionUnit.path)
+    const keyframes = sortEntities(childEntities(input.keyframes, expressionUnitDir, 'keyframes'))
+    const storyboards = sortEntities(childEntities(input.storyboards, expressionUnitDir, 'storyboards'))
+    const refs = shotAssets(expressionUnit, keyframes, input.assets)
     const assets = refs.map((ref): EditableRef => ({
       id: ref.title,
       title: ref.title.replace(/^asset\//, ''),
       owner: ref.title,
       status: ref.status === 'missing' ? 'missing' : ref.status === 'locked' ? 'locked' : 'current',
       summary: ref.status === 'missing' ? '该素材引用尚未在 setting/state asset 中解析。' : '来自 workspace source 的素材引用。',
-      downstream: [idText(shot)],
+      downstream: [idText(expressionUnit)],
     }))
     const settings = input.settings.slice(0, 4).map((setting): EditableRef => ({
       id: nodeId(setting, 'setting'),
@@ -1256,14 +1271,14 @@ function buildShotWorkspaceDetails(input: {
       owner: setting.path,
       status: 'current',
       summary: stringField(setting.record.summary ?? setting.record.description ?? setting.record.prompt_hint) ?? 'Workspace setting context.',
-      downstream: [idText(shot)],
+      downstream: [idText(expressionUnit)],
     }))
-    return [idText(shot), {
+    return [idText(expressionUnit), {
       settings,
       assets,
-      keyframes: keyframes.map((keyframe) => shotChildOption(keyframe, 'keyframe', shot, input)),
-      storyboards: storyboards.map((storyboard) => shotChildOption(storyboard, 'storyboard', shot, input)),
-      impacts: [] as ShotImpact[],
+      keyframes: keyframes.map((keyframe) => expressionUnitChildOption(keyframe, 'keyframe', expressionUnit, input)),
+      storyboards: storyboards.map((storyboard) => expressionUnitChildOption(storyboard, 'storyboard', expressionUnit, input)),
+      impacts: [] as ExpressionUnitImpact[],
     }]
   }))
 }
@@ -1272,7 +1287,7 @@ function buildAssetReferenceUnits(input: {
   assets: MovScriptWorkspaceIndexedEntity[]
   settings: MovScriptWorkspaceIndexedEntity[]
   settingStates: MovScriptWorkspaceIndexedEntity[]
-  shots: MovScriptWorkspaceIndexedEntity[]
+  expressionUnits: MovScriptWorkspaceIndexedEntity[]
   storyboards: MovScriptWorkspaceIndexedEntity[]
   keyframes: MovScriptWorkspaceIndexedEntity[]
   contentUnits: MovScriptWorkspaceIndexedEntity[]
@@ -1296,7 +1311,7 @@ function buildAssetReferenceUnits(input: {
       contentUnitId,
       contentUnitType: 'asset_ref',
       outputKind: 'image',
-      editPrompt: editPromptText(contentUnit) ?? stringField(asset.record.prompt_hint) ?? '',
+      editPrompt: editPromptText(contentUnit) ?? '',
       usage: `${titleOf(asset, idText(asset))} 作为 setting/state 下的素材参考输入。`,
       lockPolicy: '选择变化后，下游引用该 asset_ref 的内容单元需要重新检查。',
       selectionState,
@@ -1313,7 +1328,7 @@ function buildAssetReferenceUnits(input: {
 function buildAssetDownstreamUnits(
   asset: MovScriptWorkspaceIndexedEntity,
   input: {
-    shots: MovScriptWorkspaceIndexedEntity[]
+    expressionUnits: MovScriptWorkspaceIndexedEntity[]
     storyboards: MovScriptWorkspaceIndexedEntity[]
     keyframes: MovScriptWorkspaceIndexedEntity[]
     contentUnits: MovScriptWorkspaceIndexedEntity[]
@@ -1347,7 +1362,7 @@ function buildAssetDownstreamUnits(
         kind: 'content_unit',
         ownerNodeId: owner?.nodeId ?? contentUnitId,
         momentId: owner?.momentId ?? '',
-        shotId: owner?.shotId ?? '',
+        expressionUnitId: owner?.expressionUnitId ?? '',
         dependencyHash: selectedCandidate ? candidateInputHash(selectedCandidate, contentUnitId) : contentUnitId,
         state,
         action: state === 'selected' ? '已选择候选引用该 asset' : '需要候选或选择确认',
@@ -1359,18 +1374,18 @@ function buildAssetDownstreamUnits(
 function primaryOwnerForContentUnit(
   contentUnit: MovScriptWorkspaceIndexedEntity,
   input: {
-    shots: MovScriptWorkspaceIndexedEntity[]
+    expressionUnits: MovScriptWorkspaceIndexedEntity[]
     storyboards: MovScriptWorkspaceIndexedEntity[]
     keyframes: MovScriptWorkspaceIndexedEntity[]
   },
-): { nodeId: string; momentId: string; shotId: string } | undefined {
-  const shotRef = primaryRefIdsForContentUnitRecord(contentUnit.record, 'shot')[0]
-  if (shotRef) {
-    const shot = input.shots.find((item) => entityMatchesRef(item, shotRef, 'shot'))
+): { nodeId: string; momentId: string; expressionUnitId: string } | undefined {
+  const expressionUnitRef = primaryRefIdsForContentUnitRecord(contentUnit.record, 'expression_unit')[0]
+  if (expressionUnitRef) {
+    const expressionUnit = input.expressionUnits.find((item) => entityMatchesRef(item, expressionUnitRef, 'expression_unit'))
     return {
-      nodeId: shot ? idText(shot) : shotRef,
-      momentId: shot ? pathSegmentAfter(shot.path, 'scene_moments') ?? '' : '',
-      shotId: shot ? idText(shot) : shotRef,
+      nodeId: expressionUnit ? idText(expressionUnit) : expressionUnitRef,
+      momentId: expressionUnit ? pathSegmentAfter(expressionUnit.path, 'scene_moments') ?? '' : '',
+      expressionUnitId: expressionUnit ? idText(expressionUnit) : expressionUnitRef,
     }
   }
   const storyboardRef = primaryRefIdsForContentUnitRecord(contentUnit.record, 'storyboard')[0]
@@ -1379,7 +1394,7 @@ function primaryOwnerForContentUnit(
     return {
       nodeId: storyboard ? nodeId(storyboard, 'storyboard') : `storyboard/${storyboardRef}`,
       momentId: storyboard ? pathSegmentAfter(storyboard.path, 'scene_moments') ?? '' : '',
-      shotId: storyboard ? pathSegmentAfter(storyboard.path, 'shots') ?? '' : '',
+      expressionUnitId: storyboard ? pathSegmentAfter(storyboard.path, 'expression_units') ?? '' : '',
     }
   }
   const keyframeRef = primaryRefIdsForContentUnitRecord(contentUnit.record, 'keyframe')[0]
@@ -1388,23 +1403,23 @@ function primaryOwnerForContentUnit(
     return {
       nodeId: keyframe ? idText(keyframe) : keyframeRef,
       momentId: keyframe ? pathSegmentAfter(keyframe.path, 'scene_moments') ?? '' : '',
-      shotId: keyframe ? pathSegmentAfter(keyframe.path, 'shots') ?? '' : '',
+      expressionUnitId: keyframe ? pathSegmentAfter(keyframe.path, 'expression_units') ?? '' : '',
     }
   }
   return undefined
 }
 
-function shotChildOption(
+function expressionUnitChildOption(
   entity: MovScriptWorkspaceIndexedEntity,
   primaryKind: 'keyframe' | 'storyboard',
-  shot: MovScriptWorkspaceIndexedEntity,
+  expressionUnit: MovScriptWorkspaceIndexedEntity,
   input: {
     contentUnitsByPrimaryRef: Map<string, MovScriptWorkspaceIndexedEntity[]>
     candidateRecordsByContentUnitId: Map<string, ContentCandidateRecord[]>
     selectionRecordsByContentUnitId: Map<string, ContentSelectionRecord>
     selectionByContentUnitId: Map<string, SelectionState>
   },
-): ShotChildOption {
+): ExpressionUnitChildOption {
   const contentUnit = contentUnitForEntity(input.contentUnitsByPrimaryRef, primaryKind, entity)
   const contentUnitId = contentUnit ? idText(contentUnit) : ''
   const selection = contentUnitId ? input.selectionRecordsByContentUnitId.get(contentUnitId) : undefined
@@ -1421,8 +1436,8 @@ function shotChildOption(
         outputKind: outputKindForContentUnit(contentUnit),
         path: contentUnit.path,
         editPrompt: editPromptText(contentUnit) ?? '',
-        sceneMomentRef: `scene_moment/${pathSegmentAfter(shot.path, 'scene_moments') ?? ''}`,
-        shotId: idText(shot),
+        sceneMomentRef: `scene_moment/${pathSegmentAfter(expressionUnit.path, 'scene_moments') ?? ''}`,
+        expressionUnitRef: idText(expressionUnit),
         storyboardRef: primaryKind === 'storyboard' ? nodeId(entity, 'storyboard') : '',
         keyframeRefs: primaryKind === 'keyframe' ? [idText(entity)] : [],
         selectionState: input.selectionByContentUnitId.get(contentUnitId) ?? selectionStateFromSourceSelection(selection, contentUnit),
@@ -1430,6 +1445,27 @@ function shotChildOption(
       } satisfies PreviewContentUnit,
     } : {}),
   }
+}
+
+function buildContentUnitCandidates(input: {
+  contentUnits: MovScriptWorkspaceIndexedEntity[]
+  candidateRecordsByContentUnitId: Map<string, ContentCandidateRecord[]>
+  selectionRecordsByContentUnitId: Map<string, ContentSelectionRecord>
+}): Record<string, PreviewCandidate[]> {
+  const ids = new Set<string>([
+    ...input.contentUnits.map(idText),
+    ...input.candidateRecordsByContentUnitId.keys(),
+    ...input.selectionRecordsByContentUnitId.keys(),
+  ])
+  const output: Record<string, PreviewCandidate[]> = {}
+  for (const contentUnitId of ids) {
+    output[contentUnitId] = previewCandidatesForContentUnit(
+      contentUnitId,
+      input.candidateRecordsByContentUnitId.get(contentUnitId) ?? [],
+      input.selectionRecordsByContentUnitId.get(contentUnitId),
+    )
+  }
+  return output
 }
 
 function groupContentUnitsByPrimaryRef(contentUnits: MovScriptWorkspaceIndexedEntity[]): Map<string, MovScriptWorkspaceIndexedEntity[]> {
@@ -1492,6 +1528,12 @@ function previewCandidatesForContentUnit(
       resourceId: resourceIdValue(output?.resource_id),
       resourceKind: stringField(output?.kind),
       artifactRef: stringField(output?.artifact_ref),
+      status: stringField(candidate.status),
+      source: stringField(candidate.source),
+      producer: candidate.producer,
+      outputs: candidate.outputs,
+      promptSnapshot: candidate.prompt_snapshot,
+      createdAt: stringField(candidate.created_at),
     }
   })
 }
@@ -1514,9 +1556,57 @@ function previewAssetCandidatesForContentUnit(
       resourceId: resourceIdValue(output?.resource_id),
       resourceKind: stringField(output?.kind),
       artifactRef: stringField(output?.artifact_ref),
+      status: stringField(candidate.status),
+      source: stringField(candidate.source),
+      producer: candidate.producer,
+      outputs: candidate.outputs,
+      promptSnapshot: candidate.prompt_snapshot,
+      createdAt: stringField(candidate.created_at),
       confirmation: assetCandidateConfirmation(candidate, selection, id),
     }
   })
+}
+
+function updateContentUnitCandidateSelection(
+  candidatesByContentUnitId: Record<string, PreviewCandidate[]>,
+  contentUnitId: string,
+  candidateId: string,
+): Record<string, PreviewCandidate[]> {
+  const candidates = candidatesByContentUnitId[contentUnitId]
+  if (!candidates) return candidatesByContentUnitId
+  return {
+    ...candidatesByContentUnitId,
+    [contentUnitId]: candidates.map((candidate) => ({
+      ...candidate,
+      selected: candidate.id === candidateId,
+    })),
+  }
+}
+
+function appendContentUnitCandidate(
+  candidatesByContentUnitId: Record<string, PreviewCandidate[]>,
+  contentUnitId: string,
+  candidate: CreatedContentSourceCandidate,
+): Record<string, PreviewCandidate[]> {
+  const candidates = candidatesByContentUnitId[contentUnitId] ?? []
+  return {
+    ...candidatesByContentUnitId,
+    [contentUnitId]: [
+      ...candidates,
+      previewCandidateFromCreated(candidate),
+    ],
+  }
+}
+
+function previewCandidateFromCreated(candidate: CreatedContentSourceCandidate): PreviewCandidate {
+  return {
+    id: candidate.id,
+    title: candidate.title,
+    model: candidate.model,
+    inputHash: candidate.inputHash,
+    note: candidate.note,
+    ...(candidate.resourceId !== undefined ? { resourceId: candidate.resourceId } : {}),
+  }
 }
 
 function selectionStateFromSourceSelection(
@@ -1549,14 +1639,14 @@ function contentUnitForEntity(
   return contentUnitsByPrimaryRef.get(primaryRefKey(entityKind, entity.id))?.[0]
 }
 
-function primaryKindForContentUnitType(type: string | undefined): 'production' | 'segment' | 'asset' | 'keyframe' | 'storyboard' | 'scene_moment' | 'shot' | undefined {
+function primaryKindForContentUnitType(type: string | undefined): 'production' | 'segment' | 'asset' | 'keyframe' | 'storyboard' | 'scene_moment' | 'expression_unit' | undefined {
   if (type === 'production_ref') return 'production'
   if (type === 'segment_ref') return 'segment'
   if (type === 'asset_ref') return 'asset'
   if (type === 'keyframe_ref') return 'keyframe'
   if (type === 'storyboard_ref') return 'storyboard'
   if (type === 'scence_moment_ref' || type === 'scene_moment_ref') return 'scene_moment'
-  if (type === 'shot_ref') return 'shot'
+  if (type === 'expression_unit_ref') return 'expression_unit'
   return undefined
 }
 
@@ -1574,8 +1664,8 @@ function primaryRefIdsForContentUnitRecord(record: Record<string, unknown>, kind
       return compactStrings(record.target_kind === 'segment' ? record.target_ref : undefined, record.segment_ref)
     case 'scene_moment':
       return compactStrings(record.scene_moment_ref, record.scence_moment_ref)
-    case 'shot':
-      return compactStrings(record.shot_ref)
+    case 'expression_unit':
+      return compactStrings(record.expression_unit_ref)
     default:
       return []
   }
@@ -1625,7 +1715,7 @@ function entityNode(
 }
 
 function supportsTransition(type: HierarchyNode['type']): boolean {
-  return type === 'production' || type === 'segment' || type === 'scene_moment' || type === 'shot' || type === 'storyboard'
+  return type === 'production' || type === 'segment' || type === 'scene_moment' || type === 'storyboard'
 }
 
 function nodeId(entity: MovScriptWorkspaceIndexedEntity, type: HierarchyNode['type']): string {
@@ -1712,8 +1802,8 @@ function stillPositionForIndex(index: number): string {
 
 function contentUnitType(contentUnit: MovScriptWorkspaceIndexedEntity | undefined): PreviewContentUnit['type'] {
   const type = stringField(contentUnit?.record.content_unit_type)
-  if (type === 'keyframe_ref' || type === 'storyboard_ref' || type === 'scence_moment_ref' || type === 'scene_moment_ref') return type
-  return 'shot_video'
+  if (type === 'keyframe_ref' || type === 'storyboard_ref' || type === 'scence_moment_ref' || type === 'scene_moment_ref' || type === 'expression_unit_ref') return type
+  return 'expression_unit_ref'
 }
 
 function outputKindForContentUnit(contentUnit: MovScriptWorkspaceIndexedEntity | undefined): PreviewContentUnit['outputKind'] {
@@ -1722,21 +1812,21 @@ function outputKindForContentUnit(contentUnit: MovScriptWorkspaceIndexedEntity |
   return contentUnitType(contentUnit) === 'keyframe_ref' ? 'image' : 'video'
 }
 
-function momentSelectionState(shots: PreviewShot[]): SelectionState {
-  if (shots.some((shot) => shot.contentUnit.selectionState === 'stale')) return 'stale'
-  if (shots.some((shot) => shot.contentUnit.selectionState === 'needs_candidate')) return 'needs_candidate'
-  if (shots.some((shot) => shot.contentUnit.selectionState === 'selected')) return 'selected'
+function momentSelectionState(expressionUnits: PreviewExpressionUnit[]): SelectionState {
+  if (expressionUnits.some((expressionUnit) => expressionUnit.contentUnit.selectionState === 'stale')) return 'stale'
+  if (expressionUnits.some((expressionUnit) => expressionUnit.contentUnit.selectionState === 'needs_candidate')) return 'needs_candidate'
+  if (expressionUnits.some((expressionUnit) => expressionUnit.contentUnit.selectionState === 'selected')) return 'selected'
   return 'ready'
 }
 
 function settingRefsForMoment(
   _moment: MovScriptWorkspaceIndexedEntity,
-  shots: PreviewShot[],
+  expressionUnits: PreviewExpressionUnit[],
   assets: MovScriptWorkspaceIndexedEntity[],
 ): string[] {
   const refs = new Set<string>()
-  for (const shot of shots) {
-    for (const asset of shot.assets) refs.add(asset.title)
+  for (const expressionUnit of expressionUnits) {
+    for (const asset of expressionUnit.assets) refs.add(asset.title)
   }
   if (refs.size === 0) {
     for (const asset of assets.slice(0, 3)) refs.add(nodeId(asset, 'asset'))
@@ -1880,14 +1970,6 @@ function hierarchyNodeSourceRecord(input: {
         action_text: '',
         mood: '',
       }
-    case 'shot':
-      return {
-        ...base,
-        description: '',
-        timing: {},
-        camera: {},
-        reference_asset_refs: [],
-      }
     case 'storyboard':
       return {
         ...base,
@@ -1949,7 +2031,7 @@ function sourceParentRefs(path: string, projectId: number): Record<string, unkno
     production_id: pathSegmentAfter(path, 'productions'),
     segment_id: pathSegmentAfter(path, 'segments'),
     scene_moment_id: pathSegmentAfter(path, 'scene_moments'),
-    shot_id: pathSegmentAfter(path, 'shots'),
+    expression_unit_id: pathSegmentAfter(path, 'expression_units'),
     setting_id: pathSegmentAfter(path, 'settings'),
     setting_state_id: pathSegmentAfter(path, 'states'),
   })
