@@ -27,15 +27,15 @@ export interface AppServerCommandResolverOptions {
 }
 
 const require = createRequire(import.meta.url)
-const MOVA_APP_SERVER_PACKAGE = '@movscript/mova'
+const MOVA_APP_SERVER_PACKAGE = '@movscript/mova-app-server'
 const APP_SERVER_PLATFORM_PACKAGE_BY_TARGET: Record<string, Record<string, string>> = {
   [MOVA_APP_SERVER_PACKAGE]: {
-    'x86_64-unknown-linux-musl': '@movscript/mova-linux-x64',
-    'aarch64-unknown-linux-musl': '@movscript/mova-linux-arm64',
-    'x86_64-apple-darwin': '@movscript/mova-darwin-x64',
-    'aarch64-apple-darwin': '@movscript/mova-darwin-arm64',
-    'x86_64-pc-windows-msvc': '@movscript/mova-win32-x64',
-    'aarch64-pc-windows-msvc': '@movscript/mova-win32-arm64',
+    'x86_64-unknown-linux-musl': '@movscript/mova-app-server-linux-x64',
+    'aarch64-unknown-linux-musl': '@movscript/mova-app-server-linux-arm64',
+    'x86_64-apple-darwin': '@movscript/mova-app-server-darwin-x64',
+    'aarch64-apple-darwin': '@movscript/mova-app-server-darwin-arm64',
+    'x86_64-pc-windows-msvc': '@movscript/mova-app-server-win32-x64',
+    'aarch64-pc-windows-msvc': '@movscript/mova-app-server-win32-arm64',
   },
 }
 

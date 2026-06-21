@@ -125,9 +125,6 @@ importers:
 
   apps/frontend:
     dependencies:
-      '@movscript/mova':
-        specifier: 0.0.1-alpha.6
-        version: 0.0.1-alpha.6
       '@radix-ui/react-avatar':
         specifier: ^1.1.11
         version: 1.1.11(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -297,6 +294,13 @@ importers:
       vite:
         specifier: ^5.4.21
         version: 5.4.21(@types/node@22.19.17)
+    optionalDependencies:
+      '@movscript/mova-app-server-darwin-arm64':
+        specifier: 0.0.1-alpha.13
+        version: 0.0.1-alpha.13
+      '@movscript/mova-app-server-win32-x64':
+        specifier: 0.0.1-alpha.13
+        version: 0.0.1-alpha.13
 
   packages/core:
     dependencies:
@@ -1000,16 +1004,17 @@ packages:
     resolution: {integrity: sha512-9QOtNffcOF/c1seMCDnjckb3R9WHcG34tky+FHpNKKCW0wc/scYLwMtO+ptyGUfMW0/b/n4qRiALlaFHc9Oj7Q==}
     engines: {node: '>= 10.0.0'}
 
-  '@movscript/mova-darwin-arm64@0.0.1-alpha.6':
-    resolution: {integrity: sha512-YaOemnQEIPvmopRliisoAwA1cFE8RgOiiJOJTxC6TMB5RFEMDGFaPm+BhSSIAe/VhefL9Y5E+Kq6edx0C2cDRg==}
+  '@movscript/mova-app-server-darwin-arm64@0.0.1-alpha.13':
+    resolution: {integrity: sha512-2CIavtMAIj2YdvKHI43kNMiJFdPqiQBD57yPHssGJKxSIix/2EWJ8Itey2xrMYlg/vkcMo1K+/5jkaCUoyaj5w==}
     engines: {node: '>=16'}
     cpu: [arm64]
     os: [darwin]
 
-  '@movscript/mova@0.0.1-alpha.6':
-    resolution: {integrity: sha512-2waoFmsFIX7B8U32geEcNDXHykE7XUQJNIaPKtQWrOlgLWkAbu6MkcSE4G6lAbrB+OfOGVaFwZdOcV4H44KJUQ==}
+  '@movscript/mova-app-server-win32-x64@0.0.1-alpha.13':
+    resolution: {integrity: sha512-uvBNYEwJnM44+zyXgDSZjcF2JEfTp7Qluad+9KEAg+YmXdBtvmNCa/QgLoJGbH8puCZPF7z649ogVNlNTXRyEA==}
     engines: {node: '>=16'}
-    hasBin: true
+    cpu: [x64]
+    os: [win32]
 
   '@nodelib/fs.scandir@2.1.5':
     resolution: {integrity: sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g==}
@@ -4165,12 +4170,11 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@movscript/mova-darwin-arm64@0.0.1-alpha.6':
+  '@movscript/mova-app-server-darwin-arm64@0.0.1-alpha.13':
     optional: true
 
-  '@movscript/mova@0.0.1-alpha.6':
-    optionalDependencies:
-      '@movscript/mova-darwin-arm64': 0.0.1-alpha.6
+  '@movscript/mova-app-server-win32-x64@0.0.1-alpha.13':
+    optional: true
 
   '@nodelib/fs.scandir@2.1.5':
     dependencies:

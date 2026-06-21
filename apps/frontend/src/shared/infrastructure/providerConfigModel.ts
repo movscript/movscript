@@ -184,12 +184,25 @@ function migrateLegacyDefaultProviderSettings(settings: PersistedProviderSetting
       }
       if ((provider.id === CODEX_PROVIDER_ID || kind === CODEX_PROVIDER_ID)
         && provider.runtime.api === 'codex-app-server'
-        && (!provider.runtime.binaryPackageName || provider.runtime.binaryPackageName === '@openai/codex')) {
+        && (!provider.runtime.binaryPackageName
+          || provider.runtime.binaryPackageName === '@openai/codex'
+          || provider.runtime.binaryPackageName === '@movscript/mova')) {
         return {
           ...provider,
           runtime: {
             ...provider.runtime,
-            binaryPackageName: '@movscript/mova',
+            binaryPackageName: '@movscript/mova-app-server',
+          },
+        }
+      }
+      if ((provider.id === MOVA_PROVIDER_ID || kind === MOVA_PROVIDER_ID)
+        && provider.runtime.api === 'mova-app-server'
+        && (!provider.runtime.binaryPackageName || provider.runtime.binaryPackageName === '@movscript/mova')) {
+        return {
+          ...provider,
+          runtime: {
+            ...provider.runtime,
+            binaryPackageName: '@movscript/mova-app-server',
           },
         }
       }
