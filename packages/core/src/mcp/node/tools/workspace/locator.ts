@@ -1,3 +1,4 @@
+import { resolve } from 'node:path'
 import { readMovScriptBackendAuth, readMovScriptBackendConfig } from '../../../../backend/node/config.js'
 import type { MovScriptWorkspaceContextInput } from '../../../../workspace/node/index.js'
 import { getMCPContextSnapshot } from '../focus/store.js'
@@ -5,14 +6,23 @@ import { resolveMCPDefaultWorkspaceDir } from './dir.js'
 import { stringValue } from '../../../tools/shared/record.js'
 
 export interface MCPResolvedProjectWorkspaceLocator extends MovScriptWorkspaceContextInput {
-  projectId: string | number
+  projectDir?: string
+  projectId?: string | number
 }
 
 export function resolveMCPProjectWorkspaceLocator(args: Record<string, unknown>): MCPResolvedProjectWorkspaceLocator {
   const workspaceDir = stringValue(args.workspaceDir ?? args.workspace_dir) ?? resolveMCPDefaultWorkspaceDir()
+  const projectDir = pathValue(args.projectDir ?? args.project_dir ?? args.projectPath ?? args.project_path ?? args.cwd)
   const projectId = idValue(args.projectId ?? args.project_id)
+  if (projectDir !== undefined) {
+    return {
+      workspaceDir,
+      projectDir,
+      ...(projectId !== undefined ? { projectId } : {}),
+    }
+  }
   if (projectId === undefined) {
-    throw new Error('projectId is required for MovScript project-scoped MCP tools')
+    throw new Error('projectId or projectDir is required for MovScript project-scoped MCP tools')
   }
   return {
     workspaceDir,
@@ -48,6 +58,11 @@ function loggedInUserId(workspaceDir: string): string | number | undefined {
   } catch {
     return undefined
   }
+}
+
+function pathValue(value: unknown): string | undefined {
+  const raw = stringValue(value)
+  return raw ? resolve(raw) : undefined
 }
 
 function idValue(value: unknown): string | number | undefined {

@@ -17,6 +17,7 @@ import { registerSettingsIpcHandlers } from './settingsIpc'
 import { registerWindowIpcHandlers } from './windowIpc'
 import { registerProviderSessionsIpcHandlers } from './providerSessionsIpc'
 import { registerProjectGitIpcHandlers } from './projectGitIpc'
+import { registerLocalProjectIpcHandlers } from './localProjectIpc'
 import { registerLocalTerminalIpcHandlers } from './localTerminalIpc'
 import { registerMediaPipelineIpcHandlers } from './mediaPipelineIpc'
 import { registerDockShortcutIpcHandlers } from './dockShortcutIpc'
@@ -45,6 +46,7 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
   registerMovScriptWorkspaceConfigIpcHandlers()
   registerMovScriptEngineIpcHandlers()
   registerMovScriptWorkspaceRootIpcHandlers()
+  registerLocalProjectIpcHandlers()
   registerMovScriptWorkspaceFilesIpcHandlers()
   registerProjectGitIpcHandlers()
   registerProviderSessionsIpcHandlers()

@@ -1,9 +1,11 @@
 import type { IpcRenderer } from 'electron'
 import type { ElectronAPI } from '../../../src/shared/contracts/electronApi'
 
-export function createMovScriptWorkspaceAPI(ipcRenderer: IpcRenderer): Pick<ElectronAPI, 'getMovScriptWorkspaceRoot' | 'getMovScriptWorkspaceConfig' | 'saveMovScriptWorkspaceConfig' | 'listMovScriptWorkspaceFiles' | 'readMovScriptWorkspaceFile' | 'readMovScriptWorkspaceMediaFile' | 'writeMovScriptWorkspaceFile' | 'deleteMovScriptWorkspaceFile' | 'reviewMovScriptWorkspace' | 'interpretMovScriptWorkspace' | 'initProjectGitWorkspace' | 'commitProjectGitWorkspace' | 'pullProjectGitWorkspace' | 'pushProjectGitWorkspace' | 'listProviderSessions'> {
+export function createMovScriptWorkspaceAPI(ipcRenderer: IpcRenderer): Pick<ElectronAPI, 'getMovScriptWorkspaceRoot' | 'createLocalMovScriptProject' | 'openLocalMovScriptProject' | 'getMovScriptWorkspaceConfig' | 'saveMovScriptWorkspaceConfig' | 'listMovScriptWorkspaceFiles' | 'readMovScriptWorkspaceFile' | 'readMovScriptWorkspaceMediaFile' | 'writeMovScriptWorkspaceFile' | 'deleteMovScriptWorkspaceFile' | 'reviewMovScriptWorkspace' | 'interpretMovScriptWorkspace' | 'initProjectGitWorkspace' | 'commitProjectGitWorkspace' | 'pullProjectGitWorkspace' | 'pushProjectGitWorkspace' | 'listProviderSessions'> {
   return {
     getMovScriptWorkspaceRoot: (input) => ipcRenderer.invoke('movscript:workspace-root-get', input),
+    createLocalMovScriptProject: (input) => ipcRenderer.invoke('movscript:local-project-create', input),
+    openLocalMovScriptProject: (input) => ipcRenderer.invoke('movscript:local-project-open', input),
     getMovScriptWorkspaceConfig: (input) => ipcRenderer.invoke('movscript:workspace-config-get', input),
     saveMovScriptWorkspaceConfig: (input) => ipcRenderer.invoke('movscript:workspace-config-save', input),
     listMovScriptWorkspaceFiles: (input) => ipcRenderer.invoke('movscript:workspace-files-list', input),

@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next'
 import { ROUTES } from '@/routes/projectRoutes'
 import { isLocalLaunchMode } from '@/shared/infrastructure/config'
 import { openAdminConsole } from '@/shared/infrastructure/adminConsole'
+import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
 import { projectKeys } from '@/features/project/application/projectQueries'
 import { invalidateProjectMutationResult, projectListChangedResult } from '@/features/project/application/projectMutationInvalidation'
 import { initializeProjectGitWorkspace } from '@/features/project/application/projectGitWorkspace'
@@ -143,18 +144,25 @@ function ProjectListRow({
   )
 }
 
-function CreateProjectModal({ onClose, onCreate }: {
+function CreateProjectModal({ onClose, onCreate, onPickPath }: {
   onClose: () => void
-  onCreate: (name: string, desc: string) => void
+  onCreate: (name: string, desc: string, projectDir?: string) => void
+  onPickPath: () => Promise<string | null>
 }) {
   const { t } = useTranslation()
   const [name, setName] = useState('')
   const [desc, setDesc] = useState('')
+  const [projectDir, setProjectDir] = useState('')
 
   function handleSubmit() {
     if (!name.trim()) return
-    onCreate(name.trim(), desc.trim())
+    onCreate(name.trim(), desc.trim(), projectDir.trim() || undefined)
     onClose()
+  }
+
+  async function handlePickPath() {
+    const path = await onPickPath()
+    if (path) setProjectDir(path)
   }
 
   return (
@@ -186,6 +194,20 @@ function CreateProjectModal({ onClose, onCreate }: {
                 onChange={(e) => setDesc(e.target.value)}
               />
             </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="project-path">{t('pages.projects.projectPath', '项目路径')}</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="project-path"
+                  placeholder={t('pages.projects.projectPathPlaceholder', '留空则创建云端项目，或选择一个本地目录')}
+                  value={projectDir}
+                  onChange={(e) => setProjectDir(e.target.value)}
+                />
+                <ProjectPageActionButton type="button" variant="outline" onClick={() => void handlePickPath()}>
+                  <FolderOpen size={14} />
+                </ProjectPageActionButton>
+              </div>
+            </div>
             <div className="flex justify-end gap-2 pt-1">
               <ProjectPageActionButton variant="ghost" onClick={onClose}>{t('common.cancel')}</ProjectPageActionButton>
               <ProjectPageActionButton onClick={handleSubmit} disabled={!name.trim()}>
@@ -209,6 +231,7 @@ export default function ProjectsPage() {
   const setWorkMode = useAppSettingsStore((s) => s.setWorkMode)
   const [showCreate, setShowCreate] = useState(false)
   const [adminPromptDismissed, setAdminPromptDismissed] = useState(readLocalAdminPromptDismissed)
+  const [localProjectError, setLocalProjectError] = useState<string>()
 
   const { data: projects = [], isLoading } = useQuery<Project[]>({
     queryKey: projectKeys.list(currentOrgID),
@@ -241,14 +264,59 @@ export default function ProjectsPage() {
     },
   })
 
-  function handleCreate(name: string, desc: string) {
-    create.mutate({ name, description: desc })
+  async function handleCreate(name: string, desc: string, projectDir?: string) {
+    if (!projectDir) {
+      create.mutate({ name, description: desc })
+      return
+    }
+    const api = readElectronApi()
+    if (!api?.createLocalMovScriptProject) {
+      setLocalProjectError(t('pages.projects.localProjectUnavailable', '当前环境不支持本地项目路径'))
+      return
+    }
+    try {
+      setLocalProjectError(undefined)
+      const result = await api.createLocalMovScriptProject({ projectDir, title: name, description: desc })
+      setCurrent(result.project as Project)
+      setWorkMode('project')
+      void openProjectWindow({ projectDir: result.projectDir, project: result.project, route: ROUTES.project.home })
+    } catch (error) {
+      setLocalProjectError(error instanceof Error ? error.message : String(error))
+    }
   }
 
   function handleOpen(p: Project) {
     setCurrent(p)
     setWorkMode('project')
+    if (p.workspace_path || p.project_path) {
+      void openProjectWindow({ projectDir: p.workspace_path ?? p.project_path, project: p, route: ROUTES.project.home })
+      return
+    }
     void openProjectWindow({ projectId: p.ID, project: p, route: ROUTES.project.home })
+  }
+
+  async function handlePickProjectPath(): Promise<string | null> {
+    const api = readElectronApi()
+    return await api?.openDirectory?.() ?? null
+  }
+
+  async function handleOpenLocalProject() {
+    const api = readElectronApi()
+    const projectDir = await api?.openDirectory?.()
+    if (!projectDir) return
+    if (!api?.openLocalMovScriptProject) {
+      setLocalProjectError(t('pages.projects.localProjectUnavailable', '当前环境不支持本地项目路径'))
+      return
+    }
+    try {
+      setLocalProjectError(undefined)
+      const result = await api.openLocalMovScriptProject({ projectDir })
+      setCurrent(result.project as Project)
+      setWorkMode('project')
+      void openProjectWindow({ projectDir: result.projectDir, project: result.project, route: ROUTES.project.home })
+    } catch (error) {
+      setLocalProjectError(error instanceof Error ? error.message : String(error))
+    }
   }
 
   function dismissAdminPrompt() {
@@ -267,11 +335,22 @@ export default function ProjectsPage() {
         title={t('pages.projects.myProjects')}
         description={t('pages.projects.emptyHint')}
         actions={!isLoading && projects.length > 0 ? (
-          <ProjectPageActionButton onClick={() => setShowCreate(true)} className="gap-1.5">
-            <Plus size={14} /> {t('pages.projects.newProject')}
-          </ProjectPageActionButton>
+          <div className="flex flex-wrap gap-2">
+            <ProjectPageActionButton variant="outline" onClick={() => void handleOpenLocalProject()} className="gap-1.5">
+              <FolderOpen size={14} /> {t('pages.projects.openLocalProject', '打开本地项目')}
+            </ProjectPageActionButton>
+            <ProjectPageActionButton onClick={() => setShowCreate(true)} className="gap-1.5">
+              <Plus size={14} /> {t('pages.projects.newProject')}
+            </ProjectPageActionButton>
+          </div>
         ) : null}
       />
+
+      {localProjectError ? (
+        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 type-label text-destructive">
+          {localProjectError}
+        </div>
+      ) : null}
 
       {showAdminPrompt && (
         <ProjectPageLocalAdminPrompt
@@ -296,9 +375,14 @@ export default function ProjectsPage() {
               icon={FolderOpen}
               title={t('pages.projects.empty')}
               action={(
-                <ProjectPageActionButton onClick={() => setShowCreate(true)} className="gap-2">
-                  <Plus size={14} /> {t('pages.projects.createFirst')}
-                </ProjectPageActionButton>
+                <div className="flex flex-wrap justify-center gap-2">
+                  <ProjectPageActionButton onClick={() => setShowCreate(true)} className="gap-2">
+                    <Plus size={14} /> {t('pages.projects.createFirst')}
+                  </ProjectPageActionButton>
+                  <ProjectPageActionButton variant="outline" onClick={() => void handleOpenLocalProject()} className="gap-2">
+                    <FolderOpen size={14} /> {t('pages.projects.openLocalProject', '打开本地项目')}
+                  </ProjectPageActionButton>
+                </div>
               )}
             />
           </div>
@@ -319,7 +403,8 @@ export default function ProjectsPage() {
       {showCreate && (
         <CreateProjectModal
           onClose={() => setShowCreate(false)}
-          onCreate={(name, desc) => handleCreate(name, desc)}
+          onCreate={(name, desc, projectDir) => void handleCreate(name, desc, projectDir)}
+          onPickPath={handlePickProjectPath}
         />
       )}
     </ProjectListPageLayout>

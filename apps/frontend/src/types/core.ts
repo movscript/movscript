@@ -6,6 +6,9 @@ export interface Project {
   description: string
   owner_id: number
   owner?: User
+  workspace_path?: string
+  project_path?: string
+  local?: boolean
   total_episodes?: number
   aspect_ratio?: string
   visual_style?: string

@@ -90,6 +90,9 @@ import type {
   ElectronMovScriptWorkspaceFilesInput,
   ElectronMovScriptWorkspaceFilesListResult,
   ElectronMovScriptWorkspaceMediaFileReadResult,
+  ElectronLocalProjectCreateInput,
+  ElectronLocalProjectOpenInput,
+  ElectronLocalProjectResult,
   ElectronMovScriptWorkspaceInterpretActionInput,
   ElectronMovScriptWorkspaceRootResult,
   ElectronPluginCatalogPackInstallInput,
@@ -213,6 +216,8 @@ export type ElectronAPI = {
   onLocalTerminalEvent?: (handler: (event: ElectronLocalTerminalEvent) => void) => () => void
   listProviderSessions?: (input?: ElectronMovScriptHomeInput & { providerProfileKey?: string }) => Promise<{ sessions: ElectronProviderSessionSummary[] }>
   getMovScriptWorkspaceRoot?: (input?: ElectronMovScriptHomeInput) => Promise<ElectronMovScriptWorkspaceRootResult>
+  createLocalMovScriptProject?: (input: ElectronLocalProjectCreateInput) => Promise<ElectronLocalProjectResult>
+  openLocalMovScriptProject?: (input: ElectronLocalProjectOpenInput) => Promise<ElectronLocalProjectResult>
   getMovScriptWorkspaceConfig?: (input?: ElectronMovScriptHomeInput & { providerProfileKey?: string }) => Promise<ElectronMovScriptWorkspaceConfig>
   saveMovScriptWorkspaceConfig?: (input: ElectronMovScriptWorkspaceConfigSaveInput) => Promise<ElectronMovScriptWorkspaceConfig>
   listMovScriptWorkspaceFiles?: (input?: ElectronMovScriptWorkspaceFilesInput) => Promise<ElectronMovScriptWorkspaceFilesListResult>

@@ -93,7 +93,13 @@ function applyAppWindowContext(context: ElectronAppWindowContext | null): void {
   if (!context) return
 
   if (context.kind === 'project') {
-    if (context.project) useProjectStore.getState().setCurrent(context.project as unknown as Project)
+    const project = context.project
+      ? context.project as unknown as Project
+      : context.projectDir
+        ? localProjectFromWindowContext(context)
+        : null
+    if (project) useProjectStore.getState().setCurrent(project)
+    if (context.projectDir) useProjectStore.getState().setWorkspaceRoot(context.projectDir)
     useAppSettingsStore.getState().setWorkMode('project')
     return
   }
@@ -111,4 +117,29 @@ function applyAppWindowContext(context: ElectronAppWindowContext | null): void {
   if (context.kind === 'tool' || context.kind === 'canvas') {
     useAppSettingsStore.getState().setWorkMode('tool')
   }
+}
+
+function localProjectFromWindowContext(context: ElectronAppWindowContext): Project {
+  const projectDir = context.projectDir ?? ''
+  const now = new Date(0).toISOString()
+  return {
+    ID: -stablePositiveHash(projectDir),
+    name: projectDir.split(/[\\/]/).filter(Boolean).pop() || 'Local Project',
+    description: projectDir,
+    owner_id: 0,
+    workspace_path: projectDir,
+    project_path: projectDir,
+    local: true,
+    CreatedAt: now,
+    UpdatedAt: now,
+  }
+}
+
+function stablePositiveHash(value: string): number {
+  let hash = 2166136261
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return (hash >>> 0) || 1
 }

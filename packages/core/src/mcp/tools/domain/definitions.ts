@@ -4,7 +4,12 @@ import { objectSchema } from '../schema'
 const workspaceLocator = {
   workspaceDir: { type: 'string', description: 'Optional MovScript workspace container directory. Defaults to the current MovScript workspace dir.' },
   workspace_dir: { type: 'string', description: 'Alias for workspaceDir.' },
-  projectId: { type: ['string', 'number'], description: 'Required project id for project-scoped domain tools. MCP never infers project from session, cwd, route, or focus.' },
+  projectDir: { type: 'string', description: 'Optional MovScript project source directory. When provided, domain tools read and write this path directly and do not require backend project identity.' },
+  project_dir: { type: 'string', description: 'Alias for projectDir.' },
+  projectPath: { type: 'string', description: 'Alias for projectDir.' },
+  project_path: { type: 'string', description: 'Alias for projectDir.' },
+  cwd: { type: 'string', description: 'Alias for projectDir when a provider passes the current project working directory.' },
+  projectId: { type: ['string', 'number'], description: 'Backend project id for managed/cloud projects and backend decision storage. Required only when projectDir is not provided or a tool needs backend decisions.' },
   project_id: { type: ['string', 'number'], description: 'Alias for projectId.' },
 }
 

@@ -27,6 +27,7 @@ import { getMCPAuthToken } from '../focus/store.js'
 
 export interface MovScriptDomainRuntimeInput {
   workspaceDir?: string
+  projectDir?: string
   userId?: string | number
   orgId?: string | number
   projectId?: string | number
@@ -49,7 +50,7 @@ export type MovScriptDomainRuntime = NodeMovScriptEngine & NodeMovScriptWorkspac
 export function createMovScriptDomainRuntime(input: MovScriptDomainRuntimeInput): MovScriptDomainRuntime {
   const context = normalizeRuntimeInput(input)
   const cacheKey = runtimeKey(context)
-  const projectCwd = resolveMovScriptProjectCwd(context)
+  const projectCwd = projectCwdFromInput(context)
   const decisionStore = createMCPDecisionStore(context)
   const engine = movScriptDomainEngineRegistry.get({
     cacheKey,
@@ -72,7 +73,7 @@ const movScriptDomainEngineRegistry = new NodeMovScriptEngineRegistry()
 function createMovScriptDomainRuntimeFromEngine(
   engine: NodeMovScriptEngine,
   projectCwd: string,
-  decisionStore: MovScriptDecisionStore,
+  decisionStore?: MovScriptDecisionStore,
 ): MovScriptDomainRuntime {
   const fileRepository = createNodeMovScriptWorkspaceFileRepository(projectCwd)
   return {
@@ -95,6 +96,7 @@ function createMovScriptDomainRuntimeFromEngine(
 function normalizeRuntimeInput(input: MovScriptDomainRuntimeInput): MovScriptDomainRuntimeInput {
   return {
     ...(input.workspaceDir !== undefined ? { workspaceDir: input.workspaceDir } : {}),
+    ...(input.projectDir !== undefined ? { projectDir: input.projectDir } : {}),
     ...(input.userId !== undefined ? { userId: input.userId } : {}),
     ...(input.orgId !== undefined ? { orgId: input.orgId } : {}),
     ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
@@ -102,7 +104,7 @@ function normalizeRuntimeInput(input: MovScriptDomainRuntimeInput): MovScriptDom
 }
 
 function runtimeKey(input: MovScriptDomainRuntimeInput): string {
-  const projectCwd = resolveMovScriptProjectCwd(input)
+  const projectCwd = projectCwdFromInput(input)
   const session = resolveMovScriptBackendSession({
     workspaceDir: input.workspaceDir,
     userId: input.userId,
@@ -119,9 +121,9 @@ function runtimeKey(input: MovScriptDomainRuntimeInput): string {
   ].map((part) => String(part)).join('\u001f')
 }
 
-function createMCPDecisionStore(input: MovScriptDomainRuntimeInput): MovScriptDecisionStore {
+function createMCPDecisionStore(input: MovScriptDomainRuntimeInput): MovScriptDecisionStore | undefined {
   if (input.projectId === undefined) {
-    throw new Error('projectId is required for backend decision storage')
+    return undefined
   }
   const session = resolveMovScriptBackendSession({
     workspaceDir: input.workspaceDir,
@@ -134,4 +136,8 @@ function createMCPDecisionStore(input: MovScriptDomainRuntimeInput): MovScriptDe
     ...(token ? { token } : {}),
     ...(session.userId ? { headers: { 'X-User-ID': session.userId } } : {}),
   })
+}
+
+function projectCwdFromInput(input: MovScriptDomainRuntimeInput): string {
+  return input.projectDir ?? resolveMovScriptProjectCwd(input)
 }

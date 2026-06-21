@@ -99,6 +99,7 @@ export function __setElectronMovScriptWorkspaceActionFactoryForTest(
 
 export type ElectronMovScriptWorkspaceFileRepositoryContext = {
   workspaceDir?: string
+  projectDir?: string
   userId?: string | number
   orgId?: string | number
   projectId?: string | number
@@ -227,6 +228,7 @@ function repositoryArgs(
 function defaultWorkspaceOwnerContext(
   context: ElectronMovScriptWorkspaceFileRepositoryContext,
 ): ElectronMovScriptWorkspaceFileRepositoryContext {
+  if (context.projectDir !== undefined) return context
   if (context.userId !== undefined || context.orgId !== undefined) return context
   return {
     ...context,

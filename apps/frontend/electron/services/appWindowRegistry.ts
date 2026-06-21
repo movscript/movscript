@@ -22,7 +22,7 @@ let agentWindow: BrowserWindow | null = null
 let editingWindow: BrowserWindow | null = null
 let canvasHomeWindow: BrowserWindow | null = null
 
-const projectWindows = new Map<number, BrowserWindow>()
+const projectWindows = new Map<number | string, BrowserWindow>()
 const editingProjectWindows = new Map<string, BrowserWindow>()
 const canvasWindows = new Map<number, BrowserWindow>()
 const trackedWindows = new Set<BrowserWindow>()
@@ -82,8 +82,8 @@ export function openAgentWindow(): ElectronAppWindowContext {
 }
 
 export function openProjectWindow(input: ElectronOpenProjectWindowInput): ElectronAppWindowContext {
-  const projectId = normalizeProjectId(input.projectId)
-  const existing = projectWindows.get(projectId)
+  const projectKey = projectWindowKey(input)
+  const existing = projectWindows.get(projectKey)
   if (existing && !existing.isDestroyed()) {
     focusWindow(existing)
     return contextForWindow(existing)
@@ -91,15 +91,16 @@ export function openProjectWindow(input: ElectronOpenProjectWindowInput): Electr
 
   const context: ElectronAppWindowContext = {
     kind: 'project',
-    projectId,
+    ...(input.projectId !== undefined ? { projectId: normalizeProjectId(input.projectId) } : {}),
+    ...(input.projectDir ? { projectDir: input.projectDir } : {}),
     project: input.project ?? null,
     route: input.route || PROJECT_HOME_ROUTE,
     ...(input.search ? { search: input.search } : {}),
   }
   const win = createTrackedWindow(context)
-  projectWindows.set(projectId, win)
+  projectWindows.set(projectKey, win)
   win.once('closed', () => {
-    if (projectWindows.get(projectId) === win) projectWindows.delete(projectId)
+    if (projectWindows.get(projectKey) === win) projectWindows.delete(projectKey)
   })
   return context
 }
@@ -288,9 +289,10 @@ export function restoreSuspendedAuthWindows(): ElectronAppWindowContext[] {
   for (const context of pending) {
     if (context.kind === 'agent') {
       restored.push(openAgentWindow())
-    } else if (context.kind === 'project' && context.projectId) {
+    } else if (context.kind === 'project' && (context.projectId || context.projectDir)) {
       restored.push(openProjectWindow({
-        projectId: context.projectId,
+        ...(context.projectId ? { projectId: context.projectId } : {}),
+        ...(context.projectDir ? { projectDir: context.projectDir } : {}),
         project: context.project ?? null,
         route: context.route,
         search: context.search,
@@ -360,11 +362,17 @@ function mergeWindowContexts(
 }
 
 function windowContextKey(context: ElectronAppWindowContext): string {
-  if (context.kind === 'project') return `project:${context.projectId ?? context.route}`
+  if (context.kind === 'project') return `project:${context.projectDir ? `path:${context.projectDir}` : context.projectId ?? context.route}`
   if (context.kind === 'editingProject') return `editingProject:${context.editingProjectId ?? context.route}`
   if (context.kind === 'canvas') return `canvas:${context.canvasId ?? context.route}`
   if (context.kind === 'tool') return `tool:${context.route}`
   return context.kind
+}
+
+function projectWindowKey(input: ElectronOpenProjectWindowInput): number | string {
+  if (input.projectDir?.trim()) return `path:${input.projectDir.trim()}`
+  if (input.projectId !== undefined) return normalizeProjectId(input.projectId)
+  throw new Error('Project window requires projectId or projectDir')
 }
 
 function normalizeProjectId(value: unknown): number {

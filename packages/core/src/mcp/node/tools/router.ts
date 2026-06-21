@@ -113,7 +113,7 @@ import {
   getVideoGenerationJob,
   getVideoGenerationJobs,
 } from './generation/actions'
-import { createProject } from './project/projects.js'
+import { createProject, fetchLocalProject, initLocalProject } from './project/projects.js'
 import { getObjectParam, getStringParam } from '../../protocol/params.js'
 import {
   addShotsToGroup,
@@ -453,6 +453,12 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
     case 'system_project_create':
     case 'movscript_project_create':
       return toolText(await createProject(args))
+    case 'system_project_init':
+    case 'movscript_project_init':
+      return toolText(await initLocalProject(args))
+    case 'system_project_fetch':
+    case 'movscript_project_fetch':
+      return toolText(await fetchLocalProject(args))
     default:
       throw new Error(`Unknown tool: ${name}`)
   }

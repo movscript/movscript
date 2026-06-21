@@ -70,6 +70,35 @@ export type ElectronMovScriptWorkspaceRootResult = {
   manifest: ElectronMovScriptWorkspaceRootManifest
 }
 
+export type ElectronLocalProjectCreateInput = {
+  projectDir: string
+  title?: string
+  description?: string
+  projectId?: string
+  overwrite?: boolean
+}
+
+export type ElectronLocalProjectOpenInput = {
+  projectDir: string
+}
+
+export type ElectronLocalProjectResult = {
+  projectDir: string
+  projectPath: string
+  project: {
+    ID: number
+    owner_id: number
+    name: string
+    description: string
+    workspace_path: string
+    project_path: string
+    local: true
+    CreatedAt: string
+    UpdatedAt: string
+  }
+  initializedFiles?: string[]
+}
+
 export type ElectronMovScriptWorkspaceFileEntry = {
   name: string
   path: string
@@ -82,6 +111,7 @@ export type ElectronMovScriptWorkspaceFilesInput = ElectronMovScriptHomeInput & 
   userId?: number | string
   orgId?: number | string
   projectId?: number | string
+  projectDir?: string
   path?: string
 }
 
@@ -118,6 +148,7 @@ export type ElectronMovScriptWorkspaceInterpretActionInput = ElectronMovScriptHo
   userId?: number | string
   orgId?: number | string
   projectId?: number | string
+  projectDir?: string
   expectedWorkspaceVersions?: Record<string, string | null>
 }
 

@@ -1,19 +1,14 @@
 # Installing Movscript
 
 Movscript Desktop is distributed from GitHub Releases. The installer does not
-require a Movscript-hosted server; `movscript.com/install.sh` can be served by
-GitHub Pages and the desktop package is downloaded from the release assets.
+require a Movscript-hosted server; `movscript.github.io/movscript/install.sh`
+is served by GitHub Pages and the desktop package is downloaded from the
+release assets.
 
 ## User Install
 
 ```bash
-curl -fsSL https://movscript.com/install.sh | sh
-```
-
-Until the custom domain is live, the same script can be run from GitHub:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/movscript/movscript/main/install.sh | sh
+curl -fsSL https://movscript.github.io/movscript/install.sh | sh
 ```
 
 The shell installer supports macOS Apple Silicon / arm64 and installs the
@@ -57,18 +52,13 @@ and generated files. By default Windows uses `%LOCALAPPDATA%\Movscript\Home`;
 users can move it to a larger drive such as `D:\MovscriptHome` from the desktop
 settings page.
 
-## Publishing `movscript.com/install.sh`
+## Publishing the GitHub Pages Installer
 
 No server is required.
 
 1. Enable GitHub Pages for this repository and select GitHub Actions as the
    Pages source.
-2. Point the `movscript.com` DNS records to GitHub Pages.
-3. Add the domain in the repository Pages settings so GitHub creates the Pages
-   custom-domain binding.
-4. The `Deploy Installer Page` workflow publishes the root `install.sh` as
-   `/install.sh` and writes the `CNAME` file when `MOVSCRIPT_PAGES_DOMAIN` is
-   configured as a repository variable.
-
-If the repository variable is not set, the workflow still publishes the script
-on the default GitHub Pages domain.
+2. The `Deploy Installer Page` workflow publishes `site/`, the root
+   `install.sh`, and the project logo to the GitHub Pages artifact.
+3. Users can run the shell installer from
+   `https://movscript.github.io/movscript/install.sh`.

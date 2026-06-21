@@ -424,5 +424,5 @@ test('MCP editing export candidate creation is explicit domain state, not an Ele
 
   assert.equal(response?.result?.data?.code, undefined)
   assert.notEqual(response?.result?.data?.code, 'ELECTRON_EDITING_RUNTIME_REQUIRED')
-  assert.match(response?.error?.message ?? '', /projectId is required/)
+  assert.match(response?.error?.message ?? '', /projectId or projectDir is required/)
 })

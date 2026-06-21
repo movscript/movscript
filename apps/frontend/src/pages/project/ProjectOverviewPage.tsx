@@ -46,27 +46,29 @@ export default function ProjectOverviewPage() {
   const queryClient = useQueryClient()
   const project = useProjectStore((state) => state.current)
   const projectId = project?.ID
+  const projectDir = project?.workspace_path ?? project?.project_path
+  const isLocalProject = Boolean(projectDir)
   const [pluginTogglingKey, setPluginTogglingKey] = useState<string>()
   const [pluginToggleError, setPluginToggleError] = useState<string>()
   const currentUser = useUserStore((state) => state.currentUser)
   const currentOrgID = useUserStore((state) => state.currentOrgID)
   const orgMemberships = useUserStore((state) => state.orgMemberships)
   const workspaceContext = useMemo(
-    () => workspaceOwnerContext({ currentUser, currentOrgID, orgMemberships }),
-    [currentOrgID, currentUser?.ID, orgMemberships],
+    () => projectDir ? { projectDir } : workspaceOwnerContext({ currentUser, currentOrgID, orgMemberships }),
+    [currentOrgID, currentUser?.ID, orgMemberships, projectDir],
   )
 
   const { data = emptyProjectOverviewData } = useQuery({
     queryKey: projectOverviewKeys.detail(projectId),
     queryFn: () => loadProjectOverviewData(projectId!),
-    enabled: !!projectId,
+    enabled: !!projectId && !isLocalProject,
   })
   const scriptsQuery = useQuery<Script[]>({
     queryKey: scriptKeys.projectScripts(projectId, workspaceContext),
     queryFn: () => listWorkspaceScripts(projectId!, workspaceContext),
     enabled: !!projectId,
   })
-  const workspaceRootQuery = useQuery({ queryKey: projectOverviewKeys.workspaceRoot, queryFn: () => requireWorkspaceRootAPI().getRoot(), enabled: !!projectId })
+  const workspaceRootQuery = useQuery({ queryKey: projectOverviewKeys.workspaceRoot, queryFn: () => requireWorkspaceRootAPI().getRoot(), enabled: !!projectId && !isLocalProject })
   const movScriptHomeDir = workspaceRootQuery.data?.movScriptHomeDir ?? workspaceRootQuery.data?.workspaceDir
   const projectPluginContext = useMemo<ProjectPluginContext>(() => ({
     ...(movScriptHomeDir ? { movScriptHomeDir, workspaceDir: movScriptHomeDir } : {}),
@@ -76,7 +78,7 @@ export default function ProjectOverviewPage() {
   const projectPluginsQuery = useQuery({
     queryKey: projectOverviewKeys.plugins(projectPluginContext.movScriptHomeDir ?? projectPluginContext.workspaceDir, projectPluginContext.projectId, projectPluginContext.userId ?? projectPluginContext.orgId),
     queryFn: () => loadProjectPluginSnapshot(projectPluginContext),
-    enabled: !!projectId && !!movScriptHomeDir,
+    enabled: !!projectId && !!movScriptHomeDir && !isLocalProject,
   })
 
   async function handleProjectPluginToggle(plugin: ProjectPluginSnapshot['systemPlugins'][number], enabled: boolean) {

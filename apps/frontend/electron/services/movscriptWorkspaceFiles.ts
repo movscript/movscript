@@ -107,6 +107,7 @@ export async function writeMovScriptWorkspaceFile(input: ElectronMovScriptWorksp
     ...(input.userId !== undefined ? { userId: input.userId } : {}),
     ...(input.orgId !== undefined ? { orgId: input.orgId } : {}),
     ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
+    ...(input.projectDir !== undefined ? { projectDir: input.projectDir } : {}),
     path: target.relativePath,
   })
 }
@@ -123,7 +124,9 @@ async function resolveMovScriptWorkspaceFilePath(input?: ElectronMovScriptWorksp
   const workspaceDir = resolveMovScriptHomeDir(input)
   const workspaceRoot = resolveMovScriptWorkspaceRootPaths(workspaceDir)
   ensureMovScriptWorkspaceRoot(workspaceRoot)
-  const rootPath = input?.projectId !== undefined
+  const rootPath = input?.projectDir?.trim()
+    ? resolve(input.projectDir)
+    : input?.projectId !== undefined
     ? resolveDesktopWorkspaceContextPaths({
         workspaceDir,
         workspaceContext: {

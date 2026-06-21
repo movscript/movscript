@@ -3,6 +3,7 @@ import type { MovScriptWorkspaceIndexedEntity } from '@movscript/workspace'
 import type { Script } from '@/types'
 
 export interface ScriptWorkspaceRepositoryContext {
+  projectDir?: string
   userId?: string | number
   orgId?: string | number
 }

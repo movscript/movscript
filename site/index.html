@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Movscript is a desktop video creation workflow for Vibe Motion, AI-planned production, and automatic editing.">
+    <title>Movscript</title>
+    <link rel="icon" href="logo.png">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="page-shell" aria-labelledby="page-title">
+      <img class="logo" src="logo.png" alt="Movscript logo">
+
+      <h1 id="page-title">Movscript</h1>
+      <p class="tagline">Video creation for Vibe Motion, AI-planned production, and automatic editing.</p>
+      <p class="tagline tagline-zh">面向 Vibe Motion、AI 规划成片与自动剪辑的视频创作工具。</p>
+      <p class="support">
+        Movscript currently supports macOS Apple Silicon and Windows x64. Release packages are downloaded from GitHub Releases.
+      </p>
+      <p class="support support-zh">
+        Movscript 目前支持 macOS Apple Silicon 与 Windows x64。桌面安装包从 GitHub Releases 下载。
+      </p>
+
+      <p class="language">English / 简体中文</p>
+
+      <section class="install" aria-labelledby="install-title">
+        <h2 id="install-title">🚀 Install Movscript / 安装 Movscript</h2>
+
+        <div class="platform-switch" role="tablist" aria-label="Choose operating system">
+          <button class="platform-tab" id="tab-macos" type="button" role="tab" aria-selected="true" aria-controls="panel-macos" data-platform-tab="macos">macOS</button>
+          <button class="platform-tab" id="tab-windows" type="button" role="tab" aria-selected="false" aria-controls="panel-windows" data-platform-tab="windows">Windows</button>
+        </div>
+
+        <div class="platform-panel" id="panel-macos" role="tabpanel" aria-labelledby="tab-macos" data-platform-panel="macos">
+          <div class="command">
+            <pre><code id="install-command">curl -fsSL https://movscript.github.io/movscript/install.sh | sh</code></pre>
+            <button class="copy-button" type="button" aria-label="Copy install command" title="Copy install command" data-copy-command>
+              ⧉
+            </button>
+          </div>
+
+          <p class="note">
+            Paste that in macOS Terminal. The script explains what it will do before installing the latest arm64 desktop app into /Applications.
+            <br>
+            将这段命令粘贴到 macOS 终端中运行。脚本会在安装最新 arm64 桌面应用到 /Applications 前说明将要执行的操作。
+          </p>
+        </div>
+
+        <div class="platform-panel" id="panel-windows" role="tabpanel" aria-labelledby="tab-windows" data-platform-panel="windows" hidden>
+          <a class="download-button" href="https://github.com/movscript/movscript/releases/latest">Download Windows x64 installer</a>
+
+          <p class="note">
+            Download the latest Windows x64 <code>.exe</code> installer from GitHub Releases. The installer lets you choose the program installation directory.
+            <br>
+            从 GitHub Releases 下载最新 Windows x64 <code>.exe</code> 安装器。安装器会让你选择程序安装目录。
+          </p>
+        </div>
+
+        <p class="note links-note">
+          Read about <a href="https://github.com/movscript/movscript/blob/main/docs/install.md">installation options</a> or download all packages from <a href="https://github.com/movscript/movscript/releases/latest">GitHub Releases</a>.
+          <br>
+          查看<a href="https://github.com/movscript/movscript/blob/main/docs/install.md">安装选项</a>，或从 <a href="https://github.com/movscript/movscript/releases/latest">GitHub Releases</a> 下载所有安装包。
+        </p>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>

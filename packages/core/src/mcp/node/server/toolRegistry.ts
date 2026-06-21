@@ -55,7 +55,11 @@ function systemTools(input: {
 }): MCPTool[] {
   return [
     ...renameTools(input.focus, { movscript_focus_get: 'system_focus_get' }),
-    ...renameTools(input.project, { movscript_project_create: 'system_project_create' }),
+    ...renameTools(input.project, {
+      movscript_project_create: 'system_project_create',
+      movscript_project_init: 'system_project_init',
+      movscript_project_fetch: 'system_project_fetch',
+    }),
     ...renameTools(input.models, { generation_model_list: 'system_model_list' }),
     ...renameTools(input.generation, {
       generation_image_generate: 'system_generate_image',

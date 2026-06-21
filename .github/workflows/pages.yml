@@ -7,6 +7,8 @@ on:
     paths:
       - install.sh
       - docs/install.md
+      - assets/logo.png
+      - site/**
       - .github/workflows/pages.yml
   workflow_dispatch:
 
@@ -33,30 +35,10 @@ jobs:
       - name: Prepare static site
         run: |
           mkdir -p public
+          cp -R site/. public/
           cp install.sh public/install.sh
+          cp assets/logo.png public/logo.png
           chmod 0644 public/install.sh
-          cat > public/index.html <<'HTML'
-          <!doctype html>
-          <html lang="en">
-            <head>
-              <meta charset="utf-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1">
-              <title>Movscript Installer</title>
-            </head>
-            <body>
-              <main>
-                <h1>Movscript Installer</h1>
-                <pre><code>curl -fsSL https://movscript.com/install.sh | sh</code></pre>
-                <p>Release packages are downloaded from GitHub Releases.</p>
-              </main>
-            </body>
-          </html>
-          HTML
-          if [ -n "${MOVSCRIPT_PAGES_DOMAIN:-}" ]; then
-            printf '%s\n' "$MOVSCRIPT_PAGES_DOMAIN" > public/CNAME
-          fi
-        env:
-          MOVSCRIPT_PAGES_DOMAIN: ${{ vars.MOVSCRIPT_PAGES_DOMAIN }}
 
       - name: Configure Pages
         uses: actions/configure-pages@v5

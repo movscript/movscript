@@ -10,6 +10,7 @@ import {
   buildMCPFrameSamplingPlan,
   addShotsToGroup,
   composeResourceVideosToResource,
+  createMovScriptDomainRuntime,
   createShotGroup,
   extractResourceVideoFrameToResource,
   generateImage,
@@ -19,6 +20,7 @@ import {
   handleJSONRPC,
   listTools,
   readResourceImageForVision,
+  resolveMCPProjectWorkspaceLocator,
   transformResourceImageToResource,
   trimResourceVideoToResource,
   updateMCPContextSnapshot,
@@ -28,6 +30,8 @@ import {
 import {
   getMovScriptBackendAPIBaseURL,
   setMovScriptBackendAPIBaseURL,
+  writeMovScriptBackendAuth,
+  writeMovScriptBackendConfig,
 } from '../dist/backend/node/index.js'
 
 const onePixelPNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lgn+9QAAAABJRU5ErkJggg=='
@@ -149,6 +153,8 @@ test('MCP discovery exposes core MovScript tools and resources', async () => {
   const toolsByName = new Map(toolList.map((tool) => [tool.name, tool]))
   assert.ok(tools.includes('system_focus_get'))
   assert.ok(tools.includes('system_project_create'))
+  assert.ok(tools.includes('system_project_init'))
+  assert.ok(tools.includes('system_project_fetch'))
   assert.ok(tools.includes('system_model_list'))
   assert.ok(tools.includes('system_generate_image'))
   assert.ok(tools.includes('system_generate_content_unit_image'))
@@ -287,6 +293,91 @@ test('MCP discovery exposes core MovScript tools and resources', async () => {
   assert.ok(resources.includes('movscript://resource-library'))
   assert.ok(resources.includes('movscript://shot-library'))
   assert.ok(resources.includes('movscript://external-resources'))
+})
+
+test('MCP local project tools initialize and fetch a path-bound project', async () => {
+  const projectDir = mkdtempSync(join(tmpdir(), 'movscript-mcp-local-project-'))
+  try {
+    const initResponse = await handleJSONRPC({
+      jsonrpc: '2.0',
+      id: 'local-project-init',
+      method: 'tools/call',
+      params: {
+        name: 'system_project_init',
+        arguments: {
+          projectDir,
+          title: 'Loose Path Project',
+        },
+      },
+    })
+
+    assert.equal(initResponse?.error, undefined)
+    assert.equal(initResponse?.result?.data?.status, 'initialized')
+    assert.equal(initResponse?.result?.data?.projectDir, projectDir)
+    assert.equal(initResponse?.result?.data?.locator?.projectDir, projectDir)
+    assert.equal(existsSync(join(projectDir, 'workspace.json')), true)
+    assert.equal(JSON.parse(readFileSync(join(projectDir, 'project.json'), 'utf8')).title, 'Loose Path Project')
+
+    const fetchResponse = await handleJSONRPC({
+      jsonrpc: '2.0',
+      id: 'local-project-fetch',
+      method: 'tools/call',
+      params: {
+        name: 'system_project_fetch',
+        arguments: { project_dir: projectDir },
+      },
+    })
+
+    assert.equal(fetchResponse?.error, undefined)
+    assert.equal(fetchResponse?.result?.data?.status, 'ready')
+    assert.equal(fetchResponse?.result?.data?.projectDir, projectDir)
+    assert.equal(fetchResponse?.result?.data?.project?.name, 'Loose Path Project')
+  } finally {
+    await rm(projectDir, { recursive: true, force: true })
+  }
+})
+
+test('MCP project locator accepts an explicit project directory without user binding', async () => {
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-mcp-home-'))
+  const projectDir = mkdtempSync(join(tmpdir(), 'movscript-mcp-project-'))
+  try {
+    writeMovScriptBackendConfig(workspaceDir, {
+      baseURL: 'https://cloud.example',
+      activeUserId: 99,
+    })
+    writeMovScriptBackendAuth(workspaceDir, {
+      token: 'workspace-token',
+      user: { id: 99, username: 'workspace-user' },
+    })
+    updateMCPContextSnapshot(localAdminMCPContextSnapshot())
+
+    const locator = resolveMCPProjectWorkspaceLocator({
+      workspaceDir,
+      projectDir,
+    })
+
+    assert.deepEqual(locator, {
+      workspaceDir,
+      projectDir,
+    })
+  } finally {
+    updateMCPContextSnapshot(emptyMCPContextSnapshot())
+    await rm(workspaceDir, { recursive: true, force: true })
+    await rm(projectDir, { recursive: true, force: true })
+  }
+})
+
+test('MCP domain runtime can bind directly to a project directory without backend project id', async () => {
+  const projectDir = mkdtempSync(join(tmpdir(), 'movscript-mcp-runtime-project-'))
+  try {
+    const runtime = createMovScriptDomainRuntime({ projectDir })
+
+    assert.equal(runtime.projectCwd, projectDir)
+    assert.equal(runtime.projectDir, projectDir)
+    assert.equal(runtime.decisionStore, undefined)
+  } finally {
+    await rm(projectDir, { recursive: true, force: true })
+  }
 })
 
 test('MCP project resources read project workspace data without backend entity endpoints', async () => {
@@ -2383,7 +2474,7 @@ test('MCP domain tools expose get_model inspect and interpret over source/.inter
   }
 })
 
-test('MCP domain tools require explicit project id', async () => {
+test('MCP domain tools require explicit project id or project dir', async () => {
   const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-project-required-'))
   process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
@@ -2399,7 +2490,7 @@ test('MCP domain tools require explicit project id', async () => {
     })
 
     assert.equal(response?.error?.code, -32000)
-    assert.match(response?.error?.message ?? '', /projectId is required/)
+    assert.match(response?.error?.message ?? '', /projectId or projectDir is required/)
   } finally {
     if (previousWorkspaceDir === undefined) delete process.env.MOVSCRIPT_WORKSPACE_DIR
     else process.env.MOVSCRIPT_WORKSPACE_DIR = previousWorkspaceDir
