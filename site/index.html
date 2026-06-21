@@ -20,6 +20,13 @@
         <h1 id="title-en">Movscript</h1>
         <p class="tagline">Video creation for Vibe Motion, AI-planned production, and automatic editing.</p>
         <p class="support">Movscript currently supports macOS Apple Silicon and Windows x64. Release packages are downloaded from GitHub Releases.</p>
+        <p
+          class="release-meta"
+          data-release-status
+          data-release-loading="Checking the latest published release..."
+          data-release-ready="Latest version: {version}"
+          data-release-fallback="Latest version could not be loaded. Use GitHub Releases below."
+        >Checking the latest published release...</p>
 
         <section class="install" aria-labelledby="install-title-en">
           <h2 id="install-title-en">🚀 Install Movscript</h2>
@@ -37,11 +44,12 @@
               </button>
             </div>
 
+            <a class="download-button download-button-secondary" href="https://github.com/movscript/movscript/releases/latest" data-release-asset="macos">Download macOS arm64 DMG</a>
             <p class="note">Paste that in macOS Terminal. The script explains what it will do before installing the latest arm64 desktop app into /Applications.</p>
           </div>
 
           <div class="platform-panel" role="tabpanel" data-platform-panel="windows" hidden>
-            <a class="download-button" href="https://github.com/movscript/movscript/releases/latest">Download Windows x64 installer</a>
+            <a class="download-button" href="https://github.com/movscript/movscript/releases/latest" data-release-asset="windows">Download Windows x64 installer</a>
             <p class="note">Download the latest Windows x64 <code>.exe</code> installer from GitHub Releases. The installer lets you choose the program installation directory.</p>
           </div>
 
@@ -53,6 +61,13 @@
         <h1 id="title-zh">Movscript</h1>
         <p class="tagline">面向 Vibe Motion、AI 规划成片与自动剪辑的视频创作工具。</p>
         <p class="support">Movscript 目前支持 macOS Apple Silicon 与 Windows x64。桌面安装包从 GitHub Releases 下载。</p>
+        <p
+          class="release-meta"
+          data-release-status
+          data-release-loading="正在检查最新发布版本..."
+          data-release-ready="最新版本：{version}"
+          data-release-fallback="暂时无法读取最新版本。请使用下方 GitHub Releases 链接。"
+        >正在检查最新发布版本...</p>
 
         <section class="install" aria-labelledby="install-title-zh">
           <h2 id="install-title-zh">🚀 安装 Movscript</h2>
@@ -70,11 +85,12 @@
               </button>
             </div>
 
+            <a class="download-button download-button-secondary" href="https://github.com/movscript/movscript/releases/latest" data-release-asset="macos">下载 macOS arm64 DMG</a>
             <p class="note">将这段命令粘贴到 macOS 终端中运行。脚本会在安装最新 arm64 桌面应用到 /Applications 前说明将要执行的操作。</p>
           </div>
 
           <div class="platform-panel" role="tabpanel" data-platform-panel="windows" hidden>
-            <a class="download-button" href="https://github.com/movscript/movscript/releases/latest">下载 Windows x64 安装器</a>
+            <a class="download-button" href="https://github.com/movscript/movscript/releases/latest" data-release-asset="windows">下载 Windows x64 安装器</a>
             <p class="note">从 GitHub Releases 下载最新 Windows x64 <code>.exe</code> 安装器。安装器会让你选择程序安装目录。</p>
           </div>
 
