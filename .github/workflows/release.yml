@@ -102,6 +102,13 @@ jobs:
             artifact: movscript-desktop-macos-arm64
             ffmpeg-platform: darwin
             ffmpeg-arch: arm64
+          - name: windows-x64
+            os: windows-2022
+            package-platform: win32
+            package-arch: x64
+            artifact: movscript-desktop-windows-x64
+            ffmpeg-platform: win32
+            ffmpeg-arch: x64
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout

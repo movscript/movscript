@@ -16,16 +16,20 @@ Until the custom domain is live, the same script can be run from GitHub:
 curl -fsSL https://raw.githubusercontent.com/movscript/movscript/main/install.sh | sh
 ```
 
-The first installer supports macOS Apple Silicon / arm64 and installs the
+The shell installer supports macOS Apple Silicon / arm64 and installs the
 latest `movscript-desktop-macos-arm64-Movscript.dmg` release asset to
 `/Applications/Movscript.app`.
+
+Windows x64 users should download the Windows installer from GitHub Releases.
+The release asset is prefixed with `movscript-desktop-windows-x64-` and ends in
+`.exe`. The installer lets users choose the program installation directory.
 
 ## Options
 
 ```bash
 sh install.sh --help
 sh install.sh --dry-run
-sh install.sh --release v0.1.7
+sh install.sh --release v0.1.8
 sh install.sh --force
 sh install.sh --install-dir "$HOME/Applications"
 ```
@@ -36,7 +40,7 @@ temporary local testing.
 
 ## Release Asset Contract
 
-The installer expects these release assets:
+The macOS shell installer expects these release assets:
 
 - `movscript-desktop-macos-arm64-Movscript.dmg`
 - `SHA256SUMS.txt`
@@ -44,6 +48,14 @@ The installer expects these release assets:
 The existing release workflow collects desktop artifacts with the matrix prefix
 `movscript-desktop-macos-arm64` and creates a combined `SHA256SUMS.txt` before
 uploading the GitHub Release assets.
+
+The Windows release job publishes installer and portable artifacts with the
+matrix prefix `movscript-desktop-windows-x64`. Windows installation location and
+Movscript Home are intentionally separate: the installer controls where the app
+binaries live, while Movscript Home controls user data, cache, runtime state,
+and generated files. By default Windows uses `%LOCALAPPDATA%\Movscript\Home`;
+users can move it to a larger drive such as `D:\MovscriptHome` from the desktop
+settings page.
 
 ## Publishing `movscript.com/install.sh`
 

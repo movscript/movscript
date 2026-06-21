@@ -4,13 +4,13 @@
 
 结论：当前代码库已经有若干 Windows 分支和 release 脚本基础，但还没有形成可发布 Windows 桌面版所需的完整闭环。`v0.1.7` 先保留 macOS arm64 是正确选择；Windows 需要先做一次专门的兼容性修复和 CI 验证，再进入正式发布矩阵。
 
-2026-06-21 更新：已落地首批 P0/P1 修复，包括 Windows 默认 Home、设置页目录选择入口、app-server 命令解析、`movcli.cmd` workspace wrapper、Windows `Path` 保留、`git-http-backend.exe` 查找、Windows `.ico` 资源，以及独立 `windows-compat` workflow。正式发布前仍需在 GitHub Windows runner 上跑通 unsigned package 与 smoke。
+2026-06-21 更新：已落地首批 P0/P1 修复，包括 Windows 默认 Home、设置页目录选择入口、app-server 命令解析、`movcli.cmd` workspace wrapper、Windows `Path` 保留、`git-http-backend.exe` 查找、Windows `.ico` 资源，以及独立 `windows-compat` workflow。正式 release matrix 已加入 `windows-x64`，但 GitHub Actions 当前需要重新启用后才能验证 Windows runner 上的 unsigned package 与 smoke。
 
 ## 背景
 
 本次审计基于当前仓库状态和最近一次发布调整：
 
-- Release workflow 当前只发布 `macos-arm64`，矩阵没有 Windows。见 `.github/workflows/release.yml` 的 package matrix。
+- Release workflow 已配置 `macos-arm64` 与 `windows-x64`。见 `.github/workflows/release.yml` 的 package matrix。
 - `package-resources.manifest.json` 和 `scripts/release/release-common.mjs` 仍声明了 `win32` 资源和 release target，说明 Windows 是设计目标，但不是已验证目标。
 - Electron Builder 配置中已有 `win` 的 `nsis` 和 `portable` target，但 Windows 图标、签名、安装器行为、运行 smoke 尚未闭环。
 - `mova-app-server` 平台包已经切到 app-server-only 方向，Windows x64 包名解析存在，但 app-server 在 Windows 下的 home、命令解析和真实启动还需要验证。
@@ -28,7 +28,7 @@ Windows 适配问题不是一个单点错误，而是多个层次之间不一致
 
 | 等级 | 领域 | 缺口 | 证据 | 建议 |
 | --- | --- | --- | --- | --- |
-| P0 | 发布矩阵 | Windows 已从稳定 release matrix 移除，当前不能承诺可发布。 | `.github/workflows/release.yml` 只包含 `macos-arm64`；但 `scripts/release/release-common.mjs` 仍列出 `win32 x64` release target。 | 已新增 `windows-compat` workflow，先做不发布的 Windows 打包和 smoke，连续通过后再回 release matrix。 |
+| P0 | 发布矩阵 | Windows x64 已回到稳定 release matrix，但仍需要真实 runner 通过验证。 | `.github/workflows/release.yml` 已包含 `windows-x64`；`windows-compat` workflow 拆分了 Windows 前端/打包/smoke gate。 | 重新启用 GitHub Actions 后，先跑 `windows-compat`，再触发正式 release。 |
 | P0 | Movscript Home | 社区版默认 Home 原先落在 `~/.movscript`，没有 Windows 专属策略。 | `desktopIdentity.ts` 社区版曾走 `fallbackUserMovScriptHomeDir()`；core fallback 是 `join(homedir(), '.movscript')`。 | 已改为 Windows 默认 `%LOCALAPPDATA%\\Movscript\\Home`，继续允许 `MOVSCRIPT_HOME`/`MOVSCRIPT_DESKTOP_HOME` 覆盖；设置页已补系统目录选择入口。 |
 | P0 | app-server 命令解析 | 手动配置 Windows 路径会被反斜杠转义破坏。 | `appServerRuntimeCommand.ts` 的 `shellWords()` 曾把 `\` 当转义符；`C:\Program Files\...` 会被解析成错误路径。 | 已改为平台感知解析，Windows 下保留反斜杠并识别 `\`/盘符路径；后续仍建议配置层支持结构化 `{ command, args }`。 |
 | P1 | app-server 包解析 | `mova-app-server-win32-x64` 映射存在，但真实 Windows 启动未纳入 CI。 | `APP_SERVER_PLATFORM_PACKAGE_BY_TARGET` 已映射 `x86_64-pc-windows-msvc`；workflow 没有 Windows smoke。 | 在 Windows runner 上启动 app-server，跑 `initialize`、`runtime/probe`、`thread/start` 最小集。 |
@@ -37,7 +37,7 @@ Windows 适配问题不是一个单点错误，而是多个层次之间不一致
 | P1 | 本地终端 | node-pty 已打包但 Windows ConPTY 行为没有验证。 | `electron-builder.yml` unpack `node-pty/**`；`localTerminal.ts` Windows 走 `cmd.exe`，但没有 Windows e2e。 | 增加 Windows runner 上的 terminal smoke：创建、写入 `echo %CD%`、退出、检查输出。 |
 | P1 | Electron Windows 打包 | Windows target 存在但缺少 Windows 资源和签名策略。 | `electron-builder.yml` 有 `win` target；签名环境只在 readiness 中有检查。 | 已增加 `build/icon.ico` 和 `win.icon`；仍需签名/未签名策略说明、NSIS 与 portable 的产物验证。 |
 | P1 | 后端本地 Git HTTP | `git-http-backend` 查找和可执行判断偏 Unix。 | Go 代码曾只查找 `git-http-backend`，`isExecutableFile()` 检查 `0111` 权限位；Windows `.exe` 和 PATHEXT 行为未覆盖。 | 已支持 `git-http-backend.exe`，Windows 下普通文件即可通过可执行检查。 |
-| P1 | 资源契约 | manifest 声明 Windows 资源，但 release workflow 不再生产 Windows 产物。 | manifest 的 backend/ffmpeg 均列 `win32`；workflow 只下载 darwin arm64 ffmpeg。 | 拆分“支持平台”和“发布平台”，文档和测试都显式区分 expected 与 enabled。 |
+| P1 | 资源契约 | manifest 声明 Windows 资源，release workflow 已配置 Windows x64 目标。 | manifest 的 backend/ffmpeg 均列 `win32`；release matrix 会下载 `win32 x64` ffmpeg 并打 Windows package。 | 在 Windows runner 上验证 package artifact 中资源齐全。 |
 | P2 | media pipeline | ffmpeg 路径有 Windows 分支，但主要是单元级模拟。 | `ffmpegProbe.ts` 支持 `ffmpeg.exe`，测试里 Windows 期望路径是混合分隔符字符串。 | 在 Windows runner 上跑 `getMediaPipelineFFmpegStatus` 和一个最小转码 smoke。 |
 | P2 | HLS/local protocol | HLS 本地协议使用 base64 path token，设计上较安全，但 Windows drive/UNC 没有真实测试。 | `localHlsProtocol.ts` 用 `resolve`、`sep`、`normalize` 和 `base64url` token。 | 增加 `C:\...`、UNC、大小写盘符、`..` 路径穿越测试。 |
 | P2 | 后端进程生命周期 | packaged backend 使用 detached + pid 文件，Windows 退出/清理行为未验证。 | `backend/spawn.ts` packaged 模式 `detached: true` 并写 pid；Windows 的 detached 子进程生命周期不同。 | Windows smoke 里验证 app 退出后 backend 是否按预期存活或关闭，并记录策略。 |
@@ -125,11 +125,11 @@ Go 后端构建脚本能把 `GOOS=windows` 映射到 `movscript-server.exe`，�
 
 ## 建议路线图
 
-### 阶段 1：冻结发布口径
+### 阶段 1：恢复发布口径
 
-- 保持 `v0.1.7` 只发 macOS arm64。
-- README、release notes 继续明确 Windows 未发布。
-- 不要把 Windows 加回正式 release matrix。
+- `v0.1.8` 后的 release matrix 包含 macOS arm64 与 Windows x64。
+- README、release notes 明确 Windows x64 首发限制。
+- Windows arm64、Linux、Intel Mac 暂不加入正式 release matrix。
 
 ### 阶段 2：补 Windows 兼容 CI
 
@@ -168,9 +168,9 @@ Go 后端构建脚本能把 `GOOS=windows` 映射到 `movscript-server.exe`，�
 - ffmpeg `-version` 和一个小型转码任务通过。
 - local HLS URL 能解析 Windows drive path。
 
-### 阶段 5：恢复发布
+### 阶段 5：触发发布
 
-满足以下条件后再恢复 Windows 正式发布：
+满足以下条件后触发 Windows 正式发布：
 
 - `windows-compat` 连续 3 次 main 分支通过。
 - Windows package artifact 能安装或 portable 启动。
