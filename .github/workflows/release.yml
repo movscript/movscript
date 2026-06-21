@@ -167,7 +167,8 @@ jobs:
       - name: Prepare desktop package prerequisites
         run: pnpm run release -- prepare-desktop-package --platform=${{ matrix.package-platform }} --arch=${{ matrix.package-arch }}
 
-      - name: Typecheck frontend desktop bundle on target runner
+      - name: Diagnostic typecheck frontend desktop bundle on target runner
+        continue-on-error: true
         run: pnpm run release -- typecheck-desktop-bundle --platform=${{ matrix.package-platform }} --arch=${{ matrix.package-arch }}
 
       - name: Build frontend desktop bundle

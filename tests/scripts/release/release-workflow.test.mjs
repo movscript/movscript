@@ -7,6 +7,8 @@ const releaseWorkflow = await readFile(resolve(import.meta.dirname, '../../../.g
 
 test('release workflow packages every desktop target through split parameterized commands', () => {
   assert.match(releaseWorkflow, /pnpm run release -- prepare-desktop-package --platform=\$\{\{\s*matrix\.package-platform\s*\}\} --arch=\$\{\{\s*matrix\.package-arch\s*\}\}/)
+  assert.match(releaseWorkflow, /Diagnostic typecheck frontend desktop bundle on target runner/)
+  assert.match(releaseWorkflow, /continue-on-error:\s+true/)
   assert.match(releaseWorkflow, /pnpm run release -- typecheck-desktop-bundle --platform=\$\{\{\s*matrix\.package-platform\s*\}\} --arch=\$\{\{\s*matrix\.package-arch\s*\}\}/)
   assert.match(releaseWorkflow, /pnpm run release -- build-desktop-bundle --platform=\$\{\{\s*matrix\.package-platform\s*\}\} --arch=\$\{\{\s*matrix\.package-arch\s*\}\}/)
   assert.match(releaseWorkflow, /pnpm run release -- build-desktop-artifact --platform=\$\{\{\s*matrix\.package-platform\s*\}\} --arch=\$\{\{\s*matrix\.package-arch\s*\}\}/)

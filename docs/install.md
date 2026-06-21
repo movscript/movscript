@@ -24,7 +24,7 @@ The release asset is prefixed with `movscript-desktop-windows-x64-` and ends in
 ```bash
 sh install.sh --help
 sh install.sh --dry-run
-sh install.sh --release v0.1.12
+sh install.sh --release v0.1.13
 sh install.sh --force
 sh install.sh --install-dir "$HOME/Applications"
 ```
