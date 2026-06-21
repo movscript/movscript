@@ -6,6 +6,7 @@ import {
   desktopPackagePlan,
   frontendBuilderArgsForTarget,
   parseDesktopSigningModeArg,
+  releaseSpawnOptions,
   runDesktopPackageCli,
 } from '../../../scripts/release/release-workflow.mjs'
 
@@ -70,6 +71,19 @@ test('desktopPackageEnv strips signing secrets for unsigned packages', () => {
     PATH: '/bin',
     CSC_IDENTITY_AUTO_DISCOVERY: 'false',
     MOVSCRIPT_RELEASE_SIGNING_MODE: 'unsigned',
+  })
+})
+
+test('releaseSpawnOptions uses shell on Windows so pnpm.cmd can be resolved', () => {
+  const env = { PATH: '/bin' }
+  assert.deepEqual(releaseSpawnOptions(env, 'darwin'), {
+    stdio: 'inherit',
+    env,
+  })
+  assert.deepEqual(releaseSpawnOptions(env, 'win32'), {
+    stdio: 'inherit',
+    env,
+    shell: true,
   })
 })
 

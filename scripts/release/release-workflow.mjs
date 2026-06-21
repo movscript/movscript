@@ -320,10 +320,9 @@ export function runDesktopPackageCli(args = [], options = {}) {
 
   for (const [label, command, commandArgs] of steps) {
     log(`[package-desktop] ${label}`)
-    const result = spawn(command, commandArgs, {
-      stdio: 'inherit',
-      env: label === 'Build frontend desktop artifact' ? packageEnv : options.env ?? process.env,
-    })
+    const result = spawn(command, commandArgs, releaseSpawnOptions(
+      label === 'Build frontend desktop artifact' ? packageEnv : options.env ?? process.env,
+    ))
     if (result.error) {
       logError(result.error.message)
       exit(1)
@@ -503,10 +502,7 @@ function runSpawnStep(command, args, options) {
     logError = console.error,
     spawn = spawnSync,
   } = options
-  const result = spawn(command, args, {
-    stdio: 'inherit',
-    env,
-  })
+  const result = spawn(command, args, releaseSpawnOptions(env))
   if (result.error) {
     logError(result.error.message)
     exit(1)
@@ -517,6 +513,14 @@ function runSpawnStep(command, args, options) {
     return false
   }
   return true
+}
+
+export function releaseSpawnOptions(env = process.env, platform = process.platform) {
+  return {
+    stdio: 'inherit',
+    env,
+    ...(platform === 'win32' ? { shell: true } : {}),
+  }
 }
 
 export function prepareDesktopPackage(root = repoRoot, options = {}) {
