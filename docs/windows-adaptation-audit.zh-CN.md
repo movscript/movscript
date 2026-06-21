@@ -127,7 +127,7 @@ Go 后端构建脚本能把 `GOOS=windows` 映射到 `movscript-server.exe`，�
 
 ### 阶段 1：恢复发布口径
 
-- `v0.1.11` 后的 release matrix 包含 macOS arm64 与 Windows x64。
+- `v0.1.12` 后的 release matrix 包含 macOS arm64 与 Windows x64。
 - README、release notes 明确 Windows x64 首发限制。
 - Windows arm64、Linux、Intel Mac 暂不加入正式 release matrix。
 

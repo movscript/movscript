@@ -119,7 +119,7 @@ test('runDesktopPackageCli runs prepare, frontend dist, and verify steps', () =>
   assert.equal(typeof verifyCalls[0][1].log, 'function')
   assert.equal(typeof verifyCalls[0][1].logError, 'function')
   assert.deepEqual(calls, [
-    ['pnpm', ['--filter', '@movscript/desktop', 'build'], { stdio: 'inherit', env }],
+    ['pnpm', ['--filter', '@movscript/desktop', 'exec', 'electron-vite', 'build', '--logLevel', 'info', '--clearScreen=false'], { stdio: 'inherit', env }],
     ['pnpm', ['--filter', '@movscript/desktop', 'exec', 'electron-builder', '--mac', 'dmg', '--x64', '--publish', 'never', '-c.mac.identity=null', '-c.mac.notarize=false'], {
       stdio: 'inherit',
       env: {
