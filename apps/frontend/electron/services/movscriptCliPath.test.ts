@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { delimiter, join, resolve, win32 as pathWin32 } from 'node:path'
+import { join, resolve, win32 as pathWin32 } from 'node:path'
 import test from 'node:test'
 import {
   ensureWorkspaceMovScriptCliBin,
@@ -11,10 +11,13 @@ import {
   resolveMovScriptCliBinDir,
 } from './movscriptCliPath'
 
+const posixPathDelimiter = ':'
+
 test('resolveMovScriptCliBinDir prefers explicit override', () => {
   const binDir = resolve('/tools/movcli/bin')
   assert.equal(resolveMovScriptCliBinDir({
     env: { MOVSCRIPT_CLI_BIN_DIR: binDir },
+    platform: 'darwin',
     exists: (path) => path === resolve(binDir, 'movcli'),
   }), binDir)
 })
@@ -34,6 +37,7 @@ test('resolveMovScriptCliBinDir uses packaged resources when available', () => {
   const binDir = resolve(resourcesPath, 'movcli/bin')
   assert.equal(resolveMovScriptCliBinDir({
     resourcesPath,
+    platform: 'darwin',
     exists: (path) => path === resolve(binDir, 'movcli') || path === resolve(resourcesPath, 'movcli/dist/index.cjs'),
   }), binDir)
 })
@@ -46,6 +50,7 @@ test('resolveMovScriptCliBinDir prefers workspace bin before packaged resources'
   assert.equal(resolveMovScriptCliBinDir({
     workspaceDir,
     resourcesPath,
+    platform: 'darwin',
     exists: (path) => path === resolve(workspaceBinDir, 'movcli') || path === resolve(packagedBinDir, 'movcli'),
   }), workspaceBinDir)
 })
@@ -56,6 +61,7 @@ test('resolveMovScriptCliBinDir finds repository app cli bin in development', ()
   assert.equal(resolveMovScriptCliBinDir({
     cwd: resolve(repo, 'apps/frontend'),
     dirname: resolve(repo, 'apps/frontend/out/main'),
+    platform: 'darwin',
     exists: (path) => path === resolve(binDir, 'movcli') || path === resolve(repo, 'apps/cli/dist/index.cjs'),
   }), binDir)
 })
@@ -66,6 +72,7 @@ test('resolveMovScriptCliBinDir ignores unbuilt repository cli wrapper', () => {
   assert.equal(resolveMovScriptCliBinDir({
     cwd: resolve(repo, 'apps/frontend'),
     dirname: resolve(repo, 'apps/frontend/out/main'),
+    platform: 'darwin',
     exists: (path) => path === resolve(binDir, 'movcli'),
   }), undefined)
 })
@@ -85,13 +92,14 @@ test('ensureWorkspaceMovScriptCliBin writes a workspace shim that points at pack
     const binDir = ensureWorkspaceMovScriptCliBin({
       workspaceDir,
       resourcesPath: join(root, 'resources'),
+      platform: 'darwin',
     })
 
     assert.equal(binDir, join(workspaceDir, 'bin'))
     assert.equal(existsSync(join(binDir!, 'movcli')), true)
     assert.equal(existsSync(join(binDir!, 'movcli.mjs')), true)
     assert.match(readFileSync(join(binDir!, 'movcli.mjs'), 'utf8'), /dist\/index\.cjs/)
-    assert.equal(resolveMovScriptCliBinDir({ workspaceDir }), binDir)
+    assert.equal(resolveMovScriptCliBinDir({ workspaceDir, platform: 'darwin' }), binDir)
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
@@ -125,7 +133,7 @@ test('ensureWorkspaceMovScriptCliBin writes a Windows cmd shim', () => {
 
 test('movScriptCliPathEnv prepends movcli bin to PATH', () => {
   const binDir = resolve('/repo/movscript/apps/cli/bin')
-  const original = [resolve('/usr/bin'), binDir, resolve('/bin')].join(delimiter)
+  const original = [resolve('/usr/bin'), binDir, resolve('/bin')].join(posixPathDelimiter)
   const env = movScriptCliPathEnv({
     cliBinDir: binDir,
     env: { PATH: original },
@@ -133,7 +141,7 @@ test('movScriptCliPathEnv prepends movcli bin to PATH', () => {
   })
 
   assert.equal(env.MOVSCRIPT_CLI_BIN_DIR, binDir)
-  assert.equal(env.PATH, [binDir, resolve('/usr/bin'), resolve('/bin')].join(delimiter))
+  assert.equal(env.PATH, [binDir, resolve('/usr/bin'), resolve('/bin')].join(posixPathDelimiter))
 })
 
 test('movScriptCliPathEnv preserves Windows Path casing and delimiter', () => {
@@ -165,7 +173,7 @@ test('movScriptCliRuntimeEnv uses Electron bin in Electron development runtime',
 
 test('prependPath returns a single normalized leading entry', () => {
   const binDir = resolve('/repo/movscript/apps/cli/bin')
-  assert.equal(prependPath(binDir, `${binDir}${delimiter}/usr/bin`), `${binDir}${delimiter}/usr/bin`)
+  assert.equal(prependPath(binDir, `${binDir}${posixPathDelimiter}/usr/bin`, 'darwin'), `${binDir}${posixPathDelimiter}/usr/bin`)
 })
 
 test('prependPath uses Windows delimiter and duplicate handling', () => {

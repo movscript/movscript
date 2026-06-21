@@ -1,15 +1,18 @@
 import assert from 'node:assert/strict'
-import { homedir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import { resolveDesktopIdentity } from './desktopIdentity'
 
 test('community desktop identity keeps the existing MovScript home', () => {
-  const identity = resolveDesktopIdentity({})
+  const userHomeDir = join('/', 'Users', 'me')
+  const identity = resolveDesktopIdentity({}, {
+    platform: 'darwin',
+    userHomeDir,
+  })
 
   assert.equal(identity.edition, 'community')
   assert.equal(identity.appName, 'Movscript')
-  assert.equal(identity.homeDir, join(homedir(), '.movscript'))
+  assert.equal(identity.homeDir, join(userHomeDir, '.movscript'))
   assert.equal(identity.userDataDir, undefined)
 })
 
@@ -29,11 +32,15 @@ test('community desktop identity uses LocalAppData for Windows MovScript home', 
 })
 
 test('enterprise desktop identity uses independent app and home paths', () => {
-  const identity = resolveDesktopIdentity({ MOVSCRIPT_DESKTOP_EDITION: 'enterprise' })
+  const userHomeDir = join('/', 'Users', 'me')
+  const identity = resolveDesktopIdentity({ MOVSCRIPT_DESKTOP_EDITION: 'enterprise' }, {
+    platform: 'darwin',
+    userHomeDir,
+  })
 
   assert.equal(identity.edition, 'enterprise')
   assert.equal(identity.appName, 'MovScript Enterprise')
-  assert.equal(identity.homeDir, join(homedir(), '.movscript-enterprise'))
+  assert.equal(identity.homeDir, join(userHomeDir, '.movscript-enterprise'))
   assert.match(identity.userDataDir ?? '', /MovScript Enterprise$/)
 })
 

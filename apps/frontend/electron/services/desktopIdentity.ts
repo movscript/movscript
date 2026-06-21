@@ -1,7 +1,6 @@
 import { homedir } from 'node:os'
 import { join, win32 as pathWin32 } from 'node:path'
 import * as electron from 'electron'
-import { fallbackUserMovScriptHomeDir } from '@movscript/core/workspace/node'
 
 export type MovScriptDesktopEdition = 'community' | 'enterprise'
 
@@ -64,7 +63,7 @@ function fallbackDesktopMovScriptHomeDir(
     const appName = edition === 'enterprise' ? 'MovScript Enterprise' : 'Movscript'
     return pathWin32.join(getWindowsLocalAppDataDir(env, userHomeDir), appName, 'Home')
   }
-  return edition === 'enterprise' ? join(userHomeDir, '.movscript-enterprise') : fallbackUserMovScriptHomeDir()
+  return edition === 'enterprise' ? join(userHomeDir, '.movscript-enterprise') : join(userHomeDir, '.movscript')
 }
 
 function getElectronApp(): Electron.App | undefined {

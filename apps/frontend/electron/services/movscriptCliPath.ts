@@ -1,6 +1,6 @@
 import { chmodSync, copyFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { delimiter, dirname, join, resolve, win32 as pathWin32 } from 'node:path'
+import { dirname, join, resolve, win32 as pathWin32 } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { resolveMovScriptWorkspaceRootPaths } from '@movscript/core/workspace/node'
 
@@ -98,7 +98,7 @@ export function prependPath(
   currentPath: string,
   platform: NodeJS.Platform = process.platform,
 ): string {
-  const pathDelimiter = platform === 'win32' ? ';' : delimiter
+  const pathDelimiter = pathDelimiterForPlatform(platform)
   const entries = currentPath.split(pathDelimiter).filter(Boolean)
   const normalized = resolveForPlatform(dir, platform)
   const withoutDuplicate = entries.filter((entry) => resolveForPlatform(entry, platform) !== normalized)
@@ -108,6 +108,10 @@ export function prependPath(
 export function pathEnvKey(env: NodeJS.ProcessEnv, platform: NodeJS.Platform): string {
   if (platform !== 'win32') return 'PATH'
   return Object.keys(env).find((key) => key.toLowerCase() === 'path') ?? 'Path'
+}
+
+function pathDelimiterForPlatform(platform: NodeJS.Platform): string {
+  return platform === 'win32' ? ';' : ':'
 }
 
 function resolveMovScriptRepoRoot(input: MovScriptCliPathInput): string {
