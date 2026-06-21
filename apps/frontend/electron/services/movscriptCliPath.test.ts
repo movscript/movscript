@@ -11,6 +11,7 @@ import {
   resolveMovScriptCliBinDir,
 } from './movscriptCliPath'
 
+// Keep POSIX expectations independent from the host runner's path delimiter.
 const posixPathDelimiter = ':'
 
 test('resolveMovScriptCliBinDir prefers explicit override', () => {
