@@ -13,6 +13,21 @@ test('community desktop identity keeps the existing MovScript home', () => {
   assert.equal(identity.userDataDir, undefined)
 })
 
+test('community desktop identity uses LocalAppData for Windows MovScript home', () => {
+  const identity = resolveDesktopIdentity({
+    LOCALAPPDATA: 'C:\\Users\\me\\AppData\\Local',
+    APPDATA: 'C:\\Users\\me\\AppData\\Roaming',
+  }, {
+    platform: 'win32',
+    userHomeDir: 'C:\\Users\\me',
+  })
+
+  assert.equal(identity.edition, 'community')
+  assert.equal(identity.appName, 'Movscript')
+  assert.equal(identity.homeDir, 'C:\\Users\\me\\AppData\\Local\\Movscript\\Home')
+  assert.equal(identity.userDataDir, undefined)
+})
+
 test('enterprise desktop identity uses independent app and home paths', () => {
   const identity = resolveDesktopIdentity({ MOVSCRIPT_DESKTOP_EDITION: 'enterprise' })
 
@@ -20,6 +35,21 @@ test('enterprise desktop identity uses independent app and home paths', () => {
   assert.equal(identity.appName, 'MovScript Enterprise')
   assert.equal(identity.homeDir, join(homedir(), '.movscript-enterprise'))
   assert.match(identity.userDataDir ?? '', /MovScript Enterprise$/)
+})
+
+test('enterprise desktop identity separates Windows home and Electron profile paths', () => {
+  const identity = resolveDesktopIdentity({
+    MOVSCRIPT_DESKTOP_EDITION: 'enterprise',
+    LOCALAPPDATA: 'C:\\Users\\me\\AppData\\Local',
+    APPDATA: 'C:\\Users\\me\\AppData\\Roaming',
+  }, {
+    platform: 'win32',
+    userHomeDir: 'C:\\Users\\me',
+  })
+
+  assert.equal(identity.edition, 'enterprise')
+  assert.equal(identity.homeDir, 'C:\\Users\\me\\AppData\\Local\\MovScript Enterprise\\Home')
+  assert.equal(identity.userDataDir, 'C:\\Users\\me\\AppData\\Roaming\\MovScript Enterprise')
 })
 
 test('desktop identity honors explicit enterprise overrides', () => {

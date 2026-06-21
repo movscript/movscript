@@ -3,7 +3,7 @@ import {
   type MovScriptBackendSession,
   type MovScriptBackendSessionInput,
 } from '@movscript/core/backend/node'
-import { movScriptCliPathEnv, resolveMovScriptCliBinDir } from './movscriptCliPath'
+import { movScriptCliPathEnv, pathEnvKey, resolveMovScriptCliBinDir } from './movscriptCliPath'
 
 export type LocalTerminalEnvInput = {
   inheritedEnv?: NodeJS.ProcessEnv
@@ -12,23 +12,26 @@ export type LocalTerminalEnvInput = {
   userId?: string
   orgId?: string
   projectId?: string
+  platform?: NodeJS.Platform
   resolveBackendSession?: (input: MovScriptBackendSessionInput) => MovScriptBackendSession
   resolveCliBinDir?: typeof resolveMovScriptCliBinDir
 }
 
 export function localTerminalEnv(input: LocalTerminalEnvInput): NodeJS.ProcessEnv {
   const inheritedEnv = input.inheritedEnv ?? process.env
+  const platform = input.platform ?? process.platform
   const resolveBackend = input.resolveBackendSession ?? resolveMovScriptBackendSession
   const resolveCliBin = input.resolveCliBinDir ?? resolveMovScriptCliBinDir
   const session = resolveBackend({ workspaceDir: input.workspaceDir })
-  const cliBinDir = resolveCliBin({ workspaceDir: session.workspaceDir, env: inheritedEnv })
-  const env = movScriptCliPathEnv({ env: inheritedEnv, cliBinDir })
+  const cliBinDir = resolveCliBin({ workspaceDir: session.workspaceDir, env: inheritedEnv, platform })
+  const env = movScriptCliPathEnv({ env: inheritedEnv, cliBinDir, platform })
+  const terminalPathKey = pathEnvKey(env, platform)
 
   return {
     ...env,
     TERM: env.TERM || 'xterm-256color',
     COLORTERM: env.COLORTERM || 'truecolor',
-    PATH: env.PATH || defaultTerminalPath(),
+    [terminalPathKey]: env[terminalPathKey] || defaultTerminalPath(platform),
     MOVSCRIPT_WORKSPACE_DIR: session.workspaceDir,
     ...(input.projectDir ? { MOVSCRIPT_PROJECT_DIR: input.projectDir } : {}),
     ...(input.userId ? { MOVSCRIPT_USER_ID: input.userId } : {}),
@@ -40,8 +43,8 @@ export function localTerminalEnv(input: LocalTerminalEnvInput): NodeJS.ProcessEn
   }
 }
 
-function defaultTerminalPath(): string {
-  if (process.platform === 'win32') return [
+function defaultTerminalPath(platform: NodeJS.Platform = process.platform): string {
+  if (platform === 'win32') return [
     'C:\\Windows\\System32',
     'C:\\Windows',
     'C:\\Windows\\System32\\Wbem',

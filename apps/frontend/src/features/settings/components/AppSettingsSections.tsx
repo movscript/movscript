@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { CheckCircle2, Clapperboard, HardDrive, RefreshCw, Server, Settings } from 'lucide-react'
+import { CheckCircle2, Clapperboard, FolderOpen, HardDrive, RefreshCw, Server, Settings } from 'lucide-react'
 import { Textarea } from '@movscript/ui/primitives'
 import {
   AppSettingsActionButton,
@@ -28,6 +28,7 @@ import type {
 interface AppSettingsContentProps {
   apiBaseURL: string
   canOpenAdmin: boolean
+  chooseMovScriptHomeDir: () => void
   chooseLaunchMode: (mode: AppSettings['launchMode']) => void
   collectResourceBlobs: (dryRun: boolean) => void
   hasChanged: boolean
@@ -66,6 +67,7 @@ interface AppSettingsContentProps {
 export function AppSettingsContent({
   apiBaseURL,
   canOpenAdmin,
+  chooseMovScriptHomeDir,
   chooseLaunchMode,
   collectResourceBlobs,
   hasChanged,
@@ -157,11 +159,15 @@ export function AppSettingsContent({
 
         {workspaceSaved && (
           <AppSettingsFeedbackText tone="success" icon={<CheckCircle2 size={14} />}>
-            {t('appSettings.saved')}
+            {t('appSettings.movScriptWorkspaceSavedRestart')}
           </AppSettingsFeedbackText>
         )}
 
         <AppSettingsActionRow>
+          <AppSettingsActionButton type="button" variant="outline" onClick={chooseMovScriptHomeDir}>
+            <FolderOpen size={14} className="mr-2" />
+            {t('appSettings.movScriptWorkspaceChooseDirectory')}
+          </AppSettingsActionButton>
           <AppSettingsActionButton onClick={saveWorkspaceRoot} disabled={!movScriptHomeDirChanged}>
             {t('common.save')}
           </AppSettingsActionButton>

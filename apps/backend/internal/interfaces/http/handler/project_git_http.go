@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -88,27 +89,51 @@ func gitHTTPBackendCommand(ctx context.Context, gitBinary string) (string, []str
 	if gitBinary == "" {
 		gitBinary = "git"
 	}
-	if filepath.Base(gitBinary) == "git-http-backend" {
+	if isGitHTTPBackendBinary(filepath.Base(gitBinary)) {
 		return gitBinary, nil
 	}
 	if output, err := exec.CommandContext(ctx, gitBinary, "--exec-path").Output(); err == nil {
-		candidate := filepath.Join(strings.TrimSpace(string(output)), "git-http-backend")
-		if isExecutableFile(candidate) {
-			return candidate, nil
+		execPath := strings.TrimSpace(string(output))
+		for _, name := range gitHTTPBackendBinaryNames() {
+			candidate := filepath.Join(execPath, name)
+			if isExecutableFile(candidate) {
+				return candidate, nil
+			}
 		}
 	}
-	if candidate, err := exec.LookPath("git-http-backend"); err == nil {
-		return candidate, nil
+	for _, name := range gitHTTPBackendBinaryNames() {
+		if candidate, err := exec.LookPath(name); err == nil {
+			return candidate, nil
+		}
 	}
 	return gitBinary, []string{"http-backend"}
 }
 
 func isExecutableFile(path string) bool {
+	return isExecutableFileForGOOS(path, runtime.GOOS)
+}
+
+func isExecutableFileForGOOS(path string, goos string) bool {
 	info, err := os.Stat(path)
 	if err != nil || info.IsDir() {
 		return false
 	}
+	if goos == "windows" {
+		return true
+	}
 	return info.Mode().Perm()&0111 != 0
+}
+
+func gitHTTPBackendBinaryNames() []string {
+	if runtime.GOOS == "windows" {
+		return []string{"git-http-backend.exe", "git-http-backend"}
+	}
+	return []string{"git-http-backend"}
+}
+
+func isGitHTTPBackendBinary(name string) bool {
+	name = strings.ToLower(strings.TrimSpace(name))
+	return name == "git-http-backend" || name == "git-http-backend.exe"
 }
 
 func gitProxyLocalPathInfo(target projectrepoapp.GitProxyTarget, gitPath string) (string, error) {

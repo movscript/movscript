@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict'
+import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import test from 'node:test'
 
 import {
+  ensureAppServerRuntimePackageInstalled,
+  parseAppServerExecutableCommand,
   resolveAppServerCommand,
   type AppServerCommandResolverInput,
 } from './appServerRuntimeCommand'
@@ -34,6 +39,30 @@ test('app-server command resolver parses runtime executable commands', () => {
     command: 'codex-app-server',
     args: ['--flag', 'two words', 'single quoted', 'escaped space'],
     resolvedFrom: 'codex-app-server --flag "two words" \'single quoted\' escaped\\ space',
+  })
+})
+
+test('app-server command parser preserves Windows executable paths', () => {
+  const command = parseAppServerExecutableCommand('"C:\\Program Files\\Movscript\\codex-app-server.exe" --listen stdio://', 'win32')
+
+  assert.deepEqual(command, {
+    command: 'C:\\Program Files\\Movscript\\codex-app-server.exe',
+    args: ['--listen', 'stdio://'],
+    resolvedFrom: '"C:\\Program Files\\Movscript\\codex-app-server.exe" --listen stdio://',
+  })
+})
+
+test('app-server command resolver accepts Windows command syntax without path validation', () => {
+  const command = resolveAppServerCommand(input({
+    executableCommand: 'codex-app-server.exe --stdio',
+  }), {
+    platform: 'win32',
+  })
+
+  assert.deepEqual(command, {
+    command: 'codex-app-server.exe',
+    args: ['--stdio'],
+    resolvedFrom: 'codex-app-server.exe --stdio',
   })
 })
 
@@ -83,11 +112,66 @@ test('app-server command resolver falls back to backend default environment vari
   }
 })
 
+test('app-server runtime package installer writes into SDK runtime store when missing', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'movscript-app-server-runtime-'))
+  const targetTriple = process.platform === 'darwin' && process.arch === 'arm64'
+    ? 'aarch64-apple-darwin'
+    : process.platform === 'darwin' && process.arch === 'x64'
+      ? 'x86_64-apple-darwin'
+      : process.platform === 'linux' && process.arch === 'arm64'
+        ? 'aarch64-unknown-linux-musl'
+        : process.platform === 'linux' && process.arch === 'x64'
+          ? 'x86_64-unknown-linux-musl'
+          : process.platform === 'win32' && process.arch === 'arm64'
+            ? 'aarch64-pc-windows-msvc'
+            : process.platform === 'win32' && process.arch === 'x64'
+              ? 'x86_64-pc-windows-msvc'
+              : undefined
+  if (!targetTriple) return
+  const platformPackageName = process.platform === 'darwin' && process.arch === 'arm64'
+    ? '@movscript/mova-app-server-darwin-arm64'
+    : process.platform === 'darwin' && process.arch === 'x64'
+      ? '@movscript/mova-app-server-darwin-x64'
+      : process.platform === 'linux' && process.arch === 'arm64'
+        ? '@movscript/mova-app-server-linux-arm64'
+        : process.platform === 'linux' && process.arch === 'x64'
+          ? '@movscript/mova-app-server-linux-x64'
+          : process.platform === 'win32' && process.arch === 'arm64'
+            ? '@movscript/mova-app-server-win32-arm64'
+            : '@movscript/mova-app-server-win32-x64'
+  const binaryPath = join(root, 'node_modules', ...platformPackageName.split('/'), 'vendor', targetTriple, 'bin', process.platform === 'win32' ? 'codex-app-server.exe' : 'codex-app-server')
+
+  const result = await ensureAppServerRuntimePackageInstalled(input({
+    binaryPackageName: '@movscript/mova-app-server',
+  }), {
+    env: {
+      MOVSCRIPT_SDK_RUNTIME_DIR: root,
+    },
+    spawn: ((_command, _args) => {
+      mkdirSync(join(binaryPath, '..'), { recursive: true })
+      writeFileSync(binaryPath, '')
+      chmodSync(binaryPath, 0o755)
+      return {
+        status: 0,
+        signal: null,
+        output: [],
+        stdout: '',
+        stderr: '',
+        pid: 0,
+      }
+    }) as never,
+  })
+
+  assert.equal(result?.ok, true)
+  assert.equal(result?.packageName, '@movscript/mova-app-server')
+})
+
 function input(overrides: {
   api?: AppServerCommandResolverInput['api']
   kind?: AppServerCommandResolverInput['kind']
   executableCommand?: string
   executableEnvVar?: string
+  binaryPackageName?: string
 } = {}): AppServerCommandResolverInput {
   const api = overrides.api ?? 'codex-app-server'
   const kind = overrides.kind ?? 'codex'
@@ -104,6 +188,7 @@ function input(overrides: {
       label: `${kind} App Server`,
       ...(overrides.executableCommand ? { executableCommand: overrides.executableCommand } : {}),
       ...(overrides.executableEnvVar ? { executableEnvVar: overrides.executableEnvVar } : {}),
+      ...(overrides.binaryPackageName ? { binaryPackageName: overrides.binaryPackageName } : {}),
     } as never,
   }
 }

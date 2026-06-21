@@ -20,6 +20,10 @@ files:
 extraResources:
   - from: ../../assets/logo.png
     to: logo.png
+  - from: ../../assets/trayTemplate.png
+    to: trayTemplate.png
+  - from: ../../assets/trayTemplate@2x.png
+    to: trayTemplate@2x.png
   - from: ../backend/bin
     to: backend
     filter:
@@ -67,6 +71,7 @@ linux:
   category: Utility
 
 win:
+  icon: build/icon.ico
   target:
     - nsis
     - portable

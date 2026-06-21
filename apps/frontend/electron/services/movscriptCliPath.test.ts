@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { delimiter, join, resolve } from 'node:path'
+import { delimiter, join, resolve, win32 as pathWin32 } from 'node:path'
 import test from 'node:test'
 import {
   ensureWorkspaceMovScriptCliBin,
@@ -17,6 +17,16 @@ test('resolveMovScriptCliBinDir prefers explicit override', () => {
     env: { MOVSCRIPT_CLI_BIN_DIR: binDir },
     exists: (path) => path === resolve(binDir, 'movcli'),
   }), binDir)
+})
+
+test('resolveMovScriptCliBinDir uses movcli.cmd for Windows overrides', () => {
+  const binDir = 'C:\\tools\\movcli\\bin'
+  const resolvedBinDir = pathWin32.resolve(binDir)
+  assert.equal(resolveMovScriptCliBinDir({
+    env: { MOVSCRIPT_CLI_BIN_DIR: binDir },
+    platform: 'win32',
+    exists: (path) => path === pathWin32.join(resolvedBinDir, 'movcli.cmd'),
+  }), resolvedBinDir)
 })
 
 test('resolveMovScriptCliBinDir uses packaged resources when available', () => {
@@ -87,6 +97,32 @@ test('ensureWorkspaceMovScriptCliBin writes a workspace shim that points at pack
   }
 })
 
+test('ensureWorkspaceMovScriptCliBin writes a Windows cmd shim', () => {
+  const root = mkdtempSync(join(tmpdir(), 'movscript-cli-path-win-'))
+  try {
+    const workspaceDir = join(root, 'workspace')
+    const packageDir = join(root, 'resources', 'movcli')
+    const sourceBinDir = join(packageDir, 'bin')
+    mkdirSync(sourceBinDir, { recursive: true })
+    mkdirSync(join(packageDir, 'dist'), { recursive: true })
+    writeFileSync(join(sourceBinDir, 'movcli'), '#!/bin/sh\nexec node "$0.mjs" "$@"\n')
+    writeFileSync(join(packageDir, 'dist/index.cjs'), 'module.exports = {}\n')
+
+    const binDir = ensureWorkspaceMovScriptCliBin({
+      workspaceDir,
+      resourcesPath: join(root, 'resources'),
+      platform: 'win32',
+    })
+
+    assert.equal(binDir, join(workspaceDir, 'bin'))
+    assert.equal(existsSync(join(binDir!, 'movcli.cmd')), true)
+    assert.equal(existsSync(join(binDir!, 'movcli.mjs')), true)
+    assert.match(readFileSync(join(binDir!, 'movcli.cmd'), 'utf8'), /MOVSCRIPT_ELECTRON_BIN/)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
 test('movScriptCliPathEnv prepends movcli bin to PATH', () => {
   const binDir = resolve('/repo/movscript/apps/cli/bin')
   const original = [resolve('/usr/bin'), binDir, resolve('/bin')].join(delimiter)
@@ -98,6 +134,19 @@ test('movScriptCliPathEnv prepends movcli bin to PATH', () => {
 
   assert.equal(env.MOVSCRIPT_CLI_BIN_DIR, binDir)
   assert.equal(env.PATH, [binDir, resolve('/usr/bin'), resolve('/bin')].join(delimiter))
+})
+
+test('movScriptCliPathEnv preserves Windows Path casing and delimiter', () => {
+  const binDir = 'C:\\Users\\me\\AppData\\Local\\Movscript\\Home\\bin'
+  const env = movScriptCliPathEnv({
+    cliBinDir: binDir,
+    env: { Path: 'C:\\Windows;C:\\Tools' },
+    platform: 'win32',
+  })
+
+  assert.equal(env.MOVSCRIPT_CLI_BIN_DIR, binDir)
+  assert.equal(env.Path, `${binDir};C:\\Windows;C:\\Tools`)
+  assert.equal(env.PATH, undefined)
 })
 
 test('movScriptCliRuntimeEnv uses node bin outside Electron', () => {
@@ -117,4 +166,11 @@ test('movScriptCliRuntimeEnv uses Electron bin in Electron development runtime',
 test('prependPath returns a single normalized leading entry', () => {
   const binDir = resolve('/repo/movscript/apps/cli/bin')
   assert.equal(prependPath(binDir, `${binDir}${delimiter}/usr/bin`), `${binDir}${delimiter}/usr/bin`)
+})
+
+test('prependPath uses Windows delimiter and duplicate handling', () => {
+  assert.equal(
+    prependPath('C:\\repo\\bin', 'C:\\Windows;C:\\repo\\bin', 'win32'),
+    'C:\\repo\\bin;C:\\Windows',
+  )
 })

@@ -129,6 +129,36 @@
         "copy-admin-assets",
         "verifyDesktopPackage requiredPaths"
       ]
+    },
+    {
+      "id": "tray-icon",
+      "category": "static-asset",
+      "from": "../../assets/trayTemplate.png",
+      "to": "trayTemplate.png",
+      "source": "repository",
+      "required": true,
+      "owner": "desktop-release",
+      "license": "Apache-2.0",
+      "updatePolicy": "bundled-with-app",
+      "platforms": ["darwin"],
+      "verification": [
+        "electron-builder extraResources parity"
+      ]
+    },
+    {
+      "id": "tray-icon-retina",
+      "category": "static-asset",
+      "from": "../../assets/trayTemplate@2x.png",
+      "to": "trayTemplate@2x.png",
+      "source": "repository",
+      "required": true,
+      "owner": "desktop-release",
+      "license": "Apache-2.0",
+      "updatePolicy": "bundled-with-app",
+      "platforms": ["darwin"],
+      "verification": [
+        "electron-builder extraResources parity"
+      ]
     }
   ],
   "forbiddenPackagePaths": [

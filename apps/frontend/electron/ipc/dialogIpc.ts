@@ -6,6 +6,13 @@ export function registerDialogIpcHandlers(): void {
     return canceled ? null : filePaths[0]
   })
 
+  ipcMain.handle('dialog:openDirectory', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      properties: ['openDirectory', 'createDirectory'],
+    })
+    return canceled ? null : filePaths[0]
+  })
+
   ipcMain.handle('dialog:saveFile', async (_e, defaultPath?: string) => {
     const { canceled, filePath } = await dialog.showSaveDialog({ defaultPath })
     return canceled ? null : filePath

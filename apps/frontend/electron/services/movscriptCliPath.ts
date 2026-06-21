@@ -1,7 +1,6 @@
 import { chmodSync, copyFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { delimiter } from 'node:path'
-import { dirname, join, resolve } from 'node:path'
+import { delimiter, dirname, join, resolve, win32 as pathWin32 } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { resolveMovScriptWorkspaceRootPaths } from '@movscript/core/workspace/node'
 
@@ -14,6 +13,7 @@ export type MovScriptCliPathInput = {
   workspaceDir?: string
   resourcesPath?: string
   isPackaged?: boolean
+  platform?: NodeJS.Platform
   env?: NodeJS.ProcessEnv
   exists?: (path: string) => boolean
 }
@@ -21,37 +21,40 @@ export type MovScriptCliPathInput = {
 export function resolveMovScriptCliBinDir(input: MovScriptCliPathInput = {}): string | undefined {
   const env = input.env ?? process.env
   const exists = input.exists ?? existsSync
+  const platform = input.platform ?? process.platform
   const override = env.MOVSCRIPT_CLI_BIN_DIR?.trim()
-  if (override && movcliBinExists(resolve(override), exists)) return resolve(override)
+  const overrideDir = override ? resolveForPlatform(override, platform) : undefined
+  if (overrideDir && movcliBinExists(overrideDir, exists, platform)) return overrideDir
 
   const workspace = resolveWorkspaceMovScriptCliBinDir(input)
-  if (workspace && movcliBinExists(workspace, exists)) return workspace
+  if (workspace && movcliBinExists(workspace, exists, platform)) return workspace
 
   const packaged = resolvePackagedMovScriptCliBinDir(input)
   if (packaged && movcliBuiltPackageExists(dirname(packaged), exists)) return packaged
 
   const repo = resolveMovScriptRepoRoot(input)
-  const dev = resolve(repo, 'apps/cli/bin')
+  const dev = resolveForPlatform(joinForPlatform(platform, repo, 'apps/cli/bin'), platform)
   return movcliBuiltPackageExists(dirname(dev), exists) ? dev : undefined
 }
 
 export function ensureWorkspaceMovScriptCliBin(input: MovScriptCliPathInput = {}): string | undefined {
+  const platform = input.platform ?? process.platform
   const workspace = resolveWorkspaceMovScriptCliBinDir(input)
   if (!workspace) return undefined
 
-  const source = workspaceMovScriptCliSourceCandidates(input).find((candidate) => movcliBinExists(candidate, existsSync))
+  const source = workspaceMovScriptCliSourceCandidates(input).find((candidate) => movcliSourceBinExists(candidate, existsSync))
   if (!source) {
-    return movcliBinExists(workspace, input.exists ?? existsSync) ? workspace : undefined
+    return movcliBinExists(workspace, input.exists ?? existsSync, platform) ? workspace : undefined
   }
 
   const packageDir = dirname(source)
   const distEntry = resolve(packageDir, 'dist/index.cjs')
   if (!existsSync(distEntry)) {
-    return movcliBinExists(workspace, input.exists ?? existsSync) ? workspace : undefined
+    return movcliBinExists(workspace, input.exists ?? existsSync, platform) ? workspace : undefined
   }
 
   mkdirSync(workspace, { recursive: true })
-  writeWorkspaceMovcliShim(workspace, packageDir)
+  writeWorkspaceMovcliShim(workspace, packageDir, platform)
   return workspace
 }
 
@@ -64,15 +67,16 @@ export function movScriptCliPathEnv(input: {
 }): NodeJS.ProcessEnv {
   const env = input.env ?? process.env
   const cliBinDir = input.cliBinDir
+  const platform = input.platform ?? process.platform
   const runtimeEnv = movScriptCliRuntimeEnv(input)
   if (!cliBinDir) return { ...env, ...runtimeEnv }
-  const pathKey = pathEnvKey(env, input.platform ?? process.platform)
+  const pathKey = pathEnvKey(env, platform)
   const currentPath = env[pathKey] ?? ''
   return {
     ...env,
     ...runtimeEnv,
     MOVSCRIPT_CLI_BIN_DIR: cliBinDir,
-    [pathKey]: prependPath(cliBinDir, currentPath),
+    [pathKey]: prependPath(cliBinDir, currentPath, platform),
   }
 }
 
@@ -89,14 +93,19 @@ export function movScriptCliRuntimeEnv(input: {
     : { MOVSCRIPT_NODE_BIN: executablePath }
 }
 
-export function prependPath(dir: string, currentPath: string): string {
-  const entries = currentPath.split(delimiter).filter(Boolean)
-  const normalized = resolve(dir)
-  const withoutDuplicate = entries.filter((entry) => resolve(entry) !== normalized)
-  return [normalized, ...withoutDuplicate].join(delimiter)
+export function prependPath(
+  dir: string,
+  currentPath: string,
+  platform: NodeJS.Platform = process.platform,
+): string {
+  const pathDelimiter = platform === 'win32' ? ';' : delimiter
+  const entries = currentPath.split(pathDelimiter).filter(Boolean)
+  const normalized = resolveForPlatform(dir, platform)
+  const withoutDuplicate = entries.filter((entry) => resolveForPlatform(entry, platform) !== normalized)
+  return [normalized, ...withoutDuplicate].join(pathDelimiter)
 }
 
-function pathEnvKey(env: NodeJS.ProcessEnv, platform: NodeJS.Platform): string {
+export function pathEnvKey(env: NodeJS.ProcessEnv, platform: NodeJS.Platform): string {
   if (platform !== 'win32') return 'PATH'
   return Object.keys(env).find((key) => key.toLowerCase() === 'path') ?? 'Path'
 }
@@ -109,7 +118,7 @@ function resolveMovScriptRepoRoot(input: MovScriptCliPathInput): string {
     resolve(currentDir, '../../..'),
     resolve(dirname(currentDir), '../../..'),
   ]
-  return candidates.find((candidate) => movcliBinExists(join(candidate, 'apps/cli/bin'), input.exists ?? existsSync))
+  return candidates.find((candidate) => movcliSourceBinExists(join(candidate, 'apps/cli/bin'), input.exists ?? existsSync))
     ?? candidates[0]!
 }
 
@@ -129,12 +138,20 @@ function resolvePackagedMovScriptCliBinDir(input: MovScriptCliPathInput): string
   return resolve(process.resourcesPath, 'movcli/bin')
 }
 
-function movcliBinExists(binDir: string, exists: (path: string) => boolean): boolean {
+function movcliCommandName(platform: NodeJS.Platform): string {
+  return platform === 'win32' ? 'movcli.cmd' : 'movcli'
+}
+
+function movcliBinExists(binDir: string, exists: (path: string) => boolean, platform: NodeJS.Platform): boolean {
+  return exists(joinForPlatform(platform, binDir, movcliCommandName(platform)))
+}
+
+function movcliSourceBinExists(binDir: string, exists: (path: string) => boolean): boolean {
   return exists(join(binDir, 'movcli'))
 }
 
 function movcliBuiltPackageExists(packageDir: string, exists: (path: string) => boolean): boolean {
-  return movcliBinExists(join(packageDir, 'bin'), exists) && exists(join(packageDir, 'dist/index.cjs'))
+  return movcliSourceBinExists(join(packageDir, 'bin'), exists) && exists(join(packageDir, 'dist/index.cjs'))
 }
 
 function workspaceMovScriptCliSourceCandidates(input: MovScriptCliPathInput): string[] {
@@ -144,12 +161,16 @@ function workspaceMovScriptCliSourceCandidates(input: MovScriptCliPathInput): st
   ].filter((candidate): candidate is string => typeof candidate === 'string')
 }
 
-function writeWorkspaceMovcliShim(binDir: string, packageDir: string): void {
+function writeWorkspaceMovcliShim(binDir: string, packageDir: string, platform: NodeJS.Platform): void {
   const sourceBinDir = join(packageDir, 'bin')
-  copyFileSync(join(sourceBinDir, 'movcli'), join(binDir, 'movcli'))
   writeFileSync(join(binDir, 'movcli.mjs'), workspaceMovcliEntry(packageDir), 'utf8')
-  if (process.platform !== 'win32') chmodSync(join(binDir, 'movcli'), 0o755)
-  if (process.platform !== 'win32') chmodSync(join(binDir, 'movcli.mjs'), 0o755)
+  if (platform === 'win32') {
+    writeFileSync(join(binDir, 'movcli.cmd'), workspaceMovcliCmd(), 'utf8')
+    return
+  }
+  copyFileSync(join(sourceBinDir, 'movcli'), join(binDir, 'movcli'))
+  chmodSync(join(binDir, 'movcli'), 0o755)
+  chmodSync(join(binDir, 'movcli.mjs'), 0o755)
 }
 
 function workspaceMovcliEntry(packageDir: string): string {
@@ -168,6 +189,32 @@ if (!existsSync(builtEntry)) {
 
 await import(pathToFileURL(builtEntry).href)
 `
+}
+
+function workspaceMovcliCmd(): string {
+  return `@echo off
+setlocal
+set "ENTRY=%~dp0movcli.mjs"
+if defined MOVSCRIPT_NODE_BIN (
+  "%MOVSCRIPT_NODE_BIN%" "%ENTRY%" %*
+  exit /b %ERRORLEVEL%
+)
+if defined MOVSCRIPT_ELECTRON_BIN (
+  set "ELECTRON_RUN_AS_NODE=1"
+  "%MOVSCRIPT_ELECTRON_BIN%" "%ENTRY%" %*
+  exit /b %ERRORLEVEL%
+)
+node "%ENTRY%" %*
+exit /b %ERRORLEVEL%
+`
+}
+
+function resolveForPlatform(path: string, platform: NodeJS.Platform): string {
+  return platform === 'win32' ? pathWin32.resolve(path) : resolve(path)
+}
+
+function joinForPlatform(platform: NodeJS.Platform, ...parts: string[]): string {
+  return platform === 'win32' ? pathWin32.join(...parts) : join(...parts)
 }
 
 function isElectronPackaged(): boolean {

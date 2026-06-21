@@ -17,6 +17,12 @@ export function resolveAppIconPath(): string {
   return join(process.cwd(), '../../assets/logo.png')
 }
 
+export function resolveTrayIconPath(): string {
+  const packagedIcon = join(process.resourcesPath || '', 'trayTemplate.png')
+  if (app.isPackaged && existsSync(packagedIcon)) return packagedIcon
+  return join(process.cwd(), '../../assets/trayTemplate.png')
+}
+
 export function resolveRendererHTMLPath(): string {
   return join(currentDir, '../renderer/index.html')
 }

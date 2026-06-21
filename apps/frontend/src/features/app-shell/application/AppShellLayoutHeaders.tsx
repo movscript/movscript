@@ -47,6 +47,7 @@ interface AppShellLayoutHeadersInput {
   agentContentPane: RouteLayoutPaneController
   projectAgentPane: RouteLayoutPaneController
   navigateProjectHome: () => void
+  onShowProjectAgentPane: () => void
   onExitSettings: () => void
   onToggleTerminal: () => void
 }
@@ -89,6 +90,7 @@ export function createAppShellLayoutHeaders({
   agentContentPane,
   projectAgentPane,
   navigateProjectHome,
+  onShowProjectAgentPane,
   onExitSettings,
   onToggleTerminal,
 }: AppShellLayoutHeadersInput): AppShellLayoutHeaders {
@@ -126,7 +128,7 @@ export function createAppShellLayoutHeaders({
   const projectAgentPanelHeaderControl = (
     <AppShellProjectAgentToggle
       closed={projectAgentPanelClosed}
-      onShow={projectAgentPane.show}
+      onShow={onShowProjectAgentPane}
       onCollapse={projectAgentPane.collapse}
     />
   )

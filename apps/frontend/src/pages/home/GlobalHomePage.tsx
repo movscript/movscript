@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 
 import { useAppShellDialogStore } from '@/features/app-shell/application/appShellDialogStore'
+import { useAgentAvailabilityGuard } from '@/features/agent/application/useAgentAvailabilityGuard'
 import { projectKeys } from '@/features/project/application/projectQueries'
 import { routeForWorkMode } from '@/routes/appRouteModel'
 import { ROUTES } from '@/routes/projectRoutes'
@@ -24,6 +25,7 @@ export default function GlobalHomePage() {
   const setCurrentProject = useProjectStore((s) => s.setCurrent)
   const lastWorkspace = useLastWorkspaceStore((s) => s.last)
   const openProjectDialog = useAppShellDialogStore((s) => s.openProjectDialog)
+  const agentAvailability = useAgentAvailabilityGuard()
   const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
 
   const projectsQuery = useQuery<Project[]>({
@@ -48,8 +50,10 @@ export default function GlobalHomePage() {
   }, [lastProject?.ID, projects])
 
   function enterAgentMode() {
-    setWorkMode('agent')
-    void openAgentWindow()
+    agentAvailability.runOrPrompt(() => {
+      setWorkMode('agent')
+      void openAgentWindow()
+    })
   }
 
   function enterProject(project: Project) {
@@ -74,6 +78,7 @@ export default function GlobalHomePage() {
   }
 
   return (
+    <>
     <main className="mx-auto flex h-full w-full max-w-[760px] flex-col gap-4 overflow-y-auto px-5 py-5">
       <header className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
@@ -200,6 +205,8 @@ export default function GlobalHomePage() {
         />
       </section>
     </main>
+    {agentAvailability.dialog}
+    </>
   )
 }
 

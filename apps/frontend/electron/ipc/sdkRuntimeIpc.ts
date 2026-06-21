@@ -11,7 +11,9 @@ import {
   installedSdkRuntimePackageVersion,
   resolveSdkRuntimePackageStorePaths,
 } from '../services/sdkRuntimePackageStore'
+import { ensureDefaultAppServerRuntimePackageInstalled } from '../services/appServerRuntimeCommand'
 import type {
+  ElectronAppServerRuntimeInstallResult,
   ElectronSdkRuntimeNotifyInput,
   ElectronSdkRuntimePackageCancelInput,
   ElectronSdkRuntimePackageCancelResult,
@@ -25,6 +27,7 @@ const SDK_RUNTIME_IPC_CHANNELS = {
   request: 'sdk-runtime:request',
   packageStatus: 'sdk-runtime:package-status',
   packageInstallCancel: 'sdk-runtime:package-install-cancel',
+  appServerPackageInstall: 'sdk-runtime:app-server-package-install',
   notify: 'sdk-runtime:notify',
   response: 'sdk-runtime:server-request-response',
   notification: 'sdk-runtime:notification',
@@ -78,6 +81,19 @@ export function registerSdkRuntimeIpcHandlers(): void {
         packageName,
         ...(packageVersion ? { packageVersion } : {}),
       }),
+    }
+  })
+
+  ipcMain.handle(SDK_RUNTIME_IPC_CHANNELS.appServerPackageInstall, async (): Promise<ElectronAppServerRuntimeInstallResult> => {
+    const result = await ensureDefaultAppServerRuntimePackageInstalled()
+    const paths = resolveSdkRuntimePackageStorePaths()
+    return {
+      packageName: result?.packageName ?? '@movscript/mova-app-server',
+      ...(result?.packageVersion ? { packageVersion: result.packageVersion } : {}),
+      installed: true,
+      root: paths.root,
+      ...(result?.command ? { command: result.command } : {}),
+      ...(result?.args ? { args: result.args } : {}),
     }
   })
 

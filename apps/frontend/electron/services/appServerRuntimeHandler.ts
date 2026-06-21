@@ -40,7 +40,7 @@ import {
   ensureAppServerBundledPluginInstalled,
 } from './appServerBundledPluginInstaller'
 import {
-  appServerContext,
+  appServerContextWithInstall,
   type AppServerRuntimeContext,
   type AppServerRuntimeHandlerOptions,
 } from './appServerRuntimeContext'
@@ -85,7 +85,7 @@ function createAppServerRuntimeHandler(
     if (input.method === 'runtime/notify/threadSubscribe' || input.method === 'runtime/notify/serverRequestsSubscribe') {
       return undefined as ElectronAgentRuntimeRequestResult<M>
     }
-    const context = appServerContext(api, input.params, options)
+    const context = await appServerContextWithInstall(api, input.params, options)
     const connection = await appServerConnection(context)
     return handleAppServerRuntimeRequest(input, connection, context) as Promise<ElectronAgentRuntimeRequestResult<M>>
   }

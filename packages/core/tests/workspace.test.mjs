@@ -17,6 +17,7 @@ import {
   ensureMovScriptWorkspaceRoot,
   ensureMovScriptHomeConfig,
   movScriptRuntimeBinaryName,
+  movScriptRuntimeCliName,
   movScriptRuntimePreflight,
   readMovScriptHomeConfig,
   readMovScriptWorkspaceRootManifest,
@@ -144,6 +145,7 @@ test('core workspace runtime paths resolve desktop binaries under .movscript/bin
   assert.equal(paths.movcliPath, '/tmp/movscript-root/bin/movcli')
   assert.equal(paths.movcliShimPath, '/tmp/movscript-root/bin/movcli.mjs')
   assert.equal(movScriptRuntimeBinaryName('movscript-server', 'win32'), 'movscript-server.exe')
+  assert.equal(movScriptRuntimeCliName('win32'), 'movcli.cmd')
 })
 
 test('core workspace runtime preflight reports missing fatal dependencies', () => {

@@ -40,6 +40,18 @@ Current release target:
 
 Download the latest desktop package from [GitHub Releases](https://github.com/movscript/movscript/releases/latest).
 
+Or install from the command line:
+
+```bash
+curl -fsSL https://movscript.com/install.sh | sh
+```
+
+Until the custom domain is configured, use the GitHub-hosted script:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/movscript/movscript/main/install.sh | sh
+```
+
 All release notes, known issues, checksums, and previous versions are listed on the [Movscript releases page](https://github.com/movscript/movscript/releases).
 
 Intel Mac, Windows, and Linux desktop packages are not published yet. They will be added in later releases.

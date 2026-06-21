@@ -32,6 +32,7 @@ import {
   clampAgentModeContentPanelWidth,
   clampAgentModeSidebarWidth,
 } from '@/features/agent/presentation/agentModePanelSizing'
+import { useAgentAvailabilityGuard } from '@/features/agent/application/useAgentAvailabilityGuard'
 import { routeForWorkMode, getAppRouteLayoutSpec, type AppRouteSurface } from '@/routes/appRouteModel'
 import { ROUTES } from '@/routes/projectRoutes'
 import {
@@ -101,6 +102,8 @@ export function ShellLayout({ children, requireOrg = true }: { children: React.R
     clampSize: clampAgentModeContentPanelWidth,
     fallbackState: 'collapsed',
   })
+  const agentAvailability = useAgentAvailabilityGuard()
+  const { runOrPrompt: runOrPromptAgentAvailability } = agentAvailability
   const agentModeContentPanelOpen = !agentContentPane.collapsed && !agentContentPane.hidden
   const projectAgentPanelClosed = projectAgentPane.collapsed || projectAgentPane.hidden
   const agentSidebarVisible = agentChrome && !agentSidebarPane.hidden
@@ -148,6 +151,9 @@ export function ShellLayout({ children, requireOrg = true }: { children: React.R
   const hideSettingsSidebar = React.useCallback(() => {
     settingsSidebarPane.hide()
   }, [settingsSidebarPane])
+  const showProjectAgentPane = React.useCallback(() => {
+    runOrPromptAgentAvailability(projectAgentPane.show)
+  }, [projectAgentPane.show, runOrPromptAgentAvailability])
   const appShellHeaders = createAppShellLayoutHeaders({
     pathname,
     routeLayout,
@@ -173,6 +179,7 @@ export function ShellLayout({ children, requireOrg = true }: { children: React.R
     agentContentPane,
     projectAgentPane,
     navigateProjectHome,
+    onShowProjectAgentPane: showProjectAgentPane,
     onExitSettings: () => navigate(settingsExitPath ?? routeForWorkMode(workMode, !!currentProject), { replace: true }),
     onToggleTerminal: terminalOpen ? terminalPane.hide : terminalPane.show,
   })
@@ -291,6 +298,7 @@ export function ShellLayout({ children, requireOrg = true }: { children: React.R
           </AppRouteViewport>
         </WorkspaceShell>
       )}
+      {agentAvailability.dialog}
     </>
   )
 

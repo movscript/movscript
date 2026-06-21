@@ -1,5 +1,5 @@
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { join, win32 as pathWin32 } from 'node:path'
 import * as electron from 'electron'
 import { fallbackUserMovScriptHomeDir } from '@movscript/core/workspace/node'
 
@@ -12,15 +12,27 @@ export interface MovScriptDesktopIdentity {
   userDataDir?: string
 }
 
-export function resolveDesktopIdentity(env: NodeJS.ProcessEnv = process.env): MovScriptDesktopIdentity {
+export interface ResolveDesktopIdentityOptions {
+  platform?: NodeJS.Platform
+  userHomeDir?: string
+  appDataDir?: string
+}
+
+export function resolveDesktopIdentity(
+  env: NodeJS.ProcessEnv = process.env,
+  options: ResolveDesktopIdentityOptions = {},
+): MovScriptDesktopIdentity {
+  const platform = options.platform ?? process.platform
+  const userHomeDir = options.userHomeDir ?? homedir()
+  const appDataDir = options.appDataDir ?? getElectronAppDataDir(env, platform, userHomeDir)
   const edition = normalizeDesktopEdition(env.MOVSCRIPT_DESKTOP_EDITION || env.MOVSCRIPT_APP_EDITION)
   const appName = env.MOVSCRIPT_DESKTOP_APP_NAME?.trim() || (edition === 'enterprise' ? 'MovScript Enterprise' : 'Movscript')
   const homeDir = env.MOVSCRIPT_DESKTOP_HOME?.trim()
     || env.MOVSCRIPT_HOME?.trim()
     || env.MOVSCRIPT_WORKSPACE_DIR?.trim()
-    || fallbackDesktopMovScriptHomeDir(edition)
+    || fallbackDesktopMovScriptHomeDir(edition, env, platform, userHomeDir)
   const userDataDir = env.MOVSCRIPT_DESKTOP_USER_DATA_DIR?.trim()
-    || (edition === 'enterprise' ? join(getElectronAppDataDir(), 'MovScript Enterprise') : undefined)
+    || (edition === 'enterprise' ? joinForPlatform(platform, appDataDir, 'MovScript Enterprise') : undefined)
 
   return {
     edition,
@@ -42,8 +54,17 @@ function normalizeDesktopEdition(value: string | undefined): MovScriptDesktopEdi
   return value?.trim().toLowerCase() === 'enterprise' ? 'enterprise' : 'community'
 }
 
-function fallbackDesktopMovScriptHomeDir(edition: MovScriptDesktopEdition): string {
-  return edition === 'enterprise' ? join(homedir(), '.movscript-enterprise') : fallbackUserMovScriptHomeDir()
+function fallbackDesktopMovScriptHomeDir(
+  edition: MovScriptDesktopEdition,
+  env: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform,
+  userHomeDir: string,
+): string {
+  if (platform === 'win32') {
+    const appName = edition === 'enterprise' ? 'MovScript Enterprise' : 'Movscript'
+    return pathWin32.join(getWindowsLocalAppDataDir(env, userHomeDir), appName, 'Home')
+  }
+  return edition === 'enterprise' ? join(userHomeDir, '.movscript-enterprise') : fallbackUserMovScriptHomeDir()
 }
 
 function getElectronApp(): Electron.App | undefined {
@@ -51,10 +72,18 @@ function getElectronApp(): Electron.App | undefined {
   return candidate && typeof candidate.getPath === 'function' ? candidate : undefined
 }
 
-function getElectronAppDataDir(): string {
+function getElectronAppDataDir(env: NodeJS.ProcessEnv, platform: NodeJS.Platform, userHomeDir: string): string {
   const app = getElectronApp()
   if (app) return app.getPath('appData')
-  if (process.platform === 'darwin') return join(homedir(), 'Library', 'Application Support')
-  if (process.platform === 'win32') return process.env.APPDATA?.trim() || join(homedir(), 'AppData', 'Roaming')
-  return process.env.XDG_CONFIG_HOME?.trim() || join(homedir(), '.config')
+  if (platform === 'darwin') return join(userHomeDir, 'Library', 'Application Support')
+  if (platform === 'win32') return env.APPDATA?.trim() || pathWin32.join(userHomeDir, 'AppData', 'Roaming')
+  return env.XDG_CONFIG_HOME?.trim() || join(userHomeDir, '.config')
+}
+
+function getWindowsLocalAppDataDir(env: NodeJS.ProcessEnv, userHomeDir: string): string {
+  return env.LOCALAPPDATA?.trim() || pathWin32.join(userHomeDir, 'AppData', 'Local')
+}
+
+function joinForPlatform(platform: NodeJS.Platform, ...parts: string[]): string {
+  return platform === 'win32' ? pathWin32.join(...parts) : join(...parts)
 }

@@ -45,5 +45,5 @@ export async function bootstrapManagedServicesBeforeWindow(): Promise<void> {
   }
   await bootstrapBackendServices(policy)
   await ensureMCPServerReady()
-  console.info(`[bootstrap] agent policy=${homeConfig.startup.agentPolicy}; SDK runtimes initialize on demand`)
+  console.info(`[bootstrap] agent policy=${homeConfig.startup.agentPolicy}; agent runtimes initialize on demand`)
 }

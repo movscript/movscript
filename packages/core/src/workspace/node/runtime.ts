@@ -1,9 +1,10 @@
 import { accessSync, constants, existsSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, win32 as pathWin32 } from 'node:path'
 import { resolveMovScriptWorkspaceRootPaths } from './paths.js'
 
 export const MOVSCRIPT_SERVER_BINARY_BASENAME = 'movscript-server'
 export const MOVSCRIPT_CLI_BINARY_BASENAME = 'movcli'
+export const MOVSCRIPT_CLI_COMMAND_BASENAME = 'movcli.cmd'
 export const MOVSCRIPT_CLI_SHIM_BASENAME = 'movcli.mjs'
 
 export type MovScriptRuntimeDependencySeverity = 'fatal' | 'warning' | 'optional'
@@ -53,20 +54,25 @@ export function movScriptRuntimeBinaryName(baseName: string, platform: NodeJS.Pl
   return platform === 'win32' ? `${baseName}.exe` : baseName
 }
 
+export function movScriptRuntimeCliName(platform: NodeJS.Platform = process.platform): string {
+  return platform === 'win32' ? MOVSCRIPT_CLI_COMMAND_BASENAME : MOVSCRIPT_CLI_BINARY_BASENAME
+}
+
 export function resolveMovScriptWorkspaceRuntimePaths(input: {
   workspaceDir?: string
   platform?: NodeJS.Platform
 } = {}): MovScriptWorkspaceRuntimePaths {
   const root = resolveMovScriptWorkspaceRootPaths(input.workspaceDir)
   const platform = input.platform ?? process.platform
+  const joinPath = platform === 'win32' ? pathWin32.join : join
   return {
     workspaceDir: root.workspaceDir,
     controlDir: root.controlDir,
     configTomlPath: root.configTomlPath,
     binDir: root.binDir,
-    movscriptServerPath: join(root.binDir, movScriptRuntimeBinaryName(MOVSCRIPT_SERVER_BINARY_BASENAME, platform)),
-    movcliPath: join(root.binDir, movScriptRuntimeBinaryName(MOVSCRIPT_CLI_BINARY_BASENAME, platform)),
-    movcliShimPath: join(root.binDir, MOVSCRIPT_CLI_SHIM_BASENAME),
+    movscriptServerPath: joinPath(root.binDir, movScriptRuntimeBinaryName(MOVSCRIPT_SERVER_BINARY_BASENAME, platform)),
+    movcliPath: joinPath(root.binDir, movScriptRuntimeCliName(platform)),
+    movcliShimPath: joinPath(root.binDir, MOVSCRIPT_CLI_SHIM_BASENAME),
   }
 }
 

@@ -18,16 +18,17 @@ import { codexOptionsFromAccount } from './agentRuntimeConfigInjector'
 import type { AppServerConnectionContext } from './appServerRuntimeConnection'
 import {
   resolveAppServerCommand,
+  resolveAppServerCommandWithInstall,
   type AppServerCommand,
   type AppServerCommandResolverInput,
+  type AppServerCommandResolverOptions,
   type AppServerKind,
   type AppServerRuntimeApi,
 } from './appServerRuntimeCommand'
 import { resolveDesktopDefaultMovScriptWorkspaceDir } from './movscriptWorkspaceDefaults'
 
-export interface AppServerRuntimeHandlerOptions {
+export interface AppServerRuntimeHandlerOptions extends AppServerCommandResolverOptions {
   defaultWorkspaceDir?: () => string
-  appServerCommandResolver?: (input: AppServerCommandResolverInput) => AppServerCommand | undefined
 }
 
 export interface AppServerRuntimeContext extends AppServerConnectionContext {
@@ -51,7 +52,7 @@ export function appServerContext(
   const env = appServerEnv(codexOptions, homeEnv)
   const config = appServerConfig(codexOptions)
   const command = resolveAppServerCommand({ api, kind, provider: params.provider, runtime: params.runtime }, options)
-  return {
+  return appServerContextFromResolvedCommand({
     api,
     kind,
     provider: params.provider,
@@ -60,8 +61,65 @@ export function appServerContext(
     contract,
     account,
     env,
-    ...(config ? { config } : {}),
+    config,
     command,
+  })
+}
+
+export async function appServerContextWithInstall(
+  api: AppServerRuntimeApi,
+  params: AgentRuntimeRpcRequestMap[AgentRuntimeRpcMethod],
+  options: AppServerRuntimeHandlerOptions,
+): Promise<AppServerRuntimeContext> {
+  const contract = requiredAppServerRuntimeContract(api)
+  const kind = appServerKindForApi(api)
+  const workspaceDir = resolveAppServerRuntimeWorkspaceDir(options)
+  const account = resolveAppServerRuntimeAccountConfig(params, workspaceDir)
+  const homeEnv = resolveAgentRuntimeHomeEnv(params, workspaceDir)
+  const codexOptions = codexOptionsFromAccount(account, homeEnv, { disableBackendWebsockets: true })
+  const env = appServerEnv(codexOptions, homeEnv)
+  const config = appServerConfig(codexOptions)
+  const command = await resolveAppServerCommandWithInstall({ api, kind, provider: params.provider, runtime: params.runtime }, {
+    ...options,
+    baseDir: options.baseDir ?? workspaceDir,
+  })
+  return appServerContextFromResolvedCommand({
+    api,
+    kind,
+    provider: params.provider,
+    runtime: params.runtime,
+    workspaceDir,
+    contract,
+    account,
+    env,
+    config,
+    command,
+  })
+}
+
+function appServerContextFromResolvedCommand(input: {
+  api: AppServerRuntimeApi
+  kind: AppServerKind
+  provider: ProviderConfig
+  runtime: ProviderRuntimeProfile
+  workspaceDir: string
+  contract: RuntimeBackendContract
+  account: AgentRuntimeAccountConfig
+  env: NodeJS.ProcessEnv
+  config: Record<string, unknown> | undefined
+  command: AppServerCommand
+}): AppServerRuntimeContext {
+  return {
+    api: input.api,
+    kind: input.kind,
+    provider: input.provider,
+    runtime: input.runtime,
+    workspaceDir: input.workspaceDir,
+    contract: input.contract,
+    account: input.account,
+    env: input.env,
+    ...(input.config ? { config: input.config } : {}),
+    command: input.command,
   }
 }
 

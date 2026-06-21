@@ -1,10 +1,19 @@
 import { accessSync, constants } from 'node:fs'
 import { createRequire } from 'node:module'
-import { dirname, resolve } from 'node:path'
+import { dirname, isAbsolute as pathIsAbsolute, join, resolve, win32 as pathWin32 } from 'node:path'
 import type {
   ProviderConfig,
   ProviderRuntimeProfile,
 } from '../../src/shared/infrastructure/providerConfigStore'
+import {
+  ensureSdkRuntimePackageInstalled,
+  installSdkRuntimePackageOnce,
+  resolveSdkRuntimePackageStorePaths,
+  seedSdkRuntimePackageStore,
+  type SdkRuntimePackageInstallOptions,
+  type SdkRuntimePackageInstallResult,
+  type SdkRuntimePackageStoreOptions,
+} from './sdkRuntimePackageStore'
 
 export type AppServerRuntimeApi = 'codex-app-server' | 'mova-app-server'
 export type AppServerKind = 'codex' | 'mova'
@@ -22,8 +31,11 @@ export interface AppServerCommandResolverInput {
   runtime: ProviderRuntimeProfile
 }
 
-export interface AppServerCommandResolverOptions {
+export interface AppServerCommandResolverOptions extends SdkRuntimePackageStoreOptions {
   appServerCommandResolver?: (input: AppServerCommandResolverInput) => AppServerCommand | undefined
+  packageManager?: string
+  platform?: NodeJS.Platform
+  spawn?: SdkRuntimePackageInstallOptions['spawn']
 }
 
 const require = createRequire(import.meta.url)
@@ -43,21 +55,86 @@ export function resolveAppServerCommand(
   input: AppServerCommandResolverInput,
   options: AppServerCommandResolverOptions = {},
 ): AppServerCommand {
+  const platform = options.platform ?? process.platform
   const override = options.appServerCommandResolver?.(input)
   if (override) return override
-  const configured = input.runtime.executableCommand?.trim()
-    ?? (input.runtime.executableEnvVar ? process.env[input.runtime.executableEnvVar]?.trim() : undefined)
-    ?? process.env[defaultExecutableEnvVar(input.kind)]?.trim()
-  if (configured) return assertCommand(splitCommand(configured), configured)
+  const configured = configuredAppServerCommand(input)
+  if (configured) return assertCommand(parseAppServerExecutableCommand(configured, platform), configured, platform)
   for (const candidate of appServerBinaryCandidates(input)) {
-    try {
-      accessSync(candidate, constants.X_OK)
-      return { command: candidate, resolvedFrom: candidate }
-    } catch {
-      // Keep looking; probe will report the complete failure below.
-    }
+    const command = executableCommand(candidate)
+    if (command) return command
   }
   throw new Error(`${input.api} app-server binary was not found. Set ${defaultExecutableEnvVar(input.kind)} or runtime.executableCommand.`)
+}
+
+export async function resolveAppServerCommandWithInstall(
+  input: AppServerCommandResolverInput,
+  options: AppServerCommandResolverOptions = {},
+): Promise<AppServerCommand> {
+  const platform = options.platform ?? process.platform
+  const override = options.appServerCommandResolver?.(input)
+  if (override) return override
+  const configured = configuredAppServerCommand(input)
+  if (configured) return assertCommand(parseAppServerExecutableCommand(configured, platform), configured, platform)
+
+  for (const candidate of appServerBinaryCandidates(input)) {
+    const command = executableCommand(candidate)
+    if (command) return command
+  }
+
+  await ensureAppServerRuntimePackageInstalled(input, options)
+  for (const candidate of appServerRuntimeStoreBinaryCandidates(input, options)) {
+    const command = executableCommand(candidate)
+    if (command) return command
+  }
+  return resolveAppServerCommand(input, options)
+}
+
+export async function ensureDefaultAppServerRuntimePackageInstalled(
+  options: AppServerCommandResolverOptions = {},
+): Promise<SdkRuntimePackageInstallResult | undefined> {
+  return ensureAppServerRuntimePackageInstalled({
+    api: 'codex-app-server',
+    kind: 'codex',
+    provider: {
+      id: 'codex',
+      kind: 'codex',
+    } as ProviderConfig,
+    runtime: {
+      id: 'codex-codex-app-server',
+      api: 'codex-app-server',
+      label: 'Codex app-server',
+      binaryPackageName: MOVA_APP_SERVER_PACKAGE,
+    } as ProviderRuntimeProfile,
+  }, options)
+}
+
+export async function ensureAppServerRuntimePackageInstalled(
+  input: AppServerCommandResolverInput,
+  options: AppServerCommandResolverOptions = {},
+): Promise<SdkRuntimePackageInstallResult | undefined> {
+  for (const candidate of appServerRuntimeStoreBinaryCandidates(input, options)) {
+    if (executableCommand(candidate)) return undefined
+  }
+  seedSdkRuntimePackageStore(options)
+  for (const candidate of appServerRuntimeStoreBinaryCandidates(input, options)) {
+    if (executableCommand(candidate)) return undefined
+  }
+
+  const packageName = appServerRuntimeInstallPackageName(input)
+  const installOptions: SdkRuntimePackageInstallOptions = {
+    baseDir: options.baseDir,
+    env: options.env,
+    packageManager: options.packageManager,
+    spawn: options.spawn,
+    packageName,
+    packageVersion: input.runtime.packageVersion,
+  }
+  const result = input.runtime.packageVersion
+    ? await ensureSdkRuntimePackageInstalled(installOptions)
+    : await installSdkRuntimePackageOnce(installOptions)
+  if (result && !result.ok) throw new Error(result.error || `Failed to install app-server runtime package ${packageName}.`)
+  return result
 }
 
 function appServerBinaryCandidates(input: {
@@ -91,6 +168,26 @@ function npmAppServerBinaryCandidates(input: {
     .flatMap((packageName) => npmPackageVendorBinaryCandidates(packageName, targetTriple, executableName))
 }
 
+function appServerRuntimeStoreBinaryCandidates(
+  input: {
+    kind: AppServerKind
+    runtime: ProviderRuntimeProfile
+  },
+  options: SdkRuntimePackageStoreOptions,
+): string[] {
+  const targetTriple = currentTargetTriple()
+  if (!targetTriple) return []
+  const paths = resolveSdkRuntimePackageStorePaths(options)
+  const executableName = appServerExecutableName()
+  return npmAppServerPackageNames(input)
+    .flatMap((packageName) => npmPlatformPackageNames(packageName, targetTriple))
+    .flatMap((packageName) => appServerPackageVendorBinaryCandidates(
+      nodeModulePackageDir(paths.nodeModulesDir, packageName),
+      targetTriple,
+      executableName,
+    ))
+}
+
 function npmAppServerPackageNames(input: {
   kind: AppServerKind
   runtime: ProviderRuntimeProfile
@@ -118,6 +215,15 @@ function npmPackageVendorBinaryCandidates(
 ): string[] {
   const packageDir = npmPackageDir(packageName)
   if (!packageDir) return []
+  return appServerPackageVendorBinaryCandidates(packageDir, targetTriple, executableName)
+}
+
+function appServerPackageVendorBinaryCandidates(
+  packageDir: string | undefined,
+  targetTriple: string,
+  executableName: string,
+): string[] {
+  if (!packageDir) return []
   return asarExecutablePathCandidates(resolve(packageDir, 'vendor', targetTriple, 'bin', executableName))
 }
 
@@ -127,6 +233,13 @@ function npmPackageDir(packageName: string): string | undefined {
   } catch {
     return undefined
   }
+}
+
+function nodeModulePackageDir(nodeModulesDir: string, packageName: string): string {
+  const parts = packageName.split('/')
+  return packageName.startsWith('@') && parts.length >= 2
+    ? join(nodeModulesDir, parts[0], parts[1])
+    : join(nodeModulesDir, packageName)
 }
 
 function asarExecutablePathCandidates(path: string): string[] {
@@ -158,16 +271,47 @@ function uniqueStrings(values: string[]): string[] {
   return [...new Set(values)]
 }
 
-function assertCommand(command: AppServerCommand, source: string): AppServerCommand {
-  if (command.command.includes('/')) accessSync(command.command, constants.X_OK)
+function assertCommand(command: AppServerCommand, source: string, platform: NodeJS.Platform): AppServerCommand {
+  if (commandLooksLikePath(command.command, platform)) accessSync(command.command, constants.X_OK)
   return {
     ...command,
     resolvedFrom: command.resolvedFrom ?? source,
   }
 }
 
-function splitCommand(value: string): AppServerCommand {
-  const parts = shellWords(value)
+function commandLooksLikePath(command: string, platform: NodeJS.Platform): boolean {
+  if (command.includes('/') || command.includes('\\')) return true
+  if (pathIsAbsolute(command)) return true
+  return platform === 'win32' && pathWin32.isAbsolute(command)
+}
+
+function executableCommand(candidate: string): AppServerCommand | undefined {
+  try {
+    accessSync(candidate, constants.X_OK)
+    return { command: candidate, resolvedFrom: candidate }
+  } catch {
+    return undefined
+  }
+}
+
+function configuredAppServerCommand(input: AppServerCommandResolverInput): string | undefined {
+  return input.runtime.executableCommand?.trim()
+    ?? (input.runtime.executableEnvVar ? process.env[input.runtime.executableEnvVar]?.trim() : undefined)
+    ?? process.env[defaultExecutableEnvVar(input.kind)]?.trim()
+}
+
+function appServerRuntimeInstallPackageName(input: AppServerCommandResolverInput): string {
+  return input.runtime.binaryPackageName?.trim()
+    || (input.runtime.api === 'codex-app-server' || input.runtime.api === 'mova-app-server' ? MOVA_APP_SERVER_PACKAGE : '')
+    || input.runtime.packageName?.trim()
+    || MOVA_APP_SERVER_PACKAGE
+}
+
+export function parseAppServerExecutableCommand(
+  value: string,
+  platform: NodeJS.Platform = process.platform,
+): AppServerCommand {
+  const parts = shellWords(value, platform)
   if (parts.length === 0) throw new Error('app-server executable command is empty.')
   return {
     command: parts[0],
@@ -176,18 +320,19 @@ function splitCommand(value: string): AppServerCommand {
   }
 }
 
-function shellWords(value: string): string[] {
+function shellWords(value: string, platform: NodeJS.Platform): string[] {
   const words: string[] = []
   let current = ''
   let quote: '"' | "'" | null = null
   let escaping = false
+  const backslashEscapes = platform !== 'win32'
   for (const char of value) {
     if (escaping) {
       current += char
       escaping = false
       continue
     }
-    if (char === '\\' && quote !== "'") {
+    if (backslashEscapes && char === '\\' && quote !== "'") {
       escaping = true
       continue
     }

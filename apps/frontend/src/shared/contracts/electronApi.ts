@@ -18,6 +18,7 @@ import type {
   ElectronSdkRuntimeRequestResult,
   ElectronSdkRuntimeServerRequestEvent,
   ElectronSdkRuntimeServerRequestResponseInput,
+  ElectronAppServerRuntimeInstallResult,
   ElectronAdminAuthSessionInput,
   ElectronAgentSessionStateResult,
   ElectronAgentSessionStateSaveInput,
@@ -144,6 +145,7 @@ export type * from './electronApiContractTypes'
 export type ElectronAPI = {
   platform?: NodeJS.Platform
   openFile?: () => Promise<string | null>
+  openDirectory?: () => Promise<string | null>
   saveFile?: (defaultPath?: string) => Promise<string | null>
   revealFileInFolder?: (input: { path: string }) => Promise<{ ok: true }>
   windowControl?: (action: ElectronWindowControlAction) => Promise<ElectronWindowState | undefined>
@@ -199,6 +201,7 @@ export type ElectronAPI = {
   sdkRuntimeRequest?: <T = ElectronSdkRuntimeRequestResult>(input: ElectronSdkRuntimeRequestInput) => Promise<T>
   sdkRuntimePackageStatus?: (input: ElectronSdkRuntimePackageStatusInput) => Promise<ElectronSdkRuntimePackageStatus>
   sdkRuntimeCancelPackageInstall?: (input: ElectronSdkRuntimePackageCancelInput) => Promise<ElectronSdkRuntimePackageCancelResult>
+  sdkRuntimeInstallAppServerPackage?: () => Promise<ElectronAppServerRuntimeInstallResult>
   sdkRuntimeNotify?: (input: ElectronSdkRuntimeNotifyInput) => Promise<void>
   sdkRuntimeRespondToServerRequest?: (input: ElectronSdkRuntimeServerRequestResponseInput) => Promise<void>
   onSdkRuntimeNotification?: (handler: (event: ElectronSdkRuntimeNotificationEvent) => void) => () => void

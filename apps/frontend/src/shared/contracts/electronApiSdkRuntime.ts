@@ -67,6 +67,15 @@ export interface ElectronSdkRuntimePackageCancelResult {
   cancelled: boolean
 }
 
+export interface ElectronAppServerRuntimeInstallResult {
+  packageName: string
+  packageVersion?: string
+  installed: boolean
+  root: string
+  command?: string
+  args?: string[]
+}
+
 export type ElectronSdkRuntimeRequestInput<M extends AgentRuntimeRpcMethod = AgentRuntimeRpcMethod> = ElectronAgentRuntimeRequestInput<M>
 export type ElectronSdkRuntimeNotifyInput<M extends AgentRuntimeRpcMethod = AgentRuntimeRpcMethod> = ElectronAgentRuntimeNotifyInput<M>
 export type ElectronSdkRuntimeRequestResult<M extends AgentRuntimeRpcMethod = AgentRuntimeRpcMethod> = ElectronAgentRuntimeRequestResult<M>

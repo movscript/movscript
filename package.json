@@ -53,6 +53,7 @@
       "tests/scripts/release/collect-artifacts.test.mjs",
       "tests/scripts/release/desktop-package-verification.test.mjs",
       "tests/scripts/release/download-ffmpeg-static.test.mjs",
+      "tests/scripts/release/install-script.test.mjs",
       "tests/scripts/release/package-desktop-prepare.test.mjs",
       "tests/scripts/release/package-desktop.test.mjs",
       "tests/scripts/release/package-macos-local-dmg.test.mjs",

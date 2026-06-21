@@ -40,6 +40,18 @@ Movscript 的核心思路是先描述动态影像的意图、感觉、节奏和�
 
 最新桌面包可以在 [GitHub Releases](https://github.com/movscript/movscript/releases/latest) 下载。
 
+也可以使用命令行安装：
+
+```bash
+curl -fsSL https://movscript.com/install.sh | sh
+```
+
+在自定义域名配置完成前，可以先使用 GitHub 托管的脚本：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/movscript/movscript/main/install.sh | sh
+```
+
 每个版本的更新内容、已知问题、校验文件和历史版本会记录在 [Movscript releases 页面](https://github.com/movscript/movscript/releases)。
 
 Intel Mac、Windows 和 Linux 桌面包暂未发布，后续版本再补充。

@@ -19,6 +19,7 @@ import { openHomeWindow } from './services/appWindowRegistry'
 import { installAdminProtocol, registerAdminProtocolPrivileges } from './adminWindow'
 import { installMediaProtocol, registerMediaProtocolPrivileges } from './mediaProtocol'
 import { installAppUpdateScheduler, uninstallAppUpdateScheduler } from './services/appUpdate'
+import { installAppTray } from './services/appTray'
 import { installDockShortcutMenu } from './services/dockShortcutMenu'
 import { installDesktopIdentity } from './services/desktopIdentity'
 
@@ -39,6 +40,7 @@ installDesktopIdentity()
 
 app.whenReady().then(async () => {
   installApplicationMenu()
+  installAppTray()
   installDockShortcutMenu()
   installAdminProtocol()
   installMediaProtocol()
@@ -59,7 +61,6 @@ app.whenReady().then(async () => {
     return
   }
 
-  openHomeWindow()
   installAppUpdateScheduler()
   await flushPendingProviderActivationURLs()
 

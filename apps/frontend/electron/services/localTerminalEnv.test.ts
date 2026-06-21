@@ -70,3 +70,28 @@ test('localTerminalEnv preserves inherited terminal settings and env token when 
   assert.equal(env.COLORTERM, '24bit')
   assert.equal(env.PATH, '/custom/bin')
 })
+
+test('localTerminalEnv preserves Windows Path key and delimiter', () => {
+  const workspaceDir = 'C:\\Users\\me\\AppData\\Local\\Movscript\\Home'
+  const cliBinDir = 'C:\\Users\\me\\AppData\\Local\\Movscript\\Home\\bin'
+  const env = localTerminalEnv({
+    inheritedEnv: {
+      Path: 'C:\\Windows',
+    },
+    workspaceDir,
+    platform: 'win32',
+    resolveBackendSession: () => ({
+      workspaceDir,
+      baseURL: 'http://localhost:8765',
+      apiBaseURL: 'http://localhost:8765/api/v1',
+      tokenType: 'Bearer',
+      configPath: `${workspaceDir}\\backend\\config.json`,
+      authPath: `${workspaceDir}\\backend\\auth.json`,
+    }),
+    resolveCliBinDir: () => cliBinDir,
+  })
+
+  assert.equal(env.Path, `${cliBinDir};C:\\Windows`)
+  assert.equal(env.PATH, undefined)
+  assert.equal(env.MOVSCRIPT_WORKSPACE_DIR, workspaceDir)
+})

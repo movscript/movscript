@@ -21,6 +21,8 @@ test('package resource manifest matches electron-builder contract', () => {
     'movcli',
     'provider-plugin',
     'renderer-admin',
+    'tray-icon',
+    'tray-icon-retina',
   ])
 })
 
