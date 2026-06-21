@@ -5,7 +5,8 @@ REPO="${MOVSCRIPT_GITHUB_REPO:-movscript/movscript}"
 RELEASE="${MOVSCRIPT_RELEASE:-latest}"
 INSTALL_DIR="${MOVSCRIPT_INSTALL_DIR:-/Applications}"
 APP_NAME="${MOVSCRIPT_APP_NAME:-Movscript.app}"
-ASSET="${MOVSCRIPT_ASSET:-movscript-desktop-macos-arm64-Movscript.dmg}"
+ASSET="${MOVSCRIPT_ASSET:-}"
+ASSET_PREFIX="${MOVSCRIPT_ASSET_PREFIX:-movscript-desktop-macos-arm64-Movscript}"
 CHECKSUM_ASSET="${MOVSCRIPT_CHECKSUM_ASSET:-SHA256SUMS.txt}"
 VERIFY_CHECKSUM=1
 FORCE=0
@@ -23,7 +24,8 @@ Options:
   --release <tag|latest>     Release tag to install. Defaults to latest.
   --repo <owner/repo>        GitHub repository. Defaults to movscript/movscript.
   --install-dir <path>       App install directory. Defaults to /Applications.
-  --asset <filename>         Release asset filename.
+  --asset <filename>         Release asset filename. Defaults to auto-detect.
+  --asset-prefix <prefix>    Asset prefix used for auto-detect.
   --force                    Replace an existing Movscript.app.
   --open                     Open Movscript after installation.
   --no-verify                Skip SHA256SUMS.txt verification.
@@ -32,7 +34,8 @@ Options:
 
 Environment overrides:
   MOVSCRIPT_GITHUB_REPO, MOVSCRIPT_RELEASE, MOVSCRIPT_INSTALL_DIR,
-  MOVSCRIPT_APP_NAME, MOVSCRIPT_ASSET, MOVSCRIPT_CHECKSUM_ASSET.
+  MOVSCRIPT_APP_NAME, MOVSCRIPT_ASSET, MOVSCRIPT_ASSET_PREFIX,
+  MOVSCRIPT_CHECKSUM_ASSET.
 EOF
 }
 
@@ -88,6 +91,11 @@ while [ "$#" -gt 0 ]; do
       ASSET=$2
       shift 2
       ;;
+    --asset-prefix)
+      [ "$#" -ge 2 ] || fail "--asset-prefix requires a value"
+      ASSET_PREFIX=$2
+      shift 2
+      ;;
     --force)
       FORCE=1
       shift
@@ -122,10 +130,12 @@ case "$REPO" in
   *) fail "--repo must be in owner/repo form" ;;
 esac
 
-case "$ASSET" in
-  *.dmg) ;;
-  *) fail "this installer currently supports .dmg assets only: $ASSET" ;;
-esac
+if [ -n "$ASSET" ]; then
+  case "$ASSET" in
+    *.dmg) ;;
+    *) fail "this installer currently supports .dmg assets only: $ASSET" ;;
+  esac
+fi
 
 require_command curl
 require_command hdiutil
@@ -134,18 +144,25 @@ require_command awk
 require_command find
 require_command ditto
 
-ASSET_URL=$(url_for_asset "$ASSET")
 CHECKSUM_URL=$(url_for_asset "$CHECKSUM_ASSET")
 TARGET_APP="$INSTALL_DIR/$APP_NAME"
 
 log "repository: $REPO"
 log "release: $RELEASE"
-log "asset: $ASSET"
+if [ -n "$ASSET" ]; then
+  log "asset: $ASSET"
+else
+  log "asset: auto-detect ${ASSET_PREFIX}*.dmg"
+fi
 log "install target: $TARGET_APP"
 
 if [ "$DRY_RUN" -eq 1 ]; then
-  log "download URL: $ASSET_URL"
   log "checksum URL: $CHECKSUM_URL"
+  if [ -n "$ASSET" ]; then
+    log "download URL: $(url_for_asset "$ASSET")"
+  else
+    log "download URL: resolved from $CHECKSUM_ASSET"
+  fi
   log "dry run complete"
   exit 0
 fi
@@ -165,7 +182,6 @@ fi
 
 TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/movscript-install.XXXXXX")
 MOUNT_DIR="$TMP_DIR/mount"
-DMG_PATH="$TMP_DIR/$ASSET"
 SUMS_PATH="$TMP_DIR/$CHECKSUM_ASSET"
 MOUNTED=0
 
@@ -177,17 +193,42 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-log "downloading desktop package"
-curl -fL --retry 3 --connect-timeout 20 --output "$DMG_PATH" "$ASSET_URL"
-
-if [ "$VERIFY_CHECKSUM" -eq 1 ]; then
+if [ "$VERIFY_CHECKSUM" -eq 1 ] || [ -z "$ASSET" ]; then
   log "downloading checksums"
   curl -fL --retry 3 --connect-timeout 20 --output "$SUMS_PATH" "$CHECKSUM_URL"
+fi
+
+if [ -z "$ASSET" ]; then
+  ASSET=$(awk -v prefix="$ASSET_PREFIX" '
+    {
+      path = $2
+      count = split(path, parts, "/")
+      name = parts[count]
+      if (index(name, prefix) == 1 && name ~ /\.dmg$/) {
+        print name
+        exit
+      }
+    }
+  ' "$SUMS_PATH")
+  [ -n "$ASSET" ] || fail "could not find a ${ASSET_PREFIX}*.dmg entry in $CHECKSUM_ASSET"
+  log "resolved asset: $ASSET"
+fi
+
+ASSET_URL=$(url_for_asset "$ASSET")
+DMG_PATH="$TMP_DIR/$ASSET"
+
+if [ "$VERIFY_CHECKSUM" -eq 1 ]; then
   EXPECTED_SHA=$(awk -v asset="$ASSET" '
     $2 == asset { print $1; exit }
     $2 ~ "/" asset "$" { print $1; exit }
   ' "$SUMS_PATH")
   [ -n "$EXPECTED_SHA" ] || fail "checksum for $ASSET was not found in $CHECKSUM_ASSET"
+fi
+
+log "downloading desktop package"
+curl -fL --retry 3 --connect-timeout 20 --output "$DMG_PATH" "$ASSET_URL"
+
+if [ "$VERIFY_CHECKSUM" -eq 1 ]; then
   ACTUAL_SHA=$(shasum -a 256 "$DMG_PATH" | awk '{ print $1 }')
   [ "$EXPECTED_SHA" = "$ACTUAL_SHA" ] || fail "checksum mismatch for $ASSET"
   log "checksum verified"
