@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { AgentChatContentStack, AgentChatMessage, AgentMessageSection } from '@/shared/ui/AgentMessageUi'
 import type { AgentChatThreadItem } from '@movscript/core/agent/chat'
 import {
@@ -18,6 +19,7 @@ import {
   AgentChatSectionTitle,
   AgentChatTextBlock,
 } from '@/features/agent/components/agent-chat-items/AgentChatThreadItemBlocks'
+import { rememberMcpProjectToolRecent } from '@/features/agent/application/agentMcpProjectRecents'
 
 export function AgentChatCommandExecutionItem({ item }: { item: Extract<AgentChatThreadItem, { type: 'commandExecution' }> }) {
   const view = agentChatCommandExecutionView(item)
@@ -51,6 +53,10 @@ export function AgentChatCommandExecutionItem({ item }: { item: Extract<AgentCha
 }
 
 export function AgentChatToolCallItem({ item }: { item: Extract<AgentChatThreadItem, { type: 'mcpToolCall' | 'dynamicToolCall' }> }) {
+  useEffect(() => {
+    rememberMcpProjectToolRecent(item)
+  }, [item])
+
   const internalView = agentInternalToolDisplay(item)
   if (internalView) return <AgentChatInternalToolCallItem view={internalView} />
 

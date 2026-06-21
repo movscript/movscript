@@ -8,6 +8,7 @@ import {
   LOCAL_PROJECT_RECENTS_STORAGE_KEY,
   dismissRecentProject,
   mergeRecentProjects,
+  rememberTouchedLocalProject,
   useLocalProjectRecentsStore,
 } from './localProjectRecentsStore'
 
@@ -68,6 +69,23 @@ test('recent project merge prefers local path entries over backend duplicates', 
 
   assert.equal(merged.length, 1)
   assert.equal(merged[0]?.name, 'Local')
+})
+
+test('touched local projects are remembered as recent activity', () => {
+  useLocalProjectRecentsStore.setState({ projects: [], dismissedKeys: [] })
+
+  rememberTouchedLocalProject({
+    projectDir: '/tmp/movscript-mcp-project',
+    name: 'MCP Project',
+    projectUid: 'project_uid_1',
+  })
+
+  const project = useLocalProjectRecentsStore.getState().projects[0]
+  assert.equal(project?.name, 'MCP Project')
+  assert.equal(project?.project_uid, 'project_uid_1')
+  assert.equal(project?.workspace_path, '/tmp/movscript-mcp-project')
+  assert.equal(project?.local, true)
+  assert.ok((project?.ID ?? 0) < 0)
 })
 
 function projectFixture(patch: Partial<Project> = {}): Project {

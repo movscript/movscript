@@ -107,6 +107,30 @@ export function rememberLocalProject(project: Project): void {
   useLocalProjectRecentsStore.getState().remember(project)
 }
 
+export function rememberTouchedLocalProject(input: {
+  projectDir: string
+  name?: string
+  description?: string
+  projectUid?: string
+  updatedAt?: string
+}): void {
+  const projectDir = input.projectDir.trim()
+  if (!projectDir) return
+  const now = new Date().toISOString()
+  rememberLocalProject({
+    ID: -stablePositiveHash(projectDir),
+    name: input.name?.trim() || projectDir.split(/[\\/]/).filter(Boolean).pop() || 'Local Project',
+    description: input.description?.trim() || projectDir,
+    owner_id: 0,
+    ...(input.projectUid?.trim() ? { project_uid: input.projectUid.trim() } : {}),
+    workspace_path: projectDir,
+    project_path: projectDir,
+    local: true,
+    CreatedAt: input.updatedAt || now,
+    UpdatedAt: input.updatedAt || now,
+  })
+}
+
 export function removeLocalProjectRecent(projectDir: string): void {
   useLocalProjectRecentsStore.getState().remove(projectDir)
 }
@@ -163,4 +187,13 @@ function projectDirForProject(project: Project): string | undefined {
 function timestampForProject(project: Project): number {
   const timestamp = Date.parse(project.UpdatedAt || project.CreatedAt)
   return Number.isFinite(timestamp) ? timestamp : 0
+}
+
+function stablePositiveHash(value: string): number {
+  let hash = 2166136261
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return (hash >>> 0) || 1
 }
