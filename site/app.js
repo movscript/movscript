@@ -9,8 +9,13 @@ const releaseAssetLinks = Array.from(document.querySelectorAll("[data-release-as
 const releaseApiUrl = "https://api.github.com/repos/movscript/movscript/releases/latest";
 const releasesUrl = "https://github.com/movscript/movscript/releases/latest";
 const releaseAssetMatchers = {
-  macos: (name) => name.startsWith("movscript-desktop-macos-arm64-") && name.endsWith(".dmg"),
-  windows: (name) => name.startsWith("movscript-desktop-windows-x64-") && name.endsWith(".exe"),
+  macos: [
+    (name) => name.startsWith("movscript-desktop-macos-arm64-") && name.endsWith(".dmg"),
+  ],
+  windows: [
+    (name) => name.startsWith("movscript-desktop-windows-x64-") && name.includes("Setup") && name.endsWith(".exe"),
+    (name) => name.startsWith("movscript-desktop-windows-x64-") && name.endsWith(".exe"),
+  ],
 };
 
 function detectLanguage() {
@@ -111,9 +116,12 @@ function setReleaseStatus(key, values = {}) {
 }
 
 function findReleaseAsset(release, platform) {
-  const matcher = releaseAssetMatchers[platform];
-  if (!matcher) return null;
-  return release.assets?.find((asset) => matcher(asset.name)) ?? null;
+  const matchers = releaseAssetMatchers[platform] ?? [];
+  for (const matcher of matchers) {
+    const asset = release.assets?.find((candidate) => matcher(candidate.name));
+    if (asset) return asset;
+  }
+  return null;
 }
 
 function updateReleaseAssetLinks(release) {
