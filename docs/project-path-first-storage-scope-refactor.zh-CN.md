@@ -16,9 +16,10 @@
 
 - Project 首先是一个目录。
 - `movscript init` 可以在任意目录初始化项目。
-- 后端不拥有 Project 生命周期，也不需要感知某个 Project 存不存在。
-- 后端只提供 user/org scope 下的通用存储能力。
-- 需要同步到后端的候选、选择、缓存、资源索引、运行记录等，都只是 user/org scope 下某个 namespace/key 的数据。
+- 后端不拥有 Project 生命周期，也不负责创建/摆放项目目录。
+- 后端仍需要识别稳定的 project identity，用来组织候选、选择、生成任务、资源索引等结构化数据。
+- 后端的 Project identity 应来自项目 manifest 的 `project_uid` 和 user/org scope，而不是来自后端 Project 表主键。
+- Git 存储业务源数据；后端存储候选/选择等结构化运行与协作数据。
 
 这意味着当前过渡态还不够。`projectDir` 不能只是旧 `projectId` 模型旁边的一条分支；Project locator、后端 API、前端状态、Agent/MCP 契约都需要整体收敛到 path-first。
 
@@ -158,16 +159,10 @@ movscript init
 权限由 project membership 控制。目标模型应该是：
 
 ```text
-/api/v1/storage/scopes/:scopeKind/:scopeId/...
+/api/v1/project-data/decisions?scope_kind=org&scope_id=9&project_uid=...
 ```
 
-或者：
-
-```text
-/api/v1/scoped-storage/...
-```
-
-权限由 user/org scope 控制。Project 只作为 namespace/key 的一部分出现。
+权限由 user/org scope 控制。Project 以 manifest `project_uid` 的形式出现，用来组织候选结构化数据，但不要求后端 Project 表中先存在一条项目记录。
 
 ### 4. 桌面状态把 Project 当后端列表项
 
@@ -187,9 +182,9 @@ Codex 工作目录天然是 cwd。理想契约应该是“工具在 cwd 下工�
 
    项目的源文件、manifest、standards、scripts、content units、productions 都以项目目录为源头。
 
-2. **后端只提供 user/org scoped storage。**
+2. **后端提供 user/org scoped project data storage。**
 
-   后端关心的是谁在存、存在哪个 scope、key 是什么、value 是什么、ACL 是什么。不关心这个 key 是否代表一个项目。
+   后端关心的是谁在存、存在哪个 scope、属于哪个 `project_uid`、target 是什么、候选/选择是什么、ACL 是什么。后端不负责项目目录生命周期，但需要把候选数据按项目身份结构化组织。
 
 3. **`projectDir`/`cwd` 是运行时 locator。**
 
@@ -201,17 +196,68 @@ Codex 工作目录天然是 cwd。理想契约应该是“工具在 cwd 下工�
 
 5. **user/org 只决定远端存储 scope，不决定项目路径。**
 
-   登录状态不应该改变本地项目根目录。登录只影响是否可以读写远端 scoped storage。
+   登录状态不应该改变本地项目根目录。登录只影响是否可以读写远端 scoped project data。
 
 6. **本地优先，远端可选。**
 
-   没有登录时，决策、候选、选择等可落盘到项目目录。登录后可选择同步或使用远端 scoped storage。
+   没有登录时，决策、候选、选择等可落盘到项目目录。登录后可选择同步或使用远端 scoped project data。
 
 7. **兼容旧后端项目，但不扩大旧模型。**
 
    旧 `/projects/:id` 可以作为 migration compatibility，但新功能不应继续依赖后端 Project entity。
 
-## 目标数据模型
+## 存储边界与目标数据模型
+
+### 存储边界
+
+MovScript 项目数据应明确分为两类。
+
+### 业务源数据：Git 存储
+
+业务源数据是项目的可审查、可 diff、可分支、可合并内容，应该存在项目目录里，并由 Git 管理：
+
+- `workspace.json`
+- `project.json`
+- `project_standards.json`
+- `settings/**`
+- `scripts/**`
+- `content_units/**`
+- `productions/**`
+
+这些数据定义“要做什么”。它们不依赖登录用户，也不依赖后端 Project 表。`movscript init` 和普通文件编辑即可产生完整业务源。
+
+### 候选与运行数据：后端结构化存储
+
+候选数据不是普通业务源文件。它们需要结构化查询、选择状态、生成任务、资源关联、审计、权限、协作更新和可能的并发控制，应由后端识别并存储：
+
+- content unit candidates
+- selected candidate / decision context
+- generation jobs
+- resource indexes / artifact refs
+- candidate review metadata
+- usage/audit records
+
+因此后端不是完全“不感知项目”。更准确地说：
+
+- 后端不拥有项目目录，不负责 `project init/open`。
+- 后端需要识别 `project_uid`，并在 user/org scope 下管理该项目的候选数据。
+- 后端的 project identity 是 manifest identity，不是后端 Project 表主键。
+
+推荐后端候选数据主键维度：
+
+```text
+scope_kind + scope_id + project_uid + target_kind + target_ref
+```
+
+或等价 namespace：
+
+```text
+scope      = org/9
+project    = 01JZABC...
+target     = content_unit:content_units/cu_opening
+```
+
+这比纯 `namespace/key/value` 更利于结构化查询，也避免退化成无类型 KV。
 
 ### ProjectManifest
 
@@ -286,7 +332,7 @@ type ProjectOpenResult = {
 
 ### StorageScope
 
-后端通用存储的身份：
+后端 scoped project data 的访问身份：
 
 ```ts
 type StorageScope =
@@ -303,6 +349,7 @@ type StorageScope =
 ```ts
 type ScopedStorageKey = {
   scope: StorageScope
+  projectUid: string
   namespace: string
   key: string
 }
@@ -312,29 +359,33 @@ type ScopedStorageKey = {
 
 ```text
 scope      = org/9
-namespace  = movscript/projects/01JZABC...
+projectUid = 01JZABC...
+namespace  = decisions
 key        = decisions/content_units/cu_opening
 ```
 
-后端只需要验证当前用户是否能访问 `org/9`，不需要验证 `project 01JZABC` 是否存在。
+后端需要验证当前用户是否能访问 `org/9`，并把数据归属到 `projectUid = 01JZABC...`。它不需要先存在一条后端 Project 表记录，但需要能按 `projectUid` 查询和维护候选数据。
 
 ## 后端改造方案
 
-### 新增通用 scoped storage
+### 新增 scoped project data storage
 
 新增持久化模型，例如：
 
 ```go
-type ScopedStorageObject struct {
+type ScopedProjectDataObject struct {
   gorm.Model
-  ScopeKind string `gorm:"not null;size:16;uniqueIndex:uidx_scoped_storage"`
-  ScopeID   string `gorm:"not null;size:128;uniqueIndex:uidx_scoped_storage"`
-  Namespace string `gorm:"not null;size:256;uniqueIndex:uidx_scoped_storage"`
-  Key       string `gorm:"not null;size:512;uniqueIndex:uidx_scoped_storage"`
-  ValueJSON string `gorm:"type:text;not null"`
-  Version   string `gorm:"not null;size:128"`
-  CreatedBy *uint  `gorm:"index"`
-  UpdatedBy *uint  `gorm:"index"`
+  ScopeKind  string `gorm:"not null;size:16;uniqueIndex:uidx_scoped_project_data"`
+  ScopeID    string `gorm:"not null;size:128;uniqueIndex:uidx_scoped_project_data"`
+  ProjectUID string `gorm:"not null;size:128;uniqueIndex:uidx_scoped_project_data;index"`
+  DataKind   string `gorm:"not null;size:64;uniqueIndex:uidx_scoped_project_data;index"`
+  TargetKind string `gorm:"size:64;uniqueIndex:uidx_scoped_project_data;index"`
+  TargetRef  string `gorm:"size:512;uniqueIndex:uidx_scoped_project_data;index"`
+  Key        string `gorm:"size:512;uniqueIndex:uidx_scoped_project_data"`
+  ValueJSON  string `gorm:"type:text;not null"`
+  Version    string `gorm:"not null;size:128"`
+  CreatedBy  *uint  `gorm:"index"`
+  UpdatedBy  *uint  `gorm:"index"`
 }
 ```
 
@@ -352,10 +403,11 @@ type ScopedStorageObject struct {
 建议新增：
 
 ```text
-GET    /api/v1/storage/objects?scope_kind=user&scope_id=123&namespace=...&key=...
-PUT    /api/v1/storage/objects
-DELETE /api/v1/storage/objects?...
-POST   /api/v1/storage/query
+GET    /api/v1/project-data/decisions?scope_kind=org&scope_id=9&project_uid=01J...&target_kind=content_unit&target_ref=...
+POST   /api/v1/project-data/decisions/query
+PUT    /api/v1/project-data/decisions/candidates
+POST   /api/v1/project-data/decisions/candidates
+PUT    /api/v1/project-data/decisions/selection
 ```
 
 写入 body：
@@ -363,9 +415,10 @@ POST   /api/v1/storage/query
 ```json
 {
   "scope": { "kind": "org", "id": "9" },
-  "namespace": "movscript/projects/01J...",
-  "key": "decisions/content_units/cu_opening",
-  "value": { "schema": "movscript.decision_context.v1" },
+  "project_uid": "01J...",
+  "target_kind": "content_unit",
+  "target_ref": "content_units/cu_opening",
+  "candidate": { "id": "candidate_a" },
   "expected_version": "..."
 }
 ```
@@ -375,10 +428,11 @@ POST   /api/v1/storage/query
 ```json
 {
   "scope": { "kind": "org", "id": "9" },
-  "namespace": "movscript/projects/01J...",
-  "keys": [
-    "decisions/content_units/cu_opening",
-    "decisions/content_units/cu_closing"
+  "project_uid": "01J...",
+  "target_kind": "content_unit",
+  "target_refs": [
+    "content_units/cu_opening",
+    "content_units/cu_closing"
   ]
 }
 ```
@@ -397,12 +451,12 @@ POST   /api/v1/storage/query
 createMovScriptScopedStorageDecisionStore({
   baseUrl,
   scope,
-  namespace,
+  projectUid,
   token,
 })
 ```
 
-它实现现有 `MovScriptDecisionStore` 接口，但请求通用 storage：
+它实现现有 `MovScriptDecisionStore` 接口，但请求 scoped project data API：
 
 ```text
 key = decisions/content_units/<contentUnitId>
@@ -414,7 +468,7 @@ key = decisions/content_units/<contentUnitId>
 
 ```ts
 scope?: { kind: 'user' | 'org'; id: string }
-namespace?: string
+  project_uid?: string
 ```
 
 或者不写入 record，只由 transport 层定位。
@@ -652,7 +706,7 @@ type LegacyBackendProjectRef = ProjectRef & {
 
 1. 最近打开项目：来自 MovScript Home desktop state。
 2. 当前目录项目：如果 App 是从一个 projectDir 打开的。
-3. 可选远端索引：从 scoped storage 中的 `movscript/project-index` 查询。
+3. 可选远端索引：从 scoped project data 中的 `movscript/project-index` 查询。
 4. legacy 后端项目：作为迁移分组显示，可一键 materialize/open。
 
 最近项目索引存储在 MovScript Home：
@@ -767,7 +821,7 @@ handleGeneratedContentUnitDecision({
 })
 ```
 
-没有 storage 时写本地 file decision store；有 storage 时写 scoped storage decision store。
+没有 storage 时写本地 file decision store；有 storage 时写 scoped project data decision store。
 
 ## 迁移计划
 
@@ -790,10 +844,10 @@ handleGeneratedContentUnitDecision({
 - Engine 默认在无 storage 时使用本地 decision store。
 - `content unit candidate` 相关 domain 操作在无后端时也可完整读写。
 
-### Phase 3: Scoped storage backend
+### Phase 3: Scoped project data backend
 
 - 新增 `scoped_storage_objects` 表。
-- 新增 scoped storage API。
+- 新增 scoped project data API。
 - 实现 `createMovScriptScopedStorageDecisionStore`。
 - 后端权限从 project membership 改为 user/org scope。
 
@@ -825,7 +879,7 @@ movcli project migrate-backend --project-id 42 --target-dir ./my-film
 1. 读取 `/projects/42` metadata。
 2. clone 或导出旧 workspace。
 3. 写入 `workspace.json` v2。
-4. 把旧 decisions 复制到 scoped storage namespace 或本地 `.movscript/decisions`。
+4. 把旧 decisions 复制到 scoped project data 或本地 `.movscript/decisions`。
 5. 写入 recent projects。
 6. 保留 legacy id 映射：
 
@@ -877,15 +931,15 @@ movcli project migrate-backend --project-id 42 --target-dir ./my-film
 - `movscript_project_init({ cwd })` 在任意目录写入 manifest。
 - `domain_overview({ cwd })` 不需要 user/org/projectId。
 - `domain_create_content_candidate({ cwd })` 无 storage 时写本地 store。
-- 有 storage 时写 scoped storage。
+- 有 storage 时写 scoped project data。
 - 工具 schema 不再要求 `projectId`。
 
 ### Backend
 
-- scoped storage user scope 只能本人访问。
+- scoped project data user scope 只能本人访问。
 - org scope 只允许 org member 访问。
-- storage object optimistic concurrency 正常。
-- decision store 可通过 scoped storage 完成 get/query/upsert/select。
+- scoped project data optimistic concurrency 正常。
+- decision store 可通过 scoped project data 完成 get/query/upsert/select。
 - 不创建 Project row 也能存储决策。
 
 ### Desktop
@@ -926,11 +980,11 @@ movcli project fork-identity
 
 ### 资源 ID 仍是后端数字
 
-`RawResource ID` 当前仍是后端资源主键。完全本地化需要另一个资源身份方案，例如 `resource_uid` 或 `artifact_ref`。本次 Project 解耦可以先把资源作为 scoped storage/generation 的后续阶段，但文档上要避免把 `resource_id` 设计成 Project 依赖。
+`RawResource ID` 当前仍是后端资源主键。完全本地化需要另一个资源身份方案，例如 `resource_uid` 或 `artifact_ref`。本次 Project 解耦可以先把资源作为 scoped project data/generation 的后续阶段，但文档上要避免把 `resource_id` 设计成后端 Project 表依赖。
 
 ### 管理后台 Project 页面
 
-admin 的 Project 管理页面未来应转为 legacy/backend workspace 管理或 scoped storage namespace 管理。不要再把它作为新 Project 生命周期入口。
+admin 的 Project 管理页面未来应转为 legacy/backend workspace 管理或 scoped project data namespace 管理。不要再把它作为新 Project 生命周期入口。
 
 ## 推荐的最终接口
 
@@ -975,7 +1029,7 @@ POST /api/v1/generation/content-unit-candidates
 
 正确的方向不是把旧系统扩展成“backend project + local project”双模型，而是把 Project 从后端实体中拿出来，恢复成一个目录工作区。
 
-后端应成为 user/org scope 的通用存储和计算服务。Project 是否存在、在哪里、如何初始化，应该由本地文件系统和 `workspace.json` manifest 决定。
+后端应成为 user/org scope 下的结构化候选数据与计算服务。Project 是否存在、在哪里、如何初始化，应该由本地文件系统和 `workspace.json` manifest 决定；后端只按 manifest `project_uid` 识别候选数据归属。
 
 这样 MovScript 才能同时满足：
 

@@ -66,6 +66,46 @@ h1 {
   letter-spacing: 0;
 }
 
+.language-switch {
+  width: fit-content;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(104px, 1fr));
+  gap: 4px;
+  margin: 0 auto 25px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.language-tab {
+  height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.language-tab[aria-selected="true"] {
+  background: var(--paper);
+  color: var(--text);
+  box-shadow: 0 7px 16px rgba(21, 17, 15, 0.1);
+}
+
+.language-tab:focus-visible {
+  outline: 3px solid rgba(242, 85, 53, 0.28);
+  outline-offset: 2px;
+}
+
+.language-panel[hidden] {
+  display: none;
+}
+
 .tagline {
   margin: 15px auto 0;
   max-width: 650px;
@@ -75,28 +115,12 @@ h1 {
   letter-spacing: 0;
 }
 
-.tagline-zh {
-  margin-top: 9px;
-  font-size: clamp(18px, 3.5vw, 24px);
-}
-
 .support {
   margin: 18px auto 0;
   max-width: 625px;
   color: var(--muted);
   font-size: 17px;
   line-height: 1.58;
-}
-
-.support-zh {
-  margin-top: 8px;
-}
-
-.language {
-  margin: 25px 0 0;
-  color: var(--faint);
-  font-size: 15px;
-  line-height: 1.4;
 }
 
 .install {
@@ -142,7 +166,8 @@ h2 {
   box-shadow: 0 8px 18px rgba(21, 17, 15, 0.14);
 }
 
-.platform-tab:focus-visible {
+.platform-tab:focus-visible,
+.download-button:focus-visible {
   outline: 3px solid rgba(242, 85, 53, 0.28);
   outline-offset: 2px;
 }
@@ -249,6 +274,11 @@ code {
     width: 88px;
     height: 88px;
     margin-bottom: 15px;
+  }
+
+  .language-switch {
+    width: 100%;
+    margin-bottom: 22px;
   }
 
   .support {
