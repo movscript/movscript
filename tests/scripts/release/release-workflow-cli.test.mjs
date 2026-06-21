@@ -15,6 +15,7 @@ test('release workflow exposes the curated release subcommand surface', () => {
     'prepare-desktop-package',
     'smoke-desktop-package',
     'stage-ffmpeg',
+    'typecheck-desktop-bundle',
     'verify-desktop-package',
     'verify-package-resources',
     'verify-release-readiness',
@@ -246,7 +247,7 @@ test('runReleaseWorkflowCli dispatches desktop packaging through release command
     spawn: undefined,
   })
   assert.deepEqual(calls.map((call) => call.slice(0, 2)), [
-    ['pnpm', ['--filter', '@movscript/desktop', 'build']],
+    ['pnpm', ['--filter', '@movscript/desktop', 'exec', 'electron-vite', 'build', '--logLevel', 'info', '--clearScreen=false']],
     ['pnpm', ['--filter', '@movscript/desktop', 'exec', 'electron-builder', '--mac', 'dmg', '--arm64', '--publish', 'never', '-c.mac.identity=null', '-c.mac.notarize=false']],
   ])
 })
@@ -263,9 +264,18 @@ test('runReleaseWorkflowCli dispatches split desktop package stages', () => {
     preparePackage: (...args) => prepareCalls.push(args),
     root: '/repo',
   })
+  runReleaseWorkflowCli(['typecheck-desktop-bundle'], {
+    exit: () => undefined,
+    log: (message) => logs.push(message),
+    spawn: (command, args, options) => {
+      calls.push([command, args, options])
+      return { status: 0 }
+    },
+  })
   runReleaseWorkflowCli(['build-desktop-bundle'], {
     exit: () => undefined,
     log: (message) => logs.push(message),
+    env: { MOVSCRIPT_ELECTRON_VITE_DEBUG: '1' },
     spawn: (command, args, options) => {
       calls.push([command, args, options])
       return { status: 0 }
@@ -302,10 +312,11 @@ test('runReleaseWorkflowCli dispatches split desktop package stages', () => {
     signingMode: 'unsigned',
   })
   assert.deepEqual(calls.map((call) => call.slice(0, 2)), [
-    ['pnpm', ['--filter', '@movscript/desktop', 'build']],
+    ['pnpm', ['--filter', '@movscript/desktop', 'typecheck']],
+    ['pnpm', ['--filter', '@movscript/desktop', 'exec', 'electron-vite', 'build', '--logLevel', 'info', '--clearScreen=false', '--debug']],
     ['pnpm', ['--filter', '@movscript/desktop', 'exec', 'electron-builder', '--win', '--x64', '--publish', 'never']],
   ])
-  assert.deepEqual(calls[1][2].env, {
+  assert.deepEqual(calls[2][2].env, {
     PATH: '/bin',
     CSC_IDENTITY_AUTO_DISCOVERY: 'false',
     MOVSCRIPT_RELEASE_SIGNING_MODE: 'unsigned',
@@ -323,6 +334,7 @@ test('runReleaseWorkflowCli dispatches split desktop package stages', () => {
   })
   assert.deepEqual(logs, [
     '[package-desktop] Prepare desktop package prerequisites',
+    '[package-desktop] Typecheck frontend desktop bundle',
     '[package-desktop] Build frontend desktop bundle',
     '[package-desktop] Build frontend desktop artifact',
     '[package-desktop] Verify desktop package',

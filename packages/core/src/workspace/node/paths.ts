@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join, resolve, win32 as pathWin32 } from 'node:path'
 import { randomUUID } from 'node:crypto'
 export {
   MOVSCRIPT_DEFAULT_USER_WORKSPACE_DIR_NAME,
@@ -47,6 +47,12 @@ export interface MovScriptProjectWorkspacePaths {
   realmDir: string
   projectCwd: string
   projectDir: string
+}
+
+export interface MovScriptUserHomeDirOptions {
+  platform?: NodeJS.Platform
+  userHomeDir?: string
+  env?: NodeJS.ProcessEnv
 }
 
 export function resolveMovScriptWorkspaceRootPaths(workspaceDir = process.cwd()): MovScriptWorkspaceRootPaths {
@@ -239,8 +245,15 @@ export function resolveMovScriptWorkspaceRealmDir(
   return join(root.realmsDir, 'cloud', realm.id)
 }
 
-export function fallbackUserMovScriptHomeDir(): string {
-  return join(homedir(), MOVSCRIPT_WORKSPACE_DIR_NAME)
+export function fallbackUserMovScriptHomeDir(options: MovScriptUserHomeDirOptions = {}): string {
+  const platform = options.platform ?? process.platform
+  const userHomeDir = options.userHomeDir ?? homedir()
+  if (platform === 'win32') {
+    const env = options.env ?? process.env
+    const localAppData = env.LOCALAPPDATA?.trim() || pathWin32.join(userHomeDir, 'AppData', 'Local')
+    return pathWin32.join(localAppData, 'Movscript', 'Home')
+  }
+  return join(userHomeDir, MOVSCRIPT_WORKSPACE_DIR_NAME)
 }
 
 export function ensureMovScriptWorkspaceContext(paths: MovScriptWorkspaceContextPaths): MovScriptWorkspaceContextPaths {

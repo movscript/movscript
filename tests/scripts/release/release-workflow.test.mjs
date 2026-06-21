@@ -7,9 +7,11 @@ const releaseWorkflow = await readFile(resolve(import.meta.dirname, '../../../.g
 
 test('release workflow packages every desktop target through split parameterized commands', () => {
   assert.match(releaseWorkflow, /pnpm run release -- prepare-desktop-package --platform=\$\{\{\s*matrix\.package-platform\s*\}\} --arch=\$\{\{\s*matrix\.package-arch\s*\}\}/)
+  assert.match(releaseWorkflow, /pnpm run release -- typecheck-desktop-bundle --platform=\$\{\{\s*matrix\.package-platform\s*\}\} --arch=\$\{\{\s*matrix\.package-arch\s*\}\}/)
   assert.match(releaseWorkflow, /pnpm run release -- build-desktop-bundle --platform=\$\{\{\s*matrix\.package-platform\s*\}\} --arch=\$\{\{\s*matrix\.package-arch\s*\}\}/)
   assert.match(releaseWorkflow, /pnpm run release -- build-desktop-artifact --platform=\$\{\{\s*matrix\.package-platform\s*\}\} --arch=\$\{\{\s*matrix\.package-arch\s*\}\}/)
   assert.match(releaseWorkflow, /pnpm run release -- verify-desktop-package --platform=\$\{\{\s*matrix\.package-platform\s*\}\} --arch=\$\{\{\s*matrix\.package-arch\s*\}\}/)
+  assert.match(releaseWorkflow, /MOVSCRIPT_ELECTRON_VITE_DEBUG:\s+\$\{\{\s*matrix\.package-platform == 'win32' && '1' \|\| '0'\s*\}\}/)
   for (const pair of [
     ['package-platform: darwin', 'package-arch: arm64'],
     ['package-platform: win32', 'package-arch: x64'],

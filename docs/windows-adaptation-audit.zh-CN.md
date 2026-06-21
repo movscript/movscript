@@ -127,7 +127,7 @@ Go 后端构建脚本能把 `GOOS=windows` 映射到 `movscript-server.exe`，�
 
 ### 阶段 1：恢复发布口径
 
-- `v0.1.10` 后的 release matrix 包含 macOS arm64 与 Windows x64。
+- `v0.1.11` 后的 release matrix 包含 macOS arm64 与 Windows x64。
 - README、release notes 明确 Windows x64 首发限制。
 - Windows arm64、Linux、Intel Mac 暂不加入正式 release matrix。
 
@@ -194,8 +194,8 @@ Windows 进入 release matrix 前，至少需要通过：
 
 ## 待定产品决策
 
-- Windows 默认 Home 使用 `%LOCALAPPDATA%` 还是 `%APPDATA%`。
-- Windows 首发只发 portable，还是同时发 NSIS。
+- Windows 默认 Home 已定为 `%LOCALAPPDATA%\\Movscript\\Home`；安装目录只放程序，设置页可把 Movscript Home 改到 `D:\\MovscriptHome` 这类大容量盘。
+- Windows 首发同时发 NSIS 和 portable；NSIS 安装目录不决定业务数据位置。
 - Windows 是否要求代码签名后再公开发布。
 - `movcli` 是否仍是桌面 Windows 的必需依赖。
 - Mova app-server 是否要沿用 `CODEX_HOME=<Movscript Home>/.mova`。

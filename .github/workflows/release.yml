@@ -167,8 +167,13 @@ jobs:
       - name: Prepare desktop package prerequisites
         run: pnpm run release -- prepare-desktop-package --platform=${{ matrix.package-platform }} --arch=${{ matrix.package-arch }}
 
+      - name: Typecheck frontend desktop bundle on target runner
+        run: pnpm run release -- typecheck-desktop-bundle --platform=${{ matrix.package-platform }} --arch=${{ matrix.package-arch }}
+
       - name: Build frontend desktop bundle
         run: pnpm run release -- build-desktop-bundle --platform=${{ matrix.package-platform }} --arch=${{ matrix.package-arch }}
+        env:
+          MOVSCRIPT_ELECTRON_VITE_DEBUG: ${{ matrix.package-platform == 'win32' && '1' || '0' }}
 
       - name: Build frontend desktop artifact
         run: pnpm run release -- build-desktop-artifact --platform=${{ matrix.package-platform }} --arch=${{ matrix.package-arch }}

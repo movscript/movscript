@@ -16,6 +16,7 @@ import {
   ensureMovScriptWorkspaceContext,
   ensureMovScriptWorkspaceRoot,
   ensureMovScriptHomeConfig,
+  fallbackUserMovScriptHomeDir,
   movScriptRuntimeBinaryName,
   movScriptRuntimeCliName,
   movScriptRuntimePreflight,
@@ -186,6 +187,25 @@ test('core workspace runtime preflight accepts prepared workspace binaries', () 
 
   assert.equal(preflight.ok, true)
   assert.equal(preflight.fatalCount, 0)
+})
+
+test('core MovScript home fallback uses LocalAppData on Windows', () => {
+  assert.equal(
+    fallbackUserMovScriptHomeDir({
+      platform: 'win32',
+      userHomeDir: 'C:\\Users\\me',
+      env: { LOCALAPPDATA: 'D:\\MovscriptData' },
+    }),
+    'D:\\MovscriptData\\Movscript\\Home',
+  )
+  assert.equal(
+    fallbackUserMovScriptHomeDir({
+      platform: 'win32',
+      userHomeDir: 'C:\\Users\\me',
+      env: {},
+    }),
+    'C:\\Users\\me\\AppData\\Local\\Movscript\\Home',
+  )
 })
 
 test('core MovScript home config lives at MOVSCRIPT_HOME/config.toml', async () => {

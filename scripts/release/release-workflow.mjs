@@ -32,6 +32,7 @@ const releaseCommands = new Map([
   ['prepare-desktop-package', ['builtin:prepare-desktop-package']],
   ['smoke-desktop-package', ['scripts/release/smoke-desktop-package.mjs']],
   ['stage-ffmpeg', ['scripts/release/stage-ffmpeg.mjs']],
+  ['typecheck-desktop-bundle', ['builtin:typecheck-desktop-bundle']],
   ['verify-desktop-package', ['builtin:verify-desktop-package']],
   ['verify-package-resources', ['scripts/release/verify-package-resources.mjs']],
   ['verify-release-readiness', ['scripts/release/verify-release-readiness.mjs']],
@@ -109,6 +110,17 @@ export function runReleaseWorkflowCli(args = [], options = {}) {
     }
     if (scriptPath === 'builtin:build-desktop-bundle') {
       runBuildDesktopBundleCli([...defaultArgs, ...args.slice(1)], {
+        exit,
+        log,
+        logError,
+        env: options.env,
+        pnpm: options.pnpm,
+        spawn,
+      })
+      return
+    }
+    if (scriptPath === 'builtin:typecheck-desktop-bundle') {
+      runTypecheckDesktopBundleCli([...defaultArgs, ...args.slice(1)], {
         exit,
         log,
         logError,
@@ -302,7 +314,7 @@ export function runDesktopPackageCli(args = [], options = {}) {
 
   const packageEnv = desktopPackageEnv(options.env ?? process.env, plan.signingMode)
   const steps = [
-    ['Build frontend desktop bundle', pnpm, ['--filter', '@movscript/desktop', 'build']],
+    ['Build frontend desktop bundle', pnpm, desktopBundleBuildArgs(options.env ?? process.env)],
     ['Build frontend desktop artifact', pnpm, ['--filter', '@movscript/desktop', 'exec', 'electron-builder', ...plan.builderArgs]],
   ]
 
@@ -368,7 +380,24 @@ export function runBuildDesktopBundleCli(args = [], options = {}) {
     spawn = spawnSync,
   } = options
   log('[package-desktop] Build frontend desktop bundle')
-  runSpawnStep(pnpm, ['--filter', '@movscript/desktop', 'build'], {
+  runSpawnStep(pnpm, desktopBundleBuildArgs(options.env ?? process.env), {
+    env: options.env ?? process.env,
+    exit,
+    logError,
+    spawn,
+  })
+}
+
+export function runTypecheckDesktopBundleCli(args = [], options = {}) {
+  const {
+    exit = process.exit,
+    log = console.log,
+    logError = console.error,
+    pnpm = 'pnpm',
+    spawn = spawnSync,
+  } = options
+  log('[package-desktop] Typecheck frontend desktop bundle')
+  runSpawnStep(pnpm, ['--filter', '@movscript/desktop', 'typecheck'], {
     env: options.env ?? process.env,
     exit,
     logError,
@@ -459,6 +488,12 @@ function desktopPackageTargetOrExit(args, options, handlers) {
       signingMode: plan.signingMode,
     },
   }
+}
+
+export function desktopBundleBuildArgs(env = process.env) {
+  const args = ['--filter', '@movscript/desktop', 'exec', 'electron-vite', 'build', '--logLevel', 'info', '--clearScreen=false']
+  if (env.MOVSCRIPT_ELECTRON_VITE_DEBUG === '1') args.push('--debug')
+  return args
 }
 
 function runSpawnStep(command, args, options) {
