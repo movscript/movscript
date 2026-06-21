@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { readFileSync } from 'node:fs'
 import { mkdtemp, mkdir, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 
 import type { NodeMovScriptEngine } from '@movscript/engine/node'
 import type {
@@ -123,6 +124,7 @@ test('content candidate mutations invalidate cached project engines', async () =
     const first = projectEngineRegistry.get(projectEngineInput(workspaceDir, 7))
 	    await createMovScriptEngineContentCandidate({
 	      workspaceDir,
+        projectDir: join(workspaceDir, 'project-7'),
         userId: 1,
 	      projectId: 7,
 	      expectedWorkspaceVersions: {},
@@ -166,6 +168,7 @@ test('workspace domain mutations run through project engines and invalidate cach
     const first = projectEngineRegistry.get(projectEngineInput(workspaceDir, 7))
 	    await saveMovScriptEngineWorkspaceProductionSnapshot({
 	      workspaceDir,
+        projectDir: join(workspaceDir, 'project-7'),
         userId: 1,
 	      projectId: 7,
 	      expectedWorkspaceVersions: {},
@@ -212,6 +215,7 @@ test('workspace mutations are serialized per project context', async () => {
   try {
 	    const first = upsertMovScriptEngineWorkspaceSetting({
 	      workspaceDir,
+        projectDir: join(workspaceDir, 'project-7'),
         userId: 1,
 	      projectId: 7,
 	      expectedWorkspaceVersions: {},
@@ -221,6 +225,7 @@ test('workspace mutations are serialized per project context', async () => {
 
 	    const second = upsertMovScriptEngineWorkspaceSetting({
 	      workspaceDir,
+        projectDir: join(workspaceDir, 'project-7'),
         userId: 1,
 	      projectId: 7,
 	      expectedWorkspaceVersions: {},
@@ -262,6 +267,7 @@ test('workspace mutation queues do not block different projects', async () => {
   try {
 	    const first = upsertMovScriptEngineWorkspaceSetting({
 	      workspaceDir,
+        projectDir: join(workspaceDir, 'project-7'),
         userId: 1,
 	      projectId: 7,
 	      expectedWorkspaceVersions: {},
@@ -271,6 +277,7 @@ test('workspace mutation queues do not block different projects', async () => {
 
 	    await upsertMovScriptEngineWorkspaceSetting({
 	      workspaceDir,
+        projectDir: join(workspaceDir, 'project-8'),
         userId: 1,
 	      projectId: 8,
 	      expectedWorkspaceVersions: {},
@@ -308,8 +315,9 @@ test('interpret sync emits a project workspace update event after completion', a
       updatedAt: (events[0] as { updatedAt: string }).updatedAt,
       movScriptHomeDir: workspaceDir,
       workspaceDir,
-      userId: '1',
-      projectId: '7',
+      userId: 1,
+      projectId: 7,
+      projectDir: join(workspaceDir, 'project-7'),
     })
   } finally {
     restoreBroadcast()
@@ -346,6 +354,7 @@ test('workspace mutations interpret and reject stale expected workspace versions
     await assert.rejects(
       upsertMovScriptEngineWorkspaceSetting({
         workspaceDir: projectDir,
+        projectDir,
         userId: 1,
         projectId: 7,
         expectedWorkspaceVersions: { [targetPath]: initialVersion },
@@ -380,6 +389,7 @@ test('workspace mutations reject missing expected workspace versions', async () 
     await assert.rejects(
       upsertMovScriptEngineWorkspaceSetting({
         workspaceDir,
+        projectDir: join(workspaceDir, 'project-7'),
         userId: 1,
         projectId: 7,
         payload: { id: 'project_standards' } as never,
@@ -394,12 +404,23 @@ test('workspace mutations reject missing expected workspace versions', async () 
   }
 })
 
+test('scoped project data decision store uses user scope when org scope is absent', () => {
+  const source = readFileSync(resolve('electron/services/projectEngineRegistry.ts'), 'utf8')
+
+  assert.match(source, /function scopedProjectDataScope/)
+  assert.match(source, /function positiveProjectId/)
+  assert.match(source, /const projectId = positiveProjectId\(input\?\.projectId\)/)
+  assert.match(source, /if \(context\.orgId !== undefined\) return \{ kind: 'org', id: context\.orgId \}/)
+  assert.match(source, /if \(context\.userId !== undefined\) return \{ kind: 'user', id: context\.userId \}/)
+  assert.match(source, /\.\.\.\(scope \? \{ scopeKind: scope\.kind, scopeId: scope\.id \} : \{\}\)/)
+})
+
 async function createTestWorkspaceDir(): Promise<string> {
   return mkdtemp(join(tmpdir(), 'movscript-project-engine-workspace-'))
 }
 
 function projectEngineInput(workspaceDir: string, projectId: number) {
-  return { workspaceDir, userId: 1, projectId }
+  return { workspaceDir, projectDir: join(workspaceDir, `project-${projectId}`), userId: 1, projectId }
 }
 
 function fakeEngine(input: {
@@ -469,6 +490,8 @@ function fakeEngine(input: {
   return {
     projectDir: input.projectDir ?? '/workspace/project',
     workspaceService: service,
+    createContentCandidate: service.createContentCandidate,
+    saveProductionSnapshot: service.saveProductionSnapshot,
     review: async () => input.reviewResult ?? {},
     interpret: input.interpret ?? (async () => ({})),
   } as Partial<NodeMovScriptEngine> as NodeMovScriptEngine

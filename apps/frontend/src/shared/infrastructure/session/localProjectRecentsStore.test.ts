@@ -23,13 +23,13 @@ test('local project recents are path keyed and newest first', () => {
   useLocalProjectRecentsStore.setState({ projects: [], dismissedKeys: [] })
 
   useLocalProjectRecentsStore.getState().remember(projectFixture({
-    ID: -1,
+    ID: 17,
     name: 'Old title',
     workspace_path: '/tmp/movscript-local-project',
     UpdatedAt: '2026-06-18T00:00:00.000Z',
   }))
   useLocalProjectRecentsStore.getState().remember(projectFixture({
-    ID: -1,
+    ID: 18,
     name: 'Readable title',
     workspace_path: '/tmp/movscript-local-project',
     UpdatedAt: '2026-06-19T00:00:00.000Z',
@@ -44,7 +44,7 @@ test('local project recents are path keyed and newest first', () => {
 test('dismissed recent projects are hidden until remembered again', () => {
   useLocalProjectRecentsStore.setState({ projects: [], dismissedKeys: [] })
   const project = projectFixture({
-    ID: -1,
+    ID: 21,
     name: 'Local',
     workspace_path: '/tmp/movscript-hidden-project',
     local: true,
@@ -64,7 +64,7 @@ test('recent project merge prefers local path entries over backend duplicates', 
   const merged = mergeRecentProjects([
     projectFixture({ ID: 7, name: 'Backend', workspace_path: '/tmp/movscript-local-project' }),
   ], [
-    projectFixture({ ID: -1, name: 'Local', workspace_path: '/tmp/movscript-local-project', local: true }),
+    projectFixture({ ID: 7, name: 'Local', workspace_path: '/tmp/movscript-local-project', local: true }),
   ])
 
   assert.equal(merged.length, 1)
@@ -76,6 +76,7 @@ test('touched local projects are remembered as recent activity', () => {
 
   rememberTouchedLocalProject({
     projectDir: '/tmp/movscript-mcp-project',
+    backendProjectId: 19,
     name: 'MCP Project',
     projectUid: 'project_uid_1',
   })
@@ -85,7 +86,7 @@ test('touched local projects are remembered as recent activity', () => {
   assert.equal(project?.project_uid, 'project_uid_1')
   assert.equal(project?.workspace_path, '/tmp/movscript-mcp-project')
   assert.equal(project?.local, true)
-  assert.ok((project?.ID ?? 0) < 0)
+  assert.equal(project?.ID, 19)
 })
 
 function projectFixture(patch: Partial<Project> = {}): Project {

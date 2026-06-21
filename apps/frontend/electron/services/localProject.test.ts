@@ -4,7 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
-import { createLocalMovScriptProject, inspectLocalMovScriptProject } from './localProject'
+import { bindLocalMovScriptProject, createLocalMovScriptProject, inspectLocalMovScriptProject, openLocalMovScriptProject } from './localProject'
 
 test('local project inspection treats a missing directory as a clean create target', async () => {
   const root = await mkdtemp(join(tmpdir(), 'movscript-local-project-'))
@@ -20,7 +20,20 @@ test('local project inspection treats a missing directory as a clean create targ
     const created = await createLocalMovScriptProject({ projectDir, title: 'New Project' })
     assert.equal(created.projectDir, projectDir)
     assert.equal(created.project.name, 'New Project')
+    assert.equal(created.project.ID, 0)
     assert.ok(created.projectUid)
+
+    const opened = await openLocalMovScriptProject({ projectDir })
+    assert.equal(opened.project.ID, 0)
+
+    const bound = await bindLocalMovScriptProject({
+      projectDir,
+      projectUid: created.projectUid,
+      backendProjectId: 42,
+      scopeKind: 'user',
+      scopeId: '1',
+    })
+    assert.equal(bound.project.ID, 42)
   } finally {
     await rm(root, { recursive: true, force: true })
   }

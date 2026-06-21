@@ -148,11 +148,9 @@ export async function loadMovScriptEngineContentWorkspaceSnapshot(
   const context = normalizeProjectEngineInput(input)
   const snapshot = await loadContentSourceWorkspaceSnapshotFromEngine(projectEngineRegistry.get(input))
   console.log('[movscript-engine] load content workspace snapshot', {
-    projectId: input.projectId,
+    ...projectEngineDebugContext(context),
     movScriptHomeDir: context.workspaceDir,
     workspaceDir: context.workspaceDir,
-    userId: input.userId,
-    orgId: input.orgId,
     contentUnits: snapshot.contentUnits.length,
     indexDocuments: snapshot.indexDocuments.length,
     contentCandidateDocuments: snapshot.indexDocuments.filter((document) => document.path.endsWith('/content_candidate.json')).map((document) => ({
@@ -175,10 +173,9 @@ export async function loadMovScriptEngineContentWorkspace(
 ): Promise<ContentSourceWorkspaceData> {
   const snapshot = await loadMovScriptEngineContentWorkspaceSnapshot(input)
   const data = buildContentSourceWorkspaceData(snapshot)
+  const context = normalizeProjectEngineInput(input)
   console.log('[movscript-engine] build content workspace data', {
-    projectId: input.projectId,
-    userId: input.userId,
-    orgId: input.orgId,
+    ...projectEngineDebugContext(context),
     previewMoments: data.previewMoments.length,
     previewExpressionUnitCandidates: data.previewMoments.flatMap((moment) => moment.expressionUnits).map((expressionUnit) => ({
       contentUnitId: expressionUnit.contentUnit.id,
@@ -536,13 +533,14 @@ export function normalizeProjectEngineInput(
   const workspaceDir = resolveMovScriptHomeDir(input)
   if (projectDir !== undefined) {
     const realm = resolveDesktopWorkspaceRealm(workspaceDir)
+    const projectId = positiveProjectId(input?.projectId)
     return {
       workspaceDir,
       realm,
       projectDir: resolve(projectDir),
       ...(input?.userId !== undefined ? { userId: input.userId } : {}),
       ...(input?.orgId !== undefined ? { orgId: input.orgId } : {}),
-      ...(input?.projectId !== undefined ? { projectId: input.projectId } : {}),
+      ...(projectId !== undefined ? { projectId } : {}),
     }
   }
   const paths = resolveDesktopWorkspaceContextPaths({ workspaceDir, workspaceContext: { scope: 'global' } })
@@ -552,6 +550,17 @@ export function normalizeProjectEngineInput(
     ...(paths.context.userId !== undefined ? { userId: paths.context.userId } : {}),
     ...(paths.context.orgId !== undefined ? { orgId: paths.context.orgId } : {}),
   }
+}
+
+function positiveProjectId(value: unknown): number | string | undefined {
+  if (typeof value === 'number') return Number.isInteger(value) && value > 0 ? value : undefined
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return undefined
+    const numeric = Number(trimmed)
+    return Number.isInteger(numeric) && numeric > 0 ? trimmed : undefined
+  }
+  return undefined
 }
 
 function projectEngineKey(input: NormalizedProjectEngineInput): string {
@@ -668,12 +677,13 @@ function decisionStoreForContext(
   const manifest = readWorkspaceManifest(projectDir)
   const projectUid = manifest?.project_uid
   if (projectUid && session.token) {
+    const scope = scopedProjectDataScope(context)
     return {
       decisionStore: createMovScriptScopedProjectDataDecisionStore({
         baseUrl: session.baseURL,
         projectUid,
         ...(manifest?.title ? { title: manifest.title } : {}),
-        ...(context.orgId !== undefined ? { scopeKind: 'org' as const, scopeId: context.orgId } : {}),
+        ...(scope ? { scopeKind: scope.kind, scopeId: scope.id } : {}),
         token: session.token,
         ...backendDecisionStoreHeaders(context, session.userId),
       }),
@@ -687,6 +697,26 @@ function decisionStoreForContext(
       ...(session.token ? { token: session.token } : {}),
       ...backendDecisionStoreHeaders(context, session.userId),
     }),
+  }
+}
+
+function scopedProjectDataScope(context: NormalizedProjectEngineInput): { kind: 'user' | 'org'; id: string | number } | undefined {
+  if (context.orgId !== undefined) return { kind: 'org', id: context.orgId }
+  if (context.userId !== undefined) return { kind: 'user', id: context.userId }
+  return undefined
+}
+
+function projectEngineDebugContext(context: NormalizedProjectEngineInput): Record<string, unknown> {
+  const manifest = context.projectDir ? readWorkspaceManifest(context.projectDir) : undefined
+  const scope = scopedProjectDataScope(context)
+  return {
+    projectId: context.projectId,
+    projectUid: manifest?.project_uid,
+    scopeKind: scope?.kind,
+    scopeId: scope?.id,
+    userId: context.userId,
+    orgId: context.orgId,
+    projectDir: context.projectDir,
   }
 }
 

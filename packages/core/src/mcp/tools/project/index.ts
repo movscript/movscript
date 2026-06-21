@@ -17,7 +17,7 @@ export function projectTools(): MCPTool[] {
     },
     {
       name: 'movscript_project_init',
-      description: 'Initialize a local MovScript project in any directory. Use this for path-bound projects that should not require a backend user/project binding.',
+      description: 'Initialize a local MovScript project in any directory, then ensure its backend project identity and project-data space.',
       inputSchema: objectSchema(
         {
           projectDir: { type: 'string', description: 'Absolute or relative directory to initialize as a MovScript project.' },
@@ -33,7 +33,7 @@ export function projectTools(): MCPTool[] {
     },
     {
       name: 'movscript_project_open',
-      description: 'Open or inspect a MovScript project by directory without requiring a backend user/project binding. This does not fetch source data; business source lives in the user chosen Git repository.',
+      description: 'Open a MovScript project by directory, then ensure its backend project identity and project-data space. This does not fetch source data; business source lives in the user chosen Git repository.',
       inputSchema: objectSchema(
         {
           projectDir: { type: 'string', description: 'Absolute or relative MovScript project directory to open.' },

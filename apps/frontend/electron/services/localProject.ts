@@ -81,7 +81,11 @@ export async function openLocalMovScriptProject(input: ElectronLocalProjectOpenI
   const projectStat = await stat(projectDir).catch(() => undefined)
   if (!projectStat?.isDirectory()) throw new Error('Project path must be an existing directory')
   const metadata = await readProjectMetadata(projectDir)
-  return localProjectResult(projectDir, metadata)
+  const localConfig = await readJSON(resolve(projectDir, LOCAL_CONFIG_PATH))
+  return localProjectResult(projectDir, {
+    ...metadata,
+    backendProjectId: numberValue(isRecord(localConfig) ? localConfig.backend_project_id ?? localConfig.backendProjectId : undefined),
+  })
 }
 
 export async function bindLocalMovScriptProject(input: ElectronLocalProjectBindInput): Promise<ElectronLocalProjectResult> {
@@ -149,11 +153,11 @@ function projectImpacts(input: {
 
 function localProjectResult(
   projectDir: string,
-  metadata: { projectId?: string; projectUid?: string; title?: string; description?: string; updatedAt?: string; initializedFiles?: string[] },
+  metadata: { projectId?: string; projectUid?: string; title?: string; description?: string; updatedAt?: string; initializedFiles?: string[]; backendProjectId?: number },
 ): ElectronLocalProjectResult {
   const now = new Date().toISOString()
   const project = {
-    ID: -stablePositiveHash(projectDir),
+    ID: metadata.backendProjectId ?? 0,
     owner_id: 0,
     name: metadata.title || basename(projectDir) || 'Local Project',
     description: metadata.description || projectDir,
@@ -204,15 +208,6 @@ async function readJSON(path: string): Promise<unknown> {
   } catch {
     return undefined
   }
-}
-
-function stablePositiveHash(value: string): number {
-  let hash = 2166136261
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index)
-    hash = Math.imul(hash, 16777619)
-  }
-  return (hash >>> 0) || 1
 }
 
 function stringValue(value: unknown): string | undefined {

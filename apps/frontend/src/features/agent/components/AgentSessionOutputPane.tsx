@@ -32,13 +32,19 @@ import {
   EmptySessionOutput,
   GenerationRecordRow,
 } from './AgentSessionOutputPaneParts'
+import type { Project } from '@/types'
 
 interface AgentSessionOutputPaneProps {
   conversationId: string
-  projectId?: number
+  project?: Project | null
 }
 
-export function AgentSessionOutputPane({ conversationId, projectId }: AgentSessionOutputPaneProps) {
+export function AgentSessionOutputPane({ conversationId, project = null }: AgentSessionOutputPaneProps) {
+  const projectId = positiveInteger(project?.ID)
+  const projectDir = project?.workspace_path || project?.project_path
+  const ownerContext = useMemo(() => ({
+    ...(projectDir ? { projectDir } : {}),
+  }), [projectDir])
   const pageTasksById = useAgentPageTasks()
   const threadBinding = useAgentConversationThreadBinding(conversationId)
   const runtimeState = useAgentConversationRuntimeState(conversationId)
@@ -71,7 +77,7 @@ export function AgentSessionOutputPane({ conversationId, projectId }: AgentSessi
   }), [conversationId, pageTasks, providerThreadRunsQuery.data?.runs, runtimeState, threadBinding?.providerThreadId])
   const contentWorkspaceQuery = useQuery<ContentSourceWorkspaceData>({
     queryKey: agentSessionOutputKeys.contentWorkspace(projectId),
-    queryFn: () => loadContentSourceWorkspaceData(projectId!),
+    queryFn: () => loadContentSourceWorkspaceData(projectId!, ownerContext),
     enabled: projectId !== undefined,
   })
   const contentUnits = useMemo(() => (
@@ -96,6 +102,7 @@ export function AgentSessionOutputPane({ conversationId, projectId }: AgentSessi
     try {
       await selectContentSourceWorkspaceCandidate({
         projectId,
+        ownerContext,
         contentUnitId: contentUnit.id,
         candidateId: candidate.id,
         ...(candidate.resourceId !== undefined ? { resourceId: candidate.resourceId } : {}),
@@ -207,4 +214,10 @@ export function AgentSessionOutputPane({ conversationId, projectId }: AgentSessi
       </section>
     </div>
   )
+}
+
+function positiveInteger(value: string | number | null | undefined): number | undefined {
+  if (value === undefined || value === null || value === '') return undefined
+  const parsed = Number(value)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined
 }

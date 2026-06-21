@@ -225,7 +225,7 @@ test('agent content area exposes project canvas editing and session output work 
   assert.match(blankTabSource, /onOpenEditingProjects/)
   assert.match(tabContentSource, /<CanvasListView source="agent" \/>/)
   assert.match(tabContentSource, /<AgentBrowserEditingProjectsPane \/>/)
-  assert.match(tabContentSource, /<AgentSessionOutputPane conversationId=\{sessionConversationId\} projectId=\{project\?\.ID\} \/>/)
+  assert.match(tabContentSource, /<AgentSessionOutputPane conversationId=\{sessionConversationId\} project=\{project\} \/>/)
   assert.match(editingPaneSource, /openEditingProjectWindow/)
 })
 

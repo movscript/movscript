@@ -27,6 +27,7 @@ import {
   backendProjectWithLocalPath,
   bindLocalProjectToBackend,
   ensureBackendProjectForLocalProject,
+  ensureProjectDataSpaceForLocalProject,
   resolveBackendProjectByUID,
   type LocalProjectScope,
 } from '@/features/project/application/localProjectLifecycle'
@@ -294,7 +295,9 @@ export default function ProjectsPage() {
       }
       const result = await api.createLocalMovScriptProject({ projectDir, title: name, description: desc, overwrite })
       const ensured = await ensureBackendProjectForLocalProject(result)
-      const bound = await bindLocalProjectToBackend(result, ensured.project, currentLocalProjectScope())
+      const scope = currentLocalProjectScope()
+      await ensureProjectDataSpaceForLocalProject(result, scope)
+      const bound = await bindLocalProjectToBackend(result, ensured.project, scope)
       const project = backendProjectWithLocalPath(ensured.project, bound)
       setCurrent(project)
       setWorkMode('project')
@@ -361,7 +364,9 @@ export default function ProjectsPage() {
         return
       }
       const backendProject = resolved ?? (await ensureBackendProjectForLocalProject(result)).project
-      const bound = await bindLocalProjectToBackend(result, backendProject, currentLocalProjectScope())
+      const scope = currentLocalProjectScope()
+      await ensureProjectDataSpaceForLocalProject(result, scope)
+      const bound = await bindLocalProjectToBackend(result, backendProject, scope)
       const project = backendProjectWithLocalPath(backendProject, bound)
       setCurrent(project)
       setWorkMode('project')

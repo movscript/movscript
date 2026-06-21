@@ -92,22 +92,62 @@ export function ProjectAgentContentPanel({
   const legacySessionProjectId = positiveInteger(sessionWorkspaceContext?.projectId)
     ?? positiveInteger(activeRecord?.projectId)
     ?? positiveInteger(providerThreadProjectId)
-  const pathSessionProject = useMemo(() => projectFromAgentWorkspacePath({
-    workspaceContext: sessionWorkspaceContext,
-    providerThreadCwd: sessionThreadBinding?.providerThreadCwd,
-  }), [sessionThreadBinding?.providerThreadCwd, sessionWorkspaceContext])
+  const sessionProjectUid = nonEmptyString(sessionWorkspaceContext?.projectUid)
+  const sessionProjectDir = nonEmptyString(sessionWorkspaceContext?.projectDir) ?? nonEmptyString(sessionThreadBinding?.providerThreadCwd)
+  const sessionProjectTitle = nonEmptyString(sessionWorkspaceContext?.projectTitle)
   const { data: projects = [] } = useQuery<Project[]>({
     queryKey: projectKeys.list(currentOrgID),
     queryFn: () => api.get('/projects').then((response) => response.data),
-    enabled: legacySessionProjectId !== undefined,
+    enabled: legacySessionProjectId !== undefined || sessionProjectUid !== undefined,
   })
+  const projectFromList = useMemo(() => (
+    sessionProjectUid ? projects.find((project) => project.project_uid === sessionProjectUid) : undefined
+  ), [projects, sessionProjectUid])
+  const ensureProjectQuery = useQuery<Project | null>({
+    queryKey: ['projects', 'ensure-by-uid', currentOrgID ?? 'user', sessionProjectUid, sessionProjectTitle],
+    queryFn: async () => {
+      if (!sessionProjectUid) return null
+      const response = await api.post<{ project: Project }>('/projects/ensure', {
+        project_uid: sessionProjectUid,
+        name: sessionProjectTitle ?? sessionProjectUid,
+      })
+      return response.data.project
+    },
+    enabled: Boolean(sessionProjectUid) && legacySessionProjectId === undefined && projectFromList === undefined,
+    retry: false,
+  })
+  const ensuredProject = ensureProjectQuery.data ?? undefined
+  useQuery({
+    queryKey: ['project-data', 'space-ensure', currentOrgID ?? 'user', currentUser?.ID, sessionProjectUid, positiveInteger(ensuredProject?.ID ?? projectFromList?.ID ?? legacySessionProjectId)],
+    queryFn: async () => {
+      if (!sessionProjectUid || !currentUser?.ID) return null
+      const scopeKind = currentOrgID ? 'org' : 'user'
+      const scopeId = currentOrgID ? String(currentOrgID) : String(currentUser.ID)
+      await api.post('/project-data/spaces', {
+        scope_kind: scopeKind,
+        scope_id: scopeId,
+        project_uid: sessionProjectUid,
+        title: sessionProjectTitle ?? ensuredProject?.name ?? projectFromList?.name ?? sessionProjectUid,
+      })
+      return null
+    },
+    enabled: Boolean(sessionProjectUid && currentUser?.ID && positiveInteger(ensuredProject?.ID ?? projectFromList?.ID ?? legacySessionProjectId)),
+    retry: false,
+  })
+  const sessionProjects = useMemo(() => (
+    ensuredProject && !projects.some((project) => project.ID === ensuredProject.ID || (project.project_uid && project.project_uid === ensuredProject.project_uid))
+      ? [...projects, ensuredProject]
+      : projects
+  ), [ensuredProject, projects])
   const sessionProject = useMemo(() => (
-    pathSessionProject ?? (
-      legacySessionProjectId === undefined
-        ? null
-        : projectForAgentContentSession(legacySessionProjectId, projects)
-    )
-  ), [legacySessionProjectId, pathSessionProject, projects])
+    projectForAgentContentSession({
+      projectId: positiveInteger(legacySessionProjectId ?? ensuredProject?.ID ?? projectFromList?.ID),
+      projectUid: sessionProjectUid,
+      projectDir: sessionProjectDir,
+      projectTitle: sessionProjectTitle,
+      projects: sessionProjects,
+    })
+  ), [ensuredProject?.ID, legacySessionProjectId, projectFromList?.ID, sessionProjectDir, sessionProjectTitle, sessionProjectUid, sessionProjects])
   const panelWidth = clampAgentModeContentPanelWidth(width ?? AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH)
   const setPanelWidth = useCallback((nextWidth: number) => {
     onWidthChange?.(clampAgentModeContentPanelWidth(nextWidth))
@@ -145,44 +185,40 @@ export function ProjectAgentContentPanel({
   )
 }
 
-function projectFromAgentWorkspacePath(input: {
-  workspaceContext: { projectDir?: string; projectUid?: string; projectTitle?: string; projectId?: string | number } | undefined
-  providerThreadCwd: string | null | undefined
-}): Project | null {
-  const projectDir = nonEmptyString(input.workspaceContext?.projectDir) ?? nonEmptyString(input.providerThreadCwd)
-  if (!projectDir) return null
-  const projectId = positiveInteger(input.workspaceContext?.projectId) ?? -stablePositiveHash(projectDir)
-  const projectUid = nonEmptyString(input.workspaceContext?.projectUid)
-  const now = new Date(0).toISOString()
-  return {
-    ID: projectId,
-    name: nonEmptyString(input.workspaceContext?.projectTitle) ?? projectDir.split(/[\\/]/).filter(Boolean).pop() ?? 'Local Project',
-    description: projectDir,
-    owner_id: 0,
-    workspace_path: projectDir,
-    project_path: projectDir,
-    ...(projectUid ? { project_uid: projectUid } : {}),
-    local: true,
-    CreatedAt: now,
-    UpdatedAt: now,
-  }
-}
-
 function positiveInteger(value: string | number | null | undefined): number | undefined {
   if (value === undefined || value === null || value === '') return undefined
   const parsed = Number(value)
   return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined
 }
 
-function projectForAgentContentSession(projectId: number, projects: Project[]): Project {
-  const existing = projects.find((project) => project.ID === projectId)
-  if (existing) return existing
+function projectForAgentContentSession(input: {
+  projectId?: number
+  projectUid?: string
+  projectDir?: string
+  projectTitle?: string
+  projects: Project[]
+}): Project | null {
+  const existing = input.projectId !== undefined
+    ? input.projects.find((project) => project.ID === input.projectId)
+    : input.projectUid
+      ? input.projects.find((project) => project.project_uid === input.projectUid)
+      : undefined
+  if (existing) {
+    return {
+      ...existing,
+      ...(input.projectDir ? { workspace_path: input.projectDir, project_path: input.projectDir, local: true } : {}),
+      ...(input.projectTitle ? { name: input.projectTitle } : {}),
+    }
+  }
+  if (input.projectId === undefined) return null
   const now = new Date(0).toISOString()
   return {
-    ID: projectId,
-    name: `项目 #${projectId}`,
+    ID: input.projectId,
+    name: input.projectTitle ?? `项目 #${input.projectId}`,
     description: '',
     owner_id: 0,
+    ...(input.projectDir ? { workspace_path: input.projectDir, project_path: input.projectDir, local: true } : {}),
+    ...(input.projectUid ? { project_uid: input.projectUid } : {}),
     CreatedAt: now,
     UpdatedAt: now,
   }
@@ -190,13 +226,4 @@ function projectForAgentContentSession(projectId: number, projects: Project[]): 
 
 function nonEmptyString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
-}
-
-function stablePositiveHash(value: string): number {
-  let hash = 2166136261
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index)
-    hash = Math.imul(hash, 16777619)
-  }
-  return Math.abs(hash >>> 0) || 1
 }

@@ -127,11 +127,13 @@ export async function loadContentSourceWorkspaceData(
 
 export async function selectContentSourceWorkspaceCandidate(input: {
   projectId: number
+  ownerContext?: ContentWorkspaceOwnerContext
   contentUnitId: string
   candidateId: string
   resourceId?: number
 }): Promise<void> {
 	  await requireContentWorkspaceEngineAPI('selectMovScriptEngineContentUnitCandidate')({
+    ...(input.ownerContext ?? {}),
 	    projectId: input.projectId,
 	    expectedWorkspaceVersions: {},
 	    ...buildContentSourceWorkspaceSelectionPatch(input),

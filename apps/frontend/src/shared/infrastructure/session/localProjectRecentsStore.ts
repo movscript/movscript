@@ -109,16 +109,17 @@ export function rememberLocalProject(project: Project): void {
 
 export function rememberTouchedLocalProject(input: {
   projectDir: string
+  backendProjectId?: number
   name?: string
   description?: string
   projectUid?: string
   updatedAt?: string
 }): void {
   const projectDir = input.projectDir.trim()
-  if (!projectDir) return
+  if (!projectDir || !input.backendProjectId) return
   const now = new Date().toISOString()
   rememberLocalProject({
-    ID: -stablePositiveHash(projectDir),
+    ID: input.backendProjectId,
     name: input.name?.trim() || projectDir.split(/[\\/]/).filter(Boolean).pop() || 'Local Project',
     description: input.description?.trim() || projectDir,
     owner_id: 0,
@@ -158,14 +159,14 @@ export function sortRecentProjects(projects: Project[]): Project[] {
 }
 
 export function isLocalProjectEntry(project: Project): boolean {
-  return project.local === true || project.ID < 0
+  return project.local === true
 }
 
 function isPersistableLocalProject(value: unknown): value is Project {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
   const project = value as Partial<Project>
   return typeof project.ID === 'number'
-    && project.ID !== 0
+    && project.ID > 0
     && typeof project.name === 'string'
     && Boolean(projectDirForProject(project as Project))
 }
@@ -187,13 +188,4 @@ function projectDirForProject(project: Project): string | undefined {
 function timestampForProject(project: Project): number {
   const timestamp = Date.parse(project.UpdatedAt || project.CreatedAt)
   return Number.isFinite(timestamp) ? timestamp : 0
-}
-
-function stablePositiveHash(value: string): number {
-  let hash = 2166136261
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index)
-    hash = Math.imul(hash, 16777619)
-  }
-  return (hash >>> 0) || 1
 }

@@ -1,6 +1,6 @@
 {
   "name": "@movscript/language",
-  "version": "0.1.18",
+  "version": "0.1.19",
   "private": true,
   "description": "MovScript AI film production language, source model, domain IR, and schemas.",
   "license": "MIT",

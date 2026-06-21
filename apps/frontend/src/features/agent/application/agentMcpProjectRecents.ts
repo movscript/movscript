@@ -40,8 +40,16 @@ export function localProjectTouchFromMcpToolCall(item: McpToolCallItem): Paramet
     ?? stringField(recordField(payload, 'project'), 'workspace_path')
   if (!projectDir) return null
   const project = recordField(payload, 'project')
+  const backendProject = recordField(payload, 'backendProject')
   return {
     projectDir,
+    backendProjectId: positiveInteger(
+      backendProject?.ID
+      ?? backendProject?.id
+      ?? project?.ID
+      ?? project?.backendProjectId
+      ?? payload?.backendProjectId,
+    ),
     name: stringField(project, 'name') ?? stringField(project, 'title') ?? stringField(payload, 'title'),
     description: stringField(project, 'description') ?? stringField(payload, 'description'),
     projectUid: stringField(payload, 'projectUid')
@@ -74,6 +82,11 @@ function recordValue(value: unknown): Record<string, unknown> | undefined {
 function stringField(record: Record<string, unknown> | undefined, key: string): string | undefined {
   const value = record?.[key]
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function positiveInteger(value: unknown): number | undefined {
+  const numeric = Number(value)
+  return Number.isInteger(numeric) && numeric > 0 ? numeric : undefined
 }
 
 function rememberMcpProjectRecentKey(key: string): void {

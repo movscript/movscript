@@ -229,3 +229,27 @@ func TestProjectDataServiceStoresCandidatesUnderScopedProjectUID(t *testing.T) {
 		t.Fatalf("unexpected org space summary: %#v", orgSpaces)
 	}
 }
+
+func TestProjectDataQueryMissingSpaceReturnsEmpty(t *testing.T) {
+	db := testutil.OpenSQLite(t, "project-data-query-empty.db",
+		&persistencemodel.User{},
+		&persistencemodel.ProjectDataSpace{},
+		&persistencemodel.ProjectDataDecisionContext{},
+	)
+
+	service := NewProjectDataService(db)
+	result, err := service.Query(context.Background(), ProjectDataQueryTargetsInput{
+		ProjectDataSpaceInput: ProjectDataSpaceInput{
+			ProjectDataScopeInput: ProjectDataScopeInput{ScopeKind: ProjectDataScopeUser, ScopeID: "7"},
+			ProjectUID:            "prj_empty",
+		},
+		TargetKind: "content_unit",
+		TargetRefs: []string{"content_units/cu_missing"},
+	})
+	if err != nil {
+		t.Fatalf("query missing scoped project data space: %v", err)
+	}
+	if len(result) != 0 {
+		t.Fatalf("missing scoped project data query returned %#v, want empty", result)
+	}
+}

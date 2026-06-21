@@ -12,6 +12,10 @@ type ProjectResolveResponse = {
   project: Project
 }
 
+type ProjectDataSpaceResponse = {
+  project_uid: string
+}
+
 export type LocalProjectScope = {
   scopeKind: 'user' | 'org'
   scopeId: string
@@ -39,6 +43,17 @@ export async function ensureBackendProjectForLocalProject(local: ElectronLocalPr
     project: response.data.project,
     created: Boolean(response.data.created),
   }
+}
+
+export async function ensureProjectDataSpaceForLocalProject(local: ElectronLocalProjectResult, scope: LocalProjectScope): Promise<void> {
+  const projectUid = local.projectUid ?? local.project.project_uid
+  if (!projectUid) throw new Error('本地项目缺少 project_uid')
+  await api.post<ProjectDataSpaceResponse>('/project-data/spaces', {
+    scope_kind: scope.scopeKind,
+    scope_id: scope.scopeId,
+    project_uid: projectUid,
+    title: local.project.name,
+  })
 }
 
 export async function bindLocalProjectToBackend(local: ElectronLocalProjectResult, backendProject: Project, scope: LocalProjectScope): Promise<ElectronLocalProjectResult> {

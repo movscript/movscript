@@ -21,6 +21,7 @@ import {
   backendProjectWithLocalPath,
   bindLocalProjectToBackend,
   ensureBackendProjectForLocalProject,
+  ensureProjectDataSpaceForLocalProject,
   resolveBackendProjectByUID,
   type LocalProjectScope,
 } from '@/features/project/application/localProjectLifecycle'
@@ -99,7 +100,9 @@ export function ProjectRequiredDialog() {
         overwrite: force,
       })
       const ensured = await ensureBackendProjectForLocalProject(result)
-      const bound = await bindLocalProjectToBackend(result, ensured.project, currentLocalProjectScope())
+      const scope = currentLocalProjectScope()
+      await ensureProjectDataSpaceForLocalProject(result, scope)
+      const bound = await bindLocalProjectToBackend(result, ensured.project, scope)
       selectProject(backendProjectWithLocalPath(ensured.project, bound))
       setProjectName('')
       setProjectDescription('')
@@ -136,7 +139,9 @@ export function ProjectRequiredDialog() {
         return
       }
       const backendProject = resolved ?? (await ensureBackendProjectForLocalProject(local)).project
-      const bound = await bindLocalProjectToBackend(local, backendProject, currentLocalProjectScope())
+      const scope = currentLocalProjectScope()
+      await ensureProjectDataSpaceForLocalProject(local, scope)
+      const bound = await bindLocalProjectToBackend(local, backendProject, scope)
       selectProject(backendProjectWithLocalPath(backendProject, bound))
       setOpenProjectDir('')
     } catch (err) {

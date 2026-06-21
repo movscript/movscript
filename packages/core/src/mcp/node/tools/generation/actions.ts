@@ -2,7 +2,6 @@ import {
   resourceIdsFromMentions,
   stripResourceMentions,
 } from '@movscript/workspace'
-import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { backendGet, backendPost } from '../../../../backend/node/client.js'
 import {
@@ -20,6 +19,7 @@ import {
   domainCreateContentCandidate,
 } from '../domain/actions.js'
 import { listModels } from '../model/actions.js'
+import { requireMCPBackendBoundProject } from '../project/localProjectBinding.js'
 import { getOptionalNumeric, getOptionalString, numericValues } from '../../../tools/shared/params.js'
 import { isRecord } from '../../../tools/shared/record.js'
 
@@ -205,7 +205,7 @@ async function generateContentUnitVisual(
   const selection = kind === 'image'
     ? await resolveModelSelection(nextArgs, built.jobType, built.jobType === 'image_edit' ? 'image' : 'image_edit')
     : await resolveModelSelection(nextArgs, built.jobType, 'video')
-  const projectScope = resolveGenerationProjectScope(args)
+  const projectScope = await resolveGenerationProjectScope(args)
   const sharedRequest = buildContentUnitGenerationRequest({
     contentUnitId,
     outputKind: kind,
@@ -513,7 +513,7 @@ async function submitGenerationJob(
 ): Promise<{ job: Record<string, unknown>; paramAudit: ParamAuditItem[]; modelParams: Record<string, unknown> }> {
   const prepared = prepareGenerationParams(built, selection.model, parameterModeArg(args))
   const modelParams = submittedModelParams(prepared)
-  const projectScope = resolveGenerationProjectScope(args)
+  const projectScope = await resolveGenerationProjectScope(args)
   const body: Record<string, unknown> = {
     model_id: selection.modelId,
     job_type: built.jobType,
@@ -563,7 +563,7 @@ function submittedModelParams(prepared: PreparedGenerationParams): Record<string
   }
 }
 
-function resolveGenerationProjectScope(args: Record<string, unknown>): GenerationProjectScope {
+async function resolveGenerationProjectScope(args: Record<string, unknown>): Promise<GenerationProjectScope> {
   const rawDir = getOptionalString(args, 'projectDir')
     ?? getOptionalString(args, 'project_dir')
     ?? getOptionalString(args, 'projectPath')
@@ -571,27 +571,12 @@ function resolveGenerationProjectScope(args: Record<string, unknown>): Generatio
     ?? getOptionalString(args, 'cwd')
   if (!rawDir) throw new Error('projectDir or cwd is required for generation tools')
   const projectDir = resolve(rawDir)
-  const manifest = readProjectManifest(projectDir)
+  const binding = await requireMCPBackendBoundProject({ projectDir })
   return {
     projectDir,
-    projectUid: getOptionalString(args, 'projectUid') ?? getOptionalString(args, 'project_uid') ?? manifest.projectUid,
-    projectTitle: getOptionalString(args, 'projectTitle') ?? getOptionalString(args, 'project_title') ?? manifest.projectTitle,
+    projectUid: getOptionalString(args, 'projectUid') ?? getOptionalString(args, 'project_uid') ?? binding.projectUid,
+    projectTitle: getOptionalString(args, 'projectTitle') ?? getOptionalString(args, 'project_title') ?? binding.projectTitle,
   }
-}
-
-function readProjectManifest(projectDir: string): { projectUid?: string; projectTitle?: string } {
-  for (const name of ['workspace.json', 'project.json']) {
-    try {
-      const parsed = JSON.parse(readFileSync(resolve(projectDir, name), 'utf8')) as Record<string, unknown>
-      return {
-        projectUid: stringField(parsed.project_uid ?? parsed.projectUid),
-        projectTitle: stringField(parsed.title ?? parsed.name),
-      }
-    } catch {
-      // Try the next manifest candidate.
-    }
-  }
-  return {}
 }
 
 function generationSubmitResult(kind: 'image' | 'video' | 'audio', job: Record<string, unknown>, monitorTool: string, paramAudit: ParamAuditItem[] = []): Record<string, unknown> {

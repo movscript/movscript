@@ -111,9 +111,7 @@ function applyAppWindowContext(context: ElectronAppWindowContext | null): void {
   if (context.kind === 'project') {
     const project = context.project
       ? context.project as unknown as Project
-      : context.projectDir
-        ? localProjectFromWindowContext(context)
-        : null
+      : null
     if (project) {
       useProjectStore.getState().setCurrent(project)
       if (isLocalProject(project)) rememberLocalProject(project)
@@ -139,30 +137,5 @@ function applyAppWindowContext(context: ElectronAppWindowContext | null): void {
 }
 
 function isLocalProject(project: Project): boolean {
-  return project.local === true || project.ID < 0
-}
-
-function localProjectFromWindowContext(context: ElectronAppWindowContext): Project {
-  const projectDir = context.projectDir ?? ''
-  const now = new Date(0).toISOString()
-  return {
-    ID: -stablePositiveHash(projectDir),
-    name: projectDir.split(/[\\/]/).filter(Boolean).pop() || 'Local Project',
-    description: projectDir,
-    owner_id: 0,
-    workspace_path: projectDir,
-    project_path: projectDir,
-    local: true,
-    CreatedAt: now,
-    UpdatedAt: now,
-  }
-}
-
-function stablePositiveHash(value: string): number {
-  let hash = 2166136261
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index)
-    hash = Math.imul(hash, 16777619)
-  }
-  return (hash >>> 0) || 1
+  return project.local === true
 }

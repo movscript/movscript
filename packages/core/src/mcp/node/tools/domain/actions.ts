@@ -18,6 +18,7 @@ import {
   type MovScriptDomainRuntime,
 } from './runtime.js'
 import { resolveMCPProjectWorkspaceLocator } from '../workspace/locator.js'
+import { requireMCPBackendBoundProject } from '../project/localProjectBinding.js'
 
 type Args = Record<string, unknown>
 type ContentCandidateStatus = NonNullable<MovScriptContentCandidateWriteInput['status']>
@@ -682,7 +683,7 @@ async function runtimeMutation<T>(
   args: Args,
   action: (runtime: MovScriptDomainRuntime) => Promise<T>,
 ): Promise<T> {
-  const locator = resolveMCPProjectWorkspaceLocator(args)
+  const locator = await requireMCPBackendBoundProject(args)
   try {
     return await action(createMovScriptDomainRuntime(locator))
   } finally {

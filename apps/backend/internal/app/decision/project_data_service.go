@@ -196,6 +196,9 @@ func (s *ProjectDataService) Query(ctx context.Context, input ProjectDataQueryTa
 	}
 	space, err := s.findSpace(ctx, query.ProjectDataSpaceInput)
 	if err != nil {
+		if errors.Is(err, ErrDecisionNotFound) {
+			return []ProjectDataDecisionContext{}, nil
+		}
 		return nil, err
 	}
 	var rows []persistencemodel.ProjectDataDecisionContext

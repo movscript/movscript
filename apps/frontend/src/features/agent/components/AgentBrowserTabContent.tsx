@@ -105,7 +105,7 @@ export function AgentBrowserTabContent({
   if (activeTab?.kind === 'session_output') {
     return (
       <AgentBrowserInternalPane>
-        <AgentSessionOutputPane conversationId={sessionConversationId} projectId={project?.ID} />
+        <AgentSessionOutputPane conversationId={sessionConversationId} project={project} />
       </AgentBrowserInternalPane>
     )
   }

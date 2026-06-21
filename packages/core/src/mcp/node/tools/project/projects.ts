@@ -4,6 +4,7 @@ import { basename, resolve } from 'node:path'
 import { createNodeMovScriptWorkspaceService } from '@movscript/workspace/node'
 import { getOptionalNumeric, getOptionalString } from '../../../tools/shared/params.js'
 import { isRecord } from '../../../tools/shared/record.js'
+import { requireMCPBackendBoundProject } from './localProjectBinding.js'
 import { summarizeProject } from './summaries.js'
 
 export async function listProjects(args: Record<string, unknown>): Promise<unknown> {
@@ -47,12 +48,15 @@ export async function initLocalProject(args: Record<string, unknown>): Promise<u
     ...(getOptionalString(args, 'language') ? { language: getOptionalString(args, 'language') } : {}),
     ...(typeof args.overwrite === 'boolean' ? { overwrite: args.overwrite } : {}),
   })
+  const backendBinding = await requireMCPBackendBoundProject({ projectDir, projectUid: initialized.projectUid })
   return {
     status: 'initialized',
     projectDir,
     projectPath: projectDir,
     projectId: initialized.projectId,
     projectUid: initialized.projectUid,
+    backendProject: backendBinding.backendProject,
+    projectDataSpace: backendBinding.projectDataSpace,
     project: localProjectSummary(projectDir, {
       projectId: initialized.projectId,
       projectUid: initialized.projectUid,
@@ -77,12 +81,19 @@ export async function fetchLocalProject(args: Record<string, unknown>): Promise<
   const projectStat = await stat(projectDir).catch(() => undefined)
   if (!projectStat?.isDirectory()) throw new Error('Project directory must be an existing directory')
   const metadata = await readProjectMetadata(projectDir)
+  const backendBinding = metadata.projectUid
+    ? await requireMCPBackendBoundProject({ projectDir, projectUid: metadata.projectUid })
+    : undefined
   return {
     status: metadata.hasMetadata ? 'ready' : 'missing_metadata',
     projectDir,
     projectPath: projectDir,
     projectId: metadata.projectId,
     projectUid: metadata.projectUid,
+    ...(backendBinding ? {
+      backendProject: backendBinding.backendProject,
+      projectDataSpace: backendBinding.projectDataSpace,
+    } : {}),
     project: localProjectSummary(projectDir, metadata),
     locator: {
       projectDir,

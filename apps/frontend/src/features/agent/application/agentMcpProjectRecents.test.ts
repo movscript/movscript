@@ -16,6 +16,7 @@ test('extracts recent project touch from MovScript MCP project open result', () 
       data: {
         projectDir: '/tmp/movscript-project',
         projectUid: 'project_uid_1',
+        backendProject: { ID: 17 },
         project: {
           name: 'Recent MCP Project',
           description: 'Opened from MCP',
@@ -26,6 +27,7 @@ test('extracts recent project touch from MovScript MCP project open result', () 
 
   assert.deepEqual(touch, {
     projectDir: '/tmp/movscript-project',
+    backendProjectId: 17,
     name: 'Recent MCP Project',
     description: 'Opened from MCP',
     projectUid: 'project_uid_1',
@@ -57,6 +59,7 @@ test('remembers each MCP project tool result once', () => {
     result: {
       data: {
         projectDir: '/tmp/movscript-project-once',
+        backendProject: { ID: 18 },
         project: { name: 'Once' },
       },
     },
