@@ -183,9 +183,9 @@ jobs:
         if: matrix.package-platform == 'win32' && matrix.package-arch == 'arm64'
         shell: pwsh
         env:
-          FFMPEG_WIN_ARM64_URL: https://github.com/tordona/ffmpeg-win-arm64/releases/download/latest-autobuild-2026.06.20.0/ffmpeg-master-latest-essentials-static-win-arm64.7z
-          FFMPEG_WIN_ARM64_SHA256: 9250438392edb65e2bf6371729453f18b8a5d24d962032709c5871b1d4ea9ef2
-          FFMPEG_WIN_ARM64_VERSION: ffmpeg version master-latest-autobuild-2026.06.20.0
+          FFMPEG_WIN_ARM64_URL: https://github.com/tordona/ffmpeg-win-arm64/releases/download/latest-autobuild-2026.06.21.0/ffmpeg-master-latest-essentials-static-win-arm64.7z
+          FFMPEG_WIN_ARM64_SHA256: 157f47dd2e9f820b1420c5c4ecfb6b63a78e981814362b7050d2f451eee44698
+          FFMPEG_WIN_ARM64_VERSION: ffmpeg version master-latest-autobuild-2026.06.21.0
         run: |
           $archive = Join-Path $env:RUNNER_TEMP 'ffmpeg-win-arm64.7z'
           $extractDir = Join-Path $env:RUNNER_TEMP 'ffmpeg-win-arm64'

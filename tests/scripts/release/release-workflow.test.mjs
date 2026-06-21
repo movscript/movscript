@@ -40,7 +40,7 @@ test('release workflow downloads ffmpeg for each desktop package job', () => {
   assert.match(releaseWorkflow, /if: matrix\.package-platform != 'win32' \|\| matrix\.package-arch != 'arm64'/)
   assert.match(releaseWorkflow, /release -- download-ffmpeg-static --platform=\$\{\{\s*matrix\.ffmpeg-platform\s*\}\} --arch=\$\{\{\s*matrix\.ffmpeg-arch\s*\}\}/)
   assert.match(releaseWorkflow, /Download Windows ARM64 ffmpeg release binary/)
-  assert.match(releaseWorkflow, /tordona\/ffmpeg-win-arm64\/releases\/download\/latest-autobuild-2026\.06\.20\.0/)
+  assert.match(releaseWorkflow, /tordona\/ffmpeg-win-arm64\/releases\/download\/latest-autobuild-2026\.06\.21\.0/)
   assert.match(releaseWorkflow, /pnpm run release -- stage-ffmpeg --platform=win32 --arch=arm64/)
 })
 
@@ -89,7 +89,7 @@ test('release workflow does not build or download app-server binaries for GitHub
 test('release workflow packages Windows ARM64 with a pinned third-party ffmpeg source', () => {
   assert.match(releaseWorkflow, /package-platform: win32\s+package-arch: arm64/)
   assert.match(releaseWorkflow, /artifact: movscript-desktop-windows-arm64/)
-  assert.match(releaseWorkflow, /FFMPEG_WIN_ARM64_SHA256: 9250438392edb65e2bf6371729453f18b8a5d24d962032709c5871b1d4ea9ef2/)
+  assert.match(releaseWorkflow, /FFMPEG_WIN_ARM64_SHA256: 157f47dd2e9f820b1420c5c4ecfb6b63a78e981814362b7050d2f451eee44698/)
 })
 
 test('release workflow collects package artifacts without plugin duplicates', () => {

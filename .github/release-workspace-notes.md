@@ -18,6 +18,7 @@ This release continues to target early community testing of the desktop workflow
 - Add tray status and nested download, update, and uninstall actions for the built-in Mova, Codex, and Claude Code agent runtimes.
 - Reuse the same React runtime operation dialog for Console downloads and tray runtime tasks, including simultaneous multi-agent download status.
 - Remember local projects opened, fetched, or initialized through MovScript MCP project tools in the desktop recent projects list.
+- Update the pinned Windows ARM64 ffmpeg release source used by the packaging workflow.
 - Recommend the matching desktop download on GitHub Pages based on the visitor's OS and architecture when browser detection is available.
 - Use a Windows-specific Movscript Home default under `%LOCALAPPDATA%\Movscript\Home`, with a settings-page directory picker for moving data to a larger drive.
 
