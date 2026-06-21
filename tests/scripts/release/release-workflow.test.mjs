@@ -5,8 +5,11 @@ import test from 'node:test'
 
 const releaseWorkflow = await readFile(resolve(import.meta.dirname, '../../../.github/workflows/release.yml'), 'utf8')
 
-test('release workflow packages every desktop target through one parameterized command', () => {
-  assert.match(releaseWorkflow, /pnpm run release -- package-desktop --platform=\$\{\{\s*matrix\.package-platform\s*\}\} --arch=\$\{\{\s*matrix\.package-arch\s*\}\}/)
+test('release workflow packages every desktop target through split parameterized commands', () => {
+  assert.match(releaseWorkflow, /pnpm run release -- prepare-desktop-package --platform=\$\{\{\s*matrix\.package-platform\s*\}\} --arch=\$\{\{\s*matrix\.package-arch\s*\}\}/)
+  assert.match(releaseWorkflow, /pnpm run release -- build-desktop-bundle --platform=\$\{\{\s*matrix\.package-platform\s*\}\} --arch=\$\{\{\s*matrix\.package-arch\s*\}\}/)
+  assert.match(releaseWorkflow, /pnpm run release -- build-desktop-artifact --platform=\$\{\{\s*matrix\.package-platform\s*\}\} --arch=\$\{\{\s*matrix\.package-arch\s*\}\}/)
+  assert.match(releaseWorkflow, /pnpm run release -- verify-desktop-package --platform=\$\{\{\s*matrix\.package-platform\s*\}\} --arch=\$\{\{\s*matrix\.package-arch\s*\}\}/)
   for (const pair of [
     ['package-platform: darwin', 'package-arch: arm64'],
     ['package-platform: win32', 'package-arch: x64'],

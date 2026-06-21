@@ -6,12 +6,16 @@ import { releaseSubcommands, releaseWorkflowSteps, runReleaseWorkflowCli } from 
 test('release workflow exposes the curated release subcommand surface', () => {
   assert.deepEqual(releaseSubcommands(), [
     'audit-ffmpeg',
+    'build-desktop-artifact',
+    'build-desktop-bundle',
     'bump-version',
     'collect',
     'download-ffmpeg-static',
     'package-desktop',
+    'prepare-desktop-package',
     'smoke-desktop-package',
     'stage-ffmpeg',
+    'verify-desktop-package',
     'verify-package-resources',
     'verify-release-readiness',
   ])
@@ -244,6 +248,84 @@ test('runReleaseWorkflowCli dispatches desktop packaging through release command
   assert.deepEqual(calls.map((call) => call.slice(0, 2)), [
     ['pnpm', ['--filter', '@movscript/desktop', 'build']],
     ['pnpm', ['--filter', '@movscript/desktop', 'exec', 'electron-builder', '--mac', 'dmg', '--arm64', '--publish', 'never', '-c.mac.identity=null', '-c.mac.notarize=false']],
+  ])
+})
+
+test('runReleaseWorkflowCli dispatches split desktop package stages', () => {
+  const logs = []
+  const calls = []
+  const prepareCalls = []
+  const verifyCalls = []
+  runReleaseWorkflowCli(['prepare-desktop-package', '--platform=win32', '--arch=x64'], {
+    defaults: { platform: 'win32', arch: 'x64' },
+    exit: () => undefined,
+    log: (message) => logs.push(message),
+    preparePackage: (...args) => prepareCalls.push(args),
+    root: '/repo',
+  })
+  runReleaseWorkflowCli(['build-desktop-bundle'], {
+    exit: () => undefined,
+    log: (message) => logs.push(message),
+    spawn: (command, args, options) => {
+      calls.push([command, args, options])
+      return { status: 0 }
+    },
+  })
+  runReleaseWorkflowCli(['build-desktop-artifact', '--platform=win32', '--arch=x64'], {
+    defaults: { platform: 'win32', arch: 'x64' },
+    env: { PATH: '/bin' },
+    exit: () => undefined,
+    log: (message) => logs.push(message),
+    spawn: (command, args, options) => {
+      calls.push([command, args, options])
+      return { status: 0 }
+    },
+  })
+  runReleaseWorkflowCli(['verify-desktop-package', '--platform=win32', '--arch=x64'], {
+    defaults: { platform: 'win32', arch: 'x64' },
+    exit: () => undefined,
+    log: (message) => logs.push(message),
+    root: '/repo',
+    verifyPackage: (...args) => {
+      verifyCalls.push(args)
+      return true
+    },
+  })
+
+  assert.equal(prepareCalls.length, 1)
+  assert.deepEqual({ ...prepareCalls[0][1], exit: undefined }, {
+    platform: 'win32',
+    currentPlatform: 'win32',
+    currentArch: 'x64',
+    arch: 'x64',
+    exit: undefined,
+    signingMode: 'unsigned',
+  })
+  assert.deepEqual(calls.map((call) => call.slice(0, 2)), [
+    ['pnpm', ['--filter', '@movscript/desktop', 'build']],
+    ['pnpm', ['--filter', '@movscript/desktop', 'exec', 'electron-builder', '--win', '--x64', '--publish', 'never']],
+  ])
+  assert.deepEqual(calls[1][2].env, {
+    PATH: '/bin',
+    CSC_IDENTITY_AUTO_DISCOVERY: 'false',
+    MOVSCRIPT_RELEASE_SIGNING_MODE: 'unsigned',
+  })
+  assert.equal(verifyCalls.length, 1)
+  assert.deepEqual({ ...verifyCalls[0][1], exit: undefined, log: undefined, logError: undefined }, {
+    platform: 'win32',
+    currentPlatform: 'win32',
+    currentArch: 'x64',
+    arch: 'x64',
+    exit: undefined,
+    signingMode: 'unsigned',
+    log: undefined,
+    logError: undefined,
+  })
+  assert.deepEqual(logs, [
+    '[package-desktop] Prepare desktop package prerequisites',
+    '[package-desktop] Build frontend desktop bundle',
+    '[package-desktop] Build frontend desktop artifact',
+    '[package-desktop] Verify desktop package',
   ])
 })
 

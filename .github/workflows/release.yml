@@ -164,8 +164,27 @@ jobs:
       - name: Download ffmpeg-static release binary
         run: pnpm run release -- download-ffmpeg-static --platform=${{ matrix.ffmpeg-platform }} --arch=${{ matrix.ffmpeg-arch }}
 
-      - name: Build desktop package
-        run: pnpm run release -- package-desktop --platform=${{ matrix.package-platform }} --arch=${{ matrix.package-arch }}
+      - name: Prepare desktop package prerequisites
+        run: pnpm run release -- prepare-desktop-package --platform=${{ matrix.package-platform }} --arch=${{ matrix.package-arch }}
+
+      - name: Build frontend desktop bundle
+        run: pnpm run release -- build-desktop-bundle --platform=${{ matrix.package-platform }} --arch=${{ matrix.package-arch }}
+
+      - name: Build frontend desktop artifact
+        run: pnpm run release -- build-desktop-artifact --platform=${{ matrix.package-platform }} --arch=${{ matrix.package-arch }}
+        env:
+          MOVSCRIPT_RELEASE_SIGNING_MODE: ${{ vars.MOVSCRIPT_RELEASE_SIGNING_MODE || 'unsigned' }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+
+      - name: Verify desktop package
+        run: pnpm run release -- verify-desktop-package --platform=${{ matrix.package-platform }} --arch=${{ matrix.package-arch }}
         env:
           MOVSCRIPT_RELEASE_SIGNING_MODE: ${{ vars.MOVSCRIPT_RELEASE_SIGNING_MODE || 'unsigned' }}
           CSC_LINK: ${{ secrets.CSC_LINK }}

@@ -23,12 +23,16 @@ import {
 const repoRoot = resolve(import.meta.dirname, '../..')
 const releaseCommands = new Map([
   ['audit-ffmpeg', ['scripts/release/audit-ffmpeg.mjs']],
+  ['build-desktop-artifact', ['builtin:build-desktop-artifact']],
+  ['build-desktop-bundle', ['builtin:build-desktop-bundle']],
   ['bump-version', ['scripts/release/bump-version.mjs']],
   ['collect', ['builtin:collect']],
   ['download-ffmpeg-static', ['scripts/release/download-ffmpeg-static.mjs']],
   ['package-desktop', ['builtin:package-desktop']],
+  ['prepare-desktop-package', ['builtin:prepare-desktop-package']],
   ['smoke-desktop-package', ['scripts/release/smoke-desktop-package.mjs']],
   ['stage-ffmpeg', ['scripts/release/stage-ffmpeg.mjs']],
+  ['verify-desktop-package', ['builtin:verify-desktop-package']],
   ['verify-package-resources', ['scripts/release/verify-package-resources.mjs']],
   ['verify-release-readiness', ['scripts/release/verify-release-readiness.mjs']],
 ])
@@ -91,6 +95,57 @@ export function runReleaseWorkflowCli(args = [], options = {}) {
   const releaseCommand = releaseCommands.get(mode)
   if (releaseCommand) {
     const [scriptPath, ...defaultArgs] = releaseCommand
+    if (scriptPath === 'builtin:prepare-desktop-package') {
+      runPrepareDesktopPackageCli([...defaultArgs, ...args.slice(1)], {
+        exit,
+        log,
+        logError,
+        defaults: options.defaults,
+        env: options.env,
+        preparePackage: options.preparePackage,
+        root: options.root,
+      })
+      return
+    }
+    if (scriptPath === 'builtin:build-desktop-bundle') {
+      runBuildDesktopBundleCli([...defaultArgs, ...args.slice(1)], {
+        exit,
+        log,
+        logError,
+        env: options.env,
+        pnpm: options.pnpm,
+        spawn,
+      })
+      return
+    }
+    if (scriptPath === 'builtin:build-desktop-artifact') {
+      runBuildDesktopArtifactCli([...defaultArgs, ...args.slice(1)], {
+        exit,
+        log,
+        logError,
+        defaults: options.defaults,
+        env: options.env,
+        patchMacOSDMGBuilder: options.patchMacOSDMGBuilder,
+        pnpm: options.pnpm,
+        root: options.root,
+        spawn,
+      })
+      return
+    }
+    if (scriptPath === 'builtin:verify-desktop-package') {
+      runVerifyDesktopPackageCli([...defaultArgs, ...args.slice(1)], {
+        exit,
+        log,
+        logError,
+        defaults: options.defaults,
+        env: options.env,
+        root: options.root,
+        spawn,
+        verifyMacOSDMG: options.verifyMacOSDMG,
+        verifyPackage: options.verifyPackage,
+      })
+      return
+    }
     if (scriptPath === 'builtin:package-desktop') {
       runDesktopPackageCli([...defaultArgs, ...args.slice(1)], {
         spawn,
@@ -285,6 +340,148 @@ export function runDesktopPackageCli(args = [], options = {}) {
       exit(1)
     }
   }
+}
+
+export function runPrepareDesktopPackageCli(args = [], options = {}) {
+  const {
+    exit = process.exit,
+    log = console.log,
+    logError = console.error,
+  } = options
+  const resolved = desktopPackageTargetOrExit(args, options, { exit, logError })
+  if (!resolved) return
+  const preparePackage = options.preparePackage ?? prepareDesktopPackage
+  const root = options.root ?? repoRoot
+  log('[package-desktop] Prepare desktop package prerequisites')
+  preparePackage(root, {
+    ...resolved.target,
+    exit,
+  })
+}
+
+export function runBuildDesktopBundleCli(args = [], options = {}) {
+  const {
+    exit = process.exit,
+    log = console.log,
+    logError = console.error,
+    pnpm = 'pnpm',
+    spawn = spawnSync,
+  } = options
+  log('[package-desktop] Build frontend desktop bundle')
+  runSpawnStep(pnpm, ['--filter', '@movscript/desktop', 'build'], {
+    env: options.env ?? process.env,
+    exit,
+    logError,
+    spawn,
+  })
+}
+
+export function runBuildDesktopArtifactCli(args = [], options = {}) {
+  const {
+    exit = process.exit,
+    log = console.log,
+    logError = console.error,
+    pnpm = 'pnpm',
+    spawn = spawnSync,
+  } = options
+  const resolved = desktopPackageTargetOrExit(args, options, { exit, logError })
+  if (!resolved) return
+  const root = options.root ?? repoRoot
+  if (resolved.target.platform === 'darwin') {
+    try {
+      const patchMacOSDMGBuilder = options.patchMacOSDMGBuilder ?? patchDmgBuilderAPFSAliasCompatibility
+      patchMacOSDMGBuilder(root, log)
+    } catch (error) {
+      logError(error instanceof Error ? error.message : String(error))
+      exit(1)
+      return
+    }
+  }
+  const packageEnv = desktopPackageEnv(options.env ?? process.env, resolved.plan.signingMode)
+  log('[package-desktop] Build frontend desktop artifact')
+  runSpawnStep(pnpm, ['--filter', '@movscript/desktop', 'exec', 'electron-builder', ...resolved.plan.builderArgs], {
+    env: packageEnv,
+    exit,
+    logError,
+    spawn,
+  })
+}
+
+export function runVerifyDesktopPackageCli(args = [], options = {}) {
+  const {
+    exit = process.exit,
+    log = console.log,
+    logError = console.error,
+    spawn = spawnSync,
+  } = options
+  const resolved = desktopPackageTargetOrExit(args, options, { exit, logError })
+  if (!resolved) return
+  const root = options.root ?? repoRoot
+  const verifyPackage = options.verifyPackage ?? verifyDesktopPackage
+  log('[package-desktop] Verify desktop package')
+  const verified = verifyPackage(root, {
+    ...resolved.target,
+    exit,
+    log,
+    logError,
+  })
+  if (verified === false) return
+  if (resolved.target.platform === 'darwin') {
+    try {
+      const packageEnv = desktopPackageEnv(options.env ?? process.env, resolved.plan.signingMode)
+      const verifyMacOSDMG = options.verifyMacOSDMG ?? verifyMacOSDMGArtifacts
+      verifyMacOSDMG(root, { arch: resolved.target.arch, env: packageEnv, log, spawn })
+    } catch (error) {
+      logError(error instanceof Error ? error.message : String(error))
+      exit(1)
+    }
+  }
+}
+
+function desktopPackageTargetOrExit(args, options, handlers) {
+  const { exit, logError } = handlers
+  let plan
+  try {
+    plan = desktopPackagePlan(args, options.defaults)
+  } catch (error) {
+    logError(error instanceof Error ? error.message : String(error))
+    exit(1)
+    return undefined
+  }
+  const defaults = options.defaults ?? {}
+  return {
+    plan,
+    target: {
+      platform: parseDesktopPlatformArg(plan.targetArgs, defaults.platform ?? process.platform, 'desktop package'),
+      currentPlatform: defaults.platform ?? process.platform,
+      currentArch: defaults.arch ?? process.arch,
+      arch: parseDesktopArchArg(plan.targetArgs, defaults.arch ?? process.arch, 'desktop package'),
+      signingMode: plan.signingMode,
+    },
+  }
+}
+
+function runSpawnStep(command, args, options) {
+  const {
+    env = process.env,
+    exit = process.exit,
+    logError = console.error,
+    spawn = spawnSync,
+  } = options
+  const result = spawn(command, args, {
+    stdio: 'inherit',
+    env,
+  })
+  if (result.error) {
+    logError(result.error.message)
+    exit(1)
+    return false
+  }
+  if (result.status !== 0) {
+    exit(result.status ?? 1)
+    return false
+  }
+  return true
 }
 
 export function prepareDesktopPackage(root = repoRoot, options = {}) {
