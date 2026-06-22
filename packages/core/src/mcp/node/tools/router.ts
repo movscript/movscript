@@ -13,6 +13,7 @@ import {
   domainCreateContentCandidate,
   domainCreateContentCandidateBatch,
   domainDecideContentUnitCandidate,
+  domainProductionStatusSummary,
   domainCreateKeyframeCandidate,
   domainDeleteEntity,
   domainGetModel,
@@ -38,6 +39,7 @@ import {
   domainReadProductionWorkPlan,
   domainReadScriptSource,
   domainRegenerationPlan,
+  domainRegisterRawResourceAsContentUnitCandidate,
   domainReview,
   domainSelectCandidate,
   domainSelectContentUnitCandidate,
@@ -55,10 +57,13 @@ import {
   domainUpsertKeyframe,
   domainUpsertProjectStandards,
   domainUpsertProduction,
+  domainUpsertProductionTree,
   domainUpsertScript,
   domainUpsertSceneMoment,
   domainUpsertSegment,
   domainUpsertSetting,
+  domainUpsertSettingState,
+  domainUpsertSettingTree,
   domainUpsertStoryboard,
 } from './domain/actions.js'
 import {
@@ -331,6 +336,10 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
       return toolText(await domainUpsertProjectStandards(args))
     case 'domain_upsert_setting':
       return toolText(await domainUpsertSetting(args))
+    case 'domain_upsert_setting_state':
+      return toolText(await domainUpsertSettingState(args))
+    case 'domain_upsert_setting_tree':
+      return toolText(await domainUpsertSettingTree(args))
     case 'domain_upsert_asset':
       return toolText(await domainUpsertAsset(args))
     case 'domain_upsert_script':
@@ -343,6 +352,8 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
       return toolText(await domainUpsertContentUnit(args))
     case 'domain_upsert_production':
       return toolText(await domainUpsertProduction(args))
+    case 'domain_upsert_production_tree':
+      return toolText(await domainUpsertProductionTree(args))
     case 'domain_upsert_segment':
       return toolText(await domainUpsertSegment(args))
     case 'domain_upsert_scene_moment':
@@ -365,6 +376,8 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
       return toolText(await domainAppendCandidate(args))
     case 'domain_create_content_candidate':
       return toolText(await domainCreateContentCandidate(args))
+    case 'domain_register_raw_resource_as_content_unit_candidate':
+      return toolText(await domainRegisterRawResourceAsContentUnitCandidate(args))
     case 'domain_create_content_candidate_batch':
       return toolText(await domainCreateContentCandidateBatch(args))
     case 'domain_create_asset_slot_candidate':
@@ -389,6 +402,8 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
       return toolText(await domainOverview(args))
     case 'domain_read_production_work_plan':
       return toolText(await domainReadProductionWorkPlan(args))
+    case 'domain_production_status_summary':
+      return toolText(await domainProductionStatusSummary(args))
     case 'domain_inspect':
       return toolText(await domainInspect(args))
     case 'domain_review':

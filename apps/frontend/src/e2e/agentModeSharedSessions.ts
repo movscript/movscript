@@ -38,7 +38,7 @@ export function buildAgentModeSharedSessionsBootstrap(apiBaseURL: string): E2EBo
         system_role: 'user',
       },
       token: 'e2e-token',
-      expires_at: '2026-06-01T00:00:00.000Z',
+      expires_at: '2027-06-01T00:00:00.000Z',
       org_memberships: [{
         org_id: 1,
         org_name: 'E2E Org',

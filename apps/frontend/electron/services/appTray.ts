@@ -11,7 +11,6 @@ import {
 } from './sdkRuntimePackageStore'
 import { broadcastCrossPageNotification } from './crossPageNotifications'
 import { resolveAppIconPath, resolveTrayIconPath } from '../appWindow/paths'
-import { enterTrayMode } from './desktopPresence'
 
 let tray: Tray | null = null
 let installing = false
@@ -67,7 +66,6 @@ const TRAY_RUNTIME_AGENTS: TrayRuntimeAgent[] = [
 ]
 export function installAppTray(): void {
   if (tray) return
-  enterTrayMode()
 
   tray = new Tray(createTrayImage())
   tray.setToolTip('MovScript')

@@ -17,6 +17,7 @@ import {
 import {
   domainBuildContentUnitBackendPrompt,
   domainCreateContentCandidate,
+  readContentUnitCandidateVisibility,
 } from '../domain/actions.js'
 import { listModels } from '../model/actions.js'
 import { requireMCPBackendBoundProject } from '../project/localProjectBinding.js'
@@ -93,7 +94,7 @@ export async function generateContentUnitImage(args: Record<string, unknown>): P
 }
 
 export async function getImageGenerationJob(args: Record<string, unknown>): Promise<unknown> {
-  return generationJobGetResult('image', await getGenerationJob(normalizedJobId(args)))
+  return generationJobGetResult('image', await getGenerationJob(normalizedJobId(args)), verbosityArg(args))
 }
 
 export async function getContentUnitImageGenerationJob(args: Record<string, unknown>): Promise<unknown> {
@@ -116,7 +117,7 @@ export async function generateContentUnitVideo(args: Record<string, unknown>): P
 }
 
 export async function getVideoGenerationJob(args: Record<string, unknown>): Promise<unknown> {
-  return generationJobGetResult('video', await getGenerationJob(normalizedJobId(args)))
+  return generationJobGetResult('video', await getGenerationJob(normalizedJobId(args)), verbosityArg(args))
 }
 
 export async function getContentUnitVideoGenerationJob(args: Record<string, unknown>): Promise<unknown> {
@@ -186,6 +187,7 @@ async function generateContentUnitVisual(
   }
 
   const prompt = compiledContentUnitGenerationPromptText(compiled.prompt)
+  const providerPrompt = stripResourceMentions(prompt)
   const compiledRefIds = positiveIntegerIds([
     ...compiledContentUnitGenerationPromptResourceIds(compiled.prompt),
     ...(resourceIds(args.input_resource_ids) ?? []),
@@ -255,10 +257,19 @@ async function generateContentUnitVisual(
   const candidateId = getOptionalString(args, 'candidate_id') ?? getOptionalString(args, 'candidateId')
   return {
     ...result,
+    generation_mode: 'content_unit_candidate',
+    candidate_policy: 'auto_create_on_success',
+    will_auto_select: false,
+    requires_user_adoption: true,
     contentUnitId,
     content_unit_id: contentUnitId,
     prompt: compiled.prompt,
-    candidate_policy: 'auto_create_on_success',
+    compiled_prompt_text: prompt,
+    provider_prompt_text: providerPrompt,
+    input_resource_ids: sharedRequest.inputResourceIds,
+    inputResourceIds: sharedRequest.inputResourceIds,
+    semantic_ref_replacements: semanticRefReplacements(compiled.prompt),
+    provider_prompt_note: 'Provider prompt text intentionally strips MovScript resource tokens; resources are passed separately through input_resource_ids.',
     monitor: {
       tool: monitorTool,
       args: {
@@ -286,11 +297,15 @@ async function getContentUnitVisualGenerationJob(
 ): Promise<unknown> {
   const contentUnitId = requiredContentUnitId(args)
   const job = await getGenerationJob(normalizedJobId(args))
-  const base = generationJobGetResult(kind, job)
+  const base = generationJobGetResult(kind, job, verbosityArg(args))
   const status = stringField(base.status) ?? ''
   if (!isSuccessfulStatus(status)) {
     return {
       ...base,
+      generation_mode: 'content_unit_candidate',
+      candidate_policy: 'auto_create_on_success',
+      will_auto_select: false,
+      requires_user_adoption: true,
       contentUnitId,
       content_unit_id: contentUnitId,
       candidate_created: false,
@@ -302,6 +317,10 @@ async function getContentUnitVisualGenerationJob(
   if (outputResourceIds.length === 0) {
     return {
       ...base,
+      generation_mode: 'content_unit_candidate',
+      candidate_policy: 'auto_create_on_success',
+      will_auto_select: false,
+      requires_user_adoption: true,
       contentUnitId,
       content_unit_id: contentUnitId,
       candidate_created: false,
@@ -336,19 +355,25 @@ async function getContentUnitVisualGenerationJob(
     })
   }
 
+  const visibility = await readContentUnitCandidateVisibility(args, contentUnitId).catch(() => undefined)
   return {
     ...base,
+    generation_mode: 'content_unit_candidate',
+    candidate_policy: 'auto_create_on_success',
+    will_auto_select: false,
+    requires_user_adoption: true,
     contentUnitId,
     content_unit_id: contentUnitId,
     candidate_created: true,
     candidate_count: candidates.length,
     candidates,
+    ...(visibility ?? {}),
     message: `${base.message}. Created or refreshed ${candidates.length} content-unit candidate(s).`,
   }
 }
 
 export async function getAudioGenerationJob(args: Record<string, unknown>): Promise<unknown> {
-  return generationJobGetResult('audio', await getGenerationJob(normalizedJobId(args)))
+  return generationJobGetResult('audio', await getGenerationJob(normalizedJobId(args)), verbosityArg(args))
 }
 
 export async function getAudioGenerationJobs(args: Record<string, unknown>): Promise<unknown> {
@@ -574,7 +599,7 @@ async function resolveGenerationProjectScope(args: Record<string, unknown>): Pro
   const binding = await requireMCPBackendBoundProject({ projectDir })
   return {
     projectDir,
-    projectUid: getOptionalString(args, 'projectUid') ?? getOptionalString(args, 'project_uid') ?? binding.projectUid,
+    projectUid: binding.projectUid,
     projectTitle: getOptionalString(args, 'projectTitle') ?? getOptionalString(args, 'project_title') ?? binding.projectTitle,
   }
 }
@@ -595,22 +620,26 @@ function generationSubmitResult(kind: 'image' | 'video' | 'audio', job: Record<s
   }
 }
 
-function generationJobGetResult(kind: 'image' | 'video' | 'audio', job: Record<string, unknown>): Record<string, unknown> {
+function generationJobGetResult(kind: 'image' | 'video' | 'audio', job: Record<string, unknown>, verbosity: 'summary' | 'debug' = 'debug'): Record<string, unknown> {
   const jobId = idField(job.id) ?? idField(job.ID)
   if (jobId === undefined) throw new Error('Generation job response does not include a valid job id')
   const status = stringField(job.status) ?? 'unknown'
   const outputResourceIds = outputResourceIdsFromJob(job)
-  return {
+  const result: Record<string, unknown> = {
     status,
     terminal: isTerminalStatus(status),
     jobId,
     job_id: jobId,
+    provider_status: stringField(job.provider_status ?? job.providerStatus ?? job.external_status ?? job.externalStatus),
     outputResourceIds,
     output_resource_ids: outputResourceIds,
     ...(outputResourceIds[0] ? { output_resource_id: outputResourceIds[0], outputResourceId: outputResourceIds[0] } : {}),
+    next_run_at: stringField(job.next_run_at ?? job.nextRunAt),
+    error_summary: errorSummary(job),
     message: `${generationKindLabel(kind)} generation job #${jobId} status: ${status}`,
-    job,
   }
+  if (verbosity !== 'summary') result.job = job
+  return result
 }
 
 async function getGenerationJobs(kind: 'image' | 'video' | 'audio', args: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -619,7 +648,7 @@ async function getGenerationJobs(kind: 'image' | 'video' | 'audio', args: Record
   for (let index = 0; index < jobIds.length; index += 1) {
     const jobId = jobIds[index]!
     try {
-      const result = generationJobGetResult(kind, await getGenerationJob(jobId))
+      const result = generationJobGetResult(kind, await getGenerationJob(jobId), verbosityArg(args))
       items.push({
         index,
         status: 'loaded',
@@ -760,6 +789,23 @@ function assignDefaultParam(params: Record<string, unknown>, defaultParamKeys: S
 function parameterModeArg(args: Record<string, unknown>): ParameterMode {
   const raw = getOptionalString(args, 'parameter_mode') ?? getOptionalString(args, 'param_mode')
   return raw === 'strict' ? 'strict' : 'compatible'
+}
+
+function verbosityArg(args: Record<string, unknown>): 'summary' | 'debug' {
+  const raw = getOptionalString(args, 'verbosity')
+  return raw === 'summary' ? 'summary' : 'debug'
+}
+
+function semanticRefReplacements(prompt: Record<string, unknown>): unknown[] {
+  const replacements = prompt.replacements ?? prompt.semantic_ref_replacements ?? prompt.ref_replacements
+  return Array.isArray(replacements) ? replacements : []
+}
+
+function errorSummary(job: Record<string, unknown>): string | undefined {
+  const direct = stringField(job.error_summary ?? job.errorSummary ?? job.error ?? job.error_message ?? job.errorMessage)
+  if (direct) return direct
+  const error = isRecord(job.error) ? job.error : undefined
+  return stringField(error?.message)
 }
 
 function prepareGenerationParams(

@@ -14,6 +14,7 @@ import {
   createShotGroup,
   extractResourceVideoFrameToResource,
   generateImage,
+  getImageGenerationJob,
   getMCPFocusSnapshot,
   getShotGroup,
   getImageGenerationJobs,
@@ -268,9 +269,11 @@ test('MCP discovery exposes core MovScript tools and resources', async () => {
   assert.ok(tools.includes('domain_create_asset_slot_candidate'))
   assert.ok(tools.includes('domain_create_keyframe_candidate'))
   assert.ok(tools.includes('domain_create_content_candidate'))
+  assert.ok(tools.includes('domain_register_raw_resource_as_content_unit_candidate'))
   assert.ok(tools.includes('domain_create_content_candidate_batch'))
   assert.ok(tools.includes('domain_select_content_unit_candidate_batch'))
   assert.ok(tools.includes('domain_decide_content_unit_candidate'))
+  assert.ok(tools.includes('domain_production_status_summary'))
   assert.ok(tools.includes('domain_review'))
   assert.ok(tools.includes('domain_interpret'))
   assert.equal(tools.includes('domain_update_scene_moment_timing'), false)
@@ -507,7 +510,7 @@ test('MCP domain runtime uses scoped project data decisions when project uid and
       })
     }
 
-    const runtime = createMovScriptDomainRuntime({ workspaceDir, projectDir, orgId: 12 })
+    const runtime = createMovScriptDomainRuntime({ workspaceDir, projectDir, projectUid: '1', orgId: 12 })
     assert.ok(runtime.decisionStore)
 
     await runtime.decisionStore.upsertContentUnitCandidate({
@@ -634,6 +637,11 @@ test('MCP content candidate schemas expose status enum and default guidance', ()
   assert.ok(batchTool, 'domain_create_content_candidate_batch schema should be exposed')
   assert.deepEqual(batchTool.inputSchema.properties?.items?.items?.properties?.status?.enum, expectedStatuses)
   assert.match(batchTool.inputSchema.properties?.items?.items?.properties?.status?.description ?? '', /Do not use completed/)
+
+  const registerTool = tools.find((tool) => tool.name === 'domain_register_raw_resource_as_content_unit_candidate')
+  assert.ok(registerTool, 'domain_register_raw_resource_as_content_unit_candidate schema should be exposed')
+  assert.deepEqual(registerTool.inputSchema.properties?.outputKind?.enum, ['image', 'video', 'audio', 'text', 'metadata'])
+  assert.match(registerTool.description ?? '', /RawResource as a content-unit candidate/)
 })
 
 test('MCP project-scoped tool schemas expose explicit project directory arguments', () => {
@@ -1401,7 +1409,13 @@ test('MCP generation job get batch returns per-job state and output ids', async 
       throw new Error(`unexpected request: ${url}`)
     }
 
-    const result = await getImageGenerationJobs({ jobIds: [11, 12] })
+    const summary = await getImageGenerationJob({ jobId: 11, verbosity: 'summary' })
+    assert.equal(summary.status, 'succeeded')
+    assert.equal(summary.terminal, true)
+    assert.equal(summary.job, undefined)
+    assert.deepEqual(summary.output_resource_ids, [701])
+
+    const result = await getImageGenerationJobs({ jobIds: [11, 12], verbosity: 'summary' })
     assert.equal(result.status, 'loaded')
     assert.equal(result.success_count, 2)
     assert.equal(result.failed_count, 0)
@@ -1409,8 +1423,10 @@ test('MCP generation job get batch returns per-job state and output ids', async 
     assert.equal(result.all_terminal, false)
     assert.deepEqual(result.output_resource_ids, [701])
     assert.equal(result.items[0].job_id, 11)
+    assert.equal(result.items[0].result.job, undefined)
     assert.equal(result.items[1].job_id, 12)
     assert.deepEqual(requested, [
+      'http://movscript.test/api/v1/jobs/11',
       'http://movscript.test/api/v1/jobs/11',
       'http://movscript.test/api/v1/jobs/12',
     ])
@@ -1706,6 +1722,7 @@ test('MCP content-unit image generation compiles prompt and monitor auto-creates
 
     const submitted = await callTool('system_generate_content_unit_image', {
       projectDir,
+      projectUid: '1',
       contentUnitId: 'arrival_preview',
       model_id: 'volcengine:seedream-4-0',
       image_size: '1024x1024',
@@ -1713,6 +1730,13 @@ test('MCP content-unit image generation compiles prompt and monitor auto-creates
 
     assert.equal(submitted.status, 'submitted')
     assert.equal(submitted.job_id, 94)
+    assert.equal(submitted.generation_mode, 'content_unit_candidate')
+    assert.equal(submitted.candidate_policy, 'auto_create_on_success')
+    assert.equal(submitted.will_auto_select, false)
+    assert.equal(submitted.requires_user_adoption, true)
+    assert.equal(submitted.compiled_prompt_text, 'Generate a cold close-up preview for the arrival shot.')
+    assert.equal(submitted.provider_prompt_text, 'Generate a cold close-up preview for the arrival shot.')
+    assert.deepEqual(submitted.input_resource_ids, [])
     assert.equal(submitted.monitor.tool, 'system_generate_content_unit_image_job_get')
     assert.equal(submitted.monitor.args.projectDir, projectDir)
     assert.equal(submitted.monitor.args.project_dir, projectDir)
@@ -1735,8 +1759,13 @@ test('MCP content-unit image generation compiles prompt and monitor auto-creates
     const context = decisionContexts.get('content_units/arrival_preview')
 
     assert.equal(firstMonitor.status, 'succeeded')
+    assert.equal(firstMonitor.generation_mode, 'content_unit_candidate')
+    assert.equal(firstMonitor.will_auto_select, false)
+    assert.equal(firstMonitor.requires_user_adoption, true)
     assert.equal(firstMonitor.candidate_created, true)
     assert.equal(firstMonitor.candidates[0].candidate_id, 'gen_image_94_880')
+    assert.equal(firstMonitor.content_unit_candidates[0].id, 'gen_image_94_880')
+    assert.equal(firstMonitor.frontend.visible_in_panel, true)
     assert.equal(secondMonitor.candidate_created, true)
     assert.equal(candidateWriteCount, 2)
     assert.equal(context.candidates.length, 1)
@@ -2133,7 +2162,10 @@ test('MCP content unit candidate flow writes source records and refreshes interp
     })
 
     assert.equal(candidateResponse.error, undefined)
-    assert.equal(candidateResponse.result.data.path, 'content_units/arrival_preview/candidates/candidate_a/content_candidate.json')
+    assert.equal(candidateResponse.result.data.result.path, 'content_units/arrival_preview/candidates/candidate_a/content_candidate.json')
+    assert.equal(candidateResponse.result.data.candidate_created, true)
+    assert.equal(candidateResponse.result.data.will_auto_select, false)
+    assert.equal(candidateResponse.result.data.requires_user_adoption, true)
 
     const deferredResponse = await handleJSONRPC({
       jsonrpc: '2.0',
@@ -2153,9 +2185,10 @@ test('MCP content unit candidate flow writes source records and refreshes interp
     })
 
     assert.equal(deferredResponse.error, undefined)
-    assert.equal(deferredResponse.result.data.record.candidates[0].decision_status, 'defer')
-    assert.equal(deferredResponse.result.data.record.candidates[0].decision_reason, 'waiting for user comparison')
-    assert.equal(deferredResponse.result.data.record.selection, undefined)
+    assert.equal(deferredResponse.result.data.result.record.candidates[0].decision_status, 'defer')
+    assert.equal(deferredResponse.result.data.result.record.candidates[0].decision_reason, 'waiting for user comparison')
+    assert.equal(deferredResponse.result.data.result.record.selection, undefined)
+    assert.equal(deferredResponse.result.data.adoption, 'defer')
 
     const selectionResponse = await handleJSONRPC({
       jsonrpc: '2.0',
@@ -2174,11 +2207,12 @@ test('MCP content unit candidate flow writes source records and refreshes interp
     })
 
     assert.equal(selectionResponse.error, undefined)
-    assert.equal(selectionResponse.result.data.path, '.movscript/decisions/content_units/arrival_preview/decision_context.json')
+    assert.equal(selectionResponse.result.data.result.path, '.movscript/decisions/content_units/arrival_preview/decision_context.json')
     assert.equal(selectionRequests.at(-1)?.candidate_id, 'candidate_a')
     assert.equal(selectionRequests.at(-1)?.resource_id, 321)
-    assert.equal(selectionResponse.result.data.record.selection.resource_id, 321)
-    assert.equal(selectionResponse.result.data.record.selection.accepted_input_hash, undefined)
+    assert.equal(selectionResponse.result.data.result.record.selection.resource_id, 321)
+    assert.equal(selectionResponse.result.data.result.record.selection.accepted_input_hash, undefined)
+    assert.equal(selectionResponse.result.data.adoption, 'adopt')
 
     const inspectResponse = await handleJSONRPC({
       jsonrpc: '2.0',

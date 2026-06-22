@@ -64,7 +64,7 @@ export async function materializeMediaPipelineAsset(input: {
   const asset = input.asset
   if (asset.sourceKind === 'local_file') return materializeLocalFile(asset)
   if (asset.sourceKind === 'bytes') return materializeBytesAsset({ asset, workspace: input.workspace })
-  if (asset.sourceKind === 'backend_resource' || asset.sourceKind === 'generated_resource') {
+  if (asset.sourceKind === 'raw_resource' || asset.sourceKind === 'backend_resource' || asset.sourceKind === 'generated_resource') {
     return materializeBackendResource({ asset, workspace: input.workspace, options: input.options })
   }
   throw new Error(`ASSET_MATERIALIZE_UNSUPPORTED: ${asset.sourceKind} assets are not materializable yet.`)

@@ -1,4 +1,5 @@
 import { Bot, History, ListChecks, Loader2, Route } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import {
   Select,
   SelectContent,
@@ -70,6 +71,7 @@ export function AgentPlanOverviewWorkerSection({
   onLoadTraceEvents: (runId: string, mode?: 'initial' | 'more') => void
   onOpenConsole: () => void
 }) {
+  const { t } = useTranslation()
   const worker = view.worker
   if (!worker) return null
   const workerStatusRecipe = agentRunStatusRecipe(worker.status)
@@ -136,7 +138,7 @@ export function AgentPlanOverviewWorkerSection({
             onClick={onOpenConsole}
           >
             <Route size={10} />
-            Agent 控制台
+            {t('sidebar.items.agentConsole')}
           </AgentPlanOverviewActionButton>
           <AgentPlanOverviewActionButton
             type="button"

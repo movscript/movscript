@@ -35,15 +35,18 @@ const registryListeners = new Set<() => void>()
 let suspendedAuthWindows: ElectronAppWindowContext[] = []
 
 export function openHomeWindow(): ElectronAppWindowContext {
-  if (homeWindow && !homeWindow.isDestroyed()) {
-    focusWindow(homeWindow)
-    return contextForWindow(homeWindow)
-  }
-
   const context: ElectronAppWindowContext = {
     kind: 'home',
     route: HOME_ROUTE,
   }
+
+  if (homeWindow && !homeWindow.isDestroyed()) {
+    windowContexts.set(homeWindow, context)
+    loadRenderer(homeWindow, context)
+    focusWindow(homeWindow)
+    return context
+  }
+
   homeWindow = createTrackedWindow(context)
   bindHomeWindowCloseToTray(homeWindow)
   homeWindow.once('closed', () => {

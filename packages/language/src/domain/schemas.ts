@@ -137,11 +137,27 @@ export const assetEntitySchema = {
   version: '1.0.0',
   status: 'active',
   jsonSchema: entitySchema('asset', ['slot'], {
+    setting_id: { type: 'string', description: 'Concrete setting id. Usually derived from the source path.' },
+    setting_state_id: { type: 'string', description: 'Owning setting_state id. Usually derived from the source path.' },
     slot: { type: 'string', minLength: 1 },
     asset_kind: { enum: ['image', 'video', 'audio', 'text', 'reference', 'other'] },
     prompt_hint: { type: 'string' },
+    resource_id: { type: ['string', 'number'], description: 'Optional selected stable RawResource reference for imported/manual assets. Generated asset candidates should be selected through an asset_ref content unit instead.' },
+    asset_ref_content_unit_id: { type: 'string', description: 'Optional pointer to the asset_ref content unit that carries generated candidates for this asset.' },
+    candidates: {
+      type: 'array',
+      deprecated: true,
+      description: 'Legacy inline candidate storage only. Do not create new asset candidates here; use an asset_ref content unit and backend content-unit candidate decisions.',
+      items: { type: 'object', additionalProperties: true },
+    },
+    selection: {
+      type: 'object',
+      deprecated: true,
+      description: 'Legacy inline asset selection only. New generated asset selections belong to the asset_ref content unit candidate decision flow.',
+      additionalProperties: true,
+    },
   }),
-  promptSummary: 'Asset is a setting-state-owned resource slot that describes one state asset, such as front view, side view, turnaround sheet, material reference, voice timbre, or instrument tone. Image assets should prefer plain white or very clean backgrounds.',
+  promptSummary: 'Asset is a setting-state-owned resource slot and a carrier for asset_ref content-unit generation/review. Do not write new candidates or selections into asset.json; generated asset candidates belong to the linked asset_ref content unit and backend content-unit decision flow. Image assets should prefer plain white or very clean backgrounds.',
   examples: [{
     title: 'portrait',
     content: { schema: 'movscript.asset.v1', kind: 'asset', id: 'base_portrait', slot: 'character_base_portrait' },

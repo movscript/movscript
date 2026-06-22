@@ -1,5 +1,5 @@
-import { useCallback, useLayoutEffect, useMemo, useRef, type ClipboardEvent, type FormEvent, type MouseEvent } from 'react'
-import { Image } from 'lucide-react'
+import { useCallback, useLayoutEffect, useMemo, useRef, type ClipboardEvent, type FocusEvent, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react'
+import { File, Image, Video } from 'lucide-react'
 
 import type { ContentCanvasCandidate, ContentCanvasNode } from '../domain/contentCanvasTypes'
 import { ResourceFileImage } from '@/shared/ui/ResourceFileImage'
@@ -9,7 +9,7 @@ import { candidatesForNode, iconForContentNode } from './contentCanvasWorkspaceM
 import type { CandidateSelections } from './contentCanvasWorkspaceTypes'
 
 export type PromptReferenceItem = {
-  kind: 'asset' | 'candidate' | 'resource' | 'keyframe' | 'storyboard'
+  kind: 'asset' | 'candidate' | 'resource' | 'keyframe' | 'storyboard' | 'scene_moment' | 'expression_unit' | 'content_unit'
   token: string
   raw: string
   title: string
@@ -19,18 +19,21 @@ export type PromptReferenceItem = {
   mediaType?: 'image' | 'video' | 'audio' | 'file'
   selectedResourceId?: number
   selectedMediaType?: 'image' | 'video' | 'audio' | 'file'
+  previewResourceId?: number
+  previewMediaType?: 'image' | 'video' | 'audio' | 'file'
   state: 'selected' | 'pending' | 'empty' | 'missing'
   actionLabel: string
   missing?: boolean
 }
 
-const PROMPT_REFERENCE_PATTERN = /\{\{\s*(asset|candidate|resource|keyframe|storyboard):([^}]+?)\s*\}\}/g
+const PROMPT_REFERENCE_PATTERN = /\{\{\s*(asset|candidate|resource|keyframe|storyboard|scene_moment|expression_unit|content_unit):{1,2}\s*([^}]+?)\s*\}\}/g
 
 export function PromptReferenceInlineEditor({
   prompt,
   nodes,
   ownerNode,
   candidateSelections,
+  className,
   ariaLabel,
   onChange,
   onBlur,
@@ -40,9 +43,10 @@ export function PromptReferenceInlineEditor({
   nodes: ContentCanvasNode[]
   ownerNode: ContentCanvasNode | undefined
   candidateSelections: CandidateSelections
+  className?: string
   ariaLabel: string
   onChange: (prompt: string) => void
-  onBlur: () => void
+  onBlur: (prompt: string) => void
   onSelectNode: (node: ContentCanvasNode) => void
 }) {
   const editorRef = useRef<HTMLDivElement | null>(null)
@@ -82,12 +86,20 @@ export function PromptReferenceInlineEditor({
     const referenceNode = referenceNodesByRaw.get(raw)
     if (referenceNode) onSelectNode(referenceNode)
   }, [onSelectNode, referenceNodesByRaw])
+  const handleBlur = useCallback((event: FocusEvent<HTMLDivElement>) => {
+    onBlur(serializePromptEditor(event.currentTarget))
+  }, [onBlur])
+  const handleKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
+    if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+      event.currentTarget.blur()
+    }
+  }, [])
 
   return (
     <div className="content-canvas-prompt-inline-editor-shell">
       <div
         ref={editorRef}
-        className="content-canvas-prompt-inline-editor"
+        className={['content-canvas-prompt-inline-editor', className].filter(Boolean).join(' ')}
         role="textbox"
         contentEditable
         suppressContentEditableWarning
@@ -97,7 +109,8 @@ export function PromptReferenceInlineEditor({
         onInput={handleInput}
         onPaste={handlePaste}
         onMouseDown={handleMouseDown}
-        onBlur={onBlur}
+        onKeyDown={handleKeyDown}
+        onBlur={handleBlur}
       />
     </div>
   )
@@ -143,13 +156,13 @@ export function PromptReferenceStrip({
 }
 
 function PromptReferenceThumb({ reference }: { reference: PromptReferenceItem }) {
-  if (reference.resourceId !== undefined && reference.mediaType === 'image') {
-    return <ResourceFileImage resourceId={reference.resourceId} alt={reference.title} loading="lazy" />
+  if (reference.previewResourceId !== undefined && reference.previewMediaType === 'image') {
+    return <ResourceFileImage resourceId={reference.previewResourceId} alt={reference.title} loading="lazy" thumbnailMaxSize={96} />
   }
-  if (reference.resourceId !== undefined && reference.mediaType === 'video') {
-    return <ResourceFileVideo resourceId={reference.resourceId} muted playsInline preload="metadata" />
+  if (reference.previewResourceId !== undefined && reference.previewMediaType === 'video') {
+    return <ResourceFileVideo resourceId={reference.previewResourceId} muted playsInline preload="metadata" />
   }
-  const Icon = reference.node ? iconForContentNode(reference.node) : Image
+  const Icon = iconForPromptReference(reference)
   return (
     <span className="content-canvas-prompt-reference-strip__fallback">
       <Icon size={15} aria-hidden="true" />
@@ -215,9 +228,10 @@ function promptReferenceEditorHtml(
       ` data-prompt-reference="true"`,
       ` data-prompt-reference-raw="${escapeAttribute(part.reference.raw)}"`,
       ` data-state="${escapeAttribute(part.reference.state)}"`,
+      ` data-media-type="${escapeAttribute(part.reference.previewMediaType ?? part.reference.mediaType ?? 'file')}"`,
       part.reference.missing ? ' data-missing="true"' : '',
       '>',
-      `<span class="content-canvas-prompt-reference-strip__fallback">${escapeHtml(promptReferenceGlyph(part.reference.kind))}</span>`,
+      promptReferenceInlineThumbHtml(part.reference),
       '<span>',
       `<strong>${escapeHtml(part.reference.title)}</strong>`,
       `<small>${escapeHtml(part.reference.label)}</small>`,
@@ -227,12 +241,22 @@ function promptReferenceEditorHtml(
   }).join('')
 }
 
-function promptReferenceGlyph(kind: PromptReferenceItem['kind']): string {
-  if (kind === 'asset') return 'A'
-  if (kind === 'keyframe') return 'K'
-  if (kind === 'storyboard') return 'S'
-  if (kind === 'candidate') return 'C'
-  return 'R'
+function promptReferenceInlineThumbHtml(reference: PromptReferenceItem): string {
+  return [
+    `<span class="content-canvas-prompt-reference-strip__fallback" data-media-type="${escapeAttribute(reference.previewMediaType ?? reference.mediaType ?? 'file')}">`,
+    promptReferenceInlineFallbackIcon(reference.previewMediaType ?? reference.mediaType ?? 'file'),
+    '</span>',
+  ].join('')
+}
+
+function promptReferenceInlineFallbackIcon(mediaType: PromptReferenceItem['mediaType']): string {
+  if (mediaType === 'video') {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 13 5.22 3.48a.5.5 0 0 0 .78-.42V7.94a.5.5 0 0 0-.78-.42L16 11"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg>'
+  }
+  if (mediaType === 'image') {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.09-3.09a2 2 0 0 0-2.82 0L6 21"/></svg>'
+  }
+  return '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>'
 }
 
 function escapeHtml(value: string): string {
@@ -280,6 +304,8 @@ function resolvePromptReference(
       selectedResourceId: resourceId,
       mediaType: 'image',
       selectedMediaType: 'image',
+      previewResourceId: resourceId,
+      previewMediaType: 'image',
       state: resourceId !== undefined ? 'selected' : 'missing',
       actionLabel: resourceId !== undefined ? '已选择资源' : '资源缺失',
       missing: resourceId === undefined,
@@ -299,6 +325,8 @@ function resolvePromptReference(
         selectedResourceId: candidate.resourceId,
         mediaType,
         selectedMediaType: mediaType,
+        previewResourceId: candidate.resourceId,
+        previewMediaType: mediaType,
         state: 'selected',
         actionLabel: candidate.resourceId !== undefined ? '已选择' : '已引用候选',
       }
@@ -311,11 +339,21 @@ function resolvePromptReference(
   if (node) {
     const candidates = candidatesForNode(node)
     const selectedCandidate = explicitSelectedCandidateForNode(node, candidateSelections)
+    const firstPreviewCandidate = candidates.find((candidate) => candidate.resourceId !== undefined) ?? candidates[0]
     const fallbackResourceId = numberValue(node.record.resource_id ?? node.record.resourceId)
     const fallbackMediaType = mediaTypeForReference(stringValue(node.record.resource_kind ?? node.record.resourceKind), stringValue(node.record.artifact_ref ?? node.record.artifactRef))
-    const selectedMediaType = mediaTypeForReference(selectedCandidate?.resourceKind, selectedCandidate?.artifactRef) ?? fallbackMediaType
+    const nodeMediaType = mediaTypeForReference(
+      stringValue(node.generationTask?.outputKind ?? node.record.output_kind ?? node.record.outputKind ?? node.record.content_unit_type ?? node.record.contentUnitType),
+      stringValue(node.record.artifact_ref ?? node.record.artifactRef),
+    )
+    const selectedMediaType = mediaTypeForReference(selectedCandidate?.resourceKind, selectedCandidate?.artifactRef) ?? fallbackMediaType ?? nodeMediaType
     const selectedResourceId = selectedCandidate?.resourceId ?? fallbackResourceId
-    const state = selectedResourceId !== undefined || selectedCandidate
+    const pendingMediaType = mediaTypeForReference(firstPreviewCandidate?.resourceKind, firstPreviewCandidate?.artifactRef) ?? nodeMediaType
+    const previewResourceId = selectedResourceId ?? (selectedCandidate ? undefined : firstPreviewCandidate?.resourceId)
+    const previewMediaType = selectedResourceId !== undefined || selectedCandidate
+      ? selectedMediaType
+      : pendingMediaType
+    const state = selectedCandidate || fallbackResourceId !== undefined
       ? 'selected'
       : candidates.length > 0
         ? 'pending'
@@ -331,6 +369,8 @@ function resolvePromptReference(
       selectedResourceId,
       mediaType: fallbackMediaType,
       selectedMediaType,
+      previewResourceId,
+      previewMediaType,
       state,
       actionLabel: promptReferenceActionLabel(state, candidates.length),
     }
@@ -347,10 +387,21 @@ function resolvePromptReference(
   }
 }
 
+function iconForPromptReference(reference: PromptReferenceItem) {
+  const mediaType = reference.previewMediaType ?? reference.selectedMediaType ?? reference.mediaType
+  if (mediaType === 'video') return Video
+  if (mediaType === 'image') return Image
+  if (reference.node) return iconForContentNode(reference.node)
+  return File
+}
+
 function promptReferenceLabel(kind: PromptReferenceItem['kind']): string {
   if (kind === 'asset') return 'Asset 引用'
   if (kind === 'keyframe') return '关键帧引用'
   if (kind === 'storyboard') return '分镜图引用'
+  if (kind === 'scene_moment') return '情节引用'
+  if (kind === 'expression_unit') return '表达单元引用'
+  if (kind === 'content_unit') return '内容单元引用'
   if (kind === 'resource') return '资源引用'
   return '候选引用'
 }
@@ -392,6 +443,7 @@ function candidateSelectionKeysForNode(node: ContentCanvasNode): string[] {
 
 function mediaTypeForReference(resourceKind: string | undefined, artifactRef: string | undefined): PromptReferenceItem['mediaType'] {
   const value = `${resourceKind ?? ''} ${artifactRef ?? ''}`.toLowerCase()
+  if (!value.trim()) return undefined
   if (value.includes('video') || /\.(mp4|mov|webm|m4v)(\?|#|$)/.test(value)) return 'video'
   if (value.includes('audio') || /\.(mp3|wav|m4a|aac|ogg)(\?|#|$)/.test(value)) return 'audio'
   if (value.includes('image') || /\.(png|jpe?g|webp|gif|avif)(\?|#|$)/.test(value)) return 'image'

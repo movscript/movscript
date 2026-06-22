@@ -73,6 +73,7 @@ export async function installProviderWorkspaceApiMock(page: Page): Promise<void>
       saveMovScriptEngineWorkspaceProductionSnapshot: async (input: { payload?: unknown }) => input.payload,
       upsertMovScriptEngineWorkspaceProjectStandards: async (input: { payload?: unknown }) => input.payload,
       upsertMovScriptEngineWorkspaceContentUnit: async (input: { payload?: unknown }) => input.payload,
+      readMovScriptEngineContentUnitGenerationPrompt: async () => ({ prompt: { text: scriptSource, resource_ids: [], replacements: [] }, blockers: [] }),
       updateMovScriptEngineContentUnitEditPrompt: async () => undefined,
       selectMovScriptEngineWorkspaceCandidate: async () => undefined,
       appendMovScriptEngineWorkspaceCandidate: async () => undefined,

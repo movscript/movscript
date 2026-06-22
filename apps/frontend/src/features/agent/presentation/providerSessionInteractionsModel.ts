@@ -46,7 +46,7 @@ export function providerSessionApprovalTitle(approval: ProviderSessionApprovalRe
   const kind = typeof args?.kind === 'string' ? args.kind : undefined
   if (kind === 'generation_job') return t('agents.chat.task.approvalOperation.generationJob', { defaultValue: '创建生成任务' })
   if (kind === 'subagent_run') return t('agents.chat.task.approvalOperation.subagentRun', { defaultValue: '启动子 agent 运行' })
-  return t('agents.chat.task.approvalOperation.default', { defaultValue: '提交异步任务' })
+  return t('agents.chat.task.approvalOperation.default', { defaultValue: '旧异步任务交接' })
 }
 
 export function providerSessionApprovalReason(approval: ProviderSessionApprovalRequest, t: TFunction): string {
@@ -120,6 +120,18 @@ function providerSessionApprovalImpactI18nText(approval: ApprovalLike, t: TFunct
     case 'generation_image_generate':
     case 'generation_video_generate':
     case 'generation_audio_generate':
+    case 'generation_voiceover_generate':
+    case 'system_generate_voiceover':
+    case 'generation_music_generate':
+    case 'system_generate_music':
+    case 'generation_sfx_generate':
+    case 'system_generate_sfx':
+    case 'generation_subtitle_generate':
+    case 'system_generate_subtitle':
+    case 'generation_subtitle_align':
+    case 'system_align_subtitle':
+    case 'generation_subtitle_translate':
+    case 'system_translate_subtitle':
     case 'generation_job_create':
       return t('agents.chat.task.approvalImpact.generationCreate')
     case 'generation_job_cancel':
@@ -129,9 +141,9 @@ function providerSessionApprovalImpactI18nText(approval: ApprovalLike, t: TFunct
     case 'core_memory_delete':
       return t('agents.chat.task.approvalImpact.memoryDelete')
     case 'core_work_start':
-      return t('agents.chat.task.approvalImpact.workStart', { defaultValue: 'Approving will submit async provider work; generation jobs may consume quota and subagent runs start worker agents.' })
+      return t('agents.chat.task.approvalImpact.workStart', { defaultValue: 'Legacy compatibility: approving will hand off old async work. New generation and editing flows use explicit generation_* or editing_task_* tools.' })
     case 'core_work_cancel':
-      return t('agents.chat.task.approvalImpact.workCancel', { defaultValue: 'Approving will cancel async provider work; unfinished outputs or worker follow-up may not be produced.' })
+      return t('agents.chat.task.approvalImpact.workCancel', { defaultValue: 'Legacy compatibility: approving will cancel old async work. New generation jobs should use an explicit generation cancellation path.' })
     case 'system_artifact_upload_export':
     case 'system_artifact_upload_hls_stream':
       return t('agents.chat.task.approvalImpact.artifactWrite', { defaultValue: 'Approving will host a completed export or HLS artifact; it will not render media or write business candidates.' })

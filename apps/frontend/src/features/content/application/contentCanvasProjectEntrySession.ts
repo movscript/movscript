@@ -1,6 +1,6 @@
 import type { ProjectEntrySessionSnapshot } from '@/features/project/application/projectEntrySessionStore'
 import type {
-  CanvasMode,
+  ContentWorkspaceTab,
   InspectorSelectionRef,
   SettingKind,
 } from '@/features/content/components/contentCanvasWorkspaceTypes'
@@ -8,14 +8,14 @@ import type {
 export interface ContentCanvasProjectEntrySessionState {
   activeKind?: SettingKind | 'all'
   activeCanvasNodeId: string
-  canvasMode: CanvasMode
   selectedNodeId: string
   selectionKind: InspectorSelectionRef['kind']
+  workspaceTab: ContentWorkspaceTab
 }
 
 export function buildContentCanvasProjectEntrySessionSearch(state: ContentCanvasProjectEntrySessionState): string {
   const params = new URLSearchParams()
-  params.set('mode', state.canvasMode)
+  params.set('tab', state.workspaceTab)
   params.set('canvasNode', state.activeCanvasNodeId)
   params.set('node', state.selectedNodeId)
   params.set('kind', state.selectionKind)
@@ -36,12 +36,14 @@ function contentCanvasProjectEntrySessionStateFromSearch(searchParams: URLSearch
   const selectedNodeId = searchParams.get('node')?.trim()
   if (!selectedNodeId) return null
   const activeCanvasNodeId = searchParams.get('canvasNode')?.trim() || selectedNodeId
-  const canvasMode = normalizeContentCanvasMode(searchParams.get('mode')) ?? 'structure'
+  const workspaceTab = normalizeContentWorkspaceTab(searchParams.get('tab'))
+    ?? legacyWorkspaceTabFromMode(searchParams.get('mode'))
+    ?? 'preview'
   return {
     activeCanvasNodeId,
-    canvasMode,
     selectedNodeId,
-    selectionKind: normalizeContentCanvasSelectionKind(searchParams.get('kind')) ?? selectionKindForContentCanvasMode(canvasMode),
+    selectionKind: normalizeContentCanvasSelectionKind(searchParams.get('kind')) ?? 'scene_moment',
+    workspaceTab,
     ...(normalizeContentCanvasActiveKind(searchParams.get('settingKind')) ? { activeKind: normalizeContentCanvasActiveKind(searchParams.get('settingKind')) } : {}),
   }
 }
@@ -50,27 +52,30 @@ function contentCanvasProjectEntrySessionStateFromSnapshot(snapshot: ProjectEntr
   const selectedNodeId = stringFilterValue(snapshot?.filters?.selectedNodeId)
   if (!selectedNodeId) return null
   const activeCanvasNodeId = stringFilterValue(snapshot?.filters?.activeCanvasNodeId) ?? selectedNodeId
-  const canvasMode = normalizeContentCanvasMode(snapshot?.filters?.canvasMode) ?? 'structure'
+  const workspaceTab = normalizeContentWorkspaceTab(snapshot?.filters?.workspaceTab)
+    ?? legacyWorkspaceTabFromMode(snapshot?.filters?.canvasMode)
+    ?? 'preview'
   return {
     activeCanvasNodeId,
-    canvasMode,
     selectedNodeId,
-    selectionKind: normalizeContentCanvasSelectionKind(snapshot?.filters?.selectionKind) ?? selectionKindForContentCanvasMode(canvasMode),
+    selectionKind: normalizeContentCanvasSelectionKind(snapshot?.filters?.selectionKind) ?? 'scene_moment',
+    workspaceTab,
     ...(normalizeContentCanvasActiveKind(snapshot?.filters?.activeKind) ? { activeKind: normalizeContentCanvasActiveKind(snapshot?.filters?.activeKind) } : {}),
   }
-}
-
-function selectionKindForContentCanvasMode(mode: CanvasMode): InspectorSelectionRef['kind'] {
-  return mode === 'structure' || mode === 'prompt' ? 'scene_moment' : 'scene_moment'
 }
 
 function stringFilterValue(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
-function normalizeContentCanvasMode(value: unknown): CanvasMode | undefined {
-  if (value === 'structure' || value === 'prompt') return value
-  if (value === 'scene_moment' || value === 'setting') return 'structure'
+function normalizeContentWorkspaceTab(value: unknown): ContentWorkspaceTab | undefined {
+  if (value === 'preview' || value === 'canvas') return value
+  return undefined
+}
+
+function legacyWorkspaceTabFromMode(value: unknown): ContentWorkspaceTab | undefined {
+  if (value === 'prompt') return 'canvas'
+  if (value === 'structure' || value === 'scene_moment' || value === 'setting') return 'preview'
   return undefined
 }
 

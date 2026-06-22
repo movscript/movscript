@@ -132,7 +132,7 @@ function createMCPDecisionStore(input: MovScriptDomainRuntimeInput): MovScriptDe
   const token = getMCPAuthToken() || session.token
   const projectCwd = projectCwdFromInput(input)
   const manifest = readWorkspaceManifest(projectCwd)
-  const projectUid = input.projectUid ?? manifest?.project_uid
+  const projectUid = manifest?.project_uid ?? input.projectUid
   const projectTitle = input.projectTitle ?? manifest?.title
   if (projectUid && token) {
     const headers = {

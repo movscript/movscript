@@ -77,6 +77,23 @@ test('MCP editing project and timeline tools apply pure MediaEditingProject edit
   project = addedAsset.editing_project
   assert.equal(project.assets.assets.length, 1)
 
+  const addedRawResourceAsset = await callTool('editing_project_add_asset', {
+    editing_project: project,
+    asset: {
+      id: 'asset_library_clip',
+      sourceKind: 'raw_resource',
+      assetType: 'video',
+      resourceId: 42,
+      mimeType: 'video/mp4',
+      label: 'Library clip',
+    },
+  })
+  assert.equal(addedRawResourceAsset.status, 'ok')
+  assert.equal(addedRawResourceAsset.asset.sourceKind, 'raw_resource')
+  assert.equal(addedRawResourceAsset.asset.resourceId, 42)
+  project = addedRawResourceAsset.editing_project
+  assert.equal(project.assets.assets.length, 2)
+
   const addedUnusedAsset = await callTool('editing_project_add_asset', {
     editing_project: project,
     asset: {
@@ -89,7 +106,7 @@ test('MCP editing project and timeline tools apply pure MediaEditingProject edit
   })
   assert.equal(addedUnusedAsset.status, 'ok')
   project = addedUnusedAsset.editing_project
-  assert.equal(project.assets.assets.length, 2)
+  assert.equal(project.assets.assets.length, 3)
 
   const removedUnusedAsset = await callTool('editing_project_remove_asset', {
     editing_project: project,
@@ -97,7 +114,7 @@ test('MCP editing project and timeline tools apply pure MediaEditingProject edit
   })
   assert.equal(removedUnusedAsset.status, 'ok')
   project = removedUnusedAsset.editing_project
-  assert.deepEqual(project.assets.assets.map((asset) => asset.id), ['asset_intro'])
+  assert.deepEqual(project.assets.assets.map((asset) => asset.id), ['asset_intro', 'asset_library_clip'])
 
   const addedTrack = await callTool('editing_timeline_add_track', {
     editing_project: project,

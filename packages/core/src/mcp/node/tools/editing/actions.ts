@@ -1107,8 +1107,8 @@ function optionalNumber(value: unknown): number | undefined {
 }
 
 function sourceKindValue(value: unknown): MediaAssetDescriptor['sourceKind'] {
-  if (value === 'backend_resource' || value === 'local_file' || value === 'generated_resource' || value === 'bytes') return value
-  throw new Error('asset.sourceKind must be backend_resource, local_file, generated_resource, or bytes')
+  if (value === 'raw_resource' || value === 'backend_resource' || value === 'local_file' || value === 'generated_resource' || value === 'bytes') return value
+  throw new Error('asset.sourceKind must be raw_resource, backend_resource, local_file, generated_resource, or bytes')
 }
 
 function assetTypeValue(value: unknown): MediaAssetDescriptor['assetType'] {

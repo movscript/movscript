@@ -1,4 +1,4 @@
-import type { ContentCanvasGraph, ContentCanvasNode, ContentCanvasNodeKind } from '../domain/contentCanvasTypes'
+import type { ContentCanvasWorkspaceSnapshot, ContentCanvasNode, ContentCanvasNodeKind } from '../domain/contentCanvasTypes'
 
 export interface ContentCanvasNavigatorItem {
   nodeId: string
@@ -17,7 +17,7 @@ const NAVIGATOR_KINDS = new Set<ContentCanvasNodeKind>([
   'scene_moment',
 ])
 
-export function buildContentCanvasNavigatorItems(graph: ContentCanvasGraph): ContentCanvasNavigatorItem[] {
+export function buildContentCanvasNavigatorItems(graph: ContentCanvasWorkspaceSnapshot): ContentCanvasNavigatorItem[] {
   const nodeById = new Map(graph.nodes.map((node) => [node.id, node]))
   const structureNodeIds = graph.nodes.filter((node) => NAVIGATOR_KINDS.has(node.kind)).map((node) => node.id)
   const structureNodeIdSet = new Set(structureNodeIds)

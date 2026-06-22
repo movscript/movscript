@@ -27,6 +27,7 @@ export interface ContentCanvasWorkspaceGateway {
   createSettingState(input: MovScriptEngineSettingStateInput): Promise<{ path: string; record: Record<string, unknown> }>
   createAsset(input: MovScriptEngineAssetInput): Promise<{ path: string; record: Record<string, unknown> }>
   updateEntityBasics(input: MovScriptEngineEntityBasicsInput): Promise<unknown>
+  deleteEntity(input: ContentCanvasEntityDeleteInput): Promise<void>
   connectSceneMomentSetting(input: MovScriptEngineSceneMomentSettingConnectionInput): Promise<unknown>
   createProduction(input: ContentCanvasProductionCreateInput): Promise<void>
   createSegment(input: ContentCanvasSegmentCreateInput): Promise<void>
@@ -47,6 +48,13 @@ export type ContentCanvasProductionCreateInput = {
   projectId: number
   id: string
   title: string
+}
+
+export type ContentCanvasEntityDeleteInput = {
+  entity: {
+    path: string
+    record: Record<string, unknown>
+  }
 }
 
 export type ContentCanvasSegmentCreateInput = {

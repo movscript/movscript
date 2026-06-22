@@ -218,8 +218,8 @@ function coreToolActivityBlock(record: ToolActivityRecord): AgentActivityBlockIt
   }
 
   if (record.toolName === 'core_work_start') {
-    return block(record, 'task', '提交异步任务', compactLines([
-      '任务已提交，后续结果会从 provider work 返回。',
+    return block(record, 'task', '旧异步任务交接', compactLines([
+      '历史兼容记录；新的生成和剪辑流程使用明确的 generation_* 或 editing_task_* 工具。',
       record.summary,
       statusLine,
     ]))

@@ -143,6 +143,7 @@ export interface ContentCanvasEdge {
     | 'content_unit_scene'
     | 'content_unit_candidate'
     | 'content_unit_asset'
+    | 'content_unit_resource'
     | 'content_unit_keyframe'
     | 'content_unit_storyboard'
     | 'audio_cue_storyboard'
@@ -157,14 +158,14 @@ export interface ContentCanvasEdge {
     | 'actor_work_item'
 }
 
-export interface ContentCanvasGraph {
+export interface ContentCanvasWorkspaceSnapshot {
   nodes: ContentCanvasNode[]
   edges: ContentCanvasEdge[]
-  indexes?: ContentCanvasGraphIndexes
-  summary?: ContentCanvasGraphSummary
+  indexes?: ContentCanvasWorkspaceSnapshotIndexes
+  summary?: ContentCanvasWorkspaceSnapshotSummary
 }
 
-export interface ContentCanvasGraphIndexes {
+export interface ContentCanvasWorkspaceSnapshotIndexes {
   nodeById: Record<string, ContentCanvasNode>
   edgeById: Record<string, ContentCanvasEdge>
   upstreamEdgeIdsByNodeId: Record<string, string[]>
@@ -172,7 +173,7 @@ export interface ContentCanvasGraphIndexes {
   workItemIdsByTargetId: Record<string, string[]>
 }
 
-export interface ContentCanvasGraphSummary {
+export interface ContentCanvasWorkspaceSnapshotSummary {
   nodeCount: number
   edgeCount: number
   nodeCountByKind: Partial<Record<ContentCanvasNodeKind, number>>

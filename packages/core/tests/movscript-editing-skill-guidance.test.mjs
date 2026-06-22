@@ -368,6 +368,21 @@ test('MovScript generation skill routes content-unit visual generation through c
   assert.match(router, /case 'system_generate_content_unit_video'/)
 })
 
+test('MovScript skills and bridge expose raw-resource candidate registration and production summaries', () => {
+  const fallbackNames = new Set(getFallbackToolNames())
+  const generationSkill = readFileSync(resolve(repoRoot, 'plugins/movscript/skills/generation/SKILL.md'), 'utf8')
+  const domainSkill = readFileSync(resolve(repoRoot, 'plugins/movscript/skills/domain/SKILL.md'), 'utf8')
+  const modelUsage = readFileSync(resolve(repoRoot, 'plugins/movscript/skills/generation/references/model-usage.md'), 'utf8')
+
+  assert.equal(fallbackNames.has('domain_register_raw_resource_as_content_unit_candidate'), true)
+  assert.equal(fallbackNames.has('domain_production_status_summary'), true)
+  assert.match(generationSkill, /mcp__movscript__domain_register_raw_resource_as_content_unit_candidate/)
+  assert.match(generationSkill, /mcp__movscript__domain_production_status_summary/)
+  assert.match(domainSkill, /RawResource is the media\/resource body/)
+  assert.match(modelUsage, /Default to a direct `scene_moment_ref` content unit/)
+  assert.match(modelUsage, /Use `domain_register_raw_resource_as_content_unit_candidate`/)
+})
+
 test('MovScript editing skill grants match the bridge bootstrap editing tools', () => {
   const skill = readFileSync(resolve(repoRoot, 'plugins/movscript/skills/editing/SKILL.md'), 'utf8')
   const grantedEditingTools = Array.from(

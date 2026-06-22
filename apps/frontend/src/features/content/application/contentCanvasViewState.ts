@@ -1,4 +1,6 @@
-import type { ContentCanvasGraph, ContentCanvasNodeKind } from '../domain/contentCanvasTypes'
+import type { Viewport } from '@xyflow/react'
+
+import type { ContentCanvasWorkspaceSnapshot, ContentCanvasNodeKind } from '../domain/contentCanvasTypes'
 import { CONTENT_CANVAS_DEFAULT_NODE_SIZE, type ContentCanvasNodeLayout } from './contentCanvasLayout'
 import {
   contentCanvasNodeFromPresentationNode,
@@ -133,9 +135,9 @@ export function createContentCanvasPresentationGroupNode(
 }
 
 export function applyContentCanvasPresentationNodes(
-  graph: ContentCanvasGraph,
+  graph: ContentCanvasWorkspaceSnapshot,
   presentationNodes: Record<string, ContentCanvasPresentationNode> | undefined,
-): ContentCanvasGraph {
+): ContentCanvasWorkspaceSnapshot {
   if (!presentationNodes || Object.keys(presentationNodes).length === 0) return graph
   const existingIds = new Set(graph.nodes.map((node) => node.id))
   const nodes = Object.values(presentationNodes)
@@ -224,7 +226,34 @@ export function mergeContentCanvasNodeLayouts(
   }, scope)
 }
 
+export function updateContentCanvasViewport(
+  projectId: number | undefined,
+  viewport: Viewport,
+  scope?: ContentCanvasViewStateScope,
+): ContentCanvasViewState | undefined {
+  if (!projectId) return undefined
+  return writeContentCanvasViewState(projectId, { viewport }, scope)
+}
+
 export function clearContentCanvasNodePositions(projectId: number | undefined, scope?: ContentCanvasViewStateScope): ContentCanvasViewState | undefined {
   if (!projectId) return undefined
   return writeContentCanvasViewState(projectId, { nodePositions: {}, nodeLayouts: {} }, scope)
+}
+
+export function clearContentCanvasNodePositionsForIds(
+  projectId: number | undefined,
+  nodeIds: Iterable<string>,
+  scope?: ContentCanvasViewStateScope,
+): ContentCanvasViewState | undefined {
+  if (!projectId) return undefined
+  const ids = new Set(nodeIds)
+  if (!ids.size) return readContentCanvasViewState(projectId, scope)
+  const current = readContentCanvasViewState(projectId, scope)
+  const nodePositions = { ...(current?.nodePositions ?? {}) }
+  const nodeLayouts = { ...(current?.nodeLayouts ?? {}) }
+  for (const nodeId of ids) {
+    delete nodePositions[nodeId]
+    delete nodeLayouts[nodeId]
+  }
+  return writeContentCanvasViewState(projectId, { nodePositions, nodeLayouts }, scope)
 }

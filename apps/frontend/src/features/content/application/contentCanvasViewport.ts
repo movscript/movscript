@@ -38,7 +38,7 @@ export interface ContentCanvasVisibleGraphIds {
   visibleEdgeIds: string[]
 }
 
-export function contentCanvasGraphRectFromViewport(
+export function contentCanvasWorkspaceRectFromViewport(
   viewport: ContentCanvasViewport,
   size: ContentCanvasViewportSize,
 ): ContentCanvasRect {
@@ -80,7 +80,7 @@ export function contentCanvasRectsIntersect(left: ContentCanvasRect, right: Cont
 }
 
 export function contentCanvasVisibleGraphIds(input: ContentCanvasViewportCullingInput): ContentCanvasVisibleGraphIds {
-  const viewportRect = contentCanvasGraphRectFromViewport(input.viewport, input.viewportSize)
+  const viewportRect = contentCanvasWorkspaceRectFromViewport(input.viewport, input.viewportSize)
   const bufferRatio = input.bufferRatio ?? 0.5
   const cullingRect = expandContentCanvasRect(viewportRect, {
     x: viewportRect.width * bufferRatio,

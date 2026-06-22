@@ -548,7 +548,7 @@ test('agentTraceView localizes common planner and worker trace fallbacks', () =>
   assert.equal(workerView.title, '执行器启动')
   assert.equal(workerView.summary, '发现缺少主视觉覆盖。')
   assert.match(workerView.behavior ?? '', /启动执行器运行/)
-  assert.equal(dispatchView.title, '异步任务调度工具调用')
+  assert.equal(dispatchView.title, '旧异步任务调度工具调用')
   assert.equal(dispatchView.summary, '已启动执行器 Einstein。')
   const responseView = agentTraceView(traceEvent({
     kind: 'model_call',

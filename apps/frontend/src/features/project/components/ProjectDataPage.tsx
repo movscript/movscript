@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Building2, CheckCircle2, CircleUserRound, Database, RefreshCw } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { AppPageHeader } from '@movscript/ui/layout'
 import { StatusBadge } from '@movscript/ui/primitives'
 import { api } from '@/shared/infrastructure/api'
@@ -73,6 +74,7 @@ function ProjectDataScopeButton({
 }
 
 function ProjectDataSpaceRow({ space }: { space: ProjectDataSpaceSummary }) {
+  const { t } = useTranslation()
   const title = space.title?.trim() || space.project_uid
   return (
     <div className="project-data-row">
@@ -86,26 +88,26 @@ function ProjectDataSpaceRow({ space }: { space: ProjectDataSpaceSummary }) {
 
       <dl className="project-data-row__stats">
         <div>
-          <dt>Targets</dt>
+          <dt>{t('projectData.stats.targets')}</dt>
           <dd>{space.decision_count}</dd>
         </div>
         <div>
-          <dt>Candidates</dt>
+          <dt>{t('projectData.stats.candidates')}</dt>
           <dd>{space.candidate_count}</dd>
         </div>
         <div>
-          <dt>Selections</dt>
+          <dt>{t('projectData.stats.selections')}</dt>
           <dd>{space.selection_count}</dd>
         </div>
       </dl>
 
       <div className="project-data-row__scope">
-        <span>{space.scope_kind === 'org' ? 'Org' : 'User'}</span>
+        <span>{t(space.scope_kind === 'org' ? 'projectData.scope.org' : 'projectData.scope.user')}</span>
         <span className="project-data-row__scope-id">{space.scope_id}</span>
       </div>
 
       <div className="project-data-row__time">
-        <span>Updated</span>
+        <span>{t('projectData.updated')}</span>
         <strong>{formatDate(space.last_decision_at ?? space.updated_at)}</strong>
       </div>
     </div>
@@ -113,6 +115,7 @@ function ProjectDataSpaceRow({ space }: { space: ProjectDataSpaceSummary }) {
 }
 
 export default function ProjectDataPage() {
+  const { t } = useTranslation()
   const currentOrgID = useUserStore((state) => state.currentOrgID)
   const currentUser = useUserStore((state) => state.currentUser)
   const [scopeKind, setScopeKind] = useState<ProjectDataScopeKind>('user')
@@ -141,37 +144,41 @@ export default function ProjectDataPage() {
     <ProjectListPageLayout contentClassName="projects-page project-data-page">
       <AppPageHeader
         icon={Database}
-        title="Project Data"
-        description="Backend candidate and selection metadata"
+        title={t('projectData.title')}
+        description={t('projectData.description')}
         actions={(
           <div className="project-data-page__actions">
             <ProjectDataScopeButton
               active={scopeKind === 'user'}
               icon={CircleUserRound}
-              label="User"
+              label={t('projectData.scope.user')}
               onClick={() => setScopeKind('user')}
             />
             <ProjectDataScopeButton
               active={scopeKind === 'org'}
               disabled={!currentOrgID}
               icon={Building2}
-              label="Org"
+              label={t('projectData.scope.org')}
               onClick={() => setScopeKind('org')}
             />
             <ProjectPageActionButton type="button" variant="outline" size="sm" onClick={() => void query.refetch()} className="gap-1.5">
               <RefreshCw size={14} />
-              Refresh
+              {t('common.refresh')}
             </ProjectPageActionButton>
           </div>
         )}
       />
 
-      <section className="projects-region" aria-label="Project data spaces">
+      <section className="projects-region" aria-label={t('projectData.spacesAriaLabel')}>
         <div className="projects-region__header">
           <div>
-            <h2 className="projects-region__title">Data Spaces</h2>
+            <h2 className="projects-region__title">{t('projectData.spacesTitle')}</h2>
             <p className="projects-region__description">
-              {totals.decisions} targets · {totals.candidates} candidates · {totals.selections} selections
+              {t('projectData.totals', {
+                targets: totals.decisions,
+                candidates: totals.candidates,
+                selections: totals.selections,
+              })}
             </p>
           </div>
           <div className="projects-region__count">{spaces.length}</div>
@@ -179,13 +186,13 @@ export default function ProjectDataPage() {
 
         {query.isLoading ? (
           <div className="projects-region__body">
-            <p className="type-body text-muted-foreground">Loading</p>
+            <p className="type-body text-muted-foreground">{t('common.loadingShort')}</p>
           </div>
         ) : spaces.length === 0 ? (
           <div className="projects-region__body">
             <ProjectPageEmptyState
               icon={CheckCircle2}
-              title="No project data"
+              title={t('projectData.emptyTitle')}
             />
           </div>
         ) : (

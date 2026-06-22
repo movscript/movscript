@@ -82,6 +82,17 @@ export function createElectronContentCanvasWorkspaceGateway(projectId: number): 
         payload: input,
       })
     },
+    deleteEntity: async (input) => {
+      const deleteEntity = readElectronApi()?.deleteMovScriptEngineWorkspaceEntity
+      if (!deleteEntity) throw new Error('当前窗口没有 MovScript workspace entity 删除能力')
+      await deleteEntity({
+        ...currentWorkspaceOwnerContext(),
+        ...(projectDir ? { projectDir } : {}),
+        projectId,
+        expectedWorkspaceVersions: {},
+        payload: input,
+      })
+    },
     connectSceneMomentSetting: async (input) => {
       const connectSetting = readElectronApi()?.connectMovScriptEngineSceneMomentSetting
       if (!connectSetting) throw new Error('当前窗口没有 MovScript scene moment setting 连接能力')

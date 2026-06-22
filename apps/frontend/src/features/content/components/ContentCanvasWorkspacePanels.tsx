@@ -1,23 +1,17 @@
 import { PanelResizeHandle } from '@movscript/ui/layout'
-import { Braces, GitBranch, Plus, Search, SlidersHorizontal } from 'lucide-react'
+import { Plus, Search, SlidersHorizontal } from 'lucide-react'
 
 import type { ContentCanvasCreateNodeInput, ContentCanvasExpressionUnitEditorInput } from '../application/contentCanvasCommands'
 import type { ContentCanvasUploadedResource } from '../application/contentCanvasWorkspaceGateway'
-import type { ContentCanvasNodePosition } from '../application/contentCanvasViewState'
 import type { ContentCanvasCandidate, ContentCanvasNode } from '../domain/contentCanvasTypes'
 import {
   type CandidateSelections,
-  type CanvasMode,
+  type ContentCanvasNodePosition,
   type InspectorSelection,
-  type RadialNode,
-  type SceneSettingGroup,
-  type StarCanvasAction,
   type TimelineTrack,
   type TreeNodeData,
 } from './contentCanvasWorkspaceTypes'
-import { selectedSelectionId } from './contentCanvasWorkspaceModel'
-import { ContentCanvasResizeHandle, type useContentCanvasPaneLayout, type useContentCanvasRadialLayout } from './contentCanvasWorkspaceLayout'
-import { ContentCanvasStarCanvas } from './ContentCanvasStarCanvas'
+import { ContentCanvasResizeHandle, type useContentCanvasPaneLayout } from './contentCanvasWorkspaceLayout'
 import { NodeInspector } from './ContentCanvasWorkspaceDetails'
 import type { ContentCanvasCandidateGenerationOptions, ContentCanvasCandidatePromptPreview } from './ContentCanvasInspectorParts'
 import { SceneTimeline, TreeNode } from './ContentCanvasWorkspaceOutline'
@@ -95,88 +89,6 @@ export function StructurePanel({
   )
 }
 
-export function CanvasStagePanel({
-  canvasMainNode,
-  canvasMode,
-  candidateSelections,
-  groupedSettingIds,
-  promptRelationNodes,
-  radialLayout,
-  structureRelationNodes,
-  sceneSettingGroups,
-  selected,
-  onDropSetting,
-  onGetNodeContextActions,
-  onModeChange,
-  onMoveSettingGroup,
-  onSelectNode,
-  onSelectSettingGroupNode,
-}: {
-  canvasMainNode: RadialNode
-  canvasMode: CanvasMode
-  candidateSelections: CandidateSelections
-  groupedSettingIds: Set<string>
-  promptRelationNodes: RadialNode[]
-  radialLayout: ReturnType<typeof useContentCanvasRadialLayout>
-  structureRelationNodes: RadialNode[]
-  sceneSettingGroups: SceneSettingGroup[]
-  selected: InspectorSelection
-  onDropSetting: (settingId: string, position: ContentCanvasNodePosition) => void
-  onGetNodeContextActions: (node: ContentCanvasNode) => StarCanvasAction[]
-  onModeChange: (mode: CanvasMode) => void
-  onMoveSettingGroup: (group: SceneSettingGroup, position: ContentCanvasNodePosition) => void
-  onSelectNode: (kind: InspectorSelection['kind'], nodeId: string) => void
-  onSelectSettingGroupNode: (node: ContentCanvasNode) => void
-}) {
-  const selectedNodeId = selectedSelectionId(selected)
-  const hasPreviewTarget = Boolean(canvasMainNode.source)
-  const activeNodes = canvasMode === 'structure' ? structureRelationNodes : promptRelationNodes
-  const activeActions = canvasMode === 'structure' && canvasMainNode.source ? onGetNodeContextActions(canvasMainNode.source) : []
-  const canShowSceneSettingGroups = canvasMode === 'structure' && canvasMainNode.source?.kind === 'scene_moment'
-  const visibleSettingGroups = canShowSceneSettingGroups ? sceneSettingGroups : []
-  return (
-    <main className="content-canvas-workspace-canvas" aria-label="无限画布">
-      <div className="content-canvas-workspace-canvas__toolbar">
-        <span>{canvasMode === 'structure' ? '命名空间结构画布' : '提示词依赖画布'}</span>
-        <div className="content-canvas-workspace-canvas__switch" aria-label="切换画布视图">
-          <button type="button" data-active={canvasMode === 'structure' ? 'true' : undefined} onClick={() => onModeChange('structure')}>
-            <GitBranch size={13} aria-hidden="true" />
-            结构
-          </button>
-          <button type="button" data-active={canvasMode === 'prompt' ? 'true' : undefined} onClick={() => onModeChange('prompt')}>
-            <Braces size={13} aria-hidden="true" />
-            提示词
-          </button>
-        </div>
-      </div>
-      {!hasPreviewTarget ? (
-        <div className="content-canvas-workspace-canvas__empty">
-          <strong>无预览</strong>
-          <span>请从左侧结构或顶部全局库选择一个节点。</span>
-        </div>
-      ) : (
-        <ContentCanvasStarCanvas
-          main={canvasMainNode}
-          nodes={activeNodes}
-          actions={activeActions}
-          selectedNodeId={selectedNodeId}
-          emptyText={canvasMode === 'structure' ? '这个节点暂无命名空间子节点' : '这个节点的提示词暂无引用结构'}
-          onSelect={(node) => onSelectNode(selectionKindForContentNode(node.source ?? canvasMainNode.source!), node.id)}
-          onNodePositionCommit={radialLayout.commitNodePosition}
-          onResetLayout={radialLayout.reset}
-          candidateSelections={candidateSelections}
-          settingGroups={visibleSettingGroups}
-          groupedSettingIds={groupedSettingIds}
-          onDropSetting={canShowSceneSettingGroups ? onDropSetting : undefined}
-          getNodeContextActions={onGetNodeContextActions}
-          onSettingGroupPositionCommit={onMoveSettingGroup}
-          onSelectSettingGroupNode={onSelectSettingGroupNode}
-        />
-      )}
-    </main>
-  )
-}
-
 export function InspectorPanel({
   activeSetting,
   candidateSelections,
@@ -215,11 +127,11 @@ export function InspectorPanel({
   onCandidatePromptPreview: (node: ContentCanvasNode | undefined) => Promise<ContentCanvasCandidatePromptPreview>
   onCandidateResourceSelect: (node: ContentCanvasNode | undefined, resource: ContentCanvasUploadedResource) => void
   onCandidateUpload: (node: ContentCanvasNode | undefined, file: File) => void
-  onCreateAsset: (state: ContentCanvasNode, input: ContentCanvasCreateNodeInput) => void
-  onCreateExpressionUnit: (scene: ContentCanvasNode, input: ContentCanvasCreateNodeInput) => void
-  onCreateKeyframe: (owner: ContentCanvasNode, input: ContentCanvasCreateNodeInput) => void
-  onCreateState: (setting: ContentCanvasNode, input: ContentCanvasCreateNodeInput) => void
-  onCreateStoryboard: (owner: ContentCanvasNode, input: ContentCanvasCreateNodeInput) => void
+  onCreateAsset: (state: ContentCanvasNode, input: ContentCanvasCreateNodeInput, position?: ContentCanvasNodePosition) => void
+  onCreateExpressionUnit: (scene: ContentCanvasNode, input: ContentCanvasCreateNodeInput, position?: ContentCanvasNodePosition) => void
+  onCreateKeyframe: (owner: ContentCanvasNode, input: ContentCanvasCreateNodeInput, position?: ContentCanvasNodePosition) => void
+  onCreateState: (setting: ContentCanvasNode, input: ContentCanvasCreateNodeInput, position?: ContentCanvasNodePosition) => void
+  onCreateStoryboard: (owner: ContentCanvasNode, input: ContentCanvasCreateNodeInput, position?: ContentCanvasNodePosition) => void
   onExpressionPromptChange: (nodeId: string, prompt: string) => void
   onExpressionUnitSave: (node: ContentCanvasNode, input: ContentCanvasExpressionUnitEditorInput) => void
   onPromptChange: (assetId: string, prompt: string) => void

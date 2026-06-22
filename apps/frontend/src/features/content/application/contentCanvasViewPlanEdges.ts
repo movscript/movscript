@@ -1,4 +1,4 @@
-import type { ContentCanvasEdge, ContentCanvasGraph } from '../domain/contentCanvasTypes'
+import type { ContentCanvasEdge, ContentCanvasWorkspaceSnapshot } from '../domain/contentCanvasTypes'
 import type {
   ContentCanvasDensity,
   ContentCanvasEdgeFilter,
@@ -68,7 +68,7 @@ export function contentCanvasModeAllowsEdge(
 }
 
 export function contentCanvasEdgeLabelIds(
-  graph: ContentCanvasGraph,
+  graph: ContentCanvasWorkspaceSnapshot,
   selectedNodeId: string | null,
   impactByNodeId: Record<string, ContentCanvasImpactKind>,
   density: ContentCanvasDensity,

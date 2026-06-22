@@ -1,14 +1,20 @@
 import { useState, type ReactNode } from 'react'
-import { TextCursorInput, type LucideIcon } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { File, FileAudio, FileImage, FileText, TextCursorInput, type LucideIcon } from 'lucide-react'
+import { api } from '@/shared/infrastructure/api'
+import { ResourceFileImage } from '@/shared/ui/ResourceFileImage'
+import { ResourceFileVideo } from '@/shared/ui/ResourceFileVideo'
+import type { RawResource } from '@/types'
 import {
   CONTENT_CANVAS_EXPRESSION_UNIT_KIND_OPTIONS,
   type ContentCanvasCreateNodeInput,
   type ContentCanvasExpressionUnitEditorInput,
 } from '../application/contentCanvasCommands'
+import { contentCanvasResourceMediaType, type ContentCanvasNodeMedia } from '../application/contentCanvasMedia'
 import type { ContentCanvasUploadedResource } from '../application/contentCanvasWorkspaceGateway'
 import type { ContentCanvasCandidate, ContentCanvasNode } from '../domain/contentCanvasTypes'
-import { PromptReferenceInlineEditor } from './ContentCanvasPromptReferences'
-import type { CandidateSelections, InspectorSelection } from './contentCanvasWorkspaceTypes'
+import { ContentCanvasPromptEditor } from './ContentCanvasPromptEditor'
+import type { CandidateSelections, ContentCanvasNodePosition, InspectorSelection } from './contentCanvasWorkspaceTypes'
 import { contentCanvasGenerationTargetForNode } from './contentCanvasWorkspaceGenerationModel'
 import {
   CandidateDecisionPanel,
@@ -57,11 +63,11 @@ export function NodeInspector({
   promptReferenceNodes: ContentCanvasNode[]
   onPromptChange: (assetId: string, prompt: string) => void
   onPromptCommit: (node: ContentCanvasNode | undefined, prompt: string) => void
-  onCreateAsset: (state: ContentCanvasNode, input: ContentCanvasCreateNodeInput) => void
-  onCreateExpressionUnit: (scene: ContentCanvasNode, input: ContentCanvasCreateNodeInput) => void
-  onCreateKeyframe: (owner: ContentCanvasNode, input: ContentCanvasCreateNodeInput) => void
-  onCreateState: (setting: ContentCanvasNode, input: ContentCanvasCreateNodeInput) => void
-  onCreateStoryboard: (owner: ContentCanvasNode, input: ContentCanvasCreateNodeInput) => void
+  onCreateAsset: (state: ContentCanvasNode, input: ContentCanvasCreateNodeInput, position?: ContentCanvasNodePosition) => void
+  onCreateExpressionUnit: (scene: ContentCanvasNode, input: ContentCanvasCreateNodeInput, position?: ContentCanvasNodePosition) => void
+  onCreateKeyframe: (owner: ContentCanvasNode, input: ContentCanvasCreateNodeInput, position?: ContentCanvasNodePosition) => void
+  onCreateState: (setting: ContentCanvasNode, input: ContentCanvasCreateNodeInput, position?: ContentCanvasNodePosition) => void
+  onCreateStoryboard: (owner: ContentCanvasNode, input: ContentCanvasCreateNodeInput, position?: ContentCanvasNodePosition) => void
   onExpressionPromptChange: (nodeId: string, prompt: string) => void
   onExpressionUnitSave: (node: ContentCanvasNode, input: ContentCanvasExpressionUnitEditorInput) => void
   onCandidateCreate: (node: ContentCanvasNode | undefined, options?: ContentCanvasCandidateGenerationOptions) => void
@@ -83,7 +89,7 @@ export function NodeInspector({
         statusLabel="类型"
         statusOptions={CONTENT_CANVAS_EXPRESSION_UNIT_KIND_OPTIONS}
         submitLabel="创建表达单元"
-        onSubmit={(input) => onCreateExpressionUnit(selection.parent, input)}
+        onSubmit={(input) => onCreateExpressionUnit(selection.parent, input, selection.position)}
       />
     )
   }
@@ -98,7 +104,7 @@ export function NodeInspector({
         titlePlaceholder="基础状态"
         statusPlaceholder="ready"
         submitLabel="创建 State"
-        onSubmit={(input) => onCreateState(selection.parent, input)}
+        onSubmit={(input) => onCreateState(selection.parent, input, selection.position)}
       />
     )
   }
@@ -113,7 +119,7 @@ export function NodeInspector({
         titlePlaceholder="关键帧标题"
         statusPlaceholder="ready"
         submitLabel="创建关键帧"
-        onSubmit={(input) => onCreateKeyframe(selection.parent, input)}
+        onSubmit={(input) => onCreateKeyframe(selection.parent, input, selection.position)}
       />
     )
   }
@@ -128,7 +134,7 @@ export function NodeInspector({
         titlePlaceholder="分镜图标题"
         statusPlaceholder="ready"
         submitLabel="创建分镜图"
-        onSubmit={(input) => onCreateStoryboard(selection.parent, input)}
+        onSubmit={(input) => onCreateStoryboard(selection.parent, input, selection.position)}
       />
     )
   }
@@ -143,7 +149,7 @@ export function NodeInspector({
         titlePlaceholder="角色参考图"
         statusPlaceholder="ready"
         submitLabel="创建 Asset"
-        onSubmit={(input) => onCreateAsset(selection.parent, input)}
+        onSubmit={(input) => onCreateAsset(selection.parent, input, selection.position)}
       />
     )
   }
@@ -170,7 +176,7 @@ export function NodeInspector({
             onExpressionPromptChange(draftKey, nextPrompt)
           }
         }}
-        onPromptCommit={() => onPromptCommit(contentUnitInspectorNode, prompt)}
+        onPromptCommit={(nextPrompt) => onPromptCommit(contentUnitInspectorNode, nextPrompt)}
         onReferenceAppend={(referenceNode) => {
           const nextPrompt = appendContentNodeReferenceToPrompt(prompt, referenceNode)
           if (!contentUnitInspectorNode) return
@@ -261,6 +267,10 @@ export function NodeInspector({
     )
   }
 
+  if (selection.kind === 'other' && selection.node.source?.kind === 'resource') {
+    return <ResourceInspector node={selection.node.source} />
+  }
+
   return withContentUnitTab(
     <div className="content-canvas-inspector-card">
       <InspectorHeader
@@ -275,6 +285,154 @@ export function NodeInspector({
   )
 }
 
+function ResourceInspector({ node }: { node: ContentCanvasNode }) {
+  const media = resourceMediaForNode(node)
+  const resourceId = media?.resourceId ?? resourceIdForNode(node)
+  const { data: resource, isLoading } = useQuery({
+    queryKey: ['content-canvas', 'resource-preview', resourceId],
+    queryFn: () => fetchContentCanvasPreviewResource(resourceId!),
+    enabled: resourceId !== undefined,
+    staleTime: 60_000,
+  })
+  const Icon = iconForContentNode(node)
+  return (
+    <div className="content-canvas-inspector-card">
+      <InspectorHeader eyebrow="Resource Preview" title={node.title} Icon={Icon} />
+      <p>{node.summary || node.subtitle || '资源节点'}</p>
+      <ResourceInspectorPreview
+        media={media}
+        resource={resource}
+        loading={isLoading}
+        title={node.title}
+        hasMediaHint={hasResourceMediaHint(node)}
+      />
+      <InspectorMeta label="Resource ID" value={String(resourceId ?? node.entityKey)} />
+      <InspectorMeta label="资源类型" value={mediaKindLabel(resource?.type ?? media?.type)} />
+      {typeof node.record.artifactRef === 'string' && node.record.artifactRef.trim() ? (
+        <InspectorMeta label="Artifact" value={node.record.artifactRef} />
+      ) : null}
+    </div>
+  )
+}
+
+function ResourceInspectorPreview({
+  media,
+  resource,
+  loading,
+  title,
+  hasMediaHint,
+}: {
+  media: ContentCanvasNodeMedia | undefined
+  resource: RawResource | undefined
+  loading: boolean
+  title: string
+  hasMediaHint: boolean
+}) {
+  const resourceId = resource?.ID ?? media?.resourceId
+  const resourceUrl = resource?.url
+  const type = resource?.type ?? media?.type
+  if (type === 'image') {
+    return (
+      <div className="content-canvas-resource-preview" data-kind="image">
+        <ResourceFileImage resourceId={resourceId} resourceUrl={resourceUrl} alt={resource?.name ?? title} loading="lazy" thumbnailMaxSize={512} />
+      </div>
+    )
+  }
+  if (type === 'video') {
+    return (
+      <div className="content-canvas-resource-preview" data-kind="video">
+        <ResourceFileVideo resourceId={resourceId} resourceUrl={resourceUrl} controls playsInline preload="metadata" />
+      </div>
+    )
+  }
+  if (resourceId !== undefined && !resource && !loading && !hasMediaHint) {
+    return <UnknownResourceInspectorPreview resourceId={resourceId} title={title} />
+  }
+  const Icon = type === 'audio'
+    ? FileAudio
+    : type === 'file' || type === 'text'
+      ? FileText
+      : FileImage
+  return (
+    <div className="content-canvas-resource-preview" data-kind={type ?? 'missing'}>
+      <Icon size={28} aria-hidden="true" />
+      <span>{loading ? '正在加载资源预览' : media ? '当前资源不是图片或视频' : '当前资源缺少可预览文件'}</span>
+    </div>
+  )
+}
+
+function UnknownResourceInspectorPreview({ resourceId, title }: { resourceId: number; title: string }) {
+  const [mode, setMode] = useState<'image' | 'video'>('image')
+  if (mode === 'image') {
+    return (
+      <div className="content-canvas-resource-preview" data-kind="image">
+        <ResourceFileImage
+          resourceId={resourceId}
+          alt={title}
+          loading="lazy"
+          thumbnailMaxSize={512}
+          onError={() => setMode('video')}
+        />
+      </div>
+    )
+  }
+  return (
+    <div className="content-canvas-resource-preview" data-kind="video">
+      <ResourceFileVideo resourceId={resourceId} controls playsInline preload="metadata" />
+    </div>
+  )
+}
+
+function resourceMediaForNode(node: ContentCanvasNode): ContentCanvasNodeMedia | undefined {
+  const resourceId = resourceIdForNode(node)
+  if (resourceId === undefined) return undefined
+  return {
+    resourceId,
+    url: '',
+    type: contentCanvasResourceMediaType({
+      kind: 'resource',
+      resourceKind: typeof node.record.resourceKind === 'string' ? node.record.resourceKind : undefined,
+      artifactRef: typeof node.record.artifactRef === 'string' ? node.record.artifactRef : undefined,
+    }),
+  }
+}
+
+function resourceIdForNode(node: ContentCanvasNode): number | undefined {
+  return typeof node.record.resourceId === 'number'
+    ? node.record.resourceId
+    : numericValue(node.entityKey)
+}
+
+function hasResourceMediaHint(node: ContentCanvasNode): boolean {
+  return Boolean(
+    (typeof node.record.resourceKind === 'string' && node.record.resourceKind.trim())
+    || (typeof node.record.artifactRef === 'string' && node.record.artifactRef.trim()),
+  )
+}
+
+async function fetchContentCanvasPreviewResource(resourceId: number): Promise<RawResource | undefined> {
+  const { data } = await api.get<RawResource[] | { items?: RawResource[] }>('/resources', {
+    params: { page: 1, page_size: 200, type: 'image,video' },
+  })
+  const resources = Array.isArray(data) ? data : data.items ?? []
+  return resources.find((resource) => resource.ID === resourceId)
+}
+
+function numericValue(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value !== 'string' || !/^\d+$/.test(value.trim())) return undefined
+  return Number(value)
+}
+
+function mediaKindLabel(kind: ContentCanvasNodeMedia['type'] | RawResource['type'] | undefined): string {
+  if (kind === 'image') return '图片'
+  if (kind === 'video') return '视频'
+  if (kind === 'audio') return '音频'
+  if (kind === 'text') return '文本'
+  if (kind === 'file') return '文件'
+  return '未知'
+}
+
 function ContentCanvasInspectorTabs({
   entityInspector,
   contentUnitInspector,
@@ -282,7 +440,7 @@ function ContentCanvasInspectorTabs({
   entityInspector: ReactNode
   contentUnitInspector: ReactNode
 }) {
-  const [activeTab, setActiveTab] = useState<'entity' | 'content_unit'>('entity')
+  const [activeTab, setActiveTab] = useState<'entity' | 'content_unit'>('content_unit')
   return (
     <div className="content-canvas-inspector-tabbed">
       <div className="content-canvas-inspector-tabs" role="tablist" aria-label="Inspector 类型">
@@ -334,7 +492,7 @@ function ContentUnitInspector({
   promptReferenceNodes: ContentCanvasNode[]
   candidateSelections: CandidateSelections
   onPromptChange: (prompt: string) => void
-  onPromptCommit: () => void
+  onPromptCommit: (prompt: string) => void
   onReferenceAppend: (node: ContentCanvasNode) => void
   onSelectNode: (kind: InspectorSelection['kind'], nodeId: string) => void
   onCandidateCreate: (node: ContentCanvasNode | undefined, options?: ContentCanvasCandidateGenerationOptions) => void
@@ -347,19 +505,16 @@ function ContentUnitInspector({
     <div className="content-canvas-inspector-card">
       <InspectorHeader eyebrow="Content Unit" title={title} Icon={Icon} />
       <InspectorSection title="提示词">
-        <label className="content-canvas-prompt-editor">
-          <span className="content-canvas-prompt-editor__label"><TextCursorInput size={13} aria-hidden="true" /> Prompt</span>
-          <PromptReferenceInlineEditor
-            prompt={prompt}
-            nodes={nodes}
-            ownerNode={node}
-            candidateSelections={candidateSelections}
-            ariaLabel={`${title} 创作片段提示词`}
-            onChange={onPromptChange}
-            onBlur={onPromptCommit}
-            onSelectNode={(referenceNode) => onSelectNode(inspectorKindForNode(referenceNode), referenceNode.id)}
-          />
-        </label>
+        <ContentCanvasPromptEditor
+          ariaLabel={`${title} 创作片段提示词`}
+          candidateSelections={candidateSelections}
+          nodes={nodes}
+          ownerNode={node}
+          value={prompt}
+          onChange={onPromptChange}
+          onBlur={onPromptCommit}
+          onSelectNode={(referenceNode) => onSelectNode(inspectorKindForNode(referenceNode), referenceNode.id)}
+        />
         <PromptReferenceAppendButtons
           nodes={promptReferenceNodes}
           emptyText="当前命名空间暂无可引用创作片段"

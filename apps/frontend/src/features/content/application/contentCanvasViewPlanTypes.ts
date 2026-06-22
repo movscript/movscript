@@ -1,4 +1,4 @@
-import type { ContentCanvasEdge, ContentCanvasGraph, ContentCanvasNodeKind } from '../domain/contentCanvasTypes'
+import type { ContentCanvasEdge, ContentCanvasWorkspaceSnapshot, ContentCanvasNodeKind } from '../domain/contentCanvasTypes'
 import type { ContentCanvasNodeLayout } from './contentCanvasLayout'
 import type {
   ContentCanvasCollapsedRelationSummary,
@@ -16,7 +16,7 @@ export type ContentCanvasIssueTargetKindFilter = ContentCanvasNodeKind | 'all'
 export type ContentCanvasEdgeFilter = ContentCanvasEdge['kind'] | NonNullable<ContentCanvasEdge['relation']>
 
 export interface ContentCanvasViewPlanInput {
-  graph: ContentCanvasGraph
+  graph: ContentCanvasWorkspaceSnapshot
   query: string
   kindFilter: ContentCanvasNodeKind | 'all'
   statusFilter?: ContentCanvasStatusFilter
@@ -36,7 +36,7 @@ export interface ContentCanvasViewPlanInput {
 }
 
 export interface ContentCanvasViewPlan {
-  graph: ContentCanvasGraph
+  graph: ContentCanvasWorkspaceSnapshot
   density: ContentCanvasDensity
   lodTier: ContentCanvasLodTier
   hiddenNodeIds: Set<string>

@@ -13,7 +13,8 @@
     "required": ["jobId"],
     "properties": {
       "jobId": { "type": "number", "minimum": 1 },
-      "job_id": { "type": "number", "minimum": 1 }
+      "job_id": { "type": "number", "minimum": 1 },
+      "verbosity": { "type": "string", "enum": ["summary", "debug"] }
     }
   },
   "outputSchema": {
@@ -25,8 +26,11 @@
       "jobId": { "type": "number" },
       "job_id": { "type": "number" },
       "terminal": { "type": "boolean" },
+      "provider_status": { "type": "string" },
       "outputResourceIds": { "type": "array", "items": { "type": "number" } },
       "output_resource_ids": { "type": "array", "items": { "type": "number" } },
+      "next_run_at": { "type": "string" },
+      "error_summary": { "type": "string" },
       "job": { "type": "object" }
     }
   },

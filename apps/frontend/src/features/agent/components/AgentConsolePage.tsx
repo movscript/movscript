@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import {
   AlertTriangle,
@@ -66,6 +67,7 @@ import {
 import { useAgentConsoleGlobalPlugins } from '@/features/agent/application/useAgentConsoleGlobalPlugins'
 
 export default function AgentConsolePage() {
+  const { t } = useTranslation()
   const controlCenter = useAgentControlCenter()
   const {
     providerSessionsQuery,
@@ -108,21 +110,21 @@ export default function AgentConsolePage() {
           <AgentConsoleHeaderCopy>
             <AgentConsoleHeaderTitleRow>
               <Bot size={18} />
-              <AgentConsoleHeaderTitle>Agent 控制台</AgentConsoleHeaderTitle>
+              <AgentConsoleHeaderTitle>{t('agents.console.title')}</AgentConsoleHeaderTitle>
               <AgentConsoleStatusBadge intent={consoleStatusRecipe.intent} emphasis={consoleStatusRecipe.emphasis}>
-                {attentionIssues.length > 0 ? `${attentionIssues.length} 项需关注` : '状态正常'}
+                {attentionIssues.length > 0 ? t('agents.console.status.attention', { count: attentionIssues.length }) : t('agents.console.status.ok')}
               </AgentConsoleStatusBadge>
-              {loading && <AgentConsoleSyncBadge>同步中</AgentConsoleSyncBadge>}
+              {loading && <AgentConsoleSyncBadge>{t('agents.console.status.syncing')}</AgentConsoleSyncBadge>}
             </AgentConsoleHeaderTitleRow>
             <AgentConsoleHeaderDescription>
-              展示当前 Agent、会话健康和需要处理的事项；连接方式和模型治理由系统后台与 Admin 边界处理。
+              {t('agents.console.description')}
             </AgentConsoleHeaderDescription>
           </AgentConsoleHeaderCopy>
           <AgentConsoleHeaderActions>
             <AgentConsoleActionButton asChild size="sm" variant="outline">
               <Link to={hostedAgentsRoute}>
                 <Settings size={14} />
-                当前 Agent
+                {t('agents.console.currentAgent')}
               </Link>
             </AgentConsoleActionButton>
             <AgentConsoleActionButton
@@ -216,17 +218,17 @@ export default function AgentConsolePage() {
           </AgentConsoleMainColumn>
 
           <AgentConsoleSidebar pane="logs">
-            <ConsolePanel title="当前边界" icon={<ClipboardList size={14} />}>
+            <ConsolePanel title={t('agents.console.boundaries.title')} icon={<ClipboardList size={14} />}>
               <AgentConsoleGrid>
-                <BoundaryCard title="用户入口" detail="只选择当前 Agent、查看会话状态，并处理需要人工介入的事项。" />
-                <BoundaryCard title="系统后台" detail="连接、进程、SDK 包和线程恢复由统一适配层处理，不作为普通管理项暴露。" />
-                <BoundaryCard title="治理入口" detail="Provider、Catalog、Route 和密钥策略由 Admin 管理，Agent 只消费已发布模型能力。" />
+                <BoundaryCard title={t('agents.console.boundaries.user.title')} detail={t('agents.console.boundaries.user.detail')} />
+                <BoundaryCard title={t('agents.console.boundaries.system.title')} detail={t('agents.console.boundaries.system.detail')} />
+                <BoundaryCard title={t('agents.console.boundaries.governance.title')} detail={t('agents.console.boundaries.governance.detail')} />
               </AgentConsoleGrid>
             </ConsolePanel>
 
-            <ConsolePanel title="需关注事项" icon={<AlertTriangle size={14} />}>
+            <ConsolePanel title={t('agents.console.attention.title')} icon={<AlertTriangle size={14} />}>
               {attentionIssues.length === 0 ? (
-                <EmptyText>当前没有阻塞控制台的配置或运行问题。</EmptyText>
+                <EmptyText>{t('agents.console.attention.empty')}</EmptyText>
               ) : (
                 <AgentConsoleStack>
                   {attentionIssues.map((issue) => <IssueRow key={issue.id} issue={issue} />)}
@@ -234,10 +236,10 @@ export default function AgentConsolePage() {
               )}
             </ConsolePanel>
 
-            <ConsolePanel title="常用入口" icon={<Cable size={14} />}>
+            <ConsolePanel title={t('agents.console.entries.title')} icon={<Cable size={14} />}>
               <AgentConsoleGrid>
-                <ManagementLink to={hostedAgentsRoute} icon={<Bot size={14} />} title="当前 Agent" detail="选择当前助手，只在必要时显示本地连接配置。" />
-                <ManagementLink to={ROUTES.agentSettings} icon={<Settings size={14} />} title="Agent 设置" detail="管理技能、工具授权、配置文件和模型偏好。" />
+                <ManagementLink to={hostedAgentsRoute} icon={<Bot size={14} />} title={t('agents.console.currentAgent')} detail={t('agents.console.entries.currentAgentDetail')} />
+                <ManagementLink to={ROUTES.agentSettings} icon={<Settings size={14} />} title={t('sidebar.items.agentSettings')} detail={t('agents.console.entries.agentSettingsDetail')} />
                 <ManagementLink to={ROUTES.agentConnections} icon={<Cable size={14} />} title="连接诊断" detail="查看原始事件、连接状态和线程流，供排障使用。" />
                 <ManagementLink to={agentSettingsSectionPath('agent-settings-skills')} icon={<Cable size={14} />} title="Skills" detail="管理当前配置文件的 Skill 激活候选、依赖和冲突。" />
                 <ManagementLink to={agentSettingsSectionPath('agent-settings-tools')} icon={<Cable size={14} />} title="Tools" detail="管理当前配置文件的工具授权、审批、风险和运行可用性。" />

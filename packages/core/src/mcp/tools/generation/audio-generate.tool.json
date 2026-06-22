@@ -1,6 +1,6 @@
 {
   "name": "generation_audio_generate",
-  "description": "Synchronously submit a legacy audio text-to-speech generation provider job and return its job id. Prefer generation_voiceover_generate for voiceover, generation_music_generate for music, generation_sfx_generate for sound effects, and generation_subtitle_* for subtitle AI jobs. Agent async lifecycle must be managed by core_work_start, not by calling this tool directly for user generation requests.",
+  "description": "Submit a legacy audio text-to-speech backend job and return its job id. Prefer generation_voiceover_generate for voiceover, generation_music_generate for music, generation_sfx_generate for sound effects, and generation_subtitle_* for subtitle AI jobs. Use generation_audio_job_get to inspect progress and terminal output resources.",
   "permission": "generation.audio.write",
   "risk": "generate",
   "source": "mcp",

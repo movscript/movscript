@@ -1,14 +1,14 @@
-import type { ContentCanvasGraph, ContentCanvasNode, ContentCanvasNodeKind, MediaEditingProjectLike, MediaTimelineClipLike } from '../domain/contentCanvasTypes'
+import type { ContentCanvasWorkspaceSnapshot, ContentCanvasNode, ContentCanvasNodeKind, MediaEditingProjectLike, MediaTimelineClipLike } from '../domain/contentCanvasTypes'
 import type { TimelineItem, TimelineTrack, TimelineTrackKind, TreeNodeData } from './contentCanvasWorkspaceTypes'
-import { contentCanvasCodeForKind, contentCanvasGraphIndex } from './contentCanvasWorkspaceGraphModel'
+import { contentCanvasCodeForKind, contentCanvasWorkspaceIndex } from './contentCanvasWorkspaceGraphModel'
 import { stringField } from './contentCanvasWorkspaceNodeModel'
 
 export {
   clampCanvasZoom,
   clampRadialCoordinate,
   clampRadialYCoordinate,
-  contentCanvasGraphIndex,
-  emptyContentCanvasGraph,
+  contentCanvasWorkspaceIndex,
+  emptyContentCanvasWorkspaceSnapshot,
   iconForContentNode,
   mergeSceneSettingGroups,
   radialNodeFromContentNode,
@@ -51,7 +51,7 @@ const TREE_NAMESPACE_KINDS = new Set<ContentCanvasNodeKind>([
   'asset',
 ])
 
-export function contentCanvasStructureTree(graph: ContentCanvasGraph, activeNodeId?: string, activeProductionId?: string): TreeNodeData[] {
+export function contentCanvasStructureTree(graph: ContentCanvasWorkspaceSnapshot, activeNodeId?: string, activeProductionId?: string): TreeNodeData[] {
   const productions = graph.nodes.filter((node) => node.kind === 'production')
   const segments = graph.nodes.filter((node) => node.kind === 'segment')
   const scenes = graph.nodes.filter((node) => node.kind === 'scene_moment')
@@ -110,7 +110,7 @@ function appendMapArray<T>(map: Map<string, T[]>, key: string, value: T) {
 
 export function sceneTimelineItemsFromGraph(
   scene: ContentCanvasNode,
-  graphIndex: ReturnType<typeof contentCanvasGraphIndex>,
+  graphIndex: ReturnType<typeof contentCanvasWorkspaceIndex>,
 ): TimelineTrack[] {
   const candidates = uniqueById((graphIndex.connectedByNodeId.get(scene.id) ?? [])
     .filter((node) => node.kind === 'expression_unit' || node.kind === 'content_unit' || node.kind === 'audio_cue'))

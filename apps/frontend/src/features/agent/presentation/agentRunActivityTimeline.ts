@@ -132,10 +132,10 @@ export function formatToolCallStreamDetail(event: ChatRunActivityEvent) {
 
 function toolCallTimelineTitle(toolName: string): string {
   if (toolName === 'core_work_start') {
-    return '提交异步任务'
+    return '旧异步任务交接'
   }
-  if (toolName === 'core_work_wait') return '观察异步任务'
-  if (toolName === 'core_work_cancel') return '取消异步任务'
+  if (toolName === 'core_work_wait') return '观察旧异步任务'
+  if (toolName === 'core_work_cancel') return '取消旧异步任务'
   return agentToolNameLabel(toolName)
 }
 

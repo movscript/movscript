@@ -42,15 +42,16 @@ function refreshDockShortcutMenu(): void {
   if (process.platform !== 'darwin' || !app.dock) return
 
   const snapshot = dockShortcutSnapshot
+  const labels = snapshot.labels ?? {}
   const template: Electron.MenuItemConstructorOptions[] = [
-    dockHomeItem('App Home', '/', 'home', isRouteWindowOpen('/')),
-    dockHomeItem('Tool Home', '/tools/ref-image-gen', 'tool', isRouteWindowOpen('/tools/ref-image-gen'), () => openToolWindow()),
-    dockHomeItem('Edit Home', '/editing', 'editingProject', isRouteWindowOpen('/editing'), () => openEditingWindow()),
-    dockHomeItem('Canvas Home', '/canvases', 'canvas', isRouteWindowOpen('/canvases'), () => openCanvasWindow()),
+    dockHomeItem(labels.appHome ?? 'Home', '/', 'home', isRouteWindowOpen('/')),
+    dockHomeItem(labels.toolHome ?? 'Tools', '/tools/ref-image-gen', 'tool', isRouteWindowOpen('/tools/ref-image-gen'), () => openToolWindow()),
+    dockHomeItem(labels.editHome ?? 'Editing', '/editing', 'editingProject', isRouteWindowOpen('/editing'), () => openEditingWindow()),
+    dockHomeItem(labels.canvasHome ?? 'Canvas', '/canvases', 'canvas', isRouteWindowOpen('/canvases'), () => openCanvasWindow()),
     { type: 'separator' },
-    dockRecentSubmenu('最近 Project', 'project', snapshot.projects ?? [], projectLabel, (project) => isProjectWindowOpen(project.projectDir), openProjectShortcut),
-    dockRecentSubmenu('最近 Edit Project', 'editingProject', snapshot.editingProjects ?? [], editingProjectLabel, (project) => isEditingProjectWindowOpen(project.id), openEditingProjectShortcut),
-    dockRecentSubmenu('最近 Canvas', 'canvas', snapshot.canvases ?? [], canvasLabel, (canvas) => isCanvasWindowOpen(canvas.id), openCanvasShortcut),
+    dockRecentSubmenu(labels.recentProjects ?? 'Recent Projects', labels.emptyRecent ?? 'No recent items', 'project', snapshot.projects ?? [], projectLabel, (project) => isProjectWindowOpen(project.projectDir), openProjectShortcut),
+    dockRecentSubmenu(labels.recentEditingProjects ?? 'Recent Editing Projects', labels.emptyRecent ?? 'No recent items', 'editingProject', snapshot.editingProjects ?? [], editingProjectLabel, (project) => isEditingProjectWindowOpen(project.id), openEditingProjectShortcut),
+    dockRecentSubmenu(labels.recentCanvases ?? 'Recent Canvases', labels.emptyRecent ?? 'No recent items', 'canvas', snapshot.canvases ?? [], canvasLabel, (canvas) => isCanvasWindowOpen(canvas.id), openCanvasShortcut),
   ]
 
   app.dock.setMenu(Menu.buildFromTemplate(template))
@@ -71,6 +72,7 @@ function dockHomeItem(label: string, route: string, icon: DockShortcutIcon, acti
 
 function dockRecentSubmenu<T>(
   label: string,
+  emptyLabel: string,
   icon: DockShortcutIcon,
   items: T[],
   getLabel: (item: T) => string,
@@ -86,7 +88,7 @@ function dockRecentSubmenu<T>(
   }))
   return {
     label,
-    submenu: submenu.length > 0 ? submenu : [{ label: '暂无最近项目', enabled: false }],
+    submenu: submenu.length > 0 ? submenu : [{ label: emptyLabel, enabled: false }],
   }
 }
 

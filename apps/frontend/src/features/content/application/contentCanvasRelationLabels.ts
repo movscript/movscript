@@ -50,6 +50,11 @@ export function classifyContentCanvasRelation(
       ? { relatedNodeId: edge.target, direction: 'upstream', label: '素材输入' }
       : { relatedNodeId: edge.source, direction: 'downstream', label: '依赖此素材' }
   }
+  if (edge.relation === 'content_unit_resource') {
+    return edge.target === selectedNodeId
+      ? { relatedNodeId: edge.source, direction: 'upstream', label: '资源输入' }
+      : { relatedNodeId: edge.target, direction: 'downstream', label: '依赖此资源' }
+  }
   if (edge.relation === 'content_unit_keyframe') {
     return edge.source === selectedNodeId
       ? { relatedNodeId: edge.target, direction: 'upstream', label: '关键帧输入' }
@@ -109,6 +114,7 @@ export function contentCanvasEdgeInsightRelationLabel(edge: ContentCanvasEdge): 
   if (edge.relation === 'candidate_resource') return '产出资源'
   if (edge.relation === 'content_unit_scene') return '情节创作片段'
   if (edge.relation === 'content_unit_asset') return '素材输入'
+  if (edge.relation === 'content_unit_resource') return '资源输入'
   if (edge.relation === 'content_unit_keyframe') return '关键帧输入'
   if (edge.relation === 'content_unit_storyboard') return '分镜输入'
   if (edge.relation === 'audio_cue_storyboard') return '声音分镜'

@@ -238,9 +238,38 @@ export function domainTools(): MCPTool[] {
       inputSchema: projectSchema({ ...workspaceLocator, payload: { type: 'object', additionalProperties: true }, record: { type: 'object', additionalProperties: true }, entity: { type: 'object', additionalProperties: true } }, ['payload']),
     },
     {
+      name: 'domain_upsert_setting_state',
+      description: 'Create or update a MovScript setting_state source entity under a concrete setting. Setting states are named conditions or versions of the same setting, such as base look, wet costume, damaged prop, side view, calm voice, or angry voice. Put the state data to write in required payload.',
+      inputSchema: projectSchema({ ...workspaceLocator, payload: { type: 'object', additionalProperties: true }, record: { type: 'object', additionalProperties: true }, entity: { type: 'object', additionalProperties: true } }, ['payload']),
+    },
+    {
       name: 'domain_upsert_asset',
       description: 'Create or update a MovScript asset slot source entity under a setting state. Assets describe one state asset such as front view, side view, turnaround sheet, material reference, voice timbre, or instrument tone; image assets should prefer plain white or very clean backgrounds. Put the asset data to write in required payload; record/entity are optional existing-context objects only. Store RawResource references by resource_id, not binaries or external URLs.',
       inputSchema: projectSchema({ ...workspaceLocator, payload: { type: 'object', additionalProperties: true }, record: { type: 'object', additionalProperties: true }, entity: { type: 'object', additionalProperties: true } }, ['payload']),
+    },
+    {
+      name: 'domain_upsert_setting_tree',
+      description: 'Create or update one concrete setting plus multiple setting_state records and each state\'s asset slots in one structured write. Use this for setting -> many states -> many assets authoring. Asset generated candidates still belong to asset_ref content units; this tool only writes the source setting/state/asset structure.',
+      inputSchema: projectSchema({
+        ...workspaceLocator,
+        setting: { type: 'object', additionalProperties: true },
+        payload: { type: 'object', additionalProperties: true },
+        states: {
+          type: 'array',
+          items: {
+            type: 'object',
+            additionalProperties: true,
+            properties: {
+              state: { type: 'object', additionalProperties: true },
+              payload: { type: 'object', additionalProperties: true },
+              assets: {
+                type: 'array',
+                items: { type: 'object', additionalProperties: true },
+              },
+            },
+          },
+        },
+      }, ['states']),
     },
     {
       name: 'domain_upsert_script',
@@ -266,6 +295,35 @@ export function domainTools(): MCPTool[] {
       name: 'domain_upsert_production',
       description: 'Create or update a production source record under productions/. Use this before adding segment, scene_moment, expression_unit, keyframe, or storyboard planning structure.',
       inputSchema: projectSchema({ ...workspaceLocator, productionId: { type: ['string', 'number'] }, production_id: { type: ['string', 'number'] }, production: { type: 'object', additionalProperties: true }, payload: { type: 'object', additionalProperties: true }, record: { type: 'object', additionalProperties: true } }),
+    },
+    {
+      name: 'domain_upsert_production_tree',
+      description: 'Merge-write one production plus nested segments, scene_moments, expression_units, storyboards, keyframes, audio_cues, and content_units in one structured operation. This is an upsert/patch tree: records are matched by id and updated; omitted existing children are not deleted. Use explicit delete flows for removals. Candidate writes still belong to content-unit candidate tools.',
+      inputSchema: projectSchema({
+        ...workspaceLocator,
+        productionId: { type: ['string', 'number'] },
+        production_id: { type: ['string', 'number'] },
+        production: { type: 'object', additionalProperties: true },
+        payload: { type: 'object', additionalProperties: true },
+        record: { type: 'object', additionalProperties: true },
+        content_units: { type: 'array', items: { type: 'object', additionalProperties: true } },
+        contentUnits: { type: 'array', items: { type: 'object', additionalProperties: true } },
+        segments: {
+          type: 'array',
+          items: {
+            type: 'object',
+            additionalProperties: true,
+            properties: {
+              segment: { type: 'object', additionalProperties: true },
+              payload: { type: 'object', additionalProperties: true },
+              scene_moments: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              sceneMoments: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              content_units: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              contentUnits: { type: 'array', items: { type: 'object', additionalProperties: true } },
+            },
+          },
+        },
+      }, ['segments']),
     },
     {
       name: 'domain_upsert_segment',
@@ -345,6 +403,34 @@ export function domainTools(): MCPTool[] {
         ...workspaceLocator,
         ...contentCandidateWriteProperties(),
       }),
+    },
+    {
+      name: 'domain_register_raw_resource_as_content_unit_candidate',
+      description: 'Register an existing MovScript RawResource as a content-unit candidate through the backend decision API. Use this when a resource already exists from upload, transform, import, or low-level generation and should enter the candidate pool without selecting it.',
+      inputSchema: projectSchema({
+        ...workspaceLocator,
+        contentUnitId: { type: ['string', 'number'] },
+        content_unit_id: { type: ['string', 'number'] },
+        resourceId: { type: 'number', description: 'Positive integer RawResource ID to register as a candidate output.' },
+        resource_id: { type: 'number', description: 'Alias for resourceId.' },
+        outputKind: { type: 'string', enum: ['image', 'video', 'audio', 'text', 'metadata'] },
+        output_kind: { type: 'string', enum: ['image', 'video', 'audio', 'text', 'metadata'] },
+        kind: { type: 'string', enum: ['image', 'video', 'audio', 'text', 'metadata'] },
+        candidateId: { type: ['string', 'number'] },
+        candidate_id: { type: ['string', 'number'] },
+        source: { type: 'string' },
+        status: { type: 'string', enum: [...contentCandidateStatuses] },
+        mimeType: { type: 'string' },
+        mime_type: { type: 'string' },
+        width: { type: 'number' },
+        height: { type: 'number' },
+        durationSec: { type: 'number' },
+        duration_sec: { type: 'number' },
+        metadata: { type: 'object', additionalProperties: true },
+        producer: { type: 'object', additionalProperties: true },
+        promptSnapshot: { type: 'object', additionalProperties: true },
+        prompt_snapshot: { type: 'object', additionalProperties: true },
+      }, ['contentUnitId', 'resourceId']),
     },
     {
       name: 'domain_create_content_candidate_batch',
@@ -441,6 +527,15 @@ export function domainTools(): MCPTool[] {
       name: 'domain_read_production_work_plan',
       description: 'Derive the current in-memory production work plan from source and decision state. This does not read or write interpreter debug artifacts and should be used by UI, CLI, and agents as the shared production todo graph.',
       inputSchema: projectSchema(workspaceLocator),
+    },
+    {
+      name: 'domain_production_status_summary',
+      description: 'Summarize current production progress for agents: prerequisites/settings/assets, storyboards, keyframes, content-unit candidate counts, selected resources, stale hints, and blocking refs. Use this before broad generation or review instead of manually stitching many tool results.',
+      inputSchema: projectSchema({
+        ...workspaceLocator,
+        productionId: { type: ['string', 'number'] },
+        production_id: { type: ['string', 'number'] },
+      }),
     },
     {
       name: 'domain_inspect',

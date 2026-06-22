@@ -11,7 +11,7 @@ import {
   resolveContentCanvasProjectEntrySessionState,
 } from '../application/contentCanvasProjectEntrySession'
 import type { ContentCanvasNode } from '../domain/contentCanvasTypes'
-import type { CanvasMode, InspectorSelection, InspectorSelectionRef, SettingKind } from './contentCanvasWorkspaceTypes'
+import type { ContentWorkspaceTab, InspectorSelection, InspectorSelectionRef, SettingKind } from './contentCanvasWorkspaceTypes'
 
 type ContentCanvasCreateSelection = Extract<InspectorSelection, {
   kind: 'create_expression_unit' | 'create_keyframe' | 'create_storyboard' | 'create_state' | 'create_asset'
@@ -20,7 +20,6 @@ type ContentCanvasCreateSelection = Extract<InspectorSelection, {
 interface UseContentCanvasWorkspaceSessionInput {
   activeKind: SettingKind | 'all'
   activeCanvasNodeId: string | null
-  canvasMode: CanvasMode
   graphIndex: {
     nodeById: Map<string, ContentCanvasNode>
   }
@@ -32,15 +31,15 @@ interface UseContentCanvasWorkspaceSessionInput {
   setActiveProductionId: Dispatch<SetStateAction<string | null>>
   setActiveSceneId: Dispatch<SetStateAction<string | null>>
   setActiveSettingId: Dispatch<SetStateAction<string | null>>
-  setCanvasMode: Dispatch<SetStateAction<CanvasMode>>
   setCreateSelection: Dispatch<SetStateAction<ContentCanvasCreateSelection>>
   setSelection: Dispatch<SetStateAction<InspectorSelectionRef>>
+  setWorkspaceTab: Dispatch<SetStateAction<ContentWorkspaceTab>>
+  workspaceTab: ContentWorkspaceTab
 }
 
 export function useContentCanvasWorkspaceSession({
   activeKind,
   activeCanvasNodeId,
-  canvasMode,
   graphIndex,
   projectId,
   searchParams,
@@ -50,9 +49,10 @@ export function useContentCanvasWorkspaceSession({
   setActiveProductionId,
   setActiveSceneId,
   setActiveSettingId,
-  setCanvasMode,
   setCreateSelection,
   setSelection,
+  setWorkspaceTab,
+  workspaceTab,
 }: UseContentCanvasWorkspaceSessionInput): void {
   const restoredSessionRef = useRef(false)
   const restoredSessionKeyRef = useRef('')
@@ -62,7 +62,7 @@ export function useContentCanvasWorkspaceSession({
   ))
   const upsertProjectEntrySessionSnapshot = useProjectEntrySessionStore((state) => state.upsertSnapshot)
   const hasExplicitSessionSearch = useMemo(
-    () => hasExplicitProjectEntrySearchParam(searchParams, ['canvasNode', 'node', 'mode', 'kind', 'settingKind']),
+    () => hasExplicitProjectEntrySearchParam(searchParams, ['canvasNode', 'node', 'tab', 'mode', 'kind', 'settingKind']),
     [searchParams],
   )
 
@@ -75,7 +75,7 @@ export function useContentCanvasWorkspaceSession({
     })
     if (!sessionState) return
     const sessionKey = [
-      sessionState.canvasMode,
+      sessionState.workspaceTab,
       sessionState.activeCanvasNodeId,
       sessionState.selectionKind,
       sessionState.selectedNodeId,
@@ -89,7 +89,7 @@ export function useContentCanvasWorkspaceSession({
     skipNextSessionPersistRef.current = true
     if (sessionState.activeKind) setActiveKind(sessionState.activeKind)
     setActiveCanvasNodeId(sessionState.activeCanvasNodeId === 'scene-main' ? null : sessionState.activeCanvasNodeId)
-    setCanvasMode(sessionState.canvasMode)
+    setWorkspaceTab(sessionState.workspaceTab)
     const canvasNode = graphIndex.nodeById.get(sessionState.activeCanvasNodeId)
     if (canvasNode?.kind === 'scene_moment') {
       setActiveProductionId(null)
@@ -110,9 +110,9 @@ export function useContentCanvasWorkspaceSession({
     setActiveProductionId,
     setActiveSceneId,
     setActiveSettingId,
-    setCanvasMode,
     setCreateSelection,
     setSelection,
+    setWorkspaceTab,
   ])
 
   useEffect(() => {
@@ -125,38 +125,38 @@ export function useContentCanvasWorkspaceSession({
     upsertProjectEntrySessionSnapshot(contentCanvasProjectEntrySessionSnapshot({
       activeKind,
       activeCanvasNodeId: activeCanvasNodeId ?? selection.nodeId,
-      canvasMode,
       projectId,
       selectedNodeId: selection.nodeId,
       selectionKind: selection.kind,
+      workspaceTab,
     }))
   }, [
     activeKind,
     activeCanvasNodeId,
-    canvasMode,
     hasExplicitSessionSearch,
     projectId,
     selection.kind,
     selection.nodeId,
     sessionSnapshot,
     upsertProjectEntrySessionSnapshot,
+    workspaceTab,
   ])
 }
 
 function contentCanvasProjectEntrySessionSnapshot(input: {
   activeKind: SettingKind | 'all'
   activeCanvasNodeId: string
-  canvasMode: CanvasMode
   projectId: number
   selectedNodeId: string
   selectionKind: InspectorSelectionRef['kind']
+  workspaceTab: ContentWorkspaceTab
 }): Omit<ProjectEntrySessionSnapshot, 'schemaVersion' | 'updatedAt'> {
   const search = buildContentCanvasProjectEntrySessionSearch({
     activeKind: input.activeKind,
     activeCanvasNodeId: input.activeCanvasNodeId,
-    canvasMode: input.canvasMode,
     selectedNodeId: input.selectedNodeId,
     selectionKind: input.selectionKind,
+    workspaceTab: input.workspaceTab,
   })
   return {
     projectId: input.projectId,
@@ -166,9 +166,9 @@ function contentCanvasProjectEntrySessionSnapshot(input: {
     filters: {
       activeKind: input.activeKind,
       activeCanvasNodeId: input.activeCanvasNodeId,
-      canvasMode: input.canvasMode,
       selectedNodeId: input.selectedNodeId,
       selectionKind: input.selectionKind,
+      workspaceTab: input.workspaceTab,
     },
     selection: undefined,
   }

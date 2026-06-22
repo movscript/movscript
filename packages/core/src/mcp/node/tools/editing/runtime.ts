@@ -8,7 +8,7 @@ export type EditingMediaPipelineTaskStatus = 'queued' | 'running' | 'succeeded' 
 
 export interface EditingMediaPipelineAssetDescriptor {
   id: string
-  sourceKind: 'backend_resource' | 'local_file' | 'generated_resource' | 'bytes'
+  sourceKind: 'raw_resource' | 'backend_resource' | 'local_file' | 'generated_resource' | 'bytes'
   assetType: 'video' | 'image' | 'audio' | 'text' | 'subtitle'
   resourceId?: number
   resourceVersion?: string | number

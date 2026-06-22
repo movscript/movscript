@@ -114,6 +114,10 @@ export function registerMediaPipelineIpcHandlers(): void {
   })
 
   ipcMain.handle('media-pipeline:import-export-resource', async (_event, input?: {
+    taskId?: string
+    task_id?: string
+    projectId?: string
+    project_id?: string
     outputPath?: string
     output_path?: string
     filename?: string
@@ -138,10 +142,36 @@ export function registerMediaPipelineIpcHandlers(): void {
     params?: Record<string, unknown>
   }) => {
     if (!input) throw new Error('input is required')
+    const taskId = input.taskId ?? input.task_id
+    const projectId = input.projectId ?? input.project_id
+    const task = taskId ? await getMediaPipelineTaskFromReadHomeDirs(taskId, projectId) : undefined
+    const outputPath = input.outputPath ?? input.output_path ?? task?.outputPath
+    if (!outputPath) {
+      if (taskId) {
+        return {
+          status: task ? 'pending_output' : 'not_found',
+          taskId,
+          task_id: taskId,
+          ...(task ? { task } : {}),
+        }
+      }
+      throw new Error('outputPath or taskId is required')
+    }
+    if (isMediaPipelineHlsOutput(task, outputPath)) {
+      return {
+        status: 'unsupported_output',
+        code: 'USE_EDITING_EXPORT_PUBLISH_HLS',
+        message: 'Output is an HLS manifest. Use publishMediaHlsStream for HLS artifacts instead of importing it as a RawResource.',
+        ...(taskId ? { taskId, task_id: taskId } : {}),
+        outputPath,
+        output_path: outputPath,
+        ...(task ? { task } : {}),
+      }
+    }
     return importMediaPipelineExportResource({
-      outputPath: input.outputPath ?? '',
-      output_path: input.output_path,
-      filename: input.filename,
+      outputPath,
+      output_path: outputPath,
+      filename: input.filename ?? task?.outputName,
       mimeType: input.mimeType,
       mime_type: input.mime_type,
       folderId: input.folderId,
@@ -315,6 +345,17 @@ async function getStoredMediaPipelineTaskFromReadHomeDirs(input: {
   return undefined
 }
 
+async function getMediaPipelineTaskFromReadHomeDirs(taskId: string, projectId: string | undefined) {
+  return getMediaPipelineTask(taskId)
+    ?? (projectId ? await getStoredMediaPipelineTaskFromReadHomeDirs({ projectId, taskId }) : undefined)
+    ?? undefined
+}
+
+function isMediaPipelineHlsOutput(task: unknown, outputPath: string): boolean {
+  if (isRecord(task) && task.taskType === 'timeline_hls') return true
+  return outputPath.toLowerCase().endsWith('.m3u8')
+}
+
 async function getMediaPipelineTaskLogsFromReadHomeDirs(taskId: string, projectId: string | undefined) {
   for (const homeDir of resolveMediaPipelineReadHomeDirs()) {
     const logs = await getMediaPipelineTaskLogs(taskId, { projectId, homeDir })
@@ -389,6 +430,10 @@ async function deleteMediaPipelineEditingProjectFromReadHomeDirs(input: {
 
 function isMediaPipelineTaskNotFoundError(error: unknown, taskId: string): boolean {
   return error instanceof Error && error.message === `Media pipeline task not found: ${taskId}`
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value))
 }
 
 function toMediaPipelineTaskRequest(input: EditingMediaPipelineTaskRequest): MediaPipelineTaskRequest {

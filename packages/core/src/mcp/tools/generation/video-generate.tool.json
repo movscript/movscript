@@ -1,6 +1,6 @@
 {
   "name": "generation_video_generate",
-  "description": "Synchronously submit a video generation provider job and return its job id. Agent async lifecycle must be managed by core_work_start, not by calling this tool directly for user generation requests.",
+  "description": "Submit a video generation backend job and return its job id. Use generation_video_job_get or system_generate_video_job_get to inspect progress and terminal output resources.",
   "permission": "generation.video.write",
   "risk": "generate",
   "source": "mcp",

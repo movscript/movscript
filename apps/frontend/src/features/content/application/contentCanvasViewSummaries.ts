@@ -1,4 +1,4 @@
-import type { ContentCanvasEdge, ContentCanvasGraph, ContentCanvasNodeKind } from '../domain/contentCanvasTypes'
+import type { ContentCanvasEdge, ContentCanvasWorkspaceSnapshot, ContentCanvasNodeKind } from '../domain/contentCanvasTypes'
 
 export interface ContentCanvasCollapsedRelationSummary {
   kind: ContentCanvasNodeKind
@@ -40,7 +40,7 @@ export function contentCanvasHiddenEdgeSummaries(
 }
 
 export function contentCanvasCollapsedSummaries(
-  graph: ContentCanvasGraph,
+  graph: ContentCanvasWorkspaceSnapshot,
   visibleIds: ReadonlySet<string>,
   hiddenNodeIds: ReadonlySet<string>,
   options: { excludeKinds?: ReadonlySet<ContentCanvasNodeKind> } = {},
@@ -104,7 +104,7 @@ function hiddenEdgeRelationLabel(relation: ContentCanvasHiddenEdgeSummary['relat
 }
 
 function anchorVisibleNodeForHiddenNode(
-  graph: ContentCanvasGraph,
+  graph: ContentCanvasWorkspaceSnapshot,
   visibleIds: ReadonlySet<string>,
   hiddenNodeId: string,
   maxDepth: number,
@@ -170,7 +170,7 @@ function collapsedKindLabel(kind: ContentCanvasNodeKind): string {
   return '关系'
 }
 
-function relatedEdgesForNode(graph: ContentCanvasGraph, nodeId: string): ContentCanvasEdge[] {
+function relatedEdgesForNode(graph: ContentCanvasWorkspaceSnapshot, nodeId: string): ContentCanvasEdge[] {
   const indexes = graph.indexes
   if (!indexes) return graph.edges.filter((edge) => edge.source === nodeId || edge.target === nodeId)
   const edgeIds = new Set([
@@ -183,6 +183,6 @@ function relatedEdgesForNode(graph: ContentCanvasGraph, nodeId: string): Content
   })
 }
 
-function nodeById(graph: ContentCanvasGraph, nodeId: string) {
+function nodeById(graph: ContentCanvasWorkspaceSnapshot, nodeId: string) {
   return graph.indexes?.nodeById[nodeId] ?? graph.nodes.find((node) => node.id === nodeId)
 }

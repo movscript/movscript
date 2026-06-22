@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useMemo, type CSSProperties } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useResizablePanel } from '@movscript/ui/layout'
 import {
@@ -14,16 +14,6 @@ import {
   CONTENT_CANVAS_TIMELINE_PANE_ID,
 } from '@/routes/routeLayoutRegistry'
 import { useRouteLayoutPaneController } from '@/features/app-shell/application/useRouteLayoutPaneController'
-import {
-  clearContentCanvasNodePositions,
-  mergeContentCanvasNodePositions,
-  readContentCanvasViewState,
-  subscribeContentCanvasViewState,
-  type ContentCanvasNodePosition,
-  type ContentCanvasViewStateScope,
-} from '../application/contentCanvasViewState'
-import type { CanvasMode, RadialNode } from './contentCanvasWorkspaceTypes'
-import { clampRadialCoordinate, clampRadialYCoordinate } from './contentCanvasWorkspaceModel'
 
 export function useContentCanvasPaneLayout({
   timelineVisible = true,
@@ -81,58 +71,6 @@ export function useContentCanvasPaneLayout({
     timeline: timelineResize,
   }
 }
-
-export function useContentCanvasRadialLayout({
-  projectId,
-  mode,
-  mainNodeId,
-}: {
-  projectId: number | undefined
-  mode: CanvasMode
-  mainNodeId: string | undefined
-}) {
-  const scope = useMemo<ContentCanvasViewStateScope>(() => ({
-    productionId: mainNodeId,
-    mode: `workspace-${mode}`,
-  }), [mainNodeId, mode])
-  const [positions, setPositions] = useState<Record<string, ContentCanvasNodePosition>>(() => (
-    readContentCanvasViewState(projectId, scope)?.nodePositions ?? {}
-  ))
-
-  useEffect(() => {
-    const syncPositions = () => setPositions(readContentCanvasViewState(projectId, scope)?.nodePositions ?? {})
-    syncPositions()
-    return subscribeContentCanvasViewState(projectId, scope, syncPositions)
-  }, [projectId, scope])
-
-  const applyNodePositions = useCallback((nodes: RadialNode[]) => (
-    nodes.map((node) => {
-      const position = positions[node.id]
-      return position ? { ...node, x: position.x, y: position.y } : node
-    })
-  ), [positions])
-
-  const commitNodePosition = useCallback((nodeId: string, position: ContentCanvasNodePosition) => {
-    const nextPosition = {
-      x: clampRadialCoordinate(position.x),
-      y: clampRadialYCoordinate(position.y),
-    }
-    setPositions((current) => ({ ...current, [nodeId]: nextPosition }))
-    mergeContentCanvasNodePositions(projectId, { [nodeId]: nextPosition }, scope)
-  }, [projectId, scope])
-
-  const reset = useCallback(() => {
-    setPositions({})
-    clearContentCanvasNodePositions(projectId, scope)
-  }, [projectId, scope])
-
-  return useMemo(() => ({
-    applyNodePositions,
-    commitNodePosition,
-    reset,
-  }), [applyNodePositions, commitNodePosition, reset])
-}
-
 
 export function ContentCanvasResizeHandle({
   className,

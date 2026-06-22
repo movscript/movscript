@@ -69,7 +69,7 @@ function run(overrides: Partial<AgentRun> = {}): AgentRun {
       runId: 'run_1',
       type: 'tool_call',
       status: 'completed',
-      toolName: 'core_work_start',
+      toolName: 'generation_video_generate',
       createdAt: '2026-05-23T00:00:00.000Z',
       completedAt: '2026-05-23T00:00:01.000Z',
     }],

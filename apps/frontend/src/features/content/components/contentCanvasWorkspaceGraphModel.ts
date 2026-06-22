@@ -1,6 +1,6 @@
 import { Box, Building2, CircleDot, FileImage, Film, Image, KeyRound, Palette, Rows3, ScrollText, Shirt, SquareStack, Star, TextCursorInput, UserRound, WandSparkles, type LucideIcon } from 'lucide-react'
 import type { ContentCanvasNodePosition } from '../application/contentCanvasViewState'
-import type { ContentCanvasEdge, ContentCanvasGraph, ContentCanvasNode, ContentCanvasNodeKind } from '../domain/contentCanvasTypes'
+import type { ContentCanvasEdge, ContentCanvasWorkspaceSnapshot, ContentCanvasNode, ContentCanvasNodeKind } from '../domain/contentCanvasTypes'
 import { CANVAS_WORLD_HEIGHT, CANVAS_WORLD_WIDTH, SCENE_RELATION_RADIUS_X, SCENE_RELATION_RADIUS_Y, type InspectorSelection, type InspectorSelectionRef, type RadialNode, type SceneSettingGroup } from './contentCanvasWorkspaceTypes'
 
 export const SCENE_MAIN_NODE: RadialNode = {
@@ -28,7 +28,7 @@ export function selectedSelectionId(selection: InspectorSelection) {
 
 export function reconcileContentCanvasInspectorSelection(input: {
   selection: InspectorSelectionRef
-  graphIndex: ReturnType<typeof contentCanvasGraphIndex>
+  graphIndex: ReturnType<typeof contentCanvasWorkspaceIndex>
   sceneMainNode: RadialNode
   settingMainNode?: RadialNode | null
 }): InspectorSelection {
@@ -76,11 +76,11 @@ export function clampCanvasZoom(value: number) {
   return Math.min(Math.max(Math.round(value * 100) / 100, 0.5), 1.8)
 }
 
-export function emptyContentCanvasGraph(): ContentCanvasGraph {
+export function emptyContentCanvasWorkspaceSnapshot(): ContentCanvasWorkspaceSnapshot {
   return { nodes: [], edges: [] }
 }
 
-export function contentCanvasGraphIndex(graph: ContentCanvasGraph) {
+export function contentCanvasWorkspaceIndex(graph: ContentCanvasWorkspaceSnapshot) {
   const nodeById = new Map(graph.nodes.map((node) => [node.id, node]))
   const connectedByNodeId = new Map<string, ContentCanvasNode[]>()
   const childNodesByHierarchy = new Map<string, ContentCanvasNode[]>()
@@ -104,7 +104,7 @@ function appendMapArray<T>(map: Map<string, T[]>, key: string, value: T) {
 
 export function radialNodesAround(
   main: ContentCanvasNode,
-  graphIndex: ReturnType<typeof contentCanvasGraphIndex>,
+  graphIndex: ReturnType<typeof contentCanvasWorkspaceIndex>,
   allowedKinds: ContentCanvasNodeKind[],
 ): RadialNode[] {
   if (main.kind === 'setting') {
@@ -153,7 +153,7 @@ export function radialNodesAround(
   })
 }
 
-function assetsForStateCount(graphIndex: ReturnType<typeof contentCanvasGraphIndex>, stateId: string) {
+function assetsForStateCount(graphIndex: ReturnType<typeof contentCanvasWorkspaceIndex>, stateId: string) {
   return Math.max(1, (graphIndex.connectedByNodeId.get(stateId) ?? []).filter((node) => node.kind === 'asset').length)
 }
 
@@ -193,7 +193,7 @@ export function radialNodeFromContentNode(node: ContentCanvasNode, x: number, y:
 
 export function sceneSettingGroupFromNode(
   setting: ContentCanvasNode,
-  graphIndex: ReturnType<typeof contentCanvasGraphIndex>,
+  graphIndex: ReturnType<typeof contentCanvasWorkspaceIndex>,
   position: ContentCanvasNodePosition,
 ): SceneSettingGroup {
   const states = (graphIndex.childNodesByHierarchy.get(setting.id) ?? [])
@@ -220,7 +220,7 @@ export function mergeSceneSettingGroups(automaticGroups: SceneSettingGroup[], ma
 
 export function sceneSettingGroupsUsedByScene(
   scene: ContentCanvasNode,
-  graphIndex: ReturnType<typeof contentCanvasGraphIndex>,
+  graphIndex: ReturnType<typeof contentCanvasWorkspaceIndex>,
 ): SceneSettingGroup[] {
   const scopedNodeIds = sceneScopedNodeIds(scene, graphIndex)
   const assetIds = new Set<string>()
@@ -260,7 +260,7 @@ export function sceneSettingGroupsUsedByScene(
 
 function sceneScopedNodeIds(
   scene: ContentCanvasNode,
-  graphIndex: ReturnType<typeof contentCanvasGraphIndex>,
+  graphIndex: ReturnType<typeof contentCanvasWorkspaceIndex>,
 ) {
   const scopedKinds = new Set<ContentCanvasNodeKind>(['scene_moment', 'expression_unit', 'storyboard', 'keyframe', 'content_unit', 'audio_cue'])
   const scoped = new Set<string>([scene.id])
@@ -292,7 +292,7 @@ function isSceneScopedRelation(relation: ContentCanvasEdge['relation']) {
 
 function parentStateForAsset(
   assetId: string,
-  graphIndex: ReturnType<typeof contentCanvasGraphIndex>,
+  graphIndex: ReturnType<typeof contentCanvasWorkspaceIndex>,
 ) {
   for (const edge of graphIndex.edgesByNodeId.get(assetId) ?? []) {
     const otherId = edge.source === assetId ? edge.target : edge.source
@@ -304,7 +304,7 @@ function parentStateForAsset(
 
 function parentSettingForState(
   stateId: string,
-  graphIndex: ReturnType<typeof contentCanvasGraphIndex>,
+  graphIndex: ReturnType<typeof contentCanvasWorkspaceIndex>,
 ) {
   for (const edge of graphIndex.edgesByNodeId.get(stateId) ?? []) {
     const otherId = edge.source === stateId ? edge.target : edge.source

@@ -8,7 +8,7 @@ import {
 
 test('parses prompt refs from all editable prompt text fields', () => {
   const refs = parseContentUnitEditPromptRefs({
-    text: 'Use {{asset:wet_hair}} for {{candidate:candidate_a}} and {{resource:42}}.',
+    text: 'Use {{asset::wet_hair}} for {{candidate:candidate_a}} and {{resource::42}}.',
     negative_text: 'Avoid {{asset:dry_hair}}.',
     notes: 'Match {{storyboard:main}}.',
   })

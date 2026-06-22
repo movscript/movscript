@@ -142,6 +142,10 @@ export type ElectronMediaEditingProjectDeleteResult = {
 }
 
 export type ElectronMediaExportImportInput = {
+  taskId?: string
+  task_id?: string
+  projectId?: string
+  project_id?: string
   outputPath?: string
   output_path?: string
   filename?: string

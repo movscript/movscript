@@ -1,6 +1,6 @@
 .content-canvas-workspace-inspector {
   grid-column: 3;
-  grid-row: 1 / 3;
+  grid-row: 1;
   position: relative;
   border-left: 1px solid var(--cc-border);
   background: color-mix(in srgb, var(--cc-panel) 82%, transparent);
@@ -9,7 +9,7 @@
 
 .content-canvas-workspace-timeline {
   grid-column: 2;
-  grid-row: 2;
+  grid-row: 1;
   position: relative;
   align-self: end;
   height: 100%;

@@ -22,6 +22,12 @@ import { requireMCPBackendBoundProject } from '../project/localProjectBinding.js
 
 type Args = Record<string, unknown>
 type ContentCandidateStatus = NonNullable<MovScriptContentCandidateWriteInput['status']>
+type ProductionTreeContext = {
+  productionId: string | number
+  segmentId?: string | number
+  sceneMomentId?: string | number
+  expressionUnitId?: string | number
+}
 type ProductionTimelineClip = {
   id: string
   sceneMomentId?: string | number
@@ -320,6 +326,17 @@ export async function domainUpsertSetting(args: Args): Promise<unknown> {
   }))
 }
 
+export async function domainUpsertSettingState(args: Args): Promise<unknown> {
+  const payload = upsertPayloadRecord(args)
+  return runtimeMutation(args, (runtime) => runtime.createSettingState({
+    id: optionalId(payload.id ?? payload.client_id),
+    settingId: optionalId(payload.setting_id ?? payload.settingId ?? payload.setting_ref ?? payload.settingRef),
+    title: stringValue(payload.title),
+    stateKind: stringValue(payload.state_kind ?? payload.kind),
+    description: stringValue(payload.description),
+  }))
+}
+
 export async function domainUpsertAsset(args: Args): Promise<unknown> {
   const payload = upsertPayloadRecord(args)
   return runtimeMutation(args, (runtime) => runtime.createAsset({
@@ -332,6 +349,52 @@ export async function domainUpsertAsset(args: Args): Promise<unknown> {
     promptHint: stringValue(payload.prompt_hint ?? payload.promptHint),
     resourceId: idValue(payload.resource_id ?? payload.resourceId),
   }))
+}
+
+export async function domainUpsertSettingTree(args: Args): Promise<unknown> {
+  const settingPayload = requiredRecord(args.setting ?? args.payload, 'setting')
+  const stateItems = requiredArray(args.states ?? settingPayload.states, 'states').filter(isRecord)
+  return runtimeMutation(args, async (runtime) => {
+    const setting = await runtime.createSetting({
+      id: optionalId(settingPayload.id ?? settingPayload.client_id),
+      title: stringValue(settingPayload.title),
+      kind: stringValue(settingPayload.setting_kind ?? settingPayload.kind),
+      description: stringValue(settingPayload.description),
+      alias: stringValue(settingPayload.alias),
+      content: settingPayload.content,
+      importance: settingPayload.importance,
+    })
+    const settingId = entityResultId(setting, settingPayload, 'setting')
+    const states = []
+    for (const stateItem of stateItems) {
+      const statePayload = requiredRecord(stateItem.state ?? stateItem.payload ?? stateItem.record ?? stateItem.entity ?? stateItem, 'state')
+      const state = await runtime.createSettingState({
+        id: optionalId(statePayload.id ?? statePayload.client_id),
+        settingId: optionalId(statePayload.setting_id ?? statePayload.settingId ?? statePayload.setting_ref ?? statePayload.settingRef ?? settingId),
+        title: stringValue(statePayload.title),
+        stateKind: stringValue(statePayload.state_kind ?? statePayload.kind),
+        description: stringValue(statePayload.description),
+      })
+      const stateId = entityResultId(state, statePayload, 'setting_state')
+      const assetItems = Array.isArray(stateItem.assets) ? stateItem.assets.filter(isRecord) : []
+      const assets = []
+      for (const assetItem of assetItems) {
+        const assetPayload = requiredRecord(assetItem.payload ?? assetItem.record ?? assetItem.entity ?? assetItem, 'asset')
+        assets.push(await runtime.createAsset({
+          id: optionalId(assetPayload.id ?? assetPayload.client_id),
+          title: stringValue(assetPayload.title),
+          settingId: optionalId(assetPayload.setting_id ?? assetPayload.settingId ?? assetPayload.setting_ref ?? assetPayload.settingRef ?? settingId),
+          settingStateId: optionalId(assetPayload.setting_state_id ?? assetPayload.settingStateId ?? assetPayload.setting_state_ref ?? assetPayload.settingStateRef ?? stateId),
+          slot: stringValue(assetPayload.slot ?? assetPayload.slot_key ?? assetPayload.slotKey),
+          assetKind: stringValue(assetPayload.asset_kind ?? assetPayload.kind),
+          promptHint: stringValue(assetPayload.prompt_hint ?? assetPayload.promptHint),
+          resourceId: optionalId(assetPayload.resource_id ?? assetPayload.resourceId),
+        }))
+      }
+      states.push({ state, assets })
+    }
+    return { setting, states }
+  })
 }
 
 export async function domainUpsertScript(args: Args): Promise<unknown> {
@@ -373,6 +436,132 @@ export async function domainUpsertProduction(args: Args): Promise<unknown> {
     title: stringValue(production.title),
   }))
   return productionWriteResult('production', { productionId }, result)
+}
+
+export async function domainUpsertProductionTree(args: Args): Promise<unknown> {
+  const productionPayload = requiredRecord(args.production ?? args.payload ?? args.record, 'production')
+  const segmentItems = requiredArray(args.segments ?? productionPayload.segments, 'segments').filter(isRecord)
+  return runtimeMutation(args, async (runtime) => {
+    const productionId = productionIdFrom(args, productionPayload)
+    const production = await runtime.createProduction({
+      id: productionId,
+      title: stringValue(productionPayload.title),
+    })
+    const segments = []
+    for (const segmentItem of segmentItems) {
+      const segmentPayload = treePayload(segmentItem, 'segment')
+      const segmentId = requiredId(segmentPayload.id ?? segmentPayload.client_id, 'segment.id')
+      const segment = await runtime.createSegment({
+        productionId,
+        id: segmentId,
+        title: stringValue(segmentPayload.title),
+        kind: stringValue(segmentPayload.segment_kind ?? segmentPayload.kind),
+        summary: stringValue(segmentPayload.summary ?? segmentPayload.description),
+        order: numberValue(segmentPayload.order),
+      })
+      const sceneMomentItems = arrayRecords(segmentItem.scene_moments ?? segmentItem.sceneMoments)
+      const contentUnitItems = arrayRecords(segmentItem.content_units ?? segmentItem.contentUnits)
+      const sceneMoments = []
+      const contentUnits = []
+      for (const contentUnitItem of contentUnitItems) {
+        const contentUnitPayload = treePayload(contentUnitItem, 'content_unit')
+        contentUnits.push(await runtime.createContentUnit(treeContentUnitInput(contentUnitPayload, {
+          productionId,
+          segmentId,
+          contentUnitType: 'segment_ref',
+          outputKind: 'video',
+          targetKind: 'segment',
+          targetRef: segmentId,
+        })))
+      }
+      for (const sceneMomentItem of sceneMomentItems) {
+        const sceneMomentPayload = treePayload(sceneMomentItem, 'scene_moment')
+        const sceneMomentId = requiredId(sceneMomentPayload.id ?? sceneMomentPayload.client_id, 'scene_moment.id')
+        const sceneMoment = await runtime.createSceneMoment({
+          productionId,
+          segmentId,
+          id: sceneMomentId,
+          title: stringValue(sceneMomentPayload.title),
+          storyboardId: optionalId(sceneMomentPayload.storyboard_id ?? sceneMomentPayload.storyboardId),
+          order: numberValue(sceneMomentPayload.order),
+          timeText: stringValue(sceneMomentPayload.time_text ?? sceneMomentPayload.when),
+          sceneCode: stringValue(sceneMomentPayload.scene_code),
+          locationText: stringValue(sceneMomentPayload.location_text ?? sceneMomentPayload.where),
+          conditionText: stringValue(sceneMomentPayload.condition_text),
+          actionText: stringValue(sceneMomentPayload.action_text ?? sceneMomentPayload.action),
+          mood: stringValue(sceneMomentPayload.mood ?? sceneMomentPayload.emotion),
+          description: stringValue(sceneMomentPayload.description),
+          settings: settingRefsFromRecord(sceneMomentPayload),
+        })
+        const sceneContentUnits = []
+        for (const contentUnitItem of arrayRecords(sceneMomentItem.content_units ?? sceneMomentItem.contentUnits)) {
+          const contentUnitPayload = treePayload(contentUnitItem, 'content_unit')
+          sceneContentUnits.push(await runtime.createContentUnit(treeContentUnitInput(contentUnitPayload, {
+            productionId,
+            segmentId,
+            sceneMomentId,
+            contentUnitType: 'scene_moment_ref',
+            outputKind: 'video',
+            targetKind: 'scene_moment',
+            targetRef: sceneMomentId,
+          })))
+        }
+        const expressionUnits = []
+        for (const expressionUnitItem of arrayRecords(sceneMomentItem.expression_units ?? sceneMomentItem.expressionUnits)) {
+          const expressionUnitPayload = normalizeExpressionUnitPayload(treePayload(expressionUnitItem, 'expression_unit'))
+          const expressionUnitId = requiredId(expressionUnitPayload.id ?? expressionUnitPayload.client_id, 'expression_unit.id')
+          const expressionUnit = await runtime.createExpressionUnit({
+            productionId,
+            segmentId,
+            sceneMomentId,
+            id: expressionUnitId,
+            title: stringValue(expressionUnitPayload.title),
+            kind: stringValue(expressionUnitPayload.kind),
+            text: stringValue(expressionUnitPayload.text ?? expressionUnitPayload.content),
+            intent: stringValue(expressionUnitPayload.intent ?? expressionUnitPayload.summary ?? expressionUnitPayload.description),
+            speaker: stringValue(expressionUnitPayload.speaker),
+            note: stringValue(expressionUnitPayload.note),
+            order: numberValue(expressionUnitPayload.order),
+          })
+          const expressionContentUnits = []
+          for (const contentUnitItem of arrayRecords(expressionUnitItem.content_units ?? expressionUnitItem.contentUnits)) {
+            const contentUnitPayload = treePayload(contentUnitItem, 'content_unit')
+            expressionContentUnits.push(await runtime.createContentUnit(treeContentUnitInput(contentUnitPayload, {
+              productionId,
+              segmentId,
+              sceneMomentId,
+              expressionUnitId,
+              contentUnitType: 'expression_unit_ref',
+              outputKind: 'video',
+              targetKind: 'expression_unit',
+              targetRef: expressionUnitId,
+            })))
+          }
+          const storyboards = await upsertTreeStoryboards(runtime, expressionUnitItem, { productionId, segmentId, sceneMomentId, expressionUnitId })
+          const keyframes = await upsertTreeKeyframes(runtime, expressionUnitItem, { productionId, segmentId, sceneMomentId, expressionUnitId })
+          const audioCues = await upsertTreeAudioCues(runtime, expressionUnitItem, { productionId, segmentId, sceneMomentId, expressionUnitId })
+          expressionUnits.push({ expressionUnit, contentUnits: expressionContentUnits, storyboards, keyframes, audioCues })
+        }
+        const storyboards = await upsertTreeStoryboards(runtime, sceneMomentItem, { productionId, segmentId, sceneMomentId })
+        const keyframes = await upsertTreeKeyframes(runtime, sceneMomentItem, { productionId, segmentId, sceneMomentId })
+        const audioCues = await upsertTreeAudioCues(runtime, sceneMomentItem, { productionId, segmentId, sceneMomentId })
+        sceneMoments.push({ sceneMoment, contentUnits: sceneContentUnits, expressionUnits, storyboards, keyframes, audioCues })
+      }
+      segments.push({ segment, contentUnits, sceneMoments })
+    }
+    const contentUnits = []
+    for (const contentUnitItem of arrayRecords(args.content_units ?? args.contentUnits ?? productionPayload.content_units ?? productionPayload.contentUnits)) {
+      const contentUnitPayload = treePayload(contentUnitItem, 'content_unit')
+      contentUnits.push(await runtime.createContentUnit(treeContentUnitInput(contentUnitPayload, {
+        productionId,
+        contentUnitType: 'production_ref',
+        outputKind: 'video',
+        targetKind: 'production',
+        targetRef: productionId,
+      })))
+    }
+    return { production, contentUnits, segments }
+  })
 }
 
 export async function domainUpsertSegment(args: Args): Promise<unknown> {
@@ -560,8 +749,9 @@ export async function domainAppendCandidate(args: Args): Promise<unknown> {
 
 export async function domainCreateContentCandidate(args: Args): Promise<unknown> {
   const status = contentCandidateStatus(args.status)
-  return runtimeMutation(args, (runtime) => runtime.createContentCandidate({
-    contentUnitId: requiredId(args.contentUnitId ?? args.content_unit_id, 'contentUnitId'),
+  const contentUnitId = requiredId(args.contentUnitId ?? args.content_unit_id, 'contentUnitId')
+  const result = await runtimeMutation(args, (runtime) => runtime.createContentCandidate({
+    contentUnitId,
     ...(args.candidateId !== undefined || args.candidate_id !== undefined ? { candidateId: idValue(args.candidateId ?? args.candidate_id) } : {}),
     ...(stringValue(args.source) ? { source: stringValue(args.source) } : {}),
     ...(status ? { status } : {}),
@@ -569,10 +759,42 @@ export async function domainCreateContentCandidate(args: Args): Promise<unknown>
     outputs: requiredArray(args.outputs, 'outputs').filter(isRecord) as never,
     ...(optionalRecord(args.promptSnapshot ?? args.prompt_snapshot) ? { promptSnapshot: optionalRecord(args.promptSnapshot ?? args.prompt_snapshot) } : {}),
   }))
+  return withContentUnitCandidateVisibility(args, contentUnitId, result, {
+    candidate_created: true,
+    generation_mode: 'content_unit_candidate',
+    will_auto_select: false,
+    requires_user_adoption: true,
+  })
 }
 
 export async function domainCreateContentCandidateBatch(args: Args): Promise<unknown> {
   return runDomainBatch(args, domainCreateContentCandidate)
+}
+
+export async function domainRegisterRawResourceAsContentUnitCandidate(args: Args): Promise<unknown> {
+  const resourceId = requiredResourceId(args.resourceId ?? args.resource_id)
+  const outputKind = contentCandidateOutputKind(args.outputKind ?? args.output_kind ?? args.kind)
+  const contentUnitId = requiredId(args.contentUnitId ?? args.content_unit_id, 'contentUnitId')
+  const candidateId = args.candidateId ?? args.candidate_id ?? `raw_${outputKind}_${resourceId}`
+  return domainCreateContentCandidate({
+    ...args,
+    contentUnitId,
+    content_unit_id: contentUnitId,
+    candidateId,
+    candidate_id: candidateId,
+    source: stringValue(args.source) ?? 'manual',
+    status: args.status ?? 'imported',
+    producer: optionalRecord(args.producer) ?? { kind: 'raw_resource_registration' },
+    outputs: [{
+      kind: outputKind,
+      resource_id: resourceId,
+      ...(stringValue(args.mimeType ?? args.mime_type) ? { mime_type: stringValue(args.mimeType ?? args.mime_type) } : {}),
+      ...(numberValue(args.width) !== undefined ? { width: numberValue(args.width) } : {}),
+      ...(numberValue(args.height) !== undefined ? { height: numberValue(args.height) } : {}),
+      ...(numberValue(args.durationSec ?? args.duration_sec) !== undefined ? { duration_sec: numberValue(args.durationSec ?? args.duration_sec) } : {}),
+      ...(optionalRecord(args.metadata) ? { metadata: optionalRecord(args.metadata) } : {}),
+    }],
+  })
 }
 
 export async function domainCreateAssetSlotCandidate(args: Args): Promise<unknown> {
@@ -592,13 +814,18 @@ export async function domainCreateKeyframeCandidate(args: Args): Promise<unknown
 }
 
 export async function domainSelectContentUnitCandidate(args: Args): Promise<unknown> {
-  return runtimeMutation(args, (runtime) => runtime.selectContentUnitCandidate({
-    contentUnitId: requiredId(args.contentUnitId ?? args.content_unit_id, 'contentUnitId'),
+  const contentUnitId = requiredId(args.contentUnitId ?? args.content_unit_id, 'contentUnitId')
+  const result = await runtimeMutation(args, (runtime) => runtime.selectContentUnitCandidate({
+    contentUnitId,
     candidateId: requiredId(args.candidateId ?? args.candidate_id, 'candidateId'),
     ...(args.resourceId !== undefined || args.resource_id !== undefined ? { resourceId: requiredResourceId(args.resourceId ?? args.resource_id) } : {}),
     ...(stringValue(args.stalePolicy ?? args.stale_policy) ? { stalePolicy: stringValue(args.stalePolicy ?? args.stale_policy) as never } : {}),
     ...(stringValue(args.reason) ? { reason: stringValue(args.reason) } : {}),
   }))
+  return withContentUnitCandidateVisibility(args, contentUnitId, result, {
+    adoption: 'selection',
+    requires_user_adoption: false,
+  })
 }
 
 export async function domainSelectContentUnitCandidateBatch(args: Args): Promise<unknown> {
@@ -606,16 +833,22 @@ export async function domainSelectContentUnitCandidateBatch(args: Args): Promise
 }
 
 export async function domainDecideContentUnitCandidate(args: Args): Promise<unknown> {
-  return runtimeMutation(args, (runtime) => runtime.decideContentUnitCandidate({
-    contentUnitId: requiredId(args.contentUnitId ?? args.content_unit_id, 'contentUnitId'),
+  const contentUnitId = requiredId(args.contentUnitId ?? args.content_unit_id, 'contentUnitId')
+  const decision = requiredDecision(args.decision)
+  const result = await runtimeMutation(args, (runtime) => runtime.decideContentUnitCandidate({
+    contentUnitId,
     candidateId: requiredId(args.candidateId ?? args.candidate_id, 'candidateId'),
-    decision: requiredDecision(args.decision),
+    decision,
     ...(args.resourceId !== undefined || args.resource_id !== undefined ? { resourceId: requiredResourceId(args.resourceId ?? args.resource_id) } : {}),
     ...(stringValue(args.stalePolicy ?? args.stale_policy) ? { stalePolicy: stringValue(args.stalePolicy ?? args.stale_policy) as never } : {}),
     ...(stringValue(args.reason) ? { reason: stringValue(args.reason) } : {}),
     ...(stringValue(args.decidedAt ?? args.decided_at) ? { decidedAt: stringValue(args.decidedAt ?? args.decided_at) } : {}),
     ...(optionalRecord(args.metadata) ? { metadata: optionalRecord(args.metadata) } : {}),
   }))
+  return withContentUnitCandidateVisibility(args, contentUnitId, result, {
+    adoption: decision,
+    requires_user_adoption: decision !== 'adopt',
+  })
 }
 
 export async function domainSelectCandidate(args: Args): Promise<unknown> {
@@ -665,6 +898,47 @@ export async function domainOverview(args: Args): Promise<unknown> {
 
 export async function domainReadProductionWorkPlan(args: Args): Promise<unknown> {
   return service(args).productionWorkPlan()
+}
+
+export async function domainProductionStatusSummary(args: Args): Promise<unknown> {
+  const snapshot = await service(args).loadContentWorkspaceSnapshot()
+  const candidatesByContentUnit = contentCandidateRecordsByContentUnitId(snapshot.indexDocuments)
+  const selectionsByContentUnit = selectionRecordsByContentUnitId(snapshot.indexDocuments)
+  const requestedProductionId = args.productionId ?? args.production_id
+  const productionIds = requestedProductionId !== undefined
+    ? [String(requiredId(requestedProductionId, 'productionId'))]
+    : snapshot.productions.map((item) => String(idValue(item.id ?? item.record.id ?? item.record.ID ?? item.path)))
+  const contentUnitSummaries = snapshot.contentUnits.map((unit) => summarizeContentUnitStatus(unit, candidatesByContentUnit, selectionsByContentUnit))
+  const editingByProduction = new Map((snapshot.editingTimelines ?? [])
+    .filter((item) => item.targetKind === 'production')
+    .map((item) => [String(item.targetId), item]))
+
+  return {
+    schema: 'movscript.production_status_summary.v1',
+    status: 'ok',
+    production_count: productionIds.length,
+    productions: productionIds.map((productionId) => {
+      const production = snapshot.productions.find((item) => sameId(item.id ?? item.record.id ?? item.record.ID, productionId))
+      const editing = editingByProduction.get(productionId)
+      return {
+        production_id: productionId,
+        title: stringValue(production?.record.title),
+        path: production?.path,
+        prerequisites: {
+          settings_count: snapshot.settings.length,
+          setting_states_count: snapshot.settingStates.length,
+          assets_count: snapshot.assets.length,
+        },
+        storyboards: snapshot.storyboards.map((item) => entityStatusLine(item)),
+        keyframes: snapshot.keyframes.map((item) => entityStatusLine(item)),
+        content_units: contentUnitSummaries,
+        shots_videos: contentUnitSummaries.filter((item) => item.output_kind === 'video' || item.content_unit_type === 'scene_moment_ref' || item.content_unit_type === 'scence_moment_ref'),
+        job_status: 'not_tracked_in_domain_summary',
+        blocking_refs: Array.isArray(editing?.blockers) ? editing.blockers : [],
+        stale_status: contentUnitSummaries.some((item) => item.stale_status === 'stale') ? 'has_stale_selection' : 'ok',
+      }
+    }),
+  }
 }
 
 export async function domainInterpret(args: Args): Promise<unknown> {
@@ -885,6 +1159,141 @@ function productionWriteResult(
   }
 }
 
+function treePayload(item: Record<string, unknown>, name: string): Record<string, unknown> {
+  return requiredRecord(item[name] ?? item.payload ?? item.record ?? item.entity ?? item, name)
+}
+
+function arrayRecords(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value) ? value.filter(isRecord) : []
+}
+
+function treeContentUnitInput(record: Record<string, unknown>, defaults: MovScriptEngineContentUnitInput): MovScriptEngineContentUnitInput {
+  return {
+    ...defaults,
+    ...engineContentUnitInputFromRecord(record),
+  }
+}
+
+async function upsertTreeStoryboards(
+  runtime: MovScriptDomainRuntime,
+  parent: Record<string, unknown>,
+  context: ProductionTreeContext,
+): Promise<unknown[]> {
+  const output = []
+  for (const item of arrayRecords(parent.storyboards)) {
+    const storyboard = treePayload(item, 'storyboard')
+    const storyboardId = optionalId(storyboard.id ?? storyboard.client_id) ?? 'main'
+    output.push(await runtime.createStoryboard({
+      productionId: context.productionId,
+      segmentId: requiredId(context.segmentId, 'segmentId'),
+      sceneMomentId: requiredId(context.sceneMomentId, 'sceneMomentId'),
+      ...(context.expressionUnitId ? { expressionUnitId: context.expressionUnitId } : {}),
+      id: storyboardId,
+      title: stringValue(storyboard.title),
+      visualIntent: stringValue(storyboard.visual_intent ?? storyboard.visualIntent ?? storyboard.prompt_hint ?? storyboard.description),
+      order: numberValue(storyboard.order),
+      timeline: optionalRecord(storyboard.timeline),
+      graph: optionalRecord(storyboard.graph),
+    }))
+    for (const contentUnitItem of arrayRecords(item.content_units ?? item.contentUnits)) {
+      const contentUnitPayload = treePayload(contentUnitItem, 'content_unit')
+      output.push(await runtime.createContentUnit(treeContentUnitInput(contentUnitPayload, {
+        productionId: context.productionId,
+        segmentId: context.segmentId,
+        sceneMomentId: context.sceneMomentId,
+        expressionUnitId: context.expressionUnitId,
+        storyboardId,
+        contentUnitType: 'storyboard_ref',
+        outputKind: 'image',
+        targetKind: 'storyboard',
+        targetRef: storyboardId,
+      })))
+    }
+  }
+  return output
+}
+
+async function upsertTreeKeyframes(
+  runtime: MovScriptDomainRuntime,
+  parent: Record<string, unknown>,
+  context: ProductionTreeContext,
+): Promise<unknown[]> {
+  const output = []
+  for (const item of arrayRecords(parent.keyframes)) {
+    const keyframe = normalizeKeyframePayload(treePayload(item, 'keyframe'))
+    const keyframeId = requiredId(keyframe.id ?? keyframe.client_id, 'keyframe.id')
+    output.push(await runtime.createKeyframe({
+      productionId: context.productionId,
+      segmentId: requiredId(context.segmentId, 'segmentId'),
+      sceneMomentId: requiredId(context.sceneMomentId, 'sceneMomentId'),
+      ...(context.expressionUnitId ? { expressionUnitId: context.expressionUnitId } : {}),
+      id: keyframeId,
+      title: stringValue(keyframe.title),
+      role: stringValue(keyframe.role ?? keyframe.status),
+      visualIntent: stringValue(keyframe.visual_intent ?? keyframe.visualIntent ?? keyframe.prompt_hint ?? keyframe.description),
+      order: numberValue(keyframe.order),
+      timing: optionalRecord(keyframe.timing),
+      composition: optionalRecord(keyframe.composition),
+      continuity: optionalRecord(keyframe.continuity),
+      referenceAssetRefs: Array.isArray(keyframe.reference_asset_refs) ? keyframe.reference_asset_refs : undefined,
+      referenceKeyframeRefs: Array.isArray(keyframe.reference_keyframe_refs) ? keyframe.reference_keyframe_refs : undefined,
+    }))
+    for (const contentUnitItem of arrayRecords(item.content_units ?? item.contentUnits)) {
+      const contentUnitPayload = treePayload(contentUnitItem, 'content_unit')
+      output.push(await runtime.createContentUnit(treeContentUnitInput(contentUnitPayload, {
+        productionId: context.productionId,
+        segmentId: context.segmentId,
+        sceneMomentId: context.sceneMomentId,
+        expressionUnitId: context.expressionUnitId,
+        keyframeId,
+        contentUnitType: 'keyframe_ref',
+        outputKind: 'image',
+        targetKind: 'keyframe',
+        targetRef: keyframeId,
+      })))
+    }
+  }
+  return output
+}
+
+async function upsertTreeAudioCues(
+  runtime: MovScriptDomainRuntime,
+  parent: Record<string, unknown>,
+  context: ProductionTreeContext,
+): Promise<unknown[]> {
+  const output = []
+  for (const item of arrayRecords(parent.audio_cues ?? parent.audioCues)) {
+    const audioCue = normalizeAudioCuePayload(treePayload(item, 'audio_cue'))
+    const audioCueId = requiredId(audioCue.id ?? audioCue.client_id, 'audio_cue.id')
+    output.push(await runtime.createAudioCue({
+      productionId: context.productionId,
+      segmentId: requiredId(context.segmentId, 'segmentId'),
+      sceneMomentId: requiredId(context.sceneMomentId, 'sceneMomentId'),
+      ...(context.expressionUnitId ? { expressionUnitId: context.expressionUnitId } : {}),
+      id: audioCueId,
+      title: stringValue(audioCue.title),
+      kind: stringValue(audioCue.cue_kind ?? audioCue.kind),
+      storyboardId: optionalId(audioCue.storyboard_id ?? audioCue.storyboardId),
+      promptHint: stringValue(audioCue.prompt_hint ?? audioCue.promptHint),
+    }))
+    for (const contentUnitItem of arrayRecords(item.content_units ?? item.contentUnits)) {
+      const contentUnitPayload = treePayload(contentUnitItem, 'content_unit')
+      output.push(await runtime.createContentUnit(treeContentUnitInput(contentUnitPayload, {
+        productionId: context.productionId,
+        segmentId: context.segmentId,
+        sceneMomentId: context.sceneMomentId,
+        expressionUnitId: context.expressionUnitId,
+        audioCueId,
+        contentUnitType: 'expression_unit_ref',
+        outputKind: 'audio',
+        targetKind: context.expressionUnitId ? 'expression_unit' : 'scene_moment',
+        targetRef: context.expressionUnitId ?? context.sceneMomentId,
+      })))
+    }
+  }
+  return output
+}
+
 function normalizeKeyframePayload(record: Record<string, unknown>): Record<string, unknown> {
   return pruneUndefinedRecord({
     ...record,
@@ -1024,6 +1433,16 @@ function requiredString(value: unknown, name: string): string {
 function requiredId(value: unknown, name: string): string | number {
   if (value === undefined || value === null || String(value).trim() === '') throw new Error(`${name} is required`)
   return idValue(value)
+}
+
+function optionalId(value: unknown): string | number | undefined {
+  if (value === undefined || value === null || String(value).trim() === '') return undefined
+  return idValue(value)
+}
+
+function entityResultId(result: unknown, fallback: Record<string, unknown>, name: string): string | number {
+  const resultRecord = isRecord(result) && isRecord(result.record) ? result.record : {}
+  return requiredId(resultRecord.id ?? resultRecord.ID ?? fallback.id ?? fallback.client_id, `${name}.id`)
 }
 
 function idValue(value: unknown): string | number {
@@ -1552,6 +1971,51 @@ function contentCandidateRecordsByContentUnitId(documents: ContentSourceWorkspac
   return output
 }
 
+async function withContentUnitCandidateVisibility(
+  args: Args,
+  contentUnitId: string | number,
+  result: unknown,
+  extra: Record<string, unknown> = {},
+): Promise<Record<string, unknown>> {
+  const status = await readContentUnitCandidateVisibility(args, contentUnitId).catch((error) => ({
+    visibility_error: errorMessage(error),
+    content_unit_candidates: [],
+    selected_candidate: undefined,
+    selected_raw_resource: undefined,
+    stale_status: 'unknown',
+    frontend: { visible_in_panel: false, refresh_required: true },
+  }))
+  return {
+    status: 'ok',
+    contentUnitId,
+    content_unit_id: contentUnitId,
+    result,
+    ...status,
+    ...extra,
+  }
+}
+
+export async function readContentUnitCandidateVisibility(args: Args, contentUnitId: string | number): Promise<Record<string, unknown>> {
+  const snapshot = await service(args).loadContentWorkspaceSnapshot()
+  const candidates = contentCandidateRecordsByContentUnitId(snapshot.indexDocuments).get(String(contentUnitId)) ?? []
+  const selection = selectionRecordsByContentUnitId(snapshot.indexDocuments).get(String(contentUnitId))
+  const selectedCandidate = selection?.candidate_id !== undefined
+    ? candidates.find((candidate) => sameId(candidate.id, selection.candidate_id))
+    : undefined
+  const selectedResourceId = numberValue(selection?.resource_id) ?? numberValue(firstCandidateOutput(selectedCandidate)?.resource_id)
+  return {
+    content_unit_candidates: candidates,
+    candidate_count: candidates.length,
+    selected_candidate: selectedCandidate,
+    selected_raw_resource: selectedResourceId === undefined ? undefined : { resource_id: selectedResourceId },
+    stale_status: stringValue(selection?.stale_policy) === 'accept_stale' ? 'accepted_stale' : 'ok',
+    frontend: {
+      visible_in_panel: candidates.length > 0,
+      refresh_required: true,
+    },
+  }
+}
+
 function selectionRecordsByContentUnitId(documents: ContentSourceWorkspaceSnapshot['indexDocuments']): Map<string, ContentSelectionRecord> {
   const output = new Map<string, ContentSelectionRecord>()
   for (const document of documents) {
@@ -1574,6 +2038,50 @@ function selectedVideoResourceId(candidate: ContentCandidateRecord | undefined):
   const output = firstCandidateOutput(candidate)
   if (stringValue(output?.kind) !== undefined && stringValue(output?.kind) !== 'video') return undefined
   return numberValue(output?.resource_id)
+}
+
+function summarizeContentUnitStatus(
+  unit: ContentSourceWorkspaceSnapshot['contentUnits'][number],
+  candidatesByContentUnit: Map<string, ContentCandidateRecord[]>,
+  selectionsByContentUnit: Map<string, ContentSelectionRecord>,
+): Record<string, unknown> {
+  const id = idValue(unit.id ?? unit.record.id ?? unit.record.ID ?? pathSegmentAfter(unit.path, 'content_units') ?? unit.path)
+  const contentUnitId = String(id)
+  const candidates = candidatesByContentUnit.get(contentUnitId) ?? []
+  const selection = selectionsByContentUnit.get(contentUnitId)
+  const selectedCandidate = selection?.candidate_id !== undefined
+    ? candidates.find((candidate) => sameId(candidate.id, selection.candidate_id))
+    : undefined
+  const selectedResourceId = numberValue(selection?.resource_id) ?? numberValue(firstCandidateOutput(selectedCandidate)?.resource_id)
+  return {
+    content_unit_id: id,
+    title: stringValue(unit.record.title),
+    path: unit.path,
+    content_unit_type: stringValue(unit.record.content_unit_type),
+    output_kind: stringValue(unit.record.output_kind),
+    target_kind: stringValue(unit.record.target_kind),
+    target_ref: idValue(unit.record.target_ref),
+    candidate_count: candidates.length,
+    candidate_ids: candidates.map((candidate) => idValue(candidate.id)).filter((value) => value !== undefined),
+    selected_candidate: selection?.candidate_id,
+    selected_resource: selectedResourceId,
+    stale_status: stringValue(selection?.stale_policy) === 'accept_stale' ? 'accepted_stale' : 'ok',
+    blocking_refs: selection?.candidate_id === undefined && candidates.length > 0 ? ['selection_missing'] : [],
+  }
+}
+
+function entityStatusLine(entity: ContentSourceWorkspaceSnapshot['storyboards'][number]): Record<string, unknown> {
+  return {
+    id: idValue(entity.id ?? entity.record.id ?? entity.record.ID ?? entity.path),
+    title: stringValue(entity.record.title),
+    path: entity.path,
+  }
+}
+
+function contentCandidateOutputKind(value: unknown): 'image' | 'video' | 'audio' | 'text' | 'metadata' {
+  const kind = stringValue(value)
+  if (kind === 'image' || kind === 'video' || kind === 'audio' || kind === 'text' || kind === 'metadata') return kind
+  return 'image'
 }
 
 function firstCandidateOutput(candidate: ContentCandidateRecord | undefined): Record<string, unknown> | undefined {

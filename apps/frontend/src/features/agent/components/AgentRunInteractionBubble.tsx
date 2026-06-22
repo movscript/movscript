@@ -291,6 +291,18 @@ function isGenerationSubmitApproval(toolName: string | undefined, kind: string |
     || toolName === 'generation_content_unit_video_generate'
     || toolName === 'system_generate_content_unit_video'
     || toolName === 'generation_audio_generate'
+    || toolName === 'generation_voiceover_generate'
+    || toolName === 'system_generate_voiceover'
+    || toolName === 'generation_music_generate'
+    || toolName === 'system_generate_music'
+    || toolName === 'generation_sfx_generate'
+    || toolName === 'system_generate_sfx'
+    || toolName === 'generation_subtitle_generate'
+    || toolName === 'system_generate_subtitle'
+    || toolName === 'generation_subtitle_align'
+    || toolName === 'system_align_subtitle'
+    || toolName === 'generation_subtitle_translate'
+    || toolName === 'system_translate_subtitle'
     || toolName === 'generation_job_create'
     || (toolName === 'core_work_start' && kind === 'generation_job')
 }

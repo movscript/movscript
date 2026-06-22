@@ -176,9 +176,19 @@ function appendCandidates(
   contentUnitId: string,
   candidates: ContentCanvasCandidate[],
 ) {
-  const byId = new Map((output[contentUnitId] ?? []).map((candidate) => [candidate.id, candidate]))
-  for (const candidate of candidates) byId.set(candidate.id, candidate)
+  const byId = new Map((output[contentUnitId] ?? []).map((candidate) => [candidateMergeKey(candidate), candidate]))
+  for (const candidate of candidates) byId.set(candidateMergeKey(candidate), candidate)
   output[contentUnitId] = [...byId.values()]
+}
+
+function candidateMergeKey(candidate: ContentCanvasCandidate): string {
+  return [
+    candidate.id,
+    candidate.resourceId ?? '',
+    candidate.artifactRef ?? '',
+    candidate.inputHash ?? '',
+    candidate.source ?? '',
+  ].join(':')
 }
 
 function sortEntities(items: MovScriptWorkspaceIndexedEntity[]) {

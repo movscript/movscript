@@ -7,6 +7,7 @@ import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { readBrowserStorageItem, removeBrowserStorageItem } from '@/shared/infrastructure/browserStorage'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { useUserStore, type AuthSession } from '@/shared/infrastructure/session/userStore'
+import { authRealmKey } from '@/shared/infrastructure/session/authRealm'
 import type { Project } from '@/types'
 import { normalizeAgentConversationRegistryRecord, type AgentConversationRegistryRecord } from '@movscript/core/agent'
 import { AGENT_MODE_CONVERSATION_FOCUS_SCOPE, agentConversationFocusStorageKey } from '@/features/agent/state/agentConversationFocusScope'
@@ -47,6 +48,7 @@ export function applyE2EBootstrapSeedFromStorage(): void {
 export function applyE2EBootstrapSeed(seed: E2EBootstrapSeed): void {
   if (!seed || typeof seed !== 'object') return
 
+  let bootstrappedSettings: AppSettings | null = null
   if (seed.appSettings) {
     const current = useAppSettingsStore.getState().settings
     const next: AppSettings = {
@@ -60,9 +62,11 @@ export function applyE2EBootstrapSeed(seed: E2EBootstrapSeed): void {
       settings: next,
       savedAt: new Date().toISOString(),
     })
+    bootstrappedSettings = next
   }
 
   if (seed.user) {
+    useUserStore.getState().setActiveRealm(authRealmKey(bootstrappedSettings ?? useAppSettingsStore.getState().settings))
     useUserStore.getState().setSession(seed.user)
   }
 

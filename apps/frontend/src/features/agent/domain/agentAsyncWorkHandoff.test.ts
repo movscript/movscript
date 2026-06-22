@@ -7,24 +7,24 @@ import {
 import type { AgentRun } from '@movscript/core/agent/protocol'
 import type { ChatRunActivity } from '@/features/agent/state/agentStore'
 
-test('hasAgentAsyncWorkHandoffActivity detects core work handoffs', () => {
+test('hasAgentAsyncWorkHandoffActivity detects explicit generation and editing handoffs', () => {
   assert.equal(hasAgentAsyncWorkHandoffActivity({
     activity: activity({
       steps: [{
         id: 'step_1',
         type: 'tool_call',
         status: 'completed',
-        toolName: 'core_work_start',
+        toolName: 'generation_video_generate',
         createdAt: '2026-05-23T00:00:00.000Z',
         completedAt: '2026-05-23T00:00:01.000Z',
       }],
       events: [{
         id: 'event_1',
         kind: 'tool_call',
-        title: 'Provider work started',
+        title: 'Generation job submitted',
         status: 'completed',
-        toolName: 'core_work_start',
-        data: { providerWork: { id: 'work_1', kind: 'generation_job', status: 'running' } },
+        toolName: 'editing_task_render_create',
+        data: { taskId: 'task_1', status: 'running' },
         createdAt: '2026-05-23T00:00:00.000Z',
         completedAt: '2026-05-23T00:00:01.000Z',
       }],
@@ -38,10 +38,25 @@ test('hasAgentAsyncWorkHandoffActivity detects core work handoffs', () => {
   }), false)
 })
 
-test('isAgentAsyncWorkHandoffRun only unlocks terminal core work handoff runs', () => {
+test('isAgentAsyncWorkHandoffRun only unlocks terminal handoff runs', () => {
   assert.equal(isAgentAsyncWorkHandoffRun(run({ status: 'completed' })), true)
   assert.equal(isAgentAsyncWorkHandoffRun(run({ status: 'in_progress' })), false)
   assert.equal(isAgentAsyncWorkHandoffRun({ ...run({ status: 'completed' }), steps: [] }), false)
+})
+
+test('legacy core work start remains a handoff for old transcripts', () => {
+  assert.equal(isAgentAsyncWorkHandoffRun(run({
+    status: 'completed',
+    steps: [{
+      id: 'step_legacy',
+      runId: 'run_1',
+      type: 'tool_call',
+      status: 'completed',
+      toolName: 'core_work_start',
+      createdAt: '2026-05-23T00:00:00.000Z',
+      completedAt: '2026-05-23T00:00:01.000Z',
+    }],
+  })), true)
 })
 
 function activity(overrides: Partial<ChatRunActivity> = {}): ChatRunActivity {
@@ -55,7 +70,7 @@ function activity(overrides: Partial<ChatRunActivity> = {}): ChatRunActivity {
       id: 'step_1',
       type: 'tool_call',
       status: 'completed',
-      toolName: 'core_work_start',
+      toolName: 'generation_video_generate',
       createdAt: '2026-05-23T00:00:00.000Z',
       completedAt: '2026-05-23T00:00:01.000Z',
     }],
@@ -82,9 +97,8 @@ function run(overrides: Partial<AgentRun> = {}): AgentRun {
       runId: 'run_1',
       type: 'tool_call',
       status: 'completed',
-      toolName: 'core_work_start',
-      args: { kind: 'generation_job' },
-      result: { workId: 'work_1', status: 'started' },
+      toolName: 'generation_video_generate',
+      result: { jobId: 42, status: 'pending' },
       createdAt: '2026-05-23T00:00:00.000Z',
       completedAt: '2026-05-23T00:00:01.000Z',
     }],

@@ -1,4 +1,4 @@
-import type { CanvasMode, InspectorSelectionRef } from './contentCanvasWorkspaceTypes'
+import type { InspectorSelectionRef } from './contentCanvasWorkspaceTypes'
 import { contentUnitNodeForGenerationTask } from './contentCanvasWorkspaceGenerationModel'
 
 export { contentUnitNodeForGenerationTask } from './contentCanvasWorkspaceGenerationModel'
@@ -8,7 +8,6 @@ export type ContentCanvasCommandFocusState = {
   activeProductionId?: string | null
   activeSceneId?: string | null
   activeSettingId?: string | null
-  canvasMode?: CanvasMode
   selection: InspectorSelectionRef
 }
 
@@ -18,7 +17,6 @@ export function contentCanvasCommandFocusState(focusNodeId: string | undefined):
     return {
       activeCanvasNodeId: focusNodeId,
       activeSettingId: focusNodeId,
-      canvasMode: 'structure',
       selection: { kind: 'setting', nodeId: focusNodeId },
     }
   }
@@ -27,28 +25,24 @@ export function contentCanvasCommandFocusState(focusNodeId: string | undefined):
       activeCanvasNodeId: focusNodeId,
       activeProductionId: null,
       activeSceneId: focusNodeId,
-      canvasMode: 'structure',
       selection: { kind: 'scene_moment', nodeId: focusNodeId },
     }
   }
   if (focusNodeId.startsWith('state:')) {
     return {
       activeCanvasNodeId: focusNodeId,
-      canvasMode: 'structure',
       selection: { kind: 'state', nodeId: focusNodeId },
     }
   }
   if (focusNodeId.startsWith('asset:')) {
     return {
       activeCanvasNodeId: focusNodeId,
-      canvasMode: 'structure',
       selection: { kind: 'asset', nodeId: focusNodeId },
     }
   }
   if (focusNodeId.startsWith('expression_unit:')) {
     return {
       activeCanvasNodeId: focusNodeId,
-      canvasMode: 'structure',
       selection: { kind: 'other', nodeId: focusNodeId },
     }
   }
@@ -61,7 +55,6 @@ export function contentCanvasCommandFocusState(focusNodeId: string | undefined):
   ) {
     return {
       activeCanvasNodeId: focusNodeId,
-      canvasMode: 'structure',
       selection: { kind: 'other', nodeId: focusNodeId },
     }
   }

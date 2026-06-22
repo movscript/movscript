@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { CheckCircle2, FileText, GitBranch, Loader2 } from 'lucide-react'
 import {
   ProjectWorkspaceReviewActionButton,
@@ -37,6 +38,7 @@ export function ProjectStandardsWorkspaceReviewPanel({
   applyingWorkspaceId: string | null
   onApplyWorkspace: (workspace: WorkspaceArtifact) => void
 }) {
+  const { t } = useTranslation()
   return (
     <ProjectStandardsWorkspaceReviewShell
       kind="project_standards_workspace"
@@ -120,7 +122,7 @@ export function ProjectStandardsWorkspaceReviewPanel({
                     <ProjectWorkspaceReviewActionButton size="xs" variant="outline" className="gap-1.5" asChild>
                       <Link to={ROUTES.agentConsole}>
                         <FileText size={12} />
-                        打开 Agent 控制台
+                        {t('agents.console.open')}
                       </Link>
                     </ProjectWorkspaceReviewActionButton>
                   </div>

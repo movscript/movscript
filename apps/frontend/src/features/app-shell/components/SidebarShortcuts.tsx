@@ -27,6 +27,8 @@ export type DesktopShortcutMenuState = {
   title: string
   quickItems: DesktopShortcutMenuItem[]
   recentTitle: string
+  emptyRecentTitle: string
+  activeLabel: string
   recentItems: DesktopShortcutMenuItem[]
 }
 
@@ -50,14 +52,14 @@ export function DesktopShortcutMenu({
     >
       <div className="px-2 py-1.5 type-caption font-medium text-muted-foreground">{menu.title}</div>
       {menu.quickItems.map((item) => (
-        <DesktopShortcutMenuButton key={item.id} item={item} onClose={onClose} />
+        <DesktopShortcutMenuButton key={item.id} item={item} activeLabel={menu.activeLabel} onClose={onClose} />
       ))}
       <div className="my-1 h-px bg-border" />
       <div className="px-2 py-1 type-caption font-medium text-muted-foreground">{menu.recentTitle}</div>
       {menu.recentItems.length === 0 ? (
-        <div className="px-2 py-2 type-caption text-muted-foreground">暂无最近项目</div>
+        <div className="px-2 py-2 type-caption text-muted-foreground">{menu.emptyRecentTitle}</div>
       ) : menu.recentItems.map((item) => (
-        <DesktopShortcutMenuButton key={item.id} item={item} onClose={onClose} />
+        <DesktopShortcutMenuButton key={item.id} item={item} activeLabel={menu.activeLabel} onClose={onClose} />
       ))}
     </div>
   )
@@ -81,28 +83,28 @@ export function createQuickHomeShortcuts({
   return [
     {
       id: 'app-home',
-      label: t('sidebar.shortcuts.appHome', { defaultValue: 'App Home' }),
+      label: t('sidebar.shortcuts.appHome'),
       icon: Home,
       active: pathname === ROUTES.root,
       onSelect: openAppHomeRoot,
     },
     {
       id: 'tool-home',
-      label: t('sidebar.shortcuts.toolHome', { defaultValue: 'Tool Home' }),
+      label: t('sidebar.shortcuts.toolHome'),
       icon: Images,
       active: pathname.startsWith('/tools'),
       onSelect: openToolRoot,
     },
     {
       id: 'edit-home',
-      label: t('sidebar.shortcuts.editHome', { defaultValue: 'Edit Home' }),
+      label: t('sidebar.shortcuts.editHome'),
       icon: Scissors,
       active: pathname === ROUTES.editing || pathname.startsWith('/editing/'),
       onSelect: openEditingRoot,
     },
     {
       id: 'canvas-home',
-      label: t('sidebar.shortcuts.canvasHome', { defaultValue: 'Canvas Home' }),
+      label: t('sidebar.shortcuts.canvasHome'),
       icon: AppWindow,
       active: pathname === ROUTES.canvases || pathname.startsWith('/canvases/'),
       onSelect: openCanvasRoot,
@@ -122,9 +124,11 @@ export function createProjectShortcutMenu({
   t: ShortcutTranslate
 }): Omit<DesktopShortcutMenuState, 'x' | 'y'> {
   return {
-    title: 'Project',
+    title: t('sidebar.shortcuts.project'),
     quickItems,
-    recentTitle: t('sidebar.shortcuts.recentProjects', { defaultValue: '最近 5 个 Project' }),
+    recentTitle: t('sidebar.shortcuts.recentProjects'),
+    emptyRecentTitle: t('sidebar.shortcuts.emptyRecentProjects'),
+    activeLabel: t('sidebar.shortcuts.active'),
     recentItems: projects.map((project) => ({
       id: `project:${project.ID}`,
       label: project.name,
@@ -146,9 +150,11 @@ export function createCanvasShortcutMenu({
   t: ShortcutTranslate
 }): Omit<DesktopShortcutMenuState, 'x' | 'y'> {
   return {
-    title: 'Canvas',
+    title: t('sidebar.items.canvas'),
     quickItems,
-    recentTitle: t('sidebar.shortcuts.recentCanvases', { defaultValue: '最近 5 个 Canvas' }),
+    recentTitle: t('sidebar.shortcuts.recentCanvases'),
+    emptyRecentTitle: t('sidebar.shortcuts.emptyRecentCanvases'),
+    activeLabel: t('sidebar.shortcuts.active'),
     recentItems: canvases.map((canvas) => ({
       id: `canvas:${canvas.ID}`,
       label: canvas.name,
@@ -170,9 +176,11 @@ export function createEditingShortcutMenu({
   t: ShortcutTranslate
 }): Omit<DesktopShortcutMenuState, 'x' | 'y'> {
   return {
-    title: t('sidebar.items.editing', { defaultValue: '剪辑' }),
+    title: t('sidebar.items.editing'),
     quickItems,
-    recentTitle: t('sidebar.shortcuts.recentEditingProjects', { defaultValue: '最近 5 个 Edit Project' }),
+    recentTitle: t('sidebar.shortcuts.recentEditingProjects'),
+    emptyRecentTitle: t('sidebar.shortcuts.emptyRecentEditingProjects'),
+    activeLabel: t('sidebar.shortcuts.active'),
     recentItems: projects.map((project) => ({
       id: `editing:${project.id}`,
       label: project.title,
@@ -196,9 +204,11 @@ export function shortcutMenuPosition(event: MouseEvent<HTMLElement>) {
 
 function DesktopShortcutMenuButton({
   item,
+  activeLabel,
   onClose,
 }: {
   item: DesktopShortcutMenuItem
+  activeLabel?: string
   onClose: () => void
 }) {
   const Icon = item.icon
@@ -219,7 +229,7 @@ function DesktopShortcutMenuButton({
         {item.label}
       </span>
       {item.active ? (
-        <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 type-caption font-medium text-primary">已打开</span>
+        <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 type-caption font-medium text-primary">{activeLabel}</span>
       ) : null}
     </Button>
   )

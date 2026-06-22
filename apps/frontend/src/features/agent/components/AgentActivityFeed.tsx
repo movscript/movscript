@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ChevronLeft, ChevronRight, Copy, MoreHorizontal, Route } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import {
   AgentActivityCardItem, AgentActivityCodePanel, AgentActivityDividerActions, AgentActivityDuration, AgentActivityFeedRoot, AgentActivityFrame, AgentActivityFrameHeader, AgentActivityFrameLine, AgentActivityFrameLines, AgentActivityFrameTitle, AgentActivityLineItem, AgentActivityLineRow, AgentActivityLineText, AgentActivityMenuButton, AgentActivityMenuContent, AgentActivityMenuIcon, AgentActivityRound, AgentActivityRoundEmpty, AgentActivityRoundHeader, AgentActivityRoundItems, AgentActivityStatusLine, AgentActivityKindLabel, AgentActivityTotals
@@ -116,6 +117,7 @@ export function AgentActivityDividerMenu({
   activity?: ChatRunActivity
   className?: string
 }) {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const [copied, setCopied] = useState<'md' | 'trace' | null>(null)
   const feed = useMemo(() => activity ? buildAgentActivityFeed({ activity }) : undefined, [activity])
@@ -156,7 +158,7 @@ export function AgentActivityDividerMenu({
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => navigate(ROUTES.agentConsole)}>
                 <AgentActivityMenuIcon><Route size={12} /></AgentActivityMenuIcon>
-                打开 Agent 控制台
+                {t('agents.console.open')}
               </DropdownMenuItem>
             </>
           )}

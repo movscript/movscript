@@ -141,12 +141,24 @@ export function approvalImpactLabel(approval: Pick<AgentApprovalRequest, 'toolNa
     case 'system_generate_content_unit_video':
       return '批准后会编译创作片段提示词并提交视频生成任务；成功后会写入候选，可能消耗生成额度。'
     case 'generation_audio_generate': return '批准后会提交音频生成任务，可能消耗生成额度。'
+    case 'generation_voiceover_generate':
+    case 'system_generate_voiceover': return '批准后会提交配音生成任务，可能消耗生成额度。'
+    case 'generation_music_generate':
+    case 'system_generate_music': return '批准后会提交音乐生成任务，可能消耗生成额度。'
+    case 'generation_sfx_generate':
+    case 'system_generate_sfx': return '批准后会提交音效生成任务，可能消耗生成额度。'
+    case 'generation_subtitle_generate':
+    case 'system_generate_subtitle':
+    case 'generation_subtitle_align':
+    case 'system_align_subtitle':
+    case 'generation_subtitle_translate':
+    case 'system_translate_subtitle': return '批准后会提交字幕/转写生成任务，可能消耗生成额度。'
     case 'generation_job_create': return '批准后会创建生成任务，可能消耗生成额度。'
     case 'generation_job_cancel': return '批准后会取消生成任务，未完成的输出可能不再产生。'
     case 'movscript_project_create': return '批准后会创建项目数据。'
     case 'core_memory_delete': return '批准后会删除记忆，后续运行将无法再引用它。'
-    case 'core_work_start': return '批准后会提交异步任务；生成任务可能消耗额度，子 agent 任务会启动 worker run。'
-    case 'core_work_cancel': return '批准后会取消异步任务；未完成的输出或子 agent 后续执行可能不再产生。'
+    case 'core_work_start': return '旧运行记录兼容：批准后会交接旧异步任务；新的生成和剪辑流程应使用 generation_* 或 editing_task_*。'
+    case 'core_work_cancel': return '旧运行记录兼容：批准后会取消旧异步任务；新的生成任务应使用明确的生成任务取消入口。'
     case 'movscript_resource_video_trim_to_resource':
     case 'system_resource_video_trim_to_resource':
       return '批准后会派生一个裁剪后的视频 RawResource；这只是中立素材准备，不会修改剪辑项目或写入候选。'

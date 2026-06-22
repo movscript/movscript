@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, Clock3, File, FileAudio, FileText, FolderOpen, Info, Plus, Save, Upload, WandSparkles, X, type LucideIcon } from 'lucide-react'
+import { Check, Clock3, File, FileAudio, FileText, FolderOpen, Info, Plus, Save, Star, TextCursorInput, Upload, WandSparkles, X, type LucideIcon } from 'lucide-react'
 import { generationParamDefaults } from '@movscript/core/generation'
 
 import { ModelSelector } from '@/shared/ui/ModelSelector'
@@ -193,11 +193,11 @@ export function CandidateDecisionPanel({
     <InspectorSection title="候选决策">
       {candidates.length ? (
         <div className="content-canvas-candidate-list">
-          {candidates.map((candidate) => {
+          {candidates.map((candidate, index) => {
             const selected = candidate.id === selectedCandidate?.id
             return (
               <CandidateListCard
-                key={candidate.id}
+                key={candidateListKey(candidate, index)}
                 candidate={candidate}
                 fallbackKind={mediaKind}
                 selected={selected}
@@ -276,7 +276,9 @@ export function CandidateDecisionPanel({
       {detailCandidate ? (
         <CandidateDetailDialog
           candidate={detailCandidate}
+          fallbackPrompt={generationPrompt}
           fallbackKind={mediaKind}
+          loadCompiledPrompt={onCandidatePromptPreview ? loadGenerationPromptPreview : undefined}
           selected={detailCandidate.id === selectedCandidate?.id}
           onClose={() => setDetailCandidate(null)}
           onSelect={() => {
@@ -317,6 +319,11 @@ function CandidateListCard({
           {secondaryLabel ? <em>{secondaryLabel}</em> : null}
         </small>
       </span>
+      {selected ? (
+        <span className="content-canvas-candidate-card__selected-icon" title="当前选中" aria-label="当前选中">
+          <Star size={14} aria-hidden="true" fill="currentColor" />
+        </span>
+      ) : null}
       <span className="content-canvas-candidate-card__actions">
         <button type="button" onClick={onSelect} disabled={!canSelect || selected} aria-label={`选择候选 ${candidate.id}`}>
           <Check size={12} aria-hidden="true" />
@@ -331,15 +338,30 @@ function CandidateListCard({
   )
 }
 
+function candidateListKey(candidate: ContentCanvasCandidate, index: number): string {
+  return [
+    candidate.id,
+    candidate.resourceId ?? '',
+    candidate.artifactRef ?? '',
+    candidate.inputHash ?? '',
+    candidate.source ?? '',
+    index,
+  ].join(':')
+}
+
 function CandidateDetailDialog({
   candidate,
+  fallbackPrompt,
   fallbackKind,
+  loadCompiledPrompt,
   selected,
   onClose,
   onSelect,
 }: {
   candidate: ContentCanvasCandidate
+  fallbackPrompt?: string
   fallbackKind: ReturnType<typeof mediaKindForNode>
+  loadCompiledPrompt?: () => Promise<ContentCanvasCandidatePromptPreview>
   selected: boolean
   onClose: () => void
   onSelect: () => void
@@ -347,9 +369,33 @@ function CandidateDetailDialog({
   const titleId = useId()
   const status = candidateStatusView(candidate)
   const producer = candidate.producer ?? {}
-  const promptSnapshot = candidate.promptSnapshot ?? {}
-  const output = firstRecord(candidate.outputs)
   const canSelect = candidateCanSelect(candidate)
+  const candidateCompiledPrompt = candidateCompiledPromptText(candidate)
+  const candidatePrompt = candidateCompiledPrompt ?? candidatePromptText(candidate)
+  const [compiledPrompt, setCompiledPrompt] = useState<string | null>(null)
+  const [compiledPromptPreview, setCompiledPromptPreview] = useState<ContentCanvasCandidatePromptPreview | null>(null)
+  const [compiledPromptError, setCompiledPromptError] = useState<string | null>(null)
+  const promptText = compiledPrompt ?? candidatePrompt ?? nonEmptyString(fallbackPrompt)
+
+  useEffect(() => {
+    if (candidateCompiledPrompt || !loadCompiledPrompt) return undefined
+    let cancelled = false
+    setCompiledPrompt(null)
+    setCompiledPromptPreview(null)
+    setCompiledPromptError(null)
+    loadCompiledPrompt()
+      .then((preview) => {
+        if (cancelled) return
+        setCompiledPrompt(nonEmptyString(preview.compiledText) ?? nonEmptyString(preview.text) ?? null)
+        setCompiledPromptPreview(preview)
+      })
+      .catch((error) => {
+        if (!cancelled) setCompiledPromptError(error instanceof Error ? error.message : '提示词编译失败')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [candidateCompiledPrompt, loadCompiledPrompt])
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -376,7 +422,7 @@ function CandidateDetailDialog({
         <div className="content-canvas-candidate-detail-dialog__header">
           <h2 id={titleId}>
             <Info size={14} aria-hidden="true" />
-            候选详情
+            候选预览
           </h2>
           <button
             type="button"
@@ -390,33 +436,28 @@ function CandidateDetailDialog({
         <div className="content-canvas-candidate-detail-dialog__body">
           <div className="content-canvas-candidate-detail-hero">
             <CandidateResourcePreview candidate={candidate} fallbackKind={fallbackKind} size="large" />
+          </div>
+          <div className="content-canvas-candidate-detail-summary">
             <span>
               <small data-status={status.tone}>{selected ? '已选择' : status.label}</small>
               <strong>{candidateListPrimaryLabel(candidate, fallbackKind)}</strong>
               <em>{candidateSourceLabel(candidate)} / {candidate.resourceKind ?? fallbackKind}</em>
             </span>
+            <CandidateDetailMeta
+              createdAt={candidate.createdAt}
+              model={stringValue(producer.model_id) ?? stringValue(producer.model) ?? candidate.source}
+              resourceId={candidate.resourceId}
+              source={candidateSourceLabel(candidate)}
+            />
+            {promptText || compiledPromptError || loadCompiledPrompt ? (
+              <CandidateDetailPrompt
+                error={compiledPromptError}
+                loading={!promptText && !compiledPromptError && Boolean(loadCompiledPrompt)}
+                preview={compiledPromptPreview}
+                prompt={promptText}
+              />
+            ) : null}
           </div>
-          <div className="content-canvas-candidate-detail-grid">
-            <CandidateDetailField label="Candidate ID" value={candidate.id} />
-            <CandidateDetailField label="Status" value={candidate.status ?? status.label} />
-            <CandidateDetailField label="Source" value={candidate.source} />
-            <CandidateDetailField label="Created" value={candidate.createdAt} />
-            <CandidateDetailField label="Resource" value={candidate.resourceId !== undefined ? String(candidate.resourceId) : undefined} />
-            <CandidateDetailField label="Artifact" value={candidate.artifactRef} />
-            <CandidateDetailField label="Model" value={stringValue(producer.model_id) ?? stringValue(producer.model) ?? candidate.source} />
-            <CandidateDetailField label="Job" value={candidateJobId(candidate)} />
-            <CandidateDetailField label="Input" value={candidate.inputHash} />
-            <CandidateDetailField label="Output" value={candidateOutputSummary(output)} />
-          </div>
-          <CandidateJsonBlock title="Producer" value={candidate.producer} />
-          <CandidateJsonBlock title="Prompt Snapshot" value={candidate.promptSnapshot} />
-          <CandidateJsonBlock title="Outputs" value={candidate.outputs} />
-          {stringValue(promptSnapshot.prompt_text) || stringValue(promptSnapshot.compiled_prompt) ? (
-            <section className="content-canvas-candidate-detail-section">
-              <h3>Prompt</h3>
-              <p>{stringValue(promptSnapshot.prompt_text) ?? stringValue(promptSnapshot.compiled_prompt)}</p>
-            </section>
-          ) : null}
         </div>
         <div className="content-canvas-candidate-detail-dialog__footer">
           <button type="button" onClick={onSelect} disabled={!canSelect || selected}>
@@ -433,21 +474,106 @@ function CandidateDetailDialog({
   return createPortal(dialog, document.body)
 }
 
-function CandidateDetailField({ label, value }: { label: string; value: string | undefined }) {
+function CandidateDetailMeta({
+  createdAt,
+  model,
+  resourceId,
+  source,
+}: {
+  createdAt?: string
+  model?: string
+  resourceId?: number
+  source?: string
+}) {
   return (
-    <div className="content-canvas-candidate-detail-field">
-      <span>{label}</span>
-      <b>{value || '—'}</b>
+    <div className="content-canvas-candidate-detail-meta" aria-label="候选来源信息">
+      {source ? <span>{source}</span> : null}
+      {model ? <span>{model}</span> : null}
+      {resourceId !== undefined ? <span>Resource {resourceId}</span> : null}
+      {createdAt ? <span>{formatCandidateCreatedAt(createdAt)}</span> : null}
     </div>
   )
 }
 
-function CandidateJsonBlock({ title, value }: { title: string; value: unknown }) {
-  if (value === undefined || value === null || (Array.isArray(value) && value.length === 0)) return null
+function formatCandidateCreatedAt(value: string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function candidatePromptText(candidate: ContentCanvasCandidate): string | undefined {
+  const snapshot = candidate.promptSnapshot
+  if (!snapshot) return undefined
+  return candidateCompiledPromptText(candidate)
+    ?? stringValue(snapshot.prompt_text)
+    ?? stringValue(snapshot.promptText)
+    ?? stringValue(snapshot.text)
+    ?? stringValue(snapshot.prompt)
+    ?? editPromptText(snapshot.edit_prompt)
+    ?? editPromptText(snapshot.editPrompt)
+}
+
+function candidateCompiledPromptText(candidate: ContentCanvasCandidate): string | undefined {
+  const snapshot = candidate.promptSnapshot
+  if (!snapshot) return undefined
+  return stringValue(snapshot.provider_prompt_text)
+    ?? stringValue(snapshot.compiled_prompt_text)
+    ?? compiledPromptText(snapshot.compiled_prompt)
+    ?? compiledPromptText(snapshot.compiledPrompt)
+}
+
+function compiledPromptText(value: unknown): string | undefined {
+  const prompt = recordValue(value)
+  if (!prompt) return stringValue(value)
+  return stringValue(prompt.text)
+    ?? stringValue(prompt.prompt_text)
+    ?? editPromptText(prompt.edit_prompt)
+    ?? editPromptText(prompt.editPrompt)
+}
+
+function editPromptText(value: unknown): string | undefined {
+  const editPrompt = recordValue(value)
+  if (!editPrompt) return stringValue(value)
+  return stringValue(editPrompt.text)
+}
+
+function CandidateDetailPrompt({
+  error,
+  loading,
+  preview,
+  prompt,
+}: {
+  error?: string | null
+  loading?: boolean
+  preview?: ContentCanvasCandidatePromptPreview | null
+  prompt?: string
+}) {
   return (
-    <section className="content-canvas-candidate-detail-section">
-      <h3>{title}</h3>
-      <pre>{JSON.stringify(value, null, 2)}</pre>
+    <section className="content-canvas-candidate-detail-prompt content-canvas-prompt-editor">
+      <span className="content-canvas-prompt-editor__label">
+        <TextCursorInput size={13} aria-hidden="true" />
+        Prompt
+      </span>
+      {error || loading || !prompt ? (
+        <div className="content-canvas-prompt-inline-editor-shell">
+          <div
+            className="content-canvas-prompt-inline-editor"
+            aria-label="候选提示词"
+            role="textbox"
+            aria-readonly="true"
+            data-state={error ? 'error' : loading ? 'loading' : undefined}
+          >
+            {error ?? (loading ? '正在编译提示词…' : prompt)}
+          </div>
+        </div>
+      ) : (
+        <CompiledPromptPreview preview={preview} fallbackText={prompt} />
+      )}
     </section>
   )
 }
@@ -510,7 +636,7 @@ function ResourceCandidatePickerDialog({
   return createPortal(dialog, document.body)
 }
 
-function GenerationCandidateDialog({
+export function GenerationCandidateDialog({
   mediaKind,
   prompt,
   loadCompiledPrompt,
@@ -711,12 +837,12 @@ function CompiledPromptPreview({
 
 function compiledPromptParts(text: string): Array<{ kind: 'text'; text: string } | { kind: 'resource'; resourceId: number }> {
   const parts: Array<{ kind: 'text'; text: string } | { kind: 'resource'; resourceId: number }> = []
-  const pattern = /@\[resource:(\d+)\]/g
+  const pattern = /@\[resource:(\d+)\]|\{\{\s*resource:{1,2}\s*(\d+)\s*\}\}/g
   let lastIndex = 0
   let match: RegExpExecArray | null
   while ((match = pattern.exec(text)) !== null) {
     if (match.index > lastIndex) parts.push({ kind: 'text', text: text.slice(lastIndex, match.index) })
-    parts.push({ kind: 'resource', resourceId: Number(match[1]) })
+    parts.push({ kind: 'resource', resourceId: Number(match[1] ?? match[2]) })
     lastIndex = match.index + match[0].length
   }
   if (lastIndex < text.length) parts.push({ kind: 'text', text: text.slice(lastIndex) })
@@ -750,7 +876,7 @@ function CandidateResourcePreview({
   if (kind === 'image') {
     return (
       <span className="content-canvas-candidate-preview" data-kind="image" data-size={size}>
-        <ResourceFileImage {...previewProps} alt={label} loading="lazy" thumbnailMaxSize={size === 'large' ? 160 : 96} />
+        <ResourceFileImage {...previewProps} alt={label} loading={size === 'large' ? 'eager' : 'lazy'} thumbnailMaxSize={size === 'large' ? undefined : 96} />
       </span>
     )
   }
@@ -964,6 +1090,10 @@ export function InspectorSection({ title, children }: { title: string, children:
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function nonEmptyString(value: unknown): string | undefined {
+  return stringValue(value)
 }
 
 function recordValue(value: unknown): Record<string, unknown> | undefined {

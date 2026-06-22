@@ -1,4 +1,4 @@
-import type { ContentCanvasEdge, ContentCanvasGraph } from '../domain/contentCanvasTypes'
+import type { ContentCanvasEdge, ContentCanvasWorkspaceSnapshot } from '../domain/contentCanvasTypes'
 import type { ContentCanvasNodeLayout } from './contentCanvasLayout'
 
 export type ContentCanvasGroupFrame = {
@@ -14,7 +14,7 @@ export type ContentCanvasGroupFrame = {
 }
 
 export function buildContentCanvasGroupFrames(
-  graph: Pick<ContentCanvasGraph, 'nodes' | 'edges'>,
+  graph: Pick<ContentCanvasWorkspaceSnapshot, 'nodes' | 'edges'>,
   layoutByNodeId: Record<string, ContentCanvasNodeLayout>,
 ): ContentCanvasGroupFrame[] {
   const nodesById = new Map(graph.nodes.map((node) => [node.id, node]))

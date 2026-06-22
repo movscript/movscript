@@ -1270,6 +1270,41 @@ test('materializes backend resources into the media workspace cache', async () =
   }
 })
 
+test('materializes raw resource assets into the media workspace cache', async () => {
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-raw-resource-asset-'))
+  const originalFetch = globalThis.fetch
+  setMovScriptBackendAPIBaseURL('http://media-pipeline.test')
+  try {
+    globalThis.fetch = async (input) => {
+      assert.equal(String(input), 'http://media-pipeline.test/api/v1/resources/52/file')
+      return new Response(new Uint8Array([5, 2, 5, 2]), {
+        status: 200,
+        headers: { 'content-type': 'video/mp4' },
+      })
+    }
+
+    const workspace = await prepareMediaWorkspace({ homeDir, projectId: 'project-1', taskId: 'task-raw-resource' })
+    const materialized = await materializeMediaPipelineAsset({
+      workspace,
+      asset: {
+        id: 'asset-raw-resource',
+        sourceKind: 'raw_resource',
+        assetType: 'video',
+        resourceId: 52,
+        mimeType: 'video/mp4',
+      },
+    })
+
+    assert.equal(materialized.cached, false)
+    assert.equal(materialized.path.startsWith(workspace.cacheResources), true)
+    assert.deepEqual([...(await readFile(materialized.path))], [5, 2, 5, 2])
+  } finally {
+    globalThis.fetch = originalFetch
+    setMovScriptBackendAPIBaseURL('http://localhost:8765')
+    await rm(homeDir, { recursive: true, force: true })
+  }
+})
+
 test('reports backend resource download progress while materializing assets', async () => {
   const homeDir = await mkdtemp(join(tmpdir(), 'movscript-media-backend-progress-'))
   const originalFetch = globalThis.fetch

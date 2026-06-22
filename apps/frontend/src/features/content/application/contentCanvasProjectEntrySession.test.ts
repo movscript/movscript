@@ -25,11 +25,11 @@ test('content canvas project entry session builds stable restored search', () =>
     buildContentCanvasProjectEntrySessionSearch({
       activeKind: 'character',
       activeCanvasNodeId: 'scene_moment:intro',
-      canvasMode: 'structure',
       selectedNodeId: 'setting:hero',
       selectionKind: 'setting',
+      workspaceTab: 'canvas',
     }),
-    'mode=structure&canvasNode=scene_moment%3Aintro&node=setting%3Ahero&kind=setting&settingKind=character',
+    'tab=canvas&canvasNode=scene_moment%3Aintro&node=setting%3Ahero&kind=setting&settingKind=character',
   )
 })
 
@@ -39,7 +39,7 @@ test('content canvas project entry session prefers explicit search over snapshot
     searchParams: new URLSearchParams('mode=setting&canvasNode=scene_moment%3Aintro&node=setting%3Avillain&kind=setting&settingKind=prop'),
     snapshot: snapshot({
       activeCanvasNodeId: 'scene_moment:old',
-      canvasMode: 'scene_moment',
+      workspaceTab: 'preview',
       selectedNodeId: 'scene_moment:old',
       selectionKind: 'scene_moment',
     }),
@@ -48,9 +48,9 @@ test('content canvas project entry session prefers explicit search over snapshot
   assert.deepEqual(state, {
     activeKind: 'prop',
     activeCanvasNodeId: 'scene_moment:intro',
-    canvasMode: 'structure',
     selectedNodeId: 'setting:villain',
     selectionKind: 'setting',
+    workspaceTab: 'preview',
   })
 })
 
@@ -61,7 +61,7 @@ test('content canvas project entry session restores from snapshot without explic
     snapshot: snapshot({
       activeKind: 'visual_style',
       activeCanvasNodeId: 'scene_moment:intro',
-      canvasMode: 'scene_moment',
+      workspaceTab: 'canvas',
       selectedNodeId: 'asset:phone',
       selectionKind: 'asset',
     }),
@@ -70,9 +70,9 @@ test('content canvas project entry session restores from snapshot without explic
   assert.deepEqual(state, {
     activeKind: 'visual_style',
     activeCanvasNodeId: 'scene_moment:intro',
-    canvasMode: 'structure',
     selectedNodeId: 'asset:phone',
     selectionKind: 'asset',
+    workspaceTab: 'canvas',
   })
 })
 
@@ -85,8 +85,8 @@ test('content canvas project entry session falls back to selected node for legac
 
   assert.deepEqual(state, {
     activeCanvasNodeId: 'scene_moment:intro',
-    canvasMode: 'structure',
     selectedNodeId: 'scene_moment:intro',
     selectionKind: 'scene_moment',
+    workspaceTab: 'preview',
   })
 })

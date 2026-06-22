@@ -1,7 +1,7 @@
 import type { MovScriptWorkspaceIndexedEntity } from '@movscript/workspace'
 import type {
   ContentCanvasEdge,
-  ContentCanvasGraph,
+  ContentCanvasWorkspaceSnapshot,
   ContentCanvasCandidate,
   ContentCanvasGenerationTask,
   ContentCanvasNode,
@@ -30,6 +30,7 @@ import {
 import {
   candidateNodeIdFor,
   createCandidateNodes,
+  createRawResourceReferenceNodes,
   createResourceNodes,
   createSelectionNodes,
   resourceNodeIdFor,
@@ -38,9 +39,10 @@ import {
 import {
   withGraphIndexesAndSummary,
   withStructureSummaryMetrics,
-} from './contentCanvasGraphSummary'
+} from './contentCanvasWorkspaceSnapshotSummary'
 import {
   appendContentCanvasReferenceEdges,
+  contentUnitRawResourceRefsForRecord,
 } from './contentCanvasGraphReferences'
 import {
   actorNodeIdFor,
@@ -50,7 +52,7 @@ import {
   workItemNodeIdFor,
 } from './contentCanvasGraphWorkItems'
 
-export function buildContentCanvasGraph(data: ContentCanvasProjectData): ContentCanvasGraph {
+export function buildContentCanvasWorkspaceSnapshot(data: ContentCanvasProjectData): ContentCanvasWorkspaceSnapshot {
   const sourceEntities = [
     ...(data.project ? [data.project] : []),
     ...data.productions,
@@ -71,12 +73,13 @@ export function buildContentCanvasGraph(data: ContentCanvasProjectData): Content
   const candidateNodes = candidateOwnerNodes.flatMap(createCandidateNodes)
   const selectionNodes = candidateOwnerNodes.flatMap(createSelectionNodes)
   const resourceNodes = dedupeNodes(candidateNodes.flatMap(createResourceNodes))
-  const baseNodes = [...entityNodes, ...candidateNodes, ...selectionNodes, ...resourceNodes]
+  const rawResourceNodes = createRawResourceReferenceNodes(contentUnitRawResourceRefs(data.contentUnits))
+  const baseNodes = dedupeNodes([...entityNodes, ...candidateNodes, ...selectionNodes, ...resourceNodes, ...rawResourceNodes])
   const nodeByEntityKindAndKey = new Map(baseNodes.map((node) => [`${node.kind}:${node.entityKey}`, node]))
   const nodeByPath = new Map(baseNodes.filter((node) => node.sourcePath).map((node) => [node.sourcePath, node]))
   const workItemNodes = createWorkItemNodes(data.productionWorkPlan?.items ?? [])
   const actorNodes = createActorNodes(data.productionWorkPlan?.items ?? [])
-  const nodes = [...baseNodes, ...actorNodes, ...workItemNodes]
+  const nodes = dedupeNodes([...baseNodes, ...actorNodes, ...workItemNodes])
   const projectNode = nodes.find((node) => node.kind === 'project')
   const edges: ContentCanvasEdge[] = []
 
@@ -284,6 +287,14 @@ function defaultOutputKindForContentUnitType(contentUnitType: string): string {
   if (contentUnitType === 'scene_moment_ref' || contentUnitType === 'scence_moment_ref') return 'video'
   if (contentUnitType === 'expression_unit_ref') return 'text'
   return 'metadata'
+}
+
+function contentUnitRawResourceRefs(contentUnits: MovScriptWorkspaceIndexedEntity[]): string[] {
+  const refs = new Set<string>()
+  for (const contentUnit of contentUnits) {
+    for (const ref of contentUnitRawResourceRefsForRecord(contentUnit.record)) refs.add(ref)
+  }
+  return [...refs]
 }
 
 function parentNodeForEntity(

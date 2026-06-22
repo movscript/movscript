@@ -1,7 +1,6 @@
 @import './ContentCanvasWorkspacePage.inspector-fields.css';
 @import './ContentCanvasWorkspacePage.inspector-create.css';
 @import './ContentCanvasWorkspacePage.inspector-node-list.css';
-@import './ContentCanvasWorkspacePage.inspector-prompt.css';
 @import './ContentCanvasWorkspacePage.inspector-generation.css';
 @import './ContentCanvasWorkspacePage.inspector-candidates.css';
 
@@ -132,6 +131,39 @@
   margin: 0;
   font-size: 12px;
   font-weight: 820;
+}
+
+.content-canvas-resource-preview {
+  display: grid;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  min-height: 180px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--cc-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ms-color-muted) 20%, transparent);
+  color: var(--cc-muted);
+}
+
+.content-canvas-resource-preview > img,
+.content-canvas-resource-preview > video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: color-mix(in srgb, var(--cc-panel) 90%, black);
+}
+
+.content-canvas-resource-preview > span {
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.content-canvas-resource-preview[data-kind='missing'],
+.content-canvas-resource-preview[data-kind='audio'],
+.content-canvas-resource-preview[data-kind='file'] {
+  align-content: center;
+  gap: 8px;
 }
 
 .content-canvas-inspector-actions {

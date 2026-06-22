@@ -1,18 +1,18 @@
 import type {
   ContentCanvasEdge,
-  ContentCanvasGraph,
-  ContentCanvasGraphIndexes,
-  ContentCanvasGraphSummary,
+  ContentCanvasWorkspaceSnapshot,
+  ContentCanvasWorkspaceSnapshotIndexes,
+  ContentCanvasWorkspaceSnapshotSummary,
   ContentCanvasNode,
   ContentCanvasNodeKind,
 } from './contentCanvasTypes'
 
-export function withGraphIndexesAndSummary(graph: Pick<ContentCanvasGraph, 'nodes' | 'edges'>): ContentCanvasGraph {
-  const indexes = buildContentCanvasGraphIndexes(graph.nodes, graph.edges)
+export function withGraphIndexesAndSummary(graph: Pick<ContentCanvasWorkspaceSnapshot, 'nodes' | 'edges'>): ContentCanvasWorkspaceSnapshot {
+  const indexes = buildContentCanvasWorkspaceSnapshotIndexes(graph.nodes, graph.edges)
   return {
     ...graph,
     indexes,
-    summary: buildContentCanvasGraphSummary(graph.nodes, graph.edges, indexes),
+    summary: buildContentCanvasWorkspaceSnapshotSummary(graph.nodes, graph.edges, indexes),
   }
 }
 
@@ -44,15 +44,15 @@ export function withStructureSummaryMetrics(nodes: ContentCanvasNode[], edges: C
   })
 }
 
-function buildContentCanvasGraphIndexes(
+function buildContentCanvasWorkspaceSnapshotIndexes(
   nodes: ContentCanvasNode[],
   edges: ContentCanvasEdge[],
-): ContentCanvasGraphIndexes {
-  const nodeById: ContentCanvasGraphIndexes['nodeById'] = {}
-  const edgeById: ContentCanvasGraphIndexes['edgeById'] = {}
-  const upstreamEdgeIdsByNodeId: ContentCanvasGraphIndexes['upstreamEdgeIdsByNodeId'] = {}
-  const downstreamEdgeIdsByNodeId: ContentCanvasGraphIndexes['downstreamEdgeIdsByNodeId'] = {}
-  const workItemIdsByTargetId: ContentCanvasGraphIndexes['workItemIdsByTargetId'] = {}
+): ContentCanvasWorkspaceSnapshotIndexes {
+  const nodeById: ContentCanvasWorkspaceSnapshotIndexes['nodeById'] = {}
+  const edgeById: ContentCanvasWorkspaceSnapshotIndexes['edgeById'] = {}
+  const upstreamEdgeIdsByNodeId: ContentCanvasWorkspaceSnapshotIndexes['upstreamEdgeIdsByNodeId'] = {}
+  const downstreamEdgeIdsByNodeId: ContentCanvasWorkspaceSnapshotIndexes['downstreamEdgeIdsByNodeId'] = {}
+  const workItemIdsByTargetId: ContentCanvasWorkspaceSnapshotIndexes['workItemIdsByTargetId'] = {}
   for (const node of nodes) nodeById[node.id] = node
   for (const edge of edges) {
     edgeById[edge.id] = edge
@@ -71,16 +71,16 @@ function buildContentCanvasGraphIndexes(
   }
 }
 
-function buildContentCanvasGraphSummary(
+function buildContentCanvasWorkspaceSnapshotSummary(
   nodes: ContentCanvasNode[],
   edges: ContentCanvasEdge[],
-  indexes: ContentCanvasGraphIndexes,
-): ContentCanvasGraphSummary {
-  const nodeCountByKind = nodes.reduce<ContentCanvasGraphSummary['nodeCountByKind']>((counts, node) => {
+  indexes: ContentCanvasWorkspaceSnapshotIndexes,
+): ContentCanvasWorkspaceSnapshotSummary {
+  const nodeCountByKind = nodes.reduce<ContentCanvasWorkspaceSnapshotSummary['nodeCountByKind']>((counts, node) => {
     counts[node.kind] = (counts[node.kind] ?? 0) + 1
     return counts
   }, {})
-  const actorWorkItemCount: ContentCanvasGraphSummary['actorWorkItemCount'] = {
+  const actorWorkItemCount: ContentCanvasWorkspaceSnapshotSummary['actorWorkItemCount'] = {
     human: 0,
     agent: 0,
     workflow: 0,

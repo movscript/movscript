@@ -170,7 +170,7 @@ test('buildAgentActivityFeed renders generation work without raw request details
   assert.equal(item?.kind, 'task')
   assert.equal(item?.durationMs, 1450)
   assert.deepEqual(item?.type === 'block' ? item.lines : [], [
-    '任务已提交，后续结果会从 provider work 返回。',
+    '历史兼容记录；新的生成和剪辑流程使用明确的 generation_* 或 editing_task_* 工具。',
   ])
 })
 
@@ -206,7 +206,7 @@ test('buildAgentActivityFeed keeps recorded tool order when async work timestamp
     return item.id
   }), [
     '已读取数据：查看生成模型',
-    '提交异步任务',
+    '旧异步任务交接',
   ])
 })
 
@@ -247,12 +247,12 @@ test('buildAgentActivityFeed does not duplicate work status traces as task cards
     }),
   })
 
-  const taskItems = feed?.items.filter((item) => item.type === 'block' && item.title === '提交异步任务')
+  const taskItems = feed?.items.filter((item) => item.type === 'block' && item.title === '旧异步任务交接')
   assert.equal(taskItems?.length, 1)
   const item = taskItems?.[0]
   assert.equal(item?.type === 'block' ? item.durationMs : undefined, 166_000)
   assert.deepEqual(item?.type === 'block' ? item.lines : [], [
-    '任务已提交，后续结果会从 provider work 返回。',
+    '历史兼容记录；新的生成和剪辑流程使用明确的 generation_* 或 editing_task_* 工具。',
   ])
 })
 
@@ -277,7 +277,7 @@ test('buildAgentActivityFeed compacts consecutive provider work observations', (
   assert.equal(feed?.items.length, 1)
   const item = feed?.items[0]
   assert.equal(item?.type, 'block')
-  assert.equal(item?.type === 'block' ? item.title : '', '观察异步任务 ×5')
+  assert.equal(item?.type === 'block' ? item.title : '', '观察旧异步任务 ×5')
   assert.equal(item?.durationMs, 500)
 })
 
@@ -311,7 +311,7 @@ test('buildAgentActivityFeed compacts provider work observations when the latest
   assert.equal(feed?.items.length, 1)
   const item = feed?.items[0]
   assert.equal(item?.type, 'block')
-  assert.equal(item?.type === 'block' ? item.title : '', '观察异步任务 ×2')
+  assert.equal(item?.type === 'block' ? item.title : '', '观察旧异步任务 ×2')
   assert.deepEqual(item?.type === 'block' ? item.lines : [], [])
   assert.equal(item?.durationMs, 250)
 })
@@ -576,7 +576,7 @@ test('buildAgentActivityFeed renders provider-session status changes beside mode
     items: [
       '模型 HTTP 请求已发送',
       '模型 HTTP 响应：已完成；110 tokens，in 100 / out 10',
-      '提交异步任务',
+      '旧异步任务交接',
       '运行状态已记录：异步任务已提交',
       '运行完成：Run completed with 1 step(s).',
     ],

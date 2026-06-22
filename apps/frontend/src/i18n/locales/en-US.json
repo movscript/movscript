@@ -27,6 +27,7 @@
     "retry": "Retry",
     "readonly": "Read-only",
     "related": "Related",
+    "refresh": "Refresh",
     "loading": "Loading...",
     "loadingShort": "Loading...",
     "next": "Next",
@@ -174,7 +175,33 @@
     "recentProjects": "Recent Projects",
     "emptyProjects": "No recent projects",
     "new": "New",
-    "newProject": "New Project"
+    "newProject": "New Project",
+    "mode": {
+      "projectData": "Inspect backend candidates, selections, and project_uid data spaces.",
+      "canvas": "Manage global canvases, resource organization, and cross-project visual boards.",
+      "editingTitle": "Editing",
+      "editing": "Create standalone editing projects with assets, tracks, subtitles, and export jobs.",
+      "toolTitle": "Tool",
+      "tool": "Open reference generation and other tools without binding to a project window."
+    }
+  },
+  "projectData": {
+    "title": "Project Data",
+    "description": "Backend candidate and selection metadata",
+    "spacesAriaLabel": "Project data spaces",
+    "spacesTitle": "Data Spaces",
+    "totals": "{{targets}} targets · {{candidates}} candidates · {{selections}} selections",
+    "emptyTitle": "No project data",
+    "updated": "Updated",
+    "scope": {
+      "user": "User",
+      "org": "Org"
+    },
+    "stats": {
+      "targets": "Targets",
+      "candidates": "Candidates",
+      "selections": "Selections"
+    }
   },
   "onboarding": {
     "title": "Choose Workspace",
@@ -1224,7 +1251,7 @@
         "workspace_apply": "Submit workspace changes",
         "workspace_apply_review": "Preview workspace submit",
         "generation_job_cancel": "Cancel generation job",
-        "core_work_cancel": "Cancel provider work",
+        "core_work_cancel": "Cancel legacy async work",
         "workspace_create": "Create workspace",
         "generation_image_generate": "Submit image generation",
         "generation_content_unit_image_generate": "Generate content-unit image",
@@ -1253,17 +1280,17 @@
         "generation_job_list": "List generation jobs",
         "generation_model_list": "List generation models",
         "movscript_project_list": "List projects",
-        "core_work_list": "List provider works",
+        "core_work_list": "List legacy async work",
         "core_user_input_request": "Request user input",
         "reference_search": "Search reference",
         "core_memory_search": "Search memories",
-        "core_work_start": "Start provider work",
+        "core_work_start": "Legacy async handoff",
         "core_skill_update": "Update active skills",
         "read_file": "Read file",
         "search_file": "Search file",
         "edit_file": "Edit file",
-        "core_work_wait": "Wait for provider work",
-        "core_work_get": "Inspect provider work"
+        "core_work_wait": "Wait for legacy async work",
+        "core_work_get": "Inspect legacy async work"
       },
       "risks": {
         "low": "Low",
@@ -1286,8 +1313,8 @@
         "agent_task_graph_read": "Read Agent execution taskGraph",
         "agent_task_graph_write": "Update Agent execution taskGraph",
         "agent_skills_manage": "Manage Agent skills",
-        "agent_work_read": "Read async work",
-        "agent_work_write": "Manage async work",
+        "agent_work_read": "Read legacy async work",
+        "agent_work_write": "Manage legacy async work",
         "asset_candidate_write": "Write asset candidates",
         "workspace_apply": "Submit workspace changes",
         "workspace_read": "Read workspace",
@@ -1331,6 +1358,64 @@
     "unspecified": "Not specified",
     "followPlatform": "Follow platform",
     "fromTemplate": "From template: {{name}}",
+    "availability": {
+      "noEnabledAgentsTitle": "No Agent is enabled",
+      "noEnabledAgentsDescription": "Enable at least one Agent in Agent Console before entering Agent mode or opening an AI session.",
+      "goToAgentConsole": "Go to Agent Console"
+    },
+    "console": {
+      "title": "Agent Console",
+      "description": "Shows the current Agent, session health, and items needing attention. Connection mode and model governance stay behind system and Admin boundaries.",
+      "open": "Open Agent Console",
+      "currentAgent": "Current Agent",
+      "navAriaLabel": "Agent Console global navigation",
+      "nav": {
+        "overview": {
+          "label": "Overview",
+          "description": "Current Agent, sessions, and attention items"
+        },
+        "agents": {
+          "label": "Agent",
+          "description": "Choose the current Agent and user-visible configuration"
+        },
+        "diagnostics": {
+          "label": "Diagnostics",
+          "description": "Connections, event streams, and raw diagnostics"
+        },
+        "currentAgentDescription": "Current: {{agent}}",
+        "unselected": "Not selected"
+      },
+      "status": {
+        "ok": "Healthy",
+        "attention": "{{count}} needs attention",
+        "syncing": "Syncing"
+      },
+      "boundaries": {
+        "title": "Current Boundaries",
+        "user": {
+          "title": "User entry",
+          "detail": "Select the current Agent, inspect session state, and handle items that require human input."
+        },
+        "system": {
+          "title": "System backend",
+          "detail": "Connections, processes, SDK packages, and thread recovery are handled by the adapter layer."
+        },
+        "governance": {
+          "title": "Governance entry",
+          "detail": "Providers, catalogs, routes, and credential policy are managed by Admin. Agent only consumes published model capabilities."
+        }
+      },
+      "attention": {
+        "title": "Needs Attention",
+        "empty": "No configuration or runtime issues are blocking the console.",
+        "failedRunsDetail": "{{count}} runs failed. Check the current status from Agent Console."
+      },
+      "entries": {
+        "title": "Common Entries",
+        "currentAgentDetail": "Choose the current assistant and show local connection settings only when needed.",
+        "agentSettingsDetail": "Manage skills, tool permissions, config files, and model preferences."
+      }
+    },
     "debug": {
       "shortTitle": "Debug",
       "title": "Agent Debug Console",
@@ -3096,8 +3181,8 @@
             "memoryWrite": "Approving will change runtime session memory and may affect future suggestions.",
             "memoryDelete": "Approving will delete the selected runtime session memory.",
             "catalogReload": "Approving will reload local skills, tools, packs, and config files from disk.",
-            "workStart": "Approving will submit async provider work; generation jobs may consume quota and subagent work starts worker runs.",
-            "workCancel": "Approving will cancel async provider work; unfinished outputs or worker follow-up may not be produced.",
+            "workStart": "Legacy compatibility: approving will hand off old async work. New generation and editing flows use explicit generation_* or editing_task_* tools.",
+            "workCancel": "Legacy compatibility: approving will cancel old async work. New generation jobs should use an explicit generation cancellation path.",
             "destructive": "Approving may remove or cancel existing data. Review the details before continuing.",
             "write": "Approving will allow a write action instead of only reading or previewing data.",
             "default": "Approving will let the agent call this tool and continue the run with its result."
@@ -3185,8 +3270,8 @@
           "memoryWrite": "Approving will change runtime session memory and may affect future suggestions.",
           "memoryDelete": "Approving will delete the selected runtime session memory.",
           "catalogReload": "Approving will reload local skills, tools, packs, and config files from disk.",
-          "workStart": "Approving will submit async provider work; generation jobs may consume quota and subagent work starts worker runs.",
-          "workCancel": "Approving will cancel async provider work; unfinished outputs or worker follow-up may not be produced.",
+          "workStart": "Legacy compatibility: approving will hand off old async work. New generation and editing flows use explicit generation_* or editing_task_* tools.",
+          "workCancel": "Legacy compatibility: approving will cancel old async work. New generation jobs should use an explicit generation cancellation path.",
           "destructive": "Approving may remove or cancel existing data. Review the details before continuing.",
           "write": "Approving will allow a write action instead of only reading or previewing data.",
           "default": "Approving will let the agent call this tool and continue the run with its result."
@@ -4267,6 +4352,20 @@
       "unused": "Unused"
     },
     "groups": {},
+    "shortcuts": {
+      "appHome": "App Home",
+      "toolHome": "Tool Home",
+      "editHome": "Edit Home",
+      "canvasHome": "Canvas Home",
+      "project": "Project",
+      "recentProjects": "Recent 5 Projects",
+      "recentCanvases": "Recent 5 Canvases",
+      "recentEditingProjects": "Recent 5 Editing Projects",
+      "emptyRecentProjects": "No recent projects",
+      "emptyRecentCanvases": "No recent canvases",
+      "emptyRecentEditingProjects": "No recent editing projects",
+      "active": "Open"
+    },
     "items": {
       "home": "Home",
       "scripts": "Script Library",

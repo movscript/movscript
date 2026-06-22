@@ -1,4 +1,4 @@
-import type { ContentCanvasEdge, ContentCanvasGraph, ContentCanvasNode } from '../domain/contentCanvasTypes'
+import type { ContentCanvasEdge, ContentCanvasWorkspaceSnapshot, ContentCanvasNode } from '../domain/contentCanvasTypes'
 import type {
   ContentCanvasImpactKind,
   ContentCanvasIssueActorFilter,
@@ -7,7 +7,7 @@ import type {
 } from './contentCanvasViewPlanTypes'
 
 export function issueNodeIdsForFilters(
-  graph: ContentCanvasGraph,
+  graph: ContentCanvasWorkspaceSnapshot,
   actor: ContentCanvasIssueActorFilter,
   severity: ContentCanvasIssueSeverityFilter,
   targetKind: ContentCanvasIssueTargetKindFilter,
@@ -28,7 +28,7 @@ export function issueNodeIdsForFilters(
 }
 
 export function issueNodeIdsForGraph(
-  graph: ContentCanvasGraph,
+  graph: ContentCanvasWorkspaceSnapshot,
   impactByNodeId: Record<string, ContentCanvasImpactKind>,
 ): Set<string> | undefined {
   const issueNodeIds = new Set(
@@ -54,7 +54,7 @@ function workItemMatchesFilters(
   actor: ContentCanvasIssueActorFilter,
   severity: ContentCanvasIssueSeverityFilter,
   targetKind: ContentCanvasIssueTargetKindFilter,
-  graph: ContentCanvasGraph,
+  graph: ContentCanvasWorkspaceSnapshot,
   nodeById: Map<string, ContentCanvasNode>,
 ): boolean {
   const record = node.record
@@ -68,7 +68,7 @@ function workItemMatchesFilters(
 function workItemMatchesTargetKind(
   node: ContentCanvasNode,
   targetKind: ContentCanvasIssueTargetKindFilter,
-  graph: ContentCanvasGraph,
+  graph: ContentCanvasWorkspaceSnapshot,
   nodeById: Map<string, ContentCanvasNode>,
 ): boolean {
   if (targetKind === 'all') return true

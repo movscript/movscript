@@ -1,4 +1,4 @@
-import type { ContentCanvasEdge, ContentCanvasGraph, ContentCanvasNode, ContentCanvasNodeKind } from '../domain/contentCanvasTypes'
+import type { ContentCanvasEdge, ContentCanvasWorkspaceSnapshot, ContentCanvasNode, ContentCanvasNodeKind } from '../domain/contentCanvasTypes'
 import type { ContentCanvasNodeLayout } from './contentCanvasLayout'
 import { nodeById, outgoingEdgesForNode, relatedEdgesForNode } from './contentCanvasViewPlanGraph'
 import { issueNodeIdsForGraph } from './contentCanvasViewPlanIssues'
@@ -53,7 +53,7 @@ export function shouldHideDefaultWorkOverlayNode(
 }
 
 export function collapsedHiddenNodeIdsForGraph(
-  graph: ContentCanvasGraph,
+  graph: ContentCanvasWorkspaceSnapshot,
   layoutByNodeId: Record<string, Pick<ContentCanvasNodeLayout, 'collapsed'>>,
   selectedNodeId: string | null,
 ): Set<string> {
@@ -69,7 +69,7 @@ export function collapsedHiddenNodeIdsForGraph(
   return hidden
 }
 
-function collapsedDescendantNodeIds(graph: ContentCanvasGraph, nodeId: string): Set<string> {
+function collapsedDescendantNodeIds(graph: ContentCanvasWorkspaceSnapshot, nodeId: string): Set<string> {
   const hidden = new Set<string>()
   const queue = [nodeId]
   const collapseRelations = new Set<ContentCanvasEdge['relation'] | undefined>([
@@ -157,7 +157,7 @@ export function contentCanvasLodTierFor(input: Pick<ContentCanvasViewPlanInput, 
 }
 
 export function contentCanvasModeNodeIds(
-  graph: ContentCanvasGraph,
+  graph: ContentCanvasWorkspaceSnapshot,
   mode: ContentCanvasViewMode,
   selectedNodeId: string | null,
   impactByNodeId: Record<string, ContentCanvasImpactKind>,
@@ -190,7 +190,7 @@ export function contentCanvasModeNodeIds(
 
 function addNeighborhood(
   ids: Set<string>,
-  graph: ContentCanvasGraph,
+  graph: ContentCanvasWorkspaceSnapshot,
   centerNodeId: string,
   radius: number,
   allowedKinds: ReadonlySet<ContentCanvasNodeKind>,
@@ -224,7 +224,7 @@ export function shouldFoldTraceOnlyNode(
 }
 
 export function traceNodeIdsAllowedBySelection(
-  graph: ContentCanvasGraph,
+  graph: ContentCanvasWorkspaceSnapshot,
   mode: ContentCanvasViewMode,
   selectedNodeId: string | null,
   needle: string,
@@ -257,7 +257,7 @@ export function traceNodeIdsAllowedBySelection(
   return keep
 }
 
-function addTraceChain(ids: Set<string>, graph: ContentCanvasGraph, nodeId: string) {
+function addTraceChain(ids: Set<string>, graph: ContentCanvasWorkspaceSnapshot, nodeId: string) {
   for (const edge of relatedEdgesForNode(graph, nodeId)) {
     if (edge.source === nodeId && edge.relation === 'candidate_resource') {
       ids.add(edge.target)

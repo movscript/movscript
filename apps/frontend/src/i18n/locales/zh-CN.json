@@ -27,6 +27,7 @@
     "retry": "重试",
     "readonly": "只读",
     "related": "关联",
+    "refresh": "刷新",
     "loading": "加载中...",
     "loadingShort": "加载中…",
     "next": "下一页",
@@ -174,7 +175,33 @@
     "recentProjects": "最近项目",
     "emptyProjects": "暂无最近项目",
     "new": "新建",
-    "newProject": "新建项目"
+    "newProject": "新建项目",
+    "mode": {
+      "projectData": "查看后端保存的候选、选择和 project_uid 数据空间。",
+      "canvas": "管理全局画布、素材组织和跨项目的可视化灵感板。",
+      "editingTitle": "剪辑",
+      "editing": "创建独立剪辑项目，组织素材、轨道、字幕和导出任务。",
+      "toolTitle": "工具",
+      "tool": "进入参考图生成等工具能力，不绑定到某个项目窗口。"
+    }
+  },
+  "projectData": {
+    "title": "项目数据",
+    "description": "后端候选、选择和元数据",
+    "spacesAriaLabel": "项目数据空间",
+    "spacesTitle": "数据空间",
+    "totals": "{{targets}} 个目标 · {{candidates}} 个候选 · {{selections}} 个选择",
+    "emptyTitle": "暂无项目数据",
+    "updated": "最近更新",
+    "scope": {
+      "user": "用户",
+      "org": "组织"
+    },
+    "stats": {
+      "targets": "目标",
+      "candidates": "候选",
+      "selections": "选择"
+    }
   },
   "onboarding": {
     "title": "选择工作方式",
@@ -1224,7 +1251,7 @@
         "workspace_apply": "提交工作区修改",
         "workspace_apply_review": "预览工作区提交",
         "generation_job_cancel": "取消生成任务",
-        "core_work_cancel": "取消 Provider 工作",
+        "core_work_cancel": "取消旧异步任务",
         "workspace_create": "创建工作区",
         "generation_image_generate": "提交图像生成",
         "generation_content_unit_image_generate": "生成创作片段图像",
@@ -1253,17 +1280,17 @@
         "generation_job_list": "列出生成任务",
         "generation_model_list": "查看生成模型",
         "movscript_project_list": "列出项目",
-        "core_work_list": "列出 Provider 工作",
+        "core_work_list": "列出旧异步任务",
         "core_user_input_request": "请求用户补充",
         "reference_search": "搜索参考",
         "core_memory_search": "搜索记忆",
-        "core_work_start": "启动 Provider 工作",
+        "core_work_start": "旧异步任务交接",
         "core_skill_update": "更新启用技能",
         "read_file": "读取文件",
         "search_file": "搜索文件",
         "edit_file": "编辑文件",
-        "core_work_wait": "等待 Provider 工作",
-        "core_work_get": "查看 Provider 工作"
+        "core_work_wait": "等待旧异步任务",
+        "core_work_get": "查看旧异步任务"
       },
       "risks": {
         "low": "低",
@@ -1286,8 +1313,8 @@
         "agent_task_graph_read": "读取 Agent 执行计划",
         "agent_task_graph_write": "更新 Agent 执行计划",
         "agent_skills_manage": "管理 Agent 技能",
-        "agent_work_read": "读取异步任务",
-        "agent_work_write": "管理异步任务",
+        "agent_work_read": "读取旧异步任务",
+        "agent_work_write": "管理旧异步任务",
         "asset_candidate_write": "写入素材候选",
         "workspace_apply": "提交工作区修改",
         "workspace_read": "读取工作区",
@@ -1331,6 +1358,64 @@
     "unspecified": "未指定",
     "followPlatform": "跟随平台",
     "fromTemplate": "来自模板：{{name}}",
+    "availability": {
+      "noEnabledAgentsTitle": "没有开启任何 Agent",
+      "noEnabledAgentsDescription": "请先在 Agent 控制台开启至少一个 Agent，然后再进入 Agent 模式或展开 AI 会话。",
+      "goToAgentConsole": "前往 Agent 控制台"
+    },
+    "console": {
+      "title": "Agent 控制台",
+      "description": "展示当前 Agent、会话健康和需要处理的事项；连接方式和模型治理由系统后台与 Admin 边界处理。",
+      "open": "打开 Agent 控制台",
+      "currentAgent": "当前 Agent",
+      "navAriaLabel": "Agent 控制台全局导航",
+      "nav": {
+        "overview": {
+          "label": "概览",
+          "description": "当前 Agent、会话和待关注事项"
+        },
+        "agents": {
+          "label": "Agent",
+          "description": "选择当前 Agent 与用户可见配置"
+        },
+        "diagnostics": {
+          "label": "诊断",
+          "description": "连接、事件流和原始诊断"
+        },
+        "currentAgentDescription": "当前：{{agent}}",
+        "unselected": "未选择"
+      },
+      "status": {
+        "ok": "状态正常",
+        "attention": "{{count}} 项需关注",
+        "syncing": "同步中"
+      },
+      "boundaries": {
+        "title": "当前边界",
+        "user": {
+          "title": "用户入口",
+          "detail": "只选择当前 Agent、查看会话状态，并处理需要人工介入的事项。"
+        },
+        "system": {
+          "title": "系统后台",
+          "detail": "连接、进程、SDK 包和线程恢复由统一适配层处理，不作为普通管理项暴露。"
+        },
+        "governance": {
+          "title": "治理入口",
+          "detail": "Provider、Catalog、Route 和密钥策略由 Admin 管理，Agent 只消费已发布模型能力。"
+        }
+      },
+      "attention": {
+        "title": "需关注事项",
+        "empty": "当前没有阻塞控制台的配置或运行问题。",
+        "failedRunsDetail": "{{count}} 个 Run 失败，可从 Agent 控制台检查当前状态。"
+      },
+      "entries": {
+        "title": "常用入口",
+        "currentAgentDetail": "选择当前助手，只在必要时显示本地连接配置。",
+        "agentSettingsDetail": "管理技能、工具授权、配置文件和模型偏好。"
+      }
+    },
     "debug": {
       "shortTitle": "调试",
       "title": "Agent 调试控制台",
@@ -2986,8 +3071,8 @@
             "memoryWrite": "通过后会修改 runtime session 记忆，可能影响之后的建议。",
             "memoryDelete": "通过后会删除选中的 runtime session 记忆。",
             "catalogReload": "通过后会从磁盘重新加载本地 skills、tools、packs 和配置文件。",
-            "workStart": "通过后会提交异步 Provider 工作；生成任务可能消耗额度，子 agent 任务会启动 worker run。",
-            "workCancel": "通过后会取消异步 Provider 工作；未完成输出或 worker 后续执行可能不再产生。",
+            "workStart": "旧运行记录兼容：通过后会交接旧异步任务；新的生成和剪辑流程应使用 generation_* 或 editing_task_*。",
+            "workCancel": "旧运行记录兼容：通过后会取消旧异步任务；新的生成任务应使用明确的生成任务取消入口。",
             "destructive": "通过后可能删除或取消已有数据，请先确认细节。",
             "write": "通过后会允许一次写入操作，而不只是读取或预览数据。",
             "default": "通过后 Agent 会调用这个工具，并用调用结果继续运行。"
@@ -3075,8 +3160,8 @@
           "memoryWrite": "通过后会修改 runtime session 记忆，可能影响之后的建议。",
           "memoryDelete": "通过后会删除选中的 runtime session 记忆。",
           "catalogReload": "通过后会从磁盘重新加载本地 skills、tools、packs 和配置文件。",
-          "workStart": "通过后会提交异步 Provider 工作；生成任务可能消耗额度，子 agent 任务会启动 worker run。",
-          "workCancel": "通过后会取消异步 Provider 工作；未完成输出或 worker 后续执行可能不再产生。",
+          "workStart": "旧运行记录兼容：通过后会交接旧异步任务；新的生成和剪辑流程应使用 generation_* 或 editing_task_*。",
+          "workCancel": "旧运行记录兼容：通过后会取消旧异步任务；新的生成任务应使用明确的生成任务取消入口。",
           "destructive": "通过后可能删除或取消已有数据，请先确认细节。",
           "write": "通过后会允许一次写入操作，而不只是读取或预览数据。",
           "default": "通过后 Agent 会调用这个工具，并用调用结果继续运行。"
@@ -4157,6 +4242,20 @@
       "unused": "未使用"
     },
     "groups": {},
+    "shortcuts": {
+      "appHome": "应用首页",
+      "toolHome": "工具首页",
+      "editHome": "剪辑首页",
+      "canvasHome": "画布首页",
+      "project": "项目",
+      "recentProjects": "最近 5 个项目",
+      "recentCanvases": "最近 5 个画布",
+      "recentEditingProjects": "最近 5 个剪辑项目",
+      "emptyRecentProjects": "暂无最近项目",
+      "emptyRecentCanvases": "暂无最近画布",
+      "emptyRecentEditingProjects": "暂无最近剪辑项目",
+      "active": "已打开"
+    },
     "items": {
       "home": "首页",
       "scripts": "手记库",

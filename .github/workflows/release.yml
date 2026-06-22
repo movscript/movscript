@@ -157,19 +157,28 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Prepare Apple API key file
+        if: matrix.package-platform == 'darwin'
+        env:
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY }}
+        run: |
+          APPLE_API_KEY_PATH="$RUNNER_TEMP/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8"
+          printf '%s' "$APPLE_API_KEY_CONTENT" > "$APPLE_API_KEY_PATH"
+          chmod 600 "$APPLE_API_KEY_PATH"
+          echo "APPLE_API_KEY=$APPLE_API_KEY_PATH" >> "$GITHUB_ENV"
+
       - name: Verify release readiness
         run: pnpm run release -- verify-release-readiness --tag="$RELEASE_TAG" --platform=${{ matrix.package-platform }}
         env:
           RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           MOVSCRIPT_RELEASE_ALLOW_TEST_TAG: ${{ ((github.event_name == 'workflow_dispatch' && inputs.release_channel == 'test') || contains(github.ref_name, '-test.')) && '1' || '0' }}
-          MOVSCRIPT_RELEASE_REQUIRE_SIGNING: ${{ vars.MOVSCRIPT_RELEASE_REQUIRE_SIGNING || '0' }}
-          MOVSCRIPT_RELEASE_SIGNING_MODE: ${{ vars.MOVSCRIPT_RELEASE_SIGNING_MODE || 'unsigned' }}
+          MOVSCRIPT_RELEASE_REQUIRE_SIGNING: ${{ matrix.package-platform == 'darwin' && '1' || '0' }}
+          MOVSCRIPT_RELEASE_SIGNING_MODE: ${{ matrix.package-platform == 'darwin' && 'signed' || 'unsigned' }}
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
 
@@ -232,26 +241,24 @@ jobs:
       - name: Build frontend desktop artifact
         run: pnpm run release -- build-desktop-artifact --platform=${{ matrix.package-platform }} --arch=${{ matrix.package-arch }}
         env:
-          MOVSCRIPT_RELEASE_SIGNING_MODE: ${{ vars.MOVSCRIPT_RELEASE_SIGNING_MODE || 'unsigned' }}
+          MOVSCRIPT_RELEASE_SIGNING_MODE: ${{ matrix.package-platform == 'darwin' && 'signed' || 'unsigned' }}
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
 
       - name: Verify desktop package
         run: pnpm run release -- verify-desktop-package --platform=${{ matrix.package-platform }} --arch=${{ matrix.package-arch }}
         env:
-          MOVSCRIPT_RELEASE_SIGNING_MODE: ${{ vars.MOVSCRIPT_RELEASE_SIGNING_MODE || 'unsigned' }}
+          MOVSCRIPT_RELEASE_SIGNING_MODE: ${{ matrix.package-platform == 'darwin' && 'signed' || 'unsigned' }}
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
 

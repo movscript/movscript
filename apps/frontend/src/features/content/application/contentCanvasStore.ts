@@ -1,4 +1,4 @@
-import type { ContentCanvasCandidate, ContentCanvasEdge, ContentCanvasGraph, ContentCanvasNode, ContentCanvasNodeKind } from '../domain/contentCanvasTypes'
+import type { ContentCanvasCandidate, ContentCanvasEdge, ContentCanvasWorkspaceSnapshot, ContentCanvasNode, ContentCanvasNodeKind } from '../domain/contentCanvasTypes'
 import {
   createContentCanvasLayoutFromGraph,
   type ContentCanvasNodeLayout,
@@ -31,7 +31,7 @@ export interface ContentCanvasEdgeRecord extends ContentCanvasEdge {
   summaryHash: string
 }
 
-export interface ContentCanvasGraphState {
+export interface ContentCanvasWorkspaceSnapshotState {
   graphVersion: number
   nodeIds: string[]
   edgeIds: string[]
@@ -42,10 +42,10 @@ export interface ContentCanvasGraphState {
   layoutByNodeId: Record<string, ContentCanvasNodeLayout>
 }
 
-export function createContentCanvasGraphState(
-  graph: ContentCanvasGraph,
-  previous?: ContentCanvasGraphState,
-): ContentCanvasGraphState {
+export function createContentCanvasWorkspaceSnapshotState(
+  graph: ContentCanvasWorkspaceSnapshot,
+  previous?: ContentCanvasWorkspaceSnapshotState,
+): ContentCanvasWorkspaceSnapshotState {
   const nextNodes = mergeNodeRecords(graph.nodes, previous?.nodesById)
   const nextEdges = mergeEdgeRecords(graph.edges, previous?.edgesById)
   return {

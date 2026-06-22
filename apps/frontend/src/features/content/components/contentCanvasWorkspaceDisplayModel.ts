@@ -45,6 +45,12 @@ export function expressionUnitKindLabel(value: string): string {
   return option ? `${option.label} (${value})` : value
 }
 
+export function expressionUnitKindShortLabel(value: string): string {
+  const normalized = value === 'visual' ? 'visual_note' : value
+  const option = CONTENT_CANVAS_EXPRESSION_UNIT_KIND_OPTIONS.find((item) => item.value === (normalized as ContentCanvasExpressionUnitKind))
+  return option?.label ?? value
+}
+
 function stringField(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }

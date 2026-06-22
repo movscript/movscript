@@ -54,24 +54,34 @@
   min-height: 22px;
   margin: 0 2px;
   transform: translateY(2px);
-  border: 1px solid color-mix(in srgb, var(--cc-accent) 40%, var(--cc-border));
-  border-radius: 999px;
-  background: var(--cc-accent-soft);
+  border: 1px solid color-mix(in srgb, var(--cc-success) 82%, #15803d);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--cc-success) 12%, var(--cc-panel));
   color: var(--cc-text);
   padding: 1px 7px 1px 3px;
   font-family: inherit;
   text-align: left;
   vertical-align: baseline;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--cc-success) 16%, transparent) inset;
 }
 
 .content-canvas-prompt-inline-reference:hover {
-  border-color: color-mix(in srgb, var(--cc-accent) 62%, var(--cc-border));
-  background: color-mix(in srgb, var(--cc-accent) 15%, var(--cc-panel));
+  border-color: color-mix(in srgb, var(--cc-success) 70%, var(--cc-border));
+  background: color-mix(in srgb, var(--cc-success) 16%, var(--cc-panel));
 }
 
+.content-canvas-prompt-inline-reference[data-state="pending"] {
+  border-color: color-mix(in srgb, var(--cc-warning) 78%, #ca8a04);
+  background: color-mix(in srgb, var(--cc-warning) 13%, var(--cc-panel));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--cc-warning) 16%, transparent) inset;
+}
+
+.content-canvas-prompt-inline-reference[data-state="empty"],
+.content-canvas-prompt-inline-reference[data-state="missing"],
 .content-canvas-prompt-inline-reference[data-missing="true"] {
-  border-color: color-mix(in srgb, var(--cc-warning) 48%, var(--cc-border));
-  background: color-mix(in srgb, var(--cc-warning) 12%, var(--cc-panel));
+  border-color: color-mix(in srgb, var(--cc-danger) 78%, #dc2626);
+  background: color-mix(in srgb, var(--cc-danger) 11%, var(--cc-panel));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--cc-danger) 16%, transparent) inset;
 }
 
 .content-canvas-prompt-inline-reference img,
@@ -118,26 +128,36 @@
   align-items: center;
   gap: 8px;
   min-height: 48px;
-  border: 1px solid var(--cc-border);
+  border: 1px solid color-mix(in srgb, var(--cc-success) 82%, #15803d);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--cc-panel) 92%, transparent);
+  background: color-mix(in srgb, var(--cc-success) 9%, var(--cc-panel));
   color: var(--cc-text);
   padding: 5px 7px;
   text-align: left;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--cc-success) 14%, transparent) inset;
 }
 
 .content-canvas-prompt-reference-strip button:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--cc-accent) 42%, var(--cc-border));
-  background: var(--cc-accent-soft);
+  border-color: color-mix(in srgb, var(--cc-success) 68%, var(--cc-border));
+  background: color-mix(in srgb, var(--cc-success) 14%, var(--cc-panel));
 }
 
 .content-canvas-prompt-reference-strip button:disabled {
   cursor: default;
 }
 
+.content-canvas-prompt-reference-strip button[data-state="pending"] {
+  border-color: color-mix(in srgb, var(--cc-warning) 78%, #ca8a04);
+  background: color-mix(in srgb, var(--cc-warning) 11%, var(--cc-panel));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--cc-warning) 14%, transparent) inset;
+}
+
+.content-canvas-prompt-reference-strip button[data-state="empty"],
+.content-canvas-prompt-reference-strip button[data-state="missing"],
 .content-canvas-prompt-reference-strip button[data-missing="true"] {
-  border-color: color-mix(in srgb, var(--cc-warning) 42%, var(--cc-border));
-  background: color-mix(in srgb, var(--cc-warning) 10%, var(--cc-panel));
+  border-color: color-mix(in srgb, var(--cc-danger) 78%, #dc2626);
+  background: color-mix(in srgb, var(--cc-danger) 10%, var(--cc-panel));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--cc-danger) 14%, transparent) inset;
 }
 
 .content-canvas-prompt-reference-strip img,
@@ -155,6 +175,31 @@
   display: grid;
   place-items: center;
   color: var(--cc-accent);
+}
+
+.content-canvas-prompt-inline-reference[data-state="selected"] .content-canvas-prompt-reference-strip__fallback,
+.content-canvas-prompt-reference-strip button[data-state="selected"] .content-canvas-prompt-reference-strip__fallback {
+  background: color-mix(in srgb, var(--cc-success) 16%, transparent);
+  color: color-mix(in srgb, var(--cc-success) 80%, var(--cc-text));
+}
+
+.content-canvas-prompt-inline-reference[data-state="pending"] .content-canvas-prompt-reference-strip__fallback,
+.content-canvas-prompt-reference-strip button[data-state="pending"] .content-canvas-prompt-reference-strip__fallback {
+  background: color-mix(in srgb, var(--cc-warning) 18%, transparent);
+  color: color-mix(in srgb, var(--cc-warning) 82%, var(--cc-text));
+}
+
+.content-canvas-prompt-inline-reference[data-state="empty"] .content-canvas-prompt-reference-strip__fallback,
+.content-canvas-prompt-inline-reference[data-state="missing"] .content-canvas-prompt-reference-strip__fallback,
+.content-canvas-prompt-reference-strip button[data-state="empty"] .content-canvas-prompt-reference-strip__fallback,
+.content-canvas-prompt-reference-strip button[data-state="missing"] .content-canvas-prompt-reference-strip__fallback {
+  background: color-mix(in srgb, var(--cc-danger) 15%, transparent);
+  color: color-mix(in srgb, var(--cc-danger) 82%, var(--cc-text));
+}
+
+.content-canvas-prompt-inline-reference .content-canvas-prompt-reference-strip__fallback svg {
+  width: 12px;
+  height: 12px;
 }
 
 .content-canvas-prompt-reference-strip strong,

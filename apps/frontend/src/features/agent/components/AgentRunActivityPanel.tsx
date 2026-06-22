@@ -88,7 +88,7 @@ export function RunActivityPanel({
   className?: string
 }) {
   const navigate = useNavigate()
-  const { i18n } = useTranslation()
+  const { t, i18n } = useTranslation()
   const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
   const activityTimeline = buildAgentRunActivityTimeline({ activity, run, events })
   if (!activityTimeline) return null
@@ -104,8 +104,8 @@ export function RunActivityPanel({
       action={runId && (
         <AgentRunActivityDetailButton
           type="button"
-          title="打开 Agent 控制台"
-          aria-label="打开 Agent 控制台"
+          title={t('agents.console.open')}
+          aria-label={t('agents.console.open')}
           onClick={(event) => {
             event.preventDefault()
             event.stopPropagation()
@@ -113,7 +113,7 @@ export function RunActivityPanel({
           }}
         >
           <Route size={10} />
-          控制台
+          {t('sidebar.items.agentConsole')}
         </AgentRunActivityDetailButton>
       )}
       status={(

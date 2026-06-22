@@ -12,7 +12,7 @@ export type SettingKind =
   | 'relationship'
   | 'sound_motif'
 
-export type CanvasMode = 'structure' | 'prompt'
+export type ContentWorkspaceTab = 'preview' | 'canvas'
 
 export type RadialNode = {
   id: string
@@ -35,25 +35,19 @@ export type SceneSettingGroup = {
   y: number
 }
 
-export type StarCanvasAction = {
-  label: string
-  onClick?: () => void
-  disabled?: boolean
-}
-
-export type StarCanvasContextAction = StarCanvasAction
-
 export type InspectorSelection =
   | { kind: 'scene_moment', node: RadialNode }
   | { kind: 'setting', setting: ContentCanvasNode }
   | { kind: 'state', node: RadialNode }
   | { kind: 'asset', node: RadialNode }
-  | { kind: 'create_expression_unit', parent: ContentCanvasNode }
-  | { kind: 'create_keyframe', parent: ContentCanvasNode }
-  | { kind: 'create_storyboard', parent: ContentCanvasNode }
-  | { kind: 'create_state', parent: ContentCanvasNode }
-  | { kind: 'create_asset', parent: ContentCanvasNode }
+  | { kind: 'create_expression_unit', parent: ContentCanvasNode, position?: ContentCanvasNodePosition }
+  | { kind: 'create_keyframe', parent: ContentCanvasNode, position?: ContentCanvasNodePosition }
+  | { kind: 'create_storyboard', parent: ContentCanvasNode, position?: ContentCanvasNodePosition }
+  | { kind: 'create_state', parent: ContentCanvasNode, position?: ContentCanvasNodePosition }
+  | { kind: 'create_asset', parent: ContentCanvasNode, position?: ContentCanvasNodePosition }
   | { kind: 'other', node: RadialNode }
+
+export type ContentCanvasNodePosition = { x: number; y: number }
 
 export type InspectorSelectionRef = {
   kind: InspectorSelection['kind']

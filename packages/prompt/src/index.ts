@@ -122,7 +122,7 @@ export interface BuildContentUnitBackendPromptByIdInput {
   decisionProvider: MovScriptContentUnitDecisionProvider
 }
 
-const PROMPT_REF_PATTERN = /\{\{([a-z_]+):([^{}:\s][^{}]*)\}\}/g
+const PROMPT_REF_PATTERN = /\{\{([a-z_]+)::?([^{}:\s][^{}]*)\}\}/g
 
 export async function buildContentUnitBackendPromptById(
   input: BuildContentUnitBackendPromptByIdInput,

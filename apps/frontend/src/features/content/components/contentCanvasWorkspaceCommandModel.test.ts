@@ -20,19 +20,16 @@ test('content canvas command focus state maps focused node ids to workspace sele
   assert.deepEqual(contentCanvasCommandFocusState('setting:hero'), {
     activeCanvasNodeId: 'setting:hero',
     activeSettingId: 'setting:hero',
-    canvasMode: 'structure',
     selection: { kind: 'setting', nodeId: 'setting:hero' },
   })
   assert.deepEqual(contentCanvasCommandFocusState('scene_moment:intro'), {
     activeCanvasNodeId: 'scene_moment:intro',
     activeProductionId: null,
     activeSceneId: 'scene_moment:intro',
-    canvasMode: 'structure',
     selection: { kind: 'scene_moment', nodeId: 'scene_moment:intro' },
   })
   assert.deepEqual(contentCanvasCommandFocusState('asset:phone'), {
     activeCanvasNodeId: 'asset:phone',
-    canvasMode: 'structure',
     selection: { kind: 'asset', nodeId: 'asset:phone' },
   })
   assert.deepEqual(contentCanvasCommandFocusState('candidate:1:2'), {
@@ -117,6 +114,36 @@ test('content canvas command candidates are merged locally before backend reload
   }), local)
 
   assert.deepEqual(project?.contentUnitCandidates.cu_1.map((candidate) => candidate.id), ['cand_local', 'cand_server'])
+})
+
+test('content canvas command candidate merge preserves distinct candidates with repeated ids', () => {
+  const local = mergeContentCanvasCommandCandidates({}, {
+    createdCandidates: [{
+      contentUnitId: 'cu_1',
+      candidate: {
+        id: 'cand_repeat',
+        title: 'Local candidate A',
+        resourceId: 11,
+        source: 'generated',
+        selected: false,
+        notes: '',
+      },
+    }],
+  })
+  const project = withLocalContentCanvasCandidates(projectDataFixture({
+    contentUnitCandidates: {
+      cu_1: [{
+        id: 'cand_repeat',
+        title: 'Server candidate B',
+        resourceId: 12,
+        source: 'generated',
+        selected: false,
+        notes: '',
+      }],
+    },
+  }), local)
+
+  assert.deepEqual(project?.contentUnitCandidates.cu_1.map((candidate) => candidate.resourceId), [11, 12])
 })
 
 test('content canvas backend candidates replace matching local optimistic rows', () => {

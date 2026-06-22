@@ -187,7 +187,7 @@ export default function GlobalHomePage() {
               className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 type-label font-medium text-foreground shadow-sm transition hover:border-foreground/25 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <Bot size={14} />
-              {t('agents.availability.goToAgentConsole', { defaultValue: '前往 Agent 控制台' })}
+              {t('agents.availability.goToAgentConsole', { defaultValue: 'Go to Agent Console' })}
             </button>
           ) : null}
 
@@ -317,13 +317,13 @@ export default function GlobalHomePage() {
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <ModeEntry
           icon={<Database size={16} />}
-          label={t('sidebar.items.projectData', { defaultValue: 'Project Data' })}
-          description={t('home.mode.projectData', { defaultValue: '查看后端保存的候选、选择和 project_uid 数据空间。' })}
+          label={t('sidebar.items.projectData')}
+          description={t('home.mode.projectData')}
           onClick={enterProjectData}
         />
         <ModeEntry
           icon={<LayoutGrid size={16} />}
-          label="Canvas"
+          label={t('sidebar.items.canvas')}
           description={t('home.mode.canvas', { defaultValue: '管理全局画布、素材组织和跨项目的可视化灵感板。' })}
           onClick={enterCanvasMode}
         />
@@ -335,7 +335,7 @@ export default function GlobalHomePage() {
         />
         <ModeEntry
           icon={<Wrench size={16} />}
-          label="Tool"
+          label={t('home.mode.toolTitle', { defaultValue: 'Tool' })}
           description={t('home.mode.tool', { defaultValue: '进入参考图生成等工具能力，不绑定到某个项目窗口。' })}
           onClick={enterToolMode}
         />

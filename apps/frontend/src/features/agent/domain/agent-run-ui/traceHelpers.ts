@@ -164,7 +164,7 @@ export function localizedTraceTitle(title: string): string | undefined {
     case 'Worker started': return '执行器启动'
     case 'Planner started': return '规划器启动'
     case 'Asset review tool call': return '素材风险审计工具调用'
-    case 'Provider work dispatch tool call': return '异步任务调度工具调用'
+    case 'Provider work dispatch tool call': return '旧异步任务调度工具调用'
     case 'Thread history compacted': return '压缩线程历史'
     case 'Reference searched': return '检索参考源'
     case 'Reference loaded': return '加载参考片段'

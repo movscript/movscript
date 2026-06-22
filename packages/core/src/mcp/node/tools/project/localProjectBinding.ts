@@ -27,7 +27,7 @@ export async function requireMCPBackendBoundProject(
     ? args
     : resolveMCPProjectWorkspaceLocator(args)
   const manifest = await readProjectManifest(locator.projectDir)
-  const projectUid = stringField(locator.projectUid) ?? manifest.projectUid
+  const projectUid = manifest.projectUid ?? stringField(locator.projectUid)
   if (!projectUid) {
     throw new Error('MovScript project requires project_uid. Open or initialize the project before using project-scoped write tools.')
   }

@@ -7,7 +7,7 @@ import type {
 
 export type MediaTrackType = 'video' | 'image' | 'audio' | 'text' | 'subtitle' | 'effect'
 export type MediaAssetType = 'video' | 'image' | 'audio' | 'text' | 'subtitle'
-export type MediaAssetSourceKind = 'backend_resource' | 'local_file' | 'generated_resource' | 'bytes'
+export type MediaAssetSourceKind = 'raw_resource' | 'backend_resource' | 'local_file' | 'generated_resource' | 'bytes'
 export type MediaEditingProjectSourceKind = 'movscript_edit_plan' | 'manual' | 'imported_media'
 export type MediaTimelineFit = 'crop' | 'contain' | 'cover' | 'none'
 export type MediaTimelineCommandType =

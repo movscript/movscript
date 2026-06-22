@@ -82,6 +82,7 @@ const generationTools = [
     inputSchema: objectSchema({
       jobId: { type: 'number', minimum: 1 },
       job_id: { type: 'number', minimum: 1 },
+      verbosity: { type: 'string', enum: ['summary', 'debug'] },
     }),
   },
   {
@@ -94,6 +95,7 @@ const generationTools = [
       content_unit_id: { type: ['string', 'number'] },
       promptSnapshot: { type: 'object', additionalProperties: true },
       prompt_snapshot: { type: 'object', additionalProperties: true },
+      verbosity: { type: 'string', enum: ['summary', 'debug'] },
     }),
   },
   generationJobGetBatchTool('generation_image_job_get_batch', 'Synchronously fetch the latest state of multiple image generation jobs submitted by generation_image_generate. Results are returned in input order with per-job errors.'),
@@ -144,6 +146,7 @@ const generationTools = [
     inputSchema: objectSchema({
       jobId: { type: 'number', minimum: 1 },
       job_id: { type: 'number', minimum: 1 },
+      verbosity: { type: 'string', enum: ['summary', 'debug'] },
     }),
   },
   {
@@ -156,6 +159,7 @@ const generationTools = [
       content_unit_id: { type: ['string', 'number'] },
       promptSnapshot: { type: 'object', additionalProperties: true },
       prompt_snapshot: { type: 'object', additionalProperties: true },
+      verbosity: { type: 'string', enum: ['summary', 'debug'] },
     }),
   },
   generationJobGetBatchTool('generation_video_job_get_batch', 'Synchronously fetch the latest state of multiple video generation jobs submitted by generation_video_generate. Results are returned in input order with per-job errors.'),
@@ -171,6 +175,7 @@ const generationTools = [
     inputSchema: objectSchema({
       jobId: { type: 'number', minimum: 1 },
       job_id: { type: 'number', minimum: 1 },
+      verbosity: { type: 'string', enum: ['summary', 'debug'] },
     }),
   },
   generationJobGetBatchTool('generation_audio_job_get_batch', 'Synchronously fetch the latest state of multiple audio, music, sound-effect, or subtitle AI generation jobs. Results are returned in input order with per-job errors.'),
@@ -1047,6 +1052,7 @@ const domainTools = [
     ['domain_update_storyboard_timeline', 'Update a storyboard timeline source field. Storyboard order and timing belong on storyboard timeline source entities, not on generated artifact output.'],
     ['domain_append_candidate', 'Append an inline candidate to an asset, keyframe, or content unit source entity. Generated resources become stable domain dependencies only after candidate/selection writes and explicit adoption/selection.'],
     ['domain_create_content_candidate', 'Create an external content candidate record for a content unit output. Use for generated content-unit media rather than embedding provider job state in domain JSON. Omit status for completed generated resources; the backend defaults it to succeeded.'],
+    ['domain_register_raw_resource_as_content_unit_candidate', 'Register an existing MovScript RawResource as a content-unit candidate without selecting it. Use for uploaded, transformed, imported, editing-exported, or low-level generated resources.'],
     ['domain_create_content_candidate_batch', 'Create multiple external content candidate records for content unit outputs. Each item accepts the same fields as domain_create_content_candidate. Omit item status for completed generated resources.'],
     ['domain_create_asset_slot_candidate', 'Create an asset-slot candidate using the MovScript workspace candidate service. If targetRecord carries a workspace path, this appends an inline candidate to that asset source entity.'],
     ['domain_create_keyframe_candidate', 'Create a keyframe candidate using the MovScript workspace candidate service. If keyframes are represented as content units in the active model, use the content-unit candidate flow instead.'],
@@ -1057,6 +1063,7 @@ const domainTools = [
     ['domain_unlock_candidate', 'Remove an inline candidate lock from an asset, keyframe, or content unit source entity.'],
     ['domain_delete_entity', 'Delete a MovScript domain source entity file through the workspace service. Do not touch interpreter debug output for product work.'],
     ['domain_overview', 'Show MovScript source state, backend decisions, diagnostics, stale generated outputs, and recommended next actions.'],
+    ['domain_production_status_summary', 'Summarize current production progress for agents: prerequisites, storyboards, keyframes, content-unit candidate counts, selected resources, stale hints, and blocking refs.'],
     ['domain_inspect', 'Inspect current source changes, diagnostics, and predicted impact without writing interpreted artifacts. This is the primary diagnostic entrypoint after API writes or direct source edits.'],
     ['domain_interpret', 'Validate current source and refresh derived diagnostic artifacts when enabled. Does not publish, approve, commit, checkpoint user intent, or create product state.'],
     ['domain_regeneration_plan', 'Plan downstream review targets after domain_interpret refreshes diagnostic context. Reports affected or stale content units, prompt bundles, preview timelines, and selections; it does not require regeneration by itself.'],
@@ -1328,6 +1335,7 @@ function generationJobGetBatchTool(name, description) {
       jobIds: { type: 'array', items: { type: 'number' }, description: 'Generation job IDs.' },
       job_ids: { type: 'array', items: { type: 'number' }, description: 'Alias for jobIds.' },
       items: { type: 'array', items: { type: 'object', additionalProperties: true }, description: 'Optional item array. Each item may include jobId or job_id.' },
+      verbosity: { type: 'string', enum: ['summary', 'debug'] },
     }),
   }
 }

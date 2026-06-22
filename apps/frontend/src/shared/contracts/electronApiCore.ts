@@ -258,6 +258,16 @@ export type ElectronDockShortcutCanvas = {
 }
 
 export type ElectronDockShortcutSnapshot = {
+  labels?: {
+    appHome?: string
+    toolHome?: string
+    editHome?: string
+    canvasHome?: string
+    recentProjects?: string
+    recentEditingProjects?: string
+    recentCanvases?: string
+    emptyRecent?: string
+  }
   projects?: ElectronDockShortcutProject[]
   editingProjects?: ElectronDockShortcutEditingProject[]
   canvases?: ElectronDockShortcutCanvas[]

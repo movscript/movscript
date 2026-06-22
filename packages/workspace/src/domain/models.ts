@@ -187,7 +187,7 @@ export const MOVSCRIPT_DOMAIN_WORKSPACE_MODELS: Record<MovScriptDomainWorkspaceK
     ],
     contextPathPatterns: ['settings/{settingSlug}/setting.json', 'settings/{settingSlug}/states/{settingStateSlug}/setting_state.json', 'project_standards.json'],
     schemaIds: ['movscript.asset.v1'],
-    instructions: ['Assets are setting-state-owned resource slots that describe one state asset, such as front view, side view, turnaround sheet, material reference, voice timbre, or instrument tone. Image assets should prefer plain white or very clean backgrounds. Runtime candidates and production decisions are stored outside asset.json.'],
+    instructions: ['Assets are setting-state-owned resource slots and carriers for asset_ref content-unit generation/review. Do not write new candidates or selections into asset.json; generated asset candidates belong to the linked asset_ref content unit and backend content-unit decision flow. Existing inline candidates/selection in asset.json are legacy compatibility data only. Downstream content-unit prompts can reference selected asset outputs with {{asset::id}} when dependency tracking matters; loose raw-resource guidance can use direct resource inputs. Image assets should prefer plain white or very clean backgrounds.'],
   },
   script_workspace: {
     kind: 'script_workspace',
@@ -253,7 +253,7 @@ export const MOVSCRIPT_DOMAIN_WORKSPACE_MODELS: Record<MovScriptDomainWorkspaceK
     ],
     contextPathPatterns: ['productions/**', 'settings/**', 'project_standards.json'],
     schemaIds: ['movscript.storyboard.v1'],
-    instructions: ['Storyboards are visual graph assets under expression_unit(kind=shot) or directly under scene_moment. Runtime candidates and production decisions are stored outside storyboard.json.'],
+    instructions: ['Storyboards are visual graph assets under expression_unit(kind=shot) or directly under scene_moment. Runtime candidates and production decisions are stored outside storyboard.json. Downstream prompts can reference selected storyboard outputs with {{storyboard::id}} when dependency tracking matters; loose raw-resource guidance can use direct resource inputs.'],
   },
   audio_cue_workspace: {
     kind: 'audio_cue_workspace',
@@ -288,7 +288,7 @@ export const MOVSCRIPT_DOMAIN_WORKSPACE_MODELS: Record<MovScriptDomainWorkspaceK
     editablePathPatterns: ['content_units/{contentUnitSlug}/content_unit.json'],
     contextPathPatterns: ['project_standards.json', 'settings/**', 'productions/**'],
     schemaIds: ['movscript.content_unit.v1'],
-    instructions: ['Content units are project-level stable production units. They declare content_unit_type, output_kind, flat business refs, edit_prompt, and model_intent. Specialized content_unit_type adapters perform dependency and regeneration checks; unknown types are valid but untracked for regeneration. Use expression_unit_ref for shot expression units and keyframe_ref/storyboard_ref for visual anchors.'],
+    instructions: ['Content units are project-level stable production units. They declare content_unit_type, output_kind, flat business refs, edit_prompt, and model_intent. Specialized content_unit_type adapters perform dependency and regeneration checks; unknown types are valid but untracked for regeneration. Use expression_unit_ref for shot expression units and keyframe_ref/storyboard_ref for visual anchors. In edit_prompt, use semantic refs such as {{asset::id}}, {{storyboard::id}}, {{keyframe::id}}, {{candidate::id}}, or {{resource::123}}; prompt compilation resolves selected backend candidates into resource mentions and resource_ids for generation.'],
   },
   keyframe_workspace: {
     kind: 'keyframe_workspace',

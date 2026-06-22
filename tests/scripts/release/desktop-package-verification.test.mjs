@@ -562,6 +562,42 @@ test('verifyBundledDesktopFFmpeg compares bundled ffmpeg with staged source', as
   }
 })
 
+test('verifyBundledDesktopFFmpeg allows signed macOS ffmpeg mutation after validating staged source metadata', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'movscript-verify-release-'))
+  const sourceDir = await mkdtemp(join(tmpdir(), 'movscript-verify-source-'))
+  try {
+    const ffmpegDir = join(dir, 'Movscript.app/Contents/Resources/ffmpeg/darwin/arm64')
+    const ffmpegPath = join(ffmpegDir, 'ffmpeg')
+    const sourcePath = join(sourceDir, 'ffmpeg')
+    await mkdir(ffmpegDir, { recursive: true })
+    await writeFile(sourcePath, 'fake ffmpeg', 'utf8')
+    await writeMetadata(sourceDir, { arch: 'arm64' })
+    await writeFile(ffmpegPath, 'fake ffmpeg after codesign', 'utf8')
+    await writeMetadata(ffmpegDir, {
+      arch: 'arm64',
+      sha256: sha256File(sourcePath),
+      size_bytes: 11,
+    })
+
+    assert.match(verifyBundledDesktopFFmpeg(dir, 'darwin', { sourcePath, arch: 'arm64' }), /metadata is invalid/)
+    assert.equal(verifyBundledDesktopFFmpeg(dir, 'darwin', {
+      sourcePath,
+      arch: 'arm64',
+      signingMode: 'signed',
+      verifySignature: () => '',
+    }), '')
+    assert.match(verifyBundledDesktopFFmpeg(dir, 'darwin', {
+      sourcePath,
+      arch: 'arm64',
+      signingMode: 'signed',
+      verifySignature: () => 'bad signature',
+    }), /bad signature/)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+    await rm(sourceDir, { recursive: true, force: true })
+  }
+})
+
 async function writeMetadata(dir, overrides = {}) {
   await mkdir(dir, { recursive: true })
   const binaryName = overrides.binary || 'ffmpeg'

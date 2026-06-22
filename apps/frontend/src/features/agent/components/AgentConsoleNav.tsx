@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { ClipboardList } from 'lucide-react'
 import {
   AgentConsoleNavItem,
@@ -24,6 +25,7 @@ import {
 } from '@/features/agent/application/agentProfileModel'
 
 export function AgentConsoleNav({ compact = false }: { compact?: boolean }) {
+  const { t } = useTranslation()
   const location = useLocation()
   const activeConsoleTab = agentConsoleTabFromLocation(location.pathname, location.search)
   const savedSettings = useProviderConfigStore((state) => state.settings)
@@ -32,7 +34,7 @@ export function AgentConsoleNav({ compact = false }: { compact?: boolean }) {
   const currentAgent = activeAgentProfileForRoute(profiles, undefined)
   return (
     <AgentConsoleNavShell compact={compact}>
-      <nav aria-label="Agent 控制台全局导航">
+      <nav aria-label={t('agents.console.navAriaLabel')}>
         <AgentConsoleNavList>
           {agentConsoleRouteSections.map((section) => {
             const Icon = section.icon
@@ -40,8 +42,8 @@ export function AgentConsoleNav({ compact = false }: { compact?: boolean }) {
               ? activeConsoleTab === section.tab
               : agentConsoleSectionMatchesPath(section, location.pathname)
             const description = section.tab === 'console:agents'
-              ? `当前：${currentAgent?.label ?? '未选择'}`
-              : section.description
+              ? t('agents.console.nav.currentAgentDescription', { agent: currentAgent?.label ?? t('agents.console.nav.unselected') })
+              : t(`agents.console.nav.${navSectionKey(section.tab)}.description`, { defaultValue: section.description })
             const to = agentConsoleSettingsRoute(section.tab)
             return (
               <AgentConsoleNavLinkWrapper key={section.tab}>
@@ -50,7 +52,7 @@ export function AgentConsoleNav({ compact = false }: { compact?: boolean }) {
                     active={active}
                     compact={compact}
                     icon={<Icon size={14} />}
-                    title={section.label}
+                    title={t(`agents.console.nav.${navSectionKey(section.tab)}.label`, { defaultValue: section.label })}
                     description={description}
                   />
                 </Link>
@@ -71,4 +73,10 @@ export function AgentConsoleNav({ compact = false }: { compact?: boolean }) {
       </nav>
     </AgentConsoleNavShell>
   )
+}
+
+function navSectionKey(tab: (typeof agentConsoleRouteSections)[number]['tab']) {
+  if (tab === 'console:agents') return 'agents'
+  if (tab === 'console:connections') return 'diagnostics'
+  return 'overview'
 }

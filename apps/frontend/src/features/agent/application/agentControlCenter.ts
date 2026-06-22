@@ -1,4 +1,5 @@
 import { ROUTES } from '@/routes/projectRoutes'
+import i18n from '@/i18n'
 import {
   agentProviderSessionCompatibilityClient,
   createAgentProviderSessionCompatibilityClient,
@@ -109,7 +110,7 @@ export function buildAgentControlIssues(input: {
       id: 'failed-runs',
       tone: 'warning',
       title: '最近存在失败运行',
-      detail: `${input.failedRuns} 个 Run 失败，可从 Agent 控制台检查当前状态。`,
+      detail: i18n.t('agents.console.attention.failedRunsDetail', { count: input.failedRuns }),
       to: ROUTES.agentConsole,
     })
   }

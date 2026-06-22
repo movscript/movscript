@@ -61,10 +61,10 @@ export function useAgentAvailabilityGuard() {
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle>
-            {t('agents.availability.noEnabledAgentsTitle', { defaultValue: '没有开启任何 Agent' })}
+            {t('agents.availability.noEnabledAgentsTitle', { defaultValue: 'No Agent is enabled' })}
           </DialogTitle>
           <DialogDescription>
-            {t('agents.availability.noEnabledAgentsDescription', { defaultValue: '请先在 Agent 控制台开启至少一个 Agent，然后再进入 Agent 模式或展开 AI 会话。' })}
+            {t('agents.availability.noEnabledAgentsDescription', { defaultValue: 'Enable at least one Agent in Agent Console before entering Agent mode or opening an AI session.' })}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
@@ -72,7 +72,7 @@ export function useAgentAvailabilityGuard() {
             {t('common.cancel', { defaultValue: '取消' })}
           </Button>
           <Button type="button" onClick={goToAgentConsole}>
-            {t('agents.availability.goToAgentConsole', { defaultValue: '前往 Agent 控制台' })}
+            {t('agents.availability.goToAgentConsole', { defaultValue: 'Go to Agent Console' })}
           </Button>
         </DialogFooter>
       </DialogContent>

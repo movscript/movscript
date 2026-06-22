@@ -273,6 +273,7 @@ export function verifyDesktopPackage(root, options = {}) {
     logError = console.error,
     exit = process.exit,
     spawn = spawnSync,
+    signingMode = 'unsigned',
   } = options
   const releaseDir = resolve(root, 'apps/frontend/release')
   const backendBinDir = resolve(root, 'apps/backend/bin')
@@ -333,7 +334,7 @@ export function verifyDesktopPackage(root, options = {}) {
   }
 
   if (manifestHasResource(packageResourceManifest, 'ffmpeg')) {
-    const bundledFFmpegError = verifyBundledDesktopFFmpeg(releaseDir, platform, { sourcePath: ffmpegPath, arch })
+    const bundledFFmpegError = verifyBundledDesktopFFmpeg(releaseDir, platform, { sourcePath: ffmpegPath, arch, signingMode })
     if (bundledFFmpegError) {
       logError(bundledFFmpegError)
       exit(1)
@@ -460,11 +461,23 @@ export function verifyBundledDesktopFFmpeg(releaseDir, platform = process.platfo
   const expected = resourceDirs.map((resourcesPath) => resolve(resourcesPath, 'ffmpeg', platform, options.arch || process.arch, binary))
   for (const bundledPath of expected) {
     if (!existsSync(bundledPath)) continue
-    const metadataError = verifyDesktopFFmpegMetadata(bundledPath, { arch: options.arch })
+    const allowSignedMutation = platform === 'darwin' && options.signingMode === 'signed'
+    if (options.sourcePath && allowSignedMutation) {
+      const sourceMetadataError = verifyDesktopFFmpegMetadata(options.sourcePath, { arch: options.arch })
+      if (sourceMetadataError) {
+        return `Staged desktop ffmpeg metadata is invalid: ${options.sourcePath}\n${sourceMetadataError}`
+      }
+    }
+    const metadataError = verifyDesktopFFmpegMetadata(bundledPath, {
+      arch: options.arch,
+      allowSignedMutation,
+      platform,
+      verifySignature: options.verifySignature,
+    })
     if (metadataError) {
       return `Bundled desktop ffmpeg metadata is invalid: ${bundledPath}\n${metadataError}`
     }
-    if (options.sourcePath && sha256File(bundledPath) !== sha256File(options.sourcePath)) {
+    if (options.sourcePath && !allowSignedMutation && sha256File(bundledPath) !== sha256File(options.sourcePath)) {
       return [
         `Bundled desktop ffmpeg does not match staged source for ${platform}.`,
         `Source: ${options.sourcePath}`,
@@ -525,13 +538,52 @@ export function verifyDesktopFFmpegMetadata(path, expected = {}) {
     return `Desktop package ffmpeg binary is not executable: ${path}`
   }
   if (Number(metadata.size_bytes) !== actualStat.size) {
+    if (expected.allowSignedMutation) {
+      const signatureError = verifySignedDesktopBinary(path, expected.platform, expected.verifySignature)
+      if (!signatureError) return ''
+      return [
+        `Desktop package ffmpeg metadata size_bytes mismatch: ${metadataPath}`,
+        `Expected ${metadata.size_bytes}, got ${actualStat.size}`,
+        signatureError,
+      ].join('\n')
+    }
     return `Desktop package ffmpeg metadata size_bytes mismatch: ${metadataPath}\nExpected ${metadata.size_bytes}, got ${actualStat.size}`
   }
   const actualSha = sha256File(path)
   if (metadata.sha256 !== actualSha) {
+    if (expected.allowSignedMutation) {
+      const signatureError = verifySignedDesktopBinary(path, expected.platform, expected.verifySignature)
+      if (!signatureError) return ''
+      return [
+        `Desktop package ffmpeg metadata sha256 mismatch: ${metadataPath}`,
+        `Expected ${metadata.sha256}, got ${actualSha}`,
+        signatureError,
+      ].join('\n')
+    }
     return `Desktop package ffmpeg metadata sha256 mismatch: ${metadataPath}\nExpected ${metadata.sha256}, got ${actualSha}`
   }
   return ''
+}
+
+function verifySignedDesktopBinary(path, platform = process.platform, verifySignature = defaultVerifySignedDesktopBinary) {
+  if (platform !== 'darwin') {
+    return `Signed ffmpeg metadata mutation is only supported for macOS packages: ${path}`
+  }
+  return verifySignature(path)
+}
+
+function defaultVerifySignedDesktopBinary(path) {
+  const result = spawnSync('codesign', ['--verify', '--verbose=1', path], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+  if (result.status === 0) return ''
+  return [
+    `Signed macOS ffmpeg binary is not code-signature-valid: ${path}`,
+    result.error?.message,
+    result.stderr?.trim(),
+    result.stdout?.trim(),
+  ].filter(Boolean).join('\n')
 }
 
 function runFFmpegProbe(path, args, cwd, spawn, timeoutMs) {

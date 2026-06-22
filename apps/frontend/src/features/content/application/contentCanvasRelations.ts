@@ -1,4 +1,4 @@
-import type { ContentCanvasEdge, ContentCanvasGraph, ContentCanvasNode, ContentCanvasNodeKind } from '../domain/contentCanvasTypes'
+import type { ContentCanvasEdge, ContentCanvasWorkspaceSnapshot, ContentCanvasNode, ContentCanvasNodeKind } from '../domain/contentCanvasTypes'
 import {
   classifyContentCanvasRelation,
   contentCanvasEdgeInsightRelationLabel,
@@ -46,7 +46,7 @@ export interface ContentCanvasEdgeInsight {
 }
 
 export function buildContentCanvasEdgeInsight(
-  graph: ContentCanvasGraph,
+  graph: ContentCanvasWorkspaceSnapshot,
   edgeId: string | null,
 ): ContentCanvasEdgeInsight | null {
   if (!edgeId) return null
@@ -75,7 +75,7 @@ export function buildContentCanvasEdgeInsight(
 }
 
 export function buildContentCanvasRelationLedger(
-  graph: ContentCanvasGraph,
+  graph: ContentCanvasWorkspaceSnapshot,
   selectedNode: ContentCanvasNode | null,
 ): ContentCanvasRelationLedger {
   if (!selectedNode) return { upstream: [], current: [], downstream: [] }
@@ -109,7 +109,7 @@ export function buildContentCanvasRelationLedger(
   }
 }
 
-function relationEdgesForNode(graph: ContentCanvasGraph, nodeId: string): ContentCanvasEdge[] {
+function relationEdgesForNode(graph: ContentCanvasWorkspaceSnapshot, nodeId: string): ContentCanvasEdge[] {
   const indexes = graph.indexes
   if (!indexes) return graph.edges.filter((edge) => edge.source === nodeId || edge.target === nodeId)
   const edgeIds = new Set([
@@ -122,11 +122,11 @@ function relationEdgesForNode(graph: ContentCanvasGraph, nodeId: string): Conten
   })
 }
 
-function nodeById(graph: ContentCanvasGraph, nodeId: string): ContentCanvasNode | undefined {
+function nodeById(graph: ContentCanvasWorkspaceSnapshot, nodeId: string): ContentCanvasNode | undefined {
   return graph.indexes?.nodeById[nodeId] ?? graph.nodes.find((node) => node.id === nodeId)
 }
 
-function edgeById(graph: ContentCanvasGraph, edgeId: string): ContentCanvasEdge | undefined {
+function edgeById(graph: ContentCanvasWorkspaceSnapshot, edgeId: string): ContentCanvasEdge | undefined {
   return graph.indexes?.edgeById[edgeId] ?? graph.edges.find((edge) => edge.id === edgeId)
 }
 

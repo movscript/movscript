@@ -60,7 +60,17 @@ function mergeCandidateRows(
   current: ContentCanvasCandidate[],
   incoming: ContentCanvasCandidate[],
 ): ContentCanvasCandidate[] {
-  const byId = new Map(current.map((candidate) => [candidate.id, candidate]))
-  for (const candidate of incoming) byId.set(candidate.id, candidate)
+  const byId = new Map(current.map((candidate) => [candidateMergeKey(candidate), candidate]))
+  for (const candidate of incoming) byId.set(candidateMergeKey(candidate), candidate)
   return [...byId.values()]
+}
+
+function candidateMergeKey(candidate: ContentCanvasCandidate): string {
+  return [
+    candidate.id,
+    candidate.resourceId ?? '',
+    candidate.artifactRef ?? '',
+    candidate.inputHash ?? '',
+    candidate.source ?? '',
+  ].join(':')
 }

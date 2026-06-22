@@ -95,13 +95,34 @@ export function createResourceNodes(candidateNode: ContentCanvasNode): ContentCa
   }]
 }
 
+export function createRawResourceReferenceNodes(resourceRefs: string[]): ContentCanvasNode[] {
+  return [...new Set(resourceRefs)]
+    .filter((resourceRef) => resourceRef.trim())
+    .map((resourceRef) => ({
+      id: `resource:${resourceRef}`,
+      entityKey: resourceRef,
+      kind: 'resource' as const,
+      title: `Resource ${resourceRef}`,
+      subtitle: '引用资源',
+      summary: '提示词直接引用的资源',
+      status: 'ready' as const,
+      metrics: [`Resource ${resourceRef}`],
+      sourcePath: '',
+      record: {
+        resourceId: numericResourceId(resourceRef),
+        resourceRef,
+        source: 'prompt_reference',
+      },
+      candidates: [],
+      position: { x: 0, y: 0 },
+    }))
+}
+
 export function candidateNodeIdFor(ownerNode: ContentCanvasNode, candidate: ContentCanvasCandidate) {
-  if (ownerNode.kind === 'asset') return `candidate:asset:${ownerNode.entityKey}:${candidate.id}`
   return `candidate:${ownerNode.entityKey}:${candidate.id}`
 }
 
 export function selectionNodeIdFor(ownerNode: ContentCanvasNode, candidate: ContentCanvasCandidate) {
-  if (ownerNode.kind === 'asset') return `selection:asset:${ownerNode.entityKey}:${candidate.id}`
   return `selection:${ownerNode.entityKey}:${candidate.id}`
 }
 
@@ -119,4 +140,8 @@ function resourceKeyForCandidateRecord(record: Record<string, unknown>): string 
   if (typeof record.resourceId === 'number') return String(record.resourceId)
   if (typeof record.artifactRef === 'string' && record.artifactRef.trim()) return record.artifactRef.trim()
   return undefined
+}
+
+function numericResourceId(resourceRef: string): number | undefined {
+  return /^\d+$/.test(resourceRef) ? Number(resourceRef) : undefined
 }

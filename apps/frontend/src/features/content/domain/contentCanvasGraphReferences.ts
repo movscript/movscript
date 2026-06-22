@@ -108,6 +108,19 @@ function appendSingleContentUnitReferences({
     nodeByEntityKindAndKey,
     nodeByPath,
   })
+  appendContentUnitReferenceSet({
+    refs: contentUnitRawResourceRefsForRecord(contentUnit.record),
+    targetKind: 'resource',
+    collectionSegment: 'resources',
+    edgeId: (target) => `${target.id}->${source.id}:resource-ref`,
+    edgeSource: (target) => target.id,
+    edgeTarget: () => source.id,
+    label: '资源',
+    relation: 'content_unit_resource',
+    edges,
+    nodeByEntityKindAndKey,
+    nodeByPath,
+  })
   for (const expressionRef of compactStrings(contentUnit.record.expression_unit_ref, contentUnit.record.expression_unit_refs, contentUnit.record.expression_ref, contentUnit.record.expression_refs)) {
     const target = referencedNodeFor('expression_unit', expressionRef, nodeByEntityKindAndKey, nodeByPath, 'expression_units')
     if (target) {
@@ -297,6 +310,10 @@ function compactStrings(...values: unknown[]): string[] {
   })
 }
 
+function stringValue(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
 function settingStateRefsForRecord(record: Record<string, unknown>): string[] {
   const refs = new Set<string>()
   for (const ref of compactStrings(record.setting_state_id, record.setting_state_ref, record.settingStateId, record.settingStateRef)) {
@@ -323,6 +340,67 @@ function expressionStoryboardRefs(record: Record<string, unknown>): string[] {
     span.to_storyboard_id,
     span.toStoryboardId,
   )
+}
+
+export function contentUnitRawResourceRefsForRecord(record: Record<string, unknown>): string[] {
+  const refs = new Set<string>()
+  for (const ref of compactStrings(
+    record.resource_ref,
+    record.resource_refs,
+    record.raw_resource_ref,
+    record.raw_resource_refs,
+    record.input_resource_id,
+    record.input_resource_ids,
+    record.reference_resource_id,
+    record.reference_resource_ids,
+    record.resource_id,
+    record.resource_ids,
+  )) refs.add(normalizeResourceRef(ref))
+  for (const ref of numericResourceRefs(
+    record.input_resource_id,
+    record.input_resource_ids,
+    record.reference_resource_id,
+    record.reference_resource_ids,
+    record.resource_id,
+    record.resource_ids,
+  )) refs.add(ref)
+
+  const prompt = record.edit_prompt ?? record.prompt
+  const promptText = stringValue(isRecord(prompt) ? prompt.text : prompt)
+  if (promptText) {
+    for (const ref of resourceRefsFromPrompt(promptText)) refs.add(ref)
+  }
+  return [...refs].filter(Boolean)
+}
+
+function resourceRefsFromPrompt(text: string): string[] {
+  const refs = new Set<string>()
+  const patterns = [
+    /\{\{\s*resource(?:::|:)\s*([^}\s]+)\s*\}\}/gi,
+    /\[\[\s*resource(?:::|:)\s*([^\]\s]+)\s*\]\]/gi,
+    /@\[resource:\s*([^\]\s]+)\s*\]/gi,
+  ]
+  for (const pattern of patterns) {
+    for (const match of text.matchAll(pattern)) {
+      const ref = normalizeResourceRef(match[1] ?? '')
+      if (ref) refs.add(ref)
+    }
+  }
+  return [...refs]
+}
+
+function normalizeResourceRef(ref: string): string {
+  return ref.trim().replace(/^resource(?:::|:)/i, '')
+}
+
+function numericResourceRefs(...values: unknown[]): string[] {
+  return values.flatMap((value) => {
+    if (typeof value === 'number' && Number.isFinite(value)) return [String(value)]
+    if (Array.isArray(value)) {
+      return value.flatMap((item) => typeof item === 'number' && Number.isFinite(item) ? [String(item)] : [])
+    }
+    return []
+  })
 }
 
 function pathSegmentAfter(path: string | undefined, segment: string): string | undefined {

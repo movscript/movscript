@@ -1,4 +1,4 @@
-import type { ContentCanvasGraph, ContentCanvasNode } from '../domain/contentCanvasTypes'
+import type { ContentCanvasWorkspaceSnapshot, ContentCanvasNode } from '../domain/contentCanvasTypes'
 
 export type ContentCanvasLayoutSource = 'initial' | 'manual' | 'suggested' | 'imported'
 
@@ -85,7 +85,7 @@ const CONTENT_CANVAS_ARRANGE_KIND_ORDER: Record<ContentCanvasNode['kind'], numbe
 }
 
 export function createContentCanvasLayoutFromGraph(
-  graph: ContentCanvasGraph,
+  graph: ContentCanvasWorkspaceSnapshot,
   previousLayouts: Record<string, ContentCanvasNodeLayout> = {},
 ): Record<string, ContentCanvasNodeLayout> {
   const nextLayouts: Record<string, ContentCanvasNodeLayout> = { ...previousLayouts }
@@ -186,7 +186,7 @@ export function contentCanvasChangedPositionPatches(
 }
 
 export function arrangeContentCanvasNodeLayouts(
-  graph: ContentCanvasGraph,
+  graph: ContentCanvasWorkspaceSnapshot,
   layouts: Record<string, ContentCanvasNodeLayout>,
   nodeIds: string[],
   options: { origin?: { x: number; y: number }; updatedAt?: string } = {},

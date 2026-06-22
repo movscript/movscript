@@ -1,6 +1,6 @@
-import type { ContentCanvasEdge, ContentCanvasGraph, ContentCanvasNode } from '../domain/contentCanvasTypes'
+import type { ContentCanvasEdge, ContentCanvasWorkspaceSnapshot, ContentCanvasNode } from '../domain/contentCanvasTypes'
 
-export function relatedEdgesForNode(graph: ContentCanvasGraph, nodeId: string): ContentCanvasEdge[] {
+export function relatedEdgesForNode(graph: ContentCanvasWorkspaceSnapshot, nodeId: string): ContentCanvasEdge[] {
   const indexes = graph.indexes
   if (!indexes) return graph.edges.filter((edge) => edge.source === nodeId || edge.target === nodeId)
   const edgeIds = new Set([
@@ -13,7 +13,7 @@ export function relatedEdgesForNode(graph: ContentCanvasGraph, nodeId: string): 
   })
 }
 
-export function outgoingEdgesForNode(graph: ContentCanvasGraph, nodeId: string): ContentCanvasEdge[] {
+export function outgoingEdgesForNode(graph: ContentCanvasWorkspaceSnapshot, nodeId: string): ContentCanvasEdge[] {
   const indexes = graph.indexes
   if (!indexes) return graph.edges.filter((edge) => edge.source === nodeId)
   return (indexes.downstreamEdgeIdsByNodeId[nodeId] ?? []).flatMap((edgeId) => {
@@ -22,6 +22,6 @@ export function outgoingEdgesForNode(graph: ContentCanvasGraph, nodeId: string):
   })
 }
 
-export function nodeById(graph: ContentCanvasGraph, nodeId: string): ContentCanvasNode | undefined {
+export function nodeById(graph: ContentCanvasWorkspaceSnapshot, nodeId: string): ContentCanvasNode | undefined {
   return graph.indexes?.nodeById[nodeId] ?? graph.nodes.find((node) => node.id === nodeId)
 }

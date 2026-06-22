@@ -90,6 +90,46 @@ export async function updateCanvasNodeBasics(
   }
 }
 
+export async function deleteContentCanvasNode(
+  projectId: number,
+  node: ContentCanvasNode,
+  gateway: ContentCanvasWorkspaceGateway,
+): Promise<ContentCanvasCommandResult> {
+  void projectId
+  if (!contentCanvasNodeCanDelete(node)) {
+    throw new Error('当前节点不支持从画布删除')
+  }
+  if (!node.sourcePath) {
+    throw new Error('当前节点缺少 workspace 路径，无法删除')
+  }
+  await gateway.deleteEntity({
+    entity: {
+      path: node.sourcePath,
+      record: node.record,
+    },
+  })
+  return {
+    changedNodeIds: [node.id],
+    affectedNodeIds: [node.id],
+    message: `已删除「${node.title}」`,
+  }
+}
+
+export function contentCanvasNodeCanDelete(node: ContentCanvasNode | undefined): boolean {
+  if (!node?.sourcePath) return false
+  return node.kind === 'production'
+    || node.kind === 'segment'
+    || node.kind === 'scene_moment'
+    || node.kind === 'expression_unit'
+    || node.kind === 'keyframe'
+    || node.kind === 'storyboard'
+    || node.kind === 'audio_cue'
+    || node.kind === 'content_unit'
+    || node.kind === 'setting'
+    || node.kind === 'state'
+    || node.kind === 'asset'
+}
+
 export async function connectSceneMomentSettingFromCanvas(
   projectId: number,
   sceneMomentNode: ContentCanvasNode,

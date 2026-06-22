@@ -23,6 +23,18 @@ export function isGenerationSubmitTool(toolName: string): boolean {
     || normalized === 'generation_content_unit_video_generate'
     || normalized === 'system_generate_content_unit_video'
     || normalized === 'generation_audio_generate'
+    || normalized === 'generation_voiceover_generate'
+    || normalized === 'system_generate_voiceover'
+    || normalized === 'generation_music_generate'
+    || normalized === 'system_generate_music'
+    || normalized === 'generation_sfx_generate'
+    || normalized === 'system_generate_sfx'
+    || normalized === 'generation_subtitle_generate'
+    || normalized === 'system_generate_subtitle'
+    || normalized === 'generation_subtitle_align'
+    || normalized === 'system_align_subtitle'
+    || normalized === 'generation_subtitle_translate'
+    || normalized === 'system_translate_subtitle'
     || normalized === 'generation_job_create'
 }
 
@@ -175,7 +187,7 @@ export function resourceVideoCompatibilityDescription(toolName: string): string 
 }
 
 export function workToolTitle(toolName: string): string {
-  if (toolName === 'core_work_wait') return '观察异步任务'
-  if (toolName === 'core_work_cancel') return '取消异步任务'
-  return '查看异步任务'
+  if (toolName === 'core_work_wait') return '观察旧异步任务'
+  if (toolName === 'core_work_cancel') return '取消旧异步任务'
+  return '查看旧异步任务'
 }
