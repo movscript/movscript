@@ -911,14 +911,43 @@ export function patchDmgBuilderAPFSAliasCompatibility(root = repoRoot, log = con
 
 export function verifyMacOSDMGArtifacts(root = repoRoot, options = {}) {
   const {
+    arch = process.arch,
     env = process.env,
     log = console.log,
     spawn = spawnSync,
   } = options
   const releaseDir = resolve(root, 'apps/frontend/release')
+  const appDir = macAppDirForArch(root, arch)
+  verifyMacOSAppSignature(root, appDir, { env, log, spawn })
   const dmgPath = latestDMG(releaseDir)
   runCheckedTool('Verify DMG checksum', 'hdiutil', ['verify', dmgPath], { cwd: root, log, spawn })
-  verifyMountedDMG(root, dmgPath, { env, log, spawn })
+  verifyMountedDMG(root, dmgPath, { log, spawn })
+}
+
+function verifyMacOSAppSignature(root, appDir, options = {}) {
+  const {
+    env = process.env,
+    log = console.log,
+    spawn = spawnSync,
+  } = options
+  if (env.MOVSCRIPT_RELEASE_SIGNING_MODE === 'signed') {
+    runCheckedTool('Verify packaged app Gatekeeper acceptance', 'spctl', [
+      '-a',
+      '-vv',
+      '--type',
+      'execute',
+      appDir,
+    ], { cwd: root, log, spawn })
+    runCheckedTool('Validate packaged app notarization ticket', 'xcrun', ['stapler', 'validate', appDir], { cwd: root, log, spawn })
+    return
+  }
+  runCheckedTool('Verify packaged app code signature', 'codesign', [
+    '--verify',
+    '--deep',
+    '--strict',
+    '--verbose=2',
+    appDir,
+  ], { cwd: root, log, spawn })
 }
 
 function resolveDmgBuilderCorePath(root) {
@@ -940,7 +969,6 @@ function latestDMG(directory) {
 
 function verifyMountedDMG(root, dmgPath, options = {}) {
   const {
-    env = process.env,
     log = console.log,
     spawn = spawnSync,
   } = options
@@ -958,14 +986,6 @@ function verifyMountedDMG(root, dmgPath, options = {}) {
     ], { cwd: root, log, spawn })
     attached = true
     const mountedApp = resolve(mountPoint, 'Movscript.app')
-    runCheckedTool('Verify mounted app Gatekeeper acceptance', 'spctl', [
-      '-a',
-      '-vv',
-      '--type',
-      'execute',
-      mountedApp,
-    ], { cwd: root, log, spawn })
-    runCheckedTool('Validate mounted app notarization ticket', 'xcrun', ['stapler', 'validate', mountedApp], { cwd: root, log, spawn })
     const mountedIcon = resolve(mountedApp, 'Contents/Resources/icon.icns')
     const expectedIconHash = sha256File(iconPath)
     const mountedIconHash = sha256File(mountedIcon)
