@@ -177,9 +177,24 @@
     "newProject": "New Project"
   },
   "onboarding": {
-    "title": "Choose How to Use Movscript",
-    "description": "Choose where your data and services run. You can change the connection later in App Settings.",
+    "title": "Choose Workspace",
+    "description": "Choose a local workspace or cloud service. You can switch later in Settings.",
+    "advanced": "MovScript Home",
     "localFailed": "Failed to create local workspace",
+    "localPreparing": "Preparing local workspace...",
+    "localTimeout": "Preparing the local workspace timed out. Retry, or switch to cloud service.",
+    "localAuthTimeout": "Creating the local session timed out. Please retry.",
+    "cloudPreparing": "Connecting to cloud service...",
+    "cloudTimeout": "Cloud connection timed out. Check the service URL and retry.",
+    "modeSwitchFailed": "Failed to switch mode",
+    "localPreparationStages": {
+      "saving": "Saving local workspace settings",
+      "starting": "Starting local backend service",
+      "database": "Initializing the SQLite database",
+      "storage": "Preparing local file storage",
+      "auth": "Creating local session",
+      "entering": "Waiting for the service to become ready"
+    },
     "workMode": {
       "title": "Choose a Work Mode First",
       "description": "Pick the entry point that fits how you work. You can still adjust the default entry in App Settings later.",
@@ -191,14 +206,19 @@
       "switchHint": "After you enter a project, you can still adjust the default entry in App Settings."
     },
     "local": {
-      "title": "Use Locally",
-      "description": "Keep data on this computer. Best for personal projects and your own model API keys.",
-      "action": "Start on this computer"
+      "title": "Local Workspace",
+      "description": "Keep data on this computer. Best for personal creation.",
+      "action": "Choose",
+      "selected": "Continue",
+      "confirm": "Enter local workspace"
     },
     "cloud": {
       "title": "Cloud Service",
-      "description": "Connect to Movscript Cloud or a team service for sync, collaboration, and cloud capabilities.",
-      "action": "Log in to cloud"
+      "description": "Connect to MovScript Cloud or a team service.",
+      "action": "Log in to cloud",
+      "configure": "Set up",
+      "selected": "Continue",
+      "confirm": "Confirm"
     },
     "localIdentity": {
       "title": "Your Local Identity",
@@ -212,14 +232,20 @@
       "create": "Create local workspace"
     },
     "cloudConnect": {
-      "title": "Connect to Cloud",
-      "description": "Use Movscript Cloud or your team service URL.",
+      "title": "Cloud URL",
+      "description": "Use MovScript Cloud by default, or enter your team service URL.",
       "continue": "Continue to login"
     }
   },
   "appSettings": {
     "title": "App Settings",
     "description": "Configure how this client starts and which service it connects to. This is stored locally and can be changed before sign-in.",
+    "switchModeTitle": "Switch Mode",
+    "switchModeHint": "Switch between the local workspace and cloud service. The app returns home and enters the selected mode.",
+    "switchToLocal": "Switch to local workspace",
+    "switchToCloud": "Switch to cloud service",
+    "switchedToCloud": "Switched to cloud service",
+    "switchedToLocal": "Switched to local workspace",
     "launchMode": "Launch mode",
     "launchModeTitle": "Launch Mode",
     "launchModeHint": "Local launch requests system admin initialization during registration. Cloud launch only connects to the remote service.",
@@ -293,8 +319,16 @@
   "backendBoot": {
     "startingTitle": "Starting local workspace",
     "startingDescription": "Preparing the frontend-managed backend, SQLite database, and local file storage.",
+    "progressLabel": "Preparation progress",
+    "progressStages": {
+      "launching": "Starting local backend service",
+      "database": "Checking the SQLite database",
+      "storage": "Preparing local file storage",
+      "health": "Waiting for health check"
+    },
     "errorTitle": "Local backend failed to start",
     "errorDescription": "Check the backend logs and try switching modes from App Settings.",
+    "timeoutDescription": "Timed out waiting for the local backend at {{url}}. Retry, or switch modes from App Settings.",
     "logFile": "Log file",
     "recentOutput": "Recent output",
     "retry": "Retry Start",

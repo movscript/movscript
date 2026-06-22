@@ -1,6 +1,6 @@
-import { useMemo, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowRight, Bot, Database, FolderOpen, LayoutGrid, Loader2, Plus, Scissors, Sparkles, Wrench, X } from 'lucide-react'
+import { ArrowRight, Bot, Database, Download, FolderOpen, LayoutGrid, Loader2, Plus, Scissors, Sparkles, Wrench, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 
@@ -31,6 +31,8 @@ export default function GlobalHomePage() {
   const openProjectDialog = useAppShellDialogStore((s) => s.openProjectDialog)
   const agentAvailability = useAgentAvailabilityGuard()
   const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
+  const [codexPluginInstalling, setCodexPluginInstalling] = useState(false)
+  const [codexPluginError, setCodexPluginError] = useState<string | null>(null)
 
   const projectsQuery = useQuery<Project[]>({
     queryKey: projectKeys.list(currentOrgID),
@@ -59,6 +61,23 @@ export default function GlobalHomePage() {
       setWorkMode('agent')
       void openAgentWindow()
     })
+  }
+
+  async function installMovScriptIntoCodex() {
+    const electronApi = readElectronApi()
+    if (!electronApi?.installMovScriptCodexPlugin) {
+      setCodexPluginError(t('home.codexPlugin.installUnavailable', { defaultValue: '当前环境不支持自动安装 Codex 插件。' }))
+      return
+    }
+    setCodexPluginInstalling(true)
+    setCodexPluginError(null)
+    try {
+      await electronApi.installMovScriptCodexPlugin()
+    } catch (error) {
+      setCodexPluginError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setCodexPluginInstalling(false)
+    }
   }
 
   async function enterProject(project: Project) {
@@ -105,7 +124,7 @@ export default function GlobalHomePage() {
 
   return (
     <>
-    <main className="mx-auto flex h-full w-full max-w-[760px] flex-col gap-4 overflow-y-auto px-5 py-5">
+    <main className="mx-auto flex min-h-full w-full max-w-[760px] flex-col gap-4 overflow-y-auto px-5 py-5">
       <header className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-background text-foreground shadow-sm">
@@ -126,28 +145,81 @@ export default function GlobalHomePage() {
         ) : null}
       </header>
 
-      <section className="grid min-h-0 flex-1 gap-3 sm:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-        <button
-          type="button"
-          onClick={enterAgentMode}
-          className="group flex min-h-[172px] flex-col justify-between rounded-lg border border-border bg-background p-4 text-left shadow-sm transition hover:border-foreground/30 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <span className="flex items-start justify-between gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-muted text-foreground">
-              <Bot size={20} />
+      <section className="grid gap-3 sm:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+        <section className="flex min-h-[300px] flex-col gap-3">
+          <button
+            type="button"
+            onClick={enterAgentMode}
+            disabled={!agentAvailability.hasEnabledAgent}
+            className="group flex min-h-[150px] flex-1 flex-col justify-between rounded-lg border border-border bg-background p-4 text-left shadow-sm transition hover:border-foreground/30 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:border-border disabled:bg-muted/30 disabled:text-muted-foreground disabled:opacity-70 disabled:hover:bg-muted/30"
+          >
+            <span className="flex items-start justify-between gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-muted text-foreground">
+                <Bot size={20} />
+              </span>
+              {agentAvailability.checking ? (
+                <Loader2 size={17} className="shrink-0 animate-spin text-muted-foreground" />
+              ) : (
+                <ArrowRight size={17} className="shrink-0 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-foreground" />
+              )}
             </span>
-            <ArrowRight size={17} className="shrink-0 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-foreground" />
-          </span>
-          <span className="mt-5 block min-w-0">
-            <span className="block type-caption font-medium text-muted-foreground">Primary</span>
-            <span className="mt-1 block text-[26px] font-semibold leading-8 text-foreground">Agent</span>
-            <span className="mt-2 block type-label leading-5 text-muted-foreground">
-              {t('home.mode.agent', { defaultValue: '把注意力交给 Agent 的工作流、计划、产物和执行状态。' })}
+            <span className="mt-5 block min-w-0">
+              <span className="block type-caption font-medium text-muted-foreground">
+                {agentAvailability.hasEnabledAgent
+                  ? 'Primary'
+                  : agentAvailability.checking
+                    ? t('home.agent.checking', { defaultValue: '检查 Agent 状态' })
+                    : t('home.agent.setupRequired', { defaultValue: '需要先设置 Agent' })}
+              </span>
+              <span className="mt-1 block text-[26px] font-semibold leading-8 text-foreground">Agent</span>
+              <span className="mt-2 block type-label leading-5 text-muted-foreground">
+                {agentAvailability.hasEnabledAgent
+                  ? t('home.mode.agent', { defaultValue: '把注意力交给 Agent 的工作流、计划、产物和执行状态。' })
+                  : t('home.agent.disabledHint', { defaultValue: '请先安装并启用至少一个 Agent runtime，然后再进入 Agent 工作区。' })}
+              </span>
             </span>
-          </span>
-        </button>
+          </button>
 
-        <section className="flex min-h-[260px] flex-col rounded-lg border border-border bg-background p-3 shadow-sm">
+          {!agentAvailability.hasEnabledAgent && !agentAvailability.checking ? (
+            <button
+              type="button"
+              onClick={() => navigate(ROUTES.agentConsole)}
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 type-label font-medium text-foreground shadow-sm transition hover:border-foreground/25 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <Bot size={14} />
+              {t('agents.availability.goToAgentConsole', { defaultValue: '前往 Agent 控制台' })}
+            </button>
+          ) : null}
+
+          <button
+            type="button"
+            onClick={() => void installMovScriptIntoCodex()}
+            disabled={codexPluginInstalling}
+            className="group flex min-h-[92px] items-center justify-between gap-3 rounded-lg border border-border bg-background p-3 text-left shadow-sm transition hover:border-foreground/30 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait disabled:opacity-75"
+          >
+            <span className="flex min-w-0 items-center gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-muted text-foreground">
+                {codexPluginInstalling ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+              </span>
+              <span className="min-w-0">
+                <span className="block type-body font-semibold text-foreground">
+                  {t('home.codexPlugin.title', { defaultValue: '安装到 Codex' })}
+                </span>
+                <span className="mt-1 line-clamp-2 block type-caption leading-4 text-muted-foreground">
+                  {codexPluginInstalling
+                    ? t('home.codexPlugin.installing', { defaultValue: '正在安装 MovScript Codex 插件...' })
+                    : t('home.codexPlugin.description', { defaultValue: '让 Codex 线程直接使用 MovScript 插件能力。' })}
+                </span>
+                {codexPluginError ? (
+                  <span className="mt-1 line-clamp-1 block type-caption text-destructive">{codexPluginError}</span>
+                ) : null}
+              </span>
+            </span>
+            <ArrowRight size={14} className="shrink-0 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-foreground" />
+          </button>
+        </section>
+
+        <section className="flex min-h-[300px] flex-col rounded-lg border border-border bg-background p-3 shadow-sm">
           <div className="flex items-center justify-between gap-3 px-1">
             <div className="flex min-w-0 items-center gap-2">
               <FolderOpen size={15} className="shrink-0 text-muted-foreground" />

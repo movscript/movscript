@@ -27,16 +27,21 @@ export function registerSettingsIpcHandlers(deps: SettingsIpcDependencies): void
       writeAppSettingsSecretsFromSettings(movScriptHomeDir, settings)
       broadcastAppSettingsUpdated(settings)
     }
-    if (settings?.launchMode === 'local') {
+    if (!settings?.onboardingCompleted) {
+      return
+    }
+    if (settings.launchMode === 'local') {
       deps.broadcastBackendStatus({ state: 'starting', baseURL: LOCAL_BACKEND_URL })
       await startBackend('spawn', deps.broadcastBackendStatus)
-    } else if (settings?.launchMode === 'cloud') {
+    } else if (settings.launchMode === 'cloud') {
       await stopBackend(deps.broadcastBackendStatus, { terminate: true })
     }
-    if (!settings?.apiBaseURL) return
+    if (!settings.apiBaseURL) return
     setMovScriptBackendAPIBaseURL(settings.apiBaseURL)
     writeMovScriptBackendConfig(movScriptHomeDir, { baseURL: settings.apiBaseURL })
-    await deps.ensureMCPServerReady()
+    void deps.ensureMCPServerReady().catch((error) => {
+      console.warn('[settings] failed to prepare MCP server after settings update', error)
+    })
   })
   ipcMain.handle('app:get-settings', () => {
     return readDesktopAppSettings(resolveDesktopDefaultMovScriptWorkspaceDir())

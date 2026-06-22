@@ -73,6 +73,23 @@
   padding: var(--ms-space-3);
 }
 
+.app-settings-choice-tile__copy {
+  display: block;
+}
+
+.app-settings-choice-tile__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--ms-space-2);
+  color: var(--ms-color-muted-foreground);
+}
+
+.app-settings-choice-tile__icon svg {
+  width: 16px;
+  height: 16px;
+}
+
 .app-settings-choice-tile__title {
   display: flex;
   align-items: center;
@@ -88,6 +105,15 @@
   margin-top: var(--ms-space-1);
   color: var(--ms-color-muted-foreground);
   font-size: var(--app-settings-choice-detail-font-size, var(--ms-text-label));
+  line-height: var(--ms-leading-label);
+}
+
+.app-settings-choice-tile__footer {
+  display: block;
+  margin-top: var(--ms-space-3);
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-label);
+  font-weight: 500;
   line-height: var(--ms-leading-label);
 }
 
@@ -165,6 +191,24 @@
 
 .app-settings-footer-text {
   text-align: center;
+}
+
+.app-settings-advanced {
+  display: grid;
+  gap: var(--ms-space-3);
+}
+
+.app-settings-advanced > summary {
+  cursor: pointer;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  font-weight: 500;
+  line-height: var(--ms-leading-label);
+}
+
+.app-settings-advanced[open] > summary {
+  margin-bottom: var(--ms-space-3);
+  color: var(--ms-color-foreground);
 }
 
 @media (min-width: 640px) {

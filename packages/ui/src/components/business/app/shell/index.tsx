@@ -42,6 +42,7 @@ export function AppBackendBootOverlay({
   title,
   description,
   baseURL,
+  progress,
   details,
   actions,
   className,
@@ -51,6 +52,7 @@ export function AppBackendBootOverlay({
   title: ReactNode;
   description: ReactNode;
   baseURL: ReactNode;
+  progress?: ReactNode;
   details?: ReactNode;
   actions?: ReactNode;
 }) {
@@ -65,6 +67,7 @@ export function AppBackendBootOverlay({
         <AppInlineMeta className="app-backend-boot-card__meta">
           {baseURL}
         </AppInlineMeta>
+        {progress ? <div className="app-backend-boot-card__progress">{progress}</div> : null}
         {details ? <div className="app-backend-boot-card__details">{details}</div> : null}
         {actions ? <div className="ms-action-row app-backend-boot-card__actions">{actions}</div> : null}
       </AppSurfaceItem>

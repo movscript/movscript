@@ -26,6 +26,9 @@ export function normalizeAgentWorkspaceContext(
     }
   }
   const projectId = positiveInteger(context?.projectId)
+  if (lockedProject?.ID && (projectId === undefined || projectId === lockedProject.ID)) {
+    return agentWorkspaceContextFromProject(lockedProject)
+  }
   if ((context?.scope === 'project' || projectId !== undefined) && projectId !== undefined) {
     return {
       scope: 'project',

@@ -8,6 +8,7 @@ import {
   LOCAL_BACKEND_URL,
   startBackend,
 } from '../services/backend'
+import { readDesktopAppSettings } from '../services/appSettings'
 import {
   formatDesktopRuntimePreflightFailure,
   prepareDesktopRuntimeDependencies,
@@ -34,16 +35,23 @@ async function bootstrapBackendServices(policy: ReturnType<typeof getBackendLaun
 export async function bootstrapManagedServicesBeforeWindow(): Promise<void> {
   const workspaceDir = resolveDesktopDefaultMovScriptWorkspaceDir()
   const homeConfig = readMovScriptHomeConfig(resolveMovScriptHomeConfigPaths(workspaceDir).configPath)
+  const appSettings = readDesktopAppSettings(workspaceDir)
+  const shouldStartLocalBackend = appSettings?.onboardingCompleted === true && appSettings.launchMode === 'local'
   const policy = getBackendLaunchPolicy({ workspaceDir })
   const runtime = prepareDesktopRuntimeDependencies({
     workspaceDir,
-    requireMovScriptServer: policy === 'spawn',
+    requireMovScriptServer: shouldStartLocalBackend && policy === 'spawn',
     requireMovcli: true,
   })
   if (!runtime.preflight.ok) {
     throw new Error(`MovScript runtime dependency check failed:\n${formatDesktopRuntimePreflightFailure(runtime.preflight)}`)
   }
-  await bootstrapBackendServices(policy)
+  if (shouldStartLocalBackend) {
+    await bootstrapBackendServices(policy)
+  } else {
+    console.info('[bootstrap] local backend deferred until local launch mode is selected')
+    if (appSettings?.apiBaseURL) setMovScriptBackendAPIBaseURL(appSettings.apiBaseURL)
+  }
   await ensureMCPServerReady()
   console.info(`[bootstrap] agent policy=${homeConfig.startup.agentPolicy}; agent runtimes initialize on demand`)
 }

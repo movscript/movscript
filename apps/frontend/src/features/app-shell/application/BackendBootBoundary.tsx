@@ -9,39 +9,120 @@ import i18n from '@/i18n'
 import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
 import { useSystemStatusStore } from '@/shared/infrastructure/systemStatusStore'
 
+const BACKEND_BOOT_OVERLAY_TIMEOUT_MS = 35_000
+type BackendBootProgressStage = 'launching' | 'database' | 'storage' | 'health'
+
 export function BackendBootBoundary() {
   const { pathname } = useLocation()
   const settings = useAppSettingsStore((s) => s.settings)
   const [status, setStatus] = useState<BackendBootStatus | null>(null)
   const [retrying, setRetrying] = useState(false)
+  const [startedAt, setStartedAt] = useState<number | null>(null)
+  const [progressTick, setProgressTick] = useState(0)
   const setBackendStatus = useSystemStatusStore((state) => state.setBackendStatus)
 
   useEffect(() => {
     let disposed = false
-    if (!canManageLocalBackend()) {
-      updateBackendStatus({ state: 'starting', baseURL: settings.apiBaseURL })
-      void probeLocalBackendStatus(settings.apiBaseURL).then((next) => {
-        if (!disposed) updateBackendStatus(next)
-      })
+    let timeout: number | undefined
+    const shouldStartLocalBackend = settings.launchMode === 'local' && settings.onboardingCompleted
+
+    if (!shouldStartLocalBackend) {
+      setStatus(null)
+      setStartedAt(null)
       return () => {
         disposed = true
       }
     }
 
+    setStartedAt(Date.now())
+    setProgressTick(0)
+
+    const updateIfLive = (next: BackendBootStatus) => {
+      if (!disposed) updateBackendStatus(next)
+    }
+
+    const installTimeout = () => {
+      window.clearTimeout(timeout)
+      timeout = window.setTimeout(async () => {
+        if (disposed) return
+        const probed = await probeLocalBackendStatus(settings.apiBaseURL)
+        if (probed.state === 'ready') {
+          updateIfLive(probed)
+          return
+        }
+        const next = await readElectronApi()?.getBackendStatus?.().catch(() => null)
+        if (isBackendBootStatus(next)) {
+          if (next.state === 'ready' || next.state === 'error') {
+            updateIfLive(next)
+            return
+          }
+        }
+        updateIfLive({
+          state: 'error',
+          baseURL: settings.apiBaseURL,
+          message: i18n.t('backendBoot.timeoutDescription', { url: settings.apiBaseURL }),
+        })
+      }, BACKEND_BOOT_OVERLAY_TIMEOUT_MS)
+    }
+
+    if (!canManageLocalBackend()) {
+      updateBackendStatus({ state: 'starting', baseURL: settings.apiBaseURL })
+      installTimeout()
+      void probeLocalBackendStatus(settings.apiBaseURL).then((next) => {
+        updateIfLive(next)
+      })
+      return () => {
+        disposed = true
+        window.clearTimeout(timeout)
+      }
+    }
+
     const off = readElectronApi()?.onBackendStatus?.((next) => {
-      if (isBackendBootStatus(next)) updateBackendStatus(next)
+      if (!isBackendBootStatus(next)) return
+      updateIfLive(next)
+      if (next.state === 'starting' || next.state === 'idle' || next.state === 'stopped') {
+        void probeLocalBackendStatus(settings.apiBaseURL).then((probed) => {
+          if (probed.state === 'ready') updateIfLive(probed)
+        })
+      }
     })
     void readElectronApi()?.getBackendStatus?.().then((next) => {
       if (!disposed && isBackendBootStatus(next)) updateBackendStatus(next)
+      if (isBackendBootStatus(next) && (next.state === 'ready' || next.state === 'error')) return
+      void probeLocalBackendStatus(settings.apiBaseURL).then((probed) => {
+        if (probed.state === 'ready') updateIfLive(probed)
+      })
+      updateIfLive({ state: 'starting', baseURL: settings.apiBaseURL, message: i18n.t('backendBoot.startingDescription') })
+      installTimeout()
+      void readElectronApi()?.setAppSettings?.(settings)
+        .then(async () => {
+          const afterStart = await readElectronApi()?.getBackendStatus?.().catch(() => null)
+          if (isBackendBootStatus(afterStart)) updateIfLive(afterStart)
+        })
+        .catch((error) => {
+          updateIfLive({
+            state: 'error',
+            baseURL: settings.apiBaseURL,
+            message: error instanceof Error ? error.message : String(error),
+          })
+        })
     }).catch(() => {})
     return () => {
       disposed = true
+      window.clearTimeout(timeout)
       off?.()
     }
-  }, [settings.apiBaseURL, setBackendStatus])
+  }, [settings, settings.apiBaseURL, settings.launchMode, settings.onboardingCompleted, setBackendStatus])
+
+  useEffect(() => {
+    if (!startedAt || status?.state === 'ready' || status?.state === 'error') return
+    const timer = window.setInterval(() => setProgressTick((current) => current + 1), 500)
+    return () => window.clearInterval(timer)
+  }, [startedAt, status?.state])
 
   const isRecoveryRoute = pathname === ROUTES.appSettings
 
+  if (!settings.onboardingCompleted) return null
   if (settings.launchMode !== 'local' || isRecoveryRoute) return null
   if (status?.state === 'ready') return null
 
@@ -54,6 +135,9 @@ export function BackendBootBoundary() {
     ? firstLine(displayStatus.message) || i18n.t('backendBoot.errorDescription')
     : i18n.t('backendBoot.startingDescription')
   const errorDetails = isError ? backendBootErrorDetails(displayStatus) : null
+  const elapsedMs = startedAt ? Date.now() - startedAt + progressTick * 0 : 0
+  const progressPercent = backendBootProgress(elapsedMs)
+  const progressStage = backendBootProgressStage(elapsedMs)
   async function retryLocalBackend() {
     setRetrying(true)
     updateBackendStatus({ state: 'starting', baseURL: settings.apiBaseURL })
@@ -88,6 +172,13 @@ export function BackendBootBoundary() {
       title={isError ? i18n.t('backendBoot.errorTitle') : i18n.t('backendBoot.startingTitle')}
       description={errorDescription}
       baseURL={displayStatus.baseURL}
+      progress={!isError ? (
+        <BackendBootProgress
+          percent={progressPercent}
+          label={i18n.t('backendBoot.progressLabel')}
+          stage={i18n.t(`backendBoot.progressStages.${progressStage}`)}
+        />
+      ) : undefined}
       details={errorDetails}
       actions={isError ? (
         <>
@@ -108,6 +199,41 @@ export function BackendBootBoundary() {
       ) : null}
     />
   )
+}
+
+function BackendBootProgress({
+  percent,
+  label,
+  stage,
+}: {
+  percent: number
+  label: string
+  stage: string
+}) {
+  return (
+    <div className="app-backend-boot-progress" role="status" aria-live="polite">
+      <div className="app-backend-boot-progress__header">
+        <span>{label}</span>
+        <span>{Math.round(percent)}%</span>
+      </div>
+      <div className="app-backend-boot-progress__track">
+        <div className="app-backend-boot-progress__bar" style={{ width: `${percent}%` }} />
+      </div>
+      <p className="app-backend-boot-progress__stage">{stage}</p>
+    </div>
+  )
+}
+
+function backendBootProgress(elapsedMs: number): number {
+  if (elapsedMs <= 0) return 10
+  return Math.min(94, 10 + (elapsedMs / BACKEND_BOOT_OVERLAY_TIMEOUT_MS) * 84)
+}
+
+function backendBootProgressStage(elapsedMs: number): BackendBootProgressStage {
+  if (elapsedMs < 6_000) return 'launching'
+  if (elapsedMs < 14_000) return 'database'
+  if (elapsedMs < 24_000) return 'storage'
+  return 'health'
 }
 
 function firstLine(value: string | undefined): string {

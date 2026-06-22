@@ -157,6 +157,10 @@ export type ElectronWindowState = {
 export type ElectronAppUpdateStatus = {
   available: boolean
   checking: boolean
+  downloading?: boolean
+  downloaded?: boolean
+  installing?: boolean
+  downloadProgress?: number
   currentVersion: string
   latestVersion?: string
   downloadUrl?: string
@@ -164,6 +168,12 @@ export type ElectronAppUpdateStatus = {
   releaseNotes?: string
   channel?: string
   mandatory?: boolean
+  policy?: 'optional' | 'required'
+  severity?: 'normal' | 'security' | 'data-loss' | 'startup-blocker'
+  minSupportedVersion?: string
+  deadlineAt?: string
+  policyTitle?: string
+  policyMessage?: string
   checkedAt?: string
   error?: string
 }

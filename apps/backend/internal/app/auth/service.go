@@ -219,6 +219,29 @@ func (s *Service) LocalBootstrap(ctx context.Context, input LocalBootstrapInput)
 	return s.repo.CreateUser(ctx, &u)
 }
 
+func (s *Service) EnsureLocalSuperAdmin(ctx context.Context, displayName string) (domainauth.UserProfile, error) {
+	if !s.localAppMode {
+		return domainauth.UserProfile{}, ErrInvalidInput
+	}
+	if admin, err := s.repo.FindSuperAdmin(ctx); err == nil {
+		return domainauth.UserProfileFromRegisteredUser(admin), nil
+	} else if !errors.Is(err, ErrNotFound) {
+		return domainauth.UserProfile{}, err
+	}
+
+	displayName = strings.TrimSpace(displayName)
+	if displayName == "" {
+		displayName = "Local Workspace"
+	}
+	username, err := s.repo.FindAvailableUsername(ctx, localUsername(displayName))
+	if err != nil {
+		return domainauth.UserProfile{}, err
+	}
+	u := domainauth.NewRegisteredUser(username, "", "", true, nil)
+	u.DisplayName = displayName
+	return s.repo.CreateUser(ctx, &u)
+}
+
 func localUsername(displayName string) string {
 	base := strings.ToLower(strings.TrimSpace(displayName))
 	var b strings.Builder

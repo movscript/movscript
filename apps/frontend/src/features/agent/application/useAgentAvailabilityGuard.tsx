@@ -80,6 +80,7 @@ export function useAgentAvailabilityGuard() {
   )
 
   return {
+    checking: availabilityQuery.isLoading || availabilityQuery.isFetching,
     hasEnabledAgent,
     runOrPrompt,
     dialog,

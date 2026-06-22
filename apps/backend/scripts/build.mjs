@@ -1,7 +1,7 @@
 import { rmSync, cpSync, existsSync, mkdirSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
-import { resolve } from 'node:path'
+import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const repoRoot = resolve(import.meta.dirname, '../../..')
@@ -83,6 +83,7 @@ export function copyAdminAssets(root = repoRoot) {
     throw new Error(`admin build output does not exist: ${source}`)
   }
 
+  mkdirSync(dirname(target), { recursive: true })
   rmSync(target, { recursive: true, force: true })
   cpSync(source, target, { recursive: true })
 

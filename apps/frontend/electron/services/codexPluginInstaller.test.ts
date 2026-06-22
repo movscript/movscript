@@ -6,6 +6,7 @@ import test from 'node:test'
 import {
   installMovScriptCodexPlugin,
   prepareMovScriptCodexMarketplace,
+  resolveCodexExecutable,
 } from './codexPluginInstaller'
 
 test('prepareMovScriptCodexMarketplace stages bundled plugin and marketplace manifest', () => {
@@ -56,6 +57,26 @@ test('installMovScriptCodexPlugin runs marketplace and plugin install commands',
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
+})
+
+test('resolveCodexExecutable falls back to common macOS CLI locations when GUI PATH is sparse', () => {
+  const found = resolveCodexExecutable({
+    env: { PATH: '/usr/bin:/bin' },
+    platform: 'darwin',
+    exists: (path) => path === '/opt/homebrew/bin/codex',
+  })
+
+  assert.equal(found, '/opt/homebrew/bin/codex')
+})
+
+test('resolveCodexExecutable honors explicit CLI path', () => {
+  const found = resolveCodexExecutable({
+    env: { MOVSCRIPT_CODEX_CLI: '/custom/bin/codex', PATH: '/usr/bin:/bin' },
+    platform: 'darwin',
+    exists: () => false,
+  })
+
+  assert.equal(found, '/custom/bin/codex')
 })
 
 function writePluginSource(root: string): string {

@@ -27,6 +27,7 @@ const CREATED_PROJECT: Project = {
 type WindowCall =
   | { type: 'agent' }
   | { type: 'canvas' }
+  | { type: 'codex-plugin' }
   | { type: 'editing' }
   | { type: 'tool'; input?: { route?: string } }
   | { type: 'project'; input: ElectronOpenProjectWindowInput }
@@ -50,6 +51,9 @@ test('app home opens agent, project, and canvas entry points', async ({ page }, 
   await page.getByRole('button', { name: /Agent/ }).click()
   await expectWindowCall(page, { type: 'agent' })
   await expect(page).toHaveURL(/\/$/)
+
+  await page.getByRole('button', { name: /安装到 Codex|Install to Codex/ }).click()
+  await expectWindowCall(page, { type: 'codex-plugin' })
 
   await page.getByRole('button', { name: /Canvas/ }).click()
   await expectWindowCall(page, { type: 'canvas' })
@@ -126,6 +130,16 @@ async function installWindowApiRecorder(page: Page) {
       openAgentWindow: async () => {
         globalWindow.__movscriptWindowCalls?.push({ type: 'agent' })
       },
+      installMovScriptCodexPlugin: async () => {
+        globalWindow.__movscriptWindowCalls?.push({ type: 'codex-plugin' })
+        return {
+          ok: true,
+          openedCodex: false,
+          marketplaceRoot: '/tmp/movscript-codex-marketplace',
+          installCommand: 'codex plugin add movscript@movscript-local',
+        }
+      },
+      sdkRuntimePackageStatus: async () => ({ installed: true }),
       openCanvasWindow: async () => {
         globalWindow.__movscriptWindowCalls?.push({ type: 'canvas' })
       },
@@ -157,13 +171,14 @@ async function expectWindowCall(
   expected:
     | { type: 'agent' }
     | { type: 'canvas' }
+    | { type: 'codex-plugin' }
     | { type: 'editing' }
     | { type: 'tool'; route?: string }
     | { type: 'project'; projectId: number; route?: string },
 ) {
   await expect.poll(async () => page.evaluate(() => {
     return ((window as Window & { __movscriptWindowCalls?: WindowCall[] }).__movscriptWindowCalls ?? [])
-  })).toContainEqual(expected.type === 'agent' || expected.type === 'canvas' || expected.type === 'editing'
+  })).toContainEqual(expected.type === 'agent' || expected.type === 'canvas' || expected.type === 'editing' || expected.type === 'codex-plugin'
     ? { type: expected.type }
     : expected.type === 'tool'
       ? expect.objectContaining({

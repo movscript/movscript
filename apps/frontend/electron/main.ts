@@ -22,6 +22,7 @@ import { installAppUpdateScheduler, uninstallAppUpdateScheduler } from './servic
 import { installAppTray } from './services/appTray'
 import { installDockShortcutMenu } from './services/dockShortcutMenu'
 import { installDesktopIdentity } from './services/desktopIdentity'
+import { enterTrayMode, leaveTrayMode } from './services/desktopPresence'
 
 const desktopSmokeTest = process.argv.includes('--movscript-desktop-smoke-test') || process.env.MOVSCRIPT_DESKTOP_SMOKE_TEST === '1'
 
@@ -63,8 +64,10 @@ app.whenReady().then(async () => {
 
   installAppUpdateScheduler()
   await flushPendingProviderActivationURLs()
+  openHomeWindow()
 
   app.on('activate', () => {
+    leaveTrayMode()
     if (BrowserWindow.getAllWindows().length === 0) openHomeWindow()
   })
 }).catch((error) => {
@@ -76,6 +79,7 @@ app.on('window-all-closed', () => {
   // Windows are disposable work surfaces. Keep the app and managed services
   // alive until the user explicitly quits so project/agent windows can be
   // reopened without treating an empty desktop as process shutdown.
+  enterTrayMode()
 })
 
 app.on('before-quit', (event) => {

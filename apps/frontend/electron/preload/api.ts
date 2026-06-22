@@ -5,6 +5,7 @@ import { createPluginCatalogPackStoreAPI } from './api/pluginCatalogPackStore'
 import { createProjectPluginStoreAPI } from './api/projectPluginStore'
 import { createBackendAPI } from './api/backend'
 import { createBackendAuthAPI } from './api/backendAuth'
+import { createCodexPluginAPI } from './api/codexPlugin'
 import { createRuntimeConfigAPI } from './api/runtimeConfig'
 import { createAppUpdateAPI } from './api/appUpdate'
 import { createSdkRuntimeAPI } from './api/sdkRuntime'
@@ -32,6 +33,7 @@ export function createElectronAPI(ipcRenderer: IpcRenderer, platform: NodeJS.Pla
     ...createRuntimeConfigAPI(ipcRenderer),
     ...createBackendAPI(ipcRenderer),
     ...createBackendAuthAPI(ipcRenderer),
+    ...createCodexPluginAPI(ipcRenderer),
     ...createCrossPageNotificationAPI(ipcRenderer),
     ...createAppUpdateAPI(ipcRenderer),
     ...createWindowAPI(ipcRenderer),

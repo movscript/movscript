@@ -177,9 +177,24 @@
     "newProject": "新建项目"
   },
   "onboarding": {
-    "title": "选择使用方式",
-    "description": "先决定数据和服务运行在哪里。之后仍然可以在应用设置里切换连接方式。",
+    "title": "选择工作方式",
+    "description": "选择本地工作区或云服务，之后可以在设置中切换。",
+    "advanced": "MovScript Home",
     "localFailed": "本地工作区创建失败",
+    "localPreparing": "正在准备本地工作区…",
+    "localTimeout": "本地工作区准备超时，请重试或切换到云服务。",
+    "localAuthTimeout": "本地会话建立超时，请重试。",
+    "cloudPreparing": "正在连接云服务…",
+    "cloudTimeout": "连接云服务超时，请检查服务地址后重试。",
+    "modeSwitchFailed": "切换模式失败",
+    "localPreparationStages": {
+      "saving": "保存本机工作区设置",
+      "starting": "启动本地后端服务",
+      "database": "初始化 SQLite 数据库",
+      "storage": "准备本地文件存储",
+      "auth": "建立本地会话",
+      "entering": "等待服务就绪"
+    },
     "workMode": {
       "title": "先选择工作模式",
       "description": "你可以先选一个更适合自己的入口。之后也可以在应用设置里调整默认入口。",
@@ -191,14 +206,19 @@
       "switchHint": "进入项目后，仍可以在应用设置里调整默认入口。"
     },
     "local": {
-      "title": "本地使用",
-      "description": "数据保存在这台电脑上，适合个人创作、本地项目和自带模型 API key。",
-      "action": "在本机开始"
+      "title": "本地工作区",
+      "description": "数据留在这台电脑上，适合个人创作。",
+      "action": "选择",
+      "selected": "继续",
+      "confirm": "进入本地工作区"
     },
     "cloud": {
       "title": "云服务",
-      "description": "连接 Movscript Cloud 或团队服务，适合多设备同步、协作和云端能力。",
-      "action": "登录云服务"
+      "description": "连接 MovScript Cloud 或团队服务。",
+      "action": "登录云服务",
+      "configure": "设置",
+      "selected": "继续",
+      "confirm": "确定"
     },
     "localIdentity": {
       "title": "你的本地身份",
@@ -212,14 +232,20 @@
       "create": "创建本地工作区"
     },
     "cloudConnect": {
-      "title": "连接云服务",
-      "description": "使用 Movscript Cloud 或你的团队服务地址。",
+      "title": "云服务地址",
+      "description": "默认使用 MovScript Cloud，也可以改为团队服务地址。",
       "continue": "继续登录"
     }
   },
   "appSettings": {
     "title": "应用设置",
     "description": "配置当前客户端的启动方式和连接服务。该设置保存在本机，登录前也可以修改。",
+    "switchModeTitle": "切换模式",
+    "switchModeHint": "在本地工作区和云端服务之间切换。切换后会回到首页，并按所选模式进入。",
+    "switchToLocal": "切换到本地工作区",
+    "switchToCloud": "切换到云服务",
+    "switchedToCloud": "已切换到云服务",
+    "switchedToLocal": "已切换到本地工作区",
     "launchMode": "启动方式",
     "launchModeTitle": "启动方式",
     "launchModeHint": "本地启动会在注册时请求初始化系统管理员；云端启动只连接远程服务。",
@@ -293,8 +319,16 @@
   "backendBoot": {
     "startingTitle": "正在启动本地工作区",
     "startingDescription": "正在准备由前端托管的后端、SQLite 数据库和本地文件存储。",
+    "progressLabel": "准备进度",
+    "progressStages": {
+      "launching": "启动本地后端服务",
+      "database": "检查 SQLite 数据库",
+      "storage": "准备本地文件存储",
+      "health": "等待健康检查通过"
+    },
     "errorTitle": "本地后端启动失败",
     "errorDescription": "请查看后端日志，或在应用设置中切换启动方式后重试。",
+    "timeoutDescription": "等待本地后端启动超时：{{url}}。请重试，或打开应用设置切换启动方式。",
     "logFile": "日志文件",
     "recentOutput": "最近输出",
     "retry": "重试启动",

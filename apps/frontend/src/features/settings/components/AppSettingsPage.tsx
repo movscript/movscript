@@ -9,7 +9,7 @@ import {
   AppSettingsShell
 } from '@/features/settings/components/AppSettingsUi'
 import { AppSettingsContent } from '@/features/settings/components/AppSettingsSections'
-import { getDefaultAPIBaseURL, getLocalAPIBaseURL, isLocalLaunchMode, normalizeAPIBaseURL, type AppSettings } from '@/shared/infrastructure/config'
+import { getDefaultAPIBaseURL, isLocalLaunchMode, normalizeAPIBaseURL } from '@/shared/infrastructure/config'
 import { openAdminConsole } from '@/shared/infrastructure/adminConsole'
 import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
@@ -29,13 +29,16 @@ import {
   type ResourceBlobGCResult,
 } from '@/features/settings/presentation/appSettingsPageModel'
 
-export function AppSettingsPanel({ host = 'page' }: { host?: 'page' | 'dialog' } = {}) {
+export function AppSettingsPanel({
+  host = 'page',
+}: {
+  host?: 'page' | 'dialog'
+} = {}) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const user = useUserStore((s) => s.currentUser)
   const currentProject = useProjectStore((s) => s.current)
   const settings = useAppSettingsStore((s) => s.settings)
-  const setLaunchMode = useAppSettingsStore((s) => s.setLaunchMode)
   const setAPIBaseURL = useAppSettingsStore((s) => s.setAPIBaseURL)
   const setMovScriptWorkspaceDir = useAppSettingsStore((s) => s.setMovScriptWorkspaceDir)
   const setShotLibrarySources = useAppSettingsStore((s) => s.setShotLibrarySources)
@@ -65,16 +68,7 @@ export function AppSettingsPanel({ host = 'page' }: { host?: 'page' | 'dialog' }
   const localMode = isLocalLaunchMode(settings)
   const canOpenAdmin = user?.system_role === 'super_admin'
 
-  function chooseLaunchMode(mode: AppSettings['launchMode']) {
-    const nextAPIBaseURL = mode === 'local'
-      ? settings.localAPIBaseURL ?? getLocalAPIBaseURL()
-      : settings.cloudAPIBaseURL ?? getDefaultAPIBaseURL()
-    setLaunchMode(mode)
-    setSaved(false)
-    setAPIBaseURLInput(nextAPIBaseURL)
-  }
-
-  function saveSettings() {
+  async function saveSettings() {
     if (!isValid) return
     setAPIBaseURL(normalized)
     setSaved(true)
@@ -171,7 +165,6 @@ export function AppSettingsPanel({ host = 'page' }: { host?: 'page' | 'dialog' }
     <AppSettingsContent
       apiBaseURL={apiBaseURL}
       canOpenAdmin={canOpenAdmin}
-      chooseLaunchMode={chooseLaunchMode}
       collectResourceBlobs={(dryRun) => void collectResourceBlobs(dryRun)}
       chooseMovScriptHomeDir={() => void chooseMovScriptHomeDir()}
       hasChanged={hasChanged}

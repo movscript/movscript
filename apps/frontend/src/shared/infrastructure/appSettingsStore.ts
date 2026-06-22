@@ -37,7 +37,7 @@ const defaultSettings: AppSettings = {
   launchMode: 'cloud',
   workMode: 'project',
   language: isSupportedLanguage(i18n.language) ? i18n.language : undefined,
-  onboardingCompleted: true,
+  onboardingCompleted: false,
 }
 
 let applyingExternalSettings = false

@@ -83,11 +83,12 @@ export function useAgentThreadRegistryHydration({
     retry: false,
   })
   const sourceThreads = query.data ?? EMPTY_AGENT_THREAD_SUMMARIES
+  const hydrationSignature = agentThreadRegistryHydrationSignature(providerIdentity ? [{ providerIdentity, sourceThreads }] : [])
 
   useEffect(() => {
     if (!providerIdentity || sourceThreads.length === 0) return
     hydrateAgentThreadRegistryFromSummaries({ providerIdentity, sourceThreads, userId })
-  }, [providerIdentity, sourceThreads, userId])
+  }, [hydrationSignature, userId])
 
   return {
     ...query,
@@ -129,6 +130,7 @@ export function useAgentThreadRegistryHydrations({
       refetch: () => queries[index]?.refetch() ?? Promise.resolve(undefined),
     }))
   ), [providerEntries, queries])
+  const hydrationSignature = agentThreadRegistryHydrationSignature(providerHydrations)
 
   useEffect(() => {
     if (!userId) return
@@ -140,7 +142,7 @@ export function useAgentThreadRegistryHydrations({
         userId,
       })
     }
-  }, [providerHydrations, userId])
+  }, [hydrationSignature, userId])
 
   const refetch = useCallback(() => Promise.all(providerHydrations.map((hydration) => hydration.refetch())), [providerHydrations])
 
@@ -243,15 +245,57 @@ export function agentConversationRegistryRecordMatchesInput(
     && record.providerId === input.providerId
     && record.providerInstanceId === input.providerInstanceId
     && record.providerProtocol === input.providerProtocol
-    && record.providerSessionId === input.providerSessionId
+    && agentConversationRegistryPatchFieldMatches(record, input, 'providerSessionId')
     && record.providerThreadId === input.providerThreadId
-    && record.title === input.title
-    && record.projectId === input.projectId
-    && record.status === input.status
+    && agentConversationRegistryPatchFieldMatches(record, input, 'providerThreadCwd')
+    && agentConversationRegistryPatchFieldMatches(record, input, 'title')
+    && agentConversationRegistryPatchFieldMatches(record, input, 'projectId')
+    && agentConversationRegistryPatchFieldMatches(record, input, 'status')
     && record.archived === input.archived
     && record.open === input.open
-    && record.createdAt === input.createdAt
-    && record.updatedAt === input.updatedAt
+    && (input.createdAt === undefined || record.createdAt === input.createdAt)
+    && (input.updatedAt === undefined || record.updatedAt === input.updatedAt)
+}
+
+export function agentThreadRegistryHydrationSignature(
+  hydrations: Array<{
+    providerIdentity: AgentThreadRegistryProviderIdentity
+    sourceThreads: AgentThreadSummary[]
+  }>,
+): string {
+  return hydrations.map((hydration) => {
+    const identity = hydration.providerIdentity
+    const providerKey = [
+      identity.provider,
+      identity.providerId,
+      identity.providerInstanceId,
+      identity.providerProtocol,
+    ].join('\u0001')
+    const threadKey = hydration.sourceThreads.map((thread) => [
+      thread.id,
+      thread.providerSessionTreeId ?? '',
+      thread.sessionId ?? '',
+      thread.providerThreadCwd ?? '',
+      thread.title ?? '',
+      thread.projectId ?? '',
+      thread.status ?? '',
+      thread.archived === true ? '1' : '0',
+      thread.createdAt,
+      thread.updatedAt,
+      thread.messageCount,
+    ].join('\u0002')).join('\u0003')
+    return `${providerKey}\u0004${threadKey}`
+  }).join('\u0005')
+}
+
+function agentConversationRegistryPatchFieldMatches<
+  Key extends keyof AgentConversationRegistryInput & keyof AgentConversationRegistryRecord,
+>(
+  record: AgentConversationRegistryRecord,
+  input: AgentConversationRegistryInput,
+  key: Key,
+): boolean {
+  return input[key] === undefined || record[key] === input[key]
 }
 
 function agentConversationRegistryRecordForThread(

@@ -251,6 +251,40 @@ func (h *AuthHandler) LocalBootstrap(c *gin.Context) {
 	h.respondWithCredential(c, http.StatusCreated, u)
 }
 
+func (h *AuthHandler) LocalSession(c *gin.Context) {
+	var req struct {
+		DisplayName string `json:"displayName"`
+		Name        string `json:"name"`
+	}
+	_ = c.ShouldBindJSON(&req)
+	if !isLoopbackRequest(c) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "本地会话只允许从本机访问"})
+		return
+	}
+	displayName := strings.TrimSpace(req.DisplayName)
+	if displayName == "" {
+		displayName = strings.TrimSpace(req.Name)
+	}
+	u, err := h.service.EnsureLocalSuperAdmin(c.Request.Context(), displayName)
+	if err != nil {
+		if errors.Is(err, authapp.ErrInvalidInput) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "本地会话只允许在本地模式下使用"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	actorID := u.ID
+	audit.Record(c, h.db, audit.Event{
+		Action:     "auth.local_session",
+		TargetType: "user",
+		TargetID:   audit.TargetID(u.ID),
+		ActorID:    &actorID,
+	})
+	h.respondWithCredential(c, http.StatusOK, u)
+}
+
 func isLoopbackRequest(c *gin.Context) bool {
 	ip := net.ParseIP(c.ClientIP())
 	return ip != nil && ip.IsLoopback()

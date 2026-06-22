@@ -27,6 +27,7 @@ import {
   normalizeProviderSettings,
   useProviderConfigStore,
 } from '@/shared/infrastructure/providerConfigStore'
+import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { fallbackAgentProfileRoute } from '@/features/agent/application/agentProfileModel'
 import { ROUTES } from '@/routes/projectRoutes'
 import { isAgentConsoleTab } from '@/features/agent/application/agentConsoleRouteModel'
@@ -48,6 +49,7 @@ import {
   ModelProvidersPage,
   MovScriptWorkspaceFilesPage,
   MovScriptWorkspaceReviewPage,
+  OnboardingPage,
   OrgSelectPage,
   ProjectDataPage,
   ProjectOverviewPage,
@@ -62,6 +64,8 @@ import {
 const AppRouter = typeof window !== 'undefined' && window.location.protocol === 'file:' ? HashRouter : BrowserRouter
 
 export function AnonymousAppRouter() {
+  const onboardingCompleted = useAppSettingsStore((state) => state.settings.onboardingCompleted)
+
   return (
     <ErrorBoundary>
       <AppRouter>
@@ -74,8 +78,9 @@ export function AnonymousAppRouter() {
             <Route path={ROUTES.agentResources} element={<AgentResourceLibraryPage />} />
             <Route path={ROUTES.codexResources} element={<AgentResourceLibraryPage />} />
             <Route path={ROUTES.invite} element={<InvitePage />} />
-            <Route path={ROUTES.appSettings} element={<AppSettingsPage />} />
-            <Route path="*" element={<AuthPage />} />
+            <Route path={ROUTES.onboarding} element={onboardingCompleted ? <Navigate to={ROUTES.root} replace /> : <OnboardingPage />} />
+            <Route path={ROUTES.appSettings} element={onboardingCompleted ? <AppSettingsPage /> : <Navigate to={ROUTES.onboarding} replace />} />
+            <Route path="*" element={onboardingCompleted ? <AuthPage /> : <OnboardingPage />} />
           </Routes>
         </RouteSuspense>
       </AppRouter>
@@ -183,6 +188,8 @@ function AccountSettingsRoute({ tab = 'settings' }: { tab?: AccountSettingsPageT
   const runtimeTab = new URLSearchParams(search).get('tab')
   const activeTab: AccountSettingsPageTab = isAgentConsoleTab(runtimeTab)
     ? runtimeTab
+    : runtimeTab === 'mode'
+    ? 'mode'
     : runtimeTab?.startsWith('runtime:')
     ? (`runtime:${runtimeTab.slice('runtime:'.length)}` as AccountSettingsPageTab)
     : tab

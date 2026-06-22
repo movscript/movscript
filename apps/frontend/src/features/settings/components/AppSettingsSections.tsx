@@ -1,13 +1,11 @@
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { CheckCircle2, Clapperboard, FolderOpen, HardDrive, RefreshCw, Server, Settings } from 'lucide-react'
+import { CheckCircle2, Clapperboard, FolderOpen, HardDrive, RefreshCw, Server } from 'lucide-react'
 import { Textarea } from '@movscript/ui/primitives'
 import {
   AppSettingsActionButton,
   AppSettingsActionRow,
   AppSettingsAdminSurface,
-  AppSettingsChoiceGrid,
-  AppSettingsChoiceTile,
   AppSettingsContentStack,
   AppSettingsEndpointSurface,
   AppSettingsFeedbackText,
@@ -29,7 +27,6 @@ interface AppSettingsContentProps {
   apiBaseURL: string
   canOpenAdmin: boolean
   chooseMovScriptHomeDir: () => void
-  chooseLaunchMode: (mode: AppSettings['launchMode']) => void
   collectResourceBlobs: (dryRun: boolean) => void
   hasChanged: boolean
   isValid: boolean
@@ -68,7 +65,6 @@ export function AppSettingsContent({
   apiBaseURL,
   canOpenAdmin,
   chooseMovScriptHomeDir,
-  chooseLaunchMode,
   collectResourceBlobs,
   hasChanged,
   isValid,
@@ -107,28 +103,6 @@ export function AppSettingsContent({
   return (
     <AppSettingsContentStack>
       <AppSettingsIntro title={t('appSettings.title')} description={t('appSettings.description')} />
-
-      <AppSettingsSection
-        icon={Settings}
-        title={t('appSettings.launchModeTitle')}
-        description={t('appSettings.launchModeHint')}
-      >
-        <AppSettingsChoiceGrid>
-          {(['cloud', 'local'] as const).map((mode) => {
-            const selected = settings.launchMode === mode
-            return (
-              <AppSettingsChoiceTile
-                key={mode}
-                type="button"
-                selected={selected}
-                onClick={() => chooseLaunchMode(mode)}
-                title={mode === 'cloud' ? t('appSettings.cloudMode') : t('appSettings.localMode')}
-                detail={mode === 'cloud' ? t('appSettings.cloudModeHelp') : t('appSettings.localModeHelp')}
-              />
-            )
-          })}
-        </AppSettingsChoiceGrid>
-      </AppSettingsSection>
 
       <AppSettingsSection
         icon={HardDrive}
@@ -286,7 +260,7 @@ export function AppSettingsContent({
         </AppSettingsSection>
       )}
 
-      <ExternalResourceSourceSettingsSection canOpenAdmin={isValid && canOpenAdmin} />
+      <ExternalResourceSourceSettingsSection canOpenAdmin={isValid && canOpenAdmin} enabled />
 
       <AppSettingsSection
         icon={Clapperboard}

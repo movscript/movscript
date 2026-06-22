@@ -46,6 +46,23 @@ The existing release workflow collects desktop artifacts with the matrix prefix
 `movscript-desktop-macos-arm64` or `movscript-desktop-macos-x64` and creates a
 combined `SHA256SUMS.txt` before uploading the GitHub Release assets.
 
+Desktop auto-update metadata is published with an architecture-specific channel
+such as `latest-darwin-arm64.yml` or `latest-win32-x64.yml`. The app checks this
+metadata automatically, but it never downloads or installs an update without a
+user action.
+
+Set these optional environment variables in the release job to mark an update as
+required:
+
+- `MOVSCRIPT_APP_UPDATE_POLICY=required`
+- `MOVSCRIPT_APP_UPDATE_SEVERITY=security`, `data-loss`, or `startup-blocker`
+- `MOVSCRIPT_APP_UPDATE_MIN_SUPPORTED_VERSION=0.1.24`
+- `MOVSCRIPT_APP_UPDATE_DEADLINE_AT=2026-06-25T00:00:00.000Z`
+- `MOVSCRIPT_APP_UPDATE_POLICY_TITLE` and `MOVSCRIPT_APP_UPDATE_POLICY_MESSAGE`
+
+Required updates block normal desktop use until the user chooses to download and
+restart into the update. Optional updates only show the normal update prompt.
+
 The Windows release job publishes installer and portable artifacts with the
 matrix prefix `movscript-desktop-windows-x64` or
 `movscript-desktop-windows-arm64`. Windows installation location and Movscript

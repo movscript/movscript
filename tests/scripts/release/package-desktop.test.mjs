@@ -10,14 +10,21 @@ import {
   runDesktopPackageCli,
 } from '../../../scripts/release/release-workflow.mjs'
 
+const darwinX64Publish = '-c.publish.channel=latest-darwin-x64'
+const darwinArm64Publish = '-c.publish.channel=latest-darwin-arm64'
+const linuxX64Publish = '-c.publish.channel=latest-linux-x64'
+const linuxArm64Publish = '-c.publish.channel=latest-linux-arm64'
+const win32X64Publish = '-c.publish.channel=latest-win32-x64'
+const win32Arm64Publish = '-c.publish.channel=latest-win32-arm64'
+
 test('frontendBuilderArgsForTarget maps desktop targets to electron-builder args', () => {
-  assert.deepEqual(frontendBuilderArgsForTarget('darwin', 'x64'), ['--mac', 'dmg', '--x64', '--publish', 'never'])
-  assert.deepEqual(frontendBuilderArgsForTarget('darwin', 'arm64'), ['--mac', 'dmg', '--arm64', '--publish', 'never'])
-  assert.deepEqual(frontendBuilderArgsForTarget('darwin', 'arm64', false), ['--mac', 'dmg', '--publish', 'never'])
-  assert.deepEqual(frontendBuilderArgsForTarget('linux', 'x64'), ['--linux', '--x64', '--publish', 'never'])
-  assert.deepEqual(frontendBuilderArgsForTarget('linux', 'arm64'), ['--linux', '--arm64', '--publish', 'never'])
-  assert.deepEqual(frontendBuilderArgsForTarget('win32', 'x64'), ['--win', '--x64', '--publish', 'never'])
-  assert.deepEqual(frontendBuilderArgsForTarget('win32', 'arm64'), ['--win', '--arm64', '--publish', 'never'])
+  assert.deepEqual(frontendBuilderArgsForTarget('darwin', 'x64'), ['--mac', 'dmg', 'zip', '--x64', '--publish', 'never', darwinX64Publish])
+  assert.deepEqual(frontendBuilderArgsForTarget('darwin', 'arm64'), ['--mac', 'dmg', 'zip', '--arm64', '--publish', 'never', darwinArm64Publish])
+  assert.deepEqual(frontendBuilderArgsForTarget('darwin', 'arm64', false), ['--mac', 'dmg', 'zip', '--publish', 'never', darwinArm64Publish])
+  assert.deepEqual(frontendBuilderArgsForTarget('linux', 'x64'), ['--linux', '--x64', '--publish', 'never', linuxX64Publish])
+  assert.deepEqual(frontendBuilderArgsForTarget('linux', 'arm64'), ['--linux', '--arm64', '--publish', 'never', linuxArm64Publish])
+  assert.deepEqual(frontendBuilderArgsForTarget('win32', 'x64'), ['--win', '--x64', '--publish', 'never', win32X64Publish])
+  assert.deepEqual(frontendBuilderArgsForTarget('win32', 'arm64'), ['--win', '--arm64', '--publish', 'never', win32Arm64Publish])
 })
 
 test('desktopPackagePlan keeps the current-platform package script generic and unsigned by default', () => {
@@ -30,17 +37,17 @@ test('desktopPackagePlan keeps the current-platform package script generic and u
 
 test('desktopPackagePlan parses explicit target args', () => {
   assert.deepEqual(desktopPackagePlan(['--platform=darwin'], { arch: 'arm64' }), {
-    builderArgs: ['--mac', 'dmg', '--publish', 'never', '-c.mac.identity=null', '-c.mac.notarize=false'],
+    builderArgs: ['--mac', 'dmg', 'zip', '--publish', 'never', darwinArm64Publish, '-c.mac.identity=null', '-c.mac.notarize=false'],
     signingMode: 'unsigned',
     targetArgs: ['--platform=darwin'],
   })
   assert.deepEqual(desktopPackagePlan(['--platform=linux', '--arch=arm64']), {
-    builderArgs: ['--linux', '--arm64', '--publish', 'never'],
+    builderArgs: ['--linux', '--arm64', '--publish', 'never', linuxArm64Publish],
     signingMode: 'unsigned',
     targetArgs: ['--platform=linux', '--arch=arm64'],
   })
   assert.deepEqual(desktopPackagePlan(['--platform=win32', '--arch=x64']), {
-    builderArgs: ['--win', '--x64', '--publish', 'never'],
+    builderArgs: ['--win', '--x64', '--publish', 'never', win32X64Publish],
     signingMode: 'unsigned',
     targetArgs: ['--platform=win32', '--arch=x64'],
   })
@@ -48,7 +55,7 @@ test('desktopPackagePlan parses explicit target args', () => {
 
 test('desktopPackagePlan supports explicit signed macOS packages', () => {
   assert.deepEqual(desktopPackagePlan(['--platform=darwin', '--arch=arm64', '--signed']), {
-    builderArgs: ['--mac', 'dmg', '--arm64', '--publish', 'never'],
+    builderArgs: ['--mac', 'dmg', 'zip', '--arm64', '--publish', 'never', darwinArm64Publish],
     signingMode: 'signed',
     targetArgs: ['--platform=darwin', '--arch=arm64'],
   })
@@ -176,7 +183,7 @@ test('runDesktopPackageCli runs prepare, frontend dist, and verify steps', () =>
         MOVSCRIPT_RELEASE_SIGNING_MODE: 'unsigned',
       },
     }],
-    ['pnpm', ['--filter', '@movscript/desktop', 'exec', 'electron-builder', '--mac', 'dmg', '--x64', '--publish', 'never', '--prepackaged', '/repo/apps/frontend/release/mac/Movscript.app', '-c.mac.identity=null', '-c.mac.notarize=false'], {
+    ['pnpm', ['--filter', '@movscript/desktop', 'exec', 'electron-builder', '--mac', 'dmg', 'zip', '--x64', '--publish', 'never', darwinX64Publish, '--prepackaged', '/repo/apps/frontend/release/mac/Movscript.app', '-c.mac.identity=null', '-c.mac.notarize=false'], {
       stdio: 'inherit',
       env: {
         PATH: '/bin',

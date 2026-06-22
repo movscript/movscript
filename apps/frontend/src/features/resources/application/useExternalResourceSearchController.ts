@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ExternalResourceItem, ExternalResourceSearchResult, ExternalResourceSource, RawResource } from '@/types'
 import { api } from '@/shared/infrastructure/api'
+import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { toast } from '@/shared/ui/toastStore'
 import {
   externalResourceSearchInitialData,
@@ -22,6 +23,7 @@ import { uploadExternalResourceItem } from '@/features/resources/application/ext
 
 export function useExternalResourceSearchController() {
   const qc = useQueryClient()
+  const onboardingCompleted = useAppSettingsStore(state => state.settings.onboardingCompleted)
   const [searchSnapshot, setSearchSnapshot] = useState(() => loadExternalResourceSearchSnapshot())
   const externalSearchUserEditedRef = useRef(false)
   const appliedSnapshotSignatureRef = useRef(externalResourceSearchSnapshotSignature(searchSnapshot))
@@ -57,6 +59,7 @@ export function useExternalResourceSearchController() {
   const { data: sources = [], isLoading: sourcesLoading } = useQuery<ExternalResourceSource[]>({
     queryKey: externalResourceKeys.sources,
     queryFn: () => api.get('/external-resource-sources').then(r => r.data),
+    enabled: onboardingCompleted,
   })
   const enabledSources = useMemo(() => sources.filter(source => source.is_enabled), [sources])
   const providerOptions = useMemo(() => {

@@ -6,6 +6,8 @@ import { tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
 
 import {
+  assertDesktopArch,
+  assertDesktopPlatform,
   desktopFFmpegBinaryName,
   goarchForDesktopArch,
   goosForDesktopPlatform,
@@ -58,6 +60,7 @@ const releaseAssetExtensions = new Set([
   '.rpm',
   '.movpkg',
 ])
+const updateMetadataExtensions = new Set(['.yml', '.yaml'])
 
 export function releaseWorkflowSteps(mode, args = []) {
   if (mode === 'check') {
@@ -209,15 +212,28 @@ function normalizePnpmArgs(args) {
 }
 
 export function frontendBuilderArgsForTarget(platform, arch, explicitArch = true) {
+  const publishArgs = electronUpdaterPublishArgs(platform, arch)
   if (platform === 'darwin') {
-    return explicitArch ? ['--mac', 'dmg', `--${arch}`, '--publish', 'never'] : ['--mac', 'dmg', '--publish', 'never']
+    return explicitArch ? ['--mac', 'dmg', 'zip', `--${arch}`, '--publish', 'never', ...publishArgs] : ['--mac', 'dmg', 'zip', '--publish', 'never', ...publishArgs]
   }
-  if (platform === 'linux') return ['--linux', `--${arch}`, '--publish', 'never']
+  if (platform === 'linux') return ['--linux', `--${arch}`, '--publish', 'never', ...publishArgs]
   if (platform === 'win32') {
     const targetArch = explicitArch && arch === 'arm64' ? '--arm64' : '--x64'
-    return ['--win', targetArch, '--publish', 'never']
+    return ['--win', targetArch, '--publish', 'never', ...publishArgs]
   }
   throw new Error(`Unsupported desktop package platform: ${platform}`)
+}
+
+export function electronUpdaterChannel(platform, arch, baseChannel = process.env.MOVSCRIPT_APP_UPDATE_CHANNEL || 'latest') {
+  assertDesktopPlatform(platform, 'electron updater')
+  assertDesktopArch(arch, 'electron updater')
+  const normalizedBase = String(baseChannel || 'latest').trim() || 'latest'
+  if (normalizedBase.includes(platform) && normalizedBase.includes(arch)) return normalizedBase
+  return `${normalizedBase}-${platform}-${arch}`
+}
+
+function electronUpdaterPublishArgs(platform, arch) {
+  return [`-c.publish.channel=${electronUpdaterChannel(platform, arch)}`]
 }
 
 export function desktopPackagePlan(args = [], defaults = {}) {
@@ -658,7 +674,7 @@ export function collectArtifacts(root = repoRoot, options = {}) {
       if (!isReleaseAsset(name)) continue
       const from = resolve(source, name)
       if (!statSync(from).isFile()) continue
-      const targetName = artifactPrefix ? `${artifactPrefix}-${basename(name)}` : basename(name)
+      const targetName = artifactPrefix && !isUpdateMetadata(name) ? `${artifactPrefix}-${basename(name)}` : basename(name)
       const previous = seen.get(targetName)
       if (previous) {
         throw new Error([
@@ -669,7 +685,12 @@ export function collectArtifacts(root = repoRoot, options = {}) {
       }
       seen.set(targetName, from)
       const to = resolve(outputDir, targetName)
-      copyFileSync(from, to)
+      if (artifactPrefix && isUpdateMetadata(name)) {
+        const rewritten = rewriteUpdateMetadataArtifactNames(readFileSync(from, 'utf8'), artifactPrefix)
+        writeFileSync(to, appendUpdateMetadataPolicy(rewritten, env), 'utf8')
+      } else {
+        copyFileSync(from, to)
+      }
       copied.push(to)
     }
   }
@@ -694,12 +715,69 @@ export function defaultArtifactSources(root = repoRoot, env = process.env) {
 }
 
 export function isReleaseAsset(name) {
-  if (name.endsWith('.blockmap')) return false
+  if (name.endsWith('.blockmap')) return true
   if ((name.endsWith('.yml') || name.endsWith('.yaml')) && name.startsWith('latest')) return true
   for (const ext of releaseAssetExtensions) {
     if (name.endsWith(ext)) return true
   }
   return false
+}
+
+function isUpdateMetadata(name) {
+  return [...updateMetadataExtensions].some((extension) => name.endsWith(extension))
+}
+
+export function rewriteUpdateMetadataArtifactNames(content, artifactPrefix) {
+  const prefix = normalizeArtifactPrefix(artifactPrefix)
+  if (!prefix) return content
+  return content.replace(/^(\s*(?:-\s*)?(?:url|path):\s*)(["']?)([^"'\r\n]+)(\2)(\s*)$/gm, (match, before, quote, value, afterQuote, trailing) => {
+    const artifactName = String(value).trim()
+    if (!artifactName || artifactName.includes('/') || artifactName.startsWith(`${prefix}-`)) return match
+    if (!isReleaseAsset(artifactName) && !artifactName.endsWith('.blockmap')) return match
+    return `${before}${quote}${prefix}-${artifactName}${afterQuote}${trailing}`
+  })
+}
+
+export function appendUpdateMetadataPolicy(content, env = process.env) {
+  const fields = [
+    ['policy', updateMetadataPolicyValue(env.MOVSCRIPT_APP_UPDATE_POLICY)],
+    ['severity', updateMetadataSeverityValue(env.MOVSCRIPT_APP_UPDATE_SEVERITY)],
+    ['minSupportedVersion', cleanUpdateMetadataScalar(env.MOVSCRIPT_APP_UPDATE_MIN_SUPPORTED_VERSION)],
+    ['deadlineAt', cleanUpdateMetadataScalar(env.MOVSCRIPT_APP_UPDATE_DEADLINE_AT)],
+    ['policyTitle', cleanUpdateMetadataScalar(env.MOVSCRIPT_APP_UPDATE_POLICY_TITLE)],
+    ['policyMessage', cleanUpdateMetadataScalar(env.MOVSCRIPT_APP_UPDATE_POLICY_MESSAGE)],
+  ].filter((entry) => entry[1])
+
+  if (fields.length === 0) return content
+  const existing = new Set(content.split(/\r?\n/).map((line) => line.match(/^([A-Za-z][A-Za-z0-9]*):/)?.[1]).filter(Boolean))
+  const additions = fields
+    .filter(([key]) => !existing.has(key))
+    .map(([key, value]) => `${key}: ${JSON.stringify(value)}`)
+  if (additions.length === 0) return content
+  return `${content.replace(/\s*$/, '\n')}${additions.join('\n')}\n`
+}
+
+function updateMetadataPolicyValue(value) {
+  const normalized = cleanUpdateMetadataScalar(value)
+  if (!normalized) return ''
+  if (normalized !== 'optional' && normalized !== 'required') {
+    throw new Error('MOVSCRIPT_APP_UPDATE_POLICY must be optional or required')
+  }
+  return normalized
+}
+
+function updateMetadataSeverityValue(value) {
+  const normalized = cleanUpdateMetadataScalar(value)
+  if (!normalized) return ''
+  if (!['normal', 'security', 'data-loss', 'startup-blocker'].includes(normalized)) {
+    throw new Error('MOVSCRIPT_APP_UPDATE_SEVERITY must be normal, security, data-loss, or startup-blocker')
+  }
+  return normalized
+}
+
+function cleanUpdateMetadataScalar(value) {
+  if (typeof value !== 'string') return ''
+  return value.trim().replace(/[\r\n]+/g, ' ')
 }
 
 export function normalizeArtifactPrefix(value) {

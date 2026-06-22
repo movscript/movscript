@@ -2,7 +2,7 @@ import React, { Suspense } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import type { LucideIcon } from 'lucide-react'
-import { ArrowLeft, Bot, CircleUserRound, ExternalLink, Settings, UsersRound } from 'lucide-react'
+import { ArrowLeft, Bot, CircleUserRound, ExternalLink, Settings, ToggleLeft, UsersRound } from 'lucide-react'
 import {
   APP_SIDEBAR_MAX_WIDTH,
   APP_SIDEBAR_MIN_WIDTH,
@@ -18,6 +18,7 @@ import { Button } from '@movscript/ui/primitives'
 
 import type { AccountSettingsDialogTab } from '@/features/app-shell/application/appShellDialogStore'
 import OrgSelectPage from '@/features/organization/components/OrgSelectPage'
+import { ModeSelectionPanel } from '@/features/onboarding/components/ModeSelectionPanel'
 import { AppSettingsPanel } from '@/features/settings/components/AppSettingsPage'
 import { UserProfilePanel } from '@/features/user/components/UserProfilePage'
 import { openAdminConsole } from '@/shared/infrastructure/adminConsole'
@@ -49,6 +50,7 @@ const agentConsolePanels: Record<AgentConsoleTab, React.LazyExoticComponent<Reac
 
 const baseTabs: Array<{ key: AccountSettingsPageTab; icon: LucideIcon; labelKey: string }> = [
   { key: 'profile', icon: CircleUserRound, labelKey: 'user.title' },
+  { key: 'mode', icon: ToggleLeft, labelKey: 'appSettings.switchModeTitle' },
   { key: 'settings', icon: Settings, labelKey: 'appSettings.title' },
   { key: 'workspace', icon: UsersRound, labelKey: 'sidebar.items.workspace' },
   { key: 'console', icon: Bot, labelKey: 'sidebar.items.agentConsole' },
@@ -250,6 +252,7 @@ export function AccountSettingsPageContent({
 
 export function routeForSettingsTab(tab: AccountSettingsPageTab): string {
   if (tab === 'profile') return ROUTES.user
+  if (tab === 'mode') return `${ROUTES.appSettings}?tab=mode`
   if (tab === 'workspace') return ROUTES.orgSettings
   if (isAgentConsoleTab(tab)) return agentConsoleSettingsRoute(tab)
   if (tab.startsWith('environment:')) {
@@ -262,6 +265,7 @@ export function routeForSettingsTab(tab: AccountSettingsPageTab): string {
 
 function AccountSettingsPagePanel({ activeTab }: { activeTab: AccountSettingsPageTab }) {
   if (activeTab === 'profile') return <UserProfilePanel />
+  if (activeTab === 'mode') return <ModeSelectionPanel variant="settings" />
   if (activeTab === 'settings') return <AppSettingsPanel host="dialog" />
   if (activeTab === 'workspace') return <OrgSelectPage />
   if (isAgentConsoleTab(activeTab)) {

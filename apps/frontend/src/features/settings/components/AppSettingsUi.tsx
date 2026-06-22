@@ -89,8 +89,9 @@ export const AppSettingsChoiceTile = forwardRef<HTMLButtonElement, ButtonProps &
   selected?: boolean
   icon?: ReactNode
   title: ReactNode
-  detail: ReactNode
-}>(({ selected = false, icon, title, detail, className, ...props }, ref) => (
+  detail?: ReactNode
+  footer?: ReactNode
+}>(({ selected = false, icon, title, detail, footer, className, ...props }, ref) => (
   <AppChoiceTile
     ref={ref}
     selected={selected}
@@ -98,11 +99,14 @@ export const AppSettingsChoiceTile = forwardRef<HTMLButtonElement, ButtonProps &
     className={cn('app-settings-choice-tile', className)}
     {...props}
   >
-    <span className="app-settings-choice-tile__title">
-      {icon}
-      {title}
+    {icon ? <span className="app-settings-choice-tile__icon">{icon}</span> : null}
+    <span className="app-settings-choice-tile__copy">
+      <span className="app-settings-choice-tile__title">
+        {title}
+      </span>
+      {detail ? <span className="app-settings-choice-tile__detail">{detail}</span> : null}
     </span>
-    <span className="app-settings-choice-tile__detail">{detail}</span>
+    {footer ? <span className="app-settings-choice-tile__footer">{footer}</span> : null}
   </AppChoiceTile>
 ))
 

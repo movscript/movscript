@@ -5,11 +5,13 @@ import { isBackendReady, isProcessRunning, waitForBackendReady } from './backend
 import { clearBackendPid, readBackendPid } from './backend/pid'
 import { getBackendLaunchPolicy } from './backend/policy'
 import { spawnBackendProcess } from './backend/spawn'
+import { healthyBackendStatus } from './backend/adoption'
 import { formatBackendStartupFailure, type BackendExitInfo } from './backend/diagnostics'
 import type { BackendLaunchPolicy, BackendStatus, BackendStatusListener } from './backend/types'
 
 let proc: ChildProcess | null = null
 let startPromise: Promise<BackendStatus> | null = null
+let forceRestartConsumed = false
 const BACKEND_GRACEFUL_STOP_TIMEOUT_MS = 10_000
 
 export { LOCAL_BACKEND_PORT, LOCAL_BACKEND_URL }
@@ -37,6 +39,11 @@ export async function startBackend(
     return setBackendStatus({ state: 'idle', baseURL: LOCAL_BACKEND_URL }, onStatus)
   }
 
+  if (consumeBackendForceRestart()) {
+    console.info('[backend] force restart requested; stopping existing local backend before spawn')
+    await stopBackend(onStatus, { terminate: true })
+  }
+
   const existingPid = proc?.pid ?? readBackendPid()
   if (existingPid && isProcessRunning(existingPid)) {
     if (await isBackendReady(LOCAL_BACKEND_URL)) {
@@ -49,6 +56,9 @@ export async function startBackend(
     return startPromise
   }
 
+  const adoptedStatus = await healthyBackendStatus(LOCAL_BACKEND_URL)
+  if (adoptedStatus) return setBackendStatus(adoptedStatus, onStatus)
+
   clearBackendPid()
   if (startPromise) return startPromise
 
@@ -56,6 +66,14 @@ export async function startBackend(
     startPromise = null
   })
   return startPromise
+}
+
+function consumeBackendForceRestart(): boolean {
+  if (forceRestartConsumed) return false
+  const value = process.env.MOVSCRIPT_BACKEND_FORCE_RESTART?.trim().toLowerCase()
+  const requested = value === '1' || value === 'true' || value === 'yes'
+  if (requested) forceRestartConsumed = true
+  return requested
 }
 
 async function spawnBackend(onStatus?: BackendStatusListener): Promise<BackendStatus> {

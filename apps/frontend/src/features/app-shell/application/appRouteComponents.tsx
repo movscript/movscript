@@ -27,6 +27,7 @@ export const ProjectAIAssistantPanel = lazyWithRetry(() => import('@/features/ag
 export const AgentTerminalPanel = lazyWithRetry(() => import('@/features/agent/components/AgentTerminalPanel').then((module) => ({ default: module.AgentTerminalPanel })))
 
 export const AuthPage = lazyWithRetry(() => import('@/pages/AuthPage'))
+export const OnboardingPage = lazyWithRetry(() => import('@/pages/onboarding/OnboardingPage'))
 export const AppSettingsPage = lazyWithRetry(() => import('@/pages/app-settings/AppSettingsPage'))
 export const CanvasListPage = lazyWithRetry(() => import('@/pages/canvas/CanvasListPage'))
 export const CanvasEditorPage = lazyWithRetry(() => import('@/pages/canvas/CanvasEditorPage'))

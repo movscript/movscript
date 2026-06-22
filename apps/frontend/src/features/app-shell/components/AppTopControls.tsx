@@ -31,7 +31,7 @@ import {
 import { SUPPORTED_LANGUAGES, type SupportedLanguage } from '@/i18n'
 import { useTheme } from '@/features/app-shell/application/useTheme'
 import { settingsRouteWithReturnPath } from '@/features/app-shell/application/appShellRouteHeaders'
-import { checkForAppUpdate, openAppUpdateDownload, useAppUpdateStatus } from '@/shared/infrastructure/appUpdateStatus'
+import { checkForAppUpdate, downloadAppUpdate, installAppUpdate, useAppUpdateStatus } from '@/shared/infrastructure/appUpdateStatus'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { runtimeAppTopControls } from '@runtime'
 
@@ -90,8 +90,10 @@ export function AppTopControls({
   }
 
   function handleAppUpdateAction() {
-    if (appUpdateStatus.available) {
-      void openAppUpdateDownload().catch(() => {})
+    if (appUpdateStatus.downloaded) {
+      void installAppUpdate().catch(() => {})
+    } else if (appUpdateStatus.available) {
+      void downloadAppUpdate().catch(() => {})
     } else {
       void checkForAppUpdate().catch(() => {})
     }
@@ -131,9 +133,13 @@ export function AppTopControls({
               <AppTopMenuItemText>
                 {appUpdateStatus.checking
                   ? t('header.actions.checkingAppUpdate', { defaultValue: '检查更新中' })
-                  : hasAppUpdate
-                    ? t('header.actions.downloadAppUpdate', { defaultValue: '下载更新' })
-                    : t('header.actions.refreshApp', { defaultValue: '检查更新' })}
+                  : appUpdateStatus.downloading
+                    ? t('header.actions.downloadingAppUpdate', { defaultValue: '下载更新中 {{progress}}%', progress: Math.round(appUpdateStatus.downloadProgress ?? 0) })
+                    : appUpdateStatus.downloaded
+                      ? t('header.actions.installAppUpdate', { defaultValue: '重启安装更新' })
+                      : hasAppUpdate
+                        ? t('header.actions.downloadAppUpdate', { defaultValue: '下载更新' })
+                        : t('header.actions.refreshApp', { defaultValue: '检查更新' })}
               </AppTopMenuItemText>
               {hasAppUpdate ? <span className="ms-inline-center app-top-menu-item__update-dot" aria-hidden="true" /> : null}
             </DropdownMenuItem>

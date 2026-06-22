@@ -21,11 +21,18 @@ import { api } from '@/shared/infrastructure/api'
 import { ROUTES } from '@/routes/projectRoutes'
 import type { ExternalResourceSource } from '@/types'
 
-export function ExternalResourceSourceSettingsSection({ canOpenAdmin }: { canOpenAdmin: boolean }) {
+export function ExternalResourceSourceSettingsSection({
+  canOpenAdmin,
+  enabled = true,
+}: {
+  canOpenAdmin: boolean
+  enabled?: boolean
+}) {
   const { t } = useTranslation()
   const { data: queriedSources, isLoading } = useQuery<ExternalResourceSource[]>({
     queryKey: externalResourceKeys.sources,
     queryFn: () => api.get('/external-resource-sources').then(r => r.data),
+    enabled,
   })
   const sources = queriedSources ?? EMPTY_EXTERNAL_RESOURCE_SOURCES
 

@@ -3,7 +3,13 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import test from 'node:test'
 
-import { USER_SESSION_STORAGE_KEY, useUserStore } from './userStore'
+import {
+  LOCAL_WORKSPACE_ORG,
+  LOCAL_WORKSPACE_REALM_KEY,
+  LOCAL_WORKSPACE_USER,
+  USER_SESSION_STORAGE_KEY,
+  useUserStore,
+} from './userStore'
 
 test('user session persistence is routed through desktop Home storage', () => {
   const source = readFileSync(resolve('src/shared/infrastructure/session/userStore.ts'), 'utf8')
@@ -63,4 +69,27 @@ test('user session store normalizes auth payloads and clears sensitive session s
   assert.deepEqual(useUserStore.getState().orgMemberships, [])
   assert.equal(useUserStore.getState().sessionsByRealm.local, undefined)
   assert.equal(useUserStore.getState().sessionsByRealm['cloud:demo']?.currentUser?.ID, 8)
+})
+
+test('local workspace session includes organization context without an auth token', () => {
+  useUserStore.setState({
+    currentUser: null,
+    token: null,
+    tokenExpiresAt: null,
+    gitCredential: null,
+    orgMemberships: [],
+    currentOrgID: null,
+    activeRealmKey: 'cloud:test',
+    sessionsByRealm: {},
+    hydrated: true,
+  })
+
+  useUserStore.getState().setLocalWorkspaceSession()
+
+  assert.deepEqual(useUserStore.getState().currentUser, LOCAL_WORKSPACE_USER)
+  assert.equal(useUserStore.getState().token, null)
+  assert.equal(useUserStore.getState().activeRealmKey, LOCAL_WORKSPACE_REALM_KEY)
+  assert.deepEqual(useUserStore.getState().orgMemberships, [LOCAL_WORKSPACE_ORG])
+  assert.equal(useUserStore.getState().currentOrgID, LOCAL_WORKSPACE_ORG.org_id)
+  assert.deepEqual(useUserStore.getState().sessionsByRealm.local?.orgMemberships, [LOCAL_WORKSPACE_ORG])
 })

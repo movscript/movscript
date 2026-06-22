@@ -6,6 +6,21 @@ import { readBrowserStorageItem, removeBrowserStorageItem, writeBrowserStorageIt
 import { createDesktopStateStorage } from '@/shared/infrastructure/desktopStateStorage'
 
 export const USER_SESSION_STORAGE_KEY = 'movscript-user'
+export const LOCAL_WORKSPACE_REALM_KEY = 'local'
+export const LOCAL_WORKSPACE_USER: User = {
+  ID: 1,
+  username: 'Local Workspace',
+  system_role: 'super_admin',
+}
+export const LOCAL_WORKSPACE_ORG: OrgMembership = {
+  org_id: 1,
+  org_name: 'Local Workspace',
+  org_slug: 'local-workspace',
+  is_personal: true,
+  taskGraph: 'personal',
+  status: 'active',
+  role: 'owner',
+}
 
 interface UserStore {
   currentUser: User | null
@@ -18,6 +33,7 @@ interface UserStore {
   sessionsByRealm: Record<string, UserSessionSnapshot>
   hydrated: boolean
   setSession: (session: AuthSession | null) => void
+  setLocalWorkspaceSession: () => void
   setCurrentUser: (u: User | null) => void
   setActiveRealm: (realmKey: string) => void
   setOrgMemberships: (memberships: OrgMembership[], preferredOrgId?: number | null) => void
@@ -106,7 +122,7 @@ export const useUserStore = create<UserStore>()(
       gitCredential: null,
       orgMemberships: [],
       currentOrgID: null,
-      activeRealmKey: 'local',
+      activeRealmKey: LOCAL_WORKSPACE_REALM_KEY,
       sessionsByRealm: {},
       hydrated: false,
       setSession: (session: AuthSession | null) => {
@@ -138,8 +154,27 @@ export const useUserStore = create<UserStore>()(
         }))
         void syncElectronBackendAuthSession(session)
       },
+      setLocalWorkspaceSession: () => {
+        const snapshot: UserSessionSnapshot = {
+          currentUser: LOCAL_WORKSPACE_USER,
+          token: null,
+          tokenExpiresAt: null,
+          gitCredential: null,
+          orgMemberships: [LOCAL_WORKSPACE_ORG],
+          currentOrgID: LOCAL_WORKSPACE_ORG.org_id,
+        }
+        set((state) => ({
+          activeRealmKey: LOCAL_WORKSPACE_REALM_KEY,
+          ...snapshot,
+          sessionsByRealm: {
+            ...state.sessionsByRealm,
+            [LOCAL_WORKSPACE_REALM_KEY]: snapshot,
+          },
+        }))
+        void syncElectronBackendAuthSession(null)
+      },
       setActiveRealm: (realmKey: string) => {
-        const normalized = realmKey.trim() || 'local'
+        const normalized = realmKey.trim() || LOCAL_WORKSPACE_REALM_KEY
         const snapshot = get().sessionsByRealm[normalized] ?? emptyUserSession()
         set((state) => ({
           activeRealmKey: normalized,
@@ -231,7 +266,7 @@ export const useUserStore = create<UserStore>()(
           ...currentState,
           ...persisted,
           currentUser: persisted?.currentUser ? normalizeUser(persisted.currentUser) : null,
-          activeRealmKey: persisted?.activeRealmKey || 'local',
+          activeRealmKey: persisted?.activeRealmKey || LOCAL_WORKSPACE_REALM_KEY,
           sessionsByRealm: normalizeSessionsByRealm(persisted?.sessionsByRealm, persisted),
           orgMemberships: persisted?.orgMemberships ?? [],
           currentOrgID: persisted?.currentOrgID ?? null,
@@ -277,7 +312,7 @@ function normalizeSessionsByRealm(
     }
   }
   if (Object.keys(sessions).length === 0 && persisted?.currentUser) {
-    sessions[persisted.activeRealmKey || 'local'] = {
+    sessions[persisted.activeRealmKey || LOCAL_WORKSPACE_REALM_KEY] = {
       currentUser: normalizeUser(persisted.currentUser),
       token: persisted.token ?? null,
       tokenExpiresAt: persisted.tokenExpiresAt ?? null,

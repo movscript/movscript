@@ -2,6 +2,7 @@ import { create } from 'zustand'
 
 export type AccountSettingsDialogTab =
   | 'profile'
+  | 'mode'
   | 'settings'
   | 'workspace'
   | `runtime:${string}`

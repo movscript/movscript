@@ -9,6 +9,7 @@ import type {
 } from '../../src/shared/contracts/electronApi'
 import { createWindow } from '../appWindow'
 import { loadRenderer } from '../appWindow/loadRenderer'
+import { leaveTrayMode } from './desktopPresence'
 
 const HOME_ROUTE = '/'
 const AGENT_ROUTE = '/project/agent'
@@ -363,6 +364,7 @@ export function contextForWindow(win: BrowserWindow): ElectronAppWindowContext {
 }
 
 function createTrackedWindow(context: ElectronAppWindowContext): BrowserWindow {
+  leaveTrayMode()
   const win = createWindow({ context })
   trackedWindows.add(win)
   windowContexts.set(win, context)
@@ -379,6 +381,7 @@ function createTrackedWindow(context: ElectronAppWindowContext): BrowserWindow {
 }
 
 function focusWindow(win: BrowserWindow): void {
+  leaveTrayMode()
   if (win.isMinimized()) win.restore()
   win.show()
   win.focus()

@@ -1,6 +1,10 @@
 appId: com.movscript.desktop
 productName: Movscript
 asar: true
+publish:
+  provider: github
+  owner: movscript
+  repo: movscript
 asarUnpack:
   - node_modules/node-pty/**
   - node_modules/@movscript/mova*/vendor/**/bin/codex-app-server*

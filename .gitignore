@@ -12,6 +12,7 @@ apps/frontend/src/api/generated.ts
 apps/frontend/vendor/app-server/*/
 apps/frontend/vendor/ffmpeg/*/
 apps/frontend/vendor/sdk-runtimes/
+apps/frontend/sdk-runtime/
 apps/frontend/test-results/
 apps/frontend/playwright-report/
 release-artifacts/

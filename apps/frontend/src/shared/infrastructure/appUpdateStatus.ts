@@ -8,6 +8,10 @@ export const APP_UPDATE_STATUS_EVENT = 'movscript:app-update-status'
 export interface AppUpdateStatus {
   available: boolean
   checking: boolean
+  downloading?: boolean
+  downloaded?: boolean
+  installing?: boolean
+  downloadProgress?: number
   currentVersion?: string
   latestVersion?: string
   downloadUrl?: string
@@ -15,6 +19,12 @@ export interface AppUpdateStatus {
   releaseNotes?: string
   channel?: string
   mandatory?: boolean
+  policy?: 'optional' | 'required'
+  severity?: 'normal' | 'security' | 'data-loss' | 'startup-blocker'
+  minSupportedVersion?: string
+  deadlineAt?: string
+  policyTitle?: string
+  policyMessage?: string
   checkedAt?: string
   error?: string
 }
@@ -60,9 +70,20 @@ export async function checkForAppUpdate(): Promise<AppUpdateStatus> {
 }
 
 export async function openAppUpdateDownload(): Promise<AppUpdateStatus> {
+  return downloadAppUpdate()
+}
+
+export async function downloadAppUpdate(): Promise<AppUpdateStatus> {
   const api = readElectronApi()
-  if (!api?.openAppUpdateDownload) return DEFAULT_APP_UPDATE_STATUS
-  return normalizeAppUpdateStatus(await api.openAppUpdateDownload())
+  const action = api?.downloadAppUpdate ?? api?.openAppUpdateDownload
+  if (!action) return DEFAULT_APP_UPDATE_STATUS
+  return normalizeAppUpdateStatus(await action())
+}
+
+export async function installAppUpdate(): Promise<AppUpdateStatus> {
+  const api = readElectronApi()
+  if (!api?.installAppUpdate) return DEFAULT_APP_UPDATE_STATUS
+  return normalizeAppUpdateStatus(await api.installAppUpdate())
 }
 
 export function announceAppUpdateStatus(status: AppUpdateStatus): void {
@@ -75,6 +96,10 @@ function normalizeAppUpdateStatus(value: Partial<AppUpdateStatus> | Partial<Elec
   return {
     available: value?.available === true,
     checking: value?.checking === true,
+    downloading: value?.downloading === true,
+    downloaded: value?.downloaded === true,
+    installing: value?.installing === true,
+    downloadProgress: numberValue(value?.downloadProgress),
     currentVersion: stringValue(value?.currentVersion),
     latestVersion: stringValue(value?.latestVersion),
     downloadUrl: stringValue(value?.downloadUrl),
@@ -82,6 +107,12 @@ function normalizeAppUpdateStatus(value: Partial<AppUpdateStatus> | Partial<Elec
     releaseNotes: stringValue(value?.releaseNotes),
     channel: stringValue(value?.channel),
     mandatory: value?.mandatory === true,
+    policy: appUpdatePolicyValue(value?.policy),
+    severity: appUpdateSeverityValue(value?.severity),
+    minSupportedVersion: stringValue(value?.minSupportedVersion),
+    deadlineAt: stringValue(value?.deadlineAt),
+    policyTitle: stringValue(value?.policyTitle),
+    policyMessage: stringValue(value?.policyMessage),
     checkedAt: stringValue(value?.checkedAt),
     error: stringValue(value?.error),
   }
@@ -89,4 +120,16 @@ function normalizeAppUpdateStatus(value: Partial<AppUpdateStatus> | Partial<Elec
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function numberValue(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+function appUpdatePolicyValue(value: unknown): AppUpdateStatus['policy'] | undefined {
+  return value === 'optional' || value === 'required' ? value : undefined
+}
+
+function appUpdateSeverityValue(value: unknown): AppUpdateStatus['severity'] | undefined {
+  return value === 'normal' || value === 'security' || value === 'data-loss' || value === 'startup-blocker' ? value : undefined
 }

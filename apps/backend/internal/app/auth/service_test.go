@@ -59,6 +59,27 @@ func TestLocalBootstrapDoesNotResetExistingSuperAdmin(t *testing.T) {
 	}
 }
 
+func TestEnsureLocalSuperAdminReusesOrCreatesLocalUser(t *testing.T) {
+	db := testutil.OpenSQLite(t, "auth_service_local_session.db", &model.User{}, &model.Organization{}, &model.OrganizationMember{})
+	service := NewLocalService(db)
+
+	created, err := service.EnsureLocalSuperAdmin(context.Background(), "Local Workspace")
+	if err != nil {
+		t.Fatalf("EnsureLocalSuperAdmin(create) error = %v", err)
+	}
+	if created.SystemRole != domainauth.SystemRoleSuperAdmin {
+		t.Fatalf("created SystemRole = %q, want %q", created.SystemRole, domainauth.SystemRoleSuperAdmin)
+	}
+
+	reused, err := service.EnsureLocalSuperAdmin(context.Background(), "Other")
+	if err != nil {
+		t.Fatalf("EnsureLocalSuperAdmin(reuse) error = %v", err)
+	}
+	if reused.ID != created.ID {
+		t.Fatalf("reused ID = %d, want %d", reused.ID, created.ID)
+	}
+}
+
 func TestFirstRegisteredUserBecomesSuperAdminWithoutLocalMode(t *testing.T) {
 	db := testutil.OpenSQLite(t, "auth_service_first_user_admin.db", &model.User{}, &model.Organization{}, &model.OrganizationMember{})
 	service := NewService(db)

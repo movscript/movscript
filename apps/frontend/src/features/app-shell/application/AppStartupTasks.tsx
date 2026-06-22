@@ -12,23 +12,38 @@ import { useAppWindowContextStore } from '@/shared/infrastructure/appWindowConte
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { authRealmKey } from '@/shared/infrastructure/session/authRealm'
+import { ensureLocalWorkspaceAuthSession } from '@/shared/infrastructure/session/localWorkspaceAuth'
 import { useSystemStatusStore } from '@/shared/infrastructure/systemStatusStore'
-import { refreshRuntimeConfigSnapshot } from '@/shared/infrastructure/config'
+import { isLocalLaunchMode, refreshRuntimeConfigSnapshot } from '@/shared/infrastructure/config'
 import { refreshProviderSettingsRuntimeEnv } from '@/shared/infrastructure/providerConfigStore'
 
-export function AppStartupTasks({ settingsHydrated }: { settingsHydrated: boolean }) {
+export function AppStartupTasks({
+  settingsHydrated,
+  userHydrated,
+}: {
+  settingsHydrated: boolean
+  userHydrated: boolean
+}) {
   const queryClient = useQueryClient()
   const settings = useAppSettingsStore((s) => s.settings)
 
   useEffect(() => {
-    if (!settingsHydrated) return
-    useUserStore.getState().setActiveRealm(authRealmKey(settings))
+    if (!settingsHydrated || !userHydrated) return
+    const userStore = useUserStore.getState()
+    userStore.setActiveRealm(authRealmKey(settings))
+    if (settings.onboardingCompleted && isLocalLaunchMode(settings)) {
+      void ensureLocalWorkspaceAuthSession().catch((error) => {
+        console.warn('[auth] failed to establish local workspace session', error)
+      })
+    }
   }, [
     settingsHydrated,
+    userHydrated,
     settings.apiBaseURL,
     settings.cloudAPIBaseURL,
     settings.launchMode,
     settings.localAPIBaseURL,
+    settings.onboardingCompleted,
   ])
 
   useEffect(() => {

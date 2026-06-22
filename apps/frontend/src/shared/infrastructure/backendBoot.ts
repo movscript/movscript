@@ -48,6 +48,7 @@ export function shouldGateLocalBackendRequests(): boolean {
   if (typeof window === 'undefined') return false
   if (!readElectronApi()?.getBackendStatus || !readElectronApi()?.setAppSettings) return false
   const settings = useAppSettingsStore.getState().settings
+  if (!settings.onboardingCompleted) return false
   if (!isLocalLaunchMode(settings)) return false
   return normalizeAPIBaseURL(settings.apiBaseURL) === getLocalAPIBaseURL()
 }
@@ -91,6 +92,7 @@ async function waitForLocalBackendReadyOnce(timeoutMs: number): Promise<void> {
       throw new BackendBootError(initial.message || 'Local backend failed to start.', initial)
     }
   }
+  if (await isLocalBackendHTTPReady(settings.apiBaseURL)) return
 
   await api.setAppSettings(settings).catch((error) => {
     throw new BackendBootError(error instanceof Error ? error.message : String(error))
@@ -103,6 +105,7 @@ async function waitForLocalBackendReadyOnce(timeoutMs: number): Promise<void> {
       throw new BackendBootError(afterStart.message || 'Local backend failed to start.', afterStart)
     }
   }
+  if (await isLocalBackendHTTPReady(settings.apiBaseURL)) return
 
   await new Promise<void>((resolve, reject) => {
     let settled = false
@@ -116,6 +119,10 @@ async function waitForLocalBackendReadyOnce(timeoutMs: number): Promise<void> {
     const off = api.onBackendStatus?.((next) => {
       if (!isBackendBootStatus(next)) return
       if (next.state === 'ready') {
+        void isLocalBackendHTTPReady(settings.apiBaseURL).then((ready) => {
+          if (ready) finish(resolve)
+        })
+      } else if (next.state === 'starting' || next.state === 'idle' || next.state === 'stopped') {
         void isLocalBackendHTTPReady(settings.apiBaseURL).then((ready) => {
           if (ready) finish(resolve)
         })

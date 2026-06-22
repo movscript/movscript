@@ -4,6 +4,8 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import {
+  agentConversationRegistryRecordMatchesInput,
+  agentThreadRegistryHydrationSignature,
   agentThreadSummaryHasContent,
   agentThreadSummaryRegistryOpenState,
   shouldHydrateAgentThreadSummary,
@@ -36,11 +38,12 @@ test('agent thread registry hydration preserves explicit closed records as histo
 
 test('agent thread registry hydration writes source threads into the shared registry', () => {
   const source = readFileSync(resolve('src/features/agent/application/useAgentThreadRegistryHydration.ts'), 'utf8')
-  const hydrationEffectSource = source.match(/useEffect\(\(\) => \{[\s\S]*?\}, \[providerIdentity, sourceThreads, userId\]\)/)?.[0] ?? ''
+  const hydrationEffectSource = source.match(/useEffect\(\(\) => \{[\s\S]*?\}, \[hydrationSignature, userId\]\)/)?.[0] ?? ''
   const hydrationHelperStart = source.indexOf('export function hydrateAgentThreadRegistryFromSummaries')
   const hydrationHelperEnd = source.indexOf('export function agentConversationRegistryInputFromThreadSummary', hydrationHelperStart)
   const hydrationHelperSource = source.slice(hydrationHelperStart, hydrationHelperEnd)
 
+  assert.match(source, /const hydrationSignature = agentThreadRegistryHydrationSignature/)
   assert.match(hydrationEffectSource, /hydrateAgentThreadRegistryFromSummaries\(\{ providerIdentity, sourceThreads, userId \}\)/)
   assert.match(hydrationHelperSource, /let currentRecords = readAgentConversationRecordsById\(\)/)
   assert.match(hydrationHelperSource, /agentConversationRegistryRecordForThread\(currentRecords/)
@@ -51,6 +54,53 @@ test('agent thread registry hydration writes source threads into the shared regi
   assert.match(source, /export function useAgentThreadRegistryHydrations/)
   assert.match(source, /useQueries\(\{/)
   assert.doesNotMatch(source, /useAgentSessionStore/)
+})
+
+test('agent thread registry hydration treats omitted patch fields as unchanged', () => {
+  const record = conversationRecord({
+    id: 'provider:sdk:codex:codex:codex-sdk:thread:thread_1',
+    provider: 'codex',
+    providerId: 'codex',
+    providerInstanceId: 'codex-sdk',
+    providerProtocol: 'sdk',
+    providerThreadCwd: '/project',
+    title: 'Existing title',
+    status: 'completed',
+    createdAt: 1000,
+    updatedAt: 2000,
+  })
+
+  assert.equal(agentConversationRegistryRecordMatchesInput(record, {
+    userId: 'user_1',
+    provider: 'codex',
+    providerId: 'codex',
+    providerInstanceId: 'codex-sdk',
+    providerProtocol: 'sdk',
+    providerThreadId: 'thread_1',
+    open: true,
+    archived: false,
+  }), true)
+})
+
+test('agent thread registry hydration signature tracks provider and thread content', () => {
+  const base = {
+    providerIdentity: {
+      provider: 'codex',
+      providerId: 'codex',
+      providerInstanceId: 'codex-sdk',
+      providerProtocol: 'sdk',
+    },
+    sourceThreads: [threadSummary({ title: 'First' })],
+  }
+
+  assert.equal(agentThreadRegistryHydrationSignature([base]), agentThreadRegistryHydrationSignature([{
+    ...base,
+    sourceThreads: [threadSummary({ title: 'First' })],
+  }]))
+  assert.notEqual(agentThreadRegistryHydrationSignature([base]), agentThreadRegistryHydrationSignature([{
+    ...base,
+    sourceThreads: [threadSummary({ title: 'Changed' })],
+  }]))
 })
 
 function threadSummary(input: Partial<AgentThreadSummary> = {}): AgentThreadSummary {
@@ -69,6 +119,15 @@ function conversationRecord(input: Partial<AgentConversationRegistryRecord> = {}
     id: input.id ?? 'thread_1',
     userId: input.userId ?? 'user_1',
     providerThreadId: input.providerThreadId ?? 'thread_1',
+    ...(input.provider ? { provider: input.provider } : {}),
+    ...(input.providerId ? { providerId: input.providerId } : {}),
+    ...(input.providerInstanceId ? { providerInstanceId: input.providerInstanceId } : {}),
+    ...(input.providerProtocol ? { providerProtocol: input.providerProtocol } : {}),
+    ...(input.providerSessionId ? { providerSessionId: input.providerSessionId } : {}),
+    ...(input.providerThreadCwd ? { providerThreadCwd: input.providerThreadCwd } : {}),
+    ...(input.title ? { title: input.title } : {}),
+    ...(input.projectId ? { projectId: input.projectId } : {}),
+    ...(input.status ? { status: input.status } : {}),
     open: input.open ?? true,
     archived: input.archived ?? false,
     createdAt: input.createdAt ?? 1000,

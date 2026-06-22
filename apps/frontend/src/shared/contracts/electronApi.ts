@@ -149,6 +149,13 @@ import type {
 
 export type * from './electronApiContractTypes'
 
+export interface ElectronMovScriptCodexPluginInstallResult {
+  ok: true
+  openedCodex: boolean
+  marketplaceRoot: string
+  installCommand: string
+}
+
 export type ElectronAPI = {
   platform?: NodeJS.Platform
   openFile?: () => Promise<string | null>
@@ -193,9 +200,12 @@ export type ElectronAPI = {
   getAppUpdateStatus?: () => Promise<ElectronAppUpdateStatus>
   checkForAppUpdate?: () => Promise<ElectronAppUpdateStatus>
   openAppUpdateDownload?: () => Promise<ElectronAppUpdateStatus>
+  downloadAppUpdate?: () => Promise<ElectronAppUpdateStatus>
+  installAppUpdate?: () => Promise<ElectronAppUpdateStatus>
   onAppUpdateStatus?: (handler: (status: ElectronAppUpdateStatus) => void) => () => void
   openAdminConsole?: (input?: { baseURL?: string; path?: string; authSession?: ElectronAdminAuthSessionInput | null }) => Promise<{ url: string }>
   openExternalURL?: (input: { url: string }) => Promise<{ url: string }>
+  installMovScriptCodexPlugin?: () => Promise<ElectronMovScriptCodexPluginInstallResult>
   embeddedBrowserNavigate?: (input: { tabId?: string; url: string; bounds?: ElectronEmbeddedBrowserBounds | null }) => Promise<ElectronEmbeddedBrowserState>
   embeddedBrowserActivate?: (input: { tabId: string; bounds?: ElectronEmbeddedBrowserBounds | null }) => Promise<ElectronEmbeddedBrowserState>
   embeddedBrowserSetBounds?: (input: { bounds?: ElectronEmbeddedBrowserBounds | null } | null) => Promise<ElectronEmbeddedBrowserState>

@@ -1,7 +1,7 @@
-import { execFile } from 'node:child_process'
-import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { execFile, spawn } from 'node:child_process'
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { delimiter, isAbsolute, join } from 'node:path'
 import { promisify } from 'node:util'
 import { resolveMovScriptBundledPluginSource, validateMovScriptBundledPluginSource } from './movscriptBundledPluginSource'
 
@@ -28,6 +28,12 @@ export interface InstallMovScriptCodexPluginOptions {
   execCodex?: (args: string[]) => Promise<void>
 }
 
+export interface ResolveCodexExecutableOptions {
+  env?: NodeJS.ProcessEnv
+  exists?: (path: string) => boolean
+  platform?: NodeJS.Platform
+}
+
 export async function installMovScriptCodexPlugin(
   options: InstallMovScriptCodexPluginOptions = {},
 ): Promise<CodexPluginInstallResult> {
@@ -39,6 +45,25 @@ export async function installMovScriptCodexPlugin(
     paths,
     installCommand: codexPluginInstallCommand(paths.marketplaceRoot),
   }
+}
+
+export async function openCodexApp(): Promise<void> {
+  const codex = resolveCodexExecutable()
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn(codex, ['app'], {
+      detached: true,
+      env: process.env,
+      shell: shouldRunCodexThroughShell(codex),
+      stdio: 'ignore',
+    })
+    child.once('error', (error) => {
+      reject(new Error(`Failed to open Codex: ${errorMessage(error)}`))
+    })
+    child.once('spawn', () => {
+      child.unref()
+      resolve()
+    })
+  })
 }
 
 export function prepareMovScriptCodexMarketplace(
@@ -106,11 +131,73 @@ function defaultCodexMarketplaceRoot(): string {
 }
 
 async function runCodexCommand(args: string[]): Promise<void> {
+  const codex = resolveCodexExecutable()
   try {
-    await execFileAsync('codex', args, { env: process.env })
+    await execFileAsync(codex, args, { env: process.env, shell: shouldRunCodexThroughShell(codex) })
   } catch (error) {
     throw new Error(`Failed to run "codex ${args.join(' ')}": ${errorMessage(error)}`)
   }
+}
+
+export function resolveCodexExecutable(options: ResolveCodexExecutableOptions = {}): string {
+  const env = options.env ?? process.env
+  const exists = options.exists ?? existsSync
+  const explicit = env.MOVSCRIPT_CODEX_CLI?.trim() || env.CODEX_CLI?.trim()
+  if (explicit) return explicit
+
+  for (const dir of pathEntries(env.PATH)) {
+    for (const binary of codexBinaryNames(options.platform ?? process.platform)) {
+      const candidate = join(dir, binary)
+      if (exists(candidate)) return candidate
+    }
+  }
+
+  for (const candidate of commonCodexExecutableCandidates(env, options.platform ?? process.platform)) {
+    if (exists(candidate)) return candidate
+  }
+
+  return codexBinaryName(options.platform ?? process.platform)
+}
+
+function pathEntries(pathValue: string | undefined): string[] {
+  return (pathValue ?? '')
+    .split(delimiter)
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0 && isAbsolute(entry))
+}
+
+function commonCodexExecutableCandidates(env: NodeJS.ProcessEnv, platform: NodeJS.Platform): string[] {
+  const [binary] = codexBinaryNames(platform)
+  const home = homedir()
+  const candidates = [
+    join(home, '.local', 'bin', binary),
+    join(home, '.npm-global', 'bin', binary),
+  ]
+  if (platform === 'darwin') {
+    candidates.push(
+      join('/opt/homebrew/bin', binary),
+      join('/usr/local/bin', binary),
+    )
+  }
+  if (platform === 'win32') {
+    const localAppData = env.LOCALAPPDATA?.trim()
+    const appData = env.APPDATA?.trim()
+    if (localAppData) candidates.push(join(localAppData, 'Programs', 'codex', binary))
+    if (appData) candidates.push(join(appData, 'npm', binary))
+  }
+  return candidates
+}
+
+function codexBinaryNames(platform: NodeJS.Platform): string[] {
+  return platform === 'win32' ? ['codex.cmd', 'codex.exe', 'codex'] : ['codex']
+}
+
+function codexBinaryName(platform: NodeJS.Platform): string {
+  return codexBinaryNames(platform)[0] ?? 'codex'
+}
+
+function shouldRunCodexThroughShell(command: string): boolean {
+  return process.platform === 'win32' && /\.(?:cmd|bat)$/i.test(command)
 }
 
 function shellQuote(value: string): string {

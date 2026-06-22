@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 import test from 'node:test'
 
 const releaseWorkflow = await readFile(resolve(import.meta.dirname, '../../../.github/workflows/release.yml'), 'utf8')
+const pagesRefreshWorkflow = await readFile(resolve(import.meta.dirname, '../../../.github/workflows/pages-refresh.yml'), 'utf8')
 
 test('release workflow packages every desktop target through split parameterized commands', () => {
   assert.match(releaseWorkflow, /pnpm run release -- prepare-desktop-package --platform=\$\{\{\s*matrix\.package-platform\s*\}\} --arch=\$\{\{\s*matrix\.package-arch\s*\}\}/)
@@ -124,4 +125,9 @@ test('release workflow marks test releases as prereleases', () => {
   assert.match(releaseWorkflow, /IS_TEST_RELEASE:\s+\$\{\{\s*steps\.release\.outputs\.is_test\s*\}\}/)
   assert.match(releaseWorkflow, /RELEASE_FLAGS="--draft --prerelease"/)
   assert.match(releaseWorkflow, /gh release create "\$RELEASE_TAG" \$RELEASE_FLAGS --title "\$RELEASE_TAG" --notes-file \.github\/release-workspace-notes\.md/)
+})
+
+test('pages refresh workflow dispatches pages without requiring a local git checkout', () => {
+  assert.doesNotMatch(pagesRefreshWorkflow, /actions\/checkout/)
+  assert.match(pagesRefreshWorkflow, /gh workflow run pages\.yml --repo "\$GITHUB_REPOSITORY" --ref main/)
 })

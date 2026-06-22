@@ -319,7 +319,7 @@ test('runReleaseWorkflowCli dispatches split desktop package stages', () => {
   assert.deepEqual(calls.map((call) => call.slice(0, 2)), [
     ['pnpm', ['--filter', '@movscript/desktop', 'typecheck']],
     ['pnpm', ['--filter', '@movscript/desktop', 'exec', 'electron-vite', 'build', '--logLevel', 'info', '--clearScreen=false', '--debug']],
-    ['pnpm', ['--filter', '@movscript/desktop', 'exec', 'electron-builder', '--win', '--x64', '--publish', 'never']],
+    ['pnpm', ['--filter', '@movscript/desktop', 'exec', 'electron-builder', '--win', '--x64', '--publish', 'never', '-c.publish.channel=latest-win32-x64']],
   ])
   assert.deepEqual(calls[2][2].env, {
     PATH: '/bin',

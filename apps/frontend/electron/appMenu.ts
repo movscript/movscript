@@ -111,15 +111,13 @@ export function installApplicationMenu(): void {
             { role: 'hide' },
             { role: 'hideOthers' },
             { role: 'unhide' },
-            { type: 'separator' },
-            { role: 'quit' },
           ],
         } satisfies MenuItemConstructorOptions]
       : []),
     {
       label: 'File',
       submenu: [
-        { role: process.platform === 'darwin' ? 'close' : 'quit' },
+        { role: 'close' },
       ],
     },
     navigationMenuTemplate(),
