@@ -86,6 +86,8 @@ test('release workflow materializes Apple signing secrets as temporary files for
   assert.match(releaseWorkflow, /CSC_LINK_CONTENT:\s+\$\{\{\s*secrets\.CSC_LINK\s*\}\}/)
   assert.match(releaseWorkflow, /CSC_KEY_PASSWORD:\s+\$\{\{\s*secrets\.CSC_KEY_PASSWORD\s*\}\}/)
   assert.match(releaseWorkflow, /CSC_LINK_PATH="\$RUNNER_TEMP\/developer-id-application\.p12"/)
+  assert.match(releaseWorkflow, /security list-keychains -d user -s "\$KEYCHAIN_PATH"/)
+  assert.match(releaseWorkflow, /security default-keychain -d user -s "\$KEYCHAIN_PATH"/)
   assert.match(releaseWorkflow, /security import "\$CSC_LINK_PATH" -k "\$KEYCHAIN_PATH" -P "\$CSC_KEY_PASSWORD"/)
   assert.match(releaseWorkflow, /IDENTITY_NAME="\$\(security find-identity -p codesigning -v "\$KEYCHAIN_PATH"/)
   assert.match(releaseWorkflow, /No Developer ID Application signing identity was imported from CSC_LINK/)
@@ -94,6 +96,7 @@ test('release workflow materializes Apple signing secrets as temporary files for
   assert.match(releaseWorkflow, /echo "CSC_NAME=\$IDENTITY_NAME" >> "\$GITHUB_ENV"/)
   assert.match(releaseWorkflow, /MOVSCRIPT_RELEASE_REQUIRE_SIGNING:\s+\$\{\{\s*matrix\.package-platform == 'darwin' && '1' \|\| '0'\s*\}\}/)
   assert.match(releaseWorkflow, /MOVSCRIPT_RELEASE_SIGNING_MODE:\s+\$\{\{\s*matrix\.package-platform == 'darwin' && 'signed' \|\| 'unsigned'\s*\}\}/)
+  assert.match(releaseWorkflow, /CSC_LINK:\s+''/)
 })
 
 test('release workflow does not build or download app-server binaries for GitHub packages', () => {
