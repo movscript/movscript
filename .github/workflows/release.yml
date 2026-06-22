@@ -157,15 +157,20 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Prepare Apple API key file
+      - name: Prepare Apple signing files
         if: matrix.package-platform == 'darwin'
         env:
           APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY }}
+          CSC_LINK_CONTENT: ${{ secrets.CSC_LINK }}
         run: |
           APPLE_API_KEY_PATH="$RUNNER_TEMP/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8"
           printf '%s' "$APPLE_API_KEY_CONTENT" > "$APPLE_API_KEY_PATH"
           chmod 600 "$APPLE_API_KEY_PATH"
           echo "APPLE_API_KEY=$APPLE_API_KEY_PATH" >> "$GITHUB_ENV"
+          CSC_LINK_PATH="$RUNNER_TEMP/developer-id-application.p12"
+          printf '%s' "$CSC_LINK_CONTENT" | base64 --decode > "$CSC_LINK_PATH"
+          chmod 600 "$CSC_LINK_PATH"
+          echo "CSC_LINK=$CSC_LINK_PATH" >> "$GITHUB_ENV"
 
       - name: Verify release readiness
         run: pnpm run release -- verify-release-readiness --tag="$RELEASE_TAG" --platform=${{ matrix.package-platform }}
@@ -174,7 +179,6 @@ jobs:
           MOVSCRIPT_RELEASE_ALLOW_TEST_TAG: ${{ ((github.event_name == 'workflow_dispatch' && inputs.release_channel == 'test') || contains(github.ref_name, '-test.')) && '1' || '0' }}
           MOVSCRIPT_RELEASE_REQUIRE_SIGNING: ${{ matrix.package-platform == 'darwin' && '1' || '0' }}
           MOVSCRIPT_RELEASE_SIGNING_MODE: ${{ matrix.package-platform == 'darwin' && 'signed' || 'unsigned' }}
-          CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
@@ -242,7 +246,6 @@ jobs:
         run: pnpm run release -- build-desktop-artifact --platform=${{ matrix.package-platform }} --arch=${{ matrix.package-arch }}
         env:
           MOVSCRIPT_RELEASE_SIGNING_MODE: ${{ matrix.package-platform == 'darwin' && 'signed' || 'unsigned' }}
-          CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
@@ -254,7 +257,6 @@ jobs:
         run: pnpm run release -- verify-desktop-package --platform=${{ matrix.package-platform }} --arch=${{ matrix.package-arch }}
         env:
           MOVSCRIPT_RELEASE_SIGNING_MODE: ${{ matrix.package-platform == 'darwin' && 'signed' || 'unsigned' }}
-          CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}

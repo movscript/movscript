@@ -77,12 +77,15 @@ test('release workflow verifies readiness before packaging and smoke-tests runna
   assert.match(releaseWorkflow, /pnpm run release -- smoke-desktop-package --platform=\$\{\{\s*matrix\.package-platform\s*\}\} --arch=\$\{\{\s*matrix\.package-arch\s*\}\}/)
 })
 
-test('release workflow materializes Apple API key content as a temporary key file for macOS packaging', () => {
-  assert.match(releaseWorkflow, /name: Prepare Apple API key file/)
+test('release workflow materializes Apple signing secrets as temporary files for macOS packaging', () => {
+  assert.match(releaseWorkflow, /name: Prepare Apple signing files/)
   assert.match(releaseWorkflow, /if: matrix\.package-platform == 'darwin'/)
   assert.match(releaseWorkflow, /APPLE_API_KEY_CONTENT:\s+\$\{\{\s*secrets\.APPLE_API_KEY\s*\}\}/)
   assert.match(releaseWorkflow, /APPLE_API_KEY_PATH="\$RUNNER_TEMP\/AuthKey_\$\{\{\s*secrets\.APPLE_API_KEY_ID\s*\}\}\.p8"/)
   assert.match(releaseWorkflow, /echo "APPLE_API_KEY=\$APPLE_API_KEY_PATH" >> "\$GITHUB_ENV"/)
+  assert.match(releaseWorkflow, /CSC_LINK_CONTENT:\s+\$\{\{\s*secrets\.CSC_LINK\s*\}\}/)
+  assert.match(releaseWorkflow, /CSC_LINK_PATH="\$RUNNER_TEMP\/developer-id-application\.p12"/)
+  assert.match(releaseWorkflow, /echo "CSC_LINK=\$CSC_LINK_PATH" >> "\$GITHUB_ENV"/)
   assert.match(releaseWorkflow, /MOVSCRIPT_RELEASE_REQUIRE_SIGNING:\s+\$\{\{\s*matrix\.package-platform == 'darwin' && '1' \|\| '0'\s*\}\}/)
   assert.match(releaseWorkflow, /MOVSCRIPT_RELEASE_SIGNING_MODE:\s+\$\{\{\s*matrix\.package-platform == 'darwin' && 'signed' \|\| 'unsigned'\s*\}\}/)
 })
