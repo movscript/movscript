@@ -958,16 +958,14 @@ function verifyMountedDMG(root, dmgPath, options = {}) {
     ], { cwd: root, log, spawn })
     attached = true
     const mountedApp = resolve(mountPoint, 'Movscript.app')
-    const signatureResult = runCheckedTool('Verify mounted app code signature', 'codesign', [
-      '--verify',
-      '--deep',
-      '--strict',
-      '--verbose=2',
+    runCheckedTool('Verify mounted app Gatekeeper acceptance', 'spctl', [
+      '-a',
+      '-vv',
+      '--type',
+      'execute',
       mountedApp,
-    ], { allowFailure: true, cwd: root, log, spawn })
-    if (signatureResult.status !== 0 || signatureResult.signal || signatureResult.error) {
-      throw new Error(`Verify mounted app code signature failed: status=${signatureResult.status ?? 'none'} signal=${signatureResult.signal ?? 'none'}`)
-    }
+    ], { cwd: root, log, spawn })
+    runCheckedTool('Validate mounted app notarization ticket', 'xcrun', ['stapler', 'validate', mountedApp], { cwd: root, log, spawn })
     const mountedIcon = resolve(mountedApp, 'Contents/Resources/icon.icns')
     const expectedIconHash = sha256File(iconPath)
     const mountedIconHash = sha256File(mountedIcon)
