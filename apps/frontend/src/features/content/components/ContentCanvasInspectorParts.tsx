@@ -572,7 +572,7 @@ function CandidateDetailPrompt({
           </div>
         </div>
       ) : (
-        <CompiledPromptPreview preview={preview} fallbackText={prompt} />
+        <CompiledPromptPreview preview={preview ?? null} fallbackText={prompt} />
       )}
     </section>
   )
