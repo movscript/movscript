@@ -917,30 +917,39 @@ export function verifyMacOSDMGArtifacts(root = repoRoot, options = {}) {
     spawn = spawnSync,
   } = options
   const releaseDir = resolve(root, 'apps/frontend/release')
-  const appDir = macAppDirForArch(root, arch)
-  verifyMacOSAppSignature(root, appDir, { env, log, spawn })
   const dmgPath = latestDMG(releaseDir)
+  if (env.MOVSCRIPT_RELEASE_SIGNING_MODE === 'signed') {
+    verifyMacOSSignedDMG(root, dmgPath, { log, spawn })
+  } else {
+    const appDir = macAppDirForArch(root, arch)
+    verifyMacOSAppCodeSignature(root, appDir, { log, spawn })
+  }
   runCheckedTool('Verify DMG checksum', 'hdiutil', ['verify', dmgPath], { cwd: root, log, spawn })
   verifyMountedDMG(root, dmgPath, { log, spawn })
 }
 
-function verifyMacOSAppSignature(root, appDir, options = {}) {
+function verifyMacOSSignedDMG(root, dmgPath, options = {}) {
   const {
-    env = process.env,
     log = console.log,
     spawn = spawnSync,
   } = options
-  if (env.MOVSCRIPT_RELEASE_SIGNING_MODE === 'signed') {
-    runCheckedTool('Verify packaged app Gatekeeper acceptance', 'spctl', [
-      '-a',
-      '-vv',
-      '--type',
-      'execute',
-      appDir,
-    ], { cwd: root, log, spawn })
-    runCheckedTool('Validate packaged app notarization ticket', 'xcrun', ['stapler', 'validate', appDir], { cwd: root, log, spawn })
-    return
-  }
+  runCheckedTool('Verify signed DMG Gatekeeper acceptance', 'spctl', [
+    '-a',
+    '-vv',
+    '--type',
+    'open',
+    '--context',
+    'context:primary-signature',
+    dmgPath,
+  ], { cwd: root, log, spawn })
+  runCheckedTool('Validate signed DMG notarization ticket', 'xcrun', ['stapler', 'validate', dmgPath], { cwd: root, log, spawn })
+}
+
+function verifyMacOSAppCodeSignature(root, appDir, options = {}) {
+  const {
+    log = console.log,
+    spawn = spawnSync,
+  } = options
   runCheckedTool('Verify packaged app code signature', 'codesign', [
     '--verify',
     '--deep',
