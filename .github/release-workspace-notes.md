@@ -20,6 +20,7 @@ This release continues to target early community testing of the desktop workflow
 - Remember local projects opened, fetched, or initialized through MovScript MCP project tools in the desktop recent projects list.
 - Update the pinned Windows ARM64 ffmpeg release source used by the packaging workflow.
 - Bind project-scoped MCP tools and desktop project views to explicit local project directories, with user-scoped project data decisions when no org scope is present.
+- Build the macOS Intel / x64 package on the macOS 14 runner to avoid stalled macOS 13 Intel runner allocation.
 - Recommend the matching desktop download on GitHub Pages based on the visitor's OS and architecture when browser detection is available.
 - Use a Windows-specific Movscript Home default under `%LOCALAPPDATA%\Movscript\Home`, with a settings-page directory picker for moving data to a larger drive.
 

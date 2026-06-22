@@ -23,6 +23,7 @@ test('release workflow packages every desktop target through split parameterized
     assert.match(releaseWorkflow, new RegExp(pair[0]))
     assert.match(releaseWorkflow, new RegExp(pair[1]))
   }
+  assert.match(releaseWorkflow, /name: macos-x64\s+os: macos-14\s+package-platform: darwin\s+package-arch: x64/)
   assert.doesNotMatch(releaseWorkflow, /package-platform: linux/)
 })
 
