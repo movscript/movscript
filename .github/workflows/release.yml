@@ -21,6 +21,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
   id-token: write
   attestations: write
 
@@ -340,3 +341,8 @@ jobs:
             gh release create "$RELEASE_TAG" $RELEASE_FLAGS --title "$RELEASE_TAG" --notes-file .github/release-workspace-notes.md
           fi
           gh release upload "$RELEASE_TAG" downloaded-artifacts/* --clobber
+
+      - name: Refresh installer page metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --ref main
