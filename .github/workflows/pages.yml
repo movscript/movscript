@@ -1,9 +1,6 @@
 name: Deploy Installer Page
 
 on:
-  release:
-    types:
-      - published
   push:
     branches:
       - main
