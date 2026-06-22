@@ -25,6 +25,7 @@ import {
   registerSdkRuntimeSubscription,
   respondToSdkRuntimeServerRequest,
 } from './sdkRuntimeHost'
+import { clearSdkRuntimeThreadRepositoryForTests } from './sdkRuntimeThreadRepository'
 import { SDK_RUNTIME_REQUIRED_RPC_METHODS } from '../../src/shared/infrastructure/sdk-runtime/sdkRuntimeProtocol'
 import { writeAgentRuntimeApiKey } from './appSettingsSecrets'
 
@@ -1151,6 +1152,8 @@ test('SDK runtime handlers implement the neutral thread management RPC surface',
 })
 
 test('SDK runtime handlers resume missing thread records before lifecycle mutations', async () => {
+  const homeDir = mkdtempSync(join(tmpdir(), 'movscript-codex-sdk-missing-record-home-'))
+  clearSdkRuntimeThreadRepositoryForTests()
   const calls: string[] = []
   class Codex {
     startThread() {
@@ -1169,6 +1172,7 @@ test('SDK runtime handlers resume missing thread records before lifecycle mutati
     },
   }
   const handler = createCodexSdkRuntimeHandler({
+    defaultWorkspaceDir: () => homeDir,
     moduleLoader: async () => ({ Codex }),
   })
 
@@ -1243,6 +1247,89 @@ test('SDK runtime handlers publish neutral thread and turn notifications', async
   } finally {
     unregister()
   }
+})
+
+test('SDK runtime thread read includes pending user message before the provider run settles', async () => {
+  let releaseRun!: () => void
+  const runBlocker = new Promise<{ finalResponse: string }>((resolve) => {
+    releaseRun = () => resolve({ finalResponse: 'done' })
+  })
+  let runStarted!: () => void
+  const runStartedSignal = new Promise<void>((resolve) => {
+    runStarted = resolve
+  })
+  class Codex {
+    startThread() {
+      return {
+        id: 'pending_read_thread',
+        run: async () => {
+          runStarted()
+          return runBlocker
+        },
+      }
+    }
+    resumeThread() {
+      return {
+        id: 'pending_read_thread',
+        run: async () => {
+          runStarted()
+          return runBlocker
+        },
+      }
+    }
+  }
+  const context = {
+    ...codexContext(),
+    runtime: {
+      ...codexContext().runtime,
+      id: 'codex-pending-read-runtime',
+    },
+  }
+  const handler = createCodexSdkRuntimeHandler({
+    moduleLoader: async () => ({ Codex }),
+  })
+  const thread = await handler({
+    method: 'thread/start',
+    params: context,
+  })
+  const turnPromise = handler({
+    method: 'turn/text/start',
+    params: {
+      ...context,
+      threadId: thread.id,
+      text: 'hello before settle',
+      clientUserMessageId: 'client_user_pending_1',
+    },
+  })
+  await runStartedSignal
+
+  const pendingThread = await handler({
+    method: 'thread/read',
+    params: {
+      ...context,
+      threadId: thread.id,
+    },
+  })
+
+  assert.equal(pendingThread.status, 'running')
+  assert.equal(pendingThread.preview, 'hello before settle')
+  assert.equal(pendingThread.turns.length, 1)
+  assert.equal(pendingThread.turns[0]?.status, 'inProgress')
+  assert.equal(pendingThread.turns[0]?.items[0]?.type, 'userMessage')
+  assert.equal(pendingThread.turns[0]?.items[0]?.type === 'userMessage' ? pendingThread.turns[0].items[0].clientId : undefined, 'client_user_pending_1')
+
+  releaseRun()
+  const completedTurn = await turnPromise
+  const completedThread = await handler({
+    method: 'thread/read',
+    params: {
+      ...context,
+      threadId: thread.id,
+    },
+  })
+  assert.equal(completedTurn.status, 'completed')
+  assert.equal(completedThread.turns.length, 1)
+  assert.equal(completedThread.turns[0]?.status, 'completed')
 })
 
 test('Codex SDK runtime publishes streamed assistant deltas before the turn settles', async () => {
@@ -1553,6 +1640,66 @@ test('Claude SDK runtime publishes assistant deltas before the turn settles', as
     unregister()
     releaseStream()
   }
+})
+
+test('Claude SDK runtime restores persisted thread contents and resume token after restart', async () => {
+  const homeDir = mkdtempSync(join(tmpdir(), 'movscript-claude-sdk-thread-home-'))
+  const context = {
+    ...claudeContext(),
+    runtime: {
+      ...claudeContext().runtime,
+      id: 'claude-persisted-runtime',
+    },
+  }
+  const resumes: unknown[] = []
+  async function* query(input: { options?: Record<string, unknown> }) {
+    resumes.push(input.options?.resume)
+    yield { type: 'assistant', text: resumes.length === 1 ? 'first answer' : 'second answer' }
+    yield { type: 'result', result: resumes.length === 1 ? 'first answer' : 'second answer', session_id: 'claude_session_saved' }
+  }
+  clearSdkRuntimeThreadRepositoryForTests()
+  const firstHandler = createClaudeSdkRuntimeHandler({
+    defaultWorkspaceDir: () => homeDir,
+    moduleLoader: async () => ({ query }),
+  })
+
+  const thread = await firstHandler({
+    method: 'thread/start',
+    params: context,
+  })
+  await firstHandler({
+    method: 'turn/text/start',
+    params: {
+      ...context,
+      threadId: thread.id,
+      text: 'hello',
+    },
+  })
+  clearSdkRuntimeThreadRepositoryForTests()
+  const restartedHandler = createClaudeSdkRuntimeHandler({
+    defaultWorkspaceDir: () => homeDir,
+    moduleLoader: async () => ({ query }),
+  })
+
+  const restored = await restartedHandler({
+    method: 'thread/read',
+    params: {
+      ...context,
+      threadId: thread.id,
+    },
+  })
+  await restartedHandler({
+    method: 'turn/text/start',
+    params: {
+      ...context,
+      threadId: thread.id,
+      text: 'again',
+    },
+  })
+
+  assert.equal(restored.turns.length, 1)
+  assert.equal(restored.turns[0]?.items.some((item) => item.type === 'agentMessage' && item.text === 'first answer'), true)
+  assert.deepEqual(resumes, [undefined, 'claude_session_saved'])
 })
 
 function codexContext() {

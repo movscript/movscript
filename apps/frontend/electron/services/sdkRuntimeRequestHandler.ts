@@ -100,7 +100,7 @@ export async function handleSdkRuntimeRequest(
   if (input.method === 'mcpServerStatus/list') return listSdkRuntimeMcpServers()
   if (input.method === 'mcpServer/resource/read') return readSdkRuntimeMcpResource(paramsFor(input, 'mcpServer/resource/read'))
   if (input.method === 'mcpServer/tool/call') return callSdkRuntimeMcpTool(paramsFor(input, 'mcpServer/tool/call'))
-  if (input.method === 'thread/list') return { threads: listSdkRuntimeThreads(input.params.runtime.id) }
+  if (input.method === 'thread/list') return { threads: listSdkRuntimeThreads(input.params.runtime.id, runtime.workspaceDir) }
   if (input.method === 'thread/read') {
     const params = paramsFor(input, 'thread/read')
     return readRuntimeThread(params, runtime)
@@ -110,7 +110,7 @@ export async function handleSdkRuntimeRequest(
   if (input.method === 'thread/rename') return renameRuntimeThread(paramsFor(input, 'thread/rename'), runtime)
   if (input.method === 'thread/archive') return archiveRuntimeThread(paramsFor(input, 'thread/archive'), runtime, true)
   if (input.method === 'thread/unarchive') return archiveRuntimeThread(paramsFor(input, 'thread/unarchive'), runtime, false)
-  if (input.method === 'thread/delete') return deleteRuntimeThread(paramsFor(input, 'thread/delete'))
+  if (input.method === 'thread/delete') return deleteRuntimeThread(paramsFor(input, 'thread/delete'), runtime)
   if (input.method === 'thread/settings/update') return updateRuntimeThreadSettings(paramsFor(input, 'thread/settings/update'), runtime)
   if (input.method === 'thread/goal/set') return setRuntimeThreadGoal(paramsFor(input, 'thread/goal/set'), runtime)
   if (input.method === 'turn/text/start') return startRuntimeTextTurn(paramsFor(input, 'turn/text/start'), runtime)
@@ -150,7 +150,7 @@ async function startRuntimeThread(
   const providerThread = runtime.startProviderThread(undefined, options)
   const threadId = providerThreadId(providerThread) ?? `${params.provider.kind}_${randomId()}`
   const thread = createSdkRuntimeBaseThread(params.provider.kind, params.runtime.id, threadId, params.title, stringField(options, 'cwd') ?? params.cwd)
-  setSdkRuntimeThreadRecord(params.runtime.id, threadId, { thread, providerThread, providerThreadOptions: options })
+  setSdkRuntimeThreadRecord(params.runtime.id, threadId, { thread, providerThread, providerThreadOptions: options }, runtime.workspaceDir)
   publishThreadNotification({ ...params, threadId }, 'thread/started', { thread })
   return thread
 }
@@ -159,8 +159,8 @@ async function resumeRuntimeThread(
   params: SdkRuntimeRpcRequestMap['thread/resume'],
   runtime: SdkRuntimeResolvedRuntime,
 ): Promise<AgentChatThread> {
-  if (isSdkRuntimeThreadDeleted(params.runtime.id, params.threadId)) throw new Error(`SDK runtime thread not found: ${params.threadId}`)
-  const existing = getSdkRuntimeThreadRecord(params.runtime.id, params.threadId)
+  if (isSdkRuntimeThreadDeleted(params.runtime.id, params.threadId, runtime.workspaceDir)) throw new Error(`SDK runtime thread not found: ${params.threadId}`)
+  const existing = getSdkRuntimeThreadRecord(params.runtime.id, params.threadId, runtime.workspaceDir)
   if (existing) return existing.thread
   const options = runtimeOptions(params, runtime.workspaceDir)
   ensureSdkRuntimeDefaultSkills({
@@ -171,7 +171,7 @@ async function resumeRuntimeThread(
   })
   const providerThread = runtime.startProviderThread(params.threadId, options)
   const thread = createSdkRuntimeBaseThread(params.provider.kind, params.runtime.id, params.threadId, null, stringField(options, 'cwd') ?? params.cwd)
-  setSdkRuntimeThreadRecord(params.runtime.id, params.threadId, { thread, providerThread, providerThreadOptions: options })
+  setSdkRuntimeThreadRecord(params.runtime.id, params.threadId, { thread, providerThread, providerThreadOptions: options }, runtime.workspaceDir)
   publishThreadNotification(params, 'thread/started', { thread })
   return thread
 }
@@ -181,7 +181,7 @@ async function startRuntimeTextTurn(
   runtime: SdkRuntimeResolvedRuntime,
 ): Promise<AgentChatTurn> {
   let thread = await resumeRuntimeThread(params, runtime)
-  const record = getSdkRuntimeThreadRecord(params.runtime.id, params.threadId)
+  const record = getSdkRuntimeThreadRecord(params.runtime.id, params.threadId, runtime.workspaceDir)
   if (!record) throw new Error(`SDK runtime thread is not available: ${params.threadId}`)
   const startedAtMs = Date.now()
   const startedAt = unixSecondsFromMs(startedAtMs)
@@ -196,6 +196,15 @@ async function startRuntimeTextTurn(
     completedAt: null,
     durationMs: null,
   }
+  thread = {
+    ...thread,
+    turns: [...thread.turns, pendingTurn],
+    status: 'running',
+    updatedAt: startedAt,
+    preview: params.text,
+  }
+  record.thread = thread
+  setSdkRuntimeThreadRecord(params.runtime.id, params.threadId, record, runtime.workspaceDir)
   publishThreadNotification(params, 'thread/status/changed', { status: 'running' })
   publishThreadNotification(params, 'turn/started', { turn: pendingTurn })
   const options = runtimeOptions({
@@ -211,10 +220,12 @@ async function startRuntimeTextTurn(
   if (sdkRuntimeProviderThreadNeedsRefresh(record, options)) {
     record.providerThread = runtime.startProviderThread(undefined, options)
     record.providerThreadOptions = options
+    setSdkRuntimeThreadRecord(params.runtime.id, params.threadId, record, runtime.workspaceDir)
   }
   if (typeof options.cwd === 'string' && record.thread.cwd !== options.cwd) {
     record.thread = { ...record.thread, cwd: options.cwd }
     thread = record.thread
+    setSdkRuntimeThreadRecord(params.runtime.id, params.threadId, record, runtime.workspaceDir)
   }
   let streamedAssistantDelta = false
   let result: unknown
@@ -240,11 +251,12 @@ async function startRuntimeTextTurn(
     }
     thread = {
       ...thread,
-      turns: [...thread.turns, failedTurn],
+      turns: replaceSdkRuntimeTurn(thread.turns, failedTurn),
       status: 'failed',
       updatedAt: failedAt,
     }
     record.thread = thread
+    setSdkRuntimeThreadRecord(params.runtime.id, params.threadId, record, runtime.workspaceDir)
     publishRuntimeTurnEvent(params, {
       type: 'turn.failed',
       turnId,
@@ -284,12 +296,13 @@ async function startRuntimeTextTurn(
   }
   thread = {
     ...thread,
-    turns: [...thread.turns, turn],
+    turns: replaceSdkRuntimeTurn(thread.turns, turn),
     status: 'idle',
     updatedAt: completedAt,
     preview: params.text,
   }
   record.thread = thread
+  setSdkRuntimeThreadRecord(params.runtime.id, params.threadId, record, runtime.workspaceDir)
   publishThreadNotification(params, 'turn/completed', { turn })
   publishThreadNotification(params, 'thread/status/changed', { status: 'idle' })
   return turn
@@ -306,6 +319,7 @@ async function renameRuntimeThread(
     updatedAt: unixSecondsNow(),
   }
   record.thread = updated
+  setSdkRuntimeThreadRecord(params.runtime.id, params.threadId, record, runtime.workspaceDir)
   publishThreadNotification(params, 'thread/name/updated', { threadName: params.name })
   return updated
 }
@@ -325,12 +339,13 @@ async function archiveRuntimeThread(
     },
   }
   record.thread = updated
+  setSdkRuntimeThreadRecord(params.runtime.id, params.threadId, record, runtime.workspaceDir)
   publishThreadNotification(params, archived ? 'thread/archived' : 'thread/unarchived', { threadId: params.threadId })
   return updated
 }
 
-function deleteRuntimeThread(params: SdkRuntimeRpcRequestMap['thread/delete']): { ok: true } {
-  deleteSdkRuntimeThreadRecord(params.runtime.id, params.threadId)
+function deleteRuntimeThread(params: SdkRuntimeRpcRequestMap['thread/delete'], runtime: SdkRuntimeResolvedRuntime): { ok: true } {
+  deleteSdkRuntimeThreadRecord(params.runtime.id, params.threadId, runtime.workspaceDir)
   publishThreadNotification(params, 'thread/closed', { threadId: params.threadId })
   return { ok: true }
 }
@@ -356,6 +371,7 @@ async function updateRuntimeThreadSettings(
     executionSettings,
     updatedAt: unixSecondsNow(),
   }
+  setSdkRuntimeThreadRecord(params.runtime.id, params.threadId, record, runtime.workspaceDir)
   publishThreadNotification(params, 'thread/settings/updated', { threadSettings: executionSettings })
   return executionSettings
 }
@@ -381,6 +397,7 @@ async function setRuntimeThreadGoal(
     goal,
     updatedAt: now,
   }
+  setSdkRuntimeThreadRecord(params.runtime.id, params.threadId, record, runtime.workspaceDir)
   publishThreadNotification(params, 'thread/goal/updated', { goal })
   return goal
 }
@@ -392,14 +409,20 @@ async function readRuntimeThread(
   return (await ensureRuntimeThreadRecord(params, runtime)).thread
 }
 
+function replaceSdkRuntimeTurn(turns: AgentChatTurn[], turn: AgentChatTurn): AgentChatTurn[] {
+  const existingIndex = turns.findIndex((candidate) => candidate.id === turn.id)
+  if (existingIndex < 0) return [...turns, turn]
+  return turns.map((candidate, index) => (index === existingIndex ? turn : candidate))
+}
+
 async function ensureRuntimeThreadRecord(
   params: SdkRuntimeRpcRequestMap['thread/resume'],
   runtime: SdkRuntimeResolvedRuntime,
 ): Promise<SdkRuntimeThreadRecord> {
-  const existing = getSdkRuntimeThreadRecord(params.runtime.id, params.threadId)
+  const existing = getSdkRuntimeThreadRecord(params.runtime.id, params.threadId, runtime.workspaceDir)
   if (existing) return existing
   await resumeRuntimeThread(params, runtime)
-  return requireSdkRuntimeThreadRecord(params.runtime.id, params.threadId)
+  return requireSdkRuntimeThreadRecord(params.runtime.id, params.threadId, runtime.workspaceDir)
 }
 
 function promptFromInputs(inputs: AgentChatInput[]): string {
@@ -464,6 +487,12 @@ function resolveSdkRuntimeCwd(record: Record<string, unknown>, workspaceDir: str
   if (typeof fallbackCwd === 'string' && fallbackCwd.trim()) return fallbackCwd
   const workspaceContext = isRecord(record.workspaceContext) ? record.workspaceContext : undefined
   if (!workspaceContext) return undefined
+  if (
+    (workspaceContext.scope === 'project' || workspaceContext.scope === 'production' || workspaceContext.projectId !== undefined)
+    && typeof workspaceContext.projectDir !== 'string'
+  ) {
+    return undefined
+  }
   return resolveDesktopWorkspaceContextPaths({
     workspaceDir,
     workspaceContext,

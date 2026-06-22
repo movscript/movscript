@@ -25,6 +25,7 @@ This release continues to target early community testing of the desktop workflow
 - Preserve the macOS Electron entitlements required for ad-hoc signed preview builds so Electron Framework can load at launch.
 - Recommend the matching desktop download on GitHub Pages based on the visitor's OS and architecture when browser detection is available.
 - Use a Windows-specific Movscript Home default under `%LOCALAPPDATA%\Movscript\Home`, with a settings-page directory picker for moving data to a larger drive.
+- Persist SDK runtime thread snapshots and provider resume tokens in MovScript Home so Claude SDK conversations restore their visible history after desktop restarts.
 
 ## Packaging And Verification
 
