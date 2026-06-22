@@ -246,10 +246,15 @@ test('runReleaseWorkflowCli dispatches desktop packaging through release command
     log: undefined,
     spawn: undefined,
   })
-  assert.deepEqual(calls.map((call) => call.slice(0, 2)), [
-    ['pnpm', ['--filter', '@movscript/desktop', 'exec', 'electron-vite', 'build', '--logLevel', 'info', '--clearScreen=false']],
-    ['pnpm', ['--filter', '@movscript/desktop', 'exec', 'electron-builder', '--mac', 'dmg', '--arm64', '--publish', 'never', '-c.mac.identity=null', '-c.mac.notarize=false']],
-  ])
+  assert.deepEqual(calls.map((call) => call[0]), ['pnpm', 'pnpm', 'xattr', 'pnpm', 'xattr', 'codesign', 'pnpm'])
+  assert.deepEqual(calls[0].slice(0, 2), ['pnpm', ['--filter', '@movscript/desktop', 'exec', 'electron-vite', 'build', '--logLevel', 'info', '--clearScreen=false']])
+  assert.deepEqual(calls[1].slice(0, 2), ['pnpm', ['--filter', '@movscript/desktop', 'exec', 'electron-builder', '--mac', '--dir', '--arm64', '--publish', 'never', '-c.mac.identity=null', '-c.mac.notarize=false']])
+  assert.equal(calls[3][1][3], 'electron-osx-sign')
+  assert.ok(calls[3][1].includes('--identity=-'))
+  assert.ok(calls[3][1].includes('--hardened-runtime'))
+  assert.equal(calls[5][0], 'codesign')
+  assert.ok(calls[6][1].includes('--prepackaged'))
+  assert.ok(calls[6][1].includes('-c.mac.identity=null'))
 })
 
 test('runReleaseWorkflowCli dispatches split desktop package stages', () => {

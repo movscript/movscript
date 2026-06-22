@@ -99,6 +99,8 @@ test('runDesktopPackageCli runs prepare, frontend dist, and verify steps', () =>
     log: () => undefined,
     defaults: { platform: 'darwin', arch: 'arm64' },
     env,
+    root: '/repo',
+    patchMacOSDMGBuilder: () => undefined,
     preparePackage: (...args) => prepareCalls.push(args),
     verifyMacOSDMG: (...args) => verifyDMGCalls.push(args),
     verifyPackage: (...args) => verifyCalls.push(args),
@@ -134,7 +136,47 @@ test('runDesktopPackageCli runs prepare, frontend dist, and verify steps', () =>
   assert.equal(typeof verifyCalls[0][1].logError, 'function')
   assert.deepEqual(calls, [
     ['pnpm', ['--filter', '@movscript/desktop', 'exec', 'electron-vite', 'build', '--logLevel', 'info', '--clearScreen=false'], { stdio: 'inherit', env }],
-    ['pnpm', ['--filter', '@movscript/desktop', 'exec', 'electron-builder', '--mac', 'dmg', '--x64', '--publish', 'never', '-c.mac.identity=null', '-c.mac.notarize=false'], {
+    ['pnpm', ['--filter', '@movscript/desktop', 'exec', 'electron-builder', '--mac', '--dir', '--x64', '--publish', 'never', '-c.mac.identity=null', '-c.mac.notarize=false'], {
+      stdio: 'inherit',
+      env: {
+        PATH: '/bin',
+        CSC_IDENTITY_AUTO_DISCOVERY: 'false',
+        MOVSCRIPT_RELEASE_SIGNING_MODE: 'unsigned',
+      },
+    }],
+    ['xattr', ['-cr', '/repo/apps/frontend/release/mac/Movscript.app'], {
+      stdio: 'inherit',
+      env: {
+        PATH: '/bin',
+        CSC_IDENTITY_AUTO_DISCOVERY: 'false',
+        MOVSCRIPT_RELEASE_SIGNING_MODE: 'unsigned',
+      },
+    }],
+    ['pnpm', ['--filter', '@movscript/desktop', 'exec', 'electron-osx-sign', '/repo/apps/frontend/release/mac/Movscript.app', '--identity=-', '--no-identityValidation', '--no-pre-auto-entitlements', '--no-pre-embed-provisioning-profile', '--hardened-runtime', '--timestamp=none', '--entitlements', '/repo/apps/frontend/build/entitlements.mac.plist', '--ignore', '/Contents/Resources/ffmpeg/'], {
+      stdio: 'inherit',
+      env: {
+        PATH: '/bin',
+        CSC_IDENTITY_AUTO_DISCOVERY: 'false',
+        MOVSCRIPT_RELEASE_SIGNING_MODE: 'unsigned',
+      },
+    }],
+    ['xattr', ['-cr', '/repo/apps/frontend/release/mac/Movscript.app'], {
+      stdio: 'inherit',
+      env: {
+        PATH: '/bin',
+        CSC_IDENTITY_AUTO_DISCOVERY: 'false',
+        MOVSCRIPT_RELEASE_SIGNING_MODE: 'unsigned',
+      },
+    }],
+    ['codesign', ['--verify', '--deep', '--strict', '--verbose=2', '/repo/apps/frontend/release/mac/Movscript.app'], {
+      stdio: 'inherit',
+      env: {
+        PATH: '/bin',
+        CSC_IDENTITY_AUTO_DISCOVERY: 'false',
+        MOVSCRIPT_RELEASE_SIGNING_MODE: 'unsigned',
+      },
+    }],
+    ['pnpm', ['--filter', '@movscript/desktop', 'exec', 'electron-builder', '--mac', 'dmg', '--x64', '--publish', 'never', '--prepackaged', '/repo/apps/frontend/release/mac/Movscript.app', '-c.mac.identity=null', '-c.mac.notarize=false'], {
       stdio: 'inherit',
       env: {
         PATH: '/bin',

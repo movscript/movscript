@@ -314,15 +314,18 @@ export function runDesktopPackageCli(args = [], options = {}) {
 
   const packageEnv = desktopPackageEnv(options.env ?? process.env, plan.signingMode)
   const steps = [
-    ['Build frontend desktop bundle', pnpm, desktopBundleBuildArgs(options.env ?? process.env)],
-    ['Build frontend desktop artifact', pnpm, ['--filter', '@movscript/desktop', 'exec', 'electron-builder', ...plan.builderArgs]],
+    ['Build frontend desktop bundle', pnpm, desktopBundleBuildArgs(options.env ?? process.env), { env: options.env ?? process.env }],
+    ...desktopArtifactStepsForTarget(root, target, plan, pnpm).map(([label, command, commandArgs, stepOptions = {}]) => [
+      label,
+      command,
+      commandArgs,
+      { env: packageEnv, ...stepOptions },
+    ]),
   ]
 
-  for (const [label, command, commandArgs] of steps) {
+  for (const [label, command, commandArgs, stepOptions] of steps) {
     log(`[package-desktop] ${label}`)
-    const result = spawn(command, commandArgs, releaseSpawnOptions(
-      label === 'Build frontend desktop artifact' ? packageEnv : options.env ?? process.env,
-    ))
+    const result = spawn(command, commandArgs, releaseSpawnOptions(stepOptions.env))
     if (result.error) {
       logError(result.error.message)
       exit(1)
@@ -426,13 +429,18 @@ export function runBuildDesktopArtifactCli(args = [], options = {}) {
     }
   }
   const packageEnv = desktopPackageEnv(options.env ?? process.env, resolved.plan.signingMode)
-  log('[package-desktop] Build frontend desktop artifact')
-  runSpawnStep(pnpm, ['--filter', '@movscript/desktop', 'exec', 'electron-builder', ...resolved.plan.builderArgs], {
-    env: packageEnv,
-    exit,
-    logError,
-    spawn,
-  })
+  const artifactSteps = desktopArtifactStepsForTarget(root, resolved.target, resolved.plan, pnpm)
+  for (const [label, command, commandArgs, stepOptions = {}] of artifactSteps) {
+    log(`[package-desktop] ${label}`)
+    const ok = runSpawnStep(command, commandArgs, {
+      env: packageEnv,
+      exit,
+      logError,
+      spawn,
+      ...stepOptions,
+    })
+    if (!ok) return
+  }
 }
 
 export function runVerifyDesktopPackageCli(args = [], options = {}) {
@@ -755,6 +763,50 @@ export function desktopPackageEnv(env = process.env, signingMode = parseDesktopS
   return nextEnv
 }
 
+function desktopArtifactStepsForTarget(root, target, plan, pnpm = 'pnpm') {
+  if (target.platform === 'darwin' && plan.signingMode === 'unsigned') {
+    return unsignedMacOSArtifactSteps(root, target.arch, pnpm)
+  }
+  return [
+    ['Build frontend desktop artifact', pnpm, ['--filter', '@movscript/desktop', 'exec', 'electron-builder', ...plan.builderArgs]],
+  ]
+}
+
+function unsignedMacOSArtifactSteps(root, arch, pnpm = 'pnpm') {
+  const appDir = macAppDirForArch(root, arch)
+  const unsignedBuilderArgs = signingBuilderArgsForTarget('darwin', 'unsigned')
+  const dirArgs = ['--mac', '--dir', `--${arch}`, '--publish', 'never', ...unsignedBuilderArgs]
+  const dmgArgs = [...frontendBuilderArgsForTarget('darwin', arch), '--prepackaged', appDir, ...unsignedBuilderArgs]
+  return [
+    ['Build unsigned macOS app directory', pnpm, ['--filter', '@movscript/desktop', 'exec', 'electron-builder', ...dirArgs]],
+    ['Clear unsigned macOS app extended attributes before signing', 'xattr', ['-cr', appDir]],
+    ['Ad-hoc sign unsigned macOS app', pnpm, [
+      '--filter',
+      '@movscript/desktop',
+      'exec',
+      'electron-osx-sign',
+      appDir,
+      '--identity=-',
+      '--no-identityValidation',
+      '--no-pre-auto-entitlements',
+      '--no-pre-embed-provisioning-profile',
+      '--hardened-runtime',
+      '--timestamp=none',
+      '--entitlements',
+      resolve(root, 'apps/frontend/build/entitlements.mac.plist'),
+      '--ignore',
+      '/Contents/Resources/ffmpeg/',
+    ]],
+    ['Clear unsigned macOS app extended attributes after signing', 'xattr', ['-cr', appDir]],
+    ['Verify unsigned macOS app ad-hoc signature', 'codesign', ['--verify', '--deep', '--strict', '--verbose=2', appDir]],
+    ['Build unsigned macOS DMG from signed app', pnpm, ['--filter', '@movscript/desktop', 'exec', 'electron-builder', ...dmgArgs]],
+  ]
+}
+
+function macAppDirForArch(root, arch) {
+  return resolve(root, 'apps/frontend/release', arch === 'arm64' ? 'mac-arm64/Movscript.app' : 'mac/Movscript.app')
+}
+
 function normalizeOptionalBuilderEnv(env, name) {
   const value = typeof env[name] === 'string' ? env[name].trim() : ''
   if (value) {
@@ -851,10 +903,7 @@ function verifyMountedDMG(root, dmgPath, options = {}) {
       mountedApp,
     ], { allowFailure: true, cwd: root, log, spawn })
     if (signatureResult.status !== 0 || signatureResult.signal || signatureResult.error) {
-      if (macOSSigningRequired(env)) {
-        throw new Error(`Verify mounted app code signature failed: status=${signatureResult.status ?? 'none'} signal=${signatureResult.signal ?? 'none'}`)
-      }
-      log('[package-desktop] Mounted app code signature verification skipped because release signing is not configured')
+      throw new Error(`Verify mounted app code signature failed: status=${signatureResult.status ?? 'none'} signal=${signatureResult.signal ?? 'none'}`)
     }
     const mountedIcon = resolve(mountedApp, 'Contents/Resources/icon.icns')
     const expectedIconHash = sha256File(iconPath)
@@ -887,14 +936,6 @@ function runCheckedTool(label, command, args, options = {}) {
     throw new Error(`${label} failed: status=${result.status ?? 'none'} signal=${result.signal ?? 'none'}`)
   }
   return result
-}
-
-function macOSSigningRequired(env) {
-  if (env.MOVSCRIPT_RELEASE_SIGNING_MODE === 'unsigned') return false
-  if (env.MOVSCRIPT_RELEASE_SIGNING_MODE === 'signed') return true
-  return env.MOVSCRIPT_RELEASE_REQUIRE_SIGNING === '1' ||
-    Boolean(env.CSC_LINK?.trim()) ||
-    Boolean(env.CSC_NAME?.trim())
 }
 
 function runStep(label, command, commandArgs, { spawn, log, logError, exit }) {
