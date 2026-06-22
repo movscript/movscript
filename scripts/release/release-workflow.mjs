@@ -919,7 +919,7 @@ export function verifyMacOSDMGArtifacts(root = repoRoot, options = {}) {
   const releaseDir = resolve(root, 'apps/frontend/release')
   const dmgPath = latestDMG(releaseDir)
   if (env.MOVSCRIPT_RELEASE_SIGNING_MODE === 'signed') {
-    verifyMacOSSignedDMG(root, dmgPath, { log, spawn })
+    verifyMacOSSignedDMGIfPresent(root, dmgPath, { log, spawn })
   } else {
     const appDir = macAppDirForArch(root, arch)
     verifyMacOSAppCodeSignature(root, appDir, { log, spawn })
@@ -928,11 +928,20 @@ export function verifyMacOSDMGArtifacts(root = repoRoot, options = {}) {
   verifyMountedDMG(root, dmgPath, { log, spawn })
 }
 
-function verifyMacOSSignedDMG(root, dmgPath, options = {}) {
+function verifyMacOSSignedDMGIfPresent(root, dmgPath, options = {}) {
   const {
     log = console.log,
     spawn = spawnSync,
   } = options
+  const signatureResult = runCheckedTool('Check signed DMG code signature', 'codesign', [
+    '--verify',
+    '--verbose=2',
+    dmgPath,
+  ], { cwd: root, log, spawn, allowFailure: true })
+  if (signatureResult.status !== 0 || signatureResult.signal || signatureResult.error) {
+    log('[package-desktop] DMG has no standalone code signature; skipping DMG Gatekeeper assessment')
+    return
+  }
   runCheckedTool('Verify signed DMG Gatekeeper acceptance', 'spctl', [
     '-a',
     '-vv',

@@ -198,7 +198,7 @@ test('runDesktopPackageCli runs prepare, frontend dist, and verify steps', () =>
   ])
 })
 
-test('verifyMacOSDMGArtifacts verifies signed DMG distribution artifact instead of mounted app signature', () => {
+test('verifyMacOSDMGArtifacts verifies signed DMG distribution artifact when signature is present', () => {
   const root = mkdtempSync(join(tmpdir(), 'movscript-release-test-'))
   const calls = []
   try {
@@ -227,6 +227,7 @@ test('verifyMacOSDMGArtifacts verifies signed DMG distribution artifact instead 
     })
 
     assert.deepEqual(calls.map(([command, args]) => [command, args[0]]), [
+      ['codesign', '--verify'],
       ['spctl', '-a'],
       ['xcrun', 'stapler'],
       ['hdiutil', 'verify'],
@@ -234,7 +235,50 @@ test('verifyMacOSDMGArtifacts verifies signed DMG distribution artifact instead 
       ['hdiutil', 'detach'],
     ])
     assert.equal(calls.some(([command, args]) => command === 'spctl' && args.includes('execute')), false)
-    assert.equal(calls.some(([command]) => command === 'codesign'), false)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('verifyMacOSDMGArtifacts skips DMG Gatekeeper assessment when DMG has no standalone signature', () => {
+  const root = mkdtempSync(join(tmpdir(), 'movscript-release-test-'))
+  const calls = []
+  const logs = []
+  try {
+    const releaseDir = join(root, 'apps/frontend/release')
+    const iconPath = join(root, 'apps/frontend/build/icon.icns')
+    const dmgPath = join(releaseDir, 'Movscript-0.1.28-arm64.dmg')
+    mkdirSync(releaseDir, { recursive: true })
+    mkdirSync(dirname(iconPath), { recursive: true })
+    writeFileSync(dmgPath, 'dmg')
+    writeFileSync(iconPath, 'icon')
+
+    verifyMacOSDMGArtifacts(root, {
+      arch: 'arm64',
+      env: { MOVSCRIPT_RELEASE_SIGNING_MODE: 'signed' },
+      log: (message) => logs.push(message),
+      spawn: (command, args) => {
+        calls.push([command, args])
+        if (command === 'codesign') return { status: 1 }
+        if (command === 'hdiutil' && args[0] === 'attach') {
+          const mountPoint = args[args.indexOf('-mountpoint') + 1]
+          const mountedIcon = join(mountPoint, 'Movscript.app/Contents/Resources/icon.icns')
+          mkdirSync(dirname(mountedIcon), { recursive: true })
+          writeFileSync(mountedIcon, 'icon')
+        }
+        return { status: 0 }
+      },
+    })
+
+    assert.deepEqual(calls.map(([command, args]) => [command, args[0]]), [
+      ['codesign', '--verify'],
+      ['hdiutil', 'verify'],
+      ['hdiutil', 'attach'],
+      ['hdiutil', 'detach'],
+    ])
+    assert.equal(calls.some(([command]) => command === 'spctl'), false)
+    assert.equal(calls.some(([command]) => command === 'xcrun'), false)
+    assert.ok(logs.includes('[package-desktop] DMG has no standalone code signature; skipping DMG Gatekeeper assessment'))
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
