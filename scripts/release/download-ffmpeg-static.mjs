@@ -77,6 +77,7 @@ export async function downloadAndStageFFmpegStatic(root = repoRoot, options = {}
     version = '',
     runCheck = true,
     download = downloadGzipFile,
+    downloadAttempts = 4,
     stageBinary = stageFFmpegBinary,
   } = options
   const plan = ffmpegStaticSourcePlan(platform, arch, tag)
@@ -84,7 +85,10 @@ export async function downloadAndStageFFmpegStatic(root = repoRoot, options = {}
   const tempDir = mkdtempSync(join(tmpdir(), 'movscript-ffmpeg-static-'))
   const tempBinary = join(tempDir, plan.binary)
   try {
-    await download(plan.sourceUrl, tempBinary)
+    await retryDownload(() => download(plan.sourceUrl, tempBinary), {
+      attempts: downloadAttempts,
+      label: plan.sourceUrl,
+    })
     chmodSync(tempBinary, 0o755)
     prepareMacOSExecutableForLaunch(tempBinary)
     let stagedVersion = version
@@ -104,6 +108,31 @@ export async function downloadAndStageFFmpegStatic(root = repoRoot, options = {}
   } finally {
     rmSync(tempDir, { recursive: true, force: true })
   }
+}
+
+async function retryDownload(download, options = {}) {
+  const {
+    attempts = 4,
+    delay = wait,
+    label = 'download',
+  } = options
+  let lastError
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      await download()
+      return
+    } catch (error) {
+      lastError = error
+      if (attempt >= attempts) break
+      await delay(Math.min(1000 * 2 ** (attempt - 1), 8000))
+    }
+  }
+  const message = lastError instanceof Error ? lastError.message : String(lastError)
+  throw new Error(`Failed to download ${label} after ${attempts} attempts: ${message}`)
+}
+
+function wait(ms) {
+  return new Promise((resolveWait) => setTimeout(resolveWait, ms))
 }
 
 function prepareMacOSExecutableForLaunch(path) {

@@ -71,6 +71,29 @@ test('downloadAndStageFFmpegStatic downloads, expands, and stages metadata', asy
   }
 })
 
+test('downloadAndStageFFmpegStatic retries transient download failures', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'movscript-download-ffmpeg-static-'))
+  try {
+    let attempts = 0
+    const result = await downloadAndStageFFmpegStatic(root, {
+      platform: 'linux',
+      arch: 'x64',
+      runCheck: false,
+      version: 'ffmpeg version 6.1.1-static',
+      download: async (_url, destinationPath) => {
+        attempts += 1
+        if (attempts < 3) throw new Error('connect ETIMEDOUT 140.82.116.3:443')
+        await mkdir(resolve(destinationPath, '..'), { recursive: true })
+        await writeFile(destinationPath, 'fake static ffmpeg')
+      },
+    })
+    assert.equal(attempts, 3)
+    assert.equal(await readFile(result.target, 'utf8'), 'fake static ffmpeg')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 test('runDownloadFFmpegStaticCli requires a version for non-current targets', async () => {
   const errors = []
   let exitCode = 0
