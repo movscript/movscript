@@ -5,7 +5,6 @@ import {
   installMovScriptCodexPlugin,
   openCodexApp,
 } from '../services/codexPluginInstaller'
-import { enterTrayMode } from '../services/desktopPresence'
 
 export function registerCodexPluginIpcHandlers(): void {
   ipcMain.handle('codex-plugin:install-movscript', async (event): Promise<Awaited<ReturnType<NonNullable<ElectronAPI['installMovScriptCodexPlugin']>>>> => {
@@ -38,7 +37,6 @@ export function registerCodexPluginIpcHandlers(): void {
           throw error
         }
         win?.hide()
-        enterTrayMode()
       }
       return {
         ok: true,

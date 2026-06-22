@@ -1,6 +1,6 @@
 {
   "name": "@movscript/interpreter",
-  "version": "0.1.25",
+  "version": "0.1.26",
   "private": true,
   "description": "Interpreter package for translating source changes into MovScript diagnostics, impact plans, and deterministic read-model artifacts.",
   "license": "MIT",

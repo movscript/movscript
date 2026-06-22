@@ -11,7 +11,7 @@ import {
 } from './sdkRuntimePackageStore'
 import { broadcastCrossPageNotification } from './crossPageNotifications'
 import { resolveAppIconPath, resolveTrayIconPath } from '../appWindow/paths'
-import { leaveTrayMode } from './desktopPresence'
+import { enterTrayMode } from './desktopPresence'
 
 let tray: Tray | null = null
 let installing = false
@@ -65,9 +65,9 @@ const TRAY_RUNTIME_AGENTS: TrayRuntimeAgent[] = [
     packageVersion: '0.3.183',
   },
 ]
-
 export function installAppTray(): void {
   if (tray) return
+  enterTrayMode()
 
   tray = new Tray(createTrayImage())
   tray.setToolTip('MovScript')
@@ -76,6 +76,10 @@ export function installAppTray(): void {
     tray?.popUpContextMenu()
   })
   refreshTrayMenu()
+}
+
+export function isAppTrayInstalled(): boolean {
+  return Boolean(tray)
 }
 
 export function refreshAppTrayMenu(): void {
@@ -88,7 +92,6 @@ function refreshTrayMenu(): void {
     {
       label: trayLabel('打开 MovScript', 'Open MovScript'),
       click: () => {
-        leaveTrayMode()
         openHomeWindow()
       },
     },
@@ -183,7 +186,6 @@ async function runRuntimeOperation(agent: TrayRuntimeAgent, action: TrayRuntimeA
     status: 'running',
     detail: runtimeActionRunningDetail(action),
   })
-  leaveTrayMode()
   openHomeWindow()
   broadcastRuntimeOperation(key)
   refreshTrayMenu()

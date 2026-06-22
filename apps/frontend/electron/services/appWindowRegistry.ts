@@ -9,7 +9,7 @@ import type {
 } from '../../src/shared/contracts/electronApi'
 import { createWindow } from '../appWindow'
 import { loadRenderer } from '../appWindow/loadRenderer'
-import { leaveTrayMode } from './desktopPresence'
+import { isAppTrayInstalled } from './appTray'
 
 const HOME_ROUTE = '/'
 const AGENT_ROUTE = '/project/agent'
@@ -45,6 +45,7 @@ export function openHomeWindow(): ElectronAppWindowContext {
     route: HOME_ROUTE,
   }
   homeWindow = createTrackedWindow(context)
+  bindHomeWindowCloseToTray(homeWindow)
   homeWindow.once('closed', () => {
     homeWindow = null
   })
@@ -62,6 +63,7 @@ export function openHomeRouteWindow(input: { route: string; search?: string }): 
   }
 
   homeWindow = createTrackedWindow(context)
+  bindHomeWindowCloseToTray(homeWindow)
   homeWindow.once('closed', () => {
     homeWindow = null
   })
@@ -364,7 +366,6 @@ export function contextForWindow(win: BrowserWindow): ElectronAppWindowContext {
 }
 
 function createTrackedWindow(context: ElectronAppWindowContext): BrowserWindow {
-  leaveTrayMode()
   const win = createWindow({ context })
   trackedWindows.add(win)
   windowContexts.set(win, context)
@@ -381,10 +382,28 @@ function createTrackedWindow(context: ElectronAppWindowContext): BrowserWindow {
 }
 
 function focusWindow(win: BrowserWindow): void {
-  leaveTrayMode()
   if (win.isMinimized()) win.restore()
   win.show()
   win.focus()
+  emitWindowRegistryChanged()
+}
+
+function bindHomeWindowCloseToTray(win: BrowserWindow): void {
+  win.on('close', (event) => {
+    if (win.isDestroyed()) return
+    event.preventDefault()
+    if (!isAppTrayInstalled()) {
+      win.minimize()
+      return
+    }
+    hideHomeWindowInTrayMode(win)
+  })
+}
+
+function hideHomeWindowInTrayMode(win: BrowserWindow): void {
+  if (win.isDestroyed()) return
+  win.hide()
+  win.setOpacity(1)
   emitWindowRegistryChanged()
 }
 
