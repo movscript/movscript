@@ -152,7 +152,7 @@ test('runDesktopPackageCli runs prepare, frontend dist, and verify steps', () =>
         MOVSCRIPT_RELEASE_SIGNING_MODE: 'unsigned',
       },
     }],
-    ['pnpm', ['--filter', '@movscript/desktop', 'exec', 'electron-osx-sign', '/repo/apps/frontend/release/mac/Movscript.app', '--identity=-', '--no-identityValidation', '--no-pre-auto-entitlements', '--no-pre-embed-provisioning-profile', '--hardened-runtime', '--timestamp=none', '--entitlements', '/repo/apps/frontend/build/entitlements.mac.plist', '--ignore', '/Contents/Resources/ffmpeg/'], {
+    ['node', ['scripts/release/sign-macos-app.mjs', '/repo/apps/frontend/release/mac/Movscript.app'], {
       stdio: 'inherit',
       env: {
         PATH: '/bin',

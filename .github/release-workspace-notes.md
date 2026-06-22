@@ -22,6 +22,7 @@ This release continues to target early community testing of the desktop workflow
 - Bind project-scoped MCP tools and desktop project views to explicit local project directories, with user-scoped project data decisions when no org scope is present.
 - Build the macOS Intel / x64 package on the macOS 14 runner to avoid stalled macOS 13 Intel runner allocation.
 - Ad-hoc sign unsigned macOS preview packages before creating DMGs so downloaded apps have a valid bundle signature.
+- Preserve the macOS Electron entitlements required for ad-hoc signed preview builds so Electron Framework can load at launch.
 - Recommend the matching desktop download on GitHub Pages based on the visitor's OS and architecture when browser detection is available.
 - Use a Windows-specific Movscript Home default under `%LOCALAPPDATA%\Movscript\Home`, with a settings-page directory picker for moving data to a larger drive.
 

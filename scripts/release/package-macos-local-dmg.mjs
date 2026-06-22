@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
 
@@ -12,6 +11,7 @@ import {
   sha256File,
 } from './release-common.mjs'
 import { prepareDesktopPackage } from './release-workflow.mjs'
+import { signMacOSApp } from './sign-macos-app.mjs'
 import { verifyPackageResources } from './verify-package-resources.mjs'
 
 const repoRoot = resolve(import.meta.dirname, '../..')
@@ -146,26 +146,7 @@ export async function runPackageMacOSLocalDMGCli(root = repoRoot, env = process.
 }
 
 export async function signMacOSAppForLocalTesting(root = repoRoot, appDir = macAppDirForArch(root, process.arch)) {
-  const frontendRequire = createRequire(resolve(root, 'apps/frontend/package.json'))
-  const { signAsync } = frontendRequire('@electron/osx-sign')
-  await signAsync({
-    app: appDir,
-    identity: '-',
-    identityValidation: false,
-    preAutoEntitlements: false,
-    preEmbedProvisioningProfile: false,
-    strictVerify: false,
-    ignore: (filePath) => isPackagedFFmpegResource(filePath),
-    optionsForFile: () => ({
-      entitlements: resolve(root, 'apps/frontend/build/entitlements.mac.plist'),
-      hardenedRuntime: true,
-      timestamp: 'none',
-    }),
-  })
-}
-
-function isPackagedFFmpegResource(filePath) {
-  return filePath.replace(/\\/g, '/').includes('/Contents/Resources/ffmpeg/')
+  await signMacOSApp(root, appDir)
 }
 
 function replaceAppWithCleanCopy(appDir) {
