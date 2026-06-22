@@ -212,10 +212,21 @@ test('verifyMacOSDMGArtifacts verifies signed DMG distribution artifact when sig
 
     verifyMacOSDMGArtifacts(root, {
       arch: 'arm64',
-      env: { MOVSCRIPT_RELEASE_SIGNING_MODE: 'signed' },
+      env: { APPLE_TEAM_ID: '99B6K2LFFN', MOVSCRIPT_RELEASE_SIGNING_MODE: 'signed' },
       log: () => undefined,
       spawn: (command, args) => {
         calls.push([command, args])
+        if (command === 'codesign' && args[0] === '-dvvv') {
+          return {
+            status: 0,
+            stderr: [
+              'Authority=Developer ID Application: qian zhao (99B6K2LFFN)',
+              'Authority=Developer ID Certification Authority',
+              'TeamIdentifier=99B6K2LFFN',
+            ].join('\n'),
+            stdout: '',
+          }
+        }
         if (command === 'hdiutil' && args[0] === 'attach') {
           const mountPoint = args[args.indexOf('-mountpoint') + 1]
           const mountedIcon = join(mountPoint, 'Movscript.app/Contents/Resources/icon.icns')
@@ -227,6 +238,8 @@ test('verifyMacOSDMGArtifacts verifies signed DMG distribution artifact when sig
     })
 
     assert.deepEqual(calls.map(([command, args]) => [command, args[0]]), [
+      ['codesign', '--verify'],
+      ['codesign', '-dvvv'],
       ['codesign', '--verify'],
       ['spctl', '-a'],
       ['xcrun', 'stapler'],
@@ -255,11 +268,22 @@ test('verifyMacOSDMGArtifacts skips DMG Gatekeeper assessment when DMG has no st
 
     verifyMacOSDMGArtifacts(root, {
       arch: 'arm64',
-      env: { MOVSCRIPT_RELEASE_SIGNING_MODE: 'signed' },
+      env: { APPLE_TEAM_ID: '99B6K2LFFN', MOVSCRIPT_RELEASE_SIGNING_MODE: 'signed' },
       log: (message) => logs.push(message),
       spawn: (command, args) => {
         calls.push([command, args])
-        if (command === 'codesign') return { status: 1 }
+        if (command === 'codesign' && args[0] === '-dvvv') {
+          return {
+            status: 0,
+            stderr: [
+              'Authority=Developer ID Application: qian zhao (99B6K2LFFN)',
+              'Authority=Developer ID Certification Authority',
+              'TeamIdentifier=99B6K2LFFN',
+            ].join('\n'),
+            stdout: '',
+          }
+        }
+        if (command === 'codesign' && args.includes(dmgPath)) return { status: 1 }
         if (command === 'hdiutil' && args[0] === 'attach') {
           const mountPoint = args[args.indexOf('-mountpoint') + 1]
           const mountedIcon = join(mountPoint, 'Movscript.app/Contents/Resources/icon.icns')
@@ -272,6 +296,8 @@ test('verifyMacOSDMGArtifacts skips DMG Gatekeeper assessment when DMG has no st
 
     assert.deepEqual(calls.map(([command, args]) => [command, args[0]]), [
       ['codesign', '--verify'],
+      ['codesign', '-dvvv'],
+      ['codesign', '--verify'],
       ['hdiutil', 'verify'],
       ['hdiutil', 'attach'],
       ['hdiutil', 'detach'],
@@ -279,6 +305,29 @@ test('verifyMacOSDMGArtifacts skips DMG Gatekeeper assessment when DMG has no st
     assert.equal(calls.some(([command]) => command === 'spctl'), false)
     assert.equal(calls.some(([command]) => command === 'xcrun'), false)
     assert.ok(logs.includes('[package-desktop] DMG has no standalone code signature; skipping DMG Gatekeeper assessment'))
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('verifyMacOSDMGArtifacts rejects ad-hoc signed macOS apps in signed mode', () => {
+  const root = mkdtempSync(join(tmpdir(), 'movscript-release-test-'))
+  try {
+    const releaseDir = join(root, 'apps/frontend/release')
+    mkdirSync(releaseDir, { recursive: true })
+    writeFileSync(join(releaseDir, 'Movscript-0.1.28-arm64.dmg'), 'dmg')
+
+    assert.throws(() => verifyMacOSDMGArtifacts(root, {
+      arch: 'arm64',
+      env: { MOVSCRIPT_RELEASE_SIGNING_MODE: 'signed' },
+      log: () => undefined,
+      spawn: (command, args) => {
+        if (command === 'codesign' && args[0] === '-dvvv') {
+          return { status: 0, stderr: 'Signature=adhoc\nTeamIdentifier=not set', stdout: '' }
+        }
+        return { status: 0 }
+      },
+    }), /ad-hoc signed/)
   } finally {
     rmSync(root, { recursive: true, force: true })
   }

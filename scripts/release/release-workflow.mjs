@@ -917,11 +917,12 @@ export function verifyMacOSDMGArtifacts(root = repoRoot, options = {}) {
     spawn = spawnSync,
   } = options
   const releaseDir = resolve(root, 'apps/frontend/release')
+  const appDir = macAppDirForArch(root, arch)
   const dmgPath = latestDMG(releaseDir)
   if (env.MOVSCRIPT_RELEASE_SIGNING_MODE === 'signed') {
+    verifyMacOSDeveloperIDAppSignature(root, appDir, { env, log, spawn })
     verifyMacOSSignedDMGIfPresent(root, dmgPath, { log, spawn })
   } else {
-    const appDir = macAppDirForArch(root, arch)
     verifyMacOSAppCodeSignature(root, appDir, { log, spawn })
   }
   runCheckedTool('Verify DMG checksum', 'hdiutil', ['verify', dmgPath], { cwd: root, log, spawn })
@@ -952,6 +953,43 @@ function verifyMacOSSignedDMGIfPresent(root, dmgPath, options = {}) {
     dmgPath,
   ], { cwd: root, log, spawn })
   runCheckedTool('Validate signed DMG notarization ticket', 'xcrun', ['stapler', 'validate', dmgPath], { cwd: root, log, spawn })
+}
+
+function verifyMacOSDeveloperIDAppSignature(root, appDir, options = {}) {
+  const {
+    env = process.env,
+    log = console.log,
+    spawn = spawnSync,
+  } = options
+  runCheckedTool('Verify packaged app Developer ID code signature', 'codesign', [
+    '--verify',
+    '--deep',
+    '--strict',
+    '--verbose=2',
+    appDir,
+  ], { cwd: root, log, spawn })
+  log('[package-desktop] Inspect packaged app Developer ID signature')
+  const result = spawn('codesign', ['-dvvv', appDir], {
+    cwd: root,
+    encoding: 'utf8',
+    shell: isWindows,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+  if (result.error) throw result.error
+  if (result.status !== 0 || result.signal) {
+    throw new Error(`Inspect packaged app Developer ID signature failed: status=${result.status ?? 'none'} signal=${result.signal ?? 'none'}`)
+  }
+  const details = `${result.stdout || ''}\n${result.stderr || ''}`
+  const expectedTeam = typeof env.APPLE_TEAM_ID === 'string' ? env.APPLE_TEAM_ID.trim() : ''
+  if (details.includes('Signature=adhoc') || details.includes('TeamIdentifier=not set')) {
+    throw new Error('Packaged macOS app is ad-hoc signed; expected Developer ID Application signing')
+  }
+  if (!details.includes('Authority=Developer ID Application')) {
+    throw new Error('Packaged macOS app is not signed with a Developer ID Application certificate')
+  }
+  if (expectedTeam && !details.includes(`TeamIdentifier=${expectedTeam}`)) {
+    throw new Error(`Packaged macOS app TeamIdentifier does not match APPLE_TEAM_ID (${expectedTeam})`)
+  }
 }
 
 function verifyMacOSAppCodeSignature(root, appDir, options = {}) {
