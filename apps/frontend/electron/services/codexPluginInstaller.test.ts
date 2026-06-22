@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import {
+  codexCommandEnv,
   installMovScriptCodexPlugin,
   prepareMovScriptCodexMarketplace,
   resolveCodexExecutable,
@@ -77,6 +78,21 @@ test('resolveCodexExecutable honors explicit CLI path', () => {
   })
 
   assert.equal(found, '/custom/bin/codex')
+})
+
+test('codexCommandEnv prepends Homebrew paths so env node works from GUI launches', () => {
+  const env = codexCommandEnv('/opt/homebrew/bin/codex', { PATH: '/usr/bin:/bin' }, 'darwin')
+  const entries = env.PATH?.split(':') ?? []
+
+  assert.deepEqual(entries.slice(0, 4), [
+    '/opt/homebrew/bin',
+    '/opt/homebrew/opt/node/bin',
+    '/opt/homebrew/opt/node@22/bin',
+    '/usr/local/bin',
+  ])
+  assert.equal(entries.filter((entry) => entry === '/opt/homebrew/bin').length, 1)
+  assert.equal(entries.includes('/usr/bin'), true)
+  assert.equal(entries.includes('/bin'), true)
 })
 
 function writePluginSource(root: string): string {

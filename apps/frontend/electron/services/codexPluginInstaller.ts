@@ -1,7 +1,7 @@
 import { execFile, spawn } from 'node:child_process'
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { delimiter, isAbsolute, join } from 'node:path'
+import { delimiter, dirname, isAbsolute, join } from 'node:path'
 import { promisify } from 'node:util'
 import { resolveMovScriptBundledPluginSource, validateMovScriptBundledPluginSource } from './movscriptBundledPluginSource'
 
@@ -52,7 +52,7 @@ export async function openCodexApp(): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     const child = spawn(codex, ['app'], {
       detached: true,
-      env: process.env,
+      env: codexCommandEnv(codex),
       shell: shouldRunCodexThroughShell(codex),
       stdio: 'ignore',
     })
@@ -133,7 +133,7 @@ function defaultCodexMarketplaceRoot(): string {
 async function runCodexCommand(args: string[]): Promise<void> {
   const codex = resolveCodexExecutable()
   try {
-    await execFileAsync(codex, args, { env: process.env, shell: shouldRunCodexThroughShell(codex) })
+    await execFileAsync(codex, args, { env: codexCommandEnv(codex), shell: shouldRunCodexThroughShell(codex) })
   } catch (error) {
     throw new Error(`Failed to run "codex ${args.join(' ')}": ${errorMessage(error)}`)
   }
@@ -186,6 +186,58 @@ function commonCodexExecutableCandidates(env: NodeJS.ProcessEnv, platform: NodeJ
     if (appData) candidates.push(join(appData, 'npm', binary))
   }
   return candidates
+}
+
+export function codexCommandEnv(
+  codexExecutable: string,
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+): NodeJS.ProcessEnv {
+  const pathKey = platform === 'win32' ? pathEnvironmentKey(env) : 'PATH'
+  const pathValue = env[pathKey]
+  return {
+    ...env,
+    [pathKey]: prependPathEntries(pathValue, codexCommandPathEntries(codexExecutable, env, platform)),
+  }
+}
+
+function codexCommandPathEntries(
+  codexExecutable: string,
+  env: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform,
+): string[] {
+  const entries = isAbsolute(codexExecutable) ? [dirname(codexExecutable)] : []
+  if (platform === 'darwin') {
+    entries.push(
+      '/opt/homebrew/bin',
+      '/opt/homebrew/opt/node/bin',
+      '/opt/homebrew/opt/node@22/bin',
+      '/usr/local/bin',
+      '/usr/bin',
+      '/bin',
+    )
+  }
+  if (platform === 'win32') {
+    const programFiles = env.ProgramFiles?.trim()
+    if (programFiles) entries.push(join(programFiles, 'nodejs'))
+  }
+  return entries
+}
+
+function prependPathEntries(pathValue: string | undefined, entries: string[]): string {
+  const seen = new Set<string>()
+  const merged = [...entries, ...pathEntries(pathValue)]
+  return merged
+    .filter((entry) => {
+      if (!entry || seen.has(entry)) return false
+      seen.add(entry)
+      return true
+    })
+    .join(delimiter)
+}
+
+function pathEnvironmentKey(env: NodeJS.ProcessEnv): string {
+  return Object.keys(env).find((key) => key.toLowerCase() === 'path') ?? 'Path'
 }
 
 function codexBinaryNames(platform: NodeJS.Platform): string[] {
