@@ -7,7 +7,7 @@ const releaseStatuses = Array.from(document.querySelectorAll("[data-release-stat
 const releaseAssetLinks = Array.from(document.querySelectorAll("[data-release-asset]"));
 const downloadRecommendations = Array.from(document.querySelectorAll("[data-download-recommendation]"));
 
-const releaseApiUrl = "https://api.github.com/repos/movscript/movscript/releases/latest";
+const releaseApiUrl = "release.json";
 const releasesUrl = "https://github.com/movscript/movscript/releases/latest";
 const releaseAssetMatchers = {
   "macos-arm64": [
@@ -201,13 +201,12 @@ async function loadLatestRelease() {
   setReleaseStatus("releaseLoading");
 
   try {
-    const response = await fetch(releaseApiUrl, {
-      headers: { Accept: "application/vnd.github+json" },
-    });
+    const response = await fetch(releaseApiUrl, { cache: "no-store" });
 
     if (!response.ok) throw new Error(`GitHub release request failed: ${response.status}`);
 
     const release = await response.json();
+    if (!release?.tag_name) throw new Error("Static release metadata is unavailable.");
     updateReleaseAssetLinks(release);
     setReleaseStatus("releaseReady", { version: release.tag_name ?? "latest" });
   } catch {

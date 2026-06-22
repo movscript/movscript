@@ -1,6 +1,9 @@
 name: Deploy Installer Page
 
 on:
+  release:
+    types:
+      - published
   push:
     branches:
       - main
@@ -33,12 +36,54 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Prepare static site
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p public
           cp -R site/. public/
           cp install.sh public/install.sh
           cp assets/logo.png public/logo.png
           chmod 0644 public/install.sh
+          node <<'NODE'
+          const fs = require('node:fs')
+          const { execFileSync } = require('node:child_process')
+
+          function writeFallback() {
+            fs.writeFileSync('public/release.json', JSON.stringify({
+              tag_name: null,
+              html_url: 'https://github.com/movscript/movscript/releases/latest',
+              assets: [],
+            }, null, 2))
+          }
+
+          try {
+            const headers = [
+              '-H', 'Accept: application/vnd.github+json',
+              '-H', `Authorization: Bearer ${process.env.GH_TOKEN}`,
+              '-H', 'X-GitHub-Api-Version: 2022-11-28',
+            ]
+            const raw = execFileSync('curl', [
+              '-fsSL',
+              ...headers,
+              'https://api.github.com/repos/movscript/movscript/releases/latest',
+            ], { encoding: 'utf8' })
+            const release = JSON.parse(raw)
+            fs.writeFileSync('public/release.json', JSON.stringify({
+              tag_name: release.tag_name ?? null,
+              html_url: release.html_url ?? 'https://github.com/movscript/movscript/releases/latest',
+              assets: Array.isArray(release.assets)
+                ? release.assets.map((asset) => ({
+                    name: asset.name,
+                    size: asset.size,
+                    browser_download_url: asset.browser_download_url,
+                  }))
+                : [],
+            }, null, 2))
+          } catch (error) {
+            console.warn(`Unable to generate release.json: ${error.message}`)
+            writeFallback()
+          }
+          NODE
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
