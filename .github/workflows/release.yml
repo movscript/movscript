@@ -359,7 +359,7 @@ jobs:
         with:
           subject-path: downloaded-artifacts/*
 
-      - name: Create or update draft release
+      - name: Create or update GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
@@ -368,7 +368,7 @@ jobs:
           if [ "$IS_TEST_RELEASE" = "true" ]; then
             RELEASE_FLAGS="--draft --prerelease"
           else
-            RELEASE_FLAGS="--draft"
+            RELEASE_FLAGS=""
           fi
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release edit "$RELEASE_TAG" $RELEASE_FLAGS --title "$RELEASE_TAG" --notes-file .github/release-workspace-notes.md
@@ -376,6 +376,10 @@ jobs:
             gh release create "$RELEASE_TAG" $RELEASE_FLAGS --title "$RELEASE_TAG" --notes-file .github/release-workspace-notes.md
           fi
           gh release upload "$RELEASE_TAG" downloaded-artifacts/* --clobber
+          if [ "$IS_TEST_RELEASE" != "true" ]; then
+            RELEASE_ID="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" --jq .id)"
+            gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" -F draft=false -F prerelease=false
+          fi
 
       - name: Refresh installer page metadata
         env:

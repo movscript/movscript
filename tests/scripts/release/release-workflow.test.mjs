@@ -149,7 +149,10 @@ test('release workflow marks test releases as prereleases', () => {
   assert.match(releaseWorkflow, /\^v\[0-9\]\+\\\.\[0-9\]\+\\\.\[0-9\]\+-test\\\.\[0-9\]\+\$/)
   assert.match(releaseWorkflow, /IS_TEST_RELEASE:\s+\$\{\{\s*steps\.release\.outputs\.is_test\s*\}\}/)
   assert.match(releaseWorkflow, /RELEASE_FLAGS="--draft --prerelease"/)
+  assert.match(releaseWorkflow, /RELEASE_FLAGS=""/)
   assert.match(releaseWorkflow, /gh release create "\$RELEASE_TAG" \$RELEASE_FLAGS --title "\$RELEASE_TAG" --notes-file \.github\/release-workspace-notes\.md/)
+  assert.match(releaseWorkflow, /gh api "repos\/\$\{GITHUB_REPOSITORY\}\/releases\/tags\/\$\{RELEASE_TAG\}" --jq \.id/)
+  assert.match(releaseWorkflow, /gh api -X PATCH "repos\/\$\{GITHUB_REPOSITORY\}\/releases\/\$\{RELEASE_ID\}" -F draft=false -F prerelease=false/)
 })
 
 test('pages refresh workflow dispatches pages without requiring a local git checkout', () => {
