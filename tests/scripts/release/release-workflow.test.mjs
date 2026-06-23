@@ -6,6 +6,11 @@ import test from 'node:test'
 const releaseWorkflow = await readFile(resolve(import.meta.dirname, '../../../.github/workflows/release.yml'), 'utf8')
 const pagesRefreshWorkflow = await readFile(resolve(import.meta.dirname, '../../../.github/workflows/pages-refresh.yml'), 'utf8')
 
+test('release workflow cancels stale runs for the same tag', () => {
+  assert.match(releaseWorkflow, /group:\s+release-\$\{\{\s*github\.ref_name \|\| inputs\.tag\s*\}\}/)
+  assert.match(releaseWorkflow, /cancel-in-progress:\s+true/)
+})
+
 test('release workflow packages every desktop target through split parameterized commands', () => {
   assert.match(releaseWorkflow, /pnpm run release -- prepare-desktop-package --platform=\$\{\{\s*matrix\.package-platform\s*\}\} --arch=\$\{\{\s*matrix\.package-arch\s*\}\}/)
   assert.match(releaseWorkflow, /Diagnostic typecheck frontend desktop bundle on target runner/)
