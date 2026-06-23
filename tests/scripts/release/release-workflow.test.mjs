@@ -90,6 +90,7 @@ test('release workflow materializes Apple signing secrets as temporary files for
   assert.match(releaseWorkflow, /security default-keychain -d user -s "\$KEYCHAIN_PATH"/)
   assert.match(releaseWorkflow, /security import "\$CSC_LINK_PATH" -k "\$KEYCHAIN_PATH" -P "\$CSC_KEY_PASSWORD"/)
   assert.match(releaseWorkflow, /IDENTITY_NAME="\$\(security find-identity -p codesigning -v "\$KEYCHAIN_PATH"/)
+  assert.match(releaseWorkflow, /Developer ID Application: \*\\\(\[\^"\]\*\\\)/)
   assert.match(releaseWorkflow, /No Developer ID Application signing identity was imported from CSC_LINK/)
   assert.match(releaseWorkflow, /echo "CSC_LINK=\$CSC_LINK_PATH" >> "\$GITHUB_ENV"/)
   assert.match(releaseWorkflow, /echo "CSC_KEYCHAIN=\$KEYCHAIN_PATH" >> "\$GITHUB_ENV"/)
