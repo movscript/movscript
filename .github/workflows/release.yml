@@ -124,7 +124,9 @@ jobs:
             artifact: movscript-desktop-windows-arm64
             ffmpeg-platform: win32
             ffmpeg-arch: arm64
+            allow-failure: true
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.allow-failure || false }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

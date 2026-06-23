@@ -25,6 +25,8 @@ test('release workflow packages every desktop target through split parameterized
     assert.match(releaseWorkflow, new RegExp(pair[1]))
   }
   assert.match(releaseWorkflow, /name: macos-x64\s+os: macos-14\s+package-platform: darwin\s+package-arch: x64/)
+  assert.match(releaseWorkflow, /name: windows-arm64\s+os: windows-2022\s+package-platform: win32\s+package-arch: arm64[\s\S]*allow-failure: true/)
+  assert.match(releaseWorkflow, /continue-on-error:\s+\$\{\{\s*matrix\.allow-failure \|\| false\s*\}\}/)
   assert.doesNotMatch(releaseWorkflow, /package-platform: linux/)
 })
 
