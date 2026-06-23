@@ -330,7 +330,11 @@ jobs:
           fi
           gh release upload "$RELEASE_TAG" downloaded-artifacts/* --clobber
           if [ "$IS_TEST_RELEASE" != "true" ]; then
-            RELEASE_ID="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" --jq .id)"
+            RELEASE_ID="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases" --jq ".[] | select(.tag_name == \"${RELEASE_TAG}\") | .id" | head -n 1)"
+            if [ -z "$RELEASE_ID" ]; then
+              echo "Unable to locate GitHub release for tag ${RELEASE_TAG}" >&2
+              exit 1
+            fi
             gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" -F draft=false -F prerelease=false
           fi
 

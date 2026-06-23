@@ -148,7 +148,8 @@ test('release workflow marks test releases as prereleases', () => {
   assert.match(releaseWorkflow, /RELEASE_FLAGS="--draft --prerelease"/)
   assert.match(releaseWorkflow, /RELEASE_FLAGS=""/)
   assert.match(releaseWorkflow, /gh release create "\$RELEASE_TAG" \$RELEASE_FLAGS --title "\$RELEASE_TAG" --notes-file \.github\/release-workspace-notes\.md/)
-  assert.match(releaseWorkflow, /gh api "repos\/\$\{GITHUB_REPOSITORY\}\/releases\/tags\/\$\{RELEASE_TAG\}" --jq \.id/)
+  assert.match(releaseWorkflow, /gh api --paginate "repos\/\$\{GITHUB_REPOSITORY\}\/releases" --jq/)
+  assert.match(releaseWorkflow, /Unable to locate GitHub release for tag \$\{RELEASE_TAG\}/)
   assert.match(releaseWorkflow, /gh api -X PATCH "repos\/\$\{GITHUB_REPOSITORY\}\/releases\/\$\{RELEASE_ID\}" -F draft=false -F prerelease=false/)
 })
 
