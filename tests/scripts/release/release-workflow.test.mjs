@@ -19,14 +19,13 @@ test('release workflow packages every desktop target through split parameterized
     ['package-platform: darwin', 'package-arch: arm64'],
     ['package-platform: darwin', 'package-arch: x64'],
     ['package-platform: win32', 'package-arch: x64'],
-    ['package-platform: win32', 'package-arch: arm64'],
   ]) {
     assert.match(releaseWorkflow, new RegExp(pair[0]))
     assert.match(releaseWorkflow, new RegExp(pair[1]))
   }
   assert.match(releaseWorkflow, /name: macos-x64\s+os: macos-14\s+package-platform: darwin\s+package-arch: x64/)
-  assert.match(releaseWorkflow, /name: windows-arm64\s+os: windows-2022\s+package-platform: win32\s+package-arch: arm64[\s\S]*allow-failure: true/)
-  assert.match(releaseWorkflow, /continue-on-error:\s+\$\{\{\s*matrix\.allow-failure \|\| false\s*\}\}/)
+  assert.doesNotMatch(releaseWorkflow, /name: windows-arm64/)
+  assert.doesNotMatch(releaseWorkflow, /package-platform: win32\s+package-arch: arm64/)
   assert.doesNotMatch(releaseWorkflow, /package-platform: linux/)
 })
 
@@ -35,17 +34,15 @@ test('release workflow downloads ffmpeg for each desktop package job', () => {
     ['ffmpeg-platform: darwin', 'ffmpeg-arch: arm64'],
     ['ffmpeg-platform: darwin', 'ffmpeg-arch: x64'],
     ['ffmpeg-platform: win32', 'ffmpeg-arch: x64'],
-    ['ffmpeg-platform: win32', 'ffmpeg-arch: arm64'],
   ]) {
     assert.match(releaseWorkflow, new RegExp(pair[0]))
     assert.match(releaseWorkflow, new RegExp(pair[1]))
   }
   assert.doesNotMatch(releaseWorkflow, /ffmpeg-platform: linux/)
-  assert.match(releaseWorkflow, /if: matrix\.package-platform != 'win32' \|\| matrix\.package-arch != 'arm64'/)
   assert.match(releaseWorkflow, /release -- download-ffmpeg-static --platform=\$\{\{\s*matrix\.ffmpeg-platform\s*\}\} --arch=\$\{\{\s*matrix\.ffmpeg-arch\s*\}\}/)
-  assert.match(releaseWorkflow, /Download Windows ARM64 ffmpeg release binary/)
-  assert.match(releaseWorkflow, /tordona\/ffmpeg-win-arm64\/releases\/download\/latest-autobuild-2026\.06\.21\.0/)
-  assert.match(releaseWorkflow, /pnpm run release -- stage-ffmpeg --platform=win32 --arch=arm64/)
+  assert.doesNotMatch(releaseWorkflow, /Download Windows ARM64 ffmpeg release binary/)
+  assert.doesNotMatch(releaseWorkflow, /tordona\/ffmpeg-win-arm64/)
+  assert.doesNotMatch(releaseWorkflow, /stage-ffmpeg --platform=win32 --arch=arm64/)
 })
 
 test('release workflow uploads architecture-specific desktop artifact names', () => {
@@ -53,10 +50,10 @@ test('release workflow uploads architecture-specific desktop artifact names', ()
     'movscript-desktop-macos-arm64',
     'movscript-desktop-macos-x64',
     'movscript-desktop-windows-x64',
-    'movscript-desktop-windows-arm64',
   ]) {
     assert.match(releaseWorkflow, new RegExp(`artifact: ${artifact}`))
   }
+  assert.doesNotMatch(releaseWorkflow, /artifact: movscript-desktop-windows-arm64/)
   assert.doesNotMatch(releaseWorkflow, /artifact: movscript-desktop-linux-/)
 })
 
@@ -113,10 +110,10 @@ test('release workflow does not build or download app-server binaries for GitHub
   assert.doesNotMatch(releaseWorkflow, /Download app-server dependency artifacts/)
 })
 
-test('release workflow packages Windows ARM64 with a pinned third-party ffmpeg source', () => {
-  assert.match(releaseWorkflow, /package-platform: win32\s+package-arch: arm64/)
-  assert.match(releaseWorkflow, /artifact: movscript-desktop-windows-arm64/)
-  assert.match(releaseWorkflow, /FFMPEG_WIN_ARM64_SHA256: 157f47dd2e9f820b1420c5c4ecfb6b63a78e981814362b7050d2f451eee44698/)
+test('release workflow omits Windows ARM64 until a stable ffmpeg source is available', () => {
+  assert.doesNotMatch(releaseWorkflow, /package-platform: win32\s+package-arch: arm64/)
+  assert.doesNotMatch(releaseWorkflow, /artifact: movscript-desktop-windows-arm64/)
+  assert.doesNotMatch(releaseWorkflow, /FFMPEG_WIN_ARM64_SHA256/)
 })
 
 test('release workflow collects package artifacts without plugin duplicates', () => {

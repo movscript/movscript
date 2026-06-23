@@ -117,16 +117,7 @@ jobs:
             artifact: movscript-desktop-windows-x64
             ffmpeg-platform: win32
             ffmpeg-arch: x64
-          - name: windows-arm64
-            os: windows-2022
-            package-platform: win32
-            package-arch: arm64
-            artifact: movscript-desktop-windows-arm64
-            ffmpeg-platform: win32
-            ffmpeg-arch: arm64
-            allow-failure: true
     runs-on: ${{ matrix.os }}
-    continue-on-error: ${{ matrix.allow-failure || false }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -214,45 +205,7 @@ jobs:
         run: pnpm run verify:package-resources
 
       - name: Download ffmpeg-static release binary
-        if: matrix.package-platform != 'win32' || matrix.package-arch != 'arm64'
         run: pnpm run release -- download-ffmpeg-static --platform=${{ matrix.ffmpeg-platform }} --arch=${{ matrix.ffmpeg-arch }}
-
-      - name: Download Windows ARM64 ffmpeg release binary
-        if: matrix.package-platform == 'win32' && matrix.package-arch == 'arm64'
-        shell: pwsh
-        env:
-          FFMPEG_WIN_ARM64_URL: https://github.com/tordona/ffmpeg-win-arm64/releases/download/latest-autobuild-2026.06.21.0/ffmpeg-master-latest-essentials-static-win-arm64.7z
-          FFMPEG_WIN_ARM64_SHA256: 157f47dd2e9f820b1420c5c4ecfb6b63a78e981814362b7050d2f451eee44698
-          FFMPEG_WIN_ARM64_VERSION: ffmpeg version master-latest-autobuild-2026.06.21.0
-        run: |
-          $archive = Join-Path $env:RUNNER_TEMP 'ffmpeg-win-arm64.7z'
-          $extractDir = Join-Path $env:RUNNER_TEMP 'ffmpeg-win-arm64'
-          Invoke-WebRequest -Uri $env:FFMPEG_WIN_ARM64_URL -OutFile $archive
-          $actualHash = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant()
-          if ($actualHash -ne $env:FFMPEG_WIN_ARM64_SHA256) {
-            throw "Windows ARM64 ffmpeg checksum mismatch: $actualHash"
-          }
-          $sevenZip = (Get-Command 7z -ErrorAction SilentlyContinue).Source
-          if (-not $sevenZip -and (Test-Path "$env:ProgramFiles\7-Zip\7z.exe")) {
-            $sevenZip = "$env:ProgramFiles\7-Zip\7z.exe"
-          }
-          if (-not $sevenZip -and (Test-Path "${env:ProgramFiles(x86)}\7-Zip\7z.exe")) {
-            $sevenZip = "${env:ProgramFiles(x86)}\7-Zip\7z.exe"
-          }
-          if (-not $sevenZip) {
-            choco install 7zip -y --no-progress
-            $sevenZip = (Get-Command 7z -ErrorAction Stop).Source
-          }
-          & $sevenZip x $archive "-o$extractDir" -y
-          $ffmpeg = Get-ChildItem -Path $extractDir -Filter ffmpeg.exe -Recurse | Select-Object -First 1
-          if (-not $ffmpeg) {
-            throw 'Unable to locate ffmpeg.exe in the Windows ARM64 ffmpeg archive.'
-          }
-          $env:MOVSCRIPT_FFMPEG_BIN = $ffmpeg.FullName
-          $env:MOVSCRIPT_FFMPEG_SOURCE_URL = $env:FFMPEG_WIN_ARM64_URL
-          $env:MOVSCRIPT_FFMPEG_LICENSE = 'GPL-3.0-or-later'
-          $env:MOVSCRIPT_FFMPEG_VERSION = $env:FFMPEG_WIN_ARM64_VERSION
-          pnpm run release -- stage-ffmpeg --platform=win32 --arch=arm64
 
       - name: Prepare desktop package prerequisites
         run: pnpm run release -- prepare-desktop-package --platform=${{ matrix.package-platform }} --arch=${{ matrix.package-arch }}
