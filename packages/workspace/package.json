@@ -1,6 +1,6 @@
 {
   "name": "@movscript/workspace",
-  "version": "0.1.28",
+  "version": "0.1.29",
   "private": true,
   "description": "MovScript workspace facade for layout, stores, repositories, node adapters, and workspace services.",
   "license": "MIT",
