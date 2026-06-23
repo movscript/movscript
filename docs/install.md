@@ -15,10 +15,10 @@ The shell installer supports macOS Apple Silicon / arm64 and macOS Intel / x64.
 It installs the matching `movscript-desktop-macos-*-Movscript.dmg` release
 asset to `/Applications/Movscript.app`.
 
-Windows x64 and Windows ARM64 users should download the matching Windows
-installer from GitHub Releases. The release asset is prefixed with
-`movscript-desktop-windows-x64-` or `movscript-desktop-windows-arm64-` and ends
-in `.exe`. The installer lets users choose the program installation directory.
+Windows x64 users should download the matching Windows installer from GitHub
+Releases. The release asset is prefixed with `movscript-desktop-windows-x64-`
+and ends in `.exe`. The installer lets users choose the program installation
+directory.
 
 ## Options
 
@@ -64,13 +64,13 @@ Required updates block normal desktop use until the user chooses to download and
 restart into the update. Optional updates only show the normal update prompt.
 
 The Windows release job publishes installer and portable artifacts with the
-matrix prefix `movscript-desktop-windows-x64` or
-`movscript-desktop-windows-arm64`. Windows installation location and Movscript
-Home are intentionally separate: the installer controls where the app binaries
-live, while Movscript Home controls user data, cache, runtime state, and
-generated files. By default Windows uses `%LOCALAPPDATA%\Movscript\Home`; users
-can move it to a larger drive such as `D:\MovscriptHome` from the desktop
-settings page.
+matrix prefix `movscript-desktop-windows-x64`. Windows ARM64 packages are
+temporarily omitted until a stable ffmpeg source is available. Windows
+installation location and Movscript Home are intentionally separate: the
+installer controls where the app binaries live, while Movscript Home controls
+user data, cache, runtime state, and generated files. By default Windows uses
+`%LOCALAPPDATA%\Movscript\Home`; users can move it to a larger drive such as
+`D:\MovscriptHome` from the desktop settings page.
 
 ## Publishing the GitHub Pages Installer
 

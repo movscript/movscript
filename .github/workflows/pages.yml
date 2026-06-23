@@ -45,6 +45,16 @@ jobs:
           const fs = require('node:fs')
           const { execFileSync } = require('node:child_process')
 
+          const hiddenAssetPatterns = [
+            /^latest-win32-arm64\.yml$/,
+            /^movscript-desktop-windows-arm64-/,
+          ]
+
+          function isVisibleReleaseAsset(asset) {
+            const name = asset?.name ?? ''
+            return !hiddenAssetPatterns.some((pattern) => pattern.test(name))
+          }
+
           function writeFallback() {
             fs.writeFileSync('public/release.json', JSON.stringify({
               tag_name: null,
@@ -69,7 +79,7 @@ jobs:
               tag_name: release.tag_name ?? null,
               html_url: release.html_url ?? 'https://github.com/movscript/movscript/releases/latest',
               assets: Array.isArray(release.assets)
-                ? release.assets.map((asset) => ({
+                ? release.assets.filter(isVisibleReleaseAsset).map((asset) => ({
                     name: asset.name,
                     size: asset.size,
                     browser_download_url: asset.browser_download_url,

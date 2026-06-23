@@ -39,7 +39,6 @@ Current release target:
 - macOS Apple Silicon / arm64
 - macOS Intel / x64
 - Windows x64
-- Windows ARM64
 
 Download the latest desktop package from [GitHub Releases](https://github.com/movscript/movscript/releases/latest).
 
@@ -49,7 +48,7 @@ On macOS, install from the command line. The installer picks the Apple Silicon o
 curl -fsSL https://movscript.github.io/movscript/install.sh | sh
 ```
 
-On Windows, download the latest x64 or ARM64 `.exe` installer from [GitHub Releases](https://github.com/movscript/movscript/releases/latest).
+On Windows, download the latest x64 `.exe` installer from [GitHub Releases](https://github.com/movscript/movscript/releases/latest).
 
 All release notes, known issues, checksums, and previous versions are listed on the [Movscript releases page](https://github.com/movscript/movscript/releases).
 

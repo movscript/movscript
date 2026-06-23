@@ -20,10 +20,6 @@ const releaseAssetMatchers = {
     (name) => name.startsWith("movscript-desktop-windows-x64-") && name.includes("Setup") && name.endsWith(".exe"),
     (name) => name.startsWith("movscript-desktop-windows-x64-") && name.endsWith(".exe"),
   ],
-  "windows-arm64": [
-    (name) => name.startsWith("movscript-desktop-windows-arm64-") && name.includes("Setup") && name.endsWith(".exe"),
-    (name) => name.startsWith("movscript-desktop-windows-arm64-") && name.endsWith(".exe"),
-  ],
 };
 
 function detectLanguage() {
@@ -69,7 +65,7 @@ async function detectDownloadTarget() {
   const arch = await detectArchitecture();
 
   if (platform === "windows") {
-    return arch === "arm64" ? "windows-arm64" : "windows-x64";
+    return "windows-x64";
   }
 
   if (arch === "x64") return "macos-x64";

@@ -39,7 +39,6 @@ Movscript 的核心思路是先描述动态影像的意图、感觉、节奏和�
 - macOS Apple Silicon / arm64
 - macOS Intel / x64
 - Windows x64
-- Windows ARM64
 
 最新桌面包可以在 [GitHub Releases](https://github.com/movscript/movscript/releases/latest) 下载。
 
@@ -49,7 +48,7 @@ macOS 可以使用命令行安装，安装脚本会根据设备自动选择 Appl
 curl -fsSL https://movscript.github.io/movscript/install.sh | sh
 ```
 
-Windows 可以从 [GitHub Releases](https://github.com/movscript/movscript/releases/latest) 下载最新 x64 或 ARM64 `.exe` 安装器。
+Windows 可以从 [GitHub Releases](https://github.com/movscript/movscript/releases/latest) 下载最新 x64 `.exe` 安装器。
 
 每个版本的更新内容、已知问题、校验文件和历史版本会记录在 [Movscript releases 页面](https://github.com/movscript/movscript/releases)。
 

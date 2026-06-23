@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 import test from 'node:test'
 
 const releaseWorkflow = await readFile(resolve(import.meta.dirname, '../../../.github/workflows/release.yml'), 'utf8')
+const pagesWorkflow = await readFile(resolve(import.meta.dirname, '../../../.github/workflows/pages.yml'), 'utf8')
 const pagesRefreshWorkflow = await readFile(resolve(import.meta.dirname, '../../../.github/workflows/pages-refresh.yml'), 'utf8')
 
 test('release workflow cancels stale runs for the same tag', () => {
@@ -121,6 +122,14 @@ test('release workflow omits Windows ARM64 until a stable ffmpeg source is avail
   assert.doesNotMatch(releaseWorkflow, /FFMPEG_WIN_ARM64_SHA256/)
 })
 
+test('release workflow deletes stale Windows ARM64 release assets', () => {
+  assert.match(releaseWorkflow, /repos\/\$\{GITHUB_REPOSITORY\}\/releases\/\$\{RELEASE_ID\}\/assets/)
+  assert.ok(releaseWorkflow.includes('latest-win32-arm64\\\\.yml'))
+  assert.ok(releaseWorkflow.includes('movscript-desktop-windows-arm64-'))
+  assert.match(releaseWorkflow, /Deleting stale Windows ARM64 release asset/)
+  assert.match(releaseWorkflow, /repos\/\$\{GITHUB_REPOSITORY\}\/releases\/assets\/\$\{ASSET_ID\}/)
+})
+
 test('release workflow collects package artifacts without plugin duplicates', () => {
   assert.match(releaseWorkflow, /MOVSCRIPT_COLLECT_PLUGINS:\s+'0'/)
   assert.match(releaseWorkflow, /MOVSCRIPT_ARTIFACT_PREFIX:\s+\$\{\{\s*matrix\.artifact\s*\}\}/)
@@ -161,4 +170,11 @@ test('release workflow marks test releases as prereleases', () => {
 test('pages refresh workflow dispatches pages without requiring a local git checkout', () => {
   assert.doesNotMatch(pagesRefreshWorkflow, /actions\/checkout/)
   assert.match(pagesRefreshWorkflow, /gh workflow run pages\.yml --repo "\$GITHUB_REPOSITORY" --ref main/)
+})
+
+test('pages workflow hides unsupported Windows ARM64 release assets', () => {
+  assert.match(pagesWorkflow, /hiddenAssetPatterns/)
+  assert.ok(pagesWorkflow.includes('^latest-win32-arm64\\.yml$'))
+  assert.ok(pagesWorkflow.includes('^movscript-desktop-windows-arm64-'))
+  assert.match(pagesWorkflow, /release\.assets\.filter\(isVisibleReleaseAsset\)\.map/)
 })
