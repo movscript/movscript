@@ -1,0 +1,962 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MovScript Surface 03 - Live Generation Room</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --paper: #fbfaf6;
+        --ink: #151715;
+        --soft: #4f514b;
+        --muted: #7f8178;
+        --line: #dedbd2;
+        --teal: #078f8d;
+        --teal-soft: #e1f3f0;
+        --red: #d7594d;
+        --amber: #b87b22;
+        --amber-soft: #ffe7b8;
+        --film: #111312;
+        --shadow: 0 14px 38px rgba(30, 27, 20, 0.08);
+        --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        min-width: 1220px;
+        background:
+          radial-gradient(circle at 78% 14%, rgba(7, 143, 141, 0.05), transparent 22%),
+          linear-gradient(90deg, rgba(18, 20, 18, 0.022) 1px, transparent 1px) 0 0 / 36px 36px,
+          linear-gradient(rgba(18, 20, 18, 0.014) 1px, transparent 1px) 0 0 / 36px 36px,
+          var(--paper);
+        color: var(--ink);
+      }
+
+      button { border: 0; cursor: pointer; font: inherit; }
+
+      .app {
+        display: grid;
+        grid-template-rows: 82px 1fr 34px;
+        min-height: 100vh;
+      }
+
+      .topbar {
+        align-items: center;
+        border-bottom: 1px solid var(--line);
+        display: grid;
+        grid-template-columns: 250px 1fr 300px;
+        padding: 0 32px;
+      }
+
+      .brand b {
+        display: block;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 29px;
+        line-height: 30px;
+        letter-spacing: 1px;
+      }
+
+      .brand b::after {
+        background: #f05f52;
+        border-radius: 50%;
+        content: "";
+        display: inline-block;
+        height: 7px;
+        margin-left: 8px;
+        vertical-align: 14px;
+        width: 7px;
+      }
+
+      .brand span,
+      .kicker {
+        color: var(--muted);
+        display: block;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: .4px;
+        line-height: 14px;
+        text-transform: uppercase;
+      }
+
+      .nav {
+        align-items: stretch;
+        display: grid;
+        gap: 12px;
+        grid-template-columns: repeat(6, 1fr);
+        height: 100%;
+      }
+
+      .nav-item {
+        align-content: center;
+        background: transparent;
+        border-bottom: 3px solid transparent;
+        color: var(--soft);
+        display: grid;
+        gap: 3px;
+        justify-items: center;
+        padding-top: 6px;
+      }
+
+      .nav-item.active { border-color: var(--teal); }
+
+      .nav-icon {
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        color: var(--ink);
+        display: grid;
+        height: 23px;
+        place-items: center;
+        width: 23px;
+      }
+
+      .nav-item b { font-size: 12px; line-height: 15px; }
+      .nav-item span { color: var(--muted); font-size: 10px; line-height: 13px; }
+
+      .project {
+        align-items: center;
+        border-left: 1px solid var(--line);
+        display: grid;
+        gap: 14px;
+        grid-template-columns: 1fr 48px;
+        padding-left: 32px;
+      }
+
+      .project b {
+        display: block;
+        font-size: 19px;
+        line-height: 23px;
+      }
+
+      .avatar {
+        background-image: url("assets/surface01/reference.png");
+        background-position: -1432px -28px;
+        background-size: 1505px 1045px;
+        border-radius: 50%;
+        height: 48px;
+        width: 48px;
+      }
+
+      .main {
+        display: grid;
+        gap: 14px;
+        padding: 18px 24px;
+      }
+
+      .hero {
+        align-items: center;
+        display: grid;
+        gap: 24px;
+        grid-template-columns: 360px 1fr 360px;
+      }
+
+      h1 {
+        font-family: "Songti SC", "STSong", "Noto Serif CJK SC", Georgia, serif;
+        font-size: 44px;
+        font-weight: 500;
+        line-height: 50px;
+        margin: 0;
+      }
+
+      .subtitle {
+        color: var(--soft);
+        font-family: "Songti SC", "STSong", serif;
+        font-size: 18px;
+        line-height: 28px;
+        margin-top: 8px;
+      }
+
+      .live-note {
+        border-left: 2px solid var(--line);
+        display: grid;
+        gap: 8px;
+        padding-left: 20px;
+      }
+
+      .live-note b {
+        font-family: "Songti SC", "STSong", serif;
+        font-size: 15px;
+      }
+
+      .live-note p {
+        color: var(--soft);
+        font-family: "Songti SC", "STSong", serif;
+        font-size: 15px;
+        line-height: 27px;
+        margin: 0;
+      }
+
+      .run-card {
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        box-shadow: var(--shadow);
+        display: grid;
+        gap: 10px;
+        padding: 14px;
+      }
+
+      .run-stats {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: repeat(3, 1fr);
+      }
+
+      .run-stat {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        padding: 10px;
+      }
+
+      .run-stat b {
+        display: block;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 26px;
+        line-height: 28px;
+      }
+
+      .run-stat span {
+        color: var(--muted);
+        font-size: 11px;
+      }
+
+      .run-card b { font-size: 13px; }
+
+      .meter {
+        background: #d8e2df;
+        border-radius: 999px;
+        height: 7px;
+        overflow: hidden;
+      }
+
+      .meter i {
+        animation: pulseWidth 4.8s ease-in-out infinite;
+        background: var(--teal);
+        display: block;
+        height: 100%;
+        width: 68%;
+      }
+
+      .studio {
+        display: grid;
+        gap: 14px;
+        grid-template-columns: minmax(0, 1fr) 360px;
+      }
+
+      .context-panel {
+        position: sticky;
+        top: 14px;
+      }
+
+      .panel {
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(40, 36, 26, 0.045);
+      }
+
+      .panel-head {
+        align-items: center;
+        display: flex;
+        justify-content: space-between;
+        min-height: 42px;
+        padding: 12px 14px 5px;
+      }
+
+      .panel-title {
+        align-items: baseline;
+        display: flex;
+        gap: 10px;
+      }
+
+      .panel-title b {
+        font-family: "Songti SC", "STSong", serif;
+        font-size: 18px;
+        font-weight: 600;
+      }
+
+      .panel-title span,
+      .hint {
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      .live-monitor {
+        padding: 0 14px 14px;
+      }
+
+      .job-board {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: repeat(4, 1fr);
+        padding: 0 14px 14px;
+      }
+
+      .job-card {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+
+      .job-card.selected {
+        border-color: var(--teal);
+        box-shadow: 0 0 0 2px rgba(7, 143, 141, 0.16);
+      }
+
+      .job-card.running {
+        border-color: var(--teal);
+        box-shadow: 0 0 0 2px rgba(7, 143, 141, 0.14);
+      }
+
+      .job-card.failed {
+        border-color: #e3aaa4;
+      }
+
+      .job-card .visual {
+        height: 150px;
+      }
+
+      .job-body {
+        display: grid;
+        gap: 8px;
+        padding: 10px;
+      }
+
+      .job-body b {
+        font-size: 13px;
+        line-height: 16px;
+      }
+
+      .job-body p {
+        color: var(--soft);
+        font-size: 12px;
+        line-height: 18px;
+        margin: 0;
+      }
+
+      .job-meta {
+        align-items: center;
+        display: flex;
+        justify-content: space-between;
+      }
+
+      .monitor-frame {
+        background: #101514;
+        border-radius: 8px;
+        overflow: hidden;
+        position: relative;
+      }
+
+      .visual {
+        background-image: url("assets/surface01/reference.png");
+        background-size: 1505px 1045px;
+        height: 520px;
+        overflow: hidden;
+        position: relative;
+      }
+
+      .visual::before {
+        background-image: repeating-linear-gradient(103deg, rgba(255,255,255,.18) 0 1px, transparent 1px 12px);
+        content: "";
+        inset: -20%;
+        opacity: .42;
+        position: absolute;
+        animation: rain 1.5s linear infinite;
+      }
+
+      .visual::after {
+        background: linear-gradient(110deg, transparent 0 38%, rgba(255,255,255,.14) 44%, transparent 54%);
+        content: "";
+        inset: 0;
+        position: absolute;
+        transform: translateX(-30%);
+        animation: sweep 4.6s ease-in-out infinite;
+      }
+
+      .live-main { background-position: -32px -461px; }
+
+      .muted {
+        background: rgba(0, 0, 0, 0.74);
+        border-radius: 4px;
+        color: #fff;
+        display: grid;
+        font-size: 12px;
+        height: 22px;
+        left: 12px;
+        place-items: center;
+        position: absolute;
+        top: 12px;
+        width: 22px;
+        z-index: 3;
+      }
+
+      .monitor-caption {
+        bottom: 14px;
+        color: #fff;
+        display: grid;
+        gap: 6px;
+        left: 14px;
+        position: absolute;
+        right: 14px;
+        z-index: 3;
+      }
+
+      .monitor-caption b {
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+
+      .monitor-caption span {
+        color: rgba(255,255,255,.8);
+        font-size: 12px;
+      }
+
+      .monitor-progress {
+        background: rgba(255, 255, 255, 0.24);
+        border-radius: 999px;
+        height: 7px;
+        overflow: hidden;
+      }
+
+      .monitor-progress i {
+        animation: pulseWidth 4.8s ease-in-out infinite;
+        background: var(--teal);
+        display: block;
+        height: 100%;
+        width: 68%;
+      }
+
+      .right-stack {
+        display: grid;
+        gap: 14px;
+      }
+
+      .queue-layout {
+        display: grid;
+        gap: 14px;
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .prompt-box {
+        background: rgba(255, 252, 244, 0.86);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        color: var(--soft);
+        font-family: "Songti SC", "STSong", serif;
+        font-size: 14px;
+        line-height: 24px;
+        padding: 12px;
+      }
+
+      .context-actions {
+        display: grid;
+        gap: 8px;
+        grid-template-columns: 1fr 1fr;
+        padding: 0 14px 14px;
+      }
+
+      .context-actions button {
+        background: transparent;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        color: var(--soft);
+        font-size: 12px;
+        height: 32px;
+      }
+
+      .context-actions button.primary {
+        background: var(--teal);
+        border-color: var(--teal);
+        color: #fff;
+      }
+
+      .step-list {
+        display: grid;
+        gap: 10px;
+        padding: 0 14px 14px;
+      }
+
+      .step {
+        align-items: center;
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        display: grid;
+        gap: 10px;
+        grid-template-columns: 28px 1fr auto;
+        min-height: 56px;
+        padding: 10px;
+      }
+
+      .dot {
+        background: var(--teal-soft);
+        border-radius: 999px;
+        color: var(--teal);
+        display: grid;
+        font-size: 12px;
+        font-weight: 900;
+        height: 28px;
+        place-items: center;
+        width: 28px;
+      }
+
+      .step b {
+        display: block;
+        font-size: 12px;
+      }
+
+      .step span {
+        color: var(--muted);
+        display: block;
+        font-size: 11px;
+        line-height: 15px;
+        margin-top: 2px;
+      }
+
+      .pill {
+        border-radius: 999px;
+        display: inline-flex;
+        font-size: 11px;
+        font-weight: 800;
+        line-height: 23px;
+        padding: 0 8px;
+      }
+
+      .pill.ready { background: var(--teal-soft); color: var(--teal); }
+      .pill.running { background: #e4eff5; color: #356f9f; }
+      .pill.wait { background: var(--amber-soft); color: var(--amber); }
+      .pill.failed { background: #ffe2dc; color: #d7594d; }
+      .pill.done { background: var(--teal-soft); color: var(--teal); }
+      .pill.canceled { background: #ece9e1; color: var(--muted); }
+
+      .job-actions {
+        display: grid;
+        gap: 7px;
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .job-actions button {
+        background: transparent;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        color: var(--soft);
+        font-size: 12px;
+        height: 30px;
+      }
+
+      .job-actions button.primary {
+        background: var(--teal);
+        border-color: var(--teal);
+        color: #fff;
+      }
+
+      .job-actions button.danger {
+        background: #fff5f3;
+        border-color: #e7b7b1;
+        color: var(--red);
+      }
+
+      .job-actions button:disabled {
+        color: #aaa;
+        cursor: default;
+        opacity: .55;
+      }
+
+      .ref-grid {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: repeat(4, 1fr);
+        padding: 0 14px 14px;
+      }
+
+      .ref {
+        display: grid;
+        gap: 6px;
+      }
+
+      .ref-img {
+        background-image: url("assets/surface01/reference.png");
+        background-size: 1505px 1045px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        height: 82px;
+      }
+
+      .ref span {
+        color: var(--soft);
+        font-size: 11px;
+        line-height: 14px;
+      }
+
+      .outputs {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: repeat(3, 1fr);
+        padding: 0 14px 14px;
+      }
+
+      .output-card {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        overflow: hidden;
+      }
+
+      .output-card .ref-img {
+        border: 0;
+        border-radius: 0;
+        height: 112px;
+      }
+
+      .output-card div:last-child {
+        display: flex;
+        font-size: 12px;
+        justify-content: space-between;
+        padding: 8px;
+      }
+
+      .notice {
+        background: rgba(255, 252, 244, 0.86);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        color: var(--soft);
+        font-family: "Songti SC", "STSong", serif;
+        font-size: 14px;
+        line-height: 24px;
+        padding: 14px;
+      }
+
+      .bottom-bar {
+        align-items: center;
+        background: #0d1111;
+        color: rgba(255, 255, 255, 0.72);
+        display: grid;
+        font-size: 11px;
+        gap: 20px;
+        grid-template-columns: 260px 1fr 300px;
+        padding: 0 28px;
+      }
+
+      .film-dots {
+        background:
+          repeating-linear-gradient(90deg, rgba(255,255,255,.12) 0 8px, transparent 8px 18px);
+        height: 100%;
+      }
+
+      .tools {
+        display: flex;
+        gap: 18px;
+        justify-content: flex-end;
+      }
+
+      .toast {
+        background: var(--film);
+        border-radius: 8px;
+        bottom: 46px;
+        color: #fff;
+        font-size: 13px;
+        left: 50%;
+        opacity: 0;
+        padding: 10px 14px;
+        pointer-events: none;
+        position: fixed;
+        transform: translate(-50%, 10px);
+        transition: 180ms ease;
+        z-index: 10;
+      }
+
+      .toast.show {
+        opacity: 1;
+        transform: translate(-50%, 0);
+      }
+
+      .imain { background-position: -32px -461px; }
+      .i01 { background-position: -496px -268px; }
+      .i02 { background-position: -643px -751px; }
+      .i03 { background-position: -880px -751px; }
+      .i04 { background-position: -461px -901px; }
+      .i05 { background-position: -614px -901px; }
+      .i06 { background-position: -770px -901px; }
+      .i07 { background-position: -938px -901px; }
+      .icA { background-position: -481px -464px; }
+      .icB { background-position: -635px -466px; }
+      .icC { background-position: -788px -466px; }
+
+      @keyframes rain {
+        from { transform: translate3d(-7%, -6%, 0); }
+        to { transform: translate3d(7%, 7%, 0); }
+      }
+
+      @keyframes sweep {
+        0%, 100% { transform: translateX(-30%); }
+        50% { transform: translateX(28%); }
+      }
+
+      @keyframes pulseWidth {
+        0%, 100% { width: 62%; }
+        50% { width: 78%; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .visual::before,
+        .visual::after,
+        .meter i,
+        .monitor-progress i { animation: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <b>MOVSCRIPT</b>
+          <span>AI Film Studio OS</span>
+        </div>
+        <nav class="nav" aria-label="Surface navigation">
+          <button class="nav-item"><span class="nav-icon">🎬</span><b>进展墙</b><span>Progress Wall</span></button>
+          <button class="nav-item"><span class="nav-icon">▣</span><b>审片台</b><span>Dailies</span></button>
+          <button class="nav-item active"><span class="nav-icon">⌁</span><b>生成现场</b><span>Live Room</span></button>
+          <button class="nav-item"><span class="nav-icon">✎</span><b>创作桌</b><span>Edit Desk</span></button>
+          <button class="nav-item"><span class="nav-icon">▶</span><b>影响决策</b><span>Stale Room</span></button>
+          <button class="nav-item"><span class="nav-icon">⌗</span><b>剪辑台</b><span>Timeline</span></button>
+        </nav>
+        <div class="project">
+          <div>
+            <b>长安雨夜 · 电影项目</b>
+            <span class="kicker">Project: Chang'an Rain Night</span>
+          </div>
+          <div class="avatar"></div>
+        </div>
+      </header>
+
+      <main class="main">
+        <div class="hero">
+          <div>
+            <h1>生成现场</h1>
+            <span class="kicker">Live Generation Room</span>
+            <div class="subtitle">所有生成任务的片场总览。</div>
+          </div>
+          <div class="live-note">
+            <b>现场笔记</b>
+            <p>这里不是 provider 队列日志，而是创作者能理解的生产现场：谁在生成、谁失败、谁可以取消或重试。</p>
+          </div>
+          <div class="run-card">
+            <b>任务概览</b>
+            <div class="run-stats">
+              <div class="run-stat"><b id="runningCount">3</b><span>运行中</span></div>
+              <div class="run-stat"><b id="queuedCount">2</b><span>排队中</span></div>
+              <div class="run-stat"><b id="failedCount">1</b><span>需重试</span></div>
+            </div>
+          </div>
+        </div>
+
+        <section class="studio">
+          <div class="panel">
+            <div class="panel-head">
+              <div class="panel-title"><b>生成任务总览</b><span>All Generation Jobs</span></div>
+              <span class="hint">cancel · retry · review</span>
+            </div>
+            <div class="job-board" id="jobBoard">
+              <article class="job-card running selected" data-status="running" data-job-title="04 追逐 · 视频候选 A" data-prompt="雨夜长安，屋檐和灯火之间的追逐。镜头跟随黑衣人跃过屋顶，雨线清晰，动作快速但人物轮廓可辨。低照度、电影感、压迫感。" data-note="使用 04 追逐故事板、女主湿发状态、朱雀大街夜雨参考。">
+                <div class="visual live-main"><span class="muted">×</span></div>
+                <div class="job-body">
+                  <div class="job-meta"><b>04 追逐 · 视频候选 A</b><span class="pill running">running</span></div>
+                  <p>Seedance · 68% · ETA 04:12。完成后进入审片台，不自动采纳。</p>
+                  <div class="meter"><i></i></div>
+                  <div class="job-actions">
+                    <button class="danger" data-job-action="cancel">取消</button>
+                    <button data-job-action="inspect">查看现场</button>
+                  </div>
+                </div>
+              </article>
+              <article class="job-card running" data-status="running" data-job-title="05 檐影暗涌 · 关键帧" data-prompt="狭窄巷口，屋檐阴影压低画面，黑影从墙面掠过。构图强调前景雨滴和远处灯笼。" data-note="参考巷口环境、低照度风格和角色警觉表情。">
+                <div class="visual i05"><span class="muted">×</span></div>
+                <div class="job-body">
+                  <div class="job-meta"><b>05 檐影暗涌 · 关键帧</b><span class="pill running">running</span></div>
+                  <p>Seedream · 42% · 正在尝试低照度构图。</p>
+                  <div class="meter"><i></i></div>
+                  <div class="job-actions">
+                    <button class="danger" data-job-action="cancel">取消</button>
+                    <button data-job-action="inspect">查看现场</button>
+                  </div>
+                </div>
+              </article>
+              <article class="job-card failed" data-status="failed" data-job-title="06 真相浮现 · 视频段" data-prompt="屋顶对峙，同时快速推进镜头，角色在雨中揭示旧案线索。需要高处空间关系和情绪爆发。" data-note="失败原因：动作意图冲突。可以拆成“屋顶对峙”和“快速推进”两个镜头后重试。">
+                <div class="visual i06"><span class="muted">×</span></div>
+                <div class="job-body">
+                  <div class="job-meta"><b>06 真相浮现 · 视频段</b><span class="pill failed">failed</span></div>
+                  <p>动作描述冲突：屋顶对峙与快速推进同时出现。建议拆成两个镜头。</p>
+                  <div class="job-actions">
+                    <button class="primary" data-job-action="retry">重试</button>
+                    <button data-job-action="edit">改提示</button>
+                  </div>
+                </div>
+              </article>
+              <article class="job-card" data-status="queued" data-job-title="07 长安黎明 · 远景" data-prompt="雨停后的长安清晨，远景看到城楼和薄雾。情绪从紧张转为释然，色温略暖。" data-note="等待 04 追逐稳定后再使用最终节奏参考。">
+                <div class="visual i07"><span class="muted">×</span></div>
+                <div class="job-body">
+                  <div class="job-meta"><b>07 长安黎明 · 远景</b><span class="pill wait">queued</span></div>
+                  <p>等待 04 追逐稳定后再生成，避免上游变化导致返工。</p>
+                  <div class="job-actions">
+                    <button class="danger" data-job-action="cancel">取消</button>
+                    <button data-job-action="prioritize">提前</button>
+                  </div>
+                </div>
+              </article>
+              <article class="job-card" data-status="done" data-job-title="04 追逐 · 候选 B" data-prompt="更阴郁的雨夜追逐，手持感弱一些，重视空间和光影层次。" data-note="已入池，可前往审片台与候选 A/C/D 对比。">
+                <div class="visual icA"><span class="muted">×</span></div>
+                <div class="job-body">
+                  <div class="job-meta"><b>04 追逐 · 候选 B</b><span class="pill done">ready</span></div>
+                  <p>已入池，等待在审片台与其他候选对比。</p>
+                  <div class="job-actions">
+                    <button class="primary" data-job-action="review">去审片台</button>
+                    <button data-job-action="regenerate">再生成</button>
+                  </div>
+                </div>
+              </article>
+              <article class="job-card" data-status="queued" data-job-title="角色湿发状态 · 参考图" data-prompt="女主湿发贴面，雨水从发梢落下，眼神警觉，面部仍清晰可辨，背景保持干净。" data-note="用于后续视频生成的角色状态参考。">
+                <div class="visual i03"><span class="muted">×</span></div>
+                <div class="job-body">
+                  <div class="job-meta"><b>角色湿发状态 · 参考图</b><span class="pill wait">queued</span></div>
+                  <p>等待资产库空闲；可取消或稍后重排。</p>
+                  <div class="job-actions">
+                    <button class="danger" data-job-action="cancel">取消</button>
+                    <button data-job-action="prioritize">提前</button>
+                  </div>
+                </div>
+              </article>
+            </div>
+          </div>
+
+          <aside class="context-panel">
+            <section class="panel">
+              <div class="panel-head">
+                <div class="panel-title"><b id="contextTitle">04 追逐 · 视频候选 A</b><span>Prompt & References</span></div>
+              </div>
+              <div style="display:grid; gap:12px; padding: 0 14px 14px">
+                <div>
+                  <span class="hint">提示词</span>
+                  <div class="prompt-box" id="contextPrompt">雨夜长安，屋檐和灯火之间的追逐。镜头跟随黑衣人跃过屋顶，雨线清晰，动作快速但人物轮廓可辨。低照度、电影感、压迫感。</div>
+                </div>
+                <div>
+                  <span class="hint">引用</span>
+                  <div class="ref-grid" style="padding: 8px 0 0; grid-template-columns: 1fr 1fr">
+                    <div class="ref"><div class="ref-img i01"></div><span>04 追逐故事板</span></div>
+                    <div class="ref"><div class="ref-img i02"></div><span>女主角色状态</span></div>
+                    <div class="ref"><div class="ref-img i03"></div><span>雨夜长安场景</span></div>
+                    <div class="ref"><div class="ref-img i04"></div><span>低照度风格</span></div>
+                  </div>
+                </div>
+                <div>
+                  <span class="hint">备注</span>
+                  <div class="notice" id="contextNote">使用 04 追逐故事板、女主湿发状态、朱雀大街夜雨参考。</div>
+                </div>
+              </div>
+              <div class="context-actions">
+                <button class="primary" data-context-action="retry">按此提示重试</button>
+                <button data-context-action="edit">改提示</button>
+              </div>
+            </section>
+          </aside>
+        </section>
+
+      </main>
+
+      <footer class="bottom-bar">
+        <div>MOVSCRIPT STUDIO OS<br />Created for creators.</div>
+        <div class="film-dots"></div>
+        <div class="tools"><span>● 生成现场运行中</span><span>Worker 02</span><span>项目设置</span><span>帮助</span></div>
+      </footer>
+    </div>
+    <div class="toast" id="toast">ready</div>
+    <script>
+      const toast = document.querySelector("#toast");
+      let toastTimer;
+
+      function showToast(text) {
+        toast.textContent = text;
+        toast.classList.add("show");
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => toast.classList.remove("show"), 1600);
+      }
+
+      function refreshCounts() {
+        const cards = Array.from(document.querySelectorAll(".job-card"));
+        const count = (status) => cards.filter((card) => card.dataset.status === status).length;
+        document.querySelector("#runningCount").textContent = count("running");
+        document.querySelector("#queuedCount").textContent = count("queued");
+        document.querySelector("#failedCount").textContent = count("failed");
+      }
+
+      function setStatus(card, status, label) {
+        card.dataset.status = status;
+        card.classList.remove("running", "failed");
+        if (status === "running") card.classList.add("running");
+        if (status === "failed") card.classList.add("failed");
+        const pill = card.querySelector(".pill");
+        pill.className = `pill ${status === "queued" ? "wait" : status === "done" ? "done" : status}`;
+        pill.textContent = label || status;
+      }
+
+      document.querySelector("#jobBoard").addEventListener("click", (event) => {
+        const selectedCard = event.target.closest(".job-card");
+        if (selectedCard) {
+          document.querySelectorAll(".job-card").forEach((card) => card.classList.remove("selected"));
+          selectedCard.classList.add("selected");
+          document.querySelector("#contextTitle").textContent = selectedCard.dataset.jobTitle;
+          document.querySelector("#contextPrompt").textContent = selectedCard.dataset.prompt;
+          document.querySelector("#contextNote").textContent = selectedCard.dataset.note;
+        }
+
+        const button = event.target.closest("button[data-job-action]");
+        if (!button) return;
+        const card = button.closest(".job-card");
+        const action = button.dataset.jobAction;
+
+        if (action === "cancel") {
+          setStatus(card, "canceled", "canceled");
+          card.querySelector("p").textContent = "已取消。不会继续消耗生成时间或额度。";
+          card.querySelector(".job-actions").innerHTML = '<button class="primary" data-job-action="retry">重试</button><button disabled>已取消</button>';
+          showToast("已取消生成任务");
+        } else if (action === "retry") {
+          setStatus(card, "running", "running");
+          card.querySelector("p").textContent = "已重新提交，正在生成新的低清预览。";
+          card.querySelector(".job-actions").innerHTML = '<button class="danger" data-job-action="cancel">取消</button><button data-job-action="inspect">查看现场</button>';
+          if (!card.querySelector(".meter")) {
+            card.querySelector(".job-body").insertBefore(Object.assign(document.createElement("div"), { className: "meter", innerHTML: "<i></i>" }), card.querySelector(".job-actions"));
+          }
+          showToast("已重试生成任务");
+        } else if (action === "review") {
+          showToast("进入审片台，对比候选并采纳");
+        } else if (action === "prioritize") {
+          showToast("已提前排队");
+        } else if (action === "edit") {
+          showToast("打开创作桌，修改提示词");
+        } else if (action === "inspect") {
+          showToast("打开单任务监看");
+        } else if (action === "regenerate") {
+          showToast("已加入新的生成任务");
+        }
+
+        refreshCounts();
+      });
+
+      document.querySelector(".context-panel").addEventListener("click", (event) => {
+        const button = event.target.closest("button[data-context-action]");
+        if (!button) return;
+        showToast(button.dataset.contextAction === "retry" ? "按右侧提示词重试" : "打开创作桌修改提示词");
+      });
+
+      refreshCounts();
+    </script>
+  </body>
+</html>

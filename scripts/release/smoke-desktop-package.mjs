@@ -30,6 +30,8 @@ export function runSmokeDesktopPackageCli(root = repoRoot, env = process.env, ar
     const result = smokeDesktopPackage(root, {
       arch: parseDesktopArchArg(args, env.MOVSCRIPT_PACKAGE_ARCH || process.arch, 'desktop smoke'),
       env,
+      localRuntime: hasFlag(args, '--local-runtime') || env.MOVSCRIPT_DESKTOP_SMOKE_LOCAL_RUNTIME === '1',
+      localRuntimeDataPlane: argValue(args, '--data-plane') ?? env.MOVSCRIPT_DESKTOP_SMOKE_DATA_PLANE ?? env.MOVSCRIPT_LOCAL_DAEMON_DATA_PLANE,
       platform: parseDesktopPlatformArg(args, env.MOVSCRIPT_PACKAGE_PLATFORM || process.platform, 'desktop smoke'),
       releaseDir: argValue(args, '--release-dir') ?? env.MOVSCRIPT_DESKTOP_RELEASE_DIR,
       spawn,
@@ -50,8 +52,10 @@ export function smokeDesktopPackage(root = repoRoot, options = {}) {
   const {
     arch = process.arch,
     env = process.env,
+    localRuntime = false,
+    localRuntimeDataPlane = 'local',
     platform = process.platform,
-    releaseDir = resolve(root, 'apps/frontend/release'),
+    releaseDir = resolve(root, 'apps/desktop/release'),
     spawn = spawnSync,
     timeoutMs = defaultTimeoutMs,
   } = options
@@ -76,8 +80,13 @@ export function smokeDesktopPackage(root = repoRoot, options = {}) {
   const providedSmokeHome = env.MOVSCRIPT_HOME?.trim() || env.MOVSCRIPT_WORKSPACE_DIR?.trim()
   const smokeHome = providedSmokeHome || mkdtempSync(join(tmpdir(), 'movscript-smoke-home.'))
   const markerFile = `${userDataDir}.marker`
+  const dataPlane = normalizeLocalRuntimeDataPlane(localRuntimeDataPlane)
   const smokeArgs = ['--movscript-desktop-smoke-test', `--user-data-dir=${userDataDir}`]
   const runner = desktopSmokeRunner(executable, platform, env, smokeArgs)
+  const movscriptCLI = localRuntime ? findPackagedMovscriptCLI(releaseDir, platform) : ''
+  if (localRuntime && !movscriptCLI) {
+    throw new Error(`No packaged movscript daemon CLI found in ${releaseDir}`)
+  }
   let result
   try {
     result = spawn(runner.command, runner.args, {
@@ -87,6 +96,11 @@ export function smokeDesktopPackage(root = repoRoot, options = {}) {
         ...env,
         ELECTRON_ENABLE_LOGGING: env.ELECTRON_ENABLE_LOGGING ?? '1',
         MOVSCRIPT_HOME: env.MOVSCRIPT_HOME?.trim() || smokeHome,
+        ...(localRuntime ? {
+          MOVSCRIPT_DESKTOP_SMOKE_LOCAL_RUNTIME: '1',
+          MOVSCRIPT_DESKTOP_SMOKE_DATA_PLANE: dataPlane,
+          MOVSCRIPT_LOCAL_DAEMON_DATA_PLANE: dataPlane,
+        } : {}),
         MOVSCRIPT_DESKTOP_SMOKE_MARKER_FILE: markerFile,
         MOVSCRIPT_DESKTOP_SMOKE_TEST: '1',
         MOVSCRIPT_DESKTOP_SMOKE_USER_DATA_DIR: userDataDir,
@@ -114,7 +128,11 @@ export function smokeDesktopPackage(root = repoRoot, options = {}) {
         output.trim(),
       ].filter(Boolean).join('\n'))
     }
+    if (localRuntime) {
+      assertPackagedLocalRuntimeReady(movscriptCLI, smokeHome, dataPlane, spawn)
+    }
   } finally {
+    if (localRuntime && movscriptCLI) stopSmokeLocalRuntime(movscriptCLI, smokeHome, spawn)
     stopSmokeLocalBackend(smokeHome)
     if (!providedUserDataDir) rmSync(userDataDir, { recursive: true, force: true })
     if (!providedSmokeHome) rmSync(smokeHome, { recursive: true, force: true })
@@ -122,6 +140,64 @@ export function smokeDesktopPackage(root = repoRoot, options = {}) {
   }
 
   return { executable, skipped: false }
+}
+
+function assertPackagedLocalRuntimeReady(movscriptCLI, smokeHome, dataPlane, spawn) {
+  const status = runPackagedDaemonCommand(movscriptCLI, smokeHome, ['daemon', 'status'], spawn)
+  const services = new Set((Array.isArray(status.services) ? status.services : [])
+    .filter((item) => item && typeof item === 'object' && item.ready === true)
+    .map((item) => item.serviceName)
+    .filter((serviceName) => typeof serviceName === 'string'))
+  const requiredServices = [
+    'movscript.local-node.control',
+    ...(dataPlane === 'local' ? ['movscript.data.service'] : []),
+    'movscript.project.service',
+    'movscript.editing.service',
+    'movscript.canvas.service',
+    'movscript.local-surface.host',
+    'movscript.media.pipeline',
+  ]
+  const missing = requiredServices.filter((serviceName) => !services.has(serviceName))
+  if (missing.length > 0) {
+    throw new Error(`Packaged desktop local runtime smoke missing ready services: ${missing.join(', ')}`)
+  }
+  if (dataPlane !== 'local' && services.has('movscript.data.service')) {
+    throw new Error(`Packaged desktop ${dataPlane} data-plane smoke unexpectedly started local Data Service`)
+  }
+  if (status.dataPlane !== dataPlane) {
+    throw new Error(`Packaged desktop local runtime smoke expected dataPlane=${dataPlane}, got ${status.dataPlane}`)
+  }
+}
+
+function runPackagedDaemonCommand(movscriptCLI, smokeHome, args, spawn) {
+  const result = spawn(movscriptCLI, args, {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      MOVSCRIPT_HOME: smokeHome,
+      MOVSCRIPT_WORKSPACE_DIR: smokeHome,
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+    timeout: 30_000,
+  })
+  if (result.error || result.status !== 0 || result.signal) {
+    throw new Error([
+      `Packaged movscript daemon command failed: ${movscriptCLI} ${args.join(' ')}`,
+      result.error?.message,
+      `status=${result.status ?? 'none'} signal=${result.signal ?? 'none'}`,
+      String(result.stdout ?? '').trim(),
+      String(result.stderr ?? '').trim(),
+    ].filter(Boolean).join('\n'))
+  }
+  return JSON.parse(String(result.stdout ?? '{}'))
+}
+
+function stopSmokeLocalRuntime(movscriptCLI, smokeHome, spawn) {
+  try {
+    runPackagedDaemonCommand(movscriptCLI, smokeHome, ['daemon', 'stop', '--force'], spawn)
+  } catch {
+    // Smoke cleanup should not mask the original smoke failure.
+  }
 }
 
 export function findPackagedExecutable(releaseDir, platform = process.platform) {
@@ -145,6 +221,23 @@ export function findPackagedExecutable(releaseDir, platform = process.platform) 
     }
   })
   candidates.sort((left, right) => executableScore(left, platform) - executableScore(right, platform) || left.localeCompare(right))
+  return candidates[0] ?? ''
+}
+
+export function findPackagedMovscriptCLI(releaseDir, platform = process.platform) {
+  const candidates = []
+  walk(releaseDir, (path, info) => {
+    if (!info.isFile()) return
+    const normalized = path.replace(/\\/g, '/')
+    const name = basename(path)
+    if (!normalized.includes('/provider-plugins/movscript/bin/')) return
+    if (platform === 'win32') {
+      if (/^movscript(\.cmd|\.exe)?$/i.test(name)) candidates.push(path)
+      return
+    }
+    if (name === 'movscript' && isExecutable(info)) candidates.push(path)
+  })
+  candidates.sort((left, right) => left.localeCompare(right))
   return candidates[0] ?? ''
 }
 
@@ -265,4 +358,13 @@ function argValue(args, name) {
   if (equalValue) return equalValue.slice(equalPrefix.length)
   const index = args.indexOf(name)
   return index >= 0 ? args[index + 1] : undefined
+}
+
+function hasFlag(args, name) {
+  return args.includes(name)
+}
+
+function normalizeLocalRuntimeDataPlane(value) {
+  const raw = String(value || 'local').trim()
+  return raw === 'cloud' || raw === 'external' ? raw : 'local'
 }

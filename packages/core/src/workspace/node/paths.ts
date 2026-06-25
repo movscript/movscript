@@ -55,7 +55,7 @@ export interface MovScriptUserHomeDirOptions {
   env?: NodeJS.ProcessEnv
 }
 
-export function resolveMovScriptWorkspaceRootPaths(workspaceDir = process.cwd()): MovScriptWorkspaceRootPaths {
+export function resolveMovScriptWorkspaceRootPaths(workspaceDir?: string): MovScriptWorkspaceRootPaths {
   const rootDir = resolveMovScriptHomeDir(workspaceDir)
   const controlDir = rootDir
   const realmsDir = join(controlDir, MOVSCRIPT_WORKSPACE_REALMS_DIR_NAME)
@@ -73,10 +73,10 @@ export function resolveMovScriptWorkspaceRootPaths(workspaceDir = process.cwd())
 }
 
 export function resolveMovScriptHomeDir(workspaceDir?: string): string {
-  const explicit = process.env.MOVSCRIPT_HOME?.trim()
-  if (explicit) return resolve(explicit)
   const input = workspaceDir?.trim()
   if (input) return resolve(input)
+  const explicit = process.env.MOVSCRIPT_HOME?.trim()
+  if (explicit) return resolve(explicit)
   const legacy = process.env.MOVSCRIPT_WORKSPACE_DIR?.trim()
   if (legacy) return resolve(legacy)
   return process.cwd()

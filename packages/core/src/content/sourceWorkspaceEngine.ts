@@ -1,9 +1,7 @@
 import type { NodeMovScriptEngine } from '@movscript/engine/node'
 import {
+  createMediaEditingProjectFromProductionTimelineClips,
   createMediaEditingProjectFromMovScriptEditPlan,
-  type MediaAssetDescriptor,
-  type MediaClip,
-  type MediaEditingProject,
   type MovScriptEditPlanArtifact,
 } from '@movscript/editing'
 import type { MovScriptWorkspaceIndexedEntity } from '@movscript/workspace'
@@ -153,117 +151,12 @@ function productionTimelineFromPreview(input: {
     targetPath: production?.path ?? input.previewTimeline.productionPath,
     status: blockers.length > 0 ? 'blocked' : 'ready_to_compose',
     blockers,
-    mediaEditingProject: productionMediaEditingProject({
+    mediaEditingProject: createMediaEditingProjectFromProductionTimelineClips({
       productionId: input.previewTimeline.productionId,
-      productionTitle: stringField(production?.record.title) ?? String(input.previewTimeline.productionId),
+      title: stringField(production?.record.title) ?? String(input.previewTimeline.productionId),
       productionPath: production?.path ?? input.previewTimeline.productionPath,
       clips,
     }),
-  }
-}
-
-function productionMediaEditingProject(input: {
-  productionId: string | number
-  productionTitle: string
-  productionPath?: string
-  clips: Array<{
-    id: string
-    title: string
-    sceneMomentId?: string | number
-    sceneMomentPath?: string
-    contentUnitId: string | number
-    candidateId?: string | number
-    resourceId: number
-    durationSec: number
-  }>
-}): MediaEditingProject {
-  const now = new Date().toISOString()
-  let cursorMs = 0
-  const assets: MediaAssetDescriptor[] = []
-  const clips = input.clips.map((clip): MediaClip => {
-    const durationMs = Math.max(1, Math.round(clip.durationSec * 1000))
-    const asset: MediaAssetDescriptor = {
-      id: `movscript_resource_${clip.resourceId}`,
-      sourceKind: 'backend_resource',
-      assetType: 'video',
-      resourceId: clip.resourceId,
-      label: clip.title,
-      metadata: {
-        movscript: {
-          sceneMomentId: clip.sceneMomentId,
-          sceneMomentPath: clip.sceneMomentPath,
-          contentUnitId: clip.contentUnitId,
-          candidateId: clip.candidateId,
-          resourceId: clip.resourceId,
-          outputKind: 'video',
-          trackType: 'video',
-          targetKind: 'production',
-          targetRef: String(input.productionId),
-          selected: true,
-          stale: false,
-        },
-      },
-    }
-    assets.push(asset)
-    const mediaClip: MediaClip = {
-      id: clip.id,
-      assetType: 'video',
-      asset,
-      timelineStartMs: cursorMs,
-      durationMs,
-      sourceStartMs: 0,
-      sourceEndMs: durationMs,
-      fit: 'cover',
-      opacity: 1,
-      muted: false,
-      metadata: asset.metadata,
-    }
-    cursorMs += durationMs
-    return mediaClip
-  })
-  return {
-    version: 1,
-    id: `editing_project_production_${String(input.productionId)}`,
-    projectId: `movscript_production_${String(input.productionId)}`,
-    title: input.productionTitle,
-    source: {
-      kind: 'movscript_edit_plan',
-      productionId: String(input.productionId),
-      contentUnitIds: input.clips.map((clip) => String(clip.contentUnitId)),
-    },
-    assets: { assets },
-    timeline: {
-      version: 1,
-      id: `timeline_production_${String(input.productionId)}`,
-      fps: 30,
-      width: 1920,
-      height: 1080,
-      background: '#000000',
-      durationMs: cursorMs,
-      tracks: [{
-        id: 'track_production_video_0',
-        name: 'production video',
-        type: 'video',
-        zIndex: 0,
-        muted: false,
-        locked: false,
-        clips,
-      }],
-      metadata: {
-        targetKind: 'production',
-        targetRef: String(input.productionId),
-        productionPath: input.productionPath,
-      },
-    },
-    provenance: {
-      targetRef: String(input.productionId),
-      productionPath: input.productionPath,
-      selectedCandidateIds: input.clips.flatMap((clip) => clip.candidateId === undefined ? [] : [String(clip.candidateId)]),
-      inputResourceIds: input.clips.map((clip) => clip.resourceId),
-    },
-    createdAt: now,
-    updatedAt: now,
-    revision: 1,
   }
 }
 

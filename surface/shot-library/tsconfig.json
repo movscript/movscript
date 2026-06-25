@@ -1,0 +1,72 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": [
+      "node"
+    ],
+    "paths": {
+      "@movscript/shot-library-surface": [
+        "./src/index.ts"
+      ],
+      "@movscript/shot-library-surface/data": [
+        "./src/data.ts"
+      ],
+      "@movscript/shot-library-surface/pages": [
+        "./src/pages/index.ts"
+      ],
+      "@movscript/project-surface": [
+        "../project/src/index.ts"
+      ],
+      "@movscript/resource-surface": [
+        "../resource/src/index.ts"
+      ],
+      "@movscript/resource-surface/data": [
+        "../resource/src/data.ts"
+      ],
+      "@movscript/resource-surface/resource-media": [
+        "../resource/src/resourceMediaBrowser.ts"
+      ],
+      "@movscript/resource-surface/resource-media-components": [
+        "../resource/src/resourceMediaComponents.tsx"
+      ],
+      "@movscript/resource-surface/resource-media-viewer": [
+        "../resource/src/resourceMediaViewer.tsx"
+      ],
+      "@movscript/resources": [
+        "../../packages/resources/src/index.ts"
+      ],
+      "@movscript/workspace": [
+        "../../packages/workspace/src/index.ts"
+      ],
+      "@movscript/shared": [
+        "../../packages/shared/src/index.ts"
+      ],
+      "@movscript/shared/app-events": [
+        "../../packages/shared/src/appEvents.ts"
+      ],
+      "@movscript/shared/browser": [
+        "../../packages/shared/src/browser.ts"
+      ],
+      "@movscript/shared/media-probe": [
+        "../../packages/shared/src/mediaProbe.ts"
+      ],
+      "@movscript/shared/surface-http": [
+        "../../packages/shared/src/surfaceHttpClient.ts"
+      ],
+      "@movscript/shared/workspace-candidates": [
+        "../../packages/shared/src/workspaceCandidates.ts"
+      ],
+      "@movscript/shot-library": [
+        "../../packages/shot-library/src/index.ts"
+      ]
+    }
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx"
+  ],
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx"
+  ]
+}

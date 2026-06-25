@@ -1,0 +1,23 @@
+package router
+
+import "github.com/gin-gonic/gin"
+
+func registerOpenAIGatewayRoutes(r *gin.Engine, h handlers) {
+	openAIV1 := r.Group("/v1")
+	{
+		openAIV1.GET("/models", h.modelGateway.ListModels)
+		openAIV1.POST("/chat/completions", h.modelGateway.ChatCompletions)
+		openAIV1.POST("/responses", h.modelGateway.Responses)
+		openAIV1.POST("/messages", h.modelGateway.AnthropicMessages)
+		openAIV1.POST("/openai-proxy/*path", h.modelGateway.OpenAIProxy)
+	}
+}
+
+func registerPublicAPIRoutes(v1 *gin.RouterGroup, h handlers) {
+	v1.GET("/models", h.models.ListByCapability)
+	v1.GET("/ws", h.ws.Connect)
+	v1.GET("/provider-assets/resources/:id/file", h.providerAssets.ServeSignedResourceFile)
+
+	v1.GET("/invitations/:token", h.org.GetInvitation)
+	v1.POST("/invitations/:token/accept", h.org.AcceptInvitation)
+}

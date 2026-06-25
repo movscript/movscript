@@ -11,16 +11,16 @@ Install Go 1.25+, Node.js 20+, pnpm 10+, Docker, and Docker Compose.
 ```bash
 pnpm install
 docker compose up -d db minio createbuckets
-cp apps/backend/.env.example apps/backend/.env
+cp services/data-service/.env.example services/data-service/.env
 openssl rand -hex 32
 ```
 
-Paste the generated value into `ENCRYPTION_KEY` in `apps/backend/.env`.
+Paste the generated value into `ENCRYPTION_KEY` in `services/data-service/.env`.
 
 Run the main development services:
 
 ```bash
-pnpm --filter @movscript/backend dev
+pnpm --filter @movscript/data-service dev
 pnpm --filter @movscript/desktop dev
 ```
 
@@ -48,7 +48,7 @@ pnpm --filter @movscript/desktop typecheck
 For backend changes, run:
 
 ```bash
-cd apps/backend
+cd services/data-service
 go test ./...
 ```
 
@@ -71,6 +71,6 @@ go test ./...
 
 The frontend uses `react-i18next`.
 
-- Add user-facing frontend strings to both `apps/frontend/src/i18n/locales/zh-CN.json` and `apps/frontend/src/i18n/locales/en-US.json`.
+- Add user-facing frontend strings to both `apps/desktop/src/i18n/locales/zh-CN.json` and `apps/desktop/src/i18n/locales/en-US.json`.
 - Use stable keys grouped by product area, for example `sidebar.items.scripts`.
 - Keep backend API errors machine-readable where possible; localize display text in the frontend.

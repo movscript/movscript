@@ -240,6 +240,6 @@ test('core shot library scores translated keyword search and facet filters', () 
 })
 
 test('core shot library package stays independent from frontend runtime', () => {
-  const source = readFileSync(resolve('src/shot-library/index.ts'), 'utf8')
+  const source = readFileSync(resolve(import.meta.dirname, '../src/shot-library/index.ts'), 'utf8')
   assert.doesNotMatch(source, /from ['"]@\/|from ['"]react['"]|from ['"]axios['"]|window\.|document\.|localStorage|sessionStorage/)
 })

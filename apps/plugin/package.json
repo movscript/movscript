@@ -1,0 +1,43 @@
+{
+  "name": "@movscript/plugin-movscript",
+  "version": "0.1.28",
+  "private": true,
+  "description": "MovScript Agent Plugin App runtime and MCP wrapper.",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    ".codex-plugin",
+    ".provider-plugin",
+    ".mcp.json",
+    "assets",
+    "bin",
+    "skills",
+    "README.md"
+  ],
+  "bin": {
+    "movcli": "./bin/movcli",
+    "movscript": "./bin/movscript",
+    "movscript-agent-mcp": "./bin/movscript-agent-mcp"
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "node --test tests/*.test.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@movscript/app-runner": "workspace:*",
+    "@movscript/cli": "workspace:*",
+    "@movscript/local-runtime": "workspace:*",
+    "@movscript/media-pipeline": "workspace:*",
+    "@movscript/mcp-host": "workspace:*",
+    "@movscript/runtime-contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.17",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

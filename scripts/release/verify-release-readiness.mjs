@@ -10,7 +10,7 @@ import {
 
 const repoRoot = resolve(import.meta.dirname, '../..')
 const defaultReleaseNotesPath = '.github/release-workspace-notes.md'
-const desktopPackagePath = 'apps/frontend/package.json'
+const desktopPackagePath = 'apps/desktop/package.json'
 const rootPackagePath = 'package.json'
 const movscriptLangPackages = new Set([
   '@movscript/interpreter',

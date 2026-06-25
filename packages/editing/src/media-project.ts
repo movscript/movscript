@@ -175,6 +175,23 @@ export interface MediaEditingProjectOptions {
   includeMissingPlaceholders?: boolean
 }
 
+export interface MediaProductionTimelineClip {
+  id?: string
+  title: string
+  sceneMomentId?: string | number
+  sceneMomentPath?: string
+  contentUnitId: string | number
+  candidateId?: string | number
+  resourceId: number
+  durationSec?: number
+}
+
+export interface MediaProductionTimelineProjectOptions extends MediaEditingProjectOptions {
+  productionId: string | number
+  productionPath?: string
+  clips: MediaProductionTimelineClip[]
+}
+
 export interface MediaEditingProjectServiceOptions {
   now?: () => string
   idFactory?: (prefix: string) => string
@@ -396,6 +413,102 @@ export function createMediaEditingProjectFromMovScriptEditPlan(
         .filter((item) => item.selected && item.candidate_id !== undefined)
         .map((item) => String(item.candidate_id)),
       inputResourceIds: assets.assets.flatMap((asset) => asset.resourceId === undefined ? [] : [asset.resourceId]),
+    },
+    createdAt: now,
+    updatedAt: now,
+    revision: 1,
+  }
+}
+
+export function createMediaEditingProjectFromProductionTimelineClips(
+  options: MediaProductionTimelineProjectOptions,
+): MediaEditingProject {
+  const now = options.now ?? new Date().toISOString()
+  const productionId = String(options.productionId)
+  const defaultDurationMs = options.defaultDurationMs ?? 4000
+  let cursorMs = 0
+  const assets: MediaAssetDescriptor[] = []
+  const clips = options.clips.map((clip): MediaClip => {
+    const durationMs = Math.max(1, Math.round((clip.durationSec ?? defaultDurationMs / 1000) * 1000))
+    const asset: MediaAssetDescriptor = {
+      id: `movscript_resource_${clip.resourceId}`,
+      sourceKind: 'backend_resource',
+      assetType: 'video',
+      resourceId: clip.resourceId,
+      label: clip.title,
+      metadata: {
+        movscript: {
+          sceneMomentId: clip.sceneMomentId,
+          sceneMomentPath: clip.sceneMomentPath,
+          contentUnitId: clip.contentUnitId,
+          candidateId: clip.candidateId,
+          resourceId: clip.resourceId,
+          outputKind: 'video',
+          trackType: 'video',
+          targetKind: 'production',
+          targetRef: productionId,
+          selected: true,
+          stale: false,
+        },
+      },
+    }
+    assets.push(asset)
+    const mediaClip: MediaClip = {
+      id: clip.id || `production_clip_${safeId(productionId)}_${assets.length}`,
+      assetType: 'video',
+      asset,
+      timelineStartMs: cursorMs,
+      durationMs,
+      sourceStartMs: 0,
+      sourceEndMs: durationMs,
+      fit: 'cover',
+      opacity: 1,
+      muted: false,
+      metadata: asset.metadata,
+    }
+    cursorMs += durationMs
+    return mediaClip
+  })
+
+  return {
+    version: 1,
+    id: options.id ?? `editing_project_production_${productionId}`,
+    projectId: options.projectId ?? `movscript_production_${productionId}`,
+    title: options.title ?? `Production ${productionId}`,
+    source: {
+      kind: 'movscript_edit_plan',
+      productionId,
+      contentUnitIds: options.clips.map((clip) => String(clip.contentUnitId)),
+    },
+    timeline: {
+      version: 1,
+      id: `timeline_production_${productionId}`,
+      fps: options.fps ?? 30,
+      width: options.width ?? 1920,
+      height: options.height ?? 1080,
+      background: options.background ?? '#000000',
+      durationMs: cursorMs,
+      tracks: [{
+        id: 'track_production_video_0',
+        name: 'production video',
+        type: 'video',
+        zIndex: 0,
+        muted: false,
+        locked: false,
+        clips,
+      }],
+      metadata: {
+        targetKind: 'production',
+        targetRef: productionId,
+        productionPath: options.productionPath,
+      },
+    },
+    assets: { assets },
+    provenance: {
+      targetRef: productionId,
+      productionPath: options.productionPath,
+      selectedCandidateIds: options.clips.flatMap((clip) => clip.candidateId === undefined ? [] : [String(clip.candidateId)]),
+      inputResourceIds: options.clips.map((clip) => clip.resourceId),
     },
     createdAt: now,
     updatedAt: now,
@@ -766,6 +879,10 @@ function stringField(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined
   const trimmed = value.trim()
   return trimmed ? trimmed : undefined
+}
+
+function safeId(value: string): string {
+  return value.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '') || 'item'
 }
 
 function sortClips(track: MediaTrack): void {

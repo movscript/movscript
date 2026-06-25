@@ -1,0 +1,152 @@
+lab: alibaba-dashscope
+templates:
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: Qwen3 Max
+      id: dashscope:qwen3-max
+      input:
+        max_images: -1
+      lab: alibaba-dashscope
+      model_id: qwen3-max
+      order: 58
+      source:
+        status: verified
+        url: https://www.alibabacloud.com/help/en/model-studio/models
+        verified_at: "2026-06-25"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen Plus
+      id: dashscope:qwen-plus
+      lab: alibaba-dashscope
+      model_id: qwen-plus
+      order: 59
+      source:
+        status: verified
+        url: https://www.alibabacloud.com/help/en/model-studio/models
+        verified_at: "2026-06-25"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen Turbo
+      id: dashscope:qwen-turbo
+      lab: alibaba-dashscope
+      model_id: qwen-turbo
+      order: 60
+      source:
+        status: verified
+        url: https://www.alibabacloud.com/help/en/model-studio/models
+        verified_at: "2026-06-25"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen VL Max
+      id: dashscope:qwen-vl-max
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: alibaba-dashscope
+      model_id: qwen-vl-max
+      order: 61
+      source:
+        status: verified
+        url: https://www.alibabacloud.com/help/en/model-studio/models
+        verified_at: "2026-06-25"
+    - adapter_type: dashscope
+      allow_model_id_override: true
+      capabilities:
+        - image
+      display_name: Qwen-Image
+      id: dashscope:qwen-image
+      lab: alibaba-dashscope
+      model_id: qwen-image
+      order: 62
+      params:
+        - default: "1:1"
+          key: aspect_ratio
+          label: 画面比例
+          options:
+            - "1:1"
+            - "16:9"
+            - "9:16"
+            - "4:3"
+            - "3:4"
+          type: select
+      source:
+        status: verified
+        url: https://www.alibabacloud.com/help/en/model-studio/qwen-image-api
+        verified_at: "2026-06-25"
+    - adapter_type: dashscope
+      capabilities:
+        - video_i2v
+      display_name: HappyHorse 1.0 参考生视频
+      id: dashscope:happyhorse-1-0-r2v
+      input:
+        accepts_image: true
+        max_images: 9
+      lab: alibaba-dashscope
+      model_id: happyhorse-1.0-r2v
+      order: 51
+      params:
+        - default: "5"
+          key: duration
+          label: 时长(秒)
+          type: select
+          options:
+            - "3"
+            - "4"
+            - "5"
+            - "6"
+            - "7"
+            - "8"
+            - "9"
+            - "10"
+            - "11"
+            - "12"
+            - "13"
+            - "14"
+            - "15"
+        - default: "16:9"
+          key: aspect_ratio
+          label: 画面比例
+          options:
+            - "16:9"
+            - "9:16"
+            - "3:4"
+            - "4:3"
+            - "4:5"
+            - "5:4"
+            - "1:1"
+            - "9:21"
+            - "21:9"
+          type: select
+        - default: 1080P
+          key: resolution
+          label: 分辨率
+          options:
+            - 1080P
+            - 720P
+          type: select
+        - default: true
+          key: watermark
+          label: 水印
+          type: boolean
+        - key: seed
+          label: 种子
+          type: number
+          min: 0
+          max: 2147483647
+          step: 1
+      source:
+        status: verified
+        url: https://help.aliyun.com/zh/model-studio/happyhorse-reference-to-video-api-reference
+        verified_at: "2026-06-25"
+      video:
+        default_duration_sec: 5
+        max_duration_sec: 15

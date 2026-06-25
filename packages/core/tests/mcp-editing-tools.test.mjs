@@ -1,7 +1,32 @@
 import assert from 'node:assert/strict'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import test from 'node:test'
 
 import { handleJSONRPC } from '../dist/mcp/node/index.js'
+import { startEditingService } from '../../../services/editing-service/src/server.mjs'
+
+let editingServiceRuntime
+let editingServiceHomeDir
+let previousEditingServiceURL
+
+test.before(async () => {
+  previousEditingServiceURL = process.env.MOVSCRIPT_EDITING_SERVICE_URL
+  editingServiceHomeDir = await mkdtemp(join(tmpdir(), 'movscript-core-editing-tools-'))
+  editingServiceRuntime = await startEditingService({ homeDir: editingServiceHomeDir })
+  process.env.MOVSCRIPT_EDITING_SERVICE_URL = editingServiceRuntime.url
+})
+
+test.after(async () => {
+  if (editingServiceRuntime) await editingServiceRuntime.close()
+  if (editingServiceHomeDir) await rm(editingServiceHomeDir, { recursive: true, force: true })
+  if (previousEditingServiceURL === undefined) {
+    delete process.env.MOVSCRIPT_EDITING_SERVICE_URL
+  } else {
+    process.env.MOVSCRIPT_EDITING_SERVICE_URL = previousEditingServiceURL
+  }
+})
 
 async function callTool(name, args, id = name) {
   const response = await handleJSONRPC({
@@ -39,6 +64,7 @@ test('MCP editing project and timeline tools apply pure MediaEditingProject edit
   })
   assert.equal(created.status, 'ok')
   let project = created.editing_project
+  assert.equal(project.projectId, 'project-tools')
   assert.equal(project.timeline.tracks.length, 0)
 
   const updatedSettings = await callTool('editing_project_update_settings', {
@@ -338,8 +364,8 @@ test('MCP editing tools reject malformed MediaEditingProject envelopes before mu
   assert.match(response?.error?.message ?? '', /editingProject\.timeline must be a MediaTimelineRecipe v1 object/)
 })
 
-test('MCP editing tools default a missing asset registry to an empty registry', async () => {
-  const result = await callTool('editing_timeline_add_track', {
+test('MCP editing tools reject non-canonical MediaEditingProject asset registries', async () => {
+  const missingAssets = await callToolResponse('editing_timeline_add_track', {
     editing_project: {
       version: 1,
       id: 'editing_project_no_assets',
@@ -362,13 +388,9 @@ test('MCP editing tools default a missing asset registry to an empty registry', 
     trackId: 'track_main',
     type: 'video',
   })
+  assert.equal(missingAssets?.result, undefined)
+  assert.match(missingAssets?.error?.message ?? '', /editingProject\.assets must contain an assets array/)
 
-  assert.equal(result.status, 'ok')
-  assert.deepEqual(result.editing_project.assets, { assets: [] })
-  assert.equal(result.editing_project.timeline.tracks[0].id, 'track_main')
-})
-
-test('MCP editing tools normalize legacy asset registry shapes before mutation', async () => {
   const baseProject = {
     version: 1,
     id: 'editing_project_legacy_assets',
@@ -389,7 +411,7 @@ test('MCP editing tools normalize legacy asset registry shapes before mutation',
     revision: 1,
   }
 
-  const arrayAssets = await callTool('editing_timeline_add_track', {
+  const arrayAssets = await callToolResponse('editing_timeline_add_track', {
     editing_project: {
       ...baseProject,
       assets: [{
@@ -402,10 +424,10 @@ test('MCP editing tools normalize legacy asset registry shapes before mutation',
     trackId: 'track_main',
     type: 'video',
   })
-  assert.deepEqual(arrayAssets.editing_project.assets.assets.map((asset) => asset.id), ['asset_intro'])
-  assert.equal(arrayAssets.editing_project.timeline.tracks[0].id, 'track_main')
+  assert.equal(arrayAssets?.result, undefined)
+  assert.match(arrayAssets?.error?.message ?? '', /editingProject\.assets must contain an assets array/)
 
-  const emptyObjectAssets = await callTool('editing_timeline_add_track', {
+  const emptyObjectAssets = await callToolResponse('editing_timeline_add_track', {
     editing_project: {
       ...baseProject,
       id: 'editing_project_empty_assets_object',
@@ -414,8 +436,8 @@ test('MCP editing tools normalize legacy asset registry shapes before mutation',
     trackId: 'track_empty_assets',
     type: 'audio',
   })
-  assert.deepEqual(emptyObjectAssets.editing_project.assets, { assets: [] })
-  assert.equal(emptyObjectAssets.editing_project.timeline.tracks[0].id, 'track_empty_assets')
+  assert.equal(emptyObjectAssets?.result, undefined)
+  assert.match(emptyObjectAssets?.error?.message ?? '', /editingProject\.assets must contain an assets array/)
 })
 
 test('MCP editing export candidate creation is explicit domain state, not an Electron runtime task', async () => {

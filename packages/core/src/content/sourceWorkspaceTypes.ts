@@ -19,6 +19,7 @@ export type HierarchyNodeType =
   | 'asset'
   | 'segment'
   | 'scene_moment'
+  | 'shot'
   | 'group'
   | 'expression_unit'
   | 'audio_cue'

@@ -1,0 +1,176 @@
+package handler
+
+import (
+	"encoding/csv"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/movscript/auth-service/pkg/authidentity"
+	adminusage "github.com/movscript/movscript/internal/app/admin/usage"
+	"github.com/movscript/movscript/internal/interfaces/http/api"
+	"gorm.io/gorm"
+)
+
+type UsageAdminHandler struct {
+	service *adminusage.Service
+}
+
+func NewUsageAdminHandler(db *gorm.DB, identity ...authidentity.Reader) *UsageAdminHandler {
+	return &UsageAdminHandler{service: adminusage.NewService(db, identity...)}
+}
+
+func (h *UsageAdminHandler) List(c *gin.Context) {
+	filter, ok := h.parseFilter(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.List(c.Request.Context(), filter)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Internal("查询用量日志失败"))
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
+func (h *UsageAdminHandler) Export(c *gin.Context) {
+	filter, ok := h.parseFilter(c)
+	if !ok {
+		return
+	}
+	rows, err := h.service.Export(c.Request.Context(), filter, parsePositiveInt(c.Query("limit"), 1000))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Internal("导出用量日志失败"))
+		return
+	}
+	c.Header("Content-Type", "text/csv; charset=utf-8")
+	c.Header("Content-Disposition", `attachment; filename="usage-logs.csv"`)
+	writeUsageCSV(c.Writer, rows)
+}
+
+func (h *UsageAdminHandler) Summary(c *gin.Context) {
+	filter, ok := h.parseFilter(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.Summary(c.Request.Context(), filter)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Internal("查询用量汇总失败"))
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
+func (h *UsageAdminHandler) parseFilter(c *gin.Context) (adminusage.ListFilter, bool) {
+	since, ok := parseOptionalRFC3339(c, "since")
+	if !ok {
+		return adminusage.ListFilter{}, false
+	}
+	until, ok := parseOptionalRFC3339(c, "until")
+	if !ok {
+		return adminusage.ListFilter{}, false
+	}
+
+	return adminusage.ListFilter{
+		UserID:        c.Query("user_id"),
+		OrgID:         c.Query("org_id"),
+		ProjectID:     c.Query("project_id"),
+		ModelID:       c.Query("model_id"),
+		ProviderID:    c.Query("provider_id"),
+		GatewayKeyID:  c.Query("gateway_api_key_id"),
+		OperationType: c.Query("operation_type"),
+		Since:         since,
+		Until:         until,
+		Page:          parsePositiveInt(c.Query("page"), 1),
+		PageSize:      parsePositiveInt(c.Query("page_size"), 50),
+	}, true
+}
+
+func parseOptionalRFC3339(c *gin.Context, key string) (*time.Time, bool) {
+	raw := c.Query(key)
+	if raw == "" {
+		return nil, true
+	}
+	value, err := time.Parse(time.RFC3339, raw)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, api.InvalidInput(key+" must be RFC3339"))
+		return nil, false
+	}
+	return &value, true
+}
+
+func writeUsageCSV(w http.ResponseWriter, rows []adminusage.Log) {
+	cw := csv.NewWriter(w)
+	_ = cw.Write([]string{"id", "created_at", "user_id", "username", "org_id", "project_id", "public_model_id", "provider_model_id", "model", "operation_type", "input_tokens", "output_tokens", "cached_input_tokens", "reasoning_tokens", "duration_sec", "image_count", "cost", "usage_reservation_id", "gateway_api_key_id"})
+	for _, row := range rows {
+		model := ""
+		publicModelID := ""
+		providerModelID := ""
+		if row.AIModelCatalogEntry != nil {
+			publicModelID = row.AIModelCatalogEntry.PublicModelID
+			model = row.AIModelCatalogEntry.ShortName
+			if model == "" {
+				model = row.AIModelCatalogEntry.DisplayName
+			}
+			if model == "" {
+				model = publicModelID
+			}
+		}
+		providerModelID = row.ProviderModelID
+		username := ""
+		if row.User != nil {
+			username = row.User.Username
+		}
+		_ = cw.Write([]string{
+			uintCSV(row.ID),
+			row.CreatedAt.Format(time.RFC3339),
+			uintCSV(row.UserID),
+			csvCell(username),
+			uintPtrCSV(row.OrgID),
+			uintPtrCSV(row.ProjectID),
+			csvCell(publicModelID),
+			csvCell(providerModelID),
+			csvCell(model),
+			csvCell(row.OperationType),
+			strconv.Itoa(row.InputTokens),
+			strconv.Itoa(row.OutputTokens),
+			strconv.Itoa(row.CachedInputTokens),
+			strconv.Itoa(row.ReasoningTokens),
+			strconv.Itoa(row.DurationSec),
+			strconv.Itoa(row.ImageCount),
+			strconv.FormatFloat(row.Cost, 'f', -1, 64),
+			uintPtrCSV(row.UsageReservationID),
+			uintPtrCSV(row.GatewayAPIKeyID),
+		})
+	}
+	cw.Flush()
+}
+
+func uintCSV(value uint) string {
+	return strconv.FormatUint(uint64(value), 10)
+}
+
+func uintPtrCSV(value *uint) string {
+	if value == nil {
+		return ""
+	}
+	return uintCSV(*value)
+}
+
+func csvCell(value string) string {
+	if value == "" {
+		return ""
+	}
+	trimmed := strings.TrimLeft(value, " \t\r\n")
+	if trimmed == "" {
+		return value
+	}
+	switch trimmed[0] {
+	case '=', '+', '-', '@':
+		return "'" + value
+	default:
+		return value
+	}
+}

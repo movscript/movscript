@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
 
@@ -25,30 +25,30 @@ import {
 const repoRoot = resolve(import.meta.dirname, '../..')
 const releaseCommands = new Map([
   ['audit-ffmpeg', ['scripts/release/audit-ffmpeg.mjs']],
-  ['build-desktop-artifact', ['builtin:build-desktop-artifact']],
-  ['build-desktop-bundle', ['builtin:build-desktop-bundle']],
+  ['build', ['builtin:build']],
   ['bump-version', ['scripts/release/bump-version.mjs']],
   ['collect', ['builtin:collect']],
   ['download-ffmpeg-static', ['scripts/release/download-ffmpeg-static.mjs']],
-  ['package-desktop', ['builtin:package-desktop']],
-  ['prepare-desktop-package', ['builtin:prepare-desktop-package']],
+  ['package', ['builtin:package']],
+  ['prepare', ['builtin:prepare']],
   ['sign-macos-app', ['scripts/release/sign-macos-app.mjs']],
   ['smoke-desktop-package', ['scripts/release/smoke-desktop-package.mjs']],
   ['stage-ffmpeg', ['scripts/release/stage-ffmpeg.mjs']],
-  ['typecheck-desktop-bundle', ['builtin:typecheck-desktop-bundle']],
-  ['verify-desktop-package', ['builtin:verify-desktop-package']],
+  ['typecheck', ['builtin:typecheck']],
+  ['verify', ['builtin:verify']],
   ['verify-package-resources', ['scripts/release/verify-package-resources.mjs']],
   ['verify-release-readiness', ['scripts/release/verify-release-readiness.mjs']],
 ])
 const isWindows = process.platform === 'win32'
 const pnpmCommand = 'pnpm'
 const signingModes = new Set(['signed', 'unsigned'])
+const appTargets = new Set(['desktop', 'plugin'])
+const collectAppTargets = new Set(['desktop', 'plugin', 'all'])
 const prepareDesktopSteps = [
   ['Build workspace packages', pnpmCommand, ['--workspace-concurrency=1', '--filter', './packages/*', 'build']],
   ['Build movcli', pnpmCommand, ['--filter', '@movscript/cli', 'build']],
-  ['Build admin app', pnpmCommand, ['--filter', '@movscript/admin', 'build']],
-  ['Build provider plugins', pnpmCommand, ['-r', '--filter', './plugins/*', '--if-present', 'build']],
-  ['Copy admin assets into backend bundle', 'node', ['apps/backend/scripts/build.mjs', 'copy-admin-assets']],
+  ['Build admin surface', pnpmCommand, ['--filter', '@movscript/admin-surface', 'build']],
+  ['Build agent plugin app', pnpmCommand, ['--filter', '@movscript/plugin-movscript', 'build']],
 ]
 const releaseAssetExtensions = new Set([
   '.dmg',
@@ -78,9 +78,10 @@ export function releaseWorkflowSteps(mode, args = []) {
     return [
       ['Run release checks', 'node', ['scripts/release/release-workflow.mjs', 'check']],
       ['Download ffmpeg-static release binary', 'node', ['scripts/release/release-workflow.mjs', 'download-ffmpeg-static', ...targetArgs]],
-      ['Build desktop package', 'node', ['scripts/release/release-workflow.mjs', 'package-desktop', ...packageArgs]],
+      ['Build desktop package', 'node', ['scripts/release/release-workflow.mjs', 'package', '--app', 'desktop', ...packageArgs]],
       ['Smoke test desktop package', 'node', ['scripts/release/release-workflow.mjs', 'smoke-desktop-package', ...targetArgs]],
-      ['Collect release artifacts', 'node', ['scripts/release/release-workflow.mjs', 'collect']],
+      ['Build agent plugin package', 'node', ['scripts/release/release-workflow.mjs', 'package', '--app', 'plugin']],
+      ['Collect desktop and plugin release artifacts', 'node', ['scripts/release/release-workflow.mjs', 'collect', '--app', 'all']],
     ]
   }
   throw new Error(usage())
@@ -100,8 +101,8 @@ export function runReleaseWorkflowCli(args = [], options = {}) {
   const releaseCommand = releaseCommands.get(mode)
   if (releaseCommand) {
     const [scriptPath, ...defaultArgs] = releaseCommand
-    if (scriptPath === 'builtin:prepare-desktop-package') {
-      runPrepareDesktopPackageCli([...defaultArgs, ...args.slice(1)], {
+    if (scriptPath === 'builtin:prepare') {
+      runPrepareAppCli([...defaultArgs, ...args.slice(1)], {
         exit,
         log,
         logError,
@@ -112,30 +113,8 @@ export function runReleaseWorkflowCli(args = [], options = {}) {
       })
       return
     }
-    if (scriptPath === 'builtin:build-desktop-bundle') {
-      runBuildDesktopBundleCli([...defaultArgs, ...args.slice(1)], {
-        exit,
-        log,
-        logError,
-        env: options.env,
-        pnpm: options.pnpm,
-        spawn,
-      })
-      return
-    }
-    if (scriptPath === 'builtin:typecheck-desktop-bundle') {
-      runTypecheckDesktopBundleCli([...defaultArgs, ...args.slice(1)], {
-        exit,
-        log,
-        logError,
-        env: options.env,
-        pnpm: options.pnpm,
-        spawn,
-      })
-      return
-    }
-    if (scriptPath === 'builtin:build-desktop-artifact') {
-      runBuildDesktopArtifactCli([...defaultArgs, ...args.slice(1)], {
+    if (scriptPath === 'builtin:build') {
+      runBuildAppCli([...defaultArgs, ...args.slice(1)], {
         exit,
         log,
         logError,
@@ -148,22 +127,19 @@ export function runReleaseWorkflowCli(args = [], options = {}) {
       })
       return
     }
-    if (scriptPath === 'builtin:verify-desktop-package') {
-      runVerifyDesktopPackageCli([...defaultArgs, ...args.slice(1)], {
+    if (scriptPath === 'builtin:typecheck') {
+      runTypecheckAppCli([...defaultArgs, ...args.slice(1)], {
         exit,
         log,
         logError,
-        defaults: options.defaults,
         env: options.env,
-        root: options.root,
+        pnpm: options.pnpm,
         spawn,
-        verifyMacOSDMG: options.verifyMacOSDMG,
-        verifyPackage: options.verifyPackage,
       })
       return
     }
-    if (scriptPath === 'builtin:package-desktop') {
-      runDesktopPackageCli([...defaultArgs, ...args.slice(1)], {
+    if (scriptPath === 'builtin:package') {
+      runPackageAppCli([...defaultArgs, ...args.slice(1)], {
         spawn,
         log,
         logError,
@@ -171,6 +147,7 @@ export function runReleaseWorkflowCli(args = [], options = {}) {
         defaults: options.defaults,
         env: options.env,
         node: options.node,
+        packagePlugin: options.packagePlugin,
         patchMacOSDMGBuilder: options.patchMacOSDMGBuilder,
         pnpm: options.pnpm,
         preparePackage: options.preparePackage,
@@ -180,8 +157,23 @@ export function runReleaseWorkflowCli(args = [], options = {}) {
       })
       return
     }
+    if (scriptPath === 'builtin:verify') {
+      runVerifyAppCli([...defaultArgs, ...args.slice(1)], {
+        exit,
+        log,
+        logError,
+        defaults: options.defaults,
+        env: options.env,
+        root: options.root,
+        spawn,
+        verifyMacOSDMG: options.verifyMacOSDMG,
+        verifyPackage: options.verifyPackage,
+      })
+      return
+    }
     if (scriptPath === 'builtin:collect') {
       runCollectArtifactsCli(options.root ?? repoRoot, options.env ?? process.env, {
+        args: args.slice(1),
         collect: options.collectArtifacts,
         exit,
         log,
@@ -211,7 +203,70 @@ function normalizePnpmArgs(args) {
   return args[0] === '--' ? args.slice(1) : args
 }
 
-export function frontendBuilderArgsForTarget(platform, arch, explicitArch = true) {
+function parseAppArg(args = [], defaultApp = '') {
+  const equalValue = args.find((arg) => arg.startsWith('--app='))
+  const app = equalValue ? equalValue.slice('--app='.length) : argValue(args, '--app') ?? defaultApp
+  if (!appTargets.has(app)) {
+    throw new Error(`Unsupported release app target: ${app || '<missing>'}. Expected one of: ${[...appTargets].join(', ')}`)
+  }
+  return app
+}
+
+function stripAppArgs(args = []) {
+  const stripped = []
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index]
+    if (arg === '--app') {
+      index += 1
+      continue
+    }
+    if (arg.startsWith('--app=')) continue
+    stripped.push(arg)
+  }
+  return stripped
+}
+
+function parseCollectAppArg(args = [], defaultApp = 'desktop') {
+  const equalValue = args.find((arg) => arg.startsWith('--app='))
+  const app = equalValue ? equalValue.slice('--app='.length) : argValue(args, '--app') ?? defaultApp
+  if (!collectAppTargets.has(app)) {
+    throw new Error(`Unsupported release artifact collection target: ${app || '<missing>'}. Expected one of: ${[...collectAppTargets].join(', ')}`)
+  }
+  return app
+}
+
+function argValue(args, name) {
+  const equalPrefix = `${name}=`
+  const equalValue = args.find((arg) => arg.startsWith(equalPrefix))
+  if (equalValue) return equalValue.slice(equalPrefix.length)
+  const index = args.indexOf(name)
+  return index >= 0 ? args[index + 1] : undefined
+}
+
+function parseBuildStageArg(args = [], defaultStage = 'all') {
+  const stage = args.find((arg) => arg.startsWith('--stage='))?.slice('--stage='.length) ?? argValue(args, '--stage') ?? defaultStage
+  const stages = new Set(['all', 'bundle', 'artifact'])
+  if (!stages.has(stage)) {
+    throw new Error(`Unsupported build stage: ${stage}. Expected one of: ${[...stages].join(', ')}`)
+  }
+  return stage
+}
+
+function stripBuildStageArgs(args = []) {
+  const stripped = []
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index]
+    if (arg === '--stage') {
+      index += 1
+      continue
+    }
+    if (arg.startsWith('--stage=')) continue
+    stripped.push(arg)
+  }
+  return stripped
+}
+
+export function desktopBuilderArgsForTarget(platform, arch, explicitArch = true) {
   const publishArgs = electronUpdaterPublishArgs(platform, arch)
   if (platform === 'darwin') {
     return explicitArch ? ['--mac', 'dmg', 'zip', `--${arch}`, '--publish', 'never', ...publishArgs] : ['--mac', 'dmg', 'zip', '--publish', 'never', ...publishArgs]
@@ -254,7 +309,7 @@ export function desktopPackagePlan(args = [], defaults = {}) {
   const targetArgs = [`--platform=${platform}`]
   if (hasArchArg) targetArgs.push(`--arch=${arch}`)
   return {
-    builderArgs: [...frontendBuilderArgsForTarget(platform, arch, hasArchArg), ...signingBuilderArgsForTarget(platform, signingMode)],
+    builderArgs: [...desktopBuilderArgsForTarget(platform, arch, hasArchArg), ...signingBuilderArgsForTarget(platform, signingMode)],
     signingMode,
     targetArgs,
   }
@@ -330,19 +385,30 @@ export function runDesktopPackageCli(args = [], options = {}) {
   }
 
   const packageEnv = desktopPackageEnv(options.env ?? process.env, plan.signingMode)
-  const steps = [
-    ['Build frontend desktop bundle', pnpm, desktopBundleBuildArgs(options.env ?? process.env), { env: options.env ?? process.env }],
-    ...desktopArtifactStepsForTarget(root, target, plan, pnpm).map(([label, command, commandArgs, stepOptions = {}]) => [
-      label,
-      command,
-      commandArgs,
-      { env: packageEnv, ...stepOptions },
-    ]),
-  ]
+  log('[package-desktop] Build desktop bundle')
+  const bundleResult = spawn(pnpm, desktopBundleBuildArgs(options.env ?? process.env), releaseSpawnOptions(options.env ?? process.env))
+  if (bundleResult.error) {
+    logError(bundleResult.error.message)
+    exit(1)
+    return
+  }
+  if (bundleResult.status !== 0) {
+    exit(bundleResult.status ?? 1)
+    return
+  }
 
-  for (const [label, command, commandArgs, stepOptions] of steps) {
+  try {
+    stageDesktopPackageProject(root, { env: packageEnv, log, pnpm, spawn })
+  } catch (error) {
+    logError(error instanceof Error ? error.message : String(error))
+    exit(1)
+    return
+  }
+
+  const artifactSteps = desktopArtifactStepsForTarget(root, target, plan, pnpm)
+  for (const [label, command, commandArgs, stepOptions = {}] of artifactSteps) {
     log(`[package-desktop] ${label}`)
-    const result = spawn(command, commandArgs, releaseSpawnOptions(stepOptions.env))
+    const result = spawn(command, commandArgs, releaseSpawnOptions(stepOptions.env ?? packageEnv))
     if (result.error) {
       logError(result.error.message)
       exit(1)
@@ -373,6 +439,326 @@ export function runDesktopPackageCli(args = [], options = {}) {
   }
 }
 
+export function runPackageAppCli(args = [], options = {}) {
+  const {
+    exit = process.exit,
+    logError = console.error,
+  } = options
+  let app
+  try {
+    app = parseAppArg(args)
+  } catch (error) {
+    logError(error instanceof Error ? error.message : String(error))
+    exit(2)
+    return
+  }
+  const appArgs = stripAppArgs(args)
+  if (app === 'desktop') {
+    runDesktopPackageCli(appArgs, options)
+    return
+  }
+  runPluginPackageCli(appArgs, options)
+}
+
+export function runPrepareAppCli(args = [], options = {}) {
+  const {
+    exit = process.exit,
+    log = console.log,
+    logError = console.error,
+  } = options
+  let app
+  try {
+    app = parseAppArg(args)
+  } catch (error) {
+    logError(error instanceof Error ? error.message : String(error))
+    exit(2)
+    return
+  }
+  const appArgs = stripAppArgs(args)
+  if (app === 'desktop') {
+    runPrepareDesktopPackageCli(appArgs, options)
+    return
+  }
+  log('[prepare-plugin] No plugin package prerequisites are required')
+}
+
+export function runBuildAppCli(args = [], options = {}) {
+  const {
+    exit = process.exit,
+    logError = console.error,
+  } = options
+  let app
+  let stage
+  try {
+    app = parseAppArg(args)
+    stage = parseBuildStageArg(args)
+  } catch (error) {
+    logError(error instanceof Error ? error.message : String(error))
+    exit(2)
+    return
+  }
+  const appArgs = stripBuildStageArgs(stripAppArgs(args))
+  if (app === 'plugin') {
+    runBuildPluginArtifactCli(appArgs, options)
+    return
+  }
+  if (stage === 'all' || stage === 'bundle') {
+    runBuildDesktopBundleCli(appArgs, options)
+    if (stage === 'bundle') return
+  }
+  runBuildDesktopArtifactCli(appArgs, options)
+}
+
+export function runTypecheckAppCli(args = [], options = {}) {
+  const {
+    exit = process.exit,
+    logError = console.error,
+    pnpm = 'pnpm',
+    spawn = spawnSync,
+  } = options
+  let app
+  try {
+    app = parseAppArg(args)
+  } catch (error) {
+    logError(error instanceof Error ? error.message : String(error))
+    exit(2)
+    return
+  }
+  if (app === 'desktop') {
+    runTypecheckDesktopBundleCli(stripAppArgs(args), options)
+    return
+  }
+  runSpawnStep(pnpm, ['--filter', '@movscript/plugin-movscript', 'typecheck'], {
+    env: options.env ?? process.env,
+    exit,
+    logError,
+    spawn,
+  })
+}
+
+export function runVerifyAppCli(args = [], options = {}) {
+  const {
+    exit = process.exit,
+    log = console.log,
+    logError = console.error,
+  } = options
+  let app
+  try {
+    app = parseAppArg(args)
+  } catch (error) {
+    logError(error instanceof Error ? error.message : String(error))
+    exit(2)
+    return
+  }
+  const appArgs = stripAppArgs(args)
+  if (app === 'desktop') {
+    runVerifyDesktopPackageCli(appArgs, options)
+    return
+  }
+  try {
+    validatePluginArtifactInputs(resolve(options.root ?? repoRoot, 'plugins/movscript'))
+    log('[verify-plugin] Plugin artifact inputs are present')
+  } catch (error) {
+    logError(error instanceof Error ? error.message : String(error))
+    exit(1)
+  }
+}
+
+export function runPluginPackageCli(args = [], options = {}) {
+  const {
+    exit = process.exit,
+    log = console.log,
+    logError = console.error,
+    packagePlugin = packagePluginArtifact,
+  } = options
+  try {
+    const result = packagePlugin(options.root ?? repoRoot, {
+      log,
+      logError,
+      pnpm: options.pnpm ?? 'pnpm',
+      spawn: options.spawn ?? spawnSync,
+    })
+    log(`[package-plugin] Created ${result.artifactPath}`)
+  } catch (error) {
+    logError(error instanceof Error ? error.message : String(error))
+    exit(1)
+  }
+}
+
+export function runBuildPluginArtifactCli(args = [], options = {}) {
+  runPluginPackageCli(args, options)
+}
+
+export function packagePluginArtifact(root = repoRoot, options = {}) {
+  const {
+    log = console.log,
+    logError = console.error,
+    pnpm = 'pnpm',
+    spawn = spawnSync,
+  } = options
+  const sourceDir = resolve(root, 'apps/plugin')
+  const pluginDir = resolve(root, 'plugins/movscript')
+  const releaseDir = resolve(pluginDir, 'release')
+  const rootPackage = readJSONFile(resolve(root, 'package.json'))
+  const pluginPackage = readJSONFile(resolve(sourceDir, 'package.json'))
+  const version = String(rootPackage.version || pluginPackage.version || '0.0.0')
+  const artifactName = `movscript-agent-plugin-${version}.zip`
+  const artifactPath = resolve(releaseDir, artifactName)
+
+  log('[package-plugin] Build local full-node runtime prerequisites')
+  for (const [filter, script] of [
+    ['@movscript/cli', 'build'],
+    ['@movscript/mcp-host', 'build'],
+    ['@movscript/data-service', 'build'],
+    ['@movscript/canvas-service', 'build'],
+    ['@movscript/local-surface-host', 'build'],
+  ]) {
+    const result = spawn(pnpm, ['--filter', filter, script], releaseSpawnOptions(process.env))
+    if (result.error) throw result.error
+    if (result.status !== 0) throw new Error(`Plugin runtime prerequisite ${filter} ${script} failed with status ${result.status ?? 1}`)
+  }
+
+  log('[package-plugin] Build plugin bundle')
+  const buildResult = spawn(pnpm, ['--filter', '@movscript/plugin-movscript', 'build'], releaseSpawnOptions(process.env))
+  if (buildResult.error) throw buildResult.error
+  if (buildResult.status !== 0) throw new Error(`Plugin build failed with status ${buildResult.status ?? 1}`)
+
+  prepareProviderPluginResources(root, { log: (message) => log(`[package-plugin] ${message}`) })
+  rmSync(releaseDir, { recursive: true, force: true })
+  mkdirSync(releaseDir, { recursive: true })
+  validatePluginArtifactInputs(pluginDir)
+
+  const files = [
+    '.codex-plugin',
+    '.provider-plugin',
+    '.mcp.json',
+    'assets',
+    'bin/movcli',
+    'bin/movscript',
+    'bin/movscript-agent-mcp',
+    'bin/movscript-agent-mcp.mjs',
+    'runtime',
+    'skills',
+    'manifest.runtime.json',
+    'README.md',
+  ]
+  log(`[package-plugin] Create ${artifactName}`)
+  const zipResult = spawn('zip', ['-qry', artifactPath, ...files], {
+    cwd: pluginDir,
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+  })
+  if (zipResult.error) throw zipResult.error
+  if (zipResult.status !== 0) throw new Error(`Plugin artifact zip failed with status ${zipResult.status ?? 1}`)
+  return { artifactPath, releaseDir, version }
+}
+
+export function prepareProviderPluginResources(root = repoRoot, options = {}) {
+  const {
+    log = () => undefined,
+  } = options
+  const sourceDir = resolve(root, 'apps/plugin')
+  const pluginDir = resolve(root, 'plugins/movscript')
+  const rootPackage = readJSONFile(resolve(root, 'package.json'))
+  const pluginPackage = readJSONFile(resolve(sourceDir, 'package.json'))
+  const version = String(rootPackage.version || pluginPackage.version || '0.0.0')
+
+  log('Sync provider plugin distribution resources')
+  syncPluginDistribution(sourceDir, pluginDir)
+  syncPluginRuntime(root, pluginDir)
+  writePluginRuntimeManifest(pluginDir, {
+    version,
+    packageName: pluginPackage.name,
+  })
+  validatePluginArtifactInputs(pluginDir)
+  return { pluginDir, version }
+}
+
+function writePluginRuntimeManifest(pluginDir, input) {
+  writeFileSync(resolve(pluginDir, 'manifest.runtime.json'), `${JSON.stringify({
+    appId: 'plugin',
+    applicationId: 'movscript.agent-plugin',
+    artifact: 'movscript-agent-plugin',
+    version: input.version,
+    packageName: input.packageName,
+    generatedAt: new Date().toISOString(),
+    mcpServer: 'movscript',
+    entrypoint: './bin/movscript-agent-mcp',
+    cliEntrypoint: './bin/movscript',
+    legacyCliEntrypoint: './bin/movcli',
+  }, null, 2)}\n`, 'utf8')
+}
+
+function syncPluginDistribution(sourceDir, pluginDir) {
+  const paths = [
+    '.codex-plugin',
+    '.provider-plugin',
+    '.mcp.json',
+    'assets',
+    'bin',
+    'runtime',
+    'skills',
+    'manifest.runtime.json',
+    'README.md',
+  ]
+  for (const path of paths) {
+    rmSync(resolve(pluginDir, path), { recursive: true, force: true })
+  }
+  mkdirSync(pluginDir, { recursive: true })
+  for (const path of paths.filter((path) => path !== 'manifest.runtime.json' && path !== 'runtime')) {
+    cpSync(resolve(sourceDir, path), resolve(pluginDir, path), { recursive: true })
+  }
+}
+
+function syncPluginRuntime(root, pluginDir) {
+  const runtimeRoot = resolve(pluginDir, 'runtime/services')
+  rmSync(resolve(pluginDir, 'runtime'), { recursive: true, force: true })
+  mkdirSync(runtimeRoot, { recursive: true })
+
+  const dataServiceBinary = resolve(root, 'services/data-service/bin', dataServiceBinaryName())
+  if (!existsSync(dataServiceBinary)) {
+    throw new Error(`Data Service binary is missing: ${dataServiceBinary}`)
+  }
+  const dataServiceTarget = resolve(runtimeRoot, 'data-service/bin', dataServiceBinaryName())
+  mkdirSync(dirname(dataServiceTarget), { recursive: true })
+  cpSync(dataServiceBinary, dataServiceTarget)
+
+  const localSurfaceHostDist = resolve(root, 'services/local-surface-host/dist')
+  if (!existsSync(resolve(localSurfaceHostDist, 'index.html'))) {
+    throw new Error(`Local Surface Host build output is missing: ${localSurfaceHostDist}`)
+  }
+  cpSync(localSurfaceHostDist, resolve(runtimeRoot, 'local-surface-host/dist'), { recursive: true })
+}
+
+function dataServiceBinaryName() {
+  return process.platform === 'win32' ? 'movscript-server.exe' : 'movscript-server'
+}
+
+function validatePluginArtifactInputs(pluginDir) {
+  const required = [
+    '.codex-plugin/plugin.json',
+    '.provider-plugin/plugin.json',
+    '.mcp.json',
+    'bin/movcli',
+    'bin/movscript',
+    'bin/movscript-agent-mcp',
+    'bin/movscript-agent-mcp.mjs',
+    `runtime/services/data-service/bin/${dataServiceBinaryName()}`,
+    'runtime/services/local-surface-host/dist/index.html',
+    'skills',
+    'assets',
+    'README.md',
+  ]
+  const missing = required.filter((path) => !existsSync(resolve(pluginDir, path)))
+  if (missing.length > 0) {
+    throw new Error(`Plugin artifact is missing required files:\n${missing.map((path) => `- ${path}`).join('\n')}`)
+  }
+}
+
+function readJSONFile(path) {
+  return JSON.parse(readFileSync(path, 'utf8'))
+}
+
 export function runPrepareDesktopPackageCli(args = [], options = {}) {
   const {
     exit = process.exit,
@@ -398,7 +784,7 @@ export function runBuildDesktopBundleCli(args = [], options = {}) {
     pnpm = 'pnpm',
     spawn = spawnSync,
   } = options
-  log('[package-desktop] Build frontend desktop bundle')
+  log('[package-desktop] Build desktop bundle')
   runSpawnStep(pnpm, desktopBundleBuildArgs(options.env ?? process.env), {
     env: options.env ?? process.env,
     exit,
@@ -415,7 +801,7 @@ export function runTypecheckDesktopBundleCli(args = [], options = {}) {
     pnpm = 'pnpm',
     spawn = spawnSync,
   } = options
-  log('[package-desktop] Typecheck frontend desktop bundle')
+  log('[package-desktop] Typecheck desktop bundle')
   runSpawnStep(pnpm, ['--filter', '@movscript/desktop', 'typecheck'], {
     env: options.env ?? process.env,
     exit,
@@ -446,6 +832,13 @@ export function runBuildDesktopArtifactCli(args = [], options = {}) {
     }
   }
   const packageEnv = desktopPackageEnv(options.env ?? process.env, resolved.plan.signingMode)
+  try {
+    stageDesktopPackageProject(root, { env: packageEnv, log, pnpm, spawn })
+  } catch (error) {
+    logError(error instanceof Error ? error.message : String(error))
+    exit(1)
+    return
+  }
   const artifactSteps = desktopArtifactStepsForTarget(root, resolved.target, resolved.plan, pnpm)
   for (const [label, command, commandArgs, stepOptions = {}] of artifactSteps) {
     log(`[package-desktop] ${label}`)
@@ -592,7 +985,7 @@ export function prepareDesktopPackage(root = repoRoot, options = {}) {
   }
   const targetSteps = [
     ...prepareDesktopSteps.slice(0, 4),
-    ['Build backend binary', pnpmCommand, ['--filter', '@movscript/backend', 'build'], { env: buildEnv }],
+    ['Build data-service binary', pnpmCommand, ['--filter', '@movscript/data-service', 'build'], { env: buildEnv }],
     ...prepareDesktopSteps.slice(4),
   ]
 
@@ -600,6 +993,7 @@ export function prepareDesktopPackage(root = repoRoot, options = {}) {
     runStep(stepName, command, commandArgs, { cwd: root, ...stepOptions })
   }
 
+  prepareProviderPluginResources(root, { log: (message) => console.log(`[prepare-desktop] ${message}`) })
   console.log('[prepare-desktop] Desktop package prerequisites are ready')
   return true
 }
@@ -646,7 +1040,8 @@ export function runCollectArtifactsCli(root = repoRoot, env = process.env, optio
     logError = console.error,
   } = options
   try {
-    const result = collect(root, { env })
+    const app = parseCollectAppArg(options.args ?? [], 'desktop')
+    const result = collect(root, { app, env })
     log(`Collected ${result.copied.length} release artifact(s) in ${result.outputDir}`)
     for (const path of result.copied) log(`- ${path}`)
   } catch (error) {
@@ -657,9 +1052,10 @@ export function runCollectArtifactsCli(root = repoRoot, env = process.env, optio
 
 export function collectArtifacts(root = repoRoot, options = {}) {
   const {
+    app = 'desktop',
     env = process.env,
     outputDir = resolve(root, 'release-artifacts'),
-    sources = defaultArtifactSources(root, env),
+    sources = defaultArtifactSources(root, env, app),
     artifactPrefix = normalizeArtifactPrefix(env.MOVSCRIPT_ARTIFACT_PREFIX?.trim() || ''),
   } = options
 
@@ -708,10 +1104,13 @@ export function collectArtifacts(root = repoRoot, options = {}) {
   return { copied, checksumPath, outputDir }
 }
 
-export function defaultArtifactSources(root = repoRoot, env = process.env) {
-  return [
-    resolve(root, 'apps/frontend/release'),
+export function defaultArtifactSources(root = repoRoot, env = process.env, app = 'desktop') {
+  if (app === 'all') return [
+    resolve(root, 'apps/desktop/release'),
+    resolve(root, 'plugins/movscript/release'),
   ]
+  if (app === 'plugin') return [resolve(root, 'plugins/movscript/release')]
+  return [resolve(root, 'apps/desktop/release')]
 }
 
 export function isReleaseAsset(name) {
@@ -843,31 +1242,100 @@ export function desktopPackageEnv(env = process.env, signingMode = parseDesktopS
 }
 
 function desktopArtifactStepsForTarget(root, target, plan, pnpm = 'pnpm') {
+  const stageDir = desktopPackageStageDir(root)
+  const electronBuilder = electronBuilderBin(root)
+  const stagedBuilderArgs = desktopStagedBuilderArgs(root)
   if (target.platform === 'darwin' && plan.signingMode === 'unsigned') {
-    return unsignedMacOSArtifactSteps(root, target.arch, pnpm)
+    return unsignedMacOSArtifactSteps(root, target.arch, electronBuilder, stageDir, stagedBuilderArgs)
   }
   return [
-    ['Build frontend desktop artifact', pnpm, ['--filter', '@movscript/desktop', 'exec', 'electron-builder', ...plan.builderArgs]],
+    ['Build desktop artifact', electronBuilder, ['--projectDir', stageDir, ...plan.builderArgs, ...stagedBuilderArgs]],
   ]
 }
 
-function unsignedMacOSArtifactSteps(root, arch, pnpm = 'pnpm') {
+function unsignedMacOSArtifactSteps(root, arch, electronBuilder, stageDir, stagedBuilderArgs) {
   const appDir = macAppDirForArch(root, arch)
   const unsignedBuilderArgs = signingBuilderArgsForTarget('darwin', 'unsigned')
   const dirArgs = ['--mac', '--dir', `--${arch}`, '--publish', 'never', ...unsignedBuilderArgs]
-  const dmgArgs = [...frontendBuilderArgsForTarget('darwin', arch), '--prepackaged', appDir, ...unsignedBuilderArgs]
+  const dmgArgs = [...desktopBuilderArgsForTarget('darwin', arch), '--prepackaged', appDir, ...unsignedBuilderArgs]
   return [
-    ['Build unsigned macOS app directory', pnpm, ['--filter', '@movscript/desktop', 'exec', 'electron-builder', ...dirArgs]],
+    ['Build unsigned macOS app directory', electronBuilder, ['--projectDir', stageDir, ...dirArgs, ...stagedBuilderArgs]],
     ['Clear unsigned macOS app extended attributes before signing', 'xattr', ['-cr', appDir]],
     ['Ad-hoc sign unsigned macOS app', 'node', ['scripts/release/sign-macos-app.mjs', appDir]],
     ['Clear unsigned macOS app extended attributes after signing', 'xattr', ['-cr', appDir]],
     ['Verify unsigned macOS app ad-hoc signature', 'codesign', ['--verify', '--deep', '--strict', '--verbose=2', appDir]],
-    ['Build unsigned macOS DMG from signed app', pnpm, ['--filter', '@movscript/desktop', 'exec', 'electron-builder', ...dmgArgs]],
+    ['Build unsigned macOS DMG from signed app', electronBuilder, ['--projectDir', stageDir, ...dmgArgs, ...stagedBuilderArgs]],
   ]
 }
 
 function macAppDirForArch(root, arch) {
-  return resolve(root, 'apps/frontend/release', arch === 'arm64' ? 'mac-arm64/Movscript.app' : 'mac/Movscript.app')
+  return resolve(root, 'apps/desktop/release', arch === 'arm64' ? 'mac-arm64/Movscript.app' : 'mac/Movscript.app')
+}
+
+export function stageDesktopPackageProject(root = repoRoot, options = {}) {
+  const {
+    env = process.env,
+    log = console.log,
+    pnpm = 'pnpm',
+    spawn = spawnSync,
+  } = options
+  const stageDir = desktopPackageStageDir(root)
+  const releaseDir = resolve(root, 'apps/desktop/release')
+  rmSync(stageDir, { recursive: true, force: true })
+  rmSync(releaseDir, { recursive: true, force: true })
+  prepareProviderPluginResources(root, { log: (message) => log(`[package-desktop] ${message}`) })
+  log(`[package-desktop] Stage desktop package project: ${stageDir}`)
+  const deployResult = spawn(pnpm, ['--filter', '@movscript/desktop', 'deploy', '--legacy', '--prod', stageDir], releaseSpawnOptions(env))
+  if (deployResult.error) throw deployResult.error
+  if (deployResult.status !== 0 || deployResult.signal) {
+    throw new Error(`Desktop package staging failed with status ${deployResult.status ?? 'none'} signal=${deployResult.signal ?? 'none'}`)
+  }
+  cpSync(resolve(root, 'apps/desktop/build'), resolve(stageDir, 'build'), { recursive: true })
+  writeStagedElectronBuilderConfig(root, stageDir)
+  return { stageDir, releaseDir }
+}
+
+function desktopPackageStageDir(root) {
+  return resolve(root, 'apps/desktop/.package-stage')
+}
+
+function desktopStagedBuilderArgs(root) {
+  return [
+    `-c.electronVersion=${resolveDesktopElectronVersion(root)}`,
+    '-c.npmRebuild=false',
+  ]
+}
+
+function electronBuilderBin(root) {
+  return resolve(root, 'apps/desktop/node_modules/.bin', process.platform === 'win32' ? 'electron-builder.cmd' : 'electron-builder')
+}
+
+function resolveDesktopElectronVersion(root) {
+  const electronPackagePath = resolve(root, 'apps/desktop/node_modules/electron/package.json')
+  if (existsSync(electronPackagePath)) {
+    const version = readJSONFile(electronPackagePath).version
+    if (version) return String(version)
+  }
+  const packageVersion = readJSONFile(resolve(root, 'apps/desktop/package.json')).devDependencies?.electron
+  const fixed = typeof packageVersion === 'string' ? packageVersion.match(/^\d+\.\d+\.\d+$/)?.[0] : undefined
+  if (fixed) return fixed
+  throw new Error('Unable to resolve fixed Electron version for staged desktop package')
+}
+
+function writeStagedElectronBuilderConfig(root, stageDir) {
+  const configPath = resolve(stageDir, 'electron-builder.yml')
+  let config = readFileSync(configPath, 'utf8')
+  const replacements = new Map([
+    ['../../assets/logo.png', resolve(root, 'assets/logo.png')],
+    ['../../assets/trayTemplate.png', resolve(root, 'assets/trayTemplate.png')],
+    ['../../assets/trayTemplate@2x.png', resolve(root, 'assets/trayTemplate@2x.png')],
+    ['../../surface/admin/dist', resolve(root, 'surface/admin/dist')],
+    ['../../plugins/movscript', resolve(root, 'plugins/movscript')],
+    ['vendor/ffmpeg', resolve(root, 'apps/desktop/vendor/ffmpeg')],
+  ])
+  for (const [from, to] of replacements) config = config.replaceAll(from, to)
+  config = config.replace(/(\n\s*output:\s*)release(\s*\n)/, `$1${JSON.stringify(resolve(root, 'apps/desktop/release'))}$2`)
+  writeFileSync(configPath, config, 'utf8')
 }
 
 function normalizeOptionalBuilderEnv(env, name) {
@@ -916,7 +1384,7 @@ export function verifyMacOSDMGArtifacts(root = repoRoot, options = {}) {
     log = console.log,
     spawn = spawnSync,
   } = options
-  const releaseDir = resolve(root, 'apps/frontend/release')
+  const releaseDir = resolve(root, 'apps/desktop/release')
   const appDir = macAppDirForArch(root, arch)
   const dmgPath = latestDMG(releaseDir)
   if (env.MOVSCRIPT_RELEASE_SIGNING_MODE === 'signed') {
@@ -1007,8 +1475,8 @@ function verifyMacOSAppCodeSignature(root, appDir, options = {}) {
 }
 
 function resolveDmgBuilderCorePath(root) {
-  const frontendRequire = createRequire(resolve(root, 'apps/frontend/package.json'))
-  const electronBuilderPackagePath = frontendRequire.resolve('electron-builder/package.json')
+  const desktopRequire = createRequire(resolve(root, 'apps/desktop/package.json'))
+  const electronBuilderPackagePath = desktopRequire.resolve('electron-builder/package.json')
   const electronBuilderRequire = createRequire(electronBuilderPackagePath)
   const dmgBuilderPackagePath = electronBuilderRequire.resolve('dmg-builder/package.json')
   return resolve(dirname(dmgBuilderPackagePath), 'vendor/dmgbuild/core.py')
@@ -1028,7 +1496,7 @@ function verifyMountedDMG(root, dmgPath, options = {}) {
     log = console.log,
     spawn = spawnSync,
   } = options
-  const iconPath = resolve(root, 'apps/frontend/build/icon.icns')
+  const iconPath = resolve(root, 'apps/desktop/build/icon.icns')
   const mountPoint = mkdtempSync(join(tmpdir(), 'movscript-dmg.'))
   let attached = false
   try {
@@ -1094,7 +1562,7 @@ function runStep(label, command, commandArgs, { spawn, log, logError, exit }) {
 }
 
 function usage() {
-  return `usage: node scripts/release/release-workflow.mjs [check|full|dry-run|${releaseSubcommands().join('|')}]`
+  return `usage: node scripts/release/release-workflow.mjs [check|full|dry-run|package --app <desktop|plugin>|collect --app <desktop|plugin>|${releaseSubcommands().join('|')}]`
 }
 
 if (isDirectRun(import.meta.url, process.argv)) {

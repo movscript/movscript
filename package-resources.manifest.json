@@ -3,10 +3,13 @@
   "product": "movscript-desktop",
   "edition": "community",
   "owner": "release-engineering",
-  "builderConfig": "apps/frontend/electron-builder.yml",
+  "builderConfig": "apps/desktop/electron-builder.yml",
   "packageFiles": [
     "out/**",
     "package.json",
+    "!node_modules/@movscript/**/*.d.ts",
+    "!node_modules/@movscript/**/*.d.ts.map",
+    "!node_modules/@movscript/**/*.tsbuildinfo",
     "!node_modules/@movscript/mova*/vendor/**/bin/mova*"
   ],
   "resources": [
@@ -22,27 +25,6 @@
       "updatePolicy": "bundled-with-app",
       "verification": [
         "electron-builder extraResources parity"
-      ]
-    },
-    {
-      "id": "backend",
-      "category": "managed-binary",
-      "from": "../backend/bin",
-      "to": "backend",
-      "filter": [
-        "movscript-server",
-        "movscript-server.exe"
-      ],
-      "source": "build-artifact",
-      "required": true,
-      "owner": "backend-runtime",
-      "license": "Apache-2.0",
-      "updatePolicy": "bundled-with-app",
-      "platforms": ["darwin", "linux", "win32"],
-      "arches": ["x64", "arm64"],
-      "verification": [
-        "prepareDesktopPackage backend build",
-        "verifyDesktopPackage requiredPaths"
       ]
     },
     {
@@ -69,26 +51,6 @@
       ]
     },
     {
-      "id": "movcli",
-      "category": "runtime-tool",
-      "from": "../cli",
-      "to": "movcli",
-      "filter": [
-        "bin/**",
-        "dist/**",
-        "package.json"
-      ],
-      "source": "build-artifact",
-      "required": true,
-      "owner": "cli-runtime",
-      "license": "Apache-2.0",
-      "updatePolicy": "bundled-with-app",
-      "verification": [
-        "pnpm --filter @movscript/cli build",
-        "electron-builder extraResources parity"
-      ]
-    },
-    {
       "id": "provider-plugin",
       "category": "plugin-bundle",
       "from": "../../plugins/movscript",
@@ -99,6 +61,8 @@
         ".mcp.json",
         "assets/**",
         "bin/**",
+        "manifest.runtime.json",
+        "runtime/**",
         "skills/**",
         "README.md"
       ],
@@ -108,14 +72,15 @@
       "license": "Apache-2.0",
       "updatePolicy": "bundled-with-app",
       "verification": [
-        "pnpm --filter ./plugins/* build",
+        "pnpm --filter @movscript/plugin-movscript build",
+        "prepareProviderPluginResources",
         "electron-builder extraResources parity"
       ]
     },
     {
       "id": "renderer-admin",
       "category": "static-runtime",
-      "from": "../admin/dist",
+      "from": "../../surface/admin/dist",
       "to": "admin",
       "filter": [
         "**/*"
@@ -126,8 +91,7 @@
       "license": "Apache-2.0",
       "updatePolicy": "bundled-with-app",
       "verification": [
-        "pnpm --filter @movscript/admin build",
-        "copy-admin-assets",
+        "pnpm --filter @movscript/admin-surface build",
         "verifyDesktopPackage requiredPaths"
       ]
     },
@@ -168,8 +132,8 @@
     ".movscript-dev/**",
     "sdk-runtimes/**",
     "node_modules/**",
-    "apps/frontend/release/**",
-    "apps/backend/vendor/**",
+    "apps/desktop/release/**",
+    "services/data-service/vendor/**",
     "tests/**"
   ]
 }

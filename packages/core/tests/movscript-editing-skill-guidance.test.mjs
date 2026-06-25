@@ -2,35 +2,48 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import test from 'node:test'
-import vm from 'node:vm'
 
 const repoRoot = resolve(import.meta.dirname, '../../..')
 
-function getFallbackTools() {
-  const bridgePath = resolve(repoRoot, 'plugins/movscript/bin/mcp-stdio-bridge.mjs')
-  const source = readFileSync(bridgePath, 'utf8')
-    .replace(/^#!.*\n/, '')
-    .replace("import readline from 'node:readline'", "const readline = { createInterface: () => ({ on() {} }) }")
-    + "\nresult = fallbackTools\n"
-  const context = {
-    AbortController,
-    clearTimeout,
-    console,
-    fetch: async () => { throw new Error('fetch disabled') },
-    process: { env: {} },
-    result: undefined,
-    setTimeout,
-  }
-  vm.runInNewContext(source, context)
-  return Array.from(context.result)
+const toolDefinitionPaths = [
+  'packages/core/src/mcp/node/server/toolRegistry.ts',
+  'packages/core/src/mcp/tools/artifact/definitions.ts',
+  'packages/core/src/mcp/tools/domain/definitions.ts',
+  'packages/core/src/mcp/tools/editing/definitions.ts',
+  'packages/core/src/mcp/tools/external-resources/definitions.ts',
+  'packages/core/src/mcp/tools/focus/definitions.ts',
+  'packages/core/src/mcp/tools/generation/definitions.ts',
+  'packages/core/src/mcp/tools/model/definitions.ts',
+  'packages/core/src/mcp/tools/resource-library/definitions.ts',
+  'packages/core/src/mcp/tools/resource-media/definitions.ts',
+  'packages/core/src/mcp/tools/shot-library/definitions.ts',
+  'packages/core/src/mcp/tools/generation/audio-generate.tool.json',
+  'packages/core/src/mcp/tools/generation/audio-job-get.tool.json',
+  'packages/core/src/mcp/tools/generation/image-generate.tool.json',
+  'packages/core/src/mcp/tools/generation/image-job-get.tool.json',
+  'packages/core/src/mcp/tools/generation/video-generate.tool.json',
+  'packages/core/src/mcp/tools/generation/video-job-get.tool.json',
+]
+
+function readRepoFile(path) {
+  return readFileSync(resolve(repoRoot, path), 'utf8')
 }
 
-function getFallbackToolNames() {
-  return getFallbackTools().map((tool) => tool.name).filter(Boolean)
+function toolNamesFromSource(source) {
+  const names = new Set()
+  for (const match of source.matchAll(/\bname:\s*['"]([^'"]+)['"]/g)) names.add(match[1])
+  for (const match of source.matchAll(/"name":\s*"([^"]+)"/g)) names.add(match[1])
+  for (const match of source.matchAll(/\b\w+Tool\(\s*['"]([^'"]+)['"]/g)) names.add(match[1])
+  for (const match of source.matchAll(/^\s*[A-Za-z0-9_]+:\s*['"]((?:system_|generation_audio_)[^'"]+)['"],?$/gm)) names.add(match[1])
+  return Array.from(names)
 }
 
-function getFallbackEditingToolNames() {
-  return getFallbackToolNames().filter((name) => name.startsWith('editing_'))
+function getMCPToolNames() {
+  return toolDefinitionPaths.flatMap((path) => toolNamesFromSource(readRepoFile(path)))
+}
+
+function getEditingToolNames() {
+  return toolNamesFromSource(readRepoFile('packages/core/src/mcp/tools/editing/definitions.ts'))
 }
 
 test('MovScript editing skill routes product editing through editing tools', () => {
@@ -77,7 +90,8 @@ test('MovScript generation and domain skills keep resource utilities out of the 
   const domain = readFileSync(resolve(repoRoot, 'plugins/movscript/skills/domain/SKILL.md'), 'utf8')
   const resourceRules = readFileSync(resolve(repoRoot, 'plugins/movscript/skills/generation/references/resource-id-rules.md'), 'utf8')
   const planningRecipes = readFileSync(resolve(repoRoot, 'plugins/movscript/skills/planning/references/content-unit-recipes.md'), 'utf8')
-  const pluginBridge = readFileSync(resolve(repoRoot, 'plugins/movscript/bin/mcp-stdio-bridge.mjs'), 'utf8')
+  const toolRegistry = readRepoFile('packages/core/src/mcp/node/server/toolRegistry.ts')
+  const editingDefinitions = readRepoFile('packages/core/src/mcp/tools/editing/definitions.ts')
   const domainToolDefinitions = readFileSync(resolve(repoRoot, 'packages/core/src/mcp/tools/domain/definitions.ts'), 'utf8')
   const domainToolActions = readFileSync(resolve(repoRoot, 'packages/core/src/mcp/node/tools/domain/actions.ts'), 'utf8')
   const resourceToolDefinitions = readFileSync(resolve(repoRoot, 'packages/core/src/mcp/tools/resource-media/definitions.ts'), 'utf8')
@@ -102,25 +116,25 @@ test('MovScript generation and domain skills keep resource utilities out of the 
   assert.match(planningRecipes, /`domain_compose_scene_moment_from_edit_plan` is not an available product editing path/)
   assert.doesNotMatch(planningRecipes, /domain_compose_scene_moment_from_edit_plan writes a scene-moment-level video candidate/)
 
-  assert.match(pluginBridge, /MediaEditingProject handoff/)
-  assert.match(pluginBridge, /const editingTools = \[/)
-  assert.match(pluginBridge, /name: 'editing_project_create_from_edit_plan'/)
-  assert.match(pluginBridge, /name: 'editing_timeline_apply_commands'/)
-  assert.match(pluginBridge, /name: 'editing_timeline_add_clip'/)
-  assert.match(pluginBridge, /name: 'editing_runtime_capabilities_get'/)
-  assert.match(pluginBridge, /name: 'editing_task_render_create'/)
-  assert.match(pluginBridge, /name: 'editing_export_import_resource'/)
-  assert.match(pluginBridge, /\.\.\.editingTools/)
-  assert.doesNotMatch(pluginBridge, /name: 'domain_compose_scene_moment_from_edit_plan'/)
-  assert.doesNotMatch(pluginBridge, /name: 'domain_compose_production_from_timeline'/)
-  assert.doesNotMatch(pluginBridge, /name: 'domain_apply_scene_moment_timeline_commands'/)
-  assert.doesNotMatch(pluginBridge, /name: 'domain_apply_production_timeline_commands'/)
-  assert.doesNotMatch(pluginBridge, /domain_compose_scene_moment_from_edit_plan'[\s\S]*timelineDocument/)
-  assert.doesNotMatch(pluginBridge, /domain_compose_scene_moment_from_edit_plan'[\s\S]*timeline_document/)
-  assert.doesNotMatch(pluginBridge, /domain_compose_production_from_timeline'[\s\S]*timelineDocument/)
-  assert.doesNotMatch(pluginBridge, /domain_compose_production_from_timeline'[\s\S]*timeline_document/)
-  assert.doesNotMatch(pluginBridge, /OpenCut-compatible/)
-  assert.doesNotMatch(pluginBridge, /OpenCut-style/)
+  assert.match(editingDefinitions, /MediaEditingProject from a MovScript edit_plan/)
+  assert.match(editingDefinitions, /export function editingTools\(\)/)
+  assert.match(editingDefinitions, /name: 'editing_project_create_from_edit_plan'/)
+  assert.match(editingDefinitions, /name: 'editing_timeline_apply_commands'/)
+  assert.match(editingDefinitions, /name: 'editing_timeline_add_clip'/)
+  assert.match(editingDefinitions, /name: 'editing_runtime_capabilities_get'/)
+  assert.match(editingDefinitions, /name: 'editing_task_render_create'/)
+  assert.match(editingDefinitions, /name: 'editing_export_import_resource'/)
+  assert.match(toolRegistry, /\.\.\.editingTools\(\)/)
+  assert.doesNotMatch(editingDefinitions, /name: 'domain_compose_scene_moment_from_edit_plan'/)
+  assert.doesNotMatch(editingDefinitions, /name: 'domain_compose_production_from_timeline'/)
+  assert.doesNotMatch(editingDefinitions, /name: 'domain_apply_scene_moment_timeline_commands'/)
+  assert.doesNotMatch(editingDefinitions, /name: 'domain_apply_production_timeline_commands'/)
+  assert.doesNotMatch(editingDefinitions, /domain_compose_scene_moment_from_edit_plan'[\s\S]*timelineDocument/)
+  assert.doesNotMatch(editingDefinitions, /domain_compose_scene_moment_from_edit_plan'[\s\S]*timeline_document/)
+  assert.doesNotMatch(editingDefinitions, /domain_compose_production_from_timeline'[\s\S]*timelineDocument/)
+  assert.doesNotMatch(editingDefinitions, /domain_compose_production_from_timeline'[\s\S]*timeline_document/)
+  assert.doesNotMatch(editingDefinitions, /OpenCut-compatible/)
+  assert.doesNotMatch(editingDefinitions, /OpenCut-style/)
 
   assert.doesNotMatch(domainToolDefinitions, /OpenCut-compatible/)
   assert.doesNotMatch(domainToolDefinitions, /OpenCut-style/)
@@ -175,14 +189,14 @@ test('MovScript plugin metadata advertises the dedicated Electron editing path',
   assert.match(readme, /static bootstrap set also advertises the dedicated `editing_\*` tool family/)
 })
 
-test('MovScript plugin bridge bootstrap list exposes the dedicated editing tool family', () => {
-  const fallbackTools = getFallbackTools()
-  const fallbackToolsByName = new Map(fallbackTools.map((tool) => [tool.name, tool]))
-  assert.equal(fallbackToolsByName.has('domain_compose_scene_moment_from_edit_plan'), false)
-  assert.equal(fallbackToolsByName.has('domain_compose_production_from_timeline'), false)
-  assert.equal(fallbackToolsByName.has('domain_apply_scene_moment_timeline_commands'), false)
-  assert.equal(fallbackToolsByName.has('domain_apply_production_timeline_commands'), false)
-  assert.deepEqual(fallbackTools.filter((tool) => tool.name.startsWith('editing_')).map((tool) => tool.name), [
+test('MovScript MCP tool definitions expose the dedicated editing tool family', () => {
+  const names = new Set(getMCPToolNames())
+  const editingDefinitions = readRepoFile('packages/core/src/mcp/tools/editing/definitions.ts')
+  assert.equal(names.has('domain_compose_scene_moment_from_edit_plan'), false)
+  assert.equal(names.has('domain_compose_production_from_timeline'), false)
+  assert.equal(names.has('domain_apply_scene_moment_timeline_commands'), false)
+  assert.equal(names.has('domain_apply_production_timeline_commands'), false)
+  assert.deepEqual(getEditingToolNames(), [
     'editing_project_create',
     'editing_project_create_from_edit_plan',
     'editing_project_get',
@@ -212,19 +226,18 @@ test('MovScript plugin bridge bootstrap list exposes the dedicated editing tool 
     'editing_export_publish_hls',
     'editing_export_create_candidate',
   ])
-  assert.match(String(fallbackToolsByName.get('editing_export_import_resource')?.description), /HLS manifests must use editing_export_publish_hls/)
-  assert.match(String(fallbackToolsByName.get('editing_export_import_resource')?.description), /MediaStreamArtifact/)
+  assert.match(editingDefinitions, /HLS manifests must use editing_export_publish_hls/)
+  assert.match(editingDefinitions, /MediaStreamArtifact/)
   for (const name of [
     'editing_task_render_create',
     'editing_task_hls_create',
     'editing_task_transcode_create',
     'editing_task_reframe_create',
   ]) {
-    assert.ok(fallbackToolsByName.get(name)?.inputSchema?.properties?.projectId, `${name} should expose projectId in bootstrap discovery`)
-    assert.ok(fallbackToolsByName.get(name)?.inputSchema?.properties?.project_id, `${name} should expose project_id in bootstrap discovery`)
+    assert.equal(names.has(name), true, `${name} should be exposed by MCP definitions`)
   }
-  assert.match(String(fallbackToolsByName.get('editing_task_transcode_create')?.description), /projectId/)
-  assert.match(String(fallbackToolsByName.get('editing_task_reframe_create')?.description), /projectId/)
+  assert.match(editingDefinitions, /projectId/)
+  assert.match(editingDefinitions, /project_id/)
   for (const name of [
     'editing_task_get',
     'editing_task_cancel',
@@ -233,40 +246,33 @@ test('MovScript plugin bridge bootstrap list exposes the dedicated editing tool 
     'editing_export_save_local',
     'editing_export_publish_hls',
   ]) {
-    assert.ok(fallbackToolsByName.get(name)?.inputSchema?.properties?.projectId, `${name} should expose projectId in bootstrap discovery`)
-    assert.ok(fallbackToolsByName.get(name)?.inputSchema?.properties?.project_id, `${name} should expose project_id in bootstrap discovery`)
-    assert.match(String(fallbackToolsByName.get(name)?.description), /projectId/)
+    assert.equal(names.has(name), true, `${name} should be exposed by MCP definitions`)
   }
-  assert.match(String(fallbackToolsByName.get('editing_export_save_local')?.description), /complete HLS bundle/)
-  assert.ok(fallbackToolsByName.get('editing_export_save_local')?.inputSchema?.properties?.saveDirectory)
-  assert.ok(fallbackToolsByName.get('editing_export_save_local')?.inputSchema?.properties?.save_directory)
-  assert.ok(fallbackToolsByName.get('editing_export_save_local')?.inputSchema?.properties?.hlsDirectory)
-  assert.ok(fallbackToolsByName.get('editing_export_save_local')?.inputSchema?.properties?.segmentPaths)
-  assert.match(String(fallbackToolsByName.get('editing_export_create_candidate')?.description), /RawResource-backed/)
-  assert.match(String(fallbackToolsByName.get('editing_export_create_candidate')?.description), /future domain candidate schema extension/)
-  assert.equal(fallbackToolsByName.get('editing_export_create_candidate')?.inputSchema?.properties?.streamId?.description.includes('Known unsupported HLS MediaStreamArtifact ID'), true)
+  assert.match(editingDefinitions, /complete HLS bundle/)
+  assert.match(editingDefinitions, /saveDirectory/)
+  assert.match(editingDefinitions, /save_directory/)
+  assert.match(editingDefinitions, /hlsDirectory/)
+  assert.match(editingDefinitions, /segmentPaths/)
+  assert.match(editingDefinitions, /RawResource-backed/)
+  assert.match(editingDefinitions, /future domain candidate schema extension/)
+  assert.match(editingDefinitions, /Known unsupported HLS MediaStreamArtifact ID/)
 })
 
-test('MovScript plugin bridge bootstrap list exposes neutral artifact hosting tools', () => {
-  const tools = getFallbackTools()
-  const names = new Set(tools.map((tool) => tool.name))
-  const toolsByName = new Map(tools.map((tool) => [tool.name, tool]))
+test('MovScript MCP tool definitions expose neutral artifact hosting tools', () => {
+  const names = new Set(getMCPToolNames())
+  const artifactDefinitions = readRepoFile('packages/core/src/mcp/tools/artifact/definitions.ts')
 
   assert.equal(names.has('system_artifact_upload_export'), true)
   assert.equal(names.has('system_artifact_upload_hls_stream'), true)
   assert.equal(names.has('system_artifact_get_stream'), true)
-  assert.match(String(toolsByName.get('system_artifact_upload_export')?.description), /HLS manifests must use system_artifact_upload_hls_stream/)
-  assert.match(String(toolsByName.get('system_artifact_upload_export')?.description), /MediaStreamArtifact/)
-  assert.match(String(toolsByName.get('system_artifact_upload_export')?.description), /projectId/)
-  assert.ok(toolsByName.get('system_artifact_upload_export')?.inputSchema?.properties?.projectId)
-  assert.ok(toolsByName.get('system_artifact_upload_export')?.inputSchema?.properties?.project_id)
-  assert.match(String(toolsByName.get('system_artifact_upload_hls_stream')?.description), /projectId/)
-  assert.ok(toolsByName.get('system_artifact_upload_hls_stream')?.inputSchema?.properties?.projectId)
-  assert.ok(toolsByName.get('system_artifact_upload_hls_stream')?.inputSchema?.properties?.project_id)
+  assert.match(artifactDefinitions, /HLS manifests must use system_artifact_upload_hls_stream/)
+  assert.match(artifactDefinitions, /MediaStreamArtifact/)
+  assert.match(artifactDefinitions, /projectId/)
+  assert.match(artifactDefinitions, /project_id/)
 })
 
-test('MovScript generation skill resource grants match neutral bridge bootstrap tools', () => {
-  const fallbackNames = new Set(getFallbackToolNames())
+test('MovScript generation skill resource grants match neutral MCP resource tools', () => {
+  const fallbackNames = new Set(getMCPToolNames())
   const skill = readFileSync(resolve(repoRoot, 'plugins/movscript/skills/generation/SKILL.md'), 'utf8')
   const grantedResourceTools = Array.from(
     skill.matchAll(/mcp__movscript__(system_resource_[a-z0-9_]+)/g),
@@ -289,15 +295,15 @@ test('MovScript generation skill resource grants match neutral bridge bootstrap 
   ].sort())
 
   for (const name of grantedResourceTools) {
-    assert.equal(fallbackNames.has(name), true, `${name} should be exposed by bridge bootstrap list`)
+    assert.equal(fallbackNames.has(name), true, `${name} should be exposed by MCP definitions`)
   }
 
   assert.doesNotMatch(skill, /system_resource_video_compose_to_resource/)
   assert.doesNotMatch(skill, /system_resource_video_concat_to_resource/)
 })
 
-test('MovScript plugin bridge bootstrap list and generation skill expose batch generation polling tools', () => {
-  const fallbackNames = new Set(getFallbackToolNames())
+test('MovScript MCP tool definitions and generation skill expose batch generation polling tools', () => {
+  const fallbackNames = new Set(getMCPToolNames())
   const skill = readFileSync(resolve(repoRoot, 'plugins/movscript/skills/generation/SKILL.md'), 'utf8')
 
   for (const name of [
@@ -307,7 +313,7 @@ test('MovScript plugin bridge bootstrap list and generation skill expose batch g
     'system_generate_video_job_get_batch',
     'generation_audio_job_get_batch',
   ]) {
-    assert.equal(fallbackNames.has(name), true, `${name} should be exposed by bridge bootstrap list`)
+    assert.equal(fallbackNames.has(name), true, `${name} should be exposed by MCP definitions`)
   }
 
   for (const grant of [
@@ -321,10 +327,10 @@ test('MovScript plugin bridge bootstrap list and generation skill expose batch g
 })
 
 test('MovScript generation skill routes content-unit visual generation through compiler-backed candidate tools', () => {
-  const fallbackNames = new Set(getFallbackToolNames())
+  const fallbackNames = new Set(getMCPToolNames())
   const skill = readFileSync(resolve(repoRoot, 'plugins/movscript/skills/generation/SKILL.md'), 'utf8')
   const candidateSelectionFlow = readFileSync(resolve(repoRoot, 'plugins/movscript/skills/generation/references/candidate-selection-flow.md'), 'utf8')
-  const cachedCandidateSelectionFlow = readFileSync(resolve(repoRoot, 'apps/frontend/plugin-cache/movscript-bundled/movscript/9cc8f9d8c6628c1a/skills/generation/references/candidate-selection-flow.md'), 'utf8')
+  const cachedCandidateSelectionFlow = readFileSync(resolve(repoRoot, 'apps/desktop/plugin-cache/movscript-bundled/movscript/9cc8f9d8c6628c1a/skills/generation/references/candidate-selection-flow.md'), 'utf8')
   const coreDefinitions = readFileSync(resolve(repoRoot, 'packages/core/src/mcp/tools/generation/definitions.ts'), 'utf8')
   const coreActions = readFileSync(resolve(repoRoot, 'packages/core/src/mcp/node/tools/generation/actions.ts'), 'utf8')
   const router = readFileSync(resolve(repoRoot, 'packages/core/src/mcp/node/tools/router.ts'), 'utf8')
@@ -339,7 +345,7 @@ test('MovScript generation skill routes content-unit visual generation through c
     'generation_content_unit_video_job_get',
     'system_generate_content_unit_video_job_get',
   ]) {
-    assert.equal(fallbackNames.has(name), true, `${name} should be exposed by bridge bootstrap list`)
+    assert.equal(fallbackNames.has(name), true, `${name} should be exposed by MCP definitions`)
   }
 
   for (const grant of [
@@ -351,7 +357,7 @@ test('MovScript generation skill routes content-unit visual generation through c
     assert.match(skill, new RegExp(grant))
   }
 
-  assert.match(skill, /edit the content unit `edit_prompt` first, then use `system_generate_content_unit_image` or `system_generate_content_unit_video`/)
+  assert.match(skill, /first write or update the content unit `edit_prompt`.*call `system_generate_content_unit_image` or `system_generate_content_unit_video`/)
   assert.match(skill, /Do not manually call `domain_create_content_candidate` after `system_generate_content_unit_image` or `system_generate_content_unit_video`/)
   assert.match(skill, /`system_generate_image` and `system_generate_video` remain low-level prompt channels/)
   assert.match(candidateSelectionFlow, /Successful terminal polls automatically create or refresh backend content candidates/)
@@ -368,8 +374,8 @@ test('MovScript generation skill routes content-unit visual generation through c
   assert.match(router, /case 'system_generate_content_unit_video'/)
 })
 
-test('MovScript skills and bridge expose raw-resource candidate registration and production summaries', () => {
-  const fallbackNames = new Set(getFallbackToolNames())
+test('MovScript skills and MCP definitions expose raw-resource candidate registration and production summaries', () => {
+  const fallbackNames = new Set(getMCPToolNames())
   const generationSkill = readFileSync(resolve(repoRoot, 'plugins/movscript/skills/generation/SKILL.md'), 'utf8')
   const domainSkill = readFileSync(resolve(repoRoot, 'plugins/movscript/skills/domain/SKILL.md'), 'utf8')
   const modelUsage = readFileSync(resolve(repoRoot, 'plugins/movscript/skills/generation/references/model-usage.md'), 'utf8')
@@ -383,12 +389,12 @@ test('MovScript skills and bridge expose raw-resource candidate registration and
   assert.match(modelUsage, /Use `domain_register_raw_resource_as_content_unit_candidate`/)
 })
 
-test('MovScript editing skill grants match the bridge bootstrap editing tools', () => {
+test('MovScript editing skill grants match the MCP editing tools', () => {
   const skill = readFileSync(resolve(repoRoot, 'plugins/movscript/skills/editing/SKILL.md'), 'utf8')
   const grantedEditingTools = Array.from(
     skill.matchAll(/mcp__movscript__(editing_[a-z0-9_]+)/g),
     (match) => match[1],
   )
 
-  assert.deepEqual(grantedEditingTools.sort(), getFallbackEditingToolNames().sort())
+  assert.deepEqual(grantedEditingTools.sort(), getEditingToolNames().sort())
 })

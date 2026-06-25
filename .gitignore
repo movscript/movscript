@@ -1,26 +1,27 @@
 # Binaries
-apps/backend/bin/
-apps/backend/main
-apps/backend/.gocache
-apps/backend/.cache
-apps/frontend/dist/
-apps/frontend/dist-electron/
-apps/frontend/out/
-apps/frontend/release/
-apps/frontend/electron.vite.config.*.mjs
-apps/frontend/src/api/generated.ts
-apps/frontend/vendor/app-server/*/
-apps/frontend/vendor/ffmpeg/*/
-apps/frontend/vendor/sdk-runtimes/
-apps/frontend/sdk-runtime/
-apps/frontend/test-results/
-apps/frontend/playwright-report/
+services/auth-service/bin/
+services/data-service/bin/
+services/data-service/main
+services/data-service/.gocache
+services/data-service/.cache
+apps/desktop/dist/
+apps/desktop/dist-electron/
+apps/desktop/out/
+apps/desktop/release/
+apps/desktop/electron.vite.config.*.mjs
+apps/desktop/src/api/generated.ts
+apps/desktop/vendor/app-server/*/
+apps/desktop/vendor/ffmpeg/*/
+apps/desktop/vendor/sdk-runtimes/
+apps/desktop/sdk-runtime/
+apps/desktop/test-results/
+apps/desktop/playwright-report/
 release-artifacts/
 downloaded-artifacts/
 .movscript-dev
 
 # Go
-apps/backend/uploads/
+services/data-service/uploads/
 *.exe
 *.test
 *.out
@@ -33,14 +34,20 @@ apps/movcli/bundle.js
 apps/movcli/manifest.json
 apps/movcli/*.movpkg
 packages/*/dist/
+services/*/dist/
+surface/*/dist/
+surface/*/dist-lib/
 plugins/*/dist/
+plugins/*/release/
+plugins/*/manifest.runtime.json
+*.tsbuildinfo
 
 # Local prototypes and design exports
 docs/prototypes/
 
 # Env
 .env
-apps/backend/.env
+services/data-service/.env
 
 # OS
 .DS_Store

@@ -1,0 +1,104 @@
+lab: minimax
+templates:
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: MiniMax M3
+      id: minimax:MiniMax-M3
+      input:
+        accepts_image: true
+        max_images: -1
+        max_videos: -1
+      lab: minimax
+      model_id: MiniMax-M3
+      order: 74
+      source:
+        status: verified
+        url: https://platform.minimax.io/docs/guides/text-generation
+        verified_at: "2026-06-25"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: MiniMax M2.7
+      id: minimax:MiniMax-M2.7
+      lab: minimax
+      model_id: MiniMax-M2.7
+      order: 75
+      source:
+        status: verified
+        url: https://platform.minimax.io/docs/guides/text-generation
+        verified_at: "2026-06-25"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: MiniMax M2.7 Highspeed
+      id: minimax:MiniMax-M2.7-highspeed
+      lab: minimax
+      model_id: MiniMax-M2.7-highspeed
+      order: 76
+      source:
+        status: verified
+        url: https://platform.minimax.io/docs/guides/text-generation
+        verified_at: "2026-06-25"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: MiniMax M2.5
+      id: minimax:MiniMax-M2.5
+      lab: minimax
+      model_id: MiniMax-M2.5
+      order: 77
+      source:
+        status: verified
+        url: https://platform.minimax.io/docs/guides/text-generation
+        verified_at: "2026-06-25"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: MiniMax M2.1
+      id: minimax:MiniMax-M2.1
+      lab: minimax
+      model_id: MiniMax-M2.1
+      order: 78
+      source:
+        status: verified
+        url: https://platform.minimax.io/docs/guides/text-generation
+        verified_at: "2026-06-25"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: MiniMax M2.1 Highspeed
+      id: minimax:MiniMax-M2.1-highspeed
+      lab: minimax
+      model_id: MiniMax-M2.1-highspeed
+      order: 79
+      source:
+        status: verified
+        url: https://platform.minimax.io/docs/guides/text-generation
+        verified_at: "2026-06-25"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: MiniMax M2
+      id: minimax:MiniMax-M2
+      lab: minimax
+      model_id: MiniMax-M2
+      order: 80
+      source:
+        status: verified
+        url: https://platform.minimax.io/docs/guides/text-generation
+        verified_at: "2026-06-25"

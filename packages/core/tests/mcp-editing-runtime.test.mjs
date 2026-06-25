@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import test from 'node:test'
 
 import {
@@ -6,6 +9,29 @@ import {
   listTools,
   setEditingRuntimePort,
 } from '../dist/mcp/node/index.js'
+import { startEditingService } from '../../../services/editing-service/src/server.mjs'
+import { startMediaPipelineService } from '../../../services/media-pipeline/src/server.mjs'
+
+let editingServiceRuntime
+let editingServiceHomeDir
+let previousEditingServiceURL
+
+test.before(async () => {
+  previousEditingServiceURL = process.env.MOVSCRIPT_EDITING_SERVICE_URL
+  editingServiceHomeDir = await mkdtemp(join(tmpdir(), 'movscript-core-editing-service-'))
+  editingServiceRuntime = await startEditingService({ homeDir: editingServiceHomeDir })
+  process.env.MOVSCRIPT_EDITING_SERVICE_URL = editingServiceRuntime.url
+})
+
+test.after(async () => {
+  if (editingServiceRuntime) await editingServiceRuntime.close()
+  if (editingServiceHomeDir) await rm(editingServiceHomeDir, { recursive: true, force: true })
+  if (previousEditingServiceURL === undefined) {
+    delete process.env.MOVSCRIPT_EDITING_SERVICE_URL
+  } else {
+    process.env.MOVSCRIPT_EDITING_SERVICE_URL = previousEditingServiceURL
+  }
+})
 
 async function callTool(name, args, id = name) {
   const response = await handleJSONRPC({
@@ -299,19 +325,8 @@ test('MCP editing task tools delegate to the registered Electron editing runtime
     })
     assert.equal(savedProject.status, 'ok')
     assert.equal(savedProject.editingProject.id, 'edit_project_1')
-    assert.equal(savedProject.projectPath, '/tmp/edit_project_1.json')
-    assert.equal(capturedProjectSaves.length, 1)
-    assert.equal(capturedProjectSaves[0].editingProject.id, 'edit_project_1')
-    assert.deepEqual(capturedProjectSaves[0].options, { expectedRevision: 3 })
-
-    const projectWithoutAssets = editingProject()
-    delete projectWithoutAssets.assets
-    const savedProjectWithoutAssets = await callTool('editing_project_save', {
-      editing_project: projectWithoutAssets,
-    })
-    assert.equal(savedProjectWithoutAssets.status, 'ok')
-    assert.deepEqual(savedProjectWithoutAssets.editingProject.assets, { assets: [] })
-    assert.deepEqual(capturedProjectSaves[1].editingProject.assets, { assets: [] })
+    assert.match(savedProject.projectPath, /editing-service\/projects\/edit_project_1\.json$/)
+    assert.equal(capturedProjectSaves.length, 0)
 
     const createdProject = await callTool('editing_project_create', {
       projectId: 'project-1',
@@ -322,11 +337,8 @@ test('MCP editing task tools delegate to the registered Electron editing runtime
     })
     assert.equal(createdProject.status, 'ok')
     assert.equal(createdProject.editing_project.title, 'Runtime-created cut')
-    assert.equal(createdProject.projectPath, `/tmp/${createdProject.editing_project.id}.json`)
-    assert.equal(capturedProjectSaves.length, 3)
-    assert.equal(capturedProjectSaves[2].editingProject.id, createdProject.editing_project.id)
-    assert.equal(capturedProjectSaves[2].editingProject.projectId, 'standalone')
-    assert.equal(capturedProjectSaves[2].options, undefined)
+    assert.match(createdProject.projectPath, new RegExp(`editing-service/projects/${createdProject.editing_project.id}\\.json$`))
+    assert.equal(capturedProjectSaves.length, 0)
 
     const createdFromEditPlan = await callTool('editing_project_create_from_edit_plan', {
       projectId: 'project-1',
@@ -345,12 +357,10 @@ test('MCP editing task tools delegate to the registered Electron editing runtime
     })
     assert.equal(createdFromEditPlan.status, 'ok')
     assert.equal(createdFromEditPlan.editing_project.title, 'Runtime edit plan cut')
-    assert.equal(createdFromEditPlan.projectPath, `/tmp/${createdFromEditPlan.editing_project.id}.json`)
-    assert.equal(capturedProjectSaves.length, 4)
-    assert.equal(capturedProjectSaves[3].editingProject.id, createdFromEditPlan.editing_project.id)
-    assert.equal(capturedProjectSaves[3].editingProject.source.kind, 'movscript_edit_plan')
-    assert.equal(capturedProjectSaves[3].editingProject.projectId, 'standalone')
-    assert.equal(capturedProjectSaves[3].options, undefined)
+    assert.match(createdFromEditPlan.projectPath, new RegExp(`editing-service/projects/${createdFromEditPlan.editing_project.id}\\.json$`))
+    assert.equal(createdFromEditPlan.editing_project.source.kind, 'movscript_edit_plan')
+    assert.equal(createdFromEditPlan.editing_project.projectId, 'project-1')
+    assert.equal(capturedProjectSaves.length, 0)
 
     const loadedProject = await callTool('editing_project_get', {
       projectId: 'project-1',
@@ -664,6 +674,119 @@ test('MCP editing task tools delegate to the registered Electron editing runtime
   }
 })
 
+test('MCP editing task tools prefer movscript.media.pipeline service over process runtime singleton', async () => {
+  const previousMediaPipelineURL = process.env.MOVSCRIPT_MEDIA_PIPELINE_URL
+  const capturedCreateRequests = []
+  const capturedActions = []
+  const mediaPipelineRuntime = await startMediaPipelineService({
+    runtimePort: {
+      async createTask(request) {
+        capturedCreateRequests.push(request)
+        return {
+          taskId: `${request.taskType}_service_1`,
+          projectId: request.projectId,
+          taskType: request.taskType,
+          status: 'queued',
+          progressPercent: 0,
+          currentStep: 'queued',
+          createdAt: new Date(0).toISOString(),
+          updatedAt: new Date(0).toISOString(),
+        }
+      },
+      async getTask(taskId, options) {
+        capturedActions.push(['getTask', taskId, options])
+        return {
+          taskId,
+          projectId: options.projectId,
+          taskType: 'timeline_render',
+          status: 'running',
+          progressPercent: 50,
+          currentStep: 'rendering',
+          createdAt: new Date(0).toISOString(),
+          updatedAt: new Date(0).toISOString(),
+        }
+      },
+      async cancelTask(taskId, options) {
+        capturedActions.push(['cancelTask', taskId, options])
+        return {
+          taskId,
+          projectId: options.projectId,
+          taskType: 'timeline_render',
+          status: 'canceled',
+          progressPercent: 100,
+          currentStep: 'canceled',
+          createdAt: new Date(0).toISOString(),
+          updatedAt: new Date(0).toISOString(),
+        }
+      },
+      async getTaskLogs(taskId, options) {
+        capturedActions.push(['getTaskLogs', taskId, options])
+        return {
+          status: 'ok',
+          taskId,
+          logs: ['service log line'],
+        }
+      },
+    },
+  })
+  const previous = setEditingRuntimePort({
+    async createTask() {
+      throw new Error('process runtime singleton should not create service-routed tasks')
+    },
+    async getTask() {
+      throw new Error('process runtime singleton should not read service-routed tasks')
+    },
+    async cancelTask() {
+      throw new Error('process runtime singleton should not cancel service-routed tasks')
+    },
+    async getTaskLogs() {
+      throw new Error('process runtime singleton should not read service-routed task logs')
+    },
+  })
+
+  try {
+    process.env.MOVSCRIPT_MEDIA_PIPELINE_URL = mediaPipelineRuntime.url
+
+    const created = await callTool('editing_task_render_create', {
+      editing_project: editingProject(),
+      output: { filename: 'service-preview.mp4' },
+    })
+    assert.equal(created.status, 'ok')
+    assert.equal(created.task.taskId, 'timeline_render_service_1')
+    assert.equal(created.task.taskType, 'timeline_render')
+    assert.equal(capturedCreateRequests.length, 1)
+    assert.equal(capturedCreateRequests[0].projectId, 'project-1')
+    assert.equal(capturedCreateRequests[0].output.filename, 'service-preview.mp4')
+
+    const loaded = await callTool('editing_task_get', { taskId: 'timeline_render_service_1', projectId: 'project-1' })
+    assert.equal(loaded.status, 'ok')
+    assert.equal(loaded.task.progressPercent, 50)
+
+    const canceled = await callTool('editing_task_cancel', { taskId: 'timeline_render_service_1', projectId: 'project-1' })
+    assert.equal(canceled.status, 'ok')
+    assert.equal(canceled.task.status, 'canceled')
+
+    const logs = await callTool('editing_task_logs_get', { taskId: 'timeline_render_service_1', projectId: 'project-1' })
+    assert.equal(logs.status, 'ok')
+    assert.deepEqual(logs.logs, ['service log line'])
+    assert.equal(logs.task_id, 'timeline_render_service_1')
+
+    assert.deepEqual(capturedActions, [
+      ['getTask', 'timeline_render_service_1', { projectId: 'project-1' }],
+      ['cancelTask', 'timeline_render_service_1', { projectId: 'project-1' }],
+      ['getTaskLogs', 'timeline_render_service_1', { projectId: 'project-1' }],
+    ])
+  } finally {
+    setEditingRuntimePort(previous)
+    if (previousMediaPipelineURL === undefined) {
+      delete process.env.MOVSCRIPT_MEDIA_PIPELINE_URL
+    } else {
+      process.env.MOVSCRIPT_MEDIA_PIPELINE_URL = previousMediaPipelineURL
+    }
+    await mediaPipelineRuntime.close()
+  }
+})
+
 test('MCP editing task tools keep a diagnostic response when no Electron runtime is registered', async () => {
   const previous = setEditingRuntimePort(undefined)
   try {
@@ -673,14 +796,14 @@ test('MCP editing task tools keep a diagnostic response when no Electron runtime
     })
     assert.equal(createdProject.status, 'ok')
     assert.equal(createdProject.editing_project.title, 'Unsaved fallback cut')
-    assert.equal(createdProject.editing_project.projectId, 'standalone')
-    assert.equal(createdProject.projectPath, undefined)
+    assert.equal(createdProject.editing_project.projectId, 'project-1')
+    assert.match(createdProject.projectPath, new RegExp(`editing-service/projects/${createdProject.editing_project.id}\\.json$`))
 
     const saveResult = await callTool('editing_project_save', {
       editing_project: editingProject(),
     })
-    assert.equal(saveResult.status, 'unsupported_runtime')
-    assert.equal(saveResult.code, 'ELECTRON_EDITING_RUNTIME_REQUIRED')
+    assert.equal(saveResult.status, 'ok')
+    assert.equal(saveResult.editing_project.id, 'edit_project_1')
 
     const importResult = await callTool('editing_export_import_resource', {
       outputPath: '/tmp/export.mp4',

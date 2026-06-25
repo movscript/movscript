@@ -1,11 +1,14 @@
-.PHONY: dev-frontend-local test-agent-run-debugging-e2e verify-agent-run-debugging-summary verify-agent-run-debugging-summary-contract
+.PHONY: dev-frontend-local dev-frontend-local-fast test-agent-run-debugging-e2e verify-agent-run-debugging-summary verify-agent-run-debugging-summary-contract
 
-AGENT_RUN_DEBUGGING_SUMMARY ?= apps/frontend/test-results/agent-run-debugging-acceptance-summary.json
+AGENT_RUN_DEBUGGING_SUMMARY ?= apps/desktop/test-results/agent-run-debugging-acceptance-summary.json
 
 dev-frontend-local:
-	pnpm --filter @movscript/admin build
-	node apps/backend/scripts/build.mjs copy-admin-assets
+	pnpm --filter @movscript/admin-surface build
 	pnpm --filter @movscript/desktop dev:local
+
+dev-frontend-local-fast:
+	pnpm --filter @movscript/admin-surface build
+	pnpm --filter @movscript/desktop dev:local:fast
 
 test-agent-run-debugging-e2e:
 	node tests/agent-run-debugging/run-e2e.mjs

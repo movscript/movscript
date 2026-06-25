@@ -110,13 +110,17 @@
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
-    "test": "pnpm build && node --test tests/*.test.mjs"
+    "test": "pnpm --filter @movscript/project build && pnpm --filter @movscript/editing build && pnpm --filter @movscript/workspace build && pnpm --filter @movscript/interpreter build && pnpm --filter @movscript/prompt build && pnpm --filter @movscript/engine build && pnpm build && node --test tests/*.test.mjs"
   },
   "dependencies": {
+    "@movscript/agent-chat": "workspace:*",
+    "@movscript/agent-protocol": "workspace:*",
     "@movscript/editing": "workspace:*",
     "@movscript/interpreter": "workspace:*",
     "@movscript/engine": "workspace:*",
     "@movscript/language": "workspace:*",
+    "@movscript/mcp-contracts": "workspace:*",
+    "@movscript/project": "workspace:*",
     "@movscript/workspace": "workspace:*"
   },
   "devDependencies": {

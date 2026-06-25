@@ -13,14 +13,14 @@ apps/*
 apps/admin/dist/
 !apps/agent/
 !apps/agent/package.json
-!apps/backend/
-!apps/backend/**
-apps/backend/bin/
-!apps/frontend/
-apps/frontend/*
-!apps/frontend/package.json
-!apps/frontend/src/
-!apps/frontend/src/**
+!services/data-service/
+!services/data-service/**
+services/data-service/bin/
+!apps/desktop/
+apps/desktop/*
+!apps/desktop/package.json
+!apps/desktop/src/
+!apps/desktop/src/**
 !apps/movcli/
 !apps/movcli/package.json
 

@@ -1,0 +1,36 @@
+{
+  "name": "@movscript/shot-library",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MovScript shared shot library analysis, search, vector document, and API contracts.",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm build && node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "@movscript/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.8.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

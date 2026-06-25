@@ -1,0 +1,92 @@
+import { AGENT_SURFACE_ROUTES, PROJECT_SURFACE_ROUTES } from '@movscript/project-surface/routes'
+import { RESOURCE_SURFACE_ROUTES } from '@movscript/resource-surface/routes'
+import { routePathWithParams } from '@movscript/shared/surface-routes'
+
+export const ROUTES = {
+  root: '/',
+  onboarding: '/onboarding',
+  projects: '/projects',
+  projectData: '/project-data',
+  user: '/user',
+  appSettings: '/app/settings',
+  invite: '/invite/:token',
+  orgSelect: '/org/select',
+  orgSettings: '/org/settings',
+  canvases: '/canvases',
+  canvasEditor: '/canvases/:id',
+  editing: '/editing',
+  editingProject: '/editing/:editingProjectId',
+  resources: RESOURCE_SURFACE_ROUTES.resources,
+  agentResources: RESOURCE_SURFACE_ROUTES.agentResources,
+  agentResourceDetail: RESOURCE_SURFACE_ROUTES.agentResourceDetail,
+  agentContentPrompt: AGENT_SURFACE_ROUTES.contentPrompt,
+  agentContentCandidates: AGENT_SURFACE_ROUTES.contentCandidates,
+  agentGenerationJob: AGENT_SURFACE_ROUTES.generationJob,
+  agentPreviewTimeline: AGENT_SURFACE_ROUTES.previewTimeline,
+  agentImpact: AGENT_SURFACE_ROUTES.impact,
+  agentProjectStatus: AGENT_SURFACE_ROUTES.projectStatus,
+  studioOverview: PROJECT_SURFACE_ROUTES.overview,
+  studioProgress: PROJECT_SURFACE_ROUTES.progress,
+  studioDailies: PROJECT_SURFACE_ROUTES.dailies,
+  studioLiveRoom: PROJECT_SURFACE_ROUTES.liveRoom,
+  studioEditDesk: PROJECT_SURFACE_ROUTES.editDesk,
+  studioImpact: PROJECT_SURFACE_ROUTES.impact,
+  studioTimeline: PROJECT_SURFACE_ROUTES.timeline,
+  studioResources: RESOURCE_SURFACE_ROUTES.projectResources,
+  studioScripts: PROJECT_SURFACE_ROUTES.scripts,
+  studioStandards: PROJECT_SURFACE_ROUTES.standards,
+  studioContent: PROJECT_SURFACE_ROUTES.content,
+  studioSettings: PROJECT_SURFACE_ROUTES.settings,
+  codexResources: '/codex/resources',
+  externalResources: RESOURCE_SURFACE_ROUTES.externalResources,
+  shotLibrary: '/shot-library',
+  jobs: '/jobs',
+  plugins: '/plugins',
+  agentConsole: '/agent',
+  agents: '/agents',
+  agentProvider: '/agents/:providerRouteKey',
+  modelProviders: '/model-providers',
+  workspaceConfig: '/workspace/config',
+  workspaceReview: '/workspace/review',
+  agentConnections: '/agent/connections',
+  agentSettings: '/agent/settings',
+  project: {
+    root: '/project',
+    home: '/project/home',
+    agent: '/project/agent',
+    agentCanvases: '/project/agent/canvases',
+    standards: '/project/standards',
+    settings: '/project/settings',
+    scripts: '/project/scripts/workbench',
+    content: '/project/content',
+    contentLegacy: '/project/content-orchestration/canvas',
+    contentLegacyNext: '/project/content-orchestration/canvas-next',
+  },
+  tools: {
+    refImageGen: '/tools/ref-image-gen',
+    refVideoGen: '/tools/ref-video-gen',
+    audioGen: '/tools/audio-gen',
+    motionImitation: '/tools/motion-imitation',
+    styleTransfer: '/tools/style-transfer',
+    multiAngle: '/tools/multi-angle',
+    plugin: '/tools/plugin/:pluginId',
+  },
+} as const
+
+export function withSearch(pathname: string, search = '') {
+  if (!search) return pathname
+  return `${pathname}${search.startsWith('?') ? search : `?${search}`}`
+}
+
+export function withRouteParams(pathname: string, params: Record<string, string | number | undefined>) {
+  return routePathWithParams(pathname, params)
+}
+
+export function mergeSearch(pathname: string, search: string, nextParams: Record<string, string | number | undefined>) {
+  const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search)
+  for (const [key, value] of Object.entries(nextParams)) {
+    if (value !== undefined && !params.has(key)) params.set(key, String(value))
+  }
+  const query = params.toString()
+  return query ? `${pathname}?${query}` : pathname
+}

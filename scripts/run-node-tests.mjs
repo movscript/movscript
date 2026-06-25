@@ -233,7 +233,7 @@ function workspaceTsxProviderManifests() {
   const root = workspaceRoot();
   if (!root) return [];
   return [
-    resolve(root, "apps/frontend/package.json"),
+    resolve(root, "apps/desktop/package.json"),
     resolve(root, "apps/cli/package.json"),
   ].filter((manifest) => existsSync(manifest));
 }

@@ -1,17 +1,32 @@
 export const MOVSCRIPT_WORKSPACE_CONFIG_SCHEMA = 'movscript.workspace-config.v2'
 
+export type MovScriptWorkspaceJSONValue =
+  | string
+  | number
+  | boolean
+  | null
+  | MovScriptWorkspaceJSONValue[]
+  | { [key: string]: MovScriptWorkspaceJSONValue }
+
+export type MovScriptWorkspaceProviderToolRiskLevel = 'read' | 'workspace' | 'write' | 'generate' | 'destructive' | 'ui'
+export type MovScriptWorkspaceProviderToolApprovalMode = 'never' | 'always' | 'on_write'
+export type MovScriptWorkspaceProviderToolGrantMode = 'allow' | 'deny'
+export type MovScriptWorkspaceProviderToolApprovalDefaults = Partial<
+  Record<MovScriptWorkspaceProviderToolRiskLevel | 'default', MovScriptWorkspaceProviderToolApprovalMode>
+>
+
 export type MovScriptWorkspaceAgentConfigFile = {
   schema: 'movscript.agent.config_file.v1'
   id: string
   name: string
   description?: string
-  version?: number
+  version?: string | number
   enabledPackIds: string[]
   skillIds: string[]
-  toolGrants: Array<Record<string, unknown>>
-  limits?: Record<string, unknown>
-  approvalDefaults?: Record<string, unknown>
-  metadata?: Record<string, unknown>
+  toolGrants: object[]
+  limits?: object
+  approvalDefaults?: object
+  metadata?: object
 }
 
 export interface MovScriptWorkspaceAgentCatalogConfig {
@@ -41,4 +56,7 @@ export interface MovScriptWorkspaceConfig {
   permissions?: Record<string, unknown>
   environment?: Record<string, string>
   providers?: Record<string, Record<string, unknown>>
+  movscriptLang?: {
+    cwd?: string
+  }
 }

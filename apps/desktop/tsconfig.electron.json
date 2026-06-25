@@ -1,0 +1,295 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "paths": {
+      "@movscript/project-surface/pages": [
+        "../../surface/project/src/pages/index.ts"
+      ],
+      "@movscript/project-surface/data": [
+        "../../surface/project/src/data.ts"
+      ],
+      "@movscript/canvas-surface/data": [
+        "../../surface/canvas/src/data.ts"
+      ],
+      "@movscript/canvas-surface/pages": [
+        "../../surface/canvas/src/pages/index.ts"
+      ],
+      "@movscript/canvas-surface/layout": [
+        "../../surface/canvas/src/layout.ts"
+      ],
+      "@movscript/canvas-surface/shell": [
+        "../../surface/canvas/src/shell.ts"
+      ],
+      "@movscript/canvas-surface/workbench": [
+        "../../surface/canvas/src/workbench.ts"
+      ],
+      "@movscript/canvas-surface": [
+        "../../surface/canvas/src/index.ts"
+      ],
+      "@movscript/shot-library-surface/data": [
+        "../../surface/shot-library/src/data.ts"
+      ],
+      "@movscript/shot-library-surface/pages": [
+        "../../surface/shot-library/src/pages/index.ts"
+      ],
+      "@movscript/shot-library-surface": [
+        "../../surface/shot-library/src/index.ts"
+      ],
+      "@movscript/project-surface": [
+        "../../surface/project/src/index.ts"
+      ],
+      "@movscript/project-surface/data": [
+        "../../surface/project/src/data.ts"
+      ],
+      "@movscript/project-surface/routes": [
+        "../../surface/project/src/routes.ts"
+      ],
+      "@movscript/project-surface/layout": [
+        "../../surface/project/src/layout.ts"
+      ],
+      "@movscript/project-surface/react": [
+        "../../surface/project/src/react.ts"
+      ],
+      "@movscript/project-surface/runtime": [
+        "../../surface/project/src/runtime.ts"
+      ],
+      "@movscript/project-surface/resource-browser": [
+        "../../surface/project/src/resource-browser.ts"
+      ],
+      "@movscript/resource-surface": [
+        "../../surface/resource/src/index.ts"
+      ],
+      "@movscript/resource-surface/data": [
+        "../../surface/resource/src/data.ts"
+      ],
+      "@movscript/resource-surface/routes": [
+        "../../surface/resource/src/routes.ts"
+      ],
+      "@movscript/resource-surface/pages": [
+        "../../surface/resource/src/pages/index.ts"
+      ],
+      "@movscript/resource-surface/react": [
+        "../../surface/resource/src/react.ts"
+      ],
+      "@movscript/resource-surface/resource-browser": [
+        "../../surface/resource/src/resource-browser.ts"
+      ],
+      "@movscript/resource-surface/resource-media": [
+        "../../surface/resource/src/resourceMediaBrowser.ts"
+      ],
+      "@movscript/resource-surface/resource-media-components": [
+        "../../surface/resource/src/resourceMediaComponents.tsx"
+      ],
+      "@movscript/resource-surface/resource-media-viewer": [
+        "../../surface/resource/src/resourceMediaViewer.tsx"
+      ],
+      "@movscript/resource-surface/resource-media-diagnostics": [
+        "../../surface/resource/src/resourceMediaDiagnostics.ts"
+      ],
+      "@movscript/resource-surface/resource-candidate-attach-panel": [
+        "../../surface/resource/src/resourceCandidateAttachPanel.tsx"
+      ],
+      "@movscript/resource-surface/resource-interaction": [
+        "../../surface/resource/src/resourceInteraction.ts"
+      ],
+      "@movscript/resource-surface/resource-library-picker": [
+        "../../surface/resource/src/resourceLibraryPicker.tsx"
+      ],
+      "@movscript/resource-surface/resource-library-picker-ui": [
+        "../../surface/resource/src/resourceLibraryPickerUi.tsx"
+      ],
+      "@movscript/project": [
+        "../../packages/project/src/index.ts"
+      ],
+      "@movscript/agent-chat": [
+        "../../packages/agent-chat/src/index.ts"
+      ],
+      "@movscript/agent-protocol": [
+        "../../packages/agent-protocol/src/index.ts"
+      ],
+      "@movscript/data-client": [
+        "../../packages/data-client/src/index.ts"
+      ],
+      "@movscript/local-runtime": [
+        "../../packages/local-runtime/src/index.ts"
+      ],
+      "@movscript/mcp-contracts": [
+        "../../packages/mcp-contracts/src/index.ts"
+      ],
+      "@movscript/mcp-host": [
+        "../../packages/mcp-host/src/index.ts"
+      ],
+      "@movscript/mcp-host/http": [
+        "../../packages/mcp-host/src/http.ts"
+      ],
+      "@movscript/mcp-host/stdio": [
+        "../../packages/mcp-host/src/stdio.ts"
+      ],
+      "@movscript/plugins": [
+        "../../packages/plugins/src/index.ts"
+      ],
+      "@movscript/plugins/node": [
+        "../../packages/plugins/src/node/index.ts"
+      ],
+      "@movscript/resources": [
+        "../../packages/resources/src/index.ts"
+      ],
+      "@movscript/shared": [
+        "../../packages/shared/src/index.ts"
+      ],
+      "@movscript/shared/browser": [
+        "../../packages/shared/src/browser.ts"
+      ],
+      "@movscript/shared/media-probe": [
+        "../../packages/shared/src/mediaProbe.ts"
+      ],
+      "@movscript/shared/surface-http": [
+        "../../packages/shared/src/surfaceHttpClient.ts"
+      ],
+      "@movscript/shared/surface-routes": [
+        "../../packages/shared/src/surfaceRoutes.ts"
+      ],
+      "@movscript/shared/semantic-entities": [
+        "../../packages/shared/src/surfaceSemanticEntities.ts"
+      ],
+      "@movscript/shared/app-events": [
+        "../../packages/shared/src/appEvents.ts"
+      ],
+      "@movscript/shared/workspace-candidates": [
+        "../../packages/shared/src/workspaceCandidates.ts"
+      ],
+      "@movscript/shot-library": [
+        "../../packages/shot-library/src/index.ts"
+      ],
+      "@movscript/core/backend/node": [
+        "../../packages/core/src/backend/node/index.ts"
+      ],
+      "@movscript/core/content": [
+        "../../packages/core/src/content/index.ts"
+      ],
+      "@movscript/core/generation": [
+        "../../packages/core/src/generation/index.ts"
+      ],
+      "@movscript/core/production": [
+        "../../packages/core/src/production/index.ts"
+      ],
+      "@movscript/core/resources": [
+        "../../packages/core/src/resources/index.ts"
+      ],
+      "@movscript/core/agent": [
+        "../../packages/core/src/agent/index.ts"
+      ],
+      "@movscript/app-runner": [
+        "../../packages/app-runner/src/index.ts"
+      ],
+      "@movscript/decision": [
+        "../../packages/decision/src/index.ts"
+      ],
+      "@movscript/editing": [
+        "../../packages/editing/src/index.ts"
+      ],
+      "@movscript/editing/browser": [
+        "../../packages/editing/src/browser.ts"
+      ],
+      "@movscript/editing-surface/app-events": [
+        "../../surface/editing/src/app-events.ts"
+      ],
+      "@movscript/editing-surface/browser-storage": [
+        "../../surface/editing/src/browser-storage.ts"
+      ],
+      "@movscript/editing-surface/contracts": [
+        "../../surface/editing/src/contracts.ts"
+      ],
+      "@movscript/editing-surface/host-api": [
+        "../../surface/editing/src/host-api.ts"
+      ],
+      "@movscript/editing-surface/media-probe": [
+        "../../surface/editing/src/media-probe.ts"
+      ],
+      "@movscript/editing-surface/navigation": [
+        "../../surface/editing/src/navigation.ts"
+      ],
+      "@movscript/editing-surface/pages/*": [
+        "../../surface/editing/src/pages/*"
+      ],
+      "@movscript/editing-surface/registry": [
+        "../../surface/editing/src/registry.ts"
+      ],
+      "@movscript/editing-surface/routes": [
+        "../../surface/editing/src/routes.ts"
+      ],
+      "@movscript/editing-surface/service-host-api": [
+        "../../surface/editing/src/service-host-api.ts"
+      ],
+      "@movscript/editing-surface/surface-routes": [
+        "../../surface/editing/src/surface-routes.tsx"
+      ],
+      "@movscript/editing-surface/toast": [
+        "../../surface/editing/src/toast.ts"
+      ],
+      "@movscript/editing-surface/window-events": [
+        "../../surface/editing/src/window-events.ts"
+      ],
+      "@movscript/editing-surface": [
+        "../../surface/editing/src/index.ts"
+      ],
+      "@movscript/engine": [
+        "../../packages/engine/src/index.ts"
+      ],
+      "@movscript/engine/node": [
+        "../../packages/engine/src/node.ts"
+      ],
+      "@movscript/interpreter": [
+        "../../packages/interpreter/src/index.ts"
+      ],
+      "@movscript/interpreter/artifacts": [
+        "../../packages/interpreter/src/artifacts/index.ts"
+      ],
+      "@movscript/interpreter/node": [
+        "../../packages/interpreter/src/node.ts"
+      ],
+      "@movscript/language": [
+        "../../packages/language/src/index.ts"
+      ],
+      "@movscript/language/domain": [
+        "../../packages/language/src/domain/index.ts"
+      ],
+      "@movscript/prompt": [
+        "../../packages/prompt/src/index.ts"
+      ],
+      "@movscript/runtime-contracts": [
+        "../../packages/runtime-contracts/src/index.ts"
+      ],
+      "@movscript/workspace": [
+        "../../packages/workspace/src/index.ts"
+      ],
+      "@movscript/workspace/indexer": [
+        "../../packages/workspace/src/indexer/index.ts"
+      ],
+      "@movscript/workspace/layout": [
+        "../../packages/workspace/src/layout/index.ts"
+      ],
+      "@movscript/workspace/home": [
+        "../../packages/workspace/src/home/index.ts"
+      ],
+      "@movscript/workspace/node": [
+        "../../packages/workspace/src/node.ts"
+      ],
+      "@movscript/workspace/repository": [
+        "../../packages/workspace/src/repository/index.ts"
+      ],
+      "@/*": [
+        "./src/*"
+      ]
+    }
+  },
+  "include": [
+    "electron"
+  ],
+  "exclude": [
+    "electron/**/*.test.ts",
+    "electron/**/*.test.tsx",
+    "electron/**/*.spec.ts",
+    "electron/**/*.spec.tsx"
+  ]
+}

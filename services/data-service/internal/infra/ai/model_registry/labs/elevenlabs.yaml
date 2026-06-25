@@ -1,0 +1,243 @@
+lab: elevenlabs
+templates:
+    - order: 1
+      id: elevenlabs:eleven-v3-tts
+      lab: elevenlabs
+      model_id: eleven_v3
+      display_name: ElevenLabs Eleven v3 语音合成
+      adapter_type: elevenlabs
+      capabilities:
+        - audio_tts
+      params:
+        - key: voice
+          label: Voice ID
+          type: string
+          default: ""
+        - key: output_format
+          label: 音频格式
+          type: select
+          options:
+            - mp3_44100_128
+            - mp3_22050_32
+            - pcm_16000
+            - ulaw_8000
+          default: mp3_44100_128
+        - key: stability
+          label: 稳定度
+          type: number
+          default: 0.5
+          max: 1
+          step: 0.01
+        - key: similarity_boost
+          label: 相似度
+          type: number
+          default: 0.75
+          max: 1
+          step: 0.01
+        - key: style
+          label: 风格强度
+          type: number
+          default: 0
+          max: 1
+          step: 0.01
+        - key: use_speaker_boost
+          label: 增强说话人
+          type: boolean
+          default: true
+        - key: speed
+          label: 语速
+          type: number
+          default: 1
+          min: 0.7
+          max: 1.2
+          step: 0.01
+      source:
+        url: https://elevenlabs.io/docs/api-reference/text-to-speech/convert
+        verified_at: "2026-06-25"
+        status: verified
+    - order: 2
+      id: elevenlabs:eleven-multilingual-v2-tts
+      lab: elevenlabs
+      model_id: eleven_multilingual_v2
+      display_name: ElevenLabs Multilingual v2 语音合成
+      adapter_type: elevenlabs
+      capabilities:
+        - audio_tts
+      params:
+        - key: voice
+          label: Voice ID
+          type: string
+          default: ""
+        - key: output_format
+          label: 音频格式
+          type: select
+          options:
+            - mp3_44100_128
+            - mp3_22050_32
+            - pcm_16000
+            - ulaw_8000
+          default: mp3_44100_128
+        - key: stability
+          label: 稳定度
+          type: number
+          default: 0.5
+          max: 1
+          step: 0.01
+        - key: similarity_boost
+          label: 相似度
+          type: number
+          default: 0.75
+          max: 1
+          step: 0.01
+        - key: style
+          label: 风格强度
+          type: number
+          default: 0
+          max: 1
+          step: 0.01
+        - key: use_speaker_boost
+          label: 增强说话人
+          type: boolean
+          default: true
+        - key: speed
+          label: 语速
+          type: number
+          default: 1
+          min: 0.7
+          max: 1.2
+          step: 0.01
+      source:
+        url: https://elevenlabs.io/docs/api-reference/text-to-speech/convert
+        verified_at: "2026-06-25"
+        status: verified
+    - order: 3
+      id: elevenlabs:eleven-flash-v2-5-tts
+      lab: elevenlabs
+      model_id: eleven_flash_v2_5
+      display_name: ElevenLabs Flash v2.5 低延迟语音合成
+      adapter_type: elevenlabs
+      capabilities:
+        - audio_tts
+      params:
+        - key: voice
+          label: Voice ID
+          type: string
+          default: ""
+        - key: output_format
+          label: 音频格式
+          type: select
+          options:
+            - mp3_44100_128
+            - mp3_22050_32
+            - pcm_16000
+            - ulaw_8000
+          default: mp3_44100_128
+        - key: stability
+          label: 稳定度
+          type: number
+          default: 0.5
+          max: 1
+          step: 0.01
+        - key: similarity_boost
+          label: 相似度
+          type: number
+          default: 0.75
+          max: 1
+          step: 0.01
+        - key: style
+          label: 风格强度
+          type: number
+          default: 0
+          max: 1
+          step: 0.01
+        - key: use_speaker_boost
+          label: 增强说话人
+          type: boolean
+          default: true
+        - key: speed
+          label: 语速
+          type: number
+          default: 1
+          min: 0.7
+          max: 1.2
+          step: 0.01
+      source:
+        url: https://elevenlabs.io/docs/api-reference/text-to-speech/convert
+        verified_at: "2026-06-25"
+        status: verified
+    - order: 4
+      id: elevenlabs:eleven-flash-v2-tts
+      lab: elevenlabs
+      model_id: eleven_flash_v2
+      display_name: ElevenLabs Flash v2 英文低延迟语音合成
+      adapter_type: elevenlabs
+      capabilities:
+        - audio_tts
+      params:
+        - key: voice
+          label: Voice ID
+          type: string
+          default: ""
+        - key: output_format
+          label: 音频格式
+          type: select
+          options:
+            - mp3_44100_128
+            - mp3_22050_32
+            - pcm_16000
+            - ulaw_8000
+          default: mp3_44100_128
+        - key: stability
+          label: 稳定度
+          type: number
+          default: 0.5
+          max: 1
+          step: 0.01
+        - key: similarity_boost
+          label: 相似度
+          type: number
+          default: 0.75
+          max: 1
+          step: 0.01
+        - key: style
+          label: 风格强度
+          type: number
+          default: 0
+          max: 1
+          step: 0.01
+        - key: use_speaker_boost
+          label: 增强说话人
+          type: boolean
+          default: true
+        - key: speed
+          label: 语速
+          type: number
+          default: 1
+          min: 0.7
+          max: 1.2
+          step: 0.01
+      source:
+        url: https://elevenlabs.io/docs/api-reference/text-to-speech/convert
+        verified_at: "2026-06-25"
+        status: verified
+    - order: 5
+      id: elevenlabs:scribe-v2
+      lab: elevenlabs
+      model_id: scribe_v2
+      display_name: ElevenLabs Scribe v2 转写
+      adapter_type: elevenlabs
+      capabilities:
+        - audio_transcribe
+      params:
+        - key: diarize
+          label: 区分说话人
+          type: boolean
+          default: false
+        - key: tag_audio_events
+          label: 标注音频事件
+          type: boolean
+          default: true
+      source:
+        url: https://elevenlabs.io/docs/api-reference/speech-to-text/convert
+        verified_at: "2026-06-25"
+        status: verified

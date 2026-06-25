@@ -1,13 +1,13 @@
 # Third-party source and generated build outputs are not product source.
-apps/backend/vendor/** linguist-vendored -diff
-apps/frontend/vendor/app-server/** linguist-vendored -diff
-apps/frontend/vendor/ffmpeg/** linguist-vendored -diff
+services/data-service/vendor/** linguist-vendored -diff
+apps/desktop/vendor/app-server/** linguist-vendored -diff
+apps/desktop/vendor/ffmpeg/** linguist-vendored -diff
 
 apps/*/dist/** linguist-generated -diff
-apps/backend/bin/** linguist-generated -diff
-apps/frontend/out/** linguist-generated -diff
-apps/frontend/release/** linguist-generated -diff
-apps/frontend/src/api/generated.ts linguist-generated -diff
+services/data-service/bin/** linguist-generated -diff
+apps/desktop/out/** linguist-generated -diff
+apps/desktop/release/** linguist-generated -diff
+apps/desktop/src/api/generated.ts linguist-generated -diff
 apps/movcli/bundle.js linguist-generated -diff
 apps/movcli/manifest.json linguist-generated -diff
 apps/movcli/*.movpkg linguist-generated -diff

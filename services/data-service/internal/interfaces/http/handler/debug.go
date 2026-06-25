@@ -1,0 +1,587 @@
+package handler
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	neturl "net/url"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/movscript/auth-service/pkg/authidentity"
+	adminsettings "github.com/movscript/movscript/internal/app/admin/settings"
+	debugapp "github.com/movscript/movscript/internal/app/debug"
+	"github.com/movscript/movscript/internal/infra/ai"
+	"github.com/movscript/movscript/internal/infra/observability"
+	"github.com/movscript/movscript/internal/interfaces/http/api"
+	audit "github.com/movscript/movscript/internal/interfaces/http/audit"
+	providercontract "github.com/movscript/movscript/internal/providers/contract"
+	"gorm.io/gorm"
+)
+
+type DebugHandler struct {
+	db            *gorm.DB
+	service       *debugapp.Service
+	settings      *adminsettings.Service
+	gatewayHealth providercontract.AIGatewayHealthProbe
+}
+
+func NewDebugHandler(db *gorm.DB, encryptionKey []byte) *DebugHandler {
+	return NewDebugHandlerWithGatewayHealth(db, encryptionKey, nil, nil)
+}
+
+func NewDebugHandlerWithGatewayHealth(db *gorm.DB, encryptionKey []byte, gatewayHealth providercontract.AIGatewayHealthProbe, identity authidentity.Reader) *DebugHandler {
+	return &DebugHandler{
+		db:            db,
+		service:       debugapp.NewServiceWithIdentity(db, identity, encryptionKey),
+		settings:      adminsettings.NewService(db),
+		gatewayHealth: gatewayHealth,
+	}
+}
+
+// RawCall sends an arbitrary HTTP request from the backend and returns full details.
+// Optionally uses a stored credential to fill in auth headers.
+// POST /admin/debug/raw-call
+func (h *DebugHandler) RawCall(c *gin.Context) {
+	var req struct {
+		CredentialID *uint             `json:"credential_id"` // optional: fill auth from stored cred
+		URL          string            `json:"url" binding:"required"`
+		Method       string            `json:"method" binding:"required"` // GET|POST|PUT|DELETE
+		Headers      map[string]string `json:"headers"`
+		Body         string            `json:"body"` // raw string (JSON or otherwise)
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 60*time.Second)
+	defer cancel()
+
+	result := h.service.RawCall(ctx, debugapp.RawCallInput{
+		CredentialID: req.CredentialID,
+		URL:          req.URL,
+		Method:       req.Method,
+		Headers:      req.Headers,
+		Body:         req.Body,
+	})
+	audit.Record(c, h.db, audit.Event{
+		Action:     "debug.raw_call.admin_executed",
+		TargetType: "debug_raw_call",
+		TargetID:   "",
+		Metadata: map[string]any{
+			"url":               redactAuditURL(result.URL),
+			"method":            result.Method,
+			"credential_id":     req.CredentialID,
+			"has_body":          req.Body != "",
+			"response_status":   result.ResponseStatus,
+			"latency_ms":        result.LatencyMs,
+			"error":             result.Error,
+			"request_headers":   redactHeaderNames(req.Headers),
+			"response_body_len": len(result.ResponseBody),
+		},
+	})
+	c.JSON(http.StatusOK, result)
+}
+
+// ListJobs returns Jobs with full debug info for the job monitor.
+// GET /admin/debug/jobs?status=&limit=&offset=
+func (h *DebugHandler) ListJobs(c *gin.Context) {
+	filters, ok := debugJobFiltersFromQuery(c)
+	if !ok {
+		return
+	}
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	items, total, err := h.service.ListJobDetails(c.Request.Context(), filters, limit, offset)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.Header("X-Total-Count", strconv.FormatInt(total, 10))
+	c.JSON(http.StatusOK, items)
+}
+
+func debugJobFiltersFromQuery(c *gin.Context) (debugapp.JobFilters, bool) {
+	jobID, ok := optionalDebugJobUintQuery(c, "job_id")
+	if !ok {
+		return debugapp.JobFilters{}, false
+	}
+	userID, ok := optionalDebugJobUintQuery(c, "user_id")
+	if !ok {
+		return debugapp.JobFilters{}, false
+	}
+	orgID, ok := optionalDebugJobUintQuery(c, "org_id")
+	if !ok {
+		return debugapp.JobFilters{}, false
+	}
+	projectID, ok := optionalDebugJobUintQuery(c, "project_id")
+	if !ok {
+		return debugapp.JobFilters{}, false
+	}
+	return debugapp.JobFilters{
+		JobID:      jobID,
+		Status:     c.Query("status"),
+		JobType:    c.Query("job_type"),
+		FeatureKey: c.Query("feature_key"),
+		UserID:     userID,
+		OrgID:      orgID,
+		ProjectID:  projectID,
+		ModelID:    c.Query("model_id"),
+	}, true
+}
+
+func optionalDebugJobUintQuery(c *gin.Context, key string) (*uint, bool) {
+	value, present, err := optionalUintQuery(c, key)
+	if err != nil || value == 0 {
+		if !present && err == nil {
+			return nil, true
+		}
+		c.JSON(http.StatusBadRequest, api.InvalidInput(key+" must be a positive integer"))
+		return nil, false
+	}
+	return &value, true
+}
+
+func optionalUintQuery(c *gin.Context, key string) (uint, bool, error) {
+	raw := strings.TrimSpace(c.Query(key))
+	if raw == "" {
+		return 0, false, nil
+	}
+	value, err := strconv.ParseUint(raw, 10, 64)
+	if err != nil {
+		return 0, false, fmt.Errorf("%s must be an unsigned integer", key)
+	}
+	return uint(value), true, nil
+}
+
+func (h *DebugHandler) JobStats(c *gin.Context) {
+	limit, _ := strconv.Atoi(c.DefaultQuery("recent_limit", "10"))
+	stats, err := h.service.JobStats(c.Request.Context(), limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, stats)
+}
+
+func (h *DebugHandler) ListLLMCallLogs(c *gin.Context) {
+	filter, ok := h.llmCallLogFilter(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.ListLLMCallLogs(c.Request.Context(), filter)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Internal("查询模型调用日志失败"))
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
+func (h *DebugHandler) LLMCallLogSummary(c *gin.Context) {
+	filter, ok := h.llmCallLogFilter(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.LLMCallLogSummary(c.Request.Context(), filter)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Internal("查询模型调用统计失败"))
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
+func (h *DebugHandler) GetLLMCallLogSettings(c *gin.Context) {
+	settings, err := h.service.LLMCallLogSettings(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Internal("读取模型调用日志设置失败"))
+		return
+	}
+	c.JSON(http.StatusOK, settings)
+}
+
+func (h *DebugHandler) UpdateLLMCallLogSettings(c *gin.Context) {
+	var req debugapp.LLMCallLogSettings
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
+		return
+	}
+	settings, err := h.service.UpdateLLMCallLogSettings(c.Request.Context(), req)
+	if err != nil {
+		if errors.Is(err, debugapp.ErrInvalidLLMCallLogSettings) {
+			c.JSON(http.StatusBadRequest, api.InvalidInput("保留天数必须在 1 到 365 之间"))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, api.Internal("保存模型调用日志设置失败"))
+		return
+	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "debug.llm_call_logs.settings_updated",
+		TargetType: "llm_call_log_settings",
+		TargetID:   "llm_call_log_settings",
+		Metadata: map[string]any{
+			"retention_days": settings.RetentionDays,
+		},
+	})
+	c.JSON(http.StatusOK, settings)
+}
+
+func (h *DebugHandler) PurgeExpiredLLMCallLogs(c *gin.Context) {
+	deleted, err := h.service.PurgeExpiredLLMCallLogs(c.Request.Context(), time.Now().UTC())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Internal("清理过期模型调用日志失败"))
+		return
+	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "debug.llm_call_logs.purged_expired",
+		TargetType: "llm_call_log",
+		Metadata: map[string]any{
+			"deleted": deleted,
+		},
+	})
+	c.JSON(http.StatusOK, gin.H{"deleted": deleted})
+}
+
+func (h *DebugHandler) UpdateLLMCallLogExpiration(c *gin.Context) {
+	id64, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil || id64 == 0 {
+		c.JSON(http.StatusBadRequest, api.InvalidInput("日志 ID 无效"))
+		return
+	}
+	var req struct {
+		ExpiresAt *time.Time `json:"expires_at"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
+		return
+	}
+	item, err := h.service.UpdateLLMCallLogExpiration(c.Request.Context(), uint(id64), req.ExpiresAt)
+	if err != nil {
+		if errors.Is(err, debugapp.ErrNotFound) {
+			c.JSON(http.StatusNotFound, api.NotFound("模型调用日志不存在"))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, api.Internal("更新模型调用日志过期时间失败"))
+		return
+	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "debug.llm_call_logs.expiration_updated",
+		TargetType: "llm_call_log",
+		TargetID:   strconv.FormatUint(id64, 10),
+		Metadata: map[string]any{
+			"expires_at": req.ExpiresAt,
+		},
+	})
+	c.JSON(http.StatusOK, item)
+}
+
+func (h *DebugHandler) llmCallLogFilter(c *gin.Context) (debugapp.LLMCallLogFilter, bool) {
+	since, ok := parseOptionalRFC3339(c, "since")
+	if !ok {
+		return debugapp.LLMCallLogFilter{}, false
+	}
+	until, ok := parseOptionalRFC3339(c, "until")
+	if !ok {
+		return debugapp.LLMCallLogFilter{}, false
+	}
+	return debugapp.LLMCallLogFilter{
+		UserID:          c.Query("user_id"),
+		OrgID:           c.Query("org_id"),
+		ProjectID:       c.Query("project_id"),
+		ModelID:         c.Query("model_id"),
+		CredentialID:    c.Query("credential_id"),
+		GatewayAPIKeyID: c.Query("gateway_api_key_id"),
+		OperationType:   c.Query("operation_type"),
+		Status:          c.Query("status"),
+		Provider:        c.Query("provider"),
+		PromptName:      c.Query("prompt_name"),
+		Since:           since,
+		Until:           until,
+		IncludeExpired:  c.Query("include_expired") == "true",
+		ExpiredOnly:     c.Query("expired_only") == "true",
+		Page:            parsePositiveInt(c.Query("page"), 1),
+		PageSize:        parsePositiveInt(c.Query("page_size"), 50),
+	}, true
+}
+
+func (h *DebugHandler) SystemHealth(c *gin.Context) {
+	stats, err := h.service.JobStats(c.Request.Context(), 10)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	thresholds, err := h.settings.SystemHealthThresholds(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Internal("读取系统健康阈值失败"))
+		return
+	}
+	c.JSON(http.StatusOK, buildSystemHealth(observability.DefaultHTTPMetrics().Snapshot(), stats, thresholds))
+}
+
+func (h *DebugHandler) ModelRuntimeHealth(c *gin.Context) {
+	var items any
+	var total int
+	var err error
+	if h.gatewayHealth != nil {
+		var health []providercontract.AIGatewayRuntimeHealth
+		health, err = h.gatewayHealth.ListGatewayRuntimeHealth(c.Request.Context())
+		items = health
+		total = len(health)
+	} else {
+		var health []ai.RuntimeProviderHealth
+		health, err = ai.RuntimeProviderHealthSnapshot(h.db)
+		items = health
+		total = len(health)
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Internal("读取模型运行时健康状态失败"))
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"items": items,
+		"total": total,
+	})
+}
+
+func (h *DebugHandler) GetHealthSettings(c *gin.Context) {
+	thresholds, err := h.settings.SystemHealthThresholds(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Internal("读取系统健康阈值失败"))
+		return
+	}
+	c.JSON(http.StatusOK, thresholds)
+}
+
+func (h *DebugHandler) UpdateHealthSettings(c *gin.Context) {
+	var req adminsettings.SystemHealthThresholds
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
+		return
+	}
+	thresholds, err := h.settings.UpdateSystemHealthThresholds(c.Request.Context(), req)
+	if err != nil {
+		if errors.Is(err, adminsettings.ErrInvalidSystemHealthThresholds) {
+			c.JSON(http.StatusBadRequest, api.InvalidInput("健康阈值必须非负，且 critical 不小于 warning"))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, api.Internal("保存系统健康阈值失败"))
+		return
+	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "debug.health_settings.admin_updated",
+		TargetType: "debug_health_settings",
+		TargetID:   adminsettings.SystemHealthThresholdsKey,
+		Metadata:   systemHealthThresholdsAuditMetadata(thresholds),
+	})
+	c.JSON(http.StatusOK, thresholds)
+}
+
+// ProviderCall builds a temporary provider from caller-supplied credentials and
+// calls the given capability. The backend never stores these credentials.
+// POST /admin/debug/provider-call
+func (h *DebugHandler) ProviderCall(c *gin.Context) {
+	var req struct {
+		AdapterType string         `json:"adapter_type" binding:"required"`
+		BaseURL     string         `json:"base_url"`
+		APIKey      string         `json:"api_key"`      // plain-text; never persisted
+		EndpointURL string         `json:"endpoint_url"` // full URL; capability inferred from path
+		Capability  string         `json:"capability"`   // text|image|video; ignored when endpoint_url is set
+		Model       string         `json:"model"`
+		Prompt      string         `json:"prompt"`
+		Params      map[string]any `json:"params"`  // capability-specific extra params
+		DryRun      bool           `json:"dry_run"` // if true, build request but do not send
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 120*time.Second)
+	defer cancel()
+
+	result := h.service.ProviderCall(ctx, debugapp.ProviderCallInput{
+		AdapterType: req.AdapterType,
+		BaseURL:     req.BaseURL,
+		APIKey:      req.APIKey,
+		EndpointURL: req.EndpointURL,
+		Capability:  req.Capability,
+		Model:       req.Model,
+		Prompt:      req.Prompt,
+		Params:      req.Params,
+		DryRun:      req.DryRun,
+	})
+	audit.Record(c, h.db, audit.Event{
+		Action:     "debug.provider_call.admin_executed",
+		TargetType: "debug_provider_call",
+		TargetID:   "",
+		Metadata:   providerCallAuditMetadata(req.AdapterType, req.BaseURL, req.EndpointURL, req.Capability, req.Model, req.Params, req.DryRun, result),
+	})
+	c.JSON(http.StatusOK, result)
+}
+
+// GetJob returns a single Job with full debug info.
+// GET /admin/debug/jobs/:id
+func (h *DebugHandler) GetJob(c *gin.Context) {
+	id := c.Param("id")
+	detail, err := h.service.GetJobDetail(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "job not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, detail)
+}
+
+func redactHeaderNames(headers map[string]string) map[string]string {
+	if len(headers) == 0 {
+		return map[string]string{}
+	}
+	out := make(map[string]string, len(headers))
+	for key, value := range headers {
+		if key == "" {
+			continue
+		}
+		if len(value) > 0 {
+			out[key] = "[set]"
+			continue
+		}
+		out[key] = ""
+	}
+	return out
+}
+
+func providerCallAuditMetadata(adapterType string, baseURL string, endpointURL string, capability string, model string, params map[string]any, dryRun bool, result ai.DebugCallResult) map[string]any {
+	paramKeys := make([]string, 0, len(params))
+	for key := range params {
+		paramKeys = append(paramKeys, key)
+	}
+	sort.Strings(paramKeys)
+	return map[string]any{
+		"adapter_type":    adapterType,
+		"base_url":        redactAuditURL(baseURL),
+		"endpoint_url":    redactAuditURL(endpointURL),
+		"capability":      capability,
+		"model":           model,
+		"param_keys":      paramKeys,
+		"dry_run":         dryRun,
+		"success":         result.Success,
+		"endpoint":        redactAuditURL(result.Endpoint),
+		"method":          result.Method,
+		"response_status": result.ResponseStatus,
+		"latency_ms":      result.LatencyMs,
+		"error":           result.Error,
+	}
+}
+
+func systemHealthThresholdsAuditMetadata(thresholds adminsettings.SystemHealthThresholds) map[string]any {
+	return map[string]any{
+		"error_rate_warn":        thresholds.ErrorRateWarn,
+		"error_rate_critical":    thresholds.ErrorRateCritical,
+		"failed_jobs_warn":       thresholds.FailedJobsWarn,
+		"failed_jobs_critical":   thresholds.FailedJobsCritical,
+		"slow_requests_warn":     thresholds.SlowRequestsWarn,
+		"slow_requests_critical": thresholds.SlowRequestsCritical,
+	}
+}
+
+func redactAuditURL(raw string) string {
+	parsed, err := neturl.Parse(raw)
+	if err != nil {
+		return raw
+	}
+	parsed.RawQuery = ""
+	parsed.ForceQuery = false
+	parsed.Fragment = ""
+	return parsed.String()
+}
+
+type systemHealthMetricSummary struct {
+	Requests      uint64  `json:"requests"`
+	Errors        uint64  `json:"errors"`
+	ErrorRate     float64 `json:"error_rate"`
+	FailedJobs    int64   `json:"failed_jobs"`
+	SlowRequests  int64   `json:"slow_requests"`
+	UptimeSeconds float64 `json:"uptime_seconds"`
+}
+
+type systemHealthIssue struct {
+	Key       string  `json:"key"`
+	Severity  string  `json:"severity"`
+	Value     float64 `json:"value"`
+	Threshold float64 `json:"threshold"`
+}
+
+type systemHealthSnapshot struct {
+	Status     string                               `json:"status"`
+	Metrics    systemHealthMetricSummary            `json:"metrics"`
+	Thresholds adminsettings.SystemHealthThresholds `json:"thresholds"`
+	Issues     []systemHealthIssue                  `json:"issues"`
+}
+
+func buildSystemHealth(metrics observability.HTTPMetricsSnapshot, stats debugapp.JobStats, thresholds adminsettings.SystemHealthThresholds) systemHealthSnapshot {
+	errorRate := 0.0
+	if metrics.Requests > 0 {
+		errorRate = (float64(metrics.Errors) / float64(metrics.Requests)) * 100
+	}
+	failedJobs := int64(0)
+	for _, item := range stats.ByStatus {
+		if item.Status == "failed" {
+			failedJobs = item.Count
+			break
+		}
+	}
+	uptimeSeconds := 0.0
+	if raw, ok := metrics.Summary["uptime_seconds"]; ok {
+		switch value := raw.(type) {
+		case float64:
+			uptimeSeconds = value
+		case int:
+			uptimeSeconds = float64(value)
+		case int64:
+			uptimeSeconds = float64(value)
+		}
+	}
+	health := systemHealthSnapshot{
+		Status:     "ok",
+		Thresholds: thresholds,
+		Metrics: systemHealthMetricSummary{
+			Requests:      metrics.Requests,
+			Errors:        metrics.Errors,
+			ErrorRate:     errorRate,
+			FailedJobs:    failedJobs,
+			SlowRequests:  int64(len(metrics.SlowRequests)),
+			UptimeSeconds: uptimeSeconds,
+		},
+		Issues: []systemHealthIssue{},
+	}
+	health.addIssue("error_rate", errorRate, thresholds.ErrorRateWarn, thresholds.ErrorRateCritical)
+	health.addIssue("failed_jobs", float64(failedJobs), float64(thresholds.FailedJobsWarn), float64(thresholds.FailedJobsCritical))
+	health.addIssue("slow_requests", float64(len(metrics.SlowRequests)), float64(thresholds.SlowRequestsWarn), float64(thresholds.SlowRequestsCritical))
+	return health
+}
+
+func (h *systemHealthSnapshot) addIssue(key string, value float64, warnThreshold float64, criticalThreshold float64) {
+	if value >= criticalThreshold && criticalThreshold >= 0 {
+		h.Issues = append(h.Issues, systemHealthIssue{Key: key, Severity: "critical", Value: value, Threshold: criticalThreshold})
+		h.Status = "critical"
+		return
+	}
+	if value >= warnThreshold && warnThreshold >= 0 {
+		h.Issues = append(h.Issues, systemHealthIssue{Key: key, Severity: "warning", Value: value, Threshold: warnThreshold})
+		if h.Status == "ok" {
+			h.Status = "warning"
+		}
+	}
+}

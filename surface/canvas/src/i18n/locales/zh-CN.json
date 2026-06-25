@@ -1,0 +1,503 @@
+{
+  "common": {
+    "all": "全部",
+    "back": "返回",
+    "cancel": "取消",
+    "close": "关闭",
+    "collapse": "收起",
+    "computed": "计算字段",
+    "create": "创建",
+    "creating": "创建中…",
+    "delete": "删除",
+    "details": "详情",
+    "dismiss": "忽略",
+    "emptyTitle": "（无标题）",
+    "emptyDescription": "（无描述）",
+    "expand": "展开",
+    "itemsCount": "{{count}} 项",
+    "shotsCount": "{{count}} 个镜头",
+    "storyboardRef": "分镜 #{{id}}",
+    "save": "保存",
+    "saving": "保存中…",
+    "send": "发送",
+    "selected": "已选",
+    "retry": "重试",
+    "readonly": "只读",
+    "related": "关联",
+    "refresh": "刷新",
+    "loading": "加载中...",
+    "loadingShort": "加载中…",
+    "next": "下一页",
+    "switch": "切换",
+    "selectProject": "选择项目...",
+    "noProject": "无项目",
+    "inputPlaceholder": "输入内容...",
+    "requestFailed": "请求失败，请稍后重试",
+    "apiKey": "API Key",
+    "baseUrl": "Base URL",
+    "credits": "Credits",
+    "endpointUrl": "端点 URL",
+    "method": "请求方法",
+    "modelId": "模型 ID",
+    "modelIdOverride": "模型 ID 覆盖",
+    "prompt": "提示词",
+    "tokens": "Tokens",
+    "url": "URL",
+    "download": "下载",
+    "empty": "空",
+    "remove": "移除"
+  },
+  "header": {
+    "titles": {
+      "canvases": "画布"
+    }
+  },
+  "pages": {
+    "canvases": {
+      "subtitle": "灵感激发 · 工作流",
+      "types": {
+        "inspiration": "灵感激发",
+        "workflow": "工作流"
+      },
+      "typeDescriptions": {
+        "inspiration": "手动逐节点运行，自由探索创意",
+        "workflow": "定义输入输出，全流程自动执行"
+      },
+      "newCanvas": "新建画布",
+      "empty": "还没有画布",
+      "createFirst": "创建第一个画布",
+      "open": "打开",
+      "rename": "重命名",
+      "renameConfirm": "确认重命名",
+      "searchLabel": "搜索画布",
+      "searchPlaceholder": "搜索名称、ID 或类型",
+      "categoryFilter": "画布分类",
+      "resultSummary": "显示 {{shown}} / {{total}} 个画布",
+      "noResults": "没有匹配的画布",
+      "clearFilters": "清除筛选",
+      "pageStatus": "第 {{page}} / {{pageCount}} 页",
+      "previousPage": "上一页",
+      "nextPage": "下一页",
+      "nameRequired": "画布名称 *",
+      "namePlaceholder": "为你的画布起个名字",
+      "workflowCreateHint": "新画布会以工作流创建，包含默认输入、输出节点。",
+      "createAndOpen": "创建并打开",
+      "allProjects": "全部项目",
+      "currentProject": "当前项目",
+      "globalLibrary": "全局画布库",
+      "workspaceSummary": "当前工作区共 {{count}} 个画布",
+      "invalidListResponse": "画布服务返回了无效的列表响应。请检查 /local-api/canvas/canvases 是否已代理到画布服务。"
+    },
+    "jobs": {
+      "generationFailed": "生成失败",
+      "generating": "生成中…"
+    }
+  },
+  "agents": {
+    "model": "模型"
+  },
+  "canvas": {
+    "types": {
+      "inspiration": "灵感激发",
+      "workflow": "工作流"
+    },
+    "status": {
+      "done": "已完成",
+      "failed": "失败",
+      "running": "运行中",
+      "notRun": "未运行"
+    },
+    "runStatus": {
+      "pending": "排队中",
+      "running": "运行中",
+      "done": "已完成",
+      "failed": "失败"
+    },
+    "modes": {
+      "compact": "紧凑",
+      "detail": "详情",
+      "full": "完整"
+    },
+    "switchModeTitle": "切换显示模式（当前: {{mode}}）",
+    "mediaTypes": {
+      "image": "图片",
+      "video": "视频"
+    },
+    "paramTypes": {
+      "text": "文本",
+      "image": "图片",
+      "video": "视频",
+      "audio": "音频",
+      "json": "JSON",
+      "number": "数字",
+      "boolean": "布尔",
+      "resource": "资源"
+    },
+    "outputTypes": {
+      "image": "图",
+      "video": "视频",
+      "text": "文",
+      "audio": "音"
+    },
+    "nodeLabels": {
+      "text": "文本",
+      "image": "图片",
+      "video": "视频",
+      "audio": "音频",
+      "canvas": "画布引用",
+      "ref_image_gen": "参考生图",
+      "ref_video_gen": "参考生视频",
+      "multi_angle": "图像多角度",
+      "style_transfer": "风格迁移",
+      "motion_imitation": "动作模仿",
+      "input": "输入",
+      "output": "输出",
+      "resource_sink": "保存资源",
+      "approval": "人工确认",
+      "text_gen": "AI 文本生成",
+      "ai_gen": "AI 生成",
+      "group": "分组",
+      "plugin_card": "插件卡片",
+      "entity_card": "实体"
+    },
+    "entityTypes": {
+      "script": "手记",
+      "setting": "设定资料",
+      "assetSlot": "素材需求",
+      "contentUnit": "创作片段",
+      "asset": "素材",
+      "episode": "制作",
+      "scene": "分场",
+      "storyboard": "分镜",
+      "shot": "镜头",
+      "final_video": "成片"
+    },
+    "catalog": {
+      "categories": {
+        "flow": {
+          "title": "输入 / 输出",
+          "description": "定义工作流的入口、出口和人工关卡"
+        },
+        "media": {
+          "title": "素材",
+          "description": "承载文本、图片、视频和音频资产"
+        },
+        "ai": {
+          "title": "AI 处理",
+          "description": "把上游输入转换为新的生成结果"
+        },
+        "organization": {
+          "title": "组织",
+          "description": "整理复杂画布的区域与语义分组"
+        },
+        "plugins": {
+          "title": "本机插件",
+          "description": "把当前客户端安装的插件作为本地卡片放入画布"
+        }
+      },
+      "nodes": {
+        "input": {
+          "label": "用户输入",
+          "description": "运行工作流时收集文本输入"
+        },
+        "output": {
+          "label": "工作流输出",
+          "description": "把上游结果作为当前工作流的类型化输出暴露给调用方"
+        },
+        "resource_sink": {
+          "label": "保存资源",
+          "description": "把上游值写入资源库"
+        },
+        "entity_card": {
+          "label": "实体",
+          "description": "引用项目实体，并把实体字段作为工作流输入或输出"
+        },
+        "approval": {
+          "label": "人工确认",
+          "description": "让流程在关键步骤等待审核"
+        },
+        "text": {
+          "label": "文本",
+          "description": "手写、上传或承接 AI 文本"
+        },
+        "image": {
+          "label": "图片",
+          "description": "图片资源或生图结果"
+        },
+        "video": {
+          "label": "视频",
+          "description": "视频资源或生成结果"
+        },
+        "audio": {
+          "label": "音频",
+          "description": "音频资源或声音结果"
+        },
+        "ai_gen": {
+          "label": "AI 生成",
+          "description": "按目标类型生成图像、视频、文本或音频"
+        },
+        "text_gen": {
+          "label": "AI 文本生成",
+          "description": "根据上游内容扩写、总结或改写"
+        },
+        "ref_image_gen": {
+          "label": "参考生图",
+          "description": "用参考图生成新的视觉方案"
+        },
+        "ref_video_gen": {
+          "label": "参考生视频",
+          "description": "以参考素材生成视频"
+        },
+        "multi_angle": {
+          "label": "图像多角度",
+          "description": "基于角色或物体图生成多角度视图"
+        },
+        "style_transfer": {
+          "label": "风格迁移",
+          "description": "将参考风格迁移到目标素材"
+        },
+        "motion_imitation": {
+          "label": "动作模仿",
+          "description": "让目标角色模仿参考动作"
+        },
+        "canvas": {
+          "label": "画布引用",
+          "description": "复用另一个画布的中间结果"
+        },
+        "group": {
+          "label": "分组",
+          "description": "框选并整理一组节点"
+        }
+      }
+    },
+    "pluginCard": {
+      "waiting": "等待本地调用",
+      "noPlugins": "当前客户端还没有安装插件",
+      "localPluginRunner": "本地插件执行器",
+      "localPluginRunnerDescription": "该卡片在当前客户端运行，结果会写回节点状态。",
+      "missingPlugin": "当前客户端找不到这个插件，请先重新安装或启用。",
+      "executableReady": "已生成后端执行描述"
+    },
+    "contextMenu": {
+      "groupSelected": "将 {{count}} 个节点分组",
+      "deleteSelected": "删除选中节点"
+    },
+    "editor": {
+      "resourceShelf": {
+        "title": "可用内容",
+        "dragHint": "拖入画布创建节点",
+        "noAssetViews": "暂无素材视图",
+        "noProject": "该画布未绑定项目"
+      },
+      "history": {
+        "title": "运行历史",
+        "description": "按运行时快照记录，用于回看输入、结果和当次画布结构",
+        "allStatuses": "全部状态",
+        "runsCount": "{{count}} 次运行",
+        "run": "运行",
+        "status": "状态",
+        "duration": "耗时",
+        "snapshot": "快照",
+        "startedAt": "开始时间",
+        "loading": "加载运行记录",
+        "empty": "暂无匹配的运行记录",
+        "snapshotSummary": "{{nodes}} 节点 / {{edges}} 连接"
+      },
+      "audit": {
+        "title": "实体写入审计",
+        "description": "记录画布运行写入实体字段的变更",
+        "recordsCount": "{{count}} 条记录",
+        "entity": "实体",
+        "node": "节点",
+        "port": "端口",
+        "change": "变更",
+        "loading": "加载审计记录",
+        "empty": "暂无实体写入记录"
+      },
+      "errors": {
+        "nodeNotFound": "数据库中未找到节点",
+        "invalidRuntimeInput": "{{port}} 输入无效",
+        "requiredRuntimeInput": "{{port}} 为必填项"
+      },
+      "untitled": "未命名画布",
+      "nodesCount": "{{count}} 节点",
+      "runningCount": "{{count}} 运行中",
+      "activeRun": "运行 #{{id}} · {{status}}",
+      "parallelRuns": "并行 {{count}}",
+      "stats": {
+        "inputs": "输入 {{count}}",
+        "processors": "处理 {{count}}",
+        "outputs": "输出 {{count}}",
+        "done": "已完成 {{count}}"
+      },
+      "canvasType": {
+        "workflow": "工作流画布",
+        "inspiration": "灵感激发画布"
+      },
+      "starting": "启动中…",
+      "startRun": "启动运行",
+      "nodeLibrary": "节点库",
+      "nodeLibraryHint": "拖拽节点到画布，或点击添加到视口中心",
+      "emptyTitle": "从左侧拖入输入、AI 处理和输出节点",
+      "emptyDescription": "右键画布也可以快速插入节点。选中节点后在右侧配置模型、提示词和素材来源。",
+      "dropToPlace": "松开鼠标放置节点",
+      "status": {
+        "dragging": "正在移动节点，松开后会保留位置",
+        "selected": "已选中 {{label}}",
+        "idle": "拖动画布平移，框选可批量操作"
+      },
+      "inspector": "节点检查器",
+      "noSelectionTitle": "未选择节点",
+      "noSelectionDescription": "选择一个节点后，可以在这里编辑标签、输入来源、模型、提示词和运行参数。",
+      "currentSelection": "当前选择",
+      "edgesCount": "连接数量",
+      "workflowInputDescription": "按输入节点的参数类型填写内容后，工作流将自动运行。",
+      "nodeRuntimeInputTitle": "运行时输入",
+      "nodeRuntimeInputDescription": "运行该节点前，请填写未连接的输入端口。",
+      "booleanEnabled": "启用",
+      "resourceIdPlaceholder": "资源 ID"
+    },
+    "unset": "未设置",
+    "textInputPlaceholder": "在此输入文本…",
+    "emptyContent": "无内容",
+    "emptyAudio": "无音频",
+    "noPrompt": "无提示词",
+    "waitingStart": "等待开始…",
+    "generating": "生成中…",
+    "generationFailed": "生成失败",
+    "fillAtRuntime": "运行时填写",
+    "generated": "已生成",
+    "resourceSaved": "已保存到资源库",
+    "waitingUpstream": "等待上游结果",
+    "referenceWorkflow": {
+      "selectWorkflow": "选择引用工作流后显示接口",
+      "interfaceSummary": "{{inputs}} 个输入 · {{outputs}} 个输出",
+      "reading": "读取引用输出…",
+      "latestOutputHint": "运行时读取该工作流最近一次成功输出。输入端口用于表达上游依赖。",
+      "noWorkflowHint": "在右侧选择一个工作流画布后，会按它的输入/输出节点生成吸附点。"
+    },
+    "entityCard": {
+      "noPreview": "暂无可预览字段",
+      "noValue": "暂无内容"
+    },
+    "approval": {
+      "waiting": "等待",
+      "approved": "已通过",
+      "rejected": "已拒绝",
+      "approve": "通过",
+      "reject": "拒绝",
+      "approvedMark": "✓ 已通过",
+      "rejectedMark": "✗ 已拒绝",
+      "resetWaiting": "重置为等待"
+    },
+    "nodePanel": {
+      "promptPlaceholder": "描述你想生成的内容… 输入 @ 引用上游节点",
+      "noUpstreamNodes": "暂无上游连接节点",
+      "inputContent": "输入内容",
+      "inputDefaultPlaceholder": "工作流运行时会弹窗填写，也可在此预设默认值…",
+      "inputHint": "此节点是工作流的入口，运行时弹窗要求填写内容。",
+      "outputHint": "此节点只定义工作流对外输出，不负责保存资源。需要写入资源库时请连接“保存资源”节点。",
+      "resourceSinkHint": "此节点把上游值写入资源库；资源输入会直接复用，文本 / JSON / 数字 / 布尔会保存为文件。",
+      "currentOutput": "当前输出",
+      "approvalHint": "工作流运行到此节点时暂停，等待人工确认后继续。",
+      "currentStatus": "当前状态",
+      "generateText": "生成文本",
+      "referenceWorkflow": "引用工作流",
+      "selectWorkflow": "选择可复用工作流…",
+      "referenceWorkflowHint": "只能引用工作流画布。运行时会读取该工作流最近一次成功运行的输出资源。",
+      "readReferenceOutput": "读取引用输出",
+      "source": "来源",
+      "sources": {
+        "upload": "上传",
+        "ai": "AI 生成",
+        "manual": "手写"
+      },
+      "uploading": "上传中…",
+      "uploaded": "已上传: {{name}}",
+      "selectFile": "点击选择文件",
+      "selectFromResources": "或从资源库选择",
+      "selectResource": "选择资源…",
+      "textContent": "文本内容",
+      "textContentPlaceholder": "在此输入文本内容…",
+      "label": "标签",
+      "fileName": "文件名",
+      "fileNamePlaceholder": "留空则随机生成",
+      "randomFileName": "随机文件名",
+      "paramName": "参数名",
+      "paramNamePlaceholder": "例如 prompt",
+      "paramType": "参数类型",
+      "saveResource": "保存资源"
+    },
+    "generatedByCanvas": "canvas生成",
+    "namePlaceholder": "画布名称",
+    "runningCount": "{{count}} 运行中",
+    "tasksCount": "任务 ({{count}})",
+    "running": "运行中…",
+    "run": "运行",
+    "workflowInputTitle": "填写工作流输入",
+    "inputContentPlaceholder": "输入内容…",
+    "startRun": "开始运行",
+    "pushToEntity": "推送到实体",
+    "pushHint": "将该{{type}}添加到以下素材需求",
+    "noPushTargets": "暂无可推送目标（请先在上方选择素材需求）",
+    "push": "推送",
+    "runCanvas": "运行画布",
+    "newCanvasDefaultName": "新画布",
+    "canvasList": "画布列表",
+    "newCanvas": "新建画布",
+    "empty": "暂无画布",
+    "selectOrCreate": "选择或新建一个画布"
+  },
+  "shared": {
+    "generation": {
+      "promptPlaceholder": "描述你想生成的内容…",
+      "resultAlt": "生成结果",
+      "runNode": "运行节点",
+      "waitingStart": "等待开始…"
+    },
+    "genInput": {
+      "addResourcesFirst": "请先添加资源到标签",
+      "addToLibrary": "添加到资源库",
+      "generate": "生成",
+      "libraryOnlyHint": "",
+      "maxCount": "最多 {{count}} 个",
+      "mention": "引用",
+      "multipleAllowed": "可多个",
+      "noMatchedResources": "没有匹配的资源",
+      "promptPlaceholder": {
+        "image": "描述你想生成的内容… 输入 @ 可引用资源库中的图片",
+        "video": "描述你想生成的内容… 输入 @ 可引用资源库中的视频",
+        "image+video": "描述你想生成的内容… 输入 @ 可引用资源库中的图片或视频"
+      },
+      "required": "必填",
+      "selectOrUploadHint": "从左侧资源库选择，或使用下方上传入口添加",
+      "slots": {
+        "ref_images": "参考图（可选）",
+        "ref_video": "参考视频（可选）",
+        "target_images": "目标图像",
+        "motion_video": "动作视频",
+        "target_image": "需要修改的图像",
+        "style_images": "画风图像",
+        "source_image": "多角度图像"
+      }
+    },
+    "modelSelector": {
+      "noModels": "暂无后端路由模型",
+      "refresh": "刷新模型列表"
+    },
+    "resourcePanel": {
+      "allAssets": "全部素材需求",
+      "assetLibrary": "素材需求",
+      "noAssets": "暂无素材需求",
+      "noResources": "暂无资源",
+      "previewDragTitle": "点击预览，拖拽添加",
+      "resourceLibrary": "资源库",
+      "searchAssets": "搜索素材需求…",
+      "searchResources": "搜索资源…",
+      "selectProjectFirst": "需要先选择项目"
+    }
+  },
+  "plugins": {
+    "parameters": "参数"
+  }
+}

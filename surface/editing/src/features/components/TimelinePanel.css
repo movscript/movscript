@@ -1,0 +1,194 @@
+.editing-workspace-timeline {
+  --editing-timeline-border: var(--editing-border, var(--ms-color-border));
+  --editing-timeline-panel-muted: var(
+    --editing-panel-muted,
+    color-mix(in srgb, var(--ms-color-muted) 46%, transparent)
+  );
+  --editing-track-label-width: 156px;
+  --editing-track-border-width: 1px;
+  --editing-track-height: 68px;
+  --editing-audio-track-height: 56px;
+  --editing-clip-inset-y: 6px;
+  --editing-clip-height: calc(var(--editing-track-height) - var(--editing-clip-inset-y) * 2);
+  --editing-audio-clip-height: calc(var(--editing-audio-track-height) - var(--editing-clip-inset-y) * 2);
+  position: relative;
+  z-index: 1;
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-rows: auto 32px minmax(0, 1fr);
+  border-top: 1px solid var(--editing-timeline-border);
+  background: color-mix(in srgb, var(--ms-color-background) 94%, #000000);
+  overflow: hidden;
+}
+
+.editing-workspace-timeline-commandbar {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  border-bottom: 1px solid var(--editing-timeline-border);
+  background: color-mix(in srgb, var(--editing-timeline-panel-muted) 82%, var(--ms-color-background));
+  padding: 8px 12px;
+}
+
+.editing-workspace-timeline-tools,
+.editing-workspace-timeline-toggles {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.editing-workspace-timeline-tools,
+.editing-workspace-timeline-toggles {
+  border: 1px solid var(--editing-timeline-border);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--ms-color-background) 88%, transparent);
+  padding: 2px;
+}
+
+.editing-workspace-timeline-tool--labeled {
+  white-space: nowrap;
+}
+
+.editing-workspace-track-stack {
+  display: grid;
+  align-content: start;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 12px 12px;
+  scrollbar-gutter: stable both-edges;
+}
+
+.editing-workspace-empty-track-drop {
+  display: flex;
+  min-height: 76px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px dashed var(--editing-timeline-border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--ms-color-muted) 18%, transparent);
+  color: var(--ms-color-muted-foreground);
+  font-size: 12px;
+  margin-top: 10px;
+}
+
+.editing-workspace-timeline-ruler {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: calc(var(--editing-track-label-width) + var(--editing-track-border-width)) minmax(0, 1fr);
+  column-gap: 0;
+  border-bottom: 1px solid var(--editing-timeline-border);
+  background: color-mix(in srgb, var(--editing-timeline-panel-muted) 90%, var(--ms-color-background));
+  padding: 0 12px;
+}
+
+.editing-workspace-ruler-spacer {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-right: 1px solid var(--editing-timeline-border);
+  padding-inline: 8px 7px;
+  color: var(--ms-color-muted-foreground);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.editing-workspace-track-add-trigger {
+  width: 22px;
+  height: 22px;
+  color: var(--ms-color-muted-foreground);
+}
+
+.editing-workspace-track-add-trigger:hover,
+.editing-workspace-track-add-trigger:focus-visible {
+  color: var(--ms-color-foreground);
+}
+
+.editing-workspace-track-add-menu [data-ms-slot="item"] {
+  gap: 8px;
+}
+
+.editing-workspace-ruler-lane {
+  position: relative;
+  min-width: 0;
+  border: 0;
+  background:
+    repeating-linear-gradient(
+      to right,
+      color-mix(in srgb, var(--ms-color-muted-foreground) 42%, transparent) 0 1px,
+      transparent 1px 16px
+    ),
+    repeating-linear-gradient(
+      to right,
+      color-mix(in srgb, var(--ms-color-muted-foreground) 78%, transparent) 0 1px,
+      transparent 1px 64px
+    ),
+    color-mix(in srgb, var(--ms-color-muted) 20%, transparent);
+  background-size: auto 7px, auto 13px, auto;
+  background-position: left bottom, left bottom, left top;
+  background-repeat: repeat-x;
+  cursor: crosshair;
+}
+
+.editing-workspace-ruler-tick {
+  position: absolute;
+  inset-block: 0;
+  display: grid;
+  align-content: start;
+  justify-items: center;
+  color: var(--ms-color-muted-foreground);
+  font-size: 10px;
+  line-height: 1;
+  transform: translateX(-50%);
+}
+
+.editing-workspace-ruler-tick i {
+  width: 1px;
+  height: 7px;
+  background: color-mix(in srgb, var(--editing-timeline-border) 76%, transparent);
+}
+
+.editing-workspace-ruler-tick span {
+  margin-top: 4px;
+  white-space: nowrap;
+  transform: translateX(50%);
+}
+
+.editing-workspace-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 4;
+  width: 0;
+  border-left: 2px solid var(--ms-color-primary);
+  background: transparent;
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--ms-color-primary) 44%, transparent));
+  pointer-events: none;
+  transform: translateX(-1px);
+}
+
+.editing-workspace-playhead--ruler {
+  z-index: 8;
+}
+
+.editing-workspace-playhead--ruler::before {
+  position: absolute;
+  bottom: -1px;
+  left: -6px;
+  width: 12px;
+  height: 10px;
+  background: var(--ms-color-primary);
+  clip-path: polygon(50% 100%, 0 0, 100% 0);
+  content: "";
+}

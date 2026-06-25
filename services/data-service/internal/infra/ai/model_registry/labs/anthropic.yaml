@@ -1,0 +1,51 @@
+lab: anthropic
+templates:
+    - order: 17
+      id: anthropic:claude-3-5-sonnet
+      lab: anthropic
+      model_id: claude-3-5-sonnet-20241022
+      display_name: Claude 3.5 Sonnet
+      adapter_type: anthropic
+      capabilities:
+        - text
+      source:
+        url: https://platform.claude.com/docs/en/about-claude/model-deprecations
+        verified_at: "2026-06-25"
+        status: deprecated
+    - order: 18
+      id: anthropic:claude-3-7-sonnet
+      lab: anthropic
+      model_id: claude-3-7-sonnet-20250219
+      display_name: Claude 3.7 Sonnet (推理)
+      adapter_type: anthropic
+      capabilities:
+        - text
+        - reasoning
+      source:
+        url: https://platform.claude.com/docs/en/about-claude/model-deprecations
+        verified_at: "2026-06-25"
+        status: deprecated
+    - order: 19
+      id: anthropic:claude-3-5-haiku
+      lab: anthropic
+      model_id: claude-3-5-haiku-20241022
+      display_name: Claude 3.5 Haiku
+      adapter_type: anthropic
+      capabilities:
+        - text
+      source:
+        url: https://platform.claude.com/docs/en/about-claude/model-deprecations
+        verified_at: "2026-06-25"
+        status: deprecated
+    - order: 20
+      id: anthropic:claude-opus-4
+      lab: anthropic
+      model_id: claude-opus-4-5-20251101
+      display_name: Claude Opus 4.5
+      adapter_type: anthropic
+      capabilities:
+        - text
+      source:
+        url: https://platform.claude.com/docs/en/about-claude/models/overview
+        verified_at: "2026-06-25"
+        status: verified

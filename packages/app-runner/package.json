@@ -1,0 +1,37 @@
+{
+  "name": "@movscript/app-runner",
+  "version": "0.1.28",
+  "private": true,
+  "description": "MovScript application lifecycle runner for composing program services.",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "node --test tests/*.test.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@movscript/runtime-contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.17",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

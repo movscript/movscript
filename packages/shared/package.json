@@ -1,0 +1,89 @@
+{
+  "name": "@movscript/shared",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MovScript shared app settings, JSON value, provider session, and semantic helper contracts.",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./browser": {
+      "types": "./dist/browser.d.ts",
+      "import": "./dist/browser.js"
+    },
+    "./media-probe": {
+      "types": "./dist/mediaProbe.d.ts",
+      "import": "./dist/mediaProbe.js"
+    },
+    "./generation-param-labels": {
+      "types": "./dist/generationParamLabels.d.ts",
+      "import": "./dist/generationParamLabels.js"
+    },
+    "./generation-jobs": {
+      "types": "./dist/surfaceGenerationJobs.d.ts",
+      "import": "./dist/surfaceGenerationJobs.js"
+    },
+    "./surface-http": {
+      "types": "./dist/surfaceHttpClient.d.ts",
+      "import": "./dist/surfaceHttpClient.js"
+    },
+    "./models": {
+      "types": "./dist/surfaceModels.d.ts",
+      "import": "./dist/surfaceModels.js"
+    },
+    "./host-state": {
+      "types": "./dist/surfaceHostState.d.ts",
+      "import": "./dist/surfaceHostState.js"
+    },
+    "./state-storage": {
+      "types": "./dist/surfaceStateStorage.d.ts",
+      "import": "./dist/surfaceStateStorage.js"
+    },
+    "./semantic-entities": {
+      "types": "./dist/surfaceSemanticEntities.d.ts",
+      "import": "./dist/surfaceSemanticEntities.js"
+    },
+    "./surface-routes": {
+      "types": "./dist/surfaceRoutes.d.ts",
+      "import": "./dist/surfaceRoutes.js"
+    },
+    "./app-events": {
+      "types": "./dist/appEvents.d.ts",
+      "import": "./dist/appEvents.js"
+    },
+    "./workspace-artifact": {
+      "types": "./dist/workspaceArtifact.d.ts",
+      "import": "./dist/workspaceArtifact.js"
+    },
+    "./workspace-candidates": {
+      "types": "./dist/workspaceCandidates.d.ts",
+      "import": "./dist/workspaceCandidates.js"
+    },
+    "./workspace-domain": {
+      "types": "./dist/workspaceDomain.d.ts",
+      "import": "./dist/workspaceDomain.js"
+    }
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm build && node --test tests/*.test.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.8.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,7 +1,9 @@
 import { backendList, backendPost } from '../../../../backend/node/client.js'
-import { mkdir, readFile, stat } from 'node:fs/promises'
-import { basename, resolve } from 'node:path'
-import { createNodeMovScriptWorkspaceService } from '@movscript/workspace/node'
+import {
+  createProjectServiceClientFromRuntime,
+  type ProjectLifecycleCommandName,
+} from '@movscript/project'
+import { resolve } from 'node:path'
 import { getOptionalNumeric, getOptionalString } from '../../../tools/shared/params.js'
 import { isRecord } from '../../../tools/shared/record.js'
 import { requireMCPBackendBoundProject } from './localProjectBinding.js'
@@ -37,110 +39,59 @@ export async function createProject(args: Record<string, unknown>): Promise<unkn
 }
 
 export async function initLocalProject(args: Record<string, unknown>): Promise<unknown> {
-  const projectDir = normalizeProjectDir(args)
-  await mkdir(projectDir, { recursive: true })
-  const title = getOptionalString(args, 'title') ?? (basename(projectDir) || 'MovScript Project')
-  const projectId = getOptionalString(args, 'projectId') ?? getOptionalString(args, 'project_id') ?? safeProjectId(title)
-  const service = createNodeMovScriptWorkspaceService({ projectDir })
-  const initialized = await service.initializeProject({
-    title,
-    projectId,
-    ...(getOptionalString(args, 'language') ? { language: getOptionalString(args, 'language') } : {}),
-    ...(typeof args.overwrite === 'boolean' ? { overwrite: args.overwrite } : {}),
-  })
-  const backendBinding = await requireMCPBackendBoundProject({ projectDir, projectUid: initialized.projectUid })
+  const result = await runProjectLifecycleCommand('createProject', args)
+  const backendBinding = await requireBackendBindingForLifecycleResult(result)
   return {
-    status: 'initialized',
-    projectDir,
-    projectPath: projectDir,
-    projectId: initialized.projectId,
-    projectUid: initialized.projectUid,
+    ...result,
     backendProject: backendBinding.backendProject,
     projectDataSpace: backendBinding.projectDataSpace,
-    project: localProjectSummary(projectDir, {
-      projectId: initialized.projectId,
-      projectUid: initialized.projectUid,
-      title,
-      updatedAt: new Date().toISOString(),
-    }),
-    initializedFiles: initialized.files.map((file) => ({
-      path: file.path,
-      status: file.status,
-    })),
-    locator: {
-      projectDir,
-      projectId: initialized.projectId,
-      projectUid: initialized.projectUid,
-    },
-    message: `MovScript 项目已初始化：${projectDir}`,
+    message: `MovScript 项目已初始化：${stringField(result.projectDir)}`,
   }
 }
 
 export async function fetchLocalProject(args: Record<string, unknown>): Promise<unknown> {
-  const projectDir = normalizeProjectDir(args)
-  const projectStat = await stat(projectDir).catch(() => undefined)
-  if (!projectStat?.isDirectory()) throw new Error('Project directory must be an existing directory')
-  const metadata = await readProjectMetadata(projectDir)
-  const backendBinding = metadata.projectUid
-    ? await requireMCPBackendBoundProject({ projectDir, projectUid: metadata.projectUid })
+  const result = await runProjectLifecycleCommand('openProject', args)
+  const backendBinding = stringField(result.projectUid)
+    ? await requireBackendBindingForLifecycleResult(result)
     : undefined
   return {
-    status: metadata.hasMetadata ? 'ready' : 'missing_metadata',
-    projectDir,
-    projectPath: projectDir,
-    projectId: metadata.projectId,
-    projectUid: metadata.projectUid,
+    ...result,
     ...(backendBinding ? {
       backendProject: backendBinding.backendProject,
       projectDataSpace: backendBinding.projectDataSpace,
     } : {}),
-    project: localProjectSummary(projectDir, metadata),
-    locator: {
-      projectDir,
-      ...(metadata.projectId !== undefined ? { projectId: metadata.projectId } : {}),
-      ...(metadata.projectUid !== undefined ? { projectUid: metadata.projectUid } : {}),
-    },
-    message: metadata.hasMetadata
-      ? `MovScript 项目已打开：${projectDir}`
-      : `目录已打开但没有找到 MovScript 项目元数据：${projectDir}`,
+    message: stringField(result.projectUid)
+      ? `MovScript 项目已打开：${stringField(result.projectDir)}`
+      : `目录已打开但没有找到 MovScript 项目元数据：${stringField(result.projectDir)}`,
   }
 }
 
-async function readProjectMetadata(
-  projectDir: string,
-): Promise<{ hasMetadata: boolean; projectId?: string; projectUid?: string; title?: string; description?: string; updatedAt?: string }> {
-  for (const candidate of ['workspace.json', 'project.json']) {
-    const parsed = await readJSON(resolve(projectDir, candidate))
-    if (!isRecord(parsed)) continue
-    return {
-      hasMetadata: true,
-      projectId: getStringField(parsed.project_id ?? parsed.projectId ?? parsed.id),
-      projectUid: getStringField(parsed.project_uid ?? parsed.projectUid),
-      title: getStringField(parsed.title ?? parsed.name),
-      description: getStringField(parsed.description),
-      updatedAt: getStringField(parsed.updated_at ?? parsed.updatedAt),
-    }
-  }
-  return { hasMetadata: false }
-}
-
-function localProjectSummary(
-  projectDir: string,
-  metadata: { projectId?: string; projectUid?: string; title?: string; description?: string; updatedAt?: string },
-): Record<string, unknown> {
-  const now = new Date().toISOString()
-  return {
-    id: metadata.projectId,
-    uid: metadata.projectUid,
-    projectUid: metadata.projectUid,
-    project_uid: metadata.projectUid,
-    name: metadata.title || basename(projectDir) || 'Local Project',
-    description: metadata.description || projectDir,
+async function runProjectLifecycleCommand(
+  command: ProjectLifecycleCommandName,
+  args: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const projectDir = normalizeProjectDir(args)
+  const response = await createProjectServiceClientFromRuntime().lifecycleCommand({
     projectDir,
-    projectPath: projectDir,
-    workspacePath: projectDir,
-    local: true,
-    updatedAt: metadata.updatedAt || now,
+    command,
+    input: lifecycleInputFromArgs(args),
+  })
+  if (!isRecord(response.result)) {
+    throw new Error(`Project Service lifecycle command ${command} returned an invalid result`)
+  }
+  return response.result
+}
+
+function lifecycleInputFromArgs(args: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ...(getOptionalString(args, 'title') ? { title: getOptionalString(args, 'title') } : {}),
+    ...(getOptionalString(args, 'projectId') ? { projectId: getOptionalString(args, 'projectId') } : {}),
+    ...(getOptionalString(args, 'project_id') ? { project_id: getOptionalString(args, 'project_id') } : {}),
+    ...(getOptionalString(args, 'projectUid') ? { projectUid: getOptionalString(args, 'projectUid') } : {}),
+    ...(getOptionalString(args, 'project_uid') ? { project_uid: getOptionalString(args, 'project_uid') } : {}),
+    ...(getOptionalString(args, 'language') ? { language: getOptionalString(args, 'language') } : {}),
+    ...(isRecord(args.standards) ? { standards: args.standards } : {}),
+    ...(typeof args.overwrite === 'boolean' ? { overwrite: args.overwrite } : {}),
   }
 }
 
@@ -150,19 +101,15 @@ function normalizeProjectDir(args: Record<string, unknown>): string {
   return resolve(projectDir)
 }
 
-function safeProjectId(value: string): string {
-  const id = value.trim().toLowerCase().replace(/[^a-z0-9._-]+/g, '_').replace(/^_+|_+$/g, '')
-  return id || 'movscript_project'
-}
-
-async function readJSON(path: string): Promise<unknown> {
-  try {
-    return JSON.parse(await readFile(path, 'utf8')) as unknown
-  } catch {
-    return undefined
+async function requireBackendBindingForLifecycleResult(result: Record<string, unknown>) {
+  const projectDir = stringField(result.projectDir)
+  const projectUid = stringField(result.projectUid)
+  if (!projectDir || !projectUid) {
+    throw new Error('Project Service lifecycle result must include projectDir and projectUid for MCP backend binding')
   }
+  return requireMCPBackendBoundProject({ projectDir, projectUid })
 }
 
-function getStringField(value: unknown): string | undefined {
+function stringField(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }

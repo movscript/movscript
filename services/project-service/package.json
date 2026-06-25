@@ -1,0 +1,22 @@
+{
+  "name": "@movscript/project-service",
+  "version": "0.1.29",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "movscript-project-service": "./bin/movscript-project-service.mjs"
+  },
+  "scripts": {
+    "build": "node --check src/server.mjs && node --check bin/movscript-project-service.mjs",
+    "test": "pnpm --filter @movscript/project build && pnpm --filter @movscript/workspace build && pnpm --filter @movscript/interpreter build && pnpm --filter @movscript/prompt build && pnpm --filter @movscript/engine build && node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "@movscript/core": "workspace:*",
+    "@movscript/engine": "workspace:*",
+    "@movscript/interpreter": "workspace:*",
+    "@movscript/prompt": "workspace:*",
+    "@movscript/project": "workspace:*",
+    "@movscript/runtime-contracts": "workspace:*",
+    "@movscript/workspace": "workspace:*"
+  }
+}

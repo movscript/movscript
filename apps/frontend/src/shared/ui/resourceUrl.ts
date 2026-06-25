@@ -1,7 +1,0 @@
-import { getAPIBaseURL } from '@/shared/infrastructure/config'
-import type { RawResource } from '@/types'
-import { resolveResourceUrl as resolveCoreResourceUrl } from '@movscript/core/resources'
-
-export function resolveResourceUrl(resource: RawResource): string {
-  return resolveCoreResourceUrl(resource, getAPIBaseURL())
-}

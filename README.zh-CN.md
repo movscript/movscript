@@ -32,9 +32,19 @@ Movscript 的核心思路是先描述动态影像的意图、感觉、节奏和�
 
 ## 产物
 
+### Agent 插件
+
+只想在 Codex 或其他 Agent provider 中使用 Movscript 时，可以只安装 Agent 插件，不安装 Desktop：
+
+```bash
+curl -fsSL https://movscript.github.io/movscript/install-plugin.sh | sh
+```
+
+插件包从 [GitHub Releases](https://github.com/movscript/movscript/releases/latest) 下载。该安装器不会安装或启动桌面端。
+
 ### 桌面应用
 
-当前发布目标：
+当前桌面发布目标：
 
 - macOS Apple Silicon / arm64
 - macOS Intel / x64
@@ -45,7 +55,7 @@ Movscript 的核心思路是先描述动态影像的意图、感觉、节奏和�
 macOS 可以使用命令行安装，安装脚本会根据设备自动选择 Apple Silicon 或 Intel DMG：
 
 ```bash
-curl -fsSL https://movscript.github.io/movscript/install.sh | sh
+curl -fsSL https://movscript.github.io/movscript/install-desktop.sh | sh
 ```
 
 Windows 可以从 [GitHub Releases](https://github.com/movscript/movscript/releases/latest) 下载最新 x64 `.exe` 安装器。
@@ -108,7 +118,12 @@ docker compose down -v
 
 ## 文档
 
-- [docs/provider-model-route-console-boundaries.zh-CN.md](docs/provider-model-route-console-boundaries.zh-CN.md)
+- [docs/movscript-agent-runtime-architecture.zh-CN.md](docs/movscript-agent-runtime-architecture.zh-CN.md)
+- [docs/codex-creative-surfaces-design.zh-CN.md](docs/codex-creative-surfaces-design.zh-CN.md)
+- [docs/admin-ai-provider-model-route-redesign.zh-CN.md](docs/admin-ai-provider-model-route-redesign.zh-CN.md)
+- [docs/model-adapter-route-provider-architecture.zh-CN.md](docs/model-adapter-route-provider-architecture.zh-CN.md)
+- [docs/model-provider-adapter-database-design.zh-CN.md](docs/model-provider-adapter-database-design.zh-CN.md)
+- [docs/provider-generated-artifact-trust-architecture.zh-CN.md](docs/provider-generated-artifact-trust-architecture.zh-CN.md)
 
 ## 许可证
 

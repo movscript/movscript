@@ -69,6 +69,54 @@ test('core generation job payload keeps non numeric duration in extra params', (
   })
 })
 
+test('core generation job payload omits params whose requires_value is not satisfied', () => {
+  const supportedParams = [
+    { key: 'sequential_image_generation' },
+    {
+      key: 'image_count',
+      requires_value: [{ param: 'sequential_image_generation', value: 'auto' }],
+    },
+    { key: 'watermark' },
+  ]
+
+  assert.deepEqual(buildGenerationJobPayload({
+    modelId: 'seedream-4-5',
+    jobType: 'image',
+    title: 'Image job',
+    prompt: 'generate a kitten',
+    params: {
+      sequential_image_generation: 'disabled',
+      image_count: 1,
+      watermark: true,
+    },
+    supportedParams,
+    inputResourceIds: [],
+    sourceKey: 'ref_image_gen',
+  }).extra_params, JSON.stringify({
+    sequential_image_generation: 'disabled',
+    watermark: true,
+  }))
+
+  assert.deepEqual(buildGenerationJobPayload({
+    modelId: 'seedream-4-5',
+    jobType: 'image',
+    title: 'Image job',
+    prompt: 'generate a kitten',
+    params: {
+      sequential_image_generation: 'auto',
+      image_count: 1,
+      watermark: true,
+    },
+    supportedParams,
+    inputResourceIds: [],
+    sourceKey: 'ref_image_gen',
+  }).extra_params, JSON.stringify({
+    sequential_image_generation: 'auto',
+    image_count: 1,
+    watermark: true,
+  }))
+})
+
 test('core content-unit generation candidates preserve submitted model parameters', () => {
   const promptSnapshot = buildContentUnitGenerationPromptSnapshot({
     contentUnitId: 'cu_arrival',

@@ -1,0 +1,48 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "noEmit": true,
+    "noUncheckedIndexedAccess": false,
+    "baseUrl": ".",
+    "paths": {
+      "@movscript/admin-surface/app": ["../../surface/admin/src/main.tsx"],
+      "@movscript/admin-surface": ["../../surface/admin/src/index.ts"],
+      "@movscript/project-surface/react": ["../../surface/project/src/react.ts"],
+      "@movscript/project-surface/runtime": ["../../surface/project/src/runtime.ts"],
+      "@movscript/project-surface": ["../../surface/project/src/index.ts"],
+      "@movscript/resource-surface/react": ["../../surface/resource/src/react.ts"],
+      "@movscript/resource-surface/resource-browser": ["../../surface/resource/src/resource-browser.ts"],
+      "@movscript/resource-surface": ["../../surface/resource/src/index.ts"],
+      "@movscript/core/workspace": ["../../packages/core/src/workspace/index.ts"],
+      "@movscript/core/mcp": ["../../packages/core/src/mcp/index.ts"],
+      "@movscript/core/backend": ["../../packages/core/src/backend/index.ts"],
+      "@movscript/core/plugins": ["../../packages/core/src/plugins/index.ts"],
+      "@movscript/theme": ["../../packages/theme/src/index.ts"],
+      "@movscript/ui/style-system": ["../../packages/ui/src/style-system.ts"],
+      "@movscript/ui/primitives": ["../../packages/ui/src/primitives.ts"],
+      "@movscript/ui/layout": ["../../packages/ui/src/layout.ts"],
+      "@movscript/ui/debug": ["../../packages/ui/src/debug-entry.ts"],
+      "@movscript/ui/business/*": ["../../packages/ui/src/business/*"],
+      "@movscript/ui": ["../../packages/ui/src/index.ts"],
+      "@movscript/ui/*": ["../../packages/ui/src/*"],
+      "@admin-runtime": ["../../surface/admin/src/runtime/community.tsx"],
+      "@admin/*": ["../../surface/admin/src/*"],
+      "@/*": ["../../surface/admin/src/*"]
+    }
+  },
+  "include": [
+    "src",
+    "vite.config.ts",
+    "program.manifest.ts",
+    "../../surface/admin/src",
+    "../../packages/ui/src",
+    "../../packages/theme/src"
+  ],
+  "exclude": [
+    "../../surface/admin/src/**/*.test.ts",
+    "../../surface/admin/src/**/*.test.tsx",
+    "../../packages/ui/src/**/*.test.ts",
+    "../../packages/ui/src/**/*.test.tsx"
+  ]
+}

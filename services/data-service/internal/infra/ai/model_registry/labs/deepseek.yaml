@@ -1,0 +1,43 @@
+lab: deepseek
+templates:
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: DeepSeek V4 Flash
+      id: deepseek:deepseek-v4-flash
+      lab: deepseek
+      model_id: deepseek-v4-flash
+      order: 63
+      source:
+        status: verified
+        url: https://api-docs.deepseek.com/quick_start/pricing
+        verified_at: "2026-06-25"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: DeepSeek Chat
+      id: deepseek:deepseek-chat
+      lab: deepseek
+      model_id: deepseek-chat
+      order: 64
+      source:
+        status: deprecated
+        url: https://api-docs.deepseek.com/quick_start/pricing
+        verified_at: "2026-06-25"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: DeepSeek Reasoner
+      id: deepseek:deepseek-reasoner
+      lab: deepseek
+      model_id: deepseek-reasoner
+      order: 65
+      source:
+        status: deprecated
+        url: https://api-docs.deepseek.com/quick_start/pricing
+        verified_at: "2026-06-25"

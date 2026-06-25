@@ -51,6 +51,7 @@ export function topoSortCanvasNodes<
   const ordered: TNode[] = []
   for (let index = 0; index < queue.length; index += 1) {
     const node = queue[index]
+    if (!node) continue
     ordered.push(node)
     for (const next of outgoing.get(node.id) ?? []) {
       const count = (indegree.get(next) ?? 0) - 1

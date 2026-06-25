@@ -41,8 +41,8 @@ export async function runPackageMacOSLocalDMGCli(root = repoRoot, env = process.
 
     const skipFFmpegDownload = args.includes('--skip-ffmpeg-download')
     const skipSmoke = args.includes('--skip-smoke')
-    const frontendRoot = resolve(root, 'apps/frontend')
-    const releaseDir = resolve(frontendRoot, 'release')
+    const desktopRoot = resolve(root, 'apps/desktop')
+    const releaseDir = resolve(desktopRoot, 'release')
     const appDir = macAppDirForArch(root, arch)
 
     log('[package-macos-local-dmg] Verify Electron package resource contract')
@@ -74,7 +74,7 @@ export async function runPackageMacOSLocalDMGCli(root = repoRoot, env = process.
       },
     })
 
-    runStep('Build frontend desktop bundle', 'pnpm', ['--filter', '@movscript/desktop', 'build'], { cwd: root })
+    runStep('Build desktop bundle', 'pnpm', ['--filter', '@movscript/desktop', 'build'], { cwd: root })
 
     rmSync(appDir, { recursive: true, force: true })
     runStep('Build unpacked macOS app', 'pnpm', [
@@ -87,7 +87,7 @@ export async function runPackageMacOSLocalDMGCli(root = repoRoot, env = process.
       'never',
       '-c.mac.identity=null',
       '-c.mac.notarize=false',
-    ], { cwd: frontendRoot })
+    ], { cwd: desktopRoot })
 
     runStep('Clear macOS extended attributes before signing', 'xattr', ['-cr', appDir], { cwd: root })
     await signMacOSAppForLocalTesting(root, appDir)
@@ -131,7 +131,7 @@ export async function runPackageMacOSLocalDMGCli(root = repoRoot, env = process.
       '-c.mac.notarize=false',
       '--prepackaged',
       relativePrepackagedPath(arch),
-    ], { cwd: frontendRoot, env: dmgBuilderEnv(env) })
+    ], { cwd: desktopRoot, env: dmgBuilderEnv(env) })
 
     const dmgPath = latestDMG(releaseDir)
     runStep('Verify DMG checksum', 'hdiutil', ['verify', dmgPath], { cwd: root })
@@ -198,7 +198,7 @@ function latestDMG(directory) {
 }
 
 function verifyMountedDMG(root, dmgPath, log = console.log) {
-  const iconPath = resolve(root, 'apps/frontend/build/icon.icns')
+  const iconPath = resolve(root, 'apps/desktop/build/icon.icns')
   const mountPoint = mkdtempSync(join(tmpdir(), 'movscript-dmg.'))
   let attached = false
   try {
@@ -233,7 +233,7 @@ function verifyMountedDMG(root, dmgPath, log = console.log) {
 }
 
 function macAppDirForArch(root, arch) {
-  return resolve(root, 'apps/frontend/release', arch === 'arm64' ? 'mac-arm64/Movscript.app' : 'mac/Movscript.app')
+  return resolve(root, 'apps/desktop/release', arch === 'arm64' ? 'mac-arm64/Movscript.app' : 'mac/Movscript.app')
 }
 
 function relativePrepackagedPath(arch) {
@@ -271,8 +271,8 @@ function patchDmgBuilderAPFSAliasCompatibility(root, log = console.log) {
 }
 
 function resolveDmgBuilderCorePath(root) {
-  const frontendRequire = createRequire(resolve(root, 'apps/frontend/package.json'))
-  const electronBuilderPackagePath = frontendRequire.resolve('electron-builder/package.json')
+  const desktopRequire = createRequire(resolve(root, 'apps/desktop/package.json'))
+  const electronBuilderPackagePath = desktopRequire.resolve('electron-builder/package.json')
   const electronBuilderRequire = createRequire(electronBuilderPackagePath)
   const dmgBuilderPackagePath = electronBuilderRequire.resolve('dmg-builder/package.json')
   return resolve(dirname(dmgBuilderPackagePath), 'vendor/dmgbuild/core.py')

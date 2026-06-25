@@ -32,9 +32,19 @@ Movscript is still early. Features, file formats, plugin behavior, and workflows
 
 ## Downloads
 
+### Agent Plugin
+
+Install only the Movscript Agent Plugin when you want to use Movscript from Codex or another Agent provider without installing Desktop:
+
+```bash
+curl -fsSL https://movscript.github.io/movscript/install-plugin.sh | sh
+```
+
+The plugin package is downloaded from [GitHub Releases](https://github.com/movscript/movscript/releases/latest). It does not install or launch the Desktop app.
+
 ### Desktop App
 
-Current release target:
+Current desktop release target:
 
 - macOS Apple Silicon / arm64
 - macOS Intel / x64
@@ -45,7 +55,7 @@ Download the latest desktop package from [GitHub Releases](https://github.com/mo
 On macOS, install from the command line. The installer picks the Apple Silicon or Intel DMG based on your machine:
 
 ```bash
-curl -fsSL https://movscript.github.io/movscript/install.sh | sh
+curl -fsSL https://movscript.github.io/movscript/install-desktop.sh | sh
 ```
 
 On Windows, download the latest x64 `.exe` installer from [GitHub Releases](https://github.com/movscript/movscript/releases/latest).
@@ -105,6 +115,11 @@ Remove local Docker volumes as well:
 ```bash
 docker compose down -v
 ```
+
+## Docs
+
+- [MovScript Agent Runtime architecture](docs/movscript-agent-runtime-architecture.zh-CN.md)
+- [Codex creative surfaces design](docs/codex-creative-surfaces-design.zh-CN.md)
 
 ## License
 

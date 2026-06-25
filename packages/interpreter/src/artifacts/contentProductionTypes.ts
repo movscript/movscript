@@ -35,10 +35,23 @@ export interface ContentUnitUpstreamSelection {
   candidate_id?: string | number
   resource_id?: number
   artifact_ref?: string
+  provider_asset?: ContentUnitProviderAssetCertification
   stale?: boolean
   stale_policy?: string
   role?: string
   continuity_role?: string
+}
+
+export interface ContentUnitProviderAssetCertification {
+  provider: string
+  status: 'active'
+  asset_uri: string
+  hub_asset_id?: string
+  source_resource_id?: number
+  source_candidate_id?: string | number
+  source_hash?: string
+  certified_at?: string
+  updated_at?: string
 }
 
 export interface ContentUnitPromptBlocker {
@@ -83,6 +96,7 @@ export interface NormalizedContentUnitPrompt {
       candidate_id?: string | number
       resource_id?: number
       mime_type?: string
+      provider_asset?: ContentUnitProviderAssetCertification
       required: boolean
     }>
     params?: Record<string, unknown>
@@ -120,6 +134,7 @@ export interface ContentUnitRuntimePanel {
       candidate_id?: string | number
       resource_id?: number
       mime_type?: string
+      provider_asset?: ContentUnitProviderAssetCertification
       required: boolean
     }>
     params?: Record<string, unknown>

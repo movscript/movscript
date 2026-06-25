@@ -51,7 +51,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: apps/backend/go.sum
+          cache-dependency-path: services/data-service/go.sum
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
@@ -128,7 +128,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: apps/backend/go.sum
+          cache-dependency-path: services/data-service/go.sum
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
@@ -208,19 +208,19 @@ jobs:
         run: pnpm run release -- download-ffmpeg-static --platform=${{ matrix.ffmpeg-platform }} --arch=${{ matrix.ffmpeg-arch }}
 
       - name: Prepare desktop package prerequisites
-        run: pnpm run release -- prepare-desktop-package --platform=${{ matrix.package-platform }} --arch=${{ matrix.package-arch }}
+        run: pnpm run release -- prepare --app desktop --platform=${{ matrix.package-platform }} --arch=${{ matrix.package-arch }}
 
-      - name: Diagnostic typecheck frontend desktop bundle on target runner
+      - name: Diagnostic typecheck desktop bundle on target runner
         continue-on-error: true
-        run: pnpm run release -- typecheck-desktop-bundle --platform=${{ matrix.package-platform }} --arch=${{ matrix.package-arch }}
+        run: pnpm run release -- typecheck --app desktop --platform=${{ matrix.package-platform }} --arch=${{ matrix.package-arch }}
 
-      - name: Build frontend desktop bundle
-        run: pnpm run release -- build-desktop-bundle --platform=${{ matrix.package-platform }} --arch=${{ matrix.package-arch }}
+      - name: Build desktop bundle
+        run: pnpm run release -- build --app desktop --stage bundle --platform=${{ matrix.package-platform }} --arch=${{ matrix.package-arch }}
         env:
           MOVSCRIPT_ELECTRON_VITE_DEBUG: ${{ matrix.package-platform == 'win32' && '1' || '0' }}
 
-      - name: Build frontend desktop artifact
-        run: pnpm run release -- build-desktop-artifact --platform=${{ matrix.package-platform }} --arch=${{ matrix.package-arch }}
+      - name: Build desktop artifact
+        run: pnpm run release -- build --app desktop --stage artifact --platform=${{ matrix.package-platform }} --arch=${{ matrix.package-arch }}
         env:
           MOVSCRIPT_RELEASE_SIGNING_MODE: ${{ matrix.package-platform == 'darwin' && 'signed' || 'unsigned' }}
           CSC_LINK: ''
@@ -232,7 +232,7 @@ jobs:
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
 
       - name: Verify desktop package
-        run: pnpm run release -- verify-desktop-package --platform=${{ matrix.package-platform }} --arch=${{ matrix.package-arch }}
+        run: pnpm run release -- verify --app desktop --platform=${{ matrix.package-platform }} --arch=${{ matrix.package-arch }}
         env:
           MOVSCRIPT_RELEASE_SIGNING_MODE: ${{ matrix.package-platform == 'darwin' && 'signed' || 'unsigned' }}
           CSC_LINK: ''
@@ -251,7 +251,7 @@ jobs:
         run: pnpm run release -- smoke-desktop-package --platform=${{ matrix.package-platform }} --arch=${{ matrix.package-arch }}
 
       - name: Collect release artifacts
-        run: pnpm run release -- collect
+        run: pnpm run release -- collect --app desktop
         env:
           MOVSCRIPT_COLLECT_PLUGINS: '0'
           MOVSCRIPT_ARTIFACT_PREFIX: ${{ matrix.artifact }}
@@ -264,9 +264,48 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  package-plugin:
+    name: Package Agent Plugin
+    needs: [release-checks]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Package plugin app
+        run: pnpm run release -- package --app plugin
+
+      - name: Collect plugin release artifact
+        run: pnpm run release -- collect --app plugin
+
+      - name: Upload plugin artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: movscript-agent-plugin
+          path: release-artifacts/*
+          if-no-files-found: error
+          retention-days: 14
+
   draft-release:
     name: Draft GitHub Release
-    needs: [package]
+    needs: [package, package-plugin]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -298,7 +337,7 @@ jobs:
       - name: Download package artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: movscript-desktop-*
+          pattern: movscript-*
           path: downloaded-artifacts
           merge-multiple: true
 

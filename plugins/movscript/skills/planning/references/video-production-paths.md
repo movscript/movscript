@@ -1,0 +1,199 @@
+# Video Production Paths
+
+Use this reference when a user asks for a video and the planning task must decide how much MovScript structure to create before generation or editing.
+
+It adapts common Seedance-style prompt paths into MovScript planning entities. Planning chooses the structure; generation and editing execute later.
+
+## Path Summary
+
+### Path A: Concept-Driven Short Clip
+
+Use when:
+
+- the target is one short clip;
+- the user has a concept rather than source media;
+- duration is within one model generation;
+- continuity needs are low or optional.
+
+MovScript structure:
+
+```text
+scene_moment
+-> scene_moment_ref content unit
+```
+
+Optional evidence:
+
+- `asset_ref` only when a reusable character/product/place must stay stable;
+- `storyboard_ref` / `keyframe_ref` only when composition, blocking, camera path, or first/last frame must be controlled.
+
+Do not create full productions, segments, many expression units, or editing projects just because the prompt could be more detailed.
+
+### Path B: Long Video Pipeline
+
+Use when:
+
+- target output exceeds one model generation;
+- the user asks for a short drama, trailer, MV, brand film, course/explainer, multi-scene ad, or reusable project;
+- continuity, subtitles, voice, music, or later edits matter.
+
+MovScript structure:
+
+```text
+production
+-> segment(s) when useful
+-> scene_moment(s)
+-> expression_unit(s) for visual, voice, subtitle, music, sfx, ambience
+-> asset_ref / storyboard_ref / keyframe_ref content units where needed
+-> expression_unit_ref or scene_moment_ref content units
+-> editing project for assembly
+```
+
+Rules:
+
+- Stabilize reusable assets before downstream visual generation.
+- Use expression units for independently generated materials that will be edited together.
+- Use editing for assembly, trimming, color matching, subtitles, music sync, and final export.
+- Do not hide a long video in one giant prompt.
+
+### Path C: Image-Driven Video
+
+Use when:
+
+- the user provides one image, selected keyframe, or RawResource image and asks to animate it;
+- the image should act as identity/composition evidence;
+- the output can be one continuous clip.
+
+MovScript structure:
+
+```text
+keyframe or direct RawResource
+-> scene_moment
+-> scene_moment_ref content unit with prompt ref/input resource
+```
+
+Use `keyframe_ref` when:
+
+- the image should become a tracked dependency;
+- downstream stale checks matter;
+- the user wants to adopt/select that image as the stable anchor.
+
+Use direct `{{resource::123}}` or `reference_resource_ids` when:
+
+- the image is loose guidance;
+- dependency tracking is not needed;
+- the user is experimenting quickly.
+
+If the image is actually a storyboard/collage, route to Path D.
+
+### Path D: Storyboard-Driven
+
+Use when:
+
+- the user provides a multi-panel storyboard, comic page, contact sheet, or collage;
+- the user says each panel/格 should become a shot or video segment;
+- panel relationships determine the output.
+
+First classify panel relationships:
+
+- Continuous action chain: same subject/place/event, panels are motion slices.
+- Sequential scenes: same subject/theme with time/place progression.
+- Independent montage: different scenes tied by mood, memory, product, or music.
+
+MovScript structure:
+
+For small, coherent storyboards:
+
+```text
+storyboard
+-> storyboard_ref content unit
+-> scene_moment
+-> scene_moment_ref content unit
+```
+
+For many panels or independently reviewable clips:
+
+```text
+storyboard
+-> storyboard_ref content unit
+-> scene_moment(s) / expression_unit(s)
+-> expression_unit_ref content units per shot/material
+-> editing project for assembly
+```
+
+Rules:
+
+- Storyboard panels/images are visual evidence, not the final video output.
+- Require adoption/selection of storyboard candidates when downstream video depends on them.
+- Explicitly prevent panel borders, labels, captions, UI, or grid lines from becoming generated video content.
+
+## Cross-Path Gates
+
+### Continuity Gate
+
+Open `../../generation/references/continuity-asset-prompts.md` when a character, product, prop, place, costume, material state, instrument, or voice identity must stay stable.
+
+Planning structure:
+
+```text
+setting
+-> setting_state
+-> asset
+-> asset_ref content unit
+-> adoption/selection
+```
+
+Only after adoption/selection should downstream prompts use `{{asset::id}}` as a stable dependency.
+
+### Visual Anchor Gate
+
+Use storyboards/keyframes when:
+
+- composition, blocking, camera motion, subject placement, timing, or rhythm matters;
+- prior generations failed because composition drifted;
+- first/last frame continuity matters;
+- reference-shot imitation is requested.
+
+Planning structure:
+
+```text
+shot or visual expression_unit
+-> storyboard
+-> storyboard_ref content unit
+-> keyframe(s)
+-> keyframe_ref content unit(s)
+-> downstream video content unit
+```
+
+### Editing Gate
+
+Route to editing when:
+
+- multiple generated clips must be assembled;
+- generated material needs trimming or color/style matching;
+- subtitles, text overlays, music sync, or audio mix are part of the deliverable;
+- final export/package/HLS/preview is requested.
+
+Open `../../editing/references/ai-clip-editing-rhythm.md` when the edit needs rhythm, clip trimming, transition, or AI artifact mitigation guidance.
+
+## Decision Checklist
+
+Before writing entities:
+
+- Which path is this: A, B, C, or D?
+- Is the output one clip, one scene moment, multiple materials, or a full production?
+- Is source media loose guidance or tracked dependency evidence?
+- Are reusable assets required before downstream generation?
+- Are storyboard/keyframe anchors required before video?
+- Will the final deliverable require editing?
+- Which content unit type is the smallest stable fit?
+
+## Reporting
+
+When reporting the plan, state:
+
+- chosen path and why;
+- planned MovScript entities;
+- required upstream selections before generation;
+- whether the path is stable or an explicit fast/unstable draft;
+- next action: create/update planning records, generate assets/keyframes/storyboards, generate video candidates, or switch to editing.

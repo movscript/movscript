@@ -29,6 +29,11 @@
       "import": "./dist/layout/index.js",
       "require": "./dist/layout/index.cjs"
     },
+    "./home": {
+      "types": "./dist/home/index.d.ts",
+      "import": "./dist/home/index.js",
+      "require": "./dist/home/index.cjs"
+    },
     "./node": {
       "types": "./dist/node.d.ts",
       "import": "./dist/node.js",

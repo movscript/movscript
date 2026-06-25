@@ -1,0 +1,463 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { GitBranch, Save, ScrollText, Upload } from 'lucide-react'
+import { WorkbenchProjectBody, WorkbenchProjectShell } from '@movscript/ui/business/workbench'
+import { Badge, Button } from '@movscript/ui/primitives'
+import { arrayValue, recordValue, stringValue } from '../../data.js'
+import { useProjectSurfaceRuntime } from '../../runtime/index.js'
+import { ScriptForm } from './ScriptForm.js'
+import {
+  ScriptStageBadge,
+  ScriptTypeBadge,
+  ScriptVersionManagementPanel,
+  type ScriptDetailTab,
+} from './ScriptsPageParts.js'
+import {
+  ScriptDetailHeader,
+  ScriptDetailTabs,
+  ScriptEditorErrorText,
+  ScriptEditorHiddenFileInput,
+  ScriptEditorInlineMeta,
+  ScriptWorkspaceDetailContent,
+  ScriptWorkspaceEmptySelection,
+  ScriptWorkspaceInspector,
+  ScriptWorkspaceShell,
+} from './ScriptsPageUi.js'
+import {
+  normalizeComparableScriptText,
+  scriptVersionSourceText,
+  scriptWorkspaceSourceText,
+} from './scriptDisplayModel.js'
+import type { Script, ScriptVersion } from './types.js'
+
+const SCRIPT_DOCUMENT_ACCEPT = '.txt,.md,.markdown,text/plain,text/markdown'
+
+export function ProjectScriptsSurface() {
+  const runtime = useProjectSurfaceRuntime()
+  const queryClient = useQueryClient()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [selectedId, setSelectedId] = useState<number | null>(selectedScriptIdFromLocation())
+  const [detailTab, setDetailTab] = useState<ScriptDetailTab>('edit')
+  const [expandedVersionId, setExpandedVersionId] = useState<number | null>(null)
+  const [versionEditorScrollTop, setVersionEditorScrollTop] = useState(0)
+  const [workspace, setWorkspace] = useState<Partial<Script>>({})
+  const [fileName, setFileName] = useState('')
+  const [fileError, setFileError] = useState('')
+
+  const scriptsQuery = useQuery({
+    queryKey: ['project-surface', 'scripts', runtime.project.projectId, runtime.project.projectDir ?? ''],
+    queryFn: async () => {
+      const resourceView = runtime.gateways.project.resourceView
+      if (!resourceView) throw new Error('Project Service resource view gateway is not available.')
+      const response = await resourceView({
+        projectId: runtime.project.projectId,
+        projectDir: runtime.project.projectDir,
+        projectUid: runtime.project.projectUid,
+        kind: 'scripts',
+      })
+      return arrayValue(recordValue(response)?.items).map((item, index) => scriptFromResource(item, index))
+    },
+    enabled: Boolean(runtime.gateways.project.resourceView && runtime.project.projectDir),
+  })
+
+  const versionsQuery = useQuery({
+    queryKey: ['project-surface', 'script-versions', runtime.project.projectId, runtime.project.projectDir ?? ''],
+    queryFn: async () => {
+      const resourceView = runtime.gateways.project.resourceView
+      if (!resourceView) throw new Error('Project Service resource view gateway is not available.')
+      try {
+        const response = await resourceView({
+          projectId: runtime.project.projectId,
+          projectDir: runtime.project.projectDir,
+          projectUid: runtime.project.projectUid,
+          kind: 'script-versions',
+        })
+        return arrayValue(recordValue(response)?.items).map((item, index) => scriptVersionFromResource(item, index))
+      } catch (error) {
+        if (errorMessage(error).includes('unsupported project resource kind')) return []
+        throw error
+      }
+    },
+    enabled: Boolean(runtime.gateways.project.resourceView && runtime.project.projectDir),
+  })
+
+  const scripts = scriptsQuery.data ?? []
+
+  useEffect(() => {
+    if (selectedId || scripts.length === 0) return
+    setSelectedId(scripts[0]?.ID ?? null)
+  }, [scripts, selectedId])
+
+  const selected = selectedId ? scripts.find((script) => script.ID === selectedId) ?? null : null
+  const scriptVersions = versionsQuery.data ?? []
+  const versionsForSelected = useMemo(() => {
+    if (!selected) return []
+    return scriptVersions
+      .filter((version) => scriptVersionMatchesScript(version, selected))
+      .slice()
+      .sort((a, b) => (b.version_number || b.ID) - (a.version_number || a.ID) || b.ID - a.ID)
+  }, [scriptVersions, selected])
+  const latestVersion = versionsForSelected[0] ?? null
+  const workspaceSourceText = selected ? scriptWorkspaceSourceText(workspace, selected) : ''
+  const workspaceBodyLength = workspaceSourceText.trim().length
+  const hasWorkspaceBody = workspaceBodyLength > 0
+  const isCurrentVersionSaved = Boolean(
+    latestVersion && normalizeComparableScriptText(workspaceSourceText) === normalizeComparableScriptText(scriptVersionSourceText(latestVersion)),
+  )
+  const readinessChecks = [
+    Boolean(selected?.title?.trim()),
+    hasWorkspaceBody,
+    versionsForSelected.length > 0,
+  ]
+  const readinessScore = Math.round((readinessChecks.filter(Boolean).length / readinessChecks.length) * 100)
+
+  useEffect(() => {
+    if (selected) {
+      setWorkspace({ ...selected })
+      setFileName('')
+      setFileError('')
+    }
+  }, [selected?.ID])
+
+  useEffect(() => {
+    setDetailTab('edit')
+    setExpandedVersionId(null)
+    setVersionEditorScrollTop(0)
+  }, [selected?.ID])
+
+  const updateScript = useMutation({
+    mutationFn: (data: Partial<Script>) => {
+      if (!selected) throw new Error('请选择手记')
+      return saveWorkspaceScript(selected, data)
+    },
+    onSuccess: async (updated) => {
+      setWorkspace((current) => ({ ...current, ...updated }))
+      runtime.notifier.success('已保存')
+      await invalidateScripts(queryClient, runtime.project.projectId, runtime.project.projectDir)
+    },
+    onError: (error) => runtime.notifier.error('保存失败', errorMessage(error)),
+  })
+
+  const createVersion = useMutation({
+    mutationFn: async () => {
+      if (!selected) throw new Error('请选择手记')
+      const saved = await saveWorkspaceScript(selected, workspace)
+      const sourceCommand = runtime.gateways.project.sourceCommand
+      if (!sourceCommand) throw new Error('Project Service source command gateway is not available.')
+      const versionNumber = nextVersionNumber(versionsForSelected)
+      const versionId = `v${versionNumber}`
+      await sourceCommand({
+        projectId: runtime.project.projectId,
+        projectDir: runtime.project.projectDir,
+        projectUid: runtime.project.projectUid,
+        command: 'snapshotScriptVersionFromMarkdown',
+        input: {
+          scriptId: String(saved.id ?? saved.ID),
+          versionId,
+          versionLabel: `V${versionNumber}`,
+        },
+      })
+      return saved
+    },
+    onSuccess: async (saved) => {
+      setWorkspace((current) => ({ ...current, ...saved }))
+      runtime.notifier.success('版本已保存')
+      await invalidateScripts(queryClient, runtime.project.projectId, runtime.project.projectDir)
+      await queryClient.invalidateQueries({
+        queryKey: ['project-surface', 'script-versions', runtime.project.projectId, runtime.project.projectDir ?? ''],
+      })
+      setDetailTab('versions')
+    },
+    onError: (error) => runtime.notifier.error('保存版本失败', errorMessage(error)),
+  })
+
+  async function saveWorkspaceScript(selectedScript: Script, data: Partial<Script>): Promise<Script> {
+    const sourceCommand = runtime.gateways.project.sourceCommand
+    if (!sourceCommand) throw new Error('Project Service source command gateway is not available.')
+    if (!runtime.project.projectDir) throw new Error('Project directory is not configured for this surface.')
+    const sourceText = scriptWorkspaceSourceText(data, selectedScript)
+    const metadata = {
+      ...(selectedScript.record ?? {}),
+      ...data,
+      id: String(selectedScript.id ?? selectedScript.ID),
+      ID: selectedScript.ID,
+      title: data.title ?? selectedScript.title,
+      content: sourceText,
+      raw_source: sourceText,
+    }
+    const result = await sourceCommand({
+      projectId: runtime.project.projectId,
+      projectDir: runtime.project.projectDir,
+      projectUid: runtime.project.projectUid,
+      command: 'upsertScript',
+      input: {
+        scriptId: String(selectedScript.id ?? selectedScript.ID),
+        record: selectedScript.record ?? null,
+        sourceText,
+        metadata,
+      },
+    })
+    const record = recordValue(recordValue(result)?.record ?? result) ?? metadata
+    return scriptFromRecord(record, sourceText, selectedScript.ID)
+  }
+
+  async function handleFile(file?: File) {
+    if (!file) return
+    setFileError('')
+    try {
+      const text = await file.text()
+      setFileName(file.name)
+      setWorkspace((current) => ({ ...current, raw_source: text, content: text }))
+    } catch (error) {
+      setFileError(errorMessage(error) || '读取文档失败')
+    }
+  }
+
+  return (
+    <WorkbenchProjectShell
+      className="script-workbench-project-shell"
+      workbenchId="orchestration_production"
+      icon={ScrollText}
+      kicker="手记"
+      title="创作手记"
+      description="以 Markdown 记录创作底稿，集中完成写作、大纲和版本管理。"
+    >
+      <WorkbenchProjectBody padding="none" scroll="hidden" tone="muted">
+        <ScriptWorkspaceShell>
+          <div className="script-workbench-layout">
+            {scriptsQuery.isLoading ? (
+              <ScriptWorkspaceEmptySelection icon={ScrollText} title="正在读取手记..." />
+            ) : scriptsQuery.error ? (
+              <ScriptWorkspaceEmptySelection icon={ScrollText} title={errorMessage(scriptsQuery.error)} />
+            ) : !selected ? (
+              <ScriptWorkspaceEmptySelection icon={ScrollText} title="当前项目还没有手记" />
+            ) : (
+              <main className="script-workbench-main">
+                <ScriptDetailHeader
+                  className="script-workbench-topbar"
+                  badges={(
+                    <>
+                      <ScriptTypeBadge script={selected} />
+                      <ScriptStageBadge versionCount={versionsForSelected.length} />
+                      {hasWorkspaceBody ? <Badge variant="outline">{workspaceBodyLength} 字</Badge> : null}
+                    </>
+                  )}
+                  title={selected.title}
+                  actions={(
+                    <>
+                      <ScriptDetailTabs
+                        className="script-workbench-mode-tabs"
+                        tabs={[
+                          { key: 'edit', label: '正文' },
+                          { key: 'versions', label: `版本 ${versionsForSelected.length}` },
+                        ]}
+                        activeKey={detailTab}
+                        onSelect={(key) => setDetailTab(key as ScriptDetailTab)}
+                      />
+                      <ScriptEditorHiddenFileInput
+                        ref={fileInputRef}
+                        type="file"
+                        accept={SCRIPT_DOCUMENT_ACCEPT}
+                        onChange={(event) => {
+                          void handleFile(event.target.files?.[0])
+                          event.currentTarget.value = ''
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <Upload size={14} />
+                        导入文档
+                      </Button>
+                      {fileName && <ScriptEditorInlineMeta>{fileName}</ScriptEditorInlineMeta>}
+                      {fileError && <ScriptEditorErrorText>{fileError}</ScriptEditorErrorText>}
+                      <Button
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={() => updateScript.mutate(workspace)}
+                        disabled={updateScript.isPending}
+                      >
+                        <Save size={14} />
+                        {updateScript.isPending ? '保存中' : '保存'}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={() => setDetailTab('versions')}
+                      >
+                        <GitBranch size={14} />
+                        版本管理
+                      </Button>
+                    </>
+                  )}
+                />
+
+                <ScriptWorkspaceInspector className={detailTab === 'edit' ? 'script-workbench-inspector--editor' : undefined}>
+                  <ScriptWorkspaceDetailContent className={detailTab === 'edit' ? 'script-workbench-detail-content--editor' : undefined}>
+                    {detailTab === 'edit' ? (
+                      <ScriptForm
+                        script={selected}
+                        workspace={workspace}
+                        onChange={setWorkspace}
+                        onCreateVersion={() => createVersion.mutate()}
+                        isCreatingVersion={createVersion.isPending}
+                        isCurrentVersionSaved={isCurrentVersionSaved}
+                        versionCount={versionsForSelected.length}
+                      />
+                    ) : (
+                      <ScriptVersionManagementPanel
+                        selected={selected}
+                        detailTab={detailTab}
+                        workspaceBodyLength={workspaceBodyLength}
+                        hasWorkspaceBody={hasWorkspaceBody}
+                        versionsForSelected={versionsForSelected}
+                        latestVersion={latestVersion}
+                        isCurrentVersionSaved={isCurrentVersionSaved}
+                        readinessScore={readinessScore}
+                        createVersionPending={createVersion.isPending}
+                        expandedVersionId={expandedVersionId}
+                        versionEditorScrollTop={versionEditorScrollTop}
+                        onCreateVersion={() => createVersion.mutate()}
+                        onDetailTabChange={setDetailTab}
+                        onExpandedVersionChange={setExpandedVersionId}
+                        onVersionEditorScrollTopChange={setVersionEditorScrollTop}
+                      />
+                    )}
+                  </ScriptWorkspaceDetailContent>
+                </ScriptWorkspaceInspector>
+              </main>
+            )}
+          </div>
+        </ScriptWorkspaceShell>
+      </WorkbenchProjectBody>
+    </WorkbenchProjectShell>
+  )
+}
+
+function selectedScriptIdFromLocation(): number | null {
+  if (typeof window === 'undefined') return null
+  const value = new URLSearchParams(window.location.search).get('script_id')
+  return numberValue(value) ?? null
+}
+
+function scriptFromResource(item: unknown, index: number): Script {
+  const record = recordValue(item) ?? {}
+  const source = rawStringValue(record.source ?? record.content ?? record.raw_source) ?? ''
+  return scriptFromRecord(record, source, index + 1)
+}
+
+function scriptFromRecord(record: Record<string, unknown>, source: string, fallbackId: number): Script {
+  const id = numberValue(record.ID ?? record.id) ?? numericSuffix(record.id) ?? fallbackId
+  return {
+    ID: id,
+    id: stringValue(record.id) ?? String(id),
+    project_id: numberValue(record.project_id) ?? 0,
+    title: stringValue(record.title ?? record.name) ?? `手记 #${id}`,
+    description: stringValue(record.description) ?? '',
+    content: source,
+    raw_source: source,
+    script_type: stringValue(record.script_type ?? record.script_kind) ?? 'uncategorized',
+    source_type: scriptSourceType(record.source_type),
+    version: numberValue(record.version),
+    parent_script_id: numberValue(record.parent_script_id),
+    assignee_id: numberValue(record.assignee_id),
+    author_id: numberValue(record.author_id) ?? 0,
+    order: numberValue(record.order) ?? 0,
+    summary: stringValue(record.summary) ?? '',
+    characters: stringValue(record.characters) ?? '',
+    character_profiles: stringValue(record.character_profiles),
+    character_relationships: stringValue(record.character_relationships),
+    core_settings: stringValue(record.core_settings) ?? '',
+    background: stringValue(record.background) ?? '',
+    scenes_desc: stringValue(record.scenes_desc) ?? '',
+    hook: stringValue(record.hook) ?? '',
+    plot_summary: stringValue(record.plot_summary) ?? '',
+    script_points: stringValue(record.script_points),
+    planned_scene_count: numberValue(record.planned_scene_count),
+    planned_character_count: numberValue(record.planned_character_count),
+    time_text: stringValue(record.time_text),
+    location_text: stringValue(record.location_text),
+    structured_characters: stringValue(record.structured_characters),
+    plot_beats: stringValue(record.plot_beats),
+    atmosphere: stringValue(record.atmosphere),
+    structure_json: stringValue(record.structure_json),
+    entity_candidates: stringValue(record.entity_candidates),
+    relationship_candidates: stringValue(record.relationship_candidates),
+    CreatedAt: stringValue(record.CreatedAt ?? record.created_at) ?? '',
+    UpdatedAt: stringValue(record.UpdatedAt ?? record.updated_at) ?? '',
+    record,
+  }
+}
+
+function scriptVersionFromResource(item: unknown, index: number): ScriptVersion {
+  const record = recordValue(item) ?? {}
+  const id = numberValue(record.ID ?? record.version_number ?? record.id) ?? numericSuffix(record.id) ?? index + 1
+  return {
+    ID: id,
+    id: stringValue(record.id) ?? String(id),
+    script_id: numberValue(record.script_id ?? record.scriptId ?? record.script_ref ?? record.scriptRef) ?? numericSuffix(record.script_id ?? record.script_ref) ?? 0,
+    version_number: numberValue(record.version_number) ?? numericSuffix(record.id) ?? id,
+    version_label: stringValue(record.version_label ?? record.versionLabel),
+    title: stringValue(record.title) ?? `版本 #${id}`,
+    source_type: stringValue(record.source_type),
+    content: rawStringValue(record.content ?? record.raw_source ?? record.source),
+    raw_source: rawStringValue(record.raw_source ?? record.content ?? record.source),
+    summary: stringValue(record.summary) ?? '',
+    CreatedAt: stringValue(record.CreatedAt ?? record.created_at) ?? '',
+    UpdatedAt: stringValue(record.UpdatedAt ?? record.updated_at) ?? '',
+    record,
+  }
+}
+
+function scriptVersionMatchesScript(version: ScriptVersion, script: Script): boolean {
+  if (version.script_id === script.ID) return true
+  const versionRecord = version.record ?? {}
+  const scriptRef = stringValue(versionRecord.script_id ?? versionRecord.scriptId ?? versionRecord.script_ref ?? versionRecord.scriptRef)
+  return Boolean(scriptRef && (scriptRef === script.id || scriptRef === String(script.ID) || scriptRef.endsWith(`/${script.id}`)))
+}
+
+function nextVersionNumber(versions: ScriptVersion[]): number {
+  return versions.reduce((max, version) => Math.max(max, version.version_number ?? version.ID), 0) + 1
+}
+
+function rawStringValue(value: unknown): string | undefined {
+  if (typeof value === 'string') return value
+  const record = recordValue(value)
+  if (!record) return undefined
+  return stringValue(record.text ?? record.sourceText ?? record.raw ?? record.content)
+}
+
+function numberValue(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && /^-?\d+$/.test(value)) return Number(value)
+  return undefined
+}
+
+function numericSuffix(value: unknown): number | undefined {
+  const text = typeof value === 'string' ? value : undefined
+  const match = text?.match(/(\d+)(?!.*\d)/)
+  return match ? numberValue(match[1]) : undefined
+}
+
+function scriptSourceType(value: unknown): Script['source_type'] {
+  return value === 'raw' || value === 'adapted' || value === 'revised' ? value : 'raw'
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+async function invalidateScripts(
+  queryClient: ReturnType<typeof useQueryClient>,
+  projectId: string | number,
+  projectDir?: string,
+) {
+  await queryClient.invalidateQueries({
+    queryKey: ['project-surface', 'scripts', projectId, projectDir ?? ''],
+  })
+}

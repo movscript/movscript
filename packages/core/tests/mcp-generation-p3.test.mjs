@@ -1,8 +1,30 @@
 import assert from 'node:assert/strict'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import test from 'node:test'
 
 import { handleJSONRPC } from '../dist/mcp/node/index.js'
 import { setMovScriptBackendAPIBaseURL } from '../dist/backend/node/index.js'
+import { startProjectService } from '../../../services/project-service/src/server.mjs'
+
+let projectServiceRuntime
+let previousProjectServiceURL
+
+test.before(async () => {
+  previousProjectServiceURL = process.env.MOVSCRIPT_PROJECT_SERVICE_URL
+  projectServiceRuntime = await startProjectService()
+  process.env.MOVSCRIPT_PROJECT_SERVICE_URL = projectServiceRuntime.url
+})
+
+test.after(async () => {
+  if (projectServiceRuntime) await projectServiceRuntime.close()
+  if (previousProjectServiceURL === undefined) {
+    delete process.env.MOVSCRIPT_PROJECT_SERVICE_URL
+  } else {
+    process.env.MOVSCRIPT_PROJECT_SERVICE_URL = previousProjectServiceURL
+  }
+})
 
 async function callTool(name, args, id = name) {
   const response = await handleJSONRPC({
@@ -97,11 +119,28 @@ test('P3 model list rejects render_video as a generation capability', async () =
 
 test('P3 music and subtitle tools submit distinct backend generation job types', async () => {
   const originalFetch = globalThis.fetch
+  const projectDir = await mkdtemp(join(tmpdir(), 'movscript-core-p3-'))
   const posts = []
   setMovScriptBackendAPIBaseURL('http://movscript.test')
   try {
+    await writeFile(join(projectDir, 'project.json'), JSON.stringify({
+      project_uid: 'prj_core_p3_generation',
+      title: 'Core P3 generation',
+    }))
     globalThis.fetch = async (input, init) => {
       const url = String(input)
+      if (url === 'http://movscript.test/api/v1/projects/ensure') {
+        return new Response(JSON.stringify({ project: { uid: 'prj_core_p3_generation' } }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      if (url === 'http://movscript.test/api/v1/project-data/spaces') {
+        return new Response(JSON.stringify({ space: { project_uid: 'prj_core_p3_generation' } }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
       if (url === 'http://movscript.test/api/v1/models?capability=audio_music') {
         return new Response(JSON.stringify([
           {
@@ -141,11 +180,13 @@ test('P3 music and subtitle tools submit distinct backend generation job types',
 
     const music = await callTool('system_generate_music', {
       project_id: 7,
+      cwd: projectDir,
       prompt: 'quiet tension bed',
       style: 'minimal strings',
     })
     const subtitle = await callTool('system_generate_subtitle', {
       project_id: 7,
+      cwd: projectDir,
       prompt: 'transcribe the source audio',
       input_resource_ids: [88],
       language: 'zh-CN',
@@ -164,5 +205,6 @@ test('P3 music and subtitle tools submit distinct backend generation job types',
   } finally {
     globalThis.fetch = originalFetch
     setMovScriptBackendAPIBaseURL('http://localhost:8765')
+    await rm(projectDir, { recursive: true, force: true })
   }
 })

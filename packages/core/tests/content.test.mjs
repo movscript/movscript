@@ -352,7 +352,13 @@ test('core content source workspace builds project workbench data without deskto
     timing: { duration_sec: 3 },
     reference_asset_refs: ['phone_screen'],
   })
-  const storyboard = entity('storyboard', 'main', 'productions/pilot/segments/opening/scene_moments/rain_call/shots/phone/storyboards/main/storyboard.json', {
+  const expressionUnit = entity('expression_unit', 'phone', 'productions/pilot/segments/opening/scene_moments/rain_call/expression_units/phone/expression_unit.json', {
+    title: 'Phone closeup',
+    kind: 'shot',
+    timing: { duration_sec: 3 },
+    reference_asset_refs: ['phone_screen'],
+  })
+  const storyboard = entity('storyboard', 'main', 'productions/pilot/segments/opening/scene_moments/rain_call/expression_units/phone/storyboards/main/storyboard.json', {
     title: 'Phone board',
     timeline: { caption: 'Phone glow.', duration_sec: 3 },
   })
@@ -363,7 +369,7 @@ test('core content source workspace builds project workbench data without deskto
     title: 'Phone shot unit',
     content_unit_type: 'storyboard_ref',
     output_kind: 'video',
-    storyboard_ref: 'productions/pilot/segments/opening/scene_moments/rain_call/shots/phone/storyboards/main',
+    storyboard_ref: 'productions/pilot/segments/opening/scene_moments/rain_call/expression_units/phone/storyboards/main',
     edit_prompt: { text: 'Make the storyboard with {{asset:phone_screen}}.' },
   })
 
@@ -402,7 +408,7 @@ test('core content source workspace builds project workbench data without deskto
     shots: [shot],
     storyboards: [storyboard],
     keyframes: [],
-    expressionUnits: [],
+    expressionUnits: [expressionUnit],
     audioCues: [],
     contentUnits: [contentUnit],
     previewTimelines: [{
@@ -411,7 +417,7 @@ test('core content source workspace builds project workbench data without deskto
       productionPath: 'productions/pilot',
       items: [
         timelineItem('scene_moment:rain_call', 'scene_moment', moment, 1),
-        timelineItem('shot:phone', 'shot', shot, 2, 'scene_moment:rain_call'),
+        timelineItem('expression_unit:phone', 'expression_unit', expressionUnit, 2, 'scene_moment:rain_call'),
       ],
     }],
     productionWorkPlan: {
@@ -471,9 +477,9 @@ test('core content source workspace builds project workbench data without deskto
     productionWorkItemsForTarget(data.productionWorkPlan, { path: 'productions/pilot/segments/opening/scene_moments/rain_call/shots/phone' }).map((item) => item.id),
     ['fix:phone'],
   )
-  assert.equal(data.previewMoments[0].shots[0].contentUnit.id, 'cu_phone')
-  assert.equal(data.previewMoments[0].shots[0].contentUnit.candidates[0].selected, true)
-  assert.equal(data.previewMoments[0].shots[0].contentUnit.candidates[0].inputHash, 'hash_live')
+  assert.equal(data.previewMoments[0].expressionUnits[0].contentUnit.id, 'cu_phone')
+  assert.equal(data.previewMoments[0].expressionUnits[0].contentUnit.candidates[0].selected, true)
+  assert.equal(data.previewMoments[0].expressionUnits[0].contentUnit.candidates[0].inputHash, 'hash_live')
   assert.equal(findHierarchyNode(data.hierarchyTree, 'storyboard/main')?.storyboardTimeline?.caption, 'Phone glow.')
 })
 
@@ -692,9 +698,9 @@ test('content source workspace runtime owns project state without fixture fallba
   assert.deepEqual(selectOperation.target, { kind: 'content_unit_selection', id: 'cu_phone' })
   assert.equal(selectOperation.optimisticPatch, 'select_content_unit_candidate')
 
-  const targetContentUnitId = runtime.getState().data?.previewMoments[0].shots[0].contentUnit.id ?? 'cu_phone'
+  const targetContentUnitId = runtime.getState().data?.previewMoments[0].expressionUnits[0].contentUnit.id ?? 'cu_phone'
   await runtime.createCandidate({ contentUnitId: targetContentUnitId, outputKind: 'video', promptText: 'Make the shot.' })
-  assert.equal(runtime.getState().data?.previewMoments[0].shots[0].contentUnit.candidates.some((candidate) => candidate.id.startsWith('queued_')), true)
+  assert.equal(runtime.getState().data?.previewMoments[0].expressionUnits[0].contentUnit.candidates.some((candidate) => candidate.id.startsWith('queued_')), true)
 
   await runtime.updateEditPrompt({
     contentUnitId: 'cu_phone',
@@ -747,7 +753,7 @@ test('content source workspace runtime rolls back optimistic edits when port com
   })
 
   await runtime.loadProject(10)
-  const originalPrompt = runtime.getState().data?.previewMoments[0].shots[0].contentUnit.editPrompt
+  const originalPrompt = runtime.getState().data?.previewMoments[0].expressionUnits[0].contentUnit.editPrompt
   assert.equal(originalPrompt, 'Make the storyboard with {{asset:phone_screen}}.')
 
   const failingPort = contentSourceWorkspaceRuntimePort({
@@ -771,7 +777,7 @@ test('content source workspace runtime rolls back optimistic edits when port com
   assert.equal(failingRuntime.getState().sourceSyncStatus, 'error')
   assert.equal(failingRuntime.getState().error, 'write failed')
   assert.equal(
-    failingRuntime.getState().data?.previewMoments[0].shots[0].contentUnit.editPrompt,
+    failingRuntime.getState().data?.previewMoments[0].expressionUnits[0].contentUnit.editPrompt,
     originalPrompt,
   )
   assert.equal(failingRuntime.getState().failedOperation.status, 'rolled_back')
@@ -923,7 +929,13 @@ function contentSourceWorkspaceSnapshot(options = {}) {
     timing: { duration_sec: 3 },
     reference_asset_refs: ['phone_screen'],
   })
-  const storyboard = entity('storyboard', 'main', 'productions/pilot/segments/opening/scene_moments/rain_call/shots/phone/storyboards/main/storyboard.json', { title: 'Phone board' })
+  const expressionUnit = entity('expression_unit', 'phone', 'productions/pilot/segments/opening/scene_moments/rain_call/expression_units/phone/expression_unit.json', {
+    title: 'Phone closeup',
+    kind: 'shot',
+    timing: { duration_sec: 3 },
+    reference_asset_refs: ['phone_screen'],
+  })
+  const storyboard = entity('storyboard', 'main', 'productions/pilot/segments/opening/scene_moments/rain_call/expression_units/phone/storyboards/main/storyboard.json', { title: 'Phone board' })
   const setting = entity('setting', 'rain_rooftop', 'settings/rain_rooftop/setting.json', { title: 'Rain rooftop' })
   const settingState = entity('setting_state', 'night', 'settings/rain_rooftop/states/night/setting_state.json', { title: 'Night rain' })
   const asset = entity('asset', 'phone_screen', 'settings/rain_rooftop/states/night/assets/phone_screen/asset.json', { title: 'Phone screen' })
@@ -931,10 +943,10 @@ function contentSourceWorkspaceSnapshot(options = {}) {
     title: 'Phone shot unit',
     content_unit_type: 'storyboard_ref',
     output_kind: 'video',
-    storyboard_ref: 'productions/pilot/segments/opening/scene_moments/rain_call/shots/phone/storyboards/main',
+    storyboard_ref: 'productions/pilot/segments/opening/scene_moments/rain_call/expression_units/phone/storyboards/main',
     edit_prompt: { text: 'Make the storyboard with {{asset:phone_screen}}.' },
   })
-  const entities = [production, segment, moment, shot, storyboard, setting, settingState, asset, contentUnit]
+  const entities = [production, segment, moment, shot, expressionUnit, storyboard, setting, settingState, asset, contentUnit]
   return {
     indexDocuments: [
       ...entities.map((item) => ({ path: item.path, data: item.record })),
@@ -960,7 +972,7 @@ function contentSourceWorkspaceSnapshot(options = {}) {
     shots: [shot],
     storyboards: [storyboard],
     keyframes: [],
-    expressionUnits: [],
+    expressionUnits: [expressionUnit],
     audioCues: [],
     contentUnits: [contentUnit],
     previewTimelines: [{
@@ -969,7 +981,7 @@ function contentSourceWorkspaceSnapshot(options = {}) {
       productionPath: 'productions/pilot',
       items: [
         timelineItem('scene_moment:rain_call', 'scene_moment', moment, 1),
-        timelineItem('shot:phone', 'shot', shot, 2, 'scene_moment:rain_call'),
+        timelineItem('expression_unit:phone', 'expression_unit', expressionUnit, 2, 'scene_moment:rain_call'),
       ],
     }],
   }

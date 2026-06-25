@@ -1,0 +1,385 @@
+import assert from 'node:assert/strict'
+import test from 'node:test'
+
+import {
+  __resetResourceMediaCacheForTests,
+  acquireCachedInlineImageMediaUrl,
+  acquireCachedResourceMediaUrl,
+  configureResourceMediaBrowser,
+  isResourceFileUrl,
+  loadCachedResourceBlob,
+  loadCachedResourceDataURL,
+  resourceMediaCacheKey,
+} from '../../resourceMediaBrowser.js'
+import { resourceAuthCacheScopeKey, type ResourceAuthCacheScopeInput } from '@movscript/core/resources'
+
+let authScope: ResourceAuthCacheScopeInput = {}
+
+configureResourceMediaBrowser({
+  authCacheScope: () => resourceAuthCacheScopeKey(authScope),
+})
+
+function setAuthScope(input: ResourceAuthCacheScopeInput): void {
+  authScope = input
+}
+
+test('isResourceFileUrl recognizes backend resource file endpoints', () => {
+  assert.equal(isResourceFileUrl('/api/v1/resources/42/file'), true)
+  assert.equal(isResourceFileUrl('/resources/42/file?download=1'), true)
+  assert.equal(isResourceFileUrl('https://example.test/api/v1/resources/42/file'), true)
+  assert.equal(isResourceFileUrl('/api/v1/resources/upload'), false)
+  assert.equal(isResourceFileUrl('/api/v1/projects/42/resources'), false)
+})
+
+test('resourceMediaCacheKey normalizes absolute resource URLs', () => {
+  const originalAuthScope = authScope
+  setAuthScope({})
+  try {
+    assert.equal(
+      resourceMediaCacheKey('https://example.test/api/v1/resources/42/file?variant=thumb'),
+      'https://example.test/api/v1/resources/42/file?variant=thumb::auth:user:anonymous:org:none:token:none',
+    )
+  } finally {
+    setAuthScope(originalAuthScope)
+  }
+})
+
+test('resourceMediaCacheKey keeps public media URLs outside auth scope', () => {
+  assert.equal(
+    resourceMediaCacheKey('https://cdn.example.test/media/output.mp4'),
+    'https://cdn.example.test/media/output.mp4',
+  )
+})
+
+test('loadCachedResourceBlob separates protected resource cache by auth scope', async () => {
+  __resetResourceMediaCacheForTests()
+  const originalAuthScope = authScope
+  let loads = 0
+
+  try {
+    const loadBlob = async () => {
+      loads += 1
+      return new Blob([`user-${authScope.userId ?? 'anonymous'}`], { type: 'text/plain' })
+    }
+
+    setAuthScope({ userId: 1, orgId: 10, token: 'token-one' })
+    const first = await loadCachedResourceBlob('/api/v1/resources/42/file', loadBlob)
+    const firstAgain = await loadCachedResourceBlob('/api/v1/resources/42/file', loadBlob)
+
+    setAuthScope({ userId: 2, orgId: 20, token: 'token-two' })
+    const second = await loadCachedResourceBlob('/api/v1/resources/42/file', loadBlob)
+
+    assert.equal(loads, 2)
+    assert.equal(await first.text(), 'user-1')
+    assert.equal(await firstAgain.text(), 'user-1')
+    assert.equal(await second.text(), 'user-2')
+  } finally {
+    __resetResourceMediaCacheForTests()
+    setAuthScope(originalAuthScope)
+  }
+})
+
+test('resource media cache separates protected object URLs by auth scope', async () => {
+  __resetResourceMediaCacheForTests()
+  const originalAuthScope = authScope
+  const originalCreateObjectURL = URL.createObjectURL
+  const originalRevokeObjectURL = URL.revokeObjectURL
+  const revoked: string[] = []
+  let loads = 0
+  URL.createObjectURL = ((() => `blob:scoped-${loads}`) as typeof URL.createObjectURL)
+  URL.revokeObjectURL = ((url: string) => {
+    revoked.push(url)
+  }) as typeof URL.revokeObjectURL
+
+  try {
+    setAuthScope({ userId: 1, orgId: 10, token: 'token-one' })
+    const first = await acquireCachedResourceMediaUrl('/api/v1/resources/42/file', async () => {
+      loads += 1
+      return new Blob(['image'], { type: 'image/png' })
+    })
+
+    setAuthScope({ userId: 2, orgId: 20, token: 'token-two' })
+    const second = await acquireCachedResourceMediaUrl('/api/v1/resources/42/file', async () => {
+      loads += 1
+      return new Blob(['image'], { type: 'image/png' })
+    })
+
+    assert.equal(loads, 2)
+    assert.notEqual(second.url, first.url)
+    first.release()
+    second.release()
+    assert.deepEqual(revoked, [])
+  } finally {
+    __resetResourceMediaCacheForTests()
+    URL.createObjectURL = originalCreateObjectURL
+    URL.revokeObjectURL = originalRevokeObjectURL
+    setAuthScope(originalAuthScope)
+  }
+})
+
+test('acquireCachedResourceMediaUrl deduplicates resource blob loads', async () => {
+  __resetResourceMediaCacheForTests()
+  let loads = 0
+  const originalCreateObjectURL = URL.createObjectURL
+  const originalRevokeObjectURL = URL.revokeObjectURL
+  URL.createObjectURL = (() => 'blob:resource-42') as typeof URL.createObjectURL
+  URL.revokeObjectURL = (() => undefined) as typeof URL.revokeObjectURL
+
+  try {
+    const loadBlob = async () => {
+      loads += 1
+      return new Blob(['image'], { type: 'image/png' })
+    }
+
+    const first = await acquireCachedResourceMediaUrl('/api/v1/resources/42/file', loadBlob)
+    const second = await acquireCachedResourceMediaUrl('/api/v1/resources/42/file', loadBlob)
+
+    assert.equal(loads, 1)
+    assert.equal(first.url, second.url)
+    first.release()
+    second.release()
+  } finally {
+    __resetResourceMediaCacheForTests()
+    URL.createObjectURL = originalCreateObjectURL
+    URL.revokeObjectURL = originalRevokeObjectURL
+  }
+})
+
+test('acquireCachedResourceMediaUrl deduplicates concurrent object URL creation', async () => {
+  __resetResourceMediaCacheForTests()
+  let loads = 0
+  let objectUrls = 0
+  const originalCreateObjectURL = URL.createObjectURL
+  const originalRevokeObjectURL = URL.revokeObjectURL
+  URL.createObjectURL = (() => {
+    objectUrls += 1
+    return `blob:resource-42-${objectUrls}`
+  }) as typeof URL.createObjectURL
+  URL.revokeObjectURL = (() => undefined) as typeof URL.revokeObjectURL
+
+  try {
+    const loadBlob = async () => {
+      loads += 1
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      return new Blob(['image'], { type: 'image/png' })
+    }
+
+    const [first, second] = await Promise.all([
+      acquireCachedResourceMediaUrl('/api/v1/resources/42/file', loadBlob),
+      acquireCachedResourceMediaUrl('/api/v1/resources/42/file', loadBlob),
+    ])
+
+    assert.equal(loads, 1)
+    assert.equal(objectUrls, 1)
+    assert.equal(first.url, second.url)
+    first.release()
+    second.release()
+  } finally {
+    __resetResourceMediaCacheForTests()
+    URL.createObjectURL = originalCreateObjectURL
+    URL.revokeObjectURL = originalRevokeObjectURL
+  }
+})
+
+test('acquireCachedResourceMediaUrl deduplicates direct media URL blob loads', async () => {
+  __resetResourceMediaCacheForTests()
+  let loads = 0
+  const originalCreateObjectURL = URL.createObjectURL
+  const originalRevokeObjectURL = URL.revokeObjectURL
+  URL.createObjectURL = (() => 'blob:direct-media') as typeof URL.createObjectURL
+  URL.revokeObjectURL = (() => undefined) as typeof URL.revokeObjectURL
+
+  try {
+    const loadBlob = async () => {
+      loads += 1
+      return new Blob(['video'], { type: 'video/mp4' })
+    }
+
+    const first = await acquireCachedResourceMediaUrl('https://cdn.example.test/media/output.mp4', loadBlob)
+    const second = await acquireCachedResourceMediaUrl('https://cdn.example.test/media/output.mp4', loadBlob)
+
+    assert.equal(loads, 1)
+    assert.equal(first.url, second.url)
+    first.release()
+    second.release()
+  } finally {
+    __resetResourceMediaCacheForTests()
+    URL.createObjectURL = originalCreateObjectURL
+    URL.revokeObjectURL = originalRevokeObjectURL
+  }
+})
+
+test('acquireCachedResourceMediaUrl caches transformed variants separately', async () => {
+  __resetResourceMediaCacheForTests()
+  let loads = 0
+  let transforms = 0
+  let objectUrls = 0
+  const originalCreateObjectURL = URL.createObjectURL
+  const originalRevokeObjectURL = URL.revokeObjectURL
+  URL.createObjectURL = ((blob: Blob) => {
+    objectUrls += 1
+    return `blob:${blob.type || 'media'}-${objectUrls}`
+  }) as typeof URL.createObjectURL
+  URL.revokeObjectURL = (() => undefined) as typeof URL.revokeObjectURL
+
+  try {
+    const loadBlob = async () => {
+      loads += 1
+      return new Blob(['image'], { type: 'image/png' })
+    }
+    const transformBlob = async () => {
+      transforms += 1
+      return new Blob(['thumb'], { type: 'image/jpeg' })
+    }
+
+    const [first, second] = await Promise.all([
+      acquireCachedResourceMediaUrl('/api/v1/resources/42/file', loadBlob, { variantKey: 'thumb:512', transformBlob }),
+      acquireCachedResourceMediaUrl('/api/v1/resources/42/file', loadBlob, { variantKey: 'thumb:512', transformBlob }),
+    ])
+    const full = await acquireCachedResourceMediaUrl('/api/v1/resources/42/file', loadBlob)
+
+    assert.equal(loads, 1)
+    assert.equal(transforms, 1)
+    assert.equal(objectUrls, 2)
+    assert.equal(first.url, second.url)
+    assert.notEqual(first.url, full.url)
+    first.release()
+    second.release()
+    full.release()
+  } finally {
+    __resetResourceMediaCacheForTests()
+    URL.createObjectURL = originalCreateObjectURL
+    URL.revokeObjectURL = originalRevokeObjectURL
+  }
+})
+
+test('acquireCachedInlineImageMediaUrl deduplicates inline image decoding and transformed variants', async () => {
+  __resetResourceMediaCacheForTests()
+  let loads = 0
+  let transforms = 0
+  let objectUrls = 0
+  const originalCreateObjectURL = URL.createObjectURL
+  const originalRevokeObjectURL = URL.revokeObjectURL
+  URL.createObjectURL = ((blob: Blob) => {
+    objectUrls += 1
+    return `blob:inline-${blob.type || 'media'}-${objectUrls}`
+  }) as typeof URL.createObjectURL
+  URL.revokeObjectURL = (() => undefined) as typeof URL.revokeObjectURL
+
+  try {
+    const dataUrl = `data:image/png;base64,${Buffer.from('image').toString('base64')}`
+    const loadBlob = async () => {
+      loads += 1
+      return new Blob(['image'], { type: 'image/png' })
+    }
+    const transformBlob = async () => {
+      transforms += 1
+      return new Blob(['thumb'], { type: 'image/jpeg' })
+    }
+
+    const [first, second] = await Promise.all([
+      acquireCachedInlineImageMediaUrl(dataUrl, loadBlob, { variantKey: 'thumb:512', transformBlob }),
+      acquireCachedInlineImageMediaUrl(dataUrl, loadBlob, { variantKey: 'thumb:512', transformBlob }),
+    ])
+
+    assert.equal(loads, 1)
+    assert.equal(transforms, 1)
+    assert.equal(objectUrls, 1)
+    assert.equal(first.url, second.url)
+    first.release()
+    second.release()
+  } finally {
+    __resetResourceMediaCacheForTests()
+    URL.createObjectURL = originalCreateObjectURL
+    URL.revokeObjectURL = originalRevokeObjectURL
+  }
+})
+
+test('acquireCachedResourceMediaUrl retries transformed variants after failure', async () => {
+  __resetResourceMediaCacheForTests()
+  let loads = 0
+  let transforms = 0
+  let objectUrls = 0
+  const originalCreateObjectURL = URL.createObjectURL
+  const originalRevokeObjectURL = URL.revokeObjectURL
+  URL.createObjectURL = (() => {
+    objectUrls += 1
+    return `blob:retry-${objectUrls}`
+  }) as typeof URL.createObjectURL
+  URL.revokeObjectURL = (() => undefined) as typeof URL.revokeObjectURL
+
+  try {
+    const loadBlob = async () => {
+      loads += 1
+      return new Blob(['image'], { type: 'image/png' })
+    }
+    const transformBlob = async () => {
+      transforms += 1
+      if (transforms === 1) throw new Error('thumbnail failed')
+      return new Blob(['thumb'], { type: 'image/jpeg' })
+    }
+
+    await assert.rejects(
+      acquireCachedResourceMediaUrl('/api/v1/resources/42/file', loadBlob, { variantKey: 'thumb:512', transformBlob }),
+      /thumbnail failed/,
+    )
+    const retried = await acquireCachedResourceMediaUrl('/api/v1/resources/42/file', loadBlob, { variantKey: 'thumb:512', transformBlob })
+
+    assert.equal(loads, 1)
+    assert.equal(transforms, 2)
+    assert.equal(objectUrls, 1)
+    assert.equal(retried.url, 'blob:retry-1')
+    retried.release()
+  } finally {
+    __resetResourceMediaCacheForTests()
+    URL.createObjectURL = originalCreateObjectURL
+    URL.revokeObjectURL = originalRevokeObjectURL
+  }
+})
+
+test('loadCachedResourceDataURL deduplicates resource blob loads and encodings', async () => {
+  __resetResourceMediaCacheForTests()
+  let loads = 0
+  let reads = 0
+  const originalFileReader = globalThis.FileReader
+
+  class MockFileReader {
+    result: string | ArrayBuffer | null = null
+    onload: (() => void) | null = null
+    onerror: (() => void) | null = null
+    error: Error | null = null
+
+    readAsDataURL(blob: Blob) {
+      reads += 1
+      void blob.arrayBuffer().then((buffer) => {
+        this.result = `data:${blob.type};base64,${Buffer.from(buffer).toString('base64')}`
+        this.onload?.()
+      }).catch((error) => {
+        this.error = error instanceof Error ? error : new Error(String(error))
+        this.onerror?.()
+      })
+    }
+  }
+
+  globalThis.FileReader = MockFileReader as unknown as typeof FileReader
+
+  try {
+    const loadBlob = async () => {
+      loads += 1
+      return new Blob(['image'], { type: 'image/png' })
+    }
+
+    const [first, second] = await Promise.all([
+      loadCachedResourceDataURL('/api/v1/resources/42/file', loadBlob),
+      loadCachedResourceDataURL('/api/v1/resources/42/file', loadBlob),
+    ])
+
+    assert.equal(loads, 1)
+    assert.equal(reads, 1)
+    assert.equal(first, 'data:image/png;base64,aW1hZ2U=')
+    assert.equal(second, first)
+  } finally {
+    __resetResourceMediaCacheForTests()
+    globalThis.FileReader = originalFileReader
+  }
+})

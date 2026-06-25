@@ -1,0 +1,266 @@
+@import "./ScriptsPagePanels.css";
+@import "./ScriptsPageEditor.css";
+@import "./ScriptsPageDetail.css";
+
+.script-workbench-shell {
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+}
+
+.script-workbench-frame {
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+}
+
+.script-workbench-layout {
+  --script-workbench-content-max: min(100%, 1460px);
+  --script-workbench-content-x: clamp(18px, 2.8cqi, 36px);
+  --script-workbench-content-y: clamp(10px, 1.4cqi, 18px);
+  --script-workbench-body-x: clamp(24px, 5%, 56px);
+  --script-workbench-body-y: clamp(12px, 2cqi, 20px);
+  container-type: inline-size;
+  display: grid;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  grid-template-columns: minmax(0, 1fr);
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--ms-color-background) 96%, var(--ms-color-muted)) 0%, var(--ms-color-background) 52%),
+    var(--ms-color-background);
+}
+
+.script-workbench-rail {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.script-workbench-project-shell .workbench-project-header {
+  padding: 8px 20px 6px;
+}
+
+.script-workbench-project-shell .workbench-project-header__main {
+  min-height: 32px;
+}
+
+.script-workbench-project-shell .workbench-project-header__identity {
+  gap: 10px;
+}
+
+.script-workbench-project-shell .workbench-project-header__icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+}
+
+.script-workbench-project-shell .workbench-project-header__icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.script-workbench-project-shell .workbench-project-header__copy {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.script-workbench-project-shell .workbench-project-header__kicker,
+.script-workbench-project-shell .workbench-project-header__title,
+.script-workbench-project-shell .workbench-project-header__description {
+  margin: 0;
+  line-height: 18px;
+}
+
+.script-workbench-project-shell .workbench-project-header__kicker {
+  flex: 0 0 auto;
+}
+
+.script-workbench-project-shell .workbench-project-header__title {
+  flex: 0 1 auto;
+  font-size: 15px;
+}
+
+.script-workbench-project-shell .workbench-project-header__description {
+  flex: 1 1 auto;
+  max-width: none;
+}
+
+.script-workbench-main {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--ms-color-background) 94%, #10141a);
+}
+
+.script-workbench-topbar {
+  --script-workbench-content-max: min(100%, 1460px);
+  padding: 10px var(--script-workbench-content-x) 8px;
+}
+
+.script-workbench-topbar .script-detail-header__top {
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 16px;
+}
+
+.script-workbench-topbar .script-detail-header__badges {
+  margin: 0;
+}
+
+.script-workbench-topbar .script-detail-header__title {
+  max-width: min(72ch, 100%);
+  margin: 0;
+  overflow: hidden;
+  font-size: 17px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.script-workbench-topbar .script-detail-header__copy {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.script-workbench-topbar .script-detail-header__badges {
+  order: 2;
+  flex: 0 0 auto;
+}
+
+.script-workbench-topbar .script-detail-header__actions {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+
+.script-workbench-topbar .script-editor-form__inline-meta,
+.script-workbench-topbar .script-editor-form__error-text {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.script-workbench-topbar .script-detail-header__metrics {
+  display: none;
+}
+
+.script-workbench-topbar .app-metric-card {
+  min-width: 112px;
+  border-color: color-mix(in srgb, var(--ms-color-border) 54%, transparent);
+  background: color-mix(in srgb, var(--ms-color-muted) 20%, transparent);
+  box-shadow: none;
+}
+
+.script-workbench-mode-tabs {
+  --script-workbench-content-max: min(100%, 1460px);
+  width: auto;
+  margin: 0;
+  border: 1px solid color-mix(in srgb, var(--ms-color-border) 68%, transparent);
+  border-radius: var(--ms-radius-full);
+  background: color-mix(in srgb, var(--ms-color-muted) 24%, transparent);
+  padding: 2px;
+}
+
+.script-workbench-mode-tabs .script-detail-tabs__trigger {
+  min-width: 58px;
+  padding: 5px 10px;
+  font-size: var(--ms-text-caption);
+  line-height: var(--ms-leading-caption);
+}
+
+.script-workbench-mode-tabs .script-detail-tabs__trigger[data-active="true"] {
+  background: var(--ms-color-background);
+  box-shadow: 0 1px 2px color-mix(in srgb, #000 12%, transparent);
+}
+
+.script-workbench-inspector {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  border-left: 0;
+}
+
+.script-workbench-inspector__body {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 0 var(--script-workbench-content-x) var(--script-workbench-content-y);
+}
+
+.script-workbench-inspector--editor .script-workbench-inspector__body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.script-workbench-detail-content {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.script-workbench-detail-content--editor {
+  --script-workbench-content-max: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.script-workbench-status-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--ms-space-2);
+}
+
+@media (max-width: 1023px) {
+  .script-workbench-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .script-workbench-project-shell .workbench-project-header__copy {
+    flex-wrap: wrap;
+    gap: 4px 8px;
+  }
+
+  .script-workbench-project-shell .workbench-project-header__description {
+    flex-basis: 100%;
+  }
+
+  .script-workbench-topbar .script-detail-header__top,
+  .script-workbench-topbar .script-detail-header__copy,
+  .script-workbench-topbar .script-detail-header__actions {
+    flex-wrap: wrap;
+  }
+
+  .script-workbench-topbar .script-detail-header__title {
+    white-space: normal;
+  }
+
+  .script-workbench-inspector__body {
+    overflow-y: auto;
+  }
+
+  .script-workbench-inspector--editor .script-workbench-inspector__body {
+    overflow-y: auto;
+  }
+
+  .script-workbench-detail-content--editor {
+    overflow: visible;
+  }
+
+}

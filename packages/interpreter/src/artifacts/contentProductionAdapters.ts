@@ -184,6 +184,7 @@ function basePrompt(
       source_content_unit_ref: ref.selection?.content_unit_ref,
       candidate_id: ref.selection?.candidate_id,
       resource_id: ref.selection?.resource_id,
+      provider_asset: ref.selection?.provider_asset,
       required: true,
     }))
   const blockers = [...options.blockers, ...inputBlockers(context, resolvedRefs)]
@@ -456,6 +457,7 @@ function canonicalPromptComparisonValue(prompt: NormalizedContentUnitPrompt): un
         candidate_id: ref.selection.candidate_id,
         resource_id: ref.selection.resource_id,
         artifact_ref: ref.selection.artifact_ref,
+        provider_asset: ref.selection.provider_asset,
       } : undefined,
     })),
     runtime_request: prompt.runtime_request,

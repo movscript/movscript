@@ -34,7 +34,7 @@ function installPackage(packageName, packageVersion) {
 
 function parseArgs(rawArgs, env) {
   const parsed = {
-    output: env.MOVSCRIPT_SDK_RUNTIME_SEED_DIR || 'apps/frontend/vendor/sdk-runtimes',
+    output: env.MOVSCRIPT_SDK_RUNTIME_SEED_DIR || 'apps/desktop/vendor/sdk-runtimes',
     codexPackage: env.MOVSCRIPT_CODEX_SDK_PACKAGE || '@openai/codex-sdk',
     codexVersion: env.MOVSCRIPT_CODEX_SDK_PACKAGE_VERSION || '0.141.0',
     claudePackage: env.MOVSCRIPT_CLAUDE_SDK_PACKAGE || '@anthropic-ai/claude-agent-sdk',
@@ -77,7 +77,7 @@ function printUsage() {
   console.log(`Usage: node scripts/prepare-sdk-runtime-seed.mjs [options]
 
 Options:
-  --output <dir>            Seed output directory. Defaults to apps/frontend/vendor/sdk-runtimes.
+  --output <dir>            Seed output directory. Defaults to apps/desktop/vendor/sdk-runtimes.
   --codex-package <name>    Codex SDK package. Defaults to @openai/codex-sdk.
   --codex-version <ver>     Codex SDK version. Defaults to 0.141.0.
   --claude-package <name>   Claude SDK package. Defaults to @anthropic-ai/claude-agent-sdk.

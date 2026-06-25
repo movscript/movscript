@@ -34,8 +34,8 @@ export async function signMacOSApp(root, appDir) {
   if (!existsSync(appDir)) {
     throw new Error(`macOS app does not exist: ${appDir}`)
   }
-  const frontendRequire = createRequire(resolve(root, 'apps/frontend/package.json'))
-  const { signAsync } = frontendRequire('@electron/osx-sign')
+  const desktopRequire = createRequire(resolve(root, 'apps/desktop/package.json'))
+  const { signAsync } = desktopRequire('@electron/osx-sign')
   await signAsync({
     app: appDir,
     identity: '-',
@@ -45,7 +45,7 @@ export async function signMacOSApp(root, appDir) {
     strictVerify: false,
     ignore: (filePath) => isPackagedFFmpegResource(filePath),
     optionsForFile: () => ({
-      entitlements: resolve(root, 'apps/frontend/build/entitlements.mac.plist'),
+      entitlements: resolve(root, 'apps/desktop/build/entitlements.mac.plist'),
       hardenedRuntime: true,
       timestamp: 'none',
     }),

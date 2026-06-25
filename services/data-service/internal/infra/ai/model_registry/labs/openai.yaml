@@ -1,0 +1,324 @@
+lab: openai
+templates:
+    - order: 6
+      id: openai:gpt-5.2
+      lab: openai
+      model_id: gpt-5.2
+      display_name: GPT-5.2 (推理)
+      adapter_type: openai_compat
+      capabilities:
+        - text
+        - reasoning
+      source:
+        url: https://developers.openai.com/api/docs/models
+        verified_at: "2026-06-25"
+        status: verified
+    - order: 7
+      id: openai:gpt-4o
+      lab: openai
+      model_id: gpt-4o
+      display_name: GPT-4o
+      adapter_type: openai_compat
+      capabilities:
+        - text
+      source:
+        url: https://developers.openai.com/api/docs/models
+        verified_at: "2026-06-25"
+        status: deprecated
+    - order: 8
+      id: openai:gpt-4o-mini
+      lab: openai
+      model_id: gpt-4o-mini
+      display_name: GPT-4o mini
+      adapter_type: openai_compat
+      capabilities:
+        - text
+      source:
+        url: https://developers.openai.com/api/docs/models
+        verified_at: "2026-06-25"
+        status: verified
+    - order: 9
+      id: openai:gpt-4.1
+      lab: openai
+      model_id: gpt-4.1
+      display_name: GPT-4.1
+      adapter_type: openai_compat
+      capabilities:
+        - text
+      source:
+        url: https://developers.openai.com/api/docs/models
+        verified_at: "2026-06-25"
+        status: verified
+    - order: 10
+      id: openai:gpt-4.1-mini
+      lab: openai
+      model_id: gpt-4.1-mini
+      display_name: GPT-4.1 mini
+      adapter_type: openai_compat
+      capabilities:
+        - text
+      source:
+        url: https://developers.openai.com/api/docs/models
+        verified_at: "2026-06-25"
+        status: verified
+    - order: 11
+      id: openai:o3-mini
+      lab: openai
+      model_id: o3-mini
+      display_name: o3-mini (推理)
+      adapter_type: openai_compat
+      capabilities:
+        - text
+        - reasoning
+      source:
+        url: https://developers.openai.com/api/docs/models
+        verified_at: "2026-06-25"
+        status: deprecated
+    - order: 12
+      id: openai:dall-e-3
+      lab: openai
+      model_id: dall-e-3
+      display_name: DALL-E 3
+      adapter_type: openai_compat
+      capabilities:
+        - image
+      params:
+        - key: image_size
+          label: 画面尺寸
+          type: select
+          options:
+            - 1024x1024
+            - 1024x1792
+            - 1792x1024
+          default: 1024x1024
+        - key: quality
+          label: 质量
+          type: select
+          options:
+            - standard
+            - hd
+          default: standard
+        - key: style
+          label: 风格
+          type: select
+          options:
+            - vivid
+            - natural
+          default: vivid
+      source:
+        url: https://developers.openai.com/api/reference/resources/images
+        verified_at: "2026-06-25"
+        status: deprecated
+    - order: 13
+      id: openai:gpt-image-1
+      lab: openai
+      model_id: gpt-image-1
+      display_name: GPT Image 1 (文生图)
+      adapter_type: openai_compat
+      capabilities:
+        - image
+      params:
+        - key: image_size
+          label: 尺寸
+          type: string
+          default: auto
+          json_schema:
+            pattern: ^(auto|[1-9][0-9]{0,3}x[1-9][0-9]{0,3})$
+            x_movscript_image_size:
+              allow_auto: true
+              width_multiple_of: 16
+              height_multiple_of: 16
+              max_width: 3840
+              max_height: 2160
+              min_aspect_ratio: 0.3333333333333333
+              max_aspect_ratio: 3
+        - key: quality
+          label: 质量
+          type: select
+          options:
+            - auto
+            - high
+            - medium
+            - low
+          default: auto
+      source:
+        url: https://developers.openai.com/api/reference/resources/images
+        verified_at: "2026-06-25"
+        status: deprecated
+    - order: 14
+      id: openai:gpt-image-1-edit
+      lab: openai
+      model_id: gpt-image-1
+      display_name: GPT Image 1 (图像编辑)
+      adapter_type: openai_compat
+      capabilities:
+        - image_edit
+      input:
+        accepts_image: true
+        max_images: 1
+      image_edit_field: image[]
+      params:
+        - key: image_size
+          label: 尺寸
+          type: select
+          options:
+            - auto
+            - 1024x1024
+            - 1536x1024
+            - 1024x1536
+          default: auto
+        - key: quality
+          label: 质量
+          type: select
+          options:
+            - auto
+            - high
+            - medium
+            - low
+          default: auto
+      source:
+        url: https://developers.openai.com/api/reference/resources/images
+        verified_at: "2026-06-25"
+        status: deprecated
+    - order: 15
+      id: openai:gpt-image-2
+      lab: openai
+      model_id: gpt-image-2
+      display_name: GPT Image 2 (文生图)
+      adapter_type: openai_compat
+      capabilities:
+        - image
+      params:
+        - key: image_size
+          label: 尺寸
+          type: select
+          options:
+            - auto
+            - 1024x1024
+            - 1536x1024
+            - 1024x1536
+          default: auto
+        - key: quality
+          label: 质量
+          type: select
+          options:
+            - auto
+            - high
+            - medium
+            - low
+          default: auto
+      source:
+        url: https://developers.openai.com/api/reference/resources/images
+        verified_at: "2026-06-25"
+        status: verified
+    - order: 16
+      id: openai:gpt-4o-mini-tts
+      lab: openai
+      model_id: gpt-4o-mini-tts
+      display_name: GPT-4o mini TTS
+      adapter_type: openai_compat
+      capabilities:
+        - audio_tts
+      params:
+        - key: voice
+          label: 音色
+          type: select
+          options:
+            - alloy
+            - ash
+            - ballad
+            - coral
+            - echo
+            - fable
+            - onyx
+            - nova
+            - sage
+            - shimmer
+            - verse
+          default: alloy
+        - key: response_format
+          label: 音频格式
+          type: select
+          options:
+            - mp3
+            - opus
+            - aac
+            - flac
+            - wav
+            - pcm
+          default: mp3
+        - key: speed
+          label: 语速
+          type: number
+          default: 1
+          min: 0.25
+          max: 4
+          step: 0.01
+        - key: instructions
+          label: 语音指令
+          type: string
+          default: ""
+      source:
+        url: https://developers.openai.com/api/docs/guides/text-to-speech
+        verified_at: "2026-06-25"
+        status: verified
+    - order: 17
+      id: openai:gpt-4o-transcribe
+      lab: openai
+      model_id: gpt-4o-transcribe
+      display_name: GPT-4o Transcribe
+      adapter_type: openai_compat
+      capabilities:
+        - audio_transcribe
+      params:
+        - key: response_format
+          label: 输出格式
+          type: select
+          options:
+            - json
+          default: json
+        - key: prompt
+          label: 提示词
+          type: string
+          default: ""
+        - key: temperature
+          label: 随机性
+          type: number
+          default: 0
+          min: 0
+          max: 1
+          step: 0.1
+      source:
+        url: https://developers.openai.com/api/docs/guides/speech-to-text
+        verified_at: "2026-06-25"
+        status: verified
+    - order: 18
+      id: openai:gpt-4o-mini-transcribe
+      lab: openai
+      model_id: gpt-4o-mini-transcribe
+      display_name: GPT-4o mini Transcribe
+      adapter_type: openai_compat
+      capabilities:
+        - audio_transcribe
+      params:
+        - key: response_format
+          label: 输出格式
+          type: select
+          options:
+            - json
+          default: json
+        - key: prompt
+          label: 提示词
+          type: string
+          default: ""
+        - key: temperature
+          label: 随机性
+          type: number
+          default: 0
+          min: 0
+          max: 1
+          step: 0.1
+      source:
+        url: https://developers.openai.com/api/docs/guides/speech-to-text
+        verified_at: "2026-06-25"
+        status: verified

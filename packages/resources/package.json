@@ -1,0 +1,36 @@
+{
+  "name": "@movscript/resources",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MovScript shared resource URLs, media contracts, drag payload, and timeline helpers.",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm build && node --test tests/*.test.mjs"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsup": "^8.5.0",
+    "typescript": "^5.8.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

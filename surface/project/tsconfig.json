@@ -1,0 +1,99 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": [
+      "node"
+    ],
+    "paths": {
+      "@movscript/project-surface": [
+        "./src/index.ts"
+      ],
+      "@movscript/project-surface/react": [
+        "./src/react.ts"
+      ],
+      "@movscript/project-surface/data": [
+        "./src/data.ts"
+      ],
+      "@movscript/project-surface/routes": [
+        "./src/routes.ts"
+      ],
+      "@movscript/project-surface/layout": [
+        "./src/layout.ts"
+      ],
+      "@movscript/project-surface/runtime": [
+        "./src/runtime.ts"
+      ],
+      "@movscript/canvas-surface": [
+        "../canvas/src/index.ts"
+      ],
+      "@movscript/canvas-surface/data": [
+        "../canvas/src/data.ts"
+      ],
+      "@movscript/canvas-surface/workbench": [
+        "../canvas/src/workbench.ts"
+      ],
+      "@movscript/resource-surface": [
+        "../resource/src/index.ts"
+      ],
+      "@movscript/resource-surface/data": [
+        "../resource/src/data.ts"
+      ],
+      "@movscript/resource-surface/react": [
+        "../resource/src/react.ts"
+      ],
+      "@movscript/resource-surface/resource-browser": [
+        "../resource/src/resource-browser.ts"
+      ],
+      "@movscript/resource-surface/resource-media-components": [
+        "../resource/src/resourceMediaComponents.tsx"
+      ],
+      "@movscript/resource-surface/resource-library-picker": [
+        "../resource/src/resourceLibraryPicker.tsx"
+      ],
+      "@movscript/resource-surface/resource-interaction": [
+        "../resource/src/resourceInteraction.ts"
+      ],
+      "@movscript/resources": [
+        "../../packages/resources/src/index.ts"
+      ],
+      "@movscript/workspace": [
+        "../../packages/workspace/src/index.ts"
+      ],
+      "@movscript/engine": [
+        "../../packages/engine/src/index.ts"
+      ],
+      "@movscript/shared/browser": [
+        "../../packages/shared/src/browser.ts"
+      ],
+      "@movscript/shared/app-events": [
+        "../../packages/shared/src/appEvents.ts"
+      ],
+      "@movscript/shared/semantic-entities": [
+        "../../packages/shared/src/surfaceSemanticEntities.ts"
+      ],
+      "@movscript/shared/workspace-candidates": [
+        "../../packages/shared/src/workspaceCandidates.ts"
+      ],
+      "@movscript/shared/surface-http": [
+        "../../packages/shared/src/surfaceHttpClient.ts"
+      ],
+      "@movscript/shared": [
+        "../../packages/shared/src/index.ts"
+      ],
+      "@movscript/core/resources": [
+        "../../packages/core/src/resources/index.ts"
+      ],
+      "@movscript/core/agent": [
+        "../../packages/core/src/agent/index.ts"
+      ]
+    }
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx"
+  ],
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx"
+  ]
+}

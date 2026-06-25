@@ -5,7 +5,7 @@ Root scripts are workspace automation. App-only scripts should live under the ap
 Release automation lives in `scripts/release/`. App-only automation belongs in the owning package's `scripts/` directory.
 
 Desktop package resources are governed by `package-resources.manifest.json`.
-Run `pnpm run verify:package-resources` after changing `apps/frontend/electron-builder.yml`,
+Run `pnpm run verify:package-resources` after changing `apps/desktop/electron-builder.yml`,
 desktop runtime binaries, plugin bundle layout, or release staging paths.
 
 ## Release signing modes

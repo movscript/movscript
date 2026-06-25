@@ -9,9 +9,9 @@ import type { OverlapPaneState } from "./resize";
 export * from "./resize";
 
 export type WorkspaceShellChrome = Extract<LayoutChrome, "workspace" | "immersive" | "canvas">;
-export type WorkspaceShellSurface = "home" | "agent" | "project" | "tool" | "canvas" | "settings";
+export type WorkspaceShellSurface = "home" | "agent" | "project" | "resource" | "tool" | "canvas" | "settings";
 export type MasterDetailChrome = "split" | "flush";
-export type PanelResizeHandleSide = "left" | "right";
+export type PanelResizeHandleSide = "left" | "right" | "top" | "bottom";
 export type OverlapPaneSide = "left" | "right";
 export type OverlapPaneElement = "section" | "main" | "aside" | "div";
 export type OverlapPaneChrome = "plain" | "card";

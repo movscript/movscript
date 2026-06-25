@@ -4,14 +4,16 @@ import { resolve } from 'node:path'
 import test from 'node:test'
 import {
   createMediaEditingProjectFromMovScriptEditPlan,
+  createMediaEditingProjectFromProductionTimelineClips,
   createMediaEditingProjectService,
   normalizeMediaClipVolumePercent,
   validateMediaEditingProjectTimeline,
 } from '../dist/index.js'
 import * as editingPackage from '../dist/index.js'
 
-test('package root exports only MovScript media editing project contracts', () => {
+test('package exports MovScript editing contracts and browser-safe pure editing entrypoint', () => {
   const indexSource = readFileSync(resolve(import.meta.dirname, '../src/index.ts'), 'utf8')
+  const browserSource = readFileSync(resolve(import.meta.dirname, '../src/browser.ts'), 'utf8')
   const packageJson = JSON.parse(readFileSync(resolve(import.meta.dirname, '../package.json'), 'utf8'))
   const readmeSource = readFileSync(resolve(import.meta.dirname, '../README.md'), 'utf8')
   const tsupSource = readFileSync(resolve(import.meta.dirname, '../tsup.config.ts'), 'utf8')
@@ -35,8 +37,15 @@ test('package root exports only MovScript media editing project contracts', () =
   assert.equal(existsSync(resolve(import.meta.dirname, '../src/legacy-open-cut.ts')), false)
   assert.equal(existsSync(resolve(import.meta.dirname, '../src/legacy-open-cut')), false)
   assert.deepEqual(rootSourceDirectories, [])
-  assert.deepEqual(Object.keys(packageJson.exports).sort(), ['.'])
+  assert.deepEqual(Object.keys(packageJson.exports).sort(), ['.', './browser'])
+  assert.match(browserSource, /createMediaEditingProjectService/)
+  assert.doesNotMatch(browserSource, /@movscript\/runtime-contracts/)
+  assert.doesNotMatch(browserSource, /readRuntimeHomeSnapshot/)
   assert.doesNotMatch(tsupSource, /legacy-open-cut/)
+  assert.match(tsupSource, /src\/browser\.ts/)
+  assert.equal(existsSync(resolve(import.meta.dirname, '../dist/browser.js')), true)
+  assert.equal(existsSync(resolve(import.meta.dirname, '../dist/browser.cjs')), true)
+  assert.equal(existsSync(resolve(import.meta.dirname, '../dist/browser.d.ts')), true)
   assert.equal(existsSync(resolve(import.meta.dirname, '../dist/legacy-open-cut.js')), false)
   assert.equal(existsSync(resolve(import.meta.dirname, '../dist/legacy-open-cut.cjs')), false)
   assert.equal(existsSync(resolve(import.meta.dirname, '../dist/legacy-open-cut.d.ts')), false)
@@ -86,6 +95,38 @@ test('creates a MediaEditingProject from a MovScript edit plan', () => {
   assert.equal(subtitleTrack?.type, 'subtitle')
   assert.equal(subtitleTrack?.clips[0].text.content, 'Hello')
   assert.equal(subtitleTrack?.clips[0].durationMs, 5000)
+})
+
+test('creates a production MediaEditingProject from preview timeline clips', () => {
+  const project = createMediaEditingProjectFromProductionTimelineClips({
+    productionId: 'pilot',
+    productionPath: 'productions/pilot',
+    title: 'Pilot timeline',
+    now: '2026-06-18T00:00:00.000Z',
+    clips: [{
+      id: 'production_clip_rain_call',
+      title: 'Rain call',
+      sceneMomentId: 'rain_call',
+      sceneMomentPath: 'productions/pilot/scene_moments/rain_call',
+      contentUnitId: 'cu_rain_call',
+      candidateId: 'cand_rain',
+      resourceId: 612,
+      durationSec: 7,
+    }],
+  })
+
+  assert.equal(project.id, 'editing_project_production_pilot')
+  assert.equal(project.projectId, 'movscript_production_pilot')
+  assert.equal(project.source.productionId, 'pilot')
+  assert.deepEqual(project.source.contentUnitIds, ['cu_rain_call'])
+  assert.equal(project.timeline.width, 1920)
+  assert.equal(project.timeline.height, 1080)
+  assert.equal(project.timeline.durationMs, 7000)
+  assert.equal(project.timeline.metadata.productionPath, 'productions/pilot')
+  assert.equal(project.assets.assets[0].id, 'movscript_resource_612')
+  assert.equal(project.timeline.tracks[0].clips[0].asset.resourceId, 612)
+  assert.equal(project.timeline.tracks[0].clips[0].metadata.movscript.targetKind, 'production')
+  assert.deepEqual(project.provenance.selectedCandidateIds, ['cand_rain'])
 })
 
 test('normalizes legacy ratio volume and validates media editing timelines', () => {

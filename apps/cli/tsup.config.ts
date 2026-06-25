@@ -7,5 +7,6 @@ export default defineConfig({
   noExternal: [/^@movscript\//, 'commander'],
   outExtension: () => ({ js: '.cjs' }),
   banner: { js: '#!/usr/bin/env node' },
+  dts: true,
   clean: true,
 })

@@ -1,0 +1,501 @@
+package handler
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	adminai "github.com/movscript/movscript/internal/app/admin/ai"
+	"github.com/movscript/movscript/internal/infra/config"
+	audit "github.com/movscript/movscript/internal/interfaces/http/audit"
+	providerassembly "github.com/movscript/movscript/internal/providers/assembly"
+)
+
+var providerActivationHTTPClient = &http.Client{Timeout: 20 * time.Second}
+
+func (h *AIHandler) ListProviderInstances(c *gin.Context) {
+	instances, err := h.service.ListProviderInstances(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	instances = append(startupProviderInstances(h.cfg), instances...)
+	c.JSON(http.StatusOK, gin.H{"items": instances})
+}
+
+func (h *AIHandler) ListProviderTemplates(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"items": h.service.ListProviderTemplates(c.Request.Context())})
+}
+
+func (h *AIHandler) ListComboTemplates(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"items": h.service.ListComboTemplates(c.Request.Context())})
+}
+
+func (h *AIHandler) ListProviders(c *gin.Context) {
+	providers, err := h.service.ListProviders(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"items": providers})
+}
+
+func (h *AIHandler) GetProviderAssetLibrarySettings(c *gin.Context) {
+	settings, err := h.service.GetProviderAssetLibrarySettings(c.Request.Context(), c.Param("providerID"))
+	if err != nil {
+		writeProviderError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, settings)
+}
+
+func (h *AIHandler) UpdateProviderAssetLibrarySettings(c *gin.Context) {
+	var req adminai.ProviderAssetLibrarySettingsInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	settings, err := h.service.UpdateProviderAssetLibrarySettings(c.Request.Context(), c.Param("providerID"), req)
+	if err != nil {
+		writeProviderError(c, err)
+		return
+	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "ai_provider.asset_library.admin_updated",
+		TargetType: "ai_provider",
+		TargetID:   c.Param("providerID"),
+		Metadata: map[string]any{
+			"provider_id":           c.Param("providerID"),
+			"ark_openapi_base_url":  redactAuditURL(settings.ArkOpenAPIBaseURL),
+			"ark_region":            settings.ArkRegion,
+			"ark_access_key_id_set": strings.TrimSpace(settings.ArkAccessKeyID) != "",
+			"ark_secret_key_set":    settings.ArkSecretKeySet,
+			"ark_asset_group_count": len(settings.ArkAssetGroups),
+		},
+	})
+	c.JSON(http.StatusOK, settings)
+}
+
+func (h *AIHandler) CreateProvider(c *gin.Context) {
+	var req adminai.CreateProviderInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	provider, err := h.service.CreateProvider(c.Request.Context(), req)
+	if err != nil {
+		writeProviderError(c, err)
+		return
+	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "ai_provider.admin_created",
+		TargetType: "ai_provider",
+		TargetID:   provider.ProviderID,
+		Metadata: map[string]any{
+			"provider_id":          provider.ProviderID,
+			"provider_type":        provider.ProviderType,
+			"profile":              provider.Profile,
+			"provider_kind":        provider.ProviderKind,
+			"provider_category":    provider.ProviderCategory,
+			"default_adapter_type": provider.DefaultAdapterType,
+			"adapter_key":          provider.AdapterKey,
+			"display_name":         provider.DisplayName,
+			"base_url_prefix":      redactAuditURL(provider.BaseURLPrefix),
+			"is_enabled":           provider.IsEnabled,
+		},
+	})
+	c.JSON(http.StatusCreated, provider)
+}
+
+func (h *AIHandler) CreateProviderCredential(c *gin.Context) {
+	var req adminai.CreateProviderCredentialInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	provider, err := h.service.CreateProviderCredential(c.Request.Context(), c.Param("providerID"), req)
+	if err != nil {
+		writeProviderError(c, err)
+		return
+	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "ai_provider_credential.admin_created",
+		TargetType: "ai_provider",
+		TargetID:   provider.ProviderID,
+		Metadata: map[string]any{
+			"provider_id":    provider.ProviderID,
+			"credential_key": req.CredentialKey,
+		},
+	})
+	c.JSON(http.StatusCreated, provider)
+}
+
+func (h *AIHandler) SetProviderCredentialPrimary(c *gin.Context) {
+	provider, err := h.service.SetProviderCredentialPrimary(c.Request.Context(), c.Param("providerID"), c.Param("credentialKey"))
+	if err != nil {
+		writeProviderError(c, err)
+		return
+	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "ai_provider_credential.primary.admin_set",
+		TargetType: "ai_provider",
+		TargetID:   provider.ProviderID,
+		Metadata: map[string]any{
+			"provider_id":    provider.ProviderID,
+			"credential_key": c.Param("credentialKey"),
+		},
+	})
+	c.JSON(http.StatusOK, provider)
+}
+
+func (h *AIHandler) UpdateProviderCredential(c *gin.Context) {
+	var req adminai.UpdateProviderCredentialInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	provider, err := h.service.UpdateProviderCredential(c.Request.Context(), c.Param("providerID"), c.Param("credentialKey"), req)
+	if err != nil {
+		writeProviderError(c, err)
+		return
+	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "ai_provider_credential.admin_updated",
+		TargetType: "ai_provider",
+		TargetID:   provider.ProviderID,
+		Metadata: map[string]any{
+			"provider_id":    provider.ProviderID,
+			"credential_key": c.Param("credentialKey"),
+			"status":         req.Status,
+		},
+	})
+	c.JSON(http.StatusOK, provider)
+}
+
+func (h *AIHandler) TestProviderInstance(c *gin.Context) {
+	ctx, cancel := contextWithProviderInstanceTimeout(c)
+	defer cancel()
+	instanceID := c.Param("id")
+	result, err := h.service.TestProviderInstance(ctx, instanceID)
+	if err != nil {
+		if errors.Is(err, adminai.ErrNotFound) {
+			startupResult, startupErr := providerassembly.TestStartupProviderInstance(ctx, h.cfg, instanceID)
+			if startupErr != nil {
+				if errors.Is(startupErr, providerassembly.ErrProviderInstanceNotFound) {
+					c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+					return
+				}
+				c.JSON(http.StatusInternalServerError, gin.H{"error": startupErr.Error()})
+				return
+			}
+			result = adminai.TestResult{Success: startupResult.Success, Message: startupResult.Message, LatencyMs: startupResult.LatencyMs}
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "provider_instance.admin_tested",
+		TargetType: "provider_instance",
+		TargetID:   instanceID,
+		Metadata: map[string]any{
+			"provider_instance_id": instanceID,
+			"success":              result.Success,
+			"latency_ms":           result.LatencyMs,
+			"message_len":          len(result.Message),
+		},
+	})
+	c.JSON(http.StatusOK, result)
+}
+
+func (h *AIHandler) GetProviderInstanceConfig(c *gin.Context) {
+	instance, ok := h.startupProviderInstance(c.Param("id"))
+	if !ok || !instance.ConfigEditable {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	draft, err := h.service.GetProviderInstanceConfigDraft(c.Request.Context(), instance)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, draft)
+}
+
+func (h *AIHandler) UpdateProviderInstanceConfig(c *gin.Context) {
+	instance, ok := h.startupProviderInstance(c.Param("id"))
+	if !ok || !instance.ConfigEditable {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	var req adminai.ProviderInstanceConfigDraftInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	draft, err := h.service.UpdateProviderInstanceConfigDraft(c.Request.Context(), instance, req)
+	if err != nil {
+		if errors.Is(err, adminai.ErrInvalidProviderInstanceConfig) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "provider_instance.config_draft.admin_updated",
+		TargetType: "provider_instance",
+		TargetID:   instance.ID,
+		Metadata: map[string]any{
+			"provider_instance_id": instance.ID,
+			"config_fields":        providerInstanceFieldKeys(draft.ConfigFields),
+			"secret_fields":        providerInstanceFieldConfigured(draft.SecretFields),
+			"requires_restart":     draft.RequiresRestart,
+		},
+	})
+	c.JSON(http.StatusOK, draft)
+}
+
+func (h *AIHandler) ApplyProviderInstanceConfig(c *gin.Context) {
+	instance, ok := h.startupProviderInstance(c.Param("id"))
+	if !ok || !instance.ConfigEditable {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	envPath := ""
+	if h.cfg != nil {
+		envPath = h.cfg.ProviderEnvPath
+	}
+	result, err := h.service.ApplyProviderInstanceConfigDraft(c.Request.Context(), instance, envPath)
+	if err != nil {
+		if errors.Is(err, adminai.ErrInvalidProviderInstanceConfig) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if h.cfg != nil {
+		result.ActivationMode = adminai.ProviderActivationMode(h.cfg.EffectiveProviderAssembly().DeploymentProfile)
+		result.ActivationPlan = h.providerActivationPlan(instance.ID, result.ActivationMode, result.EnvPath, result.EnvKeys, result.SecretKeys)
+	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "provider_instance.config_draft.admin_applied",
+		TargetType: "provider_instance",
+		TargetID:   instance.ID,
+		Metadata: map[string]any{
+			"provider_instance_id": instance.ID,
+			"env_path":             result.EnvPath,
+			"env_keys":             result.EnvKeys,
+			"secret_keys":          result.SecretKeys,
+			"requires_restart":     result.RequiresRestart,
+			"activation_mode":      result.ActivationMode,
+		},
+	})
+	c.JSON(http.StatusOK, result)
+}
+
+func (h *AIHandler) ActivateProviderInstanceConfig(c *gin.Context) {
+	instance, ok := h.startupProviderInstance(c.Param("id"))
+	if !ok || !instance.ConfigEditable {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	if h.cfg == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "provider activation is not configured"})
+		return
+	}
+	mode := adminai.ProviderActivationMode(h.cfg.EffectiveProviderAssembly().DeploymentProfile)
+	plan := h.providerActivationPlan(instance.ID, mode, h.cfg.ProviderEnvPath, nil, nil)
+	if plan.Action != "rollout_backend_deployment" || !plan.CanAutoApply {
+		c.JSON(http.StatusConflict, gin.H{"error": "automatic deployment rollout is not available for this provider activation plan"})
+		return
+	}
+	result, err := h.triggerDeploymentRolloutWebhook(c.Request.Context(), instance, plan)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		return
+	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "provider_instance.config_activation.admin_triggered",
+		TargetType: "provider_instance",
+		TargetID:   instance.ID,
+		Metadata: map[string]any{
+			"provider_instance_id": instance.ID,
+			"activation_mode":      result.ActivationMode,
+			"activation_action":    result.ActivationPlan.Action,
+			"activation_host":      result.ActivationPlan.Host,
+			"latency_ms":           result.LatencyMs,
+			"message_len":          len(result.Message),
+		},
+	})
+	c.JSON(http.StatusOK, result)
+}
+
+func writeProviderError(c *gin.Context, err error) {
+	var testErr adminai.CredentialTestFailedError
+	if errors.As(err, &testErr) {
+		c.JSON(http.StatusBadGateway, gin.H{"error": testErr.Error(), "test_result": testErr.Result})
+		return
+	}
+	if errors.Is(err, adminai.ErrInvalidProviderConfig) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if errors.Is(err, adminai.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	if errors.Is(err, adminai.ErrEncryptFilesAPIKey) {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to encrypt files api key"})
+		return
+	}
+	if errors.Is(err, adminai.ErrEncryptCredentials) {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to encrypt credentials"})
+		return
+	}
+	c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+}
+
+func contextWithProviderInstanceTimeout(c *gin.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(c.Request.Context(), 15*time.Second)
+}
+
+func (h *AIHandler) startupProviderInstance(id string) (adminai.ProviderInstance, bool) {
+	for _, instance := range startupProviderInstances(h.cfg) {
+		if instance.ID == id {
+			return instance, true
+		}
+	}
+	return adminai.ProviderInstance{}, false
+}
+
+func startupProviderInstances(cfg *config.Config) []adminai.ProviderInstance {
+	if cfg == nil {
+		return nil
+	}
+	instances := cfg.EffectiveProviderInstances()
+	out := make([]adminai.ProviderInstance, 0, len(instances))
+	for _, instance := range instances {
+		out = append(out, adminai.ProviderInstance{
+			ID:              instance.ID,
+			Type:            instance.Type,
+			Adapter:         instance.Adapter,
+			Label:           instance.Label,
+			DisplayName:     instance.Label,
+			ManagedBy:       instance.ManagedBy,
+			Configured:      instance.Configured,
+			Enabled:         true,
+			ConfigEditable:  len(instance.ConfigFields) > 0 || len(instance.SecretFields) > 0,
+			RequiresRestart: true,
+			ConfigFields:    providerConfigFields(instance.ConfigFields),
+			SecretFields:    providerSecretFields(instance.SecretFields),
+			Capabilities:    instance.Capabilities,
+		})
+	}
+	return out
+}
+
+func providerInstanceFieldKeys(fields []adminai.ProviderInstanceField) []string {
+	out := make([]string, 0, len(fields))
+	for _, field := range fields {
+		out = append(out, field.Key)
+	}
+	return out
+}
+
+func providerInstanceFieldConfigured(fields []adminai.ProviderInstanceField) map[string]bool {
+	out := make(map[string]bool, len(fields))
+	for _, field := range fields {
+		out[field.Key] = field.Configured
+	}
+	return out
+}
+
+func providerConfigFields(fields []config.ProviderConfigField) []adminai.ProviderInstanceField {
+	out := make([]adminai.ProviderInstanceField, 0, len(fields))
+	for _, field := range fields {
+		out = append(out, adminai.ProviderInstanceField{Key: field.Key, Required: field.Required, Configured: field.Configured})
+	}
+	return out
+}
+
+func providerSecretFields(fields []config.ProviderSecretField) []adminai.ProviderInstanceField {
+	out := make([]adminai.ProviderInstanceField, 0, len(fields))
+	for _, field := range fields {
+		out = append(out, adminai.ProviderInstanceField{Key: field.Key, Required: field.Required, Configured: field.Configured})
+	}
+	return out
+}
+
+func (h *AIHandler) providerActivationPlan(instanceID string, mode string, envPath string, envKeys []string, secretKeys []string) adminai.ProviderActivationPlan {
+	opts := adminai.ProviderActivationPlanOptions{
+		ProviderInstanceID:                 instanceID,
+		DeploymentRolloutWebhookConfigured: h.cfg != nil && strings.TrimSpace(h.cfg.ProviderActivationRolloutWebhookURL) != "",
+	}
+	return adminai.ProviderActivationPlanForModeWithOptions(mode, envPath, envKeys, secretKeys, opts)
+}
+
+func (h *AIHandler) triggerDeploymentRolloutWebhook(ctx context.Context, instance adminai.ProviderInstance, plan adminai.ProviderActivationPlan) (adminai.ProviderActivationApplyResult, error) {
+	if h.cfg == nil {
+		return adminai.ProviderActivationApplyResult{}, fmt.Errorf("provider activation is not configured")
+	}
+	webhookURL := strings.TrimSpace(h.cfg.ProviderActivationRolloutWebhookURL)
+	parsed, err := url.Parse(webhookURL)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+		return adminai.ProviderActivationApplyResult{}, fmt.Errorf("deployment rollout webhook URL is invalid")
+	}
+	payload := map[string]any{
+		"provider_instance_id": instance.ID,
+		"provider_type":        instance.Type,
+		"provider_adapter":     instance.Adapter,
+		"activation_mode":      plan.Mode,
+		"activation_action":    plan.Action,
+		"activation_host":      plan.Host,
+		"deployment_profile":   h.cfg.EffectiveProviderAssembly().DeploymentProfile,
+		"env_path":             h.cfg.ProviderEnvPath,
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return adminai.ProviderActivationApplyResult{}, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, webhookURL, bytes.NewReader(body))
+	if err != nil {
+		return adminai.ProviderActivationApplyResult{}, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if token := strings.TrimSpace(h.cfg.ProviderActivationRolloutWebhookToken); token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	started := time.Now()
+	res, err := providerActivationHTTPClient.Do(req)
+	latency := time.Since(started).Milliseconds()
+	if err != nil {
+		return adminai.ProviderActivationApplyResult{}, fmt.Errorf("deployment rollout webhook failed: %w", err)
+	}
+	defer res.Body.Close()
+	raw, _ := io.ReadAll(io.LimitReader(res.Body, 1024))
+	message := strings.TrimSpace(string(raw))
+	if message == "" {
+		message = res.Status
+	}
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return adminai.ProviderActivationApplyResult{}, fmt.Errorf("deployment rollout webhook returned %s: %s", res.Status, message)
+	}
+	return adminai.ProviderActivationApplyResult{
+		ProviderInstanceID: instance.ID,
+		ActivationMode:     plan.Mode,
+		ActivationPlan:     plan,
+		Success:            true,
+		Message:            message,
+		LatencyMs:          latency,
+	}, nil
+}

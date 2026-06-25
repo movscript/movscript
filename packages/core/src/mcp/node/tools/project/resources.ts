@@ -1,8 +1,7 @@
-import type { SemanticEntityKind } from '@movscript/language/domain'
+import { createProjectServiceClientFromRuntime, type ProjectResourceViewKind } from '@movscript/project'
 import { resourceContent } from '../../../protocol/index.js'
 import type { MCPJSONValue, MCPResource } from '../../../protocol/types.js'
 import { getMCPContextSnapshot } from '../focus/store.js'
-import { createMovScriptDomainRuntime } from '../domain/runtime.js'
 import { resolveMCPProjectWorkspaceLocator } from '../workspace/locator.js'
 import { listProjects } from './projects.js'
 import { summarizeResource } from './summaries.js'
@@ -58,52 +57,35 @@ async function readWorkspaceProjectResource(projectId: number, kind: string): Pr
   const projectDir = snapshot.project && snapshot.project.id === projectId
     ? snapshot.project.projectDir ?? snapshot.project.projectPath ?? snapshot.project.workspacePath ?? snapshot.project.project_path ?? snapshot.project.workspace_path
     : undefined
-  const runtime = createMovScriptDomainRuntime(resolveMCPProjectWorkspaceLocator({ projectDir }))
-  if (kind === 'scripts') {
-    const scripts = await runtime.queryEntities({ entityKind: 'script' })
-    return Promise.all(scripts.map(async (entity) => ({
-      ...entity.record,
-      entityKind: entity.entityKind,
-      path: entity.path,
-      source: await runtime.readScriptSource({ record: entity.record, entity }),
-    })))
-  }
-
-  const entityKind = projectResourceEntityKind(kind)
-  if (entityKind === 'project') {
-    return (await runtime.queryEntities({ entityKind, limit: 1 })).map((entity) => ({
-      ...entity.record,
-      entityKind: entity.entityKind,
-      path: entity.path,
-    }))
-  }
-
-  return (await runtime.queryEntities({ entityKind })).map((entity) => ({
-    ...entity.record,
-    entityKind: entity.entityKind,
-    path: entity.path,
-  }))
+  const locator = resolveMCPProjectWorkspaceLocator({ projectDir })
+  const response = await createProjectServiceClientFromRuntime().resourceView({
+    projectDir: locator.projectDir,
+    kind: projectResourceViewKind(kind),
+  })
+  return response.items
 }
 
-function projectResourceEntityKind(kind: string): SemanticEntityKind {
+function projectResourceViewKind(kind: string): ProjectResourceViewKind {
   switch (kind) {
     case 'summary':
-      return 'project'
+      return 'summary'
     case 'assets':
     case 'assests':
-      return 'asset'
+      return 'assets'
     case 'episodes':
     case 'productions':
-      return 'production'
+      return 'episodes'
     case 'scenes':
     case 'segments':
-      return 'segment'
+      return 'scenes'
     case 'storyboards':
-      return 'storyboard'
+      return 'storyboards'
     case 'content-units':
-      return 'content_unit'
+      return 'content-units'
     case 'settings':
-      return 'setting'
+      return 'settings'
+    case 'scripts':
+      return 'scripts'
     default:
       throw new Error(`Unsupported project resource kind: ${kind}`)
   }

@@ -1,0 +1,144 @@
+package scopedtoken
+
+import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strconv"
+	"strings"
+	"time"
+)
+
+const tokenVersion = "mv1"
+
+const GitProxyTokenPurpose = "git_proxy"
+
+var (
+	ErrInvalidToken = errors.New("invalid scoped token")
+	ErrExpiredToken = errors.New("expired scoped token")
+)
+
+type Claims struct {
+	UserID     uint   `json:"uid"`
+	Username   string `json:"username"`
+	SystemRole string `json:"system_role"`
+	ExpiresAt  int64  `json:"exp"`
+	IssuedAt   int64  `json:"iat"`
+	Purpose    string `json:"purpose,omitempty"`
+	ProjectID  uint   `json:"project_id,omitempty"`
+	OrgID      uint   `json:"org_id,omitempty"`
+}
+
+type Subject struct {
+	UserID     uint
+	Username   string
+	SystemRole string
+	Purpose    string
+	ProjectID  uint
+	OrgID      uint
+}
+
+type Manager struct {
+	secret []byte
+	ttl    time.Duration
+	now    func() time.Time
+}
+
+func NewManager(secret string, ttl time.Duration) (*Manager, error) {
+	secret = strings.TrimSpace(secret)
+	if len(secret) < 32 {
+		return nil, fmt.Errorf("scoped token secret must be at least 32 bytes")
+	}
+	if ttl <= 0 {
+		return nil, fmt.Errorf("scoped token ttl must be positive")
+	}
+	return &Manager{secret: []byte(secret), ttl: ttl, now: time.Now}, nil
+}
+
+func (m *Manager) Issue(subject Subject) (string, time.Time, error) {
+	return m.issue(subject, m.ttl)
+}
+
+func (m *Manager) IssueWithTTL(subject Subject, ttl time.Duration) (string, time.Time, error) {
+	if ttl <= 0 {
+		return "", time.Time{}, fmt.Errorf("scoped token ttl must be positive")
+	}
+	return m.issue(subject, ttl)
+}
+
+func (m *Manager) issue(subject Subject, ttl time.Duration) (string, time.Time, error) {
+	now := m.now().UTC()
+	expiresAt := now.Add(ttl)
+	claims := Claims{
+		UserID:     subject.UserID,
+		Username:   subject.Username,
+		SystemRole: subject.SystemRole,
+		IssuedAt:   now.Unix(),
+		ExpiresAt:  expiresAt.Unix(),
+		Purpose:    strings.TrimSpace(subject.Purpose),
+		ProjectID:  subject.ProjectID,
+		OrgID:      subject.OrgID,
+	}
+	payload, err := json.Marshal(claims)
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	payloadPart := base64.RawURLEncoding.EncodeToString(payload)
+	signingInput := tokenVersion + "." + payloadPart
+	signature := m.sign(signingInput)
+	return signingInput + "." + signature, expiresAt, nil
+}
+
+func (m *Manager) Verify(raw string) (Claims, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || strings.HasPrefix(raw, "user_") || isUnsignedInteger(raw) {
+		return Claims{}, ErrInvalidToken
+	}
+
+	parts := strings.Split(raw, ".")
+	if len(parts) != 3 || parts[0] != tokenVersion {
+		return Claims{}, ErrInvalidToken
+	}
+
+	signingInput := parts[0] + "." + parts[1]
+	if !hmac.Equal([]byte(parts[2]), []byte(m.sign(signingInput))) {
+		return Claims{}, ErrInvalidToken
+	}
+
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return Claims{}, ErrInvalidToken
+	}
+	var claims Claims
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return Claims{}, ErrInvalidToken
+	}
+	if claims.UserID == 0 || claims.ExpiresAt == 0 {
+		return Claims{}, ErrInvalidToken
+	}
+	if m.now().UTC().Unix() >= claims.ExpiresAt {
+		return Claims{}, ErrExpiredToken
+	}
+	return claims, nil
+}
+
+func LooksSigned(raw string) bool {
+	return strings.HasPrefix(strings.TrimSpace(raw), tokenVersion+".")
+}
+
+func (m *Manager) sign(input string) string {
+	mac := hmac.New(sha256.New, m.secret)
+	_, _ = mac.Write([]byte(input))
+	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+}
+
+func isUnsignedInteger(s string) bool {
+	if s == "" {
+		return false
+	}
+	_, err := strconv.ParseUint(s, 10, 64)
+	return err == nil
+}

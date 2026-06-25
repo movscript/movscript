@@ -103,6 +103,80 @@ test('interpreter derived artifacts are derived from canonical source only', () 
     && item.target.id === 'cu_wet_hair_ref'))
 })
 
+test('interpreter carries active provider asset certification for selected asset refs', () => {
+  const documents = sourceDocuments()
+  const assetDocument = documents.find((document) => document.path === 'settings/hero/states/rain/assets/wet_hair/asset.json')
+  assert.ok(assetDocument)
+  assetDocument.data.provider_certifications = {
+    seedance2: {
+      status: 'active',
+      hub_asset_id: 'sd2_asset_hero_wet_hair',
+      asset_uri: 'asset://sd2_asset_hero_wet_hair',
+      source_resource_id: 101,
+      source_candidate_id: 'candidate_wet_hair_1',
+      certified_at: '2026-06-07T00:00:00.000Z',
+    },
+  }
+  const assetPromptSnapshot = {
+    schema: 'movscript.content_unit_prompt.v1',
+    content_unit_ref: 'content_units/cu_wet_hair_ref',
+    content_unit_id: 'cu_wet_hair_ref',
+    content_unit_type: 'asset_ref',
+    output_kind: 'image',
+    adapter_version: 'asset_ref@2',
+    edit_prompt: {
+      text: 'Cold phone light reference for wet hair continuity.',
+      negative_text: 'cartoon',
+    },
+    model_intent: { capability: 'image', aspect_ratio: '1:1' },
+    refs: [],
+    runtime_request: {
+      capability: 'image',
+      model_intent: { capability: 'image', aspect_ratio: '1:1' },
+      inputs: [],
+    },
+    created_at: '2026-06-07T00:00:00.000Z',
+  }
+  documents.push({
+    path: 'content_units/cu_wet_hair_ref/candidates/candidate_wet_hair_1/content_candidate.json',
+    data: {
+      schema: 'movscript.content_candidate.v1',
+      id: 'candidate_wet_hair_1',
+      content_unit_ref: 'content_units/cu_wet_hair_ref',
+      outputs: [{ kind: 'image', resource_id: 101, artifact_ref: 'resource_wet_hair_1' }],
+      prompt_snapshot: assetPromptSnapshot,
+    },
+  })
+  documents.push({
+    path: '.movscript/decisions/content_units/cu_wet_hair_ref/decision_context.json',
+    data: {
+      schema: 'movscript.decision_context.v1',
+      target_kind: 'content_unit',
+      target_ref: 'content_units/cu_wet_hair_ref',
+      selection: {
+        candidate_id: 'candidate_wet_hair_1',
+        resource_id: 101,
+        selected_at: '2026-06-07T00:00:01.000Z',
+      },
+    },
+  })
+
+  const artifacts = deriveMovScriptWorkspaceArtifacts({
+    index: deriveMovScriptWorkspaceDomainIndex(documents),
+    changedEntities: [],
+    semanticChanges: [],
+    interpretationId: 'interpret_test',
+    createdAt: '2026-06-07T00:00:02.000Z',
+  })
+  const videoPrompt = artifacts.contentUnitArtifacts.find((artifact) => artifact.contentUnitId === 'k41m')?.generationPrompt
+  const assetInput = videoPrompt?.runtime_request.inputs.find((input) => input.role === 'asset_ref')
+
+  assert.equal(assetInput?.resource_id, 101)
+  assert.equal(assetInput?.provider_asset?.provider, 'seedance2')
+  assert.equal(assetInput?.provider_asset?.asset_uri, 'asset://sd2_asset_hero_wet_hair')
+  assert.equal(videoPrompt?.refs[0]?.selection?.provider_asset?.hub_asset_id, 'sd2_asset_hero_wet_hair')
+})
+
 test('interpreter tracks production_ref and segment_ref content units as video outputs', () => {
   const documents = sourceDocuments()
   documents.push({
@@ -325,6 +399,38 @@ test('content unit artifacts derive runtime panels from edit_prompt plus adapter
   assert.equal(video?.generationPrompt.refs.every((ref) => ref.role === 'input'), true)
   assert.equal(video?.generationPrompt.refs.some((ref) => ref.kind === 'asset' && ref.id === 'wet_hair' && ref.role === 'input'), true)
   assert.ok(video?.dependencyReport.blockers?.some((blocker) => blocker.code === 'upstream_selection_missing'))
+})
+
+test('content unit artifacts track double-colon asset prompt references', () => {
+  const documents = sourceDocuments().map((document) => {
+    if (document.path !== 'content_units/k41m/content_unit.json') return document
+    return {
+      ...document,
+      data: {
+        ...document.data,
+        edit_prompt: {
+          ...document.data.edit_prompt,
+          text: 'Cold phone light on frightened face. Use selected visual reference {{asset::wet_hair}}.',
+        },
+      },
+    }
+  })
+  const index = deriveMovScriptWorkspaceDomainIndex(documents)
+
+  const artifacts = deriveMovScriptWorkspaceArtifacts({
+    index,
+    changedEntities: [],
+    interpretationId: 'interpret_test',
+    createdAt: '2026-06-07T00:00:00.000Z',
+  })
+  const video = artifacts.contentUnitArtifacts.find((artifact) => artifact.contentUnitId === 'k41m')
+
+  assert.equal(video?.generationPrompt.refs.some((ref) => ref.kind === 'asset' && ref.id === 'wet_hair' && ref.raw === '{{asset::wet_hair}}'), true)
+  assert.equal(video?.dependencyReport.refs.some((ref) => ref.kind === 'asset' && ref.id === 'wet_hair'), true)
+  assert.ok(video?.dependencyReport.dependencies.some((dependency) => dependency.role === 'asset' && dependency.id === 'wet_hair'))
+  assert.ok(artifacts.relationGraph.relations.some((relation) => relation.type === 'uses'
+    && relation.from.id === 'k41m'
+    && relation.to.id === 'wet_hair'))
 })
 
 test('content unit runtime requests include project style reference images', () => {

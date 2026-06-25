@@ -6,8 +6,8 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/windows-compat.yml'
-      - 'apps/backend/**'
-      - 'apps/frontend/**'
+      - 'services/data-service/**'
+      - 'apps/desktop/**'
       - 'package-resources.manifest.json'
       - 'packages/core/**'
       - 'pnpm-lock.yaml'
@@ -15,8 +15,8 @@ on:
   pull_request:
     paths:
       - '.github/workflows/windows-compat.yml'
-      - 'apps/backend/**'
-      - 'apps/frontend/**'
+      - 'services/data-service/**'
+      - 'apps/desktop/**'
       - 'package-resources.manifest.json'
       - 'packages/core/**'
       - 'pnpm-lock.yaml'
@@ -46,7 +46,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: apps/backend/go.sum
+          cache-dependency-path: services/data-service/go.sum
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
@@ -72,22 +72,22 @@ jobs:
         run: pnpm --filter @movscript/core build
 
       - name: Test desktop identity paths
-        run: node scripts/run-node-tests.mjs apps/frontend/electron/services/desktopIdentity.test.ts
+        run: node scripts/run-node-tests.mjs apps/desktop/electron/services/desktopIdentity.test.ts
 
       - name: Test app-server command parsing
-        run: node scripts/run-node-tests.mjs apps/frontend/electron/services/appServerRuntimeCommand.test.ts
+        run: node scripts/run-node-tests.mjs apps/desktop/electron/services/appServerRuntimeCommand.test.ts
 
       - name: Test movcli path handling
-        run: node scripts/run-node-tests.mjs apps/frontend/electron/services/movscriptCliPath.test.ts
+        run: node scripts/run-node-tests.mjs apps/desktop/electron/services/movscriptCliPath.test.ts
 
       - name: Test local terminal env
-        run: node scripts/run-node-tests.mjs apps/frontend/electron/services/localTerminalEnv.test.ts
+        run: node scripts/run-node-tests.mjs apps/desktop/electron/services/localTerminalEnv.test.ts
 
       - name: Test settings directory picker contract
-        run: node scripts/run-node-tests.mjs apps/frontend/src/features/settings/application/appSettingsLayoutContract.test.ts
+        run: node scripts/run-node-tests.mjs apps/desktop/src/features/settings/application/appSettingsLayoutContract.test.ts
 
       - name: Run backend handler tests
-        working-directory: apps/backend
+        working-directory: services/data-service
         run: go test ./internal/interfaces/http/handler
 
       - name: Verify package resource contract
@@ -97,7 +97,7 @@ jobs:
         run: pnpm run release -- download-ffmpeg-static --platform=win32 --arch=x64
 
       - name: Build unsigned Windows desktop package
-        run: pnpm run release -- package-desktop --platform=win32 --arch=x64 --unsigned
+        run: pnpm run release -- package --app desktop --platform=win32 --arch=x64 --unsigned
         env:
           MOVSCRIPT_RELEASE_SIGNING_MODE: unsigned
 
@@ -110,7 +110,7 @@ jobs:
         with:
           name: windows-compat-release-output
           path: |
-            apps/frontend/release/**
-            apps/frontend/vendor/ffmpeg/**
+            apps/desktop/release/**
+            apps/desktop/vendor/ffmpeg/**
           if-no-files-found: ignore
           retention-days: 7

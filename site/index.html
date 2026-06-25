@@ -19,7 +19,7 @@
       <section class="language-panel" lang="en" data-language-panel="en" aria-labelledby="title-en">
         <h1 id="title-en">Movscript</h1>
         <p class="tagline">Video creation for Vibe Motion, AI-planned production, and automatic editing.</p>
-        <p class="support">Movscript supports macOS Apple Silicon, macOS Intel, and Windows x64. Release packages are downloaded from GitHub Releases.</p>
+        <p class="support">GitHub Pages exposes two supported install paths: install only the Agent plugin from the command line, or install the Desktop app for the full local visual workspace. Release packages are downloaded from GitHub Releases.</p>
         <p
           class="release-meta"
           data-release-status
@@ -29,44 +29,67 @@
         >Checking the latest published release...</p>
 
         <section class="install" aria-labelledby="install-title-en">
-          <h2 id="install-title-en">🚀 Install Movscript</h2>
+          <h2 id="install-title-en">Choose one install path</h2>
 
-          <div class="platform-switch" role="tablist" aria-label="Choose operating system">
-            <button class="platform-tab" type="button" role="tab" aria-selected="true" data-platform-tab="macos">macOS</button>
-            <button class="platform-tab" type="button" role="tab" aria-selected="false" data-platform-tab="windows">Windows</button>
-          </div>
-
-          <div class="platform-panel" role="tabpanel" data-platform-panel="macos">
-            <div class="command">
-              <pre><code>curl -fsSL https://movscript.github.io/movscript/install.sh | sh</code></pre>
-              <button class="copy-button" type="button" aria-label="Copy install command" title="Copy install command" data-copy-command>
-                ⧉
-              </button>
-            </div>
-
-            <div class="download-grid" aria-label="macOS downloads">
-              <a class="download-button download-card" href="https://github.com/movscript/movscript/releases/latest" data-release-asset="macos-arm64">
-                <span>Apple Silicon</span>
-                <small>arm64 DMG</small>
+          <div class="install-grid">
+            <section class="install-option" aria-labelledby="agent-install-title-en">
+              <p class="install-path-label">Path 1</p>
+              <h3 id="agent-install-title-en">Agent plugin only</h3>
+              <p class="option-copy">Use this when Codex or another Agent provider should access Movscript without installing Desktop. The installer only registers the plugin package.</p>
+              <div class="command">
+                <pre><code>curl -fsSL https://movscript.github.io/movscript/install-plugin.sh | sh</code></pre>
+                <button class="copy-button" type="button" aria-label="Copy plugin install command" title="Copy plugin install command" data-copy-command>
+                  ⧉
+                </button>
+              </div>
+              <a class="download-button download-button-secondary" href="https://github.com/movscript/movscript/releases/latest" data-release-asset="plugin">
+                Download plugin package
               </a>
-              <a class="download-button download-card" href="https://github.com/movscript/movscript/releases/latest" data-release-asset="macos-x64">
-                <span>Intel Mac</span>
-                <small>x64 DMG</small>
-              </a>
-            </div>
-            <p class="note recommendation" data-download-recommendation>Recommended downloads are selected for your device when detection is available.</p>
-            <p class="note">Paste that in macOS Terminal. The script explains what it will do before installing the latest desktop app into /Applications.</p>
-          </div>
+            </section>
 
-          <div class="platform-panel" role="tabpanel" data-platform-panel="windows" hidden>
-            <div class="download-grid" aria-label="Windows downloads">
-              <a class="download-button download-card" href="https://github.com/movscript/movscript/releases/latest" data-release-asset="windows-x64">
-                <span>Windows x64</span>
-                <small>Intel / AMD installer</small>
-              </a>
-            </div>
-            <p class="note recommendation" data-download-recommendation>Recommended downloads are selected for your device when detection is available.</p>
-            <p class="note">Download the latest x64 <code>.exe</code> installer from GitHub Releases. The installer lets you choose the program installation directory.</p>
+            <section class="install-option" aria-labelledby="desktop-install-title-en">
+              <p class="install-path-label">Path 2</p>
+              <h3 id="desktop-install-title-en">Desktop app</h3>
+              <p class="option-copy">Use this when you want the local visual workspace. Desktop reuses the same local runtime daemon as Agent Plugin and CLI.</p>
+
+              <div class="platform-switch" role="tablist" aria-label="Choose operating system">
+                <button class="platform-tab" type="button" role="tab" aria-selected="true" data-platform-tab="macos">macOS</button>
+                <button class="platform-tab" type="button" role="tab" aria-selected="false" data-platform-tab="windows">Windows</button>
+              </div>
+
+              <div class="platform-panel" role="tabpanel" data-platform-panel="macos">
+                <div class="command">
+                  <pre><code>curl -fsSL https://movscript.github.io/movscript/install-desktop.sh | sh</code></pre>
+                  <button class="copy-button" type="button" aria-label="Copy desktop install command" title="Copy desktop install command" data-copy-command>
+                    ⧉
+                  </button>
+                </div>
+
+                <div class="download-grid" aria-label="macOS downloads">
+                  <a class="download-button download-card" href="https://github.com/movscript/movscript/releases/latest" data-release-asset="macos-arm64">
+                    <span>Apple Silicon</span>
+                    <small>arm64 DMG</small>
+                  </a>
+                  <a class="download-button download-card" href="https://github.com/movscript/movscript/releases/latest" data-release-asset="macos-x64">
+                    <span>Intel Mac</span>
+                    <small>x64 DMG</small>
+                  </a>
+                </div>
+                <p class="note recommendation" data-download-recommendation>Recommended downloads are selected for your device when detection is available.</p>
+                <p class="note">Paste that in macOS Terminal. The script explains what it will do before installing the latest desktop app into /Applications.</p>
+              </div>
+
+              <div class="platform-panel" role="tabpanel" data-platform-panel="windows" hidden>
+                <div class="download-grid" aria-label="Windows downloads">
+                  <a class="download-button download-card" href="https://github.com/movscript/movscript/releases/latest" data-release-asset="windows-x64">
+                    <span>Windows x64</span>
+                    <small>Intel / AMD installer</small>
+                  </a>
+                </div>
+                <p class="note recommendation" data-download-recommendation>Recommended downloads are selected for your device when detection is available.</p>
+                <p class="note">Download the latest x64 <code>.exe</code> installer from GitHub Releases. The installer lets you choose the program installation directory.</p>
+              </div>
+            </section>
           </div>
 
           <p class="note links-note">Read about <a href="https://github.com/movscript/movscript/blob/main/docs/install.md">installation options</a> or download all packages from <a href="https://github.com/movscript/movscript/releases/latest">GitHub Releases</a>.</p>
@@ -76,7 +99,7 @@
       <section class="language-panel" lang="zh-Hans" data-language-panel="zh" aria-labelledby="title-zh" hidden>
         <h1 id="title-zh">Movscript</h1>
         <p class="tagline">面向 Vibe Motion、AI 规划成片与自动剪辑的视频创作工具。</p>
-        <p class="support">Movscript 目前支持 macOS Apple Silicon、macOS Intel 和 Windows x64。桌面安装包从 GitHub Releases 下载。</p>
+        <p class="support">GitHub Pages 提供两条受支持的安装路径：用命令行只安装 Agent 插件，或安装 Desktop 获得完整本地可视化工作台。发布包从 GitHub Releases 下载。</p>
         <p
           class="release-meta"
           data-release-status
@@ -86,44 +109,67 @@
         >正在检查最新发布版本...</p>
 
         <section class="install" aria-labelledby="install-title-zh">
-          <h2 id="install-title-zh">🚀 安装 Movscript</h2>
+          <h2 id="install-title-zh">选择一种安装路径</h2>
 
-          <div class="platform-switch" role="tablist" aria-label="选择操作系统">
-            <button class="platform-tab" type="button" role="tab" aria-selected="true" data-platform-tab="macos">macOS</button>
-            <button class="platform-tab" type="button" role="tab" aria-selected="false" data-platform-tab="windows">Windows</button>
-          </div>
-
-          <div class="platform-panel" role="tabpanel" data-platform-panel="macos">
-            <div class="command">
-              <pre><code>curl -fsSL https://movscript.github.io/movscript/install.sh | sh</code></pre>
-              <button class="copy-button" type="button" aria-label="复制安装命令" title="复制安装命令" data-copy-command>
-                ⧉
-              </button>
-            </div>
-
-            <div class="download-grid" aria-label="macOS 下载">
-              <a class="download-button download-card" href="https://github.com/movscript/movscript/releases/latest" data-release-asset="macos-arm64">
-                <span>Apple Silicon</span>
-                <small>arm64 DMG</small>
+          <div class="install-grid">
+            <section class="install-option" aria-labelledby="agent-install-title-zh">
+              <p class="install-path-label">方式一</p>
+              <h3 id="agent-install-title-zh">只安装 Agent 插件</h3>
+              <p class="option-copy">适合让 Codex 或其他 Agent provider 访问 Movscript，但不安装 Desktop。安装器只注册插件包。</p>
+              <div class="command">
+                <pre><code>curl -fsSL https://movscript.github.io/movscript/install-plugin.sh | sh</code></pre>
+                <button class="copy-button" type="button" aria-label="复制插件安装命令" title="复制插件安装命令" data-copy-command>
+                  ⧉
+                </button>
+              </div>
+              <a class="download-button download-button-secondary" href="https://github.com/movscript/movscript/releases/latest" data-release-asset="plugin">
+                下载插件包
               </a>
-              <a class="download-button download-card" href="https://github.com/movscript/movscript/releases/latest" data-release-asset="macos-x64">
-                <span>Intel Mac</span>
-                <small>x64 DMG</small>
-              </a>
-            </div>
-            <p class="note recommendation" data-download-recommendation>能识别设备时，会自动为你高亮推荐下载项。</p>
-            <p class="note">将这段命令粘贴到 macOS 终端中运行。脚本会在安装最新桌面应用到 /Applications 前说明将要执行的操作。</p>
-          </div>
+            </section>
 
-          <div class="platform-panel" role="tabpanel" data-platform-panel="windows" hidden>
-            <div class="download-grid" aria-label="Windows 下载">
-              <a class="download-button download-card" href="https://github.com/movscript/movscript/releases/latest" data-release-asset="windows-x64">
-                <span>Windows x64</span>
-                <small>Intel / AMD 安装器</small>
-              </a>
-            </div>
-            <p class="note recommendation" data-download-recommendation>能识别设备时，会自动为你高亮推荐下载项。</p>
-            <p class="note">从 GitHub Releases 下载最新 x64 <code>.exe</code> 安装器。安装器会让你选择程序安装目录。</p>
+            <section class="install-option" aria-labelledby="desktop-install-title-zh">
+              <p class="install-path-label">方式二</p>
+              <h3 id="desktop-install-title-zh">安装 Desktop 应用</h3>
+              <p class="option-copy">适合需要本地可视化工作台的用户。Desktop 可用时，它是本机完整 runtime 的优先 owner。</p>
+
+              <div class="platform-switch" role="tablist" aria-label="选择操作系统">
+                <button class="platform-tab" type="button" role="tab" aria-selected="true" data-platform-tab="macos">macOS</button>
+                <button class="platform-tab" type="button" role="tab" aria-selected="false" data-platform-tab="windows">Windows</button>
+              </div>
+
+              <div class="platform-panel" role="tabpanel" data-platform-panel="macos">
+                <div class="command">
+                  <pre><code>curl -fsSL https://movscript.github.io/movscript/install-desktop.sh | sh</code></pre>
+                  <button class="copy-button" type="button" aria-label="复制桌面安装命令" title="复制桌面安装命令" data-copy-command>
+                    ⧉
+                  </button>
+                </div>
+
+                <div class="download-grid" aria-label="macOS 下载">
+                  <a class="download-button download-card" href="https://github.com/movscript/movscript/releases/latest" data-release-asset="macos-arm64">
+                    <span>Apple Silicon</span>
+                    <small>arm64 DMG</small>
+                  </a>
+                  <a class="download-button download-card" href="https://github.com/movscript/movscript/releases/latest" data-release-asset="macos-x64">
+                    <span>Intel Mac</span>
+                    <small>x64 DMG</small>
+                  </a>
+                </div>
+                <p class="note recommendation" data-download-recommendation>能识别设备时，会自动为你高亮推荐下载项。</p>
+                <p class="note">将这段命令粘贴到 macOS 终端中运行。脚本会在安装最新桌面应用到 /Applications 前说明将要执行的操作。</p>
+              </div>
+
+              <div class="platform-panel" role="tabpanel" data-platform-panel="windows" hidden>
+                <div class="download-grid" aria-label="Windows 下载">
+                  <a class="download-button download-card" href="https://github.com/movscript/movscript/releases/latest" data-release-asset="windows-x64">
+                    <span>Windows x64</span>
+                    <small>Intel / AMD 安装器</small>
+                  </a>
+                </div>
+                <p class="note recommendation" data-download-recommendation>能识别设备时，会自动为你高亮推荐下载项。</p>
+                <p class="note">从 GitHub Releases 下载最新 x64 <code>.exe</code> 安装器。安装器会让你选择程序安装目录。</p>
+              </div>
+            </section>
           </div>
 
           <p class="note links-note">查看<a href="https://github.com/movscript/movscript/blob/main/docs/install.md">安装选项</a>，或从 <a href="https://github.com/movscript/movscript/releases/latest">GitHub Releases</a> 下载所有安装包。</p>

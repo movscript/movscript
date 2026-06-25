@@ -1,7 +1,8 @@
 ---
 name: editing
-description: Create MovScript MediaEditingProjects, edit timelines, run Electron mediaPipeline tasks, and explicitly import/export editing artifacts without writing candidate decisions by default.
+description: Create MovScript MediaEditingProjects, edit timelines through Editing Service, run media-pipeline render/transcode/HLS tasks when available, and explicitly import/export editing artifacts without writing candidate decisions by default.
 toolGrants:
+  - mcp__movscript__movscript_runtime_status
   - mcp__movscript__system_focus_get
   - mcp__movscript__system_resource_library_query
   - mcp__movscript__system_resource_video_probe
@@ -51,9 +52,18 @@ toolGrants:
 
 # Editing
 
-Use this skill when the user asks to cut, trim, compose, align, stitch, render, export, or revise a MovScript video timeline.
+Use this skill when the user asks to cut, trim, compose, align, stitch, render, export, or revise a MovScript video timeline. If runtime ownership or media execution availability is unclear, use the `runtime` skill first.
 
-The default editing path is the dedicated `editing_*` tool family. Editing runs through MovScript `MediaEditingProject` and Electron `mediaPipeline`, not through backend composition tools.
+The default editing path is the dedicated `editing_*` tool family. Timeline state and editing business logic run through MovScript `MediaEditingProject` and `movscript.editing.service`; media execution runs through `movscript.media.pipeline` when available, including Electron `mediaPipeline` when Desktop advertises that capability. Do not use backend composition tools as the editing path.
+
+Open `references/ai-clip-editing-rhythm.md` when assembling AI-generated clips, choosing a cut rhythm, trimming unstable generated clip starts/ends, matching color/style across generated candidates, planning transitions, or building a social/ad/trailer/music-video timeline.
+
+## Agent Surface URLs
+
+- When a timeline, preview, candidate, generation job, resource, or project-status MCP result includes `surface.kind: "browser_url"` and `surface.url`, include that URL in the user-facing response and tell the user to open it for the next editing/review step.
+- Describe the action the page supports: inspect preview timeline clips/blockers, review generated source candidates before editing, monitor render/generation status, inspect resources, or record a candidate decision after export.
+- Do not treat the returned URL as final approval, candidate adoption, or editing completion. Those are complete only after the user acts in the page or the agent writes the matching editing/domain decision through a tool.
+- If secondary surfaces are returned, lead with the primary `surface.url`; include secondary URLs only when they help the next decision. Use URLs exactly as returned.
 
 ## Concepts
 
@@ -64,8 +74,8 @@ The default editing path is the dedicated `editing_*` tool family. Editing runs 
 - `editing_project_*` creates, reads, saves, and expands editing projects.
 - `editing_project_update_settings` changes project-level editing settings; `editing_project_remove_asset` only removes unused asset references.
 - `editing_timeline_*` mutates tracks and clips. These tools only change project data; they do not render, call AI providers, or write candidates.
-- `editing_task_*` schedules Electron mediaPipeline tasks. MP4 render, HLS packaging, transcode, and mechanical reframe execute locally in Electron when runtime IPC is connected.
-- Subtitle burn-in is an editing concern: text/subtitle clips may use ASS/libass rendering, and subtitle assets such as `.ass`, `.ssa`, `.srt`, or `.vtt` are burned locally by Electron during render.
+- `editing_task_*` schedules media-pipeline tasks. MP4 render, HLS packaging, transcode, and mechanical reframe execute through the available Media Pipeline runtime: cloud/external media worker, local daemon-owned Media Pipeline, Desktop enhancement adapter when explicitly advertised, or another runtime advertised by capability status.
+- Subtitle burn-in is an editing concern: text/subtitle clips may use ASS/libass rendering, and subtitle assets such as `.ass`, `.ssa`, `.srt`, or `.vtt` are burned by the media pipeline during render.
 - `editing_export_*` handles completed editing artifacts. Export import uploads a local artifact as RawResource; HLS publish uploads manifest/segments as a MediaStreamArtifact; candidate creation remains an explicit separate action.
 - `edit_plan` and domain timeline handoffs are read-only source/context snapshots from selected candidates. Use them to seed a new editing project or to recover provenance, not as final editing state.
 - The return path is explicit: render/export locally, then bring the artifact back as a RawResource or hosted HLS preview; only write or select a domain candidate when the user/workflow asks for that decision.
@@ -88,30 +98,31 @@ Do not use domain planning/production records as the editing workspace. Domain r
 5. Add extra materials with `editing_project_add_asset` before putting them on the timeline.
    - Use `editing_project_remove_asset` only for assets that no clip still references.
    - Use `editing_project_update_settings` for canvas, fps, background, title, or workspace binding changes.
-6. Edit the timeline with the smallest applicable `editing_timeline_*` tool:
+6. If the edit is made from multiple generated clips or needs a deliberate social/ad/trailer/music-video rhythm, open `references/ai-clip-editing-rhythm.md` and choose a rhythm formula before placing many clips.
+7. Edit the timeline with the smallest applicable `editing_timeline_*` tool:
    - add/remove tracks with `editing_timeline_add_track` and `editing_timeline_remove_track`,
    - add clips with `editing_timeline_add_clip`,
    - adjust trim, duration, placement, fit, opacity, volume, text, or metadata with `editing_timeline_update_clip`,
    - split, move, or delete clips with `editing_timeline_split_clip`, `editing_timeline_move_clip`, and `editing_timeline_delete_clip`,
    - use `editing_timeline_apply_commands` only when batching multiple command objects is more concise.
-7. Run `editing_timeline_validate` after meaningful timeline changes.
-8. Persist the project with `editing_project_save`. Read it later with `editing_project_get`.
-9. Before local render/package work, call `editing_runtime_capabilities_get` to verify Electron `mediaPipeline` and FFmpeg availability.
-10. Render or package through Electron:
+8. Run `editing_timeline_validate` after meaningful timeline changes.
+9. Persist the project with `editing_project_save`. Read it later with `editing_project_get`.
+10. Before render/package work, call `editing_runtime_capabilities_get` to verify Media Pipeline and FFmpeg availability. If unavailable, keep the editing project/timeline work intact and report the render capability gap instead of treating editing itself as impossible.
+11. Render or package through Media Pipeline:
    - use `editing_task_render_create` for MP4 timeline render,
    - place subtitle assets on a `subtitle` track with `assetType: "subtitle"` and `subtitle.format` when subtitles should be burned into the render; use `subtitle.format: "ass"` or `subtitle.renderer: "ass"` for ASS/libass styling,
    - use `editing_task_hls_create` for HLS when available; pass `output.hlsVariants` for adaptive renditions such as `[{ "name": "360p", "width": 640, "height": 360, "videoBitrateKbps": 900 }]`,
    - use `editing_task_transcode_create` or `editing_task_reframe_create` for source-level deterministic tasks.
-11. Poll `editing_task_get` with `projectId` and `taskId`; use `editing_task_logs_get` with the same `projectId` for FFmpeg/task diagnostics so Electron can recover persisted task manifests/logs after an app restart. Use `editing_task_cancel` with `projectId` and `taskId` when the user asks to stop a task; if the app restarted, Electron can recover the persisted manifest and write back a clear canceled diagnostic.
-12. Bring the completed artifact back explicitly:
-    - use `editing_export_save_local` with `savePath` to copy a completed single-file Electron task output to a user-selected local file path, or with `saveDirectory` to copy a complete HLS bundle locally,
+12. Poll `editing_task_get` with `projectId` and `taskId`; use `editing_task_logs_get` with the same `projectId` for FFmpeg/task diagnostics so the runtime can recover persisted task manifests/logs after restart. Use `editing_task_cancel` with `projectId` and `taskId` when the user asks to stop a task; if the runtime restarted, it can recover the persisted manifest and write back a clear canceled diagnostic.
+13. Bring the completed artifact back explicitly:
+    - use `editing_export_save_local` with `savePath` to copy a completed single-file media-pipeline output to a user-selected local file path, or with `saveDirectory` to copy a complete HLS bundle locally,
     - for HLS, pass `hlsDirectory` when available so the runtime can merge directory-discovered manifest/playlist/init/segment files with any explicit `segmentPaths`,
     - without `savePath` / `saveDirectory`, use `editing_export_save_local` only to report/confirm an existing local output path,
     - if render output should enter the resource library, either set `output.importToResource` on the render request or call `editing_export_import_resource` for an existing local output path,
     - if HLS output should be served for preview/playback, call `editing_export_publish_hls` after `editing_task_hls_create` succeeds,
     - use `system_artifact_upload_export` or `system_artifact_upload_hls_stream` only for completed artifacts that are already outside the editing task workflow,
-    - when any export or artifact tool resolves an Electron task by `taskId`, pass the matching `projectId` as well; this applies to `editing_export_save_local`, `editing_export_import_resource`, `editing_export_publish_hls`, `system_artifact_upload_export`, and `system_artifact_upload_hls_stream`.
-13. Only create or select a domain candidate when the user/workflow explicitly asks to record the edited result:
+    - when any export or artifact tool resolves an Electron task by `taskId`, pass the matching `projectId` as well; this applies to `editing_export_save_local`, `editing_export_import_resource`, `editing_export_publish_hls`, `system_artifact_upload_export`, and `system_artifact_upload_hls_stream`. The same rule applies to media-pipeline task lookup in daemon or cloud runtimes.
+14. Only create or select a domain candidate when the user/workflow explicitly asks to record the edited result:
     - use `domain_create_content_candidate` or `editing_export_create_candidate` for RawResource-backed candidate creation,
     - treat HLS `MediaStreamArtifact` outputs as hosted previews for now; writing HLS stream outputs as candidates requires a future domain candidate schema extension,
     - use `domain_decide_content_unit_candidate` with `adopt`, `reject`, or `defer` for user-facing decisions,
@@ -126,9 +137,10 @@ Do not use domain planning/production records as the editing workspace. Domain r
 - Use backend resource/media transform tools only for neutral preparation such as frame extraction, image transforms, or diagnostic probes. They must not be treated as product timeline render.
 - Do not call AI generation tools from this skill unless the user asks to create missing source material. Generation outputs must enter candidate/selection flow before becoming stable dependencies.
 - Do not automatically create, adopt, or select candidates after a render succeeds. Render success, RawResource upload, and domain adoption are separate user/workflow decisions.
+- For AI-generated source clips, review starts/ends, color/style continuity, artifact risk, first-two-second hook, and transition intent before rendering. Use `references/ai-clip-editing-rhythm.md` for the checklist.
 - Do not edit `.interpret/**` or generated `edit_plan` artifacts directly. They are diagnostic context and can be regenerated.
-- Do not put local paths, external URLs, or binary payloads in domain JSON. Local files belong in `MediaAssetDescriptor` / Electron workspace flow; stable domain state should reference RawResource IDs.
-- When the MCP process is not running inside Electron, runtime tools return `ELECTRON_EDITING_RUNTIME_REQUIRED`. Report that Electron mediaPipeline is required instead of falling back to backend render.
+- Do not put local paths, external URLs, or binary payloads in domain JSON. Local files belong in `MediaAssetDescriptor` / editing runtime workspace flow; stable domain state should reference RawResource IDs.
+- When Media Pipeline is unavailable, report that render/transcode/HLS execution requires a media-pipeline runtime instead of falling back to backend composition. Older tool results may still use `ELECTRON_EDITING_RUNTIME_REQUIRED`; interpret that as "media-pipeline runtime required", not as a hard Desktop-only requirement.
 - Keep provenance: preserve scene moment, production, content unit, selected candidate, and resource IDs on the editing project or exported candidate metadata.
 
 ## Non-Editing Utilities

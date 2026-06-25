@@ -5,6 +5,7 @@ export default defineConfig({
     'src/index.ts',
     'src/indexer/index.ts',
     'src/layout/index.ts',
+    'src/home/index.ts',
     'src/node.ts',
     'src/repository/index.ts',
   ],

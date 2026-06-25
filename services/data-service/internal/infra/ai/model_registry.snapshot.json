@@ -1,0 +1,1610 @@
+[
+  {
+    "id": "elevenlabs:eleven-v3-tts",
+    "lab": "elevenlabs",
+    "model_id": "eleven_v3",
+    "adapter_type": "elevenlabs",
+    "capabilities": [
+      "audio_tts"
+    ],
+    "param_keys": [
+      "voice",
+      "output_format",
+      "stability",
+      "similarity_boost",
+      "style",
+      "use_speaker_boost",
+      "speed"
+    ],
+    "source": {
+      "url": "https://elevenlabs.io/docs/api-reference/text-to-speech/convert",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "elevenlabs:eleven-multilingual-v2-tts",
+    "lab": "elevenlabs",
+    "model_id": "eleven_multilingual_v2",
+    "adapter_type": "elevenlabs",
+    "capabilities": [
+      "audio_tts"
+    ],
+    "param_keys": [
+      "voice",
+      "output_format",
+      "stability",
+      "similarity_boost",
+      "style",
+      "use_speaker_boost",
+      "speed"
+    ],
+    "source": {
+      "url": "https://elevenlabs.io/docs/api-reference/text-to-speech/convert",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "elevenlabs:eleven-flash-v2-5-tts",
+    "lab": "elevenlabs",
+    "model_id": "eleven_flash_v2_5",
+    "adapter_type": "elevenlabs",
+    "capabilities": [
+      "audio_tts"
+    ],
+    "param_keys": [
+      "voice",
+      "output_format",
+      "stability",
+      "similarity_boost",
+      "style",
+      "use_speaker_boost",
+      "speed"
+    ],
+    "source": {
+      "url": "https://elevenlabs.io/docs/api-reference/text-to-speech/convert",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "elevenlabs:eleven-flash-v2-tts",
+    "lab": "elevenlabs",
+    "model_id": "eleven_flash_v2",
+    "adapter_type": "elevenlabs",
+    "capabilities": [
+      "audio_tts"
+    ],
+    "param_keys": [
+      "voice",
+      "output_format",
+      "stability",
+      "similarity_boost",
+      "style",
+      "use_speaker_boost",
+      "speed"
+    ],
+    "source": {
+      "url": "https://elevenlabs.io/docs/api-reference/text-to-speech/convert",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "elevenlabs:scribe-v2",
+    "lab": "elevenlabs",
+    "model_id": "scribe_v2",
+    "adapter_type": "elevenlabs",
+    "capabilities": [
+      "audio_transcribe"
+    ],
+    "param_keys": [
+      "diarize",
+      "tag_audio_events"
+    ],
+    "source": {
+      "url": "https://elevenlabs.io/docs/api-reference/speech-to-text/convert",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "openai:gpt-5.2",
+    "lab": "openai",
+    "model_id": "gpt-5.2",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://developers.openai.com/api/docs/models",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "openai:gpt-4o",
+    "lab": "openai",
+    "model_id": "gpt-4o",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://developers.openai.com/api/docs/models",
+      "verified_at": "2026-06-25",
+      "status": "deprecated"
+    }
+  },
+  {
+    "id": "openai:gpt-4o-mini",
+    "lab": "openai",
+    "model_id": "gpt-4o-mini",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://developers.openai.com/api/docs/models",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "openai:gpt-4.1",
+    "lab": "openai",
+    "model_id": "gpt-4.1",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://developers.openai.com/api/docs/models",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "openai:gpt-4.1-mini",
+    "lab": "openai",
+    "model_id": "gpt-4.1-mini",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://developers.openai.com/api/docs/models",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "openai:o3-mini",
+    "lab": "openai",
+    "model_id": "o3-mini",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://developers.openai.com/api/docs/models",
+      "verified_at": "2026-06-25",
+      "status": "deprecated"
+    }
+  },
+  {
+    "id": "openai:dall-e-3",
+    "lab": "openai",
+    "model_id": "dall-e-3",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "image"
+    ],
+    "param_keys": [
+      "image_size",
+      "quality",
+      "style"
+    ],
+    "source": {
+      "url": "https://developers.openai.com/api/reference/resources/images",
+      "verified_at": "2026-06-25",
+      "status": "deprecated"
+    }
+  },
+  {
+    "id": "openai:gpt-image-1",
+    "lab": "openai",
+    "model_id": "gpt-image-1",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "image"
+    ],
+    "param_keys": [
+      "image_size",
+      "quality"
+    ],
+    "source": {
+      "url": "https://developers.openai.com/api/reference/resources/images",
+      "verified_at": "2026-06-25",
+      "status": "deprecated"
+    }
+  },
+  {
+    "id": "openai:gpt-image-1-edit",
+    "lab": "openai",
+    "model_id": "gpt-image-1",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "image_edit"
+    ],
+    "param_keys": [
+      "image_size",
+      "quality"
+    ],
+    "source": {
+      "url": "https://developers.openai.com/api/reference/resources/images",
+      "verified_at": "2026-06-25",
+      "status": "deprecated"
+    }
+  },
+  {
+    "id": "openai:gpt-image-2",
+    "lab": "openai",
+    "model_id": "gpt-image-2",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "image"
+    ],
+    "param_keys": [
+      "image_size",
+      "quality"
+    ],
+    "source": {
+      "url": "https://developers.openai.com/api/reference/resources/images",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "openai:gpt-4o-mini-tts",
+    "lab": "openai",
+    "model_id": "gpt-4o-mini-tts",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "audio_tts"
+    ],
+    "param_keys": [
+      "voice",
+      "response_format",
+      "speed",
+      "instructions"
+    ],
+    "source": {
+      "url": "https://developers.openai.com/api/docs/guides/text-to-speech",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "anthropic:claude-3-5-sonnet",
+    "lab": "anthropic",
+    "model_id": "claude-3-5-sonnet-20241022",
+    "adapter_type": "anthropic",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://platform.claude.com/docs/en/about-claude/model-deprecations",
+      "verified_at": "2026-06-25",
+      "status": "deprecated"
+    }
+  },
+  {
+    "id": "openai:gpt-4o-transcribe",
+    "lab": "openai",
+    "model_id": "gpt-4o-transcribe",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "audio_transcribe"
+    ],
+    "param_keys": [
+      "response_format",
+      "prompt",
+      "temperature"
+    ],
+    "source": {
+      "url": "https://developers.openai.com/api/docs/guides/speech-to-text",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "anthropic:claude-3-7-sonnet",
+    "lab": "anthropic",
+    "model_id": "claude-3-7-sonnet-20250219",
+    "adapter_type": "anthropic",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://platform.claude.com/docs/en/about-claude/model-deprecations",
+      "verified_at": "2026-06-25",
+      "status": "deprecated"
+    }
+  },
+  {
+    "id": "openai:gpt-4o-mini-transcribe",
+    "lab": "openai",
+    "model_id": "gpt-4o-mini-transcribe",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "audio_transcribe"
+    ],
+    "param_keys": [
+      "response_format",
+      "prompt",
+      "temperature"
+    ],
+    "source": {
+      "url": "https://developers.openai.com/api/docs/guides/speech-to-text",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "anthropic:claude-3-5-haiku",
+    "lab": "anthropic",
+    "model_id": "claude-3-5-haiku-20241022",
+    "adapter_type": "anthropic",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://platform.claude.com/docs/en/about-claude/model-deprecations",
+      "verified_at": "2026-06-25",
+      "status": "deprecated"
+    }
+  },
+  {
+    "id": "anthropic:claude-opus-4",
+    "lab": "anthropic",
+    "model_id": "claude-opus-4-5-20251101",
+    "adapter_type": "anthropic",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://platform.claude.com/docs/en/about-claude/models/overview",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "volcengine:doubao-seed-2-0-pro",
+    "lab": "seed",
+    "model_id": "doubao-seed-2-0-pro-260215",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://www.volcengine.com/docs/82379",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "volcengine:doubao-seed-2-0-lite",
+    "lab": "seed",
+    "model_id": "doubao-seed-2-0-lite-260215",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://www.volcengine.com/docs/82379",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "volcengine:doubao-seed-2-0-mini",
+    "lab": "seed",
+    "model_id": "doubao-seed-2-0-mini-260215",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://www.volcengine.com/docs/82379",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "volcengine:doubao-seed-1-8",
+    "lab": "seed",
+    "model_id": "doubao-seed-1.8-251228",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://www.volcengine.com/docs/82379",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "volcengine:doubao-seed-1-6",
+    "lab": "seed",
+    "model_id": "doubao-seed-1.6-251015",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://www.volcengine.com/docs/82379",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "volcengine:doubao-seed-1-6-lite",
+    "lab": "seed",
+    "model_id": "doubao-seed-1.6-lite-251015",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://www.volcengine.com/docs/82379",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "volcengine:doubao-seed-1-6-flash",
+    "lab": "seed",
+    "model_id": "doubao-seed-1.6-flash-250828",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://www.volcengine.com/docs/82379",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "volcengine:doubao-seed-1-6-vision",
+    "lab": "seed",
+    "model_id": "doubao-seed-1.6-vision-250815",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://www.volcengine.com/docs/82379",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "volcengine:doubao-1-5-lite-32k",
+    "lab": "seed",
+    "model_id": "doubao-1.5-lite-32k-250115",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://www.volcengine.com/docs/82379",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "volcengine-ark:doubao-seed-2-0-pro",
+    "lab": "seed",
+    "model_id": "doubao-seed-2-0-pro-260215",
+    "adapter_type": "volcen",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://www.volcengine.com/docs/82379",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "volcengine-ark:doubao-seed-2-0-lite",
+    "lab": "seed",
+    "model_id": "doubao-seed-2-0-lite-260215",
+    "adapter_type": "volcen",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://www.volcengine.com/docs/82379",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "volcengine-ark:doubao-seed-1-6",
+    "lab": "seed",
+    "model_id": "doubao-seed-1.6-251015",
+    "adapter_type": "volcen",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://www.volcengine.com/docs/82379",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "volcengine:seedream-3-0",
+    "lab": "seed",
+    "model_id": "doubao-seedream-3-0-t2i-250415",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "image"
+    ],
+    "param_keys": [
+      "aspect_ratio",
+      "seed",
+      "prompt_strength",
+      "watermark"
+    ],
+    "source": {
+      "url": "https://www.volcengine.com/docs/82379/1366799?lang=zh",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "volcengine:seedream-4-0",
+    "lab": "seed",
+    "model_id": "doubao-seedream-4-0-250828",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "image"
+    ],
+    "param_keys": [
+      "image_size",
+      "watermark",
+      "sequential_image_generation",
+      "image_count",
+      "optimize_prompt_mode"
+    ],
+    "source": {
+      "url": "https://www.volcengine.com/docs/82379/1366799?lang=zh",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "volcengine:seedream-4-5",
+    "lab": "seed",
+    "model_id": "doubao-seedream-4-5-251128",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "image"
+    ],
+    "param_keys": [
+      "image_size",
+      "watermark",
+      "sequential_image_generation",
+      "image_count",
+      "optimize_prompt_mode"
+    ],
+    "source": {
+      "url": "https://www.volcengine.com/docs/82379/1366799?lang=zh",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "volcengine:seedream-5-0",
+    "lab": "seed",
+    "model_id": "doubao-seedream-5-0-260128",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "image"
+    ],
+    "param_keys": [
+      "image_size",
+      "watermark",
+      "sequential_image_generation",
+      "image_count",
+      "optimize_prompt_mode",
+      "output_format",
+      "web_search"
+    ],
+    "source": {
+      "url": "https://www.volcengine.com/docs/82379/1366799?lang=zh",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "volcengine:seedream-5-0-lite",
+    "lab": "seed",
+    "model_id": "doubao-seedream-5-0-lite-260128",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "image"
+    ],
+    "param_keys": [
+      "image_size",
+      "watermark",
+      "sequential_image_generation",
+      "image_count",
+      "optimize_prompt_mode",
+      "output_format",
+      "web_search"
+    ],
+    "source": {
+      "url": "https://www.volcengine.com/docs/82379/1366799?lang=zh",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "volcengine-ark:seedream-3-0",
+    "lab": "seed",
+    "model_id": "doubao-seedream-3-0-t2i-250415",
+    "adapter_type": "volcen",
+    "capabilities": [
+      "image"
+    ],
+    "param_keys": [
+      "aspect_ratio",
+      "seed",
+      "prompt_strength",
+      "watermark"
+    ],
+    "source": {
+      "url": "https://www.volcengine.com/docs/82379/1366799?lang=zh",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "volcengine-ark:seedream-5-0",
+    "lab": "seed",
+    "model_id": "doubao-seedream-5-0-260128",
+    "adapter_type": "volcen",
+    "capabilities": [
+      "image"
+    ],
+    "param_keys": [
+      "image_size",
+      "watermark",
+      "sequential_image_generation",
+      "image_count",
+      "optimize_prompt_mode",
+      "output_format",
+      "web_search"
+    ],
+    "source": {
+      "url": "https://www.volcengine.com/docs/82379/1366799?lang=zh",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "volcengine-ark:seedream-5-0-lite",
+    "lab": "seed",
+    "model_id": "doubao-seedream-5-0-lite-260128",
+    "adapter_type": "volcen",
+    "capabilities": [
+      "image"
+    ],
+    "param_keys": [
+      "image_size",
+      "watermark",
+      "sequential_image_generation",
+      "image_count",
+      "optimize_prompt_mode",
+      "output_format",
+      "web_search"
+    ],
+    "source": {
+      "url": "https://www.volcengine.com/docs/82379/1366799?lang=zh",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "volcengine:seedance-1-0-lite-t2v",
+    "lab": "seed",
+    "model_id": "doubao-seedance-1-0-lite-t2v-250428",
+    "adapter_type": "volcen",
+    "capabilities": [
+      "video"
+    ],
+    "param_keys": [
+      "duration",
+      "aspect_ratio",
+      "resolution",
+      "seed",
+      "watermark",
+      "fixed_camera",
+      "return_last_frame",
+      "service_tier"
+    ],
+    "source": {
+      "url": "https://www.volcengine.com/docs/82379/1520757?lang=zh",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "volcengine:seedance-1-0-lite-i2v",
+    "lab": "seed",
+    "model_id": "doubao-seedance-1-0-lite-i2v-250428",
+    "adapter_type": "volcen",
+    "capabilities": [
+      "video_i2v"
+    ],
+    "param_keys": [
+      "duration",
+      "aspect_ratio",
+      "resolution",
+      "seed",
+      "watermark",
+      "return_last_frame",
+      "service_tier"
+    ],
+    "source": {
+      "url": "https://www.volcengine.com/docs/82379/1520757?lang=zh",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "volcengine:seedance-1-0-pro-fast",
+    "lab": "seed",
+    "model_id": "doubao-seedance-1-0-pro-fast-251015",
+    "adapter_type": "volcen",
+    "capabilities": [
+      "video"
+    ],
+    "param_keys": [
+      "duration",
+      "aspect_ratio",
+      "resolution",
+      "seed",
+      "watermark",
+      "fixed_camera",
+      "return_last_frame",
+      "service_tier"
+    ],
+    "source": {
+      "url": "https://www.volcengine.com/docs/82379/1520757?lang=zh",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "volcengine:seedance-1-5-pro",
+    "lab": "seed",
+    "model_id": "doubao-seedance-1-5-pro-251215",
+    "adapter_type": "volcen",
+    "capabilities": [
+      "video",
+      "video_i2v"
+    ],
+    "param_keys": [
+      "duration",
+      "aspect_ratio",
+      "resolution",
+      "seed",
+      "watermark",
+      "audio",
+      "fixed_camera",
+      "return_last_frame",
+      "service_tier",
+      "workspace"
+    ],
+    "source": {
+      "url": "https://www.volcengine.com/docs/82379/1520757?lang=zh",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "volcengine:seedance-2-0",
+    "lab": "seed",
+    "model_id": "doubao-seedance-2-0-260128",
+    "adapter_type": "volcen",
+    "capabilities": [
+      "video",
+      "video_i2v",
+      "video_v2v"
+    ],
+    "param_keys": [
+      "duration",
+      "aspect_ratio",
+      "resolution",
+      "seed",
+      "watermark",
+      "audio",
+      "return_last_frame",
+      "web_search"
+    ],
+    "source": {
+      "url": "https://www.volcengine.com/docs/82379/1520757?lang=zh",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "volcengine:seedance-2-0-fast",
+    "lab": "seed",
+    "model_id": "doubao-seedance-2-0-fast-260128",
+    "adapter_type": "volcen",
+    "capabilities": [
+      "video",
+      "video_i2v",
+      "video_v2v"
+    ],
+    "param_keys": [
+      "duration",
+      "aspect_ratio",
+      "resolution",
+      "seed",
+      "watermark",
+      "audio",
+      "return_last_frame",
+      "web_search"
+    ],
+    "source": {
+      "url": "https://www.volcengine.com/docs/82379/1520757?lang=zh",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "kling:v1-standard-t2v",
+    "lab": "kling",
+    "model_id": "kling-v1",
+    "adapter_type": "kling",
+    "capabilities": [
+      "video"
+    ],
+    "param_keys": [
+      "duration",
+      "aspect_ratio"
+    ],
+    "source": {
+      "url": "https://kling.ai/document-api/apiReference/model/textToVideo",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "kling:v1-6-standard-t2v",
+    "lab": "kling",
+    "model_id": "kling-v1-6",
+    "adapter_type": "kling",
+    "capabilities": [
+      "video"
+    ],
+    "param_keys": [
+      "duration",
+      "aspect_ratio"
+    ],
+    "source": {
+      "url": "https://kling.ai/document-api/apiReference/model/textToVideo",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "kling:v2-standard-t2v",
+    "lab": "kling",
+    "model_id": "kling-v2-master",
+    "adapter_type": "kling",
+    "capabilities": [
+      "video"
+    ],
+    "param_keys": [
+      "duration",
+      "aspect_ratio"
+    ],
+    "source": {
+      "url": "https://kling.ai/document-api/apiReference/model/textToVideo",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "kling:v1-5-standard-i2v",
+    "lab": "kling",
+    "model_id": "kling-v1-5",
+    "adapter_type": "kling",
+    "capabilities": [
+      "video_i2v"
+    ],
+    "param_keys": [
+      "duration",
+      "aspect_ratio"
+    ],
+    "source": {
+      "url": "https://kling.ai/document-api/apiReference/model/textToVideo",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "dashscope:happyhorse-1-0-r2v",
+    "lab": "alibaba-dashscope",
+    "model_id": "happyhorse-1.0-r2v",
+    "adapter_type": "dashscope",
+    "capabilities": [
+      "video_i2v"
+    ],
+    "param_keys": [
+      "duration",
+      "aspect_ratio",
+      "resolution",
+      "watermark",
+      "seed"
+    ],
+    "source": {
+      "url": "https://help.aliyun.com/zh/model-studio/happyhorse-reference-to-video-api-reference",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "vidu:q1",
+    "lab": "vidu",
+    "model_id": "viduq1",
+    "adapter_type": "vidu",
+    "capabilities": [
+      "video",
+      "video_i2v"
+    ],
+    "param_keys": [
+      "duration",
+      "aspect_ratio",
+      "resolution",
+      "seed",
+      "audio",
+      "audio_type",
+      "movement_amplitude",
+      "off_peak"
+    ],
+    "source": {
+      "url": "https://platform.vidu.com/docs/reference-to-video",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "xai:grok-4.3",
+    "lab": "xai",
+    "model_id": "grok-4.3",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://docs.x.ai/developers/models/grok-4.3",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "xai:grok-imagine-image-quality",
+    "lab": "xai",
+    "model_id": "grok-imagine-image-quality",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "image"
+    ],
+    "param_keys": [
+      "aspect_ratio",
+      "resolution",
+      "image_count"
+    ],
+    "source": {
+      "url": "https://docs.x.ai/developers/model-capabilities/images/generation",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "xai:grok-imagine-image-quality-edit",
+    "lab": "xai",
+    "model_id": "grok-imagine-image-quality",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "image_edit"
+    ],
+    "param_keys": [
+      "aspect_ratio",
+      "resolution"
+    ],
+    "source": {
+      "url": "https://docs.x.ai/developers/model-capabilities/images/editing",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "xai:grok-imagine-video",
+    "lab": "xai",
+    "model_id": "grok-imagine-video",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "video"
+    ],
+    "param_keys": [
+      "duration",
+      "aspect_ratio",
+      "resolution"
+    ],
+    "source": {
+      "url": "https://docs.x.ai/developers/model-capabilities/video/generation",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "xai:grok-imagine-video-1.5",
+    "lab": "xai",
+    "model_id": "grok-imagine-video-1.5",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "video_i2v"
+    ],
+    "param_keys": [
+      "duration",
+      "aspect_ratio",
+      "resolution"
+    ],
+    "source": {
+      "url": "https://docs.x.ai/developers/model-capabilities/video/image-to-video",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-max",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-max",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://www.alibabacloud.com/help/en/model-studio/models",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "dashscope:qwen-plus",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen-plus",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://www.alibabacloud.com/help/en/model-studio/models",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "dashscope:qwen-turbo",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen-turbo",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://www.alibabacloud.com/help/en/model-studio/models",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "dashscope:qwen-vl-max",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen-vl-max",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://www.alibabacloud.com/help/en/model-studio/models",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "dashscope:qwen-image",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen-image",
+    "adapter_type": "dashscope",
+    "capabilities": [
+      "image"
+    ],
+    "param_keys": [
+      "aspect_ratio"
+    ],
+    "source": {
+      "url": "https://www.alibabacloud.com/help/en/model-studio/qwen-image-api",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "deepseek:deepseek-v4-flash",
+    "lab": "deepseek",
+    "model_id": "deepseek-v4-flash",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://api-docs.deepseek.com/quick_start/pricing",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "deepseek:deepseek-chat",
+    "lab": "deepseek",
+    "model_id": "deepseek-chat",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://api-docs.deepseek.com/quick_start/pricing",
+      "verified_at": "2026-06-25",
+      "status": "deprecated"
+    }
+  },
+  {
+    "id": "deepseek:deepseek-reasoner",
+    "lab": "deepseek",
+    "model_id": "deepseek-reasoner",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://api-docs.deepseek.com/quick_start/pricing",
+      "verified_at": "2026-06-25",
+      "status": "deprecated"
+    }
+  },
+  {
+    "id": "zai:glm-5.2",
+    "lab": "zai",
+    "model_id": "glm-5.2",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://docs.z.ai/guides/llm/glm-5.2",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "zai:glm-5.1",
+    "lab": "zai",
+    "model_id": "glm-5.1",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://docs.z.ai/guides/llm/glm-5.1",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "gemini:gemini-2-5-pro",
+    "lab": "google-gemini",
+    "model_id": "gemini-2.5-pro",
+    "adapter_type": "gemini",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://ai.google.dev/gemini-api/docs/deprecations",
+      "verified_at": "2026-06-25",
+      "status": "deprecated"
+    }
+  },
+  {
+    "id": "zai:glm-5",
+    "lab": "zai",
+    "model_id": "glm-5",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://docs.z.ai/guides/llm/glm-5",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "gemini:gemini-2-5-flash",
+    "lab": "google-gemini",
+    "model_id": "gemini-2.5-flash",
+    "adapter_type": "gemini",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://ai.google.dev/gemini-api/docs/deprecations",
+      "verified_at": "2026-06-25",
+      "status": "deprecated"
+    }
+  },
+  {
+    "id": "gemini:gemini-3-1-pro-preview",
+    "lab": "google-gemini",
+    "model_id": "gemini-3.1-pro-preview",
+    "adapter_type": "gemini",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://ai.google.dev/gemini-api/docs/gemini-3",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "zai:glm-4.7",
+    "lab": "zai",
+    "model_id": "glm-4.7",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://docs.z.ai/guides/llm/glm-4.7",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "gemini:gemini-2-0-flash",
+    "lab": "google-gemini",
+    "model_id": "gemini-2.0-flash",
+    "adapter_type": "gemini",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://ai.google.dev/gemini-api/docs/models/gemini-2.0-flash",
+      "verified_at": "2026-06-25",
+      "status": "deprecated"
+    }
+  },
+  {
+    "id": "gemini:gemini-3-flash-preview",
+    "lab": "google-gemini",
+    "model_id": "gemini-3-flash-preview",
+    "adapter_type": "gemini",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://ai.google.dev/gemini-api/docs/gemini-3",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "zai:glm-4.6",
+    "lab": "zai",
+    "model_id": "glm-4.6",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://docs.z.ai/guides/llm/glm-4.6",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "gemini:gemini-3-1-flash-lite",
+    "lab": "google-gemini",
+    "model_id": "gemini-3.1-flash-lite",
+    "adapter_type": "gemini",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://ai.google.dev/gemini-api/docs/gemini-3",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "gemini:imagen-3",
+    "lab": "google-gemini",
+    "model_id": "imagen-3.0-generate-002",
+    "adapter_type": "gemini",
+    "capabilities": [
+      "image"
+    ],
+    "param_keys": [
+      "aspect_ratio"
+    ],
+    "source": {
+      "url": "https://ai.google.dev/gemini-api/docs/deprecations",
+      "verified_at": "2026-06-25",
+      "status": "deprecated"
+    }
+  },
+  {
+    "id": "zai:glm-4.5",
+    "lab": "zai",
+    "model_id": "glm-4.5",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://docs.z.ai/guides/llm/glm-4.5",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "gemini:gemini-3-pro-image-preview",
+    "lab": "google-gemini",
+    "model_id": "gemini-3-pro-image-preview",
+    "adapter_type": "gemini",
+    "capabilities": [
+      "image",
+      "image_edit"
+    ],
+    "param_keys": [
+      "aspect_ratio",
+      "image_size"
+    ],
+    "source": {
+      "url": "https://ai.google.dev/gemini-api/docs/gemini-3",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "gemini:gemini-flash-image",
+    "lab": "google-gemini",
+    "model_id": "gemini-2.0-flash-preview-image-generation",
+    "adapter_type": "gemini",
+    "capabilities": [
+      "image",
+      "image_edit"
+    ],
+    "param_keys": [
+      "aspect_ratio"
+    ],
+    "source": {
+      "url": "https://ai.google.dev/gemini-api/docs/deprecations",
+      "verified_at": "2026-06-25",
+      "status": "deprecated"
+    }
+  },
+  {
+    "id": "zai:glm-4.5-air",
+    "lab": "zai",
+    "model_id": "glm-4.5-air",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://docs.z.ai/guides/llm/glm-4.5",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "gemini:gemini-3-1-flash-image-preview",
+    "lab": "google-gemini",
+    "model_id": "gemini-3.1-flash-image-preview",
+    "adapter_type": "gemini",
+    "capabilities": [
+      "image",
+      "image_edit"
+    ],
+    "param_keys": [
+      "aspect_ratio",
+      "image_size"
+    ],
+    "source": {
+      "url": "https://ai.google.dev/gemini-api/docs/gemini-3",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "gemini:veo-2",
+    "lab": "google-gemini",
+    "model_id": "veo-2.0-generate-001",
+    "adapter_type": "gemini",
+    "capabilities": [
+      "video",
+      "video_i2v"
+    ],
+    "param_keys": [
+      "duration",
+      "aspect_ratio"
+    ],
+    "source": {
+      "url": "https://ai.google.dev/gemini-api/docs/video",
+      "verified_at": "2026-06-25",
+      "status": "deprecated"
+    }
+  },
+  {
+    "id": "zai:glm-4.5-flash",
+    "lab": "zai",
+    "model_id": "glm-4.5-flash",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://docs.z.ai/guides/llm/glm-4.5",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "minimax:MiniMax-M3",
+    "lab": "minimax",
+    "model_id": "MiniMax-M3",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://platform.minimax.io/docs/guides/text-generation",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "minimax:MiniMax-M2.7",
+    "lab": "minimax",
+    "model_id": "MiniMax-M2.7",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://platform.minimax.io/docs/guides/text-generation",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "minimax:MiniMax-M2.7-highspeed",
+    "lab": "minimax",
+    "model_id": "MiniMax-M2.7-highspeed",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://platform.minimax.io/docs/guides/text-generation",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "minimax:MiniMax-M2.5",
+    "lab": "minimax",
+    "model_id": "MiniMax-M2.5",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://platform.minimax.io/docs/guides/text-generation",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "minimax:MiniMax-M2.1",
+    "lab": "minimax",
+    "model_id": "MiniMax-M2.1",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://platform.minimax.io/docs/guides/text-generation",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "minimax:MiniMax-M2.1-highspeed",
+    "lab": "minimax",
+    "model_id": "MiniMax-M2.1-highspeed",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://platform.minimax.io/docs/guides/text-generation",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "minimax:MiniMax-M2",
+    "lab": "minimax",
+    "model_id": "MiniMax-M2",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://platform.minimax.io/docs/guides/text-generation",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  }
+]

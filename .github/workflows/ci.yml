@@ -25,10 +25,10 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.25.x'
-          cache-dependency-path: apps/backend/go.sum
+          cache-dependency-path: services/data-service/go.sum
 
       - name: Test
-        working-directory: apps/backend
+        working-directory: services/data-service
         run: go test ./...
 
   node:

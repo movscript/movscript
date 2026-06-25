@@ -1881,6 +1881,11 @@ function candidateInputHash(candidate: ContentCandidateRecord, contentUnitId: st
 
 function candidateNote(candidate: ContentCandidateRecord): string {
   const output = firstCandidateOutput(candidate)
+  const candidateRecord = candidate as Record<string, unknown>
+  const decisionStatus = stringField(candidateRecord.decision_status)
+  const decisionReason = stringField(candidateRecord.decision_reason)
+  if (decisionStatus && decisionReason) return `${decisionStatus}: ${decisionReason}`
+  if (decisionStatus) return decisionStatus
   return stringField(candidate.prompt_snapshot?.note)
     ?? stringField(candidate.prompt_snapshot?.summary)
     ?? stringField(output?.mime_type)
@@ -1969,6 +1974,14 @@ function hierarchyNodeSourceRecord(input: {
         location_text: '',
         action_text: '',
         mood: '',
+      }
+    case 'shot':
+      return {
+        ...base,
+        shot_kind: 'shot',
+        description: '',
+        timing: {},
+        reference_asset_refs: [],
       }
     case 'storyboard':
       return {

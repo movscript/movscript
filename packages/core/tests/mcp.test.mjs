@@ -34,9 +34,39 @@ import {
   writeMovScriptBackendAuth,
   writeMovScriptBackendConfig,
 } from '../dist/backend/node/index.js'
+import { startProjectService } from '../../../services/project-service/src/server.mjs'
+import { startEditingService } from '../../../services/editing-service/src/server.mjs'
 
 const onePixelPNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lgn+9QAAAABJRU5ErkJggg=='
 const onePixelPNGBytes = Buffer.from(onePixelPNG.split(',')[1], 'base64')
+let projectServiceRuntime
+let previousProjectServiceURL
+let editingServiceRuntime
+let previousEditingServiceURL
+
+test.before(async () => {
+  previousProjectServiceURL = process.env.MOVSCRIPT_PROJECT_SERVICE_URL
+  previousEditingServiceURL = process.env.MOVSCRIPT_EDITING_SERVICE_URL
+  projectServiceRuntime = await startProjectService()
+  editingServiceRuntime = await startEditingService()
+  process.env.MOVSCRIPT_PROJECT_SERVICE_URL = projectServiceRuntime.url
+  process.env.MOVSCRIPT_EDITING_SERVICE_URL = editingServiceRuntime.url
+})
+
+test.after(async () => {
+  if (projectServiceRuntime) await projectServiceRuntime.close()
+  if (editingServiceRuntime) await editingServiceRuntime.close()
+  if (previousProjectServiceURL === undefined) {
+    delete process.env.MOVSCRIPT_PROJECT_SERVICE_URL
+  } else {
+    process.env.MOVSCRIPT_PROJECT_SERVICE_URL = previousProjectServiceURL
+  }
+  if (previousEditingServiceURL === undefined) {
+    delete process.env.MOVSCRIPT_EDITING_SERVICE_URL
+  } else {
+    process.env.MOVSCRIPT_EDITING_SERVICE_URL = previousEditingServiceURL
+  }
+})
 
 function record(value) {
   assert.ok(value && typeof value === 'object' && !Array.isArray(value))
@@ -395,7 +425,7 @@ test('MCP local project tools initialize and fetch a path-bound project', async 
     })
 
     assert.equal(initResponse?.error, undefined)
-    assert.equal(initResponse?.result?.data?.status, 'initialized')
+    assert.equal(initResponse?.result?.data?.status, 'created')
     assert.equal(initResponse?.result?.data?.projectDir, projectDir)
     assert.match(initResponse?.result?.data?.projectUid ?? '', /^prj_/)
     assert.equal(initResponse?.result?.data?.backendProject?.project_uid, initResponse?.result?.data?.projectUid)
@@ -476,6 +506,148 @@ test('MCP domain runtime can bind directly to a project directory without backen
   }
 })
 
+test('MCP domain asset certification registers selected asset resource and writes provider metadata', async () => {
+  const originalFetch = globalThis.fetch
+  const projectDir = mkdtempSync(join(tmpdir(), 'movscript-asset-certification-'))
+  const postedBodies = []
+  const decisionContext = {
+    schema: 'movscript.decision_context.v1',
+    target_kind: 'content_unit',
+    target_ref: 'content_units/cu_wet_hair_ref',
+    selection: {
+      candidate_id: 'candidate_wet_hair_1',
+      resource_id: 101,
+    },
+    candidates: [{
+      id: 'candidate_wet_hair_1',
+      status: 'succeeded',
+      outputs: [{
+        kind: 'image',
+        resource_id: 101,
+      }],
+    }],
+  }
+  try {
+    await writeTestProjectManifest(projectDir, 'prj_asset_certification', 'Asset Certification')
+    await mkdir(join(projectDir, 'settings', 'hero', 'states', 'rain', 'assets', 'wet_hair'), { recursive: true })
+    await mkdir(join(projectDir, 'content_units', 'cu_wet_hair_ref'), { recursive: true })
+    await mkdir(join(projectDir, '.movscript', 'decisions', 'content_units', 'cu_wet_hair_ref'), { recursive: true })
+    await writeFile(join(projectDir, 'settings', 'hero', 'setting.json'), JSON.stringify({
+      schema: 'movscript.setting.v1',
+      kind: 'setting',
+      id: 'hero',
+      title: 'Hero',
+      setting_kind: 'character',
+    }), 'utf8')
+    await writeFile(join(projectDir, 'settings', 'hero', 'states', 'rain', 'setting_state.json'), JSON.stringify({
+      schema: 'movscript.setting_state.v1',
+      kind: 'setting_state',
+      id: 'rain',
+      setting_id: 'hero',
+      title: 'Rain',
+    }), 'utf8')
+    await writeFile(join(projectDir, 'settings', 'hero', 'states', 'rain', 'assets', 'wet_hair', 'asset.json'), JSON.stringify({
+      schema: 'movscript.asset.v1',
+      kind: 'asset',
+      id: 'wet_hair',
+      setting_id: 'hero',
+      setting_state_id: 'rain',
+      title: 'Wet hair reference',
+      slot: 'character_state_reference',
+      asset_kind: 'image',
+    }), 'utf8')
+    await writeFile(join(projectDir, 'content_units', 'cu_wet_hair_ref', 'content_unit.json'), JSON.stringify({
+      schema: 'movscript.content_unit.v1',
+      kind: 'content_unit',
+      id: 'cu_wet_hair_ref',
+      title: 'Wet hair visual reference',
+      content_unit_type: 'asset_ref',
+      output_kind: 'image',
+      asset_ref: 'wet_hair',
+      edit_prompt: { text: 'Generate wet hair.' },
+    }), 'utf8')
+    await writeFile(join(projectDir, '.movscript', 'decisions', 'content_units', 'cu_wet_hair_ref', 'decision_context.json'), JSON.stringify(decisionContext), 'utf8')
+
+    globalThis.fetch = async (input, init = {}) => {
+      const bound = mockProjectBindingResponse(input, init)
+      if (bound) return bound
+      const url = new URL(String(input))
+      const body = typeof init.body === 'string' && init.body ? JSON.parse(init.body) : {}
+      if (url.pathname.endsWith('/decisions/query') && init.method === 'POST') {
+        return jsonResponse((Array.isArray(body.target_refs) ? body.target_refs : [])
+          .filter((targetRef) => targetRef === decisionContext.target_ref)
+          .map(() => decisionContext))
+      }
+      if (url.pathname.endsWith('/decisions') && (init.method ?? 'GET') === 'GET') {
+        return url.searchParams.get('target_ref') === decisionContext.target_ref
+          ? jsonResponse(decisionContext)
+          : jsonResponse({}, 404)
+      }
+      if (url.pathname === '/api/v1/provider-assets/providers/volcengine_ark_official/certify' && init.method === 'POST') {
+        postedBodies.push(body)
+        return jsonResponse({
+          status: 'succeeded',
+          provider: 'volc-ark-main',
+          provider_id: 'volc-ark-main',
+          provider_kind: 'volcengine_ark_official',
+          source_resource_id: 101,
+          source_url: body.source_url,
+          asset_uri: 'asset://hub_asset_101',
+          hub_asset_id: 'hub_asset_101',
+          certification: {
+            provider: 'volc-ark-main',
+            provider_id: 'volc-ark-main',
+            provider_kind: 'volcengine_ark_official',
+            status: 'active',
+            hub_asset_id: 'hub_asset_101',
+            asset_uri: 'asset://hub_asset_101',
+            source_resource_id: 101,
+            source_candidate_id: 'candidate_wet_hair_1',
+            source_url: body.source_url,
+            source_hash: 'test-source-hash',
+            certified_at: '2026-06-23T00:00:00Z',
+            updated_at: '2026-06-23T00:00:00Z',
+            gateway_base_url: 'https://hub.test',
+            raw_status: 'active',
+          },
+        })
+      }
+      throw new Error(`unexpected fetch: ${String(input)} ${init.method ?? 'GET'}`)
+    }
+
+    const result = await callTool('domain_certify_asset_provider', {
+      projectDir,
+      projectId: 'prj_asset_certification',
+      assetId: 'wet_hair',
+      source_url: 'https://cdn.example.test/wet-hair.png',
+    })
+    const asset = JSON.parse(readFileSync(join(projectDir, 'settings', 'hero', 'states', 'rain', 'assets', 'wet_hair', 'asset.json'), 'utf8'))
+
+    assert.equal(result.status, 'succeeded')
+    assert.equal(result.source_resource_id, 101)
+    assert.equal(result.source_candidate_id, 'candidate_wet_hair_1')
+    assert.equal(result.asset_uri, 'asset://hub_asset_101')
+    assert.equal(result.provider_id, 'volc-ark-main')
+    assert.deepEqual(postedBodies, [{
+      provider: 'volcengine_ark_official',
+      resource_id: 101,
+      source_candidate_id: 'candidate_wet_hair_1',
+      project_id: 'prj_asset_certification',
+      project_name: 'prj_asset_certification',
+      setting_id: 'hero',
+      source_url: 'https://cdn.example.test/wet-hair.png',
+      name: 'Wet hair reference',
+    }])
+    assert.equal(asset.provider_certifications['volc-ark-main'].status, 'active')
+    assert.equal(asset.provider_certifications['volc-ark-main'].hub_asset_id, 'hub_asset_101')
+    assert.equal(asset.provider_certifications['volc-ark-main'].source_resource_id, 101)
+    assert.equal(asset.provider_certifications['volc-ark-main'].source_candidate_id, 'candidate_wet_hair_1')
+  } finally {
+    globalThis.fetch = originalFetch
+    await rm(projectDir, { recursive: true, force: true })
+  }
+})
+
 test('MCP domain runtime uses scoped project data decisions when project uid and auth exist', async () => {
   const originalFetch = globalThis.fetch
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-mcp-scoped-home-'))
@@ -496,6 +668,9 @@ test('MCP domain runtime uses scoped project data decisions when project uid and
       user: { id: 99, username: 'workspace-user' },
     })
     globalThis.fetch = async (url, init = {}) => {
+      if (projectServiceRuntime && String(url).startsWith(projectServiceRuntime.url)) {
+        return originalFetch(url, init)
+      }
       requests.push({ url: String(url), init })
       return new Response(JSON.stringify({
         id: 1,
@@ -552,7 +727,10 @@ test('MCP project resources read project workspace data without backend entity e
       selection: null,
       updatedAt: new Date().toISOString(),
     })
-    globalThis.fetch = async () => {
+    globalThis.fetch = async (input, init = {}) => {
+      if (projectServiceRuntime && String(input).startsWith(projectServiceRuntime.url)) {
+        return originalFetch(input, init)
+      }
       throw new Error('backend fetch should not be called for project resources/read')
     }
     await mkdir(join(projectDir, 'settings', 'setting_hero'), { recursive: true })
@@ -1511,6 +1689,58 @@ test('MCP image generation compatible mode maps unsupported aspect ratio to mode
     globalThis.fetch = originalFetch
     setMovScriptBackendAPIBaseURL('http://localhost:8765')
     await rm(projectDir, { recursive: true, force: true })
+  }
+})
+
+test('MCP low-level image generation can submit without project binding', async () => {
+  const originalFetch = globalThis.fetch
+  let postedBody
+  setMovScriptBackendAPIBaseURL('http://movscript.test')
+  const model = {
+    id: 41,
+    model_id: 'gpt-image-2',
+    display_name: 'GPT Image 2',
+    capabilities: ['image'],
+    supported_params: [
+      { key: 'image_size', type: 'select', options: ['1024x1024'], default: '1024x1024' },
+      { key: 'quality', type: 'select', options: ['auto', 'low'], default: 'auto' },
+    ],
+  }
+
+  try {
+    globalThis.fetch = async (input, init) => {
+      const url = String(input)
+      if (url === 'http://movscript.test/api/v1/models?capability=image') {
+        return new Response(JSON.stringify([model]), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      if (url === 'http://movscript.test/api/v1/models?capability=image_edit') {
+        return new Response(JSON.stringify([]), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      if (url === 'http://movscript.test/api/v1/jobs') {
+        assert.equal(init?.method, 'POST')
+        postedBody = JSON.parse(init.body)
+        return new Response(JSON.stringify({ ID: 92, status: 'pending' }), { status: 201, headers: { 'content-type': 'application/json' } })
+      }
+      throw new Error(`unexpected request: ${url}`)
+    }
+
+    const result = await generateImage({
+      prompt: 'quick model smoke test',
+      model_id: 'gpt-image-2',
+      image_size: '1024x1024',
+      quality: 'low',
+    })
+
+    assert.equal(result.status, 'submitted')
+    assert.equal(result.job_id, 92)
+    assert.equal(postedBody.model_id, 'gpt-image-2')
+    assert.equal(postedBody.project_uid, undefined)
+    assert.equal(postedBody.project_title, undefined)
+    assert.equal(postedBody.project_dir, undefined)
+    assert.deepEqual(JSON.parse(postedBody.extra_params), { image_size: '1024x1024', quality: 'low' })
+  } finally {
+    globalThis.fetch = originalFetch
+    setMovScriptBackendAPIBaseURL('http://localhost:8765')
   }
 })
 

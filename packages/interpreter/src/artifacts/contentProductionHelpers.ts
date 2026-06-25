@@ -9,6 +9,7 @@ import type {
   ContentUnitOutputKind,
   ContentUnitPromptRef,
   ContentUnitPromptRefKind,
+  ContentUnitProviderAssetCertification,
   ContentUnitResolvedRef,
   ContentUnitUpstreamSelection,
 } from './contentProductionTypes.js'
@@ -69,7 +70,7 @@ export function projectStyleReferenceResourceIds(
   ])
 }
 
-const PROMPT_REF_PATTERN = /\{\{([a-z_]+):([^{}:\s][^{}]*)\}\}/g
+const PROMPT_REF_PATTERN = /\{\{([a-z_]+)::?([^{}:\s][^{}]*)\}\}/g
 
 export function parseContentUnitEditPromptRefs(value: unknown): ContentUnitPromptRef[] {
   const editPrompt = recordField(value)
@@ -247,13 +248,59 @@ export function resolveUpstreamSelectionForPromptRef(
   if (!selection) return undefined
   const candidateId = idField(selection.candidate_id)
   const resourceId = resourceIdField(selection.resource_id)
+  const providerAsset = ref.kind === 'asset'
+    ? activeProviderAssetCertificationForPromptRef(index, ref, { resourceId, candidateId })
+    : undefined
   return {
     content_unit_ref: entityDir(contentUnit.path),
     ...(candidateId !== undefined ? { candidate_id: candidateId } : {}),
     ...(resourceId !== undefined ? { resource_id: resourceId } : {}),
+    ...(providerAsset ? { provider_asset: providerAsset } : {}),
     stale_policy: selection.stale_policy === 'accept_stale' ? 'accept_stale' : 'strict',
     role: `${ref.kind}_ref`,
   }
+}
+
+export function activeProviderAssetCertificationForPromptRef(
+  index: MovScriptWorkspaceDomainIndex,
+  ref: Pick<ContentUnitPromptRef, 'kind' | 'id'>,
+  input: { resourceId?: number; candidateId?: string | number } = {},
+): ContentUnitProviderAssetCertification | undefined {
+  if (ref.kind !== 'asset') return undefined
+  const asset = findEntityByRef(index, 'asset', ref.id)
+  return activeProviderAssetCertification(asset?.record, input)
+}
+
+export function activeProviderAssetCertification(
+  assetRecord: Record<string, unknown> | undefined,
+  input: { resourceId?: number; candidateId?: string | number } = {},
+): ContentUnitProviderAssetCertification | undefined {
+  const certifications = recordField(assetRecord?.provider_certifications)
+    ?? recordField(assetRecord?.providerCertifications)
+  if (!certifications) return undefined
+  for (const [provider, rawCertification] of Object.entries(certifications)) {
+    const certification = recordField(rawCertification)
+    if (!certification) continue
+    if (stringField(certification.status) !== 'active') continue
+    const assetUri = providerAssetUri(certification)
+    if (!assetUri) continue
+    const sourceResourceId = resourceIdField(certification.source_resource_id ?? certification.sourceResourceId)
+    if (input.resourceId !== undefined && sourceResourceId !== undefined && sourceResourceId !== input.resourceId) continue
+    const sourceCandidateId = idField(certification.source_candidate_id ?? certification.sourceCandidateId)
+    if (input.candidateId !== undefined && sourceCandidateId !== undefined && String(sourceCandidateId) !== String(input.candidateId)) continue
+    return {
+      provider,
+      status: 'active',
+      asset_uri: assetUri,
+      ...(stringField(certification.hub_asset_id ?? certification.hubAssetId) ? { hub_asset_id: stringField(certification.hub_asset_id ?? certification.hubAssetId) } : {}),
+      ...(sourceResourceId !== undefined ? { source_resource_id: sourceResourceId } : {}),
+      ...(sourceCandidateId !== undefined ? { source_candidate_id: sourceCandidateId } : {}),
+      ...(stringField(certification.source_hash ?? certification.sourceHash) ? { source_hash: stringField(certification.source_hash ?? certification.sourceHash) } : {}),
+      ...(stringField(certification.certified_at ?? certification.certifiedAt) ? { certified_at: stringField(certification.certified_at ?? certification.certifiedAt) } : {}),
+      ...(stringField(certification.updated_at ?? certification.updatedAt) ? { updated_at: stringField(certification.updated_at ?? certification.updatedAt) } : {}),
+    }
+  }
+  return undefined
 }
 
 export function resolvePromptRefs(
@@ -485,6 +532,13 @@ export function resourceIdField(value: unknown): number | undefined {
     if (Number.isInteger(parsed) && parsed > 0) return parsed
   }
   return undefined
+}
+
+function providerAssetUri(certification: Record<string, unknown>): string | undefined {
+  const direct = stringField(certification.asset_uri ?? certification.assetUri)
+  if (direct) return direct
+  const hubAssetId = stringField(certification.hub_asset_id ?? certification.hubAssetId)
+  return hubAssetId ? `asset://${hubAssetId}` : undefined
 }
 
 export function pathSegmentAfter(path: string, segment: string): string | undefined {

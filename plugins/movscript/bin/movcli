@@ -1,0 +1,21 @@
+#!/bin/sh
+set -eu
+
+script_dir=$(CDPATH= cd "$(dirname "$0")" && pwd)
+
+for candidate in \
+  "${MOVSCRIPT_NODE:-}" \
+  node \
+  /opt/homebrew/opt/node@22/bin/node \
+  /opt/homebrew/bin/node \
+  /usr/local/bin/node \
+  /usr/bin/node
+do
+  [ -n "$candidate" ] || continue
+  if command -v "$candidate" >/dev/null 2>&1; then
+    exec "$candidate" "$script_dir/movscript-agent-mcp.mjs" __movscript_movcli "$@"
+  fi
+done
+
+echo "MovScript CLI could not find Node.js. Set MOVSCRIPT_NODE or install node in PATH." >&2
+exit 127

@@ -11,17 +11,17 @@
 ```bash
 pnpm install
 docker compose up -d db minio createbuckets
-cp apps/backend/.env.example apps/backend/.env
+cp services/data-service/.env.example services/data-service/.env
 openssl rand -hex 32
 openssl rand -hex 32
 ```
 
-把生成的两个值分别写入 `apps/backend/.env` 中的 `ENCRYPTION_KEY` 和 `AUTH_TOKEN_SECRET`。
+把生成的两个值分别写入 `services/data-service/.env` 中的 `ENCRYPTION_KEY` 和 `AUTH_TOKEN_SECRET`。
 
 启动主要开发服务：
 
 ```bash
-pnpm --filter @movscript/backend dev
+pnpm --filter @movscript/data-service dev
 pnpm --filter @movscript/desktop dev
 ```
 
@@ -49,7 +49,7 @@ pnpm --filter @movscript/desktop typecheck
 后端改动运行：
 
 ```bash
-cd apps/backend
+cd services/data-service
 go test ./...
 ```
 
@@ -72,6 +72,6 @@ go test ./...
 
 前端使用 `react-i18next`。
 
-- 用户可见前端文案同时添加到 `apps/frontend/src/i18n/locales/zh-CN.json` 和 `apps/frontend/src/i18n/locales/en-US.json`。
+- 用户可见前端文案同时添加到 `apps/desktop/src/i18n/locales/zh-CN.json` 和 `apps/desktop/src/i18n/locales/en-US.json`。
 - 使用按产品区域分组的稳定 key，例如 `sidebar.items.scripts`。
 - 后端 API 错误尽量保持机器可读；展示文案在前端本地化。

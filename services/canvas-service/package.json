@@ -1,0 +1,16 @@
+{
+  "name": "@movscript/canvas-service",
+  "version": "0.1.29",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "movscript-canvas-service": "./bin/movscript-canvas-service.mjs"
+  },
+  "scripts": {
+    "build": "node --check src/server.mjs && node --check bin/movscript-canvas-service.mjs",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "@movscript/runtime-contracts": "workspace:*"
+  }
+}

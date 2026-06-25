@@ -2,6 +2,10 @@ import { backendGet } from '../../../../backend/node/client.js'
 import { getMovScriptBackendAPIBaseURL } from '../../../../backend/node/runtime.js'
 import { clampNumber, getOptionalNumeric, getOptionalString } from '../../../tools/shared/params.js'
 import { isRecord } from '../../../tools/shared/record.js'
+import {
+  createResourceDetailSurface,
+  createResourceLibrarySurface,
+} from '../surfaces.js'
 
 interface ResourceLibraryRequest {
   query?: string
@@ -47,31 +51,18 @@ export async function queryResourceLibrary(args: Record<string, unknown>): Promi
     count: filtered.length,
     items: filtered,
     usage: 'Use RawResource.ID values as input_resource_ids or reference_resource_ids for MovScript generation tools.',
+    ...(id !== undefined && filtered.length > 0 ? { surface: createResourceDetailSurface(args, id) } : {}),
     ...(id !== undefined && filtered.length === 0 ? { warning: `resource_id ${id} was not found on the requested page` } : {}),
   }
 }
 
 export function openResourceLibrary(args: Record<string, unknown>): unknown {
-  const frontendOrigin = resolveFrontendOrigin(args)
-  const proxyBaseURL = resolveMCPProxyBaseURL(args)
-  const url = new URL('/agent/resources', frontendOrigin)
-  url.searchParams.set('mcpApiBaseURL', `${proxyBaseURL}/agent-api/v1`)
-  url.searchParams.set('source', 'mcp')
+  const surface = createResourceLibrarySurface(args)
 
   return {
     source: 'movscript_resource_library',
-    kind: 'browser_url',
-    title: 'MovScript resource library',
-    url: url.toString(),
-    frontend_origin: frontendOrigin,
-    mcp_api_base_url: `${proxyBaseURL}/agent-api/v1`,
-    route: '/agent/resources',
-    api_proxy: {
-      base_url: `${proxyBaseURL}/agent-api/v1`,
-      auth: 'desktop_mcp_context',
-    },
+    ...surface,
     backend_api_base_url: getMovScriptBackendAPIBaseURL(),
-    usage: 'Open url in an agent in-app browser. The page uses the local MovScript MCP proxy, which forwards requests with the desktop auth context.',
   }
 }
 
@@ -158,38 +149,4 @@ function booleanParam(value: unknown): boolean | undefined {
   if (value === 'true') return true
   if (value === 'false') return false
   return undefined
-}
-
-function resolveFrontendOrigin(args: Record<string, unknown>): string {
-  return normalizeHTTPOrigin(
-    getOptionalString(args, 'frontend_origin')
-      ?? getOptionalString(args, 'frontendOrigin')
-      ?? process.env.MOVSCRIPT_FRONTEND_ORIGIN
-      ?? process.env.VITE_DEV_SERVER_URL
-      ?? 'http://127.0.0.1:5173',
-  )
-}
-
-function resolveMCPProxyBaseURL(args: Record<string, unknown>): string {
-  const explicit = getOptionalString(args, 'mcp_base_url') ?? getOptionalString(args, 'mcpBaseURL')
-  if (explicit) return normalizeHTTPOrigin(explicit)
-  const endpoint = process.env.MOVSCRIPT_MCP_ENDPOINT
-  if (endpoint) {
-    try {
-      const url = new URL(endpoint)
-      return normalizeHTTPOrigin(url.origin)
-    } catch {
-      // Fall through to the default local MCP origin.
-    }
-  }
-  const port = process.env.MOVSCRIPT_MCP_PORT || '28765'
-  return normalizeHTTPOrigin(`http://127.0.0.1:${port}`)
-}
-
-function normalizeHTTPOrigin(value: string): string {
-  const url = new URL(value.trim())
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new Error(`Expected http(s) URL, got ${value}`)
-  }
-  return url.origin
 }

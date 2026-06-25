@@ -1,5 +1,4 @@
-import { readFile } from 'node:fs/promises'
-import { resolve } from 'node:path'
+import { createProjectServiceClientFromRuntime } from '@movscript/project'
 import { backendPost } from '../../../../backend/node/client.js'
 import { isRecord } from '../../../tools/shared/record.js'
 import { resolveMCPProjectWorkspaceLocator, type MCPResolvedProjectWorkspaceLocator } from '../workspace/locator.js'
@@ -9,11 +8,6 @@ export type MCPBackendBoundProjectLocator = MCPResolvedProjectWorkspaceLocator &
   projectTitle?: string
   backendProject: unknown
   projectDataSpace: unknown
-}
-
-type ProjectManifest = {
-  projectUid?: string
-  projectTitle?: string
   description?: string
 }
 
@@ -26,25 +20,25 @@ export async function requireMCPBackendBoundProject(
   const locator = isResolvedProjectWorkspaceLocator(args)
     ? args
     : resolveMCPProjectWorkspaceLocator(args)
-  const manifest = await readProjectManifest(locator.projectDir)
-  const projectUid = manifest.projectUid ?? stringField(locator.projectUid)
+  const resolvedLocator = await resolveMCPProjectBindingLocator(locator)
+  const projectUid = stringField(resolvedLocator.projectUid)
   if (!projectUid) {
     throw new Error('MovScript project requires project_uid. Open or initialize the project before using project-scoped write tools.')
   }
-  const projectTitle = manifest.projectTitle ?? projectTitleFromDir(locator.projectDir)
+  const projectTitle = resolvedLocator.projectTitle ?? projectTitleFromDir(resolvedLocator.projectDir)
   const key = [
-    locator.workspaceDir,
-    locator.projectDir,
+    resolvedLocator.workspaceDir,
+    resolvedLocator.projectDir,
     projectUid,
     projectTitle,
   ].join('\u001f')
   const cached = ensuredProjectBindings.get(key)
   if (cached) return cached
   const pending = ensureBackendBinding({
-    ...locator,
+    ...resolvedLocator,
     projectUid,
     ...(projectTitle ? { projectTitle } : {}),
-    ...(manifest.description ? { description: manifest.description } : {}),
+    ...(resolvedLocator.description ? { description: resolvedLocator.description } : {}),
   }).catch((err) => {
     ensuredProjectBindings.delete(key)
     throw err
@@ -53,8 +47,39 @@ export async function requireMCPBackendBoundProject(
   return pending
 }
 
+export async function resolveMCPProjectBindingLocator(
+  args: Record<string, unknown> | MCPResolvedProjectWorkspaceLocator,
+): Promise<MCPResolvedProjectWorkspaceLocator & {
+  projectTitle?: string
+  description?: string
+}> {
+  const locator = isResolvedProjectWorkspaceLocator(args)
+    ? args
+    : resolveMCPProjectWorkspaceLocator(args)
+  return resolveProjectBindingLocator(locator)
+}
+
 function isResolvedProjectWorkspaceLocator(value: unknown): value is MCPResolvedProjectWorkspaceLocator {
   return isRecord(value) && typeof value.projectDir === 'string'
+}
+
+async function resolveProjectBindingLocator(locator: MCPResolvedProjectWorkspaceLocator): Promise<MCPResolvedProjectWorkspaceLocator & {
+  projectTitle?: string
+  description?: string
+}> {
+  const response = await createProjectServiceClientFromRuntime().resolveLocator({
+    projectDir: locator.projectDir,
+    workspaceDir: locator.workspaceDir,
+    ...(locator.projectUid ? { projectUid: locator.projectUid } : {}),
+  })
+  const projectLocator = response.locator
+  return {
+    workspaceDir: projectLocator.workspaceDir ?? locator.workspaceDir,
+    projectDir: projectLocator.projectDir,
+    ...(projectLocator.projectUid ?? locator.projectUid ? { projectUid: projectLocator.projectUid ?? locator.projectUid } : {}),
+    ...(projectLocator.projectTitle ? { projectTitle: projectLocator.projectTitle } : {}),
+    ...(projectLocator.description ? { description: projectLocator.description } : {}),
+  }
 }
 
 async function ensureBackendBinding(input: MCPResolvedProjectWorkspaceLocator & {
@@ -76,23 +101,6 @@ async function ensureBackendBinding(input: MCPResolvedProjectWorkspaceLocator & 
     backendProject: isRecord(backendProjectResponse) ? backendProjectResponse.project : undefined,
     projectDataSpace,
   }
-}
-
-async function readProjectManifest(projectDir: string): Promise<ProjectManifest> {
-  for (const name of ['workspace.json', 'project.json']) {
-    try {
-      const parsed = JSON.parse(await readFile(resolve(projectDir, name), 'utf8')) as unknown
-      if (!isRecord(parsed)) continue
-      return {
-        projectUid: stringField(parsed.project_uid ?? parsed.projectUid),
-        projectTitle: stringField(parsed.title ?? parsed.name),
-        description: stringField(parsed.description),
-      }
-    } catch {
-      // Try the next metadata file.
-    }
-  }
-  return {}
 }
 
 function projectTitleFromDir(projectDir: string): string {

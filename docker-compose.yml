@@ -80,7 +80,7 @@ services:
   backend:
     build:
       context: .
-      dockerfile: apps/backend/Dockerfile
+      dockerfile: services/data-service/Dockerfile
     restart: unless-stopped
     command: ["/bin/sh", "-c", "./migrate up && ./server"]
     ports:
@@ -134,8 +134,8 @@ services:
     ports:
       - "${PROMETHEUS_PORT:-9091}:9090"
     volumes:
-      - ./apps/backend/observability/prometheus-compose.yml:/etc/prometheus/prometheus.yml:ro
-      - ./apps/backend/observability/rules:/etc/prometheus/rules:ro
+      - ./services/data-service/observability/prometheus-compose.yml:/etc/prometheus/prometheus.yml:ro
+      - ./services/data-service/observability/rules:/etc/prometheus/rules:ro
       - prometheusdata:/prometheus
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -155,9 +155,9 @@ services:
       GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
     volumes:
       - grafanadata:/var/lib/grafana
-      - ./apps/backend/observability/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
-      - ./apps/backend/observability/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
-      - ./apps/backend/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./services/data-service/observability/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./services/data-service/observability/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./services/data-service/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       - prometheus
 

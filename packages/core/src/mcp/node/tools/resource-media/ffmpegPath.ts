@@ -37,8 +37,8 @@ export function resolveFFmpegPath(options: FFmpegPathOptions = {}): string | und
     join(resourcesPath || '', 'bin', binary),
     resolve(cwd, 'vendor/ffmpeg', platform, arch, binary),
     resolve(cwd, 'vendor/ffmpeg', platform, binary),
-    resolve(cwd, '../../apps/frontend/vendor/ffmpeg', platform, arch, binary),
-    resolve(cwd, '../../apps/frontend/vendor/ffmpeg', platform, binary),
+    resolve(cwd, '../../apps/desktop/vendor/ffmpeg', platform, arch, binary),
+    resolve(cwd, '../../apps/desktop/vendor/ffmpeg', platform, binary),
     binary,
   ]
   return candidates.find((candidate) => candidate === binary || existsSync(candidate))

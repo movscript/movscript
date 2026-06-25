@@ -6,6 +6,8 @@ on:
       - main
     paths:
       - install.sh
+      - install-desktop.sh
+      - install-plugin.sh
       - docs/install.md
       - assets/logo.png
       - site/**
@@ -39,8 +41,10 @@ jobs:
           mkdir -p public
           cp -R site/. public/
           cp install.sh public/install.sh
+          cp install-desktop.sh public/install-desktop.sh
+          cp install-plugin.sh public/install-plugin.sh
           cp assets/logo.png public/logo.png
-          chmod 0644 public/install.sh
+          chmod 0644 public/install.sh public/install-desktop.sh public/install-plugin.sh
           node <<'NODE'
           const fs = require('node:fs')
           const { execFileSync } = require('node:child_process')

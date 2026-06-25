@@ -218,7 +218,7 @@ test('workspace content candidate creation requires backend decision store', asy
     outputs: [{ kind: 'video', resource_id: 202, artifact_ref: 'resource_video_2', duration_sec: 4 }],
     promptSnapshot: { text: 'runtime prompt' },
     createdAt: '2026-06-07T00:00:00.000Z',
-  }), /requires a decisionStore/)
+  }), /requires .*decisionStore/)
 
   assert.equal(files.has('content_units/k41m/candidates/candidate_video_2/content_candidate.json'), false)
 })

@@ -20,6 +20,9 @@ const releaseAssetMatchers = {
     (name) => name.startsWith("movscript-desktop-windows-x64-") && name.includes("Setup") && name.endsWith(".exe"),
     (name) => name.startsWith("movscript-desktop-windows-x64-") && name.endsWith(".exe"),
   ],
+  plugin: [
+    (name) => name.startsWith("movscript-agent-plugin-") && name.endsWith(".zip"),
+  ],
 };
 
 function detectLanguage() {

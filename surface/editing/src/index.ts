@@ -1,0 +1,6 @@
+export { default as EditingListPage } from './pages/EditingListPage'
+export { default as EditingWorkspacePage } from './pages/EditingWorkspacePage'
+export { EditingListSurfaceRoute, EditingWorkspaceSurfaceRoute } from './surface-routes'
+export type { EditingSurfaceHeaderRenderer, EditingSurfaceHeaderSlots, EditingSurfaceRouteProps } from './surface-routes'
+export { createLocalEditingMediaAPI } from './service-host-api'
+export type { ElectronAPI } from './host-api'

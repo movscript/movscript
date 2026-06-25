@@ -1,0 +1,41 @@
+rules:
+  - provider_type: new_api
+    profile: gateway
+  - provider_type: apiyi
+    profile: gateway
+  - provider_type: volcen
+    profile: ark
+    lab: seed
+  - provider_type: openai
+    profile: official
+    lab: openai
+  - provider_type: anthropic
+    profile: official
+    lab: anthropic
+  - provider_type: alibaba
+    profile: dashscope
+    lab: alibaba-dashscope
+  - provider_type: elevenlabs
+    profile: official
+    lab: elevenlabs
+  - provider_type: google
+    profile: gemini
+    lab: google-gemini
+  - provider_type: kling
+    profile: official
+    lab: kling
+  - provider_type: deepseek
+    profile: official
+    lab: deepseek
+  - provider_type: zai
+    profile: official
+    lab: zai
+  - provider_type: minimax
+    profile: official
+    lab: minimax
+  - provider_type: vidu
+    profile: official
+    lab: vidu
+  - provider_type: xai
+    profile: official
+    lab: xai

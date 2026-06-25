@@ -7,6 +7,7 @@ import {
 import {
   domainAppendCandidate,
   domainBuildContentUnitBackendPrompt,
+  domainCertifyAssetProvider,
   domainInterpretContentUnitArtifact,
   domainInterpret,
   domainCreateAssetSlotCandidate,
@@ -342,6 +343,9 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
       return toolText(await domainUpsertSettingTree(args))
     case 'domain_upsert_asset':
       return toolText(await domainUpsertAsset(args))
+    case 'domain_certify_asset_provider':
+    case 'domain_certify_asset_seedance2':
+      return toolText(await domainCertifyAssetProvider(args))
     case 'domain_upsert_script':
       return toolText(await domainUpsertScript(args))
     case 'domain_read_script_source':

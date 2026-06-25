@@ -1,0 +1,114 @@
+lab: zai
+templates:
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: GLM-5.2
+      id: zai:glm-5.2
+      lab: zai
+      model_id: glm-5.2
+      order: 66
+      source:
+        status: verified
+        url: https://docs.z.ai/guides/llm/glm-5.2
+        verified_at: "2026-06-25"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: GLM-5.1
+      id: zai:glm-5.1
+      lab: zai
+      model_id: glm-5.1
+      order: 67
+      source:
+        status: verified
+        url: https://docs.z.ai/guides/llm/glm-5.1
+        verified_at: "2026-06-25"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: GLM-5
+      id: zai:glm-5
+      lab: zai
+      model_id: glm-5
+      order: 68
+      source:
+        status: verified
+        url: https://docs.z.ai/guides/llm/glm-5
+        verified_at: "2026-06-25"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: GLM-4.7
+      id: zai:glm-4.7
+      lab: zai
+      model_id: glm-4.7
+      order: 69
+      source:
+        status: verified
+        url: https://docs.z.ai/guides/llm/glm-4.7
+        verified_at: "2026-06-25"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: GLM-4.6
+      id: zai:glm-4.6
+      lab: zai
+      model_id: glm-4.6
+      order: 70
+      source:
+        status: verified
+        url: https://docs.z.ai/guides/llm/glm-4.6
+        verified_at: "2026-06-25"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: GLM-4.5
+      id: zai:glm-4.5
+      lab: zai
+      model_id: glm-4.5
+      order: 71
+      source:
+        status: verified
+        url: https://docs.z.ai/guides/llm/glm-4.5
+        verified_at: "2026-06-25"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: GLM-4.5 Air
+      id: zai:glm-4.5-air
+      lab: zai
+      model_id: glm-4.5-air
+      order: 72
+      source:
+        status: verified
+        url: https://docs.z.ai/guides/llm/glm-4.5
+        verified_at: "2026-06-25"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: GLM-4.5 Flash
+      id: zai:glm-4.5-flash
+      lab: zai
+      model_id: glm-4.5-flash
+      order: 73
+      source:
+        status: verified
+        url: https://docs.z.ai/guides/llm/glm-4.5
+        verified_at: "2026-06-25"

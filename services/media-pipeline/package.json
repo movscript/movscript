@@ -1,0 +1,28 @@
+{
+  "name": "@movscript/media-pipeline",
+  "version": "0.1.29",
+  "private": true,
+  "type": "module",
+  "types": "./src/server.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/server.d.ts",
+      "import": "./src/server.mjs"
+    },
+    "./program-manifest": {
+      "types": "./src/programManifest.ts",
+      "import": "./src/programManifest.ts"
+    }
+  },
+  "bin": {
+    "movscript-media-pipeline": "./bin/movscript-media-pipeline.mjs"
+  },
+  "scripts": {
+    "build": "node --check src/server.mjs && node --check src/headlessRuntime.mjs && node --check bin/movscript-media-pipeline.mjs",
+    "test": "pnpm --filter @movscript/editing build && node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "@movscript/editing": "workspace:*",
+    "@movscript/runtime-contracts": "workspace:*"
+  }
+}

@@ -8,7 +8,23 @@
   --app-shell-slot-left-background: var(--ms-app-shell-slot-left-background, var(--ms-color-app-background));
   --app-shell-slot-center-background: var(--ms-app-shell-slot-center-background, var(--ms-color-page-background));
   --app-shell-slot-right-background: var(--ms-app-shell-slot-right-background, var(--ms-color-app-background));
+  position: fixed;
+  inset: 0;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--ms-color-foreground);
   background: var(--ms-color-app-background);
+}
+
+.app-shell>main {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
 }
 
 .app-shell[data-surface="canvas"] {
@@ -35,7 +51,12 @@
 .app-content-frame {
   position: relative;
   display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
   flex-direction: column;
+  overflow: hidden;
   border-radius: var(--app-content-frame-radius);
   background: var(--app-shell-slot-center-background);
 }
@@ -93,8 +114,22 @@
 .app-shell__slot--right,
 .app-shell__slot--center {
   box-sizing: border-box;
+  min-width: 0;
   min-height: 0;
   position: relative;
+}
+
+.app-shell__slots {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.app-shell__slot--center {
+  flex: 1 1 auto;
 }
 
 .app-shell:is([data-surface="home"], [data-surface="tool"], [data-surface="project"], [data-surface="settings"]) .app-shell__slot,
@@ -506,6 +541,34 @@ body.ui-resizable-panel-resizing .app-shell-pane {
 .panel-resize-handle--right {
   right: 0;
   transform: translateX(6px);
+}
+
+.panel-resize-handle--top,
+.panel-resize-handle--bottom {
+  left: 0;
+  width: 100%;
+  height: 12px;
+  cursor: row-resize;
+}
+
+.panel-resize-handle--top::after,
+.panel-resize-handle--bottom::after {
+  top: 50%;
+  left: 0;
+  width: 100%;
+  height: 0;
+  transform: translateY(-50%);
+}
+
+.panel-resize-handle--top {
+  top: 0;
+  transform: translateY(-6px);
+}
+
+.panel-resize-handle--bottom {
+  top: auto;
+  bottom: 0;
+  transform: translateY(6px);
 }
 
 .app-shell:is([data-surface="home"], [data-surface="tool"], [data-surface="project"], [data-surface="settings"])[data-layout="stacked"] .app-shell__slot--left .app-sidebar .panel-resize-handle--right::after {

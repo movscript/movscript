@@ -6,7 +6,7 @@ import { isDirectRun } from './release-common.mjs'
 
 export const releaseVersionPackagePaths = Object.freeze([
   'package.json',
-  'apps/frontend/package.json',
+  'apps/desktop/package.json',
   'packages/core/package.json',
   'packages/decision/package.json',
   'packages/engine/package.json',

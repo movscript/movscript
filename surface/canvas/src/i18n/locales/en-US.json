@@ -1,0 +1,503 @@
+{
+  "common": {
+    "all": "All",
+    "back": "Back",
+    "cancel": "Cancel",
+    "close": "Close",
+    "collapse": "Collapse",
+    "computed": "Computed",
+    "create": "Create",
+    "creating": "Creating...",
+    "delete": "Delete",
+    "details": "Details",
+    "dismiss": "Dismiss",
+    "emptyTitle": "(Untitled)",
+    "emptyDescription": "(No description)",
+    "expand": "Expand",
+    "itemsCount": "{{count}} items",
+    "shotsCount": "{{count}} shots",
+    "storyboardRef": "storyboard #{{id}}",
+    "save": "Save",
+    "saving": "Saving...",
+    "send": "Send",
+    "selected": "Selected",
+    "retry": "Retry",
+    "readonly": "Read-only",
+    "related": "Related",
+    "refresh": "Refresh",
+    "loading": "Loading...",
+    "loadingShort": "Loading...",
+    "next": "Next",
+    "switch": "Switch",
+    "selectProject": "Select project...",
+    "noProject": "No project",
+    "inputPlaceholder": "Enter text...",
+    "requestFailed": "Request failed. Please try again later.",
+    "apiKey": "API Key",
+    "baseUrl": "Base URL",
+    "credits": "Credits",
+    "endpointUrl": "Endpoint URL",
+    "method": "Method",
+    "modelId": "Model ID",
+    "modelIdOverride": "Model ID Override",
+    "prompt": "Prompt",
+    "tokens": "Tokens",
+    "url": "URL",
+    "download": "Download",
+    "empty": "Empty",
+    "remove": "Remove"
+  },
+  "header": {
+    "titles": {
+      "canvases": "Canvas"
+    }
+  },
+  "pages": {
+    "canvases": {
+      "subtitle": "Inspiration · Workflow",
+      "types": {
+        "inspiration": "Inspiration",
+        "workflow": "Workflow"
+      },
+      "typeDescriptions": {
+        "inspiration": "Run nodes manually and explore ideas freely.",
+        "workflow": "Define inputs and outputs for end-to-end automation."
+      },
+      "newCanvas": "New Canvas",
+      "empty": "No canvases yet",
+      "createFirst": "Create the first canvas",
+      "open": "Open",
+      "rename": "Rename",
+      "renameConfirm": "Confirm rename",
+      "searchLabel": "Search canvases",
+      "searchPlaceholder": "Search name, ID, or type",
+      "categoryFilter": "Canvas category",
+      "resultSummary": "Showing {{shown}} / {{total}} canvases",
+      "noResults": "No matching canvases",
+      "clearFilters": "Clear filters",
+      "pageStatus": "Page {{page}} / {{pageCount}}",
+      "previousPage": "Previous page",
+      "nextPage": "Next page",
+      "nameRequired": "Canvas name *",
+      "namePlaceholder": "Name your canvas",
+      "workflowCreateHint": "New canvases are created as workflows with default input and output nodes.",
+      "createAndOpen": "Create and Open",
+      "allProjects": "All projects",
+      "currentProject": "Current project",
+      "globalLibrary": "Global canvas library",
+      "workspaceSummary": "{{count}} canvases in this workspace",
+      "invalidListResponse": "Canvas service returned an invalid list response. Check that /local-api/canvas/canvases is proxied to the canvas service."
+    },
+    "jobs": {
+      "generationFailed": "Generation failed",
+      "generating": "Generating..."
+    }
+  },
+  "agents": {
+    "model": "Model"
+  },
+  "canvas": {
+    "types": {
+      "inspiration": "Inspiration",
+      "workflow": "Workflow"
+    },
+    "status": {
+      "done": "Done",
+      "failed": "Failed",
+      "running": "Running",
+      "notRun": "Not run"
+    },
+    "runStatus": {
+      "pending": "Queued",
+      "running": "Running",
+      "done": "Done",
+      "failed": "Failed"
+    },
+    "modes": {
+      "compact": "Compact",
+      "detail": "Detail",
+      "full": "Full"
+    },
+    "switchModeTitle": "Switch display mode (current: {{mode}})",
+    "mediaTypes": {
+      "image": "image",
+      "video": "video"
+    },
+    "paramTypes": {
+      "text": "Text",
+      "image": "Image",
+      "video": "Video",
+      "audio": "Audio",
+      "json": "JSON",
+      "number": "Number",
+      "boolean": "Boolean",
+      "resource": "Resource"
+    },
+    "outputTypes": {
+      "image": "Image",
+      "video": "Video",
+      "text": "Text",
+      "audio": "Audio"
+    },
+    "nodeLabels": {
+      "text": "Text",
+      "image": "Image",
+      "video": "Video",
+      "audio": "Audio",
+      "canvas": "Canvas Reference",
+      "ref_image_gen": "Reference Image",
+      "ref_video_gen": "Reference Video",
+      "multi_angle": "Multi-angle Image",
+      "style_transfer": "Style Transfer",
+      "motion_imitation": "Motion Imitation",
+      "input": "Input",
+      "output": "Output",
+      "resource_sink": "Save Resource",
+      "approval": "Manual Approval",
+      "text_gen": "AI Text Generation",
+      "ai_gen": "AI Generation",
+      "group": "Group",
+      "plugin_card": "Plugin Card",
+      "entity_card": "Entity"
+    },
+    "entityTypes": {
+      "script": "Script",
+      "setting": "Setting",
+      "assetSlot": "Asset Slot",
+      "contentUnit": "Content Unit",
+      "asset": "Asset",
+      "episode": "Production",
+      "scene": "Scene",
+      "storyboard": "Storyboard",
+      "shot": "Shot",
+      "final_video": "Final Video"
+    },
+    "catalog": {
+      "categories": {
+        "flow": {
+          "title": "Input / Output",
+          "description": "Define workflow entry, exit, and approval gates."
+        },
+        "media": {
+          "title": "Media",
+          "description": "Hold text, image, video, and audio assets."
+        },
+        "ai": {
+          "title": "AI Processing",
+          "description": "Transform upstream input into generated results."
+        },
+        "organization": {
+          "title": "Organization",
+          "description": "Organize complex canvases with regions and semantic groups."
+        },
+        "plugins": {
+          "title": "Local Plugins",
+          "description": "Place plugins installed in this client as local cards on the canvas."
+        }
+      },
+      "nodes": {
+        "input": {
+          "label": "User Input",
+          "description": "Collect text input when running a workflow."
+        },
+        "output": {
+          "label": "Workflow Output",
+          "description": "Expose an upstream value as a typed output of this workflow."
+        },
+        "resource_sink": {
+          "label": "Save Resource",
+          "description": "Persist an upstream value to the resource library."
+        },
+        "entity_card": {
+          "label": "Entity",
+          "description": "Reference a project entity and use its fields as workflow inputs or outputs."
+        },
+        "approval": {
+          "label": "Manual Approval",
+          "description": "Pause the workflow at key steps for review."
+        },
+        "text": {
+          "label": "Text",
+          "description": "Write, upload, or receive AI text."
+        },
+        "image": {
+          "label": "Image",
+          "description": "Image resource or generated image result."
+        },
+        "video": {
+          "label": "Video",
+          "description": "Video resource or generated result."
+        },
+        "audio": {
+          "label": "Audio",
+          "description": "Audio resource or sound result."
+        },
+        "ai_gen": {
+          "label": "AI Generation",
+          "description": "Generate image, video, text, or audio by target type."
+        },
+        "text_gen": {
+          "label": "AI Text Generation",
+          "description": "Expand, summarize, or rewrite from upstream content."
+        },
+        "ref_image_gen": {
+          "label": "Reference Image",
+          "description": "Generate a new visual direction from reference images."
+        },
+        "ref_video_gen": {
+          "label": "Reference Video",
+          "description": "Generate video from reference media."
+        },
+        "multi_angle": {
+          "label": "Multi-angle Image",
+          "description": "Generate multi-angle views from a character or object image."
+        },
+        "style_transfer": {
+          "label": "Style Transfer",
+          "description": "Transfer a reference style to target media."
+        },
+        "motion_imitation": {
+          "label": "Motion Imitation",
+          "description": "Make the target character imitate reference motion."
+        },
+        "canvas": {
+          "label": "Canvas Reference",
+          "description": "Reuse intermediate results from another canvas."
+        },
+        "group": {
+          "label": "Group",
+          "description": "Select and organize a group of nodes."
+        }
+      }
+    },
+    "pluginCard": {
+      "waiting": "Waiting for local call",
+      "noPlugins": "No plugins are installed in this client",
+      "localPluginRunner": "Local plugin runner",
+      "localPluginRunnerDescription": "This card runs in the current client and writes results back to node state.",
+      "missingPlugin": "This plugin is not available in the current client. Reinstall or enable it first.",
+      "executableReady": "Backend executable spec ready"
+    },
+    "contextMenu": {
+      "groupSelected": "Group {{count}} nodes",
+      "deleteSelected": "Delete selected nodes"
+    },
+    "editor": {
+      "resourceShelf": {
+        "title": "Available Content",
+        "dragHint": "Drag onto the canvas to create nodes",
+        "noAssetViews": "No asset views",
+        "noProject": "This canvas is not linked to a project"
+      },
+      "history": {
+        "title": "Run History",
+        "description": "Runtime snapshots let you review inputs, results, and the canvas structure from each run.",
+        "allStatuses": "All statuses",
+        "runsCount": "{{count}} runs",
+        "run": "Run",
+        "status": "Status",
+        "duration": "Duration",
+        "snapshot": "Snapshot",
+        "startedAt": "Started",
+        "loading": "Loading run records",
+        "empty": "No matching run records",
+        "snapshotSummary": "{{nodes}} nodes / {{edges}} edges"
+      },
+      "audit": {
+        "title": "Entity Write Audit",
+        "description": "Entity field changes written by canvas runs.",
+        "recordsCount": "{{count}} records",
+        "entity": "Entity",
+        "node": "Node",
+        "port": "Port",
+        "change": "Change",
+        "loading": "Loading audit records",
+        "empty": "No entity write records yet"
+      },
+      "errors": {
+        "nodeNotFound": "Node not found in the database",
+        "invalidRuntimeInput": "Invalid input for {{port}}",
+        "requiredRuntimeInput": "{{port}} is required"
+      },
+      "untitled": "Untitled canvas",
+      "nodesCount": "{{count}} nodes",
+      "runningCount": "{{count}} running",
+      "activeRun": "Run #{{id}} · {{status}}",
+      "parallelRuns": "{{count}} parallel",
+      "stats": {
+        "inputs": "Inputs {{count}}",
+        "processors": "Processors {{count}}",
+        "outputs": "Outputs {{count}}",
+        "done": "Done {{count}}"
+      },
+      "canvasType": {
+        "workflow": "Workflow Canvas",
+        "inspiration": "Inspiration Canvas"
+      },
+      "starting": "Starting...",
+      "startRun": "Start Run",
+      "nodeLibrary": "Node Library",
+      "nodeLibraryHint": "Drag nodes onto the canvas, or click to add them to the viewport center",
+      "emptyTitle": "Drag input, AI processing, and output nodes from the left",
+      "emptyDescription": "You can also right-click the canvas to insert nodes. Select a node to configure its model, prompt, and media source on the right.",
+      "dropToPlace": "Release to place node",
+      "status": {
+        "dragging": "Moving node. Release to keep its position.",
+        "selected": "Selected {{label}}",
+        "idle": "Drag to pan the canvas. Box-select for batch actions."
+      },
+      "inspector": "Node Inspector",
+      "noSelectionTitle": "No node selected",
+      "noSelectionDescription": "Select a node to edit its label, input source, model, prompt, and run settings here.",
+      "currentSelection": "Current Selection",
+      "edgesCount": "Connections",
+      "workflowInputDescription": "Fill each input using its parameter type, then the workflow will run automatically.",
+      "nodeRuntimeInputTitle": "Runtime Inputs",
+      "nodeRuntimeInputDescription": "Provide values for unconnected input ports before running this node.",
+      "booleanEnabled": "Enabled",
+      "resourceIdPlaceholder": "Resource ID"
+    },
+    "unset": "Not set",
+    "textInputPlaceholder": "Enter text here...",
+    "emptyContent": "No content",
+    "emptyAudio": "No audio",
+    "noPrompt": "No prompt",
+    "waitingStart": "Waiting to start...",
+    "generating": "Generating...",
+    "generationFailed": "Generation failed",
+    "fillAtRuntime": "Filled at runtime",
+    "generated": "Generated",
+    "resourceSaved": "Saved to library",
+    "waitingUpstream": "Waiting for upstream result",
+    "referenceWorkflow": {
+      "selectWorkflow": "Select a referenced workflow to show its interface",
+      "interfaceSummary": "{{inputs}} inputs · {{outputs}} outputs",
+      "reading": "Reading reference output...",
+      "latestOutputHint": "Runtime reads the latest successful output from this workflow. Input ports express upstream dependencies.",
+      "noWorkflowHint": "Choose a workflow canvas in the inspector to generate handles from its input/output nodes."
+    },
+    "entityCard": {
+      "noPreview": "No fields to preview",
+      "noValue": "No value"
+    },
+    "approval": {
+      "waiting": "Waiting",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "approve": "Approve",
+      "reject": "Reject",
+      "approvedMark": "✓ Approved",
+      "rejectedMark": "✗ Rejected",
+      "resetWaiting": "Reset to waiting"
+    },
+    "nodePanel": {
+      "promptPlaceholder": "Describe what you want to generate... Type @ to reference upstream nodes",
+      "noUpstreamNodes": "No upstream connected nodes",
+      "inputContent": "Input Content",
+      "inputDefaultPlaceholder": "Workflow runs will prompt for this, or you can set a default here...",
+      "inputHint": "This node is the workflow entry. The run dialog will ask for this content.",
+      "outputHint": "This node only defines a workflow output for callers. Use a Save Resource node when the value should be written to the resource library.",
+      "resourceSinkHint": "This node writes the upstream value to the resource library. Resource inputs are reused; text, JSON, number, and boolean values are saved as files.",
+      "currentOutput": "Current Output",
+      "approvalHint": "The workflow pauses at this node and waits for manual approval before continuing.",
+      "currentStatus": "Current Status",
+      "generateText": "Generate Text",
+      "referenceWorkflow": "Referenced Workflow",
+      "selectWorkflow": "Select reusable workflow...",
+      "referenceWorkflowHint": "Only workflow canvases can be referenced. Runtime reads the latest successful output resource.",
+      "readReferenceOutput": "Read Reference Output",
+      "source": "Source",
+      "sources": {
+        "upload": "Upload",
+        "ai": "AI Generate",
+        "manual": "Manual"
+      },
+      "uploading": "Uploading...",
+      "uploaded": "Uploaded: {{name}}",
+      "selectFile": "Click to select a file",
+      "selectFromResources": "Or select from resources",
+      "selectResource": "Select resource...",
+      "textContent": "Text Content",
+      "textContentPlaceholder": "Enter text content here...",
+      "label": "Label",
+      "fileName": "File Name",
+      "fileNamePlaceholder": "Leave blank to generate a random name",
+      "randomFileName": "Random file name",
+      "paramName": "Parameter Name",
+      "paramNamePlaceholder": "Example: prompt",
+      "paramType": "Parameter Type",
+      "saveResource": "Save Resource"
+    },
+    "generatedByCanvas": "Generated by canvas",
+    "namePlaceholder": "Canvas name",
+    "runningCount": "{{count}} running",
+    "tasksCount": "Tasks ({{count}})",
+    "running": "Running...",
+    "run": "Run",
+    "workflowInputTitle": "Fill Workflow Inputs",
+    "inputContentPlaceholder": "Enter content...",
+    "startRun": "Start Run",
+    "pushToEntity": "Push to Entity",
+    "pushHint": "Add this {{type}} to the following entity assets",
+    "noPushTargets": "No push targets yet. Select an asset, storyboard, or scene above first.",
+    "push": "Push",
+    "runCanvas": "Run Canvas",
+    "newCanvasDefaultName": "New Canvas",
+    "canvasList": "Canvas List",
+    "newCanvas": "New Canvas",
+    "empty": "No canvases",
+    "selectOrCreate": "Select or create a canvas"
+  },
+  "shared": {
+    "generation": {
+      "promptPlaceholder": "Describe what you want to generate...",
+      "resultAlt": "Generated result",
+      "runNode": "Run Node",
+      "waitingStart": "Waiting to start..."
+    },
+    "genInput": {
+      "addResourcesFirst": "Add resources to the tags first",
+      "addToLibrary": "Add to Library",
+      "generate": "Generate",
+      "libraryOnlyHint": "Tools only use files already added to the resource library",
+      "maxCount": "Up to {{count}}",
+      "mention": "Mention",
+      "multipleAllowed": "Multiple allowed",
+      "noMatchedResources": "No matching resources",
+      "promptPlaceholder": {
+        "image": "Describe what you want to generate... Type @ to reference images from the resource library",
+        "video": "Describe what you want to generate... Type @ to reference videos from the resource library",
+        "image+video": "Describe what you want to generate... Type @ to reference images or videos from the resource library"
+      },
+      "required": "Required",
+      "selectOrUploadHint": "Select from the resource library on the left, or upload below",
+      "slots": {
+        "ref_images": "Reference images (optional)",
+        "ref_video": "Reference video (optional)",
+        "target_images": "Target images",
+        "motion_video": "Motion video",
+        "target_image": "Image to edit",
+        "style_images": "Style images",
+        "source_image": "Multi-angle image"
+      }
+    },
+    "modelSelector": {
+      "noModels": "No backend-routed models available",
+      "refresh": "Refresh model list"
+    },
+    "resourcePanel": {
+      "allAssets": "All assets",
+      "assetLibrary": "Asset Library",
+      "noAssets": "No assets",
+      "noResources": "No resources",
+      "previewDragTitle": "Click to preview, drag to add",
+      "resourceLibrary": "Resources",
+      "searchAssets": "Search assets...",
+      "searchResources": "Search resources...",
+      "selectProjectFirst": "Select a project first"
+    }
+  },
+  "plugins": {
+    "parameters": "Parameters"
+  }
+}

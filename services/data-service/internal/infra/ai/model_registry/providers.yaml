@@ -1,0 +1,282 @@
+providers:
+  - provider_type: openai
+    profile: official
+    provider_kind: openai_compat_gateway
+    provider_category: official_platform
+    display_name: OpenAI 官方 API
+    description: OpenAI official account boundary using the OpenAI-compatible API shape.
+    default_adapter_type: openai_compat
+    default_base_url_prefix: https://api.openai.com/v1
+    capabilities:
+      aggregates_upstream_models: false
+      file_upload: true
+      asset_library: false
+      generated_artifact_trust: false
+    is_builtin: true
+    is_enabled: true
+    version: builtin.v1
+  - provider_type: anthropic
+    profile: official
+    provider_kind: anthropic_official
+    provider_category: official_platform
+    display_name: Anthropic 官方 API
+    description: Anthropic official Messages API account boundary for Claude models.
+    default_adapter_type: anthropic
+    default_base_url_prefix: https://api.anthropic.com
+    capabilities:
+      aggregates_upstream_models: false
+      file_upload: false
+      asset_library: false
+      generated_artifact_trust: false
+    is_builtin: true
+    is_enabled: true
+    version: builtin.v1
+  - provider_type: alibaba
+    profile: dashscope
+    provider_kind: alibaba_dashscope_official
+    provider_category: official_platform
+    display_name: 阿里云百炼 / DashScope 官方 API
+    description: Alibaba Cloud Model Studio / DashScope official account boundary.
+    default_adapter_type: dashscope
+    default_base_url_prefix: https://dashscope.aliyuncs.com
+    capabilities:
+      aggregates_upstream_models: false
+      file_upload: true
+      asset_library: false
+      generated_artifact_trust: false
+      task_polling: true
+    is_builtin: true
+    is_enabled: true
+    version: builtin.v1
+  - provider_type: google
+    profile: gemini
+    provider_kind: google_gemini_official
+    provider_category: official_platform
+    display_name: Google Gemini 官方 API
+    description: Google Gemini API official account boundary for Gemini, Imagen, and Veo models.
+    default_adapter_type: gemini
+    default_base_url_prefix: https://generativelanguage.googleapis.com
+    capabilities:
+      aggregates_upstream_models: false
+      file_upload: true
+      asset_library: false
+      generated_artifact_trust: false
+      task_polling: true
+    is_builtin: true
+    is_enabled: true
+    version: builtin.v1
+  - provider_type: deepseek
+    profile: official
+    provider_kind: deepseek_official
+    provider_category: official_platform
+    display_name: DeepSeek 官方 API
+    description: DeepSeek official OpenAI-compatible API account boundary.
+    default_adapter_type: openai_compat
+    default_base_url_prefix: https://api.deepseek.com/v1
+    capabilities:
+      aggregates_upstream_models: false
+      file_upload: false
+      asset_library: false
+      generated_artifact_trust: false
+    is_builtin: true
+    is_enabled: true
+    version: builtin.v1
+  - provider_type: zai
+    profile: official
+    provider_kind: zai_official
+    provider_category: official_platform
+    display_name: 智谱 Z.AI 官方 API
+    description: Z.AI / GLM official OpenAI-compatible API account boundary.
+    default_adapter_type: openai_compat
+    default_base_url_prefix: https://api.z.ai/api/paas/v4
+    capabilities:
+      aggregates_upstream_models: false
+      file_upload: false
+      asset_library: false
+      generated_artifact_trust: false
+    is_builtin: true
+    is_enabled: true
+    version: builtin.v1
+  - provider_type: minimax
+    profile: official
+    provider_kind: minimax_official
+    provider_category: official_platform
+    display_name: MiniMax 官方 API
+    description: MiniMax official OpenAI-compatible API account boundary.
+    default_adapter_type: openai_compat
+    default_base_url_prefix: https://api.minimax.io/v1
+    capabilities:
+      aggregates_upstream_models: false
+      file_upload: false
+      asset_library: false
+      generated_artifact_trust: false
+    is_builtin: true
+    is_enabled: true
+    version: builtin.v1
+  - provider_type: elevenlabs
+    profile: official
+    provider_kind: elevenlabs_official
+    provider_category: official_platform
+    display_name: ElevenLabs 官方 API
+    description: ElevenLabs official account boundary for text-to-speech and speech-to-text models.
+    default_adapter_type: elevenlabs
+    default_base_url_prefix: https://api.elevenlabs.io/v1
+    capabilities:
+      aggregates_upstream_models: false
+      file_upload: true
+      asset_library: false
+      generated_artifact_trust: false
+    is_builtin: true
+    is_enabled: true
+    version: builtin.v1
+  - provider_type: volcen
+    profile: ark
+    provider_kind: volcengine_ark_official
+    provider_category: official_platform
+    display_name: 火山方舟官方 API
+    description: Volcengine Ark official API. Owns Ark account boundary, asset library, and original artifact trust policy.
+    default_adapter_type: volcen
+    default_base_url_prefix: https://ark.cn-beijing.volces.com/api/v3
+    capabilities:
+      asset_library: true
+      generated_artifact_trust: true
+      requires_public_input_url_for_asset_upload: true
+      file_upload: true
+      task_polling: true
+      task_cancel: true
+    asset_library_capabilities:
+      asset_types: [image]
+      auto_create_groups: true
+      group_scopes: [global, project_setting]
+    generated_artifact_trust_policy:
+      policy_id: volcengine_ark_original_face_artifact_v1
+      scope: same_provider_account
+      requires_original_artifact: true
+      trusted_model_families: [seedream-lite, seedance-2.0]
+    is_builtin: true
+    is_enabled: true
+    version: builtin.v1
+  - provider_type: kling
+    profile: official
+    provider_kind: kling_official
+    provider_category: official_platform
+    display_name: 可灵官方 API
+    description: Kling official account boundary for video generation models.
+    default_adapter_type: kling
+    default_base_url_prefix: https://api.klingai.com
+    capabilities:
+      aggregates_upstream_models: false
+      asset_library: false
+      generated_artifact_trust: false
+      task_polling: true
+    is_builtin: true
+    is_enabled: true
+    version: builtin.v1
+  - provider_type: vidu
+    profile: official
+    provider_kind: vidu_official
+    provider_category: official_platform
+    display_name: Vidu 官方 API
+    description: Vidu official account boundary for text-to-video, image-to-video, and reference-to-video models.
+    default_adapter_type: vidu
+    default_base_url_prefix: https://api.vidu.com/ent/v2
+    capabilities:
+      aggregates_upstream_models: false
+      asset_library: false
+      generated_artifact_trust: false
+      task_polling: true
+    is_builtin: true
+    is_enabled: true
+    version: builtin.v1
+  - provider_type: xai
+    profile: official
+    provider_kind: xai_official
+    provider_category: official_platform
+    display_name: xAI 官方 API
+    description: xAI official OpenAI-compatible API account boundary for Grok models.
+    default_adapter_type: openai_compat
+    default_base_url_prefix: https://api.x.ai/v1
+    capabilities:
+      aggregates_upstream_models: false
+      asset_library: false
+      generated_artifact_trust: false
+    is_builtin: true
+    is_enabled: true
+    version: builtin.v1
+  - provider_type: new_api
+    profile: gateway
+    provider_kind: new_api
+    provider_category: aggregator_gateway
+    display_name: 中转站
+    description: OpenAI-compatible relay or aggregation gateway account. It can route many upstream labs through one account, but does not inherit upstream official trust or asset facts.
+    default_adapter_type: openai_compat
+    default_base_url_prefix: ""
+    capabilities:
+      aggregates_upstream_models: true
+      asset_library: false
+      generated_artifact_trust: false
+    is_builtin: true
+    is_enabled: true
+    version: builtin.v1
+  - provider_type: apiyi
+    profile: gateway
+    provider_kind: apiyi_gateway
+    provider_category: aggregator_gateway
+    display_name: APIyi 聚合网关
+    description: APIyi OpenAI-compatible gateway account. Model IDs discovered from the gateway should remain route-level provider_model_id values unless verified by the upstream lab.
+    default_adapter_type: openai_compat
+    default_base_url_prefix: https://api.apiyi.com/v1
+    capabilities:
+      aggregates_upstream_models: true
+      asset_library: false
+      generated_artifact_trust: false
+    is_builtin: true
+    is_enabled: true
+    version: builtin.v1
+  - provider_type: aws
+    profile: bedrock
+    provider_kind: aws_bedrock
+    provider_category: official_platform
+    display_name: AWS Bedrock
+    description: Amazon Bedrock OpenAI-compatible endpoint. Region, supported models, and provider model IDs must be configured per route.
+    default_adapter_type: openai_compat
+    default_base_url_prefix: https://bedrock-mantle.${region}.api.aws/v1
+    capabilities:
+      aggregates_upstream_models: true
+      asset_library: false
+      generated_artifact_trust: false
+    is_builtin: true
+    is_enabled: true
+    version: builtin.v1
+  - provider_type: azure
+    profile: openai
+    provider_kind: azure_openai
+    provider_category: official_platform
+    display_name: Azure OpenAI
+    description: Azure OpenAI / Microsoft Foundry OpenAI-compatible v1 endpoint. Use an endpoint ending with /openai/v1.
+    default_adapter_type: openai_compat
+    default_base_url_prefix: https://{resource}.openai.azure.com/openai/v1
+    capabilities:
+      aggregates_upstream_models: false
+      file_upload: true
+      asset_library: false
+      generated_artifact_trust: false
+    is_builtin: true
+    is_enabled: true
+    version: builtin.v1
+  - provider_type: openai
+    profile: local
+    provider_kind: local_openai_compat
+    provider_category: local_endpoint
+    display_name: 本地 OpenAI 兼容端点
+    description: Local or self-hosted OpenAI-compatible endpoint.
+    default_adapter_type: openai_compat
+    default_base_url_prefix: http://127.0.0.1:8000/v1
+    capabilities:
+      local_endpoint: true
+      asset_library: false
+      generated_artifact_trust: false
+      aggregates_upstream_models: false
+    is_builtin: true
+    is_enabled: true
+    version: builtin.v1

@@ -20,9 +20,19 @@ import {
   readContentUnitCandidateVisibility,
 } from '../domain/actions.js'
 import { listModels } from '../model/actions.js'
-import { requireMCPBackendBoundProject } from '../project/localProjectBinding.js'
+import {
+  requireMCPBackendBoundProject,
+  resolveMCPProjectBindingLocator,
+} from '../project/localProjectBinding.js'
 import { getOptionalNumeric, getOptionalString, numericValues } from '../../../tools/shared/params.js'
 import { isRecord } from '../../../tools/shared/record.js'
+import {
+  candidateIdFromArgs,
+  createContentCandidatesSurface,
+  createGenerationJobSurface,
+  createPromptSurface,
+  projectIdFromArgs,
+} from '../surfaces.js'
 
 type GenerationJobType =
   | 'image'
@@ -77,7 +87,7 @@ type CompiledContentUnitPromptResult = {
 }
 
 type GenerationProjectScope = {
-  projectDir: string
+  projectDir?: string
   projectUid?: string
   projectTitle?: string
 }
@@ -86,7 +96,7 @@ export async function generateImage(args: Record<string, unknown>): Promise<unkn
   const built = buildImageRequest(args)
   const selection = await resolveModelSelection(args, built.jobType, built.jobType === 'image_edit' ? 'image' : 'image_edit')
   const submitted = await submitGenerationJob(args, selection, built, 'electron.generation.image')
-  return generationSubmitResult('image', submitted.job, 'generation_image_job_get', submitted.paramAudit)
+  return withGenerationJobSurface(args, generationSubmitResult('image', submitted.job, 'generation_image_job_get', submitted.paramAudit))
 }
 
 export async function generateContentUnitImage(args: Record<string, unknown>): Promise<unknown> {
@@ -94,7 +104,7 @@ export async function generateContentUnitImage(args: Record<string, unknown>): P
 }
 
 export async function getImageGenerationJob(args: Record<string, unknown>): Promise<unknown> {
-  return generationJobGetResult('image', await getGenerationJob(normalizedJobId(args)), verbosityArg(args))
+  return withGenerationJobSurface(args, generationJobGetResult('image', await getGenerationJob(normalizedJobId(args)), verbosityArg(args)))
 }
 
 export async function getContentUnitImageGenerationJob(args: Record<string, unknown>): Promise<unknown> {
@@ -109,7 +119,7 @@ export async function generateVideo(args: Record<string, unknown>): Promise<unkn
   const built = buildVideoRequest(args)
   const selection = await resolveModelSelection(args, built.jobType, 'video')
   const submitted = await submitGenerationJob(args, selection, built, 'electron.generation.video')
-  return generationSubmitResult('video', submitted.job, 'generation_video_job_get', submitted.paramAudit)
+  return withGenerationJobSurface(args, generationSubmitResult('video', submitted.job, 'generation_video_job_get', submitted.paramAudit))
 }
 
 export async function generateContentUnitVideo(args: Record<string, unknown>): Promise<unknown> {
@@ -117,7 +127,7 @@ export async function generateContentUnitVideo(args: Record<string, unknown>): P
 }
 
 export async function getVideoGenerationJob(args: Record<string, unknown>): Promise<unknown> {
-  return generationJobGetResult('video', await getGenerationJob(normalizedJobId(args)), verbosityArg(args))
+  return withGenerationJobSurface(args, generationJobGetResult('video', await getGenerationJob(normalizedJobId(args)), verbosityArg(args)))
 }
 
 export async function getContentUnitVideoGenerationJob(args: Record<string, unknown>): Promise<unknown> {
@@ -165,7 +175,7 @@ async function generateAudioLike(
   const built = buildAudioRequest(args, jobType)
   const selection = await resolveModelSelection(args, built.jobType, fallbackCapability)
   const submitted = await submitGenerationJob(args, selection, built, featureKey)
-  return generationSubmitResult('audio', submitted.job, 'generation_audio_job_get', submitted.paramAudit)
+  return withGenerationJobSurface(args, generationSubmitResult('audio', submitted.job, 'generation_audio_job_get', submitted.paramAudit))
 }
 
 async function generateContentUnitVisual(
@@ -182,6 +192,7 @@ async function generateContentUnitVisual(
       content_unit_id: contentUnitId,
       prompt: compiled.prompt,
       blockers: Array.isArray(compiled.blockers) ? compiled.blockers : compiled.prompt?.blockers ?? [],
+      surface: createPromptSurface(args, { contentUnitId, mode: 'edit', projectId: projectIdFromArgs(args) }),
       message: `Content unit ${String(contentUnitId)} ${kind} generation is blocked by unresolved prompt inputs.`,
     }
   }
@@ -207,7 +218,7 @@ async function generateContentUnitVisual(
   const selection = kind === 'image'
     ? await resolveModelSelection(nextArgs, built.jobType, built.jobType === 'image_edit' ? 'image' : 'image_edit')
     : await resolveModelSelection(nextArgs, built.jobType, 'video')
-  const projectScope = await resolveGenerationProjectScope(args)
+  const projectScope = await resolveGenerationProjectScope(args, { required: true })
   const sharedRequest = buildContentUnitGenerationRequest({
     contentUnitId,
     outputKind: kind,
@@ -252,7 +263,7 @@ async function generateContentUnitVisual(
     content_unit_id: contentUnitId,
   })
   const monitorTool = contentUnitGenerationSystemMonitorToolName(kind)
-  const result = generationSubmitResult(kind, submitted.job, monitorTool, prepared.audit)
+  const result = withGenerationJobSurface(args, generationSubmitResult(kind, submitted.job, monitorTool, prepared.audit), contentUnitId)
   const jobId = idField(result.job_id)
   const candidateId = getOptionalString(args, 'candidate_id') ?? getOptionalString(args, 'candidateId')
   return {
@@ -286,6 +297,9 @@ async function generateContentUnitVisual(
         prompt_snapshot: promptSnapshot,
       },
     },
+    secondary_surfaces: [
+      createPromptSurface(args, { contentUnitId, mode: 'inspect', projectId: projectIdFromArgs(args) }),
+    ],
     ...(candidateId ? { candidateId, candidate_id: candidateId } : {}),
     message: `Content unit ${String(contentUnitId)} ${kind} generation candidate job submitted (Job #${String(jobId)}). Candidate will be refreshed automatically when the job succeeds.`,
   }
@@ -309,6 +323,11 @@ async function getContentUnitVisualGenerationJob(
       contentUnitId,
       content_unit_id: contentUnitId,
       candidate_created: false,
+      surface: createGenerationJobSurface(args, {
+        jobId: normalizedJobId(args),
+        contentUnitId,
+        projectId: projectIdFromArgs(args),
+      }),
       message: `${base.message}. Candidate will be created after a successful terminal result.`,
     }
   }
@@ -324,6 +343,11 @@ async function getContentUnitVisualGenerationJob(
       contentUnitId,
       content_unit_id: contentUnitId,
       candidate_created: false,
+      surface: createGenerationJobSurface(args, {
+        jobId: normalizedJobId(args),
+        contentUnitId,
+        projectId: projectIdFromArgs(args),
+      }),
       message: `${base.message}. No output resource is available for candidate creation yet.`,
     }
   }
@@ -356,6 +380,9 @@ async function getContentUnitVisualGenerationJob(
   }
 
   const visibility = await readContentUnitCandidateVisibility(args, contentUnitId).catch(() => undefined)
+  const firstCandidate = candidates.length === 1 ? candidates[0] : undefined
+  const firstCandidateId = firstCandidate ? stringField(firstCandidate.candidate_id ?? firstCandidate.candidateId) : undefined
+  const firstResourceId = firstCandidate ? idField(firstCandidate.resource_id ?? firstCandidate.resourceId) : undefined
   return {
     ...base,
     generation_mode: 'content_unit_candidate',
@@ -367,13 +394,26 @@ async function getContentUnitVisualGenerationJob(
     candidate_created: true,
     candidate_count: candidates.length,
     candidates,
+    surface: createContentCandidatesSurface(args, {
+      contentUnitId,
+      ...(firstCandidateId ?? candidateIdFromArgs(args) ? { candidateId: firstCandidateId ?? candidateIdFromArgs(args) } : {}),
+      ...(firstResourceId !== undefined ? { resourceId: firstResourceId } : {}),
+      projectId: projectIdFromArgs(args),
+    }),
+    secondary_surfaces: [
+      createGenerationJobSurface(args, {
+        jobId: normalizedJobId(args),
+        contentUnitId,
+        projectId: projectIdFromArgs(args),
+      }),
+    ],
     ...(visibility ?? {}),
     message: `${base.message}. Created or refreshed ${candidates.length} content-unit candidate(s).`,
   }
 }
 
 export async function getAudioGenerationJob(args: Record<string, unknown>): Promise<unknown> {
-  return generationJobGetResult('audio', await getGenerationJob(normalizedJobId(args)), verbosityArg(args))
+  return withGenerationJobSurface(args, generationJobGetResult('audio', await getGenerationJob(normalizedJobId(args)), verbosityArg(args)))
 }
 
 export async function getAudioGenerationJobs(args: Record<string, unknown>): Promise<unknown> {
@@ -538,7 +578,7 @@ async function submitGenerationJob(
 ): Promise<{ job: Record<string, unknown>; paramAudit: ParamAuditItem[]; modelParams: Record<string, unknown> }> {
   const prepared = prepareGenerationParams(built, selection.model, parameterModeArg(args))
   const modelParams = submittedModelParams(prepared)
-  const projectScope = await resolveGenerationProjectScope(args)
+  const projectScope = await resolveGenerationProjectScope(args, { required: contentUnitCandidate !== undefined })
   const body: Record<string, unknown> = {
     model_id: selection.modelId,
     job_type: built.jobType,
@@ -546,10 +586,10 @@ async function submitGenerationJob(
     prompt: built.prompt,
     input_resource_ids: built.refIds,
     extra_params: JSON.stringify(prepared.extraParams),
-    project_uid: projectScope.projectUid,
-    project_title: projectScope.projectTitle,
-    project_dir: projectScope.projectDir,
   }
+  if (projectScope.projectUid) body.project_uid = projectScope.projectUid
+  if (projectScope.projectTitle) body.project_title = projectScope.projectTitle
+  if (projectScope.projectDir) body.project_dir = projectScope.projectDir
   if (prepared.aspectRatio !== undefined) body.aspect_ratio = prepared.aspectRatio
   if (prepared.duration !== undefined) body.duration = prepared.duration
   const title = getOptionalString(args, 'title')
@@ -560,12 +600,15 @@ async function submitGenerationJob(
       ...(projectScope.projectUid ? { project_uid: projectScope.projectUid } : {}),
     }
   }
+  const projectContext = projectScope.projectDir || projectScope.projectUid || projectScope.projectTitle
+    ? {
+        ...(projectScope.projectDir ? { dir: projectScope.projectDir } : {}),
+        ...(projectScope.projectUid ? { uid: projectScope.projectUid } : {}),
+        ...(projectScope.projectTitle ? { title: projectScope.projectTitle } : {}),
+      }
+    : undefined
   body.request_context = JSON.stringify({
-    project: {
-      dir: projectScope.projectDir,
-      ...(projectScope.projectUid ? { uid: projectScope.projectUid } : {}),
-      ...(projectScope.projectTitle ? { title: projectScope.projectTitle } : {}),
-    },
+    ...(projectContext ? { project: projectContext } : {}),
     ...(contentUnitCandidate ? { content_unit_candidate: contentUnitCandidate } : {}),
   })
 
@@ -588,19 +631,41 @@ function submittedModelParams(prepared: PreparedGenerationParams): Record<string
   }
 }
 
-async function resolveGenerationProjectScope(args: Record<string, unknown>): Promise<GenerationProjectScope> {
+async function resolveGenerationProjectScope(
+  args: Record<string, unknown>,
+  options: { required?: boolean } = {},
+): Promise<GenerationProjectScope> {
   const rawDir = getOptionalString(args, 'projectDir')
     ?? getOptionalString(args, 'project_dir')
     ?? getOptionalString(args, 'projectPath')
     ?? getOptionalString(args, 'project_path')
     ?? getOptionalString(args, 'cwd')
-  if (!rawDir) throw new Error('projectDir or cwd is required for generation tools')
+  const explicitProjectUid = getOptionalString(args, 'projectUid') ?? getOptionalString(args, 'project_uid')
+  const explicitProjectTitle = getOptionalString(args, 'projectTitle') ?? getOptionalString(args, 'project_title')
+  if (!rawDir) {
+    if (options.required) throw new Error('projectDir or cwd is required for project-scoped generation tools')
+    return {
+      ...(explicitProjectUid ? { projectUid: explicitProjectUid } : {}),
+      ...(explicitProjectTitle ? { projectTitle: explicitProjectTitle } : {}),
+    }
+  }
   const projectDir = resolve(rawDir)
-  const binding = await requireMCPBackendBoundProject({ projectDir })
-  return {
+  if (options.required) {
+    const binding = await requireMCPBackendBoundProject({ projectDir, ...(explicitProjectUid ? { projectUid: explicitProjectUid } : {}) })
+    return {
+      projectDir,
+      projectUid: binding.projectUid,
+      projectTitle: explicitProjectTitle ?? binding.projectTitle,
+    }
+  }
+  const locator = await resolveMCPProjectBindingLocator({
     projectDir,
-    projectUid: binding.projectUid,
-    projectTitle: getOptionalString(args, 'projectTitle') ?? getOptionalString(args, 'project_title') ?? binding.projectTitle,
+    ...(explicitProjectUid ? { projectUid: explicitProjectUid } : {}),
+  }).catch(() => undefined)
+  return {
+    projectDir: locator?.projectDir ?? projectDir,
+    projectUid: locator?.projectUid ?? explicitProjectUid,
+    projectTitle: explicitProjectTitle ?? locator?.projectTitle,
   }
 }
 
@@ -642,13 +707,30 @@ function generationJobGetResult(kind: 'image' | 'video' | 'audio', job: Record<s
   return result
 }
 
+function withGenerationJobSurface(
+  args: Record<string, unknown>,
+  result: Record<string, unknown>,
+  contentUnitId?: string | number,
+): Record<string, unknown> {
+  const jobId = idField(result.job_id ?? result.jobId)
+  if (jobId === undefined) return result
+  return {
+    ...result,
+    surface: createGenerationJobSurface(args, {
+      jobId,
+      ...(contentUnitId !== undefined ? { contentUnitId } : {}),
+      projectId: projectIdFromArgs(args),
+    }),
+  }
+}
+
 async function getGenerationJobs(kind: 'image' | 'video' | 'audio', args: Record<string, unknown>): Promise<Record<string, unknown>> {
   const jobIds = normalizedJobIds(args)
   const items: Record<string, unknown>[] = []
   for (let index = 0; index < jobIds.length; index += 1) {
     const jobId = jobIds[index]!
     try {
-      const result = generationJobGetResult(kind, await getGenerationJob(jobId), verbosityArg(args))
+      const result = withGenerationJobSurface(args, generationJobGetResult(kind, await getGenerationJob(jobId), verbosityArg(args)))
       items.push({
         index,
         status: 'loaded',

@@ -1,0 +1,126 @@
+{
+  "name": "@movscript/resource-surface",
+  "version": "0.1.29",
+  "private": true,
+  "type": "module",
+  "description": "MovScript Resource Surface source domain.",
+  "files": [
+    "dist",
+    "src"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.js",
+      "require": "./dist/react.cjs"
+    },
+    "./data": {
+      "types": "./dist/data.d.ts",
+      "import": "./dist/data.js",
+      "require": "./dist/data.cjs"
+    },
+    "./routes": {
+      "types": "./dist/routes.d.ts",
+      "import": "./dist/routes.js",
+      "require": "./dist/routes.cjs"
+    },
+    "./i18n": "./src/i18n.ts",
+    "./resource-browser": {
+      "types": "./dist/resource-browser.d.ts",
+      "import": "./dist/resource-browser.js",
+      "require": "./dist/resource-browser.cjs"
+    },
+    "./resource-media": {
+      "types": "./dist/resourceMediaBrowser.d.ts",
+      "import": "./dist/resourceMediaBrowser.js",
+      "require": "./dist/resourceMediaBrowser.cjs"
+    },
+    "./resource-media-diagnostics": {
+      "types": "./dist/resourceMediaDiagnostics.d.ts",
+      "import": "./dist/resourceMediaDiagnostics.js",
+      "require": "./dist/resourceMediaDiagnostics.cjs"
+    },
+    "./resource-media-components": {
+      "types": "./dist/resourceMediaComponents.d.ts",
+      "import": "./dist/resourceMediaComponents.js",
+      "require": "./dist/resourceMediaComponents.cjs"
+    },
+    "./resource-auth-media": {
+      "types": "./dist/resourceAuthMedia.d.ts",
+      "import": "./dist/resourceAuthMedia.js",
+      "require": "./dist/resourceAuthMedia.cjs"
+    },
+    "./resource-hls-video": {
+      "types": "./dist/resourceHlsVideo.d.ts",
+      "import": "./dist/resourceHlsVideo.js",
+      "require": "./dist/resourceHlsVideo.cjs"
+    },
+    "./resource-media-viewer": {
+      "types": "./dist/resourceMediaViewer.d.ts",
+      "import": "./dist/resourceMediaViewer.js",
+      "require": "./dist/resourceMediaViewer.cjs"
+    },
+    "./resource-library-picker": {
+      "types": "./dist/resourceLibraryPicker.d.ts",
+      "import": "./dist/resourceLibraryPicker.js",
+      "require": "./dist/resourceLibraryPicker.cjs"
+    },
+    "./resource-library-picker-ui": {
+      "types": "./dist/resourceLibraryPickerUi.d.ts",
+      "import": "./dist/resourceLibraryPickerUi.js",
+      "require": "./dist/resourceLibraryPickerUi.cjs"
+    },
+    "./resource-candidate-attach-panel": {
+      "types": "./dist/resourceCandidateAttachPanel.d.ts",
+      "import": "./dist/resourceCandidateAttachPanel.js",
+      "require": "./dist/resourceCandidateAttachPanel.cjs"
+    },
+    "./resource-interaction": {
+      "types": "./dist/resourceInteraction.d.ts",
+      "import": "./dist/resourceInteraction.js",
+      "require": "./dist/resourceInteraction.cjs"
+    },
+    "./pages": "./src/pages/index.ts"
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@movscript/auth-client": "workspace:*",
+    "@movscript/core": "workspace:*",
+    "@movscript/editing": "workspace:*",
+    "@movscript/shared": "workspace:*",
+    "@movscript/theme": "workspace:*",
+    "@movscript/ui": "workspace:*",
+    "@tanstack/react-query": "^5.62.0",
+    "@xyflow/react": "^12.10.2",
+    "axios": "^1.7.9",
+    "clsx": "^2.1.1",
+    "i18next": "^26.0.8",
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-i18next": "^17.0.4",
+    "react-router-dom": "^6.28.0",
+    "tailwind-merge": "^2.5.5",
+    "zustand": "^5.0.2",
+    "heic2any": "^0.0.4",
+    "jszip": "^3.10.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.17",
+    "@types/react": "^18.3.17",
+    "@types/react-dom": "^18.3.5",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3"
+  }
+}

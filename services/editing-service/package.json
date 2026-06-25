@@ -1,0 +1,18 @@
+{
+  "name": "@movscript/editing-service",
+  "version": "0.1.29",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "movscript-editing-service": "./bin/movscript-editing-service.mjs"
+  },
+  "scripts": {
+    "build": "node --check src/server.mjs && node --check bin/movscript-editing-service.mjs",
+    "test": "pnpm --filter @movscript/editing build && pnpm --filter @movscript/workspace build && node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "@movscript/editing": "workspace:*",
+    "@movscript/runtime-contracts": "workspace:*",
+    "@movscript/workspace": "workspace:*"
+  }
+}

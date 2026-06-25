@@ -1,0 +1,73 @@
+lab: vidu
+templates:
+    - adapter_type: vidu
+      capabilities:
+        - video
+        - video_i2v
+      display_name: Vidu Q1 视频
+      id: vidu:q1
+      input:
+        accepts_image: true
+        max_images: 7
+      lab: vidu
+      model_id: viduq1
+      order: 52
+      params:
+        - default: "5"
+          key: duration
+          label: 时长(秒)
+          options:
+            - "5"
+          type: select
+        - default: "16:9"
+          key: aspect_ratio
+          label: 画面比例
+          options:
+            - "16:9"
+            - "9:16"
+            - "1:1"
+          type: select
+        - default: 1080p
+          key: resolution
+          label: 分辨率
+          options:
+            - 1080p
+          type: select
+        - key: seed
+          label: 种子
+          max: 2.147483647e+09
+          min: -1
+          step: 1
+          type: number
+        - default: false
+          key: audio
+          label: 生成音频
+          type: boolean
+        - default: all
+          key: audio_type
+          label: 音频类型
+          options:
+            - all
+            - speech_only
+            - sound_effect_only
+          type: select
+        - default: auto
+          key: movement_amplitude
+          label: 运动幅度
+          options:
+            - auto
+            - small
+            - medium
+            - large
+          type: select
+        - default: false
+          key: off_peak
+          label: 错峰模式
+          type: boolean
+      source:
+        status: verified
+        url: https://platform.vidu.com/docs/reference-to-video
+        verified_at: "2026-06-25"
+      video:
+        default_duration_sec: 5
+        max_duration_sec: 5

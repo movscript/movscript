@@ -1,0 +1,11 @@
+{
+  "name": "@movscript/auth-service",
+  "version": "0.1.29",
+  "private": true,
+  "description": "MovScript Auth Service for principal, claims, and opaque access key introspection.",
+  "license": "MIT",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "go test ./..."
+  }
+}

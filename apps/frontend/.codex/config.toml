@@ -1,5 +1,0 @@
-[features]
-plugins = true
-
-[plugins."movscript@movscript-bundled"]
-enabled = true

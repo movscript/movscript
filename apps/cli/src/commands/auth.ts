@@ -166,7 +166,7 @@ function commandGlobalOptions(command: Command): { server?: string; token?: stri
   const options = root.optsWithGlobals ? root.optsWithGlobals() : root.opts()
   return {
     server: typeof options.server === 'string' ? options.server : undefined,
-    token: typeof options.token === 'string' ? options.token : process.env.MOVCLI_TOKEN,
+    token: typeof options.token === 'string' ? options.token : process.env.MOVSCRIPT_DATA_SERVICE_TOKEN,
     workspace: typeof options.workspace === 'string' ? options.workspace : undefined,
   }
 }

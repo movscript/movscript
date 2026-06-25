@@ -1,0 +1,54 @@
+{
+  "name": "@movscript/editing-surface",
+  "version": "0.1.29",
+  "private": true,
+  "type": "module",
+  "description": "MovScript Editing Surface source domain.",
+  "files": [
+    "src"
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./app-events": "./src/app-events.ts",
+    "./browser-storage": "./src/browser-storage.ts",
+    "./contracts": "./src/contracts.ts",
+    "./host-api": "./src/host-api.ts",
+    "./media-probe": "./src/media-probe.ts",
+    "./navigation": "./src/navigation.ts",
+    "./pages/*": "./src/pages/*",
+    "./registry": "./src/registry.ts",
+    "./routes": "./src/routes.ts",
+    "./service-host-api": "./src/service-host-api.ts",
+    "./surface-routes": "./src/surface-routes.tsx",
+    "./toast": "./src/toast.ts",
+    "./window-events": "./src/window-events.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@movscript/auth-client": "workspace:*",
+    "@movscript/editing": "workspace:*",
+    "@movscript/project-surface": "workspace:*",
+    "@movscript/theme": "workspace:*",
+    "@movscript/ui": "workspace:*",
+    "@tanstack/react-query": "^5.62.0",
+    "@xyflow/react": "^12.10.2",
+    "axios": "^1.7.9",
+    "clsx": "^2.1.1",
+    "i18next": "^26.0.8",
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-i18next": "^17.0.4",
+    "react-router-dom": "^6.28.0",
+    "tailwind-merge": "^2.5.5",
+    "zustand": "^5.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.17",
+    "@types/react": "^18.3.17",
+    "@types/react-dom": "^18.3.5",
+    "typescript": "5.9.3"
+  }
+}

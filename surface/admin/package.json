@@ -1,0 +1,73 @@
+{
+  "name": "@movscript/admin-surface",
+  "version": "0.1.29",
+  "private": true,
+  "description": "MovScript Admin Surface route, UI, and host-neutral management surface contracts.",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "dist",
+    "dist-lib",
+    "README.md"
+  ],
+  "main": "./dist-lib/index.cjs",
+  "module": "./dist-lib/index.js",
+  "types": "./dist-lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist-lib/index.d.ts",
+      "import": "./dist-lib/index.js",
+      "require": "./dist-lib/index.cjs"
+    },
+    "./react": {
+      "types": "./dist-lib/react.d.ts",
+      "import": "./dist-lib/react.js",
+      "require": "./dist-lib/react.cjs"
+    }
+  },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5174",
+    "build": "pnpm build:lib && pnpm build:web",
+    "build:lib": "tsup",
+    "build:web": "tsc --noEmit && vite build",
+    "test": "pnpm build:lib && node ../../scripts/run-node-tests.mjs \"src/**/*.test.ts\" \"src/**/*.test.tsx\" && node --test tests/*.test.mjs",
+    "test:model-capability-contract": "node ../../scripts/run-node-tests.mjs src/lib/modelParamContract.test.ts && pnpm run typecheck",
+    "typecheck": "tsc --noEmit",
+    "check:browser-boundaries": "node scripts/check-browser-boundaries.mjs"
+  },
+  "dependencies": {
+    "@movscript/auth-client": "workspace:*",
+    "@movscript/core": "workspace:*",
+    "@movscript/theme": "workspace:*",
+    "@movscript/ui": "workspace:*",
+    "@radix-ui/react-toast": "^1.2.4",
+    "@tanstack/react-query": "^5.62.0",
+    "axios": "^1.7.9",
+    "clsx": "^2.1.1",
+    "i18next": "^26.0.8",
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-i18next": "^17.0.4",
+    "react-router-dom": "^6.28.0",
+    "tailwind-merge": "^2.5.5",
+    "zustand": "^5.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.17",
+    "@types/react": "^18.3.17",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "tailwindcss-animate": "^1.0.7",
+    "tsx": "^4.19.2",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3",
+    "vite": "^5.4.21"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

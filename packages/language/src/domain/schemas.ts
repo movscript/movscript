@@ -144,6 +144,25 @@ export const assetEntitySchema = {
     prompt_hint: { type: 'string' },
     resource_id: { type: ['string', 'number'], description: 'Optional selected stable RawResource reference for imported/manual assets. Generated asset candidates should be selected through an asset_ref content unit instead.' },
     asset_ref_content_unit_id: { type: 'string', description: 'Optional pointer to the asset_ref content unit that carries generated candidates for this asset.' },
+    provider_certifications: {
+      type: 'object',
+      description: 'Provider material-library certification records keyed by provider, such as seedance2. Certifications bind to the selected asset_ref RawResource, not the abstract setting.',
+      additionalProperties: {
+        type: 'object',
+        additionalProperties: true,
+        properties: {
+          status: { enum: ['active', 'processing', 'failed', 'stale', 'unknown'] },
+          hub_asset_id: { type: 'string' },
+          asset_uri: { type: 'string' },
+          source_resource_id: { type: ['string', 'number'] },
+          source_candidate_id: { type: ['string', 'number'] },
+          source_hash: { type: 'string' },
+          certified_at: { type: 'string' },
+          updated_at: { type: 'string' },
+          error: { type: ['string', 'object', 'null'], additionalProperties: true },
+        },
+      },
+    },
     candidates: {
       type: 'array',
       deprecated: true,
@@ -157,7 +176,7 @@ export const assetEntitySchema = {
       additionalProperties: true,
     },
   }),
-  promptSummary: 'Asset is a setting-state-owned resource slot and a carrier for asset_ref content-unit generation/review. Do not write new candidates or selections into asset.json; generated asset candidates belong to the linked asset_ref content unit and backend content-unit decision flow. Image assets should prefer plain white or very clean backgrounds.',
+  promptSummary: 'Asset is a setting-state-owned resource slot and a carrier for asset_ref content-unit generation/review. Do not write new candidates or selections into asset.json; generated asset candidates belong to the linked asset_ref content unit and backend content-unit decision flow. Provider material-library certifications, when present, bind to the selected asset_ref resource and should be marked stale if that selected resource changes. Image assets should prefer plain white or very clean backgrounds.',
   examples: [{
     title: 'portrait',
     content: { schema: 'movscript.asset.v1', kind: 'asset', id: 'base_portrait', slot: 'character_base_portrait' },

@@ -1,0 +1,62 @@
+{
+  "name": "@movscript/mcp-host",
+  "version": "0.1.28",
+  "private": true,
+  "description": "Headless MovScript MCP host for Codex and other agent runtimes.",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "movscript-mcp-host": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./stdio": {
+      "types": "./dist/stdio.d.ts",
+      "import": "./dist/stdio.js",
+      "require": "./dist/stdio.cjs"
+    },
+    "./http": {
+      "types": "./dist/http.d.ts",
+      "import": "./dist/http.js",
+      "require": "./dist/http.cjs"
+    },
+    "./cli": {
+      "types": "./dist/cli.d.ts",
+      "import": "./dist/cli.js",
+      "require": "./dist/cli.cjs"
+    },
+    "./program-manifest": {
+      "types": "./dist/programManifest.d.ts",
+      "import": "./dist/programManifest.js",
+      "require": "./dist/programManifest.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "node --test tests/*.test.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@movscript/core": "workspace:*",
+    "@movscript/local-runtime": "workspace:*",
+    "@movscript/runtime-contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.17",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

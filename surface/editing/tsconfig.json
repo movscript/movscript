@@ -1,0 +1,81 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": [
+      "node"
+    ],
+    "paths": {
+      "@movscript/editing-surface": [
+        "./src/index.ts"
+      ],
+      "@movscript/editing-surface/app-events": [
+        "./src/app-events.ts"
+      ],
+      "@movscript/editing-surface/browser-storage": [
+        "./src/browser-storage.ts"
+      ],
+      "@movscript/editing-surface/contracts": [
+        "./src/contracts.ts"
+      ],
+      "@movscript/editing-surface/host-api": [
+        "./src/host-api.ts"
+      ],
+      "@movscript/editing-surface/media-probe": [
+        "./src/media-probe.ts"
+      ],
+      "@movscript/editing-surface/navigation": [
+        "./src/navigation.ts"
+      ],
+      "@movscript/editing-surface/pages/*": [
+        "./src/pages/*"
+      ],
+      "@movscript/editing-surface/registry": [
+        "./src/registry.ts"
+      ],
+      "@movscript/editing-surface/routes": [
+        "./src/routes.ts"
+      ],
+      "@movscript/editing-surface/service-host-api": [
+        "./src/service-host-api.ts"
+      ],
+      "@movscript/editing-surface/surface-routes": [
+        "./src/surface-routes.tsx"
+      ],
+      "@movscript/editing-surface/toast": [
+        "./src/toast.ts"
+      ],
+      "@movscript/editing-surface/window-events": [
+        "./src/window-events.ts"
+      ],
+      "@movscript/editing": [
+        "../../packages/editing/src/index.ts"
+      ],
+      "@movscript/editing/browser": [
+        "../../packages/editing/src/browser.ts"
+      ],
+      "@movscript/ui": [
+        "../../packages/ui/src/index.ts"
+      ],
+      "@movscript/ui/business/app": [
+        "../../packages/ui/src/business/app.ts"
+      ],
+      "@movscript/ui/business/resource": [
+        "../../packages/ui/src/business/resource.ts"
+      ],
+      "@movscript/ui/layout": [
+        "../../packages/ui/src/layout.ts"
+      ],
+      "@movscript/ui/primitives": [
+        "../../packages/ui/src/primitives.ts"
+      ]
+    }
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx"
+  ],
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx"
+  ]
+}

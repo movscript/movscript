@@ -54,7 +54,7 @@ test('core selects the highest-priority provider-session status light', () => {
 })
 
 test('core provider-session status light logic stays free of frontend fallback copy', () => {
-  const source = readFileSync(resolve('src/agent/providerSessionStatusLight.ts'), 'utf8')
+  const source = readFileSync(resolve(import.meta.dirname, '../src/agent/providerSessionStatusLight.ts'), 'utf8')
   assert.doesNotMatch(source, /STOPPED_PROVIDER_SESSION_STATUS_LIGHT/)
   assert.doesNotMatch(source, /停止|Provider 会话当前不会自行触发新的 run/)
   assert.doesNotMatch(source, /from ['"]@\/|from ['"]react['"]|@movscript\/ui|window\.|document\.|localStorage|sessionStorage/)

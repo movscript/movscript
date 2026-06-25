@@ -10,6 +10,7 @@ import {
   writeJSON,
 } from './transport.js'
 import { handleJSONRPC } from './jsonRpc.js'
+import { handleAgentSurfaceDataRequest, isAgentSurfaceDataRequest } from './agentSurfaceData.js'
 
 const MCP_DEBUG = process.env.MOVSCRIPT_MCP_DEBUG === '1'
 let nextHTTPRequestId = 1
@@ -81,12 +82,17 @@ async function handleAgentAPIProxy(req: IncomingMessage, res: ServerResponse): P
     writeJSON(res, 400, { error: 'invalid proxy request' })
     return
   }
-  const targetPath = req.url.replace(/^\/agent-api\/v1/, '')
+  const targetFullPath = req.url.replace(/^\/agent-api\/v1/, '')
+  const targetPath = targetFullPath.split('?', 1)[0] ?? ''
   if (!targetPath.startsWith('/')) {
     writeJSON(res, 400, { error: 'invalid proxy path' })
     return
   }
-  const targetURL = `${getMovScriptBackendAPIBaseURL().replace(/\/+$/, '')}${targetPath}`
+  if (isAgentSurfaceDataRequest(targetPath)) {
+    await handleAgentSurfaceDataRequest(req, res, targetPath)
+    return
+  }
+  const targetURL = `${getMovScriptBackendAPIBaseURL().replace(/\/+$/, '')}${targetFullPath}`
   const headers = proxyRequestHeaders(req)
   const method = req.method.toUpperCase()
   const hasBody = !['GET', 'HEAD'].includes(method)

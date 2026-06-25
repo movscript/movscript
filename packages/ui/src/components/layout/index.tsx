@@ -9,6 +9,8 @@ export { useAppShellSurfaceBackground } from "./surface-background";
 export * from "./workspace";
 export * from "./app-shell";
 export * from "./chrome";
+export * from "./route-layout";
+export * from "./route-layout-pane-controller";
 
 export type AppContentLayoutVariant =
   | "contained"
@@ -37,6 +39,44 @@ export function AppRouteViewport({
     <div data-scroll={scroll} className={cn("app-route-viewport", className)} {...props}>
       {children}
     </div>
+  );
+}
+
+export interface SurfaceRouteFrameContentOptions {
+  variant?: AppContentLayoutVariant;
+  width?: AppContentLayoutWidth;
+  padding?: "normal" | "compact" | "none";
+  scroll?: "auto" | "hidden";
+  className?: string;
+  contentClassName?: string;
+}
+
+export function SurfaceRouteFrame({
+  children,
+  className,
+  viewportScroll = "auto",
+  content = {},
+}: {
+  children: ReactNode;
+  className?: string;
+  viewportScroll?: AppRouteViewportScroll;
+  content?: SurfaceRouteFrameContentOptions | false;
+}) {
+  return (
+    <AppRouteViewport scroll={viewportScroll} className={className}>
+      {content === false ? children : (
+        <AppContentLayout
+          variant={content.variant ?? "contained"}
+          width={content.width}
+          padding={content.padding}
+          scroll={content.scroll}
+          className={content.className}
+          contentClassName={content.contentClassName}
+        >
+          {children}
+        </AppContentLayout>
+      )}
+    </AppRouteViewport>
   );
 }
 

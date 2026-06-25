@@ -1,0 +1,251 @@
+.editing-workspace-layout {
+  --editing-panel-bg: color-mix(in srgb, var(--ms-color-background) 96%, var(--ms-color-muted));
+  --editing-panel-muted: color-mix(in srgb, var(--ms-color-muted) 46%, transparent);
+  --editing-border: var(--ms-color-border);
+}
+
+.editing-workspace {
+  height: 100%;
+  min-height: 0;
+}
+
+.editing-workspace-shell {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) var(--editing-timeline-height);
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--ms-color-background);
+}
+
+.editing-workspace-main {
+  position: relative;
+  z-index: 0;
+  display: grid;
+  grid-template-columns: var(--editing-library-width) minmax(0, 1fr) var(--editing-inspector-width);
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.editing-workspace-task {
+  border: 1px solid var(--editing-border);
+  border-radius: 8px;
+  background: var(--editing-panel-muted);
+}
+
+.editing-workspace-waveform {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 3px;
+}
+
+.editing-workspace-waveform i {
+  display: block;
+  width: 3px;
+  height: 18px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ms-color-primary) 56%, var(--ms-color-muted-foreground));
+}
+
+.editing-workspace-waveform i:nth-child(2n) {
+  height: 28px;
+}
+
+.editing-workspace-waveform i:nth-child(3n) {
+  height: 12px;
+}
+
+.editing-workspace-waveform--large {
+  justify-content: center;
+}
+
+.editing-workspace-waveform--large i {
+  width: 5px;
+  height: 42px;
+}
+
+.editing-workspace-waveform--large i:nth-child(2n) {
+  height: 64px;
+}
+
+.editing-workspace-waveform--large i:nth-child(3n) {
+  height: 28px;
+}
+
+.editing-workspace-task span {
+  display: block;
+  overflow: hidden;
+  color: var(--ms-color-foreground);
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editing-workspace-clip small,
+.editing-workspace-task small,
+.editing-workspace-muted {
+  color: var(--ms-color-muted-foreground);
+  font-size: 11px;
+}
+
+.editing-workspace-empty {
+  display: grid;
+  min-height: 96px;
+  place-items: center;
+  border: 1px dashed var(--editing-border);
+  border-radius: 8px;
+  color: var(--ms-color-muted-foreground);
+  font-size: 12px;
+}
+
+
+.editing-workspace-task div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.editing-workspace-task {
+  padding: 8px;
+}
+
+.editing-workspace-task + .editing-workspace-task {
+  margin-top: 8px;
+}
+
+.editing-workspace-task p {
+  margin: 6px 0 0;
+  overflow: hidden;
+  color: var(--ms-color-muted-foreground);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editing-workspace-canvas-form {
+  display: grid;
+  gap: 10px;
+}
+
+.editing-workspace-canvas-form {
+  margin-bottom: 12px;
+}
+
+.editing-workspace-canvas-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.editing-workspace-canvas-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.editing-workspace-canvas-grid label {
+  display: grid;
+  gap: 4px;
+}
+
+.editing-workspace-canvas-grid label span {
+  color: var(--ms-color-muted-foreground);
+  font-size: 11px;
+}
+
+.editing-workspace-select {
+  height: 32px;
+  max-width: 180px;
+  border: 1px solid var(--ms-color-border);
+  border-radius: 6px;
+  background: var(--ms-color-background);
+  padding: 0 8px;
+  color: var(--ms-color-foreground);
+  font-size: 12px;
+}
+
+.editing-workspace-resize-handle {
+  position: absolute;
+  z-index: 30;
+  border: 0;
+  background: transparent;
+  outline: 0;
+  transform: none;
+}
+
+.editing-workspace-resize-handle::after {
+  content: "";
+  position: absolute;
+  border-radius: 999px;
+  background: transparent;
+  transition: background 0.14s var(--ms-easing-standard);
+}
+
+.editing-workspace-resize-handle:hover::after,
+.editing-workspace-resize-handle:focus-visible::after,
+.editing-workspace-resize-handle[data-active="true"]::after,
+.editing-workspace-resize-handle.panel-resize-handle--active::after {
+  background: color-mix(in srgb, var(--ms-color-primary) 50%, var(--ms-color-border));
+}
+
+.editing-workspace-resize-handle--library,
+.editing-workspace-resize-handle--inspector {
+  top: 0;
+  bottom: 0;
+  width: 11px;
+  height: auto;
+  cursor: col-resize;
+}
+
+.editing-workspace-resize-handle--library {
+  right: -6px;
+}
+
+.editing-workspace-resize-handle--inspector {
+  left: -6px;
+}
+
+.editing-workspace-resize-handle--library::after,
+.editing-workspace-resize-handle--inspector::after {
+  top: 12px;
+  bottom: 12px;
+  left: 5px;
+  width: 1px;
+}
+
+.editing-workspace-resize-handle--timeline {
+  top: 0;
+  bottom: auto;
+  left: 0;
+  right: 0;
+  width: auto;
+  height: 14px;
+  cursor: row-resize;
+}
+
+.editing-workspace-resize-handle--timeline::after {
+  top: 0;
+  left: 14px;
+  right: 14px;
+  height: 1px;
+}
+
+@media (max-width: 900px) {
+  .editing-workspace-shell {
+    grid-template-rows: minmax(0, 1fr) minmax(150px, var(--editing-timeline-height));
+  }
+
+  .editing-workspace-main {
+    grid-template-columns: minmax(180px, 0.8fr) minmax(0, 1fr);
+  }
+
+  .editing-workspace-inspector {
+    display: none;
+  }
+
+}

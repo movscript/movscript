@@ -95,7 +95,7 @@ export function goarchForDesktopArch(arch) {
 
 export function resolveDesktopFFmpegPath(root, platform = process.platform, arch = process.arch) {
   const binary = desktopFFmpegBinaryName(platform)
-  return resolve(root, 'apps/frontend/vendor/ffmpeg', platform, arch, binary)
+  return resolve(root, 'apps/desktop/vendor/ffmpeg', platform, arch, binary)
 }
 
 export function isDesktopReleaseTarget(platform, arch) {
@@ -275,8 +275,7 @@ export function verifyDesktopPackage(root, options = {}) {
     spawn = spawnSync,
     signingMode = 'unsigned',
   } = options
-  const releaseDir = resolve(root, 'apps/frontend/release')
-  const backendBinDir = resolve(root, 'apps/backend/bin')
+  const releaseDir = resolve(root, 'apps/desktop/release')
   let packageResourceManifest
   try {
     packageResourceManifest = verifyPackageResources(root)
@@ -350,18 +349,25 @@ export function verifyDesktopPackage(root, options = {}) {
 }
 
 export function requiredDesktopPackagePrerequisites(root, manifest, platform = process.platform, arch = process.arch) {
-  const backendBinDir = resolve(root, 'apps/backend/bin')
   const required = []
-  if (manifestHasResource(manifest, 'backend')) {
-    required.push(resolve(backendBinDir, platform === 'win32' ? 'movscript-server.exe' : 'movscript-server'))
+  if (manifestHasResource(manifest, 'provider-plugin')) {
+    const pluginRuntimeRoot = resolve(root, 'plugins/movscript/runtime/services')
+    required.push(
+      resolve(pluginRuntimeRoot, 'data-service/bin', dataServiceBinaryName(platform)),
+      resolve(pluginRuntimeRoot, 'local-surface-host/dist/index.html'),
+    )
   }
-  if (manifestHasResource(manifest, 'renderer-admin') || manifestResource(manifest, 'backend')?.filter?.includes('admin/**')) {
-    required.push(resolve(backendBinDir, 'admin/index.html'))
+  if (manifestHasResource(manifest, 'renderer-admin')) {
+    required.push(resolve(root, 'surface/admin/dist/index.html'))
   }
   if (manifestHasResource(manifest, 'ffmpeg')) {
     required.push(resolveDesktopFFmpegPath(root, platform, arch))
   }
   return required
+}
+
+function dataServiceBinaryName(platform = process.platform) {
+  return platform === 'win32' ? 'movscript-server.exe' : 'movscript-server'
 }
 
 export function verifyBundledPackageResources(releaseDir, platform = process.platform, manifest) {

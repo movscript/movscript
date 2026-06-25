@@ -1,0 +1,104 @@
+{
+  "name": "@movscript/project-surface",
+  "version": "0.1.29",
+  "private": true,
+  "description": "MovScript Project Surface route, URL, UI shell, and host-neutral contracts.",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "dist",
+    "src/styles.css",
+    "README.md"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.js",
+      "require": "./dist/react.cjs"
+    },
+    "./data": {
+      "types": "./dist/data.d.ts",
+      "import": "./dist/data.js",
+      "require": "./dist/data.cjs"
+    },
+    "./routes": {
+      "types": "./dist/routes.d.ts",
+      "import": "./dist/routes.js",
+      "require": "./dist/routes.cjs"
+    },
+    "./runtime": {
+      "types": "./dist/runtime.d.ts",
+      "import": "./dist/runtime.js",
+      "require": "./dist/runtime.cjs"
+    },
+    "./layout": {
+      "types": "./dist/layout.d.ts",
+      "import": "./dist/layout.js",
+      "require": "./dist/layout.cjs"
+    },
+    "./pages": "./src/pages/index.ts",
+    "./resource-browser": {
+      "types": "./dist/resource-browser.d.ts",
+      "import": "./dist/resource-browser.js",
+      "require": "./dist/resource-browser.cjs"
+    },
+    "./styles.css": "./src/styles.css"
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "pnpm build && node --test tests/*.test.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": ">=5 <6",
+    "react": ">=18.3 <20",
+    "react-dom": ">=18.3 <20"
+  },
+  "peerDependenciesMeta": {
+    "@tanstack/react-query": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@tanstack/react-query": "^5.62.0",
+    "@types/node": "22.19.17",
+    "@types/react": "^18.3.17",
+    "@types/react-dom": "^18.3.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@movscript/auth-client": "workspace:*",
+    "@movscript/core": "workspace:*",
+    "@movscript/editing": "workspace:*",
+    "@movscript/resource-surface": "workspace:*",
+    "@movscript/shared": "workspace:*",
+    "@movscript/theme": "workspace:*",
+    "@movscript/ui": "workspace:*",
+    "@tanstack/react-query": "^5.62.0",
+    "@xyflow/react": "^12.10.2",
+    "axios": "^1.7.9",
+    "clsx": "^2.1.1",
+    "i18next": "^26.0.8",
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-i18next": "^17.0.4",
+    "react-router-dom": "^6.28.0",
+    "tailwind-merge": "^2.5.5",
+    "zustand": "^5.0.2"
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "name": "@movscript/agent-chat",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MovScript provider-neutral Agent chat runtime, thread item, notification, and view-model helpers.",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm build && node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "@movscript/agent-protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.8.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

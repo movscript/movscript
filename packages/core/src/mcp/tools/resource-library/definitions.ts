@@ -46,7 +46,7 @@ export function resourceLibraryTools(): MCPTool[] {
     },
     {
       name: 'movscript_resource_library_open',
-      description: 'Return an agent in-app browser URL for the MovScript resource library. The frontend page uses the local MCP proxy so desktop auth is forwarded without exposing the bearer token in the URL.',
+      description: 'Return an agent in-app browser URL for the MovScript resource library. The frontend page uses the local MCP proxy so the active agent context is forwarded without exposing a bearer token in the URL.',
       inputSchema: objectSchema(
         {
           frontend_origin: { type: 'string', description: 'Optional frontend origin, such as http://127.0.0.1:5173. Defaults to MOVSCRIPT_FRONTEND_ORIGIN or the dev frontend.' },

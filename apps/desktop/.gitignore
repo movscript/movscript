@@ -1,0 +1,13 @@
+.movscript
+realms
+release
+sdk-runtime
+bin
+backend
+build
+plugin-cache
+providers
+.codex
+.mova
+.claude
+.agents

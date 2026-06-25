@@ -8,87 +8,6 @@ importers:
 
   .: {}
 
-  apps/admin:
-    dependencies:
-      '@movscript/core':
-        specifier: workspace:*
-        version: link:../../packages/core
-      '@movscript/theme':
-        specifier: workspace:*
-        version: link:../../packages/theme
-      '@movscript/ui':
-        specifier: workspace:*
-        version: link:../../packages/ui
-      '@radix-ui/react-toast':
-        specifier: ^1.2.4
-        version: 1.2.15(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@tanstack/react-query':
-        specifier: ^5.62.0
-        version: 5.100.5(react@18.3.1)
-      axios:
-        specifier: ^1.7.9
-        version: 1.15.2
-      clsx:
-        specifier: ^2.1.1
-        version: 2.1.1
-      i18next:
-        specifier: ^26.0.8
-        version: 26.0.8(typescript@5.9.3)
-      lucide-react:
-        specifier: ^0.468.0
-        version: 0.468.0(react@18.3.1)
-      react:
-        specifier: ^18.3.1
-        version: 18.3.1
-      react-dom:
-        specifier: ^18.3.1
-        version: 18.3.1(react@18.3.1)
-      react-i18next:
-        specifier: ^17.0.4
-        version: 17.0.6(i18next@26.0.8(typescript@5.9.3))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)
-      react-router-dom:
-        specifier: ^6.28.0
-        version: 6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      tailwind-merge:
-        specifier: ^2.5.5
-        version: 2.6.1
-      zustand:
-        specifier: ^5.0.2
-        version: 5.0.12(@types/react@18.3.28)(react@18.3.1)(use-sync-external-store@1.6.0(react@18.3.1))
-    devDependencies:
-      '@types/react':
-        specifier: ^18.3.17
-        version: 18.3.28
-      '@types/react-dom':
-        specifier: ^18.3.5
-        version: 18.3.7(@types/react@18.3.28)
-      '@vitejs/plugin-react':
-        specifier: ^4.3.4
-        version: 4.7.0(vite@5.4.21(@types/node@22.19.17))
-      autoprefixer:
-        specifier: ^10.4.20
-        version: 10.5.0(postcss@8.5.12)
-      postcss:
-        specifier: ^8.4.49
-        version: 8.5.12
-      tailwindcss:
-        specifier: ^3.4.17
-        version: 3.4.19(tsx@4.21.0)
-      tailwindcss-animate:
-        specifier: ^1.0.7
-        version: 1.0.7(tailwindcss@3.4.19(tsx@4.21.0))
-      tsx:
-        specifier: ^4.19.2
-        version: 4.21.0
-      typescript:
-        specifier: ^5.7.2
-        version: 5.9.3
-      vite:
-        specifier: ^5.4.21
-        version: 5.4.21(@types/node@22.19.17)
-
-  apps/backend: {}
-
   apps/cli:
     dependencies:
       '@movscript/core':
@@ -123,8 +42,56 @@ importers:
         specifier: ^5.0.0
         version: 5.9.3
 
-  apps/frontend:
+  apps/desktop:
     dependencies:
+      '@movscript/agent-chat':
+        specifier: workspace:*
+        version: link:../../packages/agent-chat
+      '@movscript/agent-protocol':
+        specifier: workspace:*
+        version: link:../../packages/agent-protocol
+      '@movscript/app-runner':
+        specifier: workspace:*
+        version: link:../../packages/app-runner
+      '@movscript/data-client':
+        specifier: workspace:*
+        version: link:../../packages/data-client
+      '@movscript/local-runtime':
+        specifier: workspace:*
+        version: link:../../packages/local-runtime
+      '@movscript/mcp-contracts':
+        specifier: workspace:*
+        version: link:../../packages/mcp-contracts
+      '@movscript/mcp-host':
+        specifier: workspace:*
+        version: link:../../packages/mcp-host
+      '@movscript/media-pipeline':
+        specifier: workspace:*
+        version: link:../../services/media-pipeline
+      '@movscript/plugins':
+        specifier: workspace:*
+        version: link:../../packages/plugins
+      '@movscript/project-surface':
+        specifier: workspace:*
+        version: link:../../surface/project
+      '@movscript/resource-surface':
+        specifier: workspace:*
+        version: link:../../surface/resource
+      '@movscript/resources':
+        specifier: workspace:*
+        version: link:../../packages/resources
+      '@movscript/runtime-contracts':
+        specifier: workspace:*
+        version: link:../../packages/runtime-contracts
+      '@movscript/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@movscript/shot-library':
+        specifier: workspace:*
+        version: link:../../packages/shot-library
+      '@movscript/shot-library-surface':
+        specifier: workspace:*
+        version: link:../../surface/shot-library
       '@radix-ui/react-avatar':
         specifier: ^1.1.11
         version: 1.1.11(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -234,18 +201,30 @@ importers:
       '@electron/osx-sign':
         specifier: 1.3.1
         version: 1.3.1
+      '@movscript/admin-surface':
+        specifier: workspace:*
+        version: link:../../surface/admin
       '@movscript/core':
         specifier: workspace:*
         version: link:../../packages/core
       '@movscript/editing':
         specifier: workspace:*
         version: link:../../packages/editing
+      '@movscript/editing-surface':
+        specifier: workspace:*
+        version: link:../../surface/editing
       '@movscript/engine':
         specifier: workspace:*
         version: link:../../packages/engine
       '@movscript/language':
         specifier: workspace:*
         version: link:../../packages/language
+      '@movscript/project':
+        specifier: workspace:*
+        version: link:../../packages/project
+      '@movscript/prompt':
+        specifier: workspace:*
+        version: link:../../packages/prompt
       '@movscript/theme':
         specifier: workspace:*
         version: link:../../packages/theme
@@ -298,8 +277,92 @@ importers:
         specifier: ^5.4.21
         version: 5.4.21(@types/node@22.19.17)
 
+  apps/plugin:
+    dependencies:
+      '@movscript/app-runner':
+        specifier: workspace:*
+        version: link:../../packages/app-runner
+      '@movscript/cli':
+        specifier: workspace:*
+        version: link:../cli
+      '@movscript/local-runtime':
+        specifier: workspace:*
+        version: link:../../packages/local-runtime
+      '@movscript/mcp-host':
+        specifier: workspace:*
+        version: link:../../packages/mcp-host
+      '@movscript/media-pipeline':
+        specifier: workspace:*
+        version: link:../../services/media-pipeline
+      '@movscript/runtime-contracts':
+        specifier: workspace:*
+        version: link:../../packages/runtime-contracts
+    devDependencies:
+      '@types/node':
+        specifier: 22.19.17
+        version: 22.19.17
+      tsup:
+        specifier: 8.5.1
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.12)(tsx@4.21.0)(typescript@5.9.3)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
+  packages/agent-chat:
+    dependencies:
+      '@movscript/agent-protocol':
+        specifier: workspace:*
+        version: link:../agent-protocol
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.19.17
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
+
+  packages/agent-protocol:
+    devDependencies:
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
+
+  packages/app-runner:
+    dependencies:
+      '@movscript/runtime-contracts':
+        specifier: workspace:*
+        version: link:../runtime-contracts
+    devDependencies:
+      '@types/node':
+        specifier: 22.19.17
+        version: 22.19.17
+      tsup:
+        specifier: 8.5.1
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.12)(tsx@4.21.0)(typescript@5.9.3)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
+  packages/auth-client:
+    devDependencies:
+      '@types/node':
+        specifier: 22.19.17
+        version: 22.19.17
+      tsup:
+        specifier: 8.5.1
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.12)(tsx@4.21.0)(typescript@5.9.3)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
   packages/core:
     dependencies:
+      '@movscript/agent-chat':
+        specifier: workspace:*
+        version: link:../agent-chat
+      '@movscript/agent-protocol':
+        specifier: workspace:*
+        version: link:../agent-protocol
       '@movscript/editing':
         specifier: workspace:*
         version: link:../editing
@@ -312,6 +375,31 @@ importers:
       '@movscript/language':
         specifier: workspace:*
         version: link:../language
+      '@movscript/mcp-contracts':
+        specifier: workspace:*
+        version: link:../mcp-contracts
+      '@movscript/project':
+        specifier: workspace:*
+        version: link:../project
+      '@movscript/workspace':
+        specifier: workspace:*
+        version: link:../workspace
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.19.17
+      tsup:
+        specifier: ^8.5.0
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.12)(tsx@4.21.0)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
+
+  packages/data-client:
+    dependencies:
+      '@movscript/runtime-contracts':
+        specifier: workspace:*
+        version: link:../runtime-contracts
       '@movscript/workspace':
         specifier: workspace:*
         version: link:../workspace
@@ -339,6 +427,10 @@ importers:
         version: 5.9.3
 
   packages/editing:
+    dependencies:
+      '@movscript/runtime-contracts':
+        specifier: workspace:*
+        version: link:../runtime-contracts
     devDependencies:
       '@types/node':
         specifier: 22.19.17
@@ -406,20 +498,77 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
-  packages/mova-app-server:
-    optionalDependencies:
-      '@movscript/mova-app-server-darwin-arm64':
-        specifier: 0.0.1-alpha.13
-        version: 0.0.1-alpha.13
-      '@movscript/mova-app-server-darwin-x64':
-        specifier: 0.0.1-alpha.13
-        version: 0.0.1-alpha.13
-      '@movscript/mova-app-server-win32-arm64':
-        specifier: 0.0.1-alpha.13
-        version: 0.0.1-alpha.13
-      '@movscript/mova-app-server-win32-x64':
-        specifier: 0.0.1-alpha.13
-        version: 0.0.1-alpha.13
+  packages/local-runtime:
+    dependencies:
+      '@movscript/runtime-contracts':
+        specifier: workspace:*
+        version: link:../runtime-contracts
+    devDependencies:
+      '@types/node':
+        specifier: 22.19.17
+        version: 22.19.17
+      tsup:
+        specifier: 8.5.1
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.12)(tsx@4.21.0)(typescript@5.9.3)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
+  packages/mcp-contracts:
+    devDependencies:
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
+
+  packages/mcp-host:
+    dependencies:
+      '@movscript/core':
+        specifier: workspace:*
+        version: link:../core
+      '@movscript/local-runtime':
+        specifier: workspace:*
+        version: link:../local-runtime
+      '@movscript/runtime-contracts':
+        specifier: workspace:*
+        version: link:../runtime-contracts
+    devDependencies:
+      '@types/node':
+        specifier: 22.19.17
+        version: 22.19.17
+      tsup:
+        specifier: 8.5.1
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.12)(tsx@4.21.0)(typescript@5.9.3)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
+  packages/plugins:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.19.17
+      tsup:
+        specifier: ^8.5.0
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.12)(tsx@4.21.0)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
+
+  packages/project:
+    dependencies:
+      '@movscript/runtime-contracts':
+        specifier: workspace:*
+        version: link:../runtime-contracts
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.19.17
+      tsup:
+        specifier: ^8.5.0
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.12)(tsx@4.21.0)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
 
   packages/prompt:
     dependencies:
@@ -435,6 +584,52 @@ importers:
         version: 8.5.1(jiti@1.21.7)(postcss@8.5.12)(tsx@4.21.0)(typescript@5.9.3)
       typescript:
         specifier: 5.9.3
+        version: 5.9.3
+
+  packages/resources:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.19.17
+      tsup:
+        specifier: ^8.5.0
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.12)(tsx@4.21.0)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
+
+  packages/runtime-contracts:
+    devDependencies:
+      '@types/node':
+        specifier: 22.19.17
+        version: 22.19.17
+      tsup:
+        specifier: 8.5.1
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.12)(tsx@4.21.0)(typescript@5.9.3)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
+  packages/shared:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.19.17
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
+
+  packages/shot-library:
+    dependencies:
+      '@movscript/shared':
+        specifier: workspace:*
+        version: link:../shared
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.19.17
+      typescript:
+        specifier: ^5.8.0
         version: 5.9.3
 
   packages/theme:
@@ -528,6 +723,685 @@ importers:
       tsup:
         specifier: 8.5.1
         version: 8.5.1(jiti@1.21.7)(postcss@8.5.12)(tsx@4.21.0)(typescript@5.9.3)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
+  services/auth-service: {}
+
+  services/canvas-service:
+    dependencies:
+      '@movscript/runtime-contracts':
+        specifier: workspace:*
+        version: link:../../packages/runtime-contracts
+
+  services/data-service:
+    dependencies:
+      '@movscript/runtime-contracts':
+        specifier: workspace:*
+        version: link:../../packages/runtime-contracts
+
+  services/editing-service:
+    dependencies:
+      '@movscript/editing':
+        specifier: workspace:*
+        version: link:../../packages/editing
+      '@movscript/runtime-contracts':
+        specifier: workspace:*
+        version: link:../../packages/runtime-contracts
+      '@movscript/workspace':
+        specifier: workspace:*
+        version: link:../../packages/workspace
+
+  services/local-surface-host:
+    dependencies:
+      '@movscript/admin-surface':
+        specifier: workspace:*
+        version: link:../../surface/admin
+      '@movscript/canvas-surface':
+        specifier: workspace:*
+        version: link:../../surface/canvas
+      '@movscript/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@movscript/editing':
+        specifier: workspace:*
+        version: link:../../packages/editing
+      '@movscript/editing-surface':
+        specifier: workspace:*
+        version: link:../../surface/editing
+      '@movscript/project-surface':
+        specifier: workspace:*
+        version: link:../../surface/project
+      '@movscript/prompt':
+        specifier: workspace:*
+        version: link:../../packages/prompt
+      '@movscript/resource-surface':
+        specifier: workspace:*
+        version: link:../../surface/resource
+      '@movscript/resources':
+        specifier: workspace:*
+        version: link:../../packages/resources
+      '@movscript/runtime-contracts':
+        specifier: workspace:*
+        version: link:../../packages/runtime-contracts
+      '@movscript/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@movscript/theme':
+        specifier: workspace:*
+        version: link:../../packages/theme
+      '@movscript/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      '@movscript/workspace':
+        specifier: workspace:*
+        version: link:../../packages/workspace
+      '@tanstack/react-query':
+        specifier: ^5.62.0
+        version: 5.100.5(react@18.3.1)
+      '@vitejs/plugin-react':
+        specifier: ^4.3.4
+        version: 4.7.0(vite@5.4.21(@types/node@22.19.17))
+      '@xyflow/react':
+        specifier: ^12.10.2
+        version: 12.10.2(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      axios:
+        specifier: ^1.7.9
+        version: 1.15.2
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      i18next:
+        specifier: ^26.0.8
+        version: 26.0.8(typescript@5.9.3)
+      lucide-react:
+        specifier: ^0.468.0
+        version: 0.468.0(react@18.3.1)
+      react:
+        specifier: ^18.3.1
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.3.1
+        version: 18.3.1(react@18.3.1)
+      react-i18next:
+        specifier: ^17.0.4
+        version: 17.0.6(i18next@26.0.8(typescript@5.9.3))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)
+      react-router-dom:
+        specifier: ^6.28.0
+        version: 6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      tailwind-merge:
+        specifier: ^2.5.5
+        version: 2.6.1
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vite:
+        specifier: ^5.4.21
+        version: 5.4.21(@types/node@22.19.17)
+      zustand:
+        specifier: ^5.0.2
+        version: 5.0.12(@types/react@18.3.28)(react@18.3.1)(use-sync-external-store@1.6.0(react@18.3.1))
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.19.17
+      '@types/react':
+        specifier: ^18.3.17
+        version: 18.3.28
+      '@types/react-dom':
+        specifier: ^18.3.5
+        version: 18.3.7(@types/react@18.3.28)
+      autoprefixer:
+        specifier: ^10.4.20
+        version: 10.5.0(postcss@8.5.12)
+      postcss:
+        specifier: ^8.4.49
+        version: 8.5.12
+      tailwindcss:
+        specifier: ^3.4.17
+        version: 3.4.19(tsx@4.21.0)
+      tailwindcss-animate:
+        specifier: ^1.0.7
+        version: 1.0.7(tailwindcss@3.4.19(tsx@4.21.0))
+
+  services/media-pipeline:
+    dependencies:
+      '@movscript/editing':
+        specifier: workspace:*
+        version: link:../../packages/editing
+      '@movscript/runtime-contracts':
+        specifier: workspace:*
+        version: link:../../packages/runtime-contracts
+
+  services/project-service:
+    dependencies:
+      '@movscript/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@movscript/engine':
+        specifier: workspace:*
+        version: link:../../packages/engine
+      '@movscript/interpreter':
+        specifier: workspace:*
+        version: link:../../packages/interpreter
+      '@movscript/project':
+        specifier: workspace:*
+        version: link:../../packages/project
+      '@movscript/prompt':
+        specifier: workspace:*
+        version: link:../../packages/prompt
+      '@movscript/runtime-contracts':
+        specifier: workspace:*
+        version: link:../../packages/runtime-contracts
+      '@movscript/workspace':
+        specifier: workspace:*
+        version: link:../../packages/workspace
+
+  services/web-surface-host:
+    dependencies:
+      '@movscript/admin-surface':
+        specifier: workspace:*
+        version: link:../../surface/admin
+      '@movscript/project-surface':
+        specifier: workspace:*
+        version: link:../../surface/project
+      '@movscript/resource-surface':
+        specifier: workspace:*
+        version: link:../../surface/resource
+      '@movscript/runtime-contracts':
+        specifier: workspace:*
+        version: link:../../packages/runtime-contracts
+      '@movscript/theme':
+        specifier: workspace:*
+        version: link:../../packages/theme
+      '@movscript/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      '@vitejs/plugin-react':
+        specifier: ^4.3.4
+        version: 4.7.0(vite@5.4.21(@types/node@22.19.17))
+      react:
+        specifier: ^18.3.1
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.3.1
+        version: 18.3.1(react@18.3.1)
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vite:
+        specifier: ^5.4.21
+        version: 5.4.21(@types/node@22.19.17)
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.19.17
+      '@types/react':
+        specifier: ^18.3.17
+        version: 18.3.28
+      '@types/react-dom':
+        specifier: ^18.3.5
+        version: 18.3.7(@types/react@18.3.28)
+
+  surface/admin:
+    dependencies:
+      '@movscript/auth-client':
+        specifier: workspace:*
+        version: link:../../packages/auth-client
+      '@movscript/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@movscript/theme':
+        specifier: workspace:*
+        version: link:../../packages/theme
+      '@movscript/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      '@radix-ui/react-toast':
+        specifier: ^1.2.4
+        version: 1.2.15(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@tanstack/react-query':
+        specifier: ^5.62.0
+        version: 5.100.5(react@18.3.1)
+      axios:
+        specifier: ^1.7.9
+        version: 1.15.2
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      i18next:
+        specifier: ^26.0.8
+        version: 26.0.8(typescript@5.9.3)
+      lucide-react:
+        specifier: ^0.468.0
+        version: 0.468.0(react@18.3.1)
+      react:
+        specifier: ^18.3.1
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.3.1
+        version: 18.3.1(react@18.3.1)
+      react-i18next:
+        specifier: ^17.0.4
+        version: 17.0.6(i18next@26.0.8(typescript@5.9.3))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)
+      react-router-dom:
+        specifier: ^6.28.0
+        version: 6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      tailwind-merge:
+        specifier: ^2.5.5
+        version: 2.6.1
+      zustand:
+        specifier: ^5.0.2
+        version: 5.0.12(@types/react@18.3.28)(react@18.3.1)(use-sync-external-store@1.6.0(react@18.3.1))
+    devDependencies:
+      '@types/node':
+        specifier: 22.19.17
+        version: 22.19.17
+      '@types/react':
+        specifier: ^18.3.17
+        version: 18.3.28
+      '@types/react-dom':
+        specifier: ^18.3.5
+        version: 18.3.7(@types/react@18.3.28)
+      '@vitejs/plugin-react':
+        specifier: ^4.3.4
+        version: 4.7.0(vite@5.4.21(@types/node@22.19.17))
+      autoprefixer:
+        specifier: ^10.4.20
+        version: 10.5.0(postcss@8.5.12)
+      postcss:
+        specifier: ^8.4.49
+        version: 8.5.12
+      tailwindcss:
+        specifier: ^3.4.17
+        version: 3.4.19(tsx@4.21.0)
+      tailwindcss-animate:
+        specifier: ^1.0.7
+        version: 1.0.7(tailwindcss@3.4.19(tsx@4.21.0))
+      tsup:
+        specifier: 8.5.1
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.12)(tsx@4.21.0)(typescript@5.9.3)
+      tsx:
+        specifier: ^4.19.2
+        version: 4.21.0
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vite:
+        specifier: ^5.4.21
+        version: 5.4.21(@types/node@22.19.17)
+
+  surface/canvas:
+    dependencies:
+      '@movscript/auth-client':
+        specifier: workspace:*
+        version: link:../../packages/auth-client
+      '@movscript/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@movscript/editing':
+        specifier: workspace:*
+        version: link:../../packages/editing
+      '@movscript/project-surface':
+        specifier: workspace:*
+        version: link:../project
+      '@movscript/resource-surface':
+        specifier: workspace:*
+        version: link:../resource
+      '@movscript/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@movscript/theme':
+        specifier: workspace:*
+        version: link:../../packages/theme
+      '@movscript/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      '@movscript/workspace':
+        specifier: workspace:*
+        version: link:../../packages/workspace
+      '@tanstack/react-query':
+        specifier: ^5.62.0
+        version: 5.100.5(react@18.3.1)
+      '@xyflow/react':
+        specifier: ^12.10.2
+        version: 12.10.2(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      axios:
+        specifier: ^1.7.9
+        version: 1.15.2
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      i18next:
+        specifier: ^26.0.8
+        version: 26.0.8(typescript@5.9.3)
+      lucide-react:
+        specifier: ^0.468.0
+        version: 0.468.0(react@18.3.1)
+      react:
+        specifier: ^18.3.1
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.3.1
+        version: 18.3.1(react@18.3.1)
+      react-i18next:
+        specifier: ^17.0.4
+        version: 17.0.6(i18next@26.0.8(typescript@5.9.3))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)
+      react-router-dom:
+        specifier: ^6.28.0
+        version: 6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      tailwind-merge:
+        specifier: ^2.5.5
+        version: 2.6.1
+      zustand:
+        specifier: ^5.0.2
+        version: 5.0.12(@types/react@18.3.28)(react@18.3.1)(use-sync-external-store@1.6.0(react@18.3.1))
+    devDependencies:
+      '@types/node':
+        specifier: 22.19.17
+        version: 22.19.17
+      '@types/react':
+        specifier: ^18.3.17
+        version: 18.3.28
+      '@types/react-dom':
+        specifier: ^18.3.5
+        version: 18.3.7(@types/react@18.3.28)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
+  surface/editing:
+    dependencies:
+      '@movscript/auth-client':
+        specifier: workspace:*
+        version: link:../../packages/auth-client
+      '@movscript/editing':
+        specifier: workspace:*
+        version: link:../../packages/editing
+      '@movscript/project-surface':
+        specifier: workspace:*
+        version: link:../project
+      '@movscript/theme':
+        specifier: workspace:*
+        version: link:../../packages/theme
+      '@movscript/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      '@tanstack/react-query':
+        specifier: ^5.62.0
+        version: 5.100.5(react@18.3.1)
+      '@xyflow/react':
+        specifier: ^12.10.2
+        version: 12.10.2(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      axios:
+        specifier: ^1.7.9
+        version: 1.15.2
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      i18next:
+        specifier: ^26.0.8
+        version: 26.0.8(typescript@5.9.3)
+      lucide-react:
+        specifier: ^0.468.0
+        version: 0.468.0(react@18.3.1)
+      react:
+        specifier: ^18.3.1
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.3.1
+        version: 18.3.1(react@18.3.1)
+      react-i18next:
+        specifier: ^17.0.4
+        version: 17.0.6(i18next@26.0.8(typescript@5.9.3))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)
+      react-router-dom:
+        specifier: ^6.28.0
+        version: 6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      tailwind-merge:
+        specifier: ^2.5.5
+        version: 2.6.1
+      zustand:
+        specifier: ^5.0.2
+        version: 5.0.12(@types/react@18.3.28)(react@18.3.1)(use-sync-external-store@1.6.0(react@18.3.1))
+    devDependencies:
+      '@types/node':
+        specifier: 22.19.17
+        version: 22.19.17
+      '@types/react':
+        specifier: ^18.3.17
+        version: 18.3.28
+      '@types/react-dom':
+        specifier: ^18.3.5
+        version: 18.3.7(@types/react@18.3.28)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
+  surface/project:
+    dependencies:
+      '@movscript/auth-client':
+        specifier: workspace:*
+        version: link:../../packages/auth-client
+      '@movscript/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@movscript/editing':
+        specifier: workspace:*
+        version: link:../../packages/editing
+      '@movscript/resource-surface':
+        specifier: workspace:*
+        version: link:../resource
+      '@movscript/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@movscript/theme':
+        specifier: workspace:*
+        version: link:../../packages/theme
+      '@movscript/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      '@tanstack/react-query':
+        specifier: ^5.62.0
+        version: 5.100.5(react@18.3.1)
+      '@xyflow/react':
+        specifier: ^12.10.2
+        version: 12.10.2(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      axios:
+        specifier: ^1.7.9
+        version: 1.15.2
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      i18next:
+        specifier: ^26.0.8
+        version: 26.0.8(typescript@5.9.3)
+      lucide-react:
+        specifier: ^0.468.0
+        version: 0.468.0(react@18.3.1)
+      react:
+        specifier: ^18.3.1
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.3.1
+        version: 18.3.1(react@18.3.1)
+      react-i18next:
+        specifier: ^17.0.4
+        version: 17.0.6(i18next@26.0.8(typescript@5.9.3))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)
+      react-router-dom:
+        specifier: ^6.28.0
+        version: 6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      tailwind-merge:
+        specifier: ^2.5.5
+        version: 2.6.1
+      zustand:
+        specifier: ^5.0.2
+        version: 5.0.12(@types/react@18.3.28)(react@18.3.1)(use-sync-external-store@1.6.0(react@18.3.1))
+    devDependencies:
+      '@types/node':
+        specifier: 22.19.17
+        version: 22.19.17
+      '@types/react':
+        specifier: ^18.3.17
+        version: 18.3.28
+      '@types/react-dom':
+        specifier: ^18.3.5
+        version: 18.3.7(@types/react@18.3.28)
+      tsup:
+        specifier: 8.5.1
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.12)(tsx@4.21.0)(typescript@5.9.3)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
+  surface/resource:
+    dependencies:
+      '@movscript/auth-client':
+        specifier: workspace:*
+        version: link:../../packages/auth-client
+      '@movscript/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@movscript/editing':
+        specifier: workspace:*
+        version: link:../../packages/editing
+      '@movscript/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@movscript/theme':
+        specifier: workspace:*
+        version: link:../../packages/theme
+      '@movscript/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      '@tanstack/react-query':
+        specifier: ^5.62.0
+        version: 5.100.5(react@18.3.1)
+      '@xyflow/react':
+        specifier: ^12.10.2
+        version: 12.10.2(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      axios:
+        specifier: ^1.7.9
+        version: 1.15.2
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      heic2any:
+        specifier: ^0.0.4
+        version: 0.0.4
+      i18next:
+        specifier: ^26.0.8
+        version: 26.0.8(typescript@5.9.3)
+      jszip:
+        specifier: ^3.10.1
+        version: 3.10.1
+      lucide-react:
+        specifier: ^0.468.0
+        version: 0.468.0(react@18.3.1)
+      react:
+        specifier: ^18.3.1
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.3.1
+        version: 18.3.1(react@18.3.1)
+      react-i18next:
+        specifier: ^17.0.4
+        version: 17.0.6(i18next@26.0.8(typescript@5.9.3))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)
+      react-router-dom:
+        specifier: ^6.28.0
+        version: 6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      tailwind-merge:
+        specifier: ^2.5.5
+        version: 2.6.1
+      zustand:
+        specifier: ^5.0.2
+        version: 5.0.12(@types/react@18.3.28)(react@18.3.1)(use-sync-external-store@1.6.0(react@18.3.1))
+    devDependencies:
+      '@types/node':
+        specifier: 22.19.17
+        version: 22.19.17
+      '@types/react':
+        specifier: ^18.3.17
+        version: 18.3.28
+      '@types/react-dom':
+        specifier: ^18.3.5
+        version: 18.3.7(@types/react@18.3.28)
+      tsup:
+        specifier: 8.5.1
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.12)(tsx@4.21.0)(typescript@5.9.3)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
+  surface/shot-library:
+    dependencies:
+      '@movscript/auth-client':
+        specifier: workspace:*
+        version: link:../../packages/auth-client
+      '@movscript/editing':
+        specifier: workspace:*
+        version: link:../../packages/editing
+      '@movscript/project-surface':
+        specifier: workspace:*
+        version: link:../project
+      '@movscript/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@movscript/shot-library':
+        specifier: workspace:*
+        version: link:../../packages/shot-library
+      '@movscript/theme':
+        specifier: workspace:*
+        version: link:../../packages/theme
+      '@movscript/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      '@tanstack/react-query':
+        specifier: ^5.62.0
+        version: 5.100.5(react@18.3.1)
+      '@xyflow/react':
+        specifier: ^12.10.2
+        version: 12.10.2(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      axios:
+        specifier: ^1.7.9
+        version: 1.15.2
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      i18next:
+        specifier: ^26.0.8
+        version: 26.0.8(typescript@5.9.3)
+      lucide-react:
+        specifier: ^0.468.0
+        version: 0.468.0(react@18.3.1)
+      react:
+        specifier: ^18.3.1
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.3.1
+        version: 18.3.1(react@18.3.1)
+      react-i18next:
+        specifier: ^17.0.4
+        version: 17.0.6(i18next@26.0.8(typescript@5.9.3))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)
+      react-router-dom:
+        specifier: ^6.28.0
+        version: 6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      tailwind-merge:
+        specifier: ^2.5.5
+        version: 2.6.1
+      zustand:
+        specifier: ^5.0.2
+        version: 5.0.12(@types/react@18.3.28)(react@18.3.1)(use-sync-external-store@1.6.0(react@18.3.1))
+    devDependencies:
+      '@types/node':
+        specifier: 22.19.17
+        version: 22.19.17
+      '@types/react':
+        specifier: ^18.3.17
+        version: 18.3.28
+      '@types/react-dom':
+        specifier: ^18.3.5
+        version: 18.3.7(@types/react@18.3.28)
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -1014,30 +1888,6 @@ packages:
   '@malept/flatpak-bundler@0.4.0':
     resolution: {integrity: sha512-9QOtNffcOF/c1seMCDnjckb3R9WHcG34tky+FHpNKKCW0wc/scYLwMtO+ptyGUfMW0/b/n4qRiALlaFHc9Oj7Q==}
     engines: {node: '>= 10.0.0'}
-
-  '@movscript/mova-app-server-darwin-arm64@0.0.1-alpha.13':
-    resolution: {integrity: sha512-2CIavtMAIj2YdvKHI43kNMiJFdPqiQBD57yPHssGJKxSIix/2EWJ8Itey2xrMYlg/vkcMo1K+/5jkaCUoyaj5w==}
-    engines: {node: '>=16'}
-    cpu: [arm64]
-    os: [darwin]
-
-  '@movscript/mova-app-server-darwin-x64@0.0.1-alpha.13':
-    resolution: {integrity: sha512-vlffJZdv2u2x+YbsmycZ+w7/bbopRcPTQ/h4+kTUO/5EQf5UaWDpR8ht/BECeC3b+MTyiOxQOO7CweeH25FLfg==}
-    engines: {node: '>=16'}
-    cpu: [x64]
-    os: [darwin]
-
-  '@movscript/mova-app-server-win32-arm64@0.0.1-alpha.13':
-    resolution: {integrity: sha512-OJRy22hVQAAek69AWCmgVx5R+SU7QDklT4Y/Fuj7nrtglQzFQf6Nh3RwGSuNilJKn/iG2RhwWr/+ZSv2BG/G3Q==}
-    engines: {node: '>=16'}
-    cpu: [arm64]
-    os: [win32]
-
-  '@movscript/mova-app-server-win32-x64@0.0.1-alpha.13':
-    resolution: {integrity: sha512-uvBNYEwJnM44+zyXgDSZjcF2JEfTp7Qluad+9KEAg+YmXdBtvmNCa/QgLoJGbH8puCZPF7z649ogVNlNTXRyEA==}
-    engines: {node: '>=16'}
-    cpu: [x64]
-    os: [win32]
 
   '@nodelib/fs.scandir@2.1.5':
     resolution: {integrity: sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g==}
@@ -4209,18 +5059,6 @@ snapshots:
       tmp-promise: 3.0.3
     transitivePeerDependencies:
       - supports-color
-
-  '@movscript/mova-app-server-darwin-arm64@0.0.1-alpha.13':
-    optional: true
-
-  '@movscript/mova-app-server-darwin-x64@0.0.1-alpha.13':
-    optional: true
-
-  '@movscript/mova-app-server-win32-arm64@0.0.1-alpha.13':
-    optional: true
-
-  '@movscript/mova-app-server-win32-x64@0.0.1-alpha.13':
-    optional: true
 
   '@nodelib/fs.scandir@2.1.5':
     dependencies:

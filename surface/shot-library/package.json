@@ -1,0 +1,45 @@
+{
+  "name": "@movscript/shot-library-surface",
+  "version": "0.1.29",
+  "private": true,
+  "type": "module",
+  "description": "MovScript Shot Library Surface source domain.",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "files": [
+    "src"
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./data": "./src/data.ts",
+    "./pages": "./src/pages/index.ts"
+  },
+  "dependencies": {
+    "@movscript/auth-client": "workspace:*",
+    "@movscript/editing": "workspace:*",
+    "@movscript/project-surface": "workspace:*",
+    "@movscript/shared": "workspace:*",
+    "@movscript/shot-library": "workspace:*",
+    "@movscript/theme": "workspace:*",
+    "@movscript/ui": "workspace:*",
+    "@tanstack/react-query": "^5.62.0",
+    "@xyflow/react": "^12.10.2",
+    "axios": "^1.7.9",
+    "clsx": "^2.1.1",
+    "i18next": "^26.0.8",
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-i18next": "^17.0.4",
+    "react-router-dom": "^6.28.0",
+    "tailwind-merge": "^2.5.5",
+    "zustand": "^5.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.17",
+    "@types/react": "^18.3.17",
+    "@types/react-dom": "^18.3.5",
+    "typescript": "5.9.3"
+  }
+}

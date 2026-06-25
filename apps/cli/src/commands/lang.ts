@@ -40,7 +40,7 @@ interface WorkspaceOptions {
   commit?: string
 }
 
-interface InterpretOptions extends WorkspaceOptions {}
+interface InterpretOptions extends WorkspaceOptions { }
 
 interface GetModelOptions extends WorkspaceOptions {
   entityId?: string
@@ -1436,7 +1436,9 @@ function createCliBackendDecisionStore(input: { workspaceDir?: string }) {
   if (!projectId) return undefined
   const session = resolveMovScriptBackendSession({
     workspaceDir: input.workspaceDir,
-    userId: stringValue(process.env.MOVCLI_USER_ID),
+    server: stringValue(process.env.MOVSCRIPT_DATA_SERVICE_URL),
+    token: stringValue(process.env.MOVSCRIPT_DATA_SERVICE_TOKEN),
+    userId: stringValue(process.env.MOVSCRIPT_USER_ID),
   })
   return createMovScriptBackendDecisionStore({
     baseUrl: session.baseURL,

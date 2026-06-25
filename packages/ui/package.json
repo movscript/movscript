@@ -51,6 +51,11 @@
       "types": "./dist/style-system.d.mts",
       "import": "./dist/style-system.mjs"
     },
+    "./toast": {
+      "types": "./dist/toast.d.ts",
+      "import": "./dist/toast.mjs",
+      "require": "./dist/toast.js"
+    },
     "./business/agent": {
       "types": "./dist/business/agent.d.ts",
       "import": "./dist/business/agent.mjs",
@@ -88,6 +93,7 @@
     },
     "./styles/base.css": "./src/styles/base.css",
     "./styles/semantic.css": "./src/styles/semantic.css",
+    "./styles/surface-host.css": "./src/styles/surface-host.css",
     "./styles/primitives.css": "./src/styles/primitives.css",
     "./styles/layout.css": "./src/styles/layout.css",
     "./styles/business/agent.css": "./src/styles/business/agent.css",
@@ -99,7 +105,7 @@
     "./styles/business/workbench.css": "./src/styles/business/workbench.css"
   },
   "scripts": {
-    "build": "tsup src/index.ts src/primitives.ts src/layout.ts src/debug-entry.ts src/semantic.ts src/style-system.ts src/business/*.ts --format esm,cjs --dts --clean --external react --external react-dom",
+    "build": "tsup src/index.ts src/primitives.ts src/layout.ts src/debug-entry.ts src/semantic.ts src/style-system.ts src/toast.ts src/business/*.ts --format esm,cjs --dts --clean --external react --external react-dom",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

@@ -76,6 +76,14 @@ export function publicAgentBackendModelId(model: Pick<AgentBackendPublicModel, '
   return model.model_id?.trim() || model.logical_model_id?.trim() || model.model_def_id?.trim() || `model_config:${model.id}`
 }
 
+export function publicAgentBackendModelLabel(
+  model: Pick<AgentBackendPublicModel, 'display_name' | 'short_name' | 'provider_name'>,
+  includeProvider = false,
+): string {
+  const name = model.short_name?.trim() || model.display_name?.trim() || ''
+  return includeProvider && model.provider_name ? `${model.provider_name} / ${name}` : name
+}
+
 function mergeCapabilities(left: string[], right: string[]): string[] {
   return mergeStringValues(left, right)
 }
