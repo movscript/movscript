@@ -23,7 +23,7 @@ MovScript 需要一套可维护、可验证、可生成代码的模型模板来�
 - 不把 pricing、上下文窗口、benchmark、release notes 全量纳入 registry。
 - 不把 adapter mapping 抽成数据文件。
 - 不通过网络在运行时拉取外部模型目录。
-- 不让 registry 直接决定用户使用哪条 route、哪个 credential、哪个 new-api group。
+- 不让 registry 直接决定用户使用哪条 route、哪个 credential、哪个中转站分组。
 
 如果未来 text model 的 context window 或 pricing 进入 MovScript 的配额、预估、路由策略，再在独立字段中扩展；不要提前把通用模型数据库搬进项目。
 
@@ -50,8 +50,10 @@ Registry 的聚合维度使用 **Lab**，不使用 Provider。
 在 MovScript 语境中：
 
 - Lab：模型创造方、模型家族或官方模型来源，例如 OpenAI、Anthropic、Google Gemini、Seed、ElevenLabs、Kling、Vidu。
-- Provider / AI Account：模型调用账号或接入端点，核心是 key、base URL 和账号类型；它可以是用户自己的 OpenAI key、Volcengine Ark credential、new-api group、OpenRouter、某个第三方中转站，也可以是本地 OpenAI-compatible endpoint。
+- Provider / AI Account：模型调用账号或接入端点，核心是 key、base URL 和账号类型；它可以是用户自己的 OpenAI key、Volcengine Ark credential、中转站分组、OpenRouter、某个第三方中转站，也可以是本地 OpenAI-compatible endpoint。
 - Adapter：Route Binding 使用的调用协议 / 请求构造器，例如 `openai_compat`、`anthropic`、`gemini`、`volcen`、`elevenlabs`。它可以从 Provider 默认值带出，但必须作为 route-level 字段保存，避免把“账号/供应商 lane”和“接口协议”绑死。
+
+本地运行时也遵循同一条边界：`open-source-audio` 是 MusicGen / ACE-Step 这类模型家族 lab，`local_audio_runtime` 才是本地执行通道 Provider。开源模型只有在 MovScript runtime path 真正执行对应模型家族后，才从 `template_only` 提升为可生成一键 combo 的模板。
 
 因此 registry 文件按 lab 聚合：
 
@@ -65,6 +67,9 @@ labs/minimax.yaml
 labs/google-gemini.yaml
 labs/seed.yaml
 labs/elevenlabs.yaml
+labs/stability-audio.yaml
+labs/mureka.yaml
+labs/open-source-audio.yaml
 labs/kling.yaml
 labs/vidu.yaml
 labs/xai.yaml
@@ -83,7 +88,7 @@ Route Binding 仍然使用 provider 语义，因为它描述的是实际调用�
 Catalog Entry: seedance-2-0
 Lab: seed
 Route Binding A: provider_id=volcengine-ark, adapter_type=volcen, provider_model_id=doubao-seedance-2-0-260128
-Route Binding B: provider_id=new-api-video-gateway, adapter_type=openai_compat, route_group=video-default, provider_model_id=seedance-2-0
+Route Binding B: provider_id=relay-video-gateway, adapter_type=openai_compat, route_group=video-default, provider_model_id=seedance-2-0
 ```
 
 这条边界可以避免把“模型是谁做的”、“账号从哪里走”和“用什么接口协议调用”混在一起。
@@ -245,7 +250,7 @@ Catalog Entry 是调用方和 Agent 看到的模型入口。
 - `provider_id`
 - `provider_model_id`
 - `api_kinds`
-- AI account credential / new-api group
+- AI account credential / 中转站分组
 - priority / capacity / concurrency
 
 同一个 Catalog Entry 可以绑定不同 `provider_model_id`、不同 route group 或不同 credential。Registry 不应替它做线路选择。
@@ -415,7 +420,7 @@ templates:
 | `capabilities` | MovScript 能力列表 |
 | `source.url` | 参数来源 |
 | `source.verified_at` | 最近人工核对日期 |
-| `source.status` | `verified`、`needs_review`、`deprecated`、`unofficial` |
+| `source.status` | `verified`、`needs_review`、`deprecated`、`unofficial`、`observed`、`template_only` |
 
 可选字段：
 
@@ -601,9 +606,11 @@ Registry validator 至少检查：
 4. models.dev、LiteLLM、OpenRouter 等外部 catalog。
 5. 中转商文档或第三方示例。
 
-Registry 的 `source.status=verified` 只能来自 1-3。外部 catalog 只能标记为 `needs_review` 的参考证据，不能直接把参数写成 verified。
+Registry 的 `source.status=verified` 只能来自 1-3。外部 catalog 只能标记为 `needs_review` 或 `observed` 的参考证据，不能直接把参数写成 verified。
 
 默认 registry 只维护当前官方文档能够证明的 public model template。历史 slug、灰度 slug、第三方路由 slug、以及官方当前页面无法证明的模型，不进入默认 catalog；如果业务仍需要调用，应通过 Admin 的 AI Account + Model Route 绑定自定义 `provider_model_id`，而不是把它们伪装成 MovScript 官方模板。
+
+当模型名来自官方资料但 MovScript 尚未实现对应 adapter/runtime path 时，可以标记 `source.status=template_only`。这类模板用于 Admin 发现和后续适配排期，不生成一键启用的 combo template。
 
 如果官方明确标记 retired / deprecated / shutdown，但 MovScript 仍需要兼容旧项目，可以保留模板并标记 `source.status=deprecated`。Deprecated 模板用于解释和迁移，不代表推荐新建使用。
 

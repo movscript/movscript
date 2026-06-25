@@ -1,0 +1,101 @@
+lab: open-source-audio
+templates:
+    - order: 1
+      id: open-source-audio:musicgen
+      lab: open-source-audio
+      model_id: musicgen
+      display_name: MusicGen / AudioCraft
+      adapter_type: local
+      capabilities:
+        - audio_music
+      params:
+        - key: duration
+          label: 时长(秒)
+          type: select
+          options:
+            - "5"
+            - "10"
+            - "15"
+            - "30"
+          default: "10"
+        - key: output_format
+          label: 音频格式
+          type: select
+          options:
+            - wav
+            - mp3
+          default: wav
+        - key: negative_prompt
+          label: 负向提示词
+          type: string
+          default: ""
+      source:
+        url: https://github.com/facebookresearch/audiocraft
+        verified_at: "2026-06-25"
+        status: template_only
+    - order: 2
+      id: open-source-audio:ace-step
+      lab: open-source-audio
+      model_id: ace-step
+      display_name: ACE-Step
+      adapter_type: local
+      capabilities:
+        - audio_music
+      params:
+        - key: duration
+          label: 时长(秒)
+          type: select
+          options:
+            - "10"
+            - "30"
+            - "60"
+            - "120"
+          default: "30"
+        - key: output_format
+          label: 音频格式
+          type: select
+          options:
+            - wav
+            - mp3
+          default: wav
+        - key: negative_prompt
+          label: 负向提示词
+          type: string
+          default: ""
+      source:
+        url: https://github.com/ace-step/ACE-Step
+        verified_at: "2026-06-25"
+        status: template_only
+    - order: 3
+      id: open-source-audio:ace-step-1-5
+      lab: open-source-audio
+      model_id: ace-step-1.5
+      display_name: ACE-Step 1.5
+      adapter_type: local
+      capabilities:
+        - audio_music
+      params:
+        - key: duration
+          label: 时长(秒)
+          type: select
+          options:
+            - "10"
+            - "30"
+            - "60"
+            - "120"
+          default: "30"
+        - key: output_format
+          label: 音频格式
+          type: select
+          options:
+            - wav
+            - mp3
+          default: wav
+        - key: negative_prompt
+          label: 负向提示词
+          type: string
+          default: ""
+      source:
+        url: https://github.com/ace-step/ACE-Step
+        verified_at: "2026-06-25"
+        status: template_only

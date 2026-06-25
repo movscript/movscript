@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -66,6 +68,7 @@ type ModelImportModelPlan struct {
 	Capabilities    []string `json:"capabilities"`
 	TemplateID      string   `json:"template_id,omitempty"`
 	TemplateVersion string   `json:"template_version,omitempty"`
+	TemplateStatus  string   `json:"template_source_status,omitempty"`
 	AdapterType     string   `json:"adapter_type"`
 	Status          string   `json:"status"`
 	CatalogEntryID  uint     `json:"catalog_entry_id,omitempty"`
@@ -212,6 +215,16 @@ func (s *Service) applyModelImportItem(ctx context.Context, provider persistence
 	item.CatalogEntryID = entry.ID
 	item.CreatedCatalogEntry = createdEntry
 	item.ReusedCatalogEntry = !createdEntry
+	if modelImportPlanSkipsRoute(plan) {
+		item.SkippedRouteBinding = true
+		if createdEntry {
+			item.Status = modelImportStatusNew
+		} else {
+			item.Status = modelImportStatusCatalogExists
+		}
+		item.Diagnostics = append(item.Diagnostics, "Route binding was skipped because the matched template is not runtime-ready.")
+		return item, nil
+	}
 
 	binding, createdBinding, err := s.findOrCreateImportedRouteBinding(ctx, entry.ID, provider, routeGroup, model.ProviderModelID, plan, enabled)
 	if err != nil {
@@ -229,6 +242,10 @@ func (s *Service) applyModelImportItem(ctx context.Context, provider persistence
 		item.Status = modelImportStatusCatalogExists
 	}
 	return item, nil
+}
+
+func modelImportPlanSkipsRoute(plan ModelImportModelPlan) bool {
+	return strings.TrimSpace(plan.TemplateID) != "" && strings.TrimSpace(plan.TemplateStatus) == "template_only"
 }
 
 func (s *Service) findOrCreateImportedCatalogEntry(ctx context.Context, plan ModelImportModelPlan) (persistencemodel.AIModelCatalogEntry, bool, error) {
@@ -325,14 +342,14 @@ func (s *Service) annotateModelImportCatalogState(ctx context.Context, plan *Mod
 	if err := s.db.WithContext(ctx).Where("public_model_id = ?", plan.PublicModelID).First(&entry).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			plan.Status = modelImportStatusNew
-			plan.Recommended = true
+			plan.Recommended = !modelImportPlanSkipsRoute(*plan)
 			return nil
 		}
 		return err
 	}
 	plan.Status = modelImportStatusCatalogExists
 	plan.CatalogEntryID = entry.ID
-	plan.Recommended = true
+	plan.Recommended = !modelImportPlanSkipsRoute(*plan)
 	return nil
 }
 
@@ -397,10 +414,15 @@ func normalizeModelImportProviderInput(input ModelImportProviderInput) ModelImpo
 		input.ProviderKind = persistencemodel.AIProviderKindOpenAICompatGateway
 	}
 	input.DisplayName = strings.TrimSpace(input.DisplayName)
-	if input.DisplayName == "" {
-		input.DisplayName = "OpenAI compatible provider"
-	}
 	input.BaseURLPrefix = strings.TrimRight(strings.TrimSpace(input.BaseURLPrefix), "/")
+	input.ProviderKind = inferModelImportGatewayProviderKind(input.ProviderKind, input.BaseURLPrefix)
+	if input.DisplayName == "" {
+		if template, ok := providerTemplateByKind(input.ProviderKind); ok && strings.TrimSpace(template.DisplayName) != "" {
+			input.DisplayName = strings.TrimSpace(template.DisplayName)
+		} else {
+			input.DisplayName = "中转站"
+		}
+	}
 	if input.Credentials == nil {
 		input.Credentials = map[string]string{}
 	}
@@ -411,6 +433,28 @@ func normalizeModelImportProviderInput(input ModelImportProviderInput) ModelImpo
 		input.Credentials["base_url"] = input.BaseURLPrefix
 	}
 	return input
+}
+
+func inferModelImportGatewayProviderKind(providerKind string, baseURLPrefix string) string {
+	providerKind = strings.TrimSpace(providerKind)
+	baseURLPrefix = strings.TrimSpace(baseURLPrefix)
+	if providerKind != "" && providerKind != persistencemodel.AIProviderKindOpenAICompatGateway {
+		return providerKind
+	}
+	if baseURLPrefix == "" {
+		return providerKind
+	}
+	parsed, err := url.Parse(baseURLPrefix)
+	if err != nil {
+		return providerKind
+	}
+	host := strings.ToLower(strings.TrimPrefix(parsed.Hostname(), "www."))
+	switch {
+	case host == "api.apiyi.com" || host == "apiyi.com" || strings.HasSuffix(host, ".apiyi.com"):
+		return "apiyi_gateway"
+	default:
+		return providerKind
+	}
 }
 
 func normalizeModelImportModelInput(input ModelImportModelInput) ModelImportModelInput {
@@ -446,12 +490,25 @@ func normalizeModelImportRouteGroup(value string) string {
 
 func modelImportPlanForModel(providerModelID string) ModelImportModelPlan {
 	providerModelID = strings.TrimSpace(providerModelID)
-	for _, template := range infraai.CatalogTemplates() {
-		if strings.TrimSpace(template.ModelID) == providerModelID ||
-			strings.TrimSpace(template.DefaultPublicModelID) == providerModelID ||
-			strings.TrimSpace(template.ID) == providerModelID {
-			return modelImportPlanFromTemplate(providerModelID, template)
+	if template, ok := modelImportTemplateForProviderModelID(providerModelID); ok {
+		return modelImportPlanFromTemplate(providerModelID, template)
+	}
+	if capabilities := inferModelImportCapabilities(providerModelID); len(capabilities) > 0 {
+		plan := ModelImportModelPlan{
+			ProviderModelID: providerModelID,
+			PublicModelID:   providerModelID,
+			DisplayName:     providerModelID,
+			Capabilities:    capabilities,
+			AdapterType:     infraai.AdapterOpenAICompat,
+			Status:          modelImportStatusNew,
+			Recommended:     true,
 		}
+		if capabilitiesEqual(capabilities, []string{infraai.CapabilityText}) {
+			plan.Diagnostics = []string{"No built-in model template matched; imported as a generic text model."}
+		} else {
+			plan.Diagnostics = []string{"No built-in model template matched; capabilities were inferred from the provider model id. Review before applying."}
+		}
+		return plan
 	}
 	return ModelImportModelPlan{
 		ProviderModelID: providerModelID,
@@ -465,18 +522,207 @@ func modelImportPlanForModel(providerModelID string) ModelImportModelPlan {
 	}
 }
 
+func modelImportTemplateForProviderModelID(providerModelID string) (infraai.CatalogTemplate, bool) {
+	exactCandidate := normalizeModelImportTemplateID(providerModelID)
+	for _, template := range infraai.CatalogTemplates() {
+		for _, value := range []string{
+			template.ModelID,
+			template.DefaultPublicModelID,
+			template.ID,
+		} {
+			if normalizeModelImportTemplateID(value) == exactCandidate {
+				return template, true
+			}
+		}
+	}
+	candidates := modelImportTemplateMatchCandidates(providerModelID)
+	for _, template := range infraai.CatalogTemplates() {
+		for _, value := range []string{
+			template.ModelID,
+			template.DefaultPublicModelID,
+			template.ID,
+		} {
+			if candidates[normalizeModelImportTemplateID(value)] {
+				return template, true
+			}
+		}
+	}
+	return infraai.CatalogTemplate{}, false
+}
+
+func modelImportRuntimeReadyTemplateForProviderModelID(providerModelID string) (infraai.CatalogTemplate, bool) {
+	template, ok := modelImportTemplateForProviderModelID(providerModelID)
+	if !ok || !modelImportTemplateIsRuntimeReady(template) {
+		return infraai.CatalogTemplate{}, false
+	}
+	return template, true
+}
+
+func modelImportTemplateIsRuntimeReady(template infraai.CatalogTemplate) bool {
+	return strings.TrimSpace(template.SourceStatus) != "template_only"
+}
+
+func modelImportTemplateMatchCandidates(providerModelID string) map[string]bool {
+	raw := strings.TrimSpace(providerModelID)
+	candidates := map[string]bool{}
+	add := func(value string) {
+		value = normalizeModelImportTemplateID(value)
+		if value != "" {
+			candidates[value] = true
+		}
+	}
+	add(raw)
+	base := normalizeModelImportTemplateID(raw)
+	for {
+		next := stripModelImportVariantSuffix(base)
+		if next == "" || next == base {
+			break
+		}
+		add(next)
+		base = next
+	}
+	return candidates
+}
+
+var modelImportDateSuffixPattern = regexp.MustCompile(`-(\d{4}-\d{2}-\d{2}|\d{4}-\d{2}|\d{8})$`)
+var modelImportCompactDateSuffixPattern = regexp.MustCompile(`-(20\d{2})(0[1-9]|1[0-2])([0-3]\d)$`)
+var modelImportShortDateSuffixPattern = regexp.MustCompile(`-\d{6}$`)
+
+func stripModelImportVariantSuffix(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	for _, suffix := range []string{
+		"-chat-latest",
+		"-latest",
+		"-thinking",
+		"-nothinking",
+		"-customtools",
+		"-high",
+		"-medium",
+		"-low",
+		"-xhigh",
+		"-all",
+		"-vip",
+		"-pro",
+		"-fast",
+		"-instant",
+		"-4k",
+		"-2k",
+		"-1k",
+	} {
+		if strings.HasSuffix(value, suffix) && len(value) > len(suffix) {
+			return strings.TrimSuffix(value, suffix)
+		}
+	}
+	if next := modelImportDateSuffixPattern.ReplaceAllString(value, ""); next != value {
+		return next
+	}
+	if next := modelImportCompactDateSuffixPattern.ReplaceAllString(value, ""); next != value {
+		return next
+	}
+	if next := modelImportShortDateSuffixPattern.ReplaceAllString(value, ""); next != value {
+		return next
+	}
+	return value
+}
+
+func normalizeModelImportTemplateID(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	value = strings.TrimPrefix(value, "models/")
+	value = strings.ReplaceAll(value, "_", "-")
+	return value
+}
+
+func inferModelImportCapabilities(providerModelID string) []string {
+	id := normalizeModelImportTemplateID(providerModelID)
+	switch {
+	case id == "":
+		return []string{infraai.CapabilityText}
+	case strings.Contains(id, "transcribe") || strings.Contains(id, "whisper") ||
+		strings.Contains(id, "-asr") || strings.HasSuffix(id, "asr") ||
+		strings.Contains(id, "-stt") || strings.Contains(id, "speech-to-text") ||
+		strings.Contains(id, "chirp"):
+		return []string{infraai.CapabilityAudioSTT}
+	case strings.Contains(id, "tts") || strings.Contains(id, "text-to-speech") ||
+		strings.Contains(id, "cosyvoice") || strings.HasPrefix(id, "speech-"):
+		return []string{infraai.CapabilityAudioTTS}
+	case strings.Contains(id, "audio-preview") || strings.Contains(id, "omni") || strings.Contains(id, "mimo"):
+		return []string{infraai.CapabilityAudioChat}
+	case strings.Contains(id, "lyria") || strings.Contains(id, "music") ||
+		strings.Contains(id, "mureka") || strings.Contains(id, "suno") || strings.Contains(id, "udio"):
+		return []string{infraai.CapabilityAudioMusic}
+	case strings.Contains(id, "sound-effect") || strings.Contains(id, "sound-effects") ||
+		strings.Contains(id, "-sfx") || strings.Contains(id, "text-to-sound"):
+		return []string{infraai.CapabilityAudioSFX}
+	case strings.Contains(id, "voice-clone") || strings.Contains(id, "voiceclone"):
+		return []string{infraai.CapabilityVoiceClone}
+	case strings.Contains(id, "voice-design") || strings.Contains(id, "voice-designing"):
+		return []string{infraai.CapabilityVoiceDesign}
+	case strings.Contains(id, "seedance") || strings.HasPrefix(id, "veo-") ||
+		strings.Contains(id, "-video") || strings.Contains(id, "hailuo"):
+		return []string{infraai.CapabilityVideo}
+	case strings.Contains(id, "gpt-image") || strings.Contains(id, "chatgpt-image") ||
+		strings.Contains(id, "imagen") || strings.Contains(id, "seedream") ||
+		strings.Contains(id, "qwen-image") || strings.Contains(id, "-image"):
+		if strings.Contains(id, "gpt-image") || strings.Contains(id, "chatgpt-image") || strings.Contains(id, "gemini") {
+			return []string{infraai.CapabilityImage, infraai.CapabilityImageEdit}
+		}
+		return []string{infraai.CapabilityImage}
+	default:
+		if modelImportLooksReasoningCapable(id) {
+			return []string{infraai.CapabilityText, infraai.CapabilityReasoning}
+		}
+		return []string{infraai.CapabilityText}
+	}
+}
+
+func modelImportLooksReasoningCapable(id string) bool {
+	return strings.Contains(id, "reasoner") ||
+		strings.Contains(id, "thinking") ||
+		strings.Contains(id, "deepseek-r1") ||
+		strings.Contains(id, "qwq") ||
+		strings.Contains(id, "qvq") ||
+		strings.HasPrefix(id, "o1") ||
+		strings.HasPrefix(id, "o3") ||
+		strings.HasPrefix(id, "o4") ||
+		strings.HasPrefix(id, "gpt-5") ||
+		strings.HasPrefix(id, "glm-5") ||
+		strings.HasPrefix(id, "glm-4.5") ||
+		strings.Contains(id, "qwen3")
+}
+
+func capabilitiesEqual(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func modelImportPlanFromTemplate(providerModelID string, template infraai.CatalogTemplate) ModelImportModelPlan {
-	return ModelImportModelPlan{
+	plan := ModelImportModelPlan{
 		ProviderModelID: providerModelID,
 		PublicModelID:   firstNonEmpty(template.DefaultPublicModelID, providerModelID),
 		DisplayName:     firstNonEmpty(template.DisplayName, template.DefaultPublicModelID, providerModelID),
 		Capabilities:    append([]string(nil), template.Capabilities...),
 		TemplateID:      template.ID,
 		TemplateVersion: modelCatalogTemplateVersion(template),
+		TemplateStatus:  template.SourceStatus,
 		AdapterType:     template.AdapterType,
 		Status:          modelImportStatusNew,
 		Recommended:     true,
 	}
+	if !modelImportTemplateIsRuntimeReady(template) {
+		plan.Recommended = false
+		plan.Diagnostics = []string{"Matched a built-in discovery template, but its runtime adapter is not implemented yet. Keep it unselected unless you are binding a custom provider route intentionally."}
+	}
+	return plan
 }
 
 func modelImportSupportedParams(templateID string) string {

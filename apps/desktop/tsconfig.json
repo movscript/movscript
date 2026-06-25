@@ -35,6 +35,15 @@
       "@movscript/shot-library-surface": [
         "../../surface/shot-library/src/index.ts"
       ],
+      "@movscript/jobs-surface/pages": [
+        "../../surface/jobs/src/pages/index.ts"
+      ],
+      "@movscript/jobs-surface/i18n": [
+        "../../surface/jobs/src/i18n.ts"
+      ],
+      "@movscript/jobs-surface": [
+        "../../surface/jobs/src/index.ts"
+      ],
       "@movscript/project-surface": [
         "../../surface/project/src/index.ts"
       ],

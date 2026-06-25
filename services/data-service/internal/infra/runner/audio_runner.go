@@ -73,6 +73,91 @@ func (w *Worker) runAudioGenerateJob(ctx context.Context, debugCtx context.Conte
 	return w.completeProviderBytes(ctx, job, resp.Audio, mimeType, sm, debugResult)
 }
 
+func (w *Worker) runAudioChatJob(ctx context.Context, debugCtx context.Context, job *persistencemodel.Job, params generationParams, sm *jobStateMachine, debugResult *ai.DebugCallResult, audioData []ai.MediaData) error {
+	sm.enter(StateCallingProvider, "call audio chat provider")
+	route, err := w.resolveJobModelRoute(ctx, job, ai.CapabilityAudioChat)
+	if err != nil {
+		return err
+	}
+	req := media.AudioChatRequest{
+		Prompt:      job.Prompt,
+		Language:    params.String("language"),
+		Voice:       params.String("voice"),
+		Model:       params.String("model"),
+		AudioFormat: firstNonEmpty(params.String("audio_format"), params.String("response_format"), params.String("output_format")),
+		Params:      params.values,
+	}
+	if len(audioData) > 0 {
+		req.AudioResourceID = audioData[0].ResourceID
+		req.Audio = audioData[0].Bytes
+		req.MimeType = audioData[0].MimeType
+	}
+	resp, err := w.aiService.CallAudioChatWithRouteUsage(debugCtx, job.UserID, route, req, w.usageContext(job))
+	if err != nil {
+		w.saveDebugInfo(job, debugResult)
+		return err
+	}
+	if len(resp.Audio) == 0 {
+		return fmt.Errorf("no audio bytes returned by provider")
+	}
+	sm.succeed("provider returned audio chat bytes")
+
+	mimeType := firstNonEmpty(resp.MimeType, "audio/mpeg")
+	return w.completeProviderBytes(ctx, job, resp.Audio, mimeType, sm, debugResult)
+}
+
+func (w *Worker) runVoiceProfileJob(ctx context.Context, debugCtx context.Context, job *persistencemodel.Job, params generationParams, sm *jobStateMachine, debugResult *ai.DebugCallResult, capability string, audioData []ai.MediaData) error {
+	sm.enter(StateCallingProvider, "call voice profile provider")
+	route, err := w.resolveJobModelRoute(ctx, job, capability)
+	if err != nil {
+		return err
+	}
+	name := firstNonEmpty(params.String("name"), strings.TrimSpace(job.Title), "MovScript voice")
+	description := firstNonEmpty(params.String("description"), strings.TrimSpace(job.Prompt), name)
+	var resp media.VoiceProfileResponse
+	switch capability {
+	case ai.CapabilityVoiceClone:
+		if len(audioData) == 0 {
+			return fmt.Errorf("voice_clone requires an audio input resource")
+		}
+		samples := make([]media.VoiceCloneSample, 0, len(audioData))
+		for _, audio := range audioData {
+			samples = append(samples, media.VoiceCloneSample{
+				AudioResourceID: audio.ResourceID,
+				Audio:           audio.Bytes,
+				MimeType:        audio.MimeType,
+			})
+		}
+		resp, err = w.aiService.CallVoiceCloneWithRouteUsage(debugCtx, job.UserID, route, media.VoiceCloneRequest{
+			Name:        name,
+			Description: description,
+			Samples:     samples,
+			Model:       params.String("model"),
+			Params:      params.values,
+		}, w.usageContext(job))
+	case ai.CapabilityVoiceDesign:
+		resp, err = w.aiService.CallVoiceDesignWithRouteUsage(debugCtx, job.UserID, route, media.VoiceDesignRequest{
+			Name:        name,
+			Description: description,
+			PreviewText: params.String("preview_text"),
+			Model:       params.String("model"),
+			Params:      params.values,
+		}, w.usageContext(job))
+	default:
+		return fmt.Errorf("unsupported voice profile capability %q", capability)
+	}
+	if err != nil {
+		w.saveDebugInfo(job, debugResult)
+		return err
+	}
+	data, err := json.MarshalIndent(resp, "", "  ")
+	if err != nil {
+		return fmt.Errorf("encode voice profile response: %w", err)
+	}
+	sm.succeed("provider returned voice profile")
+	return w.completeProviderBytes(ctx, job, data, "application/json", sm, debugResult)
+}
+
 func (w *Worker) runSubtitleJob(ctx context.Context, debugCtx context.Context, job *persistencemodel.Job, params generationParams, sm *jobStateMachine, debugResult *ai.DebugCallResult, capability string, audioData []ai.MediaData, textData []ai.MediaData) error {
 	sm.enter(StateCallingProvider, "call subtitle provider")
 	route, err := w.resolveJobModelRoute(ctx, job, capability)
@@ -92,6 +177,20 @@ func (w *Worker) runSubtitleJob(ctx context.Context, debugCtx context.Context, j
 			Audio:           audio.Bytes,
 			MimeType:        audio.MimeType,
 			Language:        firstNonEmpty(params.String("language"), params.String("source_language")),
+			Model:           params.String("model"),
+			Params:          params.values,
+		}, w.usageContext(job))
+	case ai.CapabilityAudioTranslate:
+		if len(audioData) == 0 {
+			return fmt.Errorf("audio_translate requires an audio input resource")
+		}
+		audio := audioData[0]
+		resp, err = w.aiService.CallAudioTranslateWithRouteUsage(debugCtx, job.UserID, route, media.AudioTranslateRequest{
+			AudioResourceID: audio.ResourceID,
+			Audio:           audio.Bytes,
+			MimeType:        audio.MimeType,
+			SourceLanguage:  params.String("source_language"),
+			TargetLanguage:  firstNonEmpty(params.String("target_language"), params.String("language")),
 			Model:           params.String("model"),
 			Params:          params.values,
 		}, w.usageContext(job))

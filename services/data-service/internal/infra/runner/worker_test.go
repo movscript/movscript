@@ -765,6 +765,7 @@ func TestWorkerExecutesOrthogonalSubtitleJobTypesAsResourceOutputs(t *testing.T)
 		withAudio  bool
 	}{
 		{capability: ai.CapabilityAudioSTT, want: "transcribed", withAudio: true},
+		{capability: ai.CapabilityAudioTranslate, want: "[local audio translation:zh-CN]\ntranslated audio\n", withAudio: true},
 		{capability: ai.CapabilitySubAlign, want: "hello world", withAudio: true},
 		{capability: ai.CapabilitySubTranslate, want: "[local subtitle translation:zh-CN]\nhello world\n", withAudio: false},
 	}
@@ -835,6 +836,211 @@ func TestWorkerExecutesOrthogonalSubtitleJobTypesAsResourceOutputs(t *testing.T)
 		if string(data) != tc.want {
 			t.Fatalf("%s output = %q, want %q", tc.capability, string(data), tc.want)
 		}
+	}
+}
+
+func TestWorkerExecutesVoiceProfileJobsAsJSONResources(t *testing.T) {
+	db := testutil.OpenSQLite(t, "runner_voice_profile_jobs.db",
+		&model.Job{},
+		&model.RawResource{},
+		&model.ResourceBlob{},
+		&model.AICredential{},
+		&model.AIModelCatalogEntry{},
+		&model.AIModelRouteBinding{},
+		&model.UsageReservation{},
+		&model.UsageLog{},
+	)
+	store, err := storage.NewFileSystemStorage(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewFileSystemStorage: %v", err)
+	}
+	cred := model.AICredential{
+		Model:       gorm.Model{ID: 1},
+		AdapterType: ai.AdapterLocal,
+		DisplayName: "Local voice runner",
+		IsEnabled:   true,
+	}
+	if err := db.Create(&cred).Error; err != nil {
+		t.Fatalf("create credential: %v", err)
+	}
+	worker := NewWorker(db, ai.NewAIService(db, ai.NewRegistry(db, nil)), store, nil)
+	audioInputJob := &model.Job{UserID: 42, Title: "voice source"}
+	audioResourceID, err := worker.saveBytes(context.Background(), audioInputJob, []byte("wav"), "audio/wav")
+	if err != nil {
+		t.Fatalf("save input audio: %v", err)
+	}
+
+	for index, tc := range []struct {
+		capability string
+		withAudio  bool
+		wantPrefix string
+	}{
+		{capability: ai.CapabilityVoiceClone, withAudio: true, wantPrefix: "local_clone_"},
+		{capability: ai.CapabilityVoiceDesign, withAudio: false, wantPrefix: "local_design_"},
+	} {
+		entry := model.AIModelCatalogEntry{
+			Model:         gorm.Model{ID: uint(300 + index)},
+			PublicModelID: "local-" + tc.capability,
+			DisplayName:   "Local " + tc.capability,
+			IsEnabled:     true,
+			Capabilities:  tc.capability,
+		}
+		if err := db.Create(&entry).Error; err != nil {
+			t.Fatalf("create catalog entry %s: %v", tc.capability, err)
+		}
+		binding := model.AIModelRouteBinding{
+			CatalogEntryID: entry.ID,
+			SourceType:     model.ModelRouteSourceLocalProvider,
+			CredentialID:   &cred.ID,
+			IsEnabled:      true,
+			CapacityWeight: 1,
+		}
+		if err := db.Create(&binding).Error; err != nil {
+			t.Fatalf("create route binding %s: %v", tc.capability, err)
+		}
+		job := model.Job{
+			UserID:                42,
+			RuntimeModelID:        entry.ID,
+			AIModelCatalogEntryID: &entry.ID,
+			RouteBindingID:        &binding.ID,
+			JobType:               tc.capability,
+			Status:                StatusRunning,
+			MaxAttempts:           1,
+			Title:                 "voice " + tc.capability,
+			Prompt:                "warm narrator voice",
+			ExtraParams:           `{"name":"Narrator","description":"warm narrator voice"}`,
+		}
+		if tc.withAudio {
+			job.InputResourceID = &audioResourceID
+		}
+		if err := db.Create(&job).Error; err != nil {
+			t.Fatalf("create job %s: %v", tc.capability, err)
+		}
+		if err := worker.execute(context.Background(), &job); err != nil {
+			t.Fatalf("execute %s: %v", tc.capability, err)
+		}
+
+		var reloaded model.Job
+		if err := db.First(&reloaded, job.ID).Error; err != nil {
+			t.Fatalf("reload job %s: %v", tc.capability, err)
+		}
+		if reloaded.Status != StatusSucceeded || reloaded.OutputResourceID == nil {
+			t.Fatalf("%s status=%q output=%v", tc.capability, reloaded.Status, reloaded.OutputResourceID)
+		}
+		var output model.RawResource
+		if err := db.First(&output, *reloaded.OutputResourceID).Error; err != nil {
+			t.Fatalf("load output resource for %s: %v", tc.capability, err)
+		}
+		if output.Type != "text" || output.MimeType != "application/json" {
+			t.Fatalf("%s output resource type/mime = %q/%q", tc.capability, output.Type, output.MimeType)
+		}
+		data, _, _, err := worker.readResourceBytes(output)
+		if err != nil {
+			t.Fatalf("read output resource for %s: %v", tc.capability, err)
+		}
+		var payload struct {
+			VoiceID string `json:"voice_id"`
+		}
+		if err := json.Unmarshal(data, &payload); err != nil {
+			t.Fatalf("decode output for %s: %v\n%s", tc.capability, err, string(data))
+		}
+		if !strings.HasPrefix(payload.VoiceID, tc.wantPrefix) {
+			t.Fatalf("%s voice_id = %q, want prefix %q", tc.capability, payload.VoiceID, tc.wantPrefix)
+		}
+	}
+}
+
+func TestWorkerExecutesAudioChatJobAsAudioResource(t *testing.T) {
+	db := testutil.OpenSQLite(t, "runner_audio_chat_job.db",
+		&model.Job{},
+		&model.RawResource{},
+		&model.ResourceBlob{},
+		&model.AICredential{},
+		&model.AIModelCatalogEntry{},
+		&model.AIModelRouteBinding{},
+		&model.UsageReservation{},
+		&model.UsageLog{},
+	)
+	store, err := storage.NewFileSystemStorage(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewFileSystemStorage: %v", err)
+	}
+	cred := model.AICredential{
+		Model:       gorm.Model{ID: 1},
+		AdapterType: ai.AdapterLocal,
+		DisplayName: "Local audio chat runner",
+		IsEnabled:   true,
+	}
+	if err := db.Create(&cred).Error; err != nil {
+		t.Fatalf("create credential: %v", err)
+	}
+	worker := NewWorker(db, ai.NewAIService(db, ai.NewRegistry(db, nil)), store, nil)
+	audioInputJob := &model.Job{UserID: 42, Title: "chat source"}
+	audioResourceID, err := worker.saveBytes(context.Background(), audioInputJob, []byte("wav"), "audio/wav")
+	if err != nil {
+		t.Fatalf("save input audio: %v", err)
+	}
+
+	entry := model.AIModelCatalogEntry{
+		Model:         gorm.Model{ID: 400},
+		PublicModelID: "local-audio-chat",
+		DisplayName:   "Local Audio Chat",
+		IsEnabled:     true,
+		Capabilities:  ai.CapabilityAudioChat,
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	binding := model.AIModelRouteBinding{
+		CatalogEntryID: entry.ID,
+		SourceType:     model.ModelRouteSourceLocalProvider,
+		CredentialID:   &cred.ID,
+		IsEnabled:      true,
+		CapacityWeight: 1,
+	}
+	if err := db.Create(&binding).Error; err != nil {
+		t.Fatalf("create route binding: %v", err)
+	}
+	job := model.Job{
+		UserID:                42,
+		RuntimeModelID:        entry.ID,
+		AIModelCatalogEntryID: &entry.ID,
+		RouteBindingID:        &binding.ID,
+		JobType:               ai.CapabilityAudioChat,
+		Status:                StatusRunning,
+		MaxAttempts:           1,
+		Title:                 "audio chat",
+		Prompt:                "answer in a calm voice",
+		ExtraParams:           `{"language":"zh-CN","voice":"alloy"}`,
+		InputResourceID:       &audioResourceID,
+	}
+	if err := db.Create(&job).Error; err != nil {
+		t.Fatalf("create job: %v", err)
+	}
+	if err := worker.execute(context.Background(), &job); err != nil {
+		t.Fatalf("execute audio_chat: %v", err)
+	}
+
+	var reloaded model.Job
+	if err := db.First(&reloaded, job.ID).Error; err != nil {
+		t.Fatalf("reload job: %v", err)
+	}
+	if reloaded.Status != StatusSucceeded || reloaded.OutputResourceID == nil {
+		t.Fatalf("status=%q output=%v", reloaded.Status, reloaded.OutputResourceID)
+	}
+	var output model.RawResource
+	if err := db.First(&output, *reloaded.OutputResourceID).Error; err != nil {
+		t.Fatalf("load output resource: %v", err)
+	}
+	if output.Type != "audio" || output.MimeType != "audio/wav" {
+		t.Fatalf("output resource type/mime = %q/%q, want audio/audio/wav", output.Type, output.MimeType)
+	}
+	data, _, _, err := worker.readResourceBytes(output)
+	if err != nil {
+		t.Fatalf("read output resource: %v", err)
+	}
+	if len(data) == 0 {
+		t.Fatal("audio_chat output resource is empty")
 	}
 }
 

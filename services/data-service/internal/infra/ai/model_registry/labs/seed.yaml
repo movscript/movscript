@@ -1039,6 +1039,128 @@ templates:
     - adapter_type: volcen
       allow_model_id_override: true
       capabilities:
+        - audio_tts
+      display_name: Seed Speech TTS 1.1
+      id: volcengine:seed-tts-1-1
+      lab: seed
+      model_id: seed-tts-1.1
+      order: 47
+      source:
+        status: verified
+        url: https://www.volcengine.com/docs/6561/1257584?lang=zh
+        verified_at: "2026-06-25"
+    - adapter_type: volcen
+      allow_model_id_override: true
+      capabilities:
+        - audio_tts
+      display_name: Seed Speech TTS 1.0
+      id: volcengine:seed-tts-1-0
+      lab: seed
+      model_id: seed-tts-1.0
+      order: 48
+      source:
+        status: verified
+        url: https://www.volcengine.com/docs/6561/1257584?lang=zh
+        verified_at: "2026-06-25"
+    - adapter_type: volcen
+      allow_model_id_override: true
+      capabilities:
+        - audio_tts
+      display_name: Seed Speech TTS 1.0 Concurr
+      id: volcengine:seed-tts-1-0-concurr
+      lab: seed
+      model_id: seed-tts-1.0-concurr
+      order: 49
+      source:
+        status: verified
+        url: https://www.volcengine.com/docs/6561/1257584?lang=zh
+        verified_at: "2026-06-25"
+    - adapter_type: volcen
+      allow_model_id_override: true
+      capabilities:
+        - audio_transcribe
+      display_name: Doubao Seed ASR 2.0
+      id: volcengine:doubao-seed-asr-2-0
+      lab: seed
+      model_id: volc.seedasr.auc
+      order: 50
+      params:
+        - key: format
+          label: 音频格式
+          type: select
+          options:
+            - mp3
+            - m4a
+            - wav
+            - ogg
+            - webm
+            - flac
+          default: mp3
+        - key: language
+          label: 语言
+          type: string
+          default: ""
+        - key: enable_itn
+          label: 数字文本规整
+          type: boolean
+          default: true
+        - key: enable_punc
+          label: 标点
+          type: boolean
+          default: true
+        - key: show_utterances
+          label: 分句结果
+          type: boolean
+          default: true
+        - key: enable_speaker_info
+          label: 说话人分离
+          type: boolean
+          default: false
+        - key: poll_timeout_ms
+          label: 轮询超时(ms)
+          type: number
+          default: 600000
+          min: 1000
+          step: 1000
+        - key: poll_interval_ms
+          label: 轮询间隔(ms)
+          type: number
+          default: 5000
+          min: 500
+          step: 500
+      source:
+        status: verified
+        url: https://www.volcengine.com/docs/6561/1354868
+        verified_at: "2026-06-25"
+    - adapter_type: volcen
+      allow_model_id_override: true
+      capabilities:
+        - audio_chat
+      display_name: Doubao RealtimeVoice
+      id: volcengine:doubao-realtime-voice
+      lab: seed
+      model_id: Doubao-RealtimeVoice
+      order: 51
+      source:
+        status: template_only
+        url: https://ai.volcengine.com/
+        verified_at: "2026-06-25"
+    - adapter_type: volcen
+      allow_model_id_override: true
+      capabilities:
+        - voice_clone
+      display_name: Seed Speech Voice Replication 2.0
+      id: volcengine:seed-voice-replication-2-0
+      lab: seed
+      model_id: seed-voice-replication-2.0
+      order: 52
+      source:
+        status: template_only
+        url: https://www.volcengine.com/product/tts
+        verified_at: "2026-06-25"
+    - adapter_type: volcen
+      allow_model_id_override: true
+      capabilities:
         - video
         - video_i2v
         - video_v2v

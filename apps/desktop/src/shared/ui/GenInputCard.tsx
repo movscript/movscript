@@ -17,14 +17,17 @@ import {
 import type { RawResource, ParamDef } from '@/types'
 import { applyResourceChipMediaUrl, buildResourceChipElement, loadResourceChipMediaUrl } from '@/shared/ui/ResourceChipDom'
 import { revokeObjectUrls } from '@/shared/ui/objectUrl'
-import { IMAGE_UPLOAD_ACCEPT, MEDIA_UPLOAD_ACCEPT } from '@/shared/domain/mediaTypes'
+import { IMAGE_UPLOAD_ACCEPT, MEDIA_UPLOAD_ACCEPT, RESOURCE_UPLOAD_ACCEPT } from '@/shared/domain/mediaTypes'
 import { AttachmentTag, GenerationInputSlots } from '@/shared/ui/GenInputAttachments'
 import { GenerationParamControls } from './GenerationParamControls'
+
+export type ToolInputResourceType = 'image' | 'video' | 'audio' | 'text'
+export type ToolInputType = 'none' | ToolInputResourceType | 'image+video' | 'media'
 
 export interface InputSlotDef {
   key: string
   label: string       // e.g. "reference image", "source video"
-  type: 'image' | 'video'
+  type: ToolInputResourceType
   required: boolean
   maxCount: number    // 0 = unlimited
 }
@@ -45,7 +48,7 @@ export interface GenInputCardProps {
   isRunning: boolean
   canGenerate: boolean
   selectedModelId: string | null
-  inputType: 'none' | 'image' | 'video' | 'image+video'
+  inputType: ToolInputType
   promptPlaceholder?: string
   uploading: boolean
   imageEditRequired?: boolean
@@ -77,7 +80,15 @@ export function GenInputCard({
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
 
   const acceptsMediaInput = inputType !== 'none'
-  const accept = inputType === 'video' ? 'video/*' : inputType === 'image' ? IMAGE_UPLOAD_ACCEPT : MEDIA_UPLOAD_ACCEPT
+  const accept = inputType === 'video'
+    ? 'video/*'
+    : inputType === 'audio'
+      ? 'audio/*'
+      : inputType === 'image'
+        ? IMAGE_UPLOAD_ACCEPT
+        : inputType === 'media'
+          ? RESOURCE_UPLOAD_ACCEPT
+          : MEDIA_UPLOAD_ACCEPT
 
   const mentionResources = attachments
     .filter((r) => {

@@ -220,7 +220,7 @@ func TestServiceEnqueueGenerationUsesCatalogRouteWithoutLegacyModelConfig(t *tes
 	}
 	if err := db.Create(&model.AIModelRouteBinding{
 		CatalogEntryID:  defaultEntry.ID,
-		SourceType:      model.ModelRouteSourceNewAPI,
+		SourceType:      model.ModelRouteSourceRelayGateway,
 		RouteGroup:      "default",
 		ProviderModelID: "provider-image-default",
 		IsEnabled:       true,
@@ -231,7 +231,7 @@ func TestServiceEnqueueGenerationUsesCatalogRouteWithoutLegacyModelConfig(t *tes
 	}
 	priorityBinding := model.AIModelRouteBinding{
 		CatalogEntryID:  entry.ID,
-		SourceType:      model.ModelRouteSourceNewAPI,
+		SourceType:      model.ModelRouteSourceRelayGateway,
 		RouteGroup:      "priority",
 		ProviderModelID: "provider-image-v2",
 		IsEnabled:       true,
@@ -265,8 +265,8 @@ func TestServiceEnqueueGenerationUsesCatalogRouteWithoutLegacyModelConfig(t *tes
 	if job.RouteGroup != "priority" {
 		t.Fatalf("job route group = %q, want priority", job.RouteGroup)
 	}
-	if !strings.Contains(job.RequestContext, "provider-image-v2") || !strings.Contains(job.RequestContext, model.ModelRouteSourceNewAPI) {
-		t.Fatalf("request context = %s, want provider model and new-api source", job.RequestContext)
+	if !strings.Contains(job.RequestContext, "provider-image-v2") || !strings.Contains(job.RequestContext, model.ModelRouteSourceRelayGateway) {
+		t.Fatalf("request context = %s, want provider model and relay gateway source", job.RequestContext)
 	}
 }
 

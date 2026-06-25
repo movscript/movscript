@@ -150,12 +150,14 @@ function ProjectSurfaceHostView({
       ?? query.get('project_name')
       ?? projectPath.split('/').filter(Boolean).pop()
       ?? `Project ${numericProjectId}`
+    const projectUid = query.get('projectUid') ?? query.get('project_uid') ?? undefined
     const now = new Date().toISOString()
     const project = {
       ID: numericProjectId,
       name: projectName,
       description: '',
       owner_id: 1,
+      ...(projectUid ? { project_uid: projectUid } : {}),
       workspace_path: projectPath,
       project_path: projectPath,
       local: true,
@@ -169,7 +171,7 @@ function ProjectSurfaceHostView({
   let content: React.ReactNode
   if (routeContext.route?.key === 'content') {
     content = <ContentCanvasWorkspacePage />
-  } else if (!routeContext.route || routeContext.route.key === 'overview') {
+  } else if (routeContext.route?.key === 'overview') {
     content = <ProjectOverviewPage />
   } else if (routeContext.route) {
     content = (
@@ -183,12 +185,29 @@ function ProjectSurfaceHostView({
         error={projectReadModel.status === 'error' ? projectReadModel.error : undefined}
       />
     )
+  } else {
+    content = <InvalidProjectSurfaceRoute query={query} />
   }
 
   return (
     <ProjectSurfaceProvider runtime={projectSurfaceRuntime}>
       {content}
     </ProjectSurfaceProvider>
+  )
+}
+
+function InvalidProjectSurfaceRoute({ query }: { query: URLSearchParams }) {
+  return (
+    <section className="surface-host-empty-route">
+      <div className="surface-host-empty-route__icon"><FolderArchive size={22} /></div>
+      <h1>Project surface route not found</h1>
+      <p>Open projects through /studio/:projectId/overview or another explicit Project Surface route.</p>
+      <div className="surface-host-empty-route__actions">
+        <Button asChild size="sm" variant="outline">
+          <Link to={hrefWithSearch(ROUTES.root, query)}>Back to App Home</Link>
+        </Button>
+      </div>
+    </section>
   )
 }
 

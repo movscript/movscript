@@ -15,6 +15,9 @@ const (
 	AdapterDashScope    = "dashscope"
 	AdapterVidu         = "vidu"
 	AdapterElevenLabs   = "elevenlabs"
+	AdapterMiniMax      = "minimax"
+	AdapterMureka       = "mureka"
+	AdapterStability    = "stability"
 	AdapterLocal        = "local"
 )
 
@@ -177,6 +180,8 @@ type ModelDef struct {
 	DisplayName  string
 	Capabilities []string // use Capability* constants: "text", "image", "video", "video_i2v", "video_v2v", "image_edit", "reasoning"
 	AdapterType  string
+	SourceStatus string
+	APIKinds     []string
 
 	// AllowModelIDOverride lets admins replace the ModelID (e.g. Volcengine ep-xxx endpoints).
 	AllowModelIDOverride bool
@@ -221,6 +226,8 @@ type CatalogTemplate struct {
 	DisplayName          string     `json:"display_name"`
 	Capabilities         []string   `json:"capabilities"`
 	AdapterType          string     `json:"adapter_type"`
+	SourceStatus         string     `json:"source_status,omitempty"`
+	APIKinds             []string   `json:"api_kinds,omitempty"`
 	AcceptsImageInput    bool       `json:"accepts_image_input"`
 	MaxInputImages       int        `json:"max_input_images"`
 	MaxInputVideos       int        `json:"max_input_videos"`
@@ -311,6 +318,27 @@ func openAIGPTImageParams() []ParamDef {
 	}
 }
 
+func geminiTTSParams() []ParamDef {
+	return []ParamDef{
+		{Key: "voice", Label: "音色", Type: "select",
+			Options: []string{"Zephyr", "Puck", "Charon", "Kore", "Fenrir", "Leda", "Orus", "Aoede", "Callirrhoe", "Autonoe", "Enceladus", "Iapetus", "Umbriel", "Algieba", "Despina", "Erinome", "Algenib", "Rasalgethi", "Laomedeia", "Achernar", "Alnilam", "Schedar", "Gacrux", "Pulcherrima", "Achird", "Zubenelgenubi", "Vindemiatrix", "Sadachbia", "Sadaltager", "Sulafat"}, Default: "Kore"},
+		{Key: "sample_rate", Label: "采样率", Type: "select",
+			Options: []string{"24000"}, Default: "24000"},
+		{Key: "channels", Label: "声道数", Type: "select",
+			Options: []string{"1"}, Default: "1"},
+		{Key: "speakers", Label: "多说话人", Type: "string", Default: ""},
+	}
+}
+
+func geminiMusicParams() []ParamDef {
+	return []ParamDef{
+		{Key: "duration", Label: "时长(秒)", Type: "select",
+			Options: []string{"30", "60", "90", "120"}, Default: "30"},
+		{Key: "output_format", Label: "音频格式", Type: "select",
+			Options: []string{"mp3", "wav"}, Default: "mp3"},
+	}
+}
+
 func geminiVideoParams() []ParamDef {
 	return []ParamDef{
 		{Key: "duration", Label: "时长(秒)", Type: "select",
@@ -352,6 +380,35 @@ func volcenVideoParams() []ParamDef {
 	}
 }
 
+func volcenTTSParams() []ParamDef {
+	return []ParamDef{
+		{Key: "voice_type", Label: "音色 ID", Type: "string", Default: "zh_female_vv_jupiter_bigtts"},
+		{Key: "encoding", Label: "音频格式", Type: "select",
+			Options: []string{"mp3", "wav", "pcm", "ogg_opus"}, Default: "mp3"},
+		{Key: "speed_ratio", Label: "语速", Type: "number", Default: 1, Min: 0.8, Max: 2, Step: 0.01},
+		{Key: "sample_rate", Label: "采样率", Type: "select",
+			Options: []string{"8000", "16000", "22050", "24000", "32000", "44100", "48000"}, Default: "24000"},
+		{Key: "volume_ratio", Label: "音量", Type: "number", Default: 1, Min: 0.1, Max: 3, Step: 0.01},
+		{Key: "pitch_ratio", Label: "音高", Type: "number", Default: 1, Min: 0.1, Max: 3, Step: 0.01},
+		{Key: "language", Label: "语言", Type: "string", Default: ""},
+		{Key: "uid", Label: "用户标识", Type: "string", Default: "movscript"},
+	}
+}
+
+func volcenASRParams() []ParamDef {
+	return []ParamDef{
+		{Key: "format", Label: "音频格式", Type: "select",
+			Options: []string{"mp3", "m4a", "wav", "ogg", "webm", "flac"}, Default: "mp3"},
+		{Key: "language", Label: "语言", Type: "string", Default: ""},
+		{Key: "enable_itn", Label: "数字文本规整", Type: "boolean", Default: true},
+		{Key: "enable_punc", Label: "标点", Type: "boolean", Default: true},
+		{Key: "show_utterances", Label: "分句结果", Type: "boolean", Default: true},
+		{Key: "enable_speaker_info", Label: "说话人分离", Type: "boolean", Default: false},
+		{Key: "poll_timeout_ms", Label: "轮询超时(ms)", Type: "number", Default: 600000, Min: 1000, Step: 1000},
+		{Key: "poll_interval_ms", Label: "轮询间隔(ms)", Type: "number", Default: 5000, Min: 500, Step: 500},
+	}
+}
+
 func dashScopeVideoParams() []ParamDef {
 	return []ParamDef{
 		{Key: "duration", Label: "时长(秒)", Type: "select",
@@ -364,6 +421,25 @@ func dashScopeVideoParams() []ParamDef {
 			Options: []string{"832*480", "1280*720", "720*1280"}, Default: "1280*720"},
 		{Key: "watermark", Label: "水印", Type: "boolean", Default: false},
 		{Key: "audio", Label: "生成音频", Type: "boolean", Default: true},
+	}
+}
+
+func dashScopeTTSParams() []ParamDef {
+	return []ParamDef{
+		{Key: "voice", Label: "音色", Type: "string", Default: "Cherry"},
+		{Key: "language_type", Label: "语言", Type: "select",
+			Options: []string{"Auto", "Chinese", "English", "German", "Italian", "Portuguese", "Spanish", "Japanese", "Korean", "French", "Russian"}, Default: "Auto"},
+		{Key: "format", Label: "音频格式", Type: "select",
+			Options: []string{"mp3", "wav", "pcm", "opus"}, Default: "mp3"},
+		{Key: "sample_rate", Label: "采样率", Type: "select",
+			Options: []string{"8000", "16000", "22050", "24000", "44100", "48000"}, Default: "22050"},
+		{Key: "volume", Label: "音量", Type: "number", Default: 50, Min: 0, Max: 100, Step: 1},
+		{Key: "rate", Label: "语速", Type: "number", Default: 1, Min: 0.5, Max: 2, Step: 0.01},
+		{Key: "pitch", Label: "音高", Type: "number", Default: 1, Min: 0.5, Max: 2, Step: 0.01},
+		{Key: "instructions", Label: "语音指令", Type: "string", Default: ""},
+		{Key: "optimize_instructions", Label: "优化指令", Type: "boolean", Default: false},
+		{Key: "enable_ssml", Label: "SSML", Type: "boolean", Default: false},
+		{Key: "seed", Label: "种子", Type: "number", Min: 0, Max: 65535, Step: 1},
 	}
 }
 
@@ -405,6 +481,30 @@ func elevenLabsSTTParams() []ParamDef {
 	}
 }
 
+func miniMaxTTSParams() []ParamDef {
+	return []ParamDef{
+		{Key: "voice_id", Label: "Voice ID", Type: "string", Default: "Chinese_Mandarin_Calm_Female"},
+		{Key: "language_boost", Label: "语言增强", Type: "select",
+			Options: []string{"auto", "Chinese", "Chinese,Yue", "English", "Japanese", "Korean", "Spanish", "French", "German", "Russian", "Arabic", "Portuguese"}, Default: "auto"},
+		{Key: "audio_format", Label: "音频格式", Type: "select",
+			Options: []string{"mp3", "wav", "flac"}, Default: "mp3"},
+		{Key: "output_format", Label: "返回格式", Type: "select",
+			Options: []string{"hex", "url"}, Default: "hex"},
+		{Key: "sample_rate", Label: "采样率", Type: "select",
+			Options: []string{"16000", "24000", "32000", "44100"}, Default: "32000"},
+		{Key: "bitrate", Label: "码率", Type: "select",
+			Options: []string{"64000", "128000", "256000"}, Default: "128000"},
+		{Key: "speed", Label: "语速", Type: "number", Default: 1, Min: 0.5, Max: 2, Step: 0.01},
+		{Key: "vol", Label: "音量", Type: "number", Default: 1, Min: 0, Max: 10, Step: 0.1},
+		{Key: "pitch", Label: "音高", Type: "number", Default: 0, Min: -12, Max: 12, Step: 1},
+		{Key: "channel", Label: "声道数", Type: "select",
+			Options: []string{"1", "2"}, Default: "1"},
+		{Key: "subtitle_enable", Label: "字幕时间轴", Type: "boolean", Default: false},
+		{Key: "subtitle_type", Label: "字幕粒度", Type: "select",
+			Options: []string{"sentence", "word"}, Default: "sentence"},
+	}
+}
+
 func openAICompatAudioSpeechParams() []ParamDef {
 	return []ParamDef{
 		{Key: "voice", Label: "音色", Type: "select",
@@ -425,6 +525,17 @@ func openAICompatAudioTranscribeParams() []ParamDef {
 	}
 }
 
+func openAICompatAudioChatParams() []ParamDef {
+	return []ParamDef{
+		{Key: "voice", Label: "音色", Type: "select",
+			Options: []string{"alloy", "ash", "ballad", "coral", "echo", "fable", "onyx", "nova", "sage", "shimmer"}, Default: "alloy"},
+		{Key: "response_format", Label: "音频格式", Type: "select",
+			Options: []string{"mp3", "opus", "aac", "flac", "wav", "pcm"}, Default: "mp3"},
+		{Key: "temperature", Label: "温度", Type: "number", Default: 0.8, Min: 0, Max: 2, Step: 0.1},
+		{Key: "max_tokens", Label: "最大输出 Token", Type: "number", Min: 1, Max: 4096, Step: 1},
+	}
+}
+
 func audioGenerationParams() []ParamDef {
 	return []ParamDef{
 		{Key: "duration", Label: "时长(秒)", Type: "select",
@@ -432,6 +543,30 @@ func audioGenerationParams() []ParamDef {
 		{Key: "output_format", Label: "音频格式", Type: "select",
 			Options: []string{"wav", "mp3"}, Default: "wav"},
 		{Key: "negative_prompt", Label: "负向提示词", Type: "text", Default: ""},
+	}
+}
+
+func voiceCloneParams() []ParamDef {
+	return []ParamDef{
+		{Key: "name", Label: "声音名称", Type: "string", Default: ""},
+		{Key: "description", Label: "声音描述", Type: "text", Default: ""},
+		{Key: "remove_background_noise", Label: "移除背景噪声", Type: "boolean", Default: true},
+		{Key: "labels", Label: "标签 JSON", Type: "text", Default: ""},
+	}
+}
+
+func voiceDesignParams() []ParamDef {
+	return []ParamDef{
+		{Key: "name", Label: "声音名称", Type: "string", Default: ""},
+		{Key: "description", Label: "声音描述", Type: "text", Default: ""},
+		{Key: "preview_text", Label: "试听文本", Type: "text", Default: ""},
+		{Key: "auto_generate_text", Label: "自动生成试听文本", Type: "boolean", Default: true},
+		{Key: "seed", Label: "Seed", Type: "number", Default: 0, Min: 0, Max: 2147483647, Step: 1},
+		{Key: "guidance_scale", Label: "描述遵循度", Type: "number", Default: 0.7, Min: 0, Max: 1, Step: 0.05},
+		{Key: "loudness", Label: "响度", Type: "number", Default: 0, Min: -1, Max: 1, Step: 0.05},
+		{Key: "should_enhance", Label: "增强生成声音", Type: "boolean", Default: true},
+		{Key: "generated_voice_id", Label: "已有预览 Voice ID", Type: "string", Default: ""},
+		{Key: "labels", Label: "标签 JSON", Type: "text", Default: ""},
 	}
 }
 
@@ -448,6 +583,9 @@ var AdapterDefs = []AdapterDef{
 			{Capability: CapabilityReasoning, Params: commonTextParams()},
 			{Capability: CapabilityAudioMusic, Params: audioGenerationParams()},
 			{Capability: CapabilityAudioSFX, Params: audioGenerationParams()},
+			{Capability: CapabilityAudioChat, Params: openAICompatAudioChatParams()},
+			{Capability: CapabilityVoiceClone, Params: voiceCloneParams()},
+			{Capability: CapabilityVoiceDesign, Params: voiceDesignParams()},
 			{Capability: CapabilitySubTranslate, Params: commonTextParams()},
 		},
 	},
@@ -470,6 +608,7 @@ var AdapterDefs = []AdapterDef{
 			{Capability: CapabilityVideoV2V, Params: openAICompatVideoParams()},
 			{Capability: CapabilityAudioTTS, Params: openAICompatAudioSpeechParams()},
 			{Capability: CapabilityAudioSTT, Params: openAICompatAudioTranscribeParams()},
+			{Capability: CapabilityAudioChat, Params: openAICompatAudioChatParams()},
 			{Capability: CapabilitySubAlign, Params: openAICompatAudioTranscribeParams()},
 		},
 	},
@@ -508,6 +647,10 @@ var AdapterDefs = []AdapterDef{
 		CredFields: []CredField{
 			{Key: "api_key", Label: "API Key", Required: true},
 			{Key: "base_url", Label: "Base URL（可选）", Required: false},
+			{Key: "speech_app_id", Label: "Speech App ID（TTS 可选）", Required: false},
+			{Key: "speech_token", Label: "Speech Access Token（TTS 可选）", Required: false},
+			{Key: "speech_cluster", Label: "Speech Cluster（TTS 可选）", Required: false},
+			{Key: "speech_base_url", Label: "Speech Base URL（TTS 可选）", Required: false},
 		},
 		ParamSets: []AdapterParamSet{
 			{Capability: CapabilityText, Params: commonTextParams()},
@@ -516,6 +659,8 @@ var AdapterDefs = []AdapterDef{
 			{Capability: CapabilityVideo, Params: volcenVideoParams()},
 			{Capability: CapabilityVideoI2V, Params: volcenVideoParams()},
 			{Capability: CapabilityVideoV2V, Params: volcenVideoParams()},
+			{Capability: CapabilityAudioTTS, Params: volcenTTSParams()},
+			{Capability: CapabilityAudioSTT, Params: volcenASRParams()},
 		},
 	},
 	{
@@ -533,6 +678,8 @@ var AdapterDefs = []AdapterDef{
 			{Capability: CapabilityImageEdit, Params: geminiImageParams()},
 			{Capability: CapabilityVideo, Params: geminiVideoParams()},
 			{Capability: CapabilityVideoI2V, Params: geminiVideoParams()},
+			{Capability: CapabilityAudioTTS, Params: geminiTTSParams()},
+			{Capability: CapabilityAudioMusic, Params: geminiMusicParams()},
 		},
 	},
 	{
@@ -548,6 +695,7 @@ var AdapterDefs = []AdapterDef{
 			{Capability: CapabilityVideo, Params: dashScopeVideoParams()},
 			{Capability: CapabilityVideoI2V, Params: dashScopeVideoParams()},
 			{Capability: CapabilityVideoV2V, Params: dashScopeVideoParams()},
+			{Capability: CapabilityAudioTTS, Params: dashScopeTTSParams()},
 		},
 	},
 	{
@@ -576,8 +724,76 @@ var AdapterDefs = []AdapterDef{
 		ParamSets: []AdapterParamSet{
 			{Capability: CapabilityAudioTTS, Params: elevenLabsTTSParams()},
 			{Capability: CapabilityAudioSTT, Params: elevenLabsSTTParams()},
+			{Capability: CapabilityVoiceClone, Params: voiceCloneParams()},
+			{Capability: CapabilityVoiceDesign, Params: voiceDesignParams()},
 		},
 	},
+	{
+		AdapterType:    AdapterMiniMax,
+		DisplayName:    "MiniMax",
+		Description:    "MiniMax 官方语音接口，支持 Speech 系列文本转语音",
+		DefaultBaseURL: "https://api.minimax.io/v1",
+		CredFields: []CredField{
+			{Key: "api_key", Label: "API Key", Required: true},
+			{Key: "base_url", Label: "Base URL（可选，用于代理）", Required: false},
+		},
+		ParamSets: []AdapterParamSet{
+			{Capability: CapabilityAudioTTS, Params: miniMaxTTSParams()},
+		},
+	},
+	{
+		AdapterType:    AdapterMureka,
+		DisplayName:    "Mureka",
+		Description:    "Mureka 官方音乐生成接口，支持歌曲和纯音乐异步任务",
+		DefaultBaseURL: "https://api.mureka.ai",
+		CredFields: []CredField{
+			{Key: "api_key", Label: "API Key", Required: true},
+			{Key: "base_url", Label: "Base URL（可选，用于代理）", Required: false},
+		},
+		ParamSets: []AdapterParamSet{
+			{Capability: CapabilityAudioMusic, Params: murekaMusicParams()},
+		},
+	},
+	{
+		AdapterType:    AdapterStability,
+		DisplayName:    "Stability AI",
+		Description:    "Stability AI 官方 Stable Audio 接口，支持音乐和音效生成",
+		DefaultBaseURL: "https://api.stability.ai",
+		CredFields: []CredField{
+			{Key: "api_key", Label: "API Key", Required: true},
+			{Key: "base_url", Label: "Base URL（可选，用于代理）", Required: false},
+		},
+		ParamSets: []AdapterParamSet{
+			{Capability: CapabilityAudioMusic, Params: stabilityAudioParams()},
+			{Capability: CapabilityAudioSFX, Params: stabilityAudioParams()},
+		},
+	},
+}
+
+func murekaMusicParams() []ParamDef {
+	return []ParamDef{
+		{Key: "duration", Label: "时长(秒)", Type: "select",
+			Options: []string{"30", "60", "120", "180"}, Default: "60"},
+		{Key: "output_format", Label: "音频格式", Type: "select",
+			Options: []string{"mp3", "wav"}, Default: "mp3"},
+		{Key: "lyrics", Label: "歌词", Type: "text", Default: ""},
+		{Key: "poll_timeout_ms", Label: "轮询超时(ms)", Type: "number", Default: 180000, Min: 1000, Max: 900000, Step: 1000},
+		{Key: "poll_interval_ms", Label: "轮询间隔(ms)", Type: "number", Default: 2000, Min: 250, Max: 30000, Step: 250},
+	}
+}
+
+func stabilityAudioParams() []ParamDef {
+	return []ParamDef{
+		{Key: "duration", Label: "时长(秒)", Type: "select",
+			Options: []string{"5", "10", "30", "60", "120", "180", "360"}, Default: "30"},
+		{Key: "output_format", Label: "音频格式", Type: "select",
+			Options: []string{"mp3", "wav"}, Default: "mp3"},
+		{Key: "steps", Label: "推理步数", Type: "number", Default: 8, Min: 1, Max: 100, Step: 1},
+		{Key: "cfg_scale", Label: "提示词强度", Type: "number", Default: 1, Min: 0, Max: 20, Step: 0.1},
+		{Key: "seed", Label: "种子", Type: "number", Default: 0, Min: 0, Max: 4294967295, Step: 1},
+		{Key: "poll_timeout_ms", Label: "轮询超时(ms)", Type: "number", Default: 600000, Min: 1000, Max: 1800000, Step: 1000},
+		{Key: "poll_interval_ms", Label: "轮询间隔(ms)", Type: "number", Default: 10000, Min: 1000, Max: 60000, Step: 1000},
+	}
 }
 
 func volcenSeedream3Params() []ParamDef {
@@ -685,6 +901,8 @@ func CatalogTemplates() []CatalogTemplate {
 			DisplayName:          def.DisplayName,
 			Capabilities:         def.Capabilities,
 			AdapterType:          def.AdapterType,
+			SourceStatus:         def.SourceStatus,
+			APIKinds:             NormalizeModelAPIKinds(def.APIKinds),
 			AcceptsImageInput:    def.AcceptsImageInput,
 			MaxInputImages:       def.MaxInputImages,
 			MaxInputVideos:       def.MaxInputVideos,

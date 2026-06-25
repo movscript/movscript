@@ -70,7 +70,7 @@ func TestAIServiceModelCatalogContractMergesLogicalModels(t *testing.T) {
 		t.Fatalf("ListModels(provider variants) error = %v", err)
 	}
 	if len(variants) != 2 || variants[0].ProviderName == "" || variants[0].ProviderID == "" || variants[0].ProviderModelID == "" {
-		t.Fatalf("provider variant descriptors = %#v, want per-provider lane metadata without legacy runtime model id", variants)
+		t.Fatalf("provider variant descriptors = %#v, want per-provider target metadata without legacy runtime model id", variants)
 	}
 }
 
@@ -171,8 +171,8 @@ func TestAIServiceModelCatalogUsesCatalogEntriesAndRouteBindings(t *testing.T) {
 		t.Fatalf("create priority catalog entry: %v", err)
 	}
 	bindings := []persistencemodel.AIModelRouteBinding{
-		{CatalogEntryID: defaultEntry.ID, SourceType: persistencemodel.ModelRouteSourceNewAPI, RouteGroup: "default", ProviderID: persistencemodel.ModelRouteSourceNewAPI, ProviderModelID: "kling-v2", IsEnabled: true, Priority: 1, CapacityWeight: 1},
-		{CatalogEntryID: priorityEntry.ID, SourceType: persistencemodel.ModelRouteSourceNewAPI, RouteGroup: "priority", ProviderID: persistencemodel.ModelRouteSourceNewAPI, ProviderModelID: "kling-v2-master", IsEnabled: true, Priority: 10, CapacityWeight: 2},
+		{CatalogEntryID: defaultEntry.ID, SourceType: persistencemodel.ModelRouteSourceRelayGateway, RouteGroup: "default", ProviderID: persistencemodel.ModelRouteSourceRelayGateway, ProviderModelID: "kling-v2", IsEnabled: true, Priority: 1, CapacityWeight: 1},
+		{CatalogEntryID: priorityEntry.ID, SourceType: persistencemodel.ModelRouteSourceRelayGateway, RouteGroup: "priority", ProviderID: persistencemodel.ModelRouteSourceRelayGateway, ProviderModelID: "kling-v2-master", IsEnabled: true, Priority: 10, CapacityWeight: 2},
 	}
 	if err := db.Create(&bindings).Error; err != nil {
 		t.Fatalf("create route bindings: %v", err)
@@ -234,8 +234,8 @@ func TestAIServiceModelCatalogUsesCatalogEntriesAndRouteBindings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveModelRoute(catalog entry id) error = %v", err)
 	}
-	if routeByEntryID.CatalogEntryID != priorityEntry.ID || routeByEntryID.SourceType != persistencemodel.ModelRouteSourceNewAPI || routeByEntryID.ProviderModelID != "kling-v2-master" {
-		t.Fatalf("catalog entry route = %#v, want new-api binding route by catalog entry id", routeByEntryID)
+	if routeByEntryID.CatalogEntryID != priorityEntry.ID || routeByEntryID.SourceType != persistencemodel.ModelRouteSourceRelayGateway || routeByEntryID.ProviderModelID != "kling-v2-master" {
+		t.Fatalf("catalog entry route = %#v, want relay gateway binding route by catalog entry id", routeByEntryID)
 	}
 }
 
@@ -255,7 +255,7 @@ func TestAIServiceListModelsDoesNotFallbackToLegacyConfigsWhenCatalogExists(t *t
 	}
 	if err := db.Create(&persistencemodel.AIModelRouteBinding{
 		CatalogEntryID: entry.ID,
-		SourceType:     persistencemodel.ModelRouteSourceNewAPI,
+		SourceType:     persistencemodel.ModelRouteSourceRelayGateway,
 		RouteGroup:     "default",
 		IsEnabled:      true,
 		CapacityWeight: 1,
@@ -303,7 +303,7 @@ func TestAIServiceGetAnyTextModelUsesCatalogRoutesWithoutLegacyModelConfigTable(
 	}
 	if err := db.Create(&persistencemodel.AIModelRouteBinding{
 		CatalogEntryID: entry.ID,
-		SourceType:     persistencemodel.ModelRouteSourceNewAPI,
+		SourceType:     persistencemodel.ModelRouteSourceRelayGateway,
 		RouteGroup:     "default",
 		IsEnabled:      true,
 		Priority:       10,
@@ -338,7 +338,7 @@ func TestAIServiceGetAnyTextModelDoesNotFallbackToLegacyConfigsWhenCatalogExists
 	}
 	if err := db.Create(&persistencemodel.AIModelRouteBinding{
 		CatalogEntryID: entry.ID,
-		SourceType:     persistencemodel.ModelRouteSourceNewAPI,
+		SourceType:     persistencemodel.ModelRouteSourceRelayGateway,
 		RouteGroup:     "default",
 		IsEnabled:      true,
 		Priority:       1,
@@ -572,7 +572,7 @@ func TestCatalogRouteDefinitionUsesCatalogRuntimeModel(t *testing.T) {
 
 	definition, handled, err := service.catalogRouteDefinition(context.Background(), ModelRoute{
 		CatalogEntryID:  entry.ID,
-		SourceType:      persistencemodel.ModelRouteSourceNewAPI,
+		SourceType:      persistencemodel.ModelRouteSourceRelayGateway,
 		ProviderModelID: "provider-writer-v2",
 	}, CapabilityText)
 	if err != nil {
@@ -882,7 +882,7 @@ func TestAIServiceResolveModelUsesCatalogRouteWithoutLegacyModelConfigTable(t *t
 		IsEnabled:     true,
 		Capabilities:  CapabilityText,
 	}
-	newAPIEntry := persistencemodel.AIModelCatalogEntry{
+	relayGatewayEntry := persistencemodel.AIModelCatalogEntry{
 		PublicModelID: "priority-writer",
 		DisplayName:   "Priority Writer",
 		IsEnabled:     true,
@@ -891,8 +891,8 @@ func TestAIServiceResolveModelUsesCatalogRouteWithoutLegacyModelConfigTable(t *t
 	if err := db.Create(&localEntry).Error; err != nil {
 		t.Fatalf("create local catalog entry: %v", err)
 	}
-	if err := db.Create(&newAPIEntry).Error; err != nil {
-		t.Fatalf("create new-api catalog entry: %v", err)
+	if err := db.Create(&relayGatewayEntry).Error; err != nil {
+		t.Fatalf("create relay gateway catalog entry: %v", err)
 	}
 	if err := db.Create(&persistencemodel.AIModelRouteBinding{
 		CatalogEntryID:  localEntry.ID,
@@ -906,15 +906,15 @@ func TestAIServiceResolveModelUsesCatalogRouteWithoutLegacyModelConfigTable(t *t
 		t.Fatalf("create local route binding: %v", err)
 	}
 	if err := db.Create(&persistencemodel.AIModelRouteBinding{
-		CatalogEntryID:  newAPIEntry.ID,
-		SourceType:      persistencemodel.ModelRouteSourceNewAPI,
+		CatalogEntryID:  relayGatewayEntry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceRelayGateway,
 		RouteGroup:      "priority",
-		ProviderID:      persistencemodel.ModelRouteSourceNewAPI,
-		ProviderModelID: "newapi-writer-v2",
+		ProviderID:      persistencemodel.ModelRouteSourceRelayGateway,
+		ProviderModelID: "relay-writer-v2",
 		IsEnabled:       true,
 		CapacityWeight:  1,
 	}).Error; err != nil {
-		t.Fatalf("create new-api route binding: %v", err)
+		t.Fatalf("create relay gateway route binding: %v", err)
 	}
 	service := NewAIService(db, NewRegistry(db, nil))
 
@@ -929,14 +929,14 @@ func TestAIServiceResolveModelUsesCatalogRouteWithoutLegacyModelConfigTable(t *t
 		t.Fatalf("local catalog binding = %#v, want provider metadata from credential without legacy config", localBinding)
 	}
 
-	newAPIBinding, err := service.ResolveModel(WithProviderRouteGroup(context.Background(), "priority"), providercontract.AIModelResolveRequest{
+	relayGatewayBinding, err := service.ResolveModel(WithProviderRouteGroup(context.Background(), "priority"), providercontract.AIModelResolveRequest{
 		ModelID:    "priority-writer",
 		Capability: CapabilityText,
 	})
 	if err != nil {
-		t.Fatalf("ResolveModel(new-api catalog route) error = %v", err)
+		t.Fatalf("ResolveModel(relay gateway catalog route) error = %v", err)
 	}
-	if newAPIBinding.CatalogEntryID != newAPIEntry.ID || newAPIBinding.ProviderModelID != "newapi-writer-v2" || newAPIBinding.AdapterType != persistencemodel.ModelRouteSourceNewAPI || newAPIBinding.ProviderName != "priority" {
-		t.Fatalf("new-api catalog binding = %#v, want route source/group without legacy config", newAPIBinding)
+	if relayGatewayBinding.CatalogEntryID != relayGatewayEntry.ID || relayGatewayBinding.ProviderModelID != "relay-writer-v2" || relayGatewayBinding.AdapterType != persistencemodel.ModelRouteSourceRelayGateway || relayGatewayBinding.ProviderName != "priority" {
+		t.Fatalf("relay gateway catalog binding = %#v, want route source/group without legacy config", relayGatewayBinding)
 	}
 }

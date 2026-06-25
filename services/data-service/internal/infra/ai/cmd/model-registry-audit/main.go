@@ -132,6 +132,10 @@ func auditTemplates(templates []templateSource, maxAgeDays int) []finding {
 			findings = append(findings, findingFor(template, "info", sourceURL, "template is marked deprecated"))
 		case "unofficial":
 			findings = append(findings, findingFor(template, "warning", sourceURL, "template has no official source"))
+		case "observed":
+			findings = append(findings, findingFor(template, "warning", sourceURL, "model id is observed and still needs official confirmation"))
+		case "template_only":
+			findings = append(findings, findingFor(template, "info", sourceURL, "template is listed for discovery but does not generate combo routes"))
 		default:
 			findings = append(findings, findingFor(template, "error", sourceURL, "source.status is invalid or missing"))
 		}

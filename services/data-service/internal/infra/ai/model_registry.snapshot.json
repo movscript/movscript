@@ -23,6 +23,63 @@
     }
   },
   {
+    "id": "mureka:song-generation",
+    "lab": "mureka",
+    "model_id": "song_generation",
+    "adapter_type": "mureka",
+    "capabilities": [
+      "audio_music"
+    ],
+    "param_keys": [
+      "duration",
+      "output_format"
+    ],
+    "source": {
+      "url": "https://platform.mureka.ai/docs/api/operations/post-v1-song-generate.html",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "open-source-audio:musicgen",
+    "lab": "open-source-audio",
+    "model_id": "musicgen",
+    "adapter_type": "local",
+    "capabilities": [
+      "audio_music"
+    ],
+    "param_keys": [
+      "duration",
+      "output_format",
+      "negative_prompt"
+    ],
+    "source": {
+      "url": "https://github.com/facebookresearch/audiocraft",
+      "verified_at": "2026-06-25",
+      "status": "template_only"
+    }
+  },
+  {
+    "id": "stability:stable-audio-3",
+    "lab": "stability-audio",
+    "model_id": "stable-audio-3",
+    "adapter_type": "stability",
+    "capabilities": [
+      "audio_music",
+      "audio_sfx"
+    ],
+    "param_keys": [
+      "duration",
+      "output_format",
+      "negative_prompt"
+    ],
+    "source": {
+      "url": "https://platform.stability.ai/docs/api-reference#tag/Stable-Audio/paths/~1v2beta~1audio~1stable-audio~1text-to-audio/post",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
     "id": "elevenlabs:eleven-multilingual-v2-tts",
     "lab": "elevenlabs",
     "model_id": "eleven_multilingual_v2",
@@ -41,6 +98,64 @@
     ],
     "source": {
       "url": "https://elevenlabs.io/docs/api-reference/text-to-speech/convert",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "mureka:instrumental-generation",
+    "lab": "mureka",
+    "model_id": "instrumental_generation",
+    "adapter_type": "mureka",
+    "capabilities": [
+      "audio_music"
+    ],
+    "param_keys": [
+      "duration",
+      "output_format"
+    ],
+    "source": {
+      "url": "https://platform.mureka.ai/docs/api/operations/post-v1-instrumental-generate.html",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "open-source-audio:ace-step",
+    "lab": "open-source-audio",
+    "model_id": "ace-step",
+    "adapter_type": "local",
+    "capabilities": [
+      "audio_music"
+    ],
+    "param_keys": [
+      "duration",
+      "output_format",
+      "negative_prompt"
+    ],
+    "source": {
+      "url": "https://github.com/ace-step/ACE-Step",
+      "verified_at": "2026-06-25",
+      "status": "template_only"
+    }
+  },
+  {
+    "id": "stability:stable-audio-2-5",
+    "lab": "stability-audio",
+    "model_id": "stable-audio-2.5",
+    "adapter_type": "stability",
+    "capabilities": [
+      "audio_music",
+      "audio_sfx"
+    ],
+    "param_keys": [
+      "duration",
+      "output_format",
+      "steps",
+      "cfg_scale"
+    ],
+    "source": {
+      "url": "https://platform.stability.ai/docs/api-reference#tag/Stable-Audio-2/paths/~1v2beta~1audio~1stable-audio-2~1text-to-audio/post",
       "verified_at": "2026-06-25",
       "status": "verified"
     }
@@ -69,6 +184,62 @@
     }
   },
   {
+    "id": "mureka:lyrics-generation",
+    "lab": "mureka",
+    "model_id": "lyrics_generation",
+    "adapter_type": "mureka",
+    "capabilities": [
+      "text"
+    ],
+    "api_kinds": [
+      "openai_chat_completions"
+    ],
+    "source": {
+      "url": "https://platform.mureka.ai/docs/api/operations/post-v1-lyrics-generate.html",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "open-source-audio:ace-step-1-5",
+    "lab": "open-source-audio",
+    "model_id": "ace-step-1.5",
+    "adapter_type": "local",
+    "capabilities": [
+      "audio_music"
+    ],
+    "param_keys": [
+      "duration",
+      "output_format",
+      "negative_prompt"
+    ],
+    "source": {
+      "url": "https://github.com/ace-step/ACE-Step",
+      "verified_at": "2026-06-25",
+      "status": "template_only"
+    }
+  },
+  {
+    "id": "stability:stable-audio-2",
+    "lab": "stability-audio",
+    "model_id": "stable-audio-2",
+    "adapter_type": "stability",
+    "capabilities": [
+      "audio_music",
+      "audio_sfx"
+    ],
+    "param_keys": [
+      "duration",
+      "output_format",
+      "negative_prompt"
+    ],
+    "source": {
+      "url": "https://platform.stability.ai/docs/api-reference#tag/Stable-Audio-2/paths/~1v2beta~1audio~1stable-audio-2~1text-to-audio/post",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
     "id": "elevenlabs:eleven-flash-v2-tts",
     "lab": "elevenlabs",
     "model_id": "eleven_flash_v2",
@@ -92,6 +263,23 @@
     }
   },
   {
+    "id": "mureka:song-extension",
+    "lab": "mureka",
+    "model_id": "song_extension",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "audio_music"
+    ],
+    "param_keys": [
+      "duration"
+    ],
+    "source": {
+      "url": "https://platform.mureka.ai/",
+      "verified_at": "2026-06-25",
+      "status": "template_only"
+    }
+  },
+  {
     "id": "elevenlabs:scribe-v2",
     "lab": "elevenlabs",
     "model_id": "scribe_v2",
@@ -110,6 +298,25 @@
     }
   },
   {
+    "id": "elevenlabs:scribe-v2-realtime",
+    "lab": "elevenlabs",
+    "model_id": "scribe_v2_realtime",
+    "adapter_type": "elevenlabs",
+    "capabilities": [
+      "audio_transcribe",
+      "audio_chat"
+    ],
+    "param_keys": [
+      "diarize",
+      "tag_audio_events"
+    ],
+    "source": {
+      "url": "https://elevenlabs.io/docs/models",
+      "verified_at": "2026-06-25",
+      "status": "template_only"
+    }
+  },
+  {
     "id": "openai:gpt-5.2",
     "lab": "openai",
     "model_id": "gpt-5.2",
@@ -120,6 +327,26 @@
     ],
     "source": {
       "url": "https://developers.openai.com/api/docs/models",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "elevenlabs:music-v2",
+    "lab": "elevenlabs",
+    "model_id": "music_v2",
+    "adapter_type": "elevenlabs",
+    "capabilities": [
+      "audio_music"
+    ],
+    "param_keys": [
+      "duration",
+      "output_format",
+      "force_instrumental",
+      "seed"
+    ],
+    "source": {
+      "url": "https://elevenlabs.io/docs/api-reference/music/stream",
       "verified_at": "2026-06-25",
       "status": "verified"
     }
@@ -139,6 +366,26 @@
     }
   },
   {
+    "id": "elevenlabs:music-v1",
+    "lab": "elevenlabs",
+    "model_id": "music_v1",
+    "adapter_type": "elevenlabs",
+    "capabilities": [
+      "audio_music"
+    ],
+    "param_keys": [
+      "duration",
+      "output_format",
+      "force_instrumental",
+      "seed"
+    ],
+    "source": {
+      "url": "https://elevenlabs.io/docs/api-reference/music/stream",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
     "id": "openai:gpt-4o-mini",
     "lab": "openai",
     "model_id": "gpt-4o-mini",
@@ -148,6 +395,26 @@
     ],
     "source": {
       "url": "https://developers.openai.com/api/docs/models",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "elevenlabs:text-to-sound-v2",
+    "lab": "elevenlabs",
+    "model_id": "eleven_text_to_sound_v2",
+    "adapter_type": "elevenlabs",
+    "capabilities": [
+      "audio_sfx"
+    ],
+    "param_keys": [
+      "duration",
+      "output_format",
+      "loop",
+      "prompt_influence"
+    ],
+    "source": {
+      "url": "https://elevenlabs.io/docs/api-reference/text-to-sound-effects/convert",
       "verified_at": "2026-06-25",
       "status": "verified"
     }
@@ -167,6 +434,20 @@
     }
   },
   {
+    "id": "elevenlabs:instant-voice-clone",
+    "lab": "elevenlabs",
+    "model_id": "instant_voice_clone",
+    "adapter_type": "elevenlabs",
+    "capabilities": [
+      "voice_clone"
+    ],
+    "source": {
+      "url": "https://elevenlabs.io/docs/overview/capabilities/voices",
+      "verified_at": "2026-06-25",
+      "status": "template_only"
+    }
+  },
+  {
     "id": "openai:gpt-4.1-mini",
     "lab": "openai",
     "model_id": "gpt-4.1-mini",
@@ -178,6 +459,20 @@
       "url": "https://developers.openai.com/api/docs/models",
       "verified_at": "2026-06-25",
       "status": "verified"
+    }
+  },
+  {
+    "id": "elevenlabs:professional-voice-clone",
+    "lab": "elevenlabs",
+    "model_id": "professional_voice_clone",
+    "adapter_type": "elevenlabs",
+    "capabilities": [
+      "voice_clone"
+    ],
+    "source": {
+      "url": "https://elevenlabs.io/docs/overview/capabilities/voices",
+      "verified_at": "2026-06-25",
+      "status": "template_only"
     }
   },
   {
@@ -193,6 +488,20 @@
       "url": "https://developers.openai.com/api/docs/models",
       "verified_at": "2026-06-25",
       "status": "deprecated"
+    }
+  },
+  {
+    "id": "elevenlabs:voice-design",
+    "lab": "elevenlabs",
+    "model_id": "voice_design",
+    "adapter_type": "elevenlabs",
+    "capabilities": [
+      "voice_design"
+    ],
+    "source": {
+      "url": "https://elevenlabs.io/docs/overview/capabilities/voices",
+      "verified_at": "2026-06-25",
+      "status": "template_only"
     }
   },
   {
@@ -370,6 +679,25 @@
     }
   },
   {
+    "id": "openai:gpt-4o-transcribe-diarize",
+    "lab": "openai",
+    "model_id": "gpt-4o-transcribe-diarize",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "audio_transcribe"
+    ],
+    "param_keys": [
+      "response_format",
+      "prompt",
+      "temperature"
+    ],
+    "source": {
+      "url": "https://developers.openai.com/api/docs/guides/speech-to-text",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
     "id": "anthropic:claude-opus-4",
     "lab": "anthropic",
     "model_id": "claude-opus-4-5-20251101",
@@ -381,6 +709,45 @@
       "url": "https://platform.claude.com/docs/en/about-claude/models/overview",
       "verified_at": "2026-06-25",
       "status": "verified"
+    }
+  },
+  {
+    "id": "openai:whisper-1",
+    "lab": "openai",
+    "model_id": "whisper-1",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "audio_transcribe",
+      "audio_translate"
+    ],
+    "param_keys": [
+      "response_format",
+      "prompt",
+      "temperature"
+    ],
+    "source": {
+      "url": "https://developers.openai.com/api/docs/guides/speech-to-text",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "openai:tts-1",
+    "lab": "openai",
+    "model_id": "tts-1",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "audio_tts"
+    ],
+    "param_keys": [
+      "voice",
+      "response_format",
+      "speed"
+    ],
+    "source": {
+      "url": "https://developers.openai.com/api/docs/guides/text-to-speech",
+      "verified_at": "2026-06-25",
+      "status": "deprecated"
     }
   },
   {
@@ -398,6 +765,25 @@
     }
   },
   {
+    "id": "openai:tts-1-hd",
+    "lab": "openai",
+    "model_id": "tts-1-hd",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "audio_tts"
+    ],
+    "param_keys": [
+      "voice",
+      "response_format",
+      "speed"
+    ],
+    "source": {
+      "url": "https://developers.openai.com/api/docs/guides/text-to-speech",
+      "verified_at": "2026-06-25",
+      "status": "deprecated"
+    }
+  },
+  {
     "id": "volcengine:doubao-seed-2-0-lite",
     "lab": "seed",
     "model_id": "doubao-seed-2-0-lite-260215",
@@ -409,6 +795,20 @@
       "url": "https://www.volcengine.com/docs/82379",
       "verified_at": "2026-06-25",
       "status": "verified"
+    }
+  },
+  {
+    "id": "openai:gpt-4o-mini-audio-preview",
+    "lab": "openai",
+    "model_id": "gpt-4o-mini-audio-preview",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "audio_chat"
+    ],
+    "source": {
+      "url": "https://developers.openai.com/api/docs/guides/audio",
+      "verified_at": "2026-06-25",
+      "status": "template_only"
     }
   },
   {
@@ -894,6 +1294,20 @@
     }
   },
   {
+    "id": "volcengine:seed-tts-1-1",
+    "lab": "seed",
+    "model_id": "seed-tts-1.1",
+    "adapter_type": "volcen",
+    "capabilities": [
+      "audio_tts"
+    ],
+    "source": {
+      "url": "https://www.volcengine.com/docs/6561/1257584?lang=zh",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
     "id": "kling:v1-6-standard-t2v",
     "lab": "kling",
     "model_id": "kling-v1-6",
@@ -907,6 +1321,20 @@
     ],
     "source": {
       "url": "https://kling.ai/document-api/apiReference/model/textToVideo",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "volcengine:seed-tts-1-0",
+    "lab": "seed",
+    "model_id": "seed-tts-1.0",
+    "adapter_type": "volcen",
+    "capabilities": [
+      "audio_tts"
+    ],
+    "source": {
+      "url": "https://www.volcengine.com/docs/6561/1257584?lang=zh",
       "verified_at": "2026-06-25",
       "status": "verified"
     }
@@ -930,6 +1358,20 @@
     }
   },
   {
+    "id": "volcengine:seed-tts-1-0-concurr",
+    "lab": "seed",
+    "model_id": "seed-tts-1.0-concurr",
+    "adapter_type": "volcen",
+    "capabilities": [
+      "audio_tts"
+    ],
+    "source": {
+      "url": "https://www.volcengine.com/docs/6561/1257584?lang=zh",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
     "id": "kling:v1-5-standard-i2v",
     "lab": "kling",
     "model_id": "kling-v1-5",
@@ -943,6 +1385,30 @@
     ],
     "source": {
       "url": "https://kling.ai/document-api/apiReference/model/textToVideo",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "volcengine:doubao-seed-asr-2-0",
+    "lab": "seed",
+    "model_id": "volc.seedasr.auc",
+    "adapter_type": "volcen",
+    "capabilities": [
+      "audio_transcribe"
+    ],
+    "param_keys": [
+      "format",
+      "language",
+      "enable_itn",
+      "enable_punc",
+      "show_utterances",
+      "enable_speaker_info",
+      "poll_timeout_ms",
+      "poll_interval_ms"
+    ],
+    "source": {
+      "url": "https://www.volcengine.com/docs/6561/1354868",
       "verified_at": "2026-06-25",
       "status": "verified"
     }
@@ -969,6 +1435,20 @@
     }
   },
   {
+    "id": "volcengine:doubao-realtime-voice",
+    "lab": "seed",
+    "model_id": "Doubao-RealtimeVoice",
+    "adapter_type": "volcen",
+    "capabilities": [
+      "audio_chat"
+    ],
+    "source": {
+      "url": "https://ai.volcengine.com/",
+      "verified_at": "2026-06-25",
+      "status": "template_only"
+    }
+  },
+  {
     "id": "vidu:q1",
     "lab": "vidu",
     "model_id": "viduq1",
@@ -991,6 +1471,20 @@
       "url": "https://platform.vidu.com/docs/reference-to-video",
       "verified_at": "2026-06-25",
       "status": "verified"
+    }
+  },
+  {
+    "id": "volcengine:seed-voice-replication-2-0",
+    "lab": "seed",
+    "model_id": "seed-voice-replication-2.0",
+    "adapter_type": "volcen",
+    "capabilities": [
+      "voice_clone"
+    ],
+    "source": {
+      "url": "https://www.volcengine.com/product/tts",
+      "verified_at": "2026-06-25",
+      "status": "template_only"
     }
   },
   {
@@ -1154,6 +1648,20 @@
     "source": {
       "url": "https://www.alibabacloud.com/help/en/model-studio/qwen-image-api",
       "verified_at": "2026-06-25",
+      "status": "template_only"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-tts-flash",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-tts-flash",
+    "adapter_type": "dashscope",
+    "capabilities": [
+      "audio_tts"
+    ],
+    "source": {
+      "url": "https://www.alibabacloud.com/help/en/model-studio/qwen-tts-api",
+      "verified_at": "2026-06-25",
       "status": "verified"
     }
   },
@@ -1173,6 +1681,20 @@
     }
   },
   {
+    "id": "dashscope:qwen3-tts-instruct-flash",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-tts-instruct-flash",
+    "adapter_type": "dashscope",
+    "capabilities": [
+      "audio_tts"
+    ],
+    "source": {
+      "url": "https://www.alibabacloud.com/help/en/model-studio/qwen-tts-api",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
     "id": "deepseek:deepseek-chat",
     "lab": "deepseek",
     "model_id": "deepseek-chat",
@@ -1184,6 +1706,20 @@
       "url": "https://api-docs.deepseek.com/quick_start/pricing",
       "verified_at": "2026-06-25",
       "status": "deprecated"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-tts-flash-realtime",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-tts-flash-realtime",
+    "adapter_type": "dashscope",
+    "capabilities": [
+      "audio_tts"
+    ],
+    "source": {
+      "url": "https://www.alibabacloud.com/help/en/model-studio/qwen-tts-api",
+      "verified_at": "2026-06-25",
+      "status": "template_only"
     }
   },
   {
@@ -1202,6 +1738,20 @@
     }
   },
   {
+    "id": "dashscope:qwen3-tts-instruct-flash-realtime",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-tts-instruct-flash-realtime",
+    "adapter_type": "dashscope",
+    "capabilities": [
+      "audio_tts"
+    ],
+    "source": {
+      "url": "https://www.alibabacloud.com/help/en/model-studio/qwen-tts-api",
+      "verified_at": "2026-06-25",
+      "status": "template_only"
+    }
+  },
+  {
     "id": "zai:glm-5.2",
     "lab": "zai",
     "model_id": "glm-5.2",
@@ -1217,6 +1767,20 @@
     }
   },
   {
+    "id": "dashscope:cosyvoice-v3-5-plus",
+    "lab": "alibaba-dashscope",
+    "model_id": "cosyvoice-v3.5-plus",
+    "adapter_type": "dashscope",
+    "capabilities": [
+      "audio_tts"
+    ],
+    "source": {
+      "url": "https://help.aliyun.com/en/model-studio/cosyvoice-tts-http-api",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
     "id": "zai:glm-5.1",
     "lab": "zai",
     "model_id": "glm-5.1",
@@ -1227,6 +1791,20 @@
     ],
     "source": {
       "url": "https://docs.z.ai/guides/llm/glm-5.1",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "dashscope:cosyvoice-v3-5-flash",
+    "lab": "alibaba-dashscope",
+    "model_id": "cosyvoice-v3.5-flash",
+    "adapter_type": "dashscope",
+    "capabilities": [
+      "audio_tts"
+    ],
+    "source": {
+      "url": "https://help.aliyun.com/en/model-studio/cosyvoice-tts-http-api",
       "verified_at": "2026-06-25",
       "status": "verified"
     }
@@ -1257,6 +1835,20 @@
     ],
     "source": {
       "url": "https://docs.z.ai/guides/llm/glm-5",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "dashscope:cosyvoice-v3-plus",
+    "lab": "alibaba-dashscope",
+    "model_id": "cosyvoice-v3-plus",
+    "adapter_type": "dashscope",
+    "capabilities": [
+      "audio_tts"
+    ],
+    "source": {
+      "url": "https://help.aliyun.com/en/model-studio/cosyvoice-tts-http-api",
       "verified_at": "2026-06-25",
       "status": "verified"
     }
@@ -1307,6 +1899,20 @@
     }
   },
   {
+    "id": "dashscope:cosyvoice-v3-flash",
+    "lab": "alibaba-dashscope",
+    "model_id": "cosyvoice-v3-flash",
+    "adapter_type": "dashscope",
+    "capabilities": [
+      "audio_tts"
+    ],
+    "source": {
+      "url": "https://help.aliyun.com/en/model-studio/cosyvoice-tts-http-api",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
     "id": "gemini:gemini-2-0-flash",
     "lab": "google-gemini",
     "model_id": "gemini-2.0-flash",
@@ -1348,6 +1954,20 @@
       "url": "https://docs.z.ai/guides/llm/glm-4.6",
       "verified_at": "2026-06-25",
       "status": "verified"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-omni-flash",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-omni-flash",
+    "adapter_type": "dashscope",
+    "capabilities": [
+      "audio_chat"
+    ],
+    "source": {
+      "url": "https://www.alibabacloud.com/help/en/model-studio/qwen3-omni",
+      "verified_at": "2026-06-25",
+      "status": "template_only"
     }
   },
   {
@@ -1395,6 +2015,20 @@
       "url": "https://docs.z.ai/guides/llm/glm-4.5",
       "verified_at": "2026-06-25",
       "status": "verified"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-omni-flash-2025-09-15",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-omni-flash-2025-09-15",
+    "adapter_type": "dashscope",
+    "capabilities": [
+      "audio_chat"
+    ],
+    "source": {
+      "url": "https://www.alibabacloud.com/help/en/model-studio/qwen3-omni",
+      "verified_at": "2026-06-25",
+      "status": "template_only"
     }
   },
   {
@@ -1503,6 +2137,20 @@
     }
   },
   {
+    "id": "gemini:gemini-3-1-flash-tts-preview",
+    "lab": "google-gemini",
+    "model_id": "gemini-3.1-flash-tts-preview",
+    "adapter_type": "gemini",
+    "capabilities": [
+      "audio_tts"
+    ],
+    "source": {
+      "url": "https://ai.google.dev/gemini-api/docs/speech-generation",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
     "id": "minimax:MiniMax-M3",
     "lab": "minimax",
     "model_id": "MiniMax-M3",
@@ -1513,6 +2161,20 @@
     ],
     "source": {
       "url": "https://platform.minimax.io/docs/guides/text-generation",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "gemini:gemini-2-5-flash-preview-tts",
+    "lab": "google-gemini",
+    "model_id": "gemini-2.5-flash-preview-tts",
+    "adapter_type": "gemini",
+    "capabilities": [
+      "audio_tts"
+    ],
+    "source": {
+      "url": "https://ai.google.dev/gemini-api/docs/speech-generation",
       "verified_at": "2026-06-25",
       "status": "verified"
     }
@@ -1533,6 +2195,20 @@
     }
   },
   {
+    "id": "gemini:gemini-2-5-pro-preview-tts",
+    "lab": "google-gemini",
+    "model_id": "gemini-2.5-pro-preview-tts",
+    "adapter_type": "gemini",
+    "capabilities": [
+      "audio_tts"
+    ],
+    "source": {
+      "url": "https://ai.google.dev/gemini-api/docs/speech-generation",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
     "id": "minimax:MiniMax-M2.7-highspeed",
     "lab": "minimax",
     "model_id": "MiniMax-M2.7-highspeed",
@@ -1543,6 +2219,24 @@
     ],
     "source": {
       "url": "https://platform.minimax.io/docs/guides/text-generation",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "gemini:lyria-3-clip-preview",
+    "lab": "google-gemini",
+    "model_id": "lyria-3-clip-preview",
+    "adapter_type": "gemini",
+    "capabilities": [
+      "audio_music"
+    ],
+    "param_keys": [
+      "duration",
+      "output_format"
+    ],
+    "source": {
+      "url": "https://ai.google.dev/gemini-api/docs/music-generation",
       "verified_at": "2026-06-25",
       "status": "verified"
     }
@@ -1563,6 +2257,24 @@
     }
   },
   {
+    "id": "gemini:lyria-3-pro-preview",
+    "lab": "google-gemini",
+    "model_id": "lyria-3-pro-preview",
+    "adapter_type": "gemini",
+    "capabilities": [
+      "audio_music"
+    ],
+    "param_keys": [
+      "duration",
+      "output_format"
+    ],
+    "source": {
+      "url": "https://ai.google.dev/gemini-api/docs/music-generation",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
     "id": "minimax:MiniMax-M2.1",
     "lab": "minimax",
     "model_id": "MiniMax-M2.1",
@@ -1575,6 +2287,20 @@
       "url": "https://platform.minimax.io/docs/guides/text-generation",
       "verified_at": "2026-06-25",
       "status": "verified"
+    }
+  },
+  {
+    "id": "google-speech:chirp-3",
+    "lab": "google-gemini",
+    "model_id": "chirp_3",
+    "adapter_type": "gemini",
+    "capabilities": [
+      "audio_transcribe"
+    ],
+    "source": {
+      "url": "https://cloud.google.com/speech-to-text/docs/chirp-model",
+      "verified_at": "2026-06-25",
+      "status": "template_only"
     }
   },
   {
@@ -1593,6 +2319,20 @@
     }
   },
   {
+    "id": "google-speech:chirp-2",
+    "lab": "google-gemini",
+    "model_id": "chirp_2",
+    "adapter_type": "gemini",
+    "capabilities": [
+      "audio_transcribe"
+    ],
+    "source": {
+      "url": "https://cloud.google.com/speech-to-text/docs/chirp-model",
+      "verified_at": "2026-06-25",
+      "status": "template_only"
+    }
+  },
+  {
     "id": "minimax:MiniMax-M2",
     "lab": "minimax",
     "model_id": "MiniMax-M2",
@@ -1605,6 +2345,132 @@
       "url": "https://platform.minimax.io/docs/guides/text-generation",
       "verified_at": "2026-06-25",
       "status": "verified"
+    }
+  },
+  {
+    "id": "minimax:speech-2.8-hd",
+    "lab": "minimax",
+    "model_id": "speech-2.8-hd",
+    "adapter_type": "minimax",
+    "capabilities": [
+      "audio_tts"
+    ],
+    "source": {
+      "url": "https://platform.minimax.io/docs/api-reference/speech-t2a-http",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "minimax:speech-2.8-turbo",
+    "lab": "minimax",
+    "model_id": "speech-2.8-turbo",
+    "adapter_type": "minimax",
+    "capabilities": [
+      "audio_tts"
+    ],
+    "source": {
+      "url": "https://platform.minimax.io/docs/api-reference/speech-t2a-http",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "minimax:speech-2.6-hd",
+    "lab": "minimax",
+    "model_id": "speech-2.6-hd",
+    "adapter_type": "minimax",
+    "capabilities": [
+      "audio_tts"
+    ],
+    "source": {
+      "url": "https://platform.minimax.io/docs/api-reference/speech-t2a-http",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "minimax:speech-2.6-turbo",
+    "lab": "minimax",
+    "model_id": "speech-2.6-turbo",
+    "adapter_type": "minimax",
+    "capabilities": [
+      "audio_tts"
+    ],
+    "source": {
+      "url": "https://platform.minimax.io/docs/api-reference/speech-t2a-http",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "minimax:speech-02-hd",
+    "lab": "minimax",
+    "model_id": "speech-02-hd",
+    "adapter_type": "minimax",
+    "capabilities": [
+      "audio_tts"
+    ],
+    "source": {
+      "url": "https://platform.minimax.io/docs/api-reference/speech-t2a-http",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "minimax:speech-02-turbo",
+    "lab": "minimax",
+    "model_id": "speech-02-turbo",
+    "adapter_type": "minimax",
+    "capabilities": [
+      "audio_tts"
+    ],
+    "source": {
+      "url": "https://platform.minimax.io/docs/api-reference/speech-t2a-http",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "minimax:speech-01-hd",
+    "lab": "minimax",
+    "model_id": "speech-01-hd",
+    "adapter_type": "minimax",
+    "capabilities": [
+      "audio_tts"
+    ],
+    "source": {
+      "url": "https://platform.minimax.io/docs/api-reference/speech-t2a-http",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "minimax:speech-01-turbo",
+    "lab": "minimax",
+    "model_id": "speech-01-turbo",
+    "adapter_type": "minimax",
+    "capabilities": [
+      "audio_tts"
+    ],
+    "source": {
+      "url": "https://platform.minimax.io/docs/api-reference/speech-t2a-http",
+      "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "minimax:mimo-v2-omni",
+    "lab": "minimax",
+    "model_id": "mimo-v2-omni",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "audio_chat"
+    ],
+    "source": {
+      "url": "https://platform.minimax.io/docs",
+      "verified_at": "2026-06-25",
+      "status": "template_only"
     }
   }
 ]

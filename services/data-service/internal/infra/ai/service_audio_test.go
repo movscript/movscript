@@ -124,6 +124,125 @@ func TestCallSubtitleTranslateUsesSubtitleTranslateCapabilityWithCurrentUserCont
 	}
 }
 
+func TestCallAudioTranslateUsesAudioTranslateCapabilityWithCurrentUserContext(t *testing.T) {
+	db := testutil.OpenSQLite(t, "ai-call-audio-translate.db",
+		&persistencemodel.AICredential{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
+		&persistencemodel.UsageReservation{},
+		&persistencemodel.UsageLog{},
+	)
+	cred := persistencemodel.AICredential{
+		AdapterType: AdapterLocal,
+		DisplayName: "Local audio translator",
+		IsEnabled:   true,
+	}
+	if err := db.Create(&cred).Error; err != nil {
+		t.Fatalf("create credential: %v", err)
+	}
+	createAudioCatalogRoute(t, db, cred.ID, "logical-audio-translate", "provider-audio-translate", CapabilityAudioTranslate)
+
+	provider := &audioTranslateProbeProvider{}
+	registry := NewRegistry(db, nil)
+	registry.providerFactory = func(persistencemodel.AICredential, *ModelDef) (Provider, error) {
+		return provider, nil
+	}
+	service := NewAIService(db, registry)
+	route, err := service.ResolveModelRoute(ModelRouteRequest{ModelID: "logical-audio-translate", Capability: CapabilityAudioTranslate})
+	if err != nil {
+		t.Fatalf("ResolveModelRoute() error = %v", err)
+	}
+	resp, err := service.CallAudioTranslateWithRouteUsage(context.Background(), 42, route, media.AudioTranslateRequest{
+		Audio:          []byte("wav"),
+		MimeType:       "audio/wav",
+		TargetLanguage: "en",
+	}, UsageContext{})
+	if err != nil {
+		t.Fatalf("CallAudioTranslateWithRouteUsage() error = %v", err)
+	}
+	if provider.translateCalls != 1 {
+		t.Fatalf("translate calls = %d, want 1", provider.translateCalls)
+	}
+	if provider.userID != 42 {
+		t.Fatalf("provider user id = %d, want current user id", provider.userID)
+	}
+	if provider.model != "provider-audio-translate" {
+		t.Fatalf("audio translate model = %q, want provider model override", provider.model)
+	}
+	if provider.targetLanguage != "en" {
+		t.Fatalf("target language = %q, want en", provider.targetLanguage)
+	}
+	if string(resp.Content) != "translated audio" {
+		t.Fatalf("content = %q, want translated audio response", string(resp.Content))
+	}
+}
+
+func TestCallVoiceProfileUsesVoiceCapabilitiesWithCurrentUserContext(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		capability string
+	}{
+		{name: "clone", capability: CapabilityVoiceClone},
+		{name: "design", capability: CapabilityVoiceDesign},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			db := testutil.OpenSQLite(t, "ai-call-voice-"+tc.name+".db",
+				&persistencemodel.AICredential{},
+				&persistencemodel.AIModelCatalogEntry{},
+				&persistencemodel.AIModelRouteBinding{},
+				&persistencemodel.UsageReservation{},
+				&persistencemodel.UsageLog{},
+			)
+			cred := persistencemodel.AICredential{
+				AdapterType: AdapterLocal,
+				DisplayName: "Local voice",
+				IsEnabled:   true,
+			}
+			if err := db.Create(&cred).Error; err != nil {
+				t.Fatalf("create credential: %v", err)
+			}
+			createAudioCatalogRoute(t, db, cred.ID, "logical-"+tc.capability, "provider-"+tc.capability, tc.capability)
+
+			provider := &voiceProfileProbeProvider{}
+			registry := NewRegistry(db, nil)
+			registry.providerFactory = func(persistencemodel.AICredential, *ModelDef) (Provider, error) {
+				return provider, nil
+			}
+			service := NewAIService(db, registry)
+			route, err := service.ResolveModelRoute(ModelRouteRequest{ModelID: "logical-" + tc.capability, Capability: tc.capability})
+			if err != nil {
+				t.Fatalf("ResolveModelRoute() error = %v", err)
+			}
+			if tc.capability == CapabilityVoiceClone {
+				_, err = service.CallVoiceCloneWithRouteUsage(context.Background(), 42, route, media.VoiceCloneRequest{
+					Name:    "Clone",
+					Samples: []media.VoiceCloneSample{{Audio: []byte("wav"), MimeType: "audio/wav"}},
+				}, UsageContext{})
+			} else {
+				_, err = service.CallVoiceDesignWithRouteUsage(context.Background(), 42, route, media.VoiceDesignRequest{
+					Name:        "Design",
+					Description: "Warm calm voice",
+				}, UsageContext{})
+			}
+			if err != nil {
+				t.Fatalf("voice call error = %v", err)
+			}
+			if provider.userID != 42 {
+				t.Fatalf("provider user id = %d, want 42", provider.userID)
+			}
+			if provider.model != "provider-"+tc.capability {
+				t.Fatalf("model = %q, want provider model id", provider.model)
+			}
+			if tc.capability == CapabilityVoiceClone && provider.cloneCalls != 1 {
+				t.Fatalf("clone calls = %d, want 1", provider.cloneCalls)
+			}
+			if tc.capability == CapabilityVoiceDesign && provider.designCalls != 1 {
+				t.Fatalf("design calls = %d, want 1", provider.designCalls)
+			}
+		})
+	}
+}
+
 func testCallAlignUsesCapability(t *testing.T, capability string) {
 	t.Helper()
 	db := testutil.OpenSQLite(t, "ai-call-align-"+capability+".db",
@@ -296,4 +415,68 @@ func (p *subtitleTranslateProbeProvider) TranslateSubtitle(ctx context.Context, 
 	p.model = req.Model
 	p.targetLanguage = req.TargetLanguage
 	return media.SubtitleResponse{Content: []byte("translated"), MimeType: "text/plain", Format: "txt"}, nil
+}
+
+type audioTranslateProbeProvider struct {
+	translateCalls int
+	userID         uint
+	model          string
+	targetLanguage string
+}
+
+func (p *audioTranslateProbeProvider) Ping(context.Context) error { return nil }
+
+func (p *audioTranslateProbeProvider) TextGenerate(context.Context, TextRequest) (TextResponse, error) {
+	return TextResponse{}, fmt.Errorf("text should not be called")
+}
+
+func (p *audioTranslateProbeProvider) ImageGenerate(context.Context, ImageRequest) (ImageResponse, error) {
+	return ImageResponse{}, fmt.Errorf("image should not be called")
+}
+
+func (p *audioTranslateProbeProvider) VideoGenerate(context.Context, VideoRequest) (VideoResponse, error) {
+	return VideoResponse{}, fmt.Errorf("video should not be called")
+}
+
+func (p *audioTranslateProbeProvider) TranslateAudio(ctx context.Context, req media.AudioTranslateRequest) (media.SubtitleResponse, error) {
+	p.translateCalls++
+	p.userID = providerUserIDFromContext(ctx)
+	p.model = req.Model
+	p.targetLanguage = req.TargetLanguage
+	return media.SubtitleResponse{Content: []byte("translated audio"), MimeType: "text/plain", Format: "txt"}, nil
+}
+
+type voiceProfileProbeProvider struct {
+	cloneCalls  int
+	designCalls int
+	userID      uint
+	model       string
+}
+
+func (p *voiceProfileProbeProvider) Ping(context.Context) error { return nil }
+
+func (p *voiceProfileProbeProvider) TextGenerate(context.Context, TextRequest) (TextResponse, error) {
+	return TextResponse{}, fmt.Errorf("text should not be called")
+}
+
+func (p *voiceProfileProbeProvider) ImageGenerate(context.Context, ImageRequest) (ImageResponse, error) {
+	return ImageResponse{}, fmt.Errorf("image should not be called")
+}
+
+func (p *voiceProfileProbeProvider) VideoGenerate(context.Context, VideoRequest) (VideoResponse, error) {
+	return VideoResponse{}, fmt.Errorf("video should not be called")
+}
+
+func (p *voiceProfileProbeProvider) CloneVoice(ctx context.Context, req media.VoiceCloneRequest) (media.VoiceProfileResponse, error) {
+	p.cloneCalls++
+	p.userID = providerUserIDFromContext(ctx)
+	p.model = req.Model
+	return media.VoiceProfileResponse{VoiceID: "voice_clone_1", Name: req.Name}, nil
+}
+
+func (p *voiceProfileProbeProvider) DesignVoice(ctx context.Context, req media.VoiceDesignRequest) (media.VoiceProfileResponse, error) {
+	p.designCalls++
+	p.userID = providerUserIDFromContext(ctx)
+	p.model = req.Model
+	return media.VoiceProfileResponse{VoiceID: "voice_design_1", Name: req.Name}, nil
 }

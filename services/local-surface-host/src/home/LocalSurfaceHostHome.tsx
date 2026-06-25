@@ -1,33 +1,35 @@
-import { useMemo } from 'react'
-import { Link } from 'react-router-dom'
+import { useMemo, type ReactNode } from 'react'
+import { Link, NavLink } from 'react-router-dom'
 import { adminSurfacePath } from '@movscript/admin-surface'
 import { useQuery } from '@tanstack/react-query'
 import type { Project } from '@movscript/shared'
 import {
   Badge,
   Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  StatusBadge,
-  StatusDot,
 } from '@movscript/ui/primitives'
 import {
   ArrowRight,
+  Clapperboard,
   Database,
+  FileAudio,
   FolderArchive,
   FolderOpen,
-  Home,
   Images,
   LayoutDashboard,
   Loader2,
+  Mic,
   MonitorCog,
+  Music,
+  Palette,
+  History,
+  Languages,
   Route as RouteIcon,
+  ScanSearch,
   Scissors,
   Sparkles,
   Video,
+  Volume2,
+  Wand2,
   X,
   type LucideIcon,
 } from 'lucide-react'
@@ -46,6 +48,22 @@ import {
   projectRouteContext,
 } from '../routes/localRouteLinks.js'
 
+interface ToolHomeEntry {
+  icon: LucideIcon
+  title: string
+  description: string
+  to: string
+  action?: string
+  external?: boolean
+  featured?: boolean
+}
+
+interface ToolHomeGroup {
+  icon: LucideIcon
+  title: string
+  entries: ToolHomeEntry[]
+}
+
 export function LocalSurfaceHostHome({
   pathname,
   query,
@@ -53,28 +71,11 @@ export function LocalSurfaceHostHome({
   pathname: string
   query: URLSearchParams
 }) {
-  const { t, i18n } = useTranslation()
-  const mcpApiBaseURL = query.get('mcpApiBaseURL') ?? ''
-  const source = query.get('source') ?? 'direct'
-  const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
-  const localRecentProjects = useLocalProjectRecentsStore((state) => state.projects)
-  const dismissedProjectKeys = useLocalProjectRecentsStore((state) => state.dismissedKeys)
-  const queryProject = useMemo(() => projectFromQuery(query), [query])
-  const projectsQuery = useQuery<Project[]>({
-    queryKey: ['local-surface-host', 'projects', localDataAPIV1BaseURL()],
-    queryFn: () => fetch(`${localDataAPIV1BaseURL()}/projects`)
-      .then(async (response) => {
-        const payload = await response.json().catch(() => ({}))
-        if (!response.ok) throw new Error(readPayloadMessage(payload) ?? `Project list failed with HTTP ${response.status}.`)
-        return readProjectsPayload(payload)
-      }),
-  })
-  const projects = useMemo(() => {
-    const queryProjects = queryProject ? [queryProject] : []
-    return mergeRecentProjects(projectsQuery.data ?? [], [...queryProjects, ...localRecentProjects], dismissedProjectKeys)
-  }, [dismissedProjectKeys, localRecentProjects, projectsQuery.data, queryProject])
-  const highlightedProject = projects[0] ?? null
-  const recentProjects = projects.slice(highlightedProject ? 1 : 0, highlightedProject ? 5 : 6)
+  const { t } = useTranslation()
+  const projectState = useLocalSurfaceProjects(query)
+  const appRecentProjects = projectState.highlightedProject
+    ? [projectState.highlightedProject, ...projectState.recentProjects]
+    : projectState.recentProjects
 
   return (
     <LocalSurfaceAppChrome
@@ -82,75 +83,269 @@ export function LocalSurfaceHostHome({
       query={query}
     >
       <section className="surface-host-home surface-host-home--app">
-        <header className="surface-host-app-hero">
-          <div className="surface-host-app-hero__title">
-            <span className="surface-host-app-hero__mark"><Sparkles size={17} /></span>
-            <div>
-              <h1>{t('localSurfaceHost.home.title')}</h1>
-              <p>{t('localSurfaceHost.home.description')}</p>
-            </div>
+        <header className="surface-host-mode-header">
+          <div className="surface-host-mode-header__title">
+            <span className="surface-host-mode-header__icon"><Sparkles size={17} /></span>
+            <span>
+              <h1>{t('localSurfaceHost.home.workspaceTitle')}</h1>
+              <p>{t('localSurfaceHost.home.workspaceDescription')}</p>
+            </span>
           </div>
-          <div className="surface-host-app-hero__status">
-            <StatusBadge tone={mcpApiBaseURL ? 'success' : 'neutral'}>
-              <StatusDot tone={mcpApiBaseURL ? 'success' : 'neutral'} />
-              {mcpApiBaseURL ? t('localSurfaceHost.home.mcpReady') : t('localSurfaceHost.home.localDirect')}
-            </StatusBadge>
-            <Badge variant="outline">{source}</Badge>
-            {projectsQuery.isFetching ? (
-              <Badge variant="outline">
-                <Loader2 size={12} className="surface-host-spin" />
-                {t('common.loadingShort', { defaultValue: 'Loading' })}
-              </Badge>
-            ) : null}
+          <div className="surface-host-mode-header__actions">
+            <Link className="surface-host-primary-action" to={hrefWithSearch(ROUTES.toolHome, query)}>
+              <span>{t('localSurfaceHost.home.primaryAction')}</span>
+              <ArrowRight size={14} />
+            </Link>
+            <Link className="surface-host-secondary-action" to={hrefWithSearch(ROUTES.projects, query)}>
+              {t('localSurfaceHost.home.secondaryAction')}
+            </Link>
           </div>
         </header>
 
-        <div className="surface-host-launcher">
-          <section className="surface-host-launcher__primary">
-            <Card className="surface-host-recent-card">
-              <CardHeader>
-                <span className="surface-host-card__icon"><FolderOpen size={18} /></span>
-                <div>
-                  <CardTitle>{t('localSurfaceHost.recent.title', { defaultValue: 'Recent Projects' })}</CardTitle>
-                  <CardDescription>
-                    {t('localSurfaceHost.recent.description', { defaultValue: 'Open a local project workspace from the directories you touched recently.' })}
-                  </CardDescription>
+        <div className="surface-host-app-overview">
+          <section className="surface-host-app-section">
+            <SectionHeading
+              icon={FolderOpen}
+              title={t('localSurfaceHost.recent.title')}
+              description={t('localSurfaceHost.recent.description')}
+              loading={projectState.projectsQuery.isFetching}
+            />
+            <div className="surface-host-recent-list surface-host-recent-list--rail">
+              {appRecentProjects.map((project, index) => (
+                <RecentProjectRow
+                  key={recentProjectKey(project)}
+                  project={project}
+                  href={projectHomeHrefForProject(project, query)}
+                  label={index === 0 ? t('localSurfaceHost.recent.continueProject') : undefined}
+                  locale={projectState.locale}
+                  highlighted={index === 0}
+                />
+              ))}
+              {!projectState.projectsQuery.isLoading && projectState.projects.length === 0 ? (
+                <div className="surface-host-recent-empty">
+                  <FolderArchive size={16} />
+                  <span>{t('localSurfaceHost.recent.empty')}</span>
                 </div>
-              </CardHeader>
-              <CardContent>
-                {highlightedProject ? (
-                  <RecentProjectRow
-                    project={highlightedProject}
-                    href={projectHomeHrefForProject(highlightedProject, query)}
-                    label={t('localSurfaceHost.recent.continueProject', { defaultValue: 'Continue latest project' })}
-                    locale={locale}
-                    highlighted
-                  />
-                ) : null}
-                <div className="surface-host-recent-list">
-                  {recentProjects.map((project) => (
-                    <RecentProjectRow
-                      key={recentProjectKey(project)}
-                      project={project}
-                      href={projectHomeHrefForProject(project, query)}
-                      locale={locale}
-                    />
-                  ))}
-                  {!projectsQuery.isLoading && projects.length === 0 ? (
-                    <div className="surface-host-recent-empty">
-                      <FolderArchive size={16} />
-                      <span>{t('localSurfaceHost.recent.empty', { defaultValue: 'No recent local projects yet.' })}</span>
-                    </div>
-                  ) : null}
-                </div>
-              </CardContent>
-            </Card>
+              ) : null}
+            </div>
           </section>
 
-          <WorkspaceQuickActions query={query} />
+          <section className="surface-host-app-section surface-host-app-section--tools">
+            <SectionHeading
+              icon={LayoutDashboard}
+              title={t('localSurfaceHost.homes.primaryTitle')}
+              description={t('localSurfaceHost.homes.primaryDescription')}
+            />
+            <div className="surface-host-entry-row">
+              <HomeLaunchCard
+                icon={Images}
+                title={t('localSurfaceHost.homes.toolTitle')}
+                description={t('localSurfaceHost.homes.toolDescription')}
+                to={hrefWithSearch(ROUTES.toolHome, query)}
+                action={t('localSurfaceHost.homes.toolAction')}
+                featured
+              />
+              <HomeLaunchCard
+                icon={LayoutDashboard}
+                title={t('localSurfaceHost.homes.projectsTitle')}
+                description={t('localSurfaceHost.homes.projectsDescription')}
+                to={hrefWithSearch(ROUTES.projects, query)}
+              />
+              <HomeLaunchCard
+                icon={Scissors}
+                title={t('localSurfaceHost.homes.edit.title')}
+                description={t('localSurfaceHost.homes.edit.description')}
+                to={hrefWithSearch(ROUTES.editing, query)}
+              />
+              <HomeLaunchCard
+                icon={Clapperboard}
+                title={t('localSurfaceHost.homes.canvas.title')}
+                description={t('localSurfaceHost.homes.canvas.description')}
+                to={hrefWithSearch(ROUTES.canvases, query)}
+              />
+            </div>
+          </section>
         </div>
       </section>
     </LocalSurfaceAppChrome>
+  )
+}
+
+export function LocalSurfaceToolHome({ query }: { query: URLSearchParams }) {
+  const { t } = useTranslation()
+  const projectState = useLocalSurfaceProjects(query)
+  const routeGroups = toolHomeGroups(query, t)
+
+  return (
+    <LocalSurfaceToolFrame query={query}>
+      <section className="surface-host-home surface-host-tool-home">
+        <header className="surface-host-mode-header surface-host-mode-header--tool">
+          <div className="surface-host-mode-header__title">
+            <span className="surface-host-mode-header__icon"><Images size={17} /></span>
+            <span>
+              <h1>{t('localSurfaceHost.toolHome.title')}</h1>
+              <p>{t('localSurfaceHost.toolHome.description')}</p>
+            </span>
+          </div>
+          <div className="surface-host-mode-header__actions">
+            <Link className="surface-host-secondary-action" to={hrefWithSearch(ROUTES.jobs, query)}>
+              {t('localSurfaceHost.homes.jobs.title')}
+            </Link>
+          </div>
+        </header>
+
+        <section className="surface-host-app-section surface-host-tool-index">
+          <SectionHeading
+            icon={Sparkles}
+            title={t('localSurfaceHost.toolHome.featuredTitle')}
+            description={t('localSurfaceHost.toolHome.featuredDescription')}
+          />
+          <div className="surface-host-tool-groups">
+            <RouteCatalog groups={routeGroups} />
+          </div>
+        </section>
+
+        <div className="surface-host-tool-lower">
+          <section className="surface-host-app-section">
+            <SectionHeading icon={FolderOpen} title={t('localSurfaceHost.toolHome.recentWork')} />
+            <div className="surface-host-recent-list">
+              {(projectState.highlightedProject ? [projectState.highlightedProject, ...projectState.recentProjects.slice(0, 2)] : projectState.recentProjects.slice(0, 3)).map((project, index) => (
+                <RecentProjectRow
+                  key={recentProjectKey(project)}
+                  project={project}
+                  href={projectHomeHrefForProject(project, query)}
+                  label={index === 0 ? t('localSurfaceHost.toolHome.continue') : undefined}
+                  locale={projectState.locale}
+                  highlighted={index === 0}
+                />
+              ))}
+              {!projectState.projectsQuery.isLoading && projectState.projects.length === 0 ? (
+                <div className="surface-host-recent-empty">
+                  <FolderArchive size={16} />
+                  <span>{t('localSurfaceHost.recent.empty')}</span>
+                </div>
+              ) : null}
+            </div>
+          </section>
+
+          <section className="surface-host-app-section">
+            <SectionHeading icon={MonitorCog} title={t('localSurfaceHost.toolHome.utilities')} />
+            <HomeLaunchCard
+              icon={MonitorCog}
+              title={t('localSurfaceHost.homes.system.title')}
+              description={t('localSurfaceHost.homes.system.description')}
+              to={adminSurfacePath('overview')}
+              external
+            />
+          </section>
+        </div>
+      </section>
+    </LocalSurfaceToolFrame>
+  )
+}
+
+function RouteCatalog({ groups }: { groups: ToolHomeGroup[] }) {
+  return (
+    <>
+      {groups.map((group) => {
+        const GroupIcon = group.icon
+        return (
+          <div className="surface-host-tool-group" key={group.title}>
+            <div className="surface-host-tool-group__header">
+              <GroupIcon size={15} />
+              <span>{group.title}</span>
+            </div>
+            <div className="surface-host-tool-grid">
+              {group.entries.map((entry) => (
+                <HomeLaunchCard
+                  key={entry.to}
+                  icon={entry.icon}
+                  title={entry.title}
+                  description={entry.description}
+                  to={entry.to}
+                  external={entry.external}
+                  action={entry.action}
+                  featured={entry.featured}
+                />
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </>
+  )
+}
+
+export function LocalSurfaceToolFrame({
+  query,
+  children,
+  title,
+  description,
+}: {
+  query: URLSearchParams
+  children: ReactNode
+  title?: string
+  description?: string
+}) {
+  const { t } = useTranslation()
+  const groups = toolHomeGroups(query, t)
+  return (
+    <LocalSurfaceAppChrome
+      title={title ?? t('localSurfaceHost.toolHome.title')}
+      description={description ?? t('localSurfaceHost.toolHome.description')}
+      query={query}
+    >
+      <div className="surface-host-tool-shell">
+        <aside className="surface-host-tool-sidebar" aria-label={t('localSurfaceHost.toolHome.navigation')}>
+          <div className="surface-host-tool-sidebar__header">
+            <span className="surface-host-tool-sidebar__icon"><Images size={16} /></span>
+            <span>
+              <strong>{t('localSurfaceHost.toolHome.title')}</strong>
+              <small>{t('localSurfaceHost.toolHome.sidebarDescription')}</small>
+            </span>
+          </div>
+          <nav className="surface-host-tool-sidebar__nav">
+            {groups.map((group) => {
+              const GroupIcon = group.icon
+              return (
+                <section className="surface-host-tool-sidebar__group" key={group.title}>
+                  <p><GroupIcon size={13} /> {group.title}</p>
+                  {group.entries.map((entry) => (
+                    <ToolSidebarEntry key={entry.to} entry={entry} />
+                  ))}
+                </section>
+              )
+            })}
+          </nav>
+        </aside>
+        <div className="surface-host-tool-shell__content">
+          {children}
+        </div>
+      </div>
+    </LocalSurfaceAppChrome>
+  )
+}
+
+function ToolSidebarEntry({ entry }: { entry: ToolHomeEntry }) {
+  const EntryIcon = entry.icon
+  const content = (
+    <span className="surface-host-tool-sidebar__entry-frame" data-active="false">
+      <EntryIcon size={15} />
+      <span>{entry.title}</span>
+    </span>
+  )
+  if (entry.external) {
+    return <a className="surface-host-tool-sidebar__entry" href={entry.to}>{content}</a>
+  }
+  return (
+    <NavLink className="surface-host-tool-sidebar__entry" to={entry.to}>
+      {({ isActive }) => (
+        <span className="surface-host-tool-sidebar__entry-frame" data-active={isActive ? 'true' : 'false'}>
+          <EntryIcon size={15} />
+          <span>{entry.title}</span>
+        </span>
+      )}
+    </NavLink>
   )
 }
 
@@ -183,6 +378,182 @@ export function LocalSurfaceNotFound({
         </div>
       </section>
     </LocalSurfaceAppChrome>
+  )
+}
+
+function useLocalSurfaceProjects(query: URLSearchParams) {
+  const { i18n } = useTranslation()
+  const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
+  const localRecentProjects = useLocalProjectRecentsStore((state) => state.projects)
+  const dismissedProjectKeys = useLocalProjectRecentsStore((state) => state.dismissedKeys)
+  const queryProject = useMemo(() => projectFromQuery(query), [query])
+  const projectsQuery = useQuery<Project[]>({
+    queryKey: ['local-surface-host', 'projects', localDataAPIV1BaseURL()],
+    queryFn: () => fetch(`${localDataAPIV1BaseURL()}/projects`)
+      .then(async (response) => {
+        const payload = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(readPayloadMessage(payload) ?? `Project list failed with HTTP ${response.status}.`)
+        return readProjectsPayload(payload)
+      }),
+  })
+  const projects = useMemo(() => {
+    const queryProjects = queryProject ? [queryProject] : []
+    return mergeRecentProjects(projectsQuery.data ?? [], [...queryProjects, ...localRecentProjects], dismissedProjectKeys)
+  }, [dismissedProjectKeys, localRecentProjects, projectsQuery.data, queryProject])
+  const highlightedProject = projects[0] ?? null
+  const recentProjects = projects.slice(highlightedProject ? 1 : 0, highlightedProject ? 5 : 6)
+  return { projectsQuery, projects, highlightedProject, recentProjects, locale }
+}
+
+function toolHomeGroups(query: URLSearchParams, t: ReturnType<typeof useTranslation>['t']): ToolHomeGroup[] {
+  return [
+    {
+      icon: Clapperboard,
+      title: t('localSurfaceHost.toolHome.groups.shots'),
+      entries: [
+        {
+          icon: Clapperboard,
+          title: t('localSurfaceHost.homes.shotLibrary.title'),
+          description: t('localSurfaceHost.homes.shotLibrary.description'),
+          to: hrefWithSearch(ROUTES.shotLibrary, query),
+          action: t('localSurfaceHost.toolHome.continue'),
+          featured: true,
+        },
+        {
+          icon: Database,
+          title: t('localSurfaceHost.homes.resource.title'),
+          description: t('localSurfaceHost.homes.resource.description'),
+          to: hrefWithSearch(ROUTES.resources, query),
+        },
+        {
+          icon: ScanSearch,
+          title: t('localSurfaceHost.homes.external.title'),
+          description: t('localSurfaceHost.homes.external.description'),
+          to: hrefWithSearch(ROUTES.externalResources, query),
+        },
+        {
+          icon: Clapperboard,
+          title: t('localSurfaceHost.homes.agentResources.title'),
+          description: t('localSurfaceHost.homes.agentResources.description'),
+          to: hrefWithSearch(ROUTES.agentResources, query),
+        },
+      ],
+    },
+    {
+      icon: Sparkles,
+      title: t('localSurfaceHost.toolHome.groups.generation'),
+      entries: [
+        {
+          icon: History,
+          title: t('localSurfaceHost.homes.jobs.title'),
+          description: t('localSurfaceHost.homes.jobs.description'),
+          to: hrefWithSearch(ROUTES.jobs, query),
+          action: t('localSurfaceHost.toolHome.continue'),
+          featured: true,
+        },
+        {
+          icon: Sparkles,
+          title: t('localSurfaceHost.tools.refImageGen.title'),
+          description: t('localSurfaceHost.tools.refImageGen.description'),
+          to: hrefWithSearch(ROUTES.tools.refImageGen, query),
+        },
+        {
+          icon: Video,
+          title: t('localSurfaceHost.tools.refVideoGen.title'),
+          description: t('localSurfaceHost.tools.refVideoGen.description'),
+          to: hrefWithSearch(ROUTES.tools.refVideoGen, query),
+        },
+        {
+          icon: MonitorCog,
+          title: t('localSurfaceHost.tools.audioGen.title'),
+          description: t('localSurfaceHost.tools.audioGen.description'),
+          to: hrefWithSearch(ROUTES.tools.audioGen, query),
+        },
+        {
+          icon: FileAudio,
+          title: t('localSurfaceHost.tools.audioTranscribe.title'),
+          description: t('localSurfaceHost.tools.audioTranscribe.description'),
+          to: hrefWithSearch(ROUTES.tools.audioTranscribe, query),
+        },
+        {
+          icon: Languages,
+          title: t('localSurfaceHost.tools.audioTranslate.title'),
+          description: t('localSurfaceHost.tools.audioTranslate.description'),
+          to: hrefWithSearch(ROUTES.tools.audioTranslate, query),
+        },
+        {
+          icon: Music,
+          title: t('localSurfaceHost.tools.musicGen.title'),
+          description: t('localSurfaceHost.tools.musicGen.description'),
+          to: hrefWithSearch(ROUTES.tools.musicGen, query),
+        },
+        {
+          icon: Volume2,
+          title: t('localSurfaceHost.tools.audioSfx.title'),
+          description: t('localSurfaceHost.tools.audioSfx.description'),
+          to: hrefWithSearch(ROUTES.tools.audioSfx, query),
+        },
+        {
+          icon: Mic,
+          title: t('localSurfaceHost.tools.voiceClone.title'),
+          description: t('localSurfaceHost.tools.voiceClone.description'),
+          to: hrefWithSearch(ROUTES.tools.voiceClone, query),
+        },
+        {
+          icon: Wand2,
+          title: t('localSurfaceHost.tools.voiceDesign.title'),
+          description: t('localSurfaceHost.tools.voiceDesign.description'),
+          to: hrefWithSearch(ROUTES.tools.voiceDesign, query),
+        },
+        {
+          icon: Clapperboard,
+          title: t('localSurfaceHost.tools.motionImitation.title'),
+          description: t('localSurfaceHost.tools.motionImitation.description'),
+          to: hrefWithSearch(ROUTES.tools.motionImitation, query),
+        },
+        {
+          icon: Palette,
+          title: t('localSurfaceHost.tools.styleTransfer.title'),
+          description: t('localSurfaceHost.tools.styleTransfer.description'),
+          to: hrefWithSearch(ROUTES.tools.styleTransfer, query),
+        },
+        {
+          icon: Images,
+          title: t('localSurfaceHost.tools.multiAngle.title'),
+          description: t('localSurfaceHost.tools.multiAngle.description'),
+          to: hrefWithSearch(ROUTES.tools.multiAngle, query),
+        },
+      ],
+    },
+  ]
+}
+
+function SectionHeading({
+  icon: Icon,
+  title,
+  description,
+  loading,
+}: {
+  icon: LucideIcon
+  title: string
+  description?: string
+  loading?: boolean
+}) {
+  const { t } = useTranslation()
+  return (
+    <div className="surface-host-section-heading surface-host-section-heading--app">
+      <span className="surface-host-section-heading__icon"><Icon size={15} /></span>
+      <span>
+        <h2>{title}</h2>
+        {description ? <p>{description}</p> : null}
+      </span>
+      {loading ? (
+        <Badge variant="outline">
+          <Loader2 size={12} className="surface-host-spin" />
+          {t('common.loadingShort')}
+        </Badge>
+      ) : null}
+    </div>
   )
 }
 
@@ -224,83 +595,39 @@ function RecentProjectRow({
   )
 }
 
-function WorkspaceQuickActions({ query }: { query: URLSearchParams }) {
-  const { t } = useTranslation()
-  return (
-    <section className="surface-host-quick-actions" aria-label={t('localSurfaceHost.homes.label', { defaultValue: 'Other workspaces' })}>
-      <div className="surface-host-quick-actions__heading">
-        <span>{t('localSurfaceHost.homes.label', { defaultValue: 'Other workspaces' })}</span>
-      </div>
-      <RouteCatalog query={query} />
-    </section>
-  )
-}
-
-function RouteCatalog({ query }: { query: URLSearchParams }) {
-  const { t } = useTranslation()
-  const routes = [
-    {
-      icon: Scissors,
-      title: t('localSurfaceHost.homes.edit.title', { defaultValue: 'Edit Home' }),
-      description: t('localSurfaceHost.homes.edit.description', { defaultValue: 'Create and reopen editing projects, timelines, subtitles, and export tasks.' }),
-      to: hrefWithSearch(ROUTES.editing, query),
-    },
-    {
-      icon: Database,
-      title: t('localSurfaceHost.homes.resource.title', { defaultValue: 'Resource Home' }),
-      description: t('localSurfaceHost.homes.resource.description', { defaultValue: 'Browse local media, external results, generated assets, and resource details.' }),
-      to: hrefWithSearch(ROUTES.resources, query),
-    },
-    {
-      icon: Images,
-      title: t('localSurfaceHost.homes.canvas.title', { defaultValue: 'Canvas Home' }),
-      description: t('localSurfaceHost.homes.canvas.description', { defaultValue: 'Manage canvases for boards, visual planning, and project inspiration.' }),
-      to: hrefWithSearch(ROUTES.canvases, query),
-    },
-    {
-      icon: MonitorCog,
-      title: t('localSurfaceHost.homes.system.title', { defaultValue: 'System' }),
-      description: t('localSurfaceHost.homes.system.description', { defaultValue: 'Open admin, service diagnostics, and host runtime settings.' }),
-      to: adminSurfacePath('overview'),
-    },
-  ]
-
-  return (
-    <>
-      {routes.map((route) => (
-        <HomeLaunchCard
-          key={route.to}
-          icon={route.icon}
-          title={route.title}
-          description={route.description}
-          to={route.to}
-        />
-      ))}
-    </>
-  )
-}
-
 function HomeLaunchCard({
   icon: Icon,
   title,
   description,
   to,
+  action,
+  external,
+  featured,
 }: {
   icon: LucideIcon
   title: string
   description: string
   to: string
+  action?: string
+  external?: boolean
+  featured?: boolean
 }) {
-  return (
-    <Link className="surface-host-mode-entry" to={to}>
+  const content = (
+    <>
       <span className="surface-host-mode-entry__icon"><Icon size={17} /></span>
       <span className="surface-host-mode-entry__copy">
         <strong>{title}</strong>
         <small>{description}</small>
+        {action ? <em>{action}</em> : null}
       </span>
       <ArrowRight size={14} className="surface-host-mode-entry__arrow" />
-    </Link>
+    </>
   )
+  const className = featured ? 'surface-host-mode-entry surface-host-mode-entry--featured' : 'surface-host-mode-entry'
+  if (external) {
+    return <a className={className} href={to}>{content}</a>
+  }
+  return <Link className={className} to={to}>{content}</Link>
 }
 
 function recentProjectKey(project: Project): string {
@@ -315,12 +642,14 @@ function projectFromQuery(query: URLSearchParams): Project | null {
     ?? query.get('project_name')
     ?? projectDir.split('/').filter(Boolean).pop()
     ?? `Project ${numericProjectId}`
+  const projectUid = query.get('projectUid') ?? query.get('project_uid') ?? undefined
   const now = new Date().toISOString()
   return {
     ID: numericProjectId,
     name: projectName,
     description: projectDir,
     owner_id: 1,
+    ...(projectUid ? { project_uid: projectUid } : {}),
     workspace_path: projectDir,
     project_path: projectDir,
     local: true,

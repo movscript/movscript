@@ -1,6 +1,7 @@
 package ai
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/movscript/movscript/internal/domain/media"
 	"github.com/volcengine/volcengine-go-sdk/service/arkruntime"
 	arkmodel "github.com/volcengine/volcengine-go-sdk/service/arkruntime/model"
 )
@@ -17,21 +19,35 @@ import (
 // VolcenAdapter implements Provider for the Volcengine Ark platform,
 // covering text (doubao), image (Seedream), and async video (Seedance).
 type VolcenAdapter struct {
-	baseURL string
-	apiKey  string
-	client  *arkruntime.Client
-	rawHTTP *http.Client
+	baseURL    string
+	apiKey     string
+	speech     volcenSpeechCredentials
+	client     *arkruntime.Client
+	rawHTTP    *http.Client
+	speechHTTP *http.Client
 }
 
 const volcenTextMaxTokensLimit = 131072
 const volcenHTTPTimeout = 10 * time.Minute
+const volcenDefaultSpeechBaseURL = "https://openspeech.bytedance.com"
 const (
 	volcenRoleReferenceImage = "reference_image"
 	volcenRoleReferenceVideo = "reference_video"
 	volcenRoleReferenceAudio = "reference_audio"
 )
 
+type volcenSpeechCredentials struct {
+	AppID   string `json:"speech_app_id,omitempty"`
+	Token   string `json:"speech_token,omitempty"`
+	Cluster string `json:"speech_cluster,omitempty"`
+	BaseURL string `json:"speech_base_url,omitempty"`
+}
+
 func NewVolcenAdapter(baseURL, apiKey string) *VolcenAdapter {
+	return NewVolcenAdapterWithSpeech(baseURL, apiKey, volcenSpeechCredentials{})
+}
+
+func NewVolcenAdapterWithSpeech(baseURL, apiKey string, speech volcenSpeechCredentials) *VolcenAdapter {
 	if baseURL == "" {
 		baseURL = "https://ark.cn-beijing.volces.com/api/v3"
 	}
@@ -40,7 +56,13 @@ func NewVolcenAdapter(baseURL, apiKey string) *VolcenAdapter {
 		arkruntime.WithBaseUrl(baseURL),
 		arkruntime.WithHTTPClient(httpClient),
 	)
-	return &VolcenAdapter{baseURL: baseURL, apiKey: apiKey, client: c, rawHTTP: httpClient}
+	if speech.Cluster == "" {
+		speech.Cluster = "volcano_tts"
+	}
+	if speech.BaseURL == "" {
+		speech.BaseURL = volcenDefaultSpeechBaseURL
+	}
+	return &VolcenAdapter{baseURL: baseURL, apiKey: apiKey, speech: speech, client: c, rawHTTP: httpClient, speechHTTP: debugHTTPClient(speech.Token, volcenHTTPTimeout)}
 }
 
 func (a *VolcenAdapter) TextGenerate(ctx context.Context, req TextRequest) (TextResponse, error) {
@@ -143,6 +165,316 @@ func (a *VolcenAdapter) TextStream(ctx context.Context, req TextRequest) (<-chan
 		}
 	}()
 	return out, nil
+}
+
+func (a *VolcenAdapter) Synthesize(ctx context.Context, req media.TTSRequest) (media.TTSResponse, error) {
+	token := strings.TrimSpace(a.speech.Token)
+	if token == "" {
+		return media.TTSResponse{}, fmt.Errorf("volcen speech_token is required for text-to-speech")
+	}
+	text := strings.TrimSpace(req.Text)
+	if text == "" {
+		return media.TTSResponse{}, fmt.Errorf("text is required")
+	}
+	voice := firstNonEmptyAI(strings.TrimSpace(req.Voice), stringParam(req.Params, "voice_type", "zh_female_vv_jupiter_bigtts"))
+	audioFormat := volcenTTSAudioFormat(req)
+	reqID := firstNonEmptyAI(stringParam(req.Params, "reqid", ""), fmt.Sprintf("movscript-%d", time.Now().UnixNano()))
+	body := map[string]any{
+		"app": map[string]any{
+			"appid":   a.speech.AppID,
+			"token":   token,
+			"cluster": firstNonEmptyAI(stringParam(req.Params, "cluster", ""), a.speech.Cluster, "volcano_tts"),
+		},
+		"user": map[string]any{
+			"uid": stringParam(req.Params, "uid", "movscript"),
+		},
+		"audio": map[string]any{
+			"voice_type":  voice,
+			"encoding":    audioFormat,
+			"speed_ratio": numberParamOrDefault(req.Params, "speed_ratio", 1),
+		},
+		"request": map[string]any{
+			"reqid":     reqID,
+			"text":      text,
+			"operation": stringParam(req.Params, "operation", "submit"),
+		},
+	}
+	audio := body["audio"].(map[string]any)
+	if sampleRate := intParamOrDefault(req.Params, "sample_rate", 0); sampleRate > 0 {
+		audio["sample_rate"] = sampleRate
+	}
+	if volume := numberParamOrDefault(req.Params, "volume_ratio", 0); volume != 0 {
+		audio["volume_ratio"] = volume
+	}
+	if pitch := numberParamOrDefault(req.Params, "pitch_ratio", 0); pitch != 0 {
+		audio["pitch_ratio"] = pitch
+	}
+	if req.Language != "" {
+		audio["language"] = req.Language
+	} else if language := stringParam(req.Params, "language", ""); language != "" {
+		audio["language"] = language
+	}
+	requestBody := body["request"].(map[string]any)
+	if model := strings.TrimSpace(req.Model); model != "" {
+		requestBody["model"] = model
+	}
+	if textType := stringParam(req.Params, "text_type", ""); textType != "" {
+		requestBody["text_type"] = textType
+	}
+	if extraParam, ok := req.Params["extra_param"]; ok {
+		requestBody["extra_param"] = extraParam
+	}
+
+	rawBody, _ := json.Marshal(body)
+	endpoint := strings.TrimRight(firstNonEmptyAI(a.speech.BaseURL, volcenDefaultSpeechBaseURL), "/") + "/api/v1/tts"
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(rawBody))
+	if err != nil {
+		return media.TTSResponse{}, err
+	}
+	httpReq.Header.Set("Authorization", "Bearer; "+token)
+	httpReq.Header.Set("Content-Type", "application/json")
+	reqHeaders := map[string]string{
+		"Authorization": "Bearer; " + maskKey(token),
+		"Content-Type":  "application/json",
+	}
+	client := a.speechHTTP
+	if client == nil {
+		client = a.rawHTTP
+	}
+	start := time.Now()
+	resp, err := client.Do(httpReq)
+	latency := time.Since(start).Milliseconds()
+	if err != nil {
+		recordDebug(ctx, DebugCallResult{
+			Success: false, ModelID: req.Model, Endpoint: endpoint, Method: "POST",
+			RequestHeaders: reqHeaders, RequestBody: mustJSON(redactVolcenTTSBody(body)), LatencyMs: latency, Error: err.Error(),
+		})
+		return media.TTSResponse{}, err
+	}
+	defer resp.Body.Close()
+	respBody, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return media.TTSResponse{}, readErr
+	}
+	recordDebug(ctx, DebugCallResult{
+		Success: resp.StatusCode < 400, ModelID: req.Model, Endpoint: endpoint, Method: "POST",
+		RequestHeaders: reqHeaders, RequestBody: mustJSON(redactVolcenTTSBody(body)),
+		ResponseStatus: resp.StatusCode, ResponseBody: string(respBody), LatencyMs: latency,
+	})
+	if resp.StatusCode >= 400 {
+		return media.TTSResponse{}, fmt.Errorf("volcen TTS HTTP %d: %s", resp.StatusCode, string(respBody))
+	}
+	var parsed volcenTTSResponse
+	if err := json.Unmarshal(respBody, &parsed); err != nil {
+		return media.TTSResponse{}, fmt.Errorf("decode volcen TTS response: %w", err)
+	}
+	if parsed.Code != 0 && parsed.Code != 3000 {
+		return media.TTSResponse{}, fmt.Errorf("volcen TTS error %d: %s", parsed.Code, parsed.Message)
+	}
+	audioData := strings.TrimSpace(parsed.Data)
+	if idx := strings.Index(audioData, ","); strings.HasPrefix(audioData, "data:") && idx >= 0 {
+		audioData = audioData[idx+1:]
+	}
+	audioBytes, err := base64.StdEncoding.DecodeString(audioData)
+	if err != nil {
+		return media.TTSResponse{}, fmt.Errorf("decode volcen TTS audio: %w", err)
+	}
+	if len(audioBytes) == 0 {
+		return media.TTSResponse{}, fmt.Errorf("volcen TTS returned empty audio")
+	}
+	return media.TTSResponse{
+		Audio:       audioBytes,
+		MimeType:    mimeTypeForVolcenTTSAudioFormat(audioFormat),
+		DurationMs:  parsed.DurationMs,
+		ProviderRef: firstNonEmptyAI(parsed.ReqID, reqID),
+	}, nil
+}
+
+func (a *VolcenAdapter) Transcribe(ctx context.Context, req media.TranscribeRequest) (media.SubtitleResponse, error) {
+	if len(req.Audio) == 0 {
+		return media.SubtitleResponse{}, fmt.Errorf("audio is required")
+	}
+	appID := strings.TrimSpace(a.speech.AppID)
+	token := strings.TrimSpace(a.speech.Token)
+	if appID == "" {
+		return media.SubtitleResponse{}, fmt.Errorf("volcen speech_app_id is required for speech-to-text")
+	}
+	if token == "" {
+		return media.SubtitleResponse{}, fmt.Errorf("volcen speech_token is required for speech-to-text")
+	}
+	resourceID := firstNonEmptyAI(strings.TrimSpace(req.Model), stringParam(req.Params, "resource_id", ""), "volc.seedasr.auc")
+	requestID := firstNonEmptyAI(stringParam(req.Params, "request_id", ""), fmt.Sprintf("movscript-%d", time.Now().UnixNano()))
+	format := volcenASRAudioFormat(req.MimeType, req.Params)
+	submitBody := map[string]any{
+		"user": map[string]any{
+			"uid": stringParam(req.Params, "uid", "movscript"),
+		},
+		"audio": map[string]any{
+			"data":   base64.StdEncoding.EncodeToString(req.Audio),
+			"format": format,
+		},
+		"request": map[string]any{
+			"model_name":          stringParam(req.Params, "model_name", "bigmodel"),
+			"enable_itn":          boolParamOrDefault(req.Params, "enable_itn", true),
+			"enable_punc":         boolParamOrDefault(req.Params, "enable_punc", true),
+			"show_utterances":     boolParamOrDefault(req.Params, "show_utterances", true),
+			"enable_speaker_info": boolParamOrDefault(req.Params, "enable_speaker_info", false),
+		},
+	}
+	if language := strings.TrimSpace(req.Language); language != "" {
+		submitBody["audio"].(map[string]any)["language"] = language
+	} else if language := stringParam(req.Params, "language", ""); language != "" {
+		submitBody["audio"].(map[string]any)["language"] = language
+	}
+	if hotwords, ok := req.Params["hotwords"]; ok {
+		submitBody["request"].(map[string]any)["hotwords"] = hotwords
+	}
+	endpointBase := strings.TrimRight(firstNonEmptyAI(a.speech.BaseURL, volcenDefaultSpeechBaseURL), "/")
+	submitEndpoint := endpointBase + "/api/v3/auc/bigmodel/submit"
+	if err := a.postVolcenASR(ctx, submitEndpoint, appID, token, resourceID, requestID, submitBody, "submit"); err != nil {
+		return media.SubtitleResponse{}, err
+	}
+	queryEndpoint := endpointBase + "/api/v3/auc/bigmodel/query"
+	raw, err := a.pollVolcenASR(ctx, queryEndpoint, appID, token, resourceID, requestID, req.Params)
+	if err != nil {
+		return media.SubtitleResponse{}, err
+	}
+	timing, transcript := parseVolcenASRResult(raw, req.Language)
+	content, _ := json.Marshal(raw)
+	if transcript != "" {
+		content = []byte(transcript)
+	}
+	return media.SubtitleResponse{
+		Timing:      timing,
+		Format:      "json",
+		Content:     content,
+		MimeType:    "application/json",
+		ProviderRef: requestID,
+	}, nil
+}
+
+func (a *VolcenAdapter) Align(ctx context.Context, req media.AlignRequest) (media.SubtitleResponse, error) {
+	return a.Transcribe(ctx, media.TranscribeRequest{
+		AudioResourceID: req.AudioResourceID,
+		Audio:           req.Audio,
+		MimeType:        req.MimeType,
+		Language:        req.Language,
+		Model:           req.Model,
+		Params:          req.Params,
+	})
+}
+
+func (a *VolcenAdapter) postVolcenASR(ctx context.Context, endpoint, appID, token, resourceID, requestID string, body map[string]any, stage string) error {
+	rawBody, _ := json.Marshal(body)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(rawBody))
+	if err != nil {
+		return err
+	}
+	volcenASRHeaders(httpReq, appID, token, resourceID, requestID)
+	headers := redactedVolcenASRHeaders(appID, token, resourceID, requestID)
+	client := a.speechHTTP
+	if client == nil {
+		client = a.rawHTTP
+	}
+	start := time.Now()
+	resp, err := client.Do(httpReq)
+	latency := time.Since(start).Milliseconds()
+	if err != nil {
+		recordDebug(ctx, DebugCallResult{Success: false, ModelID: resourceID, Endpoint: endpoint, Method: http.MethodPost, RequestHeaders: headers, RequestBody: mustJSON(redactVolcenASRBody(body)), LatencyMs: latency, Error: err.Error()})
+		return err
+	}
+	defer resp.Body.Close()
+	respBody, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return readErr
+	}
+	statusCode := resp.Header.Get("X-Api-Status-Code")
+	message := resp.Header.Get("X-Api-Message")
+	recordDebug(ctx, DebugCallResult{Success: resp.StatusCode < 400 && volcenASRStatusComplete(statusCode), ModelID: resourceID, Endpoint: endpoint, Method: http.MethodPost, RequestHeaders: headers, RequestBody: mustJSON(redactVolcenASRBody(body)), ResponseStatus: resp.StatusCode, ResponseBody: string(respBody), LatencyMs: latency})
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("volcen ASR %s HTTP %d: %s", stage, resp.StatusCode, string(respBody))
+	}
+	if statusCode != "" && !volcenASRStatusComplete(statusCode) {
+		return fmt.Errorf("volcen ASR %s failed: %s %s", stage, statusCode, message)
+	}
+	return nil
+}
+
+func (a *VolcenAdapter) pollVolcenASR(ctx context.Context, endpoint, appID, token, resourceID, requestID string, params map[string]any) (map[string]any, error) {
+	timeout := time.Duration(intParamOrDefault(params, "poll_timeout_ms", 10*60*1000)) * time.Millisecond
+	if timeout <= 0 {
+		timeout = 10 * time.Minute
+	}
+	interval := time.Duration(intParamOrDefault(params, "poll_interval_ms", 5*1000)) * time.Millisecond
+	if interval < 500*time.Millisecond {
+		interval = 500 * time.Millisecond
+	}
+	deadline := time.Now().Add(timeout)
+	for {
+		raw, status, message, err := a.queryVolcenASR(ctx, endpoint, appID, token, resourceID, requestID)
+		if err != nil {
+			return raw, err
+		}
+		if volcenASRStatusComplete(status) {
+			return raw, nil
+		}
+		if !volcenASRStatusProcessing(status) {
+			return raw, fmt.Errorf("volcen ASR query failed: %s %s", status, message)
+		}
+		if time.Now().Add(interval).After(deadline) {
+			return raw, fmt.Errorf("volcen ASR task %s timed out", requestID)
+		}
+		select {
+		case <-ctx.Done():
+			return raw, ctx.Err()
+		case <-time.After(interval):
+		}
+	}
+}
+
+func (a *VolcenAdapter) queryVolcenASR(ctx context.Context, endpoint, appID, token, resourceID, requestID string) (map[string]any, string, string, error) {
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader("{}"))
+	if err != nil {
+		return nil, "", "", err
+	}
+	volcenASRHeaders(httpReq, appID, token, resourceID, requestID)
+	headers := redactedVolcenASRHeaders(appID, token, resourceID, requestID)
+	client := a.speechHTTP
+	if client == nil {
+		client = a.rawHTTP
+	}
+	start := time.Now()
+	resp, err := client.Do(httpReq)
+	latency := time.Since(start).Milliseconds()
+	if err != nil {
+		recordDebug(ctx, DebugCallResult{Success: false, ModelID: resourceID, Endpoint: endpoint, Method: http.MethodPost, RequestHeaders: headers, RequestBody: "{}", LatencyMs: latency, Error: err.Error()})
+		return nil, "", "", err
+	}
+	defer resp.Body.Close()
+	respBody, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return nil, "", "", readErr
+	}
+	statusCode := resp.Header.Get("X-Api-Status-Code")
+	message := resp.Header.Get("X-Api-Message")
+	var raw map[string]any
+	if len(strings.TrimSpace(string(respBody))) > 0 {
+		_ = json.Unmarshal(respBody, &raw)
+	}
+	if raw == nil {
+		raw = map[string]any{}
+	}
+	if statusCode == "" {
+		statusCode = volcenASRStatusFromBody(raw)
+	}
+	if message == "" {
+		message = volcenASRMessageFromBody(raw)
+	}
+	recordDebug(ctx, DebugCallResult{Success: resp.StatusCode < 400 && (volcenASRStatusComplete(statusCode) || volcenASRStatusProcessing(statusCode)), ModelID: resourceID, Endpoint: endpoint, Method: http.MethodPost, RequestHeaders: headers, RequestBody: "{}", ResponseStatus: resp.StatusCode, ResponseBody: string(respBody), LatencyMs: latency})
+	if resp.StatusCode >= 400 {
+		return raw, statusCode, message, fmt.Errorf("volcen ASR query HTTP %d: %s", resp.StatusCode, string(respBody))
+	}
+	return raw, statusCode, message, nil
 }
 
 func buildVolcenChatRequest(req TextRequest) arkmodel.CreateChatCompletionRequest {
@@ -878,6 +1210,221 @@ func aspectRatioToArkSize(ratio string) string {
 
 func base64Encode(b []byte) string {
 	return base64.StdEncoding.EncodeToString(b)
+}
+
+type volcenTTSResponse struct {
+	ReqID      string `json:"reqid"`
+	Code       int    `json:"code"`
+	Operation  string `json:"operation"`
+	Message    string `json:"message"`
+	Sequence   int    `json:"sequence"`
+	Data       string `json:"data"`
+	DurationMs int    `json:"duration_ms"`
+}
+
+func volcenTTSAudioFormat(req media.TTSRequest) string {
+	format := strings.TrimSpace(req.AudioFormat)
+	if format == "" {
+		format = stringParam(req.Params, "encoding", "mp3")
+	}
+	format = strings.TrimPrefix(format, "audio/")
+	if format == "mpeg" || format == "mpga" {
+		return "mp3"
+	}
+	if format == "opus" {
+		return "ogg_opus"
+	}
+	switch format {
+	case "mp3", "wav", "pcm", "ogg_opus":
+		return format
+	default:
+		return "mp3"
+	}
+}
+
+func mimeTypeForVolcenTTSAudioFormat(format string) string {
+	switch strings.TrimSpace(format) {
+	case "wav":
+		return "audio/wav"
+	case "pcm":
+		return "audio/L16"
+	case "ogg_opus":
+		return "audio/ogg"
+	default:
+		return "audio/mpeg"
+	}
+}
+
+func redactVolcenTTSBody(body map[string]any) map[string]any {
+	raw, _ := json.Marshal(body)
+	var out map[string]any
+	_ = json.Unmarshal(raw, &out)
+	if app, ok := out["app"].(map[string]any); ok {
+		if token, ok := app["token"].(string); ok && token != "" {
+			app["token"] = maskKey(token)
+		}
+	}
+	return out
+}
+
+func volcenASRHeaders(req *http.Request, appID, token, resourceID, requestID string) {
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Api-App-Key", appID)
+	req.Header.Set("X-Api-Access-Key", token)
+	req.Header.Set("X-Api-Resource-Id", resourceID)
+	req.Header.Set("X-Api-Request-Id", requestID)
+	req.Header.Set("X-Api-Sequence", "-1")
+}
+
+func redactedVolcenASRHeaders(appID, token, resourceID, requestID string) map[string]string {
+	return map[string]string{
+		"Content-Type":      "application/json",
+		"X-Api-App-Key":     maskKey(appID),
+		"X-Api-Access-Key":  maskKey(token),
+		"X-Api-Resource-Id": resourceID,
+		"X-Api-Request-Id":  requestID,
+		"X-Api-Sequence":    "-1",
+	}
+}
+
+func redactVolcenASRBody(body map[string]any) map[string]any {
+	raw, _ := json.Marshal(body)
+	var out map[string]any
+	_ = json.Unmarshal(raw, &out)
+	if audio, ok := out["audio"].(map[string]any); ok {
+		if data, ok := audio["data"].(string); ok && data != "" {
+			audio["data"] = fmt.Sprintf("(base64 audio, %d chars)", len(data))
+		}
+	}
+	return out
+}
+
+func volcenASRAudioFormat(mimeType string, params map[string]any) string {
+	if format := stringParam(params, "format", ""); format != "" {
+		return format
+	}
+	mimeType = strings.ToLower(strings.TrimSpace(mimeType))
+	if idx := strings.Index(mimeType, ";"); idx >= 0 {
+		mimeType = mimeType[:idx]
+	}
+	switch mimeType {
+	case "audio/mpeg", "audio/mp3", "audio/mpga":
+		return "mp3"
+	case "audio/mp4", "audio/m4a", "audio/x-m4a":
+		return "m4a"
+	case "audio/wav", "audio/x-wav":
+		return "wav"
+	case "audio/ogg", "audio/opus":
+		return "ogg"
+	case "audio/webm":
+		return "webm"
+	case "audio/flac":
+		return "flac"
+	default:
+		return "mp3"
+	}
+}
+
+func volcenASRStatusComplete(status string) bool {
+	return strings.TrimSpace(status) == "20000000"
+}
+
+func volcenASRStatusProcessing(status string) bool {
+	switch strings.TrimSpace(status) {
+	case "20000001", "20000002", "40000001":
+		return true
+	default:
+		return false
+	}
+}
+
+func volcenASRStatusFromBody(raw map[string]any) string {
+	if header, ok := raw["header"].(map[string]any); ok {
+		if code := stringField(header, "code", "status_code"); code != "" {
+			return code
+		}
+		if code, ok := numberValue(header["code"]); ok {
+			return fmt.Sprintf("%.0f", code)
+		}
+	}
+	return ""
+}
+
+func volcenASRMessageFromBody(raw map[string]any) string {
+	if header, ok := raw["header"].(map[string]any); ok {
+		return stringField(header, "message", "msg")
+	}
+	return ""
+}
+
+func parseVolcenASRResult(raw map[string]any, language string) (media.TimingMetadata, string) {
+	result, _ := raw["result"].(map[string]any)
+	text := stringField(result, "text", "transcript")
+	segments := parseVolcenASRUtterances(result["utterances"])
+	if len(segments) == 0 && text != "" {
+		segments = []media.TimedTextUnit{{ID: "segment_1", Text: text}}
+	}
+	durationMs := 0
+	for _, segment := range segments {
+		if segment.EndMs > durationMs {
+			durationMs = segment.EndMs
+		}
+	}
+	return media.TimingMetadata{
+		Source:     media.TimingSourceSTT,
+		Provider:   "volcen",
+		Language:   language,
+		DurationMs: durationMs,
+		Segments:   segments,
+	}, text
+}
+
+func parseVolcenASRUtterances(value any) []media.TimedTextUnit {
+	items, ok := value.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]media.TimedTextUnit, 0, len(items))
+	for i, item := range items {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		unit := media.TimedTextUnit{
+			ID:      fmt.Sprintf("utt_%d", i+1),
+			Text:    stringField(m, "text", "utterance", "transcript"),
+			StartMs: volcenASRTimeMs(m, "start_time", "start_ms", "start"),
+			EndMs:   volcenASRTimeMs(m, "end_time", "end_ms", "end"),
+			Speaker: stringField(m, "speaker", "speaker_id", "speaker_name"),
+		}
+		if confidence, ok := numberValue(m["confidence"]); ok {
+			v := confidence
+			unit.Confidence = &v
+		}
+		if unit.Text != "" {
+			out = append(out, unit)
+		}
+	}
+	return out
+}
+
+func volcenASRTimeMs(m map[string]any, keys ...string) int {
+	for _, key := range keys {
+		if value, ok := numberValue(m[key]); ok {
+			if value > 0 && value < 100 && value != float64(int(value)) {
+				return int(value * 1000)
+			}
+			return int(value)
+		}
+	}
+	return 0
+}
+
+func boolParamOrDefault(params map[string]any, key string, fallback bool) bool {
+	if value, ok := boolParam(params, key); ok {
+		return value
+	}
+	return fallback
 }
 
 // convertVolcenToolCalls converts Volcengine SDK tool calls to the internal format.

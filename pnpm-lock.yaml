@@ -56,6 +56,9 @@ importers:
       '@movscript/data-client':
         specifier: workspace:*
         version: link:../../packages/data-client
+      '@movscript/jobs-surface':
+        specifier: workspace:*
+        version: link:../../surface/jobs
       '@movscript/local-runtime':
         specifier: workspace:*
         version: link:../../packages/local-runtime
@@ -770,6 +773,9 @@ importers:
       '@movscript/editing-surface':
         specifier: workspace:*
         version: link:../../surface/editing
+      '@movscript/jobs-surface':
+        specifier: workspace:*
+        version: link:../../surface/jobs
       '@movscript/project-surface':
         specifier: workspace:*
         version: link:../../surface/project
@@ -788,6 +794,9 @@ importers:
       '@movscript/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@movscript/shot-library-surface':
+        specifier: workspace:*
+        version: link:../../surface/shot-library
       '@movscript/theme':
         specifier: workspace:*
         version: link:../../packages/theme
@@ -1164,6 +1173,55 @@ importers:
       zustand:
         specifier: ^5.0.2
         version: 5.0.12(@types/react@18.3.28)(react@18.3.1)(use-sync-external-store@1.6.0(react@18.3.1))
+    devDependencies:
+      '@types/node':
+        specifier: 22.19.17
+        version: 22.19.17
+      '@types/react':
+        specifier: ^18.3.17
+        version: 18.3.28
+      '@types/react-dom':
+        specifier: ^18.3.5
+        version: 18.3.7(@types/react@18.3.28)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
+  surface/jobs:
+    dependencies:
+      '@movscript/resource-surface':
+        specifier: workspace:*
+        version: link:../resource
+      '@movscript/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@movscript/theme':
+        specifier: workspace:*
+        version: link:../../packages/theme
+      '@movscript/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      '@movscript/workspace':
+        specifier: workspace:*
+        version: link:../../packages/workspace
+      '@tanstack/react-query':
+        specifier: ^5.62.0
+        version: 5.100.5(react@18.3.1)
+      i18next:
+        specifier: ^26.0.8
+        version: 26.0.8(typescript@5.9.3)
+      lucide-react:
+        specifier: ^0.468.0
+        version: 0.468.0(react@18.3.1)
+      react:
+        specifier: ^18.3.1
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.3.1
+        version: 18.3.1(react@18.3.1)
+      react-i18next:
+        specifier: ^17.0.4
+        version: 17.0.6(i18next@26.0.8(typescript@5.9.3))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)
     devDependencies:
       '@types/node':
         specifier: 22.19.17

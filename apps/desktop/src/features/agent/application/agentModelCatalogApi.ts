@@ -7,7 +7,7 @@ import {
 import { api } from '@/shared/infrastructure/api'
 import type { PublicModel } from '@/types'
 
-export type AgentModelRouteSourceType = 'local_provider' | 'new_api' | string
+export type AgentModelRouteSourceType = 'local_provider' | 'relay_gateway' | string
 
 export type AgentModelRouteBinding = {
   id: number

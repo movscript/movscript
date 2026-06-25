@@ -199,8 +199,9 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (do
 	switch input.JobType {
 	case ai.CapabilityImage, ai.CapabilityImageEdit,
 		ai.CapabilityVideo, ai.CapabilityVideoI2V, ai.CapabilityVideoV2V,
-		ai.CapabilityAudioTTS, ai.CapabilityAudioSTT,
+		ai.CapabilityAudioTTS, ai.CapabilityAudioSTT, ai.CapabilityAudioTranslate, ai.CapabilityAudioChat,
 		ai.CapabilityAudioMusic, ai.CapabilityAudioSFX,
+		ai.CapabilityVoiceClone, ai.CapabilityVoiceDesign,
 		ai.CapabilitySubAlign, ai.CapabilitySubTranslate:
 	default:
 		return domainjob.Job{}, InvalidJobTypeError{JobType: input.JobType}
@@ -460,7 +461,9 @@ func (s *Service) estimateJobRouteCost(ctx context.Context, userID uint, route a
 	if jobType == ai.CapabilityAudioMusic || jobType == ai.CapabilityAudioSFX {
 		return s.ai.EstimateAudioGenerateRouteCost(ctx, userID, route, jobType, duration)
 	}
-	if jobType == ai.CapabilityAudioSTT || jobType == ai.CapabilitySubAlign || jobType == ai.CapabilitySubTranslate {
+	if jobType == ai.CapabilityAudioSTT || jobType == ai.CapabilityAudioTranslate || jobType == ai.CapabilityAudioChat ||
+		jobType == ai.CapabilityVoiceClone || jobType == ai.CapabilityVoiceDesign ||
+		jobType == ai.CapabilitySubAlign || jobType == ai.CapabilitySubTranslate {
 		return s.ai.EstimateCapabilityPerCallRouteCost(ctx, userID, route, jobType)
 	}
 	kind, imageReq, videoReq, err := CostRequest(route.RuntimeModelID, jobType, duration, extraParams, aspectRatio)

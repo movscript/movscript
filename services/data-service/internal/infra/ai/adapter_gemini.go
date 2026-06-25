@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/movscript/movscript/internal/domain/media"
 	"google.golang.org/genai"
 )
 
@@ -81,6 +84,7 @@ func (t *capturingTransport) RoundTrip(req *http.Request) (*http.Response, error
 type GeminiAdapter struct {
 	apiKey  string
 	baseURL string
+	rawHTTP *http.Client
 }
 
 func NewGeminiAdapter(apiKey, baseURL string) *GeminiAdapter {
@@ -90,6 +94,7 @@ func NewGeminiAdapter(apiKey, baseURL string) *GeminiAdapter {
 	return &GeminiAdapter{
 		apiKey:  apiKey,
 		baseURL: strings.TrimRight(baseURL, "/"),
+		rawHTTP: &http.Client{},
 	}
 }
 
@@ -164,6 +169,152 @@ func (a *GeminiAdapter) TextGenerate(ctx context.Context, req TextRequest) (Text
 		dbg.ModelID = req.Model
 	}
 	return TextResponse{Content: text, Usage: usage, Debug: dbg}, nil
+}
+
+func (a *GeminiAdapter) Synthesize(ctx context.Context, req media.TTSRequest) (media.TTSResponse, error) {
+	if strings.TrimSpace(a.apiKey) == "" {
+		return media.TTSResponse{}, fmt.Errorf("gemini api_key is required")
+	}
+	text := strings.TrimSpace(req.Text)
+	if text == "" {
+		return media.TTSResponse{}, fmt.Errorf("text is required")
+	}
+	model := firstNonEmptyAI(strings.TrimSpace(req.Model), "gemini-3.1-flash-tts-preview")
+	body := map[string]any{
+		"model":           model,
+		"input":           text,
+		"response_format": map[string]any{"type": "audio"},
+		"generation_config": map[string]any{
+			"speech_config": geminiSpeechConfig(req),
+		},
+	}
+	reqBody, err := json.Marshal(body)
+	if err != nil {
+		return media.TTSResponse{}, err
+	}
+	endpoint := a.baseURL + "/v1beta/interactions"
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(reqBody))
+	if err != nil {
+		return media.TTSResponse{}, err
+	}
+	httpReq.Header.Set("x-goog-api-key", a.apiKey)
+	httpReq.Header.Set("Content-Type", "application/json")
+	headers := map[string]string{
+		"x-goog-api-key": maskKey(a.apiKey),
+		"Content-Type":   "application/json",
+	}
+	start := time.Now()
+	resp, err := a.rawHTTP.Do(httpReq)
+	latency := time.Since(start).Milliseconds()
+	if err != nil {
+		recordDebug(ctx, DebugCallResult{Success: false, ModelID: model, Endpoint: endpoint, Method: http.MethodPost, RequestHeaders: headers, RequestBody: mustJSON(redactGeminiTTSBody(body)), LatencyMs: latency, Error: err.Error()})
+		return media.TTSResponse{}, err
+	}
+	defer resp.Body.Close()
+	respBody, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return media.TTSResponse{}, readErr
+	}
+	recordDebug(ctx, DebugCallResult{Success: resp.StatusCode < 400, ModelID: model, Endpoint: endpoint, Method: http.MethodPost, RequestHeaders: headers, RequestBody: mustJSON(redactGeminiTTSBody(body)), ResponseStatus: resp.StatusCode, ResponseBody: string(respBody), LatencyMs: latency})
+	if resp.StatusCode >= 400 {
+		return media.TTSResponse{}, fmt.Errorf("gemini TTS HTTP %d: %s", resp.StatusCode, string(respBody))
+	}
+	var parsed geminiInteractionResponse
+	if err := json.Unmarshal(respBody, &parsed); err != nil {
+		return media.TTSResponse{}, fmt.Errorf("decode gemini TTS response: %w", err)
+	}
+	audioB64 := firstNonEmptyAI(parsed.OutputAudio.Data, parsed.OutputAudio.InlineData.Data)
+	if audioB64 == "" {
+		return media.TTSResponse{}, fmt.Errorf("gemini TTS returned no output_audio data")
+	}
+	pcm, err := base64.StdEncoding.DecodeString(audioB64)
+	if err != nil {
+		return media.TTSResponse{}, fmt.Errorf("decode gemini TTS audio: %w", err)
+	}
+	if len(pcm) == 0 {
+		return media.TTSResponse{}, fmt.Errorf("gemini TTS returned empty audio")
+	}
+	sampleRate := intParamOrDefault(req.Params, "sample_rate", 24000)
+	channels := intParamOrDefault(req.Params, "channels", 1)
+	wav := pcmToWAV(pcm, sampleRate, channels, 16)
+	return media.TTSResponse{
+		Audio:       wav,
+		MimeType:    "audio/wav",
+		ProviderRef: firstNonEmptyAI(parsed.ID, parsed.Name),
+	}, nil
+}
+
+func (a *GeminiAdapter) GenerateAudio(ctx context.Context, req media.AudioGenerationRequest) (media.AudioGenerationResponse, error) {
+	if strings.TrimSpace(a.apiKey) == "" {
+		return media.AudioGenerationResponse{}, fmt.Errorf("gemini api_key is required")
+	}
+	if req.Kind != media.AudioGenerationKindMusic {
+		return media.AudioGenerationResponse{}, fmt.Errorf("unsupported gemini audio generation kind %q", req.Kind)
+	}
+	prompt := strings.TrimSpace(req.Prompt)
+	if prompt == "" {
+		return media.AudioGenerationResponse{}, fmt.Errorf("prompt is required")
+	}
+	model := firstNonEmptyAI(strings.TrimSpace(req.Model), "lyria-3-clip-preview")
+	body := map[string]any{
+		"model": model,
+		"input": prompt,
+		"response_format": map[string]any{
+			"type": "audio",
+		},
+	}
+	reqBody, err := json.Marshal(body)
+	if err != nil {
+		return media.AudioGenerationResponse{}, err
+	}
+	endpoint := a.baseURL + "/v1beta/interactions"
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(reqBody))
+	if err != nil {
+		return media.AudioGenerationResponse{}, err
+	}
+	httpReq.Header.Set("x-goog-api-key", a.apiKey)
+	httpReq.Header.Set("Content-Type", "application/json")
+	headers := map[string]string{
+		"x-goog-api-key": maskKey(a.apiKey),
+		"Content-Type":   "application/json",
+	}
+	start := time.Now()
+	resp, err := a.rawHTTP.Do(httpReq)
+	latency := time.Since(start).Milliseconds()
+	if err != nil {
+		recordDebug(ctx, DebugCallResult{Success: false, ModelID: model, Endpoint: endpoint, Method: http.MethodPost, RequestHeaders: headers, RequestBody: mustJSON(body), LatencyMs: latency, Error: err.Error()})
+		return media.AudioGenerationResponse{}, err
+	}
+	defer resp.Body.Close()
+	respBody, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return media.AudioGenerationResponse{}, readErr
+	}
+	recordDebug(ctx, DebugCallResult{Success: resp.StatusCode < 400, ModelID: model, Endpoint: endpoint, Method: http.MethodPost, RequestHeaders: headers, RequestBody: mustJSON(body), ResponseStatus: resp.StatusCode, ResponseBody: string(respBody), LatencyMs: latency})
+	if resp.StatusCode >= 400 {
+		return media.AudioGenerationResponse{}, fmt.Errorf("gemini Lyria HTTP %d: %s", resp.StatusCode, string(respBody))
+	}
+	var parsed geminiInteractionResponse
+	if err := json.Unmarshal(respBody, &parsed); err != nil {
+		return media.AudioGenerationResponse{}, fmt.Errorf("decode gemini Lyria response: %w", err)
+	}
+	audioB64, mimeType := geminiInteractionAudio(parsed)
+	if audioB64 == "" {
+		return media.AudioGenerationResponse{}, fmt.Errorf("gemini Lyria returned no output audio data")
+	}
+	audio, err := base64.StdEncoding.DecodeString(audioB64)
+	if err != nil {
+		return media.AudioGenerationResponse{}, fmt.Errorf("decode gemini Lyria audio: %w", err)
+	}
+	if len(audio) == 0 {
+		return media.AudioGenerationResponse{}, fmt.Errorf("gemini Lyria returned empty audio")
+	}
+	return media.AudioGenerationResponse{
+		Audio:       audio,
+		MimeType:    firstNonEmptyAI(mimeType, geminiLyriaMimeType(req, model)),
+		DurationMs:  geminiLyriaDurationMs(req, model),
+		ProviderRef: firstNonEmptyAI(parsed.ID, parsed.Name),
+	}, nil
 }
 
 func (a *GeminiAdapter) ImageGenerate(ctx context.Context, req ImageRequest) (ImageResponse, error) {
@@ -489,4 +640,153 @@ func (a *GeminiAdapter) FetchModels(ctx context.Context) ([]string, error) {
 		ids = append(ids, name)
 	}
 	return ids, nil
+}
+
+type geminiInteractionResponse struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	OutputAudio struct {
+		Data       string `json:"data"`
+		MimeType   string `json:"mime_type"`
+		InlineData struct {
+			Data     string `json:"data"`
+			MimeType string `json:"mime_type"`
+		} `json:"inline_data"`
+	} `json:"output_audio"`
+	Outputs []struct {
+		Text       string `json:"text"`
+		InlineData struct {
+			Data     string `json:"data"`
+			MimeType string `json:"mime_type"`
+		} `json:"inline_data"`
+	} `json:"outputs"`
+}
+
+func geminiInteractionAudio(resp geminiInteractionResponse) (dataB64, mimeType string) {
+	if resp.OutputAudio.Data != "" {
+		return resp.OutputAudio.Data, resp.OutputAudio.MimeType
+	}
+	if resp.OutputAudio.InlineData.Data != "" {
+		return resp.OutputAudio.InlineData.Data, resp.OutputAudio.InlineData.MimeType
+	}
+	for _, output := range resp.Outputs {
+		if output.InlineData.Data != "" {
+			return output.InlineData.Data, output.InlineData.MimeType
+		}
+	}
+	return "", ""
+}
+
+func geminiLyriaMimeType(req media.AudioGenerationRequest, model string) string {
+	format := strings.ToLower(firstNonEmptyAI(strings.TrimSpace(req.AudioFormat), stringParam(req.Params, "output_format", "")))
+	switch format {
+	case "wav":
+		return "audio/wav"
+	case "mp3", "":
+		return "audio/mpeg"
+	default:
+		if strings.HasPrefix(format, "audio/") {
+			return format
+		}
+	}
+	if strings.Contains(strings.ToLower(model), "lyria") {
+		return "audio/mpeg"
+	}
+	return "application/octet-stream"
+}
+
+func geminiLyriaDurationMs(req media.AudioGenerationRequest, model string) int {
+	if req.DurationSec > 0 {
+		return req.DurationSec * 1000
+	}
+	if strings.Contains(strings.ToLower(model), "clip") {
+		return 30 * 1000
+	}
+	return 0
+}
+
+func geminiSpeechConfig(req media.TTSRequest) []map[string]any {
+	if raw, ok := req.Params["speakers"]; ok {
+		if speakers := geminiSpeakerConfigs(raw); len(speakers) > 0 {
+			return speakers
+		}
+	}
+	return []map[string]any{{
+		"voice": firstNonEmptyAI(strings.TrimSpace(req.Voice), stringParam(req.Params, "voice", "Kore")),
+	}}
+}
+
+func geminiSpeakerConfigs(raw any) []map[string]any {
+	var items []any
+	switch v := raw.(type) {
+	case []any:
+		items = v
+	case []map[string]any:
+		items = make([]any, 0, len(v))
+		for _, item := range v {
+			items = append(items, item)
+		}
+	case string:
+		if strings.TrimSpace(v) == "" {
+			return nil
+		}
+		if err := json.Unmarshal([]byte(v), &items); err != nil {
+			return nil
+		}
+	default:
+		return nil
+	}
+	out := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		speaker := stringParam(m, "speaker", "")
+		voice := stringParam(m, "voice", "")
+		if speaker == "" || voice == "" {
+			continue
+		}
+		out = append(out, map[string]any{"speaker": speaker, "voice": voice})
+	}
+	return out
+}
+
+func pcmToWAV(pcm []byte, sampleRate, channels, bitsPerSample int) []byte {
+	if sampleRate <= 0 {
+		sampleRate = 24000
+	}
+	if channels <= 0 {
+		channels = 1
+	}
+	if bitsPerSample <= 0 {
+		bitsPerSample = 16
+	}
+	dataSize := len(pcm)
+	blockAlign := channels * bitsPerSample / 8
+	byteRate := sampleRate * blockAlign
+	var out bytes.Buffer
+	out.WriteString("RIFF")
+	_ = binary.Write(&out, binary.LittleEndian, uint32(36+dataSize))
+	out.WriteString("WAVE")
+	out.WriteString("fmt ")
+	_ = binary.Write(&out, binary.LittleEndian, uint32(16))
+	_ = binary.Write(&out, binary.LittleEndian, uint16(1))
+	_ = binary.Write(&out, binary.LittleEndian, uint16(channels))
+	_ = binary.Write(&out, binary.LittleEndian, uint32(sampleRate))
+	_ = binary.Write(&out, binary.LittleEndian, uint32(byteRate))
+	_ = binary.Write(&out, binary.LittleEndian, uint16(blockAlign))
+	_ = binary.Write(&out, binary.LittleEndian, uint16(bitsPerSample))
+	out.WriteString("data")
+	_ = binary.Write(&out, binary.LittleEndian, uint32(dataSize))
+	out.Write(pcm)
+	return out.Bytes()
+}
+
+func redactGeminiTTSBody(body map[string]any) map[string]any {
+	out := cloneProviderTemplateMap(body)
+	if text, ok := out["input"].(string); ok {
+		out["input"] = truncateDebugString(text, 240)
+	}
+	return out
 }

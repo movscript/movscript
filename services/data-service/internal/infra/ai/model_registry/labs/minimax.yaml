@@ -18,6 +18,123 @@ templates:
         status: verified
         url: https://platform.minimax.io/docs/guides/text-generation
         verified_at: "2026-06-25"
+    - adapter_type: minimax
+      allow_model_id_override: true
+      capabilities:
+        - audio_tts
+      display_name: MiniMax Speech 2.8 HD
+      id: minimax:speech-2.8-hd
+      lab: minimax
+      model_id: speech-2.8-hd
+      order: 81
+      source:
+        status: verified
+        url: https://platform.minimax.io/docs/api-reference/speech-t2a-http
+        verified_at: "2026-06-25"
+    - adapter_type: minimax
+      allow_model_id_override: true
+      capabilities:
+        - audio_tts
+      display_name: MiniMax Speech 2.8 Turbo
+      id: minimax:speech-2.8-turbo
+      lab: minimax
+      model_id: speech-2.8-turbo
+      order: 82
+      source:
+        status: verified
+        url: https://platform.minimax.io/docs/api-reference/speech-t2a-http
+        verified_at: "2026-06-25"
+    - adapter_type: minimax
+      allow_model_id_override: true
+      capabilities:
+        - audio_tts
+      display_name: MiniMax Speech 2.6 HD
+      id: minimax:speech-2.6-hd
+      lab: minimax
+      model_id: speech-2.6-hd
+      order: 83
+      source:
+        status: verified
+        url: https://platform.minimax.io/docs/api-reference/speech-t2a-http
+        verified_at: "2026-06-25"
+    - adapter_type: minimax
+      allow_model_id_override: true
+      capabilities:
+        - audio_tts
+      display_name: MiniMax Speech 2.6 Turbo
+      id: minimax:speech-2.6-turbo
+      lab: minimax
+      model_id: speech-2.6-turbo
+      order: 84
+      source:
+        status: verified
+        url: https://platform.minimax.io/docs/api-reference/speech-t2a-http
+        verified_at: "2026-06-25"
+    - adapter_type: minimax
+      allow_model_id_override: true
+      capabilities:
+        - audio_tts
+      display_name: MiniMax Speech 02 HD
+      id: minimax:speech-02-hd
+      lab: minimax
+      model_id: speech-02-hd
+      order: 85
+      source:
+        status: verified
+        url: https://platform.minimax.io/docs/api-reference/speech-t2a-http
+        verified_at: "2026-06-25"
+    - adapter_type: minimax
+      allow_model_id_override: true
+      capabilities:
+        - audio_tts
+      display_name: MiniMax Speech 02 Turbo
+      id: minimax:speech-02-turbo
+      lab: minimax
+      model_id: speech-02-turbo
+      order: 86
+      source:
+        status: verified
+        url: https://platform.minimax.io/docs/api-reference/speech-t2a-http
+        verified_at: "2026-06-25"
+    - adapter_type: minimax
+      allow_model_id_override: true
+      capabilities:
+        - audio_tts
+      display_name: MiniMax Speech 01 HD
+      id: minimax:speech-01-hd
+      lab: minimax
+      model_id: speech-01-hd
+      order: 87
+      source:
+        status: verified
+        url: https://platform.minimax.io/docs/api-reference/speech-t2a-http
+        verified_at: "2026-06-25"
+    - adapter_type: minimax
+      allow_model_id_override: true
+      capabilities:
+        - audio_tts
+      display_name: MiniMax Speech 01 Turbo
+      id: minimax:speech-01-turbo
+      lab: minimax
+      model_id: speech-01-turbo
+      order: 88
+      source:
+        status: verified
+        url: https://platform.minimax.io/docs/api-reference/speech-t2a-http
+        verified_at: "2026-06-25"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - audio_chat
+      display_name: MiniMax Mimo v2 Omni
+      id: minimax:mimo-v2-omni
+      lab: minimax
+      model_id: mimo-v2-omni
+      order: 89
+      source:
+        status: template_only
+        url: https://platform.minimax.io/docs
+        verified_at: "2026-06-25"
     - adapter_type: openai_compat
       allow_model_id_override: true
       capabilities:

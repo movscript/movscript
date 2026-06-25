@@ -92,12 +92,83 @@ func (a *LocalAdapter) GenerateAudio(_ context.Context, req media.AudioGeneratio
 	}, nil
 }
 
+func (a *LocalAdapter) ChatAudio(_ context.Context, req media.AudioChatRequest) (media.AudioChatResponse, error) {
+	durationSec := 2
+	prompt := strings.TrimSpace(req.Prompt)
+	if prompt == "" {
+		prompt = "audio chat"
+	}
+	audio := localToneWAV(durationSec, 440, false)
+	return media.AudioChatResponse{
+		Audio:       audio,
+		Text:        "MovScript local audio chat response: " + truncateLocalText(prompt, 120),
+		MimeType:    "audio/wav",
+		DurationMs:  durationSec * 1000,
+		ProviderRef: "local:audio_chat:" + base64.RawURLEncoding.EncodeToString([]byte(truncateLocalText(prompt, 16))),
+	}, nil
+}
+
 func (a *LocalAdapter) Transcribe(_ context.Context, req media.TranscribeRequest) (media.SubtitleResponse, error) {
 	return media.SubtitleResponse{
 		Content:     []byte("transcribed"),
 		MimeType:    "text/plain",
 		Format:      "txt",
 		ProviderRef: "local:audio_transcribe",
+	}, nil
+}
+
+func (a *LocalAdapter) TranslateAudio(_ context.Context, req media.AudioTranslateRequest) (media.SubtitleResponse, error) {
+	target := strings.TrimSpace(req.TargetLanguage)
+	if target == "" {
+		target = "en"
+	}
+	return media.SubtitleResponse{
+		Content:     []byte("[local audio translation:" + target + "]\ntranslated audio\n"),
+		MimeType:    "text/plain",
+		Format:      "txt",
+		ProviderRef: "local:audio_translate:" + target,
+	}, nil
+}
+
+func (a *LocalAdapter) CloneVoice(_ context.Context, req media.VoiceCloneRequest) (media.VoiceProfileResponse, error) {
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		name = "Local cloned voice"
+	}
+	voiceID := "local_clone_" + base64.RawURLEncoding.EncodeToString([]byte(truncateLocalText(name, 24)))
+	return media.VoiceProfileResponse{
+		VoiceID:     voiceID,
+		Name:        name,
+		Description: strings.TrimSpace(req.Description),
+		ProviderRef: voiceID,
+		Metadata: map[string]any{
+			"sample_count": len(req.Samples),
+			"provider":     "local",
+		},
+	}, nil
+}
+
+func (a *LocalAdapter) DesignVoice(_ context.Context, req media.VoiceDesignRequest) (media.VoiceProfileResponse, error) {
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		name = "Local designed voice"
+	}
+	description := strings.TrimSpace(req.Description)
+	if description == "" {
+		description = "Designed local voice"
+	}
+	generatedID := "local_preview_" + base64.RawURLEncoding.EncodeToString([]byte(truncateLocalText(description, 24)))
+	voiceID := "local_design_" + base64.RawURLEncoding.EncodeToString([]byte(truncateLocalText(name, 24)))
+	return media.VoiceProfileResponse{
+		VoiceID:          voiceID,
+		Name:             name,
+		Description:      description,
+		GeneratedVoiceID: generatedID,
+		ProviderRef:      voiceID,
+		Metadata: map[string]any{
+			"provider":     "local",
+			"preview_text": strings.TrimSpace(req.PreviewText),
+		},
 	}, nil
 }
 

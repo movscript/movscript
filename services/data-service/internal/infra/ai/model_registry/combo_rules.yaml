@@ -1,5 +1,5 @@
 rules:
-  - provider_type: new_api
+  - provider_type: relay_gateway
     profile: gateway
   - provider_type: apiyi
     profile: gateway
@@ -39,3 +39,12 @@ rules:
   - provider_type: xai
     profile: official
     lab: xai
+  - provider_type: stability
+    profile: official
+    lab: stability-audio
+  - provider_type: mureka
+    profile: official
+    lab: mureka
+  - provider_type: local
+    profile: audio
+    lab: open-source-audio

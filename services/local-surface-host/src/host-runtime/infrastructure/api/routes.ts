@@ -11,7 +11,7 @@ const routePatterns: Record<SurfaceRouteKey, string> = {
   resources: ROUTES.resources,
   'canvas.list': ROUTES.canvases,
   'canvas.editor': ROUTES.canvasEditor,
-  'canvas.projectBack': '/studio',
+  'canvas.projectBack': ROUTES.studioOverview,
   'canvas.agentBack': '/project/agent/canvases',
   'agent.console': ROUTES.root,
 }

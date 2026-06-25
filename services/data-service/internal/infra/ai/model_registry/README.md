@@ -13,6 +13,9 @@ Model catalog templates are grouped by model lab, not by provider account:
 - `labs/seed.yaml`
 - `labs/google-gemini.yaml`
 - `labs/elevenlabs.yaml`
+- `labs/stability-audio.yaml`
+- `labs/mureka.yaml`
+- `labs/open-source-audio.yaml`
 - `labs/kling.yaml`
 - `labs/vidu.yaml`
 - `labs/xai.yaml`
@@ -27,6 +30,17 @@ In MovScript terms:
 - Lab means the model creator or model family.
 - Provider / AI Account means the configured calling account, endpoint, key, and base URL.
 - Adapter means the backend request builder that maps MovScript canonical params to upstream API fields.
+
+Do not create lab files for provider-only distribution surfaces such as AWS Bedrock,
+Azure OpenAI, APIyi, or other relay gateways. Those belong in `providers.yaml` and
+route bindings. Provider-specific model IDs discovered from those surfaces should
+remain route-level `provider_model_id` values unless the upstream model creator is
+also represented as a real lab template.
+
+Local runtimes follow the same split: `open-source-audio` is the model-family lab,
+while `local_audio_runtime` in `providers.yaml` is the local execution boundary.
+Keep open-source model templates as `template_only` until the runtime path actually
+executes that model family.
 
 Registry YAML declares which canonical MovScript params a model template supports. It must not declare provider-native field mapping such as `aspect_ratio -> ratio`; that belongs in adapter code and adapter tests.
 
@@ -77,6 +91,8 @@ go run ./internal/infra/ai/cmd/model-registry-audit --fail-on-warning
 - `needs_review`: source URL is known but parameters have not been fully reconciled.
 - `deprecated`: model is retained for compatibility but the upstream source marks it deprecated or unavailable.
 - `unofficial`: no official source was found; only third-party or catalog evidence exists.
+- `observed`: model id was observed in a gateway or external catalog and needs official confirmation before being treated as canonical.
+- `template_only`: model is intentionally listed for admin discovery, but the MovScript adapter/runtime path is not fully implemented yet. These templates do not generate combo templates.
 
 Official API references, official model docs, official model-list pages, and official SSR-rendered documentation payloads are acceptable sources. Record the stable public documentation URL in `source.url`.
 

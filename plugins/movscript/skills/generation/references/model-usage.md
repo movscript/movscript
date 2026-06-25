@@ -53,4 +53,4 @@ Content-unit image/video generation creates or refreshes candidates automaticall
 - Selection: current stable chosen candidate/resource.
 - Adoption: user or workflow decision that writes selection.
 
-Do not manually call `domain_create_content_candidate` after `system_generate_content_unit_image` or `system_generate_content_unit_video`. Use `domain_register_raw_resource_as_content_unit_candidate` only when an existing RawResource from upload, transform, import, editing export, or low-level generation should enter the candidate pool. Use `domain_decide_content_unit_candidate` with `adopt`, `reject`, or `defer` for user decisions.
+Do not manually call `domain_create_content_candidate` after `generation_submit` content-unit image/video jobs`. Use `domain_register_raw_resource_as_content_unit_candidate` only when an existing RawResource from upload, transform, import, editing export, or low-level generation should enter the candidate pool. Use `domain_decide_content_unit_candidate` with `adopt`, `reject`, or `defer` for user decisions.

@@ -1,7 +1,19 @@
-import { projectSurfaceRouteBySegment } from '@movscript/project-surface/routes'
-import { projectPathFromProject, type ProjectHomeProject } from '@movscript/project-surface/react'
+import {
+  projectSurfacePath,
+  projectSurfaceRouteBySegment,
+  type ProjectSurfaceRouteKey,
+} from '@movscript/project-surface/routes'
 
 const STUDIO_ROOT = '/studio'
+
+export interface LocalProjectRouteProject {
+  ID?: number | string
+  name?: string
+  description?: string
+  project_uid?: string
+  workspace_path?: string
+  project_path?: string
+}
 
 export function serviceBaseURLFromSearch(kind: 'editing' | 'mediaPipeline', query: URLSearchParams): string {
   if (kind === 'editing') {
@@ -29,38 +41,60 @@ export function localDataAPIV1BaseURL(): string {
   return `${window.location.origin}/local-api/data/api/v1`
 }
 
-export function projectHomeHrefForProject(project: ProjectHomeProject, baseQuery: URLSearchParams): string {
+export function projectHomeHrefForProject(project: LocalProjectRouteProject, baseQuery: URLSearchParams): string {
+  return projectSurfaceHrefForLocalProject(project, 'overview', baseQuery)
+}
+
+export function projectSurfaceHrefForLocalProject(
+  project: LocalProjectRouteProject,
+  route: ProjectSurfaceRouteKey,
+  baseQuery: URLSearchParams,
+  params: Record<string, string | number | boolean | undefined> = {},
+): string {
   const query = new URLSearchParams(baseQuery)
   query.delete('projectDir')
   query.delete('projectPath')
+  query.delete('projectUid')
+  query.delete('project_uid')
+  query.delete('projectId')
+  query.delete('project_id')
+  query.delete('projectName')
+  query.delete('project_name')
   const projectPath = projectPathFromProject(project)
+  const routeProjectId = localProjectRouteId(project, projectPath)
   if (projectPath) query.set('projectDir', projectPath)
-  if (!projectPath && project.ID) query.set('projectId', String(project.ID))
-  if (project.name) query.set('projectName', project.name)
-  return hrefWithSearch(STUDIO_ROOT, query)
+  if (project.project_uid?.trim()) query.set('projectUid', project.project_uid.trim())
+  if (hasPositiveProjectId(project.ID)) query.set('projectId', String(project.ID))
+  if (project.name?.trim()) query.set('projectName', project.name.trim())
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined) query.set(key, String(value))
+  }
+  return hrefWithSearch(projectSurfacePath(route, routeProjectId), query)
 }
 
 export function projectHostHref(projectId: string, query: URLSearchParams): string {
-  return hrefWithSearch(STUDIO_ROOT, withCompatibleProjectId(query, projectId))
+  return hrefWithSearch(projectSurfacePath('overview', projectId), withCompatibleProjectId(query, projectId))
 }
 
 export function projectRouteHref(segment: string, projectId: string, query: URLSearchParams): string {
-  return hrefWithSearch(`${STUDIO_ROOT}/${segment}`, withCompatibleProjectId(query, projectId))
+  const route = projectSurfaceRouteBySegment(segment)
+  const pathname = route
+    ? projectSurfacePath(route.key, projectId)
+    : `${STUDIO_ROOT}/${encodeURIComponent(projectId)}/${encodeURIComponent(segment)}`
+  return hrefWithSearch(pathname, withCompatibleProjectId(query, projectId))
 }
 
 export function projectRouteContext(pathname: string, query: URLSearchParams) {
   const studioTail = pathname.replace(/^\/studio\/?/, '').split('/').filter(Boolean)
-  const firstSegment = studioTail[0]
-  const firstSegmentRoute = projectSurfaceRouteBySegment(firstSegment)
-  const legacyProjectId = firstSegmentRoute ? undefined : firstSegment
-  const segment = firstSegmentRoute ? firstSegment : studioTail[1]
-  const route = firstSegmentRoute ?? projectSurfaceRouteBySegment(segment)
+  const routeProjectId = studioTail[0]
+  const segment = studioTail[1]
+  const route = projectSurfaceRouteBySegment(segment)
   const projectDir = query.get('projectDir') ?? query.get('projectPath') ?? ''
   const projectId = query.get('projectId')
     ?? query.get('project_id')
     ?? query.get('projectKey')
     ?? query.get('project_key')
-    ?? legacyProjectId
+    ?? routeProjectId
     ?? localProjectIdFromPath(projectDir)
   return {
     route,
@@ -80,6 +114,27 @@ function withCompatibleProjectId(query: URLSearchParams, projectId: string): URL
   const next = new URLSearchParams(query)
   if (projectId && projectId !== 'local-project' && !next.get('projectId')) next.set('projectId', projectId)
   return next
+}
+
+function localProjectRouteId(project: LocalProjectRouteProject, projectPath: string | undefined): string {
+  if (hasPositiveProjectId(project.ID)) return String(project.ID)
+  const projectUid = project.project_uid?.trim()
+  if (projectUid) return projectUid
+  return localProjectIdFromPath(projectPath ?? '')
+}
+
+function hasPositiveProjectId(value: number | string | undefined): boolean {
+  if (value === undefined) return false
+  const numeric = Number(value)
+  return Number.isInteger(numeric) && numeric > 0
+}
+
+function projectPathFromProject(project: LocalProjectRouteProject): string | undefined {
+  const explicit = project.workspace_path?.trim() || project.project_path?.trim()
+  if (explicit) return explicit
+  const description = project.description?.trim()
+  if (description?.startsWith('/')) return description
+  return undefined
 }
 
 function localProjectIdFromPath(projectDir: string): string {

@@ -4,7 +4,7 @@ import "gorm.io/gorm"
 
 const (
 	ModelRouteSourceLocalProvider = "local_provider"
-	ModelRouteSourceNewAPI        = "new_api"
+	ModelRouteSourceRelayGateway  = "relay_gateway"
 )
 
 // AIModelCatalogEntry is the semantic definition for a MovScript public model.
@@ -28,8 +28,8 @@ type AIModelCatalogEntry struct {
 }
 
 // AIModelRouteBinding makes a provider model available through a source/route.
-// In community it points at a credential; in enterprise new-api mode it points
-// at a new-api group.
+// In community it points at a credential; in enterprise relay gateway mode it points
+// at a relay gateway group.
 type AIModelRouteBinding struct {
 	gorm.Model
 	CatalogEntryID   uint                 `gorm:"not null;index" json:"catalog_entry_id"`

@@ -47,6 +47,7 @@
     "@movscript/data-client": "workspace:*",
     "@movscript/local-runtime": "workspace:*",
     "@movscript/mcp-contracts": "workspace:*",
+    "@movscript/jobs-surface": "workspace:*",
     "@movscript/mcp-host": "workspace:*",
     "@movscript/plugins": "workspace:*",
     "@movscript/project-surface": "workspace:*",

@@ -145,3 +145,240 @@ func TestElevenLabsTranscribeSendsMultipartModelAndOptions(t *testing.T) {
 		t.Fatalf("timing = %#v", resp.Timing)
 	}
 }
+
+func TestElevenLabsGenerateMusicSendsPromptModelAndDuration(t *testing.T) {
+	var gotPath string
+	var gotOutputFormat string
+	var gotAPIKey string
+	var gotAccept string
+	var gotBody map[string]any
+
+	adapter := NewElevenLabsAdapter("eleven-key", "https://eleven.test/v1")
+	adapter.client = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		gotPath = r.URL.Path
+		gotOutputFormat = r.URL.Query().Get("output_format")
+		gotAPIKey = r.Header.Get("xi-api-key")
+		gotAccept = r.Header.Get("Accept")
+		body, _ := io.ReadAll(r.Body)
+		if err := json.Unmarshal(body, &gotBody); err != nil {
+			t.Fatalf("request body JSON error = %v", err)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header: http.Header{
+				"Content-Type": []string{"audio/mpeg"},
+				"Song-Id":      []string{"song_123"},
+			},
+			Body:    io.NopCloser(strings.NewReader("music-bytes")),
+			Request: r,
+		}, nil
+	})}
+
+	resp, err := adapter.GenerateAudio(context.Background(), media.AudioGenerationRequest{
+		Kind:        media.AudioGenerationKindMusic,
+		Prompt:      "cinematic ambient score",
+		Model:       "music_v2",
+		DurationSec: 30,
+		Params: map[string]any{
+			"output_format":      "mp3_48000_192",
+			"force_instrumental": true,
+			"seed":               42,
+		},
+	})
+	if err != nil {
+		t.Fatalf("GenerateAudio() error = %v", err)
+	}
+	if gotPath != "/v1/music/stream" {
+		t.Fatalf("path = %s, want /v1/music/stream", gotPath)
+	}
+	if gotOutputFormat != "mp3_48000_192" {
+		t.Fatalf("output_format = %q", gotOutputFormat)
+	}
+	if gotAPIKey != "eleven-key" || gotAccept != "audio/mpeg" {
+		t.Fatalf("headers api_key=%q accept=%q", gotAPIKey, gotAccept)
+	}
+	if gotBody["prompt"] != "cinematic ambient score" || gotBody["model_id"] != "music_v2" ||
+		gotBody["music_length_ms"] != float64(30000) || gotBody["force_instrumental"] != true ||
+		gotBody["seed"] != float64(42) {
+		t.Fatalf("body = %#v", gotBody)
+	}
+	if string(resp.Audio) != "music-bytes" || resp.MimeType != "audio/mpeg" ||
+		resp.ProviderRef != "song_123" || resp.DurationMs != 30000 {
+		t.Fatalf("resp = %#v", resp)
+	}
+}
+
+func TestElevenLabsGenerateSoundEffectSendsTextOptionsAndModel(t *testing.T) {
+	var gotPath string
+	var gotOutputFormat string
+	var gotBody map[string]any
+
+	adapter := NewElevenLabsAdapter("eleven-key", "https://eleven.test/v1")
+	adapter.client = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		gotPath = r.URL.Path
+		gotOutputFormat = r.URL.Query().Get("output_format")
+		body, _ := io.ReadAll(r.Body)
+		if err := json.Unmarshal(body, &gotBody); err != nil {
+			t.Fatalf("request body JSON error = %v", err)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header: http.Header{
+				"Content-Type": []string{"audio/mpeg"},
+				"Request-Id":   []string{"sfx_req_1"},
+			},
+			Body:    io.NopCloser(strings.NewReader("sfx-bytes")),
+			Request: r,
+		}, nil
+	})}
+
+	resp, err := adapter.GenerateAudio(context.Background(), media.AudioGenerationRequest{
+		Kind:        media.AudioGenerationKindSFX,
+		Prompt:      "heavy door creak",
+		Model:       "eleven_text_to_sound_v2",
+		DurationSec: 5,
+		Params: map[string]any{
+			"output_format":    "mp3_44100_128",
+			"loop":             true,
+			"prompt_influence": 0.7,
+		},
+	})
+	if err != nil {
+		t.Fatalf("GenerateAudio() error = %v", err)
+	}
+	if gotPath != "/v1/sound-generation" {
+		t.Fatalf("path = %s, want /v1/sound-generation", gotPath)
+	}
+	if gotOutputFormat != "mp3_44100_128" {
+		t.Fatalf("output_format = %q", gotOutputFormat)
+	}
+	if gotBody["text"] != "heavy door creak" || gotBody["model_id"] != "eleven_text_to_sound_v2" ||
+		gotBody["duration_seconds"] != float64(5) || gotBody["loop"] != true ||
+		gotBody["prompt_influence"] != 0.7 {
+		t.Fatalf("body = %#v", gotBody)
+	}
+	if string(resp.Audio) != "sfx-bytes" || resp.MimeType != "audio/mpeg" ||
+		resp.ProviderRef != "sfx_req_1" || resp.DurationMs != 5000 {
+		t.Fatalf("resp = %#v", resp)
+	}
+}
+
+func TestElevenLabsCloneVoiceSendsSamplesAndMetadata(t *testing.T) {
+	var gotPath string
+	var gotFields map[string]string
+	var gotFileCount int
+
+	adapter := NewElevenLabsAdapter("eleven-key", "https://eleven.test/v1")
+	adapter.client = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		gotPath = r.URL.Path
+		if r.Header.Get("xi-api-key") != "eleven-key" {
+			t.Fatalf("xi-api-key = %q", r.Header.Get("xi-api-key"))
+		}
+		if err := r.ParseMultipartForm(1024); err != nil {
+			t.Fatalf("ParseMultipartForm() error = %v", err)
+		}
+		gotFields = map[string]string{}
+		for key, values := range r.MultipartForm.Value {
+			if len(values) > 0 {
+				gotFields[key] = values[0]
+			}
+		}
+		gotFileCount = len(r.MultipartForm.File["files"])
+		return jsonResponse(r, http.StatusOK, map[string]any{
+			"voice_id": "voice_clone_1",
+			"name":     "Narrator",
+		}), nil
+	})}
+
+	resp, err := adapter.CloneVoice(context.Background(), media.VoiceCloneRequest{
+		Name:        "Narrator",
+		Description: "Warm documentary voice",
+		Samples: []media.VoiceCloneSample{
+			{Audio: []byte("wav"), MimeType: "audio/wav"},
+		},
+		Params: map[string]any{
+			"labels":                  `{"role":"narrator"}`,
+			"remove_background_noise": true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("CloneVoice() error = %v", err)
+	}
+	if gotPath != "/v1/voices/add" {
+		t.Fatalf("path = %s, want /v1/voices/add", gotPath)
+	}
+	if gotFields["name"] != "Narrator" || gotFields["description"] != "Warm documentary voice" ||
+		gotFields["labels"] != `{"role":"narrator"}` || gotFields["remove_background_noise"] != "true" ||
+		gotFileCount != 1 {
+		t.Fatalf("fields=%#v files=%d", gotFields, gotFileCount)
+	}
+	if resp.VoiceID != "voice_clone_1" || resp.Name != "Narrator" {
+		t.Fatalf("resp = %#v", resp)
+	}
+}
+
+func TestElevenLabsDesignVoiceCreatesPreviewAndSavesVoice(t *testing.T) {
+	var paths []string
+	var designBody map[string]any
+	var saveBody map[string]any
+
+	adapter := NewElevenLabsAdapter("eleven-key", "https://eleven.test/v1")
+	adapter.client = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		paths = append(paths, r.URL.Path)
+		body, _ := io.ReadAll(r.Body)
+		switch r.URL.Path {
+		case "/v1/text-to-voice/design":
+			if err := json.Unmarshal(body, &designBody); err != nil {
+				t.Fatalf("design body JSON error = %v", err)
+			}
+			return jsonResponse(r, http.StatusOK, map[string]any{
+				"previews": []map[string]any{
+					{"generated_voice_id": "generated_voice_1", "audio_url": "https://cdn.test/preview.mp3"},
+				},
+			}), nil
+		case "/v1/text-to-voice":
+			if err := json.Unmarshal(body, &saveBody); err != nil {
+				t.Fatalf("save body JSON error = %v", err)
+			}
+			return jsonResponse(r, http.StatusOK, map[string]any{
+				"voice_id": "voice_design_1",
+				"name":     "Gentle Guide",
+			}), nil
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+			return nil, nil
+		}
+	})}
+
+	resp, err := adapter.DesignVoice(context.Background(), media.VoiceDesignRequest{
+		Name:        "Gentle Guide",
+		Description: "A calm, warm guide voice",
+		PreviewText: "Welcome to the story.",
+		Model:       "eleven_multilingual_ttv_v2",
+		Params: map[string]any{
+			"seed":           7,
+			"guidance_scale": 0.8,
+			"loudness":       0.3,
+			"should_enhance": true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("DesignVoice() error = %v", err)
+	}
+	if len(paths) != 2 || paths[0] != "/v1/text-to-voice/design" || paths[1] != "/v1/text-to-voice" {
+		t.Fatalf("paths = %#v", paths)
+	}
+	if designBody["voice_description"] != "A calm, warm guide voice" || designBody["model_id"] != "eleven_multilingual_ttv_v2" ||
+		designBody["text"] != "Welcome to the story." || designBody["seed"] != float64(7) ||
+		designBody["guidance_scale"] != 0.8 || designBody["loudness"] != 0.3 ||
+		designBody["should_enhance"] != true {
+		t.Fatalf("design body = %#v", designBody)
+	}
+	if saveBody["voice_name"] != "Gentle Guide" || saveBody["voice_description"] != "A calm, warm guide voice" ||
+		saveBody["generated_voice_id"] != "generated_voice_1" {
+		t.Fatalf("save body = %#v", saveBody)
+	}
+	if resp.VoiceID != "voice_design_1" || resp.GeneratedVoiceID != "generated_voice_1" || resp.PreviewURL != "https://cdn.test/preview.mp3" {
+		t.Fatalf("resp = %#v", resp)
+	}
+}

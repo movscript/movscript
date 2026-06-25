@@ -61,7 +61,7 @@ export interface GenResultCardProps {
   prompt?: string
   status: 'idle' | 'pending' | 'running' | 'done' | 'failed' | 'cancelled'
   outputResource?: RawResource
-  outputType: 'image' | 'video' | 'audio'
+  outputType: 'image' | 'video' | 'audio' | 'text'
   error?: string
   timestamp?: string
   onReuse?: () => void

@@ -191,7 +191,7 @@ export function GenerationCard({
   debugMode,
 }: {
   job: Job
-  outputType: 'image' | 'video' | 'audio'
+  outputType: 'image' | 'video' | 'audio' | 'text'
   onReuse: () => void
   debugMode: boolean
 }) {

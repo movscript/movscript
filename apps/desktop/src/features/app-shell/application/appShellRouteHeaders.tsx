@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from 'react'
-import { AudioLines, BriefcaseBusiness, CircleUserRound, Clapperboard, GitBranch, HardDrive, Image as ImageIcon, Plug, Scissors, Settings, Video, Workflow, Zap, type LucideIcon } from 'lucide-react'
+import { AudioLines, BriefcaseBusiness, CircleUserRound, Clapperboard, FileAudio, GitBranch, HardDrive, Image as ImageIcon, Languages, MessageCircle, Mic, Music, Plug, Scissors, Settings, Video, Volume2, Wand2, Workflow, Zap, type LucideIcon } from 'lucide-react'
 import { runtimeNavItems } from '@runtime'
 import { ROUTES } from '@/routes/projectRoutes'
 import type { AccountSettingsPageTab } from '@/features/app-shell/components/AccountSettingsDialog'
@@ -47,6 +47,13 @@ export function toolRouteHeaderTitle(pathname: string): ReactNode | undefined {
     { match: (value) => value === ROUTES.tools.refImageGen, icon: ImageIcon, title: i18n.t('sidebar.items.refImageGen') },
     { match: (value) => value === ROUTES.tools.refVideoGen, icon: Video, title: i18n.t('sidebar.items.refVideoGen') },
     { match: (value) => value === ROUTES.tools.audioGen, icon: AudioLines, title: i18n.t('sidebar.items.audioGen') },
+    { match: (value) => value === ROUTES.tools.audioChat, icon: MessageCircle, title: i18n.t('sidebar.items.audioChat') },
+    { match: (value) => value === ROUTES.tools.audioTranscribe, icon: FileAudio, title: i18n.t('sidebar.items.audioTranscribe') },
+    { match: (value) => value === ROUTES.tools.audioTranslate, icon: Languages, title: i18n.t('sidebar.items.audioTranslate') },
+    { match: (value) => value === ROUTES.tools.musicGen, icon: Music, title: i18n.t('sidebar.items.musicGen') },
+    { match: (value) => value === ROUTES.tools.audioSfx, icon: Volume2, title: i18n.t('sidebar.items.audioSfx') },
+    { match: (value) => value === ROUTES.tools.voiceClone, icon: Mic, title: i18n.t('sidebar.items.voiceClone') },
+    { match: (value) => value === ROUTES.tools.voiceDesign, icon: Wand2, title: i18n.t('sidebar.items.voiceDesign') },
     { match: (value) => value === ROUTES.tools.motionImitation, icon: Workflow, title: i18n.t('sidebar.items.motionImitation') },
     { match: (value) => value === ROUTES.tools.styleTransfer, icon: Zap, title: i18n.t('sidebar.items.styleTransfer') },
     { match: (value) => value === ROUTES.tools.multiAngle, icon: Workflow, title: i18n.t('sidebar.items.multiAngle') },

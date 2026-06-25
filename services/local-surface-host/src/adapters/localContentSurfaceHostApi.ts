@@ -29,28 +29,35 @@ export function mergeLocalSurfaceHostAPI(api: SurfaceHostApi | undefined): void 
 }
 
 function createLocalProjectContentAPI(options: LocalProjectContentAPIOptions): SurfaceHostApi {
-  const sourceCommand = (command: string, input: ProjectInput, useDecisionStore = true) => projectCommand({
-    localEndpoint: '/local-api/project/source/command',
-    servicePath: '/v1/project/source/command',
-    projectServiceBaseURL: options.projectServiceBaseURL,
-    body: {
-      projectDir: projectDirFromInput(input, options),
-      command,
-      input,
-      ...(useDecisionStore ? { decisionStore: decisionStoreConfig(input, options) } : {}),
-    },
-  })
-  const candidateCommand = (command: string, input: ProjectInput) => projectCommand({
-    localEndpoint: '/local-api/project/candidates/command',
-    servicePath: '/v1/project/candidates/command',
-    projectServiceBaseURL: options.projectServiceBaseURL,
-    body: {
-      projectDir: projectDirFromInput(input, options),
-      command,
-      input,
-      decisionStore: decisionStoreConfig(input, options),
-    },
-  })
+  const sourceCommand = (command: string, input: ProjectInput, useDecisionStore = true) => {
+    const decisionStore = useDecisionStore ? decisionStoreConfig(input, options) : undefined
+    return projectCommand({
+      localEndpoint: '/local-api/project/source/command',
+      servicePath: '/v1/project/source/command',
+      projectServiceBaseURL: options.projectServiceBaseURL,
+      body: {
+        projectDir: projectDirFromInput(input, options),
+        command,
+        input,
+        ...(decisionStore ? { decisionStore } : {}),
+      },
+    })
+  }
+  const candidateCommand = async (command: string, input: ProjectInput) => {
+    const projectDir = projectDirFromInput(input, options)
+    const decisionStore = await requiredDecisionStoreConfig(input, options, projectDir)
+    return projectCommand({
+      localEndpoint: '/local-api/project/candidates/command',
+      servicePath: '/v1/project/candidates/command',
+      projectServiceBaseURL: options.projectServiceBaseURL,
+      body: {
+        projectDir,
+        command,
+        input,
+        decisionStore,
+      },
+    })
+  }
 
   return {
     queryMovScriptEngineWorkspaceEntities: (input) => sourceCommand('queryEntities', { query: recordValue(input).query }),
@@ -129,11 +136,10 @@ function projectDirFromInput(input: ProjectInput, options: LocalProjectContentAP
   return explicit
 }
 
-function decisionStoreConfig(input: ProjectInput, options: LocalProjectContentAPIOptions): Record<string, unknown> {
+function decisionStoreConfig(input: ProjectInput, options: LocalProjectContentAPIOptions): Record<string, unknown> | undefined {
   const projectUid = stringValue(input.projectUid ?? input.project_uid)
     ?? options.projectUid
-    ?? stringValue(options.projectId)
-    ?? projectDirFromInput(input, options)
+  if (!projectUid) return undefined
   return {
     kind: 'scoped-project-data',
     baseUrl: `${window.location.origin}/local-api/data`,
@@ -141,6 +147,34 @@ function decisionStoreConfig(input: ProjectInput, options: LocalProjectContentAP
     scopeKind: 'user',
     scopeId: 1,
   }
+}
+
+async function requiredDecisionStoreConfig(
+  input: ProjectInput,
+  options: LocalProjectContentAPIOptions,
+  projectDir: string,
+): Promise<Record<string, unknown>> {
+  const decisionStore = decisionStoreConfig(input, options)
+    ?? await inferDecisionStoreConfig(options, projectDir)
+  if (!decisionStore) {
+    throw new Error('projectUid is required for local project candidate writes')
+  }
+  return decisionStore
+}
+
+async function inferDecisionStoreConfig(
+  options: LocalProjectContentAPIOptions,
+  projectDir: string,
+): Promise<Record<string, unknown> | undefined> {
+  const locatorResponse = await projectCommand({
+    localEndpoint: '/local-api/project/locator/resolve',
+    servicePath: '/v1/project/locator/resolve',
+    projectServiceBaseURL: options.projectServiceBaseURL,
+    body: { projectDir },
+  }).catch(() => undefined)
+  const locator = recordValue(recordValue(locatorResponse).locator ?? locatorResponse)
+  const projectUid = stringValue(locator.projectUid ?? locator.project_uid)
+  return projectUid ? decisionStoreConfig({ projectUid }, options) : undefined
 }
 
 function payloadInput(input: unknown): ProjectInput {

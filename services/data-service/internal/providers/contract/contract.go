@@ -46,6 +46,7 @@ const (
 	AdapterGitHubEnterprise    = "github-enterprise"
 	AdapterGitLab              = "gitlab"
 	AdapterLocal               = "local"
+	AdapterRelayGateway        = "relay-gateway"
 	AdapterBuiltin             = "builtin"
 	AdapterMemory              = "memory"
 	AdapterRedis               = "redis"

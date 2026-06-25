@@ -58,7 +58,7 @@ export function useExternalResourceSearchController() {
 
   const { data: sources = [], isLoading: sourcesLoading } = useQuery<ExternalResourceSource[]>({
     queryKey: externalResourceKeys.sources,
-    queryFn: () => api.get('/external-resource-sources').then(r => r.data),
+    queryFn: () => api.get('/external-resource-sources').then(r => readExternalResourceSourcesPayload(r.data)),
     enabled: onboardingCompleted,
   })
   const enabledSources = useMemo(() => sources.filter(source => source.is_enabled), [sources])
@@ -293,4 +293,14 @@ export function useExternalResourceSearchController() {
 
 function externalResourceSearchSnapshotSignature(snapshot: ExternalResourceSearchSnapshot | null): string {
   return snapshot ? JSON.stringify(snapshot) : ''
+}
+
+function readExternalResourceSourcesPayload(raw: unknown): ExternalResourceSource[] {
+  if (Array.isArray(raw)) return raw as ExternalResourceSource[]
+  if (!raw || typeof raw !== 'object') return []
+  const record = raw as Record<string, unknown>
+  if (Array.isArray(record.sources)) return record.sources as ExternalResourceSource[]
+  if (Array.isArray(record.items)) return record.items as ExternalResourceSource[]
+  if (Array.isArray(record.data)) return record.data as ExternalResourceSource[]
+  return []
 }

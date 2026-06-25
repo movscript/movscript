@@ -64,6 +64,7 @@ func TestListModelCatalogTemplatesReturnsDefaultPublicModelID(t *testing.T) {
 		Lab                  string `json:"lab"`
 		DefaultPublicModelID string `json:"default_public_model_id"`
 		ModelID              string `json:"model_id"`
+		SourceStatus         string `json:"source_status"`
 	}
 	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode response: %v", err)
@@ -83,6 +84,9 @@ func TestListModelCatalogTemplatesReturnsDefaultPublicModelID(t *testing.T) {
 		}
 		if template.ModelID == "" {
 			t.Fatalf("template %s has empty model_id", template.ID)
+		}
+		if template.SourceStatus == "" {
+			t.Fatalf("template %s has empty source_status", template.ID)
 		}
 	}
 

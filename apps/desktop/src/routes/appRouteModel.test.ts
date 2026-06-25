@@ -33,6 +33,8 @@ test('app route layout spec is derived from pathname instead of the saved work m
 test('work mode route helpers keep canvas as a temporary surface', () => {
   assert.equal(workModeForRoute('/project/agent', 'project'), 'agent')
   assert.equal(workModeForRoute('/project/scripts/workbench', 'agent'), 'project')
+  assert.equal(workModeForRoute('/resources', 'project'), 'tool')
+  assert.equal(workModeForRoute('/resources/external', 'project'), 'tool')
   assert.equal(workModeForRoute('/canvases/42', 'agent'), 'agent')
   assert.equal(workModeForRoute('/app/settings', 'agent'), 'agent')
   assert.equal(workModeForRoute('/agent/settings', 'agent'), 'agent')

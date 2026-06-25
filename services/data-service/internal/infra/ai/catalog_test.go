@@ -96,6 +96,11 @@ func TestCatalogTemplatesByLabFiltersOnModelLab(t *testing.T) {
 	if got := CatalogTemplatesByLab("volcengine"); len(got) != 0 {
 		t.Fatalf("volcengine is a provider/route family, not a lab; got %#v", got)
 	}
+	for _, providerOnlyLab := range []string{"aws-bedrock", "aws-bedrock-openai", "azure-openai", "relay_gateway", "apiyi", "local-audio"} {
+		if got := CatalogTemplatesByLab(providerOnlyLab); len(got) != 0 {
+			t.Fatalf("%s is a provider or runtime surface, not a lab; got %#v", providerOnlyLab, got)
+		}
+	}
 	if got := CatalogTemplatesByLab("SEED"); len(got) != len(templates) {
 		t.Fatalf("case-insensitive seed filter returned %d templates, want %d", len(got), len(templates))
 	}
@@ -210,9 +215,38 @@ func TestOpenAICompatAdapterDefaultsIncludeAudioAndAlignParams(t *testing.T) {
 		t.Fatalf("openai-compatible STT params = %#v, want response_format, prompt, temperature", transcribeParams)
 	}
 
+	chatParams := DefaultParamsForAdapter(AdapterOpenAICompat, []string{CapabilityAudioChat})
+	if !hasParam(chatParams, "voice") || !hasParam(chatParams, "response_format") || !hasParam(chatParams, "temperature") || !hasParam(chatParams, "max_tokens") {
+		t.Fatalf("openai-compatible audio chat params = %#v, want voice, response_format, temperature, max_tokens", chatParams)
+	}
+
 	alignParams := DefaultParamsForAdapter(AdapterOpenAICompat, []string{CapabilitySubAlign})
 	if !hasParam(alignParams, "response_format") || !hasParam(alignParams, "prompt") || !hasParam(alignParams, "temperature") {
 		t.Fatalf("openai-compatible align params = %#v, want transcription params", alignParams)
+	}
+}
+
+func TestDashScopeRealtimeTTSModelsAreNotClassifiedAsAudioChat(t *testing.T) {
+	want := map[string]bool{
+		"dashscope:qwen3-tts-flash-realtime":          false,
+		"dashscope:qwen3-tts-instruct-flash-realtime": false,
+	}
+	for _, template := range CatalogTemplates() {
+		if _, ok := want[template.ID]; !ok {
+			continue
+		}
+		want[template.ID] = true
+		if !hasString(template.Capabilities, CapabilityAudioTTS) {
+			t.Fatalf("%s capabilities = %#v, want audio_tts", template.ID, template.Capabilities)
+		}
+		if hasString(template.Capabilities, CapabilityAudioChat) {
+			t.Fatalf("%s capabilities = %#v, realtime TTS must not be listed as audio_chat", template.ID, template.Capabilities)
+		}
+	}
+	for id, found := range want {
+		if !found {
+			t.Fatalf("expected template %s", id)
+		}
 	}
 }
 

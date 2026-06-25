@@ -19,7 +19,7 @@ interface ToolDialogHistorySectionProps {
   historyPageCount: number
   historyTotal: number
   layout: 'default' | 'reference-workbench'
-  outputType: 'image' | 'video' | 'audio'
+  outputType: 'image' | 'video' | 'audio' | 'text'
   debugMode: boolean
   onPreviousPage: () => void
   onNextPage: () => void

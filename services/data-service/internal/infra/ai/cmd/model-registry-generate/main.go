@@ -67,6 +67,7 @@ type templateSource struct {
 	DisplayName          string         `yaml:"display_name" json:"display_name"`
 	AdapterType          string         `yaml:"adapter_type" json:"adapter_type"`
 	Capabilities         []string       `yaml:"capabilities" json:"capabilities"`
+	APIKinds             []string       `yaml:"api_kinds,omitempty" json:"api_kinds,omitempty"`
 	AllowModelIDOverride bool           `yaml:"allow_model_id_override,omitempty" json:"allow_model_id_override,omitempty"`
 	Input                inputSource    `yaml:"input,omitempty" json:"input,omitempty"`
 	ImageEditField       string         `yaml:"image_edit_field,omitempty" json:"image_edit_field,omitempty"`
@@ -114,6 +115,7 @@ type snapshotEntry struct {
 	ModelID      string         `json:"model_id"`
 	AdapterType  string         `json:"adapter_type"`
 	Capabilities []string       `json:"capabilities"`
+	APIKinds     []string       `json:"api_kinds,omitempty"`
 	ParamKeys    []string       `json:"param_keys,omitempty"`
 	Source       sourceEvidence `json:"source"`
 }
@@ -144,6 +146,9 @@ func main() {
 	if err := validateTemplates(templates); err != nil {
 		fatal(err)
 	}
+	if err := validateRuntimeCapabilityCoverage(templates); err != nil {
+		fatal(err)
+	}
 	providers, err := loadProviderTemplates(*providerSource)
 	if err != nil {
 		fatal(err)
@@ -156,6 +161,9 @@ func main() {
 		fatal(err)
 	}
 	if err := validateComboRules(rules, providers); err != nil {
+		fatal(err)
+	}
+	if err := validateRegistryBoundaries(templates, providers, rules); err != nil {
 		fatal(err)
 	}
 	if err := writeGeneratedGo(*goOut, templates, *check); err != nil {
@@ -306,6 +314,11 @@ func validateTemplates(templates []templateSource) error {
 				return fmt.Errorf("%s: unknown capability %q", template.ID, capability)
 			}
 		}
+		for _, apiKind := range template.APIKinds {
+			if !infraai.ValidModelAPIKind(apiKind) {
+				return fmt.Errorf("%s: unknown api_kind %q", template.ID, apiKind)
+			}
+		}
 		if strings.TrimSpace(template.Source.URL) == "" {
 			return fmt.Errorf("%s: source.url is required", template.ID)
 		}
@@ -313,7 +326,7 @@ func validateTemplates(templates []templateSource) error {
 			return fmt.Errorf("%s: source.verified_at must be YYYY-MM-DD: %w", template.ID, err)
 		}
 		switch template.Source.Status {
-		case "verified", "needs_review", "deprecated", "unofficial":
+		case "verified", "needs_review", "deprecated", "unofficial", "observed", "template_only":
 		default:
 			return fmt.Errorf("%s: invalid source.status %q", template.ID, template.Source.Status)
 		}
@@ -324,6 +337,85 @@ func validateTemplates(templates []templateSource) error {
 		}
 	}
 	return nil
+}
+
+func validateRuntimeCapabilityCoverage(templates []templateSource) error {
+	for _, template := range templates {
+		if strings.TrimSpace(template.Source.Status) == "template_only" {
+			continue
+		}
+		for _, capability := range template.Capabilities {
+			if !adapterSupportsRuntimeCapability(template.AdapterType, capability) {
+				return fmt.Errorf("%s: adapter_type %q does not implement runtime capability %q; mark the template source.status as template_only until the adapter path exists", template.ID, template.AdapterType, capability)
+			}
+		}
+	}
+	return nil
+}
+
+func adapterSupportsRuntimeCapability(adapterType, capability string) bool {
+	switch strings.TrimSpace(adapterType) {
+	case infraai.AdapterOpenAICompat:
+		switch capability {
+		case infraai.CapabilityText, infraai.CapabilityReasoning,
+			infraai.CapabilityImage, infraai.CapabilityImageEdit,
+			infraai.CapabilityVideo, infraai.CapabilityVideoI2V, infraai.CapabilityVideoV2V,
+			infraai.CapabilityAudioTTS, infraai.CapabilityAudioSTT, infraai.CapabilityAudioChat,
+			infraai.CapabilityAudioTranslate, infraai.CapabilitySubAlign:
+			return true
+		}
+	case infraai.AdapterAnthropic:
+		return capability == infraai.CapabilityText || capability == infraai.CapabilityReasoning
+	case infraai.AdapterDashScope:
+		switch capability {
+		case infraai.CapabilityVideo, infraai.CapabilityVideoI2V, infraai.CapabilityVideoV2V, infraai.CapabilityAudioTTS:
+			return true
+		}
+	case infraai.AdapterGemini:
+		switch capability {
+		case infraai.CapabilityText, infraai.CapabilityReasoning,
+			infraai.CapabilityImage, infraai.CapabilityImageEdit,
+			infraai.CapabilityVideo, infraai.CapabilityVideoI2V,
+			infraai.CapabilityAudioTTS, infraai.CapabilityAudioMusic:
+			return true
+		}
+	case infraai.AdapterVolcen:
+		switch capability {
+		case infraai.CapabilityText, infraai.CapabilityReasoning,
+			infraai.CapabilityImage, infraai.CapabilityImageEdit,
+			infraai.CapabilityVideo, infraai.CapabilityVideoI2V, infraai.CapabilityVideoV2V,
+			infraai.CapabilityAudioTTS, infraai.CapabilityAudioSTT, infraai.CapabilitySubAlign:
+			return true
+		}
+	case infraai.AdapterKling:
+		return capability == infraai.CapabilityVideo || capability == infraai.CapabilityVideoI2V
+	case infraai.AdapterVidu:
+		return capability == infraai.CapabilityVideo || capability == infraai.CapabilityVideoI2V || capability == infraai.CapabilityVideoV2V
+	case infraai.AdapterElevenLabs:
+		switch capability {
+		case infraai.CapabilityAudioTTS, infraai.CapabilityAudioSTT, infraai.CapabilityAudioMusic, infraai.CapabilityAudioSFX,
+			infraai.CapabilityVoiceClone, infraai.CapabilityVoiceDesign, infraai.CapabilitySubAlign:
+			return true
+		}
+	case infraai.AdapterMiniMax:
+		return capability == infraai.CapabilityAudioTTS
+	case infraai.AdapterMureka:
+		return capability == infraai.CapabilityText || capability == infraai.CapabilityAudioMusic
+	case infraai.AdapterStability:
+		return capability == infraai.CapabilityAudioMusic || capability == infraai.CapabilityAudioSFX
+	case infraai.AdapterLocal:
+		switch capability {
+		case infraai.CapabilityText, infraai.CapabilityReasoning,
+			infraai.CapabilityImage, infraai.CapabilityImageEdit,
+			infraai.CapabilityVideo, infraai.CapabilityVideoI2V, infraai.CapabilityVideoV2V,
+			infraai.CapabilityAudioMusic, infraai.CapabilityAudioSFX, infraai.CapabilityAudioChat,
+			infraai.CapabilityAudioSTT, infraai.CapabilityAudioTranslate,
+			infraai.CapabilityVoiceClone, infraai.CapabilityVoiceDesign,
+			infraai.CapabilitySubAlign, infraai.CapabilitySubTranslate:
+			return true
+		}
+	}
+	return false
 }
 
 func loadProviderTemplates(path string) ([]providerTemplateSource, error) {
@@ -431,6 +523,44 @@ func validateComboRules(rules []comboRuleSource, providers []providerTemplateSou
 	return nil
 }
 
+func validateRegistryBoundaries(templates []templateSource, providers []providerTemplateSource, rules []comboRuleSource) error {
+	labs := map[string]bool{}
+	for _, template := range templates {
+		lab := strings.TrimSpace(template.Lab)
+		if providerOnlyLabName(lab) {
+			return fmt.Errorf("%s: lab %q is a provider or runtime boundary; use providers.yaml and route bindings instead", template.ID, lab)
+		}
+		labs[lab] = true
+	}
+	for _, rule := range rules {
+		lab := strings.TrimSpace(rule.Lab)
+		if lab == "" {
+			continue
+		}
+		if providerOnlyLabName(lab) {
+			return fmt.Errorf("combo rule lab %q is a provider or runtime boundary; use an upstream model-family lab", lab)
+		}
+		if !labs[lab] {
+			return fmt.Errorf("combo rule references unknown lab %q", lab)
+		}
+	}
+	for _, provider := range providers {
+		if providerOnlyLabName(provider.ProviderKind) && strings.TrimSpace(provider.ProviderKind) != "relay_gateway" {
+			return fmt.Errorf("%s: provider_kind uses lab-only legacy/provider name; use a stable provider kind", provider.ProviderKind)
+		}
+	}
+	return nil
+}
+
+func providerOnlyLabName(value string) bool {
+	switch strings.TrimSpace(value) {
+	case "aws-bedrock", "aws-bedrock-openai", "azure-openai", "relay_gateway", "new_api", "new-api", "apiyi", "local-audio", "volcengine":
+		return true
+	default:
+		return false
+	}
+}
+
 func normalizeProviderTemplates(providers []providerTemplateSource) {
 	for i := range providers {
 		providers[i].ProviderType = strings.TrimSpace(providers[i].ProviderType)
@@ -470,7 +600,9 @@ func writeGeneratedGo(path string, templates []templateSource, check bool) error
 		writeGoStringField(&buf, "ModelID", template.ModelID)
 		writeGoStringField(&buf, "DisplayName", template.DisplayName)
 		writeGoStringSliceField(&buf, "Capabilities", template.Capabilities)
+		writeGoStringSliceField(&buf, "APIKinds", infraai.NormalizeModelAPIKinds(template.APIKinds))
 		writeGoStringField(&buf, "AdapterType", template.AdapterType)
+		writeGoStringField(&buf, "SourceStatus", template.Source.Status)
 		if template.Input.AcceptsImage {
 			buf.WriteString("\t\tAcceptsImageInput: true,\n")
 		}
@@ -529,6 +661,7 @@ func writeSnapshot(path string, templates []templateSource, check bool) error {
 			ModelID:      template.ModelID,
 			AdapterType:  template.AdapterType,
 			Capabilities: template.Capabilities,
+			APIKinds:     infraai.NormalizeModelAPIKinds(template.APIKinds),
 			ParamKeys:    keys,
 			Source:       template.Source,
 		})
@@ -820,6 +953,10 @@ func validCapability(value string) bool {
 		infraai.CapabilityAudioSTT,
 		infraai.CapabilityAudioMusic,
 		infraai.CapabilityAudioSFX,
+		infraai.CapabilityAudioChat,
+		infraai.CapabilityVoiceClone,
+		infraai.CapabilityVoiceDesign,
+		infraai.CapabilityAudioTranslate,
 		infraai.CapabilitySubAlign,
 		infraai.CapabilitySubTranslate:
 		return true

@@ -79,7 +79,7 @@ templates:
             - "3:4"
           type: select
       source:
-        status: verified
+        status: template_only
         url: https://www.alibabacloud.com/help/en/model-studio/qwen-image-api
         verified_at: "2026-06-25"
     - adapter_type: dashscope
@@ -150,3 +150,133 @@ templates:
       video:
         default_duration_sec: 5
         max_duration_sec: 15
+    - adapter_type: dashscope
+      allow_model_id_override: true
+      capabilities:
+        - audio_tts
+      display_name: Qwen3 TTS Flash
+      id: dashscope:qwen3-tts-flash
+      lab: alibaba-dashscope
+      model_id: qwen3-tts-flash
+      order: 63
+      source:
+        status: verified
+        url: https://www.alibabacloud.com/help/en/model-studio/qwen-tts-api
+        verified_at: "2026-06-25"
+    - adapter_type: dashscope
+      allow_model_id_override: true
+      capabilities:
+        - audio_tts
+      display_name: Qwen3 TTS Instruct Flash
+      id: dashscope:qwen3-tts-instruct-flash
+      lab: alibaba-dashscope
+      model_id: qwen3-tts-instruct-flash
+      order: 64
+      source:
+        status: verified
+        url: https://www.alibabacloud.com/help/en/model-studio/qwen-tts-api
+        verified_at: "2026-06-25"
+    - adapter_type: dashscope
+      allow_model_id_override: true
+      capabilities:
+        - audio_tts
+      display_name: Qwen3 TTS Flash Realtime
+      id: dashscope:qwen3-tts-flash-realtime
+      lab: alibaba-dashscope
+      model_id: qwen3-tts-flash-realtime
+      order: 65
+      source:
+        status: template_only
+        url: https://www.alibabacloud.com/help/en/model-studio/qwen-tts-api
+        verified_at: "2026-06-25"
+    - adapter_type: dashscope
+      allow_model_id_override: true
+      capabilities:
+        - audio_tts
+      display_name: Qwen3 TTS Instruct Flash Realtime
+      id: dashscope:qwen3-tts-instruct-flash-realtime
+      lab: alibaba-dashscope
+      model_id: qwen3-tts-instruct-flash-realtime
+      order: 66
+      source:
+        status: template_only
+        url: https://www.alibabacloud.com/help/en/model-studio/qwen-tts-api
+        verified_at: "2026-06-25"
+    - adapter_type: dashscope
+      allow_model_id_override: true
+      capabilities:
+        - audio_tts
+      display_name: CosyVoice v3.5 Plus
+      id: dashscope:cosyvoice-v3-5-plus
+      lab: alibaba-dashscope
+      model_id: cosyvoice-v3.5-plus
+      order: 67
+      source:
+        status: verified
+        url: https://help.aliyun.com/en/model-studio/cosyvoice-tts-http-api
+        verified_at: "2026-06-25"
+    - adapter_type: dashscope
+      allow_model_id_override: true
+      capabilities:
+        - audio_tts
+      display_name: CosyVoice v3.5 Flash
+      id: dashscope:cosyvoice-v3-5-flash
+      lab: alibaba-dashscope
+      model_id: cosyvoice-v3.5-flash
+      order: 68
+      source:
+        status: verified
+        url: https://help.aliyun.com/en/model-studio/cosyvoice-tts-http-api
+        verified_at: "2026-06-25"
+    - adapter_type: dashscope
+      allow_model_id_override: true
+      capabilities:
+        - audio_tts
+      display_name: CosyVoice v3 Plus
+      id: dashscope:cosyvoice-v3-plus
+      lab: alibaba-dashscope
+      model_id: cosyvoice-v3-plus
+      order: 69
+      source:
+        status: verified
+        url: https://help.aliyun.com/en/model-studio/cosyvoice-tts-http-api
+        verified_at: "2026-06-25"
+    - adapter_type: dashscope
+      allow_model_id_override: true
+      capabilities:
+        - audio_tts
+      display_name: CosyVoice v3 Flash
+      id: dashscope:cosyvoice-v3-flash
+      lab: alibaba-dashscope
+      model_id: cosyvoice-v3-flash
+      order: 70
+      source:
+        status: verified
+        url: https://help.aliyun.com/en/model-studio/cosyvoice-tts-http-api
+        verified_at: "2026-06-25"
+    - adapter_type: dashscope
+      allow_model_id_override: true
+      capabilities:
+        - audio_chat
+      display_name: Qwen3 Omni Flash
+      id: dashscope:qwen3-omni-flash
+      lab: alibaba-dashscope
+      model_id: qwen3-omni-flash
+      order: 71
+      source:
+        status: template_only
+        url: https://www.alibabacloud.com/help/en/model-studio/qwen3-omni
+        verified_at: "2026-06-25"
+    - adapter_type: dashscope
+      allow_model_id_override: true
+      capabilities:
+        - audio_chat
+      display_name: Qwen3 Omni Flash 2025-09-15
+      id: dashscope:qwen3-omni-flash-2025-09-15
+      lab: alibaba-dashscope
+      model_id: qwen3-omni-flash-2025-09-15
+      order: 72
+      source:
+        status: template_only
+        url: https://www.alibabacloud.com/help/en/model-studio/qwen3-omni
+        verified_at: "2026-06-25"

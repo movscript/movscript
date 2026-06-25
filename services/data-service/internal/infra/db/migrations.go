@@ -469,8 +469,8 @@ func providerTypeProfileForProviderKind(providerKind string) (string, string) {
 	switch strings.TrimSpace(providerKind) {
 	case persistencemodel.AIProviderKindVolcengineArk:
 		return persistencemodel.AIProviderTypeVolcen, persistencemodel.AIProviderProfileArk
-	case persistencemodel.AIProviderKindVolcengineArkProxy, persistencemodel.AIProviderKindNewAPI:
-		return persistencemodel.AIProviderTypeNewAPI, persistencemodel.AIProviderProfileGateway
+	case persistencemodel.AIProviderKindVolcengineArkProxy, persistencemodel.AIProviderKindRelayGateway:
+		return persistencemodel.AIProviderTypeRelayGateway, persistencemodel.AIProviderProfileGateway
 	case persistencemodel.AIProviderKindLocalOpenAICompat:
 		return persistencemodel.AIProviderTypeOpenAI, persistencemodel.AIProviderProfileLocal
 	case persistencemodel.AIProviderKindOpenAICompatGateway:
@@ -560,7 +560,7 @@ func routeProviderIDBackfillSQL(db *gorm.DB) string {
 	return fmt.Sprintf(`
 		UPDATE ai_model_route_bindings
 		SET provider_id = CASE
-			WHEN source_type = 'new_api' THEN 'new_api'
+			WHEN source_type = 'relay_gateway' THEN 'relay_gateway'
 			WHEN credential_id IS NOT NULL AND credential_id <> 0 THEN %s
 			ELSE source_type
 		END

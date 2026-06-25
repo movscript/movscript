@@ -81,7 +81,7 @@ func (w *Worker) buildVideoRequest(job *persistencemodel.Job, params generationP
 
 func (w *Worker) routeSupportsProviderAssetURI(ctx context.Context, route ai.ModelRoute) bool {
 	providerID := strings.TrimSpace(route.ProviderID)
-	if providerID == "" || providerID == persistencemodel.ModelRouteSourceNewAPI {
+	if providerID == "" || providerID == persistencemodel.ModelRouteSourceRelayGateway {
 		return false
 	}
 	return providerTemplateSupportsAssetType(w.providerKindForAssetRoute(ctx, route), "image")

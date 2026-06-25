@@ -20,7 +20,7 @@ func TestCreateProviderCreatesCredentialBackedProvider(t *testing.T) {
 	ctx := context.Background()
 
 	provider, err := service.CreateProvider(ctx, CreateProviderInput{
-		ProviderType:  persistencemodel.AIProviderTypeNewAPI,
+		ProviderType:  persistencemodel.AIProviderTypeRelayGateway,
 		Profile:       persistencemodel.AIProviderProfileGateway,
 		DisplayName:   "Gateway",
 		BaseURLPrefix: "https://gateway.example.com/v1",
@@ -34,9 +34,9 @@ func TestCreateProviderCreatesCredentialBackedProvider(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateProvider() error = %v", err)
 	}
-	if provider.ProviderType != persistencemodel.AIProviderTypeNewAPI ||
+	if provider.ProviderType != persistencemodel.AIProviderTypeRelayGateway ||
 		provider.Profile != persistencemodel.AIProviderProfileGateway ||
-		provider.ProviderKind != persistencemodel.AIProviderKindNewAPI ||
+		provider.ProviderKind != persistencemodel.AIProviderKindRelayGateway ||
 		provider.ProviderCategory != persistencemodel.AIProviderCategoryAggregatorGateway ||
 		provider.DefaultAdapterType != infraai.AdapterOpenAICompat ||
 		provider.AdapterKey != infraai.AdapterOpenAICompat ||
@@ -80,9 +80,9 @@ func TestCreateProviderPreservesTemplateProviderKind(t *testing.T) {
 	service := newProviderTestService(t)
 
 	provider, err := service.CreateProvider(context.Background(), CreateProviderInput{
-		ProviderKind:  persistencemodel.AIProviderKindNewAPI,
-		DisplayName:   "New API",
-		BaseURLPrefix: "https://new-api.example.com/v1",
+		ProviderKind:  persistencemodel.AIProviderKindRelayGateway,
+		DisplayName:   "中转站",
+		BaseURLPrefix: "https://relay-gateway.example.com/v1",
 		Credentials: map[string]string{
 			"api_key": "proxy-key",
 		},
@@ -90,11 +90,11 @@ func TestCreateProviderPreservesTemplateProviderKind(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateProvider() error = %v", err)
 	}
-	if provider.ProviderKind != persistencemodel.AIProviderKindNewAPI {
-		t.Fatalf("provider kind = %q, want New API", provider.ProviderKind)
+	if provider.ProviderKind != persistencemodel.AIProviderKindRelayGateway {
+		t.Fatalf("provider kind = %q, want relay gateway", provider.ProviderKind)
 	}
-	if provider.ProviderType != persistencemodel.AIProviderTypeNewAPI || provider.Profile != persistencemodel.AIProviderProfileGateway {
-		t.Fatalf("provider type/profile = %q/%q, want new_api/gateway", provider.ProviderType, provider.Profile)
+	if provider.ProviderType != persistencemodel.AIProviderTypeRelayGateway || provider.Profile != persistencemodel.AIProviderProfileGateway {
+		t.Fatalf("provider type/profile = %q/%q, want relay_gateway/gateway", provider.ProviderType, provider.Profile)
 	}
 	if provider.ProviderCategory != persistencemodel.AIProviderCategoryAggregatorGateway {
 		t.Fatalf("provider category = %q, want aggregator gateway", provider.ProviderCategory)

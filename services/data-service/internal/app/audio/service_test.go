@@ -136,7 +136,7 @@ func TestResolveAudioRouteUsesCatalogEntryIDWithoutLegacyModelConfig(t *testing.
 	}
 	if err := db.Create(&persistencemodel.AIModelRouteBinding{
 		CatalogEntryID:  entry.ID,
-		SourceType:      persistencemodel.ModelRouteSourceNewAPI,
+		SourceType:      persistencemodel.ModelRouteSourceRelayGateway,
 		RouteGroup:      "priority",
 		ProviderModelID: "provider-voice-v1",
 		IsEnabled:       true,

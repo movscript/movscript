@@ -7,6 +7,7 @@ import {
   modelKeys,
   surfaceModelQueryCapability,
   type PublicModel,
+  type SurfaceModelCapability,
 } from '@movscript/shared'
 import {
   publicAgentBackendModelId as publicModelId,
@@ -14,7 +15,7 @@ import {
 } from '@movscript/core/agent'
 
 interface ModelSelectorProps {
-  capability: 'image' | 'video' | 'audio' | 'text'
+  capability: SurfaceModelCapability
   value: string | null
   onChange: (id: string) => void
   onModelChange?: (model: PublicModel | null) => void

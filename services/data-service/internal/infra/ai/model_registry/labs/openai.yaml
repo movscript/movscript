@@ -322,3 +322,174 @@ templates:
         url: https://developers.openai.com/api/docs/guides/speech-to-text
         verified_at: "2026-06-25"
         status: verified
+    - order: 19
+      id: openai:gpt-4o-transcribe-diarize
+      lab: openai
+      model_id: gpt-4o-transcribe-diarize
+      display_name: GPT-4o Transcribe Diarize
+      adapter_type: openai_compat
+      capabilities:
+        - audio_transcribe
+      params:
+        - key: response_format
+          label: 输出格式
+          type: select
+          options:
+            - json
+            - text
+            - diarized_json
+          default: diarized_json
+        - key: prompt
+          label: 提示词
+          type: string
+          default: ""
+        - key: temperature
+          label: 随机性
+          type: number
+          default: 0
+          min: 0
+          max: 1
+          step: 0.1
+      source:
+        url: https://developers.openai.com/api/docs/guides/speech-to-text
+        verified_at: "2026-06-25"
+        status: verified
+    - order: 20
+      id: openai:whisper-1
+      lab: openai
+      model_id: whisper-1
+      display_name: Whisper 1
+      adapter_type: openai_compat
+      capabilities:
+        - audio_transcribe
+        - audio_translate
+      params:
+        - key: response_format
+          label: 输出格式
+          type: select
+          options:
+            - json
+            - text
+            - srt
+            - verbose_json
+            - vtt
+          default: verbose_json
+        - key: prompt
+          label: 提示词
+          type: string
+          default: ""
+        - key: temperature
+          label: 随机性
+          type: number
+          default: 0
+          min: 0
+          max: 1
+          step: 0.1
+      source:
+        url: https://developers.openai.com/api/docs/guides/speech-to-text
+        verified_at: "2026-06-25"
+        status: verified
+    - order: 21
+      id: openai:tts-1
+      lab: openai
+      model_id: tts-1
+      display_name: TTS 1
+      adapter_type: openai_compat
+      capabilities:
+        - audio_tts
+      params:
+        - key: voice
+          label: 音色
+          type: select
+          options:
+            - alloy
+            - ash
+            - ballad
+            - coral
+            - echo
+            - fable
+            - onyx
+            - nova
+            - sage
+            - shimmer
+          default: alloy
+        - key: response_format
+          label: 音频格式
+          type: select
+          options:
+            - mp3
+            - opus
+            - aac
+            - flac
+            - wav
+            - pcm
+          default: mp3
+        - key: speed
+          label: 语速
+          type: number
+          default: 1
+          min: 0.25
+          max: 4
+          step: 0.01
+      source:
+        url: https://developers.openai.com/api/docs/guides/text-to-speech
+        verified_at: "2026-06-25"
+        status: deprecated
+    - order: 22
+      id: openai:tts-1-hd
+      lab: openai
+      model_id: tts-1-hd
+      display_name: TTS 1 HD
+      adapter_type: openai_compat
+      capabilities:
+        - audio_tts
+      params:
+        - key: voice
+          label: 音色
+          type: select
+          options:
+            - alloy
+            - ash
+            - ballad
+            - coral
+            - echo
+            - fable
+            - onyx
+            - nova
+            - sage
+            - shimmer
+          default: alloy
+        - key: response_format
+          label: 音频格式
+          type: select
+          options:
+            - mp3
+            - opus
+            - aac
+            - flac
+            - wav
+            - pcm
+          default: mp3
+        - key: speed
+          label: 语速
+          type: number
+          default: 1
+          min: 0.25
+          max: 4
+          step: 0.01
+      source:
+        url: https://developers.openai.com/api/docs/guides/text-to-speech
+        verified_at: "2026-06-25"
+        status: deprecated
+    - order: 23
+      id: openai:gpt-4o-mini-audio-preview
+      lab: openai
+      model_id: gpt-4o-mini-audio-preview
+      display_name: GPT-4o mini Audio Preview
+      adapter_type: openai_compat
+      capabilities:
+        - audio_chat
+      source:
+        url: https://developers.openai.com/api/docs/guides/audio
+        verified_at: "2026-06-25"
+        status: template_only

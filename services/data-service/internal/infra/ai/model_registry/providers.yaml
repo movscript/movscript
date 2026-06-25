@@ -102,8 +102,8 @@ providers:
     provider_kind: minimax_official
     provider_category: official_platform
     display_name: MiniMax 官方 API
-    description: MiniMax official OpenAI-compatible API account boundary.
-    default_adapter_type: openai_compat
+    description: MiniMax official account boundary for OpenAI-compatible text and native speech APIs.
+    default_adapter_type: minimax
     default_base_url_prefix: https://api.minimax.io/v1
     capabilities:
       aggregates_upstream_models: false
@@ -203,9 +203,40 @@ providers:
     is_builtin: true
     is_enabled: true
     version: builtin.v1
-  - provider_type: new_api
+  - provider_type: stability
+    profile: official
+    provider_kind: stability_official
+    provider_category: official_platform
+    display_name: Stability AI 官方 API
+    description: Stability AI official account boundary for Stable Audio text-to-audio generation.
+    default_adapter_type: stability
+    default_base_url_prefix: https://api.stability.ai
+    capabilities:
+      aggregates_upstream_models: false
+      asset_library: false
+      generated_artifact_trust: false
+    is_builtin: true
+    is_enabled: true
+    version: builtin.v1
+  - provider_type: mureka
+    profile: official
+    provider_kind: mureka_official
+    provider_category: official_platform
+    display_name: Mureka 官方 API
+    description: Mureka official account boundary for music generation through the native async music API.
+    default_adapter_type: mureka
+    default_base_url_prefix: https://api.mureka.ai
+    capabilities:
+      aggregates_upstream_models: false
+      asset_library: false
+      generated_artifact_trust: false
+      task_polling: true
+    is_builtin: true
+    is_enabled: true
+    version: builtin.v1
+  - provider_type: relay_gateway
     profile: gateway
-    provider_kind: new_api
+    provider_kind: relay_gateway
     provider_category: aggregator_gateway
     display_name: 中转站
     description: OpenAI-compatible relay or aggregation gateway account. It can route many upstream labs through one account, but does not inherit upstream official trust or asset facts.
@@ -248,6 +279,21 @@ providers:
     is_builtin: true
     is_enabled: true
     version: builtin.v1
+  - provider_type: aws
+    profile: bedrock_openai
+    provider_kind: aws_bedrock_openai
+    provider_category: official_platform
+    display_name: AWS Bedrock OpenAI
+    description: Amazon Bedrock Mantle OpenAI first-party endpoint for GPT-5.x Responses API models. Use a Bedrock API key and set region in the base URL template.
+    default_adapter_type: openai_compat
+    default_base_url_prefix: https://bedrock-mantle.${region}.api.aws/openai/v1
+    capabilities:
+      aggregates_upstream_models: true
+      asset_library: false
+      generated_artifact_trust: false
+    is_builtin: true
+    is_enabled: true
+    version: builtin.v1
   - provider_type: azure
     profile: openai
     provider_kind: azure_openai
@@ -274,6 +320,23 @@ providers:
     default_base_url_prefix: http://127.0.0.1:8000/v1
     capabilities:
       local_endpoint: true
+      asset_library: false
+      generated_artifact_trust: false
+      aggregates_upstream_models: false
+    is_builtin: true
+    is_enabled: true
+    version: builtin.v1
+  - provider_type: local
+    profile: audio
+    provider_kind: local_audio_runtime
+    provider_category: local_endpoint
+    display_name: 本地音频生成运行时
+    description: Local MovScript audio runtime boundary for self-hosted or bundled open-source audio models such as MusicGen and ACE-Step.
+    default_adapter_type: local
+    default_base_url_prefix: movscript://local/audio
+    capabilities:
+      local_endpoint: true
+      audio_runtime: true
       asset_library: false
       generated_artifact_trust: false
       aggregates_upstream_models: false

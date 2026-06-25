@@ -483,7 +483,7 @@ test('AgentChatThreadItemView renders MCP surface links from structured content'
         type: 'mcpToolCall',
         id: 'mcp_surface',
         server: 'movscript_workspace',
-        tool: 'generation_image_job_get',
+        tool: 'generation_job_get',
         status: 'completed',
         result: {
           content: [{ type: 'text', text: 'generation completed' }],

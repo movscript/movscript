@@ -10,7 +10,7 @@ export async function listModels(args: Record<string, unknown>): Promise<unknown
   const capability = normalizeModelCapabilityAlias(rawCapability)
   const providerVariants = args.provider_variants === true || args.include_provider_variants === true
 
-  const defaultCapabilities = ['text', 'image', 'image_edit', 'video', 'video_i2v', 'video_v2v', 'audio_tts', 'audio_transcribe', 'audio_music', 'audio_sfx', 'subtitle_align', 'subtitle_translate']
+  const defaultCapabilities = ['text', 'image', 'image_edit', 'video', 'video_i2v', 'video_v2v', 'audio_tts', 'audio_transcribe', 'audio_translate', 'audio_music', 'audio_sfx', 'audio_chat', 'voice_clone', 'voice_design', 'subtitle_align', 'subtitle_translate']
   if (rawCapability && !capability) {
     return {
       count: 0,

@@ -53,6 +53,10 @@ func TestEnqueueGenerationAcceptsOrthogonalAudioAndSubtitleJobTypes(t *testing.T
 		ai.CapabilityAudioMusic,
 		ai.CapabilityAudioSFX,
 		ai.CapabilityAudioSTT,
+		ai.CapabilityAudioTranslate,
+		ai.CapabilityAudioChat,
+		ai.CapabilityVoiceClone,
+		ai.CapabilityVoiceDesign,
 		ai.CapabilitySubAlign,
 		ai.CapabilitySubTranslate,
 	} {
@@ -139,7 +143,7 @@ func TestEnqueueGenerationTTSCatalogRouteWithoutLegacyModelConfig(t *testing.T) 
 	}
 	binding := persistencemodel.AIModelRouteBinding{
 		CatalogEntryID:  entry.ID,
-		SourceType:      persistencemodel.ModelRouteSourceNewAPI,
+		SourceType:      persistencemodel.ModelRouteSourceRelayGateway,
 		RouteGroup:      "default",
 		ProviderModelID: "provider-voice-v2",
 		IsEnabled:       true,
@@ -185,7 +189,7 @@ func TestEnqueueGenerationTTSCatalogRouteWithoutLegacyModelConfig(t *testing.T) 
 	if reservation.EstimatedCost != 0 {
 		t.Fatalf("reservation estimated cost = %v, want no model pricing", reservation.EstimatedCost)
 	}
-	if !strings.Contains(job.RequestContext, "provider-voice-v2") || !strings.Contains(job.RequestContext, persistencemodel.ModelRouteSourceNewAPI) {
+	if !strings.Contains(job.RequestContext, "provider-voice-v2") || !strings.Contains(job.RequestContext, persistencemodel.ModelRouteSourceRelayGateway) {
 		t.Fatalf("request context = %s, want provider model and route source", job.RequestContext)
 	}
 }

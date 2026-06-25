@@ -7,6 +7,10 @@ const (
 	CapabilityAudioTranscribe   = "audio_transcribe"
 	CapabilityAudioMusic        = "audio_music"
 	CapabilityAudioSFX          = "audio_sfx"
+	CapabilityAudioChat         = "audio_chat"
+	CapabilityVoiceClone        = "voice_clone"
+	CapabilityVoiceDesign       = "voice_design"
+	CapabilityAudioTranslate    = "audio_translate"
 	CapabilitySubtitleAlign     = "subtitle_align"
 	CapabilitySubtitleTranslate = "subtitle_translate"
 )
@@ -105,6 +109,27 @@ type AudioGenerationResponse struct {
 	ProviderRef string `json:"provider_ref,omitempty"`
 }
 
+type AudioChatRequest struct {
+	Prompt          string         `json:"prompt,omitempty"`
+	AudioResourceID uint           `json:"audio_resource_id,omitempty"`
+	Audio           []byte         `json:"-"`
+	MimeType        string         `json:"mime_type,omitempty"`
+	Language        string         `json:"language,omitempty"`
+	Voice           string         `json:"voice,omitempty"`
+	Model           string         `json:"model,omitempty"`
+	AudioFormat     string         `json:"audio_format,omitempty"`
+	Params          map[string]any `json:"params,omitempty"`
+}
+
+type AudioChatResponse struct {
+	Audio       []byte          `json:"-"`
+	Text        string          `json:"text,omitempty"`
+	MimeType    string          `json:"mime_type"`
+	DurationMs  int             `json:"duration_ms,omitempty"`
+	Timing      *TimingMetadata `json:"timing,omitempty"`
+	ProviderRef string          `json:"provider_ref,omitempty"`
+}
+
 type TranscribeRequest struct {
 	AudioResourceID uint           `json:"audio_resource_id,omitempty"`
 	Audio           []byte         `json:"-"`
@@ -112,6 +137,49 @@ type TranscribeRequest struct {
 	Language        string         `json:"language,omitempty"`
 	Model           string         `json:"model,omitempty"`
 	Params          map[string]any `json:"params,omitempty"`
+}
+
+type AudioTranslateRequest struct {
+	AudioResourceID uint           `json:"audio_resource_id,omitempty"`
+	Audio           []byte         `json:"-"`
+	MimeType        string         `json:"mime_type,omitempty"`
+	SourceLanguage  string         `json:"source_language,omitempty"`
+	TargetLanguage  string         `json:"target_language,omitempty"`
+	Model           string         `json:"model,omitempty"`
+	Params          map[string]any `json:"params,omitempty"`
+}
+
+type VoiceCloneSample struct {
+	AudioResourceID uint   `json:"audio_resource_id,omitempty"`
+	Audio           []byte `json:"-"`
+	MimeType        string `json:"mime_type,omitempty"`
+}
+
+type VoiceCloneRequest struct {
+	Name        string             `json:"name"`
+	Description string             `json:"description,omitempty"`
+	Samples     []VoiceCloneSample `json:"samples"`
+	Model       string             `json:"model,omitempty"`
+	Params      map[string]any     `json:"params,omitempty"`
+}
+
+type VoiceDesignRequest struct {
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	PreviewText string         `json:"preview_text,omitempty"`
+	Model       string         `json:"model,omitempty"`
+	Params      map[string]any `json:"params,omitempty"`
+}
+
+type VoiceProfileResponse struct {
+	VoiceID              string         `json:"voice_id"`
+	Name                 string         `json:"name,omitempty"`
+	Description          string         `json:"description,omitempty"`
+	PreviewURL           string         `json:"preview_url,omitempty"`
+	GeneratedVoiceID     string         `json:"generated_voice_id,omitempty"`
+	RequiresVerification bool           `json:"requires_verification,omitempty"`
+	ProviderRef          string         `json:"provider_ref,omitempty"`
+	Metadata             map[string]any `json:"metadata,omitempty"`
 }
 
 type AlignRequest struct {
@@ -187,9 +255,22 @@ type AudioGenerationProvider interface {
 	GenerateAudio(ctx context.Context, req AudioGenerationRequest) (AudioGenerationResponse, error)
 }
 
+type AudioChatProvider interface {
+	ChatAudio(ctx context.Context, req AudioChatRequest) (AudioChatResponse, error)
+}
+
 type SubtitleProvider interface {
 	Transcribe(ctx context.Context, req TranscribeRequest) (SubtitleResponse, error)
 	Align(ctx context.Context, req AlignRequest) (SubtitleResponse, error)
+}
+
+type AudioTranslateProvider interface {
+	TranslateAudio(ctx context.Context, req AudioTranslateRequest) (SubtitleResponse, error)
+}
+
+type VoiceProfileProvider interface {
+	CloneVoice(ctx context.Context, req VoiceCloneRequest) (VoiceProfileResponse, error)
+	DesignVoice(ctx context.Context, req VoiceDesignRequest) (VoiceProfileResponse, error)
 }
 
 type SubtitleTranslateProvider interface {

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { ImageIcon, VideoIcon, X } from 'lucide-react'
+import { AudioLines, FileText, ImageIcon, VideoIcon, X } from 'lucide-react'
 import { MediaViewer } from '@movscript/resource-surface/resource-media-viewer'
 import {
   GenerationAttachmentPreview,
@@ -83,7 +83,13 @@ export function GenerationInputSlots({
   return (
     <GenerationSlotList>
       {buildSlotGroups(slots, attachments).map(({ slot, items }, i) => {
-        const Icon = slot.type === 'video' ? VideoIcon : ImageIcon
+        const Icon = slot.type === 'video'
+          ? VideoIcon
+          : slot.type === 'audio'
+            ? AudioLines
+            : slot.type === 'text'
+              ? FileText
+              : ImageIcon
         const limitText = slot.maxCount > 0 ? t('shared.genInput.maxCount', { count: slot.maxCount }) : t('shared.genInput.multipleAllowed')
         return (
           <GenerationInputSlotCard

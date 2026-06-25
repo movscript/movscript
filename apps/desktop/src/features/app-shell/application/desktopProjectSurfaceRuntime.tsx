@@ -264,7 +264,7 @@ export function useDesktopProjectReadModel() {
   }
 }
 
-function desktopProjectSurfaceHref(
+export function desktopProjectSurfaceHref(
   route: ProjectSurfaceRouteKey,
   projectId: string,
   params?: ProjectSurfaceRouteParams,
@@ -279,7 +279,7 @@ function desktopProjectSurfaceHref(
   return search ? `${pathname}?${search}` : pathname
 }
 
-function desktopProjectSurfacePath(route: ProjectSurfaceRouteKey, projectId: string): string {
+export function desktopProjectSurfacePath(route: ProjectSurfaceRouteKey, projectId: string): string {
   if (route === 'overview') return ROUTES.project.home
   if (route === 'settings') return ROUTES.project.settings
   if (route === 'scripts') return ROUTES.project.scripts

@@ -1253,26 +1253,17 @@
         "generation_job_cancel": "Cancel generation job",
         "core_work_cancel": "Cancel legacy async work",
         "workspace_create": "Create workspace",
-        "generation_image_generate": "Submit image generation",
-        "generation_content_unit_image_generate": "Generate content-unit image",
-        "generation_image_job_get": "Inspect image generation job",
-        "generation_content_unit_image_job_get": "Write image candidate",
-        "generation_video_generate": "Submit video generation",
-        "generation_content_unit_video_generate": "Generate content-unit video",
-        "generation_video_job_get": "Inspect video generation job",
-        "generation_content_unit_video_job_get": "Write video candidate",
-        "system_generate_content_unit_image": "Generate content-unit image",
-        "system_generate_content_unit_image_job_get": "Write image candidate",
-        "system_generate_content_unit_video": "Generate content-unit video",
-        "system_generate_content_unit_video_job_get": "Write video candidate",
-        "generation_audio_generate": "Submit audio generation",
-        "generation_audio_job_get": "Inspect audio generation job",
+        "generation_capability_list": "Inspect generation capabilities",
+        "generation_prepare": "Prepare generation request",
+        "generation_submit": "Submit generation job",
+        "generation_job_get": "Inspect generation job",
+        "generation_job_get_batch": "Inspect generation jobs",
+        "generation_result_register": "Register generation result",
         "generation_job_create": "Create generation job",
         "core_memory_create": "Create memory",
         "movscript_project_create": "Create project",
         "core_memory_delete": "Delete memory",
         "movscript_focus_get": "Read current focus",
-        "generation_job_get": "Inspect generation job",
         "reference_get": "Read reference",
         "core_memory_get": "Read memory",
         "movscript_project_standards_get": "Read project standards",
@@ -3760,6 +3751,11 @@
       "response": "Response",
       "adapterError": "Adapter Error"
     },
+    "inputs": {
+      "referenceImages": "Reference Images",
+      "sourceVideo": "Source Video",
+      "sourceAudio": "Source Audio"
+    },
     "defs": {
       "refImageGen": {
         "name": "Reference Image",
@@ -3772,9 +3768,48 @@
         "promptPlaceholder": "Describe the video you want to generate... Type @ to reference images or videos from the resource library"
       },
       "audioGen": {
-        "name": "Audio Generation",
-        "description": "Generate voiceover, dialogue, or audio draft assets from text.",
+        "name": "Text to Speech",
+        "description": "Synthesize text into voiceover, dialogue, or spoken draft assets.",
         "promptPlaceholder": "Enter the script to synthesize..."
+      },
+      "audioChat": {
+        "name": "Voice Chat",
+        "description": "Use Omni or realtime speech models to generate a spoken reply from audio and instructions.",
+        "promptPlaceholder": "Enter conversation instructions, or upload speech as context..."
+      },
+      "audioTranscribe": {
+        "name": "Transcription",
+        "description": "Upload or select an audio resource and transcribe it into editable text.",
+        "promptPlaceholder": "Optional: add language, speaker, terminology, or formatting notes...",
+        "submitPromptFallback": "Transcribe audio"
+      },
+      "audioTranslate": {
+        "name": "Audio Translation",
+        "description": "Upload or select an audio resource and translate it into target-language text.",
+        "promptPlaceholder": "Optional: add source language, target language, terminology, or formatting notes...",
+        "submitPromptFallback": "Translate audio"
+      },
+      "musicGen": {
+        "name": "Music Generation",
+        "description": "Generate scores, ambient beds, or music drafts from prompts.",
+        "promptPlaceholder": "Describe style, mood, tempo, instruments, and duration..."
+      },
+      "audioSfx": {
+        "name": "Sound Effects",
+        "description": "Generate Foley, ambience, transitions, or short sound effects from prompts.",
+        "promptPlaceholder": "Describe the sound source, action, environment, distance, texture, and duration..."
+      },
+      "voiceClone": {
+        "name": "Voice Clone",
+        "description": "Create a reusable voice profile from one or more audio samples.",
+        "promptPlaceholder": "Optional: add speaker name, style notes, cleanup preference, or labels...",
+        "submitPromptFallback": "Clone voice"
+      },
+      "voiceDesign": {
+        "name": "Voice Design",
+        "description": "Generate a reusable voice profile from a voice description.",
+        "promptPlaceholder": "Describe the age, accent, tone, pacing, emotion, and use case...",
+        "submitPromptFallback": "Design voice"
       },
       "motionImitation": {
         "name": "Motion Imitation",
@@ -3795,7 +3830,15 @@
     "capabilities": {
       "image": "Image tool",
       "video": "Video tool",
-      "audio": "Audio tool"
+      "audio": "Audio tool",
+      "audio_tts": "Text to Speech",
+      "audio_transcribe": "Transcription",
+      "audio_translate": "Audio Translation",
+      "audio_music": "Music generation",
+      "audio_sfx": "Sound effects",
+      "audio_chat": "Voice chat",
+      "voice_clone": "Voice clone",
+      "voice_design": "Voice design"
     }
   },
   "plugins": {
@@ -3903,7 +3946,8 @@
       "videoI2V": "Image to Video",
       "videoV2V": "Video to Video",
       "audioTTS": "Text to Speech",
-      "audioSTT": "Audio Transcription"
+      "audioSTT": "Audio Transcription",
+      "audioChat": "Voice Chat / Omni"
     },
     "params": {
       "title": "Generation Parameters",
@@ -3998,13 +4042,13 @@
       "viewRoutes": "Route",
       "providersHint": "View published provider credentials, upstream sources, base URL/key ownership, and availability here.",
       "catalogHint": "Catalog entries define the model identities, capabilities, params, and inputs MovScript understands.",
-      "routesHint": "Routes bind catalog entries to provider lanes or new-api groups, then apply priority, capacity, and failover.",
+      "routesHint": "Routes bind catalog entries to provider targets or relay gateway groups, then apply priority, capacity, and failover.",
       "routeRuleTitle": "Route rule",
       "routeRuleBody": "Catalog entries are served through enabled route bindings. Bindings at the same priority rotate across available candidates.",
       "routePriorityTitle": "Priority still applies",
       "routePriorityBody": "Higher-priority route bindings are preferred. Only bindings at the same priority enter the rotation pool.",
       "routeSourceTitle": "Runtime source",
-      "routeSourceBody": "Each route binding points to a provider lane; local credentials and new-api relay tokens are resolved by the Provider layer.",
+      "routeSourceBody": "Each route binding points to a provider target; local credentials and relay gateway tokens are resolved by the Provider layer.",
       "gatewayOpenDebug": "Open debug page",
       "fetchFromApi": "Fetch from API",
       "modelIdLabel": "Model ID (identifier sent to the API)",
@@ -4364,7 +4408,14 @@
       "editing": "Editing",
       "refImageGen": "Reference Image",
       "refVideoGen": "Reference Video",
-      "audioGen": "Audio Generation",
+      "audioGen": "Text to Speech",
+      "audioChat": "Voice Chat",
+      "audioTranscribe": "Transcription",
+      "audioTranslate": "Audio Translation",
+      "musicGen": "Music Generation",
+      "audioSfx": "Sound Effects",
+      "voiceClone": "Voice Clone",
+      "voiceDesign": "Voice Design",
       "motionImitation": "Motion Imitation",
       "styleTransfer": "Style Transfer",
       "multiAngle": "Multi-angle",

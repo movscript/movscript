@@ -17,12 +17,6 @@ const toolDefinitionPaths = [
   'packages/core/src/mcp/tools/resource-library/definitions.ts',
   'packages/core/src/mcp/tools/resource-media/definitions.ts',
   'packages/core/src/mcp/tools/shot-library/definitions.ts',
-  'packages/core/src/mcp/tools/generation/audio-generate.tool.json',
-  'packages/core/src/mcp/tools/generation/audio-job-get.tool.json',
-  'packages/core/src/mcp/tools/generation/image-generate.tool.json',
-  'packages/core/src/mcp/tools/generation/image-job-get.tool.json',
-  'packages/core/src/mcp/tools/generation/video-generate.tool.json',
-  'packages/core/src/mcp/tools/generation/video-job-get.tool.json',
 ]
 
 function readRepoFile(path) {
@@ -307,26 +301,20 @@ test('MovScript MCP tool definitions and generation skill expose batch generatio
   const skill = readFileSync(resolve(repoRoot, 'plugins/movscript/skills/generation/SKILL.md'), 'utf8')
 
   for (const name of [
-    'generation_image_job_get_batch',
-    'system_generate_image_job_get_batch',
-    'generation_video_job_get_batch',
-    'system_generate_video_job_get_batch',
-    'generation_audio_job_get_batch',
+    'generation_job_get_batch',
   ]) {
     assert.equal(fallbackNames.has(name), true, `${name} should be exposed by MCP definitions`)
   }
 
   for (const grant of [
-    'mcp__movscript__system_generate_image_job_get_batch',
-    'mcp__movscript__system_generate_video_job_get_batch',
-    'mcp__movscript__generation_audio_job_get_batch',
+    'mcp__movscript__generation_job_get_batch',
   ]) {
     assert.match(skill, new RegExp(grant))
   }
-  assert.match(skill, /When tracking multiple low-level jobs, use `system_generate_image_job_get_batch`, `system_generate_video_job_get_batch`, or `generation_audio_job_get_batch`/)
+  assert.match(skill, /When tracking multiple jobs, use `generation_job_get_batch`/)
 })
 
-test('MovScript generation skill routes content-unit visual generation through compiler-backed candidate tools', () => {
+test('MovScript generation skill routes content-unit visual generation through the unified generation contract', () => {
   const fallbackNames = new Set(getMCPToolNames())
   const skill = readFileSync(resolve(repoRoot, 'plugins/movscript/skills/generation/SKILL.md'), 'utf8')
   const candidateSelectionFlow = readFileSync(resolve(repoRoot, 'plugins/movscript/skills/generation/references/candidate-selection-flow.md'), 'utf8')
@@ -336,42 +324,38 @@ test('MovScript generation skill routes content-unit visual generation through c
   const router = readFileSync(resolve(repoRoot, 'packages/core/src/mcp/node/tools/router.ts'), 'utf8')
 
   for (const name of [
-    'generation_content_unit_image_generate',
-    'system_generate_content_unit_image',
-    'generation_content_unit_image_job_get',
-    'system_generate_content_unit_image_job_get',
-    'generation_content_unit_video_generate',
-    'system_generate_content_unit_video',
-    'generation_content_unit_video_job_get',
-    'system_generate_content_unit_video_job_get',
+    'generation_prepare',
+    'generation_submit',
+    'generation_job_get',
+    'generation_result_register',
   ]) {
     assert.equal(fallbackNames.has(name), true, `${name} should be exposed by MCP definitions`)
   }
 
   for (const grant of [
-    'mcp__movscript__system_generate_content_unit_image',
-    'mcp__movscript__system_generate_content_unit_image_job_get',
-    'mcp__movscript__system_generate_content_unit_video',
-    'mcp__movscript__system_generate_content_unit_video_job_get',
+    'mcp__movscript__generation_prepare',
+    'mcp__movscript__generation_submit',
+    'mcp__movscript__generation_job_get',
+    'mcp__movscript__generation_result_register',
   ]) {
     assert.match(skill, new RegExp(grant))
   }
 
-  assert.match(skill, /first write or update the content unit `edit_prompt`.*call `system_generate_content_unit_image` or `system_generate_content_unit_video`/)
-  assert.match(skill, /Do not manually call `domain_create_content_candidate` after `system_generate_content_unit_image` or `system_generate_content_unit_video`/)
-  assert.match(skill, /`system_generate_image` and `system_generate_video` remain low-level prompt channels/)
+  assert.match(skill, /first write or update the content unit `edit_prompt`.*call `generation_submit` with `scope: "content_unit"`/)
+  assert.match(skill, /Do not manually call `domain_create_content_candidate` after `generation_submit` content-unit image\/video jobs/)
+  assert.match(skill, /Use `generation_submit` with `scope: "free"` for low-level prompt channels/)
   assert.match(candidateSelectionFlow, /Successful terminal polls automatically create or refresh backend content candidates/)
-  assert.match(candidateSelectionFlow, /Do not manually call `domain_create_content_candidate` after `system_generate_content_unit_image` or `system_generate_content_unit_video`/)
+  assert.match(candidateSelectionFlow, /Do not manually call `domain_create_content_candidate` after `generation_submit` content-unit image\/video jobs/)
   assert.match(cachedCandidateSelectionFlow, /Successful terminal polls automatically create or refresh backend content candidates/)
-  assert.match(cachedCandidateSelectionFlow, /Do not manually call `domain_create_content_candidate` after `system_generate_content_unit_image` or `system_generate_content_unit_video`/)
+  assert.match(cachedCandidateSelectionFlow, /Do not manually call `domain_create_content_candidate` after `generation_submit` content-unit image\/video jobs/)
 
-  assert.match(coreDefinitions, /generation_content_unit_image_generate/)
-  assert.match(coreDefinitions, /generation_content_unit_video_generate/)
+  assert.match(coreDefinitions, /generation_submit/)
+  assert.match(coreDefinitions, /generation_job_get/)
   assert.match(coreActions, /domainBuildContentUnitBackendPrompt/)
   assert.match(coreActions, /domainCreateContentCandidate/)
   assert.match(coreActions, /contentUnitGenerationCandidateId/)
-  assert.match(router, /case 'system_generate_content_unit_image'/)
-  assert.match(router, /case 'system_generate_content_unit_video'/)
+  assert.match(router, /case 'generation_submit'/)
+  assert.match(router, /case 'generation_job_get'/)
 })
 
 test('MovScript skills and MCP definitions expose raw-resource candidate registration and production summaries', () => {

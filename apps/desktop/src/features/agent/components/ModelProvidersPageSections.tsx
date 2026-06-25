@@ -28,7 +28,7 @@ import {
   type BackendModelProvider,
   catalogEntryCapabilities,
   errorMessage,
-  isNewAPIRoute,
+  isRelayGatewayRoute,
   MODEL_PROVIDER_LAYERS,
   type ModelProviderLayer,
   routeSourceLabel,
@@ -57,7 +57,7 @@ export function ModelProviderManagementLayers({
       <AgentConsoleStack spacing="loose">
         <AgentConsoleIntroRow>
           <AgentConsoleDescription>
-            社区版通过 Provider 和 route group 组织调用来源；Catalog Entry 保存模型身份、能力和参数，Route 保存 Catalog 到 provider lane 的映射。
+            社区版通过 Provider 和 route group 组织调用来源；Catalog Entry 保存模型身份、能力和参数，Route 保存 Catalog 到 Provider 通道的映射。
           </AgentConsoleDescription>
           <AgentConsoleToolbar>
             {MODEL_PROVIDER_LAYERS.map((layer) => (
@@ -148,7 +148,7 @@ export function ModelProviderProvidersSection({
                     默认模型：{provider.defaultModel ?? provider.models[0] ?? '-'}
                   </AgentConsoleCallout>
                   <AgentConsoleCallout compact>
-                    Provider lane：{provider.providerId ?? '-'}
+                    Provider 通道：{provider.providerId ?? '-'}
                   </AgentConsoleCallout>
                   <AgentConsoleCallout compact>
                     能力：{provider.capabilities.length > 0 ? provider.capabilities.join(', ') : '未声明'}
@@ -291,7 +291,7 @@ export function ModelProviderRoutesSection({
         {error ? <AgentConsoleInlineError>{errorMessage(error)}</AgentConsoleInlineError> : null}
         {!error && routeBindings.length === 0 ? (
           <AgentConsoleCallout tone="warning" compact>
-            当前没有模型路由。Catalog Entry 需要至少一条 provider lane 绑定后才能被调用，请在 Admin 中配置。
+            当前没有模型路由。Catalog Entry 需要至少一条 Provider 通道绑定后才能被调用，请在 Admin 中配置。
           </AgentConsoleCallout>
         ) : null}
         <AgentConsoleGrid columns="server">
@@ -309,7 +309,7 @@ export function ModelProviderRoutesSection({
                     {binding.is_enabled && entry.is_enabled ? '可用' : '停用'}
                   </AgentConsoleStatusBadge>
                   <AgentConsoleStatusBadge intent="neutral" emphasis="soft">
-                    {isNewAPIRoute(binding) ? 'new-api adapter' : 'Provider lane'}
+                    {isRelayGatewayRoute(binding) ? '中转站' : 'Provider 通道'}
                   </AgentConsoleStatusBadge>
                 </AgentConsoleLocalToolControls>
               </AgentConsoleLocalToolHeader>
@@ -318,7 +318,7 @@ export function ModelProviderRoutesSection({
                   Catalog：{entry.public_model_id} 到 {binding.provider_model_id || entry.public_model_id}
                 </AgentConsoleCallout>
                 <AgentConsoleCallout compact>
-                  Target：{isNewAPIRoute(binding) ? `group ${binding.route_group}` : `${binding.provider_id || 'provider lane'}${binding.route_group ? ` / group ${binding.route_group}` : ''}`}
+                  Target：{isRelayGatewayRoute(binding) ? `中转站分组 ${binding.route_group}` : `${binding.provider_id || 'Provider 通道'}${binding.route_group ? ` / group ${binding.route_group}` : ''}`}
                 </AgentConsoleCallout>
                 <AgentConsoleCallout compact>
                   Priority：{binding.priority ?? 0} / Capacity：{binding.capacity_weight ?? 1} / Concurrency：{(binding.max_concurrency ?? 0) || '不限'}

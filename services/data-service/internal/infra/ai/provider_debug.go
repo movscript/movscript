@@ -221,6 +221,12 @@ func buildDebugAdapter(adapterType, apiKey, baseURL string) (Provider, error) {
 	case AdapterVidu:
 		return NewViduAdapter(apiKey, baseURL), nil
 
+	case AdapterElevenLabs:
+		return NewElevenLabsAdapter(apiKey, baseURL), nil
+
+	case AdapterMiniMax:
+		return NewMiniMaxAdapter(apiKey, baseURL), nil
+
 	default: // openai_compat
 		base := strings.TrimRight(baseURL, "/")
 		if base == "" {

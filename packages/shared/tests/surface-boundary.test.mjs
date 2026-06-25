@@ -457,7 +457,7 @@ test('local surface host app entrypoint only mounts the app shell', () => {
   const adminSource = readFileSync(resolve(repoRoot, 'services/local-surface-host/src/admin/LocalAdminSurfaceRoute.tsx'), 'utf8')
 
   assert.match(mainSource, /from '\.\/app\/LocalSurfaceHostApp\.js'/)
-  assert.doesNotMatch(mainSource, /BrowserRouter|QueryClient|<Route|AdminSurfaceApp|CanvasEditorPage|ProjectHomeSurface/)
+  assert.doesNotMatch(mainSource, /BrowserRouter|QueryClient|<Route|AdminSurfaceApp|CanvasEditorPage|ProjectPickerSurface/)
   assert.match(appSource, /BrowserRouter/)
   assert.match(appSource, /LocalSurfaceHostRoutes/)
   assert.match(appSource, /LocalAdminSurfaceRoute/)
@@ -465,7 +465,7 @@ test('local surface host app entrypoint only mounts the app shell', () => {
   assert.match(routeSource, /CanvasEditorPage/)
   assert.match(routeSource, /from '@movscript\/project-surface\/pages'/)
   assert.match(routeSource, /ProjectsPage/)
-  assert.doesNotMatch(routeSource, /ProjectHomeSurface/)
+  assert.doesNotMatch(routeSource, /ProjectPickerSurface/)
   assert.match(adminSource, /AdminSurfaceApp/)
   assert.match(adminSource, /createLocalAdminLaunchContext/)
 })

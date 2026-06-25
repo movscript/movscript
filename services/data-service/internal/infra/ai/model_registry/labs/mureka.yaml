@@ -1,0 +1,97 @@
+lab: mureka
+templates:
+    - order: 1
+      id: mureka:song-generation
+      lab: mureka
+      model_id: song_generation
+      display_name: Mureka Song Generation
+      adapter_type: mureka
+      capabilities:
+        - audio_music
+      params:
+        - key: duration
+          label: 时长(秒)
+          type: select
+          options:
+            - "30"
+            - "60"
+            - "120"
+            - "180"
+          default: "60"
+        - key: output_format
+          label: 音频格式
+          type: select
+          options:
+            - mp3
+            - wav
+          default: mp3
+      source:
+        url: https://platform.mureka.ai/docs/api/operations/post-v1-song-generate.html
+        verified_at: "2026-06-25"
+        status: verified
+    - order: 2
+      id: mureka:instrumental-generation
+      lab: mureka
+      model_id: instrumental_generation
+      display_name: Mureka Instrumental Generation
+      adapter_type: mureka
+      capabilities:
+        - audio_music
+      params:
+        - key: duration
+          label: 时长(秒)
+          type: select
+          options:
+            - "30"
+            - "60"
+            - "120"
+            - "180"
+          default: "60"
+        - key: output_format
+          label: 音频格式
+          type: select
+          options:
+            - mp3
+            - wav
+          default: mp3
+      source:
+        url: https://platform.mureka.ai/docs/api/operations/post-v1-instrumental-generate.html
+        verified_at: "2026-06-25"
+        status: verified
+    - order: 3
+      id: mureka:lyrics-generation
+      lab: mureka
+      model_id: lyrics_generation
+      display_name: Mureka Lyrics Generation
+      adapter_type: mureka
+      capabilities:
+        - text
+      api_kinds:
+        - openai_chat_completions
+      source:
+        url: https://platform.mureka.ai/docs/api/operations/post-v1-lyrics-generate.html
+        verified_at: "2026-06-25"
+        status: verified
+    - order: 4
+      id: mureka:song-extension
+      lab: mureka
+      model_id: song_extension
+      display_name: Mureka Song Extension
+      adapter_type: openai_compat
+      capabilities:
+        - audio_music
+      input:
+        max_videos: 0
+      params:
+        - key: duration
+          label: 延展时长(秒)
+          type: select
+          options:
+            - "15"
+            - "30"
+            - "60"
+          default: "30"
+      source:
+        url: https://platform.mureka.ai/
+        verified_at: "2026-06-25"
+        status: template_only

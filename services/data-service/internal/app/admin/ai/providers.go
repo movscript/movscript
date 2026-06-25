@@ -809,7 +809,7 @@ func (s *Service) validateProviderIDForCreate(ctx context.Context, providerID st
 	if providerID == "" {
 		return fmt.Errorf("%w: provider_id is required", ErrInvalidProviderConfig)
 	}
-	if providerID == persistencemodel.ModelRouteSourceNewAPI || strings.HasPrefix(providerID, persistencemodel.ModelRouteSourceLocalProvider+":") {
+	if providerID == persistencemodel.ModelRouteSourceRelayGateway || strings.HasPrefix(providerID, persistencemodel.ModelRouteSourceLocalProvider+":") {
 		return fmt.Errorf("%w: provider_id %q is reserved", ErrInvalidProviderConfig, providerID)
 	}
 	var count int64

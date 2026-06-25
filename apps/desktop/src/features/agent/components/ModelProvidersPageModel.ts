@@ -42,7 +42,7 @@ export const MODEL_PROVIDER_LAYERS: Array<{
   {
     id: 'routes',
     label: '模型路由',
-    detail: '把 Catalog Entry 映射到 provider lane 或 new-api group。',
+    detail: '把 Catalog Entry 映射到 Provider 通道或中转站分组。',
     edition: 'Admin 管理',
     icon: Route,
   },
@@ -106,13 +106,13 @@ export function supportedParamsSummary(value: string | undefined): string {
 }
 
 export function routeSourceLabel(source: string): string {
-  if (isNewAPIRouteSource(source)) return 'Provider Group'
+  if (isRelayGatewayRouteSource(source)) return '中转站分组'
   if (source === 'local_provider') return 'Local Provider'
   return source || 'Provider'
 }
 
-export function isNewAPIRoute(binding: AgentModelRouteBinding): boolean {
-  return isNewAPIRouteSource(binding.source_type)
+export function isRelayGatewayRoute(binding: AgentModelRouteBinding): boolean {
+  return isRelayGatewayRouteSource(binding.source_type)
 }
 
 export function errorMessage(error: unknown): string {
@@ -132,6 +132,6 @@ function stringList(value: string | undefined): string[] {
     .filter(Boolean)
 }
 
-function isNewAPIRouteSource(source: string): boolean {
-  return source === 'new_api'
+function isRelayGatewayRouteSource(source: string): boolean {
+  return source === 'relay_gateway'
 }

@@ -66,6 +66,9 @@ func TestListModelCatalogTemplatesReturnsDisplaySafeDefaults(t *testing.T) {
 		if strings.TrimSpace(template.DefaultPublicModelID) == "" {
 			t.Fatalf("template %s has empty default_public_model_id", template.ID)
 		}
+		if strings.TrimSpace(template.SourceStatus) == "" {
+			t.Fatalf("template %s has empty source_status", template.ID)
+		}
 		if strings.Contains(template.DefaultPublicModelID, ":") {
 			t.Fatalf("template %s exposes provider namespace in default_public_model_id %q", template.ID, template.DefaultPublicModelID)
 		}
@@ -222,6 +225,102 @@ func TestPreviewModelImportFetchesOpenAICompatibleModelsWithoutMutating(t *testi
 	}
 }
 
+func TestPreviewModelImportInfersGatewayModelCapabilities(t *testing.T) {
+	service := newModelImportTestService(t)
+	ctx := context.Background()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || !strings.HasSuffix(r.URL.Path, "/models") {
+			t.Fatalf("unexpected upstream request: %s %s", r.Method, r.URL.String())
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"object":"list","data":[
+			{"id":"gpt-4.1-2025-04-14"},
+			{"id":"gpt-image-1.5"},
+			{"id":"veo-3.1-fast-generate-preview"},
+			{"id":"qwen3-omni-flash-2025-09-15"},
+			{"id":"deepseek-r1-0528"},
+			{"id":"gpt-4o-transcribe"}
+		]}`))
+	}))
+	defer upstream.Close()
+
+	result, err := service.PreviewModelImport(ctx, ModelImportPreviewInput{
+		Provider: ModelImportProviderInput{
+			DisplayName:   "APIyi Gateway",
+			BaseURLPrefix: upstream.URL,
+			APIKey:        "sk-import-preview",
+		},
+	})
+	if err != nil {
+		t.Fatalf("PreviewModelImport() error = %v", err)
+	}
+
+	assertImportPlan := func(providerModelID string, capabilities string, templateID string) ModelImportModelPlan {
+		t.Helper()
+		for _, plan := range result.Models {
+			if plan.ProviderModelID != providerModelID {
+				continue
+			}
+			if got := strings.Join(plan.Capabilities, ","); got != capabilities {
+				t.Fatalf("%s capabilities = %q, want %q", providerModelID, got, capabilities)
+			}
+			if plan.TemplateID != templateID {
+				t.Fatalf("%s template_id = %q, want %q", providerModelID, plan.TemplateID, templateID)
+			}
+			return plan
+		}
+		t.Fatalf("missing import plan for %s in %#v", providerModelID, result.Models)
+		return ModelImportModelPlan{}
+	}
+
+	assertImportPlan("gpt-4.1-2025-04-14", "text", "openai:gpt-4.1")
+	assertImportPlan("gpt-4o-transcribe", "audio_transcribe", "openai:gpt-4o-transcribe")
+	assertImportPlan("gpt-image-1.5", "image,image_edit", "")
+	assertImportPlan("veo-3.1-fast-generate-preview", "video", "")
+	qwenOmni := assertImportPlan("qwen3-omni-flash-2025-09-15", "audio_chat", "dashscope:qwen3-omni-flash-2025-09-15")
+	if qwenOmni.Recommended || qwenOmni.TemplateStatus != "template_only" || len(qwenOmni.Diagnostics) == 0 {
+		t.Fatalf("qwen omni plan = %+v, want template_only not recommended with diagnostics", qwenOmni)
+	}
+	assertImportPlan("deepseek-r1-0528", "text,reasoning", "")
+}
+
+func TestApplyModelImportSkipsRouteForTemplateOnlyTemplate(t *testing.T) {
+	service := newModelImportTestService(t)
+	ctx := context.Background()
+
+	result, err := service.ApplyModelImport(ctx, ModelImportApplyInput{
+		Provider: ModelImportProviderInput{
+			BaseURLPrefix: "https://api.apiyi.com/v1",
+			APIKey:        "sk-import-template-only",
+		},
+		Models: []ModelImportModelInput{{
+			ProviderModelID: "qwen3-omni-flash-2025-09-15",
+			PublicModelID:   "qwen3-omni-flash-2025-09-15",
+			TemplateID:      "dashscope:qwen3-omni-flash-2025-09-15",
+		}},
+	})
+	if err != nil {
+		t.Fatalf("ApplyModelImport() error = %v", err)
+	}
+	if result.Summary.CreatedCatalogEntries != 1 || result.Summary.CreatedRouteBindings != 0 || result.Summary.SkippedRouteBindings != 1 {
+		t.Fatalf("summary = %+v, want catalog-only import with skipped route", result.Summary)
+	}
+	if len(result.Items) != 1 || !result.Items[0].SkippedRouteBinding || result.Items[0].RouteBindingID != 0 {
+		t.Fatalf("items = %+v, want skipped route without route id", result.Items)
+	}
+	if result.Items[0].TemplateStatus != "template_only" || result.Items[0].Recommended {
+		t.Fatalf("item = %+v, want template_only not recommended", result.Items[0])
+	}
+	var routeCount int64
+	if err := service.db.Model(&persistencemodel.AIModelRouteBinding{}).Count(&routeCount).Error; err != nil {
+		t.Fatalf("count route bindings: %v", err)
+	}
+	if routeCount != 0 {
+		t.Fatalf("route count = %d, want no route binding for template-only import", routeCount)
+	}
+}
+
 func TestApplyModelImportCreatesProviderCatalogAndRouteIdempotently(t *testing.T) {
 	service := newModelImportTestService(t)
 	ctx := context.Background()
@@ -285,6 +384,34 @@ func TestApplyModelImportCreatesProviderCatalogAndRouteIdempotently(t *testing.T
 	}
 	if routeCount != 1 {
 		t.Fatalf("route count = %d, want one", routeCount)
+	}
+}
+
+func TestApplyModelImportInfersAPIyiGatewayProviderFromBaseURL(t *testing.T) {
+	service := newModelImportTestService(t)
+	ctx := context.Background()
+
+	result, err := service.ApplyModelImport(ctx, ModelImportApplyInput{
+		Provider: ModelImportProviderInput{
+			BaseURLPrefix: "https://api.apiyi.com/v1/",
+			APIKey:        "sk-import-apiyi",
+		},
+		Models: []ModelImportModelInput{{
+			ProviderModelID: "gpt-4o-transcribe",
+			PublicModelID:   "gpt-4o-transcribe",
+			Capabilities:    []string{"audio_transcribe"},
+			TemplateID:      "openai:gpt-4o-transcribe",
+		}},
+	})
+	if err != nil {
+		t.Fatalf("ApplyModelImport() error = %v", err)
+	}
+	if result.Provider.ProviderKind != "apiyi_gateway" ||
+		result.Provider.ProviderType != "apiyi" ||
+		result.Provider.Profile != "gateway" ||
+		result.Provider.DisplayName != "APIyi 聚合网关" ||
+		result.Provider.BaseURLPrefix != "https://api.apiyi.com/v1" {
+		t.Fatalf("unexpected APIyi provider: %+v", result.Provider)
 	}
 }
 
@@ -410,10 +537,10 @@ func TestModelCatalogRejectsDuplicateRouteBindingForSameProviderModelAndGroup(t 
 	if err != nil {
 		t.Fatalf("CreateModelCatalogEntry() error = %v", err)
 	}
-	if supportsNewAPIRouteBindings() {
+	if supportsRelayGatewayRouteBindings() {
 		if _, err := service.CreateModelRouteBinding(ctx, strconvID(entry.ID), ModelRouteBindingInput{
 			RouteGroup:      "priority",
-			ProviderID:      persistencemodel.ModelRouteSourceNewAPI,
+			ProviderID:      persistencemodel.ModelRouteSourceRelayGateway,
 			ProviderModelID: "provider-video-priority",
 			Priority:        1,
 			CapacityWeight:  1,
@@ -423,7 +550,7 @@ func TestModelCatalogRejectsDuplicateRouteBindingForSameProviderModelAndGroup(t 
 
 		if _, err := service.CreateModelRouteBinding(ctx, strconvID(entry.ID), ModelRouteBindingInput{
 			RouteGroup:      "priority",
-			ProviderID:      persistencemodel.ModelRouteSourceNewAPI,
+			ProviderID:      persistencemodel.ModelRouteSourceRelayGateway,
 			ProviderModelID: "provider-video-priority-2",
 			Priority:        2,
 			CapacityWeight:  1,
@@ -433,7 +560,7 @@ func TestModelCatalogRejectsDuplicateRouteBindingForSameProviderModelAndGroup(t 
 
 		_, err = service.CreateModelRouteBinding(ctx, strconvID(entry.ID), ModelRouteBindingInput{
 			RouteGroup:      "priority",
-			ProviderID:      persistencemodel.ModelRouteSourceNewAPI,
+			ProviderID:      persistencemodel.ModelRouteSourceRelayGateway,
 			ProviderModelID: "provider-video-priority",
 			Priority:        4,
 			CapacityWeight:  1,
@@ -444,7 +571,7 @@ func TestModelCatalogRejectsDuplicateRouteBindingForSameProviderModelAndGroup(t 
 
 		if _, err := service.CreateModelRouteBinding(ctx, strconvID(entry.ID), ModelRouteBindingInput{
 			RouteGroup:      "economy",
-			ProviderID:      persistencemodel.ModelRouteSourceNewAPI,
+			ProviderID:      persistencemodel.ModelRouteSourceRelayGateway,
 			ProviderModelID: "provider-video-economy",
 			Priority:        3,
 			CapacityWeight:  1,
@@ -581,15 +708,15 @@ func TestModelCatalogRejectsInvalidRouteBindingContracts(t *testing.T) {
 			want:  "api_kind",
 		},
 	}
-	if supportsNewAPIRouteBindings() {
+	if supportsRelayGatewayRouteBindings() {
 		tests = append(tests, struct {
 			name  string
 			input ModelRouteBindingInput
 			want  string
 		}{
-			name: "new api missing route group",
+			name: "relay gateway missing route group",
 			input: ModelRouteBindingInput{
-				ProviderID:      persistencemodel.ModelRouteSourceNewAPI,
+				ProviderID:      persistencemodel.ModelRouteSourceRelayGateway,
 				ProviderModelID: "provider-video-contract",
 				CapacityWeight:  1,
 			},
@@ -601,10 +728,10 @@ func TestModelCatalogRejectsInvalidRouteBindingContracts(t *testing.T) {
 			input ModelRouteBindingInput
 			want  string
 		}{
-			name: "community rejects new api route",
+			name: "community rejects relay gateway route",
 			input: ModelRouteBindingInput{
 				RouteGroup:      "priority",
-				ProviderID:      persistencemodel.ModelRouteSourceNewAPI,
+				ProviderID:      persistencemodel.ModelRouteSourceRelayGateway,
 				ProviderModelID: "provider-video-contract",
 				CapacityWeight:  1,
 			},
@@ -635,10 +762,10 @@ func TestModelCatalogRejectsUpdatingRouteBindingIntoDuplicateGroup(t *testing.T)
 		t.Fatalf("CreateModelCatalogEntry() error = %v", err)
 	}
 	var duplicateTarget persistencemodel.AIModelRouteBinding
-	if supportsNewAPIRouteBindings() {
+	if supportsRelayGatewayRouteBindings() {
 		if _, err := service.CreateModelRouteBinding(ctx, strconvID(entry.ID), ModelRouteBindingInput{
 			RouteGroup:      "priority",
-			ProviderID:      persistencemodel.ModelRouteSourceNewAPI,
+			ProviderID:      persistencemodel.ModelRouteSourceRelayGateway,
 			ProviderModelID: "provider-image-priority",
 			CapacityWeight:  1,
 		}); err != nil {
@@ -646,7 +773,7 @@ func TestModelCatalogRejectsUpdatingRouteBindingIntoDuplicateGroup(t *testing.T)
 		}
 		duplicateTarget, err = service.CreateModelRouteBinding(ctx, strconvID(entry.ID), ModelRouteBindingInput{
 			RouteGroup:      "economy",
-			ProviderID:      persistencemodel.ModelRouteSourceNewAPI,
+			ProviderID:      persistencemodel.ModelRouteSourceRelayGateway,
 			ProviderModelID: "provider-image-economy",
 			CapacityWeight:  1,
 		})
@@ -655,7 +782,7 @@ func TestModelCatalogRejectsUpdatingRouteBindingIntoDuplicateGroup(t *testing.T)
 		}
 		_, err = service.UpdateModelRouteBinding(ctx, strconvID(duplicateTarget.ID), ModelRouteBindingInput{
 			RouteGroup:      "priority",
-			ProviderID:      persistencemodel.ModelRouteSourceNewAPI,
+			ProviderID:      persistencemodel.ModelRouteSourceRelayGateway,
 			ProviderModelID: "provider-image-priority",
 			CapacityWeight:  1,
 		})
@@ -732,10 +859,10 @@ func TestModelCatalogDeleteRemovesRouteBindings(t *testing.T) {
 }
 
 func validTestModelRouteBindingInput(credentialID uint, routeGroup string) ModelRouteBindingInput {
-	if supportsNewAPIRouteBindings() {
+	if supportsRelayGatewayRouteBindings() {
 		return ModelRouteBindingInput{
 			RouteGroup:      routeGroup,
-			ProviderID:      persistencemodel.ModelRouteSourceNewAPI,
+			ProviderID:      persistencemodel.ModelRouteSourceRelayGateway,
 			ProviderModelID: "provider-" + routeGroup,
 			CapacityWeight:  1,
 		}

@@ -230,20 +230,14 @@ test('MCP discovery exposes core MovScript tools and resources', async () => {
   assert.ok(tools.includes('system_project_open'))
   assert.ok(tools.includes('system_project_fetch'))
   assert.ok(tools.includes('system_model_list'))
-  assert.ok(tools.includes('system_generate_image'))
-  assert.ok(tools.includes('system_generate_content_unit_image'))
-  assert.ok(tools.includes('system_generate_content_unit_image_job_get'))
-  assert.ok(tools.includes('system_generate_image_job_get_batch'))
-  assert.ok(tools.includes('system_generate_video'))
-  assert.ok(tools.includes('system_generate_content_unit_video'))
-  assert.ok(tools.includes('system_generate_content_unit_video_job_get'))
-  assert.ok(tools.includes('system_generate_video_job_get_batch'))
-  assert.ok(tools.includes('system_generate_voiceover'))
-  assert.ok(tools.includes('system_generate_music'))
-  assert.ok(tools.includes('system_generate_sfx'))
-  assert.ok(tools.includes('system_generate_subtitle'))
-  assert.ok(tools.includes('system_align_subtitle'))
-  assert.ok(tools.includes('system_translate_subtitle'))
+  assert.ok(tools.includes('generation_capability_list'))
+  assert.ok(tools.includes('generation_prepare'))
+  assert.ok(tools.includes('generation_submit'))
+  assert.ok(tools.includes('generation_job_get'))
+  assert.ok(tools.includes('generation_job_get_batch'))
+  assert.ok(tools.includes('generation_result_register'))
+  assert.equal(tools.includes('system_generate_image'), false)
+  assert.equal(tools.includes('system_generate_video'), false)
   assert.ok(tools.includes('system_resource_library_query'))
   assert.ok(tools.includes('system_resource_library_open'))
   assert.ok(tools.includes('system_resource_image_transform_to_resource'))
@@ -343,23 +337,12 @@ test('MCP discovery exposes core MovScript tools and resources', async () => {
   assert.equal(tools.includes('movscript_setting_query'), false)
   assert.equal(tools.includes('movscript_production_context_query'), false)
   assert.equal(tools.includes('candidate_keyframe_attach'), false)
-  assert.ok(tools.includes('generation_image_generate'))
-  assert.ok(tools.includes('generation_content_unit_image_generate'))
-  assert.ok(tools.includes('generation_content_unit_image_job_get'))
-  assert.ok(tools.includes('generation_image_job_get_batch'))
-  assert.ok(tools.includes('generation_video_generate'))
-  assert.ok(tools.includes('generation_content_unit_video_generate'))
-  assert.ok(tools.includes('generation_content_unit_video_job_get'))
-  assert.ok(tools.includes('generation_video_job_get_batch'))
-  assert.ok(tools.includes('generation_audio_generate'))
-  assert.ok(tools.includes('generation_voiceover_generate'))
-  assert.ok(tools.includes('generation_music_generate'))
-  assert.ok(tools.includes('generation_sfx_generate'))
-  assert.ok(tools.includes('generation_subtitle_generate'))
-  assert.ok(tools.includes('generation_subtitle_align'))
-  assert.ok(tools.includes('generation_subtitle_translate'))
-  assert.ok(tools.includes('generation_audio_job_get'))
-  assert.ok(tools.includes('generation_audio_job_get_batch'))
+  assert.ok(tools.includes('generation_capability_list'))
+  assert.ok(tools.includes('generation_prepare'))
+  assert.ok(tools.includes('generation_submit'))
+  assert.ok(tools.includes('generation_job_get'))
+  assert.ok(tools.includes('generation_job_get_batch'))
+  assert.ok(tools.includes('generation_result_register'))
 
   const resourcesResponse = await handleJSONRPC({
     jsonrpc: '2.0',
@@ -619,6 +602,7 @@ test('MCP domain asset certification registers selected asset resource and write
       projectDir,
       projectId: 'prj_asset_certification',
       assetId: 'wet_hair',
+      resourceId: 101,
       source_url: 'https://cdn.example.test/wet-hair.png',
     })
     const asset = JSON.parse(readFileSync(join(projectDir, 'settings', 'hero', 'states', 'rain', 'assets', 'wet_hair', 'asset.json'), 'utf8'))
@@ -631,7 +615,6 @@ test('MCP domain asset certification registers selected asset resource and write
     assert.deepEqual(postedBodies, [{
       provider: 'volcengine_ark_official',
       resource_id: 101,
-      source_candidate_id: 'candidate_wet_hair_1',
       project_id: 'prj_asset_certification',
       project_name: 'prj_asset_certification',
       setting_id: 'hero',
@@ -828,27 +811,10 @@ test('MCP project-scoped tool schemas expose explicit project directory argument
     'domain_overview',
     'domain_get_model',
     'domain_query_entities',
-    'generation_image_generate',
-    'generation_content_unit_image_generate',
-    'generation_video_generate',
-    'generation_content_unit_video_generate',
-    'generation_audio_generate',
-    'generation_voiceover_generate',
-    'generation_music_generate',
-    'generation_sfx_generate',
-    'generation_subtitle_generate',
-    'generation_subtitle_align',
-    'generation_subtitle_translate',
-    'system_generate_image',
-    'system_generate_content_unit_image',
-    'system_generate_video',
-    'system_generate_content_unit_video',
-    'system_generate_voiceover',
-    'system_generate_music',
-    'system_generate_sfx',
-    'system_generate_subtitle',
-    'system_align_subtitle',
-    'system_translate_subtitle',
+    'generation_prepare',
+    'generation_submit',
+    'generation_job_get',
+    'generation_result_register',
   ]) {
     const schema = tools.find((tool) => tool.name === name)?.inputSchema
     assert.ok(schema, `${name} schema should be exposed`)
@@ -1950,7 +1916,9 @@ test('MCP content-unit image generation compiles prompt and monitor auto-creates
       },
     })
 
-    const submitted = await callTool('system_generate_content_unit_image', {
+    const submitted = await callTool('generation_submit', {
+      capability: 'image',
+      scope: 'content_unit',
       projectDir,
       projectUid: '1',
       contentUnitId: 'arrival_preview',
@@ -1967,7 +1935,10 @@ test('MCP content-unit image generation compiles prompt and monitor auto-creates
     assert.equal(submitted.compiled_prompt_text, 'Generate a cold close-up preview for the arrival shot.')
     assert.equal(submitted.provider_prompt_text, 'Generate a cold close-up preview for the arrival shot.')
     assert.deepEqual(submitted.input_resource_ids, [])
-    assert.equal(submitted.monitor.tool, 'system_generate_content_unit_image_job_get')
+    assert.equal(submitted.capability, 'image')
+    assert.equal(submitted.scope, 'content_unit')
+    assert.equal(submitted.output_kind, 'image')
+    assert.equal(submitted.monitor.tool, 'generation_job_get')
     assert.equal(submitted.monitor.args.projectDir, projectDir)
     assert.equal(submitted.monitor.args.project_dir, projectDir)
     assert.equal(submitted.monitor.args.projectUid, 'prj_content_unit_generation')
@@ -1984,8 +1955,8 @@ test('MCP content-unit image generation compiles prompt and monitor auto-creates
     assert.equal(postedJobBody.prompt, 'Generate a cold close-up preview for the arrival shot.')
     assert.deepEqual(JSON.parse(postedJobBody.extra_params), { image_size: '1024x1024' })
 
-    const firstMonitor = await callTool('system_generate_content_unit_image_job_get', submitted.monitor.args)
-    const secondMonitor = await callTool('system_generate_content_unit_image_job_get', submitted.monitor.args)
+    const firstMonitor = await callTool('generation_job_get', submitted.monitor.args)
+    const secondMonitor = await callTool('generation_job_get', submitted.monitor.args)
     const context = decisionContexts.get('content_units/arrival_preview')
 
     assert.equal(firstMonitor.status, 'succeeded')

@@ -74,6 +74,9 @@ func ComboTemplates() []ComboTemplate {
 	templates := CatalogTemplates()
 	out := make([]ComboTemplate, 0, len(templates))
 	for _, template := range templates {
+		if strings.TrimSpace(template.SourceStatus) == "template_only" {
+			continue
+		}
 		for _, rule := range comboProvidersForModelTemplate(template) {
 			out = append(out, ComboTemplate{
 				ComboTemplateKey:     template.ID + "@" + rule.ProviderKind,
@@ -85,7 +88,7 @@ func ComboTemplates() []ComboTemplate {
 				AdapterType:          template.AdapterType,
 				DefaultPublicModelID: template.DefaultPublicModelID,
 				ProviderModelID:      template.ModelID,
-				APIKinds:             comboAPIKindsForCapabilities(template.Capabilities),
+				APIKinds:             comboAPIKindsForTemplate(template),
 				RouteGroup:           "default",
 				Priority:             0,
 				CapacityWeight:       1,
@@ -143,6 +146,13 @@ func cloneProviderTemplateValue(value any) any {
 	}
 }
 
+func comboAPIKindsForTemplate(template CatalogTemplate) []string {
+	if explicit := NormalizeModelAPIKinds(template.APIKinds); len(explicit) > 0 {
+		return explicit
+	}
+	return comboAPIKindsForCapabilities(template.Capabilities)
+}
+
 func comboAPIKindsForCapabilities(capabilities []string) []string {
 	if hasString(capabilities, CapabilityVideo) || hasString(capabilities, CapabilityVideoI2V) || hasString(capabilities, CapabilityVideoV2V) {
 		return []string{"video", "async_task"}
@@ -151,7 +161,9 @@ func comboAPIKindsForCapabilities(capabilities []string) []string {
 		return []string{"image"}
 	}
 	if hasString(capabilities, CapabilityAudioTTS) || hasString(capabilities, CapabilityAudioSTT) ||
-		hasString(capabilities, CapabilityAudioMusic) || hasString(capabilities, CapabilityAudioSFX) {
+		hasString(capabilities, CapabilityAudioMusic) || hasString(capabilities, CapabilityAudioSFX) ||
+		hasString(capabilities, CapabilityAudioChat) || hasString(capabilities, CapabilityVoiceClone) ||
+		hasString(capabilities, CapabilityVoiceDesign) || hasString(capabilities, CapabilityAudioTranslate) {
 		return []string{"audio"}
 	}
 	return []string{"text"}

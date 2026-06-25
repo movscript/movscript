@@ -17,6 +17,7 @@ import {
 import {
   domainBuildContentUnitBackendPrompt,
   domainCreateContentCandidate,
+  domainRegisterRawResourceAsContentUnitCandidate,
   readContentUnitCandidateVisibility,
 } from '../domain/actions.js'
 import { listModels } from '../model/actions.js'
@@ -44,8 +45,34 @@ type GenerationJobType =
   | 'audio_music'
   | 'audio_sfx'
   | 'audio_transcribe'
+  | 'audio_translate'
+  | 'audio_chat'
+  | 'voice_clone'
+  | 'voice_design'
   | 'subtitle_align'
   | 'subtitle_translate'
+
+type GenerationCapability = GenerationJobType
+
+type GenerationOutputGroup = 'image' | 'video' | 'audio' | 'subtitle' | 'voice_profile' | 'json'
+
+const generationCapabilities: GenerationCapability[] = [
+  'image',
+  'image_edit',
+  'video',
+  'video_i2v',
+  'video_v2v',
+  'audio_tts',
+  'audio_transcribe',
+  'audio_translate',
+  'audio_music',
+  'audio_sfx',
+  'audio_chat',
+  'voice_clone',
+  'voice_design',
+  'subtitle_align',
+  'subtitle_translate',
+]
 
 type BuiltGenerationRequest = {
   prompt: string
@@ -96,7 +123,176 @@ export async function generateImage(args: Record<string, unknown>): Promise<unkn
   const built = buildImageRequest(args)
   const selection = await resolveModelSelection(args, built.jobType, built.jobType === 'image_edit' ? 'image' : 'image_edit')
   const submitted = await submitGenerationJob(args, selection, built, 'electron.generation.image')
-  return withGenerationJobSurface(args, generationSubmitResult('image', submitted.job, 'generation_image_job_get', submitted.paramAudit))
+  return withGenerationJobSurface(args, generationSubmitResult('image', submitted.job, 'generation_job_get', submitted.paramAudit))
+}
+
+export async function listGenerationCapabilities(args: Record<string, unknown>): Promise<unknown> {
+  const includeModels = args.include_models === true
+  const modelsByCapability: Record<string, unknown> = {}
+  if (includeModels) {
+    for (const capability of generationCapabilities) {
+      const models = await modelsForCapability(capability)
+      modelsByCapability[capability] = {
+        count: models.length,
+        models,
+      }
+    }
+  }
+  return {
+    capabilities: generationCapabilities,
+    count: generationCapabilities.length,
+    ...(includeModels ? { models_by_capability: modelsByCapability } : {}),
+  }
+}
+
+export async function prepareGeneration(args: Record<string, unknown>): Promise<unknown> {
+  const capability = requiredGenerationCapability(args)
+  const scope = generationScope(args)
+  const models = await listModels({ capability, provider_variants: args.provider_variants, include_provider_variants: args.include_provider_variants })
+  if (scope === 'content_unit' && (capability === 'image' || capability === 'image_edit' || capability === 'video' || capability === 'video_i2v' || capability === 'video_v2v')) {
+    const contentUnitId = requiredContentUnitId(args)
+    const compiled = await compiledContentUnitPrompt(args, contentUnitId)
+    const blockers = Array.isArray(compiled.blockers) ? compiled.blockers : compiled.prompt?.blockers ?? []
+    return {
+      status: compiled.ok === true ? 'ready' : 'blocked',
+      capability,
+      scope,
+      contentUnitId,
+      content_unit_id: contentUnitId,
+      prompt: compiled.prompt,
+      blockers,
+      ...(isRecord(models) ? models : { models }),
+      message: compiled.ok === true
+        ? `Content unit ${String(contentUnitId)} is ready for ${capability} generation.`
+        : `Content unit ${String(contentUnitId)} has unresolved prompt blockers.`,
+    }
+  }
+  return {
+    status: 'ready',
+    capability,
+    scope,
+    ...(isRecord(models) ? models : { models }),
+    message: `${capability} generation is ready to submit.`,
+  }
+}
+
+export async function submitUnifiedGeneration(args: Record<string, unknown>): Promise<unknown> {
+  const capability = requiredGenerationCapability(args)
+  const scope = generationScope(args)
+  const candidatePolicy = getOptionalString(args, 'candidate_policy') ?? (scope === 'content_unit' ? 'auto_create' : 'none')
+  if (scope === 'content_unit') {
+    if (capability === 'image' || capability === 'image_edit') {
+      return generationV2Result(await generateContentUnitImage(args), capability, scope, 'image', 'content_unit_candidate', candidatePolicy)
+    }
+    if (capability === 'video' || capability === 'video_i2v' || capability === 'video_v2v') {
+      return generationV2Result(await generateContentUnitVideo(args), capability, scope, 'video', 'content_unit_candidate', candidatePolicy)
+    }
+    throw new Error(`scope=content_unit is currently supported by image and video generation capabilities; got ${capability}`)
+  }
+
+  switch (capability) {
+    case 'image':
+    case 'image_edit':
+      return generationV2Result(await generateImage(args), capability, scope, 'image', 'raw_resource', candidatePolicy)
+    case 'video':
+    case 'video_i2v':
+    case 'video_v2v':
+      return generationV2Result(await generateVideo(args), capability, scope, 'video', 'raw_resource', candidatePolicy)
+    case 'audio_tts':
+      return generationV2Result(await generateVoiceover(args), capability, scope, 'audio', 'raw_resource', candidatePolicy)
+    case 'audio_transcribe':
+      return generationV2Result(await generateSubtitle(args), capability, scope, 'subtitle', 'raw_resource', candidatePolicy)
+    case 'audio_translate':
+      return generationV2Result(await generateAudioTranslate(args), capability, scope, 'subtitle', 'raw_resource', candidatePolicy)
+    case 'audio_music':
+      return generationV2Result(await generateMusic(args), capability, scope, 'audio', 'raw_resource', candidatePolicy)
+    case 'audio_sfx':
+      return generationV2Result(await generateSfx(args), capability, scope, 'audio', 'raw_resource', candidatePolicy)
+    case 'audio_chat':
+      return generationV2Result(await generateAudioChat(args), capability, scope, 'audio', 'raw_resource', candidatePolicy)
+    case 'voice_clone':
+      return generationV2Result(await generateVoiceClone(args), capability, scope, 'voice_profile', 'raw_resource', candidatePolicy)
+    case 'voice_design':
+      return generationV2Result(await generateVoiceDesign(args), capability, scope, 'voice_profile', 'raw_resource', candidatePolicy)
+    case 'subtitle_align':
+      return generationV2Result(await alignSubtitle(args), capability, scope, 'subtitle', 'raw_resource', candidatePolicy)
+    case 'subtitle_translate':
+      return generationV2Result(await translateSubtitle(args), capability, scope, 'subtitle', 'raw_resource', candidatePolicy)
+    default:
+      return assertNeverGenerationCapability(capability)
+  }
+}
+
+export async function getUnifiedGenerationJob(args: Record<string, unknown>): Promise<unknown> {
+  const capability = optionalGenerationCapability(args)
+  const scope = generationScope(args)
+  const outputKind = outputKindArg(args, capability)
+  if (scope === 'content_unit' && (outputKind === 'image' || outputKind === 'video')) {
+    const result = outputKind === 'image'
+      ? await getContentUnitImageGenerationJob({ ...args, outputKind })
+      : await getContentUnitVideoGenerationJob({ ...args, outputKind })
+    return generationV2Result(result, capability ?? outputKind, scope, outputKind, 'content_unit_candidate', getOptionalString(args, 'candidate_policy') ?? 'auto_create')
+  }
+  const kind = generationOutputJobGroup(outputKind)
+  const result = withGenerationJobSurface(args, generationJobGetResult(kind, await getGenerationJob(normalizedJobId(args)), verbosityArg(args)))
+  return generationV2Result(result, capability ?? outputKind, scope, outputKind, 'raw_resource', getOptionalString(args, 'candidate_policy') ?? 'none')
+}
+
+export async function getUnifiedGenerationJobs(args: Record<string, unknown>): Promise<unknown> {
+  const jobIds = normalizedJobIds(args)
+  const items: Record<string, unknown>[] = []
+  const rawItems = Array.isArray(args.items) ? args.items : []
+  for (let index = 0; index < jobIds.length; index += 1) {
+    const jobId = jobIds[index]!
+    const itemArgs = isRecord(rawItems[index]) ? { ...args, ...rawItems[index], jobId } : { ...args, jobId }
+    try {
+      const result = await getUnifiedGenerationJob(itemArgs)
+      items.push({
+        index,
+        status: 'loaded',
+        jobId,
+        job_id: jobId,
+        terminal: isRecord(result) ? result.terminal : undefined,
+        outputResourceIds: isRecord(result) ? result.outputResourceIds : undefined,
+        output_resource_ids: isRecord(result) ? result.output_resource_ids : undefined,
+        result,
+      })
+    } catch (error) {
+      items.push({
+        index,
+        status: 'error',
+        jobId,
+        job_id: jobId,
+        terminal: true,
+        error: errorMessage(error),
+      })
+    }
+  }
+  const successItems = items.filter((item) => item.status !== 'error')
+  const failedItems = items.filter((item) => item.status === 'error')
+  const terminalCount = items.filter((item) => item.terminal === true).length
+  const outputResourceIds = Array.from(new Set(successItems.flatMap((item) => numericList(item.output_resource_ids))))
+  return {
+    status: failedItems.length === 0 ? 'loaded' : successItems.length > 0 ? 'partial_error' : 'error',
+    total: jobIds.length,
+    success_count: successItems.length,
+    failed_count: failedItems.length,
+    terminal_count: terminalCount,
+    all_terminal: terminalCount === jobIds.length,
+    output_resource_ids: outputResourceIds,
+    outputResourceIds,
+    items,
+    message: `${successItems.length}/${jobIds.length} generation job(s) loaded.`,
+  }
+}
+
+export async function registerGenerationResult(args: Record<string, unknown>): Promise<unknown> {
+  const result = await domainRegisterRawResourceAsContentUnitCandidate(args)
+  return {
+    status: 'registered',
+    candidate: result,
+    message: 'Generation result registered as a content-unit candidate.',
+  }
 }
 
 export async function generateContentUnitImage(args: Record<string, unknown>): Promise<unknown> {
@@ -119,7 +315,7 @@ export async function generateVideo(args: Record<string, unknown>): Promise<unkn
   const built = buildVideoRequest(args)
   const selection = await resolveModelSelection(args, built.jobType, 'video')
   const submitted = await submitGenerationJob(args, selection, built, 'electron.generation.video')
-  return withGenerationJobSurface(args, generationSubmitResult('video', submitted.job, 'generation_video_job_get', submitted.paramAudit))
+  return withGenerationJobSurface(args, generationSubmitResult('video', submitted.job, 'generation_job_get', submitted.paramAudit))
 }
 
 export async function generateContentUnitVideo(args: Record<string, unknown>): Promise<unknown> {
@@ -154,6 +350,10 @@ export async function generateSfx(args: Record<string, unknown>): Promise<unknow
   return generateAudioLike(args, 'audio_sfx', 'audio_sfx', 'electron.generation.sfx')
 }
 
+export async function generateAudioChat(args: Record<string, unknown>): Promise<unknown> {
+  return generateAudioLike(args, 'audio_chat', 'audio_chat', 'electron.generation.audio_chat')
+}
+
 export async function generateSubtitle(args: Record<string, unknown>): Promise<unknown> {
   return generateAudioLike(args, 'audio_transcribe', 'audio_transcribe', 'electron.generation.subtitle')
 }
@@ -166,16 +366,28 @@ export async function translateSubtitle(args: Record<string, unknown>): Promise<
   return generateAudioLike(args, 'subtitle_translate', 'subtitle_translate', 'electron.generation.subtitle_translate')
 }
 
+export async function generateAudioTranslate(args: Record<string, unknown>): Promise<unknown> {
+  return generateAudioLike(args, 'audio_translate', 'audio_translate', 'electron.generation.audio_translate')
+}
+
+export async function generateVoiceClone(args: Record<string, unknown>): Promise<unknown> {
+  return generateAudioLike(args, 'voice_clone', 'voice_clone', 'electron.generation.voice_clone')
+}
+
+export async function generateVoiceDesign(args: Record<string, unknown>): Promise<unknown> {
+  return generateAudioLike(args, 'voice_design', 'voice_design', 'electron.generation.voice_design')
+}
+
 async function generateAudioLike(
   args: Record<string, unknown>,
-  jobType: Extract<GenerationJobType, 'audio_tts' | 'audio_music' | 'audio_sfx' | 'audio_transcribe' | 'subtitle_align' | 'subtitle_translate'>,
+  jobType: Extract<GenerationJobType, 'audio_tts' | 'audio_music' | 'audio_sfx' | 'audio_chat' | 'audio_transcribe' | 'audio_translate' | 'voice_clone' | 'voice_design' | 'subtitle_align' | 'subtitle_translate'>,
   fallbackCapability: string,
   featureKey: string,
 ): Promise<unknown> {
   const built = buildAudioRequest(args, jobType)
   const selection = await resolveModelSelection(args, built.jobType, fallbackCapability)
   const submitted = await submitGenerationJob(args, selection, built, featureKey)
-  return withGenerationJobSurface(args, generationSubmitResult('audio', submitted.job, 'generation_audio_job_get', submitted.paramAudit))
+  return withGenerationJobSurface(args, generationSubmitResult('audio', submitted.job, 'generation_job_get', submitted.paramAudit))
 }
 
 async function generateContentUnitVisual(
@@ -503,7 +715,7 @@ function buildVideoRequest(args: Record<string, unknown>): BuiltGenerationReques
   }
 }
 
-function buildAudioRequest(args: Record<string, unknown>, jobType: Extract<GenerationJobType, 'audio_tts' | 'audio_music' | 'audio_sfx' | 'audio_transcribe' | 'subtitle_align' | 'subtitle_translate'> = 'audio_tts'): BuiltGenerationRequest {
+function buildAudioRequest(args: Record<string, unknown>, jobType: Extract<GenerationJobType, 'audio_tts' | 'audio_music' | 'audio_sfx' | 'audio_chat' | 'audio_transcribe' | 'audio_translate' | 'voice_clone' | 'voice_design' | 'subtitle_align' | 'subtitle_translate'> = 'audio_tts'): BuiltGenerationRequest {
   const { prompt, refIds } = promptAndResourceIds(args)
   const params = { ...extraParamsArg(args.extra_params) }
   const explicitParamKeys = new Set(Object.keys(params))
@@ -793,6 +1005,119 @@ function outputResourceIdsFromJob(job: Record<string, unknown>): number[] {
   appendIds(ids, job.output_resource_ids)
   appendIds(ids, job.outputResourceIds)
   return Array.from(new Set(ids))
+}
+
+function requiredGenerationCapability(args: Record<string, unknown>): GenerationCapability {
+  const capability = optionalGenerationCapability(args)
+  if (!capability) throw new Error('capability is required')
+  return capability
+}
+
+function optionalGenerationCapability(args: Record<string, unknown>): GenerationCapability | undefined {
+  const raw = getOptionalString(args, 'capability') ?? getOptionalString(args, 'job_type') ?? getOptionalString(args, 'jobType')
+  if (!raw) return undefined
+  const normalized = normalizeGenerationCapability(raw)
+  if (!normalized) throw new Error(`unsupported generation capability: ${raw}`)
+  return normalized
+}
+
+function normalizeGenerationCapability(value: string): GenerationCapability | undefined {
+  const raw = value.trim()
+  const aliases: Record<string, GenerationCapability> = {
+    audio: 'audio_tts',
+    tts: 'audio_tts',
+    voiceover: 'audio_tts',
+    stt: 'audio_transcribe',
+    transcription: 'audio_transcribe',
+    audio_translation: 'audio_translate',
+    voice_chat: 'audio_chat',
+    speech_chat: 'audio_chat',
+    omni: 'audio_chat',
+    music: 'audio_music',
+    sfx: 'audio_sfx',
+    sound_effect: 'audio_sfx',
+    sound_effects: 'audio_sfx',
+    voice_cloning: 'voice_clone',
+    voice_profile: 'voice_design',
+  }
+  const normalized = aliases[raw] ?? raw
+  return generationCapabilities.includes(normalized as GenerationCapability) ? normalized as GenerationCapability : undefined
+}
+
+function generationScope(args: Record<string, unknown>): 'free' | 'content_unit' | 'asset' | 'storyboard' | 'keyframe' {
+  const raw = getOptionalString(args, 'scope')
+  if (raw === 'content_unit' || raw === 'asset' || raw === 'storyboard' || raw === 'keyframe') return raw
+  return 'free'
+}
+
+function outputKindArg(args: Record<string, unknown>, capability?: GenerationCapability | string): GenerationOutputGroup {
+  const raw = getOptionalString(args, 'outputKind') ?? getOptionalString(args, 'output_kind')
+  if (raw === 'image' || raw === 'video' || raw === 'audio' || raw === 'subtitle' || raw === 'voice_profile' || raw === 'json') return raw
+  return generationCapabilityOutputKind(capability)
+}
+
+function generationCapabilityOutputKind(capability?: GenerationCapability | string): GenerationOutputGroup {
+  if (capability === 'image' || capability === 'image_edit') return 'image'
+  if (capability === 'video' || capability === 'video_i2v' || capability === 'video_v2v') return 'video'
+  if (capability === 'audio_transcribe' || capability === 'audio_translate' || capability === 'subtitle_align' || capability === 'subtitle_translate') return 'subtitle'
+  if (capability === 'voice_clone' || capability === 'voice_design') return 'voice_profile'
+  return 'audio'
+}
+
+function generationOutputJobGroup(outputKind: GenerationOutputGroup): 'image' | 'video' | 'audio' {
+  if (outputKind === 'image') return 'image'
+  if (outputKind === 'video') return 'video'
+  return 'audio'
+}
+
+function generationV2Result(
+  rawResult: unknown,
+  capability: GenerationCapability | string,
+  scope: ReturnType<typeof generationScope>,
+  outputKind: GenerationOutputGroup,
+  generationMode: string,
+  candidatePolicy: string,
+): unknown {
+  if (!isRecord(rawResult)) {
+    return {
+      status: 'unknown',
+      capability,
+      scope,
+      output_kind: outputKind,
+      outputKind,
+      generation_mode: generationMode,
+      candidate_policy: candidatePolicy,
+      result: rawResult,
+    }
+  }
+  const jobId = idField(rawResult.job_id ?? rawResult.jobId)
+  const monitorArgs = {
+    ...(isRecord(rawResult.monitor) && isRecord(rawResult.monitor.args) ? rawResult.monitor.args : {}),
+    ...(jobId !== undefined ? { jobId, job_id: jobId } : {}),
+    capability,
+    scope,
+    outputKind,
+    output_kind: outputKind,
+  }
+  return {
+    ...rawResult,
+    capability,
+    scope,
+    output_kind: outputKind,
+    outputKind,
+    generation_mode: stringField(rawResult.generation_mode) ?? generationMode,
+    candidate_policy: stringField(rawResult.candidate_policy) ?? candidatePolicy,
+    monitor: jobId !== undefined
+      ? {
+          tool: 'generation_job_get',
+          args: monitorArgs,
+        }
+      : rawResult.monitor,
+  }
+}
+
+function assertNeverGenerationCapability(value: never): never {
+  throw new Error(`unsupported generation capability: ${String(value)}`)
 }
 
 function promptArg(args: Record<string, unknown>): string {

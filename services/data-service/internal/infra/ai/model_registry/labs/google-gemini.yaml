@@ -246,3 +246,123 @@ templates:
       video:
         default_duration_sec: 6
         max_duration_sec: 8
+    - adapter_type: gemini
+      allow_model_id_override: true
+      capabilities:
+        - audio_tts
+      display_name: Gemini 3.1 Flash TTS Preview
+      id: gemini:gemini-3-1-flash-tts-preview
+      lab: google-gemini
+      model_id: gemini-3.1-flash-tts-preview
+      order: 74
+      source:
+        status: verified
+        url: https://ai.google.dev/gemini-api/docs/speech-generation
+        verified_at: "2026-06-25"
+    - adapter_type: gemini
+      allow_model_id_override: true
+      capabilities:
+        - audio_tts
+      display_name: Gemini 2.5 Flash TTS Preview
+      id: gemini:gemini-2-5-flash-preview-tts
+      lab: google-gemini
+      model_id: gemini-2.5-flash-preview-tts
+      order: 75
+      source:
+        status: verified
+        url: https://ai.google.dev/gemini-api/docs/speech-generation
+        verified_at: "2026-06-25"
+    - adapter_type: gemini
+      allow_model_id_override: true
+      capabilities:
+        - audio_tts
+      display_name: Gemini 2.5 Pro TTS Preview
+      id: gemini:gemini-2-5-pro-preview-tts
+      lab: google-gemini
+      model_id: gemini-2.5-pro-preview-tts
+      order: 76
+      source:
+        status: verified
+        url: https://ai.google.dev/gemini-api/docs/speech-generation
+        verified_at: "2026-06-25"
+    - adapter_type: gemini
+      allow_model_id_override: true
+      capabilities:
+        - audio_music
+      display_name: Lyria 3 Clip Preview
+      id: gemini:lyria-3-clip-preview
+      lab: google-gemini
+      model_id: lyria-3-clip-preview
+      order: 77
+      params:
+        - key: duration
+          label: 时长(秒)
+          type: select
+          options:
+            - "30"
+          default: "30"
+        - key: output_format
+          label: 音频格式
+          type: select
+          options:
+            - mp3
+          default: mp3
+      source:
+        status: verified
+        url: https://ai.google.dev/gemini-api/docs/music-generation
+        verified_at: "2026-06-25"
+    - adapter_type: gemini
+      allow_model_id_override: true
+      capabilities:
+        - audio_music
+      display_name: Lyria 3 Pro Preview
+      id: gemini:lyria-3-pro-preview
+      lab: google-gemini
+      model_id: lyria-3-pro-preview
+      order: 78
+      params:
+        - key: duration
+          label: 时长(秒)
+          type: select
+          options:
+            - "60"
+            - "90"
+            - "120"
+          default: "120"
+        - key: output_format
+          label: 音频格式
+          type: select
+          options:
+            - mp3
+            - wav
+          default: mp3
+      source:
+        status: verified
+        url: https://ai.google.dev/gemini-api/docs/music-generation
+        verified_at: "2026-06-25"
+    - adapter_type: gemini
+      allow_model_id_override: true
+      capabilities:
+        - audio_transcribe
+      display_name: Google Chirp 3
+      id: google-speech:chirp-3
+      lab: google-gemini
+      model_id: chirp_3
+      order: 79
+      source:
+        status: template_only
+        url: https://cloud.google.com/speech-to-text/docs/chirp-model
+        verified_at: "2026-06-25"
+    - adapter_type: gemini
+      allow_model_id_override: true
+      capabilities:
+        - audio_transcribe
+      display_name: Google Chirp 2
+      id: google-speech:chirp-2
+      lab: google-gemini
+      model_id: chirp_2
+      order: 80
+      source:
+        status: template_only
+        url: https://cloud.google.com/speech-to-text/docs/chirp-model
+        verified_at: "2026-06-25"

@@ -20,8 +20,8 @@ func TestKeyAllowsProjectRequiresMatchingRequestProject(t *testing.T) {
 	}
 }
 
-func TestNewAPIKeyAppliesDefaultScope(t *testing.T) {
-	key := NewAPIKey(NewAPIKeySpec{
+func TestNewGatewayAPIKeyAppliesDefaultScope(t *testing.T) {
+	key := NewGatewayAPIKey(NewGatewayAPIKeySpec{
 		Name:        " Test Key ",
 		KeyPrefix:   "mgw_prefix",
 		KeyHash:     "hash",
@@ -43,7 +43,7 @@ func TestNewAPIKeyAppliesDefaultScope(t *testing.T) {
 }
 
 func TestAPIKeyApplyUpdate(t *testing.T) {
-	key := NewAPIKey(NewAPIKeySpec{
+	key := NewGatewayAPIKey(NewGatewayAPIKeySpec{
 		Name:                   "Original",
 		KeyPrefix:              "mgw_prefix",
 		KeyHash:                "hash",

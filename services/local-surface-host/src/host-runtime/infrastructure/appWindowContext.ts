@@ -2,6 +2,8 @@ import { useAppSettingsStore } from './appSettingsStore'
 import { useProjectStore } from './session/projectStore'
 import { rememberLocalProject } from './session/localProjectRecentsStore'
 import type { Project } from '@movscript/shared'
+import type { ProjectSurfaceRouteKey } from '@movscript/project-surface/routes'
+import { projectSurfaceHrefForLocalProject } from '../../routes/localRouteLinks'
 
 export async function openProjectWindow(input: {
   project?: Project | unknown
@@ -14,24 +16,40 @@ export async function openProjectWindow(input: {
     if (project.workspace_path || project.project_path || project.local) rememberLocalProject(project)
   }
   useAppSettingsStore.getState().setWorkMode('project')
-  const projectId = project?.ID
-  const fallbackRoute = projectId ? `/studio/${encodeURIComponent(String(projectId))}` : '/projects'
-  window.location.assign(projectRouteForLocalHost(input.route, projectId) ?? fallbackRoute)
+  const fallbackRoute = project
+    ? projectSurfaceHrefForLocalProject(project, 'overview', new URLSearchParams())
+    : '/projects'
+  window.location.assign(projectRouteForLocalHost(input.route, project) ?? projectRouteWithLocalProjectQuery(fallbackRoute, project))
 }
 
 export async function openHomeWindow(): Promise<void> {
   window.location.assign('/')
 }
 
-function projectRouteForLocalHost(route: string | undefined, projectId: number | undefined): string | undefined {
-  if (!route || !projectId) return undefined
-  if (route.startsWith('/studio/')) return route
-  const encodedProjectId = encodeURIComponent(String(projectId))
-  const mapped = projectRouteSegment(route)
-  return mapped ? `/studio/${encodedProjectId}/${mapped}` : `/studio/${encodedProjectId}`
+function projectRouteForLocalHost(route: string | undefined, project: Project | undefined): string | undefined {
+  if (!route || !project) return undefined
+  const [pathname, rawSearch = ''] = route.split('?')
+  const query = new URLSearchParams(rawSearch)
+  if (pathname === '/studio') return projectSurfaceHrefForLocalProject(project, 'overview', query)
+  if (pathname.startsWith('/studio/')) return projectRouteWithLocalProjectQuery(route, project)
+  const mapped = projectRouteKey(route)
+  return projectSurfaceHrefForLocalProject(project, mapped ?? 'overview', query)
 }
 
-function projectRouteSegment(route: string): string | undefined {
+function projectRouteWithLocalProjectQuery(route: string, project: Project | undefined): string {
+  if (!project) return route
+  const [pathname, rawSearch = ''] = route.split('?')
+  const query = new URLSearchParams(rawSearch)
+  const projectDir = project.workspace_path?.trim() || project.project_path?.trim()
+  if (projectDir && !query.get('projectDir')) query.set('projectDir', projectDir)
+  if (project.project_uid && !query.get('projectUid')) query.set('projectUid', project.project_uid)
+  if (project.ID > 0 && !query.get('projectId')) query.set('projectId', String(project.ID))
+  if (project.name && !query.get('projectName')) query.set('projectName', project.name)
+  const search = query.toString()
+  return search ? `${pathname}?${search}` : pathname
+}
+
+function projectRouteKey(route: string): ProjectSurfaceRouteKey | undefined {
   if (route.endsWith('/standards')) return 'standards'
   if (route.endsWith('/settings')) return 'settings'
   if (route.endsWith('/scripts') || route.endsWith('/scripts/workbench')) return 'scripts'

@@ -1,4 +1,4 @@
-import { forwardRef, type AudioHTMLAttributes, type ImgHTMLAttributes, type VideoHTMLAttributes } from 'react'
+import React, { forwardRef, type AudioHTMLAttributes, type ImgHTMLAttributes, type VideoHTMLAttributes } from 'react'
 import { ResourceAuthAudio, ResourceAuthImage, ResourceAuthVideo } from '@movscript/ui/business/resource'
 import type { RawResource } from '@movscript/shared'
 import { AuthedAudio, AuthedImage, AuthedVideo } from './resourceAuthMedia.js'

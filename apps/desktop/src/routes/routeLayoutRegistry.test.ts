@@ -126,10 +126,12 @@ test('route layout registry separates canvas, agent, document, redirect, and ove
   assert.equal(routeLayoutSpecForPathname('/editing/editing_project_123').scrollMode, 'workspace')
   assert.equal(routeLayoutSpecForPathname('/editing/editing_project_123').projectEntryId, undefined)
 
-  assert.equal(routeLayoutSpecForPathname('/resources').surface, 'resource')
+  assert.equal(routeLayoutSpecForPathname('/resources').surface, 'tool')
   assert.equal(routeLayoutSpecForPathname('/resources').scrollMode, 'document')
   assert.equal(appRouteViewportScrollForMode(routeLayoutSpecForPathname('/resources').scrollMode), 'auto')
   assert.match(routeLayoutSpecForPathname('/resources').notes ?? '', /resource-surface/)
+  assert.equal(routeLayoutSpecForPathname('/resources/external').surface, 'tool')
+  assert.equal(routeLayoutSpecForPathname('/resources/external').scrollMode, 'document')
   assert.equal(routeLayoutSpecForPathname('/agents/mova').surface, 'settings')
   assert.equal(routeLayoutSpecForPathname('/agents/mova').chrome, 'settings')
   assert.equal(routeLayoutSpecForPathname('/agents/mova').scrollMode, 'document')
@@ -222,11 +224,13 @@ test('route layout registry declares shared tool workbench resource panes', () =
     assert.equal(resourcePane?.overlapMode, 'pane-surface')
   }
 
-  const audioRoute = routeLayoutSpecForPathname('/tools/audio-gen')
-  assert.equal(audioRoute.surface, 'tool')
-  assert.equal(audioRoute.scrollMode, 'workspace')
-  assert.ok(audioRoute.panes.some((pane) => pane.id === APP_SHELL_TOOL_SIDEBAR_PANE_ID))
-  assert.ok(!audioRoute.panes.some((pane) => pane.id === TOOL_WORKBENCH_RESOURCE_PANE_ID))
+  for (const pathname of ['/tools/audio-gen', '/tools/audio-transcribe', '/tools/audio-translate', '/tools/music-gen', '/tools/audio-sfx', '/tools/voice-clone', '/tools/voice-design']) {
+    const audioRoute = routeLayoutSpecForPathname(pathname)
+    assert.equal(audioRoute.surface, 'tool')
+    assert.equal(audioRoute.scrollMode, 'workspace')
+    assert.ok(audioRoute.panes.some((pane) => pane.id === APP_SHELL_TOOL_SIDEBAR_PANE_ID))
+    assert.ok(!audioRoute.panes.some((pane) => pane.id === TOOL_WORKBENCH_RESOURCE_PANE_ID))
+  }
 })
 
 test('route layout registry declares content managed panes', () => {

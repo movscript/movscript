@@ -25,12 +25,14 @@ function projectFromLocation(): Project | null {
   if (!Number.isInteger(projectId) || projectId <= 0) return null
   const name = params.get('projectName') ?? params.get('project_name') ?? `Project ${projectId}`
   const projectPath = params.get('projectDir') ?? params.get('projectPath') ?? undefined
+  const projectUid = params.get('projectUid') ?? params.get('project_uid') ?? undefined
   const now = new Date(0).toISOString()
   return {
     ID: projectId,
     name,
     description: '',
     owner_id: 0,
+    ...(projectUid ? { project_uid: projectUid } : {}),
     ...(projectPath ? { workspace_path: projectPath, project_path: projectPath, local: true } : {}),
     CreatedAt: now,
     UpdatedAt: now,

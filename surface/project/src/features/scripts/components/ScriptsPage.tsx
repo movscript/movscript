@@ -33,6 +33,7 @@ import {
   listWorkspaceScripts,
   saveWorkspaceScript,
 } from '../application/scriptWorkspaceRepository'
+import { useProjectSurfaceRuntime } from '../../../runtime/ProjectSurfaceProvider'
 import { scriptKeys } from '../application/scriptQueryKeys'
 import {
   invalidateScriptMutationResult,
@@ -49,6 +50,7 @@ import { useSurfaceHostState } from '../../project/application/surfaceHostStateH
 import { readScriptDocument, SCRIPT_DOCUMENT_ACCEPT } from '@movscript/resource-surface/data'
 
 function ScriptsSection({ projectId }: { projectId: number }) {
+  const runtime = useProjectSurfaceRuntime()
   const qc = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
   const [selectedId, setSelectedId] = useState<number | null>(null)
@@ -70,8 +72,11 @@ function ScriptsSection({ projectId }: { projectId: number }) {
   const currentOrgID = useSurfaceHostState((state) => state.currentOrgID)
   const orgMemberships = useSurfaceHostState((state) => state.orgMemberships)
   const workspaceContext = useMemo(
-    () => surfaceWorkspaceOwnerContext({ currentUser, currentOrgID, orgMemberships }),
-    [currentOrgID, currentUser?.ID, orgMemberships],
+    () => ({
+      ...surfaceWorkspaceOwnerContext({ currentUser, currentOrgID, orgMemberships }),
+      ...(runtime.project.projectDir ? { projectDir: runtime.project.projectDir } : {}),
+    }),
+    [currentOrgID, currentUser?.ID, orgMemberships, runtime.project.projectDir],
   )
 
   const { data: rawScripts, isLoading } = useQuery<Script[]>({

@@ -111,22 +111,22 @@ type Config struct {
 
 	// Enterprise AI gateway and metering extension fields. Community builds keep
 	// them empty unless an edition hook populates them.
-	NewAPIBaseURL        string
-	NewAPIAdminToken     string
-	NewAPIAdminTokenFile string
-	NewAPIAdminUserID    int
-	NewAPIAdminUsername  string
-	NewAPIAdminPassword  string
-	NewAPIPublicURL      string
-	NewAPIPlanMap        string
-	NewAPIGroupMap       string
-	NewAPIRouteGroupMap  string
-	NewAPIUserPrefix     string
-	NewAPIOrgUserPrefix  string
-	NewAPIUserPassword   string
-	NewAPITokenQuota     int
-	NewAPITokenGroup     string
-	NewAPIRechargeGroup  string
+	RelayGatewayBaseURL        string
+	RelayGatewayAdminToken     string
+	RelayGatewayAdminTokenFile string
+	RelayGatewayAdminUserID    int
+	RelayGatewayAdminUsername  string
+	RelayGatewayAdminPassword  string
+	RelayGatewayPublicURL      string
+	RelayGatewayPlanMap        string
+	RelayGatewayGroupMap       string
+	RelayGatewayRouteGroupMap  string
+	RelayGatewayUserPrefix     string
+	RelayGatewayOrgUserPrefix  string
+	RelayGatewayUserPassword   string
+	RelayGatewayTokenQuota     int
+	RelayGatewayTokenGroup     string
+	RelayGatewayRechargeGroup  string
 
 	// Filesystem object storage
 	FilesystemStorageRoot string

@@ -44,6 +44,7 @@
       "import": "./dist/layout.js",
       "require": "./dist/layout.cjs"
     },
+    "./i18n": "./src/i18n.ts",
     "./pages": "./src/pages/index.ts",
     "./resource-browser": {
       "types": "./dist/resource-browser.d.ts",

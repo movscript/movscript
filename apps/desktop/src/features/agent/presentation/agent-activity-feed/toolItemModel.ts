@@ -16,25 +16,7 @@ export interface ToolActivityRecord {
 
 export function isGenerationSubmitTool(toolName: string): boolean {
   const normalized = normalizeToolName(toolName)
-  return normalized === 'generation_image_generate'
-    || normalized === 'generation_content_unit_image_generate'
-    || normalized === 'system_generate_content_unit_image'
-    || normalized === 'generation_video_generate'
-    || normalized === 'generation_content_unit_video_generate'
-    || normalized === 'system_generate_content_unit_video'
-    || normalized === 'generation_audio_generate'
-    || normalized === 'generation_voiceover_generate'
-    || normalized === 'system_generate_voiceover'
-    || normalized === 'generation_music_generate'
-    || normalized === 'system_generate_music'
-    || normalized === 'generation_sfx_generate'
-    || normalized === 'system_generate_sfx'
-    || normalized === 'generation_subtitle_generate'
-    || normalized === 'system_generate_subtitle'
-    || normalized === 'generation_subtitle_align'
-    || normalized === 'system_align_subtitle'
-    || normalized === 'generation_subtitle_translate'
-    || normalized === 'system_translate_subtitle'
+  return normalized === 'generation_submit'
     || normalized === 'generation_job_create'
 }
 

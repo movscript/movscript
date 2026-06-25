@@ -20,6 +20,9 @@
       "@movscript/project-surface/layout": [
         "./src/layout.ts"
       ],
+      "@movscript/project-surface/i18n": [
+        "./src/i18n.ts"
+      ],
       "@movscript/project-surface/runtime": [
         "./src/runtime.ts"
       ],

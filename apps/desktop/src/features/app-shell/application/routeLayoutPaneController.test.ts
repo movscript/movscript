@@ -427,6 +427,10 @@ test('workbench pages consume overlap pane sizing through the route layout adapt
   const toolDialogSource = readToolDialogWorkbenchSource()
 
   assert.ok(!routeLayoutSpecForPathname('/tools/audio-gen').panes.some((pane) => pane.id === TOOL_WORKBENCH_RESOURCE_PANE_ID))
+  assert.ok(!routeLayoutSpecForPathname('/tools/audio-translate').panes.some((pane) => pane.id === TOOL_WORKBENCH_RESOURCE_PANE_ID))
+  assert.ok(!routeLayoutSpecForPathname('/tools/audio-sfx').panes.some((pane) => pane.id === TOOL_WORKBENCH_RESOURCE_PANE_ID))
+  assert.ok(!routeLayoutSpecForPathname('/tools/voice-clone').panes.some((pane) => pane.id === TOOL_WORKBENCH_RESOURCE_PANE_ID))
+  assert.ok(!routeLayoutSpecForPathname('/tools/voice-design').panes.some((pane) => pane.id === TOOL_WORKBENCH_RESOURCE_PANE_ID))
   assert.match(toolDialogSource, /useRouteLayoutOverlapPaneController\(\{[\s\S]*paneId: TOOL_WORKBENCH_RESOURCE_PANE_ID/)
   assert.match(toolDialogSource, /function ToolDialogReferenceWorkbench/)
   assert.doesNotMatch(scriptsSource, /useRouteLayoutOverlapPaneController/)

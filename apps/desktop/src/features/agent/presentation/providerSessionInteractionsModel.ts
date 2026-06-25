@@ -111,27 +111,15 @@ function providerSessionApprovalImpactI18nText(approval: ApprovalLike, t: TFunct
 
   const toolName = normalizeToolName(approval.toolName)
   switch (toolName) {
-    case 'generation_content_unit_image_generate':
-    case 'system_generate_content_unit_image':
+    case 'generation_submit':
+      return t('agents.chat.task.approvalImpact.generationCreate')
+    case 'generation_prepare':
+    case 'generation_capability_list':
+    case 'generation_job_get':
+    case 'generation_job_get_batch':
+      return t('agents.chat.task.approvalImpact.defaultRead')
+    case 'generation_result_register':
       return t('agents.chat.task.approvalImpact.contentUnitImageGenerationCreate', { defaultValue: 'Approving will compile the content-unit prompt, submit image generation, and write candidates after success. It may consume generation quota.' })
-    case 'generation_content_unit_video_generate':
-    case 'system_generate_content_unit_video':
-      return t('agents.chat.task.approvalImpact.contentUnitVideoGenerationCreate', { defaultValue: 'Approving will compile the content-unit prompt, submit video generation, and write candidates after success. It may consume generation quota.' })
-    case 'generation_image_generate':
-    case 'generation_video_generate':
-    case 'generation_audio_generate':
-    case 'generation_voiceover_generate':
-    case 'system_generate_voiceover':
-    case 'generation_music_generate':
-    case 'system_generate_music':
-    case 'generation_sfx_generate':
-    case 'system_generate_sfx':
-    case 'generation_subtitle_generate':
-    case 'system_generate_subtitle':
-    case 'generation_subtitle_align':
-    case 'system_align_subtitle':
-    case 'generation_subtitle_translate':
-    case 'system_translate_subtitle':
     case 'generation_job_create':
       return t('agents.chat.task.approvalImpact.generationCreate')
     case 'generation_job_cancel':

@@ -2,6 +2,7 @@ package ai
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -94,7 +95,8 @@ func (r *Registry) buildProvider(cred persistencemodel.AICredential, def *ModelD
 		parts := splitKlingKey(apiKey)
 		return NewKlingAdapter(parts[0], parts[1]), nil
 	case AdapterVolcen:
-		return NewVolcenAdapter(baseURL, apiKey), nil
+		volcenKey, speech := splitVolcenCredential(apiKey)
+		return NewVolcenAdapterWithSpeech(baseURL, volcenKey, speech), nil
 	case AdapterGemini:
 		return NewGeminiAdapter(apiKey, baseURL), nil
 	case AdapterDashScope:
@@ -103,6 +105,12 @@ func (r *Registry) buildProvider(cred persistencemodel.AICredential, def *ModelD
 		return NewViduAdapter(apiKey, baseURL), nil
 	case AdapterElevenLabs:
 		return NewElevenLabsAdapter(apiKey, baseURL), nil
+	case AdapterMiniMax:
+		return NewMiniMaxAdapter(apiKey, baseURL), nil
+	case AdapterMureka:
+		return NewMurekaAdapter(apiKey, baseURL), nil
+	case AdapterStability:
+		return NewStabilityAdapter(apiKey, baseURL), nil
 	default: // openai_compat — handles text, image (text-to-image), image_edit, and openai-compat video
 		return NewOpenAIAdapter(baseURL, apiKey), nil
 	}
@@ -159,6 +167,8 @@ func (r *Registry) EncryptCredentials(adapterType string, creds map[string]strin
 	var raw string
 	if adapterType == AdapterKling {
 		raw = creds["access_key"] + ":" + creds["secret_key"]
+	} else if adapterType == AdapterVolcen {
+		raw = buildVolcenCredentialRaw(creds)
 	} else {
 		parts := []string{}
 		if v := creds["api_key"]; v != "" {
@@ -200,6 +210,46 @@ func splitKlingKey(key string) [2]string {
 		}
 	}
 	return [2]string{key, ""}
+}
+
+func buildVolcenCredentialRaw(creds map[string]string) string {
+	apiKey := strings.TrimSpace(creds["api_key"])
+	speech := volcenSpeechCredentials{
+		AppID:   strings.TrimSpace(creds["speech_app_id"]),
+		Token:   strings.TrimSpace(creds["speech_token"]),
+		Cluster: strings.TrimSpace(creds["speech_cluster"]),
+		BaseURL: strings.TrimSpace(creds["speech_base_url"]),
+	}
+	if speech.Token == "" && speech.AppID == "" && speech.Cluster == "" && speech.BaseURL == "" {
+		return apiKey
+	}
+	raw := struct {
+		APIKey string `json:"api_key,omitempty"`
+		volcenSpeechCredentials
+	}{
+		APIKey:                  apiKey,
+		volcenSpeechCredentials: speech,
+	}
+	data, err := json.Marshal(raw)
+	if err != nil {
+		return apiKey
+	}
+	return string(data)
+}
+
+func splitVolcenCredential(raw string) (string, volcenSpeechCredentials) {
+	raw = strings.TrimSpace(raw)
+	if !strings.HasPrefix(raw, "{") {
+		return raw, volcenSpeechCredentials{}
+	}
+	var parsed struct {
+		APIKey string `json:"api_key"`
+		volcenSpeechCredentials
+	}
+	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
+		return raw, volcenSpeechCredentials{}
+	}
+	return parsed.APIKey, parsed.volcenSpeechCredentials
 }
 
 // maskAuthHeader masks the token in an Authorization header value.

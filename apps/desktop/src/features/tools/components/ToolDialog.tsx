@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/shared/infrastructure/api'
 import type { RawResource, NodeType, Job, PublicModel, PaginatedResponse } from '@/types'
+import type { SurfaceModelCapability } from '@movscript/shared'
 import {
   Bug,
   AlertTriangle,
@@ -11,7 +12,7 @@ import {
 } from 'lucide-react'
 import { ModelSelector } from '@/shared/ui/ModelSelector'
 import { ResourcePanel } from '@/shared/ui/ResourcePanel'
-import type { InputSlotDef } from '@/shared/ui/GenInputCard'
+import type { InputSlotDef, ToolInputType } from '@/shared/ui/GenInputCard'
 import { GenInputCard } from '@/shared/ui/GenInputCard'
 import {
   ToolDialogBody,
@@ -52,7 +53,14 @@ function buildGenerationJobTitle(jobType: string): string {
     video: '文生视频',
     video_i2v: '参考生视频',
     video_v2v: '视频迁移',
-    audio_tts: '音频生成',
+    audio_tts: '语音生成',
+    audio_transcribe: '语音转写',
+    audio_translate: '音频翻译',
+    audio_chat: '语音对话',
+    audio_music: '音乐生成',
+    audio_sfx: '音效生成',
+    voice_clone: '声音克隆',
+    voice_design: '声音设计',
   }
   return `${labels[jobType] ?? '生成任务'}-${Math.floor(1000 + Math.random() * 9000)}`
 }
@@ -61,13 +69,16 @@ function buildGenerationJobTitle(jobType: string): string {
 
 export interface ToolDialogDef {
   nodeType: NodeType
-  capability: 'image' | 'video' | 'audio'
+  capability: SurfaceModelCapability
+  jobType?: string
   toolName: string
   toolDescription: string
-  inputType: 'none' | 'image' | 'video' | 'image+video'
+  inputType: ToolInputType
   inputSlots?: InputSlotDef[]
-  outputType: 'image' | 'video' | 'audio'
+  outputType: 'image' | 'video' | 'audio' | 'text'
   promptPlaceholder?: string
+  promptRequired?: boolean
+  submitPromptFallback?: string
   layout?: 'default' | 'reference-workbench'
   resourcePane?: ReactNode
   showHistory?: boolean
@@ -76,12 +87,15 @@ export interface ToolDialogDef {
 export function ToolDialog({
   nodeType: _nodeType,
   capability,
+  jobType,
   toolName,
   toolDescription,
   inputType,
   inputSlots: configuredInputSlots,
   outputType,
   promptPlaceholder,
+  promptRequired = true,
+  submitPromptFallback,
   layout = 'default',
   resourcePane,
   showHistory = true,
@@ -117,6 +131,9 @@ export function ToolDialog({
     }
     if (inputType === 'video') {
       return [{ key: 'source_video', label: t('tools.inputs.sourceVideo', { defaultValue: '源视频' }), type: 'video', required: true, maxCount: 1 }]
+    }
+    if (inputType === 'audio') {
+      return [{ key: 'source_audio', label: t('tools.inputs.sourceAudio', { defaultValue: '源音频' }), type: 'audio', required: true, maxCount: 1 }]
     }
     if (inputType === 'none') return []
     return [
@@ -213,8 +230,9 @@ export function ToolDialog({
   }
 
   async function generate() {
-    if (!prompt.trim() || !selectedModel) return
-    const effectiveJobType = resolveGenerationJobType({
+    const submitPrompt = prompt.trim() || submitPromptFallback || toolName
+    if ((promptRequired && !prompt.trim()) || !selectedModel) return
+    const effectiveJobType = jobType ?? resolveGenerationJobType({
       outputType,
       model: selectedModel,
       attachments,
@@ -225,7 +243,7 @@ export function ToolDialog({
         modelId: publicModelId(selectedModel),
         jobType: effectiveJobType,
         title: buildGenerationJobTitle(effectiveJobType),
-        prompt,
+        prompt: submitPrompt,
         params: extraParams,
         supportedParams: selectedModel.supported_params,
         inputResourceIds: attachments.map((a) => a.ID),
@@ -247,34 +265,43 @@ export function ToolDialog({
     slotGroups.some((group) => group.slot.key === slot.key && group.indexes.length > 0)
   )
   // Fallback: if no model is selected yet but the tool demands media input, require at least one attachment.
-  const fallbackInputRequired = selectedModel == null && (inputType === 'image' || inputType === 'image+video' || inputType === 'video')
-  const canGenerate = !isRunning && !!prompt.trim() && !!selectedModel &&
+  const fallbackInputRequired = selectedModel == null && inputType !== 'none'
+  const canGenerate = !isRunning && (!promptRequired || !!prompt.trim()) && !!selectedModel &&
     (requiredSlots.length > 0 ? slotsAreFilled : (!fallbackInputRequired || attachments.length > 0))
   const supportedParams = selectedModel?.supported_params ?? []
   const selectedResourceIds = attachments.map((a) => a.ID)
+  const displayCapability: 'image' | 'video' | 'audio' = capability === 'video'
+    ? 'video'
+    : capability === 'audio' || String(capability).startsWith('audio_') || String(capability).startsWith('voice_')
+      ? 'audio'
+      : 'image'
   const capabilityLabel = capability === 'video'
     ? t('tools.capabilities.video', { defaultValue: 'Video tool' })
-    : capability === 'audio'
-      ? t('tools.capabilities.audio', { defaultValue: 'Audio tool' })
+    : capability === 'audio' || String(capability).startsWith('audio_') || String(capability).startsWith('voice_')
+      ? t(`tools.capabilities.${capability}`, { defaultValue: t('tools.capabilities.audio', { defaultValue: 'Audio tool' }) })
       : t('tools.capabilities.image', { defaultValue: 'Image tool' })
   const inputOutputLabel = t('tools.page.inputOutputLabel', {
     defaultValue: '{{input}} to {{output}}',
     input: inputType,
     output: outputType,
   })
-  const mediaInputType: 'none' | 'image' | 'video' | 'image+video' = inputType === 'none'
+  const mediaInputType: ToolInputType = inputType === 'none'
     ? 'none'
     : inputType === 'image+video'
       ? 'image+video'
-      : showImageInput
+      : inputType === 'audio' || inputType === 'text' || inputType === 'media'
+        ? inputType
+        : showImageInput
         ? 'image'
         : outputType === 'video'
           ? 'video'
           : 'image'
-  const resourcePanelInputType: 'image' | 'video' | 'image+video' = inputSlots
-    ? 'image+video'
+  const resourcePanelInputType: 'image' | 'video' | 'audio' | 'image+video' | 'media' = inputSlots
+    ? resourcePanelInputTypeForSlots(inputSlots)
     : inputType === 'image+video'
       ? 'image+video'
+      : inputType === 'audio' || inputType === 'media'
+        ? inputType
       : showImageInput
         ? 'image'
         : outputType === 'video'
@@ -392,7 +419,7 @@ export function ToolDialog({
   if (layout === 'reference-workbench') {
     return (
       <ToolDialogReferenceWorkbench
-        capability={capability}
+        capability={displayCapability}
         capabilityLabel={capabilityLabel}
         inputOutputLabel={inputOutputLabel}
         renderMainPane={renderMainPane}
@@ -415,4 +442,12 @@ export function ToolDialog({
       </ToolDialogBody>
     </ToolDialogFrame>
   )
+}
+
+function resourcePanelInputTypeForSlots(inputSlots: InputSlotDef[]): 'image' | 'video' | 'audio' | 'image+video' | 'media' {
+  const slotTypes = new Set(inputSlots.map((slot) => slot.type))
+  if (slotTypes.has('audio') || slotTypes.has('text')) return 'media'
+  if (slotTypes.has('image') && slotTypes.has('video')) return 'image+video'
+  if (slotTypes.has('video')) return 'video'
+  return 'image'
 }

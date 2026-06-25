@@ -11,9 +11,9 @@ const (
 	AIProviderCategoryAggregatorGateway = "aggregator_gateway"
 	AIProviderCategoryLocalEndpoint     = "local_endpoint"
 
-	AIProviderTypeOpenAI = "openai"
-	AIProviderTypeVolcen = "volcen"
-	AIProviderTypeNewAPI = "new_api"
+	AIProviderTypeOpenAI       = "openai"
+	AIProviderTypeVolcen       = "volcen"
+	AIProviderTypeRelayGateway = "relay_gateway"
 
 	AIProviderProfileOfficial = "official"
 	AIProviderProfileArk      = "ark"
@@ -23,7 +23,7 @@ const (
 	AIProviderKindOpenAICompatGateway = "openai_compat_gateway"
 	AIProviderKindVolcengineArk       = "volcengine_ark_official"
 	AIProviderKindVolcengineArkProxy  = "volcengine_ark_proxy"
-	AIProviderKindNewAPI              = "new_api"
+	AIProviderKindRelayGateway        = "relay_gateway"
 	AIProviderKindLocalOpenAICompat   = "local_openai_compat"
 
 	AIProviderCredentialStatusActive   = "active"

@@ -389,6 +389,7 @@ func (s *Service) EnableComboTemplate(ctx context.Context, comboTemplateKey stri
 				ProviderID:       provider.ProviderID,
 				AdapterType:      template.AdapterType,
 				ProviderModelID:  combo.ProviderModelID,
+				APIKinds:         strings.Join(infraai.NormalizeModelAPIKinds(combo.APIKinds), ","),
 				IsEnabled:        &enabled,
 				Priority:         combo.Priority,
 				CapacityWeight:   combo.CapacityWeight,
@@ -598,20 +599,24 @@ func normalizeModelCatalogEntrySupportedParams(entry *persistencemodel.AIModelCa
 
 func normalizeModelCatalogCapabilities(value string) (string, error) {
 	allowed := map[string]bool{
-		infraai.CapabilityText:         true,
-		infraai.CapabilityReasoning:    true,
-		infraai.CapabilityImage:        true,
-		infraai.CapabilityImageEdit:    true,
-		infraai.CapabilityVideo:        true,
-		infraai.CapabilityVideoI2V:     true,
-		infraai.CapabilityVideoV2V:     true,
-		infraai.CapabilityAudio:        true,
-		infraai.CapabilityAudioTTS:     true,
-		infraai.CapabilityAudioSTT:     true,
-		infraai.CapabilityAudioMusic:   true,
-		infraai.CapabilityAudioSFX:     true,
-		infraai.CapabilitySubAlign:     true,
-		infraai.CapabilitySubTranslate: true,
+		infraai.CapabilityText:           true,
+		infraai.CapabilityReasoning:      true,
+		infraai.CapabilityImage:          true,
+		infraai.CapabilityImageEdit:      true,
+		infraai.CapabilityVideo:          true,
+		infraai.CapabilityVideoI2V:       true,
+		infraai.CapabilityVideoV2V:       true,
+		infraai.CapabilityAudio:          true,
+		infraai.CapabilityAudioTTS:       true,
+		infraai.CapabilityAudioSTT:       true,
+		infraai.CapabilityAudioMusic:     true,
+		infraai.CapabilityAudioSFX:       true,
+		infraai.CapabilityAudioChat:      true,
+		infraai.CapabilityVoiceClone:     true,
+		infraai.CapabilityVoiceDesign:    true,
+		infraai.CapabilityAudioTranslate: true,
+		infraai.CapabilitySubAlign:       true,
+		infraai.CapabilitySubTranslate:   true,
 	}
 	seen := make(map[string]bool)
 	out := make([]string, 0)
@@ -632,11 +637,11 @@ func normalizeModelCatalogCapabilities(value string) (string, error) {
 }
 
 func validateModelRouteBinding(binding persistencemodel.AIModelRouteBinding) error {
-	if binding.SourceType == persistencemodel.ModelRouteSourceNewAPI && !supportsNewAPIRouteBindings() {
-		return fmt.Errorf("%w: new_api route bindings require the commercial edition", ErrInvalidModelCatalog)
+	if binding.SourceType == persistencemodel.ModelRouteSourceRelayGateway && !supportsRelayGatewayRouteBindings() {
+		return fmt.Errorf("%w: relay gateway route bindings require the commercial edition", ErrInvalidModelCatalog)
 	}
-	if binding.SourceType == persistencemodel.ModelRouteSourceNewAPI && strings.TrimSpace(binding.RouteGroup) == "" {
-		return fmt.Errorf("%w: route_group is required for new_api route bindings", ErrInvalidModelCatalog)
+	if binding.SourceType == persistencemodel.ModelRouteSourceRelayGateway && strings.TrimSpace(binding.RouteGroup) == "" {
+		return fmt.Errorf("%w: route_group is required for relay gateway route bindings", ErrInvalidModelCatalog)
 	}
 	if strings.TrimSpace(binding.ProviderID) == "" {
 		return fmt.Errorf("%w: provider_id is required for route bindings", ErrInvalidModelCatalog)
@@ -652,7 +657,7 @@ func validateModelRouteBinding(binding persistencemodel.AIModelRouteBinding) err
 
 func (s *Service) validateRouteBindingProvider(ctx context.Context, binding persistencemodel.AIModelRouteBinding) error {
 	providerID := strings.TrimSpace(binding.ProviderID)
-	if providerID == "" || binding.SourceType == persistencemodel.ModelRouteSourceNewAPI || !s.providerMirrorTablesReady() {
+	if providerID == "" || binding.SourceType == persistencemodel.ModelRouteSourceRelayGateway || !s.providerMirrorTablesReady() {
 		return nil
 	}
 	var count int64
@@ -683,8 +688,8 @@ func normalizeModelRouteBindingProviderID(binding *persistencemodel.AIModelRoute
 	}
 	if binding.ProviderID == "" {
 		switch binding.SourceType {
-		case persistencemodel.ModelRouteSourceNewAPI:
-			binding.ProviderID = persistencemodel.ModelRouteSourceNewAPI
+		case persistencemodel.ModelRouteSourceRelayGateway:
+			binding.ProviderID = persistencemodel.ModelRouteSourceRelayGateway
 		case persistencemodel.ModelRouteSourceLocalProvider:
 			if binding.CredentialID != nil && *binding.CredentialID != 0 {
 				binding.ProviderID = fmt.Sprintf("%s:%d", persistencemodel.ModelRouteSourceLocalProvider, *binding.CredentialID)
@@ -714,7 +719,7 @@ func (s *Service) normalizeModelRouteBindingAdapter(ctx context.Context, binding
 
 func (s *Service) defaultAdapterTypeForRouteBinding(ctx context.Context, binding persistencemodel.AIModelRouteBinding) string {
 	providerID := strings.TrimSpace(binding.ProviderID)
-	if providerID == persistencemodel.ModelRouteSourceNewAPI || binding.SourceType == persistencemodel.ModelRouteSourceNewAPI {
+	if providerID == persistencemodel.ModelRouteSourceRelayGateway || binding.SourceType == persistencemodel.ModelRouteSourceRelayGateway {
 		return infraai.AdapterOpenAICompat
 	}
 	if s.providerMirrorTablesReady() && providerID != "" {
@@ -793,8 +798,8 @@ func localProviderCredentialIDFromProviderID(providerID string) (uint, bool) {
 func sourceTypeFromRouteProviderID(providerID string) string {
 	providerID = strings.TrimSpace(providerID)
 	switch {
-	case providerID == persistencemodel.ModelRouteSourceNewAPI:
-		return persistencemodel.ModelRouteSourceNewAPI
+	case providerID == persistencemodel.ModelRouteSourceRelayGateway:
+		return persistencemodel.ModelRouteSourceRelayGateway
 	case strings.HasPrefix(providerID, persistencemodel.ModelRouteSourceLocalProvider+":"):
 		return persistencemodel.ModelRouteSourceLocalProvider
 	case providerID != "":

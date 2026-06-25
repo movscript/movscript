@@ -1,12 +1,19 @@
-.PHONY: dev-frontend-local dev-frontend-local-fast test-agent-run-debugging-e2e verify-agent-run-debugging-summary verify-agent-run-debugging-summary-contract
+.PHONY: frontend-local frontend-local-fast dev-frontend-local dev-frontend-local-fast generate-model-registry test-agent-run-debugging-e2e verify-agent-run-debugging-summary verify-agent-run-debugging-summary-contract
 
 AGENT_RUN_DEBUGGING_SUMMARY ?= apps/desktop/test-results/agent-run-debugging-acceptance-summary.json
 
-dev-frontend-local:
+frontend-local: dev-frontend-local
+
+frontend-local-fast: dev-frontend-local-fast
+
+generate-model-registry:
+	cd services/data-service && go run ./internal/infra/ai/cmd/model-registry-generate
+
+dev-frontend-local: generate-model-registry
 	pnpm --filter @movscript/admin-surface build
 	pnpm --filter @movscript/desktop dev:local
 
-dev-frontend-local-fast:
+dev-frontend-local-fast: generate-model-registry
 	pnpm --filter @movscript/admin-surface build
 	pnpm --filter @movscript/desktop dev:local:fast
 

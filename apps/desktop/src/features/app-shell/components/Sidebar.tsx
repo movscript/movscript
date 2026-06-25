@@ -6,15 +6,22 @@ import {
   AudioLines,
   CirclePlay,
   Database,
+  FileAudio,
   FolderArchive,
   Home,
   Images,
+  Languages,
   ListTodo,
+  MessageCircle,
+  Mic,
+  Music,
   Move,
   Palette,
   ScanSearch,
   Shapes,
   Video,
+  Volume2,
+  Wand2,
 } from 'lucide-react'
 import {
   APP_SIDEBAR_DEFAULT_WIDTH,
@@ -125,6 +132,13 @@ export function Sidebar({
           <NavItem to={ROUTES.tools.refImageGen} icon={Images} label={t('sidebar.items.refImageGen')} collapsed={collapsed} />
           <NavItem to={ROUTES.tools.refVideoGen} icon={CirclePlay} label={t('sidebar.items.refVideoGen')} collapsed={collapsed} />
           <NavItem to={ROUTES.tools.audioGen} icon={AudioLines} label={t('sidebar.items.audioGen')} collapsed={collapsed} />
+          <NavItem to={ROUTES.tools.audioChat} icon={MessageCircle} label={t('sidebar.items.audioChat')} collapsed={collapsed} />
+          <NavItem to={ROUTES.tools.audioTranscribe} icon={FileAudio} label={t('sidebar.items.audioTranscribe')} collapsed={collapsed} />
+          <NavItem to={ROUTES.tools.audioTranslate} icon={Languages} label={t('sidebar.items.audioTranslate')} collapsed={collapsed} />
+          <NavItem to={ROUTES.tools.musicGen} icon={Music} label={t('sidebar.items.musicGen')} collapsed={collapsed} />
+          <NavItem to={ROUTES.tools.audioSfx} icon={Volume2} label={t('sidebar.items.audioSfx')} collapsed={collapsed} />
+          <NavItem to={ROUTES.tools.voiceClone} icon={Mic} label={t('sidebar.items.voiceClone')} collapsed={collapsed} />
+          <NavItem to={ROUTES.tools.voiceDesign} icon={Wand2} label={t('sidebar.items.voiceDesign')} collapsed={collapsed} />
           <NavItem to={ROUTES.tools.motionImitation} icon={Move} label={t('sidebar.items.motionImitation')} collapsed={collapsed} />
           <NavItem to={ROUTES.tools.styleTransfer} icon={Palette} label={t('sidebar.items.styleTransfer')} collapsed={collapsed} />
           <NavItem to={ROUTES.tools.multiAngle} icon={Shapes} label={t('sidebar.items.multiAngle')} collapsed={collapsed} />

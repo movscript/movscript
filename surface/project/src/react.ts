@@ -4,8 +4,8 @@ export {
   useProjectSurfaceRuntime,
 } from './runtime/index.js'
 export type { ProjectSurfaceProviderProps } from './runtime/index.js'
-export { ProjectHomeSurface, projectPathFromProject } from './components/home/ProjectHomeSurface.js'
-export type { ProjectHomeProject, ProjectHomeSurfaceProps } from './components/home/ProjectHomeSurface.js'
+export { ProjectPickerSurface, projectPathFromProject } from './components/home/ProjectPickerSurface.js'
+export type { ProjectPickerProject, ProjectPickerSurfaceProps } from './components/home/ProjectPickerSurface.js'
 export { ProjectOverviewSurface } from './components/overview/ProjectOverviewSurface.js'
 export type { ProjectOverviewSurfaceProps } from './components/overview/ProjectOverviewSurface.js'
 export { ProjectProgressSurface } from './components/progress/ProjectProgressSurface.js'

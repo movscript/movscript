@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -417,6 +418,11 @@ type openAIChatCompletionResponse struct {
 		Message struct {
 			Content   *string    `json:"content"`
 			ToolCalls []ToolCall `json:"tool_calls"`
+			Audio     struct {
+				ID         string `json:"id"`
+				Data       string `json:"data"`
+				Transcript string `json:"transcript"`
+			} `json:"audio"`
 		} `json:"message"`
 		FinishReason string `json:"finish_reason"`
 	} `json:"choices"`
@@ -1753,6 +1759,93 @@ func (a *OpenAIAdapter) Synthesize(ctx context.Context, req media.TTSRequest) (m
 	}, nil
 }
 
+func (a *OpenAIAdapter) ChatAudio(ctx context.Context, req media.AudioChatRequest) (media.AudioChatResponse, error) {
+	model := firstNonEmptyAI(req.Model, "gpt-4o-mini-audio-preview")
+	prompt := strings.TrimSpace(req.Prompt)
+	if prompt == "" {
+		prompt = stringParam(req.Params, "prompt", "")
+	}
+	if prompt == "" && len(req.Audio) == 0 {
+		return media.AudioChatResponse{}, fmt.Errorf("prompt or audio is required")
+	}
+	responseFormat := openAIAudioResponseFormat(req.AudioFormat)
+	voice := firstNonEmptyAI(req.Voice, stringParam(req.Params, "voice", ""), "alloy")
+
+	content := make([]map[string]any, 0, 2)
+	if prompt != "" {
+		content = append(content, map[string]any{
+			"type": "text",
+			"text": prompt,
+		})
+	}
+	if len(req.Audio) > 0 {
+		content = append(content, map[string]any{
+			"type": "input_audio",
+			"input_audio": map[string]any{
+				"data":   base64.StdEncoding.EncodeToString(req.Audio),
+				"format": openAIInputAudioFormat(req.MimeType),
+			},
+		})
+	}
+
+	body := map[string]any{
+		"model":      model,
+		"modalities": []string{"text", "audio"},
+		"audio": map[string]any{
+			"voice":  voice,
+			"format": responseFormat,
+		},
+		"messages": []map[string]any{
+			{
+				"role":    "user",
+				"content": content,
+			},
+		},
+	}
+	if temperature, ok := numberParam(req.Params, "temperature"); ok {
+		body["temperature"] = temperature
+	}
+	if maxTokens, ok := numberParam(req.Params, "max_tokens"); ok {
+		body["max_tokens"] = maxTokens
+	}
+
+	raw, status, latency, err := a.postOpenAIJSONWithErrorLabel(ctx, "/chat/completions", body, "openai audio chat")
+	if err != nil {
+		recordDebugIfEmpty(ctx, DebugCallResult{
+			Success: false, ModelID: model, Endpoint: a.chatEndpoint(), Method: "POST",
+			RequestBody: mustJSON(redactAudioChatDebugBody(body)), ResponseStatus: status, ResponseBody: string(raw), LatencyMs: latency, Error: err.Error(),
+		})
+		return media.AudioChatResponse{}, err
+	}
+	var parsed openAIChatCompletionResponse
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		return media.AudioChatResponse{}, fmt.Errorf("decode audio chat completion: %w", err)
+	}
+	if len(parsed.Choices) == 0 {
+		return media.AudioChatResponse{}, fmt.Errorf("no choices returned")
+	}
+	message := parsed.Choices[0].Message
+	audio, err := decodeOpenAIChatAudio(message.Audio.Data)
+	if err != nil {
+		return media.AudioChatResponse{}, err
+	}
+	text := firstNonEmptyAI(message.Audio.Transcript, stringPtrValue(message.Content))
+	if len(audio) == 0 && text == "" {
+		return media.AudioChatResponse{}, fmt.Errorf("audio chat response did not include audio or text")
+	}
+	recordDebugIfEmpty(ctx, DebugCallResult{
+		Success: true, ModelID: model, Endpoint: a.chatEndpoint(), Method: "POST",
+		RequestBody: mustJSON(redactAudioChatDebugBody(body)), ResponseStatus: status,
+		ResponseBody: fmt.Sprintf("(audio chat response: audio_bytes=%d text_chars=%d)", len(audio), len(text)), LatencyMs: latency,
+	})
+	return media.AudioChatResponse{
+		Audio:       audio,
+		Text:        text,
+		MimeType:    mimeTypeForOpenAIAudioFormat(responseFormat),
+		ProviderRef: message.Audio.ID,
+	}, nil
+}
+
 func (a *OpenAIAdapter) Transcribe(ctx context.Context, req media.TranscribeRequest) (media.SubtitleResponse, error) {
 	if len(req.Audio) == 0 {
 		return media.SubtitleResponse{}, fmt.Errorf("audio is required")
@@ -1818,6 +1911,80 @@ func (a *OpenAIAdapter) Transcribe(ctx context.Context, req media.TranscribeRequ
 		return media.SubtitleResponse{}, fmt.Errorf("openai audio transcription HTTP %d: %s", resp.StatusCode, string(data))
 	}
 	timing, transcript := parseOpenAITranscript(data, req.Language)
+	content := []byte(transcript)
+	if len(content) == 0 {
+		content = data
+	}
+	return media.SubtitleResponse{
+		Timing:   timing,
+		Format:   "json",
+		Content:  content,
+		MimeType: "application/json",
+	}, nil
+}
+
+func (a *OpenAIAdapter) TranslateAudio(ctx context.Context, req media.AudioTranslateRequest) (media.SubtitleResponse, error) {
+	if len(req.Audio) == 0 {
+		return media.SubtitleResponse{}, fmt.Errorf("audio is required")
+	}
+	model := firstNonEmptyAI(req.Model, "whisper-1")
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	filename := "audio" + extFromAudioMime(req.MimeType)
+	part, err := writer.CreateFormFile("file", filename)
+	if err != nil {
+		return media.SubtitleResponse{}, err
+	}
+	if _, err := part.Write(req.Audio); err != nil {
+		return media.SubtitleResponse{}, err
+	}
+	_ = writer.WriteField("model", model)
+	_ = writer.WriteField("response_format", stringParam(req.Params, "response_format", "verbose_json"))
+	if prompt := stringParam(req.Params, "prompt", ""); prompt != "" {
+		_ = writer.WriteField("prompt", prompt)
+	}
+	if temperature, ok := numberParam(req.Params, "temperature"); ok {
+		_ = writer.WriteField("temperature", fmt.Sprintf("%g", temperature))
+	}
+	if err := writer.Close(); err != nil {
+		return media.SubtitleResponse{}, err
+	}
+
+	endpoint := strings.TrimRight(a.BaseURL, "/") + "/audio/translations"
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, &body)
+	if err != nil {
+		return media.SubtitleResponse{}, err
+	}
+	httpReq.Header.Set("Content-Type", writer.FormDataContentType())
+	httpReq.Header.Set("Authorization", "Bearer "+a.APIKey)
+	reqHeaders := map[string]string{
+		"Content-Type":  writer.FormDataContentType(),
+		"Authorization": "Bearer " + maskKey(a.APIKey),
+	}
+	debugBody := fmt.Sprintf("(multipart: model=%s file=%s bytes=%d)", model, filename, len(req.Audio))
+	start := time.Now()
+	resp, err := a.rawHTTP.Do(httpReq)
+	latency := time.Since(start).Milliseconds()
+	if err != nil {
+		recordDebug(ctx, DebugCallResult{
+			Success: false, ModelID: model, Endpoint: endpoint, Method: "POST",
+			RequestHeaders: reqHeaders, RequestBody: debugBody, LatencyMs: latency, Error: err.Error(),
+		})
+		return media.SubtitleResponse{}, err
+	}
+	defer resp.Body.Close()
+	data, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return media.SubtitleResponse{}, readErr
+	}
+	recordDebug(ctx, DebugCallResult{
+		Success: resp.StatusCode < 400, ModelID: model, Endpoint: endpoint, Method: "POST",
+		RequestHeaders: reqHeaders, RequestBody: debugBody, ResponseStatus: resp.StatusCode, ResponseBody: string(data), LatencyMs: latency,
+	})
+	if resp.StatusCode >= 400 {
+		return media.SubtitleResponse{}, fmt.Errorf("openai audio translation HTTP %d: %s", resp.StatusCode, string(data))
+	}
+	timing, transcript := parseOpenAITranscript(data, req.TargetLanguage)
 	content := []byte(transcript)
 	if len(content) == 0 {
 		content = data
@@ -1900,6 +2067,31 @@ func mimeTypeForOpenAIAudioFormat(format string) string {
 	}
 }
 
+func openAIInputAudioFormat(mimeType string) string {
+	value := strings.ToLower(strings.TrimSpace(mimeType))
+	value = strings.TrimPrefix(value, "audio/")
+	switch value {
+	case "mpeg", "mp3":
+		return "mp3"
+	case "wav", "x-wav":
+		return "wav"
+	default:
+		return "wav"
+	}
+}
+
+func decodeOpenAIChatAudio(data string) ([]byte, error) {
+	data = strings.TrimSpace(data)
+	if data == "" {
+		return nil, nil
+	}
+	audio, err := base64.StdEncoding.DecodeString(data)
+	if err != nil {
+		return nil, fmt.Errorf("decode audio chat response audio: %w", err)
+	}
+	return audio, nil
+}
+
 func redactAudioSpeechDebugBody(body map[string]any) map[string]any {
 	out := make(map[string]any, len(body))
 	for key, value := range body {
@@ -1912,6 +2104,30 @@ func redactAudioSpeechDebugBody(body map[string]any) map[string]any {
 			continue
 		}
 		out[key] = value
+	}
+	return out
+}
+
+func redactAudioChatDebugBody(body map[string]any) map[string]any {
+	raw, err := json.Marshal(body)
+	if err != nil {
+		return body
+	}
+	var out map[string]any
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return body
+	}
+	messages, _ := out["messages"].([]any)
+	for _, messageValue := range messages {
+		message, _ := messageValue.(map[string]any)
+		content, _ := message["content"].([]any)
+		for _, partValue := range content {
+			part, _ := partValue.(map[string]any)
+			inputAudio, _ := part["input_audio"].(map[string]any)
+			if data, ok := inputAudio["data"].(string); ok && data != "" {
+				inputAudio["data"] = fmt.Sprintf("(base64 audio, %d chars)", len(data))
+			}
+		}
 	}
 	return out
 }

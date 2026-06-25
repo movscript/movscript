@@ -91,6 +91,46 @@ func (s *AIService) CallAudioGenerateWithRouteUsage(ctx context.Context, userID 
 	return resp, nil
 }
 
+func (s *AIService) CallAudioChatWithRouteUsage(ctx context.Context, userID uint, route ModelRoute, req media.AudioChatRequest, usage UsageContext) (media.AudioChatResponse, error) {
+	usage = usageWithRoute(usage, route)
+	runtime, handled, err := s.catalogRouteRuntime(ctx, userID, route, CapabilityAudioChat)
+	if err != nil {
+		return media.AudioChatResponse{}, err
+	}
+	if !handled {
+		return media.AudioChatResponse{}, fmt.Errorf("catalog route is required for audio chat")
+	}
+	audioProvider, ok := runtime.provider.(media.AudioChatProvider)
+	if !ok {
+		return media.AudioChatResponse{}, fmt.Errorf("catalog entry id=%d does not support audio chat", route.CatalogEntryID)
+	}
+	ctx = withProviderSubject(ctx, userID, usage.OrgID)
+	attemptReq := req
+	if attemptReq.Model == "" {
+		attemptReq.Model = route.ProviderModelID
+	}
+	if usage.ReservationID == nil {
+		estimate := estimateUsage(runtime.model.usageProfile(), runtime.def, CapabilityAudioChat, 0, 0, 0, 1)
+		reservation, err := s.ReserveUsage(ctx, userID, route.RuntimeModelID, estimate, usage)
+		if err != nil {
+			return media.AudioChatResponse{}, err
+		}
+		usage.ReservationID = &reservation.ID
+	}
+	finishAttempt := beginRuntimeProviderAttempt(route.RuntimeModelID)
+	resp, err := audioProvider.ChatAudio(ctx, attemptReq)
+	finishAttempt(err)
+	if err != nil {
+		_ = s.ReleaseReservation(ctx, derefUint(usage.ReservationID), err.Error())
+		return media.AudioChatResponse{}, err
+	}
+	estimate := estimateUsage(runtime.model.usageProfile(), runtime.def, CapabilityAudioChat, 0, 0, positiveAudioDuration(resp.DurationMs/1000, runtime.def), 1)
+	if err := s.settleUsage(ctx, userID, route.RuntimeModelID, estimate, usage); err != nil {
+		return media.AudioChatResponse{}, err
+	}
+	return resp, nil
+}
+
 func (s *AIService) CallTranscribeWithRouteUsage(ctx context.Context, userID uint, route ModelRoute, req media.TranscribeRequest, usage UsageContext) (media.SubtitleResponse, error) {
 	usage = usageWithRoute(usage, route)
 	runtime, handled, err := s.catalogRouteRuntime(ctx, userID, route, CapabilityAudioSTT)
@@ -127,6 +167,101 @@ func (s *AIService) CallTranscribeWithRouteUsage(ctx context.Context, userID uin
 	estimate := estimateUsage(runtime.model.usageProfile(), runtime.def, CapabilityAudioSTT, 0, 0, 0, 1)
 	if err := s.settleUsage(ctx, userID, route.RuntimeModelID, estimate, usage); err != nil {
 		return media.SubtitleResponse{}, err
+	}
+	return resp, nil
+}
+
+func (s *AIService) CallAudioTranslateWithRouteUsage(ctx context.Context, userID uint, route ModelRoute, req media.AudioTranslateRequest, usage UsageContext) (media.SubtitleResponse, error) {
+	usage = usageWithRoute(usage, route)
+	runtime, handled, err := s.catalogRouteRuntime(ctx, userID, route, CapabilityAudioTranslate)
+	if err != nil {
+		return media.SubtitleResponse{}, err
+	}
+	if !handled {
+		return media.SubtitleResponse{}, fmt.Errorf("catalog route is required for audio translation")
+	}
+	translateProvider, ok := runtime.provider.(media.AudioTranslateProvider)
+	if !ok {
+		return media.SubtitleResponse{}, fmt.Errorf("catalog entry id=%d does not support audio translation", route.CatalogEntryID)
+	}
+	ctx = withProviderSubject(ctx, userID, usage.OrgID)
+	attemptReq := req
+	if attemptReq.Model == "" {
+		attemptReq.Model = route.ProviderModelID
+	}
+	if usage.ReservationID == nil {
+		estimate := estimateUsage(runtime.model.usageProfile(), runtime.def, CapabilityAudioTranslate, 0, 0, 0, 1)
+		reservation, err := s.ReserveUsage(ctx, userID, route.RuntimeModelID, estimate, usage)
+		if err != nil {
+			return media.SubtitleResponse{}, err
+		}
+		usage.ReservationID = &reservation.ID
+	}
+	finishAttempt := beginRuntimeProviderAttempt(route.RuntimeModelID)
+	resp, err := translateProvider.TranslateAudio(ctx, attemptReq)
+	finishAttempt(err)
+	if err != nil {
+		_ = s.ReleaseReservation(ctx, derefUint(usage.ReservationID), err.Error())
+		return media.SubtitleResponse{}, err
+	}
+	estimate := estimateUsage(runtime.model.usageProfile(), runtime.def, CapabilityAudioTranslate, 0, 0, 0, 1)
+	if err := s.settleUsage(ctx, userID, route.RuntimeModelID, estimate, usage); err != nil {
+		return media.SubtitleResponse{}, err
+	}
+	return resp, nil
+}
+
+func (s *AIService) CallVoiceCloneWithRouteUsage(ctx context.Context, userID uint, route ModelRoute, req media.VoiceCloneRequest, usage UsageContext) (media.VoiceProfileResponse, error) {
+	return s.callVoiceProfileWithRouteUsage(ctx, userID, route, CapabilityVoiceClone, req, media.VoiceDesignRequest{}, usage)
+}
+
+func (s *AIService) CallVoiceDesignWithRouteUsage(ctx context.Context, userID uint, route ModelRoute, req media.VoiceDesignRequest, usage UsageContext) (media.VoiceProfileResponse, error) {
+	return s.callVoiceProfileWithRouteUsage(ctx, userID, route, CapabilityVoiceDesign, media.VoiceCloneRequest{}, req, usage)
+}
+
+func (s *AIService) callVoiceProfileWithRouteUsage(ctx context.Context, userID uint, route ModelRoute, capability string, cloneReq media.VoiceCloneRequest, designReq media.VoiceDesignRequest, usage UsageContext) (media.VoiceProfileResponse, error) {
+	usage = usageWithRoute(usage, route)
+	runtime, handled, err := s.catalogRouteRuntime(ctx, userID, route, capability)
+	if err != nil {
+		return media.VoiceProfileResponse{}, err
+	}
+	if !handled {
+		return media.VoiceProfileResponse{}, fmt.Errorf("catalog route is required for voice profile generation")
+	}
+	voiceProvider, ok := runtime.provider.(media.VoiceProfileProvider)
+	if !ok {
+		return media.VoiceProfileResponse{}, fmt.Errorf("catalog entry id=%d does not support %s", route.CatalogEntryID, capability)
+	}
+	ctx = withProviderSubject(ctx, userID, usage.OrgID)
+	if usage.ReservationID == nil {
+		estimate := estimateUsage(runtime.model.usageProfile(), runtime.def, capability, 0, 0, 0, 1)
+		reservation, err := s.ReserveUsage(ctx, userID, route.RuntimeModelID, estimate, usage)
+		if err != nil {
+			return media.VoiceProfileResponse{}, err
+		}
+		usage.ReservationID = &reservation.ID
+	}
+	finishAttempt := beginRuntimeProviderAttempt(route.RuntimeModelID)
+	var resp media.VoiceProfileResponse
+	if capability == CapabilityVoiceClone {
+		if cloneReq.Model == "" {
+			cloneReq.Model = route.ProviderModelID
+		}
+		resp, err = voiceProvider.CloneVoice(ctx, cloneReq)
+	} else {
+		if designReq.Model == "" {
+			designReq.Model = route.ProviderModelID
+		}
+		resp, err = voiceProvider.DesignVoice(ctx, designReq)
+	}
+	finishAttempt(err)
+	if err != nil {
+		_ = s.ReleaseReservation(ctx, derefUint(usage.ReservationID), err.Error())
+		return media.VoiceProfileResponse{}, err
+	}
+	estimate := estimateUsage(runtime.model.usageProfile(), runtime.def, capability, 0, 0, 0, 1)
+	if err := s.settleUsage(ctx, userID, route.RuntimeModelID, estimate, usage); err != nil {
+		return media.VoiceProfileResponse{}, err
 	}
 	return resp, nil
 }

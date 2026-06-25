@@ -1,81 +1,112 @@
 import type { MCPTool } from '../../protocol/types'
-import imageGenerateTool from './image-generate.tool.json'
-import imageJobGetTool from './image-job-get.tool.json'
-import videoGenerateTool from './video-generate.tool.json'
-import videoJobGetTool from './video-job-get.tool.json'
-import audioGenerateTool from './audio-generate.tool.json'
-import audioJobGetTool from './audio-job-get.tool.json'
 import { objectSchema } from '../schema'
-
-type AgentCatalogTool = {
-  name: string
-  description: string
-  inputSchema: MCPTool['inputSchema']
-  outputSchema?: MCPTool['outputSchema']
-}
 
 export function generationTools(): MCPTool[] {
   return [
-    mcpTool(imageGenerateTool as AgentCatalogTool),
-    contentUnitGenerateTool(
-      'generation_content_unit_image_generate',
-      'Compile a content-unit backend prompt, submit an image generation job, and bind the job to automatic content-candidate creation when the job succeeds. Use this as the primary content-unit image generation path; system_generate_image remains the low-level prompt channel.',
-      'image',
-    ),
-    mcpTool(imageJobGetTool as AgentCatalogTool),
-    contentUnitJobGetTool(
-      'generation_content_unit_image_job_get',
-      'Fetch a content-unit image generation job and automatically create or refresh content-unit candidates for successful output_resource_ids.',
-    ),
-    generationJobGetBatchTool('generation_image_job_get_batch', 'Synchronously fetch the latest state of multiple image generation jobs submitted by generation_image_generate. Results are returned in input order with per-job errors.'),
-    mcpTool(videoGenerateTool as AgentCatalogTool),
-    contentUnitGenerateTool(
-      'generation_content_unit_video_generate',
-      'Compile a content-unit backend prompt, submit a video generation job, and bind the job to automatic content-candidate creation when the job succeeds. Use this as the primary content-unit video generation path; system_generate_video remains the low-level prompt channel.',
-      'video',
-    ),
-    mcpTool(videoJobGetTool as AgentCatalogTool),
-    contentUnitJobGetTool(
-      'generation_content_unit_video_job_get',
-      'Fetch a content-unit video generation job and automatically create or refresh content-unit candidates for successful output_resource_ids.',
-    ),
-    generationJobGetBatchTool('generation_video_job_get_batch', 'Synchronously fetch the latest state of multiple video generation jobs submitted by generation_video_generate. Results are returned in input order with per-job errors.'),
-    mcpTool(audioGenerateTool as AgentCatalogTool),
-    audioSubmitTool('generation_voiceover_generate', 'Submit a voiceover/text-to-speech AI generation job and return its job id. This creates an audio RawResource when complete; it does not edit timelines or write candidates.'),
-    audioSubmitTool('generation_music_generate', 'Submit an AI music generation job and return its job id. This creates an audio RawResource when complete; it does not edit timelines or write candidates.'),
-    audioSubmitTool('generation_sfx_generate', 'Submit an AI sound-effect generation job and return its job id. This creates an audio RawResource when complete; it does not edit timelines or write candidates.'),
-    audioSubmitTool('generation_subtitle_generate', 'Submit an audio transcription/subtitle generation job and return its job id. This creates subtitle/timing resources when complete; it does not burn subtitles into video.'),
-    audioSubmitTool('generation_subtitle_align', 'Submit a subtitle forced-alignment job and return its job id. This aligns script/subtitle text to audio/video timing; it does not burn subtitles into video.'),
-    audioSubmitTool('generation_subtitle_translate', 'Submit a subtitle translation job and return its job id. This translates subtitle text while preserving timing metadata when supported.'),
-    mcpTool(audioJobGetTool as AgentCatalogTool),
-    generationJobGetBatchTool('generation_audio_job_get_batch', 'Synchronously fetch the latest state of multiple audio generation jobs submitted by generation_audio_generate. Results are returned in input order with per-job errors.'),
+    generationCapabilityListTool(),
+    generationPrepareTool(),
+    generationSubmitTool(),
+    generationJobGetTool(),
+    generationJobGetBatchTool(),
+    generationResultRegisterTool(),
   ]
 }
 
-function contentUnitGenerateTool(name: string, description: string, kind: 'image' | 'video'): MCPTool {
-  const base = (kind === 'image' ? imageGenerateTool : videoGenerateTool) as AgentCatalogTool
+const GENERATION_CAPABILITIES = [
+  'image',
+  'image_edit',
+  'video',
+  'video_i2v',
+  'video_v2v',
+  'audio_tts',
+  'audio_transcribe',
+  'audio_translate',
+  'audio_music',
+  'audio_sfx',
+  'audio_chat',
+  'voice_clone',
+  'voice_design',
+  'subtitle_align',
+  'subtitle_translate',
+] as const
+
+function generationCapabilityListTool(): MCPTool {
   return {
-    name,
-    description,
+    name: 'generation_capability_list',
+    description: 'List MovScript generation capabilities accepted by generation_prepare and generation_submit.',
     inputSchema: objectSchema(
       {
-        ...base.inputSchema.properties,
-        contentUnitId: { type: ['string', 'number'], description: 'Target MovScript content unit id. The tool compiles this content unit prompt before generation.' },
-        content_unit_id: { type: ['string', 'number'], description: 'Alias for contentUnitId.' },
+        include_models: { type: 'boolean', description: 'When true, include enabled model counts for each capability.' },
       },
     ),
-    ...(base.outputSchema ? { outputSchema: base.outputSchema } : {}),
+    outputSchema: objectSchema(
+      {
+        capabilities: { type: 'array', items: { type: 'string', enum: [...GENERATION_CAPABILITIES] } },
+        count: { type: 'number' },
+        models_by_capability: { type: 'object', additionalProperties: true },
+      },
+      ['capabilities', 'count']
+    ),
   }
 }
 
-function contentUnitJobGetTool(name: string, description: string): MCPTool {
+function generationPrepareTool(): MCPTool {
   return {
-    name,
-    description,
+    name: 'generation_prepare',
+    description: 'Prepare a MovScript generation request: validate capability/scope, list usable models, and compile content-unit prompts when scope is content_unit.',
+    inputSchema: generationRequestSchema(['capability']),
+    outputSchema: objectSchema(
+      {
+        status: { type: 'string' },
+        capability: { type: 'string' },
+        scope: { type: 'string' },
+        model_contracts: { type: 'array', items: { type: 'object', additionalProperties: true } },
+        models: { type: 'array', items: { type: 'object', additionalProperties: true } },
+        prompt: { type: 'object', additionalProperties: true },
+        blockers: { type: 'array', items: { type: 'object', additionalProperties: true } },
+        message: { type: 'string' },
+      },
+      ['status', 'capability', 'scope', 'message']
+    ),
+  }
+}
+
+function generationSubmitTool(): MCPTool {
+  return {
+    name: 'generation_submit',
+    description: 'Submit any MovScript generation job through one unified capability contract. Use scope=content_unit for candidate-producing image/video generation, otherwise outputs are RawResources until explicitly registered.',
+    inputSchema: generationRequestSchema(['capability']),
+    outputSchema: objectSchema(
+      {
+        status: { type: 'string' },
+        capability: { type: 'string' },
+        scope: { type: 'string' },
+        output_kind: { type: 'string' },
+        generation_mode: { type: 'string' },
+        candidate_policy: { type: 'string' },
+        jobId: { type: 'number' },
+        job_id: { type: 'number' },
+        terminal: { type: 'boolean' },
+        monitor: { type: 'object', additionalProperties: true },
+        surface: { type: 'object', additionalProperties: true },
+        message: { type: 'string' },
+        job: { type: 'object', additionalProperties: true },
+      },
+      ['status', 'capability', 'scope', 'jobId', 'terminal', 'monitor']
+    ),
+  }
+}
+
+function generationJobGetTool(): MCPTool {
+  return {
+    name: 'generation_job_get',
+    description: 'Fetch any MovScript generation job by id. For content-unit jobs, pass scope=content_unit, contentUnitId, and output_kind so successful terminal polls can create or refresh content-unit candidates.',
     inputSchema: objectSchema(
       {
         jobId: { type: 'number', minimum: 1 },
         job_id: { type: 'number', minimum: 1 },
+        capability: { type: 'string', enum: [...GENERATION_CAPABILITIES] },
+        scope: { type: 'string', enum: ['free', 'content_unit', 'asset', 'storyboard', 'keyframe'] },
         projectDir: { type: 'string', description: 'MovScript project source directory used when creating successful candidates.' },
         project_dir: { type: 'string', description: 'Alias for projectDir.' },
         cwd: { type: 'string', description: 'Alias for projectDir.' },
@@ -83,8 +114,8 @@ function contentUnitJobGetTool(name: string, description: string): MCPTool {
         project_uid: { type: 'string', description: 'Alias for projectUid.' },
         contentUnitId: { type: ['string', 'number'], description: 'Target MovScript content unit id for automatic candidate creation.' },
         content_unit_id: { type: ['string', 'number'], description: 'Alias for contentUnitId.' },
-        outputKind: { type: 'string', enum: ['image', 'video'] },
-        output_kind: { type: 'string', enum: ['image', 'video'] },
+        outputKind: { type: 'string', enum: ['image', 'video', 'audio', 'subtitle', 'voice_profile', 'json'] },
+        output_kind: { type: 'string', enum: ['image', 'video', 'audio', 'subtitle', 'voice_profile', 'json'] },
         promptSnapshot: { type: 'object', additionalProperties: true },
         prompt_snapshot: { type: 'object', additionalProperties: true },
         verbosity: { type: 'string', enum: ['summary', 'debug'], description: 'Use summary for compact polling output; debug includes the full backend job payload.' },
@@ -118,29 +149,10 @@ function contentUnitJobGetTool(name: string, description: string): MCPTool {
   }
 }
 
-function mcpTool(tool: AgentCatalogTool): MCPTool {
+function generationJobGetBatchTool(): MCPTool {
   return {
-    name: tool.name,
-    description: tool.description,
-    inputSchema: tool.inputSchema,
-    ...(tool.outputSchema ? { outputSchema: tool.outputSchema } : {}),
-  }
-}
-
-function audioSubmitTool(name: string, description: string): MCPTool {
-  const base = audioGenerateTool as AgentCatalogTool
-  return {
-    name,
-    description,
-    inputSchema: base.inputSchema,
-    ...(base.outputSchema ? { outputSchema: base.outputSchema } : {}),
-  }
-}
-
-function generationJobGetBatchTool(name: string, description: string): MCPTool {
-  return {
-    name,
-    description,
+    name: 'generation_job_get_batch',
+    description: 'Synchronously fetch the latest state of multiple MovScript generation jobs. Items may include capability, scope, contentUnitId, and output_kind.',
     inputSchema: objectSchema(
       {
         jobIds: { type: 'array', items: { type: 'number' }, description: 'Generation job IDs.' },
@@ -164,4 +176,89 @@ function generationJobGetBatchTool(name: string, description: string): MCPTool {
       ['status', 'total', 'success_count', 'failed_count', 'terminal_count', 'all_terminal', 'items', 'message']
     ),
   }
+}
+
+function generationResultRegisterTool(): MCPTool {
+  return {
+    name: 'generation_result_register',
+    description: 'Register an existing generation RawResource as a content-unit candidate. Use this when a low-level generation result should enter domain candidate review.',
+    inputSchema: objectSchema(
+      {
+        contentUnitId: { type: ['string', 'number'], description: 'Target MovScript content unit id.' },
+        content_unit_id: { type: ['string', 'number'], description: 'Alias for contentUnitId.' },
+        resourceId: { type: 'number', minimum: 1 },
+        resource_id: { type: 'number', minimum: 1 },
+        outputKind: { type: 'string', enum: ['image', 'video', 'audio', 'text', 'metadata'] },
+        output_kind: { type: 'string', enum: ['image', 'video', 'audio', 'text', 'metadata'] },
+        candidateId: { type: 'string' },
+        candidate_id: { type: 'string' },
+        title: { type: 'string' },
+        projectDir: { type: 'string' },
+        project_dir: { type: 'string' },
+        cwd: { type: 'string' },
+        projectUid: { type: 'string' },
+        project_uid: { type: 'string' },
+        metadata: { type: 'object', additionalProperties: true },
+      },
+      ['contentUnitId', 'resourceId']
+    ),
+    outputSchema: objectSchema(
+      {
+        status: { type: 'string' },
+        candidate: { type: 'object', additionalProperties: true },
+        surface: { type: 'object', additionalProperties: true },
+      },
+    ),
+  }
+}
+
+function generationRequestSchema(required: string[] = []): MCPTool['inputSchema'] {
+  return objectSchema(
+    {
+      capability: { type: 'string', enum: [...GENERATION_CAPABILITIES], description: 'MovScript generation capability.' },
+      scope: { type: 'string', enum: ['free', 'content_unit', 'asset', 'storyboard', 'keyframe'], description: 'Generation target scope. content_unit image/video jobs create candidates on successful terminal polling.' },
+      prompt: { type: 'string', minLength: 1 },
+      title: { type: 'string' },
+      model_id: { type: 'string' },
+      provider_id: { type: 'string' },
+      parameter_mode: { type: 'string', enum: ['compatible', 'strict'] },
+      param_mode: { type: 'string', enum: ['compatible', 'strict'] },
+      projectDir: { type: 'string', description: 'MovScript project source directory.' },
+      project_dir: { type: 'string', description: 'Alias for projectDir.' },
+      cwd: { type: 'string', description: 'Alias for projectDir.' },
+      projectUid: { type: 'string', description: 'Optional manifest project_uid used to namespace generated job metadata.' },
+      project_uid: { type: 'string', description: 'Alias for projectUid.' },
+      contentUnitId: { type: ['string', 'number'], description: 'Target content unit for scope=content_unit.' },
+      content_unit_id: { type: ['string', 'number'], description: 'Alias for contentUnitId.' },
+      candidateId: { type: 'string' },
+      candidate_id: { type: 'string' },
+      candidate_policy: { type: 'string', enum: ['none', 'auto_create', 'register_existing'] },
+      input_resource_ids: { type: 'array', items: { type: 'number' } },
+      reference_resource_ids: { type: 'array', items: { type: 'number' } },
+      negative_prompt: { type: 'string' },
+      aspect_ratio: { type: 'string' },
+      image_size: { type: 'string' },
+      duration: { type: 'number', minimum: 0 },
+      quality: { type: 'string' },
+      steps: { type: 'number', minimum: 1 },
+      seed: { type: 'number' },
+      fps: { type: 'number', minimum: 1 },
+      voice: { type: 'string' },
+      language: { type: 'string' },
+      source_language: { type: 'string' },
+      target_language: { type: 'string' },
+      model: { type: 'string' },
+      audio_format: { type: 'string' },
+      response_format: { type: 'string' },
+      output_format: { type: 'string' },
+      subtitle_format: { type: 'string' },
+      style: { type: 'string' },
+      speed: { type: 'number', minimum: 0.25, maximum: 4 },
+      instructions: { type: 'string' },
+      extra_params: { type: 'object', additionalProperties: true },
+      timeout_ms: { type: 'number', minimum: 1 },
+      poll_interval_ms: { type: 'number', minimum: 1 },
+    },
+    required
+  )
 }

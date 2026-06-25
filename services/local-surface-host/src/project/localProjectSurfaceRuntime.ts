@@ -1,6 +1,4 @@
-import {
-  PROJECT_SURFACE_ROUTE_DEFINITIONS,
-} from '@movscript/project-surface/routes'
+import { projectSurfacePath } from '@movscript/project-surface/routes'
 import {
   recordValue,
   stringValue,
@@ -91,6 +89,7 @@ export function createLocalHostProjectSurfaceRuntime(input: LocalHostProjectSurf
       project: {
         readModel: () => fetchProjectReadModel({
           projectDir: input.projectDir ?? '',
+          projectUid: input.projectUid,
           projectServiceBaseURL: input.projectServiceBaseURL,
         }),
         sourceSnapshot: () => fetchProjectServiceEndpoint({
@@ -188,9 +187,11 @@ function localProjectDecisionStoreConfig(
 
 export async function fetchProjectReadModel({
   projectDir,
+  projectUid,
   projectServiceBaseURL,
 }: {
   projectDir: string
+  projectUid?: string
   projectServiceBaseURL?: string
 }): Promise<ProjectReadModelResponse> {
   return fetchProjectServiceEndpoint({
@@ -201,6 +202,7 @@ export async function fetchProjectReadModel({
       projectDir,
       includeSource: false,
       includeInspection: false,
+      ...(projectUid ? { decisionStore: localProjectDecisionStoreConfig({ projectId: '', projectDir, projectUid }) } : {}),
     },
   }) as Promise<ProjectReadModelResponse>
 }
@@ -257,8 +259,7 @@ function localProjectSurfaceHref({
     next.set(key, String(value))
   }
 
-  const routeDefinition = PROJECT_SURFACE_ROUTE_DEFINITIONS.find((definition) => definition.key === route)
-  const pathname = routeDefinition ? `/studio/${routeDefinition.segment}` : `/studio/${route}`
+  const pathname = projectSurfacePath(route, projectId)
   const query = next.toString()
   return query ? `${pathname}?${query}` : pathname
 }

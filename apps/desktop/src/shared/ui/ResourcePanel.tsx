@@ -28,7 +28,7 @@ export { AssetSlotListItem, ResourceListItem, ResourcePreviewDialog } from '@/sh
 
 // ─── ResourcePanel (tool sidebar) ────────────────────────────────────────────
 
-type ResourcePanelInputType = 'image' | 'video' | 'image+video' | 'media'
+type ResourcePanelInputType = 'image' | 'video' | 'audio' | 'image+video' | 'media'
 type ResourcePanelResourceType = 'all' | 'image' | 'video' | 'audio' | 'text'
 
 interface ResourcePanelProps {

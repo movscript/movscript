@@ -30,7 +30,7 @@ export interface AdminSectionCard {
 
 export interface AdminRuntimeCapabilities {
   userQuotaManagement: boolean
-  gatewayNewAPIGroup: boolean
+  relayGatewayGroup: boolean
   hideModelManagement?: boolean
   modelManagementRedirect?: string
   disabledBaseRoutes?: string[]

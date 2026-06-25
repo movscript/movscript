@@ -5,7 +5,7 @@ import { api } from '@admin/lib/api'
 import type { AICredential, AIComboTemplate, AIComboTemplatesResponse, AIModelCatalogEntry, AIModelCatalogTemplate, AIModelImportApplyResult, AIModelImportModelPlan, AIModelImportPreviewResult, AIModelRouteBinding, AIProvider, AIProviderCredential, AIProviderTemplate, AIProviderTemplatesResponse, AIProvidersResponse, AdapterDef, PublicModel, ParamDef, ModelParamProfile, Project, User, RawResource, ResourceBinding, PaginatedResponse, ProviderInstance, ProviderInstanceConfigActivationResult, ProviderInstanceConfigApplyResult, ProviderInstanceConfigDraft, ProviderInstancesResponse } from '@admin/types'
 import type { AgentCompactParamContract, ParamRuleTypeSummary } from '@admin/lib/modelParamContract'
 import { useUserStore } from '@admin/store/userStore'
-import { Plus, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, ShieldAlert, ArrowLeft, Pencil, Check, X, RefreshCw, Sparkles, Copy, ArrowUpRight, Settings2, FolderKanban, HardDrive, CloudUpload, ScrollText, BarChart3, UsersRound, Building2, Bug, Download, Database, Route as RouteIcon } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, ShieldAlert, ArrowLeft, Pencil, Check, X, RefreshCw, Sparkles, Copy, ArrowUpRight, Settings2, FolderKanban, HardDrive, CloudUpload, ScrollText, BarChart3, UsersRound, Building2, Bug, Download, Database, Route as RouteIcon, Search } from 'lucide-react'
 import { cn } from '@admin/lib/utils'
 import { Button } from '@movscript/ui/primitives'
 import { Input } from '@movscript/ui/primitives'
@@ -24,6 +24,7 @@ import { StatusBadge, type StatusBadgeProps } from '@movscript/ui/primitives'
 import { ActiveOrgSelect } from '@admin/components/admin/ActiveOrgSelect'
 import { ActiveUserSelect } from '@admin/components/admin/ActiveUserSelect'
 import { CatalogParamBuilder } from '@admin/components/admin/CatalogParamBuilder'
+import { PaginationControls } from '@admin/components/admin/PaginationControls'
 import { runtimeCapabilities, runtimeOverviewCards, runtimeSectionCards } from '@admin-runtime'
 import { useTranslation } from 'react-i18next'
 import { translateAPIRequestError, translateApiError } from '@admin/lib/apiError'
@@ -36,7 +37,8 @@ import {
 import { emptyJobMonitorFilters, jobUrlSearchParams } from '@admin/lib/adminJobQueryParams'
 import { auditLogsHref, relativePastDateInput, usageLogsHref } from '@admin/lib/adminLogQueryParams'
 import { adminHref } from '@admin/lib/adminRoutes'
-import { hasNewAPIGatewayProviderInstance } from '@admin/lib/adminNewAPIGatewayMode'
+import { hasRelayGatewayProviderInstance } from '@admin/lib/adminRelayGatewayMode'
+import { modelProviderAccountStartupInstances } from '@admin/lib/adminModelProviderInstances'
 import { readListPayload, readNumberPayload, readRecordPayload } from '@admin/lib/listPayload'
 import {
   emptyProjectListFilters,
@@ -278,7 +280,7 @@ function ProviderTemplatePicker({
 function ProviderModelImportWizard() {
   const qc = useQueryClient()
   const [open, setOpen] = useState(false)
-  const [displayName, setDisplayName] = useState('OpenAI compatible provider')
+  const [displayName, setDisplayName] = useState('中转站')
   const [baseURL, setBaseURL] = useState('')
   const [apiKey, setApiKey] = useState('')
   const [routeGroup, setRouteGroup] = useState('default')
@@ -287,12 +289,15 @@ function ProviderModelImportWizard() {
   const [result, setResult] = useState<AIModelImportApplyResult | null>(null)
   const [error, setError] = useState('')
 
-  const providerPayload = () => ({
-    provider_kind: 'openai_compat_gateway',
-    display_name: displayName.trim() || 'OpenAI compatible provider',
-    base_url_prefix: baseURL.trim(),
-    api_key: apiKey,
-  })
+  const providerPayload = () => {
+    const providerKind = providerKindForImportBaseURL(baseURL)
+    return {
+      provider_kind: providerKind,
+      display_name: displayNameForImportProvider(displayName, providerKind),
+      base_url_prefix: baseURL.trim(),
+      api_key: apiKey,
+    }
+  }
 
   const previewImport = useMutation({
     mutationFn: () => api.post('/admin/model-imports/preview', {
@@ -348,7 +353,7 @@ function ProviderModelImportWizard() {
       <button type="button" onClick={() => setOpen((value) => !value)} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left">
         <div className="min-w-0">
           <p className="text-sm font-medium text-foreground">从 /v1/models 一键导入</p>
-          <p className="mt-1 text-xs text-muted-foreground">添加 OpenAI-compatible Provider，预览上游模型，并批量创建 Catalog 与 Route。</p>
+          <p className="mt-1 text-xs text-muted-foreground">添加 OpenAI-compatible 中转站，预览上游模型，并批量创建 Catalog 与 Route。</p>
         </div>
         <ChevronDown size={16} className={cn('shrink-0 text-muted-foreground transition-transform', open ? 'rotate-180' : '')} />
       </button>
@@ -419,6 +424,28 @@ function ProviderModelImportWizard() {
   )
 }
 
+function providerKindForImportBaseURL(baseURL: string): string {
+  try {
+    const parsed = new URL(baseURL.trim())
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, '')
+    if (host === 'api.apiyi.com' || host === 'apiyi.com' || host.endsWith('.apiyi.com')) {
+      return 'apiyi_gateway'
+    }
+  } catch {
+    // Keep partial input editable; the backend still performs final normalization.
+  }
+  return 'openai_compat_gateway'
+}
+
+function displayNameForImportProvider(displayName: string, providerKind: string): string {
+  const value = displayName.trim()
+  if (value && !(value === '中转站' && providerKind === 'apiyi_gateway')) {
+    return value
+  }
+  if (providerKind === 'apiyi_gateway') return 'APIyi 聚合网关'
+  return '中转站'
+}
+
 function ModelImportPreviewRow({
   model,
   checked,
@@ -429,13 +456,17 @@ function ModelImportPreviewRow({
   onCheckedChange: (checked: boolean) => void
 }) {
   const disabled = model.status === 'route_exists'
+  const templateOnly = model.template_source_status === 'template_only'
   return (
     <label className={cn('grid grid-cols-[32px_minmax(160px,1fr)_minmax(140px,1fr)_110px_100px] gap-2 px-3 py-2 text-xs', disabled ? 'text-muted-foreground' : 'text-foreground')}>
       <input type="checkbox" checked={checked} disabled={disabled} onChange={(event) => onCheckedChange(event.target.checked)} className="mt-0.5" />
       <span className="min-w-0 truncate font-mono">{model.provider_model_id}</span>
       <span className="min-w-0 truncate font-mono">{model.public_model_id}</span>
       <span className="min-w-0 truncate">{model.capabilities.join(', ') || 'text'}</span>
-      <span className="min-w-0 truncate">{modelImportStatusLabel(model.status)}</span>
+      <span className="min-w-0 truncate">
+        {templateOnly ? '待适配' : modelImportStatusLabel(model.status)}
+        {model.diagnostics?.length ? <span className="mt-1 block truncate text-[11px] text-muted-foreground">{model.diagnostics[0]}</span> : null}
+      </span>
     </label>
   )
 }
@@ -456,13 +487,13 @@ function modelImportStatusLabel(status: string): string {
 function CredentialForm({
   adapter,
   providerTemplate,
-  newAPIGatewayMode = false,
+  relayGatewayMode = false,
   onBack,
   onSuccess,
 }: {
   adapter: AdapterDef
   providerTemplate?: AIProviderTemplate | null
-  newAPIGatewayMode?: boolean
+  relayGatewayMode?: boolean
   onBack: () => void
   onSuccess: (adapterType: string) => void
 }) {
@@ -491,7 +522,7 @@ function CredentialForm({
   })
 
   function buildPayload() {
-    const credentials = newAPIGatewayMode ? {} : { ...fields }
+    const credentials = relayGatewayMode ? {} : { ...fields }
     const baseURLPrefix = providerTemplate
       ? String((credentials as Record<string, string>).base_url ?? providerTemplate.default_base_url_prefix ?? '').trim()
       : ''
@@ -505,7 +536,7 @@ function CredentialForm({
         base_url_prefix: baseURLPrefix,
         credentials,
       }
-      if (!newAPIGatewayMode && adapter.supports_files_api) {
+      if (!relayGatewayMode && adapter.supports_files_api) {
         base.files_api_enabled = filesAPIEnabled
         if (filesAPIBaseURL) base.files_api_base_url = filesAPIBaseURL
         if (filesAPIKey) base.files_api_key = filesAPIKey
@@ -517,7 +548,7 @@ function CredentialForm({
       display_name: displayName,
       credentials,
     }
-    if (!newAPIGatewayMode && adapter.supports_files_api) {
+    if (!relayGatewayMode && adapter.supports_files_api) {
       base.files_api_enabled = filesAPIEnabled
       if (filesAPIBaseURL) base.files_api_base_url = filesAPIBaseURL
       if (filesAPIKey) base.files_api_key = filesAPIKey
@@ -564,13 +595,13 @@ function CredentialForm({
         onChange={(e) => setDisplayName(e.target.value)}
       />
 
-      {newAPIGatewayMode && (
+      {relayGatewayMode && (
         <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
-          {t('admin.credentials.newAPIGatewayCredentialHint')}
+          {t('admin.credentials.relayGatewayCredentialHint')}
         </div>
       )}
 
-      {!newAPIGatewayMode && baseURLField && (
+      {!relayGatewayMode && baseURLField && (
         <div>
           <Label className="text-xs text-muted-foreground block mb-1">
             {credentialFieldLabel(baseURLField.key, baseURLField.label, t)}{baseURLField.required && <AppRequiredMark />}
@@ -583,7 +614,7 @@ function CredentialForm({
         </div>
       )}
 
-      {!newAPIGatewayMode && keyFields.map((field) => (
+      {!relayGatewayMode && keyFields.map((field) => (
         <div key={field.key}>
           <Label className="text-xs text-muted-foreground block mb-1">
             {credentialFieldLabel(field.key, field.label, t)}{field.required && <AppRequiredMark />}
@@ -609,7 +640,7 @@ function CredentialForm({
       )}
 
       {/* Files API — shown only for adapters that support it */}
-      {!newAPIGatewayMode && adapter.supports_files_api && (
+      {!relayGatewayMode && adapter.supports_files_api && (
         <div className="border border-border rounded-lg p-3 space-y-2 bg-background">
           <div className="flex items-center gap-2">
             <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
@@ -650,7 +681,7 @@ function CredentialForm({
       )}
 
       <div className="flex gap-2">
-        {!newAPIGatewayMode && (
+        {!relayGatewayMode && (
           <button
             onClick={handleCreateAndTest}
             disabled={create.isPending || testState.loading}
@@ -662,9 +693,9 @@ function CredentialForm({
       <Button
         onClick={() => create.mutate(buildPayload())}
         disabled={create.isPending || testState.loading}
-        className={newAPIGatewayMode ? 'flex-1' : undefined}
+        className={relayGatewayMode ? 'flex-1' : undefined}
       >
-        {create.isPending ? '…' : (providerTemplate ? t('admin.credentials.createProvider') : (newAPIGatewayMode ? t('admin.credentials.createRouteShell') : t('admin.credentials.createDirectly')))}
+        {create.isPending ? '…' : (providerTemplate ? t('admin.credentials.createProvider') : (relayGatewayMode ? t('admin.credentials.createRouteShell') : t('admin.credentials.createDirectly')))}
       </Button>
         <Button variant="outline" onClick={onBack}>
           {t('common.back')}
@@ -684,6 +715,12 @@ function ModelCatalogSection({ credentials }: { credentials: AICredential[] }) {
   const [templateLab, setTemplateLab] = useState('')
   const [appliedCatalogTemplate, setAppliedCatalogTemplate] = useState<AIModelCatalogTemplate | null>(null)
   const [catalogError, setCatalogError] = useState('')
+  const [catalogSearch, setCatalogSearch] = useState('')
+  const [catalogCapability, setCatalogCapability] = useState('all')
+  const [catalogStatus, setCatalogStatus] = useState<ModelCatalogStatusFilter>('all')
+  const [catalogRouteFilter, setCatalogRouteFilter] = useState<ModelCatalogRouteFilter>('all')
+  const [catalogPage, setCatalogPage] = useState(1)
+  const [catalogPageSize, setCatalogPageSize] = useState(MODEL_ADMIN_PAGE_SIZE)
 
   const catalogQuery = useQuery<AIModelCatalogEntry[]>({
     queryKey: ['admin', 'model-catalog'],
@@ -707,12 +744,35 @@ function ModelCatalogSection({ credentials }: { credentials: AICredential[] }) {
     () => credentials.filter((credential) => credential.is_enabled),
     [credentials],
   )
+  const catalogCapabilityOptions = useMemo(
+    () => Array.from(new Set(entries.flatMap((entry) => modelCatalogCapabilities(entry)))).sort(),
+    [entries],
+  )
+  const filteredEntries = useMemo(() => entries.filter((entry) => {
+    if (catalogStatus === 'enabled' && !entry.is_enabled) return false
+    if (catalogStatus === 'disabled' && entry.is_enabled) return false
+    if (catalogCapability !== 'all' && !modelCatalogCapabilities(entry).includes(catalogCapability)) return false
+    if (catalogRouteFilter === 'with-routes' && (entry.route_bindings ?? []).length === 0) return false
+    if (catalogRouteFilter === 'missing-routes' && (entry.route_bindings ?? []).length > 0) return false
+    return modelAdminTextMatches(catalogSearch, [
+      entry.public_model_id,
+      entry.display_name,
+      entry.short_name,
+      entry.capabilities,
+      ...(entry.route_bindings ?? []).map((binding) => binding.provider_model_id),
+    ])
+  }), [catalogCapability, catalogRouteFilter, catalogSearch, catalogStatus, entries])
+  const catalogPagination = modelAdminPaginationSlice(filteredEntries, catalogPage, catalogPageSize)
 
   useEffect(() => {
     if (!remoteCredentialId && localProviders[0]?.ID) {
       setRemoteCredentialId(String(localProviders[0].ID))
     }
   }, [localProviders, remoteCredentialId])
+
+  useEffect(() => {
+    setCatalogPage(1)
+  }, [catalogSearch, catalogCapability, catalogStatus, catalogRouteFilter, catalogPageSize])
 
   const remoteModelsQuery = useQuery<string[]>({
     queryKey: ['admin', 'credentials', remoteCredentialId, 'remote-models'],
@@ -794,233 +854,266 @@ function ModelCatalogSection({ credentials }: { credentials: AICredential[] }) {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border border-border bg-card p-4">
-        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="text-sm font-medium text-foreground">从 Provider 获取模型 ID</p>
-            <p className="mt-1 text-xs text-muted-foreground">Catalog 负责把 provider 返回的 model id 纳入 MovScript 模型列表；线路绑定在 Route 页维护。</p>
+      <details className="rounded-lg border border-border bg-card">
+        <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-foreground">导入模型</summary>
+        <div className="border-t border-border p-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-sm font-medium text-foreground">从 Provider 获取模型 ID</p>
+              <p className="mt-1 text-xs text-muted-foreground">Catalog 负责把 provider 返回的 model id 纳入 MovScript 模型列表；线路绑定在 Route 页维护。</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <select value={remoteCredentialId} onChange={(event) => setRemoteCredentialId(event.target.value)} className="h-8 rounded-md border border-input bg-background px-2 text-xs">
+                <option value="">选择 Provider</option>
+                {localProviders.map((credential) => (
+                  <option key={credential.ID} value={credential.ID}>{credential.display_name}</option>
+                ))}
+              </select>
+              <Button type="button" variant="outline" size="sm" disabled={!remoteCredentialId || remoteModelsQuery.isFetching} onClick={() => remoteModelsQuery.refetch()}>
+                {remoteModelsQuery.isFetching ? '获取中' : '获取模型'}
+              </Button>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <select value={remoteCredentialId} onChange={(event) => setRemoteCredentialId(event.target.value)} className="h-8 rounded-md border border-input bg-background px-2 text-xs">
-              <option value="">选择 Provider</option>
-              {localProviders.map((credential) => (
-                <option key={credential.ID} value={credential.ID}>{credential.display_name}</option>
+          {remoteModelsQuery.error && <AppInlineError className="mt-3">{translateAPIRequestError(remoteModelsQuery.error)}</AppInlineError>}
+          {(remoteModelsQuery.data ?? []).length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {(remoteModelsQuery.data ?? []).map((modelID) => (
+                <button
+                  key={modelID}
+                  type="button"
+                  onClick={() => importRemoteModel(modelID)}
+                  className="rounded-md border border-border bg-background px-2 py-1 text-xs font-mono text-muted-foreground hover:border-ring hover:text-foreground"
+                >
+                  {modelID}
+                </button>
               ))}
-            </select>
-            <Button type="button" variant="outline" size="sm" disabled={!remoteCredentialId || remoteModelsQuery.isFetching} onClick={() => remoteModelsQuery.refetch()}>
-              {remoteModelsQuery.isFetching ? '获取中' : '获取模型'}
-            </Button>
-          </div>
+            </div>
+          )}
         </div>
-        {remoteModelsQuery.error && <AppInlineError className="mt-3">{translateAPIRequestError(remoteModelsQuery.error)}</AppInlineError>}
-        {(remoteModelsQuery.data ?? []).length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {(remoteModelsQuery.data ?? []).map((modelID) => (
-              <button
-                key={modelID}
-                type="button"
-                onClick={() => importRemoteModel(modelID)}
-                className="rounded-md border border-border bg-background px-2 py-1 text-xs font-mono text-muted-foreground hover:border-ring hover:text-foreground"
-              >
-                {modelID}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      </details>
 
-      <div className="rounded-lg border border-border bg-card p-4">
-        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="text-sm font-medium text-foreground">从模型模板创建 Catalog</p>
-            <p className="mt-1 text-xs text-muted-foreground">模板来自后端 ModelDef，Public Model ID 会使用不含 provider 前缀的默认值；Provider Model ID 会在 Route 里使用。</p>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_400px]">
+        <div className="space-y-3">
+          <div className="rounded-lg border border-border bg-card p-3">
+            <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+              <ModelAdminSearchInput value={catalogSearch} onChange={setCatalogSearch} placeholder="搜索 model id、显示名、provider model..." />
+              <select value={catalogCapability} onChange={(event) => setCatalogCapability(event.target.value)} className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground">
+                <option value="all">全部能力</option>
+                {catalogCapabilityOptions.map((capability) => <option key={capability} value={capability}>{capability}</option>)}
+              </select>
+              <select value={catalogStatus} onChange={(event) => setCatalogStatus(event.target.value as ModelCatalogStatusFilter)} className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground">
+                <option value="all">全部状态</option>
+                <option value="enabled">已启用</option>
+                <option value="disabled">已禁用</option>
+              </select>
+              <select value={catalogRouteFilter} onChange={(event) => setCatalogRouteFilter(event.target.value as ModelCatalogRouteFilter)} className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground">
+                <option value="all">全部路由</option>
+                <option value="with-routes">已有路由</option>
+                <option value="missing-routes">缺少路由</option>
+              </select>
+              <ModelAdminPageSizeSelect value={catalogPageSize} onChange={setCatalogPageSize} />
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Input
-              value={templateSearch}
-              onChange={(event) => setTemplateSearch(event.target.value)}
-              placeholder="搜索模型或上游 id"
-              className="h-8 w-52 text-xs"
-            />
-            <select value={templateLab} onChange={(event) => setTemplateLab(event.target.value)} className="h-8 rounded-md border border-input bg-background px-2 text-xs">
-              <option value="">全部 Lab</option>
-              {templateLabOptions.map((lab) => (
-                <option key={lab} value={lab}>{lab}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-        {catalogTemplatesQuery.error && <AppInlineError className="mt-3">{translateAPIRequestError(catalogTemplatesQuery.error)}</AppInlineError>}
-        {catalogTemplatesQuery.isLoading ? (
-          <p className="mt-3 rounded-md border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">正在加载模型模板...</p>
-        ) : filteredCatalogTemplates.length === 0 ? (
-          <p className="mt-3 rounded-md border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">没有匹配的模型模板。</p>
-        ) : (
-          <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-            {filteredCatalogTemplates.map((template) => (
-              <button
-                key={template.id}
-                type="button"
-                onClick={() => applyCatalogTemplate(template)}
-                className={cn(
-                  'min-w-0 rounded-lg border bg-background p-3 text-left transition-colors hover:border-ring',
-                  appliedCatalogTemplate?.id === template.id ? 'border-ring ring-1 ring-ring/30' : 'border-border',
-                )}
-              >
-                <div className="flex items-start justify-between gap-2">
+
+          <div className="grid gap-3">
+            {catalogQuery.error && <AppInlineError>{translateAPIRequestError(catalogQuery.error)}</AppInlineError>}
+            {filteredEntries.length === 0 && !catalogQuery.isLoading && (
+              <p className="rounded-lg border border-border bg-background p-6 text-center text-sm text-muted-foreground">{t('admin.modelCatalog.empty')}</p>
+            )}
+            {catalogPagination.items.map((entry) => (
+              <div key={entry.ID} className="rounded-lg border border-border bg-background p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-foreground">{template.display_name || template.default_public_model_id}</p>
-                    <p className="mt-1 truncate font-mono text-[11px] text-muted-foreground">{template.default_public_model_id}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-medium text-foreground">{catalogEntryLabel(entry)}</p>
+                      <StatusBadge intent={entry.is_enabled ? 'success' : 'neutral'}>{entry.is_enabled ? t('admin.modelCatalog.enabled') : t('admin.modelCatalog.disabled')}</StatusBadge>
+                      <span className="text-xs text-muted-foreground font-mono">{entry.public_model_id}</span>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">{catalogEntryDetail(entry)}</p>
                   </div>
-                  <StatusBadge intent="neutral">{template.lab}</StatusBadge>
+                  <div className="flex shrink-0 gap-2">
+                    <Button type="button" variant="outline" size="sm" onClick={() => startEdit(entry)}>{t('common.edit')}</Button>
+                    <Button type="button" variant="ghost" size="sm" intent="danger" onClick={() => {
+                      if (window.confirm(t('admin.modelCatalog.confirmDelete', { name: catalogEntryLabel(entry) }))) deleteCatalogEntry.mutate(entry.ID)
+                    }}>
+                      {t('common.delete')}
+                    </Button>
+                  </div>
                 </div>
-                <p className="mt-2 truncate font-mono text-[11px] text-muted-foreground">upstream: {template.model_id}</p>
-                <p className="mt-1 truncate font-mono text-[11px] text-muted-foreground">adapter: {template.adapter_type}</p>
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {template.capabilities.slice(0, 4).map((capability) => (
+                <div className="flex flex-wrap gap-1.5">
+                  {modelCatalogCapabilities(entry).map((capability) => (
                     <StatusBadge key={capability} intent={CAPABILITY_STATUS_INTENT[capability] ?? 'neutral'} className="text-xs">
                       {t(CAPABILITY_TRANSLATION_KEYS[capability] ?? capability)}
                     </StatusBadge>
                   ))}
-                  {template.capabilities.length > 4 && <StatusBadge intent="neutral">+{template.capabilities.length - 4}</StatusBadge>}
-                  {(template.supported_params?.length ?? 0) > 0 && <StatusBadge intent="neutral">{template.supported_params?.length} params</StatusBadge>}
                 </div>
-              </button>
+                <div className="rounded-md border border-border bg-card">
+                  <div className="flex items-center justify-between border-b border-border px-3 py-2">
+                    <p className="text-xs font-medium text-muted-foreground">{t('admin.modelCatalog.routes')}</p>
+                    <span className="text-xs text-muted-foreground">在 Route 页维护</span>
+                  </div>
+                  <div className="divide-y divide-border">
+                    {(entry.route_bindings ?? []).length === 0 ? (
+                      <p className="px-3 py-3 text-xs text-muted-foreground">{t('admin.modelCatalog.noRoutes')}</p>
+                    ) : (entry.route_bindings ?? []).map((binding) => (
+                      <div key={binding.ID} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
+                        <div className="min-w-0">
+                          <p className="font-medium text-foreground">{binding.source_type === 'relay_gateway' ? t('admin.modelCatalog.relayGatewayRoute') : t('admin.modelCatalog.localProviderRoute')}</p>
+                            <p className="truncate text-muted-foreground">
+                              {binding.source_type === 'relay_gateway'
+                                ? binding.route_group
+                                : `${binding.provider_id || '-'}${binding.route_group ? ` · group ${binding.route_group}` : ''}`} · priority {binding.priority ?? 0} · capacity {binding.capacity_weight ?? 1}
+                            </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             ))}
-          </div>
-        )}
-      </div>
-
-      <div className="rounded-lg border border-border bg-card p-4 space-y-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-sm font-medium text-foreground">{editingCatalogId ? t('admin.modelCatalog.editTitle') : t('admin.modelCatalog.createTitle')}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{t('admin.modelCatalog.formHint')}</p>
-          </div>
-          <div className="flex flex-wrap justify-end gap-2">
-            {editingCatalogId && (
-              <Button type="button" variant="outline" size="sm" onClick={cancelEdit}>{t('common.cancel')}</Button>
+            {filteredEntries.length > 0 && (
+              <PaginationControls page={catalogPagination.page} pageCount={catalogPagination.pageCount} pageSize={catalogPageSize} total={filteredEntries.length} onPageChange={setCatalogPage} disabled={catalogQuery.isFetching} />
             )}
           </div>
         </div>
-        {catalogError && <AppInlineError>{catalogError}</AppInlineError>}
-        <div className="grid gap-3 md:grid-cols-2">
-          <div>
-            <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.modelCatalog.publicModelId')}</Label>
-            <Input value={catalogForm.public_model_id} onChange={(event) => setCatalogForm({ ...catalogForm, public_model_id: event.target.value })} className="h-8 text-xs font-mono" placeholder="gpt-4.1" />
-          </div>
-          <div>
-            <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.modelCatalog.displayName')}</Label>
-            <Input value={catalogForm.display_name} onChange={(event) => setCatalogForm({ ...catalogForm, display_name: event.target.value })} className="h-8 text-xs" />
-          </div>
-          <div>
-            <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.modelCatalog.shortName')}</Label>
-            <Input value={catalogForm.short_name} onChange={(event) => setCatalogForm({ ...catalogForm, short_name: event.target.value })} className="h-8 text-xs" />
-          </div>
-        </div>
-        <div>
-          <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.modelCatalog.capabilities')}</Label>
-          <div className="flex flex-wrap gap-2">
-            {MODEL_CAPABILITIES.map((capability) => (
-              <label key={capability} className="flex h-8 items-center gap-2 rounded-md border border-border px-2 text-xs">
-                <input type="checkbox" checked={catalogForm.capabilities.includes(capability)} onChange={() => toggleCatalogCapability(capability)} className="rounded" />
-                <span>{t(CAPABILITY_TRANSLATION_KEYS[capability] ?? capability)}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-        <div className="grid gap-3 md:grid-cols-3">
-          <label className="flex h-8 items-center gap-2 text-xs">
-            <input type="checkbox" checked={catalogForm.is_enabled} onChange={(event) => setCatalogForm({ ...catalogForm, is_enabled: event.target.checked })} />
-            {t('admin.modelCatalog.enabled')}
-          </label>
-          <label className="flex h-8 items-center gap-2 text-xs">
-            <input type="checkbox" checked={catalogForm.accepts_image} onChange={(event) => setCatalogForm({ ...catalogForm, accepts_image: event.target.checked })} />
-            {t('admin.modelCatalog.acceptsImage')}
-          </label>
-          <div>
-            <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.models.maxInputImages')}</Label>
-            <Input type="number" value={catalogForm.max_input_images} onChange={(event) => setCatalogForm({ ...catalogForm, max_input_images: Number(event.target.value) })} invalid={!isValidInputLimit(catalogForm.max_input_images)} className="h-8 text-xs" />
-          </div>
-          <div>
-            <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.models.maxInputVideos')}</Label>
-            <Input type="number" value={catalogForm.max_input_videos} onChange={(event) => setCatalogForm({ ...catalogForm, max_input_videos: Number(event.target.value) })} invalid={!isValidInputLimit(catalogForm.max_input_videos)} className="h-8 text-xs" />
-          </div>
-          <div>
-            <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.modelCatalog.imageEditField')}</Label>
-            <Input value={catalogForm.image_edit_field} onChange={(event) => setCatalogForm({ ...catalogForm, image_edit_field: event.target.value })} className="h-8 text-xs font-mono" placeholder="image[]" />
-          </div>
-        </div>
-        {catalogInputErrors.map((message) => <AppFeedbackText key={message}>{message}</AppFeedbackText>)}
-        {appliedCatalogTemplate && (
-          <AppFeedbackText tone="neutral">
-            模板已填入：Public Model ID 为 {appliedCatalogTemplate.default_public_model_id}，Route 建议使用 provider model id {appliedCatalogTemplate.model_id}。
-          </AppFeedbackText>
-        )}
-        <CatalogParamBuilder value={catalogForm.supported_params} onChange={(supported_params) => setCatalogForm({ ...catalogForm, supported_params })} />
-        <div className="flex justify-end gap-2">
-          <Button type="button" onClick={() => saveCatalogEntry.mutate({ id: editingCatalogId ?? undefined, form: catalogForm })} disabled={saveCatalogEntry.isPending || !canSaveCatalog}>
-            {saveCatalogEntry.isPending ? t('common.saving') : editingCatalogId ? t('admin.modelCatalog.save') : t('admin.modelCatalog.create')}
-          </Button>
-        </div>
-      </div>
 
-      <div className="grid gap-3">
-        {catalogQuery.error && <AppInlineError>{translateAPIRequestError(catalogQuery.error)}</AppInlineError>}
-        {entries.length === 0 && !catalogQuery.isLoading && (
-          <p className="rounded-lg border border-border bg-background p-6 text-center text-sm text-muted-foreground">{t('admin.modelCatalog.empty')}</p>
-        )}
-        {entries.map((entry) => (
-          <div key={entry.ID} className="rounded-lg border border-border bg-background p-4 space-y-3">
+        <aside className="space-y-3 xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto">
+          <div className="rounded-lg border border-border bg-card p-4 space-y-4">
             <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-medium text-foreground">{catalogEntryLabel(entry)}</p>
-                  <StatusBadge intent={entry.is_enabled ? 'success' : 'neutral'}>{entry.is_enabled ? t('admin.modelCatalog.enabled') : t('admin.modelCatalog.disabled')}</StatusBadge>
-                  <span className="text-xs text-muted-foreground font-mono">{entry.public_model_id}</span>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">{catalogEntryDetail(entry)}</p>
+              <div>
+                <p className="text-sm font-medium text-foreground">{editingCatalogId ? t('admin.modelCatalog.editTitle') : t('admin.modelCatalog.createTitle')}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{t('admin.modelCatalog.formHint')}</p>
               </div>
-              <div className="flex shrink-0 gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={() => startEdit(entry)}>{t('common.edit')}</Button>
-                <Button type="button" variant="ghost" size="sm" intent="danger" onClick={() => {
-                  if (window.confirm(t('admin.modelCatalog.confirmDelete', { name: catalogEntryLabel(entry) }))) deleteCatalogEntry.mutate(entry.ID)
-                }}>
-                  {t('common.delete')}
-                </Button>
+              <div className="flex flex-wrap justify-end gap-2">
+                {editingCatalogId && (
+                  <Button type="button" variant="outline" size="sm" onClick={cancelEdit}>{t('common.cancel')}</Button>
+                )}
               </div>
             </div>
-            <div className="flex flex-wrap gap-1.5">
-              {modelCatalogCapabilities(entry).map((capability) => (
-                <StatusBadge key={capability} intent={CAPABILITY_STATUS_INTENT[capability] ?? 'neutral'} className="text-xs">
-                  {t(CAPABILITY_TRANSLATION_KEYS[capability] ?? capability)}
-                </StatusBadge>
-              ))}
-            </div>
-            <div className="rounded-md border border-border bg-card">
-              <div className="flex items-center justify-between border-b border-border px-3 py-2">
-                <p className="text-xs font-medium text-muted-foreground">{t('admin.modelCatalog.routes')}</p>
-                <span className="text-xs text-muted-foreground">在 Route 页维护</span>
-              </div>
-              <div className="divide-y divide-border">
-                {(entry.route_bindings ?? []).length === 0 ? (
-                  <p className="px-3 py-3 text-xs text-muted-foreground">{t('admin.modelCatalog.noRoutes')}</p>
-                ) : (entry.route_bindings ?? []).map((binding) => (
-                  <div key={binding.ID} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
-                    <div className="min-w-0">
-                      <p className="font-medium text-foreground">{binding.source_type === 'new_api' ? t('admin.modelCatalog.newAPIRoute') : t('admin.modelCatalog.localProviderRoute')}</p>
-                        <p className="truncate text-muted-foreground">
-                          {binding.source_type === 'new_api'
-                            ? binding.route_group
-                            : `${binding.provider_id || '-'}${binding.route_group ? ` · group ${binding.route_group}` : ''}`} · priority {binding.priority ?? 0} · capacity {binding.capacity_weight ?? 1}
-                        </p>
-                    </div>
+            {catalogError && <AppInlineError>{catalogError}</AppInlineError>}
+            <details className="rounded-md border border-border bg-background p-3" open>
+              <summary className="cursor-pointer text-xs font-medium text-foreground">从模型模板填入</summary>
+              <div className="mt-3 space-y-2">
+                <Input
+                  value={templateSearch}
+                  onChange={(event) => setTemplateSearch(event.target.value)}
+                  placeholder="搜索模型或上游 id"
+                  className="h-8 text-xs"
+                />
+                <select value={templateLab} onChange={(event) => setTemplateLab(event.target.value)} className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs">
+                  <option value="">全部 Lab</option>
+                  {templateLabOptions.map((lab) => (
+                    <option key={lab} value={lab}>{lab}</option>
+                  ))}
+                </select>
+                {catalogTemplatesQuery.error && <AppInlineError>{translateAPIRequestError(catalogTemplatesQuery.error)}</AppInlineError>}
+                {catalogTemplatesQuery.isLoading ? (
+                  <p className="rounded-md border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">正在加载模型模板...</p>
+                ) : filteredCatalogTemplates.length === 0 ? (
+                  <p className="rounded-md border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">没有匹配的模型模板。</p>
+                ) : (
+                  <div className="grid max-h-56 gap-2 overflow-y-auto pr-1">
+                    {filteredCatalogTemplates.map((template) => (
+                      <button
+                        key={template.id}
+                        type="button"
+                        onClick={() => applyCatalogTemplate(template)}
+                        className={cn(
+                          'min-w-0 rounded-lg border bg-card p-3 text-left transition-colors hover:border-ring',
+                          appliedCatalogTemplate?.id === template.id ? 'border-ring ring-1 ring-ring/30' : 'border-border',
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium text-foreground">{template.display_name || template.default_public_model_id}</p>
+                            <p className="mt-1 truncate font-mono text-[11px] text-muted-foreground">{template.default_public_model_id}</p>
+                          </div>
+                          <div className="flex shrink-0 flex-wrap justify-end gap-1">
+                            <StatusBadge intent="neutral">{template.lab}</StatusBadge>
+                            <StatusBadge intent={catalogTemplateSourceStatusIntent(template)}>{catalogTemplateSourceStatusLabel(template)}</StatusBadge>
+                          </div>
+                        </div>
+                        <p className="mt-2 truncate font-mono text-[11px] text-muted-foreground">upstream: {template.model_id}</p>
+                        <p className="mt-1 truncate font-mono text-[11px] text-muted-foreground">adapter: {template.adapter_type}</p>
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {template.capabilities.slice(0, 4).map((capability) => (
+                            <StatusBadge key={capability} intent={CAPABILITY_STATUS_INTENT[capability] ?? 'neutral'} className="text-xs">
+                              {t(CAPABILITY_TRANSLATION_KEYS[capability] ?? capability)}
+                            </StatusBadge>
+                          ))}
+                          {template.capabilities.length > 4 && <StatusBadge intent="neutral">+{template.capabilities.length - 4}</StatusBadge>}
+                          {(template.supported_params?.length ?? 0) > 0 && <StatusBadge intent="neutral">{template.supported_params?.length} params</StatusBadge>}
+                        </div>
+                      </button>
+                    ))}
                   </div>
+                )}
+              </div>
+            </details>
+            <div className="grid gap-3">
+              <div>
+                <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.modelCatalog.publicModelId')}</Label>
+                <Input value={catalogForm.public_model_id} onChange={(event) => setCatalogForm({ ...catalogForm, public_model_id: event.target.value })} className="h-8 text-xs font-mono" placeholder="gpt-4.1" />
+              </div>
+              <div>
+                <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.modelCatalog.displayName')}</Label>
+                <Input value={catalogForm.display_name} onChange={(event) => setCatalogForm({ ...catalogForm, display_name: event.target.value })} className="h-8 text-xs" />
+              </div>
+              <div>
+                <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.modelCatalog.shortName')}</Label>
+                <Input value={catalogForm.short_name} onChange={(event) => setCatalogForm({ ...catalogForm, short_name: event.target.value })} className="h-8 text-xs" />
+              </div>
+            </div>
+            <div>
+              <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.modelCatalog.capabilities')}</Label>
+              <div className="flex flex-wrap gap-2">
+                {MODEL_CAPABILITIES.map((capability) => (
+                  <label key={capability} className="flex h-8 items-center gap-2 rounded-md border border-border px-2 text-xs">
+                    <input type="checkbox" checked={catalogForm.capabilities.includes(capability)} onChange={() => toggleCatalogCapability(capability)} className="rounded" />
+                    <span>{t(CAPABILITY_TRANSLATION_KEYS[capability] ?? capability)}</span>
+                  </label>
                 ))}
               </div>
             </div>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+              <label className="flex h-8 items-center gap-2 text-xs">
+                <input type="checkbox" checked={catalogForm.is_enabled} onChange={(event) => setCatalogForm({ ...catalogForm, is_enabled: event.target.checked })} />
+                {t('admin.modelCatalog.enabled')}
+              </label>
+              <label className="flex h-8 items-center gap-2 text-xs">
+                <input type="checkbox" checked={catalogForm.accepts_image} onChange={(event) => setCatalogForm({ ...catalogForm, accepts_image: event.target.checked })} />
+                {t('admin.modelCatalog.acceptsImage')}
+              </label>
+              <div>
+                <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.models.maxInputImages')}</Label>
+                <Input type="number" value={catalogForm.max_input_images} onChange={(event) => setCatalogForm({ ...catalogForm, max_input_images: Number(event.target.value) })} invalid={!isValidInputLimit(catalogForm.max_input_images)} className="h-8 text-xs" />
+              </div>
+              <div>
+                <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.models.maxInputVideos')}</Label>
+                <Input type="number" value={catalogForm.max_input_videos} onChange={(event) => setCatalogForm({ ...catalogForm, max_input_videos: Number(event.target.value) })} invalid={!isValidInputLimit(catalogForm.max_input_videos)} className="h-8 text-xs" />
+              </div>
+              <div>
+                <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.modelCatalog.imageEditField')}</Label>
+                <Input value={catalogForm.image_edit_field} onChange={(event) => setCatalogForm({ ...catalogForm, image_edit_field: event.target.value })} className="h-8 text-xs font-mono" placeholder="image[]" />
+              </div>
+            </div>
+            {catalogInputErrors.map((message) => <AppFeedbackText key={message}>{message}</AppFeedbackText>)}
+            {appliedCatalogTemplate && (
+              <AppFeedbackText tone="neutral">
+                {catalogTemplateIsRuntimeReady(appliedCatalogTemplate)
+                  ? `模板已填入：Public Model ID 为 ${appliedCatalogTemplate.default_public_model_id}，Route 建议使用 provider model id ${appliedCatalogTemplate.model_id}。`
+                  : `模板已填入：Public Model ID 为 ${appliedCatalogTemplate.default_public_model_id}。该模板当前为待适配状态，先不要为它创建可用 Route。`}
+              </AppFeedbackText>
+            )}
+            <CatalogParamBuilder value={catalogForm.supported_params} onChange={(supported_params) => setCatalogForm({ ...catalogForm, supported_params })} />
+            <div className="flex justify-end gap-2">
+              <Button type="button" onClick={() => saveCatalogEntry.mutate({ id: editingCatalogId ?? undefined, form: catalogForm })} disabled={saveCatalogEntry.isPending || !canSaveCatalog}>
+                {saveCatalogEntry.isPending ? t('common.saving') : editingCatalogId ? t('admin.modelCatalog.save') : t('admin.modelCatalog.create')}
+              </Button>
+            </div>
           </div>
-        ))}
+
+        </aside>
       </div>
     </div>
   )
@@ -1033,6 +1126,11 @@ function ModelRoutesSection({ credentials, providers }: { credentials: AICredent
   const [routeForm, setRouteForm] = useState<CatalogRouteForm>(() => emptyCatalogRouteForm())
   const [routeDialogOpen, setRouteDialogOpen] = useState(false)
   const [routeError, setRouteError] = useState('')
+  const [routeSearch, setRouteSearch] = useState('')
+  const [routeCapability, setRouteCapability] = useState('all')
+  const [routeCoverageFilter, setRouteCoverageFilter] = useState<ModelRouteCoverageFilter>('all')
+  const [routePage, setRoutePage] = useState(1)
+  const [routePageSize, setRoutePageSize] = useState(MODEL_ADMIN_PAGE_SIZE)
 
   const catalogQuery = useQuery<AIModelCatalogEntry[]>({
     queryKey: ['admin', 'model-catalog'],
@@ -1055,6 +1153,24 @@ function ModelRoutesSection({ credentials, providers }: { credentials: AICredent
   )
   const enabledRouteProviders = useMemo(() => enabledRouteProviderOptions(routeProviders), [routeProviders])
   const selectedEntry = entries.find((entry) => entry.ID === routeFormFor) ?? entries[0]
+  const routeCapabilityOptions = useMemo(
+    () => Array.from(new Set(entries.flatMap((entry) => modelCatalogCapabilities(entry)))).sort(),
+    [entries],
+  )
+  const filteredRouteEntries = useMemo(() => entries.filter((entry) => {
+    const bindings = entry.route_bindings ?? []
+    if (routeCapability !== 'all' && !modelCatalogCapabilities(entry).includes(routeCapability)) return false
+    if (routeCoverageFilter === 'missing-routes' && bindings.length > 0) return false
+    if (routeCoverageFilter === 'disabled-routes' && !bindings.some((binding) => !binding.is_enabled)) return false
+    return modelAdminTextMatches(routeSearch, [
+      entry.public_model_id,
+      entry.display_name,
+      entry.short_name,
+      entry.capabilities,
+      ...bindings.flatMap((binding) => [binding.route_group, binding.provider_id, binding.provider_model_id, binding.adapter_type]),
+    ])
+  }), [entries, routeCapability, routeCoverageFilter, routeSearch])
+  const routePagination = modelAdminPaginationSlice(filteredRouteEntries, routePage, routePageSize)
 
   useEffect(() => {
     if (!routeForm.provider_id && firstEnabledRouteProviderID(routeProviders)) {
@@ -1064,6 +1180,10 @@ function ModelRoutesSection({ credentials, providers }: { credentials: AICredent
       setRouteForm((form) => ({ ...form, adapter_type: adapterTypeForRouteProviderID(form.provider_id, credentials, routeProviders) }))
     }
   }, [credentials, routeProviders, routeForm.adapter_type, routeForm.provider_id])
+
+  useEffect(() => {
+    setRoutePage(1)
+  }, [routeSearch, routeCapability, routeCoverageFilter, routePageSize])
 
   const createRouteBinding = useMutation({
     mutationFn: ({ entryId, form }: { entryId: number; form: CatalogRouteForm }) =>
@@ -1123,70 +1243,90 @@ function ModelRoutesSection({ credentials, providers }: { credentials: AICredent
       {routeError && <AppInlineError>{routeError}</AppInlineError>}
       {catalogQuery.error && <AppInlineError>{translateAPIRequestError(catalogQuery.error)}</AppInlineError>}
 
-      <ModelRouteMatrix entries={entries} routeProviders={routeProviders} onOpenRouteForm={openRouteForm} />
+      <div className="rounded-lg border border-border bg-card p-3">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+          <ModelAdminSearchInput value={routeSearch} onChange={setRouteSearch} placeholder="搜索模型、group、provider model..." />
+          <select value={routeCapability} onChange={(event) => setRouteCapability(event.target.value)} className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground">
+            <option value="all">全部能力</option>
+            {routeCapabilityOptions.map((capability) => <option key={capability} value={capability}>{capability}</option>)}
+          </select>
+          <select value={routeCoverageFilter} onChange={(event) => setRouteCoverageFilter(event.target.value as ModelRouteCoverageFilter)} className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground">
+            <option value="all">全部覆盖</option>
+            <option value="missing-routes">缺少路由</option>
+            <option value="disabled-routes">包含禁用绑定</option>
+          </select>
+          <ModelAdminPageSizeSelect value={routePageSize} onChange={setRoutePageSize} />
+        </div>
+      </div>
 
-      <section className="grid gap-4">
-        <div className="rounded-lg border border-border bg-card">
-          <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
-            <div>
-              <p className="text-sm font-medium text-foreground">{t('admin.models.routeEditorTitle', { defaultValue: 'Route Binding 编辑器' })}</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {t('admin.models.routeEditorHint', { defaultValue: '选择一个 Catalog Entry，维护它的 provider lane、provider model id、route group、priority、capacity 和 concurrency。' })}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <select
-                value={activeEntry?.ID ?? ''}
-                onChange={(event) => setRouteFormFor(Number(event.target.value))}
-                className="h-8 rounded-md border border-input bg-background px-2 text-xs"
-                disabled={entries.length === 0}
-              >
-                {entries.map((entry) => (
-                  <option key={entry.ID} value={entry.ID}>{entry.public_model_id}</option>
-                ))}
-              </select>
-              {activeEntry && (
-                <StatusBadge intent={activeEntry.is_enabled ? 'success' : 'neutral'}>
-                  {activeEntry.is_enabled ? t('admin.modelCatalog.enabled') : t('admin.modelCatalog.disabled')}
-                </StatusBadge>
-              )}
-              <Button type="button" size="sm" onClick={() => openRouteForm(activeEntry?.ID ?? entries[0]?.ID ?? 0)} disabled={entries.length === 0}>
-                <Plus size={14} className="mr-1.5" />
-                {t('admin.models.addRouteCandidate', { defaultValue: '新增候选' })}
-              </Button>
-            </div>
-          </div>
-          {activeEntry ? (
-            <div className="divide-y divide-border">
-              <div className="hidden grid-cols-[minmax(160px,1fr)_100px_minmax(150px,1fr)_minmax(120px,0.8fr)_90px_90px_110px_auto] gap-2 bg-muted/30 px-4 py-2 text-[11px] font-medium uppercase text-muted-foreground md:grid">
-                <span>{t('admin.models.providerLane', { defaultValue: 'Provider Lane' })}</span>
-                <span>{t('admin.models.adapter', { defaultValue: 'Adapter' })}</span>
-                <span>{t('admin.modelCatalog.providerModelId')}</span>
-                <span>{t('admin.modelCatalog.routeGroup')}</span>
-                <span>{t('admin.models.priority')}</span>
-                <span>{t('admin.models.capacityWeight')}</span>
-                <span>{t('admin.models.maxConcurrency')}</span>
-                <span className="text-right">{t('common.actions', { defaultValue: 'Actions' })}</span>
-              </div>
-              {(activeEntry.route_bindings ?? []).length === 0 ? (
-                <p className="px-4 py-6 text-sm text-muted-foreground">{t('admin.modelCatalog.noRoutes')}</p>
-              ) : sortRouteBindings(activeEntry.route_bindings ?? []).map((binding) => (
-                <CommunityRouteBindingEditor
-                  key={binding.ID}
-                  binding={binding}
-                  routeProviders={routeProviders}
-                  busy={updateRouteBinding.isPending || deleteRouteBinding.isPending}
-                  onSave={(form) => updateRouteBinding.mutate({ entryId: activeEntry.ID, bindingId: binding.ID, form })}
-                  onDelete={() => deleteRouteBinding.mutate({ entryId: activeEntry.ID, bindingId: binding.ID })}
-                />
-              ))}
-            </div>
-          ) : (
-            <p className="px-4 py-6 text-sm text-muted-foreground">{t('admin.modelCatalog.empty')}</p>
-          )}
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+        <div className="space-y-4">
+          <ModelRouteMatrix entries={routePagination.items} routeProviders={routeProviders} onOpenRouteForm={openRouteForm} />
+          <PaginationControls page={routePagination.page} pageCount={routePagination.pageCount} pageSize={routePageSize} total={filteredRouteEntries.length} onPageChange={setRoutePage} disabled={catalogQuery.isFetching} />
+          <RuntimeModelHealthSection
+            items={runtimeHealthQuery.data?.items ?? []}
+            isLoading={runtimeHealthQuery.isLoading}
+            isFetching={runtimeHealthQuery.isFetching}
+            error={runtimeHealthQuery.error}
+            onRefresh={() => runtimeHealthQuery.refetch()}
+          />
         </div>
 
-      </section>
+        <aside className="space-y-3 xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto">
+          <div className="rounded-lg border border-border bg-card">
+            <div className="space-y-3 border-b border-border px-4 py-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">{t('admin.models.routeEditorTitle', { defaultValue: 'Route Binding 编辑器' })}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {t('admin.models.routeEditorHint', { defaultValue: '选择一个 Catalog Entry，维护它的 Provider 通道、provider model id、route group、priority、capacity 和 concurrency。' })}
+                </p>
+              </div>
+              <div className="grid gap-2">
+                <select
+                  value={activeEntry?.ID ?? ''}
+                  onChange={(event) => setRouteFormFor(Number(event.target.value))}
+                  className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
+                  disabled={entries.length === 0}
+                >
+                  {entries.map((entry) => (
+                    <option key={entry.ID} value={entry.ID}>{entry.public_model_id}</option>
+                  ))}
+                </select>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  {activeEntry ? (
+                    <StatusBadge intent={activeEntry.is_enabled ? 'success' : 'neutral'}>
+                      {activeEntry.is_enabled ? t('admin.modelCatalog.enabled') : t('admin.modelCatalog.disabled')}
+                    </StatusBadge>
+                  ) : <span />}
+                  <Button type="button" size="sm" onClick={() => openRouteForm(activeEntry?.ID ?? entries[0]?.ID ?? 0)} disabled={entries.length === 0}>
+                    <Plus size={14} className="mr-1.5" />
+                    {t('admin.models.addRouteCandidate', { defaultValue: '新增候选' })}
+                  </Button>
+                </div>
+              </div>
+            </div>
+            {activeEntry ? (
+              <div className="divide-y divide-border">
+                {(activeEntry.route_bindings ?? []).length === 0 ? (
+                  <p className="px-4 py-6 text-sm text-muted-foreground">{t('admin.modelCatalog.noRoutes')}</p>
+                ) : sortRouteBindings(activeEntry.route_bindings ?? []).map((binding) => (
+                  <CommunityRouteBindingEditor
+                    key={binding.ID}
+                    binding={binding}
+                    routeProviders={routeProviders}
+                    busy={updateRouteBinding.isPending || deleteRouteBinding.isPending}
+                    compact
+                    onSave={(form) => updateRouteBinding.mutate({ entryId: activeEntry.ID, bindingId: binding.ID, form })}
+                    onDelete={() => deleteRouteBinding.mutate({ entryId: activeEntry.ID, bindingId: binding.ID })}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="px-4 py-6 text-sm text-muted-foreground">{t('admin.modelCatalog.empty')}</p>
+            )}
+          </div>
+        </aside>
+      </div>
 
       {catalogTemplatesQuery.error && <AppInlineError>{translateAPIRequestError(catalogTemplatesQuery.error)}</AppInlineError>}
 
@@ -1203,7 +1343,7 @@ function ModelRoutesSection({ credentials, providers }: { credentials: AICredent
               <div>
                 <p className="text-sm font-medium text-foreground">{t('admin.models.createRouteBindingTitle', { defaultValue: '新增 Route Binding' })}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {t('admin.models.createRouteBindingHint', { defaultValue: '把 Public Model ID 映射到一个 provider lane 和实际 provider model id。' })}
+                  {t('admin.models.createRouteBindingHint', { defaultValue: '把 Public Model ID 映射到一个 Provider 通道和实际 provider model id。' })}
                 </p>
               </div>
               <button type="button" onClick={() => setRouteDialogOpen(false)} className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" aria-label={t('common.close')}>
@@ -1322,13 +1462,6 @@ function ModelRoutesSection({ credentials, providers }: { credentials: AICredent
         </div>
       )}
 
-      <RuntimeModelHealthSection
-        items={runtimeHealthQuery.data?.items ?? []}
-        isLoading={runtimeHealthQuery.isLoading}
-        isFetching={runtimeHealthQuery.isFetching}
-        error={runtimeHealthQuery.error}
-        onRefresh={() => runtimeHealthQuery.refetch()}
-      />
     </div>
   )
 }
@@ -1337,12 +1470,14 @@ function CommunityRouteBindingEditor({
   binding,
   routeProviders,
   busy,
+  compact = false,
   onSave,
   onDelete,
 }: {
   binding: AIModelRouteBinding
   routeProviders: RouteProviderOption[]
   busy: boolean
+  compact?: boolean
   onSave: (form: CatalogRouteForm) => void
   onDelete: () => void
 }) {
@@ -1355,7 +1490,10 @@ function CommunityRouteBindingEditor({
 
   return (
     <form
-      className="grid gap-2 px-4 py-3 text-xs md:grid-cols-[minmax(160px,1fr)_100px_minmax(150px,1fr)_minmax(120px,0.8fr)_90px_90px_110px_auto]"
+      className={cn(
+        'grid gap-2 px-4 py-3 text-xs',
+        compact ? 'grid-cols-1' : 'md:grid-cols-[minmax(160px,1fr)_100px_minmax(150px,1fr)_minmax(120px,0.8fr)_90px_90px_110px_auto]',
+      )}
       onSubmit={(event) => {
         event.preventDefault()
         onSave(form)
@@ -1379,7 +1517,7 @@ function CommunityRouteBindingEditor({
       <Input value={form.priority} onChange={(event) => setForm({ ...form, priority: event.target.value })} placeholder="priority" className="h-8 text-xs" />
       <Input value={form.capacity_weight} onChange={(event) => setForm({ ...form, capacity_weight: event.target.value })} placeholder="capacity" className="h-8 text-xs" />
       <Input value={form.max_concurrency} onChange={(event) => setForm({ ...form, max_concurrency: event.target.value })} placeholder="concurrency" className="h-8 text-xs" />
-      <div className="flex items-center justify-end gap-1">
+      <div className={cn('flex items-center gap-1', compact ? 'justify-between' : 'justify-end')}>
         <label className="flex items-center gap-1 text-xs text-muted-foreground">
           <input type="checkbox" checked={form.is_enabled} onChange={(event) => setForm({ ...form, is_enabled: event.target.checked })} />
           启用
@@ -1468,6 +1606,46 @@ function catalogTemplateSupportedParamsValue(template: AIModelCatalogTemplate): 
   return params.length > 0 ? serializeParamDefs(params) : ''
 }
 
+function catalogTemplateIsRuntimeReady(template: AIModelCatalogTemplate): boolean {
+  return (template.source_status ?? '').trim() !== 'template_only'
+}
+
+function catalogTemplateSourceStatusIntent(template: AIModelCatalogTemplate): StatusBadgeProps['intent'] {
+  switch ((template.source_status ?? '').trim()) {
+    case 'template_only':
+      return 'warning'
+    case 'deprecated':
+      return 'neutral'
+    case 'verified':
+      return 'success'
+    case 'needs_review':
+    case 'observed':
+    case 'unofficial':
+      return 'warning'
+    default:
+      return 'neutral'
+  }
+}
+
+function catalogTemplateSourceStatusLabel(template: AIModelCatalogTemplate): string {
+  switch ((template.source_status ?? '').trim()) {
+    case 'template_only':
+      return '待适配'
+    case 'deprecated':
+      return '已废弃'
+    case 'verified':
+      return '可路由'
+    case 'needs_review':
+      return '待核对'
+    case 'observed':
+      return '已观测'
+    case 'unofficial':
+      return '非官方'
+    default:
+      return '模板'
+  }
+}
+
 function filterCatalogTemplates(templates: AIModelCatalogTemplate[], search: string, lab: string): AIModelCatalogTemplate[] {
   const needle = search.trim().toLowerCase()
   return templates.filter((template) => {
@@ -1480,8 +1658,9 @@ function filterCatalogTemplates(templates: AIModelCatalogTemplate[], search: str
       template.model_id,
       template.display_name,
       template.adapter_type,
+      template.source_status,
       ...template.capabilities,
-    ].some((value) => value.toLowerCase().includes(needle))
+    ].some((value) => (value ?? '').toLowerCase().includes(needle))
   })
 }
 
@@ -1675,6 +1854,7 @@ function matchingCatalogTemplateForRoute(
   const publicModelID = entry.public_model_id.trim()
   if (!publicModelID) return null
   const candidates = templates.filter((template) => {
+    if (!catalogTemplateIsRuntimeReady(template)) return false
     return template.default_public_model_id === publicModelID || template.model_id === publicModelID
   })
   if (candidates.length === 0) return null
@@ -1700,7 +1880,7 @@ function adapterTypeForRouteProviderID(providerID: string, credentials: AICreden
   const option = routeProviders.find((candidate) => candidate.provider_id === providerID)
   if (option) return routeProviderAdapterValue(option)
   const credentialID = localProviderCredentialIDFromProviderID(providerID)
-  if (!credentialID) return providerID === 'new_api' ? 'openai_compat' : ''
+  if (!credentialID) return providerID === 'relay_gateway' ? 'openai_compat' : ''
   return credentials.find((credential) => credential.ID === credentialID)?.adapter_type ?? ''
 }
 
@@ -2273,9 +2453,16 @@ function ProviderInstanceConfigDraftPanel({ instance }: { instance: ProviderInst
 // ── Model Management ──────────────────────────────────────────────────────────
 
 type ModelManagementViewMode = 'providers' | 'catalog' | 'routes'
+type ModelProviderStatusFilter = 'all' | 'ready' | 'missing' | 'disabled'
+type ModelCatalogStatusFilter = 'all' | 'enabled' | 'disabled'
+type ModelCatalogRouteFilter = 'all' | 'with-routes' | 'missing-routes'
+type ModelRouteCoverageFilter = 'all' | 'missing-routes' | 'disabled-routes'
+
+const MODEL_ADMIN_PAGE_SIZE = 25
+const MODEL_ADMIN_PAGE_SIZE_OPTIONS = [10, 25, 50, 100]
 
 function defaultModelManagementViewMode(): ModelManagementViewMode {
-  return runtimeCapabilities.gatewayNewAPIGroup ? 'routes' : 'providers'
+  return runtimeCapabilities.relayGatewayGroup ? 'routes' : 'providers'
 }
 
 function modelManagementRoute(view: ModelManagementViewMode): string {
@@ -2298,22 +2485,68 @@ const modelManagementSectionMeta: Array<{
   {
     id: 'providers',
     icon: Settings2,
-    label: 'Provider 接入',
-    description: '本地 credential、provider instance、认证和健康检查',
+    label: 'API账号管理',
+    description: '供应商账号、密钥完整性、连接测试',
   },
   {
     id: 'catalog',
     icon: Database,
-    label: 'Model Catalog',
-    description: '稳定 model id、能力、参数和输入约束',
+    label: '模型管理',
+    description: '对外 model id、能力、参数和输入约束',
   },
   {
       id: 'routes',
       icon: RouteIcon,
-      label: 'Route 线路',
-      description: 'Catalog Entry 到 provider lane 的绑定',
+      label: '路由管理',
+      description: '模型到 Provider 通道的覆盖关系',
   },
 ]
+
+function normalizeModelAdminSearch(value: string): string {
+  return value.trim().toLowerCase()
+}
+
+function modelAdminTextMatches(search: string, values: Array<string | number | undefined | null>): boolean {
+  const needle = normalizeModelAdminSearch(search)
+  if (!needle) return true
+  return values.some((value) => String(value ?? '').toLowerCase().includes(needle))
+}
+
+function modelAdminPaginationSlice<T>(items: T[], page: number, pageSize: number): { items: T[]; page: number; pageCount: number } {
+  const pageCount = Math.max(1, Math.ceil(items.length / pageSize))
+  const normalizedPage = Math.max(1, Math.min(page, pageCount))
+  return {
+    page: normalizedPage,
+    pageCount,
+    items: items.slice((normalizedPage - 1) * pageSize, normalizedPage * pageSize),
+  }
+}
+
+function ModelAdminSearchInput({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) {
+  return (
+    <label className="relative min-w-0 flex-1 sm:min-w-[220px]">
+      <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+      <Input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="h-9 pl-8 text-sm" />
+    </label>
+  )
+}
+
+function ModelAdminPageSizeSelect({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+  return (
+    <label className="flex items-center gap-2 text-xs text-muted-foreground">
+      每页
+      <select value={value} onChange={(event) => onChange(Number(event.target.value))} className="h-9 rounded-md border border-input bg-background px-2 text-xs text-foreground">
+        {MODEL_ADMIN_PAGE_SIZE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+      </select>
+    </label>
+  )
+}
+
+function providerInstanceReady(instance: ProviderInstance): boolean {
+  const missingConfig = instance.config_fields.some((field) => field.required && !field.configured)
+  const missingSecret = instance.secret_fields.some((field) => field.required && !field.configured)
+  return instance.enabled && instance.configured && !missingConfig && !missingSecret
+}
 
 function providerInstanceRef(instance: ProviderInstance): ProviderInstance['ref'] {
   return instance.ref
@@ -2547,8 +2780,8 @@ function routeProviderForBinding(binding: AIModelRouteBinding, providerByID: Map
 }
 
 function routeBindingProviderLabel(binding: AIModelRouteBinding, provider: RouteProviderOption | undefined, t: (key: string, options?: Record<string, unknown>) => string): string {
-  if (binding.source_type === 'new_api') {
-    return t('admin.modelCatalog.newAPIRoute')
+  if (binding.source_type === 'relay_gateway') {
+    return t('admin.modelCatalog.relayGatewayRoute')
   }
   return provider?.display_name || binding.provider_id || t('admin.modelCatalog.localProviderRoute')
 }
@@ -2603,91 +2836,6 @@ function ModelManagementLayerNav({
         )
       })}
     </nav>
-  )
-}
-
-function ModelManagementBoundaryOverview({
-  viewMode,
-  credentials,
-  providerInstances,
-  providers,
-  entries,
-}: {
-  viewMode: ModelManagementViewMode
-  credentials: AICredential[]
-  providerInstances: ProviderInstance[]
-  providers: AIProvider[]
-  entries: AIModelCatalogEntry[]
-}) {
-  if (viewMode === 'providers') {
-    const enabledCredentials = credentials.filter((credential) => credential.is_enabled).length
-    const editableInstances = providerInstances.filter((instance) => instance.config_editable).length
-    const enabledProviders = providers.filter((provider) => provider.is_enabled).length
-    return (
-      <section className="grid gap-3 md:grid-cols-4">
-        <BoundaryInfoCard
-          icon={<Settings2 size={16} />}
-          title="本页负责"
-          description="Provider 实例、密钥、Base URL、能力边界和连接测试。"
-        />
-        <BoundaryMetricCard label="Providers" value={String(providers.length)} detail={`${enabledProviders} 个已启用`} />
-        <BoundaryMetricCard label="Credentials" value={String(credentials.length)} detail={`${enabledCredentials} 个已启用`} />
-        <BoundaryMetricCard label="Provider Instances" value={String(providerInstances.length)} detail={`${editableInstances} 个可配置`} />
-      </section>
-    )
-  }
-
-  if (viewMode === 'catalog') {
-    const enabledEntries = entries.filter((entry) => entry.is_enabled).length
-    const capabilityCount = new Set(entries.flatMap((entry) => modelCatalogCapabilities(entry))).size
-    const withRoutes = entries.filter((entry) => (entry.route_bindings ?? []).length > 0).length
-    return (
-      <section className="grid gap-3 md:grid-cols-4">
-        <BoundaryMetricCard label="Catalog Entries" value={String(entries.length)} detail="MovScript 对外模型身份" />
-        <BoundaryMetricCard label="Enabled" value={String(enabledEntries)} detail="可被调用的模型" />
-        <BoundaryMetricCard label="With Routes" value={String(withRoutes)} detail="已有 provider route" />
-        <BoundaryMetricCard label="Capabilities" value={String(capabilityCount)} detail="已声明能力类型数" />
-      </section>
-    )
-  }
-
-    const bindings = entries.flatMap((entry) => entry.route_bindings ?? [])
-    const localBindings = bindings.filter((binding) => binding.source_type !== 'new_api')
-    const enabledBindings = localBindings.filter((binding) => binding.is_enabled).length
-    const providerTargets = new Set(localBindings.map((binding) => binding.provider_id).filter(Boolean)).size
-    return (
-      <section className="grid gap-3 md:grid-cols-4">
-        <BoundaryMetricCard label="Route Bindings" value={String(localBindings.length)} detail="Catalog 到 provider lane 的绑定" />
-        <BoundaryMetricCard label="Enabled" value={String(enabledBindings)} detail="当前启用的线路" />
-        <BoundaryMetricCard label="Provider Lanes" value={String(providerTargets)} detail="被 route 使用的 provider lane" />
-      <BoundaryInfoCard
-        icon={<Database size={16} />}
-        title="不在这里改"
-        description="public model id、能力、参数和输入约束仍属于 Catalog。"
-      />
-    </section>
-  )
-}
-
-function BoundaryInfoCard({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
-  return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-        {icon}
-        {title}
-      </div>
-      <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{description}</p>
-    </div>
-  )
-}
-
-function BoundaryMetricCard({ label, value, detail }: { label: string; value: string; detail: string }) {
-  return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-2 truncate text-xl font-semibold tracking-normal text-foreground">{value}</p>
-      <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
-    </div>
   )
 }
 
@@ -3378,6 +3526,11 @@ export function ModelManagementPage({ view = defaultModelManagementViewMode() }:
   const [editingNameValue, setEditingNameValue] = useState('')
   const [modelAdminError, setModelAdminError] = useState('')
   const [enablingComboKey, setEnablingComboKey] = useState<string | null>(null)
+  const [providerSearch, setProviderSearch] = useState('')
+  const [providerStatus, setProviderStatus] = useState<ModelProviderStatusFilter>('all')
+  const [providerType, setProviderType] = useState('all')
+  const [providerPage, setProviderPage] = useState(1)
+  const [providerPageSize, setProviderPageSize] = useState(MODEL_ADMIN_PAGE_SIZE)
 
   const { data: adapters = [], error: adaptersQueryError } = useQuery<AdapterDef[]>({
     queryKey: ['admin', 'adapters'],
@@ -3420,7 +3573,9 @@ export function ModelManagementPage({ view = defaultModelManagementViewMode() }:
   const selectedProviderAdapter = selectedProviderTemplate ? adapterByType.get(providerTemplateDefaultAdapter(selectedProviderTemplate)) ?? null : null
   const providerInstances = providerInstancesData?.items ?? []
   const startupProviderInstances = providerInstances.filter((item) => !providerInstanceRef(item))
-  const isNewAPIGatewayMode = hasNewAPIGatewayProviderInstance(startupProviderInstances)
+  const apiAccountStartupProviderInstances = modelProviderAccountStartupInstances(startupProviderInstances)
+  const providerInstanceById = new Map(providerInstances.map((item) => [item.id, item]))
+  const isRelayGatewayMode = hasRelayGatewayProviderInstance(startupProviderInstances)
   const providerInstanceByCredentialId = new Map<number, ProviderInstance>()
   providerInstances.forEach((item) => {
     const ref = providerInstanceRef(item)
@@ -3428,6 +3583,47 @@ export function ModelManagementPage({ view = defaultModelManagementViewMode() }:
       providerInstanceByCredentialId.set(ref.id, item)
     }
   })
+  const providerTypes = useMemo(() => Array.from(new Set([
+    ...credentials.map((credential) => credential.adapter_type).filter(Boolean),
+    ...apiAccountStartupProviderInstances.map((instance) => instance.type).filter(Boolean),
+  ])).sort(), [apiAccountStartupProviderInstances, credentials])
+  const apiAccountReadyCount = useMemo(() => (
+    credentials.filter((cred) => {
+      const instance = providerInstanceByCredentialId.get(cred.ID)
+      return cred.is_enabled && (!instance || providerInstanceReady(instance))
+    }).length + apiAccountStartupProviderInstances.filter(providerInstanceReady).length
+  ), [apiAccountStartupProviderInstances, credentials, providerInstanceByCredentialId])
+  const apiAccountPendingCount = useMemo(() => (
+    credentials.filter((cred) => {
+      const instance = providerInstanceByCredentialId.get(cred.ID)
+      return cred.is_enabled && (instance ? !providerInstanceReady(instance) : !Boolean(cred.masked_key))
+    }).length + apiAccountStartupProviderInstances.filter((instance) => instance.enabled && !providerInstanceReady(instance)).length
+  ), [apiAccountStartupProviderInstances, credentials, providerInstanceByCredentialId])
+  const filteredCredentials = useMemo(() => credentials.filter((cred) => {
+    const instance = providerInstanceByCredentialId.get(cred.ID)
+    if (providerType !== 'all' && cred.adapter_type !== providerType && instance?.type !== providerType) return false
+    if (providerStatus === 'ready' && !(cred.is_enabled && (!instance || providerInstanceReady(instance)))) return false
+    if (providerStatus === 'missing' && (!cred.is_enabled || (instance ? providerInstanceReady(instance) : Boolean(cred.masked_key)))) return false
+    if (providerStatus === 'disabled' && cred.is_enabled) return false
+    return modelAdminTextMatches(providerSearch, [cred.display_name, cred.adapter_type, cred.base_url, instance?.id, instance?.label, instance?.display_name, ...(instance?.capabilities ?? [])])
+  }), [credentials, providerInstanceByCredentialId, providerSearch, providerStatus, providerType])
+  const filteredStartupProviderInstances = useMemo(() => apiAccountStartupProviderInstances.filter((instance) => {
+    if (providerType !== 'all' && instance.type !== providerType) return false
+    if (providerStatus === 'ready' && !providerInstanceReady(instance)) return false
+    if (providerStatus === 'missing' && (providerInstanceReady(instance) || !instance.enabled)) return false
+    if (providerStatus === 'disabled' && instance.enabled) return false
+    return modelAdminTextMatches(providerSearch, [instance.id, instance.label, instance.display_name, instance.type, instance.adapter, instance.managed_by, ...(instance.capabilities ?? [])])
+  }), [apiAccountStartupProviderInstances, providerSearch, providerStatus, providerType])
+  const providerAccountRows = useMemo(() => {
+    const credentialRows = filteredCredentials.map((credential) => ({ kind: 'credential' as const, id: `credential:${credential.ID}`, credential }))
+    const instanceRows = filteredStartupProviderInstances.map((instance) => ({ kind: 'instance' as const, id: `instance:${instance.id}`, instance }))
+    return [...credentialRows, ...instanceRows]
+  }, [filteredCredentials, filteredStartupProviderInstances])
+  const providerPagination = modelAdminPaginationSlice(providerAccountRows, providerPage, providerPageSize)
+
+  useEffect(() => {
+    setProviderPage(1)
+  }, [providerSearch, providerStatus, providerType, providerPageSize])
 
   const deleteCredential = useMutation({
     mutationFn: (id: number) => api.delete(`/admin/credentials/${id}`),
@@ -3553,28 +3749,20 @@ export function ModelManagementPage({ view = defaultModelManagementViewMode() }:
     <div className="space-y-6 max-w-6xl">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-xs font-medium uppercase text-muted-foreground">AI Provider</p>
-          <h2 className="mt-1 text-xl font-semibold text-foreground">Provider / Catalog / Route</h2>
-          <p className="mt-1 text-sm text-muted-foreground">三层配置独立维护：Provider 接入上游，Catalog 定义模型身份，Route 决定请求线路。</p>
+          <p className="text-xs font-medium uppercase text-muted-foreground">AI Admin</p>
+          <h2 className="mt-1 text-xl font-semibold text-foreground">AI 配置工作台</h2>
+          <p className="mt-1 text-sm text-muted-foreground">账号、模型和路由分开维护；列表优先，详情按需展开。</p>
         </div>
       </div>
 
       <ModelManagementLayerNav activeView={viewMode} onChange={setViewMode} />
 
-      <ModelManagementBoundaryOverview
-        viewMode={viewMode}
-        credentials={credentials}
-        providerInstances={providerInstances}
-        providers={aiProviders}
-        entries={topologyCatalogEntries}
-      />
-
       <div className="rounded-lg border border-border bg-card px-4 py-3 text-xs text-muted-foreground">
         {viewMode === 'providers'
-          ? (isNewAPIGatewayMode ? t('admin.models.newAPIGatewayProvidersHint') : t('admin.models.providersHint'))
+          ? `${t('admin.models.apiAccountsSummary', { defaultValue: 'API账号' })} ${credentials.length + apiAccountStartupProviderInstances.length} · Ready ${apiAccountReadyCount} · ${t('admin.models.pendingSetup', { defaultValue: '待配置' })} ${apiAccountPendingCount}`
           : viewMode === 'catalog'
-            ? t('admin.models.catalogHint')
-            : t('admin.models.routesHint')}
+            ? `${t('admin.models.modelCatalogSummary', { defaultValue: '模型' })} ${topologyCatalogEntries.length} · ${t('admin.modelCatalog.enabled')} ${topologyCatalogEntries.filter((entry) => entry.is_enabled).length} · ${t('admin.models.missingRoutes', { defaultValue: '缺少路由' })} ${topologyCatalogEntries.filter((entry) => (entry.route_bindings ?? []).length === 0).length}`
+            : `${t('admin.models.routeSummary', { defaultValue: '路由绑定' })} ${topologyCatalogEntries.flatMap((entry) => entry.route_bindings ?? []).length} · ${t('admin.models.missingRoutes', { defaultValue: '缺少路由' })} ${topologyCatalogEntries.filter((entry) => (entry.route_bindings ?? []).length === 0).length}`}
       </div>
 
       {modelAdminError && (
@@ -3600,7 +3788,7 @@ export function ModelManagementPage({ view = defaultModelManagementViewMode() }:
               }}
             >
               <Plus size={14} className="mr-1.5" />
-              {isNewAPIGatewayMode ? t('admin.models.addNewAPIRoute') : t('admin.models.addProvider')}
+              {isRelayGatewayMode ? t('admin.models.addRelayGatewayRoute') : t('admin.models.addProvider')}
             </Button>
         </div>
       )}
@@ -3620,12 +3808,12 @@ export function ModelManagementPage({ view = defaultModelManagementViewMode() }:
         <CredentialForm
           adapter={selectedProviderAdapter}
           providerTemplate={selectedProviderTemplate}
-          newAPIGatewayMode={isNewAPIGatewayMode}
+          relayGatewayMode={isRelayGatewayMode}
           onBack={() => setAddStep('pick')}
           onSuccess={(providerKind) => {
             setAddStep('idle')
             setSelectedProviderTemplate(null)
-            setRelayHint(!isNewAPIGatewayMode && providerKind === 'volcengine_ark_official' ? 'volcen' : null)
+            setRelayHint(!isRelayGatewayMode && providerKind === 'volcengine_ark_official' ? 'volcen' : null)
           }}
         />
       )}
@@ -3653,28 +3841,117 @@ export function ModelManagementPage({ view = defaultModelManagementViewMode() }:
 
       {viewMode === 'providers' && (
         <div className="space-y-3">
-          <ProviderModelImportWizard />
+          <div className="rounded-lg border border-border bg-card p-3">
+            <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+              <ModelAdminSearchInput value={providerSearch} onChange={setProviderSearch} placeholder="搜索账号、供应商、能力..." />
+              <select value={providerType} onChange={(event) => setProviderType(event.target.value)} className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground">
+                <option value="all">全部供应商</option>
+                {providerTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+              </select>
+              <select value={providerStatus} onChange={(event) => setProviderStatus(event.target.value as ModelProviderStatusFilter)} className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground">
+                <option value="all">全部状态</option>
+                <option value="ready">Ready</option>
+                <option value="missing">待配置</option>
+                <option value="disabled">Disabled</option>
+              </select>
+              <ModelAdminPageSizeSelect value={providerPageSize} onChange={setProviderPageSize} />
+            </div>
+          </div>
 
-          <ProviderRegistrySummary
-            providers={aiProviders}
-            adapters={adapters}
-            providerTemplates={providerTemplates}
-            comboTemplates={comboTemplates}
-            enablingComboKey={enablingComboKey}
-            onEnableCombo={(comboTemplateKey, providerID) => enableComboTemplate.mutate({ comboTemplateKey, providerID })}
-          />
+          <div className="rounded-lg border border-border bg-card">
+            <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+              <p className="text-sm font-medium text-foreground">API账号与实例</p>
+              <span className="text-xs text-muted-foreground">{providerAccountRows.length} / {credentials.length + apiAccountStartupProviderInstances.length}</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/40 text-xs text-muted-foreground">
+                  <tr>
+                    <th className="px-4 py-2 text-left font-medium">账号/实例</th>
+                    <th className="px-4 py-2 text-left font-medium">供应商</th>
+                    <th className="px-4 py-2 text-left font-medium">密钥</th>
+                    <th className="px-4 py-2 text-left font-medium">状态</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {providerPagination.items.map((row) => {
+                    if (row.kind === 'instance') {
+                      const instance = row.instance
+                      return (
+                        <tr key={row.id} className="border-t border-border">
+                          <td className="px-4 py-2">
+                            <div className="font-medium text-foreground">{instance.display_name || instance.label}</div>
+                            <div className="font-mono text-xs text-muted-foreground">{instance.id}</div>
+                          </td>
+                          <td className="px-4 py-2">
+                            <div className="font-mono text-xs text-foreground">{instance.type}</div>
+                            <div className="text-xs text-muted-foreground">{instance.adapter}</div>
+                          </td>
+                          <td className="px-4 py-2 text-xs text-muted-foreground">{instance.secret_fields.filter((field) => field.configured).length}/{instance.secret_fields.length}</td>
+                          <td className="px-4 py-2">
+                            <StatusBadge intent={providerInstanceReady(instance) ? 'success' : instance.enabled ? 'warning' : 'neutral'}>
+                              {providerInstanceReady(instance) ? 'Ready' : instance.enabled ? '待配置' : 'Disabled'}
+                            </StatusBadge>
+                          </td>
+                        </tr>
+                      )
+                    }
+                    const cred = row.credential
+                    const instance = providerInstanceByCredentialId.get(cred.ID)
+                    return (
+                      <tr key={row.id} className="border-t border-border">
+                        <td className="px-4 py-2">
+                          <div className="font-medium text-foreground">{cred.display_name}</div>
+                          <div className="truncate text-xs text-muted-foreground">{cred.base_url || instance?.id || '-'}</div>
+                        </td>
+                        <td className="px-4 py-2">
+                          <div className="font-mono text-xs text-foreground">{cred.adapter_type}</div>
+                          <div className="text-xs text-muted-foreground">{instance?.managed_by || 'credential'}</div>
+                        </td>
+                        <td className="px-4 py-2 text-xs text-muted-foreground">{instance ? `${instance.secret_fields.filter((field) => field.configured).length}/${instance.secret_fields.length}` : (cred.masked_key ? '1/1' : '0/1')}</td>
+                        <td className="px-4 py-2">
+                          <StatusBadge intent={cred.is_enabled ? 'success' : 'neutral'}>{cred.is_enabled ? t('admin.modelCatalog.enabled') : t('admin.modelCatalog.disabled')}</StatusBadge>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                  {providerPagination.items.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="px-4 py-8 text-center text-sm text-muted-foreground">没有匹配的 API 账号。</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <PaginationControls page={providerPagination.page} pageCount={providerPagination.pageCount} pageSize={providerPageSize} total={providerAccountRows.length} onPageChange={setProviderPage} disabled={Boolean(providerInstancesData === undefined && providerInstancesQueryError)} />
 
-          {startupProviderInstances.length > 0 && (
-            <div className="border border-border rounded-lg bg-background overflow-hidden">
-              <div className="px-4 py-3 border-b border-border">
+          <details className="rounded-lg border border-border bg-card">
+            <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-foreground">导入与模板</summary>
+            <div className="space-y-3 border-t border-border p-3">
+              <ProviderModelImportWizard />
+              <ProviderRegistrySummary
+                providers={aiProviders}
+                adapters={adapters}
+                providerTemplates={providerTemplates}
+                comboTemplates={comboTemplates}
+                enablingComboKey={enablingComboKey}
+                onEnableCombo={(comboTemplateKey, providerID) => enableComboTemplate.mutate({ comboTemplateKey, providerID })}
+              />
+            </div>
+          </details>
+
+          {apiAccountStartupProviderInstances.length > 0 && (
+            <details className="border border-border rounded-lg bg-background overflow-hidden">
+              <summary className="cursor-pointer px-4 py-3 border-b border-border">
                 <div className="flex items-center gap-2">
                   <Settings2 size={15} className="text-muted-foreground" />
-                  <p className="text-sm font-medium">{t('admin.models.startupAssemblyTitle')}</p>
+                  <p className="text-sm font-medium">{t('admin.models.providerRuntimeInstancesTitle', { defaultValue: '运行实例（高级）' })}</p>
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">{t('admin.models.startupAssemblyHint')}</p>
-              </div>
+                <p className="text-xs text-muted-foreground mt-1">{t('admin.models.providerRuntimeInstancesHint', { defaultValue: '仅在需要编辑运行实例配置、应用配置或触发部署时展开。' })}</p>
+              </summary>
               <div className="divide-y divide-border">
-                {startupProviderInstances.map((instance) => {
+                {filteredStartupProviderInstances.map((instance) => {
                   const testKey = `provider-instance-${instance.id}`
                   const testRes = testResults[testKey]
                   const configuredConfig = instance.config_fields.filter((field) => field.configured).length
@@ -3730,10 +4007,13 @@ export function ModelManagementPage({ view = defaultModelManagementViewMode() }:
                     </div>
                   )
                 })}
+                {filteredStartupProviderInstances.length === 0 && (
+                  <p className="px-4 py-6 text-center text-sm text-muted-foreground">没有匹配的运行实例。</p>
+                )}
               </div>
-            </div>
+            </details>
           )}
-          {credentials.map((cred) => {
+          {filteredCredentials.map((cred) => {
           const providerInstance = providerInstanceByCredentialId.get(cred.ID)
           const testKey = providerInstance ? `provider-instance-${providerInstance.id}` : `cred-${cred.ID}`
           const testRes = testResults[testKey]
@@ -3797,10 +4077,10 @@ export function ModelManagementPage({ view = defaultModelManagementViewMode() }:
                       </span>
                     )}
                   </div>
-                    {!isNewAPIGatewayMode && cred.base_url && <p className="text-xs text-muted-foreground truncate">{cred.base_url}</p>}
+                    {!isRelayGatewayMode && cred.base_url && <p className="text-xs text-muted-foreground truncate">{cred.base_url}</p>}
                 </div>
 
-                  {!isNewAPIGatewayMode && cred.masked_key && (
+                  {!isRelayGatewayMode && cred.masked_key && (
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
                     <button onClick={() => setShowKey((s) => ({ ...s, [cred.ID]: !s[cred.ID] }))}>
                       {showKey[cred.ID] ? <EyeOff size={12} /> : <Eye size={12} />}
@@ -3809,7 +4089,7 @@ export function ModelManagementPage({ view = defaultModelManagementViewMode() }:
                   </div>
                 )}
 
-                {!isNewAPIGatewayMode && (
+                {!isRelayGatewayMode && (
                   <>
                     <button
                       onClick={() => runTest(testKey, () => (
@@ -3849,9 +4129,9 @@ export function ModelManagementPage({ view = defaultModelManagementViewMode() }:
                     <div className="border border-border rounded-lg bg-background p-3 space-y-2">
                     <div className="flex items-center justify-between">
                       <p className="text-xs font-medium text-muted-foreground">
-                        {isNewAPIGatewayMode ? t('admin.models.newAPIGatewayRouteAuth') : t('admin.models.credentialAuth')}
+                        {isRelayGatewayMode ? t('admin.models.relayGatewayRouteAuth') : t('admin.models.credentialAuth')}
                       </p>
-                      {!isNewAPIGatewayMode && (
+                      {!isRelayGatewayMode && (
                         <button
                           onClick={() => credentialEditFor === cred.ID ? setCredentialEditFor(null) : openCredentialAuthEdit(cred)}
                           className="text-xs text-muted-foreground hover:text-foreground"
@@ -3861,9 +4141,9 @@ export function ModelManagementPage({ view = defaultModelManagementViewMode() }:
                       )}
                     </div>
 
-                    {isNewAPIGatewayMode ? (
+                    {isRelayGatewayMode ? (
                       <p className="text-xs leading-relaxed text-muted-foreground">
-                        {t('admin.models.newAPIGatewayRouteAuthHint')}
+                        {t('admin.models.relayGatewayRouteAuthHint')}
                       </p>
                     ) : credentialEditFor !== cred.ID ? (
                       <div className="grid gap-1 text-xs text-muted-foreground">
@@ -3933,7 +4213,7 @@ export function ModelManagementPage({ view = defaultModelManagementViewMode() }:
                   </div>
 
                   {/* Files API config — shown only for adapters that support it */}
-                    {!isNewAPIGatewayMode && adapter?.supports_files_api && (() => {
+                    {!isRelayGatewayMode && adapter?.supports_files_api && (() => {
                     const isEditing = filesAPIEditFor === cred.ID
                     return (
                       <div className="border-t border-border pt-3">
@@ -4036,7 +4316,7 @@ export function ModelManagementPage({ view = defaultModelManagementViewMode() }:
 
           {credentials.length === 0 && addStep === 'idle' && (
             <p className="text-sm text-muted-foreground text-center py-8">
-              {isNewAPIGatewayMode ? t('admin.models.noNewAPIRoutesHint') : t('admin.models.noCredentialsHint')}
+              {isRelayGatewayMode ? t('admin.models.noRelayGatewayRoutesHint') : t('admin.models.noCredentialsHint')}
             </p>
           )}
         </div>
@@ -4922,8 +5202,12 @@ const CAPABILITY_TRANSLATION_KEYS: Record<string, string> = {
   audio: 'admin.capabilities.audio',
   audio_tts: 'admin.capabilities.audioTTS',
   audio_transcribe: 'admin.capabilities.audioTranscribe',
+  audio_translate: 'admin.capabilities.audioTranslate',
   audio_music: 'admin.capabilities.audioMusic',
   audio_sfx: 'admin.capabilities.audioSfx',
+  audio_chat: 'admin.capabilities.audioChat',
+  voice_clone: 'admin.capabilities.voiceClone',
+  voice_design: 'admin.capabilities.voiceDesign',
   subtitle_align: 'admin.capabilities.subtitleAlign',
   subtitle_translate: 'admin.capabilities.subtitleTranslate',
 }
@@ -4938,8 +5222,12 @@ const MODEL_CAPABILITIES = [
   'video_v2v',
   'audio_tts',
   'audio_transcribe',
+  'audio_translate',
   'audio_music',
   'audio_sfx',
+  'audio_chat',
+  'voice_clone',
+  'voice_design',
   'subtitle_align',
   'subtitle_translate',
 ] as const
@@ -4955,8 +5243,12 @@ const CAPABILITY_STATUS_INTENT: Record<string, StatusBadgeProps['intent']> = {
   audio: 'info',
   audio_tts: 'info',
   audio_transcribe: 'info',
+  audio_translate: 'info',
   audio_music: 'info',
   audio_sfx: 'info',
+  audio_chat: 'info',
+  voice_clone: 'info',
+  voice_design: 'info',
   subtitle_align: 'info',
   subtitle_translate: 'info',
 }

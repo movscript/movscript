@@ -65,11 +65,11 @@ test('selectLatestGeneratedResource reads MCP data wrapper output resources', ()
 test('selectLatestGeneratedResource reads agent-owned provider generation output resources', () => {
   const run = runWithToolResults([
     {
-      toolName: 'generation_image_generate',
+      toolName: 'generation_submit',
       result: { data: { status: 'submitted', jobId: 101 } },
     },
     {
-      toolName: 'generation_image_job_get',
+      toolName: 'generation_job_get',
       result: {
         data: {
           status: 'succeeded',
@@ -90,11 +90,11 @@ test('selectLatestGeneratedResource reads agent-owned provider generation output
 test('selectLatestGeneratedResource reads content-unit generation candidate monitor resources', () => {
   const run = runWithToolResults([
     {
-      toolName: 'generation_content_unit_image_generate',
+      toolName: 'generation_submit',
       result: { data: { status: 'submitted', jobId: 101, contentUnitId: 12 } },
     },
     {
-      toolName: 'generation_content_unit_image_job_get',
+      toolName: 'generation_job_get',
       result: {
         data: {
           status: 'succeeded',
@@ -114,14 +114,14 @@ test('selectLatestGeneratedResource reads content-unit generation candidate moni
   })
 })
 
-test('selectLatestGeneratedResource reads system content-unit generation alias resources', () => {
+test('selectLatestGeneratedResource reads content-unit video generation resources', () => {
   const run = runWithToolResults([
     {
-      toolName: 'system_generate_content_unit_video',
+      toolName: 'generation_submit',
       result: { data: { status: 'submitted', jobId: 301, contentUnitId: 22 } },
     },
     {
-      toolName: 'system_generate_content_unit_video_job_get',
+      toolName: 'generation_job_get',
       result: {
         data: {
           status: 'succeeded',

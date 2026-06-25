@@ -7,7 +7,8 @@ export default function AudioGenPage() {
   return (
     <ToolDialog
       nodeType="audio_tts"
-      capability="audio"
+      capability="audio_tts"
+      jobType="audio_tts"
       toolName={t('tools.defs.audioGen.name')}
       toolDescription={t('tools.defs.audioGen.description')}
       inputType="none"

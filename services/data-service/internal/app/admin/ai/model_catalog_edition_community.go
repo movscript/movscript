@@ -8,4 +8,4 @@ func normalizeEditionModelRouteBindingInput(input ModelRouteBindingInput) ModelR
 
 func supportsLocalProviderRouteBindings() bool { return true }
 
-func supportsNewAPIRouteBindings() bool { return false }
+func supportsRelayGatewayRouteBindings() bool { return false }

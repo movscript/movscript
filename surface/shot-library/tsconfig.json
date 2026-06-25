@@ -11,6 +11,9 @@
       "@movscript/shot-library-surface/data": [
         "./src/data.ts"
       ],
+      "@movscript/shot-library-surface/i18n": [
+        "./src/i18n.ts"
+      ],
       "@movscript/shot-library-surface/pages": [
         "./src/pages/index.ts"
       ],

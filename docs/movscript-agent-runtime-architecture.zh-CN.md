@@ -1717,7 +1717,7 @@ rg "in-process|in_process|同进程|compat|compatibility|legacy|alias|mcp-stdio-
    - stdio、进程启动、runtime 检测、插件安装路径属于 mcp-host/plugin。
 
 2. **同名 MCP tool 只有一个业务实现**
-   - `domain_interpret`、`system_generate_image` 等工具不得在插件里重写。
+   - `domain_interpret`、`generation_submit` 等工具不得在插件里重写。
    - 插件可以包装 transport，但不得复制 tool schema 和 action 逻辑作为长期方案。
 
 3. **Desktop 是增强宿主，不是核心依赖**
@@ -2406,13 +2406,12 @@ printf '%s\n%s\n%s\n' \
 - `system_model_list`
 - `system_resource_library_query`
 - `system_resource_upload`
-- `system_generate_image`
-- `system_generate_video`
-- `system_generate_voiceover`
-- `system_generate_music`
-- `system_generate_sfx`
-- `system_generate_subtitle`
-- generation job polling
+- `generation_capability_list`
+- `generation_prepare`
+- `generation_submit`
+- `generation_job_get`
+- `generation_job_get_batch`
+- `generation_result_register`
 - `domain_query_*`
 - `domain_read_*`
 - `domain_upsert_*`

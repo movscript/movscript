@@ -8,7 +8,7 @@ This file is based on public Seedance skill patterns, including MapleShaw's Seed
 
 - Use `{{asset::id}}`, `{{storyboard::id}}`, `{{keyframe::id}}`, `{{scene_moment::id}}`, `{{expression_unit::id}}`, or `{{resource::123}}` in prompts.
 - Use `input_resource_ids` / `reference_resource_ids` for loose RawResource references when dependency tracking is not needed.
-- Use `system_generate_content_unit_video` for content-unit candidates; do not treat the generated resource as selected until adoption/selection.
+- Use `generation_submit` with `scope: "content_unit"` for content-unit candidates; do not treat the generated resource as selected until adoption/selection.
 - Keep duration, aspect ratio, and provider parameters outside the prompt when the generation API already accepts them as settings.
 - If a provider adapter converts MovScript refs to Seedance-style numbered references internally, keep that conversion outside the authored content-unit prompt.
 

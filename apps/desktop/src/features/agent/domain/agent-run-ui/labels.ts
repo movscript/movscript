@@ -132,27 +132,8 @@ export function approvalImpactLabel(approval: Pick<AgentApprovalRequest, 'toolNa
 
   const toolName = normalizeToolName(approval.toolName)
   switch (toolName) {
-    case 'generation_image_generate': return '批准后会提交图像生成任务，可能消耗生成额度。'
-    case 'generation_content_unit_image_generate':
-    case 'system_generate_content_unit_image':
-      return '批准后会编译创作片段提示词并提交图像生成任务；成功后会写入候选，可能消耗生成额度。'
-    case 'generation_video_generate': return '批准后会提交视频生成任务，可能消耗生成额度。'
-    case 'generation_content_unit_video_generate':
-    case 'system_generate_content_unit_video':
-      return '批准后会编译创作片段提示词并提交视频生成任务；成功后会写入候选，可能消耗生成额度。'
-    case 'generation_audio_generate': return '批准后会提交音频生成任务，可能消耗生成额度。'
-    case 'generation_voiceover_generate':
-    case 'system_generate_voiceover': return '批准后会提交配音生成任务，可能消耗生成额度。'
-    case 'generation_music_generate':
-    case 'system_generate_music': return '批准后会提交音乐生成任务，可能消耗生成额度。'
-    case 'generation_sfx_generate':
-    case 'system_generate_sfx': return '批准后会提交音效生成任务，可能消耗生成额度。'
-    case 'generation_subtitle_generate':
-    case 'system_generate_subtitle':
-    case 'generation_subtitle_align':
-    case 'system_align_subtitle':
-    case 'generation_subtitle_translate':
-    case 'system_translate_subtitle': return '批准后会提交字幕/转写生成任务，可能消耗生成额度。'
+    case 'generation_submit': return '批准后会按所选能力提交生成任务；content-unit 图像/视频成功后会写入候选，可能消耗生成额度。'
+    case 'generation_result_register': return '批准后会把已有生成资源登记为创作片段候选。'
     case 'generation_job_create': return '批准后会创建生成任务，可能消耗生成额度。'
     case 'generation_job_cancel': return '批准后会取消生成任务，未完成的输出可能不再产生。'
     case 'movscript_project_create': return '批准后会创建项目数据。'

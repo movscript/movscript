@@ -200,7 +200,7 @@ test('app window header exposes semantic icon regions and left control fill layo
   assert.match(appSource, /const settingsCenterHeader = \([\s\S]*navigationControls=\{settingsSidebarHidden \? navigationHomeControl : undefined\}/)
   assert.match(appSource, /const projectHistoryNavigationControls = <AppShellHistoryNavigationControls navClassName="project-window-controls__nav" \/>/)
   assert.match(appSource, /export function AppShellHistoryNavigationControls[\s\S]*window\.history\.back[\s\S]*window\.history\.forward/)
-  assert.match(appSource, /import \{ ProjectEntryDeckHeader \} from '@\/features\/project\/components\/ProjectEntryDeckHeader'/)
+  assert.match(appSource, /import \{ ProjectEntryDeckHeader \} from '@movscript\/project-surface\/react'/)
   assert.match(appSource, /<ProjectEntryDeckHeader[\s\S]*activeEntryId=\{routeLayout\.projectEntryId\}[\s\S]*projectId=\{currentProject\.ID\}[\s\S]*projectName=\{currentProject\.name\}/)
   assert.match(projectEntryDeckHeaderSource, /buildProjectEntryDeck\(\{[\s\S]*activeEntryId,[\s\S]*projectId,[\s\S]*snapshots,[\s\S]*\}\)/)
   assert.match(projectEntryDeckHeaderSource, /buildProjectEntryDeckOrderUpdates\(\{[\s\S]*draggedEntryId,[\s\S]*targetEntryId,[\s\S]*position,[\s\S]*projectId,[\s\S]*snapshots,[\s\S]*\}\)/)

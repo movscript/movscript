@@ -68,7 +68,7 @@ export default function ModelProvidersPage() {
               {(backendModelsQuery.isLoading || modelCatalogQuery.isLoading) && <AgentConsoleSyncBadge>同步中</AgentConsoleSyncBadge>}
             </AgentConsoleHeaderTitleRow>
             <AgentConsoleHeaderDescription>
-              按 Provider、Catalog 和 Route 三层查看模型调用状态。配置权威在 Admin：Provider 保存认证和上游来源，Catalog 保存系统识别的模型身份，Route 决定请求实际落到哪条 provider lane。
+              按 Provider、Catalog 和 Route 三层查看模型调用状态。配置权威在 Admin：Provider 保存认证和上游来源，Catalog 保存系统识别的模型身份，Route 决定请求实际落到哪条 Provider 通道。
             </AgentConsoleHeaderDescription>
           </AgentConsoleHeaderCopy>
           <AgentConsoleHeaderActions>

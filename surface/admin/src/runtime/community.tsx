@@ -59,7 +59,7 @@ export const runtimeSectionCards: AdminSectionCard[] = []
 
 export const runtimeCapabilities: AdminRuntimeCapabilities = {
   userQuotaManagement: false,
-  gatewayNewAPIGroup: false,
+  relayGatewayGroup: false,
   hideModelManagement: false,
   modelManagementRedirect: undefined,
 }

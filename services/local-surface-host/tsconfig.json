@@ -35,11 +35,15 @@
       "@movscript/editing-surface/toast": ["../../surface/editing/src/toast.ts"],
       "@movscript/editing-surface/window-events": ["../../surface/editing/src/window-events.ts"],
       "@movscript/editing-surface": ["../../surface/editing/src/index.ts"],
+      "@movscript/jobs-surface/pages": ["../../surface/jobs/src/pages/index.ts"],
+      "@movscript/jobs-surface/i18n": ["../../surface/jobs/src/i18n.ts"],
+      "@movscript/jobs-surface": ["../../surface/jobs/src/index.ts"],
       "@movscript/project-surface/react": ["../../surface/project/src/react.ts"],
       "@movscript/project-surface/runtime": ["../../surface/project/src/runtime.ts"],
       "@movscript/project-surface/data": ["../../surface/project/src/data.ts"],
       "@movscript/project-surface/routes": ["../../surface/project/src/routes.ts"],
       "@movscript/project-surface/layout": ["../../surface/project/src/layout.ts"],
+      "@movscript/project-surface/i18n": ["../../surface/project/src/i18n.ts"],
       "@movscript/project-surface/pages": ["../../surface/project/src/pages/index.ts"],
       "@movscript/project-surface": ["../../surface/project/src/index.ts"],
       "@movscript/resources": ["../../packages/resources/src/index.ts"],
@@ -66,6 +70,9 @@
       "@movscript/resource-surface/i18n": ["../../surface/resource/src/i18n.ts"],
       "@movscript/resource-surface/pages": ["../../surface/resource/src/pages/index.ts"],
       "@movscript/resource-surface": ["../../surface/resource/src/index.ts"],
+      "@movscript/shot-library-surface/pages": ["../../surface/shot-library/src/pages/index.ts"],
+      "@movscript/shot-library-surface/i18n": ["../../surface/shot-library/src/i18n.ts"],
+      "@movscript/shot-library-surface": ["../../surface/shot-library/src/index.ts"],
       "@movscript/core/agent": ["../../packages/core/src/agent/index.ts"],
       "@movscript/core/content": ["../../packages/core/src/content/index.ts"],
       "@movscript/core/generation": ["../../packages/core/src/generation/index.ts"],
@@ -95,7 +102,10 @@
     "../../surface/admin/src",
     "../../surface/canvas/src",
     "../../surface/editing/src",
-    "../../surface/resource/src/pages"
+    "../../surface/jobs/src",
+    "../../surface/project/src",
+    "../../surface/resource/src/pages",
+    "../../surface/shot-library/src"
   ],
   "exclude": [
     "../../surface/admin/src/**/*.test.ts",
@@ -104,9 +114,13 @@
     "../../surface/canvas/src/**/*.test.tsx",
     "../../surface/editing/src/**/*.test.ts",
     "../../surface/editing/src/**/*.test.tsx",
+    "../../surface/jobs/src/**/*.test.ts",
+    "../../surface/jobs/src/**/*.test.tsx",
     "../../surface/project/src/**/*.test.ts",
     "../../surface/project/src/**/*.test.tsx",
     "../../surface/resource/src/**/*.test.ts",
-    "../../surface/resource/src/**/*.test.tsx"
+    "../../surface/resource/src/**/*.test.tsx",
+    "../../surface/shot-library/src/**/*.test.ts",
+    "../../surface/shot-library/src/**/*.test.tsx"
   ]
 }

@@ -99,25 +99,12 @@ import {
 } from './editing/actions.js'
 import { listModels } from './model/actions'
 import {
-  generateImage,
-  generateContentUnitImage,
-  alignSubtitle,
-  generateAudio,
-  generateMusic,
-  generateSfx,
-  generateSubtitle,
-  generateVideo,
-  generateContentUnitVideo,
-  generateVoiceover,
-  translateSubtitle,
-  getAudioGenerationJob,
-  getAudioGenerationJobs,
-  getContentUnitImageGenerationJob,
-  getContentUnitVideoGenerationJob,
-  getImageGenerationJob,
-  getImageGenerationJobs,
-  getVideoGenerationJob,
-  getVideoGenerationJobs,
+  getUnifiedGenerationJob,
+  getUnifiedGenerationJobs,
+  listGenerationCapabilities,
+  prepareGeneration,
+  registerGenerationResult,
+  submitUnifiedGeneration,
 } from './generation/actions'
 import { createProject, fetchLocalProject, initLocalProject } from './project/projects.js'
 import { getObjectParam, getStringParam } from '../../protocol/params.js'
@@ -164,60 +151,18 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
     case 'generation_model_list':
     case 'movscript_model_list':
       return toolText(await listModels(args))
-    case 'system_generate_image':
-    case 'generation_image_generate':
-      return toolText(await generateImage(args))
-    case 'system_generate_content_unit_image':
-    case 'generation_content_unit_image_generate':
-      return toolText(await generateContentUnitImage(args))
-    case 'system_generate_image_job_get':
-    case 'generation_image_job_get':
-      return toolText(await getImageGenerationJob(args))
-    case 'system_generate_content_unit_image_job_get':
-    case 'generation_content_unit_image_job_get':
-      return toolText(await getContentUnitImageGenerationJob(args))
-    case 'system_generate_image_job_get_batch':
-    case 'generation_image_job_get_batch':
-      return toolText(await getImageGenerationJobs(args))
-    case 'system_generate_video':
-    case 'generation_video_generate':
-      return toolText(await generateVideo(args))
-    case 'system_generate_content_unit_video':
-    case 'generation_content_unit_video_generate':
-      return toolText(await generateContentUnitVideo(args))
-    case 'system_generate_video_job_get':
-    case 'generation_video_job_get':
-      return toolText(await getVideoGenerationJob(args))
-    case 'system_generate_content_unit_video_job_get':
-    case 'generation_content_unit_video_job_get':
-      return toolText(await getContentUnitVideoGenerationJob(args))
-    case 'system_generate_video_job_get_batch':
-    case 'generation_video_job_get_batch':
-      return toolText(await getVideoGenerationJobs(args))
-    case 'generation_audio_generate':
-      return toolText(await generateAudio(args))
-    case 'system_generate_voiceover':
-    case 'generation_voiceover_generate':
-      return toolText(await generateVoiceover(args))
-    case 'system_generate_music':
-    case 'generation_music_generate':
-      return toolText(await generateMusic(args))
-    case 'system_generate_sfx':
-    case 'generation_sfx_generate':
-      return toolText(await generateSfx(args))
-    case 'system_generate_subtitle':
-    case 'generation_subtitle_generate':
-      return toolText(await generateSubtitle(args))
-    case 'system_align_subtitle':
-    case 'generation_subtitle_align':
-      return toolText(await alignSubtitle(args))
-    case 'system_translate_subtitle':
-    case 'generation_subtitle_translate':
-      return toolText(await translateSubtitle(args))
-    case 'generation_audio_job_get':
-      return toolText(await getAudioGenerationJob(args))
-    case 'generation_audio_job_get_batch':
-      return toolText(await getAudioGenerationJobs(args))
+    case 'generation_capability_list':
+      return toolText(await listGenerationCapabilities(args))
+    case 'generation_prepare':
+      return toolText(await prepareGeneration(args))
+    case 'generation_submit':
+      return toolText(await submitUnifiedGeneration(args))
+    case 'generation_job_get':
+      return toolText(await getUnifiedGenerationJob(args))
+    case 'generation_job_get_batch':
+      return toolText(await getUnifiedGenerationJobs(args))
+    case 'generation_result_register':
+      return toolText(await registerGenerationResult(args))
     case 'system_resource_library_query':
     case 'movscript_resource_library_query':
       return toolText(await queryResourceLibrary(args))

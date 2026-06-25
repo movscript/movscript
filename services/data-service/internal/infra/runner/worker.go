@@ -230,7 +230,19 @@ func (w *Worker) execute(ctx context.Context, job *persistencemodel.Job) (err er
 		}
 		return w.runAudioGenerateJob(callCtx, debugCtx, job, params, sm, debugResult, outputType)
 
-	case ai.CapabilityAudioSTT, ai.CapabilitySubAlign, ai.CapabilitySubTranslate:
+	case ai.CapabilityAudioChat:
+		if err := w.abortIfCancelled(callCtx, job, sm); err != nil {
+			return err
+		}
+		return w.runAudioChatJob(callCtx, debugCtx, job, params, sm, debugResult, audioData)
+
+	case ai.CapabilityVoiceClone, ai.CapabilityVoiceDesign:
+		if err := w.abortIfCancelled(callCtx, job, sm); err != nil {
+			return err
+		}
+		return w.runVoiceProfileJob(callCtx, debugCtx, job, params, sm, debugResult, outputType, audioData)
+
+	case ai.CapabilityAudioSTT, ai.CapabilityAudioTranslate, ai.CapabilitySubAlign, ai.CapabilitySubTranslate:
 		if err := w.abortIfCancelled(callCtx, job, sm); err != nil {
 			return err
 		}

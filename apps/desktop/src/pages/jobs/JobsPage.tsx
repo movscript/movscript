@@ -1,1 +1,1 @@
-export { default } from '@/features/jobs/components/JobsPage'
+export { JobsPage as default } from '@movscript/jobs-surface/pages'

@@ -1,5 +1,4 @@
 import React from 'react'
-import { useTranslation } from 'react-i18next'
 import type { AdminLaunchContext } from '@movscript/admin-surface/react'
 
 const AdminSurfaceApp = React.lazy(() =>
@@ -7,9 +6,8 @@ const AdminSurfaceApp = React.lazy(() =>
 )
 
 export function LocalAdminSurfaceRoute() {
-  const { t } = useTranslation()
   return (
-    <React.Suspense fallback={<main className="surface-host-admin-loading">{t('localSurfaceHost.chrome.loadingAdmin')}</main>}>
+    <React.Suspense fallback={<main className="surface-host-admin-loading">{localAdminLoadingLabel()}</main>}>
       <AdminSurfaceApp basename="/admin" launchContext={createLocalAdminLaunchContext()} windowChrome="none" />
     </React.Suspense>
   )
@@ -51,9 +49,15 @@ function readLocalTheme(): 'light' | 'dark' {
 }
 
 function readLocalLanguage(): 'zh-CN' | 'en-US' {
+  const stored = readStorageLanguage()
+  if (stored === 'zh-CN' || stored === 'en-US') return stored
   if (typeof navigator === 'undefined') return 'zh-CN'
   const language = navigator.language || navigator.languages?.[0] || ''
   return language.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en-US'
+}
+
+function localAdminLoadingLabel(): string {
+  return readLocalLanguage() === 'zh-CN' ? '正在加载 admin...' : 'Loading admin...'
 }
 
 function localWorkspaceDisplayName(): string {
@@ -64,7 +68,9 @@ function localWorkspaceDisplayName(): string {
 
 function readStorageLanguage(): string | undefined {
   try {
-    return window.localStorage.getItem('movscript.language') ?? undefined
+    return window.localStorage.getItem('movscript.language')
+      ?? window.localStorage.getItem('movscript.localSurfaceHost.language')
+      ?? undefined
   } catch {
     return undefined
   }

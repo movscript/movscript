@@ -163,7 +163,7 @@ export interface PaginatedResponse<T> {
 }
 
 export type MediaNodeType = 'text' | 'image' | 'video'
-export type ToolNodeType = 'canvas' | 'ref_image_gen' | 'ref_video_gen' | 'multi_angle' | 'style_transfer' | 'motion_imitation' | 'audio_tts'
+export type ToolNodeType = 'canvas' | 'ref_image_gen' | 'ref_video_gen' | 'multi_angle' | 'style_transfer' | 'motion_imitation' | 'audio_tts' | 'audio_transcribe' | 'audio_translate' | 'audio_music' | 'audio_sfx' | 'audio_chat' | 'voice_clone' | 'voice_design'
 export type SemanticEntityKind = 'script' | 'segment' | 'scene_moment' | 'setting' | 'asset_slot' | 'content_unit'
 export type SpecialNodeType = 'input' | 'output' | 'resource_sink' | 'approval' | 'text_gen' | 'ai_gen' | 'group' | 'plugin_card'
 export type PluginNodeType = string & { readonly __pluginNodeType?: unique symbol }
@@ -330,7 +330,7 @@ export interface CanvasPortValue {
 
 export type CanvasStage = 'script_analysis' | 'asset_prep' | 'storyboard' | 'generation' | 'editing'
 
-export type CanvasExecutableCapability = 'text' | 'image' | 'image_edit' | 'video' | 'video_i2v' | 'video_v2v' | 'audio' | 'audio_tts' | 'audio_transcribe' | 'audio_music' | 'audio_sfx' | 'subtitle_align' | 'subtitle_translate'
+export type CanvasExecutableCapability = 'text' | 'image' | 'image_edit' | 'video' | 'video_i2v' | 'video_v2v' | 'audio' | 'audio_tts' | 'audio_transcribe' | 'audio_translate' | 'audio_music' | 'audio_sfx' | 'audio_chat' | 'voice_clone' | 'voice_design' | 'subtitle_align' | 'subtitle_translate'
 
 export interface CanvasExecutableSpec {
   executor: 'ai_model' | 'plugin_http'

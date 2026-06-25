@@ -13,6 +13,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./data": "./src/data.ts",
+    "./i18n": "./src/i18n.ts",
     "./pages": "./src/pages/index.ts"
   },
   "dependencies": {

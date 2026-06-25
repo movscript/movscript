@@ -11,7 +11,7 @@ const (
 	DefaultAPIScopeChat = "model:chat"
 )
 
-type NewAPIKeySpec struct {
+type NewGatewayAPIKeySpec struct {
 	Name                   string
 	KeyPrefix              string
 	KeyHash                string
@@ -49,7 +49,7 @@ type APIKey struct {
 	APIKeyRuntimeFields
 }
 
-func NewAPIKey(spec NewAPIKeySpec) APIKey {
+func NewGatewayAPIKey(spec NewGatewayAPIKeySpec) APIKey {
 	scopes := spec.AllowedScopes
 	if len(scopes) == 0 {
 		scopes = []string{DefaultAPIScopeChat}

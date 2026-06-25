@@ -261,7 +261,7 @@ func catalogRouteBindingSupportedAPIKinds(binding *persistencemodel.AIModelRoute
 			}
 		}
 		return modelAPIKindsForAdapter(AdapterOpenAICompat)
-	case persistencemodel.ModelRouteSourceNewAPI:
+	case persistencemodel.ModelRouteSourceRelayGateway:
 		return modelAPIKindsForAdapter(AdapterOpenAICompat)
 	default:
 		return modelAPIKindsForAdapter(AdapterOpenAICompat)
@@ -697,8 +697,8 @@ func catalogRouteProviderID(binding *persistencemodel.AIModelRouteBinding) strin
 		return providerID
 	}
 	switch strings.TrimSpace(binding.SourceType) {
-	case persistencemodel.ModelRouteSourceNewAPI:
-		return persistencemodel.ModelRouteSourceNewAPI
+	case persistencemodel.ModelRouteSourceRelayGateway:
+		return persistencemodel.ModelRouteSourceRelayGateway
 	case persistencemodel.ModelRouteSourceLocalProvider:
 		if binding.CredentialID != nil && *binding.CredentialID != 0 {
 			return fmt.Sprintf("%s:%d", persistencemodel.ModelRouteSourceLocalProvider, *binding.CredentialID)
@@ -709,7 +709,7 @@ func catalogRouteProviderID(binding *persistencemodel.AIModelRouteBinding) strin
 
 func (s *AIService) enrichModelRouteProviderFacts(route ModelRoute) ModelRoute {
 	route.ProviderID = strings.TrimSpace(route.ProviderID)
-	if route.ProviderID == "" || route.ProviderID == persistencemodel.ModelRouteSourceNewAPI {
+	if route.ProviderID == "" || route.ProviderID == persistencemodel.ModelRouteSourceRelayGateway {
 		return route
 	}
 	if s != nil && s.db != nil && s.db.Migrator().HasTable(&persistencemodel.AIProvider{}) {
@@ -985,6 +985,10 @@ func allModelCatalogCapabilities() []string {
 		CapabilityAudioSTT,
 		CapabilityAudioMusic,
 		CapabilityAudioSFX,
+		CapabilityAudioChat,
+		CapabilityVoiceClone,
+		CapabilityVoiceDesign,
+		CapabilityAudioTranslate,
 		CapabilitySubAlign,
 		CapabilitySubTranslate,
 	}

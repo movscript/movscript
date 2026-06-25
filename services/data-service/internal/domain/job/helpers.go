@@ -8,17 +8,21 @@ import (
 )
 
 const (
-	CapabilityImage        = "image"
-	CapabilityImageEdit    = "image_edit"
-	CapabilityVideo        = "video"
-	CapabilityVideoI2V     = "video_i2v"
-	CapabilityVideoV2V     = "video_v2v"
-	CapabilityAudioTTS     = "audio_tts"
-	CapabilityAudioSTT     = "audio_transcribe"
-	CapabilityAudioMusic   = "audio_music"
-	CapabilityAudioSFX     = "audio_sfx"
-	CapabilitySubAlign     = "subtitle_align"
-	CapabilitySubTranslate = "subtitle_translate"
+	CapabilityImage          = "image"
+	CapabilityImageEdit      = "image_edit"
+	CapabilityVideo          = "video"
+	CapabilityVideoI2V       = "video_i2v"
+	CapabilityVideoV2V       = "video_v2v"
+	CapabilityAudioTTS       = "audio_tts"
+	CapabilityAudioSTT       = "audio_transcribe"
+	CapabilityAudioMusic     = "audio_music"
+	CapabilityAudioSFX       = "audio_sfx"
+	CapabilityAudioChat      = "audio_chat"
+	CapabilityVoiceClone     = "voice_clone"
+	CapabilityVoiceDesign    = "voice_design"
+	CapabilityAudioTranslate = "audio_translate"
+	CapabilitySubAlign       = "subtitle_align"
+	CapabilitySubTranslate   = "subtitle_translate"
 )
 
 type RuntimeModelSnapshotInput struct {

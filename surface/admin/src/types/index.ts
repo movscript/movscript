@@ -454,7 +454,7 @@ export interface AIModelRouteBinding {
   catalog_entry_id: number
   combo_template_key?: string
   template_version?: string
-  source_type: 'local_provider' | 'new_api' | string
+  source_type: 'local_provider' | 'relay_gateway' | string
   route_group: string
   provider_id?: string
   adapter_type?: string
@@ -495,6 +495,7 @@ export interface AIModelCatalogTemplate {
   display_name: string
   capabilities: string[]
   adapter_type: string
+  source_status?: string
   accepts_image_input: boolean
   max_input_images: number
   max_input_videos: number
@@ -518,6 +519,7 @@ export interface AIModelImportModelPlan {
   capabilities: string[]
   template_id?: string
   template_version?: string
+  template_source_status?: string
   adapter_type: string
   status: 'new' | 'catalog_exists' | 'route_exists' | string
   catalog_entry_id?: number
@@ -638,7 +640,7 @@ export interface ModelInputRequirements {
 // PublicModel is the user-facing model representation.
 export interface PublicModel {
   id: number
-  provider_id?: string         // provider lane selected by Route/Provider
+  provider_id?: string         // provider target selected by Route/Provider
   display_name: string
   short_name?: string
   provider_name?: string       // admin/debug only; product UI should not expose providers
@@ -819,7 +821,7 @@ export interface Job {
   provider_name?: string
   model_display?: string
   model_identifier?: string
-  job_type: string  // image | image_edit | video | video_i2v | video_v2v | audio_tts | audio_transcribe | audio_music | audio_sfx | subtitle_align | subtitle_translate
+  job_type: string  // image | image_edit | video | video_i2v | video_v2v | audio_tts | audio_transcribe | audio_translate | audio_music | audio_sfx | audio_chat | voice_clone | voice_design | subtitle_align | subtitle_translate
   feature_key?: string  // source/audit key supplied by the caller
   title?: string
   status: JobStatus
@@ -1051,7 +1053,7 @@ export interface CanvasPortValue {
 
 export type CanvasStage = 'script_analysis' | 'asset_prep' | 'storyboard' | 'generation' | 'editing'
 
-export type CanvasExecutableCapability = 'text' | 'image' | 'image_edit' | 'video' | 'video_i2v' | 'video_v2v' | 'audio' | 'audio_tts' | 'audio_transcribe' | 'audio_music' | 'audio_sfx' | 'subtitle_align' | 'subtitle_translate'
+export type CanvasExecutableCapability = 'text' | 'image' | 'image_edit' | 'video' | 'video_i2v' | 'video_v2v' | 'audio' | 'audio_tts' | 'audio_transcribe' | 'audio_translate' | 'audio_music' | 'audio_sfx' | 'audio_chat' | 'voice_clone' | 'voice_design' | 'subtitle_align' | 'subtitle_translate'
 
 export interface CanvasExecutableSpec {
   executor: 'ai_model' | 'plugin_http'

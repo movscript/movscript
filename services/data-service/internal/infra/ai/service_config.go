@@ -199,6 +199,7 @@ func (s *AIService) ResolveGenerationModelRoute(modelID string, outputType strin
 	switch outputType {
 	case CapabilityImage, CapabilityImageEdit, CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V,
 		CapabilityAudioTTS, CapabilityAudioSTT, CapabilityAudioMusic, CapabilityAudioSFX,
+		CapabilityAudioTranslate, CapabilityAudioChat, CapabilityVoiceClone, CapabilityVoiceDesign,
 		CapabilitySubAlign, CapabilitySubTranslate:
 		return s.ResolveModelRoute(ModelRouteRequest{ModelID: modelID, Capability: outputType})
 	default:

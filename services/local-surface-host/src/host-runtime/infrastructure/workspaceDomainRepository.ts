@@ -1,3 +1,7 @@
+import {
+  currentSurfaceWorkspaceOwnerContext,
+  currentSurfaceWorkspaceProjectDir,
+} from '@movscript/shared'
 import { readSurfaceHostApi } from './surfaceHostApiAccess'
 
 type ProjectContext = {
@@ -10,8 +14,14 @@ type ProjectContext = {
 type WorkspaceQuery = Record<string, unknown> | undefined
 
 function projectInput(context: ProjectContext, extra: Record<string, unknown> = {}): Record<string, unknown> {
+  const projectDir = context.projectDir?.trim() || currentSurfaceWorkspaceProjectDir()
+  const ownerContext = context.userId !== undefined || context.orgId !== undefined
+    ? {}
+    : currentSurfaceWorkspaceOwnerContext()
   return {
+    ...ownerContext,
     ...context,
+    ...(projectDir ? { projectDir } : {}),
     projectId: Number(context.projectId) || context.projectId,
     ...extra,
   }

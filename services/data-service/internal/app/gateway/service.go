@@ -178,7 +178,7 @@ func (s *Service) CreateAPIKey(ctx context.Context, input CreateAPIKeyInput) (Cr
 		return CreateAPIKeyResult{}, err
 	}
 	rawKey := GenerateAPIKey()
-	domainKey := domaingateway.NewAPIKey(domaingateway.NewAPIKeySpec{
+	domainKey := domaingateway.NewGatewayAPIKey(domaingateway.NewGatewayAPIKeySpec{
 		Name:                   input.Name,
 		KeyPrefix:              KeyPrefix(rawKey),
 		KeyHash:                HashAPIKey(rawKey),

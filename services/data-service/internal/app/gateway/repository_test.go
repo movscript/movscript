@@ -13,7 +13,7 @@ import (
 func TestGormRepositoryUpdateAPIKeyPersistsDomainFields(t *testing.T) {
 	db := openModelGatewayRepositoryTestDB(t)
 	repo := &gormRepository{db: db}
-	key := domaingateway.NewAPIKey(domaingateway.NewAPIKeySpec{
+	key := domaingateway.NewGatewayAPIKey(domaingateway.NewGatewayAPIKeySpec{
 		Name:                   "Original",
 		KeyPrefix:              "mgw_prefix",
 		KeyHash:                "hash",

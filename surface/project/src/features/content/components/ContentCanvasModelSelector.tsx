@@ -10,11 +10,12 @@ import {
   modelKeys,
   surfaceModelQueryCapability,
   type PublicModel,
+  type SurfaceModelCapability,
 } from '@movscript/shared'
 import { GenerationModelSelector } from '@movscript/ui/business/generation'
 
 interface ContentCanvasModelSelectorProps {
-  capability: 'image' | 'video' | 'audio' | 'text'
+  capability: SurfaceModelCapability
   value: string | null
   onChange: (id: string) => void
   onModelChange?: (model: PublicModel | null) => void

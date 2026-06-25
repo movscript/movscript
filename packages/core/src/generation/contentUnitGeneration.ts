@@ -274,21 +274,15 @@ export function contentUnitGenerationFeatureKey(outputKind: ContentUnitGeneratio
 }
 
 export function contentUnitGenerationMonitorToolName(outputKind: ContentUnitGenerationOutputKind): string {
-  return outputKind === 'image'
-    ? 'generation_content_unit_image_job_get'
-    : 'generation_content_unit_video_job_get'
+  return 'generation_job_get'
 }
 
 export function contentUnitGenerationSystemMonitorToolName(outputKind: ContentUnitGenerationOutputKind): string {
-  return outputKind === 'image'
-    ? 'system_generate_content_unit_image_job_get'
-    : 'system_generate_content_unit_video_job_get'
+  return contentUnitGenerationMonitorToolName(outputKind)
 }
 
 export function contentUnitGenerationToolName(outputKind: ContentUnitGenerationOutputKind): string {
-  return outputKind === 'image'
-    ? 'generation_content_unit_image_generate'
-    : 'generation_content_unit_video_generate'
+  return 'generation_submit'
 }
 
 function contentUnitGenerationJobTitle(outputKind: ContentUnitGenerationOutputKind): string {

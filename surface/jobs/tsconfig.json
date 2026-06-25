@@ -1,0 +1,63 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "paths": {
+      "@movscript/jobs-surface": [
+        "./src/index.ts"
+      ],
+      "@movscript/jobs-surface/i18n": [
+        "./src/i18n.ts"
+      ],
+      "@movscript/jobs-surface/pages": [
+        "./src/pages/index.ts"
+      ],
+      "@movscript/resource-surface/data": [
+        "../resource/src/data.ts"
+      ],
+      "@movscript/resource-surface/resource-media-viewer": [
+        "../resource/src/resourceMediaViewer.tsx"
+      ],
+      "@movscript/resources": [
+        "../../packages/resources/src/index.ts"
+      ],
+      "@movscript/shared": [
+        "../../packages/shared/src/index.ts"
+      ],
+      "@movscript/shared/app-events": [
+        "../../packages/shared/src/appEvents.ts"
+      ],
+      "@movscript/shared/surface-http": [
+        "../../packages/shared/src/surfaceHttpClient.ts"
+      ],
+      "@movscript/ui": [
+        "../../packages/ui/src/index.ts"
+      ],
+      "@movscript/ui/business/app": [
+        "../../packages/ui/src/business/app.ts"
+      ],
+      "@movscript/ui/business/generation": [
+        "../../packages/ui/src/business/generation.ts"
+      ],
+      "@movscript/ui/layout": [
+        "../../packages/ui/src/layout.ts"
+      ],
+      "@movscript/ui/primitives": [
+        "../../packages/ui/src/primitives.ts"
+      ],
+      "@movscript/ui/style-system": [
+        "../../packages/ui/src/style-system.ts"
+      ],
+      "@movscript/workspace": [
+        "../../packages/workspace/src/index.ts"
+      ]
+    }
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx"
+  ],
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx"
+  ]
+}

@@ -151,7 +151,7 @@ func TestCredentialExternalAdminActionsWriteAuditWithoutSecrets(t *testing.T) {
 	assertAuditMetadataDoesNotContain(t, db, "ai_credential.admin_tested", "not-cipher")
 }
 
-func TestCreateCredentialRequiresProviderKeyOutsideNewAPIGatewayMode(t *testing.T) {
+func TestCreateCredentialRequiresProviderKeyOutsideRelayGatewayMode(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router, _ := newTestAICredentialRouter(t)
 

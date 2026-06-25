@@ -100,6 +100,8 @@ func label(providerType string, adapter string) string {
 		return "GitLab"
 	case contract.TypeAIGateway + ":" + contract.AdapterLocal:
 		return "Local AI Gateway"
+	case contract.TypeAIGateway + ":" + contract.AdapterRelayGateway:
+		return "Relay Gateway"
 	case contract.TypeCache + ":" + contract.AdapterMemory:
 		return "Memory"
 	case contract.TypeCache + ":" + contract.AdapterRedis:
@@ -153,6 +155,8 @@ func capabilities(providerType string, adapter string) []string {
 		return []string{"repository.ensure", "repository.collaborator.ensure", "repository.access.probe", "repository.clone_url", "repository.clone_url.strategy", "git.http_proxy", "health.probe"}
 	case contract.TypeAIGateway + ":" + contract.AdapterLocal:
 		return []string{"model.list", "model.resolve", "chat.completions", "image.generate", "video.generate", "usage.reserve", "usage.settle", "audit.record", "health.probe", "runtime_health.snapshot"}
+	case contract.TypeAIGateway + ":" + contract.AdapterRelayGateway:
+		return []string{"model.list", "model.resolve", "chat.completions", "image.generate", "video.generate", "audio.generate", "usage.reserve", "usage.settle", "audit.record", "health.probe"}
 	case contract.TypeCache + ":" + contract.AdapterMemory,
 		contract.TypeCache + ":" + contract.AdapterRedis:
 		return []string{"cache.get_json", "cache.set_json", "cache.delete", "cache.version"}

@@ -1253,26 +1253,17 @@
         "generation_job_cancel": "取消生成任务",
         "core_work_cancel": "取消旧异步任务",
         "workspace_create": "创建工作区",
-        "generation_image_generate": "提交图像生成",
-        "generation_content_unit_image_generate": "生成创作片段图像",
-        "generation_image_job_get": "查看图像生成任务",
-        "generation_content_unit_image_job_get": "写入图像候选",
-        "generation_video_generate": "提交视频生成",
-        "generation_content_unit_video_generate": "生成创作片段视频",
-        "generation_video_job_get": "查看视频生成任务",
-        "generation_content_unit_video_job_get": "写入视频候选",
-        "system_generate_content_unit_image": "生成创作片段图像",
-        "system_generate_content_unit_image_job_get": "写入图像候选",
-        "system_generate_content_unit_video": "生成创作片段视频",
-        "system_generate_content_unit_video_job_get": "写入视频候选",
-        "generation_audio_generate": "提交音频生成",
-        "generation_audio_job_get": "查看音频生成任务",
+        "generation_capability_list": "查看生成能力",
+        "generation_prepare": "准备生成请求",
+        "generation_submit": "提交生成任务",
+        "generation_job_get": "查看生成任务",
+        "generation_job_get_batch": "批量查看生成任务",
+        "generation_result_register": "登记生成结果",
         "generation_job_create": "创建生成任务",
         "core_memory_create": "创建记忆",
         "movscript_project_create": "创建项目",
         "core_memory_delete": "删除记忆",
         "movscript_focus_get": "读取当前焦点",
-        "generation_job_get": "查看生成任务",
         "reference_get": "读取参考",
         "core_memory_get": "读取记忆",
         "movscript_project_standards_get": "读取项目标准",
@@ -3650,6 +3641,11 @@
       "response": "响应",
       "adapterError": "Adapter 错误"
     },
+    "inputs": {
+      "referenceImages": "参考图片",
+      "sourceVideo": "源视频",
+      "sourceAudio": "源音频"
+    },
     "defs": {
       "refImageGen": {
         "name": "参考生图",
@@ -3662,9 +3658,48 @@
         "promptPlaceholder": "描述想要生成的视频内容… 输入 @ 可引用资源库中的图片或视频"
       },
       "audioGen": {
-        "name": "音频生成",
-        "description": "将文字生成可用于旁白、台词或声音草稿的音频",
+        "name": "语音生成",
+        "description": "将文字合成为可用于旁白、台词或声音草稿的语音",
         "promptPlaceholder": "输入要合成为语音的文案…"
+      },
+      "audioChat": {
+        "name": "语音对话",
+        "description": "使用 Omni 或实时语音模型，根据音频与提示生成语音回复",
+        "promptPlaceholder": "输入对话指令，或上传一段语音作为上下文…"
+      },
+      "audioTranscribe": {
+        "name": "语音转写",
+        "description": "上传或选择音频资源，转写为可编辑文本",
+        "promptPlaceholder": "可选：补充语言、说话人、术语或格式要求…",
+        "submitPromptFallback": "转写音频"
+      },
+      "audioTranslate": {
+        "name": "音频翻译",
+        "description": "上传或选择音频资源，翻译为目标语言文本",
+        "promptPlaceholder": "可选：补充源语言、目标语言、术语或格式要求…",
+        "submitPromptFallback": "翻译音频"
+      },
+      "musicGen": {
+        "name": "音乐生成",
+        "description": "用提示词生成配乐、氛围音乐或音乐草稿",
+        "promptPlaceholder": "描述音乐风格、情绪、节奏、乐器和时长…"
+      },
+      "audioSfx": {
+        "name": "音效生成",
+        "description": "用提示词生成 Foley、环境声、转场声或短音效",
+        "promptPlaceholder": "描述音效对象、动作、环境、距离、质感和时长…"
+      },
+      "voiceClone": {
+        "name": "声音克隆",
+        "description": "用一段或多段样本音频创建可复用的声音 profile",
+        "promptPlaceholder": "可选：补充说话人名称、风格说明、降噪偏好或标签…",
+        "submitPromptFallback": "克隆声音"
+      },
+      "voiceDesign": {
+        "name": "声音设计",
+        "description": "用声音描述生成可复用的 voice profile",
+        "promptPlaceholder": "描述年龄、口音、音色、语速、情绪和使用场景…",
+        "submitPromptFallback": "设计声音"
       },
       "motionImitation": {
         "name": "动作迁移",
@@ -3685,7 +3720,15 @@
     "capabilities": {
       "image": "图像工具",
       "video": "视频工具",
-      "audio": "音频工具"
+      "audio": "音频工具",
+      "audio_tts": "语音生成",
+      "audio_transcribe": "语音转写",
+      "audio_translate": "音频翻译",
+      "audio_music": "音乐生成",
+      "audio_sfx": "音效生成",
+      "audio_chat": "语音对话",
+      "voice_clone": "声音克隆",
+      "voice_design": "声音设计"
     }
   },
   "plugins": {
@@ -3793,7 +3836,8 @@
       "videoI2V": "图生视频",
       "videoV2V": "视频转视频",
       "audioTTS": "语音合成",
-      "audioSTT": "音频转写"
+      "audioSTT": "音频转写",
+      "audioChat": "语音对话 / Omni"
     },
     "params": {
       "title": "生成参数",
@@ -3888,13 +3932,13 @@
       "viewRoutes": "Route",
       "providersHint": "这里查看已发布的 provider credential、上游来源、Base URL/Key 所属边界和可用性。",
       "catalogHint": "Catalog Entry 定义 MovScript 识别的模型身份、能力、参数、输入要求和价格语义。",
-      "routesHint": "Route 把 Catalog Entry 绑定到 provider lane 或 new-api group，并处理优先级、容量和故障切换。",
+      "routesHint": "Route 把 Catalog Entry 绑定到 Provider 通道或中转站分组，并处理优先级、容量和故障切换。",
       "routeRuleTitle": "路由规则",
       "routeRuleBody": "Catalog Entry 通过启用的 route binding 对外服务。同优先级绑定会在可用候选中轮询。",
       "routePriorityTitle": "优先级仍然生效",
       "routePriorityBody": "更高优先级的 route binding 会优先被选中；只有同优先级绑定才进入轮询池。",
       "routeSourceTitle": "运行时来源",
-      "routeSourceBody": "每条 route binding 指向 provider lane；本地 credential 和 new-api relay token 由 Provider 层解析。",
+      "routeSourceBody": "每条 route binding 指向 Provider 通道；本地 credential 和中转站 relay token 由 Provider 层解析。",
       "gatewayOpenDebug": "打开调试页",
       "fetchFromApi": "从接口获取",
       "modelIdLabel": "Model ID（发给 API 的模型标识）",
@@ -4254,7 +4298,14 @@
       "editing": "剪辑",
       "refImageGen": "参考生图",
       "refVideoGen": "参考生视频",
-      "audioGen": "音频生成",
+      "audioGen": "语音生成",
+      "audioChat": "语音对话",
+      "audioTranscribe": "语音转写",
+      "audioTranslate": "音频翻译",
+      "musicGen": "音乐生成",
+      "audioSfx": "音效生成",
+      "voiceClone": "声音克隆",
+      "voiceDesign": "声音设计",
       "motionImitation": "动作迁移",
       "styleTransfer": "画风迁移",
       "multiAngle": "多角度",

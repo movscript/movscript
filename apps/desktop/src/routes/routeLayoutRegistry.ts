@@ -195,6 +195,41 @@ const routeLayoutRegistry: RouteLayoutRegistryEntry[] = [
     ...TOOL_WORKSPACE_ROUTE,
   }, exact(ROUTES.tools.audioGen)),
   route({
+    routeId: 'tools.audioChat',
+    pathnamePattern: ROUTES.tools.audioChat,
+    ...TOOL_WORKSPACE_ROUTE,
+  }, exact(ROUTES.tools.audioChat)),
+  route({
+    routeId: 'tools.audioTranscribe',
+    pathnamePattern: ROUTES.tools.audioTranscribe,
+    ...TOOL_WORKSPACE_ROUTE,
+  }, exact(ROUTES.tools.audioTranscribe)),
+  route({
+    routeId: 'tools.audioTranslate',
+    pathnamePattern: ROUTES.tools.audioTranslate,
+    ...TOOL_WORKSPACE_ROUTE,
+  }, exact(ROUTES.tools.audioTranslate)),
+  route({
+    routeId: 'tools.musicGen',
+    pathnamePattern: ROUTES.tools.musicGen,
+    ...TOOL_WORKSPACE_ROUTE,
+  }, exact(ROUTES.tools.musicGen)),
+  route({
+    routeId: 'tools.audioSfx',
+    pathnamePattern: ROUTES.tools.audioSfx,
+    ...TOOL_WORKSPACE_ROUTE,
+  }, exact(ROUTES.tools.audioSfx)),
+  route({
+    routeId: 'tools.voiceClone',
+    pathnamePattern: ROUTES.tools.voiceClone,
+    ...TOOL_WORKSPACE_ROUTE,
+  }, exact(ROUTES.tools.voiceClone)),
+  route({
+    routeId: 'tools.voiceDesign',
+    pathnamePattern: ROUTES.tools.voiceDesign,
+    ...TOOL_WORKSPACE_ROUTE,
+  }, exact(ROUTES.tools.voiceDesign)),
+  route({
     routeId: 'tools.motionImitation',
     pathnamePattern: ROUTES.tools.motionImitation,
     ...TOOL_WORKSPACE_ROUTE,
@@ -288,11 +323,7 @@ const routeLayoutRegistry: RouteLayoutRegistryEntry[] = [
   route({
     routeId: 'resources',
     pathnamePattern: ROUTES.resources,
-    kind: 'page',
-    surface: 'resource',
-    scrollMode: 'document',
-    shellLayout: 'stacked',
-    panes: APP_SHELL_TOOL_PANES,
+    ...TOOL_DOCUMENT_ROUTE,
     notes: 'Resource page is owned by resource-surface; the host provides chrome and runtime adapters.',
   }, exact(ROUTES.resources)),
   route({
@@ -378,11 +409,8 @@ const routeLayoutRegistry: RouteLayoutRegistryEntry[] = [
   route({
     routeId: 'resources.external',
     pathnamePattern: ROUTES.externalResources,
-    kind: 'page',
-    surface: 'resource',
-    scrollMode: 'document',
-    shellLayout: 'stacked',
-    panes: APP_SHELL_TOOL_PANES,
+    ...TOOL_DOCUMENT_ROUTE,
+    notes: 'External resource page is owned by resource-surface; the host keeps it in the tool workspace.',
   }, exact(ROUTES.externalResources)),
   route({
     routeId: 'shotLibrary',
