@@ -47,6 +47,7 @@ type comboProviderRule struct {
 	Profile          string
 	AdapterType      string
 	Lab              string
+	ExcludeLabs      []string
 	IDPrefix         string
 	ProviderKind     string
 	ProviderCategory string
@@ -108,6 +109,9 @@ func comboProvidersForModelTemplate(template CatalogTemplate) []comboProviderRul
 			continue
 		}
 		if strings.TrimSpace(rule.Lab) != "" && strings.TrimSpace(rule.Lab) != strings.TrimSpace(template.Lab) {
+			continue
+		}
+		if hasString(rule.ExcludeLabs, strings.TrimSpace(template.Lab)) {
 			continue
 		}
 		if rule.IDPrefix != "" && !strings.HasPrefix(template.ID, rule.IDPrefix) {

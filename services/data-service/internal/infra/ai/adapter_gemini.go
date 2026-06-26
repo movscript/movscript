@@ -317,6 +317,93 @@ func (a *GeminiAdapter) GenerateAudio(ctx context.Context, req media.AudioGenera
 	}, nil
 }
 
+func (a *GeminiAdapter) Transcribe(ctx context.Context, req media.TranscribeRequest) (media.SubtitleResponse, error) {
+	if strings.TrimSpace(a.apiKey) == "" {
+		return media.SubtitleResponse{}, fmt.Errorf("google speech api_key is required")
+	}
+	if len(req.Audio) == 0 {
+		return media.SubtitleResponse{}, fmt.Errorf("audio is required")
+	}
+	projectID := firstNonEmptyAI(stringParam(req.Params, "project_id", ""), stringParam(req.Params, "project", ""))
+	if projectID == "" {
+		return media.SubtitleResponse{}, fmt.Errorf("google speech project_id is required")
+	}
+	location := firstNonEmptyAI(stringParam(req.Params, "location", ""), "us")
+	recognizer := firstNonEmptyAI(stringParam(req.Params, "recognizer", ""), "_")
+	model := firstNonEmptyAI(strings.TrimSpace(req.Model), "chirp_3")
+	body := map[string]any{
+		"config": map[string]any{
+			"autoDecodingConfig": map[string]any{},
+			"languageCodes":      googleSpeechLanguageCodes(req),
+			"model":              model,
+		},
+		"content": base64.StdEncoding.EncodeToString(req.Audio),
+	}
+	config := body["config"].(map[string]any)
+	if punctuation, ok := boolParam(req.Params, "enable_automatic_punctuation"); ok {
+		config["features"] = map[string]any{"enableAutomaticPunctuation": punctuation}
+	}
+	if diarize, ok := boolParam(req.Params, "diarize"); ok && diarize {
+		features, _ := config["features"].(map[string]any)
+		if features == nil {
+			features = map[string]any{}
+			config["features"] = features
+		}
+		features["diarizationConfig"] = map[string]any{
+			"minSpeakerCount": intParamOrDefault(req.Params, "min_speaker_count", 2),
+			"maxSpeakerCount": intParamOrDefault(req.Params, "max_speaker_count", 2),
+		}
+	}
+	rawBody, err := json.Marshal(body)
+	if err != nil {
+		return media.SubtitleResponse{}, err
+	}
+	endpoint := googleSpeechEndpoint(a.baseURL, location, projectID, recognizer)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(rawBody))
+	if err != nil {
+		return media.SubtitleResponse{}, err
+	}
+	httpReq.Header.Set("x-goog-api-key", a.apiKey)
+	httpReq.Header.Set("Content-Type", "application/json")
+	headers := map[string]string{
+		"x-goog-api-key": maskKey(a.apiKey),
+		"Content-Type":   "application/json",
+	}
+	debugBody := cloneProviderTemplateMap(body)
+	debugBody["content"] = fmt.Sprintf("<base64 audio: %d bytes>", len(req.Audio))
+	start := time.Now()
+	resp, err := a.rawHTTP.Do(httpReq)
+	latency := time.Since(start).Milliseconds()
+	if err != nil {
+		recordDebug(ctx, DebugCallResult{Success: false, ModelID: model, Endpoint: endpoint, Method: http.MethodPost, RequestHeaders: headers, RequestBody: mustJSON(debugBody), LatencyMs: latency, Error: err.Error()})
+		return media.SubtitleResponse{}, err
+	}
+	defer resp.Body.Close()
+	respBody, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return media.SubtitleResponse{}, readErr
+	}
+	recordDebug(ctx, DebugCallResult{Success: resp.StatusCode < 400, ModelID: model, Endpoint: endpoint, Method: http.MethodPost, RequestHeaders: headers, RequestBody: mustJSON(debugBody), ResponseStatus: resp.StatusCode, ResponseBody: string(respBody), LatencyMs: latency})
+	if resp.StatusCode >= 400 {
+		return media.SubtitleResponse{}, fmt.Errorf("google speech recognize HTTP %d: %s", resp.StatusCode, string(respBody))
+	}
+	timing, transcript, err := parseGoogleSpeechRecognizeResponse(respBody, googleSpeechPrimaryLanguage(req))
+	if err != nil {
+		return media.SubtitleResponse{}, err
+	}
+	content := []byte(transcript)
+	if len(content) == 0 {
+		content = respBody
+	}
+	return media.SubtitleResponse{
+		Timing:      timing,
+		Format:      "json",
+		Content:     content,
+		MimeType:    "application/json",
+		ProviderRef: firstNonEmptyAI(resp.Header.Get("x-request-id"), resp.Header.Get("x-goog-request-id")),
+	}, nil
+}
+
 func (a *GeminiAdapter) ImageGenerate(ctx context.Context, req ImageRequest) (ImageResponse, error) {
 	client, err := a.newClient(ctx)
 	if err != nil {
@@ -781,6 +868,177 @@ func pcmToWAV(pcm []byte, sampleRate, channels, bitsPerSample int) []byte {
 	_ = binary.Write(&out, binary.LittleEndian, uint32(dataSize))
 	out.Write(pcm)
 	return out.Bytes()
+}
+
+func googleSpeechEndpoint(baseURL, location, projectID, recognizer string) string {
+	base := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if base == "" || strings.Contains(base, "generativelanguage.googleapis.com") {
+		location = strings.TrimSpace(location)
+		if location == "" || location == "global" {
+			base = "https://speech.googleapis.com"
+		} else {
+			base = "https://" + location + "-speech.googleapis.com"
+		}
+	}
+	recognizerPath := "projects/" + urlPathEscape(projectID) + "/locations/" + urlPathEscape(location) + "/recognizers/" + urlPathEscape(recognizer)
+	return base + "/v2/" + recognizerPath + ":recognize"
+}
+
+func googleSpeechLanguageCodes(req media.TranscribeRequest) []string {
+	if raw := strings.TrimSpace(stringParam(req.Params, "language_codes", "")); raw != "" {
+		parts := strings.Split(raw, ",")
+		out := make([]string, 0, len(parts))
+		for _, part := range parts {
+			if value := strings.TrimSpace(part); value != "" {
+				out = append(out, value)
+			}
+		}
+		if len(out) > 0 {
+			return out
+		}
+	}
+	return []string{googleSpeechPrimaryLanguage(req)}
+}
+
+func googleSpeechPrimaryLanguage(req media.TranscribeRequest) string {
+	return firstNonEmptyAI(strings.TrimSpace(req.Language), stringParam(req.Params, "language_code", ""), "en-US")
+}
+
+func parseGoogleSpeechRecognizeResponse(data []byte, language string) (media.TimingMetadata, string, error) {
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return media.TimingMetadata{}, "", fmt.Errorf("decode google speech response: %w", err)
+	}
+	results, _ := raw["results"].([]any)
+	var segments []media.TimedTextUnit
+	var words []media.TimedTextUnit
+	var transcriptParts []string
+	for i, resultAny := range results {
+		result, ok := resultAny.(map[string]any)
+		if !ok {
+			continue
+		}
+		alternatives, _ := result["alternatives"].([]any)
+		if len(alternatives) == 0 {
+			continue
+		}
+		alt, ok := alternatives[0].(map[string]any)
+		if !ok {
+			continue
+		}
+		transcript := strings.TrimSpace(stringField(alt, "transcript"))
+		if transcript != "" {
+			transcriptParts = append(transcriptParts, transcript)
+		}
+		startMs, endMs := googleSpeechAlternativeOffsets(alt, result)
+		confidence := floatPtrFromAny(alt["confidence"])
+		segments = append(segments, media.TimedTextUnit{
+			ID:         fmt.Sprintf("segment-%d", i+1),
+			StartMs:    startMs,
+			EndMs:      endMs,
+			Text:       transcript,
+			Confidence: confidence,
+		})
+		if rawWords, ok := alt["words"].([]any); ok {
+			for j, wordAny := range rawWords {
+				word, ok := wordAny.(map[string]any)
+				if !ok {
+					continue
+				}
+				words = append(words, media.TimedTextUnit{
+					ID:         fmt.Sprintf("word-%d-%d", i+1, j+1),
+					StartMs:    googleDurationMs(stringField(word, "startOffset", "start_time", "startTime")),
+					EndMs:      googleDurationMs(stringField(word, "endOffset", "end_time", "endTime")),
+					Text:       stringField(word, "word"),
+					Confidence: floatPtrFromAny(word["confidence"]),
+					Speaker:    googleSpeechSpeakerLabel(word),
+				})
+			}
+		}
+	}
+	transcript := strings.Join(transcriptParts, "\n")
+	durationMs := 0
+	for _, segment := range segments {
+		if segment.EndMs > durationMs {
+			durationMs = segment.EndMs
+		}
+	}
+	return media.TimingMetadata{
+		Source:     media.TimingSourceSTT,
+		Provider:   "google_speech",
+		Language:   language,
+		DurationMs: durationMs,
+		Segments:   segments,
+		Words:      words,
+	}, transcript, nil
+}
+
+func googleSpeechAlternativeOffsets(alt map[string]any, result map[string]any) (int, int) {
+	if rawWords, ok := alt["words"].([]any); ok && len(rawWords) > 0 {
+		first, _ := rawWords[0].(map[string]any)
+		last, _ := rawWords[len(rawWords)-1].(map[string]any)
+		return googleDurationMs(stringField(first, "startOffset", "start_time", "startTime")),
+			googleDurationMs(stringField(last, "endOffset", "end_time", "endTime"))
+	}
+	return 0, googleDurationMs(stringField(result, "resultEndOffset", "result_end_offset", "resultEndTime"))
+}
+
+func googleDurationMs(value string) int {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return 0
+	}
+	value = strings.TrimSuffix(value, "s")
+	parts := strings.SplitN(value, ".", 2)
+	seconds := 0
+	for _, ch := range parts[0] {
+		if ch < '0' || ch > '9' {
+			return 0
+		}
+		seconds = seconds*10 + int(ch-'0')
+	}
+	ms := seconds * 1000
+	if len(parts) == 2 {
+		frac := parts[1]
+		if len(frac) > 3 {
+			frac = frac[:3]
+		}
+		for len(frac) < 3 {
+			frac += "0"
+		}
+		fractionMs := 0
+		for _, ch := range frac {
+			if ch < '0' || ch > '9' {
+				return ms
+			}
+			fractionMs = fractionMs*10 + int(ch-'0')
+		}
+		ms += fractionMs
+	}
+	return ms
+}
+
+func googleSpeechSpeakerLabel(word map[string]any) string {
+	if speaker := stringField(word, "speakerLabel", "speaker_label"); speaker != "" {
+		return speaker
+	}
+	if tag, ok := numberValue(word["speakerTag"]); ok && tag > 0 {
+		return fmt.Sprintf("speaker-%d", int(tag))
+	}
+	return ""
+}
+
+func floatPtrFromAny(value any) *float64 {
+	n, ok := numberValue(value)
+	if !ok {
+		return nil
+	}
+	return &n
+}
+
+func urlPathEscape(value string) string {
+	replacer := strings.NewReplacer("/", "%2F", " ", "%20", "#", "%23", "?", "%3F")
+	return replacer.Replace(strings.TrimSpace(value))
 }
 
 func redactGeminiTTSBody(body map[string]any) map[string]any {

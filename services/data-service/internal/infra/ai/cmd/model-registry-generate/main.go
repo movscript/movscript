@@ -50,13 +50,14 @@ type comboRulesFile struct {
 }
 
 type comboRuleSource struct {
-	ProviderType     string `yaml:"provider_type,omitempty" json:"provider_type,omitempty"`
-	Profile          string `yaml:"profile,omitempty" json:"profile,omitempty"`
-	AdapterType      string `yaml:"adapter_type,omitempty" json:"adapter_type,omitempty"`
-	Lab              string `yaml:"lab,omitempty" json:"lab,omitempty"`
-	IDPrefix         string `yaml:"id_prefix,omitempty" json:"id_prefix,omitempty"`
-	ProviderKind     string `yaml:"provider_kind,omitempty" json:"provider_kind,omitempty"`
-	ProviderCategory string `yaml:"provider_category,omitempty" json:"provider_category,omitempty"`
+	ProviderType     string   `yaml:"provider_type,omitempty" json:"provider_type,omitempty"`
+	Profile          string   `yaml:"profile,omitempty" json:"profile,omitempty"`
+	AdapterType      string   `yaml:"adapter_type,omitempty" json:"adapter_type,omitempty"`
+	Lab              string   `yaml:"lab,omitempty" json:"lab,omitempty"`
+	ExcludeLabs      []string `yaml:"exclude_labs,omitempty" json:"exclude_labs,omitempty"`
+	IDPrefix         string   `yaml:"id_prefix,omitempty" json:"id_prefix,omitempty"`
+	ProviderKind     string   `yaml:"provider_kind,omitempty" json:"provider_kind,omitempty"`
+	ProviderCategory string   `yaml:"provider_category,omitempty" json:"provider_category,omitempty"`
 }
 
 type templateSource struct {
@@ -368,7 +369,8 @@ func adapterSupportsRuntimeCapability(adapterType, capability string) bool {
 		return capability == infraai.CapabilityText || capability == infraai.CapabilityReasoning
 	case infraai.AdapterDashScope:
 		switch capability {
-		case infraai.CapabilityVideo, infraai.CapabilityVideoI2V, infraai.CapabilityVideoV2V, infraai.CapabilityAudioTTS:
+		case infraai.CapabilityImage, infraai.CapabilityVideo, infraai.CapabilityVideoI2V, infraai.CapabilityVideoV2V, infraai.CapabilityAudioTTS,
+			infraai.CapabilityAudioChat:
 			return true
 		}
 	case infraai.AdapterGemini:
@@ -376,7 +378,7 @@ func adapterSupportsRuntimeCapability(adapterType, capability string) bool {
 		case infraai.CapabilityText, infraai.CapabilityReasoning,
 			infraai.CapabilityImage, infraai.CapabilityImageEdit,
 			infraai.CapabilityVideo, infraai.CapabilityVideoI2V,
-			infraai.CapabilityAudioTTS, infraai.CapabilityAudioMusic:
+			infraai.CapabilityAudioTTS, infraai.CapabilityAudioSTT, infraai.CapabilityAudioMusic:
 			return true
 		}
 	case infraai.AdapterVolcen:
@@ -384,7 +386,9 @@ func adapterSupportsRuntimeCapability(adapterType, capability string) bool {
 		case infraai.CapabilityText, infraai.CapabilityReasoning,
 			infraai.CapabilityImage, infraai.CapabilityImageEdit,
 			infraai.CapabilityVideo, infraai.CapabilityVideoI2V, infraai.CapabilityVideoV2V,
-			infraai.CapabilityAudioTTS, infraai.CapabilityAudioSTT, infraai.CapabilitySubAlign:
+			infraai.CapabilityAudioTTS, infraai.CapabilityAudioSTT, infraai.CapabilityAudioMusic,
+			infraai.CapabilityAudioSFX, infraai.CapabilityAudioChat, infraai.CapabilityVoiceClone,
+			infraai.CapabilitySubAlign:
 			return true
 		}
 	case infraai.AdapterKling:
@@ -399,6 +403,8 @@ func adapterSupportsRuntimeCapability(adapterType, capability string) bool {
 		}
 	case infraai.AdapterMiniMax:
 		return capability == infraai.CapabilityAudioTTS
+	case infraai.AdapterXiaomiMimo:
+		return capability == infraai.CapabilityText || capability == infraai.CapabilityAudioChat
 	case infraai.AdapterMureka:
 		return capability == infraai.CapabilityText || capability == infraai.CapabilityAudioMusic
 	case infraai.AdapterStability:
@@ -542,6 +548,18 @@ func validateRegistryBoundaries(templates []templateSource, providers []provider
 		}
 		if !labs[lab] {
 			return fmt.Errorf("combo rule references unknown lab %q", lab)
+		}
+		for _, excludedLab := range rule.ExcludeLabs {
+			excludedLab = strings.TrimSpace(excludedLab)
+			if excludedLab == "" {
+				return fmt.Errorf("combo rule contains empty exclude_labs entry")
+			}
+			if providerOnlyLabName(excludedLab) {
+				return fmt.Errorf("combo rule exclude_labs %q is a provider or runtime boundary", excludedLab)
+			}
+			if !labs[excludedLab] {
+				return fmt.Errorf("combo rule exclude_labs references unknown lab %q", excludedLab)
+			}
 		}
 	}
 	for _, provider := range providers {
@@ -720,6 +738,7 @@ func writeProviderGeneratedGo(path string, providers []providerTemplateSource, r
 		if rule.Lab != "" {
 			writeGoStringField(&buf, "Lab", rule.Lab)
 		}
+		writeGoStringSliceField(&buf, "ExcludeLabs", rule.ExcludeLabs)
 		if rule.IDPrefix != "" {
 			writeGoStringField(&buf, "IDPrefix", rule.IDPrefix)
 		}

@@ -1,8 +1,12 @@
 rules:
   - provider_type: relay_gateway
     profile: gateway
+    exclude_labs:
+      - open-source-audio
   - provider_type: apiyi
     profile: gateway
+    exclude_labs:
+      - open-source-audio
   - provider_type: volcen
     profile: ark
     lab: seed
@@ -33,6 +37,9 @@ rules:
   - provider_type: minimax
     profile: official
     lab: minimax
+  - provider_type: xiaomi
+    profile: mimo
+    lab: xiaomi-mimo
   - provider_type: vidu
     profile: official
     lab: vidu

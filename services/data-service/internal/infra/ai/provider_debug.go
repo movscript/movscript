@@ -227,6 +227,9 @@ func buildDebugAdapter(adapterType, apiKey, baseURL string) (Provider, error) {
 	case AdapterMiniMax:
 		return NewMiniMaxAdapter(apiKey, baseURL), nil
 
+	case AdapterXiaomiMimo:
+		return NewXiaomiMimoAdapter(apiKey, baseURL), nil
+
 	default: // openai_compat
 		base := strings.TrimRight(baseURL, "/")
 		if base == "" {

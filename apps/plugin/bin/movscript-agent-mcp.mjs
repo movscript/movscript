@@ -17292,199 +17292,6 @@ function isRecord22(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-// ../../packages/core/dist/chunk-ELIYVQMX.js
-var AGENT_SURFACE_ROUTES = {
-  resources: "/agent/resources",
-  resourceDetail: "/agent/resources/:resourceId",
-  contentPrompt: "/agent/content/prompt",
-  contentCandidates: "/agent/content/candidates",
-  generationJob: "/agent/generation/jobs/:jobId",
-  previewTimeline: "/agent/preview/timeline",
-  impact: "/agent/impact",
-  projectStatus: "/agent/project/status"
-};
-function agentGenerationJobPath(jobId) {
-  return `/agent/generation/jobs/${encodeURIComponent(String(jobId))}`;
-}
-function createAgentBrowserSurface(args, input) {
-  const frontendOrigin = resolveFrontendOrigin(args);
-  const proxyBaseURL = resolveMCPProxyBaseURL(args);
-  const mcpApiBaseURL = `${proxyBaseURL}/agent-api/v1`;
-  const url = new URL(input.route, frontendOrigin);
-  url.searchParams.set("mcpApiBaseURL", mcpApiBaseURL);
-  url.searchParams.set("source", "mcp");
-  for (const [key, value] of Object.entries(input.query ?? {})) {
-    if (value === void 0) continue;
-    url.searchParams.set(key, String(value));
-  }
-  return {
-    kind: "browser_url",
-    surface: input.surface,
-    title: input.title,
-    route: input.route,
-    url: url.toString(),
-    frontend_origin: frontendOrigin,
-    mcp_api_base_url: mcpApiBaseURL,
-    api_proxy: {
-      base_url: mcpApiBaseURL,
-      auth: "agent_mcp_context"
-    },
-    ...input.entity ? { entity: input.entity } : {},
-    intent: input.intent,
-    usage: input.usage
-  };
-}
-function createPromptSurface(args, input) {
-  return createAgentBrowserSurface(args, {
-    route: AGENT_SURFACE_ROUTES.contentPrompt,
-    title: `Content unit prompt ${String(input.contentUnitId)}`,
-    surface: input.mode === "inspect" ? "inspect" : "edit",
-    intent: "edit_prompt",
-    entity: {
-      ...input.projectId !== void 0 ? { project_id: input.projectId } : {},
-      content_unit_id: input.contentUnitId
-    },
-    query: {
-      ...input.projectId !== void 0 ? { projectId: input.projectId } : {},
-      contentUnitId: input.contentUnitId,
-      mode: input.mode ?? "edit"
-    },
-    usage: "Open this prompt workbench to inspect semantic refs, blockers, compiled prompt text, provider prompt text, and generation inputs."
-  });
-}
-function createGenerationJobSurface(args, input) {
-  return createAgentBrowserSurface(args, {
-    route: agentGenerationJobPath(input.jobId),
-    title: `Generation job #${input.jobId}`,
-    surface: "inspect",
-    intent: "monitor_generation",
-    entity: {
-      job_id: input.jobId,
-      ...input.projectId !== void 0 ? { project_id: input.projectId } : {},
-      ...input.contentUnitId !== void 0 ? { content_unit_id: input.contentUnitId } : {}
-    },
-    query: {
-      jobId: input.jobId,
-      ...input.projectId !== void 0 ? { projectId: input.projectId } : {},
-      ...input.contentUnitId !== void 0 ? { contentUnitId: input.contentUnitId } : {}
-    },
-    usage: "Open this generation job surface to monitor status, inspect inputs, preview outputs, and continue to candidate review after success."
-  });
-}
-function createContentCandidatesSurface(args, input) {
-  return createAgentBrowserSurface(args, {
-    route: AGENT_SURFACE_ROUTES.contentCandidates,
-    title: `Content unit candidates ${String(input.contentUnitId)}`,
-    surface: "review",
-    intent: "review_candidates",
-    entity: {
-      ...input.projectId !== void 0 ? { project_id: input.projectId } : {},
-      content_unit_id: input.contentUnitId,
-      ...input.candidateId ? { candidate_id: input.candidateId } : {},
-      ...input.resourceId !== void 0 ? { resource_id: input.resourceId } : {}
-    },
-    query: {
-      ...input.projectId !== void 0 ? { projectId: input.projectId } : {},
-      contentUnitId: input.contentUnitId,
-      ...input.candidateId ? { candidateId: input.candidateId } : {},
-      ...input.resourceId !== void 0 ? { resourceId: input.resourceId } : {}
-    },
-    usage: "Open this candidate review surface to compare generated candidates, inspect prompt snapshots, and adopt, reject, or defer a content-unit candidate."
-  });
-}
-function createPreviewTimelineSurface(args, input) {
-  return createAgentBrowserSurface(args, {
-    route: AGENT_SURFACE_ROUTES.previewTimeline,
-    title: `Production preview ${String(input.productionId)}`,
-    surface: "review",
-    intent: "preview_timeline",
-    entity: {
-      ...input.projectId !== void 0 ? { project_id: input.projectId } : {},
-      production_id: input.productionId
-    },
-    query: {
-      ...input.projectId !== void 0 ? { projectId: input.projectId } : {},
-      productionId: input.productionId
-    },
-    usage: "Open this preview timeline surface to inspect selected scene-moment outputs in sequence and identify missing or stale preview material."
-  });
-}
-function createImpactSurface(args, input) {
-  return createAgentBrowserSurface(args, {
-    route: AGENT_SURFACE_ROUTES.impact,
-    title: "MovScript change impact",
-    surface: "review",
-    intent: "review_impact",
-    entity: {
-      ...input.projectId !== void 0 ? { project_id: input.projectId } : {}
-    },
-    query: {
-      ...input.projectId !== void 0 ? { projectId: input.projectId } : {},
-      ...input.target !== void 0 ? { target: input.target } : {},
-      ...input.source ? { source: input.source } : {}
-    },
-    usage: "Open this impact surface to review affected content units, stale selections, and explicit keep, relink, re-prompt, regenerate, or accept-stale decisions."
-  });
-}
-function createProjectStatusSurface(args, input = {}) {
-  return createAgentBrowserSurface(args, {
-    route: AGENT_SURFACE_ROUTES.projectStatus,
-    title: "MovScript project status",
-    surface: "inspect",
-    intent: "inspect_project_status",
-    entity: {
-      ...input.projectId !== void 0 ? { project_id: input.projectId } : {},
-      ...input.productionId !== void 0 ? { production_id: input.productionId } : {}
-    },
-    query: {
-      ...input.projectId !== void 0 ? { projectId: input.projectId } : {},
-      ...input.productionId !== void 0 ? { productionId: input.productionId } : {}
-    },
-    usage: "Open this project status surface to inspect production readiness, candidate coverage, selections, stale hints, and blockers."
-  });
-}
-function projectIdFromArgs(args) {
-  const value = args.projectId ?? args.project_id;
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim()) return value.trim();
-  return void 0;
-}
-function candidateIdFromArgs(args) {
-  return getOptionalString(args, "candidateId") ?? getOptionalString(args, "candidate_id");
-}
-function resolveFrontendOrigin(args) {
-  return normalizeHTTPOrigin(
-    getOptionalString(args, "frontend_origin") ?? getOptionalString(args, "frontendOrigin") ?? process.env.MOVSCRIPT_FRONTEND_ORIGIN ?? process.env.VITE_DEV_SERVER_URL ?? "http://127.0.0.1:5173"
-  );
-}
-function resolveMCPProxyBaseURL(args) {
-  const explicit = getOptionalString(args, "mcp_base_url") ?? getOptionalString(args, "mcpBaseURL");
-  if (explicit) return normalizeHTTPOrigin(explicit);
-  const endpoint = process.env.MOVSCRIPT_MCP_ENDPOINT;
-  if (endpoint) {
-    try {
-      const url = new URL(endpoint);
-      return normalizeHTTPOrigin(url.origin);
-    } catch {
-    }
-  }
-  const port = process.env.MOVSCRIPT_MCP_PORT || "28765";
-  return normalizeHTTPOrigin(`http://127.0.0.1:${port}`);
-}
-function getOptionalString(args, key) {
-  const value = args[key];
-  if (typeof value !== "string") return void 0;
-  const trimmed = value.trim();
-  return trimmed || void 0;
-}
-function normalizeHTTPOrigin(value) {
-  const url = new URL(value.trim());
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new Error(`Expected http(s) URL, got ${value}`);
-  }
-  return url.origin;
-}
-
 // ../../packages/workspace/dist/chunk-YXJMOABE.js
 var MOVSCRIPT_INTERPRET_CURRENT_DIR = ".interpret/current";
 var MOVSCRIPT_INTERPRET_MANIFESTS_DIR = ".interpret/manifests";
@@ -21146,6 +20953,199 @@ function newLocalServerId() {
     return `local-${crypto.randomUUID()}`;
   }
   return `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+// ../../packages/core/dist/chunk-ELIYVQMX.js
+var AGENT_SURFACE_ROUTES = {
+  resources: "/agent/resources",
+  resourceDetail: "/agent/resources/:resourceId",
+  contentPrompt: "/agent/content/prompt",
+  contentCandidates: "/agent/content/candidates",
+  generationJob: "/agent/generation/jobs/:jobId",
+  previewTimeline: "/agent/preview/timeline",
+  impact: "/agent/impact",
+  projectStatus: "/agent/project/status"
+};
+function agentGenerationJobPath(jobId) {
+  return `/agent/generation/jobs/${encodeURIComponent(String(jobId))}`;
+}
+function createAgentBrowserSurface(args, input) {
+  const frontendOrigin = resolveFrontendOrigin(args);
+  const proxyBaseURL = resolveMCPProxyBaseURL(args);
+  const mcpApiBaseURL = `${proxyBaseURL}/agent-api/v1`;
+  const url = new URL(input.route, frontendOrigin);
+  url.searchParams.set("mcpApiBaseURL", mcpApiBaseURL);
+  url.searchParams.set("source", "mcp");
+  for (const [key, value] of Object.entries(input.query ?? {})) {
+    if (value === void 0) continue;
+    url.searchParams.set(key, String(value));
+  }
+  return {
+    kind: "browser_url",
+    surface: input.surface,
+    title: input.title,
+    route: input.route,
+    url: url.toString(),
+    frontend_origin: frontendOrigin,
+    mcp_api_base_url: mcpApiBaseURL,
+    api_proxy: {
+      base_url: mcpApiBaseURL,
+      auth: "agent_mcp_context"
+    },
+    ...input.entity ? { entity: input.entity } : {},
+    intent: input.intent,
+    usage: input.usage
+  };
+}
+function createPromptSurface(args, input) {
+  return createAgentBrowserSurface(args, {
+    route: AGENT_SURFACE_ROUTES.contentPrompt,
+    title: `Content unit prompt ${String(input.contentUnitId)}`,
+    surface: input.mode === "inspect" ? "inspect" : "edit",
+    intent: "edit_prompt",
+    entity: {
+      ...input.projectId !== void 0 ? { project_id: input.projectId } : {},
+      content_unit_id: input.contentUnitId
+    },
+    query: {
+      ...input.projectId !== void 0 ? { projectId: input.projectId } : {},
+      contentUnitId: input.contentUnitId,
+      mode: input.mode ?? "edit"
+    },
+    usage: "Open this prompt workbench to inspect semantic refs, blockers, compiled prompt text, provider prompt text, and generation inputs."
+  });
+}
+function createGenerationJobSurface(args, input) {
+  return createAgentBrowserSurface(args, {
+    route: agentGenerationJobPath(input.jobId),
+    title: `Generation job #${input.jobId}`,
+    surface: "inspect",
+    intent: "monitor_generation",
+    entity: {
+      job_id: input.jobId,
+      ...input.projectId !== void 0 ? { project_id: input.projectId } : {},
+      ...input.contentUnitId !== void 0 ? { content_unit_id: input.contentUnitId } : {}
+    },
+    query: {
+      jobId: input.jobId,
+      ...input.projectId !== void 0 ? { projectId: input.projectId } : {},
+      ...input.contentUnitId !== void 0 ? { contentUnitId: input.contentUnitId } : {}
+    },
+    usage: "Open this generation job surface to monitor status, inspect inputs, preview outputs, and continue to candidate review after success."
+  });
+}
+function createContentCandidatesSurface(args, input) {
+  return createAgentBrowserSurface(args, {
+    route: AGENT_SURFACE_ROUTES.contentCandidates,
+    title: `Content unit candidates ${String(input.contentUnitId)}`,
+    surface: "review",
+    intent: "review_candidates",
+    entity: {
+      ...input.projectId !== void 0 ? { project_id: input.projectId } : {},
+      content_unit_id: input.contentUnitId,
+      ...input.candidateId ? { candidate_id: input.candidateId } : {},
+      ...input.resourceId !== void 0 ? { resource_id: input.resourceId } : {}
+    },
+    query: {
+      ...input.projectId !== void 0 ? { projectId: input.projectId } : {},
+      contentUnitId: input.contentUnitId,
+      ...input.candidateId ? { candidateId: input.candidateId } : {},
+      ...input.resourceId !== void 0 ? { resourceId: input.resourceId } : {}
+    },
+    usage: "Open this candidate review surface to compare generated candidates, inspect prompt snapshots, and adopt, reject, or defer a content-unit candidate."
+  });
+}
+function createPreviewTimelineSurface(args, input) {
+  return createAgentBrowserSurface(args, {
+    route: AGENT_SURFACE_ROUTES.previewTimeline,
+    title: `Production preview ${String(input.productionId)}`,
+    surface: "review",
+    intent: "preview_timeline",
+    entity: {
+      ...input.projectId !== void 0 ? { project_id: input.projectId } : {},
+      production_id: input.productionId
+    },
+    query: {
+      ...input.projectId !== void 0 ? { projectId: input.projectId } : {},
+      productionId: input.productionId
+    },
+    usage: "Open this preview timeline surface to inspect selected scene-moment outputs in sequence and identify missing or stale preview material."
+  });
+}
+function createImpactSurface(args, input) {
+  return createAgentBrowserSurface(args, {
+    route: AGENT_SURFACE_ROUTES.impact,
+    title: "MovScript change impact",
+    surface: "review",
+    intent: "review_impact",
+    entity: {
+      ...input.projectId !== void 0 ? { project_id: input.projectId } : {}
+    },
+    query: {
+      ...input.projectId !== void 0 ? { projectId: input.projectId } : {},
+      ...input.target !== void 0 ? { target: input.target } : {},
+      ...input.source ? { source: input.source } : {}
+    },
+    usage: "Open this impact surface to review affected content units, stale selections, and explicit keep, relink, re-prompt, regenerate, or accept-stale decisions."
+  });
+}
+function createProjectStatusSurface(args, input = {}) {
+  return createAgentBrowserSurface(args, {
+    route: AGENT_SURFACE_ROUTES.projectStatus,
+    title: "MovScript project status",
+    surface: "inspect",
+    intent: "inspect_project_status",
+    entity: {
+      ...input.projectId !== void 0 ? { project_id: input.projectId } : {},
+      ...input.productionId !== void 0 ? { production_id: input.productionId } : {}
+    },
+    query: {
+      ...input.projectId !== void 0 ? { projectId: input.projectId } : {},
+      ...input.productionId !== void 0 ? { productionId: input.productionId } : {}
+    },
+    usage: "Open this project status surface to inspect production readiness, candidate coverage, selections, stale hints, and blockers."
+  });
+}
+function projectIdFromArgs(args) {
+  const value = args.projectId ?? args.project_id;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) return value.trim();
+  return void 0;
+}
+function candidateIdFromArgs(args) {
+  return getOptionalString(args, "candidateId") ?? getOptionalString(args, "candidate_id");
+}
+function resolveFrontendOrigin(args) {
+  return normalizeHTTPOrigin(
+    getOptionalString(args, "frontend_origin") ?? getOptionalString(args, "frontendOrigin") ?? process.env.MOVSCRIPT_FRONTEND_ORIGIN ?? process.env.VITE_DEV_SERVER_URL ?? "http://127.0.0.1:5173"
+  );
+}
+function resolveMCPProxyBaseURL(args) {
+  const explicit = getOptionalString(args, "mcp_base_url") ?? getOptionalString(args, "mcpBaseURL");
+  if (explicit) return normalizeHTTPOrigin(explicit);
+  const endpoint = process.env.MOVSCRIPT_MCP_ENDPOINT;
+  if (endpoint) {
+    try {
+      const url = new URL(endpoint);
+      return normalizeHTTPOrigin(url.origin);
+    } catch {
+    }
+  }
+  const port = process.env.MOVSCRIPT_MCP_PORT || "28765";
+  return normalizeHTTPOrigin(`http://127.0.0.1:${port}`);
+}
+function getOptionalString(args, key) {
+  const value = args[key];
+  if (typeof value !== "string") return void 0;
+  const trimmed = value.trim();
+  return trimmed || void 0;
+}
+function normalizeHTTPOrigin(value) {
+  const url = new URL(value.trim());
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error(`Expected http(s) URL, got ${value}`);
+  }
+  return url.origin;
 }
 
 // ../../packages/editing/dist/chunk-YERYLJDV.js

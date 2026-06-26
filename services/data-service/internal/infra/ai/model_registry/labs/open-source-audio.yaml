@@ -31,8 +31,8 @@ templates:
           default: ""
       source:
         url: https://github.com/facebookresearch/audiocraft
-        verified_at: "2026-06-25"
-        status: template_only
+        verified_at: "2026-06-26"
+        status: verified
     - order: 2
       id: open-source-audio:ace-step
       lab: open-source-audio
@@ -64,8 +64,8 @@ templates:
           default: ""
       source:
         url: https://github.com/ace-step/ACE-Step
-        verified_at: "2026-06-25"
-        status: template_only
+        verified_at: "2026-06-26"
+        status: verified
     - order: 3
       id: open-source-audio:ace-step-1-5
       lab: open-source-audio
@@ -97,5 +97,5 @@ templates:
           default: ""
       source:
         url: https://github.com/ace-step/ACE-Step
-        verified_at: "2026-06-25"
-        status: template_only
+        verified_at: "2026-06-26"
+        status: verified

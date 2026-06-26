@@ -55,8 +55,8 @@
     ],
     "source": {
       "url": "https://github.com/facebookresearch/audiocraft",
-      "verified_at": "2026-06-25",
-      "status": "template_only"
+      "verified_at": "2026-06-26",
+      "status": "verified"
     }
   },
   {
@@ -135,8 +135,8 @@
     ],
     "source": {
       "url": "https://github.com/ace-step/ACE-Step",
-      "verified_at": "2026-06-25",
-      "status": "template_only"
+      "verified_at": "2026-06-26",
+      "status": "verified"
     }
   },
   {
@@ -215,8 +215,8 @@
     ],
     "source": {
       "url": "https://github.com/ace-step/ACE-Step",
-      "verified_at": "2026-06-25",
-      "status": "template_only"
+      "verified_at": "2026-06-26",
+      "status": "verified"
     }
   },
   {
@@ -266,7 +266,7 @@
     "id": "mureka:song-extension",
     "lab": "mureka",
     "model_id": "song_extension",
-    "adapter_type": "openai_compat",
+    "adapter_type": "mureka",
     "capabilities": [
       "audio_music"
     ],
@@ -274,9 +274,9 @@
       "duration"
     ],
     "source": {
-      "url": "https://platform.mureka.ai/",
+      "url": "https://platform.mureka.ai/docs/api/operations/post-v1-song-extend.html",
       "verified_at": "2026-06-25",
-      "status": "template_only"
+      "status": "verified"
     }
   },
   {
@@ -303,17 +303,20 @@
     "model_id": "scribe_v2_realtime",
     "adapter_type": "elevenlabs",
     "capabilities": [
-      "audio_transcribe",
-      "audio_chat"
+      "audio_transcribe"
     ],
     "param_keys": [
-      "diarize",
-      "tag_audio_events"
+      "audio_format",
+      "sample_rate",
+      "include_timestamps",
+      "commit_strategy",
+      "no_verbatim",
+      "keyterms"
     ],
     "source": {
-      "url": "https://elevenlabs.io/docs/models",
-      "verified_at": "2026-06-25",
-      "status": "template_only"
+      "url": "https://elevenlabs.io/docs/api-reference/speech-to-text/v-1-speech-to-text-realtime",
+      "verified_at": "2026-06-26",
+      "status": "verified"
     }
   },
   {
@@ -444,7 +447,7 @@
     "source": {
       "url": "https://elevenlabs.io/docs/overview/capabilities/voices",
       "verified_at": "2026-06-25",
-      "status": "template_only"
+      "status": "verified"
     }
   },
   {
@@ -472,7 +475,7 @@
     "source": {
       "url": "https://elevenlabs.io/docs/overview/capabilities/voices",
       "verified_at": "2026-06-25",
-      "status": "template_only"
+      "status": "verified"
     }
   },
   {
@@ -501,7 +504,7 @@
     "source": {
       "url": "https://elevenlabs.io/docs/overview/capabilities/voices",
       "verified_at": "2026-06-25",
-      "status": "template_only"
+      "status": "verified"
     }
   },
   {
@@ -808,7 +811,7 @@
     "source": {
       "url": "https://developers.openai.com/api/docs/guides/audio",
       "verified_at": "2026-06-25",
-      "status": "template_only"
+      "status": "verified"
     }
   },
   {
@@ -1224,6 +1227,30 @@
     }
   },
   {
+    "id": "volcengine:seed-tts-2-0-expressive",
+    "lab": "seed",
+    "model_id": "seed-tts-2.0-expressive",
+    "adapter_type": "volcen",
+    "capabilities": [
+      "audio_tts"
+    ],
+    "param_keys": [
+      "speaker",
+      "encoding",
+      "sample_rate",
+      "emotion",
+      "speech_rate",
+      "loudness_rate",
+      "explicit_language",
+      "resource_id"
+    ],
+    "source": {
+      "url": "https://www.volcengine.com/docs/6561/2528925?lang=zh",
+      "verified_at": "2026-06-26",
+      "status": "verified"
+    }
+  },
+  {
     "id": "volcengine:seedance-2-0",
     "lab": "seed",
     "model_id": "doubao-seedance-2-0-260128",
@@ -1246,6 +1273,30 @@
     "source": {
       "url": "https://www.volcengine.com/docs/82379/1520757?lang=zh",
       "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "volcengine:seed-tts-2-0-standard",
+    "lab": "seed",
+    "model_id": "seed-tts-2.0-standard",
+    "adapter_type": "volcen",
+    "capabilities": [
+      "audio_tts"
+    ],
+    "param_keys": [
+      "speaker",
+      "encoding",
+      "sample_rate",
+      "emotion",
+      "speech_rate",
+      "loudness_rate",
+      "explicit_language",
+      "resource_id"
+    ],
+    "source": {
+      "url": "https://www.volcengine.com/docs/6561/2528925?lang=zh",
+      "verified_at": "2026-06-26",
       "status": "verified"
     }
   },
@@ -1358,6 +1409,31 @@
     }
   },
   {
+    "id": "volcengine:doubao-seed-audio-1-0",
+    "lab": "seed",
+    "model_id": "doubao-seed-audio-1-0",
+    "adapter_type": "volcen",
+    "capabilities": [
+      "audio_music",
+      "audio_sfx"
+    ],
+    "param_keys": [
+      "duration",
+      "output_format",
+      "negative_prompt",
+      "reference_audio_url",
+      "style",
+      "seed",
+      "poll_timeout_ms",
+      "poll_interval_ms"
+    ],
+    "source": {
+      "url": "https://ark.volcengine.com/region:cn-beijing/experience/voice?model=doubao-seed-audio-1-0",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
     "id": "volcengine:seed-tts-1-0-concurr",
     "lab": "seed",
     "model_id": "seed-tts-1.0-concurr",
@@ -1442,10 +1518,28 @@
     "capabilities": [
       "audio_chat"
     ],
+    "param_keys": [
+      "model_version",
+      "speaker",
+      "input_mod",
+      "input_audio_format",
+      "input_sample_rate",
+      "output_audio_format",
+      "output_sample_rate",
+      "end_asr",
+      "end_smooth_window_ms",
+      "speech_rate",
+      "loudness_rate",
+      "bot_name",
+      "system_role",
+      "speaking_style",
+      "strict_audit",
+      "read_timeout_ms"
+    ],
     "source": {
-      "url": "https://ai.volcengine.com/",
-      "verified_at": "2026-06-25",
-      "status": "template_only"
+      "url": "https://www.volcengine.com/docs/6561/1594356",
+      "verified_at": "2026-06-26",
+      "status": "verified"
     }
   },
   {
@@ -1481,10 +1575,21 @@
     "capabilities": [
       "voice_clone"
     ],
+    "param_keys": [
+      "speaker_id",
+      "resource_id",
+      "model_type",
+      "source",
+      "language",
+      "audio_format",
+      "wait_for_ready",
+      "poll_timeout_ms",
+      "poll_interval_ms"
+    ],
     "source": {
-      "url": "https://www.volcengine.com/product/tts",
-      "verified_at": "2026-06-25",
-      "status": "template_only"
+      "url": "https://www.volcengine.com/docs/6561/2534906",
+      "verified_at": "2026-06-26",
+      "status": "verified"
     }
   },
   {
@@ -1648,7 +1753,7 @@
     "source": {
       "url": "https://www.alibabacloud.com/help/en/model-studio/qwen-image-api",
       "verified_at": "2026-06-25",
-      "status": "template_only"
+      "status": "verified"
     }
   },
   {
@@ -1717,9 +1822,9 @@
       "audio_tts"
     ],
     "source": {
-      "url": "https://www.alibabacloud.com/help/en/model-studio/qwen-tts-api",
+      "url": "https://www.alibabacloud.com/help/en/model-studio/interactive-process-of-qwen-tts-realtime-synthesis",
       "verified_at": "2026-06-25",
-      "status": "template_only"
+      "status": "verified"
     }
   },
   {
@@ -1746,9 +1851,9 @@
       "audio_tts"
     ],
     "source": {
-      "url": "https://www.alibabacloud.com/help/en/model-studio/qwen-tts-api",
+      "url": "https://www.alibabacloud.com/help/en/model-studio/interactive-process-of-qwen-tts-realtime-synthesis",
       "verified_at": "2026-06-25",
-      "status": "template_only"
+      "status": "verified"
     }
   },
   {
@@ -1959,15 +2064,21 @@
   {
     "id": "dashscope:qwen3-omni-flash",
     "lab": "alibaba-dashscope",
-    "model_id": "qwen3-omni-flash",
+    "model_id": "qwen3-omni-flash-realtime",
     "adapter_type": "dashscope",
     "capabilities": [
       "audio_chat"
     ],
+    "param_keys": [
+      "voice",
+      "input_audio_format",
+      "output_audio_format",
+      "output_sample_rate"
+    ],
     "source": {
-      "url": "https://www.alibabacloud.com/help/en/model-studio/qwen3-omni",
-      "verified_at": "2026-06-25",
-      "status": "template_only"
+      "url": "https://www.alibabacloud.com/help/en/model-studio/realtime",
+      "verified_at": "2026-06-26",
+      "status": "verified"
     }
   },
   {
@@ -2020,15 +2131,21 @@
   {
     "id": "dashscope:qwen3-omni-flash-2025-09-15",
     "lab": "alibaba-dashscope",
-    "model_id": "qwen3-omni-flash-2025-09-15",
+    "model_id": "qwen3-omni-flash-realtime-2025-09-15",
     "adapter_type": "dashscope",
     "capabilities": [
       "audio_chat"
     ],
+    "param_keys": [
+      "voice",
+      "input_audio_format",
+      "output_audio_format",
+      "output_sample_rate"
+    ],
     "source": {
-      "url": "https://www.alibabacloud.com/help/en/model-studio/qwen3-omni",
-      "verified_at": "2026-06-25",
-      "status": "template_only"
+      "url": "https://www.alibabacloud.com/help/en/model-studio/realtime",
+      "verified_at": "2026-06-26",
+      "status": "verified"
     }
   },
   {
@@ -2297,10 +2414,16 @@
     "capabilities": [
       "audio_transcribe"
     ],
+    "param_keys": [
+      "project_id",
+      "location",
+      "recognizer",
+      "language_code"
+    ],
     "source": {
-      "url": "https://cloud.google.com/speech-to-text/docs/chirp-model",
+      "url": "https://docs.cloud.google.com/speech-to-text/docs/models/chirp-3",
       "verified_at": "2026-06-25",
-      "status": "template_only"
+      "status": "verified"
     }
   },
   {
@@ -2326,10 +2449,16 @@
     "capabilities": [
       "audio_transcribe"
     ],
+    "param_keys": [
+      "project_id",
+      "location",
+      "recognizer",
+      "language_code"
+    ],
     "source": {
-      "url": "https://cloud.google.com/speech-to-text/docs/chirp-model",
+      "url": "https://docs.cloud.google.com/speech-to-text/docs/models/chirp-2",
       "verified_at": "2026-06-25",
-      "status": "template_only"
+      "status": "verified"
     }
   },
   {
@@ -2460,17 +2589,36 @@
     }
   },
   {
-    "id": "minimax:mimo-v2-omni",
-    "lab": "minimax",
+    "id": "xiaomi-mimo:mimo-v2-5",
+    "lab": "xiaomi-mimo",
+    "model_id": "mimo-v2.5",
+    "adapter_type": "xiaomi_mimo",
+    "capabilities": [
+      "audio_chat"
+    ],
+    "param_keys": [
+      "language",
+      "temperature",
+      "max_completion_tokens"
+    ],
+    "source": {
+      "url": "https://mimo.mi.com/docs/en-US/api/chat/openai-api",
+      "verified_at": "2026-06-26",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "xiaomi-mimo:mimo-v2-omni",
+    "lab": "xiaomi-mimo",
     "model_id": "mimo-v2-omni",
-    "adapter_type": "openai_compat",
+    "adapter_type": "xiaomi_mimo",
     "capabilities": [
       "audio_chat"
     ],
     "source": {
-      "url": "https://platform.minimax.io/docs",
-      "verified_at": "2026-06-25",
-      "status": "template_only"
+      "url": "https://mimo.mi.com/docs/en-US/price/pay-as-you-go",
+      "verified_at": "2026-06-26",
+      "status": "deprecated"
     }
   }
 ]

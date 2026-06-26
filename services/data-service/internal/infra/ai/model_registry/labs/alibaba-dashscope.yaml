@@ -79,7 +79,7 @@ templates:
             - "3:4"
           type: select
       source:
-        status: template_only
+        status: verified
         url: https://www.alibabacloud.com/help/en/model-studio/qwen-image-api
         verified_at: "2026-06-25"
     - adapter_type: dashscope
@@ -186,8 +186,8 @@ templates:
       model_id: qwen3-tts-flash-realtime
       order: 65
       source:
-        status: template_only
-        url: https://www.alibabacloud.com/help/en/model-studio/qwen-tts-api
+        status: verified
+        url: https://www.alibabacloud.com/help/en/model-studio/interactive-process-of-qwen-tts-realtime-synthesis
         verified_at: "2026-06-25"
     - adapter_type: dashscope
       allow_model_id_override: true
@@ -199,8 +199,8 @@ templates:
       model_id: qwen3-tts-instruct-flash-realtime
       order: 66
       source:
-        status: template_only
-        url: https://www.alibabacloud.com/help/en/model-studio/qwen-tts-api
+        status: verified
+        url: https://www.alibabacloud.com/help/en/model-studio/interactive-process-of-qwen-tts-realtime-synthesis
         verified_at: "2026-06-25"
     - adapter_type: dashscope
       allow_model_id_override: true
@@ -261,12 +261,41 @@ templates:
       display_name: Qwen3 Omni Flash
       id: dashscope:qwen3-omni-flash
       lab: alibaba-dashscope
-      model_id: qwen3-omni-flash
+      model_id: qwen3-omni-flash-realtime
       order: 71
+      params:
+        - key: voice
+          label: 音色
+          type: string
+          default: Ethan
+        - key: input_audio_format
+          label: 输入音频格式
+          type: select
+          options:
+            - pcm
+            - g711_ulaw
+            - g711_alaw
+          default: pcm
+        - key: output_audio_format
+          label: 输出音频格式
+          type: select
+          options:
+            - pcm
+            - wav
+            - mp3
+            - opus
+          default: pcm
+        - key: output_sample_rate
+          label: 输出采样率
+          type: number
+          default: 24000
+          min: 8000
+          max: 48000
+          step: 1000
       source:
-        status: template_only
-        url: https://www.alibabacloud.com/help/en/model-studio/qwen3-omni
-        verified_at: "2026-06-25"
+        status: verified
+        url: https://www.alibabacloud.com/help/en/model-studio/realtime
+        verified_at: "2026-06-26"
     - adapter_type: dashscope
       allow_model_id_override: true
       capabilities:
@@ -274,9 +303,38 @@ templates:
       display_name: Qwen3 Omni Flash 2025-09-15
       id: dashscope:qwen3-omni-flash-2025-09-15
       lab: alibaba-dashscope
-      model_id: qwen3-omni-flash-2025-09-15
+      model_id: qwen3-omni-flash-realtime-2025-09-15
       order: 72
+      params:
+        - key: voice
+          label: 音色
+          type: string
+          default: Ethan
+        - key: input_audio_format
+          label: 输入音频格式
+          type: select
+          options:
+            - pcm
+            - g711_ulaw
+            - g711_alaw
+          default: pcm
+        - key: output_audio_format
+          label: 输出音频格式
+          type: select
+          options:
+            - pcm
+            - wav
+            - mp3
+            - opus
+          default: pcm
+        - key: output_sample_rate
+          label: 输出采样率
+          type: number
+          default: 24000
+          min: 8000
+          max: 48000
+          step: 1000
       source:
-        status: template_only
-        url: https://www.alibabacloud.com/help/en/model-studio/qwen3-omni
-        verified_at: "2026-06-25"
+        status: verified
+        url: https://www.alibabacloud.com/help/en/model-studio/realtime
+        verified_at: "2026-06-26"

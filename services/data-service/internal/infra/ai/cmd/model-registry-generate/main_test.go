@@ -54,9 +54,9 @@ func TestValidateRegistryBoundariesAllowsLocalAudioRuntimeProvider(t *testing.T)
 func TestValidateRuntimeCapabilityCoverageRejectsUnimplementedAdapterCapability(t *testing.T) {
 	err := validateRuntimeCapabilityCoverage([]templateSource{
 		{
-			ID:           "dashscope:qwen-image",
-			AdapterType:  "dashscope",
-			Capabilities: []string{"image"},
+			ID:           "minimax:mimo-v2-omni",
+			AdapterType:  "minimax",
+			Capabilities: []string{"audio_chat"},
 			Source:       sourceEvidence{Status: "verified"},
 		},
 	})
@@ -68,9 +68,9 @@ func TestValidateRuntimeCapabilityCoverageRejectsUnimplementedAdapterCapability(
 func TestValidateRuntimeCapabilityCoverageAllowsTemplateOnlyDiscovery(t *testing.T) {
 	err := validateRuntimeCapabilityCoverage([]templateSource{
 		{
-			ID:           "dashscope:qwen-image",
-			AdapterType:  "dashscope",
-			Capabilities: []string{"image"},
+			ID:           "minimax:mimo-v2-omni",
+			AdapterType:  "minimax",
+			Capabilities: []string{"audio_chat"},
 			Source:       sourceEvidence{Status: "template_only"},
 		},
 	})

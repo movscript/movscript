@@ -107,6 +107,8 @@ func (r *Registry) buildProvider(cred persistencemodel.AICredential, def *ModelD
 		return NewElevenLabsAdapter(apiKey, baseURL), nil
 	case AdapterMiniMax:
 		return NewMiniMaxAdapter(apiKey, baseURL), nil
+	case AdapterXiaomiMimo:
+		return NewXiaomiMimoAdapter(apiKey, baseURL), nil
 	case AdapterMureka:
 		return NewMurekaAdapter(apiKey, baseURL), nil
 	case AdapterStability:

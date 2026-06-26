@@ -79,7 +79,7 @@ func TestComboTemplateRulesKeepGenericOpenAICompatibleGateway(t *testing.T) {
 
 func TestComboTemplatesSkipTemplateOnlyModels(t *testing.T) {
 	for _, template := range ComboTemplates() {
-		if template.ModelTemplateKey == "openai:gpt-4o-mini-audio-preview" {
+		if template.ModelTemplateKey == "minimax:mimo-v2-omni" {
 			t.Fatalf("template-only model should not generate combo template: %#v", template)
 		}
 	}
@@ -113,11 +113,13 @@ func TestComboTemplatesSkipMiniMaxMimoUntilOfficialProtocolIsVerified(t *testing
 }
 
 func TestComboTemplatesIncludeDashScopeHTTPTextToSpeech(t *testing.T) {
+	var image ComboTemplate
 	var qwen ComboTemplate
 	var cosy ComboTemplate
+	var realtime ComboTemplate
 	for _, template := range ComboTemplates() {
-		if template.ModelTemplateKey == "dashscope:qwen-image" {
-			t.Fatalf("DashScope image should remain template-only until ImageGenerate runtime is implemented: %#v", template)
+		if template.ModelTemplateKey == "dashscope:qwen-image" && template.ProviderKind == "alibaba_dashscope_official" {
+			image = template
 		}
 		if template.ModelTemplateKey == "dashscope:qwen3-tts-flash" && template.ProviderKind == "alibaba_dashscope_official" {
 			qwen = template
@@ -125,8 +127,8 @@ func TestComboTemplatesIncludeDashScopeHTTPTextToSpeech(t *testing.T) {
 		if template.ModelTemplateKey == "dashscope:cosyvoice-v3-flash" && template.ProviderKind == "alibaba_dashscope_official" {
 			cosy = template
 		}
-		if template.ModelTemplateKey == "dashscope:qwen3-tts-flash-realtime" {
-			t.Fatalf("realtime TTS should remain template-only until WebSocket runtime is implemented: %#v", template)
+		if template.ModelTemplateKey == "dashscope:qwen3-tts-flash-realtime" && template.ProviderKind == "alibaba_dashscope_official" {
+			realtime = template
 		}
 	}
 	if qwen.AdapterType != AdapterDashScope || len(qwen.APIKinds) != 1 || qwen.APIKinds[0] != "audio" {
@@ -134,6 +136,12 @@ func TestComboTemplatesIncludeDashScopeHTTPTextToSpeech(t *testing.T) {
 	}
 	if cosy.AdapterType != AdapterDashScope || len(cosy.APIKinds) != 1 || cosy.APIKinds[0] != "audio" {
 		t.Fatalf("cosy combo = %#v", cosy)
+	}
+	if realtime.AdapterType != AdapterDashScope || len(realtime.APIKinds) != 1 || realtime.APIKinds[0] != "audio" {
+		t.Fatalf("realtime combo = %#v", realtime)
+	}
+	if image.AdapterType != AdapterDashScope || len(image.APIKinds) != 1 || image.APIKinds[0] != "image" {
+		t.Fatalf("image combo = %#v", image)
 	}
 }
 
@@ -198,7 +206,7 @@ func TestAWSBedrockOpenAIStaysProviderOnly(t *testing.T) {
 	}
 }
 
-func TestLocalAudioRuntimeProviderTemplateExistsWithoutPrematureCombos(t *testing.T) {
+func TestLocalAudioRuntimeProviderTemplateOwnsOpenSourceAudioCombos(t *testing.T) {
 	var provider ProviderTemplate
 	for _, template := range ProviderTemplates() {
 		if template.ProviderKind == "local_audio_runtime" {
@@ -215,9 +223,19 @@ func TestLocalAudioRuntimeProviderTemplateExistsWithoutPrematureCombos(t *testin
 	if provider.Capabilities["audio_runtime"] != true || provider.Capabilities["local_endpoint"] != true {
 		t.Fatalf("local audio provider capabilities = %#v, want audio_runtime local endpoint", provider.Capabilities)
 	}
+	found := map[string]bool{}
 	for _, template := range ComboTemplates() {
-		if strings.HasPrefix(template.ModelTemplateKey, "open-source-audio:") || template.ProviderKind == "local_audio_runtime" {
-			t.Fatalf("open-source audio template-only models should not generate local runtime combos yet: %#v", template)
+		if !strings.HasPrefix(template.ModelTemplateKey, "open-source-audio:") {
+			continue
+		}
+		if template.ProviderKind != "local_audio_runtime" || template.ProviderType != "local" || template.AdapterType != AdapterLocal {
+			t.Fatalf("open-source audio combo should use local runtime only: %#v", template)
+		}
+		found[template.ModelTemplateKey] = true
+	}
+	for _, key := range []string{"open-source-audio:musicgen", "open-source-audio:ace-step", "open-source-audio:ace-step-1-5"} {
+		if !found[key] {
+			t.Fatalf("missing local audio runtime combo for %s", key)
 		}
 	}
 }
@@ -245,6 +263,7 @@ func TestComboTemplatesIncludeMurekaOfficialMusic(t *testing.T) {
 	var song ComboTemplate
 	var instrumental ComboTemplate
 	var lyrics ComboTemplate
+	var extension ComboTemplate
 	for _, template := range ComboTemplates() {
 		if template.ModelTemplateKey == "mureka:song-generation" && template.ProviderKind == "mureka_official" {
 			song = template
@@ -255,8 +274,8 @@ func TestComboTemplatesIncludeMurekaOfficialMusic(t *testing.T) {
 		if template.ModelTemplateKey == "mureka:lyrics-generation" && template.ProviderKind == "mureka_official" {
 			lyrics = template
 		}
-		if template.ModelTemplateKey == "mureka:song-extension" {
-			t.Fatalf("unsupported Mureka template-only model should not generate combo: %#v", template)
+		if template.ModelTemplateKey == "mureka:song-extension" && template.ProviderKind == "mureka_official" {
+			extension = template
 		}
 	}
 	if song.AdapterType != AdapterMureka || len(song.APIKinds) != 1 || song.APIKinds[0] != "audio" {
@@ -267,6 +286,9 @@ func TestComboTemplatesIncludeMurekaOfficialMusic(t *testing.T) {
 	}
 	if lyrics.AdapterType != AdapterMureka || len(lyrics.APIKinds) != 1 || lyrics.APIKinds[0] != ModelAPIKindOpenAIChatCompletions {
 		t.Fatalf("lyrics combo = %#v", lyrics)
+	}
+	if extension.AdapterType != AdapterMureka || len(extension.APIKinds) != 1 || extension.APIKinds[0] != "audio" {
+		t.Fatalf("extension combo = %#v", extension)
 	}
 }
 

@@ -16,6 +16,7 @@ const (
 	AdapterVidu         = "vidu"
 	AdapterElevenLabs   = "elevenlabs"
 	AdapterMiniMax      = "minimax"
+	AdapterXiaomiMimo   = "xiaomi_mimo"
 	AdapterMureka       = "mureka"
 	AdapterStability    = "stability"
 	AdapterLocal        = "local"
@@ -536,6 +537,15 @@ func openAICompatAudioChatParams() []ParamDef {
 	}
 }
 
+func xiaomiMimoAudioChatParams() []ParamDef {
+	return []ParamDef{
+		{Key: "language", Label: "识别语言", Type: "select",
+			Options: []string{"auto", "zh", "en"}, Default: "auto"},
+		{Key: "temperature", Label: "温度", Type: "number", Default: 0.8, Min: 0, Max: 2, Step: 0.1},
+		{Key: "max_completion_tokens", Label: "最大输出 Token", Type: "number", Min: 1, Max: 4096, Step: 1},
+	}
+}
+
 func audioGenerationParams() []ParamDef {
 	return []ParamDef{
 		{Key: "duration", Label: "时长(秒)", Type: "select",
@@ -739,6 +749,19 @@ var AdapterDefs = []AdapterDef{
 		},
 		ParamSets: []AdapterParamSet{
 			{Capability: CapabilityAudioTTS, Params: miniMaxTTSParams()},
+		},
+	},
+	{
+		AdapterType:    AdapterXiaomiMimo,
+		DisplayName:    "小米 MiMo",
+		Description:    "小米 MiMo 官方 OpenAI Chat Completions 兼容接口，支持原生音频输入理解",
+		DefaultBaseURL: "https://api.xiaomimimo.com/v1",
+		CredFields: []CredField{
+			{Key: "api_key", Label: "API Key", Required: true},
+			{Key: "base_url", Label: "Base URL（可选，用于代理）", Required: false},
+		},
+		ParamSets: []AdapterParamSet{
+			{Capability: CapabilityAudioChat, Params: xiaomiMimoAudioChatParams()},
 		},
 	},
 	{

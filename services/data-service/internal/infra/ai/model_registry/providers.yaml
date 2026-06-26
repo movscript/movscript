@@ -113,6 +113,22 @@ providers:
     is_builtin: true
     is_enabled: true
     version: builtin.v1
+  - provider_type: xiaomi
+    profile: mimo
+    provider_kind: xiaomi_mimo_official
+    provider_category: official_platform
+    display_name: 小米 MiMo 官方 API
+    description: Xiaomi MiMo official account boundary for OpenAI-compatible chat completions with native audio input.
+    default_adapter_type: xiaomi_mimo
+    default_base_url_prefix: https://api.xiaomimimo.com/v1
+    capabilities:
+      aggregates_upstream_models: false
+      file_upload: false
+      asset_library: false
+      generated_artifact_trust: false
+    is_builtin: true
+    is_enabled: true
+    version: builtin.v1
   - provider_type: elevenlabs
     profile: official
     provider_kind: elevenlabs_official

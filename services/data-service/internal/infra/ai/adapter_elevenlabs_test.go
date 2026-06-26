@@ -2,12 +2,15 @@ package ai
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/gorilla/websocket"
 	"github.com/movscript/movscript/internal/domain/media"
 )
 
@@ -142,6 +145,74 @@ func TestElevenLabsTranscribeSendsMultipartModelAndOptions(t *testing.T) {
 		t.Fatalf("content = %q", string(resp.Content))
 	}
 	if len(resp.Timing.Words) != 1 || resp.Timing.Words[0].StartMs != 100 || resp.Timing.Words[0].EndMs != 400 {
+		t.Fatalf("timing = %#v", resp.Timing)
+	}
+}
+
+func TestElevenLabsTranscribeRealtimeUsesWebSocketEvents(t *testing.T) {
+	var gotAPIKey string
+	var gotModel string
+	var gotIncludeTimestamps string
+	var gotChunk map[string]any
+	upgrader := websocket.Upgrader{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/speech-to-text/realtime" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		gotAPIKey = r.Header.Get("xi-api-key")
+		gotModel = r.URL.Query().Get("model_id")
+		gotIncludeTimestamps = r.URL.Query().Get("include_timestamps")
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			t.Fatalf("upgrade websocket: %v", err)
+		}
+		defer conn.Close()
+		_ = conn.WriteJSON(map[string]any{
+			"message_type": "session_started",
+			"session_id":   "scribe_session_1",
+		})
+		if err := conn.ReadJSON(&gotChunk); err != nil {
+			t.Fatalf("read input chunk: %v", err)
+		}
+		_ = conn.WriteJSON(map[string]any{
+			"message_type":  "committed_transcript_with_timestamps",
+			"text":          "hello realtime",
+			"language_code": "en",
+			"words": []map[string]any{
+				{"text": "hello", "start": 0.1, "end": 0.4, "confidence": 0.9},
+			},
+		})
+	}))
+	defer server.Close()
+
+	adapter := NewElevenLabsAdapter("eleven-key", server.URL+"/v1")
+	resp, err := adapter.Transcribe(context.Background(), media.TranscribeRequest{
+		Audio:    []byte("pcm-bytes"),
+		MimeType: "audio/L16",
+		Language: "en",
+		Model:    "scribe_v2_realtime",
+		Params: map[string]any{
+			"sample_rate": 16000,
+			"keyterms":    "ElevenLabs,MovScript",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Transcribe realtime error: %v", err)
+	}
+	if gotAPIKey != "eleven-key" {
+		t.Fatalf("xi-api-key = %q", gotAPIKey)
+	}
+	if gotModel != "scribe_v2_realtime" || gotIncludeTimestamps != "true" {
+		t.Fatalf("query model=%q include_timestamps=%q", gotModel, gotIncludeTimestamps)
+	}
+	if gotChunk["message_type"] != "input_audio_chunk" || gotChunk["audio_base_64"] != base64.StdEncoding.EncodeToString([]byte("pcm-bytes")) ||
+		gotChunk["commit"] != true || gotChunk["sample_rate"].(float64) != 16000 {
+		t.Fatalf("chunk = %#v", gotChunk)
+	}
+	if string(resp.Content) != "hello realtime" || resp.ProviderRef != "scribe_session_1" {
+		t.Fatalf("resp = %#v", resp)
+	}
+	if resp.Timing.Language != "en" || len(resp.Timing.Words) != 1 || resp.Timing.Words[0].Text != "hello" {
 		t.Fatalf("timing = %#v", resp.Timing)
 	}
 }

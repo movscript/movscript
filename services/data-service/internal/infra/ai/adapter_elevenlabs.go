@@ -3,6 +3,7 @@ package ai
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,7 +12,9 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/movscript/movscript/internal/domain/media"
 )
 
@@ -133,6 +136,9 @@ func (a *ElevenLabsAdapter) Transcribe(ctx context.Context, req media.Transcribe
 	if len(req.Audio) == 0 {
 		return media.SubtitleResponse{}, fmt.Errorf("audio is required")
 	}
+	if strings.Contains(strings.ToLower(firstNonEmptyAI(req.Model, "")), "realtime") {
+		return a.transcribeRealtime(ctx, req)
+	}
 
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
@@ -185,6 +191,57 @@ func (a *ElevenLabsAdapter) Transcribe(ctx context.Context, req media.Transcribe
 		Content:     content,
 		MimeType:    "application/json",
 		ProviderRef: resp.Header.Get("request-id"),
+	}, nil
+}
+
+func (a *ElevenLabsAdapter) transcribeRealtime(ctx context.Context, req media.TranscribeRequest) (media.SubtitleResponse, error) {
+	model := firstNonEmptyAI(req.Model, "scribe_v2_realtime")
+	endpoint, err := elevenLabsRealtimeSTTURL(a.BaseURL, req.Params, model, req.Language)
+	if err != nil {
+		return media.SubtitleResponse{}, err
+	}
+	headers := http.Header{}
+	headers.Set("xi-api-key", a.APIKey)
+	start := time.Now()
+	conn, resp, err := websocket.DefaultDialer.DialContext(ctx, endpoint, headers)
+	latency := time.Since(start).Milliseconds()
+	if err != nil {
+		status := 0
+		if resp != nil {
+			status = resp.StatusCode
+		}
+		recordDebug(ctx, DebugCallResult{Success: false, ModelID: model, Endpoint: endpoint, Method: "WEBSOCKET", RequestHeaders: map[string]string{"xi-api-key": maskKey(a.APIKey)}, ResponseStatus: status, LatencyMs: latency, Error: err.Error()})
+		return media.SubtitleResponse{}, err
+	}
+	defer conn.Close()
+
+	chunk := map[string]any{
+		"message_type":  "input_audio_chunk",
+		"audio_base_64": base64.StdEncoding.EncodeToString(req.Audio),
+		"commit":        true,
+		"sample_rate":   intParamOrDefault(req.Params, "sample_rate", 16000),
+	}
+	if previous := stringParam(req.Params, "previous_text", ""); previous != "" {
+		chunk["previous_text"] = previous
+	}
+	if err := conn.WriteJSON(chunk); err != nil {
+		return media.SubtitleResponse{}, err
+	}
+	timing, transcript, providerRef, err := readElevenLabsRealtimeTranscript(ctx, conn, req.Language)
+	if err != nil {
+		recordDebug(ctx, DebugCallResult{Success: false, ModelID: model, Endpoint: endpoint, Method: "WEBSOCKET", RequestHeaders: map[string]string{"xi-api-key": maskKey(a.APIKey)}, LatencyMs: time.Since(start).Milliseconds(), Error: err.Error()})
+		return media.SubtitleResponse{}, err
+	}
+	if strings.TrimSpace(transcript) == "" {
+		return media.SubtitleResponse{}, fmt.Errorf("elevenlabs realtime STT returned empty transcript")
+	}
+	recordDebug(ctx, DebugCallResult{Success: true, ModelID: model, Endpoint: endpoint, Method: "WEBSOCKET", RequestHeaders: map[string]string{"xi-api-key": maskKey(a.APIKey)}, RequestBody: mustJSON(map[string]any{"audio_bytes": len(req.Audio), "sample_rate": chunk["sample_rate"]}), LatencyMs: time.Since(start).Milliseconds()})
+	return media.SubtitleResponse{
+		Timing:      timing,
+		Format:      "json",
+		Content:     []byte(transcript),
+		MimeType:    "application/json",
+		ProviderRef: providerRef,
 	}, nil
 }
 
@@ -523,6 +580,136 @@ func parseElevenLabsTranscript(data []byte, language string) (media.TimingMetada
 		Segments: segments,
 		Words:    words,
 	}, text
+}
+
+func elevenLabsRealtimeSTTURL(baseURL string, params map[string]any, model, language string) (string, error) {
+	if raw := strings.TrimSpace(stringParam(params, "realtime_url", "")); raw != "" {
+		u, err := url.Parse(raw)
+		if err != nil {
+			return "", err
+		}
+		q := u.Query()
+		if q.Get("model_id") == "" {
+			q.Set("model_id", model)
+		}
+		u.RawQuery = q.Encode()
+		return u.String(), nil
+	}
+	base := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if base == "" {
+		base = "https://api.elevenlabs.io/v1"
+	}
+	u, err := url.Parse(base)
+	if err != nil {
+		return "", err
+	}
+	switch u.Scheme {
+	case "https":
+		u.Scheme = "wss"
+	case "http":
+		u.Scheme = "ws"
+	case "wss", "ws":
+	default:
+		u.Scheme = "wss"
+	}
+	path := strings.TrimRight(u.Path, "/")
+	if strings.HasSuffix(path, "/speech-to-text/realtime") {
+		u.Path = path
+	} else if path == "" || path == "/" {
+		u.Path = "/v1/speech-to-text/realtime"
+	} else {
+		u.Path = path + "/speech-to-text/realtime"
+	}
+	q := u.Query()
+	q.Set("model_id", model)
+	q.Set("include_timestamps", boolStringParam(params, "include_timestamps", true))
+	if language = strings.TrimSpace(language); language != "" {
+		q.Set("language_code", language)
+	} else if language = stringParam(params, "language_code", ""); language != "" {
+		q.Set("language_code", language)
+	}
+	if format := stringParam(params, "audio_format", ""); format != "" {
+		q.Set("audio_format", format)
+	}
+	if strategy := stringParam(params, "commit_strategy", "manual"); strategy != "" {
+		q.Set("commit_strategy", strategy)
+	}
+	if noVerbatim, ok := boolParam(params, "no_verbatim"); ok {
+		q.Set("no_verbatim", fmt.Sprintf("%t", noVerbatim))
+	}
+	for _, keyterm := range stringSliceParam(params, "keyterms") {
+		q.Add("keyterms", keyterm)
+	}
+	u.RawQuery = q.Encode()
+	return u.String(), nil
+}
+
+func readElevenLabsRealtimeTranscript(ctx context.Context, conn *websocket.Conn, language string) (media.TimingMetadata, string, string, error) {
+	providerRef := ""
+	for {
+		if deadline, ok := ctx.Deadline(); ok {
+			_ = conn.SetReadDeadline(deadline)
+		}
+		var event map[string]any
+		if err := conn.ReadJSON(&event); err != nil {
+			return media.TimingMetadata{}, "", providerRef, err
+		}
+		switch stringField(event, "message_type") {
+		case "session_started":
+			providerRef = firstNonEmptyAI(providerRef, stringField(event, "session_id"))
+		case "committed_transcript", "committed_transcript_with_timestamps":
+			transcript := stringField(event, "text")
+			timing := media.TimingMetadata{
+				Source:   media.TimingSourceSTT,
+				Provider: "elevenlabs",
+				Language: firstNonEmptyAI(stringField(event, "language_code"), strings.TrimSpace(language)),
+				Words:    parseElevenLabsTimedUnits(event["words"], "word"),
+			}
+			if transcript != "" {
+				timing.Segments = []media.TimedTextUnit{{ID: "segment_1", Text: transcript}}
+			}
+			return timing, transcript, providerRef, nil
+		case "scribe_error", "auth_error", "quota_exceeded", "throttled", "rate_limited", "input_error",
+			"chunk_size_exceeded", "insufficient_audio_activity", "transcriber_error", "resource_exhausted":
+			return media.TimingMetadata{}, "", providerRef, fmt.Errorf("elevenlabs realtime STT error: %s", firstNonEmptyAI(stringField(event, "message"), stringField(event, "error"), mustJSON(event)))
+		}
+	}
+}
+
+func stringSliceParam(params map[string]any, key string) []string {
+	if len(params) == 0 {
+		return nil
+	}
+	value, ok := params[key]
+	if !ok {
+		return nil
+	}
+	switch v := value.(type) {
+	case []string:
+		return append([]string(nil), v...)
+	case []any:
+		out := make([]string, 0, len(v))
+		for _, item := range v {
+			if s := strings.TrimSpace(fmt.Sprint(item)); s != "" {
+				out = append(out, s)
+			}
+		}
+		return out
+	case string:
+		parts := strings.Split(v, ",")
+		out := make([]string, 0, len(parts))
+		for _, part := range parts {
+			if s := strings.TrimSpace(part); s != "" {
+				out = append(out, s)
+			}
+		}
+		return out
+	default:
+		if s := strings.TrimSpace(fmt.Sprint(v)); s != "" {
+			return []string{s}
+		}
+		return nil
+	}
 }
 
 func parseElevenLabsVoiceProfile(data []byte) media.VoiceProfileResponse {

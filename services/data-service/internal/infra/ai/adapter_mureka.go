@@ -141,8 +141,8 @@ func (a *MurekaAdapter) GenerateAudio(ctx context.Context, req media.AudioGenera
 		return media.AudioGenerationResponse{}, fmt.Errorf("unsupported mureka audio generation kind %q", req.Kind)
 	}
 	prompt := strings.TrimSpace(req.Prompt)
-	if prompt == "" {
-		return media.AudioGenerationResponse{}, fmt.Errorf("prompt is required")
+	if prompt == "" && stringParam(req.Params, "lyrics", "") == "" {
+		return media.AudioGenerationResponse{}, fmt.Errorf("prompt or lyrics is required")
 	}
 
 	taskID, queryPath, err := a.startMusicTask(ctx, req, prompt)
@@ -171,19 +171,39 @@ func (a *MurekaAdapter) GenerateAudio(ctx context.Context, req media.AudioGenera
 
 func (a *MurekaAdapter) startMusicTask(ctx context.Context, req media.AudioGenerationRequest, prompt string) (taskID, queryPath string, err error) {
 	modelID := strings.TrimSpace(req.Model)
+	extension := modelID == "song_extension" || boolParamValue(req.Params, "extend")
 	instrumental := modelID == "instrumental_generation" || boolParamValue(req.Params, "instrumental")
 	endpointPath := "/v1/song/generate"
 	queryPath = "/v1/song/query/"
-	if instrumental {
+	if extension {
+		endpointPath = "/v1/song/extend"
+	} else if instrumental {
 		endpointPath = "/v1/instrumental/generate"
 		queryPath = "/v1/instrumental/query/"
 	}
 
-	body := map[string]any{
-		"prompt": prompt,
-		"model":  stringParam(req.Params, "model", murekaDefaultGeneratedModel),
+	body := map[string]any{}
+	if extension {
+		lyrics := firstNonEmptyAI(stringParam(req.Params, "lyrics", ""), prompt)
+		if lyrics == "" {
+			return "", "", fmt.Errorf("lyrics are required for mureka song extension")
+		}
+		body["lyrics"] = lyrics
+		uploadID := firstNonEmptyAI(stringParam(req.Params, "upload_id", ""), stringParam(req.Params, "file_id", ""))
+		songID := firstNonEmptyAI(stringParam(req.Params, "song_id", ""), stringParam(req.Params, "source_song_id", ""))
+		switch {
+		case uploadID != "":
+			body["upload_id"] = uploadID
+		case songID != "":
+			body["song_id"] = songID
+		default:
+			return "", "", fmt.Errorf("song_id or upload_id is required for mureka song extension")
+		}
+	} else {
+		body["prompt"] = prompt
+		body["model"] = stringParam(req.Params, "model", murekaDefaultGeneratedModel)
 	}
-	if !instrumental {
+	if !instrumental && !extension {
 		if lyrics := stringParam(req.Params, "lyrics", ""); lyrics != "" {
 			body["lyrics"] = lyrics
 		}

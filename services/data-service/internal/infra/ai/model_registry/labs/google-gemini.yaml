@@ -349,9 +349,29 @@ templates:
       lab: google-gemini
       model_id: chirp_3
       order: 79
+      params:
+        - key: project_id
+          label: Google Cloud Project ID
+          type: string
+          default: ""
+        - key: location
+          label: 区域
+          type: select
+          options:
+            - us
+            - eu
+          default: us
+        - key: recognizer
+          label: Recognizer
+          type: string
+          default: "_"
+        - key: language_code
+          label: 语言
+          type: string
+          default: en-US
       source:
-        status: template_only
-        url: https://cloud.google.com/speech-to-text/docs/chirp-model
+        status: verified
+        url: https://docs.cloud.google.com/speech-to-text/docs/models/chirp-3
         verified_at: "2026-06-25"
     - adapter_type: gemini
       allow_model_id_override: true
@@ -362,7 +382,27 @@ templates:
       lab: google-gemini
       model_id: chirp_2
       order: 80
+      params:
+        - key: project_id
+          label: Google Cloud Project ID
+          type: string
+          default: ""
+        - key: location
+          label: 区域
+          type: select
+          options:
+            - us
+            - eu
+          default: us
+        - key: recognizer
+          label: Recognizer
+          type: string
+          default: "_"
+        - key: language_code
+          label: 语言
+          type: string
+          default: en-US
       source:
-        status: template_only
-        url: https://cloud.google.com/speech-to-text/docs/chirp-model
+        status: verified
+        url: https://docs.cloud.google.com/speech-to-text/docs/models/chirp-2
         verified_at: "2026-06-25"

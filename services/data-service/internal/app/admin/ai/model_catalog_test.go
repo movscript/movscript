@@ -239,6 +239,7 @@ func TestPreviewModelImportInfersGatewayModelCapabilities(t *testing.T) {
 			{"id":"gpt-image-1.5"},
 			{"id":"veo-3.1-fast-generate-preview"},
 			{"id":"qwen3-omni-flash-2025-09-15"},
+			{"id":"musicgen"},
 			{"id":"deepseek-r1-0528"},
 			{"id":"gpt-4o-transcribe"}
 		]}`))
@@ -279,13 +280,17 @@ func TestPreviewModelImportInfersGatewayModelCapabilities(t *testing.T) {
 	assertImportPlan("gpt-image-1.5", "image,image_edit", "")
 	assertImportPlan("veo-3.1-fast-generate-preview", "video", "")
 	qwenOmni := assertImportPlan("qwen3-omni-flash-2025-09-15", "audio_chat", "dashscope:qwen3-omni-flash-2025-09-15")
-	if qwenOmni.Recommended || qwenOmni.TemplateStatus != "template_only" || len(qwenOmni.Diagnostics) == 0 {
-		t.Fatalf("qwen omni plan = %+v, want template_only not recommended with diagnostics", qwenOmni)
+	if !qwenOmni.Recommended || qwenOmni.TemplateStatus != "verified" || len(qwenOmni.Diagnostics) != 0 {
+		t.Fatalf("qwen omni plan = %+v, want verified recommended without diagnostics", qwenOmni)
+	}
+	musicgen := assertImportPlan("musicgen", "audio_music", "open-source-audio:musicgen")
+	if musicgen.Recommended || musicgen.TemplateStatus != "verified" || len(musicgen.Diagnostics) == 0 {
+		t.Fatalf("musicgen plan = %+v, want verified local-runtime template not recommended for gateway import", musicgen)
 	}
 	assertImportPlan("deepseek-r1-0528", "text,reasoning", "")
 }
 
-func TestApplyModelImportSkipsRouteForTemplateOnlyTemplate(t *testing.T) {
+func TestApplyModelImportSkipsGatewayRouteForLocalRuntimeTemplate(t *testing.T) {
 	service := newModelImportTestService(t)
 	ctx := context.Background()
 
@@ -295,9 +300,9 @@ func TestApplyModelImportSkipsRouteForTemplateOnlyTemplate(t *testing.T) {
 			APIKey:        "sk-import-template-only",
 		},
 		Models: []ModelImportModelInput{{
-			ProviderModelID: "qwen3-omni-flash-2025-09-15",
-			PublicModelID:   "qwen3-omni-flash-2025-09-15",
-			TemplateID:      "dashscope:qwen3-omni-flash-2025-09-15",
+			ProviderModelID: "musicgen",
+			PublicModelID:   "musicgen",
+			TemplateID:      "open-source-audio:musicgen",
 		}},
 	})
 	if err != nil {
@@ -309,8 +314,8 @@ func TestApplyModelImportSkipsRouteForTemplateOnlyTemplate(t *testing.T) {
 	if len(result.Items) != 1 || !result.Items[0].SkippedRouteBinding || result.Items[0].RouteBindingID != 0 {
 		t.Fatalf("items = %+v, want skipped route without route id", result.Items)
 	}
-	if result.Items[0].TemplateStatus != "template_only" || result.Items[0].Recommended {
-		t.Fatalf("item = %+v, want template_only not recommended", result.Items[0])
+	if result.Items[0].TemplateStatus != "verified" || result.Items[0].Recommended || len(result.Items[0].Diagnostics) == 0 {
+		t.Fatalf("item = %+v, want verified local-runtime template skipped for gateway route", result.Items[0])
 	}
 	var routeCount int64
 	if err := service.db.Model(&persistencemodel.AIModelRouteBinding{}).Count(&routeCount).Error; err != nil {

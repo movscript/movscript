@@ -1040,6 +1040,124 @@ templates:
       allow_model_id_override: true
       capabilities:
         - audio_tts
+      display_name: Seed Speech TTS 2.0 Expressive
+      id: volcengine:seed-tts-2-0-expressive
+      lab: seed
+      model_id: seed-tts-2.0-expressive
+      order: 45
+      params:
+        - key: speaker
+          label: 音色
+          type: string
+          default: zh_female_vv_uranus_bigtts
+        - key: encoding
+          label: 音频格式
+          type: select
+          options:
+            - mp3
+            - wav
+            - pcm
+            - ogg_opus
+          default: mp3
+        - key: sample_rate
+          label: 采样率
+          type: number
+          default: 24000
+          min: 8000
+          step: 1000
+        - key: emotion
+          label: 情绪
+          type: string
+          default: ""
+        - key: speech_rate
+          label: 语速
+          type: number
+          default: 0
+          min: -50
+          max: 100
+          step: 1
+        - key: loudness_rate
+          label: 音量
+          type: number
+          default: 0
+          min: -50
+          max: 100
+          step: 1
+        - key: explicit_language
+          label: 显式语言
+          type: string
+          default: ""
+        - key: resource_id
+          label: Resource ID
+          type: string
+          default: seed-tts-2.0
+      source:
+        status: verified
+        url: https://www.volcengine.com/docs/6561/2528925?lang=zh
+        verified_at: "2026-06-26"
+    - adapter_type: volcen
+      allow_model_id_override: true
+      capabilities:
+        - audio_tts
+      display_name: Seed Speech TTS 2.0 Standard
+      id: volcengine:seed-tts-2-0-standard
+      lab: seed
+      model_id: seed-tts-2.0-standard
+      order: 46
+      params:
+        - key: speaker
+          label: 音色
+          type: string
+          default: zh_female_vv_uranus_bigtts
+        - key: encoding
+          label: 音频格式
+          type: select
+          options:
+            - mp3
+            - wav
+            - pcm
+            - ogg_opus
+          default: mp3
+        - key: sample_rate
+          label: 采样率
+          type: number
+          default: 24000
+          min: 8000
+          step: 1000
+        - key: emotion
+          label: 情绪
+          type: string
+          default: ""
+        - key: speech_rate
+          label: 语速
+          type: number
+          default: 0
+          min: -50
+          max: 100
+          step: 1
+        - key: loudness_rate
+          label: 音量
+          type: number
+          default: 0
+          min: -50
+          max: 100
+          step: 1
+        - key: explicit_language
+          label: 显式语言
+          type: string
+          default: ""
+        - key: resource_id
+          label: Resource ID
+          type: string
+          default: seed-tts-2.0
+      source:
+        status: verified
+        url: https://www.volcengine.com/docs/6561/2528925?lang=zh
+        verified_at: "2026-06-26"
+    - adapter_type: volcen
+      allow_model_id_override: true
+      capabilities:
+        - audio_tts
       display_name: Seed Speech TTS 1.1
       id: volcengine:seed-tts-1-1
       lab: seed
@@ -1075,6 +1193,66 @@ templates:
         status: verified
         url: https://www.volcengine.com/docs/6561/1257584?lang=zh
         verified_at: "2026-06-25"
+    - adapter_type: volcen
+      allow_model_id_override: true
+      capabilities:
+        - audio_music
+        - audio_sfx
+      display_name: Doubao Seed-Audio 1.0
+      id: volcengine:doubao-seed-audio-1-0
+      lab: seed
+      model_id: doubao-seed-audio-1-0
+      order: 49
+      params:
+        - key: duration
+          label: 时长(秒)
+          type: number
+          default: 60
+          min: 1
+          max: 120
+          step: 1
+        - key: output_format
+          label: 音频格式
+          type: select
+          options:
+            - mp3
+            - wav
+            - ogg
+            - flac
+          default: mp3
+        - key: negative_prompt
+          label: 负向提示词
+          type: string
+          default: ""
+        - key: reference_audio_url
+          label: 参考音频 URL
+          type: string
+          default: ""
+        - key: style
+          label: 风格
+          type: string
+          default: ""
+        - key: seed
+          label: 种子
+          type: number
+          default: 0
+          step: 1
+        - key: poll_timeout_ms
+          label: 轮询超时(ms)
+          type: number
+          default: 600000
+          min: 1000
+          step: 1000
+        - key: poll_interval_ms
+          label: 轮询间隔(ms)
+          type: number
+          default: 5000
+          min: 500
+          step: 500
+      source:
+        status: observed
+        url: https://ark.volcengine.com/region:cn-beijing/experience/voice?model=doubao-seed-audio-1-0
+        verified_at: "2026-06-26"
     - adapter_type: volcen
       allow_model_id_override: true
       capabilities:
@@ -1141,10 +1319,106 @@ templates:
       lab: seed
       model_id: Doubao-RealtimeVoice
       order: 51
+      params:
+        - key: model_version
+          label: 模型版本
+          type: select
+          options:
+            - "1.2.1.1"
+            - "2.2.0.0"
+          default: "1.2.1.1"
+        - key: speaker
+          label: 音色
+          type: string
+          default: zh_female_vv_jupiter_bigtts
+        - key: input_mod
+          label: 输入模式
+          type: select
+          options:
+            - audio
+            - audio_file
+            - keep_alive
+            - push_to_talk
+            - text
+          default: audio_file
+        - key: input_audio_format
+          label: 输入音频格式
+          type: select
+          options:
+            - pcm
+            - speech_opus
+          default: pcm
+        - key: input_sample_rate
+          label: 输入采样率
+          type: number
+          default: 16000
+          min: 8000
+          step: 1000
+        - key: output_audio_format
+          label: 输出音频格式
+          type: select
+          options:
+            - ogg
+            - pcm
+            - pcm_s16le
+          default: pcm_s16le
+        - key: output_sample_rate
+          label: 输出采样率
+          type: number
+          default: 24000
+          min: 8000
+          step: 1000
+        - key: end_asr
+          label: 自动结束识别
+          type: boolean
+          default: true
+        - key: end_smooth_window_ms
+          label: 断句平滑窗口(ms)
+          type: number
+          default: 1500
+          min: 500
+          max: 50000
+          step: 100
+        - key: speech_rate
+          label: 语速
+          type: number
+          default: 0
+          min: -50
+          max: 100
+          step: 1
+        - key: loudness_rate
+          label: 音量
+          type: number
+          default: 0
+          min: -50
+          max: 100
+          step: 1
+        - key: bot_name
+          label: 机器人名称
+          type: string
+          default: 豆包
+        - key: system_role
+          label: 系统人设
+          type: string
+          default: ""
+        - key: speaking_style
+          label: 说话风格
+          type: string
+          default: ""
+        - key: strict_audit
+          label: 严格审核
+          type: boolean
+          default: true
+        - key: read_timeout_ms
+          label: 读取超时(ms)
+          type: number
+          default: 120000
+          min: 1000
+          step: 1000
       source:
-        status: template_only
-        url: https://ai.volcengine.com/
-        verified_at: "2026-06-25"
+        status: verified
+        url: https://www.volcengine.com/docs/6561/1594356
+        verified_at: "2026-06-26"
     - adapter_type: volcen
       allow_model_id_override: true
       capabilities:
@@ -1154,10 +1428,62 @@ templates:
       lab: seed
       model_id: seed-voice-replication-2.0
       order: 52
+      params:
+        - key: speaker_id
+          label: 音色 ID
+          type: string
+          default: ""
+        - key: resource_id
+          label: Resource ID
+          type: string
+          default: seed-icl-2.0
+        - key: model_type
+          label: 模型类型
+          type: number
+          default: 4
+          min: 1
+          step: 1
+        - key: source
+          label: 音频来源
+          type: number
+          default: 2
+          min: 1
+          step: 1
+        - key: language
+          label: 语言类型
+          type: number
+          default: 0
+          min: 0
+          step: 1
+        - key: audio_format
+          label: 音频格式
+          type: select
+          options:
+            - wav
+            - mp3
+            - m4a
+            - ogg
+          default: wav
+        - key: wait_for_ready
+          label: 等待训练完成
+          type: boolean
+          default: false
+        - key: poll_timeout_ms
+          label: 轮询超时(ms)
+          type: number
+          default: 300000
+          min: 1000
+          step: 1000
+        - key: poll_interval_ms
+          label: 轮询间隔(ms)
+          type: number
+          default: 5000
+          min: 500
+          step: 500
       source:
-        status: template_only
-        url: https://www.volcengine.com/product/tts
-        verified_at: "2026-06-25"
+        status: verified
+        url: https://www.volcengine.com/docs/6561/2534906
+        verified_at: "2026-06-26"
     - adapter_type: volcen
       allow_model_id_override: true
       capabilities:

@@ -39,8 +39,8 @@ also represented as a real lab template.
 
 Local runtimes follow the same split: `open-source-audio` is the model-family lab,
 while `local_audio_runtime` in `providers.yaml` is the local execution boundary.
-Keep open-source model templates as `template_only` until the runtime path actually
-executes that model family.
+Open-source model templates should bind only to local runtime providers unless a
+real upstream official API exists for that model family.
 
 Registry YAML declares which canonical MovScript params a model template supports. It must not declare provider-native field mapping such as `aspect_ratio -> ratio`; that belongs in adapter code and adapter tests.
 

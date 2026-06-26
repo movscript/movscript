@@ -125,19 +125,6 @@ templates:
     - adapter_type: openai_compat
       allow_model_id_override: true
       capabilities:
-        - audio_chat
-      display_name: MiniMax Mimo v2 Omni
-      id: minimax:mimo-v2-omni
-      lab: minimax
-      model_id: mimo-v2-omni
-      order: 89
-      source:
-        status: template_only
-        url: https://platform.minimax.io/docs
-        verified_at: "2026-06-25"
-    - adapter_type: openai_compat
-      allow_model_id_override: true
-      capabilities:
         - text
         - reasoning
       display_name: MiniMax M2.7

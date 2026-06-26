@@ -6,10 +6,12 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/gorilla/websocket"
 	"github.com/movscript/movscript/internal/domain/media"
 )
 
@@ -204,6 +206,77 @@ func TestVolcenSynthesizeSendsSpeechTTSRequestAndDecodesAudio(t *testing.T) {
 	}
 }
 
+func TestVolcenSynthesizeSeedTTS20UsesV3UnidirectionalRequest(t *testing.T) {
+	var gotHeaders http.Header
+	var gotBody map[string]any
+	adapter := NewVolcenAdapterWithSpeech("https://ark.example.test/api/v3", "ark-key", volcenSpeechCredentials{
+		AppID:   "speech-app",
+		Token:   "speech-token",
+		BaseURL: "https://openspeech.example.test",
+	})
+	adapter.speechHTTP = &http.Client{Transport: volcenRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.URL.String() != "https://openspeech.example.test/api/v3/tts/unidirectional" {
+			t.Fatalf("unexpected URL = %s", r.URL.String())
+		}
+		gotHeaders = r.Header.Clone()
+		raw, _ := io.ReadAll(r.Body)
+		if err := json.Unmarshal(raw, &gotBody); err != nil {
+			t.Fatalf("request body JSON error = %v", err)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"audio/mpeg"}},
+			Body:       io.NopCloser(strings.NewReader("mp3-audio")),
+			Request:    r,
+		}, nil
+	})}
+
+	resp, err := adapter.Synthesize(context.Background(), media.TTSRequest{
+		Text:        "你好",
+		Voice:       "zh_female_vv_uranus_bigtts",
+		Model:       "seed-tts-2.0-expressive",
+		AudioFormat: "mp3",
+		Language:    "zh-cn",
+		Params: map[string]any{
+			"uid":           "user-2",
+			"request_id":    "tts-v3-req-1",
+			"speech_rate":   15,
+			"loudness_rate": -5,
+			"emotion":       "happy",
+			"sample_rate":   24000,
+		},
+	})
+	if err != nil {
+		t.Fatalf("Synthesize() error = %v", err)
+	}
+	if string(resp.Audio) != "mp3-audio" || resp.MimeType != "audio/mpeg" || resp.ProviderRef != "tts-v3-req-1" {
+		t.Fatalf("resp = %+v", resp)
+	}
+	if gotHeaders.Get("X-Api-Key") != "speech-token" ||
+		gotHeaders.Get("X-Api-Resource-Id") != "seed-tts-2.0" ||
+		gotHeaders.Get("X-Api-Request-Id") != "tts-v3-req-1" {
+		t.Fatalf("headers = %#v", gotHeaders)
+	}
+	user := gotBody["user"].(map[string]any)
+	if user["uid"] != "user-2" {
+		t.Fatalf("user = %#v", user)
+	}
+	reqParams := gotBody["req_params"].(map[string]any)
+	if reqParams["text"] != "你好" || reqParams["speaker"] != "zh_female_vv_uranus_bigtts" || reqParams["model"] != "seed-tts-2.0-expressive" {
+		t.Fatalf("req_params = %#v", reqParams)
+	}
+	audioParams := reqParams["audio_params"].(map[string]any)
+	if audioParams["format"] != "mp3" || audioParams["sample_rate"] != float64(24000) ||
+		audioParams["speech_rate"] != float64(15) || audioParams["loudness_rate"] != float64(-5) ||
+		audioParams["emotion"] != "happy" {
+		t.Fatalf("audio_params = %#v", audioParams)
+	}
+	additions := reqParams["additions"].(map[string]any)
+	if additions["explicit_language"] != "zh-cn" {
+		t.Fatalf("additions = %#v", additions)
+	}
+}
+
 func TestVolcenTranscribeSubmitsPollsAndParsesSeedASR(t *testing.T) {
 	var submitBody map[string]any
 	var submitHeaders http.Header
@@ -289,6 +362,289 @@ func TestVolcenTranscribeSubmitsPollsAndParsesSeedASR(t *testing.T) {
 	request := submitBody["request"].(map[string]any)
 	if request["model_name"] != "bigmodel" || request["enable_itn"] != true || request["show_utterances"] != true {
 		t.Fatalf("request body = %#v", request)
+	}
+}
+
+func TestVolcenChatAudioRealtimeDialogueUsesOfficialBinaryFrames(t *testing.T) {
+	upgrader := websocket.Upgrader{}
+	var gotHeaders http.Header
+	var startSession map[string]any
+	var gotAudio []byte
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v3/realtime/dialogue" {
+			t.Fatalf("unexpected path = %s", r.URL.Path)
+		}
+		gotHeaders = r.Header.Clone()
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			t.Fatalf("upgrade websocket: %v", err)
+		}
+		defer conn.Close()
+
+		_, data, err := conn.ReadMessage()
+		if err != nil {
+			t.Fatalf("read start connection: %v", err)
+		}
+		frame, err := parseVolcenRealtimeFrame(data)
+		if err != nil {
+			t.Fatalf("parse start connection: %v", err)
+		}
+		if frame.MessageType != 0x1 || frame.Event != volcenRealtimeEventStartConnection || string(frame.Payload) != "{}" {
+			t.Fatalf("start connection frame = %+v payload=%q", frame, string(frame.Payload))
+		}
+		if err := conn.WriteMessage(websocket.BinaryMessage, volcenRealtimeFrame(0x9, 0x1, volcenRealtimeEventConnectionStarted, "", []byte(`{}`))); err != nil {
+			t.Fatalf("write connection started: %v", err)
+		}
+
+		_, data, err = conn.ReadMessage()
+		if err != nil {
+			t.Fatalf("read start session: %v", err)
+		}
+		frame, err = parseVolcenRealtimeFrame(data)
+		if err != nil {
+			t.Fatalf("parse start session: %v", err)
+		}
+		if frame.MessageType != 0x1 || frame.Event != volcenRealtimeEventStartSession || frame.SessionID != "session-test" {
+			t.Fatalf("start session frame = %+v", frame)
+		}
+		if err := json.Unmarshal(frame.Payload, &startSession); err != nil {
+			t.Fatalf("start session payload JSON error = %v", err)
+		}
+		if err := conn.WriteMessage(websocket.BinaryMessage, volcenRealtimeFrame(0x9, 0x1, volcenRealtimeEventSessionStarted, "session-test", []byte(`{"dialog_id":"dialog-1"}`))); err != nil {
+			t.Fatalf("write session started: %v", err)
+		}
+
+		_, data, err = conn.ReadMessage()
+		if err != nil {
+			t.Fatalf("read audio frame: %v", err)
+		}
+		frame, err = parseVolcenRealtimeFrame(data)
+		if err != nil {
+			t.Fatalf("parse audio frame: %v", err)
+		}
+		if frame.MessageType != 0x2 || frame.Event != volcenRealtimeEventTaskRequest || frame.SessionID != "session-test" {
+			t.Fatalf("audio frame = %+v", frame)
+		}
+		gotAudio = append([]byte(nil), frame.Payload...)
+
+		_, data, err = conn.ReadMessage()
+		if err != nil {
+			t.Fatalf("read end ASR frame: %v", err)
+		}
+		frame, err = parseVolcenRealtimeFrame(data)
+		if err != nil {
+			t.Fatalf("parse end ASR frame: %v", err)
+		}
+		if frame.Event != volcenRealtimeEventEndASR || frame.SessionID != "session-test" {
+			t.Fatalf("end ASR frame = %+v", frame)
+		}
+		_ = conn.WriteMessage(websocket.BinaryMessage, volcenRealtimeFrame(0x9, 0x1, volcenRealtimeEventChatResponse, "session-test", []byte(`{"content":"你好","reply_id":"reply-1"}`)))
+		_ = conn.WriteMessage(websocket.BinaryMessage, volcenRealtimeFrame(0xb, 0x0, volcenRealtimeEventTTSResponse, "session-test", []byte("pcm-out")))
+		_ = conn.WriteMessage(websocket.BinaryMessage, volcenRealtimeFrame(0x9, 0x1, volcenRealtimeEventTTSEnded, "session-test", []byte(`{}`)))
+	}))
+	defer server.Close()
+
+	adapter := NewVolcenAdapterWithSpeech("https://ark.example.test/api/v3", "ark-key", volcenSpeechCredentials{
+		AppID:   "speech-app",
+		Token:   "speech-token",
+		BaseURL: server.URL,
+	})
+	resp, err := adapter.ChatAudio(context.Background(), media.AudioChatRequest{
+		Audio:    []byte("pcm-in"),
+		MimeType: "audio/L16",
+		Model:    "Doubao-RealtimeVoice",
+		Voice:    "zh_female_vv_jupiter_bigtts",
+		Params: map[string]any{
+			"session_id":          "session-test",
+			"connect_id":          "connect-test",
+			"model_version":       "1.2.1.1",
+			"output_audio_format": "pcm_s16le",
+		},
+	})
+	if err != nil {
+		t.Fatalf("ChatAudio() error = %v", err)
+	}
+	if string(resp.Audio) != "pcm-out" || resp.Text != "你好" || resp.ProviderRef != "reply-1" || resp.MimeType != "audio/L16" {
+		t.Fatalf("resp = %+v", resp)
+	}
+	if gotHeaders.Get("X-Api-App-ID") != "speech-app" ||
+		gotHeaders.Get("X-Api-Access-Key") != "speech-token" ||
+		gotHeaders.Get("X-Api-Resource-Id") != volcenRealtimeDialogueResourceID ||
+		gotHeaders.Get("X-Api-App-Key") != volcenRealtimeDialogueAppKey ||
+		gotHeaders.Get("X-Api-Connect-Id") != "connect-test" {
+		t.Fatalf("headers = %#v", gotHeaders)
+	}
+	if string(gotAudio) != "pcm-in" {
+		t.Fatalf("got audio = %q", string(gotAudio))
+	}
+	dialog := startSession["dialog"].(map[string]any)
+	extra := dialog["extra"].(map[string]any)
+	if extra["input_mod"] != "audio_file" || extra["model"] != "1.2.1.1" {
+		t.Fatalf("dialog extra = %#v", extra)
+	}
+	asr := startSession["asr"].(map[string]any)
+	audioInfo := asr["audio_info"].(map[string]any)
+	if audioInfo["format"] != "pcm" || audioInfo["sample_rate"] != float64(16000) {
+		t.Fatalf("asr audio_info = %#v", audioInfo)
+	}
+	tts := startSession["tts"].(map[string]any)
+	audioConfig := tts["audio_config"].(map[string]any)
+	if tts["speaker"] != "zh_female_vv_jupiter_bigtts" || audioConfig["format"] != "pcm_s16le" {
+		t.Fatalf("tts config = %#v", tts)
+	}
+}
+
+func TestVolcenGenerateAudioUsesArkContentGenerationTask(t *testing.T) {
+	var createBody map[string]any
+	audioServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "audio/mpeg")
+		_, _ = w.Write([]byte("mp3-audio"))
+	}))
+	defer audioServer.Close()
+
+	arkServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v3/contents/generations/tasks":
+			if r.Header.Get("Authorization") != "Bearer ark-key" {
+				t.Fatalf("Authorization = %q", r.Header.Get("Authorization"))
+			}
+			raw, _ := io.ReadAll(r.Body)
+			if err := json.Unmarshal(raw, &createBody); err != nil {
+				t.Fatalf("create body JSON error = %v", err)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"id":"audio-task-1"}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v3/contents/generations/tasks/audio-task-1":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{
+				"id":"audio-task-1",
+				"model":"doubao-seed-audio-1-0",
+				"status":"succeeded",
+				"content":{"file_url":"` + audioServer.URL + `/out.mp3"},
+				"duration":12
+			}`))
+		default:
+			t.Fatalf("unexpected ark request %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer arkServer.Close()
+
+	adapter := NewVolcenAdapter(arkServer.URL+"/api/v3", "ark-key")
+	resp, err := adapter.GenerateAudio(context.Background(), media.AudioGenerationRequest{
+		Kind:        media.AudioGenerationKindMusic,
+		Prompt:      "two characters talk in a rainy alley with soft jazz ambience",
+		Model:       "doubao-seed-audio-1-0",
+		DurationSec: 12,
+		Params: map[string]any{
+			"output_format":    "mp3",
+			"negative_prompt":  "distortion",
+			"poll_timeout_ms":  1000,
+			"poll_interval_ms": 500,
+		},
+	})
+	if err != nil {
+		t.Fatalf("GenerateAudio() error = %v", err)
+	}
+	if string(resp.Audio) != "mp3-audio" || resp.MimeType != "audio/mpeg" || resp.DurationMs != 12000 || resp.ProviderRef != "audio-task-1" {
+		t.Fatalf("resp = %+v", resp)
+	}
+	if createBody["model"] != "doubao-seed-audio-1-0" || createBody["duration"] != float64(12) ||
+		createBody["output_format"] != "mp3" || createBody["negative_prompt"] != "distortion" {
+		t.Fatalf("create body = %#v", createBody)
+	}
+	content := createBody["content"].([]any)
+	first := content[0].(map[string]any)
+	if first["type"] != "text" || first["text"] != "two characters talk in a rainy alley with soft jazz ambience" {
+		t.Fatalf("content = %#v", content)
+	}
+}
+
+func TestVolcenCloneVoiceUploadsSampleAndPollsStatus(t *testing.T) {
+	var uploadBody map[string]any
+	var uploadHeaders http.Header
+	var statusBody map[string]any
+	adapter := NewVolcenAdapterWithSpeech("https://ark.example.test/api/v3", "ark-key", volcenSpeechCredentials{
+		AppID:   "speech-app",
+		Token:   "speech-token",
+		BaseURL: "https://openspeech.example.test",
+	})
+	adapter.speechHTTP = &http.Client{Transport: volcenRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+		raw, _ := io.ReadAll(r.Body)
+		switch r.URL.String() {
+		case "https://openspeech.example.test/api/v1/mega_tts/audio/upload":
+			uploadHeaders = r.Header.Clone()
+			if err := json.Unmarshal(raw, &uploadBody); err != nil {
+				t.Fatalf("upload body JSON error = %v", err)
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body: io.NopCloser(strings.NewReader(`{
+					"BaseResp": {"StatusCode": 0, "StatusMessage": "OK"},
+					"speaker_id": "S_test",
+					"status": 1
+				}`)),
+				Request: r,
+			}, nil
+		case "https://openspeech.example.test/api/v1/mega_tts/status":
+			if err := json.Unmarshal(raw, &statusBody); err != nil {
+				t.Fatalf("status body JSON error = %v", err)
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body: io.NopCloser(strings.NewReader(`{
+					"BaseResp": {"StatusCode": 0, "StatusMessage": "OK"},
+					"speaker_id": "S_test",
+					"icl_speaker_id": "ICL_test",
+					"status": 2,
+					"demo_audio": "https://cdn.example.test/demo.wav"
+				}`)),
+				Request: r,
+			}, nil
+		default:
+			t.Fatalf("unexpected URL = %s", r.URL.String())
+			return nil, nil
+		}
+	})}
+
+	resp, err := adapter.CloneVoice(context.Background(), media.VoiceCloneRequest{
+		Name:        "Narrator",
+		Description: "Warm voice",
+		Samples: []media.VoiceCloneSample{{
+			Audio:    []byte("wav-audio"),
+			MimeType: "audio/wav",
+		}},
+		Params: map[string]any{
+			"speaker_id":       "S_test",
+			"wait_for_ready":   true,
+			"poll_timeout_ms":  1000,
+			"poll_interval_ms": 500,
+		},
+	})
+	if err != nil {
+		t.Fatalf("CloneVoice() error = %v", err)
+	}
+	if resp.VoiceID != "S_test" || resp.GeneratedVoiceID != "ICL_test" || resp.PreviewURL != "https://cdn.example.test/demo.wav" {
+		t.Fatalf("resp = %+v", resp)
+	}
+	if uploadHeaders.Get("Authorization") != "Bearer; speech-token" ||
+		uploadHeaders.Get("Resource-Id") != "seed-icl-2.0" ||
+		uploadHeaders.Get("Content-Type") != "application/json" {
+		t.Fatalf("upload headers = %#v", uploadHeaders)
+	}
+	if uploadBody["appid"] != "speech-app" || uploadBody["speaker_id"] != "S_test" ||
+		uploadBody["speaker_name"] != "Narrator" || uploadBody["description"] != "Warm voice" ||
+		uploadBody["model_type"] != float64(4) || uploadBody["source"] != float64(2) || uploadBody["language"] != float64(0) {
+		t.Fatalf("upload body = %#v", uploadBody)
+	}
+	audios := uploadBody["audios"].([]any)
+	audio := audios[0].(map[string]any)
+	if audio["audio_format"] != "wav" || audio["audio_bytes"] != base64.StdEncoding.EncodeToString([]byte("wav-audio")) {
+		t.Fatalf("audio body = %#v", audio)
+	}
+	if statusBody["appid"] != "speech-app" || statusBody["speaker_id"] != "S_test" {
+		t.Fatalf("status body = %#v", statusBody)
 	}
 }
 

@@ -492,4 +492,4 @@ templates:
       source:
         url: https://developers.openai.com/api/docs/guides/audio
         verified_at: "2026-06-25"
-        status: template_only
+        status: verified

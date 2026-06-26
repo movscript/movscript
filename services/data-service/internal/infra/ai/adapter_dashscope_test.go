@@ -7,9 +7,11 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/gorilla/websocket"
 	"github.com/movscript/movscript/internal/domain/media"
 )
 
@@ -96,6 +98,74 @@ func TestDashScopeVideoPollReturnsSucceededURL(t *testing.T) {
 	}
 }
 
+func TestDashScopeImageGenerateUsesQwenImageMultimodalEndpoint(t *testing.T) {
+	var gotBody map[string]any
+	var gotAsync string
+	seed := int64(42)
+	watermark := false
+	adapter := NewDashScopeAdapter("dash-key", "https://dashscope.test/api/v1")
+	adapter.client = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.URL.String() != "https://dashscope.test/api/v1/services/aigc/multimodal-generation/generation" {
+			t.Fatalf("unexpected URL = %s", r.URL.String())
+		}
+		gotAsync = r.Header.Get("X-DashScope-Async")
+		if got := r.Header.Get("Authorization"); got != "Bearer dash-key" {
+			t.Fatalf("Authorization = %q", got)
+		}
+		raw, _ := io.ReadAll(r.Body)
+		if err := json.Unmarshal(raw, &gotBody); err != nil {
+			t.Fatalf("request body JSON error = %v", err)
+		}
+		return jsonResponse(r, http.StatusOK, map[string]any{
+			"request_id": "req-image",
+			"output": map[string]any{
+				"choices": []map[string]any{{
+					"finish_reason": "stop",
+					"message": map[string]any{
+						"role": "assistant",
+						"content": []map[string]any{{
+							"image": "https://cdn.dashscope.test/out.png",
+						}},
+					},
+				}},
+			},
+		}), nil
+	})}
+
+	resp, err := adapter.ImageGenerate(context.Background(), ImageRequest{
+		Model:              "qwen-image",
+		Prompt:             "draw a title card",
+		AspectRatio:        "16:9",
+		Seed:               &seed,
+		Watermark:          &watermark,
+		OptimizePromptMode: "auto",
+	})
+	if err != nil {
+		t.Fatalf("ImageGenerate() error = %v", err)
+	}
+	if gotAsync != "" {
+		t.Fatalf("X-DashScope-Async = %q, want empty for synchronous Qwen-Image", gotAsync)
+	}
+	if len(resp.URLs) != 1 || resp.URLs[0] != "https://cdn.dashscope.test/out.png" {
+		t.Fatalf("URLs = %#v", resp.URLs)
+	}
+	if gotBody["model"] != "qwen-image" {
+		t.Fatalf("model = %#v", gotBody["model"])
+	}
+	input := gotBody["input"].(map[string]any)
+	messages := input["messages"].([]any)
+	message := messages[0].(map[string]any)
+	content := message["content"].([]any)
+	textPart := content[0].(map[string]any)
+	if message["role"] != "user" || textPart["text"] != "draw a title card" {
+		t.Fatalf("messages = %#v", messages)
+	}
+	params := gotBody["parameters"].(map[string]any)
+	if params["size"] != "1664*928" || params["seed"] != float64(42) || params["watermark"] != false || params["prompt_extend"] != true {
+		t.Fatalf("parameters = %#v", params)
+	}
+}
+
 func TestDashScopeSynthesizeQwenTTSSendsMultimodalRequestAndDownloadsAudio(t *testing.T) {
 	var gotBody map[string]any
 	adapter := NewDashScopeAdapter("dash-key", "https://dashscope.test/api/v1")
@@ -159,6 +229,151 @@ func TestDashScopeSynthesizeQwenTTSSendsMultimodalRequestAndDownloadsAudio(t *te
 	if input["text"] != "hello" || input["voice"] != "Cherry" || input["language_type"] != "English" ||
 		input["instructions"] != "warm narration" || input["optimize_instructions"] != true {
 		t.Fatalf("input = %#v", input)
+	}
+}
+
+func TestDashScopeSynthesizeQwenRealtimeTTSUsesWebSocketEvents(t *testing.T) {
+	var gotAuth string
+	var gotModel string
+	var gotEvents []map[string]any
+	upgrader := websocket.Upgrader{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api-ws/v1/realtime" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		gotAuth = r.Header.Get("Authorization")
+		gotModel = r.URL.Query().Get("model")
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			t.Fatalf("upgrade websocket: %v", err)
+		}
+		defer conn.Close()
+		if err := conn.WriteJSON(map[string]any{
+			"type":    "session.created",
+			"session": map[string]any{"id": "sess_1"},
+		}); err != nil {
+			t.Fatalf("write session.created: %v", err)
+		}
+		for i := 0; i < 3; i++ {
+			var event map[string]any
+			if err := conn.ReadJSON(&event); err != nil {
+				t.Fatalf("read client event %d: %v", i, err)
+			}
+			gotEvents = append(gotEvents, event)
+		}
+		audio := base64.StdEncoding.EncodeToString([]byte("wav-delta"))
+		_ = conn.WriteJSON(map[string]any{"type": "response.created", "response": map[string]any{"id": "resp_1"}})
+		_ = conn.WriteJSON(map[string]any{"type": "response.audio.delta", "response_id": "resp_1", "delta": audio})
+		_ = conn.WriteJSON(map[string]any{"type": "response.done", "response": map[string]any{"id": "resp_1", "status": "completed"}})
+		var finish map[string]any
+		_ = conn.ReadJSON(&finish)
+	}))
+	defer server.Close()
+
+	adapter := NewDashScopeAdapter("dash-key", server.URL+"/api/v1")
+	resp, err := adapter.Synthesize(context.Background(), media.TTSRequest{
+		Model:       "qwen3-tts-flash-realtime",
+		Text:        "hello realtime",
+		Voice:       "Cherry",
+		Language:    "en",
+		AudioFormat: "wav",
+	})
+	if err != nil {
+		t.Fatalf("Synthesize() error = %v", err)
+	}
+	if gotAuth != "Bearer dash-key" {
+		t.Fatalf("Authorization = %q", gotAuth)
+	}
+	if gotModel != "qwen3-tts-flash-realtime" {
+		t.Fatalf("model query = %q", gotModel)
+	}
+	if string(resp.Audio) != "wav-delta" || resp.MimeType != "audio/wav" || resp.ProviderRef != "resp_1" {
+		t.Fatalf("resp = %#v", resp)
+	}
+	if len(gotEvents) != 3 ||
+		gotEvents[0]["type"] != "session.update" ||
+		gotEvents[1]["type"] != "input_text_buffer.append" ||
+		gotEvents[2]["type"] != "input_text_buffer.commit" {
+		t.Fatalf("events = %#v", gotEvents)
+	}
+	session := gotEvents[0]["session"].(map[string]any)
+	if session["voice"] != "Cherry" || session["response_format"] != "wav" || session["language_type"] != "English" {
+		t.Fatalf("session = %#v", session)
+	}
+	if gotEvents[1]["text"] != "hello realtime" {
+		t.Fatalf("append event = %#v", gotEvents[1])
+	}
+}
+
+func TestDashScopeChatAudioQwenOmniUsesRealtimeWebSocketEvents(t *testing.T) {
+	var gotAuth string
+	var gotModel string
+	var gotEvents []map[string]any
+	upgrader := websocket.Upgrader{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api-ws/v1/realtime" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		gotAuth = r.Header.Get("Authorization")
+		gotModel = r.URL.Query().Get("model")
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			t.Fatalf("upgrade websocket: %v", err)
+		}
+		defer conn.Close()
+		for i := 0; i < 4; i++ {
+			var event map[string]any
+			if err := conn.ReadJSON(&event); err != nil {
+				t.Fatalf("read client event %d: %v", i, err)
+			}
+			gotEvents = append(gotEvents, event)
+		}
+		audio := base64.StdEncoding.EncodeToString([]byte("pcm-delta"))
+		_ = conn.WriteJSON(map[string]any{"type": "response.created", "response": map[string]any{"id": "omni_resp_1"}})
+		_ = conn.WriteJSON(map[string]any{"type": "response.audio.delta", "response_id": "omni_resp_1", "delta": audio})
+		_ = conn.WriteJSON(map[string]any{"type": "response.audio_transcript.done", "transcript": "你好，我听到了。"})
+		_ = conn.WriteJSON(map[string]any{"type": "response.done", "response": map[string]any{"id": "omni_resp_1", "status": "completed"}})
+	}))
+	defer server.Close()
+
+	adapter := NewDashScopeAdapter("dash-key", server.URL+"/api/v1")
+	resp, err := adapter.ChatAudio(context.Background(), media.AudioChatRequest{
+		Model:    "qwen3-omni-flash-realtime",
+		Prompt:   "用中文回答",
+		Audio:    []byte("pcm-input"),
+		MimeType: "audio/L16",
+		Voice:    "Tina",
+	})
+	if err != nil {
+		t.Fatalf("ChatAudio() error = %v", err)
+	}
+	if gotAuth != "Bearer dash-key" {
+		t.Fatalf("Authorization = %q", gotAuth)
+	}
+	if gotModel != "qwen3-omni-flash-realtime" {
+		t.Fatalf("model query = %q", gotModel)
+	}
+	if string(resp.Audio) != "pcm-delta" || resp.Text != "你好，我听到了。" || resp.MimeType != "audio/L16" || resp.ProviderRef != "omni_resp_1" {
+		t.Fatalf("resp = %#v", resp)
+	}
+	if len(gotEvents) != 4 ||
+		gotEvents[0]["type"] != "session.update" ||
+		gotEvents[1]["type"] != "input_audio_buffer.append" ||
+		gotEvents[2]["type"] != "input_audio_buffer.commit" ||
+		gotEvents[3]["type"] != "response.create" {
+		t.Fatalf("events = %#v", gotEvents)
+	}
+	session := gotEvents[0]["session"].(map[string]any)
+	if session["voice"] != "Tina" || session["input_audio_format"] != "pcm" || session["output_audio_format"] != "pcm" ||
+		session["instructions"] != "用中文回答" {
+		t.Fatalf("session = %#v", session)
+	}
+	inputTranscription := session["input_audio_transcription"].(map[string]any)
+	if inputTranscription["model"] != "qwen3-asr-flash-realtime" {
+		t.Fatalf("input_audio_transcription = %#v", inputTranscription)
+	}
+	if gotEvents[1]["audio"] != base64.StdEncoding.EncodeToString([]byte("pcm-input")) {
+		t.Fatalf("append event = %#v", gotEvents[1])
 	}
 }
 

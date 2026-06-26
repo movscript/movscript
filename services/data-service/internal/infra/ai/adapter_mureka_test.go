@@ -186,3 +186,69 @@ func TestMurekaGenerateAudioUsesInstrumentalEndpoint(t *testing.T) {
 		t.Fatalf("resp = %#v", resp)
 	}
 }
+
+func TestMurekaGenerateAudioUsesSongExtensionEndpoint(t *testing.T) {
+	var gotStartPath string
+	var gotQueryPath string
+	var gotBody map[string]any
+
+	adapter := NewMurekaAdapter("mureka-key", "https://mureka.test")
+	adapter.client = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		switch {
+		case r.URL.Path == "/v1/song/extend":
+			gotStartPath = r.URL.Path
+			body, _ := io.ReadAll(r.Body)
+			if err := json.Unmarshal(body, &gotBody); err != nil {
+				t.Fatalf("request body JSON error = %v", err)
+			}
+			return jsonResponse(r, http.StatusOK, map[string]any{"task_id": "extend_task_1"}), nil
+		case r.URL.Path == "/v1/song/query/extend_task_1":
+			gotQueryPath = r.URL.Path
+			return jsonResponse(r, http.StatusOK, map[string]any{
+				"status": "succeeded",
+				"data": map[string]any{
+					"audio_url": "https://cdn.test/audio/extended.mp3",
+				},
+			}), nil
+		case r.URL.Host == "cdn.test":
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"audio/mpeg"}},
+				Body:       io.NopCloser(strings.NewReader("extended-audio")),
+				Request:    r,
+			}, nil
+		default:
+			t.Fatalf("unexpected request: %s", r.URL.String())
+			return nil, nil
+		}
+	})}
+
+	resp, err := adapter.GenerateAudio(context.Background(), media.AudioGenerationRequest{
+		Kind:        media.AudioGenerationKindMusic,
+		Prompt:      "[chorus]\ncarry the melody forward",
+		Model:       "song_extension",
+		DurationSec: 30,
+		Params: map[string]any{
+			"song_id":          "song_123",
+			"output_format":    "mp3",
+			"poll_timeout_ms":  1000,
+			"poll_interval_ms": 250,
+		},
+	})
+	if err != nil {
+		t.Fatalf("GenerateAudio() error = %v", err)
+	}
+	if gotStartPath != "/v1/song/extend" || gotQueryPath != "/v1/song/query/extend_task_1" {
+		t.Fatalf("paths start=%q query=%q", gotStartPath, gotQueryPath)
+	}
+	if gotBody["lyrics"] != "[chorus]\ncarry the melody forward" || gotBody["song_id"] != "song_123" ||
+		gotBody["duration"] != float64(30) || gotBody["output_format"] != "mp3" {
+		t.Fatalf("body = %#v", gotBody)
+	}
+	if _, hasPrompt := gotBody["prompt"]; hasPrompt {
+		t.Fatalf("song extension body should not include prompt: %#v", gotBody)
+	}
+	if string(resp.Audio) != "extended-audio" || resp.MimeType != "audio/mpeg" || resp.ProviderRef != "extend_task_1" {
+		t.Fatalf("resp = %#v", resp)
+	}
+}

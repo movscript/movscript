@@ -8,9 +8,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/movscript/movscript/internal/domain/media"
 )
 
@@ -36,8 +38,62 @@ func (a *DashScopeAdapter) TextGenerate(_ context.Context, _ TextRequest) (TextR
 	return TextResponse{}, fmt.Errorf("dashscope adapter currently supports video generation only")
 }
 
-func (a *DashScopeAdapter) ImageGenerate(_ context.Context, _ ImageRequest) (ImageResponse, error) {
-	return ImageResponse{}, fmt.Errorf("dashscope adapter currently supports video generation only")
+func (a *DashScopeAdapter) ImageGenerate(ctx context.Context, req ImageRequest) (ImageResponse, error) {
+	if strings.TrimSpace(a.APIKey) == "" {
+		return ImageResponse{}, fmt.Errorf("dashscope api_key is required")
+	}
+	prompt := strings.TrimSpace(req.Prompt)
+	if prompt == "" {
+		return ImageResponse{}, fmt.Errorf("prompt is required")
+	}
+	model := strings.TrimSpace(req.Model)
+	if model == "" {
+		model = "qwen-image"
+	}
+	body := buildDashScopeImageBody(req, model, prompt)
+	rawBody, err := json.Marshal(body)
+	if err != nil {
+		return ImageResponse{}, err
+	}
+	endpoint := a.BaseURL + "/services/aigc/multimodal-generation/generation"
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(rawBody))
+	if err != nil {
+		return ImageResponse{}, err
+	}
+	httpReq.Header.Set("Authorization", "Bearer "+a.APIKey)
+	httpReq.Header.Set("Content-Type", "application/json")
+	headers := map[string]string{
+		"Authorization": "Bearer " + maskKey(a.APIKey),
+		"Content-Type":  "application/json",
+	}
+	start := time.Now()
+	resp, err := a.client.Do(httpReq)
+	latency := time.Since(start).Milliseconds()
+	if err != nil {
+		recordDebug(ctx, DebugCallResult{Success: false, ModelID: model, Endpoint: endpoint, Method: http.MethodPost, RequestHeaders: headers, RequestBody: string(rawBody), LatencyMs: latency, Error: err.Error()})
+		return ImageResponse{}, err
+	}
+	defer resp.Body.Close()
+	respBody, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return ImageResponse{}, readErr
+	}
+	recordDebug(ctx, DebugCallResult{Success: resp.StatusCode < 400, ModelID: model, Endpoint: endpoint, Method: http.MethodPost, RequestHeaders: headers, RequestBody: string(rawBody), ResponseStatus: resp.StatusCode, ResponseBody: string(respBody), LatencyMs: latency})
+	if resp.StatusCode >= 400 {
+		return ImageResponse{}, fmt.Errorf("dashscope image HTTP %d: %s", resp.StatusCode, string(respBody))
+	}
+	var parsed map[string]any
+	if err := json.Unmarshal(respBody, &parsed); err != nil {
+		return ImageResponse{}, fmt.Errorf("decode dashscope image response: %w", err)
+	}
+	if code := stringField(parsed, "code"); code != "" {
+		return ImageResponse{}, fmt.Errorf("dashscope image error %s: %s", code, stringField(parsed, "message"))
+	}
+	urls := dashScopeImageURLs(parsed)
+	if len(urls) == 0 {
+		return ImageResponse{}, fmt.Errorf("dashscope image response did not include image URL")
+	}
+	return ImageResponse{URLs: urls, Debug: takeDebug(ctx)}, nil
 }
 
 func (a *DashScopeAdapter) VideoGenerate(ctx context.Context, req VideoRequest) (VideoResponse, error) {
@@ -84,10 +140,101 @@ func (a *DashScopeAdapter) Synthesize(ctx context.Context, req media.TTSRequest)
 	if model == "" {
 		model = "qwen3-tts-flash"
 	}
+	if strings.Contains(strings.ToLower(model), "-realtime") {
+		return a.synthesizeQwenRealtimeTTS(ctx, req, model, text)
+	}
 	if strings.HasPrefix(strings.ToLower(model), "cosyvoice-") {
 		return a.synthesizeCosyVoice(ctx, req, model, text)
 	}
 	return a.synthesizeQwenTTS(ctx, req, model, text)
+}
+
+func (a *DashScopeAdapter) ChatAudio(ctx context.Context, req media.AudioChatRequest) (media.AudioChatResponse, error) {
+	if strings.TrimSpace(a.APIKey) == "" {
+		return media.AudioChatResponse{}, fmt.Errorf("dashscope api_key is required")
+	}
+	if len(req.Audio) == 0 {
+		return media.AudioChatResponse{}, fmt.Errorf("audio is required")
+	}
+	model := firstNonEmptyAI(strings.TrimSpace(req.Model), "qwen3-omni-flash-realtime")
+	endpoint, err := dashScopeRealtimeURL(a.BaseURL, req.Params, model)
+	if err != nil {
+		return media.AudioChatResponse{}, err
+	}
+	headers := http.Header{}
+	headers.Set("Authorization", "Bearer "+a.APIKey)
+	if workspace := stringParam(req.Params, "workspace_id", ""); workspace != "" {
+		headers.Set("X-DashScope-WorkSpace", workspace)
+	}
+	dialer := websocket.Dialer{}
+	start := time.Now()
+	conn, resp, err := dialer.DialContext(ctx, endpoint, headers)
+	latency := time.Since(start).Milliseconds()
+	debugHeaders := map[string]string{"Authorization": "Bearer " + maskKey(a.APIKey)}
+	if workspace := headers.Get("X-DashScope-WorkSpace"); workspace != "" {
+		debugHeaders["X-DashScope-WorkSpace"] = workspace
+	}
+	if err != nil {
+		status := 0
+		if resp != nil {
+			status = resp.StatusCode
+		}
+		recordDebug(ctx, DebugCallResult{Success: false, ModelID: model, Endpoint: endpoint, Method: "WEBSOCKET", RequestHeaders: debugHeaders, ResponseStatus: status, LatencyMs: latency, Error: err.Error()})
+		return media.AudioChatResponse{}, err
+	}
+	defer conn.Close()
+
+	inputFormat := dashScopeOmniInputAudioFormat(req)
+	outputFormat := dashScopeOmniOutputAudioFormat(req)
+	outputSampleRate := intParamOrDefault(req.Params, "output_sample_rate", 24000)
+	session := map[string]any{
+		"modalities":                []string{"text", "audio"},
+		"voice":                     firstNonEmptyAI(strings.TrimSpace(req.Voice), stringParam(req.Params, "voice", "Ethan")),
+		"instructions":              firstNonEmptyAI(strings.TrimSpace(req.Prompt), stringParam(req.Params, "instructions", ""), "You are a helpful assistant."),
+		"input_audio_format":        inputFormat,
+		"output_audio_format":       outputFormat,
+		"turn_detection":            nil,
+		"input_audio_transcription": map[string]any{"model": stringParam(req.Params, "input_audio_transcription_model", "qwen3-asr-flash-realtime")},
+	}
+	if enableSearch, ok := boolParam(req.Params, "enable_search"); ok {
+		session["enable_search"] = enableSearch
+	}
+	if rawOptions, ok := req.Params["search_options"]; ok {
+		session["search_options"] = rawOptions
+	}
+	if err := dashScopeWriteRealtimeEvent(conn, "session.update", map[string]any{"session": session}); err != nil {
+		return media.AudioChatResponse{}, err
+	}
+	if err := dashScopeWriteRealtimeEvent(conn, "input_audio_buffer.append", map[string]any{"audio": base64.StdEncoding.EncodeToString(req.Audio)}); err != nil {
+		return media.AudioChatResponse{}, err
+	}
+	if err := dashScopeWriteRealtimeEvent(conn, "input_audio_buffer.commit", nil); err != nil {
+		return media.AudioChatResponse{}, err
+	}
+	if err := dashScopeWriteRealtimeEvent(conn, "response.create", nil); err != nil {
+		return media.AudioChatResponse{}, err
+	}
+
+	audio, text, providerRef, err := dashScopeReadRealtimeAudioChat(ctx, conn)
+	if err != nil {
+		recordDebug(ctx, DebugCallResult{Success: false, ModelID: model, Endpoint: endpoint, Method: "WEBSOCKET", RequestHeaders: debugHeaders, LatencyMs: time.Since(start).Milliseconds(), Error: err.Error()})
+		return media.AudioChatResponse{}, err
+	}
+	if len(audio) == 0 && strings.TrimSpace(text) == "" {
+		return media.AudioChatResponse{}, fmt.Errorf("dashscope omni realtime returned empty response")
+	}
+	durationMs := 0
+	if outputFormat == "pcm" && outputSampleRate > 0 {
+		durationMs = len(audio) * 1000 / (outputSampleRate * 2)
+	}
+	recordDebug(ctx, DebugCallResult{Success: true, ModelID: model, Endpoint: endpoint, Method: "WEBSOCKET", RequestHeaders: debugHeaders, RequestBody: mustJSON(map[string]any{"session": session, "audio_bytes": len(req.Audio)}), LatencyMs: time.Since(start).Milliseconds()})
+	return media.AudioChatResponse{
+		Audio:       audio,
+		Text:        text,
+		MimeType:    mimeTypeForDashScopeRealtimeAudioFormat(outputFormat),
+		DurationMs:  durationMs,
+		ProviderRef: providerRef,
+	}, nil
 }
 
 func (a *DashScopeAdapter) synthesizeQwenTTS(ctx context.Context, req media.TTSRequest, model, text string) (media.TTSResponse, error) {
@@ -109,6 +256,84 @@ func (a *DashScopeAdapter) synthesizeQwenTTS(ctx context.Context, req media.TTSR
 		"input": input,
 	}
 	return a.postDashScopeTTS(ctx, "/services/aigc/multimodal-generation/generation", model, body, "dashscope qwen tts", dashScopeAudioFormat(req, "wav"))
+}
+
+func (a *DashScopeAdapter) synthesizeQwenRealtimeTTS(ctx context.Context, req media.TTSRequest, model, text string) (media.TTSResponse, error) {
+	endpoint, err := dashScopeRealtimeURL(a.BaseURL, req.Params, model)
+	if err != nil {
+		return media.TTSResponse{}, err
+	}
+	headers := http.Header{}
+	headers.Set("Authorization", "Bearer "+a.APIKey)
+	if workspace := stringParam(req.Params, "workspace_id", ""); workspace != "" {
+		headers.Set("X-DashScope-WorkSpace", workspace)
+	}
+	dialer := websocket.Dialer{}
+	start := time.Now()
+	conn, resp, err := dialer.DialContext(ctx, endpoint, headers)
+	latency := time.Since(start).Milliseconds()
+	debugHeaders := map[string]string{"Authorization": "Bearer " + maskKey(a.APIKey)}
+	if workspace := headers.Get("X-DashScope-WorkSpace"); workspace != "" {
+		debugHeaders["X-DashScope-WorkSpace"] = workspace
+	}
+	if err != nil {
+		status := 0
+		if resp != nil {
+			status = resp.StatusCode
+		}
+		recordDebug(ctx, DebugCallResult{Success: false, ModelID: model, Endpoint: endpoint, Method: "WEBSOCKET", RequestHeaders: debugHeaders, ResponseStatus: status, LatencyMs: latency, Error: err.Error()})
+		return media.TTSResponse{}, err
+	}
+	defer conn.Close()
+
+	format := dashScopeRealtimeAudioFormat(req)
+	sampleRate := intParamOrDefault(req.Params, "sample_rate", 24000)
+	session := map[string]any{
+		"voice":           firstNonEmptyAI(strings.TrimSpace(req.Voice), stringParam(req.Params, "voice", "Cherry")),
+		"mode":            stringParam(req.Params, "mode", "commit"),
+		"language_type":   dashScopeQwenLanguage(req),
+		"response_format": format,
+		"sample_rate":     sampleRate,
+	}
+	if session["language_type"] == "" {
+		session["language_type"] = "Auto"
+	}
+	if instructions := stringParam(req.Params, "instructions", ""); instructions != "" {
+		session["instructions"] = instructions
+	}
+	if optimize, ok := boolParam(req.Params, "optimize_instructions"); ok {
+		session["optimize_instructions"] = optimize
+	}
+	if err := dashScopeWriteRealtimeEvent(conn, "session.update", map[string]any{"session": session}); err != nil {
+		return media.TTSResponse{}, err
+	}
+	if err := dashScopeWriteRealtimeEvent(conn, "input_text_buffer.append", map[string]any{"text": text}); err != nil {
+		return media.TTSResponse{}, err
+	}
+	if err := dashScopeWriteRealtimeEvent(conn, "input_text_buffer.commit", nil); err != nil {
+		return media.TTSResponse{}, err
+	}
+
+	audio, providerRef, err := dashScopeReadRealtimeAudio(ctx, conn)
+	if err != nil {
+		recordDebug(ctx, DebugCallResult{Success: false, ModelID: model, Endpoint: endpoint, Method: "WEBSOCKET", RequestHeaders: debugHeaders, LatencyMs: time.Since(start).Milliseconds(), Error: err.Error()})
+		return media.TTSResponse{}, err
+	}
+	_ = dashScopeWriteRealtimeEvent(conn, "session.finish", nil)
+	if len(audio) == 0 {
+		return media.TTSResponse{}, fmt.Errorf("dashscope realtime TTS returned empty audio")
+	}
+	durationMs := 0
+	if format == "pcm" && sampleRate > 0 {
+		durationMs = len(audio) * 1000 / (sampleRate * 2)
+	}
+	recordDebug(ctx, DebugCallResult{Success: true, ModelID: model, Endpoint: endpoint, Method: "WEBSOCKET", RequestHeaders: debugHeaders, RequestBody: mustJSON(map[string]any{"session": session, "text_length": len([]rune(text))}), LatencyMs: time.Since(start).Milliseconds()})
+	return media.TTSResponse{
+		Audio:       audio,
+		MimeType:    mimeTypeForDashScopeRealtimeAudioFormat(format),
+		DurationMs:  durationMs,
+		ProviderRef: providerRef,
+	}, nil
 }
 
 func (a *DashScopeAdapter) synthesizeCosyVoice(ctx context.Context, req media.TTSRequest, model, text string) (media.TTSResponse, error) {
@@ -369,6 +594,120 @@ func buildDashScopeVideoBody(req VideoRequest) (map[string]any, error) {
 	return body, nil
 }
 
+func buildDashScopeImageBody(req ImageRequest, model, prompt string) map[string]any {
+	params := map[string]any{}
+	if size := dashScopeImageSize(req, model); size != "" {
+		params["size"] = size
+	}
+	if req.Seed != nil {
+		params["seed"] = *req.Seed
+	}
+	if req.Watermark != nil {
+		params["watermark"] = *req.Watermark
+	}
+	if promptExtend, ok := dashScopePromptExtend(req.OptimizePromptMode); ok {
+		params["prompt_extend"] = promptExtend
+	}
+	if req.N > 0 && dashScopeImageSupportsMultiN(model) {
+		params["n"] = req.N
+	}
+	body := map[string]any{
+		"model": model,
+		"input": map[string]any{
+			"messages": []map[string]any{{
+				"role": "user",
+				"content": []map[string]string{{
+					"text": prompt,
+				}},
+			}},
+		},
+	}
+	if len(params) > 0 {
+		body["parameters"] = params
+	}
+	return body
+}
+
+func dashScopeImageSize(req ImageRequest, model string) string {
+	if size := strings.TrimSpace(req.Size); size != "" {
+		return strings.ReplaceAll(size, "x", "*")
+	}
+	ratio := strings.TrimSpace(req.AspectRatio)
+	if ratio == "" {
+		return ""
+	}
+	if strings.Contains(strings.ToLower(model), "2.0") {
+		switch ratio {
+		case "16:9":
+			return "2688*1536"
+		case "9:16":
+			return "1536*2688"
+		case "4:3":
+			return "2368*1728"
+		case "3:4":
+			return "1728*2368"
+		case "1:1":
+			return "2048*2048"
+		}
+	}
+	switch ratio {
+	case "16:9":
+		return "1664*928"
+	case "9:16":
+		return "928*1664"
+	case "4:3":
+		return "1472*1104"
+	case "3:4":
+		return "1104*1472"
+	case "1:1":
+		return "1328*1328"
+	default:
+		return ""
+	}
+}
+
+func dashScopePromptExtend(mode string) (bool, bool) {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "":
+		return false, false
+	case "none", "off", "false", "disabled", "disable":
+		return false, true
+	default:
+		return true, true
+	}
+}
+
+func dashScopeImageSupportsMultiN(model string) bool {
+	return strings.Contains(strings.ToLower(strings.TrimSpace(model)), "2.0")
+}
+
+func dashScopeImageURLs(raw map[string]any) []string {
+	var urls []string
+	var walk func(any)
+	walk = func(v any) {
+		switch t := v.(type) {
+		case map[string]any:
+			if image := stringField(t, "image"); image != "" {
+				urls = append(urls, image)
+			}
+			for key, value := range t {
+				if key == "image" {
+					continue
+				}
+				walk(value)
+			}
+		case []any:
+			for _, item := range t {
+				walk(item)
+			}
+		}
+	}
+	if output, ok := raw["output"]; ok {
+		walk(output)
+	}
+	return urls
+}
+
 type dashScopeRefs struct {
 	urls     []string
 	media    []map[string]string
@@ -601,6 +940,203 @@ func dashScopeAudioFormat(req media.TTSRequest, fallback string) string {
 	}
 }
 
+func dashScopeRealtimeAudioFormat(req media.TTSRequest) string {
+	value := strings.TrimSpace(req.AudioFormat)
+	if value == "" {
+		value = firstNonEmptyAI(stringParam(req.Params, "response_format", ""), stringParam(req.Params, "format", ""), "wav")
+	}
+	switch strings.ToLower(value) {
+	case "pcm", "wav", "mp3", "opus":
+		return strings.ToLower(value)
+	default:
+		return "wav"
+	}
+}
+
+func dashScopeOmniInputAudioFormat(req media.AudioChatRequest) string {
+	value := strings.TrimSpace(firstNonEmptyAI(req.AudioFormat, stringParam(req.Params, "input_audio_format", "")))
+	if value == "" {
+		value = "pcm"
+	}
+	switch strings.ToLower(value) {
+	case "pcm", "g711_ulaw", "g711_alaw":
+		return strings.ToLower(value)
+	default:
+		return "pcm"
+	}
+}
+
+func dashScopeOmniOutputAudioFormat(req media.AudioChatRequest) string {
+	value := strings.TrimSpace(firstNonEmptyAI(stringParam(req.Params, "output_audio_format", ""), stringParam(req.Params, "response_format", "")))
+	if value == "" {
+		value = "pcm"
+	}
+	switch strings.ToLower(value) {
+	case "pcm", "wav", "mp3", "opus":
+		return strings.ToLower(value)
+	default:
+		return "pcm"
+	}
+}
+
+func dashScopeRealtimeURL(baseURL string, params map[string]any, model string) (string, error) {
+	if raw := strings.TrimSpace(stringParam(params, "realtime_url", "")); raw != "" {
+		u, err := url.Parse(raw)
+		if err != nil {
+			return "", err
+		}
+		q := u.Query()
+		if q.Get("model") == "" {
+			q.Set("model", model)
+		}
+		u.RawQuery = q.Encode()
+		return u.String(), nil
+	}
+	base := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if base == "" {
+		base = "https://dashscope-intl.aliyuncs.com/api/v1"
+	}
+	u, err := url.Parse(base)
+	if err != nil {
+		return "", err
+	}
+	switch u.Scheme {
+	case "https":
+		u.Scheme = "wss"
+	case "http":
+		u.Scheme = "ws"
+	case "wss", "ws":
+	default:
+		u.Scheme = "wss"
+	}
+	path := strings.TrimRight(u.Path, "/")
+	if strings.HasSuffix(path, "/realtime") {
+		u.Path = path
+	} else if strings.Contains(path, "/api/v1") {
+		u.Path = strings.Replace(path, "/api/v1", "/api-ws/v1/realtime", 1)
+	} else if path == "" || path == "/" {
+		u.Path = "/api-ws/v1/realtime"
+	} else {
+		u.Path = path + "/api-ws/v1/realtime"
+	}
+	q := u.Query()
+	q.Set("model", model)
+	u.RawQuery = q.Encode()
+	return u.String(), nil
+}
+
+func dashScopeWriteRealtimeEvent(conn *websocket.Conn, eventType string, payload map[string]any) error {
+	body := map[string]any{
+		"event_id": fmt.Sprintf("event_%d", time.Now().UnixNano()),
+		"type":     eventType,
+	}
+	for key, value := range payload {
+		body[key] = value
+	}
+	return conn.WriteJSON(body)
+}
+
+func dashScopeReadRealtimeAudioChat(ctx context.Context, conn *websocket.Conn) ([]byte, string, string, error) {
+	var audio bytes.Buffer
+	var text strings.Builder
+	providerRef := ""
+	for {
+		if deadline, ok := ctx.Deadline(); ok {
+			_ = conn.SetReadDeadline(deadline)
+		}
+		_, raw, err := conn.ReadMessage()
+		if err != nil {
+			return audio.Bytes(), text.String(), providerRef, err
+		}
+		var event map[string]any
+		if err := json.Unmarshal(raw, &event); err != nil {
+			return audio.Bytes(), text.String(), providerRef, fmt.Errorf("decode dashscope realtime event: %w", err)
+		}
+		eventType := stringField(event, "type")
+		switch eventType {
+		case "error":
+			errObj, _ := event["error"].(map[string]any)
+			return audio.Bytes(), text.String(), providerRef, fmt.Errorf("dashscope realtime error %s: %s", stringField(errObj, "code"), stringField(errObj, "message"))
+		case "response.created", "response.done":
+			if response, ok := event["response"].(map[string]any); ok {
+				providerRef = firstNonEmptyAI(providerRef, stringField(response, "id"))
+			}
+			if eventType == "response.done" {
+				return audio.Bytes(), text.String(), providerRef, nil
+			}
+		case "response.audio.delta":
+			providerRef = firstNonEmptyAI(providerRef, stringField(event, "response_id"))
+			delta := strings.TrimSpace(stringField(event, "delta"))
+			if delta == "" {
+				continue
+			}
+			chunk, err := base64.StdEncoding.DecodeString(delta)
+			if err != nil {
+				return audio.Bytes(), text.String(), providerRef, fmt.Errorf("decode dashscope realtime audio delta: %w", err)
+			}
+			audio.Write(chunk)
+		case "response.text.delta", "response.audio_transcript.delta":
+			text.WriteString(stringField(event, "delta"))
+		case "response.text.done", "response.audio_transcript.done":
+			if transcript := stringField(event, "transcript", "text"); transcript != "" {
+				current := text.String()
+				if !strings.Contains(current, transcript) {
+					if current != "" && !strings.HasSuffix(current, " ") {
+						text.WriteString(" ")
+					}
+					text.WriteString(transcript)
+				}
+			}
+		case "session.finished":
+			return audio.Bytes(), text.String(), providerRef, nil
+		}
+	}
+}
+
+func dashScopeReadRealtimeAudio(ctx context.Context, conn *websocket.Conn) ([]byte, string, error) {
+	var audio bytes.Buffer
+	providerRef := ""
+	for {
+		if deadline, ok := ctx.Deadline(); ok {
+			_ = conn.SetReadDeadline(deadline)
+		}
+		_, raw, err := conn.ReadMessage()
+		if err != nil {
+			return audio.Bytes(), providerRef, err
+		}
+		var event map[string]any
+		if err := json.Unmarshal(raw, &event); err != nil {
+			return audio.Bytes(), providerRef, fmt.Errorf("decode dashscope realtime event: %w", err)
+		}
+		eventType := stringField(event, "type")
+		switch eventType {
+		case "error":
+			errObj, _ := event["error"].(map[string]any)
+			return audio.Bytes(), providerRef, fmt.Errorf("dashscope realtime error %s: %s", stringField(errObj, "code"), stringField(errObj, "message"))
+		case "response.created", "response.done":
+			if response, ok := event["response"].(map[string]any); ok {
+				providerRef = firstNonEmptyAI(providerRef, stringField(response, "id"))
+			}
+			if eventType == "response.done" {
+				return audio.Bytes(), providerRef, nil
+			}
+		case "response.audio.delta":
+			providerRef = firstNonEmptyAI(providerRef, stringField(event, "response_id"))
+			delta := strings.TrimSpace(stringField(event, "delta"))
+			if delta == "" {
+				continue
+			}
+			chunk, err := base64.StdEncoding.DecodeString(delta)
+			if err != nil {
+				return audio.Bytes(), providerRef, fmt.Errorf("decode dashscope realtime audio delta: %w", err)
+			}
+			audio.Write(chunk)
+		case "session.finished":
+			return audio.Bytes(), providerRef, nil
+		}
+	}
+}
+
 func mimeTypeForDashScopeAudioFormat(format string) string {
 	switch strings.ToLower(strings.TrimSpace(format)) {
 	case "wav":
@@ -611,6 +1147,19 @@ func mimeTypeForDashScopeAudioFormat(format string) string {
 		return "audio/ogg"
 	default:
 		return "audio/mpeg"
+	}
+}
+
+func mimeTypeForDashScopeRealtimeAudioFormat(format string) string {
+	switch strings.ToLower(strings.TrimSpace(format)) {
+	case "pcm":
+		return "audio/L16"
+	case "mp3":
+		return "audio/mpeg"
+	case "opus":
+		return "audio/ogg"
+	default:
+		return "audio/wav"
 	}
 }
 

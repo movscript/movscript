@@ -111,6 +111,9 @@ func (s *Service) PreviewModelImport(ctx context.Context, input ModelImportPrevi
 	if err != nil {
 		return ModelImportPreviewResult{}, err
 	}
+	for i := range plans {
+		applyModelImportProviderBoundary(&plans[i], modelImportProviderCategoryForKind(providerInput.ProviderKind))
+	}
 	return ModelImportPreviewResult{
 		ProviderKind: providerInput.ProviderKind,
 		DisplayName:  providerInput.DisplayName,
@@ -215,14 +218,15 @@ func (s *Service) applyModelImportItem(ctx context.Context, provider persistence
 	item.CatalogEntryID = entry.ID
 	item.CreatedCatalogEntry = createdEntry
 	item.ReusedCatalogEntry = !createdEntry
-	if modelImportPlanSkipsRoute(plan) {
+	if skip, diagnostic := modelImportPlanSkipsRouteForProvider(plan, provider); skip {
 		item.SkippedRouteBinding = true
+		item.Recommended = false
 		if createdEntry {
 			item.Status = modelImportStatusNew
 		} else {
 			item.Status = modelImportStatusCatalogExists
 		}
-		item.Diagnostics = append(item.Diagnostics, "Route binding was skipped because the matched template is not runtime-ready.")
+		item.Diagnostics = append(item.Diagnostics, diagnostic)
 		return item, nil
 	}
 
@@ -246,6 +250,37 @@ func (s *Service) applyModelImportItem(ctx context.Context, provider persistence
 
 func modelImportPlanSkipsRoute(plan ModelImportModelPlan) bool {
 	return strings.TrimSpace(plan.TemplateID) != "" && strings.TrimSpace(plan.TemplateStatus) == "template_only"
+}
+
+func modelImportPlanSkipsRouteForProvider(plan ModelImportModelPlan, provider persistencemodel.AIProvider) (bool, string) {
+	if modelImportPlanSkipsRoute(plan) {
+		return true, "Route binding was skipped because the matched template is not runtime-ready."
+	}
+	if modelImportPlanRequiresLocalProvider(plan) && strings.TrimSpace(provider.ProviderCategory) != persistencemodel.AIProviderCategoryLocalEndpoint {
+		return true, "Route binding was skipped because this model uses a local runtime adapter and must be bound to a local endpoint provider."
+	}
+	return false, ""
+}
+
+func applyModelImportProviderBoundary(plan *ModelImportModelPlan, providerCategory string) {
+	if plan == nil || !plan.Recommended {
+		return
+	}
+	if modelImportPlanRequiresLocalProvider(*plan) && strings.TrimSpace(providerCategory) != persistencemodel.AIProviderCategoryLocalEndpoint {
+		plan.Recommended = false
+		plan.Diagnostics = append(plan.Diagnostics, "Matched a local runtime template; bind it through the local audio runtime provider instead of a remote gateway.")
+	}
+}
+
+func modelImportPlanRequiresLocalProvider(plan ModelImportModelPlan) bool {
+	return strings.TrimSpace(plan.TemplateID) != "" && strings.TrimSpace(plan.AdapterType) == infraai.AdapterLocal
+}
+
+func modelImportProviderCategoryForKind(providerKind string) string {
+	if template, ok := providerTemplateByKind(providerKind); ok {
+		return strings.TrimSpace(template.ProviderCategory)
+	}
+	return ""
 }
 
 func (s *Service) findOrCreateImportedCatalogEntry(ctx context.Context, plan ModelImportModelPlan) (persistencemodel.AIModelCatalogEntry, bool, error) {

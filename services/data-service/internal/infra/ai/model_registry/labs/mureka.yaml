@@ -77,7 +77,7 @@ templates:
       lab: mureka
       model_id: song_extension
       display_name: Mureka Song Extension
-      adapter_type: openai_compat
+      adapter_type: mureka
       capabilities:
         - audio_music
       input:
@@ -92,6 +92,6 @@ templates:
             - "60"
           default: "30"
       source:
-        url: https://platform.mureka.ai/
+        url: https://platform.mureka.ai/docs/api/operations/post-v1-song-extend.html
         verified_at: "2026-06-25"
-        status: template_only
+        status: verified
