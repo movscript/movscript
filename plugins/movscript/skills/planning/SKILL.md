@@ -1,6 +1,6 @@
 ---
 name: planning
-description: Plan only the needed MovScript production prerequisites, settings, scene moments, multimodal expression units, content units, and optional legacy visual anchors for simple videos or reusable projects.
+description: "Plan MovScript production work in business terms: project context, script-derived beats, continuity references, scene beats, visual/audio materials, storyboard/keyframe evidence, and output tasks. Use only the needed internal source entities and domain tools for simple videos, reusable assets, or larger productions."
 toolGrants:
   - mcp__movscript__movscript_runtime_status
   - mcp__movscript__system_focus_get
@@ -36,22 +36,28 @@ toolGrants:
 
 # Planning
 
-Use this skill when a user asks to plan or change MovScript creative structure: settings, assets, productions, segments, scene moments, multimodal expression units, content units, or optional visual evidence. If runtime ownership or service availability is unclear, use the `runtime` skill first.
+Use this skill when a user asks to plan or change MovScript creative work: project standards, reusable characters/props/places/voices, story structure, scene beats, visual/audio/text materials, storyboard/keyframe references, or outputs to generate. Think like a production assistant first, then map the plan to MovScript internal entity names only when calling tools or editing source. If runtime ownership or service availability is unclear, use the `runtime` skill first.
+
+## Planning Posture
+
+- Start from the user's production goal: quick draft, reusable reference, one scene beat, multiple beats, segment, or finished production.
+- Use user-facing words in analysis and replies: project context, continuity reference, scene beat, visual material, storyboard, keyframe, output task, generated option, adopted choice, and impact review.
+- Use current `movscript-lang` entity names only in tool calls, source edits, and concise diagnostics. Chinese/product terms are not separate source entities.
+- Prefer the smallest useful plan. Add continuity references, storyboards, keyframes, or expression materials only when they protect consistency, clarify the shot, or unblock generation.
 
 ## Rules
 
-- Use current `movscript-lang` entity names in tool calls and source edits. Chinese product terms are user-facing aliases only.
 - When a planning, prompt, impact, candidate, preview timeline, or project-status MCP result includes `surface.kind: "browser_url"` and `surface.url`, include that URL in the user-facing response and tell the user to open it for the next planning/review action.
 - Describe the page's purpose: edit/save a content-unit prompt, review missing selections, inspect stale impact, compare candidates, or inspect preview/project readiness. A URL handoff is not itself a completed user decision.
 - If secondary surfaces are returned, lead with the primary `surface.url` and mention secondary URLs only when they help the next decision. Use URLs exactly as returned.
-- Planning decides the MovScript structure; domain tools perform the writes, `domain_inspect`, `domain_interpret`, and regeneration checks.
+- Planning decides the production structure; domain tools perform the source writes, readiness checks, diagnostic refresh, and impact review.
 - Planning depends on Project Service and Data Service runtime capabilities. If project/domain tools fail because a service endpoint is missing, call `movscript_runtime_status`, classify local daemon, cloud/external data plane, or basic/diagnostic mode, and report the missing capability instead of changing source files directly.
 - Before project-scoped planning, call `domain_read_project_context_snapshot`. Use its aspect ratio, style, prompt rules, negative rules, and style references as upstream context for planning decisions.
 - If the snapshot reports missing project standards, mention the gap only when it matters to the user's goal. Do not add default standards unless the user explicitly asks to add, remove, or adjust project standards.
 - Open `references/video-production-paths.md` when mapping a requested video into concept-short, long-video, image-driven, or storyboard-driven MovScript structure. Open `references/planning-workflows.md` when deciding planning depth, project-vs-simple-video scope, prerequisite ordering, continuity structure, or reference-shot imitation prerequisites. Open `../generation/references/continuity-asset-prompts.md` when planning reusable asset prompts or deciding how an `asset_ref` should stay reusable.
 - Open `../domain/references/entity-glossary.md` or `references/entity-mapping.md` when mapping user terms to source entities.
-- Start planning by deciding the production granularity: one short direct `scene_moment` output, one composed `scene_moment` from expression materials, multiple scene moments, segments, or productions.
-- Treat `scene_moment` as the final expression aggregation unit. Treat `expression_unit` as multimodal material intent inside the scene moment.
+- Start planning by deciding the production granularity: one short direct scene-beat output (`scene_moment`), one composed scene beat from materials, multiple scene beats, segments, or productions.
+- Treat `scene_moment` as the scene beat users understand. Treat `expression_unit` as visual/audio/text/dialogue material inside that scene beat.
 - Keep each `scene_moment` as a short atomic video beat, normally no longer than about 10 seconds. If the requested beat is longer, has multiple location/time changes, or contains several independently reviewable actions, split it into finer `scene_moment` records instead of hiding the whole span in one prompt.
 - Default to one direct `scene_moment_ref` content unit only for a coherent short scene-moment video. For longer or multi-beat requests, plan multiple short scene moments and generate/approve each before editing composition.
 - Before ordinary scene-moment video production, prefer planning a `storyboard_ref` content unit per scene moment and generating schematic storyboard panels with `gpt-image-2` through the generation skill. Storyboard images should be composition/blocking diagrams or stylized animatic frames; avoid photoreal real-person likenesses and do not make them final character portrait references.
@@ -67,7 +73,7 @@ Use this skill when a user asks to plan or change MovScript creative structure: 
 - Treat keyframe/storyboard as optional visual evidence for a visual expression unit, not required ceremony for every generation. Their generated outputs still enter candidate/decision flow before becoming stable dependencies.
 - When required asset, storyboard, or keyframe candidates exist but are not adopted/selected, classify the work as `缺选择` and stop normal downstream generation planning. Guide the user to adopt/select one of the candidates; continue without adoption only when the user explicitly asks for an unstable draft.
 - When composition, blocking, camera movement, subject placement, or shot rhythm matters but the user's request is underspecified, plan storyboard panels first and require user/workflow confirmation before generating keyframes or downstream video.
-- Treat content units as top-level project production slots with flat refs. Do not nest content unit semantics under storyboard paths.
+- Treat content units as top-level output tasks with flat refs. Do not nest output-task semantics under storyboard paths.
 - When a downstream content unit should use a selected upstream asset/storyboard/keyframe/reference as a tracked dependency, put a semantic prompt ref in `edit_prompt`, such as `{{asset::hero_base}}`, `{{storyboard::opening_panel}}`, or `{{keyframe::shot_start}}`. Prompt compilation resolves the selected upstream candidate to a resource mention; the planning source should preserve the semantic ref. If the user only needs loose raw-resource guidance, direct RawResource IDs can be passed to generation without creating semantic refs.
 - If the user wants a fast draft and consistency requirements are low, it is valid to create a short scene-moment-level content unit directly and generate without expression-unit breakdown. Use `content_unit_type: scene_moment_ref`, `target_kind: scene_moment`, and `target_ref` for the scene moment.
 - When the scene moment needs multiple materials, create expression-unit-level content units with `content_unit_type: expression_unit_ref`, `target_kind: expression_unit`, and `target_ref` for each visual, voice, subtitle, or audio material.
@@ -78,7 +84,7 @@ Use this skill when a user asks to plan or change MovScript creative structure: 
 ## Workflow
 
 1. Resolve focus with `system_focus_get` when the selected project, production, or entity matters.
-2. Call `domain_read_project_context_snapshot`, then `domain_overview`, then query existing settings, assets, scripts, and production context.
+2. Call `domain_read_project_context_snapshot`, then `domain_overview`, then query existing continuity references, scripts, output tasks, and production context.
 3. Open `references/video-production-paths.md`, then decide scope and granularity: simple one-off video or reusable project; concept-driven, long-video, image-driven, or storyboard-driven path; one short direct `scene_moment`, one composed `scene_moment`, multiple scene moments, segments, or productions.
 4. Open `references/entity-mapping.md` when mapping product language or legacy terms to current entities.
 5. If using script text as source material, read the script and snapshot script versions/blocks before downstream planning when stable script refs are needed.

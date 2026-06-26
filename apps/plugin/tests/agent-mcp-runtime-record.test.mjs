@@ -234,6 +234,20 @@ test('movscript-agent-mcp defaults to persistent full-local local-node without D
   assert.equal(directAdminCredentials.ok, true)
   assert.match(directAdminCredentials.headers.get('content-type') ?? '', /application\/json/)
 
+  const devOrigin = 'http://127.0.0.1:5173'
+  const gatewayHealth = await fetch(`${localNode.gatewayEndpoint.url}/health`, {
+    headers: { origin: devOrigin },
+  })
+  assert.equal(gatewayHealth.ok, true)
+  assert.equal(gatewayHealth.headers.get('access-control-allow-origin'), devOrigin)
+  assert.equal(gatewayHealth.headers.get('access-control-allow-credentials'), 'true')
+
+  const missingEditingMedia = await fetch(`${localNode.gatewayEndpoint.url}/local-api/editing/media-file?path=missing.mp4`, {
+    headers: { origin: devOrigin },
+  })
+  assert.equal(missingEditingMedia.status, 404)
+  assert.equal(missingEditingMedia.headers.get('access-control-allow-origin'), devOrigin)
+
   const stop = await runLocalNodeCommand(homeDir, ['local-node', 'stop'])
   assert.equal(stop.exitCode, 0, stop.stderr)
   assert.match(stop.stdout, /stopping|not_running/)

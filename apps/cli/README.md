@@ -42,7 +42,7 @@ directory to `PATH`, so internal terminals and provider sessions can run
 ## Global Options
 
 ```text
---server <url>        Movscript backend URL, default http://localhost:8765
+--server <url>        Movscript backend URL, default http://localhost:8766
 --token <token>       API token, or set MOVCLI_TOKEN
 --workspace <dir>     MovScript workspace root directory
 ```
@@ -59,7 +59,7 @@ Backend connection and credentials are stored under the selected workspace root:
 Login:
 
 ```bash
-pnpm --filter @movscript/cli dev -- --workspace /path/to/workspace auth login --server http://localhost:8765
+pnpm --filter @movscript/cli dev -- --workspace /path/to/workspace auth login --server http://localhost:8766
 ```
 
 Show auth status:

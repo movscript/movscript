@@ -1299,7 +1299,7 @@ function desktopPackageStageDir(root) {
   return resolve(root, 'apps/desktop/.package-stage')
 }
 
-function desktopStagedBuilderArgs(root) {
+export function desktopStagedBuilderArgs(root) {
   return [
     `-c.electronVersion=${resolveDesktopElectronVersion(root)}`,
     '-c.npmRebuild=false',

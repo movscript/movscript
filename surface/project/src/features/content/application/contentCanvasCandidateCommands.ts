@@ -122,7 +122,6 @@ export async function selectContentUnitCandidateFromCanvas(
   return {
     changedNodeIds: [contentUnitNode.id, `candidate:${contentUnitNode.entityKey}:${candidate.id}`],
     affectedNodeIds: [contentUnitNode.id],
-    createdCandidates: [{ contentUnitId: contentUnitNode.entityKey, candidate: { ...candidate, selected: true } }],
     selectedCandidates: [{ contentUnitId: contentUnitNode.entityKey, candidateId: candidate.id }],
     message: `已选择创作片段候选 ${candidate.title}`,
   }
@@ -151,7 +150,6 @@ export async function selectCandidateNodeFromCanvas(
     changedNodeIds: [ownerContentUnitNodeId || candidateNode.id, candidateNode.id],
     affectedNodeIds: [ownerContentUnitNodeId || candidateNode.id, candidateNode.id],
     focusNodeId: ownerContentUnitNodeId || undefined,
-    createdCandidates: [{ contentUnitId: ownerContentUnitId, candidate: contentCanvasCandidateFromCandidateNode(candidateNode, true) }],
     selectedCandidates: [{ contentUnitId: ownerContentUnitId, candidateId: candidateNode.entityKey }],
     message: `已选择候选 ${candidateNode.title}`,
   }
@@ -248,29 +246,6 @@ function readableCandidateIdFallback(id: string): string {
 
 function technicalCandidateIdPattern(): RegExp {
   return /^(canvas|resource|content)_candidate_[\w-]+$|^resource_\d+_[\w-]+$|^gen_(image|video)_\d+_\d+$/
-}
-
-function contentCanvasCandidateFromCandidateNode(node: ContentCanvasNode, selected: boolean): ContentCanvasCandidate {
-  const resourceId = numberValue(node.record.resourceId)
-  const resourceKind = stringValue(node.record.resourceKind)
-  const artifactRef = stringValue(node.record.artifactRef)
-  const inputHash = stringValue(node.record.inputHash)
-  return {
-    id: node.entityKey,
-    title: node.title,
-    ...(resourceId !== undefined ? { resourceId } : {}),
-    ...(resourceKind ? { resourceKind } : {}),
-    ...(artifactRef ? { artifactRef } : {}),
-    ...(inputHash ? { inputHash } : {}),
-    source: stringValue(node.record.source) ?? 'backend',
-    ...(stringValue(node.record.status) ? { status: stringValue(node.record.status) } : {}),
-    ...(isRecord(node.record.producer) ? { producer: node.record.producer } : {}),
-    ...(Array.isArray(node.record.outputs) ? { outputs: node.record.outputs } : {}),
-    ...(isRecord(node.record.promptSnapshot) ? { promptSnapshot: node.record.promptSnapshot } : isRecord(node.record.prompt_snapshot) ? { promptSnapshot: node.record.prompt_snapshot } : {}),
-    ...(stringValue(node.record.createdAt ?? node.record.created_at) ? { createdAt: stringValue(node.record.createdAt ?? node.record.created_at) } : {}),
-    selected,
-    notes: stringValue(node.record.notes ?? node.record.status) ?? inputHash ?? '',
-  }
 }
 
 function stringValue(value: unknown): string | undefined {

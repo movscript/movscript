@@ -22,6 +22,7 @@ import {
   primaryContentUnitRefs,
   primaryRefFieldNameForKind,
   projectStyleReferenceResourceIds,
+  readContentUnitCandidate,
   readSelectedContentUnit,
   recordField,
   resolveContentUnitForPromptRef,
@@ -397,7 +398,7 @@ function upstreamSelectionStatus(
 
   const selection = readSelectedContentUnit(context.index, upstreamRef)
   const candidateId = idField(selection?.candidate_id)
-  const candidate = candidateId === undefined ? undefined : readContentUnitCandidate(context, upstreamRef, candidateId)
+  const candidate = candidateId === undefined ? undefined : readContentUnitCandidate(context.index, upstreamRef, candidateId)
   if (candidateId !== undefined && !candidate) {
     return {
       stale: true,
@@ -408,7 +409,7 @@ function upstreamSelectionStatus(
       },
     }
   }
-  const candidatePrompt = recordField(candidate?.prompt_snapshot) as NormalizedContentUnitPrompt | undefined
+  const candidatePrompt = normalizedContentUnitPrompt(candidate?.prompt_snapshot)
   if (!candidatePrompt) return { stale: true }
 
   const contentUnitType = stringField(upstreamContentUnit.record.content_unit_type)
@@ -422,31 +423,20 @@ function upstreamSelectionStatus(
   return { stale: !sameCanonicalPrompt(currentPrompt, candidatePrompt) }
 }
 
-function readContentUnitCandidate(
-  context: AdapterContext,
-  contentUnitRef: string,
-  candidateId: string | number,
-): Record<string, unknown> | undefined {
-  return context.index.documents.find((document) => {
-    if (!document.path.startsWith(`${contentUnitRef}/candidates/`)) return false
-    if (!document.path.endsWith('/content_candidate.json')) return false
-    if (!recordField(document.data)) return false
-    return String((document.data as Record<string, unknown>).id ?? '') === String(candidateId)
-  })?.data as Record<string, unknown> | undefined
-}
-
 function sameCanonicalPrompt(left: NormalizedContentUnitPrompt, right: NormalizedContentUnitPrompt): boolean {
   return JSON.stringify(stableJsonValue(canonicalPromptComparisonValue(left)))
     === JSON.stringify(stableJsonValue(canonicalPromptComparisonValue(right)))
 }
 
 function canonicalPromptComparisonValue(prompt: NormalizedContentUnitPrompt): unknown {
+  const refs = Array.isArray(prompt.refs) ? prompt.refs : []
+  const blockers = Array.isArray(prompt.blockers) ? prompt.blockers : []
   return {
     content_unit_type: prompt.content_unit_type,
     output_kind: prompt.output_kind,
     edit_prompt: prompt.edit_prompt,
     model_intent: prompt.model_intent,
-    refs: prompt.refs.map((ref) => ({
+    refs: refs.map((ref) => ({
       kind: ref.kind,
       id: ref.id,
       raw: ref.raw,
@@ -461,11 +451,20 @@ function canonicalPromptComparisonValue(prompt: NormalizedContentUnitPrompt): un
       } : undefined,
     })),
     runtime_request: prompt.runtime_request,
-    blockers: (prompt.blockers ?? []).map((blocker) => ({
+    blockers: blockers.map((blocker) => ({
       code: blocker.code,
       ref: blocker.ref,
     })),
   }
+}
+
+function normalizedContentUnitPrompt(value: unknown): NormalizedContentUnitPrompt | undefined {
+  const record = recordField(value)
+  if (!record) return undefined
+  if (record.schema !== 'movscript.content_unit_prompt.v1' && record.schema !== 'movscript.content_unit_generation_prompt_snapshot.v1') return undefined
+  if (!Array.isArray(record.refs)) return undefined
+  if (!recordField(record.runtime_request)) return undefined
+  return record as unknown as NormalizedContentUnitPrompt
 }
 
 function normalizedEditPrompt(value: unknown): NormalizedContentUnitPrompt['edit_prompt'] | undefined {

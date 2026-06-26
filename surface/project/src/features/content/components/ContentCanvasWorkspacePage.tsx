@@ -87,7 +87,7 @@ export default function ContentCanvasWorkspacePage({
           draftExpressionPrompts={controller.draftExpressionPrompts}
           edges={viewModel.graph.edges}
           focusRequest={controller.creativeCanvasFocusRequest}
-          focusedNodeId={viewModel.activeCanvasNode?.id ?? null}
+          focusedNodeId={controller.activeCanvasNodeId}
           manualPositions={controller.creativeCanvasNodePositions}
           savedViewport={controller.creativeCanvasViewport}
           nodes={workspaceNodes}
@@ -98,6 +98,7 @@ export default function ContentCanvasWorkspacePage({
           onCandidateSelect={controller.selectCandidate}
           onCandidateNodeSelect={controller.selectCandidateNode}
           onCandidateUpload={controller.uploadCandidateForNode}
+          onCanvasDeselect={controller.clearCanvasSelection}
           onClearManualPositions={controller.clearCreativeCanvasManualPositions}
           onClearManualPositionsForNodes={controller.clearCreativeCanvasManualPositionsForNodes}
           onCreateChild={controller.openCreativeCanvasCreateChild}

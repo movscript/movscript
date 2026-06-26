@@ -292,7 +292,7 @@ export async function buildContentUnitBackendPrompt(
       continue
     }
 
-    const resourceId = selectedResourceId(decision)
+    const resourceId = promptInputResourceId(decision)
     if (resourceId === undefined) {
       const blocker: MovScriptPromptBuildBlocker = {
         code: 'upstream_resource_missing',
@@ -572,13 +572,23 @@ function blockerForDecision(
   }
   const selection = selectedDecision(decision)
   if (!selection) {
-    return {
-      code: 'upstream_selection_missing',
-      ref: ref.raw,
-      content_unit_ref: upstreamRef,
-      content_unit_id: upstream.id,
-      message: `prompt input content unit has no selected backend candidate: ${ref.raw}`,
-    }
+    const candidates = Array.isArray(decision.candidates) ? decision.candidates : []
+    if (latestResourceCandidate(candidates)) return undefined
+    return candidates.length > 0
+      ? {
+        code: 'upstream_resource_missing',
+        ref: ref.raw,
+        content_unit_ref: upstreamRef,
+        content_unit_id: upstream.id,
+        message: `prompt input latest backend candidate has no resource_id: ${ref.raw}`,
+      }
+      : {
+        code: 'upstream_selection_missing',
+        ref: ref.raw,
+        content_unit_ref: upstreamRef,
+        content_unit_id: upstream.id,
+        message: `prompt input content unit has no selected backend candidate: ${ref.raw}`,
+      }
   }
   if (selection.stale === true && stalePolicy(selection) !== 'accept_stale') {
     return {
@@ -602,7 +612,7 @@ function blockerForDecision(
       }
     }
   }
-  if (selectedResourceId(decision) === undefined) {
+  if (promptInputResourceId(decision) === undefined) {
     return {
       code: 'upstream_resource_missing',
       ref: ref.raw,
@@ -714,6 +724,11 @@ function selectedDecision(decision: MovScriptPromptDecisionContext): Record<stri
   return selection && Object.keys(selection).length > 0 ? selection : undefined
 }
 
+function promptInputResourceId(decision: MovScriptPromptDecisionContext | undefined): number | undefined {
+  if (decision && selectedDecision(decision)) return selectedResourceId(decision)
+  return firstCandidateResourceId(latestResourceCandidate(decision?.candidates))
+}
+
 function selectedResourceId(decision: MovScriptPromptDecisionContext | undefined): number | undefined {
   const selection = decision ? selectedDecision(decision) : undefined
   const direct = resourceIdField(selection?.resource_id)
@@ -727,6 +742,31 @@ function selectedResourceId(decision: MovScriptPromptDecisionContext | undefined
 function firstCandidateResourceId(candidate: Record<string, unknown> | undefined): number | undefined {
   const output = arrayField(candidate?.outputs).filter(isRecord)[0]
   return resourceIdField(output?.resource_id)
+}
+
+function latestResourceCandidate(candidates: Record<string, unknown>[] | undefined): Record<string, unknown> | undefined {
+  const resourceCandidates = Array.isArray(candidates)
+    ? candidates.filter((candidate) => firstCandidateResourceId(candidate) !== undefined)
+    : []
+  if (resourceCandidates.length === 0) return undefined
+  const withTimestamp = resourceCandidates
+    .map((candidate, index) => ({
+      candidate,
+      index,
+      timestamp: candidateTimestamp(candidate),
+    }))
+  return withTimestamp
+    .sort((left, right) => {
+      if (left.timestamp !== right.timestamp) return right.timestamp - left.timestamp
+      return right.index - left.index
+    })[0]?.candidate
+}
+
+function candidateTimestamp(candidate: Record<string, unknown>): number {
+  const raw = stringField(candidate.updated_at ?? candidate.updatedAt ?? candidate.created_at ?? candidate.createdAt)
+  if (!raw) return 0
+  const parsed = Date.parse(raw)
+  return Number.isFinite(parsed) ? parsed : 0
 }
 
 function compilePromptText(

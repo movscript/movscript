@@ -51,6 +51,31 @@ test('discovers data service endpoint from runtime home', async () => {
   }
 })
 
+test('prefers daemon gateway over direct data service endpoint from runtime home', async () => {
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-data-client-gateway-'))
+  try {
+    const endpointsDir = join(homeDir, 'runtime', 'endpoints')
+    await mkdir(endpointsDir, { recursive: true })
+    await writeFile(join(endpointsDir, 'gateway.json'), JSON.stringify({
+      serviceName: 'movscript.local-node.gateway',
+      url: 'http://127.0.0.1:8766',
+      protocol: 'http',
+      status: 'ready',
+      ready: true,
+    }))
+    await writeFile(join(endpointsDir, 'data.json'), JSON.stringify({
+      serviceName: 'movscript.data.service',
+      url: 'http://127.0.0.1:19091',
+      protocol: 'http',
+      status: 'ready',
+      ready: true,
+    }))
+    assert.equal(resolveDataServiceBaseUrl({ env: {}, homeDir }), 'http://127.0.0.1:8766')
+  } finally {
+    await rm(homeDir, { recursive: true, force: true })
+  }
+})
+
 test('data service runtime discovery points missing endpoint users at daemon data plane', () => {
   assert.throws(
     () => createDataServiceClientFromRuntime({ env: {}, homeDir: join(tmpdir(), 'movscript-missing-data-service') }),

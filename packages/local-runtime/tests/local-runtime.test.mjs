@@ -10,6 +10,7 @@ import {
   localRuntimeMatchesRequestedDataServiceURL,
   localRuntimeMatchesRequestedDataPlane,
   localRuntimeServicesReady,
+  probeLocalRuntimeDaemon,
   stopLocalRuntimeDaemon,
 } from '../dist/index.js'
 
@@ -92,6 +93,35 @@ test('local runtime request matching includes requested Data Service URL', () =>
     {},
     {},
   ), true)
+})
+
+test('local runtime daemon probe reports app record startup errors before control endpoint exists', async () => {
+  const homeDir = mkdtempSync(join(tmpdir(), 'movscript-local-runtime-home-'))
+  try {
+    writeAppRecord(homeDir, {
+      status: 'error',
+      ready: false,
+      pid: 12345,
+      metadata: {
+        pluginVersion: 'test-version',
+        pluginRoot: 'test-root',
+        dataPlane: 'local',
+        error: 'listen EADDRINUSE: address already in use 127.0.0.1:8766',
+      },
+    })
+
+    const probe = await probeLocalRuntimeDaemon(homeDir)
+
+    assert.equal(probe.available, false)
+    assert.equal(probe.status, 'error')
+    assert.equal(probe.pid, 12345)
+    assert.equal(probe.pluginVersion, 'test-version')
+    assert.equal(probe.pluginRoot, 'test-root')
+    assert.equal(probe.dataPlane, 'local')
+    assert.equal(probe.error, 'listen EADDRINUSE: address already in use 127.0.0.1:8766')
+  } finally {
+    rmSync(homeDir, { recursive: true, force: true })
+  }
 })
 
 test('ensureLocalRuntimeDaemon serializes concurrent cold starts behind one daemon', async () => {
@@ -346,6 +376,16 @@ function writeEndpointRecord(homeDir, url, port, pid) {
     url,
     port,
     pid,
+  }), 'utf8')
+}
+
+function writeAppRecord(homeDir, record) {
+  mkdirSync(join(homeDir, 'runtime', 'apps'), { recursive: true })
+  writeFileSync(join(homeDir, 'runtime', 'apps', 'movscript.local-node.json'), JSON.stringify({
+    applicationId: 'movscript.local-node',
+    owner: 'agent-provider',
+    profile: 'plugin-full-local',
+    ...record,
   }), 'utf8')
 }
 

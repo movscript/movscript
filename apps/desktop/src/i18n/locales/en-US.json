@@ -347,7 +347,7 @@
     "cloudApiTitle": "Service API",
     "cloudApiHint": "Login, assets, projects, and agent requests will use this service.",
     "apiBaseURL": "Service API URL",
-    "apiBaseURLHelp": "Cloud or external services can use http://localhost:8765 or https://api.example.com. Frontend-managed local mode uses http://localhost:8766.",
+    "apiBaseURLHelp": "Cloud or external services can use https://api.example.com. Frontend-managed local mode uses http://localhost:8766.",
     "currentApi": "Current API",
     "effectiveEndpoint": "Effective endpoint",
     "invalidURL": "Enter a URL that starts with http:// or https://.",

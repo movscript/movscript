@@ -347,7 +347,7 @@
     "cloudApiTitle": "服务 API",
     "cloudApiHint": "客户端登录、素材、项目和 Agent 请求都会连接到这个服务。",
     "apiBaseURL": "服务 API 地址",
-    "apiBaseURLHelp": "云端或外部服务可使用 http://localhost:8765",
+    "apiBaseURLHelp": "云端或外部服务可使用 https://api.example.com；前端托管的本地模式使用 http://localhost:8766。",
     "currentApi": "当前 API",
     "effectiveEndpoint": "实际接口",
     "invalidURL": "请输入以 http:// 或 https:// 开头的地址。",

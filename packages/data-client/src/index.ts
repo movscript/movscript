@@ -13,11 +13,12 @@ import {
 } from '@movscript/workspace/node'
 
 export const DATA_SERVICE_NAME = 'movscript.data.service'
+export const LOCAL_NODE_GATEWAY_SERVICE = 'movscript.local-node.gateway'
 export const MOVSCRIPT_DATA_SERVICE_CONFIG_SCHEMA = 'movscript.data-service-config.v1'
 export const MOVSCRIPT_DATA_SERVICE_AUTH_SCHEMA = 'movscript.data-service-auth.v1'
 export const MOVSCRIPT_DATA_SERVICE_CONFIG_FILE_NAME = 'config.json'
 export const MOVSCRIPT_DATA_SERVICE_AUTH_FILE_NAME = 'auth.json'
-export const MOVSCRIPT_DEFAULT_DATA_SERVICE_BASE_URL = 'http://localhost:8765'
+export const MOVSCRIPT_DEFAULT_DATA_SERVICE_BASE_URL = 'http://localhost:8766'
 
 export interface MovScriptWorkspaceRealm {
   kind: 'local' | 'cloud'
@@ -227,7 +228,9 @@ export function resolveDataServiceBaseUrl(options: DataServiceDiscoveryOptions =
 
   const homeDir = options.homeDir ?? resolveMovScriptHomeDir({ env })
   const snapshot = readRuntimeHomeSnapshot(homeDir)
-  const endpoint = findRuntimeEndpoint(snapshot, DATA_SERVICE_NAME)
+  const endpoint = findRuntimeEndpoint(snapshot, LOCAL_NODE_GATEWAY_SERVICE)
+    ?? findRuntimeService(snapshot, LOCAL_NODE_GATEWAY_SERVICE)?.endpoint
+    ?? findRuntimeEndpoint(snapshot, DATA_SERVICE_NAME)
     ?? findRuntimeService(snapshot, DATA_SERVICE_NAME)?.endpoint
   return normalizeDataServiceBaseUrl(endpointURL(endpoint))
 }

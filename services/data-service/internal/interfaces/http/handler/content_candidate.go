@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	appcontentcandidate "github.com/movscript/movscript/internal/app/contentcandidate"
+	jobapp "github.com/movscript/movscript/internal/app/job"
 	"github.com/movscript/movscript/internal/infra/ai"
 	"gorm.io/gorm"
 )
@@ -100,11 +101,63 @@ func contentCandidateProjectDataScope(c *gin.Context, rawKind string) (string, s
 }
 
 func (h *ContentCandidateHandler) writeContentCandidateError(c *gin.Context, err error) {
+	var validationErr *ai.ValidationError
 	switch {
+	case errors.As(err, &validationErr):
+		writeGenerationValidationError(c, validationErr)
 	case errors.Is(err, appcontentcandidate.ErrInvalidInput),
 		errors.Is(err, appcontentcandidate.ErrUnsupportedOutput):
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	case errors.Is(err, jobapp.ErrJobTypeRequired), errors.Is(err, jobapp.ErrInvalidJobType):
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	case errors.Is(err, jobapp.ErrProjectNotFound):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "project not found"})
+	case errors.Is(err, jobapp.ErrProjectOutsideOrg):
+		c.JSON(http.StatusForbidden, gin.H{"error": "project is outside current workspace"})
+	case errors.Is(err, jobapp.ErrResourceOutsideOrg):
+		c.JSON(http.StatusForbidden, gin.H{"error": "input resource is outside current workspace"})
+	case jobapp.IsUsageLimitExceeded(err):
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error(), "code": "USAGE_LIMIT_EXCEEDED"})
+	case errors.Is(err, jobapp.ErrReserveUsage), errors.Is(err, jobapp.ErrCreateJob):
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	case errors.Is(err, jobapp.ErrLoadInputResources):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to load input resources: " + err.Error()})
+	case errors.Is(err, jobapp.ErrCredentialNotFound):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "credential not found"})
+	case isContentCandidateGenerationConfigError(err):
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	default:
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "content candidate generation failed"})
+		body := gin.H{"error": "content candidate generation failed"}
+		if reason := strings.TrimSpace(err.Error()); reason != "" {
+			body["reason"] = reason
+		}
+		c.JSON(http.StatusInternalServerError, body)
 	}
+}
+
+func isContentCandidateGenerationConfigError(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(strings.TrimSpace(err.Error()))
+	if message == "" {
+		return false
+	}
+	for _, marker := range []string{
+		"not available for capability",
+		"not found for capability",
+		"does not support",
+		"no available provider route",
+		"catalog route is required for generation preflight",
+		"model_id is required",
+		"provider_id is required for local provider catalog route",
+		"not found or disabled",
+		"has no active credential",
+		"is not linked to a legacy credential",
+	} {
+		if strings.Contains(message, marker) {
+			return true
+		}
+	}
+	return false
 }

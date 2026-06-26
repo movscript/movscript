@@ -364,6 +364,12 @@ export function useContentCanvasWorkspaceController({
     setCreateSelection(null)
   }, [])
 
+  const clearCanvasSelection = useCallback(() => {
+    setActiveCanvasNodeId(null)
+    setSelection({ kind: 'scene_moment', nodeId: 'scene-main' })
+    setCreateSelection(null)
+  }, [])
+
   const commitCreativeCanvasNodePosition = useCallback((nodeId: string, position: { x: number; y: number }) => {
     updateContentCanvasDocumentNodePositions(projectId, creativeCanvasDocumentId, { [nodeId]: position })
   }, [creativeCanvasDocumentId, projectId])
@@ -652,6 +658,7 @@ export function useContentCanvasWorkspaceController({
   })
 
   return {
+    activeCanvasNodeId,
     activeKind,
     activeCreativeCanvasDocument: creativeCanvasDocument,
     addNodeToCreativeCanvas,
@@ -676,6 +683,7 @@ export function useContentCanvasWorkspaceController({
     createStructureChild: creationCommands.createStructureChild,
     draftAssetPrompts,
     draftExpressionPrompts,
+    clearCanvasSelection,
     clearCreativeCanvasManualPositions,
     clearCreativeCanvasManualPositionsForNodes,
     createFreeCreativeCanvasDocument,

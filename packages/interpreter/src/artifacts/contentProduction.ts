@@ -7,6 +7,7 @@ import {
   canonicalEntities,
   entityDir,
   idField,
+  readContentUnitCandidate,
   readSelectedContentUnit,
   requiredString,
   resourceIdField,
@@ -128,19 +129,6 @@ function selectionValidityFor(
     reason: stringField(selection?.reason),
     ...(staleReasons.length > 0 ? { stale_reasons: staleReasons } : {}),
   }
-}
-
-function readContentUnitCandidate(
-  index: MovScriptWorkspaceDomainIndex,
-  contentUnitRef: string,
-  candidateId: string | number,
-): Record<string, unknown> | undefined {
-  return index.documents.find((document) => {
-    if (!document.path.startsWith(`${contentUnitRef}/candidates/`)) return false
-    if (!document.path.endsWith('/content_candidate.json')) return false
-    if (!recordField(document.data)) return false
-    return String((document.data as Record<string, unknown>).id ?? '') === String(candidateId)
-  })?.data as Record<string, unknown> | undefined
 }
 
 function staleReasonsFor(

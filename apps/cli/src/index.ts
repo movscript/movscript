@@ -11,7 +11,7 @@ export function createMovcliProgram(): Command {
     .name('movcli')
     .description('MovScript CLI')
     .version('0.2.0')
-    .option('--server <url>', 'MovScript server URL', 'http://localhost:8765')
+    .option('--server <url>', 'MovScript server URL', 'http://localhost:8766')
     .option('--token <token>', 'API token (or set MOVSCRIPT_DATA_SERVICE_TOKEN env)')
     .option('--workspace <dir>', 'MovScript workspace root directory')
 

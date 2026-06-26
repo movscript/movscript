@@ -38,7 +38,7 @@ export function registerSettingsIpcHandlers(deps: SettingsIpcDependencies): void
         homeDir: movScriptHomeDir,
         dataPlane: 'local',
       })
-      setBackendStatus({ state: 'ready', baseURL: resolveDataServiceURL(movScriptHomeDir) ?? settings.apiBaseURL ?? LOCAL_BACKEND_URL }, deps.broadcastBackendStatus)
+      setBackendStatus({ state: 'ready', baseURL: resolveGatewayURL(movScriptHomeDir) ?? resolveDataServiceURL(movScriptHomeDir) ?? settings.apiBaseURL ?? LOCAL_BACKEND_URL }, deps.broadcastBackendStatus)
     } else if (settings.launchMode === 'cloud') {
       await stopBackend(deps.broadcastBackendStatus, { terminate: true })
       await ensureDesktopLocalRuntime({
@@ -46,7 +46,7 @@ export function registerSettingsIpcHandlers(deps: SettingsIpcDependencies): void
         dataPlane: dataPlaneForAPIBaseURL(settings.apiBaseURL),
         ...(settings.apiBaseURL ? { dataServiceURL: settings.apiBaseURL } : {}),
       })
-      setBackendStatus({ state: 'ready', baseURL: settings.apiBaseURL }, deps.broadcastBackendStatus)
+      setBackendStatus({ state: 'ready', baseURL: resolveGatewayURL(movScriptHomeDir) ?? settings.apiBaseURL }, deps.broadcastBackendStatus)
     }
     if (settings.launchMode === 'cloud' && settings.apiBaseURL) {
       writeMovScriptDataServiceConfig(movScriptHomeDir, { baseURL: settings.apiBaseURL })
@@ -91,6 +91,12 @@ function dataPlaneForAPIBaseURL(apiBaseURL: string | undefined): 'cloud' | 'exte
 
 function resolveDataServiceURL(homeDir: string): string | undefined {
   const endpoint = findRuntimeEndpoint(readRuntimeHomeSnapshot(homeDir), 'movscript.data.service')
+  if (!endpoint) return undefined
+  return endpoint.url ?? endpoint.baseURL ?? (endpoint.port ? `http://127.0.0.1:${endpoint.port}` : undefined)
+}
+
+function resolveGatewayURL(homeDir: string): string | undefined {
+  const endpoint = findRuntimeEndpoint(readRuntimeHomeSnapshot(homeDir), 'movscript.local-node.gateway')
   if (!endpoint) return undefined
   return endpoint.url ?? endpoint.baseURL ?? (endpoint.port ? `http://127.0.0.1:${endpoint.port}` : undefined)
 }

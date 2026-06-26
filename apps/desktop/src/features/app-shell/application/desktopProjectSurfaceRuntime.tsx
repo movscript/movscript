@@ -30,6 +30,9 @@ import { toast } from '@movscript/ui/toast'
 const PROJECT_SERVICE_READ_MODEL_ENDPOINT = '/v1/project/read-model'
 const PROJECT_SERVICE_RESOURCE_VIEW_ENDPOINT = '/v1/project/resources/view'
 const PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT = '/v1/project/source/command'
+const LOCAL_PROJECT_READ_MODEL_ENDPOINT = '/local-api/project/read-model'
+const LOCAL_PROJECT_RESOURCE_VIEW_ENDPOINT = '/local-api/project/resources/view'
+const LOCAL_PROJECT_SOURCE_COMMAND_ENDPOINT = '/local-api/project/source/command'
 
 export interface DesktopProjectSurfaceProviderProps {
   children: ReactNode
@@ -107,51 +110,72 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
       project: {
         readModel: async () => {
           const latestConfig = await refreshRuntimeConfigSnapshot()
+          const latestGatewayBaseURL = latestConfig?.gatewayBaseURL ?? runtimeConfig?.gatewayBaseURL
           const latestProjectServiceBaseURL = latestConfig?.projectServiceBaseURL ?? projectServiceBaseURL
           if (!projectDir) throw new Error('Project directory is not configured for this Desktop project.')
-          if (!latestProjectServiceBaseURL) throw new Error('Project Service endpoint is not available in Desktop runtime config.')
+          if (!latestGatewayBaseURL && !latestProjectServiceBaseURL) throw new Error('Project Service endpoint is not available in Desktop runtime config.')
           const decisionStore = desktopProjectDecisionStoreConfig({
             projectUid: project?.project_uid,
             title: project?.name,
-            dataServiceBaseURL: latestConfig?.apiBaseURL ?? runtimeConfig?.apiBaseURL,
+            dataServiceBaseURL: latestGatewayBaseURL ?? latestConfig?.apiBaseURL ?? runtimeConfig?.apiBaseURL,
             owner,
           })
-          return postProjectService(latestProjectServiceBaseURL, PROJECT_SERVICE_READ_MODEL_ENDPOINT, {
-            projectDir,
-            includeSource: false,
-            includeInspection: false,
-            ...(decisionStore ? { decisionStore } : {}),
+          return postProjectGateway({
+            gatewayBaseURL: latestGatewayBaseURL,
+            serviceBaseURL: latestProjectServiceBaseURL,
+            gatewayPath: LOCAL_PROJECT_READ_MODEL_ENDPOINT,
+            servicePath: PROJECT_SERVICE_READ_MODEL_ENDPOINT,
+            body: {
+              projectDir,
+              includeSource: false,
+              includeInspection: false,
+              ...(decisionStore ? { decisionStore } : {}),
+            },
           })
         },
         resourceView: async (input) => {
           const latestConfig = await refreshRuntimeConfigSnapshot()
+          const latestGatewayBaseURL = latestConfig?.gatewayBaseURL ?? runtimeConfig?.gatewayBaseURL
           const latestProjectServiceBaseURL = latestConfig?.projectServiceBaseURL ?? projectServiceBaseURL
           const nextProjectDir = input.projectDir ?? projectDir
           if (!nextProjectDir) throw new Error('Project directory is not configured for this Desktop project.')
-          if (!latestProjectServiceBaseURL) throw new Error('Project Service endpoint is not available in Desktop runtime config.')
-          return postProjectService(latestProjectServiceBaseURL, PROJECT_SERVICE_RESOURCE_VIEW_ENDPOINT, {
-            projectDir: nextProjectDir,
-            kind: input.kind,
-            ...(input.input !== undefined ? { input: input.input } : {}),
+          if (!latestGatewayBaseURL && !latestProjectServiceBaseURL) throw new Error('Project Service endpoint is not available in Desktop runtime config.')
+          return postProjectGateway({
+            gatewayBaseURL: latestGatewayBaseURL,
+            serviceBaseURL: latestProjectServiceBaseURL,
+            gatewayPath: LOCAL_PROJECT_RESOURCE_VIEW_ENDPOINT,
+            servicePath: PROJECT_SERVICE_RESOURCE_VIEW_ENDPOINT,
+            body: {
+              projectDir: nextProjectDir,
+              kind: input.kind,
+              ...(input.input !== undefined ? { input: input.input } : {}),
+            },
           })
         },
         sourceCommand: async (input) => {
           const latestConfig = await refreshRuntimeConfigSnapshot()
+          const latestGatewayBaseURL = latestConfig?.gatewayBaseURL ?? runtimeConfig?.gatewayBaseURL
           const latestProjectServiceBaseURL = latestConfig?.projectServiceBaseURL ?? projectServiceBaseURL
           const nextProjectDir = input.projectDir ?? projectDir
           if (!nextProjectDir) throw new Error('Project directory is not configured for this Desktop project.')
-          if (!latestProjectServiceBaseURL) throw new Error('Project Service endpoint is not available in Desktop runtime config.')
+          if (!latestGatewayBaseURL && !latestProjectServiceBaseURL) throw new Error('Project Service endpoint is not available in Desktop runtime config.')
           const decisionStore = desktopProjectDecisionStoreConfig({
             projectUid: project?.project_uid,
             title: project?.name,
-            dataServiceBaseURL: latestConfig?.apiBaseURL ?? runtimeConfig?.apiBaseURL,
+            dataServiceBaseURL: latestGatewayBaseURL ?? latestConfig?.apiBaseURL ?? runtimeConfig?.apiBaseURL,
             owner,
           })
-          return postProjectService(latestProjectServiceBaseURL, PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT, {
-            projectDir: nextProjectDir,
-            command: input.command,
-            ...(input.input !== undefined ? { input: input.input } : {}),
-            ...(decisionStore ? { decisionStore } : {}),
+          return postProjectGateway({
+            gatewayBaseURL: latestGatewayBaseURL,
+            serviceBaseURL: latestProjectServiceBaseURL,
+            gatewayPath: LOCAL_PROJECT_SOURCE_COMMAND_ENDPOINT,
+            servicePath: PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT,
+            body: {
+              projectDir: nextProjectDir,
+              command: input.command,
+              ...(input.input !== undefined ? { input: input.input } : {}),
+              ...(decisionStore ? { decisionStore } : {}),
+            },
           })
         },
         gitStatus: async () => {
@@ -205,6 +229,7 @@ export function useDesktopProjectSurfaceRuntime(): ProjectSurfaceRuntime {
     projectDir,
     projectId,
     projectServiceBaseURL,
+    runtimeConfig?.gatewayBaseURL,
     runtimeConfig?.apiBaseURL,
     runtimeConfig?.canvasServiceBaseURL,
     workspaceRoot,
@@ -237,6 +262,7 @@ export function useDesktopProjectReadModel() {
   const runtime = useProjectSurfaceRuntime()
   const projectDir = runtime.project.projectDir
   const projectServiceBaseURL = runtime.services.projectServiceBaseURL
+  const gatewayBaseURL = getRuntimeConfigSnapshot()?.gatewayBaseURL
 
   const query = useQuery({
     queryKey: [
@@ -244,10 +270,11 @@ export function useDesktopProjectReadModel() {
       'read-model',
       runtime.project.projectId,
       projectDir,
+      gatewayBaseURL,
       projectServiceBaseURL,
     ],
     queryFn: () => runtime.gateways.project.readModel(),
-    enabled: Boolean(projectDir && projectServiceBaseURL),
+    enabled: Boolean(projectDir && (gatewayBaseURL || projectServiceBaseURL)),
   })
   const status: ProjectSurfaceReadModelStatus = query.isLoading
     ? 'loading'
@@ -320,6 +347,22 @@ async function postProjectService(
     throw new Error(message)
   }
   return recordValue(payload) ?? {}
+}
+
+async function postProjectGateway(input: {
+  gatewayBaseURL?: string
+  serviceBaseURL?: string
+  gatewayPath: string
+  servicePath: string
+  body: Record<string, unknown>
+}): Promise<Record<string, unknown>> {
+  if (input.gatewayBaseURL) {
+    return postProjectService(input.gatewayBaseURL, input.gatewayPath, input.body)
+  }
+  if (input.serviceBaseURL) {
+    return postProjectService(input.serviceBaseURL, input.servicePath, input.body)
+  }
+  throw new Error('Project Service endpoint is not available in Desktop runtime config.')
 }
 
 function resolveBackendGitRemoteURL(value: string | undefined): string | undefined {

@@ -380,6 +380,32 @@ export function readSelectedContentUnit(
   } : undefined
 }
 
+export function readContentUnitCandidate(
+  index: MovScriptWorkspaceDomainIndex,
+  contentUnitRef: string,
+  candidateId: string | number,
+): Record<string, unknown> | undefined {
+  const sourceCandidate = index.documents.find((document) => {
+    if (!document.path.startsWith(`${contentUnitRef}/candidates/`)) return false
+    if (!document.path.endsWith('/content_candidate.json')) return false
+    const record = recordField(document.data)
+    return record !== undefined && String(record.id ?? '') === String(candidateId)
+  })?.data
+  const sourceRecord = recordField(sourceCandidate)
+  if (sourceRecord) return sourceRecord
+
+  const context = index.documents.find((document) => {
+    const record = recordField(document.data)
+    return record?.schema === 'movscript.decision_context.v1'
+      && record.target_kind === 'content_unit'
+      && record.target_ref === contentUnitRef
+  })?.data
+  for (const candidate of arrayField(recordField(context)?.candidates).map(recordField).filter(isDefined)) {
+    if (String(candidate.id ?? '') === String(candidateId)) return candidate
+  }
+  return undefined
+}
+
 export function findEntityByRef(
   index: MovScriptWorkspaceDomainIndex,
   entityKind: 'production' | 'segment' | 'asset' | 'setting' | 'setting_state' | 'scene_moment' | 'expression_unit' | 'storyboard' | 'keyframe',

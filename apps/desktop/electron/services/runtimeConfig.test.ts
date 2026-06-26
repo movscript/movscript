@@ -36,7 +36,9 @@ test('Electron runtime config exposes Canvas Service endpoint discovery contract
 
   assert.match(source, /CANVAS_SERVICE_NAME = 'movscript\.canvas\.service'/)
   assert.match(source, /canvasServiceBaseURL/)
-  assert.match(source, /canvasServiceV1BaseURL: `\$\{canvasServiceBaseURL\}\/v1`/)
+  assert.match(source, /const canvasServiceV1BaseURL = gatewayBaseURL/)
+  assert.match(source, /`\$\{gatewayBaseURL\}\/local-api`/)
+  assert.match(source, /`\$\{canvasServiceBaseURL\}\/v1`/)
   assert.match(source, /MOVSCRIPT_CANVAS_SERVICE_URL/)
   assert.match(source, /findRuntimeEndpoint\(snapshot, CANVAS_SERVICE_NAME\)/)
 })
@@ -51,14 +53,17 @@ test('Electron runtime config exposes Project Service endpoint discovery contrac
   assert.match(source, /findRuntimeEndpoint\(snapshot, PROJECT_SERVICE_NAME\)/)
 })
 
-test('Electron runtime config prefers daemon Data Service endpoint for local launch mode', () => {
+test('Electron runtime config prefers daemon gateway endpoint for local launch mode', () => {
   const source = readFileSync(resolve(import.meta.dirname, 'runtimeConfig.ts'), 'utf8')
 
+  assert.match(source, /LOCAL_NODE_GATEWAY_SERVICE = 'movscript\.local-node\.gateway'/)
+  assert.match(source, /gatewayBaseURL/)
+  assert.match(source, /findRuntimeEndpoint\(snapshot, LOCAL_NODE_GATEWAY_SERVICE\)/)
+  assert.match(source, /input\.shouldPreferLocalBackend && input\.gatewayBaseURL/)
   assert.match(source, /DATA_SERVICE_NAME = 'movscript\.data\.service'/)
   assert.match(source, /dataServiceBaseURL/)
   assert.match(source, /MOVSCRIPT_DATA_SERVICE_URL/)
   assert.match(source, /findRuntimeEndpoint\(snapshot, DATA_SERVICE_NAME\)/)
-  assert.match(source, /input\.shouldPreferLocalBackend && input\.dataServiceBaseURL/)
 })
 
 function restoreEnv(name: string, value: string | undefined): void {

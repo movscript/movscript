@@ -134,6 +134,59 @@ derived edge:     primitive -> content_unit / candidate / selection impact
 3. 新 writer 在能用目录树表达单父级关系时仍写树；只有跨树组合、assembly scope 或递归 namespace 需要消歧时才补显式 refs。
 4. interpreter/stale 不再到处解析 `productions`、`segments`、`states`，而是统一消费 normalized relation graph。
 
+### 避免两个结构信息源
+
+自定义 namespace 加上 path，确实容易让系统出现两个结构信息源。这个风险必须通过职责分离来消掉。
+
+推荐规则是：实例父子关系只有一个 canonical source，默认来自 path。`project.json.namespace_vocabulary` 只定义项目允许使用和展示的结构词汇，例如 `episode / act / beat`，不定义“某个 episode 下面有哪些 act”这类实例树。实例树仍然由 source path 表达。
+
+也就是说：
+
+```text
+project.json.namespace_vocabulary
+  -> 定义 vocabulary / template / alias
+  -> 不定义具体 node parent
+
+source path
+  -> 定义具体 node 的 parent / containment
+  -> 不独占用户 vocabulary
+
+record.kind / namespace_kind
+  -> 说明这个 node 使用哪个 vocabulary kind
+  -> 不重复声明 parent
+
+explicit refs
+  -> 只表达 path 不适合表达的关系
+  -> scope / target / cross-tree / assembly / migration disambiguation
+```
+
+所以一个 timeline namespace node 的最小信息应更像：
+
+```json
+{
+  "id": "beat_01",
+  "kind": "beat",
+  "title": "Opening discovery",
+  "order": 1,
+  "intent": "establish the mystery"
+}
+```
+
+它属于哪个 episode/act，默认从 path 得到，而不是再写一个 `parent_scope_id`。只有当项目进入递归 namespace、flat layout、跨树组合或迁移兼容时，才允许补 `parent_ref` / `scope_ref`，并且 validation 必须校验它和 path parent 一致。
+
+换句话说，系统可以有多个 edge origin，但不能有多个同等权威的 parent truth：
+
+| 信息 | canonical source | 说明 |
+| --- | --- | --- |
+| 允许哪些层级词 | `project.json.namespace_vocabulary` | 词汇表和模板 |
+| 某个节点的树状父级 | path | 默认唯一 parent truth |
+| 某个节点的用户层级名 | node `kind` / vocabulary kind | 例如 episode、act、beat |
+| 生产目标 | content unit `target_ref` | 只能指向 system primitive / assembly |
+| 聚合范围 | assembly `scope_ref` | 指向 namespace scope，但 namespace 自己不生产 |
+| 跨树依赖 | explicit refs / prompt refs | 不适合用 path 表达 |
+
+`@movscript/domain` 的一个重要职责就是把这些 origin normalize 成一张 relation graph，并在出现冲突时给 diagnostic，而不是让 workspace、interpreter、UI 各自选一个 source 当真。
+
 ## Namespace Vocabulary
 
 项目可以声明自己的 namespace vocabulary。下面只是概念形态，不是最终 schema：

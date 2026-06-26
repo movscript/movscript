@@ -175,6 +175,9 @@ test('runtimeStatus prefers the local daemon as runtime owner when daemon contro
     assert.equal(status.localDaemon.available, true)
     assert.equal(status.localDaemon.endpoint, `${baseURL}/local-daemon-control`)
     assert.equal(status.localNode.available, true)
+    assert.equal(status.backend.local.baseURL, `${baseURL}/gateway`)
+    assert.equal(status.backend.local.gatewayBaseURL, `${baseURL}/gateway`)
+    assert.equal(status.backend.local.dataServiceBaseURL, baseURL)
     assert.equal(status.surfaceHost.serviceName, 'movscript.local-node.gateway')
     assert.equal(status.surfaceHost.surfaceHostServiceName, 'movscript.local-surface.host')
     assert.equal(status.surfaceHost.endpoint, `${baseURL}/gateway`)
@@ -191,7 +194,7 @@ test('runtimeStatus prefers the local daemon as runtime owner when daemon contro
   }
 })
 
-test('core MCP tools bind to MovScript Home data-service endpoint before calling backend client', async () => {
+test('core MCP tools bind to MovScript Home daemon gateway before calling backend client', async () => {
   const previousHome = process.env.MOVSCRIPT_HOME
   const previousWorkspace = process.env.MOVSCRIPT_WORKSPACE_DIR
   const previousDataServiceURL = process.env.MOVSCRIPT_DATA_SERVICE_URL
@@ -200,10 +203,16 @@ test('core MCP tools bind to MovScript Home data-service endpoint before calling
   const projectDir = mkdtempSync(join(tmpdir(), 'movscript-project-'))
   try {
     mkdirSync(join(homeDir, 'runtime', 'endpoints'), { recursive: true })
+    writeFileSync(join(homeDir, 'runtime', 'endpoints', 'movscript.local-node.gateway.json'), JSON.stringify({
+      serviceName: 'movscript.local-node.gateway',
+      applicationId: 'movscript.local-node',
+      status: 'ready',
+      baseURL,
+    }), 'utf8')
     writeFileSync(join(homeDir, 'runtime', 'endpoints', 'movscript.data.service.json'), JSON.stringify({
       serviceName: 'movscript.data.service',
       status: 'ready',
-      baseURL,
+      baseURL: `${baseURL}/data-service-should-not-be-used`,
     }), 'utf8')
     writeFileSync(join(projectDir, 'project.json'), JSON.stringify({ title: 'Runtime Project' }), 'utf8')
     process.env.MOVSCRIPT_HOME = homeDir
@@ -242,6 +251,11 @@ function escapeRegExp(value) {
 function createTestServer() {
   return createServer((req, res) => {
     if (req.url === '/health') {
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ status: 'ok' }))
+      return
+    }
+    if (req.url === '/gateway/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify({ status: 'ok' }))
       return

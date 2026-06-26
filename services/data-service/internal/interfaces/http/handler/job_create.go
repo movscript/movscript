@@ -72,30 +72,7 @@ func (h *JobHandler) writeJobCreateError(c *gin.Context, err error) {
 	var validationErr *ai.ValidationError
 	switch {
 	case errors.As(err, &validationErr):
-		body := gin.H{
-			"error":   validationErr.Message,
-			"code":    validationErr.Code,
-			"details": validationErr,
-		}
-		if validationErr.Field != "" {
-			body["field"] = validationErr.Field
-		}
-		if len(validationErr.AllowedValues) > 0 {
-			body["allowed_values"] = validationErr.AllowedValues
-		}
-		if len(validationErr.SuggestedFix) > 0 {
-			body["suggested_fix"] = validationErr.SuggestedFix
-		}
-		if validationErr.RequiredMin != nil {
-			body["required_min"] = *validationErr.RequiredMin
-		}
-		if validationErr.AllowedMax != nil {
-			body["allowed_max"] = *validationErr.AllowedMax
-		}
-		if validationErr.ActualCount != nil {
-			body["actual_count"] = *validationErr.ActualCount
-		}
-		c.JSON(http.StatusBadRequest, body)
+		writeGenerationValidationError(c, validationErr)
 	case errors.Is(err, jobapp.ErrJobTypeRequired), errors.Is(err, jobapp.ErrInvalidJobType):
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	case errors.Is(err, jobapp.ErrProjectNotFound):
@@ -115,4 +92,31 @@ func (h *JobHandler) writeJobCreateError(c *gin.Context, err error) {
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
+}
+
+func writeGenerationValidationError(c *gin.Context, validationErr *ai.ValidationError) {
+	body := gin.H{
+		"error":   validationErr.Message,
+		"code":    validationErr.Code,
+		"details": validationErr,
+	}
+	if validationErr.Field != "" {
+		body["field"] = validationErr.Field
+	}
+	if len(validationErr.AllowedValues) > 0 {
+		body["allowed_values"] = validationErr.AllowedValues
+	}
+	if len(validationErr.SuggestedFix) > 0 {
+		body["suggested_fix"] = validationErr.SuggestedFix
+	}
+	if validationErr.RequiredMin != nil {
+		body["required_min"] = *validationErr.RequiredMin
+	}
+	if validationErr.AllowedMax != nil {
+		body["allowed_max"] = *validationErr.AllowedMax
+	}
+	if validationErr.ActualCount != nil {
+		body["actual_count"] = *validationErr.ActualCount
+	}
+	c.JSON(http.StatusBadRequest, body)
 }

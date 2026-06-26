@@ -41,7 +41,7 @@ import {
   LOCAL_RUNTIME_DAEMON_GATEWAY_SERVICE,
 } from '@movscript/local-runtime'
 
-const DEFAULT_LOCAL_BACKEND = 'http://localhost:8765'
+const DEFAULT_LOCAL_BACKEND = 'http://localhost:8766'
 const MCP_HOST_DEBUG = process.env.MOVSCRIPT_MCP_HOST_DEBUG === '1'
 const LOCAL_NODE_CONTROL_SERVICE = LOCAL_RUNTIME_DAEMON_CONTROL_SERVICE
 const LOCAL_NODE_GATEWAY_SERVICE = LOCAL_RUNTIME_DAEMON_GATEWAY_SERVICE
@@ -76,7 +76,7 @@ export const hostTools: MCPTool[] = [
     inputSchema: objectSchema({
       backendMode: { type: 'string', enum: ['local', 'cloud'], description: 'Preferred backend mode.' },
       backend_mode: { type: 'string', enum: ['local', 'cloud'], description: 'Alias for backendMode.' },
-      backendBaseURL: { type: 'string', description: 'Backend base URL such as http://localhost:8765 or https://api.example.' },
+      backendBaseURL: { type: 'string', description: 'Backend base URL such as http://localhost:8766 or https://api.example.' },
       backend_base_url: { type: 'string', description: 'Alias for backendBaseURL.' },
       token: { type: 'string', description: 'Bearer token for the selected backend. Prefer environment variables or movcli auth for persistent secrets.' },
       projectDir: { type: 'string', description: 'Project source directory to use as default workspace/project context.' },
@@ -260,11 +260,15 @@ export async function runtimeStatus(args: Record<string, unknown> = {}): Promise
   const homeDir = resolveRuntimeHomeArg(args)
   const runtimeHome = readRuntimeHomeSnapshot(homeDir)
   const timeoutMs = numberValue(args.timeoutMs ?? args.timeout_ms) ?? 750
+  const homeGatewayEndpoint = endpointURL(
+    findRuntimeEndpoint(runtimeHome, LOCAL_NODE_GATEWAY_SERVICE)
+      ?? findRuntimeService(runtimeHome, LOCAL_NODE_GATEWAY_SERVICE)?.endpoint,
+  )
   const homeDataEndpoint = endpointURL(
     findRuntimeEndpoint(runtimeHome, 'movscript.data.service')
       ?? findRuntimeService(runtimeHome, 'movscript.data.service')?.endpoint,
   )
-  const localBackendURL = normalizeBaseURL(stringValue(args.localBackendURL ?? args.local_backend_url) || homeDataEndpoint || DEFAULT_LOCAL_BACKEND)
+  const localBackendURL = normalizeBaseURL(stringValue(args.localBackendURL ?? args.local_backend_url) || homeGatewayEndpoint || homeDataEndpoint || DEFAULT_LOCAL_BACKEND)
   const configuredSession = resolveMovScriptBackendSession({
     workspaceDir,
     server: process.env.MOVSCRIPT_DATA_SERVICE_URL,
@@ -328,7 +332,9 @@ export async function runtimeStatus(args: Record<string, unknown> = {}): Promise
       local: {
         available: localAvailable,
         baseURL: localBackendURL,
-        discoveredFromHome: Boolean(homeDataEndpoint),
+        discoveredFromHome: Boolean(homeGatewayEndpoint || homeDataEndpoint),
+        ...(homeGatewayEndpoint ? { gatewayBaseURL: homeGatewayEndpoint } : {}),
+        ...(homeDataEndpoint ? { dataServiceBaseURL: homeDataEndpoint } : {}),
         authenticated: configuredIsLocal && Boolean(configuredSession.token),
         ...(localProbe.error ? { error: localProbe.error } : {}),
       },
@@ -701,13 +707,18 @@ function resolveRuntimeHomeArg(args: Record<string, unknown>): string {
 function bindBackendRuntimeForCoreTools(args: Record<string, unknown>): void {
   const homeDir = resolveRuntimeHomeArg(args)
   const runtimeHome = readRuntimeHomeSnapshot(homeDir)
+  const gatewayEndpoint = endpointURL(
+    findRuntimeEndpoint(runtimeHome, LOCAL_NODE_GATEWAY_SERVICE)
+      ?? findRuntimeService(runtimeHome, LOCAL_NODE_GATEWAY_SERVICE)?.endpoint,
+  )
   const dataEndpoint = endpointURL(
     findRuntimeEndpoint(runtimeHome, 'movscript.data.service')
       ?? findRuntimeService(runtimeHome, 'movscript.data.service')?.endpoint,
   )
-  if (dataEndpoint) setMovScriptBackendAPIBaseURL(dataEndpoint)
-  if (dataEndpoint && args.mcp_base_url === undefined && args.mcpBaseURL === undefined) {
-    args.mcp_base_url = dataEndpoint
+  const backendEndpoint = gatewayEndpoint ?? dataEndpoint
+  if (backendEndpoint) setMovScriptBackendAPIBaseURL(backendEndpoint)
+  if (backendEndpoint && args.mcp_base_url === undefined && args.mcpBaseURL === undefined) {
+    args.mcp_base_url = backendEndpoint
   }
 
   const agentSurfaceEndpoint = endpointURL(

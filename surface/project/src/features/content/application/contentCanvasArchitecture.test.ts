@@ -4274,6 +4274,7 @@ test('content canvas selecting an inspector candidate keeps focus on the current
     reason: 'content_source_workspace_selection',
   }])
   assert.deepEqual(result.changedNodeIds, ['content_unit:cu_asset', 'candidate:cu_asset:resource_candidate_existing'])
+  assert.equal(result.createdCandidates, undefined)
   assert.deepEqual(result.selectedCandidates, [{ contentUnitId: 'cu_asset', candidateId: 'resource_candidate_existing' }])
 })
 
@@ -4310,6 +4311,7 @@ test('content canvas selecting a candidate node does not refocus the candidate d
     resourceId: 77,
     reason: 'content_source_workspace_selection',
   }])
+  assert.equal(result.createdCandidates, undefined)
   assert.deepEqual(result.selectedCandidates, [{ contentUnitId: 'cu_asset', candidateId: 'resource_candidate_existing' }])
 })
 

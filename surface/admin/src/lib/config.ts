@@ -1,4 +1,4 @@
-const DEFAULT_API_ORIGIN = 'http://localhost:8765'
+const DEFAULT_API_ORIGIN = 'http://localhost:8766'
 const LOCAL_API_ORIGIN = 'http://localhost:8766'
 export const APP_SETTINGS_STORAGE_KEY = 'movscript-app-settings'
 

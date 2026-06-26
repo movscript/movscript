@@ -6,6 +6,7 @@ import {
   findRuntimeEndpoint,
   pidIsAlive,
   readRuntimeHomeSnapshot,
+  type RuntimeAppRecord,
 } from '@movscript/runtime-contracts'
 
 export const LOCAL_RUNTIME_DAEMON_APP_ID = 'movscript.local-node'
@@ -59,7 +60,8 @@ export async function ensureLocalRuntimeDaemon(options: EnsureLocalRuntimeDaemon
   if (!lock) {
     const reused = await waitForLocalRuntimeReady(options.homeDir, startupTimeoutMs, options)
     if (reused) return { status: 'ready', reused: true, ...reused }
-    throw new Error('MovScript local runtime daemon did not become ready while another startup was in progress')
+    const lastProbe = await probeLocalRuntimeDaemon(options.homeDir)
+    throw new Error(`MovScript local runtime daemon did not become ready while another startup was in progress; ${localRuntimeReadinessSummary(lastProbe, options)}`)
   }
 
   try {
@@ -86,7 +88,8 @@ export async function ensureLocalRuntimeDaemon(options: EnsureLocalRuntimeDaemon
 
     const ready = await waitForLocalRuntimeReady(options.homeDir, startupTimeoutMs, options)
     if (ready) return { status: 'ready', reused: false, launcherPid: child.pid, ...ready }
-    throw new Error(`MovScript local runtime daemon did not become ready within ${startupTimeoutMs}ms`)
+    const lastProbe = await probeLocalRuntimeDaemon(options.homeDir)
+    throw new Error(`MovScript local runtime daemon did not become ready within ${startupTimeoutMs}ms; ${localRuntimeReadinessSummary(lastProbe, options)}`)
   } finally {
     lock.release()
   }
@@ -94,8 +97,11 @@ export async function ensureLocalRuntimeDaemon(options: EnsureLocalRuntimeDaemon
 
 export async function probeLocalRuntimeDaemon(homeDir: string): Promise<LocalRuntimeProbe> {
   const snapshot = readRuntimeHomeSnapshot(homeDir)
+  const app = findRuntimeApp(snapshot, LOCAL_RUNTIME_DAEMON_APP_ID)
+    ?? snapshot.apps.find((record) => record.applicationId === LOCAL_RUNTIME_DAEMON_APP_ID)
+  const appProbeDetails = localRuntimeAppProbeDetails(app)
   const endpoint = endpointURL(findRuntimeEndpoint(snapshot, LOCAL_RUNTIME_DAEMON_CONTROL_SERVICE))
-  if (!endpoint) return { available: false }
+  if (!endpoint) return { available: false, ...appProbeDetails }
   try {
     const healthResponse = await fetch(`${endpoint}/health`, { signal: AbortSignal.timeout(1000) })
     const status = healthResponse.ok
@@ -110,7 +116,7 @@ export async function probeLocalRuntimeDaemon(homeDir: string): Promise<LocalRun
       ...status,
     }
   } catch (error) {
-    return { available: false, endpoint, error: errorMessage(error) }
+    return { available: false, endpoint, ...appProbeDetails, error: errorMessage(error) }
   }
 }
 
@@ -145,16 +151,78 @@ export async function localRuntimeControlRequest(
 }
 
 export function localRuntimeServicesReady(status: Record<string, unknown>): boolean {
-  if (!Array.isArray(status.services)) return false
+  return missingLocalRuntimeServices(status).length === 0
+}
+
+function missingLocalRuntimeServices(status: Record<string, unknown>): string[] {
+  const requiredServices = status.dataPlane === 'local'
+    ? [...REQUIRED_LOCAL_RUNTIME_DAEMON_SERVICES, LOCAL_DATA_SERVICE]
+    : REQUIRED_LOCAL_RUNTIME_DAEMON_SERVICES
+  if (!Array.isArray(status.services)) return [...requiredServices]
   const readyServices = new Set(status.services.flatMap((item) => {
     if (!item || typeof item !== 'object') return []
     const record = item as Record<string, unknown>
     return record.ready === true && typeof record.serviceName === 'string' ? [record.serviceName] : []
   }))
-  const requiredServices = status.dataPlane === 'local'
-    ? [...REQUIRED_LOCAL_RUNTIME_DAEMON_SERVICES, LOCAL_DATA_SERVICE]
-    : REQUIRED_LOCAL_RUNTIME_DAEMON_SERVICES
-  return requiredServices.every((serviceName) => readyServices.has(serviceName))
+  return requiredServices.filter((serviceName) => !readyServices.has(serviceName))
+}
+
+function localRuntimeReadinessSummary(
+  status: LocalRuntimeProbe,
+  options: EnsureLocalRuntimeDaemonOptions,
+): string {
+  const details: string[] = []
+  if (status.endpoint) details.push(`controlEndpoint=${status.endpoint}`)
+  details.push(`available=${status.available}`)
+  if (typeof status.status === 'string') details.push(`status=${status.status}`)
+  if (typeof status.error === 'string') details.push(`error=${status.error}`)
+  if (typeof status.pid === 'number') details.push(`pid=${status.pid}`)
+  if (typeof status.dataPlane === 'string') details.push(`dataPlane=${status.dataPlane}`)
+  if (localRuntimeHasIdentityDetails(status) && !localRuntimeMatchesIdentity(status, options.identity)) {
+    details.push(`identityMismatch=${JSON.stringify({
+      expected: options.identity ?? {},
+      actual: {
+        pluginVersion: status.pluginVersion,
+        pluginRoot: status.pluginRoot,
+        runtimeVersion: status.runtimeVersion,
+        runtimeRoot: status.runtimeRoot,
+      },
+    })}`)
+  }
+  if (!localRuntimeMatchesRequestedDataPlane(status, options.env)) {
+    details.push(`dataPlaneMismatch=expected ${requestedLocalRuntimeDataPlane(options.env) ?? 'any'}`)
+  }
+  if (!localRuntimeMatchesRequestedDataServiceURL(status, options.env)) {
+    details.push('dataServiceURLMismatch=true')
+  }
+  const missingServices = missingLocalRuntimeServices(status)
+  if (missingServices.length > 0) details.push(`missingServices=${missingServices.join(',')}`)
+  return details.join('; ') || 'last probe was empty'
+}
+
+function localRuntimeHasIdentityDetails(status: Record<string, unknown>): boolean {
+  return typeof status.pluginVersion === 'string'
+    || typeof status.pluginRoot === 'string'
+    || typeof status.runtimeVersion === 'string'
+    || typeof status.runtimeRoot === 'string'
+}
+
+function localRuntimeAppProbeDetails(app: RuntimeAppRecord | undefined): Record<string, unknown> {
+  if (!app) return {}
+  const metadata = app.raw.metadata && typeof app.raw.metadata === 'object'
+    ? app.raw.metadata as Record<string, unknown>
+    : {}
+  return {
+    status: app.status,
+    pid: app.pid,
+    pluginVersion: metadata.pluginVersion,
+    pluginRoot: metadata.pluginRoot,
+    runtimeVersion: metadata.runtimeVersion,
+    runtimeRoot: metadata.runtimeRoot,
+    dataPlane: metadata.dataPlane,
+    dataServiceURL: metadata.dataServiceURL,
+    ...(typeof metadata.error === 'string' ? { error: metadata.error } : {}),
+  }
 }
 
 export function localRuntimeMatchesIdentity(

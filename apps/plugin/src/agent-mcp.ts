@@ -543,7 +543,7 @@ function createProgramAdapters(options: { includeMCPHost?: boolean; controlState
       env: (context, endpoint) => ({
         MOVSCRIPT_CANVAS_SERVICE_HOST: '127.0.0.1',
         MOVSCRIPT_CANVAS_SERVICE_PORT: String(endpoint.port),
-        MOVSCRIPT_DATA_SERVICE_URL: resolveDataServiceURL(context.homeDir) ?? 'http://127.0.0.1:8765',
+        MOVSCRIPT_DATA_SERVICE_URL: resolveDataServiceURL(context.homeDir) ?? resolveGatewayURL(context.homeDir) ?? 'http://127.0.0.1:8766',
       }),
     }),
     createNodeServiceProgramAdapter({
@@ -941,8 +941,16 @@ async function startLocalNodeControlServer(state: LocalNodeControlState, staticR
   const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? '/', 'http://127.0.0.1')
     const send = (status: number, payload: Record<string, unknown>) => {
-      response.writeHead(status, { 'content-type': 'application/json; charset=utf-8' })
+      response.writeHead(status, {
+        ...corsHeadersForRequest(request),
+        'content-type': 'application/json; charset=utf-8',
+      })
       response.end(JSON.stringify(payload))
+    }
+    if (request.method === 'OPTIONS') {
+      response.writeHead(204, corsHeadersForRequest(request))
+      response.end()
+      return
     }
     if (request.method === 'GET' && url.pathname === '/health') {
       state.lastActivityAt = new Date()
@@ -1034,7 +1042,10 @@ async function startStaticHTTPServer(staticRoot: string, homeDir: string): Promi
   const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? '/', 'http://127.0.0.1')
     if (request.method === 'GET' && url.pathname === '/health') {
-      response.writeHead(200, { 'content-type': 'application/json; charset=utf-8' })
+      response.writeHead(200, {
+        ...corsHeadersForRequest(request),
+        'content-type': 'application/json; charset=utf-8',
+      })
       response.end(JSON.stringify({ status: 'ok', serviceName: localSurfaceHostProgramManifest.serviceName }))
       return
     }
@@ -1066,10 +1077,13 @@ async function handleLocalSurfaceGatewayRequest(
   response: ServerResponse,
   url: URL,
 ): Promise<boolean> {
-  if (request.method === 'OPTIONS' && isGatewayAPIPath(url.pathname)) {
-    response.writeHead(204, corsHeadersForRequest(request))
-    response.end()
-    return true
+  if (isGatewayAPIPath(url.pathname)) {
+    applyCORSHeaders(response, request)
+    if (request.method === 'OPTIONS') {
+      response.writeHead(204)
+      response.end()
+      return true
+    }
   }
   if (LOCAL_PROJECT_SERVICE_PROXY_ROUTES.has(url.pathname)) {
     await proxyProjectServiceRequest(homeDir, request, response, url)
@@ -1109,6 +1123,8 @@ function isGatewayAPIPath(pathname: string): boolean {
     || pathname.startsWith('/local-api/data/')
     || pathname === '/local-api/canvas'
     || pathname.startsWith('/local-api/canvas/')
+    || pathname === '/local-api/editing'
+    || pathname.startsWith('/local-api/editing/')
     || pathname.startsWith('/local-api/project/')
 }
 
@@ -1277,12 +1293,11 @@ async function proxyDataServiceRequest(
   url: URL,
   localPrefix: string,
 ): Promise<void> {
-  const endpoint = findRuntimeEndpoint(readRuntimeHomeSnapshot(homeDir), DATA_SERVICE_NAME)
-  const baseURL = endpointURL(endpoint)
+  const baseURL = resolveDataServiceURL(homeDir)
   if (!baseURL) {
     writeLocalSurfaceJSON(response, 503, {
       error: 'data_service_unavailable',
-      message: 'Data Service endpoint was not found in MovScript runtime records.',
+      message: 'Data Service endpoint was not found in MovScript runtime records or MOVSCRIPT_DATA_SERVICE_URL.',
     })
     return
   }
@@ -1370,6 +1385,12 @@ function corsHeadersForRequest(request: IncomingMessage): Record<string, string>
     'access-control-allow-credentials': 'true',
     'access-control-max-age': '600',
     vary: 'Origin',
+  }
+}
+
+function applyCORSHeaders(response: ServerResponse, request: IncomingMessage): void {
+  for (const [key, value] of Object.entries(corsHeadersForRequest(request))) {
+    response.setHeader(key, value)
   }
 }
 
@@ -1517,6 +1538,10 @@ function endpointURL(endpoint: { url?: string; baseURL?: string; port?: number; 
 function resolveDataServiceURL(homeDir: string): string | undefined {
   return process.env.MOVSCRIPT_DATA_SERVICE_URL?.trim()
     || endpointURL(findRuntimeEndpoint(readRuntimeHomeSnapshot(homeDir), 'movscript.data.service'))
+}
+
+function resolveGatewayURL(homeDir: string): string | undefined {
+  return endpointURL(findRuntimeEndpoint(readRuntimeHomeSnapshot(homeDir), LOCAL_NODE_GATEWAY_SERVICE))
 }
 
 function delay(ms: number): Promise<void> {

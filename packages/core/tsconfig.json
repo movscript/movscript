@@ -9,6 +9,8 @@
     "outDir": "dist",
     "baseUrl": ".",
     "paths": {
+      "@movscript/agent-chat": ["../agent-chat/src/index.ts"],
+      "@movscript/agent-protocol": ["../agent-protocol/src/index.ts"],
       "@movscript/decision": ["../decision/src/index.ts"],
       "@movscript/editing": ["../editing/src/index.ts"],
       "@movscript/engine": ["../engine/src/index.ts"],

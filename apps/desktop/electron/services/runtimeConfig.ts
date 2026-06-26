@@ -18,24 +18,34 @@ import { providerRuntimeEnvSnapshot } from './providerRuntimeEnv'
 const CANVAS_SERVICE_NAME = 'movscript.canvas.service'
 const PROJECT_SERVICE_NAME = 'movscript.project.service'
 const DATA_SERVICE_NAME = 'movscript.data.service'
+const LOCAL_NODE_GATEWAY_SERVICE = 'movscript.local-node.gateway'
 
 export function getElectronRuntimeConfig(): ElectronRuntimeConfig {
   const movScriptHomeDir = resolveDesktopDefaultMovScriptWorkspaceDir()
   const backendStatus = getBackendStatus()
   const appSettings = readDesktopAppSettings(movScriptHomeDir)
   const session = resolveMovScriptDataServiceSession({ workspaceDir: movScriptHomeDir })
+  const gatewayBaseURL = resolveGatewayBaseURL(movScriptHomeDir)
   const dataServiceBaseURL = resolveDataServiceBaseURL(movScriptHomeDir)
   const apiBaseURL = resolveEffectiveAPIBaseURL({
     configuredBaseURL: appSettings?.apiBaseURL ?? session.baseURL,
     backendStatus,
+    gatewayBaseURL,
     dataServiceBaseURL,
     shouldPreferLocalBackend: appSettings?.onboardingCompleted === true && appSettings.launchMode === 'local',
   })
   const canvasServiceBaseURL = resolveCanvasServiceBaseURL(movScriptHomeDir)
+  const canvasServiceV1BaseURL = gatewayBaseURL
+    ? `${gatewayBaseURL}/local-api`
+    : canvasServiceBaseURL
+      ? `${canvasServiceBaseURL}/v1`
+      : undefined
   const projectServiceBaseURL = resolveProjectServiceBaseURL(movScriptHomeDir)
   return {
     movScriptHomeDir,
     workspaceDir: movScriptHomeDir,
+    ...(gatewayBaseURL ? { gatewayBaseURL } : {}),
+    ...(dataServiceBaseURL ? { dataServiceBaseURL } : {}),
     apiBaseURL,
     apiV1BaseURL: normalizeDataServiceAPIBaseURL(apiBaseURL),
     ...(projectServiceBaseURL ? {
@@ -43,9 +53,9 @@ export function getElectronRuntimeConfig(): ElectronRuntimeConfig {
     } : {}),
     ...(canvasServiceBaseURL ? {
       canvasServiceBaseURL,
-      canvasServiceV1BaseURL: `${canvasServiceBaseURL}/v1`,
     } : {}),
-    localAPIBaseURL: normalizeDataServiceRootBaseURL(LOCAL_BACKEND_URL),
+    ...(canvasServiceV1BaseURL ? { canvasServiceV1BaseURL } : {}),
+    localAPIBaseURL: normalizeDataServiceRootBaseURL(gatewayBaseURL ?? LOCAL_BACKEND_URL),
     providerRuntimeEnv: providerRuntimeEnvSnapshot(process.env),
     backendStatus: {
       ...backendStatus,
@@ -57,9 +67,13 @@ export function getElectronRuntimeConfig(): ElectronRuntimeConfig {
 function resolveEffectiveAPIBaseURL(input: {
   configuredBaseURL: string
   backendStatus: ReturnType<typeof getBackendStatus>
+  gatewayBaseURL?: string
   dataServiceBaseURL?: string
   shouldPreferLocalBackend: boolean
 }): string {
+  if (input.shouldPreferLocalBackend && input.gatewayBaseURL) {
+    return normalizeDataServiceRootBaseURL(input.gatewayBaseURL)
+  }
   if (input.shouldPreferLocalBackend && input.dataServiceBaseURL) {
     return normalizeDataServiceRootBaseURL(input.dataServiceBaseURL)
   }
@@ -72,6 +86,18 @@ function resolveEffectiveAPIBaseURL(input: {
     return normalizeDataServiceRootBaseURL(input.backendStatus.baseURL)
   }
   return normalizeDataServiceRootBaseURL(input.configuredBaseURL)
+}
+
+function resolveGatewayBaseURL(movScriptHomeDir: string): string | undefined {
+  const explicit = normalizeHTTPBaseURL(
+    process.env.MOVSCRIPT_LOCAL_GATEWAY_URL
+      || process.env.MOVSCRIPT_LOCAL_GATEWAY_BASE_URL,
+  )
+  if (explicit) return explicit
+  const snapshot = readRuntimeHomeSnapshot(movScriptHomeDir)
+  const endpoint = findRuntimeEndpoint(snapshot, LOCAL_NODE_GATEWAY_SERVICE)
+    ?? findRuntimeService(snapshot, LOCAL_NODE_GATEWAY_SERVICE)?.endpoint
+  return normalizeHTTPBaseURL(endpointURL(endpoint))
 }
 
 function resolveDataServiceBaseURL(movScriptHomeDir: string): string | undefined {

@@ -10,7 +10,7 @@ export const MOVSCRIPT_BACKEND_CONFIG_SCHEMA = 'movscript.backend-config.v1'
 export const MOVSCRIPT_BACKEND_AUTH_SCHEMA = 'movscript.backend-auth.v1'
 export const MOVSCRIPT_BACKEND_CONFIG_FILE_NAME = 'config.json'
 export const MOVSCRIPT_BACKEND_AUTH_FILE_NAME = 'auth.json'
-export const MOVSCRIPT_DEFAULT_BACKEND_BASE_URL = 'http://localhost:8765'
+export const MOVSCRIPT_DEFAULT_BACKEND_BASE_URL = 'http://localhost:8766'
 
 export interface MovScriptBackendPaths {
   workspaceDir: string

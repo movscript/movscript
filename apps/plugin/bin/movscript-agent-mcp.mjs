@@ -3226,7 +3226,7 @@ Expecting one of '${allowedValues.join("', '")}'`);
     var MOVSCRIPT_BACKEND_AUTH_SCHEMA2 = "movscript.backend-auth.v1";
     var MOVSCRIPT_BACKEND_CONFIG_FILE_NAME2 = "config.json";
     var MOVSCRIPT_BACKEND_AUTH_FILE_NAME2 = "auth.json";
-    var MOVSCRIPT_DEFAULT_BACKEND_BASE_URL2 = "http://localhost:8765";
+    var MOVSCRIPT_DEFAULT_BACKEND_BASE_URL2 = "http://localhost:8766";
     function resolveMovScriptBackendPaths2(workspaceDir2 = process.cwd(), realm) {
       const root = resolveMovScriptWorkspaceRootPaths2(workspaceDir2);
       const backendRealmsDir = (0, import_node_path22.join)(root.backendDir, "realms");
@@ -6567,7 +6567,7 @@ ${ids.map((id) => `- ${id}`).join("\n")}
               ...timelineItem3(sceneMomentItemId, "scene_moment", sceneMoment, order++),
               parentId: segmentItemId,
               transition: recordField23(sceneMoment.record.transition),
-              contentUnitIds: sceneMomentContentUnits.map((contentUnit) => contentUnit.id).filter(isDefined4)
+              contentUnitIds: sceneMomentContentUnits.map((contentUnit) => contentUnit.id).filter(isDefined5)
             });
             for (const contentUnit of sortEntities4(sceneMomentContentUnits)) {
               items.push({
@@ -6586,7 +6586,7 @@ ${ids.map((id) => `- ${id}`).join("\n")}
                 gapAfterSec: numberField25(timeline?.gap_after_sec),
                 timing: timeline,
                 transition: recordField23(storyboard.record.transition),
-                contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined4)
+                contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined5)
               });
               for (const contentUnit of sortEntities4(contentUnits)) {
                 items.push({
@@ -6602,7 +6602,7 @@ ${ids.map((id) => `- ${id}`).join("\n")}
                 ...timelineItem3(keyframeItemId, "keyframe", keyframe, order++),
                 parentId: sceneMomentItemId,
                 timing: recordField23(keyframe.record.timing),
-                contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined4)
+                contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined5)
               });
               for (const contentUnit of sortEntities4(contentUnits)) {
                 items.push({
@@ -6617,7 +6617,7 @@ ${ids.map((id) => `- ${id}`).join("\n")}
               items.push({
                 ...timelineItem3(expressionUnitItemId, "expression_unit", expressionUnit, order++),
                 parentId: sceneMomentItemId,
-                contentUnitIds: expressionUnitContentUnits.map((contentUnit) => contentUnit.id).filter(isDefined4)
+                contentUnitIds: expressionUnitContentUnits.map((contentUnit) => contentUnit.id).filter(isDefined5)
               });
               for (const contentUnit of sortEntities4(expressionUnitContentUnits)) {
                 items.push({
@@ -6636,7 +6636,7 @@ ${ids.map((id) => `- ${id}`).join("\n")}
                   gapAfterSec: numberField25(timeline?.gap_after_sec),
                   timing: timeline,
                   transition: recordField23(storyboard.record.transition),
-                  contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined4)
+                  contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined5)
                 });
                 for (const contentUnit of sortEntities4(contentUnits)) {
                   items.push({
@@ -6652,7 +6652,7 @@ ${ids.map((id) => `- ${id}`).join("\n")}
                   ...timelineItem3(keyframeItemId, "keyframe", keyframe, order++),
                   parentId: expressionUnitItemId,
                   timing: recordField23(keyframe.record.timing),
-                  contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined4)
+                  contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined5)
                 });
                 for (const contentUnit of sortEntities4(contentUnits)) {
                   items.push({
@@ -6822,7 +6822,7 @@ ${ids.map((id) => `- ${id}`).join("\n")}
     function numberField25(value) {
       return typeof value === "number" && Number.isFinite(value) ? value : void 0;
     }
-    function isDefined4(value) {
+    function isDefined5(value) {
       return value !== void 0;
     }
     function createMovScriptWorkspaceService2(options) {
@@ -7559,6 +7559,24 @@ ${ids.map((id) => `- ${id}`).join("\n")}
         stale_policy: selection.stale_policy === "accept_stale" ? "accept_stale" : "strict"
       } : void 0;
     }
+    function readContentUnitCandidate2(index, contentUnitRef, candidateId) {
+      const sourceCandidate = index.documents.find((document) => {
+        if (!document.path.startsWith(`${contentUnitRef}/candidates/`)) return false;
+        if (!document.path.endsWith("/content_candidate.json")) return false;
+        const record = recordField33(document.data);
+        return record !== void 0 && String(record.id ?? "") === String(candidateId);
+      })?.data;
+      const sourceRecord = recordField33(sourceCandidate);
+      if (sourceRecord) return sourceRecord;
+      const context = index.documents.find((document) => {
+        const record = recordField33(document.data);
+        return record?.schema === "movscript.decision_context.v1" && record.target_kind === "content_unit" && record.target_ref === contentUnitRef;
+      })?.data;
+      for (const candidate of arrayField42(recordField33(context)?.candidates).map(recordField33).filter(isDefined24)) {
+        if (String(candidate.id ?? "") === String(candidateId)) return candidate;
+      }
+      return void 0;
+    }
     function findEntityByRef4(index, entityKind, ref) {
       const value = idField62(ref);
       if (value === void 0) return void 0;
@@ -7665,6 +7683,9 @@ ${ids.map((id) => `- ${id}`).join("\n")}
     }
     function isRecord162(value) {
       return typeof value === "object" && value !== null && !Array.isArray(value);
+    }
+    function isDefined24(value) {
+      return value !== void 0;
     }
     var CONTENT_UNIT_ADAPTERS2 = {
       production_ref: refAdapter2("production_ref", "production", "video"),
@@ -7847,7 +7868,7 @@ ${ids.map((id) => `- ${id}`).join("\n")}
       return {
         entities,
         refs: prompt.refs,
-        upstreamSelections: prompt.refs.map((ref) => ref.selection).filter(isDefined24),
+        upstreamSelections: prompt.refs.map((ref) => ref.selection).filter(isDefined32),
         blockers: prompt.blockers ?? []
       };
     }
@@ -7985,7 +8006,7 @@ ${ids.map((id) => `- ${id}`).join("\n")}
       }
       const selection = readSelectedContentUnit2(context.index, upstreamRef);
       const candidateId = idField62(selection?.candidate_id);
-      const candidate = candidateId === void 0 ? void 0 : readContentUnitCandidate3(context, upstreamRef, candidateId);
+      const candidate = candidateId === void 0 ? void 0 : readContentUnitCandidate2(context.index, upstreamRef, candidateId);
       if (candidateId !== void 0 && !candidate) {
         return {
           stale: true,
@@ -7996,7 +8017,7 @@ ${ids.map((id) => `- ${id}`).join("\n")}
           }
         };
       }
-      const candidatePrompt = recordField33(candidate?.prompt_snapshot);
+      const candidatePrompt = normalizedContentUnitPrompt2(candidate?.prompt_snapshot);
       if (!candidatePrompt) return { stale: true };
       const contentUnitType2 = stringField102(upstreamContentUnit.record.content_unit_type);
       if (!contentUnitType2) return { stale: true };
@@ -8008,24 +8029,18 @@ ${ids.map((id) => `- ${id}`).join("\n")}
       });
       return { stale: !sameCanonicalPrompt2(currentPrompt, candidatePrompt) };
     }
-    function readContentUnitCandidate3(context, contentUnitRef, candidateId) {
-      return context.index.documents.find((document) => {
-        if (!document.path.startsWith(`${contentUnitRef}/candidates/`)) return false;
-        if (!document.path.endsWith("/content_candidate.json")) return false;
-        if (!recordField33(document.data)) return false;
-        return String(document.data.id ?? "") === String(candidateId);
-      })?.data;
-    }
     function sameCanonicalPrompt2(left, right) {
       return JSON.stringify(stableJsonValue2(canonicalPromptComparisonValue2(left))) === JSON.stringify(stableJsonValue2(canonicalPromptComparisonValue2(right)));
     }
     function canonicalPromptComparisonValue2(prompt) {
+      const refs = Array.isArray(prompt.refs) ? prompt.refs : [];
+      const blockers = Array.isArray(prompt.blockers) ? prompt.blockers : [];
       return {
         content_unit_type: prompt.content_unit_type,
         output_kind: prompt.output_kind,
         edit_prompt: prompt.edit_prompt,
         model_intent: prompt.model_intent,
-        refs: prompt.refs.map((ref) => ({
+        refs: refs.map((ref) => ({
           kind: ref.kind,
           id: ref.id,
           raw: ref.raw,
@@ -8040,11 +8055,19 @@ ${ids.map((id) => `- ${id}`).join("\n")}
           } : void 0
         })),
         runtime_request: prompt.runtime_request,
-        blockers: (prompt.blockers ?? []).map((blocker) => ({
+        blockers: blockers.map((blocker) => ({
           code: blocker.code,
           ref: blocker.ref
         }))
       };
+    }
+    function normalizedContentUnitPrompt2(value) {
+      const record = recordField33(value);
+      if (!record) return void 0;
+      if (record.schema !== "movscript.content_unit_prompt.v1" && record.schema !== "movscript.content_unit_generation_prompt_snapshot.v1") return void 0;
+      if (!Array.isArray(record.refs)) return void 0;
+      if (!recordField33(record.runtime_request)) return void 0;
+      return record;
     }
     function normalizedEditPrompt2(value) {
       const record = recordField33(value);
@@ -8084,7 +8107,7 @@ ${ids.map((id) => `- ${id}`).join("\n")}
       if (styleReferenceResourceIds.length > 0) metadata.style_reference_resource_ids = styleReferenceResourceIds;
       return Object.keys(metadata).length > 0 ? metadata : void 0;
     }
-    function isDefined24(value) {
+    function isDefined32(value) {
       return value !== void 0;
     }
     function pruneUndefined142(value) {
@@ -8147,7 +8170,7 @@ ${ids.map((id) => `- ${id}`).join("\n")}
       const stalePolicy22 = selection?.stale_policy === "accept_stale" ? "accept_stale" : "strict";
       const selectedCandidateId = idField62(selection?.candidate_id);
       const selectedResourceId22 = resourceIdField32(selection?.resource_id);
-      const candidate = selectedCandidateId === void 0 ? void 0 : readContentUnitCandidate22(index, entityDir33(contentUnit.path), selectedCandidateId);
+      const candidate = selectedCandidateId === void 0 ? void 0 : readContentUnitCandidate2(index, entityDir33(contentUnit.path), selectedCandidateId);
       const candidatePromptRecord = recordField43(candidate?.prompt_snapshot);
       const candidatePrompt = isNormalizedContentUnitPrompt2(candidatePromptRecord) ? candidatePromptRecord : void 0;
       const staleReasons = selection ? staleReasonsFor2(currentPrompt, {
@@ -8166,14 +8189,6 @@ ${ids.map((id) => `- ${id}`).join("\n")}
         reason: stringField102(selection?.reason),
         ...staleReasons.length > 0 ? { stale_reasons: staleReasons } : {}
       };
-    }
-    function readContentUnitCandidate22(index, contentUnitRef, candidateId) {
-      return index.documents.find((document) => {
-        if (!document.path.startsWith(`${contentUnitRef}/candidates/`)) return false;
-        if (!document.path.endsWith("/content_candidate.json")) return false;
-        if (!recordField43(document.data)) return false;
-        return String(document.data.id ?? "") === String(candidateId);
-      })?.data;
     }
     function staleReasonsFor2(currentPrompt, input3) {
       if (input3.candidateId !== void 0 && !input3.candidate) return ["candidate_missing"];
@@ -11646,7 +11661,7 @@ ${ids.map((id) => `- ${id}`).join("\n")}
           });
           continue;
         }
-        const resourceId = selectedResourceId2(decision);
+        const resourceId = promptInputResourceId2(decision);
         if (resourceId === void 0) {
           const blocker = {
             code: "upstream_resource_missing",
@@ -11864,7 +11879,15 @@ ${ids.map((id) => `- ${id}`).join("\n")}
       }
       const selection = selectedDecision2(decision);
       if (!selection) {
-        return {
+        const candidates = Array.isArray(decision.candidates) ? decision.candidates : [];
+        if (latestResourceCandidate2(candidates)) return void 0;
+        return candidates.length > 0 ? {
+          code: "upstream_resource_missing",
+          ref: ref.raw,
+          content_unit_ref: upstreamRef,
+          content_unit_id: upstream.id,
+          message: `prompt input latest backend candidate has no resource_id: ${ref.raw}`
+        } : {
           code: "upstream_selection_missing",
           ref: ref.raw,
           content_unit_ref: upstreamRef,
@@ -11894,7 +11917,7 @@ ${ids.map((id) => `- ${id}`).join("\n")}
           };
         }
       }
-      if (selectedResourceId2(decision) === void 0) {
+      if (promptInputResourceId2(decision) === void 0) {
         return {
           code: "upstream_resource_missing",
           ref: ref.raw,
@@ -11994,6 +12017,10 @@ ${ids.map((id) => `- ${id}`).join("\n")}
       const selection = recordField62(decision.selection);
       return selection && Object.keys(selection).length > 0 ? selection : void 0;
     }
+    function promptInputResourceId2(decision) {
+      if (decision && selectedDecision2(decision)) return selectedResourceId2(decision);
+      return firstCandidateResourceId22(latestResourceCandidate2(decision?.candidates));
+    }
     function selectedResourceId2(decision) {
       const selection = decision ? selectedDecision2(decision) : void 0;
       const direct = resourceIdField52(selection?.resource_id);
@@ -12006,6 +12033,25 @@ ${ids.map((id) => `- ${id}`).join("\n")}
     function firstCandidateResourceId22(candidate) {
       const output3 = arrayField62(candidate?.outputs).filter(isRecord242)[0];
       return resourceIdField52(output3?.resource_id);
+    }
+    function latestResourceCandidate2(candidates) {
+      const resourceCandidates = Array.isArray(candidates) ? candidates.filter((candidate) => firstCandidateResourceId22(candidate) !== void 0) : [];
+      if (resourceCandidates.length === 0) return void 0;
+      const withTimestamp = resourceCandidates.map((candidate, index) => ({
+        candidate,
+        index,
+        timestamp: candidateTimestamp2(candidate)
+      }));
+      return withTimestamp.sort((left, right) => {
+        if (left.timestamp !== right.timestamp) return right.timestamp - left.timestamp;
+        return right.index - left.index;
+      })[0]?.candidate;
+    }
+    function candidateTimestamp2(candidate) {
+      const raw = stringField142(candidate.updated_at ?? candidate.updatedAt ?? candidate.created_at ?? candidate.createdAt);
+      if (!raw) return 0;
+      const parsed = Date.parse(raw);
+      return Number.isFinite(parsed) ? parsed : 0;
     }
     function compilePromptText2(text, refs, field) {
       if (!text) return void 0;
@@ -15917,7 +15963,7 @@ Examples:
     }
     function createMovcliProgram() {
       const program2 = new Command();
-      program2.name("movcli").description("MovScript CLI").version("0.2.0").option("--server <url>", "MovScript server URL", "http://localhost:8765").option("--token <token>", "API token (or set MOVSCRIPT_DATA_SERVICE_TOKEN env)").option("--workspace <dir>", "MovScript workspace root directory");
+      program2.name("movcli").description("MovScript CLI").version("0.2.0").option("--server <url>", "MovScript server URL", "http://localhost:8766").option("--token <token>", "API token (or set MOVSCRIPT_DATA_SERVICE_TOKEN env)").option("--workspace <dir>", "MovScript workspace root directory");
       registerAuthCommands(program2);
       registerLangCommands(program2);
       registerWorkspaceCommands(program2);
@@ -16633,7 +16679,8 @@ async function ensureLocalRuntimeDaemon(options) {
   if (!lock) {
     const reused = await waitForLocalRuntimeReady(options.homeDir, startupTimeoutMs, options);
     if (reused) return { status: "ready", reused: true, ...reused };
-    throw new Error("MovScript local runtime daemon did not become ready while another startup was in progress");
+    const lastProbe = await probeLocalRuntimeDaemon(options.homeDir);
+    throw new Error(`MovScript local runtime daemon did not become ready while another startup was in progress; ${localRuntimeReadinessSummary(lastProbe, options)}`);
   }
   try {
     const probe = await probeLocalRuntimeDaemon(options.homeDir);
@@ -16657,15 +16704,18 @@ async function ensureLocalRuntimeDaemon(options) {
     child.unref();
     const ready = await waitForLocalRuntimeReady(options.homeDir, startupTimeoutMs, options);
     if (ready) return { status: "ready", reused: false, launcherPid: child.pid, ...ready };
-    throw new Error(`MovScript local runtime daemon did not become ready within ${startupTimeoutMs}ms`);
+    const lastProbe = await probeLocalRuntimeDaemon(options.homeDir);
+    throw new Error(`MovScript local runtime daemon did not become ready within ${startupTimeoutMs}ms; ${localRuntimeReadinessSummary(lastProbe, options)}`);
   } finally {
     lock.release();
   }
 }
 async function probeLocalRuntimeDaemon(homeDir) {
   const snapshot = readRuntimeHomeSnapshot(homeDir);
+  const app = findRuntimeApp(snapshot, LOCAL_RUNTIME_DAEMON_APP_ID) ?? snapshot.apps.find((record) => record.applicationId === LOCAL_RUNTIME_DAEMON_APP_ID);
+  const appProbeDetails = localRuntimeAppProbeDetails(app);
   const endpoint = endpointURL(findRuntimeEndpoint(snapshot, LOCAL_RUNTIME_DAEMON_CONTROL_SERVICE));
-  if (!endpoint) return { available: false };
+  if (!endpoint) return { available: false, ...appProbeDetails };
   try {
     const healthResponse = await fetch(`${endpoint}/health`, { signal: AbortSignal.timeout(1e3) });
     const status = healthResponse.ok ? await fetch(`${endpoint}/status`, { signal: AbortSignal.timeout(1e3) }).then((item) => item.ok ? item.json() : {}).catch(() => ({})) : {};
@@ -16676,7 +16726,7 @@ async function probeLocalRuntimeDaemon(homeDir) {
       ...status
     };
   } catch (error) {
-    return { available: false, endpoint, error: errorMessage2(error) };
+    return { available: false, endpoint, ...appProbeDetails, error: errorMessage2(error) };
   }
 }
 async function stopLocalRuntimeDaemon(homeDir, options = {}) {
@@ -16704,14 +16754,64 @@ async function localRuntimeControlRequest(homeDir, method, path) {
   return payload;
 }
 function localRuntimeServicesReady(status) {
-  if (!Array.isArray(status.services)) return false;
+  return missingLocalRuntimeServices(status).length === 0;
+}
+function missingLocalRuntimeServices(status) {
+  const requiredServices = status.dataPlane === "local" ? [...REQUIRED_LOCAL_RUNTIME_DAEMON_SERVICES, LOCAL_DATA_SERVICE] : REQUIRED_LOCAL_RUNTIME_DAEMON_SERVICES;
+  if (!Array.isArray(status.services)) return [...requiredServices];
   const readyServices = new Set(status.services.flatMap((item) => {
     if (!item || typeof item !== "object") return [];
     const record = item;
     return record.ready === true && typeof record.serviceName === "string" ? [record.serviceName] : [];
   }));
-  const requiredServices = status.dataPlane === "local" ? [...REQUIRED_LOCAL_RUNTIME_DAEMON_SERVICES, LOCAL_DATA_SERVICE] : REQUIRED_LOCAL_RUNTIME_DAEMON_SERVICES;
-  return requiredServices.every((serviceName) => readyServices.has(serviceName));
+  return requiredServices.filter((serviceName) => !readyServices.has(serviceName));
+}
+function localRuntimeReadinessSummary(status, options) {
+  const details = [];
+  if (status.endpoint) details.push(`controlEndpoint=${status.endpoint}`);
+  details.push(`available=${status.available}`);
+  if (typeof status.status === "string") details.push(`status=${status.status}`);
+  if (typeof status.error === "string") details.push(`error=${status.error}`);
+  if (typeof status.pid === "number") details.push(`pid=${status.pid}`);
+  if (typeof status.dataPlane === "string") details.push(`dataPlane=${status.dataPlane}`);
+  if (localRuntimeHasIdentityDetails(status) && !localRuntimeMatchesIdentity(status, options.identity)) {
+    details.push(`identityMismatch=${JSON.stringify({
+      expected: options.identity ?? {},
+      actual: {
+        pluginVersion: status.pluginVersion,
+        pluginRoot: status.pluginRoot,
+        runtimeVersion: status.runtimeVersion,
+        runtimeRoot: status.runtimeRoot
+      }
+    })}`);
+  }
+  if (!localRuntimeMatchesRequestedDataPlane(status, options.env)) {
+    details.push(`dataPlaneMismatch=expected ${requestedLocalRuntimeDataPlane(options.env) ?? "any"}`);
+  }
+  if (!localRuntimeMatchesRequestedDataServiceURL(status, options.env)) {
+    details.push("dataServiceURLMismatch=true");
+  }
+  const missingServices = missingLocalRuntimeServices(status);
+  if (missingServices.length > 0) details.push(`missingServices=${missingServices.join(",")}`);
+  return details.join("; ") || "last probe was empty";
+}
+function localRuntimeHasIdentityDetails(status) {
+  return typeof status.pluginVersion === "string" || typeof status.pluginRoot === "string" || typeof status.runtimeVersion === "string" || typeof status.runtimeRoot === "string";
+}
+function localRuntimeAppProbeDetails(app) {
+  if (!app) return {};
+  const metadata = app.raw.metadata && typeof app.raw.metadata === "object" ? app.raw.metadata : {};
+  return {
+    status: app.status,
+    pid: app.pid,
+    pluginVersion: metadata.pluginVersion,
+    pluginRoot: metadata.pluginRoot,
+    runtimeVersion: metadata.runtimeVersion,
+    runtimeRoot: metadata.runtimeRoot,
+    dataPlane: metadata.dataPlane,
+    dataServiceURL: metadata.dataServiceURL,
+    ...typeof metadata.error === "string" ? { error: metadata.error } : {}
+  };
 }
 function localRuntimeMatchesIdentity(status, identity) {
   if (!identity) return true;
@@ -17060,14 +17160,14 @@ function isRecord2(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-// ../../packages/core/dist/chunk-GT4DRRFZ.js
+// ../../packages/core/dist/chunk-LXYLCQ7L.js
 import { mkdirSync as mkdirSync4, readFileSync as readFileSync4, renameSync as renameSync3, rmSync as rmSync2, writeFileSync as writeFileSync4 } from "fs";
 import { dirname as dirname3, join as join4 } from "path";
 var MOVSCRIPT_BACKEND_CONFIG_SCHEMA = "movscript.backend-config.v1";
 var MOVSCRIPT_BACKEND_AUTH_SCHEMA = "movscript.backend-auth.v1";
 var MOVSCRIPT_BACKEND_CONFIG_FILE_NAME = "config.json";
 var MOVSCRIPT_BACKEND_AUTH_FILE_NAME = "auth.json";
-var MOVSCRIPT_DEFAULT_BACKEND_BASE_URL = "http://localhost:8765";
+var MOVSCRIPT_DEFAULT_BACKEND_BASE_URL = "http://localhost:8766";
 function resolveMovScriptBackendPaths(workspaceDir = process.cwd(), realm) {
   const root = resolveMovScriptWorkspaceRootPaths(workspaceDir);
   const backendRealmsDir = join4(root.backendDir, "realms");
@@ -28271,286 +28371,7 @@ async function validateGitFileChangeCoverage(fileRepository, baseline, changedFi
   }];
 }
 
-// ../../packages/interpreter/dist/chunk-V3CPV4UL.js
-function businessChangesFromChangedEntities(changedEntities, sourceGraph, currentGraph, semanticChanges = []) {
-  const semanticByEntity = groupSemanticChangesByEntity(semanticChanges);
-  return changedEntities.map((entity) => {
-    const record = sourceRecordForChangedEntity(sourceGraph, entity) ?? sourceRecordForChangedEntity(currentGraph, entity);
-    const title = isRecord19(record?.data) ? stringField11(record.data.title) : void 0;
-    const entitySemanticChanges = semanticByEntity.get(entitySemanticKey(entity.entityKind, entity.id)) ?? [];
-    const businessKinds = uniqueSorted(entitySemanticChanges.map((change) => change.businessKind));
-    const semanticKinds = uniqueSorted(entitySemanticChanges.map((change) => change.kind));
-    return {
-      ...entity,
-      ...title !== void 0 ? { title } : {},
-      summary: businessChangeSummary(entity, title, businessKinds),
-      impactAreas: businessImpactAreasForEntityKind(entity.entityKind),
-      sourcePaths: [entity.path],
-      semanticKinds,
-      businessKinds
-    };
-  });
-}
-function summarizeReview(changedFiles, businessChanges, issues) {
-  return {
-    total: changedFiles.length,
-    added: changedFiles.filter((file) => file.state === "added").length,
-    modified: changedFiles.filter((file) => file.state === "modified").length,
-    deleted: changedFiles.filter((file) => file.state === "deleted").length,
-    businessChanges: businessChanges.length,
-    errors: issues.filter((issue) => issue.severity === "error").length,
-    warnings: issues.filter((issue) => issue.severity === "warning").length
-  };
-}
-function sourceRecordForChangedEntity(graph, entity) {
-  return graph.records.find((record) => {
-    return record.entityKind === entity.entityKind && (record.file.path === entity.path || record.file.relativePath === entity.path || record.id !== void 0 && entity.id !== void 0 && String(record.id) === String(entity.id));
-  });
-}
-function businessChangeSummary(entity, title, businessKinds = []) {
-  const label = title ?? String(entity.id ?? entity.path);
-  const state = businessStateVerb(entity.state);
-  const primaryBusinessKind = businessKinds[0];
-  if (entity.state === "modified" && primaryBusinessKind) return `${businessKindLabel(primaryBusinessKind)}: ${label}`;
-  return `${businessEntityLabel(entity.entityKind)} ${state}: ${label}`;
-}
-function businessStateVerb(state) {
-  switch (state) {
-    case "added":
-      return "added";
-    case "modified":
-      return "changed";
-    case "deleted":
-      return "deleted";
-    case "unchanged":
-      return "unchanged";
-  }
-}
-function businessEntityLabel(entityKind) {
-  const labels = {
-    project: "Project",
-    project_standards: "Project standards",
-    script: "Script",
-    script_version: "Script version",
-    script_block: "Script block",
-    production: "Production",
-    segment: "Segment",
-    scene_moment: "Scene moment",
-    shot: "Shot",
-    storyboard: "Storyboard",
-    audio_cue: "Audio cue",
-    expression_unit: "Expression unit",
-    content_unit: "Content unit",
-    keyframe: "Keyframe",
-    setting: "Setting",
-    setting_state: "Setting state",
-    asset: "Asset"
-  };
-  return labels[entityKind] ?? entityKind;
-}
-function businessImpactAreasForEntityKind(entityKind) {
-  switch (entityKind) {
-    case "project":
-    case "project_standards":
-    case "script":
-    case "script_version":
-    case "script_block":
-      return ["workspace_context", "generation_prompts"];
-    case "setting":
-    case "setting_state":
-    case "asset":
-      return ["asset_index", "generation_context"];
-    case "production":
-    case "segment":
-    case "scene_moment":
-    case "shot":
-    case "storyboard":
-    case "audio_cue":
-    case "expression_unit":
-      return ["planning_tree", "preview_timeline", "generation_prompts"];
-    case "content_unit":
-    case "keyframe":
-      return ["content_production", "generation_prompts", "preview_timeline"];
-    default:
-      return ["domain_index"];
-  }
-}
-function groupSemanticChangesByEntity(semanticChanges) {
-  const groups = /* @__PURE__ */ new Map();
-  for (const change of semanticChanges) {
-    const key = entitySemanticKey(change.entity.kind, change.entity.id);
-    groups.set(key, [...groups.get(key) ?? [], change]);
-  }
-  return groups;
-}
-function entitySemanticKey(entityKind, id) {
-  return `${entityKind}:${String(id ?? "")}`;
-}
-function uniqueSorted(values) {
-  return [...new Set(values)].sort();
-}
-function businessKindLabel(kind) {
-  const labels = {
-    metadata_changed: "Metadata changed",
-    semantic_input_changed: "Semantic input changed",
-    reference_changed: "Reference changed",
-    selection_changed: "Selection changed",
-    sequence_reordered: "Sequence reordered",
-    expression_unit_changed: "Expression unit changed",
-    storyboard_changed: "Storyboard changed",
-    keyframe_changed: "Keyframe changed",
-    content_unit_changed: "Content unit changed",
-    project_context_changed: "Project context changed",
-    production_structure_changed: "Production structure changed",
-    domain_entity_changed: "Domain entity changed"
-  };
-  return labels[kind];
-}
-function stringField11(value) {
-  return typeof value === "string" && value.trim() ? value : void 0;
-}
-function isRecord19(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-// ../../packages/interpreter/dist/chunk-UAEXITRC.js
-var FIELD_SEMANTIC_RULES = [
-  {
-    matches: (entity, fieldChange) => entity.entityKind === "expression_unit" && isExpressionUnitSemanticInputField(fieldChange.field),
-    semanticKind: "semantic_input_changed",
-    businessKind: "expression_unit_changed",
-    propagation: "self"
-  },
-  {
-    matches: (_entity, fieldChange) => isSelectionField(fieldChange.field),
-    semanticKind: "selection_changed",
-    businessKind: "selection_changed",
-    propagation: "downstream_reference"
-  },
-  {
-    matches: (_entity, fieldChange) => isReferenceField(fieldChange.field),
-    semanticKind: "reference_changed",
-    businessKind: "reference_changed",
-    propagation: "downstream_reference"
-  },
-  {
-    matches: (_entity, fieldChange) => isMetadataField(fieldChange.field),
-    semanticKind: "metadata_changed",
-    businessKind: "metadata_changed",
-    propagation: "none"
-  }
-];
-function semanticChangesFromEntityChanges(changedEntities) {
-  return changedEntities.flatMap((entity) => {
-    const fieldChanges = entity.fieldChanges?.length ? entity.fieldChanges : [{ field: "*", operation: entity.state }];
-    const grouped = /* @__PURE__ */ new Map();
-    for (const fieldChange of fieldChanges) {
-      const semantic = semanticForFieldChange(entity, fieldChange);
-      const key = `${semantic.kind}:${semantic.businessKind}:${semantic.propagation}`;
-      const group = grouped.get(key) ?? {
-        kind: semantic.kind,
-        businessKind: semantic.businessKind,
-        propagation: semantic.propagation,
-        fields: []
-      };
-      if (!group.fields.includes(fieldChange.field)) group.fields.push(fieldChange.field);
-      grouped.set(key, group);
-    }
-    return [...grouped.values()].map((group) => ({
-      entity: {
-        kind: entity.entityKind,
-        ...entity.id !== void 0 ? { id: entity.id } : {}
-      },
-      kind: group.kind,
-      businessKind: group.businessKind,
-      propagation: group.propagation,
-      fields: group.fields.sort(),
-      sourceChange: {
-        operation: entity.state,
-        path: entity.path
-      }
-    }));
-  });
-}
-function semanticForFieldChange(entity, fieldChange) {
-  if (entity.state === "added" || entity.state === "deleted") {
-    return {
-      kind: "semantic_input_changed",
-      businessKind: businessKindForEntityChange(entity.entityKind),
-      propagation: entity.entityKind === "content_unit" ? "self" : "downstream_reference"
-    };
-  }
-  if (fieldChange.jsonOperation === "reordered" || fieldChange.jsonOperation === "moved") {
-    const base = semanticCategoryForFieldChange(entity, fieldChange);
-    return {
-      kind: base.kind,
-      businessKind: "sequence_reordered",
-      propagation: base.propagation
-    };
-  }
-  const rule = FIELD_SEMANTIC_RULES.find((item) => item.matches(entity, fieldChange));
-  if (rule) {
-    return {
-      kind: rule.semanticKind,
-      businessKind: rule.businessKind,
-      propagation: rule.propagation
-    };
-  }
-  return semanticCategoryForFieldChange(entity, fieldChange);
-}
-function semanticCategoryForFieldChange(entity, fieldChange) {
-  const rule = FIELD_SEMANTIC_RULES.find((item) => item.matches(entity, fieldChange));
-  if (rule) {
-    return {
-      kind: rule.semanticKind,
-      businessKind: rule.businessKind,
-      propagation: rule.propagation
-    };
-  }
-  return {
-    kind: "semantic_input_changed",
-    businessKind: businessKindForEntityChange(entity.entityKind),
-    propagation: entity.entityKind === "content_unit" ? "self" : "downstream_reference"
-  };
-}
-function businessKindForEntityChange(entityKind) {
-  switch (entityKind) {
-    case "expression_unit":
-      return "expression_unit_changed";
-    case "storyboard":
-      return "storyboard_changed";
-    case "keyframe":
-      return "keyframe_changed";
-    case "content_unit":
-      return "content_unit_changed";
-    case "project":
-    case "project_standards":
-    case "script":
-    case "script_version":
-    case "script_block":
-      return "project_context_changed";
-    case "production":
-    case "segment":
-    case "scene_moment":
-      return "production_structure_changed";
-    default:
-      return "domain_entity_changed";
-  }
-}
-function isExpressionUnitSemanticInputField(field) {
-  return field === "*" || field === "angle" || field.startsWith("angle.") || field === "lens" || field.startsWith("lens.") || field === "camera" || field.startsWith("camera.") || field === "movement" || field.startsWith("movement.") || field === "blocking" || field.startsWith("blocking.") || field === "lighting" || field.startsWith("lighting.") || field === "sound" || field.startsWith("sound.") || field === "performance" || field.startsWith("performance.") || field === "duration" || field.startsWith("duration.") || field === "intent" || field.startsWith("intent.") || field === "visual_intent" || field.startsWith("visual_intent.") || field === "narrative_intent" || field.startsWith("narrative_intent.");
-}
-function isMetadataField(field) {
-  return /(^|\.)metadata(\.|$)/.test(field) || /(^|\.)notes?$/.test(field) || /(^|\.)title$/.test(field) || /(^|\.)description$/.test(field) || /(^|\.)created_at$/.test(field) || /(^|\.)updated_at$/.test(field) || /(^|\.)selected_at$/.test(field) || /(^|\.)selected_by$/.test(field);
-}
-function isReferenceField(field) {
-  return /(^|_|\.)refs?(\.|$)/.test(field) || field.endsWith("_ref") || field.includes("_ref.") || field.endsWith("_refs") || field.includes("_refs.");
-}
-function isSelectionField(field) {
-  return field === "lock" || field.startsWith("lock.") || field === "selection" || field.startsWith("selection.") || field === "stale_policy" || field.endsWith(".candidate_id") || field.endsWith(".resource_id");
-}
-
-// ../../packages/interpreter/dist/chunk-JNMDJW3A.js
+// ../../packages/interpreter/dist/chunk-IM4S3ZGO.js
 function projectStyleReferenceResourceIds(index) {
   const standards = firstEntity(index, "project_standards");
   if (!standards) return [];
@@ -28558,16 +28379,16 @@ function projectStyleReferenceResourceIds(index) {
     ...resourceIdsFromValue2(standards.record.style_reference_images),
     ...resourceIdsFromValue2(standards.record.style_references),
     ...resourceIdsFromValue2(standards.record.reference_resource_ids),
-    ...arrayField5(standards.record.custom_rules).filter(isRecord20).filter((rule) => rule.enabled !== false).filter((rule) => stringField12(rule.key) === "style_reference_images").flatMap((rule) => resourceIdsFromValue2(rule.value))
+    ...arrayField5(standards.record.custom_rules).filter(isRecord19).filter((rule) => rule.enabled !== false).filter((rule) => stringField11(rule.key) === "style_reference_images").flatMap((rule) => resourceIdsFromValue2(rule.value))
   ]);
 }
 var PROMPT_REF_PATTERN2 = /\{\{([a-z_]+)::?([^{}:\s][^{}]*)\}\}/g;
 function parseContentUnitEditPromptRefs2(value) {
   const editPrompt = recordField4(value);
   return [
-    ...parsePromptRefsFromText2(stringField12(editPrompt?.text), "edit_prompt.text"),
-    ...parsePromptRefsFromText2(stringField12(editPrompt?.negative_text), "edit_prompt.negative_text"),
-    ...parsePromptRefsFromText2(stringField12(editPrompt?.notes), "edit_prompt.notes")
+    ...parsePromptRefsFromText2(stringField11(editPrompt?.text), "edit_prompt.text"),
+    ...parsePromptRefsFromText2(stringField11(editPrompt?.negative_text), "edit_prompt.negative_text"),
+    ...parsePromptRefsFromText2(stringField11(editPrompt?.notes), "edit_prompt.notes")
   ];
 }
 function parsePromptRefsFromText2(text, field) {
@@ -28706,7 +28527,7 @@ function activeProviderAssetCertification(assetRecord, input = {}) {
   for (const [provider, rawCertification] of Object.entries(certifications)) {
     const certification = recordField4(rawCertification);
     if (!certification) continue;
-    if (stringField12(certification.status) !== "active") continue;
+    if (stringField11(certification.status) !== "active") continue;
     const assetUri = providerAssetUri(certification);
     if (!assetUri) continue;
     const sourceResourceId = resourceIdField4(certification.source_resource_id ?? certification.sourceResourceId);
@@ -28717,12 +28538,12 @@ function activeProviderAssetCertification(assetRecord, input = {}) {
       provider,
       status: "active",
       asset_uri: assetUri,
-      ...stringField12(certification.hub_asset_id ?? certification.hubAssetId) ? { hub_asset_id: stringField12(certification.hub_asset_id ?? certification.hubAssetId) } : {},
+      ...stringField11(certification.hub_asset_id ?? certification.hubAssetId) ? { hub_asset_id: stringField11(certification.hub_asset_id ?? certification.hubAssetId) } : {},
       ...sourceResourceId !== void 0 ? { source_resource_id: sourceResourceId } : {},
       ...sourceCandidateId !== void 0 ? { source_candidate_id: sourceCandidateId } : {},
-      ...stringField12(certification.source_hash ?? certification.sourceHash) ? { source_hash: stringField12(certification.source_hash ?? certification.sourceHash) } : {},
-      ...stringField12(certification.certified_at ?? certification.certifiedAt) ? { certified_at: stringField12(certification.certified_at ?? certification.certifiedAt) } : {},
-      ...stringField12(certification.updated_at ?? certification.updatedAt) ? { updated_at: stringField12(certification.updated_at ?? certification.updatedAt) } : {}
+      ...stringField11(certification.source_hash ?? certification.sourceHash) ? { source_hash: stringField11(certification.source_hash ?? certification.sourceHash) } : {},
+      ...stringField11(certification.certified_at ?? certification.certifiedAt) ? { certified_at: stringField11(certification.certified_at ?? certification.certifiedAt) } : {},
+      ...stringField11(certification.updated_at ?? certification.updatedAt) ? { updated_at: stringField11(certification.updated_at ?? certification.updatedAt) } : {}
     };
   }
   return void 0;
@@ -28778,7 +28599,7 @@ function lastPathSegment3(value) {
 }
 function readSelectedContentUnit(index, contentUnitRef) {
   const context = index.documents.find((document) => {
-    if (!isRecord20(document.data)) return false;
+    if (!isRecord19(document.data)) return false;
     if (document.data.schema !== "movscript.decision_context.v1") return false;
     return document.data.target_kind === "content_unit" && document.data.target_ref === contentUnitRef;
   })?.data;
@@ -28787,6 +28608,24 @@ function readSelectedContentUnit(index, contentUnitRef) {
     ...selection,
     stale_policy: selection.stale_policy === "accept_stale" ? "accept_stale" : "strict"
   } : void 0;
+}
+function readContentUnitCandidate(index, contentUnitRef, candidateId) {
+  const sourceCandidate = index.documents.find((document) => {
+    if (!document.path.startsWith(`${contentUnitRef}/candidates/`)) return false;
+    if (!document.path.endsWith("/content_candidate.json")) return false;
+    const record = recordField4(document.data);
+    return record !== void 0 && String(record.id ?? "") === String(candidateId);
+  })?.data;
+  const sourceRecord = recordField4(sourceCandidate);
+  if (sourceRecord) return sourceRecord;
+  const context = index.documents.find((document) => {
+    const record = recordField4(document.data);
+    return record?.schema === "movscript.decision_context.v1" && record.target_kind === "content_unit" && record.target_ref === contentUnitRef;
+  })?.data;
+  for (const candidate of arrayField5(recordField4(context)?.candidates).map(recordField4).filter(isDefined3)) {
+    if (String(candidate.id ?? "") === String(candidateId)) return candidate;
+  }
+  return void 0;
 }
 function findEntityByRef(index, entityKind, ref) {
   const value = idField9(ref);
@@ -28798,7 +28637,7 @@ function findEntityByRef(index, entityKind, ref) {
   });
 }
 function requiredString(value, message) {
-  const next = stringField12(value);
+  const next = stringField11(value);
   if (!next) throw new Error(message);
   return next;
 }
@@ -28812,14 +28651,14 @@ function entityDir4(path) {
   return path.replace(/\/[^/]+$/, "");
 }
 function recordField4(value) {
-  return isRecord20(value) ? value : void 0;
+  return isRecord19(value) ? value : void 0;
 }
 function arrayField5(value) {
   return Array.isArray(value) ? value : [];
 }
 function resourceIdsFromValue2(value) {
   if (Array.isArray(value)) return value.flatMap(resourceIdsFromValue2);
-  const text = stringField12(value);
+  const text = stringField11(value);
   if (text) {
     const ids = [];
     const patterns = [
@@ -28841,7 +28680,7 @@ function resourceIdsFromValue2(value) {
   }
   const id = resourceIdField4(value);
   if (id !== void 0) return [id];
-  if (isRecord20(value)) return resourceIdsFromValue2(value.resource_id ?? value.resourceId ?? value.id);
+  if (isRecord19(value)) return resourceIdsFromValue2(value.resource_id ?? value.resourceId ?? value.id);
   return [];
 }
 function uniqueIds(values) {
@@ -28855,7 +28694,7 @@ function uniqueIds(values) {
   }
   return output;
 }
-function stringField12(value) {
+function stringField11(value) {
   return typeof value === "string" && value.trim() ? value.trim() : void 0;
 }
 function compactStrings5(...values) {
@@ -28882,18 +28721,21 @@ function resourceIdField4(value) {
   return void 0;
 }
 function providerAssetUri(certification) {
-  const direct = stringField12(certification.asset_uri ?? certification.assetUri);
+  const direct = stringField11(certification.asset_uri ?? certification.assetUri);
   if (direct) return direct;
-  const hubAssetId = stringField12(certification.hub_asset_id ?? certification.hubAssetId);
+  const hubAssetId = stringField11(certification.hub_asset_id ?? certification.hubAssetId);
   return hubAssetId ? `asset://${hubAssetId}` : void 0;
 }
 function stableJsonValue(value) {
   if (Array.isArray(value)) return value.map(stableJsonValue);
-  if (!isRecord20(value)) return value;
+  if (!isRecord19(value)) return value;
   return Object.fromEntries(Object.entries(value).filter(([key]) => !key.startsWith("__workspace_")).sort(([left], [right]) => left.localeCompare(right)).map(([key, item]) => [key, stableJsonValue(item)]));
 }
-function isRecord20(value) {
+function isRecord19(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function isDefined3(value) {
+  return value !== void 0;
 }
 
 // ../../packages/language/dist/chunk-63XJTEAP.js
@@ -29417,7 +29259,7 @@ function getSemanticEntitySchemaEntry(schemaId) {
   return SEMANTIC_ENTITY_SCHEMA_REGISTRY[schemaId] ?? null;
 }
 
-// ../../packages/interpreter/dist/chunk-TQKXJAUU.js
+// ../../packages/interpreter/dist/chunk-QLDXUIZM.js
 function validateEditableFiles(files) {
   const issues = [];
   for (const file of files) {
@@ -29439,7 +29281,7 @@ function validateSourceDomainGraph(graph) {
   const issues = [];
   for (const entry of graph.records) {
     if (!entry.file.path.endsWith(".json")) continue;
-    if (!isRecord21(entry.data)) continue;
+    if (!isRecord20(entry.data)) continue;
     const expectedKind = entry.entityKind;
     const schemaKind = typeof entry.data.schema === "string" ? entry.data.schema.replace(/^movscript\./, "").replace(/\.v\d+$/, "") : void 0;
     const actualKind = typeof entry.data.kind === "string" ? entry.data.kind : void 0;
@@ -29702,7 +29544,7 @@ function validateAudioCueRefs(file, record, graph, issues) {
   }
 }
 function validateStoryboardSettingRefs(file, record, graph, issues) {
-  const settingRefs = Array.isArray(record.setting_refs) ? record.setting_refs.filter(isRecord21) : [];
+  const settingRefs = Array.isArray(record.setting_refs) ? record.setting_refs.filter(isRecord20) : [];
   for (const [index, settingRef] of settingRefs.entries()) {
     const settingId = idField10(settingRef.setting_id);
     const settingStateId = idField10(settingRef.setting_state_id);
@@ -29757,7 +29599,7 @@ function validateKeyframeReferenceAssetRefs(file, record, graph, issues) {
   }
 }
 function validateJsonSchemaValue(value, schema, path) {
-  if (!isRecord21(schema)) return [];
+  if (!isRecord20(schema)) return [];
   const messages = [];
   if ("const" in schema && !jsonValueEquals2(value, schema.const)) {
     messages.push(`${path} must be ${JSON.stringify(schema.const)}`);
@@ -29772,8 +29614,8 @@ function validateJsonSchemaValue(value, schema, path) {
   if (typeof value === "string" && typeof schema.minLength === "number" && value.length < schema.minLength) {
     messages.push(`${path} must contain at least ${schema.minLength} character${schema.minLength === 1 ? "" : "s"}`);
   }
-  if (schema.type === "object" && isRecord21(value)) {
-    const properties = isRecord21(schema.properties) ? schema.properties : {};
+  if (schema.type === "object" && isRecord20(value)) {
+    const properties = isRecord20(schema.properties) ? schema.properties : {};
     const required = Array.isArray(schema.required) ? schema.required.filter((item) => typeof item === "string") : [];
     for (const key of required) {
       if (value[key] === void 0) messages.push(`${path}.${key} is required`);
@@ -29796,7 +29638,7 @@ function validateJsonSchemaValue(value, schema, path) {
 }
 function jsonSchemaTypeMatches(value, type) {
   if (Array.isArray(type)) return type.some((item) => jsonSchemaTypeMatches(value, item));
-  if (type === "object") return isRecord21(value);
+  if (type === "object") return isRecord20(value);
   if (type === "array") return Array.isArray(value);
   if (type === "string") return typeof value === "string";
   if (type === "number") return typeof value === "number" && Number.isFinite(value);
@@ -29841,11 +29683,290 @@ function lastPathSegment4(value) {
   if (typeof value !== "string" || !value.includes("/")) return void 0;
   return value.split("/").filter(Boolean).at(-1);
 }
+function isRecord20(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+// ../../packages/interpreter/dist/chunk-V3CPV4UL.js
+function businessChangesFromChangedEntities(changedEntities, sourceGraph, currentGraph, semanticChanges = []) {
+  const semanticByEntity = groupSemanticChangesByEntity(semanticChanges);
+  return changedEntities.map((entity) => {
+    const record = sourceRecordForChangedEntity(sourceGraph, entity) ?? sourceRecordForChangedEntity(currentGraph, entity);
+    const title = isRecord21(record?.data) ? stringField12(record.data.title) : void 0;
+    const entitySemanticChanges = semanticByEntity.get(entitySemanticKey(entity.entityKind, entity.id)) ?? [];
+    const businessKinds = uniqueSorted(entitySemanticChanges.map((change) => change.businessKind));
+    const semanticKinds = uniqueSorted(entitySemanticChanges.map((change) => change.kind));
+    return {
+      ...entity,
+      ...title !== void 0 ? { title } : {},
+      summary: businessChangeSummary(entity, title, businessKinds),
+      impactAreas: businessImpactAreasForEntityKind(entity.entityKind),
+      sourcePaths: [entity.path],
+      semanticKinds,
+      businessKinds
+    };
+  });
+}
+function summarizeReview(changedFiles, businessChanges, issues) {
+  return {
+    total: changedFiles.length,
+    added: changedFiles.filter((file) => file.state === "added").length,
+    modified: changedFiles.filter((file) => file.state === "modified").length,
+    deleted: changedFiles.filter((file) => file.state === "deleted").length,
+    businessChanges: businessChanges.length,
+    errors: issues.filter((issue) => issue.severity === "error").length,
+    warnings: issues.filter((issue) => issue.severity === "warning").length
+  };
+}
+function sourceRecordForChangedEntity(graph, entity) {
+  return graph.records.find((record) => {
+    return record.entityKind === entity.entityKind && (record.file.path === entity.path || record.file.relativePath === entity.path || record.id !== void 0 && entity.id !== void 0 && String(record.id) === String(entity.id));
+  });
+}
+function businessChangeSummary(entity, title, businessKinds = []) {
+  const label = title ?? String(entity.id ?? entity.path);
+  const state = businessStateVerb(entity.state);
+  const primaryBusinessKind = businessKinds[0];
+  if (entity.state === "modified" && primaryBusinessKind) return `${businessKindLabel(primaryBusinessKind)}: ${label}`;
+  return `${businessEntityLabel(entity.entityKind)} ${state}: ${label}`;
+}
+function businessStateVerb(state) {
+  switch (state) {
+    case "added":
+      return "added";
+    case "modified":
+      return "changed";
+    case "deleted":
+      return "deleted";
+    case "unchanged":
+      return "unchanged";
+  }
+}
+function businessEntityLabel(entityKind) {
+  const labels = {
+    project: "Project",
+    project_standards: "Project standards",
+    script: "Script",
+    script_version: "Script version",
+    script_block: "Script block",
+    production: "Production",
+    segment: "Segment",
+    scene_moment: "Scene moment",
+    shot: "Shot",
+    storyboard: "Storyboard",
+    audio_cue: "Audio cue",
+    expression_unit: "Expression unit",
+    content_unit: "Content unit",
+    keyframe: "Keyframe",
+    setting: "Setting",
+    setting_state: "Setting state",
+    asset: "Asset"
+  };
+  return labels[entityKind] ?? entityKind;
+}
+function businessImpactAreasForEntityKind(entityKind) {
+  switch (entityKind) {
+    case "project":
+    case "project_standards":
+    case "script":
+    case "script_version":
+    case "script_block":
+      return ["workspace_context", "generation_prompts"];
+    case "setting":
+    case "setting_state":
+    case "asset":
+      return ["asset_index", "generation_context"];
+    case "production":
+    case "segment":
+    case "scene_moment":
+    case "shot":
+    case "storyboard":
+    case "audio_cue":
+    case "expression_unit":
+      return ["planning_tree", "preview_timeline", "generation_prompts"];
+    case "content_unit":
+    case "keyframe":
+      return ["content_production", "generation_prompts", "preview_timeline"];
+    default:
+      return ["domain_index"];
+  }
+}
+function groupSemanticChangesByEntity(semanticChanges) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const change of semanticChanges) {
+    const key = entitySemanticKey(change.entity.kind, change.entity.id);
+    groups.set(key, [...groups.get(key) ?? [], change]);
+  }
+  return groups;
+}
+function entitySemanticKey(entityKind, id) {
+  return `${entityKind}:${String(id ?? "")}`;
+}
+function uniqueSorted(values) {
+  return [...new Set(values)].sort();
+}
+function businessKindLabel(kind) {
+  const labels = {
+    metadata_changed: "Metadata changed",
+    semantic_input_changed: "Semantic input changed",
+    reference_changed: "Reference changed",
+    selection_changed: "Selection changed",
+    sequence_reordered: "Sequence reordered",
+    expression_unit_changed: "Expression unit changed",
+    storyboard_changed: "Storyboard changed",
+    keyframe_changed: "Keyframe changed",
+    content_unit_changed: "Content unit changed",
+    project_context_changed: "Project context changed",
+    production_structure_changed: "Production structure changed",
+    domain_entity_changed: "Domain entity changed"
+  };
+  return labels[kind];
+}
+function stringField12(value) {
+  return typeof value === "string" && value.trim() ? value : void 0;
+}
 function isRecord21(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-// ../../packages/interpreter/dist/chunk-U25J6H2V.js
+// ../../packages/interpreter/dist/chunk-UAEXITRC.js
+var FIELD_SEMANTIC_RULES = [
+  {
+    matches: (entity, fieldChange) => entity.entityKind === "expression_unit" && isExpressionUnitSemanticInputField(fieldChange.field),
+    semanticKind: "semantic_input_changed",
+    businessKind: "expression_unit_changed",
+    propagation: "self"
+  },
+  {
+    matches: (_entity, fieldChange) => isSelectionField(fieldChange.field),
+    semanticKind: "selection_changed",
+    businessKind: "selection_changed",
+    propagation: "downstream_reference"
+  },
+  {
+    matches: (_entity, fieldChange) => isReferenceField(fieldChange.field),
+    semanticKind: "reference_changed",
+    businessKind: "reference_changed",
+    propagation: "downstream_reference"
+  },
+  {
+    matches: (_entity, fieldChange) => isMetadataField(fieldChange.field),
+    semanticKind: "metadata_changed",
+    businessKind: "metadata_changed",
+    propagation: "none"
+  }
+];
+function semanticChangesFromEntityChanges(changedEntities) {
+  return changedEntities.flatMap((entity) => {
+    const fieldChanges = entity.fieldChanges?.length ? entity.fieldChanges : [{ field: "*", operation: entity.state }];
+    const grouped = /* @__PURE__ */ new Map();
+    for (const fieldChange of fieldChanges) {
+      const semantic = semanticForFieldChange(entity, fieldChange);
+      const key = `${semantic.kind}:${semantic.businessKind}:${semantic.propagation}`;
+      const group = grouped.get(key) ?? {
+        kind: semantic.kind,
+        businessKind: semantic.businessKind,
+        propagation: semantic.propagation,
+        fields: []
+      };
+      if (!group.fields.includes(fieldChange.field)) group.fields.push(fieldChange.field);
+      grouped.set(key, group);
+    }
+    return [...grouped.values()].map((group) => ({
+      entity: {
+        kind: entity.entityKind,
+        ...entity.id !== void 0 ? { id: entity.id } : {}
+      },
+      kind: group.kind,
+      businessKind: group.businessKind,
+      propagation: group.propagation,
+      fields: group.fields.sort(),
+      sourceChange: {
+        operation: entity.state,
+        path: entity.path
+      }
+    }));
+  });
+}
+function semanticForFieldChange(entity, fieldChange) {
+  if (entity.state === "added" || entity.state === "deleted") {
+    return {
+      kind: "semantic_input_changed",
+      businessKind: businessKindForEntityChange(entity.entityKind),
+      propagation: entity.entityKind === "content_unit" ? "self" : "downstream_reference"
+    };
+  }
+  if (fieldChange.jsonOperation === "reordered" || fieldChange.jsonOperation === "moved") {
+    const base = semanticCategoryForFieldChange(entity, fieldChange);
+    return {
+      kind: base.kind,
+      businessKind: "sequence_reordered",
+      propagation: base.propagation
+    };
+  }
+  const rule = FIELD_SEMANTIC_RULES.find((item) => item.matches(entity, fieldChange));
+  if (rule) {
+    return {
+      kind: rule.semanticKind,
+      businessKind: rule.businessKind,
+      propagation: rule.propagation
+    };
+  }
+  return semanticCategoryForFieldChange(entity, fieldChange);
+}
+function semanticCategoryForFieldChange(entity, fieldChange) {
+  const rule = FIELD_SEMANTIC_RULES.find((item) => item.matches(entity, fieldChange));
+  if (rule) {
+    return {
+      kind: rule.semanticKind,
+      businessKind: rule.businessKind,
+      propagation: rule.propagation
+    };
+  }
+  return {
+    kind: "semantic_input_changed",
+    businessKind: businessKindForEntityChange(entity.entityKind),
+    propagation: entity.entityKind === "content_unit" ? "self" : "downstream_reference"
+  };
+}
+function businessKindForEntityChange(entityKind) {
+  switch (entityKind) {
+    case "expression_unit":
+      return "expression_unit_changed";
+    case "storyboard":
+      return "storyboard_changed";
+    case "keyframe":
+      return "keyframe_changed";
+    case "content_unit":
+      return "content_unit_changed";
+    case "project":
+    case "project_standards":
+    case "script":
+    case "script_version":
+    case "script_block":
+      return "project_context_changed";
+    case "production":
+    case "segment":
+    case "scene_moment":
+      return "production_structure_changed";
+    default:
+      return "domain_entity_changed";
+  }
+}
+function isExpressionUnitSemanticInputField(field) {
+  return field === "*" || field === "angle" || field.startsWith("angle.") || field === "lens" || field.startsWith("lens.") || field === "camera" || field.startsWith("camera.") || field === "movement" || field.startsWith("movement.") || field === "blocking" || field.startsWith("blocking.") || field === "lighting" || field.startsWith("lighting.") || field === "sound" || field.startsWith("sound.") || field === "performance" || field.startsWith("performance.") || field === "duration" || field.startsWith("duration.") || field === "intent" || field.startsWith("intent.") || field === "visual_intent" || field.startsWith("visual_intent.") || field === "narrative_intent" || field.startsWith("narrative_intent.");
+}
+function isMetadataField(field) {
+  return /(^|\.)metadata(\.|$)/.test(field) || /(^|\.)notes?$/.test(field) || /(^|\.)title$/.test(field) || /(^|\.)description$/.test(field) || /(^|\.)created_at$/.test(field) || /(^|\.)updated_at$/.test(field) || /(^|\.)selected_at$/.test(field) || /(^|\.)selected_by$/.test(field);
+}
+function isReferenceField(field) {
+  return /(^|_|\.)refs?(\.|$)/.test(field) || field.endsWith("_ref") || field.includes("_ref.") || field.endsWith("_refs") || field.includes("_refs.");
+}
+function isSelectionField(field) {
+  return field === "lock" || field.startsWith("lock.") || field === "selection" || field.startsWith("selection.") || field === "stale_policy" || field.endsWith(".candidate_id") || field.endsWith(".resource_id");
+}
+
+// ../../packages/interpreter/dist/chunk-M5V4R4QD.js
 var CONTENT_UNIT_ADAPTERS = {
   production_ref: refAdapter("production_ref", "production", "video"),
   segment_ref: refAdapter("segment_ref", "segment", "video"),
@@ -29983,7 +30104,7 @@ function basePrompt(context, options) {
   }));
   const blockers = [...options.blockers, ...inputBlockers(context, resolvedRefs)];
   const runtimeRequest = {
-    capability: stringField12(modelIntent?.capability) ?? capabilityForOutputKind(options.outputKind),
+    capability: stringField11(modelIntent?.capability) ?? capabilityForOutputKind(options.outputKind),
     model_intent: modelIntent,
     inputs: [
       ...semanticInputs,
@@ -30027,7 +30148,7 @@ function dependenciesFromPrompt(prompt) {
   return {
     entities,
     refs: prompt.refs,
-    upstreamSelections: prompt.refs.map((ref) => ref.selection).filter(isDefined3),
+    upstreamSelections: prompt.refs.map((ref) => ref.selection).filter(isDefined4),
     blockers: prompt.blockers ?? []
   };
 }
@@ -30165,7 +30286,7 @@ function upstreamSelectionStatus(context, ref) {
   }
   const selection = readSelectedContentUnit(context.index, upstreamRef);
   const candidateId = idField9(selection?.candidate_id);
-  const candidate = candidateId === void 0 ? void 0 : readContentUnitCandidate(context, upstreamRef, candidateId);
+  const candidate = candidateId === void 0 ? void 0 : readContentUnitCandidate(context.index, upstreamRef, candidateId);
   if (candidateId !== void 0 && !candidate) {
     return {
       stale: true,
@@ -30176,9 +30297,9 @@ function upstreamSelectionStatus(context, ref) {
       }
     };
   }
-  const candidatePrompt = recordField4(candidate?.prompt_snapshot);
+  const candidatePrompt = normalizedContentUnitPrompt(candidate?.prompt_snapshot);
   if (!candidatePrompt) return { stale: true };
-  const contentUnitType2 = stringField12(upstreamContentUnit.record.content_unit_type);
+  const contentUnitType2 = stringField11(upstreamContentUnit.record.content_unit_type);
   if (!contentUnitType2) return { stale: true };
   const adapter = contentUnitAdapterFor(contentUnitType2);
   const currentPrompt = adapter.derivePrompt({
@@ -30188,24 +30309,18 @@ function upstreamSelectionStatus(context, ref) {
   });
   return { stale: !sameCanonicalPrompt(currentPrompt, candidatePrompt) };
 }
-function readContentUnitCandidate(context, contentUnitRef, candidateId) {
-  return context.index.documents.find((document) => {
-    if (!document.path.startsWith(`${contentUnitRef}/candidates/`)) return false;
-    if (!document.path.endsWith("/content_candidate.json")) return false;
-    if (!recordField4(document.data)) return false;
-    return String(document.data.id ?? "") === String(candidateId);
-  })?.data;
-}
 function sameCanonicalPrompt(left, right) {
   return JSON.stringify(stableJsonValue(canonicalPromptComparisonValue(left))) === JSON.stringify(stableJsonValue(canonicalPromptComparisonValue(right)));
 }
 function canonicalPromptComparisonValue(prompt) {
+  const refs = Array.isArray(prompt.refs) ? prompt.refs : [];
+  const blockers = Array.isArray(prompt.blockers) ? prompt.blockers : [];
   return {
     content_unit_type: prompt.content_unit_type,
     output_kind: prompt.output_kind,
     edit_prompt: prompt.edit_prompt,
     model_intent: prompt.model_intent,
-    refs: prompt.refs.map((ref) => ({
+    refs: refs.map((ref) => ({
       kind: ref.kind,
       id: ref.id,
       raw: ref.raw,
@@ -30220,20 +30335,28 @@ function canonicalPromptComparisonValue(prompt) {
       } : void 0
     })),
     runtime_request: prompt.runtime_request,
-    blockers: (prompt.blockers ?? []).map((blocker) => ({
+    blockers: blockers.map((blocker) => ({
       code: blocker.code,
       ref: blocker.ref
     }))
   };
 }
+function normalizedContentUnitPrompt(value) {
+  const record = recordField4(value);
+  if (!record) return void 0;
+  if (record.schema !== "movscript.content_unit_prompt.v1" && record.schema !== "movscript.content_unit_generation_prompt_snapshot.v1") return void 0;
+  if (!Array.isArray(record.refs)) return void 0;
+  if (!recordField4(record.runtime_request)) return void 0;
+  return record;
+}
 function normalizedEditPrompt(value) {
   const record = recordField4(value);
   if (!record) return void 0;
   return pruneUndefined15({
-    text: stringField12(record.text),
-    negative_text: stringField12(record.negative_text),
-    notes: stringField12(record.notes),
-    structured: isRecord20(record.structured) ? record.structured : void 0
+    text: stringField11(record.text),
+    negative_text: stringField11(record.negative_text),
+    notes: stringField11(record.notes),
+    structured: isRecord19(record.structured) ? record.structured : void 0
   });
 }
 function capabilityForOutputKind(outputKind) {
@@ -30264,7 +30387,7 @@ function metadataForOutputKind(outputKind, modelIntent, styleReferenceResourceId
   if (styleReferenceResourceIds.length > 0) metadata.style_reference_resource_ids = styleReferenceResourceIds;
   return Object.keys(metadata).length > 0 ? metadata : void 0;
 }
-function isDefined3(value) {
+function isDefined4(value) {
   return value !== void 0;
 }
 function pruneUndefined15(value) {
@@ -30327,7 +30450,7 @@ function selectionValidityFor(index, contentUnit, currentPrompt) {
   const stalePolicy2 = selection?.stale_policy === "accept_stale" ? "accept_stale" : "strict";
   const selectedCandidateId = idField9(selection?.candidate_id);
   const selectedResourceId2 = resourceIdField4(selection?.resource_id);
-  const candidate = selectedCandidateId === void 0 ? void 0 : readContentUnitCandidate2(index, entityDir4(contentUnit.path), selectedCandidateId);
+  const candidate = selectedCandidateId === void 0 ? void 0 : readContentUnitCandidate(index, entityDir4(contentUnit.path), selectedCandidateId);
   const candidatePromptRecord = recordField22(candidate?.prompt_snapshot);
   const candidatePrompt = isNormalizedContentUnitPrompt(candidatePromptRecord) ? candidatePromptRecord : void 0;
   const staleReasons = selection ? staleReasonsFor(currentPrompt, {
@@ -30343,17 +30466,9 @@ function selectionValidityFor(index, contentUnit, currentPrompt) {
     ...selectedResourceId2 !== void 0 ? { resource_id: selectedResourceId2 } : {},
     stale: staleReasons.length > 0,
     stale_policy: stalePolicy2,
-    reason: stringField12(selection?.reason),
+    reason: stringField11(selection?.reason),
     ...staleReasons.length > 0 ? { stale_reasons: staleReasons } : {}
   };
-}
-function readContentUnitCandidate2(index, contentUnitRef, candidateId) {
-  return index.documents.find((document) => {
-    if (!document.path.startsWith(`${contentUnitRef}/candidates/`)) return false;
-    if (!document.path.endsWith("/content_candidate.json")) return false;
-    if (!recordField22(document.data)) return false;
-    return String(document.data.id ?? "") === String(candidateId);
-  })?.data;
 }
 function staleReasonsFor(currentPrompt, input) {
   if (input.candidateId !== void 0 && !input.candidate) return ["candidate_missing"];
@@ -30601,13 +30716,13 @@ function contentUnitsForSceneMoment(index, sceneMoment, expressionUnits) {
   const sceneMomentDir = entityDir4(sceneMoment.path);
   const expressions = expressionUnits.filter((expressionUnit) => entityDir4(expressionUnit.path).startsWith(`${sceneMomentDir}/expression_units/`));
   return queryMovScriptWorkspaceEntities(index, { entityKind: "content_unit" }).filter((contentUnit) => {
-    const targetKind = stringField12(contentUnit.record.target_kind);
-    const targetRef = stringField12(contentUnit.record.target_ref);
+    const targetKind = stringField11(contentUnit.record.target_kind);
+    const targetRef = stringField11(contentUnit.record.target_ref);
     if (targetKind === "scene_moment" && refMatches(sceneMoment, targetRef)) return true;
     if (String(contentUnit.record.content_unit_type ?? "") === "scene_moment_ref" && refMatches(sceneMoment, contentUnit.record.scene_moment_ref)) return true;
     if (String(contentUnit.record.content_unit_type ?? "") === "scence_moment_ref" && refMatches(sceneMoment, contentUnit.record.scene_moment_ref ?? contentUnit.record.scence_moment_ref)) return true;
     if (targetKind === "expression_unit" || String(contentUnit.record.content_unit_type ?? "") === "expression_unit_ref") {
-      const expressionRef = targetRef ?? stringField12(contentUnit.record.expression_unit_ref);
+      const expressionRef = targetRef ?? stringField11(contentUnit.record.expression_unit_ref);
       return expressions.some((expressionUnit) => refMatches(expressionUnit, expressionRef));
     }
     return false;
@@ -30618,8 +30733,8 @@ function productionForSceneMoment(index, sceneMoment) {
   return queryMovScriptWorkspaceEntities(index, { entityKind: "production" }).find((entity) => sameEntityRef(entity.id, productionId, "production") || entityDir4(entity.path) === `productions/${productionId}`);
 }
 function trackItemFor(contentUnit, artifact, sceneMoment, expressionByRef, fallbackOrder) {
-  const targetKind = stringField12(contentUnit.record.target_kind) ?? primaryTargetKind(contentUnit);
-  const targetRef = stringField12(contentUnit.record.target_ref) ?? primaryTargetRef(contentUnit) ?? entityDir4(sceneMoment.path);
+  const targetKind = stringField11(contentUnit.record.target_kind) ?? primaryTargetKind(contentUnit);
+  const targetRef = stringField11(contentUnit.record.target_ref) ?? primaryTargetRef(contentUnit) ?? entityDir4(sceneMoment.path);
   const expressionUnit = targetKind === "expression_unit" ? expressionByRef.get(targetRef) ?? expressionByRef.get(lastPathSegment5(targetRef) ?? "") : void 0;
   return {
     id: `edit_item_${String(contentUnit.id ?? fallbackOrder)}`,
@@ -30629,14 +30744,14 @@ function trackItemFor(contentUnit, artifact, sceneMoment, expressionByRef, fallb
     target_kind: targetKind,
     target_ref: targetRef,
     ...expressionUnit ? { expression_unit_ref: entityDir4(expressionUnit.path) } : {},
-    ...expressionUnit ? { expression_modality: stringField12(expressionUnit.record.modality) ?? legacyExpressionModality(expressionUnit) } : {},
-    ...expressionUnit ? { expression_role: stringField12(expressionUnit.record.role) ?? stringField12(expressionUnit.record.expression_kind) } : {},
+    ...expressionUnit ? { expression_modality: stringField11(expressionUnit.record.modality) ?? legacyExpressionModality(expressionUnit) } : {},
+    ...expressionUnit ? { expression_role: stringField11(expressionUnit.record.role) ?? stringField11(expressionUnit.record.expression_kind) } : {},
     ...artifact.selectionValidity.candidate_id !== void 0 ? { candidate_id: artifact.selectionValidity.candidate_id } : {},
     ...artifact.selectionValidity.resource_id !== void 0 ? { resource_id: artifact.selectionValidity.resource_id } : {},
     selected: artifact.selectionValidity.selected,
     stale: artifact.selectionValidity.stale,
     timing_intent: recordField4(expressionUnit?.record.timing_intent),
-    generation_role: stringField12(contentUnit.record.generation_role),
+    generation_role: stringField11(contentUnit.record.generation_role),
     order: numberField23(contentUnit.record.order) ?? numberField23(expressionUnit?.record.order) ?? fallbackOrder
   };
 }
@@ -30663,10 +30778,10 @@ function primaryTargetKind(contentUnit) {
   return "metadata";
 }
 function primaryTargetRef(contentUnit) {
-  return stringField12(contentUnit.record.expression_unit_ref) ?? stringField12(contentUnit.record.scene_moment_ref) ?? stringField12(contentUnit.record.scence_moment_ref) ?? stringField12(contentUnit.record.content_unit_ref);
+  return stringField11(contentUnit.record.expression_unit_ref) ?? stringField11(contentUnit.record.scene_moment_ref) ?? stringField11(contentUnit.record.scence_moment_ref) ?? stringField11(contentUnit.record.content_unit_ref);
 }
 function legacyExpressionModality(expressionUnit) {
-  const kind = stringField12(expressionUnit.record.expression_kind);
+  const kind = stringField11(expressionUnit.record.expression_kind);
   if (kind === "dialogue" || kind === "narration") return "verbal";
   if (kind === "subtitle" || kind === "caption") return "text";
   if (kind === "visual_note" || kind === "action") return "visual";
@@ -31683,7 +31798,7 @@ function businessImpactLabel2(businessKind) {
   return labels[businessKind];
 }
 
-// ../../packages/interpreter/dist/chunk-OGOQDKYG.js
+// ../../packages/interpreter/dist/chunk-3ORY4ZBX.js
 async function reviewMovScriptWorkspace(input) {
   const now = input.now ?? /* @__PURE__ */ new Date();
   const sourceOptions = workspaceSourceOptions(input);
@@ -32026,7 +32141,7 @@ async function buildContentUnitBackendPrompt(input) {
       });
       continue;
     }
-    const resourceId = selectedResourceId(decision);
+    const resourceId = promptInputResourceId(decision);
     if (resourceId === void 0) {
       const blocker = {
         code: "upstream_resource_missing",
@@ -32244,7 +32359,15 @@ function blockerForDecision(ref, upstream, upstreamRef, decision) {
   }
   const selection = selectedDecision(decision);
   if (!selection) {
-    return {
+    const candidates = Array.isArray(decision.candidates) ? decision.candidates : [];
+    if (latestResourceCandidate(candidates)) return void 0;
+    return candidates.length > 0 ? {
+      code: "upstream_resource_missing",
+      ref: ref.raw,
+      content_unit_ref: upstreamRef,
+      content_unit_id: upstream.id,
+      message: `prompt input latest backend candidate has no resource_id: ${ref.raw}`
+    } : {
       code: "upstream_selection_missing",
       ref: ref.raw,
       content_unit_ref: upstreamRef,
@@ -32274,7 +32397,7 @@ function blockerForDecision(ref, upstream, upstreamRef, decision) {
       };
     }
   }
-  if (selectedResourceId(decision) === void 0) {
+  if (promptInputResourceId(decision) === void 0) {
     return {
       code: "upstream_resource_missing",
       ref: ref.raw,
@@ -32374,6 +32497,10 @@ function selectedDecision(decision) {
   const selection = recordField5(decision.selection);
   return selection && Object.keys(selection).length > 0 ? selection : void 0;
 }
+function promptInputResourceId(decision) {
+  if (decision && selectedDecision(decision)) return selectedResourceId(decision);
+  return firstCandidateResourceId2(latestResourceCandidate(decision?.candidates));
+}
 function selectedResourceId(decision) {
   const selection = decision ? selectedDecision(decision) : void 0;
   const direct = resourceIdField5(selection?.resource_id);
@@ -32386,6 +32513,25 @@ function selectedResourceId(decision) {
 function firstCandidateResourceId2(candidate) {
   const output = arrayField7(candidate?.outputs).filter(isRecord26)[0];
   return resourceIdField5(output?.resource_id);
+}
+function latestResourceCandidate(candidates) {
+  const resourceCandidates = Array.isArray(candidates) ? candidates.filter((candidate) => firstCandidateResourceId2(candidate) !== void 0) : [];
+  if (resourceCandidates.length === 0) return void 0;
+  const withTimestamp = resourceCandidates.map((candidate, index) => ({
+    candidate,
+    index,
+    timestamp: candidateTimestamp(candidate)
+  }));
+  return withTimestamp.sort((left, right) => {
+    if (left.timestamp !== right.timestamp) return right.timestamp - left.timestamp;
+    return right.index - left.index;
+  })[0]?.candidate;
+}
+function candidateTimestamp(candidate) {
+  const raw = stringField13(candidate.updated_at ?? candidate.updatedAt ?? candidate.created_at ?? candidate.createdAt);
+  if (!raw) return 0;
+  const parsed = Date.parse(raw);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 function compilePromptText(text, refs, field) {
   if (!text) return void 0;
@@ -40166,7 +40312,7 @@ async function handleJSONRPC(req, httpRequestId) {
 var MCP_DEBUG2 = process.env.MOVSCRIPT_MCP_DEBUG === "1";
 
 // ../../packages/mcp-host/dist/stdio.js
-var DEFAULT_LOCAL_BACKEND = "http://localhost:8765";
+var DEFAULT_LOCAL_BACKEND = "http://localhost:8766";
 var MCP_HOST_DEBUG = process.env.MOVSCRIPT_MCP_HOST_DEBUG === "1";
 var LOCAL_NODE_CONTROL_SERVICE = LOCAL_RUNTIME_DAEMON_CONTROL_SERVICE;
 var LOCAL_NODE_GATEWAY_SERVICE = LOCAL_RUNTIME_DAEMON_GATEWAY_SERVICE;
@@ -40200,7 +40346,7 @@ var hostTools = [
     inputSchema: objectSchema3({
       backendMode: { type: "string", enum: ["local", "cloud"], description: "Preferred backend mode." },
       backend_mode: { type: "string", enum: ["local", "cloud"], description: "Alias for backendMode." },
-      backendBaseURL: { type: "string", description: "Backend base URL such as http://localhost:8765 or https://api.example." },
+      backendBaseURL: { type: "string", description: "Backend base URL such as http://localhost:8766 or https://api.example." },
       backend_base_url: { type: "string", description: "Alias for backendBaseURL." },
       token: { type: "string", description: "Bearer token for the selected backend. Prefer environment variables or movcli auth for persistent secrets." },
       projectDir: { type: "string", description: "Project source directory to use as default workspace/project context." },
@@ -40368,10 +40514,13 @@ async function runtimeStatus(args = {}) {
   const homeDir = resolveRuntimeHomeArg(args);
   const runtimeHome = readRuntimeHomeSnapshot(homeDir);
   const timeoutMs = numberValue5(args.timeoutMs ?? args.timeout_ms) ?? 750;
+  const homeGatewayEndpoint = endpointURL4(
+    findRuntimeEndpoint(runtimeHome, LOCAL_NODE_GATEWAY_SERVICE) ?? findRuntimeService(runtimeHome, LOCAL_NODE_GATEWAY_SERVICE)?.endpoint
+  );
   const homeDataEndpoint = endpointURL4(
     findRuntimeEndpoint(runtimeHome, "movscript.data.service") ?? findRuntimeService(runtimeHome, "movscript.data.service")?.endpoint
   );
-  const localBackendURL = normalizeBaseURL(stringValue11(args.localBackendURL ?? args.local_backend_url) || homeDataEndpoint || DEFAULT_LOCAL_BACKEND);
+  const localBackendURL = normalizeBaseURL(stringValue11(args.localBackendURL ?? args.local_backend_url) || homeGatewayEndpoint || homeDataEndpoint || DEFAULT_LOCAL_BACKEND);
   const configuredSession = resolveMovScriptBackendSession({
     workspaceDir,
     server: process.env.MOVSCRIPT_DATA_SERVICE_URL,
@@ -40430,7 +40579,9 @@ async function runtimeStatus(args = {}) {
       local: {
         available: localAvailable,
         baseURL: localBackendURL,
-        discoveredFromHome: Boolean(homeDataEndpoint),
+        discoveredFromHome: Boolean(homeGatewayEndpoint || homeDataEndpoint),
+        ...homeGatewayEndpoint ? { gatewayBaseURL: homeGatewayEndpoint } : {},
+        ...homeDataEndpoint ? { dataServiceBaseURL: homeDataEndpoint } : {},
         authenticated: configuredIsLocal && Boolean(configuredSession.token),
         ...localProbe.error ? { error: localProbe.error } : {}
       },
@@ -40750,12 +40901,16 @@ function resolveRuntimeHomeArg(args) {
 function bindBackendRuntimeForCoreTools(args) {
   const homeDir = resolveRuntimeHomeArg(args);
   const runtimeHome = readRuntimeHomeSnapshot(homeDir);
+  const gatewayEndpoint = endpointURL4(
+    findRuntimeEndpoint(runtimeHome, LOCAL_NODE_GATEWAY_SERVICE) ?? findRuntimeService(runtimeHome, LOCAL_NODE_GATEWAY_SERVICE)?.endpoint
+  );
   const dataEndpoint = endpointURL4(
     findRuntimeEndpoint(runtimeHome, "movscript.data.service") ?? findRuntimeService(runtimeHome, "movscript.data.service")?.endpoint
   );
-  if (dataEndpoint) setMovScriptBackendAPIBaseURL(dataEndpoint);
-  if (dataEndpoint && args.mcp_base_url === void 0 && args.mcpBaseURL === void 0) {
-    args.mcp_base_url = dataEndpoint;
+  const backendEndpoint = gatewayEndpoint ?? dataEndpoint;
+  if (backendEndpoint) setMovScriptBackendAPIBaseURL(backendEndpoint);
+  if (backendEndpoint && args.mcp_base_url === void 0 && args.mcpBaseURL === void 0) {
+    args.mcp_base_url = backendEndpoint;
   }
   const agentSurfaceEndpoint = endpointURL4(
     findRuntimeEndpoint(runtimeHome, LOCAL_NODE_GATEWAY_SERVICE) ?? findRuntimeService(runtimeHome, LOCAL_NODE_GATEWAY_SERVICE)?.endpoint ?? findRuntimeEndpoint(runtimeHome, LOCAL_SURFACE_HOST_SERVICE) ?? findRuntimeService(runtimeHome, LOCAL_SURFACE_HOST_SERVICE)?.endpoint
@@ -41317,7 +41472,7 @@ function resolveDataServiceBaseURL(options) {
   const runtimeEndpoint = resolveRuntimeDataServiceBaseURL(options);
   if (runtimeEndpoint) return runtimeEndpoint;
   return normalizeBaseURL2(
-    options.dataServiceBaseURL ?? options.env?.MOVSCRIPT_DATA_SERVICE_URL ?? options.env?.MOVSCRIPT_DATA_SERVICE_BASE_URL ?? options.env?.MOVSCRIPT_API_BASE_URL ?? process.env.MOVSCRIPT_DATA_SERVICE_URL ?? process.env.MOVSCRIPT_DATA_SERVICE_BASE_URL ?? process.env.MOVSCRIPT_API_BASE_URL ?? "http://127.0.0.1:8765",
+    options.dataServiceBaseURL ?? options.env?.MOVSCRIPT_DATA_SERVICE_URL ?? options.env?.MOVSCRIPT_DATA_SERVICE_BASE_URL ?? options.env?.MOVSCRIPT_API_BASE_URL ?? process.env.MOVSCRIPT_DATA_SERVICE_URL ?? process.env.MOVSCRIPT_DATA_SERVICE_BASE_URL ?? process.env.MOVSCRIPT_API_BASE_URL ?? "http://127.0.0.1:8766",
     "data service base URL"
   );
 }
@@ -43880,7 +44035,7 @@ var MAX_CLIP_DURATION_MS = 10 * 60 * 1e3;
 var MAX_CLIP_SOURCE_BYTES = 1024 * 1024 * 1024;
 var MAX_TIMELINE_EXPORT_DURATION_MS = 30 * 60 * 1e3;
 
-// ../../packages/core/dist/chunk-ZVHSHL7P.js
+// ../../packages/core/dist/chunk-35RKRS23.js
 var AGENT_RUN_PROFILE_PRESETS = [
   {
     id: "read-only",
@@ -43916,6 +44071,7 @@ var DEFAULT_AGENT_RUN_PROFILE_PRESET = AGENT_RUN_PROFILE_PRESETS.find((preset) =
 
 // ../../services/project-service/src/server.mjs
 var DATA_SERVICE_NAME = "movscript.data.service";
+var LOCAL_NODE_GATEWAY_SERVICE2 = "movscript.local-node.gateway";
 var PROJECT_SERVICE_CAPABILITIES = Object.freeze([
   "project-read-model",
   "project-lifecycle",
@@ -44630,7 +44786,7 @@ function inferredDataServiceBaseURL(body) {
   if (explicit) return explicit;
   const homeDir = stringValue15(body.movScriptHomeDir ?? body.movscript_home_dir ?? body.workspaceDir ?? body.workspace_dir) ?? resolveMovScriptHomeDir({ env: process.env });
   const snapshot = readRuntimeHomeSnapshot(homeDir);
-  const endpoint = findRuntimeEndpoint(snapshot, DATA_SERVICE_NAME) ?? findRuntimeService(snapshot, DATA_SERVICE_NAME)?.endpoint;
+  const endpoint = findRuntimeEndpoint(snapshot, LOCAL_NODE_GATEWAY_SERVICE2) ?? findRuntimeService(snapshot, LOCAL_NODE_GATEWAY_SERVICE2)?.endpoint ?? findRuntimeEndpoint(snapshot, DATA_SERVICE_NAME) ?? findRuntimeService(snapshot, DATA_SERVICE_NAME)?.endpoint;
   return normalizeHTTPBaseURL(endpointURL6(endpoint));
 }
 function endpointURL6(endpoint) {
@@ -44740,10 +44896,9 @@ function waitForShutdown4(runtime) {
 // src/agent-mcp.ts
 var LOCAL_NODE_APP_ID = LOCAL_RUNTIME_DAEMON_APP_ID;
 var LOCAL_NODE_CONTROL_SERVICE2 = LOCAL_RUNTIME_DAEMON_CONTROL_SERVICE;
-var LOCAL_NODE_GATEWAY_SERVICE2 = LOCAL_RUNTIME_DAEMON_GATEWAY_SERVICE;
+var LOCAL_NODE_GATEWAY_SERVICE3 = LOCAL_RUNTIME_DAEMON_GATEWAY_SERVICE;
 var PROJECT_SERVICE_NAME2 = "movscript.project.service";
 var CANVAS_SERVICE_NAME2 = "movscript.canvas.service";
-var DATA_SERVICE_NAME2 = "movscript.data.service";
 var DEFAULT_LOCAL_NODE_GATEWAY_PORT = 8766;
 var LOCAL_PROJECT_SERVICE_PROXY_ROUTES = /* @__PURE__ */ new Map([
   ["/local-api/project/read-model", "/v1/project/read-model"],
@@ -45178,7 +45333,7 @@ function createProgramAdapters(options = {}) {
       env: (context, endpoint) => ({
         MOVSCRIPT_CANVAS_SERVICE_HOST: "127.0.0.1",
         MOVSCRIPT_CANVAS_SERVICE_PORT: String(endpoint.port),
-        MOVSCRIPT_DATA_SERVICE_URL: resolveDataServiceURL(context.homeDir) ?? "http://127.0.0.1:8765"
+        MOVSCRIPT_DATA_SERVICE_URL: resolveDataServiceURL(context.homeDir) ?? resolveGatewayURL(context.homeDir) ?? "http://127.0.0.1:8766"
       })
     }),
     createNodeServiceProgramAdapter({
@@ -45209,10 +45364,10 @@ function writeLocalNodeGatewayRuntimeRecords(context, state, port) {
   const instanceId = `local-node-gateway-${process.pid}`;
   const endpoint = {
     ...httpEndpoint(context, port),
-    serviceName: LOCAL_NODE_GATEWAY_SERVICE2
+    serviceName: LOCAL_NODE_GATEWAY_SERVICE3
   };
   writeRuntimeServiceRecord(context.homeDir, {
-    serviceName: LOCAL_NODE_GATEWAY_SERVICE2,
+    serviceName: LOCAL_NODE_GATEWAY_SERVICE3,
     instanceId,
     ownerApplicationId: LOCAL_NODE_APP_ID,
     profile: "local",
@@ -45257,7 +45412,7 @@ function createLocalNodeControlProgramAdapter(state) {
         server: runtime.server,
         metadata: {
           mode: "local-daemon",
-          gatewayServiceName: LOCAL_NODE_GATEWAY_SERVICE2,
+          gatewayServiceName: LOCAL_NODE_GATEWAY_SERVICE3,
           dataPlane: state.dataPlane,
           idleTimeoutMs: state.idleTimeoutMs,
           ...state.pluginIdentity
@@ -45535,9 +45690,17 @@ async function startLocalNodeControlServer(state, staticRoot) {
   const server = createServer5(async (request, response) => {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
     const send = (status, payload) => {
-      response.writeHead(status, { "content-type": "application/json; charset=utf-8" });
+      response.writeHead(status, {
+        ...corsHeadersForRequest(request),
+        "content-type": "application/json; charset=utf-8"
+      });
       response.end(JSON.stringify(payload));
     };
+    if (request.method === "OPTIONS") {
+      response.writeHead(204, corsHeadersForRequest(request));
+      response.end();
+      return;
+    }
     if (request.method === "GET" && url.pathname === "/health") {
       state.lastActivityAt = /* @__PURE__ */ new Date();
       send(200, { status: "ok", serviceName: LOCAL_NODE_CONTROL_SERVICE2, pid: process.pid });
@@ -45619,7 +45782,10 @@ async function startStaticHTTPServer(staticRoot, homeDir) {
   const server = createServer5(async (request, response) => {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
     if (request.method === "GET" && url.pathname === "/health") {
-      response.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+      response.writeHead(200, {
+        ...corsHeadersForRequest(request),
+        "content-type": "application/json; charset=utf-8"
+      });
       response.end(JSON.stringify({ status: "ok", serviceName: localSurfaceHostProgramManifest.serviceName }));
       return;
     }
@@ -45644,10 +45810,13 @@ async function startStaticHTTPServer(staticRoot, homeDir) {
   return { server, port };
 }
 async function handleLocalSurfaceGatewayRequest(staticRoot, homeDir, request, response, url) {
-  if (request.method === "OPTIONS" && isGatewayAPIPath(url.pathname)) {
-    response.writeHead(204, corsHeadersForRequest(request));
-    response.end();
-    return true;
+  if (isGatewayAPIPath(url.pathname)) {
+    applyCORSHeaders(response, request);
+    if (request.method === "OPTIONS") {
+      response.writeHead(204);
+      response.end();
+      return true;
+    }
   }
   if (LOCAL_PROJECT_SERVICE_PROXY_ROUTES.has(url.pathname)) {
     await proxyProjectServiceRequest(homeDir, request, response, url);
@@ -45680,7 +45849,7 @@ async function handleLocalSurfaceGatewayRequest(staticRoot, homeDir, request, re
   return false;
 }
 function isGatewayAPIPath(pathname) {
-  return pathname === "/api/v1" || pathname.startsWith("/api/v1/") || pathname === "/local-api/data" || pathname.startsWith("/local-api/data/") || pathname === "/local-api/canvas" || pathname.startsWith("/local-api/canvas/") || pathname.startsWith("/local-api/project/");
+  return pathname === "/api/v1" || pathname.startsWith("/api/v1/") || pathname === "/local-api/data" || pathname.startsWith("/local-api/data/") || pathname === "/local-api/canvas" || pathname.startsWith("/local-api/canvas/") || pathname === "/local-api/editing" || pathname.startsWith("/local-api/editing/") || pathname.startsWith("/local-api/project/");
 }
 async function serveLocalSurfaceStaticFile(staticRoot, request, response, url) {
   const filePath = resolveStaticFilePath(staticRoot, url.pathname);
@@ -45816,12 +45985,11 @@ async function proxyCanvasServiceRequest(homeDir, request, response, url) {
   }
 }
 async function proxyDataServiceRequest2(homeDir, request, response, url, localPrefix) {
-  const endpoint = findRuntimeEndpoint(readRuntimeHomeSnapshot(homeDir), DATA_SERVICE_NAME2);
-  const baseURL = endpointURL7(endpoint);
+  const baseURL = resolveDataServiceURL(homeDir);
   if (!baseURL) {
     writeLocalSurfaceJSON(response, 503, {
       error: "data_service_unavailable",
-      message: "Data Service endpoint was not found in MovScript runtime records."
+      message: "Data Service endpoint was not found in MovScript runtime records or MOVSCRIPT_DATA_SERVICE_URL."
     });
     return;
   }
@@ -45899,6 +46067,11 @@ function corsHeadersForRequest(request) {
     "access-control-max-age": "600",
     vary: "Origin"
   };
+}
+function applyCORSHeaders(response, request) {
+  for (const [key, value] of Object.entries(corsHeadersForRequest(request))) {
+    response.setHeader(key, value);
+  }
 }
 function isAllowedLocalGatewayOrigin(origin) {
   if (!origin) return false;
@@ -46028,6 +46201,9 @@ function endpointURL7(endpoint) {
 }
 function resolveDataServiceURL(homeDir) {
   return process.env.MOVSCRIPT_DATA_SERVICE_URL?.trim() || endpointURL7(findRuntimeEndpoint(readRuntimeHomeSnapshot(homeDir), "movscript.data.service"));
+}
+function resolveGatewayURL(homeDir) {
+  return endpointURL7(findRuntimeEndpoint(readRuntimeHomeSnapshot(homeDir), LOCAL_NODE_GATEWAY_SERVICE3));
 }
 var localNodeApplicationManifest = {
   schema: MOVSCRIPT_APPLICATION_MANIFEST_SCHEMA,

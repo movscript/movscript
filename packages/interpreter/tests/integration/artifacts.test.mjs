@@ -401,6 +401,45 @@ test('content unit artifacts derive runtime panels from edit_prompt plus adapter
   assert.ok(video?.dependencyReport.blockers?.some((blocker) => blocker.code === 'upstream_selection_missing'))
 })
 
+test('content unit stale checks tolerate legacy candidate prompt snapshots', () => {
+  const documents = sourceDocuments()
+  documents.push({
+    path: '.movscript/decisions/content_units/cu_wet_hair_ref/decision_context.json',
+    data: {
+      schema: 'movscript.decision_context.v1',
+      target_kind: 'content_unit',
+      target_ref: 'content_units/cu_wet_hair_ref',
+      candidates: [{
+        schema: 'movscript.content_candidate.v1',
+        id: 'candidate_wet_hair_legacy',
+        content_unit_ref: 'content_units/cu_wet_hair_ref',
+        outputs: [{ kind: 'image', resource_id: 101, artifact_ref: 'resource_wet_hair_legacy' }],
+        prompt_snapshot: { text: 'Legacy generation prompt snapshot.' },
+      }],
+      selection: {
+        candidate_id: 'candidate_wet_hair_legacy',
+        resource_id: 101,
+        artifact_ref: 'resource_wet_hair_legacy',
+        stale_policy: 'strict',
+      },
+    },
+  })
+  const index = deriveMovScriptWorkspaceDomainIndex(documents)
+
+  const artifacts = deriveMovScriptWorkspaceArtifacts({
+    index,
+    changedEntities: [],
+    interpretationId: 'interpret_test',
+    createdAt: '2026-06-07T00:00:00.000Z',
+  })
+  const video = artifacts.contentUnitArtifacts.find((artifact) => artifact.contentUnitId === 'k41m')
+  const assetRef = video?.generationPrompt.refs.find((ref) => ref.kind === 'asset' && ref.id === 'wet_hair')
+
+  assert.equal(assetRef?.selection?.candidate_id, 'candidate_wet_hair_legacy')
+  assert.equal(assetRef?.selection?.stale, true)
+  assert.ok(video?.dependencyReport.blockers?.some((blocker) => blocker.code === 'upstream_selection_stale'))
+})
+
 test('content unit artifacts track double-colon asset prompt references', () => {
   const documents = sourceDocuments().map((document) => {
     if (document.path !== 'content_units/k41m/content_unit.json') return document

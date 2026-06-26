@@ -101,6 +101,69 @@ test('builds backend prompt by replacing selected upstream refs with resource to
   assert.deepEqual(result.prompt.replacements.map((replacement) => replacement.token), ['@[resource:123]', '@[resource:123]'])
 })
 
+test('builds backend prompt from latest resource candidate when upstream has no selection', async () => {
+  const index = indexFromDocuments([
+    document('settings/hero/states/rain/assets/wet_hair/asset.json', {
+      schema: 'movscript.asset.v1',
+      kind: 'asset',
+      id: 'wet_hair',
+      title: 'Wet hair',
+      slot: 'hair',
+    }),
+    document('content_units/cu_wet_hair_ref/content_unit.json', {
+      schema: 'movscript.content_unit.v1',
+      kind: 'content_unit',
+      id: 'cu_wet_hair_ref',
+      title: 'Wet hair reference',
+      content_unit_type: 'asset_ref',
+      output_kind: 'image',
+      asset_ref: 'wet_hair',
+      edit_prompt: { text: 'Generate wet hair reference.' },
+    }),
+    document('content_units/cu_phone_video/content_unit.json', {
+      schema: 'movscript.content_unit.v1',
+      kind: 'content_unit',
+      id: 'cu_phone_video',
+      title: 'Phone video',
+      content_unit_type: 'expression_unit_ref',
+      output_kind: 'video',
+      expression_unit_ref: 'phone',
+      edit_prompt: { text: 'Use {{asset::wet_hair}} as continuity reference.' },
+    }),
+  ])
+
+  const result = await buildContentUnitBackendPromptById({
+    index,
+    contentUnitId: 'cu_phone_video',
+    decisionProvider: decisionProvider({
+      cu_wet_hair_ref: {
+        candidates: [
+          {
+            id: 'candidate_old',
+            created_at: '2026-06-01T00:00:00.000Z',
+            outputs: [{ kind: 'image', resource_id: 101 }],
+          },
+          {
+            id: 'candidate_pending',
+            created_at: '2026-06-03T00:00:00.000Z',
+            outputs: [],
+          },
+          {
+            id: 'candidate_new',
+            created_at: '2026-06-02T00:00:00.000Z',
+            outputs: [{ kind: 'image', resource_id: 202 }],
+          },
+        ],
+      },
+    }),
+  })
+
+  assert.equal(result.ok, true)
+  assert.equal(result.prompt.text, 'Use @[resource:202] as continuity reference.')
+  assert.deepEqual(result.prompt.resource_ids, [202])
+  assert.equal(result.prompt.refs[0]?.resource_id, 202)
+})
+
 test('builds backend prompt from direct candidate and resource refs', async () => {
   const index = indexFromDocuments([
     document('productions/p1/scene_moments/phone/expression_units/phone/expression_unit.json', {
@@ -394,7 +457,10 @@ test('returns a blocker when backend selection exists without resource id', asyn
     contentUnitId: 'cu_phone_video',
     decisionProvider: decisionProvider({
       cu_wet_hair_ref: {
-        candidates: [{ id: 'candidate_a', outputs: [] }],
+        candidates: [
+          { id: 'candidate_a', outputs: [] },
+          { id: 'candidate_b', outputs: [{ kind: 'image', resource_id: 456 }] },
+        ],
         selection: { candidate_id: 'candidate_a' },
       },
     }),

@@ -10,7 +10,7 @@ import { AgentChatImagePreviewGrid, AgentChatMediaPreviewGrid } from '@/features
 import { AgentChatThreadItemView } from '@/features/agent/components/agent-chat-items/AgentChatThreadItemView'
 
 test('AgentChatThreadItemView switches over every neutral item type', () => {
-  const itemProtocol = readFileSync(resolve('../../packages/core/src/agent/chat/agentChatThreadItems.ts'), 'utf8')
+  const itemProtocol = readFileSync(resolve('../../packages/agent-chat/src/chat/agentChatThreadItems.ts'), 'utf8')
   const itemView = readFileSync(resolve('src/features/agent/components/agent-chat-items/AgentChatThreadItemView.tsx'), 'utf8')
   const itemTypeAlias = itemProtocol.match(/export type AgentChatThreadItem =([\s\S]*?)\n\nexport function agentChatTextInput/)
   assert.ok(itemTypeAlias)

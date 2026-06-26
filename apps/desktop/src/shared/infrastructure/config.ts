@@ -84,8 +84,18 @@ function readImportMetaEnv(): Record<string, string | undefined> {
 function normalizeRuntimeConfigSnapshot(snapshot: ElectronRuntimeConfig): ElectronRuntimeConfig {
   const apiBaseURL = normalizeAPIBaseURL(snapshot.apiBaseURL)
   const localAPIBaseURL = normalizeAPIBaseURL(snapshot.localAPIBaseURL)
+  const gatewayBaseURL = snapshot.gatewayBaseURL?.trim()
+    ? trimTrailingSlash(snapshot.gatewayBaseURL)
+    : undefined
+  const canvasServiceBaseURL = snapshot.canvasServiceBaseURL?.trim()
+    ? trimTrailingSlash(snapshot.canvasServiceBaseURL)
+    : undefined
   return {
     ...snapshot,
+    ...(gatewayBaseURL ? { gatewayBaseURL } : {}),
+    ...(snapshot.dataServiceBaseURL?.trim() ? {
+      dataServiceBaseURL: trimTrailingSlash(snapshot.dataServiceBaseURL),
+    } : {}),
     movScriptHomeDir: snapshot.movScriptHomeDir?.trim() || snapshot.workspaceDir.trim(),
     workspaceDir: snapshot.workspaceDir.trim(),
     apiBaseURL,
@@ -93,13 +103,13 @@ function normalizeRuntimeConfigSnapshot(snapshot: ElectronRuntimeConfig): Electr
     ...(snapshot.projectServiceBaseURL?.trim() ? {
       projectServiceBaseURL: trimTrailingSlash(snapshot.projectServiceBaseURL),
     } : {}),
-    ...(snapshot.canvasServiceBaseURL?.trim() ? {
-      canvasServiceBaseURL: trimTrailingSlash(snapshot.canvasServiceBaseURL),
-    } : {}),
+    ...(canvasServiceBaseURL ? { canvasServiceBaseURL } : {}),
     ...(snapshot.canvasServiceV1BaseURL?.trim() ? {
       canvasServiceV1BaseURL: trimTrailingSlash(snapshot.canvasServiceV1BaseURL),
-    } : snapshot.canvasServiceBaseURL?.trim() ? {
-      canvasServiceV1BaseURL: `${trimTrailingSlash(snapshot.canvasServiceBaseURL)}/v1`,
+    } : gatewayBaseURL ? {
+      canvasServiceV1BaseURL: `${gatewayBaseURL}/local-api`,
+    } : canvasServiceBaseURL ? {
+      canvasServiceV1BaseURL: `${canvasServiceBaseURL}/v1`,
     } : {}),
     localAPIBaseURL,
     providerRuntimeEnv: normalizeProviderRuntimeEnv(snapshot.providerRuntimeEnv),

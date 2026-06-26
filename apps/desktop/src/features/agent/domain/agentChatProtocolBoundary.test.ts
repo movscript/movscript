@@ -4,9 +4,9 @@ import { resolve } from 'node:path'
 import test from 'node:test'
 
 test('agent chat uses neutral protocol through Agent runtime boundaries', () => {
-  const uiProtocol = readSource('../../packages/core/src/agent/chat/agentChatProtocol.ts')
-  const neutralRuntime = readSource('../../packages/core/src/agent/chat/agentChatRuntime.ts')
-  const notificationDispatcher = readSource('../../packages/core/src/agent/chat/agentChatNotificationDispatcher.ts')
+  const uiProtocol = readSource('../../packages/agent-chat/src/chat/agentChatProtocol.ts')
+  const neutralRuntime = readSource('../../packages/agent-chat/src/chat/agentChatRuntime.ts')
+  const notificationDispatcher = readSource('../../packages/agent-chat/src/chat/agentChatNotificationDispatcher.ts')
   const dataSourceFactory = readSource('src/features/agent/application/agentChatDataSourceFactory.ts')
   const agentRuntimeDataSource = readSource('src/shared/infrastructure/agent-runtime/agentRuntimeChatDataSource.ts')
   const sdkRuntimeDataSource = readSource('src/shared/infrastructure/sdk-runtime/sdkRuntimeChatDataSource.ts')
@@ -163,8 +163,8 @@ test('agent chat uses neutral protocol through Agent runtime boundaries', () => 
   }
 })
 
-test('agent chat item rendering stays layered around neutral core items', () => {
-  const neutralItemProtocol = readSource('../../packages/core/src/agent/chat/agentChatThreadItems.ts')
+test('agent chat item rendering stays layered around neutral agent-chat items', () => {
+  const neutralItemProtocol = readSource('../../packages/agent-chat/src/chat/agentChatThreadItems.ts')
   const neutralItemView = readSource('src/features/agent/components/agent-chat-items/AgentChatThreadItemView.tsx')
   const neutralItemRenderers = [
     readSource('src/features/agent/components/agent-chat-items/AgentChatMessageItemRenderers.tsx'),
@@ -175,7 +175,7 @@ test('agent chat item rendering stays layered around neutral core items', () => 
 
   assert.match(neutralItemProtocol, /export type AgentChatThreadItem/)
   assert.match(neutralItemView, /assertNeverAgentChatThreadItem/)
-  assert.match(neutralItemRenderers, /from '@movscript\/core\/agent\/chat'/)
+  assert.match(neutralItemRenderers, /from '@movscript\/agent-chat'/)
   assert.doesNotMatch(neutralItemProtocol, /CodexThread|CodexTurn|CodexThreadItem|AgentRunStep/)
   assert.doesNotMatch(neutralItemView, /shared\/infrastructure\/app-server|codexAppServerProtocol|codexAgentChatThreadItems/)
   assert.doesNotMatch(neutralItemRenderers, /shared\/infrastructure\/app-server|codexAppServerProtocol|codexAgentChatThreadItems/)

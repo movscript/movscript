@@ -336,7 +336,7 @@ function resolveDataServiceBaseURL(options) {
       ?? process.env.MOVSCRIPT_DATA_SERVICE_URL
       ?? process.env.MOVSCRIPT_DATA_SERVICE_BASE_URL
       ?? process.env.MOVSCRIPT_API_BASE_URL
-      ?? 'http://127.0.0.1:8765',
+      ?? 'http://127.0.0.1:8766',
     'data service base URL',
   )
 }

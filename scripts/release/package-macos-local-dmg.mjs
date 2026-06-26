@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process'
-import { createRequire } from 'node:module'
-import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
 
@@ -11,7 +10,13 @@ import {
   parseDesktopArchArg,
   sha256File,
 } from './release-common.mjs'
-import { prepareDesktopPackage } from './release-workflow.mjs'
+import {
+  desktopPackageEnv,
+  desktopStagedBuilderArgs,
+  patchDmgBuilderAPFSAliasCompatibility,
+  prepareDesktopPackage,
+  stageDesktopPackageProject,
+} from './release-workflow.mjs'
 import { signMacOSApp } from './sign-macos-app.mjs'
 import { verifyPackageResources } from './verify-package-resources.mjs'
 
@@ -44,6 +49,7 @@ export async function runPackageMacOSLocalDMGCli(root = repoRoot, env = process.
     const desktopRoot = resolve(root, 'apps/desktop')
     const releaseDir = resolve(desktopRoot, 'release')
     const appDir = macAppDirForArch(root, arch)
+    const packageEnv = desktopPackageEnv(env, 'unsigned')
 
     log('[package-macos-local-dmg] Verify Electron package resource contract')
     const resourceResult = verifyPackageResources(root)
@@ -76,10 +82,19 @@ export async function runPackageMacOSLocalDMGCli(root = repoRoot, env = process.
 
     runStep('Build desktop bundle', 'pnpm', ['--filter', '@movscript/desktop', 'build'], { cwd: root })
 
-    rmSync(appDir, { recursive: true, force: true })
+    const { stageDir } = stageDesktopPackageProject(root, {
+      env: packageEnv,
+      log,
+      pnpm: 'pnpm',
+      spawn: spawnSync,
+    })
+    const stagedBuilderArgs = desktopStagedBuilderArgs(root)
+
     runStep('Build unpacked macOS app', 'pnpm', [
       'exec',
       'electron-builder',
+      '--projectDir',
+      stageDir,
       '--mac',
       'dir',
       `--${arch}`,
@@ -87,7 +102,8 @@ export async function runPackageMacOSLocalDMGCli(root = repoRoot, env = process.
       'never',
       '-c.mac.identity=null',
       '-c.mac.notarize=false',
-    ], { cwd: desktopRoot })
+      ...stagedBuilderArgs,
+    ], { cwd: desktopRoot, env: packageEnv })
 
     runStep('Clear macOS extended attributes before signing', 'xattr', ['-cr', appDir], { cwd: root })
     await signMacOSAppForLocalTesting(root, appDir)
@@ -122,6 +138,8 @@ export async function runPackageMacOSLocalDMGCli(root = repoRoot, env = process.
     runStep('Build DMG from signed app', 'pnpm', [
       'exec',
       'electron-builder',
+      '--projectDir',
+      stageDir,
       '--mac',
       'dmg',
       `--${arch}`,
@@ -130,8 +148,9 @@ export async function runPackageMacOSLocalDMGCli(root = repoRoot, env = process.
       '-c.mac.identity=null',
       '-c.mac.notarize=false',
       '--prepackaged',
-      relativePrepackagedPath(arch),
-    ], { cwd: desktopRoot, env: dmgBuilderEnv(env) })
+      appDir,
+      ...stagedBuilderArgs,
+    ], { cwd: desktopRoot, env: packageEnv })
 
     const dmgPath = latestDMG(releaseDir)
     runStep('Verify DMG checksum', 'hdiutil', ['verify', dmgPath], { cwd: root })
@@ -234,77 +253,6 @@ function verifyMountedDMG(root, dmgPath, log = console.log) {
 
 function macAppDirForArch(root, arch) {
   return resolve(root, 'apps/desktop/release', arch === 'arm64' ? 'mac-arm64/Movscript.app' : 'mac/Movscript.app')
-}
-
-function relativePrepackagedPath(arch) {
-  return arch === 'arm64' ? 'release/mac-arm64' : 'release/mac'
-}
-
-function patchDmgBuilderAPFSAliasCompatibility(root, log = console.log) {
-  const corePath = resolveDmgBuilderCorePath(root)
-  const source = readFileSync(corePath, 'utf8')
-  const original = [
-    '    elif background_file:',
-    '      alias = Alias.for_file(background_file)',
-    '      background_bmk = Bookmark.for_file(background_file)',
-    '',
-    "      icvp['backgroundType'] = 2",
-    "      icvp['backgroundImageAlias'] = biplist.Data(alias.to_bytes())",
-  ].join('\n')
-  const patched = [
-    '    elif background_file:',
-    '      background_bmk = Bookmark.for_file(background_file)',
-    '',
-    "      icvp['backgroundType'] = 2",
-    '      try:',
-    '        alias = Alias.for_file(background_file)',
-    "        icvp['backgroundImageAlias'] = biplist.Data(alias.to_bytes())",
-    '      except Exception:',
-    '        pass',
-  ].join('\n')
-  if (source.includes(patched)) return
-  if (!source.includes(original)) {
-    throw new Error(`Unable to patch dmg-builder APFS alias compatibility: unexpected core.py at ${corePath}`)
-  }
-  writeFileSync(corePath, source.replace(original, patched), 'utf8')
-  log(`[package-macos-local-dmg] Patched dmg-builder APFS background alias compatibility: ${corePath}`)
-}
-
-function resolveDmgBuilderCorePath(root) {
-  const desktopRequire = createRequire(resolve(root, 'apps/desktop/package.json'))
-  const electronBuilderPackagePath = desktopRequire.resolve('electron-builder/package.json')
-  const electronBuilderRequire = createRequire(electronBuilderPackagePath)
-  const dmgBuilderPackagePath = electronBuilderRequire.resolve('dmg-builder/package.json')
-  return resolve(dirname(dmgBuilderPackagePath), 'vendor/dmgbuild/core.py')
-}
-
-export function dmgBuilderEnv(env) {
-  const nextEnv = { ...env }
-  normalizeOptionalBuilderEnv(nextEnv, 'PYTHON_PATH')
-  normalizeOptionalBuilderEnv(nextEnv, 'CSC_LINK')
-  normalizeOptionalBuilderEnv(nextEnv, 'CSC_NAME')
-  normalizeOptionalBuilderEnv(nextEnv, 'CSC_KEY_PASSWORD')
-  normalizeOptionalBuilderEnv(nextEnv, 'CSC_INSTALLER_LINK')
-  normalizeOptionalBuilderEnv(nextEnv, 'CSC_INSTALLER_KEY_PASSWORD')
-  normalizeOptionalBuilderEnv(nextEnv, 'CSC_KEYCHAIN')
-  normalizeOptionalBuilderEnv(nextEnv, 'APPLE_ID')
-  normalizeOptionalBuilderEnv(nextEnv, 'APPLE_APP_SPECIFIC_PASSWORD')
-  normalizeOptionalBuilderEnv(nextEnv, 'APPLE_TEAM_ID')
-  normalizeOptionalBuilderEnv(nextEnv, 'APPLE_API_KEY')
-  normalizeOptionalBuilderEnv(nextEnv, 'APPLE_API_KEY_ID')
-  normalizeOptionalBuilderEnv(nextEnv, 'APPLE_API_ISSUER')
-  normalizeOptionalBuilderEnv(nextEnv, 'APPLE_KEYCHAIN')
-  normalizeOptionalBuilderEnv(nextEnv, 'APPLE_KEYCHAIN_PROFILE')
-  return nextEnv
-}
-
-function normalizeOptionalBuilderEnv(env, name) {
-  const value = typeof env[name] === 'string' ? env[name].trim() : ''
-  if (value) {
-    env[name] = value
-  } else {
-    delete env[name]
-  }
 }
 
 function stopSmokeLocalBackend(smokeHome) {

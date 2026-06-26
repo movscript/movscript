@@ -52,6 +52,25 @@ test('runtime config snapshot is the preferred API base URL source', () => {
   setRuntimeConfigSnapshot(null)
 })
 
+test('runtime config snapshot derives local canvas API from daemon gateway', () => {
+  setRuntimeConfigSnapshot({
+    movScriptHomeDir: '/tmp/movscript-home',
+    workspaceDir: '/tmp/movscript-home',
+    gatewayBaseURL: 'http://localhost:8766/',
+    dataServiceBaseURL: 'http://localhost:9001/',
+    apiBaseURL: 'http://localhost:8766/',
+    apiV1BaseURL: 'http://localhost:8766/api/v1',
+    localAPIBaseURL: 'http://localhost:8766',
+    backendStatus: { state: 'ready', baseURL: 'http://localhost:8766/' },
+  })
+
+  assert.equal(getRuntimeConfigSnapshot()?.gatewayBaseURL, 'http://localhost:8766')
+  assert.equal(getRuntimeConfigSnapshot()?.dataServiceBaseURL, 'http://localhost:9001')
+  assert.equal(getCanvasServiceV1BaseURL(), 'http://localhost:8766/local-api')
+
+  setRuntimeConfigSnapshot(null)
+})
+
 test('browser app settings are only an API base URL fallback outside Electron runtime config', () => {
   const previousWindow = globalThis.window
   const storage = new Map<string, string>([

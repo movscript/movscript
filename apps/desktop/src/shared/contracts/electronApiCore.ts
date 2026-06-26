@@ -20,6 +20,8 @@ export type ElectronRuntimeConfig = {
   movScriptHomeDir: string
   /** @deprecated Use movScriptHomeDir for the desktop control/home directory. */
   workspaceDir: string
+  gatewayBaseURL?: string
+  dataServiceBaseURL?: string
   apiBaseURL: string
   apiV1BaseURL: string
   projectServiceBaseURL?: string

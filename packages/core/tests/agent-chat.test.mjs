@@ -4,8 +4,10 @@ import test from 'node:test'
 
 import * as agentChat from '../dist/agent/chat/index.js'
 import * as agentCore from '../dist/agent/index.js'
+import * as agentChatOwner from '../../agent-chat/dist/index.js'
 
-const agentChatSourceDir = new URL('../src/agent/chat/', import.meta.url)
+const coreAgentChatSourceDir = new URL('../src/agent/chat/', import.meta.url)
+const agentChatSourceDir = new URL('../../agent-chat/src/chat/', import.meta.url)
 
 function agentChatSourceFiles() {
   return readdirSync(agentChatSourceDir)
@@ -80,6 +82,10 @@ test('core agent chat entrypoint exports the provider-neutral runtime contract',
     Object.prototype.hasOwnProperty.call(agentChat, 'AGENT_CHAT_NOTIFICATION_EVENT_DISPATCH_COVERAGE'),
     'notification event coverage should be exported',
   )
+})
+
+test('core agent chat compatibility exports every owner runtime value', () => {
+  assert.deepEqual(Object.keys(agentChat).sort(), Object.keys(agentChatOwner).sort())
 })
 
 test('core agent chat capability probe includes provider-neutral runtime readiness', async () => {
@@ -859,6 +865,17 @@ test('core agent chat source stays independent from frontend and browser runtime
       assert.doesNotMatch(source, pattern, `${fileName} must not depend on frontend-only runtime concerns`)
     }
   }
+})
+
+test('core agent chat source is a compatibility re-export', () => {
+  const sourceFiles = readdirSync(coreAgentChatSourceDir)
+    .filter((fileName) => fileName.endsWith('.ts'))
+    .sort()
+  const indexSource = readFileSync(new URL('index.ts', coreAgentChatSourceDir), 'utf8')
+
+  assert.deepEqual(sourceFiles, ['index.ts'])
+  assert.match(indexSource, /export \* from '@movscript\/agent-chat'/)
+  assert.doesNotMatch(indexSource, /export \* from '\.\/agentChat/)
 })
 
 test('core package metadata publishes agent chat as a first-class subpath', () => {

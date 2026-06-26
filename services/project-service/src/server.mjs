@@ -47,6 +47,7 @@ import {
 } from '@movscript/core'
 
 const DATA_SERVICE_NAME = 'movscript.data.service'
+const LOCAL_NODE_GATEWAY_SERVICE = 'movscript.local-node.gateway'
 
 export {
   PROJECT_SERVICE_CANDIDATE_COMMAND_ENDPOINT,
@@ -823,7 +824,9 @@ function inferredDataServiceBaseURL(body) {
   const homeDir = stringValue(body.movScriptHomeDir ?? body.movscript_home_dir ?? body.workspaceDir ?? body.workspace_dir)
     ?? resolveMovScriptHomeDir({ env: process.env })
   const snapshot = readRuntimeHomeSnapshot(homeDir)
-  const endpoint = findRuntimeEndpoint(snapshot, DATA_SERVICE_NAME)
+  const endpoint = findRuntimeEndpoint(snapshot, LOCAL_NODE_GATEWAY_SERVICE)
+    ?? findRuntimeService(snapshot, LOCAL_NODE_GATEWAY_SERVICE)?.endpoint
+    ?? findRuntimeEndpoint(snapshot, DATA_SERVICE_NAME)
     ?? findRuntimeService(snapshot, DATA_SERVICE_NAME)?.endpoint
   return normalizeHTTPBaseURL(endpointURL(endpoint))
 }
