@@ -50,7 +50,7 @@ export function filterGenerationParamsByRequiresValue(
   return Object.fromEntries(
     Object.entries(params).filter(([key]) => {
       const paramDef = paramDefs.get(key)
-      return !paramDef || generationParamRequiresValueSatisfied(paramDef, params)
+      return Boolean(paramDef) && generationParamRequiresValueSatisfied(paramDef, params)
     }),
   )
 }

@@ -338,3 +338,888 @@ templates:
         status: verified
         url: https://www.alibabacloud.com/help/en/model-studio/realtime
         verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qvq Max
+      id: dashscope:qvq-max
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: alibaba-dashscope
+      model_id: qvq-max
+      order: 73
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qvq Max Latest
+      id: dashscope:qvq-max-latest
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: alibaba-dashscope
+      model_id: qvq-max-latest
+      order: 74
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen Flash
+      id: dashscope:qwen-flash
+      lab: alibaba-dashscope
+      model_id: qwen-flash
+      order: 75
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen Max
+      id: dashscope:qwen-max
+      lab: alibaba-dashscope
+      model_id: qwen-max
+      order: 76
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen Max Latest
+      id: dashscope:qwen-max-latest
+      lab: alibaba-dashscope
+      model_id: qwen-max-latest
+      order: 77
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen Plus 2025 12 01
+      id: dashscope:qwen-plus-2025-12-01
+      lab: alibaba-dashscope
+      model_id: qwen-plus-2025-12-01
+      order: 78
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen Plus Character
+      id: dashscope:qwen-plus-character
+      lab: alibaba-dashscope
+      model_id: qwen-plus-character
+      order: 79
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen Plus Latest
+      id: dashscope:qwen-plus-latest
+      lab: alibaba-dashscope
+      model_id: qwen-plus-latest
+      order: 80
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen Turbo 2025 07 15
+      id: dashscope:qwen-turbo-2025-07-15
+      lab: alibaba-dashscope
+      model_id: qwen-turbo-2025-07-15
+      order: 81
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen Vl Max 2025 08 13
+      id: dashscope:qwen-vl-max-2025-08-13
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: alibaba-dashscope
+      model_id: qwen-vl-max-2025-08-13
+      order: 82
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen Vl Max Latest
+      id: dashscope:qwen-vl-max-latest
+      lab: alibaba-dashscope
+      model_id: qwen-vl-max-latest
+      order: 83
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen2 Vl 72b Instruct
+      id: dashscope:qwen2-vl-72b-instruct
+      lab: alibaba-dashscope
+      model_id: qwen2-vl-72b-instruct
+      order: 84
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen3 0.6b
+      id: dashscope:qwen3-0-6b
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: alibaba-dashscope
+      model_id: qwen3-0.6b
+      order: 85
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen3 1.7b
+      id: dashscope:qwen3-1-7b
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: alibaba-dashscope
+      model_id: qwen3-1.7b
+      order: 86
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen3 14b
+      id: dashscope:qwen3-14b
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: alibaba-dashscope
+      model_id: qwen3-14b
+      order: 87
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen3 235b A22b
+      id: dashscope:qwen3-235b-a22b
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: alibaba-dashscope
+      model_id: qwen3-235b-a22b
+      order: 88
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen3 235b A22b Instruct 2507
+      id: dashscope:qwen3-235b-a22b-instruct-2507
+      lab: alibaba-dashscope
+      model_id: qwen3-235b-a22b-instruct-2507
+      order: 89
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen3 30b A3b
+      id: dashscope:qwen3-30b-a3b
+      lab: alibaba-dashscope
+      model_id: qwen3-30b-a3b
+      order: 90
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen3 30b A3b Instruct 2507
+      id: dashscope:qwen3-30b-a3b-instruct-2507
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: alibaba-dashscope
+      model_id: qwen3-30b-a3b-instruct-2507
+      order: 91
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: Qwen3 30b A3b Think
+      id: dashscope:qwen3-30b-a3b-think
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: alibaba-dashscope
+      model_id: qwen3-30b-a3b-think
+      order: 92
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: Qwen3 30b A3b Thinking 2507
+      id: dashscope:qwen3-30b-a3b-thinking-2507
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: alibaba-dashscope
+      model_id: qwen3-30b-a3b-thinking-2507
+      order: 93
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen3 32b
+      id: dashscope:qwen3-32b
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: alibaba-dashscope
+      model_id: qwen3-32b
+      order: 94
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen3 4b
+      id: dashscope:qwen3-4b
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: alibaba-dashscope
+      model_id: qwen3-4b
+      order: 95
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen3 8b
+      id: dashscope:qwen3-8b
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: alibaba-dashscope
+      model_id: qwen3-8b
+      order: 96
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: Qwen3 Coder
+      id: dashscope:qwen3-coder
+      lab: alibaba-dashscope
+      model_id: qwen3-coder
+      order: 97
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: Qwen3 Coder 30b A3b Instruct
+      id: dashscope:qwen3-coder-30b-a3b-instruct
+      lab: alibaba-dashscope
+      model_id: qwen3-coder-30b-a3b-instruct
+      order: 98
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: Qwen3 Coder 480b A35b Instruct
+      id: dashscope:qwen3-coder-480b-a35b-instruct
+      lab: alibaba-dashscope
+      model_id: qwen3-coder-480b-a35b-instruct
+      order: 99
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen3 Coder Flash
+      id: dashscope:qwen3-coder-flash
+      lab: alibaba-dashscope
+      model_id: qwen3-coder-flash
+      order: 100
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: Qwen3 Coder Plus
+      id: dashscope:qwen3-coder-plus
+      lab: alibaba-dashscope
+      model_id: qwen3-coder-plus
+      order: 101
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: Qwen3 Max 2026 01 23
+      id: dashscope:qwen3-max-2026-01-23
+      lab: alibaba-dashscope
+      model_id: qwen3-max-2026-01-23
+      order: 102
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen3 Max Preview
+      id: dashscope:qwen3-max-preview
+      lab: alibaba-dashscope
+      model_id: qwen3-max-preview
+      order: 103
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen3 Max Preview N
+      id: dashscope:qwen3-max-preview-n
+      lab: alibaba-dashscope
+      model_id: qwen3-max-preview-n
+      order: 104
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen3 Next 80b A3b Instruct
+      id: dashscope:qwen3-next-80b-a3b-instruct
+      lab: alibaba-dashscope
+      model_id: qwen3-next-80b-a3b-instruct
+      order: 105
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: Qwen3 Next 80b A3b Thinking
+      id: dashscope:qwen3-next-80b-a3b-thinking
+      lab: alibaba-dashscope
+      model_id: qwen3-next-80b-a3b-thinking
+      order: 106
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen3 Vl 235b A22b Instruct
+      id: dashscope:qwen3-vl-235b-a22b-instruct
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: alibaba-dashscope
+      model_id: qwen3-vl-235b-a22b-instruct
+      order: 107
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: Qwen3 Vl 235b A22b Thinking
+      id: dashscope:qwen3-vl-235b-a22b-thinking
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: alibaba-dashscope
+      model_id: qwen3-vl-235b-a22b-thinking
+      order: 108
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen3 Vl 30b A3b Instruct
+      id: dashscope:qwen3-vl-30b-a3b-instruct
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: alibaba-dashscope
+      model_id: qwen3-vl-30b-a3b-instruct
+      order: 109
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: Qwen3 Vl 30b A3b Thinking
+      id: dashscope:qwen3-vl-30b-a3b-thinking
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: alibaba-dashscope
+      model_id: qwen3-vl-30b-a3b-thinking
+      order: 110
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen3 Vl 32b Instruct
+      id: dashscope:qwen3-vl-32b-instruct
+      lab: alibaba-dashscope
+      model_id: qwen3-vl-32b-instruct
+      order: 111
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: Qwen3 Vl 32b Thinking
+      id: dashscope:qwen3-vl-32b-thinking
+      lab: alibaba-dashscope
+      model_id: qwen3-vl-32b-thinking
+      order: 112
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen3 Vl 8b Instruct
+      id: dashscope:qwen3-vl-8b-instruct
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: alibaba-dashscope
+      model_id: qwen3-vl-8b-instruct
+      order: 113
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: Qwen3 Vl 8b Thinking
+      id: dashscope:qwen3-vl-8b-thinking
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: alibaba-dashscope
+      model_id: qwen3-vl-8b-thinking
+      order: 114
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen3 Vl Flash
+      id: dashscope:qwen3-vl-flash
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: alibaba-dashscope
+      model_id: qwen3-vl-flash
+      order: 115
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen3 Vl Plus
+      id: dashscope:qwen3-vl-plus
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: alibaba-dashscope
+      model_id: qwen3-vl-plus
+      order: 116
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: Qwen3.5 122b A10b
+      id: dashscope:qwen3-5-122b-a10b
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: alibaba-dashscope
+      model_id: qwen3.5-122b-a10b
+      order: 117
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen3.5 27b
+      id: dashscope:qwen3-5-27b
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: alibaba-dashscope
+      model_id: qwen3.5-27b
+      order: 118
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen3.5 35b A3b
+      id: dashscope:qwen3-5-35b-a3b
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: alibaba-dashscope
+      model_id: qwen3.5-35b-a3b
+      order: 119
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: Qwen3.5 397b A17b
+      id: dashscope:qwen3-5-397b-a17b
+      lab: alibaba-dashscope
+      model_id: qwen3.5-397b-a17b
+      order: 120
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: Qwen3.5 Plus
+      id: dashscope:qwen3-5-plus
+      lab: alibaba-dashscope
+      model_id: qwen3.5-plus
+      order: 121
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: Qwen3.5 Plus 2026 02 15
+      id: dashscope:qwen3-5-plus-2026-02-15
+      lab: alibaba-dashscope
+      model_id: qwen3.5-plus-2026-02-15
+      order: 122
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen3.6 27b
+      id: dashscope:qwen3-6-27b
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: alibaba-dashscope
+      model_id: qwen3.6-27b
+      order: 123
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen3.6 35b A3b
+      id: dashscope:qwen3-6-35b-a3b
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: alibaba-dashscope
+      model_id: qwen3.6-35b-a3b
+      order: 124
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen3.6 Plus
+      id: dashscope:qwen3-6-plus
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: alibaba-dashscope
+      model_id: qwen3.6-plus
+      order: 125
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen3.7 Max
+      id: dashscope:qwen3-7-max
+      lab: alibaba-dashscope
+      model_id: qwen3.7-max
+      order: 126
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: Qwen3.7 Plus
+      id: dashscope:qwen3-7-plus
+      lab: alibaba-dashscope
+      model_id: qwen3.7-plus
+      order: 127
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: Qwq 32b
+      id: dashscope:qwq-32b
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: alibaba-dashscope
+      model_id: qwq-32b
+      order: 128
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: Qwq 32b Preview
+      id: dashscope:qwq-32b-preview
+      lab: alibaba-dashscope
+      model_id: qwq-32b-preview
+      order: 129
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: Qwq 72b Preview
+      id: dashscope:qwq-72b-preview
+      lab: alibaba-dashscope
+      model_id: qwq-72b-preview
+      order: 130
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: Qwq Plus
+      id: dashscope:qwq-plus
+      lab: alibaba-dashscope
+      model_id: qwq-plus
+      order: 131
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: Qwq Plus 2025 03 05
+      id: dashscope:qwq-plus-2025-03-05
+      lab: alibaba-dashscope
+      model_id: qwq-plus-2025-03-05
+      order: 132
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"

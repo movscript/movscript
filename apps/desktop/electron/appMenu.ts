@@ -1,5 +1,5 @@
 import { app, BrowserWindow, Menu, type MenuItemConstructorOptions } from 'electron'
-import { openCanvasWindow, openSettingsWindow, openToolWindow } from './services/appWindowRegistry'
+import { openCanvasWindow, openProjectDataWindow, openSettingsWindow, openToolWindow } from './services/appWindowRegistry'
 
 interface NavigationMenuItem {
   label: string
@@ -17,6 +17,7 @@ const navigationGroups: NavigationMenuGroup[] = [
     label: 'Project',
     items: [
       { label: 'Projects', route: '/projects', accelerator: 'CmdOrCtrl+1' },
+      { label: 'Project Data', route: '/project-data' },
       { label: 'Home', route: '/project/overview' },
       { label: 'Script Workbench', route: '/project/scripts/workbench' },
       { label: 'Production Overview', route: '/project/production' },
@@ -67,6 +68,10 @@ const navigationGroups: NavigationMenuGroup[] = [
 function openRendererRoute(route: string): void {
   if (route === '/app/settings') {
     openSettingsWindow()
+    return
+  }
+  if (route === '/project-data') {
+    openProjectDataWindow()
     return
   }
   if (route === '/canvases' || route.startsWith('/canvases/')) {

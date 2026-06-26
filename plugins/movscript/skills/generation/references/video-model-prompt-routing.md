@@ -16,7 +16,7 @@ This is not a model catalog. Use `system_model_list` as the source of truth for 
    Use `video-prompt-craft.md` to classify the request as direct scene moment, image-to-video, keyframe transition, reference-shot imitation, video extension/edit, music-synced clip, or multi-shot sequence.
 
 4. Prompt structure
-   Pick the smallest structure that can express the intent well. One coherent paragraph is often better for a direct scene moment; labeled shots or time bands are better for long, multi-beat, music-synced, or ad-like work.
+   Pick the smallest structure that can express the intent well. One coherent paragraph is often better for a direct short scene moment; labeled shots or time bands are better for long, multi-beat, music-synced, or ad-like work. If the work would exceed about 10 seconds, split it into multiple scene moments or route through editing composition.
 
 5. External settings
    Keep duration, aspect ratio, resolution, seed, camera-fixed flags, prompt-strength values, and other provider parameters outside the prompt text unless the provider explicitly expects natural-language mention.
@@ -161,16 +161,21 @@ Avoid:
 
 ### Direct Narrative Scene
 
-Default to one direct scene-moment prompt. Use `video-prompt-craft.md` and keep the prompt coherent.
+Default to one direct scene-moment prompt only for a short atomic beat. Use `video-prompt-craft.md` and keep the prompt coherent.
+
+A direct `scene_moment_ref` prompt must still be written as a video prompt: include action progression over time, camera/blocking, lighting/color, performance/audio when supported, and relevant negatives. Do not submit a scene synopsis or still-image description as the video prompt.
 
 When the source wording is story-summary-heavy, use the layered narrative beat pattern from `video-prompt-craft.md`: story overview first, then cast/blocking, visible action/dialogue, light/color, camera/rhythm/audio, and shot-specific negatives. Trust capable models with story intent, but give them the production signals they need to render it.
 
 Escalate to storyboard/keyframes when:
 
+- the scene moment lacks a selected visual anchor and the workflow is not an explicit fast unstable draft;
 - blocking, camera path, or subject placement is central and underspecified;
 - a user rejected earlier generations because composition or identity drifted;
 - the shot imitates a specific reference video;
 - the scene needs exact first/last pose, framing, or product reveal.
+
+For storyboard candidates, prefer `gpt-image-2` when available and prompt schematic/stylized animatic frames without photoreal real-person likenesses.
 
 ### Product or Ad Clip
 
@@ -228,6 +233,7 @@ If the model supports audio reference or tempo-following, use a selected audio r
 Before calling a video generation tool, verify:
 
 - The chosen prompt structure matches model capabilities and scenario.
+- `scene_moment_ref` video prompts are written as motion/camera/time-based video prompts, not scene summaries.
 - The prompt uses MovScript refs or resource inputs, not provider placeholder syntax.
 - External parameters are not mixed into prompt text unless necessary.
 - Image-to-video prompts focus on motion/camera/change rather than re-describing the anchor image.

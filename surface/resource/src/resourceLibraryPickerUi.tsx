@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { DragEvent, ReactNode } from 'react'
 
 import { AppPager, AppPanel } from '@movscript/ui/business/app'
 import { Button, cn, Input, Label, NativeSelect } from '@movscript/ui/primitives'
@@ -21,6 +21,8 @@ export type ResourceLibraryPickerItem = {
   selected?: boolean
   thumbnail?: ReactNode
   fallbackIcon?: WorkbenchIconComponent
+  dragTitle?: string
+  onDragStart?: (event: DragEvent<HTMLButtonElement>) => void
 }
 
 export function ResourceLibraryPickerPanel({
@@ -238,7 +240,15 @@ export function ResourceLibraryPickerRow({
   onSelect: () => void
 }) {
   return (
-    <WorkbenchListItem onClick={onSelect} active={item.selected} density="compact" className="resource-library-picker__row">
+    <WorkbenchListItem
+      onClick={onSelect}
+      active={item.selected}
+      density="compact"
+      className="resource-library-picker__row"
+      draggable={Boolean(item.onDragStart)}
+      onDragStart={item.onDragStart}
+      title={item.dragTitle}
+    >
       {item.thumbnail ? (
         <WorkbenchThumbnail ratio="square" className="resource-library-picker__thumbnail">
           {item.thumbnail}

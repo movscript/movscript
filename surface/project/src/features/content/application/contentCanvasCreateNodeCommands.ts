@@ -35,7 +35,22 @@ export type ContentCanvasCreateNodeInput = {
   id: string
   title: string
   status?: string
+  outputKind?: ContentCanvasGenerationOutputKind
   settingKind?: ContentCanvasSettingKind
+  targetProductionId?: string
+  targetProductionTitle?: string
+  targetSegmentId?: string
+  targetSegmentTitle?: string
+  createTargetProduction?: boolean
+  createTargetSegment?: boolean
+  targetSettingId?: string
+  targetSettingTitle?: string
+  targetSettingKind?: ContentCanvasSettingKind
+  targetStateId?: string
+  targetStateTitle?: string
+  createTargetSetting?: boolean
+  createTargetState?: boolean
+  targetOwnerNodeId?: string
 }
 
 export type ContentCanvasSettingKind =
@@ -45,6 +60,8 @@ export type ContentCanvasSettingKind =
   | 'world_rule'
   | 'style'
   | 'other'
+
+export type ContentCanvasGenerationOutputKind = 'video' | 'image' | 'audio' | 'text'
 
 export async function createRootContentCanvasNode(
   projectId: number,

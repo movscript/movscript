@@ -2,20 +2,21 @@ import { buildContentSourceWorkspaceCandidateCreatePlan, type ContentCandidateRe
 
 import type { ContentCanvasCandidate, ContentCanvasNode } from '../domain/contentCanvasTypes'
 import type { ContentCanvasCommandResult } from './contentCanvasCommands'
-import type { ContentCanvasUploadedResource, ContentCanvasWorkspaceGateway } from './contentCanvasWorkspaceGateway'
+import type { ContentCanvasContentCandidateGenerateInput, ContentCanvasUploadedResource, ContentCanvasWorkspaceGateway } from './contentCanvasWorkspaceGateway'
 
 export async function createCandidateFromContentUnit(
   projectId: number,
   contentUnitNode: ContentCanvasNode,
   position: { x: number; y: number } | undefined,
   gateway: ContentCanvasWorkspaceGateway,
-  options: { modelId?: string; params?: Record<string, string | number | boolean> } = {},
+  options: Pick<ContentCanvasContentCandidateGenerateInput, 'modelId' | 'params' | 'supportedParams'> = {},
 ): Promise<ContentCanvasCommandResult> {
   assertContentUnitNode(contentUnitNode)
   const outputKind = contentUnitOutputKind(contentUnitNode)
   if (outputKind !== 'image' && outputKind !== 'video') {
     throw new Error(`当前真实生成候选只支持图像/视频创作片段，${outputKind} 暂未接入生成接口`)
   }
+  const candidateOrdinal = contentUnitNode.candidates.length + 1
   const candidateId = timestampId('canvas_candidate')
   console.log('[content-canvas] create content unit candidate request', {
     projectId,
@@ -30,6 +31,7 @@ export async function createCandidateFromContentUnit(
     outputKind,
     ...(options.modelId ? { modelId: options.modelId } : {}),
     ...(options.params ? { params: options.params } : {}),
+    ...(options.supportedParams ? { supportedParams: options.supportedParams } : {}),
     promptText: editPromptTextFromNode(contentUnitNode),
   })
   console.log('[content-canvas] create content unit candidate result', {
@@ -42,12 +44,12 @@ export async function createCandidateFromContentUnit(
   })
   const resolvedCandidateId = String(record.id ?? candidateId)
   const candidateNodeId = `candidate:${contentUnitNode.entityKey}:${resolvedCandidateId}`
-  const candidate = contentCanvasCandidateFromContentRecord(record, candidateId)
+  const candidate = contentCanvasCandidateFromContentRecord(record, candidateId, candidateOrdinal)
   return {
     changedNodeIds: [contentUnitNode.id, candidateNodeId],
     affectedNodeIds: [contentUnitNode.id, candidateNodeId],
     nodePositions: {
-      [candidateNodeId]: position ?? suggestedCandidateNodePosition(contentUnitNode, contentUnitNode.candidates.length + 1),
+      [candidateNodeId]: position ?? suggestedCandidateNodePosition(contentUnitNode, candidateOrdinal),
     },
     createdCandidates: [{ contentUnitId: contentUnitNode.entityKey, candidate }],
     message: '已创建后端创作片段候选',
@@ -74,6 +76,7 @@ export async function createCandidateFromResourceForContentUnit(
   gateway: ContentCanvasWorkspaceGateway,
 ): Promise<ContentCanvasCommandResult> {
   assertContentUnitNode(contentUnitNode)
+  const candidateOrdinal = contentUnitNode.candidates.length + 1
   const plan = buildContentSourceWorkspaceCandidateCreatePlan({
     contentUnitId: contentUnitNode.entityKey,
     outputKind: contentUnitOutputKind(contentUnitNode),
@@ -90,12 +93,12 @@ export async function createCandidateFromResourceForContentUnit(
   })
   const candidateId = String(record.id ?? plan.candidateId)
   const candidateNodeId = `candidate:${contentUnitNode.entityKey}:${candidateId}`
-  const candidate = contentCanvasCandidateFromContentRecord(record, plan.candidateId)
+  const candidate = contentCanvasCandidateFromContentRecord(record, plan.candidateId, candidateOrdinal)
   return {
     changedNodeIds: [contentUnitNode.id, candidateNodeId],
     affectedNodeIds: [contentUnitNode.id, candidateNodeId],
     nodePositions: {
-      [candidateNodeId]: position ?? suggestedCandidateNodePosition(contentUnitNode, contentUnitNode.candidates.length + 1),
+      [candidateNodeId]: position ?? suggestedCandidateNodePosition(contentUnitNode, candidateOrdinal),
     },
     createdCandidates: [{ contentUnitId: contentUnitNode.entityKey, candidate }],
     message: `已创建资源候选 ${resource.name}`,
@@ -196,7 +199,7 @@ function editPromptTextFromNode(node: ContentCanvasNode): string | undefined {
   return stringValue(node.record.prompt ?? node.record.description ?? node.summary)
 }
 
-function contentCanvasCandidateFromContentRecord(record: ContentCandidateRecord, fallbackId: string): ContentCanvasCandidate {
+function contentCanvasCandidateFromContentRecord(record: ContentCandidateRecord, fallbackId: string, ordinal?: number): ContentCanvasCandidate {
   const output = Array.isArray(record.outputs) ? record.outputs.find(isRecord) : undefined
   const resourceId = numberValue(output?.resource_id ?? output?.resourceId)
   const artifactRef = stringValue(output?.artifact_ref ?? output?.artifactRef)
@@ -205,7 +208,7 @@ function contentCanvasCandidateFromContentRecord(record: ContentCandidateRecord,
   const id = String(record.id ?? fallbackId)
   return {
     id,
-    title: `候选 ${id}`,
+    title: contentCanvasCandidateTitle(record, id, ordinal),
     ...(resourceId !== undefined ? { resourceId } : {}),
     ...(resourceKind ? { resourceKind } : {}),
     ...(artifactRef ? { artifactRef } : {}),
@@ -219,6 +222,32 @@ function contentCanvasCandidateFromContentRecord(record: ContentCandidateRecord,
     selected: false,
     notes: stringValue(record.status) ?? inputHash ?? '',
   }
+}
+
+function contentCanvasCandidateTitle(record: ContentCandidateRecord, id: string, ordinal?: number): string {
+  const explicitTitle = stringValue(record.prompt_snapshot?.title)
+    ?? stringValue(record.producer?.title)
+    ?? stringValue(record.producer?.name)
+  if (explicitTitle && !candidateTitleIsGeneric(explicitTitle)) return explicitTitle
+  if (ordinal !== undefined && ordinal > 0) return `候选 ${ordinal}`
+  return readableCandidateIdFallback(id)
+}
+
+function candidateTitleIsGeneric(value: string): boolean {
+  const normalized = value.trim().toLowerCase()
+  return normalized === 'queued generation'
+    || normalized === 'pending generation'
+    || normalized === 'content unit image generation'
+    || normalized === 'content unit video generation'
+    || technicalCandidateIdPattern().test(normalized)
+}
+
+function readableCandidateIdFallback(id: string): string {
+  return technicalCandidateIdPattern().test(id.trim().toLowerCase()) ? '候选' : `候选 ${id}`
+}
+
+function technicalCandidateIdPattern(): RegExp {
+  return /^(canvas|resource|content)_candidate_[\w-]+$|^resource_\d+_[\w-]+$|^gen_(image|video)_\d+_\d+$/
 }
 
 function contentCanvasCandidateFromCandidateNode(node: ContentCanvasNode, selected: boolean): ContentCanvasCandidate {

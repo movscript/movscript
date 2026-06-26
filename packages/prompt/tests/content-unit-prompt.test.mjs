@@ -252,6 +252,68 @@ test('resolves production and segment prompt refs from specialized video content
   assert.equal(result.prompt.refs[0]?.upstream_content_unit_id, 'cu_opening_video')
 })
 
+test('compiles scene moment shot plan into backend video prompt text', async () => {
+  const index = indexFromDocuments([
+    document('productions/p1/segments/opening/scene_moments/reveal/scene_moment.json', {
+      schema: 'movscript.scene_moment.v1',
+      kind: 'scene_moment',
+      id: 'reveal',
+      title: 'Truth reveal',
+      order: 1,
+    }),
+    document('content_units/cu_reveal_video/content_unit.json', {
+      schema: 'movscript.content_unit.v1',
+      kind: 'content_unit',
+      id: 'cu_reveal_video',
+      title: 'Truth reveal video',
+      content_unit_type: 'scene_moment_ref',
+      output_kind: 'video',
+      scene_moment_ref: 'reveal',
+      edit_prompt: {
+        text: 'Generate the whole reveal scene as one continuous clip.',
+        structured: {
+          shot_plan: [
+            {
+              title: 'Find the file',
+              duration_sec: 4,
+              action: 'The heroine notices {{resource:42}} on the table.',
+              shot_size: 'medium',
+              camera_angle: 'eye_level_front',
+              camera_motion: 'slow_push',
+              lighting: 'night_soft_side',
+            },
+            {
+              title: 'Read the truth',
+              duration_sec: 3,
+              action: 'The document title becomes legible.',
+              shot_size: 'close_up',
+              camera_angle: 'high_front',
+              camera_motion: 'static',
+              depth_of_field: 'shallow',
+            },
+          ],
+        },
+      },
+    }),
+  ])
+
+  const result = await buildContentUnitBackendPromptById({
+    index,
+    contentUnitId: 'cu_reveal_video',
+    decisionProvider: decisionProvider({}),
+  })
+
+  assert.equal(result.ok, true)
+  assert.match(result.prompt.text, /Generate the whole reveal scene/)
+  assert.match(result.prompt.text, /LOCKED SCENE MOMENT SHOT PLAN/)
+  assert.match(result.prompt.text, /Shot 1 - Find the file/)
+  assert.match(result.prompt.text, /action=The heroine notices @\[resource:42\] on the table/)
+  assert.match(result.prompt.text, /camera_motion=slow_push/)
+  assert.deepEqual(result.prompt.resource_ids, [42])
+  assert.equal(result.prompt.replacements[0]?.field, 'edit_prompt.structured')
+  assert.equal(result.prompt.structured.shot_plan[0].order, 1)
+})
+
 test('returns a blocker when an upstream ref has not been produced in backend decisions', async () => {
   const index = indexFromDocuments([
     document('settings/hero/states/rain/assets/wet_hair/asset.json', {

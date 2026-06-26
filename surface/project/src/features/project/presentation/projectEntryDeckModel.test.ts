@@ -27,7 +27,8 @@ test('project entry deck defaults to product entry order', () => {
 
   assert.deepEqual(deck.tabs.map((tab) => tab.id), [
     'orchestration_production',
-    'content',
+    'content_canvas',
+    'content_preview',
     'project_standards',
   ])
   assert.equal(deck.orderIndex.get('orchestration_production'), 0)
@@ -44,9 +45,9 @@ test('project entry deck uses snapshot deck order and keeps active hidden entry 
       search: 'productionId=3',
       updatedAt: '2026-06-19T10:00:00.000Z',
     }),
-    [projectEntrySessionKey(7, 'content')]: snapshot({
+    [projectEntrySessionKey(7, 'content_preview')]: snapshot({
       projectId: 7,
-      projectEntryId: 'content',
+      projectEntryId: 'content_preview',
       deckOrder: 0,
       updatedAt: '2026-06-19T09:00:00.000Z',
     }),
@@ -62,7 +63,7 @@ test('project entry deck uses snapshot deck order and keeps active hidden entry 
     projectId: 7,
     snapshots,
   })
-  assert.deepEqual(inactiveDeck.tabs.map((tab) => tab.id), ['content', 'project_standards'])
+  assert.deepEqual(inactiveDeck.tabs.map((tab) => tab.id), ['content_preview', 'project_standards', 'content_canvas'])
   assert.deepEqual([...inactiveDeck.hiddenEntryIds], ['orchestration_production'])
 
   const activeDeck = buildProjectEntryDeck({
@@ -70,7 +71,7 @@ test('project entry deck uses snapshot deck order and keeps active hidden entry 
     projectId: 7,
     snapshots,
   })
-  assert.deepEqual(activeDeck.tabs.map((tab) => tab.id), ['content', 'project_standards', 'orchestration_production'])
+  assert.deepEqual(activeDeck.tabs.map((tab) => tab.id), ['content_preview', 'project_standards', 'orchestration_production', 'content_canvas'])
   assert.equal(activeDeck.tabs[2]?.active, true)
   assert.equal(activeDeck.tabs[2]?.restoredRoute, '/project/scripts/workbench')
   assert.equal(activeDeck.tabs[2]?.restoredSearch, 'productionId=3')
@@ -111,6 +112,7 @@ test('project entry deck reorder updates are expressed as project entry snapshot
   assert.deepEqual(updates, [
     { projectEntryId: 'project_standards', deckOrder: 0 },
     { projectEntryId: 'orchestration_production', deckOrder: 1 },
-    { projectEntryId: 'content', deckOrder: 2 },
+    { projectEntryId: 'content_canvas', deckOrder: 2 },
+    { projectEntryId: 'content_preview', deckOrder: 3 },
   ])
 })

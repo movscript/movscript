@@ -70,6 +70,7 @@ function buildGenerationJobTitle(jobType: string): string {
 export interface ToolDialogDef {
   nodeType: NodeType
   capability: SurfaceModelCapability
+  modelQueryCapabilities?: SurfaceModelCapability[]
   jobType?: string
   toolName: string
   toolDescription: string
@@ -87,6 +88,7 @@ export interface ToolDialogDef {
 export function ToolDialog({
   nodeType: _nodeType,
   capability,
+  modelQueryCapabilities,
   jobType,
   toolName,
   toolDescription,
@@ -363,6 +365,7 @@ export function ToolDialog({
               </Button>
               <ModelSelector
                 capability={capability}
+                queryCapabilities={modelQueryCapabilities}
                 value={selectedModelId}
                 onChange={setSelectedModelId}
                 onModelChange={setSelectedModel}

@@ -58,7 +58,7 @@ test('workspace review path is resolved from the shared frontend workspace model
   )
   assert.equal(
     buildWorkspaceReviewPath(workspace({ id: 'workspace-asset-workspace', kind: 'asset_workspace' })),
-    '/project/content?workspaceId=workspace-asset-workspace',
+    '/project/content/preview?workspaceId=workspace-asset-workspace',
   )
   assert.equal(
     buildWorkspaceReviewPath(workspace({ id: 'workspace-script', kind: 'production_workspace' })),
@@ -78,7 +78,7 @@ test('workspace review path is resolved from the shared frontend workspace model
       kind: 'asset_workspace',
       target: { entityType: 'asset_slot', entityId: 88 },
     })),
-    '/project/content?workspaceId=workspace-asset&asset_slot_id=88',
+    '/project/content/preview?workspaceId=workspace-asset&asset_slot_id=88',
   )
   assert.equal(
     buildWorkspaceReviewPath(workspace({
@@ -86,7 +86,7 @@ test('workspace review path is resolved from the shared frontend workspace model
       kind: 'content_unit_workspace',
       target: { entityType: 'scene_moment', entityId: 77 },
     })),
-    '/project/content?workspaceId=workspace-content-unit&scene_moment_id=77',
+    '/project/content/preview?workspaceId=workspace-content-unit&scene_moment_id=77',
   )
   assert.equal(
     buildWorkspaceReviewPath(workspace({
@@ -102,7 +102,7 @@ test('workspace review path is resolved from the shared frontend workspace model
       kind: 'content_unit_workspace',
       target: { entityType: 'content_unit', entityId: 801 },
     })),
-    '/project/content?workspaceId=workspace-content-unit-existing&content_unit_id=801',
+    '/project/content/preview?workspaceId=workspace-content-unit-existing&content_unit_id=801',
   )
 })
 

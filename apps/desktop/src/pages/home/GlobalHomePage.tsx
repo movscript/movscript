@@ -9,7 +9,7 @@ import { useAgentAvailabilityGuard } from '@/features/agent/application/useAgent
 import { projectKeys } from '@movscript/project-surface/data'
 import { ROUTES } from '@/routes/projectRoutes'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
-import { openAgentWindow, openCanvasWindow, openEditingWindow, openProjectWindow, openToolWindow } from '@/shared/infrastructure/appWindowContext'
+import { openAgentWindow, openCanvasWindow, openEditingWindow, openProjectDataWindow, openProjectWindow, openToolWindow } from '@/shared/infrastructure/appWindowContext'
 import { api } from '@/shared/infrastructure/api'
 import { dismissRecentProject, isLocalProjectEntry, mergeRecentProjects, recentProjectKey, useLocalProjectRecentsStore } from '@/shared/infrastructure/session/localProjectRecentsStore'
 import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
@@ -119,7 +119,7 @@ export default function GlobalHomePage() {
   }
 
   function enterProjectData() {
-    navigate(ROUTES.projectData)
+    void openProjectDataWindow()
   }
 
   return (

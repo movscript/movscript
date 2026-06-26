@@ -8,12 +8,110 @@ import (
 
 	appdecision "github.com/movscript/movscript/internal/app/decision"
 	domainjob "github.com/movscript/movscript/internal/domain/job"
+	"github.com/movscript/movscript/internal/infra/ai"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"github.com/movscript/movscript/internal/testutil"
 )
 
+func TestGenerateCreatesScopedProjectDataCandidate(t *testing.T) {
+	db := testutil.OpenSQLite(t, "content-candidate-generate-project-data.db",
+		&persistencemodel.Project{},
+		&persistencemodel.Job{},
+		&persistencemodel.RawResource{},
+		&persistencemodel.DecisionContext{},
+		&persistencemodel.ProjectDataSpace{},
+		&persistencemodel.ProjectDataDecisionContext{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
+		&persistencemodel.UsageReservation{},
+		&persistencemodel.UsageLog{},
+	)
+	ctx := context.Background()
+	project := persistencemodel.Project{Name: "Canvas Generate", ProjectUID: "prj_canvas_generate", OwnerID: 5}
+	if err := db.Create(&project).Error; err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	entry := persistencemodel.AIModelCatalogEntry{
+		PublicModelID: "canvas-test-image",
+		DisplayName:   "Canvas Test Image",
+		Capabilities:  ai.CapabilityImage,
+		IsEnabled:     true,
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	if err := db.Create(&persistencemodel.AIModelRouteBinding{
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceRelayGateway,
+		RouteGroup:      "default",
+		ProviderModelID: "canvas-test-image",
+		IsEnabled:       true,
+		CapacityWeight:  1,
+	}).Error; err != nil {
+		t.Fatalf("create route binding: %v", err)
+	}
+
+	service := NewService(db, ai.NewAIService(db, ai.NewRegistry(db, nil)))
+	result, err := service.Generate(ctx, GenerateInput{
+		ProjectID:      project.ID,
+		UserID:         5,
+		ContentUnitID:  "cu_asset_1",
+		CandidateID:    "candidate_pending",
+		ProjectUID:     "prj_canvas_generate",
+		ProjectTitle:   "Canvas Generate",
+		ScopeKind:      appdecision.ProjectDataScopeUser,
+		ScopeID:        "5",
+		OutputKind:     "image",
+		ModelID:        "canvas-test-image",
+		JobType:        ai.CapabilityImage,
+		Prompt:         "draw a clean reference frame",
+		PromptSnapshot: json.RawMessage(`{"prompt":"draw a clean reference frame"}`),
+	})
+	if err != nil {
+		t.Fatalf("generate candidate: %v", err)
+	}
+	if result.ProjectDataDecisionContext == nil {
+		t.Fatal("generate result did not include project data decision context")
+	}
+
+	projectDataDecision, err := appdecision.NewProjectDataService(db).Get(ctx, appdecision.ProjectDataTargetInput{
+		ProjectDataSpaceInput: appdecision.ProjectDataSpaceInput{
+			ProjectDataScopeInput: appdecision.ProjectDataScopeInput{
+				ScopeKind: appdecision.ProjectDataScopeUser,
+				ScopeID:   "5",
+			},
+			ProjectUID: "prj_canvas_generate",
+		},
+		TargetKind: TargetKindContentUnit,
+		TargetRef:  "content_units/cu_asset_1",
+	})
+	if err != nil {
+		t.Fatalf("get project data decision: %v", err)
+	}
+	if len(projectDataDecision.Candidates) != 1 {
+		t.Fatalf("project data candidate count = %d, want 1", len(projectDataDecision.Candidates))
+	}
+	var candidate struct {
+		ID       string `json:"id"`
+		Status   string `json:"status"`
+		Producer struct {
+			JobID uint `json:"job_id"`
+		} `json:"producer"`
+	}
+	if err := json.Unmarshal(projectDataDecision.Candidates[0], &candidate); err != nil {
+		t.Fatalf("decode project data candidate: %v", err)
+	}
+	if candidate.ID != "candidate_pending" || candidate.Status != "pending" || candidate.Producer.JobID != result.Job.ID {
+		t.Fatalf("project data candidate = %#v, want pending candidate for job %d", candidate, result.Job.ID)
+	}
+}
+
 func TestSyncJobSucceededUpdatesBoundContentUnitCandidate(t *testing.T) {
-	db := testutil.OpenSQLite(t, "content-candidate-sync.db", &persistencemodel.DecisionContext{})
+	db := testutil.OpenSQLite(t, "content-candidate-sync.db",
+		&persistencemodel.DecisionContext{},
+		&persistencemodel.ProjectDataSpace{},
+		&persistencemodel.ProjectDataDecisionContext{},
+	)
 	ctx := context.Background()
 	promptSnapshot := json.RawMessage(`{"schema":"movscript.content_unit_generation_prompt_snapshot.v1","model_params":{"quality":"auto"}}`)
 	pending := BuildCandidate(CandidateBuildInput{
@@ -45,6 +143,10 @@ func TestSyncJobSucceededUpdatesBoundContentUnitCandidate(t *testing.T) {
 		},
 		"content_unit_candidate": domainjob.ContentUnitCandidateBinding{
 			ProjectID:      7,
+			ProjectUID:     "prj_canvas_generate",
+			ProjectTitle:   "Canvas Generate",
+			ScopeKind:      appdecision.ProjectDataScopeUser,
+			ScopeID:        "5",
 			ContentUnitID:  "cu_asset_1",
 			TargetKind:     TargetKindContentUnit,
 			TargetRef:      "content_units/cu_asset_1",
@@ -55,6 +157,7 @@ func TestSyncJobSucceededUpdatesBoundContentUnitCandidate(t *testing.T) {
 	})
 	job := &persistencemodel.Job{
 		JobType:        "image",
+		UserID:         5,
 		RequestContext: string(requestContext),
 	}
 	job.ID = 42
@@ -94,6 +197,37 @@ func TestSyncJobSucceededUpdatesBoundContentUnitCandidate(t *testing.T) {
 	}
 	if len(candidate.Outputs) != 1 || candidate.Outputs[0].Kind != "image" || candidate.Outputs[0].ResourceID != 99 {
 		t.Fatalf("outputs = %#v, want image resource 99", candidate.Outputs)
+	}
+
+	projectDataDecision, err := appdecision.NewProjectDataService(db).Get(ctx, appdecision.ProjectDataTargetInput{
+		ProjectDataSpaceInput: appdecision.ProjectDataSpaceInput{
+			ProjectDataScopeInput: appdecision.ProjectDataScopeInput{
+				ScopeKind: appdecision.ProjectDataScopeUser,
+				ScopeID:   "5",
+			},
+			ProjectUID: "prj_canvas_generate",
+		},
+		TargetKind: TargetKindContentUnit,
+		TargetRef:  "content_units/cu_asset_1",
+	})
+	if err != nil {
+		t.Fatalf("get project data decision: %v", err)
+	}
+	if len(projectDataDecision.Candidates) != 1 {
+		t.Fatalf("project data candidate count = %d, want 1", len(projectDataDecision.Candidates))
+	}
+	var projectDataCandidate struct {
+		ID      string `json:"id"`
+		Status  string `json:"status"`
+		Outputs []struct {
+			ResourceID uint `json:"resource_id"`
+		} `json:"outputs"`
+	}
+	if err := json.Unmarshal(projectDataDecision.Candidates[0], &projectDataCandidate); err != nil {
+		t.Fatalf("decode project data candidate: %v", err)
+	}
+	if projectDataCandidate.ID != "candidate_1" || projectDataCandidate.Status != "succeeded" || len(projectDataCandidate.Outputs) != 1 || projectDataCandidate.Outputs[0].ResourceID != 99 {
+		t.Fatalf("project data candidate = %#v, want succeeded candidate_1 with resource 99", projectDataCandidate)
 	}
 }
 

@@ -52,6 +52,11 @@ type ProjectDataQueryTargetsInput struct {
 	TargetRefs []string
 }
 
+type ProjectDataListSpaceDecisionsInput struct {
+	ProjectDataScopeInput
+	SpaceID uint
+}
+
 type ProjectDataReplaceCandidatesInput struct {
 	ProjectDataTargetInput
 	Candidates []json.RawMessage
@@ -204,6 +209,37 @@ func (s *ProjectDataService) Query(ctx context.Context, input ProjectDataQueryTa
 	var rows []persistencemodel.ProjectDataDecisionContext
 	if err := s.db.WithContext(ctx).
 		Where("project_data_space_id = ? AND target_kind = ? AND target_ref IN ?", space.ID, query.TargetKind, query.TargetRefs).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make([]ProjectDataDecisionContext, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, projectDataDecisionFromModel(space, row))
+	}
+	return out, nil
+}
+
+func (s *ProjectDataService) ListSpaceDecisions(ctx context.Context, input ProjectDataListSpaceDecisionsInput) ([]ProjectDataDecisionContext, error) {
+	scope, err := normalizeProjectDataScope(input.ProjectDataScopeInput)
+	if err != nil {
+		return nil, err
+	}
+	if input.SpaceID == 0 {
+		return nil, ErrInvalidTarget
+	}
+	var space persistencemodel.ProjectDataSpace
+	if err := s.db.WithContext(ctx).
+		Where("id = ? AND scope_kind = ? AND scope_id = ?", input.SpaceID, scope.ScopeKind, scope.ScopeID).
+		First(&space).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrDecisionNotFound
+		}
+		return nil, err
+	}
+	var rows []persistencemodel.ProjectDataDecisionContext
+	if err := s.db.WithContext(ctx).
+		Where("project_data_space_id = ?", space.ID).
+		Order("updated_at DESC").
 		Find(&rows).Error; err != nil {
 		return nil, err
 	}

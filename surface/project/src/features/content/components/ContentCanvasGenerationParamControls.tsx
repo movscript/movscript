@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { generationParamRequiresValueSatisfied } from '@movscript/core/generation'
 import { generationParamLabel } from '@movscript/shared'
 import type { ParamDef } from '@movscript/shared'
 import {
@@ -23,11 +24,12 @@ export function ContentCanvasGenerationParamControls({
   className,
 }: ContentCanvasGenerationParamControlsProps) {
   const { t } = useTranslation()
-  if (params.length === 0) return null
+  const visibleParams = params.filter((param) => generationParamRequiresValueSatisfied(param, values))
+  if (visibleParams.length === 0) return null
 
   return (
     <GenerationParamsRow className={className}>
-      {params.map((param) => {
+      {visibleParams.map((param) => {
         const value = values[param.key] ?? param.default ?? ''
         return (
           <GenerationParamItem key={param.key} label={generationParamLabel(param, t)}>

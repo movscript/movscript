@@ -1,38 +1,43 @@
 import type { ContentCanvasCandidate, ContentCanvasNode, ContentCanvasNodeKind } from '../domain/contentCanvasTypes'
 
 export type CreativeCanvasAction =
-  | { kind: 'create_child'; childKind: Extract<ContentCanvasNodeKind, 'expression_unit' | 'keyframe' | 'storyboard' | 'asset' | 'state' | 'content_unit'>; label: string }
+  | { kind: 'create_child'; childKind: Extract<ContentCanvasNodeKind, 'segment' | 'scene_moment' | 'expression_unit' | 'keyframe' | 'storyboard' | 'asset' | 'state'>; label: string }
   | { kind: 'generate_candidate'; label: string }
   | { kind: 'upload_candidate'; label: string }
   | { kind: 'select_candidate'; candidateId: string; label: string }
   | { kind: 'open_resource'; resourceId?: number; label: string }
+  | { kind: 'remove_from_canvas'; label: string }
   | { kind: 'delete_node'; label: string }
 
 export function creativeCanvasActionsForNode(node: ContentCanvasNode | undefined): CreativeCanvasAction[] {
   if (!node) return []
   const actions: CreativeCanvasAction[] = []
+  if (node.kind === 'production') {
+    actions.push({ kind: 'create_child', childKind: 'segment', label: '添加段落' })
+  }
+  if (node.kind === 'segment') {
+    actions.push({ kind: 'create_child', childKind: 'scene_moment', label: '添加情节' })
+  }
   if (node.kind === 'scene_moment') {
     actions.push(
       { kind: 'create_child', childKind: 'expression_unit', label: '添加 Expression' },
       { kind: 'create_child', childKind: 'keyframe', label: '添加关键帧' },
       { kind: 'create_child', childKind: 'storyboard', label: '添加故事版' },
-      { kind: 'create_child', childKind: 'content_unit', label: '添加创作片段' },
     )
   }
   if (node.kind === 'expression_unit') {
     actions.push(
       { kind: 'create_child', childKind: 'keyframe', label: '添加关键帧' },
       { kind: 'create_child', childKind: 'storyboard', label: '添加故事版' },
-      { kind: 'create_child', childKind: 'content_unit', label: '添加创作片段' },
     )
   }
   if (node.kind === 'setting') actions.push({ kind: 'create_child', childKind: 'state', label: '添加状态' })
   if (node.kind === 'state') actions.push({ kind: 'create_child', childKind: 'asset', label: '添加资产' })
-  if (canGenerateCandidateForNode(node)) {
-    actions.push(
-      { kind: 'generate_candidate', label: node.candidates.length ? '再生成候选' : '生成候选' },
-      { kind: 'upload_candidate', label: '上传候选' },
-    )
+  if (canCreateCandidateForNode(node)) {
+    if (canGenerateCandidateForNode(node)) {
+      actions.push({ kind: 'generate_candidate', label: node.candidates.length ? '再生成候选' : '生成候选' })
+    }
+    actions.push({ kind: 'upload_candidate', label: '上传候选' })
   }
   if (node.kind === 'candidate') {
     const candidateId = String(node.record.id ?? node.entityKey)
@@ -41,8 +46,9 @@ export function creativeCanvasActionsForNode(node: ContentCanvasNode | undefined
   if (node.kind === 'resource') {
     actions.push({ kind: 'open_resource', resourceId: numericRecordField(node.record.resourceId), label: '打开资源' })
   }
+  actions.push({ kind: 'remove_from_canvas', label: '从画布移除' })
   if (contentCanvasNodeCanDelete(node)) {
-    actions.push({ kind: 'delete_node', label: '删除节点' })
+    actions.push({ kind: 'delete_node', label: '删除源节点' })
   }
   return actions
 }
@@ -62,13 +68,33 @@ function contentCanvasNodeCanDelete(node: ContentCanvasNode): boolean {
     || node.kind === 'asset'
 }
 
-function canGenerateCandidateForNode(node: ContentCanvasNode): boolean {
+function canCreateCandidateForNode(node: ContentCanvasNode): boolean {
   return node.kind === 'asset'
     || node.kind === 'keyframe'
     || node.kind === 'storyboard'
     || node.kind === 'scene_moment'
     || node.kind === 'expression_unit'
     || node.kind === 'content_unit'
+}
+
+function canGenerateCandidateForNode(node: ContentCanvasNode): boolean {
+  const outputKind = contentCanvasCandidateOutputKind(node)
+  return outputKind === 'image' || outputKind === 'video'
+}
+
+function contentCanvasCandidateOutputKind(node: ContentCanvasNode): string {
+  if (node.generationTask?.outputKind) return node.generationTask.outputKind
+  if (node.kind === 'scene_moment') return 'video'
+  if (node.kind === 'keyframe' || node.kind === 'storyboard') return 'image'
+  const outputKind = String(
+    node.record.output_kind
+      ?? node.record.outputKind
+      ?? node.record.asset_kind
+      ?? node.record.assetKind
+      ?? node.subtitle
+  ).toLowerCase()
+  if (outputKind === 'image' || outputKind === 'video' || outputKind === 'audio' || outputKind === 'text') return outputKind
+  return node.kind === 'content_unit' ? 'image' : outputKind
 }
 
 function numericRecordField(value: unknown): number | undefined {

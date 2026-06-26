@@ -172,6 +172,29 @@ providers:
     is_builtin: true
     is_enabled: true
     version: builtin.v1
+  - provider_type: yunwu
+    profile: gateway
+    provider_kind: yunwu_gateway
+    provider_category: aggregator_gateway
+    display_name: 云雾中转站
+    description: Yunwu relay gateway account boundary. It can aggregate multiple model labs and additionally exposes a private portrait asset library for Seedance workflows.
+    default_adapter_type: openai_compat
+    default_base_url_prefix: ""
+    capabilities:
+      aggregates_upstream_models: true
+      asset_library: true
+      generated_artifact_trust: false
+      requires_public_input_url_for_asset_upload: true
+      file_upload: false
+      task_polling: true
+      task_cancel: false
+    asset_library_capabilities:
+      asset_types: [image]
+      auto_create_groups: false
+      group_scopes: []
+    is_builtin: true
+    is_enabled: true
+    version: builtin.v1
   - provider_type: kling
     profile: official
     provider_kind: kling_official

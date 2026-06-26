@@ -10,6 +10,7 @@ import (
 
 	adminsettings "github.com/movscript/movscript/internal/app/admin/settings"
 	infraai "github.com/movscript/movscript/internal/infra/ai"
+	"github.com/movscript/movscript/internal/infra/crypto"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
@@ -277,6 +278,59 @@ func TestListProvidersIncludesOfficialArkAssetAndTrustRuntimeState(t *testing.T)
 	}
 }
 
+func TestListProvidersUsesYunwuProviderCredentialForAssetLibraryState(t *testing.T) {
+	service := newProviderTestService(t)
+	ctx := context.Background()
+	settingsService := adminsettings.NewService(service.db, hex.EncodeToString(service.encryptionKey))
+	if _, err := settingsService.UpdateProviderAssetSettings(ctx, adminsettings.ProviderAssetSettings{
+		PublicBaseURL: "https://public.example.com",
+		SigningSecret: "signing-secret",
+	}); err != nil {
+		t.Fatalf("UpdateProviderAssetSettings() error = %v", err)
+	}
+	provider, err := service.CreateProvider(ctx, CreateProviderInput{
+		ProviderID:    "yunwu-main",
+		ProviderKind:  persistencemodel.AIProviderKindYunwuGateway,
+		DisplayName:   "Yunwu Gateway",
+		BaseURLPrefix: "https://yunwu.ai/v1",
+		Credentials: map[string]string{
+			"api_key": "runtime-key",
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateProvider() error = %v", err)
+	}
+	providers, err := service.ListProviders(ctx)
+	if err != nil {
+		t.Fatalf("ListProviders() error = %v", err)
+	}
+	var listed persistencemodel.AIProvider
+	for _, item := range providers {
+		if item.ProviderID == provider.ProviderID {
+			listed = item
+			break
+		}
+	}
+	if listed.ProviderID == "" {
+		t.Fatalf("provider %q not listed", provider.ProviderID)
+	}
+	var state struct {
+		Settings    map[string]any   `json:"settings"`
+		Diagnostics []map[string]any `json:"diagnostics"`
+	}
+	if err := json.Unmarshal([]byte(listed.AssetLibraryStateJSON), &state); err != nil {
+		t.Fatalf("decode asset library state: %v", err)
+	}
+	if state.Settings["gateway_base_url"] != "https://yunwu.ai/v1" || state.Settings["gateway_token_set"] != true || state.Settings["gateway_credentials_source"] != "provider_runtime" {
+		t.Fatalf("asset library settings = %#v", state.Settings)
+	}
+	for _, diagnostic := range state.Diagnostics {
+		if diagnostic["severity"] == "error" {
+			t.Fatalf("unexpected error diagnostic: %#v", diagnostic)
+		}
+	}
+}
+
 func TestListProvidersMarksGatewayProviderAssetLibraryUnsupported(t *testing.T) {
 	service := newProviderTestService(t)
 	ctx := context.Background()
@@ -368,6 +422,57 @@ func TestProviderCredentialRotationSetsPrimaryAndDisablesLegacyKey(t *testing.T)
 	}
 	if legacyCredential.IsEnabled {
 		t.Fatalf("backup legacy credential is enabled after provider credential disable")
+	}
+}
+
+func TestUpdateProviderCredentialCanAddVolcenSpeechCredentials(t *testing.T) {
+	service := newProviderTestService(t)
+	ctx := context.Background()
+	provider, err := service.CreateProvider(ctx, CreateProviderInput{
+		ProviderKind:  persistencemodel.AIProviderKindVolcengineArk,
+		DisplayName:   "Ark Official",
+		BaseURLPrefix: "https://ark.cn-beijing.volces.com/api/v3",
+		Credentials: map[string]string{
+			"api_key": "ark-runtime-key",
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateProvider() error = %v", err)
+	}
+	provider, err = service.UpdateProviderCredential(ctx, provider.ProviderID, "primary", UpdateProviderCredentialInput{
+		Credentials: map[string]string{
+			"speech_app_id":  "speech-app",
+			"speech_token":   "speech-token",
+			"speech_cluster": "volcano_tts",
+		},
+	})
+	if err != nil {
+		t.Fatalf("UpdateProviderCredential() error = %v", err)
+	}
+	primary := providerCredentialByKey(provider, "primary")
+	if primary == nil || primary.Status != persistencemodel.AIProviderCredentialStatusActive || !primary.IsPrimary {
+		t.Fatalf("primary credential after update = %+v", primary)
+	}
+	legacyID := legacyCredentialIDFromProviderCredential(t, *primary)
+	var legacyCredential persistencemodel.AICredential
+	if err := service.db.First(&legacyCredential, legacyID).Error; err != nil {
+		t.Fatalf("load legacy credential: %v", err)
+	}
+	raw, err := crypto.Decrypt(legacyCredential.EncryptedKey, service.encryptionKey)
+	if err != nil {
+		t.Fatalf("decrypt legacy credential: %v", err)
+	}
+	var parsed struct {
+		APIKey        string `json:"api_key"`
+		SpeechAppID   string `json:"speech_app_id"`
+		SpeechToken   string `json:"speech_token"`
+		SpeechCluster string `json:"speech_cluster"`
+	}
+	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
+		t.Fatalf("decode legacy credential: %v; raw=%s", err, raw)
+	}
+	if parsed.APIKey != "ark-runtime-key" || parsed.SpeechAppID != "speech-app" || parsed.SpeechToken != "speech-token" || parsed.SpeechCluster != "volcano_tts" {
+		t.Fatalf("legacy credential = %+v, want ark key and speech credentials", parsed)
 	}
 }
 

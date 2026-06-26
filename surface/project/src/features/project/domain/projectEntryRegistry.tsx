@@ -2,18 +2,22 @@ import type { LucideIcon } from 'lucide-react'
 import {
   Clapperboard,
   LayoutDashboard,
+  MonitorPlay,
   Wand2,
 } from 'lucide-react'
 import { surfaceRoutePath, type SurfaceRouteKey, type SurfaceRouteParams } from '@movscript/shared'
 
 export type ProjectEntryId =
   | 'orchestration_production'
+  | 'content_canvas'
+  | 'content_preview'
   | 'content'
   | 'project_standards'
 
 export type ProjectEntryStage =
   | 'orchestration_production'
-  | 'content'
+  | 'content_canvas'
+  | 'content_preview'
   | 'standards'
 
 export interface ProjectEntryReviewQuery {
@@ -74,19 +78,42 @@ export const projectEntryDefinitions: ProjectEntryDefinition[] = [
     },
   },
   {
-    id: 'content',
-    title: '创作',
-    shortTitle: '创作',
-    routeKey: 'project.content',
-    sidebarTitleKey: 'sidebar.items.workbenchContentGeneration',
-    headerTitleKey: 'header.titles.workbenchContentGeneration',
-    stage: 'content',
+    id: 'content_canvas',
+    title: '创作画布',
+    shortTitle: '画布',
+    routeKey: 'project.contentCanvas',
+    sidebarTitleKey: 'sidebar.items.contentCanvasWorkspace',
+    headerTitleKey: 'header.titles.contentCanvasWorkspace',
+    stage: 'content_canvas',
     icon: Wand2,
-    purpose: '围绕每个情节拆解创作片段，把设定、素材输入和画面锚点带进生成上下文。',
-    decision: '审阅创作片段草案，补齐关键帧、素材缺口和生成上下文。',
-    output: '可驱动画面、视频和返工处理的创作输入。',
-    owns: ['content_unit', 'keyframe', 'preview_timeline_item', 'generation_context'],
+    purpose: '在无限画布里直接创建节点、展开提示词和发起生成，让类型与位置成为主要输入。',
+    decision: '编辑节点关系、提示词、模型参数和生成上下文，不依赖侧边节点列表。',
+    output: '可直接生成候选资源的创作片段、关键帧和提示词上下文。',
+    owns: ['content_unit', 'keyframe', 'generation_context'],
     reads: ['production', 'segment', 'scene_moment', 'setting', 'asset_slot', 'resource', 'job'],
+    primarySelection: { queryParam: 'scene_moment_id', entityType: 'scene_moment' },
+    reviewQuery: {
+      workspaceIdParam: 'workspaceId',
+      entityParams: {
+        scene_moment: 'scene_moment_id',
+        content_unit: 'content_unit_id',
+      },
+    },
+  },
+  {
+    id: 'content_preview',
+    title: '预览',
+    shortTitle: '预览',
+    routeKey: 'project.contentPreview',
+    sidebarTitleKey: 'sidebar.items.contentPreviewWorkspace',
+    headerTitleKey: 'header.titles.contentPreviewWorkspace',
+    stage: 'content_preview',
+    icon: MonitorPlay,
+    purpose: '集中审阅创作结果、候选资源和预览时间线，把右侧空间完整留给预览判断。',
+    decision: '选择候选、检查缺口和预览创作链路的最终呈现。',
+    output: '可供剪辑、返工或交付的预览选择与时间线挂载。',
+    owns: ['preview_timeline_item', 'candidate_selection'],
+    reads: ['production', 'segment', 'scene_moment', 'content_unit', 'keyframe', 'resource', 'job'],
     primarySelection: { queryParam: 'scene_moment_id', entityType: 'scene_moment' },
     reviewQuery: {
       workspaceIdParam: 'workspaceId',
@@ -124,7 +151,8 @@ export function getProjectEntryDefinition(id: ProjectEntryId) {
   if (!defaultProjectEntryDefinition) {
     throw new Error('Project entry definitions must declare at least one entry.')
   }
-  return projectEntryDefinitions.find((item) => item.id === id) ?? defaultProjectEntryDefinition
+  const definitionId = id === 'content' ? 'content_preview' : id
+  return projectEntryDefinitions.find((item) => item.id === definitionId) ?? defaultProjectEntryDefinition
 }
 
 export interface ProjectEntryReviewInput {

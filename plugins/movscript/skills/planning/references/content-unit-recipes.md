@@ -73,7 +73,7 @@ scene_moment
 -> interpreted edit_plan groups selected resources into tracks
 -> editing_project_create_from_edit_plan creates a MediaEditingProject
 -> editing_timeline_* adjusts tracks/clips when needed
--> editing_task_render_create renders through Electron mediaPipeline / Media Pipeline when render capability is available
+-> editing_task_render_create renders through Media Pipeline when render capability is available
 -> editing_export_import_resource uploads the finished local export
 -> editing_export_create_candidate explicitly writes the RawResource-backed scene-moment video candidate
 -> HLS MediaStreamArtifact outputs stay hosted previews until domain candidate schema supports stream outputs
@@ -84,6 +84,8 @@ Use the editing path when cross-shot voice, subtitles, sound design, visual cons
 ## Storyboards and Keyframes
 
 Use storyboard panels before keyframes when the user has composition, blocking, camera, placement, or rhythm expectations but has not specified enough detail.
+
+Storyboard and keyframe content-unit prompts should be image prompts, not pasted script text and not video prompts. Analyze the source scene first, then specify image purpose, subject, single-frame action state, composition, camera angle, setting, lighting, style, continuity refs, and restrictions. For storyboard panels, prefer schematic or stylized visual-planning images; avoid photoreal real-person likenesses unless the user explicitly needs a final character image.
 
 ```text
 shot intent

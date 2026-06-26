@@ -4,7 +4,7 @@ import { ensureContentUnitForRef } from './contentCanvasContentUnitCommands'
 import type { ContentCanvasWorkspaceGateway } from './contentCanvasWorkspaceGateway'
 import { contentCanvasExpressionUnitOutputKind } from './contentCanvasExpressionUnitKinds'
 
-export type { ContentCanvasCreateAction, ContentCanvasCreateNodeInput, ContentCanvasExpressionUnitKind, ContentCanvasSettingKind } from './contentCanvasCreateNodeCommands'
+export type { ContentCanvasCreateAction, ContentCanvasCreateNodeInput, ContentCanvasExpressionUnitKind, ContentCanvasGenerationOutputKind, ContentCanvasSettingKind } from './contentCanvasCreateNodeCommands'
 export {
   CONTENT_CANVAS_EXPRESSION_UNIT_KIND_OPTIONS,
   createChildContentCanvasNode,
@@ -333,6 +333,37 @@ export async function updateContentUnitPromptFromCanvas(
     affectedNodeIds: [contentUnitNode.id],
     focusNodeId: contentUnitNode.id,
     message: '已保存创作片段提示词',
+  }
+}
+
+export async function updateContentUnitStructuredPromptFromCanvas(
+  projectId: number,
+  contentUnitNode: ContentCanvasNode,
+  structured: Record<string, unknown>,
+  gateway: ContentCanvasWorkspaceGateway,
+): Promise<ContentCanvasCommandResult> {
+  void projectId
+  assertNodeKind(contentUnitNode, 'content_unit', '创作片段')
+  if (!contentUnitNode.sourcePath) {
+    throw new Error('创作片段节点缺少 workspace 路径，无法写入')
+  }
+  const currentPrompt = isRecord(contentUnitNode.record.edit_prompt)
+    ? contentUnitNode.record.edit_prompt
+    : isRecord(contentUnitNode.record.editPrompt)
+      ? contentUnitNode.record.editPrompt
+      : {}
+  await gateway.service.updateContentUnitEditPrompt({
+    targetPath: contentUnitNode.sourcePath,
+    editPrompt: {
+      ...currentPrompt,
+      structured,
+    },
+  })
+  return {
+    changedNodeIds: [contentUnitNode.id],
+    affectedNodeIds: [contentUnitNode.id],
+    focusNodeId: contentUnitNode.id,
+    message: '已保存创作片段镜头计划',
   }
 }
 

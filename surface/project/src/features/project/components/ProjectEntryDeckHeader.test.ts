@@ -7,11 +7,11 @@ import { projectEntryDeckTabPath } from './ProjectEntryDeckHeader'
 test('project entry deck header routes tabs to restored entry locations', () => {
   assert.equal(
     projectEntryDeckTabPath({
-      definition: getProjectEntryDefinition('content'),
-      restoredRoute: '/project/content',
+      definition: getProjectEntryDefinition('content_preview'),
+      restoredRoute: '/project/content/preview',
       restoredSearch: 'scene_moment_id=12',
     }),
-    '/project/content?scene_moment_id=12',
+    '/project/content/preview?scene_moment_id=12',
   )
   assert.equal(
     projectEntryDeckTabPath({

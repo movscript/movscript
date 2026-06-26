@@ -78,7 +78,8 @@ export function ProjectResourceViewSurface({ kind }: ProjectResourceViewSurfaceP
             <AgentSurfaceLink href={runtime.navigator.href('overview')}>Overview</AgentSurfaceLink>
             <AgentSurfaceLink href={runtime.navigator.href('scripts')}>Scripts</AgentSurfaceLink>
             <AgentSurfaceLink href={runtime.navigator.href('standards')}>Standards</AgentSurfaceLink>
-            <AgentSurfaceLink href={runtime.navigator.href('content')}>Content</AgentSurfaceLink>
+            <AgentSurfaceLink href={runtime.navigator.href('contentCanvas')}>Canvas</AgentSurfaceLink>
+            <AgentSurfaceLink href={runtime.navigator.href('contentPreview')}>Preview</AgentSurfaceLink>
             <AgentSurfaceLink href={runtime.navigator.href('settings')}>Settings</AgentSurfaceLink>
           </div>
         </AgentSurfacePanel>

@@ -31,6 +31,10 @@
     var(--cc-bg);
 }
 
+.content-canvas-workspace-page[data-workspace-mode="canvas"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .content-canvas-workspace-tabs {
   grid-column: 2;
   grid-row: 1;

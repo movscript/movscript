@@ -143,5 +143,7 @@ function projectEntryDeckSnapshotFor(input: {
   return input.snapshots[projectEntrySessionKey(input.projectId, input.projectEntryId)]
     ?? (input.projectEntryId === 'orchestration_production'
       ? input.snapshots[projectEntrySessionKey(input.projectId, 'scripts')]
+      : input.projectEntryId === 'content_preview'
+        ? input.snapshots[projectEntrySessionKey(input.projectId, 'content')]
       : undefined)
 }

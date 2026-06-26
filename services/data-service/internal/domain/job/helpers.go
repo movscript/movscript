@@ -129,6 +129,9 @@ type ProjectScopeBinding struct {
 type ContentUnitCandidateBinding struct {
 	ProjectID      uint            `json:"project_id,omitempty"`
 	ProjectUID     string          `json:"project_uid,omitempty"`
+	ProjectTitle   string          `json:"project_title,omitempty"`
+	ScopeKind      string          `json:"scope_kind,omitempty"`
+	ScopeID        string          `json:"scope_id,omitempty"`
 	ContentUnitID  string          `json:"content_unit_id,omitempty"`
 	TargetKind     string          `json:"target_kind,omitempty"`
 	TargetRef      string          `json:"target_ref,omitempty"`

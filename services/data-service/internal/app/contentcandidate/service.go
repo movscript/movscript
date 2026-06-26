@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -46,6 +47,10 @@ type GenerateInput struct {
 	OrgID            *uint
 	ContentUnitID    string
 	CandidateID      string
+	ProjectUID       string
+	ProjectTitle     string
+	ScopeKind        string
+	ScopeID          string
 	OutputKind       string
 	ModelID          string
 	JobType          string
@@ -60,9 +65,10 @@ type GenerateInput struct {
 }
 
 type GenerateResult struct {
-	Job             domainjob.Job          `json:"job"`
-	Candidate       json.RawMessage        `json:"candidate"`
-	DecisionContext domaindecision.Context `json:"decision_context"`
+	Job                        domainjob.Job                           `json:"job"`
+	Candidate                  json.RawMessage                         `json:"candidate"`
+	DecisionContext            domaindecision.Context                  `json:"decision_context"`
+	ProjectDataDecisionContext *appdecision.ProjectDataDecisionContext `json:"project_data_decision_context,omitempty"`
 }
 
 func (s *Service) Generate(ctx context.Context, input GenerateInput) (GenerateResult, error) {
@@ -73,6 +79,10 @@ func (s *Service) Generate(ctx context.Context, input GenerateInput) (GenerateRe
 	projectID := normalized.ProjectID
 	binding := domainjob.ContentUnitCandidateBinding{
 		ProjectID:      projectID,
+		ProjectUID:     normalized.ProjectUID,
+		ProjectTitle:   normalized.ProjectTitle,
+		ScopeKind:      normalized.ScopeKind,
+		ScopeID:        normalized.ScopeID,
 		ContentUnitID:  normalized.ContentUnitID,
 		TargetKind:     TargetKindContentUnit,
 		TargetRef:      contentUnitTargetRef(normalized.ContentUnitID),
@@ -122,10 +132,15 @@ func (s *Service) Generate(ctx context.Context, input GenerateInput) (GenerateRe
 	if err != nil {
 		return GenerateResult{}, err
 	}
+	projectDataDecisionContext, err := s.upsertProjectDataCandidate(ctx, normalized, candidate, &normalized.UserID)
+	if err != nil {
+		return GenerateResult{}, err
+	}
 	return GenerateResult{
-		Job:             job,
-		Candidate:       candidate,
-		DecisionContext: decisionContext,
+		Job:                        job,
+		Candidate:                  candidate,
+		DecisionContext:            decisionContext,
+		ProjectDataDecisionContext: projectDataDecisionContext,
 	}, nil
 }
 
@@ -239,7 +254,161 @@ func syncJobCandidate(ctx context.Context, db *gorm.DB, job *persistencemodel.Jo
 		},
 		Candidate: candidate,
 	})
+	if err != nil {
+		return err
+	}
+	_, err = upsertProjectDataCandidateFromBinding(ctx, db, binding, job, candidate, nil)
 	return err
+}
+
+type projectDataCandidateTarget struct {
+	ProjectID     uint
+	ProjectUID    string
+	ProjectTitle  string
+	ScopeKind     string
+	ScopeID       string
+	UserID        uint
+	OrgID         *uint
+	ContentUnitID string
+	TargetKind    string
+	TargetRef     string
+}
+
+func (s *Service) upsertProjectDataCandidate(
+	ctx context.Context,
+	input GenerateInput,
+	candidate json.RawMessage,
+	actorID *uint,
+) (*appdecision.ProjectDataDecisionContext, error) {
+	return upsertProjectDataCandidate(ctx, s.db, projectDataCandidateTarget{
+		ProjectID:     input.ProjectID,
+		ProjectUID:    input.ProjectUID,
+		ProjectTitle:  input.ProjectTitle,
+		ScopeKind:     input.ScopeKind,
+		ScopeID:       input.ScopeID,
+		UserID:        input.UserID,
+		OrgID:         input.OrgID,
+		ContentUnitID: input.ContentUnitID,
+		TargetKind:    TargetKindContentUnit,
+		TargetRef:     contentUnitTargetRef(input.ContentUnitID),
+	}, candidate, actorID)
+}
+
+func upsertProjectDataCandidateFromBinding(
+	ctx context.Context,
+	db *gorm.DB,
+	binding domainjob.ContentUnitCandidateBinding,
+	job *persistencemodel.Job,
+	candidate json.RawMessage,
+	actorID *uint,
+) (*appdecision.ProjectDataDecisionContext, error) {
+	var userID uint
+	var orgID *uint
+	if job != nil {
+		userID = job.UserID
+		orgID = job.OrgID
+	}
+	return upsertProjectDataCandidate(ctx, db, projectDataCandidateTarget{
+		ProjectID:     binding.ProjectID,
+		ProjectUID:    binding.ProjectUID,
+		ProjectTitle:  binding.ProjectTitle,
+		ScopeKind:     binding.ScopeKind,
+		ScopeID:       binding.ScopeID,
+		UserID:        userID,
+		OrgID:         orgID,
+		ContentUnitID: binding.ContentUnitID,
+		TargetKind:    firstNonEmpty(binding.TargetKind, TargetKindContentUnit),
+		TargetRef:     firstNonEmpty(binding.TargetRef, contentUnitTargetRef(binding.ContentUnitID)),
+	}, candidate, actorID)
+}
+
+func upsertProjectDataCandidate(
+	ctx context.Context,
+	db *gorm.DB,
+	input projectDataCandidateTarget,
+	candidate json.RawMessage,
+	actorID *uint,
+) (*appdecision.ProjectDataDecisionContext, error) {
+	projectUID, projectTitle, err := resolveProjectDataProject(ctx, db, input.ProjectID, input.ProjectUID, input.ProjectTitle)
+	if err != nil {
+		return nil, err
+	}
+	if projectUID == "" {
+		return nil, nil
+	}
+	scopeKind, scopeID := projectDataScope(input.ScopeKind, input.ScopeID, input.UserID, input.OrgID)
+	if scopeKind == "" || scopeID == "" {
+		return nil, nil
+	}
+	targetRef := firstNonEmpty(input.TargetRef, contentUnitTargetRef(input.ContentUnitID))
+	if targetRef == "" {
+		return nil, nil
+	}
+	result, err := appdecision.NewProjectDataService(db).UpsertCandidate(ctx, appdecision.ProjectDataUpsertCandidateInput{
+		ProjectDataTargetInput: appdecision.ProjectDataTargetInput{
+			ProjectDataSpaceInput: appdecision.ProjectDataSpaceInput{
+				ProjectDataScopeInput: appdecision.ProjectDataScopeInput{
+					ScopeKind: scopeKind,
+					ScopeID:   scopeID,
+				},
+				ProjectUID: projectUID,
+				Title:      projectTitle,
+				ActorID:    actorID,
+			},
+			TargetKind: firstNonEmpty(input.TargetKind, TargetKindContentUnit),
+			TargetRef:  targetRef,
+		},
+		Candidate: candidate,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func resolveProjectDataProject(ctx context.Context, db *gorm.DB, projectID uint, projectUID string, title string) (string, string, error) {
+	projectUID = strings.TrimSpace(projectUID)
+	title = strings.TrimSpace(title)
+	if projectUID != "" && title != "" {
+		return projectUID, title, nil
+	}
+	if projectID == 0 {
+		return projectUID, title, nil
+	}
+	var project persistencemodel.Project
+	err := db.WithContext(ctx).First(&project, projectID).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return projectUID, title, nil
+		}
+		return "", "", err
+	}
+	if projectUID == "" {
+		projectUID = strings.TrimSpace(project.ProjectUID)
+	}
+	if title == "" {
+		title = strings.TrimSpace(project.Name)
+	}
+	return projectUID, title, nil
+}
+
+func projectDataScope(rawKind string, rawID string, userID uint, orgID *uint) (string, string) {
+	kind := strings.ToLower(strings.TrimSpace(rawKind))
+	id := strings.TrimSpace(rawID)
+	switch kind {
+	case appdecision.ProjectDataScopeOrg:
+		if id == "" && orgID != nil && *orgID != 0 {
+			id = strconv.FormatUint(uint64(*orgID), 10)
+		}
+		return kind, id
+	case "", appdecision.ProjectDataScopeUser:
+		if id == "" && userID != 0 {
+			id = strconv.FormatUint(uint64(userID), 10)
+		}
+		return appdecision.ProjectDataScopeUser, id
+	default:
+		return "", ""
+	}
 }
 
 func ContentUnitCandidateBindingFromRequestContext(value string) (domainjob.ContentUnitCandidateBinding, bool) {
@@ -252,6 +421,10 @@ func ContentUnitCandidateBindingFromRequestContext(value string) (domainjob.Cont
 	binding := *snapshot.ContentUnitCandidate
 	binding.ContentUnitID = strings.TrimSpace(binding.ContentUnitID)
 	binding.CandidateID = strings.TrimSpace(binding.CandidateID)
+	binding.ProjectUID = strings.TrimSpace(binding.ProjectUID)
+	binding.ProjectTitle = strings.TrimSpace(binding.ProjectTitle)
+	binding.ScopeKind = strings.ToLower(strings.TrimSpace(binding.ScopeKind))
+	binding.ScopeID = strings.TrimSpace(binding.ScopeID)
 	binding.OutputKind = normalizeOutputKind(binding.OutputKind)
 	if binding.ProjectID == 0 || binding.ContentUnitID == "" || binding.CandidateID == "" || binding.OutputKind == "" {
 		return domainjob.ContentUnitCandidateBinding{}, false
@@ -268,6 +441,10 @@ func ContentUnitCandidateBindingFromRequestContext(value string) (domainjob.Cont
 func normalizeGenerateInput(input GenerateInput) (GenerateInput, error) {
 	input.ContentUnitID = strings.TrimSpace(input.ContentUnitID)
 	input.CandidateID = strings.TrimSpace(input.CandidateID)
+	input.ProjectUID = strings.TrimSpace(input.ProjectUID)
+	input.ProjectTitle = strings.TrimSpace(input.ProjectTitle)
+	input.ScopeKind = strings.ToLower(strings.TrimSpace(input.ScopeKind))
+	input.ScopeID = strings.TrimSpace(input.ScopeID)
 	input.OutputKind = normalizeOutputKind(input.OutputKind)
 	input.ModelID = strings.TrimSpace(input.ModelID)
 	input.JobType = strings.TrimSpace(input.JobType)

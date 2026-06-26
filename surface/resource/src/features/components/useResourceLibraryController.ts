@@ -43,8 +43,8 @@ export function useResourceLibraryController(options: ResourceLibraryControllerO
       sharedToTeamSuccess: t('pages.resources.sharedToTeamSuccess', { defaultValue: '已加入团队资源库' }),
       sharedToProjectSuccess: t('pages.resources.sharedToProjectSuccess', { defaultValue: '已分享给项目' }),
       revokedFromProjectSuccess: t('pages.resources.revokedFromProjectSuccess', { defaultValue: '已从项目移除引用' }),
-      providerAssetCertified: t('pages.resources.providerAssetCertified', { defaultValue: '已认证到火山素材库' }),
-      providerAssetCertifyFailed: t('pages.resources.providerAssetCertifyFailed', { defaultValue: '火山素材库认证失败，请检查系统设置里的公网地址和 AK/SK' }),
+      providerAssetCertified: t('pages.resources.providerAssetCertified', { defaultValue: '已认证到 Provider 素材库' }),
+      providerAssetCertifyFailed: t('pages.resources.providerAssetCertifyFailed', { defaultValue: 'Provider 素材库认证失败，请检查系统设置里的公网地址和 provider 凭证' }),
     },
     onResourceLibraryChanged: ({ changedIds }) => {
       invalidateResourceMutationResult(qc, resourceLibraryChangedResult({ changedIds }))

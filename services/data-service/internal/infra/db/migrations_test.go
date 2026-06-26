@@ -503,6 +503,41 @@ func TestRunMigrationsAddsRawResourceProviderGeneratedArtifactToExistingSchema(t
 	}
 }
 
+func TestRunMigrationsAddsProviderAssetLibraryReadModel(t *testing.T) {
+	db := testutil.OpenSQLite(t, "provider-asset-read-model-migration.db", &AppliedMigration{})
+	for _, migration := range RegisteredMigrations() {
+		if migration.Version >= "000014" {
+			continue
+		}
+		if err := db.Create(&AppliedMigration{
+			Version:   migration.Version,
+			Name:      migration.Name,
+			Checksum:  migrationChecksum(migration),
+			AppliedAt: time.Now().UTC(),
+		}).Error; err != nil {
+			t.Fatalf("insert applied migration %s: %v", migration.Version, err)
+		}
+	}
+	if db.Migrator().HasTable(&model.ProviderAssetGroup{}) ||
+		db.Migrator().HasTable(&model.ProviderAsset{}) ||
+		db.Migrator().HasTable(&model.ProviderAssetModelCertification{}) {
+		t.Fatal("provider asset read model tables should not exist before migration")
+	}
+
+	if err := RunMigrations(db); err != nil {
+		t.Fatalf("RunMigrations() error = %v", err)
+	}
+	for _, entity := range []any{
+		&model.ProviderAssetGroup{},
+		&model.ProviderAsset{},
+		&model.ProviderAssetModelCertification{},
+	} {
+		if !db.Migrator().HasTable(entity) {
+			t.Fatalf("expected table for %T", entity)
+		}
+	}
+}
+
 func TestMigrateAIProviderInstancesBackfillsLegacyCredentials(t *testing.T) {
 	db := testutil.OpenSQLite(t, "ai-provider-instance-migration.db")
 	if err := db.AutoMigrate(&model.AICredential{}); err != nil {

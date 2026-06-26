@@ -11,6 +11,8 @@ This file is a prompt-craft layer, not a provider adapter. Keep MovScript semant
 - Treat duration, aspect ratio, resolution, model name, and provider parameter keys as external generation settings unless the specific provider requires those words inside the prompt.
 - For image-to-video, use the selected image as the visual anchor. The prompt should focus on motion, performance, camera, environmental change, and audio, not re-describe every visible detail.
 - For content-unit generation, a strong prompt still produces a candidate, not a final accepted selection.
+- For `scene_moment_ref` video generation, always write a video prompt. Do not pass a plain scene-moment synopsis, entity description, or still-image prompt to the video model.
+- When the source is script or story text, run `content-unit-prompt-craft.md` first. Use its script analysis pass as the extraction layer, then use this file to turn the analyzed beat into video direction.
 
 ## Prompt Pass
 
@@ -50,6 +52,8 @@ Before generating video, run this pass mentally and fill any missing part that m
 
 Do not remove story intent. Use it as the overview, then make the model-facing prompt executable.
 
+Do not treat the source script as the prompt. If the script says a character enters, argues, remembers, or says a line, infer the production details the camera needs: where the character enters from, who is in frame, what prop or set element matters, how the emotion changes, and what the viewer should notice.
+
 When a source prompt says a character "pressures", "threatens", "begs", "seduces", "hides guilt", "forces a choice", "realizes the truth", or "protects the family", rewrite the abstract beat into visible and audible layers:
 
 - Story overview: the dramatic purpose of this beat in one sentence.
@@ -82,6 +86,8 @@ Light/camera/audio: cold daylight from the hallway silhouettes the three intrude
 ### Direct Scene Moment
 
 Use one coherent prompt when the scene moment is a single continuous action. The prompt may be one paragraph, but it must contain identity, setting, action progression, camera, lighting, style/texture, and negatives when needed.
+
+Keep this pattern to short atomic scene moments, normally about 10 seconds or less. If the scene needs several independently reviewable actions or time/place changes, split it into multiple scene moments before prompting.
 
 Template:
 
@@ -193,7 +199,9 @@ Strong:
 Before submitting a video prompt, confirm:
 
 - The prompt directs a scene over time, not a still image.
+- A `scene_moment_ref` content unit uses video-prompt form, not a scene synopsis.
 - Story-heavy wording has been translated into cast/blocking, visible actions, dialogue, lighting, camera, and audio layers.
+- Script text has been analyzed into scene details instead of copied as the content-unit prompt.
 - The subject identity and selected MovScript refs are explicit when continuity matters.
 - The action has a beginning, middle, and end if duration or complexity calls for it.
 - Camera and lighting are concrete enough to influence output.

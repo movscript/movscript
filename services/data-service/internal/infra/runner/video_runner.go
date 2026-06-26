@@ -25,7 +25,7 @@ func (w *Worker) runVideoJob(ctx context.Context, debugCtx context.Context, job 
 	}
 	var certifiedAssets []certifiedProviderAsset
 	if supportsProviderAssetURI {
-		certifiedAssets = w.certifiedProviderAssetsForJob(job, route.ProviderID)
+		certifiedAssets = w.certifiedProviderAssetsForJob(job, route.ProviderID, route.ProviderModelID, route.ModelID)
 		imageData, videoData, audioData = filterCertifiedProviderAssetMediaInputs(certifiedAssets, imageData, videoData, audioData)
 	}
 	// Volcen's Seedance video API rejects base64 for video_url; for reference
@@ -126,12 +126,12 @@ func (w *Worker) providerAssetDiagnosticsForJob(ctx context.Context, job *persis
 			})
 			continue
 		}
-		out = append(out, providerAssetDiagnosticForResource(resource, providerID, providerKind, supportsProviderAssetURI))
+		out = append(out, providerAssetDiagnosticForResource(resource, providerID, providerKind, []string{route.ProviderModelID, route.ModelID}, supportsProviderAssetURI))
 	}
 	return out
 }
 
-func providerAssetDiagnosticForResource(resource persistencemodel.RawResource, providerID string, providerKind string, supportsProviderAssetURI bool) ai.ResourceDiagnostic {
+func providerAssetDiagnosticForResource(resource persistencemodel.RawResource, providerID string, providerKind string, modelCandidates []string, supportsProviderAssetURI bool) ai.ResourceDiagnostic {
 	modality := providerAssetResourceModality(resource)
 	diagnostic := ai.ResourceDiagnostic{
 		ResourceID:               resource.ID,
@@ -153,7 +153,7 @@ func providerAssetDiagnosticForResource(resource persistencemodel.RawResource, p
 		diagnostic.NextAction = "Only image RawResources are currently registered as provider assets."
 		return diagnostic
 	}
-	certification := providerAssetCertificationForProvider(resource.ProviderAssetCertifications, providerID)
+	certification := providerAssetCertificationForProvider(resource.ProviderAssetCertifications, providerID, modelCandidates...)
 	if len(certification) == 0 {
 		keys, providers := providerAssetCertificationKeySummaries(resource.ProviderAssetCertifications)
 		diagnostic.AvailableCertificationKeys = keys
@@ -303,7 +303,7 @@ type certifiedProviderAsset struct {
 	Modality   string
 }
 
-func (w *Worker) certifiedProviderAssetsForJob(job *persistencemodel.Job, providerID string) []certifiedProviderAsset {
+func (w *Worker) certifiedProviderAssetsForJob(job *persistencemodel.Job, providerID string, modelCandidates ...string) []certifiedProviderAsset {
 	if w == nil || w.db == nil || job == nil {
 		return nil
 	}
@@ -336,7 +336,7 @@ func (w *Worker) certifiedProviderAssetsForJob(job *persistencemodel.Job, provid
 		if modality != "image" {
 			continue
 		}
-		assetURI := activeProviderAssetURI(resource.ProviderAssetCertifications, providerID)
+		assetURI := w.activeProviderAssetURIForResource(resource.ID, resource.ProviderAssetCertifications, providerID, modelCandidates...)
 		if assetURI == "" {
 			continue
 		}
@@ -350,8 +350,55 @@ func (w *Worker) certifiedProviderAssetsForJob(job *persistencemodel.Job, provid
 	return out
 }
 
-func activeProviderAssetURI(raw string, providerID string) string {
-	certification := providerAssetCertificationForProvider(raw, providerID)
+func (w *Worker) activeProviderAssetURIForResource(resourceID uint, legacyCertifications string, providerID string, modelCandidates ...string) string {
+	if w != nil && w.db != nil && w.db.Migrator().HasTable(&persistencemodel.ProviderAsset{}) && w.db.Migrator().HasTable(&persistencemodel.ProviderAssetModelCertification{}) {
+		if assetURI := w.activeProviderAssetURIFromReadModel(resourceID, providerID, modelCandidates...); assetURI != "" {
+			return assetURI
+		}
+	}
+	return activeProviderAssetURI(legacyCertifications, providerID, modelCandidates...)
+}
+
+func (w *Worker) activeProviderAssetURIFromReadModel(resourceID uint, providerID string, modelCandidates ...string) string {
+	providerID = strings.TrimSpace(providerID)
+	if resourceID == 0 || providerID == "" || w == nil || w.db == nil {
+		return ""
+	}
+	models := normalizedProviderAssetModels(modelCandidates...)
+	for _, model := range models {
+		if assetURI := w.findActiveProviderAssetURI(resourceID, providerID, model); assetURI != "" {
+			return assetURI
+		}
+	}
+	if len(models) == 0 {
+		return w.findActiveProviderAssetURI(resourceID, providerID, "")
+	}
+	return ""
+}
+
+func (w *Worker) findActiveProviderAssetURI(resourceID uint, providerID string, model string) string {
+	var row struct {
+		AssetURI string
+	}
+	query := w.db.Table("provider_assets AS pa").
+		Select("pa.asset_uri").
+		Joins("JOIN provider_asset_model_certifications AS cert ON cert.provider_asset_id = pa.id").
+		Where("pa.deleted_at IS NULL AND cert.deleted_at IS NULL").
+		Where("pa.provider_id = ? AND cert.provider_id = ?", providerID, providerID).
+		Where("pa.source_resource_id = ?", resourceID).
+		Where("pa.status = ? AND cert.status = ?", persistencemodel.ProviderAssetStatusActive, persistencemodel.ProviderAssetStatusActive).
+		Where("pa.asset_uri <> ''")
+	if strings.TrimSpace(model) != "" {
+		query = query.Where("cert.public_model_id = ? OR cert.provider_model_id = ?", model, model)
+	}
+	if err := query.Order("cert.updated_at DESC, pa.updated_at DESC").Limit(1).Scan(&row).Error; err != nil {
+		return ""
+	}
+	return strings.TrimSpace(row.AssetURI)
+}
+
+func activeProviderAssetURI(raw string, providerID string, modelCandidates ...string) string {
+	certification := providerAssetCertificationForProvider(raw, providerID, modelCandidates...)
 	if !providerAssetCertificationActive(certification) {
 		return ""
 	}
@@ -368,7 +415,7 @@ func assetURIFromProviderAssetCertification(certification map[string]any) string
 	return ""
 }
 
-func providerAssetCertificationForProvider(raw string, providerID string) map[string]any {
+func providerAssetCertificationForProvider(raw string, providerID string, modelCandidates ...string) map[string]any {
 	raw = strings.TrimSpace(raw)
 	providerID = strings.TrimSpace(providerID)
 	if raw == "" || raw == "{}" || raw == "null" {
@@ -381,16 +428,73 @@ func providerAssetCertificationForProvider(raw string, providerID string) map[st
 	if err := json.Unmarshal([]byte(raw), &certifications); err != nil {
 		return nil
 	}
+	models := normalizedProviderAssetModels(modelCandidates...)
+	if len(models) == 0 {
+		if certification := mapValue(certifications[providerID]); len(certification) > 0 {
+			return certification
+		}
+		for _, value := range certifications {
+			certification := mapValue(value)
+			if strings.TrimSpace(stringValue(certification["provider_id"])) == providerID {
+				return certification
+			}
+		}
+		return nil
+	}
+	var legacy map[string]any
 	if certification := mapValue(certifications[providerID]); len(certification) > 0 {
-		return certification
+		if providerAssetCertificationHasModel(certification, models) {
+			return certification
+		}
+		if providerAssetCertificationModel(certification) == "" {
+			legacy = certification
+		}
 	}
 	for _, value := range certifications {
 		certification := mapValue(value)
-		if strings.TrimSpace(stringValue(certification["provider_id"])) == providerID {
+		if strings.TrimSpace(stringValue(certification["provider_id"])) != providerID {
+			continue
+		}
+		if providerAssetCertificationHasModel(certification, models) {
 			return certification
 		}
+		if legacy == nil && providerAssetCertificationModel(certification) == "" {
+			legacy = certification
+		}
 	}
-	return nil
+	return legacy
+}
+
+func normalizedProviderAssetModels(values ...string) []string {
+	out := make([]string, 0, len(values))
+	seen := map[string]bool{}
+	for _, value := range values {
+		model := strings.TrimSpace(value)
+		if model == "" || seen[model] {
+			continue
+		}
+		out = append(out, model)
+		seen[model] = true
+	}
+	return out
+}
+
+func providerAssetCertificationModel(certification map[string]any) string {
+	return strings.TrimSpace(firstNonEmpty(
+		stringValue(certification["model"]),
+		stringValue(certification["provider_model_id"]),
+		stringValue(certification["public_model_id"]),
+	))
+}
+
+func providerAssetCertificationHasModel(certification map[string]any, models []string) bool {
+	certModel := providerAssetCertificationModel(certification)
+	for _, model := range models {
+		if certModel == model {
+			return true
+		}
+	}
+	return false
 }
 
 func providerAssetCertificationKeySummaries(raw string) ([]string, []string) {

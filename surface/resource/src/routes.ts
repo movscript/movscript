@@ -1,6 +1,7 @@
 export const RESOURCE_SURFACE_ROUTES = {
   resources: '/resources',
   externalResources: '/resources/external',
+  providerAssetLibrary: '/tools/private-assets',
   projectResources: '/studio/:projectId/resources',
   agentResources: '/agent/resources',
   agentResourceDetail: '/agent/resources/:resourceId',

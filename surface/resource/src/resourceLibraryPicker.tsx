@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import type { RawResource } from '@movscript/shared'
 
 import { MediaViewer } from './resourceMediaViewer.js'
+import { startResourceDragSource } from './resourceInteraction.js'
 import {
   ResourceLibraryPickerPanel,
   type ResourceLibraryPickerItem,
@@ -66,6 +67,15 @@ export function ResourceLibraryPicker({
       ? <MediaViewer resource={resource} lightbox={false} />
       : undefined,
     fallbackIcon: resource.type === 'audio' ? FileAudio : FileText,
+    dragTitle: t('shared.resourcePanel.previewDragTitle'),
+    onDragStart: (event) => {
+      startResourceDragSource({
+        dataTransfer: event.dataTransfer,
+        resource,
+        target: event.target,
+        preventDefault: () => event.preventDefault(),
+      })
+    },
   }))
 
   return (

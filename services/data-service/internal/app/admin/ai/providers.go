@@ -41,43 +41,60 @@ type CreateProviderCredentialInput struct {
 }
 
 type UpdateProviderCredentialInput struct {
-	Status string `json:"status"`
+	Status      string            `json:"status"`
+	Credentials map[string]string `json:"credentials"`
 }
 
 type ProviderAssetLibrarySettingsInput struct {
-	ArkOpenAPIBaseURL  string                                           `json:"ark_openapi_base_url,omitempty"`
-	ArkRegion          string                                           `json:"ark_region,omitempty"`
-	ArkAccessKeyID     string                                           `json:"ark_access_key_id,omitempty"`
-	ArkSecretAccessKey string                                           `json:"ark_secret_access_key,omitempty"`
-	ArkAssetGroups     map[string]adminsettings.ProviderAssetGroupState `json:"ark_asset_groups,omitempty"`
+	ArkOpenAPIBaseURL     string                                           `json:"ark_openapi_base_url,omitempty"`
+	ArkRegion             string                                           `json:"ark_region,omitempty"`
+	ArkAccessKeyID        string                                           `json:"ark_access_key_id,omitempty"`
+	ArkSecretAccessKey    string                                           `json:"ark_secret_access_key,omitempty"`
+	ArkAssetGroups        map[string]adminsettings.ProviderAssetGroupState `json:"ark_asset_groups,omitempty"`
+	GatewayBaseURL        string                                           `json:"gateway_base_url,omitempty"`
+	GatewayToken          string                                           `json:"gateway_token,omitempty"`
+	GatewayPollIntervalMS int                                              `json:"gateway_poll_interval_ms,omitempty"`
+	GatewayPollMaxMS      int                                              `json:"gateway_poll_max_ms,omitempty"`
 }
 
 type ProviderAssetLibrarySettings struct {
-	ArkOpenAPIBaseURL  string                                           `json:"ark_openapi_base_url,omitempty"`
-	ArkRegion          string                                           `json:"ark_region,omitempty"`
-	ArkAccessKeyID     string                                           `json:"ark_access_key_id,omitempty"`
-	ArkSecretAccessKey string                                           `json:"ark_secret_access_key,omitempty"`
-	ArkSecretKeySet    bool                                             `json:"ark_secret_key_set"`
-	ArkAssetGroups     map[string]adminsettings.ProviderAssetGroupState `json:"ark_asset_groups,omitempty"`
+	ArkOpenAPIBaseURL     string                                           `json:"ark_openapi_base_url,omitempty"`
+	ArkRegion             string                                           `json:"ark_region,omitempty"`
+	ArkAccessKeyID        string                                           `json:"ark_access_key_id,omitempty"`
+	ArkSecretAccessKey    string                                           `json:"ark_secret_access_key,omitempty"`
+	ArkSecretKeySet       bool                                             `json:"ark_secret_key_set"`
+	ArkAssetGroups        map[string]adminsettings.ProviderAssetGroupState `json:"ark_asset_groups,omitempty"`
+	GatewayBaseURL        string                                           `json:"gateway_base_url,omitempty"`
+	GatewayToken          string                                           `json:"gateway_token,omitempty"`
+	GatewayTokenSet       bool                                             `json:"gateway_token_set"`
+	GatewayPollIntervalMS int                                              `json:"gateway_poll_interval_ms,omitempty"`
+	GatewayPollMaxMS      int                                              `json:"gateway_poll_max_ms,omitempty"`
 }
 
 type providerAssetLibraryConfig struct {
-	Schema             string                                           `json:"schema,omitempty"`
-	ArkOpenAPIBaseURL  string                                           `json:"ark_openapi_base_url,omitempty"`
-	ArkRegion          string                                           `json:"ark_region,omitempty"`
-	ArkAccessKeyID     string                                           `json:"ark_access_key_id,omitempty"`
-	ArkSecretAccessKey string                                           `json:"ark_secret_access_key,omitempty"`
-	ArkAssetGroups     map[string]adminsettings.ProviderAssetGroupState `json:"ark_asset_groups,omitempty"`
+	Schema                string                                           `json:"schema,omitempty"`
+	ArkOpenAPIBaseURL     string                                           `json:"ark_openapi_base_url,omitempty"`
+	ArkRegion             string                                           `json:"ark_region,omitempty"`
+	ArkAccessKeyID        string                                           `json:"ark_access_key_id,omitempty"`
+	ArkSecretAccessKey    string                                           `json:"ark_secret_access_key,omitempty"`
+	ArkAssetGroups        map[string]adminsettings.ProviderAssetGroupState `json:"ark_asset_groups,omitempty"`
+	GatewayBaseURL        string                                           `json:"gateway_base_url,omitempty"`
+	GatewayPollIntervalMS int                                              `json:"gateway_poll_interval_ms,omitempty"`
+	GatewayPollMaxMS      int                                              `json:"gateway_poll_max_ms,omitempty"`
 }
 
 type providerAssetLibraryCredentialPlainConfig struct {
-	ArkOpenAPIBaseURL string `json:"ark_openapi_base_url,omitempty"`
-	ArkRegion         string `json:"ark_region,omitempty"`
-	ArkAccessKeyID    string `json:"ark_access_key_id,omitempty"`
+	ArkOpenAPIBaseURL     string `json:"ark_openapi_base_url,omitempty"`
+	ArkRegion             string `json:"ark_region,omitempty"`
+	ArkAccessKeyID        string `json:"ark_access_key_id,omitempty"`
+	GatewayBaseURL        string `json:"gateway_base_url,omitempty"`
+	GatewayPollIntervalMS int    `json:"gateway_poll_interval_ms,omitempty"`
+	GatewayPollMaxMS      int    `json:"gateway_poll_max_ms,omitempty"`
 }
 
 type providerAssetLibraryCredentialSecrets struct {
 	ArkSecretAccessKey string `json:"ark_secret_access_key,omitempty"`
+	GatewayToken       string `json:"gateway_token,omitempty"`
 }
 
 const (
@@ -121,9 +138,12 @@ func (s *Service) enrichProviderRuntimeStates(ctx context.Context, providers []p
 		template, ok := providerTemplateByKind(providers[i].ProviderKind)
 		assetSettings, assetSettingsErr := s.providerAssetLibrarySettingsFromProvider(ctx, providers[i], false)
 		assetSettingsSource := "provider"
-		if assetSettingsErr == nil && !providerAssetLibraryCredentialsConfigured(assetSettings) && deploymentSettingsErr == nil && deploymentProviderAssetCredentialsConfigured(deploymentSettings) {
+		if providers[i].ProviderKind == persistencemodel.AIProviderKindVolcengineArk && assetSettingsErr == nil && !providerAssetLibraryCredentialsConfigured(assetSettings) && deploymentSettingsErr == nil && deploymentProviderAssetCredentialsConfigured(deploymentSettings) {
 			assetSettings = providerAssetLibrarySettingsFromDeployment(deploymentSettings)
 			assetSettingsSource = "admin_settings"
+		} else if providers[i].ProviderKind == persistencemodel.AIProviderKindYunwuGateway && assetSettingsErr == nil && !providerAssetLibraryCredentialsConfigured(assetSettings) {
+			assetSettings = providerAssetLibrarySettingsFromYunwuProvider(providers[i], assetSettings)
+			assetSettingsSource = "provider_runtime"
 		} else if assetSettingsErr == nil && !providerAssetLibraryCredentialsConfigured(assetSettings) {
 			assetSettingsSource = "missing"
 		}
@@ -166,7 +186,25 @@ func providerAssetLibrarySettingsFromDeployment(settings adminsettings.ProviderA
 }
 
 func providerAssetLibraryCredentialsConfigured(settings ProviderAssetLibrarySettings) bool {
-	return strings.TrimSpace(settings.ArkAccessKeyID) != "" && settings.ArkSecretKeySet
+	return (strings.TrimSpace(settings.ArkAccessKeyID) != "" && settings.ArkSecretKeySet) ||
+		(strings.TrimSpace(settings.GatewayBaseURL) != "" && settings.GatewayTokenSet)
+}
+
+func providerAssetLibrarySettingsFromYunwuProvider(provider persistencemodel.AIProvider, current ProviderAssetLibrarySettings) ProviderAssetLibrarySettings {
+	current.GatewayBaseURL = normalizeProviderAssetGatewayBaseURL(firstNonEmpty(provider.BaseURLPrefix, current.GatewayBaseURL, "https://yunwu.ai"))
+	current.GatewayTokenSet = providerHasActiveModelCredential(provider)
+	current.GatewayPollIntervalMS = normalizeProviderAssetGatewayPollIntervalMS(current.GatewayPollIntervalMS)
+	current.GatewayPollMaxMS = normalizeProviderAssetGatewayPollMaxMS(current.GatewayPollMaxMS)
+	return current
+}
+
+func providerHasActiveModelCredential(provider persistencemodel.AIProvider) bool {
+	for _, credential := range provider.Credentials {
+		if credential.Status == persistencemodel.AIProviderCredentialStatusActive {
+			return true
+		}
+	}
+	return false
 }
 
 func deploymentProviderAssetCredentialsConfigured(settings adminsettings.ProviderAssetSettings) bool {
@@ -188,12 +226,15 @@ func (s *Service) providerAssetLibrarySettingsFromProvider(ctx context.Context, 
 		}
 	}
 	settings := ProviderAssetLibrarySettings{
-		ArkOpenAPIBaseURL:  normalizeProviderAssetOpenAPIBaseURL(config.ArkOpenAPIBaseURL),
-		ArkRegion:          normalizeProviderAssetArkRegion(config.ArkRegion),
-		ArkAccessKeyID:     strings.TrimSpace(config.ArkAccessKeyID),
-		ArkSecretAccessKey: secret,
-		ArkSecretKeySet:    secret != "",
-		ArkAssetGroups:     normalizeProviderAssetGroups(config.ArkAssetGroups),
+		ArkOpenAPIBaseURL:     normalizeProviderAssetOpenAPIBaseURL(config.ArkOpenAPIBaseURL),
+		ArkRegion:             normalizeProviderAssetArkRegion(config.ArkRegion),
+		ArkAccessKeyID:        strings.TrimSpace(config.ArkAccessKeyID),
+		ArkSecretAccessKey:    secret,
+		ArkSecretKeySet:       secret != "",
+		ArkAssetGroups:        normalizeProviderAssetGroups(config.ArkAssetGroups),
+		GatewayBaseURL:        normalizeProviderAssetGatewayBaseURL(config.GatewayBaseURL),
+		GatewayPollIntervalMS: normalizeProviderAssetGatewayPollIntervalMS(config.GatewayPollIntervalMS),
+		GatewayPollMaxMS:      normalizeProviderAssetGatewayPollMaxMS(config.GatewayPollMaxMS),
 	}
 	credential, ok, err := s.providerAssetLibraryCredential(ctx, provider.ProviderID)
 	if err != nil {
@@ -214,22 +255,36 @@ func (s *Service) providerAssetLibrarySettingsFromProvider(ctx context.Context, 
 				credentialSecret = plainSecret
 			}
 		}
+		credentialGatewayToken := strings.TrimSpace(secrets.GatewayToken)
+		if credentialGatewayToken != "" && len(s.encryptionKey) > 0 {
+			if plainSecret, err := crypto.Decrypt(credentialGatewayToken, s.encryptionKey); err == nil {
+				credentialGatewayToken = plainSecret
+			}
+		}
 		settings.ArkOpenAPIBaseURL = normalizeProviderAssetOpenAPIBaseURL(plain.ArkOpenAPIBaseURL)
 		settings.ArkRegion = normalizeProviderAssetArkRegion(plain.ArkRegion)
 		settings.ArkAccessKeyID = strings.TrimSpace(plain.ArkAccessKeyID)
 		settings.ArkSecretAccessKey = credentialSecret
 		settings.ArkSecretKeySet = credentialSecret != ""
+		settings.GatewayBaseURL = normalizeProviderAssetGatewayBaseURL(plain.GatewayBaseURL)
+		settings.GatewayToken = credentialGatewayToken
+		settings.GatewayTokenSet = credentialGatewayToken != ""
+		settings.GatewayPollIntervalMS = normalizeProviderAssetGatewayPollIntervalMS(plain.GatewayPollIntervalMS)
+		settings.GatewayPollMaxMS = normalizeProviderAssetGatewayPollMaxMS(plain.GatewayPollMaxMS)
 	}
 	if !includeSecret {
 		settings.ArkSecretAccessKey = ""
+		settings.GatewayToken = ""
 	}
 	return settings, nil
 }
 
 func (s *Service) saveProviderAssetLibrarySettings(ctx context.Context, providerID string, settings ProviderAssetLibrarySettings) error {
 	config := providerAssetLibraryConfig{
-		Schema:         providerAssetLibraryConfigSchema,
-		ArkAssetGroups: normalizeProviderAssetGroups(settings.ArkAssetGroups),
+		Schema:                providerAssetLibraryConfigSchema,
+		ArkAssetGroups:        normalizeProviderAssetGroups(settings.ArkAssetGroups),
+		GatewayPollIntervalMS: normalizeProviderAssetGatewayPollIntervalMS(settings.GatewayPollIntervalMS),
+		GatewayPollMaxMS:      normalizeProviderAssetGatewayPollMaxMS(settings.GatewayPollMaxMS),
 	}
 	raw, err := json.Marshal(config)
 	if err != nil {
@@ -241,8 +296,18 @@ func (s *Service) saveProviderAssetLibrarySettings(ctx context.Context, provider
 			Update("asset_library_state_json", string(raw)).Error; err != nil {
 			return err
 		}
+		if !providerAssetLibraryCredentialShouldSave(settings) {
+			return nil
+		}
 		return s.saveProviderAssetLibraryCredential(ctx, tx, providerID, settings)
 	})
+}
+
+func providerAssetLibraryCredentialShouldSave(settings ProviderAssetLibrarySettings) bool {
+	return strings.TrimSpace(settings.ArkAccessKeyID) != "" ||
+		strings.TrimSpace(settings.ArkSecretAccessKey) != "" ||
+		strings.TrimSpace(settings.GatewayBaseURL) != "" ||
+		normalizeProviderAssetGatewayToken(settings.GatewayToken) != ""
 }
 
 func (s *Service) providerAssetLibraryCredential(ctx context.Context, providerID string) (persistencemodel.AIProviderCredential, bool, error) {
@@ -271,18 +336,30 @@ func (s *Service) saveProviderAssetLibraryCredential(ctx context.Context, tx *go
 		}
 		encryptedSecret = encrypted
 	}
+	gatewayToken := normalizeProviderAssetGatewayToken(settings.GatewayToken)
+	encryptedGatewayToken := gatewayToken
+	if encryptedGatewayToken != "" && len(s.encryptionKey) > 0 {
+		encrypted, err := crypto.Encrypt(encryptedGatewayToken, s.encryptionKey)
+		if err != nil {
+			return err
+		}
+		encryptedGatewayToken = encrypted
+	}
 	plainConfig := providerAssetLibraryCredentialPlainConfig{
-		ArkOpenAPIBaseURL: normalizeProviderAssetOpenAPIBaseURL(settings.ArkOpenAPIBaseURL),
-		ArkRegion:         normalizeProviderAssetArkRegion(settings.ArkRegion),
-		ArkAccessKeyID:    strings.TrimSpace(settings.ArkAccessKeyID),
+		ArkOpenAPIBaseURL:     normalizeProviderAssetOpenAPIBaseURL(settings.ArkOpenAPIBaseURL),
+		ArkRegion:             normalizeProviderAssetArkRegion(settings.ArkRegion),
+		ArkAccessKeyID:        strings.TrimSpace(settings.ArkAccessKeyID),
+		GatewayBaseURL:        normalizeProviderAssetGatewayBaseURL(settings.GatewayBaseURL),
+		GatewayPollIntervalMS: normalizeProviderAssetGatewayPollIntervalMS(settings.GatewayPollIntervalMS),
+		GatewayPollMaxMS:      normalizeProviderAssetGatewayPollMaxMS(settings.GatewayPollMaxMS),
 	}
 	providerCredential := persistencemodel.AIProviderCredential{
 		ProviderID:           strings.TrimSpace(providerID),
 		CredentialKey:        providerAssetLibraryCredentialKey,
 		CredentialKind:       providerAssetLibraryCredentialKind,
 		SchemaVersion:        providerAssetLibraryCredentialSchema,
-		EncryptedSecretsJSON: compactJSON(providerAssetLibraryCredentialSecrets{ArkSecretAccessKey: encryptedSecret}),
-		MaskedSecretsJSON:    compactJSON(providerAssetLibraryCredentialSecrets{ArkSecretAccessKey: crypto.MaskKey(secret)}),
+		EncryptedSecretsJSON: compactJSON(providerAssetLibraryCredentialSecrets{ArkSecretAccessKey: encryptedSecret, GatewayToken: encryptedGatewayToken}),
+		MaskedSecretsJSON:    compactJSON(providerAssetLibraryCredentialSecrets{ArkSecretAccessKey: crypto.MaskKey(secret), GatewayToken: crypto.MaskKey(gatewayToken)}),
 		PlainConfigJSON:      compactJSON(plainConfig),
 		Status:               persistencemodel.AIProviderCredentialStatusActive,
 		IsPrimary:            false,
@@ -310,6 +387,37 @@ func normalizeProviderAssetArkRegion(value string) string {
 		return "cn-beijing"
 	}
 	return region
+}
+
+func normalizeProviderAssetGatewayBaseURL(value string) string {
+	return strings.TrimRight(strings.TrimSpace(value), "/")
+}
+
+func normalizeProviderAssetGatewayToken(value string) string {
+	token := strings.TrimSpace(value)
+	token = strings.TrimPrefix(token, "Bearer ")
+	token = strings.TrimPrefix(token, "bearer ")
+	return strings.TrimSpace(token)
+}
+
+func normalizeProviderAssetGatewayPollIntervalMS(value int) int {
+	if value <= 0 {
+		return 2000
+	}
+	if value < 250 {
+		return 250
+	}
+	return value
+}
+
+func normalizeProviderAssetGatewayPollMaxMS(value int) int {
+	if value <= 0 {
+		return 120000
+	}
+	if value < 1000 {
+		return 1000
+	}
+	return value
 }
 
 func normalizeProviderAssetGroups(value map[string]adminsettings.ProviderAssetGroupState) map[string]adminsettings.ProviderAssetGroupState {
@@ -353,6 +461,26 @@ func validateProviderAssetLibrarySettings(settings ProviderAssetLibrarySettings)
 		return ErrInvalidProviderConfig
 	}
 	return nil
+}
+
+func validateProviderAssetLibrarySettingsForProvider(provider persistencemodel.AIProvider, settings ProviderAssetLibrarySettings) error {
+	switch strings.TrimSpace(provider.ProviderKind) {
+	case persistencemodel.AIProviderKindVolcengineArk:
+		return validateProviderAssetLibrarySettings(settings)
+	case persistencemodel.AIProviderKindYunwuGateway:
+		if !isValidHTTPProviderURL(settings.GatewayBaseURL) {
+			return ErrInvalidProviderConfig
+		}
+		if normalizeProviderAssetGatewayToken(settings.GatewayToken) == "" {
+			return ErrInvalidProviderConfig
+		}
+		return nil
+	default:
+		if providerAssetLibraryCredentialsConfigured(settings) {
+			return nil
+		}
+		return ErrInvalidProviderConfig
+	}
 }
 
 func validateProviderSupportsAssetLibrary(provider persistencemodel.AIProvider) error {
@@ -400,11 +528,15 @@ func (s *Service) UpdateProviderAssetLibrarySettings(ctx context.Context, provid
 		return ProviderAssetLibrarySettings{}, err
 	}
 	next := ProviderAssetLibrarySettings{
-		ArkOpenAPIBaseURL:  normalizeProviderAssetOpenAPIBaseURL(input.ArkOpenAPIBaseURL),
-		ArkRegion:          normalizeProviderAssetArkRegion(input.ArkRegion),
-		ArkAccessKeyID:     strings.TrimSpace(input.ArkAccessKeyID),
-		ArkSecretAccessKey: strings.TrimSpace(input.ArkSecretAccessKey),
-		ArkAssetGroups:     normalizeProviderAssetGroups(current.ArkAssetGroups),
+		ArkOpenAPIBaseURL:     normalizeProviderAssetOpenAPIBaseURL(input.ArkOpenAPIBaseURL),
+		ArkRegion:             normalizeProviderAssetArkRegion(input.ArkRegion),
+		ArkAccessKeyID:        strings.TrimSpace(input.ArkAccessKeyID),
+		ArkSecretAccessKey:    strings.TrimSpace(input.ArkSecretAccessKey),
+		ArkAssetGroups:        normalizeProviderAssetGroups(current.ArkAssetGroups),
+		GatewayBaseURL:        normalizeProviderAssetGatewayBaseURL(input.GatewayBaseURL),
+		GatewayToken:          normalizeProviderAssetGatewayToken(input.GatewayToken),
+		GatewayPollIntervalMS: normalizeProviderAssetGatewayPollIntervalMS(input.GatewayPollIntervalMS),
+		GatewayPollMaxMS:      normalizeProviderAssetGatewayPollMaxMS(input.GatewayPollMaxMS),
 	}
 	if next.ArkOpenAPIBaseURL == "" {
 		next.ArkOpenAPIBaseURL = current.ArkOpenAPIBaseURL
@@ -415,10 +547,16 @@ func (s *Service) UpdateProviderAssetLibrarySettings(ctx context.Context, provid
 	if next.ArkSecretAccessKey == "" {
 		next.ArkSecretAccessKey = current.ArkSecretAccessKey
 	}
+	if next.GatewayBaseURL == "" {
+		next.GatewayBaseURL = current.GatewayBaseURL
+	}
+	if next.GatewayToken == "" {
+		next.GatewayToken = current.GatewayToken
+	}
 	if input.ArkAssetGroups != nil {
 		next.ArkAssetGroups = normalizeProviderAssetGroups(input.ArkAssetGroups)
 	}
-	if err := validateProviderAssetLibrarySettings(next); err != nil {
+	if err := validateProviderAssetLibrarySettingsForProvider(provider, next); err != nil {
 		return ProviderAssetLibrarySettings{}, err
 	}
 	if err := s.saveProviderAssetLibrarySettings(ctx, provider.ProviderID, next); err != nil {
@@ -426,6 +564,8 @@ func (s *Service) UpdateProviderAssetLibrarySettings(ctx context.Context, provid
 	}
 	next.ArkSecretKeySet = strings.TrimSpace(next.ArkSecretAccessKey) != ""
 	next.ArkSecretAccessKey = ""
+	next.GatewayTokenSet = normalizeProviderAssetGatewayToken(next.GatewayToken) != ""
+	next.GatewayToken = ""
 	return next, nil
 }
 
@@ -643,9 +783,13 @@ func (s *Service) UpdateProviderCredential(ctx context.Context, providerID strin
 	if err != nil {
 		return persistencemodel.AIProvider{}, err
 	}
-	status := strings.TrimSpace(input.Status)
-	if !validProviderCredentialStatus(status) {
-		return persistencemodel.AIProvider{}, fmt.Errorf("%w: unsupported credential status %q", ErrInvalidProviderConfig, status)
+	adapterType := strings.TrimSpace(provider.DefaultAdapterType)
+	if adapterType == "" {
+		adapterType = strings.TrimSpace(provider.AdapterKey)
+	}
+	adapterDef := infraai.GetAdapterDef(adapterType)
+	if adapterDef == nil {
+		return persistencemodel.AIProvider{}, fmt.Errorf("%w: provider %q references unknown adapter %q", ErrInvalidProviderConfig, provider.ProviderID, adapterType)
 	}
 	credentialKey = strings.TrimSpace(credentialKey)
 	if credentialKey == "" {
@@ -659,9 +803,61 @@ func (s *Service) UpdateProviderCredential(ctx context.Context, providerID strin
 			}
 			return err
 		}
+		status := strings.TrimSpace(input.Status)
+		if status == "" {
+			status = strings.TrimSpace(credential.Status)
+		}
+		if status == "" {
+			status = persistencemodel.AIProviderCredentialStatusActive
+		}
+		if !validProviderCredentialStatus(status) {
+			return fmt.Errorf("%w: unsupported credential status %q", ErrInvalidProviderConfig, status)
+		}
 		updates := map[string]any{"status": status}
 		if status != persistencemodel.AIProviderCredentialStatusActive {
 			updates["is_primary"] = false
+		}
+		if len(input.Credentials) > 0 {
+			legacyCredential, err := providerLegacyCredentialForUpdate(tx, credential)
+			if err != nil {
+				return err
+			}
+			credentials := providerCredentialValuesFromLegacy(adapterType, legacyCredential, s.encryptionKey)
+			if strings.TrimSpace(provider.BaseURLPrefix) != "" {
+				credentials["base_url"] = strings.TrimSpace(provider.BaseURLPrefix)
+			}
+			for key, value := range input.Credentials {
+				credentials[key] = value
+			}
+			for _, field := range adapterDef.CredFields {
+				if field.Required && strings.TrimSpace(credentials[field.Key]) == "" {
+					return fmt.Errorf("%w: missing required credential %q", ErrInvalidProviderConfig, field.Key)
+				}
+			}
+			encKey, masked, err := s.registry.EncryptCredentials(adapterType, credentials)
+			if err != nil {
+				return fmt.Errorf("%w: %v", ErrEncryptCredentials, err)
+			}
+			if encKey != "" {
+				legacyCredential.EncryptedKey = encKey
+				legacyCredential.MaskedKey = masked
+			}
+			if baseURL := strings.TrimSpace(credentials["base_url"]); baseURL != "" {
+				legacyCredential.BaseURL = baseURL
+			}
+			if err := tx.Model(&persistencemodel.AICredential{}).
+				Where("id = ?", legacyCredential.ID).
+				Updates(map[string]any{
+					"base_url":      legacyCredential.BaseURL,
+					"encrypted_key": legacyCredential.EncryptedKey,
+					"is_enabled":    status == persistencemodel.AIProviderCredentialStatusActive,
+				}).Error; err != nil {
+				return err
+			}
+			updates["credential_kind"] = credentialKindForAdapter(adapterType)
+			updates["encrypted_secrets_json"] = legacyEncryptedSecretsJSON(legacyCredential)
+			updates["masked_secrets_json"] = legacyMaskedSecretsJSON(legacyCredential)
+			updates["plain_config_json"] = legacyPlainConfigJSON(legacyCredential)
 		}
 		if err := tx.Model(&persistencemodel.AIProviderCredential{}).
 			Where("provider_id = ? AND credential_key = ?", provider.ProviderID, credentialKey).
@@ -944,6 +1140,81 @@ func providerCredentialFromLegacyCredential(providerID string, credentialKey str
 	}
 }
 
+func providerLegacyCredentialForUpdate(tx *gorm.DB, credential persistencemodel.AIProviderCredential) (persistencemodel.AICredential, error) {
+	var plainConfig struct {
+		LegacyCredentialID uint `json:"legacy_credential_id"`
+	}
+	if err := json.Unmarshal([]byte(credential.PlainConfigJSON), &plainConfig); err != nil {
+		return persistencemodel.AICredential{}, fmt.Errorf("%w: provider credential config is invalid", ErrInvalidProviderConfig)
+	}
+	if plainConfig.LegacyCredentialID == 0 {
+		return persistencemodel.AICredential{}, fmt.Errorf("%w: provider credential is not backed by a legacy credential", ErrInvalidProviderConfig)
+	}
+	var legacyCredential persistencemodel.AICredential
+	if err := tx.First(&legacyCredential, plainConfig.LegacyCredentialID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return persistencemodel.AICredential{}, ErrNotFound
+		}
+		return persistencemodel.AICredential{}, err
+	}
+	return legacyCredential, nil
+}
+
+func providerCredentialValuesFromLegacy(adapterType string, credential persistencemodel.AICredential, encryptionKey []byte) map[string]string {
+	values := map[string]string{}
+	if baseURL := strings.TrimSpace(credential.BaseURL); baseURL != "" {
+		values["base_url"] = baseURL
+	}
+	plain := ""
+	if strings.TrimSpace(credential.EncryptedKey) != "" {
+		if decrypted, err := crypto.Decrypt(credential.EncryptedKey, encryptionKey); err == nil {
+			plain = decrypted
+		}
+	}
+	switch strings.TrimSpace(adapterType) {
+	case infraai.AdapterKling:
+		parts := splitKlingCredential(plain)
+		values["access_key"] = parts[0]
+		values["secret_key"] = parts[1]
+	case infraai.AdapterVolcen:
+		for key, value := range volcenCredentialValuesFromRaw(plain) {
+			values[key] = value
+		}
+	default:
+		if strings.TrimSpace(plain) != "" {
+			values["api_key"] = plain
+		}
+	}
+	return values
+}
+
+func volcenCredentialValuesFromRaw(raw string) map[string]string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return map[string]string{}
+	}
+	if !strings.HasPrefix(raw, "{") {
+		return map[string]string{"api_key": raw}
+	}
+	var parsed struct {
+		APIKey        string `json:"api_key"`
+		SpeechAppID   string `json:"speech_app_id"`
+		SpeechToken   string `json:"speech_token"`
+		SpeechCluster string `json:"speech_cluster"`
+		SpeechBaseURL string `json:"speech_base_url"`
+	}
+	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
+		return map[string]string{"api_key": raw}
+	}
+	return map[string]string{
+		"api_key":         parsed.APIKey,
+		"speech_app_id":   parsed.SpeechAppID,
+		"speech_token":    parsed.SpeechToken,
+		"speech_cluster":  parsed.SpeechCluster,
+		"speech_base_url": parsed.SpeechBaseURL,
+	}
+}
+
 func validProviderCredentialStatus(status string) bool {
 	switch strings.TrimSpace(status) {
 	case persistencemodel.AIProviderCredentialStatusActive,
@@ -991,22 +1262,28 @@ func providerAssetLibraryState(provider persistencemodel.AIProvider, template in
 		diagnostics = append(diagnostics, providerStateDiagnostic("provider_asset_library_unsupported", "info", "This provider does not declare asset library capability. RawResource will not be mapped to asset://."))
 	}
 	settingsSummary := map[string]any{
-		"ark_openapi_base_url":    strings.TrimSpace(settings.ArkOpenAPIBaseURL),
-		"ark_region":              strings.TrimSpace(settings.ArkRegion),
-		"public_base_url_set":     strings.TrimSpace(deploymentSettings.PublicBaseURL) != "",
-		"signing_secret_set":      deploymentSettings.SigningSecretSet,
-		"ark_access_key_id":       strings.TrimSpace(settings.ArkAccessKeyID),
-		"ark_access_key_id_set":   strings.TrimSpace(settings.ArkAccessKeyID) != "",
-		"ark_secret_key_set":      settings.ArkSecretKeySet,
-		"ark_credentials_source":  strings.TrimSpace(settingsSource),
-		"ark_asset_group_count":   len(settings.ArkAssetGroups),
-		"loaded_from_admin_state": settingsErr == nil,
-		"loaded_from_provider":    settingsErr == nil && settingsSource == "provider",
+		"ark_openapi_base_url":       strings.TrimSpace(settings.ArkOpenAPIBaseURL),
+		"ark_region":                 strings.TrimSpace(settings.ArkRegion),
+		"public_base_url_set":        strings.TrimSpace(deploymentSettings.PublicBaseURL) != "",
+		"signing_secret_set":         deploymentSettings.SigningSecretSet,
+		"ark_access_key_id":          strings.TrimSpace(settings.ArkAccessKeyID),
+		"ark_access_key_id_set":      strings.TrimSpace(settings.ArkAccessKeyID) != "",
+		"ark_secret_key_set":         settings.ArkSecretKeySet,
+		"ark_credentials_source":     strings.TrimSpace(settingsSource),
+		"ark_asset_group_count":      len(settings.ArkAssetGroups),
+		"gateway_base_url":           strings.TrimSpace(settings.GatewayBaseURL),
+		"gateway_base_url_set":       strings.TrimSpace(settings.GatewayBaseURL) != "",
+		"gateway_token_set":          settings.GatewayTokenSet,
+		"gateway_poll_interval_ms":   settings.GatewayPollIntervalMS,
+		"gateway_poll_max_ms":        settings.GatewayPollMaxMS,
+		"gateway_credentials_source": strings.TrimSpace(settingsSource),
+		"loaded_from_admin_state":    settingsErr == nil,
+		"loaded_from_provider":       settingsErr == nil && settingsSource == "provider",
 	}
 	if supported {
 		if settingsErr != nil {
 			diagnostics = append(diagnostics, providerStateDiagnostic("provider_asset_settings_unavailable", "warning", settingsErr.Error()))
-		} else if settingsSource == "admin_settings" {
+		} else if provider.ProviderKind == persistencemodel.AIProviderKindVolcengineArk && settingsSource == "admin_settings" {
 			diagnostics = append(diagnostics, providerStateDiagnostic("provider_asset_credentials_using_global_fallback", "warning", "Ark OpenAPI credentials are still loaded from deployment settings; move them into this Provider's asset library credential."))
 		}
 		if strings.TrimSpace(deploymentSettings.PublicBaseURL) == "" {
@@ -1015,11 +1292,21 @@ func providerAssetLibraryState(provider persistencemodel.AIProvider, template in
 		if !deploymentSettings.SigningSecretSet {
 			diagnostics = append(diagnostics, providerStateDiagnostic("missing_signing_secret", "warning", "Temporary RawResource URLs cannot be signed until a signing secret is configured."))
 		}
-		if strings.TrimSpace(settings.ArkAccessKeyID) == "" {
-			diagnostics = append(diagnostics, providerStateDiagnostic("missing_ark_access_key_id", "error", "Ark OpenAPI access key is required for asset group and asset registration."))
-		}
-		if !settings.ArkSecretKeySet {
-			diagnostics = append(diagnostics, providerStateDiagnostic("missing_ark_secret_access_key", "error", "Ark OpenAPI secret key is required for asset group and asset registration."))
+		switch provider.ProviderKind {
+		case persistencemodel.AIProviderKindYunwuGateway:
+			if strings.TrimSpace(settings.GatewayBaseURL) == "" {
+				diagnostics = append(diagnostics, providerStateDiagnostic("missing_gateway_base_url", "error", "Yunwu Provider base URL is required for private avatar certification."))
+			}
+			if !settings.GatewayTokenSet {
+				diagnostics = append(diagnostics, providerStateDiagnostic("missing_gateway_token", "error", "Yunwu Provider API key is required for private avatar certification."))
+			}
+		default:
+			if strings.TrimSpace(settings.ArkAccessKeyID) == "" {
+				diagnostics = append(diagnostics, providerStateDiagnostic("missing_ark_access_key_id", "error", "Ark OpenAPI access key is required for asset group and asset registration."))
+			}
+			if !settings.ArkSecretKeySet {
+				diagnostics = append(diagnostics, providerStateDiagnostic("missing_ark_secret_access_key", "error", "Ark OpenAPI secret key is required for asset group and asset registration."))
+			}
 		}
 	}
 	globalGroup, globalGroupConfigured := providerAssetGroupSummary(settings.ArkAssetGroups["global"])

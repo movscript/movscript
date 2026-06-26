@@ -26,6 +26,7 @@ import (
 	"github.com/movscript/movscript/internal/infra/ai"
 	"github.com/movscript/movscript/internal/infra/cache"
 	"github.com/movscript/movscript/internal/infra/config"
+	"github.com/movscript/movscript/internal/infra/crypto"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"github.com/movscript/movscript/internal/infra/storage"
 	"github.com/movscript/movscript/internal/interfaces/http/api"
@@ -65,6 +66,9 @@ type providerAssetCertifyRequest struct {
 	ProjectName       string `json:"project_name"`
 	SettingID         string `json:"setting_id"`
 	Name              string `json:"name"`
+	Model             string `json:"model"`
+	AssetGroupID      string `json:"asset_group_id"`
+	AssetGroupName    string `json:"asset_group_name"`
 	AllowPrivateURLs  bool   `json:"allow_private_urls"`
 	TimeoutMS         int    `json:"timeout_ms"`
 }
@@ -76,7 +80,7 @@ type providerAssetProviderRef struct {
 }
 
 func (h *ProviderAssetHandler) CertifySeedance2(c *gin.Context) {
-	h.certifyVolcArkAsset(c, "seedance2")
+	h.certifyProviderAsset(c, "seedance2")
 }
 
 func (h *ProviderAssetHandler) CertifyProviderAsset(c *gin.Context) {
@@ -84,10 +88,10 @@ func (h *ProviderAssetHandler) CertifyProviderAsset(c *gin.Context) {
 	if unescaped, err := url.PathUnescape(providerRef); err == nil {
 		providerRef = unescaped
 	}
-	h.certifyVolcArkAsset(c, providerRef)
+	h.certifyProviderAsset(c, providerRef)
 }
 
-func (h *ProviderAssetHandler) certifyVolcArkAsset(c *gin.Context, providerRef string) {
+func (h *ProviderAssetHandler) certifyProviderAsset(c *gin.Context, providerRef string) {
 	user := currentUser(c)
 	if user == nil {
 		c.JSON(http.StatusUnauthorized, api.AuthRequired())
@@ -106,7 +110,7 @@ func (h *ProviderAssetHandler) certifyVolcArkAsset(c *gin.Context, providerRef s
 		c.JSON(http.StatusBadRequest, api.InvalidInput("provider path and request body do not match"))
 		return
 	}
-	provider, err := h.resolveVolcArkAssetProvider(c.Request.Context(), providerRef)
+	provider, err := h.resolveProviderAssetProvider(c.Request.Context(), providerRef)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
@@ -135,11 +139,6 @@ func (h *ProviderAssetHandler) certifyVolcArkAsset(c *gin.Context, providerRef s
 		return
 	}
 
-	arkClient, err := h.volcArkAssetClient(c.Request.Context(), provider.ProviderID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
-		return
-	}
 	timeout := time.Duration(body.TimeoutMS) * time.Millisecond
 	if timeout < time.Second {
 		timeout = 120 * time.Second
@@ -147,18 +146,15 @@ func (h *ProviderAssetHandler) certifyVolcArkAsset(c *gin.Context, providerRef s
 	ctx, cancel := context.WithTimeout(c.Request.Context(), timeout)
 	defer cancel()
 
-	groupScope := providerAssetGroupScope(body.ProjectID, body.ProjectName, body.SettingID)
-	group, err := h.ensureVolcArkAIGCAssetGroup(ctx, arkClient, groupScope, body.ProjectID, body.ProjectName, body.SettingID)
-	if err != nil {
-		c.JSON(http.StatusBadGateway, api.InvalidInput(err.Error()))
-		return
+	var certification map[string]any
+	switch provider.ProviderKind {
+	case persistencemodel.AIProviderKindVolcengineArk:
+		certification, err = h.certifyVolcArkImageAsset(ctx, provider, body, resource, sourceURL)
+	case persistencemodel.AIProviderKindYunwuGateway:
+		certification, err = h.certifyYunwuGatewayImageAsset(ctx, provider, body, resource, sourceURL)
+	default:
+		err = fmt.Errorf("provider %q does not support provider asset certification", provider.ProviderID)
 	}
-	created, err := h.createVolcArkImageAsset(ctx, arkClient, group, sourceURL, providerAssetName(body.Name, resource))
-	if err != nil {
-		c.JSON(http.StatusBadGateway, api.InvalidInput(err.Error()))
-		return
-	}
-	certification, err := providerAssetCertification(provider, sourceURL, resource.ID, body.SourceCandidateID, arkClient.BaseURL, created)
 	if err != nil {
 		c.JSON(http.StatusBadGateway, api.InvalidInput(err.Error()))
 		return
@@ -174,22 +170,77 @@ func (h *ProviderAssetHandler) certifyVolcArkAsset(c *gin.Context, providerRef s
 		h.writeResourceError(c, err)
 		return
 	}
+	providerAssetRecord, err := h.recordProviderAssetLibraryRecord(ctx, currentOrgID(c), provider, body, resource, certification)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Internal(err.Error()))
+		return
+	}
 	h.populateCertifiedResourceURL(c, &updatedResource)
 	c.JSON(http.StatusOK, gin.H{
-		"status":             "succeeded",
-		"provider":           provider.ProviderID,
-		"provider_id":        provider.ProviderID,
-		"provider_kind":      provider.ProviderKind,
-		"source_resource_id": resource.ID,
-		"source_url":         sourceURL,
-		"certification":      certification,
-		"asset_uri":          certification["asset_uri"],
-		"hub_asset_id":       certification["hub_asset_id"],
-		"resource":           updatedResource,
+		"status":                "succeeded",
+		"provider":              provider.ProviderID,
+		"provider_id":           provider.ProviderID,
+		"provider_kind":         provider.ProviderKind,
+		"source_resource_id":    resource.ID,
+		"source_url":            sourceURL,
+		"certification":         certification,
+		"asset_uri":             certification["asset_uri"],
+		"hub_asset_id":          certification["hub_asset_id"],
+		"provider_asset_record": providerAssetRecord,
+		"resource":              updatedResource,
 	})
 }
 
-func (h *ProviderAssetHandler) resolveVolcArkAssetProvider(ctx context.Context, requested string) (providerAssetProviderRef, error) {
+func (h *ProviderAssetHandler) certifyVolcArkImageAsset(ctx context.Context, provider providerAssetProviderRef, body providerAssetCertifyRequest, resource domainresource.RawResource, sourceURL string) (map[string]any, error) {
+	arkClient, err := h.volcArkAssetClient(ctx, provider.ProviderID)
+	if err != nil {
+		return nil, err
+	}
+	group, ok := providerAssetExplicitGroup(body)
+	if !ok {
+		groupScope := providerAssetGroupScope(body.ProjectID, body.ProjectName, body.SettingID)
+		group, err = h.ensureVolcArkAIGCAssetGroup(ctx, arkClient, groupScope, body.ProjectID, body.ProjectName, body.SettingID)
+		if err != nil {
+			return nil, err
+		}
+	}
+	created, err := h.createVolcArkImageAsset(ctx, arkClient, group, sourceURL, providerAssetName(body.Name, resource))
+	if err != nil {
+		return nil, err
+	}
+	return providerAssetCertification(provider, sourceURL, resource.ID, body.SourceCandidateID, "volcengine_ark", "", arkClient.BaseURL, created)
+}
+
+func (h *ProviderAssetHandler) certifyYunwuGatewayImageAsset(ctx context.Context, provider providerAssetProviderRef, body providerAssetCertifyRequest, resource domainresource.RawResource, sourceURL string) (map[string]any, error) {
+	client, err := h.yunwuGatewayAssetClient(ctx, provider.ProviderID)
+	if err != nil {
+		return nil, err
+	}
+	model := normalizeYunwuPrivateAvatarModel(body.Model)
+	client.Model = model
+	group, ok := providerAssetExplicitGroup(body)
+	if !ok {
+		groupScope := providerAssetModelScopedGroupScope(providerAssetGroupScope(body.ProjectID, body.ProjectName, body.SettingID), model)
+		group, err = h.ensureYunwuGatewayAIGCAssetGroup(ctx, client, groupScope, body.ProjectID, body.ProjectName, body.SettingID)
+		if err != nil {
+			return nil, err
+		}
+	}
+	created, err := h.createYunwuGatewayImageAsset(ctx, client, group, sourceURL, providerAssetName(body.Name, resource))
+	if err != nil {
+		return nil, err
+	}
+	if providerAssetStatus(firstString(created, "status", "Status")) == "processing" {
+		if polled, pollErr := h.pollYunwuGatewayImageAsset(ctx, client, firstString(created, "id", "Id", "asset_id", "assetId", "AssetId", "hub_asset_id")); pollErr == nil && len(polled) > 0 {
+			for key, value := range polled {
+				created[key] = value
+			}
+		}
+	}
+	return providerAssetCertification(provider, sourceURL, resource.ID, body.SourceCandidateID, "yunwu_gateway", model, client.BaseURL, created)
+}
+
+func (h *ProviderAssetHandler) resolveProviderAssetProvider(ctx context.Context, requested string) (providerAssetProviderRef, error) {
 	requested = normalizeProviderAssetProvider(requested)
 	if h == nil || h.db == nil || !h.db.Migrator().HasTable(&persistencemodel.AIProvider{}) {
 		if providerAssetProviderIsLegacyAlias(requested) || providerAssetProviderIsDefaultVolcArk(requested) {
@@ -203,10 +254,11 @@ func (h *ProviderAssetHandler) resolveVolcArkAssetProvider(ctx context.Context, 
 	}
 
 	var provider persistencemodel.AIProvider
-	query := h.db.WithContext(ctx).
-		Where("provider_kind = ? AND is_enabled = true", persistencemodel.AIProviderKindVolcengineArk)
+	query := h.db.WithContext(ctx).Where("is_enabled = true")
 	if providerAssetProviderIsLegacyAlias(requested) || providerAssetProviderIsDefaultVolcArk(requested) {
-		query = query.Order("id ASC")
+		query = query.Where("provider_kind = ?", persistencemodel.AIProviderKindVolcengineArk).Order("id ASC")
+	} else if providerAssetProviderIsYunwuGatewayAlias(requested) {
+		query = query.Where("provider_kind = ?", persistencemodel.AIProviderKindYunwuGateway).Order("id ASC")
 	} else {
 		query = query.Where("provider_id = ?", requested)
 	}
@@ -215,9 +267,15 @@ func (h *ProviderAssetHandler) resolveVolcArkAssetProvider(ctx context.Context, 
 			if providerAssetProviderIsLegacyAlias(requested) {
 				return providerAssetProviderRef{}, fmt.Errorf("no enabled Volcengine Ark official provider is configured; create one in Admin > Providers before certifying assets")
 			}
-			return providerAssetProviderRef{}, fmt.Errorf("provider %q is not an enabled Volcengine Ark official provider", requested)
+			if providerAssetProviderIsYunwuGatewayAlias(requested) {
+				return providerAssetProviderRef{}, fmt.Errorf("no enabled Yunwu asset library gateway provider is configured; create one in Admin > Providers before certifying assets")
+			}
+			return providerAssetProviderRef{}, fmt.Errorf("provider %q is not an enabled provider asset library provider", requested)
 		}
 		return providerAssetProviderRef{}, err
+	}
+	if provider.ProviderKind != persistencemodel.AIProviderKindVolcengineArk && provider.ProviderKind != persistencemodel.AIProviderKindYunwuGateway {
+		return providerAssetProviderRef{}, fmt.Errorf("provider %q is not an enabled provider asset library provider", requested)
 	}
 	return providerAssetProviderRef{
 		ProviderID:       strings.TrimSpace(provider.ProviderID),
@@ -280,6 +338,15 @@ type volcArkAssetClient struct {
 	ConfigSource    string
 }
 
+type yunwuGatewayAssetClient struct {
+	BaseURL        string
+	Token          string
+	ProviderID     string
+	Model          string
+	PollIntervalMS int
+	PollMaxMS      int
+}
+
 func (h *ProviderAssetHandler) providerAssetLibraryService() *adminai.Service {
 	if h == nil || h.db == nil {
 		return nil
@@ -332,6 +399,113 @@ func (h *ProviderAssetHandler) volcArkAssetClient(ctx context.Context, providerI
 	return client, nil
 }
 
+func (h *ProviderAssetHandler) yunwuGatewayAssetClient(ctx context.Context, providerID string) (yunwuGatewayAssetClient, error) {
+	providerID = strings.TrimSpace(providerID)
+	if client, err := h.yunwuGatewayAssetClientFromProviderCredential(ctx, providerID); err == nil {
+		return client, nil
+	}
+	if service := h.providerAssetLibraryService(); service != nil && providerID != "" {
+		settings, err := service.GetProviderAssetLibrarySettingsWithSecret(ctx, providerID)
+		if err == nil {
+			client := yunwuGatewayAssetClient{
+				BaseURL:        normalizeYunwuGatewayBaseURL(settings.GatewayBaseURL),
+				Token:          normalizeYunwuGatewayToken(settings.GatewayToken),
+				ProviderID:     providerID,
+				PollIntervalMS: settings.GatewayPollIntervalMS,
+				PollMaxMS:      settings.GatewayPollMaxMS,
+			}
+			if client.PollIntervalMS <= 0 {
+				client.PollIntervalMS = 2000
+			}
+			if client.PollMaxMS <= 0 {
+				client.PollMaxMS = 120000
+			}
+			if client.BaseURL != "" && client.Token != "" {
+				return client, nil
+			}
+		}
+	}
+	return yunwuGatewayAssetClient{}, fmt.Errorf("Yunwu private avatar library uses the Provider base URL and API key; configure an active Yunwu Provider credential in Admin > Providers")
+}
+
+func (h *ProviderAssetHandler) yunwuGatewayAssetClientFromProviderCredential(ctx context.Context, providerID string) (yunwuGatewayAssetClient, error) {
+	if h == nil || h.db == nil || providerID == "" {
+		return yunwuGatewayAssetClient{}, fmt.Errorf("provider credential store is unavailable")
+	}
+	var provider persistencemodel.AIProvider
+	if err := h.db.WithContext(ctx).
+		Preload("Credentials", "deleted_at IS NULL").
+		Where("provider_id = ? AND is_enabled = true", providerID).
+		First(&provider).Error; err != nil {
+		return yunwuGatewayAssetClient{}, err
+	}
+	baseURL := normalizeYunwuGatewayBaseURL(provider.BaseURLPrefix)
+	var selected persistencemodel.AIProviderCredential
+	for _, credential := range provider.Credentials {
+		if credential.Status != persistencemodel.AIProviderCredentialStatusActive {
+			continue
+		}
+		if selected.ID == 0 || credential.IsPrimary {
+			selected = credential
+		}
+		if credential.IsPrimary {
+			break
+		}
+	}
+	if selected.ID == 0 {
+		return yunwuGatewayAssetClient{}, fmt.Errorf("no active Yunwu Provider credential is configured")
+	}
+	var plainConfig struct {
+		LegacyCredentialID uint   `json:"legacy_credential_id"`
+		BaseURL            string `json:"base_url"`
+	}
+	_ = json.Unmarshal([]byte(selected.PlainConfigJSON), &plainConfig)
+	if strings.TrimSpace(plainConfig.BaseURL) != "" {
+		baseURL = normalizeYunwuGatewayBaseURL(plainConfig.BaseURL)
+	}
+	token := ""
+	if plainConfig.LegacyCredentialID != 0 {
+		var legacy persistencemodel.AICredential
+		if err := h.db.WithContext(ctx).First(&legacy, plainConfig.LegacyCredentialID).Error; err == nil {
+			if strings.TrimSpace(legacy.BaseURL) != "" {
+				baseURL = normalizeYunwuGatewayBaseURL(legacy.BaseURL)
+			}
+			if strings.TrimSpace(legacy.EncryptedKey) != "" {
+				if plain, err := crypto.Decrypt(legacy.EncryptedKey, h.encryptionKey); err == nil {
+					token = plain
+				}
+			}
+		}
+	}
+	if token == "" {
+		var secrets struct {
+			APIKey             string `json:"api_key"`
+			LegacyEncryptedKey string `json:"legacy_encrypted_key"`
+		}
+		_ = json.Unmarshal([]byte(selected.EncryptedSecretsJSON), &secrets)
+		encrypted := firstNonEmptyString(secrets.APIKey, secrets.LegacyEncryptedKey)
+		if encrypted != "" {
+			if plain, err := crypto.Decrypt(encrypted, h.encryptionKey); err == nil {
+				token = plain
+			}
+		}
+	}
+	if baseURL == "" {
+		baseURL = "https://yunwu.ai"
+	}
+	token = normalizeYunwuGatewayToken(token)
+	if token == "" {
+		return yunwuGatewayAssetClient{}, fmt.Errorf("Yunwu Provider API key is not available")
+	}
+	return yunwuGatewayAssetClient{
+		BaseURL:        baseURL,
+		Token:          token,
+		ProviderID:     providerID,
+		PollIntervalMS: 2000,
+		PollMaxMS:      120000,
+	}, nil
+}
+
 func (h *ProviderAssetHandler) ensureVolcArkAIGCAssetGroup(ctx context.Context, client volcArkAssetClient, scope string, projectID string, projectName string, settingID string) (adminsettings.ProviderAssetGroupState, error) {
 	if client.ConfigSource == "provider" && strings.TrimSpace(client.ProviderID) != "" {
 		return h.ensureProviderVolcArkAIGCAssetGroup(ctx, client, scope, projectID, projectName, settingID)
@@ -340,7 +514,9 @@ func (h *ProviderAssetHandler) ensureVolcArkAIGCAssetGroup(ctx context.Context, 
 	if err != nil {
 		return adminsettings.ProviderAssetGroupState{}, fmt.Errorf("failed to load provider asset settings: %w", err)
 	}
-	scope = providerAssetGroupScope(projectID, projectName, settingID)
+	if strings.TrimSpace(scope) == "" {
+		scope = providerAssetGroupScope(projectID, projectName, settingID)
+	}
 	if existing, ok := settings.ArkAssetGroups[scope]; ok && strings.TrimSpace(existing.ID) != "" {
 		return existing, nil
 	}
@@ -375,7 +551,9 @@ func (h *ProviderAssetHandler) ensureProviderVolcArkAIGCAssetGroup(ctx context.C
 	if err != nil {
 		return adminsettings.ProviderAssetGroupState{}, fmt.Errorf("failed to load provider asset library settings: %w", err)
 	}
-	scope = providerAssetGroupScope(projectID, projectName, settingID)
+	if strings.TrimSpace(scope) == "" {
+		scope = providerAssetGroupScope(projectID, projectName, settingID)
+	}
 	if existing, ok := settings.ArkAssetGroups[scope]; ok && strings.TrimSpace(existing.ID) != "" {
 		return existing, nil
 	}
@@ -480,6 +658,342 @@ func (h *ProviderAssetHandler) createVolcArkImageAsset(ctx context.Context, clie
 		return nil, fmt.Errorf("Volcengine Ark CreateAsset response did not include an asset object")
 	}
 	asset["asset_group_id"] = group.ID
+	return asset, nil
+}
+
+func (h *ProviderAssetHandler) fetchRemoteProviderAssetGroups(ctx context.Context, provider providerAssetProviderRef, model string) ([]map[string]any, error) {
+	switch provider.ProviderKind {
+	case persistencemodel.AIProviderKindVolcengineArk:
+		client, err := h.volcArkAssetClient(ctx, provider.ProviderID)
+		if err != nil {
+			return nil, err
+		}
+		return h.listVolcArkAIGCAssetGroups(ctx, client)
+	case persistencemodel.AIProviderKindYunwuGateway:
+		client, err := h.yunwuGatewayAssetClient(ctx, provider.ProviderID)
+		if err != nil {
+			return nil, err
+		}
+		client.Model = normalizeYunwuPrivateAvatarModel(model)
+		return h.listYunwuGatewayAIGCAssetGroups(ctx, client)
+	default:
+		return nil, fmt.Errorf("provider %q does not support remote provider asset groups", provider.ProviderID)
+	}
+}
+
+func (h *ProviderAssetHandler) fetchRemoteProviderAssets(ctx context.Context, provider providerAssetProviderRef, groupID string, model string) ([]map[string]any, error) {
+	groupID = strings.TrimSpace(groupID)
+	if groupID == "" {
+		return nil, fmt.Errorf("remote asset group ID is required")
+	}
+	switch provider.ProviderKind {
+	case persistencemodel.AIProviderKindVolcengineArk:
+		client, err := h.volcArkAssetClient(ctx, provider.ProviderID)
+		if err != nil {
+			return nil, err
+		}
+		return h.listVolcArkImageAssets(ctx, client, groupID)
+	case persistencemodel.AIProviderKindYunwuGateway:
+		client, err := h.yunwuGatewayAssetClient(ctx, provider.ProviderID)
+		if err != nil {
+			return nil, err
+		}
+		client.Model = normalizeYunwuPrivateAvatarModel(model)
+		return h.listYunwuGatewayImageAssets(ctx, client, groupID)
+	default:
+		return nil, fmt.Errorf("provider %q does not support remote provider assets", provider.ProviderID)
+	}
+}
+
+func (h *ProviderAssetHandler) listVolcArkAIGCAssetGroups(ctx context.Context, client volcArkAssetClient) ([]map[string]any, error) {
+	payload := map[string]any{
+		"GroupType": "AIGC",
+		"PageSize":  100,
+	}
+	decoded, err := h.callVolcArkProviderAssetAction(ctx, client, "ListAssetGroups", payload)
+	if err != nil {
+		return nil, err
+	}
+	groups := unwrapProviderAssetGroupList(decoded)
+	return groups, nil
+}
+
+func (h *ProviderAssetHandler) listVolcArkImageAssets(ctx context.Context, client volcArkAssetClient, groupID string) ([]map[string]any, error) {
+	payload := map[string]any{
+		"GroupId":   strings.TrimSpace(groupID),
+		"AssetType": "Image",
+		"PageSize":  100,
+	}
+	decoded, err := h.callVolcArkProviderAssetAction(ctx, client, "ListAssets", payload)
+	if err != nil {
+		return nil, err
+	}
+	assets := unwrapProviderAssetList(decoded)
+	for _, asset := range assets {
+		if firstString(asset, "asset_group_id", "GroupId", "group_id") == "" {
+			asset["asset_group_id"] = strings.TrimSpace(groupID)
+		}
+	}
+	return assets, nil
+}
+
+func (h *ProviderAssetHandler) callVolcArkProviderAssetAction(ctx context.Context, client volcArkAssetClient, action string, payload map[string]any) (any, error) {
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, client.BaseURL+"/?Action="+url.QueryEscape(action)+"&Version=2024-01-01", bytes.NewReader(raw))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+	signVolcArkOpenAPIRequest(req, raw, client, time.Now().UTC())
+	res, err := h.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("Volcengine Ark %s request failed: %w", action, err)
+	}
+	defer res.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(res.Body, 2*1024*1024))
+	decoded := decodeProviderAssetResponse(body)
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return nil, fmt.Errorf("Volcengine Ark %s failed: HTTP %d %s", action, res.StatusCode, providerAssetErrorText(decoded, body))
+	}
+	if msg := providerAssetBusinessError(decoded); msg != "" {
+		return nil, fmt.Errorf("Volcengine Ark %s failed: %s", action, msg)
+	}
+	return decoded, nil
+}
+
+func (h *ProviderAssetHandler) ensureYunwuGatewayAIGCAssetGroup(ctx context.Context, client yunwuGatewayAssetClient, scope string, projectID string, projectName string, settingID string) (adminsettings.ProviderAssetGroupState, error) {
+	service := h.providerAssetLibraryService()
+	if service == nil {
+		return adminsettings.ProviderAssetGroupState{}, fmt.Errorf("provider asset library service is unavailable")
+	}
+	settings, err := service.GetProviderAssetLibrarySettingsWithSecret(ctx, client.ProviderID)
+	if err != nil {
+		return adminsettings.ProviderAssetGroupState{}, fmt.Errorf("failed to load provider asset library settings: %w", err)
+	}
+	if strings.TrimSpace(scope) == "" {
+		scope = providerAssetGroupScope(projectID, projectName, settingID)
+	}
+	if existing, ok := settings.ArkAssetGroups[scope]; ok && strings.TrimSpace(existing.ID) != "" {
+		return existing, nil
+	}
+	groupName := providerAssetGroupName(scope, projectID, projectName, settingID)
+	group := adminsettings.ProviderAssetGroupState{
+		Name:        groupName,
+		Scope:       scope,
+		ProjectName: strings.TrimSpace(projectName),
+		SettingID:   strings.TrimSpace(settingID),
+	}
+	created, err := h.createYunwuGatewayAIGCAssetGroup(ctx, client, group)
+	if err != nil {
+		return adminsettings.ProviderAssetGroupState{}, err
+	}
+	group.ID = firstString(created, "Id", "id", "group_id", "GroupId")
+	if group.ID == "" {
+		return adminsettings.ProviderAssetGroupState{}, fmt.Errorf("Yunwu private avatar CreateAssetGroup response did not include a group ID")
+	}
+	updated, err := service.UpsertProviderAssetLibraryGroup(ctx, client.ProviderID, scope, group)
+	if err != nil {
+		return adminsettings.ProviderAssetGroupState{}, fmt.Errorf("failed to store provider asset group: %w", err)
+	}
+	return updated.ArkAssetGroups[scope], nil
+}
+
+func (h *ProviderAssetHandler) createYunwuGatewayAIGCAssetGroup(ctx context.Context, client yunwuGatewayAssetClient, group adminsettings.ProviderAssetGroupState) (map[string]any, error) {
+	payload := map[string]any{
+		"model":       normalizeYunwuPrivateAvatarModel(client.Model),
+		"Name":        group.Name,
+		"Description": "MovScript managed private avatar asset group",
+		"GroupType":   "AIGC",
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, yunwuGatewayAssetGroupsURL(client.BaseURL, ""), bytes.NewReader(raw))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+client.Token)
+	res, err := h.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("Yunwu private avatar CreateAssetGroup request failed: %w", err)
+	}
+	defer res.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(res.Body, 2*1024*1024))
+	decoded := decodeProviderAssetResponse(body)
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return nil, fmt.Errorf("Yunwu private avatar CreateAssetGroup failed: HTTP %d %s", res.StatusCode, providerAssetErrorText(decoded, body))
+	}
+	if msg := providerAssetBusinessError(decoded); msg != "" {
+		return nil, fmt.Errorf("Yunwu private avatar CreateAssetGroup failed: %s", msg)
+	}
+	groupObj := unwrapProviderAssetGroup(decoded)
+	if len(groupObj) == 0 {
+		return nil, fmt.Errorf("Yunwu private avatar CreateAssetGroup response did not include a group object")
+	}
+	return groupObj, nil
+}
+
+func (h *ProviderAssetHandler) listYunwuGatewayAIGCAssetGroups(ctx context.Context, client yunwuGatewayAssetClient) ([]map[string]any, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, yunwuGatewayAssetGroupsURL(client.BaseURL, ""), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+client.Token)
+	q := req.URL.Query()
+	q.Set("model", normalizeYunwuPrivateAvatarModel(client.Model))
+	req.URL.RawQuery = q.Encode()
+	res, err := h.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("Yunwu private avatar ListAssetGroups request failed: %w", err)
+	}
+	defer res.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(res.Body, 2*1024*1024))
+	decoded := decodeProviderAssetResponse(body)
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return nil, fmt.Errorf("Yunwu private avatar ListAssetGroups failed: HTTP %d %s", res.StatusCode, providerAssetErrorText(decoded, body))
+	}
+	if msg := providerAssetBusinessError(decoded); msg != "" {
+		return nil, fmt.Errorf("Yunwu private avatar ListAssetGroups failed: %s", msg)
+	}
+	return unwrapProviderAssetGroupList(decoded), nil
+}
+
+func (h *ProviderAssetHandler) createYunwuGatewayImageAsset(ctx context.Context, client yunwuGatewayAssetClient, group adminsettings.ProviderAssetGroupState, sourceURL string, name string) (map[string]any, error) {
+	payload := map[string]any{
+		"model":     normalizeYunwuPrivateAvatarModel(client.Model),
+		"GroupId":   group.ID,
+		"URL":       sourceURL,
+		"AssetType": "Image",
+		"Name":      name,
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, yunwuGatewayAssetsURL(client.BaseURL, ""), bytes.NewReader(raw))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+client.Token)
+	res, err := h.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("Yunwu private avatar CreateAsset request failed: %w", err)
+	}
+	defer res.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(res.Body, 2*1024*1024))
+	decoded := decodeProviderAssetResponse(body)
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return nil, fmt.Errorf("Yunwu private avatar CreateAsset failed: HTTP %d %s", res.StatusCode, providerAssetErrorText(decoded, body))
+	}
+	if msg := providerAssetBusinessError(decoded); msg != "" {
+		return nil, fmt.Errorf("Yunwu private avatar CreateAsset failed: %s", msg)
+	}
+	asset := unwrapProviderAsset(decoded)
+	if len(asset) == 0 {
+		return nil, fmt.Errorf("Yunwu private avatar CreateAsset response did not include an asset object")
+	}
+	asset["asset_group_id"] = group.ID
+	return asset, nil
+}
+
+func (h *ProviderAssetHandler) listYunwuGatewayImageAssets(ctx context.Context, client yunwuGatewayAssetClient, groupID string) ([]map[string]any, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, yunwuGatewayAssetsURL(client.BaseURL, ""), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+client.Token)
+	q := req.URL.Query()
+	q.Set("model", normalizeYunwuPrivateAvatarModel(client.Model))
+	q.Set("GroupId", strings.TrimSpace(groupID))
+	q.Set("group_id", strings.TrimSpace(groupID))
+	req.URL.RawQuery = q.Encode()
+	res, err := h.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("Yunwu private avatar ListAssets request failed: %w", err)
+	}
+	defer res.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(res.Body, 2*1024*1024))
+	decoded := decodeProviderAssetResponse(body)
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return nil, fmt.Errorf("Yunwu private avatar ListAssets failed: HTTP %d %s", res.StatusCode, providerAssetErrorText(decoded, body))
+	}
+	if msg := providerAssetBusinessError(decoded); msg != "" {
+		return nil, fmt.Errorf("Yunwu private avatar ListAssets failed: %s", msg)
+	}
+	assets := unwrapProviderAssetList(decoded)
+	for _, asset := range assets {
+		if firstString(asset, "asset_group_id", "GroupId", "group_id") == "" {
+			asset["asset_group_id"] = strings.TrimSpace(groupID)
+		}
+	}
+	return assets, nil
+}
+
+func (h *ProviderAssetHandler) pollYunwuGatewayImageAsset(ctx context.Context, client yunwuGatewayAssetClient, assetID string) (map[string]any, error) {
+	assetID = strings.TrimSpace(assetID)
+	if assetID == "" {
+		return nil, nil
+	}
+	deadline := time.Now().Add(time.Duration(client.PollMaxMS) * time.Millisecond)
+	interval := time.Duration(client.PollIntervalMS) * time.Millisecond
+	if interval <= 0 {
+		interval = 2 * time.Second
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(interval):
+		}
+		asset, err := h.getYunwuGatewayImageAsset(ctx, client, assetID)
+		if err != nil {
+			return nil, err
+		}
+		status := providerAssetStatus(firstString(asset, "status", "Status"))
+		if status == "active" || status == "failed" || time.Now().After(deadline) {
+			return asset, nil
+		}
+	}
+}
+
+func (h *ProviderAssetHandler) getYunwuGatewayImageAsset(ctx context.Context, client yunwuGatewayAssetClient, assetID string) (map[string]any, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, yunwuGatewayAssetsURL(client.BaseURL, assetID), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+client.Token)
+	q := req.URL.Query()
+	q.Set("model", normalizeYunwuPrivateAvatarModel(client.Model))
+	req.URL.RawQuery = q.Encode()
+	res, err := h.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("Yunwu private avatar GetAsset request failed: %w", err)
+	}
+	defer res.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(res.Body, 2*1024*1024))
+	decoded := decodeProviderAssetResponse(body)
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return nil, fmt.Errorf("Yunwu private avatar GetAsset failed: HTTP %d %s", res.StatusCode, providerAssetErrorText(decoded, body))
+	}
+	if msg := providerAssetBusinessError(decoded); msg != "" {
+		return nil, fmt.Errorf("Yunwu private avatar GetAsset failed: %s", msg)
+	}
+	asset := unwrapProviderAsset(decoded)
+	if len(asset) == 0 {
+		return nil, fmt.Errorf("Yunwu private avatar GetAsset response did not include an asset object")
+	}
 	return asset, nil
 }
 
@@ -639,6 +1153,9 @@ func normalizeProviderAssetProvider(value string) string {
 	if alias == "jimeng" || alias == "jimeng2" || alias == "seedance" {
 		return persistencemodel.AIProviderKindVolcengineArk
 	}
+	if alias == "yunwu" || alias == "yunwu_gateway" {
+		return persistencemodel.AIProviderKindYunwuGateway
+	}
 	return provider
 }
 
@@ -660,12 +1177,115 @@ func providerAssetProviderIsDefaultVolcArk(value string) bool {
 	}
 }
 
+func providerAssetProviderIsYunwuGatewayAlias(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case persistencemodel.AIProviderKindYunwuGateway, "yunwu":
+		return true
+	default:
+		return false
+	}
+}
+
 func normalizeVolcArkOpenAPIBaseURL(value string) string {
 	baseURL := strings.TrimRight(strings.TrimSpace(value), "/")
 	if baseURL == "" {
 		return "https://ark.cn-beijing.volcengineapi.com"
 	}
 	return baseURL
+}
+
+func normalizeYunwuGatewayBaseURL(value string) string {
+	return strings.TrimRight(strings.TrimSpace(value), "/")
+}
+
+func normalizeYunwuGatewayToken(value string) string {
+	token := strings.TrimSpace(value)
+	token = strings.TrimPrefix(token, "Bearer ")
+	token = strings.TrimPrefix(token, "bearer ")
+	return strings.TrimSpace(token)
+}
+
+func normalizeYunwuPrivateAvatarModel(value string) string {
+	model := strings.TrimSpace(value)
+	switch model {
+	case "doubao-seedance-2-0-260128", "doubao-seedance-2-0-fast-260128":
+		return model
+	default:
+		return "doubao-seedance-2-0-260128"
+	}
+}
+
+func providerAssetModelScopedGroupScope(scope string, model string) string {
+	scope = strings.TrimSpace(scope)
+	if scope == "" {
+		scope = "global"
+	}
+	model = strings.TrimSpace(model)
+	if model == "" {
+		return scope
+	}
+	return scope + "::model:" + model
+}
+
+func providerAssetExplicitGroup(body providerAssetCertifyRequest) (adminsettings.ProviderAssetGroupState, bool) {
+	groupID := strings.TrimSpace(body.AssetGroupID)
+	if groupID == "" {
+		return adminsettings.ProviderAssetGroupState{}, false
+	}
+	groupName := strings.TrimSpace(body.AssetGroupName)
+	if groupName == "" {
+		groupName = groupID
+	}
+	return adminsettings.ProviderAssetGroupState{
+		ID:          groupID,
+		Name:        groupName,
+		Scope:       "manual:" + groupID,
+		ProjectName: strings.TrimSpace(body.ProjectName),
+		SettingID:   strings.TrimSpace(body.SettingID),
+	}, true
+}
+
+func yunwuGatewayAssetGroupsURL(baseURL string, groupID string) string {
+	base := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	switch {
+	case strings.HasSuffix(base, "/v1/private-avatar/groups"):
+	case strings.HasSuffix(base, "/v1/private-avatar"):
+		base += "/groups"
+	case strings.HasSuffix(base, "/v1"):
+		base += "/private-avatar/groups"
+	default:
+		base += "/v1/private-avatar/groups"
+	}
+	if strings.TrimSpace(groupID) == "" {
+		return base
+	}
+	return base + "/" + url.PathEscape(strings.TrimSpace(groupID))
+}
+
+func yunwuGatewayAssetsURL(baseURL string, assetID string) string {
+	base := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	switch {
+	case strings.HasSuffix(base, "/v1/private-avatar/assets"):
+	case strings.HasSuffix(base, "/v1/private-avatar"):
+		base += "/assets"
+	case strings.HasSuffix(base, "/v1"):
+		base += "/private-avatar/assets"
+	default:
+		base += "/v1/private-avatar/assets"
+	}
+	if strings.TrimSpace(assetID) == "" {
+		return base
+	}
+	return base + "/" + url.PathEscape(strings.TrimSpace(assetID))
+}
+
+func firstNonEmptyString(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
 
 func providerAssetName(name string, resource domainresource.RawResource) string {
@@ -750,14 +1370,14 @@ func decodeProviderAssetResponse(body []byte) any {
 	return decoded
 }
 
-func providerAssetCertification(provider providerAssetProviderRef, sourceURL string, resourceID uint, candidateID string, arkOpenAPIBaseURL string, created map[string]any) (map[string]any, error) {
+func providerAssetCertification(provider providerAssetProviderRef, sourceURL string, resourceID uint, candidateID string, backend string, model string, backendBaseURL string, created map[string]any) (map[string]any, error) {
 	hubAssetID := firstString(created, "id", "Id", "asset_id", "assetId", "AssetId", "hub_asset_id")
 	assetURI := firstString(created, "asset_uri", "assetUri", "AssetURI", "URI", "asset_url", "assetUrl")
 	if assetURI == "" && hubAssetID != "" {
 		assetURI = "asset://" + hubAssetID
 	}
 	if assetURI == "" {
-		return nil, fmt.Errorf("Volcengine Ark CreateAsset response did not include asset URI or asset ID")
+		return nil, fmt.Errorf("provider asset certification response did not include asset URI or asset ID")
 	}
 	rawStatus := firstString(created, "status", "Status")
 	if rawStatus == "" {
@@ -765,20 +1385,31 @@ func providerAssetCertification(provider providerAssetProviderRef, sourceURL str
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
 	cert := map[string]any{
-		"provider":             provider.ProviderID,
-		"provider_id":          provider.ProviderID,
-		"provider_kind":        provider.ProviderKind,
-		"provider_category":    provider.ProviderCategory,
-		"asset_type":           "image",
-		"status":               providerAssetStatus(rawStatus),
-		"asset_uri":            assetURI,
-		"source_resource_id":   resourceID,
-		"source_url":           sourceURL,
-		"source_hash":          providerAssetSourceHash(resourceID, sourceURL, candidateID),
-		"certified_at":         now,
-		"updated_at":           now,
-		"ark_openapi_base_url": arkOpenAPIBaseURL,
-		"raw_status":           rawStatus,
+		"provider":               provider.ProviderID,
+		"provider_id":            provider.ProviderID,
+		"provider_kind":          provider.ProviderKind,
+		"provider_category":      provider.ProviderCategory,
+		"asset_type":             "image",
+		"status":                 providerAssetStatus(rawStatus),
+		"asset_uri":              assetURI,
+		"source_resource_id":     resourceID,
+		"source_url":             sourceURL,
+		"source_hash":            providerAssetSourceHash(resourceID, sourceURL, candidateID),
+		"certified_at":           now,
+		"updated_at":             now,
+		"asset_library_backend":  backend,
+		"asset_library_base_url": backendBaseURL,
+		"raw_status":             rawStatus,
+	}
+	if strings.TrimSpace(model) != "" {
+		cert["model"] = strings.TrimSpace(model)
+		cert["provider_model_id"] = strings.TrimSpace(model)
+	}
+	if backend == "volcengine_ark" {
+		cert["ark_openapi_base_url"] = backendBaseURL
+	}
+	if backend == "yunwu_gateway" {
+		cert["gateway_base_url"] = backendBaseURL
 	}
 	if hubAssetID != "" {
 		cert["hub_asset_id"] = hubAssetID
@@ -851,6 +1482,50 @@ func unwrapProviderAssetGroup(payload any) map[string]any {
 	return group
 }
 
+func unwrapProviderAssetGroupList(payload any) []map[string]any {
+	return unwrapProviderAssetListAtDepth(payload, 0, func(item map[string]any) bool {
+		return firstString(item, "id", "Id", "group_id", "GroupId", "asset_group_id", "AssetGroupId") != ""
+	}, []string{
+		"Items", "items", "List", "list", "Records", "records", "AssetGroups", "asset_groups", "assetGroups", "Groups", "groups",
+		"Data", "Result", "data", "result", "body", "payload",
+	})
+}
+
+func unwrapProviderAssetList(payload any) []map[string]any {
+	return unwrapProviderAssetListAtDepth(payload, 0, func(item map[string]any) bool {
+		return firstString(item, "id", "Id", "asset_id", "assetId", "AssetId", "URI", "asset_uri", "asset_url", "assetUrl") != ""
+	}, []string{
+		"Items", "items", "List", "list", "Records", "records", "Assets", "assets", "AssetList", "asset_list", "assetList",
+		"Data", "Result", "data", "result", "body", "payload",
+	})
+}
+
+func unwrapProviderAssetListAtDepth(payload any, depth int, match func(map[string]any) bool, keys []string) []map[string]any {
+	if depth > 6 || payload == nil {
+		return nil
+	}
+	switch value := payload.(type) {
+	case []any:
+		out := make([]map[string]any, 0, len(value))
+		for _, item := range value {
+			out = append(out, unwrapProviderAssetListAtDepth(item, depth+1, match, keys)...)
+		}
+		return out
+	case map[string]any:
+		for _, key := range keys {
+			if raw, ok := value[key]; ok {
+				if nested := unwrapProviderAssetListAtDepth(raw, depth+1, match, keys); len(nested) > 0 {
+					return nested
+				}
+			}
+		}
+		if match(value) {
+			return []map[string]any{value}
+		}
+	}
+	return nil
+}
+
 func unwrapProviderAssetGroupAtDepth(payload any, depth int) (map[string]any, bool) {
 	if depth > 5 || payload == nil {
 		return nil, false
@@ -888,7 +1563,7 @@ func unwrapProviderAssetAtDepth(payload any, depth int) (map[string]any, bool) {
 	}
 	switch value := payload.(type) {
 	case map[string]any:
-		if firstString(value, "id", "Id", "asset_id", "assetId", "AssetId", "URI", "asset_uri") != "" {
+		if firstString(value, "id", "Id", "asset_id", "assetId", "AssetId", "URI", "asset_uri", "asset_url", "assetUrl") != "" {
 			return value, true
 		}
 		for _, key := range []string{"Data", "Result", "ResponseMetadata", "data", "result", "asset", "item", "record", "body", "payload"} {

@@ -9,7 +9,7 @@ When unclear, ask whether the user is:
 - making a simple one-off video, or
 - building a reusable project with continuity, later edits, and tracked generation.
 
-For a simple video, use the smallest useful structure: a focused `scene_moment`, optional visual `expression_unit`, `storyboard`, and/or `content_unit`.
+For a simple video, use the smallest useful structure: a focused short `scene_moment`, optional visual `expression_unit`, `storyboard`, and/or `content_unit`.
 
 For a project, add reusable structure only where it helps: project standards, settings, states, assets, script blocks, scene moments, visual expression units, keyframes, storyboards, expression units, audio cues, and content units.
 
@@ -20,10 +20,12 @@ For video requests that resemble Seedance-style paths, open `video-production-pa
 Before writing entities, decide what is actually being produced:
 
 1. Decide whether the request is one output, one visual expression unit, one `scene_moment`, multiple scene moments, segments, or productions.
-2. Choose the working center. Use a visual `expression_unit` when camera framing, blocking, motion, timing, or a single clip material is the main deliverable. Use `scene_moment` when the deliverable is a complete narrative beat that may contain one or more visual materials.
-3. Decide whether the working center needs evidence for consistency. Use `setting`, `setting_state`, and `asset` for concrete reusable production entities, state namespaces, and state asset references; `keyframe` and `storyboard` for shot visual anchors; `expression_unit` and `audio_cue` for performance, text, voice, sound, or ambience.
-4. If consistency requirements are low, do not force setting, asset, keyframe, or storyboard prerequisites. Create the focused `scene_moment_ref` or `expression_unit_ref` content unit and generate a draft.
-5. After writing the content unit, derive or read its artifact bundle, dependency report, runtime panel, and selection validity before generation.
+2. Keep each `scene_moment` short and atomic, normally about 10 seconds or less. If the request spans multiple actions, time/place changes, or independently reviewable beats, split it into multiple scene moments.
+3. Choose the working center. Use a visual `expression_unit` when camera framing, blocking, motion, timing, or a single clip material is the main deliverable. Use `scene_moment` when the deliverable is a complete narrative beat that may contain one or more visual materials.
+4. Decide whether the working center needs evidence for consistency. Use `setting`, `setting_state`, and `asset` for concrete reusable production entities, state namespaces, and state asset references; `keyframe` and `storyboard` for shot visual anchors; `expression_unit` and `audio_cue` for performance, text, voice, sound, or ambience.
+5. Before ordinary video generation, prefer a schematic `gpt-image-2` storyboard panel for each scene moment unless the user explicitly wants a fast unstable draft.
+6. If consistency requirements are low, do not force setting, asset, keyframe, or storyboard prerequisites. Create the focused short `scene_moment_ref` or `expression_unit_ref` content unit and generate a draft.
+7. After writing the content unit, derive or read its artifact bundle, dependency report, runtime panel, and selection validity before generation.
 
 Use this decision before dependency-order planning. Dependency order tells you how to write the chosen structure; it does not decide how much structure the user needs.
 
@@ -49,10 +51,11 @@ This is an ordering guide, not a requirement to create every layer.
 For story-to-shot planning:
 
 1. Capture or read the source story/script.
-2. Create the necessary production, segment, and scene moments.
-3. Create only the visual expression units needed for the current task.
-4. Add keyframes/storyboards only where visual anchoring is needed.
-5. Add content units only for outputs the user wants to generate, upload, select, or track.
+2. Analyze each useful beat before writing content units: dramatic purpose, characters/entities, setting, visible action, blocking, camera intent, lighting, audio/performance, continuity notes, and any required semantic refs.
+3. Create the necessary production, segment, and scene moments.
+4. Create only the visual expression units needed for the current task.
+5. Add keyframes/storyboards only where visual anchoring is needed.
+6. Add content units only for outputs the user wants to generate, upload, select, or track. The content-unit prompt should use the analyzed scene detail, not a raw pasted script block.
 
 For continuity:
 
@@ -77,7 +80,7 @@ Build reusable assets from simple to complex:
 For visual anchoring:
 
 1. Create or update visual expression-unit camera/blocking/lighting/timing intent.
-2. When composition, blocking, camera motion, subject placement, or rhythm is underspecified, create `storyboard` structure first.
+2. When composition, blocking, camera motion, subject placement, or rhythm is underspecified, or when preparing ordinary scene-moment video production without an existing selected visual anchor, create `storyboard` structure first.
 3. Create a `storyboard_ref` content unit for storyboard panels/images and require adoption/selection when downstream work depends on it.
 4. After storyboard selection, create `keyframe` records for required visual anchors such as start and end frames.
 5. Create `keyframe_ref` content units for keyframe images and require adoption/selection before dependent video generation.

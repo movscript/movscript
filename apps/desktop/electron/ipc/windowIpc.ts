@@ -2,6 +2,7 @@ import { BrowserWindow, ipcMain } from 'electron'
 import type {
   ElectronOpenCanvasWindowInput,
   ElectronOpenEditingProjectWindowInput,
+  ElectronOpenProjectDataWindowInput,
   ElectronOpenProjectWindowInput,
   ElectronOpenSettingsWindowInput,
   ElectronOpenToolWindowInput,
@@ -16,6 +17,7 @@ import {
   openEditingProjectWindow,
   openHomeWindow,
   openProjectWindow,
+  openProjectDataWindow,
   openSettingsWindow,
   openToolWindow,
   updateWindowRouteContext,
@@ -86,6 +88,10 @@ export function registerWindowIpcHandlers(): void {
 
   ipcMain.handle('window:open-tool', (_event, input?: ElectronOpenToolWindowInput) => {
     return openToolWindow(input)
+  })
+
+  ipcMain.handle('window:open-project-data', (_event, input?: ElectronOpenProjectDataWindowInput) => {
+    return openProjectDataWindow(input)
   })
 
   ipcMain.handle('window:open-settings', (_event, input?: ElectronOpenSettingsWindowInput) => {

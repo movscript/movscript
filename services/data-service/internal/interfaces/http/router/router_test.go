@@ -46,6 +46,10 @@ func TestNewRegistersCoreRoutes(t *testing.T) {
 		"GET /api/v1/resources/:id",
 		"GET /api/v1/resources/:id/usages",
 		"POST /api/v1/resources/upload",
+		"GET /api/v1/provider-assets/providers/:provider_ref/groups",
+		"POST /api/v1/provider-assets/providers/:provider_ref/groups/sync",
+		"GET /api/v1/provider-assets/providers/:provider_ref/groups/:group_ref/assets",
+		"POST /api/v1/provider-assets/providers/:provider_ref/groups/:group_ref/assets/sync",
 		"POST /api/v1/provider-assets/providers/:provider_ref/certify",
 		"POST /api/v1/provider-assets/seedance2/certify",
 		"GET /api/v1/provider-assets/resources/:id/file",
@@ -63,6 +67,7 @@ func TestNewRegistersCoreRoutes(t *testing.T) {
 		"POST /api/v1/projects/ensure",
 		"GET /api/v1/project-data/spaces",
 		"POST /api/v1/project-data/spaces",
+		"GET /api/v1/project-data/spaces/:spaceID/decisions",
 		"GET /api/v1/project-data/decisions",
 		"POST /api/v1/project-data/decisions/query",
 		"PUT /api/v1/project-data/decisions/candidates",
@@ -340,6 +345,7 @@ func TestProjectDataRoutesUseScopedProjectUID(t *testing.T) {
 	}
 	var spaces struct {
 		Items []struct {
+			ID             uint   `json:"id"`
 			ScopeKind      string `json:"scope_kind"`
 			ScopeID        string `json:"scope_id"`
 			ProjectUID     string `json:"project_uid"`
@@ -351,6 +357,27 @@ func TestProjectDataRoutesUseScopedProjectUID(t *testing.T) {
 	}
 	if len(spaces.Items) != 1 || spaces.Items[0].ProjectUID != "prj_http" || spaces.Items[0].CandidateCount != 1 {
 		t.Fatalf("unexpected project data spaces: %#v", spaces.Items)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/project-data/spaces/"+strconv.FormatUint(uint64(spaces.Items[0].ID), 10)+"/decisions?scope_kind=user", nil)
+	req.Header.Set("Authorization", "Bearer sk-project-data-user")
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list scoped decisions status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var decisions struct {
+		Items []struct {
+			TargetKind string            `json:"target_kind"`
+			TargetRef  string            `json:"target_ref"`
+			Candidates []json.RawMessage `json:"candidates"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &decisions); err != nil {
+		t.Fatalf("decode project data decisions: %v", err)
+	}
+	if len(decisions.Items) != 1 || decisions.Items[0].TargetRef != "content_units/cu_a" || len(decisions.Items[0].Candidates) != 1 {
+		t.Fatalf("unexpected project data decisions: %#v", decisions.Items)
 	}
 
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/project-data/spaces?scope_kind=user&scope_id=999999", nil)

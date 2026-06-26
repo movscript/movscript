@@ -61,13 +61,22 @@ export function buildProjectOverviewModel({
         state: standardsProgress >= 70 ? 'ready' : standardsProgress > 0 ? 'active' : 'empty',
       }
     }
-    if (definition.id === 'content') {
+    if (definition.id === 'content_canvas') {
       return {
         definition,
         count: contentSignals,
         detail: `${data.contentUnits.length} 个创作片段，${missingAssets} 个素材缺口`,
         progress: contentProgress,
         state: data.productions.length === 0 ? 'blocked' : contentProgress >= 70 ? 'ready' : contentSignals > 0 ? 'active' : 'empty',
+      }
+    }
+    if (definition.id === 'content_preview') {
+      return {
+        definition,
+        count: data.contentUnits.length + lockedAssets,
+        detail: `${lockedAssets} 个素材已锁定，${data.contentUnits.length} 个片段可预览`,
+        progress: contentProgress,
+        state: data.contentUnits.length === 0 ? 'blocked' : contentProgress >= 70 ? 'ready' : 'active',
       }
     }
     return {
@@ -85,7 +94,8 @@ export function buildProjectOverviewModel({
     nextLane: lanes.find((lane) => lane.state === 'blocked') ?? lanes.find((lane) => lane.state === 'active') ?? lanes[0],
     homeEntryLanes: [
       lanes.find((lane) => lane.definition.id === 'project_standards'),
-      lanes.find((lane) => lane.definition.id === 'content'),
+      lanes.find((lane) => lane.definition.id === 'content_canvas'),
+      lanes.find((lane) => lane.definition.id === 'content_preview'),
     ].filter((lane): lane is ProjectOverviewWorkLane => Boolean(lane)),
   }
 }
@@ -100,7 +110,8 @@ export function projectOverviewLaneLabel(state: ProjectOverviewLaneState) {
 export function projectOverviewNextActionLabel(definition: ProjectEntryDefinition) {
   if (definition.id === 'project_standards') return '进入项目规范'
   if (definition.id === 'orchestration_production') return '进入创作编排'
-  if (definition.id === 'content') return '进入创作'
+  if (definition.id === 'content_canvas') return '进入画布'
+  if (definition.id === 'content_preview') return '进入预览'
   return '进入入口'
 }
 

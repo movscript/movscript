@@ -3069,7 +3069,7 @@
       "requireEmailVerification": "Require email verification",
       "requireEmailVerificationHint": "Forced on while registration is open so accounts cannot register without a verified mailbox.",
       "providerAssets": "Provider Asset Library",
-      "providerAssetsHint": "Configure the official Volcengine Ark asset API. Asset groups are created and managed automatically, and secrets are never echoed to the browser.",
+      "providerAssetsHint": "Configure provider asset-library access. Official Ark uses per-Provider OpenAPI credentials; Yunwu private portraits reuse the Provider base URL and API key.",
       "providerAssetsMovedHint": "Asset library, asset:// inputs, and original artifact trust are now managed by Provider.",
       "providerAssetsMovedDetail": "System settings only keep deployment-level status. The Provider page shows asset capability, missing configuration, global group state, and certification diagnostics.",
       "openProviderManagement": "Open Provider management",

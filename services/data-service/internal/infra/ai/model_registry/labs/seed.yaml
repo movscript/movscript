@@ -1487,6 +1487,56 @@ templates:
     - adapter_type: volcen
       allow_model_id_override: true
       capabilities:
+        - voice_design
+      display_name: 豆包 Seed Voice Design
+      id: volcengine:doubao-seed-voice-design
+      lab: seed
+      model_id: doubao-seed-voice-design
+      order: 53
+      params:
+        - key: resource_id
+          label: Resource ID
+          type: string
+          default: doubao-seed-voice-design
+        - key: endpoint
+          label: Endpoint
+          type: string
+          default: ""
+        - key: preview_text
+          label: 试听文本
+          type: string
+          default: ""
+        - key: speaker_id
+          label: 音色 ID
+          type: string
+          default: ""
+        - key: language
+          label: 语言类型
+          type: number
+          default: 0
+          min: 0
+          step: 1
+        - key: sample_rate
+          label: 采样率
+          type: number
+          default: 24000
+          min: 8000
+          step: 1000
+        - key: image_url
+          label: 参考图片 URL
+          type: string
+          default: ""
+        - key: image_bytes
+          label: 参考图片 Base64
+          type: string
+          default: ""
+      source:
+        status: verified
+        url: https://www.volcengine.com/docs/6561/2277844
+        verified_at: "2026-06-26"
+    - adapter_type: volcen
+      allow_model_id_override: true
+      capabilities:
         - video
         - video_i2v
         - video_v2v

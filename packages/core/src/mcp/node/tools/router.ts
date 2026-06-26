@@ -23,6 +23,8 @@ import {
   domainQueryAssets,
   domainQueryEntities,
   domainQueryProductionContext,
+  domainQueryRemoteAssetGroups,
+  domainQueryRemoteAssets,
   domainQuerySettings,
   domainReadContentWorkspace,
   domainReadContentWorkspaceSnapshot,
@@ -291,6 +293,10 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
     case 'domain_certify_asset_provider':
     case 'domain_certify_asset_seedance2':
       return toolText(await domainCertifyAssetProvider(args))
+    case 'domain_query_remote_asset_groups':
+      return toolText(await domainQueryRemoteAssetGroups(args))
+    case 'domain_query_remote_assets':
+      return toolText(await domainQueryRemoteAssets(args))
     case 'domain_upsert_script':
       return toolText(await domainUpsertScript(args))
     case 'domain_read_script_source':

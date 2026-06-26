@@ -26,6 +26,10 @@ import {
   ResourcePermissionUserRow,
   ResourcePageActionButton,
 } from './ResourcePageUi'
+import {
+  YUNWU_SEEDANCE_PROVIDER_ASSET_MODELS,
+  type ResourceLibraryProviderAssetProvider,
+} from '../../resource-browser.js'
 
 export function MoveDialog({
   resource,
@@ -203,6 +207,69 @@ export function ShareToProjectDialog({
       </ResourceDialogContent>
     </Dialog>
   )
+}
+
+export function ProviderAssetCertificationDialog({
+  resource,
+  provider,
+  providerID,
+  onClose,
+  onConfirm,
+  isCertifying,
+}: {
+  resource: RawResource
+  provider?: ResourceLibraryProviderAssetProvider
+  providerID?: string
+  onClose: () => void
+  onConfirm: (input: { providerID?: string; model?: string }) => void
+  isCertifying: boolean
+}) {
+  const { t } = useTranslation()
+  const [model, setModel] = useState(YUNWU_SEEDANCE_PROVIDER_ASSET_MODELS[0]?.id ?? '')
+  const label = providerAssetProviderLabel(provider, providerID)
+
+  return (
+    <Dialog open onOpenChange={open => !open && onClose()}>
+      <ResourceDialogContent size="sm">
+        <ResourceDialogTitle>{t('pages.resources.certifyProviderAssetTitle', { defaultValue: '认证到 Provider 素材库' })}</ResourceDialogTitle>
+        <ResourceDialogStack>
+          <ResourceDialogText title={resource.name}>{resource.name}</ResourceDialogText>
+          <ResourceDialogField>
+            <ResourceDialogFieldLabel>{t('pages.resources.providerAssetProvider', { defaultValue: '服务' })}</ResourceDialogFieldLabel>
+            <ResourceDialogInput value={label} readOnly />
+          </ResourceDialogField>
+          <ResourceDialogField>
+            <ResourceDialogFieldLabel>{t('pages.resources.providerAssetModel', { defaultValue: '模型' })}</ResourceDialogFieldLabel>
+            <ResourceDialogSelect value={model} onChange={event => setModel(event.target.value)}>
+              {YUNWU_SEEDANCE_PROVIDER_ASSET_MODELS.map(option => (
+                <option key={option.id} value={option.id}>{option.label}</option>
+              ))}
+            </ResourceDialogSelect>
+          </ResourceDialogField>
+          <ResourceDialogText>
+            {t('pages.resources.providerAssetModelHint', {
+              model,
+              defaultValue: `云雾私域人像认证按账号和 Seedance 模型隔离；后续生成也必须使用同一个 Provider 和模型。当前模型：${model}`,
+            })}
+          </ResourceDialogText>
+        </ResourceDialogStack>
+        <ResourceDialogFooter>
+          <ResourcePageActionButton variant="outline" size="sm" onClick={onClose}>{t('common.cancel')}</ResourcePageActionButton>
+          <ResourcePageActionButton size="sm" onClick={() => onConfirm({ providerID, model })} disabled={!model || isCertifying}>
+            {isCertifying ? t('pages.resources.certifyingProviderAsset', { defaultValue: '认证中…' }) : t('pages.resources.certifyProviderAssetConfirm', { defaultValue: '开始认证' })}
+          </ResourcePageActionButton>
+        </ResourceDialogFooter>
+      </ResourceDialogContent>
+    </Dialog>
+  )
+}
+
+function providerAssetProviderLabel(provider: ResourceLibraryProviderAssetProvider | undefined, providerID: string | undefined) {
+  if (!provider) return providerID || 'Provider'
+  if (provider.display_name && provider.provider_id && provider.display_name !== provider.provider_id) {
+    return `${provider.display_name} (${provider.provider_id})`
+  }
+  return provider.display_name || provider.provider_id || provider.provider_kind
 }
 
 function FolderOption({ label, selected, onClick }: {

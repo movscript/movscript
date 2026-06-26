@@ -62,6 +62,27 @@ func (h *ProjectDataHandler) EnsureSpace(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
+func (h *ProjectDataHandler) ListSpaceDecisions(c *gin.Context) {
+	scope, ok := h.scopeFromRequest(c, c.Query("scope_kind"), c.Query("scope_id"))
+	if !ok {
+		return
+	}
+	spaceID, err := strconv.ParseUint(strings.TrimSpace(c.Param("spaceID")), 10, 64)
+	if err != nil || spaceID == 0 {
+		c.JSON(http.StatusBadRequest, api.InvalidInput("无效的数据空间 ID"))
+		return
+	}
+	result, err := h.service.ListSpaceDecisions(c.Request.Context(), appdecision.ProjectDataListSpaceDecisionsInput{
+		ProjectDataScopeInput: scope,
+		SpaceID:               uint(spaceID),
+	})
+	if err != nil {
+		h.writeProjectDataError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"items": result})
+}
+
 func (h *ProjectDataHandler) GetDecision(c *gin.Context) {
 	input, ok := h.targetFromQuery(c)
 	if !ok {

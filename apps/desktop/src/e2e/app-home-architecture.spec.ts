@@ -30,6 +30,7 @@ type WindowCall =
   | { type: 'codex-plugin' }
   | { type: 'editing' }
   | { type: 'tool'; input?: { route?: string } }
+  | { type: 'projectData'; input?: { route?: string } }
   | { type: 'project'; input: ElectronOpenProjectWindowInput }
   | { type: 'home' }
 
@@ -67,6 +68,15 @@ test('app home opens the tool entry point', async ({ page }, testInfo) => {
   await expect(page.getByRole('button', { name: /Tool/ })).toBeVisible()
   await page.getByRole('button', { name: /Tool/ }).click()
   await expectWindowCall(page, { type: 'tool', route: '/tools/ref-image-gen' })
+  await expect(page).toHaveURL(/\/$/)
+})
+
+test('app home opens project data in a standalone window', async ({ page }, testInfo) => {
+  await setupHomePage(page, testInfo.project.use.baseURL)
+  await gotoHome(page)
+
+  await page.getByRole('button', { name: /项目数据|Project Data/ }).click()
+  await expectWindowCall(page, { type: 'projectData' })
   await expect(page).toHaveURL(/\/$/)
 })
 
@@ -149,6 +159,9 @@ async function installWindowApiRecorder(page: Page) {
       openToolWindow: async (input?: { route?: string }) => {
         globalWindow.__movscriptWindowCalls?.push({ type: 'tool', input })
       },
+      openProjectDataWindow: async (input?: { route?: string }) => {
+        globalWindow.__movscriptWindowCalls?.push({ type: 'projectData', input })
+      },
       openProjectWindow: async (input: ElectronOpenProjectWindowInput) => {
         globalWindow.__movscriptWindowCalls?.push({ type: 'project', input })
       },
@@ -173,6 +186,7 @@ async function expectWindowCall(
     | { type: 'canvas' }
     | { type: 'codex-plugin' }
     | { type: 'editing' }
+    | { type: 'projectData' }
     | { type: 'tool'; route?: string }
     | { type: 'project'; projectId: number; route?: string },
 ) {
@@ -180,6 +194,8 @@ async function expectWindowCall(
     return ((window as Window & { __movscriptWindowCalls?: WindowCall[] }).__movscriptWindowCalls ?? [])
   })).toContainEqual(expected.type === 'agent' || expected.type === 'canvas' || expected.type === 'editing' || expected.type === 'codex-plugin'
     ? { type: expected.type }
+    : expected.type === 'projectData'
+      ? expect.objectContaining({ type: 'projectData' })
     : expected.type === 'tool'
       ? expect.objectContaining({
         type: 'tool',

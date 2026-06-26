@@ -15,7 +15,7 @@ import {
 } from './ResourcePageUi'
 import { useTranslation } from 'react-i18next'
 import { RESOURCE_UPLOAD_ACCEPT } from '@movscript/core/resources'
-import { MoveDialog, RenameResourceDialog, ShareToProjectDialog } from './ResourcesPageDialogs'
+import { MoveDialog, ProviderAssetCertificationDialog, RenameResourceDialog, ShareToProjectDialog } from './ResourcesPageDialogs'
 import { ResourceBulkContextMenu } from './ResourcesPageItems'
 import { ResourcesPageLibraryContent } from './ResourcesPageLibraryContent'
 import { ResourcesPageToolbar } from './ResourcesPageToolbar'
@@ -130,7 +130,15 @@ export function ResourceLibraryView({
             onShareResourcesToTeam={controller.shareResourcesToTeam}
             onShareResourcesToProject={controller.openShareToProject}
             onDownloadResource={controller.downloadResource}
-            onCertifyProviderAsset={resource => controller.certifyProviderAsset.mutate(resource)}
+            providerAssetProviders={controller.providerAssetProviders}
+            onCertifyProviderAsset={(resource, providerID) => {
+              const provider = controller.providerAssetProviders.find(item => item.provider_id === providerID)
+              if (provider?.provider_kind === 'yunwu_gateway') {
+                controller.setProviderAssetCertificationRequest({ resource, provider, providerID })
+                return
+              }
+              controller.certifyProviderAsset.mutate({ resource, providerID })
+            }}
             onSelectResource={controller.setResourceSelected}
             onContextMenu={controller.openResourceContextMenu}
             onPreviewResource={controller.setPreviewResource}
@@ -196,6 +204,20 @@ export function ResourceLibraryView({
                 onClose={() => controller.setShareProjectResources(null)}
                 isSharing={controller.shareToProject.isPending}
                 onShare={(projectID) => controller.shareToProject.mutate({ projectID, ids: resourceIDs(controller.shareProjectResources ?? []) })}
+              />
+            )}
+            {controller.providerAssetCertificationRequest && (
+              <ProviderAssetCertificationDialog
+                resource={controller.providerAssetCertificationRequest.resource}
+                provider={controller.providerAssetCertificationRequest.provider}
+                providerID={controller.providerAssetCertificationRequest.providerID}
+                onClose={() => controller.setProviderAssetCertificationRequest(null)}
+                isCertifying={controller.certifyProviderAsset.isPending}
+                onConfirm={({ providerID, model }) => controller.certifyProviderAsset.mutate({
+                  resource: controller.providerAssetCertificationRequest!.resource,
+                  providerID,
+                  model,
+                })}
               />
             )}
             {controller.previewResource && (

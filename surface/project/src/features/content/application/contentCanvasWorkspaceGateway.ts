@@ -1,7 +1,9 @@
 import type { ContentCandidateRecord, ContentSourceWorkspaceCandidateCreatePlan, ContentSourceWorkspaceData } from '@movscript/core/content'
+import type { ParamDef } from '@movscript/shared'
 import type { MovScriptWorkspaceService } from '@movscript/workspace'
 import type {
   MovScriptEngineAssetInput,
+  MovScriptEngineContentUnitInput,
   MovScriptEngineEntityBasicsInput,
   MovScriptEngineEnsureContentUnitInput,
   MovScriptEngineKeyframeInput,
@@ -35,6 +37,7 @@ export interface ContentCanvasWorkspaceGateway {
   createExpressionUnit(input: ContentCanvasExpressionUnitCreateInput): Promise<void>
   createKeyframe(input: MovScriptEngineKeyframeInput): Promise<void>
   createStoryboard(input: MovScriptEngineStoryboardInput): Promise<void>
+  createContentUnit(input: MovScriptEngineContentUnitInput): Promise<{ contentUnitPath?: string; path?: string; record: Record<string, unknown> }>
   ensureContentUnitForEntity(input: MovScriptEngineEnsureContentUnitInput): Promise<{ contentUnitPath?: string; path?: string; record: Record<string, unknown> }>
   updateExpressionUnit(input: ContentCanvasExpressionUnitUpdateInput): Promise<void>
   uploadResource(input: ContentCanvasResourceUploadInput): Promise<ContentCanvasUploadedResource>
@@ -108,6 +111,7 @@ export type ContentCanvasContentCandidateGenerateInput = {
   outputKind: 'image' | 'video'
   modelId?: string
   params?: Record<string, string | number | boolean>
+  supportedParams?: ParamDef[]
   promptText?: string
 }
 

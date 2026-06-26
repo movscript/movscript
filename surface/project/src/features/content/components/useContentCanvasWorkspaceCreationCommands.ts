@@ -3,16 +3,37 @@ import {
   createChildContentCanvasNode,
   createRootContentCanvasNode,
   type ContentCanvasCommandResult,
+  type ContentCanvasGenerationOutputKind,
   type ContentCanvasCreateNodeInput,
 } from '../application/contentCanvasCommands'
 import type { ContentCanvasWorkspaceGateway } from '../application/contentCanvasWorkspaceGateway'
 import type { ContentCanvasNode } from '../domain/contentCanvasTypes'
+import type { CreativeCanvasAction } from '../application/contentCreativeCanvasActions'
+import {
+  createAssetCanvasNode,
+  createNakedGenerationTaskCanvasNode,
+  createSceneMomentCanvasNode,
+} from '../application/contentCanvasContentUnitCreateNodeCommands'
 import type { contentCanvasWorkspaceIndex } from './contentCanvasWorkspaceGraphModel'
 import type {
   ContentCanvasNodePosition,
   InspectorSelection,
   TreeNodeData,
 } from './contentCanvasWorkspaceTypes'
+
+type CreativeCanvasChildKind = Extract<CreativeCanvasAction, { kind: 'create_child' }>['childKind']
+type CreativeCanvasRootKind = 'production' | 'setting'
+type CreativeCanvasDirectKind =
+  | 'task_video'
+  | 'task_image'
+  | 'task_audio'
+  | 'task_text'
+  | 'scene_moment'
+  | 'keyframe'
+  | 'storyboard'
+  | 'asset_image'
+  | 'asset_video'
+  | 'asset_audio'
 
 type RunContentCanvasCommand = (
   actionKey: string,
@@ -49,6 +70,43 @@ export function useContentCanvasWorkspaceCreationCommands({
     if (!projectId || !gateway) return
     void runCanvasCommand('structure-production', () => createRootContentCanvasNode(projectId, 'production', { input }, gateway))
   }, [gateway, projectId, runCanvasCommand])
+
+  const createCreativeCanvasRoot = useCallback((rootKind: CreativeCanvasRootKind, position: ContentCanvasNodePosition, input?: ContentCanvasCreateNodeInput) => {
+    if (!projectId || !gateway) return
+    void runCanvasCommand(`creative-root:${rootKind}`, () => createRootContentCanvasNode(projectId, rootKind, { input, position }, gateway))
+  }, [gateway, projectId, runCanvasCommand])
+
+  const createCreativeCanvasNode = useCallback((nodeKind: CreativeCanvasDirectKind, position: ContentCanvasNodePosition, input?: ContentCanvasCreateNodeInput) => {
+    if (!projectId || !gateway) return
+    if (nodeKind.startsWith('task_')) {
+      void runCanvasCommand(`creative-node:${nodeKind}`, () => (
+        createNakedGenerationTaskCanvasNode(projectId, creativeCanvasDirectTaskOutputKind(nodeKind), { input, position }, gateway)
+      ))
+      return
+    }
+    if (nodeKind === 'scene_moment') {
+      void runCanvasCommand(`creative-node:${nodeKind}`, () => createSceneMomentCanvasNode(projectId, { input, position }, gateway))
+      return
+    }
+    if (nodeKind === 'keyframe' || nodeKind === 'storyboard') {
+      const ownerNode = input?.targetOwnerNodeId ? graphIndex.nodeById.get(input.targetOwnerNodeId) : undefined
+      if (!ownerNode || (ownerNode.kind !== 'scene_moment' && ownerNode.kind !== 'expression_unit')) return
+      if (ownerNode.kind === 'scene_moment') setActiveSceneId(ownerNode.id)
+      void runCanvasCommand(`creative-node:${nodeKind}:${ownerNode.id}`, () => (
+        createChildContentCanvasNode(projectId, ownerNode, nodeKind, { input, position }, gateway)
+      ))
+      return
+    }
+    void runCanvasCommand(`creative-node:${nodeKind}`, () => (
+      createAssetCanvasNode(projectId, {
+        input: {
+          ...(input ?? { id: '', title: '' }),
+          outputKind: creativeCanvasDirectAssetOutputKind(nodeKind),
+        },
+        position,
+      }, gateway)
+    ))
+  }, [gateway, graphIndex, projectId, runCanvasCommand, setActiveSceneId])
 
   const createStructureChild = useCallback((treeNode: TreeNodeData, input: ContentCanvasCreateNodeInput) => {
     if (!projectId || !gateway || !treeNode.id) return
@@ -98,9 +156,19 @@ export function useContentCanvasWorkspaceCreationCommands({
     void runCanvasCommand('setting-asset', () => createChildContentCanvasNode(projectId, state, 'asset', undefined, gateway))
   }, [firstStateForSetting, gateway, projectId, runCanvasCommand])
 
+  const createCreativeCanvasChild = useCallback((node: ContentCanvasNode, childKind: CreativeCanvasChildKind, position: ContentCanvasNodePosition, input?: ContentCanvasCreateNodeInput) => {
+    if (!projectId || !gateway) return
+    if (node.kind === 'scene_moment') setActiveSceneId(node.id)
+    if (node.kind === 'setting') setActiveSettingId(node.id)
+    void runCanvasCommand(`creative-child:${childKind}:${node.id}`, () => createChildContentCanvasNode(projectId, node, childKind, { input, position }, gateway))
+  }, [gateway, projectId, runCanvasCommand, setActiveSceneId, setActiveSettingId])
+
   return {
     createAssetForFirstStateOfSetting,
     createAssetForState,
+    createCreativeCanvasChild,
+    createCreativeCanvasNode,
+    createCreativeCanvasRoot,
     createExpressionUnitForScene,
     createKeyframeForOwner,
     createProduction,
@@ -110,4 +178,17 @@ export function useContentCanvasWorkspaceCreationCommands({
     createStructureChild,
     firstStateForSetting,
   }
+}
+
+function creativeCanvasDirectTaskOutputKind(nodeKind: CreativeCanvasDirectKind): ContentCanvasGenerationOutputKind {
+  if (nodeKind === 'task_video') return 'video'
+  if (nodeKind === 'task_audio') return 'audio'
+  if (nodeKind === 'task_text') return 'text'
+  return 'image'
+}
+
+function creativeCanvasDirectAssetOutputKind(nodeKind: CreativeCanvasDirectKind): Exclude<ContentCanvasGenerationOutputKind, 'text'> {
+  if (nodeKind === 'asset_video') return 'video'
+  if (nodeKind === 'asset_audio') return 'audio'
+  return 'image'
 }

@@ -1,7 +1,8 @@
-import { useCallback, useLayoutEffect, useMemo, useRef, type ClipboardEvent, type FocusEvent, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent, type FocusEvent, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react'
 import { File, Image, Video } from 'lucide-react'
 
 import type { ContentCanvasCandidate, ContentCanvasNode } from '../domain/contentCanvasTypes'
+import { readResourceDragPayload, resourceDropAcceptsPayload } from '@movscript/resource-surface/resource-interaction'
 import { ResourceFileImage, ResourceFileVideo } from '@movscript/resource-surface/resource-media-components'
 
 import { candidatesForNode, iconForContentNode } from './contentCanvasWorkspaceModel'
@@ -26,10 +27,12 @@ export type PromptReferenceItem = {
 }
 
 const PROMPT_REFERENCE_PATTERN = /\{\{\s*(asset|candidate|resource|keyframe|storyboard|scene_moment|expression_unit|content_unit):{1,2}\s*([^}]+?)\s*\}\}/g
+const PROMPT_REFERENCE_TRIGGER_RE = /(?:^|[\s(])@([^\s@\[{]*)$/u
 
 export function PromptReferenceInlineEditor({
   prompt,
   nodes,
+  mentionNodes = nodes,
   ownerNode,
   candidateSelections,
   className,
@@ -40,6 +43,7 @@ export function PromptReferenceInlineEditor({
 }: {
   prompt: string
   nodes: ContentCanvasNode[]
+  mentionNodes?: ContentCanvasNode[]
   ownerNode: ContentCanvasNode | undefined
   candidateSelections: CandidateSelections
   className?: string
@@ -49,6 +53,12 @@ export function PromptReferenceInlineEditor({
   onSelectNode: (node: ContentCanvasNode) => void
 }) {
   const editorRef = useRef<HTMLDivElement | null>(null)
+  const [mentionRange, setMentionRange] = useState<PromptMentionRange | null>(null)
+  const mentionOptions = useMemo(
+    () => promptMentionOptions(mentionNodes, ownerNode, candidateSelections, mentionRange?.query ?? ''),
+    [candidateSelections, mentionNodes, mentionRange?.query, ownerNode],
+  )
+  const mentionMenuOpen = Boolean(mentionRange && mentionOptions.length > 0)
   const segments = useMemo(
     () => promptReferenceSegments(prompt, nodes, ownerNode, candidateSelections),
     [candidateSelections, nodes, ownerNode, prompt],
@@ -68,13 +78,37 @@ export function PromptReferenceInlineEditor({
     editor.innerHTML = html
   }, [html, prompt])
   const handleInput = useCallback((event: FormEvent<HTMLDivElement>) => {
-    onChange(serializePromptEditor(event.currentTarget))
+    const state = readPromptEditorState(event.currentTarget)
+    onChange(state.value)
+    updatePromptMentionRange(state.textBeforeCaret, state.caret, setMentionRange)
   }, [onChange])
   const handlePaste = useCallback((event: ClipboardEvent<HTMLDivElement>) => {
     event.preventDefault()
     const text = event.clipboardData.getData('text/plain')
     document.execCommand('insertText', false, text)
+    setMentionRange(null)
   }, [])
+  const handleDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
+    if (!resourceDropAcceptsPayload(event.dataTransfer)) return
+    event.preventDefault()
+    event.stopPropagation()
+    event.dataTransfer.dropEffect = 'copy'
+  }, [])
+  const handleDrop = useCallback((event: DragEvent<HTMLDivElement>) => {
+    if (!resourceDropAcceptsPayload(event.dataTransfer)) return
+    event.preventDefault()
+    event.stopPropagation()
+    const payload = readResourceDragPayload(event.dataTransfer)
+    if (!payload) return
+    insertPromptReferenceToken({
+      editor: event.currentTarget,
+      token: promptResourceReferenceToken(payload.resourceId),
+      prompt,
+      onChange,
+      onBlur,
+      setMentionRange,
+    })
+  }, [onBlur, onChange, prompt])
   const handleMouseDown = useCallback((event: MouseEvent<HTMLDivElement>) => {
     const target = event.target instanceof HTMLElement
       ? event.target.closest<HTMLElement>('[data-prompt-reference-raw]')
@@ -86,13 +120,32 @@ export function PromptReferenceInlineEditor({
     if (referenceNode) onSelectNode(referenceNode)
   }, [onSelectNode, referenceNodesByRaw])
   const handleBlur = useCallback((event: FocusEvent<HTMLDivElement>) => {
+    setMentionRange(null)
     onBlur(serializePromptEditor(event.currentTarget))
   }, [onBlur])
   const handleKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Escape' && mentionRange) {
+      event.preventDefault()
+      setMentionRange(null)
+      return
+    }
+    if ((event.key === 'Enter' || event.key === 'Tab') && mentionRange && mentionOptions[0]) {
+      event.preventDefault()
+      insertPromptReferenceToken({
+        editor: event.currentTarget,
+        token: mentionOptions[0].raw,
+        prompt,
+        onChange,
+        onBlur,
+        setMentionRange,
+        range: mentionRange,
+      })
+      return
+    }
     if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
       event.currentTarget.blur()
     }
-  }, [])
+  }, [mentionOptions, mentionRange, onBlur, onChange, prompt])
 
   return (
     <div className="content-canvas-prompt-inline-editor-shell">
@@ -107,10 +160,30 @@ export function PromptReferenceInlineEditor({
         data-empty={prompt.trim() ? undefined : 'true'}
         onInput={handleInput}
         onPaste={handlePaste}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
         onMouseDown={handleMouseDown}
         onKeyDown={handleKeyDown}
         onBlur={handleBlur}
       />
+      {mentionMenuOpen ? (
+        <PromptMentionMenu
+          options={mentionOptions}
+          onSelect={(option) => {
+            const editor = editorRef.current
+            if (!editor || !mentionRange) return
+            insertPromptReferenceToken({
+              editor,
+              token: option.raw,
+              prompt,
+              onChange,
+              onBlur,
+              setMentionRange,
+              range: mentionRange,
+            })
+          }}
+        />
+      ) : null}
     </div>
   )
 }
@@ -284,6 +357,239 @@ function serializePromptEditor(root: HTMLElement): string {
     return text
   }
   return Array.from(root.childNodes).map(serializeNode).join('').replace(/\n$/, '')
+}
+
+type PromptMentionRange = {
+  start: number
+  end: number
+  query: string
+}
+
+function promptResourceReferenceToken(resourceId: number): string {
+  return `{{resource::${String(resourceId)}}}`
+}
+
+function promptReferenceTokenForNode(node: ContentCanvasNode): string {
+  return `{{${promptReferenceKindForNode(node)}:${node.entityKey || node.id}}}`
+}
+
+function promptReferenceKindForNode(node: ContentCanvasNode): PromptReferenceItem['kind'] {
+  if (node.kind === 'keyframe') return 'keyframe'
+  if (node.kind === 'storyboard') return 'storyboard'
+  if (node.kind === 'candidate') return 'candidate'
+  if (node.kind === 'resource') return 'resource'
+  if (node.kind === 'scene_moment') return 'scene_moment'
+  if (node.kind === 'expression_unit') return 'expression_unit'
+  if (node.kind === 'content_unit') return 'content_unit'
+  return 'asset'
+}
+
+function readPromptEditorState(editor: HTMLElement): { value: string; textBeforeCaret: string; caret: number } {
+  const selection = window.getSelection()
+  const range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null
+  const hasCaret = !!range && editor.contains(range.endContainer)
+  if (!hasCaret) {
+    return { value: serializePromptEditor(editor), textBeforeCaret: '', caret: 0 }
+  }
+
+  const state = {
+    endContainer: range.endContainer,
+    endOffset: range.endOffset,
+    prefixActive: true,
+    prefixParts: [] as string[],
+    valueParts: [] as string[],
+  }
+  appendPromptEditorState(editor, state)
+  const textBeforeCaret = state.prefixParts.join('')
+  return {
+    value: state.valueParts.join('').replace(/\n$/, ''),
+    textBeforeCaret,
+    caret: textBeforeCaret.length,
+  }
+}
+
+function appendPromptEditorState(
+  node: Node,
+  state: {
+    endContainer: Node
+    endOffset: number
+    prefixActive: boolean
+    prefixParts: string[]
+    valueParts: string[]
+  },
+): void {
+  if (node.nodeType === Node.TEXT_NODE) {
+    const text = node.textContent ?? ''
+    state.valueParts.push(text)
+    if (state.prefixActive) {
+      if (node === state.endContainer) {
+        state.prefixParts.push(text.slice(0, state.endOffset))
+        state.prefixActive = false
+      } else {
+        state.prefixParts.push(text)
+      }
+    }
+    return
+  }
+  if (!(node instanceof HTMLElement)) return
+  const rawReference = node.dataset.promptReferenceRaw
+  if (rawReference) {
+    state.valueParts.push(rawReference)
+    if (state.prefixActive) state.prefixParts.push(rawReference)
+    if (node === state.endContainer || node.contains(state.endContainer)) state.prefixActive = false
+    return
+  }
+  if (node.tagName === 'BR') {
+    state.valueParts.push('\n')
+    if (state.prefixActive) state.prefixParts.push('\n')
+    return
+  }
+  if (node === state.endContainer) {
+    let index = 0
+    for (let child = node.firstChild; child; child = child.nextSibling) {
+      if (state.prefixActive && index >= state.endOffset) state.prefixActive = false
+      appendPromptEditorState(child, state)
+      index += 1
+    }
+    state.prefixActive = false
+    return
+  }
+  for (let child = node.firstChild; child; child = child.nextSibling) {
+    appendPromptEditorState(child, state)
+  }
+  if (node.tagName === 'DIV' || node.tagName === 'P') {
+    state.valueParts.push('\n')
+    if (state.prefixActive) state.prefixParts.push('\n')
+  }
+}
+
+function updatePromptMentionRange(
+  textBeforeCaret: string,
+  caret: number,
+  setMentionRange: (range: PromptMentionRange | null) => void,
+) {
+  const match = textBeforeCaret.match(PROMPT_REFERENCE_TRIGGER_RE)
+  if (!match) {
+    setMentionRange(null)
+    return
+  }
+  const query = match[1] ?? ''
+  setMentionRange({
+    start: caret - query.length - 1,
+    end: caret,
+    query,
+  })
+}
+
+function insertPromptReferenceToken({
+  editor,
+  token,
+  prompt,
+  onChange,
+  onBlur,
+  setMentionRange,
+  range,
+}: {
+  editor: HTMLElement
+  token: string
+  prompt: string
+  onChange: (prompt: string) => void
+  onBlur: (prompt: string) => void
+  setMentionRange: (range: PromptMentionRange | null) => void
+  range?: PromptMentionRange | null
+}) {
+  const editorState = readPromptEditorState(editor)
+  const value = editorState.value || prompt
+  if (value.includes(token)) {
+    setMentionRange(null)
+    if (range) {
+      const nextPrompt = `${value.slice(0, range.start)}${value.slice(range.end)}`.replace(/[ \t]{2,}/g, ' ')
+      onChange(nextPrompt)
+      onBlur(nextPrompt)
+    }
+    return
+  }
+  const start = range?.start ?? editorState.caret
+  const end = range?.end ?? editorState.caret
+  const prefix = value.slice(0, start).replace(/[ \t]*$/, '')
+  const suffix = value.slice(end).replace(/^[ \t]*/, '')
+  const separatorBefore = prefix && !prefix.endsWith('\n') ? ' ' : ''
+  const separatorAfter = suffix && !suffix.startsWith('\n') ? ' ' : ''
+  const nextPrompt = `${prefix}${separatorBefore}${token}${separatorAfter}${suffix}`
+  setMentionRange(null)
+  onChange(nextPrompt)
+  onBlur(nextPrompt)
+  requestAnimationFrame(() => {
+    editor.focus()
+    placeCaretAtEnd(editor)
+  })
+}
+
+function placeCaretAtEnd(element: HTMLElement) {
+  const selection = window.getSelection()
+  if (!selection) return
+  const range = document.createRange()
+  range.selectNodeContents(element)
+  range.collapse(false)
+  selection.removeAllRanges()
+  selection.addRange(range)
+}
+
+function promptMentionOptions(
+  nodes: ContentCanvasNode[],
+  ownerNode: ContentCanvasNode | undefined,
+  candidateSelections: CandidateSelections,
+  query: string,
+): PromptReferenceItem[] {
+  const normalizedQuery = query.trim().toLowerCase()
+  const ownerKeys = new Set([ownerNode?.id, ownerNode?.entityKey, ownerNode?.sourcePath].filter(Boolean))
+  const seen = new Set<string>()
+  return nodes
+    .filter((node) => !ownerKeys.has(node.id) && !ownerKeys.has(node.entityKey) && !ownerKeys.has(node.sourcePath))
+    .map((node) => resolvePromptReference(promptReferenceKindForNode(node), node.entityKey || node.id, promptReferenceTokenForNode(node), nodes, ownerNode, candidateSelections))
+    .filter((reference) => {
+      const key = `${reference.kind}:${reference.token}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      if (!normalizedQuery) return true
+      return [
+        reference.title,
+        reference.token,
+        reference.kind,
+        reference.label,
+      ].some((value) => value.toLowerCase().includes(normalizedQuery))
+    })
+    .slice(0, 18)
+}
+
+function PromptMentionMenu({
+  options,
+  onSelect,
+}: {
+  options: PromptReferenceItem[]
+  onSelect: (option: PromptReferenceItem) => void
+}) {
+  return (
+    <div className="content-canvas-prompt-mention-menu" role="listbox" aria-label="可引用列表">
+      {options.map((option) => (
+        <button
+          key={`${option.kind}:${option.token}`}
+          type="button"
+          role="option"
+          onMouseDown={(event) => {
+            event.preventDefault()
+            onSelect(option)
+          }}
+        >
+          <PromptReferenceThumb reference={option} />
+          <span>
+            <strong>{option.title}</strong>
+            <small>{option.label}</small>
+          </span>
+        </button>
+      ))}
+    </div>
+  )
 }
 
 function resolvePromptReference(

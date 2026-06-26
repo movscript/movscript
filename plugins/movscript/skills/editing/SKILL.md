@@ -54,7 +54,7 @@ toolGrants:
 
 Use this skill when the user asks to cut, trim, compose, align, stitch, render, export, or revise a MovScript video timeline. If runtime ownership or media execution availability is unclear, use the `runtime` skill first.
 
-The default editing path is the dedicated `editing_*` tool family. Timeline state and editing business logic run through MovScript `MediaEditingProject` and `movscript.editing.service`; media execution runs through `movscript.media.pipeline` when available, including Electron `mediaPipeline` when Desktop advertises that capability. Do not use backend composition tools as the editing path.
+The default editing path is the dedicated `editing_*` tool family. Timeline state and editing business logic run through MovScript `MediaEditingProject` and `movscript.editing.service`; media execution runs through `movscript.media.pipeline` when available. Do not use backend composition tools as the editing path.
 
 Open `references/ai-clip-editing-rhythm.md` when assembling AI-generated clips, choosing a cut rhythm, trimming unstable generated clip starts/ends, matching color/style across generated candidates, planning transitions, or building a social/ad/trailer/music-video timeline.
 
@@ -121,7 +121,7 @@ Do not use domain planning/production records as the editing workspace. Domain r
     - if render output should enter the resource library, either set `output.importToResource` on the render request or call `editing_export_import_resource` for an existing local output path,
     - if HLS output should be served for preview/playback, call `editing_export_publish_hls` after `editing_task_hls_create` succeeds,
     - use `system_artifact_upload_export` or `system_artifact_upload_hls_stream` only for completed artifacts that are already outside the editing task workflow,
-    - when any export or artifact tool resolves an Electron task by `taskId`, pass the matching `projectId` as well; this applies to `editing_export_save_local`, `editing_export_import_resource`, `editing_export_publish_hls`, `system_artifact_upload_export`, and `system_artifact_upload_hls_stream`. The same rule applies to media-pipeline task lookup in daemon or cloud runtimes.
+    - when any export or artifact tool resolves a media-pipeline task by `taskId`, pass the matching `projectId` as well; this applies to `editing_export_save_local`, `editing_export_import_resource`, `editing_export_publish_hls`, `system_artifact_upload_export`, and `system_artifact_upload_hls_stream`.
 14. Only create or select a domain candidate when the user/workflow explicitly asks to record the edited result:
     - use `domain_create_content_candidate` or `editing_export_create_candidate` for RawResource-backed candidate creation,
     - treat HLS `MediaStreamArtifact` outputs as hosted previews for now; writing HLS stream outputs as candidates requires a future domain candidate schema extension,

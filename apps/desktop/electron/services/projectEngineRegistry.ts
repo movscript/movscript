@@ -155,24 +155,26 @@ export async function loadMovScriptEngineContentWorkspaceSnapshot(
 ): Promise<ContentSourceWorkspaceSnapshot> {
   const context = normalizeProjectEngineInput(input)
   const snapshot = await loadContentSourceWorkspaceSnapshotFromEngine(projectEngineRegistry.get(input))
-  console.log('[movscript-engine] load content workspace snapshot', {
-    ...projectEngineDebugContext(context),
-    movScriptHomeDir: context.workspaceDir,
-    workspaceDir: context.workspaceDir,
-    contentUnits: snapshot.contentUnits.length,
-    indexDocuments: snapshot.indexDocuments.length,
-    contentCandidateDocuments: snapshot.indexDocuments.filter((document) => document.path.endsWith('/content_candidate.json')).map((document) => ({
-      path: document.path,
-      id: isRecord(document.data) ? document.data.id : undefined,
-      contentUnitRef: isRecord(document.data) ? document.data.content_unit_ref : undefined,
-      status: isRecord(document.data) ? document.data.status : undefined,
-    })),
-    decisionContextDocuments: snapshot.indexDocuments.filter((document) => document.path.endsWith('/decision_context.json')).map((document) => ({
-      path: document.path,
-      targetRef: isRecord(document.data) ? document.data.target_ref : undefined,
-      candidateCount: isRecord(document.data) && Array.isArray(document.data.candidates) ? document.data.candidates.length : undefined,
-    })),
-  })
+  if (isMovScriptEngineDebugEnabled()) {
+    console.log('[movscript-engine] load content workspace snapshot', {
+      ...projectEngineDebugContext(context),
+      movScriptHomeDir: context.workspaceDir,
+      workspaceDir: context.workspaceDir,
+      contentUnits: snapshot.contentUnits.length,
+      indexDocuments: snapshot.indexDocuments.length,
+      contentCandidateDocuments: snapshot.indexDocuments.filter((document) => document.path.endsWith('/content_candidate.json')).map((document) => ({
+        path: document.path,
+        id: isRecord(document.data) ? document.data.id : undefined,
+        contentUnitRef: isRecord(document.data) ? document.data.content_unit_ref : undefined,
+        status: isRecord(document.data) ? document.data.status : undefined,
+      })),
+      decisionContextDocuments: snapshot.indexDocuments.filter((document) => document.path.endsWith('/decision_context.json')).map((document) => ({
+        path: document.path,
+        targetRef: isRecord(document.data) ? document.data.target_ref : undefined,
+        candidateCount: isRecord(document.data) && Array.isArray(document.data.candidates) ? document.data.candidates.length : undefined,
+      })),
+    })
+  }
   return snapshot
 }
 
@@ -182,27 +184,33 @@ export async function loadMovScriptEngineContentWorkspace(
   const snapshot = await loadMovScriptEngineContentWorkspaceSnapshot(input)
   const data = buildContentSourceWorkspaceData(snapshot)
   const context = normalizeProjectEngineInput(input)
-  console.log('[movscript-engine] build content workspace data', {
-    ...projectEngineDebugContext(context),
-    previewMoments: data.previewMoments.length,
-    previewExpressionUnitCandidates: data.previewMoments.flatMap((moment) => moment.expressionUnits).map((expressionUnit) => ({
-      contentUnitId: expressionUnit.contentUnit.id,
-      candidateCount: expressionUnit.contentUnit.candidates.length,
-      candidateIds: expressionUnit.contentUnit.candidates.map((candidate) => candidate.id),
-    })).filter((row) => row.candidateCount > 0),
-    contentUnitCandidates: Object.entries(data.contentUnitCandidates).map(([contentUnitId, candidates]) => ({
-      contentUnitId,
-      candidateCount: candidates.length,
-      candidateIds: candidates.map((candidate) => candidate.id),
-    })).filter((row) => row.candidateCount > 0),
-    assetReferenceCandidates: Object.values(data.assetReferenceUnits).map((unit) => ({
-      contentUnitId: unit.contentUnitId,
-      assetId: unit.assetId,
-      candidateCount: unit.candidates.length,
-      candidateIds: unit.candidates.map((candidate) => candidate.id),
-    })).filter((row) => row.candidateCount > 0),
-  })
+  if (isMovScriptEngineDebugEnabled()) {
+    console.log('[movscript-engine] build content workspace data', {
+      ...projectEngineDebugContext(context),
+      previewMoments: data.previewMoments.length,
+      previewExpressionUnitCandidates: data.previewMoments.flatMap((moment) => moment.expressionUnits).map((expressionUnit) => ({
+        contentUnitId: expressionUnit.contentUnit.id,
+        candidateCount: expressionUnit.contentUnit.candidates.length,
+        candidateIds: expressionUnit.contentUnit.candidates.map((candidate) => candidate.id),
+      })).filter((row) => row.candidateCount > 0),
+      contentUnitCandidates: Object.entries(data.contentUnitCandidates).map(([contentUnitId, candidates]) => ({
+        contentUnitId,
+        candidateCount: candidates.length,
+        candidateIds: candidates.map((candidate) => candidate.id),
+      })).filter((row) => row.candidateCount > 0),
+      assetReferenceCandidates: Object.values(data.assetReferenceUnits).map((unit) => ({
+        contentUnitId: unit.contentUnitId,
+        assetId: unit.assetId,
+        candidateCount: unit.candidates.length,
+        candidateIds: unit.candidates.map((candidate) => candidate.id),
+      })).filter((row) => row.candidateCount > 0),
+    })
+  }
   return data
+}
+
+function isMovScriptEngineDebugEnabled(): boolean {
+  return process.env.MOVSCRIPT_ENGINE_DEBUG === '1'
 }
 
 export async function queryMovScriptEngineWorkspaceEntities(

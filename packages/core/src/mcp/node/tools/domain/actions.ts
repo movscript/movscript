@@ -19,7 +19,7 @@ import {
 } from './runtime.js'
 import { resolveMCPProjectWorkspaceLocator } from '../workspace/locator.js'
 import { requireMCPBackendBoundProject } from '../project/localProjectBinding.js'
-import { backendPost } from '../../../../backend/node/client.js'
+import { backendGet, backendPost } from '../../../../backend/node/client.js'
 import {
   candidateIdFromArgs,
   createContentCandidatesSurface,
@@ -419,6 +419,9 @@ export async function domainCertifyAssetProvider(args: Args): Promise<unknown> {
   const settingId = getOptionalCertificationString(args.settingId ?? args.setting_id)
     ?? stringValue(asset.record.setting_id ?? asset.record.settingId)
     ?? settingIdFromAssetPath(asset.path)
+  const model = getOptionalCertificationString(args.model ?? args.model_id ?? args.modelId ?? args.public_model_id ?? args.publicModelId)
+  const assetGroupID = getOptionalCertificationString(args.asset_group_id ?? args.assetGroupId ?? args.group_id ?? args.groupId)
+  const assetGroupName = getOptionalCertificationString(args.asset_group_name ?? args.assetGroupName ?? args.group_name ?? args.groupName)
   const backendResult = await backendPost(`/provider-assets/providers/${encodeURIComponent(provider)}/certify`, {
     provider,
     resource_id: sourceResourceId,
@@ -426,6 +429,9 @@ export async function domainCertifyAssetProvider(args: Args): Promise<unknown> {
     ...(projectId ? { project_id: projectId } : {}),
     ...(projectName ? { project_name: projectName } : {}),
     ...(settingId ? { setting_id: settingId } : {}),
+    ...(model ? { model } : {}),
+    ...(assetGroupID ? { asset_group_id: assetGroupID } : {}),
+    ...(assetGroupName ? { asset_group_name: assetGroupName } : {}),
     ...(sourceUrl ? { source_url: sourceUrl } : {}),
     name,
     ...(booleanValue(args.allow_private_urls ?? args.allowPrivateUrls) === true ? { allow_private_urls: true } : {}),
@@ -446,6 +452,7 @@ export async function domainCertifyAssetProvider(args: Args): Promise<unknown> {
     provider: certifiedProvider,
     provider_id: certifiedProvider,
     source_resource_id: certifiedSourceResourceId,
+    ...(model ? { model, public_model_id: model, provider_model_id: getOptionalCertificationString(certification.provider_model_id ?? certification.providerModelId) ?? model } : {}),
     ...(certifiedSourceCandidateId !== undefined ? { source_candidate_id: certifiedSourceCandidateId } : {}),
   }
   const written = await patchAssetProviderCertification(runtime.projectDir, asset.path, asset.record, certifiedProvider, normalizedCertification)
@@ -465,6 +472,23 @@ export async function domainCertifyAssetProvider(args: Args): Promise<unknown> {
     backend_result: backendResult,
     message: `Certified asset ${String(asset.id ?? assetRef)} for ${certifiedProvider}; downstream generation can resolve resource #${String(certifiedSourceResourceId)} as ${assetUri}.`,
   }
+}
+
+export async function domainQueryRemoteAssetGroups(args: Args): Promise<unknown> {
+  const provider = providerCertificationProvider(args.provider ?? args.provider_id ?? args.providerId ?? args.provider_key ?? args.providerKey)
+  const params = new URLSearchParams()
+  const model = getOptionalCertificationString(args.model ?? args.model_id ?? args.modelId ?? args.public_model_id ?? args.publicModelId)
+  const projectId = getOptionalCertificationString(args.projectId ?? args.project_id)
+  if (model) params.set('model', model)
+  if (projectId) params.set('project_id', projectId)
+  const suffix = params.toString()
+  return backendGet(`/provider-assets/providers/${encodeURIComponent(provider)}/groups${suffix ? `?${suffix}` : ''}`)
+}
+
+export async function domainQueryRemoteAssets(args: Args): Promise<unknown> {
+  const provider = providerCertificationProvider(args.provider ?? args.provider_id ?? args.providerId ?? args.provider_key ?? args.providerKey)
+  const groupRef = requiredId(args.groupId ?? args.group_id ?? args.groupRef ?? args.group_ref ?? args.asset_group_id ?? args.assetGroupId, 'groupId')
+  return backendGet(`/provider-assets/providers/${encodeURIComponent(provider)}/groups/${encodeURIComponent(String(groupRef))}/assets`)
 }
 
 function settingIdFromAssetPath(path: string | undefined): string | undefined {
@@ -1201,7 +1225,7 @@ async function patchAssetProviderCertification(
   const providerCertifications = isRecord(current.provider_certifications)
     ? { ...current.provider_certifications }
     : {}
-  providerCertifications[provider] = certification
+  providerCertifications[providerCertificationStorageKey(provider, certification)] = certification
   const next = {
     ...current,
     provider_certifications: providerCertifications,
@@ -1213,10 +1237,16 @@ async function patchAssetProviderCertification(
   }
 }
 
+function providerCertificationStorageKey(provider: string, certification: Record<string, unknown>): string {
+  const model = getOptionalCertificationString(certification.model ?? certification.public_model_id ?? certification.publicModelId ?? certification.provider_model_id ?? certification.providerModelId)
+  return model ? `${provider}::model:${model}` : provider
+}
+
 function providerCertificationProvider(value: unknown): string {
   const provider = getOptionalCertificationString(value) ?? 'volcengine_ark_official'
   const normalized = provider.toLowerCase()
   if (normalized === 'jimeng' || normalized === 'jimeng2' || normalized === 'seedance' || normalized === 'seedance2') return 'volcengine_ark_official'
+  if (normalized === 'yunwu' || normalized === 'yunwu_gateway') return 'yunwu_gateway'
   return provider
 }
 
@@ -1867,12 +1897,70 @@ async function productionTimelineBundle(args: Args, productionId: string | numbe
 function contentCandidateRecordsByContentUnitId(documents: ContentSourceWorkspaceSnapshot['indexDocuments']): Map<string, ContentCandidateRecord[]> {
   const output = new Map<string, ContentCandidateRecord[]>()
   for (const document of documents) {
-    if (!document.path.endsWith('/content_candidate.json') || !isRecord(document.data)) continue
-    const contentUnitId = contentUnitIdForRuntimeDocument(document.path, stringValue(document.data.content_unit_ref))
+    if (document.path.endsWith('/content_candidate.json') && isRecord(document.data)) {
+      const contentUnitId = contentUnitIdForRuntimeDocument(document.path, stringValue(document.data.content_unit_ref))
+      if (!contentUnitId) continue
+      appendContentCandidateRecord(output, contentUnitId, document.data as ContentCandidateRecord)
+      continue
+    }
+    if (!isContentUnitDecisionContextRecord(document.data)) continue
+    const contentUnitId = contentUnitIdForRuntimeDocument(document.path, stringValue(document.data.target_ref))
     if (!contentUnitId) continue
-    output.set(contentUnitId, [...(output.get(contentUnitId) ?? []), document.data as ContentCandidateRecord])
+    for (const candidate of Array.isArray(document.data.candidates) ? document.data.candidates : []) {
+      const record = normalizeDecisionContentCandidateRecord(candidate, contentUnitId)
+      if (record) appendContentCandidateRecord(output, contentUnitId, record)
+    }
   }
   return output
+}
+
+function appendContentCandidateRecord(
+  output: Map<string, ContentCandidateRecord[]>,
+  contentUnitId: string,
+  candidate: ContentCandidateRecord,
+): void {
+  const candidates = output.get(contentUnitId) ?? []
+  const candidateId = idFromUnknown(candidate.id)
+  if (candidateId === undefined) {
+    output.set(contentUnitId, [...candidates, candidate])
+    return
+  }
+  const existingIndex = candidates.findIndex((existing) => sameId(existing.id, candidateId))
+  if (existingIndex < 0) {
+    output.set(contentUnitId, [...candidates, candidate])
+    return
+  }
+  output.set(contentUnitId, [
+    ...candidates.slice(0, existingIndex),
+    mergeContentCandidateRecords(candidates[existingIndex], candidate),
+    ...candidates.slice(existingIndex + 1),
+  ])
+}
+
+function normalizeDecisionContentCandidateRecord(candidate: unknown, contentUnitId: string): ContentCandidateRecord | undefined {
+  if (!isRecord(candidate) || idFromUnknown(candidate.id) === undefined) return undefined
+  return {
+    ...candidate,
+    content_unit_ref: stringValue(candidate.content_unit_ref) ?? `content_units/${contentUnitId}`,
+  } as ContentCandidateRecord
+}
+
+function mergeContentCandidateRecords(existing: ContentCandidateRecord, incoming: ContentCandidateRecord): ContentCandidateRecord {
+  const merged: ContentCandidateRecord = { ...existing, ...incoming }
+  if (!Array.isArray(incoming.outputs) && Array.isArray(existing.outputs)) merged.outputs = existing.outputs
+  if (!isRecord(incoming.producer) && isRecord(existing.producer)) merged.producer = existing.producer
+  if (!isRecord(incoming.prompt_snapshot) && isRecord(existing.prompt_snapshot)) merged.prompt_snapshot = existing.prompt_snapshot
+  if (!stringValue(incoming.status) && stringValue(existing.status)) merged.status = existing.status
+  if (!stringValue(incoming.source) && stringValue(existing.source)) merged.source = existing.source
+  if (!stringValue(incoming.created_at) && stringValue(existing.created_at)) merged.created_at = existing.created_at
+  if (!stringValue(incoming.content_unit_ref) && stringValue(existing.content_unit_ref)) merged.content_unit_ref = existing.content_unit_ref
+  return merged
+}
+
+function isContentUnitDecisionContextRecord(value: unknown): value is Record<string, unknown> {
+  return isRecord(value)
+    && value.schema === 'movscript.decision_context.v1'
+    && value.target_kind === 'content_unit'
 }
 
 async function withContentUnitCandidateVisibility(

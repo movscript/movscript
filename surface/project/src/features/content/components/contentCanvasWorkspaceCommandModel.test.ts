@@ -180,6 +180,50 @@ test('content canvas backend candidates replace matching local optimistic rows',
   }])
 })
 
+test('content canvas backend terminal candidates replace matching local running rows', () => {
+  const local = mergeContentCanvasCommandCandidates({}, {
+    createdCandidates: [{
+      contentUnitId: 'cu_1',
+      candidate: {
+        id: 'cand_1',
+        title: '候选 1',
+        source: 'ai_generate',
+        status: 'running',
+        producer: { job_id: 91 },
+        selected: false,
+        notes: 'running',
+      },
+    }],
+  })
+  const project = withLocalContentCanvasCandidates(projectDataFixture({
+    contentUnitCandidates: {
+      cu_1: [{
+        id: 'cand_1',
+        title: '候选 1',
+        resourceId: 42,
+        resourceKind: 'image',
+        source: 'ai_generate',
+        status: 'succeeded',
+        producer: { job_id: 91 },
+        selected: false,
+        notes: 'succeeded',
+      }],
+    },
+  }), local)
+
+  assert.deepEqual(project?.contentUnitCandidates.cu_1, [{
+    id: 'cand_1',
+    title: '候选 1',
+    resourceId: 42,
+    resourceKind: 'image',
+    source: 'ai_generate',
+    status: 'succeeded',
+    producer: { job_id: 91 },
+    selected: false,
+    notes: 'succeeded',
+  }])
+})
+
 test('content canvas command selections merge selected candidate ids by content unit', () => {
   assert.deepEqual(mergeContentCanvasCommandSelections({ cu_1: 'old' }, {
     selectedCandidates: [{ contentUnitId: 'cu_1', candidateId: 'new' }],

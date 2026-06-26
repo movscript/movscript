@@ -1,5 +1,4 @@
-import { useMemo } from 'react'
-import { GitBranch, MonitorPlay } from 'lucide-react'
+import { useEffect, useMemo } from 'react'
 
 import { SettingCreateDialog, StructureCreateDialog } from './ContentCanvasCreateNodeDialog'
 import { useContentCanvasPaneLayout } from './contentCanvasWorkspaceLayout'
@@ -12,10 +11,24 @@ import { ContentPromptCanvasPanel } from './ContentPromptCanvasPanel'
 import { useContentCanvasWorkspaceController } from './useContentCanvasWorkspaceController'
 import './ContentCanvasWorkspacePage.css'
 
-export default function ContentCanvasWorkspacePage() {
-  const controller = useContentCanvasWorkspaceController()
-  const { viewModel } = controller
-  const activeTab = controller.workspaceTab
+type ContentCanvasWorkspaceMode = 'canvas' | 'preview'
+
+export function ContentCanvasPage() {
+  return <ContentCanvasWorkspacePage mode="canvas" />
+}
+
+export function ContentCanvasPreviewPage() {
+  return <ContentCanvasWorkspacePage mode="preview" />
+}
+
+export default function ContentCanvasWorkspacePage({
+  mode = 'preview',
+}: {
+  mode?: ContentCanvasWorkspaceMode
+}) {
+  const controller = useContentCanvasWorkspaceController({ workspaceMode: mode })
+  const { setWorkspaceTab, viewModel, workspaceTab } = controller
+  const activeTab = mode ?? controller.workspaceTab
   const paneLayout = useContentCanvasPaneLayout({
     timelineVisible: false,
   })
@@ -28,52 +41,34 @@ export default function ContentCanvasWorkspacePage() {
     )),
     [viewModel.graph.nodes],
   )
+  const showStructurePanel = activeTab === 'preview'
+  const showInspectorPanel = activeTab === 'preview'
+
+  useEffect(() => {
+    if (workspaceTab !== mode) setWorkspaceTab(mode)
+  }, [mode, setWorkspaceTab, workspaceTab])
 
   return (
     <section
       className="content-canvas-workspace-page"
       data-main-node={activeTab}
+      data-workspace-mode={activeTab}
       data-workspace-tab={activeTab}
       data-testid="content-canvas-workspace-page"
       style={paneLayout.style}
     >
-      <div className="content-canvas-workspace-tabs" role="tablist" aria-label="创作工作区" data-active-tab={activeTab}>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'preview'}
-          data-active={activeTab === 'preview' ? 'true' : undefined}
-          title="预览候选与生产结果"
-          aria-label="预览候选与生产结果"
-          onClick={() => controller.setWorkspaceTab('preview')}
-        >
-          <MonitorPlay size={14} aria-hidden="true" />
-          预览
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'canvas'}
-          data-active={activeTab === 'canvas' ? 'true' : undefined}
-          title="编辑依赖图谱与提示词"
-          aria-label="编辑依赖图谱与提示词"
-          onClick={() => controller.setWorkspaceTab('canvas')}
-        >
-          <GitBranch size={14} aria-hidden="true" />
-          画布
-        </button>
-      </div>
-
-      <StructurePanel
-        isCreatingSetting={Boolean(controller.pendingCanvasAction?.startsWith('root-setting'))}
-        isCreatingStructure={Boolean(controller.pendingCanvasAction?.startsWith('structure-'))}
-        onCreateSetting={controller.openSettingCreateDialog}
-        onCreateProduction={controller.openProductionCreateDialog}
-        onCreateStructureChild={controller.openStructureChildCreateDialog}
-        paneLayout={paneLayout}
-        tree={viewModel.tree}
-        onSelectStructureNode={controller.selectStructureNode}
-      />
+      {showStructurePanel ? (
+        <StructurePanel
+          isCreatingSetting={Boolean(controller.pendingCanvasAction?.startsWith('root-setting'))}
+          isCreatingStructure={Boolean(controller.pendingCanvasAction?.startsWith('structure-'))}
+          onCreateSetting={controller.openSettingCreateDialog}
+          onCreateProduction={controller.openProductionCreateDialog}
+          onCreateStructureChild={controller.openStructureChildCreateDialog}
+          paneLayout={paneLayout}
+          tree={viewModel.tree}
+          onSelectStructureNode={controller.selectStructureNode}
+        />
+      ) : null}
 
       {activeTab === 'preview' ? (
         <ContentCanvasPreviewPanel
@@ -84,7 +79,10 @@ export default function ContentCanvasWorkspacePage() {
         />
       ) : (
         <ContentPromptCanvasPanel
+          activeCanvasDocument={controller.activeCreativeCanvasDocument}
           candidateSelections={controller.candidateSelections}
+          canvasDocuments={controller.creativeCanvasDocuments}
+          canvasNodeIds={controller.creativeCanvasNodeIds}
           draftAssetPrompts={controller.draftAssetPrompts}
           draftExpressionPrompts={controller.draftExpressionPrompts}
           edges={viewModel.graph.edges}
@@ -93,6 +91,7 @@ export default function ContentCanvasWorkspacePage() {
           manualPositions={controller.creativeCanvasNodePositions}
           savedViewport={controller.creativeCanvasViewport}
           nodes={workspaceNodes}
+          onAddNodeToCanvas={controller.addNodeToCreativeCanvas}
           onCandidateCreate={controller.createCandidateForNode}
           onCandidatePromptPreview={controller.previewCandidatePromptForNode}
           onCandidateResourceSelect={controller.createResourceCandidateForNode}
@@ -102,42 +101,50 @@ export default function ContentCanvasWorkspacePage() {
           onClearManualPositions={controller.clearCreativeCanvasManualPositions}
           onClearManualPositionsForNodes={controller.clearCreativeCanvasManualPositionsForNodes}
           onCreateChild={controller.openCreativeCanvasCreateChild}
+          onCreateCanvas={controller.createFreeCreativeCanvasDocument}
+          onCreateNode={controller.createCreativeCanvasNode}
           onDeleteNode={controller.deleteCreativeCanvasNode}
           onExpressionPromptChange={controller.changeExpressionPromptDraft}
           onNodePositionsCommit={controller.commitCreativeCanvasNodePositions}
           onViewportCommit={controller.commitCreativeCanvasViewport}
           onPromptChange={controller.changeAssetPromptDraft}
           onPromptCommit={controller.commitPromptDraft}
+          onRemoveNodeFromCanvas={controller.removeNodeFromCreativeCanvas}
+          onStructuredPromptCommit={controller.commitStructuredPromptDraft}
           onResourceOpen={controller.openResourceNode}
+          onSelectCanvas={controller.selectFreeCreativeCanvasDocument}
           onSelectNode={controller.selectNode}
         />
       )}
 
-      <InspectorPanel
-        activeSetting={viewModel.activeSetting}
-        candidateSelections={controller.candidateSelections}
-        draftAssetPrompts={controller.draftAssetPrompts}
-        draftExpressionPrompts={controller.draftExpressionPrompts}
-        createSelection={controller.createSelection}
-        paneLayout={paneLayout}
-        promptReferenceNodes={viewModel.scenePromptReferenceNodes}
-        selection={viewModel.inspectorSelection}
-        onCandidateCreate={controller.createCandidateForNode}
-        onCandidatePromptPreview={controller.previewCandidatePromptForNode}
-        onCandidateResourceSelect={controller.createResourceCandidateForNode}
-        onCandidateSelect={controller.selectCandidate}
-        onCandidateUpload={controller.uploadCandidateForNode}
-        onCreateAsset={controller.createAssetForState}
-        onCreateExpressionUnit={controller.createExpressionUnitForScene}
-        onCreateKeyframe={controller.createKeyframeForOwner}
-        onCreateState={controller.createStateForSetting}
-        onCreateStoryboard={controller.createStoryboardForOwner}
-        onExpressionPromptChange={controller.changeExpressionPromptDraft}
-        onExpressionUnitSave={controller.saveExpressionUnit}
-        onPromptChange={controller.changeAssetPromptDraft}
-        onPromptCommit={controller.commitPromptDraft}
-        onSelectNode={controller.selectNode}
-      />
+      {showInspectorPanel ? (
+        <InspectorPanel
+          activeSetting={viewModel.activeSetting}
+          candidateSelections={controller.candidateSelections}
+          draftAssetPrompts={controller.draftAssetPrompts}
+          draftExpressionPrompts={controller.draftExpressionPrompts}
+          createSelection={controller.createSelection}
+          paneLayout={paneLayout}
+          promptReferenceNodes={viewModel.scenePromptReferenceNodes}
+          selection={viewModel.inspectorSelection}
+          onCandidateCreate={controller.createCandidateForNode}
+          onCandidatePromptPreview={controller.previewCandidatePromptForNode}
+          onCandidateResourceSelect={controller.createResourceCandidateForNode}
+          onCandidateSelect={controller.selectCandidate}
+          onCandidateUpload={controller.uploadCandidateForNode}
+          onCreateAsset={controller.createAssetForState}
+          onCreateExpressionUnit={controller.createExpressionUnitForScene}
+          onCreateKeyframe={controller.createKeyframeForOwner}
+          onCreateState={controller.createStateForSetting}
+          onCreateStoryboard={controller.createStoryboardForOwner}
+          onExpressionPromptChange={controller.changeExpressionPromptDraft}
+          onExpressionUnitSave={controller.saveExpressionUnit}
+          onPromptChange={controller.changeAssetPromptDraft}
+          onPromptCommit={controller.commitPromptDraft}
+          onStructuredPromptCommit={controller.commitStructuredPromptDraft}
+          onSelectNode={controller.selectNode}
+        />
+      ) : null}
 
       <StructureCreateDialog
         state={controller.structureCreateDialog}

@@ -208,6 +208,7 @@ export interface SurfaceHostApi {
   createMovScriptEngineExpressionUnit?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>
   createMovScriptEngineKeyframe?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>
   createMovScriptEngineStoryboard?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>
+  createMovScriptEngineContentUnit?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>
   ensureMovScriptEngineContentUnitForEntity?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>
   createMovScriptEngineContentCandidate?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>
   selectMovScriptEngineContentUnitCandidate?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>

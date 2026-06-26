@@ -568,8 +568,114 @@ func (a *VolcenAdapter) CloneVoice(ctx context.Context, req media.VoiceCloneRequ
 	return profile, nil
 }
 
-func (a *VolcenAdapter) DesignVoice(_ context.Context, _ media.VoiceDesignRequest) (media.VoiceProfileResponse, error) {
-	return media.VoiceProfileResponse{}, fmt.Errorf("volcen adapter does not support voice design")
+func (a *VolcenAdapter) DesignVoice(ctx context.Context, req media.VoiceDesignRequest) (media.VoiceProfileResponse, error) {
+	token := strings.TrimSpace(a.speech.Token)
+	if token == "" {
+		return media.VoiceProfileResponse{}, fmt.Errorf("volcen speech_token is required for voice design")
+	}
+	description := strings.TrimSpace(req.Description)
+	if description == "" {
+		return media.VoiceProfileResponse{}, fmt.Errorf("voice description is required")
+	}
+	resourceID := firstNonEmptyAI(stringParam(req.Params, "resource_id", ""), strings.TrimSpace(req.Model), "doubao-seed-voice-design")
+	requestID := firstNonEmptyAI(stringParam(req.Params, "request_id", ""), stringParam(req.Params, "reqid", ""), fmt.Sprintf("movscript-%d", time.Now().UnixNano()))
+	prompt := map[string]any{"text_prompt": description}
+	imagePrompt := map[string]any{}
+	if imageBytes := strings.TrimSpace(stringParam(req.Params, "image_bytes", "")); imageBytes != "" {
+		imagePrompt["image_bytes"] = imageBytes
+	}
+	if imageURL := strings.TrimSpace(stringParam(req.Params, "image_url", "")); imageURL != "" {
+		imagePrompt["image_url"] = imageURL
+	}
+	if len(imagePrompt) > 0 {
+		prompt["image_prompt"] = imagePrompt
+	}
+	body := map[string]any{
+		"prompt": prompt,
+	}
+	if previewText := strings.TrimSpace(req.PreviewText); previewText != "" {
+		body["preview_text"] = previewText
+	} else if previewText := strings.TrimSpace(stringParam(req.Params, "preview_text", "")); previewText != "" {
+		body["preview_text"] = previewText
+	}
+	if speakerID := strings.TrimSpace(stringParam(req.Params, "speaker_id", "")); speakerID != "" {
+		body["speaker_id"] = speakerID
+	}
+	if displayName := strings.TrimSpace(req.Name); displayName != "" {
+		body["speaker_name"] = displayName
+	}
+	if language := intParamOrDefault(req.Params, "language", -1); language >= 0 {
+		body["language"] = language
+	}
+	if sampleRate := intParamOrDefault(req.Params, "sample_rate", 0); sampleRate > 0 {
+		body["sample_rate"] = sampleRate
+	}
+	endpoint := strings.TrimSpace(stringParam(req.Params, "endpoint", ""))
+	if endpoint == "" {
+		endpoint = strings.TrimRight(firstNonEmptyAI(a.speech.BaseURL, volcenDefaultSpeechBaseURL), "/") + "/api/v3/tts/voice_design"
+	}
+	raw, err := a.postVolcenVoiceDesign(ctx, endpoint, token, resourceID, requestID, body)
+	if err != nil {
+		return media.VoiceProfileResponse{}, err
+	}
+	return parseVolcenVoiceDesignProfile(raw, req), nil
+}
+
+func (a *VolcenAdapter) postVolcenVoiceDesign(ctx context.Context, endpoint, token, resourceID, requestID string, body map[string]any) (map[string]any, error) {
+	rawBody, _ := json.Marshal(body)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(rawBody))
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("X-Api-Key", token)
+	httpReq.Header.Set("X-Api-Resource-Id", resourceID)
+	httpReq.Header.Set("X-Api-Request-Id", requestID)
+	headers := map[string]string{
+		"Content-Type":      "application/json",
+		"X-Api-Key":         maskKey(token),
+		"X-Api-Resource-Id": resourceID,
+		"X-Api-Request-Id":  requestID,
+	}
+	client := a.speechHTTP
+	if client == nil {
+		client = a.rawHTTP
+	}
+	start := time.Now()
+	resp, err := client.Do(httpReq)
+	latency := time.Since(start).Milliseconds()
+	if err != nil {
+		recordDebug(ctx, DebugCallResult{
+			Success: false, ModelID: resourceID, Endpoint: endpoint, Method: http.MethodPost,
+			RequestHeaders: headers, RequestBody: mustJSON(redactVolcenVoiceDesignBody(body)), LatencyMs: latency, Error: err.Error(),
+		})
+		return nil, err
+	}
+	defer resp.Body.Close()
+	respBody, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return nil, readErr
+	}
+	var raw map[string]any
+	if len(strings.TrimSpace(string(respBody))) > 0 {
+		_ = json.Unmarshal(respBody, &raw)
+	}
+	if raw == nil {
+		raw = map[string]any{}
+	}
+	err = volcenVoiceCloneError(raw)
+	recordDebug(ctx, DebugCallResult{
+		Success: resp.StatusCode < 400 && err == nil, ModelID: resourceID, Endpoint: endpoint, Method: http.MethodPost,
+		RequestHeaders: headers, RequestBody: mustJSON(redactVolcenVoiceDesignBody(body)),
+		ResponseStatus: resp.StatusCode, ResponseBody: string(respBody), LatencyMs: latency,
+	})
+	if resp.StatusCode >= 400 {
+		return raw, fmt.Errorf("volcen voice design HTTP %d: %s", resp.StatusCode, string(respBody))
+	}
+	if err != nil {
+		return raw, fmt.Errorf("volcen voice design failed: %w", err)
+	}
+	return raw, nil
 }
 
 func (a *VolcenAdapter) postVolcenVoiceClone(ctx context.Context, endpoint, token, resourceID string, body map[string]any, stage string) (map[string]any, error) {
@@ -2223,6 +2329,52 @@ func parseVolcenVoiceCloneProfile(raw map[string]any, fallbackSpeakerID string, 
 	}
 }
 
+func parseVolcenVoiceDesignProfile(raw map[string]any, req media.VoiceDesignRequest) media.VoiceProfileResponse {
+	payload := raw
+	for _, key := range []string{"data", "result", "Result"} {
+		if nested, ok := raw[key].(map[string]any); ok {
+			payload = nested
+			break
+		}
+	}
+	voiceID := firstNonEmptyAI(
+		stringField(payload, "speaker_id", "speakerID", "voice_id", "voiceID"),
+		stringField(raw, "speaker_id", "speakerID", "voice_id", "voiceID"),
+	)
+	generatedVoiceID := firstNonEmptyAI(
+		stringField(payload, "generated_voice_id", "generatedVoiceID", "voice_id", "voiceID"),
+		stringField(raw, "generated_voice_id", "generatedVoiceID", "voice_id", "voiceID"),
+		voiceID,
+	)
+	statusText := strings.ToLower(strings.TrimSpace(firstNonEmptyAI(
+		stringField(payload, "status", "Status", "status_text", "statusText"),
+		stringField(raw, "status", "Status", "status_text", "statusText"),
+	)))
+	statusCode := int(floatField(payload, "status", "Status", "status_code", "statusCode"))
+	if statusCode == 0 {
+		statusCode = int(floatField(raw, "status", "Status", "status_code", "statusCode"))
+	}
+	requiresVerification := false
+	switch statusText {
+	case "pending", "processing", "running", "creating", "auditing", "reviewing":
+		requiresVerification = true
+	case "success", "succeeded", "complete", "completed", "done", "ready", "passed":
+		requiresVerification = false
+	default:
+		requiresVerification = statusCode != 0 && statusCode != 2 && statusCode != 4 && statusCode != 20000000
+	}
+	return media.VoiceProfileResponse{
+		VoiceID:              voiceID,
+		Name:                 req.Name,
+		Description:          req.Description,
+		PreviewURL:           firstNonEmptyAI(stringField(payload, "audio_url", "audioUrl", "demo_audio", "preview_url", "previewUrl"), stringField(raw, "audio_url", "audioUrl", "demo_audio", "preview_url", "previewUrl")),
+		GeneratedVoiceID:     generatedVoiceID,
+		RequiresVerification: requiresVerification,
+		ProviderRef:          voiceID,
+		Metadata:             raw,
+	}
+}
+
 func volcenVoiceCloneError(raw map[string]any) error {
 	for _, key := range []string{"BaseResp", "base_resp"} {
 		base, ok := raw[key].(map[string]any)
@@ -2240,6 +2392,24 @@ func volcenVoiceCloneError(raw map[string]any) error {
 		return fmt.Errorf("%d %s", code, strings.TrimSpace(stringField(raw, "message", "msg", "Message")))
 	}
 	return nil
+}
+
+func redactVolcenVoiceDesignBody(body map[string]any) map[string]any {
+	raw, _ := json.Marshal(body)
+	var out map[string]any
+	_ = json.Unmarshal(raw, &out)
+	prompt, ok := out["prompt"].(map[string]any)
+	if !ok {
+		return out
+	}
+	imagePrompt, ok := prompt["image_prompt"].(map[string]any)
+	if !ok {
+		return out
+	}
+	if data, ok := imagePrompt["image_bytes"].(string); ok && data != "" {
+		imagePrompt["image_bytes"] = fmt.Sprintf("(base64 image, %d chars)", len(data))
+	}
+	return out
 }
 
 func redactVolcenVoiceCloneBody(body map[string]any) map[string]any {

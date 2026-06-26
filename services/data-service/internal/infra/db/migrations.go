@@ -93,6 +93,11 @@ func RegisteredMigrations() []Migration {
 			Name:    "add_provider_semantics_and_route_adapter_type",
 			Up:      migrateProviderSemanticsAndRouteAdapterType,
 		},
+		{
+			Version: "000014",
+			Name:    "add_provider_asset_library_read_model",
+			Up:      migrateProviderAssetLibraryReadModel,
+		},
 	}
 	return append(core, editionMigrations()...)
 }
@@ -158,6 +163,14 @@ func migrateProviderSemanticsAndRouteAdapterType(db *gorm.DB) error {
 		return err
 	}
 	return enforceUniqueActiveModelRouteBindings(db)
+}
+
+func migrateProviderAssetLibraryReadModel(db *gorm.DB) error {
+	return db.AutoMigrate(
+		&persistencemodel.ProviderAssetGroup{},
+		&persistencemodel.ProviderAsset{},
+		&persistencemodel.ProviderAssetModelCertification{},
+	)
 }
 
 func addTextColumnIfMissing(db *gorm.DB, tableName string, columnName string) error {
@@ -934,6 +947,9 @@ func allModels() []any {
 		&persistencemodel.AIProviderCredential{},
 		&persistencemodel.AIModelCatalogEntry{},
 		&persistencemodel.AIModelRouteBinding{},
+		&persistencemodel.ProviderAssetGroup{},
+		&persistencemodel.ProviderAsset{},
+		&persistencemodel.ProviderAssetModelCertification{},
 		&persistencemodel.UsageReservation{},
 		&persistencemodel.UsageLog{},
 		&persistencemodel.LLMCallLog{},

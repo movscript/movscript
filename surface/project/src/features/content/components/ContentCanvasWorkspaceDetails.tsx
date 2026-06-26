@@ -39,6 +39,7 @@ export function NodeInspector({
   promptReferenceNodes,
   onPromptChange,
   onPromptCommit,
+  onStructuredPromptCommit,
   onCreateAsset,
   onCreateExpressionUnit,
   onCreateKeyframe,
@@ -62,6 +63,7 @@ export function NodeInspector({
   promptReferenceNodes: ContentCanvasNode[]
   onPromptChange: (assetId: string, prompt: string) => void
   onPromptCommit: (node: ContentCanvasNode | undefined, prompt: string) => void
+  onStructuredPromptCommit: (node: ContentCanvasNode | undefined, structured: Record<string, unknown>) => void
   onCreateAsset: (state: ContentCanvasNode, input: ContentCanvasCreateNodeInput, position?: ContentCanvasNodePosition) => void
   onCreateExpressionUnit: (scene: ContentCanvasNode, input: ContentCanvasCreateNodeInput, position?: ContentCanvasNodePosition) => void
   onCreateKeyframe: (owner: ContentCanvasNode, input: ContentCanvasCreateNodeInput, position?: ContentCanvasNodePosition) => void
@@ -71,7 +73,7 @@ export function NodeInspector({
   onExpressionUnitSave: (node: ContentCanvasNode, input: ContentCanvasExpressionUnitEditorInput) => void
   onCandidateCreate: (node: ContentCanvasNode | undefined, options?: ContentCanvasCandidateGenerationOptions) => void
   onCandidatePromptPreview: (node: ContentCanvasNode | undefined) => Promise<ContentCanvasCandidatePromptPreview>
-  onCandidateResourceSelect: (node: ContentCanvasNode | undefined, resource: ContentCanvasUploadedResource) => void
+  onCandidateResourceSelect: (node: ContentCanvasNode | undefined, resource: ContentCanvasUploadedResource, position?: ContentCanvasNodePosition) => void
   onCandidateSelect: (node: ContentCanvasNode | undefined, candidate: ContentCanvasCandidate) => void
   onCandidateUpload: (node: ContentCanvasNode | undefined, file: File) => void
   onSelectNode: (kind: InspectorSelection['kind'], nodeId: string) => void
@@ -176,6 +178,7 @@ export function NodeInspector({
           }
         }}
         onPromptCommit={(nextPrompt) => onPromptCommit(contentUnitInspectorNode, nextPrompt)}
+        onStructuredPromptCommit={(structured) => onStructuredPromptCommit(contentUnitInspectorNode, structured)}
         onReferenceAppend={(referenceNode) => {
           const nextPrompt = appendContentNodeReferenceToPrompt(prompt, referenceNode)
           if (!contentUnitInspectorNode) return
@@ -475,6 +478,7 @@ function ContentUnitInspector({
   candidateSelections,
   onPromptChange,
   onPromptCommit,
+  onStructuredPromptCommit,
   onReferenceAppend,
   onSelectNode,
   onCandidateCreate,
@@ -492,11 +496,12 @@ function ContentUnitInspector({
   candidateSelections: CandidateSelections
   onPromptChange: (prompt: string) => void
   onPromptCommit: (prompt: string) => void
+  onStructuredPromptCommit: (structured: Record<string, unknown>) => void
   onReferenceAppend: (node: ContentCanvasNode) => void
   onSelectNode: (kind: InspectorSelection['kind'], nodeId: string) => void
   onCandidateCreate: (node: ContentCanvasNode | undefined, options?: ContentCanvasCandidateGenerationOptions) => void
   onCandidatePromptPreview: (node: ContentCanvasNode | undefined) => Promise<ContentCanvasCandidatePromptPreview>
-  onCandidateResourceSelect: (node: ContentCanvasNode | undefined, resource: ContentCanvasUploadedResource) => void
+  onCandidateResourceSelect: (node: ContentCanvasNode | undefined, resource: ContentCanvasUploadedResource, position?: ContentCanvasNodePosition) => void
   onCandidateSelect: (node: ContentCanvasNode | undefined, candidate: ContentCanvasCandidate) => void
   onCandidateUpload: (node: ContentCanvasNode | undefined, file: File) => void
 }) {
@@ -507,11 +512,14 @@ function ContentUnitInspector({
         <ContentCanvasPromptEditor
           ariaLabel={`${title} 创作片段提示词`}
           candidateSelections={candidateSelections}
+          mentionNodes={promptReferenceNodes}
           nodes={nodes}
           ownerNode={node}
+          structured={structuredPromptFromNode(node)}
           value={prompt}
           onChange={onPromptChange}
           onBlur={onPromptCommit}
+          onStructuredCommit={onStructuredPromptCommit}
           onSelectNode={(referenceNode) => onSelectNode(inspectorKindForNode(referenceNode), referenceNode.id)}
         />
         <PromptReferenceAppendButtons
@@ -553,6 +561,15 @@ function promptDraftForNode(
   return node.kind === 'asset'
     ? assetPrompts[node.id] ?? promptFromContentNode(contentUnitNode) ?? ''
     : expressionPrompts[node.id] ?? promptFromContentNode(contentUnitNode) ?? promptFromContentNode(node) ?? ''
+}
+
+function structuredPromptFromNode(node: ContentCanvasNode | undefined): Record<string, unknown> | undefined {
+  const editPrompt = node?.record.edit_prompt ?? node?.record.editPrompt
+  if (!editPrompt || typeof editPrompt !== 'object' || Array.isArray(editPrompt)) return undefined
+  const structured = (editPrompt as Record<string, unknown>).structured
+  return structured && typeof structured === 'object' && !Array.isArray(structured)
+    ? structured as Record<string, unknown>
+    : undefined
 }
 
 function inspectorTitleForSelection(selection: InspectorSelection): string {

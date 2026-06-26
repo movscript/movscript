@@ -130,15 +130,17 @@ export function createMovScriptBackendDecisionStore(
     async getContentUnitDecision(input) {
       const targetRef = contentUnitDecisionTargetRef(input.contentUnitId)
       const context = await request<MovScriptDecisionContext>(`/decisions?target_kind=content_unit&target_ref=${encodeURIComponent(targetRef)}`)
-      console.info('[movscript-decision-store] get content unit decision', {
-        projectId: options.projectId,
-        contentUnitId: input.contentUnitId,
-        targetRef,
-        found: Boolean(context),
-        candidateCount: context?.candidates.length ?? 0,
-        candidateIds: decisionCandidateIds(context?.candidates ?? []),
-        hasSelection: Boolean(context?.selection),
-      })
+      if (isMovScriptDecisionStoreDebugEnabled()) {
+        console.info('[movscript-decision-store] get content unit decision', {
+          projectId: options.projectId,
+          contentUnitId: input.contentUnitId,
+          targetRef,
+          found: Boolean(context),
+          candidateCount: context?.candidates.length ?? 0,
+          candidateIds: decisionCandidateIds(context?.candidates ?? []),
+          hasSelection: Boolean(context?.selection),
+        })
+      }
       return context
     },
     async getContentUnitDecisions(input) {
@@ -151,11 +153,13 @@ export function createMovScriptBackendDecisionStore(
           target_refs: ids.map(contentUnitDecisionTargetRef),
         }),
       }) ?? []
-      console.info('[movscript-decision-store] get content unit decisions', {
-        projectId: options.projectId,
-        requestedCount: ids.length,
-        foundCount: contexts.length,
-      })
+      if (isMovScriptDecisionStoreDebugEnabled()) {
+        console.info('[movscript-decision-store] get content unit decisions', {
+          projectId: options.projectId,
+          requestedCount: ids.length,
+          foundCount: contexts.length,
+        })
+      }
       const byTargetRef = new Map(contexts.map((context) => [context.target_ref, context]))
       const out = new Map<string, MovScriptDecisionContext>()
       for (const id of ids) {
@@ -303,13 +307,15 @@ export function createMovScriptScopedProjectDataDecisionStore(
     async getContentUnitDecision(input) {
       const targetRef = contentUnitDecisionTargetRef(input.contentUnitId)
       const context = await request<MovScriptDecisionContext>(`/decisions?${targetQuery(targetRef)}`)
-      console.info('[movscript-decision-store] get scoped content unit decision', {
-        projectUid: options.projectUid,
-        contentUnitId: input.contentUnitId,
-        targetRef,
-        found: Boolean(context),
-        candidateCount: context?.candidates.length ?? 0,
-      })
+      if (isMovScriptDecisionStoreDebugEnabled()) {
+        console.info('[movscript-decision-store] get scoped content unit decision', {
+          projectUid: options.projectUid,
+          contentUnitId: input.contentUnitId,
+          targetRef,
+          found: Boolean(context),
+          candidateCount: context?.candidates.length ?? 0,
+        })
+      }
       return context
     },
     async getContentUnitDecisions(input) {
@@ -323,11 +329,13 @@ export function createMovScriptScopedProjectDataDecisionStore(
           target_refs: ids.map(contentUnitDecisionTargetRef),
         }),
       }) ?? []
-      console.info('[movscript-decision-store] get scoped content unit decisions', {
-        projectUid: options.projectUid,
-        requestedCount: ids.length,
-        foundCount: contexts.length,
-      })
+      if (isMovScriptDecisionStoreDebugEnabled()) {
+        console.info('[movscript-decision-store] get scoped content unit decisions', {
+          projectUid: options.projectUid,
+          requestedCount: ids.length,
+          foundCount: contexts.length,
+        })
+      }
       const byTargetRef = new Map(contexts.map((context) => [context.target_ref, context]))
       const out = new Map<string, MovScriptDecisionContext>()
       for (const id of ids) {
@@ -445,7 +453,7 @@ export async function overlayMovScriptDecisionDocuments(
       })
     }
   }
-  if (rows.length > 0) {
+  if (rows.length > 0 && isMovScriptDecisionStoreDebugEnabled()) {
     console.info('[movscript-decision-store] overlay content unit decisions', {
       contentUnitCount: contentUnits.length,
       rows,
@@ -485,6 +493,10 @@ function uniqueContentUnitIds(values: Array<string | number>): Array<string | nu
     out.push(value)
   }
   return out
+}
+
+function isMovScriptDecisionStoreDebugEnabled(): boolean {
+  return typeof process !== 'undefined' && process.env?.MOVSCRIPT_DECISION_STORE_DEBUG === '1'
 }
 
 export function contentUnitDecisionTargetRef(contentUnitId: string | number): string {

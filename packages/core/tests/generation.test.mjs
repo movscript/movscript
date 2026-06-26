@@ -4,6 +4,7 @@ import test from 'node:test'
 
 import {
   buildContentUnitGenerationOutputCandidate,
+  buildContentUnitGenerationJobPayload,
   buildContentUnitGenerationPromptSnapshot,
   buildContentUnitGenerationRequest,
   buildGenerationJobPayload,
@@ -88,6 +89,7 @@ test('core generation job payload omits params whose requires_value is not satis
       sequential_image_generation: 'disabled',
       image_count: 1,
       watermark: true,
+      aspect_ratio: '1:1',
     },
     supportedParams,
     inputResourceIds: [],
@@ -115,6 +117,34 @@ test('core generation job payload omits params whose requires_value is not satis
     image_count: 1,
     watermark: true,
   }))
+})
+
+test('core content-unit generation payload filters model-unsupported default params', () => {
+  const built = buildContentUnitGenerationJobPayload({
+    contentUnitId: 'cu_seedream_asset',
+    outputKind: 'image',
+    compiledPrompt: { text: 'Generate a clean character reference.' },
+    modelId: 'seedream-4-5',
+    supportedParams: [
+      { key: 'image_size' },
+      { key: 'watermark' },
+    ],
+    params: {
+      image_size: '2048x2048',
+      watermark: true,
+    },
+  })
+
+  assert.equal(built.payload.aspect_ratio, undefined)
+  assert.equal(built.payload.extra_params, JSON.stringify({
+    image_size: '2048x2048',
+    watermark: true,
+  }))
+  assert.deepEqual(built.params, {
+    image_size: '2048x2048',
+    watermark: true,
+    aspect_ratio: '1:1',
+  })
 })
 
 test('core content-unit generation candidates preserve submitted model parameters', () => {

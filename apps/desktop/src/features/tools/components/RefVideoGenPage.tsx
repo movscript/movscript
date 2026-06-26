@@ -9,6 +9,7 @@ export default function RefVideoGenPage() {
     <ToolDialog
       nodeType="ref_video_gen"
       capability="video"
+      modelQueryCapabilities={['video_i2v', 'video', 'video_v2v']}
       toolName={t('tools.defs.refVideoGen.name')}
       toolDescription={t('tools.defs.refVideoGen.description')}
       inputType="image+video"

@@ -388,7 +388,7 @@ func adapterSupportsRuntimeCapability(adapterType, capability string) bool {
 			infraai.CapabilityVideo, infraai.CapabilityVideoI2V, infraai.CapabilityVideoV2V,
 			infraai.CapabilityAudioTTS, infraai.CapabilityAudioSTT, infraai.CapabilityAudioMusic,
 			infraai.CapabilityAudioSFX, infraai.CapabilityAudioChat, infraai.CapabilityVoiceClone,
-			infraai.CapabilitySubAlign:
+			infraai.CapabilityVoiceDesign, infraai.CapabilitySubAlign:
 			return true
 		}
 	case infraai.AdapterKling:

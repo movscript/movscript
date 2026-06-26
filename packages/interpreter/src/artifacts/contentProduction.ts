@@ -176,9 +176,10 @@ function refComparisonValue(prompt: NormalizedContentUnitPrompt): unknown {
 
 function isNormalizedContentUnitPrompt(value: unknown): value is NormalizedContentUnitPrompt {
   const record = recordField(value)
-  return record?.schema === 'movscript.content_unit_prompt.v1'
+  return (record?.schema === 'movscript.content_unit_prompt.v1' || record?.schema === 'movscript.content_unit_generation_prompt_snapshot.v1')
     && Array.isArray(record.refs)
     && recordField(record.runtime_request) !== undefined
+    && recordField(record.edit_prompt) !== undefined
 }
 
 function sameCanonical(left: unknown, right: unknown): boolean {

@@ -2952,7 +2952,7 @@
       "requireEmailVerification": "注册需要邮箱验证码",
       "requireEmailVerificationHint": "开放注册时强制启用，避免无验证邮箱账号进入系统。",
       "providerAssets": "素材库认证",
-      "providerAssetsHint": "配置火山方舟官方素材资产 API。素材组由系统自动创建并托管，密钥不会回显。",
+      "providerAssetsHint": "配置 Provider 素材库访问。官方 Ark 使用 Provider 素材库凭证；云雾私域人像库复用该 Provider 的 Base URL 和 API Key。",
       "providerAssetsMovedHint": "素材库、asset:// 与原始产物信任现在按 Provider 管理。",
       "providerAssetsMovedDetail": "系统设置只保留部署级状态；Provider 页面会展示素材库能力、缺失配置、global group 与认证诊断。",
       "openProviderManagement": "打开 Provider 管理",

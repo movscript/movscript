@@ -12,7 +12,7 @@ Use when:
 
 - the target is one short clip;
 - the user has a concept rather than source media;
-- duration is within one model generation;
+- duration is within one model generation and normally no more than about 10 seconds;
 - continuity needs are low or optional.
 
 MovScript structure:
@@ -25,15 +25,18 @@ scene_moment
 Optional evidence:
 
 - `asset_ref` only when a reusable character/product/place must stay stable;
-- `storyboard_ref` / `keyframe_ref` only when composition, blocking, camera path, or first/last frame must be controlled.
+- `storyboard_ref` / `keyframe_ref` when composition, blocking, camera path, or first/last frame must be controlled.
 
 Do not create full productions, segments, many expression units, or editing projects just because the prompt could be more detailed.
+
+Before video production, prefer a `storyboard_ref` candidate generated with `gpt-image-2` as a schematic/stylized animatic panel. It should communicate composition, blocking, camera, and lighting, not photoreal real-person identity. Skip this only for an explicit fast unstable draft or when a selected storyboard/keyframe already exists.
 
 ### Path B: Long Video Pipeline
 
 Use when:
 
 - target output exceeds one model generation;
+- any individual story beat would exceed about 10 seconds unless split;
 - the user asks for a short drama, trailer, MV, brand film, course/explainer, multi-scene ad, or reusable project;
 - continuity, subtitles, voice, music, or later edits matter.
 
@@ -52,6 +55,7 @@ production
 Rules:
 
 - Stabilize reusable assets before downstream visual generation.
+- Split long action into short scene moments that can each be prompted, reviewed, regenerated, and adopted independently.
 - Use expression units for independently generated materials that will be edited together.
 - Use editing for assembly, trimming, color matching, subtitles, music sync, and final export.
 - Do not hide a long video in one giant prompt.
@@ -128,6 +132,12 @@ Rules:
 - Explicitly prevent panel borders, labels, captions, UI, or grid lines from becoming generated video content.
 
 ## Cross-Path Gates
+
+### Scene Moment Duration Gate
+
+Use `scene_moment` as a short atomic video beat. If a requested moment is likely to run longer than about 10 seconds, split it into several scene moments with clear beginning/middle/end actions and compose them later through editing.
+
+For each planned scene moment, prefer a schematic `gpt-image-2` storyboard panel before downstream video generation. Avoid real-person likenesses in these storyboard panels; use them as visual direction evidence, not as human identity assets.
 
 ### Continuity Gate
 

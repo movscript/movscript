@@ -200,6 +200,24 @@ func TestProjectDataServiceStoresCandidatesUnderScopedProjectUID(t *testing.T) {
 		t.Fatalf("selection not stored: %#v", selected)
 	}
 
+	listedDecisions, err := service.ListSpaceDecisions(context.Background(), ProjectDataListSpaceDecisionsInput{
+		ProjectDataScopeInput: ProjectDataScopeInput{ScopeKind: ProjectDataScopeUser, ScopeID: "7"},
+		SpaceID:               selected.ProjectDataSpaceID,
+	})
+	if err != nil {
+		t.Fatalf("list scoped space decisions: %v", err)
+	}
+	if len(listedDecisions) != 1 || listedDecisions[0].TargetRef != target.TargetRef || len(listedDecisions[0].Candidates) != 2 || listedDecisions[0].Status != "selected" {
+		t.Fatalf("unexpected listed decisions: %#v", listedDecisions)
+	}
+	_, err = service.ListSpaceDecisions(context.Background(), ProjectDataListSpaceDecisionsInput{
+		ProjectDataScopeInput: ProjectDataScopeInput{ScopeKind: ProjectDataScopeOrg, ScopeID: "7"},
+		SpaceID:               selected.ProjectDataSpaceID,
+	})
+	if !errors.Is(err, ErrDecisionNotFound) {
+		t.Fatalf("foreign scoped list error = %v, want ErrDecisionNotFound", err)
+	}
+
 	orgTarget := target
 	orgTarget.ProjectDataScopeInput = ProjectDataScopeInput{ScopeKind: ProjectDataScopeOrg, ScopeID: "7"}
 	if _, err := service.EnsureSpace(context.Background(), orgTarget.ProjectDataSpaceInput); err != nil {

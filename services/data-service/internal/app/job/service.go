@@ -215,6 +215,7 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (do
 	if err != nil {
 		return domainjob.Job{}, wrapErr(ErrLoadInputResources, err)
 	}
+	input.JobType = resolveInputAwareGenerationJobType(input.JobType, inputResources)
 
 	route, err := s.resolveGenerationModelRoute(ctx, input)
 	if err != nil {
@@ -318,6 +319,19 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (do
 	}
 	_ = s.ai.SetReservationJob(ctx, reservation.ID, job.ID)
 	return job, nil
+}
+
+func resolveInputAwareGenerationJobType(jobType string, inputResources InputResourcesResult) string {
+	if jobType != ai.CapabilityVideo {
+		return jobType
+	}
+	if inputResources.VideoCount > 0 {
+		return ai.CapabilityVideoV2V
+	}
+	if inputResources.ImageCount > 0 {
+		return ai.CapabilityVideoI2V
+	}
+	return jobType
 }
 
 func projectScopeBinding(input EnqueueInput) *domainjob.ProjectScopeBinding {

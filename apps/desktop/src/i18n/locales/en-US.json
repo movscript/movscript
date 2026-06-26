@@ -177,7 +177,7 @@
     "new": "New",
     "newProject": "New Project",
     "mode": {
-      "projectData": "Inspect backend candidates, selections, and project_uid data spaces.",
+      "projectData": "Review production memory and candidate decisions across project data spaces.",
       "canvas": "Manage global canvases, resource organization, and cross-project visual boards.",
       "editingTitle": "Editing",
       "editing": "Create standalone editing projects with assets, tracks, subtitles, and export jobs.",
@@ -187,20 +187,76 @@
   },
   "projectData": {
     "title": "Project Data",
-    "description": "Backend candidate and selection metadata",
+    "description": "Project production memory index",
+    "overviewAriaLabel": "Project data overview",
     "spacesAriaLabel": "Project data spaces",
+    "detailAriaLabel": "Project data detail",
+    "targetsAriaLabel": "Project data targets",
     "spacesTitle": "Data Spaces",
-    "totals": "{{targets}} targets · {{candidates}} candidates · {{selections}} selections",
+    "spacesSubtitle": "Select a data space to inspect targets, candidates, and locked choices.",
+    "totals": "{{spaces}} data spaces · {{targets}} targets · {{selections}} locked · {{pending}} pending",
     "emptyTitle": "No project data",
+    "emptyDecisionTitle": "No matching targets",
+    "searchPlaceholder": "Search project_uid or project name",
     "updated": "Updated",
+    "lockedRatio": "{{selections}}/{{targets}} locked",
+    "candidateCount": "{{count}} candidates",
+    "candidatePreviewAriaLabel": "Candidate previews",
+    "currentSelection": "Current selection",
+    "selectedCandidate": "Selected",
+    "resourceLabel": "Resource #{{id}}",
+    "noPreview": "No candidate preview",
+    "moreCandidates": "+{{count}} more",
+    "noEvidence": "No selection evidence",
+    "candidateFilters": {
+      "all": "All",
+      "selected": "Selected",
+      "image": "Images",
+      "video": "Videos",
+      "audio": "Audio",
+      "text": "Text",
+      "unknown": "Other"
+    },
+    "previewKind": {
+      "image": "Image",
+      "video": "Video",
+      "audio": "Audio",
+      "text": "Text",
+      "unknown": "Preview"
+    },
     "scope": {
       "user": "User",
       "org": "Org"
     },
+    "filters": {
+      "all": "All",
+      "pending": "Pending",
+      "recent": "Recent",
+      "archived": "Archived"
+    },
+    "decisionFilters": {
+      "all": "All",
+      "missing": "Missing candidates",
+      "pending": "Pending selection",
+      "selected": "Locked"
+    },
+    "decisionStatus": {
+      "missing": "Missing",
+      "pending": "Pending",
+      "selected": "Locked"
+    },
+    "status": {
+      "ready": "Ready",
+      "pending": "Pending",
+      "archived": "Archived"
+    },
     "stats": {
       "targets": "Targets",
       "candidates": "Candidates",
-      "selections": "Selections"
+      "selections": "Locked",
+      "pending": "Pending",
+      "density": "Candidate density",
+      "missing": "Missing"
     }
   },
   "onboarding": {
@@ -4316,6 +4372,8 @@
       "workbenchCreative": "Setting Prep",
       "workbenchAssets": "Asset Workbench",
       "workbenchContentGeneration": "Content Orchestration",
+      "contentCanvasWorkspace": "Creation Canvas",
+      "contentPreviewWorkspace": "Preview",
       "shotEditWorkbench": "Shot Edit Workbench",
       "workbenchReferenceRelations": "Relation Correction",
       "assetProductionWorkbench": "Asset Production Workbench",
@@ -4419,6 +4477,7 @@
       "motionImitation": "Motion Imitation",
       "styleTransfer": "Style Transfer",
       "multiAngle": "Multi-angle",
+      "privateAssets": "Private Assets",
       "resources": "Resources",
       "projectData": "Project Data",
       "jobs": "Generation Jobs",
@@ -4465,6 +4524,8 @@
       "workbenchReferenceRelations": "Relation Correction",
       "workbenchAssetPreparation": "Asset Workbench",
       "workbenchContentGeneration": "Content Orchestration",
+      "contentCanvasWorkspace": "Creation Canvas",
+      "contentPreviewWorkspace": "Preview",
       "contentCanvas": "Orchestration Canvas",
       "shotEditWorkbench": "Shot Edit Workbench",
       "user": "User Profile",

@@ -85,6 +85,8 @@ Use the editing path when cross-shot voice, subtitles, sound design, visual cons
 
 Use storyboard panels before keyframes when the user has composition, blocking, camera, placement, or rhythm expectations but has not specified enough detail.
 
+Storyboard and keyframe content-unit prompts should be image prompts, not pasted script text and not video prompts. Analyze the source scene first, then specify image purpose, subject, single-frame action state, composition, camera angle, setting, lighting, style, continuity refs, and restrictions. For storyboard panels, prefer schematic or stylized visual-planning images; avoid photoreal real-person likenesses unless the user explicitly needs a final character image.
+
 ```text
 shot intent
 -> storyboard_ref content unit for panels/images

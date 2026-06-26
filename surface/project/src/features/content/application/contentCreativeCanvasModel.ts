@@ -45,6 +45,10 @@ export interface CreativeCanvasGraph {
   edges: CreativeCanvasEdge[]
 }
 
+export interface CreativeCanvasGraphOptions {
+  nodeIds?: Iterable<string>
+}
+
 const CREATIVE_CANVAS_HIDDEN_KINDS = new Set<ContentCanvasNodeKind>([
   'project',
   'production',
@@ -69,21 +73,15 @@ const GENERATABLE_KINDS = new Set<ContentCanvasNodeKind>([
   'content_unit',
 ])
 
-export function buildCreativeCanvasGraph(graph: ContentCanvasWorkspaceSnapshot): CreativeCanvasGraph {
-  const visibleNodeIds = new Set(
-    graph.nodes
-      .filter(isCreativeCanvasVisibleNode)
-      .map((node) => node.id),
-  )
-  for (const edge of graph.edges) {
-    if (!isCreativeCanvasDependencySourceEdge(edge)) continue
-    const source = graph.nodes.find((node) => node.id === edge.source)
-    const target = graph.nodes.find((node) => node.id === edge.target)
-    if (source?.kind === 'resource') visibleNodeIds.add(source.id)
-    if (target?.kind === 'resource') visibleNodeIds.add(target.id)
-  }
+export function buildCreativeCanvasGraph(
+  graph: ContentCanvasWorkspaceSnapshot,
+  options: CreativeCanvasGraphOptions = {},
+): CreativeCanvasGraph {
+  const visibleNodeIds = options.nodeIds
+    ? new Set([...options.nodeIds].filter((nodeId) => typeof nodeId === 'string' && nodeId.trim()))
+    : defaultCreativeCanvasVisibleNodeIds(graph)
   const nodes = graph.nodes
-    .filter((node) => visibleNodeIds.has(node.id))
+    .filter((node) => visibleNodeIds.has(node.id) && (node.kind === 'resource' || isCreativeCanvasVisibleNode(node)))
     .map(creativeNodeFromContentNode)
   const nodeIds = new Set(nodes.map((node) => node.id))
   const nodeKindById = new Map(nodes.map((node) => [node.id, node.kind]))
@@ -104,7 +102,24 @@ export function buildCreativeCanvasGraph(graph: ContentCanvasWorkspaceSnapshot):
   return { nodes, edges }
 }
 
+function defaultCreativeCanvasVisibleNodeIds(graph: ContentCanvasWorkspaceSnapshot): Set<string> {
+  const visibleNodeIds = new Set(
+    graph.nodes
+      .filter(isCreativeCanvasVisibleNode)
+      .map((node) => node.id),
+  )
+  for (const edge of graph.edges) {
+    if (!isCreativeCanvasDependencySourceEdge(edge)) continue
+    const source = graph.nodes.find((node) => node.id === edge.source)
+    const target = graph.nodes.find((node) => node.id === edge.target)
+    if (source?.kind === 'resource') visibleNodeIds.add(source.id)
+    if (target?.kind === 'resource') visibleNodeIds.add(target.id)
+  }
+  return visibleNodeIds
+}
+
 export function isCreativeCanvasVisibleNode(node: ContentCanvasNode): boolean {
+  if (node.kind === 'content_unit' && isNakedGenerationTaskNode(node)) return true
   return !CREATIVE_CANVAS_HIDDEN_KINDS.has(node.kind)
 }
 
@@ -185,4 +200,10 @@ function creativeEdgeRank(edge: CreativeCanvasDependencyEdge): number {
   if (edge.kind === 'namespace') return 1
   if (edge.kind === 'reference') return 2
   return 9
+}
+
+function isNakedGenerationTaskNode(node: ContentCanvasNode): boolean {
+  const modelIntent = node.record.model_intent
+  if (!modelIntent || typeof modelIntent !== 'object' || Array.isArray(modelIntent)) return false
+  return (modelIntent as Record<string, unknown>).source === 'content_canvas_naked_task'
 }

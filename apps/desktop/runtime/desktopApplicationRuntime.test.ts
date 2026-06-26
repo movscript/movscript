@@ -16,6 +16,7 @@ import {
   desktopRuntimeLocalStartupPolicy,
   desktopRuntimeShellProgramManifest,
   desktopRuntimeStartupPolicy,
+  resolveDesktopLocalRuntimeIdentity,
   resolveDesktopLocalRuntimeDaemonEntrypoint,
   resolveDesktopRuntimeRepoRoot,
   shutdownDesktopApplicationRuntime,
@@ -58,8 +59,15 @@ test('Desktop application runtime writes only Desktop shell ownership records by
 
 test('Desktop local runtime attaches to daemon-owned local services', async () => {
   const homeDir = mkdtempSync(join(tmpdir(), 'movscript-desktop-local-runtime-home-'))
-  const entrypoint = join(homeDir, 'fake-local-daemon.mjs')
-  writeFileSync(entrypoint, fakeDaemonSource({ includeDataService: true }), 'utf8')
+  const pluginRoot = join(homeDir, 'plugin')
+  const entrypoint = join(pluginRoot, 'bin', 'fake-local-daemon.mjs')
+  mkdirSync(dirname(entrypoint), { recursive: true })
+  writeFileSync(join(pluginRoot, 'manifest.runtime.json'), JSON.stringify({ version: 'fake-test-version' }), 'utf8')
+  writeFileSync(entrypoint, fakeDaemonSource({
+    includeDataService: true,
+    pluginVersion: 'fake-test-version',
+    pluginRoot,
+  }), 'utf8')
   try {
     await startDesktopApplicationRuntime({
       homeDir,
@@ -99,8 +107,15 @@ test('Desktop local runtime attaches to daemon-owned local services', async () =
 
 test('Desktop cloud data runtime attaches to daemon without local Data Service', async () => {
   const homeDir = mkdtempSync(join(tmpdir(), 'movscript-desktop-cloud-data-runtime-home-'))
-  const entrypoint = join(homeDir, 'fake-local-daemon.mjs')
-  writeFileSync(entrypoint, fakeDaemonSource({ includeDataService: false }), 'utf8')
+  const pluginRoot = join(homeDir, 'plugin')
+  const entrypoint = join(pluginRoot, 'bin', 'fake-local-daemon.mjs')
+  mkdirSync(dirname(entrypoint), { recursive: true })
+  writeFileSync(join(pluginRoot, 'manifest.runtime.json'), JSON.stringify({ version: 'fake-test-version' }), 'utf8')
+  writeFileSync(entrypoint, fakeDaemonSource({
+    includeDataService: false,
+    pluginVersion: 'fake-test-version',
+    pluginRoot,
+  }), 'utf8')
   try {
     await startDesktopApplicationRuntime({
       homeDir,
@@ -120,6 +135,50 @@ test('Desktop cloud data runtime attaches to daemon without local Data Service',
       assert.equal(record?.status, 'ready')
       assert.equal(record?.ownerApplicationId, LOCAL_NODE_APP_ID)
     }
+  } finally {
+    await shutdownDesktopApplicationRuntime()
+    await stopLocalRuntimeDaemon(homeDir, { force: true }).catch(() => undefined)
+    rmSync(homeDir, { recursive: true, force: true })
+  }
+})
+
+test('Desktop local runtime restarts daemon when installed plugin identity changes', async () => {
+  const homeDir = mkdtempSync(join(tmpdir(), 'movscript-desktop-local-runtime-identity-home-'))
+  const pluginRoot = join(homeDir, 'installed-plugin')
+  const entrypoint = join(pluginRoot, 'bin', 'movscript-agent-mcp.mjs')
+  mkdirSync(dirname(entrypoint), { recursive: true })
+  writeFileSync(join(pluginRoot, 'manifest.runtime.json'), JSON.stringify({ version: 'desktop-installed-version' }), 'utf8')
+  writeFileSync(entrypoint, fakeDaemonSource({
+    includeDataService: true,
+    pluginVersion: 'desktop-installed-version',
+    pluginVersionEnv: 'MOVSCRIPT_FAKE_DAEMON_PLUGIN_VERSION',
+    pluginRoot,
+    pluginRootEnv: 'MOVSCRIPT_FAKE_DAEMON_PLUGIN_ROOT',
+  }), 'utf8')
+
+  try {
+    const old = await startFakeDesktopDaemon(homeDir, entrypoint, {
+      MOVSCRIPT_FAKE_DAEMON_PLUGIN_VERSION: 'old-version',
+      MOVSCRIPT_FAKE_DAEMON_PLUGIN_ROOT: '/tmp/old-plugin-root',
+      MOVSCRIPT_LOCAL_DAEMON_DATA_PLANE: 'local',
+    })
+    const replacement = await startDesktopApplicationRuntime({
+      homeDir,
+      scenario: desktopRuntimeLocalStartupPolicy,
+      localRuntime: {
+        enabled: true,
+        dataPlane: 'local',
+        entrypoint,
+      },
+    })
+
+    assert.equal(replacement, undefined)
+    const snapshot = readRuntimeHomeSnapshot(homeDir)
+    const daemonAppRecord = snapshot.apps.find((record) => record.applicationId === LOCAL_NODE_APP_ID && record.status === 'ready')
+    assert.notEqual(daemonAppRecord?.pid, old.pid)
+    const metadata = daemonAppRecord?.raw.metadata as Record<string, unknown> | undefined
+    assert.equal(metadata?.pluginVersion, 'desktop-installed-version')
+    assert.equal(metadata?.pluginRoot, pluginRoot)
   } finally {
     await shutdownDesktopApplicationRuntime()
     await stopLocalRuntimeDaemon(homeDir, { force: true }).catch(() => undefined)
@@ -192,9 +251,53 @@ test('Desktop runtime resolves local daemon entrypoint from packaged provider pl
   }
 })
 
-function fakeDaemonSource(input: { includeDataService: boolean }): string {
+test('Desktop runtime identity resolves installed plugin version and root from entrypoint', () => {
+  const pluginRoot = mkdtempSync(join(tmpdir(), 'movscript-desktop-plugin-identity-'))
+  try {
+    const entrypoint = join(pluginRoot, 'bin/movscript-agent-mcp.mjs')
+    mkdirSync(dirname(entrypoint), { recursive: true })
+    writeFileSync(join(pluginRoot, 'manifest.runtime.json'), JSON.stringify({ version: '1.2.3' }), 'utf8')
+
+    assert.deepEqual(resolveDesktopLocalRuntimeIdentity(entrypoint), {
+      pluginVersion: '1.2.3',
+      pluginRoot,
+    })
+  } finally {
+    rmSync(pluginRoot, { recursive: true, force: true })
+  }
+})
+
+async function startFakeDesktopDaemon(
+  homeDir: string,
+  entrypoint: string,
+  env: NodeJS.ProcessEnv,
+): Promise<{ pid: number }> {
+  const { ensureLocalRuntimeDaemon } = await import('@movscript/local-runtime')
+  const result = await ensureLocalRuntimeDaemon({
+    homeDir,
+    entrypoint,
+    runArgs: [],
+    env,
+    identity: {
+      pluginVersion: env.MOVSCRIPT_FAKE_DAEMON_PLUGIN_VERSION,
+      pluginRoot: env.MOVSCRIPT_FAKE_DAEMON_PLUGIN_ROOT,
+    },
+    startupTimeoutMs: 5000,
+  })
+  assert.equal(typeof result.pid, 'number')
+  return { pid: result.pid as number }
+}
+
+function fakeDaemonSource(input: {
+  includeDataService: boolean
+  pluginVersion?: string
+  pluginVersionEnv?: string
+  pluginRoot?: string
+  pluginRootEnv?: string
+}): string {
   const services = [
     'movscript.local-node.control',
+    'movscript.local-node.gateway',
     ...(input.includeDataService ? [DATA_SERVICE_NAME] : []),
     PROJECT_SERVICE_NAME,
     EDITING_SERVICE_NAME,
@@ -210,6 +313,8 @@ import { join } from 'node:path'
 const homeDir = process.env.MOVSCRIPT_HOME
 const dataPlane = process.env.MOVSCRIPT_LOCAL_DAEMON_DATA_PLANE || 'local'
 const dataServiceURL = process.env.MOVSCRIPT_DATA_SERVICE_URL
+const pluginVersion = ${input.pluginVersionEnv ? `(process.env.${input.pluginVersionEnv} ?? ${JSON.stringify(input.pluginVersion)})` : JSON.stringify(input.pluginVersion)}
+const pluginRoot = ${input.pluginRootEnv ? `(process.env.${input.pluginRootEnv} ?? ${JSON.stringify(input.pluginRoot)})` : JSON.stringify(input.pluginRoot)}
 const serviceNames = ${JSON.stringify(services)}
 
 function writeRecord(path, value) {
@@ -227,6 +332,8 @@ const server = createServer((request, response) => {
     response.end(JSON.stringify({
       status: 'ready',
       pid: process.pid,
+      ...(pluginVersion ? { pluginVersion } : {}),
+      ...(pluginRoot ? { pluginRoot } : {}),
       dataPlane,
       ...(dataServiceURL ? { dataServiceURL } : {}),
       services: serviceNames.map((serviceName) => ({
@@ -264,7 +371,12 @@ server.listen(0, '127.0.0.1', () => {
     pid: process.pid,
     status: 'ready',
     ready: true,
-    metadata: { dataPlane, ...(dataServiceURL ? { dataServiceURL } : {}) },
+    metadata: {
+      dataPlane,
+      ...(dataServiceURL ? { dataServiceURL } : {}),
+      ...(pluginVersion ? { pluginVersion } : {}),
+      ...(pluginRoot ? { pluginRoot } : {}),
+    },
   })
   for (const serviceName of serviceNames) {
     const url = serviceName === 'movscript.local-node.control' ? controlURL : 'http://127.0.0.1:1'

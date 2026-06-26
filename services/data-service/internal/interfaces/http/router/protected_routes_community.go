@@ -58,6 +58,10 @@ func registerResourceRoutes(protected *gin.RouterGroup, h handlers) {
 	protected.PUT("/resources/:id", h.resources.Update)
 	protected.POST("/resources/:id/verify-image", h.resources.VerifyImage)
 	protected.DELETE("/resources/:id", h.resources.Delete)
+	protected.GET("/provider-assets/providers/:provider_ref/groups", h.providerAssets.ListProviderAssetGroups)
+	protected.POST("/provider-assets/providers/:provider_ref/groups/sync", h.providerAssets.SyncProviderAssetGroups)
+	protected.GET("/provider-assets/providers/:provider_ref/groups/:group_ref/assets", h.providerAssets.ListProviderAssets)
+	protected.POST("/provider-assets/providers/:provider_ref/groups/:group_ref/assets/sync", h.providerAssets.SyncProviderAssets)
 	protected.POST("/provider-assets/providers/:provider_ref/certify", h.providerAssets.CertifyProviderAsset)
 	protected.POST("/provider-assets/seedance2/certify", h.providerAssets.CertifySeedance2)
 

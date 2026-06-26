@@ -1,6 +1,6 @@
 # Entity Glossary
 
-Use current MovScript entity names in tool calls and source files. Chinese and product words are aliases only.
+Use this file as a translation layer from production language to MovScript source names. Think and respond in business terms first; use current MovScript entity names only in tool calls, source files, and compact technical diagnostics. Chinese and product words are aliases, not separate source entities.
 
 | Product term | Entity |
 | --- | --- |
@@ -22,9 +22,9 @@ Use current MovScript entity names in tool calls and source files. Chinese and p
 | legacy music/sfx/ambience/dialogue/foley cue | `audio_cue` |
 | key visual anchor | `keyframe` |
 | storyboard / shot board / panels | `storyboard` |
-| production task / output slot | `content_unit` |
-| generated/uploaded/imported option | `candidate` |
-| chosen/confirmed option | `selection` |
+| output task / production task / thing to generate or import | `content_unit` |
+| generated/uploaded/imported option / candidate result | `candidate` |
+| adopted/chosen/confirmed result | `selection` |
 
 ## Ownership
 
@@ -38,12 +38,12 @@ Use current MovScript entity names in tool calls and source files. Chinese and p
 
 ## Meaning
 
-- `scene_moment` is the final expression aggregation unit and the preferred output unit.
-- `expression_unit` is a scene-moment-owned multimodal material intent. Use orthogonal `modality` and `role` fields instead of making separate core entities for every medium.
+- `scene_moment` is the scene beat users usually mean when asking for a short unit of story or video output.
+- `expression_unit` is a scene-beat-owned material intent, such as visual action, dialogue, narration, subtitle text, music, ambience, sfx, or voice. Use orthogonal `modality` and `role` fields instead of making separate core entities for every medium.
 - `shot` is a legacy/specialized visual anchor. In the final model, shot-like intent is `expression_unit(modality=visual, role=shot)`.
 - `storyboard` and `keyframe` are optional visual evidence for visual expression material.
 - `audio_cue` is a legacy/specialized sound anchor. In the final model, sound intent is `expression_unit(modality=audio, role=sfx/music/ambience/dialogue/foley)`.
 - `setting` is a concrete film/music production entity to make or reuse, such as a character, prop, place, instrument, costume, or voice identity. It is not an abstract style/rule/mood/genre bucket.
 - `setting_state` is a namespace under one setting for a named condition/version of the same entity.
 - `asset` is a reusable resource slot under a setting state, not a generated result. It describes one state asset, such as front view, side view, turnaround sheet, material reference, voice timbre, or instrument tone. Image assets should prefer plain white or very clean backgrounds.
-- `content_unit` is not a production hierarchy node. It is a production task that creates candidates and selections.
+- `content_unit` is not a production hierarchy node. It is an output task that creates generated/imported options and later chosen results.

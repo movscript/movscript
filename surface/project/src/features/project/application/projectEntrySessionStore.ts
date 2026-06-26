@@ -113,7 +113,7 @@ function normalizeProjectEntrySessionSnapshot(input: unknown): ProjectEntrySessi
 
 function legacyWorkbenchId(record: Partial<ProjectEntrySessionSnapshot>): string | undefined {
   const value = (record as Partial<ProjectEntrySessionSnapshot> & { workbenchId?: unknown }).workbenchId
-  if (value === 'content_orchestration') return 'content'
+  if (value === 'content_orchestration') return 'content_preview'
   return typeof value === 'string' && value.trim() ? value : undefined
 }
 

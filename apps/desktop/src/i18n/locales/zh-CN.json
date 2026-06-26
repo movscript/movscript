@@ -177,7 +177,7 @@
     "new": "新建",
     "newProject": "新建项目",
     "mode": {
-      "projectData": "查看后端保存的候选、选择和 project_uid 数据空间。",
+      "projectData": "查看生产记忆与候选决策，快速定位待选择的数据空间。",
       "canvas": "管理全局画布、素材组织和跨项目的可视化灵感板。",
       "editingTitle": "剪辑",
       "editing": "创建独立剪辑项目，组织素材、轨道、字幕和导出任务。",
@@ -187,20 +187,76 @@
   },
   "projectData": {
     "title": "项目数据",
-    "description": "后端候选、选择和元数据",
+    "description": "项目生产记忆索引",
+    "overviewAriaLabel": "项目数据总览",
     "spacesAriaLabel": "项目数据空间",
+    "detailAriaLabel": "项目数据详情",
+    "targetsAriaLabel": "项目数据目标",
     "spacesTitle": "数据空间",
-    "totals": "{{targets}} 个目标 · {{candidates}} 个候选 · {{selections}} 个选择",
+    "spacesSubtitle": "选择一个数据空间，查看目标、候选和锁定选择。",
+    "totals": "{{spaces}} 个数据空间 · {{targets}} 个目标 · {{selections}} 个已锁定 · {{pending}} 个待选择",
     "emptyTitle": "暂无项目数据",
+    "emptyDecisionTitle": "暂无匹配目标",
+    "searchPlaceholder": "搜索 project_uid 或项目名",
     "updated": "最近更新",
+    "lockedRatio": "{{selections}}/{{targets}} 已锁定",
+    "candidateCount": "{{count}} 个候选",
+    "candidatePreviewAriaLabel": "候选预览",
+    "currentSelection": "当前选择",
+    "selectedCandidate": "已选中",
+    "resourceLabel": "资源 #{{id}}",
+    "noPreview": "暂无候选预览",
+    "moreCandidates": "+{{count}} 个",
+    "noEvidence": "暂无选择证据",
+    "candidateFilters": {
+      "all": "全部",
+      "selected": "已选中",
+      "image": "图片",
+      "video": "视频",
+      "audio": "音频",
+      "text": "文本",
+      "unknown": "其他"
+    },
+    "previewKind": {
+      "image": "图片",
+      "video": "视频",
+      "audio": "音频",
+      "text": "文本",
+      "unknown": "预览"
+    },
     "scope": {
       "user": "用户",
       "org": "组织"
     },
+    "filters": {
+      "all": "全部",
+      "pending": "待处理",
+      "recent": "最近更新",
+      "archived": "已归档"
+    },
+    "decisionFilters": {
+      "all": "全部",
+      "missing": "缺候选",
+      "pending": "待选择",
+      "selected": "已锁定"
+    },
+    "decisionStatus": {
+      "missing": "缺候选",
+      "pending": "待选择",
+      "selected": "已锁定"
+    },
+    "status": {
+      "ready": "已就绪",
+      "pending": "待处理",
+      "archived": "已归档"
+    },
     "stats": {
       "targets": "目标",
       "candidates": "候选",
-      "selections": "选择"
+      "selections": "锁定",
+      "pending": "待选择",
+      "density": "候选密度",
+      "missing": "缺候选"
     }
   },
   "onboarding": {
@@ -4206,6 +4262,8 @@
       "workbenchCreative": "设定准备",
       "workbenchAssets": "素材工作台",
       "workbenchContentGeneration": "创作",
+      "contentCanvasWorkspace": "创作画布",
+      "contentPreviewWorkspace": "预览",
       "shotEditWorkbench": "创作编辑",
       "workbenchReferenceRelations": "关系校正",
       "assetProductionWorkbench": "素材制作工作台",
@@ -4309,6 +4367,7 @@
       "motionImitation": "动作迁移",
       "styleTransfer": "画风迁移",
       "multiAngle": "多角度",
+      "privateAssets": "私域素材库",
       "resources": "资源库",
       "projectData": "项目数据",
       "jobs": "生成记录",
@@ -4355,6 +4414,8 @@
       "workbenchReferenceRelations": "关系校正",
       "workbenchAssetPreparation": "素材工作台",
       "workbenchContentGeneration": "创作",
+      "contentCanvasWorkspace": "创作画布",
+      "contentPreviewWorkspace": "预览",
       "contentCanvas": "编排模式",
       "shotEditWorkbench": "创作编辑",
       "user": "用户资料",

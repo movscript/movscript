@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
@@ -64,9 +65,14 @@ func (s *AIService) EstimateTextRouteCost(ctx context.Context, userID uint, rout
 
 func (s *AIService) EstimateImageRouteCost(ctx context.Context, userID uint, route ModelRoute, req ImageRequest) (UsageEstimate, error) {
 	_ = userID
+	var lastUnsupportedErr error
 	for _, capability := range []string{CapabilityImage, CapabilityImageEdit} {
 		definition, handled, err := s.catalogRouteDefinition(ctx, route, capability)
 		if err != nil {
+			if isRouteCapabilityUnsupportedError(err) {
+				lastUnsupportedErr = err
+				continue
+			}
 			return UsageEstimate{}, err
 		}
 		if handled {
@@ -77,14 +83,22 @@ func (s *AIService) EstimateImageRouteCost(ctx context.Context, userID uint, rou
 			return estimateUsage(definition.model.usageProfile(), definition.def, "image", 0, 0, 0, n), nil
 		}
 	}
+	if lastUnsupportedErr != nil {
+		return UsageEstimate{}, lastUnsupportedErr
+	}
 	return UsageEstimate{}, fmt.Errorf("catalog route is required for image usage estimate")
 }
 
 func (s *AIService) EstimateVideoRouteCost(ctx context.Context, userID uint, route ModelRoute, req VideoRequest) (UsageEstimate, error) {
 	_ = userID
+	var lastUnsupportedErr error
 	for _, capability := range []string{CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V} {
 		definition, handled, err := s.catalogRouteDefinition(ctx, route, capability)
 		if err != nil {
+			if isRouteCapabilityUnsupportedError(err) {
+				lastUnsupportedErr = err
+				continue
+			}
 			return UsageEstimate{}, err
 		}
 		if handled {
@@ -98,7 +112,14 @@ func (s *AIService) EstimateVideoRouteCost(ctx context.Context, userID uint, rou
 			return estimateUsage(definition.model.usageProfile(), definition.def, "video", 0, 0, duration, 1), nil
 		}
 	}
+	if lastUnsupportedErr != nil {
+		return UsageEstimate{}, lastUnsupportedErr
+	}
 	return UsageEstimate{}, fmt.Errorf("catalog route is required for video usage estimate")
+}
+
+func isRouteCapabilityUnsupportedError(err error) bool {
+	return err != nil && strings.Contains(err.Error(), " does not support ")
 }
 
 func (s *AIService) EstimateAudioTTSRouteCost(ctx context.Context, userID uint, route ModelRoute) (UsageEstimate, error) {

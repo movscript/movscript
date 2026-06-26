@@ -193,3 +193,87 @@ func TestEnqueueGenerationTTSCatalogRouteWithoutLegacyModelConfig(t *testing.T) 
 		t.Fatalf("request context = %s, want provider model and route source", job.RequestContext)
 	}
 }
+
+func TestEnqueueGenerationPromotesVideoWithImageInputToI2V(t *testing.T) {
+	db := testutil.OpenSQLite(t, "job_enqueue_video_i2v_promotion.db",
+		&persistencemodel.Job{},
+		&persistencemodel.RawResource{},
+		&persistencemodel.AICredential{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
+		&persistencemodel.UsageReservation{},
+		&persistencemodel.UsageLog{},
+	)
+	cred := persistencemodel.AICredential{
+		AdapterType: ai.AdapterOpenAICompat,
+		DisplayName: "Relay",
+		IsEnabled:   true,
+	}
+	if err := db.Create(&cred).Error; err != nil {
+		t.Fatalf("create credential: %v", err)
+	}
+	entry := persistencemodel.AIModelCatalogEntry{
+		PublicModelID:   "grok-imagine-video-1.5",
+		DisplayName:     "Grok Imagine Video 1.5",
+		IsEnabled:       true,
+		Capabilities:    ai.CapabilityVideoI2V,
+		AcceptsImage:    true,
+		MaxInputImages:  1,
+		SupportedParams: `[{"key":"duration","type":"select","options":["5"],"default":"5"}]`,
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	if err := db.Create(&persistencemodel.AIModelRouteBinding{
+		CatalogEntryID:  entry.ID,
+		SourceType:      persistencemodel.ModelRouteSourceRelayGateway,
+		ProviderModelID: "grok-imagine-video-1.5",
+		CredentialID:    &cred.ID,
+		IsEnabled:       true,
+		CapacityWeight:  1,
+	}).Error; err != nil {
+		t.Fatalf("create route binding: %v", err)
+	}
+	image := persistencemodel.RawResource{
+		OwnerID:        42,
+		Type:           "image",
+		Name:           "reference.png",
+		FilePath:       "/tmp/reference.png",
+		Size:           123,
+		MimeType:       "image/png",
+		StorageBackend: "local",
+	}
+	if err := db.Create(&image).Error; err != nil {
+		t.Fatalf("create image resource: %v", err)
+	}
+
+	service := NewService(db, ai.NewAIService(db, ai.NewRegistry(db, nil)))
+	resources, err := service.LoadInputResources(context.Background(), []uint{image.ID}, 42, nil)
+	if err != nil {
+		t.Fatalf("LoadInputResources() error = %v", err)
+	}
+	if resources.ImageCount != 1 {
+		t.Fatalf("loaded image count = %d, resources = %#v", resources.ImageCount, resources.Resources)
+	}
+	if got := resolveInputAwareGenerationJobType(ai.CapabilityVideo, resources); got != ai.CapabilityVideoI2V {
+		t.Fatalf("resolved input-aware job type = %q, want %q", got, ai.CapabilityVideoI2V)
+	}
+	job, err := service.EnqueueGeneration(context.Background(), EnqueueInput{
+		UserID:           42,
+		ModelID:          entry.PublicModelID,
+		JobType:          ai.CapabilityVideo,
+		Title:            "Reference video",
+		Prompt:           "make it move",
+		Duration:         5,
+		InputResourceIDs: []uint{image.ID},
+	})
+	if err != nil {
+		t.Fatalf("EnqueueGeneration(video with image) error = %v", err)
+	}
+	if job.JobType != ai.CapabilityVideoI2V {
+		t.Fatalf("job type = %q, want %q", job.JobType, ai.CapabilityVideoI2V)
+	}
+	if !strings.Contains(job.RequestContext, `"job_type":"video_i2v"`) {
+		t.Fatalf("request context = %s, want promoted job type", job.RequestContext)
+	}
+}

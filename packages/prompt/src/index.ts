@@ -18,7 +18,7 @@ export interface MovScriptPromptRef {
   id: string
   raw: string
   source: {
-    field: 'edit_prompt.text' | 'edit_prompt.negative_text' | 'edit_prompt.notes'
+    field: 'edit_prompt.text' | 'edit_prompt.negative_text' | 'edit_prompt.notes' | 'edit_prompt.structured'
     start?: number
     end?: number
   }
@@ -83,6 +83,24 @@ export interface MovScriptPromptReplacement {
   token: string
 }
 
+export interface MovScriptShotPlanItem {
+  order?: number
+  title?: string
+  duration_sec?: number
+  action?: string
+  result?: string
+  dialogue?: string
+  narration?: string
+  shot_size?: string
+  camera_angle?: string
+  camera_motion?: string
+  lighting?: string
+  depth_of_field?: string
+  composition?: string
+  transition?: string
+  notes?: string
+}
+
 export interface MovScriptCompiledContentUnitPrompt {
   schema: 'movscript.backend_prompt.v1'
   content_unit_ref: string
@@ -92,6 +110,8 @@ export interface MovScriptCompiledContentUnitPrompt {
   text?: string
   negative_text?: string
   notes?: string
+  structured?: Record<string, unknown>
+  structured_text?: string
   style_reference_resource_ids?: number[]
   resource_ids: number[]
   replacements: MovScriptPromptReplacement[]
@@ -309,15 +329,23 @@ export async function buildContentUnitBackendPrompt(
       token: ref.replacement,
     }]
   })
+  const structured = normalizedPromptStructured(editPrompt?.structured, contentUnitType, outputKind)
+  const structuredText = structuredPromptText(structured, contentUnitType, outputKind)
+  const compiledText = compiledPromptTextWithStructured({
+    text: compilePromptText(stringField(editPrompt?.text), resolvedRefs, 'edit_prompt.text'),
+    structuredText: compilePromptText(structuredText, resolvedRefs, 'edit_prompt.structured'),
+  })
   const prompt: MovScriptCompiledContentUnitPrompt = pruneUndefined({
     schema: 'movscript.backend_prompt.v1' as const,
     content_unit_ref: contentUnitRef,
     content_unit_id: input.contentUnit.id,
     content_unit_type: contentUnitType,
     output_kind: outputKind,
-    text: compilePromptText(stringField(editPrompt?.text), resolvedRefs, 'edit_prompt.text'),
+    text: compiledText,
     negative_text: compilePromptText(stringField(editPrompt?.negative_text), resolvedRefs, 'edit_prompt.negative_text'),
     notes: compilePromptText(stringField(editPrompt?.notes), resolvedRefs, 'edit_prompt.notes'),
+    structured,
+    structured_text: structuredText,
     style_reference_resource_ids: styleReferenceResourceIds.length > 0 ? styleReferenceResourceIds : undefined,
     resource_ids: uniqueIds([
       ...replacements.map((replacement) => replacement.resource_id),
@@ -336,10 +364,12 @@ export async function buildContentUnitBackendPrompt(
 
 export function parseContentUnitEditPromptRefs(editPrompt: unknown): MovScriptPromptRef[] {
   const prompt = recordField(editPrompt)
+  const structuredText = structuredPromptTextFromUnknown(prompt?.structured)
   return [
     ...parsePromptRefsFromText(stringField(prompt?.text), 'edit_prompt.text'),
     ...parsePromptRefsFromText(stringField(prompt?.negative_text), 'edit_prompt.negative_text'),
     ...parsePromptRefsFromText(stringField(prompt?.notes), 'edit_prompt.notes'),
+    ...parsePromptRefsFromText(structuredText, 'edit_prompt.structured'),
   ]
 }
 
@@ -365,6 +395,126 @@ export function parsePromptRefsFromText(
     })
   }
   return refs
+}
+
+function normalizedPromptStructured(
+  value: unknown,
+  contentUnitType: string,
+  outputKind: MovScriptPromptOutputKind,
+): Record<string, unknown> | undefined {
+  const record = recordField(value)
+  if (!record) return undefined
+  const shotPlan = shouldCompileSceneMomentShotPlan(contentUnitType, outputKind)
+    ? normalizedShotPlan(record.shot_plan ?? record.shotPlan ?? record.shots)
+    : []
+  const passthrough = pruneUndefined({
+    ...record,
+    ...(shotPlan.length > 0 ? { shot_plan: shotPlan } : {}),
+  })
+  return Object.keys(passthrough).length > 0 ? passthrough : undefined
+}
+
+function structuredPromptTextFromUnknown(value: unknown): string | undefined {
+  const record = recordField(value)
+  if (!record) return undefined
+  const shotPlan = normalizedShotPlan(record.shot_plan ?? record.shotPlan ?? record.shots)
+  if (shotPlan.length > 0) return renderShotPlanText(shotPlan)
+  const json = JSON.stringify(record)
+  return json === '{}' ? undefined : json
+}
+
+function structuredPromptText(
+  structured: Record<string, unknown> | undefined,
+  contentUnitType: string,
+  outputKind: MovScriptPromptOutputKind,
+): string | undefined {
+  if (!structured || !shouldCompileSceneMomentShotPlan(contentUnitType, outputKind)) return undefined
+  const shotPlan = Array.isArray(structured.shot_plan) ? normalizedShotPlan(structured.shot_plan) : []
+  return shotPlan.length > 0 ? renderShotPlanText(shotPlan) : undefined
+}
+
+function compiledPromptTextWithStructured(input: {
+  text?: string
+  structuredText?: string
+}): string | undefined {
+  const parts = [input.text, input.structuredText].filter((part): part is string => Boolean(part && part.trim()))
+  return parts.length > 0 ? parts.join('\n\n') : undefined
+}
+
+function shouldCompileSceneMomentShotPlan(
+  contentUnitType: string,
+  outputKind: MovScriptPromptOutputKind,
+): boolean {
+  return outputKind === 'video' && (contentUnitType === 'scene_moment_ref' || contentUnitType === 'scence_moment_ref')
+}
+
+function normalizedShotPlan(value: unknown): MovScriptShotPlanItem[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item, index): MovScriptShotPlanItem[] => {
+    const record = recordField(item)
+    if (!record) return []
+    const normalized = pruneUndefined({
+      order: positiveNumber(record.order ?? record.index ?? record.shot_number ?? record.shotNumber) ?? index + 1,
+      title: stringField(record.title ?? record.name),
+      duration_sec: positiveNumber(record.duration_sec ?? record.durationSec ?? record.duration),
+      action: stringField(record.action ?? record.description ?? record.intent),
+      result: stringField(record.result ?? record.end_state ?? record.endState),
+      dialogue: stringField(record.dialogue),
+      narration: stringField(record.narration),
+      shot_size: stringField(record.shot_size ?? record.shotSize ?? record.shot_type ?? record.shotType),
+      camera_angle: stringField(record.camera_angle ?? record.cameraAngle ?? record.angle),
+      camera_motion: stringField(record.camera_motion ?? record.cameraMotion ?? record.movement),
+      lighting: stringField(record.lighting ?? record.lighting_style ?? record.lightingStyle),
+      depth_of_field: stringField(record.depth_of_field ?? record.depthOfField ?? record.dof),
+      composition: stringField(record.composition),
+      transition: stringField(record.transition),
+      notes: stringField(record.notes ?? record.note),
+    }) as MovScriptShotPlanItem
+    const hasCreativeContent = Boolean(
+      normalized.title
+      || normalized.action
+      || normalized.result
+      || normalized.dialogue
+      || normalized.narration
+      || normalized.shot_size
+      || normalized.camera_angle
+      || normalized.camera_motion
+      || normalized.lighting
+      || normalized.depth_of_field
+      || normalized.composition
+      || normalized.transition
+      || normalized.notes,
+    )
+    return hasCreativeContent ? [normalized] : []
+  })
+}
+
+function renderShotPlanText(shotPlan: MovScriptShotPlanItem[]): string {
+  const lines = [
+    'LOCKED SCENE MOMENT SHOT PLAN:',
+    'Generate this scene moment as one continuous video while preserving the following shot order and cinematic parameters. Do not drop, merge, reorder, or contradict non-empty shot fields.',
+  ]
+  for (const shot of shotPlan) {
+    const label = `Shot ${shot.order ?? '?'}${shot.title ? ` - ${shot.title}` : ''}`
+    const fields = [
+      label,
+      shot.duration_sec !== undefined ? `duration=${shot.duration_sec}s` : undefined,
+      shot.action ? `action=${shot.action}` : undefined,
+      shot.result ? `result=${shot.result}` : undefined,
+      shot.dialogue ? `dialogue=${shot.dialogue}` : undefined,
+      shot.narration ? `narration=${shot.narration}` : undefined,
+      shot.shot_size ? `shot_size=${shot.shot_size}` : undefined,
+      shot.camera_angle ? `camera_angle=${shot.camera_angle}` : undefined,
+      shot.camera_motion ? `camera_motion=${shot.camera_motion}` : undefined,
+      shot.lighting ? `lighting=${shot.lighting}` : undefined,
+      shot.depth_of_field ? `depth_of_field=${shot.depth_of_field}` : undefined,
+      shot.composition ? `composition=${shot.composition}` : undefined,
+      shot.transition ? `transition=${shot.transition}` : undefined,
+      shot.notes ? `notes=${shot.notes}` : undefined,
+    ].filter((field): field is string => Boolean(field))
+    lines.push(`- ${fields.join('; ')}`)
+  }
+  return lines.join('\n')
 }
 
 function failedPrompt(input: {
@@ -849,6 +999,15 @@ function arrayField(value: unknown): unknown[] {
 
 function stringField(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function positiveNumber(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) return value
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value.trim())
+    if (Number.isFinite(parsed) && parsed > 0) return parsed
+  }
+  return undefined
 }
 
 function compactStrings(...values: unknown[]): string[] {

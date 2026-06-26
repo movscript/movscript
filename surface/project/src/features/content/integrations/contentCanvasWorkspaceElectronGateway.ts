@@ -2,6 +2,7 @@ import {
   createSurfaceWorkspaceDomainService,
   currentSurfaceWorkspaceOwnerContext,
   currentSurfaceWorkspaceProjectDir,
+  getSurfaceHostStateSnapshot,
   readSurfaceHostApi,
 } from '@movscript/shared'
 import { surfaceDataApi as api } from '@movscript/shared/surface-http'
@@ -200,6 +201,17 @@ export function createElectronContentCanvasWorkspaceGateway(
         payload: input,
       })
     },
+    createContentUnit: async (input) => {
+      const createContentUnit = readSurfaceHostApi()?.createMovScriptEngineContentUnit
+      if (!createContentUnit) throw new Error('当前窗口没有 MovScript content unit 创建能力')
+      return createContentUnit({
+        ...currentSurfaceWorkspaceOwnerContext(),
+        ...(projectDir ? { projectDir } : {}),
+        projectId,
+        expectedWorkspaceVersions: {},
+        payload: input,
+      })
+    },
     ensureContentUnitForEntity: async (input) => {
       const ensureContentUnit = readSurfaceHostApi()?.ensureMovScriptEngineContentUnitForEntity
       if (!ensureContentUnit) throw new Error('当前窗口没有 MovScript content unit 确保能力')
@@ -238,7 +250,10 @@ export function createElectronContentCanvasWorkspaceGateway(
         outputType: input.outputKind,
         inputResourceCount: inputResourceIds.length,
       })
-      const modelId = input.modelId ?? publicModelId(await resolveContentUnitGenerationModel(jobType, input.outputKind))
+      const resolvedModel = input.modelId ? undefined : await resolveContentUnitGenerationModel(jobType, input.outputKind)
+      const modelId = input.modelId ?? (resolvedModel ? publicModelId(resolvedModel) : '')
+      if (!modelId) throw new Error(`没有可用于 ${jobType} 的生成模型`)
+      const supportedParams = input.supportedParams ?? resolvedModel?.supported_params
       const built = buildContentUnitGenerationJobPayload({
         projectId: input.projectId,
         contentUnitId: input.contentUnitId,
@@ -246,10 +261,12 @@ export function createElectronContentCanvasWorkspaceGateway(
         compiledPrompt,
         modelId,
         params: input.params,
+        supportedParams,
       })
       const payload = built.payload
       const response = await api.post(`/projects/${input.projectId}/content-units/${encodeURIComponent(input.contentUnitId)}/candidates/generate`, {
         candidate_id: input.candidateId,
+        ...currentProjectDataCandidateContext(),
         output_kind: input.outputKind,
         model_id: payload.model_id,
         job_type: payload.job_type,
@@ -299,6 +316,24 @@ async function createBackendContentCandidate(input: ContentCanvasContentCandidat
     promptSnapshot: input.promptSnapshot,
     createdAt: input.createdAt,
   })
+}
+
+function currentProjectDataCandidateContext(): Record<string, string> {
+  const snapshot = getSurfaceHostStateSnapshot()
+  const owner = currentSurfaceWorkspaceOwnerContext()
+  const projectUid = snapshot.currentProject?.project_uid?.trim()
+  const projectTitle = snapshot.currentProject?.name?.trim()
+  const context: Record<string, string> = {}
+  if (projectUid) context.project_uid = projectUid
+  if (projectTitle) context.project_title = projectTitle
+  if (owner.orgId !== undefined) {
+    context.scope_kind = 'org'
+    context.scope_id = String(owner.orgId)
+  } else if (owner.userId !== undefined) {
+    context.scope_kind = 'user'
+    context.scope_id = String(owner.userId)
+  }
+  return context
 }
 
 async function readContentUnitGenerationPromptForCanvas(

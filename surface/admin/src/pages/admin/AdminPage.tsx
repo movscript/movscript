@@ -142,6 +142,11 @@ type ProviderAssetSettings = {
   ark_access_key_id?: string
   ark_secret_access_key?: string
   ark_secret_key_set: boolean
+  gateway_base_url?: string
+  gateway_token?: string
+  gateway_token_set: boolean
+  gateway_poll_interval_ms?: number
+  gateway_poll_max_ms?: number
 }
 
 const emptyProviderAssetSettings: ProviderAssetSettings = {
@@ -153,6 +158,11 @@ const emptyProviderAssetSettings: ProviderAssetSettings = {
   ark_access_key_id: '',
   ark_secret_access_key: '',
   ark_secret_key_set: false,
+  gateway_base_url: '',
+  gateway_token: '',
+  gateway_token_set: false,
+  gateway_poll_interval_ms: 2000,
+  gateway_poll_max_ms: 120000,
 }
 
 type ModelRouteGroup = {
@@ -1119,7 +1129,7 @@ function ModelCatalogSection({ credentials }: { credentials: AICredential[] }) {
   )
 }
 
-function ModelRoutesSection({ credentials, providers }: { credentials: AICredential[]; providers: AIProvider[] }) {
+function ModelRoutesSection({ credentials, providers, adapters }: { credentials: AICredential[]; providers: AIProvider[]; adapters: AdapterDef[] }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [routeFormFor, setRouteFormFor] = useState<number | null>(null)
@@ -1151,6 +1161,7 @@ function ModelRoutesSection({ credentials, providers }: { credentials: AICredent
     () => routeProviderOptionsFromProviders(providers, credentials),
     [providers, credentials],
   )
+  const routeAdapterOptions = useMemo(() => adapters.filter((adapter) => adapter.adapter_type), [adapters])
   const enabledRouteProviders = useMemo(() => enabledRouteProviderOptions(routeProviders), [routeProviders])
   const selectedEntry = entries.find((entry) => entry.ID === routeFormFor) ?? entries[0]
   const routeCapabilityOptions = useMemo(
@@ -1314,6 +1325,7 @@ function ModelRoutesSection({ credentials, providers }: { credentials: AICredent
                     key={binding.ID}
                     binding={binding}
                     routeProviders={routeProviders}
+                    adapters={routeAdapterOptions}
                     busy={updateRouteBinding.isPending || deleteRouteBinding.isPending}
                     compact
                     onSave={(form) => updateRouteBinding.mutate({ entryId: activeEntry.ID, bindingId: binding.ID, form })}
@@ -1395,10 +1407,21 @@ function ModelRoutesSection({ credentials, providers }: { credentials: AICredent
                 {enabledRouteProviders.map((provider) => <option key={provider.provider_id} value={provider.provider_id}>{providerOptionLabel(provider)}</option>)}
               </select>
             </label>
-            <div className="mb-2 rounded-md border border-border bg-background px-3 py-2 text-xs">
-              <p className="text-muted-foreground">{t('admin.models.adapter', { defaultValue: 'Adapter' })}</p>
-              <p className="mt-1 font-mono text-foreground">{routeForm.adapter_type || (selectedRouteProvider ? routeProviderAdapterLabel(selectedRouteProvider) : '-')}</p>
-            </div>
+            <label className="mb-2 block text-xs text-muted-foreground">
+              {t('admin.models.adapter', { defaultValue: 'Adapter' })}
+              <select
+                value={routeForm.adapter_type}
+                onChange={(event) => setRouteForm({ ...routeForm, adapter_type: event.target.value })}
+                className="mt-1 h-8 w-full rounded-md border border-input bg-background px-2 font-mono text-xs"
+              >
+                <option value="">{selectedRouteProvider ? routeProviderAdapterLabel(selectedRouteProvider) : t('admin.models.useProviderDefaultAdapter', { defaultValue: '使用 Provider 默认 Adapter' })}</option>
+                {routeAdapterOptions.map((adapter) => (
+                  <option key={adapter.adapter_type} value={adapter.adapter_type}>
+                    {adapterDisplayName(adapter, t)} · {adapter.adapter_type}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label className="mb-2 block text-xs text-muted-foreground">
               {t('admin.modelCatalog.providerModelId')}
               <Input
@@ -1469,6 +1492,7 @@ function ModelRoutesSection({ credentials, providers }: { credentials: AICredent
 function CommunityRouteBindingEditor({
   binding,
   routeProviders,
+  adapters,
   busy,
   compact = false,
   onSave,
@@ -1476,6 +1500,7 @@ function CommunityRouteBindingEditor({
 }: {
   binding: AIModelRouteBinding
   routeProviders: RouteProviderOption[]
+  adapters: AdapterDef[]
   busy: boolean
   compact?: boolean
   onSave: (form: CatalogRouteForm) => void
@@ -1509,9 +1534,18 @@ function CommunityRouteBindingEditor({
           <option key={provider.provider_id} value={provider.provider_id}>{providerOptionLabel(provider)}</option>
         ))}
       </select>
-      <div className="flex h-8 items-center rounded-md border border-border bg-muted/30 px-2 font-mono text-[11px] text-muted-foreground">
-        {form.adapter_type || routeProviderAdapterLabel(routeProviders.find((provider) => provider.provider_id === form.provider_id))}
-      </div>
+      <select
+        value={form.adapter_type}
+        onChange={(event) => setForm({ ...form, adapter_type: event.target.value })}
+        className="h-8 rounded-md border border-input bg-background px-2 font-mono text-[11px]"
+      >
+        <option value="">{routeProviderAdapterLabel(routeProviders.find((provider) => provider.provider_id === form.provider_id))}</option>
+        {adapters.map((adapter) => (
+          <option key={adapter.adapter_type} value={adapter.adapter_type}>
+            {adapterDisplayName(adapter, t)} · {adapter.adapter_type}
+          </option>
+        ))}
+      </select>
       <Input value={form.provider_model_id} onChange={(event) => setForm({ ...form, provider_model_id: event.target.value })} placeholder="provider model id" className="h-8 text-xs font-mono" />
       <Input value={form.route_group} onChange={(event) => setForm({ ...form, route_group: event.target.value })} placeholder={t('admin.modelCatalog.routeGroup')} className="h-8 text-xs" />
       <Input value={form.priority} onChange={(event) => setForm({ ...form, priority: event.target.value })} placeholder="priority" className="h-8 text-xs" />
@@ -2923,7 +2957,7 @@ function ProviderRegistrySummary({
     onSuccess: (updated, { providerID }) => {
       setProviderAssetForms((current) => ({
         ...current,
-        [providerID]: { ...emptyProviderAssetSettings, ...updated, ark_secret_access_key: '' },
+        [providerID]: { ...emptyProviderAssetSettings, ...updated, ark_secret_access_key: '', gateway_token: '' },
       }))
       setProviderAssetSavedID(providerID)
       refreshProviders()
@@ -2963,16 +2997,28 @@ function ProviderRegistrySummary({
   }
   function submitProviderAssetLibrarySettings(provider: AIProvider) {
     const form = providerAssetFormFor(provider)
+    const isGateway = provider.provider_kind === 'yunwu_gateway'
     updateProviderAssetLibrarySettings.mutate({
       providerID: provider.provider_id,
-      payload: {
-        ark_openapi_base_url: form.ark_openapi_base_url?.trim() || emptyProviderAssetSettings.ark_openapi_base_url,
-        ark_region: form.ark_region?.trim() || emptyProviderAssetSettings.ark_region,
-        ark_access_key_id: form.ark_access_key_id?.trim() ?? '',
-        ark_secret_access_key: form.ark_secret_access_key?.trim() ?? '',
-        signing_secret_set: false,
-        ark_secret_key_set: form.ark_secret_key_set,
-      },
+      payload: isGateway
+        ? {
+          gateway_base_url: form.gateway_base_url?.trim() ?? '',
+          gateway_token: form.gateway_token?.trim() ?? '',
+          gateway_poll_interval_ms: Number(form.gateway_poll_interval_ms) || emptyProviderAssetSettings.gateway_poll_interval_ms,
+          gateway_poll_max_ms: Number(form.gateway_poll_max_ms) || emptyProviderAssetSettings.gateway_poll_max_ms,
+          signing_secret_set: false,
+          ark_secret_key_set: false,
+          gateway_token_set: form.gateway_token_set,
+        }
+        : {
+          ark_openapi_base_url: form.ark_openapi_base_url?.trim() || emptyProviderAssetSettings.ark_openapi_base_url,
+          ark_region: form.ark_region?.trim() || emptyProviderAssetSettings.ark_region,
+          ark_access_key_id: form.ark_access_key_id?.trim() ?? '',
+          ark_secret_access_key: form.ark_secret_access_key?.trim() ?? '',
+          signing_secret_set: false,
+          ark_secret_key_set: form.ark_secret_key_set,
+          gateway_token_set: false,
+        },
     })
   }
   const setProviderCredentialPrimary = useMutation({
@@ -3059,6 +3105,7 @@ function ProviderRegistrySummary({
                     <ProviderRuntimeStateSummary provider={provider} />
                     {providerSupportsAssetLibrary(provider) && (
                       <ProviderAssetLibrarySettingsPanel
+                        providerKind={provider.provider_kind}
                         form={providerAssetFormFor(provider)}
                         isSaving={providerAssetSavingID === provider.provider_id}
                         isSaved={providerAssetSavedID === provider.provider_id}
@@ -3254,7 +3301,7 @@ function ProviderAssetSettingsPanel({
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <p className="text-sm font-medium text-foreground">部署资源访问</p>
-          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">本地 RawResource 需要临时公网 URL 才能被火山素材库拉取；Ark AK/SK 在对应 Provider 下配置。</p>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">本地 RawResource 需要临时公网 URL 才能被 Provider 素材库拉取；素材库凭证在对应 Provider 下配置。</p>
         </div>
         <StatusBadge intent={deploymentReady ? 'success' : 'warning'} className="text-[11px]">
           {deploymentReady ? 'public URL ready' : 'public URL missing'}
@@ -3287,6 +3334,7 @@ function ProviderAssetSettingsPanel({
 }
 
 function ProviderAssetLibrarySettingsPanel({
+  providerKind,
   form,
   isSaving,
   isSaved,
@@ -3294,6 +3342,7 @@ function ProviderAssetLibrarySettingsPanel({
   onPatch,
   onSubmit,
 }: {
+  providerKind: string
   form: ProviderAssetSettings
   isSaving: boolean
   isSaved: boolean
@@ -3302,49 +3351,65 @@ function ProviderAssetLibrarySettingsPanel({
   onSubmit: () => void
 }) {
   const { t } = useTranslation()
+  const isGateway = providerKind === 'yunwu_gateway'
+  const gatewayReady = Boolean(form.gateway_base_url && form.gateway_token_set)
   const arkReady = Boolean(form.ark_access_key_id && form.ark_secret_key_set)
   return (
     <div className="rounded border border-border/70 bg-card px-2 py-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="text-xs font-medium text-foreground">火山素材库 API</p>
-          <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">仅保存该 Provider 的 Ark OpenAPI 凭证和自动创建的素材组。</p>
+          <p className="text-xs font-medium text-foreground">{isGateway ? '云雾私域人像库' : '火山素材库 API'}</p>
+          <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+            {isGateway ? '直接复用该 Provider 的 Base URL 和 API Key；无需额外配置素材库网关。' : '仅保存该 Provider 的 Ark OpenAPI 凭证和自动创建的素材组。'}
+          </p>
         </div>
-        <StatusBadge intent={arkReady ? 'success' : 'warning'} className="text-[11px]">
-          {arkReady ? 'Ark ready' : 'AK/SK missing'}
+        <StatusBadge intent={(isGateway ? gatewayReady : arkReady) ? 'success' : 'warning'} className="text-[11px]">
+          {isGateway ? (gatewayReady ? 'Gateway ready' : 'Token missing') : (arkReady ? 'Ark ready' : 'AK/SK missing')}
         </StatusBadge>
       </div>
       <div className="mt-2 grid gap-2 md:grid-cols-2">
-        <ProviderAssetSettingsField
-          label={t('admin.settings.arkOpenAPIBaseUrl')}
-          value={form.ark_openapi_base_url ?? ''}
-          onChange={(value) => onPatch({ ark_openapi_base_url: value })}
-        />
-        <ProviderAssetSettingsField
-          label={t('admin.settings.arkRegion')}
-          value={form.ark_region ?? ''}
-          onChange={(value) => onPatch({ ark_region: value })}
-        />
-        <ProviderAssetSettingsField
-          label={t('admin.settings.arkAccessKeyId')}
-          value={form.ark_access_key_id ?? ''}
-          onChange={(value) => onPatch({ ark_access_key_id: value })}
-        />
-        <ProviderAssetSettingsField
-          label={t('admin.settings.arkSecretAccessKey')}
-          value={form.ark_secret_access_key ?? ''}
-          onChange={(value) => onPatch({ ark_secret_access_key: value })}
-          type="password"
-          placeholder={form.ark_secret_key_set ? t('admin.settings.providerAssetSecretKeySet') : undefined}
-        />
+        {isGateway ? (
+          <div className="md:col-span-2 rounded border border-dashed border-border px-2 py-2 text-[11px] leading-relaxed text-muted-foreground">
+            <span className="font-mono text-foreground">{form.gateway_base_url || 'https://yunwu.ai'}</span>
+            <span> · </span>
+            <span>{form.gateway_token_set ? 'Provider API Key ready' : 'Provider API Key missing'}</span>
+          </div>
+        ) : (
+          <>
+            <ProviderAssetSettingsField
+              label={t('admin.settings.arkOpenAPIBaseUrl')}
+              value={form.ark_openapi_base_url ?? ''}
+              onChange={(value) => onPatch({ ark_openapi_base_url: value })}
+            />
+            <ProviderAssetSettingsField
+              label={t('admin.settings.arkRegion')}
+              value={form.ark_region ?? ''}
+              onChange={(value) => onPatch({ ark_region: value })}
+            />
+            <ProviderAssetSettingsField
+              label={t('admin.settings.arkAccessKeyId')}
+              value={form.ark_access_key_id ?? ''}
+              onChange={(value) => onPatch({ ark_access_key_id: value })}
+            />
+            <ProviderAssetSettingsField
+              label={t('admin.settings.arkSecretAccessKey')}
+              value={form.ark_secret_access_key ?? ''}
+              onChange={(value) => onPatch({ ark_secret_access_key: value })}
+              type="password"
+              placeholder={form.ark_secret_key_set ? t('admin.settings.providerAssetSecretKeySet') : undefined}
+            />
+          </>
+        )}
       </div>
       {Boolean(error) && <AppFeedbackText tone="danger">{translateAPIRequestError(error)}</AppFeedbackText>}
-      <div className="mt-2 flex justify-end gap-2">
-        {isSaved && <span className="self-center text-xs text-primary">{t('admin.settings.saved')}</span>}
-        <Button type="button" size="sm" onClick={onSubmit} disabled={isSaving}>
-          {isSaving ? t('common.saving') : t('common.save')}
-        </Button>
-      </div>
+      {!isGateway && (
+        <div className="mt-2 flex justify-end gap-2">
+          {isSaved && <span className="self-center text-xs text-primary">{t('admin.settings.saved')}</span>}
+          <Button type="button" size="sm" onClick={onSubmit} disabled={isSaving}>
+            {isSaving ? t('common.saving') : t('common.save')}
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
@@ -3383,6 +3448,7 @@ function providerSupportsAssetLibrary(provider: AIProvider): boolean {
 function providerAssetSettingsFromProviderState(provider: AIProvider): ProviderAssetSettings {
   const settings = recordFromUnknown(parseJSONRecord(provider.asset_library_state_json).settings)
   const source = settings.ark_credentials_source === 'provider' ? 'provider' : 'missing'
+  const gatewaySource = settings.gateway_credentials_source === 'provider' || settings.gateway_credentials_source === 'provider_runtime' ? 'provider' : 'missing'
   return {
     ...emptyProviderAssetSettings,
     ark_openapi_base_url: source === 'provider' && typeof settings.ark_openapi_base_url === 'string' && settings.ark_openapi_base_url
@@ -3393,6 +3459,10 @@ function providerAssetSettingsFromProviderState(provider: AIProvider): ProviderA
       : emptyProviderAssetSettings.ark_region,
     ark_access_key_id: source === 'provider' && typeof settings.ark_access_key_id === 'string' ? settings.ark_access_key_id : '',
     ark_secret_key_set: source === 'provider' && settings.ark_secret_key_set === true,
+    gateway_base_url: gatewaySource === 'provider' && typeof settings.gateway_base_url === 'string' ? settings.gateway_base_url : '',
+    gateway_token_set: gatewaySource === 'provider' && settings.gateway_token_set === true,
+    gateway_poll_interval_ms: typeof settings.gateway_poll_interval_ms === 'number' ? settings.gateway_poll_interval_ms : emptyProviderAssetSettings.gateway_poll_interval_ms,
+    gateway_poll_max_ms: typeof settings.gateway_poll_max_ms === 'number' ? settings.gateway_poll_max_ms : emptyProviderAssetSettings.gateway_poll_max_ms,
   }
 }
 
@@ -3408,12 +3478,19 @@ function ProviderRuntimeStateSummary({ provider }: { provider: AIProvider }) {
   const assetDiagnostics = diagnosticCodesFromUnknown(assetState.diagnostics)
   const trustDiagnostics = diagnosticCodesFromUnknown(trustState.diagnostics)
   const arkKeyReady = assetSettings.ark_access_key_id_set === true && assetSettings.ark_secret_key_set === true
-  const configItems = [
-    { label: '公网 URL', ok: assetSettings.public_base_url_set === true },
-    { label: '签名密钥', ok: assetSettings.signing_secret_set === true },
-    { label: 'Ark AK/SK', ok: arkKeyReady },
-    { label: 'global group', ok: globalGroup.configured === true },
-  ]
+  const gatewayReady = assetSettings.gateway_base_url_set === true && assetSettings.gateway_token_set === true
+  const configItems = provider.provider_kind === 'yunwu_gateway'
+    ? [
+      { label: '公网 URL', ok: assetSettings.public_base_url_set === true },
+      { label: '签名密钥', ok: assetSettings.signing_secret_set === true },
+      { label: 'Gateway token', ok: gatewayReady },
+    ]
+    : [
+      { label: '公网 URL', ok: assetSettings.public_base_url_set === true },
+      { label: '签名密钥', ok: assetSettings.signing_secret_set === true },
+      { label: 'Ark AK/SK', ok: arkKeyReady },
+      { label: 'global group', ok: globalGroup.configured === true },
+    ]
   return (
     <div className="grid gap-2 md:grid-cols-2">
       <ProviderRuntimeStatePane
@@ -4324,7 +4401,7 @@ export function ModelManagementPage({ view = defaultModelManagementViewMode() }:
 
       {viewMode === 'catalog' && <ModelCatalogSection credentials={credentials} />}
 
-      {viewMode === 'routes' && <ModelRoutesSection credentials={credentials} providers={aiProviders} />}
+      {viewMode === 'routes' && <ModelRoutesSection credentials={credentials} providers={aiProviders} adapters={adapters} />}
     </div>
   )
 }

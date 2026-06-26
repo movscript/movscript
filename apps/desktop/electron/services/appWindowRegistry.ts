@@ -3,6 +3,7 @@ import type {
   ElectronAppWindowContext,
   ElectronOpenCanvasWindowInput,
   ElectronOpenEditingProjectWindowInput,
+  ElectronOpenProjectDataWindowInput,
   ElectronOpenProjectWindowInput,
   ElectronOpenSettingsWindowInput,
   ElectronOpenToolWindowInput,
@@ -20,6 +21,7 @@ const EDITING_PROJECT_ROUTE_PREFIX = '/editing'
 const CANVAS_ROUTE = '/canvases'
 const CANVAS_ROUTE_PREFIX = '/canvases'
 const TOOL_ROUTE = '/tools/ref-image-gen'
+const PROJECT_DATA_ROUTE = '/project-data'
 const APP_SETTINGS_ROUTE = '/app/settings'
 
 let homeWindow: BrowserWindow | null = null
@@ -27,6 +29,7 @@ let agentWindow: BrowserWindow | null = null
 let editingWindow: BrowserWindow | null = null
 let canvasHomeWindow: BrowserWindow | null = null
 let toolWindow: BrowserWindow | null = null
+let projectDataWindow: BrowserWindow | null = null
 let settingsWindow: BrowserWindow | null = null
 
 const projectWindows = new Map<number | string, BrowserWindow>()
@@ -232,6 +235,29 @@ export function openToolWindow(input: ElectronOpenToolWindowInput = {}): Electro
   return context
 }
 
+export function openProjectDataWindow(input: ElectronOpenProjectDataWindowInput = {}): ElectronAppWindowContext {
+  const target = normalizeRouteTarget(input.route || PROJECT_DATA_ROUTE, input.search)
+  const context: ElectronAppWindowContext = {
+    kind: 'projectData',
+    route: target.route === PROJECT_DATA_ROUTE ? target.route : PROJECT_DATA_ROUTE,
+    ...(target.search ? { search: target.search } : {}),
+    ...(input.title ? { title: input.title } : {}),
+  }
+
+  if (projectDataWindow && !projectDataWindow.isDestroyed()) {
+    windowContexts.set(projectDataWindow, context)
+    loadRenderer(projectDataWindow, context)
+    focusWindow(projectDataWindow)
+    return context
+  }
+
+  projectDataWindow = createTrackedWindow(context)
+  projectDataWindow.once('closed', () => {
+    projectDataWindow = null
+  })
+  return context
+}
+
 export function openSettingsWindow(input: ElectronOpenSettingsWindowInput = {}): ElectronAppWindowContext {
   const target = normalizeRouteTarget(input.route || APP_SETTINGS_ROUTE, input.search)
   const context: ElectronAppWindowContext = {
@@ -333,6 +359,11 @@ export function suspendNonHomeWindowsForAuthExpired(): ElectronAppWindowContext[
     toolWindow.close()
   }
 
+  if (projectDataWindow && !projectDataWindow.isDestroyed()) {
+    suspended.push(contextForWindow(projectDataWindow))
+    projectDataWindow.close()
+  }
+
   if (settingsWindow && !settingsWindow.isDestroyed()) {
     suspended.push(contextForWindow(settingsWindow))
     settingsWindow.close()
@@ -381,6 +412,12 @@ export function restoreSuspendedAuthWindows(): ElectronAppWindowContext[] {
       restored.push(openEditingWindow())
     } else if (context.kind === 'tool') {
       restored.push(openToolWindow({
+        title: context.title,
+        route: context.route,
+        search: context.search,
+      }))
+    } else if (context.kind === 'projectData') {
+      restored.push(openProjectDataWindow({
         title: context.title,
         route: context.route,
         search: context.search,
@@ -463,6 +500,7 @@ function windowContextKey(context: ElectronAppWindowContext): string {
   if (context.kind === 'editingProject') return `editingProject:${context.editingProjectId ?? context.route}`
   if (context.kind === 'canvas') return `canvas:${context.canvasId ?? context.route}`
   if (context.kind === 'tool') return `tool:${context.route}`
+  if (context.kind === 'projectData') return 'projectData'
   if (context.kind === 'settings') return 'settings'
   return context.kind
 }

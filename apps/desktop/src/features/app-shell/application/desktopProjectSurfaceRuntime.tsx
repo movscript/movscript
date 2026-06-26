@@ -285,6 +285,8 @@ export function desktopProjectSurfacePath(route: ProjectSurfaceRouteKey, project
   if (route === 'scripts') return ROUTES.project.scripts
   if (route === 'standards') return ROUTES.project.standards
   if (route === 'content') return ROUTES.project.content
+  if (route === 'contentCanvas') return ROUTES.project.contentCanvas
+  if (route === 'contentPreview') return ROUTES.project.contentPreview
   return projectSurfacePath(route, projectId)
 }
 

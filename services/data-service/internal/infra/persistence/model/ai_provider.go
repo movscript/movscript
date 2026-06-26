@@ -23,6 +23,7 @@ const (
 	AIProviderKindOpenAICompatGateway = "openai_compat_gateway"
 	AIProviderKindVolcengineArk       = "volcengine_ark_official"
 	AIProviderKindVolcengineArkProxy  = "volcengine_ark_proxy"
+	AIProviderKindYunwuGateway        = "yunwu_gateway"
 	AIProviderKindRelayGateway        = "relay_gateway"
 	AIProviderKindLocalOpenAICompat   = "local_openai_compat"
 

@@ -1,11 +1,11 @@
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import {
   createScenarioApplicationRunner,
   type ApplicationRunner,
   type ProgramAdapter,
 } from '@movscript/app-runner'
-import { ensureLocalRuntimeDaemon } from '@movscript/local-runtime'
+import { ensureLocalRuntimeDaemon, type LocalRuntimeIdentity } from '@movscript/local-runtime'
 import {
   resolveMovScriptHomeDir,
   type ApplicationManifest,
@@ -118,8 +118,31 @@ export async function ensureDesktopLocalRuntime(input: {
       MOVSCRIPT_LOCAL_DAEMON_DATA_PLANE: input.dataPlane,
       ...(input.dataServiceURL ? { MOVSCRIPT_DATA_SERVICE_URL: input.dataServiceURL } : {}),
     },
-    identity: {},
+    identity: resolveDesktopLocalRuntimeIdentity(entrypoint),
   })
+}
+
+export function resolveDesktopLocalRuntimeIdentity(entrypoint: string): LocalRuntimeIdentity {
+  const pluginRoot = resolve(entrypoint, '..', '..')
+  return {
+    pluginVersion: readDesktopLocalRuntimePluginVersion(pluginRoot) ?? 'unknown',
+    pluginRoot,
+  }
+}
+
+function readDesktopLocalRuntimePluginVersion(pluginRoot: string): string | undefined {
+  return readManifestVersion(resolve(pluginRoot, 'manifest.runtime.json'))
+    ?? readManifestVersion(resolve(pluginRoot, '.codex-plugin/plugin.json'))
+    ?? readManifestVersion(resolve(pluginRoot, '.provider-plugin/plugin.json'))
+}
+
+function readManifestVersion(manifestPath: string): string | undefined {
+  try {
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as Record<string, unknown>
+    return typeof manifest.version === 'string' && manifest.version.trim() ? manifest.version : undefined
+  } catch {
+    return undefined
+  }
 }
 
 export function resolveDesktopLocalRuntimeDaemonEntrypoint(input: {

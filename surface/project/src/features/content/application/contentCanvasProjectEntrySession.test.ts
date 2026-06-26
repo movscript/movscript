@@ -14,7 +14,7 @@ function snapshot(filters: ProjectEntrySessionSnapshot['filters']): ProjectEntry
   return {
     schemaVersion: PROJECT_ENTRY_SESSION_SCHEMA_VERSION,
     projectId: 7,
-    projectEntryId: 'content',
+    projectEntryId: 'content_preview',
     updatedAt: new Date(0).toISOString(),
     filters,
   }

@@ -5,11 +5,11 @@ import type { LucideIcon } from 'lucide-react'
 import {
   AudioLines,
   CirclePlay,
-  Database,
   FileAudio,
   FolderArchive,
   Home,
   Images,
+  KeyRound,
   Languages,
   ListTodo,
   MessageCircle,
@@ -148,8 +148,8 @@ export function Sidebar({
 
         <AppSidebarSection title={t('sidebar.sections.files')} collapsed={collapsed}>
           <NavItem to={ROUTES.resources} icon={FolderArchive} label={t('sidebar.items.resources')} collapsed={collapsed} end />
-          <NavItem to={ROUTES.projectData} icon={Database} label={t('sidebar.items.projectData')} collapsed={collapsed} />
           <NavItem to={ROUTES.externalResources} icon={ScanSearch} label={t('sidebar.items.externalResources', { defaultValue: '外部资源' })} collapsed={collapsed} />
+          <NavItem to={ROUTES.tools.privateAssets} icon={KeyRound} label={t('sidebar.items.privateAssets', { defaultValue: '私域素材库' })} collapsed={collapsed} />
           <NavItem to={ROUTES.shotLibrary} icon={Video} label={t('sidebar.items.shotLibrary')} collapsed={collapsed} />
           <NavItem to={ROUTES.jobs} icon={ListTodo} label={t('sidebar.items.jobs')} collapsed={collapsed} />
         </AppSidebarSection>

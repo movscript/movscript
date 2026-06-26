@@ -146,7 +146,14 @@ export interface ContentSourceWorkspaceCandidateOutput {
 
 export interface ContentSourceWorkspaceEditPromptPatch {
   targetPath: string
-  editPrompt: { text: string }
+  editPrompt: ContentSourceWorkspaceEditPrompt
+}
+
+export interface ContentSourceWorkspaceEditPrompt {
+  text?: string
+  negative_text?: string
+  notes?: string
+  structured?: Record<string, unknown>
 }
 
 export interface ContentSourceWorkspaceExpressionUnitPatch {
@@ -526,11 +533,18 @@ export function createdContentSourceCandidateFromRecord(
 
 export function buildContentSourceWorkspaceEditPromptPatch(input: {
   targetPath: string
-  text: string
+  text?: string
+  editPrompt?: ContentSourceWorkspaceEditPrompt
 }): ContentSourceWorkspaceEditPromptPatch {
+  const editPrompt = input.editPrompt ?? { text: input.text ?? '' }
   return {
     targetPath: input.targetPath,
-    editPrompt: { text: input.text },
+    editPrompt: pruneUndefinedRecord({
+      text: editPrompt.text,
+      negative_text: editPrompt.negative_text,
+      notes: editPrompt.notes,
+      structured: editPrompt.structured,
+    }),
   }
 }
 
@@ -1486,15 +1500,73 @@ function groupContentUnitsByPrimaryRef(contentUnits: MovScriptWorkspaceIndexedEn
 function groupContentCandidateRecordsByContentUnitId(documents: WorkspaceDocument[]): Map<string, ContentCandidateRecord[]> {
   const output = new Map<string, ContentCandidateRecord[]>()
   for (const document of documents) {
-    if (!document.path.endsWith('/content_candidate.json') || !isContentCandidateRecord(document.data)) continue
-    const contentUnitId = contentUnitIdForRuntimeDocument(document.path, document.data.content_unit_ref)
+    if (document.path.endsWith('/content_candidate.json') && isContentCandidateRecord(document.data)) {
+      const contentUnitId = contentUnitIdForRuntimeDocument(document.path, document.data.content_unit_ref)
+      if (!contentUnitId) continue
+      appendContentCandidateRecord(output, contentUnitId, document.data)
+      continue
+    }
+    if (!isDecisionContextRecord(document.data)) continue
+    const contentUnitId = contentUnitIdForRuntimeDocument(document.path, stringField(document.data.target_ref))
     if (!contentUnitId) continue
-    output.set(contentUnitId, [...(output.get(contentUnitId) ?? []), document.data])
+    for (const candidate of arrayField(document.data.candidates)) {
+      const record = normalizeDecisionContentCandidateRecord(candidate, contentUnitId)
+      if (record) appendContentCandidateRecord(output, contentUnitId, record)
+    }
   }
   for (const [contentUnitId, candidates] of output.entries()) {
     output.set(contentUnitId, candidates.sort((left, right) => (stringField(right.created_at) ?? '').localeCompare(stringField(left.created_at) ?? '')))
   }
   return output
+}
+
+function appendContentCandidateRecord(
+  output: Map<string, ContentCandidateRecord[]>,
+  contentUnitId: string,
+  candidate: ContentCandidateRecord,
+): void {
+  const candidates = output.get(contentUnitId) ?? []
+  const candidateId = idValue(candidate.id)
+  if (!candidateId) {
+    output.set(contentUnitId, [...candidates, candidate])
+    return
+  }
+  const existingIndex = candidates.findIndex((existing) => idValue(existing.id) === candidateId)
+  if (existingIndex < 0) {
+    output.set(contentUnitId, [...candidates, candidate])
+    return
+  }
+  output.set(contentUnitId, [
+    ...candidates.slice(0, existingIndex),
+    mergeContentCandidateRecords(candidates[existingIndex], candidate),
+    ...candidates.slice(existingIndex + 1),
+  ])
+}
+
+function normalizeDecisionContentCandidateRecord(
+  value: unknown,
+  contentUnitId: string,
+): ContentCandidateRecord | undefined {
+  if (!isRecord(value) || !idValue(value.id)) return undefined
+  return {
+    ...value,
+    content_unit_ref: stringField(value.content_unit_ref) ?? `content_units/${contentUnitId}`,
+  } as ContentCandidateRecord
+}
+
+function mergeContentCandidateRecords(
+  existing: ContentCandidateRecord,
+  incoming: ContentCandidateRecord,
+): ContentCandidateRecord {
+  const merged: ContentCandidateRecord = { ...existing, ...incoming }
+  if (arrayField(incoming.outputs).length === 0 && arrayField(existing.outputs).length > 0) merged.outputs = existing.outputs
+  if (!recordField(incoming.producer) && recordField(existing.producer)) merged.producer = existing.producer
+  if (!recordField(incoming.prompt_snapshot) && recordField(existing.prompt_snapshot)) merged.prompt_snapshot = existing.prompt_snapshot
+  if (!stringField(incoming.status) && stringField(existing.status)) merged.status = existing.status
+  if (!stringField(incoming.source) && stringField(existing.source)) merged.source = existing.source
+  if (!stringField(incoming.created_at) && stringField(existing.created_at)) merged.created_at = existing.created_at
+  if (!stringField(incoming.content_unit_ref) && stringField(existing.content_unit_ref)) merged.content_unit_ref = existing.content_unit_ref
+  return merged
 }
 
 function groupSelectionRecordsByContentUnitId(documents: WorkspaceDocument[]): Map<string, ContentSelectionRecord> {
@@ -1520,7 +1592,7 @@ function previewCandidatesForContentUnit(
     const output = firstCandidateOutput(candidate)
     return {
       id,
-      title: candidateTitle(candidate, id),
+      title: candidateTitle(candidate, candidateOrdinalTitle(index)),
       model: candidateModel(candidate),
       inputHash: candidateInputHash(candidate, contentUnitId),
       selected: selectionCandidateMatches(selection, id),
@@ -1548,7 +1620,7 @@ function previewAssetCandidatesForContentUnit(
     const output = firstCandidateOutput(candidate)
     return {
       id,
-      title: candidateTitle(candidate, id),
+      title: candidateTitle(candidate, candidateOrdinalTitle(index)),
       model: candidateModel(candidate),
       inputHash: candidateInputHash(candidate, contentUnitId),
       selected: selectionCandidateMatches(selection, id),
@@ -1857,11 +1929,31 @@ function contentUnitIdForRuntimeDocument(path: string, explicitRef: string | und
 }
 
 function candidateTitle(candidate: ContentCandidateRecord, fallback: string): string {
-  return stringField(candidate.prompt_snapshot?.title)
+  const explicitTitle = stringField(candidate.prompt_snapshot?.title)
     ?? stringField(candidate.producer?.title)
     ?? stringField(candidate.producer?.name)
-    ?? fallback
+  if (explicitTitle && !candidateTitleIsGeneric(explicitTitle)) return explicitTitle
+  return readableCandidateTitleFallback(fallback)
 }
+
+function candidateOrdinalTitle(index: number): string {
+  return `候选 ${index + 1}`
+}
+
+function candidateTitleIsGeneric(value: string): boolean {
+  const normalized = value.trim().toLowerCase()
+  return normalized === 'queued generation'
+    || normalized === 'pending generation'
+    || normalized === 'content unit image generation'
+    || normalized === 'content unit video generation'
+    || technicalCandidateIdPattern.test(normalized)
+}
+
+function readableCandidateTitleFallback(value: string): string {
+  return technicalCandidateIdPattern.test(value.trim().toLowerCase()) ? '候选' : value
+}
+
+const technicalCandidateIdPattern = /^(canvas|resource|content)_candidate_[\w-]+$|^resource_\d+_[\w-]+$|^gen_(image|video)_\d+_\d+$/
 
 function candidateModel(candidate: ContentCandidateRecord): string {
   return stringField(candidate.producer?.model_id)

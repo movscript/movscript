@@ -45,12 +45,12 @@ export function buildWorkspaceReviewPath(workspace: WorkspaceArtifact): string |
   }
 
   if (workspace.kind === 'asset_workspace' && sourceEntityType !== 'asset_slot' && targetEntityType !== 'asset_slot') {
-    return withRouteParams(ROUTES.project.content, { workspaceId: workspace.id })
+    return withRouteParams(ROUTES.project.contentPreview, { workspaceId: workspace.id })
   }
 
   if (sourceEntityType === 'asset_slot' || targetEntityType === 'asset_slot') {
     const assetSlotId = sourceEntityId ?? targetEntityId
-    return withRouteParams(ROUTES.project.content, { workspaceId: workspace.id, asset_slot_id: assetSlotId })
+    return withRouteParams(ROUTES.project.contentPreview, { workspaceId: workspace.id, asset_slot_id: assetSlotId })
   }
 
   if (sourceEntityType === 'project' || targetEntityType === 'project') {
@@ -59,12 +59,12 @@ export function buildWorkspaceReviewPath(workspace: WorkspaceArtifact): string |
 
   if (targetEntityType === 'content_unit' || sourceEntityType === 'content_unit') {
     const contentUnitId = sourceEntityId ?? targetEntityId
-    return withRouteParams(ROUTES.project.content, { workspaceId: workspace.id, content_unit_id: contentUnitId })
+    return withRouteParams(ROUTES.project.contentPreview, { workspaceId: workspace.id, content_unit_id: contentUnitId })
   }
 
   if (targetEntityType === 'scene_moment' || sourceEntityType === 'scene_moment') {
     const sceneMomentId = sourceEntityId ?? targetEntityId
-    return withRouteParams(ROUTES.project.content, { workspaceId: workspace.id, scene_moment_id: sceneMomentId })
+    return withRouteParams(ROUTES.project.contentPreview, { workspaceId: workspace.id, scene_moment_id: sceneMomentId })
   }
 
   const productionId = sourceEntityId ?? targetEntityId
@@ -96,7 +96,7 @@ function buildProjectEntryWorkspaceReviewPath(input: {
   if (input.sourceEntityType === 'production' || input.targetEntityType === 'production') {
     return null
   }
-  const definition = getProjectEntryDefinition('content')
+  const definition = getProjectEntryDefinition('content_preview')
   const entity = pickProjectEntryReviewEntity(definition.reviewQuery.entityParams ?? {}, input)
   return buildProjectEntryReviewPath(definition, {
     workspaceId: input.workspaceId,

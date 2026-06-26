@@ -135,6 +135,7 @@ import type {
   ElectronDockShortcutSnapshot,
   ElectronOpenCanvasWindowInput,
   ElectronOpenEditingProjectWindowInput,
+  ElectronOpenProjectDataWindowInput,
   ElectronOpenSettingsWindowInput,
   ElectronOpenToolWindowInput,
   ElectronUpdateAppWindowRouteContextInput,
@@ -174,6 +175,7 @@ export type ElectronAPI = {
   openEditingProjectWindow?: (input: ElectronOpenEditingProjectWindowInput) => Promise<ElectronAppWindowContext>
   openCanvasWindow?: (input?: ElectronOpenCanvasWindowInput) => Promise<ElectronAppWindowContext>
   openToolWindow?: (input?: ElectronOpenToolWindowInput) => Promise<ElectronAppWindowContext>
+  openProjectDataWindow?: (input?: ElectronOpenProjectDataWindowInput) => Promise<ElectronAppWindowContext>
   openSettingsWindow?: (input?: ElectronOpenSettingsWindowInput) => Promise<ElectronAppWindowContext>
   updateAppWindowRouteContext?: (input: ElectronUpdateAppWindowRouteContextInput) => Promise<ElectronAppWindowContext>
   updateDockShortcutMenu?: (snapshot: ElectronDockShortcutSnapshot) => Promise<void>

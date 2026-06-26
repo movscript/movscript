@@ -1,6 +1,7 @@
 import type { ContentCanvasNode } from '../domain/contentCanvasTypes'
 import { ensureContentUnitForRef } from './contentCanvasContentUnitCommands'
 import type { ContentCanvasCommandResult } from './contentCanvasCommands'
+import type { ContentCanvasGenerationOutputKind } from './contentCanvasCreateNodeCommands'
 import type { ContentCanvasWorkspaceGateway } from './contentCanvasWorkspaceGateway'
 import {
   assertNodeKind,
@@ -9,12 +10,256 @@ import {
   idValue,
   pathSegmentAfter,
   requiredSceneMomentRefs,
+  safeToken,
   type ContentCanvasCreateNodeOptions,
 } from './contentCanvasCreateNodeCommandHelpers'
 import {
   contentCanvasExpressionUnitOutputKind,
   normalizeContentCanvasExpressionUnitKind,
 } from './contentCanvasExpressionUnitKinds'
+
+export async function createNakedGenerationTaskCanvasNode(
+  projectId: number,
+  outputKind: ContentCanvasGenerationOutputKind,
+  options?: ContentCanvasCreateNodeOptions,
+  gateway?: ContentCanvasWorkspaceGateway,
+): Promise<ContentCanvasCommandResult> {
+  void projectId
+  if (!gateway) throw new Error('Content canvas workspace gateway is required')
+  const input = createInputOrDefault(
+    options?.input,
+    `canvas_${outputKind}_task`,
+    `${contentCanvasOutputKindLabel(outputKind)}任务`,
+  )
+  const result = await gateway.createContentUnit({
+    id: input.id,
+    title: input.title,
+    contentUnitType: `canvas_${outputKind}_task`,
+    outputKind,
+    generationRole: 'naked_task',
+    description: `从创作画布创建的${contentCanvasOutputKindLabel(outputKind)}裸生成任务。`,
+    prompt: `${input.title}`,
+    modelIntent: {
+      source: 'content_canvas_naked_task',
+      canvas_task: true,
+      output_kind: outputKind,
+    },
+  })
+  const contentUnitId = idValue(result.record.id) ?? input.id
+  const nodeId = `content_unit:${contentUnitId}`
+  return {
+    changedNodeIds: [nodeId],
+    affectedNodeIds: [nodeId],
+    focusNodeId: nodeId,
+    nodePositions: options?.position ? { [nodeId]: options.position } : undefined,
+    message: `已创建${contentCanvasOutputKindLabel(outputKind)}任务`,
+  }
+}
+
+export async function createSceneMomentCanvasNode(
+  projectId: number,
+  options?: ContentCanvasCreateNodeOptions,
+  gateway?: ContentCanvasWorkspaceGateway,
+): Promise<ContentCanvasCommandResult> {
+  if (!gateway) throw new Error('Content canvas workspace gateway is required')
+  const input = createInputOrDefault(options?.input, 'canvas_scene', '新情节')
+  const productionId = input.targetProductionId?.trim()
+  const productionTitle = input.targetProductionTitle?.trim() || `${input.title} 制作`
+  const segmentId = input.targetSegmentId?.trim()
+  const segmentTitle = input.targetSegmentTitle?.trim() || `${input.title} 段落`
+  const changedNodeIds: string[] = []
+  if (!productionId || !segmentId) {
+    throw new Error('创建情节视频节点需要显式选择或新建制作与段落；如果只是临时生成，请创建裸视频任务。')
+  }
+
+  if (input.createTargetProduction) {
+    await gateway.createProduction({ projectId, id: productionId, title: productionTitle })
+    changedNodeIds.push(`production:${productionId}`)
+  }
+  if (input.createTargetSegment) {
+    await gateway.createSegment({
+      projectId,
+      productionId,
+      id: segmentId,
+      title: segmentTitle,
+      productionTitle,
+    })
+    changedNodeIds.push(`segment:${segmentId}`)
+  }
+
+  await gateway.createSceneMoment({
+    projectId,
+    productionId,
+    segmentId,
+    id: input.id,
+    title: input.title,
+    segmentTitle,
+  })
+  changedNodeIds.push(`scene_moment:${input.id}`)
+
+  const mount = await ensureCanvasSettingStateForInput(projectId, input, {
+    settingId: `scene_setting_${safeToken(input.id)}`,
+    settingTitle: `${input.title} 设定`,
+    stateId: `scene_state_${safeToken(input.id)}`,
+    stateTitle: `${input.title} 状态`,
+    required: false,
+  }, gateway)
+  if (mount) {
+    changedNodeIds.push(...mount.changedNodeIds)
+    await gateway.connectSceneMomentSetting({
+      productionId,
+      segmentId,
+      sceneMomentId: input.id,
+      sceneMomentRecord: {
+        id: input.id,
+        title: input.title,
+        production_id: productionId,
+        segment_id: segmentId,
+      },
+      settingId: mount.settingId,
+      settingStateId: mount.stateId,
+      role: 'scene_constraint',
+    })
+  }
+
+  const contentUnit = await ensureContentUnitForRef(gateway, {
+    id: `cu_scene_${safeToken(input.id)}`,
+    refKind: 'scene_moment',
+    ref: input.id,
+    contentUnitType: 'scene_moment_ref',
+    outputKind: 'video',
+    title: `${input.title} 创作片段`,
+    description: `从创作画布基于情节「${input.title}」创建。`,
+    prompt: `将情节「${input.title}」转化为可制作镜头。`,
+    modelIntent: {
+      scene_moment_id: input.id,
+      production_id: productionId,
+      segment_id: segmentId,
+    },
+  })
+  const contentUnitId = idValue(contentUnit.record.id) ?? `cu_scene_${safeToken(input.id)}`
+
+  return {
+    changedNodeIds: [...changedNodeIds, `content_unit:${contentUnitId}`],
+    affectedNodeIds: [...changedNodeIds, `content_unit:${contentUnitId}`],
+    focusNodeId: `scene_moment:${input.id}`,
+    nodePositions: options?.position ? { [`scene_moment:${input.id}`]: options.position } : undefined,
+    message: '已创建情节节点并绑定创作片段',
+  }
+}
+
+export async function createAssetCanvasNode(
+  projectId: number,
+  options?: ContentCanvasCreateNodeOptions,
+  gateway?: ContentCanvasWorkspaceGateway,
+): Promise<ContentCanvasCommandResult> {
+  if (!gateway) throw new Error('Content canvas workspace gateway is required')
+  const input = createInputOrDefault(options?.input, 'canvas_asset', '新资产')
+  const outputKind = contentCanvasAssetOutputKind(input.outputKind)
+  const mount = await ensureCanvasSettingStateForInput(projectId, input, {
+    settingId: `asset_setting_${safeToken(input.id)}`,
+    settingTitle: `${input.title} 设定`,
+    stateId: `asset_state_${safeToken(input.id)}`,
+    stateTitle: `${input.title} 状态`,
+    required: true,
+  }, gateway)
+  if (!mount) throw new Error('创建资产节点需要设定与状态归属')
+
+  const result = await gateway.createAsset({
+    id: input.id,
+    title: input.title,
+    settingId: mount.settingId,
+    settingStateId: mount.stateId,
+    slot: input.id,
+    assetKind: outputKind,
+    promptHint: `从创作画布创建。`,
+  })
+  const assetId = String(result.record.id ?? input.id)
+  const contentUnit = await ensureContentUnitForRef(gateway, {
+    id: `cu_asset_${safeToken(assetId)}`,
+    refKind: 'asset',
+    ref: assetId,
+    contentUnitType: 'asset_ref',
+    outputKind,
+    title: `${input.title} 创作片段`,
+    description: `从创作画布基于素材「${input.title}」创建。`,
+    prompt: `为素材「${input.title}」生成可复用${contentCanvasOutputKindLabel(outputKind)}。`,
+    modelIntent: {
+      asset_id: assetId,
+      state_id: mount.stateId,
+      setting_id: mount.settingId,
+    },
+  })
+  const contentUnitId = idValue(contentUnit.record.id) ?? `cu_asset_${safeToken(assetId)}`
+  return {
+    changedNodeIds: [...mount.changedNodeIds, `asset:${assetId}`, `content_unit:${contentUnitId}`],
+    affectedNodeIds: [...mount.changedNodeIds, `asset:${assetId}`, `content_unit:${contentUnitId}`],
+    focusNodeId: `asset:${assetId}`,
+    nodePositions: options?.position ? { [`asset:${assetId}`]: options.position } : undefined,
+    message: `已创建${contentCanvasOutputKindLabel(outputKind)}资产节点并绑定创作片段`,
+  }
+}
+
+async function ensureCanvasSettingStateForInput(
+  projectId: number,
+  input: NonNullable<ContentCanvasCreateNodeOptions['input']>,
+  fallback: {
+    settingId: string
+    settingTitle: string
+    stateId: string
+    stateTitle: string
+    required: boolean
+  },
+  gateway: ContentCanvasWorkspaceGateway,
+): Promise<{ settingId: string; stateId: string; changedNodeIds: string[] } | null> {
+  const wantsMount = fallback.required
+    || Boolean(input.createTargetSetting)
+    || Boolean(input.createTargetState)
+    || Boolean(input.targetSettingId?.trim())
+    || Boolean(input.targetStateId?.trim())
+    || Boolean(input.targetSettingTitle?.trim())
+    || Boolean(input.targetStateTitle?.trim())
+  if (!wantsMount) return null
+
+  const settingId = input.targetSettingId?.trim() || fallback.settingId
+  const stateId = input.targetStateId?.trim() || fallback.stateId
+  const changedNodeIds: string[] = []
+
+  if (input.createTargetSetting || !input.targetSettingId?.trim()) {
+    await gateway.createSetting({
+      id: settingId,
+      title: input.targetSettingTitle?.trim() || fallback.settingTitle,
+      kind: input.targetSettingKind ?? input.settingKind ?? 'other',
+      description: '从创作画布创建，用于承载画面节点。',
+    })
+    changedNodeIds.push(`setting:${settingId}`)
+  }
+
+  if (input.createTargetState || !input.targetStateId?.trim()) {
+    await gateway.createSettingState({
+      id: stateId,
+      settingId,
+      title: input.targetStateTitle?.trim() || fallback.stateTitle,
+      stateKind: 'base',
+      description: `从设定「${input.targetSettingTitle?.trim() || fallback.settingTitle}」创建。`,
+    })
+    changedNodeIds.push(`state:${stateId}`)
+  }
+
+  return { settingId, stateId, changedNodeIds }
+}
+
+function contentCanvasAssetOutputKind(value: unknown): Exclude<ContentCanvasGenerationOutputKind, 'text'> {
+  if (value === 'video' || value === 'audio' || value === 'image') return value
+  return 'image'
+}
+
+function contentCanvasOutputKindLabel(kind: ContentCanvasGenerationOutputKind): string {
+  if (kind === 'video') return '视频'
+  if (kind === 'audio') return '音频'
+  if (kind === 'text') return '文本'
+  return '图片'
+}
 
 export async function createStateFromSetting(
   projectId: number,

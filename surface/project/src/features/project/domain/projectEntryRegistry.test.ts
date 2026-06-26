@@ -14,13 +14,16 @@ import {
 test('project entry definitions cover the canonical project entries', () => {
   const expectedIds: ProjectEntryId[] = [
     'orchestration_production',
-    'content',
+    'content_canvas',
+    'content_preview',
     'project_standards',
   ]
 
   assert.deepEqual(projectEntryDefinitions.map((item) => item.id), expectedIds)
   assert.equal(projectEntryRoutePath(getProjectEntryDefinition('orchestration_production')), '/project/scripts/workbench')
-  assert.equal(projectEntryRoutePath(getProjectEntryDefinition('content')), '/project/content')
+  assert.equal(projectEntryRoutePath(getProjectEntryDefinition('content_canvas')), '/project/content/canvas')
+  assert.equal(projectEntryRoutePath(getProjectEntryDefinition('content_preview')), '/project/content/preview')
+  assert.equal(projectEntryRoutePath(getProjectEntryDefinition('content')), '/project/content/preview')
   assert.equal(projectEntryRoutePath(getProjectEntryDefinition('project_standards')), '/project/standards')
   for (const definition of projectEntryDefinitions) {
     assert.ok(definition.purpose.length > 0, `${definition.id} must document its purpose`)
@@ -39,12 +42,12 @@ test('project entry review paths are generated from review query contracts', () 
     '/project/standards?workspaceId=workspace-a',
   )
   assert.equal(
-    buildProjectEntryReviewPath(getProjectEntryDefinition('content'), {
+    buildProjectEntryReviewPath(getProjectEntryDefinition('content_preview'), {
       workspaceId: 'workspace-c',
       entityType: 'scene_moment',
       entityId: 77,
     }),
-    '/project/content?workspaceId=workspace-c&scene_moment_id=77',
+    '/project/content/preview?workspaceId=workspace-c&scene_moment_id=77',
   )
   assert.equal(
     buildProjectEntryReviewPath(getProjectEntryDefinition('orchestration_production'), { workspaceId: 'workspace-d' }),
@@ -62,7 +65,7 @@ test('project entry review paths are generated from review query contracts', () 
 
 test('project entry review params can be merged into existing search params', () => {
   assert.deepEqual(
-    buildProjectEntryReviewParams(getProjectEntryDefinition('content'), {
+    buildProjectEntryReviewParams(getProjectEntryDefinition('content_preview'), {
       workspaceId: 'workspace-b',
       entityType: 'content_unit',
       entityId: 42,
@@ -72,7 +75,7 @@ test('project entry review params can be merged into existing search params', ()
 
   const merged = mergeProjectEntryReviewSearchParams(
     new URLSearchParams('tab=assets&workspaceId=old'),
-    getProjectEntryDefinition('content'),
+    getProjectEntryDefinition('content_preview'),
     {
       workspaceId: 'workspace-b',
       entityType: 'content_unit',

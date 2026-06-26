@@ -91,7 +91,19 @@ test('route layout registry declares current project entry routes', () => {
   })
   assert.deepEqual(projectEntryRoute('/project/content'), {
     routeId: 'project.content',
-    projectEntryId: 'content',
+    projectEntryId: 'content_preview',
+    scrollMode: 'canvas',
+    viewportScroll: 'owned',
+  })
+  assert.deepEqual(projectEntryRoute('/project/content/canvas'), {
+    routeId: 'project.content.canvas',
+    projectEntryId: 'content_canvas',
+    scrollMode: 'canvas',
+    viewportScroll: 'owned',
+  })
+  assert.deepEqual(projectEntryRoute('/project/content/preview'), {
+    routeId: 'project.content.preview',
+    projectEntryId: 'content_preview',
     scrollMode: 'canvas',
     viewportScroll: 'owned',
   })
@@ -103,6 +115,8 @@ test('route layout registry separates canvas, agent, document, redirect, and ove
   assert.equal(appRouteViewportScrollForMode(routeLayoutSpecForPathname('/canvases/42').scrollMode), 'owned')
   assert.equal(routeLayoutSpecForPathname('/project/content').surface, 'project')
   assert.equal(routeLayoutSpecForPathname('/project/content').scrollMode, 'canvas')
+  assert.equal(routeLayoutSpecForPathname('/project/content/canvas').routeId, 'project.content.canvas')
+  assert.equal(routeLayoutSpecForPathname('/project/content/preview').routeId, 'project.content.preview')
 
   assert.equal(routeLayoutSpecForPathname('/project/agent').surface, 'agent')
   assert.equal(routeLayoutSpecForPathname('/project/agent').scrollMode, 'workspace')
@@ -130,6 +144,10 @@ test('route layout registry separates canvas, agent, document, redirect, and ove
   assert.equal(routeLayoutSpecForPathname('/resources').scrollMode, 'document')
   assert.equal(appRouteViewportScrollForMode(routeLayoutSpecForPathname('/resources').scrollMode), 'auto')
   assert.match(routeLayoutSpecForPathname('/resources').notes ?? '', /resource-surface/)
+  assert.equal(routeLayoutSpecForPathname('/project-data').surface, 'home')
+  assert.equal(routeLayoutSpecForPathname('/project-data').scrollMode, 'document')
+  assert.ok(!routeLayoutSpecForPathname('/project-data').panes.some((pane) => pane.id === APP_SHELL_TOOL_SIDEBAR_PANE_ID))
+  assert.match(routeLayoutSpecForPathname('/project-data').notes ?? '', /outside tool navigation/)
   assert.equal(routeLayoutSpecForPathname('/resources/external').surface, 'tool')
   assert.equal(routeLayoutSpecForPathname('/resources/external').scrollMode, 'document')
   assert.equal(routeLayoutSpecForPathname('/agents/mova').surface, 'settings')
@@ -233,12 +251,12 @@ test('route layout registry declares shared tool workbench resource panes', () =
   }
 })
 
-test('route layout registry declares content managed panes', () => {
-  const route = routeLayoutSpecForPathname('/project/content')
-  assert.equal(route.routeId, 'project.content')
+test('route layout registry declares content preview managed panes', () => {
+  const route = routeLayoutSpecForPathname('/project/content/preview')
+  assert.equal(route.routeId, 'project.content.preview')
   assert.equal(route.surface, 'project')
   assert.equal(route.scrollMode, 'canvas')
-  assert.equal(route.projectEntryId, 'content')
+  assert.equal(route.projectEntryId, 'content_preview')
 
   assert.ok(!route.panes.some((pane) => pane.id === 'content-canvas.setting-catalog-pane'))
 
@@ -268,6 +286,17 @@ test('route layout registry declares content managed panes', () => {
   assert.equal(timelinePane?.maxSize, CONTENT_CANVAS_TIMELINE_MAX_HEIGHT)
   assert.equal(timelinePane?.storageKey, CONTENT_CANVAS_TIMELINE_HEIGHT_STORAGE_KEY)
   assert.equal(timelinePane?.persistState, true)
+})
+
+test('route layout registry keeps content canvas as a single creation surface', () => {
+  const route = routeLayoutSpecForPathname('/project/content/canvas')
+  assert.equal(route.routeId, 'project.content.canvas')
+  assert.equal(route.surface, 'project')
+  assert.equal(route.scrollMode, 'canvas')
+  assert.equal(route.projectEntryId, 'content_canvas')
+  assert.ok(!route.panes.some((pane) => pane.id === CONTENT_CANVAS_STRUCTURE_PANE_ID))
+  assert.ok(!route.panes.some((pane) => pane.id === CONTENT_CANVAS_INSPECTOR_PANE_ID))
+  assert.ok(!route.panes.some((pane) => pane.id === CONTENT_CANVAS_TIMELINE_PANE_ID))
 })
 
 test('route layout registry declares plugin tool native host pane', () => {
@@ -301,6 +330,8 @@ test('route layout registry has one exported spec per registered route id', () =
   assert.equal(new Set(routeIds).size, routeIds.length)
   assert.ok(routeIds.includes('project.scripts'))
   assert.ok(routeIds.includes('project.content'))
+  assert.ok(routeIds.includes('project.content.canvas'))
+  assert.ok(routeIds.includes('project.content.preview'))
   assert.ok(routeIds.includes('editing'))
   assert.ok(routeIds.includes('editing.project'))
   assert.ok(!routeIds.includes('project.production.redirect'))

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, type Dispatch, type SetStateAction } from '
 import {
   hasExplicitProjectEntrySearchParam,
   useProjectEntrySessionStore,
+  type ProjectEntrySessionId,
   type ProjectEntrySessionSnapshot,
 } from '../../project/application/projectEntrySessionStore'
 import { surfaceRoutePath } from '@movscript/shared'
@@ -34,6 +35,7 @@ interface UseContentCanvasWorkspaceSessionInput {
   setCreateSelection: Dispatch<SetStateAction<ContentCanvasCreateSelection>>
   setSelection: Dispatch<SetStateAction<InspectorSelectionRef>>
   setWorkspaceTab: Dispatch<SetStateAction<ContentWorkspaceTab>>
+  workspaceMode?: ContentWorkspaceTab
   workspaceTab: ContentWorkspaceTab
 }
 
@@ -52,13 +54,15 @@ export function useContentCanvasWorkspaceSession({
   setCreateSelection,
   setSelection,
   setWorkspaceTab,
+  workspaceMode,
   workspaceTab,
 }: UseContentCanvasWorkspaceSessionInput): void {
   const restoredSessionRef = useRef(false)
   const restoredSessionKeyRef = useRef('')
   const skipNextSessionPersistRef = useRef(false)
+  const projectEntryId = contentCanvasProjectEntryIdForWorkspaceTab(workspaceMode ?? workspaceTab)
   const sessionSnapshot = useProjectEntrySessionStore((state) => (
-    projectId ? state.snapshotFor(projectId, 'content') : null
+    projectId ? state.snapshotFor(projectId, projectEntryId) ?? state.snapshotFor(projectId, 'content') : null
   ))
   const upsertProjectEntrySessionSnapshot = useProjectEntrySessionStore((state) => state.upsertSnapshot)
   const hasExplicitSessionSearch = useMemo(
@@ -74,8 +78,9 @@ export function useContentCanvasWorkspaceSession({
       snapshot: sessionSnapshot,
     })
     if (!sessionState) return
+    const resolvedWorkspaceTab = workspaceMode ?? sessionState.workspaceTab
     const sessionKey = [
-      sessionState.workspaceTab,
+      resolvedWorkspaceTab,
       sessionState.activeCanvasNodeId,
       sessionState.selectionKind,
       sessionState.selectedNodeId,
@@ -89,7 +94,7 @@ export function useContentCanvasWorkspaceSession({
     skipNextSessionPersistRef.current = true
     if (sessionState.activeKind) setActiveKind(sessionState.activeKind)
     setActiveCanvasNodeId(sessionState.activeCanvasNodeId === 'scene-main' ? null : sessionState.activeCanvasNodeId)
-    setWorkspaceTab(sessionState.workspaceTab)
+    setWorkspaceTab(resolvedWorkspaceTab)
     const canvasNode = graphIndex.nodeById.get(sessionState.activeCanvasNodeId)
     if (canvasNode?.kind === 'scene_moment') {
       setActiveProductionId(null)
@@ -113,6 +118,7 @@ export function useContentCanvasWorkspaceSession({
     setCreateSelection,
     setSelection,
     setWorkspaceTab,
+    workspaceMode,
   ])
 
   useEffect(() => {
@@ -128,7 +134,7 @@ export function useContentCanvasWorkspaceSession({
       projectId,
       selectedNodeId: selection.nodeId,
       selectionKind: selection.kind,
-      workspaceTab,
+      workspaceTab: workspaceMode ?? workspaceTab,
     }))
   }, [
     activeKind,
@@ -139,6 +145,7 @@ export function useContentCanvasWorkspaceSession({
     selection.nodeId,
     sessionSnapshot,
     upsertProjectEntrySessionSnapshot,
+    workspaceMode,
     workspaceTab,
   ])
 }
@@ -160,8 +167,8 @@ function contentCanvasProjectEntrySessionSnapshot(input: {
   })
   return {
     projectId: input.projectId,
-    projectEntryId: 'content',
-    route: surfaceRoutePath('project.content', { projectId: input.projectId }),
+    projectEntryId: contentCanvasProjectEntryIdForWorkspaceTab(input.workspaceTab),
+    route: surfaceRoutePath(input.workspaceTab === 'canvas' ? 'project.contentCanvas' : 'project.contentPreview', { projectId: input.projectId }),
     search,
     filters: {
       activeKind: input.activeKind,
@@ -172,4 +179,8 @@ function contentCanvasProjectEntrySessionSnapshot(input: {
     },
     selection: undefined,
   }
+}
+
+function contentCanvasProjectEntryIdForWorkspaceTab(workspaceTab: ContentWorkspaceTab): ProjectEntrySessionId {
+  return workspaceTab === 'canvas' ? 'content_canvas' : 'content_preview'
 }

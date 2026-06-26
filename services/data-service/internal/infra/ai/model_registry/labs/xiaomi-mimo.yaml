@@ -48,3 +48,29 @@ templates:
         status: deprecated
         url: https://mimo.mi.com/docs/en-US/price/pay-as-you-go
         verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: MiMo V2 Pro
+      id: xiaomi-mimo:mimo-v2-pro
+      lab: xiaomi-mimo
+      model_id: mimo-v2-pro
+      order: 92
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: MiMo V2.5 Pro
+      id: xiaomi-mimo:mimo-v2-5-pro
+      lab: xiaomi-mimo
+      model_id: mimo-v2.5-pro
+      order: 93
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"

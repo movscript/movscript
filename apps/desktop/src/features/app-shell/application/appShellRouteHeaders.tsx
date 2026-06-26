@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from 'react'
-import { AudioLines, BriefcaseBusiness, CircleUserRound, Clapperboard, FileAudio, GitBranch, HardDrive, Image as ImageIcon, Languages, MessageCircle, Mic, Music, Plug, Scissors, Settings, Video, Volume2, Wand2, Workflow, Zap, type LucideIcon } from 'lucide-react'
+import { AudioLines, BriefcaseBusiness, CircleUserRound, Clapperboard, FileAudio, GitBranch, HardDrive, Image as ImageIcon, KeyRound, Languages, MessageCircle, Mic, Music, Plug, Scissors, Settings, Video, Volume2, Wand2, Workflow, Zap, type LucideIcon } from 'lucide-react'
 import { runtimeNavItems } from '@runtime'
 import { ROUTES } from '@/routes/projectRoutes'
 import type { AccountSettingsPageTab } from '@/features/app-shell/components/AccountSettingsDialog'
@@ -21,6 +21,8 @@ export function projectRouteHeaderTitle(pathname: string): ReactNode | undefined
     title: ReactNode
   }> = [
     { match: (value) => value === ROUTES.project.content, icon: GitBranch, title: '创作' },
+    { match: (value) => value === ROUTES.project.contentCanvas, icon: Wand2, title: '创作画布' },
+    { match: (value) => value === ROUTES.project.contentPreview, icon: Video, title: '预览' },
     { match: (value) => value === ROUTES.project.contentLegacy, icon: GitBranch, title: '创作' },
     { match: (value) => value === ROUTES.project.contentLegacyNext, icon: GitBranch, title: '创作' },
     { match: (value) => value === ROUTES.project.settings, icon: Settings, title: 'Project Settings' },
@@ -57,6 +59,7 @@ export function toolRouteHeaderTitle(pathname: string): ReactNode | undefined {
     { match: (value) => value === ROUTES.tools.motionImitation, icon: Workflow, title: i18n.t('sidebar.items.motionImitation') },
     { match: (value) => value === ROUTES.tools.styleTransfer, icon: Zap, title: i18n.t('sidebar.items.styleTransfer') },
     { match: (value) => value === ROUTES.tools.multiAngle, icon: Workflow, title: i18n.t('sidebar.items.multiAngle') },
+    { match: (value) => value === ROUTES.tools.privateAssets, icon: KeyRound, title: i18n.t('sidebar.items.privateAssets', { defaultValue: '私域素材库' }) },
     { match: (value) => value.startsWith('/tools/plugin/'), icon: Plug, title: i18n.t('sidebar.items.plugins') },
   ]
   return routeHeaderTitleFrom(pathname, routeTitles)

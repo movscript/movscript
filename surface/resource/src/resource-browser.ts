@@ -50,6 +50,39 @@ export interface ResourceLibraryProjectBinding<Resource extends ResourceLibraryR
   resource?: Resource | null
 }
 
+export interface ResourceLibraryProviderAssetProvider {
+  provider_id: string
+  provider_type?: string
+  profile?: string
+  provider_kind: string
+  provider_category?: string
+  default_adapter_type?: string
+  adapter_key?: string
+  display_name?: string
+  base_url_prefix?: string
+  asset_library_state_json?: string
+  is_enabled?: boolean
+}
+
+export interface ResourceLibraryProviderAssetModelOption {
+  id: string
+  label: string
+  description: string
+}
+
+export const YUNWU_SEEDANCE_PROVIDER_ASSET_MODELS: ResourceLibraryProviderAssetModelOption[] = [
+  {
+    id: 'doubao-seedance-2-0-fast-260128',
+    label: 'Seedance 2.0 Fast',
+    description: 'doubao-seedance-2-0-fast-260128',
+  },
+  {
+    id: 'doubao-seedance-2-0-260128',
+    label: 'Seedance 2.0',
+    description: 'doubao-seedance-2-0-260128',
+  },
+]
+
 export interface ResourceLibraryDataAdapter<
   Resource extends ResourceLibraryOwnedResource,
   Binding extends ResourceLibraryProjectBinding<Resource>,
@@ -72,7 +105,8 @@ export interface ResourceLibraryDataAdapter<
   adoptResourcesToTeam(resourceIds: number[]): Promise<unknown>
   shareResourcesToProject(input: { projectId: number; resourceIds: number[] }): Promise<unknown>
   revokeProjectResourceBinding(bindingId: number): Promise<unknown>
-  certifyProviderAsset(resource: Resource): Promise<{ resource: Resource; updated?: Resource }>
+  listProviderAssetProviders?(): Promise<ResourceLibraryProviderAssetProvider[]>
+  certifyProviderAsset(input: { resource: Resource; providerID?: string; model?: string }): Promise<{ resource: Resource; updated?: Resource }>
 }
 
 export interface ResourceLibraryHTTPClient {
@@ -127,14 +161,45 @@ export function createResourceLibraryDataServiceAdapter<
       })))
     },
     revokeProjectResourceBinding: (bindingId) => client.delete(`/resource-bindings/${bindingId}`),
-    certifyProviderAsset: async (resource) => {
-      const result = await client.post<{ resource?: Resource }>(`/provider-assets/providers/${encodeURIComponent(providerAssetCertificationProvider)}/certify`, {
+    listProviderAssetProviders: () => client.get<unknown>('/admin/providers')
+      .then(r => readListPayload<ResourceLibraryProviderAssetProvider>(r.data).filter(providerSupportsAssetLibrary)),
+    certifyProviderAsset: async ({ resource, providerID, model }) => {
+      const targetProviderID = providerID?.trim() || providerAssetCertificationProvider
+      const result = await client.post<{ resource?: Resource }>(`/provider-assets/providers/${encodeURIComponent(targetProviderID)}/certify`, {
         resource_id: resource.ID,
         name: resource.name,
+        ...(model?.trim() ? { model: model.trim() } : {}),
       })
       return { resource, updated: result.data?.resource }
     },
   }
+}
+
+function readListPayload<T>(raw: unknown, keys: string[] = ['items', 'records', 'data']): T[] {
+  if (Array.isArray(raw)) return raw as T[]
+  if (!raw || typeof raw !== 'object') return []
+  const record = raw as Record<string, unknown>
+  for (const key of keys) {
+    const value = record[key]
+    if (Array.isArray(value)) return value as T[]
+  }
+  return []
+}
+
+function readJSONRecord(raw: string | undefined): Record<string, unknown> {
+  if (!raw) return {}
+  try {
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {}
+  } catch {
+    return {}
+  }
+}
+
+function providerSupportsAssetLibrary(provider: ResourceLibraryProviderAssetProvider): boolean {
+  const state = readJSONRecord(provider.asset_library_state_json)
+  const assetTypes = Array.isArray(state.asset_types) ? state.asset_types.map(String) : []
+  return provider.is_enabled !== false && state.supports_asset_library === true && (assetTypes.length === 0 || assetTypes.includes('image'))
 }
 
 export interface ResourceLibraryBrowserControllerInput<
@@ -264,6 +329,7 @@ export function useResourceLibraryBrowserController<
   const [selectedResourceIDs, setSelectedResourceIDs] = useState<Set<number>>(() => new Set())
   const [contextMenu, setContextMenu] = useState<{ position: ResourceClientPoint; resources: Resource[] } | null>(null)
   const [shareProjectResources, setShareProjectResources] = useState<Resource[] | null>(null)
+  const [providerAssetCertificationRequest, setProviderAssetCertificationRequest] = useState<{ resource: Resource; provider?: ResourceLibraryProviderAssetProvider; providerID?: string } | null>(null)
   const [viewMode, setViewMode] = useState<ResourceLibraryViewMode>('grid')
   const [selectionMode, setSelectionMode] = useState(false)
   const [page, setPage] = useState(1)
@@ -295,6 +361,13 @@ export function useResourceLibraryBrowserController<
   const { data: projects = [] } = useQuery<Project[]>({
     queryKey: resourceShareTargetKeys.projects,
     queryFn: () => adapter.listShareTargetProjects(),
+  })
+
+  const { data: providerAssetProviders = [] } = useQuery<ResourceLibraryProviderAssetProvider[]>({
+    queryKey: resourceKeys.providerAssetProviders,
+    queryFn: () => adapter.listProviderAssetProviders ? adapter.listProviderAssetProviders() : Promise.resolve([]),
+    retry: false,
+    staleTime: 60_000,
   })
 
   const isProjectScope = scope === 'project'
@@ -388,9 +461,10 @@ export function useResourceLibraryBrowserController<
     },
   })
 
-  const certifyProviderAsset = useMutation<{ resource: Resource; updated?: Resource }, Error, Resource>({
-    mutationFn: (resource: Resource) => adapter.certifyProviderAsset(resource),
+  const certifyProviderAsset = useMutation<{ resource: Resource; updated?: Resource }, Error, { resource: Resource; providerID?: string; model?: string }>({
+    mutationFn: (input: { resource: Resource; providerID?: string; model?: string }) => adapter.certifyProviderAsset(input),
     onSuccess: ({ resource, updated }: { resource: Resource; updated?: Resource }) => {
+      setProviderAssetCertificationRequest(null)
       onResourceLibraryChanged?.({ changedIds: [updated?.ID ?? resource.ID] })
       notify?.success(messages?.providerAssetCertified ?? 'Provider asset certified')
     },
@@ -555,6 +629,8 @@ export function useResourceLibraryBrowserController<
     previewResource,
     projectScopeEnabled,
     projectBindingByResourceID,
+    providerAssetCertificationRequest,
+    providerAssetProviders,
     projects,
     remove,
     renameResource,
@@ -574,6 +650,7 @@ export function useResourceLibraryBrowserController<
     setMoveResource,
     setPage,
     setPreviewResource,
+    setProviderAssetCertificationRequest,
     setRenameResource,
     setResourceSelected,
     setScopeFilter,

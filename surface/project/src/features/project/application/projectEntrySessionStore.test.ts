@@ -12,7 +12,8 @@ import {
 } from './projectEntrySessionStore'
 
 test('project entry session keys are scoped by project and entry', () => {
-  assert.equal(projectEntrySessionKey(12, 'content'), '12:content')
+  assert.equal(projectEntrySessionKey(12, 'content_canvas'), '12:content_canvas')
+  assert.equal(projectEntrySessionKey(12, 'content_preview'), '12:content_preview')
   assert.equal(projectEntrySessionKey(12, 'scripts'), '12:scripts')
   assert.equal(projectEntrySessionKey(null, 'orchestration_production'), '0:orchestration_production')
 })
@@ -94,8 +95,8 @@ test('project entry session store ignores semantically identical snapshot upsert
 
   useProjectEntrySessionStore.getState().upsertSnapshot({
     projectId: 9,
-    projectEntryId: 'content',
-    route: '/project/content',
+    projectEntryId: 'content_canvas',
+    route: '/project/content/canvas',
     search: 'mode=scene_moment&node=scene-main&kind=scene_moment',
     filters: {
       activeKind: 'all',
@@ -106,7 +107,7 @@ test('project entry session store ignores semantically identical snapshot upsert
     selection: undefined,
   })
   const beforeSnapshots = useProjectEntrySessionStore.getState().snapshots
-  const beforeSnapshot = useProjectEntrySessionStore.getState().snapshotFor(9, 'content')
+  const beforeSnapshot = useProjectEntrySessionStore.getState().snapshotFor(9, 'content_canvas')
   let notificationCount = 0
   const unsubscribe = useProjectEntrySessionStore.subscribe(() => {
     notificationCount += 1
@@ -115,8 +116,8 @@ test('project entry session store ignores semantically identical snapshot upsert
   try {
     useProjectEntrySessionStore.getState().upsertSnapshot({
       projectId: 9,
-      projectEntryId: 'content',
-      route: '/project/content',
+      projectEntryId: 'content_canvas',
+      route: '/project/content/canvas',
       search: 'mode=scene_moment&node=scene-main&kind=scene_moment',
       filters: {
         activeKind: 'all',
@@ -132,7 +133,7 @@ test('project entry session store ignores semantically identical snapshot upsert
 
   assert.equal(notificationCount, 0)
   assert.equal(useProjectEntrySessionStore.getState().snapshots, beforeSnapshots)
-  assert.equal(useProjectEntrySessionStore.getState().snapshotFor(9, 'content'), beforeSnapshot)
+  assert.equal(useProjectEntrySessionStore.getState().snapshotFor(9, 'content_canvas'), beforeSnapshot)
 })
 
 test('project entry session store keeps deck state without clearing entry context', () => {
@@ -140,23 +141,23 @@ test('project entry session store keeps deck state without clearing entry contex
 
   useProjectEntrySessionStore.getState().upsertSnapshot({
     projectId: 9,
-    projectEntryId: 'content',
-    route: '/project/content',
+    projectEntryId: 'content_preview',
+    route: '/project/content/preview',
     search: 'scene_moment_id=12',
     filters: { selectedItemId: 44 },
     selection: {
       primary: { entityType: 'scene_moment', entityId: 12 },
     },
   })
-  useProjectEntrySessionStore.getState().setEntryOpen(9, 'content', false)
+  useProjectEntrySessionStore.getState().setEntryOpen(9, 'content_preview', false)
   useProjectEntrySessionStore.getState().setEntryDeckOrders(9, [
-    { projectEntryId: 'content', deckOrder: 0 },
+    { projectEntryId: 'content_preview', deckOrder: 0 },
   ])
 
-  const snapshot = useProjectEntrySessionStore.getState().snapshotFor(9, 'content')
+  const snapshot = useProjectEntrySessionStore.getState().snapshotFor(9, 'content_preview')
   assert.equal(snapshot?.open, false)
   assert.equal(snapshot?.deckOrder, 0)
-  assert.equal(snapshot?.route, '/project/content')
+  assert.equal(snapshot?.route, '/project/content/preview')
   assert.equal(snapshot?.search, 'scene_moment_id=12')
   assert.deepEqual(snapshot?.filters, { selectedItemId: 44 })
   assert.deepEqual(snapshot?.selection?.primary, { entityType: 'scene_moment', entityId: 12 })
@@ -177,5 +178,5 @@ test('project entry session snapshot normalization accepts legacy workbench ids'
 
   assert.equal(snapshots.legacy?.projectEntryId, 'orchestration_production')
   assert.deepEqual(snapshots.legacy?.filters, { productionId: 5 })
-  assert.equal(snapshots.legacyContent?.projectEntryId, 'content')
+  assert.equal(snapshots.legacyContent?.projectEntryId, 'content_preview')
 })

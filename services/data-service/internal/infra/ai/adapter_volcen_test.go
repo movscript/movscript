@@ -277,6 +277,66 @@ func TestVolcenSynthesizeSeedTTS20UsesV3UnidirectionalRequest(t *testing.T) {
 	}
 }
 
+func TestVolcenDesignVoiceUsesV3VoiceDesignRequest(t *testing.T) {
+	var gotHeaders http.Header
+	var gotBody map[string]any
+	adapter := NewVolcenAdapterWithSpeech("https://ark.example.test/api/v3", "ark-key", volcenSpeechCredentials{
+		Token:   "speech-token",
+		BaseURL: "https://openspeech.example.test",
+	})
+	adapter.speechHTTP = &http.Client{Transport: volcenRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.URL.String() != "https://openspeech.example.test/api/v3/tts/voice_design" {
+			t.Fatalf("unexpected URL = %s", r.URL.String())
+		}
+		gotHeaders = r.Header.Clone()
+		raw, _ := io.ReadAll(r.Body)
+		if err := json.Unmarshal(raw, &gotBody); err != nil {
+			t.Fatalf("request body JSON error = %v", err)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body: io.NopCloser(strings.NewReader(`{
+				"speaker_id": "S_design",
+				"audio_url": "https://cdn.example.test/preview.wav",
+				"status": "success"
+			}`)),
+			Request: r,
+		}, nil
+	})}
+
+	resp, err := adapter.DesignVoice(context.Background(), media.VoiceDesignRequest{
+		Name:        "Gentle Guide",
+		Description: "A warm, gentle narrator voice",
+		PreviewText: "欢迎来到故事。",
+		Model:       "doubao-seed-voice-design",
+		Params: map[string]any{
+			"request_id":  "voice-design-req-1",
+			"language":    0,
+			"sample_rate": 24000,
+		},
+	})
+	if err != nil {
+		t.Fatalf("DesignVoice() error = %v", err)
+	}
+	if resp.VoiceID != "S_design" || resp.GeneratedVoiceID != "S_design" || resp.PreviewURL != "https://cdn.example.test/preview.wav" || resp.ProviderRef != "S_design" {
+		t.Fatalf("resp = %+v", resp)
+	}
+	if gotHeaders.Get("X-Api-Key") != "speech-token" ||
+		gotHeaders.Get("X-Api-Resource-Id") != "doubao-seed-voice-design" ||
+		gotHeaders.Get("X-Api-Request-Id") != "voice-design-req-1" {
+		t.Fatalf("headers = %#v", gotHeaders)
+	}
+	prompt := gotBody["prompt"].(map[string]any)
+	if prompt["text_prompt"] != "A warm, gentle narrator voice" {
+		t.Fatalf("prompt = %#v", prompt)
+	}
+	if gotBody["preview_text"] != "欢迎来到故事。" || gotBody["speaker_name"] != "Gentle Guide" ||
+		gotBody["language"] != float64(0) || gotBody["sample_rate"] != float64(24000) {
+		t.Fatalf("body = %#v", gotBody)
+	}
+}
+
 func TestVolcenTranscribeSubmitsPollsAndParsesSeedASR(t *testing.T) {
 	var submitBody map[string]any
 	var submitHeaders http.Header

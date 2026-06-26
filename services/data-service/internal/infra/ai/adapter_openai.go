@@ -1443,6 +1443,9 @@ func (a *OpenAIAdapter) VideoGenerate(ctx context.Context, req VideoRequest) (Vi
 }
 
 func (a *OpenAIAdapter) VideoStart(ctx context.Context, req VideoRequest) (VideoResponse, error) {
+	if openAIShouldUseXAIVideoGenerations(req) {
+		return a.xaiVideoStart(ctx, req)
+	}
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
 	_ = w.WriteField("model", req.Model)
@@ -1556,6 +1559,89 @@ func (a *OpenAIAdapter) VideoStart(ctx context.Context, req VideoRequest) (Video
 	return VideoResponse{TaskID: result.ID, Status: VideoStatusSubmitted, Debug: takeDebug(ctx)}, nil
 }
 
+func openAIShouldUseXAIVideoGenerations(req VideoRequest) bool {
+	model := strings.ToLower(strings.TrimSpace(req.Model))
+	if !strings.HasPrefix(model, "grok-imagine-video") {
+		return false
+	}
+	return req.Image == "" && len(req.InputImages) == 0 && len(req.InputImageDataList) == 0
+}
+
+func (a *OpenAIAdapter) xaiVideoStart(ctx context.Context, req VideoRequest) (VideoResponse, error) {
+	dur := req.Duration
+	if dur <= 0 {
+		dur = 5
+	}
+	body := map[string]any{
+		"model":    req.Model,
+		"prompt":   req.Prompt,
+		"duration": dur,
+	}
+	if req.AspectRatio != "" {
+		body["aspect_ratio"] = req.AspectRatio
+	}
+	if req.Size != "" {
+		body["size"] = req.Size
+	}
+	if req.ResolutionName != "" {
+		body["resolution"] = req.ResolutionName
+	}
+	endpoint := strings.TrimRight(a.BaseURL, "/") + "/videos/generations"
+	rawBody, _ := json.Marshal(body)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(rawBody))
+	if err != nil {
+		return VideoResponse{}, err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+a.APIKey)
+	headers := map[string]string{
+		"Content-Type":  "application/json",
+		"Authorization": "Bearer " + maskKey(a.APIKey),
+	}
+	start := time.Now()
+	resp, err := a.rawHTTP.Do(httpReq)
+	latency := time.Since(start).Milliseconds()
+	if err != nil {
+		recordDebug(ctx, DebugCallResult{
+			ModelID: req.Model, Endpoint: endpoint, Method: http.MethodPost,
+			RequestHeaders: headers, RequestBody: mustJSON(body), LatencyMs: latency, Error: err.Error(),
+		})
+		return VideoResponse{}, err
+	}
+	defer resp.Body.Close()
+	respBody, _ := io.ReadAll(resp.Body)
+	recordDebug(ctx, DebugCallResult{
+		Success: resp.StatusCode < 400, ModelID: req.Model, Endpoint: endpoint, Method: http.MethodPost,
+		RequestHeaders: headers, RequestBody: mustJSON(body),
+		ResponseStatus: resp.StatusCode, ResponseBody: string(respBody), LatencyMs: latency,
+	})
+	if resp.StatusCode >= 400 {
+		return VideoResponse{}, fmt.Errorf("API error %d: %s", resp.StatusCode, string(respBody))
+	}
+	var raw map[string]any
+	if err := jsonUnmarshal(respBody, &raw); err != nil {
+		return VideoResponse{}, fmt.Errorf("unexpected response format (got: %.120s): %w", string(respBody), err)
+	}
+	taskID := firstNonEmptyAI(
+		stringField(raw, "id", "request_id", "task_id"),
+		nestedStringField(raw, "data", "id"),
+		nestedStringField(raw, "data", "request_id"),
+	)
+	videoURL := firstNonEmptyAI(
+		stringField(raw, "url", "video_url", "output_url"),
+		nestedStringField(raw, "video", "url"),
+		nestedStringField(raw, "data", "video", "url"),
+		nestedStringField(raw, "data", "url"),
+	)
+	if videoURL != "" {
+		return VideoResponse{TaskID: taskID, Status: VideoStatusSucceeded, URL: videoURL, Debug: takeDebug(ctx)}, nil
+	}
+	if taskID == "" {
+		return VideoResponse{}, fmt.Errorf("no video URL or task ID returned by provider")
+	}
+	return VideoResponse{TaskID: taskID, Status: VideoStatusSubmitted, Debug: takeDebug(ctx)}, nil
+}
+
 func (a *OpenAIAdapter) VideoPoll(ctx context.Context, req VideoPollRequest) (VideoResponse, error) {
 	taskID := req.TaskID
 	pollURL := a.BaseURL + "/videos/" + taskID
@@ -1599,8 +1685,16 @@ func (a *OpenAIAdapter) VideoPoll(ctx context.Context, req VideoPollRequest) (Vi
 	}
 
 	status, _ := raw["status"].(string)
+	if status == "" {
+		status = firstNonEmptyAI(nestedStringField(raw, "data", "status"), nestedStringField(raw, "response", "status"))
+	}
 	normalized := normalizeVideoStatus(status)
-	videoURL := stringField(raw, "url", "video_url", "output_url", "result_url", "download_url")
+	videoURL := firstNonEmptyAI(
+		stringField(raw, "url", "video_url", "output_url", "result_url", "download_url"),
+		nestedStringField(raw, "video", "url"),
+		nestedStringField(raw, "data", "video", "url"),
+		nestedStringField(raw, "response", "video", "url"),
+	)
 
 	switch normalized {
 	case VideoStatusSucceeded:
@@ -1619,6 +1713,21 @@ func (a *OpenAIAdapter) VideoPoll(ctx context.Context, req VideoPollRequest) (Vi
 	default:
 		return VideoResponse{TaskID: taskID, Status: normalized, Debug: takeDebug(ctx)}, nil
 	}
+}
+
+func nestedStringField(raw map[string]any, keys ...string) string {
+	var current any = raw
+	for _, key := range keys {
+		m, ok := current.(map[string]any)
+		if !ok {
+			return ""
+		}
+		current = m[key]
+	}
+	if value, ok := current.(string); ok {
+		return strings.TrimSpace(value)
+	}
+	return ""
 }
 
 func (a *OpenAIAdapter) VideoCancel(ctx context.Context, req VideoCancelRequest) (VideoResponse, error) {

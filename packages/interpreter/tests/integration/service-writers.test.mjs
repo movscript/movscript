@@ -298,6 +298,80 @@ test('workspace service captures content unit prompt snapshot for candidates and
   assert.equal(regenerationPlan.promptBundles.length, 1)
 })
 
+test('scene moment shot plan changes stale selected scene video candidates', async () => {
+  const files = new Map(sourceFileEntries())
+  files.set('content_units/cu_r72k_scene_video/content_unit.json', JSON.stringify({
+    schema: 'movscript.content_unit.v1',
+    kind: 'content_unit',
+    id: 'cu_r72k_scene_video',
+    title: 'Phone call scene video',
+    content_unit_type: 'scene_moment_ref',
+    output_kind: 'video',
+    scene_moment_ref: 'r72k',
+    edit_prompt: {
+      text: 'Generate the complete dramatic beat as one continuous video.',
+      structured: {
+        shot_plan: [{
+          title: 'Phone light',
+          duration_sec: 4,
+          action: 'Phone screen lights up in the dark room.',
+          shot_size: 'close_up',
+          camera_angle: 'eye_level_front',
+          camera_motion: 'slow_push',
+        }],
+      },
+    },
+    model_intent: { capability: 'video', duration_sec: 8 },
+  }))
+  const repository = memoryWorkspaceFileRepository(files)
+  const decisionStore = memoryDecisionStore()
+  const service = createMovScriptWorkspaceService({
+    fileRepository: repository,
+    decisionStore,
+    now: () => new Date('2026-06-07T00:00:00.000Z'),
+  })
+
+  const firstInterpretation = await interpretMovScriptWorkspace({
+    fileRepository: repository,
+    decisionStore,
+    now: new Date('2026-06-07T00:00:00.000Z'),
+  })
+  assert.equal(firstInterpretation.status, 'refreshed')
+  const generationPrompt = JSON.parse(files.get('.interpret/current/content_units/cu_r72k_scene_video/generation_prompt.json'))
+  assert.equal(generationPrompt.edit_prompt.structured.shot_plan[0].camera_motion, 'slow_push')
+
+  await service.createContentCandidate({
+    contentUnitId: 'cu_r72k_scene_video',
+    candidateId: 'candidate_scene_video',
+    outputs: [{ kind: 'video', resource_id: 501, duration_sec: 8 }],
+    promptSnapshot: { schema: 'movscript.content_unit_generation_prompt_snapshot.v1', model_params: { duration: 8 } },
+    createdAt: '2026-06-07T00:01:00.000Z',
+  })
+  await service.selectContentUnitCandidate({
+    contentUnitId: 'cu_r72k_scene_video',
+    candidateId: 'candidate_scene_video',
+    resourceId: 501,
+    reason: 'scene_video_selected',
+    selectedAt: '2026-06-07T00:02:00.000Z',
+  })
+
+  const selectedValidity = await service.readContentUnitSelectionValidity('cu_r72k_scene_video')
+  assert.equal(selectedValidity?.stale, false)
+
+  const contentUnit = JSON.parse(files.get('content_units/cu_r72k_scene_video/content_unit.json'))
+  contentUnit.edit_prompt.structured.shot_plan[0].camera_motion = 'handheld_follow'
+  files.set('content_units/cu_r72k_scene_video/content_unit.json', `${JSON.stringify(contentUnit, null, 2)}\n`)
+
+  await interpretMovScriptWorkspace({
+    fileRepository: repository,
+    decisionStore,
+    now: new Date('2026-06-07T00:03:00.000Z'),
+  })
+  const staleValidity = await service.readContentUnitSelectionValidity('cu_r72k_scene_video')
+  assert.equal(staleValidity?.stale, true)
+  assert.ok(staleValidity?.stale_reasons?.includes('edit_prompt_changed'))
+})
+
 test('workspace content unit prompt updater only changes edit_prompt', async () => {
   const files = new Map([
     ['content_units/k41m/content_unit.json', JSON.stringify({

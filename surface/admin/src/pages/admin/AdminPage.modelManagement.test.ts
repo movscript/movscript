@@ -39,12 +39,15 @@ test('model catalog templates come from backend and keep public id separate from
   assert.doesNotMatch(source, /templateAdapter/)
 })
 
-test('route binding view shows adapter as the provider target runtime type', () => {
+test('route binding view allows adapter override per route binding', () => {
   const source = readFileSync(resolve(process.cwd(), 'src/pages/admin/AdminPage.tsx'), 'utf8')
 
   assert.match(source, /function routeProviderAdapterLabel\(option\?: RouteProviderOption\): string/)
   assert.match(source, /function routeProviderAdapterValue\(option\?: RouteProviderOption\): string/)
-  assert.match(source, /selectedRouteProvider \? routeProviderAdapterLabel\(selectedRouteProvider\) : '-'/)
+  assert.match(source, /function ModelRoutesSection\(\{ credentials, providers, adapters \}/)
+  assert.match(source, /adapters=\{routeAdapterOptions\}/)
+  assert.match(source, /onChange=\{\(event\) => setRouteForm\(\{ \.\.\.routeForm, adapter_type: event\.target\.value \}\)\}/)
+  assert.match(source, /onChange=\{\(event\) => setForm\(\{ \.\.\.form, adapter_type: event\.target\.value \}\)\}/)
   assert.match(source, /adapter: \{binding\.adapter_type \|\| routeProviderAdapterLabel\(provider\)\}/)
 })
 

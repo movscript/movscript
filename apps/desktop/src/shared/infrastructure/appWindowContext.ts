@@ -3,6 +3,7 @@ import type {
   ElectronAppWindowContext,
   ElectronOpenCanvasWindowInput,
   ElectronOpenEditingProjectWindowInput,
+  ElectronOpenProjectDataWindowInput,
   ElectronOpenProjectWindowInput,
   ElectronOpenSettingsWindowInput,
   ElectronOpenToolWindowInput,
@@ -107,6 +108,15 @@ export async function openToolWindow(input: ElectronOpenToolWindowInput = {}): P
   }
   useAppSettingsStore.getState().setWorkMode('tool')
   window.location.assign(input.route ?? '/tools/ref-image-gen')
+}
+
+export async function openProjectDataWindow(input: ElectronOpenProjectDataWindowInput = {}): Promise<void> {
+  const api = readElectronApi()
+  if (api?.openProjectDataWindow) {
+    await api.openProjectDataWindow(input)
+    return
+  }
+  window.location.assign(input.route ?? '/project-data')
 }
 
 export async function openSettingsWindow(input: ElectronOpenSettingsWindowInput = {}): Promise<void> {

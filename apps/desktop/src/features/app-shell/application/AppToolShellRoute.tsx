@@ -16,6 +16,7 @@ import {
   MotionImitationPage,
   MultiAnglePage,
   PluginToolPage,
+  ProviderAssetLibraryPage,
   RefImageGenPage,
   RefVideoGenPage,
   StyleTransferPage,
@@ -216,6 +217,7 @@ export function ToolShellRoute() {
                 <Route path="motion-imitation" element={<MotionImitationPage />} />
                 <Route path="style-transfer" element={<StyleTransferPage />} />
                 <Route path="multi-angle" element={<MultiAnglePage />} />
+                <Route path="private-assets" element={<ProviderAssetLibraryPage />} />
                 <Route path="plugin/:pluginId" element={<PluginToolPage />} />
                 <Route path="*" element={<Navigate to={ROUTES.tools.refImageGen} replace />} />
               </Routes>

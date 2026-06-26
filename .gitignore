@@ -8,6 +8,7 @@ apps/desktop/dist/
 apps/desktop/dist-electron/
 apps/desktop/out/
 apps/desktop/release/
+apps/desktop/.package-stage/
 apps/desktop/electron.vite.config.*.mjs
 apps/desktop/src/api/generated.ts
 apps/desktop/vendor/app-server/*/

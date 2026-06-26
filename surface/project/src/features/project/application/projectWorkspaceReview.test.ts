@@ -45,7 +45,7 @@ test('project entry workspace review search prefers latest matching artifact and
 
 test('project entry artifact review search merges related workspace artifacts', () => {
   const result = mergeProjectEntryArtifactReviewSearchParams(new URLSearchParams('kind=all'), {
-    projectEntryId: 'content',
+    projectEntryId: 'content_preview',
     artifacts: [
       { type: 'workspace', workspaceId: 'setting-1', workspaceKind: 'setting_workspace' },
       { type: 'workspace', workspaceId: 'asset-1', workspaceKind: 'asset_workspace' },
@@ -73,7 +73,7 @@ test('project entry artifact review search covers all active workspace workbench
   assert.equal(projectStandards.toString(), 'tab=rules&workspaceId=standards-1')
 
   const contentReview = mergeProjectEntryArtifactReviewSearchParams(new URLSearchParams('tab=assets'), {
-    projectEntryId: 'content',
+    projectEntryId: 'content_preview',
     artifacts: [
       { type: 'workspace', workspaceId: 'setting-2', workspaceKind: 'setting_workspace' },
       { type: 'workspace', workspaceId: 'asset-2', workspaceKind: 'asset_workspace' },
@@ -108,7 +108,7 @@ test('project entry artifact review search covers all active workspace workbench
   assert.equal(creativeTaskGraph.get('assetWorkspaceArtifactId'), 'asset-3')
 
   const contentOrchestration = mergeProjectEntryArtifactReviewSearchParams(new URLSearchParams('mode=timeline'), {
-    projectEntryId: 'content',
+    projectEntryId: 'content_preview',
     artifacts: [{ type: 'workspace', workspaceId: 'content-4', workspaceKind: 'content_unit_workspace' }],
     primary: { workspaceKind: 'content_unit_workspace', entityType: 'scene_moment', entityId: 77 },
   })

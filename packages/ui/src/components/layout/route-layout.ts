@@ -41,7 +41,7 @@ export interface RouteLayoutSpec {
   scrollMode: RouteScrollMode;
   shellLayout: RouteShellLayout;
   contentWidth?: "narrow" | "normal" | "wide" | "xwide" | "full";
-  projectEntryId?: "project_standards" | "orchestration_production" | "content";
+  projectEntryId?: "project_standards" | "orchestration_production" | "content_canvas" | "content_preview" | "content";
   panes: RouteLayoutPaneSpec[];
   notes?: string;
 }

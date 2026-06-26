@@ -9,6 +9,7 @@ export default function MotionImitationPage() {
     <ToolDialog
       nodeType="motion_imitation"
       capability="video"
+      modelQueryCapabilities={['video_v2v', 'video_i2v', 'video']}
       toolName={t('tools.defs.motionImitation.name')}
       toolDescription={t('tools.defs.motionImitation.description')}
       inputType="image+video"

@@ -454,7 +454,7 @@ func (s *Service) RecordProviderAssetCertification(ctx context.Context, input Re
 		certification["provider"] = provider
 	}
 	certifications := copyProviderAssetCertifications(r.ProviderAssetCertifications)
-	certifications[provider] = certification
+	certifications[providerAssetCertificationStorageKey(provider, certification)] = certification
 	updates := domainresource.UpdateSpec{ProviderAssetCertifications: certifications}
 	if err := s.repo.UpdateResourceRecord(ctx, &r, updates); err != nil {
 		return r, err
@@ -464,6 +464,16 @@ func (s *Service) RecordProviderAssetCertification(ctx context.Context, input Re
 	}
 	s.bumpListVersion(ctx, input.UserID, input.OrgID)
 	return r, nil
+}
+
+func providerAssetCertificationStorageKey(provider string, certification map[string]any) string {
+	provider = strings.TrimSpace(provider)
+	model := strings.TrimSpace(stringValue(certification["model"]))
+	backend := strings.TrimSpace(stringValue(certification["asset_library_backend"]))
+	if provider != "" && model != "" && backend == "yunwu_gateway" {
+		return provider + "::model:" + model
+	}
+	return provider
 }
 
 func (s *Service) RecordProviderGeneratedArtifact(ctx context.Context, input RecordProviderGeneratedArtifactInput) (domainresource.RawResource, error) {

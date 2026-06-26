@@ -1,6 +1,6 @@
 ---
 name: domain
-description: Understand MovScript domain concepts, production prerequisites, content units, candidates, selections, stale impact, and MCP/domain edit workflows.
+description: "Work with MovScript creative project state using production-language first: project context, script, continuity references, scene beats, output tasks, generated options, adoption decisions, readiness checks, and impact review. Use when inspecting, changing, or reasoning about the underlying domain/source model through MCP tools."
 toolGrants:
   - mcp__movscript__movscript_runtime_status
   - mcp__movscript__system_focus_get
@@ -9,6 +9,8 @@ toolGrants:
   - mcp__movscript__domain_query_entities
   - mcp__movscript__domain_query_settings
   - mcp__movscript__domain_query_assets
+  - mcp__movscript__domain_query_remote_asset_groups
+  - mcp__movscript__domain_query_remote_assets
   - mcp__movscript__domain_query_production_context
   - mcp__movscript__domain_derive_content_unit_artifact
   - mcp__movscript__domain_read_preview_timeline
@@ -59,13 +61,20 @@ toolGrants:
   - mcp__movscript__domain_regeneration_plan
 ---
 
-# Domain Workspace
+# MovScript Production Workspace
 
-Use this skill when a user asks to inspect, change, interpret, or reason about MovScript project domain entities. If runtime ownership or service availability is unclear, use the `runtime` skill first.
+Use this skill when a user asks to inspect, change, validate, or reason about MovScript project content. Think in film/production terms first: project context, script, continuity references, scene beats, scene materials, output tasks, generated options, adopted choices, readiness, and downstream impact. Use internal domain/entity names only for tool calls, source paths, and precise diagnostics.
 
-MovScript domain includes object meaning, storage layout, interpreter state, and write APIs. The active language/runtime implementation lives in the MovScript package workspace through `@movscript/language`, `@movscript/workspace`, `@movscript/interpreter`, and `@movscript/engine`. MovScript core exposes those semantics through MCP tools.
+The `domain_*` MCP tools are the internal editing and diagnostic surface for that production workspace. Do not make the conversation about "domain objects" unless the user is debugging MovScript itself; explain work in business terms such as "scene beat", "reference asset", "output task", "generated option", "chosen result", and "impact review".
 
-Open `references/domain-story.md` when the task depends on the meaning of production structure, content units, candidates, selections, stale state, or regeneration impact. Open `references/entity-glossary.md` when mapping user/product terms to source entity names.
+Open `references/domain-story.md` when the task depends on the production workflow behind scene structure, output tasks, generated options, adopted choices, stale state, or impact review. Open `references/entity-glossary.md` only when mapping user/product terms to source entity names.
+
+## Language Posture
+
+- Use business language in reasoning and user-facing responses. Say "情节点", "镜头素材", "参考图", "产出任务", "候选结果", "采纳", and "影响复查" before internal words such as entity, content unit, candidate, selection, interpret, or stale.
+- Use internal names exactly when calling tools or editing source: `scene_moment`, `expression_unit`, `content_unit`, `candidate`, `selection`, `domain_inspect`, `domain_interpret`, and `domain_regeneration_plan`.
+- Treat `domain` as an implementation prefix, not the product model to teach the user.
+- Preserve strict review boundaries: a generated option is not a chosen result until the user or workflow adopts/selects it.
 
 ## Agent Surface URLs
 
@@ -79,26 +88,26 @@ Open `references/domain-story.md` when the task depends on the meaning of produc
 - MovScript MCP host may run as a cloud/external entrypoint, a local daemon-attached session, or a diagnostic/basic session. Domain tools should see project/source/candidate state through Project Service and Data Service capabilities. If a tool reports a missing service endpoint, call `movscript_runtime_status`, classify the runtime owner/data plane, and report the missing capability; do not assume Desktop is required.
 - MCP does not infer project from session, cwd, route, or focus. Every project-scoped domain call must include the intended `projectId`/`project_id`.
 - User and organization identity are handled by MovScript app/frontend state and the MCP service. Do not pass `userId`, `user_id`, `orgId`, or `org_id` to MCP tools.
-- `source`: Editable creative source. It may be incomplete while the user or agent is editing.
-- Product state lives in editable source files plus backend candidate/decision metadata exposed through domain APIs.
+- `source`: Editable creative project source. It may be incomplete while the user or agent is editing.
+- Product state lives in editable source files plus backend generated-option/decision metadata exposed through domain APIs.
 - `.interpret/**`: Interpreter debug artifacts only. Do not treat them as product state, source of truth, or a workflow contract.
-- `domain_inspect`: Primary current-source diagnostic entrypoint. It reports source changes, issues, and interpret readiness without writing interpreted artifacts.
+- `domain_inspect`: Primary project readiness check. It reports source changes, issues, and interpret readiness without writing interpreted artifacts.
 - `domain_review`: Compatibility diagnostic alias for older review workflows. Prefer `domain_inspect` unless the user explicitly asks for review.
-- `domain_interpret`: Validates current source and refreshes derived diagnostic artifacts when enabled. It is not publish, approval, commit, or user-intent checkpoint.
-- `domain_regeneration_plan`: After interpret, reports downstream content units, prompt bundles, selected outputs, or preview timelines that need review.
-- `domain_read_project_context_snapshot`: Read-only project context harness entrypoint. Use it before project-scoped planning, content-unit work, or generation so house style, prompt rules, negative rules, aspect ratio, and style reference resources are visible to the agent.
+- `domain_interpret`: Refreshes project diagnostics and derived artifacts when enabled. It is not publish, approval, commit, or user-intent checkpoint.
+- `domain_regeneration_plan`: After interpret, reports downstream output tasks, prompt bundles, chosen outputs, or preview timelines that need impact review.
+- `domain_read_project_context_snapshot`: Read-only project context entrypoint. Use it before project-scoped planning, output-task work, or generation so house style, prompt rules, negative rules, aspect ratio, and style reference resources are visible to the agent.
 - Except for `content_unit`, entities are production structure or generation prerequisites. Do not create every prerequisite at once unless the user asks for that scope.
-- Content units are top-level production tasks with refs. They are not production hierarchy nodes and not generated resources.
-- Assets are content-unit carriers for generation and review: asset outputs/candidates should be represented through `asset_ref` content units, using the same backend candidate/decision flow as scene_moment, keyframe, and storyboard outputs.
-- Generated/imported resources become effective domain state only through backend-stored candidates and selections. A candidate is not a stable dependency until selected.
-- Terms are strict: RawResource is the media/resource body; candidate is a content-unit candidate record that points to outputs; selection is the current stable chosen candidate/resource; adoption is the user or workflow action that writes selection. Do not use these words interchangeably.
+- Content units are output tasks: they describe something to generate, import, or review, such as a reference image, storyboard panel, keyframe, scene-beat video, or finished segment. They are not production hierarchy nodes and not generated resources.
+- Assets are reference slots for generation and review: asset outputs/options should be represented through `asset_ref` content units, using the same backend option/decision flow as scene_moment, keyframe, and storyboard outputs.
+- Generated/imported resources become effective project state only through backend-stored candidates and selections. A candidate is not a stable dependency until selected.
+- Terms are strict: RawResource is the media/resource body; candidate is a generated/imported option record that points to outputs; selection is the current stable chosen candidate/resource; adoption is the user or workflow action that writes selection. Do not use these words interchangeably.
 - Downstream prompts reference selected upstream candidates by semantic prompt refs when dependency tracking and selected-candidate semantics matter. Use `{{asset::id}}`, `{{storyboard::id}}`, `{{keyframe::id}}`, `{{scene_moment::id}}`, `{{expression_unit::id}}`, `{{content_unit::id}}`, `{{candidate::id}}`, or `{{resource::123}}` in content-unit `edit_prompt`. Prompt compilation resolves selected backend candidates into resource mentions such as `@[resource:123]`; legacy `[[resource::123]]` mentions are also recognized. For loose raw-resource guidance without semantic dependency tracking, direct RawResource IDs can be passed as generation inputs/references instead.
 - Content-unit candidate decisions are `adopt`, `reject`, or `defer`. `adopt` selects the candidate as stable output/reference, while `reject` and `defer` only annotate the candidate and must not unblock downstream stable generation.
 - Affected does not mean regenerate. Affected means the downstream target needs an explicit keep, relink, re-prompt, regenerate, re-shoot, deprecate, or accept-stale decision.
 - `setting` must be a concrete film/music production entity to be made or reused, such as `主角-老张`, `道具-玉玺`, a place, an instrument, a costume, or a voice identity. Do not create settings for abstract styles, world rules, genres, moods, or one-off prompt notes; use project standards or the relevant production/expression fields instead.
 - `setting_state` is a namespace under exactly one setting for a named condition/version of that same entity, such as base look, wet hair, damaged prop, side-view variant, formal costume, calm voice, or angry voice.
 - `asset` is a resource slot under a setting state that describes that state, such as front view, side view, turnaround sheet, material reference, voice timbre, or instrument tone. For image asset generation, prefer plain white or very clean backgrounds unless the user explicitly asks for scene context.
-- Provider asset certification is a RawResource-level capability. Use `domain_certify_asset_provider` to register the selected image RawResource with the official Volcengine Ark asset library via the MovScript backend; the RawResource stores `provider_asset_certifications.<provider_id>` as the certification source of truth. Asset `provider_certifications` may mirror the selected asset_ref use relationship, but do not treat asset JSON as the certification origin. Admin provider-asset settings provide the Volcengine OpenAPI URL, region, and AK/SK; the backend automatically creates and records AIGC asset groups. MCP calls with project + setting context should scope certification to that project/setting group, while direct resource-library certification uses the global managed group. This path still needs a public backend URL for signed resource URLs or an explicit `source_url`. Do not use or describe third-party SilvaMux gateway compatibility.
+- Provider asset certification is a provider-account remote asset-library capability. Use `domain_query_remote_asset_groups` before certification when the target group is not explicit, then use `domain_certify_asset_provider` with a concrete `provider`, `model`, and selected/explicit remote `asset_group_id`. MovScript mirrors remote groups, remote assets, and model-specific certifications separately; RawResource and asset JSON certification fields are compatibility mirrors only. Treat `asset://` values as scoped to one provider account, group, and certified model. A RawResource certified for Seedance 2.0 is not automatically certified for Seedance 2.0 fast/pro. Official Ark provider-asset settings provide the Volcengine OpenAPI URL, region, and AK/SK. Yunwu private-avatar certification reuses the Yunwu Provider base URL and API key; do not ask for a second asset-library gateway credential. This path still needs a public backend URL for signed resource URLs or an explicit `source_url`.
 - Provider-generated artifact trust is a separate RawResource-level provenance capability stored in `provider_generated_artifact`. Use it to decide whether Seedance 2.0 face videos, their tail-frame images, or Seedream 5.0 lite face images are still inside the provider trust window. Do not infer trusted-reference eligibility from asset selection, candidate adoption, filenames, prompts, or `provider_asset_certifications`.
 - Shot-like visual intent belongs to `expression_unit` records under a scene moment, with `modality=visual` and `role=shot`. Do not call or request `domain_upsert_shot` for new work; legacy shot source records may exist only for old data migration/compatibility.
 

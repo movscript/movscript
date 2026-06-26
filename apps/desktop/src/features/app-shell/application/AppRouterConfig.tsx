@@ -48,7 +48,8 @@ import {
   AppSettingsPage,
   AuthPage,
   ClientPluginsPage,
-  ContentCanvasWorkspacePage,
+  ContentCanvasPage,
+  ContentCanvasPreviewPage,
   ExternalResourcesPage,
   GlobalHomePage,
   InvitePage,
@@ -153,14 +154,18 @@ export function AuthenticatedAppRouter() {
                   <Route path={ROUTES.project.agent} element={<ProjectAgentModeRoute />} />
                   <Route path={ROUTES.project.agentCanvases} element={<ProjectGuard><AgentModeRoute><AgentModeCanvasListPage /></AgentModeRoute></ProjectGuard>} />
                   <Route path={ROUTES.project.standards} element={<ProjectGuard><ProjectStandardsPage /></ProjectGuard>} />
-                  <Route path={ROUTES.project.content} element={<ProjectGuard><ContentCanvasWorkspacePage /></ProjectGuard>} />
-                  <Route path={ROUTES.project.contentLegacy} element={<Navigate to={ROUTES.project.content} replace />} />
-                  <Route path={ROUTES.project.contentLegacyNext} element={<Navigate to={ROUTES.project.content} replace />} />
+                  <Route path={ROUTES.project.content} element={<ProjectGuard><ContentCanvasPreviewPage /></ProjectGuard>} />
+                  <Route path={ROUTES.project.contentCanvas} element={<ProjectGuard><ContentCanvasPage /></ProjectGuard>} />
+                  <Route path={ROUTES.project.contentPreview} element={<ProjectGuard><ContentCanvasPreviewPage /></ProjectGuard>} />
+                  <Route path={ROUTES.project.contentLegacy} element={<Navigate to={ROUTES.project.contentCanvas} replace />} />
+                  <Route path={ROUTES.project.contentLegacyNext} element={<Navigate to={ROUTES.project.contentCanvas} replace />} />
                   <Route path={ROUTES.studioOverview} element={<ProjectGuard><ProjectOverviewPage /></ProjectGuard>} />
                   <Route path={ROUTES.studioSettings} element={<ProjectGuard><ProjectSettingsPage /></ProjectGuard>} />
                   <Route path={ROUTES.studioScripts} element={<ProjectGuard><ScriptsPage /></ProjectGuard>} />
                   <Route path={ROUTES.studioStandards} element={<ProjectGuard><ProjectStandardsPage /></ProjectGuard>} />
-                  <Route path={ROUTES.studioContent} element={<ProjectGuard><ContentCanvasWorkspacePage /></ProjectGuard>} />
+                  <Route path={ROUTES.studioContent} element={<ProjectGuard><ContentCanvasPreviewPage /></ProjectGuard>} />
+                  <Route path={ROUTES.studioContentCanvas} element={<ProjectGuard><ContentCanvasPage /></ProjectGuard>} />
+                  <Route path={ROUTES.studioContentPreview} element={<ProjectGuard><ContentCanvasPreviewPage /></ProjectGuard>} />
 
                   {runtimeRoutes.map((route) => {
                     const manageNavItem = runtimeNavItems.find((item) => item.to === route.path && (item.section ?? 'manage') === 'manage')

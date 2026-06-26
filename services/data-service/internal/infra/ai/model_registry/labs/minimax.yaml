@@ -206,3 +206,16 @@ templates:
         status: verified
         url: https://platform.minimax.io/docs/guides/text-generation
         verified_at: "2026-06-25"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: MiniMax M2.1
+      id: minimax:minimax-m2-1
+      lab: minimax
+      model_id: minimax-m2.1
+      order: 89
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"

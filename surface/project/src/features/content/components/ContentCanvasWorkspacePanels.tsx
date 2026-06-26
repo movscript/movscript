@@ -112,6 +112,7 @@ export function InspectorPanel({
   onExpressionUnitSave,
   onPromptChange,
   onPromptCommit,
+  onStructuredPromptCommit,
   onSelectNode,
 }: {
   activeSetting: ContentCanvasNode | null
@@ -125,7 +126,7 @@ export function InspectorPanel({
   onCandidateSelect: (node: ContentCanvasNode | undefined, candidate: ContentCanvasCandidate) => void
   onCandidateCreate: (node: ContentCanvasNode | undefined, options?: ContentCanvasCandidateGenerationOptions) => void
   onCandidatePromptPreview: (node: ContentCanvasNode | undefined) => Promise<ContentCanvasCandidatePromptPreview>
-  onCandidateResourceSelect: (node: ContentCanvasNode | undefined, resource: ContentCanvasUploadedResource) => void
+  onCandidateResourceSelect: (node: ContentCanvasNode | undefined, resource: ContentCanvasUploadedResource, position?: ContentCanvasNodePosition) => void
   onCandidateUpload: (node: ContentCanvasNode | undefined, file: File) => void
   onCreateAsset: (state: ContentCanvasNode, input: ContentCanvasCreateNodeInput, position?: ContentCanvasNodePosition) => void
   onCreateExpressionUnit: (scene: ContentCanvasNode, input: ContentCanvasCreateNodeInput, position?: ContentCanvasNodePosition) => void
@@ -136,6 +137,7 @@ export function InspectorPanel({
   onExpressionUnitSave: (node: ContentCanvasNode, input: ContentCanvasExpressionUnitEditorInput) => void
   onPromptChange: (assetId: string, prompt: string) => void
   onPromptCommit: (node: ContentCanvasNode | undefined, prompt: string) => void
+  onStructuredPromptCommit: (node: ContentCanvasNode | undefined, structured: Record<string, unknown>) => void
   onSelectNode: (kind: InspectorSelection['kind'], nodeId: string) => void
 }) {
   return (
@@ -160,6 +162,7 @@ export function InspectorPanel({
         onCreateStoryboard={onCreateStoryboard}
         onPromptChange={onPromptChange}
         onPromptCommit={onPromptCommit}
+        onStructuredPromptCommit={onStructuredPromptCommit}
         onExpressionPromptChange={onExpressionPromptChange}
         onExpressionUnitSave={onExpressionUnitSave}
         onCandidateCreate={onCandidateCreate}

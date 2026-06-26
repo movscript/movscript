@@ -8,6 +8,7 @@ export const resourceKeys = {
     pageSize: number
   }) => ['resources', input.scope, input.filter, input.search, input.page, input.pageSize] as const,
   detail: (resourceId: number | undefined) => ['resources', 'detail', resourceId] as const,
+  providerAssetProviders: ['resources', 'provider-asset-providers'] as const,
   agentPanel: ['resources', 'agent-panel'] as const,
   panel: (input: {
     inputType: string

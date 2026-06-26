@@ -12,6 +12,7 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import type { RawResource } from '@movscript/shared'
+import type { ResourceLibraryProviderAssetProvider } from '../../resource-browser.js'
 import { ResourceCard, ResourceListRowItem } from './ResourcesPageItems'
 
 export function ResourcesPageLibraryContent({
@@ -36,6 +37,7 @@ export function ResourcesPageLibraryContent({
   onShareResourcesToTeam,
   onShareResourcesToProject,
   onDownloadResource,
+  providerAssetProviders,
   onCertifyProviderAsset,
   onSelectResource,
   onContextMenu,
@@ -64,7 +66,8 @@ export function ResourcesPageLibraryContent({
   onShareResourcesToTeam: (resources: RawResource[]) => void
   onShareResourcesToProject: (resources: RawResource[]) => void
   onDownloadResource: (resource: RawResource) => void
-  onCertifyProviderAsset: (resource: RawResource) => void
+  providerAssetProviders?: ResourceLibraryProviderAssetProvider[]
+  onCertifyProviderAsset: (resource: RawResource, providerID?: string) => void
   onSelectResource: (resource: RawResource, selected: boolean) => void
   onContextMenu: (event: MouseEvent, resource: RawResource) => void
   onPreviewResource: (resource: RawResource) => void
@@ -112,7 +115,8 @@ export function ResourcesPageLibraryContent({
               onShareToTeam={canAdoptToTeam(resource) ? () => onShareResourcesToTeam([resource]) : undefined}
               onShareToProject={projectScopeEnabled ? () => onShareResourcesToProject([resource]) : undefined}
               onDownload={() => onDownloadResource(resource)}
-              onCertifyProviderAsset={() => onCertifyProviderAsset(resource)}
+              providerAssetProviders={providerAssetProviders}
+              onCertifyProviderAsset={(providerID) => onCertifyProviderAsset(resource, providerID)}
               selected={selectionMode && selectedResourceIDs.has(resource.ID)}
               onSelectChange={selectionMode ? selected => onSelectResource(resource, selected) : undefined}
               onContextMenu={onContextMenu}
@@ -163,7 +167,8 @@ export function ResourcesPageLibraryContent({
               onShareToTeam={canAdoptToTeam(resource) ? () => onShareResourcesToTeam([resource]) : undefined}
               onShareToProject={projectScopeEnabled ? () => onShareResourcesToProject([resource]) : undefined}
               onDownload={() => onDownloadResource(resource)}
-              onCertifyProviderAsset={() => onCertifyProviderAsset(resource)}
+              providerAssetProviders={providerAssetProviders}
+              onCertifyProviderAsset={(providerID) => onCertifyProviderAsset(resource, providerID)}
               agentReferenceActions={agentReferenceActions}
             />
           </ResourcePageListRow>

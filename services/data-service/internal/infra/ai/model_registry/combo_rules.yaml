@@ -10,6 +10,10 @@ rules:
   - provider_type: volcen
     profile: ark
     lab: seed
+  - provider_type: yunwu
+    profile: gateway
+    exclude_labs:
+      - open-source-audio
   - provider_type: openai
     profile: official
     lab: openai

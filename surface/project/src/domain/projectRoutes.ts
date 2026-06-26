@@ -10,6 +10,8 @@ export const PROJECT_SURFACE_ROUTES = {
   scripts: '/studio/:projectId/scripts',
   standards: '/studio/:projectId/standards',
   content: '/studio/:projectId/content',
+  contentCanvas: '/studio/:projectId/content/canvas',
+  contentPreview: '/studio/:projectId/content/preview',
   settings: '/studio/:projectId/settings',
 } as const
 
@@ -39,7 +41,8 @@ export const PROJECT_SURFACE_ROUTE_DEFINITIONS: readonly ProjectSurfaceRouteDefi
   { label: 'Resources', key: 'resources', path: PROJECT_SURFACE_ROUTES.resources, segment: 'resources' },
   { label: 'Scripts', key: 'scripts', path: PROJECT_SURFACE_ROUTES.scripts, segment: 'scripts' },
   { label: 'Standards', key: 'standards', path: PROJECT_SURFACE_ROUTES.standards, segment: 'standards' },
-  { label: 'Content', key: 'content', path: PROJECT_SURFACE_ROUTES.content, segment: 'content' },
+  { label: 'Canvas', key: 'contentCanvas', path: PROJECT_SURFACE_ROUTES.contentCanvas, segment: 'content/canvas' },
+  { label: 'Preview', key: 'contentPreview', path: PROJECT_SURFACE_ROUTES.contentPreview, segment: 'content/preview' },
   { label: 'Settings', key: 'settings', path: PROJECT_SURFACE_ROUTES.settings, segment: 'settings' },
 ]
 

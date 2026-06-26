@@ -16,6 +16,7 @@ import {
 
 interface ModelSelectorProps {
   capability: SurfaceModelCapability
+  queryCapabilities?: SurfaceModelCapability[]
   value: string | null
   onChange: (id: string) => void
   onModelChange?: (model: PublicModel | null) => void
@@ -23,17 +24,21 @@ interface ModelSelectorProps {
   className?: string
 }
 
-export function ModelSelector({ capability, value, onChange, onModelChange, disabled, className }: ModelSelectorProps) {
+export function ModelSelector({ capability, queryCapabilities, value, onChange, onModelChange, disabled, className }: ModelSelectorProps) {
   const { t } = useTranslation()
   const queryCapability = surfaceModelQueryCapability(capability)
+  const queryCapabilityList = normalizeModelQueryCapabilities(queryCapabilities ?? [capability])
 
   const { data: modelsData, isFetching, refetch } = useQuery<PublicModel[]>({
-    queryKey: modelKeys.capability(queryCapability),
-    queryFn: () => listSurfaceModelsByCapability(queryCapability),
+    queryKey: modelKeys.capability(queryCapabilityList.join(',')),
+    queryFn: async () => {
+      const groups = await Promise.all(queryCapabilityList.map((item) => listSurfaceModelsByCapability(item)))
+      return dedupeModels(groups.flat())
+    },
     staleTime: 0,
   })
   const models = modelsData ?? []
-  const defaultModel = models.find((model) => model.is_default) ?? models[0]
+  const defaultModel = preferredDefaultModel(models, queryCapabilityList)
 
   const effectiveValue = value ?? (defaultModel ? publicModelId(defaultModel) : null)
 
@@ -62,4 +67,37 @@ export function ModelSelector({ capability, value, onChange, onModelChange, disa
       onRefresh={() => refetch()}
     />
   )
+}
+
+function normalizeModelQueryCapabilities(capabilities: SurfaceModelCapability[]) {
+  const seen = new Set<string>()
+  const out: SurfaceModelCapability[] = []
+  for (const capability of capabilities) {
+    const queryCapability = surfaceModelQueryCapability(capability)
+    if (seen.has(queryCapability)) continue
+    seen.add(queryCapability)
+    out.push(queryCapability)
+  }
+  return out
+}
+
+function dedupeModels(models: PublicModel[]) {
+  const seen = new Set<string>()
+  const out: PublicModel[] = []
+  for (const model of models) {
+    const id = publicModelId(model)
+    if (seen.has(id)) continue
+    seen.add(id)
+    out.push(model)
+  }
+  return out
+}
+
+function preferredDefaultModel(models: PublicModel[], capabilityPriority: readonly string[]) {
+  for (const capability of capabilityPriority) {
+    const model = models.find((item) => item.is_default && item.capabilities?.includes(capability)) ??
+      models.find((item) => item.capabilities?.includes(capability))
+    if (model) return model
+  }
+  return models.find((model) => model.is_default) ?? models[0]
 }

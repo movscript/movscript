@@ -249,7 +249,7 @@ export function domainTools(): MCPTool[] {
     },
     {
       name: 'domain_certify_asset_provider',
-      description: 'Register the selected RawResource with an official Volcengine Ark provider asset library via the MovScript backend. Pass a concrete provider_id when known; otherwise the backend uses the enabled volcengine_ark_official provider. The backend automatically creates/reuses managed AIGC asset groups. The RawResource stores provider_asset_certifications keyed by provider_id as the certification source of truth; asset provider_certifications may mirror the selected asset_ref use relationship.',
+      description: 'Register the selected image RawResource with a provider asset library via the MovScript backend. Pass a concrete provider_id when known; otherwise the backend uses the enabled volcengine_ark_official provider. Official Volcengine Ark and Yunwu relay providers with private portrait support are supported. The RawResource stores provider_asset_certifications keyed by provider_id as the certification source of truth, and returned asset:// values are scoped to that provider/account boundary; asset provider_certifications may mirror the selected asset_ref use relationship.',
       inputSchema: projectSchema({
         ...workspaceLocator,
         assetId: { type: ['string', 'number'], description: 'MovScript asset id or asset source path.' },
@@ -259,6 +259,12 @@ export function domainTools(): MCPTool[] {
         provider: { type: 'string', description: 'Provider id or provider kind selector. Prefer a concrete provider_id such as volc-ark-main. Defaults to volcengine_ark_official.' },
         resourceId: { type: 'number', description: 'Optional RawResource override. Defaults to the selected asset_ref resource.' },
         resource_id: { type: 'number', description: 'Alias for resourceId.' },
+        model: { type: 'string', description: 'Target model id. Provider asset certification is model-scoped; certify separately for fast/standard/pro variants.' },
+        model_id: { type: 'string', description: 'Alias for model.' },
+        asset_group_id: { type: 'string', description: 'Explicit remote provider asset group id selected by the user.' },
+        assetGroupId: { type: 'string', description: 'Alias for asset_group_id.' },
+        asset_group_name: { type: 'string', description: 'Optional display name for the explicit remote provider asset group.' },
+        assetGroupName: { type: 'string', description: 'Alias for asset_group_name.' },
         projectName: { type: 'string', description: 'Optional provider project label for the managed asset group. Defaults to projectId when available.' },
         project_name: { type: 'string', description: 'Alias for projectName.' },
         settingId: { type: 'string', description: 'Optional setting scope for the managed asset group. Defaults to the asset path setting segment when available.' },
@@ -270,6 +276,29 @@ export function domainTools(): MCPTool[] {
         allowPrivateUrls: { type: 'boolean', description: 'Alias for allow_private_urls.' },
         timeout_ms: { type: 'number', minimum: 1000 },
         timeoutMs: { type: 'number', minimum: 1000 },
+      }),
+    },
+    {
+      name: 'domain_query_remote_asset_groups',
+      description: 'List remote provider asset-library groups mirrored by MovScript for a provider account. Use this before registering assets when the user must choose the target remote group.',
+      inputSchema: projectSchema({
+        ...workspaceLocator,
+        provider: { type: 'string', description: 'Provider id or provider kind selector. Prefer a concrete provider_id such as yunwu-main or volc-ark-main.' },
+        provider_id: { type: 'string', description: 'Alias for provider.' },
+        model: { type: 'string', description: 'Optional target model id for model-scoped groups.' },
+        model_id: { type: 'string', description: 'Alias for model.' },
+      }),
+    },
+    {
+      name: 'domain_query_remote_assets',
+      description: 'List remote provider assets inside a selected provider asset group, including model-specific certification records.',
+      inputSchema: projectSchema({
+        ...workspaceLocator,
+        provider: { type: 'string', description: 'Provider id or provider kind selector. Prefer a concrete provider_id such as yunwu-main or volc-ark-main.' },
+        provider_id: { type: 'string', description: 'Alias for provider.' },
+        groupId: { type: ['string', 'number'], description: 'Remote provider asset group id or MovScript mirrored group id.' },
+        group_id: { type: ['string', 'number'], description: 'Alias for groupId.' },
+        asset_group_id: { type: ['string', 'number'], description: 'Alias for groupId.' },
       }),
     },
     {

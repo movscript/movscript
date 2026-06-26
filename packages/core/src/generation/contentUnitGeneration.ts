@@ -8,6 +8,7 @@ import {
 } from './jobDecision.js'
 import {
   buildGenerationJobPayload,
+  type GenerationJobPayloadParamDef,
   type GenerationParamValue,
 } from './jobPayload.js'
 
@@ -28,6 +29,7 @@ export interface ContentUnitGenerationRequestInput {
   compiledPrompt: Record<string, unknown>
   modelId: string
   params?: Record<string, GenerationParamValue>
+  supportedParams?: readonly GenerationJobPayloadParamDef[] | null
   modelParams?: Record<string, unknown>
   additionalInputResourceIds?: number[]
   preferredVideoJobType?: unknown
@@ -129,6 +131,7 @@ export function buildContentUnitGenerationJobPayload(
         title: contentUnitGenerationJobTitle(input.outputKind),
         prompt: request.promptText,
         params: request.params,
+        supportedParams: input.supportedParams,
         inputResourceIds: request.inputResourceIds,
         sourceKey: request.featureKey,
       }),

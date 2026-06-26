@@ -181,7 +181,7 @@ export type ElectronAppUpdateStatus = {
   error?: string
 }
 
-export type ElectronAppWindowKind = 'home' | 'agent' | 'project' | 'editingProject' | 'canvas' | 'tool' | 'settings'
+export type ElectronAppWindowKind = 'home' | 'agent' | 'project' | 'editingProject' | 'canvas' | 'tool' | 'projectData' | 'settings'
 
 export type ElectronAppWindowProjectSnapshot = {
   ID: number
@@ -236,6 +236,12 @@ export type ElectronOpenCanvasWindowInput = {
 }
 
 export type ElectronOpenToolWindowInput = {
+  title?: string
+  route?: string
+  search?: string
+}
+
+export type ElectronOpenProjectDataWindowInput = {
   title?: string
   route?: string
   search?: string

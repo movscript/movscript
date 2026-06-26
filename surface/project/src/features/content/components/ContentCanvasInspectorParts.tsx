@@ -12,7 +12,7 @@ import {
 } from '../application/contentCanvasCommands'
 import type { ContentCanvasUploadedResource } from '../application/contentCanvasWorkspaceGateway'
 import type { ContentCanvasCandidate, ContentCanvasNode } from '../domain/contentCanvasTypes'
-import type { CandidateSelections, InspectorSelection } from './contentCanvasWorkspaceTypes'
+import type { CandidateSelections, ContentCanvasNodePosition, InspectorSelection } from './contentCanvasWorkspaceTypes'
 import type { NodeMediaKind } from './contentCanvasWorkspaceNodeModel'
 import { ContentCanvasGenerationParamControls } from './ContentCanvasGenerationParamControls'
 import { ContentCanvasModelSelector } from './ContentCanvasModelSelector'
@@ -31,6 +31,7 @@ import {
 export type ContentCanvasCandidateGenerationOptions = {
   modelId: string
   params: Record<string, string | number | boolean>
+  supportedParams?: PublicModel['supported_params']
 }
 
 export type ContentCanvasCandidatePromptPreview = {
@@ -161,7 +162,7 @@ export function CandidateDecisionPanel({
   onCandidateCreate?: (node: ContentCanvasNode | undefined, options: ContentCanvasCandidateGenerationOptions) => void
   onCandidatePromptPreview?: (node: ContentCanvasNode | undefined) => Promise<ContentCanvasCandidatePromptPreview>
   onCandidateSelect: (node: ContentCanvasNode | undefined, candidate: ContentCanvasCandidate) => void
-  onCandidateResourceSelect?: (node: ContentCanvasNode | undefined, resource: ContentCanvasUploadedResource) => void
+  onCandidateResourceSelect?: (node: ContentCanvasNode | undefined, resource: ContentCanvasUploadedResource, position?: ContentCanvasNodePosition) => void
   onCandidateUpload?: (node: ContentCanvasNode | undefined, file: File) => void
 }) {
   const uploadInputRef = useRef<HTMLInputElement | null>(null)
@@ -710,6 +711,7 @@ export function GenerationCandidateDialog({
     onSubmit({
       modelId: selectedModelId,
       params,
+      supportedParams,
     })
   }
 

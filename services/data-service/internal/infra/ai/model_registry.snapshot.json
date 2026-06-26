@@ -829,6 +829,20 @@
     }
   },
   {
+    "id": "openai:gpt-3-5-turbo-1106",
+    "lab": "openai",
+    "model_id": "gpt-3.5-turbo-1106",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
     "id": "volcengine:doubao-seed-1-8",
     "lab": "seed",
     "model_id": "doubao-seed-1.8-251228",
@@ -840,6 +854,20 @@
       "url": "https://www.volcengine.com/docs/82379",
       "verified_at": "2026-06-25",
       "status": "verified"
+    }
+  },
+  {
+    "id": "openai:gpt-4",
+    "lab": "openai",
+    "model_id": "gpt-4",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
     }
   },
   {
@@ -857,6 +885,20 @@
     }
   },
   {
+    "id": "openai:gpt-4-0125-preview",
+    "lab": "openai",
+    "model_id": "gpt-4-0125-preview",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
     "id": "volcengine:doubao-seed-1-6-lite",
     "lab": "seed",
     "model_id": "doubao-seed-1.6-lite-251015",
@@ -868,6 +910,20 @@
       "url": "https://www.volcengine.com/docs/82379",
       "verified_at": "2026-06-25",
       "status": "verified"
+    }
+  },
+  {
+    "id": "openai:gpt-4-0613",
+    "lab": "openai",
+    "model_id": "gpt-4-0613",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
     }
   },
   {
@@ -885,6 +941,20 @@
     }
   },
   {
+    "id": "openai:gpt-4-turbo",
+    "lab": "openai",
+    "model_id": "gpt-4-turbo",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
     "id": "volcengine:doubao-seed-1-6-vision",
     "lab": "seed",
     "model_id": "doubao-seed-1.6-vision-250815",
@@ -896,6 +966,20 @@
       "url": "https://www.volcengine.com/docs/82379",
       "verified_at": "2026-06-25",
       "status": "verified"
+    }
+  },
+  {
+    "id": "openai:gpt-4-turbo-2024-04-09",
+    "lab": "openai",
+    "model_id": "gpt-4-turbo-2024-04-09",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
     }
   },
   {
@@ -913,6 +997,20 @@
     }
   },
   {
+    "id": "openai:gpt-4-turbo-preview",
+    "lab": "openai",
+    "model_id": "gpt-4-turbo-preview",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
     "id": "volcengine-ark:doubao-seed-2-0-pro",
     "lab": "seed",
     "model_id": "doubao-seed-2-0-pro-260215",
@@ -924,6 +1022,20 @@
       "url": "https://www.volcengine.com/docs/82379",
       "verified_at": "2026-06-25",
       "status": "verified"
+    }
+  },
+  {
+    "id": "openai:gpt-4-vision-preview",
+    "lab": "openai",
+    "model_id": "gpt-4-vision-preview",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
     }
   },
   {
@@ -955,6 +1067,20 @@
     }
   },
   {
+    "id": "openai:gpt-4-1-mini-2025-04-14",
+    "lab": "openai",
+    "model_id": "gpt-4.1-mini-2025-04-14",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
     "id": "volcengine:seedream-3-0",
     "lab": "seed",
     "model_id": "doubao-seedream-3-0-t2i-250415",
@@ -972,6 +1098,20 @@
       "url": "https://www.volcengine.com/docs/82379/1366799?lang=zh",
       "verified_at": "2026-06-25",
       "status": "verified"
+    }
+  },
+  {
+    "id": "openai:gpt-4-1-nano",
+    "lab": "openai",
+    "model_id": "gpt-4.1-nano",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
     }
   },
   {
@@ -996,6 +1136,20 @@
     }
   },
   {
+    "id": "openai:gpt-4-1-nano-2025-04-14",
+    "lab": "openai",
+    "model_id": "gpt-4.1-nano-2025-04-14",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
     "id": "volcengine:seedream-4-5",
     "lab": "seed",
     "model_id": "doubao-seedream-4-5-251128",
@@ -1014,6 +1168,20 @@
       "url": "https://www.volcengine.com/docs/82379/1366799?lang=zh",
       "verified_at": "2026-06-25",
       "status": "verified"
+    }
+  },
+  {
+    "id": "openai:gpt-4o-2024-05-13",
+    "lab": "openai",
+    "model_id": "gpt-4o-2024-05-13",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
     }
   },
   {
@@ -1040,6 +1208,20 @@
     }
   },
   {
+    "id": "openai:gpt-4o-2024-08-06",
+    "lab": "openai",
+    "model_id": "gpt-4o-2024-08-06",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
     "id": "volcengine:seedream-5-0-lite",
     "lab": "seed",
     "model_id": "doubao-seedream-5-0-lite-260128",
@@ -1063,6 +1245,20 @@
     }
   },
   {
+    "id": "openai:gpt-4o-2024-11-20",
+    "lab": "openai",
+    "model_id": "gpt-4o-2024-11-20",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
     "id": "volcengine-ark:seedream-3-0",
     "lab": "seed",
     "model_id": "doubao-seedream-3-0-t2i-250415",
@@ -1080,6 +1276,20 @@
       "url": "https://www.volcengine.com/docs/82379/1366799?lang=zh",
       "verified_at": "2026-06-25",
       "status": "verified"
+    }
+  },
+  {
+    "id": "openai:gpt-4o-audio-preview",
+    "lab": "openai",
+    "model_id": "gpt-4o-audio-preview",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "audio_chat"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
     }
   },
   {
@@ -1106,6 +1316,20 @@
     }
   },
   {
+    "id": "openai:gpt-4o-audio-preview-2024-12-17",
+    "lab": "openai",
+    "model_id": "gpt-4o-audio-preview-2024-12-17",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "audio_chat"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
     "id": "volcengine-ark:seedream-5-0-lite",
     "lab": "seed",
     "model_id": "doubao-seedream-5-0-lite-260128",
@@ -1126,6 +1350,20 @@
       "url": "https://www.volcengine.com/docs/82379/1366799?lang=zh",
       "verified_at": "2026-06-25",
       "status": "verified"
+    }
+  },
+  {
+    "id": "openai:gpt-4o-mini-2024-07-18",
+    "lab": "openai",
+    "model_id": "gpt-4o-mini-2024-07-18",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
     }
   },
   {
@@ -1153,6 +1391,20 @@
     }
   },
   {
+    "id": "openai:gpt-4o-mini-audio-preview-2024-12-17",
+    "lab": "openai",
+    "model_id": "gpt-4o-mini-audio-preview-2024-12-17",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "audio_chat"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
     "id": "volcengine:seedance-1-0-lite-i2v",
     "lab": "seed",
     "model_id": "doubao-seedance-1-0-lite-i2v-250428",
@@ -1173,6 +1425,21 @@
       "url": "https://www.volcengine.com/docs/82379/1520757?lang=zh",
       "verified_at": "2026-06-25",
       "status": "verified"
+    }
+  },
+  {
+    "id": "openai:gpt-5",
+    "lab": "openai",
+    "model_id": "gpt-5",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
     }
   },
   {
@@ -1200,6 +1467,21 @@
     }
   },
   {
+    "id": "openai:gpt-5-2025-08-07",
+    "lab": "openai",
+    "model_id": "gpt-5-2025-08-07",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
     "id": "volcengine:seedance-1-5-pro",
     "lab": "seed",
     "model_id": "doubao-seedance-1-5-pro-251215",
@@ -1224,6 +1506,20 @@
       "url": "https://www.volcengine.com/docs/82379/1520757?lang=zh",
       "verified_at": "2026-06-25",
       "status": "verified"
+    }
+  },
+  {
+    "id": "openai:gpt-5-chat-latest",
+    "lab": "openai",
+    "model_id": "gpt-5-chat-latest",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
     }
   },
   {
@@ -1274,6 +1570,21 @@
       "url": "https://www.volcengine.com/docs/82379/1520757?lang=zh",
       "verified_at": "2026-06-25",
       "status": "verified"
+    }
+  },
+  {
+    "id": "openai:gpt-5-codex",
+    "lab": "openai",
+    "model_id": "gpt-5-codex",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
     }
   },
   {
@@ -1345,6 +1656,21 @@
     }
   },
   {
+    "id": "openai:gpt-5-mini",
+    "lab": "openai",
+    "model_id": "gpt-5-mini",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
     "id": "volcengine:seed-tts-1-1",
     "lab": "seed",
     "model_id": "seed-tts-1.1",
@@ -1377,6 +1703,21 @@
     }
   },
   {
+    "id": "openai:gpt-5-mini-2025-08-07",
+    "lab": "openai",
+    "model_id": "gpt-5-mini-2025-08-07",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
     "id": "volcengine:seed-tts-1-0",
     "lab": "seed",
     "model_id": "seed-tts-1.0",
@@ -1406,6 +1747,21 @@
       "url": "https://kling.ai/document-api/apiReference/model/textToVideo",
       "verified_at": "2026-06-25",
       "status": "verified"
+    }
+  },
+  {
+    "id": "openai:gpt-5-nano",
+    "lab": "openai",
+    "model_id": "gpt-5-nano",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
     }
   },
   {
@@ -1466,6 +1822,21 @@
     }
   },
   {
+    "id": "openai:gpt-5-nano-2025-08-07",
+    "lab": "openai",
+    "model_id": "gpt-5-nano-2025-08-07",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
     "id": "volcengine:doubao-seed-asr-2-0",
     "lab": "seed",
     "model_id": "volc.seedasr.auc",
@@ -1511,6 +1882,21 @@
     }
   },
   {
+    "id": "openai:gpt-5-pro",
+    "lab": "openai",
+    "model_id": "gpt-5-pro",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
     "id": "volcengine:doubao-realtime-voice",
     "lab": "seed",
     "model_id": "Doubao-RealtimeVoice",
@@ -1540,6 +1926,20 @@
       "url": "https://www.volcengine.com/docs/6561/1594356",
       "verified_at": "2026-06-26",
       "status": "verified"
+    }
+  },
+  {
+    "id": "openai:gpt-5-1",
+    "lab": "openai",
+    "model_id": "gpt-5.1",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
     }
   },
   {
@@ -1593,6 +1993,44 @@
     }
   },
   {
+    "id": "openai:gpt-5-1-2025-11-13",
+    "lab": "openai",
+    "model_id": "gpt-5.1-2025-11-13",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "volcengine:doubao-seed-voice-design",
+    "lab": "seed",
+    "model_id": "doubao-seed-voice-design",
+    "adapter_type": "volcen",
+    "capabilities": [
+      "voice_design"
+    ],
+    "param_keys": [
+      "resource_id",
+      "endpoint",
+      "preview_text",
+      "speaker_id",
+      "language",
+      "sample_rate",
+      "image_url",
+      "image_bytes"
+    ],
+    "source": {
+      "url": "https://www.volcengine.com/docs/6561/2277844",
+      "verified_at": "2026-06-26",
+      "status": "verified"
+    }
+  },
+  {
     "id": "xai:grok-4.3",
     "lab": "xai",
     "model_id": "grok-4.3",
@@ -1605,6 +2043,20 @@
       "url": "https://docs.x.ai/developers/models/grok-4.3",
       "verified_at": "2026-06-25",
       "status": "verified"
+    }
+  },
+  {
+    "id": "openai:gpt-5-1-chat",
+    "lab": "openai",
+    "model_id": "gpt-5.1-chat",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
     }
   },
   {
@@ -1627,6 +2079,20 @@
     }
   },
   {
+    "id": "openai:gpt-5-1-chat-latest",
+    "lab": "openai",
+    "model_id": "gpt-5.1-chat-latest",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
     "id": "xai:grok-imagine-image-quality-edit",
     "lab": "xai",
     "model_id": "grok-imagine-image-quality",
@@ -1642,6 +2108,20 @@
       "url": "https://docs.x.ai/developers/model-capabilities/images/editing",
       "verified_at": "2026-06-25",
       "status": "verified"
+    }
+  },
+  {
+    "id": "openai:gpt-5-1-codex",
+    "lab": "openai",
+    "model_id": "gpt-5.1-codex",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
     }
   },
   {
@@ -1661,6 +2141,20 @@
       "url": "https://docs.x.ai/developers/model-capabilities/video/generation",
       "verified_at": "2026-06-25",
       "status": "verified"
+    }
+  },
+  {
+    "id": "openai:gpt-5-1-codex-max",
+    "lab": "openai",
+    "model_id": "gpt-5.1-codex-max",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
     }
   },
   {
@@ -1698,6 +2192,34 @@
     }
   },
   {
+    "id": "openai:gpt-5-1-codex-mini",
+    "lab": "openai",
+    "model_id": "gpt-5.1-codex-mini",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "xai:grok-3",
+    "lab": "xai",
+    "model_id": "grok-3",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
     "id": "dashscope:qwen-plus",
     "lab": "alibaba-dashscope",
     "model_id": "qwen-plus",
@@ -1709,6 +2231,34 @@
       "url": "https://www.alibabacloud.com/help/en/model-studio/models",
       "verified_at": "2026-06-25",
       "status": "verified"
+    }
+  },
+  {
+    "id": "openai:gpt-5-2-2025-12-11",
+    "lab": "openai",
+    "model_id": "gpt-5.2-2025-12-11",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "xai:grok-3-mini",
+    "lab": "xai",
+    "model_id": "grok-3-mini",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
     }
   },
   {
@@ -1726,6 +2276,34 @@
     }
   },
   {
+    "id": "openai:gpt-5-2-chat",
+    "lab": "openai",
+    "model_id": "gpt-5.2-chat",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "xai:grok-4",
+    "lab": "xai",
+    "model_id": "grok-4",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
     "id": "dashscope:qwen-vl-max",
     "lab": "alibaba-dashscope",
     "model_id": "qwen-vl-max",
@@ -1737,6 +2315,34 @@
       "url": "https://www.alibabacloud.com/help/en/model-studio/models",
       "verified_at": "2026-06-25",
       "status": "verified"
+    }
+  },
+  {
+    "id": "openai:gpt-5-2-chat-latest",
+    "lab": "openai",
+    "model_id": "gpt-5.2-chat-latest",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "xai:grok-4-1-fast-non-reasoning",
+    "lab": "xai",
+    "model_id": "grok-4-1-fast-non-reasoning",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
     }
   },
   {
@@ -1754,6 +2360,35 @@
       "url": "https://www.alibabacloud.com/help/en/model-studio/qwen-image-api",
       "verified_at": "2026-06-25",
       "status": "verified"
+    }
+  },
+  {
+    "id": "openai:gpt-5-2-codex",
+    "lab": "openai",
+    "model_id": "gpt-5.2-codex",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "xai:grok-4-1-fast-reasoning",
+    "lab": "xai",
+    "model_id": "grok-4-1-fast-reasoning",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
     }
   },
   {
@@ -1786,6 +2421,35 @@
     }
   },
   {
+    "id": "openai:gpt-5-2-pro",
+    "lab": "openai",
+    "model_id": "gpt-5.2-pro",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "xai:grok-4-fast-non-reasoning",
+    "lab": "xai",
+    "model_id": "grok-4-fast-non-reasoning",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
     "id": "dashscope:qwen3-tts-instruct-flash",
     "lab": "alibaba-dashscope",
     "model_id": "qwen3-tts-instruct-flash",
@@ -1811,6 +2475,36 @@
       "url": "https://api-docs.deepseek.com/quick_start/pricing",
       "verified_at": "2026-06-25",
       "status": "deprecated"
+    }
+  },
+  {
+    "id": "openai:gpt-5-2-pro-2025-12-11",
+    "lab": "openai",
+    "model_id": "gpt-5.2-pro-2025-12-11",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "xai:grok-4-fast-reasoning",
+    "lab": "xai",
+    "model_id": "grok-4-fast-reasoning",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
     }
   },
   {
@@ -1843,6 +2537,39 @@
     }
   },
   {
+    "id": "openai:gpt-5-3-chat-latest",
+    "lab": "openai",
+    "model_id": "gpt-5.3-chat-latest",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "xai:grok-imagine-image",
+    "lab": "xai",
+    "model_id": "grok-imagine-image",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "image"
+    ],
+    "param_keys": [
+      "aspect_ratio",
+      "resolution",
+      "image_count"
+    ],
+    "source": {
+      "url": "https://docs.x.ai/developers/model-capabilities/images/generation",
+      "verified_at": "2026-06-26",
+      "status": "verified"
+    }
+  },
+  {
     "id": "dashscope:qwen3-tts-instruct-flash-realtime",
     "lab": "alibaba-dashscope",
     "model_id": "qwen3-tts-instruct-flash-realtime",
@@ -1853,6 +2580,54 @@
     "source": {
       "url": "https://www.alibabacloud.com/help/en/model-studio/interactive-process-of-qwen-tts-realtime-synthesis",
       "verified_at": "2026-06-25",
+      "status": "verified"
+    }
+  },
+  {
+    "id": "deepseek:deepseek-r1",
+    "lab": "deepseek",
+    "model_id": "deepseek-r1",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "openai:gpt-5-3-codex",
+    "lab": "openai",
+    "model_id": "gpt-5.3-codex",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "xai:grok-imagine-image-pro",
+    "lab": "xai",
+    "model_id": "grok-imagine-image-pro",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "image"
+    ],
+    "param_keys": [
+      "aspect_ratio",
+      "resolution",
+      "image_count"
+    ],
+    "source": {
+      "url": "https://docs.x.ai/developers/model-capabilities/images/generation",
+      "verified_at": "2026-06-26",
       "status": "verified"
     }
   },
@@ -1886,6 +2661,20 @@
     }
   },
   {
+    "id": "openai:gpt-5-3-codex-spark",
+    "lab": "openai",
+    "model_id": "gpt-5.3-codex-spark",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
     "id": "zai:glm-5.1",
     "lab": "zai",
     "model_id": "glm-5.1",
@@ -1915,6 +2704,21 @@
     }
   },
   {
+    "id": "deepseek:deepseek-r1-2025-01-20",
+    "lab": "deepseek",
+    "model_id": "deepseek-r1-2025-01-20",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
     "id": "gemini:gemini-2-5-pro",
     "lab": "google-gemini",
     "model_id": "gemini-2.5-pro",
@@ -1927,6 +2731,20 @@
       "url": "https://ai.google.dev/gemini-api/docs/deprecations",
       "verified_at": "2026-06-25",
       "status": "deprecated"
+    }
+  },
+  {
+    "id": "openai:gpt-5-4",
+    "lab": "openai",
+    "model_id": "gpt-5.4",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
     }
   },
   {
@@ -1956,6 +2774,21 @@
       "url": "https://help.aliyun.com/en/model-studio/cosyvoice-tts-http-api",
       "verified_at": "2026-06-25",
       "status": "verified"
+    }
+  },
+  {
+    "id": "deepseek:deepseek-r1-250120",
+    "lab": "deepseek",
+    "model_id": "deepseek-r1-250120",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
     }
   },
   {
@@ -1989,6 +2822,21 @@
     }
   },
   {
+    "id": "openai:gpt-5-4-mini",
+    "lab": "openai",
+    "model_id": "gpt-5.4-mini",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
     "id": "zai:glm-4.7",
     "lab": "zai",
     "model_id": "glm-4.7",
@@ -2018,6 +2866,21 @@
     }
   },
   {
+    "id": "deepseek:deepseek-r1-250528",
+    "lab": "deepseek",
+    "model_id": "deepseek-r1-250528",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
     "id": "gemini:gemini-2-0-flash",
     "lab": "google-gemini",
     "model_id": "gemini-2.0-flash",
@@ -2044,6 +2907,21 @@
       "url": "https://ai.google.dev/gemini-api/docs/gemini-3",
       "verified_at": "2026-06-25",
       "status": "verified"
+    }
+  },
+  {
+    "id": "openai:gpt-5-4-mini-2026-03-17",
+    "lab": "openai",
+    "model_id": "gpt-5.4-mini-2026-03-17",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
     }
   },
   {
@@ -2082,6 +2960,21 @@
     }
   },
   {
+    "id": "deepseek:deepseek-r1-distill-qwen-32b",
+    "lab": "deepseek",
+    "model_id": "deepseek-r1-distill-qwen-32b",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
     "id": "gemini:gemini-3-1-flash-lite",
     "lab": "google-gemini",
     "model_id": "gemini-3.1-flash-lite",
@@ -2111,6 +3004,21 @@
       "url": "https://ai.google.dev/gemini-api/docs/deprecations",
       "verified_at": "2026-06-25",
       "status": "deprecated"
+    }
+  },
+  {
+    "id": "openai:gpt-5-4-nano",
+    "lab": "openai",
+    "model_id": "gpt-5.4-nano",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
     }
   },
   {
@@ -2146,6 +3054,21 @@
       "url": "https://www.alibabacloud.com/help/en/model-studio/realtime",
       "verified_at": "2026-06-26",
       "status": "verified"
+    }
+  },
+  {
+    "id": "deepseek:deepseek-r1-distill-qwen-7b",
+    "lab": "deepseek",
+    "model_id": "deepseek-r1-distill-qwen-7b",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
     }
   },
   {
@@ -2186,6 +3109,21 @@
     }
   },
   {
+    "id": "openai:gpt-5-4-nano-2026-03-17",
+    "lab": "openai",
+    "model_id": "gpt-5.4-nano-2026-03-17",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
     "id": "zai:glm-4.5-air",
     "lab": "zai",
     "model_id": "glm-4.5-air",
@@ -2198,6 +3136,34 @@
       "url": "https://docs.z.ai/guides/llm/glm-4.5",
       "verified_at": "2026-06-25",
       "status": "verified"
+    }
+  },
+  {
+    "id": "dashscope:qvq-max",
+    "lab": "alibaba-dashscope",
+    "model_id": "qvq-max",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "deepseek:deepseek-v3",
+    "lab": "deepseek",
+    "model_id": "deepseek-v3",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
     }
   },
   {
@@ -2239,6 +3205,20 @@
     }
   },
   {
+    "id": "openai:gpt-5-4-pro",
+    "lab": "openai",
+    "model_id": "gpt-5.4-pro",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
     "id": "zai:glm-4.5-flash",
     "lab": "zai",
     "model_id": "glm-4.5-flash",
@@ -2251,6 +3231,34 @@
       "url": "https://docs.z.ai/guides/llm/glm-4.5",
       "verified_at": "2026-06-25",
       "status": "verified"
+    }
+  },
+  {
+    "id": "dashscope:qvq-max-latest",
+    "lab": "alibaba-dashscope",
+    "model_id": "qvq-max-latest",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "deepseek:deepseek-v3-0324",
+    "lab": "deepseek",
+    "model_id": "deepseek-v3-0324",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
     }
   },
   {
@@ -2283,6 +3291,62 @@
     }
   },
   {
+    "id": "openai:gpt-5-4-pro-2026-03-05",
+    "lab": "openai",
+    "model_id": "gpt-5.4-pro-2026-03-05",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "zai:glm-3-turbo",
+    "lab": "zai",
+    "model_id": "glm-3-turbo",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen-flash",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen-flash",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "deepseek:deepseek-v3-dot-1",
+    "lab": "deepseek",
+    "model_id": "deepseek-v3-1",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
     "id": "gemini:gemini-2-5-flash-preview-tts",
     "lab": "google-gemini",
     "model_id": "gemini-2.5-flash-preview-tts",
@@ -2312,6 +3376,63 @@
     }
   },
   {
+    "id": "openai:gpt-5-5",
+    "lab": "openai",
+    "model_id": "gpt-5.5",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "zai:glm-4",
+    "lab": "zai",
+    "model_id": "glm-4",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen-max",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen-max",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "deepseek:deepseek-v3-1-250821",
+    "lab": "deepseek",
+    "model_id": "deepseek-v3-1-250821",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
     "id": "gemini:gemini-2-5-pro-preview-tts",
     "lab": "google-gemini",
     "model_id": "gemini-2.5-pro-preview-tts",
@@ -2338,6 +3459,63 @@
       "url": "https://platform.minimax.io/docs/guides/text-generation",
       "verified_at": "2026-06-25",
       "status": "verified"
+    }
+  },
+  {
+    "id": "openai:gpt-audio",
+    "lab": "openai",
+    "model_id": "gpt-audio",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "audio_chat"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "zai:glm-4-air",
+    "lab": "zai",
+    "model_id": "glm-4-air",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen-max-latest",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen-max-latest",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "deepseek:deepseek-v3-1-think-250821",
+    "lab": "deepseek",
+    "model_id": "deepseek-v3-1-think-250821",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
     }
   },
   {
@@ -2374,6 +3552,62 @@
     }
   },
   {
+    "id": "openai:gpt-audio-2025-08-28",
+    "lab": "openai",
+    "model_id": "gpt-audio-2025-08-28",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "audio_chat"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "zai:glm-4-airx",
+    "lab": "zai",
+    "model_id": "glm-4-airx",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen-plus-2025-12-01",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen-plus-2025-12-01",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "deepseek:deepseek-v3-250324",
+    "lab": "deepseek",
+    "model_id": "deepseek-v3-250324",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
     "id": "gemini:lyria-3-pro-preview",
     "lab": "google-gemini",
     "model_id": "lyria-3-pro-preview",
@@ -2404,6 +3638,68 @@
       "url": "https://platform.minimax.io/docs/guides/text-generation",
       "verified_at": "2026-06-25",
       "status": "verified"
+    }
+  },
+  {
+    "id": "openai:gpt-image-1-mini",
+    "lab": "openai",
+    "model_id": "gpt-image-1-mini",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "image",
+      "image_edit"
+    ],
+    "param_keys": [
+      "image_size",
+      "quality"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "zai:glm-4-flash",
+    "lab": "zai",
+    "model_id": "glm-4-flash",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen-plus-character",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen-plus-character",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "deepseek:deepseek-v3-1",
+    "lab": "deepseek",
+    "model_id": "deepseek-v3.1",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
     }
   },
   {
@@ -2442,6 +3738,48 @@
     }
   },
   {
+    "id": "zai:glm-4-long",
+    "lab": "zai",
+    "model_id": "glm-4-long",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen-plus-latest",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen-plus-latest",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "deepseek:deepseek-v3-2",
+    "lab": "deepseek",
+    "model_id": "deepseek-v3.2",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
     "id": "google-speech:chirp-2",
     "lab": "google-gemini",
     "model_id": "chirp_2",
@@ -2477,6 +3815,63 @@
     }
   },
   {
+    "id": "openai:gpt-oss-120b",
+    "lab": "openai",
+    "model_id": "gpt-oss-120b",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "zai:glm-4-5-airx",
+    "lab": "zai",
+    "model_id": "glm-4.5-airx",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen-turbo-2025-07-15",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen-turbo-2025-07-15",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "deepseek:deepseek-v3-2-exp",
+    "lab": "deepseek",
+    "model_id": "deepseek-v3.2-exp",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
     "id": "minimax:speech-2.8-hd",
     "lab": "minimax",
     "model_id": "speech-2.8-hd",
@@ -2488,6 +3883,64 @@
       "url": "https://platform.minimax.io/docs/api-reference/speech-t2a-http",
       "verified_at": "2026-06-25",
       "status": "verified"
+    }
+  },
+  {
+    "id": "openai:gpt-oss-20b",
+    "lab": "openai",
+    "model_id": "gpt-oss-20b",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "zai:glm-4-5-x",
+    "lab": "zai",
+    "model_id": "glm-4.5-x",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen-vl-max-2025-08-13",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen-vl-max-2025-08-13",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "deepseek:deepseek-v4-pro",
+    "lab": "deepseek",
+    "model_id": "deepseek-v4-pro",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
     }
   },
   {
@@ -2505,6 +3958,49 @@
     }
   },
   {
+    "id": "openai:o1",
+    "lab": "openai",
+    "model_id": "o1",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "zai:glm-4-6v",
+    "lab": "zai",
+    "model_id": "glm-4.6v",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen-vl-max-latest",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen-vl-max-latest",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
     "id": "minimax:speech-2.6-hd",
     "lab": "minimax",
     "model_id": "speech-2.6-hd",
@@ -2516,6 +4012,35 @@
       "url": "https://platform.minimax.io/docs/api-reference/speech-t2a-http",
       "verified_at": "2026-06-25",
       "status": "verified"
+    }
+  },
+  {
+    "id": "openai:o1-2024-12-17",
+    "lab": "openai",
+    "model_id": "o1-2024-12-17",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen2-vl-72b-instruct",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen2-vl-72b-instruct",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
     }
   },
   {
@@ -2533,6 +4058,35 @@
     }
   },
   {
+    "id": "openai:o1-mini",
+    "lab": "openai",
+    "model_id": "o1-mini",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-0-6b",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-0.6b",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
     "id": "minimax:speech-02-hd",
     "lab": "minimax",
     "model_id": "speech-02-hd",
@@ -2544,6 +4098,35 @@
       "url": "https://platform.minimax.io/docs/api-reference/speech-t2a-http",
       "verified_at": "2026-06-25",
       "status": "verified"
+    }
+  },
+  {
+    "id": "openai:o1-mini-2024-09-12",
+    "lab": "openai",
+    "model_id": "o1-mini-2024-09-12",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-1-7b",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-1.7b",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
     }
   },
   {
@@ -2561,6 +4144,35 @@
     }
   },
   {
+    "id": "openai:o1-preview-2024-09-12",
+    "lab": "openai",
+    "model_id": "o1-preview-2024-09-12",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-14b",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-14b",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
     "id": "minimax:speech-01-hd",
     "lab": "minimax",
     "model_id": "speech-01-hd",
@@ -2575,6 +4187,35 @@
     }
   },
   {
+    "id": "openai:o3",
+    "lab": "openai",
+    "model_id": "o3",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-235b-a22b",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-235b-a22b",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
     "id": "minimax:speech-01-turbo",
     "lab": "minimax",
     "model_id": "speech-01-turbo",
@@ -2586,6 +4227,93 @@
       "url": "https://platform.minimax.io/docs/api-reference/speech-t2a-http",
       "verified_at": "2026-06-25",
       "status": "verified"
+    }
+  },
+  {
+    "id": "openai:o3-2025-04-16",
+    "lab": "openai",
+    "model_id": "o3-2025-04-16",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-235b-a22b-instruct-2507",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-235b-a22b-instruct-2507",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "minimax:minimax-m2-1",
+    "lab": "minimax",
+    "model_id": "minimax-m2.1",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "openai:o3-mini-2025-01-31",
+    "lab": "openai",
+    "model_id": "o3-mini-2025-01-31",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-30b-a3b",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-30b-a3b",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "openai:o3-pro",
+    "lab": "openai",
+    "model_id": "o3-pro",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
     }
   },
   {
@@ -2608,6 +4336,35 @@
     }
   },
   {
+    "id": "dashscope:qwen3-30b-a3b-instruct-2507",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-30b-a3b-instruct-2507",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "openai:o3-pro-2025-06-10",
+    "lab": "openai",
+    "model_id": "o3-pro-2025-06-10",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
     "id": "xiaomi-mimo:mimo-v2-omni",
     "lab": "xiaomi-mimo",
     "model_id": "mimo-v2-omni",
@@ -2619,6 +4376,659 @@
       "url": "https://mimo.mi.com/docs/en-US/price/pay-as-you-go",
       "verified_at": "2026-06-26",
       "status": "deprecated"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-30b-a3b-think",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-30b-a3b-think",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "openai:o4-mini",
+    "lab": "openai",
+    "model_id": "o4-mini",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "xiaomi-mimo:mimo-v2-pro",
+    "lab": "xiaomi-mimo",
+    "model_id": "mimo-v2-pro",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-30b-a3b-thinking-2507",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-30b-a3b-thinking-2507",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "openai:o4-mini-2025-04-16",
+    "lab": "openai",
+    "model_id": "o4-mini-2025-04-16",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "xiaomi-mimo:mimo-v2-5-pro",
+    "lab": "xiaomi-mimo",
+    "model_id": "mimo-v2.5-pro",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-32b",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-32b",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-4b",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-4b",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-8b",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-8b",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-coder",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-coder",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-coder-30b-a3b-instruct",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-coder-30b-a3b-instruct",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-coder-480b-a35b-instruct",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-coder-480b-a35b-instruct",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-coder-flash",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-coder-flash",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-coder-plus",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-coder-plus",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-max-2026-01-23",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-max-2026-01-23",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-max-preview",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-max-preview",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-max-preview-n",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-max-preview-n",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-next-80b-a3b-instruct",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-next-80b-a3b-instruct",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-next-80b-a3b-thinking",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-next-80b-a3b-thinking",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-vl-235b-a22b-instruct",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-vl-235b-a22b-instruct",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-vl-235b-a22b-thinking",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-vl-235b-a22b-thinking",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-vl-30b-a3b-instruct",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-vl-30b-a3b-instruct",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-vl-30b-a3b-thinking",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-vl-30b-a3b-thinking",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-vl-32b-instruct",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-vl-32b-instruct",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-vl-32b-thinking",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-vl-32b-thinking",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-vl-8b-instruct",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-vl-8b-instruct",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-vl-8b-thinking",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-vl-8b-thinking",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-vl-flash",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-vl-flash",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-vl-plus",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3-vl-plus",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-5-122b-a10b",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3.5-122b-a10b",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-5-27b",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3.5-27b",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-5-35b-a3b",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3.5-35b-a3b",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-5-397b-a17b",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3.5-397b-a17b",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-5-plus",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3.5-plus",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-5-plus-2026-02-15",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3.5-plus-2026-02-15",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-6-27b",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3.6-27b",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-6-35b-a3b",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3.6-35b-a3b",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-6-plus",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3.6-plus",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-7-max",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3.7-max",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwen3-7-plus",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwen3.7-plus",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwq-32b",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwq-32b",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwq-32b-preview",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwq-32b-preview",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwq-72b-preview",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwq-72b-preview",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwq-plus",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwq-plus",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
+    }
+  },
+  {
+    "id": "dashscope:qwq-plus-2025-03-05",
+    "lab": "alibaba-dashscope",
+    "model_id": "qwq-plus-2025-03-05",
+    "adapter_type": "openai_compat",
+    "capabilities": [
+      "text",
+      "reasoning"
+    ],
+    "source": {
+      "url": "https://yunwu.ai/v1/models",
+      "verified_at": "2026-06-26",
+      "status": "observed"
     }
   }
 ]

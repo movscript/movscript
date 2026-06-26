@@ -498,6 +498,38 @@ func TestRecordProviderAssetCertificationWritesProviderIDKey(t *testing.T) {
 	}
 }
 
+func TestRecordProviderAssetCertificationKeysYunwuByModel(t *testing.T) {
+	db := newResourceTestDB(t)
+	ctx := context.Background()
+	resource := model.RawResource{OwnerID: 1, Type: "image", Name: "hero.png", FilePath: "/tmp/hero.png"}
+	if err := db.Create(&resource).Error; err != nil {
+		t.Fatalf("create resource: %v", err)
+	}
+	service := NewService(db.Session(&gorm.Session{SkipHooks: true}), nil, nil)
+
+	updated, err := service.RecordProviderAssetCertification(ctx, RecordProviderAssetCertificationInput{
+		UserID:   resource.OwnerID,
+		ID:       resource.ID,
+		Provider: "yunwu-main",
+		Certification: map[string]any{
+			"provider_id":           "yunwu-main",
+			"asset_library_backend": "yunwu_gateway",
+			"model":                 "doubao-seedance-2-0-fast-260128",
+			"status":                "active",
+			"asset_uri":             "asset://asset-fast",
+		},
+	})
+	if err != nil {
+		t.Fatalf("RecordProviderAssetCertification() error = %v", err)
+	}
+	if _, ok := updated.ProviderAssetCertifications["yunwu-main::model:doubao-seedance-2-0-fast-260128"]; !ok {
+		t.Fatalf("provider asset certifications = %#v", updated.ProviderAssetCertifications)
+	}
+	if _, ok := updated.ProviderAssetCertifications["yunwu-main"]; ok {
+		t.Fatalf("yunwu model certification should not overwrite bare provider key: %#v", updated.ProviderAssetCertifications)
+	}
+}
+
 func newResourceTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	return testutil.OpenSQLiteWithConfig(t, "resource.db", &gorm.Config{

@@ -493,3 +493,1050 @@ templates:
         url: https://developers.openai.com/api/docs/guides/audio
         verified_at: "2026-06-25"
         status: verified
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: GPT 3.5 Turbo 1106
+      id: openai:gpt-3-5-turbo-1106
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: gpt-3.5-turbo-1106
+      order: 24
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: GPT 4
+      id: openai:gpt-4
+      lab: openai
+      model_id: gpt-4
+      order: 25
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: GPT 4 0125 Preview
+      id: openai:gpt-4-0125-preview
+      lab: openai
+      model_id: gpt-4-0125-preview
+      order: 26
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: GPT 4 0613
+      id: openai:gpt-4-0613
+      lab: openai
+      model_id: gpt-4-0613
+      order: 27
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: GPT 4 Turbo
+      id: openai:gpt-4-turbo
+      lab: openai
+      model_id: gpt-4-turbo
+      order: 28
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: GPT 4 Turbo 2024 04 09
+      id: openai:gpt-4-turbo-2024-04-09
+      lab: openai
+      model_id: gpt-4-turbo-2024-04-09
+      order: 29
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: GPT 4 Turbo Preview
+      id: openai:gpt-4-turbo-preview
+      lab: openai
+      model_id: gpt-4-turbo-preview
+      order: 30
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: GPT 4 Vision Preview
+      id: openai:gpt-4-vision-preview
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: gpt-4-vision-preview
+      order: 31
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: GPT 4.1 Mini 2025 04 14
+      id: openai:gpt-4-1-mini-2025-04-14
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: gpt-4.1-mini-2025-04-14
+      order: 33
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: GPT 4.1 Nano
+      id: openai:gpt-4-1-nano
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: gpt-4.1-nano
+      order: 34
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: GPT 4.1 Nano 2025 04 14
+      id: openai:gpt-4-1-nano-2025-04-14
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: gpt-4.1-nano-2025-04-14
+      order: 35
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: GPT 4o 2024 05 13
+      id: openai:gpt-4o-2024-05-13
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: gpt-4o-2024-05-13
+      order: 36
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: GPT 4o 2024 08 06
+      id: openai:gpt-4o-2024-08-06
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: gpt-4o-2024-08-06
+      order: 37
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: GPT 4o 2024 11 20
+      id: openai:gpt-4o-2024-11-20
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: gpt-4o-2024-11-20
+      order: 38
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - audio_chat
+      display_name: GPT 4o Audio Preview
+      id: openai:gpt-4o-audio-preview
+      lab: openai
+      model_id: gpt-4o-audio-preview
+      order: 39
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - audio_chat
+      display_name: GPT 4o Audio Preview 2024 12 17
+      id: openai:gpt-4o-audio-preview-2024-12-17
+      lab: openai
+      model_id: gpt-4o-audio-preview-2024-12-17
+      order: 40
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: GPT 4o Mini 2024 07 18
+      id: openai:gpt-4o-mini-2024-07-18
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: gpt-4o-mini-2024-07-18
+      order: 41
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - audio_chat
+      display_name: GPT 4o Mini Audio Preview 2024 12 17
+      id: openai:gpt-4o-mini-audio-preview-2024-12-17
+      lab: openai
+      model_id: gpt-4o-mini-audio-preview-2024-12-17
+      order: 42
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: GPT 5
+      id: openai:gpt-5
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: gpt-5
+      order: 43
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: GPT 5 2025 08 07
+      id: openai:gpt-5-2025-08-07
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: gpt-5-2025-08-07
+      order: 44
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: GPT 5 Chat Latest
+      id: openai:gpt-5-chat-latest
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: gpt-5-chat-latest
+      order: 45
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: GPT 5 Codex
+      id: openai:gpt-5-codex
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: gpt-5-codex
+      order: 46
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: GPT 5 Mini
+      id: openai:gpt-5-mini
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: gpt-5-mini
+      order: 47
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: GPT 5 Mini 2025 08 07
+      id: openai:gpt-5-mini-2025-08-07
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: gpt-5-mini-2025-08-07
+      order: 48
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: GPT 5 Nano
+      id: openai:gpt-5-nano
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: gpt-5-nano
+      order: 49
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: GPT 5 Nano 2025 08 07
+      id: openai:gpt-5-nano-2025-08-07
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: gpt-5-nano-2025-08-07
+      order: 50
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: GPT 5 Pro
+      id: openai:gpt-5-pro
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: gpt-5-pro
+      order: 51
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: GPT 5.1
+      id: openai:gpt-5-1
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: gpt-5.1
+      order: 52
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: GPT 5.1 2025 11 13
+      id: openai:gpt-5-1-2025-11-13
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: gpt-5.1-2025-11-13
+      order: 53
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: GPT 5.1 Chat
+      id: openai:gpt-5-1-chat
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: gpt-5.1-chat
+      order: 54
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: GPT 5.1 Chat Latest
+      id: openai:gpt-5-1-chat-latest
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: gpt-5.1-chat-latest
+      order: 55
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: GPT 5.1 Codex
+      id: openai:gpt-5-1-codex
+      lab: openai
+      model_id: gpt-5.1-codex
+      order: 56
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: GPT 5.1 Codex Max
+      id: openai:gpt-5-1-codex-max
+      lab: openai
+      model_id: gpt-5.1-codex-max
+      order: 57
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: GPT 5.1 Codex Mini
+      id: openai:gpt-5-1-codex-mini
+      lab: openai
+      model_id: gpt-5.1-codex-mini
+      order: 58
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: GPT 5.2 2025 12 11
+      id: openai:gpt-5-2-2025-12-11
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: gpt-5.2-2025-12-11
+      order: 59
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: GPT 5.2 Chat
+      id: openai:gpt-5-2-chat
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: gpt-5.2-chat
+      order: 60
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: GPT 5.2 Chat Latest
+      id: openai:gpt-5-2-chat-latest
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: gpt-5.2-chat-latest
+      order: 61
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: GPT 5.2 Codex
+      id: openai:gpt-5-2-codex
+      lab: openai
+      model_id: gpt-5.2-codex
+      order: 62
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: GPT 5.2 Pro
+      id: openai:gpt-5-2-pro
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: gpt-5.2-pro
+      order: 63
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: GPT 5.2 Pro 2025 12 11
+      id: openai:gpt-5-2-pro-2025-12-11
+      lab: openai
+      model_id: gpt-5.2-pro-2025-12-11
+      order: 64
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: GPT 5.3 Chat Latest
+      id: openai:gpt-5-3-chat-latest
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: gpt-5.3-chat-latest
+      order: 65
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: GPT 5.3 Codex
+      id: openai:gpt-5-3-codex
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: gpt-5.3-codex
+      order: 66
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: GPT 5.3 Codex Spark
+      id: openai:gpt-5-3-codex-spark
+      lab: openai
+      model_id: gpt-5.3-codex-spark
+      order: 67
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: GPT 5.4
+      id: openai:gpt-5-4
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: gpt-5.4
+      order: 68
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: GPT 5.4 Mini
+      id: openai:gpt-5-4-mini
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: gpt-5.4-mini
+      order: 69
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: GPT 5.4 Mini 2026 03 17
+      id: openai:gpt-5-4-mini-2026-03-17
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: gpt-5.4-mini-2026-03-17
+      order: 70
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: GPT 5.4 Nano
+      id: openai:gpt-5-4-nano
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: gpt-5.4-nano
+      order: 71
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: GPT 5.4 Nano 2026 03 17
+      id: openai:gpt-5-4-nano-2026-03-17
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: gpt-5.4-nano-2026-03-17
+      order: 72
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: GPT 5.4 Pro
+      id: openai:gpt-5-4-pro
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: gpt-5.4-pro
+      order: 73
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: GPT 5.4 Pro 2026 03 05
+      id: openai:gpt-5-4-pro-2026-03-05
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: gpt-5.4-pro-2026-03-05
+      order: 74
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: GPT 5.5
+      id: openai:gpt-5-5
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: gpt-5.5
+      order: 75
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - audio_chat
+      display_name: GPT Audio
+      id: openai:gpt-audio
+      lab: openai
+      model_id: gpt-audio
+      order: 76
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - audio_chat
+      display_name: GPT Audio 2025 08 28
+      id: openai:gpt-audio-2025-08-28
+      lab: openai
+      model_id: gpt-audio-2025-08-28
+      order: 77
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - image
+        - image_edit
+      display_name: GPT Image 1 Mini
+      id: openai:gpt-image-1-mini
+      input:
+        accepts_image: true
+        max_images: 1
+      lab: openai
+      model_id: gpt-image-1-mini
+      order: 78
+      params:
+        - key: image_size
+          label: 尺寸
+          type: select
+          options:
+            - auto
+            - 1024x1024
+            - 1536x1024
+            - 1024x1536
+          default: auto
+        - key: quality
+          label: 质量
+          type: select
+          options:
+            - auto
+            - high
+            - medium
+            - low
+          default: auto
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: GPT Oss 120b
+      id: openai:gpt-oss-120b
+      lab: openai
+      model_id: gpt-oss-120b
+      order: 80
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+      display_name: GPT Oss 20b
+      id: openai:gpt-oss-20b
+      lab: openai
+      model_id: gpt-oss-20b
+      order: 81
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: O1
+      id: openai:o1
+      lab: openai
+      model_id: o1
+      order: 82
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: O1 2024 12 17
+      id: openai:o1-2024-12-17
+      lab: openai
+      model_id: o1-2024-12-17
+      order: 83
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: O1 Mini
+      id: openai:o1-mini
+      lab: openai
+      model_id: o1-mini
+      order: 84
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: O1 Mini 2024 09 12
+      id: openai:o1-mini-2024-09-12
+      lab: openai
+      model_id: o1-mini-2024-09-12
+      order: 85
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: O1 Preview 2024 09 12
+      id: openai:o1-preview-2024-09-12
+      lab: openai
+      model_id: o1-preview-2024-09-12
+      order: 86
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: O3
+      id: openai:o3
+      lab: openai
+      model_id: o3
+      order: 87
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: O3 2025 04 16
+      id: openai:o3-2025-04-16
+      lab: openai
+      model_id: o3-2025-04-16
+      order: 88
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: O3 Mini 2025 01 31
+      id: openai:o3-mini-2025-01-31
+      lab: openai
+      model_id: o3-mini-2025-01-31
+      order: 89
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: O3 Pro
+      id: openai:o3-pro
+      lab: openai
+      model_id: o3-pro
+      order: 90
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: O3 Pro 2025 06 10
+      id: openai:o3-pro-2025-06-10
+      lab: openai
+      model_id: o3-pro-2025-06-10
+      order: 91
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: O4 Mini
+      id: openai:o4-mini
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: o4-mini
+      order: 92
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"
+    - adapter_type: openai_compat
+      allow_model_id_override: true
+      capabilities:
+        - text
+        - reasoning
+      display_name: O4 Mini 2025 04 16
+      id: openai:o4-mini-2025-04-16
+      input:
+        accepts_image: true
+        max_images: -1
+      lab: openai
+      model_id: o4-mini-2025-04-16
+      order: 93
+      source:
+        status: observed
+        url: https://yunwu.ai/v1/models
+        verified_at: "2026-06-26"

@@ -61,7 +61,7 @@ test('project workspace reaches project standards overview', async ({ page }, te
   await expect(page.getByRole('heading', { name: '基础规范' })).toBeVisible()
 })
 
-test('project content workspace renders preview and prompt canvas tabs', async ({ page }, testInfo) => {
+test('project content workspace renders dedicated preview and prompt canvas pages', async ({ page }, testInfo) => {
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('project content workspace E2E requires a baseURL')
 
@@ -82,10 +82,9 @@ test('project content workspace renders preview and prompt canvas tabs', async (
     if (message.type() === 'error') consoleMessages.push(message.text())
   })
 
-  await page.goto('/project/content')
+  await page.goto('/project/content/preview')
 
   await expect(page.getByTestId('content-canvas-workspace-page')).toBeVisible()
-  await expect(page.getByRole('tab', { name: '预览' })).toHaveAttribute('aria-selected', 'true')
   await expect(page.getByLabel('预览播放器')).toBeVisible()
   await expect(page.getByLabel('候选横向列表')).toBeVisible()
   await expect(page.getByLabel('右侧节点信息区域')).toBeVisible()
@@ -102,10 +101,11 @@ test('project content workspace renders preview and prompt canvas tabs', async (
   await page.getByRole('button', { name: /手机备选候选/ }).click()
   await expect(page.getByText('cand_phone_alt', { exact: true })).toBeVisible()
 
-  await page.getByRole('tab', { name: '无限画布' }).click()
-  await expect(page.getByRole('tab', { name: '无限画布' })).toHaveAttribute('aria-selected', 'true')
+  await page.goto('/project/content/canvas')
+  await expect(page.getByTestId('content-canvas-workspace-page')).toBeVisible()
   await expect(page.getByLabel('提示词无限画布')).toBeVisible()
-  await expect(page.getByLabel('右侧节点信息区域')).toBeVisible()
+  await expect(page.getByLabel('预览播放器')).toHaveCount(0)
+  await expect(page.getByLabel('右侧节点信息区域')).toHaveCount(0)
   await expect(page.locator('.content-prompt-flow-node').filter({ hasText: '候选' }).first()).toBeVisible()
   await expect(page.locator('.content-prompt-flow-node[data-kind="asset"]').filter({ hasText: '手机参考候选' }).first()).toBeVisible()
   await expect(page.locator('.content-prompt-flow-node[data-kind="asset"] .content-prompt-flow-node__candidate[data-has-image="true"]').first()).toBeVisible()
@@ -119,9 +119,9 @@ test('project content workspace renders preview and prompt canvas tabs', async (
   expect(await page.locator('.content-prompt-flow-node').count()).toBeGreaterThanOrEqual(4)
   await page.getByRole('button', { name: '自动排布' }).click()
   await page.getByRole('button', { name: 'Fit View' }).click()
-  await page.locator('.content-canvas-workspace-tree-node').filter({ hasText: '湿润手机' }).first().click()
+  await page.locator('.content-prompt-flow-node').filter({ hasText: '湿润手机' }).first().click()
   await expect(page.locator('.content-prompt-flow-node[data-kind="asset"][data-selected="true"]').filter({ hasText: '湿润手机' })).toBeVisible()
-  await page.locator('.content-canvas-workspace-tree-node').filter({ hasText: '雨夜来电' }).first().click()
+  await page.locator('.content-prompt-flow-node').filter({ hasText: '雨夜来电' }).first().click()
   await expect(page.locator('.content-prompt-flow-node[data-kind="scene_moment"][data-selected="true"]').filter({ hasText: '雨夜来电' })).toBeVisible()
 
   await page.locator('.content-prompt-flow-node').filter({ hasText: '雨夜来电' }).first().click({ button: 'right' })

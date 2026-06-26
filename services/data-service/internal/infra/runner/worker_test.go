@@ -311,6 +311,133 @@ func TestBuildVideoRequestAppliesCertifiedProviderAssetsOnlyWhenRouteSupportsAss
 	}
 }
 
+func TestBuildVideoRequestMatchesCertifiedProviderAssetsByProviderModel(t *testing.T) {
+	const providerID = "yunwu-main"
+	db := testutil.OpenSQLite(t, "worker_video_certified_provider_assets_by_model.db", &model.RawResource{})
+	resource := model.RawResource{
+		OwnerID:  7,
+		Type:     "image",
+		Name:     "hero.png",
+		FilePath: "stored:hero.png",
+		MimeType: "image/png",
+		ProviderAssetCertifications: `{
+			"yunwu-main::model:doubao-seedance-2-0-260128":{"provider_id":"yunwu-main","status":"active","asset_type":"image","model":"doubao-seedance-2-0-260128","asset_uri":"asset://standard-asset"},
+			"yunwu-main::model:doubao-seedance-2-0-fast-260128":{"provider_id":"yunwu-main","status":"active","asset_type":"image","model":"doubao-seedance-2-0-fast-260128","asset_uri":"asset://fast-asset"}
+		}`,
+	}
+	if err := db.Create(&resource).Error; err != nil {
+		t.Fatalf("create resource: %v", err)
+	}
+	resourceID := resource.ID
+	job := &model.Job{Prompt: "make the portrait move", InputResourceID: &resourceID}
+	imageData := []ai.MediaData{{ResourceID: resource.ID, PresignedURL: "https://example.test/ref.png", MimeType: "image/png"}}
+	worker := NewWorker(db, nil, nil, nil)
+
+	fastReq := worker.buildVideoRequest(job, parseGenerationParams(""), 5, imageData, nil, nil, worker.certifiedProviderAssetsForJob(job, providerID, "doubao-seedance-2-0-fast-260128"))
+	if len(fastReq.InputImages) != 1 || fastReq.InputImages[0] != "asset://fast-asset" {
+		t.Fatalf("fast route input images = %#v, want fast asset URI", fastReq.InputImages)
+	}
+	standardReq := worker.buildVideoRequest(job, parseGenerationParams(""), 5, imageData, nil, nil, worker.certifiedProviderAssetsForJob(job, providerID, "doubao-seedance-2-0-260128"))
+	if len(standardReq.InputImages) != 1 || standardReq.InputImages[0] != "asset://standard-asset" {
+		t.Fatalf("standard route input images = %#v, want standard asset URI", standardReq.InputImages)
+	}
+}
+
+func TestBuildVideoRequestUsesProviderAssetReadModelByProviderModel(t *testing.T) {
+	const providerID = "yunwu-main"
+	const modelID = "doubao-seedance-2-0-fast-260128"
+	db := testutil.OpenSQLite(t, "worker_video_provider_asset_read_model.db",
+		&model.RawResource{},
+		&model.ProviderAssetGroup{},
+		&model.ProviderAsset{},
+		&model.ProviderAssetModelCertification{},
+	)
+	resource := model.RawResource{
+		OwnerID:  7,
+		Type:     "image",
+		Name:     "hero.png",
+		FilePath: "stored:hero.png",
+		MimeType: "image/png",
+	}
+	if err := db.Create(&resource).Error; err != nil {
+		t.Fatalf("create resource: %v", err)
+	}
+	group := model.ProviderAssetGroup{
+		ProviderID:    providerID,
+		ProviderKind:  model.AIProviderKindYunwuGateway,
+		RemoteGroupID: "group-1",
+		Name:          "角色组",
+		Status:        model.ProviderAssetStatusActive,
+	}
+	if err := db.Create(&group).Error; err != nil {
+		t.Fatalf("create provider asset group: %v", err)
+	}
+	asset := model.ProviderAsset{
+		ProviderID:       providerID,
+		ProviderKind:     model.AIProviderKindYunwuGateway,
+		GroupID:          group.ID,
+		RemoteGroupID:    group.RemoteGroupID,
+		RemoteAssetID:    "asset-fast",
+		AssetURI:         "asset://read-model-fast",
+		SourceResourceID: &resource.ID,
+		Name:             "hero",
+		AssetType:        "image",
+		Status:           model.ProviderAssetStatusActive,
+	}
+	if err := db.Create(&asset).Error; err != nil {
+		t.Fatalf("create provider asset: %v", err)
+	}
+	if err := db.Create(&model.ProviderAssetModelCertification{
+		ProviderAssetID: asset.ID,
+		ProviderID:      providerID,
+		PublicModelID:   modelID,
+		ProviderModelID: modelID,
+		Capability:      "video_i2v",
+		Status:          model.ProviderAssetStatusActive,
+		AssetURI:        asset.AssetURI,
+		RemoteAssetID:   asset.RemoteAssetID,
+	}).Error; err != nil {
+		t.Fatalf("create provider asset model certification: %v", err)
+	}
+	resourceID := resource.ID
+	job := &model.Job{Prompt: "make the portrait move", InputResourceID: &resourceID}
+	imageData := []ai.MediaData{{ResourceID: resource.ID, PresignedURL: "https://example.test/ref.png", MimeType: "image/png"}}
+	worker := NewWorker(db, nil, nil, nil)
+
+	req := worker.buildVideoRequest(job, parseGenerationParams(""), 5, imageData, nil, nil, worker.certifiedProviderAssetsForJob(job, providerID, modelID))
+	if len(req.InputImages) != 1 || req.InputImages[0] != "asset://read-model-fast" {
+		t.Fatalf("route input images = %#v, want read-model asset URI", req.InputImages)
+	}
+}
+
+func TestBuildVideoRequestPrefersModelCertificationOverLegacyProviderKey(t *testing.T) {
+	const providerID = "yunwu-main"
+	db := testutil.OpenSQLite(t, "worker_video_certified_provider_assets_model_preference.db", &model.RawResource{})
+	resource := model.RawResource{
+		OwnerID:  7,
+		Type:     "image",
+		Name:     "hero.png",
+		FilePath: "stored:hero.png",
+		MimeType: "image/png",
+		ProviderAssetCertifications: `{
+			"yunwu-main":{"provider_id":"yunwu-main","status":"active","asset_type":"image","asset_uri":"asset://legacy-asset"},
+			"yunwu-main::model:doubao-seedance-2-0-fast-260128":{"provider_id":"yunwu-main","status":"active","asset_type":"image","model":"doubao-seedance-2-0-fast-260128","asset_uri":"asset://fast-asset"}
+		}`,
+	}
+	if err := db.Create(&resource).Error; err != nil {
+		t.Fatalf("create resource: %v", err)
+	}
+	resourceID := resource.ID
+	job := &model.Job{Prompt: "make the portrait move", InputResourceID: &resourceID}
+	imageData := []ai.MediaData{{ResourceID: resource.ID, PresignedURL: "https://example.test/ref.png", MimeType: "image/png"}}
+	worker := NewWorker(db, nil, nil, nil)
+
+	req := worker.buildVideoRequest(job, parseGenerationParams(""), 5, imageData, nil, nil, worker.certifiedProviderAssetsForJob(job, providerID, "doubao-seedance-2-0-fast-260128"))
+	if len(req.InputImages) != 1 || req.InputImages[0] != "asset://fast-asset" {
+		t.Fatalf("fast route input images = %#v, want model-specific asset URI", req.InputImages)
+	}
+}
+
 func TestBuildVideoRequestIgnoresCertifiedProviderAssetsForNonImageResources(t *testing.T) {
 	const providerID = "volc-ark-main"
 	db := testutil.OpenSQLite(t, "worker_video_certified_provider_asset_modalities.db", &model.RawResource{})

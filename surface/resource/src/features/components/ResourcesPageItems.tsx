@@ -2,6 +2,7 @@ import type { MouseEvent, ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BadgeCheck, Braces, Clipboard, Download, FolderOpen, KeyRound, MoreHorizontal, MoveRight, Pencil, Scissors, Share2, ShieldCheck, Trash2 } from 'lucide-react'
 import type { RawResource } from '@movscript/shared'
+import type { ResourceLibraryProviderAssetProvider } from '../../resource-browser.js'
 import { MediaViewer } from '../../resourceMediaViewer.js'
 import { toast } from '@movscript/ui/toast'
 import { startResourceDragSource } from '../../resourceInteraction.js'
@@ -87,7 +88,7 @@ function providerAssetCertificationTitle(resource: RawResource, t: ReturnType<ty
   const status = String(certification.status ?? '')
   const certifiedAt = String(certification.certified_at ?? certification.certifiedAt ?? '')
   return [
-    t('pages.resources.providerAssetCertifiedTitle', { defaultValue: '已认证到火山素材库' }),
+    t('pages.resources.providerAssetCertifiedTitle', { defaultValue: '已认证到 Provider 素材库' }),
     item.providerID ? `${t('pages.resources.providerAssetProvider', { defaultValue: 'Provider' })}: ${item.providerID}` : '',
     status ? `${t('pages.resources.providerAssetStatus', { defaultValue: '状态' })}: ${status}` : '',
     assetUri ? `${t('pages.resources.providerAssetURI', { defaultValue: '素材' })}: ${assetUri}` : '',
@@ -105,6 +106,13 @@ function imageVerificationTitle(resource: RawResource, t: ReturnType<typeof useT
     resource.verification_provider ? `${t('pages.resources.providerAssetProvider', { defaultValue: '服务' })}: ${resource.verification_provider}` : '',
     resource.verified_at ? `${t('pages.resources.providerAssetCertifiedAt', { defaultValue: '认证时间' })}: ${resource.verified_at}` : '',
   ].filter(Boolean).join('\n')
+}
+
+function providerAssetProviderLabel(provider: ResourceLibraryProviderAssetProvider) {
+  if (provider.display_name && provider.provider_id && provider.display_name !== provider.provider_id) {
+    return `${provider.display_name} (${provider.provider_id})`
+  }
+  return provider.display_name || provider.provider_id || provider.provider_kind
 }
 
 function ResourceCertificationBadges({ resource }: { resource: RawResource }) {
@@ -188,6 +196,7 @@ function ResourceItemDropdownMenu({
   onShareToProject,
   onMove,
   onClip,
+  providerAssetProviders,
   onCertifyProviderAsset,
   onDelete,
 }: {
@@ -203,10 +212,12 @@ function ResourceItemDropdownMenu({
   onShareToProject?: () => void
   onMove: () => void
   onClip?: () => void
-  onCertifyProviderAsset?: () => void
+  providerAssetProviders?: ResourceLibraryProviderAssetProvider[]
+  onCertifyProviderAsset?: (providerID?: string) => void
   onDelete?: () => void
 }) {
   const { t } = useTranslation()
+  const assetProviders = providerAssetProviders ?? []
 
   return (
     <DropdownMenu>
@@ -264,10 +275,25 @@ function ResourceItemDropdownMenu({
           </DropdownMenuItem>
         )}
         {resourceType === 'image' && onCertifyProviderAsset && (
-          <DropdownMenuItem onSelect={onCertifyProviderAsset}>
-            <KeyRound size={14} />
-            {t('pages.resources.certifyProviderAsset', { defaultValue: '认证到火山素材库' })}
-          </DropdownMenuItem>
+          assetProviders.length > 0 ? (
+            assetProviders.map(provider => (
+              <DropdownMenuItem
+                key={provider.provider_id}
+                onSelect={() => onCertifyProviderAsset(provider.provider_id)}
+              >
+                <KeyRound size={14} />
+                {t('pages.resources.certifyProviderAssetWithProvider', {
+                  provider: providerAssetProviderLabel(provider),
+                  defaultValue: `认证到 ${providerAssetProviderLabel(provider)}`,
+                })}
+              </DropdownMenuItem>
+            ))
+          ) : (
+            <DropdownMenuItem onSelect={() => onCertifyProviderAsset()}>
+              <KeyRound size={14} />
+              {t('pages.resources.certifyProviderAsset', { defaultValue: '认证到 Provider 素材库' })}
+            </DropdownMenuItem>
+          )
         )}
         {onDelete && (
           <>
@@ -293,6 +319,7 @@ export function ResourceCard({
   onRename,
   onDownload,
   onClip,
+  providerAssetProviders,
   onCertifyProviderAsset,
   onShareToTeam,
   onShareToProject,
@@ -312,7 +339,8 @@ export function ResourceCard({
   onRename: () => void
   onDownload: () => void
   onClip?: () => void
-  onCertifyProviderAsset?: () => void
+  providerAssetProviders?: ResourceLibraryProviderAssetProvider[]
+  onCertifyProviderAsset?: (providerID?: string) => void
   onShareToTeam?: () => void
   onShareToProject?: () => void
   isSharedView?: boolean
@@ -392,6 +420,7 @@ export function ResourceCard({
           onShareToProject={onShareToProject}
           onMove={onMove}
           onClip={onClip}
+          providerAssetProviders={providerAssetProviders}
           onCertifyProviderAsset={onCertifyProviderAsset}
           onDelete={onDelete}
         />
@@ -423,6 +452,7 @@ export function ResourceListRowItem({
   onRename,
   onDownload,
   onClip,
+  providerAssetProviders,
   onCertifyProviderAsset,
   onShareToTeam,
   onShareToProject,
@@ -439,7 +469,8 @@ export function ResourceListRowItem({
   onRename: () => void
   onDownload: () => void
   onClip?: () => void
-  onCertifyProviderAsset?: () => void
+  providerAssetProviders?: ResourceLibraryProviderAssetProvider[]
+  onCertifyProviderAsset?: (providerID?: string) => void
   onShareToTeam?: () => void
   onShareToProject?: () => void
   agentReferenceActions?: boolean
@@ -500,6 +531,7 @@ export function ResourceListRowItem({
         onShareToProject={onShareToProject}
         onMove={onMove}
         onClip={onClip}
+        providerAssetProviders={providerAssetProviders}
         onCertifyProviderAsset={onCertifyProviderAsset}
         onDelete={onDelete}
       />
