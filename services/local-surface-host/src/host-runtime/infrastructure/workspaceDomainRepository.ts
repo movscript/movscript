@@ -7,6 +7,8 @@ import { readSurfaceHostApi } from './surfaceHostApiAccess'
 type ProjectContext = {
   projectId?: string | number
   projectDir?: string
+  projectUid?: string
+  projectServiceBaseURL?: string
   userId?: string | number
   orgId?: string | number
 }

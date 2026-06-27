@@ -45,6 +45,47 @@ test('script workspace repository reads scripts through core service records', a
   }
 })
 
+test('script workspace repository accepts wrapped query results', async () => {
+  const calls = withScriptService({
+    entities: {
+      result: [{
+        entityKind: 'script',
+        record: {
+          schema: 'movscript.script.v1',
+          kind: 'script',
+          id: 'script_21',
+          project_id: 9,
+          title: 'Wrapped Draft',
+          script_kind: 'outline',
+        },
+        path: '',
+        index: 0,
+        id: 'script_21',
+      }],
+    },
+    sourceText: 'Wrapped source text',
+  })
+  try {
+    const scripts = await listWorkspaceScripts(9, {
+      projectDir: '/tmp/project',
+      projectUid: 'prj_abc',
+      projectServiceBaseURL: 'http://127.0.0.1:4101',
+    })
+    assert.equal(scripts.length, 1)
+    assert.equal(scripts[0].ID, 21)
+    assert.equal(scripts[0].title, 'Wrapped Draft')
+    assert.equal(scripts[0].content, 'Wrapped source text')
+    assert.deepEqual(calls.contexts[0], {
+      projectDir: '/tmp/project',
+      projectUid: 'prj_abc',
+      projectServiceBaseURL: 'http://127.0.0.1:4101',
+      projectId: 9,
+    })
+  } finally {
+    calls.restore()
+  }
+})
+
 test('script workspace repository saves script body and metadata through core service records', async () => {
   const calls = withScriptService({
     entities: [{
@@ -84,7 +125,7 @@ test('script workspace repository saves script body and metadata through core se
 })
 
 function withScriptService(input: {
-  entities: MovScriptWorkspaceIndexedEntity[]
+  entities: unknown
   sourceText: string
 }): {
   readSources: Array<{ record: Record<string, unknown>; entity?: MovScriptWorkspaceIndexedEntity }>

@@ -190,6 +190,8 @@ export interface SurfaceHostApi {
   queryMovScriptEngineWorkspaceEntities?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>
   queryMovScriptEngineWorkspaceSettings?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>
   queryMovScriptEngineWorkspaceAssets?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>
+  readMovScriptEngineWorkspaceScriptSource?: (input: SurfaceHostMovScriptProjectInput) => Promise<string>
+  upsertMovScriptEngineWorkspaceScript?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>
   readMovScriptEngineContentUnitGenerationPrompt?: (input: SurfaceHostMovScriptProjectInput) => Promise<any>
   buildMovScriptEngineContentUnitBackendPrompt?: (
     input: SurfaceHostMovScriptProjectInput,

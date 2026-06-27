@@ -42,6 +42,25 @@ test('project-service exposes health and capability endpoints', async () => {
   })
 })
 
+test('project-service allows local browser CORS preflight requests', async () => {
+  const runtime = await startProjectService()
+  tAfterClose(runtime)
+
+  const response = await fetch(`${runtime.url}${PROJECT_SERVICE_RESOURCE_VIEW_ENDPOINT}`, {
+    method: 'OPTIONS',
+    headers: {
+      origin: 'http://127.0.0.1:4194',
+      'access-control-request-method': 'POST',
+      'access-control-request-headers': 'content-type',
+    },
+  })
+
+  assert.equal(response.status, 204)
+  assert.equal(response.headers.get('access-control-allow-origin'), '*')
+  assert.match(response.headers.get('access-control-allow-methods') ?? '', /POST/)
+  assert.match(response.headers.get('access-control-allow-headers') ?? '', /content-type/)
+})
+
 test('project-service rejects unknown routes', async () => {
   const runtime = await startProjectService()
   tAfterClose(runtime)
@@ -672,6 +691,18 @@ test('project-service executes content-unit candidate commands through scoped pr
   assert.equal(viewed.schema, 'movscript.project-candidate-view.v1')
   assert.equal(viewed.contexts.length, 1)
   assert.equal(viewed.contexts[0].candidates[0].id, 'candidate_image_1')
+
+  const inferredViewed = await postJSON(`${runtime.url}${PROJECT_SERVICE_CANDIDATE_VIEW_ENDPOINT}`, {
+    projectDir,
+    contentUnitIds: ['k41m'],
+    projectUid: 'prj_demo',
+    dataServiceBaseURL: 'https://cloud.example',
+    scopeKind: 'org',
+    scopeId: 12,
+  })
+  assert.equal(inferredViewed.schema, 'movscript.project-candidate-view.v1')
+  assert.equal(inferredViewed.contexts.length, 1)
+  assert.equal(inferredViewed.contexts[0].candidates[0].id, 'candidate_image_1')
 
   const selected = await postJSON(`${runtime.url}${PROJECT_SERVICE_CANDIDATE_COMMAND_ENDPOINT}`, {
     projectDir,

@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom'
 import { ArrowRight, FileText, LayoutDashboard } from 'lucide-react'
 import { Badge, Button, Progress, StatusBadge } from '@movscript/ui/primitives'
-import { toneTextClass } from '@movscript/ui/semantic'
 
 import {
   projectOverviewLaneLabel,
@@ -29,35 +28,17 @@ export function ProjectOverviewScriptCard({ script }: { script: Script }) {
   return (
     <Link
       to={surfaceRoutePath('project.scripts', { projectId: script.project_id, script_id: script.ID })}
-      className="project-home-card project-home-card--button project-home-card--script"
+      className="project-home-script-row"
     >
-      <div className="project-home-card__header">
-        <span className="project-home-card__icon">
-          <FileText size={17} />
-        </span>
-        <Badge variant="outline">{script.script_type || '手记'}</Badge>
+      <span className="project-home-script-row__icon" aria-hidden="true">
+        <FileText size={15} />
+      </span>
+      <div className="project-home-script-row__copy">
+        <strong>{script.title || `手记 #${script.ID}`}</strong>
+        <span>{description}</span>
       </div>
-      <div className="project-home-card__body">
-        <h3 className="project-home-card__title">{script.title || `手记 #${script.ID}`}</h3>
-        <p className="project-home-card__description">{description}</p>
-        <div className="project-home-card__signal-grid">
-          <span className="project-home-card__signal">
-            <span className="project-home-card__signal-label">正文</span>
-            <span className="project-home-card__signal-value">{bodyLength > 0 ? `${bodyLength} 字` : '未导入'}</span>
-          </span>
-          <span className="project-home-card__signal">
-            <span className="project-home-card__signal-label">类型</span>
-            <span className="project-home-card__signal-value">{script.script_type || '手记'}</span>
-          </span>
-        </div>
-      </div>
-      <div className="project-home-card__footer">
-        <span>创作手记</span>
-        <span className="project-home-card__footer-action">
-          进入工作台
-          <ArrowRight size={13} />
-        </span>
-      </div>
+      <Badge variant="outline" className="project-home-script-row__kind">{script.script_type || '手记'}</Badge>
+      <small>{bodyLength > 0 ? `${bodyLength} 字` : '未导入'}</small>
     </Link>
   )
 }
@@ -80,50 +61,21 @@ export function ProjectOverviewPluginInfoTile({
   )
 }
 
-export function ProjectBuiltInStandardsPluginCard({ lane }: { lane?: ProjectOverviewWorkLane }) {
-  const statusLabel = lane ? projectOverviewLaneLabel(lane.state) : '内建'
+export function ProjectBuiltInStandardsPluginCard({ breadcrumb }: { breadcrumb: string }) {
   return (
-    <article className="project-home-card project-home-card--plugin">
-      <div className="project-home-card__header">
+    <article className="project-home-plugin-card">
+      <div className="project-home-plugin-card__header">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <LayoutDashboard size={14} className={lane?.state === 'ready' ? toneTextClass('success') : 'text-muted-foreground'} />
-            <h3 className="project-home-card__title">项目规范</h3>
+          <p className="project-home-plugin-card__breadcrumb">{breadcrumb}</p>
+          <div className="project-home-plugin-card__title-line">
+            <LayoutDashboard size={14} />
+            <h3>项目规范</h3>
           </div>
-          <p className="project-home-card__description">
-            统一项目级画幅、镜头语言、视觉风格、节奏和生成约束。
-          </p>
         </div>
         <Button asChild type="button" size="sm" variant="outline">
           <Link to={surfaceRoutePath('project.standards')}>打开</Link>
         </Button>
       </div>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <Badge variant="solid" tone="success">系统内置</Badge>
-        <Badge variant="outline">项目能力</Badge>
-        <Badge variant="outline">{statusLabel}</Badge>
-      </div>
-      {lane ? (
-        <div className="mt-3">
-          <div className="mb-1 flex items-center justify-between gap-3 type-caption text-muted-foreground">
-            <span className="truncate">{lane.detail}</span>
-            <span className="shrink-0 tabular-nums">{lane.progress}%</span>
-          </div>
-          <Progress value={lane.progress} className="h-1.5" />
-          <div className="project-home-card__signal-grid">
-            <span className="project-home-card__signal">
-              <span className="project-home-card__signal-label">状态</span>
-              <span className="project-home-card__signal-value">{statusLabel}</span>
-            </span>
-            <span className="project-home-card__signal">
-              <span className="project-home-card__signal-label">准备度</span>
-              <span className="project-home-card__signal-value">{lane.progress}%</span>
-            </span>
-          </div>
-        </div>
-      ) : (
-        <p className="mt-3 truncate type-caption text-muted-foreground">project_standards</p>
-      )}
     </article>
   )
 }

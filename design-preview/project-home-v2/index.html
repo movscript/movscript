@@ -1,0 +1,1509 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Project Home Content Preview</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f4f6f8;
+        --surface: #ffffff;
+        --surface-soft: #f8fafc;
+        --surface-tint: #eef5f4;
+        --ink: #10151d;
+        --muted: #687281;
+        --subtle: #8c96a5;
+        --line: #dfe5ec;
+        --line-strong: #c9d2df;
+        --teal: #0f766e;
+        --blue: #2563eb;
+        --green: #15803d;
+        --amber: #b45309;
+        --violet: #6d28d9;
+        --blue-soft: #edf4ff;
+        --green-soft: #edf8f1;
+        --amber-soft: #fff2df;
+        --violet-soft: #f4efff;
+        --radius: 8px;
+        --radius-sm: 6px;
+        --font: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        height: 100%;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--font);
+        letter-spacing: 0;
+        overflow: hidden;
+      }
+
+      button,
+      select {
+        font: inherit;
+      }
+
+      button {
+        cursor: pointer;
+      }
+
+      .project-home {
+        display: grid;
+        width: min(100%, 1320px);
+        height: 100vh;
+        max-height: 100vh;
+        grid-template-rows: auto minmax(0, 1fr);
+        gap: 14px;
+        margin: 0 auto;
+        overflow: hidden;
+        padding: 16px 20px;
+      }
+
+      .overview {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--surface);
+        overflow: hidden;
+      }
+
+      .overview-main {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(330px, 420px);
+        gap: 16px;
+        align-items: stretch;
+        min-height: 118px;
+        padding: 14px 16px;
+      }
+
+      .project-kicker {
+        margin: 0 0 6px;
+        color: var(--teal);
+        font-size: 12px;
+        font-weight: 760;
+        line-height: 1.2;
+      }
+
+      .project-title {
+        margin: 0;
+        overflow: hidden;
+        font-size: 23px;
+        font-weight: 790;
+        line-height: 1.12;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .project-desc {
+        max-width: 760px;
+        margin: 8px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .project-fields {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+        margin-top: 12px;
+      }
+
+      .field-chip {
+        min-width: 0;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        background: var(--surface-soft);
+        padding: 7px 9px;
+      }
+
+      .field-chip span,
+      .field-chip strong {
+        display: inline;
+        min-width: 0;
+        font-size: 11px;
+        line-height: 1.2;
+        white-space: nowrap;
+      }
+
+      .field-chip span {
+        color: var(--muted);
+      }
+
+      .field-chip strong {
+        margin-left: 6px;
+        font-weight: 760;
+      }
+
+      .project-meta {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(112px, 1fr));
+        gap: 8px;
+      }
+
+      .meta-cell {
+        min-width: 0;
+        border-left: 1px solid var(--line);
+        padding-left: 14px;
+      }
+
+      .meta-cell span,
+      .meta-cell strong {
+        display: block;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .meta-cell span {
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1.2;
+      }
+
+      .meta-cell strong {
+        margin-top: 5px;
+        font-size: 13px;
+        font-weight: 760;
+      }
+
+      .inventory-strip {
+        display: none;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        background: var(--surface-soft);
+      }
+
+      .plugin-panel {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        gap: 8px;
+        min-height: 0;
+        border: 1px solid color-mix(in srgb, var(--teal) 24%, var(--line));
+        border-left: 3px solid var(--teal);
+        border-radius: var(--radius);
+        background: linear-gradient(90deg, rgba(15, 118, 110, 0.08), transparent 70%), var(--surface-soft);
+        padding: 10px;
+      }
+
+      .plugin-panel-head {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .plugin-panel h2,
+      .plugin-panel p,
+      .plugin-row span,
+      .plugin-row strong {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .plugin-panel h2 {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 790;
+      }
+
+      .plugin-panel p {
+        margin: 4px 0 0;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.35;
+      }
+
+      .plugin-panel .select {
+        min-width: 142px;
+        min-height: 30px;
+      }
+
+      .plugin-list {
+        display: flex;
+        gap: 8px;
+        min-height: 0;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding-bottom: 2px;
+        scroll-snap-type: x proximity;
+      }
+
+      .plugin-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+        flex: 0 0 min(300px, 86%);
+        min-width: 0;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        background: var(--surface);
+        padding: 9px 10px;
+        scroll-snap-align: start;
+      }
+
+      .plugin-row strong {
+        display: block;
+        font-size: 12px;
+        font-weight: 780;
+      }
+
+      .plugin-row span {
+        display: block;
+        margin-top: 3px;
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 720;
+      }
+
+      .plugin-kind {
+        display: inline-flex;
+        min-height: 24px;
+        align-items: center;
+        border: 1px solid color-mix(in srgb, var(--teal) 30%, var(--line));
+        border-radius: 999px;
+        background: var(--surface-tint);
+        padding: 4px 8px;
+        color: var(--teal);
+        font-size: 10px;
+        font-weight: 780;
+        white-space: nowrap;
+      }
+
+      .plugin-count {
+        display: inline-flex;
+        align-items: center;
+        margin-right: 8px;
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 760;
+      }
+
+      .inventory-item {
+        min-width: 0;
+        border-right: 1px solid var(--line);
+        padding: 14px 16px;
+      }
+
+      .inventory-item:last-child {
+        border-right: 0;
+      }
+
+      .inventory-item span,
+      .inventory-item strong,
+      .inventory-item small {
+        display: block;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .inventory-item span {
+        color: var(--muted);
+        font-size: 11px;
+      }
+
+      .inventory-item strong {
+        margin-top: 5px;
+        font-size: 21px;
+        font-weight: 790;
+        line-height: 1;
+      }
+
+      .inventory-item small {
+        margin-top: 7px;
+        color: var(--subtle);
+        font-size: 11px;
+      }
+
+      .content-grid {
+        display: grid;
+        grid-template-columns: minmax(320px, 1fr) minmax(320px, 1fr);
+        gap: 16px;
+        align-items: stretch;
+        min-height: 0;
+        margin-top: 0;
+      }
+
+      .column {
+        display: grid;
+        gap: 16px;
+        height: 100%;
+        min-height: 0;
+        min-width: 0;
+      }
+
+      .left-column {
+        grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+      }
+
+      .right-column {
+        grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+      }
+
+      .module {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        min-height: 0;
+        min-width: 0;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--surface);
+      }
+
+      .module-head {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 14px;
+        align-items: center;
+        flex: 0 0 auto;
+        min-height: 62px;
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .module-title {
+        display: flex;
+        min-width: 0;
+        gap: 10px;
+        align-items: flex-start;
+      }
+
+      .module-icon {
+        display: inline-flex;
+        width: 30px;
+        height: 30px;
+        flex: 0 0 auto;
+        align-items: center;
+        justify-content: center;
+        border-radius: var(--radius-sm);
+      }
+
+      .module-icon.blue { background: var(--blue-soft); color: var(--blue); }
+      .module-icon.green { background: var(--green-soft); color: var(--green); }
+      .module-icon.amber { background: var(--amber-soft); color: var(--amber); }
+      .module-icon.violet { background: var(--violet-soft); color: var(--violet); }
+      .module-icon.teal { background: var(--surface-tint); color: var(--teal); }
+
+      .module-copy {
+        min-width: 0;
+      }
+
+      .module-copy h2 {
+        margin: 0;
+        overflow: hidden;
+        font-size: 15px;
+        font-weight: 780;
+        line-height: 1.25;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .module-copy p {
+        margin: 4px 0 0;
+        overflow: hidden;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.42;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .module-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      .module-foot {
+        display: flex;
+        min-height: 40px;
+        flex: 0 0 auto;
+        align-items: center;
+        justify-content: space-between;
+        border-top: 1px solid var(--line);
+        background: var(--surface-soft);
+        padding: 7px 12px;
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 720;
+      }
+
+      .pager-controls {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+
+      .pager-btn {
+        display: inline-flex;
+        width: 26px;
+        height: 26px;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid var(--line-strong);
+        border-radius: var(--radius-sm);
+        background: var(--surface);
+        color: var(--ink);
+      }
+
+      .pager-btn:disabled {
+        cursor: default;
+        opacity: 0.38;
+      }
+
+      .control-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .select,
+      .btn {
+        min-height: 32px;
+        border: 1px solid var(--line-strong);
+        border-radius: var(--radius-sm);
+        background: var(--surface);
+        color: var(--ink);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .select {
+        min-width: 162px;
+        padding: 0 10px;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        padding: 7px 10px;
+        white-space: nowrap;
+      }
+
+      .btn.primary {
+        border-color: #11151c;
+        background: #11151c;
+        color: #fff;
+      }
+
+      .table {
+        display: grid;
+        min-width: 0;
+      }
+
+      .table-head,
+      .table-row {
+        display: grid;
+        min-width: 0;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .table-head {
+        padding: 10px 16px;
+        border-bottom: 1px solid var(--line);
+        background: var(--surface-soft);
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 720;
+      }
+
+      .table-row {
+        padding: 13px 16px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .table-row:last-child {
+        border-bottom: 0;
+      }
+
+      .table-row[hidden] {
+        display: none;
+      }
+
+      .page-item[hidden] {
+        display: none !important;
+      }
+
+      .cell {
+        min-width: 0;
+      }
+
+      .cell strong,
+      .cell span,
+      .cell small {
+        display: block;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .cell strong {
+        font-size: 13px;
+        font-weight: 760;
+      }
+
+      .cell span {
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .cell small {
+        color: var(--subtle);
+        font-size: 11px;
+      }
+
+      .canvas-table .table-head,
+      .canvas-table .table-row {
+        grid-template-columns: minmax(180px, 1.2fr) 132px 64px 108px 88px;
+      }
+
+      .script-table .table-head,
+      .script-table .table-row {
+        grid-template-columns: minmax(190px, 1fr) 90px 84px;
+      }
+
+      .setting-table .table-head,
+      .setting-table .table-row {
+        grid-template-columns: minmax(120px, 0.9fr) 88px minmax(120px, 1fr);
+      }
+
+      .scope-pill,
+      .kind-pill {
+        display: inline-flex;
+        max-width: 100%;
+        min-height: 24px;
+        align-items: center;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--surface-soft);
+        padding: 4px 8px;
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 720;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .scope-pill.production {
+        border-color: color-mix(in srgb, var(--green) 32%, var(--line));
+        background: var(--green-soft);
+        color: var(--green);
+      }
+
+      .scope-pill.global {
+        border-color: color-mix(in srgb, var(--blue) 30%, var(--line));
+        background: var(--blue-soft);
+        color: var(--blue);
+      }
+
+      .canvas-card-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-auto-rows: minmax(92px, 1fr);
+        gap: 10px;
+        padding: 12px;
+      }
+
+      .canvas-card,
+      .canvas-create-card {
+        min-width: 0;
+        min-height: 0;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--surface-soft);
+        padding: 12px;
+      }
+
+      .canvas-card {
+        display: flex;
+        flex-direction: column;
+        border-top: 3px solid var(--green);
+      }
+
+      .canvas-card[hidden] {
+        display: none;
+      }
+
+      .canvas-card-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .canvas-card-title {
+        min-width: 0;
+      }
+
+      .canvas-card-title strong,
+      .canvas-card-title span,
+      .canvas-card-meta span,
+      .canvas-card-meta strong {
+        display: block;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .canvas-card-title strong {
+        color: var(--ink);
+        font-size: 14px;
+        font-weight: 780;
+        line-height: 1.25;
+      }
+
+      .canvas-card-title span {
+        margin-top: 5px;
+        color: var(--muted);
+        font-size: 11px;
+      }
+
+      .canvas-card-meta {
+        display: none;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 7px;
+        margin-top: 16px;
+      }
+
+      .canvas-card-meta div {
+        min-width: 0;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        background: var(--surface);
+        padding: 8px;
+      }
+
+      .canvas-card-meta span {
+        color: var(--muted);
+        font-size: 10px;
+      }
+
+      .canvas-card-meta strong {
+        margin-top: 3px;
+        color: var(--ink);
+        font-size: 12px;
+        font-weight: 760;
+      }
+
+      .canvas-card-foot {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-top: auto;
+        padding-top: 10px;
+      }
+
+      .canvas-card-foot small {
+        min-width: 0;
+        overflow: hidden;
+        color: var(--subtle);
+        font-size: 11px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .canvas-card-foot .btn {
+        min-width: 52px;
+        padding-inline: 9px;
+      }
+
+      .canvas-create-card {
+        display: grid;
+        place-items: center;
+        border-style: dashed;
+        background: transparent;
+        color: var(--muted);
+        text-align: center;
+      }
+
+      .create-card-inner {
+        display: grid;
+        justify-items: center;
+        gap: 8px;
+      }
+
+      .create-icon {
+        display: inline-flex;
+        width: 34px;
+        height: 34px;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid var(--line-strong);
+        border-radius: var(--radius);
+        background: var(--surface);
+        color: var(--green);
+      }
+
+      .create-card-inner strong {
+        color: var(--ink);
+        font-size: 13px;
+        font-weight: 760;
+      }
+
+      .create-card-inner span {
+        max-width: 22ch;
+        font-size: 11px;
+        line-height: 1.45;
+      }
+
+      .row-action {
+        justify-self: end;
+        color: var(--ink);
+        font-size: 12px;
+        font-weight: 760;
+      }
+
+      .plugin-status {
+        padding: 16px;
+      }
+
+      .standards-band {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 12px;
+        align-items: center;
+        border: 1px solid color-mix(in srgb, var(--teal) 28%, var(--line));
+        border-left: 3px solid var(--teal);
+        border-radius: var(--radius);
+        background: linear-gradient(90deg, rgba(15, 118, 110, 0.08), transparent 58%), var(--surface-soft);
+        padding: 13px;
+      }
+
+      .readiness {
+        display: grid;
+        width: 54px;
+        height: 54px;
+        place-items: center;
+        border-radius: 50%;
+        background: conic-gradient(var(--teal) 0 100%, #e6ebf0 0);
+        color: var(--teal);
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      .timeline {
+        padding: 16px;
+      }
+
+      .production-list {
+        display: grid;
+        grid-auto-rows: 1fr;
+        gap: 10px;
+        padding: 16px;
+      }
+
+      .production-row {
+        display: grid;
+        min-width: 0;
+        grid-template-columns: minmax(0, 1fr) 92px 112px;
+        gap: 10px;
+        align-items: center;
+        border: 1px solid var(--line);
+        border-left: 3px solid var(--amber);
+        border-radius: var(--radius);
+        background: var(--surface-soft);
+        padding: 12px;
+      }
+
+      .production-type {
+        min-width: 0;
+      }
+
+      .production-type strong,
+      .production-type span {
+        display: block;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .production-type strong {
+        font-size: 13px;
+        font-weight: 780;
+      }
+
+      .production-type span {
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 720;
+      }
+
+      .timeline-scale {
+        display: grid;
+        grid-template-columns: 150px repeat(4, minmax(0, 1fr)) 74px;
+        gap: 8px;
+        margin-bottom: 8px;
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 740;
+      }
+
+      .timeline-row {
+        display: grid;
+        grid-template-columns: 150px minmax(0, 1fr) 74px;
+        gap: 8px;
+        align-items: center;
+        border-top: 1px solid var(--line);
+        padding: 11px 0;
+      }
+
+      .timeline-row:first-of-type {
+        border-top: 0;
+      }
+
+      .timeline-name {
+        min-width: 0;
+      }
+
+      .timeline-name strong,
+      .timeline-name span {
+        display: block;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .timeline-name strong {
+        font-size: 13px;
+        font-weight: 760;
+      }
+
+      .timeline-name span {
+        margin-top: 3px;
+        color: var(--muted);
+        font-size: 11px;
+      }
+
+      .lane {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 6px;
+        min-width: 0;
+      }
+
+      .lane span {
+        min-width: 0;
+        height: 28px;
+        border-radius: 999px;
+        background: #e8edf3;
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 760;
+        line-height: 28px;
+        text-align: center;
+      }
+
+      .lane .done {
+        background: var(--green-soft);
+        color: var(--green);
+      }
+
+      .lane .live {
+        background: var(--amber-soft);
+        color: var(--amber);
+      }
+
+      .setting-preview-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-auto-rows: minmax(0, 1fr);
+        gap: 10px;
+        padding: 12px;
+      }
+
+      .setting-card {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        min-height: 0;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--surface-soft);
+        overflow: hidden;
+      }
+
+      .setting-image {
+        display: block;
+        width: 100%;
+        height: 92px;
+        flex: 0 0 auto;
+        object-fit: cover;
+        background: var(--violet-soft);
+      }
+
+      .setting-card-body {
+        display: flex;
+        min-height: 0;
+        flex: 1 1 auto;
+        flex-direction: column;
+        padding: 10px;
+      }
+
+      .setting-breadcrumb {
+        display: block;
+        min-width: 0;
+        overflow: hidden;
+        color: var(--violet);
+        font-size: 10px;
+        font-weight: 760;
+        line-height: 1.2;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .setting-card-head {
+        display: flex;
+        margin-top: 8px;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .setting-initial {
+        display: inline-flex;
+        width: 36px;
+        height: 36px;
+        flex: 0 0 auto;
+        align-items: center;
+        justify-content: center;
+        border-radius: var(--radius-sm);
+        background: var(--violet-soft);
+        color: var(--violet);
+        font-size: 14px;
+        font-weight: 820;
+      }
+
+      .setting-card-copy {
+        min-width: 0;
+      }
+
+      .setting-card-copy strong,
+      .setting-card-copy span,
+      .setting-card-meta span {
+        display: block;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .setting-card-copy strong {
+        font-size: 14px;
+        font-weight: 780;
+      }
+
+      .setting-card-copy span {
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 11px;
+      }
+
+      .setting-card-meta {
+        display: grid;
+        gap: 7px;
+        margin-top: auto;
+        padding-top: 10px;
+      }
+
+      .setting-card-meta span {
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--surface);
+        padding: 6px 8px;
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 700;
+      }
+
+      svg {
+        width: 16px;
+        height: 16px;
+        flex: 0 0 auto;
+        stroke-width: 2;
+      }
+
+      @media (max-width: 640px) {
+        body {
+          overflow: auto;
+        }
+
+        .project-home {
+          height: auto;
+          max-height: none;
+          overflow: visible;
+        }
+
+        .overview-main,
+        .content-grid {
+          grid-template-columns: minmax(0, 1fr);
+        }
+
+        .content-grid,
+        .column {
+          height: auto;
+        }
+
+        .left-column,
+        .right-column {
+          grid-template-rows: none;
+        }
+
+        .module {
+          height: 360px;
+        }
+
+        .project-meta {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .inventory-strip {
+          grid-template-columns: repeat(5, minmax(120px, 1fr));
+          overflow-x: auto;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .project-home {
+          padding: 12px;
+        }
+
+        .overview-main,
+        .module-head {
+          padding: 14px;
+        }
+
+        .project-title {
+          font-size: 22px;
+        }
+
+        .project-meta,
+        .plugin-panel,
+        .canvas-table .table-head,
+        .canvas-table .table-row,
+        .script-table .table-head,
+        .script-table .table-row,
+        .setting-table .table-head,
+        .setting-table .table-row,
+        .timeline-scale,
+        .timeline-row,
+        .production-row,
+        .standards-band {
+          grid-template-columns: minmax(0, 1fr);
+        }
+
+        .canvas-card-grid,
+        .canvas-card-meta,
+        .setting-preview-grid {
+          grid-template-columns: minmax(0, 1fr);
+        }
+
+        .module-head {
+          grid-template-columns: minmax(0, 1fr);
+        }
+
+        .control-row {
+          align-items: stretch;
+          flex-direction: column;
+        }
+
+        .select,
+        .btn {
+          width: 100%;
+        }
+
+        .table-head {
+          display: none;
+        }
+
+        .table-row {
+          gap: 8px;
+        }
+
+        .row-action {
+          justify-self: start;
+        }
+
+        .timeline-scale {
+          display: none;
+        }
+
+        .timeline-row {
+          gap: 10px;
+        }
+
+        .lane {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <svg aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden">
+      <symbol id="i-grid" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+      <symbol id="i-doc" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h6"/></symbol>
+      <symbol id="i-branch" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M9 6h3a3 3 0 0 1 3 3v6"/><path d="M6 9v9"/></symbol>
+      <symbol id="i-play" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9 5 3-5 3z"/></symbol>
+      <symbol id="i-board" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8"/><path d="M8 13h5"/><path d="M8 17h7"/></symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14"/><path d="M5 12h14"/></symbol>
+      <symbol id="i-chevron-left" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m15 18-6-6 6-6"/></symbol>
+      <symbol id="i-chevron-right" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m9 18 6-6-6-6"/></symbol>
+    </svg>
+
+    <main class="project-home">
+      <section class="overview" aria-label="项目总览">
+        <div class="overview-main">
+          <div>
+            <p class="project-kicker">项目总览</p>
+            <h1 class="project-title">E2E Demo Project</h1>
+            <div class="project-fields" aria-label="项目字段">
+              <div class="field-chip"><span>project_id</span><strong>42</strong></div>
+              <div class="field-chip"><span>aspect_ratio</span><strong>9:16</strong></div>
+              <div class="field-chip"><span>visual_style</span><strong>写实电影感</strong></div>
+            </div>
+          </div>
+          <aside class="plugin-panel" data-pager-root aria-label="项目插件">
+            <div class="plugin-panel-head">
+              <div>
+                <h2>项目插件</h2>
+                <p>ProjectPlugin[]</p>
+              </div>
+              <div class="control-row">
+                <span class="plugin-count" data-page-count data-count-label="plugins">1 plugins</span>
+                <select class="select type-filter" aria-label="项目插件类型筛选">
+                  <option value="all">全部类型</option>
+                  <option value="project_standards">project_standards</option>
+                </select>
+              </div>
+            </div>
+            <div class="plugin-list" data-paginated data-page-size="99">
+              <article class="plugin-row page-item" data-filter-type="project_standards">
+                <div>
+                  <strong>project_standards</strong>
+                  <span>项目规范 · 可被手记、设定和制作继承</span>
+                </div>
+                <span class="plugin-kind">ProjectPlugin</span>
+              </article>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="content-grid" aria-label="Project Home 内容">
+        <div class="column left-column">
+          <section class="module">
+            <header class="module-head">
+              <div class="module-title">
+                <span class="module-icon amber"><svg><use href="#i-play"/></svg></span>
+                <div class="module-copy">
+                  <h2>制作</h2>
+                  <p>ProjectHomeProductionSummary[]</p>
+                </div>
+              </div>
+              <div class="control-row">
+                <select class="select type-filter" aria-label="制作类型筛选">
+                  <option value="all">全部类型</option>
+                  <option value="short_video">short_video</option>
+                  <option value="course_lesson">course_lesson</option>
+                </select>
+              </div>
+            </header>
+            <div class="module-body production-list" data-paginated data-page-size="3">
+              <article class="production-row page-item" data-filter-type="short_video">
+                <div class="production-type"><strong>试播短片</strong><span>type: short_video</span></div>
+                <button class="btn primary">预览</button>
+                <button class="btn">新建画布</button>
+              </article>
+              <article class="production-row page-item" data-filter-type="course_lesson">
+                <div class="production-type"><strong>课程小节 Demo</strong><span>type: course_lesson</span></div>
+                <button class="btn primary">预览</button>
+                <button class="btn">新建画布</button>
+              </article>
+            </div>
+            <footer class="module-foot">
+              <span data-page-count data-count-label="productions">2 productions</span>
+              <div class="pager-controls">
+                <button class="pager-btn" data-page-prev aria-label="上一页"><svg><use href="#i-chevron-left"/></svg></button>
+                <span><strong data-page-current>1</strong>/<span data-page-total>1</span></span>
+                <button class="pager-btn" data-page-next aria-label="下一页"><svg><use href="#i-chevron-right"/></svg></button>
+              </div>
+            </footer>
+          </section>
+
+          <section class="module">
+            <header class="module-head">
+              <div class="module-title">
+                <span class="module-icon violet"><svg><use href="#i-board"/></svg></span>
+                <div class="module-copy">
+                  <h2>设定预览</h2>
+                  <p>ProjectHomeSettingSummary[]</p>
+                </div>
+              </div>
+              <div class="control-row">
+                <select class="select type-filter" aria-label="设定类型筛选">
+                  <option value="all">全部类型</option>
+                  <option value="character">character</option>
+                  <option value="location">location</option>
+                </select>
+              </div>
+            </header>
+            <div class="module-body setting-preview-grid" data-paginated data-page-size="2">
+              <article class="setting-card page-item" data-filter-type="character">
+                <img class="setting-image" src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=640&q=80" alt="林舟设定预览" />
+                <div class="setting-card-body">
+                  <span class="setting-breadcrumb">E2E Demo Project / 设定 / 林舟</span>
+                  <div class="setting-card-head">
+                    <span class="setting-initial">林</span>
+                    <div class="setting-card-copy">
+                      <strong>林舟</strong>
+                      <span>id: lin</span>
+                    </div>
+                  </div>
+                  <div class="setting-card-meta">
+                    <span>kind: character</span>
+                    <span>targetRef: setting:lin</span>
+                  </div>
+                </div>
+              </article>
+              <article class="setting-card page-item" data-filter-type="location">
+                <img class="setting-image" src="https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=640&q=80" alt="旧城区设定预览" />
+                <div class="setting-card-body">
+                  <span class="setting-breadcrumb">E2E Demo Project / 设定 / 旧城区</span>
+                  <div class="setting-card-head">
+                    <span class="setting-initial">城</span>
+                    <div class="setting-card-copy">
+                      <strong>旧城区</strong>
+                      <span>id: old-town</span>
+                    </div>
+                  </div>
+                  <div class="setting-card-meta">
+                    <span>kind: location</span>
+                    <span>targetRef: setting:old-town</span>
+                  </div>
+                </div>
+              </article>
+            </div>
+            <footer class="module-foot">
+              <span data-page-count data-count-label="settings">2 settings</span>
+              <div class="pager-controls">
+                <button class="pager-btn" data-page-prev aria-label="上一页"><svg><use href="#i-chevron-left"/></svg></button>
+                <span><strong data-page-current>1</strong>/<span data-page-total>1</span></span>
+                <button class="pager-btn" data-page-next aria-label="下一页"><svg><use href="#i-chevron-right"/></svg></button>
+              </div>
+            </footer>
+          </section>
+        </div>
+
+        <div class="column right-column">
+          <section class="module" id="content-canvas">
+            <header class="module-head">
+              <div class="module-title">
+                <span class="module-icon green"><svg><use href="#i-branch"/></svg></span>
+                <div class="module-copy">
+                  <h2>内容画布</h2>
+                  <p>ContentCanvasDocument[]</p>
+                </div>
+              </div>
+              <div class="control-row">
+                <select class="select type-filter" id="canvas-filter" aria-label="内容画布类型筛选">
+                  <option value="all">全部类型</option>
+                  <option value="global">global</option>
+                  <option value="production">production</option>
+                </select>
+              </div>
+            </header>
+            <div class="module-body canvas-card-grid" data-paginated data-page-size="2">
+              <article class="canvas-card page-item" data-canvas-scope="production:pilot" data-filter-type="production">
+                <div class="canvas-card-top">
+                  <div class="canvas-card-title">
+                    <strong>试播短片内容画布</strong>
+                    <span>E2E Demo Project / 制作 / 试播短片</span>
+                  </div>
+                  <span class="scope-pill production">制作 · 试播短片</span>
+                </div>
+                <div class="canvas-card-foot">
+                  <small>productionId: pilot</small>
+                  <button class="btn primary">打开</button>
+                </div>
+              </article>
+              <article class="canvas-card page-item" data-canvas-scope="global" data-filter-type="global">
+                <div class="canvas-card-top">
+                  <div class="canvas-card-title">
+                    <strong>全局内容画布</strong>
+                    <span>E2E Demo Project / 全局内容</span>
+                  </div>
+                  <span class="scope-pill global">全局内容画布</span>
+                </div>
+                <div class="canvas-card-foot">
+                  <small>scope.kind: global</small>
+                  <button class="btn primary">打开</button>
+                </div>
+              </article>
+              <button class="canvas-create-card" type="button">
+                <span class="create-card-inner">
+                  <span class="create-icon"><svg><use href="#i-plus"/></svg></span>
+                  <strong>新建内容画布</strong>
+                  <span>创建全局画布，或从制作列表创建 production scope 画布。</span>
+                </span>
+              </button>
+            </div>
+            <footer class="module-foot">
+              <span data-page-count data-count-label="canvases">2 canvases</span>
+              <div class="pager-controls">
+                <button class="pager-btn" data-page-prev aria-label="上一页"><svg><use href="#i-chevron-left"/></svg></button>
+                <span><strong data-page-current>1</strong>/<span data-page-total>1</span></span>
+                <button class="pager-btn" data-page-next aria-label="下一页"><svg><use href="#i-chevron-right"/></svg></button>
+              </div>
+            </footer>
+          </section>
+
+          <section class="module" id="scripts">
+            <header class="module-head">
+              <div class="module-title">
+                <span class="module-icon blue"><svg><use href="#i-doc"/></svg></span>
+                <div class="module-copy">
+                  <h2>创作手记</h2>
+                  <p>Script[]</p>
+                </div>
+              </div>
+              <div class="control-row">
+                <select class="select type-filter" aria-label="手记类型筛选">
+                  <option value="all">全部类型</option>
+                  <option value="brief">brief</option>
+                  <option value="revision">revision</option>
+                </select>
+              </div>
+            </header>
+            <div class="module-body table script-table" data-paginated data-page-size="3">
+              <div class="table-head"><span>title / summary</span><span>script_type</span><span>bodyLength</span></div>
+              <article class="table-row page-item" data-filter-type="brief">
+                <div class="cell"><strong>城市夜行手记</strong><span>角色在雨夜穿过旧城区，发现一段被删除的影像线索。</span></div>
+                <div class="cell"><span class="kind-pill">brief</span></div>
+                <div class="cell"><small>168 字</small></div>
+              </article>
+              <article class="table-row page-item" data-filter-type="revision">
+                <div class="cell"><strong>第二版节奏修订</strong><span>收紧开场三十秒，强调人物动机和场面切换。</span></div>
+                <div class="cell"><span class="kind-pill">revision</span></div>
+                <div class="cell"><small>112 字</small></div>
+              </article>
+            </div>
+            <footer class="module-foot">
+              <span data-page-count data-count-label="scripts">2 scripts</span>
+              <div class="pager-controls">
+                <button class="pager-btn" data-page-prev aria-label="上一页"><svg><use href="#i-chevron-left"/></svg></button>
+                <span><strong data-page-current>1</strong>/<span data-page-total>1</span></span>
+                <button class="pager-btn" data-page-next aria-label="下一页"><svg><use href="#i-chevron-right"/></svg></button>
+              </div>
+            </footer>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const pagers = Array.from(document.querySelectorAll('[data-paginated]')).map((container) => {
+        const root = container.closest('[data-pager-root]') || container.closest('.module')
+        const state = {
+          container,
+          root,
+          page: 0,
+          size: Number(container.dataset.pageSize || 2),
+          items: Array.from(container.querySelectorAll('.page-item')),
+          filter: root?.querySelector('.type-filter'),
+          count: root?.querySelector('[data-page-count]'),
+          prev: root?.querySelector('[data-page-prev]'),
+          next: root?.querySelector('[data-page-next]'),
+          current: root?.querySelector('[data-page-current]'),
+          total: root?.querySelector('[data-page-total]'),
+        }
+
+        state.prev?.addEventListener('click', () => {
+          state.page = Math.max(0, state.page - 1)
+          updatePager(state)
+        })
+
+        state.next?.addEventListener('click', () => {
+          const total = getPageCount(state)
+          state.page = Math.min(total - 1, state.page + 1)
+          updatePager(state)
+        })
+
+        state.filter?.addEventListener('change', () => {
+          state.page = 0
+          updateFilter(state)
+          updatePager(state)
+        })
+
+        return state
+      })
+
+      function updateFilter(state) {
+        const value = state.filter?.value || 'all'
+        for (const item of state.items) {
+          const type = item.dataset.filterType || ''
+          item.dataset.filterVisible = value === 'all' || type === value ? 'true' : 'false'
+        }
+      }
+
+      function getVisibleItems(state) {
+        return state.items.filter((item) => item.dataset.filterVisible !== 'false')
+      }
+
+      function getPageCount(state) {
+        return Math.max(1, Math.ceil(getVisibleItems(state).length / state.size))
+      }
+
+      function updatePager(state) {
+        const visible = getVisibleItems(state)
+        const total = getPageCount(state)
+        state.page = Math.min(state.page, total - 1)
+        state.items.forEach((item) => {
+          const visibleIndex = visible.indexOf(item)
+          const onPage = visibleIndex >= state.page * state.size && visibleIndex < (state.page + 1) * state.size
+          item.hidden = visibleIndex === -1 || !onPage
+        })
+        if (state.current) state.current.textContent = String(state.page + 1)
+        if (state.total) state.total.textContent = String(total)
+        if (state.count) {
+          const label = state.count.dataset.countLabel || 'items'
+          state.count.textContent = `${visible.length} ${label}`
+        }
+        if (state.prev) state.prev.disabled = state.page === 0
+        if (state.next) state.next.disabled = state.page >= total - 1
+      }
+
+      function updateAllPagers() {
+        pagers.forEach((state) => {
+          updateFilter(state)
+          updatePager(state)
+        })
+      }
+      updateAllPagers()
+    </script>
+  </body>
+</html>

@@ -78,12 +78,14 @@ type WorkspaceEntity = {
   path?: string
 }
 
-function projectContext(projectId: number): { projectId: number; projectDir?: string } {
+function projectContext(projectId: number): { projectId: number; projectDir?: string; projectServiceBaseURL?: string } {
   const project = useProjectStore.getState().current
   const projectDir = stringValue(project?.workspace_path ?? project?.project_path)
+  const projectServiceBaseURL = projectServiceBaseURLFromLocation()
   return {
     projectId,
     ...(projectDir ? { projectDir } : {}),
+    ...(projectServiceBaseURL ? { projectServiceBaseURL } : {}),
   }
 }
 
@@ -119,11 +121,11 @@ function semanticNamespaceResourceKind(kind: string): 'timeline-namespaces' | 's
 }
 
 async function listProjectResourceItems(
-  context: { projectId: number; projectDir?: string },
+  context: { projectId: number; projectDir?: string; projectServiceBaseURL?: string },
   kind: 'timeline-namespaces' | 'setting-namespaces',
 ): Promise<Record<string, unknown>[]> {
   if (!context.projectDir) return []
-  const response = await fetch('/local-api/project/resources/view', {
+  const response = await fetch(projectResourceViewEndpoint(context), {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ projectDir: context.projectDir, kind }),
@@ -136,6 +138,14 @@ async function listProjectResourceItems(
   }
   const items = recordValue(payload).items
   return Array.isArray(items) ? items.filter(isRecord) : []
+}
+
+function projectResourceViewEndpoint(
+  context: { projectServiceBaseURL?: string },
+): string {
+  return context.projectServiceBaseURL
+    ? `${context.projectServiceBaseURL}/v1/project/resources/view`
+    : '/local-api/project/resources/view'
 }
 
 function semanticNamespaceResourceItemMatchesKind(item: Record<string, unknown>, kind: string): boolean {
@@ -198,6 +208,24 @@ function stringValue(value: unknown): string | undefined {
   if (typeof value === 'string') return value.trim() || undefined
   if (typeof value === 'number' && Number.isFinite(value)) return String(value)
   return undefined
+}
+
+function projectServiceBaseURLFromLocation(): string | undefined {
+  if (typeof window === 'undefined') return undefined
+  const query = new URLSearchParams(window.location.search)
+  return normalizeProjectServiceBaseURL(
+    query.get('projectServiceBaseURL')
+      ?? query.get('projectServiceBaseUrl')
+      ?? query.get('projectServiceURL')
+      ?? query.get('projectServiceUrl'),
+  )
+}
+
+function normalizeProjectServiceBaseURL(value: string | null): string | undefined {
+  const normalized = value?.trim().replace(/\/+$/, '')
+  if (!normalized) return undefined
+  if (!normalized.startsWith('http://') && !normalized.startsWith('https://')) return undefined
+  return normalized
 }
 
 function numberValue(value: unknown): number | undefined {

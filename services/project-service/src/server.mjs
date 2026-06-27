@@ -90,6 +90,10 @@ export function createProjectServiceHandler(options = {}) {
   return async (request, response) => {
     const url = new URL(request.url ?? '/', 'http://127.0.0.1')
     try {
+      if (request.method === 'OPTIONS') {
+        writeCORSPreflight(response)
+        return
+      }
       if (request.method === 'GET' && url.pathname === '/health') {
         writeJSON(response, 200, {
           status: 'ok',
@@ -281,7 +285,10 @@ export function createProjectServiceHandler(options = {}) {
         const body = await readJSONBody(request)
         const projectDir = projectDirFromBody(body)
         const contentUnitIds = contentUnitIdsFromBody(body)
-        const decisionStore = decisionStoreFromBody(body)
+        const decisionStore = await optionalDecisionStoreFromBody(body, projectDir)
+        if (!decisionStore) {
+          throw httpError(400, 'project_candidate_decision_store_required', 'decisionStore or projectUid is required')
+        }
         const contexts = await readCandidateContexts(decisionStore, contentUnitIds)
         writeJSON(response, 200, {
           schema: 'movscript.project-candidate-view.v1',
@@ -359,8 +366,28 @@ export async function runProjectServiceCLI(argv = [], env = process.env) {
 function writeJSON(response, statusCode, payload) {
   response.writeHead(statusCode, {
     'content-type': 'application/json; charset=utf-8',
+    ...projectServiceCORSHeaders(),
   })
   response.end(JSON.stringify(payload))
+}
+
+function writeCORSPreflight(response) {
+  response.writeHead(204, {
+    ...projectServiceCORSHeaders(),
+    'content-length': '0',
+  })
+  response.end()
+}
+
+function projectServiceCORSHeaders() {
+  return {
+    'access-control-allow-origin': '*',
+    'access-control-allow-methods': 'GET,POST,OPTIONS',
+    'access-control-allow-headers': 'content-type, authorization, x-user-id, x-org-id',
+    'access-control-allow-private-network': 'true',
+    'access-control-max-age': '86400',
+    vary: 'Origin, Access-Control-Request-Method, Access-Control-Request-Headers',
+  }
 }
 
 async function readProjectSourceContext(request) {
@@ -398,6 +425,8 @@ async function executeProjectSourceCommand({ projectDir, command, input, decisio
       return engine.workspaceService.querySettings(input.query)
     case 'queryAssets':
       return engine.workspaceService.queryAssets(input.query)
+    case 'readScriptSource':
+      return engine.workspaceService.readScriptSource(input)
     case 'readContentUnitGenerationPrompt':
       return engine.workspaceService.readContentUnitGenerationPrompt(requiredContentUnitId(input))
     case 'buildContentUnitBackendPrompt':
@@ -1179,7 +1208,7 @@ async function inferLocalProjectDecisionStore(body, projectDir) {
   const baseUrl = inferredDataServiceBaseURL(body)
   if (!baseUrl) return undefined
   const scopeKind = body.scopeKind === 'org' || body.scope_kind === 'org' ? 'org' : 'user'
-  const scopeId = stringValue(body.scopeId ?? body.scope_id)
+  const scopeId = idValue(body.scopeId ?? body.scope_id)
     ?? (scopeKind === 'user' ? '1' : undefined)
   if (scopeId === undefined) return undefined
   return createMovScriptScopedProjectDataDecisionStore({

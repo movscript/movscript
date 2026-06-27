@@ -4,13 +4,18 @@ import type { Script } from '@movscript/shared'
 
 export interface ScriptWorkspaceRepositoryContext {
   projectDir?: string
+  projectUid?: string
+  projectServiceBaseURL?: string
   userId?: string | number
   orgId?: string | number
 }
 
 export async function listWorkspaceScripts(projectId: number, context: ScriptWorkspaceRepositoryContext = {}): Promise<Script[]> {
+  const projectServiceScripts = await listProjectResourceScripts(projectId, context)
+  if (projectServiceScripts) return projectServiceScripts
+
   const service = createSurfaceWorkspaceDomainService({ ...context, projectId })
-  const scripts = await service.queryEntities({ entityKind: 'script' })
+  const scripts = workspaceEntityArray(await service.queryEntities({ entityKind: 'script' }))
   return Promise.all(scripts.map((entity: MovScriptWorkspaceIndexedEntity) => scriptFromWorkspaceEntity(projectId, service, entity)))
 }
 
@@ -28,7 +33,7 @@ export async function createWorkspaceScript(projectId: number, workspace: Partia
 
 export async function saveWorkspaceScript(projectId: number, scriptId: number, workspace: Partial<Script>, context: ScriptWorkspaceRepositoryContext = {}): Promise<Script> {
   const service = createSurfaceWorkspaceDomainService({ ...context, projectId })
-  const existing = (await service.queryEntities({ entityKind: 'script' }))
+  const existing = workspaceEntityArray(await service.queryEntities({ entityKind: 'script' }))
     .find((entity: MovScriptWorkspaceIndexedEntity) => workspaceScriptNumericId(entity) === scriptId)
   const sourceText = scriptWorkspaceSourceText(workspace, existing?.record)
   const result = await service.upsertScript({
@@ -94,6 +99,52 @@ function scriptFromWorkspaceRecord(
   }
 }
 
+async function listProjectResourceScripts(
+  projectId: number,
+  context: ScriptWorkspaceRepositoryContext,
+): Promise<Script[] | undefined> {
+  if (!context.projectDir || typeof window === 'undefined') return undefined
+  const endpoint = projectResourceScriptsEndpoint(context)
+  if (!endpoint) return undefined
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        projectDir: context.projectDir,
+        kind: 'scripts',
+      }),
+    })
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(projectResourceScriptsErrorMessage(payload, response.status))
+    return workspaceRecordArray(payload, ['items', 'records', 'scripts', 'data']).map((record) => {
+      const sourceText = stringValue(record.source ?? record.content ?? record.raw_source) ?? ''
+      return scriptFromWorkspaceRecord(projectId, record, sourceText)
+    })
+  } catch (error) {
+    console.warn('[project-home] failed to load scripts from Project Service', error)
+    return undefined
+  }
+}
+
+function projectResourceScriptsEndpoint(context: ScriptWorkspaceRepositoryContext): string | undefined {
+  const base = normalizeProjectServiceBaseURL(context.projectServiceBaseURL)
+  if (base) return `${base}/v1/project/resources/view`
+  return '/local-api/project/resources/view'
+}
+
+function normalizeProjectServiceBaseURL(value: string | undefined): string | undefined {
+  const normalized = value?.trim().replace(/\/+$/, '')
+  if (!normalized) return undefined
+  if (!normalized.startsWith('http://') && !normalized.startsWith('https://')) return undefined
+  return normalized
+}
+
+function projectResourceScriptsErrorMessage(payload: unknown, status: number): string {
+  const record = isRecord(payload) ? payload : {}
+  return stringValue(record.message) ?? stringValue(record.error) ?? `Project scripts request failed: ${status}`
+}
+
 function workspaceScriptNumericId(entity: MovScriptWorkspaceIndexedEntity): number {
   return numberValue(entity.record.ID ?? entity.record.id ?? entity.id)
     ?? numericSuffix(entity.record.id ?? entity.id)
@@ -123,6 +174,24 @@ function numericSuffix(value: unknown): number | undefined {
 
 function scriptSourceType(value: unknown): Script['source_type'] {
   return value === 'raw' || value === 'adapted' || value === 'revised' ? value : 'raw'
+}
+
+function workspaceEntityArray(value: unknown): MovScriptWorkspaceIndexedEntity[] {
+  return workspaceRecordArray(value, ['result', 'items', 'records', 'entities', 'data', 'scripts']) as unknown as MovScriptWorkspaceIndexedEntity[]
+}
+
+function workspaceRecordArray(value: unknown, keys: string[]): Record<string, unknown>[] {
+  if (Array.isArray(value)) return value.filter(isRecord)
+  if (!isRecord(value)) return []
+  for (const key of keys) {
+    const candidate = value[key]
+    if (Array.isArray(candidate)) return candidate.filter(isRecord)
+  }
+  return []
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
 function nextWorkspaceScriptId(scripts: Script[]): number {

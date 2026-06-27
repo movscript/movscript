@@ -3,10 +3,27 @@ import { resolve } from 'node:path'
 import { defineConfig } from 'vite'
 
 const serviceRoot = __dirname
+const localApiProxyTarget = process.env.MOVSCRIPT_LOCAL_SURFACE_HOST_API_PROXY ?? 'http://127.0.0.1:59338'
+const localDataApiProxyTarget = process.env.MOVSCRIPT_LOCAL_SURFACE_HOST_DATA_API_PROXY
 
 export default defineConfig({
   base: process.env.MOVSCRIPT_LOCAL_SURFACE_HOST_BASE ?? '/',
   plugins: [react()],
+  server: {
+    proxy: {
+      ...(localDataApiProxyTarget ? {
+        '/local-api/data': {
+          target: localDataApiProxyTarget,
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/local-api\/data/, ''),
+        },
+      } : {}),
+      '/local-api': {
+        target: localApiProxyTarget,
+        changeOrigin: true,
+      },
+    },
+  },
   resolve: {
     alias: {
       '@movscript/admin-surface/react': resolve(serviceRoot, '../../surface/admin/src/react.ts'),

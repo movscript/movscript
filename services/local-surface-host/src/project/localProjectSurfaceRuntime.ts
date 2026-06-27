@@ -143,7 +143,7 @@ export function createLocalHostProjectSurfaceRuntime(input: LocalHostProjectSurf
             projectDir: request.projectDir ?? input.projectDir ?? '',
             command: request.command,
             input: request.input,
-            decisionStore: localProjectDecisionStoreConfig(input, request),
+            ...localProjectDecisionConfig(input, request),
           },
         }),
         upsertSource: (request) => fetchProjectServiceEndpoint({
@@ -175,11 +175,28 @@ function localProjectDecisionStoreConfig(
   input: LocalHostProjectSurfaceRuntimeInput,
   request?: { projectUid?: string },
 ): Record<string, unknown> | undefined {
+  if (input.projectServiceBaseURL) return undefined
   const projectUid = stringValue(request?.projectUid) ?? input.projectUid
   if (!projectUid) return undefined
   return {
     kind: 'scoped-project-data',
     baseUrl: `${window.location.origin}/local-api/data`,
+    projectUid,
+    scopeKind: 'user',
+    scopeId: 1,
+  }
+}
+
+function localProjectDecisionConfig(
+  input: LocalHostProjectSurfaceRuntimeInput,
+  request?: { projectUid?: string },
+): Record<string, unknown> {
+  const decisionStore = localProjectDecisionStoreConfig(input, request)
+  if (decisionStore) return { decisionStore }
+  if (!input.projectServiceBaseURL) return {}
+  const projectUid = stringValue(request?.projectUid) ?? input.projectUid
+  if (!projectUid) return {}
+  return {
     projectUid,
     scopeKind: 'user',
     scopeId: 1,
@@ -203,7 +220,7 @@ export async function fetchProjectReadModel({
       projectDir,
       includeSource: false,
       includeInspection: false,
-      ...(projectUid ? { decisionStore: localProjectDecisionStoreConfig({ projectId: '', projectDir, projectUid }) } : {}),
+      ...localProjectDecisionConfig({ projectId: '', projectDir, projectUid, projectServiceBaseURL }),
     },
   }) as Promise<ProjectReadModelResponse>
 }

@@ -134,7 +134,7 @@ function ProjectSurfaceHostView({
     domainFocus: routeContext.domainFocus,
   })
 
-  useEffect(() => {
+  useMemo(() => {
     ensureLocalProjectContentAPI({
       projectId: routeContext.projectId,
       projectDir: routeContext.projectDir,

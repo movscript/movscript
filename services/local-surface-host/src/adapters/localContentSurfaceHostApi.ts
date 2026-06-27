@@ -31,6 +31,7 @@ export function mergeLocalSurfaceHostAPI(api: SurfaceHostApi | undefined): void 
 function createLocalProjectContentAPI(options: LocalProjectContentAPIOptions): SurfaceHostApi {
   const sourceCommand = (command: string, input: ProjectInput, useDecisionStore = true) => {
     const decisionStore = useDecisionStore ? decisionStoreConfig(input, options) : undefined
+    const decisionScope = useDecisionStore ? decisionScopeConfig(input, options) : undefined
     return projectCommand({
       localEndpoint: '/local-api/project/source/command',
       servicePath: '/v1/project/source/command',
@@ -39,6 +40,7 @@ function createLocalProjectContentAPI(options: LocalProjectContentAPIOptions): S
         projectDir: projectDirFromInput(input, options),
         command,
         input,
+        ...(decisionScope ? decisionScope : {}),
         ...(decisionStore ? { decisionStore } : {}),
       },
     })
@@ -63,6 +65,8 @@ function createLocalProjectContentAPI(options: LocalProjectContentAPIOptions): S
     queryMovScriptEngineWorkspaceEntities: (input) => sourceCommand('queryEntities', { query: recordValue(input).query }),
     queryMovScriptEngineWorkspaceSettings: (input) => sourceCommand('querySettings', { query: recordValue(input).query }),
     queryMovScriptEngineWorkspaceAssets: (input) => sourceCommand('queryAssets', { query: recordValue(input).query }),
+    readMovScriptEngineWorkspaceScriptSource: (input) => sourceCommand('readScriptSource', payloadInput(input)) as Promise<string>,
+    upsertMovScriptEngineWorkspaceScript: (input) => sourceCommand('upsertScript', payloadInput(input)),
     readMovScriptEngineContentUnitGenerationPrompt: (input) => sourceCommand('readContentUnitGenerationPrompt', {
       contentUnitId: recordValue(input).contentUnitId,
     }),
@@ -146,12 +150,25 @@ function projectDirFromInput(input: ProjectInput, options: LocalProjectContentAP
 }
 
 function decisionStoreConfig(input: ProjectInput, options: LocalProjectContentAPIOptions): Record<string, unknown> | undefined {
+  if (options.projectServiceBaseURL) return undefined
   const projectUid = stringValue(input.projectUid ?? input.project_uid)
     ?? options.projectUid
   if (!projectUid) return undefined
   return {
     kind: 'scoped-project-data',
     baseUrl: `${window.location.origin}/local-api/data`,
+    projectUid,
+    scopeKind: 'user',
+    scopeId: 1,
+  }
+}
+
+function decisionScopeConfig(input: ProjectInput, options: LocalProjectContentAPIOptions): Record<string, unknown> | undefined {
+  if (!options.projectServiceBaseURL) return undefined
+  const projectUid = stringValue(input.projectUid ?? input.project_uid)
+    ?? options.projectUid
+  if (!projectUid) return undefined
+  return {
     projectUid,
     scopeKind: 'user',
     scopeId: 1,

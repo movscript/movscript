@@ -17,7 +17,7 @@ export interface ProjectHomeCardGroupProps extends Omit<HTMLAttributes<HTMLEleme
   bodyClassName?: string
   count?: number | string
   countLabel?: string
-  description: ReactNode
+  description?: ReactNode
   eyebrow?: ReactNode
   facts?: ProjectHomeCardGroupFact[]
   footer?: ReactNode
@@ -63,7 +63,7 @@ export function ProjectHomeCardGroup({
                 </Badge>
               ) : null}
             </div>
-            <p className="project-home-card-group__description">{description}</p>
+            {description ? <p className="project-home-card-group__description">{description}</p> : null}
           </div>
         </div>
         {action ? <div className="project-home-card-group__actions">{action}</div> : null}

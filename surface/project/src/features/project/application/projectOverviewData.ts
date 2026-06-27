@@ -25,7 +25,12 @@ export interface ProjectOverviewData {
   assetSlots: ProjectOverviewRecord[]
   contentUnits: ProjectOverviewRecord[]
   keyframes: ProjectOverviewRecord[]
+  candidateView?: ProjectOverviewCandidateView
   projectTimelineStatus?: Record<string, unknown>
+}
+
+export interface ProjectOverviewCandidateView extends Record<string, unknown> {
+  contexts?: Record<string, unknown>[]
 }
 
 export const emptyProjectOverviewData: ProjectOverviewData = {
@@ -41,6 +46,8 @@ export const emptyProjectOverviewData: ProjectOverviewData = {
 
 export interface ProjectOverviewLoadContext {
   projectDir?: string
+  projectUid?: string
+  projectServiceBaseURL?: string
   userId?: string | number
   orgId?: string | number
 }
@@ -70,6 +77,13 @@ export async function loadProjectOverviewData(
     safeList(projectId, 'keyframes'),
     safeProjectTimelineStatus(projectId, context),
   ])
+  const [resourceAssetSlots, resourceContentUnits] = await Promise.all([
+    safeProjectResourceViewRecords(context, 'assets'),
+    safeProjectResourceViewRecords(context, 'content-units'),
+  ])
+  const resolvedAssetSlots = resourceAssetSlots.length ? resourceAssetSlots : assetSlots
+  const resolvedContentUnits = resourceContentUnits.length ? resourceContentUnits : contentUnits
+  const candidateView = await safeProjectCandidateView(context, settings, resolvedContentUnits)
 
   return {
     scriptVersions,
@@ -77,16 +91,17 @@ export async function loadProjectOverviewData(
     sceneMoments,
     productions,
     settings,
-    assetSlots,
-    contentUnits,
+    assetSlots: resolvedAssetSlots,
+    contentUnits: resolvedContentUnits,
     keyframes,
+    ...(candidateView ? { candidateView } : {}),
     ...(projectTimelineStatus ? { projectTimelineStatus } : {}),
   }
 }
 
 async function safeList(projectId: number, kind: SurfaceSemanticEntityKind): Promise<ProjectOverviewRecord[]> {
   try {
-    return await listSemanticEntities(projectId, semanticEntityConfig(kind)) as ProjectOverviewRecord[]
+    return projectOverviewRecordArray(await listSemanticEntities(projectId, semanticEntityConfig(kind)), kind)
   } catch (error) {
     console.warn(`[project-home] failed to load ${kind}`, error)
     return []
@@ -109,4 +124,218 @@ async function safeProjectTimelineStatus(
     console.warn('[project-home] failed to load project timeline status', error)
     return undefined
   }
+}
+
+function projectOverviewRecordArray(value: unknown, kind?: SurfaceSemanticEntityKind): ProjectOverviewRecord[] {
+  if (Array.isArray(value)) return value.filter(isRecord) as ProjectOverviewRecord[]
+  if (!isRecord(value)) return []
+  const candidates = [
+    value.items,
+    value.records,
+    value.data,
+    kind ? value[kind] : undefined,
+    kind === 'settings' ? value.settings : undefined,
+    kind === 'assetSlots' ? value.assets : undefined,
+    kind === 'contentUnits' ? value.contentUnits ?? value.content_units : undefined,
+    kind === 'scriptVersions' ? value.scriptVersions ?? value.script_versions : undefined,
+    kind === 'segments' ? value.segments : undefined,
+    kind === 'sceneMoments' ? value.sceneMoments ?? value.scene_moments : undefined,
+    kind === 'productions' ? value.productions : undefined,
+    kind === 'keyframes' ? value.keyframes : undefined,
+  ]
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) return candidate.filter(isRecord) as ProjectOverviewRecord[]
+  }
+  return []
+}
+
+async function safeProjectCandidateView(
+  context: ProjectOverviewLoadContext,
+  settings: ProjectOverviewRecord[],
+  contentUnits: ProjectOverviewRecord[],
+): Promise<ProjectOverviewCandidateView | undefined> {
+  if (!context.projectDir || typeof window === 'undefined') return undefined
+  const contentUnitIds = projectOverviewCandidateContentUnitIds(settings, contentUnits)
+  if (!contentUnitIds.length) return undefined
+  try {
+    const projectServiceBaseURL = projectOverviewProjectServiceBaseURL(context)
+    const decisionStore = context.projectUid && !projectServiceBaseURL ? {
+      kind: 'scoped-project-data',
+      baseUrl: `${window.location.origin}/local-api/data`,
+      projectUid: context.projectUid,
+      scopeKind: 'user',
+      scopeId: 1,
+    } : undefined
+    const response = await fetch(projectOverviewServiceEndpoint(
+      context,
+      '/local-api/project/candidates/view',
+      '/v1/project/candidates/view',
+    ), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        projectDir: context.projectDir,
+        contentUnitIds,
+        ...(context.projectUid ? { projectUid: context.projectUid, scopeKind: 'user', scopeId: 1 } : {}),
+        ...(decisionStore ? { decisionStore } : {}),
+      }),
+    })
+    if (!response.ok) {
+      console.warn('[project-home] failed to load candidate view', {
+        status: response.status,
+        endpoint: projectOverviewServiceEndpoint(
+          context,
+          '/local-api/project/candidates/view',
+          '/v1/project/candidates/view',
+        ),
+        contentUnitCount: contentUnitIds.length,
+      })
+      return undefined
+    }
+    const payload = await response.json().catch(() => undefined)
+    return isRecord(payload) ? payload as ProjectOverviewCandidateView : undefined
+  } catch (error) {
+    console.warn('[project-home] failed to load candidate view', error)
+    return undefined
+  }
+}
+
+async function safeProjectResourceViewRecords(
+  context: ProjectOverviewLoadContext,
+  kind: 'assets' | 'content-units',
+): Promise<ProjectOverviewRecord[]> {
+  if (!context.projectDir || typeof window === 'undefined') return []
+  try {
+    const response = await fetch(projectOverviewServiceEndpoint(
+      context,
+      '/local-api/project/resources/view',
+      '/v1/project/resources/view',
+    ), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        projectDir: context.projectDir,
+        kind,
+      }),
+    })
+    if (!response.ok) {
+      console.warn('[project-home] failed to load project resource view', {
+        kind,
+        status: response.status,
+        endpoint: projectOverviewServiceEndpoint(
+          context,
+          '/local-api/project/resources/view',
+          '/v1/project/resources/view',
+        ),
+      })
+      return []
+    }
+    const payload = await response.json().catch(() => undefined)
+    const items = isRecord(payload) && Array.isArray(payload.items) ? payload.items : []
+    return items.filter(isRecord) as ProjectOverviewRecord[]
+  } catch (error) {
+    console.warn('[project-home] failed to load project resource view', { kind, error })
+    return []
+  }
+}
+
+function projectOverviewCandidateContentUnitIds(
+  settings: ProjectOverviewRecord[],
+  contentUnits: ProjectOverviewRecord[],
+): string[] {
+  const settingTokens = settings.map(projectOverviewSettingToken).filter((token): token is string => Boolean(token))
+  const directMatches: string[] = []
+  const fallbackImageUnits: string[] = []
+  for (const unit of contentUnits) {
+    const id = stringValue(unit.id ?? unit.content_unit_id ?? unit.contentUnitId) ?? numberIdValue(unit.ID)
+    if (!id) continue
+    const haystack = projectOverviewContentUnitSettingHaystack(unit).toLowerCase()
+    const type = stringValue(unit.content_unit_type ?? unit.contentUnitType ?? unit.target_kind ?? unit.targetKind)?.toLowerCase() ?? ''
+    const outputKind = projectOverviewContentUnitOutputKind(unit)
+    const hasAssetReference = Boolean(stringValue(unit.asset_ref ?? unit.assetRef))
+    const isAssetUnit = type.includes('asset') || hasAssetReference
+    if (outputKind !== 'image' && !isAssetUnit) continue
+    const isSettingUnit = type.includes('setting') || isAssetUnit || settingTokens.some((token) => haystack.includes(token))
+    if (isSettingUnit) directMatches.push(id)
+    fallbackImageUnits.push(id)
+  }
+  return Array.from(new Set(directMatches.length ? directMatches : fallbackImageUnits)).slice(0, 80)
+}
+
+function projectOverviewSettingToken(record: ProjectOverviewRecord): string | undefined {
+  const id = stringValue(record.id) ?? numberIdValue(record.ID)
+  return id?.toLowerCase()
+}
+
+function projectOverviewContentUnitOutputKind(record: ProjectOverviewRecord): string {
+  const kind = stringValue(record.output_kind ?? record.outputKind ?? record.kind ?? record.type)?.toLowerCase() ?? ''
+  if (kind.startsWith('image/') || kind === 'storyboard' || kind.includes('png') || kind.includes('jpg') || kind.includes('jpeg') || kind.includes('webp')) return 'image'
+  return kind || 'unknown'
+}
+
+function projectOverviewContentUnitSettingHaystack(record: ProjectOverviewRecord): string {
+  return [
+    record.id,
+    record.content_unit_id,
+    record.contentUnitId,
+    record.target_ref,
+    record.targetRef,
+    record.setting_ref,
+    record.settingRef,
+    record.setting_id,
+    record.settingId,
+    record.asset_ref,
+    record.assetRef,
+    record.__workspace_path,
+    record.path,
+    record.title,
+    record.name,
+  ].map((part) => stringValue(part)).filter(Boolean).join(' ')
+}
+
+function projectOverviewServiceEndpoint(
+  context: ProjectOverviewLoadContext,
+  localEndpoint: string,
+  projectServicePath: string,
+): string {
+  const projectServiceBaseURL = projectOverviewProjectServiceBaseURL(context)
+  return projectServiceBaseURL ? `${projectServiceBaseURL}${projectServicePath}` : localEndpoint
+}
+
+function projectOverviewProjectServiceBaseURL(context: ProjectOverviewLoadContext): string | undefined {
+  return normalizeProjectOverviewBaseURL(context.projectServiceBaseURL)
+    ?? projectOverviewProjectServiceBaseURLFromLocation()
+}
+
+function projectOverviewProjectServiceBaseURLFromLocation(): string | undefined {
+  if (typeof window === 'undefined') return undefined
+  const query = new URLSearchParams(window.location.search)
+  return normalizeProjectOverviewBaseURL(
+    query.get('projectServiceBaseURL')
+      ?? query.get('projectServiceBaseUrl')
+      ?? query.get('projectServiceURL')
+      ?? query.get('projectServiceUrl'),
+  )
+}
+
+function normalizeProjectOverviewBaseURL(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const normalized = value.trim().replace(/\/+$/, '')
+  if (!normalized) return undefined
+  if (!normalized.startsWith('http://') && !normalized.startsWith('https://')) return undefined
+  return normalized
+}
+
+function numberIdValue(value: unknown): string | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? String(value) : undefined
+}
+
+function stringValue(value: unknown): string | undefined {
+  if (typeof value === 'string' && value.trim()) return value.trim()
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  return undefined
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

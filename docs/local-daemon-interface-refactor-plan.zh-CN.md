@@ -364,6 +364,87 @@ web-surface-host 的云端部署也应复用 `MovScriptRuntimeDescriptor` 的形
 
 为了避免类型名长期过窄，后续实现时可以把公开类型命名为 `MovScriptRuntimeDescriptor`，其中 local 场景的 `runtime.owner` 或 `runtime.appId` 再表达 `movscript.local-node`。
 
+### Decision 5：Project source 完全收口到 Project Service
+
+Project Service 是 project source、project read model、project resource view、project context snapshot 和 project source 派生产物的唯一公开 owner。
+
+纳入 Project Service 的 project source 范围包括：
+
+- `project.json`
+- `project_standards.json`
+- `settings/**`
+- `scripts/**`
+- `content_units/**`
+- `productions/**`
+
+Project standards 的 provider skill 编译也归 Project Service 所有。也就是说，`project_standards.json` 编译/同步出的 `.codex`、`.claude`、`.mova` provider skill files 是 Project Service source command 的派生产物，而不是 Desktop、Plugin、CLI、Surface Host、surface domain 或 MCP tool 自己负责的副作用。
+
+实现上可以继续让 workspace package 提供低层文件写入、标准 skill 编译、script markdown 解析、script version snapshot 等纯实现能力。但这些实现能力只能作为 Project Service 内部调用，不能成为产品入口的 public contract。
+
+目标边界：
+
+- 创建或更新 project standards：走 Project Service。
+- 读取 project standards/context snapshot：走 Project Service。
+- 编译或同步 project standards provider skills：由 Project Service 命令触发并返回结果。
+- 创建或更新 script metadata 与 `script.md`：走 Project Service。
+- 读取 script source：走 Project Service。
+- 创建 script version / script blocks：走 Project Service。
+- resource view 中的 scripts、script versions、project standards/context 都由 Project Service 产出。
+- MCP/domain tools 可以保留工具名，但实现必须调用 Project Service client，而不是本进程直接读写 project source files。
+
+禁止边界：
+
+- Desktop/Surface Host/surface domain 直接读写 `project_standards.json` 或 `scripts/**`。
+- Plugin/MCP tool 直接调用 workspace service 写入 project standards、script 或 standard skill files。
+- Agent/runtime code 把 `project_standards.json -> provider skills` 当成本地后处理任务。
+- Project standards/script 的读取路径绕过 Project Service，直接从 workspace engine、file repository 或 local path 推导结果。
+
+### Decision 6：Project Service 性能排查是收口前置项
+
+Project source 完全收口会把更多读写、context snapshot、interpret、candidate command 和派生产物同步集中到 Project Service。如果当前一次 `interpret + candidate` 链路约 1s，必须把性能排查纳入同一轮改造，而不是等收口完成后再补。
+
+性能排查使用真实 `~/.movscript` local daemon 作为主环境，不只依赖临时目录或单元测试 fixture。原因是性能问题很可能来自真实 MovScript Home 里的 runtime records、local sqlite、项目规模、provider skill files、`.interpret` 写入、candidate decision store、服务间 JSON 序列化和 daemon gateway 代理开销。
+
+建议基线环境：
+
+```bash
+MOVSCRIPT_HOME="$HOME/.movscript" apps/plugin/bin/movscript daemon restart --data-plane local
+MOVSCRIPT_HOME="$HOME/.movscript" apps/plugin/bin/movscript daemon status
+```
+
+测量原则：
+
+- 分开 cold start 与 warm request，不把 daemon/service 启动时间混进 Project Service 单次请求。
+- 分开测 `interpret`、candidate command、`interpret + candidate` 串行链路。
+- 同时记录 daemon gateway 总耗时、Project Service handler 耗时、workspace/index/interpret 耗时、Data Service/decision store 耗时。
+- 每次记录 project id、project cwd、source file count、source hash、是否写 `.interpret`、是否触发 provider skill sync、data plane、decision store 类型。
+- 性能诊断结果属于 debug diagnostics，不进入普通 runtime descriptor，也不能让 Desktop/surface 按内部服务拓扑分支。
+
+初始判断标准：
+
+- warm `interpret + candidate` 约 1s 应视为需要优化的性能缺口。
+- 优先确认是否存在重复 source scan、重复 engine/index rebuild、重复 interpret、同步写 `.interpret`、重复 provider skill compilation、candidate command 内部重复读写 Data Service。
+- 优化目标先以真实 `~/.movscript` 项目的 p50/p95 基线为准，避免只优化小 fixture。
+
+### Decision 7：内容画布归 Project Service，工作流画布归 Canvas Service
+
+画布需要先按产品语义拆成两个 owner，而不是只按 UI 都叫 canvas 来路由。
+
+内容画布是 project content model 的图形化编辑与运行入口。它表达的是项目内容结构、script/content units/productions、资源引用、候选与选择状态、以及这些内容之间的关系。它的存储、列表、打开、编辑、保存、运行、interpret/read-model 同步都归 Project Service。也就是说，内容画布不是一个独立于 project source 的 Canvas Service 文档，而是 Project Service 对 project source/read model/source-derived artifacts 的一等视图和命令入口。
+
+内容画布还必须有稳定的产品级 metadata。`name` / `title` 不是前端临时显示字段，而是 Project Service 持久化、列表、打开、改名、保存、运行 response 都能返回的一等字段。内容画布可以有默认名，但必须支持创建时命名、后续重命名，并在 revision、read model 和 context snapshot 中保持一致。
+
+工作流画布是 workflow/automation/process graph 的文档。它的存储、列表、打开、编辑、保存归 Canvas Service。工作流画布可以引用 project entity、raw resource、editing task、media job 等对象，但引用必须使用 typed refs 和 daemon-issued context；Canvas Service 不能把 project source 文件结构当作自己的存储模型，也不能直接绕过 Project Service 修改内容项目。
+
+边界规则：
+
+- 内容画布 public API 放在 daemon gateway 的 `/v1/project/...` 族下，背后由 Project Service 处理。
+- 工作流画布 public API 放在 daemon gateway 的 `/v1/canvas/...` 族下，背后由 Canvas Service 处理。
+- Desktop、Surface Host、surface domain 不能因为“这是本地内容画布”或“这是工作流画布”选择内部 service URL；它们只调用 daemon gateway。
+- 内容画布运行产生的 project source 变更、candidate/selection、read model、context snapshot 都由 Project Service 保证 revision 和一致性。
+- 工作流画布如果触发 project/editing/media 行为，只能通过 daemon capability APIs 调用 Project Service、Editing Service、Media Pipeline 等 owner，不能由 Canvas Service 直接读写对应内部存储。
+- 两类画布的 ID、URL、route 可以在 UI 上并存，但 contract 里必须携带 `canvasKind` 或等价 discriminator，避免用字符串路径或 URL 猜 owner。
+
 ## 建议目标 API
 
 ### Runtime Descriptor
@@ -555,6 +636,152 @@ Desktop 只展示结果。
 - Desktop、local-surface-host、surface 新代码禁止引用 `/local-api`。
 - Tests 可以引用 `/local-api` 仅用于兼容层验证。
 
+### Project Source API
+
+Project source 的公开 API 由 daemon gateway 暴露为 `/v1/project/...`，背后只路由到 Project Service。Desktop、Surface Host、surface domain、Plugin、CLI 和 MCP tools 不直接访问 Project Service endpoint，更不直接访问 project source files。
+
+建议 Project Service 能力补齐为：
+
+```http
+GET  /v1/project/source/context
+POST /v1/project/source/entities/query
+GET  /v1/project/source/project-standards
+PUT  /v1/project/source/project-standards
+POST /v1/project/source/project-standards/compile-skills
+GET  /v1/project/source/scripts/:scriptId
+PUT  /v1/project/source/scripts/:scriptId
+GET  /v1/project/source/scripts/:scriptId/source
+PUT  /v1/project/source/scripts/:scriptId/source
+POST /v1/project/source/scripts/:scriptId/versions
+POST /v1/project/resources/view
+```
+
+其中：
+
+- `project-standards/compile-skills` 可以作为显式 debug/maintenance endpoint，也可以由 `PUT /project-standards` 默认触发；无论哪种形式，owner 都是 Project Service。
+- `source/context` 返回 project standards + namespace vocabulary + project context hash，替代 MCP/runtime 进程内拼装 context snapshot。
+- `scripts/:scriptId/source` 替代当前任何直接读取 `script.md` 的公开路径。
+- `resources/view` 需要补齐 `project-standards` 和 `script-versions` 的一等视图。
+
+兼容期可以继续保留 generic `POST /v1/project/source/command`，但它只能作为 Project Service 内部 command facade。迁移完成后，产品层应优先调用 typed project source APIs，减少“字符串 command name”在 Desktop/surface/MCP 之间扩散。
+
+### Canvas Boundary API
+
+画布 API 需要显式区分内容画布和工作流画布。建议公开 contract 先稳定在以下能力面，具体 path 可以按现有 router 命名微调，但 owner 不能再混用。
+
+内容画布由 Project Service 提供：
+
+```http
+GET  /v1/project/content-canvases
+POST /v1/project/content-canvases
+GET  /v1/project/content-canvases/:canvasId
+PATCH /v1/project/content-canvases/:canvasId
+PUT  /v1/project/content-canvases/:canvasId
+POST /v1/project/content-canvases/:canvasId/rename
+POST /v1/project/content-canvases/:canvasId/run
+GET  /v1/project/content-canvases/:canvasId/snapshots/:revision
+```
+
+工作流画布由 Canvas Service 提供：
+
+```http
+GET  /v1/canvas/workflows
+POST /v1/canvas/workflows
+GET  /v1/canvas/workflows/:canvasId
+PATCH /v1/canvas/workflows/:canvasId
+PUT  /v1/canvas/workflows/:canvasId
+GET  /v1/canvas/workflows/:canvasId/versions/:revision
+```
+
+统一要求：
+
+- list 返回稳定的 id、title、kind、owner、updatedAt、revision、project/session scope、dirty/conflict summary。
+- open 返回完整 document/read model、revision、capabilities、refs resolve policy，不返回内部 service endpoint。
+- create 支持传入 `title` / `name`；没有传入时由 Project Service 生成默认名，并返回可持久化的 title。
+- 内容画布 rename 使用显式 rename command 或 title-only patch，需要携带 base revision，并返回新 revision、normalized title、validation diagnostics。
+- edit 使用 patch 或 command，需要携带 base revision；冲突时返回 conflict，而不是 silent overwrite。
+- save 返回新 revision、normalized document summary、validation diagnostics。
+- 内容画布 run 返回 Project Service operation id、trace/context revision、read-model/candidate impact summary。
+- 工作流画布保存只保存 workflow document；引用的 project/resource/editing 对象用 typed refs，不内嵌 owner 服务 URL。
+- 两类画布都需要 autosave/manual save 的一致语义、undo/redo 所需的 revision/operation metadata，以及可恢复的 validation error。
+
+### Project Service Performance Profiling
+
+Project Service 需要提供 debug-only performance profiling，至少覆盖这些入口：
+
+- `POST /v1/project/source/interpret`
+- `POST /v1/project/candidates/command`
+- `POST /v1/project/source/command`
+- `POST /v1/project/read-model`
+- `POST /v1/project/resources/view`
+- `GET /v1/project/source/context`
+- script/project-standards typed source APIs
+
+建议在 Project Service response 的 debug-only metadata 或 `/v1/runtime/diagnostics` 中暴露：
+
+```ts
+type ProjectServicePerformanceTrace = {
+  traceId: string;
+  projectDir: string;
+  dataPlane: "local" | "cloud" | "external";
+  operation: string;
+  coldStart: boolean;
+  totalMs: number;
+  spans: Array<{
+    name: string;
+    ms: number;
+    count?: number;
+  }>;
+  counters: {
+    sourceFiles?: number;
+    sourceBytes?: number;
+    entities?: number;
+    candidatesRead?: number;
+    candidatesWritten?: number;
+    interpretArtifactsWritten?: number;
+    standardSkillFilesWritten?: number;
+  };
+  cache: {
+    sourceHash?: string;
+    indexCacheHit?: boolean;
+    readModelCacheHit?: boolean;
+    interpretationCacheHit?: boolean;
+  };
+};
+```
+
+必须打点的内部阶段：
+
+- daemon gateway proxy overhead；
+- Project Service request body parse / response serialization；
+- `readProjectSourceContext`；
+- workspace file scan / source snapshot / source hash；
+- domain index load/build；
+- interpreter run；
+- `.interpret` debug artifact writes；
+- read-model projection；
+- prompt/context compilation；
+- candidate decision store read/write；
+- Data Service round trip / sqlite query；
+- project standards provider skill compilation/sync；
+- script markdown read/write and script version block generation。
+
+优先排查的性能假设：
+
+- 每个 candidate command 之前重复 interpret 或重复 loadIndex。
+- 每个 request 都重新创建 engine/workspace service，导致缓存无法复用。
+- Project Service resource view 和 context snapshot 重复扫描同一批 source files。
+- `.interpret` debug artifact 在普通 warm path 中同步写入过多。
+- project standards provider skill compilation 在非 standards 写入路径中被重复触发。
+- candidate decision store 通过 Data Service 做了过多小请求，应该批量读写或缓存。
+- daemon gateway 和 Project Service 之间存在不必要的 JSON 深拷贝或大对象序列化。
+
+性能排查交付物：
+
+- 一份真实 `~/.movscript` 项目的基线表：cold start、warm interpret、candidate command、interpret+candidate、read-model、resource view。
+- 一份 flame/spans 摘要，指出 1s 主要花在 source scan、interpret、decision store、Data Service、artifact write、gateway proxy 还是 serialization。
+- 一组优化后对比数据，并纳入 Project Service regression test 或 smoke benchmark。
+
 ## 分阶段改造计划
 
 ### Phase 0：加边界护栏
@@ -574,6 +801,9 @@ Desktop 只展示结果。
   - `movscript.project.service`
   - `movscript.canvas.service`
 - 增加 context boundary tests，禁止 Desktop renderer、Surface Host、surface domain 将 local storage、route params、env vars 中的 `user_id`、`project_id`、`project_cwd` 当作权威上下文。
+- 增加 project source boundary tests，禁止 Desktop、Surface Host、surface domain、Plugin/MCP tools 直接读写 `project_standards.json`、`scripts/**` 或 provider skill output paths；允许 Project Service、workspace package 内部实现和明确的 Project Service tests。
+- 增加 canvas owner boundary tests，禁止内容画布走 Canvas Service document CRUD，禁止工作流画布走 Project Service source command；允许 daemon gateway、Project Service、Canvas Service 和明确的 compatibility tests。
+- 增加 Project Service performance smoke benchmark，先记录现状，不要求第一步优化到目标值，但必须能稳定测出 warm `interpret`、candidate command、`interpret + candidate`。
 - 允许例外目录：
   - `apps/plugin/src/agent-mcp.ts` daemon gateway compatibility layer；
   - `packages/local-runtime`；
@@ -599,6 +829,7 @@ Desktop 只展示结果。
 - descriptor 返回 data location summary，供 Desktop UI 展示。
 - context envelope 返回 principal、data connection、project、workspace root/cwd 和 capability summary。
 - Desktop/Plugin/CLI 的 project focus、cwd、workspace root 切换都写入 daemon session context。
+- daemon gateway 的 `/v1/project/...` 只代理 Project Service，不让 Desktop/surface 选择 Project Service URL。
 - 保留 service-level health diagnostics，但放到 debug-only 字段或单独 diagnostics API，不能作为 renderer 业务分支依据。
 
 交付标准：
@@ -606,6 +837,132 @@ Desktop 只展示结果。
 - Desktop 可以只靠 descriptor 展示本地/云端/外部数据状态。
 - 修改 data connection 不需要 Desktop 直接知道 Data Service endpoint。
 - Desktop、Plugin、CLI、Surface Host 对同一 `sessionId` 看到一致的 `userId`、`project.id`、`workspace.projectCwd`。
+
+### Phase 1.5：Project source 完全收口到 Project Service
+
+目标：project standards 和 scripts 不只是“部分写入走 Project Service”，而是读、写、resource view、context snapshot、派生产物都由 Project Service 统一产出。
+
+工作项：
+
+- 补齐 Project Service typed source APIs：
+  - read/upsert project standards；
+  - compile/sync project standards provider skills；
+  - query project source entities；
+  - read/upsert script metadata；
+  - read/update script source；
+  - create script version and script blocks；
+  - project context snapshot；
+  - resource view for `project-standards`、`scripts`、`script-versions`。
+- 把 `project_standards.json -> provider skill files` 的编译/同步明确为 Project Service command result，返回 `standardSkillFiles`、status、diagnostics。
+- 改造 MCP/domain runtime：
+  - `domain_read_project_context_snapshot` 调 Project Service，不在 MCP 进程内通过 `queryEntities/loadIndex` 拼装；
+  - `domain_read_script_source` 调 Project Service，不直接调用 workspace service；
+  - `domain_query_entities`、`domain_get_model` 等 project source read path 逐步切到 Project Service read/query API。
+- 改造 project resource readers：
+  - `movscript://project/:id/scripts` 继续走 Project Service；
+  - 新增 `movscript://project/:id/project-standards` 或等价 resource；
+  - script versions 和 project standards/context snapshot 都由 Project Service resource view 提供。
+- 保留 workspace package 的底层写文件、解析、编译函数，但只作为 Project Service 内部实现，不作为外部调用入口。
+
+交付标准：
+
+- 对外没有任何入口直接读写 `project_standards.json` 或 `scripts/**`。
+- 更新 project standards 后，provider skill files 的同步由 Project Service 完成并出现在 Project Service command response 中。
+- 读取 project context snapshot 不绕过 Project Service。
+- 读取 script source 不绕过 Project Service。
+- MCP、Plugin、Desktop、Surface Host、surface domain 都只通过 daemon gateway / Project Service contract 访问 project standards 和 scripts。
+
+### Phase 1.6：Project Service 性能排查与优化
+
+目标：在真实 `~/.movscript` local daemon 下解释并降低 `interpret + candidate` 约 1s 的延迟，避免 Project Service 完全收口后把性能问题固化为新架构成本。
+
+工作项：
+
+- 使用真实 MovScript Home 启动 local daemon：
+  - `MOVSCRIPT_HOME="$HOME/.movscript" apps/plugin/bin/movscript daemon restart --data-plane local`
+  - `MOVSCRIPT_HOME="$HOME/.movscript" apps/plugin/bin/movscript daemon status`
+- 选择真实项目做基线，记录 project cwd、source file count、entity count、candidate count、data plane、debug artifact 设置。
+- 给 Project Service 增加 debug-only spans/counters：
+  - gateway proxy；
+  - request parse/serialization；
+  - source scan/hash；
+  - loadIndex/domain index；
+  - interpret；
+  - read model；
+  - candidate decision store；
+  - Data Service/sqlite；
+  - `.interpret` writes；
+  - standard skill compilation；
+  - script version block generation。
+- 分别测量：
+  - cold daemon start；
+  - warm `source/interpret`；
+  - warm candidate command；
+  - warm `interpret + candidate`；
+  - read-model；
+  - resource view；
+  - project context snapshot。
+- 根据 spans 排序优化：
+  - 缓存 source hash / domain index / read model；
+  - 避免 candidate command 内部重复 interpret；
+  - 批量化 decision store 和 Data Service 小请求；
+  - 只在需要时写 `.interpret` debug artifacts；
+  - 只在 standards 变更时触发 provider skill compilation；
+  - 避免大对象在 daemon gateway 与 Project Service 间重复 JSON 序列化。
+- 输出 baseline 与优化后对比，作为后续 regression benchmark。
+
+交付标准：
+
+- 能用真实 `~/.movscript` local daemon 复现并解释当前 `interpret + candidate` 约 1s 的耗时构成。
+- Project Service diagnostics 能返回每段耗时与关键 counters。
+- 至少识别出首轮主要瓶颈，并给出明确优化项或已完成优化数据。
+- 后续 Project Service source 收口不能让 warm `interpret + candidate` 比基线明显退化。
+
+### Phase 1.7：画布 owner 边界收口
+
+目标：把内容画布和工作流画布从“都叫 canvas 的 UI/路由”收口成两个稳定 owner，达到可成熟使用的存储、列表、打开、编辑、保存、运行能力。
+
+工作项：
+
+- 梳理现有 canvas route、canvas document、project content view、workflow graph、surface/canvas client、Canvas Service API 的调用路径，给每个入口标注 `canvasKind = content | workflow`。
+- 内容画布：
+  - 迁移到 Project Service API；
+  - 存储与 project source/read model/revision 对齐；
+  - 创建时支持命名，后续支持重命名，`title` / `name` 由 Project Service 持久化并进入 list/open/save/run response；
+  - list/open/edit/save/run 都返回 Project Service revision、validation diagnostics、read-model/candidate impact；
+  - run 不绕过 Project Service interpret/candidate/read-model pipeline。
+- 工作流画布：
+  - 保留在 Canvas Service API；
+  - 存储 workflow document、nodes、edges、layout、metadata、versions；
+  - 引用 project/raw resource/editing/media 对象时使用 typed refs；
+  - 保存 workflow document 不直接修改 project source。
+- daemon gateway：
+  - `/v1/project/content-canvases...` 只代理 Project Service；
+  - `/v1/canvas/workflows...` 只代理 Canvas Service；
+  - 兼容旧 `/v1/canvas/canvases/:id` 时必须能判断 legacy document kind，并返回迁移/deprecation 信息。
+- surface：
+  - 内容画布 UI 只使用 Project Service owner 的 gateway client；
+  - 内容画布列表或工具栏必须提供新建内容画布按钮；
+  - 内容画布标题区域或更多菜单必须提供重命名按钮；
+  - 新建和重命名都使用弹窗或对话框收集名称，并展示必填、长度、重复名、非法字符、stale revision 等校验错误；
+  - 工作流画布 UI 只使用 Canvas Service owner 的 gateway client；
+  - route、URL、local storage 不作为 owner 判断依据，只作为 UI navigation hint。
+- 增加 mature workflow 测试：
+  - create/list/open/edit/save/reopen；
+  - content canvas create with name / rename / validation；
+  - autosave/manual save；
+  - stale revision conflict；
+  - validation error recovery；
+  - content canvas run；
+  - workflow canvas typed-ref persistence。
+
+交付标准：
+
+- 内容画布的存储、列表、打开、编辑、保存、运行都由 Project Service 提供并和 project revision/read model 一致。
+- 内容画布能创建时命名、后续重命名；前端有明确的新建按钮、重命名按钮和命名/重命名弹窗，且与 Project Service revision/validation 对齐。
+- 工作流画布的存储、列表、打开、编辑、保存都由 Canvas Service 提供，并能稳定保存/恢复 workflow graph。
+- Desktop、Surface Host、surface domain 不再根据 URL/path/service name 猜画布 owner。
+- 旧 canvas route 的兼容行为有明确 deprecation 说明和迁移路径。
 
 ### Phase 2：收口 Desktop runtime contract
 
@@ -711,42 +1068,173 @@ Desktop 只展示结果。
 ## 优先级建议
 
 1. 先做 Phase 0 和 Phase 1。没有 descriptor/config API，就会逼着 Desktop 继续传 service URL。
-2. 第二优先级是 Desktop renderer contract。它是心智负担最大的入口，也是本地/云端 API 特殊化最明显的位置。
-3. 第三优先级是 local-surface-host，因为它目前直接把 `/local-api` 固化进 surface 运行时。
-4. surface domain 的 UI 和 runtime contract 可以跟着 host 改造逐步替换。
-5. internal clients 最后清理，不要一开始动太多服务内部发现逻辑。
+2. 接着做 Phase 1.5。Project standards、scripts、context snapshot 和 standard skill compilation 必须先完全收口到 Project Service，否则 Desktop/surface/MCP 后续仍会被迫理解 project source 文件结构。
+3. 同步做 Phase 1.6。Project Service 当前 `interpret + candidate` 约 1s，性能排查必须与收口同时推进，否则架构收口会放大延迟问题。
+4. 接着做 Phase 1.7。内容画布和工作流画布如果 owner 不清楚，后续 canvas route 和 project source 收口会继续互相污染。
+5. 第五优先级是 Desktop renderer contract。它是心智负担最大的入口，也是本地/云端 API 特殊化最明显的位置。
+6. 第六优先级是 local-surface-host，因为它目前直接把 `/local-api` 固化进 surface 运行时。
+7. surface domain 的 UI 和 runtime contract 可以跟着 host 改造逐步替换。
+8. internal clients 最后清理，不要一开始动太多服务内部发现逻辑。
 
-## 验收清单
+## 验收条件
 
-架构验收：
+这次收口的验收对象是 runtime/surface/project 的 public contract，不是内部服务是否改名。`services/local-surface-host`、workspace package、service-level discovery 可以作为 daemon 内部实现继续存在；只要它们不泄漏到 Desktop、Surface Host、surface domain、Plugin/MCP 的业务入口里，就不阻塞验收。
 
-- 本机只有一个 `movscript.local-node` daemon owner。
-- Desktop、Plugin、CLI 都 attach 同一个 daemon。
-- local data plane 不启动本地 Auth Service。
-- cloud/external data plane 不要求 Desktop 直连远端 Data Service。
+### 一票否决项
+
+出现以下任一情况，本轮收口不能判定通过：
+
+- Desktop renderer、Surface Host 或 surface domain 的业务调用仍然拼接 `/local-api`。
+- Desktop renderer contract 仍暴露 `DataServiceBaseURL`、`ProjectServiceBaseURL`、`CanvasServiceBaseURL`、`AuthServiceBaseURL` 或同类内部服务 endpoint。
+- Desktop/Surface Host/surface domain 因为 `local`、`cloud`、`external` data connection 选择不同业务 API path。
+- 普通 runtime descriptor/status 返回内部服务 topology、service URL、pid、sqlite path、auth service URL，或业务代码读取 diagnostics 后决定业务调用分支。
+- Desktop、Surface Host、surface domain、Plugin/MCP tools 直接读写 `project_standards.json`、`scripts/**` 或 provider skill output paths，而不是走 Project Service。
+- `user_id`、`project_id`、`project_cwd` 由 Desktop/surface/Plugin/MCP 各自从 route params、local storage、env vars、cwd 推导并当作权威上下文。
+- raw resource 在业务 contract 中同时以裸字符串、HTTP URL、`resourceId`、`resource_id`、`resourceUrl` 多种形态作为权威身份传递，且没有统一 normalize/resolve 边界。
+- 内容画布和工作流画布继续共用模糊的 canvas CRUD contract，导致调用方需要靠 URL、route、service name 或 document shape 猜 owner。
+- 内容画布不能创建时命名、不能重命名，或前端没有明确的新建按钮、重命名按钮和命名/重命名弹窗。
+- Project Service 收口后没有真实 `~/.movscript` local daemon 性能基线和 trace，导致 `interpret + candidate` 约 1s 的问题不可解释。
+
+### Contract 验收
+
+必须同时满足：
+
+- 本机 runtime owner 唯一为 `movscript.local-node` daemon；Desktop、Plugin、CLI 只 attach daemon，不各自启动或选择 Data/Auth/Project/Canvas 服务。
+- public gateway canonical prefix 是 `/v1`。`/local-api` 只能存在于 daemon gateway 的 backward-compatible alias、兼容测试或 deprecation telemetry 中。
+- `GET /v1/runtime/descriptor` 只表达 runtime owner、gateway、data connection summary、capabilities，不包含内部服务 URL 或 `local-surface-host` 服务名。
+- `dataConnection.kind = "local" | "cloud" | "external"` 只用于状态展示、配置入口和诊断说明，不进入业务 API 分支。
+- local data plane 使用 local-owner 身份，不启动默认本地 Auth Service；cloud/external data plane 的 Auth/Data Service 也只由 daemon 感知和适配。
+- debug diagnostics 可以展示内部 service topology，但只能通过 debug-only diagnostics API 或 debug 页面访问，并且需要 redaction 和权限边界。
+
+可观察证据：
+
+- `rg "/local-api|ServiceBaseURL|Data Service|Project Service" desktop services/local-surface-host surface apps packages` 的剩余命中都在 whitelist 文件中。
+- browser/surface bundle 的架构测试能阻止 Node runtime discovery、service-level discovery、diagnostics client 进入业务模块。
+- local/cloud/external 三种 data connection 的 renderer 调用栈使用同一个 daemon gateway client。
+
+### Context 验收
+
+必须同时满足：
+
 - `user_id`、`project_id`、`project_cwd` 等系统上下文由 daemon context envelope 统一产出。
-- project/cwd 是 workspace session scope，不是 daemon 全局单例。
+- project/cwd 属于 workspace session scope，不是 daemon 全局单例；多窗口、多项目、Plugin/CLI attach 不互相覆盖。
+- context envelope 带 `sessionId` 和 `revision`；写操作和长任务携带 revision，遇到 stale context 能返回明确错误或刷新指令。
+- `projectCwd` 只在具备 local file access capability 的 session 中暴露；云端普通 web surface 不得到本机 cwd。
+- Desktop 创建/切换项目时只请求 daemon 创建或更新 workspace session context；surface 和 Plugin/CLI 读取同一个 session context。
 
-代码边界验收：
+可观察证据：
 
-- Desktop renderer contract 不包含 `*ServiceBaseURL`。
-- Desktop renderer 不包含 `/local-api`。
-- local-surface-host 不包含 `/local-api`。
-- surface domain 不包含 `Data Service` / `Project Service` endpoint contract。
-- service discovery 只存在于 daemon/backend/Node-only clients。
-- Desktop renderer、Surface Host、surface domain 不把 route params、local storage、env vars 当作权威 user/project/workspace context。
-- `projectCwd` 只通过 host capability/context envelope 暴露，不进入云端普通 web surface context。
+- Desktop 创建/切换项目后，surface、Plugin、CLI 看到一致的 `principal.userId`、`project.id`、`workspace.projectCwd`、`sessionId`、`revision`。
+- route params、local storage、env vars 可以作为 UI hint 或启动参数，但不能覆盖 daemon-issued context。
 
-行为验收：
+### Project Service 验收
 
-- Desktop 本地启动：daemon ready，descriptor 显示 `dataConnection.kind = "local"`。
-- Desktop 云端连接：daemon ready，descriptor 显示 `dataConnection.kind = "cloud"`，renderer 调用方式不变。
-- Desktop 外部 Data Service：daemon ready，descriptor 显示 `dataConnection.kind = "external"`，renderer 调用方式不变。
+必须同时满足：
+
+- Project Service 是 project source、read model、resource view、context snapshot 和 source-derived artifacts 的唯一公开 owner。
+- `project.json`、`project_standards.json`、`settings/**`、`scripts/**`、`content_units/**`、`productions/**` 的产品级读写都走 daemon gateway 下的 Project Service API。
+- `project_standards.json -> .codex/.claude/.mova provider skill files` 的编译/同步由 Project Service command 触发、记录并返回 `standardSkillFiles` 或等价 diagnostics。
+- scripts 的 metadata、`script.md`、script version、script blocks、diagnostics 都通过 Project Service 读写和投影。
+- project resource view 覆盖 `project-standards`、`scripts`、`script-versions`，并与 source revision 对齐。
+- 内容画布作为 project source/read-model 的一等视图和命令入口，由 Project Service 提供存储、列表、打开、编辑、保存、运行。
+- 内容画布的 `title` / `name` 由 Project Service 持久化，支持创建时命名和后续重命名，并进入 list/open/save/run response。
+- `domain_read_project_context_snapshot`、`domain_read_script_source`、`domain_query_entities`、project resources 等 MCP/domain 工具保留工具名也可以，但实现必须调用 Project Service client。
+
+可观察证据：
+
+- 更新 project standards 后，Project Service 返回 source revision、skill sync 结果和 diagnostics；后续 context snapshot/resource view 看到同一 revision。
+- 更新 script source 后，Project Service 写入 `script.json` / `script.md`；后续 script source read、resource view、script version snapshot 看到同一 revision。
+- 内容画布保存后，Project Service 返回新的 project/content canvas revision；后续 project read model、content canvas open、context snapshot 看到一致状态。
+- 内容画布 rename 后，列表、打开页、标题栏、context/read-model 中的 title 一致，并返回新的 revision。
+- 内容画布 run 后，Project Service 返回 operation id、trace/context revision、read-model/candidate impact summary。
+- 静态检查中，Desktop、Surface Host、surface domain、Plugin/MCP tool 不直接 import workspace service 来读写 standards/scripts/provider skill files。
+
+### Canvas Boundary 验收
+
+必须同时满足：
+
+- 内容画布和工作流画布在 public contract 中有明确 discriminator，例如 `canvasKind: "content" | "workflow"`，调用方不靠 URL、route、title、document shape 或服务名猜 owner。
+- 内容画布的存储、列表、打开、编辑、保存、运行归 Project Service；public path 属于 daemon gateway `/v1/project/...` 族。
+- 内容画布支持 create-with-name 和 rename；rename 必须携带 base revision，返回新 revision、normalized title 和 validation diagnostics。
+- 工作流画布的存储、列表、打开、编辑、保存归 Canvas Service；public path 属于 daemon gateway `/v1/canvas/...` 族。
+- 工作流画布可以引用 project entity、raw resource、editing asset、media job，但只能保存 typed refs，不能内嵌 Project Service/Data Service/Media endpoint，也不能直接写 project source。
+- 内容画布运行必须进入 Project Service interpret/read-model/candidate pipeline，不能由 Canvas Service 或 surface 自己执行 project source mutation。
+- list/open/edit/save 都有 revision 语义；edit/save 需要 base revision；stale revision 返回 conflict，不 silent overwrite。
+- autosave 和 manual save 使用同一套持久化语义；失败时能恢复 dirty state、validation errors 和上一次成功 revision。
+- 旧 `/v1/canvas/canvases/:id` 或 `/local-api/canvas/canvases/:id` 兼容入口如果保留，必须能返回 legacy kind/deprecation 信息，并迁移到明确的 content/workflow owner contract。
+
+可观察证据：
+
+- 内容画布 create/list/open/edit/save/reopen/run 的端到端测试全部通过，并验证 Project Service revision、read model、context snapshot 一致。
+- 内容画布前端有新建按钮、重命名按钮、命名/重命名弹窗；测试覆盖输入空名称、重复名称、超长名称、取消、确认、保存失败、stale revision conflict。
+- 工作流画布 create/list/open/edit/save/reopen 的端到端测试全部通过，并验证 nodes、edges、layout、metadata、typed refs 完整恢复。
+- stale revision conflict、validation error recovery、autosave/manual save、delete/archive 或 equivalent lifecycle 行为有测试覆盖。
+- 静态检查中，内容画布没有调用 Canvas Service document CRUD；工作流画布没有调用 Project Service source command 来保存 graph document。
+- Desktop、Surface Host、surface domain 只通过 daemon gateway client 调用两类画布，不直接读取 Canvas Service 或 Project Service endpoint。
+
+### Raw Resource 验收
+
+必须同时满足：
+
+- raw resource 的 public contract 使用统一的 typed reference，例如 `ResourceRef` / `RawResourceRef`，至少包含 `kind`、`resourceId`、可选 `projectId`/`scope`/`revision`；不能让调用方在字符串、数字、HTTP URL 之间自行猜测身份。
+- HTTP URL 只能是 daemon/resource gateway resolve 后得到的读取结果，用于 `<img>`、`<video>`、download、blob cache 或短期预览；不能作为 raw resource 的持久身份写入 candidate、selection、timeline、shot library entry、project source 或 MCP/domain command。
+- 如果需要文本中的人类可读引用，可以保留 `{{resource::123}}` 这类 semantic marker，但进入 API 边界前必须 normalize 成 `RawResourceRef`，不能让下游业务继续解析自由字符串。
+- `resource_id`、`resourceId` 等 legacy 字段可以在 service 内部、DB schema 或兼容 API 中暂存，但 daemon gateway/public client 必须有一个规范输入输出形态，并在边界层完成兼容转换。
+- 读取 raw resource file 必须走 daemon gateway 的 canonical resource API，例如 `/v1/resources/:resourceId/file` 或等价 resolve API；surface 不直接拼 `/api/v1/resources/:id/file`、`/local-api/...` 或远端 Data Service URL。
+- media preview、generation input、editing asset、candidate output、selection、shot reference library、MCP raw-resource tools 都共享同一套 `ResourceRef -> resolved access` 工具函数或 daemon client。
+- resolved access response 必须表达 access type，例如 authenticated gateway URL、blob URL、local file capability、external URL proxy，并带上必要的 ttl/cache/auth 语义；业务层不能从 URL 字符串形态推断本地/云端。
+
+可观察证据：
+
+- 静态检查中，业务模型和 command schema 不再把 `resourceUrl`、`url`、`/api/v1/resources/:id/file` 当作 raw resource 身份字段；这些字段只出现在 resolver、media rendering、download、debug 或 compatibility adapter 中。
+- candidate/selection/timeline/shot library 的快照里保存的是 resource reference 或 resource id compatibility 字段，不保存 daemon/data-service 生成的 file URL 作为 source of truth。
+- local/cloud/external data connection 下，同一个 `RawResourceRef` 通过同一个 daemon gateway resolver 得到可读媒体，不需要 surface 按 data connection 拼接不同 URL。
+- MCP 工具如 `domain_register_raw_resource_as_content_unit_candidate` 的输入输出 schema 明确区分 `sourceResourceRef`/`outputResourceRef` 与 resolved media URL。
+
+### 性能验收
+
+必须同时满足：
+
+- 使用真实 `~/.movscript` local daemon 产出基线，不只使用 fixture。至少记录 cold start、warm interpret、candidate command、warm `interpret + candidate`、read-model、resource view、context snapshot。
+- 每个基线项至少记录 p50/p95、样本数、project id、project cwd、source file count、source hash、data plane、是否写 `.interpret`、是否触发 provider skill sync。
+- Project Service performance trace 能把单次总耗时拆到 daemon gateway、Project Service handler、source scan/hash、domain index、interpret、read-model projection、candidate decision store、Data Service/sqlite、artifact write、JSON serialization 等 span。
+- `interpret + candidate` 约 1s 时，trace 至少能解释 90% 以上 wall time 归属；不能出现大段 unexplained time。
+- warm path 不应因为 Project Service 收口而明显退化。默认验收线：p50 不高于收口前基线，p95 退化不超过 10%。如果收口前 warm `interpret + candidate` p50 高于 800ms，第一轮优化应给出至少 30% p50 改善，或把无法改善的外部瓶颈记录为阻塞项和后续专门任务。
+- `.interpret` debug artifact、provider skill compilation、全量 source scan、全量 domain index rebuild 不能在 source hash 未变化的 warm candidate path 中无条件发生。
+
+可观察证据：
+
+- 有一份真实 `~/.movscript` benchmark 记录或 CI artifact，包含优化前后对比。
+- debug-only diagnostics 能查看 trace；普通 descriptor/status、业务 API response 不包含内部性能拓扑。
+
+### 行为验收
+
+必须覆盖以下端到端场景：
+
+- Desktop 本地启动：daemon ready，descriptor 显示 `dataConnection.kind = "local"`，业务调用走 `/v1/...`。
+- Desktop 云端连接：daemon ready，descriptor 显示 `dataConnection.kind = "cloud"`，renderer 调用方式与本地一致。
+- Desktop 外部 Data Service：daemon ready，descriptor 显示 `dataConnection.kind = "external"`，renderer 调用方式与本地一致。
 - Desktop 创建/切换项目：daemon 创建或更新 workspace session context，surface 收到同一 `sessionId` 和 context revision。
-- Plugin/CLI attach 同一项目 session：读取到与 Desktop 一致的 `principal.userId`、`project.id`、`workspace.projectCwd`。
-- Canvas detail route 不再通过产品层拼接 `/local-api/canvas/canvases/:id`。
-- 切换 data connection 后，daemon 负责重启/重配服务，Desktop 只刷新 descriptor。
+- Plugin/CLI attach 同一项目 session：读取到与 Desktop 一致的 principal、project、workspace context。
+- 更新 project standards：Project Service 写入 source，编译/同步 provider skills，并返回 sync result/diagnostics。
+- 读取 project context snapshot：结果来自 Project Service，包含 project standards、namespace vocabulary、hash、agent guidance。
+- 更新 script source：Project Service 写入 source，后续 resource view 和 script source read 看到同一 revision。
+- 创建 script version：Project Service 从 script markdown 生成 version、blocks 和 diagnostics。
+- 内容画布：create/list/open/edit/save/reopen/run 全链路稳定，保存和运行后的 revision/read model/context snapshot 一致。
+- 内容画布命名：新建按钮打开命名弹窗，确认后列表出现该名称；重命名按钮打开重命名弹窗，确认后列表、打开页、标题栏都更新，刷新后仍保持。
+- 工作流画布：create/list/open/edit/save/reopen 全链路稳定，workflow graph、layout、typed refs 完整恢复。
+- Canvas detail route：产品层不再拼接 `/local-api/canvas/canvases/:id`，而是通过 daemon gateway 的 canonical canvas API。
+- 切换 data connection：daemon 负责重启/重配服务，Desktop 只刷新 descriptor/context，不改业务 client。
+
+### 兼容层验收
+
+`/local-api` 下线前允许保留 alias，但必须满足：
+
+- alias 只存在于 daemon gateway compatibility layer。
+- alias 命中有 deprecation log 或 telemetry。
+- product caller 全部迁移到 `/v1/...` 后，只保留 compatibility tests。
+- 文档和类型定义不再把 `/local-api` 描述为推荐入口。
 
 ## 一句话结论
 
-当前代码已经有 `movscript.local-node` 作为唯一 daemon owner 的骨架，但 Desktop、local-surface-host 和 surface runtime 仍把 `/local-api`、内部服务 URL、以及 user/project/workspace 上下文当成各自可拼装的 contract。下一步不应该先大规模删除代码，而是先补 daemon descriptor/config/context API，再逐层把 Desktop 和 surface 的 contract 收到 daemon gateway 与 daemon-issued context envelope 上；本地/云端只作为 daemon 的 data connection 状态存在，不再成为 UI 层选择 API 或拼装系统上下文的依据。
+当前代码已经有 `movscript.local-node` 作为唯一 daemon owner 的骨架，但 Desktop、local-surface-host 和 surface runtime 仍把 `/local-api`、内部服务 URL、project source 文件结构、canvas owner、raw resource URL/ID、以及 user/project/workspace 上下文当成各自可拼装的 contract。下一步不应该先大规模删除代码，而是先补 daemon descriptor/config/context API，并把 project standards、scripts、内容画布、context snapshot、standard skill compilation 完全收口到 Project Service；把工作流画布的 document CRUD 稳定收口到 Canvas Service；同时用真实 `~/.movscript` local daemon 排查 `interpret + candidate` 约 1s 的 Project Service 性能链路，再逐层把 Desktop 和 surface 的 contract 收到 daemon gateway 与 daemon-issued context envelope 上。本地/云端只作为 daemon 的 data connection 状态存在，不再成为 UI 层选择 API、拼装系统上下文、直接读写 project source、猜测 canvas owner、保存 raw resource URL 或绕过 Project Service 性能诊断的依据。
