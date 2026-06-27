@@ -1,6 +1,17 @@
 import type { ReactNode } from 'react'
 import type { AgentSurfaceSnapshot } from '../data.js'
-import { arrayValue, numberValue, recordValue, stringValue } from '../data.js'
+import {
+  agentSurfaceDomainFocus,
+  agentSurfaceFocusChips,
+  agentSurfaceFocusLabel,
+  agentSurfaceHasTimelineFocus,
+  agentSurfaceLegacyProductionId,
+  agentSurfaceSnapshotDomainFocus,
+  arrayValue,
+  numberValue,
+  recordValue,
+  stringValue,
+} from '../data.js'
 import {
   AgentSurfaceJson,
   AgentSurfaceKeyValues,
@@ -37,20 +48,22 @@ export function AgentPreviewTimelineSurface({
   const blockers = arrayValue(productionTimeline?.blockers ?? preview?.blockers ?? embeddedPreview?.blockers)
   const mediaEditingProject = recordValue(productionTimeline?.media_editing_project)
   const status = stringValue(productionTimeline?.status) ?? stringValue(preview?.status) ?? snapshot?.status ?? ''
+  const domainFocus = agentSurfaceSnapshotDomainFocus(snapshot)
+    ?? agentSurfaceDomainFocus(params, { projectId, productionId })
+  const legacyProductionId = agentSurfaceLegacyProductionId(domainFocus, productionId)
+  const focusLabel = agentSurfaceFocusLabel(domainFocus, legacyProductionId ? `production: ${legacyProductionId}` : '')
+  const hasTimelineScope = agentSurfaceHasTimelineFocus(domainFocus, legacyProductionId)
 
   return (
     <AgentSurfaceShell
-      title={productionId ? `Production preview: ${productionId}` : 'Production preview'}
-      description="Inspect selected scene-moment outputs in timeline context and identify missing or stale preview material."
-      chips={[
-        ...(projectId ? [`project: ${projectId}`] : []),
-        ...(productionId ? [`production: ${productionId}`] : []),
-      ]}
+      title={focusLabel ? `Timeline preview: ${focusLabel}` : 'Timeline preview'}
+      description="Inspect selected scene-moment outputs in timeline assembly context and identify missing or stale preview material."
+      chips={agentSurfaceFocusChips(domainFocus)}
       ready={ready}
       preparingLabel="Preparing preview timeline surface..."
     >
-      {!productionId ? (
-        <div className="agent-surface-status">Missing productionId.</div>
+      {!hasTimelineScope ? (
+        <div className="agent-surface-status">Missing timeline preview scope.</div>
       ) : isLoading ? (
         <div className="agent-surface-status">Loading preview timeline...</div>
       ) : error ? (
@@ -60,7 +73,9 @@ export function AgentPreviewTimelineSurface({
           <AgentSurfacePanel title="Timeline Target">
             <AgentSurfaceKeyValues items={[
               ['Project', projectId ?? ''],
-              ['Production', productionId ?? ''],
+              ['Focus', focusLabel],
+              ['Assembly target', domainFocus.target?.targetRef ?? ''],
+              ['Legacy production', legacyProductionId ?? ''],
               ['Generated', snapshot?.generated_at ?? ''],
             ]} />
           </AgentSurfacePanel>
@@ -90,7 +105,7 @@ export function AgentPreviewTimelineSurface({
               <p>No selected preview clips are available yet.</p>
             )}
           </AgentSurfacePanel>
-          <AgentSurfacePanel title="Blockers" description="Resolve blockers before handing this production to editing.">
+          <AgentSurfacePanel title="Blockers" description="Resolve blockers before handing this timeline assembly to editing.">
             {blockers.length > 0 ? (
               <div className="agent-surface-work-list">
                 {blockers.map((blocker, index) => (

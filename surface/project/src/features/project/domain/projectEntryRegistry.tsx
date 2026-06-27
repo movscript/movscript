@@ -11,6 +11,7 @@ export type ProjectEntryId =
   | 'orchestration_production'
   | 'content_canvas'
   | 'content_preview'
+  | 'setting_preview'
   | 'content'
   | 'project_standards'
 
@@ -18,6 +19,7 @@ export type ProjectEntryStage =
   | 'orchestration_production'
   | 'content_canvas'
   | 'content_preview'
+  | 'setting_preview'
   | 'standards'
 
 export interface ProjectEntryReviewQuery {
@@ -26,6 +28,15 @@ export interface ProjectEntryReviewQuery {
   workspaceIdParam: string
   entityParams?: Record<string, string>
   requiresEntity?: boolean
+}
+
+export interface ProjectEntryPrimarySelection {
+  queryParam: string
+  entityType: string
+  scopeKindParam?: string
+  scopeRefParam?: string
+  legacyQueryParam?: string
+  legacyEntityType?: string
 }
 
 export interface ProjectEntryDefinition {
@@ -42,10 +53,7 @@ export interface ProjectEntryDefinition {
   output: string
   owns: string[]
   reads: string[]
-  primarySelection?: {
-    queryParam: string
-    entityType: string
-  }
+  primarySelection?: ProjectEntryPrimarySelection
   reviewQuery: ProjectEntryReviewQuery
 }
 
@@ -59,12 +67,19 @@ export const projectEntryDefinitions: ProjectEntryDefinition[] = [
     headerTitleKey: 'header.titles.productionOrchestration',
     stage: 'orchestration_production',
     icon: Clapperboard,
-    purpose: '把手记、设定、素材约束组织成 production 级结构化蓝图，并继续沉淀镜头方案、时间轴和镜头列表。',
-    decision: '手动维护 segments、scene moments、引用关系和镜头方案。',
-    output: '可进入创作继续细化执行的创作方案。',
-    owns: ['production', 'segment', 'scene_moment', 'setting_usage', 'asset_slot_usage', 'production_local_requirement', 'content_unit', 'keyframe', 'preview_timeline_item'],
-    reads: ['project_standards', 'setting', 'asset_slot', 'script'],
-    primarySelection: { queryParam: 'productionId', entityType: 'production' },
+    purpose: '把手记、设定、素材约束组织成 timeline namespace、scene moment 和 assembly 边界，并继续沉淀表达方案、时间轴和镜头列表。',
+    decision: '手动维护时间结构、scene moments、引用关系和镜头方案；production/segment 仅作为旧项目的 namespace 投影。',
+    output: '可进入创作继续细化执行的时间结构、场面锚点和装配方案。',
+    owns: ['timeline_namespace', 'scene_moment', 'timeline_assembly', 'setting_usage', 'asset_usage', 'local_requirement', 'content_unit', 'keyframe', 'preview_timeline_item'],
+    reads: ['project_standards', 'setting_namespace', 'asset', 'script'],
+    primarySelection: {
+      queryParam: 'scopeRef',
+      entityType: 'timeline_namespace',
+      scopeKindParam: 'scopeKind',
+      scopeRefParam: 'scopeRef',
+      legacyQueryParam: 'productionId',
+      legacyEntityType: 'production',
+    },
     reviewQuery: {
       viewParam: 'view',
       viewValue: 'review',
@@ -74,7 +89,7 @@ export const projectEntryDefinitions: ProjectEntryDefinition[] = [
         scene_moment: 'scene_moment_id',
         content_unit: 'content_unit_id',
       },
-      requiresEntity: true,
+      requiresEntity: false,
     },
   },
   {
@@ -124,6 +139,32 @@ export const projectEntryDefinitions: ProjectEntryDefinition[] = [
     },
   },
   {
+    id: 'setting_preview',
+    title: '设定预览',
+    shortTitle: '设定',
+    routeKey: 'project.settingPreview',
+    sidebarTitleKey: 'sidebar.items.settingPreviewWorkspace',
+    headerTitleKey: 'header.titles.settingPreviewWorkspace',
+    stage: 'setting_preview',
+    icon: MonitorPlay,
+    purpose: '单独审阅 setting namespace 下的状态、素材需求、候选资源和锁定结果，不把设定当作内容生产单位。',
+    decision: '检查设定资产是否可用、状态是否完整、素材槽是否已经有可继承的候选或锁定选择。',
+    output: '可被 scene moment、keyframe 和生成上下文引用的设定资产与状态预览。',
+    owns: ['candidate_selection'],
+    reads: ['setting', 'setting_state', 'asset_slot', 'asset', 'resource', 'job'],
+    primarySelection: { queryParam: 'setting_id', entityType: 'setting' },
+    reviewQuery: {
+      workspaceIdParam: 'workspaceId',
+      entityParams: {
+        setting: 'setting_id',
+        setting_state: 'setting_state_id',
+        state: 'setting_state_id',
+        asset: 'asset_id',
+        asset_slot: 'asset_slot_id',
+      },
+    },
+  },
+  {
     id: 'project_standards',
     title: '项目规范',
     shortTitle: '规范',
@@ -159,6 +200,11 @@ export interface ProjectEntryReviewInput {
   workspaceId: string
   entityType?: string
   entityId?: string | number
+  scopeKind?: string
+  scopeRef?: string | number
+  targetCategory?: string
+  targetKind?: string
+  targetRef?: string | number
 }
 
 export function buildProjectEntryReviewParams(
@@ -173,6 +219,14 @@ export function buildProjectEntryReviewParams(
     params[definition.reviewQuery.viewParam] = definition.reviewQuery.viewValue
   }
   params[definition.reviewQuery.workspaceIdParam] = input.workspaceId
+  const scopeParams = projectEntryReviewScopeParams(input)
+  for (const [key, value] of Object.entries(scopeParams)) {
+    params[key] = value
+  }
+  const targetParams = projectEntryReviewTargetParams(input)
+  for (const [key, value] of Object.entries(targetParams)) {
+    params[key] = value
+  }
   if (entityParam) {
     params[entityParam] = input.entityId
   }
@@ -180,6 +234,26 @@ export function buildProjectEntryReviewParams(
     const entityParamNames = new Set(Object.values(definition.reviewQuery.entityParams ?? {}))
     const hasEntityParam = Object.keys(params).some((key) => entityParamNames.has(key))
     if (!hasEntityParam) return null
+  }
+  return params
+}
+
+function projectEntryReviewScopeParams(input: ProjectEntryReviewInput): Record<string, string | number> {
+  if (!input.scopeKind || input.scopeRef === undefined || !String(input.scopeKind).trim() || !String(input.scopeRef).trim()) return {}
+  return {
+    scopeKind: input.scopeKind,
+    scopeRef: input.scopeRef,
+    ...(input.scopeKind === 'production' ? { productionId: input.scopeRef } : {}),
+  }
+}
+
+function projectEntryReviewTargetParams(input: ProjectEntryReviewInput): Record<string, string | number> {
+  const params: Record<string, string | number> = {}
+  if (input.targetCategory && String(input.targetCategory).trim()) params.targetCategory = input.targetCategory
+  if (input.targetKind && String(input.targetKind).trim()) params.targetKind = input.targetKind
+  if (input.targetRef !== undefined && String(input.targetRef).trim()) params.targetRef = input.targetRef
+  if (input.targetKind === 'timeline_assembly' && input.targetRef !== undefined && String(input.targetRef).trim()) {
+    params.timeline_assembly_ref = input.targetRef
   }
   return params
 }

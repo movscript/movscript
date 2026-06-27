@@ -37,6 +37,7 @@ import {
   updateMovScriptContentUnitEditPrompt,
   upsertMovScriptContentUnit,
   upsertMovScriptProjectStandards,
+  upsertMovScriptSourceRecord,
   updateMovScriptEntityTransition,
   updateMovScriptStoryboardTimeline,
   upsertMovScriptWorkspaceScript,
@@ -61,6 +62,8 @@ import {
   type MovScriptProjectStandardsWriteInput,
   type MovScriptProjectStandardsWriteResult,
   type MovScriptProjectStandardSkillsSyncResult,
+  type MovScriptSourceRecordUpsertInput,
+  type MovScriptSourceRecordUpsertResult,
   type MovScriptWorkspaceEntityDeleteInput,
   type MovScriptWorkspaceEntityWriteInput,
   type MovScriptWorkspaceEntityWriteResult,
@@ -87,9 +90,16 @@ import {
 } from './repository/index.js'
 import { deriveMovScriptWorkspaceDomainIndex } from './indexer/index.js'
 import {
+  deriveMovScriptWorkspaceTimelineAssemblyPreviewTimeline,
   deriveMovScriptWorkspacePreviewTimelines,
+  type MovScriptWorkspaceTimelineAssemblyPreviewTimelineArtifact,
+  type MovScriptWorkspaceTimelineAssemblyPreviewTimelineScope,
   type MovScriptWorkspacePreviewTimelineArtifact,
 } from './previewTimeline.js'
+import {
+  allocateMovScriptEntityId,
+} from '@movscript/domain'
+import type { SemanticEntityKind } from '@movscript/language/domain'
 
 export interface MovScriptWorkspaceServiceOptions {
   fileRepository: MovScriptWorkspaceFileRepository
@@ -165,6 +175,9 @@ export interface MovScriptWorkspaceService {
   queryProductionContext(query?: MovScriptWorkspaceProductionContextQuery): Promise<Record<string, MovScriptWorkspaceIndexedEntity[]>>
   readEditorState(): Promise<Record<string, unknown> | undefined>
   readPreviewTimeline(productionId: string | number): Promise<MovScriptWorkspacePreviewTimelineArtifact | undefined>
+  readTimelineAssemblyPreviewTimeline(
+    scope: MovScriptWorkspaceTimelineAssemblyPreviewTimelineScope,
+  ): Promise<MovScriptWorkspaceTimelineAssemblyPreviewTimelineArtifact | undefined>
   readSceneMomentEditPlan(sceneMomentId: string | number): Promise<Record<string, unknown> | undefined>
   readContentUnitRuntimePanel(contentUnitId: string | number): Promise<Record<string, unknown> | undefined>
   readContentUnitGenerationPrompt(contentUnitId: string | number): Promise<Record<string, unknown> | undefined>
@@ -195,6 +208,9 @@ export interface MovScriptWorkspaceService {
   updateStoryboardTimeline(
     input: Omit<MovScriptStoryboardTimelineUpdateInput, 'fileRepository'>,
   ): Promise<MovScriptStoryboardTimelineUpdateResult>
+  upsertSourceRecord(
+    input: Omit<MovScriptSourceRecordUpsertInput, 'fileRepository'>,
+  ): Promise<MovScriptSourceRecordUpsertResult>
   updateExpressionUnitSource(input: MovScriptExpressionUnitUpdateInput): Promise<MovScriptExpressionUnitUpdateResult>
   updateAudioCueSource(input: MovScriptAudioCueUpdateInput): Promise<MovScriptAudioCueUpdateResult>
   appendCandidate(
@@ -313,6 +329,9 @@ export function createMovScriptWorkspaceService(
       const timelines = deriveMovScriptWorkspacePreviewTimelines(await loadIndex())
       return timelines.find((timeline) => samePreviewTimelineProduction(timeline.productionId, productionId))
     },
+    async readTimelineAssemblyPreviewTimeline(scope) {
+      return deriveMovScriptWorkspaceTimelineAssemblyPreviewTimeline(await loadIndex(), scope)
+    },
     async readSceneMomentEditPlan(sceneMomentId) {
       const sceneMoment = queryMovScriptWorkspaceEntities(await loadIndex(), { entityKind: 'scene_moment' })
         .find((entity) => sameEntityId(entity.id, sceneMomentId) || entity.path.includes(`/scene_moments/${entityPathSlug(sceneMomentId, 'scene_moment')}/`))
@@ -331,25 +350,31 @@ export function createMovScriptWorkspaceService(
     readContentUnitSelectionValidity(contentUnitId) {
       return readJSONArtifact(options.fileRepository, `${MOVSCRIPT_INTERPRET_CURRENT_DIR}/content_units/${entityPathSlug(contentUnitId, 'content_unit')}/selection_validity.json`)
     },
-    upsertSetting(input) {
+    async upsertSetting(input) {
+      const payload = await writePayloadWithGeneratedEntityId(loadIndex, 'setting', input)
       return upsertMovScriptWorkspaceSetting({
         fileRepository: options.fileRepository,
         now: options.now?.(),
         ...input,
+        payload,
       })
     },
-    upsertSettingState(input) {
+    async upsertSettingState(input) {
+      const payload = await writePayloadWithGeneratedEntityId(loadIndex, 'setting_state', input)
       return upsertMovScriptWorkspaceSettingState({
         fileRepository: options.fileRepository,
         now: options.now?.(),
         ...input,
+        payload,
       })
     },
-    upsertAsset(input) {
+    async upsertAsset(input) {
+      const payload = await writePayloadWithGeneratedEntityId(loadIndex, 'asset', input)
       return upsertMovScriptWorkspaceAsset({
         fileRepository: options.fileRepository,
         now: options.now?.(),
         ...input,
+        payload,
       })
     },
     upsertScript(input) {
@@ -390,10 +415,12 @@ export function createMovScriptWorkspaceService(
         ...input,
       })
     },
-    upsertContentUnit(input) {
+    async upsertContentUnit(input) {
+      const unit = await contentUnitWithGeneratedEntityId(loadIndex, input.unit)
       return upsertMovScriptContentUnit({
         fileRepository: options.fileRepository,
         ...input,
+        unit,
       })
     },
     async upsertProjectStandards(input) {
@@ -416,6 +443,12 @@ export function createMovScriptWorkspaceService(
     },
     updateStoryboardTimeline(input) {
       return updateMovScriptStoryboardTimeline({
+        fileRepository: options.fileRepository,
+        ...input,
+      })
+    },
+    upsertSourceRecord(input) {
+      return upsertMovScriptSourceRecord({
         fileRepository: options.fileRepository,
         ...input,
       })
@@ -745,7 +778,88 @@ async function writeJSONDocument(
   }
 }
 
+async function writePayloadWithGeneratedEntityId(
+  loadIndex: (input?: { path?: string }) => Promise<MovScriptWorkspaceDomainIndex>,
+  entityKind: SemanticEntityKind,
+  input: Omit<MovScriptWorkspaceEntityWriteInput, 'fileRepository'>,
+): Promise<Record<string, unknown>> {
+  const current = {
+    ...(isRecord(input.record) ? input.record : {}),
+    ...(isRecord(input.entity?.record) ? input.entity?.record : {}),
+  }
+  const payload = isRecord(input.payload) ? input.payload : {}
+  if (hasEntityIdentity(payload) || hasEntityIdentity(current)) return payload
+  const existingIds = await existingWorkspaceEntityIds(loadIndex, entityKind)
+  return {
+    ...payload,
+    id: allocateMovScriptEntityId({
+      entityKind,
+      title: entityTitleSeed(payload, current),
+      existingIds,
+    }),
+  }
+}
+
+async function contentUnitWithGeneratedEntityId(
+  loadIndex: (input?: { path?: string }) => Promise<MovScriptWorkspaceDomainIndex>,
+  unit: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  if (hasEntityIdentity(unit)) return unit
+  const existingIds = await existingWorkspaceEntityIds(loadIndex, 'content_unit')
+  return {
+    ...unit,
+    id: allocateMovScriptEntityId({
+      entityKind: 'content_unit',
+      title: entityTitleSeed(unit, {}),
+      existingIds,
+    }),
+  }
+}
+
+async function existingWorkspaceEntityIds(
+  loadIndex: (input?: { path?: string }) => Promise<MovScriptWorkspaceDomainIndex>,
+  entityKind: SemanticEntityKind,
+): Promise<string[]> {
+  const entities = queryMovScriptWorkspaceEntities(await loadIndex(), { entityKind })
+  return entities.flatMap((entity) => [
+    stringField(entity.id),
+    stringField(entity.record.id),
+    stringField(entity.record.ID),
+  ]).filter((id): id is string => Boolean(id))
+}
+
+function hasEntityIdentity(record: Record<string, unknown>): boolean {
+  return [
+    record.workspace_slug,
+    record.workspaceSlug,
+    record.workspace_entity_id,
+    record.workspaceEntityId,
+    record.id,
+    record.ID,
+    record.client_id,
+    record.clientId,
+  ].some((value) => stringField(value) !== undefined)
+}
+
+function entityTitleSeed(payload: Record<string, unknown>, current: Record<string, unknown>): unknown {
+  return payload.title
+    ?? payload.name
+    ?? payload.slot
+    ?? payload.slot_key
+    ?? payload.slotKey
+    ?? payload.text
+    ?? payload.description
+    ?? current.title
+    ?? current.name
+    ?? current.slot
+    ?? current.slot_key
+    ?? current.slotKey
+    ?? current.text
+    ?? current.description
+}
+
 function stringField(value: unknown): string | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 

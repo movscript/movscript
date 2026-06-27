@@ -5,6 +5,7 @@ import { api } from '@/shared/infrastructure/api'
 import type { Job, RawResource } from '@/types'
 import { AgentGenerationJobSurface } from '@movscript/project-surface/react'
 import { useAgentMcpApiProxy } from './useAgentMcpApiProxy'
+import { agentSurfaceKeys } from './agentSurfaceData'
 
 export default function AgentGenerationJobPage() {
   const routeParams = useParams()
@@ -13,7 +14,7 @@ export default function AgentGenerationJobPage() {
   const routeContentUnitId = proxy.params.get('contentUnitId') ?? undefined
 
   const { data: job, isLoading, error } = useQuery<Job>({
-    queryKey: ['agent-surface', 'generation-job', jobId],
+    queryKey: agentSurfaceKeys.generationJob(jobId),
     queryFn: () => api.get<Job>(`/jobs/${jobId}`).then((result) => result.data),
     enabled: proxy.ready && jobId !== undefined,
     refetchInterval: (query) => {

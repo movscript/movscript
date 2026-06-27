@@ -1,12 +1,8 @@
 import {
-  projectSurfacePath,
-  type ProjectSurfaceRouteKey,
-  type ProjectSurfaceRouteParams,
-} from '@movscript/project-surface'
-import {
   createProjectSurfaceRuntime,
   type ProjectSurfaceRuntime,
 } from '@movscript/project-surface/runtime'
+import { webProjectSurfaceHref } from './projectSurfaceRouting.js'
 
 export interface WebHostProjectSurfaceRuntimeInput {
   projectId: string
@@ -76,30 +72,4 @@ export function createWebHostProjectSurfaceRuntime(input: WebHostProjectSurfaceR
       },
     },
   })
-}
-
-function webProjectSurfaceHref({
-  route,
-  projectId,
-  projectUid,
-  search,
-  params,
-}: {
-  route: ProjectSurfaceRouteKey
-  projectId: string
-  projectUid?: string
-  search?: URLSearchParams
-  params?: ProjectSurfaceRouteParams
-}): string {
-  const next = new URLSearchParams(search)
-  next.set('projectId', projectId)
-  if (projectUid) next.set('projectUid', projectUid)
-  for (const [key, value] of Object.entries(params ?? {})) {
-    if (value === undefined) continue
-    next.set(key, String(value))
-  }
-
-  const query = next.toString()
-  const pathname = projectSurfacePath(route, projectId)
-  return query ? `${pathname}?${query}` : pathname
 }

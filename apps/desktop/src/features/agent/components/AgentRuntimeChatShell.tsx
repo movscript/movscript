@@ -32,6 +32,10 @@ import {
 import type { Project } from '@/types'
 import type { AgentConversationFocusScope } from '@/features/agent/state/agentConversationFocusScope'
 import { isAgentChatDraftConversationId } from '@/features/agent/presentation/agentChatDataSourceShellModel'
+import {
+  legacyProductionIdFromDomainFocus,
+  movScriptDomainFocusFromSearch,
+} from '@/shared/domain/movscriptDomainFocusRoutes'
 
 export const AGENT_RUNTIME_THREAD_OPEN_EVENT = 'movscript:agent-runtime-thread-open'
 
@@ -183,12 +187,21 @@ export function agentRuntimeWorkspaceContextFromRoute(input: {
   search: string
 }): MovScriptWorkspaceContext {
   if (!input.projectId) return { scope: 'global' }
-  const productionId = productionIdFromLocation(input.pathname, input.search)
+  const domainFocus = movScriptDomainFocusFromSearch(input.search, { projectId: input.projectId })
+  const productionId = legacyProductionIdFromDomainFocus(domainFocus) ?? productionIdFromLocation(input.pathname, input.search)
   if (productionId !== undefined) {
     return {
       scope: 'production',
       projectId: input.projectId,
       productionId,
+      ...(domainFocus ? { domainFocus } : {}),
+    }
+  }
+  if (domainFocus?.scope || domainFocus?.target || domainFocus?.entity) {
+    return {
+      scope: 'project',
+      projectId: input.projectId,
+      domainFocus,
     }
   }
   return {
@@ -197,18 +210,20 @@ export function agentRuntimeWorkspaceContextFromRoute(input: {
   }
 }
 
-function productionIdFromLocation(pathname: string, search: string): number | undefined {
+function productionIdFromLocation(pathname: string, search: string): string | number | undefined {
   const queryValue = new URLSearchParams(search).get('productionId') ?? new URLSearchParams(search).get('production_id')
-  const queryId = positiveInteger(queryValue)
+  const queryId = routeId(queryValue)
   if (queryId !== undefined) return queryId
-  const pathMatch = /(?:^|\/)production(?:s)?\/(\d+)(?:\/|$)/.exec(pathname)
-  return positiveInteger(pathMatch?.[1])
+  const pathMatch = /(?:^|\/)production(?:s)?\/([^/]+)(?:\/|$)/.exec(pathname)
+  return routeId(pathMatch?.[1])
 }
 
-function positiveInteger(value: string | null | undefined): number | undefined {
+function routeId(value: string | null | undefined): string | number | undefined {
   if (!value) return undefined
-  const parsed = Number(value)
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined
+  const trimmed = value.trim()
+  if (!trimmed) return undefined
+  const parsed = Number(trimmed)
+  return Number.isInteger(parsed) && parsed > 0 && String(parsed) === trimmed ? parsed : trimmed
 }
 
 export function openAgentRuntimeThread(input: {

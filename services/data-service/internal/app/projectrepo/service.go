@@ -9,7 +9,6 @@ import (
 
 	"github.com/movscript/auth-service/pkg/authidentity"
 	domainidentity "github.com/movscript/auth-service/pkg/authidentity/identity"
-	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	providercontract "github.com/movscript/movscript/internal/providers/contract"
 	"gorm.io/gorm"
 )
@@ -152,7 +151,7 @@ func (s *Service) EnsureProjectRepository(ctx context.Context, projectID uint, o
 	if err != nil {
 		return Binding{}, err
 	}
-	binding, err := s.repo.CreateBinding(ctx, persistencemodel.ProjectRepository{
+	binding, err := s.repo.CreateBinding(ctx, repositoryBinding{
 		ProjectID:     project.ID,
 		Provider:      spec.Provider,
 		Owner:         spec.Owner,
@@ -274,10 +273,10 @@ func repositoryRefFromBinding(binding Binding) providercontract.RepositoryRef {
 	}
 }
 
-func (s *Service) reconcileBindingOwner(ctx context.Context, project persistencemodel.Project, binding persistencemodel.ProjectRepository) (persistencemodel.ProjectRepository, error) {
+func (s *Service) reconcileBindingOwner(ctx context.Context, project projectRecord, binding repositoryBinding) (repositoryBinding, error) {
 	spec, err := s.bindingSpec(ctx, project)
 	if err != nil {
-		return persistencemodel.ProjectRepository{}, err
+		return repositoryBinding{}, err
 	}
 	if binding.Owner == spec.Owner {
 		return binding, nil
@@ -285,7 +284,7 @@ func (s *Service) reconcileBindingOwner(ctx context.Context, project persistence
 	return s.repo.UpdateBindingOwner(ctx, binding.ID, spec.Owner)
 }
 
-func (s *Service) provisionRepository(ctx context.Context, project persistencemodel.Project, binding persistencemodel.ProjectRepository) persistencemodel.ProjectRepository {
+func (s *Service) provisionRepository(ctx context.Context, project projectRecord, binding repositoryBinding) repositoryBinding {
 	if s.adapter == nil {
 		return binding
 	}
@@ -327,25 +326,25 @@ func (s *Service) provisionRepository(ctx context.Context, project persistencemo
 	return updated
 }
 
-func (s *Service) bindingSpec(ctx context.Context, project persistencemodel.Project) (persistencemodel.ProjectRepository, error) {
+func (s *Service) bindingSpec(ctx context.Context, project projectRecord) (repositoryBinding, error) {
 	owner, err := s.projectOwner(ctx, project)
 	if err != nil {
-		return persistencemodel.ProjectRepository{}, err
+		return repositoryBinding{}, err
 	}
 	if owner == "" {
-		return persistencemodel.ProjectRepository{}, fmt.Errorf("%w: repository owner is required", ErrInvalidRepositoryConfig)
+		return repositoryBinding{}, fmt.Errorf("%w: repository owner is required", ErrInvalidRepositoryConfig)
 	}
 	repo := strings.TrimSpace(s.config.Repo)
 	if repo == "" {
 		repo = fmt.Sprintf("%s%d", s.config.RepoPrefix, project.ID)
 	}
 	if err := validateRepoSegment(owner); err != nil {
-		return persistencemodel.ProjectRepository{}, err
+		return repositoryBinding{}, err
 	}
 	if err := validateRepoSegment(repo); err != nil {
-		return persistencemodel.ProjectRepository{}, err
+		return repositoryBinding{}, err
 	}
-	return persistencemodel.ProjectRepository{
+	return repositoryBinding{
 		ProjectID:     project.ID,
 		Provider:      s.config.Provider,
 		Owner:         owner,
@@ -354,7 +353,7 @@ func (s *Service) bindingSpec(ctx context.Context, project persistencemodel.Proj
 	}, nil
 }
 
-func (s *Service) projectOwner(ctx context.Context, project persistencemodel.Project) (string, error) {
+func (s *Service) projectOwner(ctx context.Context, project projectRecord) (string, error) {
 	org, err := s.projectOrg(ctx, project)
 	if err != nil {
 		return "", err
@@ -373,7 +372,7 @@ func (s *Service) projectOwner(ctx context.Context, project persistencemodel.Pro
 	return strings.TrimSpace(s.config.OrgPrefix) + slug, nil
 }
 
-func (s *Service) ownerType(ctx context.Context, project persistencemodel.Project) OwnerType {
+func (s *Service) ownerType(ctx context.Context, project projectRecord) OwnerType {
 	org, err := s.projectOrg(ctx, project)
 	if err != nil || org == nil || org.IsPersonal {
 		return OwnerTypeUser
@@ -381,7 +380,7 @@ func (s *Service) ownerType(ctx context.Context, project persistencemodel.Projec
 	return OwnerTypeOrganization
 }
 
-func (s *Service) ownerName(ctx context.Context, project persistencemodel.Project) (string, error) {
+func (s *Service) ownerName(ctx context.Context, project projectRecord) (string, error) {
 	org, err := s.projectOrg(ctx, project)
 	if err != nil {
 		return "", err
@@ -400,7 +399,7 @@ func (s *Service) ownerName(ctx context.Context, project persistencemodel.Projec
 	return name, nil
 }
 
-func (s *Service) projectOrg(ctx context.Context, project persistencemodel.Project) (*authidentity.Organization, error) {
+func (s *Service) projectOrg(ctx context.Context, project projectRecord) (*authidentity.Organization, error) {
 	if project.OrgID == nil {
 		return nil, nil
 	}
@@ -472,7 +471,7 @@ func NormalizeProvider(provider string) string {
 	}
 }
 
-func bindingFromModel(model persistencemodel.ProjectRepository) Binding {
+func bindingFromModel(model repositoryBinding) Binding {
 	return Binding{
 		ID:             model.ID,
 		ProjectID:      model.ProjectID,

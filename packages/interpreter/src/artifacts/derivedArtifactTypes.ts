@@ -1,9 +1,10 @@
 import type { SemanticEntityKind } from '@movscript/language/domain'
+import type { MovScriptDomainNodeCategory } from '@movscript/domain'
 import type { MovScriptWorkspaceDomainIndex } from '@movscript/workspace/indexer'
 import type { MovScriptSemanticChange } from '../semanticChanges/index.js'
 import type { ContentUnitDerivedArtifactBundle } from './contentProduction.js'
 
-export type MovScriptDomainRelationType = 'owns' | 'contains' | 'references' | 'uses' | 'derives'
+export type MovScriptDomainRelationType = 'owns' | 'contains' | 'references' | 'uses' | 'targets' | 'derives'
 export type MovScriptProductionActor = 'human' | 'agent' | 'workflow'
 
 export interface MovScriptDomainEntityRef {
@@ -21,6 +22,8 @@ export interface MovScriptDomainRelation {
 
 export interface MovScriptDomainTreeNode {
   entityKind: SemanticEntityKind | string
+  nodeCategory?: MovScriptDomainNodeCategory
+  nodeKind?: string
   id?: string | number
   path: string
   title?: string
@@ -70,7 +73,7 @@ export interface MovScriptImpactReportArtifact {
 
 export interface MovScriptPreviewTimelineItem {
   id: string
-  itemType: 'segment' | 'scene_moment' | 'shot' | 'storyboard' | 'keyframe' | 'audio_cue' | 'expression_unit' | 'content_unit'
+  itemType: 'timeline_namespace' | 'segment' | 'scene_moment' | 'shot' | 'storyboard' | 'keyframe' | 'audio_cue' | 'expression_unit' | 'content_unit'
   entity: MovScriptDomainEntityRef
   order: number
   parentId?: string

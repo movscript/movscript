@@ -1,4 +1,5 @@
 import { app, clipboard, dialog, Menu, nativeImage, Tray } from 'electron'
+import { existsSync } from 'node:fs'
 import { openHomeWindow } from './appWindowRegistry'
 import { codexPluginInstallCommand, installMovScriptCodexPlugin } from './codexPluginInstaller'
 import {
@@ -11,10 +12,12 @@ import {
 } from './sdkRuntimePackageStore'
 import { broadcastCrossPageNotification } from './crossPageNotifications'
 import { resolveAppIconPath, resolveTrayIconPath } from '../appWindow/paths'
+import { writeDesktopState } from './desktopStateStore'
 
 let tray: Tray | null = null
 let installing = false
 let trayLanguage: 'zh-CN' | 'en-US' = 'en-US'
+let trayDiagnostics: AppTrayDiagnostics = initialTrayDiagnostics()
 const runtimeOperations = new Map<string, TrayRuntimeOperation>()
 const DEFAULT_APP_SERVER_RUNTIME_VERSION = '0.0.1-alpha.13'
 
@@ -36,6 +39,28 @@ interface TrayRuntimeOperation {
   action: TrayRuntimeAction
   status: TrayRuntimeOperationStatus
   detail: string
+}
+
+interface AppTrayDiagnostics {
+  installed: boolean
+  platform: NodeJS.Platform
+  appIsPackaged: boolean
+  iconPath: string
+  iconExists: boolean
+  imageEmpty: boolean
+  imageSize: { width: number; height: number }
+  templateImage: boolean
+  usedFallbackIcon: boolean
+  debugTitle: boolean
+  updatedAt: string
+  error?: string
+}
+
+interface TrayImageResult {
+  image: Electron.NativeImage
+  iconPath: string
+  templateImage: boolean
+  usedFallbackIcon: boolean
 }
 
 const TRAY_RUNTIME_AGENTS: TrayRuntimeAgent[] = [
@@ -67,17 +92,37 @@ const TRAY_RUNTIME_AGENTS: TrayRuntimeAgent[] = [
 export function installAppTray(): void {
   if (tray) return
 
-  tray = new Tray(createTrayImage())
+  const trayImage = createTrayImage()
+  recordTrayDiagnostics(trayDiagnosticsFromImage(trayImage, false))
+
+  try {
+    tray = new Tray(trayImage.image)
+  } catch (error) {
+    recordTrayDiagnostics({
+      ...trayDiagnosticsFromImage(trayImage, false),
+      error: errorMessage(error),
+    })
+    throw error
+  }
+
   tray.setToolTip('MovScript')
+  if (process.platform === 'darwin' && process.env.MOVSCRIPT_TRAY_DEBUG_TITLE === '1') {
+    tray.setTitle('MovScript')
+  }
   trayLanguage = detectSystemTrayLanguage()
   tray.on('click', () => {
     tray?.popUpContextMenu()
   })
+  recordTrayDiagnostics(trayDiagnosticsFromImage(trayImage, true))
   refreshTrayMenu()
 }
 
 export function isAppTrayInstalled(): boolean {
   return Boolean(tray)
+}
+
+export function getAppTrayDiagnostics(): AppTrayDiagnostics {
+  return { ...trayDiagnostics, imageSize: { ...trayDiagnostics.imageSize } }
 }
 
 export function refreshAppTrayMenu(): void {
@@ -331,16 +376,83 @@ function detectSystemTrayLanguage(): 'zh-CN' | 'en-US' {
   return app.getLocale().toLowerCase().startsWith('zh') ? 'zh-CN' : 'en-US'
 }
 
-function createTrayImage(): Electron.NativeImage {
+function createTrayImage(): TrayImageResult {
   if (process.platform === 'darwin') {
-    const image = nativeImage.createFromPath(resolveTrayIconPath())
-    image.setTemplateImage(true)
-    return image
+    const iconPath = resolveTrayIconPath()
+    let image = nativeImage.createFromPath(iconPath)
+    let imagePath = iconPath
+    let usedFallbackIcon = false
+    let templateImage = true
+
+    if (image.isEmpty()) {
+      imagePath = resolveAppIconPath()
+      image = nativeImage.createFromPath(imagePath).resize({ width: 18, height: 18 })
+      usedFallbackIcon = true
+      templateImage = false
+    }
+
+    image.setTemplateImage(templateImage)
+    return {
+      image,
+      iconPath: imagePath,
+      templateImage,
+      usedFallbackIcon,
+    }
   }
-  return nativeImage.createFromPath(resolveAppIconPath()).resize({ width: 16, height: 16 })
+  const iconPath = resolveAppIconPath()
+  const image = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 })
+  return {
+    image,
+    iconPath,
+    templateImage: false,
+    usedFallbackIcon: false,
+  }
 }
 
 function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message
   return String(error)
+}
+
+function trayDiagnosticsFromImage(input: TrayImageResult, installed: boolean): AppTrayDiagnostics {
+  const size = input.image.getSize()
+  return {
+    installed,
+    platform: process.platform,
+    appIsPackaged: app.isPackaged,
+    iconPath: input.iconPath,
+    iconExists: existsSync(input.iconPath),
+    imageEmpty: input.image.isEmpty(),
+    imageSize: { width: size.width, height: size.height },
+    templateImage: input.templateImage,
+    usedFallbackIcon: input.usedFallbackIcon,
+    debugTitle: process.platform === 'darwin' && process.env.MOVSCRIPT_TRAY_DEBUG_TITLE === '1',
+    updatedAt: new Date().toISOString(),
+  }
+}
+
+function initialTrayDiagnostics(): AppTrayDiagnostics {
+  return {
+    installed: false,
+    platform: process.platform,
+    appIsPackaged: app.isPackaged,
+    iconPath: '',
+    iconExists: false,
+    imageEmpty: true,
+    imageSize: { width: 0, height: 0 },
+    templateImage: false,
+    usedFallbackIcon: false,
+    debugTitle: false,
+    updatedAt: new Date().toISOString(),
+  }
+}
+
+function recordTrayDiagnostics(next: AppTrayDiagnostics): void {
+  trayDiagnostics = next
+  console.info(`[tray] installed=${next.installed} icon=${next.iconPath} exists=${next.iconExists} empty=${next.imageEmpty} size=${next.imageSize.width}x${next.imageSize.height} fallback=${next.usedFallbackIcon}`)
+  try {
+    writeDesktopState({ key: 'movscript-tray-diagnostics-v1', value: next })
+  } catch (error) {
+    console.warn('[tray] failed to write diagnostics', error)
+  }
 }

@@ -1,3 +1,5 @@
+import type { MovScriptNormalizedFocus } from '@movscript/domain'
+
 export interface MCPContextSnapshot {
   route: {
     pathname: string
@@ -15,7 +17,8 @@ export interface MCPContextSnapshot {
     workspace_path?: string
     totalEpisodes?: number
   } | null
-  productionId?: number | null
+  productionId?: string | number | null
+  domainFocus?: MovScriptNormalizedFocus
   user: {
     id: number
     username: string

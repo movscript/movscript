@@ -9,6 +9,10 @@ import {
   isCreativeCanvasDependencySourceEdge,
   type CreativeCanvasDependencyEdge,
 } from './contentCreativeCanvasDependencies'
+import {
+  contentCanvasNodeCanGenerate,
+  contentCanvasNodeIsNamespace,
+} from '../domain/contentCanvasDomainPolicy'
 
 export type CreativeCanvasNodeRole =
   | 'structure'
@@ -62,15 +66,6 @@ const CREATIVE_CANVAS_HIDDEN_KINDS = new Set<ContentCanvasNodeKind>([
   'actor',
   'work_item',
   'group',
-])
-
-const GENERATABLE_KINDS = new Set<ContentCanvasNodeKind>([
-  'scene_moment',
-  'expression_unit',
-  'asset',
-  'keyframe',
-  'storyboard',
-  'content_unit',
 ])
 
 export function buildCreativeCanvasGraph(
@@ -142,7 +137,7 @@ export function creativeNodeFromContentNode(node: ContentCanvasNode): CreativeCa
 }
 
 export function creativeCanvasNodeRole(node: ContentCanvasNode): CreativeCanvasNodeRole {
-  if (node.kind === 'project' || node.kind === 'production' || node.kind === 'segment') return 'structure'
+  if (contentCanvasNodeIsNamespace(node) || node.kind === 'project' || node.kind === 'production' || node.kind === 'segment') return 'structure'
   if (node.kind === 'content_unit') return 'generation'
   if (node.kind === 'candidate') return 'candidate'
   if (node.kind === 'resource') return 'resource'
@@ -157,7 +152,7 @@ export function creativeCanvasNodeWeight(node: ContentCanvasNode): CreativeCanva
 }
 
 export function canGenerateCreativeCanvasNode(node: ContentCanvasNode): boolean {
-  return GENERATABLE_KINDS.has(node.kind)
+  return contentCanvasNodeCanGenerate(node)
 }
 
 export function canExpandCreativeCanvasNode(node: ContentCanvasNode): boolean {

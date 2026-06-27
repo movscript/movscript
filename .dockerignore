@@ -1,3 +1,5 @@
+# Docker builds currently use the repository root as context, but the
+# data-service image only needs the Go service tree and its vendored deps.
 *
 
 !package.json
@@ -6,41 +8,50 @@
 !tsconfig.base.json
 !.npmrc
 
-!apps/
-apps/*
-!apps/admin/
-!apps/admin/**
-apps/admin/dist/
-!apps/agent/
-!apps/agent/package.json
+!services/
+services/*
+!services/auth-service/
+!services/auth-service/**
 !services/data-service/
 !services/data-service/**
-services/data-service/bin/
-!apps/desktop/
-apps/desktop/*
-!apps/desktop/package.json
-!apps/desktop/src/
-!apps/desktop/src/**
-!apps/movcli/
-!apps/movcli/package.json
 
 !packages/
 packages/*
-!packages/drafts/
-!packages/drafts/**
-!packages/plugin-sdk/
-!packages/plugin-sdk/**
-!packages/tokens/
-!packages/tokens/**
-!packages/theme/
-!packages/theme/**
-!packages/ui/
-!packages/ui/**
-packages/*/dist/
+!packages/runtime-contracts/
+!packages/runtime-contracts/**
 
-!plugins/
-plugins/*
-!plugins/image-generator/
-!plugins/image-generator/package.json
-!plugins/video-generator/
-!plugins/video-generator/package.json
+# Generated paths and local state. Keep this list aligned with
+# tools/generated-paths.mjs and scripts/check-generated-paths.mjs.
+.git/
+.gocache
+.gomodcache
+.movscript-dev/
+.pnpm-store/
+.venv/
+*.tsbuildinfo
+apps/*/dist/
+apps/desktop/.package-stage/
+apps/desktop/dist-electron/
+apps/desktop/out/
+apps/desktop/release/
+downloaded-artifacts/
+node_modules/
+packages/*/dist/
+plugins/*/release/
+release-artifacts/
+services/*/dist/
+services/auth-service/bin/
+services/data-service/.cache/
+services/data-service/.gocache/
+services/data-service/bin/
+services/data-service/main
+services/data-service/uploads/
+surface/*/dist/
+
+# Local and editor files.
+.env
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

@@ -21,25 +21,25 @@ import (
 	"github.com/gin-gonic/gin"
 	adminai "github.com/movscript/movscript/internal/app/admin/ai"
 	adminsettings "github.com/movscript/movscript/internal/app/admin/settings"
+	"github.com/movscript/movscript/internal/app/providerasset"
 	appresource "github.com/movscript/movscript/internal/app/resource"
 	domainresource "github.com/movscript/movscript/internal/domain/resource"
 	"github.com/movscript/movscript/internal/infra/ai"
 	"github.com/movscript/movscript/internal/infra/cache"
 	"github.com/movscript/movscript/internal/infra/config"
-	"github.com/movscript/movscript/internal/infra/crypto"
-	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"github.com/movscript/movscript/internal/infra/storage"
 	"github.com/movscript/movscript/internal/interfaces/http/api"
 	"gorm.io/gorm"
 )
 
 type ProviderAssetHandler struct {
-	db       *gorm.DB
-	cfg      *config.Config
-	store    storage.Storage
-	resource *appresource.Service
-	settings *adminsettings.Service
-	client   *http.Client
+	db             *gorm.DB
+	cfg            *config.Config
+	store          storage.Storage
+	resource       *appresource.Service
+	settings       *adminsettings.Service
+	providerAssets *providerasset.Service
+	client         *http.Client
 
 	encryptionKey []byte
 }
@@ -47,13 +47,14 @@ type ProviderAssetHandler struct {
 func NewProviderAssetHandler(db *gorm.DB, cfg *config.Config, store storage.Storage, verifier ai.ImageVerificationClient, encryptionKeyHex string, cacheStore ...cache.Cache) *ProviderAssetHandler {
 	encryptionKey, _ := hex.DecodeString(encryptionKeyHex)
 	return &ProviderAssetHandler{
-		db:            db,
-		cfg:           cfg,
-		store:         store,
-		resource:      appresource.NewService(db, store, verifier, cacheStore...),
-		settings:      adminsettings.NewService(db, encryptionKeyHex),
-		client:        &http.Client{Timeout: 120 * time.Second},
-		encryptionKey: encryptionKey,
+		db:             db,
+		cfg:            cfg,
+		store:          store,
+		resource:       appresource.NewService(db, store, verifier, cacheStore...),
+		settings:       adminsettings.NewService(db, encryptionKeyHex),
+		providerAssets: providerasset.NewService(db),
+		client:         &http.Client{Timeout: 120 * time.Second},
+		encryptionKey:  encryptionKey,
 	}
 }
 
@@ -71,12 +72,6 @@ type providerAssetCertifyRequest struct {
 	AssetGroupName    string `json:"asset_group_name"`
 	AllowPrivateURLs  bool   `json:"allow_private_urls"`
 	TimeoutMS         int    `json:"timeout_ms"`
-}
-
-type providerAssetProviderRef struct {
-	ProviderID       string
-	ProviderKind     string
-	ProviderCategory string
 }
 
 func (h *ProviderAssetHandler) CertifySeedance2(c *gin.Context) {
@@ -148,9 +143,9 @@ func (h *ProviderAssetHandler) certifyProviderAsset(c *gin.Context, providerRef 
 
 	var certification map[string]any
 	switch provider.ProviderKind {
-	case persistencemodel.AIProviderKindVolcengineArk:
+	case adminai.ProviderKindVolcengineArk:
 		certification, err = h.certifyVolcArkImageAsset(ctx, provider, body, resource, sourceURL)
-	case persistencemodel.AIProviderKindYunwuGateway:
+	case adminai.ProviderKindYunwuGateway:
 		certification, err = h.certifyYunwuGatewayImageAsset(ctx, provider, body, resource, sourceURL)
 	default:
 		err = fmt.Errorf("provider %q does not support provider asset certification", provider.ProviderID)
@@ -242,46 +237,60 @@ func (h *ProviderAssetHandler) certifyYunwuGatewayImageAsset(ctx context.Context
 
 func (h *ProviderAssetHandler) resolveProviderAssetProvider(ctx context.Context, requested string) (providerAssetProviderRef, error) {
 	requested = normalizeProviderAssetProvider(requested)
-	if h == nil || h.db == nil || !h.db.Migrator().HasTable(&persistencemodel.AIProvider{}) {
-		if providerAssetProviderIsLegacyAlias(requested) || providerAssetProviderIsDefaultVolcArk(requested) {
-			return providerAssetProviderRef{
-				ProviderID:       requested,
-				ProviderKind:     persistencemodel.AIProviderKindVolcengineArk,
-				ProviderCategory: persistencemodel.AIProviderCategoryOfficialPlatform,
-			}, nil
-		}
-		return providerAssetProviderRef{}, fmt.Errorf("unsupported provider asset certification provider: %s", requested)
+	service := h.providerAssetLibraryService()
+	if service == nil {
+		return legacyProviderAssetProviderRef(requested)
 	}
-
-	var provider persistencemodel.AIProvider
-	query := h.db.WithContext(ctx).Where("is_enabled = true")
-	if providerAssetProviderIsLegacyAlias(requested) || providerAssetProviderIsDefaultVolcArk(requested) {
-		query = query.Where("provider_kind = ?", persistencemodel.AIProviderKindVolcengineArk).Order("id ASC")
-	} else if providerAssetProviderIsYunwuGatewayAlias(requested) {
-		query = query.Where("provider_kind = ?", persistencemodel.AIProviderKindYunwuGateway).Order("id ASC")
-	} else {
-		query = query.Where("provider_id = ?", requested)
-	}
-	if err := query.First(&provider).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			if providerAssetProviderIsLegacyAlias(requested) {
-				return providerAssetProviderRef{}, fmt.Errorf("no enabled Volcengine Ark official provider is configured; create one in Admin > Providers before certifying assets")
-			}
-			if providerAssetProviderIsYunwuGatewayAlias(requested) {
-				return providerAssetProviderRef{}, fmt.Errorf("no enabled Yunwu asset library gateway provider is configured; create one in Admin > Providers before certifying assets")
-			}
-			return providerAssetProviderRef{}, fmt.Errorf("provider %q is not an enabled provider asset library provider", requested)
-		}
+	providers, err := service.ListProviderAssetProviders(ctx)
+	if err != nil {
 		return providerAssetProviderRef{}, err
 	}
-	if provider.ProviderKind != persistencemodel.AIProviderKindVolcengineArk && provider.ProviderKind != persistencemodel.AIProviderKindYunwuGateway {
-		return providerAssetProviderRef{}, fmt.Errorf("provider %q is not an enabled provider asset library provider", requested)
+	for _, provider := range providers {
+		if !provider.IsEnabled {
+			continue
+		}
+		matches := false
+		switch {
+		case providerAssetProviderIsLegacyAlias(requested) || providerAssetProviderIsDefaultVolcArk(requested):
+			matches = provider.ProviderKind == adminai.ProviderKindVolcengineArk
+		case providerAssetProviderIsYunwuGatewayAlias(requested):
+			matches = provider.ProviderKind == adminai.ProviderKindYunwuGateway
+		default:
+			matches = strings.TrimSpace(provider.ProviderID) == requested
+		}
+		if !matches {
+			continue
+		}
+		if provider.ProviderKind != adminai.ProviderKindVolcengineArk && provider.ProviderKind != adminai.ProviderKindYunwuGateway {
+			return providerAssetProviderRef{}, fmt.Errorf("provider %q is not an enabled provider asset library provider", requested)
+		}
+		return providerAssetProviderRef{
+			ProviderID:       strings.TrimSpace(provider.ProviderID),
+			ProviderKind:     strings.TrimSpace(provider.ProviderKind),
+			ProviderCategory: strings.TrimSpace(provider.ProviderCategory),
+		}, nil
 	}
-	return providerAssetProviderRef{
-		ProviderID:       strings.TrimSpace(provider.ProviderID),
-		ProviderKind:     strings.TrimSpace(provider.ProviderKind),
-		ProviderCategory: strings.TrimSpace(provider.ProviderCategory),
-	}, nil
+	if len(providers) == 0 {
+		return legacyProviderAssetProviderRef(requested)
+	}
+	if providerAssetProviderIsLegacyAlias(requested) {
+		return providerAssetProviderRef{}, fmt.Errorf("no enabled Volcengine Ark official provider is configured; create one in Admin > Providers before certifying assets")
+	}
+	if providerAssetProviderIsYunwuGatewayAlias(requested) {
+		return providerAssetProviderRef{}, fmt.Errorf("no enabled Yunwu asset library gateway provider is configured; create one in Admin > Providers before certifying assets")
+	}
+	return providerAssetProviderRef{}, fmt.Errorf("provider %q is not an enabled provider asset library provider", requested)
+}
+
+func legacyProviderAssetProviderRef(requested string) (providerAssetProviderRef, error) {
+	if providerAssetProviderIsLegacyAlias(requested) || providerAssetProviderIsDefaultVolcArk(requested) {
+		return providerAssetProviderRef{
+			ProviderID:       requested,
+			ProviderKind:     adminai.ProviderKindVolcengineArk,
+			ProviderCategory: adminai.ProviderCategoryOfficialPlatform,
+		}, nil
+	}
+	return providerAssetProviderRef{}, fmt.Errorf("provider %q is not an enabled provider asset library provider", requested)
 }
 
 func (h *ProviderAssetHandler) writeResourceError(c *gin.Context, err error) {
@@ -311,18 +320,16 @@ func (h *ProviderAssetHandler) ServeSignedResourceFile(c *gin.Context) {
 		c.JSON(http.StatusForbidden, api.Forbidden("invalid resource URL signature"))
 		return
 	}
-	var row persistencemodel.RawResource
-	if err := h.db.WithContext(c.Request.Context()).
-		Where("id = ?", uint(id64)).
-		First(&row).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+	resource, err := h.resource.GetSignedResource(c.Request.Context(), uint(id64))
+	if err != nil {
+		if errors.Is(err, appresource.ErrNotFound) {
 			c.JSON(http.StatusNotFound, api.NotFound("resource not found"))
 			return
 		}
 		c.JSON(http.StatusInternalServerError, api.Internal("failed to load resource"))
 		return
 	}
-	serveResourceFile(c, h.store, domainresource.RawResourceFromModel(row))
+	serveResourceFile(c, h.store, resource)
 }
 
 func (h *ProviderAssetHandler) populateCertifiedResourceURL(c *gin.Context, resource *domainresource.RawResource) {
@@ -429,71 +436,19 @@ func (h *ProviderAssetHandler) yunwuGatewayAssetClient(ctx context.Context, prov
 }
 
 func (h *ProviderAssetHandler) yunwuGatewayAssetClientFromProviderCredential(ctx context.Context, providerID string) (yunwuGatewayAssetClient, error) {
-	if h == nil || h.db == nil || providerID == "" {
+	service := h.providerAssetLibraryService()
+	if service == nil {
 		return yunwuGatewayAssetClient{}, fmt.Errorf("provider credential store is unavailable")
 	}
-	var provider persistencemodel.AIProvider
-	if err := h.db.WithContext(ctx).
-		Preload("Credentials", "deleted_at IS NULL").
-		Where("provider_id = ? AND is_enabled = true", providerID).
-		First(&provider).Error; err != nil {
+	credential, err := service.ProviderAssetGatewayCredential(ctx, providerID)
+	if err != nil {
 		return yunwuGatewayAssetClient{}, err
 	}
-	baseURL := normalizeYunwuGatewayBaseURL(provider.BaseURLPrefix)
-	var selected persistencemodel.AIProviderCredential
-	for _, credential := range provider.Credentials {
-		if credential.Status != persistencemodel.AIProviderCredentialStatusActive {
-			continue
-		}
-		if selected.ID == 0 || credential.IsPrimary {
-			selected = credential
-		}
-		if credential.IsPrimary {
-			break
-		}
-	}
-	if selected.ID == 0 {
-		return yunwuGatewayAssetClient{}, fmt.Errorf("no active Yunwu Provider credential is configured")
-	}
-	var plainConfig struct {
-		LegacyCredentialID uint   `json:"legacy_credential_id"`
-		BaseURL            string `json:"base_url"`
-	}
-	_ = json.Unmarshal([]byte(selected.PlainConfigJSON), &plainConfig)
-	if strings.TrimSpace(plainConfig.BaseURL) != "" {
-		baseURL = normalizeYunwuGatewayBaseURL(plainConfig.BaseURL)
-	}
-	token := ""
-	if plainConfig.LegacyCredentialID != 0 {
-		var legacy persistencemodel.AICredential
-		if err := h.db.WithContext(ctx).First(&legacy, plainConfig.LegacyCredentialID).Error; err == nil {
-			if strings.TrimSpace(legacy.BaseURL) != "" {
-				baseURL = normalizeYunwuGatewayBaseURL(legacy.BaseURL)
-			}
-			if strings.TrimSpace(legacy.EncryptedKey) != "" {
-				if plain, err := crypto.Decrypt(legacy.EncryptedKey, h.encryptionKey); err == nil {
-					token = plain
-				}
-			}
-		}
-	}
-	if token == "" {
-		var secrets struct {
-			APIKey             string `json:"api_key"`
-			LegacyEncryptedKey string `json:"legacy_encrypted_key"`
-		}
-		_ = json.Unmarshal([]byte(selected.EncryptedSecretsJSON), &secrets)
-		encrypted := firstNonEmptyString(secrets.APIKey, secrets.LegacyEncryptedKey)
-		if encrypted != "" {
-			if plain, err := crypto.Decrypt(encrypted, h.encryptionKey); err == nil {
-				token = plain
-			}
-		}
-	}
+	baseURL := normalizeYunwuGatewayBaseURL(credential.BaseURL)
 	if baseURL == "" {
 		baseURL = "https://yunwu.ai"
 	}
-	token = normalizeYunwuGatewayToken(token)
+	token := normalizeYunwuGatewayToken(credential.Token)
 	if token == "" {
 		return yunwuGatewayAssetClient{}, fmt.Errorf("Yunwu Provider API key is not available")
 	}
@@ -663,13 +618,13 @@ func (h *ProviderAssetHandler) createVolcArkImageAsset(ctx context.Context, clie
 
 func (h *ProviderAssetHandler) fetchRemoteProviderAssetGroups(ctx context.Context, provider providerAssetProviderRef, model string) ([]map[string]any, error) {
 	switch provider.ProviderKind {
-	case persistencemodel.AIProviderKindVolcengineArk:
+	case adminai.ProviderKindVolcengineArk:
 		client, err := h.volcArkAssetClient(ctx, provider.ProviderID)
 		if err != nil {
 			return nil, err
 		}
 		return h.listVolcArkAIGCAssetGroups(ctx, client)
-	case persistencemodel.AIProviderKindYunwuGateway:
+	case adminai.ProviderKindYunwuGateway:
 		client, err := h.yunwuGatewayAssetClient(ctx, provider.ProviderID)
 		if err != nil {
 			return nil, err
@@ -687,13 +642,13 @@ func (h *ProviderAssetHandler) fetchRemoteProviderAssets(ctx context.Context, pr
 		return nil, fmt.Errorf("remote asset group ID is required")
 	}
 	switch provider.ProviderKind {
-	case persistencemodel.AIProviderKindVolcengineArk:
+	case adminai.ProviderKindVolcengineArk:
 		client, err := h.volcArkAssetClient(ctx, provider.ProviderID)
 		if err != nil {
 			return nil, err
 		}
 		return h.listVolcArkImageAssets(ctx, client, groupID)
-	case persistencemodel.AIProviderKindYunwuGateway:
+	case adminai.ProviderKindYunwuGateway:
 		client, err := h.yunwuGatewayAssetClient(ctx, provider.ProviderID)
 		if err != nil {
 			return nil, err
@@ -841,7 +796,7 @@ func (h *ProviderAssetHandler) createYunwuGatewayAIGCAssetGroup(ctx context.Cont
 }
 
 func (h *ProviderAssetHandler) listYunwuGatewayAIGCAssetGroups(ctx context.Context, client yunwuGatewayAssetClient) ([]map[string]any, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, yunwuGatewayAssetGroupsURL(client.BaseURL, ""), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, yunwuGatewayAssetGroupsListURL(client.BaseURL), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -907,7 +862,7 @@ func (h *ProviderAssetHandler) createYunwuGatewayImageAsset(ctx context.Context,
 }
 
 func (h *ProviderAssetHandler) listYunwuGatewayImageAssets(ctx context.Context, client yunwuGatewayAssetClient, groupID string) ([]map[string]any, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, yunwuGatewayAssetsURL(client.BaseURL, ""), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, yunwuGatewayAssetsListURL(client.BaseURL), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1147,14 +1102,14 @@ func sha256Hex(data []byte) string {
 func normalizeProviderAssetProvider(value string) string {
 	provider := strings.TrimSpace(value)
 	if provider == "" {
-		return persistencemodel.AIProviderKindVolcengineArk
+		return adminai.ProviderKindVolcengineArk
 	}
 	alias := strings.ToLower(provider)
 	if alias == "jimeng" || alias == "jimeng2" || alias == "seedance" {
-		return persistencemodel.AIProviderKindVolcengineArk
+		return adminai.ProviderKindVolcengineArk
 	}
 	if alias == "yunwu" || alias == "yunwu_gateway" {
-		return persistencemodel.AIProviderKindYunwuGateway
+		return adminai.ProviderKindYunwuGateway
 	}
 	return provider
 }
@@ -1170,7 +1125,7 @@ func providerAssetProviderIsLegacyAlias(value string) bool {
 
 func providerAssetProviderIsDefaultVolcArk(value string) bool {
 	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "", persistencemodel.AIProviderKindVolcengineArk:
+	case "", adminai.ProviderKindVolcengineArk:
 		return true
 	default:
 		return false
@@ -1179,7 +1134,7 @@ func providerAssetProviderIsDefaultVolcArk(value string) bool {
 
 func providerAssetProviderIsYunwuGatewayAlias(value string) bool {
 	switch strings.ToLower(strings.TrimSpace(value)) {
-	case persistencemodel.AIProviderKindYunwuGateway, "yunwu":
+	case adminai.ProviderKindYunwuGateway, "yunwu":
 		return true
 	default:
 		return false
@@ -1247,6 +1202,7 @@ func providerAssetExplicitGroup(body providerAssetCertifyRequest) (adminsettings
 
 func yunwuGatewayAssetGroupsURL(baseURL string, groupID string) string {
 	base := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	base = strings.TrimSuffix(base, "/list")
 	switch {
 	case strings.HasSuffix(base, "/v1/private-avatar/groups"):
 	case strings.HasSuffix(base, "/v1/private-avatar"):
@@ -1262,8 +1218,13 @@ func yunwuGatewayAssetGroupsURL(baseURL string, groupID string) string {
 	return base + "/" + url.PathEscape(strings.TrimSpace(groupID))
 }
 
+func yunwuGatewayAssetGroupsListURL(baseURL string) string {
+	return yunwuGatewayAssetGroupsURL(baseURL, "") + "/list"
+}
+
 func yunwuGatewayAssetsURL(baseURL string, assetID string) string {
 	base := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	base = strings.TrimSuffix(base, "/list")
 	switch {
 	case strings.HasSuffix(base, "/v1/private-avatar/assets"):
 	case strings.HasSuffix(base, "/v1/private-avatar"):
@@ -1277,6 +1238,10 @@ func yunwuGatewayAssetsURL(baseURL string, assetID string) string {
 		return base
 	}
 	return base + "/" + url.PathEscape(strings.TrimSpace(assetID))
+}
+
+func yunwuGatewayAssetsListURL(baseURL string) string {
+	return yunwuGatewayAssetsURL(baseURL, "") + "/list"
 }
 
 func firstNonEmptyString(values ...string) string {

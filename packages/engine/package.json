@@ -28,14 +28,16 @@
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
-    "test": "pnpm build"
+    "test": "pnpm build && node --test tests/*.test.mjs"
   },
   "dependencies": {
+    "@movscript/domain": "workspace:*",
     "@movscript/interpreter": "workspace:*",
     "@movscript/prompt": "workspace:*",
     "@movscript/workspace": "workspace:*"
   },
   "devDependencies": {
+    "@movscript/language": "workspace:*",
     "@types/node": "22.19.17",
     "tsup": "8.5.1",
     "typescript": "5.9.3"

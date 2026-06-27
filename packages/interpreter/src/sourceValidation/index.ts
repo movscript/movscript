@@ -10,12 +10,20 @@ import {
   getSemanticEntitySchemaEntry,
 } from '@movscript/language/domain'
 import {
+  assertExplicitParentRefMatchesPath,
+  assertNamespaceCannotOwnContentUnitRef,
+  assertNamespaceCannotOwnProductionState,
+  classifyMovScriptEntityKind,
+  contentUnitTargetValidationDiagnostics,
+} from '@movscript/domain'
+import {
   normalizeWorkspacePath,
   sameEntityRef,
 } from '@movscript/workspace/layout'
 import {
   expectedOutputKindForContentUnitType,
   parseContentUnitEditPromptRefs,
+  parseUnsupportedContentUnitEditPromptRefs,
   primaryRefFieldNameForKind,
   primaryRefIdsForContentUnitRecord,
   primaryRefKindForContentUnitType,
@@ -74,7 +82,7 @@ export function validateSourceDomainGraph(
       issues.push({
         path: entry.file.path,
         severity: 'error',
-        message: `source path does not match required workspace hierarchy for ${expectedKind}`,
+        message: `source file name does not match workspace entity kind ${expectedKind}`,
       })
     }
     const directoryId = stableDirectoryIdForSourceEntity(entry.file.relativePath, expectedKind)
@@ -115,6 +123,29 @@ export function validateSourceDomainGraph(
         message: 'missing stable id field',
       })
     }
+    for (const diagnostic of assertNamespaceCannotOwnContentUnitRef({
+      entityKind: expectedKind,
+      record: entry.data,
+      path: entry.file.relativePath,
+    })) {
+      issues.push({
+        path: entry.file.path,
+        severity: diagnostic.severity,
+        message: diagnostic.message,
+      })
+    }
+    for (const diagnostic of assertNamespaceCannotOwnProductionState({
+      entityKind: expectedKind,
+      record: entry.data,
+      path: entry.file.relativePath,
+    })) {
+      issues.push({
+        path: entry.file.path,
+        severity: diagnostic.severity,
+        message: diagnostic.message,
+      })
+    }
+    validateExplicitPathParentRefs(entry, graph, issues)
     if (expectedKind === 'content_unit') {
       validateContentUnitRefs(entry.file, entry.data, graph, issues)
     }
@@ -136,6 +167,91 @@ export function validateSourceDomainGraph(
 
 function arrayField(value: unknown): unknown[] {
   return Array.isArray(value) ? value : []
+}
+
+function validateExplicitPathParentRefs(
+  entry: MovScriptSourceDomainRecord,
+  graph: MovScriptSourceDomainGraph,
+  issues: MovScriptSourceValidationIssue[],
+): void {
+  if (!entry.entityKind || !isRecord(entry.data)) return
+  for (const ref of explicitPathParentRefs(entry.entityKind, entry.data)) {
+    const pathParent = ref.parentKind
+      ? nearestAncestorRecord(graph, entry.file.relativePath, ref.parentKind)
+      : nearestPathParentRecord(graph, entry)
+    const childId = sourceRecordStableRef(entry)
+    const parentId = pathParent ? sourceRecordStableRef(pathParent) : undefined
+    for (const diagnostic of assertExplicitParentRefMatchesPath({
+      child: {
+        kind: entry.entityKind,
+        ...(childId !== undefined ? { id: childId } : {}),
+        path: entry.file.relativePath,
+      },
+      pathParent: pathParent ? {
+        kind: pathParent.entityKind ?? 'unknown',
+        ...(parentId !== undefined ? { id: parentId } : {}),
+        path: pathParent.file.relativePath,
+      } : undefined,
+      explicitParentRef: ref.value,
+      field: ref.field,
+      path: entry.file.relativePath,
+    })) {
+      issues.push({
+        path: entry.file.path,
+        severity: diagnostic.severity,
+        message: diagnostic.message,
+      })
+    }
+  }
+}
+
+function explicitPathParentRefs(
+  entityKind: string,
+  record: Record<string, unknown>,
+): { field: string; value: string | number; parentKind?: string }[] {
+  const refs: { field: string; value: string | number; parentKind?: string }[] = []
+  for (const field of [
+    'parent_ref',
+    'parentRef',
+    'parent_id',
+    'parentId',
+    'parent_scope_ref',
+    'parentScopeRef',
+    'parent_scope_id',
+    'parentScopeId',
+    'parent_namespace_ref',
+    'parentNamespaceRef',
+  ]) {
+    const value = idField(record[field])
+    if (value !== undefined) refs.push({ field, value })
+  }
+
+  if (classifyMovScriptEntityKind(entityKind) === 'timeline_namespace') {
+    for (const field of ['scope_ref', 'scopeRef']) {
+      const value = idField(record[field])
+      if (value !== undefined) refs.push({ field, value })
+    }
+  }
+
+  if (entityKind === 'setting_state') {
+    for (const field of ['setting_id', 'settingId', 'setting_ref', 'settingRef']) {
+      const value = idField(record[field])
+      if (value !== undefined) refs.push({ field, value, parentKind: 'setting' })
+    }
+  }
+
+  if (entityKind === 'storyboard' || entityKind === 'keyframe') {
+    for (const field of ['scene_moment_ref', 'sceneMomentRef']) {
+      const value = idField(record[field])
+      if (value !== undefined) refs.push({ field, value, parentKind: 'scene_moment' })
+    }
+    for (const field of ['expression_unit_ref', 'expressionUnitRef']) {
+      const value = idField(record[field])
+      if (value !== undefined) refs.push({ field, value, parentKind: 'expression_unit' })
+    }
+  }
+
+  return refs
 }
 
 function validateSemanticEntitySchema(
@@ -171,6 +287,13 @@ function validateContentUnitRefs(
   const contentUnitType = typeof record.content_unit_type === 'string' ? record.content_unit_type : undefined
   const outputKind = typeof record.output_kind === 'string' ? record.output_kind : undefined
   if (!contentUnitType) return
+  for (const diagnostic of contentUnitTargetValidationDiagnostics(record)) {
+    issues.push({
+      path: file.path,
+      severity: diagnostic.severity,
+      message: diagnostic.message,
+    })
+  }
   const expectedOutputKind = expectedOutputKindForContentUnitType(contentUnitType)
   if (expectedOutputKind && outputKind !== expectedOutputKind) {
     issues.push({
@@ -180,6 +303,13 @@ function validateContentUnitRefs(
     })
   }
   const primaryKind = primaryRefKindForContentUnitType(contentUnitType)
+  for (const ref of parseUnsupportedContentUnitEditPromptRefs(record.edit_prompt)) {
+    issues.push({
+      path: file.path,
+      severity: 'error',
+      message: `unsupported content_unit prompt ref kind "${ref.kind}": ${ref.raw}. Namespace vocabulary is context, not a selected-resource dependency`,
+    })
+  }
   if (!primaryKind) return
   const primaryRefs = primaryRefIdsForContentUnitRecord(record, primaryKind)
   const primaryFieldName = primaryRefFieldNameForKind(primaryKind)
@@ -237,21 +367,33 @@ function validateAssetOwnership(
   graph: MovScriptSourceDomainGraph,
   issues: MovScriptSourceValidationIssue[],
 ): void {
-  const parts = normalizeWorkspacePath(file.relativePath).split('/')
-  const pathSettingId = parts[1]
-  const pathStateId = parts[3]
-  const pathAssetId = parts[5]
-  if (!pathSettingId || !pathStateId || !pathAssetId) return
-
+  const setting = nearestAncestorRecord(graph, file.relativePath, 'setting')
+  const settingState = nearestAncestorRecord(graph, file.relativePath, 'setting_state')
+  const pathSettingId = setting ? sourceRecordStableRef(setting) : undefined
+  const pathStateId = settingState ? sourceRecordStableRef(settingState) : undefined
   const recordSettingId = idField(record.setting_id ?? record.settingId ?? record.setting_ref ?? record.settingRef)
   const recordStateId = idField(record.setting_state_id ?? record.settingStateId ?? record.setting_state_ref ?? record.settingStateRef)
+  if (!setting) {
+    issues.push({
+      path: file.path,
+      severity: 'error',
+      message: 'asset source path setting parent does not resolve',
+    })
+  }
+  if (!settingState) {
+    issues.push({
+      path: file.path,
+      severity: 'error',
+      message: 'asset source path setting state parent does not resolve',
+    })
+  }
   if (recordSettingId === undefined) {
     issues.push({
       path: file.path,
       severity: 'error',
       message: 'asset requires setting_id matching source path',
     })
-  } else if (!sameRefId(String(recordSettingId), pathSettingId, 'setting')) {
+  } else if (pathSettingId !== undefined && !sameRefId(String(recordSettingId), pathSettingId, 'setting')) {
     issues.push({
       path: file.path,
       severity: 'error',
@@ -264,7 +406,7 @@ function validateAssetOwnership(
       severity: 'error',
       message: 'asset requires setting_state_id matching source path',
     })
-  } else if (!sameRefId(String(recordStateId), pathStateId, 'setting_state')) {
+  } else if (pathStateId !== undefined && !sameRefId(String(recordStateId), pathStateId, 'setting_state')) {
     issues.push({
       path: file.path,
       severity: 'error',
@@ -272,22 +414,7 @@ function validateAssetOwnership(
     })
   }
 
-  const setting = sourceRecordByPathOrId(graph, 'setting', pathSettingId)
-  if (!setting) {
-    issues.push({
-      path: file.path,
-      severity: 'error',
-      message: `asset source path setting does not resolve: ${pathSettingId}`,
-    })
-  }
-  const settingState = sourceRecordByPathOrId(graph, 'setting_state', pathStateId)
-  if (!settingState) {
-    issues.push({
-      path: file.path,
-      severity: 'error',
-      message: `asset source path setting state does not resolve: ${pathStateId}`,
-    })
-  } else if (setting && !settingState.dir.startsWith(`${setting.dir}/states/`)) {
+  if (setting && settingState && !isDescendantDir(settingState.dir, setting.dir)) {
     issues.push({
       path: file.path,
       severity: 'error',
@@ -303,8 +430,10 @@ function validateAudioCueRefs(
   issues: MovScriptSourceValidationIssue[],
 ): void {
   const scopeRef = typeof record.scope_ref === 'string' ? normalizeWorkspacePath(record.scope_ref) : undefined
+  const expressionUnitRef = typeof record.expression_unit_ref === 'string' ? normalizeWorkspacePath(record.expression_unit_ref) : undefined
   const storyboardRef = typeof record.storyboard_ref === 'string' ? normalizeWorkspacePath(record.storyboard_ref) : undefined
   const scope = scopeRef ? sourceRecordByPathOrId(graph, 'scene_moment', scopeRef) : undefined
+  const expressionUnit = expressionUnitRef ? sourceRecordByPathOrId(graph, 'expression_unit', expressionUnitRef) : undefined
   const storyboard = storyboardRef ? sourceRecordByPathOrId(graph, 'storyboard', storyboardRef) : undefined
   const cueDir = file.relativePath.replace(/\/audio_cue\.json$/, '')
   const sceneMomentDir = cueDir.replace(/\/audio_cues\/[^/]+$/, '')
@@ -320,6 +449,20 @@ function validateAudioCueRefs(
       path: file.path,
       severity: 'error',
       message: `audio_cue scope_ref must reference the owning scene moment: ${scopeRef}`,
+    })
+  }
+  if (expressionUnitRef && !expressionUnit) {
+    issues.push({
+      path: file.path,
+      severity: 'error',
+      message: `audio_cue expression_unit_ref does not resolve: ${expressionUnitRef}`,
+    })
+  }
+  if (expressionUnit && !isDescendantDir(expressionUnit.dir, sceneMomentDir)) {
+    issues.push({
+      path: file.path,
+      severity: 'error',
+      message: `audio_cue expression_unit_ref is not under owning scene moment: ${expressionUnitRef}`,
     })
   }
   if (storyboardRef && !storyboard) {
@@ -376,7 +519,7 @@ function validateStoryboardSettingRefs(
           severity: 'error',
           message: `storyboard setting_refs[${index}].setting_state_id does not resolve: ${String(settingStateId)}`,
         })
-      } else if (setting && !settingState.dir.startsWith(`${setting.dir}/states/`)) {
+      } else if (setting && !isDescendantDir(settingState.dir, setting.dir)) {
         issues.push({
           path: file.path,
           severity: 'error',
@@ -476,25 +619,63 @@ function jsonValueEquals(left: unknown, right: unknown): boolean {
 
 function sourcePathMatchesEntityKind(path: string, entityKind: string): boolean {
   const normalized = normalizeWorkspacePath(path)
-  const patterns: Record<string, RegExp> = {
-    project: /^project\.json$/,
-    project_standards: /^(project_standards\.json|project_standards\/project_standards\.json)$/,
-    setting: /^settings\/[^/]+\/setting\.json$/,
-    setting_state: /^settings\/[^/]+\/states\/[^/]+\/setting_state\.json$/,
-    asset: /^settings\/[^/]+\/states\/[^/]+\/assets\/[^/]+\/asset\.json$/,
-    script: /^scripts\/[^/]+\/script\.json$/,
-    script_version: /^scripts\/[^/]+\/versions\/[^/]+\/script_version\.json$/,
-    script_block: /^scripts\/[^/]+\/versions\/[^/]+\/blocks\/[^/]+\/script_block\.json$/,
-    content_unit: /^content_units\/[^/]+\/content_unit\.json$/,
-    keyframe: /^productions\/[^/]+\/segments\/[^/]+\/scene_moments\/[^/]+\/(keyframes\/[^/]+|expression_units\/[^/]+\/keyframes\/[^/]+)\/keyframe\.json$/,
-    production: /^productions\/[^/]+\/production\.json$/,
-    segment: /^productions\/[^/]+\/segments\/[^/]+\/segment\.json$/,
-    scene_moment: /^productions\/[^/]+\/segments\/[^/]+\/scene_moments\/[^/]+\/scene_moment\.json$/,
-    storyboard: /^productions\/[^/]+\/segments\/[^/]+\/scene_moments\/[^/]+\/(storyboards\/[^/]+|expression_units\/[^/]+\/storyboards\/[^/]+)\/storyboard\.json$/,
-    audio_cue: /^productions\/[^/]+\/segments\/[^/]+\/scene_moments\/[^/]+\/audio_cues\/[^/]+\/audio_cue\.json$/,
-    expression_unit: /^productions\/[^/]+\/segments\/[^/]+\/scene_moments\/[^/]+\/expression_units\/[^/]+\/expression_unit\.json$/,
+  const fileName = normalized.split('/').pop()
+  const fileNames: Record<string, string[]> = {
+    project: ['project.json'],
+    project_standards: ['project_standards.json'],
+    setting: ['setting.json'],
+    setting_state: ['setting_state.json'],
+    asset: ['asset.json'],
+    script: ['script.json'],
+    script_version: ['script_version.json'],
+    script_block: ['script_block.json'],
+    content_unit: ['content_unit.json'],
+    keyframe: ['keyframe.json'],
+    production: ['production.json'],
+    segment: ['segment.json'],
+    scene_moment: ['scene_moment.json'],
+    storyboard: ['storyboard.json'],
+    audio_cue: ['audio_cue.json'],
+    expression_unit: ['expression_unit.json'],
   }
-  return patterns[entityKind]?.test(normalized) ?? false
+  return fileName !== undefined && (fileNames[entityKind] ?? []).includes(fileName)
+}
+
+function nearestAncestorRecord(
+  graph: MovScriptSourceDomainGraph,
+  path: string,
+  entityKind: string,
+): MovScriptSourceDomainRecord | undefined {
+  const dir = normalizeWorkspacePath(path).replace(/\/[^/]+$/, '')
+  const candidates = graph.records
+    .filter((record) => record.entityKind === entityKind && isDescendantDir(dir, record.dir))
+    .sort((left, right) => right.dir.length - left.dir.length)
+  return candidates[0]
+}
+
+function nearestPathParentRecord(
+  graph: MovScriptSourceDomainGraph,
+  entry: MovScriptSourceDomainRecord,
+): MovScriptSourceDomainRecord | undefined {
+  const dir = normalizeWorkspacePath(entry.file.relativePath).replace(/\/[^/]+$/, '')
+  const candidates = graph.records
+    .filter((record) => record.file.relativePath !== entry.file.relativePath)
+    .filter((record) => record.entityKind !== undefined)
+    .filter((record) => classifyMovScriptEntityKind(record.entityKind ?? '') !== undefined)
+    .filter((record) => isDescendantDir(dir, record.dir))
+    .sort((left, right) => right.dir.length - left.dir.length)
+  return candidates[0]
+}
+
+function sourceRecordStableRef(record: MovScriptSourceDomainRecord): string | undefined {
+  if (record.id !== undefined) return String(record.id)
+  return stableDirectoryIdForSourceEntity(record.file.relativePath, record.entityKind ?? '')
+}
+
+function isDescendantDir(child: string, parent: string): boolean {
+  const normalizedChild = normalizeWorkspacePath(child)
+  const normalizedParent = normalizeWorkspacePath(parent)
+  return normalizedChild === normalizedParent || normalizedChild.startsWith(`${normalizedParent}/`)
 }
 
 function idField(value: unknown): string | number | undefined {

@@ -2,6 +2,11 @@ import type {
   MovScriptWorkspaceDomainIndex,
   MovScriptWorkspaceIndexedEntity,
 } from '@movscript/workspace/indexer'
+import {
+  classifyMovScriptEntityKind,
+  projectMovScriptDomainNodeKind,
+} from '@movscript/domain'
+import type { MovScriptDomainNodeCategory } from '@movscript/domain'
 import type { MovScriptDomainTreeArtifact, MovScriptDomainTreeNode } from './derivedArtifactTypes.js'
 import {
   canonicalEntities,
@@ -31,14 +36,24 @@ function isTreeEntity(entity: MovScriptWorkspaceIndexedEntity): boolean {
 }
 
 function treeNode(entity: MovScriptWorkspaceIndexedEntity): MovScriptDomainTreeNode {
+  const nodeCategory = classifyMovScriptEntityKind(entity.entityKind)
   return {
     entityKind: entity.entityKind,
+    ...(nodeCategory ? { nodeCategory } : {}),
+    nodeKind: domainNodeKind(entity, nodeCategory),
     ...(entity.id !== undefined ? { id: entity.id } : {}),
     path: entity.path,
     title: stringField(entity.record.title) ?? String(entity.id ?? entity.path),
     order: numberField(entity.record.order),
     children: [],
   }
+}
+
+function domainNodeKind(
+  entity: MovScriptWorkspaceIndexedEntity,
+  _nodeCategory: MovScriptDomainNodeCategory | undefined,
+): string {
+  return projectMovScriptDomainNodeKind(entity.entityKind, entity.record)
 }
 
 function nearestParentNode(path: string, nodes: Map<string, MovScriptDomainTreeNode>): MovScriptDomainTreeNode | undefined {

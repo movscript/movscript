@@ -2,7 +2,12 @@
   "name": "@movscript/cli",
   "version": "0.2.0",
   "description": "MovScript CLI",
+  "license": "MIT",
   "type": "module",
+  "files": [
+    "bin",
+    "dist"
+  ],
   "main": "./dist/index.cjs",
   "types": "./dist/index.d.cts",
   "exports": {

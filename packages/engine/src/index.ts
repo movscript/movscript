@@ -21,6 +21,12 @@ import type {
 import type {
   MovScriptContentUnitPromptBuildResult,
 } from '@movscript/prompt'
+import {
+  allocateMovScriptEntityId,
+  implicitTimelineAssemblyRef,
+  parseImplicitTimelineAssemblyRef,
+} from '@movscript/domain'
+import type { SemanticEntityKind } from '@movscript/language/domain'
 
 export interface MovScriptEnginePublishInput {
   productionId?: string | number
@@ -78,6 +84,8 @@ export interface MovScriptEngineSettingInput {
   id?: string | number
   title?: string
   kind?: string
+  namespaceKind?: string
+  settingNamespaceKind?: string
   description?: string
   alias?: string
   content?: unknown
@@ -89,6 +97,8 @@ export interface MovScriptEngineSettingStateInput {
   settingId?: string | number
   title?: string
   stateKind?: string
+  namespaceKind?: string
+  settingNamespaceKind?: string
   description?: string
 }
 
@@ -130,6 +140,13 @@ export interface MovScriptEngineEntityBasicsInput {
 export interface MovScriptEngineHierarchyNodeWriteInput {
   targetPath: string
   record: Record<string, unknown>
+  category?: string
+  domainCategory?: string
+  domain_category?: string
+  namespaceKind?: string
+  namespace_kind?: string
+  domainKind?: string
+  domain_kind?: string
 }
 
 export interface MovScriptEngineSceneMomentSettingConnectionInput {
@@ -215,8 +232,11 @@ export interface MovScriptEngineContentUnitInput {
   kind?: string
   contentUnitType?: string
   outputKind?: string
+  targetCategory?: string
   targetKind?: string
   targetRef?: string | number
+  scopeKind?: string
+  scopeRef?: string | number
   generationRole?: string
   assetRef?: string | number
   productionId?: string | number
@@ -245,6 +265,7 @@ export interface MovScriptEngineContentUnitInput {
 }
 
 export type MovScriptEngineContentUnitTargetKind =
+  | 'timeline_assembly'
   | 'asset'
   | 'scene_moment'
   | 'expression_unit'
@@ -255,6 +276,8 @@ export interface MovScriptEngineEnsureContentUnitInput {
   targetKind: MovScriptEngineContentUnitTargetKind
   targetId?: string | number
   targetRef?: string | number
+  scopeKind?: string
+  scopeRef?: string | number
   id?: string | number
   title?: string
   contentUnitType?: string
@@ -594,15 +617,18 @@ function planningQuery(entityKind: PlanningEntityKind, input: MovScriptEngineLis
   })
 }
 
-function saveSetting(
+async function saveSetting(
   workspaceService: MovScriptWorkspaceService,
   input: MovScriptEngineSettingInput,
 ) {
+  const id = await engineEntityId(workspaceService, 'setting', input.id, input.title)
   return workspaceService.upsertSetting({
     payload: pruneUndefined({
-      id: input.id,
+      id,
       title: input.title,
       setting_kind: input.kind,
+      namespace_kind: input.namespaceKind ?? input.settingNamespaceKind,
+      setting_namespace_kind: input.settingNamespaceKind ?? input.namespaceKind,
       description: input.description,
       alias: input.alias,
       content: input.content,
@@ -611,28 +637,32 @@ function saveSetting(
   })
 }
 
-function saveSettingState(
+async function saveSettingState(
   workspaceService: MovScriptWorkspaceService,
   input: MovScriptEngineSettingStateInput,
 ) {
+  const id = await engineEntityId(workspaceService, 'setting_state', input.id, input.title)
   return workspaceService.upsertSettingState({
     payload: pruneUndefined({
-      id: input.id,
+      id,
       setting_id: input.settingId,
       title: input.title,
       state_kind: input.stateKind,
+      namespace_kind: input.namespaceKind ?? input.settingNamespaceKind,
+      setting_namespace_kind: input.settingNamespaceKind ?? input.namespaceKind,
       description: input.description,
     }),
   })
 }
 
-function saveAsset(
+async function saveAsset(
   workspaceService: MovScriptWorkspaceService,
   input: MovScriptEngineAssetInput,
 ) {
+  const id = await engineEntityId(workspaceService, 'asset', input.id, input.title ?? input.slot)
   return workspaceService.upsertAsset({
     payload: pruneUndefined({
-      id: input.id,
+      id,
       title: input.title,
       setting_id: input.settingId,
       setting_state_id: input.settingStateId,
@@ -668,95 +698,10 @@ async function writeHierarchyNode(
       summary: stringValue(record.description) ?? '',
     }))
   }
-  if (entityKind === 'production') {
-    return saveProduction(workspaceService, {
-      id: idValue(record.id) ?? pathSegmentAfter(input.targetPath, 'productions'),
-      title: stringValue(record.title),
-    })
-  }
-  if (entityKind === 'segment') {
-    return saveSegment(workspaceService, {
-      productionId: pathSegmentAfter(input.targetPath, 'productions'),
-      id: idValue(record.id) ?? pathSegmentAfter(input.targetPath, 'segments'),
-      title: stringValue(record.title),
-      kind: stringValue(record.segment_kind ?? record.kind),
-      summary: stringValue(record.summary ?? record.description),
-      order: numberValue(record.order),
-    })
-  }
-  if (entityKind === 'scene_moment') {
-    return saveSceneMoment(workspaceService, {
-      productionId: pathSegmentAfter(input.targetPath, 'productions'),
-      segmentId: pathSegmentAfter(input.targetPath, 'segments'),
-      id: idValue(record.id) ?? pathSegmentAfter(input.targetPath, 'scene_moments'),
-      title: stringValue(record.title),
-      storyboardId: idValue(record.storyboard_id ?? record.storyboardId),
-      order: numberValue(record.order),
-      timeText: stringValue(record.time_text ?? record.when),
-      sceneCode: stringValue(record.scene_code),
-      locationText: stringValue(record.location_text ?? record.where),
-      conditionText: stringValue(record.condition_text),
-      actionText: stringValue(record.action_text ?? record.action),
-      mood: stringValue(record.mood ?? record.emotion),
-      description: stringValue(record.description),
-      settings: settingRefsFromRecord(record),
-    })
-  }
-  if (entityKind === 'expression_unit') {
-    return saveExpressionUnit(workspaceService, {
-      productionId: pathSegmentAfter(input.targetPath, 'productions'),
-      segmentId: pathSegmentAfter(input.targetPath, 'segments'),
-      sceneMomentId: idValue(record.scene_moment_id) ?? pathSegmentAfter(input.targetPath, 'scene_moments'),
-      id: idValue(record.id) ?? pathSegmentAfter(input.targetPath, 'expression_units'),
-      title: stringValue(record.title),
-      kind: stringValue(record.kind),
-      text: stringValue(record.text ?? record.content),
-      intent: stringValue(record.intent ?? record.summary ?? record.description),
-      speaker: stringValue(record.speaker),
-      note: stringValue(record.note),
-      order: numberValue(record.order),
-    })
-  }
-  if (entityKind === 'keyframe') {
-    return saveKeyframe(workspaceService, {
-      productionId: pathSegmentAfter(input.targetPath, 'productions'),
-      segmentId: pathSegmentAfter(input.targetPath, 'segments'),
-      sceneMomentId: idValue(record.scene_moment_id) ?? pathSegmentAfter(input.targetPath, 'scene_moments'),
-      expressionUnitId: idValue(record.expression_unit_id) ?? pathSegmentAfter(input.targetPath, 'expression_units'),
-      id: idValue(record.id) ?? pathSegmentAfter(input.targetPath, 'keyframes'),
-      title: stringValue(record.title),
-      role: stringValue(record.role ?? record.status),
-      visualIntent: stringValue(record.visual_intent ?? record.visualIntent ?? record.prompt_hint ?? record.description),
-      order: numberValue(record.order),
-    })
-  }
-  if (entityKind === 'storyboard') {
-    return saveStoryboard(workspaceService, {
-      productionId: pathSegmentAfter(input.targetPath, 'productions'),
-      segmentId: pathSegmentAfter(input.targetPath, 'segments'),
-      sceneMomentId: idValue(record.scene_moment_id) ?? pathSegmentAfter(input.targetPath, 'scene_moments'),
-      expressionUnitId: idValue(record.expression_unit_id) ?? pathSegmentAfter(input.targetPath, 'expression_units'),
-      id: idValue(record.id) ?? pathSegmentAfter(input.targetPath, 'storyboards'),
-      title: stringValue(record.title),
-      visualIntent: stringValue(record.visual_intent ?? record.visualIntent ?? record.prompt_hint ?? record.description),
-      order: numberValue(record.order),
-    })
-  }
-  if (entityKind === 'audio_cue') {
-    return saveAudioCue(workspaceService, {
-      productionId: pathSegmentAfter(input.targetPath, 'productions'),
-      segmentId: pathSegmentAfter(input.targetPath, 'segments'),
-      sceneMomentId: idValue(record.scene_moment_id) ?? pathSegmentAfter(input.targetPath, 'scene_moments'),
-      expressionUnitId: idValue(record.expression_unit_id) ?? idValue(record.expression_unit_ref) ?? pathSegmentAfter(input.targetPath, 'expression_units'),
-      storyboardId: idValue(record.storyboard_id),
-      id: idValue(record.id) ?? pathSegmentAfter(input.targetPath, 'audio_cues'),
-      title: stringValue(record.title),
-      kind: stringValue(record.cue_kind ?? record.kind),
-      promptHint: stringValue(record.prompt_hint ?? record.promptHint),
-      order: numberValue(record.order),
-    })
-  }
-  throw new Error(`Unsupported hierarchy node kind: ${entityKind}`)
+  return workspaceService.upsertSourceRecord({
+    targetPath: input.targetPath,
+    record: pathPreservingHierarchyRecord(input.targetPath, record, entityKind),
+  })
 }
 
 async function updateEntityBasics(
@@ -779,6 +724,12 @@ async function updateEntityBasics(
   }
   if (entityKind === 'content_unit') {
     return saveContentUnit(workspaceService, contentUnitInputFromPatchedRecord(patched, input))
+  }
+  if (input.targetPath) {
+    return workspaceService.upsertSourceRecord({
+      targetPath: input.targetPath,
+      record: pathPreservingHierarchyRecord(input.targetPath, patched, entityKind),
+    })
   }
   if (entityKind === 'production') {
     return saveProduction(workspaceService, {
@@ -887,12 +838,15 @@ function connectSceneMomentSetting(
   })
 }
 
-function saveProduction(
+async function saveProduction(
   workspaceService: MovScriptWorkspaceService,
   input: MovScriptEngineProductionInput,
 ) {
+  const productionId = input.id === undefined && !stringValue(input.title)
+    ? 'main'
+    : await engineEntityId(workspaceService, 'production', input.id, input.title)
   return workspaceService.saveProductionSnapshot({
-    productionId: input.id ?? 'main',
+    productionId,
     snapshot: {
       production: pruneUndefined({ title: input.title }),
       segments: [],
@@ -900,15 +854,16 @@ function saveProduction(
   })
 }
 
-function saveSegment(
+async function saveSegment(
   workspaceService: MovScriptWorkspaceService,
   input: MovScriptEngineSegmentInput,
 ) {
+  const segmentId = await engineEntityId(workspaceService, 'segment', input.id, input.title)
   return workspaceService.saveProductionSnapshot({
     productionId: input.productionId ?? 'main',
     snapshot: {
       segments: [pruneUndefined({
-        id: input.id,
+        id: segmentId,
         title: input.title,
         kind: input.kind,
         summary: input.summary,
@@ -918,18 +873,19 @@ function saveSegment(
   })
 }
 
-function saveSceneMoment(
+async function saveSceneMoment(
   workspaceService: MovScriptWorkspaceService,
   input: MovScriptEngineSceneMomentInput,
 ) {
   const segmentId = requiredId(input.segmentId, 'segmentId')
+  const sceneMomentId = await engineEntityId(workspaceService, 'scene_moment', input.id, input.title)
   return workspaceService.saveProductionSnapshot({
     productionId: input.productionId ?? 'main',
     snapshot: {
       segments: [{
         id: segmentId,
         scene_moments: [pruneUndefined({
-          id: input.id,
+          id: sceneMomentId,
           title: input.title,
           storyboard_id: input.storyboardId,
           order: input.order,
@@ -947,13 +903,14 @@ function saveSceneMoment(
   })
 }
 
-function saveStoryboard(
+async function saveStoryboard(
   workspaceService: MovScriptWorkspaceService,
   input: MovScriptEngineStoryboardInput,
 ) {
   const segmentId = requiredId(input.segmentId, 'segmentId')
   const sceneMomentId = requiredId(input.sceneMomentId, 'sceneMomentId')
   const expressionUnitId = input.expressionUnitId
+  const storyboardId = await engineEntityId(workspaceService, 'storyboard', input.id, input.title)
   return workspaceService.saveProductionSnapshot({
     productionId: input.productionId ?? 'main',
     snapshot: {
@@ -967,7 +924,7 @@ function saveStoryboard(
                   id: expressionUnitId,
                   kind: 'shot',
                   storyboards: [pruneUndefined({
-                    id: input.id ?? 'main',
+                    id: storyboardId,
                     title: input.title,
                     visual_intent: input.visualIntent,
                     order: input.order,
@@ -978,7 +935,7 @@ function saveStoryboard(
               }
             : {
                 storyboards: [pruneUndefined({
-                  id: input.id ?? 'main',
+                  id: storyboardId,
                   title: input.title,
                   visual_intent: input.visualIntent,
                   order: input.order,
@@ -992,13 +949,14 @@ function saveStoryboard(
   })
 }
 
-function saveKeyframe(
+async function saveKeyframe(
   workspaceService: MovScriptWorkspaceService,
   input: MovScriptEngineKeyframeInput,
 ) {
   const segmentId = requiredId(input.segmentId, 'segmentId')
   const sceneMomentId = requiredId(input.sceneMomentId, 'sceneMomentId')
   const expressionUnitId = input.expressionUnitId
+  const keyframeId = await engineEntityId(workspaceService, 'keyframe', input.id, input.title)
   return workspaceService.saveProductionSnapshot({
     productionId: input.productionId ?? 'main',
     snapshot: {
@@ -1012,7 +970,7 @@ function saveKeyframe(
                   id: expressionUnitId,
                   kind: 'shot',
                   keyframes: [pruneUndefined({
-                    id: input.id ?? 'main',
+                    id: keyframeId,
                     title: input.title,
                     role: input.role,
                     visual_intent: input.visualIntent,
@@ -1027,7 +985,7 @@ function saveKeyframe(
               }
             : {
                 keyframes: [pruneUndefined({
-                  id: input.id ?? 'main',
+                  id: keyframeId,
                   title: input.title,
                   role: input.role,
                   visual_intent: input.visualIntent,
@@ -1045,12 +1003,13 @@ function saveKeyframe(
   })
 }
 
-function saveAudioCue(
+async function saveAudioCue(
   workspaceService: MovScriptWorkspaceService,
   input: MovScriptEngineAudioCueInput,
 ) {
   const segmentId = requiredId(input.segmentId, 'segmentId')
   const sceneMomentId = requiredId(input.sceneMomentId, 'sceneMomentId')
+  const audioCueId = await engineEntityId(workspaceService, 'audio_cue', input.id, input.title)
   return workspaceService.saveProductionSnapshot({
     productionId: input.productionId ?? 'main',
     snapshot: {
@@ -1059,7 +1018,7 @@ function saveAudioCue(
         scene_moments: [{
           id: sceneMomentId,
             audio_cues: [pruneUndefined({
-              id: input.id,
+              id: audioCueId,
               title: input.title,
               kind: input.kind,
               order: input.order,
@@ -1073,12 +1032,13 @@ function saveAudioCue(
   })
 }
 
-function saveExpressionUnit(
+async function saveExpressionUnit(
   workspaceService: MovScriptWorkspaceService,
   input: MovScriptEngineExpressionUnitInput,
 ) {
   const segmentId = requiredId(input.segmentId, 'segmentId')
   const sceneMomentId = requiredId(input.sceneMomentId, 'sceneMomentId')
+  const expressionUnitId = await engineEntityId(workspaceService, 'expression_unit', input.id, input.title ?? input.text)
   return workspaceService.saveProductionSnapshot({
     productionId: input.productionId ?? 'main',
     snapshot: {
@@ -1087,7 +1047,7 @@ function saveExpressionUnit(
         scene_moments: [{
           id: sceneMomentId,
           expression_units: [pruneUndefined({
-            id: input.id,
+            id: expressionUnitId,
             title: input.title,
             modality: input.modality,
             role: input.role,
@@ -1112,18 +1072,22 @@ function saveExpressionUnit(
   })
 }
 
-function saveContentUnit(
+async function saveContentUnit(
   workspaceService: MovScriptWorkspaceService,
   input: MovScriptEngineContentUnitInput,
 ) {
+  const id = await engineEntityId(workspaceService, 'content_unit', input.id, input.title)
   return workspaceService.upsertContentUnit({
     unit: pruneUndefined({
-      id: input.id,
+      id,
       title: input.title,
       content_unit_type: input.contentUnitType ?? input.kind ?? 'storyboard_ref',
       output_kind: input.outputKind ?? defaultContentUnitOutputKind(input.contentUnitType ?? input.kind ?? 'storyboard_ref'),
+      target_category: input.targetCategory,
       target_kind: input.targetKind,
       target_ref: input.targetRef,
+      scope_kind: input.scopeKind,
+      scope_ref: input.scopeRef,
       generation_role: input.generationRole,
       edit_prompt: pruneUndefined({
         text: input.prompt?.trim() || undefined,
@@ -1162,24 +1126,25 @@ async function ensureContentUnitForEntity(
   workspaceService: MovScriptWorkspaceService,
   input: MovScriptEngineEnsureContentUnitInput,
 ) {
-  const targetRef = normalizeEntityRef(input.targetRef ?? input.targetId, input.targetKind)
+  const target = normalizeContentUnitTarget(input)
   const contentUnitType = input.contentUnitType ?? contentUnitTypeForTargetKind(input.targetKind)
   const outputKind = input.outputKind ?? defaultContentUnitOutputKind(contentUnitType)
   const existing = (await workspaceService.queryEntities({ entityKind: 'content_unit' }))
     .find((entity) => {
-      if (String(entity.record.content_unit_type ?? '') !== contentUnitType) return false
-      return compactStrings(entity.record[primaryRefFieldForTargetKind(input.targetKind)])
-        .some((ref) => sameEntityRef(ref, targetRef))
+      const recordType = String(entity.record.content_unit_type ?? '')
+      if (!contentUnitTypeMatchesTarget(recordType, contentUnitType, input.targetKind, target)) return false
+      return contentUnitRecordMatchesTarget(entity.record, input.targetKind, target)
     })
   if (existing) {
     if (input.prompt === undefined && input.negativePrompt === undefined) {
       return { contentUnitPath: existing.path, record: existing.record }
     }
+    const existingContentUnitType = stringValue(existing.record.content_unit_type)
     return saveContentUnit(workspaceService, {
-      ...contentUnitInputForTarget(input.targetKind, targetRef),
-      id: idValue(existing.id) ?? idValue(existing.record.id) ?? contentUnitIdForTarget(input.targetKind, targetRef),
+      ...contentUnitInputForTarget(input.targetKind, target),
+      id: idValue(existing.id) ?? idValue(existing.record.id) ?? contentUnitIdForTarget(input.targetKind, target.targetRef),
       title: input.title ?? stringValue(existing.record.title),
-      contentUnitType,
+      contentUnitType: input.contentUnitType ?? existingContentUnitType ?? contentUnitType,
       outputKind,
       prompt: input.prompt,
       negativePrompt: input.negativePrompt,
@@ -1190,22 +1155,103 @@ async function ensureContentUnitForEntity(
   }
 
   return saveContentUnit(workspaceService, {
-    ...contentUnitInputForTarget(input.targetKind, targetRef),
-    id: input.id ?? contentUnitIdForTarget(input.targetKind, targetRef),
-    title: input.title ?? `${targetKindLabel(input.targetKind)} ${targetRef} 制作项`,
+    ...contentUnitInputForTarget(input.targetKind, target),
+    id: input.id ?? contentUnitIdForTarget(input.targetKind, target.targetRef),
+    title: input.title ?? `${targetKindLabel(input.targetKind)} ${target.targetRef} 制作项`,
     contentUnitType,
     outputKind,
     prompt: input.prompt,
     negativePrompt: input.negativePrompt,
-    description: input.description ?? `从 ${targetKindLabel(input.targetKind)}「${targetRef}」创建。`,
+    description: input.description ?? `从 ${targetKindLabel(input.targetKind)}「${target.targetRef}」创建。`,
     order: input.order,
     modelIntent: {
       source: 'engine',
       target_kind: input.targetKind,
-      target_ref: targetRef,
+      target_ref: target.targetRef,
+      ...(target.scopeKind && target.scopeRef ? { scope_kind: target.scopeKind, scope_ref: target.scopeRef } : {}),
       ...(input.modelIntent ?? {}),
     },
   })
+}
+
+interface NormalizedEngineContentUnitTarget {
+  targetRef: string
+  scopeKind?: string
+  scopeRef?: string
+}
+
+function normalizeContentUnitTarget(input: MovScriptEngineEnsureContentUnitInput): NormalizedEngineContentUnitTarget {
+  if (input.targetKind !== 'timeline_assembly') {
+    return { targetRef: normalizeEntityRef(input.targetRef ?? input.targetId, input.targetKind) }
+  }
+
+  const scopeKind = stringValue(input.scopeKind)
+  const scopeRef = idStringValue(input.scopeRef)
+  const rawRef = idStringValue(input.targetRef ?? input.targetId)
+  const parsedRef = parseImplicitTimelineAssemblyRef(rawRef)
+  const normalizedScopeKind = scopeKind ?? parsedRef?.scopeKind
+  const normalizedScopeRef = scopeRef ?? parsedRef?.scopeRef ?? (!parsedRef && scopeKind ? rawRef : undefined)
+  if (!normalizedScopeKind || !normalizedScopeRef) {
+    throw new Error('timeline_assembly target requires targetRef timeline_assembly:<scopeKind>:<scopeRef> or scopeKind/scopeRef')
+  }
+  return {
+    targetRef: implicitTimelineAssemblyRef(normalizedScopeKind, normalizedScopeRef),
+    scopeKind: normalizedScopeKind,
+    scopeRef: normalizedScopeRef,
+  }
+}
+
+async function engineEntityId(
+  workspaceService: MovScriptWorkspaceService,
+  entityKind: SemanticEntityKind,
+  explicitId: unknown,
+  title: unknown,
+): Promise<string | number> {
+  const id = idValue(explicitId)
+  if (id !== undefined) return id
+  const entities = await workspaceService.queryEntities({ entityKind }).catch(() => [])
+  return allocateMovScriptEntityId({
+    entityKind,
+    title,
+    existingIds: entities.flatMap((entity) => [
+      idStringValue(entity.id),
+      idStringValue(entity.record.id),
+      idStringValue(entity.record.ID),
+    ]).filter((value): value is string => Boolean(value)),
+  })
+}
+
+function contentUnitTypeMatchesTarget(
+  recordType: string,
+  requestedType: string,
+  targetKind: MovScriptEngineContentUnitTargetKind,
+  target: NormalizedEngineContentUnitTarget,
+): boolean {
+  if (recordType === requestedType) return true
+  if (targetKind !== 'timeline_assembly' || requestedType !== 'timeline_assembly_ref') return false
+  if (target.scopeKind === 'production' && recordType === 'production_ref') return true
+  if (target.scopeKind === 'segment' && recordType === 'segment_ref') return true
+  return false
+}
+
+function contentUnitRecordMatchesTarget(
+  record: Record<string, unknown>,
+  targetKind: MovScriptEngineContentUnitTargetKind,
+  target: NormalizedEngineContentUnitTarget,
+): boolean {
+  if (targetKind === 'timeline_assembly') {
+    const targetRefs = compactStrings(record.target_ref, record.targetRef)
+    if (targetRefs.some((ref) => sameEntityRef(ref, target.targetRef))) return true
+    const recordScopeKind = stringValue(record.scope_kind ?? record.scopeKind)
+    const recordScopeRef = stringValue(record.scope_ref ?? record.scopeRef)
+    if (recordScopeKind && recordScopeRef && target.scopeKind === recordScopeKind && sameEntityRef(recordScopeRef, target.scopeRef)) return true
+    if (target.scopeKind === 'production') return compactStrings(record.production_ref, record.productionRef).some((ref) => sameEntityRef(ref, target.scopeRef))
+    if (target.scopeKind === 'segment') return compactStrings(record.segment_ref, record.segmentRef).some((ref) => sameEntityRef(ref, target.scopeRef))
+    return false
+  }
+
+  return compactStrings(record[primaryRefFieldForTargetKind(targetKind)])
+    .some((ref) => sameEntityRef(ref, target.targetRef))
 }
 
 function defaultContentUnitOutputKind(contentUnitType: string): string {
@@ -1214,6 +1260,7 @@ function defaultContentUnitOutputKind(contentUnitType: string): string {
     case 'keyframe_ref':
     case 'storyboard_ref':
       return 'image'
+    case 'timeline_assembly_ref':
     case 'expression_unit_ref':
     case 'scence_moment_ref':
     case 'scene_moment_ref':
@@ -1234,10 +1281,68 @@ function entityKindFromPath(path: string | undefined): string | undefined {
   if (path.endsWith('/segment.json')) return 'segment'
   if (path.endsWith('/scene_moment.json')) return 'scene_moment'
   if (path.endsWith('/expression_unit.json')) return 'expression_unit'
+  if (path.endsWith('/audio_cue.json')) return 'audio_cue'
   if (path.endsWith('/keyframe.json')) return 'keyframe'
   if (path.endsWith('/storyboard.json')) return 'storyboard'
+  if (path.endsWith('/shot.json')) return 'shot'
   if (path.endsWith('/content_unit.json')) return 'content_unit'
   return undefined
+}
+
+function pathPreservingHierarchyRecord(
+  targetPath: string,
+  record: Record<string, unknown>,
+  entityKind: string,
+): Record<string, unknown> {
+  const kind = stringValue(record.kind) ?? entityKind
+  return pruneUndefined({
+    ...record,
+    schema: stringValue(record.schema) ?? `movscript.${kind}.v1`,
+    kind,
+    id: idValue(record.id) ?? entityIdFromTargetPath(targetPath, kind),
+    title: stringValue(record.title),
+  })
+}
+
+function entityIdFromTargetPath(targetPath: string, entityKind: string): string | undefined {
+  const collection = collectionSegmentForSourceKind(entityKind)
+  const collectionId = collection ? pathSegmentAfter(targetPath, collection) : undefined
+  if (collectionId) return collectionId
+  const parts = normalizePath(targetPath).split('/').filter(Boolean)
+  const filename = parts.at(-1)
+  if (filename?.endsWith('.json')) return parts.at(-2)
+  return parts.at(-1)
+}
+
+function collectionSegmentForSourceKind(entityKind: string): string | undefined {
+  switch (entityKind) {
+    case 'production':
+      return 'productions'
+    case 'segment':
+      return 'segments'
+    case 'scene_moment':
+      return 'scene_moments'
+    case 'expression_unit':
+      return 'expression_units'
+    case 'audio_cue':
+      return 'audio_cues'
+    case 'keyframe':
+      return 'keyframes'
+    case 'storyboard':
+      return 'storyboards'
+    case 'content_unit':
+      return 'content_units'
+    case 'setting':
+      return 'settings'
+    case 'setting_state':
+      return 'states'
+    case 'asset':
+      return 'assets'
+    case 'shot':
+      return 'shots'
+    default:
+      return undefined
+  }
 }
 
 function patchEntityBasics(
@@ -1314,22 +1419,33 @@ function settingRefInput(input: MovScriptEngineSettingRefInput): Record<string, 
 }
 
 function contentUnitTypeForTargetKind(kind: MovScriptEngineContentUnitTargetKind): string {
+  if (kind === 'timeline_assembly') return 'timeline_assembly_ref'
   return `${kind}_ref`
 }
 
 function primaryRefFieldForTargetKind(kind: MovScriptEngineContentUnitTargetKind): string {
+  if (kind === 'timeline_assembly') return 'target_ref'
   return kind === 'scene_moment' ? 'scene_moment_ref' : `${kind}_ref`
 }
 
 function contentUnitInputForTarget(
   kind: MovScriptEngineContentUnitTargetKind,
-  targetRef: string,
-): Pick<MovScriptEngineContentUnitInput, 'assetRef' | 'sceneMomentId' | 'expressionUnitId' | 'keyframeId' | 'storyboardId'> {
-  if (kind === 'asset') return { assetRef: targetRef }
-  if (kind === 'scene_moment') return { sceneMomentId: targetRef }
-  if (kind === 'expression_unit') return { expressionUnitId: targetRef }
-  if (kind === 'keyframe') return { keyframeId: targetRef }
-  return { storyboardId: targetRef }
+  target: NormalizedEngineContentUnitTarget,
+): Pick<MovScriptEngineContentUnitInput, 'targetCategory' | 'targetKind' | 'targetRef' | 'scopeKind' | 'scopeRef' | 'assetRef' | 'sceneMomentId' | 'expressionUnitId' | 'keyframeId' | 'storyboardId'> {
+  if (kind === 'timeline_assembly') {
+    return {
+      targetCategory: 'timeline_assembly',
+      targetKind: 'timeline_assembly',
+      targetRef: target.targetRef,
+      scopeKind: target.scopeKind,
+      scopeRef: target.scopeRef,
+    }
+  }
+  if (kind === 'asset') return { assetRef: target.targetRef }
+  if (kind === 'scene_moment') return { sceneMomentId: target.targetRef }
+  if (kind === 'expression_unit') return { expressionUnitId: target.targetRef }
+  if (kind === 'keyframe') return { keyframeId: target.targetRef }
+  return { storyboardId: target.targetRef }
 }
 
 function contentUnitIdForTarget(kind: MovScriptEngineContentUnitTargetKind, targetRef: string): string {
@@ -1337,6 +1453,7 @@ function contentUnitIdForTarget(kind: MovScriptEngineContentUnitTargetKind, targ
 }
 
 function targetKindLabel(kind: MovScriptEngineContentUnitTargetKind): string {
+  if (kind === 'timeline_assembly') return '剪辑聚合'
   if (kind === 'asset') return '素材'
   if (kind === 'scene_moment') return '情节'
   if (kind === 'expression_unit') return '表达单元'
@@ -1360,6 +1477,7 @@ function normalizeEntityRef(value: string | number | undefined, kind: MovScriptE
 }
 
 function collectionSegmentForTargetKind(kind: MovScriptEngineContentUnitTargetKind): string {
+  if (kind === 'timeline_assembly') return 'timeline_assemblies'
   if (kind === 'scene_moment') return 'scene_moments'
   if (kind === 'expression_unit') return 'expression_units'
   if (kind === 'keyframe') return 'keyframes'
@@ -1498,6 +1616,11 @@ function idValue(value: unknown): string | number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) return value
   if (typeof value === 'string' && value.trim()) return value.trim()
   return undefined
+}
+
+function idStringValue(value: unknown): string | undefined {
+  const id = idValue(value)
+  return id === undefined ? undefined : String(id)
 }
 
 function pruneUndefined<T extends Record<string, unknown>>(value: T): T {

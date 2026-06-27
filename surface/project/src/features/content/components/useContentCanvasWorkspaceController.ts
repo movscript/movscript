@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Viewport } from '@xyflow/react'
 
@@ -27,10 +27,12 @@ import {
   updateContentCanvasDocumentViewport,
 } from '../application/contentCanvasDocuments'
 import { contentCanvasDocumentNodeInputsWithReferences } from '../application/contentCreativeCanvasReferences'
+import { resolveContentCanvasProjectEntrySessionState } from '../application/contentCanvasProjectEntrySession'
 import { loadContentCanvasProject } from '../application/loadContentCanvasProject'
 import {
   createCandidateFromResourceForContentUnit,
   createCandidateFromContentUnit,
+  createTimelineAssemblyFromNamespace,
   deleteContentCanvasNode,
   ensureDefaultContentUnitFromCanvasNode,
   selectCandidateNodeFromCanvas,
@@ -67,7 +69,7 @@ import {
 } from './contentCanvasWorkspaceCommandModel'
 import { contentCanvasGenerationTargetForNode } from './contentCanvasWorkspaceGenerationModel'
 import { promptFromContentNode } from './contentCanvasWorkspaceNodeModel'
-import { buildContentCanvasWorkspaceViewModel } from './contentCanvasWorkspaceViewModel'
+import { buildContentCanvasWorkspaceViewModel, type ContentCanvasWorkspacePreviewInput } from './contentCanvasWorkspaceViewModel'
 import {
   mergeContentCanvasCommandCandidates,
   mergeContentCanvasCommandSelections,
@@ -76,7 +78,12 @@ import {
 } from './contentCanvasWorkspaceCandidateModel'
 import { useContentCanvasWorkspaceSession } from './useContentCanvasWorkspaceSession'
 import { useContentCanvasWorkspaceCreationCommands } from './useContentCanvasWorkspaceCreationCommands'
+import {
+  contentCanvasNamespaceVocabularyOptions,
+  contentCanvasNextTimelineNamespaceKind,
+} from './contentCanvasNamespaceVocabularyModel'
 import { useSurfaceHostState } from '../../project/application/surfaceHostStateHooks'
+import type { ProjectEntrySessionId } from '../../project/application/projectEntrySessionStore'
 
 interface UseContentCanvasWorkspaceControllerInput {
   workspaceMode?: ContentWorkspaceTab
@@ -86,6 +93,7 @@ export function useContentCanvasWorkspaceController({
   workspaceMode,
 }: UseContentCanvasWorkspaceControllerInput = {}) {
   const queryClient = useQueryClient()
+  const location = useLocation()
   const navigate = useNavigate()
   const project = useSurfaceHostState((state) => state.currentProject)
   const workspaceRoot = useSurfaceHostState((state) => state.workspaceRoot)
@@ -95,6 +103,10 @@ export function useContentCanvasWorkspaceController({
     [project?.project_path, project?.workspace_path, workspaceRoot],
   )
   const [searchParams] = useSearchParams()
+  const projectEntryId = useMemo(
+    () => contentCanvasProjectEntryIdForRoute(location.pathname, workspaceMode),
+    [location.pathname, workspaceMode],
+  )
   const requestedCanvasId = searchParams.get('canvasId') ?? searchParams.get('canvas') ?? undefined
   const [settingQuery, setSettingQuery] = useState('')
   const [activeKind, setActiveKind] = useState<SettingKind | 'all'>('all')
@@ -147,11 +159,11 @@ export function useContentCanvasWorkspaceController({
 
   useEffect(() => {
     if (!projectId || !requestedCanvasId) return
-    const current = ensureContentCanvasDocumentsState(projectId)
+    const current = readContentCanvasDocumentsState(projectId)
     if (!current?.documents[requestedCanvasId] || current.activeCanvasId === requestedCanvasId) return
     selectContentCanvasDocument(projectId, requestedCanvasId)
     setCanvasDocumentsVersion((version) => version + 1)
-  }, [projectId, requestedCanvasId])
+  }, [canvasDocumentsVersion, projectId, requestedCanvasId])
 
   const canvasDocumentsState = useMemo(
     () => {
@@ -182,6 +194,10 @@ export function useContentCanvasWorkspaceController({
     () => withLocalContentCanvasCandidates(projectQuery.data, localContentUnitCandidates),
     [localContentUnitCandidates, projectQuery.data],
   )
+  const namespaceVocabulary = useMemo(
+    () => contentCanvasNamespaceVocabularyOptions(projectDataWithLocalCandidates),
+    [projectDataWithLocalCandidates],
+  )
   const hasActiveContentUnitCandidate = useMemo(
     () => contentCanvasProjectHasActiveCandidate(projectDataWithLocalCandidates),
     [projectDataWithLocalCandidates],
@@ -191,6 +207,33 @@ export function useContentCanvasWorkspaceController({
     [projectDataWithLocalCandidates],
   )
   const activeContentUnitCandidateJobIdKey = activeContentUnitCandidateJobIds.join(',')
+  const routePreviewTargetNodeId = useMemo(
+    () => resolveContentCanvasProjectEntrySessionState({
+      hasExplicitSearch: true,
+      searchParams,
+      snapshot: null,
+    })?.activeCanvasNodeId ?? null,
+    [searchParams],
+  )
+  const previewInput = useMemo<ContentCanvasWorkspacePreviewInput | undefined>(
+    () => contentCanvasWorkspacePreviewInputForRoute({
+      activeCanvasNodeId,
+      activeProductionId,
+      activeSettingId,
+      projectEntryId,
+      routePreviewTargetNodeId,
+      workspaceTab: workspaceMode ?? workspaceTab,
+    }),
+    [
+      activeCanvasNodeId,
+      activeProductionId,
+      activeSettingId,
+      projectEntryId,
+      routePreviewTargetNodeId,
+      workspaceMode,
+      workspaceTab,
+    ],
+  )
 
   useEffect(() => {
     if (!projectId || !hasActiveContentUnitCandidate) return undefined
@@ -224,6 +267,7 @@ export function useContentCanvasWorkspaceController({
     activeProductionId,
     activeSceneId,
     activeSettingId,
+    preview: previewInput,
     selection,
     settingQuery,
   }), [
@@ -232,6 +276,7 @@ export function useContentCanvasWorkspaceController({
     activeProductionId,
     activeSceneId,
     activeSettingId,
+    previewInput,
     projectDataWithLocalCandidates,
     selection,
     settingQuery,
@@ -279,6 +324,7 @@ export function useContentCanvasWorkspaceController({
   const creationCommands = useContentCanvasWorkspaceCreationCommands({
     gateway,
     graphIndex: viewModel.graphIndex,
+    namespaceVocabulary,
     projectId,
     runCanvasCommand,
     setActiveSceneId,
@@ -295,13 +341,18 @@ export function useContentCanvasWorkspaceController({
   }, [])
 
   const openStructureChildCreateDialog = useCallback((treeNode: TreeNodeData) => {
-    if (treeNode.kind === 'production') {
+    const parentNode = treeNode.id ? viewModel.graphIndex.nodeById.get(treeNode.id) : undefined
+    const nextNamespaceKind = parentNode?.domainCategory === 'timeline_namespace'
+      ? contentCanvasNextTimelineNamespaceKind(parentNode, namespaceVocabulary)
+      : undefined
+    if (treeNode.kind === 'production' || (treeNode.kind === 'segment' && nextNamespaceKind)) {
       setStructureCreateDialog({ kind: 'segment', parent: treeNode })
+      return
     }
     if (treeNode.kind === 'segment') {
       setStructureCreateDialog({ kind: 'scene_moment', parent: treeNode })
     }
-  }, [])
+  }, [namespaceVocabulary, viewModel.graphIndex])
 
   const closeStructureCreateDialog = useCallback(() => {
     setStructureCreateDialog(null)
@@ -479,6 +530,14 @@ export function useContentCanvasWorkspaceController({
     creationCommands.createCreativeCanvasChild(node, childKind, position ?? positionForCreativeCanvasChild(node), input)
   }, [creationCommands, positionForCreativeCanvasChild])
 
+  const createTimelineAssemblyForNamespace = useCallback((node: ContentCanvasNode) => {
+    if (!projectId || !gateway) return
+    setActiveCanvasNodeId(node.id)
+    void runCanvasCommand(`timeline-assembly:${node.id}`, () => (
+      createTimelineAssemblyFromNamespace(projectId, node, gateway)
+    ))
+  }, [gateway, projectId, runCanvasCommand])
+
   const selectCandidateNode = useCallback((node: ContentCanvasNode) => {
     if (node.kind !== 'candidate' || !projectId || !gateway) return
     void runCanvasCommand(`candidate-node-select:${node.id}`, () => (
@@ -641,7 +700,8 @@ export function useContentCanvasWorkspaceController({
   useContentCanvasWorkspaceSession({
     activeKind,
     activeCanvasNodeId,
-    graphIndex: viewModel.graphIndex,
+    graphIndex: viewModel.fullGraphIndex,
+    projectEntryId,
     projectId,
     searchParams,
     selection,
@@ -683,6 +743,8 @@ export function useContentCanvasWorkspaceController({
     createStructureChild: creationCommands.createStructureChild,
     draftAssetPrompts,
     draftExpressionPrompts,
+    namespaceVocabulary,
+    projectEntryId,
     clearCanvasSelection,
     clearCreativeCanvasManualPositions,
     clearCreativeCanvasManualPositionsForNodes,
@@ -694,6 +756,7 @@ export function useContentCanvasWorkspaceController({
     creativeCanvasViewport: creativeCanvasDocument?.viewport,
     closeStructureCreateDialog,
     createCandidateForNode,
+    createTimelineAssemblyForNamespace,
     deleteCreativeCanvasNode,
     previewCandidatePromptForNode,
     createResourceCandidateForNode,
@@ -874,8 +937,41 @@ function contentUnitGenerationOutputKind(node: ContentCanvasNode): 'image' | 'vi
   return 'image'
 }
 
+function contentCanvasWorkspacePreviewInputForRoute(input: {
+  activeCanvasNodeId: string | null
+  activeProductionId: string | null
+  activeSettingId: string | null
+  projectEntryId: ProjectEntrySessionId
+  routePreviewTargetNodeId: string | null
+  workspaceTab: ContentWorkspaceTab
+}): ContentCanvasWorkspacePreviewInput | undefined {
+  if (input.workspaceTab !== 'preview') return undefined
+  if (input.projectEntryId === 'setting_preview') {
+    return {
+      kind: 'setting',
+      targetNodeId: input.routePreviewTargetNodeId ?? input.activeCanvasNodeId ?? input.activeSettingId,
+    }
+  }
+  if (input.projectEntryId === 'content_preview') {
+    return {
+      kind: 'production',
+      targetNodeId: input.routePreviewTargetNodeId ?? input.activeCanvasNodeId ?? input.activeProductionId,
+    }
+  }
+  return undefined
+}
+
 function emptyPromptPreview(): ContentCanvasGenerationPromptPreview {
   return { text: '', compiledText: '', resourceIds: [], replacements: [], blockers: [] }
+}
+
+function contentCanvasProjectEntryIdForRoute(
+  pathname: string,
+  workspaceMode: ContentWorkspaceTab | undefined,
+): ProjectEntrySessionId {
+  if (pathname.endsWith('/settings/preview')) return 'setting_preview'
+  if (workspaceMode === 'canvas' || pathname.endsWith('/content/canvas')) return 'content_canvas'
+  return 'content_preview'
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

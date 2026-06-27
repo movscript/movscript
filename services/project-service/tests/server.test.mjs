@@ -97,6 +97,44 @@ test('project-service exposes a stable project read-model endpoint', async () =>
   test.after(async () => {
     await rm(projectDir, { recursive: true, force: true })
   })
+  await writeFile(join(projectDir, 'project.json'), JSON.stringify({
+    schema: 'movscript.project.v1',
+    kind: 'project',
+    project_id: 'project_demo',
+    title: 'Demo',
+    namespace_vocabulary: {
+      timeline_template: 'series',
+      timeline_namespaces: ['episode', 'beat'],
+      setting_namespaces: ['character'],
+    },
+  }), 'utf8')
+  await writeFile(join(projectDir, 'productions', 'p8f3', 'production.json'), JSON.stringify({
+    schema: 'movscript.production.v1',
+    kind: 'production',
+    id: 'p8f3',
+    title: 'Episode 1',
+    namespace_kind: 'episode',
+  }), 'utf8')
+  await writeFile(join(projectDir, 'productions', 'p8f3', 'segments', 'a19d', 'segment.json'), JSON.stringify({
+    schema: 'movscript.segment.v1',
+    kind: 'segment',
+    id: 'a19d',
+    title: 'Opening',
+    order: 1,
+    namespace_kind: 'beat',
+  }), 'utf8')
+  await mkdir(join(projectDir, 'content_units', 'cu_opening_assembly'), { recursive: true })
+  await writeFile(join(projectDir, 'content_units', 'cu_opening_assembly', 'content_unit.json'), JSON.stringify({
+    schema: 'movscript.content_unit.v1',
+    kind: 'content_unit',
+    id: 'cu_opening_assembly',
+    title: 'Opening Assembly',
+    content_unit_type: 'timeline_assembly_ref',
+    output_kind: 'video',
+    target_kind: 'timeline_assembly',
+    target_ref: 'timeline_assembly:segment:a19d',
+    edit_prompt: { text: 'Compose the opening beat.' },
+  }), 'utf8')
 
   const readModel = await postJSON(`${runtime.url}${PROJECT_SERVICE_READ_MODEL_ENDPOINT}`, {
     projectDir,
@@ -112,6 +150,15 @@ test('project-service exposes a stable project read-model endpoint', async () =>
   assert.equal(readModel.projectReadModel.source.mode, 'source')
   assert.equal(readModel.projectReadModel.inspection.schema, 'movscript.workspace-inspection.v1')
   assert.equal(readModel.projectReadModel.sourceSummary.documentCount >= 2, true)
+  assert.equal(readModel.projectReadModel.projectTimelineStatus.schema, 'movscript.project_timeline_status.v1')
+  assert.deepEqual(readModel.projectReadModel.projectTimelineStatus.namespace_vocabulary.timeline_namespaces, ['series', 'season', 'episode', 'act', 'beat'])
+  assert.equal(readModel.projectReadModel.projectTimelineStatus.timeline_namespaces.find(item => item.id === 'p8f3')?.kind, 'episode')
+  assert.equal(readModel.projectReadModel.projectTimelineStatus.timeline_namespaces.find(item => item.id === 'a19d')?.kind, 'beat')
+  const assembly = readModel.projectReadModel.projectTimelineStatus.timeline_assemblies.find(item => item.content_unit_id === 'cu_opening_assembly')
+  assert.equal(assembly?.target_kind, 'timeline_assembly')
+  assert.equal(assembly?.scope?.kind, 'beat')
+  assert.equal(assembly?.scope?.id, 'a19d')
+  assert.equal(readModel.projectReadModel.project_timeline_status.timeline_assembly_count, 1)
 })
 
 test('project-service executes local project lifecycle commands', async () => {
@@ -143,7 +190,9 @@ test('project-service executes local project lifecycle commands', async () => {
   assert.equal(created.result.locator.projectDir, projectDir)
   assert.equal(created.result.project.name, 'Lifecycle Project')
   assert.equal(JSON.parse(await readFile(join(projectDir, 'workspace.json'), 'utf8')).project_uid, 'prj_lifecycle')
-  assert.equal(JSON.parse(await readFile(join(projectDir, 'project.json'), 'utf8')).title, 'Lifecycle Project')
+  const createdProject = JSON.parse(await readFile(join(projectDir, 'project.json'), 'utf8'))
+  assert.equal(createdProject.title, 'Lifecycle Project')
+  assert.equal(Object.prototype.hasOwnProperty.call(createdProject, 'namespace_vocabulary'), false)
 
   const opened = await postJSON(`${runtime.url}${PROJECT_SERVICE_LIFECYCLE_COMMAND_ENDPOINT}`, {
     projectDir,
@@ -222,6 +271,17 @@ test('project-service exposes project resource views through the shared workspac
   test.after(async () => {
     await rm(projectDir, { recursive: true, force: true })
   })
+  await writeFile(join(projectDir, 'project.json'), JSON.stringify({
+    schema: 'movscript.project.v1',
+    kind: 'project',
+    project_id: 'project_demo',
+    title: 'Demo',
+    namespace_vocabulary: {
+      timeline_template: 'series',
+      timeline_namespaces: ['sequence', 'beat'],
+      setting_namespaces: ['character', 'costume_state'],
+    },
+  }), 'utf8')
   await mkdir(join(projectDir, 'settings', 'setting_hero'), { recursive: true })
   await writeFile(join(projectDir, 'settings', 'setting_hero', 'setting.json'), JSON.stringify({
     schema: 'movscript.setting.v1',
@@ -229,6 +289,15 @@ test('project-service exposes project resource views through the shared workspac
     id: 'setting_hero',
     title: 'Service Hero',
     setting_kind: 'character',
+  }), 'utf8')
+  await mkdir(join(projectDir, 'settings', 'setting_hero', 'states', 'base'), { recursive: true })
+  await writeFile(join(projectDir, 'settings', 'setting_hero', 'states', 'base', 'setting_state.json'), JSON.stringify({
+    schema: 'movscript.setting_state.v1',
+    kind: 'setting_state',
+    id: 'base',
+    setting_id: 'setting_hero',
+    title: 'Base Costume',
+    namespace_kind: 'costume_state',
   }), 'utf8')
   await mkdir(join(projectDir, 'scripts', 'script_main'), { recursive: true })
   await writeFile(join(projectDir, 'scripts', 'script_main', 'script.json'), JSON.stringify({
@@ -239,6 +308,31 @@ test('project-service exposes project resource views through the shared workspac
     source_ref: 'script.md',
   }), 'utf8')
   await writeFile(join(projectDir, 'scripts', 'script_main', 'script.md'), 'INT. SERVICE ROOM - NIGHT', 'utf8')
+  await mkdir(join(projectDir, 'productions', 'pilot', 'segments', 'opening'), { recursive: true })
+  await writeFile(join(projectDir, 'productions', 'pilot', 'production.json'), JSON.stringify({
+    schema: 'movscript.production.v1',
+    id: 'pilot',
+    title: 'Pilot Episode',
+    namespace_kind: 'episode',
+  }), 'utf8')
+  await writeFile(join(projectDir, 'productions', 'pilot', 'segments', 'opening', 'segment.json'), JSON.stringify({
+    schema: 'movscript.segment.v1',
+    id: 'opening',
+    title: 'Opening Beat',
+    namespace_kind: 'beat',
+  }), 'utf8')
+  await mkdir(join(projectDir, 'content_units', 'cu_opening_assembly'), { recursive: true })
+  await writeFile(join(projectDir, 'content_units', 'cu_opening_assembly', 'content_unit.json'), JSON.stringify({
+    schema: 'movscript.content_unit.v1',
+    kind: 'content_unit',
+    id: 'cu_opening_assembly',
+    title: 'Opening Assembly',
+    content_unit_type: 'timeline_assembly_ref',
+    output_kind: 'video',
+    target_kind: 'timeline_assembly',
+    target_ref: 'timeline_assembly:segment:opening',
+    edit_prompt: { text: 'Compose the opening beat.' },
+  }), 'utf8')
 
   const settings = await postJSON(`${runtime.url}${PROJECT_SERVICE_RESOURCE_VIEW_ENDPOINT}`, {
     projectDir,
@@ -247,6 +341,81 @@ test('project-service exposes project resource views through the shared workspac
   assert.equal(settings.schema, 'movscript.project-resource-view.v1')
   assert.equal(settings.kind, 'settings')
   assert.equal(settings.items.some(item => item.title === 'Service Hero'), true)
+  assert.equal(settings.items.find(item => item.id === 'setting_hero')?.domainCategory, 'setting_namespace')
+  assert.equal(settings.items.find(item => item.id === 'setting_hero')?.domainKind, 'character')
+  assert.equal(settings.items.find(item => item.id === 'setting_hero')?.legacyAlias, true)
+  assert.equal(settings.items.find(item => item.id === 'setting_hero')?.preferredResourceKind, 'setting-namespaces')
+
+  const settingNamespaces = await postJSON(`${runtime.url}${PROJECT_SERVICE_RESOURCE_VIEW_ENDPOINT}`, {
+    projectDir,
+    kind: 'setting-namespaces',
+  })
+  assert.equal(settingNamespaces.kind, 'setting-namespaces')
+  assert.equal(settingNamespaces.items.find(item => item.id === 'setting_hero')?.kind, 'character')
+  assert.equal(settingNamespaces.items.find(item => item.id === 'base')?.kind, 'costume_state')
+
+  const timelineNamespaces = await postJSON(`${runtime.url}${PROJECT_SERVICE_RESOURCE_VIEW_ENDPOINT}`, {
+    projectDir,
+    kind: 'timeline-namespaces',
+  })
+  assert.equal(timelineNamespaces.kind, 'timeline-namespaces')
+  assert.equal(timelineNamespaces.items.find(item => item.id === 'pilot')?.kind, 'episode')
+  assert.equal(timelineNamespaces.items.find(item => item.id === 'opening')?.kind, 'beat')
+
+  const namespaceVocabulary = await postJSON(`${runtime.url}${PROJECT_SERVICE_RESOURCE_VIEW_ENDPOINT}`, {
+    projectDir,
+    kind: 'namespace-vocabulary',
+  })
+  assert.equal(namespaceVocabulary.kind, 'namespace-vocabulary')
+  assert.deepEqual(namespaceVocabulary.items.find(item => item.id === 'timeline')?.timelineNamespaces, ['series', 'season', 'episode', 'act', 'beat', 'sequence'])
+  assert.deepEqual(namespaceVocabulary.items.find(item => item.id === 'setting')?.settingNamespaces, ['character', 'costume_state'])
+
+  const segments = await postJSON(`${runtime.url}${PROJECT_SERVICE_RESOURCE_VIEW_ENDPOINT}`, {
+    projectDir,
+    kind: 'segments',
+  })
+  assert.equal(segments.items.find(item => item.id === 'opening')?.domainCategory, 'timeline_namespace')
+  assert.equal(segments.items.find(item => item.id === 'opening')?.domainKind, 'beat')
+  assert.equal(segments.items.find(item => item.id === 'opening')?.legacyAlias, true)
+  assert.equal(segments.items.find(item => item.id === 'opening')?.preferredResourceKind, 'timeline-namespaces')
+
+  const settingStates = await postJSON(`${runtime.url}${PROJECT_SERVICE_RESOURCE_VIEW_ENDPOINT}`, {
+    projectDir,
+    kind: 'setting-states',
+  })
+  assert.equal(settingStates.kind, 'setting-states')
+  assert.equal(settingStates.items.find(item => item.id === 'base')?.domainCategory, 'setting_namespace')
+  assert.equal(settingStates.items.find(item => item.id === 'base')?.domainKind, 'costume_state')
+  assert.equal(settingStates.items.find(item => item.id === 'base')?.legacyAlias, true)
+  assert.equal(settingStates.items.find(item => item.id === 'base')?.preferredResourceKind, 'setting-namespaces')
+
+  const domainEdges = await postJSON(`${runtime.url}${PROJECT_SERVICE_RESOURCE_VIEW_ENDPOINT}`, {
+    projectDir,
+    kind: 'domain-edges',
+  })
+  assert.ok(domainEdges.items.some(edge =>
+    edge.origin === 'path'
+    && edge.relation === 'parent'
+    && edge.source.id === 'opening'
+    && edge.source.kind === 'beat'
+    && edge.target.id === 'pilot'
+    && edge.target.kind === 'episode',
+  ))
+  assert.ok(domainEdges.items.some(edge =>
+    edge.origin === 'explicit_ref'
+    && edge.relation === 'target'
+    && edge.source.id === 'cu_opening_assembly'
+    && edge.target.category === 'timeline_assembly'
+    && edge.target.id === 'timeline_assembly:segment:opening',
+  ))
+  assert.ok(domainEdges.items.some(edge =>
+    edge.origin === 'explicit_ref'
+    && edge.relation === 'scope'
+    && edge.source.id === 'cu_opening_assembly'
+    && edge.target.category === 'timeline_namespace'
+    && edge.target.id === 'opening'
+    && edge.target.kind === 'beat',
+  ))
 
   const scripts = await postJSON(`${runtime.url}${PROJECT_SERVICE_RESOURCE_VIEW_ENDPOINT}`, {
     projectDir,
@@ -318,6 +487,104 @@ test('project-service executes whitelisted source commands through the shared en
   assert.equal(written.schema, 'movscript.setting.v1')
   assert.equal(written.id, 'villain')
   assert.equal(written.title, 'Villain')
+
+  const namespaceCommand = await postJSON(`${runtime.url}${PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT}`, {
+    projectDir,
+    command: 'writeNamespaceNode',
+    input: {
+      targetPath: 'timeline/pilot/production.json',
+      category: 'timeline_namespace',
+      kind: 'episode',
+      id: 'pilot',
+      title: 'Pilot Episode',
+      intent: 'A namespace node, not a production task.',
+    },
+  })
+  assert.equal(namespaceCommand.command, 'writeNamespaceNode')
+  assert.equal(namespaceCommand.result.path, 'timeline/pilot/production.json')
+  const namespaceRecord = JSON.parse(await readFile(join(projectDir, 'timeline', 'pilot', 'production.json'), 'utf8'))
+  assert.equal(namespaceRecord.kind, 'production')
+  assert.equal(namespaceRecord.namespace_kind, 'episode')
+  assert.equal(namespaceRecord.timeline_namespace_kind, 'episode')
+  assert.equal(namespaceRecord.content_unit_ref, undefined)
+
+  const assemblyCommand = await postJSON(`${runtime.url}${PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT}`, {
+    projectDir,
+    command: 'ensureTimelineAssemblyContentUnit',
+    input: {
+      scopeKind: 'episode',
+      scopeRef: 'pilot',
+      id: 'cu_pilot_assembly',
+      title: 'Pilot assembly',
+      prompt: 'Assemble the pilot episode.',
+    },
+  })
+  assert.equal(assemblyCommand.command, 'ensureTimelineAssemblyContentUnit')
+  assert.equal(assemblyCommand.result.record.content_unit_type, 'timeline_assembly_ref')
+  assert.equal(assemblyCommand.result.record.target_kind, 'timeline_assembly')
+  assert.equal(assemblyCommand.result.record.target_ref, 'timeline_assembly:episode:pilot')
+
+  const canvasCommand = await postJSON(`${runtime.url}${PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT}`, {
+    projectDir,
+    command: 'writeContentCanvas',
+    input: {
+      canvas: {
+        id: 'canvas:pilot',
+        title: 'Pilot Canvas',
+        scope: {
+          kind: 'production',
+          production_id: 'pilot',
+          production_title: 'Pilot Episode',
+        },
+        nodes: [{
+          node_id: 'scene_moment:opening',
+          kind: 'scene_moment',
+          added_at: '2026-06-07T00:00:00.000Z',
+        }],
+        layouts: {
+          'scene_moment:opening': {
+            x: 120,
+            y: 80,
+            width: 260,
+            height: 118,
+            manual: true,
+            source: 'manual',
+            updated_at: '2026-06-07T00:10:00.000Z',
+          },
+        },
+        viewport: { x: -20, y: -40, zoom: 0.8 },
+        updated_at: '2026-06-07T00:10:00.000Z',
+      },
+    },
+  })
+  assert.equal(canvasCommand.command, 'writeContentCanvas')
+  assert.equal(canvasCommand.result.path, 'content_canvases/canvas_pilot/canvas.json')
+  const canvasFile = JSON.parse(await readFile(join(projectDir, 'content_canvases', 'canvas_pilot', 'canvas.json'), 'utf8'))
+  assert.equal(canvasFile.schema, 'movscript.content_canvas.v1')
+  assert.equal(canvasFile.kind, 'content_canvas')
+  assert.equal(canvasFile.scope.production_id, 'pilot')
+  assert.deepEqual(canvasFile.nodes.map(node => node.node_id), ['scene_moment:opening'])
+  assert.deepEqual(canvasFile.layouts['scene_moment:opening'].updated_at, '2026-06-07T00:10:00.000Z')
+
+  const canvasList = await postJSON(`${runtime.url}${PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT}`, {
+    projectDir,
+    command: 'listContentCanvases',
+  })
+  assert.equal(canvasList.command, 'listContentCanvases')
+  assert.equal(canvasList.result.schema, 'movscript.content_canvases.v1')
+  assert.equal(canvasList.result.canvases.find(item => item.record.id === 'canvas:pilot')?.path, 'content_canvases/canvas_pilot/canvas.json')
+
+  const canvasDelete = await postJSON(`${runtime.url}${PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT}`, {
+    projectDir,
+    command: 'deleteContentCanvas',
+    input: { id: 'canvas:pilot' },
+  })
+  assert.equal(canvasDelete.command, 'deleteContentCanvas')
+  assert.equal(canvasDelete.result.path, 'content_canvases/canvas_pilot/canvas.json')
+
+  const readModel = await postJSON(`${runtime.url}${PROJECT_SERVICE_READ_MODEL_ENDPOINT}`, { projectDir })
+  assert.equal(readModel.projectReadModel.projectTimelineStatus.timeline_namespaces.find(item => item.id === 'pilot')?.kind, 'episode')
+  assert.equal(readModel.projectReadModel.projectTimelineStatus.timeline_assemblies.find(item => item.content_unit_id === 'cu_pilot_assembly')?.scope?.kind, 'episode')
 
   const unsupported = await fetch(`${runtime.url}${PROJECT_SERVICE_SOURCE_COMMAND_ENDPOINT}`, {
     method: 'POST',

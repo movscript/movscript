@@ -234,6 +234,10 @@ func (s *Service) GetVisible(ctx context.Context, id uint, userID uint, orgID *u
 	return s.repo.GetVisible(ctx, id, userID, orgID)
 }
 
+func (s *Service) GetSignedResource(ctx context.Context, id uint) (domainresource.RawResource, error) {
+	return s.repo.GetByID(ctx, id)
+}
+
 func (s *Service) Usages(ctx context.Context, id uint, userID uint, orgID *uint) (UsageSummary, error) {
 	if _, err := s.repo.GetVisible(ctx, id, userID, orgID); err != nil {
 		return UsageSummary{}, err

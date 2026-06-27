@@ -84,7 +84,9 @@
   "dependencies": {
     "@movscript/auth-client": "workspace:*",
     "@movscript/core": "workspace:*",
+    "@movscript/domain": "workspace:*",
     "@movscript/editing": "workspace:*",
+    "@movscript/language": "workspace:*",
     "@movscript/resource-surface": "workspace:*",
     "@movscript/shared": "workspace:*",
     "@movscript/theme": "workspace:*",

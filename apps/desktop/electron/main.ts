@@ -22,6 +22,8 @@ import { installAppUpdateScheduler, uninstallAppUpdateScheduler } from './servic
 import { installAppTray } from './services/appTray'
 import { installDockShortcutMenu } from './services/dockShortcutMenu'
 import { installDesktopIdentity } from './services/desktopIdentity'
+import { LOCAL_BACKEND_URL, setBackendStatus } from './services/backend'
+import { getElectronRuntimeConfig } from './services/runtimeConfig'
 import {
   shutdownDesktopApplicationRuntime,
   startDesktopApplicationRuntime,
@@ -54,6 +56,7 @@ app.whenReady().then(async () => {
     await startDesktopApplicationRuntime({
       ...(bootstrap.localRuntime ? { localRuntime: bootstrap.localRuntime } : {}),
     })
+    markBootstrapRuntimeReady(bootstrap)
   } catch (error) {
     console.error('[bootstrap] failed to start desktop services', error)
     dialog.showErrorBox('MovScript failed to start', error instanceof Error ? error.message : String(error))
@@ -111,6 +114,22 @@ registerIpcHandlers({
   broadcastBackendStatus,
   ensureMCPServerReady,
 })
+
+function markBootstrapRuntimeReady(
+  bootstrap: Awaited<ReturnType<typeof bootstrapManagedServicesBeforeWindow>>,
+): void {
+  if (!bootstrap.localRuntime?.enabled) return
+  try {
+    const runtimeConfig = getElectronRuntimeConfig()
+    setBackendStatus({
+      state: 'ready',
+      baseURL: runtimeConfig.apiBaseURL || LOCAL_BACKEND_URL,
+    }, broadcastBackendStatus)
+  } catch (error) {
+    console.warn('[bootstrap] failed to publish local runtime readiness', error)
+    setBackendStatus({ state: 'ready', baseURL: LOCAL_BACKEND_URL }, broadcastBackendStatus)
+  }
+}
 
 function writeDesktopSmokeMarker(): void {
   const markerFile = process.env.MOVSCRIPT_DESKTOP_SMOKE_MARKER_FILE?.trim()

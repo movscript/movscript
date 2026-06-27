@@ -49,7 +49,7 @@
   },
   "header": {
     "titles": {
-      "canvases": "画布"
+      "canvases": "工作流画布"
     }
   },
   "pages": {
@@ -63,30 +63,30 @@
         "inspiration": "手动逐节点运行，自由探索创意",
         "workflow": "定义输入输出，全流程自动执行"
       },
-      "newCanvas": "新建画布",
-      "empty": "还没有画布",
-      "createFirst": "创建第一个画布",
+      "newCanvas": "新建工作流画布",
+      "empty": "还没有工作流画布",
+      "createFirst": "创建第一个工作流画布",
       "open": "打开",
       "rename": "重命名",
       "renameConfirm": "确认重命名",
-      "searchLabel": "搜索画布",
+      "searchLabel": "搜索工作流画布",
       "searchPlaceholder": "搜索名称、ID 或类型",
-      "categoryFilter": "画布分类",
-      "resultSummary": "显示 {{shown}} / {{total}} 个画布",
-      "noResults": "没有匹配的画布",
+      "categoryFilter": "工作流画布分类",
+      "resultSummary": "显示 {{shown}} / {{total}} 个工作流画布",
+      "noResults": "没有匹配的工作流画布",
       "clearFilters": "清除筛选",
       "pageStatus": "第 {{page}} / {{pageCount}} 页",
       "previousPage": "上一页",
       "nextPage": "下一页",
-      "nameRequired": "画布名称 *",
-      "namePlaceholder": "为你的画布起个名字",
-      "workflowCreateHint": "新画布会以工作流创建，包含默认输入、输出节点。",
+      "nameRequired": "工作流画布名称 *",
+      "namePlaceholder": "为你的工作流画布起个名字",
+      "workflowCreateHint": "新建的工作流画布会包含默认输入、输出节点。",
       "createAndOpen": "创建并打开",
       "allProjects": "全部项目",
       "currentProject": "当前项目",
-      "globalLibrary": "全局画布库",
-      "workspaceSummary": "当前工作区共 {{count}} 个画布",
-      "invalidListResponse": "画布服务返回了无效的列表响应。请检查 /local-api/canvas/canvases 是否已代理到画布服务。"
+      "globalLibrary": "全局工作流画布库",
+      "workspaceSummary": "当前工作区共 {{count}} 个工作流画布",
+      "invalidListResponse": "工作流画布服务返回了无效的列表响应。请检查 /local-api/canvas/canvases 是否已代理到 Canvas Service。"
     },
     "jobs": {
       "generationFailed": "生成失败",
@@ -428,8 +428,8 @@
       "paramType": "参数类型",
       "saveResource": "保存资源"
     },
-    "generatedByCanvas": "canvas生成",
-    "namePlaceholder": "画布名称",
+    "generatedByCanvas": "工作流画布生成",
+    "namePlaceholder": "工作流画布名称",
     "runningCount": "{{count}} 运行中",
     "tasksCount": "任务 ({{count}})",
     "running": "运行中…",
@@ -441,12 +441,12 @@
     "pushHint": "将该{{type}}添加到以下素材需求",
     "noPushTargets": "暂无可推送目标（请先在上方选择素材需求）",
     "push": "推送",
-    "runCanvas": "运行画布",
-    "newCanvasDefaultName": "新画布",
-    "canvasList": "画布列表",
-    "newCanvas": "新建画布",
-    "empty": "暂无画布",
-    "selectOrCreate": "选择或新建一个画布"
+    "runCanvas": "运行工作流画布",
+    "newCanvasDefaultName": "新工作流画布",
+    "canvasList": "工作流画布列表",
+    "newCanvas": "新建工作流画布",
+    "empty": "暂无工作流画布",
+    "selectOrCreate": "选择或新建一个工作流画布"
   },
   "shared": {
     "generation": {

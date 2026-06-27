@@ -18,7 +18,12 @@ const SETTING_KIND_LABELS: Record<string, string> = {
 }
 
 export function settingTypeValue(node: ContentCanvasNode): string {
-  return stringField(node.record.setting_kind)
+  return stringField(node.domainKind)
+    ?? stringField(node.record.namespace_kind)
+    ?? stringField(node.record.namespaceKind)
+    ?? stringField(node.record.setting_namespace_kind)
+    ?? stringField(node.record.settingNamespaceKind)
+    ?? stringField(node.record.setting_kind)
     ?? stringField(node.record.settingKind)
     ?? stringField(node.record.type)
     ?? stringField(node.record.kind)

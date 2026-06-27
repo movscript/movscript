@@ -325,6 +325,59 @@ test('core content write model builds timeline move task graphs', () => {
     order: 2,
     status: 'workspace',
   })
+
+  const assemblyTaskGraph = buildContentUnitTimelineMoveTaskGraph({
+    row: {
+      moment: { ID: 20 },
+      productionIds: [],
+      timelineScope: {
+        targetKind: 'timeline_assembly',
+        targetRef: 'timeline_assembly:beat:opening',
+        scopeKind: 'beat',
+        scopeRef: 'opening',
+        scopePath: 'timeline/episode_01/beats/opening',
+      },
+      units: [{ ID: 51, target_kind: 'timeline_assembly', target_ref: 'timeline_assembly:beat:opening', duration_sec: 5, order: 3 }],
+      previewTimelineItems: [],
+    },
+    unitId: 51,
+    startSec: 3.2,
+    previewTimelines: [{
+      ID: 71,
+      target_ref: 'timeline_assembly:beat:opening',
+      scope_kind: 'beat',
+      scope_ref: 'opening',
+      status: 'workspace',
+    }],
+    unitTitle: 'Opening beat assembly',
+  })
+
+  assert.equal(assemblyTaskGraph.kind, 'create_item')
+  assert.equal(assemblyTaskGraph.productionId, undefined)
+  assert.deepEqual(assemblyTaskGraph.timelineScope, {
+    targetKind: 'timeline_assembly',
+    targetRef: 'timeline_assembly:beat:opening',
+    scopeKind: 'beat',
+    scopeRef: 'opening',
+    scopePath: 'timeline/episode_01/beats/opening',
+  })
+  assert.equal(assemblyTaskGraph.timelineId, 71)
+  assert.equal(assemblyTaskGraph.timelinePayload, undefined)
+  assert.deepEqual(assemblyTaskGraph.itemPayload, {
+    target_kind: 'timeline_assembly',
+    target_ref: 'timeline_assembly:beat:opening',
+    scope_kind: 'beat',
+    scope_ref: 'opening',
+    scope_path: 'timeline/episode_01/beats/opening',
+    scene_moment_id: 20,
+    content_unit_id: 51,
+    kind: 'content_unit',
+    label: 'Opening beat assembly',
+    start_sec: 3.2,
+    duration_sec: 5,
+    order: 3,
+    status: 'workspace',
+  })
 })
 
 test('core content write model builds candidate attachment payloads', () => {
@@ -344,8 +397,8 @@ test('core content write model builds candidate attachment payloads', () => {
 })
 
 test('core content source workspace builds project workbench data without desktop adapters', () => {
-  const production = entity('production', 'pilot', 'productions/pilot/production.json', { title: 'Pilot' })
-  const segment = entity('segment', 'opening', 'productions/pilot/segments/opening/segment.json', { title: 'Opening', order: 1 })
+  const production = entity('production', 'pilot', 'productions/pilot/production.json', { title: 'Pilot', namespace_kind: 'episode' })
+  const segment = entity('segment', 'opening', 'productions/pilot/segments/opening/segment.json', { title: 'Opening', namespace_kind: 'beat', order: 1 })
   const moment = entity('scene_moment', 'rain_call', 'productions/pilot/segments/opening/scene_moments/rain_call/scene_moment.json', { title: 'Rain call', order: 1 })
   const shot = entity('shot', 'phone', 'productions/pilot/segments/opening/scene_moments/rain_call/shots/phone/shot.json', {
     title: 'Phone closeup',
@@ -362,8 +415,8 @@ test('core content source workspace builds project workbench data without deskto
     title: 'Phone board',
     timeline: { caption: 'Phone glow.', duration_sec: 3 },
   })
-  const setting = entity('setting', 'rain_rooftop', 'settings/rain_rooftop/setting.json', { title: 'Rain rooftop' })
-  const settingState = entity('setting_state', 'night', 'settings/rain_rooftop/states/night/setting_state.json', { title: 'Night rain' })
+  const setting = entity('setting', 'rain_rooftop', 'settings/rain_rooftop/setting.json', { title: 'Rain rooftop', setting_kind: 'location' })
+  const settingState = entity('setting_state', 'night', 'settings/rain_rooftop/states/night/setting_state.json', { title: 'Night rain', namespace_kind: 'weather_state' })
   const asset = entity('asset', 'phone_screen', 'settings/rain_rooftop/states/night/assets/phone_screen/asset.json', { title: 'Phone screen' })
   const contentUnit = entity('content_unit', 'cu_phone', 'content_units/cu_phone/content_unit.json', {
     title: 'Phone shot unit',
@@ -375,6 +428,20 @@ test('core content source workspace builds project workbench data without deskto
 
   const data = buildContentSourceWorkspaceData({
     indexDocuments: [
+      {
+        path: 'project.json',
+        data: {
+          schema: 'movscript.project.v1',
+          kind: 'project',
+          project_id: 'project_demo',
+          title: 'Demo Project',
+          namespace_vocabulary: {
+            timeline_template: 'series',
+            timeline_namespaces: ['sequence', 'beat'],
+            setting_namespaces: ['character', 'location', 'weather_state'],
+          },
+        },
+      },
       { path: contentUnit.path, data: contentUnit.record },
       {
         path: 'content_units/cu_phone/candidates/cand_a/content_candidate.json',
@@ -481,6 +548,115 @@ test('core content source workspace builds project workbench data without deskto
   assert.equal(data.previewMoments[0].expressionUnits[0].contentUnit.candidates[0].selected, true)
   assert.equal(data.previewMoments[0].expressionUnits[0].contentUnit.candidates[0].inputHash, 'hash_live')
   assert.equal(findHierarchyNode(data.hierarchyTree, 'storyboard/main')?.storyboardTimeline?.caption, 'Phone glow.')
+  assert.equal(data.domainGraph?.timelineNamespaceNodes.find((node) => node.id === 'pilot')?.kind, 'episode')
+  assert.equal(data.domainGraph?.timelineNamespaceNodes.find((node) => node.id === 'opening')?.kind, 'beat')
+  assert.equal(data.domainGraph?.namespaceVocabulary.timelineTemplate, 'series')
+  assert.deepEqual(data.domainGraph?.namespaceVocabulary.timelineNamespaces, ['act', 'sequence', 'beat'])
+  assert.deepEqual(data.domainGraph?.namespaceVocabulary.settingNamespaces, ['character', 'location', 'weather_state'])
+  assert.equal(data.domainGraph?.settingNamespaceNodes.find((node) => node.id === 'rain_rooftop')?.kind, 'location')
+  assert.equal(data.domainGraph?.settingNamespaceNodes.find((node) => node.id === 'night')?.kind, 'weather_state')
+  assert.equal(data.domainGraph?.systemPrimitiveNodes.find((node) => node.id === 'rain_call')?.kind, 'scene_moment')
+  assert.equal(data.domainGraph?.contentUnitNodes.find((node) => node.id === 'cu_phone')?.kind, 'content_unit')
+  assert.ok(data.domainGraph?.edges.some((edge) =>
+    edge.origin === 'explicit_ref'
+    && edge.relation === 'target'
+    && edge.source.id === 'cu_phone'
+    && edge.target.category === 'system_primitive'
+    && edge.target.kind === 'storyboard'
+    && edge.target.id === 'productions/pilot/segments/opening/scene_moments/rain_call/expression_units/phone/storyboards/main'
+    && edge.field === 'storyboard_ref',
+  ))
+  assert.ok(data.domainGraph?.edges.some((edge) =>
+    edge.origin === 'path'
+    && edge.relation === 'parent'
+    && edge.source.id === 'opening'
+    && edge.source.kind === 'beat'
+    && edge.target.id === 'pilot'
+    && edge.target.kind === 'episode',
+  ))
+  assert.ok(data.domainGraph?.edges.some((edge) =>
+    edge.origin === 'path'
+    && edge.relation === 'parent'
+    && edge.source.id === 'phone_screen'
+    && edge.source.kind === 'asset'
+    && edge.target.id === 'night'
+    && edge.target.kind === 'weather_state',
+  ))
+})
+
+test('core content source workspace derives UI context from custom namespace path ancestry', () => {
+  const production = entity('production', 'episode_01', 'timeline/episode_01/production.json', { title: 'Episode 01', namespace_kind: 'episode' })
+  const segment = entity('segment', 'opening', 'timeline/episode_01/beats/opening/segment.json', { title: 'Opening beat', namespace_kind: 'beat', order: 1 })
+  const moment = entity('scene_moment', 'rain_call', 'timeline/episode_01/beats/opening/scene_moments/rain_call/scene_moment.json', { title: 'Rain call', order: 1 })
+  const expressionUnit = entity('expression_unit', 'phone', 'timeline/episode_01/beats/opening/scene_moments/rain_call/expression_units/phone/expression_unit.json', {
+    title: 'Phone closeup',
+    expression_kind: 'shot',
+    reference_asset_refs: ['wet_hair'],
+  })
+  const storyboard = entity('storyboard', 'main', 'timeline/episode_01/beats/opening/scene_moments/rain_call/expression_units/phone/storyboards/main/storyboard.json', {
+    title: 'Phone board',
+    timeline: { caption: 'Phone glow.' },
+  })
+  const audioCue = entity('audio_cue', 'phone_vibration', 'timeline/episode_01/beats/opening/scene_moments/rain_call/audio_cues/phone_vibration/audio_cue.json', {
+    title: 'Phone vibration',
+    cue_kind: 'sound_effect',
+  })
+  const setting = entity('setting', 'hero', 'settings/hero/setting.json', { title: 'Hero', setting_kind: 'character' })
+  const settingState = entity('setting_state', 'rain', 'settings/hero/costume_states/rain/setting_state.json', { title: 'Rain costume', namespace_kind: 'costume_state' })
+  const asset = entity('asset', 'wet_hair', 'settings/hero/costume_states/rain/assets/wet_hair/asset.json', { title: 'Wet hair' })
+  const contentUnit = entity('content_unit', 'cu_phone_board', 'content_units/cu_phone_board/content_unit.json', {
+    title: 'Phone board unit',
+    content_unit_type: 'storyboard_ref',
+    output_kind: 'image',
+    storyboard_ref: 'timeline/episode_01/beats/opening/scene_moments/rain_call/expression_units/phone/storyboards/main',
+    edit_prompt: { text: 'Create the storyboard with {{asset:wet_hair}}.' },
+  })
+
+  const data = buildContentSourceWorkspaceData({
+    indexDocuments: [{
+      path: 'project.json',
+      data: {
+        schema: 'movscript.project.v1',
+        kind: 'project',
+        project_id: 'custom_namespace_project',
+        namespace_vocabulary: {
+          timeline_template: 'series',
+          timeline_namespaces: ['episode', 'beat'],
+          setting_namespaces: ['character', 'costume_state'],
+        },
+      },
+    }, { path: contentUnit.path, data: contentUnit.record }],
+    settings: [setting],
+    settingStates: [settingState],
+    assets: [asset],
+    productions: [production],
+    segments: [segment],
+    sceneMoments: [moment],
+    storyboards: [storyboard],
+    keyframes: [],
+    expressionUnits: [expressionUnit],
+    audioCues: [audioCue],
+    contentUnits: [contentUnit],
+    previewTimelines: [],
+  })
+
+  assert.equal(data.previewMoments[0].production, 'Episode 01')
+  assert.equal(data.previewMoments[0].segment, 'Opening beat')
+  assert.equal(data.expressionUnitsByMoment.rain_call[0].id, 'phone')
+  assert.equal(data.audioCuesByMoment.rain_call[0].id, 'phone_vibration')
+  assert.equal(data.previewMoments[0].expressionUnits[0].storyboard, 'storyboard/main')
+  assert.equal(data.previewMoments[0].expressionUnits[0].contentUnit.id, 'cu_phone_board')
+  assert.equal(data.expressionUnitWorkspaceDetails.phone.storyboards[0].contentUnit?.sceneMomentRef, 'scene_moment/rain_call')
+  assert.equal(data.assetReferenceUnits['asset/wet_hair'].upstream.find((item) => item.kind === 'state')?.ownerNodeId, 'state/hero/rain')
+  assert.equal(data.assetReferenceUnits['asset/wet_hair'].downstream[0].momentId, 'rain_call')
+  assert.equal(findHierarchyNode(data.hierarchyTree, 'storyboard/main')?.storyboardTimeline?.caption, 'Phone glow.')
+  assert.equal(findHierarchyNode(data.hierarchyTree, 'state/hero/rain')?.title, 'Rain costume')
+  assert.ok(data.domainGraph?.edges.some((edge) =>
+    edge.origin === 'path'
+    && edge.relation === 'parent'
+    && edge.source.path === 'timeline/episode_01/beats/opening/segment.json'
+    && edge.target.path === 'timeline/episode_01/production.json',
+  ))
 })
 
 test('core content source workspace exposes production MediaEditingProject timelines from preview selections', async () => {
@@ -552,7 +728,119 @@ test('core content source workspace exposes production MediaEditingProject timel
   assert.equal(track?.type, 'video')
   assert.equal(track?.clips[0]?.asset?.id, 'movscript_resource_612')
   assert.equal(track?.clips[0]?.durationMs, 7000)
-  assert.equal(track?.clips[0]?.metadata?.movscript?.targetKind, 'production')
+  assert.equal(track?.clips[0]?.metadata?.movscript?.targetKind, 'timeline_assembly')
+  assert.equal(track?.clips[0]?.metadata?.movscript?.legacyTargetKind, 'production')
+})
+
+test('core content source workspace exposes timeline assembly MediaEditingProject timelines from namespace scopes', async () => {
+  const production = entity('production', 'pilot', 'productions/pilot/production.json', {
+    title: 'Pilot episode',
+    namespace_kind: 'episode',
+    timeline_namespace_kind: 'episode',
+  })
+  const segment = entity('segment', 'opening', 'productions/pilot/segments/opening/segment.json', {
+    title: 'Opening beat',
+    namespace_kind: 'beat',
+    timeline_namespace_kind: 'beat',
+  })
+  const moment = entity('scene_moment', 'rain_call', 'productions/pilot/segments/opening/scene_moments/rain_call/scene_moment.json', { title: 'Rain call', order: 1 })
+  const sceneContentUnit = entity('content_unit', 'cu_rain_call', 'content_units/cu_rain_call/content_unit.json', {
+    title: 'Rain call render',
+    content_unit_type: 'scene_moment_ref',
+    output_kind: 'video',
+    scene_moment_ref: 'rain_call',
+  })
+  const assemblyContentUnit = entity('content_unit', 'cu_episode_cut', 'content_units/cu_episode_cut/content_unit.json', {
+    title: 'Pilot episode cut',
+    content_unit_type: 'timeline_assembly_ref',
+    output_kind: 'video',
+    target_kind: 'timeline_assembly',
+    target_ref: 'timeline_assembly:episode:pilot',
+  })
+  const candidate = {
+    schema: 'movscript.content_candidate.v1',
+    id: 'cand_scene',
+    content_unit_ref: 'content_units/cu_rain_call',
+    status: 'succeeded',
+    outputs: [{ kind: 'video', resource_id: 612, duration_sec: 7 }],
+  }
+  const fakeEngine = {
+    workspaceService: {
+      loadIndex: async () => ({
+        documents: [
+          { path: production.path, data: production.record },
+          { path: segment.path, data: segment.record },
+          { path: moment.path, data: moment.record },
+          { path: sceneContentUnit.path, data: sceneContentUnit.record },
+          { path: assemblyContentUnit.path, data: assemblyContentUnit.record },
+          { path: 'content_units/cu_rain_call/candidates/cand_scene/content_candidate.json', data: candidate },
+          {
+            path: '.movscript/decisions/content_units/cu_rain_call/decision_context.json',
+            data: {
+              target_ref: 'content_units/cu_rain_call',
+              selection: { candidate_id: 'cand_scene' },
+            },
+          },
+        ],
+      }),
+      querySettings: async () => [],
+      queryEntities: async () => [],
+      queryAssets: async () => ({ assets: [] }),
+      queryProductionContext: async () => ({
+        productions: [production],
+        segments: [segment],
+        scene_moments: [moment],
+        shots: [],
+        storyboards: [],
+        audio_cues: [],
+        expression_units: [],
+        content_units: [sceneContentUnit, assemblyContentUnit],
+        keyframes: [],
+      }),
+      readPreviewTimeline: async () => undefined,
+      readTimelineAssemblyPreviewTimeline: async (scope) => {
+        assert.deepEqual(scope, {
+          scopeKind: 'episode',
+          scopeRef: 'pilot',
+          targetRef: 'timeline_assembly:episode:pilot',
+        })
+        return {
+          schema: 'movscript.preview_timeline.v1',
+          targetKind: 'timeline_assembly',
+          targetRef: 'timeline_assembly:episode:pilot',
+          scopeKind: 'episode',
+          scopeRef: 'pilot',
+          scopePath: 'productions/pilot',
+          scopeTitle: 'Pilot episode',
+          items: [
+            timelineItem('timeline_namespace:opening', 'timeline_namespace', segment, 0),
+            timelineItem('scene_moment:rain_call', 'scene_moment', moment, 1, 'timeline_namespace:opening'),
+          ],
+        }
+      },
+      readSceneMomentEditPlan: async () => undefined,
+    },
+    review: async () => ({ productionWorkPlan: undefined }),
+  }
+
+  const snapshot = await loadContentSourceWorkspaceSnapshotFromEngine(fakeEngine)
+  const assemblyTimeline = snapshot.editingTimelines?.find((timeline) => timeline.targetKind === 'timeline_assembly')
+
+  assert.equal(snapshot.previewTimelines.some((timeline) => timeline.targetRef === 'timeline_assembly:episode:pilot'), true)
+  assert.equal(assemblyTimeline?.targetId, 'timeline_assembly:episode:pilot')
+  assert.equal(assemblyTimeline?.targetRef, 'timeline_assembly:episode:pilot')
+  assert.equal(assemblyTimeline?.scopeKind, 'episode')
+  assert.equal(assemblyTimeline?.scopeRef, 'pilot')
+  assert.equal(assemblyTimeline?.status, 'ready_to_compose')
+  assert.equal(assemblyTimeline?.mediaEditingProject.source.productionId, undefined)
+  assert.equal(assemblyTimeline?.mediaEditingProject.source.targetKind, 'timeline_assembly')
+  assert.equal(assemblyTimeline?.mediaEditingProject.source.scopeKind, 'episode')
+  assert.equal(assemblyTimeline?.mediaEditingProject.provenance?.legacyTargetKind, undefined)
+  const clip = assemblyTimeline?.mediaEditingProject.timeline.tracks[0]?.clips[0]
+  assert.equal(clip?.asset?.resourceId, 612)
+  assert.equal(clip?.metadata?.movscript?.targetKind, 'timeline_assembly')
+  assert.equal(clip?.metadata?.movscript?.targetRef, 'timeline_assembly:episode:pilot')
+  assert.equal(clip?.metadata?.movscript?.scopeKind, 'episode')
 })
 
 test('core content source workspace exposes scene moment candidates through content unit index', () => {
@@ -616,6 +904,75 @@ test('core content source workspace exposes scene moment candidates through cont
   assert.equal(data.contentUnitCandidates.cu_rain_call[0].selected, true)
   assert.equal(data.contentUnitCandidates.cu_rain_call[0].resourceId, 612)
   assert.equal(data.contentUnitCandidates.cu_rain_call[0].status, 'succeeded')
+})
+
+test('core content source workspace exposes audio cue content units as audio tasks', () => {
+  const production = entity('production', 'pilot', 'productions/pilot/production.json', { title: 'Pilot' })
+  const segment = entity('segment', 'opening', 'productions/pilot/segments/opening/segment.json', { title: 'Opening' })
+  const moment = entity('scene_moment', 'rain_call', 'productions/pilot/segments/opening/scene_moments/rain_call/scene_moment.json', { title: 'Rain call' })
+  const audioCue = entity('audio_cue', 'phone_buzz', 'productions/pilot/segments/opening/scene_moments/rain_call/audio_cues/phone_buzz/audio_cue.json', {
+    title: 'Phone buzz',
+    cue_kind: 'sound_effect',
+    prompt_hint: 'Low phone vibration under rain ambience.',
+  })
+  const contentUnit = entity('content_unit', 'cu_phone_buzz', 'content_units/cu_phone_buzz/content_unit.json', {
+    title: 'Phone buzz audio',
+    content_unit_type: 'audio_cue_ref',
+    output_kind: 'audio',
+    target_kind: 'audio_cue',
+    target_ref: 'phone_buzz',
+    audio_cue_ref: 'phone_buzz',
+    edit_prompt: { text: 'Generate the phone vibration sound.' },
+  })
+  const data = buildContentSourceWorkspaceData({
+    indexDocuments: [
+      { path: audioCue.path, data: audioCue.record },
+      { path: contentUnit.path, data: contentUnit.record },
+      {
+        path: 'content_units/cu_phone_buzz/candidates/cand_audio/content_candidate.json',
+        data: {
+          schema: 'movscript.content_candidate.v1',
+          id: 'cand_audio',
+          content_unit_ref: 'content_units/cu_phone_buzz',
+          status: 'succeeded',
+          source: 'ai_generate',
+          producer: { model_id: 'audio-model' },
+          outputs: [{ kind: 'audio', resource_id: 808 }],
+          prompt_snapshot: { input_hash: 'audio:808' },
+        },
+      },
+      {
+        path: '.movscript/decisions/content_units/cu_phone_buzz/decision_context.json',
+        data: {
+          schema: 'movscript.decision_context.v1',
+          target_kind: 'content_unit',
+          target_ref: 'content_units/cu_phone_buzz',
+          candidates: [],
+          selection: { candidate_id: 'cand_audio' },
+        },
+      },
+    ],
+    settings: [],
+    settingStates: [],
+    assets: [],
+    productions: [production],
+    segments: [segment],
+    sceneMoments: [moment],
+    storyboards: [],
+    keyframes: [],
+    expressionUnits: [],
+    audioCues: [audioCue],
+    contentUnits: [contentUnit],
+    previewTimelines: [],
+  })
+
+  const cue = data.audioCuesByMoment.rain_call?.[0]
+  assert.equal(cue?.contentUnit?.id, 'cu_phone_buzz')
+  assert.equal(cue?.contentUnit?.type, 'audio_cue_ref')
+  assert.equal(cue?.contentUnit?.outputKind, 'audio')
+  assert.equal(cue?.contentUnit?.selectionState, 'selected')
+  assert.equal(cue?.contentUnit?.candidates[0]?.resourceId, 808)
+  assert.equal(data.contentUnitCandidates.cu_phone_buzz[0]?.status, 'succeeded')
 })
 
 test('core content source workspace exposes decision context content unit candidates', () => {

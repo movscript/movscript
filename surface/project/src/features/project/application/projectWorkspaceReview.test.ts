@@ -40,7 +40,28 @@ test('project entry workspace review search prefers latest matching artifact and
 
   assert.equal(result?.workspaceId, 'latest-workspace')
   assert.equal(result?.artifact?.workspaceId, 'latest-workspace')
-  assert.equal(result?.searchParams.toString(), 'panel=review&view=review&workspaceId=latest-workspace&productionId=301')
+  assert.equal(result?.searchParams.toString(), 'panel=review&view=review&workspaceId=latest-workspace&productionId=301&scopeKind=production&scopeRef=301&targetCategory=timeline_assembly&targetKind=timeline_assembly&targetRef=timeline_assembly%3Aproduction%3A301&timeline_assembly_ref=timeline_assembly%3Aproduction%3A301')
+})
+
+test('project entry workspace review search preserves non-production timeline scope', () => {
+  const result = resolveProjectEntryWorkspaceReviewSearchParams(new URLSearchParams('panel=review&productionId=legacy'), {
+    projectEntryId: 'orchestration_production',
+    workspaceKind: 'production_workspace',
+    fallbackWorkspaceId: 'seed-workspace',
+    artifacts: [
+      {
+        type: 'workspace',
+        workspaceId: 'episode-workspace',
+        workspaceKind: 'production_workspace',
+        target: { scopeKind: 'episode', scopeRef: 'episode_01' },
+      },
+    ],
+  })
+
+  assert.equal(result?.workspaceId, 'episode-workspace')
+  assert.equal(result?.searchParams.get('productionId'), null)
+  assert.equal(result?.searchParams.get('scopeKind'), 'episode')
+  assert.equal(result?.searchParams.get('scopeRef'), 'episode_01')
 })
 
 test('project entry artifact review search merges related workspace artifacts', () => {
@@ -104,6 +125,8 @@ test('project entry artifact review search covers all active workspace workbench
   assert.equal(creativeTaskGraph.get('workspace'), 'structure')
   assert.equal(creativeTaskGraph.get('workspaceId'), 'production-3')
   assert.equal(creativeTaskGraph.get('productionId'), '301')
+  assert.equal(creativeTaskGraph.get('scopeKind'), 'production')
+  assert.equal(creativeTaskGraph.get('scopeRef'), '301')
   assert.equal(creativeTaskGraph.get('settingWorkspaceId'), 'setting-3')
   assert.equal(creativeTaskGraph.get('assetWorkspaceArtifactId'), 'asset-3')
 

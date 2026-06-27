@@ -6,7 +6,7 @@ Use this reference before writing or updating a MovScript video-generation promp
 
 This file is a prompt-craft layer, not a provider adapter. Keep MovScript semantics intact:
 
-- Use MovScript prompt refs such as `{{asset::id}}`, `{{storyboard::id}}`, `{{keyframe::id}}`, `{{scene_moment::id}}`, `{{expression_unit::id}}`, `{{content_unit::id}}`, `{{candidate::id}}`, and `{{resource::123}}`.
+- Use MovScript prompt refs such as `{{asset::id}}`, `{{storyboard::id}}`, `{{keyframe::id}}`, `{{audio_cue::id}}`, `{{scene_moment::id}}`, `{{expression_unit::id}}`, `{{content_unit::id}}`, `{{candidate::id}}`, and `{{resource::123}}`.
 - Do not write provider-only reference syntax such as `@image1`, `@video1`, or `@audio1` in a content-unit prompt. Translate those ideas into MovScript refs or `input_resource_ids` / `reference_resource_ids`.
 - Treat duration, aspect ratio, resolution, model name, and provider parameter keys as external generation settings unless the specific provider requires those words inside the prompt.
 - For image-to-video, use the selected image as the visual anchor. The prompt should focus on motion, performance, camera, environmental change, and audio, not re-describe every visible detail.

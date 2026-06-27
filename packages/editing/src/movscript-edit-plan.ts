@@ -27,11 +27,16 @@ export interface MovScriptEditPlanTrack {
 
 export interface MovScriptEditPlanArtifact {
   schema: 'movscript.edit_plan.v1'
+  target_kind?: 'scene_moment' | 'timeline_assembly' | string
   productionId: string | number
   productionPath: string
   sceneMomentId: string | number
   sceneMomentPath: string
   target_ref: string
+  scope_kind?: string
+  scope_ref?: string | number
+  legacy_target_kind?: string
+  legacy_target_ref?: string | number
   status: 'ready_to_compose' | 'missing_selection'
   tracks: MovScriptEditPlanTrack[]
   compose_inputs: Array<{

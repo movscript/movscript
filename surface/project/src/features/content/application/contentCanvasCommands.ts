@@ -1,5 +1,6 @@
 import type { ContentCanvasCandidate, ContentCanvasNode } from '../domain/contentCanvasTypes'
 import { suggestedContentCanvasChildNodePosition } from './contentCanvasCreateNodeCommands'
+import { requiredSceneMomentRefs } from './contentCanvasCreateNodeCommandHelpers'
 import { ensureContentUnitForRef } from './contentCanvasContentUnitCommands'
 import type { ContentCanvasWorkspaceGateway } from './contentCanvasWorkspaceGateway'
 import { contentCanvasExpressionUnitOutputKind } from './contentCanvasExpressionUnitKinds'
@@ -145,9 +146,10 @@ export async function connectSceneMomentSettingFromCanvas(
   if (!gateway) throw new Error('Content canvas workspace gateway is required')
 
   const state = stateNode ?? await createDefaultSettingState(projectId, settingNode, gateway)
+  const refs = requiredSceneMomentRefs(sceneMomentNode)
   await gateway.connectSceneMomentSetting({
-    productionId: pathSegmentAfter(sceneMomentNode.sourcePath, 'productions'),
-    segmentId: pathSegmentAfter(sceneMomentNode.sourcePath, 'segments'),
+    productionId: refs.productionId,
+    segmentId: refs.segmentId,
     sceneMomentId: sceneMomentNode.entityKey,
     sceneMomentRecord: {
       ...sceneMomentNode.record,
@@ -191,6 +193,50 @@ export async function createContentUnitFromSceneMoment(
     focusNodeId: createdId,
     nodePositions: { [createdId]: suggestedContentCanvasChildNodePosition(sceneMomentNode, 1) },
     message: '已确保情节创作片段',
+  }
+}
+
+export async function createTimelineAssemblyFromNamespace(
+  projectId: number,
+  namespaceNode: ContentCanvasNode,
+  gateway: ContentCanvasWorkspaceGateway,
+): Promise<ContentCanvasCommandResult> {
+  void projectId
+  if (namespaceNode.domainCategory !== 'timeline_namespace') {
+    throw new Error('只有时间线 namespace 节点可以创建剪辑聚合')
+  }
+  const scopeKind = timelineScopeKindForNode(namespaceNode)
+  const scopeRef = namespaceNode.entityKey
+  const safeScopeKind = safeToken(scopeKind)
+  const safeScopeRef = safeToken(scopeRef)
+  const id = `cu_assembly_${safeScopeKind}_${safeScopeRef}`
+  const result = await gateway.ensureContentUnitForEntity({
+    targetKind: 'timeline_assembly',
+    scopeKind,
+    scopeRef,
+    id,
+    title: `${namespaceNode.title} 剪辑聚合`,
+    contentUnitType: 'timeline_assembly_ref',
+    outputKind: 'video',
+    description: `从时间线范围「${namespaceNode.title}」创建剪辑聚合。`,
+    prompt: `汇总时间线范围「${namespaceNode.title}」下已确认的情节与素材，生成可审阅的剪辑聚合视频。`,
+    modelIntent: {
+      source: 'content_canvas',
+      namespace_node_id: namespaceNode.id,
+      namespace_node_kind: namespaceNode.domainKind ?? namespaceNode.kind,
+      namespace_node_path: namespaceNode.sourcePath,
+      scope_kind: scopeKind,
+      scope_ref: scopeRef,
+    },
+  })
+  const contentUnitId = String(result.record.id ?? id)
+  const createdId = `content_unit:${contentUnitId}`
+  return {
+    changedNodeIds: [createdId],
+    affectedNodeIds: [namespaceNode.id, createdId],
+    focusNodeId: createdId,
+    nodePositions: { [createdId]: suggestedContentCanvasChildNodePosition(namespaceNode, 1) },
+    message: '已确保剪辑聚合创作片段',
   }
 }
 
@@ -462,13 +508,6 @@ function timestampId(prefix: string): string {
   return `${prefix}_${Date.now()}`
 }
 
-function pathSegmentAfter(path: string, segment: string): string | undefined {
-  if (!path) return undefined
-  const parts = path.split('/')
-  const index = parts.indexOf(segment)
-  return index >= 0 ? parts[index + 1] : undefined
-}
-
 async function createDefaultSettingState(
   projectId: number,
   settingNode: ContentCanvasNode,
@@ -508,6 +547,14 @@ function engineEntityKindForNode(node: ContentCanvasNode): string {
 
 function safeToken(value: string): string {
   return value.trim().replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '') || 'asset'
+}
+
+function timelineScopeKindForNode(node: ContentCanvasNode): string {
+  return stringValue(node.domainKind)
+    ?? stringValue(node.record.namespace_kind)
+    ?? stringValue(node.record.timeline_namespace_kind)
+    ?? stringValue(node.record.timelineNamespaceKind)
+    ?? node.kind
 }
 
 function idValue(value: unknown): string | undefined {

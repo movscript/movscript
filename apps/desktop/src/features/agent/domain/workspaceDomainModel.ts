@@ -3,13 +3,14 @@ import { isRecord } from '@/shared/domain/jsonValue'
 import type { MovScriptWorkspaceKind, WorkspaceArtifact } from '@/shared/contracts/workspaceArtifact'
 import { buildProjectEntryReviewPath, getProjectEntryDefinition } from '@movscript/project-surface/data'
 import { ROUTES, withRouteParams } from '@/routes/projectRoutes'
+import {
+  legacyProductionIdFromDomainFocus,
+  movScriptDomainFocusFromRecord,
+  movScriptRouteParamsForDomainFocus,
+} from '@/shared/domain/movscriptDomainFocusRoutes'
 
 export { WORKSPACE_DOMAIN_MODELS, getWorkspaceDomainModel } from '@/shared/domain/workspaceDomainModel'
 export type { WorkspaceDomainModel } from '@/shared/domain/workspaceDomainModel'
-
-const productionRelatedKinds: MovScriptWorkspaceKind[] = [
-  'production_workspace',
-]
 
 const contentUnitRelatedKinds: MovScriptWorkspaceKind[] = [
   'content_unit_workspace',
@@ -20,8 +21,8 @@ export function buildWorkspaceReviewPath(workspace: WorkspaceArtifact): string |
   const target = isRecord(workspace.target) ? workspace.target : undefined
   const sourceEntityType = stringValue(source?.entityType)
   const targetEntityType = stringValue(target?.entityType)
-  const sourceEntityId = numberValue(source?.entityId)
-  const targetEntityId = numberValue(target?.entityId)
+  const sourceEntityId = idValue(source?.entityId)
+  const targetEntityId = idValue(target?.entityId)
 
   const projectEntryReviewPath = buildProjectEntryWorkspaceReviewPath({
     kind: workspace.kind,
@@ -38,19 +39,26 @@ export function buildWorkspaceReviewPath(workspace: WorkspaceArtifact): string |
   }
 
   if (workspace.kind === 'setting_workspace' || sourceEntityType === 'setting' || targetEntityType === 'setting') {
-    return withRouteParams(ROUTES.project.scripts, {
+    return withRouteParams(ROUTES.project.settingPreview, {
       workspaceId: workspace.id,
-      reference_id: sourceEntityId ?? targetEntityId,
+      setting_id: sourceEntityType === 'setting' ? sourceEntityId : targetEntityType === 'setting' ? targetEntityId : undefined,
     })
   }
 
-  if (workspace.kind === 'asset_workspace' && sourceEntityType !== 'asset_slot' && targetEntityType !== 'asset_slot') {
-    return withRouteParams(ROUTES.project.contentPreview, { workspaceId: workspace.id })
-  }
-
-  if (sourceEntityType === 'asset_slot' || targetEntityType === 'asset_slot') {
-    const assetSlotId = sourceEntityId ?? targetEntityId
-    return withRouteParams(ROUTES.project.contentPreview, { workspaceId: workspace.id, asset_slot_id: assetSlotId })
+  if (
+    workspace.kind === 'asset_workspace'
+    || sourceEntityType === 'asset_slot'
+    || targetEntityType === 'asset_slot'
+    || sourceEntityType === 'asset'
+    || targetEntityType === 'asset'
+  ) {
+    const assetSlotId = sourceEntityType === 'asset_slot' ? sourceEntityId : targetEntityType === 'asset_slot' ? targetEntityId : undefined
+    const assetId = sourceEntityType === 'asset' ? sourceEntityId : targetEntityType === 'asset' ? targetEntityId : undefined
+    return withRouteParams(ROUTES.project.settingPreview, {
+      workspaceId: workspace.id,
+      asset_slot_id: assetSlotId,
+      asset_id: assetId,
+    })
   }
 
   if (sourceEntityType === 'project' || targetEntityType === 'project') {
@@ -67,18 +75,34 @@ export function buildWorkspaceReviewPath(workspace: WorkspaceArtifact): string |
     return withRouteParams(ROUTES.project.contentPreview, { workspaceId: workspace.id, scene_moment_id: sceneMomentId })
   }
 
+  const targetFocus = movScriptDomainFocusFromRecord(target, workspace.projectId !== undefined ? { projectId: workspace.projectId } : {})
+    ?? movScriptDomainFocusFromRecord(source, workspace.projectId !== undefined ? { projectId: workspace.projectId } : {})
+
+  if (workspace.kind === 'content_unit_workspace' && targetFocus?.target?.targetKind === 'timeline_assembly') {
+    return withRouteParams(ROUTES.project.contentPreview, {
+      workspaceId: workspace.id,
+      ...movScriptRouteParamsForDomainFocus(targetFocus),
+    })
+  }
+
+  if (workspace.kind === 'production_workspace') {
+    return withRouteParams(ROUTES.project.scripts, {
+      workspaceId: workspace.id,
+      ...movScriptRouteParamsForDomainFocus(targetFocus, { includeTarget: false }),
+    })
+  }
+
   const productionId = sourceEntityId ?? targetEntityId
+  const focusProductionId = legacyProductionIdFromDomainFocus(targetFocus)
   if (
-    productionId !== undefined
+    (productionId !== undefined || focusProductionId !== undefined)
     && (
-      workspace.kind === 'production_workspace'
-      || sourceEntityType === 'production'
+      sourceEntityType === 'production'
       || targetEntityType === 'production'
-      || productionRelatedKinds.includes(workspace.kind)
       || contentUnitRelatedKinds.includes(workspace.kind)
     )
   ) {
-    return withRouteParams(ROUTES.project.scripts, { workspaceId: workspace.id, productionId })
+    return withRouteParams(ROUTES.project.scripts, { workspaceId: workspace.id, productionId: focusProductionId ?? productionId })
   }
 
   return null
@@ -88,12 +112,17 @@ function buildProjectEntryWorkspaceReviewPath(input: {
   kind: MovScriptWorkspaceKind
   workspaceId: string
   sourceEntityType?: string
-  sourceEntityId?: number
+  sourceEntityId?: string
   targetEntityType?: string
-  targetEntityId?: number
+  targetEntityId?: string
 }) {
   if (input.kind !== 'content_unit_workspace') return null
-  if (input.sourceEntityType === 'production' || input.targetEntityType === 'production') {
+  if (
+    input.sourceEntityType === 'production'
+    || input.targetEntityType === 'production'
+    || input.sourceEntityType === 'segment'
+    || input.targetEntityType === 'segment'
+  ) {
     return null
   }
   const definition = getProjectEntryDefinition('content_preview')
@@ -109,9 +138,9 @@ function pickProjectEntryReviewEntity(
   entityParams: Record<string, string>,
   input: {
     sourceEntityType?: string
-    sourceEntityId?: number
+    sourceEntityId?: string
     targetEntityType?: string
-    targetEntityId?: number
+    targetEntityId?: string
   },
 ) {
   if (input.sourceEntityType && input.sourceEntityId !== undefined && entityParams[input.sourceEntityType]) {
@@ -144,11 +173,8 @@ function stringValue(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
-function numberValue(value: unknown): number | undefined {
-  if (typeof value === 'number' && Number.isFinite(value)) return value
-  if (typeof value === 'string' && value.trim()) {
-    const parsed = Number(value)
-    return Number.isFinite(parsed) ? parsed : undefined
-  }
+function idValue(value: unknown): string | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  if (typeof value === 'string' && value.trim()) return value.trim()
   return undefined
 }

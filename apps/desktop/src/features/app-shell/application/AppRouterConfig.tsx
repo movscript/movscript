@@ -157,6 +157,7 @@ export function AuthenticatedAppRouter() {
                   <Route path={ROUTES.project.content} element={<ProjectGuard><ContentCanvasPreviewPage /></ProjectGuard>} />
                   <Route path={ROUTES.project.contentCanvas} element={<ProjectGuard><ContentCanvasPage /></ProjectGuard>} />
                   <Route path={ROUTES.project.contentPreview} element={<ProjectGuard><ContentCanvasPreviewPage /></ProjectGuard>} />
+                  <Route path={ROUTES.project.settingPreview} element={<ProjectGuard><ContentCanvasPreviewPage /></ProjectGuard>} />
                   <Route path={ROUTES.project.contentLegacy} element={<Navigate to={ROUTES.project.contentCanvas} replace />} />
                   <Route path={ROUTES.project.contentLegacyNext} element={<Navigate to={ROUTES.project.contentCanvas} replace />} />
                   <Route path={ROUTES.studioOverview} element={<ProjectGuard><ProjectOverviewPage /></ProjectGuard>} />
@@ -166,6 +167,7 @@ export function AuthenticatedAppRouter() {
                   <Route path={ROUTES.studioContent} element={<ProjectGuard><ContentCanvasPreviewPage /></ProjectGuard>} />
                   <Route path={ROUTES.studioContentCanvas} element={<ProjectGuard><ContentCanvasPage /></ProjectGuard>} />
                   <Route path={ROUTES.studioContentPreview} element={<ProjectGuard><ContentCanvasPreviewPage /></ProjectGuard>} />
+                  <Route path={ROUTES.studioSettingPreview} element={<ProjectGuard><ContentCanvasPreviewPage /></ProjectGuard>} />
 
                   {runtimeRoutes.map((route) => {
                     const manageNavItem = runtimeNavItems.find((item) => item.to === route.path && (item.section ?? 'manage') === 'manage')

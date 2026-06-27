@@ -26,6 +26,7 @@
     "test": "pnpm build && find tests -name '*.test.mjs' -print | sort | xargs node --test"
   },
   "dependencies": {
+    "@movscript/domain": "workspace:*",
     "@movscript/workspace": "workspace:*"
   },
   "devDependencies": {

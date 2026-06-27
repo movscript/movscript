@@ -6,6 +6,7 @@ import type {
   MovScriptEngineContentUnitInput,
   MovScriptEngineEntityBasicsInput,
   MovScriptEngineEnsureContentUnitInput,
+  MovScriptEngineHierarchyNodeWriteInput,
   MovScriptEngineKeyframeInput,
   MovScriptEngineSceneMomentSettingConnectionInput,
   MovScriptEngineSettingInput,
@@ -28,6 +29,7 @@ export interface ContentCanvasWorkspaceGateway {
   createSetting(input: MovScriptEngineSettingInput): Promise<{ path: string; record: Record<string, unknown> }>
   createSettingState(input: MovScriptEngineSettingStateInput): Promise<{ path: string; record: Record<string, unknown> }>
   createAsset(input: MovScriptEngineAssetInput): Promise<{ path: string; record: Record<string, unknown> }>
+  writeHierarchyNode(input: MovScriptEngineHierarchyNodeWriteInput): Promise<unknown>
   updateEntityBasics(input: MovScriptEngineEntityBasicsInput): Promise<unknown>
   deleteEntity(input: ContentCanvasEntityDeleteInput): Promise<void>
   connectSceneMomentSetting(input: MovScriptEngineSceneMomentSettingConnectionInput): Promise<unknown>

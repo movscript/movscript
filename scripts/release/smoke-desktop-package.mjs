@@ -250,12 +250,8 @@ function linuxSmokeRunner(platform, env) {
 function desktopSmokeRunner(executable, platform, env, smokeArgs) {
   const linuxRunner = linuxSmokeRunner(platform, env)
   if (linuxRunner) return { command: linuxRunner, args: ['-a', executable, ...smokeArgs] }
-  if (platform === 'darwin') {
-    return {
-      command: '/usr/bin/open',
-      args: ['-W', '-n', darwinAppBundlePath(executable), '--args', ...smokeArgs],
-    }
-  }
+  // Validate that macOS smoke still targets an app bundle before running its binary directly.
+  if (platform === 'darwin') darwinAppBundlePath(executable)
   return { command: executable, args: smokeArgs }
 }
 

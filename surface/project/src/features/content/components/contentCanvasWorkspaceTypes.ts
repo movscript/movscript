@@ -14,6 +14,11 @@ export type SettingKind =
 
 export type ContentWorkspaceTab = 'preview' | 'canvas'
 
+export type ContentCanvasPreviewScope =
+  | { kind: 'production'; rootNode: ContentCanvasNode | null }
+  | { kind: 'setting'; rootNode: ContentCanvasNode | null }
+  | { kind: 'mixed'; rootNode: null }
+
 export type RadialNode = {
   id: string
   code: string

@@ -13,6 +13,7 @@ test('desktop project surface adapter keeps the Desktop project home UI route', 
   assert.equal(desktopProjectSurfacePath('content', 'proj_uid_7'), '/project/content')
   assert.equal(desktopProjectSurfacePath('contentCanvas', 'proj_uid_7'), '/project/content/canvas')
   assert.equal(desktopProjectSurfacePath('contentPreview', 'proj_uid_7'), '/project/content/preview')
+  assert.equal(desktopProjectSurfacePath('settingPreview', 'proj_uid_7'), '/project/settings/preview')
   assert.equal(desktopProjectSurfacePath('settings', 'proj_uid_7'), '/project/settings')
 })
 

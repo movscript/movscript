@@ -11,6 +11,7 @@ import {
   EDITING_SERVICE_TASK_ACTION_ENDPOINT,
   createMediaEditingProjectFromMovScriptEditPlan,
   createMediaEditingProjectFromProductionTimelineClips,
+  createMediaEditingProjectFromTimelineAssemblyClips,
   createMediaEditingProjectService,
   validateMediaEditingProjectTimeline,
 } from '@movscript/editing'
@@ -32,6 +33,7 @@ export const EDITING_SERVICE_CAPABILITIES = Object.freeze([
   'editing-project-command',
   'editing-timeline-view',
   'production-timeline-bundle',
+  'timeline-assembly-bundle',
   'preview-timeline',
   'render-request',
   'media-task-action',
@@ -169,6 +171,19 @@ async function readEditingTimelineView({ projectDir, kind, input }) {
       }
       return readProductionTimelineBundle(workspaceService, productionId, input)
     }
+    case 'timelineAssemblyBundle': {
+      const target = timelineAssemblyScopeFromInput(input)
+      if (target.scopeKind === 'production') {
+        return readProductionTimelineBundle(workspaceService, target.scopeRef, {
+          ...input,
+          targetKind: 'timeline_assembly',
+          targetRef: target.targetRef,
+          scopeKind: target.scopeKind,
+          scopeRef: target.scopeRef,
+        }, { canonical: true })
+      }
+      return readTimelineAssemblyBundle(workspaceService, target, input)
+    }
     default:
       throw httpError(400, 'editing_timeline_view_unsupported', `unsupported editing timeline view: ${kind}`)
   }
@@ -208,7 +223,8 @@ async function readSceneMomentTimelineBundle(workspaceService, sceneMomentId, in
   }
 }
 
-async function readProductionTimelineBundle(workspaceService, productionId, input) {
+async function readProductionTimelineBundle(workspaceService, productionId, input, options = {}) {
+  const target = productionTimelineTargetFromInput(productionId, input)
   const [index, context, previewTimeline] = await Promise.all([
     workspaceService.loadIndex(),
     workspaceService.queryProductionContext({
@@ -242,6 +258,10 @@ async function readProductionTimelineBundle(workspaceService, productionId, inpu
   const mediaEditingProject = createMediaEditingProjectFromProductionTimelineClips({
     productionId,
     productionPath,
+    targetKind: target.targetKind,
+    targetRef: target.targetRef,
+    scopeKind: target.scopeKind,
+    scopeRef: target.scopeRef,
     clips,
     id: stringValue(input.id ?? input.editingProjectId ?? input.editing_project_id),
     projectId: projectIdValue(input),
@@ -258,17 +278,115 @@ async function readProductionTimelineBundle(workspaceService, productionId, inpu
   const editPlan = productionEditPlanFromBundle({
     productionId,
     productionPath,
+    target,
     projectName: title,
     clips,
     blockers,
   })
-  const contextView = editingProjectContextFromProductionClips(productionId, clips, blockers)
+  const contextView = editingProjectContextFromProductionClips(productionId, clips, blockers, target)
   const composeInputs = buildMediaProjectComposeInputs(mediaEditingProject)
   return {
-    schema: 'movscript.production-timeline-bundle.v1',
+    schema: options.canonical ? 'movscript.timeline-assembly-bundle.v1' : 'movscript.production-timeline-bundle.v1',
+    preferred_schema: 'movscript.timeline-assembly-bundle.v1',
+    legacy_schema_alias: 'movscript.production-timeline-bundle.v1',
     status: blockers.length === 0 ? 'ok' : 'blocked',
+    target_kind: target.targetKind,
+    target_ref: target.targetRef,
+    scope_kind: target.scopeKind,
+    scope_ref: target.scopeRef,
+    legacy_alias: target.legacyTargetKind ? {
+      target_kind: target.legacyTargetKind,
+      target_ref: target.legacyTargetRef,
+    } : undefined,
     production_id: productionId,
     productionId,
+    preview_timeline: previewTimeline,
+    previewTimeline,
+    media_editing_project: mediaEditingProject,
+    mediaEditingProject,
+    edit_plan: editPlan,
+    editPlan,
+    context: contextView,
+    compose_inputs: composeInputs,
+    composeInputs,
+    clips,
+    blockers,
+  }
+}
+
+async function readTimelineAssemblyBundle(workspaceService, target, input) {
+  const [index, context, previewTimeline] = await Promise.all([
+    workspaceService.loadIndex(),
+    workspaceService.queryProductionContext({
+      include: ['content_units'],
+      limit: 1000,
+    }),
+    workspaceService.readTimelineAssemblyPreviewTimeline({
+      scopeKind: target.scopeKind,
+      scopeRef: target.scopeRef,
+      targetRef: target.targetRef,
+    }),
+  ])
+  const blockers = []
+  if (!previewTimeline) {
+    blockers.push({
+      code: 'timeline_assembly_preview_timeline_missing',
+      scope_kind: target.scopeKind,
+      scope_ref: target.scopeRef,
+      target_ref: target.targetRef,
+      message: `timeline assembly ${target.targetRef} preview timeline was not found; ensure the namespace scope exists and run domain_interpret first`,
+    })
+  }
+  const clips = previewTimeline
+    ? productionTimelineClips({
+        previewTimeline,
+        contentUnits: context.content_units ?? [],
+        documents: index.documents,
+        blockers,
+      })
+    : []
+  const title = stringValue(input.title ?? input.projectName ?? input.project_name)
+    ?? stringValue(previewTimeline?.scopeTitle)
+    ?? `Timeline assembly ${target.scopeKind}:${target.scopeRef}`
+  const mediaEditingProject = createMediaEditingProjectFromTimelineAssemblyClips({
+    targetKind: target.targetKind,
+    targetRef: target.targetRef,
+    scopeKind: target.scopeKind,
+    scopeRef: target.scopeRef,
+    scopePath: stringValue(previewTimeline?.scopePath),
+    clips,
+    id: stringValue(input.id ?? input.editingProjectId ?? input.editing_project_id),
+    projectId: projectIdValue(input),
+    title,
+    now: stringValue(input.now),
+    width: optionalNumber(input.width),
+    height: optionalNumber(input.height),
+    fps: optionalNumber(input.fps),
+    background: stringValue(input.background),
+    defaultDurationMs: optionalNumber(input.defaultDurationMs ?? input.default_duration_ms)
+      ?? secToMs(optionalNumber(input.defaultDurationSec ?? input.default_duration_sec))
+      ?? 4000,
+  })
+  const editPlan = timelineAssemblyEditPlanFromBundle({
+    target,
+    scopePath: stringValue(previewTimeline?.scopePath),
+    projectName: title,
+    clips,
+    blockers,
+  })
+  const contextView = editingProjectContextFromAssemblyClips(clips, blockers, target, {
+    source: 'timeline_assembly_preview_timeline',
+    scopePath: stringValue(previewTimeline?.scopePath),
+  })
+  const composeInputs = buildMediaProjectComposeInputs(mediaEditingProject)
+  return {
+    schema: 'movscript.timeline-assembly-bundle.v1',
+    status: blockers.length === 0 ? 'ok' : 'blocked',
+    target_kind: target.targetKind,
+    target_ref: target.targetRef,
+    scope_kind: target.scopeKind,
+    scope_ref: target.scopeRef,
+    scope_path: stringValue(previewTimeline?.scopePath),
     preview_timeline: previewTimeline,
     previewTimeline,
     media_editing_project: mediaEditingProject,
@@ -422,7 +540,53 @@ function firstCandidateOutput(candidate) {
   return outputs.find(recordValue)
 }
 
+function timelineAssemblyScopeFromInput(input) {
+  const parsedTarget = parseTimelineAssemblyRef(stringValue(input.targetRef ?? input.target_ref ?? input.timelineAssemblyRef ?? input.timeline_assembly_ref))
+  const legacyProductionId = stringOrNumberValue(input.productionId ?? input.production_id)
+  const scopeKind = stringValue(input.scopeKind ?? input.scope_kind) ?? parsedTarget?.scopeKind ?? (legacyProductionId !== undefined ? 'production' : undefined)
+  const scopeRef = stringOrNumberValue(input.scopeRef ?? input.scope_ref) ?? parsedTarget?.scopeRef ?? stringOrNumberValue(input.productionId ?? input.production_id)
+  if (!scopeKind || scopeRef === undefined) {
+    throw httpError(400, 'editing_timeline_assembly_scope_required', 'timelineAssemblyBundle requires scopeRef, targetRef, or legacy productionId')
+  }
+  return {
+    scopeKind,
+    scopeRef: String(scopeRef),
+    targetKind: 'timeline_assembly',
+    targetRef: stringValue(input.targetRef ?? input.target_ref ?? input.timelineAssemblyRef ?? input.timeline_assembly_ref)
+      ?? `timeline_assembly:${scopeKind}:${String(scopeRef)}`,
+  }
+}
+
+function productionTimelineTargetFromInput(productionId, input) {
+  const explicitTargetRef = stringValue(input.targetRef ?? input.target_ref ?? input.timelineAssemblyRef ?? input.timeline_assembly_ref)
+  const parsedTarget = parseTimelineAssemblyRef(explicitTargetRef)
+  const targetKind = stringValue(input.targetKind ?? input.target_kind) ?? 'timeline_assembly'
+  const scopeKind = stringValue(input.scopeKind ?? input.scope_kind) ?? parsedTarget?.scopeKind ?? (targetKind === 'timeline_assembly' ? 'production' : undefined)
+  const scopeRef = stringOrNumberValue(input.scopeRef ?? input.scope_ref) ?? parsedTarget?.scopeRef ?? (scopeKind === 'production' ? productionId : undefined)
+  const targetRef = explicitTargetRef
+    ?? (targetKind === 'timeline_assembly' ? `timeline_assembly:${scopeKind ?? 'production'}:${String(scopeRef ?? productionId)}` : String(productionId))
+  return {
+    targetKind,
+    targetRef,
+    ...(scopeKind ? { scopeKind } : {}),
+    ...(scopeRef !== undefined ? { scopeRef: String(scopeRef) } : {}),
+    ...(targetKind === 'timeline_assembly' ? {
+      legacyTargetKind: 'production',
+      legacyTargetRef: String(productionId),
+    } : {}),
+  }
+}
+
+function parseTimelineAssemblyRef(value) {
+  if (!value?.startsWith('timeline_assembly:')) return undefined
+  const [, scopeKind, ...scopeRefParts] = value.split(':')
+  const scopeRef = scopeRefParts.join(':')
+  if (!scopeKind?.trim() || !scopeRef.trim()) return undefined
+  return { scopeKind: scopeKind.trim(), scopeRef: scopeRef.trim() }
+}
+
 function productionEditPlanFromBundle(input) {
+  const target = input.target ?? productionTimelineTargetFromInput(input.productionId, {})
   let cursorSec = 0
   const items = input.clips
     .slice()
@@ -456,11 +620,16 @@ function productionEditPlanFromBundle(input) {
     })
   return {
     schema: 'movscript.edit_plan.v1',
+    target_kind: target.targetKind,
     productionId: input.productionId,
     productionPath: input.productionPath ?? `productions/${String(input.productionId)}`,
     sceneMomentId: `production_${String(input.productionId)}`,
     sceneMomentPath: input.productionPath ?? `productions/${String(input.productionId)}`,
-    target_ref: input.productionPath ?? `productions/${String(input.productionId)}`,
+    target_ref: target.targetRef,
+    scope_kind: target.scopeKind,
+    scope_ref: target.scopeRef,
+    legacy_target_kind: target.legacyTargetKind,
+    legacy_target_ref: target.legacyTargetRef,
     status: input.blockers.length === 0 ? 'ready_to_compose' : 'missing_selection',
     tracks: [{ type: 'video', items }],
     compose_inputs: items.map((item) => ({
@@ -475,6 +644,68 @@ function productionEditPlanFromBundle(input) {
             code: blocker.code === 'selection_stale' || blocker.code === 'resource_missing' ? blocker.code : 'selection_missing',
             content_unit_id: blockerContentUnitId(blocker),
             message: stringValue(blocker.message) ?? 'Production edit plan is blocked by missing scene_moment output selection.',
+          })),
+        }
+      : {}),
+  }
+}
+
+function timelineAssemblyEditPlanFromBundle(input) {
+  const target = input.target
+  let cursorSec = 0
+  const items = input.clips
+    .slice()
+    .sort((left, right) => left.order - right.order)
+    .map((clip, index) => {
+      const durationSec = Math.max(0.1, clip.durationSec || 4)
+      const item = {
+        id: clip.id,
+        content_unit_id: clip.contentUnitId,
+        content_unit_ref: `content_units/${String(clip.contentUnitId)}`,
+        output_kind: 'video',
+        target_kind: 'scene_moment',
+        target_ref: clip.sceneMomentPath ?? String(clip.sceneMomentId ?? clip.contentUnitId),
+        expression_unit_ref: clip.sceneMomentPath,
+        expression_modality: 'visual',
+        expression_role: 'scene_moment_output',
+        candidate_id: clip.candidateId,
+        resource_id: clip.resourceId,
+        selected: true,
+        stale: false,
+        generation_role: 'composed_scene_moment',
+        timing_intent: {
+          timeline_start_sec: cursorSec,
+          duration_sec: durationSec,
+          source_duration_sec: durationSec,
+        },
+        order: index + 1,
+      }
+      cursorSec += durationSec
+      return item
+    })
+  return {
+    schema: 'movscript.edit_plan.v1',
+    target_kind: target.targetKind,
+    target_ref: target.targetRef,
+    scope_kind: target.scopeKind,
+    scope_ref: target.scopeRef,
+    scope_path: input.scopePath,
+    assemblyId: target.targetRef,
+    assemblyTitle: input.projectName,
+    status: input.blockers.length === 0 ? 'ready_to_compose' : 'missing_selection',
+    tracks: [{ type: 'video', items }],
+    compose_inputs: items.map((item) => ({
+      content_unit_id: item.content_unit_id,
+      resource_id: item.resource_id ?? 0,
+      output_kind: 'video',
+      track_type: 'video',
+    })).filter((item) => item.resource_id > 0),
+    ...(input.blockers.length
+      ? {
+          blockers: input.blockers.map((blocker) => ({
+            code: blocker.code === 'selection_stale' || blocker.code === 'resource_missing' ? blocker.code : 'selection_missing',
+            content_unit_id: blockerContentUnitId(blocker),
+            message: stringValue(blocker.message) ?? 'Timeline assembly edit plan is blocked by missing scene_moment output selection.',
           })),
         }
       : {}),
@@ -525,15 +756,26 @@ function editingProjectContextFromEditPlan(editPlan) {
   }
 }
 
-function editingProjectContextFromProductionClips(productionId, clips, blockers) {
+function editingProjectContextFromProductionClips(productionId, clips, blockers, target = productionTimelineTargetFromInput(productionId, {})) {
   return {
+    target_kind: target.targetKind,
+    target_ref: target.targetRef,
+    scope_kind: target.scopeKind,
+    scope_ref: target.scopeRef,
+    legacy_alias: target.legacyTargetKind ? {
+      target_kind: target.legacyTargetKind,
+      target_ref: target.legacyTargetRef,
+    } : undefined,
     production_id: productionId,
     selected_content_units: uniqueBy(clips.map((clip) => ({
       content_unit_id: clip.contentUnitId,
       scene_moment_id: clip.sceneMomentId,
       scene_moment_path: clip.sceneMomentPath,
       output_kind: 'video',
-      target_kind: 'production',
+      target_kind: target.targetKind,
+      target_ref: target.targetRef,
+      scope_kind: target.scopeKind,
+      scope_ref: target.scopeRef,
     })), (item) => String(item.content_unit_id)),
     selected_candidates: clips.flatMap((clip) => clip.candidateId === undefined ? [] : [{
       content_unit_id: clip.contentUnitId,
@@ -552,6 +794,57 @@ function editingProjectContextFromProductionClips(productionId, clips, blockers)
     blockers,
     provenance: {
       source: 'production_preview_timeline',
+      target_kind: target.targetKind,
+      target_ref: target.targetRef,
+      scope_kind: target.scopeKind,
+      scope_ref: target.scopeRef,
+      legacy_target_kind: target.legacyTargetKind,
+      legacy_target_ref: target.legacyTargetRef,
+      selected_candidate_ids: clips.flatMap((clip) => clip.candidateId === undefined ? [] : [String(clip.candidateId)]),
+      input_resource_ids: clips.map((clip) => clip.resourceId),
+    },
+  }
+}
+
+function editingProjectContextFromAssemblyClips(clips, blockers, target, options = {}) {
+  return {
+    target_kind: target.targetKind,
+    target_ref: target.targetRef,
+    scope_kind: target.scopeKind,
+    scope_ref: target.scopeRef,
+    scope_path: options.scopePath,
+    selected_content_units: uniqueBy(clips.map((clip) => ({
+      content_unit_id: clip.contentUnitId,
+      scene_moment_id: clip.sceneMomentId,
+      scene_moment_path: clip.sceneMomentPath,
+      output_kind: 'video',
+      target_kind: target.targetKind,
+      target_ref: target.targetRef,
+      scope_kind: target.scopeKind,
+      scope_ref: target.scopeRef,
+    })), (item) => String(item.content_unit_id)),
+    selected_candidates: clips.flatMap((clip) => clip.candidateId === undefined ? [] : [{
+      content_unit_id: clip.contentUnitId,
+      candidate_id: clip.candidateId,
+      resource_id: clip.resourceId,
+      selected: true,
+      stale: false,
+    }]),
+    resources: clips.map((clip) => ({
+      resource_id: clip.resourceId,
+      content_unit_id: clip.contentUnitId,
+      candidate_id: clip.candidateId,
+      output_kind: 'video',
+      track_type: 'video',
+    })),
+    blockers,
+    provenance: {
+      source: options.source ?? 'timeline_assembly_preview_timeline',
+      target_kind: target.targetKind,
+      target_ref: target.targetRef,
+      scope_kind: target.scopeKind,
+      scope_ref: target.scopeRef,
+      scope_path: options.scopePath,
       selected_candidate_ids: clips.flatMap((clip) => clip.candidateId === undefined ? [] : [String(clip.candidateId)]),
       input_resource_ids: clips.map((clip) => clip.resourceId),
     },

@@ -100,6 +100,11 @@ test('runtimeStatus marks Desktop as legacy owner when no local daemon is ready'
       homeDir,
       workspaceDir: projectDir,
       projectDir,
+      scopeKind: 'episode',
+      scopeRef: 'episode_01',
+      targetKind: 'timeline_assembly',
+      targetRef: 'timeline_assembly:episode:episode_01',
+      timelineAssemblyRef: 'timeline_assembly:episode:episode_01',
       timeoutMs: 500,
     })
 
@@ -119,12 +124,52 @@ test('runtimeStatus marks Desktop as legacy owner when no local daemon is ready'
     assert.equal(status.surface.surface, 'project.overview')
     assert.match(status.surface.url, new RegExp(`^${escapeRegExp(baseURL)}/surface/studio/`))
     assert.equal(new URL(status.surface.url).searchParams.get('projectDir'), projectDir)
+    assert.equal(new URL(status.surface.url).searchParams.get('scopeKind'), 'episode')
+    assert.equal(new URL(status.surface.url).searchParams.get('scopeRef'), 'episode_01')
+    assert.equal(new URL(status.surface.url).searchParams.get('targetKind'), 'timeline_assembly')
+    assert.equal(new URL(status.surface.url).searchParams.get('targetRef'), 'timeline_assembly:episode:episode_01')
+    assert.equal(new URL(status.surface.url).searchParams.get('timeline_assembly_ref'), 'timeline_assembly:episode:episode_01')
+    assert.equal(new URL(status.surface.url).searchParams.get('productionId'), null)
     assert.equal(status.surfaces.urls.canvas, `${baseURL}/surface/canvases?source=runtime-status`)
     assert.equal(status.secondary_surfaces.some((surface) => surface.surface === 'admin.overview'), true)
     assert.equal(status.runtimeOwner.kind, 'desktop_legacy_owner')
     assert.equal(status.runtimeOwner.sidecarStartupAllowed, false)
     assert.equal(status.runtimeOwner.businessSidecarStartupAllowed, false)
     assert.equal(status.runtimeOwner.surfaceHostStartupAllowed, false)
+  } finally {
+    restoreEnv('MOVSCRIPT_MCP_ENDPOINT', previousDesktopEndpoint)
+  }
+})
+
+test('runtimeStatus recognizes timeline source collection without legacy productions directory', async () => {
+  const previousDesktopEndpoint = process.env.MOVSCRIPT_MCP_ENDPOINT
+  process.env.MOVSCRIPT_MCP_ENDPOINT = `${baseURL}/not-desktop`
+  const homeDir = mkdtempSync(join(tmpdir(), 'movscript-home-'))
+  const projectDir = mkdtempSync(join(tmpdir(), 'movscript-project-'))
+  try {
+    mkdirSync(join(homeDir, 'runtime', 'endpoints'), { recursive: true })
+    writeFileSync(join(homeDir, 'runtime', 'endpoints', 'movscript.local-surface.host.json'), JSON.stringify({
+      serviceName: 'movscript.local-surface.host',
+      applicationId: 'movscript.agent-plugin',
+      status: 'ready',
+      url: `${baseURL}/surface`,
+    }), 'utf8')
+    mkdirSync(join(projectDir, 'timeline', 'episode_01'), { recursive: true })
+
+    const status = await runtimeStatus({
+      homeDir,
+      workspaceDir: projectDir,
+      projectDir,
+      timeoutMs: 500,
+    })
+
+    assert.equal(status.workspace.isMovScriptProject, true)
+    assert.equal(status.workspace.hasMetadata, false)
+    assert.deepEqual(status.workspace.sourceCollections, ['timeline'])
+    assert.deepEqual(status.workspace.sourceRootFiles, [])
+    assert.equal(status.surfaces.available, true)
+    assert.equal(status.surface.surface, 'project.overview')
+    assert.match(status.surface.url, new RegExp(`^${escapeRegExp(baseURL)}/surface/studio/`))
   } finally {
     restoreEnv('MOVSCRIPT_MCP_ENDPOINT', previousDesktopEndpoint)
   }

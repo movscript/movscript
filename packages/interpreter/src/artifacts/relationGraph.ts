@@ -1,4 +1,12 @@
-import type { MovScriptWorkspaceDomainIndex } from '@movscript/workspace/indexer'
+import type {
+  MovScriptWorkspaceDomainIndex,
+  MovScriptWorkspaceIndexedEntity,
+} from '@movscript/workspace/indexer'
+import {
+  type MovScriptDomainEdge,
+  type MovScriptDomainRef,
+  normalizeContentUnitTargetEdges,
+} from '@movscript/domain'
 import { hasSpecializedContentUnitAdapter } from './contentProduction.js'
 import {
   parseContentUnitEditPromptRefs,
@@ -6,7 +14,11 @@ import {
   primaryRefFieldNameForKind,
   primaryRefKindForContentUnitType,
 } from './contentProductionHelpers.js'
-import type { MovScriptDomainRelation, MovScriptRelationGraphArtifact } from './derivedArtifactTypes.js'
+import type {
+  MovScriptDomainEntityRef,
+  MovScriptDomainRelation,
+  MovScriptRelationGraphArtifact,
+} from './derivedArtifactTypes.js'
 import {
   arrayField,
   canonicalEntities,
@@ -22,17 +34,40 @@ import {
   recordField,
   relationTypeForParent,
 } from './derivedArtifactHelpers.js'
-
 export function deriveRelationGraph(index: MovScriptWorkspaceDomainIndex): MovScriptRelationGraphArtifact {
   const relations: MovScriptDomainRelation[] = []
   const sourceEntities = canonicalEntities(index)
   const entities = sourceEntities.filter((entity) => entity.id !== undefined)
   const entityByPathDir = new Map(sourceEntities.map((entity) => [entityDir(entity.path), entity]))
+  const entityByPath = new Map(sourceEntities.map((entity) => [entity.path, entity]))
   const entityById = new Map(entities.map((entity) => [entityKey(entity.entityKind, entity.id), entity]))
+  const normalizedParentRelationKeys = new Set<string>()
+  const normalizedContentUnitRelationKeys = new Set<string>()
+
+  for (const edge of index.domainEdges ?? []) {
+    if (edge.relation === 'parent' && edge.origin === 'path') {
+      const parent = edge.target.path ? entityByPath.get(edge.target.path) : undefined
+      const child = edge.source.path ? entityByPath.get(edge.source.path) : undefined
+      if (!parent || !child) continue
+      const relation = {
+        type: relationTypeForParent(parent.entityKind, child.entityKind),
+        from: entityRef(parent),
+        to: entityRef(child),
+      }
+      normalizedParentRelationKeys.add(parentRelationKey(parent, child))
+      relations.push(relation)
+      continue
+    }
+
+    const contentUnitRelation = contentUnitRelationFromDomainEdge(edge, entities, entityByPath)
+    if (!contentUnitRelation) continue
+    if (edge.source.path) normalizedContentUnitRelationKeys.add(contentUnitDomainEdgeKey(edge.source.path, edge.relation))
+    relations.push(contentUnitRelation)
+  }
 
   for (const entity of sourceEntities) {
     const parent = nearestParentEntity(entity.path, entityByPathDir)
-    if (parent) {
+    if (parent && !normalizedParentRelationKeys.has(parentRelationKey(parent, entity))) {
       relations.push({
         type: relationTypeForParent(parent.entityKind, entity.entityKind),
         from: entityRef(parent),
@@ -41,6 +76,20 @@ export function deriveRelationGraph(index: MovScriptWorkspaceDomainIndex): MovSc
     }
 
     if (entity.entityKind === 'content_unit' && hasSpecializedContentUnitAdapter(entity.record.content_unit_type)) {
+      for (const edge of normalizeContentUnitTargetEdges({
+        source: domainRefFromContentUnit(entity),
+        record: entity.record,
+        scopeTarget(scope) {
+          return domainRefFromTimelineScope(scope.kind, scope.ref, index, entities, entityByPath)
+        },
+      })) {
+        if (normalizedContentUnitRelationKeys.has(contentUnitDomainEdgeKey(entity.path, edge.relation))) continue
+        const relation = contentUnitRelationFromDomainEdge(edge, entities, entityByPath)
+        if (relation) {
+          normalizedContentUnitRelationKeys.add(contentUnitDomainEdgeKey(entity.path, edge.relation))
+          relations.push(relation)
+        }
+      }
       const targetKind = typeof entity.record.target_kind === 'string' ? entity.record.target_kind : undefined
       const targetRef = entity.record.target_ref
       if (targetKind && targetRef !== undefined) {
@@ -134,4 +183,108 @@ export function deriveRelationGraph(index: MovScriptWorkspaceDomainIndex): MovSc
   }
 
   return { schema: 'movscript.relation-graph.v1', relations: dedupeRelations(relations) }
+}
+
+function parentRelationKey(parent: { entityKind: string; path: string }, child: { entityKind: string; path: string }): string {
+  return `${parent.entityKind}:${parent.path}->${child.entityKind}:${child.path}`
+}
+
+function contentUnitRelationFromDomainEdge(
+  edge: MovScriptDomainEdge,
+  entities: MovScriptWorkspaceIndexedEntity[],
+  entityByPath: Map<string, MovScriptWorkspaceIndexedEntity>,
+): MovScriptDomainRelation | undefined {
+  if (edge.relation !== 'target' && edge.relation !== 'scope') return undefined
+  const source = sourceContentUnitFromDomainEdge(edge, entities, entityByPath)
+  if (!source) return undefined
+  return {
+    type: edge.relation === 'target' ? 'targets' : 'uses',
+    from: entityRef(source),
+    to: entityRefFromDomainEdgeTarget(edge, entities, entityByPath),
+    ...(edge.field ? { field: edge.field } : {}),
+  }
+}
+
+function sourceContentUnitFromDomainEdge(
+  edge: MovScriptDomainEdge,
+  entities: MovScriptWorkspaceIndexedEntity[],
+  entityByPath: Map<string, MovScriptWorkspaceIndexedEntity>,
+): MovScriptWorkspaceIndexedEntity | undefined {
+  const source = edge.source.path
+    ? entityByPath.get(edge.source.path)
+    : findEntityByRef(entities, 'content_unit', edge.source.id)
+  return source?.entityKind === 'content_unit' ? source : undefined
+}
+
+function entityRefFromDomainEdgeTarget(
+  edge: MovScriptDomainEdge,
+  entities: MovScriptWorkspaceIndexedEntity[],
+  entityByPath: Map<string, MovScriptWorkspaceIndexedEntity>,
+): MovScriptDomainEntityRef {
+  const target = edge.target.path
+    ? entityByPath.get(edge.target.path)
+    : edge.target.kind && edge.target.id !== undefined
+      ? findEntityByRef(entities, edge.target.kind, edge.target.id)
+      : undefined
+  if (target) return entityRef(target)
+  return {
+    entityKind: edge.target.kind,
+    ...(edge.target.id !== undefined ? { id: edge.target.id } : {}),
+    ...(edge.target.path ? { path: edge.target.path } : {}),
+  }
+}
+
+function contentUnitDomainEdgeKey(path: string, relation: string): string {
+  return `${relation}:${path}`
+}
+
+function domainRefFromContentUnit(entity: MovScriptWorkspaceIndexedEntity): MovScriptDomainRef {
+  return {
+    category: 'content_unit',
+    kind: 'content_unit',
+    ...(entity.id !== undefined ? { id: entity.id } : {}),
+    path: entity.path,
+  }
+}
+
+function domainRefFromTimelineScope(
+  scopeKind: string,
+  scopeRef: string,
+  index: MovScriptWorkspaceDomainIndex,
+  entities: MovScriptWorkspaceIndexedEntity[],
+  entityByPath: Map<string, MovScriptWorkspaceIndexedEntity>,
+): MovScriptDomainRef {
+  const entity = findEntityByRef(entities, scopeKind, scopeRef)
+  if (entity) {
+    return {
+      category: 'timeline_namespace',
+      kind: entity.entityKind,
+      ...(entity.id !== undefined ? { id: entity.id } : {}),
+      path: entity.path,
+    }
+  }
+  const node = index.domainNodes
+    .find((candidate) =>
+      candidate.category === 'timeline_namespace'
+      && candidate.kind === scopeKind
+      && String(candidate.id ?? '') === scopeRef,
+    )
+  if (node) {
+    return {
+      category: node.category,
+      kind: node.kind,
+      ...(node.id !== undefined ? { id: node.id } : {}),
+      ...(node.path ? { path: node.path } : {}),
+    }
+  }
+  const pathEntity = entityByPath.get(normalizedRefDir(scopeRef))
+  if (pathEntity) {
+    return {
+      category: 'timeline_namespace',
+      kind: pathEntity.entityKind,
+      ...(pathEntity.id !== undefined ? { id: pathEntity.id } : {}),
+      path: pathEntity.path,
+    }
+  }
+  return { category: 'timeline_namespace', kind: scopeKind, id: scopeRef }
 }

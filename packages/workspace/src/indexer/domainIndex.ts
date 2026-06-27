@@ -3,6 +3,19 @@ import {
   sameEntityRef,
 } from '../layout/index.js'
 import type { SemanticEntityKind } from '@movscript/language/domain'
+import {
+  classifyMovScriptEntityKind,
+  entityDir,
+  nearestParentPath,
+  normalizeContentUnitTargetEdges,
+  normalizePathParentEdge,
+  normalizeNamespaceVocabulary,
+  projectMovScriptDomainNodeKind,
+  type MovScriptDomainEdge,
+  type MovScriptDomainNode,
+  type MovScriptDomainRef,
+  type MovScriptNormalizedNamespaceVocabulary,
+} from '@movscript/domain'
 
 export const SEMANTIC_ENTITY_KINDS = [
   'project',
@@ -44,6 +57,9 @@ export interface MovScriptWorkspaceDomainIndex {
   documents: MovScriptWorkspaceDocument[]
   entities: MovScriptWorkspaceIndexedEntity[]
   byKind: ReadonlyMap<SemanticEntityKind, MovScriptWorkspaceIndexedEntity[]>
+  namespaceVocabulary: MovScriptNormalizedNamespaceVocabulary
+  domainNodes: MovScriptDomainNode[]
+  domainEdges: MovScriptDomainEdge[]
 }
 
 export interface MovScriptWorkspaceEntityQuery {
@@ -87,13 +103,21 @@ export interface MovScriptWorkspaceProductionContextQuery {
   limit?: number
 }
 
+interface MovScriptWorkspaceEntityQueryContext {
+  entityByPath: Map<string, MovScriptWorkspaceIndexedEntity>
+  parentPathByPath: Map<string, string>
+}
+
 export function deriveMovScriptWorkspaceDomainIndex(documents: MovScriptWorkspaceDocument[]): MovScriptWorkspaceDomainIndex {
   const entities = documents.flatMap((document) => indexedEntitiesFromDocument(document))
   const byKind = new Map<SemanticEntityKind, MovScriptWorkspaceIndexedEntity[]>()
   for (const entity of entities) {
     byKind.set(entity.entityKind, [...(byKind.get(entity.entityKind) ?? []), entity])
   }
-  return { documents, entities, byKind }
+  const namespaceVocabulary = normalizeNamespaceVocabulary(byKind.get('project')?.[0]?.record)
+  const domainNodes = deriveMovScriptDomainNodes(entities)
+  const domainEdges = deriveMovScriptDomainEdges(entities, domainNodes)
+  return { documents, entities, byKind, namespaceVocabulary, domainNodes, domainEdges }
 }
 
 export function queryMovScriptWorkspaceEntities(
@@ -101,16 +125,17 @@ export function queryMovScriptWorkspaceEntities(
   query: MovScriptWorkspaceEntityQuery = {},
 ): MovScriptWorkspaceIndexedEntity[] {
   const source = query.entityKind ? index.byKind.get(query.entityKind) ?? [] : index.entities
+  const queryContext = createEntityQueryContext(index)
   const out = source.filter((entity) => {
     const record = entity.record
-    if (query.kind && !recordKindMatches(record, query.kind)) return false
-    if (query.productionId !== undefined && !entityPathMatchesProduction(entity.path, query.productionId)) return false
-    if (query.segmentId !== undefined && !entityPathMatchesSegment(entity.path, query.segmentId)) return false
-    if (query.sceneMomentId !== undefined && !entityPathMatchesSceneMoment(entity.path, query.sceneMomentId)) return false
-    if (query.storyboardId !== undefined && !entityMatchesStoryboard(entity, query.storyboardId)) return false
+    if (query.kind && !entityKindMatches(entity, query.kind)) return false
+    if (query.productionId !== undefined && !entityMatchesScope(entity, 'production', query.productionId, queryContext)) return false
+    if (query.segmentId !== undefined && !entityMatchesScope(entity, 'segment', query.segmentId, queryContext)) return false
+    if (query.sceneMomentId !== undefined && !entityMatchesScope(entity, 'scene_moment', query.sceneMomentId, queryContext)) return false
+    if (query.storyboardId !== undefined && !entityMatchesStoryboard(entity, query.storyboardId, queryContext)) return false
     if (query.contentUnitId !== undefined && !entityPathMatchesContentUnit(entity.path, query.contentUnitId)) return false
-    if (query.settingId !== undefined && !entityPathMatchesSetting(entity.path, query.settingId)) return false
-    if (query.settingStateId !== undefined && !entityPathMatchesSettingState(entity.path, query.settingStateId)) return false
+    if (query.settingId !== undefined && !entityMatchesScope(entity, 'setting', query.settingId, queryContext)) return false
+    if (query.settingStateId !== undefined && !entityMatchesScope(entity, 'setting_state', query.settingStateId, queryContext)) return false
     if (query.query && !recordMatchesQuery(record, query.query)) return false
     return !isDeletedWorkspaceRecord(record)
   })
@@ -270,6 +295,97 @@ function indexedEntity(
   }
 }
 
+function deriveMovScriptDomainNodes(entities: MovScriptWorkspaceIndexedEntity[]): MovScriptDomainNode[] {
+  return entities.flatMap((entity) => {
+    const category = classifyMovScriptEntityKind(entity.entityKind)
+    if (!category) return []
+    return [pruneUndefined({
+      category,
+      kind: projectMovScriptDomainNodeKind(entity.entityKind, entity.record),
+      ...(entity.id !== undefined ? { id: entity.id } : {}),
+      path: entity.path,
+      title: stringField(entity.record.title) ?? stringField(entity.record.label),
+      order: finiteNumber(entity.record.order),
+      metadata: {
+        entityKind: entity.entityKind,
+      },
+    }) as MovScriptDomainNode]
+  })
+}
+
+function deriveMovScriptDomainPathParentEdges(nodes: MovScriptDomainNode[]): MovScriptDomainEdge[] {
+  const nodeByDir = new Map<string, MovScriptDomainNode>()
+  for (const node of nodes) {
+    if (!node.path) continue
+    nodeByDir.set(entityDir(node.path), node)
+  }
+  const edges: MovScriptDomainEdge[] = []
+  for (const node of nodes) {
+    if (!node.path) continue
+    const parentPath = nearestParentPath(entityDir(node.path), nodeByDir.keys())
+    if (!parentPath) continue
+    const parent = nodeByDir.get(parentPath)
+    const normalized = normalizePathParentEdge(domainRefFromNode(node), parent ? domainRefFromNode(parent) : undefined)
+    if (normalized.edge) edges.push(normalized.edge)
+  }
+  return dedupeDomainEdges(edges)
+}
+
+function deriveMovScriptDomainEdges(
+  entities: MovScriptWorkspaceIndexedEntity[],
+  nodes: MovScriptDomainNode[],
+): MovScriptDomainEdge[] {
+  return dedupeDomainEdges([
+    ...deriveMovScriptDomainPathParentEdges(nodes),
+    ...deriveMovScriptContentUnitTargetEdges(entities, nodes),
+  ])
+}
+
+function deriveMovScriptContentUnitTargetEdges(
+  entities: MovScriptWorkspaceIndexedEntity[],
+  nodes: MovScriptDomainNode[],
+): MovScriptDomainEdge[] {
+  const nodeByPath = new Map(nodes.flatMap((node) => node.path ? [[node.path, node] as const] : []))
+  const timelineNamespaceNodes = nodes.filter((node) => node.category === 'timeline_namespace')
+  const edges: MovScriptDomainEdge[] = []
+  for (const entity of entities) {
+    if (entity.entityKind !== 'content_unit') continue
+    const sourceNode = nodeByPath.get(entity.path)
+    if (!sourceNode) continue
+    edges.push(...normalizeContentUnitTargetEdges({
+      source: domainRefFromNode(sourceNode),
+      record: entity.record,
+      scopeTarget(scope) {
+        return domainRefFromTimelineScope(scope.kind, scope.ref, timelineNamespaceNodes)
+      },
+    }))
+  }
+  return edges
+}
+
+function domainRefFromTimelineScope(
+  scopeKind: string,
+  scopeRef: string,
+  timelineNamespaceNodes: MovScriptDomainNode[],
+): MovScriptDomainRef {
+  const node = timelineNamespaceNodes.find((candidate) =>
+    String(candidate.id ?? '') === scopeRef
+    && (candidate.kind === scopeKind || candidate.metadata?.entityKind === scopeKind),
+  )
+  return node
+    ? domainRefFromNode(node)
+    : { category: 'timeline_namespace', kind: scopeKind, id: scopeRef }
+}
+
+function domainRefFromNode(node: MovScriptDomainNode): MovScriptDomainRef {
+  return {
+    category: node.category,
+    kind: node.kind,
+    ...(node.id !== undefined ? { id: node.id } : {}),
+    ...(node.path ? { path: node.path } : {}),
+  }
+}
+
 function workspaceRecordWithDocumentMetadata(
   record: Record<string, unknown>,
   document: MovScriptWorkspaceDocument,
@@ -308,7 +424,6 @@ function entityKindFromPath(path: string): SemanticEntityKind | undefined {
   if (name === 'keyframe.json') return 'keyframe'
   return undefined
 }
-
 const schemaEntityKinds: Record<string, SemanticEntityKind> = {
   project: 'project',
   project_standards: 'project_standards',
@@ -344,10 +459,18 @@ function entityPathMatchesStoryboard(path: string, storyboardId: string | number
   return pathSegmentAfter(path, 'storyboards') !== undefined && sameEntityRef(pathSegmentAfter(path, 'storyboards'), storyboardId, 'storyboard')
 }
 
-function entityMatchesStoryboard(entity: MovScriptWorkspaceIndexedEntity, storyboardId: string | number): boolean {
+function entityMatchesStoryboard(
+  entity: MovScriptWorkspaceIndexedEntity,
+  storyboardId: string | number,
+  context: MovScriptWorkspaceEntityQueryContext,
+): boolean {
+  if (entityMatchesScope(entity, 'storyboard', storyboardId, context)) return true
   if (entityPathMatchesStoryboard(entity.path, storyboardId)) return true
   const storyboardRef = stringField(entity.record.storyboard_ref)
-  return storyboardRef !== undefined && entityPathMatchesStoryboard(storyboardRef, storyboardId)
+  return storyboardRef !== undefined && (
+    entityPathMatchesStoryboard(storyboardRef, storyboardId)
+    || sameNormalizedEntityPath(storyboardRef, storyboardId, 'storyboard')
+  )
 }
 
 function entityPathMatchesContentUnit(path: string, contentUnitId: string | number): boolean {
@@ -362,6 +485,80 @@ function entityPathMatchesSettingState(path: string, stateId: string | number): 
   return pathSegmentAfter(path, 'states') !== undefined && sameEntityRef(pathSegmentAfter(path, 'states'), stateId, 'setting_state')
 }
 
+function createEntityQueryContext(index: MovScriptWorkspaceDomainIndex): MovScriptWorkspaceEntityQueryContext {
+  const entityByPath = new Map(index.entities.map((entity) => [entity.path, entity] as const))
+  const entityByDir = new Map(index.entities.map((entity) => [entityDir(entity.path), entity] as const))
+  const parentPathByPath = new Map<string, string>()
+
+  for (const edge of index.domainEdges) {
+    if (edge.relation !== 'parent' || edge.origin !== 'path') continue
+    if (!edge.source.path || !edge.target.path) continue
+    parentPathByPath.set(edge.source.path, edge.target.path)
+  }
+
+  for (const entity of index.entities) {
+    if (parentPathByPath.has(entity.path)) continue
+    const parentDir = nearestParentPath(entityDir(entity.path), entityByDir.keys())
+    const parent = parentDir ? entityByDir.get(parentDir) : undefined
+    if (parent) parentPathByPath.set(entity.path, parent.path)
+  }
+
+  return { entityByPath, parentPathByPath }
+}
+
+function entityMatchesScope(
+  entity: MovScriptWorkspaceIndexedEntity,
+  scopeKind: SemanticEntityKind,
+  scopeRef: string | number,
+  context: MovScriptWorkspaceEntityQueryContext,
+): boolean {
+  if (entityRefMatchesScope(entity, scopeKind, scopeRef)) return true
+  for (const ancestor of ancestorEntities(entity, context)) {
+    if (entityRefMatchesScope(ancestor, scopeKind, scopeRef)) return true
+  }
+  return legacyEntityPathMatchesScope(entity.path, scopeKind, scopeRef)
+}
+
+function ancestorEntities(
+  entity: MovScriptWorkspaceIndexedEntity,
+  context: MovScriptWorkspaceEntityQueryContext,
+): MovScriptWorkspaceIndexedEntity[] {
+  const ancestors: MovScriptWorkspaceIndexedEntity[] = []
+  const seen = new Set<string>([entity.path])
+  let currentPath = entity.path
+  while (true) {
+    const parentPath = context.parentPathByPath.get(currentPath)
+    if (!parentPath || seen.has(parentPath)) break
+    seen.add(parentPath)
+    const parent = context.entityByPath.get(parentPath)
+    if (!parent) break
+    ancestors.push(parent)
+    currentPath = parent.path
+  }
+  return ancestors
+}
+
+function entityRefMatchesScope(
+  entity: MovScriptWorkspaceIndexedEntity,
+  scopeKind: SemanticEntityKind,
+  scopeRef: string | number,
+): boolean {
+  if (entity.entityKind !== scopeKind) return false
+  if (entity.id !== undefined && sameEntityRef(entity.id, scopeRef, scopeKind)) return true
+  return sameNormalizedEntityPath(entity.path, scopeRef, scopeKind)
+    || sameNormalizedEntityPath(entityDir(entity.path), scopeRef, scopeKind)
+}
+
+function legacyEntityPathMatchesScope(path: string, scopeKind: SemanticEntityKind, scopeRef: string | number): boolean {
+  if (scopeKind === 'production') return entityPathMatchesProduction(path, scopeRef)
+  if (scopeKind === 'segment') return entityPathMatchesSegment(path, scopeRef)
+  if (scopeKind === 'scene_moment') return entityPathMatchesSceneMoment(path, scopeRef)
+  if (scopeKind === 'storyboard') return entityPathMatchesStoryboard(path, scopeRef)
+  if (scopeKind === 'setting') return entityPathMatchesSetting(path, scopeRef)
+  if (scopeKind === 'setting_state') return entityPathMatchesSettingState(path, scopeRef)
+  return false
+}
+
 export function isSemanticEntityKind(entityKind: string): entityKind is SemanticEntityKind {
   return (SEMANTIC_ENTITY_KINDS as readonly string[]).includes(entityKind)
 }
@@ -373,16 +570,34 @@ function recordMatchesQuery(record: Record<string, unknown>, query: string): boo
     .some((key) => String(record[key] ?? '').toLowerCase().includes(needle))
 }
 
+function entityKindMatches(entity: MovScriptWorkspaceIndexedEntity, kind: string): boolean {
+  return projectMovScriptDomainNodeKind(entity.entityKind, entity.record) === kind
+    || recordKindMatches(entity.record, kind)
+}
+
 function recordKindMatches(record: Record<string, unknown>, kind: string): boolean {
   return [
     record.kind,
+    record.namespace_kind,
+    record.namespaceKind,
+    record.timeline_namespace_kind,
+    record.timelineNamespaceKind,
+    record.setting_namespace_kind,
+    record.settingNamespaceKind,
     record.setting_kind,
+    record.settingKind,
     record.content_unit_type,
+    record.contentUnitType,
     record.asset_kind,
+    record.assetKind,
     record.shot_kind,
+    record.shotKind,
     record.segment_kind,
+    record.segmentKind,
     record.expression_kind,
+    record.expressionKind,
     record.cue_kind,
+    record.cueKind,
   ].some((value) => stringField(value) === kind)
 }
 
@@ -414,7 +629,12 @@ function idField(value: unknown): string | number | undefined {
 }
 
 function stringField(value: unknown): string | undefined {
-  return typeof value === 'string' ? value : undefined
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function finiteNumber(value: unknown): number | undefined {
+  const next = Number(value)
+  return Number.isFinite(next) ? next : undefined
 }
 
 function pathSegmentAfter(path: string, segment: string): string | undefined {
@@ -423,10 +643,40 @@ function pathSegmentAfter(path: string, segment: string): string | undefined {
   return index >= 0 ? parts[index + 1] : undefined
 }
 
+function sameNormalizedEntityPath(pathOrDir: string, ref: string | number, entityKind: string): boolean {
+  const left = normalizeWorkspacePath(pathOrDir)
+  const right = normalizeWorkspacePath(String(ref))
+  if (!left || !right) return false
+  if (left === right) return true
+  if (left.endsWith('.json') && entityDir(left) === right) return true
+  if (right.endsWith('.json') && left === entityDir(right)) return true
+  return sameEntityRef(left, right, entityKind)
+}
+
 function normalizeIndexedDocumentPath(path: string): string {
   return normalizeWorkspacePath(path).replace(/^\.movscript\//, '')
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function pruneUndefined<T extends Record<string, unknown>>(value: T): T {
+  const output: Record<string, unknown> = {}
+  for (const [key, item] of Object.entries(value)) {
+    if (item !== undefined) output[key] = item
+  }
+  return output as T
+}
+
+function dedupeDomainEdges(edges: MovScriptDomainEdge[]): MovScriptDomainEdge[] {
+  const seen = new Set<string>()
+  const out: MovScriptDomainEdge[] = []
+  for (const edge of edges) {
+    const key = JSON.stringify(edge)
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(edge)
+  }
+  return out
 }

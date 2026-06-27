@@ -43,7 +43,7 @@ import pluginApplicationManifest from '../application.manifest'
 import pluginAgentLauncherProgramManifest from '../programs/agent-launcher.program.manifest'
 import {
   pluginBasicStartupPolicy,
-  pluginDesktopOwnedStartupPolicy,
+  pluginDesktopCompatibilityStartupPolicy,
   pluginFullLocalStartupPolicy,
 } from '../startup.manifest'
 import { runMovcli } from '@movscript/cli'
@@ -323,7 +323,9 @@ function selectPluginStartupPolicy(homeDir: string): ScenarioPolicyManifest {
   const requested = (process.env.MOVSCRIPT_PLUGIN_MODE ?? process.env.MOVSCRIPT_PLUGIN_SCENARIO ?? '').trim().toLowerCase()
   if (requested === 'full-local' || requested === 'plugin-full-local') return pluginFullLocalStartupPolicy
   if (requested === 'basic' || requested === 'plugin-basic') return pluginBasicStartupPolicy
-  if (requested === 'desktop' || requested === 'plugin-desktop-owned') return pluginDesktopOwnedStartupPolicy
+  if (requested === 'desktop' || requested === 'plugin-desktop-compatible' || requested === 'plugin-desktop-owned') {
+    return pluginDesktopCompatibilityStartupPolicy
+  }
   return pluginFullLocalStartupPolicy
 }
 
@@ -801,7 +803,7 @@ function createLocalSurfaceHostProgramAdapter(): ProgramAdapter {
         endpoint: httpEndpoint(context, runtime.port),
         server: runtime.server,
         metadata: {
-          mode: context.profile === 'desktop-connected' ? 'plugin-desktop-owned' : 'plugin-full-local',
+          mode: context.profile === 'desktop-connected' ? 'plugin-desktop-compatible' : 'plugin-full-local',
           role: 'agent-facing-surface-host',
           runtime: 'local_surface_host_static',
           staticRoot,

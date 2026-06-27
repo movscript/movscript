@@ -16,6 +16,7 @@ test('project entry definitions cover the canonical project entries', () => {
     'orchestration_production',
     'content_canvas',
     'content_preview',
+    'setting_preview',
     'project_standards',
   ]
 
@@ -23,6 +24,7 @@ test('project entry definitions cover the canonical project entries', () => {
   assert.equal(projectEntryRoutePath(getProjectEntryDefinition('orchestration_production')), '/project/scripts/workbench')
   assert.equal(projectEntryRoutePath(getProjectEntryDefinition('content_canvas')), '/project/content/canvas')
   assert.equal(projectEntryRoutePath(getProjectEntryDefinition('content_preview')), '/project/content/preview')
+  assert.equal(projectEntryRoutePath(getProjectEntryDefinition('setting_preview')), '/project/settings/preview')
   assert.equal(projectEntryRoutePath(getProjectEntryDefinition('content')), '/project/content/preview')
   assert.equal(projectEntryRoutePath(getProjectEntryDefinition('project_standards')), '/project/standards')
   for (const definition of projectEntryDefinitions) {
@@ -34,6 +36,14 @@ test('project entry definitions cover the canonical project entries', () => {
     assert.ok(definition.owns.length > 0, `${definition.id} must declare owned entities`)
     assert.ok(definition.reads.length > 0, `${definition.id} must declare read dependencies`)
   }
+  assert.deepEqual(getProjectEntryDefinition('orchestration_production').primarySelection, {
+    queryParam: 'scopeRef',
+    entityType: 'timeline_namespace',
+    scopeKindParam: 'scopeKind',
+    scopeRefParam: 'scopeRef',
+    legacyQueryParam: 'productionId',
+    legacyEntityType: 'production',
+  })
 })
 
 test('project entry review paths are generated from review query contracts', () => {
@@ -50,8 +60,24 @@ test('project entry review paths are generated from review query contracts', () 
     '/project/content/preview?workspaceId=workspace-c&scene_moment_id=77',
   )
   assert.equal(
+    buildProjectEntryReviewPath(getProjectEntryDefinition('setting_preview'), {
+      workspaceId: 'workspace-setting',
+      entityType: 'setting',
+      entityId: 'hero',
+    }),
+    '/project/settings/preview?workspaceId=workspace-setting&setting_id=hero',
+  )
+  assert.equal(
+    buildProjectEntryReviewPath(getProjectEntryDefinition('setting_preview'), {
+      workspaceId: 'workspace-asset',
+      entityType: 'asset',
+      entityId: 'phone',
+    }),
+    '/project/settings/preview?workspaceId=workspace-asset&asset_id=phone',
+  )
+  assert.equal(
     buildProjectEntryReviewPath(getProjectEntryDefinition('orchestration_production'), { workspaceId: 'workspace-d' }),
-    null,
+    '/project/scripts/workbench?view=review&workspaceId=workspace-d',
   )
   assert.equal(
     buildProjectEntryReviewPath(getProjectEntryDefinition('orchestration_production'), {
@@ -60,6 +86,25 @@ test('project entry review paths are generated from review query contracts', () 
       entityId: 301,
     }),
     '/project/scripts/workbench?view=review&workspaceId=workspace-d&productionId=301',
+  )
+  assert.equal(
+    buildProjectEntryReviewPath(getProjectEntryDefinition('orchestration_production'), {
+      workspaceId: 'workspace-episode',
+      scopeKind: 'episode',
+      scopeRef: 'episode_01',
+    }),
+    '/project/scripts/workbench?view=review&workspaceId=workspace-episode&scopeKind=episode&scopeRef=episode_01',
+  )
+  assert.equal(
+    buildProjectEntryReviewPath(getProjectEntryDefinition('content_preview'), {
+      workspaceId: 'workspace-assembly',
+      scopeKind: 'episode',
+      scopeRef: 'episode_01',
+      targetCategory: 'timeline_assembly',
+      targetKind: 'timeline_assembly',
+      targetRef: 'timeline_assembly:episode:episode_01',
+    }),
+    '/project/content/preview?workspaceId=workspace-assembly&scopeKind=episode&scopeRef=episode_01&targetCategory=timeline_assembly&targetKind=timeline_assembly&targetRef=timeline_assembly%3Aepisode%3Aepisode_01&timeline_assembly_ref=timeline_assembly%3Aepisode%3Aepisode_01',
   )
 })
 

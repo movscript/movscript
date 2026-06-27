@@ -1,0 +1,37 @@
+{
+  "name": "@movscript/domain",
+  "version": "0.1.30",
+  "private": true,
+  "description": "Pure MovScript domain abstraction helpers for namespace, target, focus, and relation normalization.",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm build && node --test tests/*.test.mjs"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "22.19.17",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

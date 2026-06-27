@@ -12,6 +12,7 @@
       "@movscript/agent-chat": ["../agent-chat/src/index.ts"],
       "@movscript/agent-protocol": ["../agent-protocol/src/index.ts"],
       "@movscript/decision": ["../decision/src/index.ts"],
+      "@movscript/domain": ["../domain/src/index.ts"],
       "@movscript/editing": ["../editing/src/index.ts"],
       "@movscript/engine": ["../engine/src/index.ts"],
       "@movscript/engine/node": ["../engine/src/node.ts"],

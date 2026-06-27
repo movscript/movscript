@@ -1,5 +1,10 @@
 import { routePathWithParams } from '@movscript/shared/surface-routes'
 import type { MovScriptWorkspaceKind } from './movscriptWorkspace'
+import {
+  legacyProductionIdFromDomainFocus,
+  movScriptDomainFocusFromRecord,
+  movScriptRouteParamsForDomainFocus,
+} from '../domain/movscriptDomainFocusRoutes'
 
 export const WORKSPACE_CHANGE_HANDOFF_SCHEMA = 'movscript.workspace-change-handoff.v1'
 export const WORKSPACE_CHANGE_HANDOFF_EVENT = 'movscript:workspace-change-submitted'
@@ -80,32 +85,42 @@ export function buildWorkspaceBusinessReviewPath(input: {
     })
   }
   if (input.workspaceKind === 'setting_workspace') {
-    return withRouteParams('/project/scripts/workbench', {
+    return withRouteParams('/project/settings/preview', {
       workspaceId: input.workspaceId,
-      reference_id: entityType === 'setting' ? entityId : undefined,
+      setting_id: entityType === 'setting' ? entityId : undefined,
     })
   }
   if (input.workspaceKind === 'asset_workspace') {
-    return withRouteParams('/project/content/preview', {
+    return withRouteParams('/project/settings/preview', {
       workspaceId: input.workspaceId,
       asset_slot_id: entityType === 'asset_slot' ? entityId : undefined,
+      asset_id: entityType === 'asset' ? entityId : undefined,
     })
   }
   if (input.workspaceKind === 'production_workspace') {
-    const productionId = target.productionId ?? (entityType === 'production' ? entityId : undefined)
-    if (productionId === undefined) return undefined
+    const focus = movScriptDomainFocusFromRecord(target)
+    const productionId = legacyProductionIdFromDomainFocus(focus) ?? target.productionId ?? (entityType === 'production' ? entityId : undefined)
     return withRouteParams('/project/scripts/workbench', {
       view: 'review',
       workspaceId: input.workspaceId,
-      productionId,
+      ...movScriptRouteParamsForDomainFocus(focus, { includeTarget: false }),
+      ...(productionId !== undefined ? { productionId } : {}),
     })
   }
   if (input.workspaceKind === 'content_unit_workspace') {
     const sceneMomentId = target.sceneMomentId ?? target.scene_moment_id ?? (entityType === 'scene_moment' ? entityId : undefined)
     const contentUnitId = target.contentUnitId ?? target.content_unit_id ?? (entityType === 'content_unit' ? entityId : undefined)
+    const legacyScopeRef = scalarValue(entityId)
+    const focus = movScriptDomainFocusFromRecord(
+      target,
+      (entityType === 'production' || entityType === 'segment') && legacyScopeRef !== undefined
+        ? { scopeKind: entityType, scopeRef: legacyScopeRef, targetKind: 'timeline_assembly' }
+        : {},
+    )
     return withRouteParams('/project/content/preview', {
       view: 'review',
       workspaceId: input.workspaceId,
+      ...movScriptRouteParamsForDomainFocus(focus),
       scene_moment_id: sceneMomentId,
       content_unit_id: contentUnitId,
     })
@@ -132,6 +147,12 @@ function compactRouteParams(params: Record<string, unknown>) {
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function scalarValue(value: unknown): string | number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim()) return value.trim()
+  return undefined
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

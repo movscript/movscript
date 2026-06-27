@@ -96,15 +96,38 @@ export async function loadLatestInterpretManifest(
   })[0]
 }
 
+export async function loadLatestImpactReport(
+  fileRepository: MovScriptWorkspaceFileRepository,
+  latestInterpretation: LatestInterpretManifest | undefined,
+): Promise<MovScriptImpactReportArtifact | undefined> {
+  const path = latestInterpretation?.manifest.output.impactReportPath
+  if (!path) return undefined
+  try {
+    const file = await fileRepository.read({ path })
+    const report = parseWorkspaceDocument(file.path, file.content)
+    return isImpactReportArtifact(report) ? report : undefined
+  } catch {
+    return undefined
+  }
+}
+
 export function deriveV1RegenerationPlan(input: {
   review: MovScriptRegenerationReviewInput
   latestInterpretation?: LatestInterpretManifest
+  impactReport?: MovScriptImpactReportArtifact
   createdAt: string
 }): MovScriptRegenerationPlanResult {
-  const affectedContentUnits = dedupeTargets([
-    ...input.review.productionImpacts
+  const impactReportTargets = input.impactReport
+    ? targetsFromImpactReport(input.impactReport, input.review.staleSelections)
+    : []
+  const legacyImpactTargets = input.impactReport
+    ? []
+    : input.review.productionImpacts
       .filter((impact) => impact.contentUnit)
-      .map((impact) => targetFromProductionImpact(impact, input.review.staleSelections)),
+      .map((impact) => targetFromProductionImpact(impact, input.review.staleSelections))
+  const affectedContentUnits = dedupeTargets([
+    ...impactReportTargets,
+    ...legacyImpactTargets,
     ...input.review.staleSelections
       .map(targetFromStaleSelection)
       .filter((target): target is MovScriptRegenerationPlanTarget => target !== undefined),
@@ -112,7 +135,25 @@ export function deriveV1RegenerationPlan(input: {
   const promptBundles = affectedContentUnits.filter((target) => {
     return target.stale === true || target.reasons.some((reason) => reason.includes('reference') || reason.includes('selection') || reason.includes('content_unit'))
   })
-  const previewTimelines = previewTimelinesFromProductionImpacts(input.review.productionImpacts)
+  const previewTimelines = input.impactReport
+    ? previewTimelinesFromImpactReport(input.impactReport)
+    : previewTimelinesFromProductionImpacts(input.review.productionImpacts)
+  const changedEntities = input.impactReport?.changedEntities ?? input.review.productionImpacts.map((impact) => ({
+    entityKind: impact.sourceChanges[0]?.entity.kind ?? 'unknown',
+    id: impact.sourceChanges[0]?.entity.id,
+    path: impact.sourceChanges[0]?.sourceChange.path ?? '',
+    state: impact.sourceChanges[0]?.sourceChange.operation ?? 'modified',
+    businessImpacts: [...new Set(impact.sourceChanges
+      .map((change) => change.businessKind)
+      .filter((kind) => typeof kind === 'string'))].sort(),
+    editorImpacts: [impact.kind],
+    affectedContentUnits: impact.contentUnit ? [{
+      entityKind: 'content_unit',
+      id: impact.contentUnit.id,
+      path: impact.contentUnit.path,
+    }] : [],
+    staleMarkers: [],
+  }))
   return {
     schema: 'movscript.workspace-regeneration-plan.v1',
     operation: 'regen-plan',
@@ -126,33 +167,52 @@ export function deriveV1RegenerationPlan(input: {
         impactReportPath: input.latestInterpretation.manifest.output.impactReportPath,
       },
     } : {}),
-    changedEntities: input.review.productionImpacts.map((impact) => ({
-      entityKind: impact.sourceChanges[0]?.entity.kind ?? 'unknown',
-      id: impact.sourceChanges[0]?.entity.id,
-      path: impact.sourceChanges[0]?.sourceChange.path ?? '',
-      state: impact.sourceChanges[0]?.sourceChange.operation ?? 'modified',
-      businessImpacts: [...new Set(impact.sourceChanges
-        .map((change) => change.businessKind)
-        .filter((kind) => typeof kind === 'string'))].sort(),
-      editorImpacts: [impact.kind],
-      affectedContentUnits: impact.contentUnit ? [{
-        entityKind: 'content_unit',
-        id: impact.contentUnit.id,
-        path: impact.contentUnit.path,
-      }] : [],
-      staleMarkers: [],
-    })),
+    changedEntities,
     affectedContentUnits,
     promptBundles,
     previewTimelines,
     summary: {
-      changedEntities: input.review.semanticChanges.length,
+      changedEntities: changedEntities.length,
       affectedContentUnits: affectedContentUnits.length,
       staleContentUnits: input.review.staleSelections.length,
       promptBundles: promptBundles.length,
       previewTimelines: previewTimelines.length,
     },
   }
+}
+
+function targetsFromImpactReport(
+  impactReport: MovScriptImpactReportArtifact,
+  staleSelections: readonly unknown[],
+): MovScriptRegenerationPlanTarget[] {
+  return impactReport.changedEntities.flatMap((change) => {
+    return change.affectedContentUnits.map((contentUnit) => targetFromImpactReportChange(change, contentUnit, staleSelections))
+  })
+}
+
+function targetFromImpactReportChange(
+  change: MovScriptImpactReportArtifact['changedEntities'][number],
+  contentUnit: MovScriptImpactReportArtifact['changedEntities'][number]['affectedContentUnits'][number],
+  staleSelections: readonly unknown[],
+): MovScriptRegenerationPlanTarget {
+  const staleSelection = staleSelections
+    .map(selectionRecord)
+    .find((selection) => sameOptionalId(selection?.contentUnitId, contentUnit.id)
+      || sameOptionalPath(selection?.contentUnitPath, contentUnit.path))
+  return pruneUndefined({
+    contentUnitId: contentUnit.id,
+    contentUnitPath: contentUnit.path,
+    reasons: [
+      ...change.businessImpacts,
+      ...change.editorImpacts,
+      ...change.staleMarkers,
+    ].filter(isString),
+    selected: staleSelection?.selected,
+    stale: staleSelection?.stale,
+    candidateId: staleSelection?.candidateId,
+    resourceId: staleSelection?.resourceId,
+    staleReasons: staleSelection?.staleReasons,
+  })
 }
 
 function targetFromProductionImpact(
@@ -214,6 +274,29 @@ function previewTimelinesFromProductionImpacts(
         reasons: [impact.kind, change.businessKind].filter(isString),
       }))
     }
+  }
+  return out
+}
+
+function previewTimelinesFromImpactReport(
+  impactReport: MovScriptImpactReportArtifact,
+): MovScriptRegenerationPlanResult['previewTimelines'] {
+  const timelineEntityKinds = new Set(['production', 'segment', 'scene_moment', 'shot', 'storyboard', 'keyframe', 'audio_cue', 'expression_unit', 'content_unit'])
+  const seen = new Set<string>()
+  const out: MovScriptRegenerationPlanResult['previewTimelines'] = []
+  for (const change of impactReport.changedEntities) {
+    if (!timelineEntityKinds.has(change.entityKind)) continue
+    const path = stringField(change.path)
+    if (!path) continue
+    const productionId = productionIdFromPath(path)
+    const key = `${productionId ?? ''}:${path}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(pruneUndefined({
+      productionId,
+      path,
+      reasons: [...change.businessImpacts, ...change.editorImpacts].filter(isString),
+    }))
   }
   return out
 }
@@ -329,6 +412,12 @@ function isInterpretManifest(value: unknown): value is LatestInterpretManifest['
     && typeof value.interpretationId === 'string'
     && typeof value.interpretedAt === 'string'
     && isRecord(value.output)
+}
+
+function isImpactReportArtifact(value: unknown): value is MovScriptImpactReportArtifact {
+  return isRecord(value)
+    && value.schema === 'movscript.impact-report.v1'
+    && Array.isArray(value.changedEntities)
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -109,6 +109,19 @@ function appendSingleContentUnitReferences({
     nodeByPath,
   })
   appendContentUnitReferenceSet({
+    refs: compactStrings(contentUnit.record.audio_cue_ref, contentUnit.record.audio_cue_refs),
+    targetKind: 'audio_cue',
+    collectionSegment: 'audio_cues',
+    edgeId: (target) => `${source.id}->${target.id}:audio-cue-ref`,
+    edgeSource: () => source.id,
+    edgeTarget: (target) => target.id,
+    label: '声音',
+    relation: 'content_unit_audio_cue',
+    edges,
+    nodeByEntityKindAndKey,
+    nodeByPath,
+  })
+  appendContentUnitReferenceSet({
     refs: contentUnitRawResourceRefsForRecord(contentUnit.record),
     targetKind: 'resource',
     collectionSegment: 'resources',

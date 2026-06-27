@@ -1,3 +1,8 @@
+import {
+  normalizeDomainFocus,
+  type MovScriptNormalizedFocus,
+} from '@movscript/domain'
+
 export type AgentSurfaceMode = 'inspect' | 'review' | 'edit'
 
 export type AgentSurfaceIntent =
@@ -19,6 +24,13 @@ export type AgentSurfaceEntity = {
   job_id?: number
   production_id?: string | number
   scene_moment_id?: string | number
+  timeline_scope_kind?: string
+  timeline_scope_ref?: string | number
+  timeline_assembly_ref?: string | number
+  target_category?: string
+  target_kind?: string
+  target_ref?: string | number
+  domain_focus?: MovScriptNormalizedFocus
 }
 
 export type AgentBrowserSurface = {
@@ -46,6 +58,20 @@ export type AgentSurfaceInput = {
   usage: string
   entity?: AgentSurfaceEntity
   query?: Record<string, string | number | boolean | undefined>
+}
+
+export type AgentTimelineSurfaceInput = {
+  projectId?: string | number
+  productionId?: string | number
+  scopeKind?: string
+  scopeRef?: string | number
+  namespaceKind?: string
+  namespaceRef?: string | number
+  namespacePath?: string
+  targetCategory?: string
+  targetKind?: string
+  targetRef?: string | number
+  timelineAssemblyRef?: string | number
 }
 
 export const AGENT_SURFACE_ROUTES = {
@@ -197,22 +223,17 @@ export function createContentCandidatesSurface(
 
 export function createPreviewTimelineSurface(
   args: Record<string, unknown>,
-  input: { productionId: string | number; projectId?: string | number },
+  input: AgentTimelineSurfaceInput,
 ): AgentBrowserSurface {
+  const focus = resolveTimelineSurfaceFocus(input)
   return createAgentBrowserSurface(args, {
     route: AGENT_SURFACE_ROUTES.previewTimeline,
-    title: `Production preview ${String(input.productionId)}`,
+    title: `Timeline preview ${focus.label}`,
     surface: 'review',
     intent: 'preview_timeline',
-    entity: {
-      ...(input.projectId !== undefined ? { project_id: input.projectId } : {}),
-      production_id: input.productionId,
-    },
-    query: {
-      ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
-      productionId: input.productionId,
-    },
-    usage: 'Open this preview timeline surface to inspect selected scene-moment outputs in sequence and identify missing or stale preview material.',
+    entity: focus.entity,
+    query: focus.query,
+    usage: 'Open this preview timeline surface to inspect selected scene-moment outputs for a timeline assembly or legacy production scope.',
   })
 }
 
@@ -239,23 +260,79 @@ export function createImpactSurface(
 
 export function createProjectStatusSurface(
   args: Record<string, unknown>,
-  input: { projectId?: string | number; productionId?: string | number } = {},
+  input: AgentTimelineSurfaceInput = {},
 ): AgentBrowserSurface {
+  const focus = resolveTimelineSurfaceFocus(input)
   return createAgentBrowserSurface(args, {
     route: AGENT_SURFACE_ROUTES.projectStatus,
     title: 'MovScript project status',
     surface: 'inspect',
     intent: 'inspect_project_status',
-    entity: {
-      ...(input.projectId !== undefined ? { project_id: input.projectId } : {}),
-      ...(input.productionId !== undefined ? { production_id: input.productionId } : {}),
-    },
-    query: {
-      ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
-      ...(input.productionId !== undefined ? { productionId: input.productionId } : {}),
-    },
-    usage: 'Open this project status surface to inspect production readiness, candidate coverage, selections, stale hints, and blockers.',
+    entity: focus.entity,
+    query: focus.query,
+    usage: 'Open this project status surface to inspect timeline readiness, candidate coverage, selections, stale hints, and blockers.',
   })
+}
+
+function resolveTimelineSurfaceFocus(input: AgentTimelineSurfaceInput): {
+  focus: MovScriptNormalizedFocus
+  legacyProductionId?: string | number
+  label: string
+  entity: AgentSurfaceEntity
+  query: Record<string, string | number | boolean | undefined>
+} {
+  const focusInput = {
+    projectId: input.projectId,
+    productionId: input.productionId,
+    scopeKind: input.scopeKind,
+    scopeRef: input.scopeRef,
+    namespaceKind: input.namespaceKind,
+    namespaceRef: input.namespaceRef,
+    namespacePath: input.namespacePath,
+    targetCategory: input.targetCategory,
+    targetKind: input.timelineAssemblyRef !== undefined ? 'timeline_assembly' : input.targetKind,
+    targetRef: input.timelineAssemblyRef ?? input.targetRef,
+  }
+  const focus = normalizeDomainFocus(focusInput)
+  const legacyProductionId = input.productionId ?? (focus.scope?.kind === 'production' ? focus.scope.ref : undefined)
+  const entity: AgentSurfaceEntity = {
+    ...(input.projectId !== undefined ? { project_id: input.projectId } : {}),
+    ...(legacyProductionId !== undefined ? { production_id: legacyProductionId } : {}),
+    ...(focus.scope ? {
+      timeline_scope_kind: focus.scope.kind,
+      timeline_scope_ref: focus.scope.ref,
+    } : {}),
+    ...(focus.target?.targetCategory ? { target_category: focus.target.targetCategory } : {}),
+    ...(focus.target?.targetKind ? { target_kind: focus.target.targetKind } : {}),
+    ...(focus.target?.targetRef !== undefined ? { target_ref: focus.target.targetRef } : {}),
+    ...(focus.target?.targetKind === 'timeline_assembly' && focus.target.targetRef !== undefined ? { timeline_assembly_ref: focus.target.targetRef } : {}),
+    domain_focus: focus,
+  }
+  const query = {
+    ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
+    ...(legacyProductionId !== undefined ? { productionId: legacyProductionId } : {}),
+    ...(focus.scope ? {
+      scopeKind: focus.scope.kind,
+      scopeRef: focus.scope.ref,
+    } : {}),
+    ...(focus.target?.targetCategory ? { targetCategory: focus.target.targetCategory } : {}),
+    ...(focus.target?.targetKind ? { targetKind: focus.target.targetKind } : {}),
+    ...(focus.target?.targetRef !== undefined ? { targetRef: focus.target.targetRef } : {}),
+  }
+  return {
+    focus,
+    ...(legacyProductionId !== undefined ? { legacyProductionId } : {}),
+    label: timelineFocusLabel(focus, legacyProductionId),
+    entity,
+    query,
+  }
+}
+
+function timelineFocusLabel(focus: MovScriptNormalizedFocus, legacyProductionId: string | number | undefined): string {
+  if (focus.scope?.kind && focus.scope.ref) return `${focus.scope.kind} ${focus.scope.ref}`
+  if (focus.target?.targetKind && focus.target.targetRef) return `${focus.target.targetKind} ${focus.target.targetRef}`
+  if (legacyProductionId !== undefined) return `production ${String(legacyProductionId)}`
+  return 'project'
 }
 
 export function projectIdFromArgs(args: Record<string, unknown>): string | number | undefined {

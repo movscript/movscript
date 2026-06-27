@@ -7,6 +7,11 @@ export interface ContentWorkbenchTimelineRecord {
   content_unit_id?: unknown
   start_sec?: unknown
   production_id?: unknown
+  target_kind?: unknown
+  target_ref?: unknown
+  scope_kind?: unknown
+  scope_ref?: unknown
+  scope_path?: unknown
   is_primary?: unknown
 }
 

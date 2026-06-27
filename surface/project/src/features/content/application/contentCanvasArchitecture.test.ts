@@ -10,7 +10,9 @@ import {
 } from './contentCanvasInteractions'
 import {
   createChildContentCanvasNode,
+  createRootContentCanvasNode,
   createContentUnitFromSceneMoment,
+  createTimelineAssemblyFromNamespace,
   createCandidateFromContentUnit,
   createCandidateFromResourceForContentUnit,
   selectCandidateNodeFromCanvas,
@@ -71,8 +73,13 @@ import {
 import {
   activeContentCanvasDocument,
   addContentCanvasDocumentNodes,
+  CONTENT_CANVAS_PROJECT_DOCUMENT_SCHEMA,
   contentCanvasDocumentNodeIds,
   contentCanvasDocumentPositions,
+  contentCanvasDocumentFromProjectDocument,
+  contentCanvasDocumentsStateFromProjectCanvases,
+  contentCanvasDocumentScope,
+  contentCanvasProjectDocumentFromDocument,
   createContentCanvasDocument,
   ensureContentCanvasDocumentsState,
   readContentCanvasDocumentsState,
@@ -104,12 +111,15 @@ import {
 } from './contentCreativeCanvasReferences'
 import {
   buildCreativeCanvasGraph,
+  canGenerateCreativeCanvasNode,
+  creativeCanvasNodeRole,
   isCreativeCanvasDependencyEdge,
   isCreativeCanvasVisibleNode,
 } from './contentCreativeCanvasModel'
 import {
   contentCanvasEdgeVisualLayer,
   contentCanvasEdgeVisualState,
+  contentCanvasFilterOptionsForNodes,
   contentCanvasVisualEdgeEndpoints,
   contentCanvasVisualEdgeHandles,
   kindShortCode,
@@ -117,6 +127,7 @@ import {
 import {
   candidateDecisionForNode,
   appendContentNodeReferenceToPrompt,
+  contentCanvasStructureTree,
   contentCanvasWorkspaceIndex,
   candidatesForNode,
   isExpressionPromptNode,
@@ -130,9 +141,19 @@ import {
 } from '../components/contentCanvasWorkspaceModel'
 import {
   contentCanvasFirstSegmentIdForProduction,
+  contentCanvasNodeBelongsToProductionScope,
   contentCanvasSegmentBelongsToProduction,
   contentCanvasSegmentsForProduction,
 } from '../components/contentPromptCanvasQuickCreateModel'
+import {
+  contentCanvasChildSettingNamespaceKind,
+  contentCanvasChildTimelineNamespaceKind,
+  contentCanvasNamespaceVocabularyOptions,
+  contentCanvasRootSettingNamespaceKind,
+  contentCanvasRootTimelineNamespaceKind,
+  contentCanvasSettingChildInput,
+  contentCanvasTimelineChildInput,
+} from '../components/contentCanvasNamespaceVocabularyModel'
 import {
   canUseContentUnitCandidateFlow,
   contentCanvasGenerationTargetForNode,
@@ -341,12 +362,146 @@ test('content canvas content unit candidate flow supports producible content ent
   }
 })
 
-test('content canvas project loader maps workspace editing timelines to scene and production nodes', async () => {
+test('content canvas domain graph keeps namespace nodes out of candidate generation actions', () => {
+  const production = entityFixture('production', 'pilot', 'productions/pilot/production.json', { id: 'pilot', title: 'Pilot', namespace_kind: 'episode' })
+  const segment = entityFixture('segment', 'opening', 'productions/pilot/segments/opening/segment.json', { id: 'opening', title: 'Opening', namespace_kind: 'beat' })
+  const sceneMoment = entityFixture('scene_moment', 'rain_call', 'productions/pilot/segments/opening/scene_moments/rain_call/scene_moment.json', { id: 'rain_call', title: 'Rain call' })
+  const graph = buildContentCanvasWorkspaceSnapshot({
+    projectId: 7,
+    project: null,
+    productions: [production],
+    segments: [segment],
+    sceneMoments: [sceneMoment],
+    storyboards: [],
+    expressionUnits: [],
+    contentUnits: [],
+    keyframes: [],
+    assets: [],
+    settings: [],
+    settingStates: [],
+    audioCues: [],
+    contentUnitCandidates: {},
+    domainGraph: {
+      nodes: [
+        { category: 'timeline_namespace', kind: 'episode', id: 'pilot', path: production.path, title: 'Pilot', metadata: { entityKind: 'production' } },
+        { category: 'timeline_namespace', kind: 'beat', id: 'opening', path: segment.path, title: 'Opening', metadata: { entityKind: 'segment' } },
+        { category: 'system_primitive', kind: 'scene_moment', id: 'rain_call', path: sceneMoment.path, title: 'Rain call', metadata: { entityKind: 'scene_moment' } },
+      ],
+      edges: [],
+      timelineNamespaceNodes: [],
+      settingNamespaceNodes: [],
+      systemPrimitiveNodes: [],
+      contentUnitNodes: [],
+    },
+  })
+  const episode = graph.nodes.find((node) => node.id === 'production:pilot')
+  const beat = graph.nodes.find((node) => node.id === 'segment:opening')
+  const scene = graph.nodes.find((node) => node.id === 'scene_moment:rain_call')
+
+  assert.equal(episode?.domainCategory, 'timeline_namespace')
+  assert.equal(episode?.domainKind, 'episode')
+  assert.equal(episode?.subtitle, 'episode')
+  assert.equal(beat?.domainCategory, 'timeline_namespace')
+  assert.equal(beat?.domainKind, 'beat')
+  assert.equal(beat?.subtitle, 'beat')
+  assert.equal(scene?.domainCategory, 'system_primitive')
+  assert.equal(scene?.domainKind, 'scene_moment')
+  assert.equal(canUseContentUnitCandidateFlow(episode), false)
+  assert.equal(canGenerateCreativeCanvasNode(episode!), false)
+  assert.equal(creativeCanvasNodeRole(episode!), 'structure')
+  assert.equal(creativeCanvasActionsForNode(episode).some((action) => action.kind === 'generate_candidate' || action.kind === 'upload_candidate'), false)
+  assert.equal(canUseContentUnitCandidateFlow(beat), false)
+  assert.equal(creativeCanvasActionsForNode(beat).some((action) => action.kind === 'generate_candidate' || action.kind === 'upload_candidate'), false)
+  assert.equal(canUseContentUnitCandidateFlow(scene), true)
+  assert.equal(canGenerateCreativeCanvasNode(scene!), true)
+  assert.ok(creativeCanvasActionsForNode(scene).some((action) => action.kind === 'generate_candidate'))
+
+  const structureRoot = contentCanvasStructureTree(graph).find((node) => node.id === 'production:pilot')
+  const structureChild = structureRoot?.children?.find((node) => node.id === 'segment:opening')
+  assert.equal(structureRoot?.meta, 'episode · episode')
+  assert.equal(structureRoot?.code, 'EPISODE')
+  assert.equal(structureChild?.meta, 'beat · beat')
+  assert.equal(structureChild?.code, 'BEAT')
+  assert.equal(buildContentCanvasRelationLedger(graph, episode ?? null).current.find((fact) => fact.id === 'kind')?.value, 'episode')
+})
+
+test('content canvas hierarchy prefers normalized domain parent edges over legacy namespace fields', () => {
+  const production = entityFixture('production', 'pilot', 'timeline/pilot/production.json', { id: 'pilot', title: 'Pilot', namespace_kind: 'episode' })
+  const legacyWrongProduction = entityFixture('production', 'legacy_wrong', 'timeline/legacy_wrong/production.json', { id: 'legacy_wrong', title: 'Legacy wrong', namespace_kind: 'episode' })
+  const segment = entityFixture('segment', 'opening', 'timeline/pilot/opening/segment.json', { id: 'opening', production_id: 'legacy_wrong', title: 'Opening', namespace_kind: 'beat' })
+  const sceneMoment = entityFixture('scene_moment', 'rain_call', 'timeline/pilot/opening/rain_call/scene_moment.json', { id: 'rain_call', segment_id: 'legacy_wrong_segment', title: 'Rain call' })
+  const graph = buildContentCanvasWorkspaceSnapshot({
+    projectId: 7,
+    project: null,
+    productions: [production, legacyWrongProduction],
+    segments: [segment],
+    sceneMoments: [sceneMoment],
+    storyboards: [],
+    expressionUnits: [],
+    contentUnits: [],
+    keyframes: [],
+    assets: [],
+    settings: [],
+    settingStates: [],
+    audioCues: [],
+    contentUnitCandidates: {},
+    domainGraph: {
+      nodes: [
+        { category: 'timeline_namespace', kind: 'episode', id: 'pilot', path: production.path, title: 'Pilot', metadata: { entityKind: 'production' } },
+        { category: 'timeline_namespace', kind: 'episode', id: 'legacy_wrong', path: legacyWrongProduction.path, title: 'Legacy wrong', metadata: { entityKind: 'production' } },
+        { category: 'timeline_namespace', kind: 'beat', id: 'opening', path: segment.path, title: 'Opening', metadata: { entityKind: 'segment' } },
+        { category: 'system_primitive', kind: 'scene_moment', id: 'rain_call', path: sceneMoment.path, title: 'Rain call', metadata: { entityKind: 'scene_moment' } },
+      ],
+      edges: [
+        {
+          source: { category: 'timeline_namespace', kind: 'beat', id: 'opening', path: segment.path },
+          target: { category: 'timeline_namespace', kind: 'episode', id: 'pilot', path: production.path },
+          relation: 'parent',
+          origin: 'path',
+        },
+        {
+          source: { category: 'system_primitive', kind: 'scene_moment', id: 'rain_call', path: sceneMoment.path },
+          target: { category: 'timeline_namespace', kind: 'beat', id: 'opening', path: segment.path },
+          relation: 'parent',
+          origin: 'path',
+        },
+      ],
+      timelineNamespaceNodes: [],
+      settingNamespaceNodes: [],
+      systemPrimitiveNodes: [],
+      contentUnitNodes: [],
+    },
+  })
+
+  assert.ok(graph.edges.some((edge) =>
+    edge.kind === 'hierarchy'
+    && edge.source === 'production:pilot'
+    && edge.target === 'segment:opening',
+  ))
+  assert.ok(graph.edges.some((edge) =>
+    edge.kind === 'hierarchy'
+    && edge.source === 'segment:opening'
+    && edge.target === 'scene_moment:rain_call',
+  ))
+  assert.equal(graph.edges.some((edge) =>
+    edge.kind === 'hierarchy'
+    && edge.source === 'production:legacy_wrong'
+    && edge.target === 'segment:opening',
+  ), false)
+})
+
+test('content canvas project loader maps workspace editing timelines to scene, production, and assembly nodes', async () => {
   const production = {
     entityKind: 'production',
     id: 'pilot',
     path: 'productions/pilot/production.json',
     record: { id: 'pilot', title: 'Pilot' },
+  }
+  const segment = {
+    entityKind: 'segment',
+    id: 'intro',
+    path: 'productions/pilot/segments/intro/segment.json',
+    record: { id: 'intro', title: 'Intro beat' },
   }
   const sceneMoment = {
     entityKind: 'scene_moment',
@@ -394,11 +549,32 @@ test('content canvas project loader maps workspace editing timelines to scene an
       }],
     },
   }
+  const assemblyEditingProject = {
+    version: 1,
+    id: 'edit_intro_assembly',
+    title: 'Intro assembly',
+    timeline: {
+      durationMs: 8000,
+      tracks: [{
+        id: 'video',
+        type: 'video',
+        clips: [{
+          id: 'assembly_clip_1',
+          assetType: 'video',
+          asset: { resourceId: 55, label: 'Rain call clip' },
+          timelineStartMs: 0,
+          durationMs: 8000,
+          metadata: { movscript: { resourceId: 55, contentUnitId: 'cu_rain_call', selected: true } },
+        }],
+      }],
+    },
+  }
   const gateway = {
     service: {
       queryEntities: async (query: { entityKind?: string }) => {
         if (query.entityKind === 'project') return []
         if (query.entityKind === 'production') return [production]
+        if (query.entityKind === 'segment') return [segment]
         if (query.entityKind === 'scene_moment') return [sceneMoment]
         return []
       },
@@ -451,6 +627,16 @@ test('content canvas project loader maps workspace editing timelines to scene an
         targetPath: production.path,
         status: 'ready_to_compose',
         mediaEditingProject: productionEditingProject,
+      }, {
+        targetKind: 'timeline_assembly',
+        targetId: 'timeline_assembly:beat:intro',
+        targetRef: 'timeline_assembly:beat:intro',
+        targetPath: segment.path,
+        scopeKind: 'beat',
+        scopeRef: 'intro',
+        scopePath: segment.path,
+        status: 'ready_to_compose',
+        mediaEditingProject: assemblyEditingProject,
       }],
     }),
   } as never
@@ -461,6 +647,9 @@ test('content canvas project loader maps workspace editing timelines to scene an
   assert.equal(project.editingProjectsByNodeId?.['scene_moment:rain_call'], editingProject)
   assert.equal(project.editingProjectsByNodeId?.pilot, productionEditingProject)
   assert.equal(project.editingProjectsByNodeId?.['production:pilot'], productionEditingProject)
+  assert.equal(project.editingProjectsByNodeId?.['timeline_assembly:beat:intro'], assemblyEditingProject)
+  assert.equal(project.editingProjectsByNodeId?.['beat:intro'], assemblyEditingProject)
+  assert.equal(project.editingProjectsByNodeId?.['segment:intro'], assemblyEditingProject)
   assert.equal(project.contentUnitCandidates.cu_rain_call[0].id, 'cand_scene')
   assert.equal(project.contentUnitCandidates.cu_rain_call[0].selected, true)
   assert.equal(project.contentUnitCandidates.cu_rain_call[0].resourceId, 55)
@@ -523,6 +712,7 @@ test('content canvas workspace page delegates pane layout to route layout contro
   const panelsSource = readFileSync(resolve('src/features/content/components/ContentCanvasWorkspacePanels.tsx'), 'utf8')
   const previewPanelSource = readFileSync(resolve('src/features/content/components/ContentCanvasPreviewPanel.tsx'), 'utf8')
   const promptCanvasPanelSource = readFileSync(resolve('src/features/content/components/ContentPromptCanvasPanel.tsx'), 'utf8')
+  const createDialogSource = readFileSync(resolve('src/features/content/components/ContentCanvasCreateNodeDialog.tsx'), 'utf8')
   const promptEditorSource = readFileSync(resolve('src/features/content/components/ContentCanvasPromptEditor.tsx'), 'utf8')
   const creativeLayoutSource = readFileSync(resolve('src/features/content/application/contentCreativeCanvasLayout.ts'), 'utf8')
   const viewModelSource = readFileSync(resolve('src/features/content/components/contentCanvasWorkspaceViewModel.ts'), 'utf8')
@@ -575,6 +765,10 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.match(pageSource, /export function ContentCanvasPage/)
   assert.match(pageSource, /export function ContentCanvasPreviewPage/)
   assert.match(pageSource, /workspaceMode: mode/)
+  assert.match(pageSource, /viewKind=\{viewModel\.previewScope\.kind\}/)
+  assert.match(pageSource, /scope=\{viewModel\.previewScope\}/)
+  assert.match(pageSource, /tree=\{viewModel\.previewTree\}/)
+  assert.match(pageSource, /previewScope=\{viewModel\.previewScope\}/)
   assert.match(pageSource, /showInspectorPanel = activeTab === 'preview'/)
   assert.doesNotMatch(pageSource, /controller\.setWorkspaceTab\('canvas'\)/)
   assert.doesNotMatch(pageSource, /setCanvasMode/)
@@ -586,6 +780,14 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.match(previewPanelSource, /ResourceFileVideo/)
   assert.match(previewPanelSource, /ResourceFileImage/)
   assert.match(previewPanelSource, /function previewTargetNodes/)
+  assert.match(previewPanelSource, /previewScope: ContentCanvasPreviewScope/)
+  assert.match(previewPanelSource, /previewScope\.rootNode/)
+  assert.match(previewPanelSource, /content-canvas-preview-scope-header/)
+  assert.match(previewPanelSource, /previewScopeLabel/)
+  assert.match(viewModelSource, /const previewTree = contentCanvasPreviewTree\(tree, previewScope\)/)
+  assert.match(viewModelSource, /root\?\.children \?\? \[\]/)
+  assert.match(previewPanelSource, /defaultScope === 'production'[\s\S]*node\.kind === 'production'/)
+  assert.match(previewPanelSource, /defaultScope === 'setting'[\s\S]*node\.kind === 'setting'/)
   assert.match(previewPanelSource, /node\.kind === 'production' \|\| node\.kind === 'segment'[\s\S]*descendantsOfKind\(node, graphIndex, 'scene_moment'\)/)
   assert.match(previewPanelSource, /node\.kind === 'setting' \|\| node\.kind === 'state'[\s\S]*descendantsOfKind\(node, graphIndex, 'asset'\)/)
   assert.match(previewPanelSource, /candidateDecisionForNode/)
@@ -595,8 +797,25 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.match(promptCanvasPanelSource, /creativeCanvasQuickAddOptionsForPosition/)
   assert.match(promptCanvasPanelSource, /ContentPromptCanvasQuickCreateDialog/)
   assert.match(promptCanvasPanelSource, /setQuickCreateDialog\(\{ option, position \}\)/)
+  assert.match(promptCanvasPanelSource, /quickCreateDialogSessionKey/)
+  assert.match(promptCanvasPanelSource, /initializedDialogKeyRef/)
+  assert.match(promptCanvasPanelSource, /ContentCanvasCreateModeSwitch/)
+  assert.match(promptCanvasPanelSource, /ContentCanvasCreateSelect/)
+  assert.match(promptCanvasPanelSource, /ContentCanvasCreateDialogSection/)
+  assert.match(promptCanvasPanelSource, /ContentPromptCanvasCreatePlanPreview/)
+  assert.match(promptCanvasPanelSource, /contentCanvasLeafTimelineNamespaceNodeIds/)
+  assert.match(promptCanvasPanelSource, /quickCreateDialogNeedsProductionSegment[\s\S]*return false/)
+  const settingStateMountFunction = promptCanvasPanelSource.match(/function quickCreateDialogNeedsSettingStateMount\([\s\S]*?\n}\n/)?.[0] ?? ''
+  assert.doesNotMatch(settingStateMountFunction, /nodeKind === 'scene_moment'/)
+  assert.doesNotMatch(promptCanvasPanelSource, /__new__/)
+  assert.match(promptCanvasPanelSource, /positionForContextChildCreate/)
+  assert.match(promptCanvasPanelSource, /kind: 'child'[\s\S]*parentNode: node/)
+  assert.doesNotMatch(promptCanvasPanelSource, /onCreateChild\(node, action\.childKind\)/)
   assert.match(promptCanvasPanelSource, /onCreateNode\(state\.option\.nodeKind, state\.position, input\)/)
   assert.match(promptCanvasPanelSource, /onCreateChild\(state\.option\.parentNode, state\.option\.childKind, state\.position, input\)/)
+  assert.match(createDialogSource, /CreateDialogPlanPreview/)
+  assert.match(createDialogSource, /structureCreateDialogPlanItems/)
+  assert.match(createDialogSource, /settingCreateDialogPlanItems/)
   assert.match(promptCanvasPanelSource, /groups: quickAdd\.groups/)
   assert.match(promptCanvasPanelSource, /primaryOption: directQuickAddOption\('task_image', '图片'\)/)
   assert.match(promptCanvasPanelSource, /primaryOption: directQuickAddOption\('task_video', '视频'\)/)
@@ -658,6 +877,12 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.match(promptCanvasPanelSource, /function creativeCanvasMeasuredNodeSizes/)
   assert.doesNotMatch(promptCanvasPanelSource, /pinnedPositions: manualPositions/)
   assert.match(promptCanvasPanelSource, /focusedNodeId/)
+  assert.match(promptCanvasPanelSource, /focused: item\.id === focusedNodeId/)
+  assert.match(promptCanvasPanelSource, /const focused = data\.focused/)
+  assert.match(promptCanvasPanelSource, /const expanded = focused/)
+  assert.doesNotMatch(promptCanvasPanelSource, /const expanded = Boolean\(selected\)/)
+  assert.match(promptCanvasPanelSource, /onNodeDragStart=\{\(_event, node\) => selectPromptCanvasNode\(node\.id\)\}/)
+  assert.match(promptCanvasPanelSource, /flowNodes\.find\(\(node\) => node\.selected\)[\s\S]*flowNodes\.find\(\(node\) => node\.id === focusedNodeId\)/)
   assert.match(promptCanvasPanelSource, /flowInstance\.setCenter/)
   assert.match(promptCanvasPanelSource, /onInit=\{setFlowInstance\}/)
   assert.match(promptCanvasPanelSource, /ResourceFileImage/)
@@ -729,6 +954,13 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.match(promptCanvasCssSource, /\.content-prompt-canvas-node-drawer__row\s*\{/)
   assert.match(promptCanvasCssSource, /\.content-prompt-canvas-panel__canvas-select\s*\{/)
   assert.match(promptCanvasCssSource, /\.content-prompt-canvas-asset-drawer \.content-canvas-resource-candidate-picker\s*\{/)
+  assert.match(promptCanvasPanelSource, /contentCanvasDocumentScope\(activeCanvasDocument\)/)
+  assert.match(promptCanvasPanelSource, /contentCanvasNodeLibraryNodes\(nodes, nodeLibraryQuery, activeCanvasScope\)/)
+  assert.match(promptCanvasPanelSource, /ContentPromptCanvasQuickCreateDialog[\s\S]*activeCanvasScope=\{activeCanvasScope\}/)
+  assert.match(promptCanvasPanelSource, /contentCanvasTimelineNamespaceParentsForSceneMoment\(nodes, activeCanvasScope\)/)
+  assert.match(promptCanvasPanelSource, /disabled=\{Boolean\(scopedProductionId\)\}/)
+  assert.match(promptCanvasPanelSource, /contentCanvasNodeCanJoinDocument/)
+  assert.match(promptCanvasPanelSource, /contentCanvasNodeIsGlobalSettingScoped/)
 
   assert.doesNotMatch(panelsSource, /CanvasStagePanel/)
   assert.doesNotMatch(panelsSource, /ContentCanvasStarCanvas/)
@@ -765,12 +997,18 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.match(pageSource, /onViewportCommit=\{controller\.commitCreativeCanvasViewport\}/)
   assert.match(controllerSource, /removeContentCanvasDocumentNodes/)
   assert.match(controllerSource, /useContentCanvasWorkspaceSession\(\{/)
+  assert.match(controllerSource, /contentCanvasProjectEntryIdForRoute\(location\.pathname, workspaceMode\)/)
+  assert.match(controllerSource, /if \(pathname\.endsWith\('\/settings\/preview'\)\) return 'setting_preview'/)
+  assert.match(controllerSource, /projectEntryId,/)
   assert.match(controllerSource, /useContentCanvasWorkspaceCreationCommands\(\{/)
   assert.doesNotMatch(controllerSource, /useProjectEntrySessionStore/)
-  assert.doesNotMatch(controllerSource, /resolveContentCanvasProjectEntrySessionState/)
+  assert.match(controllerSource, /routePreviewTargetNodeId/)
+  assert.match(controllerSource, /contentCanvasWorkspacePreviewInputForRoute/)
   assert.match(workspaceSessionSource, /useProjectEntrySessionStore/)
   assert.match(workspaceSessionSource, /resolveContentCanvasProjectEntrySessionState/)
   assert.match(workspaceSessionSource, /buildContentCanvasProjectEntrySessionSearch/)
+  assert.match(workspaceSessionSource, /contentCanvasProjectEntryRouteKey\(input\.projectEntryId, input\.workspaceTab\)/)
+  assert.match(workspaceSessionSource, /projectEntryId === 'setting_preview'/)
   assert.match(workspaceCreationCommandsSource, /export function useContentCanvasWorkspaceCreationCommands/)
   assert.match(workspaceCreationCommandsSource, /createRootContentCanvasNode/)
   assert.match(workspaceCreationCommandsSource, /createChildContentCanvasNode/)
@@ -870,6 +1108,8 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.match(resourceCandidatePickerSource, /resourceKeys\.contentWorkspaceCandidates/)
   assert.match(resourceCandidatePickerSource, /api\.get\(`\/resources/)
   assert.match(inspectorPartsSource, /export function CreateChildNodeInspector/)
+  assert.match(inspectorPartsSource, /CreateChildNodeInspectorPlanPreview/)
+  assert.match(detailsSource, /parentNode=\{selection\.parent\}/)
   assert.match(inspectorPartsSource, /title="创作片段"/)
   assert.doesNotMatch(detailsSource, /InspectorChildGroups/)
   assert.match(detailsSource, /function PromptReferenceAppendButtons/)
@@ -929,6 +1169,8 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.match(detailsSource, /submitLabel="创建分镜图"/)
 
   assert.match(viewModelSource, /export function buildContentCanvasWorkspaceViewModel/)
+  assert.match(viewModelSource, /resolveContentCanvasPreviewScope/)
+  assert.match(viewModelSource, /scopedContentCanvasGraph/)
   assert.match(viewModelSource, /reconcileContentCanvasInspectorSelection/)
   assert.doesNotMatch(viewModelSource, /useState/)
   assert.doesNotMatch(viewModelSource, /useQuery/)
@@ -959,6 +1201,8 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.match(electronGatewaySource, /createStoryboard/)
   assert.match(electronGatewaySource, /createMovScriptEngineContentUnit/)
   assert.match(electronGatewaySource, /ensureContentUnitForEntity/)
+  assert.match(electronGatewaySource, /ensureMovScriptEngineTimelineAssemblyContentUnit/)
+  assert.match(electronGatewaySource, /input\.targetKind === 'timeline_assembly'/)
   assert.doesNotMatch(electronGatewaySource, /shots: \[\{/)
   assert.match(commandsSource, /ContentCanvasWorkspaceGateway/)
   assert.match(commandsSource, /from '.\/contentCanvasCreateNodeCommands'/)
@@ -1183,6 +1427,43 @@ test('content canvas presentation exposes stable type short codes for dense node
     kindShortCode('actor'),
     kindShortCode('group'),
   ], ['SET', 'STATE', 'AST', 'EXP', 'AUD', 'KEY', 'STB', 'UNIT', 'ACT', 'GRP'])
+})
+
+test('content canvas filter labels use namespace vocabulary without changing filter values', () => {
+  const options = contentCanvasFilterOptionsForNodes([
+    nodeFixture({
+      id: 'production:pilot',
+      entityKey: 'pilot',
+      kind: 'production',
+      title: 'Pilot',
+      position: { x: 0, y: 0 },
+      domainCategory: 'timeline_namespace',
+      domainKind: 'episode',
+    }),
+    nodeFixture({
+      id: 'segment:opening',
+      entityKey: 'opening',
+      kind: 'segment',
+      title: 'Opening',
+      position: { x: 0, y: 0 },
+      domainCategory: 'timeline_namespace',
+      domainKind: 'beat',
+    }),
+    nodeFixture({
+      id: 'state:costume',
+      entityKey: 'costume',
+      kind: 'state',
+      title: 'Costume',
+      position: { x: 0, y: 0 },
+      domainCategory: 'setting_namespace',
+      domainKind: 'costume_state',
+    }),
+  ])
+
+  assert.equal(options.find((option) => option.kind === 'production')?.label, 'episode')
+  assert.equal(options.find((option) => option.kind === 'segment')?.label, 'beat')
+  assert.equal(options.find((option) => option.kind === 'state')?.label, 'costume_state')
+  assert.equal(options.find((option) => option.kind === 'production')?.kind, 'production')
 })
 
 test('content canvas edge presentation assigns distinct visual layers and focus dimming', () => {
@@ -1492,14 +1773,15 @@ test('content canvas view state keeps pure model logic outside persistence adapt
   assert.doesNotMatch(source, /function isViewState|function isViewport|function contentCanvasViewStateScopeKey/)
 })
 
-test('content canvas documents are free canvases with local node refs and layout', () => {
+test('content canvas documents store project-scoped node refs and layout', () => {
   const restoreWindow = installLocalStorageFixture()
   try {
     const initial = ensureContentCanvasDocumentsState(91)
     const firstCanvasId = initial?.activeCanvasId ?? ''
 
     assert.ok(firstCanvasId)
-    assert.equal(activeContentCanvasDocument(initial)?.title, '自由画布')
+    assert.equal(activeContentCanvasDocument(initial)?.title, '自由内容画布')
+    assert.deepEqual(contentCanvasDocumentScope(activeContentCanvasDocument(initial)), { kind: 'global' })
     assert.equal('mode' in (activeContentCanvasDocument(initial) ?? {}), false)
     assert.equal('type' in (activeContentCanvasDocument(initial) ?? {}), false)
 
@@ -1510,19 +1792,31 @@ test('content canvas documents are free canvases with local node refs and layout
     }])
     const secondState = createContentCanvasDocument(91, { title: '收尾帧互联' })
     const secondCanvasId = secondState?.activeCanvasId ?? ''
+    assert.deepEqual(contentCanvasDocumentScope(secondState?.documents[secondCanvasId]), { kind: 'global' })
     addContentCanvasDocumentNodes(91, secondCanvasId, [{
       nodeId: 'scene_moment:ending',
       kind: 'scene_moment',
       position: { x: 420, y: 240 },
     }])
     updateContentCanvasDocumentViewport(91, secondCanvasId, { x: -200, y: -80, zoom: 0.72 })
+    const productionCanvasState = createContentCanvasDocument(91, {
+      title: 'Pilot 画布',
+      scope: { kind: 'production', productionId: 'pilot', productionTitle: 'Pilot' },
+    })
+    const productionCanvasId = productionCanvasState?.activeCanvasId ?? ''
 
     const stored = readContentCanvasDocumentsState(91)
     const first = stored?.documents[firstCanvasId]
     const second = stored?.documents[secondCanvasId]
+    const productionCanvas = stored?.documents[productionCanvasId]
 
     assert.deepEqual(contentCanvasDocumentNodeIds(first), ['scene_moment:ending'])
     assert.deepEqual(contentCanvasDocumentNodeIds(second), ['scene_moment:ending'])
+    assert.deepEqual(contentCanvasDocumentScope(productionCanvas), {
+      kind: 'production',
+      productionId: 'pilot',
+      productionTitle: 'Pilot',
+    })
     assert.deepEqual(contentCanvasDocumentPositions(first), { 'scene_moment:ending': { x: 20, y: 40 } })
     assert.deepEqual(contentCanvasDocumentPositions(second), { 'scene_moment:ending': { x: 420, y: 240 } })
     assert.deepEqual(second?.viewport, { x: -200, y: -80, zoom: 0.72 })
@@ -1532,6 +1826,40 @@ test('content canvas documents are free canvases with local node refs and layout
       addedAt: second?.nodes['scene_moment:ending']?.addedAt,
     })
     assert.equal(Object.prototype.hasOwnProperty.call(second?.nodes['scene_moment:ending'] ?? {}, 'title'), false)
+    const projectDocument = contentCanvasProjectDocumentFromDocument(productionCanvas!)
+    assert.equal(projectDocument.schema, CONTENT_CANVAS_PROJECT_DOCUMENT_SCHEMA)
+    assert.equal(projectDocument.kind, 'content_canvas')
+    assert.deepEqual(projectDocument.scope, {
+      kind: 'production',
+      production_id: 'pilot',
+      production_title: 'Pilot',
+    })
+    assert.deepEqual(projectDocument.nodes, [])
+
+    const secondProjectDocument = contentCanvasProjectDocumentFromDocument(second!)
+    assert.deepEqual(secondProjectDocument.nodes.map((node) => node.node_id), ['scene_moment:ending'])
+    assert.deepEqual(secondProjectDocument.layouts['scene_moment:ending'], {
+      x: 420,
+      y: 240,
+      width: 260,
+      height: 118,
+      manual: true,
+      source: 'manual',
+      updated_at: second?.nodeLayouts?.['scene_moment:ending']?.updatedAt,
+    })
+    assert.deepEqual(contentCanvasDocumentFromProjectDocument(secondProjectDocument)?.viewport, { x: -200, y: -80, zoom: 0.72 })
+    const projectState = contentCanvasDocumentsStateFromProjectCanvases(91, {
+      canvases: [
+        { record: projectDocument },
+        { record: secondProjectDocument },
+      ],
+    }, stored)
+    assert.equal(projectState?.activeCanvasId, productionCanvasId)
+    assert.deepEqual(contentCanvasDocumentScope(projectState?.documents[productionCanvasId]), {
+      kind: 'production',
+      productionId: 'pilot',
+      productionTitle: 'Pilot',
+    })
 
     removeContentCanvasDocumentNodes(91, firstCanvasId, ['scene_moment:ending'])
     assert.deepEqual(contentCanvasDocumentNodeIds(readContentCanvasDocumentsState(91)?.documents[firstCanvasId]), [])
@@ -1546,6 +1874,40 @@ test('content canvas documents are free canvases with local node refs and layout
   } finally {
     restoreWindow()
   }
+})
+
+test('content canvas storage stays separate from workflow canvas service', () => {
+  const documentsSource = readFileSync(resolve('src/features/content/application/contentCanvasDocuments.ts'), 'utf8')
+  const contentCanvasSources = [
+    ['src/features/content/application/contentCanvasDocuments.ts', documentsSource],
+    ['src/features/content/components/ContentPromptCanvasPanel.tsx', readFileSync(resolve('src/features/content/components/ContentPromptCanvasPanel.tsx'), 'utf8')],
+    ['src/features/content/components/ContentCanvasWorkspacePage.tsx', readFileSync(resolve('src/features/content/components/ContentCanvasWorkspacePage.tsx'), 'utf8')],
+    ['src/features/content/components/useContentCanvasWorkspaceController.ts', readFileSync(resolve('src/features/content/components/useContentCanvasWorkspaceController.ts'), 'utf8')],
+  ] as const
+  const hostApiSource = readFileSync(resolve('../../services/local-surface-host/src/adapters/localContentSurfaceHostApi.ts'), 'utf8')
+  const projectServiceSource = readFileSync(resolve('../../services/project-service/src/server.mjs'), 'utf8')
+  const desktopPreloadSource = readFileSync(resolve('../../apps/desktop/electron/preload/api/movscriptEngine.ts'), 'utf8')
+  const desktopIpcSource = readFileSync(resolve('../../apps/desktop/electron/ipc/movscriptEngineIpc.ts'), 'utf8')
+  const desktopProjectEngineSource = readFileSync(resolve('../../apps/desktop/electron/services/projectEngineRegistry.ts'), 'utf8')
+  const disallowedWorkflowCanvasServicePattern = /@movscript\/canvas-surface|canvasServicePaths|surfaceCanvasApi|\/local-api\/canvas|\/canvas\/canvases|movscript\.canvas\.service/
+
+  for (const [path, source] of contentCanvasSources) {
+    assert.doesNotMatch(source, disallowedWorkflowCanvasServicePattern, `${path} should not call the workflow canvas service`)
+  }
+
+  assert.match(documentsSource, /listMovScriptEngineContentCanvases/)
+  assert.match(documentsSource, /writeMovScriptEngineContentCanvas/)
+  assert.match(documentsSource, /contentCanvasProjectEnvelope/)
+  assert.match(contentCanvasSources[3][1], /\[canvasDocumentsVersion, projectId, requestedCanvasId\]/)
+  assert.match(hostApiSource, /sourceCommand\('listContentCanvases'/)
+  assert.match(hostApiSource, /sourceCommand\('writeContentCanvas'/)
+  assert.match(projectServiceSource, /CONTENT_CANVAS_DIRECTORY = 'content_canvases'/)
+  assert.match(desktopPreloadSource, /listMovScriptEngineContentCanvases/)
+  assert.match(desktopPreloadSource, /writeMovScriptEngineContentCanvas/)
+  assert.match(desktopIpcSource, /movscript:engine-content-canvases-list/)
+  assert.match(desktopIpcSource, /movscript:engine-content-canvas-write/)
+  assert.match(desktopProjectEngineSource, /CONTENT_CANVAS_DIRECTORY = 'content_canvases'/)
+  assert.match(desktopProjectEngineSource, /export async function writeMovScriptEngineContentCanvas/)
 })
 
 test('creative canvas graph renders only current document refs while sharing domain node data', () => {
@@ -1790,6 +2152,66 @@ test('content canvas local arrange moves only unpinned target nodes', () => {
   assert.deepEqual(Object.keys(patches), ['content_unit:1', 'candidate:1'])
 })
 
+test('content canvas arrange places timeline namespaces by domain depth', () => {
+  const graph = graphFixture({
+    nodes: [
+      nodeFixture({
+        id: 'production:series',
+        entityKey: 'series',
+        kind: 'production',
+        title: 'Series',
+        position: { x: 0, y: 0 },
+        domainCategory: 'timeline_namespace',
+        domainKind: 'series',
+        domainAncestorNodeIds: [],
+      }),
+      nodeFixture({
+        id: 'segment:episode',
+        entityKey: 'episode',
+        kind: 'segment',
+        title: 'Episode',
+        position: { x: 0, y: 0 },
+        domainCategory: 'timeline_namespace',
+        domainKind: 'episode',
+        domainAncestorNodeIds: ['production:series'],
+      }),
+      nodeFixture({
+        id: 'segment:beat',
+        entityKey: 'beat',
+        kind: 'segment',
+        title: 'Beat',
+        position: { x: 0, y: 0 },
+        domainCategory: 'timeline_namespace',
+        domainKind: 'beat',
+        domainAncestorNodeIds: ['production:series', 'segment:episode'],
+      }),
+      nodeFixture({
+        id: 'scene_moment:opening',
+        entityKey: 'opening',
+        kind: 'scene_moment',
+        title: 'Opening moment',
+        position: { x: 0, y: 0 },
+        domainCategory: 'system_primitive',
+        domainKind: 'scene_moment',
+        domainAncestorNodeIds: ['production:series', 'segment:episode', 'segment:beat'],
+      }),
+    ],
+  })
+  const layouts = createContentCanvasWorkspaceSnapshotState(graph).layoutByNodeId
+
+  const arranged = arrangeContentCanvasNodeLayouts(
+    graph,
+    layouts,
+    ['production:series', 'segment:episode', 'segment:beat', 'scene_moment:opening'],
+    { origin: { x: 0, y: 0 } },
+  )
+
+  assert.equal(arranged['production:series'].x, 360)
+  assert.equal(arranged['segment:episode'].x, 720)
+  assert.equal(arranged['segment:beat'].x, 1080)
+  assert.equal(arranged['scene_moment:opening'].x, 1440)
+})
+
 test('content canvas viewport culling returns visible nodes and necessary edges only', () => {
   const state = createContentCanvasWorkspaceSnapshotState(graphFixture({
     nodes: [
@@ -1819,8 +2241,24 @@ test('content canvas viewport culling returns visible nodes and necessary edges 
 test('content canvas navigator derives hierarchy depth and work item counts', () => {
   const graph = graphFixture({
     nodes: [
-      nodeFixture({ id: 'production:1', entityKey: '1', kind: 'production', title: 'Production 1', position: { x: 0, y: 0 } }),
-      nodeFixture({ id: 'segment:1', entityKey: '1', kind: 'segment', title: 'Segment 1', position: { x: 360, y: 0 } }),
+      nodeFixture({
+        id: 'production:1',
+        entityKey: '1',
+        kind: 'production',
+        title: 'Production 1',
+        position: { x: 0, y: 0 },
+        domainCategory: 'timeline_namespace',
+        domainKind: 'episode',
+      }),
+      nodeFixture({
+        id: 'segment:1',
+        entityKey: '1',
+        kind: 'segment',
+        title: 'Segment 1',
+        position: { x: 360, y: 0 },
+        domainCategory: 'timeline_namespace',
+        domainKind: 'beat',
+      }),
       nodeFixture({ id: 'scene_moment:1', entityKey: '1', kind: 'scene_moment', title: 'Scene 1', position: { x: 720, y: 0 } }),
       nodeFixture({ id: 'expression_unit:1', entityKey: '1', kind: 'expression_unit', title: 'Shot 1', position: { x: 1080, y: 0 }, record: { kind: 'shot' } }),
       nodeFixture({ id: 'content_unit:1', entityKey: '1', kind: 'content_unit', title: 'Unit 1', position: { x: 1440, y: 0 } }),
@@ -1836,10 +2274,10 @@ test('content canvas navigator derives hierarchy depth and work item counts', ()
 
   const items = buildContentCanvasNavigatorItems(graph)
 
-  assert.deepEqual(items.map((item) => [item.nodeId, item.depth, item.childCount, item.workItemCount]), [
-    ['production:1', 0, 1, 0],
-    ['segment:1', 1, 1, 0],
-    ['scene_moment:1', 2, 0, 0],
+  assert.deepEqual(items.map((item) => [item.nodeId, item.domainKind, item.depth, item.childCount, item.workItemCount]), [
+    ['production:1', 'episode', 0, 1, 0],
+    ['segment:1', 'beat', 1, 1, 0],
+    ['scene_moment:1', undefined, 2, 0, 0],
   ])
 })
 
@@ -2304,6 +2742,51 @@ test('content canvas collapsed layout hides descendants but keeps selected desce
     { kind: 'expression_unit', count: 1, label: '表达' },
   ])
   assert.deepEqual(selectedDescendant.graph.nodes.map((node) => node.id), ['scene_moment:1', 'keyframe:1'])
+})
+
+test('content canvas collapsed summaries use namespace domain kind labels', () => {
+  const graph = graphFixture({
+    nodes: [
+      nodeFixture({
+        id: 'setting:hero',
+        entityKey: 'hero',
+        kind: 'setting',
+        title: 'Hero',
+        position: { x: 0, y: 0 },
+        domainCategory: 'setting_namespace',
+        domainKind: 'character',
+      }),
+      nodeFixture({
+        id: 'state:costume',
+        entityKey: 'costume',
+        kind: 'state',
+        title: 'Formal costume',
+        position: { x: 360, y: 0 },
+        domainCategory: 'setting_namespace',
+        domainKind: 'costume_state',
+      }),
+    ],
+    edges: [
+      { id: 'setting-state', source: 'setting:hero', target: 'state:costume', kind: 'hierarchy' },
+    ],
+  })
+
+  const plan = buildContentCanvasViewPlan({
+    graph,
+    query: '',
+    kindFilter: 'all',
+    mode: 'dependency',
+    selectedNodeId: null,
+    impactByNodeId: {},
+    layoutByNodeId: {
+      'setting:hero': { collapsed: true },
+    },
+  })
+
+  assert.deepEqual(plan.graph.nodes.map((node) => node.id), ['setting:hero'])
+  assert.deepEqual(plan.collapsedSummariesByNodeId['setting:hero'], [
+    { kind: 'state', domainKind: 'costume_state', count: 1, label: 'costume_state' },
+  ])
 })
 
 test('content canvas view plan budgets visible edges and summarizes hidden rendered edges', () => {
@@ -3415,6 +3898,280 @@ test('content canvas content unit ensure delegates matching and naming to engine
   }])
 })
 
+test('content canvas root production creation uses timeline profile by default and legacy opt-in', async () => {
+  const calls: Array<{ kind: string; payload: unknown }> = []
+  const gateway = {
+    createProduction: async (payload: unknown) => {
+      calls.push({ kind: 'createProduction', payload })
+    },
+    writeHierarchyNode: async (payload: unknown) => {
+      calls.push({ kind: 'writeHierarchyNode', payload })
+    },
+  } as never
+
+  const result = await createRootContentCanvasNode(7, 'production', {
+    input: { id: 'pilot', title: 'Pilot' },
+    position: { x: 10, y: 20 },
+  }, gateway)
+
+  assert.deepEqual(calls.map((call) => call.kind), ['writeHierarchyNode'])
+  assert.equal(result.focusNodeId, 'production:pilot')
+  assert.deepEqual(result.nodePositions, { 'production:pilot': { x: 10, y: 20 } })
+  const namespacePayload = calls[0].payload as { targetPath: string; record: Record<string, unknown> }
+  assert.equal(namespacePayload.targetPath, 'timeline/pilot/production.json')
+  assert.equal(namespacePayload.record.namespace_kind, 'production')
+  assert.equal(namespacePayload.record.production_type, 'video')
+  assert.equal(namespacePayload.record.timeline_profile, 'video')
+  assert.deepEqual(namespacePayload.record.timeline_namespaces, ['hook', 'proof', 'demo', 'cta'])
+
+  calls.length = 0
+  const legacyResult = await createRootContentCanvasNode(7, 'production', {
+    input: { id: 'legacy', title: 'Legacy', legacyTimelineMount: true },
+  }, gateway)
+
+  assert.deepEqual(calls, [{
+    kind: 'createProduction',
+    payload: { projectId: 7, id: 'legacy', title: 'Legacy' },
+  }])
+  assert.equal(legacyResult.focusNodeId, 'production:legacy')
+})
+
+test('content canvas root timeline namespace creation uses hierarchy writer without legacy refs', async () => {
+  const calls: Array<{ kind: string; payload: unknown }> = []
+  const gateway = {
+    createProduction: async (payload: unknown) => {
+      calls.push({ kind: 'createProduction', payload })
+    },
+    writeHierarchyNode: async (payload: unknown) => {
+      calls.push({ kind: 'writeHierarchyNode', payload })
+    },
+  } as never
+
+  const result = await createRootContentCanvasNode(7, 'production', {
+    input: {
+      id: 'pilot',
+      title: 'Pilot',
+      timelineProfile: 'film',
+      timelineNamespaceKind: 'production',
+    },
+    position: { x: 10, y: 20 },
+  }, gateway)
+
+  assert.deepEqual(calls.map((call) => call.kind), ['writeHierarchyNode'])
+  assert.equal(result.focusNodeId, 'production:pilot')
+  assert.deepEqual(result.nodePositions, { 'production:pilot': { x: 10, y: 20 } })
+  const payload = calls[0].payload as { targetPath: string; record: Record<string, unknown> }
+  assert.equal(payload.targetPath, 'timeline/pilot/production.json')
+  assert.equal(payload.record.kind, 'production')
+  assert.equal(payload.record.id, 'pilot')
+  assert.equal(payload.record.title, 'Pilot')
+  assert.equal(payload.record.namespace_kind, 'production')
+  assert.equal(payload.record.production_type, 'film')
+  assert.equal(payload.record.timeline_profile, 'film')
+  assert.deepEqual(payload.record.timeline_namespaces, ['act', 'sequence', 'beat'])
+  assert.equal(payload.record.production_id, undefined)
+  assert.equal(payload.record.segment_id, undefined)
+})
+
+test('content canvas episode production creation creates one production with recommended internal namespaces', async () => {
+  const calls: Array<{ kind: string; payload: unknown }> = []
+  const gateway = {
+    writeHierarchyNode: async (payload: unknown) => {
+      calls.push({ kind: 'writeHierarchyNode', payload })
+    },
+  } as never
+
+  const result = await createRootContentCanvasNode(7, 'production', {
+    input: {
+      id: 'show',
+      title: 'Mystery Show',
+      timelineProfile: 'episode',
+      timelineNamespaceKind: 'production',
+    },
+    position: { x: 10, y: 20 },
+  }, gateway)
+
+  assert.deepEqual(calls.map((call) => call.kind), ['writeHierarchyNode'])
+  assert.equal(result.focusNodeId, 'production:show')
+  assert.deepEqual(result.changedNodeIds, ['production:show'])
+  const [episodePayload] = calls.map((call) => call.payload as { targetPath: string; record: Record<string, unknown> })
+  assert.equal(episodePayload.targetPath, 'timeline/show/production.json')
+  assert.equal(episodePayload.record.namespace_kind, 'production')
+  assert.equal(episodePayload.record.production_type, 'episode')
+  assert.equal(episodePayload.record.timeline_profile, 'episode')
+  assert.deepEqual(episodePayload.record.timeline_namespaces, ['act', 'sequence', 'beat'])
+  assert.equal(episodePayload.record.default_preview_scope_kind, undefined)
+})
+
+test('content canvas legacy segment creation must explicitly opt in', async () => {
+  const calls: Array<{ kind: string; payload: unknown }> = []
+  const gateway = {
+    createSegment: async (payload: unknown) => {
+      calls.push({ kind: 'createSegment', payload })
+    },
+  } as never
+  const production = nodeFixture({
+    id: 'production:pilot',
+    entityKey: 'pilot',
+    kind: 'production',
+    title: 'Pilot',
+    sourcePath: 'productions/pilot/production.json',
+    position: { x: 0, y: 0 },
+  })
+
+  await assert.rejects(
+    () => createChildContentCanvasNode(7, production, 'segment', {
+      input: { id: 'intro', title: 'Intro' },
+    }, gateway),
+    /legacyTimelineMount/,
+  )
+  assert.deepEqual(calls, [])
+
+  const result = await createChildContentCanvasNode(7, production, 'segment', {
+    input: { id: 'intro', title: 'Intro', legacyTimelineMount: true },
+    position: { x: 360, y: 0 },
+  }, gateway)
+
+  assert.deepEqual(calls, [{
+    kind: 'createSegment',
+    payload: {
+      projectId: 7,
+      productionId: 'pilot',
+      id: 'intro',
+      title: 'Intro',
+      productionTitle: 'Pilot',
+    },
+  }])
+  assert.equal(result.focusNodeId, 'segment:intro')
+  assert.deepEqual(result.nodePositions, { 'segment:intro': { x: 360, y: 0 } })
+})
+
+test('content canvas legacy segment-mounted scene creation must explicitly opt in', async () => {
+  const calls: Array<{ kind: string; payload: unknown }> = []
+  const gateway = {
+    createSceneMoment: async (payload: unknown) => {
+      calls.push({ kind: 'createSceneMoment', payload })
+    },
+  } as never
+  const segment = nodeFixture({
+    id: 'segment:intro',
+    entityKey: 'intro',
+    kind: 'segment',
+    title: 'Intro',
+    sourcePath: 'productions/pilot/segments/intro/segment.json',
+    position: { x: 360, y: 0 },
+  })
+
+  await assert.rejects(
+    () => createChildContentCanvasNode(7, segment, 'scene_moment', {
+      input: { id: 'opening', title: 'Opening' },
+    }, gateway),
+    /legacyTimelineMount/,
+  )
+  assert.deepEqual(calls, [])
+
+  const result = await createChildContentCanvasNode(7, segment, 'scene_moment', {
+    input: { id: 'opening', title: 'Opening', legacyTimelineMount: true },
+    position: { x: 720, y: 0 },
+  }, gateway)
+
+  assert.deepEqual(calls, [{
+    kind: 'createSceneMoment',
+    payload: {
+      projectId: 7,
+      productionId: 'pilot',
+      segmentId: 'intro',
+      id: 'opening',
+      title: 'Opening',
+      segmentTitle: 'Intro',
+    },
+  }])
+  assert.equal(result.focusNodeId, 'scene_moment:opening')
+  assert.deepEqual(result.nodePositions, { 'scene_moment:opening': { x: 720, y: 0 } })
+})
+
+test('content canvas timeline namespace child creation uses hierarchy writer without legacy refs', async () => {
+  const calls: Array<{ kind: string; payload: unknown }> = []
+  const gateway = {
+    createSegment: async (payload: unknown) => {
+      calls.push({ kind: 'createSegment', payload })
+    },
+    writeHierarchyNode: async (payload: unknown) => {
+      calls.push({ kind: 'writeHierarchyNode', payload })
+    },
+  } as never
+  const episode = nodeFixture({
+    id: 'production:pilot',
+    entityKey: 'pilot',
+    kind: 'production',
+    title: 'Pilot',
+    sourcePath: 'timeline/pilot/production.json',
+    domainCategory: 'timeline_namespace',
+    domainKind: 'production',
+    record: { production_type: 'episode', timeline_profile: 'episode', timeline_namespaces: ['act', 'beat'] },
+    position: { x: 0, y: 0 },
+  })
+
+  const result = await createChildContentCanvasNode(7, episode, 'segment', {
+    input: {
+      id: 'opening',
+      title: 'Opening',
+      timelineNamespaceKind: 'beat',
+    },
+    position: { x: 360, y: 0 },
+  }, gateway)
+
+  assert.deepEqual(calls.map((call) => call.kind), ['writeHierarchyNode'])
+  assert.equal(result.focusNodeId, 'segment:opening')
+  assert.deepEqual(result.nodePositions, { 'segment:opening': { x: 360, y: 0 } })
+  const payload = calls[0].payload as { targetPath: string; record: Record<string, unknown> }
+  assert.equal(payload.targetPath, 'timeline/pilot/segments/opening/segment.json')
+  assert.equal(payload.record.kind, 'segment')
+  assert.equal(payload.record.id, 'opening')
+  assert.equal(payload.record.title, 'Opening')
+  assert.equal(payload.record.namespace_kind, 'beat')
+  assert.equal(payload.record.production_id, undefined)
+  assert.equal(payload.record.segment_id, undefined)
+})
+
+test('content canvas timeline namespace scene creation uses hierarchy writer without legacy refs', async () => {
+  const calls: Array<{ kind: string; payload: unknown }> = []
+  const gateway = {
+    createSceneMoment: async (payload: unknown) => {
+      calls.push({ kind: 'createSceneMoment', payload })
+    },
+    writeHierarchyNode: async (payload: unknown) => {
+      calls.push({ kind: 'writeHierarchyNode', payload })
+    },
+  } as never
+  const beat = nodeFixture({
+    id: 'segment:opening',
+    entityKey: 'opening',
+    kind: 'segment',
+    title: 'Opening',
+    sourcePath: 'timeline/pilot/segments/opening/segment.json',
+    domainCategory: 'timeline_namespace',
+    domainKind: 'beat',
+    position: { x: 360, y: 0 },
+  })
+
+  const result = await createChildContentCanvasNode(7, beat, 'scene_moment', {
+    input: { id: 'rain_call', title: 'Rain call' },
+    position: { x: 720, y: 0 },
+  }, gateway)
+
+  assert.deepEqual(calls.map((call) => call.kind), ['writeHierarchyNode'])
+  assert.equal(result.focusNodeId, 'scene_moment:rain_call')
+  assert.deepEqual(result.nodePositions, { 'scene_moment:rain_call': { x: 720, y: 0 } })
+  const payload = calls[0].payload as { targetPath: string; record: Record<string, unknown> }
+  assert.equal(payload.targetPath, 'timeline/pilot/segments/opening/scene_moments/rain_call/scene_moment.json')
+  assert.equal(payload.record.kind, 'scene_moment')
+  assert.equal(payload.record.id, 'rain_call')
+  assert.equal(payload.record.title, 'Rain call')
+  assert.equal(payload.record.production_id, undefined)
+  assert.equal(payload.record.segment_id, undefined)
+})
+
 test('content canvas scene moment generation command ensures a scene_moment_ref content unit', async () => {
   const calls: Array<{ kind: string; payload: unknown }> = []
   const gateway = {
@@ -3478,6 +4235,59 @@ test('content canvas scene moment generation command ensures a scene_moment_ref 
       source: 'content_canvas',
       scene_moment_node_id: 'scene_moment:scene_1',
     },
+    },
+  })
+})
+
+test('content canvas timeline namespace assembly creates a timeline_assembly_ref content unit', async () => {
+  const calls: Array<{ kind: string; payload: unknown }> = []
+  const gateway = {
+    ensureContentUnitForEntity: async (payload: unknown) => {
+      calls.push({ kind: 'ensureContentUnitForEntity', payload })
+      return {
+        path: 'content_units/cu_assembly_episode_pilot/content_unit.json',
+        record: { id: 'cu_assembly_episode_pilot' },
+      }
+    },
+  } as never
+  const episode = nodeFixture({
+    id: 'production:pilot',
+    entityKey: 'pilot',
+    kind: 'production',
+    title: 'Pilot',
+    sourcePath: 'timeline/pilot/production.json',
+    domainCategory: 'timeline_namespace',
+    domainKind: 'episode',
+    record: { production_type: 'episode' },
+    position: { x: 0, y: 0 },
+  })
+
+  const result = await createTimelineAssemblyFromNamespace(7, episode, gateway)
+
+  assert.equal(result.message, '已确保剪辑聚合创作片段')
+  assert.deepEqual(result.changedNodeIds, ['content_unit:cu_assembly_episode_pilot'])
+  assert.equal(result.focusNodeId, 'content_unit:cu_assembly_episode_pilot')
+  assert.deepEqual(result.nodePositions, { 'content_unit:cu_assembly_episode_pilot': { x: 360, y: 0 } })
+  assert.deepEqual(calls[0], {
+    kind: 'ensureContentUnitForEntity',
+    payload: {
+      targetKind: 'timeline_assembly',
+      scopeKind: 'episode',
+      scopeRef: 'pilot',
+      id: 'cu_assembly_episode_pilot',
+      title: 'Pilot 剪辑聚合',
+      contentUnitType: 'timeline_assembly_ref',
+      outputKind: 'video',
+      description: '从时间线范围「Pilot」创建剪辑聚合。',
+      prompt: '汇总时间线范围「Pilot」下已确认的情节与素材，生成可审阅的剪辑聚合视频。',
+      modelIntent: {
+        source: 'content_canvas',
+        namespace_node_id: 'production:pilot',
+        namespace_node_kind: 'episode',
+        namespace_node_path: 'timeline/pilot/production.json',
+        scope_kind: 'episode',
+        scope_ref: 'pilot',
+      },
     },
   })
 })
@@ -3575,7 +4385,171 @@ test('content canvas expression unit creation also ensures an expression_unit_re
   })
 })
 
-test('content prompt canvas creates scene moments only with explicit production and segment mounts', async () => {
+test('content canvas creation commands prefer domain ancestry over stale legacy scope fields', async () => {
+  const calls: Array<{ kind: string; payload: unknown }> = []
+  const gateway = {
+    createExpressionUnit: async (payload: unknown) => {
+      calls.push({ kind: 'createExpressionUnit', payload })
+    },
+    ensureContentUnitForEntity: async (payload: unknown) => {
+      calls.push({ kind: 'ensureContentUnitForEntity', payload })
+      return {
+        path: 'content_units/cu_expression_expr_1/content_unit.json',
+        record: { id: 'cu_expression_expr_1' },
+      }
+    },
+  } as never
+  const scene = nodeFixture({
+    id: 'scene_moment:scene_1',
+    entityKey: 'scene_1',
+    kind: 'scene_moment',
+    title: 'Scene 1',
+    sourcePath: 'timeline/pilot/opening/scene_1/scene_moment.json',
+    record: {
+      production_id: 'legacy_wrong_production',
+      segment_id: 'legacy_wrong_segment',
+    },
+    domainAncestorNodeIds: ['segment:opening', 'production:pilot'],
+    position: { x: 0, y: 0 },
+  })
+
+  await createChildContentCanvasNode(7, scene, 'expression_unit', {
+    input: { id: 'expr_1', title: 'Line 1', status: 'dialogue' },
+  }, gateway)
+
+  assert.deepEqual(calls[0].payload, {
+    projectId: 7,
+    productionId: 'pilot',
+    segmentId: 'opening',
+    sceneMomentId: 'scene_1',
+    id: 'expr_1',
+    title: 'Line 1',
+    kind: 'dialogue',
+    text: 'Line 1',
+    sceneMomentTitle: 'Scene 1',
+  })
+})
+
+test('content prompt canvas rejects implicit legacy production and segment mounts', async () => {
+  const calls: Array<{ kind: string; payload: unknown }> = []
+  const gateway = {
+    createProduction: async (payload: unknown) => {
+      calls.push({ kind: 'createProduction', payload })
+    },
+    createSegment: async (payload: unknown) => {
+      calls.push({ kind: 'createSegment', payload })
+    },
+    createSceneMoment: async (payload: unknown) => {
+      calls.push({ kind: 'createSceneMoment', payload })
+    },
+    ensureContentUnitForEntity: async (payload: unknown) => {
+      calls.push({ kind: 'ensureContentUnitForEntity', payload })
+      return { path: 'content_units/cu_scene_opening/content_unit.json', record: { id: 'cu_scene_opening' } }
+    },
+  } as never
+
+  await assert.rejects(
+    () => createSceneMomentCanvasNode(7, {
+      input: {
+        id: 'opening',
+        title: 'Opening',
+        targetProductionId: 'pilot',
+        targetSegmentId: 'intro',
+      },
+    }, gateway),
+    /legacyTimelineMount/,
+  )
+  assert.deepEqual(calls, [])
+})
+
+test('content prompt canvas creates namespace scene moments with path writer and scene_moment_ref content units', async () => {
+  const calls: Array<{ kind: string; payload: unknown }> = []
+  const gateway = {
+    createSceneMoment: async (payload: unknown) => {
+      calls.push({ kind: 'createSceneMoment', payload })
+    },
+    connectSceneMomentSetting: async (payload: unknown) => {
+      calls.push({ kind: 'connectSceneMomentSetting', payload })
+    },
+    createSetting: async (payload: unknown) => {
+      calls.push({ kind: 'createSetting', payload })
+      return { path: 'settings/location/setting.json', record: { id: 'location' } }
+    },
+    createSettingState: async (payload: unknown) => {
+      calls.push({ kind: 'createSettingState', payload })
+      return { path: 'settings/location/states/night/setting_state.json', record: { id: 'night' } }
+    },
+    writeHierarchyNode: async (payload: unknown) => {
+      calls.push({ kind: 'writeHierarchyNode', payload })
+    },
+    ensureContentUnitForEntity: async (payload: unknown) => {
+      calls.push({ kind: 'ensureContentUnitForEntity', payload })
+      return { path: 'content_units/cu_scene_rain_call/content_unit.json', record: { id: 'cu_scene_rain_call' } }
+    },
+  } as never
+
+  const result = await createSceneMomentCanvasNode(7, {
+    input: {
+      id: 'rain_call',
+      title: 'Rain call',
+      targetTimelineNamespaceNodeId: 'segment:opening',
+      targetTimelineNamespaceId: 'opening',
+      targetTimelineNamespaceTitle: 'Opening',
+      targetTimelineNamespaceKind: 'beat',
+      targetTimelineNamespacePath: 'timeline/pilot/segments/opening/segment.json',
+      createTargetSetting: true,
+      createTargetState: true,
+      targetSettingId: 'location',
+      targetSettingTitle: 'Location',
+      targetStateId: 'night',
+      targetStateTitle: 'Night',
+    },
+    position: { x: 720, y: 120 },
+  }, gateway)
+
+  assert.deepEqual(calls.map((call) => call.kind), [
+    'createSetting',
+    'createSettingState',
+    'writeHierarchyNode',
+    'ensureContentUnitForEntity',
+  ])
+  assert.equal(result.focusNodeId, 'scene_moment:rain_call')
+  assert.deepEqual(result.nodePositions, { 'scene_moment:rain_call': { x: 720, y: 120 } })
+  assert.ok(result.changedNodeIds.includes('scene_moment:rain_call'))
+  assert.ok(result.changedNodeIds.includes('content_unit:cu_scene_rain_call'))
+
+  const hierarchyPayload = calls.find((call) => call.kind === 'writeHierarchyNode')?.payload as { targetPath: string; record: Record<string, unknown> } | undefined
+  assert.equal(hierarchyPayload?.targetPath, 'timeline/pilot/segments/opening/scene_moments/rain_call/scene_moment.json')
+  assert.equal(hierarchyPayload?.record.kind, 'scene_moment')
+  assert.equal(hierarchyPayload?.record.id, 'rain_call')
+  assert.equal(hierarchyPayload?.record.title, 'Rain call')
+  assert.deepEqual(hierarchyPayload?.record.setting_refs, [{
+    setting_id: 'location',
+    setting_state_id: 'night',
+    role: 'scene_constraint',
+  }])
+  assert.equal(hierarchyPayload?.record.production_id, undefined)
+  assert.equal(hierarchyPayload?.record.segment_id, undefined)
+
+  const contentUnitPayload = calls.find((call) => call.kind === 'ensureContentUnitForEntity')?.payload as Record<string, unknown> | undefined
+  assert.equal(contentUnitPayload?.targetKind, 'scene_moment')
+  assert.equal(contentUnitPayload?.targetRef, 'rain_call')
+  assert.equal(contentUnitPayload?.contentUnitType, 'scene_moment_ref')
+  assert.deepEqual(contentUnitPayload?.modelIntent, {
+    source: 'content_canvas',
+    scene_moment_id: 'rain_call',
+    timeline_namespace_node_id: 'segment:opening',
+    timeline_namespace_id: 'opening',
+    timeline_namespace_kind: 'beat',
+    timeline_namespace_path: 'timeline/pilot/segments/opening/segment.json',
+    setting_id: 'location',
+    state_id: 'night',
+  })
+  assert.equal(contentUnitPayload?.production_id, undefined)
+  assert.equal(contentUnitPayload?.segment_id, undefined)
+})
+
+test('content prompt canvas creates scene moments only with explicit legacy production and segment mounts', async () => {
   const calls: Array<{ kind: string; payload: unknown }> = []
   const gateway = {
     createProduction: async (payload: unknown) => {
@@ -3610,6 +4584,7 @@ test('content prompt canvas creates scene moments only with explicit production 
       title: 'Opening',
       createTargetProduction: true,
       createTargetSegment: true,
+      legacyTimelineMount: true,
       targetProductionId: 'pilot',
       targetProductionTitle: 'Pilot',
       targetSegmentId: 'intro',
@@ -3641,6 +4616,17 @@ test('content prompt canvas creates scene moments only with explicit production 
   assert.ok(result.changedNodeIds.includes('state:night'))
   assert.ok(result.changedNodeIds.includes('scene_moment:opening'))
   assert.ok(result.changedNodeIds.includes('content_unit:cu_scene_opening'))
+  const contentUnitPayload = calls.find((call) => call.kind === 'ensureContentUnitForEntity')?.payload as Record<string, unknown> | undefined
+  assert.equal(contentUnitPayload?.targetKind, 'scene_moment')
+  assert.equal(contentUnitPayload?.targetRef, 'opening')
+  assert.equal(contentUnitPayload?.contentUnitType, 'scene_moment_ref')
+  assert.deepEqual(contentUnitPayload?.modelIntent, {
+    source: 'content_canvas',
+    scene_moment_id: 'opening',
+    production_id: 'pilot',
+    segment_id: 'intro',
+    legacy_timeline_mount: true,
+  })
 })
 
 test('content prompt canvas quick create reads existing segments from production refs and paths', () => {
@@ -3677,15 +4663,175 @@ test('content prompt canvas quick create reads existing segments from production
     sourcePath: 'productions/other/segments/other/segment.json',
     position: { x: 360, y: 320 },
   })
+  const timelineScene = nodeFixture({
+    id: 'scene_moment:rain_call',
+    entityKey: 'rain_call',
+    kind: 'scene_moment',
+    title: 'Rain call',
+    sourcePath: 'timeline/pilot/segments/opening/scene_moments/rain_call/scene_moment.json',
+    position: { x: 720, y: 0 },
+  })
+  const ancestorScene = nodeFixture({
+    id: 'scene_moment:bridge',
+    entityKey: 'bridge',
+    kind: 'scene_moment',
+    title: 'Bridge',
+    domainAncestorNodeIds: ['production:pilot', 'segment:bridge'],
+    sourcePath: 'timeline/shared/scene_moments/bridge/scene_moment.json',
+    position: { x: 720, y: 160 },
+  })
+  const otherScene = nodeFixture({
+    id: 'scene_moment:other',
+    entityKey: 'other_scene',
+    kind: 'scene_moment',
+    title: 'Other Scene',
+    sourcePath: 'timeline/other/segments/other/scene_moments/other/scene_moment.json',
+    position: { x: 720, y: 320 },
+  })
 
   assert.equal(contentCanvasSegmentBelongsToProduction(pathSegment, 'pilot', production), true)
   assert.equal(contentCanvasSegmentBelongsToProduction(refSegment, 'pilot', production), true)
   assert.equal(contentCanvasSegmentBelongsToProduction(otherSegment, 'pilot', production), false)
+  assert.equal(contentCanvasNodeBelongsToProductionScope(timelineScene, 'pilot', [production]), true)
+  assert.equal(contentCanvasNodeBelongsToProductionScope(ancestorScene, 'pilot', [production]), true)
+  assert.equal(contentCanvasNodeBelongsToProductionScope(otherScene, 'pilot', [production]), false)
   assert.deepEqual(
     contentCanvasSegmentsForProduction([pathSegment, refSegment, otherSegment], 'pilot', [production]).map((node) => node.entityKey),
     ['opening', 'bridge'],
   )
   assert.equal(contentCanvasFirstSegmentIdForProduction([pathSegment, refSegment, otherSegment], 'pilot', [production]), 'opening')
+})
+
+test('content canvas production type vocabulary drives root and child namespace creation inputs', () => {
+  const vocabulary = contentCanvasNamespaceVocabularyOptions({
+    domainGraph: {
+      namespaceVocabulary: {
+        timelineNamespaces: ['act', 'beat'],
+        settingNamespaces: ['character', 'costume_state'],
+        timelineTemplate: 'episode',
+        diagnostics: [],
+      },
+    },
+  } as never)
+  const episode = nodeFixture({
+    id: 'production:pilot',
+    entityKey: 'pilot',
+    kind: 'production',
+    title: 'Pilot',
+    sourcePath: 'timeline/pilot/production.json',
+    domainCategory: 'timeline_namespace',
+    domainKind: 'production',
+    record: { production_type: 'episode', timeline_profile: 'episode', timeline_namespaces: ['act', 'beat'] },
+    position: { x: 0, y: 0 },
+  })
+  const legacyProduction = nodeFixture({
+    id: 'production:legacy',
+    entityKey: 'legacy',
+    kind: 'production',
+    title: 'Legacy',
+    sourcePath: 'productions/legacy/production.json',
+    position: { x: 0, y: 0 },
+  })
+  const character = nodeFixture({
+    id: 'setting:hero',
+    entityKey: 'hero',
+    kind: 'setting',
+    title: 'Hero',
+    sourcePath: 'settings/hero/setting.json',
+    domainCategory: 'setting_namespace',
+    domainKind: 'character',
+    position: { x: 0, y: 0 },
+  })
+
+  assert.deepEqual(vocabulary.timelineNamespaces.slice(0, 2), ['act', 'beat'])
+  assert.equal(contentCanvasRootTimelineNamespaceKind(vocabulary), 'act')
+  assert.equal(contentCanvasChildTimelineNamespaceKind(episode, vocabulary), 'act')
+  assert.deepEqual(contentCanvasTimelineChildInput(episode, 'segment', { id: 'act_1', title: 'Act 1' }, vocabulary), {
+    id: 'act_1',
+    title: 'Act 1',
+    timelineProfile: 'episode',
+    timelineNamespaces: ['act', 'beat'],
+    timelineNamespaceKind: 'act',
+  })
+  assert.deepEqual(contentCanvasTimelineChildInput(legacyProduction, 'segment', { id: 'intro', title: 'Intro' }, vocabulary), {
+    id: 'intro',
+    title: 'Intro',
+    legacyTimelineMount: true,
+  })
+  assert.equal(contentCanvasRootSettingNamespaceKind(vocabulary), 'character')
+  assert.equal(contentCanvasChildSettingNamespaceKind(character, vocabulary), 'costume_state')
+  assert.deepEqual(contentCanvasSettingChildInput(character, { id: 'rain', title: 'Rain costume' }, vocabulary), {
+    id: 'rain',
+    title: 'Rain costume',
+    settingNamespaceKind: 'costume_state',
+  })
+})
+
+test('content canvas setting namespace root creation writes project vocabulary kind', async () => {
+  const calls: Array<{ kind: string; payload: unknown }> = []
+  const gateway = {
+    createSetting: async (payload: unknown) => {
+      calls.push({ kind: 'createSetting', payload })
+      return { path: 'settings/hero/setting.json', record: { id: 'hero' } }
+    },
+  } as never
+
+  const result = await createRootContentCanvasNode(7, 'setting', {
+    input: { id: 'hero', title: 'Hero', settingNamespaceKind: 'character' },
+    position: { x: 20, y: 40 },
+  }, gateway)
+
+  assert.deepEqual(calls, [{
+    kind: 'createSetting',
+    payload: {
+      id: 'hero',
+      title: 'Hero',
+      kind: 'character',
+      settingNamespaceKind: 'character',
+      description: '从创作画布创建。',
+    },
+  }])
+  assert.equal(result.focusNodeId, 'setting:hero')
+  assert.deepEqual(result.nodePositions, { 'setting:hero': { x: 20, y: 40 } })
+})
+
+test('content canvas setting namespace child creation writes namespace kind', async () => {
+  const calls: Array<{ kind: string; payload: unknown }> = []
+  const gateway = {
+    createSettingState: async (payload: unknown) => {
+      calls.push({ kind: 'createSettingState', payload })
+      return { path: 'settings/hero/states/rain/setting_state.json', record: { id: 'rain' } }
+    },
+  } as never
+  const setting = nodeFixture({
+    id: 'setting:hero',
+    entityKey: 'hero',
+    kind: 'setting',
+    title: 'Hero',
+    sourcePath: 'settings/hero/setting.json',
+    domainCategory: 'setting_namespace',
+    domainKind: 'character',
+    position: { x: 0, y: 0 },
+  })
+
+  const result = await createChildContentCanvasNode(7, setting, 'state', {
+    input: { id: 'rain', title: 'Rain costume', settingNamespaceKind: 'costume_state' },
+    position: { x: 30, y: 60 },
+  }, gateway)
+
+  assert.deepEqual(calls, [{
+    kind: 'createSettingState',
+    payload: {
+      id: 'rain',
+      settingId: 'hero',
+      title: 'Rain costume',
+      stateKind: undefined,
+      settingNamespaceKind: 'costume_state',
+      description: '从设定「Hero」创建。',
+    },
+  }])
+  assert.equal(result.focusNodeId, 'state:rain')
+  assert.deepEqual(result.nodePositions, { 'state:rain': { x: 30, y: 60 } })
 })
 
 test('content prompt canvas creates naked media generation tasks without default production structure', async () => {
@@ -4685,6 +5831,73 @@ test('content canvas prompt references exclude the current owner from scoped can
   )
 })
 
+test('content canvas preview view model scopes production and setting perspectives', () => {
+  const projectData = {
+    projectId: 7,
+    project: null,
+    productions: [
+      entityFixture('production', 'prod_a', 'productions/prod_a/production.json', { id: 'prod_a', title: 'Production A' }),
+      entityFixture('production', 'prod_b', 'productions/prod_b/production.json', { id: 'prod_b', title: 'Production B' }),
+    ],
+    segments: [
+      entityFixture('segment', 'seg_a', 'productions/prod_a/segments/seg_a/segment.json', { id: 'seg_a', production_id: 'prod_a', title: 'Segment A' }),
+      entityFixture('segment', 'seg_b', 'productions/prod_b/segments/seg_b/segment.json', { id: 'seg_b', production_id: 'prod_b', title: 'Segment B' }),
+    ],
+    sceneMoments: [
+      entityFixture('scene_moment', 'scene_a', 'productions/prod_a/segments/seg_a/scene_moments/scene_a/scene_moment.json', { id: 'scene_a', segment_id: 'seg_a', title: 'Scene A' }),
+      entityFixture('scene_moment', 'scene_b', 'productions/prod_b/segments/seg_b/scene_moments/scene_b/scene_moment.json', { id: 'scene_b', segment_id: 'seg_b', title: 'Scene B' }),
+    ],
+    storyboards: [],
+    expressionUnits: [],
+    contentUnits: [],
+    keyframes: [],
+    settings: [entityFixture('setting', 'hero', 'settings/hero/setting.json', { id: 'hero', title: 'Hero' })],
+    settingStates: [entityFixture('setting_state', 'base', 'settings/hero/states/base/setting_state.json', { id: 'base', setting_id: 'hero', title: 'Base' })],
+    assets: [entityFixture('asset', 'portrait', 'settings/hero/states/base/assets/portrait/asset.json', { id: 'portrait', setting_id: 'hero', setting_state_id: 'base', title: 'Portrait' })],
+    audioCues: [],
+    contentUnitCandidates: {},
+  }
+
+  const productionView = buildContentCanvasWorkspaceViewModel({
+    projectData,
+    activeKind: 'all',
+    activeCanvasNodeId: 'production:prod_b',
+    activeProductionId: 'production:prod_b',
+    activeSceneId: null,
+    activeSettingId: null,
+    preview: { kind: 'production', targetNodeId: 'production:prod_b' },
+    selection: { kind: 'other', nodeId: 'production:prod_b' },
+    settingQuery: '',
+  })
+
+  assert.equal(productionView.previewScope.kind, 'production')
+  assert.equal(productionView.previewScope.rootNode?.id, 'production:prod_b')
+  assert.deepEqual(productionView.tree.map((node) => node.id), ['production:prod_b'])
+  assert.deepEqual(productionView.previewTree.map((node) => node.id), ['segment:seg_b'])
+  assert.deepEqual(productionView.graph.nodes.filter((node) => node.kind === 'production').map((node) => node.id), ['production:prod_b'])
+  assert.deepEqual(productionView.graph.nodes.filter((node) => node.kind === 'scene_moment').map((node) => node.id), ['scene_moment:scene_b'])
+  assert.equal(productionView.graph.nodes.some((node) => node.kind === 'setting'), false)
+
+  const settingView = buildContentCanvasWorkspaceViewModel({
+    projectData,
+    activeKind: 'all',
+    activeCanvasNodeId: 'asset:portrait',
+    activeProductionId: null,
+    activeSceneId: null,
+    activeSettingId: 'setting:hero',
+    preview: { kind: 'setting', targetNodeId: 'asset:portrait' },
+    selection: { kind: 'asset', nodeId: 'asset:portrait' },
+    settingQuery: '',
+  })
+
+  assert.equal(settingView.previewScope.kind, 'setting')
+  assert.equal(settingView.previewScope.rootNode?.id, 'setting:hero')
+  assert.deepEqual(settingView.tree.map((node) => node.id), ['setting:hero'])
+  assert.deepEqual(settingView.previewTree.map((node) => node.id), ['state:base'])
+  assert.deepEqual(settingView.graph.nodes.filter((node) => node.kind === 'asset').map((node) => node.id), ['asset:portrait'])
+  assert.equal(settingView.graph.nodes.some((node) => node.kind === 'production'), false)
+})
+
 test('content canvas workspace keeps inspector selection separate from entered canvas node', () => {
   const viewModel = buildContentCanvasWorkspaceViewModel({
     projectData: {
@@ -5415,6 +6628,24 @@ test('creative canvas actions expose scene keyframe and storyboard creation comm
   const candidate = nodeFixture({ id: 'candidate:cu:cand', entityKey: 'cand', kind: 'candidate', title: 'Candidate', position: { x: 0, y: 0 }, record: { id: 'cand' } })
   const selectedCandidate = nodeFixture({ id: 'candidate:cu:selected', entityKey: 'selected', kind: 'candidate', title: 'Selected', position: { x: 0, y: 0 }, record: { id: 'selected', selected: true } })
   const resource = nodeFixture({ id: 'resource:42', entityKey: '42', kind: 'resource', title: 'Resource', position: { x: 0, y: 0 }, record: { resourceId: 42 } })
+  const episodeNamespace = nodeFixture({
+    id: 'production:pilot',
+    entityKey: 'pilot',
+    kind: 'production',
+    title: 'Pilot',
+    position: { x: 0, y: 0 },
+    domainCategory: 'timeline_namespace',
+    domainKind: 'episode',
+  })
+  const characterNamespace = nodeFixture({
+    id: 'setting:hero',
+    entityKey: 'hero',
+    kind: 'setting',
+    title: 'Hero',
+    position: { x: 0, y: 0 },
+    domainCategory: 'setting_namespace',
+    domainKind: 'character',
+  })
 
   assert.deepEqual(creativeCanvasActionsForNode(scene).map((action) => action.kind === 'create_child' ? `${action.kind}:${action.childKind}` : action.kind), [
     'create_child:expression_unit',
@@ -5433,7 +6664,22 @@ test('creative canvas actions expose scene keyframe and storyboard creation comm
   assert.ok(creativeCanvasActionsForNode(resource).some((action) => action.kind === 'open_resource' && action.resourceId === 42))
   assert.ok(creativeCanvasActionsForNode(resource).some((action) => action.kind === 'remove_from_canvas'))
   assert.equal(creativeCanvasActionsForNode(resource).some((action) => action.kind === 'delete_node'), false)
+  assert.deepEqual(creativeCanvasActionsForNode(episodeNamespace).map(actionSummary), [
+    'create_child:segment:添加子层级',
+    'create_assembly',
+    'remove_from_canvas',
+    'delete_node',
+  ])
+  assert.deepEqual(creativeCanvasActionsForNode(characterNamespace).map(actionSummary), [
+    'create_child:state:添加状态层级',
+    'remove_from_canvas',
+    'delete_node',
+  ])
 })
+
+function actionSummary(action: ReturnType<typeof creativeCanvasActionsForNode>[number]): string {
+  return action.kind === 'create_child' ? `${action.kind}:${action.childKind}:${action.label}` : action.kind
+}
 
 function graphFixture(patch: Partial<ContentCanvasWorkspaceSnapshot> = {}): ContentCanvasWorkspaceSnapshot {
   return {

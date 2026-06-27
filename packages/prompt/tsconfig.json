@@ -4,6 +4,7 @@
     "outDir": "dist",
     "baseUrl": ".",
     "paths": {
+      "@movscript/domain": ["../domain/src/index.ts"],
       "@movscript/language/domain": ["../language/src/domain/index.ts"],
       "@movscript/workspace/indexer": ["../workspace/src/indexer/index.ts"],
       "@movscript/workspace/layout": ["../workspace/src/layout/index.ts"],

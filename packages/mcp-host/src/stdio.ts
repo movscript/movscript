@@ -40,6 +40,10 @@ import {
   LOCAL_RUNTIME_DAEMON_CONTROL_SERVICE,
   LOCAL_RUNTIME_DAEMON_GATEWAY_SERVICE,
 } from '@movscript/local-runtime'
+import {
+  MOVSCRIPT_SOURCE_COLLECTION_DIRS,
+  MOVSCRIPT_SOURCE_ROOT_FILES,
+} from '@movscript/workspace'
 
 const DEFAULT_LOCAL_BACKEND = 'http://localhost:8766'
 const MCP_HOST_DEBUG = process.env.MOVSCRIPT_MCP_HOST_DEBUG === '1'
@@ -62,8 +66,18 @@ export const hostTools: MCPTool[] = [
       project_dir: { type: 'string', description: 'Alias for projectDir.' },
       projectId: { type: 'string', description: 'Optional project id to use when constructing Local Surface Host URLs.' },
       project_id: { type: 'string', description: 'Alias for projectId.' },
-      productionId: { type: 'string', description: 'Optional production id to include in project surface URLs.' },
+      productionId: { type: 'string', description: 'Optional legacy production-scope id to include in project surface URLs. Namespace focus should use scopeKind/scopeRef or targetKind/targetRef.' },
       production_id: { type: 'string', description: 'Alias for productionId.' },
+      scopeKind: { type: 'string', description: 'Optional timeline namespace scope kind to include in project surface URLs, for example episode or beat.' },
+      scope_kind: { type: 'string', description: 'Alias for scopeKind.' },
+      scopeRef: { type: 'string', description: 'Optional timeline namespace scope ref to include in project surface URLs.' },
+      scope_ref: { type: 'string', description: 'Alias for scopeRef.' },
+      targetKind: { type: 'string', description: 'Optional normalized target kind to include in project surface URLs, such as timeline_assembly.' },
+      target_kind: { type: 'string', description: 'Alias for targetKind.' },
+      targetRef: { type: 'string', description: 'Optional normalized target ref to include in project surface URLs.' },
+      target_ref: { type: 'string', description: 'Alias for targetRef.' },
+      timelineAssemblyRef: { type: 'string', description: 'Optional timeline assembly target ref to include in project surface URLs.' },
+      timeline_assembly_ref: { type: 'string', description: 'Alias for timelineAssemblyRef.' },
       localBackendURL: { type: 'string', description: 'Optional local backend URL to probe.' },
       local_backend_url: { type: 'string', description: 'Alias for localBackendURL.' },
       timeoutMs: { type: 'number', description: 'Probe timeout in milliseconds. Defaults to 750.' },
@@ -322,6 +336,7 @@ export async function runtimeStatus(args: Record<string, unknown> = {}): Promise
     projectDir,
     projectId: stringValue(args.projectId ?? args.project_id),
     productionId: stringValue(args.productionId ?? args.production_id),
+    focusQuery: runtimeFocusQuery(args),
     runtimeOwner,
   })
 
@@ -435,13 +450,23 @@ function inspectProjectSource(projectDir: string): Record<string, unknown> & { i
   const projectPath = resolve(projectDir, 'project.json')
   const metadataPath = existsSync(workspacePath) ? workspacePath : existsSync(projectPath) ? projectPath : undefined
   const metadata = metadataPath ? readJSON(metadataPath) : undefined
-  const hasSourceDirs = ['settings', 'content_units', 'productions', 'scripts'].some((name) => existsSync(resolve(projectDir, name)))
+  const sourceCollections = Array.from(MOVSCRIPT_SOURCE_COLLECTION_DIRS)
+    .filter((name) => existsSync(resolve(projectDir, name)))
+    .sort()
+  const sourceRootFiles = Array.from(MOVSCRIPT_SOURCE_ROOT_FILES)
+    .filter((name) => existsSync(resolve(projectDir, name)))
+    .sort()
+  const hasSourceDirs = sourceCollections.length > 0
+  const hasSourceRootFiles = sourceRootFiles.length > 0
   const projectUid = isRecord(metadata) ? stringValue(metadata.project_uid ?? metadata.projectUid) : undefined
   const projectTitle = isRecord(metadata) ? stringValue(metadata.title ?? metadata.name) : undefined
   return {
-    isMovScriptProject: Boolean(metadataPath || hasSourceDirs),
+    isMovScriptProject: Boolean(metadataPath || hasSourceDirs || hasSourceRootFiles),
     hasMetadata: Boolean(metadataPath),
     hasSourceDirs,
+    hasSourceRootFiles,
+    sourceCollections,
+    sourceRootFiles,
     ...(metadataPath ? { metadataPath } : {}),
     ...(projectUid ? { projectUid } : {}),
     ...(projectTitle ? { projectTitle } : {}),
@@ -553,6 +578,7 @@ function localSurfaceURLs(input: {
   projectDir: string
   projectId?: string
   productionId?: string
+  focusQuery?: Record<string, string>
   runtimeOwner: Record<string, unknown>
 }): {
   available: boolean
@@ -585,6 +611,9 @@ function localSurfaceURLs(input: {
     projectDir: input.projectDir,
   }
   if (input.productionId) commonQuery.productionId = input.productionId
+  for (const [key, value] of Object.entries(input.focusQuery ?? {})) {
+    commonQuery[key] = value
+  }
 
   const home = localSurfaceURL(baseURL, '/', commonQuery)
   const projectOverview = localSurfaceURL(baseURL, `/studio/${encodeURIComponent(projectId)}/overview`, commonQuery)
@@ -680,6 +709,21 @@ function localSurfaceURL(baseURL: string, pathname: string, query: Record<string
     if (value) url.searchParams.set(key, value)
   }
   return url.toString()
+}
+
+function runtimeFocusQuery(args: Record<string, unknown>): Record<string, string> {
+  const output: Record<string, string> = {}
+  setQueryValue(output, 'scopeKind', args.scopeKind ?? args.scope_kind)
+  setQueryValue(output, 'scopeRef', args.scopeRef ?? args.scope_ref)
+  setQueryValue(output, 'targetKind', args.targetKind ?? args.target_kind)
+  setQueryValue(output, 'targetRef', args.targetRef ?? args.target_ref)
+  setQueryValue(output, 'timeline_assembly_ref', args.timelineAssemblyRef ?? args.timeline_assembly_ref)
+  return output
+}
+
+function setQueryValue(output: Record<string, string>, key: string, value: unknown): void {
+  const normalized = stringValue(value)
+  if (normalized) output[key] = normalized
 }
 
 function runtimeSurfaceLink(input: {

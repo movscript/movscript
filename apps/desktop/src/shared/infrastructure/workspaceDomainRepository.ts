@@ -26,6 +26,7 @@ type WorkspaceElectronAPI = Pick<
   | 'appendMovScriptEngineWorkspaceCandidate'
   | 'createMovScriptEngineWorkspaceAssetSlotCandidate'
   | 'createMovScriptEngineWorkspaceKeyframeCandidate'
+  | 'writeMovScriptEngineHierarchyNode'
 >
 
 export function createElectronMovScriptWorkspaceService(
@@ -145,7 +146,9 @@ function createElectronMovScriptEngineWorkspaceService(
     | 'createMovScriptEngineWorkspaceKeyframeCandidate'
   >>,
 ): MovScriptWorkspaceService {
-  const service: Partial<MovScriptWorkspaceService> = {
+  const service: Partial<MovScriptWorkspaceService> & {
+    writeHierarchyNode?: (input: { targetPath: string; record: Record<string, unknown> }) => Promise<unknown>
+  } = {
     async queryEntities(query) {
       if (!context.projectDir?.trim()) return []
       return api.queryMovScriptEngineWorkspaceEntities({ ...context, query })
@@ -203,6 +206,14 @@ function createElectronMovScriptEngineWorkspaceService(
 	    async createKeyframeCandidate(payload) {
 	      return api.createMovScriptEngineWorkspaceKeyframeCandidate({ ...mutationContext(context, payload), payload })
 	    },
+    async writeHierarchyNode(payload) {
+      const write = (api as WorkspaceElectronAPI).writeMovScriptEngineHierarchyNode
+      if (!write) throw new Error('MovScript engine workspace API does not expose writeMovScriptEngineHierarchyNode')
+      return write({
+        ...mutationContext(context, payload, payload.targetPath),
+        ...payload,
+      })
+    },
   }
   return new Proxy(service, {
     get(target, property, receiver) {

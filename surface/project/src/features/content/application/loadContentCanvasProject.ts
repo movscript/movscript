@@ -46,7 +46,7 @@ export async function loadContentCanvasProject(
 
   const contentUnitCandidates = contentWorkspaceData ? contentUnitCandidatesFromWorkspace(contentWorkspaceData) : {}
   const editingProjectsByNodeId = contentWorkspaceData
-    ? editingProjectsByNodeIdFromWorkspace(contentWorkspaceData, sceneMoments, productions, projectId)
+    ? editingProjectsByNodeIdFromWorkspace(contentWorkspaceData, sceneMoments, productions, segments, projectId)
     : {}
   console.log('[content-canvas] load project content candidates', {
     projectId,
@@ -77,6 +77,7 @@ export async function loadContentCanvasProject(
     audioCues: sortEntities(audioCues),
     assets: sortEntities(assetResult.assets),
     contentUnitCandidates: contentUnitCandidates,
+    domainGraph: contentWorkspaceData?.domainGraph,
     editingProjectsByNodeId,
     assetReferenceUnits: contentWorkspaceData?.assetReferenceUnits,
     productionWorkPlan: contentWorkspaceData?.productionWorkPlan,
@@ -87,18 +88,33 @@ function editingProjectsByNodeIdFromWorkspace(
   data: ContentSourceWorkspaceData,
   sceneMoments: MovScriptWorkspaceIndexedEntity[],
   productions: MovScriptWorkspaceIndexedEntity[],
+  segments: MovScriptWorkspaceIndexedEntity[],
   projectId: number,
 ): Record<string, MediaEditingProjectLike> {
   const output: Record<string, MediaEditingProjectLike> = {}
+  const timelineNamespaceTargets = [...productions, ...segments]
   for (const timeline of data.editingTimelines ?? []) {
     const editingProject = timeline.mediaEditingProject as MediaEditingProjectLike
     const targetId = String(timeline.targetId)
     output[targetId] = editingProject
     output[`${timeline.targetKind}:${targetId}`] = editingProject
-    const targets = timeline.targetKind === 'scene_moment' ? sceneMoments : productions
+    if (timeline.targetRef !== undefined) {
+      output[String(timeline.targetRef)] = editingProject
+      output[`${timeline.targetKind}:${String(timeline.targetRef)}`] = editingProject
+    }
+    if (timeline.scopeKind !== undefined && timeline.scopeRef !== undefined) {
+      output[`${timeline.scopeKind}:${String(timeline.scopeRef)}`] = editingProject
+      output[`timeline_assembly:${timeline.scopeKind}:${String(timeline.scopeRef)}`] = editingProject
+    }
+    const targets = timeline.targetKind === 'scene_moment'
+      ? sceneMoments
+      : timeline.targetKind === 'timeline_assembly'
+        ? timelineNamespaceTargets
+        : productions
     const target = targets.find((item) =>
       String(item.id ?? item.record.ID ?? item.record.id ?? '') === targetId
-      || (timeline.targetPath !== undefined && item.path === timeline.targetPath),
+      || (timeline.targetPath !== undefined && item.path === timeline.targetPath)
+      || (timeline.scopePath !== undefined && item.path === timeline.scopePath),
     )
     if (target) output[contentCanvasNodeIdForEntity(target, projectId)] = editingProject
   }

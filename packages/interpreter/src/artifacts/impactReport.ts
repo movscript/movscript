@@ -160,19 +160,22 @@ function contentUnitReferencesChangedEntity(
     visited.add(currentKey)
     if (entityRefMatches(current, changedRef)) return true
     for (const relation of relationGraph.relations) {
-      if (!isRelevantDependencyRelation(relation, changedRef)) continue
-      if (!entityRefMatches(relation.from, current)) continue
-      queue.push(relation.to)
+      if (isForwardDependencyRelation(relation, changedRef) && entityRefMatches(relation.from, current)) {
+        queue.push(relation.to)
+      }
+      if (isAncestorContextChange(changedRef) && isParentContextRelation(relation) && entityRefMatches(relation.to, current)) {
+        queue.push(relation.from)
+      }
     }
   }
   return false
 }
 
-function isRelevantDependencyRelation(
+function isForwardDependencyRelation(
   relation: MovScriptDomainRelation,
   changedRef: MovScriptDomainEntityRef,
 ): boolean {
-  if (relation.type === 'references' || relation.type === 'uses') return true
+  if (relation.type === 'references' || relation.type === 'uses' || relation.type === 'targets') return true
   if (relation.type === 'owns') return changedRef.entityKind === 'asset'
   if (relation.type === 'contains') {
     return changedRef.entityKind === 'keyframe'
@@ -182,6 +185,19 @@ function isRelevantDependencyRelation(
       || changedRef.entityKind === 'scene_moment'
   }
   return false
+}
+
+function isAncestorContextChange(changedRef: MovScriptDomainEntityRef): boolean {
+  return changedRef.entityKind === 'production'
+    || changedRef.entityKind === 'segment'
+    || changedRef.entityKind === 'setting'
+    || changedRef.entityKind === 'setting_state'
+    || changedRef.entityKind === 'scene_moment'
+    || changedRef.entityKind === 'expression_unit'
+}
+
+function isParentContextRelation(relation: MovScriptDomainRelation): boolean {
+  return relation.type === 'contains' || relation.type === 'owns'
 }
 
 function normalizeChangedEntityRef(

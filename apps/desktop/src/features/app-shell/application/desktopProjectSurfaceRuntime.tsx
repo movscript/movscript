@@ -314,6 +314,7 @@ export function desktopProjectSurfacePath(route: ProjectSurfaceRouteKey, project
   if (route === 'content') return ROUTES.project.content
   if (route === 'contentCanvas') return ROUTES.project.contentCanvas
   if (route === 'contentPreview') return ROUTES.project.contentPreview
+  if (route === 'settingPreview') return ROUTES.project.settingPreview
   return projectSurfacePath(route, projectId)
 }
 

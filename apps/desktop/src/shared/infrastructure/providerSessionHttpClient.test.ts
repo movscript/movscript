@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import { isProviderSessionNotFoundError, ProviderSessionClient, ProviderSessionHTTPError, type AgentMessage, type AgentRun, type ProviderCatalogConfigFile, type ProviderManifest, type ProviderSessionEventV2, type AgentTaskGraphSnapshot, type AgentThread } from '@/shared/infrastructure/providerSessionHttpClient'
+import { setRuntimeConfigSnapshot } from '@/shared/infrastructure/config'
 import {
   providerSessionThreadListPath,
   providerSessionThreadMessagesPath,
@@ -450,14 +451,16 @@ test('provider session client sends approval decision body', async () => {
     },
   }
 
-  await new ProviderSessionClient(transport).approveInteraction('interaction_1', { scope: 'session' })
+  await withRuntimeConfig(async () => {
+    await new ProviderSessionClient(transport).approveInteraction('interaction_1', { scope: 'session' })
+  })
 
   assert.deepEqual(requests, [
     {
       method: 'POST',
       path: '/interactions/interaction_1/approve',
       body: {
-        backendAPIBaseURL: 'http://localhost:8765/api/v1',
+        backendAPIBaseURL: 'http://localhost:8766/api/v1',
         scope: 'session',
       },
     },
@@ -532,10 +535,12 @@ test('createSessionMessageRun keeps provider-session input refs on the current f
     }
     return new Response('not found', { status: 404 })
   }, async () => {
-    const result = await new ProviderSessionClient(fetchTransport('http://local.test'), { sessionId: 'session_1' }).createSessionMessageRun('session_1', {
-      message: 'continue',
-      activeRunMode: 'runtime_input',
-    })
+    const result = await withRuntimeConfig(() => (
+      new ProviderSessionClient(fetchTransport('http://local.test'), { sessionId: 'session_1' }).createSessionMessageRun('session_1', {
+        message: 'continue',
+        activeRunMode: 'runtime_input',
+      })
+    ))
 
     assert.equal(result.run.id, 'run_input')
     assert.deepEqual(result.providerSessionInput, providerSessionInput)
@@ -543,13 +548,29 @@ test('createSessionMessageRun keeps provider-session input refs on the current f
       method: 'POST',
       path: '/sessions/session_1/runs',
       body: {
-        backendAPIBaseURL: 'http://localhost:8765/api/v1',
+        backendAPIBaseURL: 'http://localhost:8766/api/v1',
         message: 'continue',
         activeRunMode: 'runtime_input',
       },
     }])
   })
 })
+
+async function withRuntimeConfig<T>(callback: () => Promise<T>): Promise<T> {
+  setRuntimeConfigSnapshot({
+    movScriptHomeDir: '/tmp/movscript-home',
+    workspaceDir: '/tmp/movscript-home',
+    apiBaseURL: 'http://localhost:8766',
+    apiV1BaseURL: 'http://localhost:8766/api/v1',
+    localAPIBaseURL: 'http://localhost:8766',
+    backendStatus: { state: 'ready', baseURL: 'http://localhost:8766' },
+  })
+  try {
+    return await callback()
+  } finally {
+    setRuntimeConfigSnapshot(null)
+  }
+}
 
 test('createSessionMessageRun sends provider-session input mode without legacy wire keys', async () => {
   const requests: Array<{ method: string; path: string; body: Record<string, unknown> }> = []

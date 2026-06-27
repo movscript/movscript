@@ -12,6 +12,9 @@ concurrency:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+  GO_VERSION: '1.25.x'
+  NODE_VERSION: '23'
+  PNPM_VERSION: '10.32.1'
 
 jobs:
   backend:
@@ -24,7 +27,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25.x'
+          go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: services/data-service/go.sum
 
       - name: Test
@@ -41,23 +44,17 @@ jobs:
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10.32.1
+          version: ${{ env.PNPM_VERSION }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 23
+          node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
-      - name: Use latest movscript-lang packages
-        run: node scripts/movscript-lang-deps.mjs latest
-
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
-      - name: Typecheck
-        run: pnpm run typecheck
-
-      - name: Build
-        run: pnpm run build
+      - name: Run workspace check gate
+        run: pnpm run check

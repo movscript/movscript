@@ -296,6 +296,55 @@ test('content unit integration flow writes, interprets, generates, impacts, and 
   assert.equal(finalPanel?.runtime_request?.inputs[0]?.resource_id, 102)
 })
 
+test('regeneration plan reads latest impact report for namespace context changes', async () => {
+  const files = new Map(sourceFileEntries())
+  files.set('content_units/cu_opening_assembly/content_unit.json', JSON.stringify({
+    schema: 'movscript.content_unit.v1',
+    kind: 'content_unit',
+    id: 'cu_opening_assembly',
+    title: 'Opening assembly',
+    content_unit_type: 'timeline_assembly_ref',
+    output_kind: 'video',
+    target_kind: 'timeline_assembly',
+    target_ref: 'timeline_assembly:segment:a19d',
+    edit_prompt: { text: 'Compose the opening assembly.' },
+  }))
+  const repository = memoryWorkspaceFileRepository(files)
+
+  const firstInterpretation = await interpretMovScriptWorkspace({
+    fileRepository: repository,
+    now: new Date('2026-06-07T00:00:00.000Z'),
+  })
+  assert.equal(firstInterpretation.status, 'refreshed')
+  await snapshotBaseline(repository, new Date('2026-06-07T00:00:30.000Z'))
+
+  const segment = JSON.parse(files.get('productions/p8f3/segments/a19d/segment.json'))
+  segment.intent = 'Opening beat now emphasizes hesitation before the call.'
+  files.set('productions/p8f3/segments/a19d/segment.json', `${JSON.stringify(segment, null, 2)}\n`)
+
+  const impactInterpretation = await interpretMovScriptWorkspace({
+    fileRepository: repository,
+    now: new Date('2026-06-07T00:01:00.000Z'),
+  })
+  assert.equal(impactInterpretation.status, 'refreshed')
+  const impactReport = JSON.parse(files.get(impactInterpretation.manifest.output.impactReportPath))
+  const segmentChange = impactReport.changedEntities.find((entity) => entity.entityKind === 'segment' && entity.id === 'a19d')
+  assert.ok(segmentChange?.affectedContentUnits.some((entity) => entity.id === 'k41m'))
+  assert.ok(segmentChange?.affectedContentUnits.some((entity) => entity.id === 'cu_scene_anchor_keyframe_ref'))
+  assert.ok(segmentChange?.affectedContentUnits.some((entity) => entity.id === 'cu_opening_assembly'))
+
+  const regenerationPlan = await planMovScriptWorkspaceRegeneration({
+    fileRepository: repository,
+    now: new Date('2026-06-07T00:01:30.000Z'),
+  })
+  assert.equal(regenerationPlan.interpret?.interpretationId, impactInterpretation.manifest.interpretationId)
+  assert.ok(regenerationPlan.changedEntities.some((entity) => entity.entityKind === 'segment' && entity.id === 'a19d'))
+  assert.ok(regenerationPlan.affectedContentUnits.some((target) => target.contentUnitId === 'k41m'))
+  assert.ok(regenerationPlan.affectedContentUnits.some((target) => target.contentUnitId === 'cu_scene_anchor_keyframe_ref'))
+  assert.ok(regenerationPlan.affectedContentUnits.some((target) => target.contentUnitId === 'cu_opening_assembly'))
+  assert.ok(regenerationPlan.previewTimelines.some((timeline) => timeline.path === 'productions/p8f3/segments/a19d/segment.json'))
+})
+
 test('workspace service and interpreter can use backend decision store for content unit choices', async () => {
   const files = new Map(sourceFileEntries())
   const repository = memoryWorkspaceFileRepository(files)

@@ -19,3 +19,13 @@ test('official asset slot and keyframe configs hide direct resource adoption fie
   assert.doesNotMatch(assetSlotsBlock, /num\('resource_id'/)
   assert.doesNotMatch(assetSlotsBlock, /num\('locked_asset_slot_id'/)
 })
+
+test('production and segment semantic configs are marked as legacy timeline projections', () => {
+  const productionsBlock = configSource.match(/cfg\('productions'[\s\S]*?\n    \]\)/)?.[0] ?? ''
+  const segmentsBlock = configSource.match(/cfg\('segments'[\s\S]*?\n    \]\)/)?.[0] ?? ''
+  const sceneMomentsBlock = configSource.match(/cfg\('sceneMoments'[\s\S]*?\n    \]\)/)?.[0] ?? ''
+
+  assert.match(productionsBlock, /旧 timeline namespace projection/)
+  assert.match(segmentsBlock, /旧 production\/segment 投影/)
+  assert.match(sceneMomentsBlock, /系统 scene_moment primitive/)
+})

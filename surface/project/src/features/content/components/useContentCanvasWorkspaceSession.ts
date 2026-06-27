@@ -24,6 +24,7 @@ interface UseContentCanvasWorkspaceSessionInput {
   graphIndex: {
     nodeById: Map<string, ContentCanvasNode>
   }
+  projectEntryId?: ProjectEntrySessionId
   projectId?: number
   searchParams: URLSearchParams
   selection: InspectorSelectionRef
@@ -43,6 +44,7 @@ export function useContentCanvasWorkspaceSession({
   activeKind,
   activeCanvasNodeId,
   graphIndex,
+  projectEntryId,
   projectId,
   searchParams,
   selection,
@@ -60,13 +62,41 @@ export function useContentCanvasWorkspaceSession({
   const restoredSessionRef = useRef(false)
   const restoredSessionKeyRef = useRef('')
   const skipNextSessionPersistRef = useRef(false)
-  const projectEntryId = contentCanvasProjectEntryIdForWorkspaceTab(workspaceMode ?? workspaceTab)
+  const resolvedProjectEntryId = projectEntryId ?? contentCanvasProjectEntryIdForWorkspaceTab(workspaceMode ?? workspaceTab)
   const sessionSnapshot = useProjectEntrySessionStore((state) => (
-    projectId ? state.snapshotFor(projectId, projectEntryId) ?? state.snapshotFor(projectId, 'content') : null
+    projectId
+      ? state.snapshotFor(projectId, resolvedProjectEntryId)
+        ?? (resolvedProjectEntryId === 'content_preview' ? state.snapshotFor(projectId, 'content') : null)
+      : null
   ))
   const upsertProjectEntrySessionSnapshot = useProjectEntrySessionStore((state) => state.upsertSnapshot)
   const hasExplicitSessionSearch = useMemo(
-    () => hasExplicitProjectEntrySearchParam(searchParams, ['canvasNode', 'node', 'tab', 'mode', 'kind', 'settingKind']),
+    () => hasExplicitProjectEntrySearchParam(searchParams, [
+      'canvasNode',
+      'node',
+      'tab',
+      'mode',
+      'kind',
+      'settingKind',
+      'scopeRef',
+      'scope_ref',
+      'targetRef',
+      'target_ref',
+      'timeline_assembly_ref',
+      'timelineAssemblyRef',
+      'productionId',
+      'production_id',
+      'setting_id',
+      'settingId',
+      'setting_state_id',
+      'settingStateId',
+      'state_id',
+      'stateId',
+      'asset_id',
+      'assetId',
+      'asset_slot_id',
+      'assetSlotId',
+    ]),
     [searchParams],
   )
 
@@ -132,6 +162,7 @@ export function useContentCanvasWorkspaceSession({
       activeKind,
       activeCanvasNodeId: activeCanvasNodeId ?? selection.nodeId,
       projectId,
+      projectEntryId: resolvedProjectEntryId,
       selectedNodeId: selection.nodeId,
       selectionKind: selection.kind,
       workspaceTab: workspaceMode ?? workspaceTab,
@@ -141,6 +172,7 @@ export function useContentCanvasWorkspaceSession({
     activeCanvasNodeId,
     hasExplicitSessionSearch,
     projectId,
+    resolvedProjectEntryId,
     selection.kind,
     selection.nodeId,
     sessionSnapshot,
@@ -153,6 +185,7 @@ export function useContentCanvasWorkspaceSession({
 function contentCanvasProjectEntrySessionSnapshot(input: {
   activeKind: SettingKind | 'all'
   activeCanvasNodeId: string
+  projectEntryId: ProjectEntrySessionId
   projectId: number
   selectedNodeId: string
   selectionKind: InspectorSelectionRef['kind']
@@ -167,8 +200,8 @@ function contentCanvasProjectEntrySessionSnapshot(input: {
   })
   return {
     projectId: input.projectId,
-    projectEntryId: contentCanvasProjectEntryIdForWorkspaceTab(input.workspaceTab),
-    route: surfaceRoutePath(input.workspaceTab === 'canvas' ? 'project.contentCanvas' : 'project.contentPreview', { projectId: input.projectId }),
+    projectEntryId: input.projectEntryId,
+    route: surfaceRoutePath(contentCanvasProjectEntryRouteKey(input.projectEntryId, input.workspaceTab), { projectId: input.projectId }),
     search,
     filters: {
       activeKind: input.activeKind,
@@ -183,4 +216,12 @@ function contentCanvasProjectEntrySessionSnapshot(input: {
 
 function contentCanvasProjectEntryIdForWorkspaceTab(workspaceTab: ContentWorkspaceTab): ProjectEntrySessionId {
   return workspaceTab === 'canvas' ? 'content_canvas' : 'content_preview'
+}
+
+function contentCanvasProjectEntryRouteKey(
+  projectEntryId: ProjectEntrySessionId,
+  workspaceTab: ContentWorkspaceTab,
+): 'project.contentCanvas' | 'project.contentPreview' | 'project.settingPreview' {
+  if (projectEntryId === 'setting_preview') return 'project.settingPreview'
+  return workspaceTab === 'canvas' ? 'project.contentCanvas' : 'project.contentPreview'
 }

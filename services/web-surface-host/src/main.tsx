@@ -3,7 +3,6 @@ import ReactDOM from 'react-dom/client'
 import { adminSurfacePath } from '@movscript/admin-surface'
 import {
   PROJECT_SURFACE_ROUTE_DEFINITIONS,
-  projectSurfaceRouteBySegment,
 } from '@movscript/project-surface'
 import {
   AgentSurfaceKeyValues,
@@ -21,6 +20,7 @@ import '@movscript/ui/styles/semantic.css'
 import '@movscript/ui/styles/layout.css'
 import './styles.css'
 import { createWebHostProjectSurfaceRuntime } from './projectSurfaceRuntime.js'
+import { projectRouteContext } from './projectSurfaceRouting.js'
 
 if (window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin/')) {
   void import('@movscript/admin-surface/app')
@@ -51,7 +51,7 @@ function WebSurfaceHostApp() {
     <ProjectSurfaceRouteView
       route={routeContext.route}
       params={query}
-      productionId={query.get('productionId') ?? undefined}
+      productionId={routeContext.productionId}
       readModelStatus="idle"
     />
   ) : (
@@ -112,14 +112,4 @@ function WebSurfaceHostHome({
       </div>
     </AgentSurfaceShell>
   )
-}
-
-function projectRouteContext(pathname: string, query: URLSearchParams) {
-  const match = pathname.match(/^\/studio\/([^/]+)\/([^/?#]+)\/?/)
-  const projectIdFromPath = match?.[1] ? decodeURIComponent(match[1]) : undefined
-  const segment = match?.[2]
-  return {
-    route: projectSurfaceRouteBySegment(segment),
-    projectId: projectIdFromPath ?? query.get('projectId') ?? 'sample-project',
-  }
 }

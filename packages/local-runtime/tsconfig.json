@@ -2,7 +2,10 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": "src",
+    "baseUrl": ".",
+    "paths": {
+      "@movscript/runtime-contracts": ["../runtime-contracts/src/index.ts"]
+    },
     "types": ["node"]
   },
   "include": ["src/**/*.ts"]

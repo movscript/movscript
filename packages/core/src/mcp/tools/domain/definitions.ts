@@ -52,7 +52,7 @@ export function domainTools(): MCPTool[] {
   return [
     {
       name: 'domain_get_model',
-      description: 'Return the movscript-lang workspace model for one editable domain entity: concept, editable source paths, context paths, schema ids, supported write APIs, and agent instructions. Call this before direct file edits. This is project-scoped and does not write files.',
+      description: 'Return the movscript-lang workspace model for one editable domain entity: concept, editable path hints, path/vocabulary semantics, context paths, schema ids, supported write APIs, and agent instructions. Call this before direct file edits. Paths are the canonical instance tree; namespace vocabulary supplies labels/templates, not a second structure source. This is project-scoped and does not write files.',
       inputSchema: projectSchema(
         {
           ...workspaceLocator,
@@ -123,7 +123,7 @@ export function domainTools(): MCPTool[] {
     },
     {
       name: 'domain_read_project_context_snapshot',
-      description: 'Read and compile project-wide standards into the stable project context snapshot agents should consult before planning, content work, or generation. This is read-only; use domain_upsert_project_standards only when the user explicitly asks to add, remove, or change standards.',
+      description: 'Read and compile project-wide standards plus namespace vocabulary into the stable project context snapshot agents should consult before planning, content work, or generation. This is read-only; use domain_upsert_project_standards only when the user explicitly asks to add, remove, or change standards.',
       inputSchema: projectSchema(workspaceLocator),
     },
     {
@@ -342,8 +342,24 @@ export function domainTools(): MCPTool[] {
     },
     {
       name: 'domain_upsert_content_unit',
-      description: 'Create or update a project-level content unit source record. Content units are independent production slots and do not become owned by storyboards through path nesting.',
+      description: 'Create or update a project-level content unit source record. Content units are independent production tasks and never target namespace nodes directly. For namespace-scope video output, use content_unit_type=timeline_assembly_ref with target_kind=timeline_assembly plus target_ref=timeline_assembly:<scopeKind>:<scopeRef>, or pass scope_kind/scope_ref so the writer derives that target_ref. Legacy production_ref/segment_ref remain compatibility aliases for timeline assemblies; do not invent episode_ref, beat_ref, or other namespace ref types.',
       inputSchema: projectSchema({ ...workspaceLocator, unit: { type: 'object', additionalProperties: true } }),
+    },
+    {
+      name: 'domain_upsert_timeline_namespace_tree',
+      description: 'Merge-write a path-first timeline namespace tree under timeline/. Namespace vocabulary supplies labels/templates only; instance parent-child structure comes from targetPath and nested tree placement. Nodes are namespace labels over legacy production/segment projections and must not carry content-unit refs, candidates, selections, resources, production_ref, or segment_ref. Put scene_moments and their expression_units/storyboards/keyframes/audio_cues under namespace nodes when the tree needs production primitives. For namespace-scope video output, put explicit content_units on a namespace node; they are written as timeline_assembly_ref content units with target_kind=timeline_assembly and target_ref=timeline_assembly:<namespace_kind>:<id>.',
+      inputSchema: projectSchema({
+        ...workspaceLocator,
+        namespace: { type: 'object', additionalProperties: true },
+        root: { type: 'object', additionalProperties: true },
+        tree: { type: 'object', additionalProperties: true },
+        nodes: { type: 'array', items: { type: 'object', additionalProperties: true } },
+        namespaces: { type: 'array', items: { type: 'object', additionalProperties: true } },
+        timeline_namespaces: { type: 'array', items: { type: 'object', additionalProperties: true } },
+        timelineNamespaces: { type: 'array', items: { type: 'object', additionalProperties: true } },
+        scene_moments: { type: 'array', items: { type: 'object', additionalProperties: true } },
+        sceneMoments: { type: 'array', items: { type: 'object', additionalProperties: true } },
+      }),
     },
     {
       name: 'domain_upsert_production',
@@ -352,7 +368,7 @@ export function domainTools(): MCPTool[] {
     },
     {
       name: 'domain_upsert_production_tree',
-      description: 'Merge-write one production plus nested segments, scene_moments, expression_units, storyboards, keyframes, audio_cues, and content_units in one structured operation. This is an upsert/patch tree: records are matched by id and updated; omitted existing children are not deleted. Use explicit delete flows for removals. Candidate writes still belong to content-unit candidate tools.',
+      description: 'Merge-write one legacy production-projection tree plus nested segments, scene_moments, expression_units, storyboards, keyframes, audio_cues, and content_units in one structured operation. This is an upsert/patch tree: records are matched by id and updated; omitted existing children are not deleted. Use explicit delete flows for removals. Candidate writes still belong to content-unit candidate tools. For new namespace-scope video output, prefer explicit timeline_assembly_ref content units through domain_upsert_content_unit instead of relying on legacy production_ref/segment_ref tree defaults.',
       inputSchema: projectSchema({
         ...workspaceLocator,
         productionId: { type: ['string', 'number'] },
@@ -386,19 +402,27 @@ export function domainTools(): MCPTool[] {
     },
     {
       name: 'domain_upsert_scene_moment',
-      description: 'Create or update a scene_moment source record inside a segment. Scene moments are the final expression aggregation unit for an event/beat; they own expression units and receive final composed content-unit candidates.',
-      inputSchema: projectSchema({ ...workspaceLocator, productionId: { type: ['string', 'number'] }, production_id: { type: ['string', 'number'] }, segmentId: { type: ['string', 'number'] }, segment_id: { type: ['string', 'number'] }, sceneMomentId: { type: ['string', 'number'] }, scene_moment_id: { type: ['string', 'number'] }, sceneMoment: { type: 'object', additionalProperties: true }, scene_moment: { type: 'object', additionalProperties: true }, payload: { type: 'object', additionalProperties: true }, segment: { type: 'object', additionalProperties: true }, production: { type: 'object', additionalProperties: true } }),
+      description: 'Create or update a scene_moment system primitive. Prefer targetPath or namespacePath for new timeline namespace projects so the scene moment is written under timeline/** by path; productionId/segmentId are legacy compatibility inputs. Scene moments are the final expression aggregation unit for an event/beat; they own expression units and receive final composed content-unit candidates.',
+      inputSchema: projectSchema({ ...workspaceLocator, targetPath: { type: 'string' }, target_path: { type: 'string' }, namespacePath: { type: 'string' }, namespace_path: { type: 'string' }, timelineNamespacePath: { type: 'string' }, timeline_namespace_path: { type: 'string' }, parentPath: { type: 'string' }, parent_path: { type: 'string' }, productionId: { type: ['string', 'number'] }, production_id: { type: ['string', 'number'] }, segmentId: { type: ['string', 'number'] }, segment_id: { type: ['string', 'number'] }, sceneMomentId: { type: ['string', 'number'] }, scene_moment_id: { type: ['string', 'number'] }, sceneMoment: { type: 'object', additionalProperties: true }, scene_moment: { type: 'object', additionalProperties: true }, payload: { type: 'object', additionalProperties: true }, segment: { type: 'object', additionalProperties: true }, production: { type: 'object', additionalProperties: true } }),
     },
     {
       name: 'domain_upsert_keyframe',
-      description: 'Create or update a keyframe source entity under an expression_unit(kind=shot) or directly under a scene_moment. Keyframes are visual anchors referenced by keyframe_ref content units.',
-      inputSchema: projectSchema({ ...workspaceLocator, productionId: { type: ['string', 'number'] }, production_id: { type: ['string', 'number'] }, segmentId: { type: ['string', 'number'] }, segment_id: { type: ['string', 'number'] }, sceneMomentId: { type: ['string', 'number'] }, scene_moment_id: { type: ['string', 'number'] }, expressionUnitId: { type: ['string', 'number'] }, expression_unit_id: { type: ['string', 'number'] }, keyframeId: { type: ['string', 'number'] }, keyframe_id: { type: ['string', 'number'] }, keyframe: { type: 'object', additionalProperties: true }, payload: { type: 'object', additionalProperties: true }, expressionUnit: { type: 'object', additionalProperties: true }, expression_unit: { type: 'object', additionalProperties: true }, sceneMoment: { type: 'object', additionalProperties: true }, scene_moment: { type: 'object', additionalProperties: true }, segment: { type: 'object', additionalProperties: true }, production: { type: 'object', additionalProperties: true } }),
+      description: 'Create or update a keyframe source entity under an expression_unit(kind=shot) or directly under a scene_moment. Prefer targetPath, expressionUnitPath, or sceneMomentPath for new timeline namespace projects; productionId/segmentId are legacy compatibility inputs. Keyframes are visual anchors referenced by keyframe_ref content units.',
+      inputSchema: projectSchema({ ...workspaceLocator, targetPath: { type: 'string' }, target_path: { type: 'string' }, expressionUnitPath: { type: 'string' }, expression_unit_path: { type: 'string' }, sceneMomentPath: { type: 'string' }, scene_moment_path: { type: 'string' }, parentPath: { type: 'string' }, parent_path: { type: 'string' }, productionId: { type: ['string', 'number'] }, production_id: { type: ['string', 'number'] }, segmentId: { type: ['string', 'number'] }, segment_id: { type: ['string', 'number'] }, sceneMomentId: { type: ['string', 'number'] }, scene_moment_id: { type: ['string', 'number'] }, expressionUnitId: { type: ['string', 'number'] }, expression_unit_id: { type: ['string', 'number'] }, keyframeId: { type: ['string', 'number'] }, keyframe_id: { type: ['string', 'number'] }, keyframe: { type: 'object', additionalProperties: true }, payload: { type: 'object', additionalProperties: true }, expressionUnit: { type: 'object', additionalProperties: true }, expression_unit: { type: 'object', additionalProperties: true }, sceneMoment: { type: 'object', additionalProperties: true }, scene_moment: { type: 'object', additionalProperties: true }, segment: { type: 'object', additionalProperties: true }, production: { type: 'object', additionalProperties: true } }),
     },
     {
       name: 'domain_upsert_storyboard',
-      description: 'Create or update a storyboard source record under an expression_unit(kind=shot) or directly under a scene_moment. Use expression units for shot semantics; this tool does not create standalone shot nodes.',
+      description: 'Create or update a storyboard source record under an expression_unit(kind=shot) or directly under a scene_moment. Prefer targetPath, expressionUnitPath, or sceneMomentPath for new timeline namespace projects; productionId/segmentId are legacy compatibility inputs. Use expression units for shot semantics; this tool does not create standalone shot nodes.',
       inputSchema: projectSchema({
         ...workspaceLocator,
+        targetPath: { type: 'string' },
+        target_path: { type: 'string' },
+        expressionUnitPath: { type: 'string' },
+        expression_unit_path: { type: 'string' },
+        sceneMomentPath: { type: 'string' },
+        scene_moment_path: { type: 'string' },
+        parentPath: { type: 'string' },
+        parent_path: { type: 'string' },
         productionId: { type: ['string', 'number'] },
         production_id: { type: ['string', 'number'] },
         segmentId: { type: ['string', 'number'] },
@@ -422,13 +446,13 @@ export function domainTools(): MCPTool[] {
     },
     {
       name: 'domain_upsert_audio_cue',
-      description: 'Legacy/auxiliary: create or update an audio_cue source entity under a scene_moment. Prefer expression_unit with modality=audio or verbal plus voice_profile_ref for new dialogue, sound, music, ambience, or foley planning.',
-      inputSchema: projectSchema({ ...workspaceLocator, productionId: { type: ['string', 'number'] }, production_id: { type: ['string', 'number'] }, segmentId: { type: ['string', 'number'] }, segment_id: { type: ['string', 'number'] }, sceneMomentId: { type: ['string', 'number'] }, scene_moment_id: { type: ['string', 'number'] }, audioCueId: { type: ['string', 'number'] }, audio_cue_id: { type: ['string', 'number'] }, audioCue: { type: 'object', additionalProperties: true }, audio_cue: { type: 'object', additionalProperties: true }, payload: { type: 'object', additionalProperties: true }, sceneMoment: { type: 'object', additionalProperties: true }, scene_moment: { type: 'object', additionalProperties: true }, segment: { type: 'object', additionalProperties: true }, production: { type: 'object', additionalProperties: true } }),
+      description: 'Legacy/auxiliary: create or update an audio_cue source entity under a scene_moment. Prefer targetPath or sceneMomentPath for new timeline namespace projects; productionId/segmentId are legacy compatibility inputs. Prefer expression_unit with modality=audio or verbal plus voice_profile_ref for new dialogue, sound, music, ambience, or foley planning.',
+      inputSchema: projectSchema({ ...workspaceLocator, targetPath: { type: 'string' }, target_path: { type: 'string' }, sceneMomentPath: { type: 'string' }, scene_moment_path: { type: 'string' }, parentPath: { type: 'string' }, parent_path: { type: 'string' }, productionId: { type: ['string', 'number'] }, production_id: { type: ['string', 'number'] }, segmentId: { type: ['string', 'number'] }, segment_id: { type: ['string', 'number'] }, sceneMomentId: { type: ['string', 'number'] }, scene_moment_id: { type: ['string', 'number'] }, audioCueId: { type: ['string', 'number'] }, audio_cue_id: { type: ['string', 'number'] }, audioCue: { type: 'object', additionalProperties: true }, audio_cue: { type: 'object', additionalProperties: true }, payload: { type: 'object', additionalProperties: true }, sceneMoment: { type: 'object', additionalProperties: true }, scene_moment: { type: 'object', additionalProperties: true }, segment: { type: 'object', additionalProperties: true }, production: { type: 'object', additionalProperties: true } }),
     },
     {
       name: 'domain_upsert_expression_unit',
-      description: 'Create or update an expression_unit source entity under a scene_moment. Use kind=shot for makeable shot expression units; storyboard/keyframe records may live under that expression unit or directly under the scene moment.',
-      inputSchema: projectSchema({ ...workspaceLocator, productionId: { type: ['string', 'number'] }, production_id: { type: ['string', 'number'] }, segmentId: { type: ['string', 'number'] }, segment_id: { type: ['string', 'number'] }, sceneMomentId: { type: ['string', 'number'] }, scene_moment_id: { type: ['string', 'number'] }, expressionUnitId: { type: ['string', 'number'] }, expression_unit_id: { type: ['string', 'number'] }, expressionUnit: { type: 'object', additionalProperties: true }, expression_unit: { type: 'object', additionalProperties: true }, payload: { type: 'object', additionalProperties: true }, sceneMoment: { type: 'object', additionalProperties: true }, scene_moment: { type: 'object', additionalProperties: true }, segment: { type: 'object', additionalProperties: true }, production: { type: 'object', additionalProperties: true } }),
+      description: 'Create or update an expression_unit source entity under a scene_moment. Prefer targetPath or sceneMomentPath for new timeline namespace projects; productionId/segmentId are legacy compatibility inputs. Use kind=shot or expression_kind=shot for makeable shot expression units; storyboard/keyframe records may live under that expression unit or directly under the scene moment.',
+      inputSchema: projectSchema({ ...workspaceLocator, targetPath: { type: 'string' }, target_path: { type: 'string' }, sceneMomentPath: { type: 'string' }, scene_moment_path: { type: 'string' }, parentPath: { type: 'string' }, parent_path: { type: 'string' }, productionId: { type: ['string', 'number'] }, production_id: { type: ['string', 'number'] }, segmentId: { type: ['string', 'number'] }, segment_id: { type: ['string', 'number'] }, sceneMomentId: { type: ['string', 'number'] }, scene_moment_id: { type: ['string', 'number'] }, expressionUnitId: { type: ['string', 'number'] }, expression_unit_id: { type: ['string', 'number'] }, expressionUnit: { type: 'object', additionalProperties: true }, expression_unit: { type: 'object', additionalProperties: true }, payload: { type: 'object', additionalProperties: true }, sceneMoment: { type: 'object', additionalProperties: true }, scene_moment: { type: 'object', additionalProperties: true }, segment: { type: 'object', additionalProperties: true }, production: { type: 'object', additionalProperties: true } }),
     },
     {
       name: 'domain_update_content_unit_prompt',

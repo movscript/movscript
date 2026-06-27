@@ -4,22 +4,16 @@ export interface ContentCanvasNavigatorItem {
   nodeId: string
   title: string
   kind: ContentCanvasNodeKind
+  domainKind?: string
   status: ContentCanvasNode['status']
   depth: number
   childCount: number
   workItemCount: number
 }
 
-const NAVIGATOR_KINDS = new Set<ContentCanvasNodeKind>([
-  'project',
-  'production',
-  'segment',
-  'scene_moment',
-])
-
 export function buildContentCanvasNavigatorItems(graph: ContentCanvasWorkspaceSnapshot): ContentCanvasNavigatorItem[] {
   const nodeById = new Map(graph.nodes.map((node) => [node.id, node]))
-  const structureNodeIds = graph.nodes.filter((node) => NAVIGATOR_KINDS.has(node.kind)).map((node) => node.id)
+  const structureNodeIds = graph.nodes.filter(isNavigatorStructureNode).map((node) => node.id)
   const structureNodeIdSet = new Set(structureNodeIds)
   const childrenByNodeId = new Map<string, string[]>()
   const parentByNodeId = new Map<string, string>()
@@ -54,6 +48,7 @@ export function buildContentCanvasNavigatorItems(graph: ContentCanvasWorkspaceSn
       nodeId,
       title: node.title,
       kind: node.kind,
+      ...(node.domainKind ? { domainKind: node.domainKind } : {}),
       status: node.status,
       depth,
       childCount: childIds.length,
@@ -61,4 +56,12 @@ export function buildContentCanvasNavigatorItems(graph: ContentCanvasWorkspaceSn
     })
     for (const childId of childIds) appendNavigatorNode(childId, depth + 1)
   }
+}
+
+function isNavigatorStructureNode(node: ContentCanvasNode): boolean {
+  return node.kind === 'project'
+    || node.kind === 'scene_moment'
+    || node.domainCategory === 'timeline_namespace'
+    || node.kind === 'production'
+    || node.kind === 'segment'
 }

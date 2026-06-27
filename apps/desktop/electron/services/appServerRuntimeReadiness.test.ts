@@ -42,7 +42,7 @@ test('app-server readiness probe reports command and credentials checks', () => 
     assert.equal(response.ok, true)
     assert.equal(response.checks.packageLoad.ok, true)
     assert.equal(response.checks.credentials.ok, true)
-    assert.equal(response.credentials.source, 'launch-env')
+    assert.equal(response.credentials.source, 'movscript-local-data-service')
     assert.equal(response.sdk.packageName, 'test command')
   } finally {
     if (previousKey === undefined) {

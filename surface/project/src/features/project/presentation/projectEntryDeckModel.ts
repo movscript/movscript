@@ -99,9 +99,10 @@ function projectEntryDeckEntry(input: {
     snapshots: input.snapshots,
   })
   const active = input.activeEntryId === input.definition.id
+  const requiresFocusedSession = input.definition.id === 'content_preview' || input.definition.id === 'setting_preview'
   return {
     id: input.definition.id,
-    open: active ? true : snapshot?.open,
+    open: active ? true : snapshot ? snapshot.open : requiresFocusedSession ? false : undefined,
     archived: false,
     createdAt: input.index,
     updatedAt: projectEntrySnapshotUpdatedAt(snapshot),

@@ -1,4 +1,5 @@
 import type { AgentAttachment, AgentTaskArtifactRef } from './agentAttachmentProtocol.js'
+import type { MovScriptNormalizedFocus } from '@movscript/domain'
 import type {
   AgentGenerationJob,
   AgentGenerationParamAudit,
@@ -48,6 +49,7 @@ export interface AgentConversationWorkspaceContext {
   projectDir?: string
   projectTitle?: string
   productionId?: string | number
+  domainFocus?: MovScriptNormalizedFocus
 }
 
 export interface AgentConversationWorkspace {

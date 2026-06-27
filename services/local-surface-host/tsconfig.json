@@ -208,6 +208,9 @@
       "@movscript/core/agent": [
         "../../packages/core/src/agent/index.ts"
       ],
+      "@movscript/domain": [
+        "../../packages/domain/src/index.ts"
+      ],
       "@movscript/core/content": [
         "../../packages/core/src/content/index.ts"
       ],
@@ -222,6 +225,9 @@
       ],
       "@movscript/engine": [
         "../../packages/engine/src/index.ts"
+      ],
+      "@movscript/language/domain": [
+        "../../packages/language/src/domain/index.ts"
       ],
       "@movscript/theme": [
         "../../packages/theme/src/index.ts"

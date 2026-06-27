@@ -115,6 +115,7 @@
   "dependencies": {
     "@movscript/agent-chat": "workspace:*",
     "@movscript/agent-protocol": "workspace:*",
+    "@movscript/domain": "workspace:*",
     "@movscript/editing": "workspace:*",
     "@movscript/interpreter": "workspace:*",
     "@movscript/engine": "workspace:*",

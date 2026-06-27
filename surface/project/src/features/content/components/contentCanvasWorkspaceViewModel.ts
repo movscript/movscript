@@ -1,5 +1,5 @@
 import { buildContentCanvasWorkspaceSnapshot } from '../domain/contentCanvasWorkspaceSnapshot'
-import type { ContentCanvasProjectData } from '../domain/contentCanvasTypes'
+import type { ContentCanvasNode, ContentCanvasProjectData, ContentCanvasWorkspaceSnapshot } from '../domain/contentCanvasTypes'
 import {
   contentCanvasWorkspaceIndex,
   contentCanvasStructureTree,
@@ -11,7 +11,11 @@ import {
   settingKindFromNode,
   uniqueContentNodes,
 } from './contentCanvasWorkspaceModel'
-import type { InspectorSelectionRef, SettingKind } from './contentCanvasWorkspaceTypes'
+import type { ContentCanvasPreviewScope, InspectorSelectionRef, SettingKind } from './contentCanvasWorkspaceTypes'
+
+export type ContentCanvasWorkspacePreviewInput =
+  | { kind: 'production'; targetNodeId?: string | null }
+  | { kind: 'setting'; targetNodeId?: string | null }
 
 export function buildContentCanvasWorkspaceViewModel({
   projectData,
@@ -20,6 +24,7 @@ export function buildContentCanvasWorkspaceViewModel({
   activeProductionId,
   activeSceneId,
   activeSettingId,
+  preview,
   selection,
   settingQuery,
 }: {
@@ -29,18 +34,28 @@ export function buildContentCanvasWorkspaceViewModel({
   activeProductionId: string | null
   activeSceneId: string | null
   activeSettingId: string | null
+  preview?: ContentCanvasWorkspacePreviewInput
   selection: InspectorSelectionRef
   settingQuery: string
 }) {
-  const graph = projectData ? buildContentCanvasWorkspaceSnapshot(projectData) : emptyContentCanvasWorkspaceSnapshot()
+  const fullGraph = projectData ? buildContentCanvasWorkspaceSnapshot(projectData) : emptyContentCanvasWorkspaceSnapshot()
+  const fullGraphIndex = contentCanvasWorkspaceIndex(fullGraph)
+  const resolvedPreviewScope = resolveContentCanvasPreviewScope(fullGraph, fullGraphIndex, preview)
+  const graph = scopedContentCanvasGraph(fullGraph, fullGraphIndex, resolvedPreviewScope)
   const graphIndex = contentCanvasWorkspaceIndex(graph)
+  const previewScope = scopedPreviewScope(resolvedPreviewScope, graphIndex)
   const settingNodes = graph.nodes.filter((node) => node.kind === 'setting')
   const productionNodes = graph.nodes.filter((node) => node.kind === 'production')
   const sceneNodes = graph.nodes.filter((node) => node.kind === 'scene_moment')
-  const activeSetting = settingNodes.find((node) => node.id === activeSettingId) ?? settingNodes[0] ?? null
-  const activeProduction = productionNodes.find((node) => node.id === activeProductionId) ?? productionNodes[0] ?? null
+  const activeSetting = previewScope.kind === 'setting'
+    ? previewScope.rootNode
+    : settingNodes.find((node) => node.id === activeSettingId) ?? settingNodes[0] ?? null
+  const activeProduction = previewScope.kind === 'production'
+    ? previewScope.rootNode
+    : productionNodes.find((node) => node.id === activeProductionId) ?? productionNodes[0] ?? null
   const activeScene = sceneNodes.find((node) => node.id === activeSceneId) ?? sceneNodes[0] ?? null
   const activeCanvasNode = (activeCanvasNodeId ? graphIndex.nodeById.get(activeCanvasNodeId) : undefined)
+    ?? (previewScope.kind !== 'mixed' ? previewScope.rootNode : null)
     ?? (activeProductionId ? activeProduction : null)
     ?? activeScene
     ?? activeSetting
@@ -48,6 +63,7 @@ export function buildContentCanvasWorkspaceViewModel({
   const sceneMainNode = activeScene ? radialNodeFromContentNode(activeScene, 0, 0, 'primary') : SCENE_MAIN_NODE
   const settingMainNode = activeSetting ? radialNodeFromContentNode(activeSetting, 0, 0, 'primary') : null
   const tree = contentCanvasStructureTree(graph, selection.nodeId, activeProductionId ?? undefined)
+  const previewTree = contentCanvasPreviewTree(tree, previewScope)
   const sceneSettingAssets = uniqueContentNodes((activeScene ? sceneSettingGroupsUsedByScene(activeScene, graphIndex) : [])
     .flatMap((group) => group.states.flatMap((state) => state.assets)))
   const scenePromptReferenceNodes = activeCanvasNode
@@ -70,8 +86,11 @@ export function buildContentCanvasWorkspaceViewModel({
     activeProduction,
     activeCanvasNode,
     filteredSettings,
+    fullGraphIndex,
     graph,
     graphIndex,
+    previewScope,
+    previewTree,
     sceneMainNode,
     sceneNodes,
     scenePromptReferenceNodes,
@@ -81,6 +100,147 @@ export function buildContentCanvasWorkspaceViewModel({
     tree,
     inspectorSelection,
   }
+}
+
+function contentCanvasPreviewTree(
+  tree: ReturnType<typeof contentCanvasStructureTree>,
+  scope: ContentCanvasPreviewScope,
+): ReturnType<typeof contentCanvasStructureTree> {
+  if (scope.kind === 'mixed') return tree
+  if (!scope.rootNode) return []
+  const root = tree.find((node) => node.id === scope.rootNode?.id)
+  return root?.children ?? []
+}
+
+function resolveContentCanvasPreviewScope(
+  graph: ContentCanvasWorkspaceSnapshot,
+  graphIndex: ReturnType<typeof contentCanvasWorkspaceIndex>,
+  preview: ContentCanvasWorkspacePreviewInput | undefined,
+): ContentCanvasPreviewScope {
+  if (!preview) return { kind: 'mixed', rootNode: null }
+  const targetNode = preview.targetNodeId ? graphIndex.nodeById.get(preview.targetNodeId) : undefined
+  if (preview.kind === 'production') {
+    return {
+      kind: 'production',
+      rootNode: ancestorOrSelfOfKind(targetNode, graphIndex, 'production')
+        ?? graph.nodes.find((node) => node.kind === 'production')
+        ?? null,
+    }
+  }
+  return {
+    kind: 'setting',
+    rootNode: ancestorOrSelfOfKind(targetNode, graphIndex, 'setting')
+      ?? graph.nodes.find((node) => node.kind === 'setting')
+      ?? null,
+  }
+}
+
+function scopedPreviewScope(
+  scope: ContentCanvasPreviewScope,
+  graphIndex: ReturnType<typeof contentCanvasWorkspaceIndex>,
+): ContentCanvasPreviewScope {
+  if (scope.kind === 'mixed') return scope
+  return {
+    kind: scope.kind,
+    rootNode: scope.rootNode ? graphIndex.nodeById.get(scope.rootNode.id) ?? null : null,
+  }
+}
+
+function scopedContentCanvasGraph(
+  graph: ContentCanvasWorkspaceSnapshot,
+  graphIndex: ReturnType<typeof contentCanvasWorkspaceIndex>,
+  scope: ContentCanvasPreviewScope,
+): ContentCanvasWorkspaceSnapshot {
+  if (scope.kind === 'mixed') return graph
+  if (!scope.rootNode) return emptyContentCanvasWorkspaceSnapshot()
+  const nodeIds = scopedNodeIds(scope.rootNode, graph, graphIndex)
+  return {
+    nodes: graph.nodes.filter((node) => nodeIds.has(node.id)),
+    edges: graph.edges.filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target)),
+  }
+}
+
+function scopedNodeIds(
+  rootNode: ContentCanvasNode,
+  graph: ContentCanvasWorkspaceSnapshot,
+  graphIndex: ReturnType<typeof contentCanvasWorkspaceIndex>,
+): Set<string> {
+  const nodeIds = new Set<string>()
+  const queue = [rootNode.id]
+  while (queue.length) {
+    const nodeId = queue.shift()
+    if (!nodeId || nodeIds.has(nodeId)) continue
+    nodeIds.add(nodeId)
+    for (const child of graphIndex.childNodesByHierarchy.get(nodeId) ?? []) {
+      queue.push(child.id)
+    }
+  }
+
+  let changed = true
+  while (changed) {
+    changed = false
+    for (const edge of graph.edges) {
+      if (nodeIds.has(edge.source) && includeScopedReferenceNode(edge.target, graphIndex)) {
+        changed = addNodeId(nodeIds, edge.target) || changed
+      }
+      if (nodeIds.has(edge.target) && includeScopedReferenceNode(edge.source, graphIndex)) {
+        changed = addNodeId(nodeIds, edge.source) || changed
+      }
+    }
+  }
+
+  return nodeIds
+}
+
+function addNodeId(nodeIds: Set<string>, nodeId: string): boolean {
+  if (nodeIds.has(nodeId)) return false
+  nodeIds.add(nodeId)
+  return true
+}
+
+function includeScopedReferenceNode(
+  nodeId: string,
+  graphIndex: ReturnType<typeof contentCanvasWorkspaceIndex>,
+): boolean {
+  const node = graphIndex.nodeById.get(nodeId)
+  return node?.kind === 'content_unit'
+    || node?.kind === 'candidate'
+    || node?.kind === 'selection'
+    || node?.kind === 'resource'
+}
+
+function ancestorOrSelfOfKind(
+  node: ContentCanvasNode | undefined,
+  graphIndex: ReturnType<typeof contentCanvasWorkspaceIndex>,
+  kind: ContentCanvasNode['kind'],
+): ContentCanvasNode | undefined {
+  if (!node) return undefined
+  if (node.kind === kind) return node
+  for (const ancestorId of node.domainAncestorNodeIds ?? []) {
+    const ancestor = graphIndex.nodeById.get(ancestorId)
+    if (ancestor?.kind === kind) return ancestor
+  }
+  const seen = new Set<string>([node.id])
+  let current: ContentCanvasNode | undefined = node
+  while (current) {
+    const parent = hierarchyParentForNode(current, graphIndex)
+    if (!parent || seen.has(parent.id)) return undefined
+    if (parent.kind === kind) return parent
+    seen.add(parent.id)
+    current = parent
+  }
+  return undefined
+}
+
+function hierarchyParentForNode(
+  node: ContentCanvasNode,
+  graphIndex: ReturnType<typeof contentCanvasWorkspaceIndex>,
+): ContentCanvasNode | undefined {
+  for (const edge of graphIndex.edgesByNodeId.get(node.id) ?? []) {
+    if (edge.kind !== 'hierarchy' || edge.target !== node.id) continue
+    return graphIndex.nodeById.get(edge.source)
+  }
+  return undefined
 }
 
 function filterContentCanvasSettings(

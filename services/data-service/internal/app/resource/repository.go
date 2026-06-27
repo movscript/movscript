@@ -31,6 +31,7 @@ type repository interface {
 	ResourceReferenceCount(ctx context.Context, resourceID uint) (int64, error)
 	ResourceUsages(ctx context.Context, input UsageInput) (UsageSummary, error)
 	AdoptOwnedPersonalResourceToOrg(ctx context.Context, id uint, userID uint, orgID *uint) (domainresource.RawResource, error)
+	GetByID(ctx context.Context, id uint) (domainresource.RawResource, error)
 	GetVisible(ctx context.Context, id uint, userID uint, orgID *uint) (domainresource.RawResource, error)
 	GetOwned(ctx context.Context, id uint, userID uint, orgID *uint) (domainresource.RawResource, error)
 	UploadFolderID(ctx context.Context, userID uint, orgID *uint, folderIDValue string) (*uint, error)
@@ -609,6 +610,10 @@ func (r *gormRepository) GetVisible(ctx context.Context, id uint, userID uint, o
 		return resource, nil
 	}
 	return resource, ErrForbidden
+}
+
+func (r *gormRepository) GetByID(ctx context.Context, id uint) (domainresource.RawResource, error) {
+	return r.getResource(ctx, id)
 }
 
 func (r *gormRepository) GetOwned(ctx context.Context, id uint, userID uint, orgID *uint) (domainresource.RawResource, error) {

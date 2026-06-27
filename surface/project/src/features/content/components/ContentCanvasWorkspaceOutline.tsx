@@ -58,7 +58,7 @@ export function TreeNode({
   onCreateChild?: (node: TreeNodeData) => void
   onSelectStructureNode: (node: TreeNodeData) => void
 }) {
-  const createLabel = node.kind === 'production' ? '添加 Segment' : node.kind === 'segment' ? '添加 Scene Moment' : null
+  const createLabel = node.kind === 'production' ? '添加子层级' : node.kind === 'segment' ? '添加情节' : null
   const isSelectable = Boolean(node.id)
   return (
     <div className="content-canvas-workspace-tree-node-wrap">

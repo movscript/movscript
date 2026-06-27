@@ -2,6 +2,10 @@ import {
   entityPathSlug,
   safeWorkspacePathToken,
 } from '../layout/index.js'
+import {
+  MOVSCRIPT_DOMAIN_PATH_SEMANTICS,
+  type MovScriptDomainPathSemantics,
+} from '@movscript/domain'
 import type { SemanticEntityKind, WorkspaceKind } from '@movscript/language/domain'
 
 export type MovScriptDomainWorkspaceKind = WorkspaceKind
@@ -137,6 +141,7 @@ export interface MovScriptWorkspaceGetModelResult {
   entityId?: string | number
   editablePaths: string[]
   contextPaths: string[]
+  pathSemantics: MovScriptDomainPathSemantics
   schemaIds: string[]
   instructions: string[]
 }
@@ -167,7 +172,7 @@ export const MOVSCRIPT_DOMAIN_WORKSPACE_MODELS: Record<MovScriptDomainWorkspaceK
     editablePathPatterns: ['settings/{settingSlug}/setting.json'],
     contextPathPatterns: ['project.json', 'project_standards.json'],
     schemaIds: ['movscript.setting.v1'],
-    instructions: ['Use setting workspaces for concrete film/music production entities to be made or reused, such as characters, props, places, instruments, costumes, or voice identities. Do not use settings for abstract styles or rules; put project-wide style/rules in project standards. Assets belong under setting states.'],
+    instructions: ['Use setting workspaces for concrete film/music production entities to be made or reused, such as characters, props, places, instruments, costumes, or voice identities. Do not use settings for abstract styles or rules; put project-wide style/rules in project standards. Child setting namespaces/states are organized by their actual source path; namespace_kind only labels that path level. Assets belong under setting states.'],
   },
   setting_state_workspace: {
     kind: 'setting_state_workspace',
@@ -176,7 +181,7 @@ export const MOVSCRIPT_DOMAIN_WORKSPACE_MODELS: Record<MovScriptDomainWorkspaceK
     editablePathPatterns: ['settings/{settingSlug}/states/{settingStateSlug}/setting_state.json'],
     contextPathPatterns: ['settings/{settingSlug}/setting.json', 'project_standards.json'],
     schemaIds: ['movscript.setting_state.v1'],
-    instructions: ['Use setting state workspaces as namespaces under a setting for named conditions or versions of the same entity, such as base look, wet hair, damaged prop, side-view variant, or calm voice.'],
+    instructions: ['Use setting state workspaces as namespaces under a setting for named conditions or versions of the same entity, such as base look, wet hair, damaged prop, side-view variant, or calm voice. The default states/ path is a legacy hint; custom setting namespace paths are valid when setting_state.json sits under the intended setting parent.'],
   },
   asset_workspace: {
     kind: 'asset_workspace',
@@ -187,7 +192,7 @@ export const MOVSCRIPT_DOMAIN_WORKSPACE_MODELS: Record<MovScriptDomainWorkspaceK
     ],
     contextPathPatterns: ['settings/{settingSlug}/setting.json', 'settings/{settingSlug}/states/{settingStateSlug}/setting_state.json', 'project_standards.json'],
     schemaIds: ['movscript.asset.v1'],
-    instructions: ['Assets are setting-state-owned resource slots and carriers for asset_ref content-unit generation/review. Do not write new candidates or selections into asset.json; generated asset candidates belong to the linked asset_ref content unit and backend content-unit decision flow. Existing inline candidates/selection in asset.json are legacy compatibility data only. Downstream content-unit prompts can reference selected asset outputs with {{asset::id}} when dependency tracking matters; loose raw-resource guidance can use direct resource inputs. Image assets should prefer plain white or very clean backgrounds.'],
+    instructions: ['Assets are setting-state-owned resource slots and carriers for asset_ref content-unit generation/review. The owning setting state is the nearest setting_state ancestor in the source path, not a fixed states/ directory. Do not write new candidates or selections into asset.json; generated asset candidates belong to the linked asset_ref content unit and backend content-unit decision flow. Existing inline candidates/selection in asset.json are legacy compatibility data only. Downstream content-unit prompts can reference selected asset outputs with {{asset::id}} when dependency tracking matters; loose raw-resource guidance can use direct resource inputs. Image assets should prefer plain white or very clean backgrounds.'],
   },
   script_workspace: {
     kind: 'script_workspace',
@@ -223,7 +228,7 @@ export const MOVSCRIPT_DOMAIN_WORKSPACE_MODELS: Record<MovScriptDomainWorkspaceK
     editablePathPatterns: ['productions/{productionSlug}/production.json'],
     contextPathPatterns: ['project.json', 'project_standards.json', 'settings/**', 'scripts/**'],
     schemaIds: ['movscript.production.v1'],
-    instructions: ['Edit production roots under productions/. Segment and scene moment children hold the planning structure.'],
+    instructions: ['Production records are legacy/default timeline namespace nodes. Edit existing custom timeline namespace nodes in place; for new custom layouts, put production.json under the intended timeline path and set namespace_kind to the user-facing namespace label. Segment and scene moment children hold planning structure through path ancestry.'],
   },
   segment_workspace: {
     kind: 'segment_workspace',
@@ -232,7 +237,7 @@ export const MOVSCRIPT_DOMAIN_WORKSPACE_MODELS: Record<MovScriptDomainWorkspaceK
     editablePathPatterns: ['productions/{productionSlug}/segments/{segmentSlug}/segment.json'],
     contextPathPatterns: ['productions/{productionSlug}/production.json'],
     schemaIds: ['movscript.segment.v1'],
-    instructions: ['Use segment workspaces for rhythm sections inside a production. Order lives in segment.json, not the directory name.'],
+    instructions: ['Segment records are legacy/default timeline namespace nodes for rhythm sections. Edit existing custom namespace nodes in place; for new custom layouts, put segment.json under the intended timeline parent path and set namespace_kind to the user-facing label. Order lives in segment.json, not the directory name.'],
   },
   scene_moment_workspace: {
     kind: 'scene_moment_workspace',
@@ -241,7 +246,7 @@ export const MOVSCRIPT_DOMAIN_WORKSPACE_MODELS: Record<MovScriptDomainWorkspaceK
     editablePathPatterns: ['productions/{productionSlug}/segments/{segmentSlug}/scene_moments/{sceneMomentSlug}/scene_moment.json'],
     contextPathPatterns: ['productions/{productionSlug}/segments/{segmentSlug}/segment.json', 'settings/**'],
     schemaIds: ['movscript.scene_moment.v1'],
-    instructions: ['Scene moments describe planning context and their own transition boundaries. Shot semantics live as expression_unit records with kind=shot; storyboards and keyframes may be direct scene moment children when they are scene-scoped.'],
+    instructions: ['Scene moments are stable production primitives and should remain under the intended timeline namespace path. They describe planning context and their own transition boundaries. Shot semantics live as expression_unit records with kind=shot; storyboards and keyframes may be direct scene moment children when they are scene-scoped.'],
   },
   storyboard_workspace: {
     kind: 'storyboard_workspace',
@@ -253,7 +258,7 @@ export const MOVSCRIPT_DOMAIN_WORKSPACE_MODELS: Record<MovScriptDomainWorkspaceK
     ],
     contextPathPatterns: ['productions/**', 'settings/**', 'project_standards.json'],
     schemaIds: ['movscript.storyboard.v1'],
-    instructions: ['Storyboards are visual graph assets under expression_unit(kind=shot) or directly under scene_moment. Runtime candidates and production decisions are stored outside storyboard.json. Downstream prompts can reference selected storyboard outputs with {{storyboard::id}} when dependency tracking matters; loose raw-resource guidance can use direct resource inputs.'],
+    instructions: ['Storyboards are production primitives under expression_unit(kind=shot) or directly under scene_moment. Runtime candidates and production decisions are stored outside storyboard.json. Downstream prompts can reference selected storyboard outputs with {{storyboard::id}} when dependency tracking matters; loose raw-resource guidance can use direct resource inputs.'],
   },
   audio_cue_workspace: {
     kind: 'audio_cue_workspace',
@@ -267,7 +272,7 @@ export const MOVSCRIPT_DOMAIN_WORKSPACE_MODELS: Record<MovScriptDomainWorkspaceK
       'project_standards.json',
     ],
     schemaIds: ['movscript.audio_cue.v1'],
-    instructions: ['Audio cues are independent sound, music, ambience, dialogue, or foley planning objects attached by refs to scene moments, storyboards, or shot plans.'],
+    instructions: ['Audio cues are production primitives for sound, music, ambience, dialogue, or foley planning, normally parented by source path under a scene moment and optionally attached by refs to scene moments, storyboards, or shot plans.'],
   },
   expression_unit_workspace: {
     kind: 'expression_unit_workspace',
@@ -279,7 +284,7 @@ export const MOVSCRIPT_DOMAIN_WORKSPACE_MODELS: Record<MovScriptDomainWorkspaceK
       'productions/{productionSlug}/segments/{segmentSlug}/scene_moments/{sceneMomentSlug}/expression_units/**',
     ],
     schemaIds: ['movscript.expression_unit.v1'],
-    instructions: ['Expression units are scene-moment-owned semantic expressions. Use expression_kind/kind=shot for makeable shot units; storyboard/keyframe records may be children of that expression unit.'],
+    instructions: ['Expression units are scene-moment-owned production primitives. Their owning scene moment is the nearest scene_moment ancestor in the source path. Use expression_kind/kind=shot for makeable shot units; storyboard/keyframe records may be children of that expression unit.'],
   },
   content_unit_workspace: {
     kind: 'content_unit_workspace',
@@ -288,7 +293,7 @@ export const MOVSCRIPT_DOMAIN_WORKSPACE_MODELS: Record<MovScriptDomainWorkspaceK
     editablePathPatterns: ['content_units/{contentUnitSlug}/content_unit.json'],
     contextPathPatterns: ['project_standards.json', 'settings/**', 'productions/**'],
     schemaIds: ['movscript.content_unit.v1'],
-    instructions: ['Content units are project-level stable production units. They declare content_unit_type, output_kind, flat business refs, edit_prompt, and model_intent. Specialized content_unit_type adapters perform dependency and regeneration checks; unknown types are valid but untracked for regeneration. Use expression_unit_ref for shot expression units and keyframe_ref/storyboard_ref for visual anchors. In edit_prompt, use semantic refs such as {{asset::id}}, {{storyboard::id}}, {{keyframe::id}}, {{candidate::id}}, or {{resource::123}}; prompt compilation resolves selected backend candidates into resource mentions and resource_ids for generation.'],
+    instructions: ['Content units are project-level stable production units. They declare content_unit_type, output_kind, flat business refs, edit_prompt, and model_intent. Specialized content_unit_type adapters perform dependency and regeneration checks; unknown types are valid but untracked for regeneration. Use expression_unit_ref for shot expression units, keyframe_ref/storyboard_ref for visual anchors, audio_cue_ref for sound cues, and timeline_assembly_ref for namespace-scope assembly. In edit_prompt, use semantic refs such as {{asset::id}}, {{storyboard::id}}, {{keyframe::id}}, {{audio_cue::id}}, {{candidate::id}}, or {{resource::123}}; prompt compilation resolves selected backend candidates into resource mentions and resource_ids for generation.'],
   },
   keyframe_workspace: {
     kind: 'keyframe_workspace',
@@ -300,7 +305,7 @@ export const MOVSCRIPT_DOMAIN_WORKSPACE_MODELS: Record<MovScriptDomainWorkspaceK
     ],
     contextPathPatterns: ['settings/**', 'project_standards.json', 'productions/**'],
     schemaIds: ['movscript.keyframe.v1'],
-    instructions: ['Keyframes are visual anchors under expression_unit(kind=shot) or directly under scene_moment. Content units reference keyframes through keyframe_ref or keyframe_refs.'],
+    instructions: ['Keyframes are production primitives and visual anchors under expression_unit(kind=shot) or directly under scene_moment. Content units reference keyframes through keyframe_ref or keyframe_refs.'],
   },
 }
 
@@ -341,6 +346,7 @@ export function getMovScriptWorkspaceModel(input: MovScriptWorkspaceGetModelInpu
     ...(input.entityId !== undefined ? { entityId: input.entityId } : {}),
     editablePaths: expandPathPatterns(model.editablePathPatterns, input),
     contextPaths: model.contextPathPatterns,
+    pathSemantics: MOVSCRIPT_DOMAIN_PATH_SEMANTICS,
     schemaIds: model.schemaIds,
     instructions: model.instructions,
   }

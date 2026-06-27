@@ -49,7 +49,7 @@
   },
   "header": {
     "titles": {
-      "canvases": "Canvas"
+      "canvases": "Workflow Canvas"
     }
   },
   "pages": {
@@ -63,30 +63,30 @@
         "inspiration": "Run nodes manually and explore ideas freely.",
         "workflow": "Define inputs and outputs for end-to-end automation."
       },
-      "newCanvas": "New Canvas",
-      "empty": "No canvases yet",
-      "createFirst": "Create the first canvas",
+      "newCanvas": "New Workflow Canvas",
+      "empty": "No workflow canvases yet",
+      "createFirst": "Create the first workflow canvas",
       "open": "Open",
       "rename": "Rename",
       "renameConfirm": "Confirm rename",
-      "searchLabel": "Search canvases",
+      "searchLabel": "Search workflow canvases",
       "searchPlaceholder": "Search name, ID, or type",
-      "categoryFilter": "Canvas category",
-      "resultSummary": "Showing {{shown}} / {{total}} canvases",
-      "noResults": "No matching canvases",
+      "categoryFilter": "Workflow canvas category",
+      "resultSummary": "Showing {{shown}} / {{total}} workflow canvases",
+      "noResults": "No matching workflow canvases",
       "clearFilters": "Clear filters",
       "pageStatus": "Page {{page}} / {{pageCount}}",
       "previousPage": "Previous page",
       "nextPage": "Next page",
-      "nameRequired": "Canvas name *",
-      "namePlaceholder": "Name your canvas",
-      "workflowCreateHint": "New canvases are created as workflows with default input and output nodes.",
+      "nameRequired": "Workflow canvas name *",
+      "namePlaceholder": "Name your workflow canvas",
+      "workflowCreateHint": "New workflow canvases are created with default input and output nodes.",
       "createAndOpen": "Create and Open",
       "allProjects": "All projects",
       "currentProject": "Current project",
-      "globalLibrary": "Global canvas library",
-      "workspaceSummary": "{{count}} canvases in this workspace",
-      "invalidListResponse": "Canvas service returned an invalid list response. Check that /local-api/canvas/canvases is proxied to the canvas service."
+      "globalLibrary": "Global workflow canvas library",
+      "workspaceSummary": "{{count}} workflow canvases in this workspace",
+      "invalidListResponse": "Workflow Canvas Service returned an invalid list response. Check that /local-api/canvas/canvases is proxied to Canvas Service."
     },
     "jobs": {
       "generationFailed": "Generation failed",
@@ -441,12 +441,12 @@
     "pushHint": "Add this {{type}} to the following entity assets",
     "noPushTargets": "No push targets yet. Select an asset, storyboard, or scene above first.",
     "push": "Push",
-    "runCanvas": "Run Canvas",
-    "newCanvasDefaultName": "New Canvas",
-    "canvasList": "Canvas List",
-    "newCanvas": "New Canvas",
-    "empty": "No canvases",
-    "selectOrCreate": "Select or create a canvas"
+    "runCanvas": "Run Workflow Canvas",
+    "newCanvasDefaultName": "New Workflow Canvas",
+    "canvasList": "Workflow Canvas List",
+    "newCanvas": "New Workflow Canvas",
+    "empty": "No workflow canvases",
+    "selectOrCreate": "Select or create a workflow canvas"
   },
   "shared": {
     "generation": {

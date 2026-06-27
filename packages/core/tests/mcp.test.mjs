@@ -710,12 +710,42 @@ test('MCP project resources read project workspace data without backend entity e
       selection: null,
       updatedAt: new Date().toISOString(),
     })
+    const listedResourcesResponse = await handleJSONRPC({
+      jsonrpc: '2.0',
+      id: 'project-resource-list',
+      method: 'resources/list',
+    })
+    const listedResources = listedResourcesResponse?.result?.resources ?? []
+    assert.match(
+      listedResources.find((resource) => resource.uri === 'movscript://project/14/timeline-namespaces')?.description ?? '',
+      /Canonical timeline namespace nodes/,
+    )
+    assert.match(
+      listedResources.find((resource) => resource.uri === 'movscript://project/14/episodes')?.description ?? '',
+      /Legacy production alias/,
+    )
+    assert.match(
+      listedResources.find((resource) => resource.uri === 'movscript://project/14/setting-states')?.description ?? '',
+      /Legacy setting-state alias/,
+    )
     globalThis.fetch = async (input, init = {}) => {
       if (projectServiceRuntime && String(input).startsWith(projectServiceRuntime.url)) {
         return originalFetch(input, init)
       }
       throw new Error('backend fetch should not be called for project resources/read')
     }
+    await mkdir(projectDir, { recursive: true })
+    await writeFile(join(projectDir, 'project.json'), JSON.stringify({
+      schema: 'movscript.project.v1',
+      kind: 'project',
+      project_id: 'project_resources',
+      title: 'Project Resources',
+      namespace_vocabulary: {
+        timeline_template: 'series',
+        timeline_namespaces: ['episode', 'beat'],
+        setting_namespaces: ['character', 'costume_state'],
+      },
+    }), 'utf8')
     await mkdir(join(projectDir, 'settings', 'setting_hero'), { recursive: true })
     await writeFile(join(projectDir, 'settings', 'setting_hero', 'setting.json'), JSON.stringify({
       schema: 'movscript.setting.v1',
@@ -724,12 +754,30 @@ test('MCP project resources read project workspace data without backend entity e
       title: 'Local Hero',
       setting_kind: 'character',
     }), 'utf8')
+    await mkdir(join(projectDir, 'settings', 'setting_hero', 'states', 'base'), { recursive: true })
+    await writeFile(join(projectDir, 'settings', 'setting_hero', 'states', 'base', 'setting_state.json'), JSON.stringify({
+      schema: 'movscript.setting_state.v1',
+      kind: 'setting_state',
+      id: 'base',
+      setting_id: 'setting_hero',
+      title: 'Base Costume',
+      namespace_kind: 'costume_state',
+    }), 'utf8')
     await mkdir(join(projectDir, 'productions', 'pilot'), { recursive: true })
     await writeFile(join(projectDir, 'productions', 'pilot', 'production.json'), JSON.stringify({
       schema: 'movscript.production.v1',
       kind: 'production',
       id: 'pilot',
       title: 'Local Pilot',
+      namespace_kind: 'episode',
+    }), 'utf8')
+    await mkdir(join(projectDir, 'productions', 'pilot', 'segments', 'opening'), { recursive: true })
+    await writeFile(join(projectDir, 'productions', 'pilot', 'segments', 'opening', 'segment.json'), JSON.stringify({
+      schema: 'movscript.segment.v1',
+      kind: 'segment',
+      id: 'opening',
+      title: 'Opening Beat',
+      namespace_kind: 'beat',
     }), 'utf8')
     await mkdir(join(projectDir, 'scripts', 'script_main'), { recursive: true })
     await writeFile(join(projectDir, 'scripts', 'script_main', 'script.json'), JSON.stringify({
@@ -743,6 +791,7 @@ test('MCP project resources read project workspace data without backend entity e
 
     for (const [uri, title] of [
       ['movscript://project/14/settings', 'Local Hero'],
+      ['movscript://project/14/setting-states', 'Base Costume'],
       ['movscript://project/14/episodes', 'Local Pilot'],
       ['movscript://project/14/scripts', 'Local Script'],
     ]) {
@@ -755,6 +804,94 @@ test('MCP project resources read project workspace data without backend entity e
       assert.equal(response?.error, undefined)
       assert.match(response?.result?.contents?.[0]?.text ?? '', new RegExp(title))
     }
+
+    const vocabularyResponse = await handleJSONRPC({
+      jsonrpc: '2.0',
+      id: 'namespace-vocabulary',
+      method: 'resources/read',
+      params: { uri: 'movscript://project/14/namespace-vocabulary' },
+    })
+    const vocabularyText = vocabularyResponse?.result?.contents?.[0]?.text ?? ''
+    assert.equal(vocabularyResponse?.error, undefined)
+    assert.match(vocabularyText, /timelineNamespaces/)
+    assert.match(vocabularyText, /episode/)
+    assert.match(vocabularyText, /beat/)
+    assert.match(vocabularyText, /settingNamespaces/)
+    assert.match(vocabularyText, /costume_state/)
+
+    const timelineResponse = await handleJSONRPC({
+      jsonrpc: '2.0',
+      id: 'timeline-namespaces',
+      method: 'resources/read',
+      params: { uri: 'movscript://project/14/timeline-namespaces' },
+    })
+    const timelineText = timelineResponse?.result?.contents?.[0]?.text ?? ''
+    assert.equal(timelineResponse?.error, undefined)
+    assert.match(timelineText, /timeline_namespace/)
+    assert.match(timelineText, /episode/)
+    assert.match(timelineText, /beat/)
+    assert.match(timelineText, /productions\/pilot\/production\.json/)
+
+    const settingNamespacesResponse = await handleJSONRPC({
+      jsonrpc: '2.0',
+      id: 'setting-namespaces',
+      method: 'resources/read',
+      params: { uri: 'movscript://project/14/setting-namespaces' },
+    })
+    const settingNamespacesText = settingNamespacesResponse?.result?.contents?.[0]?.text ?? ''
+    assert.equal(settingNamespacesResponse?.error, undefined)
+    assert.match(settingNamespacesText, /setting_namespace/)
+    assert.match(settingNamespacesText, /character/)
+    assert.match(settingNamespacesText, /costume_state/)
+    assert.match(settingNamespacesText, /settings\/setting_hero\/states\/base\/setting_state\.json/)
+
+    const settingsResponse = await handleJSONRPC({
+      jsonrpc: '2.0',
+      id: 'settings-projection',
+      method: 'resources/read',
+      params: { uri: 'movscript://project/14/settings' },
+    })
+    const settingsText = settingsResponse?.result?.contents?.[0]?.text ?? ''
+    assert.equal(settingsResponse?.error, undefined)
+    assert.match(settingsText, /domainCategory/)
+    assert.match(settingsText, /setting_namespace/)
+    assert.match(settingsText, /domainKind/)
+    assert.match(settingsText, /character/)
+    assert.match(settingsText, /legacyAlias/)
+    assert.match(settingsText, /preferredResourceKind/)
+    assert.match(settingsText, /setting-namespaces/)
+
+    const settingStatesResponse = await handleJSONRPC({
+      jsonrpc: '2.0',
+      id: 'setting-states-projection',
+      method: 'resources/read',
+      params: { uri: 'movscript://project/14/setting-states' },
+    })
+    const settingStatesText = settingStatesResponse?.result?.contents?.[0]?.text ?? ''
+    assert.equal(settingStatesResponse?.error, undefined)
+    assert.match(settingStatesText, /domainCategory/)
+    assert.match(settingStatesText, /setting_namespace/)
+    assert.match(settingStatesText, /domainKind/)
+    assert.match(settingStatesText, /costume_state/)
+    assert.match(settingStatesText, /legacyAlias/)
+    assert.match(settingStatesText, /preferredResourceKind/)
+    assert.match(settingStatesText, /setting-namespaces/)
+
+    const episodesResponse = await handleJSONRPC({
+      jsonrpc: '2.0',
+      id: 'episodes-projection',
+      method: 'resources/read',
+      params: { uri: 'movscript://project/14/episodes' },
+    })
+    const episodesText = episodesResponse?.result?.contents?.[0]?.text ?? ''
+    assert.equal(episodesResponse?.error, undefined)
+    assert.match(episodesText, /domainCategory/)
+    assert.match(episodesText, /timeline_namespace/)
+    assert.match(episodesText, /domainKind/)
+    assert.match(episodesText, /episode/)
+    assert.match(episodesText, /legacyAlias/)
+    assert.match(episodesText, /preferredResourceKind/)
+    assert.match(episodesText, /timeline-namespaces/)
   } finally {
     globalThis.fetch = originalFetch
     updateMCPContextSnapshot(localAdminMCPContextSnapshot())
@@ -803,6 +940,447 @@ test('MCP content candidate schemas expose status enum and default guidance', ()
   assert.ok(registerTool, 'domain_register_raw_resource_as_content_unit_candidate schema should be exposed')
   assert.deepEqual(registerTool.inputSchema.properties?.outputKind?.enum, ['image', 'video', 'audio', 'text', 'metadata'])
   assert.match(registerTool.description ?? '', /RawResource as a content-unit candidate/)
+})
+
+test('MCP content unit schema guidance keeps namespace scopes behind timeline assemblies', () => {
+  const tools = listTools()
+  const contentUnitTool = tools.find((tool) => tool.name === 'domain_upsert_content_unit')
+  assert.ok(contentUnitTool, 'domain_upsert_content_unit schema should be exposed')
+  assert.match(contentUnitTool.description ?? '', /timeline_assembly_ref/)
+  assert.match(contentUnitTool.description ?? '', /target_ref=timeline_assembly:<scopeKind>:<scopeRef>/)
+  assert.match(contentUnitTool.description ?? '', /do not invent episode_ref, beat_ref/)
+
+  const productionTreeTool = tools.find((tool) => tool.name === 'domain_upsert_production_tree')
+  assert.ok(productionTreeTool, 'domain_upsert_production_tree schema should be exposed')
+  assert.match(productionTreeTool.description ?? '', /legacy production-projection tree/)
+  assert.match(productionTreeTool.description ?? '', /prefer explicit timeline_assembly_ref/)
+
+  const timelineNamespaceTreeTool = tools.find((tool) => tool.name === 'domain_upsert_timeline_namespace_tree')
+  assert.ok(timelineNamespaceTreeTool, 'domain_upsert_timeline_namespace_tree schema should be exposed')
+  assert.match(timelineNamespaceTreeTool.description ?? '', /path-first timeline namespace tree/)
+  assert.match(timelineNamespaceTreeTool.description ?? '', /instance parent-child structure comes from targetPath/)
+  assert.match(timelineNamespaceTreeTool.description ?? '', /must not carry content-unit refs/)
+})
+
+test('MCP domain_upsert_content_unit writes timeline assembly refs from scope fields', async () => {
+  const projectDir = mkdtempSync(join(tmpdir(), 'movscript-mcp-assembly-'))
+  const previousFetch = globalThis.fetch
+  globalThis.fetch = async (input, init) => mockProjectBindingResponse(input, init) ?? previousFetch(input, init)
+  try {
+    await writeTestProjectManifest(projectDir, 'prj_mcp_assembly', 'MCP Assembly')
+
+    const result = await callTool('domain_upsert_content_unit', {
+      projectDir,
+      unit: {
+        id: 'cu_episode_01_cut',
+        title: 'Episode 01 cut',
+        contentUnitType: 'timeline_assembly_ref',
+        outputKind: 'video',
+        targetCategory: 'timeline_assembly',
+        scopeKind: 'episode',
+        scopeRef: 'episode_01',
+        editPrompt: { text: 'Assemble episode 01 from selected scene moments.' },
+      },
+    })
+
+    assert.equal(result.contentUnitPath, 'content_units/cu_episode_01_cut/content_unit.json')
+    assert.equal(result.record.content_unit_type, 'timeline_assembly_ref')
+    assert.equal(result.record.output_kind, 'video')
+    assert.equal(result.record.target_category, 'timeline_assembly')
+    assert.equal(result.record.target_kind, 'timeline_assembly')
+    assert.equal(result.record.target_ref, 'timeline_assembly:episode:episode_01')
+    assert.equal(result.record.scope_kind, 'episode')
+    assert.equal(result.record.scope_ref, 'episode_01')
+
+    const written = JSON.parse(await readFile(join(projectDir, result.contentUnitPath), 'utf8'))
+    assert.equal(written.target_ref, 'timeline_assembly:episode:episode_01')
+  } finally {
+    globalThis.fetch = previousFetch
+    await rm(projectDir, { recursive: true, force: true })
+  }
+})
+
+test('MCP production tree preserves explicit timeline assembly content units', async () => {
+  const projectDir = mkdtempSync(join(tmpdir(), 'movscript-mcp-tree-assembly-'))
+  const previousFetch = globalThis.fetch
+  globalThis.fetch = async (input, init) => mockProjectBindingResponse(input, init) ?? previousFetch(input, init)
+  try {
+    await writeTestProjectManifest(projectDir, 'prj_mcp_tree_assembly', 'MCP Tree Assembly')
+
+    const result = await callTool('domain_upsert_production_tree', {
+      projectDir,
+      production: {
+        id: 'pilot',
+        title: 'Pilot',
+        namespace_kind: 'episode',
+      },
+      segments: [
+        {
+          segment: {
+            id: 'opening',
+            title: 'Opening',
+            namespace_kind: 'beat',
+            order: 1,
+          },
+          content_units: [
+            {
+              id: 'cu_opening_cut',
+              title: 'Opening cut',
+              content_unit_type: 'timeline_assembly_ref',
+              output_kind: 'video',
+              target_kind: 'timeline_assembly',
+              target_ref: 'timeline_assembly:beat:opening',
+              scope_kind: 'beat',
+              scope_ref: 'opening',
+              edit_prompt: { text: 'Assemble the opening beat.' },
+            },
+          ],
+        },
+      ],
+    })
+
+    assert.equal(result.segments[0]?.contentUnits[0]?.record?.content_unit_type, 'timeline_assembly_ref')
+    assert.equal(result.segments[0]?.contentUnits[0]?.record?.target_kind, 'timeline_assembly')
+    assert.equal(result.segments[0]?.contentUnits[0]?.record?.target_ref, 'timeline_assembly:beat:opening')
+    assert.equal(result.segments[0]?.contentUnits[0]?.record?.scope_kind, 'beat')
+    assert.equal(result.segments[0]?.contentUnits[0]?.record?.scope_ref, 'opening')
+    assert.equal(result.segments[0]?.contentUnits[0]?.record?.segment_ref, undefined)
+
+    const written = JSON.parse(await readFile(join(projectDir, 'content_units', 'cu_opening_cut', 'content_unit.json'), 'utf8'))
+    assert.equal(written.content_unit_type, 'timeline_assembly_ref')
+    assert.equal(written.target_kind, 'timeline_assembly')
+    assert.equal(written.target_ref, 'timeline_assembly:beat:opening')
+    assert.equal(written.scope_kind, 'beat')
+    assert.equal(written.scope_ref, 'opening')
+    assert.equal(written.segment_ref, undefined)
+  } finally {
+    globalThis.fetch = previousFetch
+    await rm(projectDir, { recursive: true, force: true })
+  }
+})
+
+test('MCP timeline namespace tree writes path-first namespace nodes and assembly content units', async () => {
+  const projectDir = mkdtempSync(join(tmpdir(), 'movscript-mcp-timeline-namespace-'))
+  const previousFetch = globalThis.fetch
+  globalThis.fetch = async (input, init) => mockProjectBindingResponse(input, init) ?? previousFetch(input, init)
+  try {
+    await writeTestProjectManifest(projectDir, 'prj_mcp_timeline_namespace', 'MCP Timeline Namespace')
+
+    const result = await callTool('domain_upsert_timeline_namespace_tree', {
+      projectDir,
+      namespace: {
+        id: 'pilot',
+        kind: 'episode',
+        title: 'Pilot',
+        production_ref: 'legacy_production_ref',
+        content_unit_ref: 'legacy_content_unit_ref',
+        children: [
+          {
+            id: 'opening',
+            kind: 'beat',
+            title: 'Opening',
+            order: 1,
+            segment_ref: 'legacy_segment_ref',
+            content_units: [
+              {
+                id: 'cu_opening_assembly',
+                title: 'Opening assembly',
+                output_kind: 'video',
+                edit_prompt: { text: 'Assemble the selected moments for the opening beat.' },
+              },
+            ],
+            scene_moments: [
+              {
+                id: 'rain_call',
+                kind: 'scene',
+                title: 'Rain call',
+                order: 1,
+                action_text: 'The phone rings in the rain.',
+                production_ref: 'legacy_scene_production_ref',
+                content_unit_ref: 'legacy_scene_content_unit_ref',
+                content_units: [
+                  {
+                    id: 'cu_rain_call_scene',
+                    title: 'Rain call scene video',
+                    edit_prompt: { text: 'Generate the complete rain call moment.' },
+                  },
+                ],
+                expression_units: [
+                  {
+                    id: 'phone_closeup',
+                    kind: 'shot',
+                    title: 'Phone closeup',
+                    visual_kind: 'insert',
+                    content_units: [
+                      {
+                        id: 'cu_phone_shot',
+                        title: 'Phone closeup video',
+                      },
+                    ],
+                    keyframes: [
+                      {
+                        id: 'phone_first_frame',
+                        role: 'first_frame',
+                        title: 'Phone first frame',
+                        content_units: [
+                          {
+                            id: 'cu_phone_first_frame',
+                            title: 'Phone first frame image',
+                          },
+                        ],
+                      },
+                    ],
+                    storyboards: [
+                      {
+                        id: 'phone_board',
+                        title: 'Phone board',
+                      },
+                    ],
+                  },
+                ],
+                audio_cues: [
+                  {
+                    id: 'phone_ring',
+                    kind: 'sound_effect',
+                    title: 'Phone ring',
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    })
+
+    assert.deepEqual(
+      result.namespaces.map((item) => item.targetPath),
+      ['timeline/pilot/production.json', 'timeline/pilot/segments/opening/segment.json'],
+    )
+    assert.deepEqual(
+      result.sceneMoments.map((item) => item.targetPath),
+      ['timeline/pilot/segments/opening/scene_moments/rain_call/scene_moment.json'],
+    )
+    assert.ok(result.primitives.some((item) => item.targetPath === 'timeline/pilot/segments/opening/scene_moments/rain_call/expression_units/phone_closeup/expression_unit.json'))
+    assert.ok(result.primitives.some((item) => item.targetPath === 'timeline/pilot/segments/opening/scene_moments/rain_call/expression_units/phone_closeup/keyframes/phone_first_frame/keyframe.json'))
+    assert.ok(result.primitives.some((item) => item.targetPath === 'timeline/pilot/segments/opening/scene_moments/rain_call/audio_cues/phone_ring/audio_cue.json'))
+    assert.equal(result.contentUnits[0]?.record?.content_unit_type, 'timeline_assembly_ref')
+    assert.equal(result.contentUnits[0]?.record?.target_kind, 'timeline_assembly')
+    assert.equal(result.contentUnits[0]?.record?.target_ref, 'timeline_assembly:beat:opening')
+    assert.equal(result.contentUnits[0]?.record?.scope_kind, 'beat')
+    assert.equal(result.contentUnits[0]?.record?.scope_ref, 'opening')
+    assert.equal(result.contentUnits[0]?.record?.segment_ref, undefined)
+
+    const root = JSON.parse(await readFile(join(projectDir, 'timeline', 'pilot', 'production.json'), 'utf8'))
+    assert.equal(root.kind, 'production')
+    assert.equal(root.namespace_kind, 'episode')
+    assert.equal(root.timeline_namespace_kind, 'episode')
+    assert.equal(root.production_ref, undefined)
+    assert.equal(root.content_unit_ref, undefined)
+
+    const child = JSON.parse(await readFile(join(projectDir, 'timeline', 'pilot', 'segments', 'opening', 'segment.json'), 'utf8'))
+    assert.equal(child.kind, 'segment')
+    assert.equal(child.namespace_kind, 'beat')
+    assert.equal(child.timeline_namespace_kind, 'beat')
+    assert.equal(child.segment_ref, undefined)
+
+    const sceneMoment = JSON.parse(await readFile(join(projectDir, 'timeline', 'pilot', 'segments', 'opening', 'scene_moments', 'rain_call', 'scene_moment.json'), 'utf8'))
+    assert.equal(sceneMoment.kind, 'scene_moment')
+    assert.equal(sceneMoment.action_text, 'The phone rings in the rain.')
+    assert.equal(sceneMoment.production_ref, undefined)
+    assert.equal(sceneMoment.content_unit_ref, undefined)
+
+    const expressionUnit = JSON.parse(await readFile(join(projectDir, 'timeline', 'pilot', 'segments', 'opening', 'scene_moments', 'rain_call', 'expression_units', 'phone_closeup', 'expression_unit.json'), 'utf8'))
+    assert.equal(expressionUnit.kind, 'expression_unit')
+    assert.equal(expressionUnit.expression_kind, 'shot')
+    assert.equal(expressionUnit.visual_kind, 'insert')
+
+    const keyframe = JSON.parse(await readFile(join(projectDir, 'timeline', 'pilot', 'segments', 'opening', 'scene_moments', 'rain_call', 'expression_units', 'phone_closeup', 'keyframes', 'phone_first_frame', 'keyframe.json'), 'utf8'))
+    assert.equal(keyframe.kind, 'keyframe')
+    assert.equal(keyframe.role, 'first_frame')
+
+    const audioCue = JSON.parse(await readFile(join(projectDir, 'timeline', 'pilot', 'segments', 'opening', 'scene_moments', 'rain_call', 'audio_cues', 'phone_ring', 'audio_cue.json'), 'utf8'))
+    assert.equal(audioCue.kind, 'audio_cue')
+    assert.equal(audioCue.cue_kind, 'sound_effect')
+
+    const contentUnit = JSON.parse(await readFile(join(projectDir, 'content_units', 'cu_opening_assembly', 'content_unit.json'), 'utf8'))
+    assert.equal(contentUnit.content_unit_type, 'timeline_assembly_ref')
+    assert.equal(contentUnit.target_kind, 'timeline_assembly')
+    assert.equal(contentUnit.target_ref, 'timeline_assembly:beat:opening')
+    assert.equal(contentUnit.scope_kind, 'beat')
+    assert.equal(contentUnit.scope_ref, 'opening')
+    assert.equal(contentUnit.production_ref, undefined)
+    assert.equal(contentUnit.segment_ref, undefined)
+
+    const sceneContentUnit = JSON.parse(await readFile(join(projectDir, 'content_units', 'cu_rain_call_scene', 'content_unit.json'), 'utf8'))
+    assert.equal(sceneContentUnit.content_unit_type, 'scene_moment_ref')
+    assert.equal(sceneContentUnit.output_kind, 'video')
+    assert.equal(sceneContentUnit.target_kind, 'scene_moment')
+    assert.equal(sceneContentUnit.target_ref, 'timeline/pilot/segments/opening/scene_moments/rain_call')
+    assert.equal(sceneContentUnit.scene_moment_ref, 'timeline/pilot/segments/opening/scene_moments/rain_call')
+    assert.equal(sceneContentUnit.production_ref, undefined)
+    assert.equal(sceneContentUnit.segment_ref, undefined)
+
+    const keyframeContentUnit = JSON.parse(await readFile(join(projectDir, 'content_units', 'cu_phone_first_frame', 'content_unit.json'), 'utf8'))
+    assert.equal(keyframeContentUnit.content_unit_type, 'keyframe_ref')
+    assert.equal(keyframeContentUnit.output_kind, 'image')
+    assert.equal(keyframeContentUnit.target_kind, 'keyframe')
+    assert.equal(keyframeContentUnit.keyframe_ref, 'timeline/pilot/segments/opening/scene_moments/rain_call/expression_units/phone_closeup/keyframes/phone_first_frame')
+  } finally {
+    globalThis.fetch = previousFetch
+    await rm(projectDir, { recursive: true, force: true })
+  }
+})
+
+test('MCP domain_upsert_scene_moment writes directly under a timeline namespace path', async () => {
+  const projectDir = mkdtempSync(join(tmpdir(), 'movscript-mcp-scene-moment-path-'))
+  const previousFetch = globalThis.fetch
+  globalThis.fetch = async (input, init) => mockProjectBindingResponse(input, init) ?? previousFetch(input, init)
+  try {
+    await writeTestProjectManifest(projectDir, 'prj_mcp_scene_moment_path', 'MCP Scene Moment Path')
+    await callTool('domain_upsert_timeline_namespace_tree', {
+      projectDir,
+      namespace: {
+        id: 'pilot',
+        kind: 'episode',
+        title: 'Pilot',
+        children: [{ id: 'opening', kind: 'beat', title: 'Opening' }],
+      },
+    })
+
+    const result = await callTool('domain_upsert_scene_moment', {
+      projectDir,
+      namespacePath: 'timeline/pilot/segments/opening/segment.json',
+      scene_moment: {
+        id: 'rain_call',
+        kind: 'scene',
+        title: 'Rain call',
+        actionText: 'The phone rings in the rain.',
+        production_ref: 'legacy_production_ref',
+        segment_ref: 'legacy_segment_ref',
+        content_unit_ref: 'legacy_content_unit_ref',
+      },
+    })
+
+    assert.equal(result.entityKind, 'scene_moment')
+    assert.equal(result.targetPath, 'timeline/pilot/segments/opening/scene_moments/rain_call/scene_moment.json')
+
+    const sceneMoment = JSON.parse(await readFile(join(projectDir, 'timeline', 'pilot', 'segments', 'opening', 'scene_moments', 'rain_call', 'scene_moment.json'), 'utf8'))
+    assert.equal(sceneMoment.schema, 'movscript.scene_moment.v1')
+    assert.equal(sceneMoment.kind, 'scene_moment')
+    assert.equal(sceneMoment.title, 'Rain call')
+    assert.equal(sceneMoment.action_text, 'The phone rings in the rain.')
+    assert.equal(sceneMoment.actionText, undefined)
+    assert.equal(sceneMoment.namespacePath, undefined)
+    assert.equal(sceneMoment.production_ref, undefined)
+    assert.equal(sceneMoment.segment_ref, undefined)
+    assert.equal(sceneMoment.content_unit_ref, undefined)
+  } finally {
+    globalThis.fetch = previousFetch
+    await rm(projectDir, { recursive: true, force: true })
+  }
+})
+
+test('MCP primitive upsert tools write under namespace scene_moment paths', async () => {
+  const projectDir = mkdtempSync(join(tmpdir(), 'movscript-mcp-primitive-paths-'))
+  const previousFetch = globalThis.fetch
+  globalThis.fetch = async (input, init) => mockProjectBindingResponse(input, init) ?? previousFetch(input, init)
+  try {
+    await writeTestProjectManifest(projectDir, 'prj_mcp_primitive_paths', 'MCP Primitive Paths')
+    await callTool('domain_upsert_timeline_namespace_tree', {
+      projectDir,
+      namespace: {
+        id: 'pilot',
+        kind: 'episode',
+        title: 'Pilot',
+        children: [{ id: 'opening', kind: 'beat', title: 'Opening' }],
+      },
+    })
+    await callTool('domain_upsert_scene_moment', {
+      projectDir,
+      namespacePath: 'timeline/pilot/segments/opening/segment.json',
+      scene_moment: { id: 'rain_call', title: 'Rain call' },
+    })
+
+    const sceneMomentPath = 'timeline/pilot/segments/opening/scene_moments/rain_call'
+    const expressionResult = await callTool('domain_upsert_expression_unit', {
+      projectDir,
+      sceneMomentPath,
+      expression_unit: {
+        id: 'phone_closeup',
+        kind: 'shot',
+        title: 'Phone closeup',
+        visualKind: 'insert',
+        text: 'Phone vibrates on the wet table.',
+        production_ref: 'legacy_production_ref',
+      },
+    })
+    const expressionUnitPath = 'timeline/pilot/segments/opening/scene_moments/rain_call/expression_units/phone_closeup'
+    assert.equal(expressionResult.targetPath, `${expressionUnitPath}/expression_unit.json`)
+
+    const storyboardResult = await callTool('domain_upsert_storyboard', {
+      projectDir,
+      expressionUnitPath,
+      storyboard: {
+        id: 'phone_board',
+        title: 'Phone board',
+        visualIntent: 'Storyboard the phone insert.',
+        timeline: { caption: 'Phone glows.' },
+      },
+    })
+    assert.equal(storyboardResult.targetPath, `${expressionUnitPath}/storyboards/phone_board/storyboard.json`)
+
+    const keyframeResult = await callTool('domain_upsert_keyframe', {
+      projectDir,
+      expressionUnitPath,
+      keyframe: {
+        id: 'phone_first_frame',
+        title: 'Phone first frame',
+        visualIntent: 'A wet phone vibrates under a cold light.',
+        referenceAssetRefs: ['hero_phone'],
+      },
+    })
+    assert.equal(keyframeResult.targetPath, `${expressionUnitPath}/keyframes/phone_first_frame/keyframe.json`)
+
+    const audioCueResult = await callTool('domain_upsert_audio_cue', {
+      projectDir,
+      sceneMomentPath,
+      audio_cue: {
+        id: 'phone_ring',
+        kind: 'sound_effect',
+        title: 'Phone ring',
+        promptHint: 'Muffled vibration under rain.',
+      },
+    })
+    assert.equal(audioCueResult.targetPath, `${sceneMomentPath}/audio_cues/phone_ring/audio_cue.json`)
+
+    const expressionUnit = JSON.parse(await readFile(join(projectDir, expressionUnitPath, 'expression_unit.json'), 'utf8'))
+    assert.equal(expressionUnit.kind, 'expression_unit')
+    assert.equal(expressionUnit.expression_kind, 'shot')
+    assert.equal(expressionUnit.visual_kind, 'insert')
+    assert.equal(expressionUnit.visualKind, undefined)
+    assert.equal(expressionUnit.production_ref, undefined)
+
+    const storyboard = JSON.parse(await readFile(join(projectDir, expressionUnitPath, 'storyboards', 'phone_board', 'storyboard.json'), 'utf8'))
+    assert.equal(storyboard.kind, 'storyboard')
+    assert.equal(storyboard.visual_intent, 'Storyboard the phone insert.')
+    assert.equal(storyboard.visualIntent, undefined)
+    assert.deepEqual(storyboard.timeline, { caption: 'Phone glows.' })
+
+    const keyframe = JSON.parse(await readFile(join(projectDir, expressionUnitPath, 'keyframes', 'phone_first_frame', 'keyframe.json'), 'utf8'))
+    assert.equal(keyframe.kind, 'keyframe')
+    assert.equal(keyframe.visual_intent, 'A wet phone vibrates under a cold light.')
+    assert.deepEqual(keyframe.reference_asset_refs, ['hero_phone'])
+    assert.equal(keyframe.referenceAssetRefs, undefined)
+
+    const audioCue = JSON.parse(await readFile(join(projectDir, sceneMomentPath, 'audio_cues', 'phone_ring', 'audio_cue.json'), 'utf8'))
+    assert.equal(audioCue.kind, 'audio_cue')
+    assert.equal(audioCue.cue_kind, 'sound_effect')
+    assert.equal(audioCue.prompt_hint, 'Muffled vibration under rain.')
+    assert.equal(audioCue.promptHint, undefined)
+  } finally {
+    globalThis.fetch = previousFetch
+    await rm(projectDir, { recursive: true, force: true })
+  }
 })
 
 test('MCP project-scoped tool schemas expose explicit project directory arguments', () => {
@@ -869,6 +1447,113 @@ test('MCP domain model tool routes through the domain workspace model', async ()
   }
 })
 
+test('MCP project context snapshot includes namespace vocabulary for agent planning', async () => {
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-project-context-'))
+  const projectDir = join(workspaceDir, 'projects', 'namespace-context')
+  try {
+    await writeTestProjectManifest(projectDir, 'prj_namespace_context', 'Namespace Context')
+    await writeFile(join(projectDir, 'project.json'), JSON.stringify({
+      schema: 'movscript.project.v1',
+      kind: 'project',
+      project_id: 'namespace_context',
+      title: 'Namespace Context',
+      namespace_vocabulary: {
+        timeline_template: 'series',
+        timeline_namespaces: ['sequence', 'beat'],
+        setting_namespaces: ['character', 'voice_state'],
+      },
+    }), 'utf8')
+    await writeFile(join(projectDir, 'project_standards.json'), JSON.stringify({
+      schema: 'movscript.project_standards.v1',
+      kind: 'project_standards',
+      id: 'project_standards',
+      aspect_ratio: '16:9',
+      visual_style: 'Low-key noir',
+    }), 'utf8')
+
+    updateMCPContextSnapshot(localAdminMCPContextSnapshot())
+    const snapshot = await callTool('domain_read_project_context_snapshot', { projectDir }, 'project-context-namespace')
+
+    assert.equal(snapshot.schema, 'movscript.project_context_snapshot.v1')
+    assert.equal(snapshot.namespace_vocabulary.timeline_template, 'series')
+    assert.deepEqual(snapshot.namespace_vocabulary.timeline_namespaces, ['act', 'sequence', 'beat'])
+    assert.deepEqual(snapshot.namespace_vocabulary.setting_namespaces, ['character', 'voice_state'])
+    assert.equal(snapshot.core_standards.find((item) => item.key === 'aspect_ratio')?.value, '16:9')
+    assert.ok(snapshot.agent_guidance.some((line) => line.includes('namespace_vocabulary')))
+  } finally {
+    updateMCPContextSnapshot(emptyMCPContextSnapshot())
+    await rm(workspaceDir, { recursive: true, force: true })
+  }
+})
+
+test('MCP production status summary exposes project timeline namespace projection', async () => {
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-project-timeline-status-'))
+  const projectDir = join(workspaceDir, 'projects', 'timeline-status')
+  try {
+    await writeTestProjectManifest(projectDir, 'prj_timeline_status', 'Timeline Status')
+    await writeFile(join(projectDir, 'project.json'), JSON.stringify({
+      schema: 'movscript.project.v1',
+      kind: 'project',
+      project_id: 'timeline_status',
+      title: 'Timeline Status',
+      namespace_vocabulary: {
+        timeline_template: 'series',
+        timeline_namespaces: ['episode', 'beat'],
+        setting_namespaces: ['character'],
+      },
+    }), 'utf8')
+    await mkdir(join(projectDir, 'productions', 'pilot', 'segments', 'opening'), { recursive: true })
+    await writeFile(join(projectDir, 'productions', 'pilot', 'production.json'), JSON.stringify({
+      schema: 'movscript.production.v1',
+      kind: 'production',
+      id: 'pilot',
+      title: 'Pilot Episode',
+      namespace_kind: 'episode',
+    }), 'utf8')
+    await writeFile(join(projectDir, 'productions', 'pilot', 'segments', 'opening', 'segment.json'), JSON.stringify({
+      schema: 'movscript.segment.v1',
+      kind: 'segment',
+      id: 'opening',
+      title: 'Opening Beat',
+      namespace_kind: 'beat',
+    }), 'utf8')
+    await mkdir(join(projectDir, 'content_units', 'cu_opening_assembly'), { recursive: true })
+    await writeFile(join(projectDir, 'content_units', 'cu_opening_assembly', 'content_unit.json'), JSON.stringify({
+      schema: 'movscript.content_unit.v1',
+      kind: 'content_unit',
+      id: 'cu_opening_assembly',
+      title: 'Opening Assembly',
+      content_unit_type: 'timeline_assembly_ref',
+      output_kind: 'video',
+      target_kind: 'timeline_assembly',
+      target_ref: 'timeline_assembly:segment:opening',
+      edit_prompt: { text: 'Compose the opening beat.' },
+    }), 'utf8')
+
+    updateMCPContextSnapshot(localAdminMCPContextSnapshot())
+    const summary = await callTool('domain_production_status_summary', { projectDir }, 'timeline-status-summary')
+
+    assert.equal(summary.schema, 'movscript.production_status_summary.v1')
+    assert.equal(summary.legacy_alias, true)
+    assert.equal(summary.preferred_schema, 'movscript.project_timeline_status.v1')
+    assert.deepEqual(summary.namespace_vocabulary.timeline_namespaces, ['act', 'sequence', 'beat', 'episode'])
+    assert.equal(summary.project_timeline_status.schema, 'movscript.project_timeline_status.v1')
+    assert.equal(summary.project_timeline_status.timeline_namespace_count, 2)
+    assert.equal(summary.project_timeline_status.timeline_namespaces.find((item) => item.id === 'pilot')?.kind, 'episode')
+    assert.equal(summary.project_timeline_status.timeline_namespaces.find((item) => item.id === 'opening')?.kind, 'beat')
+    const assembly = summary.project_timeline_status.timeline_assemblies.find((item) => item.content_unit_id === 'cu_opening_assembly')
+    assert.equal(assembly?.target_kind, 'timeline_assembly')
+    assert.equal(assembly?.target_ref, 'timeline_assembly:segment:opening')
+    assert.equal(assembly?.scope?.category, 'timeline_namespace')
+    assert.equal(assembly?.scope?.kind, 'beat')
+    assert.equal(assembly?.scope?.id, 'opening')
+    assert.equal(summary.timeline_assemblies.find((item) => item.content_unit_id === 'cu_opening_assembly')?.scope?.kind, 'beat')
+  } finally {
+    updateMCPContextSnapshot(emptyMCPContextSnapshot())
+    await rm(workspaceDir, { recursive: true, force: true })
+  }
+})
+
 function assertOpenAIFunctionParametersSchema(schema, label) {
   assert.equal(schema?.type, 'object', `${label} must have top-level type object`)
   for (const key of ['oneOf', 'anyOf', 'allOf', 'enum', 'not']) {
@@ -880,7 +1565,7 @@ test('MCP focus omits workspaceId from route search while preserving page focus 
   updateMCPContextSnapshot({
     route: {
       pathname: '/project/pre-production',
-      search: '?view=review&workspaceId=workspace_mpfwa1ow_tx4g65&asset_id=88',
+      search: '?view=review&workspaceId=workspace_mpfwa1ow_tx4g65&asset_id=88&scopeKind=episode&scopeRef=episode_01',
       hash: '',
     },
     project: {
@@ -890,6 +1575,12 @@ test('MCP focus omits workspaceId from route search while preserving page focus 
       description: '',
     },
     user: null,
+    domainFocus: {
+      projectId: '2',
+      scope: { category: 'timeline_namespace', kind: 'episode', ref: 'episode_01' },
+      target: { targetCategory: 'timeline_assembly', targetKind: 'timeline_assembly', targetRef: 'timeline_assembly:episode:episode_01' },
+      diagnostics: [],
+    },
     selection: null,
     updatedAt: '2026-05-21T19:54:16.793Z',
   })
@@ -897,8 +1588,10 @@ test('MCP focus omits workspaceId from route search while preserving page focus 
   const snapshot = getMCPFocusSnapshot()
 
   assert.equal(snapshot.route.pathname, '/project/pre-production')
-  assert.equal(snapshot.route.search, '?view=review&asset_id=88')
+  assert.equal(snapshot.route.search, '?view=review&asset_id=88&scopeKind=episode&scopeRef=episode_01')
   assert.equal(snapshot.project?.id, 2)
+  assert.equal(snapshot.domainFocus?.scope?.kind, 'episode')
+  assert.equal(snapshot.domainFocus?.target?.targetKind, 'timeline_assembly')
 })
 
 test('MCP focus returns an empty search when workspaceId is the only route query param', () => {
@@ -2965,6 +3658,7 @@ test('MCP upsert setting accepts legacy record body without payload error', asyn
             id: 'setting_legacy',
             title: 'Legacy Body',
             setting_kind: 'character',
+            namespace_kind: 'voice_identity',
           },
         },
       },
@@ -2980,6 +3674,8 @@ test('MCP upsert setting accepts legacy record body without payload error', asyn
     ), 'utf8'))
     assert.equal(written.title, 'Legacy Body')
     assert.equal(written.setting_kind, 'character')
+    assert.equal(written.namespace_kind, 'voice_identity')
+    assert.equal(written.setting_namespace_kind, 'voice_identity')
   } finally {
     globalThis.fetch = originalFetch
     updateMCPContextSnapshot(emptyMCPContextSnapshot())

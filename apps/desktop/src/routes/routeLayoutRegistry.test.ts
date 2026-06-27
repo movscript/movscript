@@ -107,6 +107,12 @@ test('route layout registry declares current project entry routes', () => {
     scrollMode: 'canvas',
     viewportScroll: 'owned',
   })
+  assert.deepEqual(projectEntryRoute('/project/settings/preview'), {
+    routeId: 'project.setting.preview',
+    projectEntryId: 'setting_preview',
+    scrollMode: 'canvas',
+    viewportScroll: 'owned',
+  })
 })
 
 test('route layout registry separates canvas, agent, document, redirect, and overlay routes', () => {
@@ -117,6 +123,7 @@ test('route layout registry separates canvas, agent, document, redirect, and ove
   assert.equal(routeLayoutSpecForPathname('/project/content').scrollMode, 'canvas')
   assert.equal(routeLayoutSpecForPathname('/project/content/canvas').routeId, 'project.content.canvas')
   assert.equal(routeLayoutSpecForPathname('/project/content/preview').routeId, 'project.content.preview')
+  assert.equal(routeLayoutSpecForPathname('/project/settings/preview').routeId, 'project.setting.preview')
 
   assert.equal(routeLayoutSpecForPathname('/project/agent').surface, 'agent')
   assert.equal(routeLayoutSpecForPathname('/project/agent').scrollMode, 'workspace')
@@ -286,6 +293,16 @@ test('route layout registry declares content preview managed panes', () => {
   assert.equal(timelinePane?.maxSize, CONTENT_CANVAS_TIMELINE_MAX_HEIGHT)
   assert.equal(timelinePane?.storageKey, CONTENT_CANVAS_TIMELINE_HEIGHT_STORAGE_KEY)
   assert.equal(timelinePane?.persistState, true)
+})
+
+test('route layout registry declares setting preview as a project preview workspace', () => {
+  const route = routeLayoutSpecForPathname('/project/settings/preview')
+  assert.equal(route.routeId, 'project.setting.preview')
+  assert.equal(route.surface, 'project')
+  assert.equal(route.scrollMode, 'canvas')
+  assert.equal(route.projectEntryId, 'setting_preview')
+  assert.ok(route.panes.some((pane) => pane.id === CONTENT_CANVAS_STRUCTURE_PANE_ID))
+  assert.ok(route.panes.some((pane) => pane.id === CONTENT_CANVAS_INSPECTOR_PANE_ID))
 })
 
 test('route layout registry keeps content canvas as a single creation surface', () => {

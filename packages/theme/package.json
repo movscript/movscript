@@ -2,6 +2,7 @@
   "name": "@movscript/theme",
   "version": "0.1.0",
   "description": "MovScript theme mappings over design tokens.",
+  "license": "MIT",
   "sideEffects": [
     "./src/theme.css"
   ],

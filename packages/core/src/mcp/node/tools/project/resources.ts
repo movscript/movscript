@@ -22,12 +22,19 @@ export function listProjectResources(): MCPResource[] {
     resources.push(
       resource(`movscript://project/${id}/summary`, 'Project summary'),
       resource(`movscript://project/${id}/scripts`, 'Scripts'),
-      resource(`movscript://project/${id}/settings`, 'Settings'),
-      resource(`movscript://project/${id}/assets`, 'Assets'),
-      resource(`movscript://project/${id}/episodes`, 'Episodes'),
-      resource(`movscript://project/${id}/scenes`, 'Scenes'),
-      resource(`movscript://project/${id}/storyboards`, 'Storyboards'),
-      resource(`movscript://project/${id}/content-units`, 'Content units'),
+      resource(`movscript://project/${id}/settings`, 'Settings', 'Legacy setting source records with namespace projection fields.'),
+      resource(`movscript://project/${id}/setting-states`, 'Setting states', 'Legacy setting-state alias; prefer setting-namespaces for namespace-aware work.'),
+      resource(`movscript://project/${id}/assets`, 'Assets', 'System primitive asset records.'),
+      resource(`movscript://project/${id}/namespace-vocabulary`, 'Namespace vocabulary', 'Project namespace vocabulary, templates, aliases, and diagnostics.'),
+      resource(`movscript://project/${id}/timeline-namespaces`, 'Timeline namespaces', 'Canonical timeline namespace nodes using project vocabulary.'),
+      resource(`movscript://project/${id}/setting-namespaces`, 'Setting namespaces', 'Canonical setting namespace nodes using project vocabulary.'),
+      resource(`movscript://project/${id}/system-primitives`, 'System primitives', 'Scene moments, expression units, storyboards, keyframes, audio cues, assets, and assemblies.'),
+      resource(`movscript://project/${id}/domain-nodes`, 'Domain nodes', 'All normalized MovScript domain nodes.'),
+      resource(`movscript://project/${id}/domain-edges`, 'Domain edges', 'Normalized parent, scope, target, uses, and selection edges.'),
+      resource(`movscript://project/${id}/episodes`, 'Episodes', 'Legacy production alias; prefer timeline-namespaces for new namespace-aware work.'),
+      resource(`movscript://project/${id}/scenes`, 'Scenes', 'Legacy segment alias; prefer timeline-namespaces and system-primitives for new work.'),
+      resource(`movscript://project/${id}/storyboards`, 'Storyboards', 'System primitive storyboard records.'),
+      resource(`movscript://project/${id}/content-units`, 'Content units', 'Production tasks, candidates, and generation target refs.'),
     )
   }
 
@@ -48,8 +55,8 @@ async function readProjectResource(uri: string): Promise<MCPJSONValue | null> {
   return resourceContent(uri, summarizeResource(data))
 }
 
-function resource(uri: string, name: string): MCPResource {
-  return { uri, name, mimeType: 'text/markdown' }
+function resource(uri: string, name: string, description?: string): MCPResource {
+  return { uri, name, ...(description ? { description } : {}), mimeType: 'text/markdown' }
 }
 
 async function readWorkspaceProjectResource(projectId: number, kind: string): Promise<unknown[]> {
@@ -72,6 +79,18 @@ function projectResourceViewKind(kind: string): ProjectResourceViewKind {
     case 'assets':
     case 'assests':
       return 'assets'
+    case 'namespace-vocabulary':
+      return 'namespace-vocabulary'
+    case 'timeline-namespaces':
+      return 'timeline-namespaces'
+    case 'setting-namespaces':
+      return 'setting-namespaces'
+    case 'system-primitives':
+      return 'system-primitives'
+    case 'domain-nodes':
+      return 'domain-nodes'
+    case 'domain-edges':
+      return 'domain-edges'
     case 'episodes':
     case 'productions':
       return 'episodes'
@@ -84,6 +103,9 @@ function projectResourceViewKind(kind: string): ProjectResourceViewKind {
       return 'content-units'
     case 'settings':
       return 'settings'
+    case 'setting-states':
+    case 'states':
+      return 'setting-states'
     case 'scripts':
       return 'scripts'
     default:

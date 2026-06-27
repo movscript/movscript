@@ -138,14 +138,19 @@ derived edge:     primitive -> content_unit / candidate / selection impact
 
 自定义 namespace 加上 path，确实容易让系统出现两个结构信息源。这个风险必须通过职责分离来消掉。
 
-推荐规则是：实例父子关系只有一个 canonical source，默认来自 path。`project.json.namespace_vocabulary` 只定义项目允许使用和展示的结构词汇，例如 `episode / act / beat`，不定义“某个 episode 下面有哪些 act”这类实例树。实例树仍然由 source path 表达。
+系统不变量是：实例父子关系只有一个 canonical source，默认来自 path。namespace vocabulary / profile 只定义允许使用和展示的结构词汇，例如 `episode / act / beat`，不定义“某个 episode 下面有哪些 act”这类实例树。实例树仍然由 source path 表达。
+
+更关键的是：project 本身不应该携带一个唯一 timeline 结构。一个 project 可以同时包含短视频、电影、剧集单集或课程小节等多个“制作”，所以业务形态应在创建 production 时选择，并记录为 production type。`film / video / episode / lesson / custom` 是 production 的类型模板，不是 timeline 实例层级。`project.json` 最多保存可选的 vocabulary registry、setting namespace 默认值或兼容旧项目的 `namespace_vocabulary`，不应在新建 project 时写入一个 selected timeline template。
+
+即使某个制作选择了 `film`、`episode`、`lesson` 这类默认类型，也只能作为内部时间命名空间的推荐、UI alias 和 agent planning hint，不能成为第二棵实例树。模板可以回答“这个 production 推荐使用 act / sequence / beat”，但不能回答“这个具体 beat 的父节点是谁”。后者必须来自 path，或来自被 validation 证明和 path 不冲突的显式 parent/scope ref。
 
 也就是说：
 
 ```text
-project.json.namespace_vocabulary
-  -> 定义 vocabulary / template / alias
+production root production_type / timeline_namespaces / optional vocabulary registry
+  -> 定义 production 类型、推荐内部 vocabulary / alias
   -> 不定义具体 node parent
+  -> 可以建议内部层级顺序，但不自动实例化父子关系
 
 source path
   -> 定义具体 node 的 parent / containment
@@ -174,11 +179,13 @@ explicit refs
 
 它属于哪个 episode/act，默认从 path 得到，而不是再写一个 `parent_scope_id`。只有当项目进入递归 namespace、flat layout、跨树组合或迁移兼容时，才允许补 `parent_ref` / `scope_ref`，并且 validation 必须校验它和 path parent 一致。
 
+实现层面，显式结构 ref 和 path parent 同时存在时，冲突应报 `path_parent_ref_conflict`。例如一个 `segment.json` 放在 `timeline/episode_01/...` 下，却写 `parent_ref: "episode_02"` 或 `scope_ref: "episode_02"`，应被视为结构冲突，而不是让系统同时相信两套父子关系。同理，`storyboard` / `keyframe` 的 `scene_moment_ref`、`expression_unit_ref` 也必须和它们所在的 path owner 一致；`audio_cue.expression_unit_ref` 可以细化声音 cue 所属表达单元，但不能跨出 owning scene moment。
+
 换句话说，系统可以有多个 edge origin，但不能有多个同等权威的 parent truth：
 
 | 信息 | canonical source | 说明 |
 | --- | --- | --- |
-| 允许哪些层级词 | `project.json.namespace_vocabulary` | 词汇表和模板 |
+| 允许哪些层级词 | 制作 root `production_type` / `timeline_namespaces` / optional vocabulary registry | 词汇表和模板；project 不选定唯一 timeline |
 | 某个节点的树状父级 | path | 默认唯一 parent truth |
 | 某个节点的用户层级名 | node `kind` / vocabulary kind | 例如 episode、act、beat |
 | 生产目标 | content unit `target_ref` | 只能指向 system primitive / assembly |
@@ -189,16 +196,54 @@ explicit refs
 
 ## Namespace Vocabulary
 
-项目可以声明自己的 namespace vocabulary。下面只是概念形态，不是最终 schema：
+项目可以声明可选的 namespace vocabulary registry，但它不等于“这个 project 的 timeline”。timeline vocabulary 的有效选择发生在创建制作时；setting vocabulary 可以作为 project 级默认，因为角色、服装、状态等设定结构往往跨多个制作复用。asset / asset slot 是 setting state 下的系统 primitive，不应作为默认 setting namespace 层级。
+
+下面只是概念形态，不是最终 schema：
 
 ```json
 {
-  "timeline_namespaces": ["series", "season", "episode", "act", "sequence", "beat"],
-  "setting_namespaces": ["character", "costume", "state", "voice_state"]
+  "namespace_profiles": {
+    "production_type": {
+      "video": {
+        "timeline_namespaces": ["hook", "proof", "demo", "cta"]
+      },
+      "film": {
+        "timeline_namespaces": ["act", "sequence", "beat"]
+      },
+      "episode": {
+        "timeline_namespaces": ["act", "sequence", "beat"]
+      },
+      "lesson": {
+        "timeline_namespaces": ["segment"]
+      },
+      "custom": {
+        "production_type": "<user-defined>",
+        "timeline_namespaces": []
+      }
+    },
+    "setting": {
+      "default": ["character", "costume", "state"]
+    }
+  }
 }
 ```
 
-这些词汇用于 UI、agent planning 和 source/read-model 表达。系统不应假设 `episode` 一定比 `act` 长，也不应假设 `segment` 在所有项目里都是同一种颗粒度。颗粒度、时长和拆分策略应由节点字段或项目规范补充，而不是从名称硬编码推断。
+制作 root timeline namespace 持有实际 profile：
+
+```json
+{
+  "kind": "production",
+  "id": "promo_01",
+  "namespace_kind": "production",
+  "production_type": "video",
+  "timeline_namespaces": ["hook", "proof", "demo", "cta"],
+  "title": "Launch Promo"
+}
+```
+
+这些词汇用于 UI、agent planning 和 source/read-model 表达。系统不应假设 `episode` 一定比 `act` 长，也不应假设 `segment` 在所有制作里都是同一种颗粒度。颗粒度、时长和拆分策略应由节点字段、制作 profile 或项目规范补充，而不是从名称硬编码推断。
+
+模板不自动创建 production 内部实例树。创建 production 只写一个 production root；`timeline_namespaces` 只是后续“添加内部层级”时的推荐顺序。电视剧的 series / season 更适合作为 production tag、筛选条件或用户自定义字段；真正要生产的一集是一个 `production_type = "episode"` 的 production。
 
 ## Timeline Namespace
 
@@ -371,6 +416,8 @@ Namespace node 不应直接成为 content unit 的 target。只有 system primit
 
 更严格地说，namespace source record 里也不应该保存 `content_unit_ref`、`content_unit_refs`、`main_content_unit_id` 这类字段。即使产品上需要展示“这个 episode 有哪些生成任务/导出版/预览”，也应该由 read model 从 system primitive 和 content unit 的正向关系反查出来，而不是把生产任务反向挂回 namespace 节点。
 
+同理，namespace source record 也不应该保存 `candidates`、`selection`、`selected_candidate_id`、`selected_resource_id`、`resource_id` 这类生产状态字段。Candidate 和 selection 属于 content unit 的候选/决策流，或属于 system primitive 的迁移兼容入口；一旦写回 namespace node，namespace 就会重新变成隐性生产单位。
+
 当一个 namespace scope 需要产出聚合视频、预览、主剪、导出版或整集成片时，应在该 scope 下挂一个系统 primitive，例如 `timeline_assembly`，再让 content unit 指向这个 primitive。
 
 示例：
@@ -416,7 +463,7 @@ Namespace node 不应直接成为 content unit 的 target。只有 system primit
 
 这次改造的最终目标不应该是让各个 package 分别学会一套 namespace 规则，而是建立一个统一的领域抽象 package，然后把 language、workspace、interpreter、engine、core、surface、MCP、CLI 和 agent skills 都调整到这个抽象上。
 
-推荐新增 package：
+当前已新增 package：
 
 ```text
 packages/domain
@@ -463,11 +510,12 @@ services/*
 
 | 模块 | 内容 | 谁消费 |
 | --- | --- | --- |
-| `vocabulary` | namespace vocabulary、timeline templates、setting namespace rule、scene_moment alias | language、project、surface、agent planning |
+| `vocabulary` | namespace vocabulary、timeline templates、fallback/default order、root/child namespace kind 推导、setting namespace rule、scene_moment alias | language、project、surface、agent planning |
 | `categories` | `timeline_namespace`、`setting_namespace`、`system_primitive`、`content_unit`、`candidate_resource` 等行为分类 | workspace、interpreter、surface |
 | `targets` | content unit target allowlist、legacy target warning、`timeline_assembly` target 规则 | language、workspace、interpreter、core、MCP |
 | `refs` | `production_ref/segment_ref` -> assembly alias、primitive refs、prompt ref kind 边界 | interpreter、prompt、engine、CLI |
 | `path-edges` | 从 source path 规范化 parent edge，但不把固定目录名当用户 vocabulary | workspace、interpreter、content canvas |
+| `path-semantics` | 统一声明 path 是实例树 canonical source，namespace vocabulary 只是 labels/templates/aliases | workspace model、MCP、agent skills |
 | `relation-graph` | normalized edge 类型：parent、scope、target、contains、uses、selected_resource、stales | interpreter、core、surface |
 | `focus` | normalized focus：namespace path、timeline assembly、primitive ref、content unit、legacy productionId | MCP host、desktop、local/web host、agent chat |
 | `invariants` | namespace 不可作为 content unit target、namespace 不可含 content-unit-ref、path/ref 一致性 | language、workspace、interpreter、tests |
@@ -516,6 +564,7 @@ function normalizePathParentEdge(input: SourcePathLike): MovScriptRelationEdge[]
 function normalizeContentUnitTarget(input: ContentUnitLike): NormalizedContentUnitTarget
 function normalizeLegacyProductionRef(input: ContentUnitLike): NormalizedContentUnitTarget
 function assertNamespaceCannotOwnContentUnitRef(input: SourceEntityLike): Diagnostic[]
+function assertNamespaceCannotOwnProductionState(input: SourceEntityLike): Diagnostic[]
 function assertContentUnitTargetIsAllowed(input: ContentUnitLike): Diagnostic[]
 ```
 
@@ -565,7 +614,9 @@ legacy source/API/UI term
 
 这一档需要做：
 
-- 在 project 级别增加 namespace vocabulary 声明，例如 `timeline_namespaces` 和 `setting_namespaces`。
+- project 创建保持干净，不写 selected timeline template。
+- 创建制作时选择 production type，例如 `video / film / episode / lesson / custom`，并把推荐内部时间层级写到 root production 的 `timeline_namespaces`。
+- 在 project 级别只保留可选 vocabulary registry、setting namespace 默认值或 legacy `namespace_vocabulary` 兼容读取。
 - 在 read model 中把旧的 `production / segment / setting / state` 映射为 namespace node。
 - UI 展示层使用 vocabulary alias，而不是固定显示 Productions、Segments、Settings、States。
 - Agent planning 使用 vocabulary 组织结构，但写入时仍落回现有 path layout。
@@ -618,7 +669,7 @@ setting_graph/{node}/node.json
 
 | 层面 | 当前状态 | 改造方向 | 难度 |
 | --- | --- | --- | --- |
-| Domain abstraction package | 目前没有统一 package；各层分散理解 production/segment、path、target、focus | 新增 `@movscript/domain`，先统一 category、target、ref、path edge、focus 和 invariant | 中 |
+| Domain abstraction package | 已新增 `@movscript/domain`；category、target/ref、path edge、path semantics、focus、namespace invariant、vocabulary fallback/next-kind 已进入纯 TS package，仍需继续迁移剩余 UI/host/workbench 逻辑 | 各层继续消费 `@movscript/domain`，停止复制 production/segment、path、target、focus 和 vocabulary 顺序规则 | 中 |
 | Source layout | 固定 `productions/{production}/segments/{segment}` 和 `settings/{setting}/states/{state}` | 第一阶段保留；后续再评估通用布局 | 高 |
 | Domain schema | `production`、`segment`、`setting_state` 是固定 entity kind | 增加 namespace vocabulary 和 namespace node projection | 中 |
 | Workspace policy | source collection 固定为 `settings / scripts / content_units / productions` | 兼容旧 collection，必要时增加新 collection | 中 |
@@ -644,40 +695,40 @@ setting_graph/{node}/node.json
 
 | 层面 | 主要文件 | 当前耦合 | 改造含义 |
 | --- | --- | --- | --- |
-| Domain abstraction | `packages/domain`（新增） | 当前不存在统一抽象，language/workspace/interpreter/core/surface 各自硬编码 target、path、legacy ref 和 focus 规则 | 先建立纯 TS 语义内核：分类、target allowlist、legacy projection、path edge、relation edge、normalized focus 和 invariant |
-| Language schema | `packages/language/src/domain/schemaTypes.ts`, `packages/language/src/domain/schemas.ts` | `SemanticEntityKind` 和 `WorkspaceKind` 是闭合集合；`content_unit.target_kind` 仍包含 `production / segment / setting`；`production` schema 文案仍说它是 makeable video unit | 需要引入 namespace vocabulary/project 配置、namespace projection、`timeline_assembly` target，并把旧 production/segment target 解释成 legacy assembly |
+| Domain abstraction | `packages/domain` | 已建立纯 TS 语义内核：分类、target allowlist、legacy projection、path edge、path semantics、normalized focus、namespace invariant、namespace vocabulary fallback 和 child-kind 推导；normalized focus 已接受 `timelineAssemblyRef` / `timeline_assembly_ref` URL alias；language/workspace/interpreter/core/surface 已开始消费 | 继续把剩余 package-specific production/segment/path/focus 判断迁到 `@movscript/domain`，尤其是 host runtime、legacy workbench、editing target 和更细的 surface label/summary |
+| Language schema | `packages/language/src/domain/schemaTypes.ts`, `packages/language/src/domain/schemas.ts` | project schema 已声明 namespace vocabulary/template；production/segment 文案已改成 legacy timeline namespace projection；content unit schema 已加入 `timeline_assembly` target，并把 production/segment 标成 legacy alias | 继续保留 schema-level compatibility；强约束由 `@movscript/domain` target normalizer 和 interpreter validation 执行 |
 | Workspace model | `packages/workspace/src/domain/models.ts` | editable/context path pattern 固定为 `productions/{production}/segments/{segment}/...` 和 `settings/{setting}/states/{state}/...` | 第一阶段只能做 projection；如果直接递归 namespace，会影响所有 domain model path pattern |
 | Source layout policy | `packages/workspace/src/layout/policy.ts` | source collection 固定为 `settings / scripts / content_units / productions / project_standards`，entity files 固定为 production、segment、setting_state 等 | 新 collection 或递归布局要先有兼容层，不能让 layout policy 先变成破坏性迁移 |
-| Repository writers | `packages/workspace/src/repository/production.ts`, `packages/workspace/src/repository/entities.ts`, `packages/workspace/src/repository/contentUnits.ts` | production tree writer 和 setting tree writer 生成固定路径；asset 需要 setting_id + setting_state_id；content unit writer 识别 production_ref/segment_ref | 新写入路径要 parent-aware；旧 writer 保持为兼容 API；禁止 writer 给 namespace source record 反向挂 content-unit-ref |
+| Repository writers | `packages/workspace/src/repository/production.ts`, `packages/workspace/src/repository/entities.ts`, `packages/workspace/src/repository/contentUnits.ts` | production tree writer 和 setting tree writer 生成固定路径；asset 需要 setting_id + setting_state_id；content unit writer 识别 production_ref/segment_ref | 新写入路径要 parent-aware；旧 writer 保持为兼容 API；禁止 writer 给 namespace source record 反向挂 content-unit-ref、candidate、selection 或 resource 状态 |
 | Indexer/query | `packages/workspace/src/indexer/domainIndex.ts` | query 通过 path segment 匹配 productionId、segmentId、settingId、settingStateId、sceneMomentId | 需要 normalized parent/ref 索引；路径继续提供 layout parent edge，但查询语义不能只认固定目录名 |
 | Interpreter validation | `packages/interpreter/src/sourceValidation/index.ts` | 用固定正则校验每种 entity 路径；setting state/asset 归属通过目录前缀验证 | 需要从“路径正则即语义”升级到“path parent edge + schema/category + ref 一致性校验” |
 | Entity change id | `packages/interpreter/src/entityChanges/index.ts` | `sourceEntityKindFromRelativePath` 按文件名识别 kind，`stableDirectoryIdForSourceEntity` 按固定 path index 取 id | 递归 namespace 或新 layout 会先撞到这里；必须让 stable id 来自显式 id/ref，而不是目录位置 |
 | Derived parent graph | `packages/interpreter/src/artifacts/derivedArtifactHelpers.ts`, `packages/interpreter/src/artifacts/relationGraph.ts` | parent relation 先由最近父目录推导；content unit relation 再由 specialized adapter 补 refs | normalized relation graph 应把 path-derived tree parent 和 explicit refs 合并成统一 edge；path parent 不是 legacy-only |
-| Stale/impact | `packages/interpreter/src/artifacts/impactReport.ts`, `packages/interpreter/src/node/regeneration.ts` | impact 类型和 preview timeline 仍把 production/segment/scene_moment 当 timeline entity；production id 从 `productions/{id}` 路径推导 | namespace 影响需要通过 namespace -> primitive/assembly -> content unit 传播；legacy production/segment impact 映射到 implicit assembly |
+| Stale/impact | `packages/interpreter/src/artifacts/impactReport.ts`, `packages/interpreter/src/node/regeneration.ts` | impact 已通过 relation graph 追踪 namespace context：上层 timeline namespace / setting namespace 变更可沿 path parent edge 影响 descendant primitive、assembly content unit 和 asset_ref content unit；legacy production/segment impact 映射到 implicit assembly；regeneration plan 已优先读取 latest impact report artifact | 继续让 status/read model 直接消费 normalized impact，而不是重新按 production/segment 解析路径 |
 | Content unit adapters | `packages/interpreter/src/artifacts/contentProductionAdapters.ts`, `packages/interpreter/src/artifacts/contentProductionHelpers.ts`, `packages/workspace/src/previewTimeline.ts` | adapter 只认 `production_ref / segment_ref / asset_ref / keyframe_ref / storyboard_ref / scene_moment_ref / expression_unit_ref` | 增加 `timeline_assembly_ref`；`production_ref / segment_ref` 保留为 assembly alias；不新增 `episode_ref / act_ref / timeline_namespace_ref` |
-| Core read model | `packages/core/src/content/sourceWorkspaceData.ts`, `packages/core/src/content/sourceWorkspaceTypes.ts` | snapshot 和 hierarchy tree 是固定数组：settings、settingStates、assets、productions、segments、sceneMoments 等 | 需要增加 namespace projection tree，同时保留旧数组给兼容 UI 和工具 |
-| UI tree/create | `packages/core/src/content/sourceWorkspaceTree.ts`, `surface/project/src/features/content/...` | Add child 逻辑固定：production -> segment、segment -> scene_moment、setting -> state、state -> asset；generation command 直接 ensure `scene_moment_ref` / `asset_ref` | UI 需要区分 namespace node 和 system primitive；namespace node 不出现“生成内容”主命令，只有 primitive/assembly 出现 |
-| Content Canvas graph/actions | `surface/project/src/features/content/domain/contentCanvasTypes.ts`, `contentCanvasWorkspaceSnapshot.ts`, `contentCanvasGraphReferences.ts`, `contentCreativeCanvasActions.ts`, `contentCanvasCreateNodeCommands.ts`, `contentCanvasContentUnitCreateNodeCommands.ts` | canvas node kind、layout column、create action、parent lookup 和 default create flow 全都写死 production/segment/scene_moment；还能自动创建 `canvas_production`、`canvas_segment` 再挂 scene_moment/content unit | 需要把 canvas model 改成 normalized node category：namespace node、system primitive、content unit、candidate/resource；namespace 只创建子 namespace/primitive/assembly，不直接生成候选 |
-| Core workbench/orchestration legacy model | `packages/core/src/production/orchestration.ts`, `packages/core/src/content/workbenchWriteModel.ts`, `sourceWorkspaceEngine.ts`, `sourceWorkspaceData.ts` | 老 content workbench 仍以 productionId、segmentId、sceneMomentId、preview_timeline.production_id 和 `targetKind = "production"` 组织拖拽、timeline item、progress 和 editing timeline | 标成 legacy table/workbench compatibility；新 timeline namespace/assembly 不应复用 production orchestration helper |
-| MCP/domain tools | `packages/core/src/mcp/tools/domain/definitions.ts`, `packages/core/src/mcp/node/tools/domain/actions.ts` | 工具名和参数是 `domain_upsert_production_tree`、`domain_upsert_segment`、`domain_upsert_setting_tree`；tree upsert 会自动创建 `production_ref / segment_ref / scene_moment_ref` | 新增 namespace-aware 工具或给旧工具加 projection 语义；自动 content unit 创建必须避免挂到 namespace |
-| Project Service resource view | `services/project-service/src/server.mjs`, `packages/core/src/mcp/node/tools/project/resources.ts` | project resources 把 `episodes/productions` 映射为 production，把 `scenes/segments` 映射为 segment | resource view 需要能展示用户 vocabulary，同时把 legacy resource kind 投影到 namespace/system primitive |
-| Engine/source commands | `packages/engine/src/index.ts` | source command 和默认 output kind 仍按 production/segment/scene_moment/asset/keyframe/storyboard 分支 | engine 层要吃 normalized target；否则 UI/MCP 即使变了，执行层仍会写回旧语义 |
-| Prompt compiler | `packages/prompt/src/index.ts` | prompt ref kind 是固定 union：`production / segment / asset / keyframe / storyboard / scene_moment / expression_unit / content_unit / candidate / resource`；`production_ref / segment_ref` 仍被当成 primary ref | 需要决定 prompt 是否允许引用 namespace；推荐不允许 namespace 作为稳定资源依赖，只新增 `timeline_assembly` 或继续通过 primitive/content_unit/candidate/resource 引用 |
-| Editing model/service | `packages/editing/src/movscript-edit-plan.ts`, `packages/editing/src/media-project.ts`, `services/editing-service/src/server.mjs` | edit plan 需要 `productionId / productionPath / sceneMomentId / sceneMomentPath`；production timeline builder 硬编码 `targetKind = "production"` | assembly 进入剪辑后，editing API 要能接受 `timeline_assembly` 或 scope-centric target；旧 production timeline 作为 assembly alias 保留 |
+| Core read model | `packages/core/src/content/sourceWorkspaceData.ts`, `packages/core/src/content/sourceWorkspaceEngine.ts`, `packages/core/src/content/sourceWorkspaceTypes.ts` | snapshot 已携带 namespace vocabulary/domain graph；`sourceWorkspaceEngine` 已从 `timeline_assembly_ref` content unit scope 读取 scope-aware preview timeline，并生成 `targetKind = "timeline_assembly"` 的 MediaEditingProject timeline；旧 production preview timeline 继续作为 legacy editing timeline | 继续让剩余 workbench/table caller 消费 normalized assembly/status，而不是只读 `preview_timeline.production_id` |
+| UI tree/create | `packages/core/src/content/sourceWorkspaceTree.ts`, `surface/project/src/features/content/...` | Add child 逻辑仍来自 production -> segment、segment -> scene_moment、setting -> state、state -> asset；Content Canvas 旧 timeline root/child 写入已要求显式 `legacyTimelineMount`；root timeline namespace 已可通过 project vocabulary picker 选择 `timelineNamespaceKind` 并走 path-first `writeHierarchyNode`；normalized timeline namespace parent 下的 child namespace / scene_moment create 已走 path-first `writeHierarchyNode`，child namespace kind 由 `@movscript/domain` vocabulary fallback/next-kind 默认到父级下一层；root setting namespace 和 setting child namespace/state create 已接 project vocabulary，并写入 `namespace_kind`；direct prompt scene_moment 已可选择 timeline namespace path 写入，自动挂载 setting/state 时也带 setting namespace kind；namespace scope 已能通过 Creative Canvas action 创建 `timeline_assembly_ref` content unit；generation command 直接 ensure `scene_moment_ref` / `asset_ref`；结构树、关系事实和主要创建文案已优先显示 vocabulary/category；Content Canvas arrange 已按 timeline namespace ancestor depth 排列，navigator 已暴露 `domainKind`，collapsed summary 和 filter label 已用 `domainKind` 显示 setting/timeline namespace | UI 需要继续区分 namespace node 和 system primitive；namespace node 不出现“生成内容”主命令，只有 primitive/assembly 出现；旧 add child 只能作为 legacy projection command；剩余是其他 legacy workbench/surface 入口继续 category/vocabulary 化 |
+| Content Canvas graph/actions | `surface/project/src/features/content/domain/contentCanvasTypes.ts`, `contentCanvasWorkspaceSnapshot.ts`, `contentCanvasGraphReferences.ts`, `contentCreativeCanvasActions.ts`, `contentCanvasCreateNodeCommands.ts`, `contentCanvasContentUnitCreateNodeCommands.ts`, `loadContentCanvasProject.ts` | canvas 已有 normalized category / namespace candidate guard；namespace 节点的 Creative Canvas 子动作已从 `domainCategory` 分发；root timeline namespace 和 normalized timeline namespace parent 下的 child create 已接 path-first hierarchy writer，并由 `@movscript/domain` vocabulary fallback/next-kind 决定 root/child namespace kind 默认值；direct prompt scene_moment 已可用 timeline namespace path 创建 `scene_moment` 并确保 `scene_moment_ref`；namespace scope 的 assembly action 已创建 `timeline_assembly_ref` content unit，target 是 `timeline_assembly` 而不是 namespace；Electron gateway 已把 `timeline_assembly` ensure 分流到 `ensureMovScriptEngineTimelineAssemblyContentUnit`，避免 UI action 回到 generic ensure 或 legacy production writer；所有通过 production/segment 旧投影创建 timeline root/child 或直接 scene_moment 的路径，都已要求显式 `legacyTimelineMount`；node display code/kind、structure tree meta、relation ledger 类型事实已优先使用 namespace vocabulary；layout arrange 已从 fixed production/segment column 迁到 domain category + ancestor depth，navigator、collapsed summaries 和 filter labels 已携带/显示 `domainKind`；project loader 已把 `timeline_assembly` editing timeline 按 targetRef、scope 和 scope projection node 建索引 | 继续把旧 workbench surface 从 fixed kind 迁到 category/vocabulary；namespace node 只创建子 namespace / scene_moment / assembly，不直接生成候选 |
+| Core workbench/orchestration legacy model | `packages/core/src/production/orchestration.ts`, `packages/core/src/content/workbenchWriteModel.ts`, `sourceWorkspaceEngine.ts`, `sourceWorkspaceData.ts` | 老 content workbench 仍以 productionId、segmentId、sceneMomentId 和 preview timeline item 组织拖拽、timeline item、progress；`sourceWorkspaceEngine` 已并行输出 canonical `timeline_assembly` editing timeline；`workbenchWriteModel` 在无 productionId 时已能用 `timeline_assembly` scope 输出 target/scope payload；legacy production editing timeline 保留兼容 | 继续标成 legacy table/workbench compatibility；新 timeline namespace/assembly 不复用 production orchestration helper，后续更多 caller 改走 normalized status/Editing Service |
+| MCP/domain tools | `packages/core/src/mcp/tools/domain/definitions.ts`, `packages/core/src/mcp/node/tools/domain/actions.ts` | `domain_upsert_content_unit` 已支持并说明 `timeline_assembly_ref` scope-first 写法；`domain_upsert_production_tree` 仍是 legacy production-projection tree，且 tree upsert 默认还会创建 `production_ref / segment_ref / scene_moment_ref` | 继续把 agent 写入入口导向 explicit `timeline_assembly_ref`；tree writer 保持兼容，但不能成为自定义 namespace 的新建入口 |
+| Project Service resource/read model | `services/project-service/src/server.mjs`, `packages/core/src/mcp/node/tools/project/resources.ts`, `packages/core/src/mcp/node/tools/project/summaries.ts` | resource view 已暴露 `namespace-vocabulary`、`timeline-namespaces`、`setting-namespaces`、`system-primitives`、`domain-nodes`、`domain-edges`；legacy `episodes/productions/scenes/segments/settings/setting-states` resource item 已带 `domainCategory`、`domainKind`、`legacyAlias`、`preferredResourceKind`；Project Service read model 已返回 `projectTimelineStatus` / `project_timeline_status`，由 shared `sourceWorkspaceStatus` helper 从 domain graph 和 `timeline_assembly_ref` content unit 推导；source command 已新增 `writeNamespaceNode` 和 `ensureTimelineAssemblyContentUnit`，前者把用户 `kind` 规范化为 `namespace_kind`，后者只创建 assembly content unit | resource/read model/source command 已有 canonical projection；下一步是让更多调用方停止直接调用 `createProduction/createSegment` 新建用户层级 |
+| Engine/source commands | `packages/engine/src/index.ts`, `services/project-service/src/server.mjs`, `packages/project/src/index.ts` | content-unit ensure/write 边界已支持 `timeline_assembly` normalized target；Project Service 已提供 `writeNamespaceNode` / `ensureTimelineAssemblyContentUnit` 作为 namespace/assembly command；production/segment tree writer、`writeHierarchyNode` 和默认 `main` production 仍是 legacy facade | 继续把新入口收敛到 normalized target；旧 production/segment writer 只作为兼容 API，不承载用户自定义 namespace |
+| Prompt compiler | `packages/prompt/src/index.ts` | prompt ref 已拒绝 namespace-like refs，例如 `{{episode::id}}` / `{{beat::id}}`，并把它们报告为 `unsupported_prompt_ref_kind`；稳定依赖继续走 primitive/content_unit/candidate/resource | 后续如新增 `{{timeline_assembly::id}}`，只能和 content-unit 引用择一，避免双轨 selected-resource dependency |
+| Editing model/service | `packages/editing/src/movscript-edit-plan.ts`, `packages/editing/src/media-project.ts`, `packages/editing/src/index.ts`, `packages/editing/src/service-client.ts`, `packages/workspace/src/previewTimeline.ts`, `services/editing-service/src/server.mjs` | edit plan / MediaEditingProject 已能记录 `target_kind = "timeline_assembly"`、`target_ref`、`scope_kind`、`scope_ref` 和 legacy production alias；Editing Service 新增 `timelineAssemblyBundle` canonical view；Workspace Service 已能从 timeline namespace scope 派生 preview timeline；production timeline bundle 继续作为 legacy assembly alias 输出 | canonical view 已支持 `timeline_assembly:<namespace_kind>:<scope_ref>`，找不到 scope 时返回 blocked bundle 而不是降级为 production；剩余限制是 source layout 仍通过 production/segment 文件投影 namespace，preview timeline schema 仍保留 legacy `movscript.preview_timeline.v1` |
 | Runtime workspace scope | `packages/workspace/src/root.ts`, `packages/workspace/src/node/paths.ts` | workspace scope 是 `global / project / production`，production scope 决定 provider session cwd 和 interpret base dir | 这属于 runtime context，不等同于用户 timeline namespace；若要扩展，不应把 episode/season 直接塞进 scope union |
 | Shared/Desktop semantic entities | `packages/shared/src/surfaceSemanticEntities.ts`, `apps/desktop/src/shared/infrastructure/api/semanticEntityConfigs.ts`, `packages/core/src/production/*` | 仍有 `segments / sceneMoments / assetSlots / production_id / owner_type` 等旧表格式 surface 配置和 production analysis/orchestration helper | 先标为 legacy/table-surface projection，不反推新 source domain；需要 UI 迁移时再映射到 namespace/primitive |
-| CLI | `apps/cli/src/commands/lang.ts`, `apps/cli/README.md` | CLI 暴露 `production add`、`segment add`、`scene-moment add`、`content-unit --production/--segment`；interactive help 也写死旧路径语言 | 新增 namespace/assembly 命令或标注旧命令为 legacy；content-unit CLI 要支持 `timeline_assembly_ref`，并拒绝 namespace target |
+| CLI | `apps/cli/src/commands/lang.ts`, `apps/cli/README.md` | CLI 暴露 `production add`、`segment add`、`scene-moment add`；`content-unit add/modify` 已支持 `timeline_assembly_ref`、`--timeline-assembly`、`--scope-kind`、`--scope-ref`，并把 `production_ref/segment_ref` 标成 legacy assembly alias | 继续补 namespace-aware create/list 命令；旧 production/segment 命令保留为 legacy convenience，不新增 `episode_ref/beat_ref` |
 | Data Service decisions | `services/data-service/internal/app/contentcandidate/*`, `services/data-service/internal/app/decision/*`, `services/data-service/internal/domain/job/helpers.go`, `services/data-service/internal/infra/persistence/model/decision.go` | decision 表是通用 `target_kind/target_ref`，但 content-candidate generation、job sync、reconcile 固定写 `target_kind = "content_unit"` | 这是正确边界：后端 candidate/selection 继续只服务 content unit，不扩展到 namespace；assembly 也通过 assembly content unit 进入 |
-| Project client/contracts | `packages/project/src/index.ts`, `packages/mcp-contracts/src/index.ts`, `packages/agent-protocol/src/*` | resource view kind 暴露 `episodes / productions / scenes / segments`；context snapshot 仍带 `productionId` | 这些是 surface/API compatibility terms；新增 namespace scope 时要并行引入 `timeline_scope`/`namespace_path` 一类语义，不直接复用 productionId |
-| MCP host/runtime status | `packages/mcp-host/src/stdio.ts`, `packages/runtime-contracts/src/index.ts` | `movscript_runtime_status` 入参和 Local Surface URL 仍支持 `productionId`；project source detection 硬编码 `settings/content_units/productions/scripts` | runtime status 是 agent 入口，必须把 `productionId` 标为 legacy focus；source detection 应走 layout policy/project metadata，而不是固定目录名 |
-| Agent browser surfaces | `packages/core/src/agent/surfaces.ts`, `surface/project/src/components/AgentPreviewTimelineSurface.tsx`, `ProjectOverviewSurface.tsx`, `ProjectSurfaceRouteView.tsx` | preview timeline surface 必须有 `productionId`，页面标题/缺失态/usage 都写 production preview；project status 也把 productionId 作为 query/entity | surface entity 应支持 `timelineScopeId/namespacePath/timelineAssemblyId`；productionId 只作为 legacy query |
-| Agent chat/protocol | `packages/agent-chat/src/chat/agentChatServerRequests.ts`, `packages/agent-protocol/src/*` | workspace scope 仍有 `production`；workspace kind 仍有 `production_workspace`；decision request 展示 `targetKind/targetPath/contentUnitId` | `contentUnitId` 是正确稳定目标；`targetKind` 必须继续拒绝 namespace target；新增 timeline/assembly focus 时旧 production workspace 只做 legacy alias |
-| Desktop Agent workspace/handoff | `apps/desktop/src/shared/contracts/workspaceChangeHandoff.ts`, `apps/desktop/src/features/agent/domain/workspaceDomainModel.ts`, `AgentRuntimeChatShell.tsx`, `agentCommandInput.ts` | review path 和 command input 会从 `production_workspace`、`productionId` 推导脚本工作台上下文；`content_unit_workspace` 也会在 production target 下回到 scripts workbench | 新增 namespace/assembly focus 后，handoff 不能只靠 productionId；旧路由保留为 legacy focus，新入口应使用 normalized target 或 `timelineScopeId/namespacePath/timelineAssemblyId/contentUnitId` |
-| Desktop Electron runtime bridge | `apps/desktop/src/electron/ElectronMCPContextBridge.tsx`, `apps/desktop/src/shared/contracts/electronApiWorkspaceContext.ts`, `apps/desktop/electron/services/projectEngineRegistry.ts`, `apps/desktop/electron/ipc/movscriptEngineIpc.ts` | Electron MCP context 和 workspace context 仍有 `scope = "production"` / `productionId`；engine IPC 仍暴露 production/segment create 和 production snapshot；registry 从 `production_ref/segment_ref` 还原 runtime fields | 这是 runtime/source bridge，不应直接改成用户 namespace；新增 normalized focus 和 assembly target 后再逐步替换旧字段 |
-| Local/Web surface host | `services/local-surface-host/src/project/*`, `services/web-surface-host/src/main.tsx` | 路由和 read-model snapshot 继续传 `productionId`，并合成 `movscript.production_status_summary.v1` | host context 要把 production status summary 标成 legacy projection；未来改成 project timeline/namespace status，避免 agent 只围绕 production 工作 |
-| Local Surface semantic adapter | `services/local-surface-host/src/host-runtime/infrastructure/api/semanticEntities.ts` | host runtime 里还有 `segments -> segment`、`productions -> production`、`settingStates -> setting_state`、`contentUnits -> content_unit` 等固定映射 | 这层应改为消费 Project Service/read model projection；不要让 host runtime 自己定义 domain vocabulary |
-| Desktop semantic entity API | `apps/desktop/src/shared/infrastructure/api/semanticEntityWorkspace.ts`, `semanticEntityConfigs.ts` | UI writable semantic entity 仍可直接创建 `productions / segments / sceneMoments`，并要求 `production_id / segment_id` | 这是高风险写入口；namespace-aware writer 出现后要先接管这里，否则桌面 UI 会持续写旧结构 |
-| Project entry registry/overview | `surface/project/src/features/project/domain/projectEntryRegistry.tsx`, `projectOverviewModel.ts`, `projectEntryDeckModel.ts` | 项目入口 id/stage 仍是 `orchestration_production`，primary selection 是 `productionId`，首页进度以 productions/segments/sceneMoments 计数 | entry id 可兼容保留，但 purpose/owns/reads/selection/progress 应转向 timeline namespace + scene_moment/assembly |
+| Project client/contracts | `packages/project/src/index.ts`, `packages/mcp-contracts/src/index.ts`, `packages/agent-protocol/src/*` | Project client resource view kind 已包含 namespace vocabulary、timeline/setting namespace、system primitive、domain graph，以及 legacy `episodes / productions / scenes / segments / settings / setting-states`；Project Service read model 已并行携带 `project_timeline_status`；`ProjectSourceCommandName` 已包含 `writeNamespaceNode` / `ensureTimelineAssemblyContentUnit` 这类 canonical command；MCP/agent context snapshot 已并行携带 `domainFocus`，`productionId` 仅作为 legacy projection | 这些是 surface/API compatibility terms；新增 namespace scope 不复用 productionId；后续继续把 MCP tree tool 和剩余 legacy caller 从 production-first 迁到 projection-first |
+| MCP host/runtime status | `packages/mcp-host/src/stdio.ts`, `packages/runtime-contracts/src/index.ts` | `movscript_runtime_status` 仍支持 legacy `productionId`，并已能把 `scopeKind/scopeRef/targetKind/targetRef/timelineAssemblyRef` 透传到 Local Surface URL；project source detection 已消费 workspace layout policy 的 source root files / source collection dirs，可识别 `timeline` source collection | runtime status 是只读路由入口，只传递 focus、不解释 namespace；剩余是 runtime status/read model 不再围绕 production summary 组织状态 |
+| Agent browser surfaces | `packages/core/src/agent/surfaces.ts`, `surface/project/src/components/AgentPreviewTimelineSurface.tsx`, `ProjectOverviewSurface.tsx`, `ProjectSurfaceRouteView.tsx` | preview/status surface 已支持 normalized timeline scope / `timeline_assembly` focus；`productionId` 只作为 legacy production-scope projection；页面不再因缺 productionId 阻塞 assembly/episode scope；status read model 已优先使用 `project_timeline_status` | 剩余是 project overview/entry 更深入接入 vocabulary label 与 assembly readiness；surface route 继续保持 normalized focus query |
+| Agent chat/protocol | `packages/agent-chat/src/chat/agentChatServerRequests.ts`, `packages/agent-protocol/src/*` | protocol workspace context / client input 已允许携带 `domainFocus`；workspace scope 仍保持 `global/project/production`，不把 episode/beat 塞进 scope union；decision request 展示 `targetKind/targetPath/contentUnitId` | `contentUnitId` 是正确稳定目标；`targetKind` 必须继续拒绝 namespace target；旧 production workspace 只做 legacy alias，精确对象走 normalized focus |
+| Desktop Agent workspace/handoff | `apps/desktop/src/shared/contracts/workspaceChangeHandoff.ts`, `apps/desktop/src/features/agent/domain/workspaceDomainModel.ts`, `AgentRuntimeChatShell.tsx`, `agentCommandInput.ts` | review path、runtime route context 和 command input 已消费 `@movscript/domain` normalized focus；非 production timeline scope 不再制造 `productionId`；`content_unit_workspace` 指向 production/segment 时投影为 timeline assembly preview | `production_workspace` / `content_unit_workspace` 作为 legacy workspace kind 暂留；下一步同步 agent generation projection 标签和 workspace history 文案 |
+| Desktop Electron runtime bridge | `apps/desktop/src/electron/ElectronMCPContextBridge.tsx`, `apps/desktop/src/shared/contracts/electronApiWorkspaceContext.ts`, `apps/desktop/electron/services/projectEngineRegistry.ts`, `apps/desktop/electron/ipc/movscriptEngineIpc.ts` | Electron MCP context bridge 已从 route search 派生 `domainFocus`，只有 `scopeKind=production` 才回填 legacy `productionId`；workspace context 已能携带 `domainFocus`；engine IPC 仍暴露 production/segment create 和 production snapshot作为 legacy compatibility；已新增 `ensureMovScriptEngineTimelineAssemblyContentUnit` facade，强制把 namespace scope 输出收敛为 `targetKind=timeline_assembly`、`contentUnitType=timeline_assembly_ref`，不触发 production/segment writer；共享 `SurfaceHostApi` 已暴露该可选能力，Content Canvas Electron gateway 已消费它；registry 从 `production_ref/segment_ref` 还原 runtime fields | 这是 runtime/source bridge，不应直接改成用户 namespace；下一步继续让旧 production/segment 输入投影到 namespace-aware writer 或明确停留在 compatibility 分组 |
+| Local/Web surface host | `services/local-surface-host/src/project/*`, `services/web-surface-host/src/projectSurfaceRouting.ts`, `services/web-surface-host/src/main.tsx` | route context 和 navigator 已接受 normalized timeline focus；production scope 投影为 legacy `productionId`，非 production scope 会清掉旧 `productionId` 并原样透传 focus query；Local/Web host 都识别 `timeline_assembly_ref` alias，Web host 已抽出 focus-first route helper，navigator href 会规范化 query；Local Surface Host 的 project status snapshot 已优先消费 Project Service read model 中的 `project_timeline_status`，并把 normalized `domain_focus` / timeline scope / assembly target 写入 snapshot target；local content API 对 namespace hierarchy 写入转发 `writeNamespaceNode`，对 assembly ensure 转发 `ensureTimelineAssemblyContentUnit` | 继续把桌面 bridge 的旧 production/segment create 入口降级为 legacy convenience；避免 host runtime 自建 vocabulary |
+| Local Surface semantic adapter | `services/local-surface-host/src/host-runtime/infrastructure/api/semanticEntities.ts` | `productions/segments/settings/settingStates` 旧列表已优先消费 Project Service `resources/view` 的 `timeline-namespaces` / `setting-namespaces` projection，并把返回记录标为 `legacyAlias` / `preferredResourceKind`；其他实体仍走 workspace query 固定映射 | 继续把 desktop semantic entity API 和旧 writable table surface 从固定 kind 迁到 canonical resource/read-model projection；不要让 host runtime 自己定义 domain vocabulary |
+| Desktop semantic entity API | `apps/desktop/src/shared/infrastructure/api/semanticEntityWorkspace.ts`, `semanticEntityConfigs.ts`, `workspaceDomainRepository.ts` | `productions / segments` 旧表单已暴露 `namespace_kind`；显式 namespace 或已有 `timeline/` source path 会走可选 `writeHierarchyNode`，写到 `timeline/...`，并清掉 namespace node 不应携带的 content/candidate/selection 字段；无 namespace 的 production/segment/scene_moment 写入仍保留 legacy `saveProductionSnapshot` 兼容 | 继续把 UI 表单和桌面 bridge 的默认创建路径引向 vocabulary/read-model；旧无 namespace payload 只作为 legacy convenience |
+| Project entry registry/overview | `surface/project/src/features/project/domain/projectEntryRegistry.tsx`, `projectOverviewModel.ts`, `projectEntryDeckModel.ts`, `projectOverviewData.ts` | 入口 id/stage 仍兼容保留 `orchestration_production`；purpose/owns/reads 已转向 timeline namespace + scene_moment + assembly；primary selection 已改成 `scopeKind/scopeRef` 指向 timeline namespace，`productionId` 只作为 legacy fallback；session selection 已能保存字符串 namespace ref、scope 和 target focus；review 入口不再要求 production entity，并可携带 scope/target/`timeline_assembly_ref`；overview 已尝试从 content workspace snapshot 构建 `project_timeline_status`，并优先用 timeline namespace、system primitive 和 assembly readiness 计算入口状态；旧 `productions/segments` semantic list 只作为 fallback | deck/session key 和部分 UI title 仍保留旧 entry id；后续 label/title 应来自 vocabulary/read model，而不是固定 `productionId` |
 | Admin/workspace history surface | `surface/admin/src/types/index.ts`, `surface/admin/src/i18n/locales/*.json` | admin 类型和文案里仍有 `asset_slot`、`segment`、`scene_moment`、`production_workspace`、`content_unit_workspace`，还有 `Project.total_episodes` 等历史字段 | 这层先作为显示/历史兼容；后续标签应来自 read model/vocabulary，不能反向定义 source schema |
 | Canvas surface | `surface/canvas/src/types.ts`, `surface/canvas/src/features/presentation/useWorkbenchCanvasLauncher.ts` | Canvas 仍有 `asset_slot / segment / scene_moment / content_unit` 等 semantic kind 和 `assets / production` workbench stage | Canvas 应保持 workflow/resource surface，不直接写 namespace；如果绑定 domain，只绑定 system primitive/content unit/assembly |
 | Resource surface candidates | `surface/resource/src/resourceCandidateAttachPanel.tsx`, `surface/resource/src/resourceCandidateBinding.ts`, `packages/shared/src/workspaceCandidates.ts` | 资源库仍可把资源加入 `asset_slot` 或 `keyframe` 候选，payload 带 `production_id / scene_moment_id / content_unit_id` | 这是 legacy inline candidate/asset-slot 流程；新资源选择应优先进入 `asset_ref / keyframe_ref` content unit candidate，不扩展到 namespace |
@@ -685,7 +736,7 @@ setting_graph/{node}/node.json
 | Shot Library | `packages/shot-library/src/index.ts`, `surface/shot-library/src/features/domain/*` | Shot library 使用 `shot`、`production_facets`、story beat 等检索词，但不是 source domain 的 production/segment | 作为参考镜头库保留；导入到项目时映射到 `expression_unit(role=shot)`、storyboard/keyframe 或 content unit，不恢复 `shot_ref` |
 | Docs/README/examples | `apps/plugin/README.md`, `plugins/movscript/README.md`, `apps/cli/README.md`, `docs/movscript-agent-runtime-architecture.zh-CN.md`, `docs/TODO.md` | 文档仍把 source paths 写成 `settings/**`、`content_units/**`、`productions/**`，并把 planning upserts 描述为 production/segment/scene_moment/shot | schema 确定后要同步更新说明和示例；在此之前标注为 legacy projection，避免 agent/用户继续学习旧层级 |
 | Plugin bundle/release artifacts | `apps/plugin/bin/movscript-agent-mcp.mjs`, `plugins/movscript/bin/movscript-agent-mcp.mjs`, `plugins/movscript/runtime/**` | 打包后的 agent MCP runtime 内嵌旧 content-unit adapter、preview timeline 和 source layout 逻辑 | 不能手改 bundle；源代码改造后必须重新构建插件、刷新 cache/release，并加 drift 检查 |
-| Agent plugin skills | `plugins/movscript/skills/*`, `apps/plugin/skills/*` | planning/generation/editing 技能仍教 agent 使用 `production -> segment -> scene_moment`、`production_ref / segment_ref`，content-unit recipe 还建议 production/segment target | 源语义确定后必须同步更新技能；否则 agent 会持续生成旧结构，或误把 namespace 当成 content unit target |
+| Agent plugin skills | `plugins/movscript/skills/*`, `apps/plugin/skills/*` | planning/domain/generation/editing/review/content-unit recipe 已改为 timeline namespace + system primitive + `timeline_assembly_ref`；`production/segment` 和 `production_ref/segment_ref` 只作为 legacy projection/assembly alias | 继续保持 source skill 和源码同步；plugin bundle/cache 仍需通过构建发布流程同步，不能手改 |
 | Tests/fixtures | `surface/project/src/features/content/application/contentCanvasArchitecture.test.ts` 等 | 大量 fixture 写死 `productions/prod/segments/seg/scene_moments/...` 和 `settings/hero/states/day/assets/...` | 第一阶段只需新增 projection 测试；布局迁移阶段才大规模改 fixture |
 
 ## 扫描覆盖地图
@@ -702,14 +753,14 @@ setting_graph/{node}/node.json
 | `packages/core`, `surface/project`, `apps/desktop` | read model、content canvas、semantic entity writer 会直接影响用户创建和生成入口 | 必改 UI/write boundary |
 | `surface/project/src/features/content`, `packages/core/src/content` | content canvas graph/action/layout 和旧 content workbench 以 production/segment 为结构骨架 | normalized canvas model + legacy workbench compatibility |
 | `packages/prompt`, `packages/editing`, `services/editing-service` | prompt dependency gate 和剪辑目标仍受 production/segment 影响 | 改为 primitive/content unit/assembly 目标 |
-| `services/project-service`, `packages/project` | Project API/resource view 暴露 `episodes / productions / scenes / segments` | 做 vocabulary-aware projection |
+| `services/project-service`, `packages/project` | Project API/resource view 已暴露 canonical namespace/domain graph 资源，并把 `episodes / productions / scenes / segments / settings / setting-states` 标成 legacy projection；read model 已输出 `project_timeline_status`；source command 已加入 `writeNamespaceNode` / `ensureTimelineAssemblyContentUnit` | 继续让上层调用方改用 vocabulary-aware command，旧 `createProduction/createSegment` 保持 legacy convenience |
 | `services/data-service`, `packages/data-client`, `packages/decision` | backend decision/candidate 主要绑定 `content_unit`，方向正确 | 保持边界，不扩展到 namespace |
 | `packages/mcp-host`, `packages/mcp-contracts`, `packages/agent-protocol`, `packages/agent-chat` | agent 入口、runtime status、decision request 仍携带 `productionId/targetKind` | `productionId` legacy focus；decision target 走 normalized target |
 | `packages/core/src/agent`, `surface/project/src/components/Agent*Surface.tsx` | agent browser surface 的 preview/status 页面仍以 `productionId` 为 focus | 新增 timeline/assembly surface focus |
 | `apps/desktop/src/features/agent`, `apps/desktop/src/shared/contracts` | agent workspace review path、handoff 和 command input 会从 `production_workspace/productionId` 推导上下文 | legacy workspace alias + namespace/assembly/content-unit focus |
-| `apps/desktop/electron`, `apps/desktop/src/electron` | Electron MCP context、workspace scope、engine IPC 和 project registry 仍保留 production/segment bridge | runtime bridge legacy fields + normalized focus |
+| `apps/desktop/electron`, `apps/desktop/src/electron` | Electron MCP context、workspace scope、engine IPC 和 project registry 仍保留 production/segment bridge；engine IPC 已新增 timeline assembly ensure facade，用 canonical `timeline_assembly_ref` 进入生产流程 | runtime bridge legacy fields + normalized focus；旧 production/segment create 继续降级为 compatibility |
 | `apps/plugin`, `plugins/movscript` | 技能和打包 MCP runtime 会固化旧语义 | 源码改造后重建 bundle，增加 drift check |
-| `services/local-surface-host`, `services/web-surface-host` | surface URL/read-model snapshot 仍传 `productionId`；local host runtime 还有固定 semantic entity 映射 | legacy focus + namespace focus projection；semantic adapter 消费 read model |
+| `services/local-surface-host`, `services/web-surface-host` | surface URL/read-model snapshot 仍兼容 `productionId`；local/web route context 和 navigator 已统一按 normalized focus 清理 stale `productionId`，并支持 `timeline_assembly_ref` alias；local host status 和 semantic adapter 已消费 Project Service read/resource projection，local content API 已把 namespace/assembly 写入路由到 canonical source command | legacy focus + namespace focus projection；继续迁移 desktop bridge 的旧 production/segment create 入口 |
 | `surface/admin` | workspace history、admin types 和 i18n 仍展示 `segment/asset_slot/production_workspace` 等旧词 | 显示兼容，不作为 source schema |
 | `docs/**`, `README.md`, `apps/*/README.md` | 示例和架构文档仍教固定路径和 production/segment upsert | schema 决策后同步 docs/examples |
 | `surface/resource`, `packages/shared` workspace candidates | 资源挂载仍有 `asset_slot/keyframe` 旧候选入口 | 收敛到 `asset_ref/keyframe_ref` content unit candidate |
@@ -751,12 +802,12 @@ setting_graph/{node}/node.json
 | `packages/engine/src/index.ts` | `MovScriptEngine*Input`、`PlanningEntityKind`、`planningQuery` 全部围绕 `productionId/segmentId/sceneMomentId` | engine 是旧 API facade；新增 namespace/assembly flow 时应新建 neutral input，不要把 `episodeId/beatId` 继续塞进这些字段 |
 | `packages/engine/src/index.ts` | `writeHierarchyNode` / `updateEntityBasics` 从 `targetPath` 里的 `productions/segments/scene_moments` 推导上下文，再调用 legacy writer | 新 UI/agent 不能复用这个入口写 namespace；应改为 normalized target + parent edge，旧入口只作为 legacy path writer |
 | `packages/engine/src/index.ts` | `saveProduction/saveSegment/saveSceneMoment/...` 都走 `saveProductionSnapshot`，并默认 `productionId = "main"` | 这是 production tree compatibility writer；namespace-aware writer 应避免默认 main production，以免空项目被隐式写成电影结构 |
-| `packages/engine/src/index.ts` | `saveContentUnit` 仍直写 `production_ref/segment_ref`；`defaultContentUnitOutputKind` 把 `production_ref/segment_ref` 视为 video | 增加 `timeline_assembly_ref` 后，production/segment 只作为 legacy alias；output kind 和 primary ref helper 都应收敛到 assembly |
-| `packages/core/src/mcp/tools/domain/definitions.ts` | `domain_upsert_production_tree`、`domain_upsert_segment`、`domain_upsert_scene_moment` 的 description 和 input schema 都围绕 production/segment | 新增 namespace-aware tool 前，这些工具描述必须标注 legacy/projection；否则 agent 会继续创建旧层级 |
-| `packages/core/src/mcp/node/tools/domain/actions.ts` | `domain_upsert_production_tree` 会自动为 segment-level content unit 写 `segment_ref/targetKind=segment`，production-level 写 `production_ref/targetKind=production` | tree tool 的自动 content unit 创建是高风险点；新模型下 namespace tree upsert 不应自动给 namespace scope 创建 content unit，除非显式创建 timeline assembly |
-| `packages/core/src/mcp/node/tools/domain/actions.ts` | `domainProductionStatusSummary` 返回 `movscript.production_status_summary.v1`，按 `productionId` 聚合，并只读取 `targetKind === "production"` 的 editing timeline | 应新增 `project_timeline_status` 或 assembly/status summary；旧 production summary 保留 alias，不再作为 agent 唯一状态入口 |
-| `packages/project/src/index.ts` | `ProjectSourceCommandName` 只有 `createProduction/createSegment/createSceneMoment`，resource view kind 有 `episodes/productions/scenes/segments` | Project client 要新增 namespace/assembly command 或 projection query；旧 resource kind 仅做 compatibility label |
-| `services/project-service/src/server.mjs` | `projectResourceEntityKind` 把 `episodes/productions -> production`，`scenes/segments -> segment` | Resource view 要改成 vocabulary-aware projection，不能让 API 层继续定义用户 ontology |
+| `packages/engine/src/index.ts` | `saveContentUnit` 已能透传 `target_category/target_kind/target_ref/scope_kind/scope_ref`；`ensureContentUnitForEntity(targetKind="timeline_assembly")` 会创建 canonical `timeline_assembly_ref`，并把已有 `production_ref/segment_ref` 识别为 legacy assembly alias | 下一步不要扩 `episode_ref/beat_ref`；如果新增 namespace-aware create tool，也应只创建 namespace node 或显式 assembly primitive，再由 content unit 指向 assembly |
+| `packages/core/src/mcp/tools/domain/definitions.ts` | `domain_upsert_content_unit` 已明确 `timeline_assembly_ref` 是 namespace-scope video 的 canonical target；`domain_upsert_production_tree`、`domain_upsert_segment`、`domain_upsert_scene_moment` 仍围绕 production/segment projection | 继续新增 namespace-aware tool 或在旧工具描述中保持 legacy/projection 边界；agent 新建 assembly 应走 explicit `timeline_assembly_ref` |
+| `packages/core/src/mcp/node/tools/domain/actions.ts` | `domain_upsert_content_unit` 已透传 `target_category/target_kind/target_ref/scope_kind/scope_ref`；`domain_upsert_production_tree` 对未声明 target 的嵌套 content unit 仍保留 legacy `production_ref/segment_ref` 默认，但显式 `timeline_assembly_ref` 不再继承 tree context 的 legacy primary ref | tree tool 仍是 compatibility writer；新模型下 namespace tree upsert 不应隐式给 namespace scope 创建 content unit，显式 assembly payload 必须落成 canonical `timeline_assembly_ref` |
+| `packages/core/src/content/sourceWorkspaceStatus.ts`, `packages/core/src/mcp/node/tools/domain/actions.ts` | 已新增 shared `sourceWorkspaceStatus` helper；`domainProductionStatusSummary` 仍保留 `movscript.production_status_summary.v1` 兼容 schema，但已标 `legacy_alias` / `preferred_schema = movscript.project_timeline_status.v1`，并并行返回 `namespace_vocabulary`、`project_timeline_status`、`timeline_namespaces`、`timeline_assemblies`；assembly status 由 `timeline_assembly_ref` content unit 和 normalized scope edge 得出 | 下一步让更多 surface/read model 入口直接以 `project_timeline_status` 为主 schema；旧 production editing timeline 只作为 assembly alias |
+| `packages/project/src/index.ts` | `ProjectSourceCommandName` 已包含 `writeNamespaceNode` / `ensureTimelineAssemblyContentUnit`，并补齐实际 source command union；resource view kind 已包含 namespace/domain graph projection 和 legacy setting/timeline aliases | Project client 已有 canonical command vocabulary；继续把具体 caller 从 legacy writer facade 迁过来，旧 resource kind 仅做 compatibility label |
+| `services/project-service/src/server.mjs` | source command 已支持 `writeNamespaceNode` / `ensureTimelineAssemblyContentUnit`；`projectResourceEntityKind` 对 `episodes/productions/scenes/segments` 的硬映射仍作为 legacy resource view fallback | Resource view/source command 已能 vocabulary-aware projection；剩余是调用方和 legacy resource fallback 继续降级为兼容层，不能让 API 层定义用户 ontology |
 | `packages/mcp-contracts/src/index.ts` | `MCPContextSnapshot` 顶层仍有 `productionId` | 该字段保留为 legacy focus；新增 `timelineScopeId/namespacePath/timelineAssemblyId/focusedPrimitiveRef` 一类 neutral focus |
 
 ## Surface/runtime focus 细化扫描
@@ -765,20 +816,20 @@ setting_graph/{node}/node.json
 
 | 文件 | 当前行为 | 改造判断 |
 | --- | --- | --- |
-| `services/local-surface-host/src/routes/localRouteLinks.ts` | `projectRouteContext` 只从 query 取 `productionId`；`projectSurfaceHrefForLocalProject` 会把 params 直接拼到 URL | route context 需要支持 neutral focus 参数，例如 `timelineScopeId`、`namespacePath`、`timelineAssemblyId`、`contentUnitId`；`productionId` 仅作为 legacy query |
-| `services/local-surface-host/src/project/localProjectSurfaceRuntime.ts` | runtime input 和 navigator href 都携带 `productionId`，并在路由跳转时继续写回 query | local runtime 不解释 namespace，但要完整转发 normalized focus，避免 surface 内部只能看到 production |
-| `services/local-surface-host/src/project/LocalProjectSurfaceHostRoute.tsx` | `useProjectReadModel` 接收 `productionId`，并把 read model 合成 `movscript.production_status_summary.v1`；没有 focus 时会从第一个 production 推导 `default` | 这里应改成 project timeline/status projection；旧 production summary 可以作为 alias，但不应自动选择第一个 production 当唯一状态目标 |
-| `services/web-surface-host/src/main.tsx` | Web host 只把 `productionId` 传给 `ProjectSurfaceRouteView` | Web/local host 要共享同一套 normalized focus 解析，不能出现 web 只支持 production、local 支持 namespace 的分叉 |
-| `packages/core/src/agent/surfaces.ts` | `createPreviewTimelineSurface` 必须传 `productionId`，title/query/entity 都是 production；`createProjectStatusSurface` 也只支持可选 production focus | Agent surface entity 应增加 timeline scope / assembly / primitive / content unit focus；preview timeline 长期应打开 assembly preview，而非 production preview |
-| `apps/desktop/src/pages/agent/AgentPreviewTimelinePage.tsx` / `AgentProjectStatusPage.tsx` | 页面从 URL 读取 `productionId`；preview timeline query 没有 productionId 就不启用 | `Missing productionId` 不应阻塞 namespace/assembly 项目；页面应先读 normalized focus，再决定 preview/status loader |
-| `surface/project/src/components/AgentPreviewTimelineSurface.tsx` / `AgentProjectStatusSurface.tsx` | UI 文案和 chips 都写 Production；status surface 从 `summary.productions[0]` 取 content units | surface 应显示 vocabulary label 或 assembly title；status data 不应固定为 `productions[]` 结构 |
-| `surface/project/src/components/AgentImpactSurface.tsx` | impact item 会从 `targetPath` 正则解析 `productions/{id}`，再生成 `Open preview` 链接 | impact surface 应优先使用 normalized target/assembly/content unit；path 解析只作为 legacy fallback |
+| `services/local-surface-host/src/routes/localRouteLinks.ts` | `projectRouteContext` 已按 normalized focus 优先解析；`projectSurfaceHrefForLocalProject` / `projectRouteHref` 会规范化 timeline focus query，非 production scope 清掉旧 `productionId`；`timeline_assembly_ref` alias 已进入同一 focus parser | 继续把 `productionId` 作为 legacy query；新增 focus 字段时统一进入 normalized focus helper，不再散落解析 |
+| `services/local-surface-host/src/project/localProjectSurfaceRuntime.ts` | navigator href 已在 query/params 合并后规范化 timeline focus，避免旧 `productionId` 和新 namespace scope 并存 | local runtime 不定义 namespace；只负责完整转发 normalized focus |
+| `services/local-surface-host/src/project/LocalProjectSurfaceHostRoute.tsx` / `projectStatusSnapshot.ts` | `useProjectReadModel` 仍接收 legacy `productionId`，但 status snapshot 已优先消费 read model 的 `project_timeline_status`，并把 normalized `domain_focus`、timeline scope 和 assembly target 写入 snapshot target；`movscript.production_status_summary.v1` 标成 alias，没有 projection 时才回退 legacy production summary | 继续把 URL/route 里的 `productionId` 作为 legacy query；后续可直接让 status surface 请求 project timeline schema |
+| `services/web-surface-host/src/projectSurfaceRouting.ts` / `main.tsx` / `projectSurfaceRuntime.ts` | Web host 已抽出 focus-first route helper；route context 和 navigator href 都会规范化 timeline focus query，非 production scope 清掉旧 `productionId`，production assembly alias 回填 legacy `productionId`；raw query 继续传给 `ProjectSurfaceRouteView` 作为 surface params | 后续如增加新的 focus 字段，应先进入 `@movscript/domain` normalizer，再由 local/web helper 转发 |
+| `packages/core/src/agent/surfaces.ts` | preview/status surface 已输出 normalized domain focus、timeline scope 和 assembly target；`productionId` 是 legacy projection | preview timeline 长期应打开 assembly preview，而非 production preview；status data 仍需升级 read model |
+| `apps/desktop/src/pages/agent/AgentPreviewTimelinePage.tsx` / `AgentProjectStatusPage.tsx` | 页面已从 query 形成 normalized focus；没有 productionId 时，timeline assembly target/scope 仍可启用 loader | 后续页面可显示更明确的 vocabulary label / assembly title |
+| `surface/project/src/components/AgentPreviewTimelineSurface.tsx` / `AgentProjectStatusSurface.tsx` | UI 文案和 chips 已改成 Timeline / normalized focus；status surface 已优先读取 `project_timeline_status.timeline_assemblies`，旧 `summary.productions[0].content_units` 仅作 fallback；Local Host status snapshot 也已透传 read model projection | 后续减少 legacy fallback 路径，并让 status surface 直接以 project timeline schema 展示 |
+| `surface/project/src/components/AgentImpactSurface.tsx` | impact preview link 已优先使用 normalized target/scope，path regex 只做 legacy fallback | 继续避免从 namespace path 反推出 production-only preview |
 | `apps/desktop/src/electron/ElectronMCPContextBridge.tsx` | 只在 scripts route 解析 query `productionId` 并写入 MCP context | context bridge 应传 normalized focus；scripts route 上的 productionId 只做 legacy route hint |
 | `apps/desktop/src/shared/contracts/electronApiWorkspaceContext.ts` / `apps/desktop/electron/services/workspaceRealm.ts` | workspace scope union 是 `global/project/production`，`scope = production` 会进入 workspace path/context | 不把用户 namespace 塞进 scope union；新增 focus payload 与 runtime scope 分离 |
 | `packages/mcp-host/src/stdio.ts` | `movscript_runtime_status` 入参和 Local Surface URL common query 支持 `productionId` | runtime status 是只读路由入口，应支持转发 namespace/assembly focus，但解释仍交给 Project Service/read model |
-| `apps/desktop/src/shared/contracts/workspaceChangeHandoff.ts` / `workspaceDomainModel.ts` | `production_workspace` review path 跳到 scripts workbench + `productionId`；`content_unit_workspace` 指向 production 时也回退到 production workbench | workspace review path 应先按 content unit / scene moment / assembly / namespace focus 分流；production workspace 只作为 legacy alias |
-| `apps/desktop/src/features/agent/domain/agentCommandInput.ts` / `AgentRuntimeChatShell.tsx` | command input 和 runtime workspace context 从 URL `productionId` 推断 `pageEntityType = production` 和 `scope = production` | agent command context 应优先消费 normalized focus/read model；不要仅凭 productionId 判定当前对象 |
-| `apps/desktop/src/shared/infrastructure/api/semanticEntityConfigs.ts` / `semanticEntityWorkspace.ts` | Desktop semantic entity writer 暴露 productions/segments/sceneMoments，并要求 `production_id/segment_id` 后调用 `saveProductionSnapshot` | 这是 UI 直接写旧 source 的高风险入口；namespace-aware writer 出现后应优先替换这里 |
+| `apps/desktop/src/shared/contracts/workspaceChangeHandoff.ts` / `workspaceDomainModel.ts` | review path 已按 content unit / scene moment / assembly / namespace focus 分流；`production_workspace` 可打开项目级 scripts review，`content_unit_workspace` 的 production/segment target 会进入 timeline assembly preview | workspace kind 仍是 legacy alias；后续同步标签和历史记录展示，避免用户继续把它理解成 source ontology |
+| `apps/desktop/src/features/agent/domain/agentCommandInput.ts` / `AgentRuntimeChatShell.tsx` | command input 和 runtime workspace context 已优先消费 normalized focus；非 production timeline scope 保持 project runtime scope + `domainFocus`，productionId 只是 legacy route hint | 后续 read model/vocabulary label 进入 page context 时，也应继续映射到同一 `domainFocus` |
+| `apps/desktop/src/shared/infrastructure/api/semanticEntityConfigs.ts` / `semanticEntityWorkspace.ts` | Desktop semantic entity writer 暴露 productions/segments/sceneMoments；production/segment 表单已可填 `namespace_kind`，显式 namespace 或已有 `timeline/` path 会走 hierarchy writer；无 namespace payload 仍调用 `saveProductionSnapshot` | UI 直接写旧 source 的高风险已降低一层；继续把默认创建 UI 从 legacy table 转向 vocabulary-aware surface |
 | `packages/agent-chat/src/chat/agentChatServerRequests.ts` | decision metadata 透传 `targetKind/targetPath`，但生成结果卡使用 `targetKind = content_unit` | 生成结果的 content unit 边界是正确的；需要在通用 decision request 入口拒绝 namespace target |
 
 ## Content Canvas / Project Entry 细化扫描
@@ -792,8 +843,8 @@ Content Canvas 不是单纯展示层。它会创建 source 节点、确保 conte
 | `surface/project/src/features/content/domain/contentCanvasWorkspaceSnapshot.ts` | `sourceEntities` 直接拼 `productions/segments/sceneMoments/...`；parent lookup 通过 `pathSegmentAfter(..., "productions" | "segments" | "scene_moments")` 推导 | snapshot 应消费 normalized relation graph；path-derived parent edge 仍保留，但不要在 canvas 内自建固定层级解释器 |
 | `surface/project/src/features/content/domain/contentCanvasWorkspaceSnapshot.ts` | `buildGenerationTaskIndex` 只把 `asset/keyframe/storyboard/scene_moment/expression_unit` 识别为 content unit target，没有 production/segment generation task | 这是好边界：namespace 不应该有 generation task；后续只需增加 `timeline_assembly`，不要把 namespace target 加进来 |
 | `surface/project/src/features/content/domain/contentCanvasGraphReferences.ts` | content unit reference edge 支持 scene_moment、asset、keyframe、storyboard、resource 等 primitive/resource target | 继续保持 primitive/resource/content-unit 依赖边；增加 assembly edge；不要支持 `episode/act/timeline_namespace` reference edge 进入 selection gate |
-| `surface/project/src/features/content/application/contentCanvasCreateNodeCommands.ts` | root create 支持 `production`，child create 支持 `production -> segment -> scene_moment`；默认 id 包含 `canvas_production`、`canvas_segment` | 高风险写入口；新结构应创建 timeline namespace node、scene_moment 或 timeline_assembly，旧 production/segment create 只作为 legacy command |
-| `surface/project/src/features/content/application/contentCanvasContentUnitCreateNodeCommands.ts` | 直接创建 scene moment 时要求显式 production + segment，且可自动创建 production/segment，再创建 `scene_moment_ref` content unit | 需要改成先选择/创建 timeline namespace path，再挂 `scene_moment`；自动创建旧 production/segment 只能保留在 legacy wizard |
+| `surface/project/src/features/content/application/contentCanvasCreateNodeCommands.ts` / `contentCanvasCommands.ts` | root production 已支持制作级 production type picker + `writeHierarchyNode` 写 `timeline/{id}/production.json`；project 创建不再选择 timeline；production type 只推荐内部 `timeline_namespaces`，不会自动实例化多层；child create 在 normalized `timeline_namespace` parent 下已用 production type/vocabulary 推导 child namespace kind，并用 `writeHierarchyNode` 写 namespace path / scene_moment path，且不反写 `production_id/segment_id`；root setting namespace 和 setting child namespace/state create 已用 project vocabulary 推导 kind，并通过 engine facade 写入 `namespace_kind`；namespace scope assembly 已通过 `ensureContentUnitForEntity(targetKind="timeline_assembly", contentUnitType="timeline_assembly_ref")` 创建 content unit；旧 production/segment projection 写入必须显式 `legacyTimelineMount`；结构树、radial code、关系事实和主要创建文案已显示 vocabulary/category；Content Canvas arrange 已按 domain ancestor depth 排列 timeline namespace，navigator item、collapsed summary 和 filter label 已按 namespace `domainKind` 展示；默认 id 仍包含 `canvas_production`、`canvas_segment` | 剩余是把其他 legacy workbench surface 从固定 production/segment 展示迁到 project vocabulary；旧 production/segment create 只作为 legacy command |
+| `surface/project/src/features/content/application/contentCanvasContentUnitCreateNodeCommands.ts` | 直接创建 scene moment 已支持选择 timeline namespace path，并用 `writeHierarchyNode` 写 `scene_moments/{id}/scene_moment.json`；content unit payload 仍是 `scene_moment_ref`，不会把 namespace 当 target；如果使用 production + segment 旧父级，仍必须显式传 `legacyTimelineMount` | 旧 production/segment mount 只作为 legacy wizard/compatibility path；下一步是让 direct prompt 的 namespace parent picker 也显示 vocabulary label/模板建议，而不是只列当前节点 |
 | `surface/project/src/features/content/application/contentCanvasContentUnitCreateNodeCommands.ts` | `createAssetCanvasNode` / `createAssetFromSettingState` 会创建 setting/state/asset，并确保 `asset_ref` content unit | 方向基本正确：asset 是 system resource slot，候选通过 `asset_ref` content unit；要调整的是 setting/state label 与 namespace vocabulary，而不是 candidate 边界 |
 | `surface/project/src/features/content/application/contentCanvasContentUnitCreateNodeCommands.ts` | expression/keyframe/storyboard 创建依赖 `requiredSceneMomentRefs`，仍从 production/segment path 推导 parent | 这些 primitive 保留，但 parent 解析要从 normalized parent edge 获取；不能要求 scene_moment 必须在 segment 下才能创建视觉证据 |
 | `surface/project/src/features/content/application/contentCanvasContentUnitCommands.ts` | `ensureContentUnitForRef` 只接受 `asset/scene_moment/expression_unit/keyframe/storyboard` target | 这是正确边界；增加 `timeline_assembly` 后仍排除 namespace |
@@ -801,15 +852,15 @@ Content Canvas 不是单纯展示层。它会创建 source 节点、确保 conte
 | `surface/project/src/features/content/application/contentCreativeCanvasActions.ts` | production node 显示“添加段落”，segment node 显示“添加情节”；scene_moment、expression_unit、asset 等节点可发起生成/上传/选择候选 | action model 要升级为 category-driven：timeline namespace 只能新增子 namespace、scene_moment、assembly；system primitive/assembly/content_unit 才能生成或选择候选 |
 | `surface/project/src/features/content/application/contentCreativeCanvasDependencies.ts` | “命名空间依赖”只覆盖 `scene_moment -> expression_unit -> keyframe/storyboard`，并没有 timeline namespace | 命名要调整：这里实际是 primitive containment/dependency，不是用户 timeline namespace；未来 timeline namespace 依赖要从 normalized graph 输入 |
 | `surface/project/src/features/content/application/contentCanvasLayout.ts` | layout 固定列为 `project -> production -> segment -> scene_moment -> content_unit -> candidate/resource` | 布局应按 category/role 排列：timeline namespace lane、system primitive lane、content unit/candidate lane；旧 production/segment 列只作为 legacy projection |
-| `surface/project/src/features/content/application/loadContentCanvasProject.ts` | 并行 query `production`、`segment`、`scene_moment` 等固定 entity；editing timeline 只在 `scene_moment` 和 `production` targets 间切换 | loader 应读取 Project Service/read model 的 namespace/assembly projection；editing timeline 增加 `timeline_assembly` target，legacy production target 映射为 assembly |
-| `packages/core/src/content/sourceWorkspaceEngine.ts` | 读取所有 productions，再为每个 production 读 preview timeline；production preview 被转成 `targetKind: "production"` editing timeline | production editing timeline 应变成 legacy assembly projection；新 assembly preview 不写回 `preview_timeline.production_id` |
+| `surface/project/src/features/content/application/loadContentCanvasProject.ts` | 并行 query `production`、`segment`、`scene_moment` 等固定 entity；editing timeline 已支持 `timeline_assembly`，并按 targetRef、scopeKey 和 scopePath 对应的 projection node 建索引 | 继续减少固定 entity query 对布局/标签的决定权，更多显示从 domain graph/vocabulary 读取 |
+| `packages/core/src/content/sourceWorkspaceEngine.ts` | 仍读取 productions 的 legacy preview timeline；同时已从 `timeline_assembly_ref` content unit scope 读取 scope-aware preview timeline，并生成 `targetKind: "timeline_assembly"` editing timeline；production preview 只作为 legacy timeline 保留 | 剩余是旧 workbench/table flow 继续从 productionId timeline 迁到 normalized assembly/status |
 | `packages/core/src/content/sourceWorkspaceData.ts` | `ContentSourceWorkspaceEditingTimeline.targetKind` 只有 `scene_moment | production`；`sourceParentRefs` 从 path 推导 `production_id/segment_id/scene_moment_id` | 加 `timeline_assembly` target；parent refs 改成 normalized parent/scope refs，旧字段保留兼容 |
-| `packages/core/src/content/workbenchWriteModel.ts` | 拖动 content unit 到 timeline 时从 `unit.production_id` 或 row.productionIds[0] 取 production，并创建 `preview_timeline.production_id` / item.production_id | 旧 table/workbench flow 保留兼容；新 assembly timeline 不应通过 production_id 创建 preview timeline |
+| `packages/core/src/content/workbenchWriteModel.ts` | 拖动 content unit 到 timeline 时旧路径仍可从 `unit.production_id` 或 row.productionIds[0] 取 production；无 productionId 但有 `timeline_assembly` scope 时，已创建 `target_kind/target_ref/scope_kind/scope_ref` payload，不再强制 `preview_timeline.production_id` | 旧 table/workbench flow 保留兼容；新 assembly timeline 不通过 production_id 创建 preview timeline，后续 caller 继续传 normalized scope |
 | `packages/core/src/production/orchestration.ts` | `productionOrchestrationEntityKinds` 和 defaults 仍包含 productions、segments、assetSlots、contentUnits，创建 defaults 会写 `production_id/segment_id` | 这是 legacy orchestration/table helper；不能继续承接新 namespace 字段 |
 | `surface/project/src/features/content/components/useContentCanvasWorkspaceCreationCommands.ts` / `useContentCanvasWorkspaceController.ts` | UI dialog 仍有 createProduction、production 下建 segment、segment 下建 scene_moment 的操作链 | 新 UI 要从 template/vocabulary 初始化 namespace path；旧 production dialog 进入 compatibility 分组 |
 | `surface/project/src/features/content/application/contentCanvasProjectEntrySession.ts` | project entry session 用 `canvasNode/node/kind` 保存焦点，默认 selectionKind 是 `scene_moment` | 这层可继续用 node id，但 selection kind 要能表达 namespace/assembly/content_unit；默认不应假设当前焦点是 scene_moment |
-| `surface/project/src/features/project/domain/projectEntryRegistry.tsx` | `orchestration_production` entry 的 purpose/owns/reads/primarySelection 都以 production 为中心，`productionId` 是 primary selection | entry id 可以保留兼容；文案、owns/reads、selection 要转为 timeline namespace + scene_moment + assembly/content unit |
-| `surface/project/src/features/project/presentation/projectOverviewModel.ts` | content canvas lane 在 `data.productions.length === 0` 时 blocked；script progress 也用 productions/segments/sceneMoments 计数 | 新项目不应因为没有 production entity 被阻塞；progress 应使用 namespace template、scene_moment、timeline_assembly/content_unit readiness |
+| `surface/project/src/features/project/domain/projectEntryRegistry.tsx` | `orchestration_production` entry id/stage 仍保留兼容；purpose/owns/reads 已转为 timeline namespace + scene_moment + assembly/content unit；primarySelection 已用 `scopeKind/scopeRef` 表达 timeline scope，并保留 `productionId` legacy fallback；review 不再要求 production entity，且可携带 scope/target/`timeline_assembly_ref` | 后续 tab label 要从 vocabulary/read model 来，不再固定展示 production |
+| `surface/project/src/features/project/presentation/projectOverviewModel.ts` | overview data 已尝试读取 content workspace snapshot 并构建 `project_timeline_status`；progress/blocking 优先使用 timeline namespace count、scene_moment system primitive count 和 timeline assembly readiness；legacy `productions/segments` semantic list 仅 fallback | 后续继续把 primary selection / entry label 从旧 entry id 和 `productionId` query 迁到 vocabulary/read model |
 | `surface/project/src/features/project/presentation/projectEntryDeckModel.ts` | deck restore 把旧 `scripts` snapshot 映射到 `orchestration_production`，并恢复 `productionId` search | 保留 legacy restore；新 snapshot/search 要支持 namespace/assembly focus，避免恢复时又落回 production route |
 
 ## CLI / skills / docs / tests 细化扫描
@@ -820,20 +871,20 @@ Content Canvas 不是单纯展示层。它会创建 source 节点、确保 conte
 | --- | --- | --- |
 | `apps/cli/src/commands/lang.ts` | CLI 暴露 `production add`、`segment add`、`scene-moment add`；`segment add` 默认 `--production main`；`scene-moment`、storyboard、keyframe、audio cue、expression unit 和 content unit 都大量使用 `--production / --segment / --scene-moment` 定位 | 旧命令保留为 legacy convenience；新增 namespace-aware 命令应使用 `--scope`、`--namespace-path`、`--timeline-parent` 或等价 parent edge，不继续扩展成 `--episode/--act/--beat` |
 | `apps/cli/src/commands/lang.ts` | parent parser 依赖 `parseSegmentRefOption`、`parseSceneMomentRefOption`、`parseStoryboardRefOption`，并在缺少 segment/scene moment 时直接报错 | 第一阶段可以继续接受旧 path；新 writer 应让 path parent 和显式 parent/scope refs 进入同一 normalized parent 解析，而不是在每个命令里硬编码 segments |
-| `apps/cli/src/commands/lang.ts` | `content-unit add` 的 type help 推荐 `asset_ref/keyframe_ref/storyboard_ref/scence_moment_ref/expression_unit_ref`，但仍有 `--production`、`--segment` 和旧 `production_ref/segment_ref` 兼容 | 新增 `timeline_assembly_ref` 和 `--timeline-assembly`；`production_ref/segment_ref` 只在 help 中标注为 legacy assembly alias；不新增 `episode_ref/beat_ref` |
-| `apps/cli/src/commands/lang.ts` | interactive slash help 仍把 `/production add`、`/segment add`、`/scene-moment add` 列为标准路径 | slash help 要加 namespace/template 初始化和 assembly 示例；旧 production/segment help 移到 compatibility 段 |
-| `apps/cli/README.md` | 示例从 `production add`、`segment add`、`scene-moment add` 开始，教用户固定层级 | schema 决策后改成 namespace vocabulary/template + scene_moment + content unit/assembly 示例；迁移期先标 legacy |
-| `plugins/movscript/skills/planning/SKILL.md` / `apps/plugin/skills/planning/SKILL.md` | planning skill 让 agent “decide production granularity”，并把 production/segment/scene_moment 作为规划层级 | 改成先决定 timeline namespace path 和输出中心；`scene_moment` 保持系统生产单位；production/segment 只作为旧 vocabulary 示例 |
-| `plugins/movscript/skills/planning/references/entity-mapping.md` | 把 `production / episode / film unit` 直接映射到 `production`，把 `segment / rhythm section` 映射到 `segment`，并声明 canonical ownership 是 `production -> segment -> scene_moment` | 改成 timeline namespace vocabulary + path parent edge；不要把 episode 固定折叠成 production |
-| `plugins/movscript/skills/planning/references/content-unit-recipes.md` | 推荐 `production_ref` 用 `target_kind: production`，`segment_ref` 用 `target_kind: segment` | 改成 `timeline_assembly_ref` 推荐路径；`production_ref/segment_ref` 标成 legacy assembly alias |
-| `plugins/movscript/skills/domain/SKILL.md` / `domain-story.md` | domain story 把 `production`、`segment` 和 `scene_moment` 并列为 production structure；specialized adapters 列出 `production_ref/segment_ref` | 改成 namespace structure + system primitive；adapter 列表增加 `timeline_assembly_ref`，旧 ref 标 legacy |
-| `plugins/movscript/skills/generation/SKILL.md` | generation skill 已经以 `scene_moment` / `expression_unit` 为中心，方向基本正确，但 status/focus 仍会引用 production readiness | 只需把 status/focus 语言升级到 project timeline scope / assembly；不要动摇 `scene_moment` production center |
-| `plugins/movscript/skills/editing/SKILL.md` | production timeline composition 仍是主要聚合说法 | 改成 timeline assembly composition；production timeline 只是 legacy assembly bundle |
+| `apps/cli/src/commands/lang.ts` | `content-unit add/modify` 已支持 `timeline_assembly_ref`、`--timeline-assembly`、`--scope-kind`、`--scope-ref`；使用 assembly scope 时不会再写 `production_ref/segment_ref`；旧 `--production/--segment` help 标为 legacy assembly alias | 继续禁止把 namespace kind 扩展成 `episode_ref/beat_ref`；后续 namespace writer 应使用 parent/scope refs，而不是继续增加固定层级参数 |
+| `apps/cli/src/commands/lang.ts` | interactive slash help 已包含 `timeline_assembly_ref` 和 `--timeline-assembly` 参数，但仍把 `/production add`、`/segment add`、`/scene-moment add` 列为标准路径 | 后续 slash help 要加 namespace/template 初始化和 assembly 示例；旧 production/segment help 移到 compatibility 段 |
+| `apps/cli/README.md` | 示例已加入 `content-unit add --timeline-assembly ... --scope-kind ...`，并标注 production/segment 是 legacy timeline projection convenience | schema 决策后改成 namespace vocabulary/template + scene_moment + content unit/assembly 示例；迁移期先标 legacy |
+| `plugins/movscript/skills/planning/SKILL.md` / `apps/plugin/skills/planning/SKILL.md` | planning skill 已改成先决定 output/scope granularity，并把 timeline namespace scope output 导向 `timeline_assembly_ref` | 继续避免新增 `episode_ref/beat_ref` 或把 production/segment 当作新 ontology |
+| `plugins/movscript/skills/planning/references/entity-mapping.md` | entity mapping 已把 episode/act/sequence/beat 表达为 timeline namespace，当前 source 使用 legacy `production/segment` projection | 后续 source layout 迁移时再更新具体 writer/source names |
+| `plugins/movscript/skills/planning/references/content-unit-recipes.md` | content-unit recipe 已推荐 `timeline_assembly_ref`，并把 `production_ref/segment_ref` 标成 legacy assembly alias | 保持和 interpreter/engine adapter 测试同步 |
+| `plugins/movscript/skills/domain/SKILL.md` / `domain-story.md` | domain story 已改成 timeline namespace structure + `scene_moment` production center；adapter 列表包含 `timeline_assembly_ref`，旧 ref 标 legacy | 继续同步插件 bundle/cache，避免发布旧技能 |
+| `plugins/movscript/skills/generation/SKILL.md` / `review/SKILL.md` | generation/review 语言已从 production output/readiness 收敛为 content-unit output、system primitive、timeline assembly 和 generation readiness | 继续保持 `scene_moment` production center；不要把 namespace prompt ref 或 namespace node 引回 selection gate |
+| `plugins/movscript/skills/editing/SKILL.md` | editing 语言已把 production timeline / production-level handoff 标成 legacy projection，并推荐 timeline assembly / dedicated MediaEditingProject | Editing Service 源码已支持 production-scope legacy alias 和非 production namespace scope assembly bundle；后续同步工具描述和示例时要标注 missing scope 会返回 blocked bundle |
 | `apps/plugin/skills/**`、`plugins/movscript/skills/**`、`apps/desktop/.codex/.claude/.mova/.agents/plugins/**` | 同一套技能存在 source、plugin copy、desktop bundled/catalog copy 多份 | 不手改各处副本；源 skill 改完后通过 plugin build/install 流程同步，并增加 drift check |
 | `apps/plugin/bin/movscript-agent-mcp.mjs` / `plugins/movscript/bin/movscript-agent-mcp.mjs` | 打包 bundle 中仍内嵌 `domain_upsert_production_tree`、`productionTimelineBundle`、`productionId`、`production_ref/segment_ref` 等逻辑 | 这是构建产物，不手工 patch；源代码改完后重建，并用 grep/drift check 证明 bundle 语义已同步 |
 | `packages/prompt/tests/content-unit-prompt.test.mjs` | 有测试明确验证 `{{segment:opening}}` 通过 `segment_ref` content unit 解析到 selected video resource | 保留为 legacy prompt-ref 兼容测试；新增测试证明 `{{episode::id}}` 不进入 selection gate，assembly 通过 `timeline_assembly_ref` 或 `{{content_unit::id}}` 进入 |
 | `packages/interpreter/tests/integration/source-validation.test.mjs` / `artifacts.test.mjs` | 明确验证 `production_ref` 和 `segment_ref` 是合法 video primary refs、能生成 runtime panel/artifact | 保留为 legacy alias 测试；新增 `timeline_assembly_ref` artifact/stale/runtime panel 测试 |
-| `packages/editing/tests/media-project.test.mjs` / `services/editing-service/tests/server.test.mjs` | `productionTimelineBundle` 和 media editing provenance 把 target 标为 production，project id 也拼 `production` | 新增 assembly target 测试；旧 production bundle 测试改成 legacy alias 断言 |
+| `packages/editing/tests/media-project.test.mjs` / `packages/editing/tests/service-client.test.mjs` / `services/editing-service/tests/server.test.mjs` / `packages/core/tests/content.test.mjs` / `surface/project/src/features/content/application/contentCanvasArchitecture.test.ts` | `productionTimelineBundle` 已断言为 legacy assembly alias；media editing provenance、edit plan context 和 canonical `timelineAssemblyBundle` 已携带 `timeline_assembly` target/scope；非 production scope assembly 已覆盖真实 `timeline_assembly:episode:<id>` bundle、missing scope blocked bundle、core snapshot assembly editing timeline 和 Content Canvas loader 索引 | 继续补其它 legacy workbench/surface caller 测试，证明它们不再只能请求 production preview timeline |
 | `apps/desktop/src/features/agent/domain/workspaceDomainModel.test.ts` / `AgentRuntimeChatShell.test.ts` | workspace/handoff 测试断言 `production_workspace`、`productionId`、`scope = production` | 保留 legacy route 测试；新增 normalized focus 测试，证明 namespace/assembly/content unit focus 不被强行转成 production |
 | `services/local-surface-host/src/routes/localRouteLinks.test.ts` | route test 只验证 URL path segment 和 project id segment，不验证 domain namespace focus | 新增 `timelineScopeId/namespacePath/timelineAssemblyId/focusedPrimitiveRef` query round-trip，并明确区分 URL segment 与 domain segment |
 
@@ -845,7 +896,7 @@ Content Canvas 不是单纯展示层。它会创建 source 节点、确保 conte
 
 - 新增 package `@movscript/domain`，保持无文件系统、无服务、无 UI 依赖。
 - 导出 node category、system primitive kind、content unit target kind、relation edge kind、normalized focus 等稳定类型。
-- 导出 namespace vocabulary/template helper，包含 `film / series / short_video / course / custom` 的默认模板。
+- 导出 production type / namespace vocabulary helper，包含 `video / film / episode / lesson / custom` 的默认模板，并保留 `short_video / series / course` 作为 legacy alias。
 - 导出 legacy projection helper：`production/segment -> timeline_namespace`，`setting/state -> setting_namespace`，`production_ref/segment_ref -> timeline_assembly`。
 - 导出 content unit target normalizer 和 allowlist：namespace target 返回 diagnostic，system primitive / `timeline_assembly` 才允许进入生产。
 - 导出 path parent edge normalizer：path 提供 containment edge，但固定目录名不再等同用户 vocabulary。
@@ -900,28 +951,29 @@ Interpreter 是 stale 正确性的核心，不能只做 UI rename：
 - 旧 surface semantic entity configs 和 production analysis/orchestration helper 标成 legacy/table-surface，不作为新 domain 依据。
 - `contentCanvasTypes.ts` 的 node kind 不应把 `production/segment` 当唯一结构层；应增加 `namespace_node` 或 normalized category 字段，同时保留 legacy kind 投影。
 - `contentCanvasWorkspaceSnapshot.ts` / `contentCanvasGraphReferences.ts` 的 parent/ref 查找不能继续只靠 `pathSegmentAfter(..., "productions" | "segments" | "scene_moments")`；应消费 normalized relation graph。
-- `contentCanvasCreateNodeCommands.ts` 和 `contentCanvasContentUnitCreateNodeCommands.ts` 不应再默认自动创建 `canvas_production` / `canvas_segment`；应先创建 namespace path、scene_moment 或 timeline_assembly。
-- `contentCreativeCanvasActions.ts` 的 `production -> segment -> scene_moment` action model 要升级为 namespace child rules；namespace node 不能出现 generate/upload/select candidate 主动作。
+- `contentCanvasCreateNodeCommands.ts` 和 `contentCanvasContentUnitCreateNodeCommands.ts` 已禁止隐式 legacy production/segment mount；旧 root/child/scene mount 必须显式 `legacyTimelineMount`。`contentCanvasCreateNodeCommands.ts` 已能用 namespace path 写 root namespace、child namespace / scene_moment；root/child timeline namespace kind 已接 project vocabulary picker/default；root setting namespace 和 setting child namespace/state create 已接 project vocabulary，并通过 engine facade/MCP payload 写入 `namespace_kind`；direct prompt scene_moment 也已可选择 timeline namespace path 写入并确保 `scene_moment_ref`，自动挂载 setting/state 时也带 setting namespace kind；`contentCanvasCommands.ts` 已能从 namespace scope 创建 `timeline_assembly_ref` content unit；结构树、radial code、关系事实和主要创建文案已 vocabulary 化；`contentCanvasLayout.ts` arrange 已按 domain ancestor depth 排列 timeline namespace；`contentCanvasNavigation.ts` navigator 已用 `domainCategory` 识别 timeline namespace 并携带 `domainKind`；`contentCanvasViewSummaries.ts` collapsed summary 已按 namespace `domainKind` 聚合/显示；`ContentCanvasPresentationModel.ts` filter label 已从 namespace `domainKind` 推导，filter value 仍保持 stable legacy projection kind。下一步是其他旧 workbench/surface 入口继续 category/vocabulary 化。
+- `contentCreativeCanvasActions.ts` 已把 namespace 节点的子动作分发收敛到 `domainCategory` helper，并保持 namespace node 无 generate/upload/select candidate 主动作；namespace scope assembly action 已落到 `timeline_assembly_ref` content unit；child namespace kind 已由 project vocabulary 默认到父级下一层。
+- `contentCanvasWorkspaceElectronGateway.ts` 已在 `targetKind = "timeline_assembly"` 时调用 `ensureMovScriptEngineTimelineAssemblyContentUnit`，只把 scope 交给 desktop bridge；非 assembly target 才继续走 generic content-unit ensure。
 - `contentCanvasCandidateCommands.ts` 当前只对 `content_unit` 生成/上传/选择候选，这个边界应保留；不要为了 namespace node 增加直接 candidate action。
 - `contentCanvasLayout.ts` 的固定列应从 kind-based 改成 category/role-based，避免新 vocabulary 被强行摆回 production/segment 列。
 - `contentCanvasProjectEntrySession.ts` 可以继续保存 `nodeId`，但 `selectionKind` 要支持 namespace/assembly/content_unit，不默认把缺省焦点当成 scene_moment。
-- `AgentPreviewTimelineSurface.tsx`、`ProjectOverviewSurface.tsx` 和 `ProjectSurfaceRouteView.tsx` 要把 `productionId` 改成 legacy focus，新增 assembly/timeline scope focus。
-- `projectEntryRegistry.tsx` 的 `orchestration_production` id 可以作为 legacy route id 保留，但 entry purpose、owns/reads、primary selection 和 review query 应转向 timeline namespace + scene_moment/assembly。
-- `projectOverviewModel.ts` 的 progress/blocking 不应以 `data.productions.length === 0` 作为新项目是否可推进的唯一条件；应以 namespace template、scene_moment、assembly/content unit readiness 计算。
+- `AgentPreviewTimelineSurface.tsx`、`ProjectOverviewSurface.tsx` 和 `ProjectSurfaceRouteView.tsx` 已把 `productionId` 降为 legacy focus，并支持 assembly/timeline scope focus。
+- `projectEntryRegistry.tsx` 的 `orchestration_production` id 可以作为 legacy route id 保留；entry purpose、owns/reads、primary selection 和 review query 已转向 timeline namespace + scene_moment/assembly，`productionId` 只作为 legacy fallback。
+- `projectOverviewData.ts` / `projectOverviewModel.ts` 已优先从 content workspace snapshot 构建并消费 `project_timeline_status`；progress/blocking 使用 timeline namespace、scene_moment/system primitive 和 assembly readiness，旧 semantic list 只作为 fallback。
 
-`packages/core/src/production/orchestration.ts`、`workbenchWriteModel.ts`、`sourceWorkspaceData.ts` 和 `sourceWorkspaceEngine.ts` 要单独处理：它们是旧 content workbench/table flow，仍会创建 `preview_timeline.production_id`、`preview_timeline_item.production_id`，并把 editing timeline 标成 `targetKind = "production"`。这些入口短期可作为 legacy compatibility，但新 namespace/assembly 不应继续往这里扩展字段；新 flow 应走 normalized read model 和 Editing Service assembly target。
+`packages/core/src/production/orchestration.ts`、`workbenchWriteModel.ts`、`sourceWorkspaceData.ts` 和 `sourceWorkspaceEngine.ts` 要单独处理：它们是旧 content workbench/table flow，仍会消费 `preview_timeline.production_id`、`preview_timeline_item.production_id`。当前 `sourceWorkspaceEngine` 已并行输出 canonical `targetKind = "timeline_assembly"` editing timeline；`workbenchWriteModel` 也已能在无 productionId 时写出 assembly target/scope payload。旧 production editing timeline 短期保留为 legacy compatibility。剩余 workbench/table 入口不能继续扩展 production 字段，新 flow 应走 normalized read model 和 Editing Service assembly target。
 
 ### `packages/engine` 和 Project Service
 
 这层是 API/write boundary：
 
-- `ProjectSourceCommandName` 需要新增 namespace-aware command，旧 `createProduction/createSegment` 保留兼容。
+- `ProjectSourceCommandName` 已新增 `writeNamespaceNode` / `ensureTimelineAssemblyContentUnit`；旧 `createProduction/createSegment` 保留兼容。
 - `MovScriptEngine*Input` 的 `productionId/segmentId` 是 legacy facade；新 flow 使用 `timelineScopeId/namespacePath/timelineAssemblyId/focusedPrimitiveRef`。
 - `writeHierarchyNode` / `updateEntityBasics` 不能继续只通过 `targetPath` 里的 `productions/segments/scene_moments` 推导上下文。
 - `saveProduction/saveSegment/saveSceneMoment` 的默认 `productionId = "main"` 要限制在 legacy writer；namespace-aware 空项目不能被隐式写成 main production。
-- `ensureContentUnitForEntity` 当前只支持 primitive target，这是好方向；需要增加 `timeline_assembly`，但继续排除 namespace。
-- `saveContentUnit` / `defaultContentUnitOutputKind` 增加 `timeline_assembly_ref`，并把 `production_ref/segment_ref` 迁到 alias path。
-- `readProjectResourceView` 的 `episodes -> production`、`scenes -> segment` 需要改成 vocabulary-aware projection。
+- `ensureContentUnitForEntity` 已支持 `timeline_assembly`，但继续排除 namespace target。
+- `saveContentUnit` / `defaultContentUnitOutputKind` 已增加 `timeline_assembly_ref`，并把 `production_ref/segment_ref` 迁到 alias path。
+- `readProjectResourceView` 已增加 vocabulary-aware projection；`episodes -> production`、`scenes -> segment` 只作为 legacy resource fallback。
 - Project Service 的 candidate/prompt endpoint 已经要求 `contentUnitId`，这是正确边界，避免扩展成 namespace candidate endpoint。
 - MCP tool descriptions 要把 production/segment 解释为 legacy namespace，不再教 agent 把 namespace 当作 content unit target。
 
@@ -931,7 +983,7 @@ Prompt compiler 直接影响 dependency gate：
 
 - 不建议支持 `{{episode::id}}`、`{{act::id}}`、`{{timeline_namespace::id}}` 作为稳定生成依赖。
 - 如果 prompt 需要引用 namespace 上下文，应由 prompt builder 展开为文本上下文，而不是要求该 namespace 有 selected candidate。
-- 稳定资源依赖继续走 `{{asset::id}}`、`{{storyboard::id}}`、`{{keyframe::id}}`、`{{scene_moment::id}}`、`{{expression_unit::id}}`、`{{content_unit::id}}`、`{{candidate::id}}`、`{{resource::id}}`。
+- 稳定资源依赖继续走 `{{asset::id}}`、`{{storyboard::id}}`、`{{keyframe::id}}`、`{{audio_cue::id}}`、`{{scene_moment::id}}`、`{{expression_unit::id}}`、`{{content_unit::id}}`、`{{candidate::id}}`、`{{resource::id}}`。
 - 若 assembly output 需要作为上游资源，新增 `{{timeline_assembly::id}}` 或通过 `{{content_unit::id}}` 引用它对应的 content unit；两者择一，避免双轨。
 - generation payload 层主要消费 compiled prompt 和 resource ids，改动较小；风险集中在 prompt compiler 和 content unit adapter。
 
@@ -939,10 +991,11 @@ Prompt compiler 直接影响 dependency gate：
 
 `timeline_assembly` 会落到剪辑/合成边界：
 
-- edit plan artifact 不应长期要求 `productionId/productionPath`；应有 `target_kind = "timeline_assembly"`、`target_ref`、`scope_ref`。
-- production timeline bundle 可以先作为 legacy assembly bundle。
+- edit plan artifact 和 MediaEditingProject provenance 已能携带 `target_kind = "timeline_assembly"`、`target_ref`、`scope_kind`、`scope_ref`，并保留 `legacy_target_kind / legacy_target_ref` 兼容旧 production bundle。
+- production timeline bundle 当前已作为 legacy assembly bundle 输出，`production_id / productionId` 继续保留给旧调用方，但 preferred schema / target fields 指向 `movscript.timeline-assembly-bundle.v1`。
+- Editing Service client/server 已接受 `timelineAssemblyBundle` view；production scope 走 legacy alias，非 production scope 通过 Workspace Service 的 timeline namespace preview 派生能力直接读取 scene_moment items。找不到 scope 时返回 blocked bundle，而不是偷塞进 production。
 - scene moment timeline bundle 保持稳定，因为 `scene_moment` 仍是系统生产单位。
-- media editing project provenance 需要能记录 assembly target，避免继续把所有聚合视频都标成 `targetKind: production`。
+- 下一步不是继续扩展 production builder，而是把剩余 legacy workbench/surface 入口接到 scope-aware assembly preview 和 project timeline status，减少旧 production preview timeline 的调用面。
 
 ### `apps/cli`
 
@@ -952,8 +1005,8 @@ CLI 是迁移时最容易继续制造旧项目结构的入口：
 - `segment add` 目前默认 `--production main`，新 namespace writer 不应复制这个默认值，否则空项目会被隐式塑造成电影 production。
 - `parsePlanningParentOptions`、`parseStoryboardParentOptions`、`parseAudioCueParentOptions`、`parseExpressionUnitParentOptions` 等 helper 现在都围绕 `productionId/segmentId/sceneMomentId`；应新增 normalized parent 解析层，避免每个命令单独理解 `segments` 路径。
 - 新增 namespace-aware 命令时，不应直接叫 `episode_ref` 或 `act_ref`；应创建 namespace node、scene moment 或 timeline assembly。
-- `content-unit add` 当前支持 `--production`、`--segment`，后续应将 `production_ref / segment_ref` 标为 legacy assembly alias。
-- `content-unit add` 要新增 `--timeline-assembly <id-or-path>`，对应 `content_unit_type = "timeline_assembly_ref"`。
+- `content-unit add/modify` 已支持 `--timeline-assembly`、`--scope-kind`、`--scope-ref`，对应 `content_unit_type = "timeline_assembly_ref"`；只给出 assembly/scope 参数时会自动推断该类型。
+- `content-unit add/modify` 仍支持 `--production`、`--segment`，但 help 中已标为 `production_ref / segment_ref` 的 legacy assembly alias；显式 assembly scope 写入时不会再把它们写成 primary ref。
 - `content-unit add` 可以继续用 `--scene-moment`、`--expression-unit`、`--storyboard`、`--keyframe`、`--asset`，因为这些是 system primitive 或资源槽；不能新增 `--episode` 这类 namespace production target。
 - interactive help 和 README 示例要标注 `production/segment` 是 legacy vocabulary，推荐新项目从 project vocabulary/template 初始化。
 
@@ -998,7 +1051,7 @@ namespace -> system primitive / timeline_assembly -> content_unit -> backend can
 - 新增 namespace-aware 上下文时，不要把 `productionId` 改名成 `episodeId`；应增加更中性的 `timeline_scope`、`namespace_path`、`timeline_assembly_id` 或 `focused_primitive_ref`。
 - Source command 也要新增 neutral command，例如 `createTimelineNamespaceNode`、`createTimelineAssembly` 或等价 projection command；旧 `createProduction/createSegment` 不继续扩展自定义层级。
 - Resource view 的 `episodes / productions / scenes / segments` 可以继续作为旧入口，但返回内容要能带用户 vocabulary label。
-- Agent-facing summary 应逐步从 `production_status_summary` 迁移到 `project_timeline_status` 或等价 schema；旧 schema 作为 alias 保留。
+- Agent-facing `domain_production_status_summary` 已并行返回 `project_timeline_status`，并把旧 `production_status_summary` 标成 alias；后续新增工具或 read model 可以直接以 `project_timeline_status` 为主 schema。
 
 ### `packages/mcp-host` 和 runtime status
 
@@ -1006,17 +1059,18 @@ MCP host 是 agent 进入 MovScript 的第一层入口，因此它的 legacy foc
 
 当前扫描结论：
 
-- `movscript_runtime_status` 入参支持 `projectId` 和 `productionId`。
-- runtime status 会把 `productionId` 拼进 Local Surface Host URL query。
-- `inspectProjectSource` 用 `settings / content_units / productions / scripts` 判断项目是否是 MovScript project。
+- `movscript_runtime_status` 入参支持 `projectId` 和 legacy `productionId`。
+- runtime status 会把 `productionId` 拼进 Local Surface Host URL query，但它只表示 legacy production-scope focus。
+- runtime status 已支持把 `scopeKind/scopeRef/targetKind/targetRef/timelineAssemblyRef` 透传给 Local Surface URL；它不解释这些字段，只让 surface/read model 做 normalized focus 解析。
+- `inspectProjectSource` 已使用 `@movscript/workspace` 的 source root files / source collection dirs 判断项目是否是 MovScript project；没有 legacy `productions/`、但有 `timeline/` source collection 的项目也能被识别。
 - Local Surface URL 固定生成 overview/content/timeline 路由，并把 common query 传给 surface。
-- 目前它只负责 query 拼接，无法传递 `namespacePath/timelineAssemblyId/focusedPrimitiveRef`。
+- 目前它还没有消费 future `namespacePath/focusedPrimitiveRef` 字段；如果新增，应继续作为 focus query 原样透传。
 
 推荐策略：
 
 - `productionId` 保留为 legacy focus，但 tool description 应说明它不是用户 timeline namespace。
-- 新增 namespace focus 时，runtime status 应支持 `timelineScopeId`、`namespacePath` 或 `timelineAssemblyId`，并把它们传给 surface URL。
-- 项目识别应逐步从固定目录名转向 workspace layout policy、`project.json` metadata 和 source collection 组合判断。
+- 新增 namespace focus 时，runtime status 不应新增解释逻辑；继续把 neutral focus fields 传给 surface URL，并由 Project Service/read model 解析。
+- 项目识别已从手写固定目录名转向 workspace layout policy、`project.json` metadata 和 source collection 组合判断；后续新增 collection 应先进入 workspace layout policy。
 - runtime status 是只读入口，不应承担 namespace 解释；它只传递 focus，真正解释发生在 Project Service/read model。
 
 ### Agent Chat、provider protocol 和 decision request
@@ -1049,23 +1103,23 @@ Agent surface 是 agent 给用户打开 review/inspect 页面时的正式入口�
 
 当前扫描结论：
 
-- `packages/core/src/agent/surfaces.ts` 的 `createPreviewTimelineSurface` 入参必须是 `productionId`，surface title、entity 和 query 都写 `production_id/productionId`。
-- `createProjectStatusSurface` 也把 `productionId` 作为可选 entity/query，并在 usage 中写 production readiness。
-- `apps/desktop/src/pages/agent/AgentPreviewTimelinePage.tsx` 没有 productionId 就不会 fetch snapshot。
-- `surface/project/src/components/AgentPreviewTimelineSurface.tsx` 在没有 `productionId` 时直接显示 `Missing productionId`，标题是 `Production preview`。
-- `surface/project/src/components/AgentProjectStatusSurface.tsx` 从 `summary.productions[0]` 取 content units，并显示 `Productions` 计数。
-- `surface/project/src/components/AgentImpactSurface.tsx` 会从 `targetPath` 的 `productions/{id}` 解析 productionId，再生成 preview link。
-- `surface/project/src/features/project/domain/projectEntryRegistry.tsx` 的入口 id/stage 仍是 `orchestration_production`，primary selection 是 `productionId`，`owns/reads` 包含 production/segment/scene_moment。
-- `projectOverviewModel.ts` 用 `data.productions.length`、`data.segments.length`、`data.sceneMoments.length` 计算项目入口进度，并把没有 production 视为 content canvas blocked。
+- `packages/core/src/agent/surfaces.ts` 的 preview/status surface 已接受 normalized timeline scope / assembly target，并把 `productionId` 降为 legacy production-scope projection。
+- `apps/desktop/src/pages/agent/AgentPreviewTimelinePage.tsx` 不再因为缺 `productionId` 阻塞；有 timeline assembly target 或 timeline scope 时也会 fetch snapshot。
+- `surface/project/src/components/AgentPreviewTimelineSurface.tsx` 已显示 `Timeline preview`，缺失态改成 timeline preview scope，不再是 `Missing productionId`。
+- `surface/project/src/components/AgentProjectStatusSurface.tsx` 已把文案改成 timeline readiness，并优先从 `project_timeline_status.timeline_assemblies` 读取工作项；legacy `productions[]` 只作为 fallback。
+- `surface/project/src/components/AgentImpactSurface.tsx` 已优先从 normalized target/scope 生成 preview link；path regex 只做 legacy fallback。
+- `surface/project/src/features/project/domain/projectEntryRegistry.tsx` 的入口 id/stage 仍是 `orchestration_production` 兼容 key，但文案、`owns/reads` 和 primary selection 已改成 timeline namespace、scene_moment、timeline_assembly；review 入口不再要求 production entity，并可携带 scope/target/`timeline_assembly_ref`。
+- `surface/project/src/features/project/application/projectWorkspaceReview.ts` 已把 workspace artifact 的 target/scope 规范化成 focus query；非 production scope 会清掉旧 `productionId`。
+- `projectOverviewData.ts` / `projectOverviewModel.ts` 已优先读取 content workspace snapshot 并消费 `project_timeline_status`；入口状态用 timeline namespace、scene_moment/system primitive、timeline assembly readiness 和 content-unit readiness 计算，旧 `productions/segments` list 只作为 fallback。
 
 推荐策略：
 
-- Agent surface entity/query 增加 `timelineScopeId`、`namespacePath`、`timelineAssemblyId`、`contentUnitId`；`productionId` 只作为 legacy focus。
+- Agent surface entity/query 已增加 timeline scope / assembly / normalized focus；后续如引入 `namespacePath` / `timelineAssemblyId` 展示字段，应继续映射到同一 normalized focus。
 - Preview timeline surface 的长期目标应是 assembly preview，而不是 production preview；没有 assembly 时可以从 namespace scope 反查可用 assembly 或提示创建 assembly。
-- Project status surface 的数据结构从 `productions[]` 升级到 timeline namespace/assembly/readiness projection。
+- MCP project status summary、Project Service read model、Local Surface Host status snapshot 和 AgentProjectStatusSurface 的主数据结构已从 `productions[]` 升级到 timeline namespace/assembly/readiness projection。
 - Impact surface 的 preview link 从 normalized target/assembly/content unit 生成；path regex 只做 legacy fallback。
-- Project entry id 可以保留 `orchestration_production` 做路由兼容，但 UI title/purpose/selection 应按 project vocabulary 展示，不把 production 当唯一蓝图入口。
-- Project overview 的 progress/blocking 应以 namespace template、scene_moment/system primitive、assembly/content unit readiness 计算；不能再用 `productions.length === 0` 阻塞新项目。
+- Project entry id 可以保留 `orchestration_production` 做路由兼容；primary selection 已按 timeline scope 传递，后续 UI title/tab label 应按 project vocabulary 展示，不把 production 当唯一蓝图入口。
+- Project overview 已接入 `project_timeline_status` 作为主状态来源；没有 host snapshot 时才回退到 legacy semantic lists。
 
 ### Local/Web Surface Host 和 Desktop Semantic API
 
@@ -1073,22 +1127,23 @@ Agent surface 是 agent 给用户打开 review/inspect 页面时的正式入口�
 
 当前扫描结论：
 
-- `services/local-surface-host/src/project/LocalProjectSurfaceHostRoute.tsx` 会从 query 中读取 `productionId`，并合成 `movscript.production_status_summary.v1`。
-- `services/local-surface-host/src/project/localProjectSurfaceRuntime.ts` navigator 会把 productionId 继续写回每个 project surface URL。
-- `services/local-surface-host/src/routes/localRouteLinks.ts` 的 `projectRouteContext` 只解析 productionId，没有 neutral focus。
-- `services/web-surface-host/src/main.tsx` 也把 `productionId` 传给 `ProjectSurfaceRouteView`。
+- `services/local-surface-host/src/routes/localRouteLinks.ts` 的 `projectRouteContext` 已从 normalized focus 推导 legacy production scope；如果 focus 是 `episode/act/beat` 这类非 production scope，会清掉旧 `productionId`。
+- `services/local-surface-host/src/project/localProjectSurfaceRuntime.ts` navigator 已在合并 query/params 后规范化 timeline focus，避免旧 productionId 和新 namespace scope 同时存在。
+- `services/web-surface-host/src/main.tsx` 已用同样的 focus-first 逻辑把 `productionId` 当 legacy fallback。
+- status/read-model snapshot 已有 `project_timeline_status` 主投影；production summary 兼容路径保留为 legacy fallback。
 - `services/local-surface-host/src/host-runtime/infrastructure/api/semanticEntities.ts` 还有一套 host runtime semantic entity adapter，把 `segments` 映射到 `segment`、`productions` 映射到 `production`、`settingStates` 映射到 `setting_state`。
 - `apps/desktop/src/shared/infrastructure/api/semanticEntityWorkspace.ts` 的 writable kinds 包含 `productions / segments / sceneMoments`。
 - Desktop writer 创建 segment 和 scene moment 时强制要求 `production_id / segment_id`，并调用 `saveProductionSnapshot` 写回旧目录树。
+- Desktop semantic entity config 已把 `productions / segments` 描述为 legacy timeline projection，把 `sceneMoments` 描述为固定 system primitive；这只是防止 UI/API 继续误导，不代表 writer 已完成 namespace-aware 迁移。
 
 推荐策略：
 
-- Host route 的 `productionId` 保留为 legacy focus，不应继续代表唯一 timeline namespace。
-- 新增 namespace focus 时，路由层应接受 `timelineScopeId` 或 `namespacePath`，并在 read model 中投影到当前 vocabulary。
-- Local/Web host runtime 应原样转发 normalized focus，避免只有 Desktop 能打开 namespace-aware surface。
-- `movscript.production_status_summary.v1` 在 host 内部作为 legacy alias；新 status snapshot 应来自 Project Service/read model 的 timeline projection。
-- Local Surface Host 的 semantic adapter 应改为消费 Project Service/read model projection，不要在 host runtime 里维护第二套 fixed vocabulary。
-- Desktop semantic entity writer 是优先改造点：namespace-aware writer 出现后，这里要先接入，否则用户在 UI 里创建结构时仍会落回旧 production/segment 语义。
+- Host route 的 `productionId` 保留为 legacy focus，不继续代表唯一 timeline namespace。
+- namespace focus 通过 `scopeKind/scopeRef`、`targetKind/targetRef` 或后续 `namespacePath` 原样传入 surface；只有 `scopeKind=production` 会投影回 legacy `productionId`。
+- Local/Web host runtime 已原样转发 normalized focus，避免只有 Desktop 能打开 namespace-aware surface。
+- `movscript.production_status_summary.v1` 在 host 内部作为 legacy alias；新 status snapshot 已优先来自 Project Service/read model 的 timeline projection。
+- Local Surface Host 的 semantic adapter 已优先消费 Project Service resource projection，把 `productions/segments/settings/settingStates` 当 legacy alias；后续继续迁移其他固定映射。
+- Desktop semantic entity writer 已接入 namespace-aware hierarchy writer：显式 `namespace_kind` 会写 `timeline/...`，无 namespace payload 保留 legacy convenience；后续要让默认 UI 选择 project vocabulary，而不是要求用户手填。
 - `sceneMoment` writer 可以保留，但 parent 参数应从 `production_id + segment_id` 逐步升级为 `timeline_parent_ref` 或 normalized parent edge。
 
 ### Desktop Agent workspace 和 Admin history
@@ -1097,19 +1152,19 @@ Agent surface 是 agent 给用户打开 review/inspect 页面时的正式入口�
 
 当前扫描结论：
 
-- `apps/desktop/src/shared/contracts/workspaceChangeHandoff.ts` 会把 `production_workspace` 路由到 scripts workbench，并用 `productionId` 作为 review focus。
-- `apps/desktop/src/features/agent/domain/workspaceDomainModel.ts` 在 `content_unit_workspace` 指向 production 时也会回退到 production scripts workbench。
-- `AgentRuntimeChatShell.tsx` 会从 URL query 中提取 `productionId`，`agentCommandInput.ts` 会据此推断 `pageEntityType = production`。
-- `workspaceChangeHandoff.ts` 的 `content_unit_workspace` 已能落到 content preview，这是正确方向，但 production target 会绕回 scripts workbench。
+- `apps/desktop/src/shared/contracts/workspaceChangeHandoff.ts` 已从 workspace target 构造 normalized focus route params；`production_workspace` 没有 production target 时也可打开项目级 scripts review；非 production scope 不会制造 `productionId`。
+- `apps/desktop/src/features/agent/domain/workspaceDomainModel.ts` 已把 `content_unit_workspace` 指向 production/segment 的情况投影到 content preview 的 `timeline_assembly` focus，不再回到 production scripts workbench。
+- `AgentRuntimeChatShell.tsx` 已从 URL query 读取 normalized focus；`scopeKind=episode` 这类非 production focus 会保持 project scope + `domainFocus`，不会伪装成 runtime production scope。
+- `agentCommandInput.ts` 已把 normalized focus 写入 `uiSnapshot.domainFocus`，并优先用 target/entity/scope 生成 page context；`productionId` 只是 legacy route hint。
 - `agentSessionGenerationProjection.ts` 和相关测试仍把 `production_workspace` 显示为“制作工作区”。
 - `surface/admin/src/types/index.ts` 和 `surface/admin/src/i18n/locales/*.json` 仍保留 `asset_slot`、`segment`、`scene_moment`、`production_workspace`、`content_unit_workspace` 等历史类型和标签。
 
 推荐策略：
 
-- `production_workspace` 和 `content_unit_workspace` 第一阶段作为 legacy workspace alias 保留，避免打断已有 review/handoff。
-- 新增 focus payload 时使用中性字段，例如 `timelineScopeId`、`namespacePath`、`timelineAssemblyId`、`contentUnitId` 或 `focusedPrimitiveRef`。
-- Agent command input 不应仅凭 `productionId` 推断当前对象是 production；应优先消费 read model 返回的 normalized focus。
-- content unit / scene moment review path 优先进入 content preview；namespace scope output 进入 assembly/content unit review。
+- `production_workspace` 和 `content_unit_workspace` 第一阶段作为 legacy workspace alias 保留，避免打断已有 review/handoff；语义上已经转为 timeline structure / content-unit review 的兼容名。
+- 新增 focus payload 优先使用 `domainFocus` 或可规范化字段，例如 `scopeKind/scopeRef`、`targetKind/targetRef`、`timeline_assembly_ref`、`contentUnitId` 或 `focusedPrimitiveRef`。
+- Agent command input 已不再仅凭 `productionId` 推断当前对象；后续 read model 返回 vocabulary label 后，应继续落到同一个 normalized focus。
+- content unit / scene moment review path 优先进入 content preview；namespace scope output 进入 assembly/content unit review，这条已经在 Desktop handoff 和 workspace artifact review path 中覆盖。
 - Admin/workspace history 可以继续保存原始 legacy kind，但展示标签应逐步来自 project vocabulary/read model，而不是硬编码成 schema 事实。
 - 如果历史记录指向 namespace scope 输出，review path 应落到 `timeline_assembly_ref` content unit 或 content preview，而不是让 namespace 自己成为 review target。
 
@@ -1119,20 +1174,21 @@ Electron 这一层更像 runtime/context bridge。它不应该定义用户 names
 
 当前扫描结论：
 
-- `apps/desktop/src/electron/ElectronMCPContextBridge.tsx` 只在 scripts route 上解析 `productionId`，再写入 MCP context。
-- `apps/desktop/src/shared/contracts/electronApiWorkspaceContext.ts` 和 `providerConfigModel.ts` 的 workspace scope 仍是 `global | project | production`。
+- `apps/desktop/src/electron/ElectronMCPContextBridge.tsx` 已从 route search 派生 `domainFocus`，并只在 `scopeKind=production` 时回填 legacy `productionId`。
+- `apps/desktop/src/shared/contracts/electronApiWorkspaceContext.ts` 和 `providerConfigModel.ts` 的 workspace scope 仍是 `global | project | production`，但 workspace context 已能携带 `domainFocus`。
 - `apps/desktop/electron/services/workspaceRealm.ts` 看到 `scope = production` 时仍把 workspace 归到 project dir/provider session cwd，不单独解释 production source。
 - `apps/desktop/electron/services/projectEngineRegistry.ts` 会把 content unit 的 `production_ref / segment_ref / scene_moment_ref` 还原成 runtime fields。
-- `apps/desktop/electron/ipc/movscriptEngineIpc.ts` 和 preload API 仍暴露 `createProduction`、`createSegment`、`saveProductionSnapshot`。
+- `apps/desktop/electron/ipc/movscriptEngineIpc.ts` 和 preload API 仍暴露 `createProduction`、`createSegment`、`saveProductionSnapshot` 作为 legacy compatibility。
+- `apps/desktop/electron/services/projectEngineRegistry.ts`、IPC 和 preload API 已新增 `ensureMovScriptEngineTimelineAssemblyContentUnit`，调用方只提供 scope；bridge 会强制写成 `timeline_assembly_ref` content unit，不会调用 production/segment writer；共享 `SurfaceHostApi` 和 Content Canvas Electron gateway 已接入这条 facade。
 - `apps/desktop/electron/services/mediaPipeline/**` 中的 `segment` 主要是 HLS/timeline media segment，不属于 domain namespace 改造。
 
 推荐策略：
 
 - Electron workspace scope 的 `production` 保留为 legacy runtime scope，短期不直接替换成 episode/act。
-- MCP context bridge 新增 normalized focus payload，例如 `timelineScopeId`、`namespacePath`、`timelineAssemblyId`、`focusedPrimitiveRef`。
+- MCP context bridge 已新增 normalized focus payload；后续如增加 `namespacePath/focusedPrimitiveRef` 字段，应先进入 `@movscript/domain` focus helper，再由 bridge 透传。
 - workspace realm 继续负责 cwd/realm，不负责解释 namespace；namespace 解释在 Project Service/read model。
 - Project engine registry 应把 `production_ref / segment_ref` 规范化成 assembly alias，再交给 runtime snapshot。
-- Engine IPC 的旧 create production/segment API 保留兼容，但 namespace-aware writer 出现后应新增中性 create namespace/assembly API。
+- Engine IPC 的旧 create production/segment API 保留兼容；新 namespace scope 输出应优先走 `ensureMovScriptEngineTimelineAssemblyContentUnit` 或 Project Service `ensureTimelineAssemblyContentUnit`，不再让调用方手拼 `production_ref/segment_ref`。
 - 媒体管线里的 HLS segment、timeline segment 不进入 domain namespace 改造。
 
 ### Canvas、Resource 和 Shot Library
@@ -1182,18 +1238,18 @@ Electron 这一层更像 runtime/context bridge。它不应该定义用户 names
 
 这层要在源语义稳定后一起迁移：
 
-- `plugins/movscript/skills/*` 和 `apps/plugin/skills/*` 里的 production/segment/setting/state 语言要换成 namespace + primitive。
+- `plugins/movscript/skills/*` 和 `apps/plugin/skills/*` 里的 planning/domain/generation/editing/review/content-unit recipe 已换成 namespace + primitive / assembly；plugin bundle/cache 仍需通过构建同步。
 - `README`、CLI 示例、runtime architecture 文档中的固定路径说明要标注 legacy。
 - 测试分两批：第一批覆盖 projection/compatibility；第二批在 source layout 变化时再大规模改路径 fixture。
 
 技能文档里优先要改这些位置：
 
 - `planning/references/entity-mapping.md`: `production / episode / film unit -> production` 要改成 timeline namespace vocabulary。
-- `planning/references/content-unit-recipes.md`: `production_ref` / `segment_ref` 改成 legacy assembly alias，新推荐是 `timeline_assembly_ref`。
+- `planning/references/content-unit-recipes.md`: 已把 `production_ref` / `segment_ref` 改成 legacy assembly alias，新推荐是 `timeline_assembly_ref`。
 - `planning/references/planning-workflows.md`: “Create production, segment, scene moments” 改成 “choose timeline namespace path, then create scene moments”。
 - `domain/references/domain-story.md`: “production granularity decision” 改成 “timeline scope / production center decision”，避免把 granularity 和固定 production entity 绑定。
-- `generation/SKILL.md`: `system_focus_get` 和 status summary 中的 production 语言要改成 legacy/project timeline scope。
-- `editing/SKILL.md`: production timeline composition 改成 timeline assembly composition。
+- `generation/SKILL.md` / `review/SKILL.md`: 已把 production output/readiness 改成 content-unit output、system primitive / assembly 和 generation readiness。
+- `editing/SKILL.md`: 已把 production timeline composition 改成 timeline assembly / legacy production handoff。
 
 文档和示例入口也要一起改，否则用户和 agent 仍会学习旧模型：
 
@@ -1209,27 +1265,27 @@ Electron 这一层更像 runtime/context bridge。它不应该定义用户 names
 | 测试类别 | 保留/新增 | 目的 |
 | --- | --- | --- |
 | Legacy compatibility fixtures | 保留 `productions/{id}/segments/{id}`、`settings/{id}/states/{id}` 路径 | 证明旧项目仍能读取、解释、生成 stale report |
-| Namespace projection fixtures | 新增 `project.json.namespace_vocabulary` + legacy source projection | 证明 UI/read model/agent context 能显示用户 vocabulary，但 source layout 不必先变 |
-| New semantic fixtures | 新增 explicit parent/scope refs、`timeline_assembly_ref`、namespace node 不含 content-unit-ref | 证明新语义成立，且 namespace 不进入 candidate/selection |
+| Namespace projection fixtures | 保留 legacy `project.json.namespace_vocabulary` 兼容读取 + legacy source projection | 证明旧项目 vocabulary 仍能显示，但 source layout 不必先变 |
+| New semantic fixtures | 新增制作 root `production_type` / `timeline_namespaces`、explicit parent/scope refs、`timeline_assembly_ref`、namespace node 不含 content-unit-ref | 证明新语义成立，且 namespace 不进入 candidate/selection |
 
 第一阶段最值得新增的测试：
 
-- `packages/domain`: category/target/ref/path/focus/invariant 的纯函数测试；证明 namespace target 被拒绝、legacy production/segment ref 投影为 assembly、path parent edge 保留但不决定用户 vocabulary。
-- `packages/language`: project schema 接受 `namespace_vocabulary`。
+- `packages/domain`: category/target/ref/path/focus/invariant/vocabulary 的纯函数测试；证明 namespace target 被拒绝、legacy production/segment ref 投影为 assembly、path parent edge 保留但不决定用户 vocabulary，vocabulary fallback/child-kind 只提供创建顺序、不创建 parent truth。
+- `packages/language`: project schema 兼容读取 `namespace_vocabulary`，但 project 初始化不写 selected timeline。
 - `packages/core`: read model 能把 legacy production/segment 投影成 timeline namespace。
 - `packages/interpreter`: legacy `production_ref/segment_ref` 在 normalized graph 中投影为 implicit assembly。
 - `packages/interpreter`: `timeline_assembly_ref` content unit 能进入 artifact/stale/prompt adapter。
-- `surface/project`: namespace node 无直接 generation command，assembly/primitive 有 generation command。
+- `surface/project`: namespace node 无直接 generation command，Creative Canvas action model 已按 `domainCategory` 分发 namespace 子动作；assembly/primitive 有 generation command。
 - `surface/project`: content canvas create/layout/navigation 不再把 production/segment 固定成唯一结构列和唯一 parent chain。
 - `surface/project`: content canvas candidate generation/upload/select 仍只对 `content_unit` 生效；namespace node 没有 direct candidate action。
-- `surface/project`: direct scene-moment creation 不再必须先创建/选择 production + segment；它应选择 timeline namespace path 或 normalized parent edge。
-- `surface/project`: project entry/overview 能以 namespace vocabulary、scene_moment 和 assembly readiness 计算进度，不再以 `productions.length === 0` 阻塞内容入口。
-- `packages/core`: old content workbench write model 只作为 legacy compatibility；新 assembly preview 不写入 `preview_timeline.production_id`。
+- `surface/project`: direct scene-moment creation 以及 Content Canvas root/child legacy timeline creation 的旧 production + segment mount 已显式化为 `legacyTimelineMount`；root namespace、direct scene-moment、normalized timeline namespace parent 下的 child namespace / scene_moment 创建已走 path-first hierarchy writer；root/child timeline namespace kind 已接 project vocabulary，并通过 `@movscript/domain` 统一 fallback/next-kind；root setting namespace、setting child namespace/state create 和 direct prompt 自动挂载 setting/state 已接 project setting namespace vocabulary，并写入 `namespace_kind`；namespace scope assembly 已创建 `timeline_assembly_ref` content unit，Electron gateway 已断言走 `ensureMovScriptEngineTimelineAssemblyContentUnit`；结构树、radial code、关系事实和主要创建文案已显示 vocabulary/category；layout arrange 已按 domain ancestor depth 排列 timeline namespace，navigator 已携带 `domainKind`，collapsed summaries 和 filter labels 已按 namespace `domainKind` 展示。最终还需要把其他 legacy surface 继续 vocabulary 化。
+- `surface/project`: project entry/overview 能以 `project_timeline_status` 中的 namespace vocabulary、scene_moment/system primitive 和 assembly readiness 计算进度，不再以 `productions.length === 0` 或 legacy semantic list 作为唯一入口判断；project entry registry/session store 已覆盖 `scopeKind/scopeRef`、target focus、`timeline_assembly_ref` review query 和字符串 namespace ref 持久化。
+- `packages/core`: old content workbench write model 作为 legacy compatibility 保留；无 productionId 的 assembly move payload 已写 `target_kind/target_ref/scope_kind/scope_ref`，新 assembly preview 不写入 `preview_timeline.production_id`。
 - `packages/core`: `ContentSourceWorkspaceEditingTimeline.targetKind` 支持 `timeline_assembly`，legacy production timeline 投影到 assembly。
 - `packages/core/src/agent`: preview/status browser surface 支持 `timelineScopeId/namespacePath/timelineAssemblyId`，`productionId` 只是 legacy query。
-- `packages/prompt`: `{{episode::id}}` 不作为 selected resource dependency；`{{content_unit::id}}` 或 `{{timeline_assembly::id}}` 才进入 selection gate。
+- `packages/prompt`: `{{episode::id}}` 不作为 selected resource dependency；`{{content_unit::id}}` 进入 selection gate，未来如新增 `{{timeline_assembly::id}}` 必须避免和 content-unit 引用双轨。
 - `services/data-service`: content candidate generation/reconcile 继续只写 `target_kind = "content_unit"`。
-- `services/local-surface-host` / `services/web-surface-host`: `productionId` 仍可作为 legacy focus，但 namespace focus 能投影到 status summary。
+- `services/local-surface-host` / `services/web-surface-host`: `productionId` 仍可作为 legacy focus，但 namespace focus 能投影到 status summary；Local Surface Host status snapshot target 已携带 normalized `domain_focus`；Local/Web route tests 已覆盖非 production scope 不回填 `production_id`，以及 `timeline_assembly_ref` alias 不被误解释成 production。
 - `apps/desktop`: semantic entity writer 不再把新 namespace 创建强制写成 production/segment。
 - `surface/resource`: 新资源挂载优先创建 content-unit candidate，不把 namespace 当候选目标。
 - `surface/shot-library`: reference shot 导入不产生 `shot_ref`，只产生 expression/storyboard/keyframe/content-unit 映射。
@@ -1243,13 +1299,13 @@ Electron 这一层更像 runtime/context bridge。它不应该定义用户 names
 - `packages/interpreter/tests/integration/source-validation.test.mjs` 中 `production_ref/segment_ref` 合法性的断言不要删除，应改名为 legacy assembly alias 兼容测试；旁边新增 `timeline_assembly_ref` 的规范路径测试。
 - `packages/interpreter/tests/integration/artifacts.test.mjs` 中 `production_ref/segment_ref` runtime panel/artifact 测试应继续证明旧项目能解释，同时新增 assembly runtime panel、stale impact 和 dependency report。
 - `packages/core/tests/mcp*.test.mjs`、`packages/core/tests/content/*.test.mjs`: 覆盖 MCP tool contract、source workspace read model 和 content unit 入口。
-- `packages/core/tests/content.test.mjs`、`packages/core/tests/production.test.mjs`、`packages/core/src/content/workbenchWriteModel.ts` 对应测试：覆盖 legacy production orchestration/workbench 不被新 namespace 继续扩展。
-- `surface/project/src/features/content/application/contentCanvasArchitecture.test.ts`、`contentCanvasWorkspaceCommandModel.test.ts`、`projectEntryRegistry.test.ts`、`projectOverviewModel` 相关测试：覆盖 canvas graph/action/layout/create command/candidate action 和 project entry/overview 的 namespace projection。
+- `packages/core/tests/content.test.mjs`、`packages/core/tests/production.test.mjs`、`packages/core/src/content/workbenchWriteModel.ts` 对应测试：覆盖 legacy production orchestration/workbench 不被新 namespace 继续扩展，并覆盖无 productionId 的 assembly scope timeline move payload。
+- `surface/project/src/features/content/application/contentCanvasArchitecture.test.ts`、`contentCanvasWorkspaceCommandModel.test.ts`、`projectEntryRegistry.test.ts`、`projectEntrySessionStore.test.ts`、`projectOverviewModel` 相关测试：覆盖 canvas graph/action/layout/create command/candidate action、project entry scope-first primary selection/session focus 和 project overview 的 namespace projection。
 - `surface/project/src/features/content/integrations/contentSourceWorkspaceElectron.test.ts`、`packages/core/src/content/sourceWorkspaceData.ts` 对应测试：覆盖 source workspace parent refs 不再只从 `productions/segments` 推导。
 - `surface/project/src/components/AgentPreviewTimelineSurface.tsx` 和 `packages/core/src/agent/surfaces.ts` 对应测试：覆盖 preview/status surfaces 可用 assembly/timeline focus，不再强制 `productionId`。
 - `packages/prompt/tests/content-unit-prompt.test.mjs`: 保留 `{{segment:opening}}` 解析到 legacy `segment_ref` selected resource 的测试，同时新增 prompt ref 不直接把 namespace 作为 selected resource dependency 的测试。
 - `packages/editing/tests/media-project.test.mjs`、`packages/editing/tests/service-client.test.mjs`、`services/editing-service/tests/server.test.mjs`: 覆盖 `productionTimelineBundle` 作为 legacy assembly alias，以及新 assembly target 的 MediaEditingProject provenance。
-- `packages/project/tests/client.test.mjs`、`services/project-service/tests/server.test.mjs`: 覆盖 resource view/read model 的 vocabulary projection。
+- `packages/project/tests/client.test.mjs`、`services/project-service/tests/server.test.mjs`、`packages/core/tests/mcp.test.mjs`: resource view/MCP `resources/read` 已覆盖 namespace vocabulary、timeline namespace、setting namespace、legacy timeline/setting aliases 和 domain edge projection；Project Service read model 和 MCP status summary 已覆盖 `project_timeline_status` / `timeline_assembly_ref` projection。
 - `apps/desktop/src/shared/contracts/workspaceChangeHandoff.test.ts`、`apps/desktop/src/features/agent/domain/workspaceDomainModel.test.ts`、`AgentRuntimeChatShell.test.ts`、`agentSessionGenerationProjection.test.ts`: 覆盖 workspace/handoff 不再只靠 `productionId`。
 - `apps/desktop/electron/services/projectEngineRegistry.test.ts`、`apps/desktop/electron/services/movscriptWorkspaceRoot.test.ts`、`apps/desktop/src/electron/ElectronMCPContextBridge.tsx` 对应测试：覆盖 runtime bridge 把 legacy production focus 投影成 normalized focus。
 - `services/local-surface-host/src/routes/localRouteLinks.test.ts` 和 local host semantic entity adapter 的新增测试：覆盖 URL route segment 与 domain namespace segment 的区分。
@@ -1282,23 +1338,24 @@ Electron 这一层更像 runtime/context bridge。它不应该定义用户 names
 - 新增 `@movscript/domain` package，且 language、workspace、interpreter、core、surface、MCP/agent 相关入口开始消费它的 category、target、ref、path edge、focus 和 invariant，而不是各自复制规则。
 - `project.json` 能声明 namespace vocabulary，并被 read model、UI、MCP/agent planning 读取。
 - language schema / registry 能表达 namespace vocabulary、timeline assembly 和 legacy projection，且 `production` 不再被描述为唯一 makeable video unit。
-- 新写入的 namespace node 不包含 `content_unit_ref/content_unit_refs/main_content_unit_id` 这类字段。
+- 新写入的 namespace node 不包含 `content_unit_ref/content_unit_refs/main_content_unit_id` 这类字段，也不包含 `candidates/selection/selected_candidate_id/selected_resource_id/resource_id` 这类生产状态字段。
 - 新建 content unit 时不能把 `target_kind` 设为 timeline namespace 或 setting namespace。
 - `scene_moment` 仍能作为固定 system primitive 被创建、查询、生成、进入 stale graph。
 - 需要 namespace scope 输出时，通过 `timeline_assembly_ref` content unit 进入生产流程。
 - 旧 `production_ref / segment_ref` 在 normalized graph 中等价于 implicit `timeline_assembly_ref`，并有测试覆盖。
-- relation/stale graph 消费 normalized edge；树状父子关系可以来自 path，target/scope/cross-tree 关系来自显式 refs。
+- relation/stale graph 消费 normalized edge；树状父子关系可以来自 path，target/scope/cross-tree 关系来自显式 refs；显式 parent/scope ref 与 path parent 冲突时报 `path_parent_ref_conflict`。
 - UI 中 namespace node 没有直接“生成候选/选择候选”的主流程；assembly 和 system primitive 才有。
 - Content Canvas 的 node kind、layout、create action 和 candidate action 能区分 namespace node 与 system primitive；不会默认创建 `canvas_production/canvas_segment` 作为新结构前置。
-- Project Entry/Overview 不再把 `orchestration_production`、`productionId` 或 `productions.length` 当成唯一项目进度和 review 入口。
-- prompt compiler 不把任意 namespace ref 当成必须 selected candidate 的资源依赖。
+- Content Canvas 的 namespace assembly ensure 走 `ensureMovScriptEngineTimelineAssemblyContentUnit`，由 desktop bridge 生成 canonical `timeline_assembly_ref`，而不是由 UI 复用 production/segment writer。
+- Project Entry/Overview 不再把 `orchestration_production`、`productionId` 或 `productions.length` 当成唯一项目进度和 review 入口；Project Entry primary selection/session 已支持 timeline scope、assembly target 和字符串 namespace ref；overview 已优先消费 `project_timeline_status`。
+- prompt compiler / source validation 不把任意 namespace ref 当成必须 selected candidate 的资源依赖，并对 namespace-like prompt refs 报 `unsupported_prompt_ref_kind`。
 - Editing Service 能接收 assembly target 或明确把 legacy production timeline bundle 投影为 assembly。
 - Agent Browser preview/status surfaces 支持 timeline scope 或 assembly focus；`Missing productionId` 不再阻塞新模型路径。
-- Agent surface snapshot/status 不再固定输出 `movscript.production_status_summary.v1` 和 `productions[]`，或明确把它们标为 legacy alias。
-- Core legacy content workbench 的 production orchestration/write model 被明确隔离为 compatibility，不接收新 namespace 语义扩展。
+- Agent surface snapshot/status 已在 MCP summary 和 Local Surface Host read model adapter 中明确把 `movscript.production_status_summary.v1` 和 `productions[]` 标为 legacy alias，并提供 `project_timeline_status` 主投影；Project Service source command、Local Surface semantic adapter、Desktop semantic writer、MCP `domain_upsert_timeline_namespace_tree`、path-aware `domain_upsert_scene_moment` 以及 `expression_unit/storyboard/keyframe/audio_cue` upsert 工具已开始消费同一 projection，tree writer 已支持在 namespace path 下写入这些 system primitive，剩余 legacy caller 继续迁移。
+- Core legacy content workbench 的 production orchestration/write model 被明确隔离为 compatibility；write model 已支持 assembly scope payload，但不把 namespace 变成 production_id。
 - CLI、MCP 和 agent skills 不再推荐新建 `production_ref / segment_ref` 作为普通 production unit；只作为 legacy assembly alias。
-- Engine/MCP tree upsert 不会自动给 namespace scope 创建 `production_ref/segment_ref` content unit；只有显式 assembly 才进入 content unit。
-- Project Service resource view 不再把 `episodes/scenes` 直接硬映射为 production/segment ontology，而是返回 vocabulary-aware projection。
+- Engine/MCP tree upsert 不会自动给 namespace scope 创建 `production_ref/segment_ref` content unit；`domain_upsert_timeline_namespace_tree` 上的 namespace-scope `content_units` 会被收敛为 `timeline_assembly_ref`，旧 `domain_upsert_production_tree` 只作为兼容入口保留。
+- Project Service resource view 不再把 `episodes/scenes/settings/setting-states` 直接硬映射为 production/segment/setting/state ontology，而是返回 vocabulary-aware projection，并给 legacy item 标注推荐 canonical resource kind。
 - Data Service content-candidate generation/reconcile 仍只绑定 `target_kind = "content_unit"`。
 - Desktop semantic entity writer、local/web surface host、Project client 能把旧 `productionId` 当 legacy focus 处理，同时支持 namespace-aware focus/projection。
 - Desktop Agent workspace/handoff 和 command input 能消费 normalized focus；`productionId` 只作为 legacy route hint。
@@ -1329,22 +1386,25 @@ Electron 这一层更像 runtime/context bridge。它不应该定义用户 names
 
 ### Phase 1：建立 `@movscript/domain`
 
-先建立纯领域抽象 package，让后续迁移都有同一个语义中心：
+当前已经建立纯领域抽象 package，让后续迁移都有同一个语义中心：
 
-- 新增 `packages/domain` / `@movscript/domain`。
-- 定义 category、system primitive、content unit target、relation edge、normalized focus。
-- 实现 legacy projection：`production/segment/setting/state` 投影到 namespace；`production_ref/segment_ref` 投影到 assembly。
-- 实现 invariant：namespace 不作为 content unit target，不拥有 content-unit-ref，不拥有 candidate/selection。
-- 实现 path parent edge normalizer：path 是 containment source，不是用户 vocabulary source。
-- 增加 package-level tests，作为下游迁移的哨兵。
+- 已新增 `packages/domain` / `@movscript/domain`。
+- 已定义 category、system primitive、content unit target、relation edge、normalized focus。
+- 已实现 legacy projection：`production/segment/setting/state` 投影到 namespace；`production_ref/segment_ref` 投影到 assembly。
+- 已实现 invariant：namespace 不作为 content unit target，不拥有 content-unit-ref，不拥有 candidate/selection。
+- 已实现 path parent edge normalizer：path 是 containment source，不是用户 vocabulary source。
+- 已实现 namespace vocabulary fallback、root kind 和 child kind 推导；fallback 只作为创建顺序，不作为实例 parent truth。
+- 已增加 package-level tests，作为下游迁移的哨兵。
 
 这一阶段完成后，后续 package 只接入 `@movscript/domain`，不再复制 namespace/target/ref 判断。
 
-### Phase 2：project.json vocabulary + read-model projection
+### Phase 2：制作级 production type + read-model projection
 
 先不改 source layout，只做用户可见和 agent 可理解的抽象：
 
-- 在 `project.json` 增加 `namespace_vocabulary`。
+- project 初始化保持干净，不写 selected timeline。
+- 创建制作时选择 production type，并把推荐内部 `timeline_namespaces` 写入 root production。
+- `project.json.namespace_vocabulary` 仅作为旧项目兼容和可选 registry 读取。
 - legacy `production / segment / setting_state` 投影成 namespace node。
 - UI 展示 vocabulary alias。
 - agent planning 使用 vocabulary，但写入仍落回 legacy writer。
@@ -1372,17 +1432,20 @@ Interpreter 不应在每个模块里各自解析目录，也不应抛弃目录�
 - source validation 校验 path parent 与显式 parent/ref 是否冲突；缺失显式 refs 先 warning，不立即 error。
 - impact/stale 只看 normalized graph，不再各自解析目录。
 
+当前状态：relation graph 已消费 `@movscript/domain` 的 path parent edge、content unit target/scope normalizer 和 legacy assembly alias；impact report 已能让 namespace context 变更沿 relation graph 影响 descendant primitive、timeline assembly content unit 和 setting asset content unit；regeneration plan 已优先从 latest interpret 的 impact report artifact 读取 changed entities、affected content units 和 preview timeline hints。
+
 ### Phase 5：namespace-aware writer/API/UI
 
 当 projection 稳定后，再改写入入口：
 
 - 新增 namespace-aware create/update API。
+- MCP 已新增 `domain_upsert_timeline_namespace_tree`，用于写 `timeline/**` 下 path-first 的 timeline namespace tree，并能在 namespace 节点下写入 `scene_moment` 及其 system primitive 子节点；`domain_upsert_scene_moment` 已支持 `targetPath/namespacePath`，`domain_upsert_expression_unit/keyframe/storyboard/audio_cue` 已支持 `targetPath/sceneMomentPath/expressionUnitPath` 直接写入 namespace scene-moment path；旧 `domain_upsert_production_tree` 继续作为 legacy production/segment projection API。
 - UI 支持递归 timeline namespace 和 setting namespace。
 - namespace node 的主要操作是“新增子 namespace / 新增 scene_moment / 新增 assembly / 编辑上下文”，不是“生成内容”。
 - Content Canvas 改成 category-driven action model，不再用 production/segment 固定列和固定 parent chain。
-- Agent Browser surfaces、Project Entry、Project Overview 同步支持 namespace/assembly focus。
+- Agent Browser surfaces、Project Entry primary selection/session、Project Overview 同步支持 namespace/assembly focus。
 - Legacy content workbench/production orchestration helper 冻结为 compatibility，不继续承接新 namespace 字段。
-- `domain_upsert_production_tree`、`domain_upsert_segment`、`domain_upsert_setting_tree` 继续保留为 legacy convenience API。
+- `domain_upsert_production_tree`、`domain_upsert_segment`、`domain_upsert_setting_tree` 继续保留为 legacy convenience API；新 timeline namespace 写入优先使用 `domain_upsert_timeline_namespace_tree`。
 
 ### Phase 6：评估 source layout migration
 
@@ -1408,14 +1471,14 @@ Interpreter 不应在每个模块里各自解析目录，也不应抛弃目录�
 | Desktop Agent workspace/handoff 继续只从 URL `productionId` 推断当前对象 | 中 | command input 和 review path 消费 normalized focus；旧 `production_workspace` 只作为 route alias |
 | Electron runtime bridge 把用户 namespace 误塞进 `scope = production` | 中 | runtime scope 保留 legacy；新增 normalized focus payload，Project Service/read model 负责解释 |
 | Local/Web Surface route 只传 `productionId`，导致 namespace/assembly surface 无法打开 | 中 | project route context 和 navigator 透传 normalized focus；productionId 仅 legacy |
-| Local Surface Host semantic adapter 继续维护固定 vocabulary，和 Project Service read model 分叉 | 中 | host adapter 消费 read model projection，不再自建 production/segment/setting_state 词汇映射 |
+| Local Surface Host semantic adapter 继续维护固定 vocabulary，和 Project Service read model 分叉 | 中 | host adapter 已消费 Project Service resource projection；剩余固定映射只保留给非 namespace 实体和 fallback |
 | Agent Browser preview/status surface 强制 `productionId`，新 namespace/assembly 项目无法进入 review | 中 | surface entity/query 支持 timeline scope 和 assembly focus；productionId 只做 legacy query |
-| Agent surface status 继续合成 `production_status_summary.v1`，让 agent 以为 production 是唯一状态单位 | 中 | 新增 project timeline/status schema；production summary 作为 alias |
+| Source command/semantic adapter 继续维护 production-first vocabulary，让 agent 以为 production 是唯一状态单位 | 中 | MCP summary、Project Service read model、Project Service canonical source command、Local Host status/semantic adapter、Desktop semantic writer 和 MCP timeline namespace tree writer 已接同一 projection；旧 caller 保留 compatibility 并继续迁移 |
 | Agent decision request 允许 namespace target，被用户 adopt/reject 后形成伪稳定状态 | 中高 | decision metadata 只允许 content unit candidate/resource 或 system primitive/assembly target |
 | inline candidate helper 被继续扩展，出现 `episode/act` 这类 legacy direct target | 中高 | 冻结 inline target kind；新增生成/选择流统一进入 content unit candidate |
 | content canvas 命令误给 namespace node 创建生成任务，或自动创建 `canvas_production/canvas_segment` | 中 | UI command model 按 node category 控制；namespace 只反查相关 work items，新创建走 namespace/primitive/assembly |
-| Project overview 用 `productions.length === 0` 阻塞内容入口 | 中 | progress/blocking 基于 namespace template、scene_moment、assembly/content unit readiness |
-| legacy content workbench write model 继续扩展 production timeline 字段 | 中 | 标为 compatibility；新 assembly preview 走 normalized read model 和 Editing Service |
+| Project Entry/Overview 用 `productionId` 或 `productions.length === 0` 阻塞内容入口 | 中 | Entry primary selection/session 已支持 `scopeKind/scopeRef`、assembly target 和字符串 namespace ref；overview 已优先消费 `project_timeline_status`，progress/blocking 基于 namespace template、scene_moment、assembly/content unit readiness，legacy semantic list 仅 fallback |
+| legacy content workbench write model 继续扩展 production timeline 字段 | 中 | 标为 compatibility；无 productionId 时已输出 assembly target/scope payload；新 assembly preview 走 normalized read model 和 Editing Service |
 | generated plugin bundle/agent skill 与源代码语义漂移 | 中 | 源语义稳定后重新构建 bundle、更新技能和 manifest，并加 drift check |
 | README/架构文档/CLI 示例继续教旧 production/segment 层级 | 中 | schema 决策后同步更新 docs/examples；迁移期统一标注 legacy projection |
 
@@ -1427,51 +1490,50 @@ Interpreter 不应在每个模块里各自解析目录，也不应抛弃目录�
 4. Content unit 保持唯一生产任务入口。
 5. Namespace node 不能直接成为 content unit target。
 6. Namespace source record 不保存 content-unit-ref 反向指针。
-7. Candidate 和 selection 不写回 namespace node。
+7. Candidate、selection 和 resource 状态不写回 namespace node。
 8. `scene_moment` 保持固定系统生产单位，只允许 UI alias。
 9. Stale impact 追踪语义依赖，而不是只追踪路径。
 10. Path 父子关系是默认 parent edge 来源；先抽象 read model，再评估是否真的需要迁移 source layout。
 
 ## 建议决策
 
-### Namespace vocabulary 放在 project.json
+### Project 不选择 timeline，制作选择 production type
 
-Namespace vocabulary 应放在 `project.json`，不放在 `project_standards.json`，第一阶段也不单独拆文件。
+新建 project 时不应填写 `timeline_template`、`timeline_namespaces` 或 selected timeline vocabulary。Project 是工作区和素材/设定容器，不是某一种影片结构本身。
 
-原因是 namespace vocabulary 是项目结构配置，不是创作风格标准。它决定 UI、agent planning、read model、writer 和 interpreter 如何理解项目层级，应该在读取项目根信息时就能拿到。
+真实项目里可能同时存在多个制作：一个长片、几个预告短视频、一集电视剧、一个课程小节。它们可以共享 setting namespace、素材和 project standards，但 production 的业务类型和内部 timeline namespace 推荐应该在创建“制作”时选择。
 
-推荐概念形态：
+推荐制作 root 记录的概念形态：
 
 ```json
 {
-  "namespace_vocabulary": {
-    "timeline": {
-      "template": "series",
-      "kinds": ["series", "season", "episode", "act", "sequence", "beat"],
-      "scene_moment_alias": "scene"
-    },
-    "setting": {
-      "kinds": ["character", "costume", "state", "voice_state"]
-    }
-  }
+  "schema": "movscript.production.v1",
+  "kind": "production",
+  "id": "launch_promo",
+  "title": "Launch Promo",
+  "namespace_kind": "production",
+  "production_type": "video",
+  "timeline_namespaces": ["hook", "proof", "demo", "cta"]
 }
 ```
 
-`project_standards.json` 仍然只放风格、镜头、画面、负面提示词、生成偏好等创作标准。后续如果 namespace 配置变得很大，可以再迁移到独立文件，例如 `namespace_vocabulary.json`，但第一阶段不建议过早拆分。
+如果需要让用户维护自定义 type/profile library，可以把它作为 project 级 registry 存在，例如 `production_type_profiles`、`namespace_profiles` 或兼容期的 `namespace_vocabulary`。但这只是“可选词库”，不是 project 的 selected timeline。
 
-### Timeline namespace 需要默认模板
+`project_standards.json` 仍然只放风格、镜头、画面、负面提示词、生成偏好等创作标准。后续如果 namespace registry 变得很大，可以再迁移到独立文件，例如 `namespace_vocabulary.json`，但第一阶段不建议过早拆分。
 
-Timeline namespace 需要 project-level 默认模板，但模板只能是起步脚手架，不应成为硬编码 ontology。
+### Timeline namespace 需要制作级默认推荐
 
-推荐提供这些内置模板：
+Timeline namespace 需要默认推荐，但推荐属于 production type，不属于 project。模板只能是起步脚手架，不应成为硬编码 ontology，也不应自动创建 production 内部实例树。
 
-- `film`: `film / act / sequence / beat`
-- `series`: `series / season / episode / act / sequence / beat`
-- `short_video`: `video / hook / proof / demo / cta`
-- `course`: `course / lesson / section / point`
-- `custom`: 用户完全自定义
+推荐提供这些内置 production type：
 
-模板的作用是降低空项目启动成本，并帮助 agent 选择合理的初始规划语言。模板不应该决定系统行为；系统行为仍来自 domain 分类：timeline namespace、setting namespace、system primitive、content unit。
+- `video`: `hook / proof / demo / cta`
+- `film`: `act / sequence / beat`
+- `episode`: `act / sequence / beat`
+- `lesson`: `segment`
+- `custom`: 用户填写自己的 `production_type` 和 `timeline_namespaces`
+
+模板的作用是降低创建制作的启动成本，并帮助 agent 选择合理的初始规划语言。模板不应该决定系统行为；系统行为仍来自 domain 分类：production/timeline namespace、setting namespace、system primitive、content unit。电视剧的 `series / season` 可作为 tag、分组、筛选字段或用户自定义 namespace，但系统默认只创建具体要生产的一集 production。
 
 ### Setting namespace 第一阶段保持单父级树
 
@@ -1574,6 +1636,8 @@ Prompt ref 也应遵守同一条边界：namespace 可以提供上下文，但�
 - 稳定资源依赖继续引用 system primitive、content unit、candidate 或 resource。
 - assembly output 如果需要作为上游资源，可以引用 `timeline_assembly` 的 content unit，或者新增 `{{timeline_assembly::id}}`，但不要同时保留两套等价语法。
 
+实现层面不应把未知 prompt ref 当作无害文本静默放过。`{{episode::episode_01}}`、`{{beat::opening}}` 这类 namespace-like ref 应产生 `unsupported_prompt_ref_kind` blocker / source validation diagnostic，提示 namespace vocabulary 只是上下文，不是 selected-resource dependency。这样可以避免 agent 以为某个 namespace node 已经拥有可选择候选或稳定资源。
+
 ### Editing target 从 production 升级到 assembly
 
 剪辑和合成层也不应长期把 `production` 当作唯一聚合目标。
@@ -1586,7 +1650,11 @@ segment timeline bundle -> timeline_assembly(scope = legacy segment)
 scene moment timeline bundle -> scene_moment
 ```
 
-长期形态应是 editing artifact 接收 `target_kind = "timeline_assembly"`、`target_ref`、`scope_ref`，而不是必须携带 `productionId / productionPath`。`scene_moment` timeline bundle 可以保持稳定，因为它本来就是系统生产单位。
+当前实现已经把 production timeline / production edit plan 包成 production-scope assembly alias：editing artifact、MediaEditingProject source/provenance、context selected units 都会携带 `target_kind = "timeline_assembly"`、`target_ref = "timeline_assembly:production:<id>"`、`scope_kind = "production"`、`scope_ref = <id>`，同时保留 `productionId / productionPath` 和 legacy target 字段给旧调用方。
+
+`timelineAssemblyBundle` 是新的 canonical service view。production scope 仍作为 legacy alias 走旧 production preview timeline；非 production scope，例如 `timeline_assembly:episode:pilot`，会通过 Workspace Service 从 timeline namespace scope 派生 preview timeline items，并生成不含 `productionId` 的 MediaEditingProject source/provenance。找不到 scope 时返回 blocked bundle，而不是把 episode/act/beat 偷偷降级成 production。
+
+长期形态仍然是 editing artifact 接收 `target_kind = "timeline_assembly"`、`target_ref`、`scope_kind`、`scope_ref`，而不是必须携带 `productionId / productionPath`。`scene_moment` timeline bundle 可以保持稳定，因为它本来就是系统生产单位。
 
 ### Stale graph 使用 normalized relation graph
 

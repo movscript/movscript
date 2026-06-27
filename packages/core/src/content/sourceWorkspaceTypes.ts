@@ -89,8 +89,8 @@ export interface PreviewAssetReferenceUnit {
 
 export interface PreviewContentUnit {
   id: string
-  type: 'storyboard_ref' | 'keyframe_ref' | 'scence_moment_ref' | 'scene_moment_ref' | 'expression_unit_ref'
-  outputKind: 'image' | 'video' | 'storyboard'
+  type: 'storyboard_ref' | 'keyframe_ref' | 'audio_cue_ref' | 'scence_moment_ref' | 'scene_moment_ref' | 'expression_unit_ref'
+  outputKind: 'image' | 'video' | 'audio' | 'storyboard'
   path: string
   editPrompt: string
   sceneMomentRef: string
@@ -244,6 +244,7 @@ export interface AudioCue {
   timing: Record<string, unknown>
   assetRefs: string[]
   sceneMomentId: string
+  contentUnit?: PreviewContentUnit
 }
 
 export interface ProductionWorkItemView {

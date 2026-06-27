@@ -46,8 +46,9 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       text('speaker', '说话人'),
       area('content', '内容'),
     ]),
-    cfg('segments', 'segments', '段落', '制作结构中的叙事段落。', ['title', 'order'], [
-      num('production_id', 'Production ID'),
+    cfg('segments', 'segments', '段落', '旧 production/segment 投影中的时间结构节点；新项目应通过 timeline namespace / scene_moment / assembly 语义进入。', ['title', 'order'], [
+      num('production_id', 'Legacy production scope ID'),
+      text('namespace_kind', 'Timeline namespace kind'),
       text('title', '标题', true),
       area('summary', '摘要'),
       num('order', '顺序'),
@@ -57,9 +58,9 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       select('kind', '类型', ['brief', 'note', 'dialogue', 'action']),
       area('content', '内容'),
     ]),
-    cfg('sceneMoments', 'scene-moments', '情节', '段落下的具体情节。', ['title', 'scene_code'], [
-      num('production_id', 'Production ID'),
-      num('segment_id', 'Segment ID'),
+    cfg('sceneMoments', 'scene-moments', '情节', '系统 scene_moment primitive；旧写入口仍要求 production/segment 路径父级。', ['title', 'scene_code'], [
+      num('production_id', 'Legacy production scope ID'),
+      num('segment_id', 'Legacy segment scope ID'),
       text('scene_code', '场景编号'),
       text('title', '标题', true),
       text('time_text', '时间'),
@@ -82,7 +83,8 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       area('note', '备注'),
       num('order', '顺序'),
     ]),
-    cfg('productions', 'productions', '制作', '项目中的制作单元。', ['name'], [
+    cfg('productions', 'productions', '制作', '旧 timeline namespace projection；电影/剧集/短视频的新层级命名应来自 project vocabulary。', ['name'], [
+      text('namespace_kind', 'Timeline namespace kind'),
       text('name', '名称', true),
       area('description', '描述'),
       num('script_version_id', 'ScriptVersion ID'),

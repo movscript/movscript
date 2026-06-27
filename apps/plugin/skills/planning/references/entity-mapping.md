@@ -14,8 +14,9 @@ Use current `movscript-lang` entity names in tool calls and source files.
 | setting / concrete production entity | `setting` |
 | setting state / entity state namespace | `setting_state` |
 | asset slot / state asset description | `asset` |
-| production / episode / film unit | `production` |
-| segment / rhythm section | `segment` |
+| timeline namespace node / episode / act / sequence / beat | current source uses legacy `production` / `segment` records projected as `timeline_namespace` |
+| legacy production source record | `production` |
+| legacy segment source record | `segment` |
 | scene beat / plot beat / 情节 | `scene_moment` |
 | shot / camera unit / visual material | `expression_unit` with `modality=visual`, `role=shot` |
 | key visual anchor | `keyframe` |
@@ -25,6 +26,7 @@ Use current `movscript-lang` entity names in tool calls and source files.
 | legacy shot / camera unit | `shot` |
 | legacy music/sfx/ambience/dialogue/foley cue | `audio_cue` |
 | production task / output slot | `content_unit` |
+| namespace-scope assembly output | `timeline_assembly_ref` content unit |
 | generated/uploaded/imported option | `candidate` |
 | chosen/confirmed option | `selection` |
 | automatic edit / composition plan | interpreted `edit_plan` |
@@ -33,12 +35,12 @@ Canonical ownership:
 
 - `setting -> setting_state -> asset`
 - `script -> script_version -> script_block`
-- `production -> segment -> scene_moment`
+- timeline namespace tree -> `scene_moment` (current legacy source path often uses `production -> segment -> scene_moment`)
 - `scene_moment -> expression_unit`
 - optional legacy visual anchors: `scene_moment -> shot -> keyframe / storyboard`
 - optional legacy audio anchors: `scene_moment -> audio_cue`
 - `content_unit` is top-level and references upstream entities with flat refs.
 
-Except for `content_unit`, these entities are production structure or generation prerequisites. Create only the parts needed for the user's current goal. For new designs, prefer `scene_moment` plus multimodal `expression_unit` records, then generate materials through `expression_unit_ref` content units and compose them through the interpreted edit plan.
+Except for `content_unit`, these entities are production structure or generation prerequisites. Create only the parts needed for the user's current goal. For new designs, prefer project vocabulary for timeline namespace planning, `scene_moment` plus multimodal `expression_unit` records for production work, then generate materials through `expression_unit_ref` or `scene_moment_ref` content units. When a namespace scope itself needs an output video, use `timeline_assembly_ref`; do not invent `episode_ref`, `beat_ref`, or other namespace-specific content unit types.
 
 `setting` is only for concrete film/music entities to make or reuse, such as a character, prop, place, instrument, costume, or voice identity. `setting_state` is a namespace under one setting for a named condition/version. `asset` belongs under a setting state and describes one asset slot for that state, such as front view, side view, turnaround sheet, material reference, voice timbre, or instrument tone. For image assets, prefer plain white or very clean backgrounds unless scene context is explicitly required.

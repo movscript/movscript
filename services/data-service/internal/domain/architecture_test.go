@@ -33,7 +33,7 @@ func TestDomainPackagesDoNotImportPersistenceModels(t *testing.T) {
 		if isRuntimeOverlayOnlyFile(path) {
 			return nil
 		}
-		if filepath.Base(path) == "model_mapping.go" {
+		if isModelMappingFile(path) {
 			return nil
 		}
 
@@ -44,7 +44,7 @@ func TestDomainPackagesDoNotImportPersistenceModels(t *testing.T) {
 		for _, imp := range file.Imports {
 			importPath := strings.Trim(imp.Path.Value, `"`)
 			if importPath == domainModelImport || importPath == persistenceModelImport {
-				t.Errorf("%s imports %s outside model_mapping.go", path, importPath)
+				t.Errorf("%s imports %s outside model mapping files", path, importPath)
 			}
 		}
 		return nil
@@ -71,7 +71,7 @@ func TestDomainPackagesDoNotImportGormOutsidePersistenceSchemas(t *testing.T) {
 		if isRuntimeOverlayOnlyFile(path) {
 			return nil
 		}
-		if filepath.Base(path) == "model_mapping.go" {
+		if isModelMappingFile(path) {
 			return nil
 		}
 
@@ -81,7 +81,7 @@ func TestDomainPackagesDoNotImportGormOutsidePersistenceSchemas(t *testing.T) {
 		}
 		for _, imp := range file.Imports {
 			if strings.Trim(imp.Path.Value, `"`) == gormImport {
-				t.Errorf("%s imports %s outside model package or model_mapping.go", path, gormImport)
+				t.Errorf("%s imports %s outside model package or model mapping files", path, gormImport)
 			}
 		}
 		return nil
@@ -108,7 +108,7 @@ func TestDomainPackagesDoNotImportInfraOutsideModelMappings(t *testing.T) {
 		if isRuntimeOverlayOnlyFile(path) {
 			return nil
 		}
-		if filepath.Base(path) == "model_mapping.go" {
+		if isModelMappingFile(path) {
 			return nil
 		}
 
@@ -119,7 +119,7 @@ func TestDomainPackagesDoNotImportInfraOutsideModelMappings(t *testing.T) {
 		for _, imp := range file.Imports {
 			importPath := strings.Trim(imp.Path.Value, `"`)
 			if strings.HasPrefix(importPath, "github.com/movscript/movscript/internal/infra/") {
-				t.Errorf("%s imports infra package %s outside model_mapping.go", path, importPath)
+				t.Errorf("%s imports infra package %s outside model mapping files", path, importPath)
 			}
 		}
 		return nil
@@ -127,6 +127,11 @@ func TestDomainPackagesDoNotImportInfraOutsideModelMappings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+}
+
+func isModelMappingFile(path string) bool {
+	base := filepath.Base(path)
+	return base == "model_mapping.go" || strings.Contains(base, "_model_mapping")
 }
 
 func isRuntimeOverlayOnlyFile(path string) bool {

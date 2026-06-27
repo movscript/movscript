@@ -1,4 +1,5 @@
 import type { MovScriptWorkspaceIndexedEntity } from '@movscript/workspace'
+import type { MovScriptDomainNode, MovScriptDomainNodeCategory } from '@movscript/domain'
 import type { ContentSourceWorkspaceData, ProductionWorkItemView, ProductionWorkPlanView } from '@movscript/core/content'
 
 export type ContentCanvasNodeKind =
@@ -38,6 +39,11 @@ export interface ContentCanvasNode {
   metrics: string[]
   sourcePath: string
   record: Record<string, unknown>
+  domainCategory?: MovScriptDomainNodeCategory
+  domainKind?: string
+  domainNode?: MovScriptDomainNode
+  domainParentNodeId?: string
+  domainAncestorNodeIds?: string[]
   candidates: ContentCanvasCandidate[]
   generationTask?: ContentCanvasGenerationTask
   position: { x: number; y: number }
@@ -146,6 +152,7 @@ export interface ContentCanvasEdge {
     | 'content_unit_resource'
     | 'content_unit_keyframe'
     | 'content_unit_storyboard'
+    | 'content_unit_audio_cue'
     | 'audio_cue_storyboard'
     | 'audio_cue_asset'
     | 'expression_unit_storyboard'
@@ -200,6 +207,7 @@ export interface ContentCanvasProjectData {
   settingStates?: MovScriptWorkspaceIndexedEntity[]
   audioCues?: MovScriptWorkspaceIndexedEntity[]
   contentUnitCandidates: Record<string, ContentCanvasCandidate[]>
+  domainGraph?: ContentSourceWorkspaceData['domainGraph']
   editingProjectsByNodeId?: Record<string, MediaEditingProjectLike>
   assetReferenceUnits?: ContentSourceWorkspaceData['assetReferenceUnits']
   productionWorkPlan?: ProductionWorkPlanView

@@ -1,5 +1,7 @@
 import type { ProviderSessionClientInput } from '@movscript/agent-protocol'
+import type { MovScriptNormalizedFocus } from '@movscript/domain'
 import { ROUTES } from '@/routes/projectRoutes'
+import { movScriptDomainFocusFromSearch } from '@/shared/domain/movscriptDomainFocusRoutes'
 
 type AgentSelectionHint = {
   entityType?: string
@@ -26,6 +28,7 @@ export function buildCommandFirstClientInput(input: {
     projectId?: number
     productionId?: number
     workspaceId?: string
+    domainFocus?: MovScriptNormalizedFocus
     agent?: {
       key?: string
       name?: string
@@ -35,11 +38,19 @@ export function buildCommandFirstClientInput(input: {
   }
 }): ProviderSessionClientInput {
   const route = input.hints?.route ?? inferRouteFromLabels(input.labels)
+  const routeSearch = route?.search
+  const domainFocus = input.hints?.domainFocus ?? (routeSearch
+    ? movScriptDomainFocusFromSearch(routeSearch, {
+        projectId: input.hints?.projectId,
+        productionId: input.hints?.productionId,
+      })
+    : undefined)
   const pageContext = buildPageContext({
     route,
     projectId: input.hints?.projectId,
     productionId: input.hints?.productionId,
     workspaceId: input.hints?.workspaceId,
+    domainFocus,
     selection: input.hints && 'selection' in input.hints ? input.hints.selection ?? null : undefined,
     labels: input.labels,
   })
@@ -52,6 +63,7 @@ export function buildCommandFirstClientInput(input: {
         ...(input.hints?.projectId !== undefined ? { project: { id: input.hints.projectId } } : {}),
         ...(input.hints?.productionId !== undefined ? { productionId: input.hints.productionId } : {}),
         ...(input.hints?.workspaceId ? { workspaceId: input.hints.workspaceId } : {}),
+        ...(domainFocus ? { domainFocus } : {}),
         ...(input.hints?.agent ? { agent: input.hints.agent } : {}),
         ...(input.hints && 'selection' in input.hints ? { selection: input.hints.selection ?? null } : {}),
         ...(input.labels?.length ? { labels: input.labels } : {}),
@@ -65,6 +77,7 @@ export function buildPageContext(input: {
   projectId?: number
   productionId?: number
   workspaceId?: string
+  domainFocus?: MovScriptNormalizedFocus
   selection?: AgentSelectionHint
   labels?: string[]
 }): {
@@ -77,8 +90,9 @@ export function buildPageContext(input: {
 } | undefined {
   const pageType = inferPageType(input.labels, input.route?.pathname)
   const pageRoute = normalizeRoute(input.route)
-  const pageEntityType = input.selection?.entityType || inferEntityType(input.route?.pathname, input.productionId, input.projectId)
-  const pageEntityId = input.selection?.entityId ?? input.productionId ?? input.projectId
+  const focusEntity = pageEntityFromDomainFocus(input.domainFocus)
+  const pageEntityType = input.selection?.entityType || focusEntity?.entityType || inferEntityType(input.route?.pathname, input.productionId, input.projectId)
+  const pageEntityId = input.selection?.entityId ?? focusEntity?.entityId ?? input.productionId ?? input.projectId
   const pageKey = [pageType, pageRoute || 'unknown', pageEntityType || 'page', pageEntityId ?? '0'].join('|')
   return {
     pageKey,
@@ -94,7 +108,7 @@ export function normalizePageRoute(route?: { pathname?: string; search?: string;
   return normalizeRoute(route)
 }
 
-function inferRouteFromLabels(labels: string[] | undefined) {
+function inferRouteFromLabels(labels: string[] | undefined): { pathname?: string; search?: string; hash?: string } | undefined {
   const list = labels ?? []
   if (list.some((label) => /production-orchestration/i.test(label))) return { pathname: ROUTES.project.scripts }
   if (list.some((label) => /workbench/i.test(label))) return { pathname: ROUTES.project.scripts }
@@ -105,6 +119,7 @@ export function buildPageKey(input: {
   route?: { pathname?: string; search?: string; hash?: string }
   projectId?: number
   productionId?: number
+  domainFocus?: MovScriptNormalizedFocus
   selection?: AgentSelectionHint
   labels?: string[]
 }): string {
@@ -126,6 +141,22 @@ function inferEntityType(pathname?: string, productionId?: number, projectId?: n
     )
   ) return 'production'
   if (projectId !== undefined) return 'project'
+  return undefined
+}
+
+function pageEntityFromDomainFocus(focus: MovScriptNormalizedFocus | undefined): { entityType: string; entityId?: string | number } | undefined {
+  if (focus?.target?.targetKind === 'timeline_assembly') {
+    return { entityType: 'timeline_assembly', entityId: focus.target.targetRef }
+  }
+  if (focus?.target?.targetKind) {
+    return { entityType: focus.target.targetKind, entityId: focus.target.targetRef }
+  }
+  if (focus?.entity?.kind) {
+    return { entityType: focus.entity.kind, entityId: focus.entity.id }
+  }
+  if (focus?.scope) {
+    return { entityType: 'timeline_namespace', entityId: `${focus.scope.kind}:${focus.scope.ref}` }
+  }
   return undefined
 }
 

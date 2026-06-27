@@ -16,6 +16,10 @@ import { ContentCanvasPromptEditor } from './ContentCanvasPromptEditor'
 import type { CandidateSelections, ContentCanvasNodePosition, InspectorSelection } from './contentCanvasWorkspaceTypes'
 import { contentCanvasGenerationTargetForNode } from './contentCanvasWorkspaceGenerationModel'
 import {
+  contentCanvasChildSettingNamespaceKind,
+  type ContentCanvasNamespaceVocabularyOptions,
+} from './contentCanvasNamespaceVocabularyModel'
+import {
   CandidateDecisionPanel,
   type ContentCanvasCandidateGenerationOptions,
   type ContentCanvasCandidatePromptPreview,
@@ -32,6 +36,7 @@ import { appendContentNodeReferenceToPrompt, iconForContentNode, isExpressionPro
 export function NodeInspector({
   selection,
   activeSetting,
+  namespaceVocabulary,
   assetPrompts,
   expressionPrompts,
   candidateSelections,
@@ -56,6 +61,7 @@ export function NodeInspector({
 }: {
   selection: InspectorSelection
   activeSetting: ContentCanvasNode | null
+  namespaceVocabulary: ContentCanvasNamespaceVocabularyOptions
   assetPrompts: Record<string, string>
   expressionPrompts: Record<string, string>
   candidateSelections: CandidateSelections
@@ -85,6 +91,8 @@ export function NodeInspector({
         title={`添加表达单元到 ${selection.parent.title}`}
         description="填写完整后才会写入 expression_unit.json。"
         idPlaceholder="expr_visual"
+        parentNode={selection.parent}
+        targetLabel="表达单元"
         titlePlaceholder="表达单元标题"
         statusPlaceholder="选择表达类型"
         statusLabel="类型"
@@ -96,15 +104,29 @@ export function NodeInspector({
   }
 
   if (selection.kind === 'create_state') {
+    const defaultStateNamespaceKind = contentCanvasChildSettingNamespaceKind(selection.parent, namespaceVocabulary)
     return (
       <CreateChildNodeInspector
-        eyebrow="Create State"
-        title={`添加状态到 ${selection.parent.title}`}
+        eyebrow="Create Setting Namespace"
+        title={`添加设定子层级到 ${selection.parent.title}`}
         description="填写完整后才会写入 setting_state.json。"
         idPlaceholder="base"
+        initialStatus={defaultStateNamespaceKind}
+        parentNode={selection.parent}
+        targetLabel="设定子层级"
         titlePlaceholder="基础状态"
-        statusPlaceholder="ready"
-        submitLabel="创建 State"
+        statusPlaceholder="选择层级类型"
+        statusLabel="层级类型"
+        statusOptions={namespaceVocabulary.settingNamespaces.map((namespaceKind) => ({
+          value: namespaceKind,
+          label: namespaceKind,
+        }))}
+        submitLabel="创建设定子层级"
+        transformInput={(input) => ({
+          ...input,
+          status: input.status || defaultStateNamespaceKind,
+          settingNamespaceKind: input.status || defaultStateNamespaceKind,
+        })}
         onSubmit={(input) => onCreateState(selection.parent, input, selection.position)}
       />
     )
@@ -117,6 +139,8 @@ export function NodeInspector({
         title={`添加关键帧到 ${selection.parent.title}`}
         description="填写完整后才会写入 keyframe.json，并创建对应创作片段。"
         idPlaceholder="kf_visual"
+        parentNode={selection.parent}
+        targetLabel="关键帧"
         titlePlaceholder="关键帧标题"
         statusPlaceholder="ready"
         submitLabel="创建关键帧"
@@ -132,6 +156,8 @@ export function NodeInspector({
         title={`添加分镜图到 ${selection.parent.title}`}
         description="填写完整后才会写入 storyboard.json，并创建对应创作片段。"
         idPlaceholder="board_main"
+        parentNode={selection.parent}
+        targetLabel="分镜图"
         titlePlaceholder="分镜图标题"
         statusPlaceholder="ready"
         submitLabel="创建分镜图"
@@ -147,6 +173,8 @@ export function NodeInspector({
         title={`添加 Asset 到 ${selection.parent.title}`}
         description="填写完整后才会写入 asset.json。"
         idPlaceholder="portrait"
+        parentNode={selection.parent}
+        targetLabel="Asset"
         titlePlaceholder="角色参考图"
         statusPlaceholder="ready"
         submitLabel="创建 Asset"
@@ -216,7 +244,7 @@ export function NodeInspector({
       <div className="content-canvas-inspector-card">
         <InspectorHeader eyebrow="Setting Detail" title={selection.setting.title} Icon={Icon} />
         <p>{selection.setting.summary || selection.setting.subtitle}</p>
-        <InspectorMeta label="Setting 类型" value={settingTypeLabel(selection.setting)} />
+        <InspectorMeta label="层级类型" value={settingTypeLabel(selection.setting)} />
       </div>
     )
   }

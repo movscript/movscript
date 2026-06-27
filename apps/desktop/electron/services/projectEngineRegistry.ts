@@ -1,8 +1,9 @@
 import { resolveMovScriptBackendSession } from '@movscript/core/backend/node'
 import { resolveDataServiceBaseUrl } from '@movscript/data-client'
+import { implicitTimelineAssemblyRef } from '@movscript/domain'
 import { readFileSync } from 'node:fs'
-import { stat } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { dirname, join, resolve } from 'node:path'
 import {
   buildContentSourceWorkspaceData,
   loadContentSourceWorkspaceSnapshotFromEngine,
@@ -28,11 +29,17 @@ import type {
   ElectronMovScriptEngineAssetCreateInput,
   ElectronMovScriptEngineContentCandidateCreateInput,
   ElectronMovScriptEngineContentCandidateSelectInput,
+  ElectronMovScriptEngineContentCanvasDeleteResult,
+  ElectronMovScriptEngineContentCanvasInput,
+  ElectronMovScriptEngineContentCanvasRecord,
+  ElectronMovScriptEngineContentCanvasWriteResult,
+  ElectronMovScriptEngineContentCanvasesListResult,
   ElectronMovScriptEngineContentUnitBackendPromptBuildInput,
   ElectronMovScriptEngineContentUnitCreateInput,
   ElectronMovScriptEngineContentUnitEnsureInput,
   ElectronMovScriptEngineContentUnitEditPromptInput,
   ElectronMovScriptEngineContentUnitGenerationPromptReadInput,
+  ElectronMovScriptEngineTimelineAssemblyContentUnitEnsureInput,
   ElectronMovScriptEngineEntityBasicsUpdateInput,
   ElectronMovScriptEngineExpressionUnitCreateInput,
   ElectronMovScriptEngineExpressionUnitInput,
@@ -66,6 +73,11 @@ import type {
 } from '../../src/shared/contracts/electronApi'
 import { resolveMovScriptHomeDir } from './movscriptHomeInput'
 import { resolveDesktopWorkspaceContextPaths, resolveDesktopWorkspaceRealm } from './workspaceRealm'
+
+const CONTENT_CANVAS_DIRECTORY = 'content_canvases'
+const CONTENT_CANVAS_FILE_NAME = 'canvas.json'
+const CONTENT_CANVAS_SCHEMA = 'movscript.content_canvas.v1'
+const CONTENT_CANVASES_SCHEMA = 'movscript.content_canvases.v1'
 
 type NormalizedProjectEngineInput = {
   workspaceDir: string
@@ -315,6 +327,20 @@ export async function ensureMovScriptEngineContentUnitForEntity(
   return workspaceMutation(input, (engine) => engine.ensureContentUnitForEntity(input.payload), 'source-updated')
 }
 
+export async function ensureMovScriptEngineTimelineAssemblyContentUnit(
+  input: ElectronMovScriptEngineTimelineAssemblyContentUnitEnsureInput,
+) {
+  return workspaceMutation(input, (engine) => engine.ensureContentUnitForEntity({
+    ...input.payload,
+    targetKind: 'timeline_assembly',
+    targetRef: implicitTimelineAssemblyRef(input.payload.scopeKind, String(input.payload.scopeRef)),
+    scopeKind: input.payload.scopeKind,
+    scopeRef: input.payload.scopeRef,
+    contentUnitType: 'timeline_assembly_ref',
+    outputKind: input.payload.outputKind ?? 'video',
+  }), 'source-updated')
+}
+
 export async function createMovScriptEngineSetting(
   input: ElectronMovScriptEngineSettingCreateInput,
 ) {
@@ -517,6 +543,97 @@ export async function syncMovScriptEngineContentWorkspace(
   await workspaceMutation(input, (engine) => engine.interpret().then(() => undefined), 'interpret-synced', {
     interpretBeforeWrite: false,
     requireExpectedWorkspaceVersions: false,
+  })
+}
+
+export async function listMovScriptEngineContentCanvases(
+  input: ElectronMovScriptEngineProjectInput,
+): Promise<ElectronMovScriptEngineContentCanvasesListResult> {
+  const context = normalizeProjectEngineInput(input)
+  const projectDir = requireProjectDir(context)
+  const root = resolve(projectDir, CONTENT_CANVAS_DIRECTORY)
+  if (!isInsideProjectDir(projectDir, root)) throw new Error('content canvas path must stay inside the project workspace root')
+  const entries = await readdir(root, { withFileTypes: true }).catch((error: unknown) => {
+    if (isNotFoundError(error)) return []
+    throw error
+  })
+  const canvases: ElectronMovScriptEngineContentCanvasesListResult['canvases'] = []
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue
+    const path = `${CONTENT_CANVAS_DIRECTORY}/${entry.name}/${CONTENT_CANVAS_FILE_NAME}`
+    const absolutePath = resolve(projectDir, path)
+    if (!isInsideProjectDir(projectDir, absolutePath)) continue
+    const content = await readFile(absolutePath, 'utf8').catch((error: unknown) => {
+      if (isNotFoundError(error)) return undefined
+      throw error
+    })
+    if (content === undefined) continue
+    const fileStat = await stat(absolutePath)
+    const record = parseProjectContentCanvasFile(content, path)
+    canvases.push({
+      path,
+      version: workspaceFileVersion(Number(fileStat.mtimeMs), fileStat.size),
+      updatedAt: fileStat.mtime.toISOString(),
+      record,
+    })
+  }
+  canvases.sort((left, right) => {
+    const updated = String(right.record.updated_at ?? '').localeCompare(String(left.record.updated_at ?? ''))
+    return updated || String(left.record.title ?? left.record.id).localeCompare(String(right.record.title ?? right.record.id))
+  })
+  return {
+    schema: CONTENT_CANVASES_SCHEMA,
+    canvases,
+  }
+}
+
+export async function writeMovScriptEngineContentCanvas(
+  input: ElectronMovScriptEngineContentCanvasInput,
+): Promise<ElectronMovScriptEngineContentCanvasWriteResult> {
+  return enqueueProjectEngineOperation(input, async () => {
+    const context = normalizeProjectEngineInput(input)
+    const projectDir = requireProjectDir(context)
+    const record = projectContentCanvasRecordFromInput(input)
+    const path = contentCanvasProjectFilePath(String(record.id))
+    const absolutePath = resolve(projectDir, path)
+    if (!isInsideProjectDir(projectDir, absolutePath)) throw new Error('content canvas path must stay inside the project workspace root')
+    const expectedVersion = stringValue(input.expectedVersion ?? input.expected_version)
+    if (expectedVersion !== undefined) {
+      const currentVersion = await readWorkspaceFileVersion(projectDir, path)
+      if (currentVersion !== expectedVersion) throw new Error(`workspace file changed: ${path}`)
+    }
+    await mkdir(dirname(absolutePath), { recursive: true })
+    await writeFile(absolutePath, `${JSON.stringify(record, null, 2)}\n`, 'utf8')
+    const fileStat = await stat(absolutePath)
+    projectEngineRegistry.invalidate(input)
+    emitProjectWorkspaceUpdated(input, 'source-updated')
+    return {
+      status: 'written',
+      path,
+      version: workspaceFileVersion(Number(fileStat.mtimeMs), fileStat.size),
+      record,
+    }
+  })
+}
+
+export async function deleteMovScriptEngineContentCanvas(
+  input: ElectronMovScriptEngineContentCanvasInput,
+): Promise<ElectronMovScriptEngineContentCanvasDeleteResult> {
+  return enqueueProjectEngineOperation(input, async () => {
+    const context = normalizeProjectEngineInput(input)
+    const projectDir = requireProjectDir(context)
+    const id = stringValue(input.id ?? input.canvasId ?? input.canvas_id)
+    if (!id) throw new Error('canvas id is required')
+    const path = contentCanvasProjectFilePath(id)
+    const absolutePath = resolve(projectDir, path)
+    if (!isInsideProjectDir(projectDir, absolutePath)) throw new Error('content canvas path must stay inside the project workspace root')
+    await rm(absolutePath, { force: true })
+    projectEngineRegistry.invalidate(input)
+    emitProjectWorkspaceUpdated(input, 'source-updated')
+    return {
+      status: 'deleted',
+      path,
+    }
   })
 }
 
@@ -753,6 +870,118 @@ function readWorkspaceManifest(projectDir: string): { project_uid?: string; titl
   }
 }
 
+function parseProjectContentCanvasFile(content: string, path: string): ElectronMovScriptEngineContentCanvasRecord {
+  try {
+    return projectContentCanvasRecordFromInput(JSON.parse(content) as unknown)
+  } catch (error) {
+    throw new Error(`content canvas file is invalid: ${path}${error instanceof Error ? `: ${error.message}` : ''}`)
+  }
+}
+
+function projectContentCanvasRecordFromInput(input: unknown): ElectronMovScriptEngineContentCanvasRecord {
+  const source = recordValue(input)
+  const record = source ? recordValue(source.canvas ?? source.record) ?? source : undefined
+  if (!record) throw new Error('content canvas record is required')
+  const id = stringValue(record.id)
+  if (!id) throw new Error('canvas id is required')
+  const updatedAt = stringValue(record.updated_at ?? record.updatedAt) ?? new Date().toISOString()
+  return pruneUndefinedRecord({
+    schema: CONTENT_CANVAS_SCHEMA,
+    kind: 'content_canvas',
+    id,
+    title: stringValue(record.title) ?? 'Untitled Canvas',
+    scope: projectContentCanvasScope(record.scope),
+    nodes: projectContentCanvasNodes(record.nodes),
+    layouts: projectContentCanvasLayouts(record.layouts ?? record.node_layouts ?? record.nodeLayouts),
+    viewport: projectContentCanvasViewport(record.viewport),
+    updated_at: updatedAt,
+    created_at: stringValue(record.created_at ?? record.createdAt),
+  })
+}
+
+function projectContentCanvasScope(value: unknown): Record<string, unknown> {
+  const scope = recordValue(value)
+  if (!scope || scope.kind === 'global') return { kind: 'global' }
+  if (scope.kind !== 'production') return { kind: 'global' }
+  const productionId = stringValue(scope.production_id ?? scope.productionId)
+  if (!productionId) return { kind: 'global' }
+  return pruneUndefinedRecord({
+    kind: 'production',
+    production_id: productionId,
+    production_title: stringValue(scope.production_title ?? scope.productionTitle),
+    production_node_id: stringValue(scope.production_node_id ?? scope.productionNodeId),
+    production_path: stringValue(scope.production_path ?? scope.productionPath),
+  })
+}
+
+function projectContentCanvasNodes(value: unknown): Array<Record<string, unknown>> {
+  const values = Array.isArray(value)
+    ? value
+    : Object.values(recordValue(value) ?? {})
+  return values
+    .map(projectContentCanvasNode)
+    .filter((node): node is Record<string, unknown> => Boolean(node))
+    .sort((left, right) => String(left.node_id).localeCompare(String(right.node_id)))
+}
+
+function projectContentCanvasNode(value: unknown): Record<string, unknown> | undefined {
+  const node = recordValue(value)
+  if (!node) return undefined
+  const nodeId = stringValue(node.node_id ?? node.nodeId ?? node.id)
+  if (!nodeId) return undefined
+  return pruneUndefinedRecord({
+    node_id: nodeId,
+    kind: stringValue(node.kind),
+    added_at: stringValue(node.added_at ?? node.addedAt),
+  })
+}
+
+function projectContentCanvasLayouts(value: unknown): Record<string, unknown> {
+  const layouts = recordValue(value)
+  if (!layouts) return {}
+  return Object.fromEntries(Object.entries(layouts)
+    .map(([nodeId, layout]) => [nodeId, projectContentCanvasLayout(layout)])
+    .filter((entry): entry is [string, Record<string, unknown>] => Boolean(entry[1])))
+}
+
+function projectContentCanvasLayout(value: unknown): Record<string, unknown> | undefined {
+  const layout = recordValue(value)
+  if (!layout) return undefined
+  const x = numberValue(layout.x)
+  const y = numberValue(layout.y)
+  const width = numberValue(layout.width)
+  const height = numberValue(layout.height)
+  if (x === undefined || y === undefined || width === undefined || height === undefined) return undefined
+  return pruneUndefinedRecord({
+    x,
+    y,
+    width,
+    height,
+    manual: layout.manual === true,
+    source: stringValue(layout.source),
+    updated_at: stringValue(layout.updated_at ?? layout.updatedAt),
+  })
+}
+
+function projectContentCanvasViewport(value: unknown): { x: number; y: number; zoom: number } | undefined {
+  const viewport = recordValue(value)
+  if (!viewport) return undefined
+  const x = numberValue(viewport.x)
+  const y = numberValue(viewport.y)
+  const zoom = numberValue(viewport.zoom)
+  if (x === undefined || y === undefined || zoom === undefined) return undefined
+  return { x, y, zoom }
+}
+
+function contentCanvasProjectFilePath(id: string): string {
+  return `${CONTENT_CANVAS_DIRECTORY}/${contentCanvasProjectPathSegment(id)}/${CONTENT_CANVAS_FILE_NAME}`
+}
+
+function contentCanvasProjectPathSegment(id: string): string {
+  const safe = id.trim().replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/^_+|_+$/g, '')
+  return safe || 'canvas'
+}
+
 function contentUnitInputFromWorkspacePayload(payload: MovScriptWorkspaceService['upsertContentUnit'] extends (input: infer Input) => unknown ? Input : never): MovScriptEngineContentUnitInput {
   const unit = isRecord((payload as { unit?: unknown }).unit) ? (payload as { unit: Record<string, unknown> }).unit : {}
   const editPrompt = isRecord(unit.edit_prompt) ? unit.edit_prompt : undefined
@@ -796,6 +1025,14 @@ function numberValue(value: unknown): number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) return value
   if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) return Number(value)
   return undefined
+}
+
+function recordValue(value: unknown): Record<string, unknown> | undefined {
+  return isRecord(value) ? value : undefined
+}
+
+function pruneUndefinedRecord(record: Record<string, unknown>): ElectronMovScriptEngineContentCanvasRecord {
+  return Object.fromEntries(Object.entries(record).filter(([, value]) => value !== undefined))
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

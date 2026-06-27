@@ -1,8 +1,8 @@
 import type { ContentCanvasEdge, ContentCanvasWorkspaceSnapshot, ContentCanvasNode, ContentCanvasNodeKind } from '../domain/contentCanvasTypes'
+import { contentCanvasNodeDisplayKind } from '../domain/contentCanvasDomainPolicy'
 import {
   classifyContentCanvasRelation,
   contentCanvasEdgeInsightRelationLabel,
-  contentCanvasKindText,
   contentCanvasStatusText,
 } from './contentCanvasRelationLabels'
 
@@ -132,7 +132,7 @@ function edgeById(graph: ContentCanvasWorkspaceSnapshot, edgeId: string): Conten
 
 function currentFactsForNode(node: ContentCanvasNode): ContentCanvasCurrentFact[] {
   return [
-    { id: 'kind', label: '类型', value: contentCanvasKindText(node.kind) },
+    { id: 'kind', label: '类型', value: contentCanvasNodeDisplayKind(node) },
     { id: 'status', label: '状态', value: contentCanvasStatusText(node.status) },
     { id: 'source', label: '来源', value: node.sourcePath || 'workspace index' },
     ...currentProductFactsForNode(node),

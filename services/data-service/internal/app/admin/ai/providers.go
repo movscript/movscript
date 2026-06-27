@@ -45,6 +45,11 @@ type UpdateProviderCredentialInput struct {
 	Credentials map[string]string `json:"credentials"`
 }
 
+type ProviderAssetGatewayCredential struct {
+	BaseURL string
+	Token   string
+}
+
 type ProviderAssetLibrarySettingsInput struct {
 	ArkOpenAPIBaseURL     string                                           `json:"ark_openapi_base_url,omitempty"`
 	ArkRegion             string                                           `json:"ark_region,omitempty"`
@@ -114,9 +119,9 @@ func (s *Service) ListComboTemplates(ctx context.Context) []infraai.ComboTemplat
 	return infraai.ComboTemplates()
 }
 
-func (s *Service) ListProviders(ctx context.Context) ([]persistencemodel.AIProvider, error) {
+func (s *Service) ListProviders(ctx context.Context) ([]Provider, error) {
 	if !s.providerMirrorTablesReady() {
-		return []persistencemodel.AIProvider{}, nil
+		return []Provider{}, nil
 	}
 	if err := s.syncProvidersFromLegacyCredentials(ctx); err != nil {
 		return nil, err
@@ -129,7 +134,21 @@ func (s *Service) ListProviders(ctx context.Context) ([]persistencemodel.AIProvi
 		return nil, err
 	}
 	s.enrichProviderRuntimeStates(ctx, providers)
-	return providers, nil
+	return providersFromModels(providers), nil
+}
+
+func (s *Service) ListProviderAssetProviders(ctx context.Context) ([]Provider, error) {
+	if s == nil || s.db == nil || !s.db.Migrator().HasTable(&persistencemodel.AIProvider{}) {
+		return []Provider{}, nil
+	}
+	var providers []persistencemodel.AIProvider
+	if err := s.db.WithContext(ctx).
+		Where("is_enabled = true").
+		Order("id ASC").
+		Find(&providers).Error; err != nil {
+		return nil, err
+	}
+	return providersFromModels(providers), nil
 }
 
 func (s *Service) enrichProviderRuntimeStates(ctx context.Context, providers []persistencemodel.AIProvider) {
@@ -324,6 +343,77 @@ func (s *Service) providerAssetLibraryCredential(ctx context.Context, providerID
 		return credential, false, err
 	}
 	return credential, true, nil
+}
+
+func (s *Service) ProviderAssetGatewayCredential(ctx context.Context, providerID string) (ProviderAssetGatewayCredential, error) {
+	if s == nil || s.db == nil || strings.TrimSpace(providerID) == "" {
+		return ProviderAssetGatewayCredential{}, fmt.Errorf("provider credential store is unavailable")
+	}
+	var provider persistencemodel.AIProvider
+	if err := s.db.WithContext(ctx).
+		Preload("Credentials", "deleted_at IS NULL").
+		Where("provider_id = ? AND is_enabled = true", strings.TrimSpace(providerID)).
+		First(&provider).Error; err != nil {
+		return ProviderAssetGatewayCredential{}, err
+	}
+	baseURL := strings.TrimSpace(provider.BaseURLPrefix)
+	var selected persistencemodel.AIProviderCredential
+	for _, credential := range provider.Credentials {
+		if credential.Status != persistencemodel.AIProviderCredentialStatusActive {
+			continue
+		}
+		if selected.ID == 0 || credential.IsPrimary {
+			selected = credential
+		}
+		if credential.IsPrimary {
+			break
+		}
+	}
+	if selected.ID == 0 {
+		return ProviderAssetGatewayCredential{}, fmt.Errorf("no active Yunwu Provider credential is configured")
+	}
+	var plainConfig struct {
+		LegacyCredentialID uint   `json:"legacy_credential_id"`
+		BaseURL            string `json:"base_url"`
+	}
+	_ = json.Unmarshal([]byte(selected.PlainConfigJSON), &plainConfig)
+	if strings.TrimSpace(plainConfig.BaseURL) != "" {
+		baseURL = strings.TrimSpace(plainConfig.BaseURL)
+	}
+	token := ""
+	if plainConfig.LegacyCredentialID != 0 {
+		var legacy persistencemodel.AICredential
+		if err := s.db.WithContext(ctx).First(&legacy, plainConfig.LegacyCredentialID).Error; err == nil {
+			if strings.TrimSpace(legacy.BaseURL) != "" {
+				baseURL = strings.TrimSpace(legacy.BaseURL)
+			}
+			if strings.TrimSpace(legacy.EncryptedKey) != "" {
+				if plain, err := crypto.Decrypt(legacy.EncryptedKey, s.encryptionKey); err == nil {
+					token = plain
+				}
+			}
+		}
+	}
+	if token == "" {
+		var secrets struct {
+			APIKey             string `json:"api_key"`
+			LegacyEncryptedKey string `json:"legacy_encrypted_key"`
+		}
+		_ = json.Unmarshal([]byte(selected.EncryptedSecretsJSON), &secrets)
+		encrypted := firstNonEmpty(secrets.APIKey, secrets.LegacyEncryptedKey)
+		if encrypted != "" {
+			if plain, err := crypto.Decrypt(encrypted, s.encryptionKey); err == nil {
+				token = plain
+			}
+		}
+	}
+	if strings.TrimSpace(token) == "" {
+		return ProviderAssetGatewayCredential{}, fmt.Errorf("Yunwu Provider API key is not available")
+	}
+	return ProviderAssetGatewayCredential{
+		BaseURL: strings.TrimSpace(baseURL),
+		Token:   strings.TrimSpace(token),
+	}, nil
 }
 
 func (s *Service) saveProviderAssetLibraryCredential(ctx context.Context, tx *gorm.DB, providerID string, settings ProviderAssetLibrarySettings) error {
@@ -609,7 +699,12 @@ func (s *Service) UpsertProviderAssetLibraryGroup(ctx context.Context, providerI
 	return settings, nil
 }
 
-func (s *Service) CreateProvider(ctx context.Context, input CreateProviderInput) (persistencemodel.AIProvider, error) {
+func (s *Service) CreateProvider(ctx context.Context, input CreateProviderInput) (Provider, error) {
+	provider, err := s.createProviderModel(ctx, input)
+	return providerFromModel(provider), err
+}
+
+func (s *Service) createProviderModel(ctx context.Context, input CreateProviderInput) (persistencemodel.AIProvider, error) {
 	if !s.providerMirrorTablesReady() {
 		return persistencemodel.AIProvider{}, fmt.Errorf("%w: provider tables are not migrated", ErrInvalidProviderConfig)
 	}
@@ -683,7 +778,12 @@ func (s *Service) CreateProvider(ctx context.Context, input CreateProviderInput)
 	return provider, nil
 }
 
-func (s *Service) CreateProviderCredential(ctx context.Context, providerID string, input CreateProviderCredentialInput) (persistencemodel.AIProvider, error) {
+func (s *Service) CreateProviderCredential(ctx context.Context, providerID string, input CreateProviderCredentialInput) (Provider, error) {
+	provider, err := s.createProviderCredentialModel(ctx, providerID, input)
+	return providerFromModel(provider), err
+}
+
+func (s *Service) createProviderCredentialModel(ctx context.Context, providerID string, input CreateProviderCredentialInput) (persistencemodel.AIProvider, error) {
 	provider, err := s.getProviderByProviderID(ctx, providerID)
 	if err != nil {
 		return persistencemodel.AIProvider{}, err
@@ -740,7 +840,12 @@ func (s *Service) CreateProviderCredential(ctx context.Context, providerID strin
 	return s.getProviderByProviderID(ctx, provider.ProviderID)
 }
 
-func (s *Service) SetProviderCredentialPrimary(ctx context.Context, providerID string, credentialKey string) (persistencemodel.AIProvider, error) {
+func (s *Service) SetProviderCredentialPrimary(ctx context.Context, providerID string, credentialKey string) (Provider, error) {
+	provider, err := s.setProviderCredentialPrimaryModel(ctx, providerID, credentialKey)
+	return providerFromModel(provider), err
+}
+
+func (s *Service) setProviderCredentialPrimaryModel(ctx context.Context, providerID string, credentialKey string) (persistencemodel.AIProvider, error) {
 	provider, err := s.getProviderByProviderID(ctx, providerID)
 	if err != nil {
 		return persistencemodel.AIProvider{}, err
@@ -778,7 +883,12 @@ func (s *Service) SetProviderCredentialPrimary(ctx context.Context, providerID s
 	return s.getProviderByProviderID(ctx, provider.ProviderID)
 }
 
-func (s *Service) UpdateProviderCredential(ctx context.Context, providerID string, credentialKey string, input UpdateProviderCredentialInput) (persistencemodel.AIProvider, error) {
+func (s *Service) UpdateProviderCredential(ctx context.Context, providerID string, credentialKey string, input UpdateProviderCredentialInput) (Provider, error) {
+	provider, err := s.updateProviderCredentialModel(ctx, providerID, credentialKey, input)
+	return providerFromModel(provider), err
+}
+
+func (s *Service) updateProviderCredentialModel(ctx context.Context, providerID string, credentialKey string, input UpdateProviderCredentialInput) (persistencemodel.AIProvider, error) {
 	provider, err := s.getProviderByProviderID(ctx, providerID)
 	if err != nil {
 		return persistencemodel.AIProvider{}, err

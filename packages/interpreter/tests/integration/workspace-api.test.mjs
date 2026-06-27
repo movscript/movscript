@@ -3,7 +3,11 @@ import test from 'node:test'
 
 import {
   createMovScriptWorkspaceDomainRepository,
+  deriveMovScriptWorkspaceDomainIndex,
   getMovScriptWorkspaceModel,
+  queryMovScriptWorkspaceAssets,
+  queryMovScriptWorkspaceEntities,
+  queryMovScriptWorkspaceProductionContext,
   queryMovScriptWorkspaceSettings,
 } from '../../../workspace/dist/index.js'
 import {
@@ -53,6 +57,128 @@ test('workspace domain model resolves entity editing model with semantic schemas
   assert.equal(schemaId, 'movscript.project_standards.v1')
   assert.equal(schema?.entityKind, 'project_standards')
   assert.deepEqual(model.schemaIds, ['movscript.project_standards.v1'])
+  assert.equal(model.pathSemantics.structureSource, 'source_path')
+  assert.equal(model.pathSemantics.vocabularyRole, 'labels_templates_and_aliases')
+  assert.ok(model.pathSemantics.rules.some((rule) => rule.includes('canonical instance tree')))
+})
+
+test('workspace queries custom namespace paths through path-derived ancestors', () => {
+  const index = deriveMovScriptWorkspaceDomainIndex([
+    {
+      path: 'project.json',
+      data: {
+        schema: 'movscript.project.v1',
+        kind: 'project',
+        project_id: 'custom_paths',
+        namespace_vocabulary: {
+          timeline_template: 'series',
+          timeline_namespaces: ['episode', 'beat'],
+          setting_namespaces: ['character', 'costume_state'],
+        },
+      },
+    },
+    {
+      path: 'timeline/episode_01/production.json',
+      data: {
+        schema: 'movscript.production.v1',
+        kind: 'production',
+        id: 'episode_01',
+        namespace_kind: 'episode',
+        title: 'Episode 01',
+      },
+    },
+    {
+      path: 'timeline/episode_01/beats/opening/segment.json',
+      data: {
+        schema: 'movscript.segment.v1',
+        kind: 'segment',
+        id: 'opening',
+        namespace_kind: 'beat',
+        title: 'Opening beat',
+      },
+    },
+    {
+      path: 'timeline/episode_01/beats/opening/scene_moments/rain_call/scene_moment.json',
+      data: {
+        schema: 'movscript.scene_moment.v1',
+        kind: 'scene_moment',
+        id: 'rain_call',
+        title: 'Rain call',
+      },
+    },
+    {
+      path: 'timeline/episode_01/beats/opening/scene_moments/rain_call/storyboards/main/storyboard.json',
+      data: {
+        schema: 'movscript.storyboard.v1',
+        kind: 'storyboard',
+        id: 'main',
+        title: 'Rain call board',
+      },
+    },
+    {
+      path: 'settings/hero/setting.json',
+      data: {
+        schema: 'movscript.setting.v1',
+        kind: 'setting',
+        id: 'hero',
+        setting_kind: 'character',
+        title: 'Hero',
+      },
+    },
+    {
+      path: 'settings/hero/costume_states/rain/setting_state.json',
+      data: {
+        schema: 'movscript.setting_state.v1',
+        kind: 'setting_state',
+        id: 'rain',
+        namespace_kind: 'costume_state',
+        title: 'Rain costume',
+      },
+    },
+    {
+      path: 'settings/hero/costume_states/rain/assets/wet_hair/asset.json',
+      data: {
+        schema: 'movscript.asset.v1',
+        kind: 'asset',
+        id: 'wet_hair',
+        setting_id: 'hero',
+        setting_state_id: 'rain',
+        title: 'Wet hair',
+      },
+    },
+  ])
+
+  const beats = queryMovScriptWorkspaceEntities(index, {
+    entityKind: 'segment',
+    kind: 'beat',
+    productionId: 'episode_01',
+  })
+  assert.deepEqual(beats.map((entity) => entity.path), [
+    'timeline/episode_01/beats/opening/segment.json',
+  ])
+
+  const sceneMoments = queryMovScriptWorkspaceEntities(index, {
+    entityKind: 'scene_moment',
+    segmentId: 'timeline/episode_01/beats/opening',
+  })
+  assert.deepEqual(sceneMoments.map((entity) => entity.id), ['rain_call'])
+
+  const context = queryMovScriptWorkspaceProductionContext(index, {
+    productionId: 'episode_01',
+    segmentId: 'opening',
+    sceneMomentId: 'rain_call',
+  })
+  assert.deepEqual(context.segments.map((entity) => entity.id), ['opening'])
+  assert.deepEqual(context.scene_moments.map((entity) => entity.id), ['rain_call'])
+  assert.deepEqual(context.storyboards.map((entity) => entity.id), ['main'])
+
+  const assets = queryMovScriptWorkspaceAssets(index, {
+    settingId: 'hero',
+    settingStateId: 'rain',
+  })
+  assert.deepEqual(assets.assets.map((entity) => entity.path), [
+    'settings/hero/costume_states/rain/assets/wet_hair/asset.json',
+  ])
 })
 
 test('planning schemas keep transition local and audio cues independent', () => {

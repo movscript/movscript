@@ -35,5 +35,8 @@ export const ROUTES = {
   studioScripts: PROJECT_SURFACE_ROUTES.scripts,
   studioStandards: PROJECT_SURFACE_ROUTES.standards,
   studioContent: PROJECT_SURFACE_ROUTES.content,
+  studioContentCanvas: PROJECT_SURFACE_ROUTES.contentCanvas,
+  studioContentPreview: PROJECT_SURFACE_ROUTES.contentPreview,
+  studioSettingPreview: PROJECT_SURFACE_ROUTES.settingPreview,
   studioSettings: PROJECT_SURFACE_ROUTES.settings,
 } as const

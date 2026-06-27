@@ -2,11 +2,15 @@ import type {
   MovScriptWorkspaceDomainIndex,
   MovScriptWorkspaceIndexedEntity,
 } from '@movscript/workspace/indexer'
+import type {
+  MovScriptContentUnitOutputKind,
+  MovScriptContentUnitPromptRefKind,
+} from '@movscript/domain'
 
-export type ContentUnitOutputKind = 'image' | 'video' | 'audio' | 'text' | 'metadata'
+export type ContentUnitOutputKind = MovScriptContentUnitOutputKind
 export type ContentUnitRuntimePanelStatus = 'ready' | 'blocked'
 
-export type ContentUnitPromptRefKind = 'production' | 'segment' | 'asset' | 'keyframe' | 'storyboard' | 'scene_moment' | 'expression_unit' | 'content_unit'
+export type ContentUnitPromptRefKind = MovScriptContentUnitPromptRefKind
 
 export interface ContentUnitPromptRef {
   kind: ContentUnitPromptRefKind
@@ -17,6 +21,13 @@ export interface ContentUnitPromptRef {
     start?: number
     end?: number
   }
+}
+
+export interface UnsupportedContentUnitPromptRef {
+  kind: string
+  id: string
+  raw: string
+  source: ContentUnitPromptRef['source']
 }
 
 export interface ContentUnitResolvedRef extends ContentUnitPromptRef {
@@ -65,6 +76,7 @@ export interface ContentUnitPromptBlocker {
     | 'upstream_selection_stale'
     | 'upstream_resource_missing'
     | 'prompt_dependency_cycle'
+    | 'unsupported_prompt_ref_kind'
   ref?: string
   message: string
 }

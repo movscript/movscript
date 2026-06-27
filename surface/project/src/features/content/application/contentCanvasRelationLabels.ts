@@ -65,6 +65,11 @@ export function classifyContentCanvasRelation(
       ? { relatedNodeId: edge.target, direction: 'upstream', label: '分镜输入' }
       : { relatedNodeId: edge.source, direction: 'downstream', label: '依赖此分镜' }
   }
+  if (edge.relation === 'content_unit_audio_cue') {
+    return edge.source === selectedNodeId
+      ? { relatedNodeId: edge.target, direction: 'upstream', label: '声音输入' }
+      : { relatedNodeId: edge.source, direction: 'downstream', label: '依赖此声音' }
+  }
   if (edge.relation === 'audio_cue_storyboard') {
     return edge.target === selectedNodeId
       ? { relatedNodeId: edge.source, direction: 'upstream', label: '声音约束' }
@@ -117,6 +122,7 @@ export function contentCanvasEdgeInsightRelationLabel(edge: ContentCanvasEdge): 
   if (edge.relation === 'content_unit_resource') return '资源输入'
   if (edge.relation === 'content_unit_keyframe') return '关键帧输入'
   if (edge.relation === 'content_unit_storyboard') return '分镜输入'
+  if (edge.relation === 'content_unit_audio_cue') return '声音输入'
   if (edge.relation === 'audio_cue_storyboard') return '声音分镜'
   if (edge.relation === 'audio_cue_asset') return '声音素材'
   if (edge.relation === 'setting_state_reference') return '设定状态'

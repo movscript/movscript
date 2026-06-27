@@ -66,6 +66,7 @@ export const MOVSCRIPT_SOURCE_COLLECTION_DIRS = new Set([
   'scripts',
   'content_units',
   'productions',
+  'timeline',
   'project_standards',
 ])
 

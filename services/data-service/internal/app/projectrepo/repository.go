@@ -9,18 +9,39 @@ import (
 )
 
 type repository interface {
-	GetProject(ctx context.Context, projectID uint, orgID *uint) (persistencemodel.Project, error)
-	GetBinding(ctx context.Context, projectID uint) (persistencemodel.ProjectRepository, error)
-	CreateBinding(ctx context.Context, binding persistencemodel.ProjectRepository) (persistencemodel.ProjectRepository, error)
-	UpdateBindingOwner(ctx context.Context, bindingID uint, owner string) (persistencemodel.ProjectRepository, error)
-	UpdateProvisioning(ctx context.Context, bindingID uint, status string, providerRepoID string, headCommit string, lastSyncError string) (persistencemodel.ProjectRepository, error)
+	GetProject(ctx context.Context, projectID uint, orgID *uint) (projectRecord, error)
+	GetBinding(ctx context.Context, projectID uint) (repositoryBinding, error)
+	CreateBinding(ctx context.Context, binding repositoryBinding) (repositoryBinding, error)
+	UpdateBindingOwner(ctx context.Context, bindingID uint, owner string) (repositoryBinding, error)
+	UpdateProvisioning(ctx context.Context, bindingID uint, status string, providerRepoID string, headCommit string, lastSyncError string) (repositoryBinding, error)
+}
+
+type projectRecord struct {
+	ID          uint
+	OwnerID     uint
+	OrgID       *uint
+	Description string
+}
+
+type repositoryBinding struct {
+	ID             uint
+	ProjectID      uint
+	Provider       string
+	ProviderRepoID string
+	Owner          string
+	Repo           string
+	DefaultBranch  string
+	HeadCommit     string
+	Status         string
+	LastSyncError  string
+	CreatedBy      *uint
 }
 
 type gormRepository struct {
 	db *gorm.DB
 }
 
-func (r *gormRepository) GetProject(ctx context.Context, projectID uint, orgID *uint) (persistencemodel.Project, error) {
+func (r *gormRepository) GetProject(ctx context.Context, projectID uint, orgID *uint) (projectRecord, error) {
 	var project persistencemodel.Project
 	query := r.db.WithContext(ctx).Where("id = ?", projectID)
 	if orgID != nil {
@@ -28,42 +49,43 @@ func (r *gormRepository) GetProject(ctx context.Context, projectID uint, orgID *
 	}
 	if err := query.First(&project).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return persistencemodel.Project{}, ErrProjectNotFound
+			return projectRecord{}, ErrProjectNotFound
 		}
-		return persistencemodel.Project{}, err
+		return projectRecord{}, err
 	}
-	return project, nil
+	return projectRecordFromModel(project), nil
 }
 
-func (r *gormRepository) GetBinding(ctx context.Context, projectID uint) (persistencemodel.ProjectRepository, error) {
+func (r *gormRepository) GetBinding(ctx context.Context, projectID uint) (repositoryBinding, error) {
 	var binding persistencemodel.ProjectRepository
 	if err := r.db.WithContext(ctx).Where("project_id = ?", projectID).First(&binding).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return persistencemodel.ProjectRepository{}, ErrRepositoryBindingMissing
+			return repositoryBinding{}, ErrRepositoryBindingMissing
 		}
-		return persistencemodel.ProjectRepository{}, err
+		return repositoryBinding{}, err
 	}
-	return binding, nil
+	return repositoryBindingFromModel(binding), nil
 }
 
-func (r *gormRepository) CreateBinding(ctx context.Context, binding persistencemodel.ProjectRepository) (persistencemodel.ProjectRepository, error) {
+func (r *gormRepository) CreateBinding(ctx context.Context, binding repositoryBinding) (repositoryBinding, error) {
+	model := binding.toModel()
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var existing persistencemodel.ProjectRepository
-		if err := tx.Where("project_id = ?", binding.ProjectID).First(&existing).Error; err == nil {
-			binding = existing
+		if err := tx.Where("project_id = ?", model.ProjectID).First(&existing).Error; err == nil {
+			model = existing
 			return nil
 		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
-		return tx.Create(&binding).Error
+		return tx.Create(&model).Error
 	})
 	if err != nil {
-		return persistencemodel.ProjectRepository{}, err
+		return repositoryBinding{}, err
 	}
-	return binding, nil
+	return repositoryBindingFromModel(model), nil
 }
 
-func (r *gormRepository) UpdateBindingOwner(ctx context.Context, bindingID uint, owner string) (persistencemodel.ProjectRepository, error) {
+func (r *gormRepository) UpdateBindingOwner(ctx context.Context, bindingID uint, owner string) (repositoryBinding, error) {
 	updates := map[string]any{
 		"owner":            owner,
 		"status":           StatusProvisioning,
@@ -72,16 +94,16 @@ func (r *gormRepository) UpdateBindingOwner(ctx context.Context, bindingID uint,
 		"last_sync_error":  "",
 	}
 	if err := r.db.WithContext(ctx).Model(&persistencemodel.ProjectRepository{}).Where("id = ?", bindingID).Updates(updates).Error; err != nil {
-		return persistencemodel.ProjectRepository{}, err
+		return repositoryBinding{}, err
 	}
 	var binding persistencemodel.ProjectRepository
 	if err := r.db.WithContext(ctx).First(&binding, bindingID).Error; err != nil {
-		return persistencemodel.ProjectRepository{}, err
+		return repositoryBinding{}, err
 	}
-	return binding, nil
+	return repositoryBindingFromModel(binding), nil
 }
 
-func (r *gormRepository) UpdateProvisioning(ctx context.Context, bindingID uint, status string, providerRepoID string, headCommit string, lastSyncError string) (persistencemodel.ProjectRepository, error) {
+func (r *gormRepository) UpdateProvisioning(ctx context.Context, bindingID uint, status string, providerRepoID string, headCommit string, lastSyncError string) (repositoryBinding, error) {
 	updates := map[string]any{
 		"status":          status,
 		"last_sync_error": lastSyncError,
@@ -93,11 +115,53 @@ func (r *gormRepository) UpdateProvisioning(ctx context.Context, bindingID uint,
 		updates["head_commit"] = headCommit
 	}
 	if err := r.db.WithContext(ctx).Model(&persistencemodel.ProjectRepository{}).Where("id = ?", bindingID).Updates(updates).Error; err != nil {
-		return persistencemodel.ProjectRepository{}, err
+		return repositoryBinding{}, err
 	}
 	var binding persistencemodel.ProjectRepository
 	if err := r.db.WithContext(ctx).First(&binding, bindingID).Error; err != nil {
-		return persistencemodel.ProjectRepository{}, err
+		return repositoryBinding{}, err
 	}
-	return binding, nil
+	return repositoryBindingFromModel(binding), nil
+}
+
+func projectRecordFromModel(project persistencemodel.Project) projectRecord {
+	return projectRecord{
+		ID:          project.ID,
+		OwnerID:     project.OwnerID,
+		OrgID:       project.OrgID,
+		Description: project.Description,
+	}
+}
+
+func repositoryBindingFromModel(binding persistencemodel.ProjectRepository) repositoryBinding {
+	return repositoryBinding{
+		ID:             binding.ID,
+		ProjectID:      binding.ProjectID,
+		Provider:       binding.Provider,
+		ProviderRepoID: binding.ProviderRepoID,
+		Owner:          binding.Owner,
+		Repo:           binding.Repo,
+		DefaultBranch:  binding.DefaultBranch,
+		HeadCommit:     binding.HeadCommit,
+		Status:         binding.Status,
+		LastSyncError:  binding.LastSyncError,
+		CreatedBy:      binding.CreatedBy,
+	}
+}
+
+func (binding repositoryBinding) toModel() persistencemodel.ProjectRepository {
+	model := persistencemodel.ProjectRepository{
+		ProjectID:      binding.ProjectID,
+		Provider:       binding.Provider,
+		ProviderRepoID: binding.ProviderRepoID,
+		Owner:          binding.Owner,
+		Repo:           binding.Repo,
+		DefaultBranch:  binding.DefaultBranch,
+		HeadCommit:     binding.HeadCommit,
+		Status:         binding.Status,
+		LastSyncError:  binding.LastSyncError,
+		CreatedBy:      binding.CreatedBy,
+	}
+	model.Model.ID = binding.ID
+	return model
 }

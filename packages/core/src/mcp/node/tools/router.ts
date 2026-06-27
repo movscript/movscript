@@ -61,6 +61,7 @@ import {
   domainUpsertProjectStandards,
   domainUpsertProduction,
   domainUpsertProductionTree,
+  domainUpsertTimelineNamespaceTree,
   domainUpsertScript,
   domainUpsertSceneMoment,
   domainUpsertSegment,
@@ -309,6 +310,8 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
       return toolText(await domainUpsertProduction(args))
     case 'domain_upsert_production_tree':
       return toolText(await domainUpsertProductionTree(args))
+    case 'domain_upsert_timeline_namespace_tree':
+      return toolText(await domainUpsertTimelineNamespaceTree(args))
     case 'domain_upsert_segment':
       return toolText(await domainUpsertSegment(args))
     case 'domain_upsert_scene_moment':

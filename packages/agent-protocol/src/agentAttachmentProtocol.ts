@@ -1,4 +1,5 @@
 import type { JSONValue } from './protocolJson.js'
+import type { MovScriptNormalizedFocus } from '@movscript/domain'
 import type { MovScriptWorkspaceKind } from './providerCatalog.js'
 
 export interface ProviderSessionClientAttachmentRef {
@@ -46,6 +47,7 @@ export interface ProviderSessionClientInput {
       description?: string
     }
     workspaceId?: string
+    domainFocus?: MovScriptNormalizedFocus
     agent?: {
       key?: string
       name?: string

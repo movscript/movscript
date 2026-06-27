@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent, type FormEvent, type MouseEvent as ReactMouseEvent } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent, type FormEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import {
   Background,
@@ -22,11 +22,28 @@ import '@xyflow/react/dist/style.css'
 import { ChevronRight, FileText, FolderOpen, GitBranch, Image as ImageIcon, Link2, LocateFixed, Move, Music, Plus, Search, Sparkles, Star, Video, X } from 'lucide-react'
 
 import { generationParamDefaults } from '@movscript/core/generation'
+import { allocateMovScriptEntityId } from '@movscript/domain'
 import { readResourceDragPayload, resourceDropAcceptsPayload } from '@movscript/resource-surface/resource-interaction'
 import { ResourceFileImage, ResourceFileVideo } from '@movscript/resource-surface/resource-media-components'
 import type { PublicModel } from '@movscript/shared'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input, Label } from '@movscript/ui/primitives'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@movscript/ui/primitives'
 
+import {
+  contentCanvasNodeDisplayKind,
+} from '../domain/contentCanvasDomainPolicy'
 import {
   creativeCanvasActionsForNode,
   type CreativeCanvasAction,
@@ -38,10 +55,14 @@ import {
 import {
   layoutCreativeCanvas,
 } from '../application/contentCreativeCanvasLayout'
-import type { ContentCanvasDocument } from '../application/contentCanvasDocuments'
+import {
+  contentCanvasDocumentScope,
+  type ContentCanvasDocument,
+  type ContentCanvasDocumentScope,
+} from '../application/contentCanvasDocuments'
 import type { ContentCanvasCreateNodeInput } from '../application/contentCanvasCommands'
 import type { ContentCanvasUploadedResource } from '../application/contentCanvasWorkspaceGateway'
-import type { ContentCanvasCandidate, ContentCanvasEdge, ContentCanvasNode } from '../domain/contentCanvasTypes'
+import type { ContentCanvasCandidate, ContentCanvasEdge, ContentCanvasNode, ContentCanvasNodeKind } from '../domain/contentCanvasTypes'
 import {
   type ContentCanvasCandidateGenerationOptions,
   type ContentCanvasCandidatePromptPreview,
@@ -51,6 +72,7 @@ import { ContentCanvasModelSelector } from './ContentCanvasModelSelector'
 import { ContentCanvasPromptEditor } from './ContentCanvasPromptEditor'
 import { ContentCanvasResourceCandidatePicker } from './ContentCanvasResourceCandidatePicker'
 import {
+  contentCanvasNodeBelongsToProductionScope,
   contentCanvasFirstSegmentIdForProduction,
   contentCanvasSegmentsForProduction,
 } from './contentPromptCanvasQuickCreateModel'
@@ -68,9 +90,16 @@ import {
   expressionUnitKindValue,
 } from './contentCanvasWorkspaceDisplayModel'
 import type { CandidateSelections, ContentCanvasNodePosition, InspectorSelection } from './contentCanvasWorkspaceTypes'
+import {
+  contentCanvasChildSettingNamespaceKind,
+  contentCanvasChildTimelineNamespaceKind,
+  contentCanvasRootSettingNamespaceKind,
+  type ContentCanvasNamespaceVocabularyOptions,
+} from './contentCanvasNamespaceVocabularyModel'
 
 type CreativeFlowNodeData = {
   item: CreativeCanvasNode
+  focused: boolean
   candidateSelections: CandidateSelections
   candidateBadge: string
   candidatePreviews: CreativeFlowNodeCandidatePreview[]
@@ -157,6 +186,20 @@ type CreativeCanvasQuickCreateDialogState = {
   position: ContentCanvasNodePosition
 }
 
+type CreateReferenceMode = 'existing' | 'new'
+
+type QuickCreatePlanItem = {
+  label: string
+  value: string
+  tone?: 'context' | 'create' | 'use'
+}
+
+type ContentCanvasCreateSelectOption = {
+  value: string
+  label: string
+  disabled?: boolean
+}
+
 type DragResourcePayloadResource = {
   ID: number
   name?: string
@@ -167,6 +210,7 @@ type DragResourcePayloadResource = {
 
 const CREATIVE_CANVAS_MINIMAP_NODE_LIMIT = 120
 const CONTENT_PROMPT_REFERENCE_DRAG_MIME = 'application/x-movscript-content-reference'
+const CONTENT_CANVAS_CREATE_SELECT_EMPTY_VALUE = '__empty__'
 
 const nodeTypes = {
   contentPrompt: memo(ContentPromptFlowNode, areCreativeFlowNodePropsEqual),
@@ -183,6 +227,7 @@ export function ContentPromptCanvasPanel({
   focusRequest,
   focusedNodeId,
   manualPositions: persistedManualPositions,
+  namespaceVocabulary,
   savedViewport,
   nodes,
   onAddNodeToCanvas,
@@ -195,6 +240,7 @@ export function ContentPromptCanvasPanel({
   onCanvasDeselect,
   onClearManualPositions,
   onClearManualPositionsForNodes,
+  onCreateAssembly,
   onCreateChild,
   onCreateCanvas,
   onCreateNode,
@@ -220,6 +266,7 @@ export function ContentPromptCanvasPanel({
   focusRequest?: { nodeId: string; requestId: number } | null
   focusedNodeId?: string | null
   manualPositions?: Record<string, { x: number; y: number }>
+  namespaceVocabulary: ContentCanvasNamespaceVocabularyOptions
   savedViewport?: Viewport
   nodes: ContentCanvasNode[]
   onAddNodeToCanvas: (nodeId: string, position?: ContentCanvasNodePosition) => void
@@ -232,6 +279,7 @@ export function ContentPromptCanvasPanel({
   onCanvasDeselect: () => void
   onClearManualPositions: () => void
   onClearManualPositionsForNodes: (nodeIds: string[]) => void
+  onCreateAssembly: (node: ContentCanvasNode) => void
   onCreateChild: (node: ContentCanvasNode, childKind: CreativeCanvasChildKind, position?: ContentCanvasNodePosition, input?: ContentCanvasCreateNodeInput) => void
   onCreateCanvas: () => void
   onCreateNode: (nodeKind: CreativeCanvasDirectKind, position: ContentCanvasNodePosition, input?: ContentCanvasCreateNodeInput) => void
@@ -270,11 +318,15 @@ export function ContentPromptCanvasPanel({
   useEffect(() => {
     setManualPositions(persistedManualPositions ?? {})
   }, [persistedManualPositions])
+  const activeCanvasScope = useMemo(
+    () => contentCanvasDocumentScope(activeCanvasDocument),
+    [activeCanvasDocument],
+  )
   const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes])
   const canvasNodeIdSet = useMemo(() => new Set(canvasNodeIds), [canvasNodeIds])
   const nodeLibraryNodes = useMemo(
-    () => contentCanvasNodeLibraryNodes(nodes, nodeLibraryQuery),
-    [nodeLibraryQuery, nodes],
+    () => contentCanvasNodeLibraryNodes(nodes, nodeLibraryQuery, activeCanvasScope),
+    [activeCanvasScope, nodeLibraryQuery, nodes],
   )
   const assetLibraryNodes = useMemo(
     () => nodes
@@ -354,6 +406,7 @@ export function ContentPromptCanvasPanel({
     selected: item.id === focusedNodeId,
     data: {
       item,
+      focused: item.id === focusedNodeId,
       candidateSelections,
       candidateBadge: nodeCandidateBadge(item.source, candidateSelections) || '可生成',
       candidatePreviews: candidatePreviewsForNode(item.source, candidateSelections),
@@ -384,6 +437,13 @@ export function ContentPromptCanvasPanel({
   })), [creativeGraph.edges])
   const [flowNodes, setFlowNodes, onNodesChange] = useNodesState(initialFlowNodes)
   const [flowEdges, setFlowEdges] = useEdgesState(initialFlowEdges)
+
+  const selectPromptCanvasNode = useCallback((nodeId: string) => {
+    const sourceNode = nodeById.get(nodeId)
+    if (!sourceNode) return
+    setQuickAddMenu(null)
+    onSelectNode(selectionKindForPromptNode(sourceNode), sourceNode.id)
+  }, [nodeById, onSelectNode])
 
   const openQuickAddMenuAtClientPoint = useCallback((clientX: number, clientY: number) => {
     const position = flowInstance?.screenToFlowPosition({ x: clientX, y: clientY }) ?? { x: 0, y: 0 }
@@ -475,11 +535,33 @@ export function ContentPromptCanvasPanel({
     onPromptCommit(target, nextPrompt)
   }, [editablePromptNodeIds, nodeById, onPromptCommit, promptByNodeId, updatePromptDraft])
 
+  const positionForContextChildCreate = useCallback((node: ContentCanvasNode): ContentCanvasNodePosition => {
+    const flowNode = flowNodes.find((item) => item.id === node.id)
+    const nodePosition = flowNode?.position ?? node.position
+    const nodeWidth = flowNode ? creativeCanvasNodeViewportSize(flowNode.data.item).width : 320
+    return {
+      x: nodePosition.x + nodeWidth + 48,
+      y: nodePosition.y,
+    }
+  }, [flowNodes])
+
   const runContextMenuAction = useCallback((action: CreativeCanvasAction, node: ContentCanvasNode) => {
     setContextMenu(null)
     setQuickAddMenu(null)
     if (action.kind === 'create_child') {
-      onCreateChild(node, action.childKind)
+      setQuickCreateDialog({
+        option: {
+          kind: 'child',
+          childKind: action.childKind,
+          label: creativeCanvasQuickAddChildLabel(action.childKind),
+          parentNode: node,
+        },
+        position: positionForContextChildCreate(node),
+      })
+      return
+    }
+    if (action.kind === 'create_assembly') {
+      onCreateAssembly(node)
       return
     }
     if (action.kind === 'generate_candidate') {
@@ -507,7 +589,7 @@ export function ContentPromptCanvasPanel({
       onDeleteNode(node)
       return
     }
-  }, [onCandidateNodeSelect, onCreateChild, onDeleteNode, onRemoveNodeFromCanvas, onResourceOpen, onSelectNode])
+  }, [onCandidateNodeSelect, onCreateAssembly, onDeleteNode, onRemoveNodeFromCanvas, onResourceOpen, onSelectNode, positionForContextChildCreate])
 
   const runQuickAddOption = useCallback((option: CreativeCanvasQuickAddOption, position: ContentCanvasNodePosition) => {
     setContextMenu(null)
@@ -535,6 +617,7 @@ export function ContentPromptCanvasPanel({
       if (event.key !== 'Delete' && event.key !== 'Backspace') return
       if (isTextEditingTarget(event.target)) return
       const selectedNode = flowNodes.find((node) => node.selected)
+        ?? (focusedNodeId ? flowNodes.find((node) => node.id === focusedNodeId) : undefined)
       const sourceNode = selectedNode ? nodeById.get(selectedNode.id) : undefined
       if (!sourceNode) return
       event.preventDefault()
@@ -542,7 +625,7 @@ export function ContentPromptCanvasPanel({
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [flowNodes, nodeById, onRemoveNodeFromCanvas])
+  }, [flowNodes, focusedNodeId, nodeById, onRemoveNodeFromCanvas])
 
   const relayoutCanvas = useCallback(() => {
     const nextPositions = layoutCreativeCanvas({
@@ -606,8 +689,9 @@ export function ContentPromptCanvasPanel({
       <div className="content-prompt-canvas-panel__toolbar">
         <span>
           <GitBranch size={14} aria-hidden="true" />
-          {activeCanvasDocument?.title ?? '自由画布'}
+          {activeCanvasDocument?.title ?? '自由内容画布'}
         </span>
+        <em>{contentCanvasScopeLabel(activeCanvasScope)}</em>
         <select
           className="content-prompt-canvas-panel__canvas-select"
           value={activeCanvasDocument?.id ?? ''}
@@ -615,15 +699,17 @@ export function ContentPromptCanvasPanel({
           aria-label="选择画布"
         >
           {canvasDocuments.map((document) => (
-            <option key={document.id} value={document.id}>{document.title}</option>
+            <option key={document.id} value={document.id}>
+              {document.title} · {contentCanvasScopeLabel(contentCanvasDocumentScope(document))}
+            </option>
           ))}
         </select>
         <em>{creativeGraph.nodes.length} 个创作节点，{generatableCount} 个可生成节点</em>
         <button
           type="button"
           onClick={onCreateCanvas}
-          title="新建自由画布"
-          aria-label="新建自由画布"
+          title="新建内容画布"
+          aria-label="新建内容画布"
         >
           <Plus size={14} aria-hidden="true" />
         </button>
@@ -813,12 +899,8 @@ export function ContentPromptCanvasPanel({
         defaultViewport={savedViewport}
         onNodesChange={onNodesChange}
         onMoveEnd={(_event, viewport) => onViewportCommit(viewport)}
-        onNodeClick={(_event, node) => {
-          const sourceNode = nodeById.get(node.id)
-          if (!sourceNode) return
-          setQuickAddMenu(null)
-          onSelectNode(selectionKindForPromptNode(sourceNode), sourceNode.id)
-        }}
+        onNodeClick={(_event, node) => selectPromptCanvasNode(node.id)}
+        onNodeDragStart={(_event, node) => selectPromptCanvasNode(node.id)}
         onPaneClick={() => {
           setContextMenu(null)
           setQuickAddMenu(null)
@@ -917,6 +999,8 @@ export function ContentPromptCanvasPanel({
         </div>
       ) : null}
       <ContentPromptCanvasQuickCreateDialog
+        activeCanvasScope={activeCanvasScope}
+        namespaceVocabulary={namespaceVocabulary}
         nodes={nodes}
         state={quickCreateDialog}
         onClose={closeQuickCreateDialog}
@@ -953,7 +1037,7 @@ export function ContentPromptCanvasPanel({
   )
 }
 
-function ContentPromptFlowNode({ data, selected }: NodeProps<Node<CreativeFlowNodeData>>) {
+function ContentPromptFlowNode({ data }: NodeProps<Node<CreativeFlowNodeData>>) {
   const node = data.item.source
   const Icon = iconForContentNode(node)
   const display = creativeFlowNodeDisplay(node, data.item.role)
@@ -961,12 +1045,13 @@ function ContentPromptFlowNode({ data, selected }: NodeProps<Node<CreativeFlowNo
   const generationTarget = contentCanvasGenerationTargetForNode(node)
   const generationMediaKind = mediaKindForNode(generationTarget?.node ?? node)
   const canGenerateWithModel = generationMediaKind === 'image' || generationMediaKind === 'video'
-  const expanded = Boolean(selected)
+  const focused = data.focused
+  const expanded = focused
   const currentPreview = currentCandidatePreview(data.candidatePreviews)
   return (
     <article
       className="content-prompt-flow-node"
-      data-selected={selected ? 'true' : undefined}
+      data-selected={focused ? 'true' : undefined}
       data-expanded={expanded ? 'true' : undefined}
       data-kind={node.kind}
       data-expression-kind={node.kind === 'expression_unit' ? expressionUnitKindValue(node) : undefined}
@@ -1118,28 +1203,35 @@ function ContentPromptFlowNode({ data, selected }: NodeProps<Node<CreativeFlowNo
 }
 
 function ContentPromptCanvasQuickCreateDialog({
+  activeCanvasScope,
+  namespaceVocabulary,
   nodes,
   state,
   onClose,
   onSubmit,
 }: {
+  activeCanvasScope: ContentCanvasDocumentScope
+  namespaceVocabulary: ContentCanvasNamespaceVocabularyOptions
   nodes: ContentCanvasNode[]
   state: CreativeCanvasQuickCreateDialogState | null
   onClose: () => void
   onSubmit: (input: ContentCanvasCreateNodeInput) => void
 }) {
   const [id, setId] = useState('')
+  const [hasManualId, setHasManualId] = useState(false)
   const [title, setTitle] = useState('')
-  const [productionMode, setProductionMode] = useState<'existing' | 'new'>('new')
-  const [segmentMode, setSegmentMode] = useState<'existing' | 'new'>('new')
+  const [productionMode, setProductionMode] = useState<CreateReferenceMode>('new')
+  const [segmentMode, setSegmentMode] = useState<CreateReferenceMode>('new')
   const [selectedProductionId, setSelectedProductionId] = useState('')
   const [selectedSegmentId, setSelectedSegmentId] = useState('')
+  const [selectedTimelineNamespaceNodeId, setSelectedTimelineNamespaceNodeId] = useState('')
+  const [selectedChildTimelineNamespaceKind, setSelectedChildTimelineNamespaceKind] = useState('')
   const [newProductionId, setNewProductionId] = useState('')
   const [newProductionTitle, setNewProductionTitle] = useState('')
   const [newSegmentId, setNewSegmentId] = useState('')
   const [newSegmentTitle, setNewSegmentTitle] = useState('')
-  const [settingMode, setSettingMode] = useState<'existing' | 'new'>('new')
-  const [stateMode, setStateMode] = useState<'existing' | 'new'>('new')
+  const [settingMode, setSettingMode] = useState<CreateReferenceMode>('new')
+  const [stateMode, setStateMode] = useState<CreateReferenceMode>('new')
   const [selectedSettingId, setSelectedSettingId] = useState('')
   const [selectedStateId, setSelectedStateId] = useState('')
   const [selectedVisualOwnerId, setSelectedVisualOwnerId] = useState('')
@@ -1147,33 +1239,121 @@ function ContentPromptCanvasQuickCreateDialog({
   const [newSettingTitle, setNewSettingTitle] = useState('')
   const [newStateId, setNewStateId] = useState('')
   const [newStateTitle, setNewStateTitle] = useState('')
+  const initializedDialogKeyRef = useRef<string | null>(null)
   const copy = quickCreateDialogCopy(state)
+  const dialogSessionKey = quickCreateDialogSessionKey(state)
+  const entityKind = quickCreateDialogEntityKind(state)
+  const idFallbackPrefix = quickCreateDialogIdPrefix(state, copy.idPlaceholder)
+  const resolvedId = hasManualId
+    ? id.trim()
+    : allocateMovScriptEntityId({
+      entityKind,
+      title: title.trim() || copy.titlePlaceholder,
+      fallbackPrefix: idFallbackPrefix,
+      existingIds: quickCreateExistingEntityIds(nodes, entityKind),
+    })
   const productions = useMemo(() => nodes.filter((node) => node.kind === 'production'), [nodes])
   const segments = useMemo(() => nodes.filter((node) => node.kind === 'segment'), [nodes])
+  const scopedProductionId = activeCanvasScope.kind === 'production' ? activeCanvasScope.productionId : ''
+  const scopedProductions = useMemo(() => (
+    scopedProductionId
+      ? productions.filter((production) => contentCanvasNodeBelongsToProductionScope(production, scopedProductionId, productions))
+      : productions
+  ), [productions, scopedProductionId])
+  const effectiveProductionId = scopedProductionId || selectedProductionId
   const segmentsForProduction = useMemo(() => (
-    contentCanvasSegmentsForProduction(segments, selectedProductionId, productions)
-  ), [productions, selectedProductionId, segments])
+    contentCanvasSegmentsForProduction(segments, effectiveProductionId, productions)
+  ), [effectiveProductionId, productions, segments])
   const settings = useMemo(() => nodes.filter((node) => node.kind === 'setting'), [nodes])
   const states = useMemo(() => nodes.filter((node) => node.kind === 'state'), [nodes])
-  const visualOwners = useMemo(() => nodes.filter((node) => node.kind === 'scene_moment' || node.kind === 'expression_unit'), [nodes])
+  const timelineNamespaceParents = useMemo(() => (
+    contentCanvasTimelineNamespaceParentsForSceneMoment(nodes, activeCanvasScope)
+  ), [activeCanvasScope, nodes])
+  const visualOwners = useMemo(() => nodes
+    .filter((node) => node.kind === 'scene_moment' || node.kind === 'expression_unit')
+    .filter((node) => !scopedProductionId || contentCanvasNodeBelongsToProductionScope(node, scopedProductionId, productions)),
+  [nodes, productions, scopedProductionId])
   const statesForSetting = useMemo(() => (
     selectedSettingId
       ? states.filter((node) => stateNodeBelongsToSetting(node, selectedSettingId))
       : states
   ), [selectedSettingId, states])
-  const needsProductionSegment = quickCreateDialogNeedsProductionSegment(state)
+  const needsTimelineNamespaceParent = quickCreateDialogNeedsTimelineNamespaceParent(state)
+  const selectedTimelineNamespaceParent = timelineNamespaceParents.find((node) => node.id === selectedTimelineNamespaceNodeId)
+    ?? timelineNamespaceParents[0]
+  const childTimelineNamespaceKind = quickCreateChildTimelineNamespaceKind(state, namespaceVocabulary)
+  const needsChildTimelineNamespaceKind = Boolean(childTimelineNamespaceKind)
+  const needsProductionSegment = quickCreateDialogNeedsProductionSegment(state) && !needsTimelineNamespaceParent
   const needsMount = quickCreateDialogNeedsSettingStateMount(state)
   const needsVisualOwner = quickCreateDialogNeedsVisualOwner(state)
-  const canSubmit = Boolean(id.trim() && title.trim() && (!needsVisualOwner || selectedVisualOwnerId))
+  const selectedProduction = scopedProductions.find((production) => production.entityKey === selectedProductionId)
+    ?? productions.find((production) => production.entityKey === selectedProductionId)
+  const selectedSegment = segmentsForProduction.find((segment) => segment.entityKey === selectedSegmentId)
+    ?? segments.find((segment) => segment.entityKey === selectedSegmentId)
+  const selectedSetting = settings.find((setting) => setting.entityKey === selectedSettingId)
+  const selectedState = statesForSetting.find((stateNode) => stateNode.entityKey === selectedStateId)
+    ?? states.find((stateNode) => stateNode.entityKey === selectedStateId)
+  const selectedVisualOwner = visualOwners.find((owner) => owner.id === selectedVisualOwnerId)
+  const planItems = quickCreateDialogPlanItems({
+    childTimelineNamespaceKind,
+    copy,
+    id: resolvedId,
+    needsChildTimelineNamespaceKind,
+    needsMount,
+    needsProductionSegment,
+    needsTimelineNamespaceParent,
+    needsVisualOwner,
+    newProductionId,
+    newProductionTitle,
+    newSegmentId,
+    newSegmentTitle,
+    newSettingId,
+    newSettingTitle,
+    newStateId,
+    newStateTitle,
+    productionMode,
+    segmentMode,
+    selectedChildTimelineNamespaceKind,
+    selectedProduction,
+    selectedProductionId,
+    selectedSegment,
+    selectedSegmentId,
+    selectedSetting,
+    selectedSettingId,
+    selectedState,
+    selectedStateId,
+    selectedTimelineNamespaceParent,
+    selectedVisualOwner,
+    selectedVisualOwnerId,
+    settingMode,
+    state,
+    stateMode,
+    title,
+  })
+  const canSubmit = Boolean(title.trim() && resolvedId
+    && (!needsTimelineNamespaceParent || selectedTimelineNamespaceParent)
+    && (!needsProductionSegment || (
+      (productionMode !== 'existing' || selectedProductionId)
+      && (segmentMode !== 'existing' || selectedSegmentId)
+    ))
+    && (!needsVisualOwner || selectedVisualOwnerId)
+    && (!needsMount || (
+      (settingMode !== 'existing' || selectedSettingId)
+      && (stateMode !== 'existing' || selectedStateId)
+    )))
 
   useEffect(() => {
     if (!state) {
+      initializedDialogKeyRef.current = null
       setId('')
+      setHasManualId(false)
       setTitle('')
       setProductionMode('new')
       setSegmentMode('new')
       setSelectedProductionId('')
       setSelectedSegmentId('')
+      setSelectedTimelineNamespaceNodeId('')
+      setSelectedChildTimelineNamespaceKind('')
       setNewProductionId('')
       setNewProductionTitle('')
       setNewSegmentId('')
@@ -1189,12 +1369,16 @@ function ContentPromptCanvasQuickCreateDialog({
       setNewStateTitle('')
       return
     }
-    const firstProductionId = productions[0]?.entityKey ?? ''
+    if (initializedDialogKeyRef.current === dialogSessionKey) return
+    initializedDialogKeyRef.current = dialogSessionKey
+    const firstProductionId = scopedProductionId || scopedProductions[0]?.entityKey || ''
     const firstSegmentId = contentCanvasFirstSegmentIdForProduction(segments, firstProductionId, productions)
     setProductionMode(firstProductionId ? 'existing' : 'new')
     setSegmentMode(firstSegmentId ? 'existing' : 'new')
     setSelectedProductionId(firstProductionId)
     setSelectedSegmentId(firstSegmentId)
+    setSelectedTimelineNamespaceNodeId(timelineNamespaceParents[0]?.id ?? '')
+    setSelectedChildTimelineNamespaceKind(childTimelineNamespaceKind ?? '')
     const firstSettingId = settings[0]?.entityKey ?? ''
     const firstStateId = states[0]?.entityKey ?? ''
     setSettingMode(firstSettingId ? 'existing' : 'new')
@@ -1202,7 +1386,7 @@ function ContentPromptCanvasQuickCreateDialog({
     setSelectedSettingId(firstSettingId)
     setSelectedStateId(firstStateId)
     setSelectedVisualOwnerId(visualOwners[0]?.id ?? '')
-  }, [productions, segments, settings, state, states, visualOwners])
+  }, [childTimelineNamespaceKind, dialogSessionKey, productions, scopedProductionId, scopedProductions, segments, settings, state, states, timelineNamespaceParents, visualOwners])
 
   useEffect(() => {
     if (!state || !needsProductionSegment || productionMode !== 'existing' || segmentMode !== 'existing') return
@@ -1217,14 +1401,36 @@ function ContentPromptCanvasQuickCreateDialog({
     setSelectedSegmentId('')
   }, [needsProductionSegment, productionMode, segmentMode, segmentsForProduction, selectedSegmentId, state])
 
+  useEffect(() => {
+    if (!state || !needsMount || settingMode !== 'existing' || stateMode !== 'existing') return
+    const currentStateIsAvailable = statesForSetting.some((stateNode) => stateNode.entityKey === selectedStateId)
+    if (currentStateIsAvailable) return
+    const nextStateId = statesForSetting[0]?.entityKey ?? ''
+    if (nextStateId) {
+      setSelectedStateId(nextStateId)
+      return
+    }
+    setStateMode('new')
+    setSelectedStateId('')
+  }, [needsMount, selectedStateId, settingMode, state, stateMode, statesForSetting])
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!canSubmit) return
+    const explicitId = hasManualId ? id.trim() : ''
     onSubmit({
-      id: id.trim(),
+      id: explicitId,
       title: title.trim(),
+      ...quickCreateTimelineNamespaceInput({
+        needsTimelineNamespaceParent,
+        selectedTimelineNamespaceParent,
+      }),
+      ...quickCreateChildTimelineNamespaceInput({
+        needsChildTimelineNamespaceKind,
+        selectedChildTimelineNamespaceKind: selectedChildTimelineNamespaceKind || childTimelineNamespaceKind || '',
+      }),
       ...quickCreateProductionInput({
-        id: id.trim(),
+        id: resolvedId,
         needsProductionSegment,
         newProductionId,
         newProductionTitle,
@@ -1238,7 +1444,7 @@ function ContentPromptCanvasQuickCreateDialog({
       }),
       ...(needsVisualOwner ? { targetOwnerNodeId: selectedVisualOwnerId } : {}),
       ...quickCreateMountInput({
-        id: id.trim(),
+        id: resolvedId,
         needsMount,
         newSettingId,
         newSettingTitle,
@@ -1247,21 +1453,26 @@ function ContentPromptCanvasQuickCreateDialog({
         selectedSettingId,
         selectedStateId,
         settingMode,
+        namespaceVocabulary,
         stateMode,
         title: title.trim(),
       }),
     })
     setId('')
+    setHasManualId(false)
     setTitle('')
   }
 
   function resetAndClose() {
     setId('')
+    setHasManualId(false)
     setTitle('')
     setNewProductionId('')
     setNewProductionTitle('')
     setNewSegmentId('')
     setNewSegmentTitle('')
+    setSelectedTimelineNamespaceNodeId('')
+    setSelectedChildTimelineNamespaceKind('')
     setNewSettingId('')
     setNewSettingTitle('')
     setNewStateId('')
@@ -1280,203 +1491,316 @@ function ContentPromptCanvasQuickCreateDialog({
           <DialogTitle>{copy.title}</DialogTitle>
         </DialogHeader>
         <form className="content-canvas-create-dialog__form" onSubmit={handleSubmit}>
-          <Label className="content-canvas-create-dialog__field" htmlFor="content-prompt-canvas-quick-create-id">
-            <span>ID</span>
-            <Input
-              id="content-prompt-canvas-quick-create-id"
-              autoFocus
-              value={id}
-              placeholder={copy.idPlaceholder}
-              onChange={(event) => setId(event.target.value)}
-            />
-          </Label>
-          <Label className="content-canvas-create-dialog__field" htmlFor="content-prompt-canvas-quick-create-title">
-            <span>标题</span>
-            <Input
-              id="content-prompt-canvas-quick-create-title"
-              value={title}
-              placeholder={copy.titlePlaceholder}
-              onChange={(event) => setTitle(event.target.value)}
-            />
-          </Label>
-          {needsProductionSegment ? (
+          <ContentCanvasCreateDialogSection title="创建目标">
             <div className="content-canvas-create-dialog__field">
-              <Label htmlFor="content-prompt-canvas-quick-create-production">挂载制作</Label>
-              <select
-                id="content-prompt-canvas-quick-create-production"
-                className="content-canvas-create-dialog__select"
-                value={productionMode === 'existing' ? selectedProductionId : '__new__'}
-                onChange={(event) => {
-                  if (event.target.value === '__new__') {
-                    setProductionMode('new')
-                    setSegmentMode('new')
-                    setSelectedProductionId('')
-                    setSelectedSegmentId('')
-                    return
-                  }
-                  const nextProductionId = event.target.value
-                  const nextSegmentId = contentCanvasFirstSegmentIdForProduction(segments, nextProductionId, productions)
-                  setProductionMode('existing')
-                  setSelectedProductionId(nextProductionId)
-                  setSegmentMode(nextSegmentId ? 'existing' : 'new')
-                  setSelectedSegmentId(nextSegmentId)
-                }}
-              >
-                {productions.map((production) => (
-                  <option key={production.id} value={production.entityKey}>{production.title}</option>
-                ))}
-                <option value="__new__">新建制作</option>
-              </select>
-              {productionMode === 'new' ? (
-                <div className="content-canvas-create-dialog__grid">
+              <Label className="content-canvas-create-dialog__field" htmlFor="content-prompt-canvas-quick-create-title">
+                <span>标题</span>
+                <Input
+                  id="content-prompt-canvas-quick-create-title"
+                  autoFocus
+                  value={title}
+                  placeholder={copy.titlePlaceholder}
+                  onChange={(event) => setTitle(event.target.value)}
+                />
+              </Label>
+              <details className="content-canvas-create-dialog__advanced">
+                <summary>高级：自定义 ID</summary>
+                <Label className="content-canvas-create-dialog__field" htmlFor="content-prompt-canvas-quick-create-id">
+                  <span>ID</span>
                   <Input
-                    value={newProductionId}
-                    placeholder={`${id || 'node'}_production`}
-                    onChange={(event) => setNewProductionId(event.target.value)}
+                    id="content-prompt-canvas-quick-create-id"
+                    value={hasManualId ? id : resolvedId}
+                    placeholder={copy.idPlaceholder}
+                    onChange={(event) => {
+                      const nextId = event.target.value
+                      setId(nextId)
+                      setHasManualId(Boolean(nextId.trim()))
+                    }}
                   />
-                  <Input
-                    value={newProductionTitle}
-                    placeholder={`${title || '节点'} 制作`}
-                    onChange={(event) => setNewProductionTitle(event.target.value)}
-                  />
-                </div>
-              ) : null}
+                </Label>
+              </details>
             </div>
+          </ContentCanvasCreateDialogSection>
+          {needsTimelineNamespaceParent ? (
+            <ContentCanvasCreateDialogSection title="时间线">
+              <div className="content-canvas-create-dialog__field">
+                <Label htmlFor="content-prompt-canvas-quick-create-timeline-namespace">挂载时间线</Label>
+                <ContentCanvasCreateSelect
+                  id="content-prompt-canvas-quick-create-timeline-namespace"
+                  value={selectedTimelineNamespaceParent?.id ?? ''}
+                  placeholder="暂无可挂载时间线层级"
+                  options={timelineNamespaceParents.map((namespaceNode) => ({
+                    value: namespaceNode.id,
+                    label: timelineNamespaceLabel(namespaceNode),
+                  }))}
+                  disabled={!timelineNamespaceParents.length}
+                  onValueChange={setSelectedTimelineNamespaceNodeId}
+                />
+              </div>
+            </ContentCanvasCreateDialogSection>
+          ) : null}
+          {needsChildTimelineNamespaceKind ? (
+            <ContentCanvasCreateDialogSection title="时间线">
+              <div className="content-canvas-create-dialog__field">
+                <Label htmlFor="content-prompt-canvas-quick-create-child-namespace">子层级类型</Label>
+                <ContentCanvasCreateSelect
+                  id="content-prompt-canvas-quick-create-child-namespace"
+                  value={selectedChildTimelineNamespaceKind || childTimelineNamespaceKind || ''}
+                  placeholder="选择子层级类型"
+                  options={namespaceVocabulary.timelineNamespaces.map((namespaceKind) => ({
+                    value: namespaceKind,
+                    label: namespaceKind,
+                  }))}
+                  onValueChange={setSelectedChildTimelineNamespaceKind}
+                />
+              </div>
+            </ContentCanvasCreateDialogSection>
           ) : null}
           {needsProductionSegment ? (
-            <div className="content-canvas-create-dialog__field">
-              <Label htmlFor="content-prompt-canvas-quick-create-segment">挂载段落</Label>
-              <select
-                id="content-prompt-canvas-quick-create-segment"
-                className="content-canvas-create-dialog__select"
-                value={segmentMode === 'existing' ? selectedSegmentId : '__new__'}
-                onChange={(event) => {
-                  if (event.target.value === '__new__') {
-                    setSegmentMode('new')
-                    setSelectedSegmentId('')
-                    return
-                  }
-                  setSegmentMode('existing')
-                  setSelectedSegmentId(event.target.value)
-                }}
-                disabled={productionMode === 'new'}
-              >
-                {segmentsForProduction.map((segment) => (
-                  <option key={segment.id} value={segment.entityKey}>{segment.title}</option>
-                ))}
-                <option value="__new__">新建段落</option>
-              </select>
-              {segmentMode === 'new' || productionMode === 'new' ? (
-                <div className="content-canvas-create-dialog__grid">
-                  <Input
-                    value={newSegmentId}
-                    placeholder={`${id || 'node'}_segment`}
-                    onChange={(event) => setNewSegmentId(event.target.value)}
+            <ContentCanvasCreateDialogSection title="时间线">
+              <div className="content-canvas-create-dialog__field">
+                <span>挂载制作</span>
+                <ContentCanvasCreateModeSwitch
+                  value={productionMode}
+                  existingLabel="使用已有"
+                  newLabel="新建制作"
+                  existingDisabled={!scopedProductions.length && !scopedProductionId}
+                  newDisabled={Boolean(scopedProductionId)}
+                  onChange={(nextMode) => {
+                    if (nextMode === 'new') {
+                      setProductionMode('new')
+                      setSegmentMode('new')
+                      setSelectedProductionId('')
+                      setSelectedSegmentId('')
+                      return
+                    }
+                    const nextProductionId = selectedProductionId || scopedProductionId || scopedProductions[0]?.entityKey || ''
+                    const nextSegmentId = contentCanvasFirstSegmentIdForProduction(segments, nextProductionId, productions)
+                    setProductionMode('existing')
+                    setSelectedProductionId(nextProductionId)
+                    setSegmentMode(nextSegmentId ? 'existing' : 'new')
+                    setSelectedSegmentId(nextSegmentId)
+                  }}
+                />
+                {productionMode === 'existing' ? (
+                  <ContentCanvasCreateSelect
+                    id="content-prompt-canvas-quick-create-production"
+                    value={selectedProductionId}
+                    placeholder={scopedProductionId ? contentCanvasScopeLabel(activeCanvasScope) : '选择制作'}
+                    options={[
+                      ...scopedProductions.map((production) => ({
+                        value: production.entityKey,
+                        label: production.title,
+                      })),
+                      ...(scopedProductionId && !scopedProductions.length
+                        ? [{ value: scopedProductionId, label: contentCanvasScopeLabel(activeCanvasScope) }]
+                        : []),
+                    ]}
+                    disabled={Boolean(scopedProductionId)}
+                    onValueChange={(nextProductionId) => {
+                      const nextSegmentId = contentCanvasFirstSegmentIdForProduction(segments, nextProductionId, productions)
+                      setProductionMode('existing')
+                      setSelectedProductionId(nextProductionId)
+                      setSegmentMode(nextSegmentId ? 'existing' : 'new')
+                      setSelectedSegmentId(nextSegmentId)
+                    }}
                   />
-                  <Input
-                    value={newSegmentTitle}
-                    placeholder={`${title || '节点'} 段落`}
-                    onChange={(event) => setNewSegmentTitle(event.target.value)}
+                ) : null}
+                {productionMode === 'new' ? (
+                  <div className="content-canvas-create-dialog__grid">
+                    <Input
+                      value={newProductionId}
+                      placeholder={`${resolvedId || 'node'}_production`}
+                      onChange={(event) => setNewProductionId(event.target.value)}
+                    />
+                    <Input
+                      value={newProductionTitle}
+                      placeholder={`${title || '节点'} 制作`}
+                      onChange={(event) => setNewProductionTitle(event.target.value)}
+                    />
+                  </div>
+                ) : null}
+              </div>
+              <div className="content-canvas-create-dialog__field">
+                <span>挂载段落</span>
+                <ContentCanvasCreateModeSwitch
+                  value={productionMode === 'new' ? 'new' : segmentMode}
+                  existingLabel="使用已有"
+                  newLabel="新建段落"
+                  existingDisabled={productionMode === 'new' || !segmentsForProduction.length}
+                  onChange={(nextMode) => {
+                    if (nextMode === 'new') {
+                      setSegmentMode('new')
+                      setSelectedSegmentId('')
+                      return
+                    }
+                    setSegmentMode('existing')
+                    setSelectedSegmentId(selectedSegmentId || segmentsForProduction[0]?.entityKey || '')
+                  }}
+                />
+                {productionMode !== 'new' && segmentMode === 'existing' ? (
+                  <ContentCanvasCreateSelect
+                    id="content-prompt-canvas-quick-create-segment"
+                    value={selectedSegmentId}
+                    placeholder="选择段落"
+                    options={segmentsForProduction.map((segment) => ({
+                      value: segment.entityKey,
+                      label: segment.title,
+                    }))}
+                    onValueChange={(nextSegmentId) => {
+                      setSegmentMode('existing')
+                      setSelectedSegmentId(nextSegmentId)
+                    }}
                   />
-                </div>
-              ) : null}
-            </div>
+                ) : null}
+                {segmentMode === 'new' || productionMode === 'new' ? (
+                  <div className="content-canvas-create-dialog__grid">
+                    <Input
+                      value={newSegmentId}
+                      placeholder={`${resolvedId || 'node'}_segment`}
+                      onChange={(event) => setNewSegmentId(event.target.value)}
+                    />
+                    <Input
+                      value={newSegmentTitle}
+                      placeholder={`${title || '节点'} 段落`}
+                      onChange={(event) => setNewSegmentTitle(event.target.value)}
+                    />
+                  </div>
+                ) : null}
+              </div>
+            </ContentCanvasCreateDialogSection>
           ) : null}
           {needsVisualOwner ? (
-            <div className="content-canvas-create-dialog__field">
-              <Label htmlFor="content-prompt-canvas-quick-create-visual-owner">挂载对象</Label>
-              <select
-                id="content-prompt-canvas-quick-create-visual-owner"
-                className="content-canvas-create-dialog__select"
-                value={selectedVisualOwnerId}
-                onChange={(event) => setSelectedVisualOwnerId(event.target.value)}
-                disabled={!visualOwners.length}
-              >
-                {visualOwners.map((owner) => (
-                  <option key={owner.id} value={owner.id}>
-                    {owner.kind === 'scene_moment' ? '情节' : '表达'} · {owner.title}
-                  </option>
-                ))}
-                {!visualOwners.length ? <option value="">暂无情节或表达</option> : null}
-              </select>
-            </div>
+            <ContentCanvasCreateDialogSection title="归属">
+              <div className="content-canvas-create-dialog__field">
+                <Label htmlFor="content-prompt-canvas-quick-create-visual-owner">挂载对象</Label>
+                <ContentCanvasCreateSelect
+                  id="content-prompt-canvas-quick-create-visual-owner"
+                  value={selectedVisualOwnerId}
+                  placeholder={visualOwners.length ? '选择情节或表达' : '暂无情节或表达'}
+                  options={visualOwners.map((owner) => ({
+                    value: owner.id,
+                    label: `${owner.kind === 'scene_moment' ? '情节' : '表达'} · ${owner.title}`,
+                  }))}
+                  disabled={!visualOwners.length}
+                  onValueChange={setSelectedVisualOwnerId}
+                />
+              </div>
+            </ContentCanvasCreateDialogSection>
           ) : null}
           {needsMount ? (
-            <div className="content-canvas-create-dialog__field">
-              <Label htmlFor="content-prompt-canvas-quick-create-setting">挂载设定</Label>
-              <select
-                id="content-prompt-canvas-quick-create-setting"
-                className="content-canvas-create-dialog__select"
-                value={settingMode === 'existing' ? selectedSettingId : '__new__'}
-                onChange={(event) => {
-                  if (event.target.value === '__new__') {
-                    setSettingMode('new')
-                    setStateMode('new')
-                    return
-                  }
-                  setSettingMode('existing')
-                  setSelectedSettingId(event.target.value)
-                }}
-              >
-                {settings.map((setting) => (
-                  <option key={setting.id} value={setting.entityKey}>{setting.title}</option>
-                ))}
-                <option value="__new__">新建设定</option>
-              </select>
-              {settingMode === 'new' ? (
-                <div className="content-canvas-create-dialog__grid">
-                  <Input
-                    value={newSettingId}
-                    placeholder={`${id || 'node'}_setting`}
-                    onChange={(event) => setNewSettingId(event.target.value)}
+            <ContentCanvasCreateDialogSection title="归属">
+              <div className="content-canvas-create-dialog__field">
+                <span>挂载设定</span>
+                <ContentCanvasCreateModeSwitch
+                  value={settingMode}
+                  existingLabel="使用已有"
+                  newLabel="新建设定"
+                  existingDisabled={!settings.length}
+                  onChange={(nextMode) => {
+                    if (nextMode === 'new') {
+                      setSettingMode('new')
+                      setStateMode('new')
+                      setSelectedSettingId('')
+                      setSelectedStateId('')
+                      return
+                    }
+                    const nextSettingId = selectedSettingId || settings[0]?.entityKey || ''
+                    const nextStates = nextSettingId
+                      ? states.filter((stateNode) => stateNodeBelongsToSetting(stateNode, nextSettingId))
+                      : states
+                    const nextStateId = selectedStateId && nextStates.some((stateNode) => stateNode.entityKey === selectedStateId)
+                      ? selectedStateId
+                      : nextStates[0]?.entityKey || ''
+                    setSettingMode('existing')
+                    setSelectedSettingId(nextSettingId)
+                    setStateMode(nextStateId ? 'existing' : 'new')
+                    setSelectedStateId(nextStateId)
+                  }}
+                />
+                {settingMode === 'existing' ? (
+                  <ContentCanvasCreateSelect
+                    id="content-prompt-canvas-quick-create-setting"
+                    value={selectedSettingId}
+                    placeholder="选择设定"
+                    options={settings.map((setting) => ({
+                      value: setting.entityKey,
+                      label: setting.title,
+                    }))}
+                    onValueChange={(nextSettingId) => {
+                      const nextStates = states.filter((stateNode) => stateNodeBelongsToSetting(stateNode, nextSettingId))
+                      const nextStateId = nextStates[0]?.entityKey ?? ''
+                      setSelectedSettingId(nextSettingId)
+                      setStateMode(nextStateId ? 'existing' : 'new')
+                      setSelectedStateId(nextStateId)
+                    }}
                   />
-                  <Input
-                    value={newSettingTitle}
-                    placeholder={`${title || '节点'} 设定`}
-                    onChange={(event) => setNewSettingTitle(event.target.value)}
+                ) : null}
+                {settingMode === 'new' ? (
+                  <div className="content-canvas-create-dialog__grid">
+                    <Input
+                      value={newSettingId}
+                      placeholder={`${resolvedId || 'node'}_setting`}
+                      onChange={(event) => setNewSettingId(event.target.value)}
+                    />
+                    <Input
+                      value={newSettingTitle}
+                      placeholder={`${title || '节点'} 设定`}
+                      onChange={(event) => setNewSettingTitle(event.target.value)}
+                    />
+                  </div>
+                ) : null}
+              </div>
+              <div className="content-canvas-create-dialog__field">
+                <span>挂载状态</span>
+                <ContentCanvasCreateModeSwitch
+                  value={settingMode === 'new' ? 'new' : stateMode}
+                  existingLabel="使用已有"
+                  newLabel="新建状态"
+                  existingDisabled={settingMode === 'new' || !statesForSetting.length}
+                  onChange={(nextMode) => {
+                    if (nextMode === 'new') {
+                      setStateMode('new')
+                      setSelectedStateId('')
+                      return
+                    }
+                    setStateMode('existing')
+                    setSelectedStateId(selectedStateId || statesForSetting[0]?.entityKey || '')
+                  }}
+                />
+                {settingMode !== 'new' && stateMode === 'existing' ? (
+                  <ContentCanvasCreateSelect
+                    id="content-prompt-canvas-quick-create-state"
+                    value={selectedStateId}
+                    placeholder="选择状态"
+                    options={statesForSetting.map((stateNode) => ({
+                      value: stateNode.entityKey,
+                      label: stateNode.title,
+                    }))}
+                    onValueChange={(nextStateId) => {
+                      setStateMode('existing')
+                      setSelectedStateId(nextStateId)
+                    }}
                   />
-                </div>
-              ) : null}
-            </div>
+                ) : null}
+                {stateMode === 'new' || settingMode === 'new' ? (
+                  <div className="content-canvas-create-dialog__grid">
+                    <Input
+                      value={newStateId}
+                      placeholder={`${resolvedId || 'node'}_state`}
+                      onChange={(event) => setNewStateId(event.target.value)}
+                    />
+                    <Input
+                      value={newStateTitle}
+                      placeholder={`${title || '节点'} 状态`}
+                      onChange={(event) => setNewStateTitle(event.target.value)}
+                    />
+                  </div>
+                ) : null}
+              </div>
+            </ContentCanvasCreateDialogSection>
           ) : null}
-          {needsMount ? (
-            <div className="content-canvas-create-dialog__field">
-              <Label htmlFor="content-prompt-canvas-quick-create-state">挂载状态</Label>
-              <select
-                id="content-prompt-canvas-quick-create-state"
-                className="content-canvas-create-dialog__select"
-                value={stateMode === 'existing' ? selectedStateId : '__new__'}
-                onChange={(event) => {
-                  if (event.target.value === '__new__') {
-                    setStateMode('new')
-                    return
-                  }
-                  setStateMode('existing')
-                  setSelectedStateId(event.target.value)
-                }}
-                disabled={settingMode === 'new'}
-              >
-                {statesForSetting.map((stateNode) => (
-                  <option key={stateNode.id} value={stateNode.entityKey}>{stateNode.title}</option>
-                ))}
-                <option value="__new__">新建状态</option>
-              </select>
-              {stateMode === 'new' || settingMode === 'new' ? (
-                <div className="content-canvas-create-dialog__grid">
-                  <Input
-                    value={newStateId}
-                    placeholder={`${id || 'node'}_state`}
-                    onChange={(event) => setNewStateId(event.target.value)}
-                  />
-                  <Input
-                    value={newStateTitle}
-                    placeholder={`${title || '节点'} 状态`}
-                    onChange={(event) => setNewStateTitle(event.target.value)}
-                  />
-                </div>
-              ) : null}
-            </div>
-          ) : null}
+          <ContentPromptCanvasCreatePlanPreview items={planItems} />
           <DialogFooter className="content-canvas-create-dialog__footer">
             <button type="button" className="content-canvas-create-dialog__button" onClick={resetAndClose}>
               取消
@@ -1489,6 +1813,119 @@ function ContentPromptCanvasQuickCreateDialog({
         </form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+function ContentCanvasCreateModeSwitch({
+  existingDisabled = false,
+  existingLabel,
+  newDisabled = false,
+  newLabel,
+  value,
+  onChange,
+}: {
+  existingDisabled?: boolean
+  existingLabel: string
+  newDisabled?: boolean
+  newLabel: string
+  value: CreateReferenceMode
+  onChange: (value: CreateReferenceMode) => void
+}) {
+  return (
+    <div className="content-canvas-create-dialog__mode-row" role="group">
+      <button
+        type="button"
+        className="content-canvas-create-dialog__mode-button"
+        data-active={value === 'existing'}
+        disabled={existingDisabled}
+        onClick={() => onChange('existing')}
+      >
+        {existingLabel}
+      </button>
+      <button
+        type="button"
+        className="content-canvas-create-dialog__mode-button"
+        data-active={value === 'new'}
+        disabled={newDisabled}
+        onClick={() => onChange('new')}
+      >
+        {newLabel}
+      </button>
+    </div>
+  )
+}
+
+function ContentCanvasCreateDialogSection({
+  children,
+  title,
+}: {
+  children: ReactNode
+  title: string
+}) {
+  return (
+    <section className="content-canvas-create-dialog__section">
+      <div className="content-canvas-create-dialog__section-title">{title}</div>
+      <div className="content-canvas-create-dialog__section-body">
+        {children}
+      </div>
+    </section>
+  )
+}
+
+function ContentCanvasCreateSelect({
+  disabled = false,
+  id,
+  options,
+  placeholder,
+  value,
+  onValueChange,
+}: {
+  disabled?: boolean
+  id: string
+  options: ContentCanvasCreateSelectOption[]
+  placeholder: string
+  value: string
+  onValueChange: (value: string) => void
+}) {
+  const hasOptions = options.length > 0
+  return (
+    <Select
+      value={value || undefined}
+      disabled={disabled || !hasOptions}
+      onValueChange={onValueChange}
+    >
+      <SelectTrigger id={id} className="content-canvas-create-dialog__select">
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent className="content-canvas-create-dialog__select-content">
+        {hasOptions ? options.map((option) => (
+          <SelectItem key={option.value} value={option.value} disabled={option.disabled}>
+            {option.label}
+          </SelectItem>
+        )) : (
+          <SelectItem value={CONTENT_CANVAS_CREATE_SELECT_EMPTY_VALUE} disabled>
+            {placeholder}
+          </SelectItem>
+        )}
+      </SelectContent>
+    </Select>
+  )
+}
+
+function ContentPromptCanvasCreatePlanPreview({ items }: { items: QuickCreatePlanItem[] }) {
+  if (!items.length) return null
+  return (
+    <section className="content-canvas-create-dialog__plan" aria-label="将要创建">
+      <div className="content-canvas-create-dialog__plan-title">将要创建</div>
+      <ul className="content-canvas-create-dialog__plan-list">
+        {items.map((item) => (
+          <li key={`${item.label}:${item.value}`} data-tone={item.tone ?? 'context'}>
+            <span>{item.label}</span>
+            <b>{item.value}</b>
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }
 
@@ -1766,6 +2203,7 @@ function areCreativeFlowNodePropsEqual(
     && previous.selected === next.selected
     && previous.dragging === next.dragging
     && previous.data.item === next.data.item
+    && previous.data.focused === next.data.focused
     && previous.data.nodes === next.data.nodes
     && previous.data.prompt === next.data.prompt
     && previous.data.referenceTargetNodeId === next.data.referenceTargetNodeId
@@ -1962,10 +2400,16 @@ function isCreativePromptEditableNode(node: CreativeCanvasNode): boolean {
   return node.canGenerate && node.role !== 'resource'
 }
 
-function contentCanvasNodeLibraryNodes(nodes: ContentCanvasNode[], query: string): ContentCanvasNode[] {
+function contentCanvasNodeLibraryNodes(
+  nodes: ContentCanvasNode[],
+  query: string,
+  scope: ContentCanvasDocumentScope,
+): ContentCanvasNode[] {
   const needle = query.trim().toLowerCase()
+  const productions = nodes.filter((node) => node.kind === 'production')
   return nodes
-    .filter(contentCanvasNodeCanJoinFreeCanvas)
+    .filter((node) => contentCanvasNodeCanJoinDocument(node, scope))
+    .filter((node) => contentCanvasNodeCanJoinCanvasScope(node, scope, productions))
     .filter((node) => {
       if (!needle) return true
       return [
@@ -1981,6 +2425,28 @@ function contentCanvasNodeLibraryNodes(nodes: ContentCanvasNode[], query: string
       contentCanvasNodeLibraryRank(left) - contentCanvasNodeLibraryRank(right)
       || left.title.localeCompare(right.title, 'zh-CN')
     ))
+}
+
+function contentCanvasNodeCanJoinDocument(
+  node: ContentCanvasNode,
+  scope: ContentCanvasDocumentScope,
+): boolean {
+  if (scope.kind === 'production' && contentCanvasNodeIsGlobalSettingScoped(node)) return true
+  return contentCanvasNodeCanJoinFreeCanvas(node)
+}
+
+function contentCanvasNodeCanJoinCanvasScope(
+  node: ContentCanvasNode,
+  scope: ContentCanvasDocumentScope,
+  productions: ContentCanvasNode[],
+): boolean {
+  if (scope.kind === 'global') return true
+  if (contentCanvasNodeIsGlobalSettingScoped(node)) return true
+  return contentCanvasNodeBelongsToProductionScope(node, scope.productionId, productions)
+}
+
+function contentCanvasNodeIsGlobalSettingScoped(node: ContentCanvasNode): boolean {
+  return node.kind === 'setting' || node.kind === 'state' || node.kind === 'asset'
 }
 
 function contentCanvasNodeCanJoinFreeCanvas(node: ContentCanvasNode): boolean {
@@ -2055,7 +2521,7 @@ function creativeFlowNodeDisplay(node: ContentCanvasNode, role: CreativeCanvasNo
   }
   return {
     badge: roleLabel(role),
-    subtitle: `${node.kind} · ${node.subtitle}`,
+    subtitle: `${contentCanvasNodeDisplayKind(node)} · ${node.subtitle}`,
   }
 }
 
@@ -2273,6 +2739,11 @@ function quickAddOptionKey(option: CreativeCanvasQuickAddOption): string {
   return `child:${option.parentNode.id}:${option.childKind}`
 }
 
+function quickCreateDialogSessionKey(state: CreativeCanvasQuickCreateDialogState | null): string {
+  if (!state) return 'closed'
+  return `${quickAddOptionKey(state.option)}:${state.position.x}:${state.position.y}`
+}
+
 function quickCreateDialogCopy(state: CreativeCanvasQuickCreateDialogState | null): {
   title: string
   idPlaceholder: string
@@ -2406,14 +2877,219 @@ function quickCreateDialogCopy(state: CreativeCanvasQuickCreateDialogState | nul
   }
 }
 
+function quickCreateDialogEntityKind(state: CreativeCanvasQuickCreateDialogState | null): string {
+  const option = state?.option
+  if (!option) return 'content_unit'
+  if (option.kind === 'child') return option.childKind === 'state' ? 'setting_state' : option.childKind
+  if (option.nodeKind === 'task_video'
+    || option.nodeKind === 'task_image'
+    || option.nodeKind === 'task_audio'
+    || option.nodeKind === 'task_text') return 'content_unit'
+  if (option.nodeKind === 'asset_image'
+    || option.nodeKind === 'asset_video'
+    || option.nodeKind === 'asset_audio') return 'asset'
+  return option.nodeKind
+}
+
+function quickCreateDialogIdPrefix(state: CreativeCanvasQuickCreateDialogState | null, fallback: string): string {
+  const entityKind = quickCreateDialogEntityKind(state)
+  if (entityKind === 'content_unit') return 'cu'
+  if (entityKind === 'scene_moment') return 'scene'
+  if (entityKind === 'expression_unit') return 'expression'
+  if (entityKind === 'setting_state') return 'state'
+  return entityKind || fallback.replace(/_\d+$/, '') || 'node'
+}
+
+function quickCreateExistingEntityIds(nodes: ContentCanvasNode[], entityKind: string): string[] {
+  const nodeKind = contentCanvasNodeKindForEntityKind(entityKind)
+  return nodes
+    .filter((node) => node.kind === nodeKind)
+    .flatMap((node) => [node.entityKey, node.id, node.record.id, node.record.ID])
+    .map((value) => {
+      if (typeof value === 'string') return value.trim()
+      if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+      return ''
+    })
+    .filter(Boolean)
+}
+
+function contentCanvasNodeKindForEntityKind(entityKind: string): ContentCanvasNodeKind {
+  if (entityKind === 'setting_state') return 'state'
+  if (entityKind === 'content_unit'
+    || entityKind === 'scene_moment'
+    || entityKind === 'production'
+    || entityKind === 'segment'
+    || entityKind === 'expression_unit'
+    || entityKind === 'keyframe'
+    || entityKind === 'storyboard'
+    || entityKind === 'asset'
+    || entityKind === 'setting'
+    || entityKind === 'audio_cue') return entityKind
+  return 'content_unit'
+}
+
+function quickCreateDialogPlanItems(input: {
+  childTimelineNamespaceKind?: string
+  copy: { title: string; idPlaceholder: string; titlePlaceholder: string }
+  id: string
+  needsChildTimelineNamespaceKind: boolean
+  needsMount: boolean
+  needsProductionSegment: boolean
+  needsTimelineNamespaceParent: boolean
+  needsVisualOwner: boolean
+  newProductionId: string
+  newProductionTitle: string
+  newSegmentId: string
+  newSegmentTitle: string
+  newSettingId: string
+  newSettingTitle: string
+  newStateId: string
+  newStateTitle: string
+  productionMode: CreateReferenceMode
+  segmentMode: CreateReferenceMode
+  selectedChildTimelineNamespaceKind: string
+  selectedProduction?: ContentCanvasNode
+  selectedProductionId: string
+  selectedSegment?: ContentCanvasNode
+  selectedSegmentId: string
+  selectedSetting?: ContentCanvasNode
+  selectedSettingId: string
+  selectedState?: ContentCanvasNode
+  selectedStateId: string
+  selectedTimelineNamespaceParent?: ContentCanvasNode
+  selectedVisualOwner?: ContentCanvasNode
+  selectedVisualOwnerId: string
+  settingMode: CreateReferenceMode
+  state: CreativeCanvasQuickCreateDialogState | null
+  stateMode: CreateReferenceMode
+  title: string
+}): QuickCreatePlanItem[] {
+  const option = input.state?.option
+  if (!option) return []
+  const id = input.id.trim() || input.copy.idPlaceholder
+  const title = input.title.trim() || input.copy.titlePlaceholder
+  const items: QuickCreatePlanItem[] = []
+  if (option.kind === 'child') {
+    items.push({
+      label: '父节点',
+      value: `${contentCanvasNodeDisplayKind(option.parentNode)} · ${option.parentNode.title}`,
+      tone: 'context',
+    })
+  } else {
+    items.push({
+      label: '入口',
+      value: input.copy.title,
+      tone: 'context',
+    })
+  }
+  if (input.needsTimelineNamespaceParent) {
+    items.push({
+      label: '时间线',
+      value: input.selectedTimelineNamespaceParent
+        ? timelineNamespaceLabel(input.selectedTimelineNamespaceParent)
+        : '未选择',
+      tone: 'use',
+    })
+  }
+  if (input.needsChildTimelineNamespaceKind) {
+    items.push({
+      label: '子层级',
+      value: input.selectedChildTimelineNamespaceKind || input.childTimelineNamespaceKind || '未选择',
+      tone: 'context',
+    })
+  }
+  if (input.needsProductionSegment) {
+    const productionFallbackId = `${id}_production`
+    const productionFallbackTitle = `${title} 制作`
+    items.push(input.productionMode === 'new'
+      ? {
+        label: '新建制作',
+        value: quickCreatePlanValue(input.newProductionTitle, input.newProductionId, productionFallbackTitle, productionFallbackId),
+        tone: 'create',
+      }
+      : {
+        label: '使用制作',
+        value: quickCreatePlanNodeValue(input.selectedProduction, input.selectedProductionId),
+        tone: 'use',
+      })
+    const segmentFallbackId = `${id}_segment`
+    const segmentFallbackTitle = `${title} 段落`
+    items.push(input.productionMode === 'new' || input.segmentMode === 'new'
+      ? {
+        label: '新建段落',
+        value: quickCreatePlanValue(input.newSegmentTitle, input.newSegmentId, segmentFallbackTitle, segmentFallbackId),
+        tone: 'create',
+      }
+      : {
+        label: '使用段落',
+        value: quickCreatePlanNodeValue(input.selectedSegment, input.selectedSegmentId),
+        tone: 'use',
+      })
+  }
+  if (input.needsVisualOwner) {
+    items.push({
+      label: '挂载对象',
+      value: quickCreatePlanNodeValue(input.selectedVisualOwner, input.selectedVisualOwnerId),
+      tone: 'use',
+    })
+  }
+  if (input.needsMount) {
+    const settingFallbackId = `${id}_setting`
+    const settingFallbackTitle = `${title} 设定`
+    items.push(input.settingMode === 'new'
+      ? {
+        label: '新建设定',
+        value: quickCreatePlanValue(input.newSettingTitle, input.newSettingId, settingFallbackTitle, settingFallbackId),
+        tone: 'create',
+      }
+      : {
+        label: '使用设定',
+        value: quickCreatePlanNodeValue(input.selectedSetting, input.selectedSettingId),
+        tone: 'use',
+      })
+    const stateFallbackId = `${id}_state`
+    const stateFallbackTitle = `${title} 状态`
+    items.push(input.settingMode === 'new' || input.stateMode === 'new'
+      ? {
+        label: '新建状态',
+        value: quickCreatePlanValue(input.newStateTitle, input.newStateId, stateFallbackTitle, stateFallbackId),
+        tone: 'create',
+      }
+      : {
+        label: '使用状态',
+        value: quickCreatePlanNodeValue(input.selectedState, input.selectedStateId),
+        tone: 'use',
+      })
+  }
+  items.push({
+    label: '目标节点',
+    value: quickCreatePlanValue(title, id, input.copy.titlePlaceholder, input.copy.idPlaceholder),
+    tone: 'create',
+  })
+  return items
+}
+
+function quickCreatePlanValue(title: string, id: string, fallbackTitle: string, fallbackId: string): string {
+  return `${title.trim() || fallbackTitle} (${id.trim() || fallbackId})`
+}
+
+function quickCreatePlanNodeValue(node: ContentCanvasNode | undefined, fallbackId: string): string {
+  if (node) return `${node.title} (${node.entityKey || node.id})`
+  return fallbackId || '未选择'
+}
+
 function quickCreateDialogNeedsProductionSegment(state: CreativeCanvasQuickCreateDialogState | null): boolean {
+  void state
+  return false
+}
+
+function quickCreateDialogNeedsTimelineNamespaceParent(state: CreativeCanvasQuickCreateDialogState | null): boolean {
   return state?.option.kind === 'direct' && state.option.nodeKind === 'scene_moment'
 }
 
 function quickCreateDialogNeedsSettingStateMount(state: CreativeCanvasQuickCreateDialogState | null): boolean {
   return state?.option.kind === 'direct'
-    && (state.option.nodeKind === 'scene_moment'
-      || state.option.nodeKind === 'asset_image'
+    && (state.option.nodeKind === 'asset_image'
       || state.option.nodeKind === 'asset_video'
       || state.option.nodeKind === 'asset_audio')
 }
@@ -2440,6 +3116,7 @@ function quickCreateProductionInput(input: {
   const createTargetProduction = input.productionMode === 'new'
   const createTargetSegment = createTargetProduction || input.segmentMode === 'new'
   return {
+    legacyTimelineMount: true,
     createTargetProduction,
     createTargetSegment,
     targetProductionId: createTargetProduction
@@ -2457,6 +3134,41 @@ function quickCreateProductionInput(input: {
   }
 }
 
+function quickCreateTimelineNamespaceInput(input: {
+  needsTimelineNamespaceParent: boolean
+  selectedTimelineNamespaceParent?: ContentCanvasNode
+}): Partial<ContentCanvasCreateNodeInput> {
+  const namespaceNode = input.selectedTimelineNamespaceParent
+  const namespacePath = namespaceNode?.sourcePath?.trim()
+  if (!input.needsTimelineNamespaceParent || !namespaceNode || !namespacePath) return {}
+  return {
+    targetTimelineNamespaceNodeId: namespaceNode.id,
+    targetTimelineNamespaceId: namespaceNode.entityKey,
+    targetTimelineNamespaceTitle: namespaceNode.title,
+    targetTimelineNamespaceKind: namespaceNode.domainKind ?? stringRecordField(namespaceNode.record.namespace_kind) ?? namespaceNode.kind,
+    targetTimelineNamespacePath: namespacePath,
+  }
+}
+
+function quickCreateChildTimelineNamespaceKind(
+  state: CreativeCanvasQuickCreateDialogState | null,
+  vocabulary: ContentCanvasNamespaceVocabularyOptions,
+): string | undefined {
+  if (state?.option.kind !== 'child') return undefined
+  if (state.option.childKind !== 'segment') return undefined
+  if (state.option.parentNode.domainCategory !== 'timeline_namespace') return undefined
+  return contentCanvasChildTimelineNamespaceKind(state.option.parentNode, vocabulary)
+}
+
+function quickCreateChildTimelineNamespaceInput(input: {
+  needsChildTimelineNamespaceKind: boolean
+  selectedChildTimelineNamespaceKind: string
+}): Partial<ContentCanvasCreateNodeInput> {
+  if (!input.needsChildTimelineNamespaceKind) return {}
+  const timelineNamespaceKind = input.selectedChildTimelineNamespaceKind.trim()
+  return timelineNamespaceKind ? { timelineNamespaceKind } : {}
+}
+
 function quickCreateMountInput(input: {
   id: string
   needsMount: boolean
@@ -2464,6 +3176,7 @@ function quickCreateMountInput(input: {
   newSettingTitle: string
   newStateId: string
   newStateTitle: string
+  namespaceVocabulary: ContentCanvasNamespaceVocabularyOptions
   selectedSettingId: string
   selectedStateId: string
   settingMode: 'existing' | 'new'
@@ -2473,6 +3186,8 @@ function quickCreateMountInput(input: {
   if (!input.needsMount) return {}
   const createTargetSetting = input.settingMode === 'new'
   const createTargetState = createTargetSetting || input.stateMode === 'new'
+  const settingNamespaceKind = contentCanvasRootSettingNamespaceKind(input.namespaceVocabulary)
+  const stateNamespaceKind = childSettingNamespaceKindForQuickCreate(input.namespaceVocabulary, settingNamespaceKind)
   return {
     createTargetSetting,
     createTargetState,
@@ -2482,14 +3197,93 @@ function quickCreateMountInput(input: {
     targetSettingTitle: createTargetSetting
       ? input.newSettingTitle.trim() || `${input.title} 设定`
       : undefined,
-    targetSettingKind: 'other',
+    targetSettingKind: settingNamespaceKind,
+    targetSettingNamespaceKind: settingNamespaceKind,
     targetStateId: createTargetState
       ? input.newStateId.trim() || `${input.id}_state`
       : input.selectedStateId,
     targetStateTitle: createTargetState
       ? input.newStateTitle.trim() || `${input.title} 状态`
       : undefined,
+    targetStateNamespaceKind: stateNamespaceKind,
   }
+}
+
+function childSettingNamespaceKindForQuickCreate(
+  vocabulary: ContentCanvasNamespaceVocabularyOptions,
+  parentKind: string,
+): string {
+  return contentCanvasChildSettingNamespaceKind({
+    id: 'setting:quick-create',
+    entityKey: 'quick-create',
+    kind: 'setting',
+    title: 'Quick create setting',
+    subtitle: parentKind,
+    summary: '',
+    status: 'neutral',
+    metrics: [],
+    sourcePath: '',
+    record: { namespace_kind: parentKind },
+    candidates: [],
+    position: { x: 0, y: 0 },
+  }, vocabulary)
+}
+
+function contentCanvasTimelineNamespaceParentsForSceneMoment(
+  nodes: ContentCanvasNode[],
+  scope: ContentCanvasDocumentScope,
+): ContentCanvasNode[] {
+  const productions = nodes.filter((node) => node.kind === 'production')
+  const candidates = nodes
+    .filter((node) => node.domainCategory === 'timeline_namespace' && Boolean(node.sourcePath?.trim()))
+    .filter((node) => scope.kind === 'global' || contentCanvasNodeBelongsToProductionScope(node, scope.productionId, productions))
+  const leafIds = contentCanvasLeafTimelineNamespaceNodeIds(candidates)
+  return candidates
+    .filter((node) => leafIds.has(node.id))
+    .sort((left, right) => (
+      contentCanvasTimelineNamespaceParentRank(right) - contentCanvasTimelineNamespaceParentRank(left)
+      || left.title.localeCompare(right.title)
+    ))
+}
+
+function contentCanvasLeafTimelineNamespaceNodeIds(nodes: ContentCanvasNode[]): Set<string> {
+  const nodeIds = new Set(nodes.map((node) => node.id))
+  const parentIds = new Set<string>()
+  for (const child of nodes) {
+    for (const ancestorId of child.domainAncestorNodeIds ?? []) {
+      if (nodeIds.has(ancestorId) && ancestorId !== child.id) parentIds.add(ancestorId)
+    }
+  }
+  for (const parent of nodes) {
+    const parentDir = contentCanvasNamespaceSourceDir(parent)
+    if (!parentDir) continue
+    for (const child of nodes) {
+      if (child.id === parent.id) continue
+      const childPath = child.sourcePath?.trim()
+      if (childPath && childPath.startsWith(`${parentDir}/`)) parentIds.add(parent.id)
+    }
+  }
+  return new Set(nodes.filter((node) => !parentIds.has(node.id)).map((node) => node.id))
+}
+
+function contentCanvasNamespaceSourceDir(node: ContentCanvasNode): string {
+  return node.sourcePath?.trim().replace(/\/[^/]*\.json$/, '') ?? ''
+}
+
+function contentCanvasTimelineNamespaceParentRank(node: ContentCanvasNode): number {
+  if (node.kind === 'segment') return 2
+  if (node.kind === 'production') return 1
+  return 0
+}
+
+function timelineNamespaceLabel(node: ContentCanvasNode): string {
+  const kind = node.domainKind ?? stringRecordField(node.record.namespace_kind) ?? node.kind
+  return `${kind} · ${node.title}`
+}
+
+function contentCanvasScopeLabel(scope: ContentCanvasDocumentScope): string {
+  if (scope.kind === 'production') return scope.productionTitle ? `制作内容画布 · ${scope.productionTitle}` : `制作内容画布 · ${scope.productionId}`
+  return '全局内容画布'
 }
 
 function stateNodeBelongsToSetting(node: ContentCanvasNode, settingId: string): boolean {

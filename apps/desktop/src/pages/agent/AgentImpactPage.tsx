@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AgentImpactSurface, type AgentImpactAcceptStaleInput } from '@movscript/project-surface/react'
 import { useAgentMcpApiProxy } from './useAgentMcpApiProxy'
-import { agentSurfaceParams, fetchAgentSurfaceSnapshot, invalidateAgentSurfaceQueries, postAgentSurfaceAction } from './agentSurfaceData'
+import { agentSurfaceKeys, agentSurfaceParams, fetchAgentSurfaceSnapshot, invalidateAgentSurfaceQueries, postAgentSurfaceAction } from './agentSurfaceData'
 
 export default function AgentImpactPage() {
   const proxy = useAgentMcpApiProxy()
@@ -12,7 +12,7 @@ export default function AgentImpactPage() {
   const source = proxy.params.get('source') ?? 'domain_regeneration_plan'
   const queryParams = useMemo(() => agentSurfaceParams(proxy.params, { projectId, target, source }), [proxy.params, projectId, target, source])
   const { data: snapshot, isLoading, error } = useQuery({
-    queryKey: ['agent-surface', 'impact', queryParams],
+    queryKey: agentSurfaceKeys.snapshot('impact', queryParams),
     queryFn: () => fetchAgentSurfaceSnapshot('impact', queryParams),
     enabled: proxy.ready,
   })

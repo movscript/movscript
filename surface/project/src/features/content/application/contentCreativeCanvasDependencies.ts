@@ -37,6 +37,7 @@ const REFERENCE_DEPENDENCY_RULES: Partial<Record<NonNullable<ContentCanvasEdge['
   content_unit_keyframe: { upstreamEndpoint: 'target', downstreamEndpoint: 'source' },
   content_unit_resource: { upstreamEndpoint: 'source', downstreamEndpoint: 'target' },
   content_unit_storyboard: { upstreamEndpoint: 'target', downstreamEndpoint: 'source' },
+  content_unit_audio_cue: { upstreamEndpoint: 'target', downstreamEndpoint: 'source' },
   expression_unit_content_unit: { upstreamEndpoint: 'source', downstreamEndpoint: 'target' },
 }
 

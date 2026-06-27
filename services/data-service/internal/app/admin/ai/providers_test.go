@@ -304,7 +304,7 @@ func TestListProvidersUsesYunwuProviderCredentialForAssetLibraryState(t *testing
 	if err != nil {
 		t.Fatalf("ListProviders() error = %v", err)
 	}
-	var listed persistencemodel.AIProvider
+	var listed Provider
 	for _, item := range providers {
 		if item.ProviderID == provider.ProviderID {
 			listed = item
@@ -476,7 +476,7 @@ func TestUpdateProviderCredentialCanAddVolcenSpeechCredentials(t *testing.T) {
 	}
 }
 
-func providerCredentialByKey(provider persistencemodel.AIProvider, key string) *persistencemodel.AIProviderCredential {
+func providerCredentialByKey(provider Provider, key string) *ProviderCredential {
 	for i := range provider.Credentials {
 		if provider.Credentials[i].CredentialKey == key {
 			return &provider.Credentials[i]
@@ -485,7 +485,7 @@ func providerCredentialByKey(provider persistencemodel.AIProvider, key string) *
 	return nil
 }
 
-func legacyCredentialIDFromProviderCredential(t *testing.T, credential persistencemodel.AIProviderCredential) uint {
+func legacyCredentialIDFromProviderCredential(t *testing.T, credential ProviderCredential) uint {
 	t.Helper()
 	var plainConfig struct {
 		LegacyCredentialID uint `json:"legacy_credential_id"`
@@ -496,7 +496,7 @@ func legacyCredentialIDFromProviderCredential(t *testing.T, credential persisten
 	return plainConfig.LegacyCredentialID
 }
 
-func providerByID(providers []persistencemodel.AIProvider, providerID string) *persistencemodel.AIProvider {
+func providerByID(providers []Provider, providerID string) *Provider {
 	for i := range providers {
 		if providers[i].ProviderID == providerID {
 			return &providers[i]

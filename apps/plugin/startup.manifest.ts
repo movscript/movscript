@@ -3,9 +3,9 @@ import {
   type ScenarioPolicyManifest,
 } from '@movscript/runtime-contracts'
 
-export const pluginDesktopOwnedStartupPolicy = {
+export const pluginDesktopCompatibilityStartupPolicy = {
   schema: MOVSCRIPT_SCENARIO_POLICY_SCHEMA,
-  scenarioId: 'plugin-desktop-owned',
+  scenarioId: 'plugin-desktop-compatible',
   applicationId: 'movscript.agent-plugin',
   programs: [
     { serviceName: 'movscript.plugin.agent-launcher', required: true },
@@ -36,7 +36,7 @@ export const pluginFullLocalStartupPolicy = {
 } satisfies ScenarioPolicyManifest
 
 export const pluginStartupPolicies = [
-  pluginDesktopOwnedStartupPolicy,
+  pluginDesktopCompatibilityStartupPolicy,
   pluginBasicStartupPolicy,
   pluginFullLocalStartupPolicy,
 ] satisfies ScenarioPolicyManifest[]

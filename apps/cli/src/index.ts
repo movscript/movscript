@@ -38,6 +38,7 @@ export async function main(): Promise<void> {
 
 export function normalizeMovcliArgv(argv: string[]): string[] {
   const maybeShimPath = argv[2]
+  if (maybeShimPath === '--') return [argv[0]!, argv[1]!, ...argv.slice(3)]
   if (!maybeShimPath || basename(maybeShimPath) !== 'movcli.mjs') return argv
   return [argv[0]!, argv[1]!, ...argv.slice(3)]
 }
@@ -61,7 +62,7 @@ function isDirectMovcliInvocation(): boolean {
   if (!invoked) return false
   const invokedName = basename(invoked)
   if (invokedName === 'movcli' || invokedName === 'movcli.cmd' || invokedName === 'movcli.mjs') return true
-  return invokedName === 'index.cjs' || invokedName === 'index.js'
+  return invokedName === 'index.cjs' || invokedName === 'index.js' || invokedName === 'index.ts'
 }
 
 if (isDirectMovcliInvocation()) {

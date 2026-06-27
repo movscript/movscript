@@ -4,7 +4,7 @@ Use this when writing or selecting generated, uploaded, imported, or manually re
 
 For content-unit image/video generation, do not start from a raw generated resource and then manually write a candidate. Edit the content unit `edit_prompt` with semantic refs, call `domain_build_content_unit_backend_prompt` or `generation_prepare` to verify that refs compile to selected resources without blockers, call `generation_submit` with `scope: "content_unit"`, then poll `generation_job_get`. Successful terminal polls automatically create or refresh backend content candidates.
 
-When one generated thing should use another generated thing, keep the source prompt semantic. Use prompt refs such as `{{asset::hero_base}}`, `{{storyboard::opening_panel}}`, `{{keyframe::shot_start}}`, `{{content_unit::cu_ref}}`, `{{candidate::candidate_id}}`, or `{{resource::123}}`. Prompt compilation resolves selected backend candidates into resource mentions such as `@[resource:123]`; legacy `[[resource::123]]` resource mentions are also recognized. If an upstream asset/storyboard/keyframe has candidates but no selected/adopted resource, generation should stop with prompt blockers. The normal next action is to recommend adoption/selection of an existing candidate, not to continue downstream. Continue only if the user explicitly asks for an unstable draft.
+When one generated thing should use another generated thing, keep the source prompt semantic. Use prompt refs such as `{{asset::hero_base}}`, `{{storyboard::opening_panel}}`, `{{keyframe::shot_start}}`, `{{audio_cue::phone_vibration}}`, `{{content_unit::cu_ref}}`, `{{candidate::candidate_id}}`, or `{{resource::123}}`. Prompt compilation resolves selected backend candidates into resource mentions such as `@[resource:123]`; legacy `[[resource::123]]` resource mentions are also recognized. If an upstream asset/storyboard/keyframe/audio cue has candidates but no selected/adopted resource, generation should stop with prompt blockers. The normal next action is to recommend adoption/selection of an existing candidate, not to continue downstream. Continue only if the user explicitly asks for an unstable draft.
 
 ## Choose the Path
 
@@ -26,7 +26,7 @@ When one generated thing should use another generated thing, keep the source pro
 8. Run `domain_interpret` when downstream artifact tools need refreshed backend candidate/decision/selection metadata.
 9. Run `domain_regeneration_plan` when selected outputs may affect downstream content.
 
-Inline candidate APIs are compatibility paths for legacy asset/keyframe/source-entity candidate workflows. Prefer content unit candidates for production outputs. For normal asset generation, use an `asset_ref` content unit; do not write new candidates or selections into `asset.json`.
+Inline candidate APIs are compatibility paths for legacy asset/keyframe/source-entity candidate workflows. Prefer content unit candidates for system primitive and timeline assembly outputs. For normal asset generation, use an `asset_ref` content unit; do not write new candidates or selections into `asset.json`.
 
 Do not manually call `domain_create_content_candidate` after `generation_submit` content-unit image/video jobs; the content-unit generation monitor owns candidate creation.
 

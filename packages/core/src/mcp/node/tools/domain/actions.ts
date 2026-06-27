@@ -1,9 +1,17 @@
 import { randomUUID } from 'node:crypto'
+import { normalizeDomainFocus } from '@movscript/domain'
 import { isRecord, stringValue } from '../../../tools/shared/record.js'
 import { normalizeWorkspacePath, sameEntityRef, type MovScriptContentCandidateWriteInput } from '@movscript/workspace'
 import { createNodeMovScriptWorkspaceFileRepository } from '@movscript/workspace/node'
 import type { MovScriptEngineContentUnitInput } from '@movscript/engine'
-import type { ContentCandidateRecord, ContentSelectionRecord, ContentSourceWorkspaceSnapshot, WorkspacePreviewTimelineArtifact } from '../../../../content/index.js'
+import {
+  buildContentSourceWorkspaceProjectTimelineStatus,
+  contentSourceWorkspaceContentUnitStatusSummaries,
+  type ContentCandidateRecord,
+  type ContentSelectionRecord,
+  type ContentSourceWorkspaceSnapshot,
+  type WorkspacePreviewTimelineArtifact,
+} from '../../../../content/index.js'
 import type { SemanticEntityKind } from '@movscript/language/domain'
 import {
   createEditingServiceClientFromRuntime,
@@ -38,6 +46,40 @@ type ProductionTreeContext = {
   sceneMomentId?: string | number
   expressionUnitId?: string | number
 }
+type TimelineNamespaceEntityKind = 'production' | 'segment'
+type TimelineNamespaceTreeContext = {
+  depth: number
+  parentTargetPath?: string
+}
+type TimelineNamespaceTreeCollector = {
+  namespaces: Record<string, unknown>[]
+  sceneMoments: Record<string, unknown>[]
+  primitives: Record<string, unknown>[]
+  contentUnits: unknown[]
+}
+type TimelinePrimitiveKind = 'scene_moment' | 'expression_unit' | 'storyboard' | 'keyframe' | 'audio_cue'
+type TimelinePrimitiveRefField =
+  | 'sceneMomentId'
+  | 'expressionUnitId'
+  | 'storyboardId'
+  | 'keyframeId'
+  | 'audioCueId'
+type TimelinePrimitiveSpec = {
+  entityKind: TimelinePrimitiveKind
+  payloadName: string
+  collection: string
+  filename: string
+  contentUnitType: string
+  outputKind: string
+  targetKind: string
+  refField: TimelinePrimitiveRefField
+}
+type TimelinePrimitivePathInput = {
+  spec: TimelinePrimitiveSpec
+  id: string | number
+  sceneMomentPath?: string
+  expressionUnitPath?: string
+}
 type ProductionTimelineClip = {
   id: string
   sceneMomentId?: string | number
@@ -58,6 +100,59 @@ const CONTENT_CANDIDATE_STATUSES = new Set<ContentCandidateStatus>([
   'canceled',
   'imported',
 ])
+
+const TIMELINE_PRIMITIVE_SPECS: Record<TimelinePrimitiveKind, TimelinePrimitiveSpec> = {
+  scene_moment: {
+    entityKind: 'scene_moment',
+    payloadName: 'scene_moment',
+    collection: 'scene_moments',
+    filename: 'scene_moment.json',
+    contentUnitType: 'scene_moment_ref',
+    outputKind: 'video',
+    targetKind: 'scene_moment',
+    refField: 'sceneMomentId',
+  },
+  expression_unit: {
+    entityKind: 'expression_unit',
+    payloadName: 'expression_unit',
+    collection: 'expression_units',
+    filename: 'expression_unit.json',
+    contentUnitType: 'expression_unit_ref',
+    outputKind: 'video',
+    targetKind: 'expression_unit',
+    refField: 'expressionUnitId',
+  },
+  storyboard: {
+    entityKind: 'storyboard',
+    payloadName: 'storyboard',
+    collection: 'storyboards',
+    filename: 'storyboard.json',
+    contentUnitType: 'storyboard_ref',
+    outputKind: 'image',
+    targetKind: 'storyboard',
+    refField: 'storyboardId',
+  },
+  keyframe: {
+    entityKind: 'keyframe',
+    payloadName: 'keyframe',
+    collection: 'keyframes',
+    filename: 'keyframe.json',
+    contentUnitType: 'keyframe_ref',
+    outputKind: 'image',
+    targetKind: 'keyframe',
+    refField: 'keyframeId',
+  },
+  audio_cue: {
+    entityKind: 'audio_cue',
+    payloadName: 'audio_cue',
+    collection: 'audio_cues',
+    filename: 'audio_cue.json',
+    contentUnitType: 'audio_cue_ref',
+    outputKind: 'audio',
+    targetKind: 'audio_cue',
+    refField: 'audioCueId',
+  },
+}
 
 const PROJECT_CONTEXT_STYLE_REFERENCE_RULE_KEY = 'style_reference_images'
 const PROJECT_CONTEXT_CORE_STANDARDS = [
@@ -157,9 +252,19 @@ export async function domainReadContentWorkspaceSnapshot(args: Args): Promise<un
 }
 
 export async function domainReadProjectContextSnapshot(args: Args): Promise<unknown> {
-  const records = await service(args).queryEntities({ entityKind: 'project_standards', limit: 1 })
+  const runtime = service(args)
+  const [records, index] = await Promise.all([
+    runtime.queryEntities({ entityKind: 'project_standards', limit: 1 }),
+    runtime.loadIndex(),
+  ])
   const entity = records[0]
   const standards = entity?.record ?? {}
+  const namespaceVocabulary = index.namespaceVocabulary ?? {
+    timelineTemplate: undefined,
+    timelineNamespaces: [],
+    settingNamespaces: [],
+    diagnostics: [],
+  }
   const projectStyle = parseProjectStyle(standards.project_style)
   const core = PROJECT_CONTEXT_CORE_STANDARDS.map((item) => {
     const value = projectContextFieldText(item.key === 'aspect_ratio'
@@ -192,10 +297,17 @@ export async function domainReadProjectContextSnapshot(args: Args): Promise<unkn
       path: entity?.path ?? 'project_standards.json',
       updated_at: standards.updated_at,
     },
+    namespace_vocabulary: {
+      timeline_template: namespaceVocabulary.timelineTemplate,
+      timeline_namespaces: namespaceVocabulary.timelineNamespaces,
+      setting_namespaces: namespaceVocabulary.settingNamespaces,
+      diagnostics: namespaceVocabulary.diagnostics,
+    },
     standards_hash: stableProjectContextHash({
       aspect_ratio: standards.aspect_ratio,
       visual_style: standards.visual_style,
       project_style: projectStyle,
+      namespace_vocabulary: namespaceVocabulary,
     }),
     core_standards: core,
     missing_core_keys: core.filter((item) => !item.filled).map((item) => item.key),
@@ -206,6 +318,7 @@ export async function domainReadProjectContextSnapshot(args: Args): Promise<unkn
     prompt_preview: promptPreview,
     agent_guidance: [
       'Read this snapshot before planning, content-unit work, or generation that depends on project house style or constraints.',
+      'Use namespace_vocabulary for project-specific timeline/setting terms; do not infer concrete parent relationships from vocabulary templates.',
       'Do not modify project standards just because fields are missing; only use domain_upsert_project_standards when the user asks to add, remove, or change standards.',
       'When visual generation supports reference images, pass style_reference_resource_ids as house-style reference_resource_ids.',
     ],
@@ -232,7 +345,7 @@ export async function domainBuildContentUnitBackendPrompt(args: Args): Promise<u
 }
 
 export async function domainReadPreviewTimeline(args: Args): Promise<unknown> {
-  const productionId = requiredId(args.productionId ?? args.production_id, 'productionId')
+  const productionId = requiredProductionScopeId(args, 'productionId')
   const result = await readProductionPreviewTimeline(args, productionId)
   return isRecord(result)
     ? {
@@ -246,7 +359,7 @@ export async function domainReadPreviewTimeline(args: Args): Promise<unknown> {
 }
 
 export async function domainReadProductionTimeline(args: Args): Promise<unknown> {
-  const productionId = requiredId(args.productionId ?? args.production_id, 'productionId')
+  const productionId = requiredProductionScopeId(args, 'productionId')
   const bundle = await productionTimelineBundle(args, productionId)
   return {
     status: bundle.blockers.length === 0 ? 'ok' : 'blocked',
@@ -264,7 +377,7 @@ export async function domainReadSceneMomentEditPlan(args: Args): Promise<unknown
 }
 
 export async function domainReadProductionEditPlan(args: Args): Promise<unknown> {
-  const productionId = requiredId(args.productionId ?? args.production_id, 'productionId')
+  const productionId = requiredProductionScopeId(args, 'productionId')
   const bundle = await productionTimelineBundle(args, productionId)
   return {
     status: bundle.blockers.length === 0 ? 'ok' : 'blocked',
@@ -291,7 +404,7 @@ export async function domainCreateEditingProjectContext(args: Args): Promise<unk
     }
   }
 
-  const productionId = requiredId(args.productionId ?? args.production_id, 'productionId')
+  const productionId = requiredProductionScopeId(args, 'productionId')
   const bundle = await productionTimelineBundle(args, productionId)
   return {
     status: bundle.blockers.length === 0 ? 'ok' : 'blocked',
@@ -357,6 +470,8 @@ export async function domainUpsertSetting(args: Args): Promise<unknown> {
     id: idValue(payload.id ?? payload.client_id),
     title: stringValue(payload.title),
     kind: stringValue(payload.setting_kind ?? payload.kind),
+    namespaceKind: stringValue(payload.namespace_kind ?? payload.namespaceKind),
+    settingNamespaceKind: stringValue(payload.setting_namespace_kind ?? payload.settingNamespaceKind ?? payload.namespace_kind ?? payload.namespaceKind),
     description: stringValue(payload.description),
     alias: stringValue(payload.alias),
     content: payload.content,
@@ -371,6 +486,8 @@ export async function domainUpsertSettingState(args: Args): Promise<unknown> {
     settingId: optionalId(payload.setting_id ?? payload.settingId ?? payload.setting_ref ?? payload.settingRef),
     title: stringValue(payload.title),
     stateKind: stringValue(payload.state_kind ?? payload.kind),
+    namespaceKind: stringValue(payload.namespace_kind ?? payload.namespaceKind),
+    settingNamespaceKind: stringValue(payload.setting_namespace_kind ?? payload.settingNamespaceKind ?? payload.namespace_kind ?? payload.namespaceKind),
     description: stringValue(payload.description),
   }))
 }
@@ -507,6 +624,8 @@ export async function domainUpsertSettingTree(args: Args): Promise<unknown> {
       id: optionalId(settingPayload.id ?? settingPayload.client_id),
       title: stringValue(settingPayload.title),
       kind: stringValue(settingPayload.setting_kind ?? settingPayload.kind),
+      namespaceKind: stringValue(settingPayload.namespace_kind ?? settingPayload.namespaceKind),
+      settingNamespaceKind: stringValue(settingPayload.setting_namespace_kind ?? settingPayload.settingNamespaceKind ?? settingPayload.namespace_kind ?? settingPayload.namespaceKind),
       description: stringValue(settingPayload.description),
       alias: stringValue(settingPayload.alias),
       content: settingPayload.content,
@@ -521,6 +640,8 @@ export async function domainUpsertSettingTree(args: Args): Promise<unknown> {
         settingId: optionalId(statePayload.setting_id ?? statePayload.settingId ?? statePayload.setting_ref ?? statePayload.settingRef ?? settingId),
         title: stringValue(statePayload.title),
         stateKind: stringValue(statePayload.state_kind ?? statePayload.kind),
+        namespaceKind: stringValue(statePayload.namespace_kind ?? statePayload.namespaceKind),
+        settingNamespaceKind: stringValue(statePayload.setting_namespace_kind ?? statePayload.settingNamespaceKind ?? statePayload.namespace_kind ?? statePayload.namespaceKind),
         description: stringValue(statePayload.description),
       })
       const stateId = entityResultId(state, statePayload, 'setting_state')
@@ -712,6 +833,102 @@ export async function domainUpsertProductionTree(args: Args): Promise<unknown> {
   })
 }
 
+export async function domainUpsertTimelineNamespaceTree(args: Args): Promise<unknown> {
+  const namespaceItems = timelineNamespaceTreeItems(args)
+  if (namespaceItems.length === 0) throw new Error('namespace, root, tree, nodes, or timeline_namespaces is required')
+  return runtimeMutation(args, async (runtime) => {
+    const collector: TimelineNamespaceTreeCollector = { namespaces: [], sceneMoments: [], primitives: [], contentUnits: [] }
+    const tree = []
+    for (const item of namespaceItems) {
+      tree.push(await upsertTimelineNamespaceTreeNode(runtime, item, { depth: 0 }, collector))
+    }
+    return {
+      schema: 'movscript.timeline_namespace_tree_upsert_result.v1',
+      status: 'upserted',
+      tree,
+      namespaces: collector.namespaces,
+      sceneMoments: collector.sceneMoments,
+      primitives: collector.primitives,
+      contentUnits: collector.contentUnits,
+    }
+  })
+}
+
+async function upsertTimelineNamespaceTreeNode(
+  runtime: MovScriptDomainRuntime,
+  item: Record<string, unknown>,
+  context: TimelineNamespaceTreeContext,
+  collector: TimelineNamespaceTreeCollector,
+): Promise<Record<string, unknown>> {
+  const payload = treePayload(item, 'namespace')
+  const namespaceId = requiredId(payload.id ?? payload.client_id, 'namespace.id')
+  const namespaceKind = requiredString(
+    payload.namespace_kind
+      ?? payload.namespaceKind
+      ?? payload.timeline_namespace_kind
+      ?? payload.timelineNamespaceKind
+      ?? payload.domain_kind
+      ?? payload.domainKind
+      ?? payload.kind,
+    'namespace.namespace_kind',
+  )
+  const entityKind = timelineNamespaceEntityKind(payload, context)
+  const targetPath = timelineNamespaceTargetPath(item, payload, context, entityKind, namespaceId)
+  const record = timelineNamespaceRecord(payload, {
+    entityKind,
+    namespaceId,
+    namespaceKind,
+  })
+  const node = await runtime.writeHierarchyNode({
+    category: 'timeline_namespace',
+    namespaceKind,
+    targetPath,
+    record,
+  })
+  const namespaceSummary = {
+    id: namespaceId,
+    namespace_kind: namespaceKind,
+    entity_kind: entityKind,
+    targetPath,
+    node,
+  }
+  collector.namespaces.push(namespaceSummary)
+
+  const contentUnits = []
+  for (const contentUnitItem of arrayRecords(item.content_units ?? item.contentUnits ?? payload.content_units ?? payload.contentUnits)) {
+    const contentUnitPayload = treePayload(contentUnitItem, 'content_unit')
+    const contentUnit = await runtime.createContentUnit(timelineNamespaceAssemblyContentUnitInput(contentUnitPayload, {
+      namespaceId,
+      namespaceKind,
+    }))
+    contentUnits.push(contentUnit)
+    collector.contentUnits.push(contentUnit)
+  }
+
+  const sceneMoments = []
+  for (const sceneMomentItem of timelineNamespaceSceneMomentItems(item, payload)) {
+    sceneMoments.push(await upsertTimelinePrimitiveNode(runtime, sceneMomentItem, {
+      spec: TIMELINE_PRIMITIVE_SPECS.scene_moment,
+      parentDir: timelineNamespaceNodeDir(targetPath),
+    }, collector))
+  }
+
+  const children = []
+  for (const child of timelineNamespaceChildItems(item, payload)) {
+    children.push(await upsertTimelineNamespaceTreeNode(runtime, child, {
+      depth: context.depth + 1,
+      parentTargetPath: targetPath,
+    }, collector))
+  }
+
+  return {
+    ...namespaceSummary,
+    contentUnits,
+    sceneMoments,
+    children,
+  }
+}
+
 export async function domainUpsertSegment(args: Args): Promise<unknown> {
   const segment = requiredRecord(args.segment ?? args.payload, 'segment')
   const production = optionalRecord(args.production)
@@ -730,11 +947,25 @@ export async function domainUpsertSegment(args: Args): Promise<unknown> {
 
 export async function domainUpsertSceneMoment(args: Args): Promise<unknown> {
   const sceneMoment = requiredRecord(args.sceneMoment ?? args.scene_moment ?? args.payload, 'sceneMoment')
+  const sceneMomentId = requiredId(args.sceneMomentId ?? args.scene_moment_id ?? sceneMoment.id ?? sceneMoment.client_id, 'sceneMomentId')
+  const pathTarget = sceneMomentPathTarget(args, sceneMoment, sceneMomentId)
+  if (pathTarget) {
+    const result = await runtimeMutation(args, (runtime) => runtime.writeHierarchyNode({
+      targetPath: pathTarget,
+      record: sceneMomentHierarchyRecord(sceneMoment, sceneMomentId),
+    }))
+    return {
+      status: 'upserted',
+      entityKind: 'scene_moment',
+      sceneMomentId,
+      targetPath: pathTarget,
+      result,
+    }
+  }
   const production = optionalRecord(args.production)
   const segment = optionalRecord(args.segment)
   const productionId = productionIdFrom(args, production)
   const segmentId = requiredId(args.segmentId ?? args.segment_id ?? segment?.id ?? segment?.client_id, 'segmentId')
-  const sceneMomentId = requiredId(args.sceneMomentId ?? args.scene_moment_id ?? sceneMoment.id ?? sceneMoment.client_id, 'sceneMomentId')
   const result = await runtimeMutation(args, (runtime) => runtime.createSceneMoment({
     productionId,
     segmentId,
@@ -756,15 +987,22 @@ export async function domainUpsertSceneMoment(args: Args): Promise<unknown> {
 
 export async function domainUpsertKeyframe(args: Args): Promise<unknown> {
   const keyframe = normalizeKeyframePayload(requiredRecord(args.keyframe ?? args.payload, 'keyframe'))
+  const expressionUnit = optionalRecord(args.expressionUnit ?? args.expression_unit)
+  const keyframeId = requiredId(args.keyframeId ?? args.keyframe_id ?? keyframe.id ?? keyframe.client_id, 'keyframeId')
+  const pathTarget = timelinePrimitivePathTarget(args, keyframe, {
+    spec: TIMELINE_PRIMITIVE_SPECS.keyframe,
+    id: keyframeId,
+  })
+  if (pathTarget) {
+    return writeTimelinePrimitivePathTarget(args, TIMELINE_PRIMITIVE_SPECS.keyframe, keyframe, keyframeId, pathTarget)
+  }
   const production = optionalRecord(args.production)
   const segment = optionalRecord(args.segment)
   const sceneMoment = optionalRecord(args.sceneMoment ?? args.scene_moment)
-  const expressionUnit = optionalRecord(args.expressionUnit ?? args.expression_unit)
   const productionId = productionIdFrom(args, production)
   const segmentId = requiredId(args.segmentId ?? args.segment_id ?? segment?.id ?? segment?.client_id, 'segmentId')
   const sceneMomentId = requiredId(args.sceneMomentId ?? args.scene_moment_id ?? sceneMoment?.id ?? sceneMoment?.client_id, 'sceneMomentId')
   const expressionUnitId = idValue(args.expressionUnitId ?? args.expression_unit_id ?? expressionUnit?.id ?? expressionUnit?.client_id)
-  const keyframeId = requiredId(args.keyframeId ?? args.keyframe_id ?? keyframe.id ?? keyframe.client_id, 'keyframeId')
   const result = await runtimeMutation(args, (runtime) => runtime.createKeyframe({
     productionId,
     segmentId,
@@ -787,11 +1025,23 @@ export async function domainUpsertKeyframe(args: Args): Promise<unknown> {
 export async function domainUpsertStoryboard(args: Args): Promise<unknown> {
   const storyboard = requiredRecord(args.storyboard ?? args.payload, 'storyboard')
   const expressionUnit = optionalRecord(args.expressionUnit ?? args.expression_unit)
+  const storyboardId = idValue(args.storyboardId ?? args.storyboard_id ?? storyboard.id ?? storyboard.client_id ?? 'main') ?? 'main'
+  const pathTarget = timelinePrimitivePathTarget(args, storyboard, {
+    spec: TIMELINE_PRIMITIVE_SPECS.storyboard,
+    id: storyboardId,
+  })
+  if (pathTarget) {
+    const pathResult = await writeTimelinePrimitivePathTarget(args, TIMELINE_PRIMITIVE_SPECS.storyboard, storyboard, storyboardId, pathTarget)
+    return {
+      ...pathResult,
+      storyboardId,
+      storyboardPath: pathTarget,
+    }
+  }
   const productionId = requiredId(args.productionId ?? args.production_id, 'productionId')
   const segmentId = requiredId(args.segmentId ?? args.segment_id, 'segmentId')
   const sceneMomentId = requiredId(args.sceneMomentId ?? args.scene_moment_id, 'sceneMomentId')
   const expressionUnitId = idValue(args.expressionUnitId ?? args.expression_unit_id ?? storyboard.expression_unit_id ?? expressionUnit?.id ?? expressionUnit?.client_id)
-  const storyboardId = idValue(args.storyboardId ?? args.storyboard_id ?? storyboard.id ?? storyboard.client_id ?? 'main')
   const result = await runtimeMutation(args, (runtime) => runtime.createStoryboard({
     productionId,
     segmentId,
@@ -818,13 +1068,20 @@ export async function domainUpsertStoryboard(args: Args): Promise<unknown> {
 
 export async function domainUpsertAudioCue(args: Args): Promise<unknown> {
   const audioCue = normalizeAudioCuePayload(requiredRecord(args.audioCue ?? args.audio_cue ?? args.payload, 'audioCue'))
+  const audioCueId = requiredId(args.audioCueId ?? args.audio_cue_id ?? audioCue.id ?? audioCue.client_id, 'audioCueId')
+  const pathTarget = timelinePrimitivePathTarget(args, audioCue, {
+    spec: TIMELINE_PRIMITIVE_SPECS.audio_cue,
+    id: audioCueId,
+  })
+  if (pathTarget) {
+    return writeTimelinePrimitivePathTarget(args, TIMELINE_PRIMITIVE_SPECS.audio_cue, audioCue, audioCueId, pathTarget)
+  }
   const production = optionalRecord(args.production)
   const segment = optionalRecord(args.segment)
   const sceneMoment = optionalRecord(args.sceneMoment ?? args.scene_moment)
   const productionId = productionIdFrom(args, production)
   const segmentId = requiredId(args.segmentId ?? args.segment_id ?? segment?.id ?? segment?.client_id, 'segmentId')
   const sceneMomentId = requiredId(args.sceneMomentId ?? args.scene_moment_id ?? sceneMoment?.id ?? sceneMoment?.client_id, 'sceneMomentId')
-  const audioCueId = requiredId(args.audioCueId ?? args.audio_cue_id ?? audioCue.id ?? audioCue.client_id, 'audioCueId')
   const result = await runtimeMutation(args, (runtime) => runtime.createAudioCue({
     productionId,
     segmentId,
@@ -841,13 +1098,20 @@ export async function domainUpsertAudioCue(args: Args): Promise<unknown> {
 
 export async function domainUpsertExpressionUnit(args: Args): Promise<unknown> {
   const expressionUnit = normalizeExpressionUnitPayload(requiredRecord(args.expressionUnit ?? args.expression_unit ?? args.payload, 'expressionUnit'))
+  const expressionUnitId = requiredId(args.expressionUnitId ?? args.expression_unit_id ?? expressionUnit.id ?? expressionUnit.client_id, 'expressionUnitId')
+  const pathTarget = timelinePrimitivePathTarget(args, expressionUnit, {
+    spec: TIMELINE_PRIMITIVE_SPECS.expression_unit,
+    id: expressionUnitId,
+  })
+  if (pathTarget) {
+    return writeTimelinePrimitivePathTarget(args, TIMELINE_PRIMITIVE_SPECS.expression_unit, expressionUnit, expressionUnitId, pathTarget)
+  }
   const production = optionalRecord(args.production)
   const segment = optionalRecord(args.segment)
   const sceneMoment = optionalRecord(args.sceneMoment ?? args.scene_moment)
   const productionId = productionIdFrom(args, production)
   const segmentId = requiredId(args.segmentId ?? args.segment_id ?? segment?.id ?? segment?.client_id, 'segmentId')
   const sceneMomentId = requiredId(args.sceneMomentId ?? args.scene_moment_id ?? sceneMoment?.id ?? sceneMoment?.client_id, 'sceneMomentId')
-  const expressionUnitId = requiredId(args.expressionUnitId ?? args.expression_unit_id ?? expressionUnit.id ?? expressionUnit.client_id, 'expressionUnitId')
   const result = await runtimeMutation(args, (runtime) => runtime.createExpressionUnit({
     productionId,
     segmentId,
@@ -1114,20 +1378,25 @@ export async function domainReadProductionWorkPlan(args: Args): Promise<unknown>
 
 export async function domainProductionStatusSummary(args: Args): Promise<unknown> {
   const snapshot = await service(args).loadContentWorkspaceSnapshot()
-  const candidatesByContentUnit = contentCandidateRecordsByContentUnitId(snapshot.indexDocuments)
-  const selectionsByContentUnit = selectionRecordsByContentUnitId(snapshot.indexDocuments)
   const requestedProductionId = args.productionId ?? args.production_id
   const productionIds = requestedProductionId !== undefined
     ? [String(requiredId(requestedProductionId, 'productionId'))]
     : snapshot.productions.map((item) => String(idValue(item.id ?? item.record.id ?? item.record.ID ?? item.path)))
-  const contentUnitSummaries = snapshot.contentUnits.map((unit) => summarizeContentUnitStatus(unit, candidatesByContentUnit, selectionsByContentUnit))
+  const contentUnitSummaries = contentSourceWorkspaceContentUnitStatusSummaries(snapshot)
   const editingByProduction = new Map((snapshot.editingTimelines ?? [])
     .filter((item) => item.targetKind === 'production')
     .map((item) => [String(item.targetId), item]))
+  const projectTimelineStatus = buildContentSourceWorkspaceProjectTimelineStatus(snapshot, contentUnitSummaries)
 
   return {
     schema: 'movscript.production_status_summary.v1',
     status: 'ok',
+    legacy_alias: true,
+    preferred_schema: 'movscript.project_timeline_status.v1',
+    namespace_vocabulary: projectTimelineStatus.namespace_vocabulary,
+    project_timeline_status: projectTimelineStatus,
+    timeline_namespaces: projectTimelineStatus.timeline_namespaces,
+    timeline_assemblies: projectTimelineStatus.timeline_assemblies,
     production_count: productionIds.length,
     productions: productionIds.map((productionId) => {
       const production = snapshot.productions.find((item) => sameId(item.id ?? item.record.id ?? item.record.ID, productionId))
@@ -1456,6 +1725,15 @@ function productionIdFrom(args: Args, production?: Record<string, unknown>): str
   return idValue(args.productionId ?? args.production_id ?? production?.id ?? production?.client_id ?? 'main')
 }
 
+function requiredProductionScopeId(args: Args, field: string): string | number {
+  if (args.productionId !== undefined || args.production_id !== undefined) {
+    return requiredId(args.productionId ?? args.production_id, field)
+  }
+  const focus = normalizeDomainFocus(args)
+  if (focus.scope?.kind === 'production' && focus.scope.ref) return focus.scope.ref
+  throw new Error(`Missing required argument: ${field}`)
+}
+
 function productionWriteResult(
   entityKind: string,
   ids: Record<string, string | number>,
@@ -1471,6 +1749,618 @@ function productionWriteResult(
   }
 }
 
+function timelineNamespaceTreeItems(args: Args): Record<string, unknown>[] {
+  const arrayValue = args.namespaces ?? args.timeline_namespaces ?? args.timelineNamespaces ?? args.nodes
+  const arrayItems = arrayRecords(arrayValue)
+  if (arrayItems.length > 0) return arrayItems
+  const root = optionalRecord(args.namespace ?? args.root ?? args.tree ?? args.payload ?? args.record)
+  return root ? [root] : []
+}
+
+function timelineNamespaceEntityKind(
+  payload: Record<string, unknown>,
+  context: TimelineNamespaceTreeContext,
+): TimelineNamespaceEntityKind {
+  const explicit = stringValue(payload.entity_kind ?? payload.entityKind ?? payload.source_kind ?? payload.sourceKind)
+  if (explicit === 'production' || explicit === 'segment') return explicit
+  const targetPath = stringValue(payload.target_path ?? payload.targetPath)
+  if (targetPath?.endsWith('/production.json')) return 'production'
+  if (targetPath?.endsWith('/segment.json')) return 'segment'
+  return context.depth === 0 ? 'production' : 'segment'
+}
+
+function timelineNamespaceTargetPath(
+  item: Record<string, unknown>,
+  payload: Record<string, unknown>,
+  context: TimelineNamespaceTreeContext,
+  entityKind: TimelineNamespaceEntityKind,
+  namespaceId: string | number,
+): string {
+  const explicit = stringValue(payload.target_path ?? payload.targetPath ?? item.target_path ?? item.targetPath)
+  if (explicit) return explicit.replace(/^\/+/, '')
+  const idToken = pathToken(namespaceId)
+  if (entityKind === 'production' || !context.parentTargetPath) {
+    return entityKind === 'production'
+      ? `timeline/${idToken}/production.json`
+      : `timeline/${idToken}/segment.json`
+  }
+  return `${timelineNamespaceNodeDir(context.parentTargetPath)}/segments/${idToken}/segment.json`
+}
+
+function timelineNamespaceNodeDir(targetPath: string): string {
+  return targetPath.replace(/\/(?:production|segment)\.json$/, '')
+}
+
+function normalizedSourcePath(value: string): string {
+  return value.trim().replace(/^\/+/, '').replace(/\/+$/, '')
+}
+
+function sourceNodeDir(path: string): string {
+  const normalized = normalizedSourcePath(path)
+  const namespaceDir = timelineNamespaceNodeDir(normalized)
+  if (namespaceDir !== normalized) return namespaceDir
+  return normalized.endsWith('.json') ? normalized.replace(/\/[^/]+\.json$/, '') : normalized
+}
+
+function timelineNamespaceRecord(
+  payload: Record<string, unknown>,
+  input: {
+    entityKind: TimelineNamespaceEntityKind
+    namespaceId: string | number
+    namespaceKind: string
+  },
+): Record<string, unknown> {
+  const sanitized = stripNamespaceRecordFields(payload)
+  return pruneUndefinedRecord({
+    ...sanitized,
+    schema: `movscript.${input.entityKind}.v1`,
+    kind: input.entityKind,
+    id: input.namespaceId,
+    title: stringValue(payload.title),
+    order: numberValue(payload.order),
+    intent: stringValue(payload.intent ?? payload.summary ?? payload.description),
+    namespace_kind: input.namespaceKind,
+    timeline_namespace_kind: input.namespaceKind,
+  })
+}
+
+function timelineNamespaceChildItems(
+  item: Record<string, unknown>,
+  payload: Record<string, unknown>,
+): Record<string, unknown>[] {
+  return arrayRecords(
+    item.children
+      ?? item.namespaces
+      ?? item.timeline_namespaces
+      ?? item.timelineNamespaces
+      ?? item.segments
+      ?? payload.children
+      ?? payload.namespaces
+      ?? payload.timeline_namespaces
+      ?? payload.timelineNamespaces
+      ?? payload.segments,
+  )
+}
+
+function timelineNamespaceSceneMomentItems(
+  item: Record<string, unknown>,
+  payload: Record<string, unknown>,
+): Record<string, unknown>[] {
+  return arrayRecords(item.scene_moments ?? item.sceneMoments ?? payload.scene_moments ?? payload.sceneMoments)
+}
+
+function sceneMomentPathTarget(
+  args: Args,
+  record: Record<string, unknown>,
+  sceneMomentId: string | number,
+): string | undefined {
+  const explicit = stringValue(args.targetPath ?? args.target_path ?? record.targetPath ?? record.target_path)
+  if (explicit) return normalizedSourcePath(explicit)
+  const namespacePath = stringValue(
+    args.namespacePath
+      ?? args.namespace_path
+      ?? args.timelineNamespacePath
+      ?? args.timeline_namespace_path
+      ?? args.parentPath
+      ?? args.parent_path
+      ?? record.namespacePath
+      ?? record.namespace_path
+      ?? record.timelineNamespacePath
+      ?? record.timeline_namespace_path
+      ?? record.parentPath
+      ?? record.parent_path,
+  )
+  if (!namespacePath) return undefined
+  return `${sourceNodeDir(namespacePath)}/scene_moments/${pathToken(sceneMomentId)}/scene_moment.json`
+}
+
+function sceneMomentHierarchyRecord(
+  payload: Record<string, unknown>,
+  sceneMomentId: string | number,
+): Record<string, unknown> {
+  return pruneUndefinedRecord({
+    ...timelinePrimitiveRecord(payload, TIMELINE_PRIMITIVE_SPECS.scene_moment, sceneMomentId),
+    storyboard_id: optionalId(payload.storyboard_id ?? payload.storyboardId),
+    time_text: stringValue(payload.time_text ?? payload.timeText ?? payload.when),
+    scene_code: stringValue(payload.scene_code ?? payload.sceneCode),
+    location_text: stringValue(payload.location_text ?? payload.locationText ?? payload.where),
+    condition_text: stringValue(payload.condition_text ?? payload.conditionText),
+    action_text: stringValue(payload.action_text ?? payload.actionText ?? payload.action),
+    mood: stringValue(payload.mood ?? payload.emotion),
+    description: stringValue(payload.description),
+    settings: Array.isArray(payload.settings) ? payload.settings : undefined,
+    setting_refs: Array.isArray(payload.setting_refs ?? payload.settingRefs)
+      ? (payload.setting_refs ?? payload.settingRefs)
+      : undefined,
+  })
+}
+
+function timelinePrimitivePathTarget(
+  args: Args,
+  record: Record<string, unknown>,
+  input: TimelinePrimitivePathInput,
+): string | undefined {
+  const explicit = stringValue(args.targetPath ?? args.target_path ?? record.targetPath ?? record.target_path)
+  if (explicit) return normalizedSourcePath(explicit)
+  const parentPath = timelinePrimitiveParentPath(args, record, input.spec)
+  if (!parentPath) return undefined
+  return `${sourceNodeDir(parentPath)}/${input.spec.collection}/${pathToken(input.id)}/${input.spec.filename}`
+}
+
+function timelinePrimitiveParentPath(
+  args: Args,
+  record: Record<string, unknown>,
+  spec: TimelinePrimitiveSpec,
+): string | undefined {
+  const explicitParent = stringValue(args.parentPath ?? args.parent_path ?? record.parentPath ?? record.parent_path)
+  if (explicitParent) return explicitParent
+  const expressionUnitPath = stringValue(
+    args.expressionUnitPath
+      ?? args.expression_unit_path
+      ?? record.expressionUnitPath
+      ?? record.expression_unit_path,
+  )
+  if ((spec.entityKind === 'keyframe' || spec.entityKind === 'storyboard') && expressionUnitPath) return expressionUnitPath
+  return stringValue(
+    args.sceneMomentPath
+      ?? args.scene_moment_path
+      ?? record.sceneMomentPath
+      ?? record.scene_moment_path,
+  )
+}
+
+async function writeTimelinePrimitivePathTarget(
+  args: Args,
+  spec: TimelinePrimitiveSpec,
+  payload: Record<string, unknown>,
+  id: string | number,
+  targetPath: string,
+): Promise<Record<string, unknown>> {
+  const result = await runtimeMutation(args, (runtime) => runtime.writeHierarchyNode({
+    targetPath,
+    record: timelinePrimitiveRecord(payload, spec, id),
+  }))
+  return {
+    status: 'upserted',
+    entityKind: spec.entityKind,
+    [`${camelEntityKind(spec.entityKind)}Id`]: id,
+    targetPath,
+    result,
+  }
+}
+
+async function upsertTimelinePrimitiveNode(
+  runtime: MovScriptDomainRuntime,
+  item: Record<string, unknown>,
+  input: { spec: TimelinePrimitiveSpec; parentDir: string },
+  collector: TimelineNamespaceTreeCollector,
+): Promise<Record<string, unknown>> {
+  const payload = treePayload(item, input.spec.payloadName)
+  const primitiveId = requiredId(payload.id ?? payload.client_id, `${input.spec.payloadName}.id`)
+  const targetPath = timelinePrimitiveTargetPath(item, payload, input.parentDir, input.spec, primitiveId)
+  const targetRef = timelinePrimitiveRef(targetPath, input.spec)
+  const record = timelinePrimitiveRecord(payload, input.spec, primitiveId)
+  const node = await runtime.writeHierarchyNode({ targetPath, record })
+  const summary = {
+    id: primitiveId,
+    entity_kind: input.spec.entityKind,
+    targetPath,
+    targetRef,
+    node,
+  }
+  if (input.spec.entityKind === 'scene_moment') {
+    collector.sceneMoments.push(summary)
+  } else {
+    collector.primitives.push(summary)
+  }
+
+  const contentUnits = []
+  for (const contentUnitItem of arrayRecords(item.content_units ?? item.contentUnits ?? payload.content_units ?? payload.contentUnits)) {
+    const contentUnitPayload = treePayload(contentUnitItem, 'content_unit')
+    const contentUnit = await runtime.createContentUnit(timelinePrimitiveContentUnitInput(contentUnitPayload, input.spec, targetRef))
+    contentUnits.push(contentUnit)
+    collector.contentUnits.push(contentUnit)
+  }
+
+  const parentDir = timelinePrimitiveNodeDir(targetPath, input.spec)
+  const expressionUnits = input.spec.entityKind === 'scene_moment'
+    ? await upsertTimelinePrimitiveChildren(runtime, item, payload, parentDir, TIMELINE_PRIMITIVE_SPECS.expression_unit, collector)
+    : []
+  const storyboards = timelinePrimitiveSupportsSceneChildren(input.spec)
+    ? await upsertTimelinePrimitiveChildren(runtime, item, payload, parentDir, TIMELINE_PRIMITIVE_SPECS.storyboard, collector)
+    : []
+  const keyframes = timelinePrimitiveSupportsSceneChildren(input.spec)
+    ? await upsertTimelinePrimitiveChildren(runtime, item, payload, parentDir, TIMELINE_PRIMITIVE_SPECS.keyframe, collector)
+    : []
+  const audioCues = timelinePrimitiveSupportsSceneChildren(input.spec)
+    ? await upsertTimelinePrimitiveChildren(runtime, item, payload, parentDir, TIMELINE_PRIMITIVE_SPECS.audio_cue, collector)
+    : []
+
+  return {
+    ...summary,
+    contentUnits,
+    ...(expressionUnits.length > 0 ? { expressionUnits } : {}),
+    ...(storyboards.length > 0 ? { storyboards } : {}),
+    ...(keyframes.length > 0 ? { keyframes } : {}),
+    ...(audioCues.length > 0 ? { audioCues } : {}),
+  }
+}
+
+async function upsertTimelinePrimitiveChildren(
+  runtime: MovScriptDomainRuntime,
+  item: Record<string, unknown>,
+  payload: Record<string, unknown>,
+  parentDir: string,
+  spec: TimelinePrimitiveSpec,
+  collector: TimelineNamespaceTreeCollector,
+): Promise<Record<string, unknown>[]> {
+  const children = []
+  for (const child of timelinePrimitiveChildItems(item, payload, spec)) {
+    children.push(await upsertTimelinePrimitiveNode(runtime, child, { spec, parentDir }, collector))
+  }
+  return children
+}
+
+function timelinePrimitiveChildItems(
+  item: Record<string, unknown>,
+  payload: Record<string, unknown>,
+  spec: TimelinePrimitiveSpec,
+): Record<string, unknown>[] {
+  const camel = camelCollectionName(spec.collection)
+  return arrayRecords(item[spec.collection] ?? item[camel] ?? payload[spec.collection] ?? payload[camel])
+}
+
+function timelinePrimitiveSupportsSceneChildren(spec: TimelinePrimitiveSpec): boolean {
+  return spec.entityKind === 'scene_moment' || spec.entityKind === 'expression_unit'
+}
+
+function timelinePrimitiveTargetPath(
+  item: Record<string, unknown>,
+  payload: Record<string, unknown>,
+  parentDir: string,
+  spec: TimelinePrimitiveSpec,
+  primitiveId: string | number,
+): string {
+  const explicit = stringValue(payload.target_path ?? payload.targetPath ?? item.target_path ?? item.targetPath)
+  if (explicit) return explicit.replace(/^\/+/, '')
+  return `${parentDir}/${spec.collection}/${pathToken(primitiveId)}/${spec.filename}`
+}
+
+function timelinePrimitiveRef(targetPath: string, spec: TimelinePrimitiveSpec): string {
+  return targetPath.replace(new RegExp(`/${escapeRegExp(spec.filename)}$`), '')
+}
+
+function timelinePrimitiveNodeDir(targetPath: string, spec: TimelinePrimitiveSpec): string {
+  return timelinePrimitiveRef(targetPath, spec)
+}
+
+function timelinePrimitiveRecord(
+  payload: Record<string, unknown>,
+  spec: TimelinePrimitiveSpec,
+  primitiveId: string | number,
+): Record<string, unknown> {
+  const sanitized = stripTimelinePrimitiveRecordFields(payload)
+  return pruneUndefinedRecord({
+    ...sanitized,
+    schema: `movscript.${spec.entityKind}.v1`,
+    kind: spec.entityKind,
+    id: primitiveId,
+    title: stringValue(payload.title),
+    order: numberValue(payload.order),
+    ...(spec.entityKind === 'scene_moment'
+      ? {
+          storyboard_id: optionalId(payload.storyboard_id ?? payload.storyboardId),
+          time_text: stringValue(payload.time_text ?? payload.timeText ?? payload.when),
+          scene_code: stringValue(payload.scene_code ?? payload.sceneCode),
+          location_text: stringValue(payload.location_text ?? payload.locationText ?? payload.where),
+          condition_text: stringValue(payload.condition_text ?? payload.conditionText),
+          action_text: stringValue(payload.action_text ?? payload.actionText ?? payload.action),
+          mood: stringValue(payload.mood ?? payload.emotion),
+          description: stringValue(payload.description),
+        }
+      : {}),
+    ...(spec.entityKind === 'expression_unit'
+      ? {
+          expression_kind: stringValue(payload.expression_kind ?? payload.expressionKind ?? nonSystemKind(payload.kind, spec.entityKind)),
+          visual_kind: stringValue(payload.visual_kind ?? payload.visualKind),
+          speaker_ref: optionalId(payload.speaker_ref ?? payload.speakerRef),
+          source_expression_ref: optionalId(payload.source_expression_ref ?? payload.sourceExpressionRef),
+          text: stringValue(payload.text ?? payload.content),
+          note: stringValue(payload.note),
+          intent: stringValue(payload.intent ?? payload.summary ?? payload.description),
+          content: optionalRecord(payload.content),
+          timing_intent: optionalRecord(payload.timing_intent ?? payload.timingIntent),
+          voice_profile_ref: optionalId(payload.voice_profile_ref ?? payload.voiceProfileRef),
+          span: optionalRecord(payload.span),
+          script_block_id: optionalId(payload.script_block_id ?? payload.scriptBlockId),
+        }
+      : {}),
+    ...(spec.entityKind === 'storyboard'
+      ? {
+          visual_intent: stringValue(payload.visual_intent ?? payload.visualIntent ?? payload.prompt_hint ?? payload.promptHint ?? payload.description),
+          timeline: optionalRecord(payload.timeline),
+          graph: optionalRecord(payload.graph),
+        }
+      : {}),
+    ...(spec.entityKind === 'keyframe'
+      ? {
+          role: stringValue(payload.role ?? payload.status),
+          visual_intent: stringValue(payload.visual_intent ?? payload.visualIntent ?? payload.prompt_hint ?? payload.promptHint ?? payload.description),
+          timing: optionalRecord(payload.timing),
+          composition: optionalRecord(payload.composition),
+          continuity: optionalRecord(payload.continuity),
+          reference_asset_refs: Array.isArray(payload.reference_asset_refs ?? payload.referenceAssetRefs)
+            ? (payload.reference_asset_refs ?? payload.referenceAssetRefs)
+            : undefined,
+          reference_keyframe_refs: Array.isArray(payload.reference_keyframe_refs ?? payload.referenceKeyframeRefs)
+            ? (payload.reference_keyframe_refs ?? payload.referenceKeyframeRefs)
+            : undefined,
+        }
+      : {}),
+    ...(spec.entityKind === 'audio_cue'
+      ? {
+          cue_kind: stringValue(payload.cue_kind ?? payload.cueKind ?? nonSystemKind(payload.kind, spec.entityKind)),
+          storyboard_id: optionalId(payload.storyboard_id ?? payload.storyboardId),
+          expression_unit_ref: optionalId(payload.expression_unit_ref ?? payload.expressionUnitRef ?? payload.expression_unit_id ?? payload.expressionUnitId),
+          prompt_hint: stringValue(payload.prompt_hint ?? payload.promptHint),
+          asset_refs: Array.isArray(payload.asset_refs ?? payload.assetRefs) ? (payload.asset_refs ?? payload.assetRefs) : undefined,
+        }
+      : {}),
+  })
+}
+
+function timelinePrimitiveContentUnitInput(
+  record: Record<string, unknown>,
+  spec: TimelinePrimitiveSpec,
+  targetRef: string,
+): MovScriptEngineContentUnitInput {
+  const input = treeContentUnitInput(record, {
+    contentUnitType: spec.contentUnitType,
+    outputKind: spec.outputKind,
+    targetKind: spec.targetKind,
+    targetRef,
+    [spec.refField]: targetRef,
+  } as MovScriptEngineContentUnitInput)
+  if (input.productionId !== undefined || input.segmentId !== undefined) {
+    throw new Error('timeline namespace primitive content_units must not use production_ref, production_id, segment_ref, or segment_id')
+  }
+  if (input.contentUnitType === 'production_ref' || input.contentUnitType === 'segment_ref') {
+    throw new Error('timeline namespace primitive content_units must not use content_unit_type=production_ref or segment_ref')
+  }
+  return {
+    ...input,
+    productionId: undefined,
+    segmentId: undefined,
+  }
+}
+
+function stripTimelinePrimitiveRecordFields(record: Record<string, unknown>): Record<string, unknown> {
+  const forbidden = new Set([
+    'content_units',
+    'contentUnits',
+    'content_unit_type',
+    'contentUnitType',
+    'expression_units',
+    'expressionUnits',
+    'storyboards',
+    'keyframes',
+    'audio_cues',
+    'audioCues',
+    'target_path',
+    'targetPath',
+    'namespace_path',
+    'namespacePath',
+    'timeline_namespace_path',
+    'timelineNamespacePath',
+    'scene_moment_path',
+    'sceneMomentPath',
+    'expression_unit_path',
+    'expressionUnitPath',
+    'parent_path',
+    'parentPath',
+    'target_category',
+    'targetCategory',
+    'target_kind',
+    'targetKind',
+    'target_ref',
+    'targetRef',
+    'output_kind',
+    'outputKind',
+    'production_ref',
+    'productionRef',
+    'production_id',
+    'productionId',
+    'segment_ref',
+    'segmentRef',
+    'segment_id',
+    'segmentId',
+    'content_unit_ref',
+    'contentUnitRef',
+    'content_unit_refs',
+    'contentUnitRefs',
+    'content_unit_id',
+    'contentUnitId',
+    'main_content_unit_id',
+    'mainContentUnitId',
+    'candidate',
+    'candidates',
+    'selection',
+    'selections',
+    'selected_candidate_id',
+    'selectedCandidateId',
+    'selected_resource_id',
+    'selectedResourceId',
+    'resource_id',
+    'resourceId',
+    'client_id',
+    'clientId',
+    'storyboardId',
+    'expression_unit_id',
+    'expressionUnitId',
+    'expression_unit_ref',
+    'expressionUnitRef',
+    'timeText',
+    'when',
+    'sceneCode',
+    'locationText',
+    'where',
+    'conditionText',
+    'actionText',
+    'action',
+    'emotion',
+    'expressionKind',
+    'visualKind',
+    'speakerRef',
+    'sourceExpressionRef',
+    'timingIntent',
+    'voiceProfileRef',
+    'scriptBlockId',
+    'cueKind',
+    'visualIntent',
+    'promptHint',
+    'referenceAssetRefs',
+    'referenceKeyframeRefs',
+    'assetRefs',
+  ])
+  return Object.fromEntries(Object.entries(record).filter(([key, value]) => !forbidden.has(key) && value !== undefined))
+}
+
+function nonSystemKind(value: unknown, entityKind: TimelinePrimitiveKind): string | undefined {
+  const kind = stringValue(value)
+  return kind && kind !== entityKind ? kind : undefined
+}
+
+function camelCollectionName(collection: string): string {
+  return collection.replace(/_([a-z])/g, (_, char: string) => char.toUpperCase())
+}
+
+function camelEntityKind(entityKind: TimelinePrimitiveKind): string {
+  return entityKind.replace(/_([a-z])/g, (_, char: string) => char.toUpperCase())
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function timelineNamespaceAssemblyContentUnitInput(
+  record: Record<string, unknown>,
+  scope: { namespaceId: string | number; namespaceKind: string },
+): MovScriptEngineContentUnitInput {
+  const explicit = engineContentUnitInputFromRecord(record)
+  if (explicit.contentUnitType && explicit.contentUnitType !== 'timeline_assembly_ref') {
+    throw new Error('timeline namespace content_units must use content_unit_type=timeline_assembly_ref')
+  }
+  if (explicit.targetKind && explicit.targetKind !== 'timeline_assembly') {
+    throw new Error('timeline namespace content_units must use target_kind=timeline_assembly')
+  }
+  if (explicit.productionId !== undefined || explicit.segmentId !== undefined) {
+    throw new Error('timeline namespace content_units must not use production_ref, production_id, segment_ref, or segment_id')
+  }
+  const targetRef = explicit.targetRef ?? `timeline_assembly:${scope.namespaceKind}:${scope.namespaceId}`
+  return pruneUndefinedRecord({
+    ...explicit,
+    contentUnitType: 'timeline_assembly_ref',
+    outputKind: explicit.outputKind ?? 'video',
+    targetCategory: 'timeline_assembly',
+    targetKind: 'timeline_assembly',
+    targetRef,
+    scopeKind: explicit.scopeKind ?? scope.namespaceKind,
+    scopeRef: explicit.scopeRef ?? scope.namespaceId,
+    productionId: undefined,
+    segmentId: undefined,
+  }) as MovScriptEngineContentUnitInput
+}
+
+function stripNamespaceRecordFields(record: Record<string, unknown>): Record<string, unknown> {
+  const forbidden = new Set([
+    'children',
+    'namespaces',
+    'timeline_namespaces',
+    'timelineNamespaces',
+    'segments',
+    'content_units',
+    'contentUnits',
+    'content_unit_ref',
+    'contentUnitRef',
+    'content_unit_refs',
+    'contentUnitRefs',
+    'content_unit_id',
+    'contentUnitId',
+    'main_content_unit_id',
+    'mainContentUnitId',
+    'content_unit_type',
+    'contentUnitType',
+    'target_path',
+    'targetPath',
+    'target_category',
+    'targetCategory',
+    'target_kind',
+    'targetKind',
+    'target_ref',
+    'targetRef',
+    'output_kind',
+    'outputKind',
+    'production_ref',
+    'productionRef',
+    'production_id',
+    'productionId',
+    'segment_ref',
+    'segmentRef',
+    'segment_id',
+    'segmentId',
+    'scene_moment_ref',
+    'sceneMomentRef',
+    'asset_ref',
+    'assetRef',
+    'client_id',
+    'clientId',
+    'namespaceKind',
+    'timelineNamespaceKind',
+    'domain_kind',
+    'domainKind',
+    'entity_kind',
+    'entityKind',
+    'source_kind',
+    'sourceKind',
+    'candidate',
+    'candidates',
+    'selection',
+    'selections',
+    'selected_candidate_id',
+    'selectedCandidateId',
+    'selected_resource_id',
+    'selectedResourceId',
+    'resource_id',
+    'resourceId',
+  ])
+  return Object.fromEntries(Object.entries(record).filter(([key, value]) => !forbidden.has(key) && value !== undefined))
+}
+
+function pathToken(value: string | number): string {
+  const token = String(value).trim().replace(/[\\/#?]+/g, '_').replace(/\s+/g, '_')
+  return token || 'node'
+}
+
 function treePayload(item: Record<string, unknown>, name: string): Record<string, unknown> {
   return requiredRecord(item[name] ?? item.payload ?? item.record ?? item.entity ?? item, name)
 }
@@ -1480,10 +2370,31 @@ function arrayRecords(value: unknown): Record<string, unknown>[] {
 }
 
 function treeContentUnitInput(record: Record<string, unknown>, defaults: MovScriptEngineContentUnitInput): MovScriptEngineContentUnitInput {
+  const explicitInput = engineContentUnitInputFromRecord(record)
+  if (isExplicitTimelineAssemblyContentUnit(explicitInput)) {
+    return {
+      ...defaults,
+      ...explicitInput,
+      productionId: explicitInput.productionId,
+      segmentId: explicitInput.segmentId,
+      sceneMomentId: explicitInput.sceneMomentId,
+      expressionUnitId: explicitInput.expressionUnitId,
+      storyboardId: explicitInput.storyboardId,
+      keyframeId: explicitInput.keyframeId,
+      audioCueId: explicitInput.audioCueId,
+      assetRef: explicitInput.assetRef,
+    }
+  }
   return {
     ...defaults,
-    ...engineContentUnitInputFromRecord(record),
+    ...explicitInput,
   }
+}
+
+function isExplicitTimelineAssemblyContentUnit(input: MovScriptEngineContentUnitInput): boolean {
+  return input.contentUnitType === 'timeline_assembly_ref'
+    || input.targetCategory === 'timeline_assembly'
+    || input.targetKind === 'timeline_assembly'
 }
 
 async function upsertTreeStoryboards(
@@ -1647,8 +2558,11 @@ function engineContentUnitInputFromRecord(record: Record<string, unknown>): MovS
     kind: record.kind,
     contentUnitType: record.content_unit_type ?? record.contentUnitType,
     outputKind: record.output_kind ?? record.outputKind,
+    targetCategory: record.target_category ?? record.targetCategory,
     targetKind: record.target_kind ?? record.targetKind,
     targetRef: record.target_ref ?? record.targetRef,
+    scopeKind: record.scope_kind ?? record.scopeKind,
+    scopeRef: record.scope_ref ?? record.scopeRef,
     generationRole: record.generation_role ?? record.generationRole,
     assetRef: record.asset_ref ?? record.assetRef,
     productionId: record.production_ref ?? record.productionRef ?? record.productionId ?? record.production_id,
@@ -2024,36 +2938,6 @@ function selectionRecordsByContentUnitId(documents: ContentSourceWorkspaceSnapsh
 function contentUnitIdForRuntimeDocument(path: string, ref?: string): string | undefined {
   if (ref) return lastPathSegment(ref) ?? ref
   return pathSegmentAfter(path, 'content_units')
-}
-
-function summarizeContentUnitStatus(
-  unit: ContentSourceWorkspaceSnapshot['contentUnits'][number],
-  candidatesByContentUnit: Map<string, ContentCandidateRecord[]>,
-  selectionsByContentUnit: Map<string, ContentSelectionRecord>,
-): Record<string, unknown> {
-  const id = idValue(unit.id ?? unit.record.id ?? unit.record.ID ?? pathSegmentAfter(unit.path, 'content_units') ?? unit.path)
-  const contentUnitId = String(id)
-  const candidates = candidatesByContentUnit.get(contentUnitId) ?? []
-  const selection = selectionsByContentUnit.get(contentUnitId)
-  const selectedCandidate = selection?.candidate_id !== undefined
-    ? candidates.find((candidate) => sameId(candidate.id, selection.candidate_id))
-    : undefined
-  const selectedResourceId = numberValue(selection?.resource_id) ?? numberValue(firstCandidateOutput(selectedCandidate)?.resource_id)
-  return {
-    content_unit_id: id,
-    title: stringValue(unit.record.title),
-    path: unit.path,
-    content_unit_type: stringValue(unit.record.content_unit_type),
-    output_kind: stringValue(unit.record.output_kind),
-    target_kind: stringValue(unit.record.target_kind),
-    target_ref: idValue(unit.record.target_ref),
-    candidate_count: candidates.length,
-    candidate_ids: candidates.map((candidate) => idValue(candidate.id)).filter((value) => value !== undefined),
-    selected_candidate: selection?.candidate_id,
-    selected_resource: selectedResourceId,
-    stale_status: stringValue(selection?.stale_policy) === 'accept_stale' ? 'accepted_stale' : 'ok',
-    blocking_refs: selection?.candidate_id === undefined && candidates.length > 0 ? ['selection_missing'] : [],
-  }
 }
 
 function entityStatusLine(entity: ContentSourceWorkspaceSnapshot['storyboards'][number]): Record<string, unknown> {

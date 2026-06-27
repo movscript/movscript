@@ -81,6 +81,36 @@ function editingProject() {
   }
 }
 
+function clearMediaPipelineEnv() {
+  const previous = {
+    url: process.env.MOVSCRIPT_MEDIA_PIPELINE_URL,
+    baseUrl: process.env.MOVSCRIPT_MEDIA_PIPELINE_BASE_URL,
+    home: process.env.MOVSCRIPT_HOME,
+  }
+  delete process.env.MOVSCRIPT_MEDIA_PIPELINE_URL
+  delete process.env.MOVSCRIPT_MEDIA_PIPELINE_BASE_URL
+  if (editingServiceHomeDir) process.env.MOVSCRIPT_HOME = editingServiceHomeDir
+  return previous
+}
+
+function restoreMediaPipelineEnv(previous) {
+  if (previous.url === undefined) {
+    delete process.env.MOVSCRIPT_MEDIA_PIPELINE_URL
+  } else {
+    process.env.MOVSCRIPT_MEDIA_PIPELINE_URL = previous.url
+  }
+  if (previous.baseUrl === undefined) {
+    delete process.env.MOVSCRIPT_MEDIA_PIPELINE_BASE_URL
+  } else {
+    process.env.MOVSCRIPT_MEDIA_PIPELINE_BASE_URL = previous.baseUrl
+  }
+  if (previous.home === undefined) {
+    delete process.env.MOVSCRIPT_HOME
+  } else {
+    process.env.MOVSCRIPT_HOME = previous.home
+  }
+}
+
 test('MCP editing export discovery keeps RawResource and HLS publishing paths distinct', () => {
   const toolsByName = new Map(listTools().map((tool) => [tool.name, tool]))
   for (const name of [
@@ -129,6 +159,7 @@ test('MCP editing export discovery keeps RawResource and HLS publishing paths di
 })
 
 test('MCP editing task tools delegate to the registered Electron editing runtime port', async () => {
+  const previousMediaPipelineEnv = clearMediaPipelineEnv()
   const capturedRequests = []
   const capturedPublishRequests = []
   const capturedImportRequests = []
@@ -671,11 +702,12 @@ test('MCP editing task tools delegate to the registered Electron editing runtime
     assert.deepEqual(capturedTaskLookups.at(-1), { taskId: 'timeline_hls_1', options: { projectId: 'project-1' } })
   } finally {
     setEditingRuntimePort(previous)
+    restoreMediaPipelineEnv(previousMediaPipelineEnv)
   }
 })
 
 test('MCP editing task tools prefer movscript.media.pipeline service over process runtime singleton', async () => {
-  const previousMediaPipelineURL = process.env.MOVSCRIPT_MEDIA_PIPELINE_URL
+  const previousMediaPipelineEnv = clearMediaPipelineEnv()
   const capturedCreateRequests = []
   const capturedActions = []
   const mediaPipelineRuntime = await startMediaPipelineService({
@@ -778,16 +810,13 @@ test('MCP editing task tools prefer movscript.media.pipeline service over proces
     ])
   } finally {
     setEditingRuntimePort(previous)
-    if (previousMediaPipelineURL === undefined) {
-      delete process.env.MOVSCRIPT_MEDIA_PIPELINE_URL
-    } else {
-      process.env.MOVSCRIPT_MEDIA_PIPELINE_URL = previousMediaPipelineURL
-    }
+    restoreMediaPipelineEnv(previousMediaPipelineEnv)
     await mediaPipelineRuntime.close()
   }
 })
 
 test('MCP editing task tools keep a diagnostic response when no Electron runtime is registered', async () => {
+  const previousMediaPipelineEnv = clearMediaPipelineEnv()
   const previous = setEditingRuntimePort(undefined)
   try {
     const createdProject = await callTool('editing_project_create', {
@@ -830,5 +859,6 @@ test('MCP editing task tools keep a diagnostic response when no Electron runtime
     assert.equal(result.code, 'ELECTRON_EDITING_RUNTIME_REQUIRED')
   } finally {
     setEditingRuntimePort(previous)
+    restoreMediaPipelineEnv(previousMediaPipelineEnv)
   }
 })

@@ -9,6 +9,7 @@ import {
   type ProjectSurfaceRouteParams,
   type ProjectSurfaceRuntime,
 } from '@movscript/project-surface/runtime'
+import { normalizeTimelineFocusQuery } from '../routes/localRouteLinks'
 
 export const LOCAL_PROJECT_READ_MODEL_ENDPOINT = '/local-api/project/read-model'
 export const LOCAL_PROJECT_SOURCE_SNAPSHOT_ENDPOINT = '/local-api/project/source/snapshot'
@@ -258,6 +259,7 @@ function localProjectSurfaceHref({
     if (value === undefined) continue
     next.set(key, String(value))
   }
+  normalizeTimelineFocusQuery(next)
 
   const pathname = projectSurfacePath(route, projectId)
   const query = next.toString()

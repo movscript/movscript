@@ -36,6 +36,21 @@ export function buildProjectOverviewModel({
   const readyKeyframes = data.keyframes.filter((item) => hasText(item, ['title', 'description', 'prompt'])).length
   const lockedAssets = data.assetSlots.filter(hasLockedResource).length
   const missingAssets = Math.max(0, data.assetSlots.length - lockedAssets)
+  const timelineStatus = recordValue(data.projectTimelineStatus)
+  const timelineNamespaces = arrayValue(timelineStatus?.timeline_namespaces ?? timelineStatus?.timelineNamespaces)
+  const timelineAssemblies = arrayValue(timelineStatus?.timeline_assemblies ?? timelineStatus?.timelineAssemblies)
+  const systemPrimitives = recordValue(timelineStatus?.system_primitives ?? timelineStatus?.systemPrimitives)
+  const timelineNamespaceSignals = timelineStatus
+    ? optionalNumber(timelineStatus.timeline_namespace_count ?? timelineStatus.timelineNamespaceCount) ?? timelineNamespaces.length
+    : data.productions.length + data.segments.length
+  const timelineAssemblySignals = timelineStatus
+    ? optionalNumber(timelineStatus.timeline_assembly_count ?? timelineStatus.timelineAssemblyCount) ?? timelineAssemblies.length
+    : 0
+  const sceneMomentSignals = optionalNumber(systemPrimitives?.scene_moments_count ?? systemPrimitives?.sceneMomentsCount) ?? data.sceneMoments.length
+  const timelinePrimitiveSignals = sceneMomentSignals + data.keyframes.length
+  const readyTimelineAssemblies = timelineAssemblies.filter(isTimelineAssemblyReady).length
+  const hasTimelineStructure = timelineNamespaceSignals > 0 || sceneMomentSignals > 0 || timelineAssemblySignals > 0
+  const hasProductionInput = hasTimelineStructure || data.contentUnits.length > 0
 
   const standardsDone = [
     project?.aspect_ratio,
@@ -46,10 +61,10 @@ export function buildProjectOverviewModel({
   ].filter(Boolean).length
   const standardsProgress = percentage(standardsDone, 5)
 
-  const scriptSignals = data.scriptVersions.length + data.segments.length + data.sceneMoments.length + data.productions.length
-  const scriptProgress = Math.max(productionProgress, percentage(data.productions.length + data.sceneMoments.length, Math.max(1, scriptSignals)))
-  const contentSignals = data.contentUnits.length + data.keyframes.length + data.assetSlots.length
-  const contentProgress = percentage(readyContentUnits + readyKeyframes + lockedAssets, Math.max(1, contentSignals))
+  const scriptSignals = data.scriptVersions.length + timelineNamespaceSignals + sceneMomentSignals + timelineAssemblySignals
+  const scriptProgress = Math.max(productionProgress, percentage(timelineNamespaceSignals + sceneMomentSignals + timelineAssemblySignals, Math.max(1, scriptSignals)))
+  const contentSignals = data.contentUnits.length + data.keyframes.length + timelineAssemblySignals
+  const contentProgress = percentage(readyContentUnits + readyKeyframes + readyTimelineAssemblies, Math.max(1, contentSignals))
 
   const lanes = projectEntryDefinitions.map((definition): ProjectOverviewWorkLane => {
     if (definition.id === 'project_standards') {
@@ -65,26 +80,37 @@ export function buildProjectOverviewModel({
       return {
         definition,
         count: contentSignals,
-        detail: `${data.contentUnits.length} 个创作片段，${missingAssets} 个素材缺口`,
+        detail: `${data.contentUnits.length} 个创作片段，${timelineAssemblySignals} 个装配`,
         progress: contentProgress,
-        state: data.productions.length === 0 ? 'blocked' : contentProgress >= 70 ? 'ready' : contentSignals > 0 ? 'active' : 'empty',
+        state: !hasProductionInput && data.scriptVersions.length === 0 ? 'blocked' : contentProgress >= 70 ? 'ready' : contentSignals > 0 || timelinePrimitiveSignals > 0 ? 'active' : 'empty',
       }
     }
     if (definition.id === 'content_preview') {
       return {
         definition,
-        count: data.contentUnits.length + lockedAssets,
-        detail: `${lockedAssets} 个素材已锁定，${data.contentUnits.length} 个片段可预览`,
+        count: data.contentUnits.length + timelineAssemblySignals,
+        detail: `${data.contentUnits.length} 个片段可预览，${timelineAssemblySignals} 个装配`,
         progress: contentProgress,
-        state: data.contentUnits.length === 0 ? 'blocked' : contentProgress >= 70 ? 'ready' : 'active',
+        state: data.contentUnits.length === 0 && timelineAssemblySignals === 0 ? 'blocked' : contentProgress >= 70 ? 'ready' : 'active',
+      }
+    }
+    if (definition.id === 'setting_preview') {
+      const settingSignals = data.settings.length + data.assetSlots.length
+      const settingProgress = percentage(data.settings.length + lockedAssets, Math.max(1, settingSignals))
+      return {
+        definition,
+        count: settingSignals,
+        detail: `${data.settings.length} 个设定，${lockedAssets} 个素材已锁定，${missingAssets} 个素材缺口`,
+        progress: settingProgress,
+        state: settingSignals === 0 ? 'empty' : settingProgress >= 70 ? 'ready' : 'active',
       }
     }
     return {
       definition,
       count: scriptSignals,
-      detail: `${data.productions.length} 个制作，${data.sceneMoments.length} 个情节`,
+      detail: `${timelineNamespaceSignals} 个时间结构，${sceneMomentSignals} 个场面，${timelineAssemblySignals} 个装配`,
       progress: scriptProgress,
-      state: data.scriptVersions.length === 0 ? 'blocked' : scriptProgress >= 70 ? 'ready' : scriptSignals > 0 ? 'active' : 'empty',
+      state: data.scriptVersions.length === 0 && !hasTimelineStructure ? 'blocked' : scriptProgress >= 70 ? 'ready' : scriptSignals > 0 ? 'active' : 'empty',
     }
   })
 
@@ -96,6 +122,7 @@ export function buildProjectOverviewModel({
       lanes.find((lane) => lane.definition.id === 'project_standards'),
       lanes.find((lane) => lane.definition.id === 'content_canvas'),
       lanes.find((lane) => lane.definition.id === 'content_preview'),
+      lanes.find((lane) => lane.definition.id === 'setting_preview'),
     ].filter((lane): lane is ProjectOverviewWorkLane => Boolean(lane)),
   }
 }
@@ -112,6 +139,7 @@ export function projectOverviewNextActionLabel(definition: ProjectEntryDefinitio
   if (definition.id === 'orchestration_production') return '进入创作编排'
   if (definition.id === 'content_canvas') return '进入画布'
   if (definition.id === 'content_preview') return '进入预览'
+  if (definition.id === 'setting_preview') return '进入设定预览'
   return '进入入口'
 }
 
@@ -125,10 +153,35 @@ function numberOf(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
+function optionalNumber(value: unknown) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
 function hasText(record: ProjectOverviewRecord, keys: string[]) {
   return keys.some((key) => typeof record[key] === 'string' && String(record[key]).trim().length > 0)
 }
 
 function hasLockedResource(record: ProjectOverviewRecord) {
   return Boolean(record.locked_asset_slot_id || record.locked_resource_id || record.resource_id || record.lock)
+}
+
+function recordValue(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined
+}
+
+function arrayValue(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : []
+}
+
+function isTimelineAssemblyReady(value: unknown): boolean {
+  const record = recordValue(value)
+  if (!record) return false
+  const blockers = arrayValue(record.blocking_refs ?? record.blockingRefs)
+  const staleStatus = typeof record.stale_status === 'string'
+    ? record.stale_status
+    : typeof record.staleStatus === 'string'
+      ? record.staleStatus
+      : ''
+  return blockers.length === 0 && staleStatus !== 'stale' && staleStatus !== 'has_stale_selection'
 }

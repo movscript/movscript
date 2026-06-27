@@ -1,13 +1,19 @@
-# Movscript Desktop
+# Movscript Agent Plugin And Desktop
 
 ## Release Summary
 
-This release packages Movscript Desktop for macOS Apple Silicon, macOS Intel, and Windows x64 with on-demand Agent runtime downloads.
+This release publishes two user-facing packages from the same GitHub Release:
+
+- Movscript Agent Plugin, a plugin-only package for Codex or another Agent provider without installing Desktop.
+- Movscript Desktop, the local visual workspace for macOS Apple Silicon, macOS Intel, and Windows x64.
+
+Both packages reuse the same local `movscript.local-node` daemon when local execution is needed. The daemon is a shared runtime component, not a third public download choice.
 
 This release continues to target early community testing of the desktop workflow: project planning, assets, scripts, generation jobs, provider configuration, assistant workflows, and rough-cut production flows.
 
 ## Highlights
 
+- Publish the plugin-only `movscript-agent-plugin` package for Agent/provider usage without Desktop.
 - Publish the macOS Apple Silicon / arm64 desktop package.
 - Publish the macOS Intel / x64 desktop package.
 - Publish the Windows x64 desktop package as an installer and portable artifact.
@@ -29,6 +35,7 @@ This release continues to target early community testing of the desktop workflow
 
 - Release readiness check validates the tag against the package version.
 - Package resource contract verification runs as part of the release workflow.
+- The Agent Plugin package is built and attached as a separate release artifact.
 - The macOS and Windows packaged app smoke tests run as part of the release workflow.
 - DMG checksum verification and mounted app verification run as part of the release workflow.
 - SHA256 checksums are attached with the release artifacts.

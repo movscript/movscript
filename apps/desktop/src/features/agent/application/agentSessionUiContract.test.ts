@@ -54,7 +54,7 @@ test('desktop bootstrap does not auto-start a workspace-global provider session'
   assert.doesNotMatch(managedBootstrapSource, new RegExp(['ensure', 'Agent', 'Runtime', 'Running'].join('')))
   assert.doesNotMatch(managedBootstrapSource, new RegExp(['start', 'Agent', 'Runtime', 'On', 'App', 'Ready'].join('')))
   assert.doesNotMatch(managedBootstrapSource, /registerDesktopMCPProviderWithAgent/)
-  assert.match(managedBootstrapSource, /provider sessions will use this backend by default/)
+  assert.match(managedBootstrapSource, /agent runtimes initialize on demand/)
 
   assert.doesNotMatch(settingsIpcSource, new RegExp(['ensure', 'Agent', 'Runtime', 'Running'].join('')))
   assert.doesNotMatch(settingsIpcSource, new RegExp(['get', 'Agent', 'Runtime', 'Launch', 'Policy'].join('')))

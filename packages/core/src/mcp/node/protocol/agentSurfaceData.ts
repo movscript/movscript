@@ -1,5 +1,9 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import {
+  normalizeDomainFocus,
+  type MovScriptNormalizedFocus,
+} from '@movscript/domain'
+import {
   domainDecideContentUnitCandidate,
   domainBuildContentUnitBackendPrompt,
   domainProductionStatusSummary,
@@ -16,12 +20,13 @@ import {
 import { readBody, writeJSON } from './transport.js'
 
 type Args = Record<string, unknown>
+type SurfaceSnapshotTarget = Args & { domain_focus: MovScriptNormalizedFocus }
 type SurfaceSnapshot = {
   schema: 'movscript.agent_surface_snapshot.v1'
   status: 'ok' | 'error'
   surface: string
   generated_at: string
-  target: Args
+  target: SurfaceSnapshotTarget
   data?: Record<string, unknown>
   error?: string
 }
@@ -163,7 +168,7 @@ function okSnapshot(surface: string, args: Args, generatedAt: string, data: Reco
     status: 'ok',
     surface,
     generated_at: generatedAt,
-    target: args,
+    target: agentSurfaceSnapshotTarget(args),
     data,
   }
 }
@@ -174,8 +179,15 @@ function errorSnapshot(surface: string, args: Args, error: unknown): SurfaceSnap
     status: 'error',
     surface,
     generated_at: new Date().toISOString(),
-    target: args,
+    target: agentSurfaceSnapshotTarget(args),
     error: errorMessage(error),
+  }
+}
+
+export function agentSurfaceSnapshotTarget(args: Args): SurfaceSnapshotTarget {
+  return {
+    ...args,
+    domain_focus: normalizeDomainFocus(args),
   }
 }
 

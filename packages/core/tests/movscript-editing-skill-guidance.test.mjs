@@ -55,8 +55,8 @@ test('MovScript editing skill routes product editing through editing tools', () 
   assert.match(source, /task-specific working copy/)
   assert.match(source, /many independent edits, drafts, variants, exports, and candidates/)
   assert.match(source, /Do not use domain planning\/production records as the editing workspace/)
-  assert.match(source, /use `domain_read_production_timeline` only as a production-level material handoff/)
-  assert.match(source, /Do not assume `domain_read_production_edit_plan` or any production-level handoff is the correct default/)
+  assert.match(source, /use `domain_read_production_timeline` only as a legacy production \/ timeline-assembly material handoff/)
+  assert.match(source, /Do not assume `domain_read_production_edit_plan` or any legacy production\/timeline-scope handoff is the correct default/)
   assert.match(source, /Returning an edit to the domain means importing the artifact/)
   assert.match(source, /Bring the completed artifact back explicitly/)
   assert.match(source, /Do not use `timeline_document` or historical third-party fields as the main workflow contract/)
@@ -371,6 +371,58 @@ test('MovScript skills and MCP definitions expose raw-resource candidate registr
   assert.match(domainSkill, /RawResource is the media\/resource body/)
   assert.match(modelUsage, /Default to a direct `scene_moment_ref` content unit/)
   assert.match(modelUsage, /Use `domain_register_raw_resource_as_content_unit_candidate`/)
+})
+
+test('MovScript skills teach namespace planning and legacy production projection boundaries', () => {
+  for (const skillRoot of ['plugins/movscript/skills', 'apps/plugin/skills']) {
+    const planningSkill = readRepoFile(`${skillRoot}/planning/SKILL.md`)
+    const domainSkill = readRepoFile(`${skillRoot}/domain/SKILL.md`)
+    const planningWorkflow = readRepoFile(`${skillRoot}/planning/references/planning-workflows.md`)
+    const entityMapping = readRepoFile(`${skillRoot}/planning/references/entity-mapping.md`)
+    const entityGlossary = readRepoFile(`${skillRoot}/domain/references/entity-glossary.md`)
+    const domainStory = readRepoFile(`${skillRoot}/domain/references/domain-story.md`)
+
+    assert.match(planningSkill, /output\/scope granularity/)
+    assert.match(planningSkill, /timeline namespace scope that needs a `timeline_assembly_ref`/)
+    assert.match(planningSkill, /legacy production\/segment projection writer/)
+    assert.match(planningSkill, /explicit `timeline_assembly_ref` content unit/)
+    assert.doesNotMatch(planningSkill, /production granularity/)
+    assert.doesNotMatch(planningSkill, /segments, or productions/)
+
+    assert.match(domainSkill, /legacy production\/segment projection writer/)
+    assert.match(domainSkill, /explicit `timeline_assembly_ref` content unit/)
+    assert.match(planningWorkflow, /timeline namespace node \(legacy production\/segment projection when needed\)/)
+    assert.match(entityMapping, /legacy `production` \/ `segment` records projected as `timeline_namespace`/)
+    assert.match(entityGlossary, /Timeline namespace nodes organize story\/time structure/)
+    assert.match(domainStory, /Timeline namespace nodes organize story rhythm/)
+    assert.match(domainStory, /`timeline_assembly_ref` is the production target for a namespace scope/)
+  }
+})
+
+test('MovScript generation editing and review skills describe timeline scope and assembly boundaries', () => {
+  for (const skillRoot of ['plugins/movscript/skills', 'apps/plugin/skills']) {
+    const generationSkill = readRepoFile(`${skillRoot}/generation/SKILL.md`)
+    const candidateSelectionFlow = readRepoFile(`${skillRoot}/generation/references/candidate-selection-flow.md`)
+    const editingSkill = readRepoFile(`${skillRoot}/editing/SKILL.md`)
+    const reviewSkill = readRepoFile(`${skillRoot}/review/SKILL.md`)
+
+    assert.match(generationSkill, /outputs anchored to content units, including system primitives and `timeline_assembly_ref` scope outputs/)
+    assert.match(generationSkill, /scene-moment video or timeline assembly/)
+    assert.match(candidateSelectionFlow, /system primitive and timeline assembly outputs/)
+    assert.doesNotMatch(generationSkill, /requested production work/)
+    assert.doesNotMatch(generationSkill, /production outputs anchored to content units/)
+
+    assert.match(editingSkill, /timeline scope\/assembly/)
+    assert.match(editingSkill, /legacy production \/ timeline-assembly material handoff/)
+    assert.match(editingSkill, /legacy production\/timeline-scope handoff/)
+    assert.match(editingSkill, /namespace nodes/)
+    assert.doesNotMatch(editingSkill, /production has one canonical edit/)
+    assert.doesNotMatch(editingSkill, /production-level edit/)
+
+    assert.match(reviewSkill, /generation readiness/)
+    assert.match(reviewSkill, /assembly content unit/)
+    assert.doesNotMatch(reviewSkill, /production readiness/)
+  }
 })
 
 test('MovScript editing skill grants match the MCP editing tools', () => {

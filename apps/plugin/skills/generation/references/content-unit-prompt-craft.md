@@ -55,4 +55,4 @@ Before saving or generating, confirm:
 - Abstract plot language has been converted into visible/audible direction.
 - Characters, setting, props, wardrobe/state, emotion, camera, lighting, and continuity are explicit when relevant.
 - The prompt matches the target content-unit type: storyboard image, keyframe image, asset reference, image edit, or video.
-- Any selected upstream asset/storyboard/keyframe dependency is written as a MovScript semantic ref, not as an unresolved prose mention.
+- Any selected upstream asset/storyboard/keyframe/audio cue dependency is written as a MovScript semantic ref, not as an unresolved prose mention.

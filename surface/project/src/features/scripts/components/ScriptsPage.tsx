@@ -100,8 +100,11 @@ function ScriptsSection({ projectId }: { projectId: number }) {
   useEffect(() => {
     if (hasExplicitSessionSearch || restoredSessionRef.current || !sessionSnapshot || scripts.length === 0) return
     restoredSessionRef.current = true
-    const snapshotScriptId = sessionSnapshot.selection?.primary?.entityType === 'script'
-      ? sessionSnapshot.selection.primary.entityId
+    const primaryScriptId = sessionSnapshot.selection?.primary?.entityType === 'script'
+      ? Number(sessionSnapshot.selection.primary.entityId)
+      : 0
+    const snapshotScriptId = Number.isInteger(primaryScriptId) && primaryScriptId > 0
+      ? primaryScriptId
       : Number(sessionSnapshot.filters?.scriptId) || 0
     if (!snapshotScriptId || !scripts.some((script) => script.ID === snapshotScriptId)) return
     setSelectedId(snapshotScriptId)

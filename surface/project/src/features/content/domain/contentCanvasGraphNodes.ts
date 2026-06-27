@@ -1,4 +1,5 @@
 import type { MovScriptWorkspaceIndexedEntity } from '@movscript/workspace'
+import type { MovScriptDomainNode } from '@movscript/domain'
 import type {
   ContentCanvasCandidate,
   ContentCanvasGenerationTask,
@@ -6,33 +7,14 @@ import type {
   ContentCanvasNodeKind,
   ContentCanvasProjectData,
 } from './contentCanvasTypes'
-
-const KIND_LABELS: Partial<Record<ContentCanvasNodeKind, string>> = {
-  project: '项目',
-  production: '制作',
-  segment: '段落',
-  scene_moment: '情节',
-  storyboard: '分镜图',
-  expression_unit: '表达单元',
-  content_unit: '创作片段',
-  candidate: '候选',
-  selection: '选择',
-  resource: '资源',
-  keyframe: '关键帧',
-  asset: '素材',
-  setting: '设定',
-  state: '状态',
-  audio_cue: '声音',
-  work_item: '工作项',
-  actor: '处理者',
-  group: '分组',
-}
+import { contentCanvasKindLabel } from './contentCanvasDomainPolicy'
 
 export function createContentCanvasEntityNode(
   entity: MovScriptWorkspaceIndexedEntity,
   projectId: number,
   contentUnitCandidates: ContentCanvasProjectData['contentUnitCandidates'],
   generationTaskByTargetNodeId: Map<string, ContentCanvasGenerationTask>,
+  domainNode?: MovScriptDomainNode,
 ): ContentCanvasNode {
   const kind = contentCanvasKind(entity)
   const key = entityKey(entity, projectId)
@@ -46,12 +28,17 @@ export function createContentCanvasEntityNode(
     entityKey: key,
     kind,
     title: titleForEntity(entity, projectId),
-    subtitle: subtitleForEntity(entity),
+    subtitle: subtitleForEntity(entity, domainNode),
     summary: summaryForEntity(entity),
     status: statusForEntity(entity),
     metrics: metricsForEntity(entity, candidates, generationTask),
     sourcePath: entity.path,
     record: entity.record,
+    ...(domainNode ? {
+      domainCategory: domainNode.category,
+      domainKind: domainNode.kind,
+      domainNode,
+    } : {}),
     candidates,
     generationTask,
     position: { x: 0, y: 0 },
@@ -76,7 +63,7 @@ export function contentCanvasKind(entity: MovScriptWorkspaceIndexedEntity): Cont
 export function titleForEntity(entity: MovScriptWorkspaceIndexedEntity, projectId: number) {
   const record = entity.record
   return stringValue(record.title ?? record.name ?? record.label)
-    ?? (entity.entityKind === 'project' ? `Project ${projectId}` : `${kindLabel(contentCanvasKind(entity))} ${entityKey(entity, projectId)}`)
+    ?? (entity.entityKind === 'project' ? `Project ${projectId}` : `${contentCanvasKindLabel(contentCanvasKind(entity))} ${entityKey(entity, projectId)}`)
 }
 
 export function summaryForEntity(entity: MovScriptWorkspaceIndexedEntity) {
@@ -110,22 +97,24 @@ export function compactStrings(...values: unknown[]): string[] {
   })
 }
 
-function subtitleForEntity(entity: MovScriptWorkspaceIndexedEntity) {
+function subtitleForEntity(entity: MovScriptWorkspaceIndexedEntity, domainNode?: MovScriptDomainNode) {
   const kind = contentCanvasKind(entity)
   const record = entity.record
-  if (kind === 'content_unit') return stringValue(record.output_kind ?? record.content_unit_type ?? record.kind) ?? kindLabel(kind)
-  if (kind === 'storyboard') return stringValue(record.slot ?? record.asset_kind ?? record.kind) ?? kindLabel(kind)
-  if (kind === 'expression_unit') return stringValue(record.expression_kind ?? record.kind) ?? kindLabel(kind)
-  if (kind === 'asset') return stringValue(record.kind ?? record.asset_kind ?? record.slot_key) ?? kindLabel(kind)
-  if (kind === 'state') return stringValue(record.state_kind ?? record.kind) ?? kindLabel(kind)
-  if (kind === 'audio_cue') return stringValue(record.cue_kind ?? record.kind) ?? kindLabel(kind)
-  if (kind === 'segment') return stringValue(record.segment_kind ?? record.kind) ?? kindLabel(kind)
-  if (kind === 'setting') return stringValue(record.kind ?? record.setting_kind) ?? kindLabel(kind)
-  return kindLabel(kind)
-}
-
-function kindLabel(kind: ContentCanvasNodeKind): string {
-  return KIND_LABELS[kind] ?? kind
+  if (domainNode?.category === 'timeline_namespace' || domainNode?.category === 'setting_namespace') {
+    return stringValue(domainNode.kind)
+      ?? stringValue(record.namespace_kind ?? record.namespaceKind)
+      ?? contentCanvasKindLabel(kind)
+  }
+  if (kind === 'content_unit') return stringValue(record.output_kind ?? record.content_unit_type ?? record.kind) ?? contentCanvasKindLabel(kind)
+  if (kind === 'storyboard') return stringValue(record.slot ?? record.asset_kind ?? record.kind) ?? contentCanvasKindLabel(kind)
+  if (kind === 'expression_unit') return stringValue(record.expression_kind ?? record.kind) ?? contentCanvasKindLabel(kind)
+  if (kind === 'asset') return stringValue(record.kind ?? record.asset_kind ?? record.slot_key) ?? contentCanvasKindLabel(kind)
+  if (kind === 'state') return stringValue(record.namespace_kind ?? record.namespaceKind ?? record.state_kind ?? record.kind) ?? contentCanvasKindLabel(kind)
+  if (kind === 'audio_cue') return stringValue(record.cue_kind ?? record.kind) ?? contentCanvasKindLabel(kind)
+  if (kind === 'production') return stringValue(record.namespace_kind ?? record.namespaceKind) ?? contentCanvasKindLabel(kind)
+  if (kind === 'segment') return stringValue(record.namespace_kind ?? record.namespaceKind ?? record.segment_kind ?? record.kind) ?? contentCanvasKindLabel(kind)
+  if (kind === 'setting') return stringValue(record.namespace_kind ?? record.namespaceKind ?? record.kind ?? record.setting_kind) ?? contentCanvasKindLabel(kind)
+  return contentCanvasKindLabel(kind)
 }
 
 function metricsForEntity(

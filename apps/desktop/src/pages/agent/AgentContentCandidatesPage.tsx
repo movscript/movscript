@@ -9,7 +9,7 @@ import {
   type AgentCandidateDecisionInput,
 } from '@movscript/project-surface/react'
 import { useAgentMcpApiProxy } from './useAgentMcpApiProxy'
-import { agentSurfaceParams, fetchAgentSurfaceSnapshot, invalidateAgentSurfaceQueries, postAgentSurfaceAction } from './agentSurfaceData'
+import { agentSurfaceKeys, agentSurfaceParams, fetchAgentSurfaceSnapshot, invalidateAgentSurfaceQueries, postAgentSurfaceAction } from './agentSurfaceData'
 
 export default function AgentContentCandidatesPage() {
   const proxy = useAgentMcpApiProxy()
@@ -20,14 +20,14 @@ export default function AgentContentCandidatesPage() {
   const resourceId = proxy.params.get('resourceId') ?? undefined
   const queryParams = useMemo(() => agentSurfaceParams(proxy.params, { projectId, contentUnitId, candidateId, resourceId }), [proxy.params, projectId, contentUnitId, candidateId, resourceId])
   const { data: snapshot, isLoading, error } = useQuery({
-    queryKey: ['agent-surface', 'content-candidates', queryParams],
+    queryKey: agentSurfaceKeys.snapshot('content-candidates', queryParams),
     queryFn: () => fetchAgentSurfaceSnapshot('content-candidates', queryParams),
     enabled: proxy.ready && Boolean(contentUnitId),
   })
   const previewResourceIds = useMemo(() => agentContentCandidateResourceIds(snapshot), [snapshot])
   const resourceQueries = useQueries({
     queries: previewResourceIds.map((id) => ({
-      queryKey: ['agent-surface', 'candidate-resource-preview', id],
+      queryKey: agentSurfaceKeys.candidateResourcePreview(id),
       queryFn: () => api.get<RawResource>(`/resources/${id}`).then((result) => result.data),
       enabled: proxy.ready,
     })),

@@ -104,7 +104,7 @@ export function ProjectAgentContentPanel({
     sessionProjectUid ? projects.find((project) => project.project_uid === sessionProjectUid) : undefined
   ), [projects, sessionProjectUid])
   const ensureProjectQuery = useQuery<Project | null>({
-    queryKey: ['projects', 'ensure-by-uid', currentOrgID ?? 'user', sessionProjectUid, sessionProjectTitle],
+    queryKey: projectKeys.ensureByUid(currentOrgID, sessionProjectUid, sessionProjectTitle),
     queryFn: async () => {
       if (!sessionProjectUid) return null
       const response = await api.post<{ project: Project }>('/projects/ensure', {
@@ -117,8 +117,9 @@ export function ProjectAgentContentPanel({
     retry: false,
   })
   const ensuredProject = ensureProjectQuery.data ?? undefined
+  const ensuredProjectId = positiveInteger(ensuredProject?.ID ?? projectFromList?.ID ?? legacySessionProjectId)
   useQuery({
-    queryKey: ['project-data', 'space-ensure', currentOrgID ?? 'user', currentUser?.ID, sessionProjectUid, positiveInteger(ensuredProject?.ID ?? projectFromList?.ID ?? legacySessionProjectId)],
+    queryKey: projectKeys.spaceEnsure(currentOrgID, currentUser?.ID, sessionProjectUid, ensuredProjectId),
     queryFn: async () => {
       if (!sessionProjectUid || !currentUser?.ID) return null
       const scopeKind = currentOrgID ? 'org' : 'user'
@@ -131,7 +132,7 @@ export function ProjectAgentContentPanel({
       })
       return null
     },
-    enabled: Boolean(sessionProjectUid && currentUser?.ID && positiveInteger(ensuredProject?.ID ?? projectFromList?.ID ?? legacySessionProjectId)),
+    enabled: Boolean(sessionProjectUid && currentUser?.ID && ensuredProjectId),
     retry: false,
   })
   const sessionProjects = useMemo(() => (

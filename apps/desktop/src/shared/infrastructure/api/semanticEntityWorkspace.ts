@@ -1,4 +1,5 @@
 import {
+  type MovScriptWorkspaceService,
   type MovScriptWorkspaceEntityQuery,
   type MovScriptWorkspaceIndexedEntity,
 } from '@movscript/workspace'
@@ -18,6 +19,10 @@ import type {
 } from './semanticEntityTypes'
 
 const workspaceEntityBySemanticRecord = new WeakMap<Record<string, unknown>, MovScriptWorkspaceIndexedEntity>()
+
+type WorkspaceHierarchyWriter = {
+  writeHierarchyNode?: (input: { targetPath: string; record: Record<string, unknown> }) => Promise<unknown>
+}
 
 export async function getWorkspaceProject(projectId: number): Promise<Project> {
   const project = (await createElectronMovScriptWorkspaceService({ projectId }).queryEntities({ entityKind: 'project', limit: 1 }))[0]
@@ -104,6 +109,7 @@ export function semanticRecordFromWorkspaceEntity(entity: MovScriptWorkspaceInde
   else if (entity.id !== undefined) record.id = entity.id
   if (record.project_id === undefined) record.project_id = projectId
   record.__workspace_entity_type = entity.entityKind
+  record.__workspace_path = entity.path
   const semanticRecord = record as SemanticEntityRecord
   workspaceEntityBySemanticRecord.set(semanticRecord, entity)
   return semanticRecord
@@ -165,15 +171,15 @@ export async function writeWorkspaceSemanticEntity(
     return semanticRecordFromWorkspaceWrite(projectId, result.entityKind, result.path, result.record)
   }
   if (kind === 'productions') {
-    const result = await upsertWorkspaceProduction(projectId, record, payload)
+    const result = await upsertWorkspaceProduction(service, projectId, record, payload)
     return semanticRecordFromWorkspaceWrite(projectId, result.entityKind, result.path, result.record)
   }
   if (kind === 'segments') {
-    const result = await upsertWorkspaceSegment(projectId, record, payload)
+    const result = await upsertWorkspaceSegment(service, projectId, record, payload)
     return semanticRecordFromWorkspaceWrite(projectId, result.entityKind, result.path, result.record)
   }
   if (kind === 'sceneMoments') {
-    const result = await upsertWorkspaceSceneMoment(projectId, record, payload)
+    const result = await upsertWorkspaceSceneMoment(service, projectId, record, payload)
     return semanticRecordFromWorkspaceWrite(projectId, result.entityKind, result.path, result.record)
   }
   throw unsupportedWorkspaceSemanticWrite(kind)
@@ -183,6 +189,10 @@ export function workspaceWritableEntityKind(kind: SemanticEntityKind): kind is W
   return kind === 'settings' || kind === 'assetSlots' || kind === 'productions' || kind === 'segments' || kind === 'sceneMoments'
 }
 
+export function workspaceLegacyTimelineWritableEntityKind(kind: SemanticEntityKind): kind is WorkspaceLegacyTimelineWritableEntityKind {
+  return kind === 'productions' || kind === 'segments' || kind === 'sceneMoments'
+}
+
 export type WorkspaceWritableSemanticEntityKind =
   | 'settings'
   | 'assetSlots'
@@ -190,12 +200,22 @@ export type WorkspaceWritableSemanticEntityKind =
   | 'segments'
   | 'sceneMoments'
 
+export type WorkspaceLegacyTimelineWritableEntityKind =
+  | 'productions'
+  | 'segments'
+  | 'sceneMoments'
+
 async function upsertWorkspaceProduction(
+  service: MovScriptWorkspaceService,
   projectId: number,
   record: SemanticEntityRecord | undefined,
   payload: SemanticEntityPayload,
 ): Promise<{ path: string; entityKind: 'production'; record: Record<string, unknown> }> {
   const current = stripWorkspacePrivateFields(record ?? {})
+  const namespaceKind = timelineNamespaceKind(current, payload)
+  if (namespaceKind || isTimelineSourcePath(workspaceRecordPath(record) ?? stringParam(payload.target_path ?? payload.targetPath))) {
+    return writeWorkspaceTimelineNamespaceNode(service, projectId, 'production', current, payload, namespaceKind, workspaceRecordPath(record))
+  }
   const id = stableNumericEntityId(current, payload)
   const now = new Date().toISOString()
   const title = stringParam(payload.title ?? payload.name ?? current.title ?? current.name) ?? `制作 ${id}`
@@ -214,7 +234,7 @@ async function upsertWorkspaceProduction(
     CreatedAt: stringParam(current.CreatedAt ?? current.created_at) ?? now,
     UpdatedAt: now,
   })
-  const result = await createElectronMovScriptWorkspaceService({ projectId }).saveProductionSnapshot({
+  const result = await service.saveProductionSnapshot({
     productionId: id,
     snapshot: {
       production: nextRecord,
@@ -225,11 +245,16 @@ async function upsertWorkspaceProduction(
 }
 
 async function upsertWorkspaceSegment(
+  service: MovScriptWorkspaceService,
   projectId: number,
   record: SemanticEntityRecord | undefined,
   payload: SemanticEntityPayload,
 ): Promise<{ path: string; entityKind: 'segment'; record: Record<string, unknown> }> {
   const current = stripWorkspacePrivateFields(record ?? {})
+  const namespaceKind = timelineNamespaceKind(current, payload)
+  if (namespaceKind || isTimelineSourcePath(workspaceRecordPath(record) ?? stringParam(payload.target_path ?? payload.targetPath))) {
+    return writeWorkspaceTimelineNamespaceNode(service, projectId, 'segment', current, payload, namespaceKind, workspaceRecordPath(record))
+  }
   const productionId = requiredNumericRef(payload.production_id ?? current.production_id, 'production_id')
   const id = stableNumericEntityId(current, payload)
   const now = new Date().toISOString()
@@ -253,7 +278,7 @@ async function upsertWorkspaceSegment(
     CreatedAt: stringParam(current.CreatedAt ?? current.created_at) ?? now,
     UpdatedAt: now,
   })
-  const result = await createElectronMovScriptWorkspaceService({ projectId }).saveProductionSnapshot({
+  const result = await service.saveProductionSnapshot({
     productionId,
     snapshot: {
       segments: [{
@@ -267,6 +292,7 @@ async function upsertWorkspaceSegment(
 }
 
 async function upsertWorkspaceSceneMoment(
+  service: MovScriptWorkspaceService,
   projectId: number,
   record: SemanticEntityRecord | undefined,
   payload: SemanticEntityPayload,
@@ -308,7 +334,7 @@ async function upsertWorkspaceSceneMoment(
     CreatedAt: stringParam(current.CreatedAt ?? current.created_at) ?? now,
     UpdatedAt: now,
   })
-  const result = await createElectronMovScriptWorkspaceService({ projectId }).saveProductionSnapshot({
+  const result = await service.saveProductionSnapshot({
     productionId,
     snapshot: {
       segments: [{
@@ -322,6 +348,139 @@ async function upsertWorkspaceSceneMoment(
   })
   const path = result.writtenPaths.find((path) => path.endsWith('/scene_moment.json')) ?? result.productionPath
   return { path, entityKind: 'scene_moment', record: nextRecord }
+}
+
+async function writeWorkspaceTimelineNamespaceNode<T extends 'production' | 'segment'>(
+  service: MovScriptWorkspaceService,
+  projectId: number,
+  entityKind: T,
+  current: Record<string, unknown>,
+  payload: SemanticEntityPayload,
+  namespaceKind: string | undefined,
+  currentPath: string | undefined,
+): Promise<{ path: string; entityKind: T; record: Record<string, unknown> }> {
+  const writer = (service as MovScriptWorkspaceService & WorkspaceHierarchyWriter).writeHierarchyNode
+  if (!writer) {
+    throw new Error('MovScript workspace hierarchy writer is required for namespace-aware semantic writes')
+  }
+  const id = stringParam(payload.id ?? current.id ?? payload.ID ?? current.ID)
+    ?? `${entityKind}_${Date.now()}`
+  const title = stringParam(payload.title ?? payload.name ?? current.title ?? current.name)
+    ?? (entityKind === 'production' ? `时间线 ${id}` : `层级 ${id}`)
+  const resolvedNamespaceKind = namespaceKind
+    ?? timelineNamespaceKind(current, payload)
+    ?? entityKind
+  const targetPath = timelineNamespaceTargetPath(entityKind, id, current, payload, currentPath)
+  const baseRecord = stripNamespaceNodeForbiddenFields({ ...current, ...payload })
+  const nextRecord = pruneUndefinedRecord({
+    ...baseRecord,
+    schema: `movscript.${entityKind}.v1`,
+    kind: entityKind,
+    entity_kind: entityKind === 'segment' ? 'segment' : undefined,
+    id,
+    ...(numberParam(payload.ID ?? current.ID) !== undefined ? { ID: numberParam(payload.ID ?? current.ID) } : {}),
+    project_id: projectId,
+    title,
+    ...(entityKind === 'production' ? { name: title } : {}),
+    description: stringParam(payload.description ?? current.description),
+    summary: entityKind === 'segment' ? stringParam(payload.summary ?? current.summary ?? payload.description ?? current.description) : undefined,
+    order: numberParam(payload.order ?? current.order),
+    namespace_kind: resolvedNamespaceKind,
+    timeline_namespace_kind: resolvedNamespaceKind,
+    intent: stringParam(payload.intent ?? current.intent),
+    CreatedAt: stringParam(current.CreatedAt ?? current.created_at) ?? new Date().toISOString(),
+    UpdatedAt: new Date().toISOString(),
+  })
+  const result = await writer({ targetPath, record: nextRecord })
+  const resultRecord = isRecord(result) ? result : {}
+  return {
+    path: stringParam(resultRecord.path) ?? targetPath,
+    entityKind,
+    record: recordParam(resultRecord.record) ?? nextRecord,
+  }
+}
+
+function timelineNamespaceTargetPath(
+  entityKind: 'production' | 'segment',
+  id: string,
+  current: Record<string, unknown>,
+  payload: SemanticEntityPayload,
+  currentPath: string | undefined,
+): string {
+  const explicitPath = stringParam(payload.target_path ?? payload.targetPath)
+    ?? (isTimelineSourcePath(currentPath) ? currentPath : undefined)
+  if (explicitPath) return explicitPath
+  if (entityKind === 'production') return `timeline/${safeToken(id)}/production.json`
+  const parentRef = stringParam(
+    payload.timeline_parent_ref
+    ?? payload.timelineParentRef
+    ?? payload.parent_ref
+    ?? payload.parentRef
+    ?? payload.production_id
+    ?? payload.productionId
+    ?? current.production_id
+    ?? current.productionId,
+  )
+  if (!parentRef) {
+    throw new Error('timeline namespace segment writes require target_path or a parent timeline namespace ref')
+  }
+  return `timeline/${safeToken(parentRef)}/segments/${safeToken(id)}/segment.json`
+}
+
+function timelineNamespaceKind(current: Record<string, unknown>, payload: Record<string, unknown>): string | undefined {
+  return stringParam(
+    payload.namespace_kind
+    ?? payload.namespaceKind
+    ?? payload.timeline_namespace_kind
+    ?? payload.timelineNamespaceKind
+    ?? payload.domainKind
+    ?? payload.domain_kind
+    ?? current.namespace_kind
+    ?? current.namespaceKind
+    ?? current.timeline_namespace_kind
+    ?? current.timelineNamespaceKind
+    ?? current.domainKind
+    ?? current.domain_kind,
+  )
+}
+
+function stripNamespaceNodeForbiddenFields(record: Record<string, unknown>): Record<string, unknown> {
+  const output = stripWorkspacePrivateFields(record)
+  for (const key of [
+    'schema',
+    'kind',
+    'entity_kind',
+    'entityKind',
+    'production_id',
+    'productionId',
+    'production_ref',
+    'productionRef',
+    'segment_ref',
+    'segmentRef',
+    'content_unit_ref',
+    'contentUnitRef',
+    'content_unit_refs',
+    'contentUnitRefs',
+    'main_content_unit_id',
+    'mainContentUnitId',
+    'candidates',
+    'selection',
+    'selected_candidate_id',
+    'selectedCandidateId',
+    'selected_resource_id',
+    'selectedResourceId',
+    'resource_id',
+    'resourceId',
+    'target_path',
+    'targetPath',
+    'timeline_parent_ref',
+    'timelineParentRef',
+    'parent_ref',
+    'parentRef',
+  ]) {
+    delete output[key]
+  }
+  return output
 }
 
 export function unsupportedWorkspaceSemanticWrite(kind: SemanticEntityKind): Error {
@@ -360,6 +519,32 @@ function stripWorkspacePrivateFields(record: Record<string, unknown>): Record<st
     output[key] = value
   }
   return output
+}
+
+function workspaceRecordPath(record: SemanticEntityRecord | undefined): string | undefined {
+  return stringParam(record?.__workspace_path ?? record?.workspace_path ?? record?.path)
+    ?? stringParam(record ? workspaceEntityBySemanticRecord.get(record)?.path : undefined)
+}
+
+function isTimelineSourcePath(path: string | undefined): boolean {
+  return Boolean(path?.startsWith('timeline/'))
+}
+
+function safeToken(value: unknown): string {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    || 'item'
+}
+
+function recordParam(value: unknown): Record<string, unknown> | undefined {
+  return isRecord(value) ? value : undefined
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
 function pruneUndefinedRecord<T extends Record<string, unknown>>(record: T): T {

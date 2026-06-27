@@ -18,7 +18,16 @@ export async function listSemanticEntities(
   projectId: number,
   config: SemanticEntityConfig,
 ): Promise<SemanticEntityRecord[]> {
-  const service = createElectronMovScriptWorkspaceService(projectContext(projectId))
+  const context = projectContext(projectId)
+  const namespaceResourceKind = semanticNamespaceResourceKind(config.kind)
+  if (namespaceResourceKind && context.projectDir) {
+    const items = await listProjectResourceItems(context, namespaceResourceKind)
+    return items
+      .filter((item) => semanticNamespaceResourceItemMatchesKind(item, config.kind))
+      .map((item) => semanticRecordFromProjectResourceItem(item, projectId, namespaceResourceKind))
+  }
+
+  const service = createElectronMovScriptWorkspaceService(context)
   if (config.kind === 'settings') {
     return (await service.querySettings({})).map((entity: WorkspaceEntity) => semanticRecordFromWorkspaceEntity(entity, projectId))
   }
@@ -103,6 +112,77 @@ function semanticEntityType(kind: string): string | undefined {
   }[kind]
 }
 
+function semanticNamespaceResourceKind(kind: string): 'timeline-namespaces' | 'setting-namespaces' | undefined {
+  if (kind === 'productions' || kind === 'segments') return 'timeline-namespaces'
+  if (kind === 'settings' || kind === 'settingStates') return 'setting-namespaces'
+  return undefined
+}
+
+async function listProjectResourceItems(
+  context: { projectId: number; projectDir?: string },
+  kind: 'timeline-namespaces' | 'setting-namespaces',
+): Promise<Record<string, unknown>[]> {
+  if (!context.projectDir) return []
+  const response = await fetch('/local-api/project/resources/view', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ projectDir: context.projectDir, kind }),
+  })
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    const record = recordValue(payload)
+    const message = stringValue(record.message) ?? stringValue(record.error) ?? `Project resource view request failed: ${response.status}`
+    throw new Error(message)
+  }
+  const items = recordValue(payload).items
+  return Array.isArray(items) ? items.filter(isRecord) : []
+}
+
+function semanticNamespaceResourceItemMatchesKind(item: Record<string, unknown>, kind: string): boolean {
+  const entityKind = projectResourceItemEntityKind(item)
+  if (kind === 'productions') return entityKind === 'production'
+  if (kind === 'segments') return entityKind === 'segment'
+  if (kind === 'settings') return entityKind === 'setting'
+  if (kind === 'settingStates') return entityKind === 'setting_state'
+  return false
+}
+
+function semanticRecordFromProjectResourceItem(
+  item: Record<string, unknown>,
+  projectId: number,
+  preferredResourceKind: 'timeline-namespaces' | 'setting-namespaces',
+): SemanticEntityRecord {
+  const record = { ...item } as SemanticEntityRecord
+  const numericId = numberValue(record.ID ?? record.id)
+  if (numericId !== undefined) record.ID = numericId
+  if (record.project_id === undefined) record.project_id = projectId
+  const entityKind = projectResourceItemEntityKind(item)
+  if (entityKind) record.__workspace_entity_type = entityKind
+  const path = stringValue(item.path)
+  if (path) record.__workspace_path = path
+  record.domainCategory = stringValue(item.domainCategory ?? item.domain_category ?? item.category)
+  record.domainKind = stringValue(item.domainKind ?? item.domain_kind ?? item.kind)
+  record.legacyAlias = true
+  record.preferredResourceKind = preferredResourceKind
+  return record
+}
+
+function projectResourceItemEntityKind(item: Record<string, unknown>): string | undefined {
+  const metadata = recordValue(item.metadata)
+  const domainNode = recordValue(item.domainNode ?? item.domain_node)
+  return stringValue(item.entityKind ?? item.entity_kind ?? metadata.entityKind ?? metadata.entity_kind ?? domainNode.entityKind ?? domainNode.entity_kind)
+    ?? entityKindFromPath(stringValue(item.path))
+}
+
+function entityKindFromPath(path: string | undefined): string | undefined {
+  if (!path) return undefined
+  if (path.endsWith('/production.json')) return 'production'
+  if (path.endsWith('/segment.json')) return 'segment'
+  if (path.endsWith('/setting.json')) return 'setting'
+  if (path.endsWith('/setting_state.json')) return 'setting_state'
+  return undefined
+}
+
 function semanticRecordFromWorkspaceEntity(entity: WorkspaceEntity, projectId: number): SemanticEntityRecord {
   const record = { ...(entity.record ?? {}) } as SemanticEntityRecord
   const numericId = numberValue(record.ID ?? record.id ?? entity.id)
@@ -129,4 +209,12 @@ function numberValue(value: unknown): number | undefined {
 
 function arrayValue(value: unknown): unknown[] {
   return Array.isArray(value) ? value : []
+}
+
+function recordValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }

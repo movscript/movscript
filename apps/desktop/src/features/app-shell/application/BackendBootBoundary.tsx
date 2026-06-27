@@ -16,6 +16,7 @@ export function BackendBootBoundary() {
   const { pathname } = useLocation()
   const settings = useAppSettingsStore((s) => s.settings)
   const [status, setStatus] = useState<BackendBootStatus | null>(null)
+  const [checkingInitialStatus, setCheckingInitialStatus] = useState(false)
   const [retrying, setRetrying] = useState(false)
   const [startedAt, setStartedAt] = useState<number | null>(null)
   const [progressTick, setProgressTick] = useState(0)
@@ -28,17 +29,50 @@ export function BackendBootBoundary() {
 
     if (!shouldStartLocalBackend) {
       setStatus(null)
+      setCheckingInitialStatus(false)
       setStartedAt(null)
+      setProgressTick(0)
       return () => {
         disposed = true
       }
     }
 
-    setStartedAt(Date.now())
+    setCheckingInitialStatus(true)
+    setStartedAt(null)
     setProgressTick(0)
 
     const updateIfLive = (next: BackendBootStatus) => {
-      if (!disposed) updateBackendStatus(next)
+      if (disposed) return
+      if (next.state === 'ready' || next.state === 'error') {
+        setCheckingInitialStatus(false)
+        setStartedAt(null)
+        setProgressTick(0)
+      }
+      updateBackendStatus(next)
+    }
+
+    const showBootStatus = (next: BackendBootStatus) => {
+      if (disposed) return
+      setCheckingInitialStatus(false)
+      setStartedAt((current) => current ?? Date.now())
+      updateBackendStatus(next)
+    }
+
+    const ensureLocalRuntime = (baseURL: string) => {
+      showBootStatus({ state: 'starting', baseURL, message: i18n.t('backendBoot.startingDescription') })
+      installTimeout()
+      void readElectronApi()?.setAppSettings?.(settings)
+        .then(async () => {
+          const afterStart = await readElectronApi()?.getBackendStatus?.().catch(() => null)
+          if (isBackendBootStatus(afterStart)) updateIfLive(afterStart)
+        })
+        .catch((error) => {
+          updateIfLive({
+            state: 'error',
+            baseURL,
+            message: error instanceof Error ? error.message : String(error),
+          })
+        })
     }
 
     const installTimeout = () => {
@@ -67,9 +101,8 @@ export function BackendBootBoundary() {
     }
 
     if (!canManageLocalBackend()) {
-      updateBackendStatus({ state: 'starting', baseURL: settings.apiBaseURL })
-      installTimeout()
       void probeLocalBackendStatus(settings.apiBaseURL).then((next) => {
+        if (!disposed) setCheckingInitialStatus(false)
         updateIfLive(next)
       })
       return () => {
@@ -89,26 +122,19 @@ export function BackendBootBoundary() {
       }
     })
     void readElectronApi()?.getBackendStatus?.().then((next) => {
-      if (!disposed && isBackendBootStatus(next)) updateBackendStatus(next)
+      if (isBackendBootStatus(next)) updateIfLive(next)
       if (isBackendBootStatus(next) && (next.state === 'ready' || next.state === 'error')) return
-      void probeLocalBackendStatus(isBackendBootStatus(next) ? next.baseURL : settings.apiBaseURL).then((probed) => {
-        if (probed.state === 'ready') updateIfLive(probed)
+      const targetBaseURL = isBackendBootStatus(next) ? next.baseURL : settings.apiBaseURL
+      void probeLocalBackendStatus(targetBaseURL).then((probed) => {
+        if (probed.state === 'ready') {
+          updateIfLive(probed)
+          return
+        }
+        ensureLocalRuntime(targetBaseURL)
       })
-      updateIfLive({ state: 'starting', baseURL: settings.apiBaseURL, message: i18n.t('backendBoot.startingDescription') })
-      installTimeout()
-      void readElectronApi()?.setAppSettings?.(settings)
-        .then(async () => {
-          const afterStart = await readElectronApi()?.getBackendStatus?.().catch(() => null)
-          if (isBackendBootStatus(afterStart)) updateIfLive(afterStart)
-        })
-        .catch((error) => {
-          updateIfLive({
-            state: 'error',
-            baseURL: settings.apiBaseURL,
-            message: error instanceof Error ? error.message : String(error),
-          })
-        })
-    }).catch(() => {})
+    }).catch(() => {
+      ensureLocalRuntime(settings.apiBaseURL)
+    })
     return () => {
       disposed = true
       window.clearTimeout(timeout)
@@ -127,6 +153,7 @@ export function BackendBootBoundary() {
   if (!settings.onboardingCompleted) return null
   if (settings.launchMode !== 'local' || isRecoveryRoute) return null
   if (status?.state === 'ready') return null
+  if (checkingInitialStatus) return null
 
   const displayStatus: BackendBootStatus = status ?? {
     state: 'starting',

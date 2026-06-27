@@ -62,7 +62,7 @@ local-surface-host    # 本机 HTTP/WebView 宿主，供 Plugin fallback、本�
 web-surface-host      # 云端/浏览器宿主，供远程访问、协作和 cloud profile 使用
 ```
 
-Desktop App 的职责是本机 full runtime owner、窗口宿主、项目 focus 管理者和 `desktop-surface-host` owner。Surface 页面本身应归 shared Surface Domain packages。
+Desktop App 的职责是窗口宿主、项目 focus 管理者、`desktop-surface-host` owner 和增强 capability provider。本机 full runtime owner 是 per-user `movscript.local-node` daemon；Desktop 只负责 ensure/attach 这个 daemon。Surface 页面本身应归 shared Surface Domain packages。
 
 Admin 不应再拥有第四种独立 Surface Host，也不再保留独立 `admin-web` service wrapper。Admin 是 `surface/admin` 页面域，可以被 Desktop 内部宿主、`services/local-surface-host` 或 `services/web-surface-host` 挂载。
 

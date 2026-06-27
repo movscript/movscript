@@ -190,6 +190,17 @@ const routeLayoutRegistry: RouteLayoutRegistryEntry[] = [
     notes: 'Content preview is a dedicated review surface with structure and preview-detail panes.',
   }, exact(ROUTES.project.contentPreview)),
   route({
+    routeId: 'project.setting.preview',
+    pathnamePattern: ROUTES.project.settingPreview,
+    kind: 'page',
+    surface: 'project',
+    scrollMode: 'canvas',
+    shellLayout: 'stacked',
+    projectEntryId: 'setting_preview',
+    panes: [...APP_SHELL_PROJECT_PANES, ...CONTENT_CANVAS_WORKBENCH_PANES],
+    notes: 'Setting preview is a dedicated review surface for setting namespace assets, states, and slots.',
+  }, exact(ROUTES.project.settingPreview)),
+  route({
     routeId: 'project.contentLegacy',
     pathnamePattern: ROUTES.project.contentLegacy,
     ...REDIRECT_ROUTE,

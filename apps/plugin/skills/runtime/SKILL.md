@@ -17,7 +17,7 @@ Explicit user or environment policy wins:
 
 - `MOVSCRIPT_PLUGIN_MODE=basic` or `plugin-basic`: start only the launcher and stdio MCP host. Use this for diagnostics or for connecting to an already-owned runtime.
 - `MOVSCRIPT_PLUGIN_MODE=full-local` or `plugin-full-local`: ensure or attach to the local runtime daemon with a local data plane.
-- `MOVSCRIPT_PLUGIN_MODE=desktop` or `plugin-desktop-owned`: compatibility mode; prefer existing local daemon/desktop records but do not treat Desktop as business sidecar owner.
+- `MOVSCRIPT_PLUGIN_MODE=desktop` or `plugin-desktop-compatible`: compatibility mode; prefer existing local daemon/desktop records but do not treat Desktop as business sidecar owner. `plugin-desktop-owned` is accepted only as a legacy alias.
 - `MOVSCRIPT_PLUGIN_MODE=cloud`: connect to cloud or external runtime endpoints when configured.
 - `MOVSCRIPT_LOCAL_DAEMON_DATA_PLANE=local|cloud|external`: controls whether the local daemon starts local Data Service or uses cloud/external Data Service while still starting local Project/Editing/Canvas/Surface/Media services.
 - The plugin bundle exposes the command-line daemon entrypoint: `bin/movscript daemon start|status|stop|restart`. `bin/movcli` is a compatibility command name backed by the same plugin bundle. The older `bin/movscript-agent-mcp local-node ...` form is a compatibility alias.

@@ -1,7 +1,14 @@
 import type { CSSProperties } from 'react'
 import type { ContentCanvasEdge, ContentCanvasNode, ContentCanvasNodeKind } from '../domain/contentCanvasTypes'
+import {
+  contentCanvasKindLabel,
+  contentCanvasNodeDisplayKind,
+  contentCanvasNodeIsNamespace,
+} from '../domain/contentCanvasDomainPolicy'
 
-export const CONTENT_CANVAS_FILTERS: Array<{ kind: ContentCanvasNodeKind | 'all'; label: string }> = [
+export type ContentCanvasFilterOption = { kind: ContentCanvasNodeKind | 'all'; label: string }
+
+export const CONTENT_CANVAS_FILTERS: ContentCanvasFilterOption[] = [
   { kind: 'all', label: '全部' },
   { kind: 'production', label: '制作' },
   { kind: 'segment', label: '段落' },
@@ -21,6 +28,25 @@ export const CONTENT_CANVAS_FILTERS: Array<{ kind: ContentCanvasNodeKind | 'all'
   { kind: 'actor', label: '处理者' },
   { kind: 'group', label: '分组' },
 ]
+
+export function contentCanvasFilterOptionsForNodes(nodes: readonly ContentCanvasNode[]): ContentCanvasFilterOption[] {
+  const namespaceLabelsByKind = new Map<ContentCanvasNodeKind, Set<string>>()
+  for (const node of nodes) {
+    if (!contentCanvasNodeIsNamespace(node)) continue
+    const labels = namespaceLabelsByKind.get(node.kind) ?? new Set<string>()
+    labels.add(contentCanvasNodeDisplayKind(node))
+    namespaceLabelsByKind.set(node.kind, labels)
+  }
+  return CONTENT_CANVAS_FILTERS.map((filter) => {
+    if (filter.kind === 'all') return filter
+    const namespaceLabels = namespaceLabelsByKind.get(filter.kind)
+    if (!namespaceLabels?.size) return { ...filter, label: kindLabel(filter.kind) }
+    return {
+      ...filter,
+      label: compactNamespaceFilterLabels([...namespaceLabels]),
+    }
+  })
+}
 
 export function editPromptText(node: ContentCanvasNode): string {
   const prompt = node.record.edit_prompt ?? node.record.editPrompt ?? node.record.prompt
@@ -56,25 +82,7 @@ export function countByKind(nodes: ContentCanvasNode[]) {
 }
 
 export function kindLabel(kind: ContentCanvasNodeKind) {
-  if (kind === 'project') return '项目'
-  if (kind === 'production') return '制作'
-  if (kind === 'segment') return '段落'
-  if (kind === 'scene_moment') return '情节'
-  if (kind === 'storyboard') return '分镜图'
-  if (kind === 'expression_unit') return '表达单元'
-  if (kind === 'content_unit') return '创作片段'
-  if (kind === 'candidate') return '候选'
-  if (kind === 'selection') return '选择'
-  if (kind === 'resource') return '资源'
-  if (kind === 'keyframe') return '关键帧'
-  if (kind === 'asset') return '素材'
-  if (kind === 'setting') return '设定'
-  if (kind === 'state') return '状态'
-  if (kind === 'audio_cue') return '声音'
-  if (kind === 'work_item') return '工作项'
-  if (kind === 'actor') return '处理者'
-  if (kind === 'group') return '分组'
-  return '设定'
+  return contentCanvasKindLabel(kind)
 }
 
 export function kindShortCode(kind: ContentCanvasNodeKind) {
@@ -346,4 +354,11 @@ export function hexToRgba(hex: string, alpha: number): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function compactNamespaceFilterLabels(labels: string[]): string {
+  const sorted = [...new Set(labels.map((label) => label.trim()).filter(Boolean))]
+    .sort((left, right) => left.localeCompare(right, 'zh-CN'))
+  if (sorted.length <= 2) return sorted.join(' / ')
+  return `${sorted.slice(0, 2).join(' / ')} +${sorted.length - 2}`
 }

@@ -65,7 +65,9 @@ export default function ContentCanvasWorkspacePage({
           onCreateProduction={controller.openProductionCreateDialog}
           onCreateStructureChild={controller.openStructureChildCreateDialog}
           paneLayout={paneLayout}
-          tree={viewModel.tree}
+          scope={viewModel.previewScope}
+          tree={viewModel.previewTree}
+          viewKind={viewModel.previewScope.kind}
           onSelectStructureNode={controller.selectStructureNode}
         />
       ) : null}
@@ -76,6 +78,7 @@ export default function ContentCanvasWorkspacePage({
           candidateSelections={controller.candidateSelections}
           graphIndex={viewModel.graphIndex}
           nodes={workspaceNodes}
+          previewScope={viewModel.previewScope}
         />
       ) : (
         <ContentPromptCanvasPanel
@@ -89,6 +92,7 @@ export default function ContentCanvasWorkspacePage({
           focusRequest={controller.creativeCanvasFocusRequest}
           focusedNodeId={controller.activeCanvasNodeId}
           manualPositions={controller.creativeCanvasNodePositions}
+          namespaceVocabulary={controller.namespaceVocabulary}
           savedViewport={controller.creativeCanvasViewport}
           nodes={workspaceNodes}
           onAddNodeToCanvas={controller.addNodeToCreativeCanvas}
@@ -101,6 +105,7 @@ export default function ContentCanvasWorkspacePage({
           onCanvasDeselect={controller.clearCanvasSelection}
           onClearManualPositions={controller.clearCreativeCanvasManualPositions}
           onClearManualPositionsForNodes={controller.clearCreativeCanvasManualPositionsForNodes}
+          onCreateAssembly={controller.createTimelineAssemblyForNamespace}
           onCreateChild={controller.openCreativeCanvasCreateChild}
           onCreateCanvas={controller.createFreeCreativeCanvasDocument}
           onCreateNode={controller.createCreativeCanvasNode}
@@ -125,6 +130,7 @@ export default function ContentCanvasWorkspacePage({
           draftAssetPrompts={controller.draftAssetPrompts}
           draftExpressionPrompts={controller.draftExpressionPrompts}
           createSelection={controller.createSelection}
+          namespaceVocabulary={controller.namespaceVocabulary}
           paneLayout={paneLayout}
           promptReferenceNodes={viewModel.scenePromptReferenceNodes}
           selection={viewModel.inspectorSelection}
@@ -150,6 +156,7 @@ export default function ContentCanvasWorkspacePage({
       <StructureCreateDialog
         state={controller.structureCreateDialog}
         isBusy={Boolean(controller.pendingCanvasAction?.startsWith('structure-'))}
+        namespaceVocabulary={controller.namespaceVocabulary}
         onClose={controller.closeStructureCreateDialog}
         onSubmit={controller.submitStructureCreateDialog}
       />
@@ -157,6 +164,7 @@ export default function ContentCanvasWorkspacePage({
       <SettingCreateDialog
         state={controller.settingCreateDialog}
         isBusy={Boolean(controller.pendingCanvasAction?.startsWith('root-setting'))}
+        namespaceVocabulary={controller.namespaceVocabulary}
         onClose={controller.closeSettingCreateDialog}
         onSubmit={controller.submitSettingCreateDialog}
       />

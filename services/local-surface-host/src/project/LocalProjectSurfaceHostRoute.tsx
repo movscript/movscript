@@ -3,11 +3,10 @@ import { Link, Navigate, useLocation } from 'react-router-dom'
 import { FolderArchive } from 'lucide-react'
 import { Button } from '@movscript/ui/primitives'
 import {
-  arrayValue,
   recordValue,
-  stringValue,
   type AgentSurfaceSnapshot,
 } from '@movscript/project-surface/data'
+import type { MovScriptNormalizedFocus } from '@movscript/domain'
 import {
   ProjectSurfaceProvider,
   ProjectSurfaceRouteView,
@@ -30,6 +29,7 @@ import {
   projectRouteContext,
 } from '../routes/localRouteLinks.js'
 import { ROUTES } from '../routes/projectRoutes.js'
+import { projectReadModelToStatusSnapshot } from './projectStatusSnapshot.js'
 
 type ProjectReadModelState =
   | { status: 'idle'; snapshot?: undefined; readModel?: undefined; error?: undefined }
@@ -131,6 +131,7 @@ function ProjectSurfaceHostView({
   const projectReadModel = useProjectReadModel({
     runtime: projectSurfaceRuntime,
     productionId: routeContext.productionId,
+    domainFocus: routeContext.domainFocus,
   })
 
   useEffect(() => {
@@ -169,8 +170,14 @@ function ProjectSurfaceHostView({
   }, [query, routeContext.projectDir, routeContext.projectId])
 
   let content: React.ReactNode
-  if (routeContext.route?.key === 'content') {
-    content = <ContentCanvasWorkspacePage />
+  if (routeContext.route?.key === 'contentCanvas') {
+    content = <ContentCanvasWorkspacePage mode="canvas" />
+  } else if (
+    routeContext.route?.key === 'content'
+    || routeContext.route?.key === 'contentPreview'
+    || routeContext.route?.key === 'settingPreview'
+  ) {
+    content = <ContentCanvasWorkspacePage mode="preview" />
   } else if (routeContext.route?.key === 'overview') {
     content = <ProjectOverviewPage />
   } else if (routeContext.route) {
@@ -224,9 +231,11 @@ function localNumericProjectId(projectId: string, projectDir: string): number {
 function useProjectReadModel({
   runtime,
   productionId,
+  domainFocus,
 }: {
   runtime: ReturnType<typeof createLocalHostProjectSurfaceRuntime>
   productionId?: string
+  domainFocus?: MovScriptNormalizedFocus
 }): ProjectReadModelState {
   const [state, setState] = useState<ProjectReadModelState>({ status: 'idle' })
 
@@ -252,6 +261,7 @@ function useProjectReadModel({
             projectId,
             projectDir,
             productionId,
+            domainFocus,
           }),
         })
       })
@@ -263,120 +273,7 @@ function useProjectReadModel({
     return () => {
       cancelled = true
     }
-  }, [runtime, productionId])
+  }, [runtime, productionId, domainFocus])
 
   return state
-}
-
-function projectReadModelToStatusSnapshot({
-  readModel,
-  projectId,
-  projectDir,
-  productionId,
-}: {
-  readModel: ProjectReadModelResponse
-  projectId: string
-  projectDir: string
-  productionId?: string
-}): AgentSurfaceSnapshot {
-  const model = recordValue(readModel.projectReadModel) ?? {}
-  return {
-    schema: 'movscript.agent_surface_snapshot.v1',
-    status: 'ok',
-    surface: 'project.status',
-    generated_at: new Date().toISOString(),
-    target: {
-      project_id: projectId,
-      project_dir: projectDir,
-      ...(productionId ? { production_id: productionId } : {}),
-    },
-    data: {
-      project_read_model: model,
-      status_summary: projectReadModelToStatusSummary(model, {
-        projectId,
-        productionId,
-      }),
-    },
-  }
-}
-
-function projectReadModelToStatusSummary(
-  model: Record<string, unknown>,
-  target: { projectId: string; productionId?: string },
-): Record<string, unknown> {
-  const overview = recordValue(model.overview)
-  const workspace = recordValue(model.workspace) ?? recordValue(overview?.workspace)
-  const productionSummary = recordValue(model.productionSummary ?? overview?.production)
-  const contentSummary = recordValue(model.contentSummary ?? overview?.content)
-  const readiness = recordValue(model.readiness ?? overview?.readiness)
-  const contentUnits = readModelContentUnits(contentSummary, readiness)
-  const productionItems = arrayValue(productionSummary?.items ?? productionSummary?.productions ?? productionSummary?.productionItems)
-  const firstProduction = recordValue(productionItems[0])
-  const productionId = target.productionId
-    ?? stringValue(firstProduction?.production_id ?? firstProduction?.productionId ?? firstProduction?.id)
-    ?? stringValue(workspace?.productionId ?? workspace?.production_id)
-    ?? 'default'
-
-  return {
-    schema: 'movscript.production_status_summary.v1',
-    project_id: target.projectId,
-    productions: [
-      {
-        production_id: productionId,
-        title: stringValue(firstProduction?.title ?? firstProduction?.name)
-          ?? stringValue(workspace?.title)
-          ?? target.projectId,
-        content_units: contentUnits,
-        blocking_refs: arrayValue(readiness?.blocking_refs ?? readiness?.blockingRefs),
-        stale_status: stringValue(model.status ?? overview?.status) ?? 'unknown',
-        job_status: stringValue(readiness?.job_status ?? readiness?.jobStatus) ?? 'not_tracked_in_project_read_model',
-      },
-    ],
-  }
-}
-
-function readModelContentUnits(
-  contentSummary: Record<string, unknown> | undefined,
-  readiness: Record<string, unknown> | undefined,
-): Record<string, unknown>[] {
-  const items = arrayValue(
-    contentSummary?.items
-      ?? contentSummary?.content_units
-      ?? contentSummary?.contentUnits
-      ?? readiness?.content_units
-      ?? readiness?.contentUnits,
-  )
-  return items.map((item, index) => readModelContentUnit(recordValue(item) ?? { value: item }, index))
-}
-
-function readModelContentUnit(unit: Record<string, unknown>, index: number): Record<string, unknown> {
-  const contentUnitId = stringValue(unit.content_unit_id ?? unit.contentUnitId ?? unit.id ?? unit.uid)
-    ?? `content-unit-${index + 1}`
-  const candidateIds = arrayValue(unit.candidate_ids ?? unit.candidateIds ?? unit.candidates)
-    .map((candidate) => stringValue(recordValue(candidate)?.id ?? recordValue(candidate)?.candidate_id ?? candidate))
-    .filter((value): value is string => Boolean(value))
-  const selectedCandidate = stringValue(
-    unit.selected_candidate
-      ?? unit.selectedCandidate
-      ?? recordValue(unit.selection)?.candidate_id
-      ?? recordValue(unit.selection)?.candidateId,
-  )
-  const selectedResource = stringValue(
-    unit.selected_resource
-      ?? unit.selectedResource
-      ?? recordValue(unit.selection)?.resource_id
-      ?? recordValue(unit.selection)?.resourceId,
-  )
-  const candidateCount = Number(unit.candidate_count ?? unit.candidateCount ?? candidateIds.length)
-
-  return {
-    content_unit_id: contentUnitId,
-    title: stringValue(unit.title ?? unit.name) ?? contentUnitId,
-    output_kind: stringValue(unit.output_kind ?? unit.outputKind ?? unit.kind ?? unit.type) ?? 'unknown',
-    candidate_count: Number.isFinite(candidateCount) ? candidateCount : candidateIds.length,
-    ...(selectedCandidate ? { selected_candidate: selectedCandidate } : {}),
-    ...(selectedResource ? { selected_resource: selectedResource } : {}),
-    blocking_refs: arrayValue(unit.blocking_refs ?? unit.blockingRefs),
-    candidate_ids: candidateIds,
-  }
 }

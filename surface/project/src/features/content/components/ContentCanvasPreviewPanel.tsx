@@ -4,7 +4,7 @@ import { Film, Image as ImageIcon } from 'lucide-react'
 import { ResourceFileImage, ResourceFileVideo } from '@movscript/resource-surface/resource-media-components'
 
 import type { ContentCanvasCandidate, ContentCanvasNode } from '../domain/contentCanvasTypes'
-import type { CandidateSelections } from './contentCanvasWorkspaceTypes'
+import type { CandidateSelections, ContentCanvasPreviewScope } from './contentCanvasWorkspaceTypes'
 import { contentCanvasGenerationTargetForNode } from './contentCanvasWorkspaceGenerationModel'
 import { contentCanvasWorkspaceIndex } from './contentCanvasWorkspaceGraphModel'
 import {
@@ -29,17 +29,20 @@ export function ContentCanvasPreviewPanel({
   candidateSelections,
   graphIndex,
   nodes,
+  previewScope,
 }: {
   activeNode: ContentCanvasNode | null
   candidateSelections: CandidateSelections
   graphIndex: ReturnType<typeof contentCanvasWorkspaceIndex>
   nodes: ContentCanvasNode[]
+  previewScope: ContentCanvasPreviewScope
 }) {
-  const previewNode = activeNode ?? firstPreviewNode(nodes)
+  const previewNode = activeNode ?? previewScope.rootNode ?? firstPreviewNode(nodes, previewScope.kind)
   const previewRows = useMemo(
     () => previewTargetRows(previewNode, graphIndex, candidateSelections),
     [candidateSelections, graphIndex, previewNode],
   )
+  const emptyCopy = previewEmptyCopy(previewScope)
   const defaultRow = previewRows.find((row) => row.selected && row.candidate)
     ?? previewRows.find((row) => row.candidate)
     ?? previewRows[0]
@@ -47,6 +50,7 @@ export function ContentCanvasPreviewPanel({
   const [previewRowId, setPreviewRowId] = useState<string | null>(null)
   const previewRow = previewRows.find((row) => row.id === previewRowId) ?? defaultRow
   const previewCandidate = previewRow?.candidate ?? null
+  const scopeRoot = previewScope.kind === 'mixed' ? null : previewScope.rootNode
 
   useEffect(() => {
     setPreviewRowId(null)
@@ -54,6 +58,15 @@ export function ContentCanvasPreviewPanel({
 
   return (
     <main className="content-canvas-preview-panel" aria-label="创作预览">
+      {scopeRoot ? (
+        <header className="content-canvas-preview-scope-header">
+          <span>
+            <strong>{scopeRoot.title}</strong>
+            <small>{previewScopeLabel(previewScope)}</small>
+          </span>
+          <em>{scopeRoot.sourcePath || scopeRoot.id}</em>
+        </header>
+      ) : null}
       <section className="content-canvas-preview-player" aria-label="预览播放器">
         <div className="content-canvas-preview-player__screen">
           {previewCandidate ? (
@@ -61,8 +74,8 @@ export function ContentCanvasPreviewPanel({
           ) : (
             <div className="content-canvas-preview-player__empty">
               <Film size={42} aria-hidden="true" />
-              <strong>{previewRow?.node.title ?? previewNode?.title ?? '暂无预览目标'}</strong>
-              <span>{previewNode ? '当前节点还没有可预览候选。' : '从左侧结构选择一个创作节点开始预览。'}</span>
+              <strong>{previewRow?.node.title ?? previewNode?.title ?? emptyCopy.title}</strong>
+              <span>{previewNode ? emptyCopy.nodeEmptyText : emptyCopy.emptyText}</span>
             </div>
           )}
         </div>
@@ -97,12 +110,18 @@ export function ContentCanvasPreviewPanel({
         )) : (
           <div className="content-canvas-preview-candidates__empty">
             <ImageIcon size={18} aria-hidden="true" />
-            <span>当前结构下暂无可预览节点。</span>
+            <span>{emptyCopy.candidatesEmptyText}</span>
           </div>
         )}
       </section>
     </main>
   )
+}
+
+function previewScopeLabel(scope: ContentCanvasPreviewScope): string {
+  if (scope.kind === 'production') return '制作预览'
+  if (scope.kind === 'setting') return '设定预览'
+  return '项目预览'
 }
 
 function CandidatePreviewMedia({
@@ -195,9 +214,50 @@ function previewTargetRow(node: ContentCanvasNode, candidateSelections: Candidat
   }
 }
 
-function firstPreviewNode(nodes: ContentCanvasNode[]): ContentCanvasNode | null {
+function firstPreviewNode(
+  nodes: ContentCanvasNode[],
+  defaultScope: ContentCanvasPreviewScope['kind'],
+): ContentCanvasNode | null {
+  if (defaultScope === 'production') {
+    const productionNode = nodes.find((node) => node.kind === 'production')
+    if (productionNode) return productionNode
+  }
+  if (defaultScope === 'setting') {
+    const settingNode = nodes.find((node) => node.kind === 'setting')
+    if (settingNode) return settingNode
+  }
   return nodes.find((node) => {
     const target = contentCanvasGenerationTargetForNode(node)
     return Boolean(target?.candidates.length)
   }) ?? nodes.find((node) => Boolean(contentCanvasGenerationTargetForNode(node))) ?? null
+}
+
+function previewEmptyCopy(scope: ContentCanvasPreviewScope): {
+  title: string
+  emptyText: string
+  nodeEmptyText: string
+  candidatesEmptyText: string
+} {
+  if (scope.kind === 'production') {
+    return {
+      title: '请选择 Production',
+      emptyText: '从项目首页选择一个 production 进入独立预览。',
+      nodeEmptyText: '当前 production 节点还没有可预览候选。',
+      candidatesEmptyText: '当前 production 下暂无可预览 scene moment。',
+    }
+  }
+  if (scope.kind === 'setting') {
+    return {
+      title: '暂无设定预览目标',
+      emptyText: '从左侧选择一个 setting、state 或 asset 查看资源。',
+      nodeEmptyText: '当前设定节点还没有可预览候选。',
+      candidatesEmptyText: '当前 setting 下暂无可预览 asset。',
+    }
+  }
+  return {
+    title: '暂无预览目标',
+    emptyText: '从左侧结构选择一个创作节点开始预览。',
+    nodeEmptyText: '当前节点还没有可预览候选。',
+    candidatesEmptyText: '当前结构下暂无可预览节点。',
+  }
 }

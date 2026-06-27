@@ -1,6 +1,10 @@
 import { Box, Building2, CircleDot, FileImage, Film, Image, KeyRound, Palette, Rows3, ScrollText, Shirt, SquareStack, Star, TextCursorInput, UserRound, WandSparkles, type LucideIcon } from 'lucide-react'
 import type { ContentCanvasNodePosition } from '../application/contentCanvasViewState'
 import type { ContentCanvasEdge, ContentCanvasWorkspaceSnapshot, ContentCanvasNode, ContentCanvasNodeKind } from '../domain/contentCanvasTypes'
+import {
+  contentCanvasKindCode,
+  contentCanvasNodeDisplayCode,
+} from '../domain/contentCanvasDomainPolicy'
 import { CANVAS_WORLD_HEIGHT, CANVAS_WORLD_WIDTH, SCENE_RELATION_RADIUS_X, SCENE_RELATION_RADIUS_Y, type InspectorSelection, type InspectorSelectionRef, type RadialNode, type SceneSettingGroup } from './contentCanvasWorkspaceTypes'
 
 export const SCENE_MAIN_NODE: RadialNode = {
@@ -180,7 +184,7 @@ export function radialNodeFromContentNode(node: ContentCanvasNode, x: number, y:
   const Icon = iconForContentNode(node)
   return {
     id: node.id,
-    code: contentCanvasCodeForKind(node.kind),
+    code: contentCanvasNodeDisplayCode(node),
     title: node.title,
     description: node.summary || node.subtitle || node.sourcePath,
     x,
@@ -348,12 +352,5 @@ export function iconForContentNode(node: Pick<ContentCanvasNode, 'kind' | 'subti
 }
 
 export function contentCanvasCodeForKind(kind: ContentCanvasNodeKind) {
-  if (kind === 'scene_moment') return 'SCN'
-  if (kind === 'production') return 'PRO'
-  if (kind === 'segment') return 'SEG'
-  if (kind === 'expression_unit') return 'EXP'
-  if (kind === 'content_unit') return 'UNIT'
-  if (kind === 'storyboard') return 'BOARD'
-  if (kind === 'keyframe') return 'KEY'
-  return kind.toUpperCase().slice(0, 5)
+  return contentCanvasKindCode(kind)
 }

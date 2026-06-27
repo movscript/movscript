@@ -5,6 +5,7 @@ import { api } from '@/shared/infrastructure/api'
 import type { RawResource } from '@/types'
 import { AgentResourceDetailSurface } from '@movscript/resource-surface/react'
 import { useAgentMcpApiProxy } from './useAgentMcpApiProxy'
+import { agentSurfaceKeys } from './agentSurfaceData'
 
 interface ResourceUsageSummary {
   resource_id: number
@@ -25,12 +26,12 @@ export default function AgentResourceDetailPage() {
   const resourceId = numberParam(routeParams.resourceId) ?? numberParam(proxy.params.get('resourceId'))
 
   const { data: resource, isLoading, error } = useQuery<RawResource | undefined>({
-    queryKey: ['agent-surface', 'resource-detail', resourceId],
+    queryKey: agentSurfaceKeys.resourceDetail(resourceId),
     queryFn: () => api.get<RawResource>(`/resources/${resourceId}`).then((result) => result.data),
     enabled: proxy.ready && resourceId !== undefined,
   })
   const { data: usages, isLoading: usagesLoading } = useQuery<ResourceUsageSummary>({
-    queryKey: ['agent-surface', 'resource-usages', resourceId],
+    queryKey: agentSurfaceKeys.resourceUsages(resourceId),
     queryFn: () => api.get<ResourceUsageSummary>(`/resources/${resourceId}/usages`).then((result) => result.data),
     enabled: proxy.ready && resourceId !== undefined,
   })

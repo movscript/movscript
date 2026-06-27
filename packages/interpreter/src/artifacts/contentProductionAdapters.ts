@@ -11,6 +11,11 @@ import type {
   NormalizedContentUnitPrompt,
 } from './contentProductionTypes.js'
 import {
+  contentUnitTargetAdapterFor,
+  contentUnitTargetValidationDiagnostics,
+  MOVSCRIPT_SPECIALIZED_CONTENT_UNIT_TYPES,
+} from '@movscript/domain'
+import {
   contentUnitOutputKind,
   entityDir,
   expectedOutputKindForContentUnitType,
@@ -19,6 +24,7 @@ import {
   idField,
   isRecord,
   parseContentUnitEditPromptRefs,
+  parseUnsupportedContentUnitEditPromptRefs,
   primaryContentUnitRefs,
   primaryRefFieldNameForKind,
   projectStyleReferenceResourceIds,
@@ -31,16 +37,9 @@ import {
   stringField,
 } from './contentProductionHelpers.js'
 
-const CONTENT_UNIT_ADAPTERS: Record<string, ContentUnitAdapter> = {
-  production_ref: refAdapter('production_ref', 'production', 'video'),
-  segment_ref: refAdapter('segment_ref', 'segment', 'video'),
-  asset_ref: refAdapter('asset_ref', 'asset', 'image'),
-  keyframe_ref: refAdapter('keyframe_ref', 'keyframe', 'image'),
-  storyboard_ref: refAdapter('storyboard_ref', 'storyboard', 'image'),
-  scence_moment_ref: refAdapter('scence_moment_ref', 'scene_moment', 'video'),
-  scene_moment_ref: refAdapter('scene_moment_ref', 'scene_moment', 'video'),
-  expression_unit_ref: expressionUnitAdapter(),
-}
+const CONTENT_UNIT_ADAPTERS: Record<string, ContentUnitAdapter> = Object.fromEntries(
+  MOVSCRIPT_SPECIALIZED_CONTENT_UNIT_TYPES.map((contentUnitType) => [contentUnitType, specializedAdapter(contentUnitType)]),
+)
 
 export function hasSpecializedContentUnitAdapter(contentUnitType: unknown): boolean {
   return typeof contentUnitType === 'string' && CONTENT_UNIT_ADAPTERS[contentUnitType] !== undefined
@@ -50,13 +49,21 @@ export function contentUnitAdapterFor(contentUnitType: string): ContentUnitAdapt
   return CONTENT_UNIT_ADAPTERS[contentUnitType] ?? genericAdapter(contentUnitType)
 }
 
+function specializedAdapter(contentUnitType: string): ContentUnitAdapter {
+  if (contentUnitType === 'timeline_assembly_ref') return timelineAssemblyAdapter()
+  if (contentUnitType === 'expression_unit_ref') return expressionUnitAdapter()
+  const targetAdapter = contentUnitTargetAdapterFor(contentUnitType)
+  if (!targetAdapter?.primaryRefKind || !targetAdapter.outputKind) return genericAdapter(contentUnitType)
+  return refAdapter(targetAdapter.contentUnitType, targetAdapter.primaryRefKind, targetAdapter.outputKind)
+}
+
 function genericAdapter(contentUnitType: string): ContentUnitAdapter {
   return {
     type: contentUnitType,
     version: 'generic_prompt@1',
     outputKind: 'metadata',
-    validate() {
-      return []
+    validate(context) {
+      return contentUnitTargetIssues(context.contentUnit.record)
     },
     derivePrompt(context) {
       return basePrompt(context, {
@@ -85,7 +92,7 @@ function refAdapter(
     version: `${type}@2`,
     outputKind,
     validate(context) {
-      const issues: ContentUnitDependencyReport['issues'] = []
+      const issues: ContentUnitDependencyReport['issues'] = contentUnitTargetIssues(context.contentUnit.record)
       const expectedOutputKind = expectedOutputKindForContentUnitType(type)
       if (expectedOutputKind && context.contentUnit.record.output_kind !== expectedOutputKind) {
         issues.push({ severity: 'error', message: `${type} output_kind must be ${expectedOutputKind}` })
@@ -134,6 +141,40 @@ function refAdapter(
   }
 }
 
+function contentUnitTargetIssues(record: Record<string, unknown>): ContentUnitDependencyReport['issues'] {
+  return contentUnitTargetValidationDiagnostics(record)
+    .map((diagnostic) => ({ severity: diagnostic.severity, message: diagnostic.message }))
+}
+
+function timelineAssemblyAdapter(): ContentUnitAdapter {
+  return {
+    type: 'timeline_assembly_ref',
+    version: 'timeline_assembly_ref@1',
+    outputKind: 'video',
+    validate(context) {
+      const issues: ContentUnitDependencyReport['issues'] = contentUnitTargetIssues(context.contentUnit.record)
+      if (context.contentUnit.record.output_kind !== 'video') {
+        issues.push({ severity: 'error', message: 'timeline_assembly_ref output_kind must be video' })
+      }
+      return issues
+    },
+    derivePrompt(context) {
+      return basePrompt(context, {
+        adapterVersion: this.version,
+        outputKind: 'video',
+        primaryKind: undefined,
+        blockers: [],
+      })
+    },
+    collectDependencies(_context, prompt) {
+      return dependenciesFromPrompt(prompt)
+    },
+    deriveRuntimePanel(context, derivation) {
+      return runtimePanelFor(context, this.version, derivation.prompt)
+    },
+  }
+}
+
 function expressionUnitAdapter(): ContentUnitAdapter {
   return {
     ...refAdapter('expression_unit_ref', 'expression_unit', 'metadata'),
@@ -170,6 +211,7 @@ function basePrompt(
 ): NormalizedContentUnitPrompt {
   const editPrompt = normalizedEditPrompt(context.contentUnit.record.edit_prompt)
   const refs = parseContentUnitEditPromptRefs(context.contentUnit.record.edit_prompt)
+  const unsupportedRefs = parseUnsupportedContentUnitEditPromptRefs(context.contentUnit.record.edit_prompt)
   const resolved = resolvePromptRefs(context.index, refs, options.primaryKind)
   const resolvedRefs = resolved.refs.map((ref) => annotateInputSelectionStatus(context, ref))
   const modelIntent = recordField(context.contentUnit.record.model_intent)
@@ -188,7 +230,15 @@ function basePrompt(
       provider_asset: ref.selection?.provider_asset,
       required: true,
     }))
-  const blockers = [...options.blockers, ...inputBlockers(context, resolvedRefs)]
+  const blockers = [
+    ...options.blockers,
+    ...unsupportedRefs.map((ref) => ({
+      code: 'unsupported_prompt_ref_kind' as const,
+      ref: ref.raw,
+      message: `unsupported prompt ref kind "${ref.kind}": ${ref.raw}. Use system primitive, content_unit, candidate, or resource refs; namespace vocabulary is context, not a selected-resource dependency.`,
+    })),
+    ...inputBlockers(context, resolvedRefs),
+  ]
   const runtimeRequest = {
     capability: stringField(modelIntent?.capability) ?? capabilityForOutputKind(options.outputKind),
     model_intent: modelIntent,

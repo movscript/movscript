@@ -438,10 +438,10 @@ func TestProviderAssetSyncUsesYunwuGatewayRemoteLibrary(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
-		case "/v1/private-avatar/groups":
+		case "/v1/private-avatar/groups/list":
 			seenGroupModel = r.URL.Query().Get("model")
 			_, _ = io.WriteString(w, `{"items":[{"Id":"group-yw-1","Name":"远端素材组","Status":"Active"}]}`)
-		case "/v1/private-avatar/assets":
+		case "/v1/private-avatar/assets/list":
 			seenAssetModel = r.URL.Query().Get("model")
 			seenAssetGroup = r.URL.Query().Get("GroupId")
 			_, _ = io.WriteString(w, `{"items":[{"Id":"asset-yw-1","Name":"远端图片","GroupId":"group-yw-1","Status":"Active"}]}`)

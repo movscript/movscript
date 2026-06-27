@@ -42,12 +42,17 @@ import {
   normalizeDecisionContext,
 } from '@movscript/workspace/repository'
 import {
+  buildContentSourceWorkspaceProjectTimelineStatus,
   buildContentSourceWorkspaceData,
   loadContentSourceWorkspaceSnapshotFromEngine,
 } from '@movscript/core'
 
 const DATA_SERVICE_NAME = 'movscript.data.service'
 const LOCAL_NODE_GATEWAY_SERVICE = 'movscript.local-node.gateway'
+const CONTENT_CANVAS_DIRECTORY = 'content_canvases'
+const CONTENT_CANVAS_FILE_NAME = 'canvas.json'
+const CONTENT_CANVAS_SCHEMA = 'movscript.content_canvas.v1'
+const CONTENT_CANVASES_SCHEMA = 'movscript.content_canvases.v1'
 
 export {
   PROJECT_SERVICE_CANDIDATE_COMMAND_ENDPOINT,
@@ -384,6 +389,7 @@ async function readProjectSourceContext(request) {
 }
 
 async function executeProjectSourceCommand({ projectDir, command, input, decisionStore }) {
+  const fileRepository = createNodeMovScriptWorkspaceFileRepository(projectDir)
   const engine = createNodeMovScriptEngine({ projectDir, ...(decisionStore ? { decisionStore } : {}) })
   switch (command) {
     case 'queryEntities':
@@ -400,6 +406,12 @@ async function executeProjectSourceCommand({ projectDir, command, input, decisio
       return loadContentSourceWorkspaceSnapshotFromEngine(engine)
     case 'loadContentWorkspace':
       return buildContentSourceWorkspaceData(await loadContentSourceWorkspaceSnapshotFromEngine(engine))
+    case 'listContentCanvases':
+      return listProjectContentCanvases(fileRepository)
+    case 'writeContentCanvas':
+      return writeProjectContentCanvas(fileRepository, input)
+    case 'deleteContentCanvas':
+      return deleteProjectContentCanvas(fileRepository, input)
     case 'upsertProjectStandards':
       return engine.workspaceService.upsertProjectStandards(input)
     case 'createSetting':
@@ -416,6 +428,8 @@ async function executeProjectSourceCommand({ projectDir, command, input, decisio
       return engine.createContentUnit(input)
     case 'ensureContentUnitForEntity':
       return engine.ensureContentUnitForEntity(input)
+    case 'ensureTimelineAssemblyContentUnit':
+      return engine.ensureContentUnitForEntity(timelineAssemblyContentUnitInput(input))
     case 'createProduction':
       return engine.createProduction(input)
     case 'createSegment':
@@ -446,6 +460,8 @@ async function executeProjectSourceCommand({ projectDir, command, input, decisio
       return engine.workspaceService.updateStoryboardTimeline(input)
     case 'writeHierarchyNode':
       return engine.writeHierarchyNode(input)
+    case 'writeNamespaceNode':
+      return engine.writeHierarchyNode(namespaceHierarchyNodeInput(input))
     case 'syncContentWorkspace':
       return engine.interpret()
     case 'deleteEntity':
@@ -463,9 +479,262 @@ function requiredContentUnitId(input) {
   throw httpError(400, 'project_content_unit_required', 'contentUnitId is required')
 }
 
+async function listProjectContentCanvases(fileRepository) {
+  const root = await fileRepository.list({ path: CONTENT_CANVAS_DIRECTORY })
+  const canvases = []
+  for (const entry of root.entries) {
+    if (entry.kind !== 'directory') continue
+    const path = `${entry.path}/${CONTENT_CANVAS_FILE_NAME}`
+    const file = await fileRepository.read({ path }).catch((error) => {
+      if (isNotFoundError(error)) return undefined
+      throw error
+    })
+    if (!file) continue
+    const record = parseProjectContentCanvasFile(file.content, path)
+    canvases.push({
+      path: file.path,
+      version: file.version,
+      updatedAt: file.updatedAt,
+      record,
+    })
+  }
+  canvases.sort((left, right) => {
+    const updated = String(right.record.updated_at ?? '').localeCompare(String(left.record.updated_at ?? ''))
+    return updated || String(left.record.title ?? left.record.id).localeCompare(String(right.record.title ?? right.record.id))
+  })
+  return {
+    schema: CONTENT_CANVASES_SCHEMA,
+    canvases,
+  }
+}
+
+async function writeProjectContentCanvas(fileRepository, input) {
+  const record = projectContentCanvasRecordFromInput(input)
+  const path = contentCanvasProjectFilePath(record.id)
+  const source = recordValue(input) ?? {}
+  const expectedVersion = stringValue(source.expectedVersion ?? source.expected_version)
+  const written = await fileRepository.write({
+    path,
+    content: `${JSON.stringify(record, null, 2)}\n`,
+    ...(expectedVersion !== undefined ? { expectedVersion } : {}),
+  })
+  return {
+    status: 'written',
+    path: written.path,
+    version: written.version,
+    record,
+  }
+}
+
+async function deleteProjectContentCanvas(fileRepository, input) {
+  const id = stringValue(input.id ?? input.canvasId ?? input.canvas_id)
+  if (!id) throw httpError(400, 'project_content_canvas_id_required', 'canvas id is required')
+  const path = contentCanvasProjectFilePath(id)
+  await fileRepository.delete({ path })
+  return {
+    status: 'deleted',
+    path,
+  }
+}
+
+function parseProjectContentCanvasFile(content, path) {
+  try {
+    return projectContentCanvasRecordFromInput(JSON.parse(content))
+  } catch (error) {
+    if (error?.statusCode) throw error
+    throw httpError(400, 'project_content_canvas_invalid', `content canvas file is invalid: ${path}`)
+  }
+}
+
+function projectContentCanvasRecordFromInput(input) {
+  const source = recordValue(input)
+  const record = source ? recordValue(source.canvas ?? source.record) ?? source : undefined
+  if (!record) throw httpError(400, 'project_content_canvas_required', 'content canvas record is required')
+  const id = stringValue(record.id)
+  if (!id) throw httpError(400, 'project_content_canvas_id_required', 'canvas id is required')
+  const updatedAt = stringValue(record.updated_at ?? record.updatedAt) ?? new Date().toISOString()
+  return pruneUndefinedRecord({
+    schema: CONTENT_CANVAS_SCHEMA,
+    kind: 'content_canvas',
+    id,
+    title: stringValue(record.title) ?? 'Untitled Canvas',
+    scope: projectContentCanvasScope(record.scope),
+    nodes: projectContentCanvasNodes(record.nodes),
+    layouts: projectContentCanvasLayouts(record.layouts ?? record.node_layouts ?? record.nodeLayouts),
+    viewport: projectContentCanvasViewport(record.viewport),
+    updated_at: updatedAt,
+    created_at: stringValue(record.created_at ?? record.createdAt),
+  })
+}
+
+function projectContentCanvasScope(value) {
+  const scope = recordValue(value)
+  if (!scope || scope.kind === 'global') return { kind: 'global' }
+  if (scope.kind !== 'production') return { kind: 'global' }
+  const productionId = stringValue(scope.production_id ?? scope.productionId)
+  if (!productionId) return { kind: 'global' }
+  return pruneUndefinedRecord({
+    kind: 'production',
+    production_id: productionId,
+    production_title: stringValue(scope.production_title ?? scope.productionTitle),
+    production_node_id: stringValue(scope.production_node_id ?? scope.productionNodeId),
+    production_path: stringValue(scope.production_path ?? scope.productionPath),
+  })
+}
+
+function projectContentCanvasNodes(value) {
+  const values = Array.isArray(value)
+    ? value
+    : Object.values(recordValue(value) ?? {})
+  return values
+    .map(projectContentCanvasNode)
+    .filter(Boolean)
+    .sort((left, right) => left.node_id.localeCompare(right.node_id))
+}
+
+function projectContentCanvasNode(value) {
+  const node = recordValue(value)
+  if (!node) return undefined
+  const nodeId = stringValue(node.node_id ?? node.nodeId ?? node.id)
+  if (!nodeId) return undefined
+  return pruneUndefinedRecord({
+    node_id: nodeId,
+    kind: stringValue(node.kind),
+    added_at: stringValue(node.added_at ?? node.addedAt),
+  })
+}
+
+function projectContentCanvasLayouts(value) {
+  const layouts = recordValue(value)
+  if (!layouts) return {}
+  return Object.fromEntries(Object.entries(layouts)
+    .map(([nodeId, layout]) => [nodeId, projectContentCanvasLayout(layout)])
+    .filter(([, layout]) => Boolean(layout)))
+}
+
+function projectContentCanvasLayout(value) {
+  const layout = recordValue(value)
+  if (!layout) return undefined
+  const x = numberValue(layout.x)
+  const y = numberValue(layout.y)
+  const width = numberValue(layout.width)
+  const height = numberValue(layout.height)
+  if (x === undefined || y === undefined || width === undefined || height === undefined) return undefined
+  return pruneUndefinedRecord({
+    x,
+    y,
+    width,
+    height,
+    manual: layout.manual === true,
+    source: stringValue(layout.source),
+    updated_at: stringValue(layout.updated_at ?? layout.updatedAt),
+  })
+}
+
+function projectContentCanvasViewport(value) {
+  const viewport = recordValue(value)
+  if (!viewport) return undefined
+  const x = numberValue(viewport.x)
+  const y = numberValue(viewport.y)
+  const zoom = numberValue(viewport.zoom)
+  if (x === undefined || y === undefined || zoom === undefined) return undefined
+  return { x, y, zoom }
+}
+
+function contentCanvasProjectFilePath(id) {
+  return `${CONTENT_CANVAS_DIRECTORY}/${contentCanvasProjectPathSegment(id)}/${CONTENT_CANVAS_FILE_NAME}`
+}
+
+function contentCanvasProjectPathSegment(id) {
+  const safe = String(id).trim().replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/^_+|_+$/g, '')
+  return safe || 'canvas'
+}
+
+function timelineAssemblyContentUnitInput(input) {
+  return {
+    ...input,
+    targetKind: 'timeline_assembly',
+    target_kind: undefined,
+  }
+}
+
+function namespaceHierarchyNodeInput(input) {
+  const targetPath = stringValue(input.targetPath ?? input.target_path)
+  if (!targetPath) {
+    throw httpError(400, 'project_namespace_target_path_required', 'targetPath is required for writeNamespaceNode')
+  }
+  const category = stringValue(input.category ?? input.domainCategory ?? input.domain_category)
+  if (category !== 'timeline_namespace' && category !== 'setting_namespace') {
+    throw httpError(400, 'project_namespace_category_unsupported', 'category must be timeline_namespace or setting_namespace')
+  }
+  const entityKind = namespaceEntityKindFromPath(targetPath)
+  if (!entityKind || !namespaceCategoryAllowsEntityKind(category, entityKind)) {
+    throw httpError(400, 'project_namespace_target_path_unsupported', `targetPath is not valid for ${category}`)
+  }
+  const record = recordValue(input.record) ?? {}
+  const namespaceKind = stringValue(
+    input.namespaceKind
+    ?? input.namespace_kind
+    ?? input.domainKind
+    ?? input.domain_kind
+    ?? input.kind
+    ?? record.namespace_kind
+    ?? record.namespaceKind
+    ?? record.timeline_namespace_kind
+    ?? record.timelineNamespaceKind
+    ?? record.setting_namespace_kind
+    ?? record.settingNamespaceKind,
+  )
+  if (!namespaceKind) {
+    throw httpError(400, 'project_namespace_kind_required', 'namespace kind is required for writeNamespaceNode')
+  }
+  return {
+    targetPath,
+    record: pruneUndefinedRecord({
+      ...record,
+      schema: `movscript.${entityKind}.v1`,
+      kind: entityKind,
+      id: idValue(input.id ?? record.id) ?? namespaceEntityIdFromPath(targetPath, entityKind),
+      title: stringValue(input.title ?? record.title),
+      project_id: idValue(input.projectId ?? input.project_id ?? record.project_id),
+      order: numberValue(input.order ?? record.order),
+      intent: stringValue(input.intent ?? record.intent),
+      namespace_kind: namespaceKind,
+      ...(category === 'timeline_namespace' ? { timeline_namespace_kind: namespaceKind } : {}),
+      ...(category === 'setting_namespace' ? { setting_namespace_kind: namespaceKind } : {}),
+    }),
+  }
+}
+
+function namespaceCategoryAllowsEntityKind(category, entityKind) {
+  if (category === 'timeline_namespace') return entityKind === 'production' || entityKind === 'segment'
+  if (category === 'setting_namespace') return entityKind === 'setting' || entityKind === 'setting_state'
+  return false
+}
+
+function namespaceEntityKindFromPath(path) {
+  if (path.endsWith('/production.json')) return 'production'
+  if (path.endsWith('/segment.json')) return 'segment'
+  if (path.endsWith('/setting.json')) return 'setting'
+  if (path.endsWith('/setting_state.json')) return 'setting_state'
+  return undefined
+}
+
+function namespaceEntityIdFromPath(targetPath, entityKind) {
+  const collection = {
+    production: 'timeline',
+    segment: 'segments',
+    setting: 'settings',
+    setting_state: 'states',
+  }[entityKind]
+  return pathSegmentAfter(targetPath, collection) ?? targetPath.split('/').filter(Boolean).at(-2)
+}
+
 async function readProjectReadModel(context, now) {
+  const engine = createNodeMovScriptEngine({ projectDir: context.projectDir })
   const [
     overview,
+    contentSnapshot,
     source,
     inspection,
   ] = await Promise.all([
@@ -474,6 +743,7 @@ async function readProjectReadModel(context, now) {
       decisionStore: context.decisionStore,
       now,
     }),
+    loadContentSourceWorkspaceSnapshotFromEngine(engine),
     context.readModelOptions.includeSource
       ? resolveWorkspaceSource(context.fileRepository, context.sourceOptions)
       : undefined,
@@ -486,6 +756,7 @@ async function readProjectReadModel(context, now) {
       })
       : undefined,
   ])
+  const projectTimelineStatus = buildContentSourceWorkspaceProjectTimelineStatus(contentSnapshot)
   return {
     schema: 'movscript.project-read-model.v1',
     status: overview.status,
@@ -494,6 +765,8 @@ async function readProjectReadModel(context, now) {
     productionSummary: overview.production,
     contentSummary: overview.content,
     readiness: overview.readiness,
+    projectTimelineStatus,
+    project_timeline_status: projectTimelineStatus,
     overview,
     ...(source ? { source } : {}),
     ...(inspection ? { inspection } : {}),
@@ -529,6 +802,10 @@ async function resolveProjectLocator({ projectDir, workspaceDir, projectUid }) {
 
 async function readProjectResourceView({ projectDir, kind }) {
   const engine = createNodeMovScriptEngine({ projectDir })
+  if (isProjectDomainResourceKind(kind)) {
+    const index = await engine.workspaceService.loadIndex()
+    return projectDomainResourceItems(index, kind)
+  }
   if (kind === 'scripts') {
     const scripts = await engine.workspaceService.queryEntities({ entityKind: 'script' })
     return Promise.all(scripts.map(async (entity) => ({
@@ -548,15 +825,112 @@ async function readProjectResourceView({ projectDir, kind }) {
   }
 
   const entityKind = projectResourceEntityKind(kind)
+  const index = await engine.workspaceService.loadIndex()
+  const domainNodeByPath = new Map(index.domainNodes.map((node) => [node.path, node]).filter(([path]) => typeof path === 'string'))
   const entities = await engine.workspaceService.queryEntities({
     entityKind,
     ...(entityKind === 'project' ? { limit: 1 } : {}),
   })
-  return entities.map((entity) => ({
+  return entities.map((entity) => projectEntityResourceItem(entity, domainNodeByPath.get(entity.path), kind))
+}
+
+function isProjectDomainResourceKind(kind) {
+  return kind === 'namespace-vocabulary'
+    || kind === 'timeline-namespaces'
+    || kind === 'setting-namespaces'
+    || kind === 'system-primitives'
+    || kind === 'domain-nodes'
+    || kind === 'domain-edges'
+}
+
+function projectDomainResourceItems(index, kind) {
+  if (kind === 'namespace-vocabulary') {
+    return projectNamespaceVocabularyResourceItems(index.namespaceVocabulary)
+  }
+  if (kind === 'domain-edges') {
+    return index.domainEdges.map((edge) => ({
+      source: edge.source,
+      target: edge.target,
+      relation: edge.relation,
+      origin: edge.origin,
+      ...(edge.field ? { field: edge.field } : {}),
+    }))
+  }
+  const nodes = index.domainNodes.filter((node) => {
+    if (kind === 'timeline-namespaces') return node.category === 'timeline_namespace'
+    if (kind === 'setting-namespaces') return node.category === 'setting_namespace'
+    if (kind === 'system-primitives') return node.category === 'system_primitive'
+    return true
+  })
+  return nodes.map((node) => projectDomainNodeResourceItem(node))
+}
+
+function projectNamespaceVocabularyResourceItems(vocabulary) {
+  return [
+    {
+      id: 'timeline',
+      category: 'timeline_namespace',
+      timelineTemplate: vocabulary.timelineTemplate,
+      timelineNamespaces: vocabulary.timelineNamespaces,
+      namespaces: vocabulary.timelineNamespaces,
+      diagnostics: vocabulary.diagnostics,
+    },
+    {
+      id: 'setting',
+      category: 'setting_namespace',
+      settingNamespaces: vocabulary.settingNamespaces,
+      namespaces: vocabulary.settingNamespaces,
+      diagnostics: vocabulary.diagnostics,
+    },
+  ]
+}
+
+function projectDomainNodeResourceItem(node) {
+  return {
+    id: node.id,
+    title: node.title,
+    path: node.path,
+    category: node.category,
+    kind: node.kind,
+    order: node.order,
+    entityKind: node.metadata?.entityKind,
+    metadata: node.metadata,
+  }
+}
+
+function projectEntityResourceItem(entity, domainNode, resourceKind) {
+  const projection = legacyResourceKindProjection(resourceKind)
+  return {
     ...entity.record,
     entityKind: entity.entityKind,
     path: entity.path,
-  }))
+    ...(projection ? {
+      resourceKind,
+      legacyAlias: true,
+      preferredResourceKind: projection.preferredResourceKind,
+    } : {}),
+    ...(domainNode ? {
+      domainCategory: domainNode.category,
+      domainKind: domainNode.kind,
+      domainNode: projectDomainNodeResourceItem(domainNode),
+    } : {}),
+  }
+}
+
+function legacyResourceKindProjection(kind) {
+  switch (kind) {
+    case 'episodes':
+    case 'productions':
+    case 'scenes':
+    case 'segments':
+      return { preferredResourceKind: 'timeline-namespaces' }
+    case 'settings':
+    case 'setting-states':
+    case 'states':
+      return { preferredResourceKind: 'setting-namespaces' }
+    default:
+      return undefined
+  }
 }
 
 function projectResourceEntityKind(kind) {
@@ -578,6 +952,9 @@ function projectResourceEntityKind(kind) {
       return 'content_unit'
     case 'settings':
       return 'setting'
+    case 'setting-states':
+    case 'states':
+      return 'setting_state'
     default:
       throw httpError(400, 'project_resource_kind_unsupported', `unsupported project resource kind: ${kind}`)
   }
@@ -917,8 +1294,31 @@ function stringValue(value) {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
+function idValue(value) {
+  if (typeof value === 'string' && value.trim()) return value.trim()
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  return undefined
+}
+
+function numberValue(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value !== 'string' || !value.trim()) return undefined
+  const number = Number(value)
+  return Number.isFinite(number) ? number : undefined
+}
+
 function recordValue(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : undefined
+}
+
+function pathSegmentAfter(path, segment) {
+  const parts = String(path ?? '').split('/').filter(Boolean)
+  const index = parts.indexOf(segment)
+  return index >= 0 ? parts[index + 1] : undefined
+}
+
+function pruneUndefinedRecord(record) {
+  return Object.fromEntries(Object.entries(record).filter(([, value]) => value !== undefined && value !== ''))
 }
 
 function stringRecord(value) {
@@ -927,6 +1327,10 @@ function stringRecord(value) {
   return Object.fromEntries(Object.entries(record)
     .filter(([, item]) => typeof item === 'string')
     .map(([key, item]) => [key, item]))
+}
+
+function isNotFoundError(error) {
+  return typeof error === 'object' && error !== null && error.code === 'ENOENT'
 }
 
 function httpError(statusCode, code, message) {

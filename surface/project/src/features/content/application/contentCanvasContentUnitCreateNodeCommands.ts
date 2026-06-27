@@ -4,10 +4,12 @@ import type { ContentCanvasCommandResult } from './contentCanvasCommands'
 import type { ContentCanvasGenerationOutputKind } from './contentCanvasCreateNodeCommands'
 import type { ContentCanvasWorkspaceGateway } from './contentCanvasWorkspaceGateway'
 import {
+  assertLegacyTimelineMount,
   assertNodeKind,
   createInputOrDefault,
   createdNodeResult,
   idValue,
+  optionalSceneMomentId,
   pathSegmentAfter,
   requiredSceneMomentRefs,
   safeToken,
@@ -63,11 +65,24 @@ export async function createSceneMomentCanvasNode(
 ): Promise<ContentCanvasCommandResult> {
   if (!gateway) throw new Error('Content canvas workspace gateway is required')
   const input = createInputOrDefault(options?.input, 'canvas_scene', '新情节')
+  const timelineNamespacePath = input.targetTimelineNamespacePath?.trim()
+  if (timelineNamespacePath) {
+    return createSceneMomentInTimelineNamespace(projectId, input, timelineNamespacePath, options, gateway)
+  }
   const productionId = input.targetProductionId?.trim()
   const productionTitle = input.targetProductionTitle?.trim() || `${input.title} 制作`
   const segmentId = input.targetSegmentId?.trim()
   const segmentTitle = input.targetSegmentTitle?.trim() || `${input.title} 段落`
   const changedNodeIds: string[] = []
+  const wantsLegacyTimelineMount = Boolean(
+    productionId
+    || segmentId
+    || input.createTargetProduction
+    || input.createTargetSegment,
+  )
+  if (wantsLegacyTimelineMount && !input.legacyTimelineMount) {
+    assertLegacyTimelineMount(input, '创建情节节点')
+  }
   if (!productionId || !segmentId) {
     throw new Error('创建情节视频节点需要显式选择或新建制作与段落；如果只是临时生成，请创建裸视频任务。')
   }
@@ -135,6 +150,7 @@ export async function createSceneMomentCanvasNode(
       scene_moment_id: input.id,
       production_id: productionId,
       segment_id: segmentId,
+      legacy_timeline_mount: true,
     },
   })
   const contentUnitId = idValue(contentUnit.record.id) ?? `cu_scene_${safeToken(input.id)}`
@@ -146,6 +162,91 @@ export async function createSceneMomentCanvasNode(
     nodePositions: options?.position ? { [`scene_moment:${input.id}`]: options.position } : undefined,
     message: '已创建情节节点并绑定创作片段',
   }
+}
+
+async function createSceneMomentInTimelineNamespace(
+  projectId: number,
+  input: NonNullable<ContentCanvasCreateNodeOptions['input']>,
+  timelineNamespacePath: string,
+  options: ContentCanvasCreateNodeOptions | undefined,
+  gateway: ContentCanvasWorkspaceGateway,
+): Promise<ContentCanvasCommandResult> {
+  const changedNodeIds: string[] = []
+  const mount = await ensureCanvasSettingStateForInput(projectId, input, {
+    settingId: `scene_setting_${safeToken(input.id)}`,
+    settingTitle: `${input.title} 设定`,
+    stateId: `scene_state_${safeToken(input.id)}`,
+    stateTitle: `${input.title} 状态`,
+    required: false,
+  }, gateway)
+  if (mount) changedNodeIds.push(...mount.changedNodeIds)
+
+  await gateway.writeHierarchyNode({
+    targetPath: timelineNamespaceSceneMomentPath(timelineNamespacePath, input.id),
+    record: timelineNamespaceSceneMomentRecord(projectId, input, mount),
+  })
+  changedNodeIds.push(`scene_moment:${input.id}`)
+
+  const contentUnit = await ensureContentUnitForRef(gateway, {
+    id: `cu_scene_${safeToken(input.id)}`,
+    refKind: 'scene_moment',
+    ref: input.id,
+    contentUnitType: 'scene_moment_ref',
+    outputKind: 'video',
+    title: `${input.title} 创作片段`,
+    description: `从创作画布基于情节「${input.title}」创建。`,
+    prompt: `将情节「${input.title}」转化为可制作镜头。`,
+    modelIntent: pruneUndefinedRecord({
+      scene_moment_id: input.id,
+      timeline_namespace_node_id: input.targetTimelineNamespaceNodeId?.trim(),
+      timeline_namespace_id: input.targetTimelineNamespaceId?.trim(),
+      timeline_namespace_kind: input.targetTimelineNamespaceKind?.trim(),
+      timeline_namespace_path: timelineNamespacePath,
+      setting_id: mount?.settingId,
+      state_id: mount?.stateId,
+    }),
+  })
+  const contentUnitId = idValue(contentUnit.record.id) ?? `cu_scene_${safeToken(input.id)}`
+
+  return {
+    changedNodeIds: [...changedNodeIds, `content_unit:${contentUnitId}`],
+    affectedNodeIds: [...changedNodeIds, `content_unit:${contentUnitId}`],
+    focusNodeId: `scene_moment:${input.id}`,
+    nodePositions: options?.position ? { [`scene_moment:${input.id}`]: options.position } : undefined,
+    message: '已在时间线命名空间下创建情节节点并绑定创作片段',
+  }
+}
+
+function timelineNamespaceSceneMomentPath(timelineNamespacePath: string, sceneMomentId: string): string {
+  const parentDir = timelineNamespacePath.replace(/\/[^/]*\.json$/, '')
+  return `${parentDir}/scene_moments/${safeToken(sceneMomentId)}/scene_moment.json`
+}
+
+function timelineNamespaceSceneMomentRecord(
+  projectId: number,
+  input: NonNullable<ContentCanvasCreateNodeOptions['input']>,
+  mount: { settingId: string; stateId: string } | null,
+): Record<string, unknown> {
+  return pruneUndefinedRecord({
+    schema: 'movscript.scene_moment.v1',
+    kind: 'scene_moment',
+    id: input.id,
+    title: input.title,
+    project_id: projectId,
+    order: Date.now(),
+    description: '',
+    time_text: '',
+    location_text: '',
+    action_text: '',
+    mood: '',
+    setting_refs: mount
+      ? [{
+          setting_id: mount.settingId,
+          setting_state_id: mount.stateId,
+          role: 'scene_constraint',
+        }]
+      : undefined,
+  })
 }
 
 export async function createAssetCanvasNode(
@@ -229,7 +330,8 @@ async function ensureCanvasSettingStateForInput(
     await gateway.createSetting({
       id: settingId,
       title: input.targetSettingTitle?.trim() || fallback.settingTitle,
-      kind: input.targetSettingKind ?? input.settingKind ?? 'other',
+      kind: input.targetSettingKind ?? input.settingKind ?? input.targetSettingNamespaceKind ?? input.settingNamespaceKind ?? 'other',
+      settingNamespaceKind: input.targetSettingNamespaceKind ?? input.settingNamespaceKind,
       description: '从创作画布创建，用于承载画面节点。',
     })
     changedNodeIds.push(`setting:${settingId}`)
@@ -240,7 +342,8 @@ async function ensureCanvasSettingStateForInput(
       id: stateId,
       settingId,
       title: input.targetStateTitle?.trim() || fallback.stateTitle,
-      stateKind: 'base',
+      stateKind: input.targetStateNamespaceKind ?? 'base',
+      settingNamespaceKind: input.targetStateNamespaceKind,
       description: `从设定「${input.targetSettingTitle?.trim() || fallback.settingTitle}」创建。`,
     })
     changedNodeIds.push(`state:${stateId}`)
@@ -252,6 +355,14 @@ async function ensureCanvasSettingStateForInput(
 function contentCanvasAssetOutputKind(value: unknown): Exclude<ContentCanvasGenerationOutputKind, 'text'> {
   if (value === 'video' || value === 'audio' || value === 'image') return value
   return 'image'
+}
+
+function pruneUndefinedRecord<T extends Record<string, unknown>>(record: T): T {
+  const output: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(record)) {
+    if (value !== undefined) output[key] = value
+  }
+  return output as T
 }
 
 function contentCanvasOutputKindLabel(kind: ContentCanvasGenerationOutputKind): string {
@@ -276,6 +387,7 @@ export async function createStateFromSetting(
     settingId: settingNode.entityKey,
     title: input.title,
     stateKind: input.status,
+    settingNamespaceKind: input.settingNamespaceKind ?? input.status,
     description: `从设定「${settingNode.title}」创建。`,
   })
   return createdNodeResult(`state:${input.id}`, '已创建设定状态', options?.position, settingNode.id)
@@ -413,7 +525,7 @@ async function createVisualAnchorFromOwner(
   const refs = requiredSceneMomentRefs(ownerNode)
   const sceneMomentId = ownerNode.kind === 'scene_moment'
     ? ownerNode.entityKey
-    : idValue(ownerNode.record.scene_moment_id) ?? pathSegmentAfter(ownerNode.sourcePath, 'scene_moments')
+    : optionalSceneMomentId(ownerNode)
   if (!sceneMomentId) throw new Error('当前表达单元缺少 scene moment 归属，无法创建视觉锚点')
   if (kind === 'keyframe') {
     await gateway.createKeyframe({

@@ -1,4 +1,5 @@
 export * from '../index.js'
+export { agentSurfaceSnapshotTarget } from './protocol/agentSurfaceData.js'
 export { handleMCPHTTP } from './protocol/http.js'
 export { handleJSONRPC } from './protocol/jsonRpc.js'
 export {

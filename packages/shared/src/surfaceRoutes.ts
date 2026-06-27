@@ -8,6 +8,7 @@ export type SurfaceRouteKey =
   | 'project.content'
   | 'project.contentCanvas'
   | 'project.contentPreview'
+  | 'project.settingPreview'
   | 'project.settings'
   | 'resources'
   | 'canvas.list'
@@ -32,6 +33,7 @@ const defaultRoutePatterns: Record<SurfaceRouteKey, string> = {
   'project.content': '/project/content',
   'project.contentCanvas': '/project/content/canvas',
   'project.contentPreview': '/project/content/preview',
+  'project.settingPreview': '/project/settings/preview',
   'project.settings': '/project/settings',
   resources: '/resources',
   'canvas.list': '/canvases',

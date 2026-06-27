@@ -5,6 +5,7 @@
     "baseUrl": ".",
     "paths": {
       "@movscript/decision": ["../decision/src/index.ts"],
+      "@movscript/domain": ["../domain/src/index.ts"],
       "@movscript/language/domain": ["../language/src/domain/index.ts"]
     }
   },

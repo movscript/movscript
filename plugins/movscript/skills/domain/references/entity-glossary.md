@@ -12,8 +12,9 @@ Use this file as a translation layer from production language to MovScript sourc
 | setting / concrete production entity | `setting` |
 | setting state / entity state namespace | `setting_state` |
 | asset slot / state asset description | `asset` |
-| production / episode / film unit | `production` |
-| segment / rhythm section | `segment` |
+| timeline namespace node / episode / act / sequence / beat | current source uses legacy `production` / `segment` records projected as `timeline_namespace` |
+| legacy production source record | `production` |
+| legacy segment source record | `segment` |
 | scene beat / plot beat / 情节 | `scene_moment` |
 | visual shot material / camera expression | `expression_unit` with `modality=visual`, `role=shot` |
 | dialogue/action/caption/narration unit | `expression_unit` with `modality=verbal` or `modality=text` |
@@ -23,6 +24,7 @@ Use this file as a translation layer from production language to MovScript sourc
 | key visual anchor | `keyframe` |
 | storyboard / shot board / panels | `storyboard` |
 | output task / production task / thing to generate or import | `content_unit` |
+| namespace-scope assembly output | `timeline_assembly_ref` content unit |
 | generated/uploaded/imported option / candidate result | `candidate` |
 | adopted/chosen/confirmed result | `selection` |
 
@@ -30,7 +32,7 @@ Use this file as a translation layer from production language to MovScript sourc
 
 - `setting -> setting_state -> asset`
 - `script -> script_version -> script_block`
-- `production -> segment -> scene_moment`
+- timeline namespace tree -> `scene_moment` (current legacy source path often uses `production -> segment -> scene_moment`)
 - `scene_moment -> expression_unit`
 - legacy visual anchors: `scene_moment -> shot -> keyframe / storyboard`
 - legacy audio anchors: `scene_moment -> audio_cue`
@@ -39,6 +41,8 @@ Use this file as a translation layer from production language to MovScript sourc
 ## Meaning
 
 - `scene_moment` is the scene beat users usually mean when asking for a short unit of story or video output.
+- Timeline namespace nodes organize story/time structure and user vocabulary. Current source and MCP compatibility tools may write them as `production` / `segment`, but those records should be treated as namespace projections, not generated production units.
+- `timeline_assembly_ref` is the content unit type for a namespace scope that needs an output video. Do not create `episode_ref`, `beat_ref`, or other namespace-specific content unit types.
 - `expression_unit` is a scene-beat-owned material intent, such as visual action, dialogue, narration, subtitle text, music, ambience, sfx, or voice. Use orthogonal `modality` and `role` fields instead of making separate core entities for every medium.
 - `shot` is a legacy/specialized visual anchor. In the final model, shot-like intent is `expression_unit(modality=visual, role=shot)`.
 - `storyboard` and `keyframe` are optional visual evidence for visual expression material.

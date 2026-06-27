@@ -17,6 +17,7 @@ export {
   createMediaEditingProjectService,
   clipFitsTrackType,
   createMediaEditingProjectFromProductionTimelineClips,
+  createMediaEditingProjectFromTimelineAssemblyClips,
   mediaTimelineIsValid,
   MediaEditingProjectService,
   normalizeMediaClipVolumePercent,
@@ -37,6 +38,7 @@ export {
   type MediaEditingProjectSourceKind,
   type MediaProductionTimelineClip,
   type MediaProductionTimelineProjectOptions,
+  type MediaTimelineAssemblyProjectOptions,
   type MediaTimelineCommand,
   type MediaTimelineCommandType,
   type MediaTimelineDiagnostic,
@@ -131,11 +133,16 @@ export type EditingServiceTimelineViewKind =
   | 'previewTimeline'
   | 'sceneMomentEditPlan'
   | 'sceneMomentTimelineBundle'
+  | 'timelineAssemblyBundle'
   | 'productionTimelineBundle'
 
 export interface EditingServiceTimelineViewRequest {
   projectDir: string
   kind: EditingServiceTimelineViewKind
+  targetKind?: string
+  targetRef?: string
+  scopeKind?: string
+  scopeRef?: string | number
   productionId?: string | number
   sceneMomentId?: string | number
   decisionStore?: object
@@ -314,6 +321,10 @@ export class EditingServiceClient {
     return this.request('POST', EDITING_SERVICE_TIMELINE_VIEW_ENDPOINT, {
       projectDir: request.projectDir,
       kind: request.kind,
+      ...(request.targetKind !== undefined ? { targetKind: request.targetKind } : {}),
+      ...(request.targetRef !== undefined ? { targetRef: request.targetRef } : {}),
+      ...(request.scopeKind !== undefined ? { scopeKind: request.scopeKind } : {}),
+      ...(request.scopeRef !== undefined ? { scopeRef: request.scopeRef } : {}),
       ...(request.productionId !== undefined ? { productionId: request.productionId } : {}),
       ...(request.sceneMomentId !== undefined ? { sceneMomentId: request.sceneMomentId } : {}),
       ...(request.decisionStore !== undefined ? { decisionStore: request.decisionStore } : {}),

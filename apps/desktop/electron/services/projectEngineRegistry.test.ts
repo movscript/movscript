@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
-import { mkdtemp, mkdir, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
@@ -15,12 +15,16 @@ import {
   __setProjectEngineFactoryForTest,
   __setProjectEngineWorkspaceUpdatedBroadcasterForTest,
   createMovScriptEngineContentCandidate,
+  deleteMovScriptEngineContentCanvas,
+  ensureMovScriptEngineTimelineAssemblyContentUnit,
+  listMovScriptEngineContentCanvases,
   loadMovScriptEngineContentWorkspace,
   loadMovScriptEngineContentWorkspaceSnapshot,
   projectEngineRegistry,
   saveMovScriptEngineWorkspaceProductionSnapshot,
   syncMovScriptEngineContentWorkspace,
   upsertMovScriptEngineWorkspaceSetting,
+  writeMovScriptEngineContentCanvas,
 } from './projectEngineRegistry'
 
 test('project engine registry uses runtime Data Service discovery for local decision stores', () => {
@@ -103,6 +107,75 @@ test('content workspace API builds page data from the project engine', async () 
     assert.equal(data.productionWorkPlan?.summary.readyToGenerate, 1)
   } finally {
     restore()
+    await rm(workspaceDir, { recursive: true, force: true })
+  }
+})
+
+test('content canvas project storage writes, lists, and deletes project files', async () => {
+  const workspaceDir = await createTestWorkspaceDir()
+  const projectDir = join(workspaceDir, 'project-7')
+  const events: unknown[] = []
+  const restoreBroadcast = __setProjectEngineWorkspaceUpdatedBroadcasterForTest((event) => {
+    events.push(event)
+  })
+
+  try {
+    const written = await writeMovScriptEngineContentCanvas({
+      workspaceDir,
+      projectDir,
+      userId: 1,
+      projectId: 7,
+      canvas: {
+        id: 'canvas:pilot',
+        title: 'Pilot Canvas',
+        scope: {
+          kind: 'production',
+          production_id: 'pilot',
+          production_title: 'Pilot Episode',
+        },
+        nodes: [{
+          node_id: 'scene_moment:opening',
+          kind: 'scene_moment',
+          added_at: '2026-06-07T00:00:00.000Z',
+        }],
+        layouts: {
+          'scene_moment:opening': {
+            x: 120,
+            y: 80,
+            width: 260,
+            height: 118,
+            manual: true,
+            source: 'manual',
+            updated_at: '2026-06-07T00:10:00.000Z',
+          },
+        },
+        viewport: { x: -20, y: -40, zoom: 0.8 },
+        updated_at: '2026-06-07T00:10:00.000Z',
+      },
+    })
+
+    assert.equal(written.status, 'written')
+    assert.equal(written.path, 'content_canvases/canvas_pilot/canvas.json')
+    const canvasFile = JSON.parse(await readFile(join(projectDir, 'content_canvases', 'canvas_pilot', 'canvas.json'), 'utf8')) as Record<string, unknown>
+    assert.equal(canvasFile.schema, 'movscript.content_canvas.v1')
+    assert.equal(canvasFile.kind, 'content_canvas')
+    assert.equal((canvasFile.scope as Record<string, unknown>).production_id, 'pilot')
+    assert.deepEqual((canvasFile.nodes as Array<Record<string, unknown>>).map((node) => node.node_id), ['scene_moment:opening'])
+
+    const listed = await listMovScriptEngineContentCanvases({ workspaceDir, projectDir, userId: 1, projectId: 7 })
+    assert.equal(listed.schema, 'movscript.content_canvases.v1')
+    assert.equal(listed.canvases.find((item) => item.record.id === 'canvas:pilot')?.path, 'content_canvases/canvas_pilot/canvas.json')
+
+    const deleted = await deleteMovScriptEngineContentCanvas({ workspaceDir, projectDir, userId: 1, projectId: 7, id: 'canvas:pilot' })
+    assert.equal(deleted.status, 'deleted')
+    assert.equal(deleted.path, 'content_canvases/canvas_pilot/canvas.json')
+    await assert.rejects(
+      readFile(join(projectDir, 'content_canvases', 'canvas_pilot', 'canvas.json'), 'utf8'),
+      /ENOENT/,
+    )
+    assert.equal(events.filter((event) => (event as { reason?: string }).reason === 'source-updated').length, 2)
+  } finally {
+    restoreBroadcast()
     await rm(workspaceDir, { recursive: true, force: true })
   }
 })
@@ -195,6 +268,72 @@ test('workspace domain mutations run through project engines and invalidate cach
     assert.notEqual(first, second)
     assert.equal(snapshots.length, 1)
     assert.equal((snapshots[0] as { productionId: string }).productionId, 'pilot')
+  } finally {
+    restore()
+    await rm(workspaceDir, { recursive: true, force: true })
+  }
+})
+
+test('timeline assembly content unit ensure uses canonical assembly target without production writer', async () => {
+  const workspaceDir = await createTestWorkspaceDir()
+  const ensureCalls: unknown[] = []
+  const productionCalls: unknown[] = []
+  const segmentCalls: unknown[] = []
+  const restore = __setProjectEngineFactoryForTest(() => fakeEngine({
+    ensureContentUnitForEntity: async (input) => {
+      ensureCalls.push(input)
+      return {
+        path: 'content_units/episode_01_assembly/content_unit.json',
+        record: input as unknown as Record<string, unknown>,
+        created: true,
+      }
+    },
+    createProduction: async (input) => {
+      productionCalls.push(input)
+      return {
+        productionPath: `productions/${String((input as { id?: unknown }).id ?? 'main')}/production.json`,
+        writtenPaths: [],
+        snapshot: { production: input },
+      }
+    },
+    createSegment: async (input) => {
+      segmentCalls.push(input)
+      return {
+        productionPath: `productions/${String((input as { productionId?: unknown }).productionId ?? 'main')}/production.json`,
+        writtenPaths: [],
+        snapshot: { segments: [input] },
+      }
+    },
+  }))
+
+  try {
+    await ensureMovScriptEngineTimelineAssemblyContentUnit({
+      workspaceDir,
+      projectDir: join(workspaceDir, 'project-7'),
+      userId: 1,
+      projectId: 7,
+      expectedWorkspaceVersions: {},
+      payload: {
+        scopeKind: 'episode',
+        scopeRef: 'episode_01',
+        id: 'episode_01_assembly',
+        title: 'Episode 01 assembly',
+      },
+    })
+
+    assert.equal(ensureCalls.length, 1)
+    assert.deepEqual(ensureCalls[0], {
+      scopeKind: 'episode',
+      scopeRef: 'episode_01',
+      id: 'episode_01_assembly',
+      title: 'Episode 01 assembly',
+      targetKind: 'timeline_assembly',
+      targetRef: 'timeline_assembly:episode:episode_01',
+      contentUnitType: 'timeline_assembly_ref',
+      outputKind: 'video',
+    })
+    assert.deepEqual(productionCalls, [])
+    assert.deepEqual(segmentCalls, [])
   } finally {
     restore()
     await rm(workspaceDir, { recursive: true, force: true })
@@ -446,6 +585,9 @@ function fakeEngine(input: {
   saveProductionSnapshot?: MovScriptWorkspaceService['saveProductionSnapshot']
   upsertSetting?: MovScriptWorkspaceService['upsertSetting']
   interpret?: NodeMovScriptEngine['interpret']
+  ensureContentUnitForEntity?: NodeMovScriptEngine['ensureContentUnitForEntity']
+  createProduction?: NodeMovScriptEngine['createProduction']
+  createSegment?: NodeMovScriptEngine['createSegment']
 } = {}): NodeMovScriptEngine {
   input.onCreate?.()
   const byKind = new Map(Object.entries(input.byKind ?? {}))
@@ -505,6 +647,13 @@ function fakeEngine(input: {
     workspaceService: service,
     createContentCandidate: service.createContentCandidate,
     saveProductionSnapshot: service.saveProductionSnapshot,
+    ensureContentUnitForEntity: input.ensureContentUnitForEntity ?? (async (ensureInput) => ({
+      path: '',
+      record: ensureInput as unknown as Record<string, unknown>,
+      created: true,
+    })),
+    createProduction: input.createProduction,
+    createSegment: input.createSegment,
     review: async () => input.reviewResult ?? {},
     interpret: input.interpret ?? (async () => ({})),
   } as Partial<NodeMovScriptEngine> as NodeMovScriptEngine

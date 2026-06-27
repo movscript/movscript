@@ -56,6 +56,28 @@ export function contentCanvasSegmentBelongsToProduction(
   )
 }
 
+export function contentCanvasNodeBelongsToProductionScope(
+  node: ContentCanvasNode,
+  productionId: string,
+  productions: ContentCanvasNode[] = [],
+): boolean {
+  if (!normalizeReferenceToken(productionId)) return true
+  const production = contentCanvasProductionForId(productions, productionId)
+  if (node.kind === 'production') {
+    return referenceTokenSetsIntersect(
+      productionReferenceTokens(productionId, production),
+      productionReferenceTokens(node.entityKey, node),
+    )
+  }
+  if (node.kind === 'segment') {
+    return contentCanvasSegmentBelongsToProduction(node, productionId, production)
+  }
+  return referenceTokenSetsIntersect(
+    productionReferenceTokens(productionId, production),
+    nodeProductionReferenceTokens(node),
+  )
+}
+
 function contentCanvasProductionForId(
   productions: ContentCanvasNode[],
   productionId: string,
@@ -91,6 +113,19 @@ function segmentProductionReferenceTokens(segment: ContentCanvasNode): Set<strin
   return tokens
 }
 
+function nodeProductionReferenceTokens(node: ContentCanvasNode): Set<string> {
+  const tokens = new Set<string>()
+  addReferenceTokens(tokens, node.sourcePath)
+  addReferenceTokens(tokens, pathSegmentAfter(node.sourcePath, 'productions'))
+  for (const ancestorNodeId of node.domainAncestorNodeIds ?? []) {
+    addReferenceTokens(tokens, ancestorNodeId)
+  }
+  for (const field of SEGMENT_PRODUCTION_REFERENCE_FIELDS) {
+    addReferenceTokens(tokens, node.record[field])
+  }
+  return tokens
+}
+
 function referenceTokensForValue(value: unknown): Set<string> {
   const tokens = new Set<string>()
   addReferenceTokens(tokens, value)
@@ -106,6 +141,8 @@ function addReferenceTokens(tokens: Set<string>, value: unknown): void {
     if (prefixedId) tokens.add(prefixedId)
     const productionPathId = pathSegmentAfter(text, 'productions')
     if (productionPathId) tokens.add(productionPathId)
+    const timelinePathId = pathSegmentAfter(text, 'timeline')
+    if (timelinePathId) tokens.add(timelinePathId)
     const withoutJsonFile = text
       .replace(/\/production\.json$/u, '')
       .replace(/\/segment\.json$/u, '')
@@ -113,6 +150,8 @@ function addReferenceTokens(tokens: Set<string>, value: unknown): void {
       tokens.add(withoutJsonFile)
       const productionPathIdWithoutJson = pathSegmentAfter(withoutJsonFile, 'productions')
       if (productionPathIdWithoutJson) tokens.add(productionPathIdWithoutJson)
+      const timelinePathIdWithoutJson = pathSegmentAfter(withoutJsonFile, 'timeline')
+      if (timelinePathIdWithoutJson) tokens.add(timelinePathIdWithoutJson)
     }
   }
 }

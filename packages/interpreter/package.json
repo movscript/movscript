@@ -37,6 +37,7 @@
   },
   "dependencies": {
     "@movscript/decision": "workspace:*",
+    "@movscript/domain": "workspace:*",
     "@movscript/language": "workspace:*",
     "@movscript/workspace": "workspace:*"
   },

@@ -5,11 +5,13 @@ import type {
   ElectronMovScriptEngineAssetCreateInput,
   ElectronMovScriptEngineContentCandidateCreateInput,
   ElectronMovScriptEngineContentCandidateSelectInput,
+  ElectronMovScriptEngineContentCanvasInput,
   ElectronMovScriptEngineContentUnitBackendPromptBuildInput,
   ElectronMovScriptEngineContentUnitCreateInput,
   ElectronMovScriptEngineContentUnitEnsureInput,
   ElectronMovScriptEngineContentUnitEditPromptInput,
   ElectronMovScriptEngineContentUnitGenerationPromptReadInput,
+  ElectronMovScriptEngineTimelineAssemblyContentUnitEnsureInput,
   ElectronMovScriptEngineEntityBasicsUpdateInput,
   ElectronMovScriptEngineExpressionUnitCreateInput,
   ElectronMovScriptEngineExpressionUnitInput,
@@ -57,8 +59,11 @@ import {
   createMovScriptEngineStoryboard,
   createMovScriptEngineWorkspaceKeyframeCandidate,
   buildMovScriptEngineContentUnitBackendPrompt,
+  deleteMovScriptEngineContentCanvas,
   deleteMovScriptEngineWorkspaceEntity,
   ensureMovScriptEngineContentUnitForEntity,
+  ensureMovScriptEngineTimelineAssemblyContentUnit,
+  listMovScriptEngineContentCanvases,
   loadMovScriptEngineContentWorkspace,
   loadMovScriptEngineContentWorkspaceSnapshot,
   readMovScriptEngineContentUnitGenerationPrompt,
@@ -81,6 +86,7 @@ import {
   upsertMovScriptEngineWorkspaceProjectStandards,
   upsertMovScriptEngineWorkspaceScript,
   upsertMovScriptEngineWorkspaceSetting,
+  writeMovScriptEngineContentCanvas,
   writeMovScriptEngineHierarchyNode,
 } from '../services/projectEngineRegistry'
 
@@ -90,6 +96,15 @@ export function registerMovScriptEngineIpcHandlers(): void {
   })
   ipcMain.handle('movscript:engine-content-workspace', (_event, input: ElectronMovScriptEngineProjectInput) => {
     return loadMovScriptEngineContentWorkspace(input)
+  })
+  ipcMain.handle('movscript:engine-content-canvases-list', (_event, input: ElectronMovScriptEngineProjectInput) => {
+    return listMovScriptEngineContentCanvases(input)
+  })
+  ipcMain.handle('movscript:engine-content-canvas-write', (_event, input: ElectronMovScriptEngineContentCanvasInput) => {
+    return writeMovScriptEngineContentCanvas(input)
+  })
+  ipcMain.handle('movscript:engine-content-canvas-delete', (_event, input: ElectronMovScriptEngineContentCanvasInput) => {
+    return deleteMovScriptEngineContentCanvas(input)
   })
   ipcMain.handle('movscript:engine-workspace-query-entities', (_event, input: ElectronMovScriptEngineWorkspaceQueryEntitiesInput) => {
     return queryMovScriptEngineWorkspaceEntities(input)
@@ -135,6 +150,9 @@ export function registerMovScriptEngineIpcHandlers(): void {
   })
   ipcMain.handle('movscript:engine-content-unit-ensure', (_event, input: ElectronMovScriptEngineContentUnitEnsureInput) => {
     return ensureMovScriptEngineContentUnitForEntity(input)
+  })
+  ipcMain.handle('movscript:engine-timeline-assembly-content-unit-ensure', (_event, input: ElectronMovScriptEngineTimelineAssemblyContentUnitEnsureInput) => {
+    return ensureMovScriptEngineTimelineAssemblyContentUnit(input)
   })
   ipcMain.handle('movscript:engine-setting-create', (_event, input: ElectronMovScriptEngineSettingCreateInput) => {
     return createMovScriptEngineSetting(input)

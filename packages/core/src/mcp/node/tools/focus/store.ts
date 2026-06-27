@@ -22,6 +22,7 @@ export function updateMCPContextSnapshot(next: MCPContextUpdate): void {
   contextSnapshot.route = next.route
   contextSnapshot.project = next.project
   contextSnapshot.productionId = next.productionId
+  contextSnapshot.domainFocus = next.domainFocus
   contextSnapshot.user = next.user
   contextSnapshot.selection = next.selection
   contextSnapshot.updatedAt = next.updatedAt

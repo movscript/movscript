@@ -54,7 +54,7 @@ toolGrants:
 
 Use this skill when the user asks to cut, trim, compose, align, stitch, render, export, or revise a MovScript video timeline. If runtime ownership or media execution availability is unclear, use the `runtime` skill first.
 
-The default editing path is the dedicated `editing_*` tool family. Timeline state and editing business logic run through MovScript `MediaEditingProject` and `movscript.editing.service`; media execution runs through `movscript.media.pipeline` when available. Do not use backend composition tools as the editing path.
+The default editing path is the dedicated `editing_*` tool family. Timeline state and editing business logic run through MovScript `MediaEditingProject` and `movscript.editing.service`; media execution runs through Electron `mediaPipeline` / `movscript.media.pipeline` when available. Do not use backend composition tools as the editing path.
 
 Open `references/ai-clip-editing-rhythm.md` when assembling AI-generated clips, choosing a cut rhythm, trimming unstable generated clip starts/ends, matching color/style across generated candidates, planning transitions, or building a social/ad/trailer/music-video timeline.
 
@@ -85,16 +85,16 @@ Do not use domain planning/production records as the editing workspace. Domain r
 
 ## Workflow
 
-1. Resolve focus with `system_focus_get` when project, production, or scene moment is ambiguous.
+1. Resolve focus with `system_focus_get` when project, timeline scope/assembly, or scene moment is ambiguous.
 2. Use domain tools only to gather source context and selected materials:
-   - use `domain_query_production_context` to inspect the production/scene structure and candidate selections,
+   - use `domain_query_production_context` to inspect the legacy production projection, scene structure, and candidate selections,
    - use `domain_read_scene_moment_edit_plan` or `domain_read_scene_moment_timeline` when a scene-moment handoff is useful,
-   - use `domain_read_production_timeline` only as a production-level material handoff, not as a promise that the production has one canonical edit.
+   - use `domain_read_production_timeline` only as a legacy production / timeline-assembly material handoff, not as a promise that the scope has one canonical edit.
 3. If required expression-unit materials are missing or unselected, stop and ask for generation/selection first unless the user explicitly wants an unstable draft.
 4. Create the editing project:
    - Use `editing_project_create_from_edit_plan` when a scene-moment `edit_plan` is a good seed.
-   - Use `editing_project_create` for a manual project, imported local media, production-level edit, alternate cut, revision, or any task that should not be coupled one-to-one to a domain handoff.
-   - Give the project title/source/provenance enough detail to distinguish drafts and variants, such as target production, scene moment, requested cut, selected candidate ids, and user intent.
+   - Use `editing_project_create` for a manual project, imported local media, timeline assembly, alternate cut, revision, or any task that should not be coupled one-to-one to a domain handoff.
+   - Give the project title/source/provenance enough detail to distinguish drafts and variants, such as target timeline scope/assembly, scene moment, requested cut, selected candidate ids, and user intent.
 5. Add extra materials with `editing_project_add_asset` before putting them on the timeline.
    - Use `editing_project_remove_asset` only for assets that no clip still references.
    - Use `editing_project_update_settings` for canvas, fps, background, title, or workspace binding changes.
@@ -121,7 +121,7 @@ Do not use domain planning/production records as the editing workspace. Domain r
     - if render output should enter the resource library, either set `output.importToResource` on the render request or call `editing_export_import_resource` for an existing local output path,
     - if HLS output should be served for preview/playback, call `editing_export_publish_hls` after `editing_task_hls_create` succeeds,
     - use `system_artifact_upload_export` or `system_artifact_upload_hls_stream` only for completed artifacts that are already outside the editing task workflow,
-    - when any export or artifact tool resolves a media-pipeline task by `taskId`, pass the matching `projectId` as well; this applies to `editing_export_save_local`, `editing_export_import_resource`, `editing_export_publish_hls`, `system_artifact_upload_export`, and `system_artifact_upload_hls_stream`.
+    - when any export or artifact tool resolves an Electron task by `taskId`, pass the matching `projectId` as well; this applies to `editing_export_save_local`, `editing_export_import_resource`, `editing_export_publish_hls`, `system_artifact_upload_export`, and `system_artifact_upload_hls_stream`.
 14. Only create or select a domain candidate when the user/workflow explicitly asks to record the edited result:
     - use `domain_create_content_candidate` or `editing_export_create_candidate` for RawResource-backed candidate creation,
     - treat HLS `MediaStreamArtifact` outputs as hosted previews for now; writing HLS stream outputs as candidates requires a future domain candidate schema extension,
@@ -131,9 +131,9 @@ Do not use domain planning/production records as the editing workspace. Domain r
 ## Rules
 
 - Use `editing_*` for all product editing. `domain_compose_scene_moment_from_edit_plan` and `domain_compose_production_from_timeline` are not available editing paths; do not plan around them. Do not use resource-level video utilities as the editing path.
-- Do not use production or scene-moment domain handoff tools as mutable editing state. They are context readers. The mutable editing state is the `MediaEditingProject` returned by or passed through `editing_project_*` and `editing_timeline_*`.
-- Do not assume `domain_read_production_edit_plan` or any production-level handoff is the correct default. A production can require many separate cuts and versions; create a dedicated editing project for the current task, then bring the exported artifact back explicitly.
-- Do not overwrite or rewrite production orchestration records merely because a cut was rendered. Returning an edit to the domain means importing the artifact and, when explicitly requested, creating/adopting/selecting a content candidate.
+- Do not use timeline assembly / legacy production or scene-moment domain handoff tools as mutable editing state. They are context readers. The mutable editing state is the `MediaEditingProject` returned by or passed through `editing_project_*` and `editing_timeline_*`.
+- Do not assume `domain_read_production_edit_plan` or any legacy production/timeline-scope handoff is the correct default. A timeline scope can require many separate cuts and versions; create a dedicated editing project for the current task, then bring the exported artifact back explicitly.
+- Do not overwrite or rewrite legacy production orchestration records, namespace nodes, or scene-moment source merely because a cut was rendered. Returning an edit to the domain means importing the artifact and, when explicitly requested, creating/adopting/selecting a content candidate.
 - Use backend resource/media transform tools only for neutral preparation such as frame extraction, image transforms, or diagnostic probes. They must not be treated as product timeline render.
 - Do not call AI generation tools from this skill unless the user asks to create missing source material. Generation outputs must enter candidate/selection flow before becoming stable dependencies.
 - Do not automatically create, adopt, or select candidates after a render succeeds. Render success, RawResource upload, and domain adoption are separate user/workflow decisions.

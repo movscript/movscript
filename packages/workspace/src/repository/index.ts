@@ -41,10 +41,13 @@ export {
 } from './scriptSnapshots.js'
 
 export {
+  upsertMovScriptSourceRecord,
   updateMovScriptEntityTransition,
   updateMovScriptStoryboardTimeline,
   type MovScriptEntityTransitionUpdateInput,
   type MovScriptEntityTransitionUpdateResult,
+  type MovScriptSourceRecordUpsertInput,
+  type MovScriptSourceRecordUpsertResult,
   type MovScriptStoryboardTimeline,
   type MovScriptStoryboardTimelineUpdateInput,
   type MovScriptStoryboardTimelineUpdateResult,

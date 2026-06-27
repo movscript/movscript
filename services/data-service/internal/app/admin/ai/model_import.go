@@ -55,10 +55,10 @@ type ModelImportPreviewResult struct {
 }
 
 type ModelImportApplyResult struct {
-	Provider   persistencemodel.AIProvider `json:"provider"`
-	RouteGroup string                      `json:"route_group"`
-	Items      []ModelImportApplyItem      `json:"items"`
-	Summary    ModelImportResultSummary    `json:"summary"`
+	Provider   Provider                 `json:"provider"`
+	RouteGroup string                   `json:"route_group"`
+	Items      []ModelImportApplyItem   `json:"items"`
+	Summary    ModelImportResultSummary `json:"summary"`
 }
 
 type ModelImportModelPlan struct {
@@ -144,7 +144,7 @@ func (s *Service) ApplyModelImport(ctx context.Context, input ModelImportApplyIn
 		if err != nil {
 			return err
 		}
-		result.Provider = provider
+		result.Provider = providerFromModel(provider)
 
 		for _, item := range input.Models {
 			applied, err := scoped.applyModelImportItem(ctx, provider, routeGroup, enabled, item)
@@ -173,7 +173,7 @@ func (s *Service) resolveOrCreateModelImportProvider(ctx context.Context, input 
 		}
 		return provider, nil
 	}
-	return s.CreateProvider(ctx, CreateProviderInput{
+	return s.createProviderModel(ctx, CreateProviderInput{
 		ProviderKind:       input.ProviderKind,
 		DisplayName:        input.DisplayName,
 		BaseURLPrefix:      input.BaseURLPrefix,
@@ -335,7 +335,7 @@ func (s *Service) findOrCreateImportedRouteBinding(ctx context.Context, entryID 
 		if adapterType == "" {
 			adapterType = infraai.AdapterOpenAICompat
 		}
-		binding, err = s.CreateModelRouteBinding(ctx, strconv.FormatUint(uint64(entryID), 10), ModelRouteBindingInput{
+		binding, err = s.createModelRouteBindingModel(ctx, strconv.FormatUint(uint64(entryID), 10), ModelRouteBindingInput{
 			TemplateVersion: modelImportTemplateVersion(plan.TemplateID),
 			RouteGroup:      routeGroup,
 			ProviderID:      provider.ProviderID,

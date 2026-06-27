@@ -13,12 +13,27 @@ export type ProjectEntrySessionId = ProjectEntryId | 'scripts'
 
 export interface ProjectEntrySessionEntityRef {
   entityType: string
-  entityId: number
+  entityId: string | number
+}
+
+export interface ProjectEntrySessionScopeRef {
+  category?: string
+  kind: string
+  ref: string | number
+  path?: string
+}
+
+export interface ProjectEntrySessionTargetRef {
+  targetCategory?: string
+  targetKind: string
+  targetRef?: string | number
 }
 
 export interface ProjectEntrySessionSelection {
   primary?: ProjectEntrySessionEntityRef
   secondary?: ProjectEntrySessionEntityRef
+  scope?: ProjectEntrySessionScopeRef
+  target?: ProjectEntrySessionTargetRef
   scopeLevel?: string
 }
 
@@ -141,6 +156,10 @@ function normalizeProjectEntrySessionSelection(input: unknown): ProjectEntrySess
   const secondary = normalizeProjectEntrySessionEntityRef(record.secondary)
   if (primary) selection.primary = primary
   if (secondary) selection.secondary = secondary
+  const scope = normalizeProjectEntrySessionScopeRef(record.scope)
+  const target = normalizeProjectEntrySessionTargetRef(record.target)
+  if (scope) selection.scope = scope
+  if (target) selection.target = target
   if (typeof record.scopeLevel === 'string' && record.scopeLevel.trim()) selection.scopeLevel = record.scopeLevel
   return Object.keys(selection).length > 0 ? selection : undefined
 }
@@ -148,9 +167,44 @@ function normalizeProjectEntrySessionSelection(input: unknown): ProjectEntrySess
 function normalizeProjectEntrySessionEntityRef(input: unknown): ProjectEntrySessionEntityRef | undefined {
   if (!input || typeof input !== 'object') return undefined
   const record = input as Partial<ProjectEntrySessionEntityRef>
-  const entityId = Number(record.entityId) || 0
-  if (entityId <= 0 || typeof record.entityType !== 'string' || !record.entityType.trim()) return undefined
+  const entityId = normalizeProjectEntrySessionRefValue(record.entityId)
+  if (entityId === undefined || typeof record.entityType !== 'string' || !record.entityType.trim()) return undefined
   return { entityType: record.entityType, entityId }
+}
+
+function normalizeProjectEntrySessionScopeRef(input: unknown): ProjectEntrySessionScopeRef | undefined {
+  if (!input || typeof input !== 'object') return undefined
+  const record = input as Partial<ProjectEntrySessionScopeRef>
+  const kind = typeof record.kind === 'string' && record.kind.trim() ? record.kind.trim() : undefined
+  const ref = normalizeProjectEntrySessionRefValue(record.ref)
+  if (!kind || ref === undefined) return undefined
+  return {
+    ...(typeof record.category === 'string' && record.category.trim() ? { category: record.category.trim() } : {}),
+    kind,
+    ref,
+    ...(typeof record.path === 'string' && record.path.trim() ? { path: record.path.trim() } : {}),
+  }
+}
+
+function normalizeProjectEntrySessionTargetRef(input: unknown): ProjectEntrySessionTargetRef | undefined {
+  if (!input || typeof input !== 'object') return undefined
+  const record = input as Partial<ProjectEntrySessionTargetRef>
+  const targetKind = typeof record.targetKind === 'string' && record.targetKind.trim() ? record.targetKind.trim() : undefined
+  if (!targetKind) return undefined
+  const targetRef = normalizeProjectEntrySessionRefValue(record.targetRef)
+  return {
+    ...(typeof record.targetCategory === 'string' && record.targetCategory.trim() ? { targetCategory: record.targetCategory.trim() } : {}),
+    targetKind,
+    ...(targetRef !== undefined ? { targetRef } : {}),
+  }
+}
+
+function normalizeProjectEntrySessionRefValue(value: unknown): string | number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value !== 'string' || !value.trim()) return undefined
+  const trimmed = value.trim()
+  const numeric = Number(trimmed)
+  return Number.isFinite(numeric) && String(numeric) === trimmed ? numeric : trimmed
 }
 
 export const useProjectEntrySessionStore = create<ProjectEntrySessionStore>()(
@@ -297,7 +351,9 @@ function projectEntrySessionSelectionsEqual(
   if (!left || !right) return !left && !right
   return left.scopeLevel === right.scopeLevel &&
     projectEntrySessionEntityRefsEqual(left.primary, right.primary) &&
-    projectEntrySessionEntityRefsEqual(left.secondary, right.secondary)
+    projectEntrySessionEntityRefsEqual(left.secondary, right.secondary) &&
+    projectEntrySessionScopeRefsEqual(left.scope, right.scope) &&
+    projectEntrySessionTargetRefsEqual(left.target, right.target)
 }
 
 function projectEntrySessionEntityRefsEqual(
@@ -306,6 +362,22 @@ function projectEntrySessionEntityRefsEqual(
 ): boolean {
   if (!left || !right) return !left && !right
   return left.entityType === right.entityType && left.entityId === right.entityId
+}
+
+function projectEntrySessionScopeRefsEqual(
+  left: ProjectEntrySessionScopeRef | undefined,
+  right: ProjectEntrySessionScopeRef | undefined,
+): boolean {
+  if (!left || !right) return !left && !right
+  return left.category === right.category && left.kind === right.kind && left.ref === right.ref && left.path === right.path
+}
+
+function projectEntrySessionTargetRefsEqual(
+  left: ProjectEntrySessionTargetRef | undefined,
+  right: ProjectEntrySessionTargetRef | undefined,
+): boolean {
+  if (!left || !right) return !left && !right
+  return left.targetCategory === right.targetCategory && left.targetKind === right.targetKind && left.targetRef === right.targetRef
 }
 
 function normalizeProjectEntrySessionDeckOrder(value: unknown): number | undefined {

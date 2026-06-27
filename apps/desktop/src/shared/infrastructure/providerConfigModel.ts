@@ -1,4 +1,5 @@
 import { getRuntimeConfigSnapshot } from '@/shared/infrastructure/config'
+import type { MovScriptNormalizedFocus } from '@movscript/domain'
 import {
   CLAUDE_PROVIDER_ID,
   CODEX_PROVIDER_ID,
@@ -39,6 +40,7 @@ export interface MovScriptWorkspaceContext {
   projectDir?: string
   projectTitle?: string
   productionId?: string | number
+  domainFocus?: MovScriptNormalizedFocus
 }
 
 export interface ProviderConfig {

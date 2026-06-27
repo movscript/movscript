@@ -1,7 +1,11 @@
 import type { ContentCanvasWorkspaceSnapshot, ContentCanvasNode, ContentCanvasNodeKind, MediaEditingProjectLike, MediaTimelineClipLike } from '../domain/contentCanvasTypes'
 import type { TimelineItem, TimelineTrack, TimelineTrackKind, TreeNodeData } from './contentCanvasWorkspaceTypes'
-import { contentCanvasCodeForKind, contentCanvasWorkspaceIndex } from './contentCanvasWorkspaceGraphModel'
+import { contentCanvasWorkspaceIndex } from './contentCanvasWorkspaceGraphModel'
 import { stringField } from './contentCanvasWorkspaceNodeModel'
+import {
+  contentCanvasNodeDisplayCode,
+  contentCanvasNodeDisplayKind,
+} from '../domain/contentCanvasDomainPolicy'
 
 export {
   clampCanvasZoom,
@@ -85,8 +89,8 @@ function structureNodeFromContentNode(
     id: node.id,
     kind: node.kind,
     title: node.title,
-    meta: `${node.kind} · ${node.subtitle}`,
-    code: contentCanvasCodeForKind(node.kind),
+    meta: `${contentCanvasNodeDisplayKind(node)} · ${node.subtitle}`,
+    code: contentCanvasNodeDisplayCode(node),
     tone: treeToneForNodeKind(node.kind),
     active: node.id === activeNodeId || node.id === activeProductionId,
     children,

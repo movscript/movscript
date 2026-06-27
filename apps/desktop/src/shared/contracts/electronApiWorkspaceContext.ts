@@ -1,3 +1,5 @@
+import type { MovScriptNormalizedFocus } from '@movscript/domain'
+
 export type ElectronMovScriptWorkspaceScope = 'global' | 'project' | 'production'
 export type ElectronMovScriptWorkspaceRealmKind = 'local' | 'cloud'
 
@@ -18,4 +20,5 @@ export type ElectronMovScriptWorkspaceContext = {
   projectDir?: string
   projectTitle?: string
   productionId?: string | number
+  domainFocus?: MovScriptNormalizedFocus
 }

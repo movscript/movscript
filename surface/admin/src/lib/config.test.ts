@@ -62,7 +62,7 @@ test('getAPIBaseURL falls back to stored settings and then local backend', () =>
 
   restore = withWindow('movscript-admin://app/models')
   try {
-    assert.equal(getAPIBaseURL(), 'http://localhost:8765')
+    assert.equal(getAPIBaseURL(), 'http://localhost:8766')
   } finally {
     restore()
   }

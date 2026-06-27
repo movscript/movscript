@@ -11,15 +11,26 @@ When unclear, ask whether the user is:
 
 For a simple video, use the smallest useful structure: a focused short `scene_moment`, optional visual `expression_unit`, `storyboard`, and/or `content_unit`.
 
-For a project, add reusable structure only where it helps: project standards, settings, states, assets, script blocks, scene moments, visual expression units, keyframes, storyboards, expression units, audio cues, and content units.
+For a project, add reusable structure only where it helps: project standards, timeline namespace nodes, settings, setting-state namespaces, assets, script blocks, scene moments, visual expression units, keyframes, storyboards, expression units, audio cues, and content units. Current production/segment tools and source paths are legacy projections for timeline namespace nodes, not proof that every project must be shaped as production -> segment.
 
 For video requests that resemble Seedance-style paths, open `video-production-paths.md` first and classify the request as concept-driven short clip, long-video pipeline, image-driven video, or storyboard-driven workflow. Use that path classification to decide how much structure is needed.
 
-## Production Granularity Decision
+## New Production Structure Gate
+
+Before creating a new production or timeline namespace root:
+
+1. Clarify or infer the requested creative shape: deliverable, platform/audience, source material, duration, review granularity, continuity/reuse needs, and whether the work is a short video, film, episode, lesson, or custom structure.
+2. Use a known production type only when it fits the user's intent. `video`, `film`, `episode`, and `lesson` are templates for internal timeline vocabulary, not hard requirements.
+3. If none of the known shapes fits, use `custom` and name the user's internal timeline layers explicitly, such as `hook`, `proof`, `demo`, `cta`, `chapter`, `module`, `case`, or any domain-specific terms the user provides.
+4. Write new nontrivial structures with `domain_upsert_timeline_namespace_tree`. Store user vocabulary on nodes with `namespace_kind` / `timeline_namespace_kind`; let path placement express the concrete parent tree.
+5. Keep system primitives stable. Custom namespace nodes organize scope, order, and review boundaries; `scene_moment`, `expression_unit`, `storyboard`, `keyframe`, `asset`, and `content_unit` remain the makeable and trackable production objects.
+6. When a namespace scope needs an output video, use a `timeline_assembly_ref` content unit. Do not invent namespace-specific content-unit types such as `episode_ref`, `module_ref`, or `beat_ref`.
+
+## Output Granularity Decision
 
 Before writing entities, decide what is actually being produced:
 
-1. Decide whether the request is one output, one visual expression unit, one `scene_moment`, multiple scene moments, segments, or productions.
+1. Decide whether the request is one output, one visual expression unit, one `scene_moment`, multiple scene moments, or a built-in/custom timeline namespace scope that needs a `timeline_assembly_ref` output.
 2. Keep each `scene_moment` short and atomic, normally about 10 seconds or less. If the request spans multiple actions, time/place changes, or independently reviewable beats, split it into multiple scene moments.
 3. Choose the working center. Use a visual `expression_unit` when camera framing, blocking, motion, timing, or a single clip material is the main deliverable. Use `scene_moment` when the deliverable is a complete narrative beat that may contain one or more visual materials.
 4. Decide whether the working center needs evidence for consistency. Use `setting`, `setting_state`, and `asset` for concrete reusable production entities, state namespaces, and state asset references; `keyframe` and `storyboard` for shot visual anchors; `expression_unit` and `audio_cue` for performance, text, voice, sound, or ambience.
@@ -36,7 +47,7 @@ Use this order when the requested scope needs it:
 ```text
 project_standards
 -> setting / setting_state / asset
--> production / segment / scene_moment
+-> timeline namespace node (legacy production/segment projection when needed) / scene_moment
 -> expression_unit
 -> keyframe / storyboard
 -> audio_cue
@@ -52,7 +63,7 @@ For story-to-shot planning:
 
 1. Capture or read the source story/script.
 2. Analyze each useful beat before writing content units: dramatic purpose, characters/entities, setting, visible action, blocking, camera intent, lighting, audio/performance, continuity notes, and any required semantic refs.
-3. Create the necessary production, segment, and scene moments.
+3. Create the necessary timeline namespace nodes and scene moments. Prefer `domain_upsert_timeline_namespace_tree` for new path-first structures. Use `production` / `segment` write tools only as the current legacy projection of those namespace nodes.
 4. Create only the visual expression units needed for the current task.
 5. Add keyframes/storyboards only where visual anchoring is needed.
 6. Add content units only for outputs the user wants to generate, upload, select, or track. The content-unit prompt should use the analyzed scene detail, not a raw pasted script block.

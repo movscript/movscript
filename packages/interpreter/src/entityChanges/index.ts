@@ -153,26 +153,10 @@ export function sourceEntityKindFromRelativePath(path: string): string | undefin
 export function stableDirectoryIdForSourceEntity(path: string, entityKind: string): string | undefined {
   const parts = normalizeWorkspacePath(path).split('/')
   if (entityKind === 'project' || entityKind === 'project_standards') return undefined
-  if (entityKind === 'setting') return parts[1]
-  if (entityKind === 'setting_state') return parts[3]
-  if (entityKind === 'asset') return parts[5]
-  if (entityKind === 'script') return parts[1]
-  if (entityKind === 'script_version') return parts[3]
-  if (entityKind === 'script_block') return parts[5]
-  if (entityKind === 'content_unit') return parts[1]
-  if (entityKind === 'keyframe') return pathSegmentAfter(parts, 'keyframes')
-  if (entityKind === 'production') return parts[1]
-  if (entityKind === 'segment') return parts[3]
-  if (entityKind === 'scene_moment') return parts[5]
-  if (entityKind === 'storyboard') return pathSegmentAfter(parts, 'storyboards')
-  if (entityKind === 'audio_cue') return parts[7]
-  if (entityKind === 'expression_unit') return parts[7]
-  return undefined
-}
-
-function pathSegmentAfter(parts: string[], segment: string): string | undefined {
-  const index = parts.indexOf(segment)
-  return index >= 0 ? parts[index + 1] : undefined
+  if (!sourceEntityKindFromRelativePath(path)) return undefined
+  const filename = parts.at(-1)
+  if (!filename?.endsWith('.json')) return undefined
+  return parts.at(-2)
 }
 
 export function sourceEntityStableId(record: Record<string, unknown>, entityKind: string): string | number | undefined {

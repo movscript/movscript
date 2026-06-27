@@ -76,6 +76,9 @@ function createLocalProjectContentAPI(options: LocalProjectContentAPIOptions): S
     },
     loadMovScriptEngineContentWorkspaceSnapshot: (input) => sourceCommand('loadContentWorkspaceSnapshot', projectEnvelope(input)),
     loadMovScriptEngineContentWorkspace: (input) => sourceCommand('loadContentWorkspace', projectEnvelope(input)),
+    listMovScriptEngineContentCanvases: (input) => sourceCommand('listContentCanvases', projectEnvelope(input), false),
+    writeMovScriptEngineContentCanvas: (input) => sourceCommand('writeContentCanvas', contentCanvasProjectCommandInput(input), false),
+    deleteMovScriptEngineContentCanvas: (input) => sourceCommand('deleteContentCanvas', contentCanvasProjectCommandInput(input), false),
     createMovScriptEngineSetting: (input) => sourceCommand('createSetting', payloadInput(input)),
     createMovScriptEngineSettingState: (input) => sourceCommand('createSettingState', payloadInput(input)),
     createMovScriptEngineAsset: (input) => sourceCommand('createAsset', payloadInput(input)),
@@ -88,7 +91,10 @@ function createLocalProjectContentAPI(options: LocalProjectContentAPIOptions): S
     createMovScriptEngineExpressionUnit: (input) => sourceCommand('createExpressionUnit', payloadInput(input)),
     createMovScriptEngineKeyframe: (input) => sourceCommand('createKeyframe', payloadInput(input)),
     createMovScriptEngineStoryboard: (input) => sourceCommand('createStoryboard', payloadInput(input)),
-    ensureMovScriptEngineContentUnitForEntity: (input) => sourceCommand('ensureContentUnitForEntity', payloadInput(input)),
+    ensureMovScriptEngineContentUnitForEntity: (input) => {
+      const payload = payloadInput(input)
+      return sourceCommand(isTimelineAssemblyContentUnitInput(payload) ? 'ensureTimelineAssemblyContentUnit' : 'ensureContentUnitForEntity', payload)
+    },
     createMovScriptEngineContentCandidate: async (input) => {
       const result = await candidateCommand('createContentCandidate', stripProjectEnvelope(input))
       return candidateRecordFromResult(result)
@@ -99,7 +105,10 @@ function createLocalProjectContentAPI(options: LocalProjectContentAPIOptions): S
     updateMovScriptEngineAudioCue: (input) => sourceCommand('updateAudioCue', stripProjectEnvelope(input)),
     updateMovScriptEngineTransition: (input) => sourceCommand('updateEntityTransition', stripProjectEnvelope(input)),
     updateMovScriptEngineStoryboardTimeline: (input) => sourceCommand('updateStoryboardTimeline', stripProjectEnvelope(input)),
-    writeMovScriptEngineHierarchyNode: (input) => sourceCommand('writeHierarchyNode', stripProjectEnvelope(input)),
+    writeMovScriptEngineHierarchyNode: (input) => {
+      const payload = stripProjectEnvelope(input)
+      return sourceCommand(isNamespaceHierarchyNodeInput(payload) ? 'writeNamespaceNode' : 'writeHierarchyNode', payload)
+    },
     syncMovScriptEngineContentWorkspace: (input) => sourceCommand('syncContentWorkspace', projectEnvelope(input), false),
   }
 }
@@ -208,9 +217,57 @@ function stripProjectEnvelope(input: unknown): ProjectInput {
   return rest
 }
 
+function contentCanvasProjectCommandInput(input: unknown): ProjectInput {
+  const record = recordValue(input)
+  return {
+    ...stripProjectEnvelope(record),
+    ...(record.projectId !== undefined ? { projectId: record.projectId } : {}),
+    ...(record.project_id !== undefined ? { project_id: record.project_id } : {}),
+    ...(record.projectDir !== undefined ? { projectDir: record.projectDir } : {}),
+    ...(record.project_dir !== undefined ? { project_dir: record.project_dir } : {}),
+  }
+}
+
 function candidateRecordFromResult(result: unknown): unknown {
   const record = recordValue(result)
   return recordValue(record.record) ?? recordValue(record.candidate) ?? result
+}
+
+function isTimelineAssemblyContentUnitInput(input: ProjectInput): boolean {
+  const targetKind = stringValue(input.targetKind ?? input.target_kind)
+  const contentUnitType = stringValue(input.contentUnitType ?? input.content_unit_type)
+  const targetRef = stringValue(input.targetRef ?? input.target_ref)
+  return targetKind === 'timeline_assembly'
+    || contentUnitType === 'timeline_assembly_ref'
+    || Boolean(targetRef?.startsWith('timeline_assembly:'))
+}
+
+function isNamespaceHierarchyNodeInput(input: ProjectInput): boolean {
+  const targetPath = stringValue(input.targetPath ?? input.target_path)
+  const record = recordValue(input.record)
+  if (!targetPath || !namespaceEntityKindFromPath(targetPath)) return false
+  const category = stringValue(input.category ?? input.domainCategory ?? input.domain_category)
+  if (category === 'timeline_namespace' || category === 'setting_namespace') return true
+  return Boolean(stringValue(
+    input.namespaceKind
+    ?? input.namespace_kind
+    ?? input.domainKind
+    ?? input.domain_kind
+    ?? record.namespace_kind
+    ?? record.namespaceKind
+    ?? record.timeline_namespace_kind
+    ?? record.timelineNamespaceKind
+    ?? record.setting_namespace_kind
+    ?? record.settingNamespaceKind,
+  ))
+}
+
+function namespaceEntityKindFromPath(path: string): string | undefined {
+  if (path.endsWith('/production.json')) return 'production'
+  if (path.endsWith('/segment.json')) return 'segment'
+  if (path.endsWith('/setting.json')) return 'setting'
+  if (path.endsWith('/setting_state.json')) return 'setting_state'
+  return undefined
 }
 
 function recordValue(value: unknown): ProjectInput {

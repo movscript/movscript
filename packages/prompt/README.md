@@ -37,7 +37,7 @@ if the upstream `asset_ref` content unit for `wet_hair` has backend selection `{
 Generate the phone expression using @[resource:123] and @[resource:88].
 ```
 
-Structured fields such as `expression_unit_ref`, `keyframe_ref`, and `storyboard_ref` define the content unit target. Prompt refs such as `{{asset::wet_hair}}`, `{{candidate::candidate_a}}`, and `{{resource::88}}` are treated as upstream inputs and replaced with backend resource tokens when selected resources exist. Legacy resource mentions such as `[[resource::123]]` are also recognized when extracting generation resource ids.
+Structured fields such as `expression_unit_ref`, `keyframe_ref`, `storyboard_ref`, and `audio_cue_ref` define the content unit target. Prompt refs such as `{{asset::wet_hair}}`, `{{audio_cue::phone_vibration}}`, `{{candidate::candidate_a}}`, and `{{resource::88}}` are treated as upstream inputs and replaced with backend resource tokens when selected resources exist. Legacy resource mentions such as `[[resource::123]]` are also recognized when extracting generation resource ids.
 
 ## Blockers
 

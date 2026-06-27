@@ -2,6 +2,7 @@
   "name": "@movscript/tokens",
   "version": "0.1.0",
   "description": "MovScript shared design foundation tokens.",
+  "license": "MIT",
   "sideEffects": [
     "./src/theme.css"
   ],

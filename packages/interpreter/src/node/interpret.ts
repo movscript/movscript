@@ -22,6 +22,7 @@ import {
 } from './sourceStore.js'
 import {
   deriveV1RegenerationPlan,
+  loadLatestImpactReport,
   loadLatestInterpretManifest,
 } from './regeneration.js'
 import {
@@ -152,9 +153,11 @@ export async function planMovScriptWorkspaceRegeneration(input: MovScriptWorkspa
   const now = input.now ?? new Date()
   const review = await reviewMovScriptWorkspace({ ...input, now })
   const latestInterpretation = await loadLatestInterpretManifest(input.fileRepository)
+  const impactReport = await loadLatestImpactReport(input.fileRepository, latestInterpretation)
   return deriveV1RegenerationPlan({
     review,
     latestInterpretation,
+    impactReport,
     createdAt: now.toISOString(),
   })
 }

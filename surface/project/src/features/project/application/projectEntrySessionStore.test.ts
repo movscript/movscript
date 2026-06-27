@@ -48,6 +48,17 @@ test('project entry session snapshot normalization drops invalid entries and pre
       selection: {
         primary: { entityType: 'production', entityId: '4' },
         secondary: { entityType: 'scene_moment', entityId: 9 },
+        scope: {
+          category: 'timeline_namespace',
+          kind: 'episode',
+          ref: 'episode_01',
+          path: 'timeline/episode_01/production.json',
+        },
+        target: {
+          targetCategory: 'timeline_assembly',
+          targetKind: 'timeline_assembly',
+          targetRef: 'timeline_assembly:episode:episode_01',
+        },
         scopeLevel: 'production',
       },
     },
@@ -64,6 +75,40 @@ test('project entry session snapshot normalization drops invalid entries and pre
   assert.equal(snapshots.valid?.open, false)
   assert.deepEqual(snapshots.valid?.filters, { productionId: 4, selectedItemId: 77 })
   assert.deepEqual(snapshots.valid?.selection?.primary, { entityType: 'production', entityId: 4 })
+  assert.deepEqual(snapshots.valid?.selection?.scope, {
+    category: 'timeline_namespace',
+    kind: 'episode',
+    ref: 'episode_01',
+    path: 'timeline/episode_01/production.json',
+  })
+  assert.deepEqual(snapshots.valid?.selection?.target, {
+    targetCategory: 'timeline_assembly',
+    targetKind: 'timeline_assembly',
+    targetRef: 'timeline_assembly:episode:episode_01',
+  })
+})
+
+test('project entry session snapshot normalization preserves string namespace refs', () => {
+  const snapshots = normalizeProjectEntrySessionSnapshots({
+    namespace: {
+      projectId: 18,
+      projectEntryId: 'orchestration_production',
+      selection: {
+        primary: { entityType: 'timeline_namespace', entityId: 'episode_01' },
+        scope: { category: 'timeline_namespace', kind: 'episode', ref: 'episode_01' },
+      },
+    },
+  })
+
+  assert.deepEqual(snapshots.namespace?.selection?.primary, {
+    entityType: 'timeline_namespace',
+    entityId: 'episode_01',
+  })
+  assert.deepEqual(snapshots.namespace?.selection?.scope, {
+    category: 'timeline_namespace',
+    kind: 'episode',
+    ref: 'episode_01',
+  })
 })
 
 test('project entry session store merges partial filter updates for the same entry', () => {
@@ -73,20 +118,26 @@ test('project entry session store merges partial filter updates for the same ent
     projectId: 9,
     projectEntryId: 'orchestration_production',
     filters: { productionFilter: 'all', productionSearch: '' },
-    selection: { primary: { entityType: 'production', entityId: 3 } },
+    selection: {
+      primary: { entityType: 'timeline_namespace', entityId: 'episode_01' },
+      scope: { category: 'timeline_namespace', kind: 'episode', ref: 'episode_01' },
+    },
   })
   useProjectEntrySessionStore.getState().upsertSnapshot({
     projectId: 9,
     projectEntryId: 'orchestration_production',
     filters: { selectedItemId: 44 },
     selection: {
-      primary: { entityType: 'production', entityId: 3 },
+      primary: { entityType: 'timeline_namespace', entityId: 'episode_01' },
+      scope: { category: 'timeline_namespace', kind: 'episode', ref: 'episode_01' },
       secondary: { entityType: 'scene_moment', entityId: 12 },
     },
   })
 
   const snapshot = useProjectEntrySessionStore.getState().snapshotFor(9, 'orchestration_production')
   assert.deepEqual(snapshot?.filters, { productionFilter: 'all', productionSearch: '', selectedItemId: 44 })
+  assert.deepEqual(snapshot?.selection?.primary, { entityType: 'timeline_namespace', entityId: 'episode_01' })
+  assert.deepEqual(snapshot?.selection?.scope, { category: 'timeline_namespace', kind: 'episode', ref: 'episode_01' })
   assert.deepEqual(snapshot?.selection?.secondary, { entityType: 'scene_moment', entityId: 12 })
 })
 

@@ -30,7 +30,7 @@ test('workspace change handoff can include an existing business review path when
       workspaceId: 'workspace-asset',
       target: { entityType: 'asset_slot', entityId: 88 },
     }),
-    '/project/content/preview?workspaceId=workspace-asset&asset_slot_id=88',
+    '/project/settings/preview?workspaceId=workspace-asset&asset_slot_id=88',
   )
 
   const navigation = buildWorkspaceChangeHandoffNavigation({
@@ -39,8 +39,17 @@ test('workspace change handoff can include an existing business review path when
     target: { entityType: 'asset_slot', entityId: 88 },
   })
 
-  assert.equal(navigation.businessReviewPath, '/project/content/preview?workspaceId=workspace-asset&asset_slot_id=88')
+  assert.equal(navigation.businessReviewPath, '/project/settings/preview?workspaceId=workspace-asset&asset_slot_id=88')
   assert.equal(new URLSearchParams(navigation.path.split('?')[1]).get('businessReviewPath'), navigation.businessReviewPath)
+
+  assert.equal(
+    buildWorkspaceBusinessReviewPath({
+      workspaceKind: 'setting_workspace',
+      workspaceId: 'workspace-setting',
+      target: { entityType: 'setting', entityId: 'hero' },
+    }),
+    '/project/settings/preview?workspaceId=workspace-setting&setting_id=hero',
+  )
 
   assert.equal(
     buildWorkspaceBusinessReviewPath({
@@ -48,7 +57,36 @@ test('workspace change handoff can include an existing business review path when
       workspaceId: 'workspace-production',
       target: { entityType: 'production', entityId: 301 },
     }),
-    '/project/scripts/workbench?view=review&workspaceId=workspace-production&productionId=301',
+    '/project/scripts/workbench?view=review&workspaceId=workspace-production&scopeKind=production&scopeRef=301&productionId=301',
+  )
+})
+
+test('workspace change handoff preserves timeline scope without inventing production ids', () => {
+  assert.equal(
+    buildWorkspaceBusinessReviewPath({
+      workspaceKind: 'production_workspace',
+      workspaceId: 'workspace-episode',
+      target: { scopeKind: 'episode', scopeRef: 'episode_01' },
+    }),
+    '/project/scripts/workbench?view=review&workspaceId=workspace-episode&scopeKind=episode&scopeRef=episode_01',
+  )
+
+  assert.equal(
+    buildWorkspaceBusinessReviewPath({
+      workspaceKind: 'production_workspace',
+      workspaceId: 'workspace-project',
+      target: {},
+    }),
+    '/project/scripts/workbench?view=review&workspaceId=workspace-project',
+  )
+
+  assert.equal(
+    buildWorkspaceBusinessReviewPath({
+      workspaceKind: 'content_unit_workspace',
+      workspaceId: 'workspace-assembly',
+      target: { entityType: 'production', entityId: 301 },
+    }),
+    '/project/content/preview?view=review&workspaceId=workspace-assembly&scopeKind=production&scopeRef=301&productionId=301&targetCategory=timeline_assembly&targetKind=timeline_assembly&targetRef=timeline_assembly%3Aproduction%3A301&timeline_assembly_ref=timeline_assembly%3Aproduction%3A301',
   )
 })
 

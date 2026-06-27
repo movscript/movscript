@@ -26,6 +26,9 @@
       "@movscript/project-surface/runtime": [
         "./src/runtime.ts"
       ],
+      "@movscript/domain": [
+        "../../packages/domain/src/index.ts"
+      ],
       "@movscript/canvas-surface": [
         "../canvas/src/index.ts"
       ],

@@ -43,7 +43,10 @@ export type {
 export { AgentContentPromptSurface } from './components/AgentContentPromptSurface.js'
 export type { AgentContentPromptSaveInput } from './components/AgentContentPromptSurface.js'
 export { AgentGenerationJobSurface } from './components/AgentGenerationJobSurface.js'
-export { AgentImpactSurface } from './components/AgentImpactSurface.js'
+export {
+  AgentImpactSurface,
+  agentImpactPreviewTimelineHref,
+} from './components/AgentImpactSurface.js'
 export type { AgentImpactAcceptStaleInput } from './components/AgentImpactSurface.js'
 export {
   AgentPreviewTimelineSurface,

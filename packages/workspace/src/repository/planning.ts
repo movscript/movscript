@@ -34,6 +34,37 @@ export interface MovScriptStoryboardTimelineUpdateResult {
   record: Record<string, unknown>
 }
 
+export interface MovScriptSourceRecordUpsertInput {
+  fileRepository: MovScriptWorkspaceFileRepository
+  targetPath: string
+  record: Record<string, unknown>
+  payload?: Record<string, unknown>
+}
+
+export interface MovScriptSourceRecordUpsertResult {
+  path: string
+  record: Record<string, unknown>
+}
+
+export async function upsertMovScriptSourceRecord(
+  input: MovScriptSourceRecordUpsertInput,
+): Promise<MovScriptSourceRecordUpsertResult> {
+  const targetPath = normalizeWorkspacePath(input.targetPath)
+  const current = await readOptionalWorkspaceRecord(input.fileRepository, targetPath)
+  const incoming = stripWorkspacePrivateFields({
+    ...input.record,
+    ...(input.payload ?? {}),
+  })
+  const expectedKind = stringValue(incoming.kind)
+  if (expectedKind !== undefined) assertRecordKind(current, expectedKind, targetPath)
+  const record = pruneUndefined({
+    ...current,
+    ...incoming,
+  })
+  await input.fileRepository.write({ path: targetPath, content: serializeWorkspaceRecord(record) })
+  return { path: targetPath, record }
+}
+
 export async function updateMovScriptEntityTransition(
   input: MovScriptEntityTransitionUpdateInput,
 ): Promise<MovScriptEntityTransitionUpdateResult> {
@@ -77,6 +108,32 @@ async function readWorkspaceRecord(
   return parsed
 }
 
+async function readOptionalWorkspaceRecord(
+  fileRepository: MovScriptWorkspaceFileRepository,
+  targetPath: string,
+): Promise<Record<string, unknown>> {
+  const file = await fileRepository.read({ path: targetPath }).catch(() => undefined)
+  if (!file) return {}
+  const parsed = JSON.parse(file.content) as unknown
+  if (!isRecord(parsed)) throw new Error(`target JSON must be an object: ${targetPath}`)
+  return parsed
+}
+
+function assertRecordKind(
+  current: Record<string, unknown>,
+  expectedKind: string,
+  targetPath: string,
+): void {
+  const currentKind = typeof current.kind === 'string'
+    ? current.kind
+    : typeof current.schema === 'string'
+      ? current.schema.replace(/^movscript\./, '').replace(/\.v\d+$/, '')
+      : undefined
+  if (currentKind !== undefined && currentKind !== expectedKind) {
+    throw new Error(`target kind mismatch: expected ${expectedKind} at ${targetPath}`)
+  }
+}
+
 function normalizeTransition(transition: MovScriptTransitionBoundary | undefined): Record<string, unknown> | undefined {
   if (!transition) return undefined
   return pruneUndefined({
@@ -113,6 +170,12 @@ function finiteNumber(value: unknown): number | undefined {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function stripWorkspacePrivateFields(record: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(record).filter(([key]) => !key.startsWith('__workspace_')),
+  )
 }
 
 function pruneUndefined<T extends Record<string, unknown>>(value: T): T {

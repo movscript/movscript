@@ -45,6 +45,7 @@
     "@movscript/agent-chat": "workspace:*",
     "@movscript/agent-protocol": "workspace:*",
     "@movscript/data-client": "workspace:*",
+    "@movscript/domain": "workspace:*",
     "@movscript/local-runtime": "workspace:*",
     "@movscript/mcp-contracts": "workspace:*",
     "@movscript/jobs-surface": "workspace:*",

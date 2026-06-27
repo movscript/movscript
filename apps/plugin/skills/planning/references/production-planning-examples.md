@@ -25,7 +25,7 @@ Use these as workflow shapes, not fixed schemas.
 ## From Shot Reference Or Storyboard Material
 
 1. Query existing production context and shot references.
-2. Upsert production, segment, scene moment, and shot source before storyboard source.
+2. Upsert the needed timeline namespace projection, scene moment, and visual expression/legacy shot source before storyboard source. Current tools may write `production` / `segment` records for the namespace projection.
 3. Use `domain_upsert_storyboard` for editable storyboard records.
 4. Create content units after storyboard/keyframe refs exist.
 

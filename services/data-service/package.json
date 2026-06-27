@@ -6,6 +6,8 @@
     "build": "node scripts/build.mjs",
     "dev": "make dev",
     "test": "make test",
+    "test:unit": "make test-unit",
+    "test:architecture": "make test-architecture",
     "test:model-capability-contract": "make test-model-capability-contract",
     "verify:observability": "node scripts/verify-observability.mjs"
   },

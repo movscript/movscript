@@ -116,6 +116,9 @@
       "@movscript/data-client": [
         "../../packages/data-client/src/index.ts"
       ],
+      "@movscript/domain": [
+        "../../packages/domain/src/index.ts"
+      ],
       "@movscript/mcp-contracts": [
         "../../packages/mcp-contracts/src/index.ts"
       ],

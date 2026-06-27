@@ -139,8 +139,10 @@ test('desktop business stores route through MovScript Home storage', () => {
   }
   for (const file of surfaceHomeBackedPersistentStores) {
     const source = readFileSync(resolve(file), 'utf8')
-    assert.match(source, /createDesktopStateStorage\(/, `${file} should use desktop Home storage`)
+    assert.match(source, /createSurfaceStateStorage\(/, `${file} should use the shared surface storage facade`)
   }
+  const hostStateSource = readFileSync(resolve('src/shared/infrastructure/api/hostState.ts'), 'utf8')
+  assert.match(hostStateSource, /configureSurfaceStateStorageClient\(\{[\s\S]*createStateStorage: createDesktopStateStorage,[\s\S]*\}\)/)
 
   for (const file of homeBackedBrowserStorageAllowlist) {
     const source = readFileSync(resolve('src', file), 'utf8')

@@ -18,8 +18,12 @@ export function createMovScriptEngineAPI(ipcRenderer: IpcRenderer): Pick<
   | 'saveMovScriptEngineWorkspaceProductionSnapshot'
   | 'upsertMovScriptEngineWorkspaceProjectStandards'
   | 'upsertMovScriptEngineWorkspaceContentUnit'
+  | 'listMovScriptEngineContentCanvases'
+  | 'writeMovScriptEngineContentCanvas'
+  | 'deleteMovScriptEngineContentCanvas'
   | 'createMovScriptEngineContentUnit'
   | 'ensureMovScriptEngineContentUnitForEntity'
+  | 'ensureMovScriptEngineTimelineAssemblyContentUnit'
   | 'createMovScriptEngineSetting'
   | 'createMovScriptEngineSettingState'
   | 'createMovScriptEngineAsset'
@@ -62,8 +66,12 @@ export function createMovScriptEngineAPI(ipcRenderer: IpcRenderer): Pick<
     saveMovScriptEngineWorkspaceProductionSnapshot: (input) => ipcRenderer.invoke('movscript:engine-workspace-production-snapshot-save', input),
     upsertMovScriptEngineWorkspaceProjectStandards: (input) => ipcRenderer.invoke('movscript:engine-workspace-project-standards-upsert', input),
     upsertMovScriptEngineWorkspaceContentUnit: (input) => ipcRenderer.invoke('movscript:engine-workspace-content-unit-upsert', input),
+    listMovScriptEngineContentCanvases: (input) => ipcRenderer.invoke('movscript:engine-content-canvases-list', input),
+    writeMovScriptEngineContentCanvas: (input) => ipcRenderer.invoke('movscript:engine-content-canvas-write', input),
+    deleteMovScriptEngineContentCanvas: (input) => ipcRenderer.invoke('movscript:engine-content-canvas-delete', input),
     createMovScriptEngineContentUnit: (input) => ipcRenderer.invoke('movscript:engine-content-unit-create', input),
     ensureMovScriptEngineContentUnitForEntity: (input) => ipcRenderer.invoke('movscript:engine-content-unit-ensure', input),
+    ensureMovScriptEngineTimelineAssemblyContentUnit: (input) => ipcRenderer.invoke('movscript:engine-timeline-assembly-content-unit-ensure', input),
     createMovScriptEngineSetting: (input) => ipcRenderer.invoke('movscript:engine-setting-create', input),
     createMovScriptEngineSettingState: (input) => ipcRenderer.invoke('movscript:engine-setting-state-create', input),
     createMovScriptEngineAsset: (input) => ipcRenderer.invoke('movscript:engine-asset-create', input),

@@ -57,7 +57,7 @@ test('plugin-full-local startup policy attaches to daemon instead of owning busi
   }
 })
 
-test('movscript-agent-mcp keeps plugin-desktop-owned only as an explicit compatibility mode', async () => {
+test('movscript-agent-mcp canonicalizes Desktop compatibility mode without Desktop ownership wording', async () => {
   const homeDir = mkdtempSync(join(tmpdir(), 'movscript-plugin-home-'))
   mkdirSync(join(homeDir, 'runtime', 'apps'), { recursive: true })
   writeFileSync(join(homeDir, 'runtime', 'apps', 'movscript.desktop.json'), JSON.stringify({
@@ -76,7 +76,7 @@ test('movscript-agent-mcp keeps plugin-desktop-owned only as an explicit compati
   assert.equal(result.exitCode, 0, result.stderr)
   const records = readPluginRecords(homeDir, result.pid)
 
-  assert.equal(records.app.profile, 'plugin-desktop-owned')
+  assert.equal(records.app.profile, 'plugin-desktop-compatible')
   assert.equal(records.launcher.serviceName, 'movscript.plugin.agent-launcher')
   assert.equal(records.service.serviceName, 'movscript.mcp.host')
   assert.equal(records.dataService, undefined)
@@ -85,13 +85,31 @@ test('movscript-agent-mcp keeps plugin-desktop-owned only as an explicit compati
   assert.equal(records.localSurfaceHost.serviceName, 'movscript.local-surface.host')
   assert.equal(records.localSurfaceHost.profile, 'desktop-connected')
   assert.equal(records.localSurfaceHost.status, 'stopped')
-  assert.equal(records.localSurfaceHost.metadata.mode, 'plugin-desktop-owned')
+  assert.equal(records.localSurfaceHost.metadata.mode, 'plugin-desktop-compatible')
   assert.equal(records.localSurfaceHost.metadata.role, 'agent-facing-surface-host')
   assert.match(records.localSurfaceHost.endpoint.url, /^http:\/\/127\.0\.0\.1:\d+$/)
   assert.equal(records.localSurfaceHostEndpoint.serviceName, 'movscript.local-surface.host')
   assert.match(records.localSurfaceHostEndpoint.url, /^http:\/\/127\.0\.0\.1:\d+$/)
   assert.equal(records.mediaPipeline, undefined)
   assert.equal(records.mediaPipelineEndpoint, undefined)
+})
+
+test('movscript-agent-mcp accepts plugin-desktop-owned only as a legacy alias', async () => {
+  const homeDir = mkdtempSync(join(tmpdir(), 'movscript-plugin-home-'))
+  const result = await runAgentMCP(homeDir, {
+    env: {
+      MOVSCRIPT_PLUGIN_MODE: 'plugin-desktop-owned',
+    },
+  })
+
+  assert.equal(result.exitCode, 0, result.stderr)
+  const records = readPluginRecords(homeDir, result.pid)
+
+  assert.equal(records.app.profile, 'plugin-desktop-compatible')
+  assert.equal(records.localSurfaceHost.metadata.mode, 'plugin-desktop-compatible')
+  assert.equal(records.dataService, undefined)
+  assert.equal(records.projectService, undefined)
+  assert.equal(records.editingService, undefined)
 })
 
 test('movscript-agent-mcp ignores legacy Desktop records and defaults to daemon attach', async () => {

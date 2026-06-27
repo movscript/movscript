@@ -45,6 +45,27 @@ test('agent runtime chat shell maps routes to MovScript workspace contexts', () 
     scope: 'production',
     projectId: 42,
     productionId: 99,
+    domainFocus: {
+      projectId: '42',
+      scope: { category: 'timeline_namespace', kind: 'production', ref: '99', field: 'productionId' },
+      target: { targetCategory: 'timeline_assembly', targetKind: 'timeline_assembly', targetRef: 'timeline_assembly:production:99' },
+      diagnostics: [],
+    },
+  })
+
+  assert.deepEqual(agentRuntimeWorkspaceContextFromRoute({
+    projectId: 42,
+    pathname: '/project/scripts/workbench',
+    search: '?scopeKind=episode&scopeRef=episode_01',
+  }), {
+    scope: 'project',
+    projectId: 42,
+    domainFocus: {
+      projectId: '42',
+      scope: { category: 'timeline_namespace', kind: 'episode', ref: 'episode_01', field: 'scopeRef' },
+      target: { targetCategory: 'timeline_assembly', targetKind: 'timeline_assembly', targetRef: 'timeline_assembly:episode:episode_01' },
+      diagnostics: [],
+    },
   })
 })
 

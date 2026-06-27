@@ -24,24 +24,50 @@ Use `pnpm run release:dry-run -- --platform=darwin --arch=arm64` to exercise
 the unsigned package path locally. Set `MOVSCRIPT_RELEASE_SIGNING_MODE=signed`
 or pass `--signed` only when Developer ID / notarization credentials are ready.
 
-Use `pnpm run release:check` before packaging or tagging a release. It is the
-shared local/CI quality gate: release readiness, workspace typecheck,
-workspace tests, script/release tests, UI quality, frontend quality, package
-resource verification, and release workflow tests all run from the same release
-workflow entrypoint. Target-specific desktop assets such as ffmpeg are downloaded
-and verified inside each `release full` / package job before packaging and smoke
-testing that target.
+Use `pnpm run check` before opening a PR. It is the shared workspace gate:
+generated path contracts, workspace package contracts, plugin distribution
+sync, runtime registry, script and architecture boundary tests, workspace
+typecheck, build, package tests, desktop tests, UI quality, frontend quality,
+and package resource verification.
+
+Use `pnpm run release:check` before packaging or tagging a release. It extends
+the workspace gate with release readiness and the stable backend release gate
+(`pnpm run check:backend`) through the same release workflow entrypoint.
+Target-specific desktop assets such as ffmpeg are downloaded and verified
+inside each `release full` / package job before packaging and smoke testing
+that target.
+
+The backend release gate runs data-service unit tests and the explicit model
+capability contract. Broader Go architecture checks are still available as
+`pnpm --filter @movscript/data-service run test:architecture`, but they track
+backend boundary debt separately from the user-facing release readiness gate.
+
+Public GitHub Releases have two user-facing product tracks:
+
+- Agent Plugin only: `movscript-agent-plugin-<version>.zip`, installed through
+  `install-plugin.sh` and usable without installing Desktop.
+- Desktop App: `movscript-desktop-<platform>-<arch>-*`, installed through
+  `install-desktop.sh` on macOS or downloaded as a desktop installer.
+
+`movscript.local-node` is a shared runtime component behind those two packages,
+not a third public release track.
 
 Only cross-workspace runners, shared verifier helpers, and SDK runtime preparation entrypoints may live directly under `scripts/`:
 
 - `run-node-tests.mjs`
 - `verifier-utils.mjs`
+- `check-generated-paths.mjs`
+- `check-plugin-distribution.mjs`
+- `check-workspace-packages.mjs`
+- `clean-generated.mjs`
 - `prepare-sdk-runtime-seed.mjs`
 - `smoke-sdk-runtimes.mjs`
 - `movscript-lang-deps.mjs`
 - `movscript-lang-cwd.mjs`
 
-Tests for scripts live under `tests/scripts/`, not in this directory. Keep `scripts/` limited to callable entrypoints and shared helpers.
+Tests for scripts and cross-workspace architecture boundaries live under
+`tests/scripts/`, not in this directory. Keep `scripts/` limited to callable
+entrypoints and shared helpers.
 
 ## TypeScript test dependency diagnostics
 

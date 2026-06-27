@@ -128,7 +128,11 @@ test('editing-service executes pure MediaEditingProject commands', async () => {
   assert.equal(fromPreviewTimeline.command, 'createProjectFromPreviewTimeline')
   assert.equal(fromPreviewTimeline.result.status, 'ok')
   assert.equal(fromPreviewTimeline.result.editing_project.id, 'editing_project_production_pilot')
+  assert.equal(fromPreviewTimeline.result.editing_project.source.targetKind, 'timeline_assembly')
+  assert.equal(fromPreviewTimeline.result.editing_project.source.targetRef, 'timeline_assembly:production:pilot')
   assert.equal(fromPreviewTimeline.result.editing_project.timeline.durationMs, 7000)
+  assert.equal(fromPreviewTimeline.result.editing_project.timeline.metadata.targetKind, 'timeline_assembly')
+  assert.equal(fromPreviewTimeline.result.editing_project.timeline.metadata.legacyTargetKind, 'production')
   assert.equal(fromPreviewTimeline.result.editing_project.timeline.tracks[0].clips[0].asset.resourceId, 612)
 
   let project = baseEditingProject()
@@ -291,6 +295,8 @@ test('editing-service exposes timeline views through the shared workspace servic
     kind: 'production',
     id: 'pilot',
     title: 'Pilot',
+    namespace_kind: 'episode',
+    timeline_namespace_kind: 'episode',
   })
   await writeProjectJSON(projectDir, 'productions/pilot/segments/opening/segment.json', {
     schema: 'movscript.segment.v1',
@@ -378,7 +384,7 @@ test('editing-service exposes timeline views through the shared workspace servic
 
   const originalFetch = globalThis.fetch
   let bundle
-  globalThis.fetch = async (url, init = {}) => {
+  const decisionFetch = async (url, init = {}) => {
     const parsed = new URL(String(url))
     if (parsed.hostname === '127.0.0.1') return originalFetch(url, init)
     if (parsed.pathname.endsWith('/decisions/query') && init.method === 'POST') {
@@ -398,6 +404,7 @@ test('editing-service exposes timeline views through the shared workspace servic
     }
     return jsonResponse({}, 404)
   }
+  globalThis.fetch = decisionFetch
   try {
     bundle = await postJSON(`${runtime.url}${EDITING_SERVICE_TIMELINE_VIEW_ENDPOINT}`, {
       projectDir,
@@ -416,14 +423,97 @@ test('editing-service exposes timeline views through the shared workspace servic
   }
   assert.equal(bundle.kind, 'productionTimelineBundle')
   assert.equal(bundle.result.schema, 'movscript.production-timeline-bundle.v1')
+  assert.equal(bundle.result.preferred_schema, 'movscript.timeline-assembly-bundle.v1')
   assert.equal(bundle.result.status, 'ok')
+  assert.equal(bundle.result.target_kind, 'timeline_assembly')
+  assert.equal(bundle.result.target_ref, 'timeline_assembly:production:pilot')
+  assert.equal(bundle.result.scope_kind, 'production')
+  assert.equal(bundle.result.scope_ref, 'pilot')
+  assert.equal(bundle.result.legacy_alias.target_kind, 'production')
   assert.equal(bundle.result.preview_timeline.productionId, 'pilot')
   assert.equal(bundle.result.clips[0].contentUnitId, 'cu_rain_call')
   assert.equal(bundle.result.clips[0].resourceId, 612)
   assert.equal(bundle.result.edit_plan.schema, 'movscript.edit_plan.v1')
+  assert.equal(bundle.result.edit_plan.target_kind, 'timeline_assembly')
+  assert.equal(bundle.result.edit_plan.target_ref, 'timeline_assembly:production:pilot')
   assert.equal(bundle.result.edit_plan.tracks[0].items[0].resource_id, 612)
+  assert.equal(bundle.result.context.target_kind, 'timeline_assembly')
+  assert.equal(bundle.result.context.selected_content_units[0].target_kind, 'timeline_assembly')
   assert.equal(bundle.result.context.resources[0].resource_id, 612)
+  assert.equal(bundle.result.media_editing_project.source.targetKind, 'timeline_assembly')
+  assert.equal(bundle.result.media_editing_project.provenance.legacyTargetKind, 'production')
   assert.equal(bundle.result.media_editing_project.timeline.durationMs, 7000)
+
+  let assemblyBundle
+  globalThis.fetch = decisionFetch
+  try {
+    assemblyBundle = await postJSON(`${runtime.url}${EDITING_SERVICE_TIMELINE_VIEW_ENDPOINT}`, {
+      projectDir,
+      kind: 'timelineAssemblyBundle',
+      targetRef: 'timeline_assembly:production:pilot',
+      now: '2026-06-24T00:00:00.000Z',
+      decisionStore: {
+        kind: 'scoped-project-data',
+        baseUrl: 'http://movscript.test',
+        projectUid: 'prj_pilot',
+        token: 'test-token',
+      },
+    })
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+  assert.equal(assemblyBundle.kind, 'timelineAssemblyBundle')
+  assert.equal(assemblyBundle.result.schema, 'movscript.timeline-assembly-bundle.v1')
+  assert.equal(assemblyBundle.result.target_kind, 'timeline_assembly')
+  assert.equal(assemblyBundle.result.target_ref, 'timeline_assembly:production:pilot')
+  assert.equal(assemblyBundle.result.production_id, 'pilot')
+
+  let episodeAssemblyBundle
+  globalThis.fetch = decisionFetch
+  try {
+    episodeAssemblyBundle = await postJSON(`${runtime.url}${EDITING_SERVICE_TIMELINE_VIEW_ENDPOINT}`, {
+      projectDir,
+      kind: 'timelineAssemblyBundle',
+      targetRef: 'timeline_assembly:episode:pilot',
+      now: '2026-06-24T00:00:00.000Z',
+      decisionStore: {
+        kind: 'scoped-project-data',
+        baseUrl: 'http://movscript.test',
+        projectUid: 'prj_pilot',
+        token: 'test-token',
+      },
+    })
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+  assert.equal(episodeAssemblyBundle.kind, 'timelineAssemblyBundle')
+  assert.equal(episodeAssemblyBundle.result.schema, 'movscript.timeline-assembly-bundle.v1')
+  assert.equal(episodeAssemblyBundle.result.status, 'ok')
+  assert.equal(episodeAssemblyBundle.result.target_kind, 'timeline_assembly')
+  assert.equal(episodeAssemblyBundle.result.target_ref, 'timeline_assembly:episode:pilot')
+  assert.equal(episodeAssemblyBundle.result.scope_kind, 'episode')
+  assert.equal(episodeAssemblyBundle.result.scope_ref, 'pilot')
+  assert.equal(episodeAssemblyBundle.result.production_id, undefined)
+  assert.equal(episodeAssemblyBundle.result.preview_timeline.targetKind, 'timeline_assembly')
+  assert.equal(episodeAssemblyBundle.result.preview_timeline.scopeKind, 'episode')
+  assert.equal(episodeAssemblyBundle.result.preview_timeline.items.some((item) => item.itemType === 'timeline_namespace' && item.entity.id === 'opening'), true)
+  assert.equal(episodeAssemblyBundle.result.clips[0].contentUnitId, 'cu_rain_call')
+  assert.equal(episodeAssemblyBundle.result.edit_plan.target_kind, 'timeline_assembly')
+  assert.equal(episodeAssemblyBundle.result.edit_plan.scope_kind, 'episode')
+  assert.equal(episodeAssemblyBundle.result.edit_plan.productionId, undefined)
+  assert.equal(episodeAssemblyBundle.result.context.scope_kind, 'episode')
+  assert.equal(episodeAssemblyBundle.result.media_editing_project.source.productionId, undefined)
+  assert.equal(episodeAssemblyBundle.result.media_editing_project.source.scopeKind, 'episode')
+  assert.equal(episodeAssemblyBundle.result.media_editing_project.provenance.legacyTargetKind, undefined)
+
+  const missingAssembly = await postJSON(`${runtime.url}${EDITING_SERVICE_TIMELINE_VIEW_ENDPOINT}`, {
+    projectDir,
+    kind: 'timelineAssemblyBundle',
+    targetRef: 'timeline_assembly:episode:missing_episode',
+  })
+  assert.equal(missingAssembly.result.schema, 'movscript.timeline-assembly-bundle.v1')
+  assert.equal(missingAssembly.result.status, 'blocked')
+  assert.equal(missingAssembly.result.blockers[0].code, 'timeline_assembly_preview_timeline_missing')
 
   const unsupported = await fetch(`${runtime.url}${EDITING_SERVICE_TIMELINE_VIEW_ENDPOINT}`, {
     method: 'POST',

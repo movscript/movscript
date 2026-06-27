@@ -66,10 +66,18 @@ export function releaseWorkflowSteps(mode, args = []) {
   if (mode === 'check') {
     return [
       ['Verify release readiness', 'node', ['scripts/release/release-workflow.mjs', 'verify-release-readiness']],
+      ['Verify generated path contract', pnpmCommand, ['run', 'check:generated-paths']],
+      ['Verify workspace package contract', pnpmCommand, ['run', 'check:workspace-packages']],
+      ['Verify plugin distribution contract', pnpmCommand, ['run', 'check:plugin-distribution']],
+      ['Validate runtime registry', pnpmCommand, ['run', 'runtime:registry']],
+      ['Run script and architecture boundary tests', pnpmCommand, ['run', 'test:scripts']],
       ['Build workspace packages', pnpmCommand, ['--workspace-concurrency=1', '--filter', './packages/*', 'build']],
       ['Run workspace typecheck', pnpmCommand, ['run', 'typecheck']],
-      ['Run release script tests', 'node', ['scripts/run-node-tests.mjs', 'tests/scripts/release/*.test.mjs']],
+      ['Run workspace package tests', pnpmCommand, ['run', 'test:packages']],
+      ['Run desktop tests', pnpmCommand, ['--filter', '@movscript/desktop', 'test']],
+      ['Run backend tests', pnpmCommand, ['run', 'check:backend']],
       ['Run UI package quality gate', pnpmCommand, ['run', 'quality:ui']],
+      ['Run frontend quality gate', pnpmCommand, ['run', 'quality:frontend']],
       ['Verify package resource contract', 'node', ['scripts/release/release-workflow.mjs', 'verify-package-resources']],
     ]
   }

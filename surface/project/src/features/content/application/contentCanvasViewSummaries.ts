@@ -1,7 +1,8 @@
-import type { ContentCanvasEdge, ContentCanvasWorkspaceSnapshot, ContentCanvasNodeKind } from '../domain/contentCanvasTypes'
+import type { ContentCanvasEdge, ContentCanvasWorkspaceSnapshot, ContentCanvasNode, ContentCanvasNodeKind } from '../domain/contentCanvasTypes'
 
 export interface ContentCanvasCollapsedRelationSummary {
   kind: ContentCanvasNodeKind
+  domainKind?: string
   count: number
   label: string
 }
@@ -45,27 +46,31 @@ export function contentCanvasCollapsedSummaries(
   hiddenNodeIds: ReadonlySet<string>,
   options: { excludeKinds?: ReadonlySet<ContentCanvasNodeKind> } = {},
 ): Record<string, ContentCanvasCollapsedRelationSummary[]> {
-  const countsByAnchor = new Map<string, Map<ContentCanvasNodeKind, number>>()
+  const countsByAnchor = new Map<string, Map<string, ContentCanvasCollapsedRelationSummary & { rank: number }>>()
   for (const hiddenNodeId of hiddenNodeIds) {
     const hiddenNode = nodeById(graph, hiddenNodeId)
-    if (!hiddenNode || !isAggregatedHiddenKind(hiddenNode.kind)) continue
+    if (!hiddenNode || !isAggregatedHiddenNode(hiddenNode)) continue
     if (options.excludeKinds?.has(hiddenNode.kind)) continue
     const anchorId = anchorVisibleNodeForHiddenNode(graph, visibleIds, hiddenNodeId, 3)
     if (!anchorId) continue
-    const counts = countsByAnchor.get(anchorId) ?? new Map<ContentCanvasNodeKind, number>()
-    counts.set(hiddenNode.kind, (counts.get(hiddenNode.kind) ?? 0) + 1)
+    const counts = countsByAnchor.get(anchorId) ?? new Map<string, ContentCanvasCollapsedRelationSummary & { rank: number }>()
+    const key = collapsedSummaryKey(hiddenNode)
+    const current = counts.get(key)
+    counts.set(key, {
+      kind: hiddenNode.kind,
+      ...(hiddenNode.domainKind ? { domainKind: hiddenNode.domainKind } : {}),
+      count: (current?.count ?? 0) + 1,
+      label: collapsedNodeLabel(hiddenNode),
+      rank: collapsedNodeRank(hiddenNode),
+    })
     countsByAnchor.set(anchorId, counts)
   }
   return Object.fromEntries(
     [...countsByAnchor.entries()].map(([nodeId, counts]) => [
       nodeId,
-      [...counts.entries()]
-        .sort(([left], [right]) => collapsedKindRank(left) - collapsedKindRank(right))
-        .map(([kind, count]) => ({
-          kind,
-          count,
-          label: collapsedKindLabel(kind),
-        })),
+      [...counts.values()]
+        .sort((left, right) => left.rank - right.rank || left.label.localeCompare(right.label, 'zh-CN'))
+        .map(({ rank: _rank, ...summary }) => summary),
     ]),
   )
 }
@@ -80,7 +85,7 @@ function hiddenEdgeRelationRank(relation: ContentCanvasHiddenEdgeSummary['relati
   if (relation === 'asset_downstream') return 6
   if (relation === 'setting_state_reference') return 7
   if (relation === 'expression_unit_storyboard' || relation === 'expression_unit_content_unit') return 8
-  if (relation === 'audio_cue_storyboard' || relation === 'audio_cue_asset') return 9
+  if (relation === 'audio_cue_storyboard' || relation === 'audio_cue_asset' || relation === 'content_unit_audio_cue') return 9
   return 11
 }
 
@@ -96,6 +101,7 @@ function hiddenEdgeRelationLabel(relation: ContentCanvasHiddenEdgeSummary['relat
   if (relation === 'expression_unit_storyboard' || relation === 'expression_unit_content_unit') return '表达约束边'
   if (relation === 'audio_cue_storyboard') return '声音约束边'
   if (relation === 'audio_cue_asset') return '声音素材边'
+  if (relation === 'content_unit_audio_cue') return '声音边'
   if (relation === 'content_unit_keyframe') return '关键帧边'
   if (relation === 'content_unit_storyboard') return '分镜边'
   if (relation === 'candidate_resource') return '资源边'
@@ -129,17 +135,26 @@ function anchorVisibleNodeForHiddenNode(
   return undefined
 }
 
-function isAggregatedHiddenKind(kind: ContentCanvasNodeKind): boolean {
-  return kind === 'content_unit'
-    || kind === 'candidate'
-    || kind === 'selection'
-    || kind === 'resource'
-    || kind === 'keyframe'
-    || kind === 'storyboard'
-    || kind === 'expression_unit'
-    || kind === 'audio_cue'
-    || kind === 'state'
-    || kind === 'work_item'
+function isAggregatedHiddenNode(node: ContentCanvasNode): boolean {
+  if (node.domainCategory === 'timeline_namespace' || node.domainCategory === 'setting_namespace') return true
+  return node.kind === 'content_unit'
+    || node.kind === 'candidate'
+    || node.kind === 'selection'
+    || node.kind === 'resource'
+    || node.kind === 'keyframe'
+    || node.kind === 'storyboard'
+    || node.kind === 'expression_unit'
+    || node.kind === 'audio_cue'
+    || node.kind === 'scene_moment'
+    || node.kind === 'state'
+    || node.kind === 'work_item'
+}
+
+function collapsedNodeRank(node: ContentCanvasNode): number {
+  if (node.domainCategory === 'timeline_namespace') return 1
+  if (node.kind === 'scene_moment') return 2
+  if (node.domainCategory === 'setting_namespace') return 6
+  return collapsedKindRank(node.kind)
 }
 
 function collapsedKindRank(kind: ContentCanvasNodeKind): number {
@@ -156,9 +171,24 @@ function collapsedKindRank(kind: ContentCanvasNodeKind): number {
   return 9
 }
 
+function collapsedSummaryKey(node: ContentCanvasNode): string {
+  return `${node.kind}:${node.domainCategory ?? ''}:${node.domainKind ?? ''}`
+}
+
+function collapsedNodeLabel(node: ContentCanvasNode): string {
+  if ((node.domainCategory === 'timeline_namespace' || node.domainCategory === 'setting_namespace') && node.domainKind) {
+    return node.domainKind
+  }
+  return collapsedKindLabel(node.kind)
+}
+
 function collapsedKindLabel(kind: ContentCanvasNodeKind): string {
+  if (kind === 'production') return '时间层级'
+  if (kind === 'segment') return '时间层级'
+  if (kind === 'setting') return '设定层级'
   if (kind === 'work_item') return '工作项'
   if (kind === 'content_unit') return '创作片段'
+  if (kind === 'scene_moment') return '场面'
   if (kind === 'keyframe') return '关键帧'
   if (kind === 'storyboard') return '分镜'
   if (kind === 'expression_unit') return '表达'

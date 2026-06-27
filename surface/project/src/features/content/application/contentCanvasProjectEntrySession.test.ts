@@ -90,3 +90,94 @@ test('content canvas project entry session falls back to selected node for legac
     workspaceTab: 'preview',
   })
 })
+
+test('content canvas project entry session can focus preview on a production namespace', () => {
+  const state = resolveContentCanvasProjectEntrySessionState({
+    hasExplicitSearch: true,
+    searchParams: new URLSearchParams('tab=preview&canvasNode=production%3Apilot&node=production%3Apilot&kind=other'),
+    snapshot: null,
+  })
+
+  assert.deepEqual(state, {
+    activeCanvasNodeId: 'production:pilot',
+    selectedNodeId: 'production:pilot',
+    selectionKind: 'other',
+    workspaceTab: 'preview',
+  })
+})
+
+test('content canvas project entry session derives production focus from normalized scope refs', () => {
+  const state = resolveContentCanvasProjectEntrySessionState({
+    hasExplicitSearch: true,
+    searchParams: new URLSearchParams('tab=preview&scopeKind=episode&scopeRef=episode_01&targetKind=timeline_assembly&targetRef=timeline_assembly%3Aepisode%3Aepisode_01'),
+    snapshot: null,
+  })
+
+  assert.deepEqual(state, {
+    activeCanvasNodeId: 'production:episode_01',
+    selectedNodeId: 'production:episode_01',
+    selectionKind: 'other',
+    workspaceTab: 'preview',
+  })
+})
+
+test('content canvas project entry session derives production focus from timeline assembly ref aliases', () => {
+  const state = resolveContentCanvasProjectEntrySessionState({
+    hasExplicitSearch: true,
+    searchParams: new URLSearchParams('timeline_assembly_ref=timeline_assembly%3Afilm%3Ashort_film'),
+    snapshot: null,
+  })
+
+  assert.deepEqual(state, {
+    activeCanvasNodeId: 'production:short_film',
+    selectedNodeId: 'production:short_film',
+    selectionKind: 'other',
+    workspaceTab: 'preview',
+  })
+})
+
+test('content canvas project entry session derives setting focus for setting preview links', () => {
+  const state = resolveContentCanvasProjectEntrySessionState({
+    hasExplicitSearch: true,
+    searchParams: new URLSearchParams('setting_id=hero&settingKind=character'),
+    snapshot: null,
+  })
+
+  assert.deepEqual(state, {
+    activeKind: 'character',
+    activeCanvasNodeId: 'setting:hero',
+    selectedNodeId: 'setting:hero',
+    selectionKind: 'setting',
+    workspaceTab: 'preview',
+  })
+})
+
+test('content canvas project entry session derives setting state and asset focus for setting preview links', () => {
+  assert.deepEqual(
+    resolveContentCanvasProjectEntrySessionState({
+      hasExplicitSearch: true,
+      searchParams: new URLSearchParams('setting_state_id=rain'),
+      snapshot: null,
+    }),
+    {
+      activeCanvasNodeId: 'state:rain',
+      selectedNodeId: 'state:rain',
+      selectionKind: 'state',
+      workspaceTab: 'preview',
+    },
+  )
+
+  assert.deepEqual(
+    resolveContentCanvasProjectEntrySessionState({
+      hasExplicitSearch: true,
+      searchParams: new URLSearchParams('asset_slot_id=phone'),
+      snapshot: null,
+    }),
+    {
+      activeCanvasNodeId: 'asset:phone',
+      selectedNodeId: 'asset:phone',
+      selectionKind: 'asset',
+      workspaceTab: 'preview',
+    },
+  )
+})

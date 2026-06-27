@@ -3,6 +3,15 @@ import {
   sameEntityRef,
   semanticEntityId,
 } from '../layout/index.js'
+import {
+  contentUnitTargetValidationDiagnostics,
+  implicitTimelineAssemblyRef,
+  isContentUnitPromptRefKind,
+  outputKindForContentUnitType,
+  primaryRefFieldNameForKind,
+  primaryRefIdsForContentUnitRecord,
+  primaryRefKindForContentUnitType,
+} from '@movscript/domain'
 import type { MovScriptWorkspaceFileRepository } from './types.js'
 
 export interface MovScriptContentUnitWriteInput {
@@ -22,6 +31,7 @@ export async function upsertMovScriptContentUnit(
   const contentUnitPath = movScriptContentUnitPath(input.unit)
   const current = await readOptionalRecord(input.fileRepository, contentUnitPath)
   const record = normalizeContentUnitRecord(input.unit, current, contentUnitId)
+  validateContentUnitTarget(record)
   validateContentUnitPrimaryPromptRefs(record)
   await writeRecord(input.fileRepository, contentUnitPath, record)
 
@@ -56,6 +66,14 @@ function normalizeContentUnitRecord(
     ?? 'storyboard_ref'
   const outputKind = stringValue(unit.output_kind ?? unit.outputKind ?? current.output_kind)
     ?? defaultOutputKind(contentUnitType)
+  const scopeKind = stringValue(unit.scope_kind ?? unit.scopeKind ?? current.scope_kind)
+  const scopeRef = stringValue(unit.scope_ref ?? unit.scopeRef ?? current.scope_ref)
+  const targetKind = stringValue(unit.target_kind ?? unit.targetKind ?? current.target_kind)
+    ?? (contentUnitType === 'timeline_assembly_ref' ? 'timeline_assembly' : undefined)
+  const targetRef = stringValue(unit.target_ref ?? unit.targetRef ?? current.target_ref)
+    ?? (contentUnitType === 'timeline_assembly_ref' && scopeKind && scopeRef
+      ? implicitTimelineAssemblyRef(scopeKind, scopeRef)
+      : undefined)
 
   return pruneUndefined({
     ...stripWorkspacePrivateFields(current),
@@ -65,8 +83,11 @@ function normalizeContentUnitRecord(
     title: stringValue(unit.title ?? current.title) ?? 'Untitled content unit',
     content_unit_type: contentUnitType,
     output_kind: outputKind,
-    target_kind: stringValue(unit.target_kind ?? unit.targetKind ?? current.target_kind),
-    target_ref: stringValue(unit.target_ref ?? unit.targetRef ?? current.target_ref),
+    target_category: stringValue(unit.target_category ?? unit.targetCategory ?? current.target_category),
+    target_kind: targetKind,
+    target_ref: targetRef,
+    scope_kind: scopeKind,
+    scope_ref: scopeRef,
     generation_role: stringValue(unit.generation_role ?? unit.generationRole ?? current.generation_role),
     order: finiteNumber(unit.order) ?? finiteNumber(current.order),
     description: stringValue(unit.description ?? current.description) ?? '',
@@ -90,20 +111,12 @@ function contentUnitDirectory(id: string): string {
 }
 
 function defaultOutputKind(contentUnitType: string): string {
-  switch (contentUnitType) {
-    case 'asset_ref':
-    case 'keyframe_ref':
-    case 'storyboard_ref':
-      return 'image'
-    case 'scence_moment_ref':
-    case 'scene_moment_ref':
-    case 'production_ref':
-    case 'segment_ref':
-      return 'video'
-    case 'expression_unit_ref':
-      return stringValue(contentUnitType) === 'expression_unit_ref' ? 'metadata' : 'metadata'
-    default:
-      return 'metadata'
+  return outputKindForContentUnitType(contentUnitType, undefined)
+}
+
+function validateContentUnitTarget(record: Record<string, unknown>): void {
+  for (const diagnostic of contentUnitTargetValidationDiagnostics(record)) {
+    throw new Error(diagnostic.message)
   }
 }
 
@@ -119,53 +132,6 @@ function validateContentUnitPrimaryPromptRefs(record: Record<string, unknown>): 
     if (promptRef.kind !== primaryKind) continue
     if (!primaryRefs.some((primaryRef) => sameRefId(primaryRef, promptRef.id, primaryKind))) continue
     throw new Error(`${contentUnitType} content_unit edit_prompt must not reference its own ${primaryRefFieldNameForKind(primaryKind)}: ${promptRef.raw}`)
-  }
-}
-
-function primaryRefKindForContentUnitType(contentUnitType: string): string | undefined {
-  switch (contentUnitType) {
-    case 'asset_ref':
-      return 'asset'
-    case 'keyframe_ref':
-      return 'keyframe'
-    case 'storyboard_ref':
-      return 'storyboard'
-    case 'production_ref':
-      return 'production'
-    case 'segment_ref':
-      return 'segment'
-    case 'scence_moment_ref':
-    case 'scene_moment_ref':
-      return 'scene_moment'
-    case 'expression_unit_ref':
-      return 'expression_unit'
-    default:
-      return undefined
-  }
-}
-
-function primaryRefFieldNameForKind(kind: string): string {
-  return kind === 'scene_moment' ? 'scene_moment_ref' : `${kind}_ref`
-}
-
-function primaryRefIdsForContentUnitRecord(record: Record<string, unknown>, kind: string): string[] {
-  switch (kind) {
-    case 'asset':
-      return compactStrings(record.asset_ref)
-    case 'keyframe':
-      return compactStrings(record.keyframe_ref)
-    case 'storyboard':
-      return compactStrings(record.storyboard_ref)
-    case 'production':
-      return compactStrings(record.target_kind === 'production' ? record.target_ref : undefined, record.production_ref)
-    case 'segment':
-      return compactStrings(record.target_kind === 'segment' ? record.target_ref : undefined, record.segment_ref)
-    case 'scene_moment':
-      return compactStrings(record.target_kind === 'scene_moment' ? record.target_ref : undefined, record.scene_moment_ref, record.scence_moment_ref)
-    case 'expression_unit':
-      return compactStrings(record.target_kind === 'expression_unit' ? record.target_ref : undefined, record.expression_unit_ref)
-    default:
-      return []
   }
 }
 
@@ -199,16 +165,7 @@ function parsePromptRefsFromText(text: string | undefined): PromptRef[] {
 }
 
 function promptRefKind(value: string | undefined): string | undefined {
-  switch (value) {
-    case 'asset':
-    case 'keyframe':
-    case 'storyboard':
-    case 'scene_moment':
-    case 'content_unit':
-      return value
-    default:
-      return undefined
-  }
+  return isContentUnitPromptRefKind(value) ? value : undefined
 }
 
 function sameRefId(left: string, right: string, kind: string): boolean {
@@ -220,13 +177,6 @@ function sameRefId(left: string, right: string, kind: string): boolean {
 function lastPathSegment(value: unknown): string | undefined {
   if (typeof value !== 'string' || !value.includes('/')) return undefined
   return value.split('/').filter(Boolean).at(-1)
-}
-
-function compactStrings(...values: unknown[]): string[] {
-  return values.flatMap((value) => {
-    if (Array.isArray(value)) return value.filter((item): item is string => typeof item === 'string' && Boolean(item.trim())).map((item) => item.trim())
-    return typeof value === 'string' && value.trim() ? [value.trim()] : []
-  })
 }
 
 function stableEntityId(value: unknown, prefix: string): string {

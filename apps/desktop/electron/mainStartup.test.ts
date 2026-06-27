@@ -8,5 +8,8 @@ test('desktop main attaches to local runtime daemon when bootstrap requests it',
 
   assert.match(source, /const bootstrap = await bootstrapManagedServicesBeforeWindow\(\)/)
   assert.match(source, /bootstrap\.localRuntime \? \{ localRuntime: bootstrap\.localRuntime \}/)
+  assert.match(source, /markBootstrapRuntimeReady\(bootstrap\)/)
+  assert.match(source, /if \(!bootstrap\.localRuntime\?\.enabled\) return/)
+  assert.match(source, /setBackendStatus\(\{\s*state: 'ready'/)
   assert.doesNotMatch(source, /await startDesktopApplicationRuntime\(\)/)
 })

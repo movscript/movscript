@@ -3,6 +3,10 @@ import {
   projectSurfaceRouteBySegment,
   type ProjectSurfaceRouteKey,
 } from '@movscript/project-surface/routes'
+import {
+  normalizeDomainFocus,
+  type MovScriptNormalizedFocus,
+} from '@movscript/domain'
 
 const STUDIO_ROOT = '/studio'
 
@@ -69,6 +73,7 @@ export function projectSurfaceHrefForLocalProject(
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined) query.set(key, String(value))
   }
+  normalizeTimelineFocusQuery(query)
   return hrefWithSearch(projectSurfacePath(route, routeProjectId), query)
 }
 
@@ -87,7 +92,7 @@ export function projectRouteHref(segment: string, projectId: string, query: URLS
 export function projectRouteContext(pathname: string, query: URLSearchParams) {
   const studioTail = pathname.replace(/^\/studio\/?/, '').split('/').filter(Boolean)
   const routeProjectId = studioTail[0]
-  const segment = studioTail[1]
+  const segment = studioTail.slice(1).join('/')
   const route = projectSurfaceRouteBySegment(segment)
   const projectDir = query.get('projectDir') ?? query.get('projectPath') ?? ''
   const projectId = query.get('projectId')
@@ -96,13 +101,22 @@ export function projectRouteContext(pathname: string, query: URLSearchParams) {
     ?? query.get('project_key')
     ?? routeProjectId
     ?? localProjectIdFromPath(projectDir)
+  const domainFocus = routeDomainFocus(query, projectId)
   return {
     route,
     segment,
     projectId,
     projectDir,
-    productionId: query.get('productionId') ?? undefined,
+    domainFocus,
+    productionId: routeProductionId(query),
   }
+}
+
+export function routeDomainFocus(query: URLSearchParams, projectId?: string): MovScriptNormalizedFocus {
+  return normalizeDomainFocus({
+    ...recordFromQuery(query),
+    ...(projectId ? { projectId } : {}),
+  })
 }
 
 export function normalizeBaseURL(value: string | null | undefined): string | undefined {
@@ -110,11 +124,72 @@ export function normalizeBaseURL(value: string | null | undefined): string | und
   return value.trim().replace(/\/+$/, '')
 }
 
+function routeProductionId(query: URLSearchParams): string | undefined {
+  const record = recordFromQuery(query)
+  if (hasNormalizedFocus(record)) return legacyProductionIdFromFocusRecord(record)
+  return query.get('productionId') ?? query.get('production_id') ?? legacyProductionIdFromFocusRecord(record)
+}
+
+function legacyProductionIdFromFocusRecord(record: Record<string, string>): string | undefined {
+  const focus = normalizeDomainFocus(record)
+  return focus.scope?.kind === 'production' ? focus.scope.ref : undefined
+}
+
+function recordFromQuery(query: URLSearchParams): Record<string, string> {
+  const record: Record<string, string> = {}
+  for (const [key, value] of query.entries()) {
+    if (value.trim()) record[key] = value
+  }
+  return record
+}
+
 function withCompatibleProjectId(query: URLSearchParams, projectId: string): URLSearchParams {
   const next = new URLSearchParams(query)
   if (projectId && projectId !== 'local-project' && !next.get('projectId')) next.set('projectId', projectId)
+  normalizeTimelineFocusQuery(next)
   return next
 }
+
+export function normalizeTimelineFocusQuery(query: URLSearchParams): URLSearchParams {
+  const record = recordFromQuery(query)
+  if (!hasNormalizedFocus(record)) return query
+  query.delete('productionId')
+  query.delete('production_id')
+  const productionId = legacyProductionIdFromFocusRecord(record)
+  if (productionId) query.set('productionId', productionId)
+  return query
+}
+
+function hasNormalizedFocus(record: Record<string, string>): boolean {
+  return NORMALIZED_FOCUS_KEYS.some((key) => record[key] !== undefined)
+}
+
+const NORMALIZED_FOCUS_KEYS = [
+  'scopeKind',
+  'scope_kind',
+  'scopeRef',
+  'scope_ref',
+  'namespaceKind',
+  'namespace_kind',
+  'namespaceRef',
+  'namespace_ref',
+  'namespacePath',
+  'namespace_path',
+  'targetCategory',
+  'target_category',
+  'targetKind',
+  'target_kind',
+  'targetRef',
+  'target_ref',
+  'timelineAssemblyRef',
+  'timeline_assembly_ref',
+  'domainTargetCategory',
+  'domain_target_category',
+  'domainTargetKind',
+  'domain_target_kind',
+  'domainTargetRef',
+  'domain_target_ref',
+] as const
 
 function localProjectRouteId(project: LocalProjectRouteProject, projectPath: string | undefined): string {
   if (hasPositiveProjectId(project.ID)) return String(project.ID)

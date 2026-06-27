@@ -204,6 +204,59 @@ test('workspace content unit writer rejects direct primary prompt self reference
   )
 })
 
+test('workspace content unit writer rejects namespace targets', async () => {
+  const files = new Map()
+  const repository = memoryWorkspaceFileRepository(files)
+  const service = createMovScriptWorkspaceService({
+    fileRepository: repository,
+    now: () => new Date('2026-06-07T00:00:00.000Z'),
+  })
+
+  await assert.rejects(
+    () => service.upsertContentUnit({
+      unit: {
+        id: 'final_video',
+        title: 'Final video',
+        content_unit_type: 'custom_video',
+        output_kind: 'video',
+        target_kind: 'production',
+        target_ref: 'pilot',
+        edit_prompt: { text: 'Compose the production.' },
+      },
+    }),
+    /namespace production cannot be a content unit target/,
+  )
+  assert.equal(files.has('content_units/final_video/content_unit.json'), false)
+})
+
+test('workspace content unit writer stores timeline assembly refs from scope fields', async () => {
+  const files = new Map()
+  const repository = memoryWorkspaceFileRepository(files)
+  const service = createMovScriptWorkspaceService({
+    fileRepository: repository,
+    now: () => new Date('2026-06-07T00:00:00.000Z'),
+  })
+
+  const result = await service.upsertContentUnit({
+    unit: {
+      id: 'episode_assembly',
+      title: 'Episode assembly',
+      content_unit_type: 'timeline_assembly_ref',
+      scope_kind: 'episode',
+      scope_ref: 'episode_01',
+      edit_prompt: { text: 'Compose this episode.' },
+    },
+  })
+
+  const record = JSON.parse(files.get(result.contentUnitPath))
+  assert.equal(record.content_unit_type, 'timeline_assembly_ref')
+  assert.equal(record.output_kind, 'video')
+  assert.equal(record.target_kind, 'timeline_assembly')
+  assert.equal(record.target_ref, 'timeline_assembly:episode:episode_01')
+  assert.equal(record.scope_kind, 'episode')
+  assert.equal(record.scope_ref, 'episode_01')
+})
+
 test('workspace content candidate creation requires backend decision store', async () => {
   const files = new Map()
   const repository = memoryWorkspaceFileRepository(files)

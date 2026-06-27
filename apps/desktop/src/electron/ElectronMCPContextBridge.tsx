@@ -5,6 +5,11 @@ import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { ROUTES } from '@/routes/projectRoutes'
 import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
+import {
+  legacyProductionIdFromDomainFocus,
+  movScriptDomainFocusFromSearch,
+} from '@/shared/domain/movscriptDomainFocusRoutes'
+import type { MovScriptNormalizedFocus } from '@movscript/domain'
 
 const productionOrchestrationPaths: readonly string[] = [
   ROUTES.project.scripts,
@@ -14,12 +19,12 @@ export function ElectronMCPContextBridge() {
   const location = useLocation()
   const navigate = useNavigate()
   const project = useProjectStore((s) => s.current)
-  const productionId = useMemo(() => {
-    if (!productionOrchestrationPaths.includes(location.pathname)) return null
-    const params = new URLSearchParams(location.search)
-    const value = Number(params.get('productionId') ?? '')
-    return Number.isFinite(value) && value > 0 ? value : null
-  }, [location.pathname, location.search])
+  const routeFocus = useMemo(() => electronMCPContextRouteFocus({
+    pathname: location.pathname,
+    search: location.search,
+    projectId: project?.ID,
+  }), [location.pathname, location.search, project?.ID])
+  const { domainFocus, productionId } = routeFocus
   const user = useUserStore((s) => s.currentUser)
   const token = useUserStore((s) => s.token)
   const gitCredential = useUserStore((s) => s.gitCredential)
@@ -38,6 +43,7 @@ export function ElectronMCPContextBridge() {
       totalEpisodes: project.total_episodes,
     } : null,
     productionId,
+    ...(domainFocus ? { domainFocus } : {}),
     user: user ? {
       id: user.ID,
       username: user.username,
@@ -61,6 +67,7 @@ export function ElectronMCPContextBridge() {
     location.hash,
     location.pathname,
     location.search,
+    domainFocus,
     productionId,
     project?.ID,
     project?.description,
@@ -91,4 +98,22 @@ export function ElectronMCPContextBridge() {
   }, [location.hash, location.pathname, location.search, navigate])
 
   return null
+}
+
+export function electronMCPContextRouteFocus(input: {
+  pathname: string
+  search: string
+  projectId?: string | number
+}): {
+  productionId: string | number | null
+  domainFocus?: MovScriptNormalizedFocus
+} {
+  const domainFocus = movScriptDomainFocusFromSearch(input.search, { projectId: input.projectId })
+  const productionId = productionOrchestrationPaths.includes(input.pathname)
+    ? legacyProductionIdFromDomainFocus(domainFocus) ?? null
+    : null
+  return {
+    productionId,
+    ...(domainFocus ? { domainFocus } : {}),
+  }
 }

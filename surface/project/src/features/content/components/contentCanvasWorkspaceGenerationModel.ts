@@ -1,4 +1,5 @@
 import type { ContentCanvasCandidate, ContentCanvasNode } from '../domain/contentCanvasTypes'
+import { contentCanvasNodeCanUseCandidateFlow } from '../domain/contentCanvasDomainPolicy'
 import { defaultContentUnitDraftForNode } from '../application/contentCanvasCommands'
 
 export type ContentCanvasGenerationTarget = {
@@ -10,13 +11,7 @@ export type ContentCanvasGenerationTarget = {
 }
 
 export function canUseContentUnitCandidateFlow(node: ContentCanvasNode | undefined): boolean {
-  if (!node) return false
-  return node.kind === 'scene_moment'
-    || node.kind === 'asset'
-    || node.kind === 'expression_unit'
-    || node.kind === 'keyframe'
-    || node.kind === 'storyboard'
-    || node.kind === 'content_unit'
+  return contentCanvasNodeCanUseCandidateFlow(node)
 }
 
 export function contentCanvasGenerationTargetForNode(node: ContentCanvasNode | undefined): ContentCanvasGenerationTarget | null {
@@ -54,6 +49,8 @@ export function contentUnitNodeForGenerationTask(node: ContentCanvasNode | undef
     ].filter((item): item is string => Boolean(item)),
     sourcePath: task.sourcePath,
     record: task.record,
+    domainCategory: 'content_unit',
+    domainKind: 'content_unit',
     candidates: task.candidates,
     position: node?.position ?? { x: 0, y: 0 },
   }
@@ -88,6 +85,8 @@ function pendingContentUnitNodeForSource(node: ContentCanvasNode): ContentCanvas
       },
       __contentCanvasDefaultUnit: draft,
     },
+    domainCategory: 'content_unit',
+    domainKind: 'content_unit',
     candidates: [],
     position: node.position,
   }

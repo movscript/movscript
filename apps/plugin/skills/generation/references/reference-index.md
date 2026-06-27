@@ -76,5 +76,5 @@ Use this index when deciding which generation reference files to open. Open only
 
 - Do not open every reference file by default.
 - Do not use provider-only placeholder syntax in MovScript content-unit prompts unless a provider adapter explicitly owns that conversion.
-- Do not use unselected upstream candidates as stable continuity refs. If asset/storyboard/keyframe candidates exist but are unselected, guide the user to adopt/select one before downstream generation. Continue only when the user explicitly asks for an unstable draft.
+- Do not use unselected upstream candidates as stable continuity refs. If asset/storyboard/keyframe/audio cue candidates exist but are unselected, guide the user to adopt/select one before downstream generation. Continue only when the user explicitly asks for an unstable draft.
 - Do not route editing, subtitle burn-in, final stitching, color matching, or export through generation references; use the editing skill.

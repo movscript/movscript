@@ -766,7 +766,7 @@ func TestModelCatalogRejectsUpdatingRouteBindingIntoDuplicateGroup(t *testing.T)
 	if err != nil {
 		t.Fatalf("CreateModelCatalogEntry() error = %v", err)
 	}
-	var duplicateTarget persistencemodel.AIModelRouteBinding
+	var duplicateTarget ModelRouteBinding
 	if supportsRelayGatewayRouteBindings() {
 		if _, err := service.CreateModelRouteBinding(ctx, strconvID(entry.ID), ModelRouteBindingInput{
 			RouteGroup:      "priority",

@@ -14,15 +14,24 @@ export function resolvePreloadPath(): string {
 export function resolveAppIconPath(): string {
   const packagedIcon = join(process.resourcesPath || '', 'logo.png')
   if (app.isPackaged && existsSync(packagedIcon)) return packagedIcon
-  return join(process.cwd(), '../../assets/logo.png')
+  return resolveDevAssetPath('logo.png')
 }
 
 export function resolveTrayIconPath(): string {
   const packagedIcon = join(process.resourcesPath || '', 'trayTemplate.png')
   if (app.isPackaged && existsSync(packagedIcon)) return packagedIcon
-  return join(process.cwd(), '../../assets/trayTemplate.png')
+  return resolveDevAssetPath('trayTemplate.png')
 }
 
 export function resolveRendererHTMLPath(): string {
   return join(currentDir, '../renderer/index.html')
+}
+
+function resolveDevAssetPath(name: string): string {
+  const candidates = [
+    join(process.cwd(), '../../assets', name),
+    join(process.cwd(), 'assets', name),
+    join(currentDir, '../../../../assets', name),
+  ]
+  return candidates.find((candidate) => existsSync(candidate)) ?? candidates[0]
 }

@@ -1,5 +1,14 @@
 import type { AgentSurfaceSnapshot } from '../data.js'
-import { arrayValue, recordValue, stringValue } from '../data.js'
+import {
+  agentSurfaceDomainFocus,
+  agentSurfaceFocusChips,
+  agentSurfaceFocusLabel,
+  agentSurfaceLegacyProductionId,
+  agentSurfaceSnapshotDomainFocus,
+  arrayValue,
+  recordValue,
+  stringValue,
+} from '../data.js'
 import {
   AgentSurfaceJson,
   AgentSurfaceKeyValues,
@@ -26,24 +35,30 @@ export function AgentProjectStatusSurface({
   error?: unknown
 }) {
   const summary = recordValue(snapshot?.data?.status_summary)
+  const timelineStatus = recordValue(summary?.project_timeline_status ?? summary?.projectTimelineStatus)
+  const timelineNamespaces = arrayValue(timelineStatus?.timeline_namespaces ?? timelineStatus?.timelineNamespaces ?? summary?.timeline_namespaces ?? summary?.timelineNamespaces)
+  const timelineAssemblies = arrayValue(timelineStatus?.timeline_assemblies ?? timelineStatus?.timelineAssemblies ?? summary?.timeline_assemblies ?? summary?.timelineAssemblies)
   const productions = arrayValue(summary?.productions)
   const firstProduction = recordValue(productions[0])
-  const contentUnits = arrayValue(firstProduction?.content_units)
-  const blockers = arrayValue(firstProduction?.blocking_refs)
+  const contentUnits = timelineAssemblies.length > 0 ? timelineAssemblies : arrayValue(firstProduction?.content_units)
+  const blockers = timelineAssemblies.length > 0
+    ? timelineAssemblies.flatMap((item) => arrayValue(recordValue(item)?.blocking_refs ?? recordValue(item)?.blockingRefs))
+    : arrayValue(firstProduction?.blocking_refs)
   const readyToGenerate = contentUnits.filter((unit) => contentUnitBucket(recordValue(unit)) === 'ready')
   const needsSelection = contentUnits.filter((unit) => contentUnitBucket(recordValue(unit)) === 'selection')
   const needsFix = contentUnits.filter((unit) => contentUnitBucket(recordValue(unit)) === 'fix')
   const recentCandidates = recentCandidateEntries(contentUnits)
   const selectedResources = selectedResourceEntries(contentUnits)
+  const domainFocus = agentSurfaceSnapshotDomainFocus(snapshot)
+    ?? agentSurfaceDomainFocus(params, { projectId, productionId })
+  const legacyProductionId = agentSurfaceLegacyProductionId(domainFocus, productionId)
+  const focusLabel = agentSurfaceFocusLabel(domainFocus, legacyProductionId ? `production: ${legacyProductionId}` : '')
 
   return (
     <AgentSurfaceShell
       title="Project status"
-      description="Inspect production readiness, candidate coverage, selected resources, stale hints, and blockers."
-      chips={[
-        ...(projectId ? [`project: ${projectId}`] : []),
-        ...(productionId ? [`production: ${productionId}`] : []),
-      ]}
+      description="Inspect timeline readiness, candidate coverage, selected resources, stale hints, and blockers."
+      chips={agentSurfaceFocusChips(domainFocus)}
       ready={ready}
       preparingLabel="Preparing project status surface..."
     >
@@ -58,19 +73,24 @@ export function AgentProjectStatusSurface({
           <AgentSurfacePanel title="Scope">
             <AgentSurfaceKeyValues items={[
               ['Project', projectId ?? ''],
-              ['Production', productionId ?? ''],
+              ['Focus', focusLabel],
+              ['Assembly target', domainFocus.target?.targetRef ?? ''],
+              ['Status schema', stringValue(timelineStatus?.schema ?? summary?.preferred_schema ?? summary?.preferredSchema ?? summary?.schema) ?? ''],
+              ['Legacy production', legacyProductionId ?? ''],
               ['Generated', snapshot?.generated_at ?? ''],
             ]} />
           </AgentSurfacePanel>
           <AgentSurfacePanel title="Readiness">
             <AgentSurfaceKeyValues items={[
-              ['Productions', productions.length],
+              ['Timeline namespaces', timelineNamespaces.length || productions.length],
+              ['Timeline assemblies', timelineAssemblies.length],
               ['Content units', contentUnits.length],
               ['Ready to generate', readyToGenerate.length],
               ['Needs selection', needsSelection.length],
               ['Needs source/prompt fix', needsFix.length],
               ['Blocking refs', blockers.length],
-              ['Stale status', firstProduction?.stale_status as string ?? ''],
+              ['Timeline status', stringValue(timelineStatus?.status) ?? ''],
+              ['Stale status', stringValue(firstProduction?.stale_status ?? firstProduction?.staleStatus) ?? ''],
             ]} />
           </AgentSurfacePanel>
           <AgentSurfacePanel title="Next Work" description="Use these lanes to decide whether to generate, select a candidate, or fix source/prompt blockers first.">
@@ -86,7 +106,7 @@ export function AgentProjectStatusSurface({
               <SelectedResources items={selectedResources} params={params} projectId={projectId} />
               <section className="agent-surface-lane">
                 <h3>Generation Jobs</h3>
-                <p>{stringValue(firstProduction?.job_status ?? firstProduction?.jobStatus) ?? 'not_tracked_in_domain_summary'}</p>
+                <p>{stringValue(timelineStatus?.job_status ?? timelineStatus?.jobStatus ?? firstProduction?.job_status ?? firstProduction?.jobStatus) ?? 'not_tracked_in_domain_summary'}</p>
               </section>
             </div>
           </AgentSurfacePanel>

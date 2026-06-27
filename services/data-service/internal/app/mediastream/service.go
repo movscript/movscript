@@ -60,6 +60,30 @@ type UploadInput struct {
 	ExpiresAt          *time.Time
 }
 
+type Artifact struct {
+	ID                 uint       `json:"ID"`
+	OwnerID            uint       `json:"owner_id"`
+	OrgID              *uint      `json:"org_id,omitempty"`
+	ProjectID          *uint      `json:"project_id,omitempty"`
+	SourceResourceID   *uint      `json:"source_resource_id,omitempty"`
+	SourceDerivativeID *uint      `json:"source_derivative_id,omitempty"`
+	Title              string     `json:"title,omitempty"`
+	Status             string     `json:"status"`
+	MimeType           string     `json:"mime_type"`
+	StorageBackend     string     `json:"storage_backend"`
+	ManifestStorageKey string     `json:"manifest_storage_key"`
+	BaseStoragePrefix  string     `json:"base_storage_prefix"`
+	Segments           string     `json:"segments"`
+	DurationMs         int        `json:"duration_ms"`
+	Width              int        `json:"width"`
+	Height             int        `json:"height"`
+	ManifestURL        string     `json:"manifest_url,omitempty"`
+	SegmentBaseURL     string     `json:"segment_base_url,omitempty"`
+	ExpiresAt          *time.Time `json:"expires_at,omitempty"`
+	CreatedAt          time.Time  `json:"CreatedAt"`
+	UpdatedAt          time.Time  `json:"UpdatedAt"`
+}
+
 type SegmentDescriptor struct {
 	Name       string `json:"name"`
 	StorageKey string `json:"storage_key"`
@@ -98,15 +122,15 @@ type CleanupLoopOptions struct {
 	OnError  func(error)
 }
 
-func (s *Service) Upload(ctx context.Context, input UploadInput) (persistencemodel.MediaStreamArtifact, []SegmentDescriptor, error) {
+func (s *Service) Upload(ctx context.Context, input UploadInput) (Artifact, []SegmentDescriptor, error) {
 	if err := s.validateUploadScope(ctx, input); err != nil {
-		return persistencemodel.MediaStreamArtifact{}, nil, err
+		return Artifact{}, nil, err
 	}
 	if len(input.ManifestData) == 0 {
-		return persistencemodel.MediaStreamArtifact{}, nil, fmt.Errorf("%w: manifest is required", ErrInvalidManifest)
+		return Artifact{}, nil, fmt.Errorf("%w: manifest is required", ErrInvalidManifest)
 	}
 	if len(input.Segments) == 0 {
-		return persistencemodel.MediaStreamArtifact{}, nil, fmt.Errorf("%w: at least one segment is required", ErrInvalidSegment)
+		return Artifact{}, nil, fmt.Errorf("%w: at least one segment is required", ErrInvalidSegment)
 	}
 	manifestName := sanitizeManifestName(input.ManifestName)
 	basePrefix := fmt.Sprintf("media-streams/%s", randomID())
@@ -116,10 +140,10 @@ func (s *Service) Upload(ctx context.Context, input UploadInput) (persistencemod
 	for _, segment := range input.Segments {
 		name := sanitizeSegmentName(segment.Name)
 		if name == "" {
-			return persistencemodel.MediaStreamArtifact{}, nil, fmt.Errorf("%w: segment filename is required", ErrInvalidSegment)
+			return Artifact{}, nil, fmt.Errorf("%w: segment filename is required", ErrInvalidSegment)
 		}
 		if _, ok := seenSegments[name]; ok {
-			return persistencemodel.MediaStreamArtifact{}, nil, fmt.Errorf("%w: duplicate segment %s", ErrInvalidSegment, name)
+			return Artifact{}, nil, fmt.Errorf("%w: duplicate segment %s", ErrInvalidSegment, name)
 		}
 		seenSegments[name] = struct{}{}
 		segments = append(segments, SegmentDescriptor{
@@ -130,12 +154,12 @@ func (s *Service) Upload(ctx context.Context, input UploadInput) (persistencemod
 		})
 	}
 	if err := validateManifestReferences(input.ManifestData, input.Segments, seenSegments); err != nil {
-		return persistencemodel.MediaStreamArtifact{}, nil, err
+		return Artifact{}, nil, err
 	}
 
 	segmentsJSON, err := json.Marshal(segments)
 	if err != nil {
-		return persistencemodel.MediaStreamArtifact{}, nil, err
+		return Artifact{}, nil, err
 	}
 
 	artifact := persistencemodel.MediaStreamArtifact{
@@ -158,38 +182,41 @@ func (s *Service) Upload(ctx context.Context, input UploadInput) (persistencemod
 	}
 
 	if err := s.store.Put(ctx, manifestKey, bytes.NewReader(input.ManifestData), int64(len(input.ManifestData)), artifact.MimeType); err != nil {
-		return persistencemodel.MediaStreamArtifact{}, nil, err
+		return Artifact{}, nil, err
 	}
 	for index, segment := range input.Segments {
 		if err := s.store.Put(ctx, segments[index].StorageKey, bytes.NewReader(segment.Data), int64(len(segment.Data)), segments[index].MimeType); err != nil {
-			return persistencemodel.MediaStreamArtifact{}, nil, err
+			return Artifact{}, nil, err
 		}
 	}
 	if err := s.db.WithContext(ctx).Create(&artifact).Error; err != nil {
-		return persistencemodel.MediaStreamArtifact{}, nil, err
+		return Artifact{}, nil, err
 	}
-	return artifact, segments, nil
+	return artifactFromModel(artifact), segments, nil
 }
 
-func (s *Service) GetVisible(ctx context.Context, id uint, userID uint, orgID *uint) (persistencemodel.MediaStreamArtifact, []SegmentDescriptor, error) {
+func (s *Service) GetVisible(ctx context.Context, id uint, userID uint, orgID *uint) (Artifact, []SegmentDescriptor, error) {
 	var artifact persistencemodel.MediaStreamArtifact
 	if err := s.db.WithContext(ctx).First(&artifact, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return artifact, nil, ErrNotFound
+			return Artifact{}, nil, ErrNotFound
 		}
-		return artifact, nil, err
+		return Artifact{}, nil, err
 	}
 	if !streamVisibleTo(artifact, userID, orgID) {
-		return artifact, nil, ErrForbidden
+		return Artifact{}, nil, ErrForbidden
 	}
 	if strings.TrimSpace(artifact.Status) != "" && artifact.Status != "ready" {
-		return artifact, nil, ErrNotFound
+		return Artifact{}, nil, ErrNotFound
 	}
 	if streamExpired(artifact, time.Now().UTC()) {
-		return artifact, nil, ErrNotFound
+		return Artifact{}, nil, ErrNotFound
 	}
 	segments, err := parseSegments(artifact.Segments)
-	return artifact, segments, err
+	if err != nil {
+		return Artifact{}, nil, err
+	}
+	return artifactFromModel(artifact), segments, nil
 }
 
 func (s *Service) CleanupExpired(ctx context.Context, input CleanupExpiredInput) (CleanupExpiredResult, error) {
@@ -574,6 +601,32 @@ func streamVisibleTo(artifact persistencemodel.MediaStreamArtifact, userID uint,
 
 func streamExpired(artifact persistencemodel.MediaStreamArtifact, now time.Time) bool {
 	return artifact.ExpiresAt != nil && !artifact.ExpiresAt.After(now)
+}
+
+func artifactFromModel(artifact persistencemodel.MediaStreamArtifact) Artifact {
+	return Artifact{
+		ID:                 artifact.ID,
+		OwnerID:            artifact.OwnerID,
+		OrgID:              artifact.OrgID,
+		ProjectID:          artifact.ProjectID,
+		SourceResourceID:   artifact.SourceResourceID,
+		SourceDerivativeID: artifact.SourceDerivativeID,
+		Title:              artifact.Title,
+		Status:             artifact.Status,
+		MimeType:           artifact.MimeType,
+		StorageBackend:     artifact.StorageBackend,
+		ManifestStorageKey: artifact.ManifestStorageKey,
+		BaseStoragePrefix:  artifact.BaseStoragePrefix,
+		Segments:           artifact.Segments,
+		DurationMs:         artifact.DurationMs,
+		Width:              artifact.Width,
+		Height:             artifact.Height,
+		ManifestURL:        artifact.ManifestURL,
+		SegmentBaseURL:     artifact.SegmentBaseURL,
+		ExpiresAt:          artifact.ExpiresAt,
+		CreatedAt:          artifact.CreatedAt,
+		UpdatedAt:          artifact.UpdatedAt,
+	}
 }
 
 func sanitizeManifestName(value string) string {

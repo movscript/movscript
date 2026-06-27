@@ -54,15 +54,15 @@ test('workspace review path is resolved from the shared frontend workspace model
   )
   assert.equal(
     buildWorkspaceReviewPath(workspace({ id: 'workspace-setting', kind: 'setting_workspace' })),
-    '/project/scripts/workbench?workspaceId=workspace-setting',
+    '/project/settings/preview?workspaceId=workspace-setting',
   )
   assert.equal(
     buildWorkspaceReviewPath(workspace({ id: 'workspace-asset-workspace', kind: 'asset_workspace' })),
-    '/project/content/preview?workspaceId=workspace-asset-workspace',
+    '/project/settings/preview?workspaceId=workspace-asset-workspace',
   )
   assert.equal(
     buildWorkspaceReviewPath(workspace({ id: 'workspace-script', kind: 'production_workspace' })),
-    null,
+    '/project/scripts/workbench?workspaceId=workspace-script',
   )
   assert.equal(
     buildWorkspaceReviewPath(workspace({
@@ -70,7 +70,15 @@ test('workspace review path is resolved from the shared frontend workspace model
       kind: 'production_workspace',
       target: { entityType: 'production', entityId: 301 },
     })),
-    '/project/scripts/workbench?workspaceId=workspace-production&productionId=301',
+    '/project/scripts/workbench?workspaceId=workspace-production&scopeKind=production&scopeRef=301&productionId=301',
+  )
+  assert.equal(
+    buildWorkspaceReviewPath(workspace({
+      id: 'workspace-episode',
+      kind: 'production_workspace',
+      target: { scopeKind: 'episode', scopeRef: 'episode_01' },
+    })),
+    '/project/scripts/workbench?workspaceId=workspace-episode&scopeKind=episode&scopeRef=episode_01',
   )
   assert.equal(
     buildWorkspaceReviewPath(workspace({
@@ -78,7 +86,15 @@ test('workspace review path is resolved from the shared frontend workspace model
       kind: 'asset_workspace',
       target: { entityType: 'asset_slot', entityId: 88 },
     })),
-    '/project/content/preview?workspaceId=workspace-asset&asset_slot_id=88',
+    '/project/settings/preview?workspaceId=workspace-asset&asset_slot_id=88',
+  )
+  assert.equal(
+    buildWorkspaceReviewPath(workspace({
+      id: 'workspace-setting-string',
+      kind: 'setting_workspace',
+      target: { entityType: 'setting', entityId: 'hero' },
+    })),
+    '/project/settings/preview?workspaceId=workspace-setting-string&setting_id=hero',
   )
   assert.equal(
     buildWorkspaceReviewPath(workspace({
@@ -94,7 +110,7 @@ test('workspace review path is resolved from the shared frontend workspace model
       kind: 'content_unit_workspace',
       target: { entityType: 'production', entityId: 301 },
     })),
-    '/project/scripts/workbench?workspaceId=workspace-content-unit-production&productionId=301',
+    '/project/content/preview?workspaceId=workspace-content-unit-production&scopeKind=production&scopeRef=301&productionId=301&targetCategory=timeline_assembly&targetKind=timeline_assembly&targetRef=timeline_assembly%3Aproduction%3A301&timeline_assembly_ref=timeline_assembly%3Aproduction%3A301',
   )
   assert.equal(
     buildWorkspaceReviewPath(workspace({
@@ -123,7 +139,7 @@ test('workspace artifact review path does not require loading the full workspace
       workspaceKind: 'production_workspace',
       target: { entityType: 'production', entityId: 301 },
     }),
-    '/project/scripts/workbench?workspaceId=workspace-production&productionId=301',
+    '/project/scripts/workbench?workspaceId=workspace-production&scopeKind=production&scopeRef=301&productionId=301',
   )
   assert.equal(
     buildWorkspaceArtifactReviewPath({

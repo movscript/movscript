@@ -1,7 +1,7 @@
 {
   "name": "movscript",
   "version": "0.1.2+codex.20260624201616",
-  "description": "MovScript runtime detection, startup ownership, project/domain source editing, planning, review, media query, AI generation, and media editing tools backed by a headless MCP host.",
+  "description": "MovScript runtime detection, startup ownership, project/domain source editing, planning, review, media query, AI generation, and Electron media editing tools backed by a headless MCP host.",
   "keywords": [
     "workspace",
     "project",
@@ -30,7 +30,7 @@
   "interface": {
     "displayName": "MovScript",
     "shortDescription": "Use MovScript projects, runtime detection, domain source, planning, review, media queries, generation, and optional Desktop-enhanced media editing.",
-    "longDescription": "Installs MovScript runtime/project/domain/planning/review/generation/editing guidance and starts a bundled headless MCP host. The host detects cloud/external, Desktop-owned, plugin full-local, and diagnostic startup modes, plus project source state and runtime capabilities. It exposes system tools for focus, project creation, resources, external media, model discovery, image/video/audio/subtitle generation, and job polling, plus domain tools for object query/read/upsert/update, candidate management, inspect/review, interpret, and regeneration planning. Product video editing uses the dedicated editing_* tool family: MediaEditingProject creation and timeline operations run through Editing Service, while render/HLS/transcode/reframe tasks run through the available Media Pipeline runtime.",
+    "longDescription": "Installs MovScript runtime/project/domain/planning/review/generation/editing guidance and starts a bundled headless MCP host. The host detects cloud/external, Desktop-owned, plugin full-local, and diagnostic startup modes, plus project source state and runtime capabilities. It exposes system tools for focus, project creation, resources, external media, model discovery, image/video/audio/subtitle generation, and job polling, plus domain tools for object query/read/upsert/update, candidate management, inspect/review, interpret, and regeneration planning. Product video editing uses the dedicated editing_* tool family: MediaEditingProject creation and timeline operations run through Editing Service, while Electron mediaPipeline render/HLS/transcode/reframe tasks run through the available Media Pipeline runtime.",
     "developerName": "MovScript",
     "category": "Productivity",
     "capabilities": [
@@ -61,14 +61,14 @@
       "generation job polling",
       "MediaEditingProject editing",
       "timeline editing",
-      "Media Pipeline render",
+      "Electron mediaPipeline render",
       "HLS packaging and publishing",
       "local transcode and reframe",
       "editing export import",
       "domain candidate management",
       "review handoff"
     ],
-    "defaultPrompt": "Review the current MovScript project state. First check runtime ownership when service availability is unclear. Plan the next MovScript production step. Generate or edit media with MovScript tools. For product video editing, use editing_* tools; check editing_runtime_capabilities_get before render. Resource-level media utilities are only for neutral material preparation, not the main editing path.",
+    "defaultPrompt": "Review the current MovScript project state. First check runtime ownership when service availability is unclear. Plan the next MovScript production step. Generate or edit media with MovScript tools. For product video editing, use editing_* tools; check editing_runtime_capabilities_get before local render. Resource-level media utilities are only for neutral material preparation, not the main editing path.",
     "websiteURL": "https://movscript.github.io/movscript/",
     "composerIcon": "./assets/logo.png",
     "logo": "./assets/logo.png"

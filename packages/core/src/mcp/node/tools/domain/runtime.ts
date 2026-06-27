@@ -94,6 +94,7 @@ function createMovScriptDomainRuntimeFromEngine(
     upsertScript: (input) => projectService.sourceCommand('upsertScript', input),
     snapshotScriptVersionFromMarkdown: (input) => projectService.sourceCommand('snapshotScriptVersionFromMarkdown', input),
     createContentUnit: (input) => projectService.sourceCommand('createContentUnit', input),
+    writeHierarchyNode: (input) => projectService.sourceCommand(isNamespaceHierarchyWrite(input) ? 'writeNamespaceNode' : 'writeHierarchyNode', input),
     createProduction: (input) => projectService.sourceCommand('createProduction', input),
     createSegment: (input) => projectService.sourceCommand('createSegment', input),
     createSceneMoment: (input) => projectService.sourceCommand('createSceneMoment', input),
@@ -119,6 +120,11 @@ function createMovScriptDomainRuntimeFromEngine(
     loadContentWorkspaceSnapshot: () => loadContentSourceWorkspaceSnapshotFromEngine(engine),
     loadContentWorkspace: async () => buildContentSourceWorkspaceData(await loadContentSourceWorkspaceSnapshotFromEngine(engine)),
   }
+}
+
+function isNamespaceHierarchyWrite(input: { category?: string; domainCategory?: string; domain_category?: string }): boolean {
+  const category = input.category ?? input.domainCategory ?? input.domain_category
+  return category === 'timeline_namespace' || category === 'setting_namespace'
 }
 
 function createProjectServiceAccessor(projectDir: string, decisionStoreConfig?: ProjectDecisionStoreConfigResolver): {

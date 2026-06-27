@@ -6,7 +6,7 @@ The shared story is:
 
 ```text
 request
--> production granularity decision
+-> output/scope granularity decision
 -> focused scene_moment or expression_unit material
 -> optional consistency evidence
 -> content unit production task
@@ -14,7 +14,7 @@ request
 -> interpreter review and stale checks
 ```
 
-MovScript planning should first ask what is being made: a single output, visual material inside a scene moment, a complete scene moment, several scene moments, a segment, or a production. Most video work should then center on a `scene_moment`; shot-like visual intent lives under that scene moment as an `expression_unit` with `modality=visual` and `role=shot`.
+MovScript planning should first ask what is being made: a single output, visual material inside a scene moment, a complete scene moment, several scene moments, or a timeline namespace scope that needs an assembly output. Most video work should then center on a `scene_moment`; shot-like visual intent lives under that scene moment as an `expression_unit` with `modality=visual` and `role=shot`.
 
 Settings, assets, keyframes, storyboards, expression units, and audio cues are evidence or scaffolding for that center. Add them when they protect consistency, reuse, or generation quality; skip them when the user wants a quick low-stakes draft.
 
@@ -24,12 +24,13 @@ When a reusable concrete production entity, such as a character, prop, place, in
 
 Everything except `content_unit` is production structure or a prerequisite for generation:
 
-- `production`, `segment`, and `scene_moment` describe story rhythm and dramatic moments.
+- Timeline namespace nodes organize story rhythm, order, and user vocabulary. Current source and MCP compatibility tools may write them as `production` / `segment`, but treat those as namespace projections.
+- `scene_moment` describes the smallest stable dramatic moment that can become production work.
 - `expression_unit` and `audio_cue` describe narrative expression and sound continuity inside a scene moment.
 - `setting`, `setting_state`, and `asset` describe concrete reusable production entities, their state namespaces, and state-owned resource slots.
 - `storyboard` and `keyframe` describe visual organization and visual anchors, usually for a visual expression unit or the scene moment itself.
 
-Do not design every segment, scene moment, shot, storyboard, keyframe, expression unit, audio cue, and asset at once by default. Choose the smallest useful prerequisite structure for the user's current goal, then deepen it through review and generation work.
+Do not design every namespace node, scene moment, shot, storyboard, keyframe, expression unit, audio cue, and asset at once by default. Choose the smallest useful prerequisite structure for the user's current goal, then deepen it through review and generation work.
 
 ## Content Units
 
@@ -40,13 +41,17 @@ The current tracked specialized types are:
 - `asset_ref`: image output for reusable asset reference candidates.
 - `keyframe_ref`: image output for shot/keyframe visual anchor candidates.
 - `storyboard_ref`: image output for storyboard panel/image candidates.
-- `production_ref`: video output for a complete production.
-- `segment_ref`: video output for a segment-level assembly.
+- `audio_cue_ref`: audio output for sound effect, music, ambience, dialogue cue, or foley candidates.
+- `timeline_assembly_ref`: video output for a timeline namespace scope assembly, such as an episode, act, sequence, legacy production, or legacy segment.
+- `production_ref`: legacy video alias for a production-scoped `timeline_assembly_ref`.
+- `segment_ref`: legacy video alias for a segment-scoped `timeline_assembly_ref`.
 - `scence_moment_ref`: video output for directly generating one complete scene moment.
 - `scene_moment_ref`: video output for directly generating one complete scene moment.
 - `expression_unit_ref`: output kind depends on the material role.
 
 Unknown content unit types may be valid generic slots, but they are not fully tracked by interpreter dependency, hash, stale-selection, or regeneration artifacts.
+
+Do not add user namespace-specific content unit types such as `episode_ref` or `beat_ref`. Namespace nodes organize structure; `timeline_assembly_ref` is the production target for a namespace scope that needs an output video.
 
 Legacy source may still contain `shot` or `shot_ref` records. Do not create them for new plans; represent camera-unit work as `expression_unit_ref` content units targeting visual expression units.
 

@@ -4,6 +4,8 @@ import { join, relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import process from 'node:process'
 
+import { isGeneratedDirectory } from './generated-paths.mjs'
+
 const ts = await loadTypeScript()
 
 const applicationSchema = 'movscript.application.v1'
@@ -23,9 +25,9 @@ const pluginStartableServiceNames = new Set([
 export function discoverRuntimeManifests(rootDir = process.cwd()) {
   const root = resolve(rootDir)
   const files = [
-    ...findManifestFiles(join(root, 'apps')),
-    ...findManifestFiles(join(root, 'services')),
-    ...findManifestFiles(join(root, 'packages')),
+    ...findManifestFiles(join(root, 'apps'), root),
+    ...findManifestFiles(join(root, 'services'), root),
+    ...findManifestFiles(join(root, 'packages'), root),
   ]
 
   const manifests = []
@@ -121,14 +123,14 @@ export function buildRuntimeRegistry(rootDir = process.cwd()) {
   }
 }
 
-function findManifestFiles(dir) {
+function findManifestFiles(dir, rootDir) {
   if (!existsSync(dir)) return []
   const out = []
   for (const name of readdirSync(dir, { withFileTypes: true })) {
     const path = join(dir, name.name)
     if (name.isDirectory()) {
-      if (name.name === 'node_modules' || name.name === 'dist') continue
-      out.push(...findManifestFiles(path))
+      if (isGeneratedDirectory(relative(rootDir, path))) continue
+      out.push(...findManifestFiles(path, rootDir))
       continue
     }
     if (name.isFile() && /\.manifest\.ts$/.test(name.name)) out.push(path)

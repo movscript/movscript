@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type R
 import { createPortal } from 'react-dom'
 import { Check, Clock3, File, FileAudio, FileText, FolderOpen, Info, Plus, Save, Star, TextCursorInput, Upload, WandSparkles, X, type LucideIcon } from 'lucide-react'
 import { generationParamDefaults } from '@movscript/core/generation'
+import { suggestMovScriptEntityId } from '@movscript/domain'
 
 import { ResourceFileAudio, ResourceFileImage, ResourceFileVideo } from '@movscript/resource-surface/resource-media-components'
 import type { PublicModel } from '@movscript/shared'
@@ -10,6 +11,7 @@ import {
   type ContentCanvasCreateNodeInput,
   type ContentCanvasExpressionUnitEditorInput,
 } from '../application/contentCanvasCommands'
+import { contentCanvasNodeDisplayKind } from '../domain/contentCanvasDomainPolicy'
 import type { ContentCanvasUploadedResource } from '../application/contentCanvasWorkspaceGateway'
 import type { ContentCanvasCandidate, ContentCanvasNode } from '../domain/contentCanvasTypes'
 import type { CandidateSelections, ContentCanvasNodePosition, InspectorSelection } from './contentCanvasWorkspaceTypes'
@@ -47,33 +49,65 @@ export function CreateChildNodeInspector({
   title,
   description,
   idPlaceholder,
+  initialStatus,
+  parentNode,
   titlePlaceholder,
+  targetLabel,
   statusPlaceholder,
   statusLabel = 'Status',
   statusOptions,
   submitLabel,
+  transformInput,
   onSubmit,
 }: {
   eyebrow: string
   title: string
   description: string
   idPlaceholder: string
+  initialStatus?: string
+  parentNode?: ContentCanvasNode
   titlePlaceholder: string
+  targetLabel?: string
   statusPlaceholder: string
   statusLabel?: string
   statusOptions?: Array<{ value: string; label: string }>
   submitLabel: string
+  transformInput?: (input: ContentCanvasCreateNodeInput) => ContentCanvasCreateNodeInput
   onSubmit: (input: ContentCanvasCreateNodeInput) => void
 }) {
   const [id, setId] = useState('')
+  const [hasManualId, setHasManualId] = useState(false)
   const [nodeTitle, setNodeTitle] = useState('')
-  const [status, setStatus] = useState(statusOptions?.[0]?.value ?? '')
-  const canSubmit = Boolean(id.trim() && nodeTitle.trim() && status.trim())
+  const [status, setStatus] = useState(initialStatus ?? statusOptions?.[0]?.value ?? '')
+  const suggestedId = suggestMovScriptEntityId({
+    title: nodeTitle.trim() || titlePlaceholder,
+    fallbackPrefix: idPlaceholder,
+  })
+  const resolvedId = hasManualId ? id.trim() : suggestedId
+  const canSubmit = Boolean(nodeTitle.trim() && resolvedId && status.trim())
+  const selectedStatusLabel = statusOptions?.find((option) => option.value === status)?.label ?? status
+  const planItems = createChildNodeInspectorPlanItems({
+    id: resolvedId,
+    idPlaceholder,
+    nodeTitle,
+    parentNode,
+    selectedStatusLabel,
+    status,
+    statusLabel,
+    statusPlaceholder,
+    targetLabel: targetLabel ?? title,
+    titlePlaceholder,
+  })
+
+  useEffect(() => {
+    setStatus(initialStatus ?? statusOptions?.[0]?.value ?? '')
+  }, [initialStatus])
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!canSubmit) return
-    onSubmit({ id: id.trim(), title: nodeTitle.trim(), status: status.trim() })
+    const input = { id: hasManualId ? id.trim() : '', title: nodeTitle.trim(), status: status.trim() }
+    onSubmit(transformInput ? transformInput(input) : input)
   }
 
   return (
@@ -82,22 +116,29 @@ export function CreateChildNodeInspector({
       <p>{description}</p>
       <form className="content-canvas-inspector-create-form" onSubmit={handleSubmit}>
         <label>
-          <span>ID</span>
-          <input
-            value={id}
-            placeholder={idPlaceholder}
-            onChange={(event) => setId(event.target.value)}
-            autoFocus
-          />
-        </label>
-        <label>
           <span>标题</span>
           <input
             value={nodeTitle}
             placeholder={titlePlaceholder}
             onChange={(event) => setNodeTitle(event.target.value)}
+            autoFocus
           />
         </label>
+        <details className="content-canvas-create-dialog__advanced">
+          <summary>高级：自定义 ID</summary>
+          <label>
+            <span>ID</span>
+            <input
+              value={hasManualId ? id : suggestedId}
+              placeholder={idPlaceholder}
+              onChange={(event) => {
+                const nextId = event.target.value
+                setId(nextId)
+                setHasManualId(Boolean(nextId.trim()))
+              }}
+            />
+          </label>
+        </details>
         <label>
           <span>{statusLabel}</span>
           {statusOptions ? (
@@ -119,6 +160,7 @@ export function CreateChildNodeInspector({
             />
           )}
         </label>
+        <CreateChildNodeInspectorPlanPreview items={planItems} />
         <button type="submit" disabled={!canSubmit}>
           <Plus size={13} aria-hidden="true" />
           {submitLabel}
@@ -126,6 +168,66 @@ export function CreateChildNodeInspector({
       </form>
     </div>
   )
+}
+
+type CreateChildNodeInspectorPlanItem = {
+  label: string
+  value: string
+  tone?: 'context' | 'create' | 'use'
+}
+
+function CreateChildNodeInspectorPlanPreview({ items }: { items: CreateChildNodeInspectorPlanItem[] }) {
+  return (
+    <section className="content-canvas-create-dialog__plan" aria-label="将要创建">
+      <div className="content-canvas-create-dialog__plan-title">将要创建</div>
+      <ul className="content-canvas-create-dialog__plan-list">
+        {items.map((item) => (
+          <li key={`${item.label}:${item.value}`} data-tone={item.tone ?? 'context'}>
+            <span>{item.label}</span>
+            <b>{item.value}</b>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+function createChildNodeInspectorPlanItems(input: {
+  id: string
+  idPlaceholder: string
+  nodeTitle: string
+  parentNode?: ContentCanvasNode
+  selectedStatusLabel: string
+  status: string
+  statusLabel: string
+  statusPlaceholder: string
+  targetLabel: string
+  titlePlaceholder: string
+}): CreateChildNodeInspectorPlanItem[] {
+  const items: CreateChildNodeInspectorPlanItem[] = []
+  if (input.parentNode) {
+    items.push({
+      label: '父节点',
+      value: `${contentCanvasNodeDisplayKind(input.parentNode)} · ${input.parentNode.title}`,
+      tone: 'context',
+    })
+  }
+  items.push({
+    label: '目标类型',
+    value: input.targetLabel,
+    tone: 'context',
+  })
+  items.push({
+    label: input.statusLabel,
+    value: input.selectedStatusLabel || input.status || input.statusPlaceholder,
+    tone: 'use',
+  })
+  items.push({
+    label: '目标节点',
+    value: `${input.nodeTitle.trim() || input.titlePlaceholder} (${input.id.trim() || input.idPlaceholder})`,
+    tone: 'create',
+  })
+  return items
 }
 
 export function GenerationTaskPanel({ node }: { node: ContentCanvasNode | undefined }) {

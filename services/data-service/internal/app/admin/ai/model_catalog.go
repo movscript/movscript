@@ -51,13 +51,13 @@ type EnableComboTemplateInput struct {
 }
 
 type EnableComboTemplateResult struct {
-	ComboTemplate       infraai.ComboTemplate                `json:"combo_template"`
-	Provider            persistencemodel.AIProvider          `json:"provider"`
-	CatalogEntry        persistencemodel.AIModelCatalogEntry `json:"catalog_entry"`
-	RouteBinding        persistencemodel.AIModelRouteBinding `json:"route_binding"`
-	CreatedCatalogEntry bool                                 `json:"created_catalog_entry"`
-	CreatedRouteBinding bool                                 `json:"created_route_binding"`
-	Diagnostics         []string                             `json:"diagnostics"`
+	ComboTemplate       infraai.ComboTemplate `json:"combo_template"`
+	Provider            Provider              `json:"provider"`
+	CatalogEntry        ModelCatalogEntry     `json:"catalog_entry"`
+	RouteBinding        ModelRouteBinding     `json:"route_binding"`
+	CreatedCatalogEntry bool                  `json:"created_catalog_entry"`
+	CreatedRouteBinding bool                  `json:"created_route_binding"`
+	Diagnostics         []string              `json:"diagnostics"`
 }
 
 func (s *Service) ListModelCatalogTemplates(ctx context.Context, lab string) []infraai.CatalogTemplate {
@@ -65,7 +65,7 @@ func (s *Service) ListModelCatalogTemplates(ctx context.Context, lab string) []i
 	return infraai.CatalogTemplatesByLab(lab)
 }
 
-func (s *Service) ListModelCatalogEntries(ctx context.Context) ([]persistencemodel.AIModelCatalogEntry, error) {
+func (s *Service) ListModelCatalogEntries(ctx context.Context) ([]ModelCatalogEntry, error) {
 	var entries []persistencemodel.AIModelCatalogEntry
 	err := s.db.WithContext(ctx).
 		Preload("RouteBindings").
@@ -82,13 +82,13 @@ func (s *Service) ListModelCatalogEntries(ctx context.Context) ([]persistencemod
 			normalizeModelRouteBindingProviderID(binding)
 		}
 	}
-	return entries, err
+	return modelCatalogEntriesFromModels(entries), err
 }
 
-func (s *Service) CreateModelCatalogEntry(ctx context.Context, input ModelCatalogEntryInput) (persistencemodel.AIModelCatalogEntry, error) {
+func (s *Service) CreateModelCatalogEntry(ctx context.Context, input ModelCatalogEntryInput) (ModelCatalogEntry, error) {
 	entry := modelCatalogEntryFromInput(input)
 	if strings.TrimSpace(entry.PublicModelID) == "" {
-		return entry, ErrInvalidModelCatalog
+		return modelCatalogEntryFromModel(entry), ErrInvalidModelCatalog
 	}
 	if entry.DisplayName == "" {
 		entry.DisplayName = entry.PublicModelID
@@ -97,21 +97,21 @@ func (s *Service) CreateModelCatalogEntry(ctx context.Context, input ModelCatalo
 		entry.Capabilities = infraai.CapabilityText
 	}
 	if err := validateModelCatalogEntry(&entry); err != nil {
-		return entry, err
+		return modelCatalogEntryFromModel(entry), err
 	}
 	if err := s.ensureUniqueModelCatalogEntry(ctx, 0, entry.PublicModelID); err != nil {
-		return entry, err
+		return modelCatalogEntryFromModel(entry), err
 	}
 	if err := s.db.WithContext(ctx).Create(&entry).Error; err != nil {
-		return entry, err
+		return modelCatalogEntryFromModel(entry), err
 	}
-	return entry, nil
+	return modelCatalogEntryFromModel(entry), nil
 }
 
-func (s *Service) UpdateModelCatalogEntry(ctx context.Context, id string, input ModelCatalogEntryInput) (persistencemodel.AIModelCatalogEntry, error) {
+func (s *Service) UpdateModelCatalogEntry(ctx context.Context, id string, input ModelCatalogEntryInput) (ModelCatalogEntry, error) {
 	var entry persistencemodel.AIModelCatalogEntry
 	if err := s.db.WithContext(ctx).First(&entry, id).Error; err != nil {
-		return entry, err
+		return ModelCatalogEntry{}, err
 	}
 	next := modelCatalogEntryFromInput(input)
 	next.ID = entry.ID
@@ -135,15 +135,15 @@ func (s *Service) UpdateModelCatalogEntry(ctx context.Context, id string, input 
 		next.DisplayName = next.PublicModelID
 	}
 	if err := validateModelCatalogEntry(&next); err != nil {
-		return next, err
+		return modelCatalogEntryFromModel(next), err
 	}
 	if err := s.ensureUniqueModelCatalogEntry(ctx, next.ID, next.PublicModelID); err != nil {
-		return next, err
+		return modelCatalogEntryFromModel(next), err
 	}
 	if err := s.db.WithContext(ctx).Save(&next).Error; err != nil {
-		return next, err
+		return modelCatalogEntryFromModel(next), err
 	}
-	return next, nil
+	return modelCatalogEntryFromModel(next), nil
 }
 
 func (s *Service) DeleteModelCatalogEntry(ctx context.Context, id string) error {
@@ -166,7 +166,12 @@ func (s *Service) DeleteModelCatalogEntry(ctx context.Context, id string) error 
 	})
 }
 
-func (s *Service) CreateModelRouteBinding(ctx context.Context, catalogEntryID string, input ModelRouteBindingInput) (persistencemodel.AIModelRouteBinding, error) {
+func (s *Service) CreateModelRouteBinding(ctx context.Context, catalogEntryID string, input ModelRouteBindingInput) (ModelRouteBinding, error) {
+	binding, err := s.createModelRouteBindingModel(ctx, catalogEntryID, input)
+	return modelRouteBindingFromModel(binding), err
+}
+
+func (s *Service) createModelRouteBindingModel(ctx context.Context, catalogEntryID string, input ModelRouteBindingInput) (persistencemodel.AIModelRouteBinding, error) {
 	entryID, err := parseUintID(catalogEntryID)
 	if err != nil {
 		return persistencemodel.AIModelRouteBinding{}, err
@@ -206,10 +211,10 @@ func (s *Service) CreateModelRouteBinding(ctx context.Context, catalogEntryID st
 	return binding, nil
 }
 
-func (s *Service) UpdateModelRouteBinding(ctx context.Context, id string, input ModelRouteBindingInput) (persistencemodel.AIModelRouteBinding, error) {
+func (s *Service) UpdateModelRouteBinding(ctx context.Context, id string, input ModelRouteBindingInput) (ModelRouteBinding, error) {
 	var binding persistencemodel.AIModelRouteBinding
 	if err := s.db.WithContext(ctx).First(&binding, id).Error; err != nil {
-		return binding, err
+		return ModelRouteBinding{}, err
 	}
 	input = normalizeEditionModelRouteBindingInput(input)
 	next := modelRouteBindingFromInput(binding.CatalogEntryID, input)
@@ -218,10 +223,10 @@ func (s *Service) UpdateModelRouteBinding(ctx context.Context, id string, input 
 		next.AdapterType = binding.AdapterType
 	}
 	if err := s.normalizeModelRouteBindingAdapter(ctx, &next); err != nil {
-		return next, err
+		return modelRouteBindingFromModel(next), err
 	}
 	if err := normalizeModelRouteBindingAPIKinds(&next); err != nil {
-		return next, err
+		return modelRouteBindingFromModel(next), err
 	}
 	next.ID = binding.ID
 	next.CreatedAt = binding.CreatedAt
@@ -235,19 +240,19 @@ func (s *Service) UpdateModelRouteBinding(ctx context.Context, id string, input 
 		next.SourceType = binding.SourceType
 	}
 	if err := validateModelRouteBinding(next); err != nil {
-		return next, err
+		return modelRouteBindingFromModel(next), err
 	}
 	if err := s.validateRouteBindingProvider(ctx, next); err != nil {
-		return next, err
+		return modelRouteBindingFromModel(next), err
 	}
 	normalizeModelRouteBindingCapacity(&next)
 	if err := s.ensureUniqueModelRouteBinding(ctx, next.CatalogEntryID, next.ID, next.RouteGroup, next.ProviderID, next.ProviderModelID); err != nil {
-		return next, err
+		return modelRouteBindingFromModel(next), err
 	}
 	if err := s.db.WithContext(ctx).Save(&next).Error; err != nil {
-		return next, err
+		return modelRouteBindingFromModel(next), err
 	}
-	return next, nil
+	return modelRouteBindingFromModel(next), nil
 }
 
 func (s *Service) ensureUniqueModelRouteBinding(ctx context.Context, catalogEntryID uint, excludeBindingID uint, routeGroup string, providerID string, providerModelID string) error {
@@ -321,7 +326,7 @@ func (s *Service) EnableComboTemplate(ctx context.Context, comboTemplateKey stri
 		if err != nil {
 			return err
 		}
-		result.Provider = provider
+		result.Provider = providerFromModel(provider)
 
 		var entry persistencemodel.AIModelCatalogEntry
 		if err := tx.Where("public_model_id = ?", publicModelID).First(&entry).Error; err != nil {
@@ -369,7 +374,7 @@ func (s *Service) EnableComboTemplate(ctx context.Context, comboTemplateKey stri
 				}
 			}
 		}
-		result.CatalogEntry = entry
+		result.CatalogEntry = modelCatalogEntryFromModel(entry)
 
 		var binding persistencemodel.AIModelRouteBinding
 		if err := tx.Where(
@@ -382,7 +387,7 @@ func (s *Service) EnableComboTemplate(ctx context.Context, comboTemplateKey stri
 			if !errors.Is(err, gorm.ErrRecordNotFound) {
 				return err
 			}
-			binding, err = scoped.CreateModelRouteBinding(ctx, strconv.FormatUint(uint64(entry.ID), 10), ModelRouteBindingInput{
+			binding, err = scoped.createModelRouteBindingModel(ctx, strconv.FormatUint(uint64(entry.ID), 10), ModelRouteBindingInput{
 				ComboTemplateKey: combo.ComboTemplateKey,
 				TemplateVersion:  combo.Version,
 				RouteGroup:       routeGroup,
@@ -415,7 +420,7 @@ func (s *Service) EnableComboTemplate(ctx context.Context, comboTemplateKey stri
 				}
 			}
 		}
-		result.RouteBinding = binding
+		result.RouteBinding = modelRouteBindingFromModel(binding)
 		return nil
 	})
 	return result, err

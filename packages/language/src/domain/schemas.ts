@@ -56,13 +56,45 @@ export const projectEntitySchema = {
     title: { type: 'string' },
     description: { type: 'string' },
     project_kind: { type: 'string' },
+    timeline_template: {
+      enum: ['film', 'series', 'short_video', 'course'],
+      description: 'Optional default timeline namespace template. It is a creation/planning hint, not an instance parent tree.',
+    },
+    timeline_namespaces: {
+      type: 'array',
+      description: 'Project-owned timeline namespace vocabulary, such as series, season, episode, act, sequence, beat.',
+      items: { type: 'string', minLength: 1 },
+    },
+    setting_namespaces: {
+      type: 'array',
+      description: 'Project-owned setting namespace vocabulary, such as character, costume, state, or voice_state.',
+      items: { type: 'string', minLength: 1 },
+    },
+    namespace_vocabulary: objectSchema([], {
+      timeline_template: {
+        enum: ['film', 'series', 'short_video', 'course'],
+        description: 'Optional default timeline namespace template. It suggests creation flow but never owns concrete parent relations.',
+      },
+      timeline_namespaces: { type: 'array', items: { type: 'string', minLength: 1 } },
+      setting_namespaces: { type: 'array', items: { type: 'string', minLength: 1 } },
+    }),
     logline: { type: 'string' },
     language: { type: 'string' },
   }),
-  promptSummary: 'Project is the root business boundary for a complete local film workspace.',
+  promptSummary: 'Project is the root business boundary for a complete local film workspace. It may declare namespace vocabulary and templates for UI and agent planning, but concrete parent/containment still comes from source paths or validated explicit refs.',
   examples: [{
-    title: 'demo',
-    content: { schema: 'movscript.project.v1', kind: 'project', project_id: 'demo', title: 'Demo' },
+    title: 'series_demo',
+    content: {
+      schema: 'movscript.project.v1',
+      kind: 'project',
+      project_id: 'demo',
+      title: 'Demo Series',
+      namespace_vocabulary: {
+        timeline_template: 'series',
+        timeline_namespaces: ['episode', 'act', 'beat'],
+        setting_namespaces: ['character', 'costume', 'state'],
+      },
+    },
   }],
 } satisfies SemanticEntitySchemaDefinition
 
@@ -103,10 +135,12 @@ export const settingEntitySchema = {
   version: '1.0.0',
   status: 'active',
   jsonSchema: entitySchema('setting', ['title'], {
+    namespace_kind: { type: 'string', description: 'Project vocabulary label for this setting namespace node, such as character, location, prop, costume, or voice_identity.' },
+    setting_namespace_kind: { type: 'string', description: 'Alias of namespace_kind for setting namespace vocabulary.' },
     setting_kind: { enum: ['character', 'location', 'prop', 'world_rule', 'style', 'other'] },
     profile: { type: 'object', additionalProperties: true },
   }),
-  promptSummary: 'Setting is a concrete film/music production entity to be made or reused, such as a character, prop, place, instrument, costume, or voice identity. Do not use setting for abstract style/rules; assets belong under setting states.',
+  promptSummary: 'Setting is a concrete setting namespace root for a reusable film/music entity, such as a character, prop, place, instrument, costume, or voice identity. It is not a content-unit target and must not own content-unit refs; assets belong under setting states.',
   examples: [{
     title: 'hero',
     content: { schema: 'movscript.setting.v1', kind: 'setting', id: 'hero', setting_kind: 'character', title: 'Hero' },
@@ -120,10 +154,12 @@ export const settingStateEntitySchema = {
   version: '1.0.0',
   status: 'active',
   jsonSchema: entitySchema('setting_state', ['title'], {
+    namespace_kind: { type: 'string', description: 'Project vocabulary label for this setting-state namespace node, such as base_state, costume_state, emotion_state, or voice_state.' },
+    setting_namespace_kind: { type: 'string', description: 'Alias of namespace_kind for setting namespace vocabulary.' },
     state_kind: { type: 'string' },
     changes: { type: 'object', additionalProperties: true },
   }),
-  promptSummary: 'Setting state is a namespace under one setting for a named condition/version of that entity, such as base look, wet hair, damaged prop, side-view variant, or calm voice.',
+  promptSummary: 'Setting state is a namespace under one setting for a named condition/version of that entity, such as base look, wet hair, damaged prop, side-view variant, or calm voice. It is not a content-unit target and must not own content-unit refs.',
   examples: [{
     title: 'rain_panic',
     content: { schema: 'movscript.setting_state.v1', kind: 'setting_state', id: 'rain_panic', title: 'Rain panic' },
@@ -243,13 +279,15 @@ export const productionEntitySchema = {
   version: '1.0.0',
   status: 'active',
   jsonSchema: entitySchema('production', ['title'], {
+    namespace_kind: { type: 'string', description: 'Project vocabulary label for this timeline namespace node, such as film, episode, act, sequence, or beat.' },
+    timeline_namespace_kind: { type: 'string', description: 'Alias of namespace_kind for timeline namespace vocabulary.' },
     production_kind: { type: 'string' },
     transition: transitionSchema,
   }),
-  promptSummary: 'Production is a makeable video unit. It owns ordered segment planning structure and production-level transition boundaries.',
+  promptSummary: 'Production is a legacy timeline namespace source record. It contributes path-derived containment, context, and transition boundaries, but it is not directly generated; use a timeline_assembly_ref content unit when a namespace scope needs a video output.',
   examples: [{
     title: 'episode',
-    content: { schema: 'movscript.production.v1', kind: 'production', id: 'p8f3', title: 'Episode 1' },
+    content: { schema: 'movscript.production.v1', kind: 'production', id: 'p8f3', title: 'Episode 1', namespace_kind: 'episode' },
   }],
 } satisfies SemanticEntitySchemaDefinition
 
@@ -260,15 +298,17 @@ export const segmentEntitySchema = {
   version: '1.0.0',
   status: 'active',
   jsonSchema: entitySchema('segment', ['title', 'order'], {
+    namespace_kind: { type: 'string', description: 'Project vocabulary label for this timeline namespace node, such as act, sequence, beat, hook, lesson, or segment.' },
+    timeline_namespace_kind: { type: 'string', description: 'Alias of namespace_kind for timeline namespace vocabulary.' },
     segment_kind: { enum: ['emotional_function', 'rhythm_shift', 'dramatic_function', 'setup', 'escalation', 'release', 'reversal', 'transition'] },
     emotional_intent: { type: 'string' },
     rhythm: { type: 'string' },
     transition: transitionSchema,
   }),
-  promptSummary: 'Segment is a rhythm section inside a production. Directory id is stable; order and segment-level transition boundaries live in segment.json.',
+  promptSummary: 'Segment is a legacy timeline namespace node inside the path tree. Directory id and path parent define containment; namespace_kind names the user-facing layer. It is not directly generated; use scene_moment, expression_unit, or timeline_assembly_ref content units for production work.',
   examples: [{
     title: 'opening',
-    content: { schema: 'movscript.segment.v1', kind: 'segment', id: 'a19d', title: 'Opening pressure', order: 1 },
+    content: { schema: 'movscript.segment.v1', kind: 'segment', id: 'a19d', title: 'Opening pressure', namespace_kind: 'beat', order: 1 },
   }],
 } satisfies SemanticEntitySchemaDefinition
 
@@ -455,11 +495,21 @@ export const contentUnitEntitySchema = {
   jsonSchema: entitySchema('content_unit', ['content_unit_type', 'output_kind', 'title'], {
     content_unit_type: { type: 'string', minLength: 1 },
     output_kind: { enum: ['image', 'video', 'audio', 'text', 'metadata'] },
-    target_kind: { enum: ['production', 'segment', 'scene_moment', 'expression_unit', 'asset', 'content_unit', 'setting', 'metadata'] },
+    target_category: { enum: ['timeline_assembly', 'system_primitive', 'content_unit'] },
+    target_kind: {
+      enum: ['timeline_assembly', 'production', 'segment', 'scene_moment', 'expression_unit', 'asset', 'keyframe', 'storyboard', 'audio_cue', 'content_unit'],
+      description: 'Use timeline_assembly, system primitives, or content_unit. production/segment remain legacy aliases only when paired with production_ref/segment_ref normalization. Namespace targets such as setting, setting_state, production, or segment are rejected for new generic content units.',
+    },
     target_ref: sourceRefSchema,
+    scope_kind: { type: 'string' },
+    scope_ref: sourceRefSchema,
     generation_role: { type: 'string' },
     production_ref: sourceRefSchema,
     segment_ref: sourceRefSchema,
+    asset_ref: sourceRefSchema,
+    keyframe_ref: sourceRefSchema,
+    storyboard_ref: sourceRefSchema,
+    audio_cue_ref: sourceRefSchema,
     scene_moment_ref: sourceRefSchema,
     expression_unit_ref: sourceRefSchema,
     content_unit_ref: sourceRefSchema,
@@ -480,7 +530,7 @@ export const contentUnitEntitySchema = {
       params: { type: 'object', additionalProperties: true },
     }),
   }),
-  promptSummary: 'Content unit is a project-level stable generation task. In the final model it targets a scene_moment for direct complete-scene output, or an expression_unit for visual, voice, subtitle, audio, or other material generation. References written inside edit_prompt with {{type:id}} syntax are upstream inputs. Candidates copy the normalized prompt snapshot at generation time; selections and runtime candidates are stored outside content_unit.json.',
+  promptSummary: 'Content unit is a project-level stable generation task. It targets a system primitive such as scene_moment, expression_unit, asset, keyframe, storyboard, or audio_cue, or it targets a timeline_assembly for rendering a namespace scope. production_ref and segment_ref are legacy aliases for timeline_assembly_ref. References written inside edit_prompt with {{type:id}} syntax are upstream inputs. Candidates copy the normalized prompt snapshot at generation time; selections and runtime candidates are stored outside content_unit.json.',
   examples: [{
     title: 'expression_visual_material',
     content: {
@@ -494,6 +544,20 @@ export const contentUnitEntitySchema = {
       generation_role: 'visual_material',
       title: 'Phone close-up visual material',
       edit_prompt: { text: 'Generate this visual expression material with selected references.' },
+    },
+  }, {
+    title: 'episode_assembly',
+    content: {
+      schema: 'movscript.content_unit.v1',
+      kind: 'content_unit',
+      id: 'cu_episode_01',
+      content_unit_type: 'timeline_assembly_ref',
+      output_kind: 'video',
+      target_kind: 'timeline_assembly',
+      target_ref: 'timeline_assembly:episode:episode_01',
+      generation_role: 'timeline_assembly',
+      title: 'Episode 01 assembly',
+      edit_prompt: { text: 'Assemble the selected scene moment outputs for this episode.' },
     },
   }],
 } satisfies SemanticEntitySchemaDefinition

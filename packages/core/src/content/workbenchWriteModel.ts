@@ -5,6 +5,10 @@ import {
   type ContentWorkbenchDropPosition,
   type ContentWorkbenchTimelineRecord,
 } from './workbenchTimeline.js'
+import {
+  implicitTimelineAssemblyRef,
+  parseImplicitTimelineAssemblyRef,
+} from '@movscript/domain'
 
 export type ContentWorkbenchWritePayloadValue = string | number | boolean | null
 export type ContentWorkbenchWritePayload = Record<string, ContentWorkbenchWritePayloadValue>
@@ -29,15 +33,29 @@ export type ContentUnitTimelineMoveTaskGraph =
   | {
     kind: 'create_item'
     unitId: number
-    productionId: number
+    productionId?: number
+    timelineScope?: ContentWorkbenchTimelineScope
     timelineId?: number
     timelinePayload?: ContentWorkbenchWritePayload
     itemPayload: ContentWorkbenchWritePayload
   }
 
+export interface ContentWorkbenchTimelineScope {
+  targetKind: 'timeline_assembly'
+  targetRef: string
+  scopeKind: string
+  scopeRef: string | number
+  scopePath?: string
+}
+
 export interface ContentWorkbenchWriteUnitRecord extends ContentWorkbenchTimelineRecord {
   duration_sec?: unknown
   production_id?: unknown
+  target_kind?: unknown
+  target_ref?: unknown
+  scope_kind?: unknown
+  scope_ref?: unknown
+  scope_path?: unknown
 }
 
 export interface ContentWorkbenchWriteMomentRecord {
@@ -47,6 +65,7 @@ export interface ContentWorkbenchWriteMomentRecord {
 export interface ContentWorkbenchWriteRow {
   moment: ContentWorkbenchWriteMomentRecord
   productionIds: number[]
+  timelineScope?: ContentWorkbenchTimelineScope
   units: ContentWorkbenchWriteUnitRecord[]
   previewTimelineItems: ContentWorkbenchTimelineItemRecord[]
 }
@@ -54,6 +73,10 @@ export interface ContentWorkbenchWriteRow {
 export interface ContentWorkbenchTimelineItemRecord extends ContentWorkbenchTimelineRecord {
   preview_timeline_id?: unknown
   duration_sec?: unknown
+  target_kind?: unknown
+  target_ref?: unknown
+  scope_kind?: unknown
+  scope_ref?: unknown
 }
 
 export interface ContentUnitTimelineMovePlanInput {
@@ -119,26 +142,31 @@ export function buildContentUnitTimelineMoveTaskGraph({
   }
 
   const productionId = numberOf(unit.production_id) || row.productionIds[0]
-  if (!productionId) throw new Error('content_unit_missing_production')
+  const timelineScope = productionId ? undefined : timelineScopeForMove(unit, row)
+  if (!productionId && !timelineScope) throw new Error('content_unit_missing_timeline_scope')
   const timeline = previewTimelines
-    .filter((item) => Number(item.production_id) === productionId)
+    .filter((item) => productionId
+      ? Number(item.production_id) === productionId
+      : timelineScopeMatches(item, timelineScope))
     .slice()
     .sort((a, b) => previewTimelineRank(a) - previewTimelineRank(b) || byOrder(a, b))[0]
   const title = firstText(unitTitle, String(unit.ID))
+  const timelinePayloadBase = timelineContextPayload(productionId, timelineScope)
   return {
     kind: 'create_item',
     unitId,
-    productionId,
+    ...(productionId ? { productionId } : {}),
+    ...(timelineScope ? { timelineScope } : {}),
     timelineId: timeline?.ID,
     timelinePayload: timeline ? undefined : {
-      production_id: productionId,
+      ...timelinePayloadBase,
       name: firstText(timelineName, title),
       duration_sec: Math.max(normalizedStartSec + durationSec, durationSec, 1),
       is_primary: true,
       status: 'workspace',
     },
     itemPayload: {
-      production_id: productionId,
+      ...timelinePayloadBase,
       scene_moment_id: row.moment.ID,
       content_unit_id: unit.ID,
       kind: 'content_unit',
@@ -148,6 +176,63 @@ export function buildContentUnitTimelineMoveTaskGraph({
       order: numberOf(unit.order) || row.units.findIndex((item) => item.ID === unit.ID) + 1,
       status: 'workspace',
     },
+  }
+}
+
+function timelineScopeForMove(
+  unit: ContentWorkbenchWriteUnitRecord,
+  row: ContentWorkbenchWriteRow,
+): ContentWorkbenchTimelineScope | undefined {
+  const explicitTargetKind = textOf(unit.target_kind)
+  const explicitTargetRef = textOf(unit.target_ref)
+  const rowScope = row.timelineScope
+  const parsedTarget = parseImplicitTimelineAssemblyRef(explicitTargetRef)
+  const scopeKind = textOf(unit.scope_kind)
+    ?? rowScope?.scopeKind
+    ?? parsedTarget?.scopeKind
+  const scopeRef = idOf(unit.scope_ref)
+    ?? rowScope?.scopeRef
+    ?? parsedTarget?.scopeRef
+  if (
+    explicitTargetKind !== 'timeline_assembly'
+    && !explicitTargetRef?.startsWith('timeline_assembly:')
+    && !rowScope
+  ) {
+    return undefined
+  }
+  if (!scopeKind || scopeRef === undefined) return undefined
+  return {
+    targetKind: 'timeline_assembly',
+    targetRef: explicitTargetRef ?? rowScope?.targetRef ?? implicitTimelineAssemblyRef(scopeKind, String(scopeRef)),
+    scopeKind,
+    scopeRef,
+    ...(textOf(unit.scope_path) ? { scopePath: textOf(unit.scope_path) } : rowScope?.scopePath ? { scopePath: rowScope.scopePath } : {}),
+  }
+}
+
+function timelineScopeMatches(
+  item: ContentWorkbenchTimelineRecord,
+  scope: ContentWorkbenchTimelineScope | undefined,
+): boolean {
+  if (!scope) return false
+  const targetRef = textOf(item.target_ref)
+  if (targetRef && targetRef === scope.targetRef) return true
+  return textOf(item.scope_kind) === scope.scopeKind
+    && String(idOf(item.scope_ref) ?? '') === String(scope.scopeRef)
+}
+
+function timelineContextPayload(
+  productionId: number,
+  timelineScope: ContentWorkbenchTimelineScope | undefined,
+): ContentWorkbenchWritePayload {
+  if (productionId) return { production_id: productionId }
+  if (!timelineScope) return {}
+  return {
+    target_kind: timelineScope.targetKind,
+    target_ref: timelineScope.targetRef,
+    scope_kind: timelineScope.scopeKind,
+    scope_ref: timelineScope.scopeRef,
+    ...(timelineScope.scopePath ? { scope_path: timelineScope.scopePath } : {}),
   }
 }
 
@@ -177,6 +262,16 @@ function firstText(...values: Array<unknown>) {
     if (text) return text
   }
   return ''
+}
+
+function textOf(value: unknown): string | undefined {
+  const text = String(value ?? '').trim()
+  return text ? text : undefined
+}
+
+function idOf(value: unknown): string | number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  return textOf(value)
 }
 
 function numberOf(value: unknown) {

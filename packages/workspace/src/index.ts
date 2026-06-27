@@ -83,7 +83,10 @@ export {
 } from './resourceMentions.js'
 
 export {
+  deriveMovScriptWorkspaceTimelineAssemblyPreviewTimeline,
   deriveMovScriptWorkspacePreviewTimelines,
+  type MovScriptWorkspaceTimelineAssemblyPreviewTimelineArtifact,
+  type MovScriptWorkspaceTimelineAssemblyPreviewTimelineScope,
   type MovScriptWorkspacePreviewTimelineArtifact,
   type MovScriptWorkspacePreviewTimelineEntityRef,
   type MovScriptWorkspacePreviewTimelineItem,
@@ -142,6 +145,7 @@ export {
   updateMovScriptStoryboardTimeline,
   upsertMovScriptContentUnit,
   upsertMovScriptProjectStandards,
+  upsertMovScriptSourceRecord,
   upsertMovScriptWorkspaceAsset,
   upsertMovScriptWorkspaceScript,
   upsertMovScriptWorkspaceSetting,
@@ -185,6 +189,8 @@ export {
   type MovScriptScriptVersionSnapshotResult,
   type MovScriptEntityTransitionUpdateInput,
   type MovScriptEntityTransitionUpdateResult,
+  type MovScriptSourceRecordUpsertInput,
+  type MovScriptSourceRecordUpsertResult,
   type MovScriptStoryboardTimeline,
   type MovScriptStoryboardTimelineUpdateInput,
   type MovScriptStoryboardTimelineUpdateResult,

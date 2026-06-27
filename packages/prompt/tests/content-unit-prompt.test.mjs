@@ -10,7 +10,7 @@ test('parses prompt refs from all editable prompt text fields', () => {
   const refs = parseContentUnitEditPromptRefs({
     text: 'Use {{asset::wet_hair}} for {{candidate:candidate_a}} and {{resource::42}}.',
     negative_text: 'Avoid {{asset:dry_hair}}.',
-    notes: 'Match {{storyboard:main}}.',
+    notes: 'Match {{storyboard:main}} and {{audio_cue::phone_vibration}}.',
   })
 
   assert.deepEqual(refs.map((ref) => [ref.kind, ref.id, ref.source.field]), [
@@ -19,6 +19,7 @@ test('parses prompt refs from all editable prompt text fields', () => {
     ['resource', '42', 'edit_prompt.text'],
     ['asset', 'dry_hair', 'edit_prompt.negative_text'],
     ['storyboard', 'main', 'edit_prompt.notes'],
+    ['audio_cue', 'phone_vibration', 'edit_prompt.notes'],
   ])
 })
 
@@ -313,6 +314,110 @@ test('resolves production and segment prompt refs from specialized video content
   assert.equal(result.prompt.refs[0]?.kind, 'segment')
   assert.equal(result.prompt.refs[0]?.resolved?.entityKind, 'segment')
   assert.equal(result.prompt.refs[0]?.upstream_content_unit_id, 'cu_opening_video')
+})
+
+test('blocks unsupported namespace-like prompt refs instead of silently passing them through', async () => {
+  const index = indexFromDocuments([
+    document('timeline/episode_01/production.json', {
+      schema: 'movscript.production.v1',
+      kind: 'production',
+      id: 'episode_01',
+      namespace_kind: 'episode',
+      title: 'Episode 01',
+    }),
+    document('content_units/cu_phone_video/content_unit.json', {
+      schema: 'movscript.content_unit.v1',
+      kind: 'content_unit',
+      id: 'cu_phone_video',
+      title: 'Phone video',
+      content_unit_type: 'scene_moment_ref',
+      output_kind: 'video',
+      scene_moment_ref: 'phone',
+      edit_prompt: {
+        text: 'Use {{episode::episode_01}} as structure context.',
+        structured: {
+          planning_note: 'Do not treat {{beat::opening}} as a selected resource dependency.',
+        },
+      },
+    }),
+  ])
+
+  const result = await buildContentUnitBackendPromptById({
+    index,
+    contentUnitId: 'cu_phone_video',
+    decisionProvider: decisionProvider({}),
+  })
+
+  assert.equal(result.ok, false)
+  assert.equal(result.blockers.find((blocker) => blocker.ref === '{{episode::episode_01}}')?.code, 'unsupported_prompt_ref_kind')
+  assert.match(result.blockers.find((blocker) => blocker.ref === '{{episode::episode_01}}')?.message ?? '', /namespace vocabulary is context/)
+  assert.equal(result.blockers.find((blocker) => blocker.ref === '{{beat::opening}}')?.code, 'unsupported_prompt_ref_kind')
+})
+
+test('resolves audio cue prompt refs from specialized audio content units', async () => {
+  const index = indexFromDocuments([
+    document('productions/p1/segments/opening/scene_moments/phone/scene_moment.json', {
+      schema: 'movscript.scene_moment.v1',
+      kind: 'scene_moment',
+      id: 'phone',
+      title: 'Phone call',
+      order: 1,
+    }),
+    document('productions/p1/segments/opening/scene_moments/phone/expression_units/phone/expression_unit.json', {
+      schema: 'movscript.expression_unit.v1',
+      kind: 'expression_unit',
+      id: 'phone',
+      expression_kind: 'shot',
+      title: 'Phone close-up',
+    }),
+    document('productions/p1/segments/opening/scene_moments/phone/audio_cues/phone_vibration/audio_cue.json', {
+      schema: 'movscript.audio_cue.v1',
+      kind: 'audio_cue',
+      id: 'phone_vibration',
+      title: 'Phone vibration',
+      cue_kind: 'sound_effect',
+    }),
+    document('content_units/cu_phone_vibration_audio/content_unit.json', {
+      schema: 'movscript.content_unit.v1',
+      kind: 'content_unit',
+      id: 'cu_phone_vibration_audio',
+      title: 'Phone vibration audio',
+      content_unit_type: 'audio_cue_ref',
+      output_kind: 'audio',
+      target_kind: 'audio_cue',
+      target_ref: 'phone_vibration',
+      audio_cue_ref: 'phone_vibration',
+      edit_prompt: { text: 'Generate the phone vibration sound.' },
+    }),
+    document('content_units/cu_phone_video/content_unit.json', {
+      schema: 'movscript.content_unit.v1',
+      kind: 'content_unit',
+      id: 'cu_phone_video',
+      title: 'Phone video',
+      content_unit_type: 'expression_unit_ref',
+      output_kind: 'video',
+      expression_unit_ref: 'phone',
+      edit_prompt: { text: 'Use {{audio_cue::phone_vibration}} as the synced sound cue.' },
+    }),
+  ])
+
+  const result = await buildContentUnitBackendPromptById({
+    index,
+    contentUnitId: 'cu_phone_video',
+    decisionProvider: decisionProvider({
+      cu_phone_vibration_audio: {
+        candidates: [{ id: 'candidate_vibration', outputs: [{ kind: 'audio', resource_id: 808 }] }],
+        selection: { candidate_id: 'candidate_vibration', resource_id: 808 },
+      },
+    }),
+  })
+
+  assert.equal(result.ok, true)
+  assert.equal(result.prompt.text, 'Use @[resource:808] as the synced sound cue.')
+  assert.deepEqual(result.prompt.resource_ids, [808])
+  assert.equal(result.prompt.refs[0]?.kind, 'audio_cue')
+  assert.equal(result.prompt.refs[0]?.resolved?.entityKind, 'audio_cue')
+  assert.equal(result.prompt.refs[0]?.upstream_content_unit_id, 'cu_phone_vibration_audio')
 })
 
 test('compiles scene moment shot plan into backend video prompt text', async () => {

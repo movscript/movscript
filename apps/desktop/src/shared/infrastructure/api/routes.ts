@@ -9,6 +9,7 @@ const routePatterns: Record<SurfaceRouteKey, string> = {
   'project.content': ROUTES.project.content,
   'project.contentCanvas': ROUTES.project.contentCanvas,
   'project.contentPreview': ROUTES.project.contentPreview,
+  'project.settingPreview': ROUTES.project.settingPreview,
   'project.settings': ROUTES.project.settings,
   resources: ROUTES.resources,
   'canvas.list': ROUTES.canvases,

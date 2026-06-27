@@ -195,8 +195,8 @@ export function arrangeContentCanvasNodeLayouts(
   const arrangedNodes = graph.nodes
     .filter((node) => targetIds.has(node.id) && !layouts[node.id]?.pinned)
     .sort((left, right) => {
-      const leftSlot = arrangeSlotForKind(left.kind)
-      const rightSlot = arrangeSlotForKind(right.kind)
+      const leftSlot = arrangeSlotForNode(left)
+      const rightSlot = arrangeSlotForNode(right)
       const laneDelta = leftSlot.lane - rightSlot.lane
       if (laneDelta !== 0) return laneDelta
       const columnDelta = leftSlot.column - rightSlot.column
@@ -210,7 +210,7 @@ export function arrangeContentCanvasNodeLayouts(
   const rowsBySlot = new Map<string, number>()
   let next = layouts
   for (const node of arrangedNodes) {
-    const slot = arrangeSlotForKind(node.kind)
+    const slot = arrangeSlotForNode(node)
     const slotKey = `${slot.lane}:${slot.column}`
     const row = rowsBySlot.get(slotKey) ?? 0
     rowsBySlot.set(slotKey, row + 1)
@@ -253,8 +253,41 @@ function arrangementOriginForNodes(
   }
 }
 
+function arrangeSlotForNode(node: ContentCanvasNode): { column: number; lane: number } {
+  if (node.domainCategory === 'timeline_namespace') {
+    return { column: 1 + domainAncestorDepth(node, legacyTimelineNamespaceDepth(node)), lane: 0 }
+  }
+  if (node.domainCategory === 'setting_namespace') {
+    return { column: domainAncestorDepth(node, legacySettingNamespaceDepth(node)), lane: -1 }
+  }
+  const fallback = arrangeSlotForKind(node.kind)
+  if (node.kind === 'scene_moment') {
+    return { ...fallback, column: Math.max(fallback.column, 1 + domainAncestorDepth(node, 2)) }
+  }
+  if (node.kind === 'asset') {
+    return { ...fallback, column: Math.max(fallback.column, domainAncestorDepth(node, 2)) }
+  }
+  return fallback
+}
+
 function arrangeSlotForKind(kind: ContentCanvasNode['kind']): { column: number; lane: number } {
   return CONTENT_CANVAS_ARRANGE_FLOW_SLOTS[kind] ?? { column: 0, lane: 0 }
+}
+
+function domainAncestorDepth(node: ContentCanvasNode, fallback: number): number {
+  return node.domainAncestorNodeIds?.length ?? fallback
+}
+
+function legacyTimelineNamespaceDepth(node: ContentCanvasNode): number {
+  if (node.kind === 'production') return 0
+  if (node.kind === 'segment') return 1
+  return 0
+}
+
+function legacySettingNamespaceDepth(node: ContentCanvasNode): number {
+  if (node.kind === 'setting') return 0
+  if (node.kind === 'state') return 1
+  return 0
 }
 
 function finiteNumber(value: unknown): number | undefined {

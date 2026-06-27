@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AgentContentPromptSurface, type AgentContentPromptSaveInput } from '@movscript/project-surface/react'
 import { useAgentMcpApiProxy } from './useAgentMcpApiProxy'
-import { agentSurfaceParams, fetchAgentSurfaceSnapshot, invalidateAgentSurfaceQueries, postAgentSurfaceAction } from './agentSurfaceData'
+import { agentSurfaceKeys, agentSurfaceParams, fetchAgentSurfaceSnapshot, invalidateAgentSurfaceQueries, postAgentSurfaceAction } from './agentSurfaceData'
 
 export default function AgentContentPromptPage() {
   const proxy = useAgentMcpApiProxy()
@@ -12,7 +12,7 @@ export default function AgentContentPromptPage() {
   const mode = proxy.params.get('mode') ?? 'edit'
   const queryParams = useMemo(() => agentSurfaceParams(proxy.params, { projectId, contentUnitId, mode }), [proxy.params, projectId, contentUnitId, mode])
   const { data: snapshot, isLoading, error } = useQuery({
-    queryKey: ['agent-surface', 'content-prompt', queryParams],
+    queryKey: agentSurfaceKeys.snapshot('content-prompt', queryParams),
     queryFn: () => fetchAgentSurfaceSnapshot('content-prompt', queryParams),
     enabled: proxy.ready && Boolean(contentUnitId),
   })

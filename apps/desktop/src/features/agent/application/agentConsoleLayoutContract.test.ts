@@ -90,9 +90,17 @@ test('agent console nav stays inside settings-hosted console tabs', () => {
 
 test('agent console document pages use shared content flow primitives', () => {
   const modelProvidersSource = readModelProvidersPageSource()
+  const agentsPageSource = readFileSync(resolve('src/features/agent/components/AgentsPage.tsx'), 'utf8')
+  const agentsPartsSource = readFileSync(resolve('src/features/agent/components/AgentsPageParts.tsx'), 'utf8')
   const agentsSource = [
-    readFileSync(resolve('src/features/agent/components/AgentsPage.tsx'), 'utf8'),
-    readFileSync(resolve('src/features/agent/components/AgentsPageParts.tsx'), 'utf8'),
+    agentsPageSource,
+    agentsPartsSource,
+  ].join('\n')
+  const agentsDocumentSource = [
+    agentsPageSource,
+    sourceFunctionBlock(agentsPartsSource, 'AgentsPageHeader'),
+    sourceFunctionBlock(agentsPartsSource, 'AgentsPageBody'),
+    sourceFunctionBlock(agentsPartsSource, 'AgentsPageProfileRow'),
   ].join('\n')
   const pluginsSource = readFileSync(resolve('src/features/plugins/components/ClientPluginsPage.tsx'), 'utf8')
   const pluginsViewSource = readFileSync(resolve('src/features/plugins/components/ClientPluginsPageViews.tsx'), 'utf8')
@@ -114,13 +122,12 @@ test('agent console document pages use shared content flow primitives', () => {
     assert.doesNotMatch(source, /className="space-y-/)
     assert.doesNotMatch(source, /className="flex flex-wrap/)
   }
-  assert.match(agentsSource, /AgentConsoleStack/)
-  assert.match(agentsSource, /AgentConsoleAgentList/)
-  assert.match(agentsSource, /AgentConsoleCallout/)
-  assert.doesNotMatch(agentsSource, /className="space-y-/)
-  assert.doesNotMatch(agentsSource, /className="flex flex-wrap/)
-
-  assert.doesNotMatch(agentsSource, /className="gap-2"/)
+  assert.match(agentsDocumentSource, /AgentConsoleStack/)
+  assert.match(agentsDocumentSource, /AgentConsoleAgentList/)
+  assert.match(agentsDocumentSource, /AgentConsoleCallout/)
+  assert.doesNotMatch(agentsDocumentSource, /className="space-y-/)
+  assert.doesNotMatch(agentsDocumentSource, /className="flex flex-wrap/)
+  assert.doesNotMatch(agentsDocumentSource, /className="gap-2"/)
   assert.match(consoleSource, /export function AgentConsoleTabList/)
   assert.match(consoleSource, /export function AgentConsoleTabButton/)
   assert.match(consoleSource, /export function AgentConsoleDocumentBody/)
@@ -169,4 +176,39 @@ function readModelProvidersPageSource(): string {
     readFileSync(resolve('src/features/agent/components/ModelProvidersPageSections.tsx'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/ModelProvidersPageModel.ts'), 'utf8'),
   ].join('\n')
+}
+
+function sourceFunctionBlock(source: string, functionName: string): string {
+  const start = source.indexOf(`function ${functionName}(`)
+  assert.ok(start >= 0, `missing function ${functionName}`)
+
+  const paramsStart = source.indexOf('(', start)
+  assert.ok(paramsStart >= 0, `missing function parameters for ${functionName}`)
+  let paramsDepth = 0
+  let paramsEnd = -1
+  for (let index = paramsStart; index < source.length; index += 1) {
+    const character = source[index]
+    if (character === '(') paramsDepth += 1
+    if (character === ')') {
+      paramsDepth -= 1
+      if (paramsDepth === 0) {
+        paramsEnd = index
+        break
+      }
+    }
+  }
+  assert.ok(paramsEnd >= 0, `unterminated function parameters for ${functionName}`)
+
+  const bodyStart = source.indexOf('{', paramsEnd)
+  assert.ok(bodyStart >= 0, `missing function body for ${functionName}`)
+  let depth = 0
+  for (let index = bodyStart; index < source.length; index += 1) {
+    const character = source[index]
+    if (character === '{') depth += 1
+    if (character === '}') {
+      depth -= 1
+      if (depth === 0) return source.slice(bodyStart, index + 1)
+    }
+  }
+  assert.fail(`unterminated function ${functionName}`)
 }

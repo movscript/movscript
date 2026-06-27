@@ -189,6 +189,42 @@ export type ElectronMovScriptWorkspaceInterpretActionInput = ElectronMovScriptHo
 
 export type ElectronMovScriptEngineProjectInput = ElectronMovScriptWorkspaceInterpretActionInput
 
+export type ElectronMovScriptEngineContentCanvasInput = ElectronMovScriptEngineProjectInput & {
+  canvas?: unknown
+  record?: unknown
+  id?: string
+  canvasId?: string
+  canvas_id?: string
+  expectedVersion?: string | null
+  expected_version?: string | null
+}
+
+export type ElectronMovScriptEngineContentCanvasRecord = Record<string, unknown>
+
+export type ElectronMovScriptEngineContentCanvasEntry = {
+  path: string
+  version: string
+  updatedAt: string
+  record: ElectronMovScriptEngineContentCanvasRecord
+}
+
+export type ElectronMovScriptEngineContentCanvasesListResult = {
+  schema: 'movscript.content_canvases.v1'
+  canvases: ElectronMovScriptEngineContentCanvasEntry[]
+}
+
+export type ElectronMovScriptEngineContentCanvasWriteResult = {
+  status: 'written'
+  path: string
+  version: string
+  record: ElectronMovScriptEngineContentCanvasRecord
+}
+
+export type ElectronMovScriptEngineContentCanvasDeleteResult = {
+  status: 'deleted'
+  path: string
+}
+
 export type ElectronMovScriptEngineWorkspaceUpdatedEvent = ElectronMovScriptEngineProjectInput & {
   type: 'MovScriptEngineWorkspaceUpdated'
   reason:
@@ -262,6 +298,17 @@ export type ElectronMovScriptEngineContentUnitCreateInput = ElectronMovScriptEng
 
 export type ElectronMovScriptEngineContentUnitEnsureInput = ElectronMovScriptEngineProjectInput & {
   payload: MovScriptEngineEnsureContentUnitInput
+}
+
+export type ElectronMovScriptEngineTimelineAssemblyContentUnitEnsureInput = ElectronMovScriptEngineProjectInput & {
+  payload: Omit<
+    MovScriptEngineEnsureContentUnitInput,
+    'targetKind' | 'targetId' | 'targetRef' | 'scopeKind' | 'scopeRef' | 'contentUnitType' | 'outputKind'
+  > & {
+    scopeKind: string
+    scopeRef: string | number
+    outputKind?: string
+  }
 }
 
 export type ElectronMovScriptEngineSettingCreateInput = ElectronMovScriptEngineProjectInput & {

@@ -5,22 +5,23 @@ import { api } from '@/shared/infrastructure/api'
 import type { RawResource } from '@/types'
 import { AgentPreviewTimelineSurface, agentPreviewTimelineResourceIds } from '@movscript/project-surface/react'
 import { useAgentMcpApiProxy } from './useAgentMcpApiProxy'
-import { agentSurfaceParams, fetchAgentSurfaceSnapshot } from './agentSurfaceData'
+import { agentSurfaceKeys, agentSurfaceParams, fetchAgentSurfaceSnapshot } from './agentSurfaceData'
 
 export default function AgentPreviewTimelinePage() {
   const proxy = useAgentMcpApiProxy()
   const projectId = proxy.params.get('projectId') ?? undefined
-  const productionId = proxy.params.get('productionId') ?? undefined
+  const productionId = proxy.params.get('productionId') ?? proxy.params.get('production_id') ?? undefined
   const queryParams = useMemo(() => agentSurfaceParams(proxy.params, { projectId, productionId }), [proxy.params, projectId, productionId])
+  const timelineScopeId = String(queryParams.productionId ?? queryParams.production_id ?? productionId ?? '') || undefined
   const { data: snapshot, isLoading, error } = useQuery({
-    queryKey: ['agent-surface', 'preview-timeline', queryParams],
+    queryKey: agentSurfaceKeys.snapshot('preview-timeline', queryParams),
     queryFn: () => fetchAgentSurfaceSnapshot('preview-timeline', queryParams),
-    enabled: proxy.ready && Boolean(productionId),
+    enabled: proxy.ready && Boolean(timelineScopeId || queryParams.targetKind === 'timeline_assembly' || queryParams.target_kind === 'timeline_assembly'),
   })
   const previewResourceIds = useMemo(() => agentPreviewTimelineResourceIds(snapshot), [snapshot])
   const resourceQueries = useQueries({
     queries: previewResourceIds.map((id) => ({
-      queryKey: ['agent-surface', 'timeline-resource-preview', id],
+      queryKey: agentSurfaceKeys.timelineResourcePreview(id),
       queryFn: () => api.get<RawResource>(`/resources/${id}`).then((result) => result.data),
       enabled: proxy.ready,
     })),
@@ -39,7 +40,7 @@ export default function AgentPreviewTimelinePage() {
       ready={proxy.ready}
       params={proxy.params}
       projectId={projectId}
-      productionId={productionId}
+      productionId={timelineScopeId}
       snapshot={snapshot}
       isLoading={isLoading}
       error={error}

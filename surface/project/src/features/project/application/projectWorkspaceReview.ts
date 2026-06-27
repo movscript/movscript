@@ -3,6 +3,7 @@ import {
   type MovScriptWorkspaceKind,
   type SurfaceWorkspaceArtifactRef,
 } from '@movscript/shared'
+import { normalizeDomainFocus, type MovScriptNormalizedFocus } from '@movscript/domain'
 import {
   getProjectEntryDefinition,
   mergeProjectEntryReviewSearchParams,
@@ -53,7 +54,7 @@ export function resolveProjectEntryWorkspaceReviewSearchParams(
     entityId: entity?.entityId,
   })
   if (!searchParams) return null
-  return { artifact, workspaceId, searchParams }
+  return { artifact, workspaceId, searchParams: mergeWorkspaceArtifactFocusSearchParams(searchParams, artifact) }
 }
 
 export function mergeProjectEntryArtifactReviewSearchParams(
@@ -83,7 +84,15 @@ export function mergeProjectEntryArtifactReviewSearchParams(
     const queryParam = definition.reviewQuery.entityParams?.[input.entityType]
     if (queryParam) next.set(queryParam, String(input.entityId))
   }
-  return next
+  return mergeWorkspaceRecordFocusSearchParams(
+    mergeWorkspaceArtifactFocusSearchParams(next, primary?.artifact),
+    input.primary
+      ? {
+          entityType: input.entityType ?? input.primary.entityType,
+          entityId: input.entityId ?? input.primary.entityId,
+        }
+      : undefined,
+  )
 }
 
 function pickReviewEntityFromArtifact(
@@ -102,4 +111,85 @@ function pickEntity(entityParams: Record<string, string>, value?: Record<string,
   if (typeof entityId === 'number' && Number.isFinite(entityId)) return { entityType, entityId }
   if (typeof entityId === 'string' && entityId.trim()) return { entityType, entityId }
   return null
+}
+
+function mergeWorkspaceArtifactFocusSearchParams(
+  params: URLSearchParams,
+  artifact: SurfaceWorkspaceArtifactRef | undefined,
+): URLSearchParams {
+  return mergeFocusSearchParams(params, workspaceArtifactFocus(artifact))
+}
+
+function mergeWorkspaceRecordFocusSearchParams(
+  params: URLSearchParams,
+  record: Record<string, unknown> | undefined,
+): URLSearchParams {
+  return mergeFocusSearchParams(params, focusFromRecord(record))
+}
+
+function mergeFocusSearchParams(
+  params: URLSearchParams,
+  focus: MovScriptNormalizedFocus | undefined,
+): URLSearchParams {
+  if (!focus?.scope && !focus?.target) return params
+  const next = new URLSearchParams(params)
+  if (focus.scope?.kind !== 'production') {
+    next.delete('productionId')
+    next.delete('production_id')
+  }
+  if (focus.scope?.kind && focus.scope.ref) {
+    next.set('scopeKind', focus.scope.kind)
+    next.set('scopeRef', focus.scope.ref)
+    if (focus.scope.kind === 'production') next.set('productionId', focus.scope.ref)
+  }
+  if (focus.target?.targetCategory) next.set('targetCategory', focus.target.targetCategory)
+  if (focus.target?.targetKind) next.set('targetKind', focus.target.targetKind)
+  if (focus.target?.targetRef) next.set('targetRef', focus.target.targetRef)
+  if (focus.target?.targetKind === 'timeline_assembly' && focus.target.targetRef) {
+    next.set('timeline_assembly_ref', focus.target.targetRef)
+  }
+  return next
+}
+
+function workspaceArtifactFocus(artifact: SurfaceWorkspaceArtifactRef | undefined): MovScriptNormalizedFocus | undefined {
+  return focusFromRecord(artifact?.target, artifact?.projectId)
+    ?? focusFromRecord(artifact?.source, artifact?.projectId)
+}
+
+function focusFromRecord(record: Record<string, unknown> | undefined, projectId?: number): MovScriptNormalizedFocus | undefined {
+  if (!record) return undefined
+  const entityType = stringValue(record.entityType ?? record.entity_type ?? record.entityKind ?? record.entity_kind)
+  const entityId = idValue(record.entityId ?? record.entity_id)
+  const legacyScopeKind = entityType === 'production' || entityType === 'segment' ? entityType : undefined
+  const timelineAssemblyRef = idValue(record.timelineAssemblyRef ?? record.timeline_assembly_ref)
+  const targetKind = timelineAssemblyRef
+    ? 'timeline_assembly'
+    : stringValue(record.targetKind ?? record.target_kind ?? record.domainTargetKind ?? record.domain_target_kind)
+      ?? (entityType === 'timeline_assembly' || entityType === 'content_unit' ? entityType : undefined)
+  const targetRef = timelineAssemblyRef
+    ?? idValue(record.targetRef ?? record.target_ref ?? record.domainTargetRef ?? record.domain_target_ref)
+    ?? (targetKind === 'timeline_assembly' || targetKind === 'content_unit' ? entityId : undefined)
+  const focus = normalizeDomainFocus({
+    projectId: idValue(record.projectId ?? record.project_id) ?? projectId,
+    productionId: idValue(record.productionId ?? record.production_id) ?? (entityType === 'production' ? entityId : undefined),
+    scopeKind: stringValue(record.scopeKind ?? record.scope_kind ?? record.namespaceKind ?? record.namespace_kind) ?? legacyScopeKind,
+    scopeRef: idValue(record.scopeRef ?? record.scope_ref ?? record.namespaceRef ?? record.namespace_ref ?? record.namespacePath ?? record.namespace_path) ?? (legacyScopeKind ? entityId : undefined),
+    targetCategory: stringValue(record.targetCategory ?? record.target_category ?? record.domainTargetCategory ?? record.domain_target_category),
+    targetKind,
+    targetRef,
+    entityKind: entityType,
+    entityId,
+    path: stringValue(record.path),
+  })
+  return focus.scope || focus.target || focus.entity || focus.diagnostics.length ? focus : undefined
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function idValue(value: unknown): string | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  if (typeof value === 'string' && value.trim()) return value.trim()
+  return undefined
 }

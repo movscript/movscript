@@ -1,4 +1,5 @@
 import type { AgentAttachment, AgentChatMessage, AgentConversation, AgentConversationWorkspace, AgentConversationWorkspaceContext } from '@movscript/agent-protocol'
+import { normalizeDomainFocus } from '@movscript/domain'
 import type {
   AgentConversationNormalizeOptions,
   AgentConversationShape,
@@ -117,6 +118,7 @@ function normalizeConversationWorkspaceContext(value: unknown): AgentConversatio
   const orgId = stringOrNumber(value.orgId)
   const projectId = stringOrNumber(value.projectId)
   const productionId = stringOrNumber(value.productionId)
+  const domainFocus = normalizeConversationDomainFocus(value.domainFocus, { projectId, productionId })
   const realmFields: Pick<AgentConversationWorkspaceContext, 'realm' | 'realmKind' | 'realmId'> = {
     ...(realm ? { realm } : {}),
     ...(realmKind ? { realmKind } : {}),
@@ -126,7 +128,8 @@ function normalizeConversationWorkspaceContext(value: unknown): AgentConversatio
     ...(userId !== undefined ? { userId } : {}),
     ...(orgId !== undefined ? { orgId } : {}),
   }
-  if (!scope && !realm && realmKind === undefined && realmId === undefined && userId === undefined && orgId === undefined && projectId === undefined && productionId === undefined) return undefined
+  const focusFields = domainFocus ? { domainFocus } : {}
+  if (!scope && !realm && realmKind === undefined && realmId === undefined && userId === undefined && orgId === undefined && projectId === undefined && productionId === undefined && !domainFocus) return undefined
   if (scope === 'production' && projectId !== undefined && productionId !== undefined) {
     return {
       ...realmFields,
@@ -134,6 +137,7 @@ function normalizeConversationWorkspaceContext(value: unknown): AgentConversatio
       ...ownerFields,
       projectId,
       productionId,
+      ...focusFields,
     }
   }
   if ((scope === 'project' || projectId !== undefined) && projectId !== undefined) {
@@ -142,13 +146,28 @@ function normalizeConversationWorkspaceContext(value: unknown): AgentConversatio
       scope: 'project',
       ...ownerFields,
       projectId,
+      ...focusFields,
     }
   }
   return {
     ...realmFields,
     scope: 'global',
     ...ownerFields,
+    ...focusFields,
   }
+}
+
+function normalizeConversationDomainFocus(
+  value: unknown,
+  fallback: { projectId?: string | number; productionId?: string | number },
+): AgentConversationWorkspaceContext['domainFocus'] | undefined {
+  if (!isRecord(value)) return undefined
+  const focus = normalizeDomainFocus({
+    ...value,
+    projectId: stringOrNumber(value.projectId ?? value.project_id) ?? fallback.projectId,
+    productionId: stringOrNumber(value.productionId ?? value.production_id) ?? fallback.productionId,
+  })
+  return focus.projectId || focus.scope || focus.target || focus.entity || focus.diagnostics.length ? focus : undefined
 }
 
 function normalizeConversationWorkspaceRealm(value: unknown): AgentConversationWorkspaceContext['realm'] | undefined {

@@ -78,6 +78,18 @@ export function createElectronContentCanvasWorkspaceGateway(
         payload: input,
       })
     },
+    writeHierarchyNode: async (input) => {
+      const writeHierarchyNode = readSurfaceHostApi()?.writeMovScriptEngineHierarchyNode
+      if (!writeHierarchyNode) throw new Error('当前窗口没有 MovScript hierarchy node 写入能力')
+      return writeHierarchyNode({
+        ...currentSurfaceWorkspaceOwnerContext(),
+        ...(projectDir ? { projectDir } : {}),
+        projectId,
+        expectedWorkspaceVersions: { [input.targetPath]: null },
+        targetPath: input.targetPath,
+        record: input.record,
+      })
+    },
     updateEntityBasics: async (input) => {
       const updateEntityBasics = readSurfaceHostApi()?.updateMovScriptEngineEntityBasics
       if (!updateEntityBasics) throw new Error('当前窗口没有 MovScript entity basics 更新能力')
@@ -213,7 +225,19 @@ export function createElectronContentCanvasWorkspaceGateway(
       })
     },
     ensureContentUnitForEntity: async (input) => {
-      const ensureContentUnit = readSurfaceHostApi()?.ensureMovScriptEngineContentUnitForEntity
+      const hostApi = readSurfaceHostApi()
+      if (input.targetKind === 'timeline_assembly') {
+        const ensureTimelineAssembly = hostApi?.ensureMovScriptEngineTimelineAssemblyContentUnit
+        if (!ensureTimelineAssembly) throw new Error('当前窗口没有 MovScript timeline assembly content unit 确保能力')
+        return ensureTimelineAssembly({
+          ...currentSurfaceWorkspaceOwnerContext(),
+          ...(projectDir ? { projectDir } : {}),
+          projectId,
+          expectedWorkspaceVersions: {},
+          payload: timelineAssemblyContentUnitEnsurePayload(input),
+        })
+      }
+      const ensureContentUnit = hostApi?.ensureMovScriptEngineContentUnitForEntity
       if (!ensureContentUnit) throw new Error('当前窗口没有 MovScript content unit 确保能力')
       return ensureContentUnit({
         ...currentSurfaceWorkspaceOwnerContext(),
@@ -295,6 +319,37 @@ export function createElectronContentCanvasWorkspaceGateway(
         reason: input.reason,
       })
     },
+  }
+}
+
+function timelineAssemblyContentUnitEnsurePayload(input: {
+  scopeKind?: string
+  scopeRef?: string | number
+  id?: string | number
+  title?: string
+  outputKind?: string
+  prompt?: string
+  negativePrompt?: string
+  description?: string
+  order?: number
+  modelIntent?: Record<string, unknown>
+}) {
+  const scopeKind = input.scopeKind?.trim()
+  const scopeRef = input.scopeRef
+  if (!scopeKind || scopeRef === undefined || !String(scopeRef).trim()) {
+    throw new Error('timeline assembly content unit requires scopeKind and scopeRef')
+  }
+  return {
+    scopeKind,
+    scopeRef,
+    ...(input.id !== undefined ? { id: input.id } : {}),
+    ...(input.title !== undefined ? { title: input.title } : {}),
+    ...(input.outputKind !== undefined ? { outputKind: input.outputKind } : {}),
+    ...(input.prompt !== undefined ? { prompt: input.prompt } : {}),
+    ...(input.negativePrompt !== undefined ? { negativePrompt: input.negativePrompt } : {}),
+    ...(input.description !== undefined ? { description: input.description } : {}),
+    ...(input.order !== undefined ? { order: input.order } : {}),
+    ...(input.modelIntent !== undefined ? { modelIntent: input.modelIntent } : {}),
   }
 }
 

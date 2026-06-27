@@ -23,6 +23,9 @@
     "typecheck": "tsc --noEmit",
     "test": "pnpm build && node --test tests/*.test.mjs"
   },
+  "dependencies": {
+    "@movscript/domain": "workspace:*"
+  },
   "devDependencies": {
     "typescript": "^5.8.0"
   },

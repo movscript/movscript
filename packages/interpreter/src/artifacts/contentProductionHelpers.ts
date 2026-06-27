@@ -2,6 +2,15 @@ import type {
   MovScriptWorkspaceDomainIndex,
   MovScriptWorkspaceIndexedEntity,
 } from '@movscript/workspace/indexer'
+import {
+  contentUnitTypesForPromptRefKind as domainContentUnitTypesForPromptRefKind,
+  expectedOutputKindForContentUnitType as domainExpectedOutputKindForContentUnitType,
+  isContentUnitPromptRefKind,
+  outputKindForContentUnitType as domainOutputKindForContentUnitType,
+  primaryRefFieldNameForKind as domainPrimaryRefFieldNameForKind,
+  primaryRefIdsForContentUnitRecord as domainPrimaryRefIdsForContentUnitRecord,
+  primaryRefKindForContentUnitType as domainPrimaryRefKindForContentUnitType,
+} from '@movscript/domain'
 import { queryMovScriptWorkspaceEntities } from '@movscript/workspace/indexer'
 import { sameEntityRef } from '@movscript/workspace/layout'
 import type {
@@ -12,6 +21,7 @@ import type {
   ContentUnitProviderAssetCertification,
   ContentUnitResolvedRef,
   ContentUnitUpstreamSelection,
+  UnsupportedContentUnitPromptRef,
 } from './contentProductionTypes.js'
 
 export function contentUnitKeyframes(
@@ -74,10 +84,23 @@ const PROMPT_REF_PATTERN = /\{\{([a-z_]+)::?([^{}:\s][^{}]*)\}\}/g
 
 export function parseContentUnitEditPromptRefs(value: unknown): ContentUnitPromptRef[] {
   const editPrompt = recordField(value)
+  const structuredText = structuredPromptTextFromUnknown(editPrompt?.structured)
   return [
     ...parsePromptRefsFromText(stringField(editPrompt?.text), 'edit_prompt.text'),
     ...parsePromptRefsFromText(stringField(editPrompt?.negative_text), 'edit_prompt.negative_text'),
     ...parsePromptRefsFromText(stringField(editPrompt?.notes), 'edit_prompt.notes'),
+    ...parsePromptRefsFromText(structuredText, 'edit_prompt.structured'),
+  ]
+}
+
+export function parseUnsupportedContentUnitEditPromptRefs(value: unknown): UnsupportedContentUnitPromptRef[] {
+  const editPrompt = recordField(value)
+  const structuredText = structuredPromptTextFromUnknown(editPrompt?.structured)
+  return [
+    ...parseUnsupportedPromptRefsFromText(stringField(editPrompt?.text), 'edit_prompt.text'),
+    ...parseUnsupportedPromptRefsFromText(stringField(editPrompt?.negative_text), 'edit_prompt.negative_text'),
+    ...parseUnsupportedPromptRefsFromText(stringField(editPrompt?.notes), 'edit_prompt.notes'),
+    ...parseUnsupportedPromptRefsFromText(structuredText, 'edit_prompt.structured'),
   ]
 }
 
@@ -102,26 +125,36 @@ export function parsePromptRefsFromText(text: string | undefined, field: string)
   return refs
 }
 
-export function primaryRefKindForContentUnitType(contentUnitType: string): ContentUnitPromptRefKind | undefined {
-  switch (contentUnitType) {
-    case 'production_ref':
-      return 'production'
-    case 'segment_ref':
-      return 'segment'
-    case 'asset_ref':
-      return 'asset'
-    case 'keyframe_ref':
-      return 'keyframe'
-    case 'storyboard_ref':
-      return 'storyboard'
-    case 'scence_moment_ref':
-    case 'scene_moment_ref':
-      return 'scene_moment'
-    case 'expression_unit_ref':
-      return 'expression_unit'
-    default:
-      return undefined
+export function parseUnsupportedPromptRefsFromText(text: string | undefined, field: string): UnsupportedContentUnitPromptRef[] {
+  if (!text) return []
+  const refs: UnsupportedContentUnitPromptRef[] = []
+  for (const match of text.matchAll(PROMPT_REF_PATTERN)) {
+    const kindValue = match[1]?.trim()
+    const id = match[2]?.trim()
+    if (!kindValue || !id || promptRefKind(kindValue)) continue
+    refs.push({
+      kind: kindValue,
+      id,
+      raw: match[0],
+      source: {
+        field,
+        start: match.index,
+        end: match.index === undefined ? undefined : match.index + match[0].length,
+      },
+    })
   }
+  return refs
+}
+
+function structuredPromptTextFromUnknown(value: unknown): string | undefined {
+  const record = recordField(value)
+  if (!record) return undefined
+  const json = JSON.stringify(record)
+  return json === '{}' ? undefined : json
+}
+
+export function primaryRefKindForContentUnitType(contentUnitType: string): ContentUnitPromptRefKind | undefined {
+  return domainPrimaryRefKindForContentUnitType(contentUnitType)
 }
 
 export interface ContentUnitPrimaryRef {
@@ -133,30 +166,11 @@ export function primaryRefIdsForContentUnitRecord(
   record: Record<string, unknown>,
   kind: ContentUnitPromptRefKind,
 ): string[] {
-  switch (kind) {
-    case 'asset':
-      return compactStrings(record.asset_ref)
-    case 'keyframe':
-      return compactStrings(record.keyframe_ref)
-    case 'storyboard':
-      return compactStrings(record.storyboard_ref)
-    case 'production':
-      return compactStrings(record.target_kind === 'production' ? record.target_ref : undefined, record.production_ref)
-    case 'segment':
-      return compactStrings(record.target_kind === 'segment' ? record.target_ref : undefined, record.segment_ref)
-    case 'scene_moment':
-      return compactStrings(record.target_kind === 'scene_moment' ? record.target_ref : undefined, record.scene_moment_ref, record.scence_moment_ref)
-    case 'expression_unit':
-      return compactStrings(record.target_kind === 'expression_unit' ? record.target_ref : undefined, record.expression_unit_ref)
-    case 'content_unit':
-      return compactStrings(record.content_unit_ref)
-    default:
-      return []
-  }
+  return domainPrimaryRefIdsForContentUnitRecord(record, kind)
 }
 
 export function primaryRefFieldNameForKind(kind: ContentUnitPromptRefKind): string {
-  return kind === 'scene_moment' ? 'scene_moment_ref' : `${kind}_ref`
+  return domainPrimaryRefFieldNameForKind(kind)
 }
 
 export function primaryContentUnitRefs(
@@ -176,41 +190,11 @@ export function hasAmbiguousPrimaryRefs(refs: ContentUnitPrimaryRef[], kind: Con
 }
 
 export function outputKindForContentUnitType(contentUnitType: string, value: unknown): ContentUnitOutputKind {
-  const explicit = contentUnitOutputKind(value)
-  if (explicit !== 'metadata') return explicit
-  switch (contentUnitType) {
-    case 'asset_ref':
-    case 'keyframe_ref':
-    case 'storyboard_ref':
-      return 'image'
-    case 'scence_moment_ref':
-    case 'scene_moment_ref':
-    case 'production_ref':
-    case 'segment_ref':
-      return 'video'
-    case 'expression_unit_ref':
-      return contentUnitOutputKind(value)
-    default:
-      return 'metadata'
-  }
+  return domainOutputKindForContentUnitType(contentUnitType, value)
 }
 
 export function expectedOutputKindForContentUnitType(contentUnitType: string): ContentUnitOutputKind | undefined {
-  switch (contentUnitType) {
-    case 'asset_ref':
-    case 'keyframe_ref':
-    case 'storyboard_ref':
-      return 'image'
-    case 'scence_moment_ref':
-    case 'scene_moment_ref':
-    case 'production_ref':
-    case 'segment_ref':
-      return 'video'
-    case 'expression_unit_ref':
-      return undefined
-    default:
-      return undefined
-  }
+  return domainExpectedOutputKindForContentUnitType(contentUnitType)
 }
 
 export function resolvePromptRefEntity(
@@ -331,25 +315,11 @@ export function resolvePromptRefs(
 }
 
 function promptRefKind(value: string | undefined): ContentUnitPromptRefKind | undefined {
-  switch (value) {
-    case 'asset':
-    case 'production':
-    case 'segment':
-    case 'keyframe':
-    case 'storyboard':
-    case 'scene_moment':
-    case 'expression_unit':
-    case 'content_unit':
-      return value
-    default:
-      return undefined
-  }
+  return isContentUnitPromptRefKind(value) ? value : undefined
 }
 
 function contentUnitTypesForPromptRefKind(kind: ContentUnitPromptRefKind): string[] {
-  if (kind === 'scene_moment') return ['scence_moment_ref', 'scene_moment_ref']
-  if (kind === 'expression_unit') return ['expression_unit_ref']
-  return [`${kind}_ref`]
+  return domainContentUnitTypesForPromptRefKind(kind)
 }
 
 function samePromptRefId(left: unknown, right: unknown, kind: ContentUnitPromptRefKind): boolean {
@@ -408,7 +378,7 @@ export function readContentUnitCandidate(
 
 export function findEntityByRef(
   index: MovScriptWorkspaceDomainIndex,
-  entityKind: 'production' | 'segment' | 'asset' | 'setting' | 'setting_state' | 'scene_moment' | 'expression_unit' | 'storyboard' | 'keyframe',
+  entityKind: 'production' | 'segment' | 'asset' | 'setting' | 'setting_state' | 'scene_moment' | 'expression_unit' | 'storyboard' | 'keyframe' | 'audio_cue',
   ref: unknown,
 ): MovScriptWorkspaceIndexedEntity | undefined {
   const value = idField(ref)
@@ -527,13 +497,6 @@ function uniqueIds<T extends string | number>(values: T[]): T[] {
 
 export function stringField(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
-}
-
-function compactStrings(...values: unknown[]): string[] {
-  return values.flatMap((value) => {
-    const id = idField(value)
-    return id === undefined ? [] : [String(id)]
-  })
 }
 
 export function contentUnitOutputKind(value: unknown): ContentUnitOutputKind {

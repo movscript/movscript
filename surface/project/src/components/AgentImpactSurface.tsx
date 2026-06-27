@@ -1,5 +1,16 @@
 import type { AgentSurfaceSnapshot } from '../data.js'
-import { arrayValue, recordValue, stringValue } from '../data.js'
+import {
+  agentSurfaceDomainFocus,
+  agentSurfaceFocusChips,
+  agentSurfaceFocusLabel,
+  agentSurfaceHasTimelineFocus,
+  agentSurfaceLegacyProductionId,
+  agentSurfaceSnapshotDomainFocus,
+  agentSurfaceTimelineFocusHref,
+  arrayValue,
+  recordValue,
+  stringValue,
+} from '../data.js'
 import {
   AgentSurfaceJson,
   AgentSurfaceKeyValues,
@@ -44,14 +55,17 @@ export function AgentImpactSurface({
   const plan = recordValue(snapshot?.data?.regeneration_plan)
   const summary = recordValue(plan?.summary)
   const affected = arrayValue(plan?.items ?? plan?.affected_content_units ?? plan?.affectedContentUnits)
+  const domainFocus = agentSurfaceSnapshotDomainFocus(snapshot)
+    ?? agentSurfaceDomainFocus(params, { projectId })
+  const focusLabel = agentSurfaceFocusLabel(domainFocus, target ?? '')
 
   return (
     <AgentSurfaceShell
       title="Change impact"
       description="Review affected targets and choose keep, relink, re-prompt, regenerate, deprecate, or accept-stale decisions."
       chips={[
-        ...(projectId ? [`project: ${projectId}`] : []),
-        ...(target ? [`target: ${target}`] : []),
+        ...agentSurfaceFocusChips(domainFocus),
+        ...(target ? [`impact target: ${target}`] : []),
         `source: ${source}`,
       ]}
       ready={ready}
@@ -66,7 +80,8 @@ export function AgentImpactSurface({
           <AgentSurfacePanel title="Impact Target">
             <AgentSurfaceKeyValues items={[
               ['Project', projectId ?? ''],
-              ['Target', target ?? ''],
+              ['Focus', focusLabel],
+              ['Impact target', target ?? ''],
               ['Source', source],
               ['Generated', snapshot?.generated_at ?? ''],
             ]} />
@@ -89,6 +104,7 @@ export function AgentImpactSurface({
                     item={recordValue(item) ?? { value: item }}
                     params={params}
                     fallbackProjectId={projectId}
+                    fallbackFocus={domainFocus}
                     pending={acceptStalePending}
                     onAcceptStale={onAcceptStale}
                   />
@@ -117,12 +133,14 @@ function ImpactItemCard({
   item,
   params,
   fallbackProjectId,
+  fallbackFocus,
   pending,
   onAcceptStale,
 }: {
   item: Record<string, unknown>
   params: URLSearchParams
   fallbackProjectId?: string
+  fallbackFocus?: ReturnType<typeof agentSurfaceDomainFocus>
   pending: boolean
   onAcceptStale?: (input: AgentImpactAcceptStaleInput) => void
 }) {
@@ -130,8 +148,13 @@ function ImpactItemCard({
   const targetId = stringValue(item.targetId ?? item.target_id)
   const targetKind = stringValue(item.targetKind ?? item.target_kind)
   const contentUnitId = contentUnitIdFromImpactItem(item) ?? contentUnitIdFromPath(targetPath)
-  const productionId = productionIdFromPath(targetPath) ?? productionIdFromPath(stringValue(item.productionPath ?? item.production_path))
   const projectId = stringValue(item.projectId ?? item.project_id) ?? fallbackProjectId
+  const previewHref = agentImpactPreviewTimelineHref({
+    item,
+    params,
+    fallbackProjectId: projectId,
+    fallbackFocus,
+  })
   const severity = stringValue(item.severity) ?? 'warning'
   const status = stringValue(item.status) ?? 'open'
   const kind = stringValue(item.kind) ?? 'review_affected_output'
@@ -174,12 +197,74 @@ function ImpactItemCard({
             ) : null}
           </>
         ) : null}
-        {productionId ? (
-          <AgentSurfaceLink href={withAgentParams('/agent/preview/timeline', params, { projectId, productionId })}>Open preview</AgentSurfaceLink>
+        {previewHref ? (
+          <AgentSurfaceLink href={previewHref}>Open preview</AgentSurfaceLink>
         ) : null}
       </div>
     </article>
   )
+}
+
+export function agentImpactPreviewTimelineHref({
+  item,
+  params,
+  fallbackProjectId,
+  fallbackFocus,
+}: {
+  item: Record<string, unknown>
+  params: URLSearchParams
+  fallbackProjectId?: string
+  fallbackFocus?: ReturnType<typeof agentSurfaceDomainFocus>
+}): string | undefined {
+  const projectId = stringValue(item.projectId ?? item.project_id) ?? fallbackProjectId
+  const previewFocus = timelineFocusFromImpactItem(item, projectId, fallbackFocus)
+  const legacyProductionId = agentSurfaceLegacyProductionId(previewFocus)
+  return agentSurfaceHasTimelineFocus(previewFocus, legacyProductionId)
+    ? agentSurfaceTimelineFocusHref('/agent/preview/timeline', params, previewFocus, { projectId, productionId: legacyProductionId })
+    : undefined
+}
+
+function timelineFocusFromImpactItem(
+  item: Record<string, unknown>,
+  projectId?: string,
+  fallbackFocus?: ReturnType<typeof agentSurfaceDomainFocus>,
+): ReturnType<typeof agentSurfaceDomainFocus> | undefined {
+  const explicit = timelineFocusRecordFromImpactItem(item, projectId)
+  if (explicit) return agentSurfaceDomainFocus(explicit)
+  return agentSurfaceHasTimelineFocus(fallbackFocus, agentSurfaceLegacyProductionId(fallbackFocus))
+    ? fallbackFocus
+    : undefined
+}
+
+function timelineFocusRecordFromImpactItem(
+  item: Record<string, unknown>,
+  projectId?: string,
+): Record<string, string> | undefined {
+  const scopeKind = stringValue(item.timelineScopeKind ?? item.timeline_scope_kind ?? item.scopeKind ?? item.scope_kind ?? item.namespaceKind ?? item.namespace_kind)
+  const scopeRef = stringValue(item.timelineScopeRef ?? item.timeline_scope_ref ?? item.scopeRef ?? item.scope_ref ?? item.namespaceRef ?? item.namespace_ref ?? item.namespacePath ?? item.namespace_path)
+  const timelineAssemblyRef = stringValue(item.timelineAssemblyRef ?? item.timeline_assembly_ref)
+  const targetKind = stringValue(item.targetKind ?? item.target_kind)
+  const targetRef = stringValue(item.targetRef ?? item.target_ref)
+  const productionId = productionIdFromPath(stringValue(item.targetPath ?? item.target_path))
+    ?? productionIdFromPath(stringValue(item.productionPath ?? item.production_path))
+  const record: Record<string, string> = {}
+  if (projectId) record.projectId = projectId
+  if (scopeKind && scopeRef) {
+    record.scopeKind = scopeKind
+    record.scopeRef = scopeRef
+  } else if ((targetKind === 'production' || targetKind === 'segment') && targetRef) {
+    record.scopeKind = targetKind
+    record.scopeRef = targetRef
+  }
+  if (timelineAssemblyRef) {
+    record.targetKind = 'timeline_assembly'
+    record.targetRef = timelineAssemblyRef
+  } else if (targetKind === 'timeline_assembly' && targetRef) {
+    record.targetKind = targetKind
+    record.targetRef = targetRef
+  }
+  if (!record.scopeKind && !record.targetKind && productionId) record.productionId = productionId
+  return record.scopeKind || record.targetKind || record.productionId ? record : undefined
 }
 
 function impactItemKey(item: unknown, index: number): string {

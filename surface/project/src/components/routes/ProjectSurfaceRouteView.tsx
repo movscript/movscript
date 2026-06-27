@@ -67,7 +67,7 @@ export function ProjectSurfaceRouteView({
   }
 
   if (route.key === 'scripts') {
-    return <ProjectScriptsSurface />
+    return <ProjectScriptsSurface params={params} />
   }
 
   if (route.key === 'standards') {

@@ -113,8 +113,11 @@ pnpm --filter @movscript/cli dev -- production add --id p1 --title "Demo Product
 pnpm --filter @movscript/cli dev -- segment add --production p1 --id opening --title "Opening" --order 1
 pnpm --filter @movscript/cli dev -- scene-moment add --production p1 --segment opening --id phone_call --title "Phone call"
 pnpm --filter @movscript/cli dev -- content-unit add --id opening_shot --title "Opening shot" --type storyboard_ref --output-kind video --scene-moment phone_call --storyboard main
+pnpm --filter @movscript/cli dev -- content-unit add --id episode_01_cut --title "Episode 01 cut" --timeline-assembly episode_01 --scope-kind episode --prompt "Assemble episode 01 from selected scene moments."
 pnpm --filter @movscript/cli dev -- candidate add content_units/opening_shot/content_unit.json --resource-id resource_manual_1
 ```
+
+`production add` and `segment add` are compatibility conveniences for the legacy timeline projection. For namespace-scope video assembly, prefer `timeline_assembly_ref` content units through `--timeline-assembly` / `--scope-kind`; do not create custom `episode_ref` or `beat_ref` content-unit types.
 
 Interpreter shortcuts are also top-level commands:
 

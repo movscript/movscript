@@ -2,6 +2,7 @@
   "name": "@movscript/ui",
   "version": "0.1.0",
   "description": "MovScript React UI primitives.",
+  "license": "MIT",
   "sideEffects": [
     "./src/base.css",
     "./src/semantic.css",

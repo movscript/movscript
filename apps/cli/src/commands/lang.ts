@@ -92,6 +92,9 @@ interface AddContentUnitOptions extends WorkspaceOptions {
   kind?: string
   contentUnitType?: string
   outputKind?: string
+  timelineAssembly?: string
+  scopeKind?: string
+  scopeRef?: string
   asset?: string
   production?: string
   segment?: string
@@ -1078,13 +1081,16 @@ Examples:
     .description('Create or update a project-level content unit with prompt refs')
     .option('--id <id>', 'Content unit id')
     .option('--title <title>', 'Content unit title')
-    .option('--type <type>', 'Content unit type, such as asset_ref, keyframe_ref, storyboard_ref, scence_moment_ref, or expression_unit_ref')
+    .option('--type <type>', 'Content unit type, such as asset_ref, keyframe_ref, storyboard_ref, scence_moment_ref, expression_unit_ref, or timeline_assembly_ref')
     .option('--content-unit-type <type>', 'Content unit type field; same as --type')
     .option('--kind <kind>', 'Deprecated alias for --type')
     .option('--output-kind <kind>', 'Output kind: image, video, audio, text, or metadata')
+    .option('--timeline-assembly <ref>', 'Timeline assembly target for timeline_assembly_ref, e.g. timeline_assembly:episode:episode_01 or episode_01 with --scope-kind')
+    .option('--scope-kind <kind>', 'Timeline namespace scope kind for timeline_assembly_ref, e.g. episode, act, sequence, or beat')
+    .option('--scope-ref <id>', 'Timeline namespace scope id/ref for timeline_assembly_ref')
     .option('--asset <id-or-path>', 'Asset id or path for asset_ref content units')
-    .option('--production <id>', 'Production id')
-    .option('--segment <id>', 'Segment id')
+    .option('--production <id>', 'Production id; legacy assembly alias for production_ref')
+    .option('--segment <id>', 'Segment id; legacy assembly alias for segment_ref')
     .option('--scene-moment <id-or-path>', 'Scene moment id or path')
     .option('--expression-unit <id-or-path>', 'Expression unit id or path')
     .option('--storyboard <id-or-path>', 'Storyboard id or path; storyboard_ref defaults to main when omitted')
@@ -1115,13 +1121,16 @@ Examples:
     .command('modify <id>')
     .description('Modify a content unit')
     .option('--title <title>', 'Content unit title')
-    .option('--type <type>', 'Content unit type, such as asset_ref, keyframe_ref, storyboard_ref, scence_moment_ref, or expression_unit_ref')
+    .option('--type <type>', 'Content unit type, such as asset_ref, keyframe_ref, storyboard_ref, scence_moment_ref, expression_unit_ref, or timeline_assembly_ref')
     .option('--content-unit-type <type>', 'Content unit type field; same as --type')
     .option('--kind <kind>', 'Deprecated alias for --type')
     .option('--output-kind <kind>', 'Output kind: image, video, audio, text, or metadata')
+    .option('--timeline-assembly <ref>', 'Timeline assembly target for timeline_assembly_ref, e.g. timeline_assembly:episode:episode_01 or episode_01 with --scope-kind')
+    .option('--scope-kind <kind>', 'Timeline namespace scope kind for timeline_assembly_ref, e.g. episode, act, sequence, or beat')
+    .option('--scope-ref <id>', 'Timeline namespace scope id/ref for timeline_assembly_ref')
     .option('--asset <id-or-path>', 'Asset id or path for asset_ref content units')
-    .option('--production <id>', 'Production id')
-    .option('--segment <id>', 'Segment id')
+    .option('--production <id>', 'Production id; legacy assembly alias for production_ref')
+    .option('--segment <id>', 'Segment id; legacy assembly alias for segment_ref')
     .option('--scene-moment <id-or-path>', 'Scene moment id or path')
     .option('--expression-unit <id-or-path>', 'Expression unit id or path')
     .option('--storyboard <id-or-path>', 'Storyboard id or path')
@@ -1823,6 +1832,7 @@ function parseContentCandidateOutputKind(
 function outputKindFromContentUnitType(value: string | undefined): 'image' | 'video' | 'audio' | 'text' | 'metadata' | undefined {
   if (!value) return undefined
   if (value.includes('video')) return 'video'
+  if (value === 'timeline_assembly_ref') return 'video'
   if (value === 'scence_moment_ref' || value === 'scene_moment_ref') return 'video'
   if (value.includes('image') || value.includes('frame') || value.includes('asset_ref')) return 'image'
   if (value.includes('audio') || value.includes('sound')) return 'audio'
@@ -1854,6 +1864,11 @@ async function saveContentUnitFromCliOptions(
     description: options.description,
     order: parseOptionalNumberOption(options.order, 'order'),
     modelIntent: buildContentUnitModelIntent(options, outputKind, { defaultCapability: shouldDefaultCapability }),
+    targetCategory: source.targetCategory,
+    targetKind: source.targetKind,
+    targetRef: source.targetRef,
+    scopeKind: source.scopeKind,
+    scopeRef: source.scopeRef,
     productionId: source.productionId,
     segmentId: source.segmentId,
     sceneMomentId: source.sceneMomentId,
@@ -1866,7 +1881,11 @@ async function saveContentUnitFromCliOptions(
 }
 
 function contentUnitTypeFromOptions(options: AddContentUnitOptions, defaultType?: string): string | undefined {
-  const value = options.contentUnitType ?? options.type ?? options.kind ?? defaultType
+  const value = options.contentUnitType
+    ?? options.type
+    ?? options.kind
+    ?? (options.timelineAssembly !== undefined || options.scopeKind !== undefined || options.scopeRef !== undefined ? 'timeline_assembly_ref' : undefined)
+    ?? defaultType
   if (!value) return undefined
   return normalizeContentUnitType(value)
 }
@@ -1879,6 +1898,10 @@ function normalizeContentUnitType(value: string): string {
       return 'keyframe_ref'
     case 'storyboard':
       return 'storyboard_ref'
+    case 'timeline_assembly':
+    case 'assembly':
+    case 'timeline':
+      return 'timeline_assembly_ref'
     case 'scene_moment':
     case 'scene':
     case 'moment':
@@ -1905,6 +1928,7 @@ function defaultCliContentUnitOutputKind(contentUnitType: string): CliContentUni
     case 'keyframe_ref':
       return 'image'
     case 'storyboard_ref':
+    case 'timeline_assembly_ref':
     case 'expression_unit_ref':
     case 'scence_moment_ref':
     case 'scene_moment_ref':
@@ -1922,8 +1946,12 @@ function validateContentUnitSourceForType(
   if (contentUnitType === 'asset_ref' && !source.assetRef) throw new Error('--asset is required for asset_ref content units')
   if (contentUnitType === 'keyframe_ref' && !source.keyframeId) throw new Error('--keyframe is required for keyframe_ref content units')
   if (contentUnitType === 'storyboard_ref' && !source.storyboardId) throw new Error('--storyboard is required for storyboard_ref content units')
+  if (contentUnitType === 'timeline_assembly_ref' && !source.targetRef) throw new Error('--timeline-assembly with --scope-kind, or --scope-kind/--scope-ref, is required for timeline_assembly_ref content units')
   if ((contentUnitType === 'scence_moment_ref' || contentUnitType === 'scene_moment_ref') && !source.sceneMomentId) throw new Error('--scene-moment is required for scence_moment_ref content units')
   if (contentUnitType === 'expression_unit_ref' && !source.expressionUnitId) throw new Error('--expression-unit is required for expression_unit_ref content units')
+  if (contentUnitType !== 'timeline_assembly_ref' && (options.timelineAssembly !== undefined || options.scopeKind !== undefined || options.scopeRef !== undefined)) {
+    throw new Error('--timeline-assembly, --scope-kind, and --scope-ref are only valid for timeline_assembly_ref content units')
+  }
   if (contentUnitType === 'storyboard_ref' && !options.storyboard && source.storyboardId === 'main' && !source.sceneMomentId) {
     throw new Error('--scene-moment is required when storyboard_ref uses the default --storyboard main')
   }
@@ -2841,6 +2869,9 @@ async function dispatchInteractiveContentUnitCommand(args: string[], options: Wo
       kind: parsed.options.kind,
       contentUnitType: parsed.options.contentUnitType ?? parsed.options['content-unit-type'],
       outputKind: parsed.options.outputKind ?? parsed.options['output-kind'],
+      timelineAssembly: parsed.options.timelineAssembly ?? parsed.options['timeline-assembly'],
+      scopeKind: parsed.options.scopeKind ?? parsed.options['scope-kind'],
+      scopeRef: parsed.options.scopeRef ?? parsed.options['scope-ref'],
       asset: parsed.options.asset,
       production: parsed.options.production,
       segment: parsed.options.segment,
@@ -2950,7 +2981,7 @@ function printInteractiveHelp(): void {
   /storyboard add --scene-moment <id-or-path> [--segment <id-or-path>] [--id <id>] [--title <title>] [--order <n>]
   /audio-cue add --scene-moment <id-or-path> [--expression-unit <id-or-path>] [--storyboard <id-or-path>] [--id <id>] [--title <title>] [--kind <kind>] [--prompt <text>]
   /expression-unit add --scene-moment <id-or-path> [--id <id>] [--kind <kind>] [--speaker <text>] [--text <text>] [--storyboard <id-or-path>]
-  /content-unit add --title <title> --type <asset_ref|keyframe_ref|storyboard_ref|scence_moment_ref|expression_unit_ref> [--asset <id>] [--keyframe <id>] [--scene-moment <id>] [--expression-unit <id>] [--storyboard <id>] [--output-kind <kind>] [--prompt <text>]
+  /content-unit add --title <title> --type <asset_ref|keyframe_ref|storyboard_ref|scence_moment_ref|expression_unit_ref|timeline_assembly_ref> [--timeline-assembly <timeline_assembly:scope:id>] [--scope-kind <kind>] [--scope-ref <id>] [--asset <id>] [--keyframe <id>] [--scene-moment <id>] [--expression-unit <id>] [--storyboard <id>] [--output-kind <kind>] [--prompt <text>]
   /content-unit status <id-or-path>
   /content-unit backend-prompt <id-or-path>
   /language kinds
@@ -3516,6 +3547,11 @@ function parseOptionalNumberOption(value: string | undefined, optionName: string
 }
 
 interface ContentUnitSourceRefs {
+  targetCategory?: string
+  targetKind?: string
+  targetRef?: string
+  scopeKind?: string
+  scopeRef?: string
   productionId?: string
   segmentId?: string
   sceneMomentId?: string
@@ -3533,9 +3569,21 @@ function parseContentUnitSourceOptions(options: AddContentUnitOptions, contentUn
   const storyboard = parseStoryboardRefOption(options.storyboard)
   const keyframe = parseKeyframeRefOption(options.keyframe)
   const audioCue = parseAudioCueRefOption(options.audioCue)
+  const timelineAssembly = parseTimelineAssemblyRefOptions(options, contentUnitType)
+  const legacyProductionId = timelineAssembly.targetRef === undefined
+    ? options.production ?? keyframe.productionId ?? audioCue.productionId ?? storyboard.productionId ?? expressionUnit.productionId ?? sceneMoment.productionId
+    : undefined
+  const legacySegmentId = timelineAssembly.targetRef === undefined
+    ? options.segment ?? keyframe.segmentId ?? audioCue.segmentId ?? storyboard.segmentId ?? expressionUnit.segmentId ?? sceneMoment.segmentId
+    : undefined
   return pruneUndefined({
-    productionId: options.production ?? keyframe.productionId ?? audioCue.productionId ?? storyboard.productionId ?? expressionUnit.productionId ?? sceneMoment.productionId,
-    segmentId: options.segment ?? keyframe.segmentId ?? audioCue.segmentId ?? storyboard.segmentId ?? expressionUnit.segmentId ?? sceneMoment.segmentId,
+    targetCategory: timelineAssembly.targetCategory,
+    targetKind: timelineAssembly.targetKind,
+    targetRef: timelineAssembly.targetRef,
+    scopeKind: timelineAssembly.scopeKind,
+    scopeRef: timelineAssembly.scopeRef,
+    productionId: legacyProductionId,
+    segmentId: legacySegmentId,
     sceneMomentId: sceneMoment.sceneMomentId ?? keyframe.sceneMomentId ?? audioCue.sceneMomentId ?? storyboard.sceneMomentId ?? expressionUnit.sceneMomentId,
     expressionUnitId: expressionUnit.expressionUnitId ?? storyboard.expressionUnitId ?? keyframe.expressionUnitId ?? plainIdOption(options.expressionUnit),
     storyboardId: storyboard.storyboardId ?? (contentUnitType === undefined || contentUnitType === 'storyboard_ref' ? 'main' : undefined),
@@ -3543,6 +3591,61 @@ function parseContentUnitSourceOptions(options: AddContentUnitOptions, contentUn
     assetRef: asset.assetRef ?? options.asset,
     audioCueId: audioCue.audioCueId,
   })
+}
+
+function parseTimelineAssemblyRefOptions(
+  options: AddContentUnitOptions,
+  contentUnitType?: string,
+): ContentUnitSourceRefs {
+  const rawAssembly = stringValue(options.timelineAssembly)
+  const rawScopeKind = stringValue(options.scopeKind)
+  const rawScopeRef = stringValue(options.scopeRef)
+  if (!rawAssembly && !rawScopeKind && !rawScopeRef && contentUnitType !== 'timeline_assembly_ref') return {}
+
+  const parsedAssembly = parseImplicitTimelineAssemblyRefOption(rawAssembly)
+  if (parsedAssembly && rawScopeKind && parsedAssembly.scopeKind !== rawScopeKind) {
+    throw new Error('--scope-kind conflicts with --timeline-assembly')
+  }
+  if (parsedAssembly && rawScopeRef && parsedAssembly.scopeRef !== rawScopeRef) {
+    throw new Error('--scope-ref conflicts with --timeline-assembly')
+  }
+  if (rawAssembly && !parsedAssembly && rawScopeRef && rawAssembly !== rawScopeRef) {
+    throw new Error('--scope-ref conflicts with --timeline-assembly')
+  }
+
+  const productionScopeRef = !rawAssembly && !rawScopeKind && !rawScopeRef && contentUnitType === 'timeline_assembly_ref'
+    ? stringValue(options.production)
+    : undefined
+  const segmentScope = !rawAssembly && !rawScopeKind && !rawScopeRef && contentUnitType === 'timeline_assembly_ref' && !productionScopeRef
+    ? parseSegmentRefOption(options.segment)
+    : {}
+  const segmentScopeRef = stringValue(segmentScope.segmentId)
+
+  const scopeKind = rawScopeKind ?? parsedAssembly?.scopeKind ?? (productionScopeRef ? 'production' : segmentScopeRef ? 'segment' : undefined)
+  const scopeRef = rawScopeRef ?? parsedAssembly?.scopeRef ?? (!parsedAssembly ? rawAssembly : undefined) ?? productionScopeRef ?? segmentScopeRef
+  if (!scopeKind && !scopeRef) return {}
+  if (!scopeKind || !scopeRef) {
+    throw new Error('--timeline-assembly requires --scope-kind, or provide both --scope-kind and --scope-ref')
+  }
+  return {
+    targetCategory: 'timeline_assembly',
+    targetKind: 'timeline_assembly',
+    targetRef: implicitTimelineAssemblyRefOption(scopeKind, scopeRef),
+    scopeKind,
+    scopeRef,
+  }
+}
+
+function implicitTimelineAssemblyRefOption(scopeKind: string, scopeRef: string): string {
+  return `timeline_assembly:${scopeKind}:${scopeRef}`
+}
+
+function parseImplicitTimelineAssemblyRefOption(value: string | undefined): { scopeKind: string; scopeRef: string } | undefined {
+  if (!value?.startsWith('timeline_assembly:')) return undefined
+  const [, scopeKind, ...scopeRefParts] = value.split(':')
+  const scopeRef = scopeRefParts.join(':')
+  if (!scopeKind?.trim() || !scopeRef.trim()) return undefined
+  return { scopeKind: scopeKind.trim(), scopeRef: scopeRef.trim() }
 }
 
 function parsePlanningParentOptions(options: {

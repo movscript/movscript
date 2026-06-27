@@ -3,6 +3,7 @@ import {
   ProjectSettingsSurface,
   ProjectStandardsSurface,
 } from '@movscript/project-surface/react'
+import { useSearchParams } from 'react-router-dom'
 
 import {
   DesktopProjectSurfaceProvider,
@@ -25,9 +26,11 @@ export function ProjectStandardsPage() {
 }
 
 export function ScriptsPage() {
+  const [searchParams] = useSearchParams()
+
   return (
     <DesktopProjectSurfaceProvider>
-      <ProjectScriptsSurface />
+      <ProjectScriptsSurface params={searchParams} />
     </DesktopProjectSurfaceProvider>
   )
 }

@@ -51,8 +51,11 @@ function projectRouteWithLocalProjectQuery(route: string, project: Project | und
 
 function projectRouteKey(route: string): ProjectSurfaceRouteKey | undefined {
   if (route.endsWith('/standards')) return 'standards'
+  if (route.endsWith('/settings/preview')) return 'settingPreview'
   if (route.endsWith('/settings')) return 'settings'
   if (route.endsWith('/scripts') || route.endsWith('/scripts/workbench')) return 'scripts'
+  if (route.endsWith('/content/canvas')) return 'contentCanvas'
+  if (route.endsWith('/content/preview')) return 'contentPreview'
   if (route.endsWith('/content') || route.endsWith('/content-orchestration/canvas') || route.endsWith('/content-orchestration/canvas-next')) return 'content'
   if (route.endsWith('/home') || route.endsWith('/project')) return undefined
   return undefined

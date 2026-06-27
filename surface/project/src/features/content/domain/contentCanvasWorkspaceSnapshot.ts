@@ -1,4 +1,5 @@
 import type { MovScriptWorkspaceIndexedEntity } from '@movscript/workspace'
+import type { MovScriptDomainNode, MovScriptDomainRef } from '@movscript/domain'
 import type {
   ContentCanvasEdge,
   ContentCanvasWorkspaceSnapshot,
@@ -68,7 +69,13 @@ export function buildContentCanvasWorkspaceSnapshot(data: ContentCanvasProjectDa
     ...(data.audioCues ?? []),
   ]
   const generationTaskByTargetNodeId = buildGenerationTaskIndex(data)
-  const entityNodes = sourceEntities.map((entity) => createContentCanvasEntityNode(entity, data.projectId, data.contentUnitCandidates, generationTaskByTargetNodeId))
+  const domainNodeByPath = new Map<string, MovScriptDomainNode>()
+  for (const node of data.domainGraph?.nodes ?? []) {
+    if (typeof node.path === 'string' && node.path.trim()) domainNodeByPath.set(node.path, node)
+  }
+  const entityNodes = sourceEntities.map((entity) =>
+    createContentCanvasEntityNode(entity, data.projectId, data.contentUnitCandidates, generationTaskByTargetNodeId, domainNodeByPath.get(entity.path)),
+  )
   const candidateOwnerNodes = entityNodes.filter((node) => node.kind === 'content_unit')
   const candidateNodes = candidateOwnerNodes.flatMap(createCandidateNodes)
   const selectionNodes = candidateOwnerNodes.flatMap(createSelectionNodes)
@@ -77,6 +84,8 @@ export function buildContentCanvasWorkspaceSnapshot(data: ContentCanvasProjectDa
   const baseNodes = dedupeNodes([...entityNodes, ...candidateNodes, ...selectionNodes, ...resourceNodes, ...rawResourceNodes])
   const nodeByEntityKindAndKey = new Map(baseNodes.map((node) => [`${node.kind}:${node.entityKey}`, node]))
   const nodeByPath = new Map(baseNodes.filter((node) => node.sourcePath).map((node) => [node.sourcePath, node]))
+  const domainParentByNodeId = buildDomainParentByNodeId(data.domainGraph, nodeByEntityKindAndKey, nodeByPath)
+  attachDomainParentContext(baseNodes, domainParentByNodeId)
   const workItemNodes = createWorkItemNodes(data.productionWorkPlan?.items ?? [])
   const actorNodes = createActorNodes(data.productionWorkPlan?.items ?? [])
   const nodes = dedupeNodes([...baseNodes, ...actorNodes, ...workItemNodes])
@@ -86,7 +95,7 @@ export function buildContentCanvasWorkspaceSnapshot(data: ContentCanvasProjectDa
   for (const node of entityNodes) {
     const entity = sourceEntities.find((item) => node.id === nodeIdForEntity(item, data.projectId))
     if (!entity) continue
-    const parent = parentNodeForEntity(entity, nodeByEntityKindAndKey, projectNode)
+    const parent = domainParentByNodeId.get(node.id) ?? parentNodeForEntity(entity, nodeByEntityKindAndKey, projectNode)
     if (parent && parent.id !== node.id) {
       edges.push({
         id: `${parent.id}->${node.id}`,
@@ -195,7 +204,8 @@ function contentCanvasEdgeType(edge: ContentCanvasEdge): NonNullable<ContentCanv
   if (edge.relation === 'content_unit_scene'
     || edge.relation === 'content_unit_asset'
     || edge.relation === 'content_unit_keyframe'
-    || edge.relation === 'content_unit_storyboard') return 'depends_on'
+    || edge.relation === 'content_unit_storyboard'
+    || edge.relation === 'content_unit_audio_cue') return 'depends_on'
   return 'affects'
 }
 
@@ -208,6 +218,7 @@ function buildGenerationTaskIndex(data: ContentCanvasProjectData): Map<string, C
     ...data.storyboards,
     ...data.sceneMoments,
     ...data.expressionUnits,
+    ...(data.audioCues ?? []),
   ]) {
     const kind = contentCanvasKind(entity)
     targetEntitiesByKind.set(kind, [...(targetEntitiesByKind.get(kind) ?? []), entity])
@@ -247,6 +258,7 @@ function contentUnitTargets(contentUnit: MovScriptWorkspaceIndexedEntity): Array
     { kind: 'asset', refs: compactStrings(record.asset_ref, record.asset_refs) },
     { kind: 'keyframe', refs: compactStrings(record.keyframe_ref, record.keyframe_refs) },
     { kind: 'storyboard', refs: compactStrings(record.storyboard_ref, record.storyboard_refs) },
+    { kind: 'audio_cue', refs: compactStrings(record.audio_cue_ref, record.audio_cue_refs) },
     { kind: 'scene_moment', refs: compactStrings(record.scene_moment_ref, record.scene_moment_refs) },
     { kind: 'expression_unit', refs: compactStrings(record.expression_unit_ref, record.expression_unit_refs, record.expression_ref, record.expression_refs) },
   ]
@@ -284,6 +296,7 @@ function generationTaskStatus(
 
 function defaultOutputKindForContentUnitType(contentUnitType: string): string {
   if (contentUnitType === 'asset_ref' || contentUnitType === 'keyframe_ref' || contentUnitType === 'storyboard_ref') return 'image'
+  if (contentUnitType === 'audio_cue_ref') return 'audio'
   if (contentUnitType === 'scene_moment_ref' || contentUnitType === 'scence_moment_ref') return 'video'
   if (contentUnitType === 'expression_unit_ref') return 'text'
   return 'metadata'
@@ -295,6 +308,135 @@ function contentUnitRawResourceRefs(contentUnits: MovScriptWorkspaceIndexedEntit
     for (const ref of contentUnitRawResourceRefsForRecord(contentUnit.record)) refs.add(ref)
   }
   return [...refs]
+}
+
+type ContentCanvasDomainNode = MovScriptDomainNode
+type ContentCanvasDomainRef = MovScriptDomainRef
+
+const CONTENT_CANVAS_NODE_KINDS = new Set<string>([
+  'project',
+  'production',
+  'segment',
+  'scene_moment',
+  'storyboard',
+  'expression_unit',
+  'content_unit',
+  'candidate',
+  'selection',
+  'resource',
+  'keyframe',
+  'asset',
+  'setting',
+  'state',
+  'audio_cue',
+  'work_item',
+  'actor',
+  'group',
+])
+
+function buildDomainParentByNodeId(
+  domainGraph: ContentCanvasProjectData['domainGraph'] | undefined,
+  nodeByEntityKindAndKey: Map<string, ContentCanvasNode>,
+  nodeByPath: Map<string, ContentCanvasNode>,
+): Map<string, ContentCanvasNode> {
+  const out = new Map<string, ContentCanvasNode>()
+  if (!domainGraph) return out
+  const nodeByEntityDir = new Map([...nodeByPath].map(([path, node]) => [entityDir(path), node]))
+  for (const edge of domainGraph.edges ?? []) {
+    if (edge.relation !== 'parent') continue
+    const child = contentCanvasNodeForDomainRef(edge.source, domainGraph.nodes ?? [], nodeByEntityKindAndKey, nodeByPath, nodeByEntityDir)
+    const parent = contentCanvasNodeForDomainRef(edge.target, domainGraph.nodes ?? [], nodeByEntityKindAndKey, nodeByPath, nodeByEntityDir)
+    if (!child || !parent || child.id === parent.id) continue
+    out.set(child.id, parent)
+  }
+  return out
+}
+
+function attachDomainParentContext(
+  nodes: ContentCanvasNode[],
+  domainParentByNodeId: Map<string, ContentCanvasNode>,
+): void {
+  for (const node of nodes) {
+    const parent = domainParentByNodeId.get(node.id)
+    const ancestors = domainAncestorNodeIds(node.id, domainParentByNodeId)
+    if (parent) node.domainParentNodeId = parent.id
+    if (ancestors.length) node.domainAncestorNodeIds = ancestors
+  }
+}
+
+function domainAncestorNodeIds(
+  nodeId: string,
+  domainParentByNodeId: Map<string, ContentCanvasNode>,
+): string[] {
+  const out: string[] = []
+  const seen = new Set<string>([nodeId])
+  let parent = domainParentByNodeId.get(nodeId)
+  while (parent && !seen.has(parent.id)) {
+    out.push(parent.id)
+    seen.add(parent.id)
+    parent = domainParentByNodeId.get(parent.id)
+  }
+  return out
+}
+
+function contentCanvasNodeForDomainRef(
+  ref: ContentCanvasDomainRef,
+  domainNodes: ContentCanvasDomainNode[],
+  nodeByEntityKindAndKey: Map<string, ContentCanvasNode>,
+  nodeByPath: Map<string, ContentCanvasNode>,
+  nodeByEntityDir: Map<string, ContentCanvasNode>,
+): ContentCanvasNode | undefined {
+  const refPath = stringValue(ref.path)
+  if (refPath) {
+    const pathNode = nodeByPath.get(refPath) ?? nodeByEntityDir.get(refPath)
+    if (pathNode) return pathNode
+  }
+  const domainNode = domainNodeForRef(ref, domainNodes)
+  if (domainNode?.path) {
+    const pathNode = nodeByPath.get(domainNode.path) ?? nodeByEntityDir.get(domainNode.path)
+    if (pathNode) return pathNode
+  }
+  const key = idValue(ref.id ?? domainNode?.id)
+  const kind = contentCanvasKindForDomainRef(ref, domainNode)
+  return key && kind ? nodeByEntityKindAndKey.get(`${kind}:${key}`) : undefined
+}
+
+function domainNodeForRef(
+  ref: ContentCanvasDomainRef,
+  domainNodes: ContentCanvasDomainNode[],
+): ContentCanvasDomainNode | undefined {
+  const refPath = stringValue(ref.path)
+  if (refPath) {
+    const byPath = domainNodes.find((node) => node.path === refPath || entityDir(node.path) === refPath)
+    if (byPath) return byPath
+  }
+  const refId = idValue(ref.id)
+  const refKind = stringValue(ref.kind)
+  const refCategory = stringValue(ref.category)
+  return domainNodes.find((node) => {
+    if (refId && idValue(node.id) !== refId) return false
+    if (refCategory && node.category !== refCategory) return false
+    if (!refKind) return true
+    return node.kind === refKind || stringValue(node.metadata?.entityKind) === refKind
+  })
+}
+
+function contentCanvasKindForDomainRef(
+  ref: ContentCanvasDomainRef,
+  domainNode: ContentCanvasDomainNode | undefined,
+): ContentCanvasNodeKind | undefined {
+  return contentCanvasKindForEntityKind(stringValue(domainNode?.metadata?.entityKind))
+    ?? contentCanvasKindForEntityKind(stringValue(ref.kind))
+}
+
+function contentCanvasKindForEntityKind(kind: string | undefined): ContentCanvasNodeKind | undefined {
+  if (!kind) return undefined
+  if (kind === 'setting_state') return 'state'
+  return CONTENT_CANVAS_NODE_KINDS.has(kind) ? kind as ContentCanvasNodeKind : undefined
+}
+
+function entityDir(path: string | undefined): string {
+  return path ? path.replace(/\/[^/]+$/, '') : ''
 }
 
 function parentNodeForEntity(

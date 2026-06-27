@@ -4,6 +4,17 @@ export const projectKeys = {
   all: ['projects'] as const,
   list: (orgId: number | null | undefined) => ['projects', orgId ?? 'none'] as const,
   detail: (projectId: number | undefined) => ['project', projectId] as const,
+  ensureByUid: (
+    orgId: number | null | undefined,
+    projectUid: string | undefined,
+    projectTitle: string | undefined,
+  ) => ['projects', 'ensure-by-uid', orgId ?? 'user', projectUid, projectTitle] as const,
+  spaceEnsure: (
+    orgId: number | null | undefined,
+    userId: number | string | undefined,
+    projectUid: string | undefined,
+    projectId: number | undefined,
+  ) => ['project-data', 'space-ensure', orgId ?? 'user', userId, projectUid, projectId] as const,
   progressAll: ['progress'] as const,
   progress: (orgId: number | null | undefined, projectId: number) => ['progress', orgId ?? 'none', projectId] as const,
 }

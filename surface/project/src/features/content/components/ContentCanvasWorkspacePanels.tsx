@@ -6,6 +6,7 @@ import type { ContentCanvasUploadedResource } from '../application/contentCanvas
 import type { ContentCanvasCandidate, ContentCanvasNode } from '../domain/contentCanvasTypes'
 import {
   type CandidateSelections,
+  type ContentCanvasPreviewScope,
   type ContentCanvasNodePosition,
   type InspectorSelection,
   type TimelineTrack,
@@ -14,6 +15,7 @@ import {
 import { ContentCanvasResizeHandle, type useContentCanvasPaneLayout } from './contentCanvasWorkspaceLayout'
 import { NodeInspector } from './ContentCanvasWorkspaceDetails'
 import type { ContentCanvasCandidateGenerationOptions, ContentCanvasCandidatePromptPreview } from './ContentCanvasInspectorParts'
+import type { ContentCanvasNamespaceVocabularyOptions } from './contentCanvasNamespaceVocabularyModel'
 import { SceneTimeline, TreeNode } from './ContentCanvasWorkspaceOutline'
 
 export function StructurePanel({
@@ -23,7 +25,9 @@ export function StructurePanel({
   onCreateProduction,
   onCreateStructureChild,
   paneLayout,
+  scope,
   tree,
+  viewKind = 'mixed',
   onSelectStructureNode,
 }: {
   isCreatingSetting: boolean
@@ -32,42 +36,50 @@ export function StructurePanel({
   onCreateProduction: () => void
   onCreateStructureChild: (node: TreeNodeData) => void
   paneLayout: ReturnType<typeof useContentCanvasPaneLayout>
+  scope?: ContentCanvasPreviewScope
   tree: TreeNodeData[]
+  viewKind?: ContentCanvasPreviewScope['kind']
   onSelectStructureNode: (node: TreeNodeData) => void
 }) {
+  const copy = structurePanelCopy(viewKind)
+  const scopeRoot = scope?.kind === 'mixed' ? null : scope?.rootNode
   return (
     <aside className="content-canvas-workspace-sidebar" aria-label="内容命名空间结构层级">
       <div className="content-canvas-workspace-sidebar__header">
         <div>
-          <strong>结构层级</strong>
-          <span>业务节点命名空间</span>
+          <strong>{copy.title}</strong>
+          <span>{scopeRoot ? `${scopeRoot.title} · ${scopeRoot.subtitle}` : copy.subtitle}</span>
         </div>
       </div>
       <div className="content-canvas-workspace-sidebar__actions">
-        <button
-          type="button"
-          title="添加 Production"
-          aria-label="添加 Production"
-          disabled={isCreatingStructure}
-          onClick={onCreateProduction}
-        >
-          <Plus size={15} aria-hidden="true" />
-          Production
-        </button>
-        <button
-          type="button"
-          title="添加 Setting"
-          aria-label="添加 Setting"
-          disabled={isCreatingSetting}
-          onClick={onCreateSetting}
-        >
-          <SlidersHorizontal size={14} aria-hidden="true" />
-          Setting
-        </button>
+        {copy.showProductionAction ? (
+          <button
+            type="button"
+            title="添加时间线层级"
+            aria-label="添加时间线层级"
+            disabled={isCreatingStructure}
+            onClick={onCreateProduction}
+          >
+            <Plus size={15} aria-hidden="true" />
+            时间线层级
+          </button>
+        ) : null}
+        {copy.showSettingAction ? (
+          <button
+            type="button"
+            title="添加设定层级"
+            aria-label="添加设定层级"
+            disabled={isCreatingSetting}
+            onClick={onCreateSetting}
+          >
+            <SlidersHorizontal size={14} aria-hidden="true" />
+            设定层级
+          </button>
+        ) : null}
       </div>
       <label className="content-canvas-workspace-sidebar__search">
         <Search size={14} aria-hidden="true" />
-        <input aria-label="搜索结构层级" placeholder="搜索结构节点" />
+        <input aria-label={copy.searchLabel} placeholder={copy.searchPlaceholder} />
       </label>
       <div className="content-canvas-workspace-tree">
         {tree.length ? tree.map((node) => (
@@ -78,7 +90,7 @@ export function StructurePanel({
             onSelectStructureNode={onSelectStructureNode}
           />
         )) : null}
-        {!tree.length && <div className="content-canvas-tree-empty">当前项目暂无结构节点</div>}
+        {!tree.length && <div className="content-canvas-tree-empty">{copy.emptyText}</div>}
       </div>
       <PanelResizeHandle
         className="content-canvas-resize-handle content-canvas-resize-handle--left"
@@ -89,12 +101,47 @@ export function StructurePanel({
   )
 }
 
+function structurePanelCopy(kind: ContentCanvasPreviewScope['kind']) {
+  if (kind === 'production') {
+    return {
+      title: 'Production 预览',
+      subtitle: '当前制作内结构',
+      searchLabel: '搜索制作结构',
+      searchPlaceholder: '搜索当前 production',
+      emptyText: '当前 production 暂无结构节点',
+      showProductionAction: false,
+      showSettingAction: false,
+    }
+  }
+  if (kind === 'setting') {
+    return {
+      title: '设定预览',
+      subtitle: '状态与素材槽',
+      searchLabel: '搜索设定结构',
+      searchPlaceholder: '搜索 setting / state / asset',
+      emptyText: '当前项目暂无设定资产',
+      showProductionAction: false,
+      showSettingAction: false,
+    }
+  }
+  return {
+    title: '结构层级',
+    subtitle: '业务节点命名空间',
+    searchLabel: '搜索结构层级',
+    searchPlaceholder: '搜索结构节点',
+    emptyText: '当前项目暂无结构节点',
+    showProductionAction: true,
+    showSettingAction: true,
+  }
+}
+
 export function InspectorPanel({
   activeSetting,
   candidateSelections,
   createSelection,
   draftAssetPrompts,
   draftExpressionPrompts,
+  namespaceVocabulary,
   paneLayout,
   promptReferenceNodes,
   selection,
@@ -120,6 +167,7 @@ export function InspectorPanel({
   createSelection: Extract<InspectorSelection, { kind: 'create_expression_unit' | 'create_keyframe' | 'create_storyboard' | 'create_state' | 'create_asset' }> | null
   draftAssetPrompts: Record<string, string>
   draftExpressionPrompts: Record<string, string>
+  namespaceVocabulary: ContentCanvasNamespaceVocabularyOptions
   paneLayout: ReturnType<typeof useContentCanvasPaneLayout>
   promptReferenceNodes: ContentCanvasNode[]
   selection: InspectorSelection
@@ -150,6 +198,7 @@ export function InspectorPanel({
       <NodeInspector
         selection={createSelection ?? selection}
         activeSetting={activeSetting}
+        namespaceVocabulary={namespaceVocabulary}
         assetPrompts={draftAssetPrompts}
         expressionPrompts={draftExpressionPrompts}
         candidateSelections={candidateSelections}

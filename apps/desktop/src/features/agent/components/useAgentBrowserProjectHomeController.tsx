@@ -88,24 +88,55 @@ export function useAgentBrowserProjectHomeController({
     onError: () => toast.error('创建手记失败，请重试'),
   })
 
+  const scripts = (scriptsQuery.data ?? [])
+    .slice()
+    .sort((a, b) => (a.order || 0) - (b.order || 0) || a.ID - b.ID)
+  const references = visibleAgentBrowserProjectRecords(referencesQuery.data)
+  const assetSlots = visibleAgentBrowserProjectRecords(assetSlotsQuery.data)
+  const productions = visibleAgentBrowserProjectRecords(productionsQuery.data)
+  const sceneMoments = visibleAgentBrowserProjectRecords(sceneMomentsQuery.data)
+  const contentUnits = visibleAgentBrowserProjectRecords(contentUnitsQuery.data)
+
+  const projectAspectRatio = agentBrowserProjectFirstText(
+    agentBrowserProjectRecordField(project, 'aspect_ratio'),
+    agentBrowserProjectRecordField(project, 'aspectRatio'),
+    '未设置',
+  )
+  const projectStyle = agentBrowserProjectFirstText(
+    agentBrowserProjectRecordField(project, 'visual_style'),
+    agentBrowserProjectRecordField(project, 'project_style'),
+    project.description,
+    '未设置',
+  )
+  const projectRhythm = agentBrowserProjectFirstText(
+    agentBrowserProjectRecordField(project, 'rhythm'),
+    agentBrowserProjectRecordField(project, 'pacing'),
+    agentBrowserProjectRecordField(project, 'edit_rhythm'),
+    '未设置',
+  )
+
   const groups: ProjectNavigationGroup[] = [
     {
       key: 'standards',
       title: '项目规范',
       description: '项目级画幅、视觉风格、镜头语言、节奏和负面约束。',
       icon: Home,
+      variant: 'hero',
       tone: 'plan',
+      roleLabel: '基准',
+      countLabel: projectAspectRatio === '未设置' ? '规范' : projectAspectRatio,
       loading: false,
+      facts: [
+        { label: '画幅', value: projectAspectRatio },
+        { label: '风格', value: projectStyle },
+        { label: '节奏', value: projectRhythm },
+      ],
       items: [{
         id: String(project.ID),
         title: '项目规范',
-        description: agentBrowserProjectFirstText(
-          agentBrowserProjectRecordField(project, 'visual_style'),
-          agentBrowserProjectRecordField(project, 'project_style'),
-          project.description,
-          '查看和维护会话项目规范',
-        ),
-        status: agentBrowserProjectFirstText(agentBrowserProjectRecordField(project, 'aspect_ratio'), '规范'),
+        description: projectStyle === '未设置' ? '查看和维护会话项目规范' : projectStyle,
+        detail: projectRhythm === '未设置' ? undefined : `节奏：${projectRhythm}`,
+        status: projectAspectRatio === '未设置' ? '规范' : projectAspectRatio,
         onClick: onOpenProjectStandards,
       }],
     },
@@ -114,8 +145,12 @@ export function useAgentBrowserProjectHomeController({
       title: '手记列表',
       description: '手记文本、分块和后续编排引用。',
       icon: FileText,
+      variant: 'library',
       tone: 'script',
+      roleLabel: '文本',
       loading: scriptsQuery.isLoading,
+      countLabel: `${scripts.length} 篇`,
+      emptyState: '还没有手记。先记录一段文本，后续才能拆分和编排。',
       action: (
         <AgentBrowserContentToolButton
           icon={<FilePlus2 size={13} />}
@@ -125,28 +160,31 @@ export function useAgentBrowserProjectHomeController({
           {createScript.isPending ? '创建中' : '新建手记'}
         </AgentBrowserContentToolButton>
       ),
-      items: (scriptsQuery.data ?? [])
-        .slice()
-        .sort((a, b) => (a.order || 0) - (b.order || 0) || a.ID - b.ID)
-        .map((script) => ({
-          id: String(script.ID),
-          title: script.title || `手记 #${script.ID}`,
-          description: agentBrowserProjectFirstText(script.summary, script.description, script.script_type, '暂无摘要'),
-          status: script.script_type,
-          to: withRouteParams(ROUTES.project.scripts, { script_id: script.ID }),
-        })),
+      items: scripts.map((script) => ({
+        id: String(script.ID),
+        title: script.title || `手记 #${script.ID}`,
+        description: agentBrowserProjectFirstText(script.summary, script.description, script.script_type, '暂无摘要'),
+        detail: '可作为分块、编排和后续生成的文本来源',
+        status: script.script_type,
+        to: withRouteParams(ROUTES.project.scripts, { script_id: script.ID }),
+      })),
     },
     {
       key: 'references',
       title: '设定列表',
       description: '角色、世界观、风格和可复用创作约束。',
       icon: PenLine,
+      variant: 'library',
       tone: 'plan',
+      roleLabel: '设定',
       loading: referencesQuery.isLoading,
-      items: visibleAgentBrowserProjectRecords(referencesQuery.data).map((record, recordIndex) => ({
+      countLabel: `${references.length} 条`,
+      emptyState: '还没有设定条目。角色、世界观和风格约束会出现在这里。',
+      items: references.map((record, recordIndex) => ({
         id: agentBrowserProjectRecordStableId(record, 'reference', recordIndex),
         title: agentBrowserProjectRecordTitle(record, '设定'),
         description: agentBrowserProjectFirstText(record.description, record.content, record.kind, '暂无描述'),
+        detail: '沉淀为跨手记复用的创作约束',
         status: agentBrowserProjectStringField(record.status ?? record.kind),
         to: ROUTES.project.scripts,
       })),
@@ -156,12 +194,17 @@ export function useAgentBrowserProjectHomeController({
       title: '素材列表',
       description: '素材需求、候选资源和锁定状态。',
       icon: PackageSearch,
+      variant: 'library',
       tone: 'asset',
+      roleLabel: '素材',
       loading: assetSlotsQuery.isLoading,
-      items: visibleAgentBrowserProjectRecords(assetSlotsQuery.data).map((record, recordIndex) => ({
+      countLabel: `${assetSlots.length} 项`,
+      emptyState: '还没有素材槽位。资源需求建立后会在这里汇总。',
+      items: assetSlots.map((record, recordIndex) => ({
         id: agentBrowserProjectRecordStableId(record, 'asset', recordIndex),
         title: agentBrowserProjectRecordTitle(record, '素材'),
         description: agentBrowserProjectFirstText(record.description, record.prompt_hint, record.kind, '暂无描述'),
+        detail: '可连接候选资源、参考图和锁定素材',
         status: agentBrowserProjectStringField(record.status ?? record.kind),
         onClick: onOpenResourceLibrary,
       })),
@@ -171,12 +214,17 @@ export function useAgentBrowserProjectHomeController({
       title: '制作列表',
       description: '制作方案、制作任务和整体进度。',
       icon: Clapperboard,
+      variant: 'pipeline',
       tone: 'production',
+      roleLabel: '制作',
       loading: productionsQuery.isLoading,
-      items: visibleAgentBrowserProjectRecords(productionsQuery.data).map((record, recordIndex) => ({
+      countLabel: `${productions.length} 个`,
+      emptyState: '尚未建立制作方案。制作计划会成为情节和内容单元的上游。',
+      items: productions.map((record, recordIndex) => ({
         id: agentBrowserProjectRecordStableId(record, 'production', recordIndex),
         title: agentBrowserProjectRecordTitle(record, '制作'),
         description: agentBrowserProjectFirstText(record.description, record.summary, record.kind, '暂无描述'),
+        detail: '承接项目规范并组织制作任务',
         status: agentBrowserProjectStringField(record.status),
         to: withRouteParams(ROUTES.project.scripts, { productionId: agentBrowserProjectRecordRouteId(record) }),
       })),
@@ -186,12 +234,17 @@ export function useAgentBrowserProjectHomeController({
       title: '情节列表',
       description: '编排段、情节点和上下游引用关系。',
       icon: Boxes,
+      variant: 'pipeline',
       tone: 'production',
+      roleLabel: '情节',
       loading: sceneMomentsQuery.isLoading,
-      items: visibleAgentBrowserProjectRecords(sceneMomentsQuery.data).map((record, recordIndex) => ({
+      countLabel: `${sceneMoments.length} 段`,
+      emptyState: '还没有情节点。镜头段落和上下游引用建立后会出现在这里。',
+      items: sceneMoments.map((record, recordIndex) => ({
         id: agentBrowserProjectRecordStableId(record, 'moment', recordIndex),
         title: agentBrowserProjectRecordTitle(record, '情节'),
         description: agentBrowserProjectFirstText(record.description, record.action_text, record.location_text, record.mood, '暂无描述'),
+        detail: '连接文本、资产与可生成内容单元',
         status: agentBrowserProjectStringField(record.status),
         onClick: onOpenCanvasList,
       })),
@@ -201,12 +254,17 @@ export function useAgentBrowserProjectHomeController({
       title: '内容列表',
       description: '创作片段、关键帧、生成上下文和预览挂载。',
       icon: LayoutTemplate,
+      variant: 'pipeline',
       tone: 'content',
+      roleLabel: '内容',
       loading: contentUnitsQuery.isLoading,
-      items: visibleAgentBrowserProjectRecords(contentUnitsQuery.data).map((record, recordIndex) => ({
+      countLabel: `${contentUnits.length} 个`,
+      emptyState: '还没有内容单元。生成上下文、关键帧和预览挂载会在这里聚合。',
+      items: contentUnits.map((record, recordIndex) => ({
         id: agentBrowserProjectRecordStableId(record, 'content', recordIndex),
         title: agentBrowserProjectRecordTitle(record, '内容'),
         description: agentBrowserProjectFirstText(record.description, record.prompt, record.visual_intent, record.kind, '暂无描述'),
+        detail: '聚合提示词、候选结果和预览挂载状态',
         status: agentBrowserProjectStringField(record.status ?? record.kind),
         onClick: onOpenCanvasList,
       })),
@@ -215,16 +273,32 @@ export function useAgentBrowserProjectHomeController({
 
   const totalItems = groups.reduce((sum, group) => sum + group.items.length, 0)
   const loadingGroups = groups.filter((group) => group.loading).length
-  const rows = groups.map((group): [string, string | number] => [
-    group.title.replace('列表', ''),
-    group.loading ? '...' : group.items.length,
-  ])
+  const libraryCount = scripts.length + references.length + assetSlots.length
+  const pipelineCount = productions.length + sceneMoments.length + contentUnits.length
+  const rows: Array<[string, string | number]> = [
+    ['资料库', projectHomeCountValue(scriptsQuery.isLoading || referencesQuery.isLoading || assetSlotsQuery.isLoading, libraryCount)],
+    ['生产链路', projectHomeCountValue(productionsQuery.isLoading || sceneMomentsQuery.isLoading || contentUnitsQuery.isLoading, pipelineCount)],
+    ['手记', projectHomeCountValue(scriptsQuery.isLoading, scripts.length)],
+    ['素材', projectHomeCountValue(assetSlotsQuery.isLoading, assetSlots.length)],
+  ]
+  const summaryHint = loadingGroups > 0
+    ? `正在同步 ${loadingGroups} 类数据`
+    : pipelineCount > 0
+      ? '制作链路已建立'
+      : libraryCount > 0
+        ? '资料库已建立'
+        : '等待项目内容'
 
   return {
     groups,
     loadingGroups,
     projectName: project.name,
     rows,
+    summaryHint,
     totalItems,
   }
+}
+
+function projectHomeCountValue(loading: boolean, count: number): string | number {
+  return loading ? '...' : count
 }

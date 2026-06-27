@@ -32,11 +32,16 @@ import type { Script, ScriptVersion } from './types.js'
 
 const SCRIPT_DOCUMENT_ACCEPT = '.txt,.md,.markdown,text/plain,text/markdown'
 
-export function ProjectScriptsSurface() {
+export interface ProjectScriptsSurfaceProps {
+  params?: URLSearchParams
+}
+
+export function ProjectScriptsSurface({ params }: ProjectScriptsSurfaceProps = {}) {
   const runtime = useProjectSurfaceRuntime()
   const queryClient = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [selectedId, setSelectedId] = useState<number | null>(selectedScriptIdFromLocation())
+  const requestedScriptId = useMemo(() => selectedScriptIdFromSearchParams(params), [params])
+  const [selectedId, setSelectedId] = useState<number | null>(null)
   const [detailTab, setDetailTab] = useState<ScriptDetailTab>('edit')
   const [expandedVersionId, setExpandedVersionId] = useState<number | null>(null)
   const [versionEditorScrollTop, setVersionEditorScrollTop] = useState(0)
@@ -84,9 +89,12 @@ export function ProjectScriptsSurface() {
   const scripts = scriptsQuery.data ?? []
 
   useEffect(() => {
-    if (selectedId || scripts.length === 0) return
-    setSelectedId(scripts[0]?.ID ?? null)
-  }, [scripts, selectedId])
+    if (scripts.length === 0) return
+    const requested = requestedScriptId
+      ? scripts.find((script) => script.ID === requestedScriptId)
+      : undefined
+    setSelectedId(requested?.ID ?? scripts[0]?.ID ?? null)
+  }, [requestedScriptId, scripts])
 
   const selected = selectedId ? scripts.find((script) => script.ID === selectedId) ?? null : null
   const scriptVersions = versionsQuery.data ?? []
@@ -339,9 +347,8 @@ export function ProjectScriptsSurface() {
   )
 }
 
-function selectedScriptIdFromLocation(): number | null {
-  if (typeof window === 'undefined') return null
-  const value = new URLSearchParams(window.location.search).get('script_id')
+function selectedScriptIdFromSearchParams(searchParams: URLSearchParams | undefined): number | null {
+  const value = searchParams?.get('script_id')
   return numberValue(value) ?? null
 }
 
