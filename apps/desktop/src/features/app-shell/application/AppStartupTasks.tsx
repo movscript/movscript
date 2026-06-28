@@ -16,6 +16,7 @@ import { ensureLocalWorkspaceAuthSession } from '@/shared/infrastructure/session
 import { useSystemStatusStore } from '@/shared/infrastructure/systemStatusStore'
 import { isLocalDataConnection, refreshRuntimeConfigSnapshot } from '@/shared/infrastructure/config'
 import { refreshProviderSettingsRuntimeEnv } from '@/shared/infrastructure/providerConfigStore'
+import { desktopEmbeddedAgentEnabled } from '@/shared/application/desktopEmbeddedAgentFeature'
 
 export function AppStartupTasks({
   settingsHydrated,
@@ -120,6 +121,7 @@ export function AppStartupTasks({
   }, [])
 
   useEffect(() => {
+    if (!desktopEmbeddedAgentEnabled()) return
     return scheduleIdleTask(() => {
       void import('@/features/agent/state/agentTelemetryReporter').then((telemetry) => {
         telemetry.installAgentTelemetryReporter()

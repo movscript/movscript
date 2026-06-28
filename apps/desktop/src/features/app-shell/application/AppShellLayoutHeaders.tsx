@@ -34,9 +34,11 @@ interface AppShellLayoutHeadersInput {
   settingsSidebarHidden: boolean
   agentSidebarVisible: boolean
   terminalOpen: boolean
+  terminalAvailable: boolean
   agentModeContentPanelOpen: boolean
   agentContentPanelClosed: boolean
   projectAgentPanelClosed: boolean
+  projectAgentPanelAvailable: boolean
   toolSidebarPane: RouteLayoutPaneController
   settingsSidebarPane: RouteLayoutPaneController
   agentSidebarPane: RouteLayoutPaneController
@@ -74,9 +76,11 @@ export function createAppShellLayoutHeaders({
   settingsSidebarHidden,
   agentSidebarVisible,
   terminalOpen,
+  terminalAvailable,
   agentModeContentPanelOpen,
   agentContentPanelClosed,
   projectAgentPanelClosed,
+  projectAgentPanelAvailable,
   toolSidebarPane,
   settingsSidebarPane,
   agentSidebarPane,
@@ -86,9 +90,9 @@ export function createAppShellLayoutHeaders({
   onShowProjectAgentPane,
   onToggleTerminal,
 }: AppShellLayoutHeadersInput): AppShellLayoutHeaders {
-  const terminalHeaderControl = (
+  const terminalHeaderControl = terminalAvailable ? (
     <AppShellTerminalToggle open={terminalOpen} onToggle={onToggleTerminal} />
-  )
+  ) : null
   const homeHeaderControl = <AppShellHomeControl />
   const projectHomeHeaderControl = (
     <AppShellHomeControl
@@ -107,13 +111,13 @@ export function createAppShellLayoutHeaders({
       onCollapse={agentContentPane.collapse}
     />
   )
-  const projectAgentPanelHeaderControl = (
+  const projectAgentPanelHeaderControl = projectAgentPanelAvailable ? (
     <AppShellProjectAgentToggle
       closed={projectAgentPanelClosed}
       onShow={onShowProjectAgentPane}
       onCollapse={projectAgentPane.collapse}
     />
-  )
+  ) : null
   const toolSidebarLayoutControls = (
     <div className="tool-sidebar-window-controls flex shrink-0 items-center gap-1">
       <AppShellLeftPaneToggle hidden={toolSidebarHidden} onShow={toolSidebarPane.show} onHide={toolSidebarPane.hide} />
@@ -204,12 +208,12 @@ export function createAppShellLayoutHeaders({
       showFallbackBrand={false}
       navigationControls={<>{navigationHomeControl}{projectHistoryNavigationControls}</>}
       primaryActions={<ProjectGitHeaderActions compact />}
-      contextActions={projectAgentPanelClosed ? <>{projectAgentPanelHeaderControl}{terminalHeaderControl}</> : undefined}
-      globalActions={projectAgentPanelClosed ? undefined : <></>}
+      contextActions={projectAgentPanelAvailable && projectAgentPanelClosed ? <>{projectAgentPanelHeaderControl}{terminalHeaderControl}</> : terminalHeaderControl}
+      globalActions={projectAgentPanelAvailable && !projectAgentPanelClosed ? <></> : undefined}
       centerContent={projectCenterContent}
     />
   )
-  const projectRightHeader = projectChrome && !projectAgentPanelClosed ? (
+  const projectRightHeader = projectAgentPanelAvailable && projectChrome && !projectAgentPanelClosed ? (
     <Header
       showWindowControls={false}
       showAppControls

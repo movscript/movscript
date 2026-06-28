@@ -80,6 +80,8 @@ export function openHomeRouteWindow(input: { route: string; search?: string }): 
 }
 
 export function openAgentWindow(): ElectronAppWindowContext {
+  if (!isDesktopEmbeddedAgentEnabled()) return openHomeWindow()
+
   if (agentWindow && !agentWindow.isDestroyed()) {
     focusWindow(agentWindow)
     return contextForWindow(agentWindow)
@@ -386,7 +388,7 @@ export function restoreSuspendedAuthWindows(): ElectronAppWindowContext[] {
   const restored: ElectronAppWindowContext[] = []
   for (const context of pending) {
     if (context.kind === 'agent') {
-      restored.push(openAgentWindow())
+      if (isDesktopEmbeddedAgentEnabled()) restored.push(openAgentWindow())
     } else if (context.kind === 'project' && context.projectDir) {
       restored.push(openProjectWindow({
         projectDir: context.projectDir,
@@ -558,7 +560,7 @@ function inferWindowRouteContext(
     }
   }
 
-  if (route === AGENT_ROUTE || route.startsWith(`${AGENT_ROUTE}/`)) {
+  if (isDesktopEmbeddedAgentEnabled() && (route === AGENT_ROUTE || route.startsWith(`${AGENT_ROUTE}/`))) {
     return { kind: 'agent', route, ...(search ? { search } : {}), ...(title ? { title } : {}) }
   }
 
@@ -571,6 +573,11 @@ function inferWindowRouteContext(
   }
 
   return { ...previous, kind: 'home', route, ...(search ? { search } : {}), ...(title ? { title } : {}) }
+}
+
+function isDesktopEmbeddedAgentEnabled(): boolean {
+  return process.env.VITE_MOVSCRIPT_DESKTOP_EMBEDDED_AGENT === '1'
+    || process.env.MOVSCRIPT_DESKTOP_EMBEDDED_AGENT === '1'
 }
 
 function normalizeRoutePath(value: string): string {

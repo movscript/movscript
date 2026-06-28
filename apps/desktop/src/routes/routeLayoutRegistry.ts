@@ -22,6 +22,7 @@ import { appRouteViewportScrollForMode as sharedAppRouteViewportScrollForMode } 
 import type { RouteLayoutSpec, RouteLayoutViewportScroll, RouteScrollMode } from './routeLayoutTypes'
 
 import { ROUTES } from './projectRoutes'
+import { desktopEmbeddedAgentEnabled } from '@/shared/application/desktopEmbeddedAgentFeature'
 
 export type * from './routeLayoutTypes'
 export {
@@ -519,8 +520,6 @@ const routeLayoutRegistry: RouteLayoutRegistryEntry[] = [
   }, exact(ROUTES.agentSettings)),
 ]
 
-export const registeredRouteLayoutSpecs: readonly RouteLayoutSpec[] = routeLayoutRegistry.map(({ match: _match, ...spec }) => spec)
-
 export const fallbackRouteLayoutSpec: RouteLayoutSpec = {
   routeId: 'fallback',
   pathnamePattern: '*',
@@ -532,11 +531,16 @@ export const fallbackRouteLayoutSpec: RouteLayoutSpec = {
   panes: APP_SHELL_TOOL_PANES,
 }
 
+export const registeredRouteLayoutSpecs: readonly RouteLayoutSpec[] = routeLayoutRegistry
+  .map(({ match: _match, ...spec }) => spec)
+  .filter((spec) => desktopEmbeddedAgentEnabled() || !isDesktopEmbeddedAgentRouteSpec(spec))
+
 export function routeLayoutSpecForPathname(pathname: string): RouteLayoutSpec {
   const normalizedPathname = normalizePathname(pathname)
   const match = routeLayoutRegistry.find((entry) => entry.match(normalizedPathname))
   if (!match) return fallbackRouteLayoutSpec
   const { match: _match, ...spec } = match
+  if (!desktopEmbeddedAgentEnabled() && isDesktopEmbeddedAgentRouteSpec(spec)) return fallbackRouteLayoutSpec
   return spec
 }
 
@@ -550,6 +554,16 @@ function route<TSpec extends RouteLayoutSpec>(spec: TSpec, match: (pathname: str
 
 function exact(pathname: string): (value: string) => boolean {
   return (value) => normalizePathname(value) === pathname
+}
+
+function isDesktopEmbeddedAgentRouteSpec(spec: Pick<RouteLayoutSpec, 'routeId'>): boolean {
+  return spec.routeId === 'project.agent'
+    || spec.routeId === 'project.agentCanvases'
+    || spec.routeId.startsWith('agent.')
+    || spec.routeId.startsWith('agents.')
+    || spec.routeId === 'modelProviders'
+    || spec.routeId === 'workspace.config'
+    || spec.routeId === 'workspace.review'
 }
 
 function normalizePathname(pathname: string): string {

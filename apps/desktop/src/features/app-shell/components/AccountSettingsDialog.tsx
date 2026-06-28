@@ -22,6 +22,7 @@ import { ModeSelectionPanel } from '@/features/onboarding/components/ModeSelecti
 import { AppSettingsPanel } from '@/features/settings/components/AppSettingsPage'
 import { UserProfilePanel } from '@/features/user/components/UserProfilePage'
 import { openAdminConsole } from '@/shared/infrastructure/adminConsole'
+import { desktopEmbeddedAgentEnabled } from '@/shared/application/desktopEmbeddedAgentFeature'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { ROUTES } from '@/routes/projectRoutes'
 import { runtimeNavItems, runtimeRoutes } from '@runtime'
@@ -85,15 +86,23 @@ export function AccountSettingsPageSidebar({
   const { t } = useTranslation()
   const navigate = useNavigate()
   const currentUser = useUserStore((s) => s.currentUser)
+  const embeddedAgentEnabled = desktopEmbeddedAgentEnabled()
   const runtimeTabs = runtimeNavItems
     .filter((item) => (item.section ?? 'manage') === 'manage')
     .map((item) => ({ key: `runtime:${item.to}` as AccountSettingsPageTab, icon: item.icon, label: item.label }))
-  const managementTabs = [...baseTabs, ...runtimeTabs]
-  const environmentTabs = agentConsoleEnvironmentLinks.map((link) => ({
-    key: `environment:${link.id}` as AccountSettingsPageTab,
-    icon: link.icon,
-    label: link.label,
-  }))
+  const managementTabs = [
+    ...(embeddedAgentEnabled ? baseTabs : baseTabs.filter((tab) => tab.key !== 'console')),
+    ...runtimeTabs,
+  ]
+  const visibleEnvironmentLinks = embeddedAgentEnabled
+    ? agentConsoleEnvironmentLinks
+    : agentConsoleEnvironmentLinks.filter((link) => link.id === 'plugins')
+  const environmentTabs = visibleEnvironmentLinks
+    .map((link) => ({
+        key: `environment:${link.id}` as AccountSettingsPageTab,
+        icon: link.icon,
+        label: link.label,
+      }))
 
   function selectTab(tab: AccountSettingsPageTab) {
     navigate(routeForSettingsTab(tab))
@@ -128,26 +137,28 @@ export function AccountSettingsPageSidebar({
           })}
         </AccountSettingsSidebarGroup>
 
-        <AccountSettingsSidebarGroup label="全局环境">
-          {environmentTabs.map((tab) => {
-            const Icon = tab.icon
-            return (
-              <Button
-                key={tab.key}
-                type="button"
-                variant="ghost"
-                size="sm"
-                fullWidth
-                align="start"
-                className="account-settings-page__nav-button"
-                data-active={settingsSidebarTabActive(activeTab, tab.key) ? 'true' : undefined}
-                onClick={() => selectTab(tab.key)}
-              >
-                <AppSidebarNavItemContent icon={Icon} label={tab.label} />
-              </Button>
-            )
-          })}
-        </AccountSettingsSidebarGroup>
+        {environmentTabs.length > 0 ? (
+          <AccountSettingsSidebarGroup label="全局环境">
+            {environmentTabs.map((tab) => {
+              const Icon = tab.icon
+              return (
+                <Button
+                  key={tab.key}
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  fullWidth
+                  align="start"
+                  className="account-settings-page__nav-button"
+                  data-active={settingsSidebarTabActive(activeTab, tab.key) ? 'true' : undefined}
+                  onClick={() => selectTab(tab.key)}
+                >
+                  <AppSidebarNavItemContent icon={Icon} label={tab.label} />
+                </Button>
+              )
+            })}
+          </AccountSettingsSidebarGroup>
+        ) : null}
       </AppSidebarNav>
       {currentUser?.system_role === 'super_admin' ? (
         <AppSidebarFooter className="account-settings-page__footer">
@@ -242,6 +253,7 @@ export function routeForSettingsTab(tab: AccountSettingsPageTab): string {
   if (tab === 'profile') return ROUTES.user
   if (tab === 'mode') return `${ROUTES.appSettings}?tab=mode`
   if (tab === 'workspace') return ROUTES.orgSettings
+  if (!desktopEmbeddedAgentEnabled() && (isAgentConsoleTab(tab) || (tab.startsWith('environment:') && tab !== 'environment:plugins'))) return ROUTES.appSettings
   if (isAgentConsoleTab(tab)) return agentConsoleSettingsRoute(tab)
   if (tab.startsWith('environment:')) {
     const id = tab.slice('environment:'.length)
@@ -256,6 +268,9 @@ function AccountSettingsPagePanel({ activeTab }: { activeTab: AccountSettingsPag
   if (activeTab === 'mode') return <ModeSelectionPanel variant="settings" />
   if (activeTab === 'settings') return <AppSettingsPanel host="dialog" />
   if (activeTab === 'workspace') return <OrgSelectPage />
+  if (!desktopEmbeddedAgentEnabled() && (isAgentConsoleTab(activeTab) || (activeTab.startsWith('environment:') && activeTab !== 'environment:plugins'))) {
+    return <AppSettingsPanel host="dialog" />
+  }
   if (isAgentConsoleTab(activeTab)) {
     const ConsolePanel = agentConsolePanels[activeTab]
     return (

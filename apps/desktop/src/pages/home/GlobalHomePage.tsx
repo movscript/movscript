@@ -9,6 +9,7 @@ import { useAgentAvailabilityGuard } from '@/features/agent/application/useAgent
 import { projectKeys } from '@movscript/project-surface/data'
 import { ROUTES } from '@/routes/projectRoutes'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
+import { desktopEmbeddedAgentEnabled } from '@/shared/application/desktopEmbeddedAgentFeature'
 import { openAgentWindow, openCanvasWindow, openEditingWindow, openProjectDataWindow, openProjectWindow, openToolWindow } from '@/shared/infrastructure/appWindowContext'
 import { api } from '@/shared/infrastructure/api'
 import { dismissRecentProject, isLocalProjectEntry, mergeRecentProjects, recentProjectKey, useLocalProjectRecentsStore } from '@/shared/infrastructure/session/localProjectRecentsStore'
@@ -20,7 +21,6 @@ import type { Project } from '@/types'
 
 export default function GlobalHomePage() {
   const { t, i18n } = useTranslation()
-  const navigate = useNavigate()
   const currentOrgID = useUserStore((s) => s.currentOrgID)
   const setWorkMode = useAppSettingsStore((s) => s.setWorkMode)
   const setCurrentProject = useProjectStore((s) => s.setCurrent)
@@ -29,7 +29,7 @@ export default function GlobalHomePage() {
   const localRecentProjects = useLocalProjectRecentsStore((s) => s.projects)
   const dismissedProjectKeys = useLocalProjectRecentsStore((s) => s.dismissedKeys)
   const openProjectDialog = useAppShellDialogStore((s) => s.openProjectDialog)
-  const agentAvailability = useAgentAvailabilityGuard()
+  const embeddedAgentEnabled = desktopEmbeddedAgentEnabled()
   const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
   const [codexPluginInstalling, setCodexPluginInstalling] = useState(false)
   const [codexPluginError, setCodexPluginError] = useState<string | null>(null)
@@ -55,13 +55,6 @@ export default function GlobalHomePage() {
       .filter((project) => project.ID !== lastProject?.ID)
       .slice(0, lastProject ? 3 : 4)
   }, [lastProject?.ID, projects])
-
-  function enterAgentMode() {
-    agentAvailability.runOrPrompt(() => {
-      setWorkMode('agent')
-      void openAgentWindow()
-    })
-  }
 
   async function installMovScriptIntoCodex() {
     const electronApi = readElectronApi()
@@ -147,49 +140,7 @@ export default function GlobalHomePage() {
 
       <section className="grid gap-3 sm:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
         <section className="flex min-h-[300px] flex-col gap-3">
-          <button
-            type="button"
-            onClick={enterAgentMode}
-            disabled={!agentAvailability.hasEnabledAgent}
-            className="group flex min-h-[150px] flex-1 flex-col justify-between rounded-lg border border-border bg-background p-4 text-left shadow-sm transition hover:border-foreground/30 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:border-border disabled:bg-muted/30 disabled:text-muted-foreground disabled:opacity-70 disabled:hover:bg-muted/30"
-          >
-            <span className="flex items-start justify-between gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-muted text-foreground">
-                <Bot size={20} />
-              </span>
-              {agentAvailability.checking ? (
-                <Loader2 size={17} className="shrink-0 animate-spin text-muted-foreground" />
-              ) : (
-                <ArrowRight size={17} className="shrink-0 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-foreground" />
-              )}
-            </span>
-            <span className="mt-5 block min-w-0">
-              <span className="block type-caption font-medium text-muted-foreground">
-                {agentAvailability.hasEnabledAgent
-                  ? 'Primary'
-                  : agentAvailability.checking
-                    ? t('home.agent.checking', { defaultValue: '检查 Agent 状态' })
-                    : t('home.agent.setupRequired', { defaultValue: '需要先设置 Agent' })}
-              </span>
-              <span className="mt-1 block text-[26px] font-semibold leading-8 text-foreground">Agent</span>
-              <span className="mt-2 block type-label leading-5 text-muted-foreground">
-                {agentAvailability.hasEnabledAgent
-                  ? t('home.mode.agent', { defaultValue: '把注意力交给 Agent 的工作流、计划、产物和执行状态。' })
-                  : t('home.agent.disabledHint', { defaultValue: '请先安装并启用至少一个 Agent runtime，然后再进入 Agent 工作区。' })}
-              </span>
-            </span>
-          </button>
-
-          {!agentAvailability.hasEnabledAgent && !agentAvailability.checking ? (
-            <button
-              type="button"
-              onClick={() => navigate(ROUTES.agentConsole)}
-              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 type-label font-medium text-foreground shadow-sm transition hover:border-foreground/25 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <Bot size={14} />
-              {t('agents.availability.goToAgentConsole', { defaultValue: 'Go to Agent Console' })}
-            </button>
-          ) : null}
+          {embeddedAgentEnabled ? <AgentLauncherCard setWorkMode={setWorkMode} /> : null}
 
           <button
             type="button"
@@ -341,7 +292,73 @@ export default function GlobalHomePage() {
         />
       </section>
     </main>
-    {agentAvailability.dialog}
+    </>
+  )
+}
+
+function AgentLauncherCard({
+  setWorkMode,
+}: {
+  setWorkMode: (mode: 'agent' | 'project' | 'tool') => void
+}) {
+  const { t } = useTranslation()
+  const navigate = useNavigate()
+  const agentAvailability = useAgentAvailabilityGuard()
+
+  function enterAgentMode() {
+    agentAvailability.runOrPrompt(() => {
+      setWorkMode('agent')
+      void openAgentWindow()
+    })
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={enterAgentMode}
+        disabled={!agentAvailability.hasEnabledAgent}
+        className="group flex min-h-[150px] flex-1 flex-col justify-between rounded-lg border border-border bg-background p-4 text-left shadow-sm transition hover:border-foreground/30 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:border-border disabled:bg-muted/30 disabled:text-muted-foreground disabled:opacity-70 disabled:hover:bg-muted/30"
+      >
+        <span className="flex items-start justify-between gap-3">
+          <span className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-muted text-foreground">
+            <Bot size={20} />
+          </span>
+          {agentAvailability.checking ? (
+            <Loader2 size={17} className="shrink-0 animate-spin text-muted-foreground" />
+          ) : (
+            <ArrowRight size={17} className="shrink-0 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-foreground" />
+          )}
+        </span>
+        <span className="mt-5 block min-w-0">
+          <span className="block type-caption font-medium text-muted-foreground">
+            {agentAvailability.hasEnabledAgent
+              ? 'Primary'
+              : agentAvailability.checking
+                ? t('home.agent.checking', { defaultValue: '检查 Agent 状态' })
+                : t('home.agent.setupRequired', { defaultValue: '需要先设置 Agent' })}
+          </span>
+          <span className="mt-1 block text-[26px] font-semibold leading-8 text-foreground">Agent</span>
+          <span className="mt-2 block type-label leading-5 text-muted-foreground">
+            {agentAvailability.hasEnabledAgent
+              ? t('home.mode.agent', { defaultValue: '把注意力交给 Agent 的工作流、计划、产物和执行状态。' })
+              : t('home.agent.disabledHint', { defaultValue: '请先安装并启用至少一个 Agent runtime，然后再进入 Agent 工作区。' })}
+          </span>
+        </span>
+      </button>
+
+      {!agentAvailability.hasEnabledAgent && !agentAvailability.checking ? (
+        <button
+          type="button"
+          onClick={() => navigate(ROUTES.agentConsole)}
+          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 type-label font-medium text-foreground shadow-sm transition hover:border-foreground/25 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Bot size={14} />
+          {t('agents.availability.goToAgentConsole', { defaultValue: 'Go to Agent Console' })}
+        </button>
+      ) : null}
+
+      {agentAvailability.dialog}
     </>
   )
 }

@@ -47,11 +47,13 @@ import {
 import { useRouteLayoutPaneController } from '@/features/app-shell/application/useRouteLayoutPaneController'
 import { createAppShellLayoutHeaders } from '@/features/app-shell/application/AppShellLayoutHeaders'
 import { AppRouteViewport } from '@movscript/ui/layout'
+import { desktopEmbeddedAgentEnabled } from '@/shared/application/desktopEmbeddedAgentFeature'
 
 export function ShellLayout({ children, requireOrg = true }: { children: React.ReactNode; requireOrg?: boolean }) {
   const navigate = useNavigate()
   const { pathname, search } = useLocation()
   useRememberSettingsReturnPath(pathname, search)
+  const embeddedAgentEnabled = desktopEmbeddedAgentEnabled()
   const routeLayout = getAppRouteLayoutSpec(pathname)
   const routeSurface = routeLayout.surface
   const routeChrome = routeLayout.chrome ?? routeSurface
@@ -83,7 +85,7 @@ export function ShellLayout({ children, requireOrg = true }: { children: React.R
   })
   const toolSidebarHidden = !toolChrome || toolSidebarPane.hidden
   const settingsSidebarHidden = !settingsChrome || settingsSidebarPane.hidden
-  const terminalOpen = !terminalPane.hidden
+  const terminalOpen = embeddedAgentEnabled && !terminalPane.hidden
   const agentSidebarPane = useRouteLayoutPaneController({
     routeLayout,
     paneId: APP_SHELL_AGENT_SIDEBAR_PANE_ID,
@@ -103,8 +105,8 @@ export function ShellLayout({ children, requireOrg = true }: { children: React.R
   })
   const agentAvailability = useAgentAvailabilityGuard()
   const { runOrPrompt: runOrPromptAgentAvailability } = agentAvailability
-  const agentModeContentPanelOpen = !agentContentPane.collapsed && !agentContentPane.hidden
-  const projectAgentPanelClosed = projectAgentPane.collapsed || projectAgentPane.hidden
+  const agentModeContentPanelOpen = embeddedAgentEnabled && !agentContentPane.collapsed && !agentContentPane.hidden
+  const projectAgentPanelClosed = !embeddedAgentEnabled || projectAgentPane.collapsed || projectAgentPane.hidden
   const agentSidebarVisible = agentChrome && !agentSidebarPane.hidden
   const accountSettingsActiveTab = accountSettingsTabForLocation(pathname, search)
   const agentSettingsActive = pathname === ROUTES.agentSettings
@@ -125,7 +127,7 @@ export function ShellLayout({ children, requireOrg = true }: { children: React.R
     navigate(ROUTES.project.home, { replace: true })
   }, [navigate])
   const agentContentPanelClosed = agentContentPane.collapsed || agentContentPane.hidden
-  const terminalPanel = (
+  const terminalPanel = embeddedAgentEnabled ? (
     <AppShellTerminalDock
       open={terminalOpen}
       paneSize={terminalPane.size}
@@ -137,7 +139,7 @@ export function ShellLayout({ children, requireOrg = true }: { children: React.R
         else terminalPane.hide()
       }}
     />
-  )
+  ) : undefined
   const hideToolSidebar = React.useCallback(() => {
     toolSidebarPane.hide()
   }, [toolSidebarPane])
@@ -145,8 +147,9 @@ export function ShellLayout({ children, requireOrg = true }: { children: React.R
     settingsSidebarPane.hide()
   }, [settingsSidebarPane])
   const showProjectAgentPane = React.useCallback(() => {
+    if (!embeddedAgentEnabled) return
     runOrPromptAgentAvailability(projectAgentPane.show)
-  }, [projectAgentPane.show, runOrPromptAgentAvailability])
+  }, [embeddedAgentEnabled, projectAgentPane.show, runOrPromptAgentAvailability])
   const appShellHeaders = createAppShellLayoutHeaders({
     pathname,
     routeLayout,
@@ -161,9 +164,11 @@ export function ShellLayout({ children, requireOrg = true }: { children: React.R
     settingsSidebarHidden,
     agentSidebarVisible,
     terminalOpen,
+    terminalAvailable: embeddedAgentEnabled,
     agentModeContentPanelOpen,
     agentContentPanelClosed,
     projectAgentPanelClosed,
+    projectAgentPanelAvailable: embeddedAgentEnabled,
     toolSidebarPane,
     settingsSidebarPane,
     agentSidebarPane,
@@ -262,9 +267,9 @@ export function ShellLayout({ children, requireOrg = true }: { children: React.R
           terminalPlacement={terminalPlacement}
           leftPaneHidden={settingsChrome ? settingsSidebarHidden : toolChrome ? toolSidebarHidden : false}
           rightHeader={appShellHeaders.projectRightHeader}
-          rightSlotStyle={projectChrome ? projectRightSlotStyle : undefined}
-          rightPaneCollapsed={projectChrome ? projectAgentPane.collapsed : true}
-          assistantPanel={projectChrome ? (
+          rightSlotStyle={embeddedAgentEnabled && projectChrome ? projectRightSlotStyle : undefined}
+          rightPaneCollapsed={embeddedAgentEnabled && projectChrome ? projectAgentPane.collapsed : true}
+          assistantPanel={embeddedAgentEnabled && projectChrome ? (
             <React.Suspense fallback={null}>
               <ProjectAIAssistantPanel
                 userId={userId}

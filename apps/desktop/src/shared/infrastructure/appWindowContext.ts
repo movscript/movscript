@@ -10,6 +10,7 @@ import type {
 } from '@/shared/contracts/electronApi'
 import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
+import { desktopEmbeddedAgentEnabled } from '@/shared/application/desktopEmbeddedAgentFeature'
 import { rememberLocalProject } from '@/shared/infrastructure/session/localProjectRecentsStore'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import type { Project } from '@/types'
@@ -43,6 +44,11 @@ export async function openHomeWindow(): Promise<void> {
 }
 
 export async function openAgentWindow(): Promise<void> {
+  if (!desktopEmbeddedAgentEnabled()) {
+    useAppSettingsStore.getState().setWorkMode(useProjectStore.getState().current ? 'project' : 'tool')
+    window.location.assign(useProjectStore.getState().current ? '/project/home' : '/projects')
+    return
+  }
   const api = readElectronApi()
   if (api?.openAgentWindow) {
     await api.openAgentWindow()
@@ -146,6 +152,10 @@ function applyAppWindowContext(context: ElectronAppWindowContext | null): void {
   }
 
   if (context.kind === 'agent') {
+    if (!desktopEmbeddedAgentEnabled()) {
+      useAppSettingsStore.getState().setWorkMode(useProjectStore.getState().current ? 'project' : 'tool')
+      return
+    }
     useAppSettingsStore.getState().setWorkMode('agent')
     return
   }

@@ -31,6 +31,7 @@ import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { fallbackAgentProfileRoute } from '@/features/agent/application/agentProfileModel'
 import { ROUTES } from '@/routes/projectRoutes'
 import { isAgentConsoleTab } from '@/features/agent/application/agentConsoleRouteModel'
+import { desktopEmbeddedAgentEnabled } from '@/shared/application/desktopEmbeddedAgentFeature'
 import {
   AgentConnectionsPage,
   AgentContentCandidatesPage,
@@ -73,6 +74,8 @@ const AppRouter = typeof window !== 'undefined' && window.location.protocol === 
 
 export function AnonymousAppRouter() {
   const onboardingCompleted = useAppSettingsStore((state) => state.settings.onboardingCompleted)
+  const embeddedAgentEnabled = desktopEmbeddedAgentEnabled()
+  const disabledAgentRedirect = onboardingCompleted ? ROUTES.root : ROUTES.onboarding
 
   return (
     <ErrorBoundary>
@@ -83,15 +86,24 @@ export function AnonymousAppRouter() {
         <BackendBootBoundary />
         <RouteSuspense fullScreen>
           <Routes>
-            <Route path={ROUTES.agentResources} element={<AgentResourceLibraryPage />} />
-            <Route path={ROUTES.agentResourceDetail} element={<AgentResourceDetailPage />} />
-            <Route path={ROUTES.agentContentPrompt} element={<AgentContentPromptPage />} />
-            <Route path={ROUTES.agentContentCandidates} element={<AgentContentCandidatesPage />} />
-            <Route path={ROUTES.agentGenerationJob} element={<AgentGenerationJobPage />} />
-            <Route path={ROUTES.agentPreviewTimeline} element={<AgentPreviewTimelinePage />} />
-            <Route path={ROUTES.agentImpact} element={<AgentImpactPage />} />
-            <Route path={ROUTES.agentProjectStatus} element={<AgentProjectStatusPage />} />
-            <Route path={ROUTES.codexResources} element={<AgentResourceLibraryPage />} />
+            {embeddedAgentEnabled ? (
+              <>
+                <Route path={ROUTES.agentResources} element={<AgentResourceLibraryPage />} />
+                <Route path={ROUTES.agentResourceDetail} element={<AgentResourceDetailPage />} />
+                <Route path={ROUTES.agentContentPrompt} element={<AgentContentPromptPage />} />
+                <Route path={ROUTES.agentContentCandidates} element={<AgentContentCandidatesPage />} />
+                <Route path={ROUTES.agentGenerationJob} element={<AgentGenerationJobPage />} />
+                <Route path={ROUTES.agentPreviewTimeline} element={<AgentPreviewTimelinePage />} />
+                <Route path={ROUTES.agentImpact} element={<AgentImpactPage />} />
+                <Route path={ROUTES.agentProjectStatus} element={<AgentProjectStatusPage />} />
+                <Route path={ROUTES.codexResources} element={<AgentResourceLibraryPage />} />
+              </>
+            ) : (
+              <>
+                <Route path="/agent/*" element={<Navigate to={disabledAgentRedirect} replace />} />
+                <Route path={ROUTES.codexResources} element={<Navigate to={disabledAgentRedirect} replace />} />
+              </>
+            )}
             <Route path={ROUTES.invite} element={<InvitePage />} />
             <Route path={ROUTES.onboarding} element={onboardingCompleted ? <Navigate to={ROUTES.root} replace /> : <OnboardingPage />} />
             <Route path={ROUTES.appSettings} element={onboardingCompleted ? <AppSettingsPage /> : <Navigate to={ROUTES.onboarding} replace />} />
@@ -104,6 +116,8 @@ export function AnonymousAppRouter() {
 }
 
 export function AuthenticatedAppRouter() {
+  const embeddedAgentEnabled = desktopEmbeddedAgentEnabled()
+
   return (
     <ErrorBoundary>
       <AppRouter>
@@ -115,15 +129,24 @@ export function AuthenticatedAppRouter() {
         <AppDockShortcutBridge />
         <RouteSuspense fullScreen>
           <Routes>
-            <Route path={ROUTES.agentResources} element={<AgentResourceLibraryPage />} />
-            <Route path={ROUTES.agentResourceDetail} element={<AgentResourceDetailPage />} />
-            <Route path={ROUTES.agentContentPrompt} element={<AgentContentPromptPage />} />
-            <Route path={ROUTES.agentContentCandidates} element={<AgentContentCandidatesPage />} />
-            <Route path={ROUTES.agentGenerationJob} element={<AgentGenerationJobPage />} />
-            <Route path={ROUTES.agentPreviewTimeline} element={<AgentPreviewTimelinePage />} />
-            <Route path={ROUTES.agentImpact} element={<AgentImpactPage />} />
-            <Route path={ROUTES.agentProjectStatus} element={<AgentProjectStatusPage />} />
-            <Route path={ROUTES.codexResources} element={<AgentResourceLibraryPage />} />
+            {embeddedAgentEnabled ? (
+              <>
+                <Route path={ROUTES.agentResources} element={<AgentResourceLibraryPage />} />
+                <Route path={ROUTES.agentResourceDetail} element={<AgentResourceDetailPage />} />
+                <Route path={ROUTES.agentContentPrompt} element={<AgentContentPromptPage />} />
+                <Route path={ROUTES.agentContentCandidates} element={<AgentContentCandidatesPage />} />
+                <Route path={ROUTES.agentGenerationJob} element={<AgentGenerationJobPage />} />
+                <Route path={ROUTES.agentPreviewTimeline} element={<AgentPreviewTimelinePage />} />
+                <Route path={ROUTES.agentImpact} element={<AgentImpactPage />} />
+                <Route path={ROUTES.agentProjectStatus} element={<AgentProjectStatusPage />} />
+                <Route path={ROUTES.codexResources} element={<AgentResourceLibraryPage />} />
+              </>
+            ) : (
+              <>
+                <Route path="/agent/*" element={<Navigate to={ROUTES.root} replace />} />
+                <Route path={ROUTES.codexResources} element={<Navigate to={ROUTES.root} replace />} />
+              </>
+            )}
             <Route path={ROUTES.canvases} element={<CanvasListShellRoute />} />
             <Route path={ROUTES.canvasEditor} element={<CanvasEditorShellRoute />} />
             <Route path={ROUTES.editing} element={<EditingListShellRoute />} />
@@ -145,14 +168,25 @@ export function AuthenticatedAppRouter() {
                   <Route path={ROUTES.appSettings} element={<AccountSettingsRoute tab="settings" />} />
                   <Route path={ROUTES.user} element={<AccountSettingsRoute tab="profile" />} />
                   <Route path={ROUTES.orgSettings} element={<AccountSettingsRoute tab="workspace" />} />
-                  <Route path={ROUTES.agentConsole} element={<AccountSettingsRoute tab="console" />} />
+                  {embeddedAgentEnabled
+                    ? <Route path={ROUTES.agentConsole} element={<AccountSettingsRoute tab="console" />} />
+                    : <Route path={ROUTES.agentConsole} element={<Navigate to={ROUTES.appSettings} replace />} />}
 
                   <Route path={ROUTES.project.root} element={<Navigate to={ROUTES.project.home} replace />} />
                   <Route path={ROUTES.project.home} element={<ProjectGuard><ProjectOverviewPage /></ProjectGuard>} />
                   <Route path={ROUTES.project.settings} element={<ProjectGuard><ProjectSettingsPage /></ProjectGuard>} />
                   <Route path={ROUTES.project.scripts} element={<ProjectGuard><ScriptsPage /></ProjectGuard>} />
-                  <Route path={ROUTES.project.agent} element={<ProjectAgentModeRoute />} />
-                  <Route path={ROUTES.project.agentCanvases} element={<ProjectGuard><AgentModeRoute><AgentModeCanvasListPage /></AgentModeRoute></ProjectGuard>} />
+                  {embeddedAgentEnabled ? (
+                    <>
+                      <Route path={ROUTES.project.agent} element={<ProjectAgentModeRoute />} />
+                      <Route path={ROUTES.project.agentCanvases} element={<ProjectGuard><AgentModeRoute><AgentModeCanvasListPage /></AgentModeRoute></ProjectGuard>} />
+                    </>
+                  ) : (
+                    <>
+                      <Route path={ROUTES.project.agent} element={<Navigate to={ROUTES.project.home} replace />} />
+                      <Route path={ROUTES.project.agentCanvases} element={<Navigate to={ROUTES.project.home} replace />} />
+                    </>
+                  )}
                   <Route path={ROUTES.project.standards} element={<ProjectGuard><ProjectStandardsPage /></ProjectGuard>} />
                   <Route path={ROUTES.project.content} element={<ProjectGuard><ContentCanvasPreviewPage /></ProjectGuard>} />
                   <Route path={ROUTES.project.contentCanvas} element={<ProjectGuard><ContentCanvasPage /></ProjectGuard>} />
@@ -185,13 +219,27 @@ export function AuthenticatedAppRouter() {
                   <Route path={ROUTES.shotLibrary} element={<ShotLibraryPage />} />
                   <Route path={ROUTES.jobs} element={<JobsPage />} />
                   <Route path={ROUTES.plugins} element={<ClientPluginsPage />} />
-                  <Route path={ROUTES.agentConnections} element={<AgentConnectionsPage />} />
-                  <Route path={ROUTES.modelProviders} element={<ModelProvidersPage />} />
-                  <Route path={ROUTES.agents} element={<AgentsRedirect />} />
-                  <Route path={ROUTES.agentProvider} element={<AgentsPage />} />
-                  <Route path={ROUTES.workspaceConfig} element={<MovScriptWorkspaceFilesPage />} />
-                  <Route path={ROUTES.workspaceReview} element={<MovScriptWorkspaceReviewPage />} />
-                  <Route path={ROUTES.agentSettings} element={<AIAgentSettingsPage />} />
+                  {embeddedAgentEnabled ? (
+                    <>
+                      <Route path={ROUTES.agentConnections} element={<AgentConnectionsPage />} />
+                      <Route path={ROUTES.modelProviders} element={<ModelProvidersPage />} />
+                      <Route path={ROUTES.agents} element={<AgentsRedirect />} />
+                      <Route path={ROUTES.agentProvider} element={<AgentsPage />} />
+                      <Route path={ROUTES.workspaceConfig} element={<MovScriptWorkspaceFilesPage />} />
+                      <Route path={ROUTES.workspaceReview} element={<MovScriptWorkspaceReviewPage />} />
+                      <Route path={ROUTES.agentSettings} element={<AIAgentSettingsPage />} />
+                    </>
+                  ) : (
+                    <>
+                      <Route path={ROUTES.agentConnections} element={<Navigate to={ROUTES.appSettings} replace />} />
+                      <Route path={ROUTES.modelProviders} element={<Navigate to={ROUTES.appSettings} replace />} />
+                      <Route path={ROUTES.agents} element={<Navigate to={ROUTES.appSettings} replace />} />
+                      <Route path={ROUTES.agentProvider} element={<Navigate to={ROUTES.appSettings} replace />} />
+                      <Route path={ROUTES.workspaceConfig} element={<Navigate to={ROUTES.appSettings} replace />} />
+                      <Route path={ROUTES.workspaceReview} element={<Navigate to={ROUTES.appSettings} replace />} />
+                      <Route path={ROUTES.agentSettings} element={<Navigate to={ROUTES.appSettings} replace />} />
+                    </>
+                  )}
                 </Routes>
               </ShellLayout>
             } />
@@ -219,7 +267,7 @@ function AgentModeRoute({ children }: { children: ReactNode }) {
 function AccountSettingsRoute({ tab = 'settings' }: { tab?: AccountSettingsPageTab }) {
   const { search } = useLocation()
   const runtimeTab = new URLSearchParams(search).get('tab')
-  const activeTab: AccountSettingsPageTab = isAgentConsoleTab(runtimeTab)
+  const activeTab: AccountSettingsPageTab = desktopEmbeddedAgentEnabled() && isAgentConsoleTab(runtimeTab)
     ? runtimeTab
     : runtimeTab === 'mode'
     ? 'mode'

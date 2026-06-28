@@ -20,6 +20,7 @@ import {
 import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
 import { enabledAgentProfiles } from '@/features/agent/application/agentAvailability'
 import { agentProviderKeys } from '@/features/agent/application/agentQueryKeys'
+import { desktopEmbeddedAgentEnabled } from '@/shared/application/desktopEmbeddedAgentFeature'
 import {
   isClaudeAgentProfile,
   type AgentProfile,
@@ -31,6 +32,7 @@ const HOST_RUNTIME_PACKAGE_VERSION = '0.0.1-alpha.13'
 export function useAgentAvailabilityGuard() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const embeddedAgentEnabled = desktopEmbeddedAgentEnabled()
   const savedProviderSettings = useProviderConfigStore((state) => state.settings)
   const providerSettings = React.useMemo(() => normalizeProviderSettingsWithRuntimeEnv(savedProviderSettings), [savedProviderSettings])
   const [open, setOpen] = React.useState(false)
@@ -38,18 +40,20 @@ export function useAgentAvailabilityGuard() {
   const availabilityQuery = useQuery({
     queryKey: agentProviderKeys.runtimeStatus('agent-availability', enabledProfiles.map(runtimeQueryIdentity).join('|')),
     queryFn: () => hasInstalledRuntimeProfile(enabledProfiles),
+    enabled: embeddedAgentEnabled,
     retry: false,
   })
-  const hasEnabledAgent = availabilityQuery.data === true
+  const hasEnabledAgent = embeddedAgentEnabled && availabilityQuery.data === true
 
   const runOrPrompt = React.useCallback((action: () => void) => {
+    if (!embeddedAgentEnabled) return false
     if (hasEnabledAgent) {
       action()
       return true
     }
     setOpen(true)
     return false
-  }, [hasEnabledAgent])
+  }, [embeddedAgentEnabled, hasEnabledAgent])
 
   const goToAgentConsole = React.useCallback(() => {
     setOpen(false)
@@ -57,7 +61,7 @@ export function useAgentAvailabilityGuard() {
   }, [navigate])
 
   const dialog = (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={embeddedAgentEnabled && open} onOpenChange={setOpen}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle>
@@ -80,7 +84,7 @@ export function useAgentAvailabilityGuard() {
   )
 
   return {
-    checking: availabilityQuery.isLoading || availabilityQuery.isFetching,
+    checking: embeddedAgentEnabled && (availabilityQuery.isLoading || availabilityQuery.isFetching),
     hasEnabledAgent,
     runOrPrompt,
     dialog,

@@ -5,14 +5,6 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { APP_SIDEBAR_WIDTH_STORAGE_KEY } from '@movscript/ui/layout'
 import {
-  AGENT_MODE_CONTENT_PANEL_STATE_STORAGE_KEY,
-  AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY,
-  AGENT_MODE_SIDEBAR_STATE_STORAGE_KEY,
-  AGENT_MODE_SIDEBAR_WIDTH_STORAGE_KEY,
-  LEGACY_AGENT_MODE_CONTENT_PANEL_STATE_STORAGE_KEY,
-  LEGACY_AGENT_MODE_SIDEBAR_STATE_STORAGE_KEY,
-} from '@/features/agent/presentation/agentModePanelSizing'
-import {
   TOOL_WORKBENCH_RESOURCE_PANE_DEFAULT_WIDTH,
   TOOL_WORKBENCH_RESOURCE_PANE_ID,
   TOOL_WORKBENCH_RESOURCE_PANE_MIN_WIDTH,
@@ -70,62 +62,26 @@ test('route layout pane controller derives terminal dock state contract from rou
   assert.equal(allowedRouteLayoutPaneState(pane, 'collapsed'), 'default')
 })
 
-test('route layout pane controller derives agent shell pane state contract from route spec', () => {
+test('route layout pane controller quarantines agent shell pane state by default', () => {
   const routeLayout = routeLayoutSpecForPathname('/project/agent')
   const sidebarPane = routeLayoutPaneById(routeLayout, APP_SHELL_AGENT_SIDEBAR_PANE_ID)
   const contentPane = routeLayoutPaneById(routeLayout, APP_SHELL_AGENT_CONTENT_PANE_ID)
 
-  assert.equal(sidebarPane?.storageKey, AGENT_MODE_SIDEBAR_WIDTH_STORAGE_KEY)
-  assert.equal(sidebarPane?.stateStorageKey, AGENT_MODE_SIDEBAR_STATE_STORAGE_KEY)
-  assert.equal(sidebarPane?.collapsedSize, 0)
-  assert.equal(sidebarPane?.defaultState, 'default')
-  assert.equal(allowedRouteLayoutPaneState(sidebarPane, 'collapsed'), 'default')
-  assert.equal(allowedRouteLayoutPaneState(sidebarPane, 'hidden'), 'hidden')
-  assert.notEqual(sidebarPane?.stateStorageKey, LEGACY_AGENT_MODE_SIDEBAR_STATE_STORAGE_KEY)
-
-  assert.equal(contentPane?.storageKey, AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY)
-  assert.equal(contentPane?.stateStorageKey, AGENT_MODE_CONTENT_PANEL_STATE_STORAGE_KEY)
-  assert.equal(contentPane?.defaultState, 'default')
-  assert.equal(contentPane?.collapsedSize, 0)
-  assert.equal(allowedRouteLayoutPaneState(contentPane, 'hidden'), 'default')
-  assert.notEqual(contentPane?.stateStorageKey, LEGACY_AGENT_MODE_CONTENT_PANEL_STATE_STORAGE_KEY)
+  assert.equal(routeLayout.routeId, 'fallback')
+  assert.equal(sidebarPane, undefined)
+  assert.equal(contentPane, undefined)
 })
 
-test('route layout pane controller restores persisted agent shell pane sizes and states', () => {
-  const previousWindow = globalThis.window
-  const storage = new Map<string, string>()
-  globalThis.window = {
-    localStorage: {
-      getItem: (key: string) => storage.get(key) ?? null,
-      setItem: (key: string, value: string) => {
-        storage.set(key, value)
-      },
-    },
-  } as typeof window
+test('route layout pane controller ignores persisted agent shell pane values while quarantined', () => {
+  const routeLayout = routeLayoutSpecForPathname('/project/agent')
+  const sidebarPane = routeLayoutPaneById(routeLayout, APP_SHELL_AGENT_SIDEBAR_PANE_ID)
+  const contentPane = routeLayoutPaneById(routeLayout, APP_SHELL_AGENT_CONTENT_PANE_ID)
 
-  try {
-    const routeLayout = routeLayoutSpecForPathname('/project/agent')
-    const sidebarPane = routeLayoutPaneById(routeLayout, APP_SHELL_AGENT_SIDEBAR_PANE_ID)
-    const contentPane = routeLayoutPaneById(routeLayout, APP_SHELL_AGENT_CONTENT_PANE_ID)
-
-    storage.set(AGENT_MODE_SIDEBAR_WIDTH_STORAGE_KEY, '340')
-    storage.set(AGENT_MODE_SIDEBAR_STATE_STORAGE_KEY, 'collapsed')
-    storage.set(AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY, '980')
-    storage.set(AGENT_MODE_CONTENT_PANEL_STATE_STORAGE_KEY, 'default')
-
-    assert.equal(readRouteLayoutPaneSize(sidebarPane?.storageKey, sidebarPane?.defaultSize ?? 0), 340)
-    assert.equal(readRouteLayoutPaneState(sidebarPane, routeLayoutPaneStateStorageKey(sidebarPane)), 'default')
-    assert.equal(readRouteLayoutPaneSize(contentPane?.storageKey, contentPane?.defaultSize ?? 0), 980)
-    assert.equal(readRouteLayoutPaneState(contentPane, routeLayoutPaneStateStorageKey(contentPane)), 'default')
-
-    storage.set(AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY, 'not-a-number')
-    storage.set(AGENT_MODE_CONTENT_PANEL_STATE_STORAGE_KEY, 'hidden')
-
-    assert.equal(readRouteLayoutPaneSize(contentPane?.storageKey, contentPane?.defaultSize ?? 0), contentPane?.defaultSize)
-    assert.equal(readRouteLayoutPaneState(contentPane, routeLayoutPaneStateStorageKey(contentPane)), 'default')
-  } finally {
-    globalThis.window = previousWindow
-  }
+  assert.equal(routeLayout.routeId, 'fallback')
+  assert.equal(readRouteLayoutPaneSize(sidebarPane?.storageKey, sidebarPane?.defaultSize ?? 0), 0)
+  assert.equal(readRouteLayoutPaneState(sidebarPane, routeLayoutPaneStateStorageKey(sidebarPane)), 'default')
+  assert.equal(readRouteLayoutPaneSize(contentPane?.storageKey, contentPane?.defaultSize ?? 0), 0)
+  assert.equal(readRouteLayoutPaneState(contentPane, routeLayoutPaneStateStorageKey(contentPane)), 'default')
 })
 
 test('route layout pane controller restores persisted terminal dock height', () => {
@@ -261,41 +217,14 @@ test('route layout pane controller migrates legacy browser pane values into MovS
   }
 })
 
-test('route layout pane controller clamps restored agent pane sizes', () => {
-  const previousWindow = globalThis.window
-  const storage = new Map<string, string>()
-  globalThis.window = {
-    localStorage: {
-      getItem: (key: string) => storage.get(key) ?? null,
-      setItem: (key: string, value: string) => {
-        storage.set(key, value)
-      },
-    },
-  } as typeof window
+test('route layout pane controller has no agent pane sizes to clamp while quarantined', () => {
+  const routeLayout = routeLayoutSpecForPathname('/project/agent')
+  const sidebarPane = routeLayoutPaneById(routeLayout, APP_SHELL_AGENT_SIDEBAR_PANE_ID)
+  const contentPane = routeLayoutPaneById(routeLayout, APP_SHELL_AGENT_CONTENT_PANE_ID)
 
-  try {
-    const routeLayout = routeLayoutSpecForPathname('/project/agent')
-    const sidebarPane = routeLayoutPaneById(routeLayout, APP_SHELL_AGENT_SIDEBAR_PANE_ID)
-    const contentPane = routeLayoutPaneById(routeLayout, APP_SHELL_AGENT_CONTENT_PANE_ID)
-
-    storage.set(AGENT_MODE_SIDEBAR_WIDTH_STORAGE_KEY, '80')
-    storage.set(AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY, '5000')
-
-    assert.equal(
-      readRouteLayoutPaneSize(sidebarPane?.storageKey, sidebarPane?.defaultSize ?? 0, (size) => {
-        return Math.min(sidebarPane?.maxSize as number, Math.max(sidebarPane?.minSize as number, size))
-      }),
-      sidebarPane?.minSize,
-    )
-    assert.equal(
-      readRouteLayoutPaneSize(contentPane?.storageKey, contentPane?.defaultSize ?? 0, (size) => {
-        return Math.min(contentPane?.maxSize as number, Math.max(contentPane?.minSize as number, size))
-      }),
-      contentPane?.maxSize,
-    )
-  } finally {
-    globalThis.window = previousWindow
-  }
+  assert.equal(routeLayout.routeId, 'fallback')
+  assert.equal(clampRouteLayoutPaneSize(sidebarPane, 80), 80)
+  assert.equal(clampRouteLayoutPaneSize(contentPane, 5000), 5000)
 })
 
 test('route layout pane controller derives default size clamp from numeric route pane specs', () => {
@@ -344,7 +273,10 @@ test('shell layout consumes mode pane state through the route pane controller', 
   assert.match(appShellSource, /: toolChrome \? \(/)
   assert.match(appShellSource, /centerHeader=\{settingsChrome \? appShellHeaders\.settingsCenterHeader : toolChrome \? appShellHeaders\.toolCenterHeader : homeChrome \? appShellHeaders\.homeCenterHeader : appShellHeaders\.projectCenterHeader\}/)
   assert.match(appShellSource, /leftPaneHidden=\{settingsChrome \? settingsSidebarHidden : toolChrome \? toolSidebarHidden : false\}/)
-  assert.match(appShellSource, /const terminalOpen = !terminalPane\.hidden/)
+  assert.match(appShellSource, /const embeddedAgentEnabled = desktopEmbeddedAgentEnabled\(\)/)
+  assert.match(appShellSource, /const terminalOpen = embeddedAgentEnabled && !terminalPane\.hidden/)
+  assert.match(appShellSource, /terminalAvailable: embeddedAgentEnabled/)
+  assert.match(appShellSource, /projectAgentPanelAvailable: embeddedAgentEnabled/)
   assert.doesNotMatch(appShellSource, /agentSidebarPane\.collapse/)
   assert.match(appShellSource, /agentContentPane\.collapsed/)
   assert.match(appShellSource, /fallbackState: 'default'/)

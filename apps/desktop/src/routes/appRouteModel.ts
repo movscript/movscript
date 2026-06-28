@@ -8,6 +8,7 @@ import {
 } from '@movscript/shared/surface-routes'
 import { ROUTES } from './projectRoutes'
 import { routeLayoutSpecForPathname, type RouteLayoutSpec } from './routeLayoutRegistry'
+import { desktopEmbeddedAgentEnabled } from '@/shared/application/desktopEmbeddedAgentFeature'
 
 export type AppRouteSurface = 'home' | 'agent' | 'project' | 'resource' | 'tool' | 'canvas' | 'settings'
 export type AppWorkMode = 'agent' | 'project' | 'tool'
@@ -15,6 +16,7 @@ export type { CanvasRouteSource }
 export { CANVAS_SOURCE_PARAM, canvasRouteSourceFromSearch }
 
 export function isProjectAgentRoute(pathname: string): boolean {
+  if (!desktopEmbeddedAgentEnabled()) return false
   return pathname === ROUTES.project.agent || pathname.startsWith(`${ROUTES.project.agent}/`)
 }
 
@@ -37,7 +39,10 @@ export function workModeForRoute(pathname: string, fallback: AppWorkMode): AppWo
 }
 
 export function routeForWorkMode(workMode: AppWorkMode, hasProject: boolean): string {
-  if (workMode === 'agent') return ROUTES.project.agent
+  if (workMode === 'agent') {
+    if (desktopEmbeddedAgentEnabled()) return ROUTES.project.agent
+    return hasProject ? ROUTES.project.home : ROUTES.projects
+  }
   if (workMode === 'project') return hasProject ? ROUTES.project.home : ROUTES.projects
   return ROUTES.tools.refImageGen
 }

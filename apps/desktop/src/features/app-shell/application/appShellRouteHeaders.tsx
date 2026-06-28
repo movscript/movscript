@@ -11,6 +11,7 @@ import {
 } from '@/features/agent/application/agentConsoleRouteModel'
 import i18n from '@/i18n'
 import { readBrowserStorageItem, writeBrowserStorageItem } from '@/shared/infrastructure/browserStorage'
+import { desktopEmbeddedAgentEnabled } from '@/shared/application/desktopEmbeddedAgentFeature'
 
 const SETTINGS_RETURN_PATH_STORAGE_KEY = 'movscript-settings-return-path'
 
@@ -83,9 +84,11 @@ export function accountSettingsTabForLocation(pathname: string, search: string):
   if (pathname === ROUTES.user) return 'profile'
   if (pathname === ROUTES.orgSettings) return 'workspace'
   if (pathname === ROUTES.plugins) return 'environment:plugins'
-  if (pathname === ROUTES.workspaceConfig || pathname === ROUTES.workspaceReview) return 'environment:workspace'
-  const consoleTab = agentConsoleTabFromLocation(pathname, search)
-  if (consoleTab) return consoleTab
+  if (desktopEmbeddedAgentEnabled()) {
+    if (pathname === ROUTES.workspaceConfig || pathname === ROUTES.workspaceReview) return 'environment:workspace'
+    const consoleTab = agentConsoleTabFromLocation(pathname, search)
+    if (consoleTab) return consoleTab
+  }
   if (pathname !== ROUTES.appSettings) return undefined
 
   const runtimeTab = new URLSearchParams(search).get('tab')

@@ -5,14 +5,6 @@ import test from 'node:test'
 
 import { APP_SIDEBAR_WIDTH_STORAGE_KEY } from '@movscript/ui/layout'
 import {
-  AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH,
-  AGENT_MODE_CONTENT_PANEL_STATE_STORAGE_KEY,
-  AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY,
-  AGENT_MODE_SIDEBAR_DEFAULT_WIDTH,
-  AGENT_MODE_SIDEBAR_STATE_STORAGE_KEY,
-  AGENT_MODE_SIDEBAR_WIDTH_STORAGE_KEY,
-} from '@/features/agent/presentation/agentModePanelSizing'
-import {
   TOOL_WORKBENCH_RESOURCE_PANE_DEFAULT_WIDTH,
   TOOL_WORKBENCH_RESOURCE_PANE_ID,
   TOOL_WORKBENCH_RESOURCE_PANE_MIN_WIDTH,
@@ -21,19 +13,10 @@ import {
 import { PLUGIN_TOOL_NATIVE_MAIN_PANE_ID } from '@/features/plugins/presentation/pluginToolLayoutSpec'
 
 import {
-  AGENT_CONNECTION_EVENTS_PANE_ID,
-  AGENT_CONNECTION_RAW_PANE_ID,
-  AGENT_CONNECTION_THREADS_PANE_ID,
   APP_SHELL_AGENT_CONTENT_PANE_ID,
   APP_SHELL_AGENT_SIDEBAR_PANE_ID,
   APP_SHELL_SETTINGS_SIDEBAR_PANE_ID,
   APP_SHELL_SETTINGS_SIDEBAR_WIDTH_STORAGE_KEY,
-  APP_SHELL_TERMINAL_DOCK_DEFAULT_HEIGHT,
-  APP_SHELL_TERMINAL_DOCK_HEIGHT_STORAGE_KEY,
-  APP_SHELL_TERMINAL_DOCK_MAX_HEIGHT,
-  APP_SHELL_TERMINAL_DOCK_MIN_HEIGHT,
-  APP_SHELL_TERMINAL_DOCK_PANE_ID,
-  APP_SHELL_TERMINAL_DOCK_STATE_STORAGE_KEY,
   APP_SHELL_TOOL_SIDEBAR_PANE_ID,
   CONTENT_CANVAS_INSPECTOR_DEFAULT_WIDTH,
   CONTENT_CANVAS_INSPECTOR_MAX_WIDTH,
@@ -53,10 +36,6 @@ import {
   appRouteViewportScrollForMode,
   registeredRouteLayoutSpecs,
   routeLayoutSpecForPathname,
-  WORKSPACE_CONFIG_EDITOR_PANE_ID,
-  WORKSPACE_CONFIG_FILE_TREE_PANE_ID,
-  WORKSPACE_REVIEW_RAW_PANE_ID,
-  WORKSPACE_REVIEW_SUMMARY_PANE_ID,
 } from './routeLayoutRegistry'
 import {
   routeLayoutInventory,
@@ -125,10 +104,10 @@ test('route layout registry separates canvas, agent, document, redirect, and ove
   assert.equal(routeLayoutSpecForPathname('/project/content/preview').routeId, 'project.content.preview')
   assert.equal(routeLayoutSpecForPathname('/project/settings/preview').routeId, 'project.setting.preview')
 
-  assert.equal(routeLayoutSpecForPathname('/project/agent').surface, 'agent')
-  assert.equal(routeLayoutSpecForPathname('/project/agent').scrollMode, 'workspace')
-  assert.equal(routeLayoutSpecForPathname('/project/agent/canvases').surface, 'agent')
-  assert.equal(routeLayoutSpecForPathname('/project/agent/canvases').scrollMode, 'document')
+  assert.equal(routeLayoutSpecForPathname('/project/agent').routeId, 'fallback')
+  assert.equal(routeLayoutSpecForPathname('/project/agent').surface, 'tool')
+  assert.equal(routeLayoutSpecForPathname('/project/agent/canvases').routeId, 'fallback')
+  assert.equal(routeLayoutSpecForPathname('/project/agent/canvases').surface, 'tool')
 
   assert.equal(routeLayoutSpecForPathname('/').surface, 'home')
   assert.equal(routeLayoutSpecForPathname('/').scrollMode, 'document')
@@ -157,14 +136,12 @@ test('route layout registry separates canvas, agent, document, redirect, and ove
   assert.match(routeLayoutSpecForPathname('/project-data').notes ?? '', /outside tool navigation/)
   assert.equal(routeLayoutSpecForPathname('/resources/external').surface, 'tool')
   assert.equal(routeLayoutSpecForPathname('/resources/external').scrollMode, 'document')
-  assert.equal(routeLayoutSpecForPathname('/agents/mova').surface, 'settings')
-  assert.equal(routeLayoutSpecForPathname('/agents/mova').chrome, 'settings')
-  assert.equal(routeLayoutSpecForPathname('/agents/mova').scrollMode, 'document')
-  assert.equal(appRouteViewportScrollForMode(routeLayoutSpecForPathname('/agents/mova').scrollMode), 'auto')
+  assert.equal(routeLayoutSpecForPathname('/agents/mova').routeId, 'fallback')
+  assert.equal(routeLayoutSpecForPathname('/agents/mova').surface, 'tool')
 
   assert.equal(routeLayoutSpecForPathname('/invite/abc123').scrollMode, 'document')
 
-  for (const pathname of ['/app/settings', '/user', '/org/settings', '/agent']) {
+  for (const pathname of ['/app/settings', '/user', '/org/settings']) {
     const settingsRoute = routeLayoutSpecForPathname(pathname)
     assert.equal(settingsRoute.kind, 'page')
     assert.equal(settingsRoute.surface, 'settings')
@@ -179,14 +156,13 @@ test('route layout registry separates canvas, agent, document, redirect, and ove
     assert.ok(!settingsRoute.panes.some((pane) => pane.id === 'app-shell.assistant-dock'))
   }
 
+  assert.equal(routeLayoutSpecForPathname('/agent').routeId, 'fallback')
+
   for (const pathname of ['/agent/settings', '/agents/mova']) {
     const agentSettingsRoute = routeLayoutSpecForPathname(pathname)
-    assert.equal(agentSettingsRoute.surface, 'settings')
-    assert.equal(agentSettingsRoute.chrome, 'settings')
-    assert.equal(agentSettingsRoute.preserveWorkMode, true)
-    assert.ok(agentSettingsRoute.panes.some((pane) => pane.id === APP_SHELL_SETTINGS_SIDEBAR_PANE_ID))
+    assert.equal(agentSettingsRoute.routeId, 'fallback')
+    assert.equal(agentSettingsRoute.surface, 'tool')
     assert.ok(!agentSettingsRoute.panes.some((pane) => pane.id === APP_SHELL_AGENT_SIDEBAR_PANE_ID))
-    assert.ok(!agentSettingsRoute.panes.some((pane) => pane.id === APP_SHELL_TOOL_SIDEBAR_PANE_ID))
   }
 })
 
@@ -198,25 +174,9 @@ test('registered route layout specs expose pane ownership for app shell surfaces
   assert.ok(projectRoute.panes.some((pane) => pane.id === 'app-shell.terminal-dock' && pane.side === 'bottom'))
   assert.ok(!projectRoute.panes.some((pane) => pane.owner === 'workbench'))
   const agentRoute = routeLayoutSpecForPathname('/project/agent')
-  const agentSidebar = agentRoute.panes.find((pane) => pane.id === APP_SHELL_AGENT_SIDEBAR_PANE_ID)
-  assert.equal(agentSidebar?.collapsedSize, 0)
-  assert.equal(agentSidebar?.defaultState, 'default')
-  assert.deepEqual(agentSidebar?.allowedStates, ['default', 'hidden'])
-  assert.equal(agentSidebar?.defaultSize, AGENT_MODE_SIDEBAR_DEFAULT_WIDTH)
-  assert.equal(agentSidebar?.storageKey, AGENT_MODE_SIDEBAR_WIDTH_STORAGE_KEY)
-  assert.equal(agentSidebar?.stateStorageKey, AGENT_MODE_SIDEBAR_STATE_STORAGE_KEY)
-  const agentContentPane = agentRoute.panes.find((pane) => pane.id === APP_SHELL_AGENT_CONTENT_PANE_ID)
-  assert.equal(agentContentPane?.owner, 'app-shell')
-  assert.equal(agentContentPane?.defaultState, 'default')
-  assert.equal(agentContentPane?.defaultSize, AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH)
-  assert.equal(agentContentPane?.storageKey, AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY)
-  assert.equal(agentContentPane?.stateStorageKey, AGENT_MODE_CONTENT_PANEL_STATE_STORAGE_KEY)
-  const terminalPane = agentRoute.panes.find((pane) => pane.id === APP_SHELL_TERMINAL_DOCK_PANE_ID)
-  assert.equal(terminalPane?.defaultSize, APP_SHELL_TERMINAL_DOCK_DEFAULT_HEIGHT)
-  assert.equal(terminalPane?.minSize, APP_SHELL_TERMINAL_DOCK_MIN_HEIGHT)
-  assert.equal(terminalPane?.maxSize, APP_SHELL_TERMINAL_DOCK_MAX_HEIGHT)
-  assert.equal(terminalPane?.storageKey, APP_SHELL_TERMINAL_DOCK_HEIGHT_STORAGE_KEY)
-  assert.equal(terminalPane?.stateStorageKey, APP_SHELL_TERMINAL_DOCK_STATE_STORAGE_KEY)
+  assert.equal(agentRoute.routeId, 'fallback')
+  assert.ok(!agentRoute.panes.some((pane) => pane.id === APP_SHELL_AGENT_SIDEBAR_PANE_ID))
+  assert.ok(!agentRoute.panes.some((pane) => pane.id === APP_SHELL_AGENT_CONTENT_PANE_ID))
 
   const canvasRoute = routeLayoutSpecForPathname('/canvases/42')
   assert.ok(canvasRoute.panes.some((pane) => pane.id === 'canvas.palette-pane' && pane.owner === 'canvas'))
@@ -326,20 +286,13 @@ test('route layout registry declares plugin tool native host pane', () => {
   assert.equal(nativeMainPane?.overlapMode, 'none')
 })
 
-test('route layout registry declares agent and workspace split panes', () => {
-  assertWorkspacePanes('/agent/connections', [
-    AGENT_CONNECTION_THREADS_PANE_ID,
-    AGENT_CONNECTION_EVENTS_PANE_ID,
-    AGENT_CONNECTION_RAW_PANE_ID,
-  ])
-  assertWorkspacePanes('/workspace/config', [
-    WORKSPACE_CONFIG_FILE_TREE_PANE_ID,
-    WORKSPACE_CONFIG_EDITOR_PANE_ID,
-  ], 'settings')
-  assertWorkspacePanes('/workspace/review', [
-    WORKSPACE_REVIEW_SUMMARY_PANE_ID,
-    WORKSPACE_REVIEW_RAW_PANE_ID,
-  ], 'settings')
+test('route layout registry quarantines desktop embedded agent split panes by default', () => {
+  for (const pathname of ['/agent/connections', '/workspace/config', '/workspace/review']) {
+    const spec = routeLayoutSpecForPathname(pathname)
+    assert.equal(spec.routeId, 'fallback')
+    assert.equal(spec.surface, 'tool')
+    assert.ok(!spec.panes.some((pane) => pane.owner === 'workbench'))
+  }
 })
 
 test('route layout registry has one exported spec per registered route id', () => {
@@ -354,7 +307,11 @@ test('route layout registry has one exported spec per registered route id', () =
   assert.ok(!routeIds.includes('project.production.redirect'))
   assert.ok(!routeIds.includes('project.productionOrchestration.redirect'))
   assert.ok(routeIds.includes('canvas.editor'))
-  assert.ok(routeIds.includes('agent.connections'))
+  assert.ok(!routeIds.includes('project.agent'))
+  assert.ok(!routeIds.includes('project.agentCanvases'))
+  assert.ok(!routeIds.includes('agent.connections'))
+  assert.ok(!routeIds.includes('workspace.config'))
+  assert.ok(!routeIds.includes('workspace.review'))
 })
 
 test('route layout inventory audits every registered route without duplicating pane specs', () => {
@@ -410,20 +367,5 @@ function projectEntryRoute(pathname: string) {
     projectEntryId: spec.projectEntryId,
     scrollMode: spec.scrollMode,
     viewportScroll: appRouteViewportScrollForMode(spec.scrollMode),
-  }
-}
-
-function assertWorkspacePanes(pathname: string, paneIds: string[], expectedSurface: 'tool' | 'settings' = 'tool') {
-  const spec = routeLayoutSpecForPathname(pathname)
-  assert.equal(spec.surface, expectedSurface)
-  if (expectedSurface === 'settings') assert.equal(spec.chrome, 'settings')
-  assert.equal(spec.scrollMode, 'workspace')
-  assert.equal(appRouteViewportScrollForMode(spec.scrollMode), 'owned')
-  for (const paneId of paneIds) {
-    const pane = spec.panes.find((candidate) => candidate.id === paneId)
-    assert.equal(pane?.owner, 'workbench')
-    assert.equal(pane?.defaultState, 'default')
-    assert.deepEqual(pane?.allowedStates, ['default'])
-    assert.equal(pane?.overlapMode, 'none')
   }
 }
