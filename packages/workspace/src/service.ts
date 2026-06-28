@@ -23,6 +23,7 @@ import {
   entityPathSlug,
   normalizeWorkspacePath,
 } from './layout/index.js'
+import { normalizeExpressionUnitSlotKind } from '@movscript/domain'
 import {
   appendMovScriptInlineCandidate,
   buildMovScriptContentCandidate,
@@ -134,6 +135,7 @@ export interface MovScriptExpressionUnitUpdateInput {
   targetPath: string
   patch: {
     title?: string
+    slotKind?: string
     expressionKind?: string
     speaker?: string
     text?: string
@@ -604,7 +606,12 @@ async function updateMovScriptExpressionUnit(
     schema: stringField(existing.schema) ?? 'movscript.expression_unit.v1',
     kind: 'expression_unit',
     title: input.patch.title !== undefined ? input.patch.title : existing.title,
-    expression_kind: input.patch.expressionKind !== undefined ? input.patch.expressionKind : existing.expression_kind,
+    slot_kind: input.patch.slotKind !== undefined
+      ? normalizeExpressionUnitSlotKind(input.patch.slotKind)
+      : normalizeExpressionUnitSlotKind(existing.slot_kind ?? existing.slotKind ?? existing.expression_kind ?? existing.kind),
+    expression_kind: input.patch.expressionKind !== undefined
+      ? legacyExpressionKind(input.patch.expressionKind, stringField(existing.expression_kind))
+      : existing.expression_kind,
     speaker: input.patch.speaker !== undefined ? input.patch.speaker : existing.speaker,
     text: input.patch.text !== undefined ? input.patch.text : existing.text,
     note: input.patch.note !== undefined ? input.patch.note : existing.note,
@@ -615,6 +622,15 @@ async function updateMovScriptExpressionUnit(
     content: `${JSON.stringify(record, null, 2)}\n`,
   })
   return { path: normalizedPath, record }
+}
+
+function legacyExpressionKind(value: unknown, fallback?: string): string {
+  const text = String(value ?? '').trim().toLowerCase()
+  if (text === 'dialogue' || text === 'narration' || text === 'subtitle' || text === 'caption' || text === 'action' || text === 'visual_note' || text === 'shot') return text
+  if (text === 'voice' || text === 'verbal' || text === 'voiceover') return 'dialogue'
+  if (text === 'visual' || text === 'image' || text === 'video') return 'visual_note'
+  if (text === 'audio' || text === 'sound' || text === 'sound_effect' || text === 'sfx' || text === 'music' || text === 'ambience') return 'action'
+  return fallback ?? 'visual_note'
 }
 
 async function updateMovScriptAudioCue(

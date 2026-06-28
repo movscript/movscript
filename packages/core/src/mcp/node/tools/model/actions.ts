@@ -94,7 +94,6 @@ function modelListPath(
 function capabilityForModelOperation(operation: string | undefined): string | undefined {
   const normalized = operation?.trim().toLowerCase().replace(/-/g, '_')
   switch (normalized) {
-    case 'prompt_to_image':
     case 'text_to_image':
     case 'image_to_image':
       return 'image_generation'

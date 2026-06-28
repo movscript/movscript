@@ -113,10 +113,20 @@ function normalizeResourceIdValue(value: unknown): string | undefined {
   const marker = /^\{\{\s*(?:raw-)?resource(?:::|:)\s*([^}\s]+)\s*\}\}$/i.exec(trimmed)
     ?? /^\[\[\s*(?:raw-)?resource(?:::|:)\s*([^\]\s]+)\s*\]\]$/i.exec(trimmed)
     ?? /^@\[resource:\s*([^\]\s]+)\s*\]$/i.exec(trimmed)
-  const unwrapped = marker?.[1] ?? trimmed.replace(/^(?:raw-)?resource(?:::|:)/i, '')
+  const unwrapped = resourceIdFromMentionPayload(marker?.[1]) ?? resourceIdFromMentionPayload(trimmed.replace(/^(?:raw-)?resource(?:::|:)/i, ''))
+  if (!unwrapped) return undefined
   const normalized = unwrapped.trim()
   if (!normalized || /^(?:https?:|data:|blob:|\/)/i.test(normalized)) return undefined
   return normalized
+}
+
+function resourceIdFromMentionPayload(value: string | undefined): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  if (!trimmed) return undefined
+  const parts = trimmed.split(':').map((part) => part.trim()).filter(Boolean)
+  if (parts.length <= 1) return trimmed
+  return parts[parts.length - 1]
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

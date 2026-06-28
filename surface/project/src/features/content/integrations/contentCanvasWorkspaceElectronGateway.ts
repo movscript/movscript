@@ -186,6 +186,7 @@ export function createElectronContentCanvasWorkspaceGateway(
           segmentId: input.segmentId,
           sceneMomentId: input.sceneMomentId,
           id: input.id,
+          slotKind: input.slotKind,
           kind: input.kind,
           text: input.text,
           title: input.title,
@@ -268,23 +269,27 @@ export function createElectronContentCanvasWorkspaceGateway(
       previewContentUnitGenerationPromptForCanvas(service, input)
     ),
     generateContentUnitCandidate: async (input: ContentCanvasContentCandidateGenerateInput) => {
+      if (input.outputKind === 'audio') {
+        throw new Error('当前创作片段候选生成暂不支持音频产物')
+      }
+      const outputKind: ContentUnitGenerationOutputKind = input.outputKind
       const compiledPrompt = await readContentUnitGenerationPromptForCanvas(service, input)
       const blockers = promptBlockers(compiledPrompt)
       if (blockers.length) throw new Error(`提示词引用尚未解析：${blockers.map(promptBlockerLabel).join('；')}`)
       const inputResourceIds = compiledContentUnitGenerationPromptResourceIds(compiledPrompt)
-      const generationIntent = completeCanvasContentUnitGenerationIntent(input.generationIntent, input.outputKind, inputResourceIds)
-      const jobType = generationExecutionJobTypeForIntent(generationIntent, input.outputKind)
+      const generationIntent = completeCanvasContentUnitGenerationIntent(input.generationIntent, outputKind, inputResourceIds)
+      const jobType = generationExecutionJobTypeForIntent(generationIntent, outputKind)
       const modelCapability = generationIntent.capability
       const resolvedModel = input.modelId
         ? undefined
-        : await resolveContentUnitGenerationModel(modelCapability, input.outputKind, generationIntent.operation, generationIntent.reference_assets)
+        : await resolveContentUnitGenerationModel(modelCapability, outputKind, generationIntent.operation, generationIntent.reference_assets)
       const modelId = input.modelId ?? (resolvedModel ? publicModelId(resolvedModel) : '')
       if (!modelId) throw new Error(`没有可用于 ${jobType} 的生成模型`)
       const supportedParams = input.supportedParams ?? resolvedModel?.supported_params
       const built = buildContentUnitGenerationJobPayload({
         projectId: input.projectId,
         contentUnitId: input.contentUnitId,
-        outputKind: input.outputKind,
+        outputKind,
         compiledPrompt,
         modelId,
         params: input.params,
@@ -295,7 +300,7 @@ export function createElectronContentCanvasWorkspaceGateway(
       const response = await api.post(`/projects/${input.projectId}/content-units/${encodeURIComponent(input.contentUnitId)}/candidates/generate`, {
         candidate_id: input.candidateId,
         ...currentProjectDataCandidateContext(),
-        output_kind: input.outputKind,
+        output_kind: outputKind,
         model_id: payload.model_id,
         job_type: payload.job_type,
         title: payload.title,
@@ -375,9 +380,10 @@ function completeCanvasReferenceAssets(
     const mediaType = current?.media_type?.trim() || referenceMediaTypeForOperation(operation, role)
     const resourceId = current?.resource_id ?? inputResourceIds[index]
     if (!role || resourceId === undefined) continue
+    if (!mediaType) throw new Error('生成候选引用资源缺少 media_type')
     out.push({
       role,
-      ...(mediaType ? { media_type: mediaType } : {}),
+      media_type: mediaType,
       resource_id: resourceId,
     })
   }

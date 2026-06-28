@@ -27,6 +27,7 @@ type DebugCallResult = providercontract.DebugCallResult
 type DebugRouteTrace = providercontract.DebugRouteTrace
 type DebugPromptMessage = providercontract.DebugPromptMessage
 type ResourceDiagnostic = providercontract.ResourceDiagnostic
+type ResourceAccessTrace = providercontract.ResourceAccessTrace
 
 const (
 	VideoStatusSubmitted  = providercontract.VideoStatusSubmitted

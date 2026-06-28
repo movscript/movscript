@@ -1,4 +1,4 @@
-export type ProductionExpressionUnitType = 'dialogue' | 'action' | 'narration' | 'subtitle' | 'visual'
+export type ProductionExpressionUnitType = 'visual' | 'voice' | 'subtitle' | 'audio'
 
 export interface ProductionExpressionUnitSavePayload {
   scene_moment_id?: number
@@ -35,15 +35,18 @@ export interface ProductionOrchestrationVisibilityRecord {
 }
 
 export const productionExpressionUnitTypes = [
-  'dialogue',
-  'action',
-  'narration',
-  'subtitle',
   'visual',
+  'voice',
+  'subtitle',
+  'audio',
 ] as const satisfies readonly ProductionExpressionUnitType[]
 
 export function normalizeExpressionUnitType(value: unknown): ProductionExpressionUnitType {
-  return productionExpressionUnitTypes.some((type) => type === value) ? value as ProductionExpressionUnitType : 'action'
+  if (productionExpressionUnitTypes.some((type) => type === value)) return value as ProductionExpressionUnitType
+  if (value === 'dialogue' || value === 'narration' || value === 'voiceover' || value === 'dialogue_audio') return 'voice'
+  if (value === 'caption' || value === 'caption_card' || value === 'text') return 'subtitle'
+  if (value === 'sound' || value === 'sound_effect' || value === 'music' || value === 'music_beat' || value === 'ambience' || value === 'foley') return 'audio'
+  return 'visual'
 }
 
 export function normalizeExpressionUnitWorkspace(
@@ -93,15 +96,15 @@ export function expressionUnitTypeFromScriptBlock(
 ): ProductionExpressionUnitType {
   switch (block.kind) {
     case 'dialogue':
-      return 'dialogue'
+      return 'voice'
     case 'transition':
     case 'note':
     case 'parenthetical':
-      return 'action'
+      return 'visual'
     case 'scene_heading':
     case 'action':
     default:
-      return 'action'
+      return 'visual'
   }
 }
 
@@ -110,9 +113,9 @@ export function expressionUnitTypeFromContentUnit(
 ): ProductionExpressionUnitType {
   switch (unit.kind) {
     case 'voiceover':
-      return 'narration'
+      return 'voice'
     case 'dialogue_audio':
-      return 'dialogue'
+      return 'voice'
     case 'subtitle':
     case 'caption_card':
       return 'subtitle'
@@ -120,9 +123,10 @@ export function expressionUnitTypeFromContentUnit(
       return 'visual'
     case 'sound':
     case 'music_beat':
+      return 'audio'
     case 'transition':
     default:
-      return 'action'
+      return 'visual'
   }
 }
 

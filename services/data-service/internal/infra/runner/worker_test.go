@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	adminsettings "github.com/movscript/movscript/internal/app/admin/settings"
 	appcontentcandidate "github.com/movscript/movscript/internal/app/contentcandidate"
 	appdecision "github.com/movscript/movscript/internal/app/decision"
 	domainjob "github.com/movscript/movscript/internal/domain/job"
@@ -34,6 +35,24 @@ func TestGeneratedResourceNameFallsBackToJobID(t *testing.T) {
 	job := &model.Job{Model: gorm.Model{ID: 38}}
 	if got := generatedResourceName(job, "image", "png"); got != "job_38_image.png" {
 		t.Fatalf("generated resource fallback name = %q", got)
+	}
+}
+
+func TestResolveMentionsAcceptsTypedResourceTokens(t *testing.T) {
+	worker := NewWorker(nil, nil, nil, nil)
+	prompt, inputID, inputIDs := worker.resolveMentions(
+		"use @[resource:image:first_frame:42] then @[resource:video:motion_reference:77] and @[resource:42]",
+		nil,
+		"[7]",
+	)
+	if prompt != "use 图片1 then 图片2 and 图片1" {
+		t.Fatalf("prompt = %q, want typed resource mentions replaced in encounter order", prompt)
+	}
+	if inputID == nil || *inputID != 42 {
+		t.Fatalf("inputID = %#v, want first typed resource id 42", inputID)
+	}
+	if inputIDs != "[7,42,77]" {
+		t.Fatalf("inputIDs = %q, want existing plus typed resource ids", inputIDs)
 	}
 }
 
@@ -375,12 +394,18 @@ func TestPrepareVideoInputReferencesFailsWhenRouteRequiresPublicImageURL(t *test
 	imageData := []ai.MediaData{{ResourceID: resource.ID, MimeType: "image/png"}}
 	worker := NewWorker(db, nil, nil, nil)
 
-	err := worker.prepareVideoInputReferencesForRoute(job, route, imageData, nil, nil)
+	traces, err := worker.prepareVideoInputReferencesForRouteWithTrace(job, route, imageData, nil, nil)
 	if err == nil {
 		t.Fatal("expected missing public URL error")
 	}
 	if !strings.Contains(err.Error(), "route 88 requires public image URL") || !strings.Contains(err.Error(), "resource #") {
 		t.Fatalf("error = %v, want route public URL diagnostic", err)
+	}
+	if len(traces) != 1 {
+		t.Fatalf("resource access trace len = %d, want 1", len(traces))
+	}
+	if traces[0].ResourceID != resource.ID || traces[0].Transport != "public_url" || traces[0].Status != "missing_profile" || traces[0].Error != "missing_resource_access_profile" {
+		t.Fatalf("resource access trace = %#v, want missing profile public URL trace", traces[0])
 	}
 }
 
@@ -394,8 +419,260 @@ func TestPrepareVideoInputReferencesAcceptsExistingPublicImageURL(t *testing.T) 
 	}
 	imageData := []ai.MediaData{{ResourceID: 12, PresignedURL: "https://cdn.example.test/ref.png", MimeType: "image/png"}}
 
-	if err := worker.prepareVideoInputReferencesForRoute(&model.Job{}, route, imageData, nil, nil); err != nil {
+	traces, err := worker.prepareVideoInputReferencesForRouteWithTrace(&model.Job{}, route, imageData, nil, nil)
+	if err != nil {
 		t.Fatalf("prepareVideoInputReferencesForRoute() error = %v", err)
+	}
+	if len(traces) != 1 || traces[0].Source != "existing_public_url" || traces[0].URLHost != "cdn.example.test" {
+		t.Fatalf("resource access trace = %#v, want existing public URL trace", traces)
+	}
+}
+
+func TestPrepareVideoInputReferencesUsesResourceAccessProfile(t *testing.T) {
+	db := testutil.OpenSQLite(t, "runner_resource_access_public_url.db",
+		&model.AdminSetting{},
+		&model.RawResource{},
+	)
+	resource := model.RawResource{
+		Name:     "first-frame.png",
+		Type:     "image",
+		MimeType: "image/png",
+	}
+	if err := db.Create(&resource).Error; err != nil {
+		t.Fatalf("create resource: %v", err)
+	}
+	if _, err := adminsettings.NewService(db).UpdateResourceAccessSettings(context.Background(), adminsettings.ResourceAccessSettings{
+		DefaultProfileID: "local-ngrok",
+		Profiles: []adminsettings.ResourceAccessProfile{{
+			ID:             "local-ngrok",
+			Name:           "Local ngrok",
+			Enabled:        true,
+			Mode:           "public_tunnel",
+			PublicBaseURL:  "https://example-ngrok.test",
+			SigningEnabled: true,
+			SigningSecret:  "secret",
+			ExpiresSeconds: 3600,
+		}},
+	}); err != nil {
+		t.Fatalf("save resource access settings: %v", err)
+	}
+	route := ai.ModelRoute{
+		RouteBindingID:        90,
+		Capability:            ai.CapabilityFamilyVideoGeneration,
+		AdapterType:           ai.AdapterOpenAICompat,
+		RouteCapabilitiesJSON: `{"video_generation":{"operations":["image_to_video"],"requires_public_image_url":true}}`,
+	}
+	worker := NewWorker(db, nil, nil, nil)
+	imageData := []ai.MediaData{{ResourceID: resource.ID, MimeType: "image/png"}}
+
+	traces, err := worker.prepareVideoInputReferencesForRouteWithTrace(&model.Job{}, route, imageData, nil, nil)
+	if err != nil {
+		t.Fatalf("prepareVideoInputReferencesForRoute() error = %v", err)
+	}
+	if got := imageData[0].PresignedURL; !strings.HasPrefix(got, "https://example-ngrok.test/api/v1/resource-access/resources/") ||
+		!strings.Contains(got, "profile=local-ngrok") ||
+		!strings.Contains(got, "signature=") {
+		t.Fatalf("PresignedURL = %q, want signed resource access URL", got)
+	}
+	if len(traces) != 1 {
+		t.Fatalf("resource access trace len = %d, want 1", len(traces))
+	}
+	if traces[0].Source != "resource_access_profile" ||
+		traces[0].Status != "resolved" ||
+		traces[0].ProfileID != "local-ngrok" ||
+		traces[0].ProfileMode != "public_tunnel" ||
+		traces[0].URLHost != "example-ngrok.test" ||
+		traces[0].URLPath != "/api/v1/resource-access/resources/"+strconv.FormatUint(uint64(resource.ID), 10)+"/file" ||
+		traces[0].ExpiresAt == 0 {
+		t.Fatalf("resource access trace = %#v, want resolved signed URL trace", traces[0])
+	}
+	var reloaded model.RawResource
+	if err := db.First(&reloaded, resource.ID).Error; err != nil {
+		t.Fatalf("reload resource: %v", err)
+	}
+	if strings.Contains(reloaded.CloudUploads, "example-ngrok.test") || strings.Contains(reloaded.CloudUploads, "resource-access") {
+		t.Fatalf("cloud_uploads = %q, want no cached resource access URL", reloaded.CloudUploads)
+	}
+}
+
+func TestPrepareVideoInputReferencesUsesObjectRelayResourceAccessProfile(t *testing.T) {
+	db := testutil.OpenSQLite(t, "runner_resource_access_object_relay.db",
+		&model.AdminSetting{},
+		&model.RawResource{},
+	)
+	resource := model.RawResource{
+		Name:     "seedance-ref.png",
+		Type:     "image",
+		MimeType: "image/png",
+	}
+	if err := db.Create(&resource).Error; err != nil {
+		t.Fatalf("create resource: %v", err)
+	}
+	if _, err := adminsettings.NewService(db).UpdateResourceAccessSettings(context.Background(), adminsettings.ResourceAccessSettings{
+		DefaultProfileID: "relay",
+		Profiles: []adminsettings.ResourceAccessProfile{{
+			ID:             "relay",
+			Name:           "Object relay",
+			Enabled:        true,
+			Mode:           "object_relay",
+			PublicBaseURL:  "https://relay.example.test",
+			SigningEnabled: true,
+			SigningSecret:  "secret",
+			ExpiresSeconds: 600,
+		}},
+	}); err != nil {
+		t.Fatalf("save resource access settings: %v", err)
+	}
+	route := ai.ModelRoute{
+		RouteBindingID:        91,
+		Capability:            ai.CapabilityFamilyVideoGeneration,
+		AdapterType:           ai.AdapterYunwuUnifiedVideo,
+		ProviderModelID:       "grok-video-3",
+		RouteCapabilitiesJSON: `{"video_generation":{"operations":["image_to_video"],"asset_transport":{"input_media":["public_url"]},"requires_public_image_url":true}}`,
+	}
+	worker := NewWorker(db, nil, nil, nil)
+	imageData := []ai.MediaData{{ResourceID: resource.ID, MimeType: "image/png"}}
+
+	traces, err := worker.prepareVideoInputReferencesForRouteWithTrace(&model.Job{}, route, imageData, nil, nil)
+	if err != nil {
+		t.Fatalf("prepareVideoInputReferencesForRoute() error = %v", err)
+	}
+	if len(traces) != 1 {
+		t.Fatalf("resource access trace len = %d, want 1", len(traces))
+	}
+	if traces[0].ProfileMode != "object_relay" || traces[0].URLHost != "relay.example.test" || traces[0].Status != "resolved" {
+		t.Fatalf("resource access trace = %#v, want object relay profile trace", traces[0])
+	}
+}
+
+func TestPrepareVideoInputReferencesUsesResourceAccessForVolcenSeedanceRoute(t *testing.T) {
+	db := testutil.OpenSQLite(t, "runner_resource_access_seedance.db",
+		&model.AdminSetting{},
+		&model.RawResource{},
+	)
+	image := model.RawResource{Name: "first.png", Type: "image", MimeType: "image/png"}
+	video := model.RawResource{Name: "motion.mp4", Type: "video", MimeType: "video/mp4"}
+	if err := db.Create(&image).Error; err != nil {
+		t.Fatalf("create image resource: %v", err)
+	}
+	if err := db.Create(&video).Error; err != nil {
+		t.Fatalf("create video resource: %v", err)
+	}
+	if _, err := adminsettings.NewService(db).UpdateResourceAccessSettings(context.Background(), adminsettings.ResourceAccessSettings{
+		DefaultProfileID: "seedance-public",
+		Profiles: []adminsettings.ResourceAccessProfile{{
+			ID:             "seedance-public",
+			Name:           "Seedance public tunnel",
+			Enabled:        true,
+			Mode:           "public_tunnel",
+			PublicBaseURL:  "https://seedance-public.example.test",
+			SigningEnabled: true,
+			SigningSecret:  "secret",
+			ExpiresSeconds: 900,
+		}},
+	}); err != nil {
+		t.Fatalf("save resource access settings: %v", err)
+	}
+	route := ai.ModelRoute{
+		RouteBindingID:        92,
+		Capability:            ai.CapabilityFamilyVideoGeneration,
+		AdapterType:           ai.AdapterVolcen,
+		ProviderModelID:       "doubao-seedance-2-0-pro-260128",
+		RouteCapabilitiesJSON: `{"video_generation":{"operations":["reference_to_video"],"reference_assets":{"min":1,"max":2,"modalities":["image","video"],"roles":["reference_image","reference_video"]},"asset_transport":{"input_media":["public_url"]}}}`,
+	}
+	worker := NewWorker(db, nil, nil, nil)
+	imageData := []ai.MediaData{{ResourceID: image.ID, MimeType: "image/png"}}
+	videoData := []ai.MediaData{{ResourceID: video.ID, MimeType: "video/mp4"}}
+
+	traces, err := worker.prepareVideoInputReferencesForRouteWithTrace(&model.Job{}, route, imageData, videoData, nil)
+	if err != nil {
+		t.Fatalf("prepareVideoInputReferencesForRoute() error = %v", err)
+	}
+	if !strings.Contains(imageData[0].PresignedURL, "profile=seedance-public") ||
+		!strings.Contains(videoData[0].PresignedURL, "profile=seedance-public") {
+		t.Fatalf("image/video presigned URLs = %q / %q, want ResourceAccess URLs", imageData[0].PresignedURL, videoData[0].PresignedURL)
+	}
+	if len(traces) != 2 {
+		t.Fatalf("resource access trace len = %d, want 2", len(traces))
+	}
+	for _, trace := range traces {
+		if trace.Status != "resolved" || trace.ProfileID != "seedance-public" || trace.Transport != "public_url" {
+			t.Fatalf("resource access trace = %#v, want resolved seedance public URL trace", trace)
+		}
+	}
+}
+
+func TestRunVideoJobRecordsResourceAccessTraceBeforeUpstreamCall(t *testing.T) {
+	db := testutil.OpenSQLite(t, "runner_video_resource_access_trace.db",
+		&model.Job{},
+		&model.RawResource{},
+		&model.AIModelCatalogEntry{},
+		&model.AIModelRouteBinding{},
+		&model.AdminSetting{},
+	)
+	resource := model.RawResource{
+		Name:     "first-frame.png",
+		Type:     "image",
+		MimeType: "image/png",
+	}
+	if err := db.Create(&resource).Error; err != nil {
+		t.Fatalf("create resource: %v", err)
+	}
+	entry := model.AIModelCatalogEntry{
+		PublicModelID:         "grok-video",
+		DisplayName:           "Grok Video",
+		IsEnabled:             true,
+		Capabilities:          ai.CapabilityVideo,
+		ModelCapabilitiesJSON: `{"video_generation":{"operations":["image_to_video"],"reference_assets":{"min":1,"max":1,"modalities":["image"],"roles":["generic"]}}}`,
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	binding := model.AIModelRouteBinding{
+		CatalogEntryID:        entry.ID,
+		SourceType:            model.ModelRouteSourceRelayGateway,
+		ProviderID:            model.ModelRouteSourceRelayGateway,
+		AdapterType:           ai.AdapterYunwuUnifiedVideo,
+		ProviderModelID:       "grok-video-3",
+		IsEnabled:             true,
+		CapacityWeight:        1,
+		RouteCapabilitiesJSON: `{"video_generation":{"operations":["image_to_video"],"reference_assets":{"min":1,"max":1,"modalities":["image"],"roles":["generic"]},"asset_transport":{"input_media":["public_url"]}}}`,
+	}
+	if err := db.Create(&binding).Error; err != nil {
+		t.Fatalf("create route binding: %v", err)
+	}
+	requestContext := `{"intent":{"capability":"video_generation","operation":"image_to_video","reference_assets":[{"role":"generic","media_type":"image","resource_id":` + strconv.FormatUint(uint64(resource.ID), 10) + `}]}}`
+	job := &model.Job{
+		UserID:                7,
+		RuntimeModelID:        entry.ID,
+		AIModelCatalogEntryID: &entry.ID,
+		RouteBindingID:        &binding.ID,
+		JobType:               ai.CapabilityVideo,
+		Status:                StatusRunning,
+		MaxAttempts:           1,
+		RequestContext:        requestContext,
+		InputResourceIDs:      "[" + strconv.FormatUint(uint64(resource.ID), 10) + "]",
+	}
+	worker := NewWorker(db, ai.NewAIService(db, ai.NewRegistry(db, nil)), nil, nil)
+	debugResult := &ai.DebugCallResult{}
+	imageData := []ai.MediaData{{ResourceID: resource.ID, MimeType: "image/png"}}
+
+	err := worker.runVideoJob(context.Background(), context.Background(), job, parseGenerationParams(""), imageData, nil, nil, nil, debugResult)
+	if err == nil {
+		t.Fatal("runVideoJob() succeeded, want missing ResourceAccessProfile error before provider call")
+	}
+	if debugResult.Endpoint != "" || len(debugResult.Calls) != 0 {
+		t.Fatalf("debug HTTP exchange = endpoint %q calls %#v, want no upstream call", debugResult.Endpoint, debugResult.Calls)
+	}
+	if debugResult.RouteTrace == nil || debugResult.RouteTrace.RouteBindingID != binding.ID || debugResult.RouteTrace.ProviderModelID != "grok-video-3" {
+		t.Fatalf("route trace = %#v, want selected route trace", debugResult.RouteTrace)
+	}
+	if len(debugResult.ResourceAccessTrace) != 1 {
+		t.Fatalf("resource access trace len = %d, want 1", len(debugResult.ResourceAccessTrace))
+	}
+	trace := debugResult.ResourceAccessTrace[0]
+	if trace.ResourceID != resource.ID || trace.Transport != "public_url" || trace.Status != "missing_profile" || trace.Error != "missing_resource_access_profile" {
+		t.Fatalf("resource access trace = %#v, want missing profile trace", trace)
 	}
 }
 

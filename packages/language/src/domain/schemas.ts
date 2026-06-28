@@ -444,6 +444,7 @@ export const expressionUnitEntitySchema = {
   version: '1.0.0',
   status: 'active',
   jsonSchema: entitySchema('expression_unit', [], {
+    slot_kind: { enum: ['visual', 'voice', 'subtitle', 'audio'] },
     modality: { enum: ['visual', 'verbal', 'audio', 'text', 'interaction', 'metadata'] },
     role: { type: 'string', minLength: 1 },
     expression_kind: { enum: ['dialogue', 'narration', 'subtitle', 'caption', 'action', 'visual_note', 'shot'] },
@@ -466,13 +467,14 @@ export const expressionUnitEntitySchema = {
     }),
     script_block_id: sourceRefSchema,
   }),
-  promptSummary: 'Expression unit is a scene-moment-owned multimodal expression material. It describes visual, verbal, audio, text, interaction, or metadata intent; content units generate candidates from it, and edit plans align selected materials into the scene moment output.',
+  promptSummary: 'Expression unit is the smallest form/edit slot under a scene moment. Use slot_kind=visual|voice|subtitle|audio for new records; legacy modality, role, and expression_kind fields remain compatibility hints. Content units target expression_unit_ref and declare the generated output_kind.',
   examples: [{
     title: 'visual_shot_material',
     content: {
       schema: 'movscript.expression_unit.v1',
       kind: 'expression_unit',
       id: 'eu_phone_closeup',
+      slot_kind: 'visual',
       modality: 'visual',
       role: 'shot',
       title: 'Phone close-up',

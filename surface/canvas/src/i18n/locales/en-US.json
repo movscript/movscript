@@ -139,6 +139,19 @@
       "text": "Text",
       "audio": "Audio"
     },
+    "generationOperations": {
+      "text_to_image": "Text to Image",
+      "image_to_image": "Image to Image",
+      "reference_to_image": "Reference to Image",
+      "image_edit": "Image Edit",
+      "style_transfer": "Style Transfer",
+      "prompt_to_video": "Prompt to Video",
+      "image_to_video": "Image to Video",
+      "first_frame_to_video": "First Frame to Video",
+      "first_last_frame_to_video": "First/Last Frame to Video",
+      "reference_to_video": "Reference to Video",
+      "video_to_video": "Video to Video"
+    },
     "nodeLabels": {
       "text": "Text",
       "image": "Image",
@@ -391,6 +404,7 @@
       "resetWaiting": "Reset to waiting"
     },
     "nodePanel": {
+      "operation": "Operation",
       "promptPlaceholder": "Describe what you want to generate... Type @ to reference upstream nodes",
       "noUpstreamNodes": "No upstream connected nodes",
       "inputContent": "Input Content",

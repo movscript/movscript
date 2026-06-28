@@ -62,14 +62,28 @@ test('route management exposes operation-based route diagnostics', () => {
 
   assert.match(types, /export interface AIModelRouteDiagnosis/)
   assert.match(types, /effective_endpoint\?: AIModelRouteDiagnosticEndpoint/)
+  assert.match(types, /resource_access\?: AIModelRouteResourceAccess/)
   assert.match(source, /api\.post\('\/admin\/model-routes\/diagnose', routeDiagnosePayload/)
   assert.match(source, /routeDiagnoseCapability/)
   assert.match(source, /routeDiagnoseOperation/)
   assert.match(source, /Route 测试必须先选择 operation/)
   assert.match(source, /diagnosis\.selected_route_id/)
   assert.match(source, /candidate\.effective_endpoint/)
+  assert.match(source, /candidate\.resource_access\?\.required/)
+  assert.match(source, /depends_on:\$\{candidate\.resource_access\.depends_on\}/)
   assert.match(source, /candidate\.reasons/)
   assert.match(source, /disabled=\{!canDiagnoseRoute \|\| diagnoseRoute\.isPending\}/)
+})
+
+test('resource access panel can verify public raw resource URLs', () => {
+  const source = readFileSync(resolve(process.cwd(), 'src/pages/admin/AdminPage.tsx'), 'utf8')
+
+  assert.match(source, /type ResourceAccessCheckResult = \{[\s\S]*reachable: boolean[\s\S]*status_code\?: number[\s\S]*content_type\?: string[\s\S]*content_length\?: number/)
+  assert.match(source, /api\.post\('\/resource-access\/check'/)
+  assert.match(source, /resource_id: resourceID/)
+  assert.match(source, /Test public URL/)
+  assert.match(source, /HTTP \{checkResult\.status_code\}/)
+  assert.match(source, /\{checkResult\.content_length\} bytes/)
 })
 
 test('Yunwu model import can start from API key and preserves unmapped routes for diagnosis', () => {

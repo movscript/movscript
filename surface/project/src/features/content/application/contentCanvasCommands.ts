@@ -3,7 +3,10 @@ import { suggestedContentCanvasChildNodePosition } from './contentCanvasCreateNo
 import { requiredSceneMomentRefs } from './contentCanvasCreateNodeCommandHelpers'
 import { ensureContentUnitForRef } from './contentCanvasContentUnitCommands'
 import type { ContentCanvasWorkspaceGateway } from './contentCanvasWorkspaceGateway'
-import { contentCanvasExpressionUnitOutputKind } from './contentCanvasExpressionUnitKinds'
+import {
+  contentCanvasExpressionUnitOutputKind,
+  normalizeContentCanvasExpressionUnitKind,
+} from './contentCanvasExpressionUnitKinds'
 
 export type { ContentCanvasCreateAction, ContentCanvasCreateNodeInput, ContentCanvasExpressionUnitKind, ContentCanvasGenerationOutputKind, ContentCanvasSettingKind } from './contentCanvasCreateNodeCommands'
 export {
@@ -291,7 +294,7 @@ export function defaultContentUnitDraftForNode(node: ContentCanvasNode | undefin
     }
   }
   if (node.kind === 'expression_unit') {
-    const expressionKind = stringValue(node.record.kind ?? node.record.expression_kind ?? node.record.type)
+    const expressionKind = stringValue(node.record.slot_kind ?? node.record.slotKind ?? node.record.kind ?? node.record.expression_kind ?? node.record.type)
     return {
       id: `cu_expression_${safeKey}`,
       refKind: 'expression_unit',
@@ -425,11 +428,13 @@ export async function updateExpressionUnitFromCanvas(
   if (!expressionUnitNode.sourcePath) {
     throw new Error('表达单元节点缺少 workspace 路径，无法写入')
   }
+  const kind = normalizeContentCanvasExpressionUnitKind(input.kind)
   await gateway.updateExpressionUnit({
     projectId,
     targetPath: expressionUnitNode.sourcePath,
     title: input.title,
-    kind: input.kind,
+    slotKind: kind,
+    kind,
     text: stringValue(expressionUnitNode.record.text) ?? expressionUnitNode.summary ?? '',
     summary: stringValue(expressionUnitNode.record.intent ?? expressionUnitNode.record.summary ?? expressionUnitNode.record.description) ?? '',
     ...(stringValue(expressionUnitNode.record.speaker) ? { speaker: stringValue(expressionUnitNode.record.speaker) } : {}),

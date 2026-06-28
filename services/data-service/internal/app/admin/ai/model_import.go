@@ -545,7 +545,7 @@ func modelImportStructuredCapabilitiesJSON(capabilities []string) string {
 		addOps(infraai.CapabilityFamilyTextGeneration, "chat", "responses")
 	}
 	if modelImportHasString(capabilities, infraai.CapabilityImage) {
-		addOps(infraai.CapabilityFamilyImageGeneration, infraai.ImageOperationPromptToImage)
+		addOps(infraai.CapabilityFamilyImageGeneration, infraai.ImageOperationTextToImage)
 	}
 	if modelImportHasString(capabilities, infraai.CapabilityImageEdit) {
 		addOps(infraai.CapabilityFamilyImageGeneration, infraai.ImageOperationImageToImage, infraai.ImageOperationImageEdit)

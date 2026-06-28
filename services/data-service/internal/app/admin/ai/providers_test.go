@@ -182,11 +182,20 @@ func TestListProvidersIncludesOfficialArkAssetAndTrustRuntimeState(t *testing.T)
 	service := newProviderTestService(t)
 	ctx := context.Background()
 	settingsService := adminsettings.NewService(service.db, hex.EncodeToString(service.encryptionKey))
-	if _, err := settingsService.UpdateProviderAssetSettings(ctx, adminsettings.ProviderAssetSettings{
-		PublicBaseURL: "https://public.example.com",
-		SigningSecret: "signing-secret",
+	if _, err := settingsService.UpdateResourceAccessSettings(ctx, adminsettings.ResourceAccessSettings{
+		Profiles: []adminsettings.ResourceAccessProfile{{
+			ID:              "public-test",
+			Enabled:         true,
+			Mode:            "public_backend",
+			PublicBaseURL:   "https://public.example.com",
+			SigningEnabled:  true,
+			SigningSecret:   "signing-secret",
+			ExpiresSeconds:  3600,
+			HealthCheckPath: "/api/v1/resource-access/health",
+		}},
+		DefaultProfileID: "public-test",
 	}); err != nil {
-		t.Fatalf("UpdateProviderAssetSettings() error = %v", err)
+		t.Fatalf("UpdateResourceAccessSettings() error = %v", err)
 	}
 	provider, err := service.CreateProvider(ctx, CreateProviderInput{
 		ProviderID:    "volc-ark-main",
@@ -282,11 +291,20 @@ func TestListProvidersUsesYunwuProviderCredentialForAssetLibraryState(t *testing
 	service := newProviderTestService(t)
 	ctx := context.Background()
 	settingsService := adminsettings.NewService(service.db, hex.EncodeToString(service.encryptionKey))
-	if _, err := settingsService.UpdateProviderAssetSettings(ctx, adminsettings.ProviderAssetSettings{
-		PublicBaseURL: "https://public.example.com",
-		SigningSecret: "signing-secret",
+	if _, err := settingsService.UpdateResourceAccessSettings(ctx, adminsettings.ResourceAccessSettings{
+		Profiles: []adminsettings.ResourceAccessProfile{{
+			ID:              "public-test",
+			Enabled:         true,
+			Mode:            "public_backend",
+			PublicBaseURL:   "https://public.example.com",
+			SigningEnabled:  true,
+			SigningSecret:   "signing-secret",
+			ExpiresSeconds:  3600,
+			HealthCheckPath: "/api/v1/resource-access/health",
+		}},
+		DefaultProfileID: "public-test",
 	}); err != nil {
-		t.Fatalf("UpdateProviderAssetSettings() error = %v", err)
+		t.Fatalf("UpdateResourceAccessSettings() error = %v", err)
 	}
 	provider, err := service.CreateProvider(ctx, CreateProviderInput{
 		ProviderID:    "yunwu-main",

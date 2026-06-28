@@ -16,7 +16,8 @@ func registerOpenAIGatewayRoutes(r *gin.Engine, h handlers) {
 func registerPublicAPIRoutes(v1 *gin.RouterGroup, h handlers) {
 	v1.GET("/models", h.models.ListByCapability)
 	v1.GET("/ws", h.ws.Connect)
-	v1.GET("/provider-assets/resources/:id/file", h.providerAssets.ServeSignedResourceFile)
+	v1.GET("/resource-access/health", h.resourceAccess.Health)
+	v1.GET("/resource-access/resources/:id/file", h.resourceAccess.ServeSignedResourceFile)
 
 	v1.GET("/invitations/:token", h.org.GetInvitation)
 	v1.POST("/invitations/:token/accept", h.org.AcceptInvitation)

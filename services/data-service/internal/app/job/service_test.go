@@ -529,6 +529,68 @@ func TestAudioGenerationExecutionJobTypeRequiresIntent(t *testing.T) {
 	}
 }
 
+func TestValidateGenerationIntentRequiresStructuredResourceAssets(t *testing.T) {
+	base := EnqueueInput{
+		JobType: ai.CapabilityVideo,
+		GenerationIntent: &GenerationIntentInput{
+			Capability: ai.CapabilityFamilyVideoGeneration,
+			Operation:  ai.VideoOperationFirstLastFrameToVideo,
+			ReferenceAssets: []GenerationReferenceAssetInput{
+				{Role: "first_frame", MediaType: "image", ResourceID: 101},
+				{Role: "last_frame", MediaType: "image", ResourceID: 102},
+			},
+		},
+	}
+	inputResourceIDs := []uint{101, 102}
+	if err := validateGenerationIntentContract(base, inputResourceIDs); err != nil {
+		t.Fatalf("validateGenerationIntentContract(complete assets) error = %v", err)
+	}
+
+	cases := []struct {
+		name string
+		edit func(*EnqueueInput)
+		code string
+	}{
+		{
+			name: "missing resource id",
+			edit: func(input *EnqueueInput) {
+				input.GenerationIntent.ReferenceAssets[0].ResourceID = 0
+			},
+			code: "missing_input_resource_id",
+		},
+		{
+			name: "missing media type",
+			edit: func(input *EnqueueInput) {
+				input.GenerationIntent.ReferenceAssets[0].MediaType = ""
+			},
+			code: "missing_input_media_type",
+		},
+		{
+			name: "missing role",
+			edit: func(input *EnqueueInput) {
+				input.GenerationIntent.ReferenceAssets[0].Role = ""
+			},
+			code: "missing_input_role",
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			input := base
+			refs := append([]GenerationReferenceAssetInput(nil), base.GenerationIntent.ReferenceAssets...)
+			intent := *base.GenerationIntent
+			intent.ReferenceAssets = refs
+			input.GenerationIntent = &intent
+			tt.edit(&input)
+			err := validateGenerationIntentContract(input, inputResourceIDs)
+			var validationErr *ai.ValidationError
+			if !errors.As(err, &validationErr) || validationErr.Code != tt.code {
+				t.Fatalf("validateGenerationIntentContract() error = %v, want %s", err, tt.code)
+			}
+		})
+	}
+}
+
 func TestExecutionJobTypeForAudioGenerationIntent(t *testing.T) {
 	tests := []struct {
 		operation string

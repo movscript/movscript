@@ -289,7 +289,7 @@ export function CandidateDecisionPanel({
   const candidates = target.candidates
   const selectedCandidate = selectedCandidateForNode(target.node, candidateSelections)
   const mediaKind = mediaKindForNode(target.node)
-  const canGenerateCandidate = mediaKind === 'image' || mediaKind === 'video'
+  const canGenerateCandidate = mediaKind === 'image' || mediaKind === 'video' || mediaKind === 'audio'
   const generationPrompt = prompt ?? promptFromContentNode(target.node) ?? ''
   return (
     <InspectorSection title="候选决策">
@@ -365,7 +365,7 @@ export function CandidateDecisionPanel({
       ) : null}
       {showGenerationDialog && onCandidateCreate && canGenerateCandidate ? (
         <GenerationCandidateDialog
-          mediaKind={mediaKind === 'video' ? 'video' : 'image'}
+          mediaKind={mediaKind === 'video' || mediaKind === 'audio' ? mediaKind : 'image'}
           prompt={generationPrompt}
           loadCompiledPrompt={loadGenerationPromptPreview}
           onClose={closeGenerationDialog}
@@ -745,7 +745,7 @@ export function GenerationCandidateDialog({
   onSubmit,
   onClose,
 }: {
-  mediaKind: 'image' | 'video'
+  mediaKind: 'image' | 'video' | 'audio'
   prompt: string
   loadCompiledPrompt?: () => Promise<ContentCanvasCandidatePromptPreview>
   onSubmit: (options: ContentCanvasCandidateGenerationOptions) => void
@@ -1289,8 +1289,11 @@ function scalarText(value: unknown): string | undefined {
 }
 
 function normalizeExpressionUnitEditorKind(value: string): string {
-  if (value === 'visual') return 'visual_note'
-  return CONTENT_CANVAS_EXPRESSION_UNIT_KIND_OPTIONS.some((option) => option.value === value) ? value : 'dialogue'
+  const text = value.trim().toLowerCase()
+  if (text === 'dialogue' || text === 'narration' || text === 'voiceover' || text === 'verbal') return 'voice'
+  if (text === 'caption' || text === 'text') return 'subtitle'
+  if (text === 'sound' || text === 'sound_effect' || text === 'sfx' || text === 'music' || text === 'ambience' || text === 'foley') return 'audio'
+  return CONTENT_CANVAS_EXPRESSION_UNIT_KIND_OPTIONS.some((option) => option.value === text) ? text : 'visual'
 }
 
 function candidateUploadAccept(kind: ReturnType<typeof mediaKindForNode>): string | undefined {

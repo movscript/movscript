@@ -31,7 +31,11 @@ func (w *Worker) runVideoJob(ctx context.Context, debugCtx context.Context, job 
 	}
 	// Some video routes require provider-reachable media URLs. Fail before the
 	// adapter call when the route contract cannot be satisfied locally.
-	if err := w.prepareVideoInputReferencesForRoute(job, route, imageData, videoData, audioData); err != nil {
+	resourceAccessTrace, err := w.prepareVideoInputReferencesForRouteWithTrace(job, route, imageData, videoData, audioData)
+	if debugResult != nil && len(resourceAccessTrace) > 0 {
+		debugResult.ResourceAccessTrace = resourceAccessTrace
+	}
+	if err != nil {
 		return err
 	}
 	req := w.buildVideoRequest(job, params, dur, imageData, videoData, audioData, certifiedAssets)

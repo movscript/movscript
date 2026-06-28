@@ -864,13 +864,15 @@ function generationReferenceAssetsPayload(value: unknown, refIds: readonly numbe
         resource_id: idField(item.resource_id ?? item.resourceId) ?? refIds[index],
       }))
     : refIds.map((resourceId) => ({ role: 'generic', resource_id: resourceId }))
-  const referenceAssets = source
-    .filter((item) => item.role.trim() && item.resource_id !== undefined)
-    .map((item) => ({
-      role: item.role.trim(),
-      ...(item.media_type ? { media_type: item.media_type } : {}),
-      ...(item.resource_id !== undefined ? { resource_id: item.resource_id } : {}),
-    }))
+  const complete = source.filter((item) => item.role.trim() && item.resource_id !== undefined)
+  if (complete.some((item) => !item.media_type?.trim())) {
+    throw new Error('reference_assets media_type is required for every input resource; pass typed reference_assets instead of bare reference_resource_ids')
+  }
+  const referenceAssets = complete.map((item) => ({
+    role: item.role.trim(),
+    media_type: item.media_type!.trim(),
+    resource_id: item.resource_id!,
+  }))
   return referenceAssets.length > 0 ? { reference_assets: referenceAssets } : {}
 }
 

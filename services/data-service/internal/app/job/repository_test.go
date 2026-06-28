@@ -265,7 +265,7 @@ func TestServiceEnqueueGenerationUsesCatalogRouteWithoutLegacyModelConfig(t *tes
 		DisplayName:           "Image Fast Default",
 		IsEnabled:             true,
 		Capabilities:          ai.CapabilityImage,
-		ModelCapabilitiesJSON: `{"image_generation":{"operations":["prompt_to_image"]}}`,
+		ModelCapabilitiesJSON: `{"image_generation":{"operations":["text_to_image"]}}`,
 	}
 	if err := db.Create(&defaultEntry).Error; err != nil {
 		t.Fatalf("create default catalog entry: %v", err)
@@ -275,7 +275,7 @@ func TestServiceEnqueueGenerationUsesCatalogRouteWithoutLegacyModelConfig(t *tes
 		DisplayName:           "Image Fast",
 		IsEnabled:             true,
 		Capabilities:          ai.CapabilityImage,
-		ModelCapabilitiesJSON: `{"image_generation":{"operations":["prompt_to_image"]}}`,
+		ModelCapabilitiesJSON: `{"image_generation":{"operations":["text_to_image"]}}`,
 	}
 	if err := db.Create(&entry).Error; err != nil {
 		t.Fatalf("create catalog entry: %v", err)
@@ -288,7 +288,7 @@ func TestServiceEnqueueGenerationUsesCatalogRouteWithoutLegacyModelConfig(t *tes
 		IsEnabled:             true,
 		Priority:              10,
 		CapacityWeight:        1,
-		RouteCapabilitiesJSON: `{"image_generation":{"operations":["prompt_to_image"]}}`,
+		RouteCapabilitiesJSON: `{"image_generation":{"operations":["text_to_image"]}}`,
 	}).Error; err != nil {
 		t.Fatalf("create default route binding: %v", err)
 	}
@@ -300,7 +300,7 @@ func TestServiceEnqueueGenerationUsesCatalogRouteWithoutLegacyModelConfig(t *tes
 		IsEnabled:             true,
 		Priority:              1,
 		CapacityWeight:        1,
-		RouteCapabilitiesJSON: `{"image_generation":{"operations":["prompt_to_image"]}}`,
+		RouteCapabilitiesJSON: `{"image_generation":{"operations":["text_to_image"]}}`,
 	}
 	if err := db.Create(&priorityBinding).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
@@ -314,7 +314,7 @@ func TestServiceEnqueueGenerationUsesCatalogRouteWithoutLegacyModelConfig(t *tes
 		JobType: ai.CapabilityImage,
 		GenerationIntent: &GenerationIntentInput{
 			Capability: ai.CapabilityFamilyImageGeneration,
-			Operation:  ai.ImageOperationPromptToImage,
+			Operation:  ai.ImageOperationTextToImage,
 		},
 		Prompt: "draw",
 	})

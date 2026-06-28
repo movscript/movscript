@@ -4,7 +4,7 @@ import type { InputSlotDef, ToolInputType } from '@/shared/ui/GenInputCard'
 export type ToolOutputKind = 'image' | 'video' | 'audio' | 'text'
 
 export type ToolOperationId =
-  | 'prompt_to_image'
+  | 'text_to_image'
   | 'image_to_image'
   | 'image_edit'
   | 'prompt_to_video'
@@ -63,11 +63,11 @@ export const toolOutputKindDefaults: Record<ToolOutputKind, ToolOperationId> = {
 
 export const toolOperations: readonly ToolOperationDef[] = [
   {
-    id: 'prompt_to_image',
+    id: 'text_to_image',
     outputKind: 'image',
     sourceKey: 'tool.image',
     capability: 'image',
-    modelOperation: 'prompt_to_image',
+    modelOperation: 'text_to_image',
     titleKey: 'tools.operations.promptToImage.name',
     titleDefault: '文生图',
     descriptionKey: 'tools.operations.promptToImage.description',

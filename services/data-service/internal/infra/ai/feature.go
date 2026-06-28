@@ -33,7 +33,7 @@ const (
 )
 
 const (
-	ImageOperationPromptToImage    = "prompt_to_image"
+	ImageOperationTextToImage      = "text_to_image"
 	ImageOperationReferenceToImage = "reference_to_image"
 	ImageOperationImageToImage     = "image_to_image"
 	ImageOperationImageEdit        = "image_edit"

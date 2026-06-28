@@ -13,6 +13,7 @@ test('visual generation tools require explicit operation intent', () => {
   assert.match(actions, /const operation = topLevelOperation/)
   assert.match(actions, /resolveModelSelection\(args, built\.generationIntent\?\.capability \?\? built\.jobType, 'video', built\.generationIntent\?\.operation\)/)
   assert.match(actions, /listModels\(\{\s*capability,\s*operation,/)
+  assert.match(actions, /reference_assets media_type is required for every input resource/)
   assert.doesNotMatch(actions, /function defaultGenerationOperation/)
   assert.doesNotMatch(actions, /defaultGenerationOperation\(outputKind, refIds\.length\)/)
 

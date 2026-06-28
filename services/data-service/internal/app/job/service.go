@@ -407,7 +407,16 @@ func validateGenerationIntentContract(input EnqueueInput, inputResourceIDs []uin
 	if len(input.GenerationIntent.ReferenceAssets) < len(inputResourceIDs) {
 		return generationIntentError("missing_input_role", "every input resource must declare a reference asset role", "generation_intent.reference_assets")
 	}
-	for _, ref := range input.GenerationIntent.ReferenceAssets {
+	for index, ref := range input.GenerationIntent.ReferenceAssets {
+		if index >= len(inputResourceIDs) {
+			break
+		}
+		if ref.ResourceID == 0 {
+			return generationIntentError("missing_input_resource_id", "every reference asset for an input resource must declare resource_id", "generation_intent.reference_assets.resource_id")
+		}
+		if strings.TrimSpace(ref.MediaType) == "" {
+			return generationIntentError("missing_input_media_type", "every reference asset for an input resource must declare media_type", "generation_intent.reference_assets.media_type")
+		}
 		if strings.TrimSpace(ref.Role) == "" {
 			return generationIntentError("missing_input_role", "every reference asset must declare role", "generation_intent.reference_assets.role")
 		}

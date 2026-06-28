@@ -697,6 +697,7 @@ export async function domainUpsertProductionTree(args: Args): Promise<unknown> {
             sceneMomentId,
             id: expressionUnitId,
             title: stringValue(expressionUnitPayload.title),
+            slotKind: stringValue(expressionUnitPayload.slot_kind ?? expressionUnitPayload.slotKind),
             kind: stringValue(expressionUnitPayload.kind),
             text: stringValue(expressionUnitPayload.text ?? expressionUnitPayload.content),
             intent: stringValue(expressionUnitPayload.intent ?? expressionUnitPayload.summary ?? expressionUnitPayload.description),
@@ -1030,6 +1031,7 @@ export async function domainUpsertExpressionUnit(args: Args): Promise<unknown> {
     sceneMomentId,
     id: expressionUnitId,
     title: stringValue(expressionUnit.title),
+    slotKind: stringValue(expressionUnit.slot_kind ?? expressionUnit.slotKind),
     kind: stringValue(expressionUnit.kind),
     text: stringValue(expressionUnit.text ?? expressionUnit.content),
     intent: stringValue(expressionUnit.intent ?? expressionUnit.summary ?? expressionUnit.description),
@@ -1885,6 +1887,7 @@ function timelinePrimitiveRecord(
       : {}),
     ...(spec.entityKind === 'expression_unit'
       ? {
+          slot_kind: stringValue(payload.slot_kind ?? payload.slotKind),
           expression_kind: stringValue(payload.expression_kind ?? payload.expressionKind ?? nonSystemKind(payload.kind, spec.entityKind)),
           visual_kind: stringValue(payload.visual_kind ?? payload.visualKind),
           speaker_ref: optionalId(payload.speaker_ref ?? payload.speakerRef),
@@ -2344,6 +2347,7 @@ function normalizeAudioCuePayload(record: Record<string, unknown>): Record<strin
 function normalizeExpressionUnitPayload(record: Record<string, unknown>): Record<string, unknown> {
   return pruneUndefinedRecord({
     ...record,
+    slot_kind: record.slot_kind ?? record.slotKind,
     kind: record.kind ?? record.expression_kind ?? record.expressionKind,
     script_block_id: record.script_block_id ?? record.scriptBlockId,
   })

@@ -454,6 +454,7 @@ export function createContentSourceWorkspaceRuntime(options: {
             targetPath: unit.path,
             title: unit.title,
             kind: unit.kind,
+            slotKind: unit.slotKind,
             text: unit.text,
             summary: unit.summary,
             speaker: unit.speaker,

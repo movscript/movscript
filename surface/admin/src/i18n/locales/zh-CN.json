@@ -2057,7 +2057,7 @@
       "debug": "调试",
       "uiPreview": "UI 预览",
       "storage": "资源存储",
-      "cloudFiles": "输入中转",
+      "cloudFiles": "资源公网访问",
       "settings": "系统设置"
     },
     "home": {
@@ -2086,7 +2086,7 @@
         "usageLogs": "按供应商、模型、用户和项目筛选 {{count}} 条 AI 调用成本。",
         "shotVectors": "管理镜头库检索文档、重建索引并抽查召回质量。",
         "storage": "管理 {{count}} 个内部资源文件、存储后端状态和用户占用。",
-        "cloudFiles": "公共对象中转和云文件存储配置。",
+        "cloudFiles": "资源公网访问、内网穿透和对象中转配置。",
         "settings": "注册策略、邮箱验证码和基础认证配置。",
         "debug": "系统健康、慢请求、任务队列和供应商调用调试。"
       }
@@ -2872,13 +2872,13 @@
       "confirmEnable": "确认启用云端存储配置“{{name}}”？",
       "confirmDisable": "确认禁用云端存储配置“{{name}}”？禁用后 Worker 不会再使用它上传输入素材。",
       "publicObjectRelay": "公网对象中转",
-      "publicObjectRelayDescription": "S3、OSS、TOS 桶必须能被服务商公网访问，用于只接受 URL 的图生视频、视频参考输入。",
+      "publicObjectRelayDescription": "S3、OSS、TOS 桶是 Resource Access 的一种模式，用于需要公网媒体 URL 的路由。",
       "providerFilesAPI": "服务商 Files API",
       "providerFilesAPIDescription": "OpenAI、Volcen 等服务商自己的文件空间，在“模型管理”的凭据里启用，传给模型的是 file_id。",
       "internalMinio": "内部 MinIO",
       "internalMinioDescription": "只负责 MovScript 持久化资源。Worker 不会再把 MinIO 私网 presigned URL 发给外部服务商。",
-      "title": "公网对象中转配置",
-      "description": "配置 S3、OSS、TOS 后，Worker 会按优先级上传输入素材，并把公网 URL 传给只接受 URL 的服务商接口。",
+      "title": "对象中转配置",
+      "description": "对象中转仍作为 Resource Access 的一种模式保留；公网隧道和公网后端地址在上方统一配置。",
       "addConfig": "添加配置",
       "empty": "暂无公网对象中转配置",
       "enabledMark": "● 启用",

@@ -17,6 +17,7 @@ export type NodeDataWithHandlers = CanvasNodeData & {
   onUpdatePrompt?: (prompt: string) => void
   onUpdateOutputType?: (type: 'image' | 'video' | 'text') => void
   onUpdateModelId?: (modelId: string) => void
+  onUpdateModelOperation?: (operation: string) => void
   onUpdateAttachments?: (ids: number[]) => void
   onUpdateParams?: (params: Record<string, unknown>) => void
   onUpdateParamName?: (name: string) => void

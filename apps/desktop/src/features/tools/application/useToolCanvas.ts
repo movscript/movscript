@@ -11,6 +11,7 @@ import {
   generationExecutionJobTypeForIntent,
   type GenerationIntentPayload,
 } from '@movscript/core/generation'
+import { toolResourceAccessDiagnosticMessage } from './toolResourceAccessDiagnostics'
 
 export type ToolStatus = 'idle' | 'pending' | 'running' | 'done' | 'failed'
 
@@ -97,7 +98,7 @@ export function useToolCanvas(nodeType: NodeType, capability: 'image' | 'video',
               ...s,
               status: latest.status === 'succeeded' ? 'done' : 'failed',
               outputResource: latest.output_resource,
-              error: latest.error_msg,
+              error: toolResourceAccessDiagnosticMessage(latest.error_msg, t) ?? latest.error_msg,
             }))
           }
         } catch {
@@ -106,7 +107,7 @@ export function useToolCanvas(nodeType: NodeType, capability: 'image' | 'video',
         }
       }, 2000)
     } catch (err: any) {
-      setState((s) => ({ ...s, status: 'failed', error: err?.message ?? t('tools.errors.runFailed') }))
+      setState((s) => ({ ...s, status: 'failed', error: toolResourceAccessDiagnosticMessage(err, t) ?? err?.message ?? t('tools.errors.runFailed') }))
     }
   }
 
@@ -128,15 +129,19 @@ function generationIntentForTool(
   operation: string | undefined,
   resources: readonly RawResource[],
 ): GenerationIntentPayload {
-  const refs = resources.map((resource) => ({
-    role: referenceAssetRoleForToolResource(resource),
-    media_type: referenceAssetMediaTypeForToolResource(resource),
-    resource_id: resource.ID,
-  }))
+  const refs = resources.flatMap((resource) => {
+    const mediaType = referenceAssetMediaTypeForToolResource(resource)
+    if (!mediaType) return []
+    return [{
+      role: referenceAssetRoleForToolResource(resource),
+      media_type: mediaType,
+      resource_id: resource.ID,
+    }]
+  })
   if (outputKind === 'image') {
     return {
       capability: 'image_generation',
-      operation: operation ?? 'prompt_to_image',
+      operation: operation ?? 'text_to_image',
       ...(refs.length > 0 ? { reference_assets: refs } : {}),
     }
   }

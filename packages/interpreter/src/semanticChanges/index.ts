@@ -206,6 +206,12 @@ function businessKindForEntityChange(entityKind: string): MovScriptBusinessSeman
 
 function isExpressionUnitSemanticInputField(field: string): boolean {
   return field === '*'
+    || field === 'slot_kind'
+    || field === 'slotKind'
+    || field === 'expression_kind'
+    || field === 'expressionKind'
+    || field === 'text'
+    || field.startsWith('text.')
     || field === 'angle'
     || field.startsWith('angle.')
     || field === 'lens'

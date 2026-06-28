@@ -8,6 +8,7 @@ import {
   Wand2,
 } from 'lucide-react'
 import type { Job } from '@movscript/shared'
+import { filterJobs } from './jobGenerationIntentModel'
 import {
   JobsActionButton,
   JobsCategorySection,
@@ -33,11 +34,14 @@ type Category = {
 
 export const CATEGORIES: Category[] = [
   { key: 'all', labelKey: 'common.all', icon: <Wand2 size={14} /> },
-  { key: 'image', labelKey: 'pages.jobs.categories.image', icon: <ImageIcon size={14} /> },
-  { key: 'image_edit', labelKey: 'pages.jobs.categories.imageEdit', icon: <ImageIcon size={14} /> },
-  { key: 'video', labelKey: 'pages.jobs.categories.video', icon: <Video size={14} /> },
-  { key: 'video_i2v', labelKey: 'pages.jobs.categories.videoI2V', icon: <Video size={14} /> },
-  { key: 'video_v2v', labelKey: 'pages.jobs.categories.videoV2V', icon: <Video size={14} /> },
+  { key: 'image_generation:text_to_image', labelKey: 'pages.jobs.operations.text_to_image', icon: <ImageIcon size={14} /> },
+  { key: 'image_generation:image_to_image', labelKey: 'pages.jobs.operations.image_to_image', icon: <ImageIcon size={14} /> },
+  { key: 'image_generation:image_edit', labelKey: 'pages.jobs.operations.image_edit', icon: <ImageIcon size={14} /> },
+  { key: 'video_generation:prompt_to_video', labelKey: 'pages.jobs.operations.prompt_to_video', icon: <Video size={14} /> },
+  { key: 'video_generation:image_to_video', labelKey: 'pages.jobs.operations.image_to_video', icon: <Video size={14} /> },
+  { key: 'video_generation:first_frame_to_video', labelKey: 'pages.jobs.operations.first_frame_to_video', icon: <Video size={14} /> },
+  { key: 'video_generation:first_last_frame_to_video', labelKey: 'pages.jobs.operations.first_last_frame_to_video', icon: <Video size={14} /> },
+  { key: 'video_generation:reference_to_video', labelKey: 'pages.jobs.operations.reference_to_video', icon: <Video size={14} /> },
   { key: 'canvas', labelKey: 'header.titles.canvases', icon: <LayoutGrid size={14} /> },
 ]
 
@@ -50,16 +54,7 @@ export const STATUS_FILTERS: Array<{ key: StatusFilter; labelKey: string }> = [
   { key: 'cancelled', labelKey: 'pages.jobs.status.cancelled' },
 ]
 
-function getJobCategory(job: Job): string {
-  if (job.job_type === 'canvas') return 'canvas'
-  return job.job_type
-}
-
-export function filterJobs(jobs: Job[], category: string): Job[] {
-  if (category === 'all') return jobs
-  if (category === 'canvas') return jobs.filter((job) => job.job_type === 'canvas')
-  return jobs.filter((job) => getJobCategory(job) === category)
-}
+export { filterJobs } from './jobGenerationIntentModel'
 
 export function CategorySection({
   label,

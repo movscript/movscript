@@ -101,6 +101,7 @@ export interface MovScriptEditPlanTrackItem {
   target_kind: 'scene_moment' | 'expression_unit' | 'content_unit' | string
   target_ref: string
   expression_unit_ref?: string
+  expression_slot_kind?: string
   expression_modality?: string
   expression_role?: string
   candidate_id?: string | number

@@ -9,7 +9,7 @@ export function modelTools(): MCPTool[] {
       inputSchema: objectSchema(
         {
           capability: { type: 'string', description: 'Optional AI capability family such as text_generation, image_generation, video_generation, audio_generation, or an execution capability such as audio_music. Family capabilities should pair this with operation.' },
-          operation: { type: 'string', description: 'Optional model operation intent such as prompt_to_image, image_to_image, first_last_frame_to_video, music, sfx, tts, or stt. If capability is omitted, known operations imply image_generation, video_generation, or audio_generation.' },
+          operation: { type: 'string', description: 'Optional model operation intent such as text_to_image, image_to_image, first_last_frame_to_video, music, sfx, tts, or stt. If capability is omitted, known operations imply image_generation, video_generation, or audio_generation.' },
           model_operation: { type: 'string', description: 'Alias for operation.' },
           reference_assets: {
             type: 'array',

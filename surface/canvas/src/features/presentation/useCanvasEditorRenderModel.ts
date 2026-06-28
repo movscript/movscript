@@ -87,6 +87,7 @@ export function useCanvasEditorRenderModel({
           onUpdatePrompt: (prompt: string) => updateNodeData(node.id, { prompt }),
           onUpdateOutputType: (outputType: string) => updateNodeData(node.id, { outputType } as Partial<CanvasNodeData>),
           onUpdateModelId: (modelId: string) => updateNodeData(node.id, { modelId }),
+          onUpdateModelOperation: (modelOperation: string) => updateNodeData(node.id, { modelOperation, modelId: undefined }),
           onUpdateAttachments: (ids: number[]) => updateNodeData(node.id, { inputResourceIds: ids }),
           onUpdateParams: (params: Record<string, unknown>) => updateNodeData(node.id, { params }),
           onUpdateParamName: (paramName: string) => updateNodeData(node.id, { paramName }),

@@ -30,8 +30,8 @@ export interface GenerationIntentPayload {
 
 export interface GenerationReferenceAssetPayload {
   role: string
-  media_type?: string
-  resource_id?: number
+  media_type: string
+  resource_id: number
 }
 
 export function buildGenerationJobPayload(input: BuildGenerationJobPayloadInput): Record<string, unknown> {
@@ -67,13 +67,26 @@ function normalizeGenerationIntentPayload(
     operation: intent.operation.trim(),
     ...(refs.length > 0
       ? {
-          reference_assets: refs.map((ref, index) => ({
-            role: ref.role.trim(),
-            ...(ref.media_type?.trim() ? { media_type: ref.media_type.trim() } : {}),
-            ...(ref.resource_id ? { resource_id: ref.resource_id } : inputResourceIds[index] ? { resource_id: inputResourceIds[index] } : {}),
-          })),
+          reference_assets: refs.map((ref, index) => normalizeGenerationReferenceAssetPayload(ref, inputResourceIds[index])),
         }
       : {}),
+  }
+}
+
+function normalizeGenerationReferenceAssetPayload(
+  ref: GenerationReferenceAssetPayload,
+  fallbackResourceId: number | undefined,
+): GenerationReferenceAssetPayload {
+  const role = ref.role.trim()
+  const mediaType = ref.media_type?.trim()
+  const resourceId = ref.resource_id || fallbackResourceId
+  if (!role || !mediaType || !resourceId) {
+    throw new Error('generation_intent.reference_assets must include role, media_type, and resource_id for every resource input')
+  }
+  return {
+    role,
+    media_type: mediaType,
+    resource_id: resourceId,
   }
 }
 

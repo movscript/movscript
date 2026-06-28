@@ -36,7 +36,7 @@ func TestGenerateCreatesScopedProjectDataCandidate(t *testing.T) {
 		PublicModelID:         "canvas-test-image",
 		DisplayName:           "Canvas Test Image",
 		Capabilities:          ai.CapabilityImage,
-		ModelCapabilitiesJSON: `{"image_generation":{"operations":["prompt_to_image"]}}`,
+		ModelCapabilitiesJSON: `{"image_generation":{"operations":["text_to_image"]}}`,
 		IsEnabled:             true,
 	}
 	if err := db.Create(&entry).Error; err != nil {
@@ -49,7 +49,7 @@ func TestGenerateCreatesScopedProjectDataCandidate(t *testing.T) {
 		ProviderModelID:       "canvas-test-image",
 		IsEnabled:             true,
 		CapacityWeight:        1,
-		RouteCapabilitiesJSON: `{"image_generation":{"operations":["prompt_to_image"]}}`,
+		RouteCapabilitiesJSON: `{"image_generation":{"operations":["text_to_image"]}}`,
 	}).Error; err != nil {
 		t.Fatalf("create route binding: %v", err)
 	}
@@ -69,7 +69,7 @@ func TestGenerateCreatesScopedProjectDataCandidate(t *testing.T) {
 		JobType:       ai.CapabilityImage,
 		GenerationIntent: &jobapp.GenerationIntentInput{
 			Capability: ai.CapabilityFamilyImageGeneration,
-			Operation:  ai.ImageOperationPromptToImage,
+			Operation:  ai.ImageOperationTextToImage,
 		},
 		Prompt:         "draw a clean reference frame",
 		PromptSnapshot: json.RawMessage(`{"prompt":"draw a clean reference frame"}`),

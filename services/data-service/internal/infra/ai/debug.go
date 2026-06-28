@@ -79,6 +79,9 @@ func recordDebug(ctx context.Context, r DebugCallResult) {
 		if r.RouteTrace != nil {
 			ptr.RouteTrace = r.RouteTrace
 		}
+		if len(r.ResourceAccessTrace) > 0 {
+			ptr.ResourceAccessTrace = r.ResourceAccessTrace
+		}
 	}
 }
 

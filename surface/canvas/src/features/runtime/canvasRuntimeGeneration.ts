@@ -1,10 +1,10 @@
 import { canvasApi, canvasServicePaths } from '../application/canvasServiceApi'
-import { buildGenerationJobPayload } from '@movscript/resource-surface/data'
 import { publicAgentBackendModelId as publicModelId } from '@movscript/core/agent'
-import type { CanvasNodeData, CanvasPortType, Job, PublicModel } from '@movscript/shared'
+import type { CanvasNodeData, CanvasPortType, CanvasPortValue, Job, PublicModel } from '@movscript/shared'
 import {
-  resolveGenerationCapabilityForResourceCount,
-  resolveGenerationJobTypeFromResourceCount,
+  buildGenerationJobPayload,
+  generationExecutionJobTypeForIntent,
+  type GenerationIntentPayload,
 } from '@movscript/core/generation'
 
 export interface CanvasRuntimeTextRequest {
@@ -20,6 +20,7 @@ export interface CanvasRuntimeGenerationRequest {
   outputType: CanvasPortType
   prompt: string
   inputResourceIds: number[]
+  inputValues?: Record<string, CanvasPortValue[]>
   projectId?: number
 }
 
@@ -27,21 +28,28 @@ type ResolvedCanvasRuntimeModel = {
   modelId?: string
 }
 
-export async function resolveCanvasRuntimeModel(data: Partial<CanvasNodeData>, capability: string): Promise<ResolvedCanvasRuntimeModel> {
+export async function resolveCanvasRuntimeModel(data: Partial<CanvasNodeData>, capability: string, operation?: string): Promise<ResolvedCanvasRuntimeModel> {
   if (data.modelId) {
-    const model = await findCanvasRuntimeModel(data, capability)
+    const model = await findCanvasRuntimeModel(data, capability, operation)
     if (model) return resolvedCanvasRuntimeModel(model)
     return {}
   }
-  const models = await canvasApi.get(canvasServicePaths.runtimeModels, { params: { capability } }).then((r) => r.data as PublicModel[])
+  const models = await canvasApi.get(canvasServicePaths.runtimeModels, { params: canvasRuntimeModelQuery(capability, operation) }).then((r) => r.data as PublicModel[])
   const model = models.find((item) => item.is_default) ?? models[0]
   if (!model) return {}
   return resolvedCanvasRuntimeModel(model)
 }
 
-async function findCanvasRuntimeModel(data: Partial<CanvasNodeData>, capability: string): Promise<PublicModel | undefined> {
-  const models = await canvasApi.get(canvasServicePaths.runtimeModels, { params: { capability } }).then((r) => r.data as PublicModel[])
+async function findCanvasRuntimeModel(data: Partial<CanvasNodeData>, capability: string, operation?: string): Promise<PublicModel | undefined> {
+  const models = await canvasApi.get(canvasServicePaths.runtimeModels, { params: canvasRuntimeModelQuery(capability, operation) }).then((r) => r.data as PublicModel[])
   return models.find((model) => publicModelId(model) === data.modelId)
+}
+
+function canvasRuntimeModelQuery(capability: string, operation?: string): Record<string, string> {
+  return {
+    capability,
+    ...(operation ? { operation } : {}),
+  }
 }
 
 function resolvedCanvasRuntimeModel(model: PublicModel): ResolvedCanvasRuntimeModel {
@@ -62,16 +70,17 @@ export async function generateCanvasRuntimeText(input: CanvasRuntimeTextRequest)
 
 export async function generateCanvasRuntimeMedia(input: CanvasRuntimeGenerationRequest) {
   const sourceKey = runtimeSourceKey(input.nodeType, input.outputType)
-  const capability = runtimeCapability(input.outputType, input.inputResourceIds)
-  const model = await resolveCanvasRuntimeModel(input.data, capability)
+  const generationIntent = canvasRuntimeGenerationIntent(input)
+  const model = await resolveCanvasRuntimeModel(input.data, generationIntent.capability, generationIntent.operation)
   const modelId = model.modelId
   if (!modelId) throw new Error('no_model_select')
 
-  const jobType = runtimeJobType(input.outputType, input.inputResourceIds, input.data)
+  const jobType = generationExecutionJobTypeForIntent(generationIntent, input.outputType === 'video' ? 'video' : 'image')
   const created = await canvasApi.post(canvasServicePaths.runtimeMedia, {
     ...buildGenerationJobPayload({
       modelId,
       jobType,
+      generationIntent,
       title: runtimeJobTitle(jobType),
       prompt: input.prompt,
       params: normalizeGenerationParams(input.data.params),
@@ -105,26 +114,105 @@ async function pollCanvasRuntimeJob(jobId: number, timeoutMs: number) {
   }
 }
 
-function runtimeCapability(outputType: CanvasPortType, inputResourceIds: number[]) {
-  return resolveGenerationCapabilityForResourceCount({
-    outputType,
-    inputResourceCount: inputResourceIds.length,
-  })
-}
-
-function runtimeJobType(outputType: CanvasPortType, inputResourceIds: number[], data: Partial<CanvasNodeData>) {
-  return resolveGenerationJobTypeFromResourceCount({
-    outputType,
-    inputResourceCount: inputResourceIds.length,
-    preferredVideoJobType: data.params?.job_type,
-  })
-}
-
 function runtimeSourceKey(nodeType: string | undefined, outputType: CanvasPortType) {
   if (nodeType && ['ref_image_gen', 'ref_video_gen', 'multi_angle', 'style_transfer', 'motion_imitation'].includes(nodeType)) return nodeType
   if (outputType === 'text') return 'canvas_text'
   if (outputType === 'video') return 'canvas_video'
   return 'canvas_image'
+}
+
+function canvasRuntimeGenerationIntent(input: CanvasRuntimeGenerationRequest): GenerationIntentPayload {
+  const operation = canvasRuntimeOperation(input)
+  const capability = canvasRuntimeCapability(input.outputType)
+  const referenceAssets = canvasRuntimeReferenceAssets(input.inputValues)
+  validateCanvasRuntimeOperationInputs(operation, referenceAssets.reference_assets ?? [])
+  return {
+    capability,
+    operation,
+    ...referenceAssets,
+  }
+}
+
+function canvasRuntimeCapability(outputType: CanvasPortType) {
+  if (outputType === 'video') return 'video_generation'
+  if (outputType === 'image') return 'image_generation'
+  throw new Error(`unsupported_canvas_generation_output:${outputType}`)
+}
+
+function canvasRuntimeOperation(input: CanvasRuntimeGenerationRequest): string {
+  const explicit = input.data.modelOperation?.trim()
+  if (explicit) return explicit
+  const defaultOperation = canvasRuntimeDefaultOperation(input.nodeType, input.outputType)
+  if (defaultOperation) return defaultOperation
+  throw new Error('missing_canvas_operation_intent')
+}
+
+function canvasRuntimeDefaultOperation(nodeType: string | undefined, outputType: CanvasPortType): string | undefined {
+  switch (nodeType) {
+    case 'ref_image_gen':
+      return 'image_to_image'
+    case 'multi_angle':
+      return 'reference_to_image'
+    case 'style_transfer':
+      return 'style_transfer'
+    case 'ref_video_gen':
+    case 'motion_imitation':
+      return 'reference_to_video'
+    case 'ai_gen':
+      if (outputType === 'video') return 'prompt_to_video'
+      if (outputType === 'image') return 'text_to_image'
+      return undefined
+    default:
+      if (outputType === 'video') return 'prompt_to_video'
+      if (outputType === 'image') return 'text_to_image'
+      return undefined
+  }
+}
+
+function canvasRuntimeReferenceAssets(inputValues: Record<string, CanvasPortValue[]> | undefined): Pick<GenerationIntentPayload, 'reference_assets'> {
+  const refs: NonNullable<GenerationIntentPayload['reference_assets']> = []
+  for (const values of Object.values(inputValues ?? {})) {
+    for (const value of values) {
+      if (!value.resource_id) continue
+      const mediaType = value.media_type || canvasRuntimeMediaType(value)
+      if (!mediaType) {
+        throw new Error('invalid_canvas_operation_inputs:resource_media_type_required')
+      }
+      refs.push({
+        resource_id: value.resource_id,
+        role: value.role || canvasRuntimeReferenceRole(value),
+        media_type: mediaType,
+      })
+    }
+  }
+  return refs.length > 0 ? { reference_assets: refs } : {}
+}
+
+function validateCanvasRuntimeOperationInputs(
+  operation: string,
+  referenceAssets: NonNullable<GenerationIntentPayload['reference_assets']>,
+) {
+  const roles = new Set(referenceAssets.map((asset) => asset.role))
+  if (operation === 'first_last_frame_to_video') {
+    if (!roles.has('first_frame') || !roles.has('last_frame')) {
+      throw new Error('invalid_canvas_operation_inputs:first_last_frame_requires_first_frame_and_last_frame')
+    }
+  }
+  if (operation === 'first_frame_to_video' && !roles.has('first_frame')) {
+    throw new Error('invalid_canvas_operation_inputs:first_frame_to_video_requires_first_frame')
+  }
+}
+
+function canvasRuntimeReferenceRole(value: CanvasPortValue): string {
+  if (value.type === 'video') return 'reference_video'
+  if (value.type === 'audio') return 'reference_audio'
+  if (value.type === 'image') return 'reference_image'
+  return 'generic'
+}
+
+function canvasRuntimeMediaType(value: CanvasPortValue): 'image' | 'video' | 'audio' | undefined {
+  if (value.type === 'image' || value.type === 'video' || value.type === 'audio') return value.type
+  return undefined
 }
 
 function runtimeJobTitle(jobType: string) {

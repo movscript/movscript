@@ -6,11 +6,15 @@ export type CoreCanvasPortType = 'text' | 'image' | 'video' | 'audio' | 'json' |
 export interface CoreCanvasPortDef {
   id: string
   type: CoreCanvasPortType
+  mediaType?: string
+  role?: string
 }
 
 export interface CoreCanvasPortValue {
   type: CoreCanvasPortType
   resource_id?: number
+  media_type?: string
+  role?: string
   resource?: unknown
   text?: string
   json?: unknown
@@ -165,7 +169,7 @@ export function defaultRuntimeValueForPort(port: Pick<CoreCanvasPortDef, 'type'>
 }
 
 export function encodeRuntimePortValue(
-  port: Pick<CoreCanvasPortDef, 'type'>,
+  port: Pick<CoreCanvasPortDef, 'type' | 'mediaType' | 'role'>,
   raw: string,
 ): CoreCanvasPortValue | null {
   switch (port.type) {
@@ -187,11 +191,23 @@ export function encodeRuntimePortValue(
     case 'audio':
     case 'resource': {
       const id = Number(raw)
-      return Number.isInteger(id) && id > 0 ? { type: port.type, resource_id: id } : null
+      return Number.isInteger(id) && id > 0 ? {
+        type: port.type,
+        resource_id: id,
+        ...resourceValueMetadataForPort(port),
+      } : null
     }
     case 'text':
     default:
       return { type: 'text', text: raw }
+  }
+}
+
+function resourceValueMetadataForPort(port: Pick<CoreCanvasPortDef, 'type' | 'mediaType' | 'role'>) {
+  const mediaType = port.mediaType || (port.type === 'image' || port.type === 'video' || port.type === 'audio' || port.type === 'text' ? port.type : undefined)
+  return {
+    ...(mediaType && mediaType !== 'resource' ? { media_type: mediaType } : {}),
+    ...(port.role ? { role: port.role } : {}),
   }
 }
 

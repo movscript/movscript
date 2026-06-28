@@ -189,6 +189,7 @@ interface AddExpressionUnitOptions extends WorkspaceOptions {
   production?: string
   segment?: string
   sceneMoment?: string
+  slotKind?: string
   kind?: string
   speaker?: string
   text?: string
@@ -938,7 +939,8 @@ Examples:
     .description('Create or update an expression unit under a scene moment')
     .option('--id <id>', 'Expression unit id')
     .option('--title <title>', 'Expression unit title')
-    .option('--kind <kind>', 'Expression kind, such as dialogue, narration, subtitle, caption, action, or visual_note', 'dialogue')
+    .option('--slot-kind <kind>', 'Expression slot kind: visual, voice, subtitle, or audio')
+    .option('--kind <kind>', 'Legacy expression kind, such as dialogue, narration, subtitle, caption, action, visual_note, or shot')
     .option('--production <id>', 'Production id')
     .option('--segment <id-or-path>', 'Segment id or path')
     .option('--scene-moment <id-or-path>', 'Scene moment id or path')
@@ -961,6 +963,7 @@ Examples:
         segmentId: source.segmentId,
         sceneMomentId: source.sceneMomentId,
         title: options.title,
+        slotKind: options.slotKind ?? options.kind ?? 'visual',
         kind: options.kind,
         speaker: options.speaker,
         text: options.text,
@@ -977,7 +980,8 @@ Examples:
     .command('modify <id>')
     .description('Modify an expression unit')
     .option('--title <title>', 'Expression unit title')
-    .option('--kind <kind>', 'Expression kind')
+    .option('--slot-kind <kind>', 'Expression slot kind: visual, voice, subtitle, or audio')
+    .option('--kind <kind>', 'Legacy expression kind')
     .option('--production <id>', 'Production id')
     .option('--segment <id-or-path>', 'Segment id or path')
     .option('--scene-moment <id-or-path>', 'Scene moment id or path')
@@ -1000,6 +1004,7 @@ Examples:
         segmentId: source.segmentId,
         sceneMomentId: source.sceneMomentId,
         title: options.title,
+        slotKind: options.slotKind,
         kind: options.kind,
         speaker: options.speaker,
         text: options.text,
@@ -2141,6 +2146,7 @@ function demoProjectFileEntries(projectId: string, title: string): Array<[string
       schema: 'movscript.expression_unit.v1',
       kind: 'expression_unit',
       id: 'phone',
+      slot_kind: 'visual',
       expression_kind: 'shot',
       title: 'Phone close-up',
       order: 1,
@@ -2180,6 +2186,7 @@ function demoProjectFileEntries(projectId: string, title: string): Array<[string
       schema: 'movscript.expression_unit.v1',
       kind: 'expression_unit',
       id: 'caption_1',
+      slot_kind: 'subtitle',
       expression_kind: 'caption',
       text: 'Unknown number lights up again.',
     }],
@@ -2809,7 +2816,8 @@ async function dispatchInteractiveExpressionUnitCommand(args: string[], options:
       production: parsed.options.production,
       segment: parsed.options.segment,
       sceneMoment: parsed.options.sceneMoment ?? parsed.options['scene-moment'],
-      kind: parsed.options.kind ?? 'dialogue',
+      slotKind: parsed.options.slotKind ?? parsed.options['slot-kind'] ?? parsed.options.kind ?? 'visual',
+      kind: parsed.options.kind,
       speaker: parsed.options.speaker,
       text: parsed.options.text,
       note: parsed.options.note,
@@ -2827,6 +2835,7 @@ async function dispatchInteractiveExpressionUnitCommand(args: string[], options:
       segmentId: source.segmentId,
       sceneMomentId: source.sceneMomentId,
       title: sourceOptions.title,
+      slotKind: sourceOptions.slotKind,
       kind: sourceOptions.kind,
       speaker: sourceOptions.speaker,
       text: sourceOptions.text,
@@ -2980,7 +2989,7 @@ function printInteractiveHelp(): void {
   /scene-moment add --title <title> --segment <id-or-path> [--production <id>] [--id <id>] [--storyboard <id>]
   /storyboard add --scene-moment <id-or-path> [--segment <id-or-path>] [--id <id>] [--title <title>] [--order <n>]
   /audio-cue add --scene-moment <id-or-path> [--expression-unit <id-or-path>] [--storyboard <id-or-path>] [--id <id>] [--title <title>] [--kind <kind>] [--prompt <text>]
-  /expression-unit add --scene-moment <id-or-path> [--id <id>] [--kind <kind>] [--speaker <text>] [--text <text>] [--storyboard <id-or-path>]
+  /expression-unit add --scene-moment <id-or-path> [--id <id>] [--slot-kind <visual|voice|subtitle|audio>] [--kind <legacy-kind>] [--speaker <text>] [--text <text>] [--storyboard <id-or-path>]
   /content-unit add --title <title> --type <asset_ref|keyframe_ref|storyboard_ref|scence_moment_ref|expression_unit_ref|timeline_assembly_ref> [--timeline-assembly <timeline_assembly:scope:id>] [--scope-kind <kind>] [--scope-ref <id>] [--asset <id>] [--keyframe <id>] [--scene-moment <id>] [--expression-unit <id>] [--storyboard <id>] [--output-kind <kind>] [--prompt <text>]
   /content-unit status <id-or-path>
   /content-unit backend-prompt <id-or-path>

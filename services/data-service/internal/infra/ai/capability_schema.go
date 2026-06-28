@@ -14,6 +14,7 @@ type RouteReferenceAssetIntent struct {
 type capabilityDomain struct {
 	Operations       []string                 `json:"operations"`
 	ReferenceAssets  referenceAssetCapability `json:"reference_assets"`
+	AssetTransport   assetTransportCapability `json:"asset_transport"`
 	RequiresImageURL bool                     `json:"requires_public_image_url"`
 	RequiresVideoURL bool                     `json:"requires_public_video_url"`
 }
@@ -25,9 +26,15 @@ type referenceAssetCapability struct {
 	Modalities []string `json:"modalities"`
 }
 
+type assetTransportCapability struct {
+	InputMedia  []string `json:"input_media"`
+	OutputMedia []string `json:"output_media"`
+}
+
 type PublicURLRequirements struct {
 	Image bool
 	Video bool
+	Audio bool
 }
 
 func RouteCapabilityPublicURLRequirements(rawJSON, capability string) PublicURLRequirements {
@@ -44,10 +51,23 @@ func RouteCapabilityPublicURLRequirements(rawJSON, capability string) PublicURLR
 	if !ok {
 		return PublicURLRequirements{}
 	}
-	return PublicURLRequirements{
+	requirements := PublicURLRequirements{
 		Image: domain.RequiresImageURL,
 		Video: domain.RequiresVideoURL,
 	}
+	if containsTrimmed(domain.AssetTransport.InputMedia, "public_url") {
+		modalities := domain.ReferenceAssets.Modalities
+		if len(modalities) == 0 {
+			requirements.Image = true
+			requirements.Video = true
+			requirements.Audio = true
+		} else {
+			requirements.Image = requirements.Image || containsTrimmed(modalities, "image")
+			requirements.Video = requirements.Video || containsTrimmed(modalities, "video")
+			requirements.Audio = requirements.Audio || containsTrimmed(modalities, "audio")
+		}
+	}
+	return requirements
 }
 
 func isStructuredCapabilityFamily(capability string) bool {
@@ -75,6 +95,9 @@ func validateStructuredCapabilityRequest(capability, operation string, refs []Ro
 	for _, ref := range refs {
 		if strings.TrimSpace(ref.Role) == "" {
 			return fmt.Errorf("missing_input_role")
+		}
+		if strings.TrimSpace(ref.MediaType) == "" {
+			return fmt.Errorf("missing_input_media_type")
 		}
 	}
 	return nil
@@ -164,7 +187,10 @@ func referenceAssetsMatchIntent(capability referenceAssetCapability, refs []Rout
 			return "invalid_operation_inputs"
 		}
 		mediaType := strings.TrimSpace(ref.MediaType)
-		if mediaType != "" && len(capability.Modalities) > 0 && !containsTrimmed(capability.Modalities, mediaType) {
+		if mediaType == "" {
+			return "missing_input_media_type"
+		}
+		if len(capability.Modalities) > 0 && !containsTrimmed(capability.Modalities, mediaType) {
 			return "invalid_operation_inputs"
 		}
 	}

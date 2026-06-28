@@ -88,7 +88,9 @@ export type ContentCanvasExpressionUnitCreateInput = {
   sceneMomentId: string
   id: string
   title: string
+  slotKind: string
   kind: string
+  outputKind?: string
   text: string
   sceneMomentTitle: string
 }
@@ -97,6 +99,7 @@ export type ContentCanvasExpressionUnitUpdateInput = {
   projectId: number
   targetPath: string
   title: string
+  slotKind?: string
   kind: string
   text: string
   summary: string
@@ -112,7 +115,7 @@ export type ContentCanvasContentCandidateGenerateInput = {
   projectId: number
   contentUnitId: string
   candidateId: string
-  outputKind: 'image' | 'video'
+  outputKind: 'image' | 'video' | 'audio'
   modelId?: string
   params?: Record<string, string | number | boolean>
   supportedParams?: ParamDef[]

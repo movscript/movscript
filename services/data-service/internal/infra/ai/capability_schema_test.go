@@ -56,6 +56,13 @@ func TestCapabilityJSONAllowsGenericImageToVideoReference(t *testing.T) {
 	if ok || reason != "invalid_operation_inputs" {
 		t.Fatalf("image-to-video without image supported = %v reason=%q, want invalid inputs", ok, reason)
 	}
+
+	ok, reason = capabilityJSONSupportsIntent(raw, CapabilityFamilyVideoGeneration, VideoOperationImageToVideo, []RouteReferenceAssetIntent{
+		{Role: "generic"},
+	})
+	if ok || reason != "missing_input_media_type" {
+		t.Fatalf("image-to-video without media type supported = %v reason=%q, want missing media type", ok, reason)
+	}
 }
 
 func TestCapabilityJSONAllowsOmniReferenceVideoInputs(t *testing.T) {
@@ -90,5 +97,27 @@ func TestCapabilityJSONAllowsOmniReferenceVideoInputs(t *testing.T) {
 	ok, reason = capabilityJSONSupportsIntent(raw, CapabilityFamilyVideoGeneration, VideoOperationReferenceToVideo, nil)
 	if ok || reason != "invalid_operation_inputs" {
 		t.Fatalf("reference video without refs supported = %v reason=%q, want invalid inputs", ok, reason)
+	}
+}
+
+func TestRouteCapabilityPublicURLRequirementsReadsAssetTransport(t *testing.T) {
+	raw := `{
+		"video_generation": {
+			"operations": ["reference_to_video"],
+			"reference_assets": {
+				"min": 1,
+				"max": 8,
+				"roles": ["generic", "reference_image", "reference_video", "reference_audio"],
+				"modalities": ["image", "video", "audio"]
+			},
+			"asset_transport": {
+				"input_media": ["public_url"]
+			}
+		}
+	}`
+
+	requirements := RouteCapabilityPublicURLRequirements(raw, CapabilityFamilyVideoGeneration)
+	if !requirements.Image || !requirements.Video || !requirements.Audio {
+		t.Fatalf("requirements = %#v, want public URL for all declared input modalities", requirements)
 	}
 }

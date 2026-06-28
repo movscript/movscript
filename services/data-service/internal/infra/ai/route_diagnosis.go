@@ -42,6 +42,7 @@ type ModelRouteDiagnosticCandidate struct {
 	CapacityWeight    int                           `json:"capacity_weight"`
 	MaxConcurrency    int                           `json:"max_concurrency,omitempty"`
 	EffectiveEndpoint *ModelRouteDiagnosticEndpoint `json:"effective_endpoint,omitempty"`
+	ResourceAccess    *ModelRouteResourceAccess     `json:"resource_access,omitempty"`
 }
 
 type ModelRouteDiagnosticEndpoint struct {
@@ -50,6 +51,13 @@ type ModelRouteDiagnosticEndpoint struct {
 	Mode             string `json:"mode,omitempty"`
 	OperationProfile string `json:"operation_profile,omitempty"`
 	EffectiveBaseURL string `json:"effective_base_url,omitempty"`
+}
+
+type ModelRouteResourceAccess struct {
+	Required   bool     `json:"required"`
+	Transport  string   `json:"transport,omitempty"`
+	InputMedia []string `json:"input_media,omitempty"`
+	DependsOn  string   `json:"depends_on,omitempty"`
 }
 
 func (s *AIService) DiagnoseModelRoute(ctx context.Context, req ModelRouteRequest) (ModelRouteDiagnosis, error) {
@@ -226,10 +234,36 @@ func (s *AIService) diagnosticRouteCandidate(
 	if endpoint := diagnosticRouteEndpoint(binding, credentials); endpoint != nil {
 		candidate.EffectiveEndpoint = endpoint
 	}
+	if resourceAccess := diagnosticRouteResourceAccess(binding.RouteCapabilitiesJSON, capability); resourceAccess != nil {
+		candidate.ResourceAccess = resourceAccess
+	}
 	if len(candidate.Reasons) == 0 {
 		candidate.Status = ModelRouteDiagnosticStatusAccepted
 	}
 	return candidate
+}
+
+func diagnosticRouteResourceAccess(routeCapabilitiesJSON string, capability string) *ModelRouteResourceAccess {
+	requirements := RouteCapabilityPublicURLRequirements(routeCapabilitiesJSON, capability)
+	var inputMedia []string
+	if requirements.Image {
+		inputMedia = append(inputMedia, "image")
+	}
+	if requirements.Video {
+		inputMedia = append(inputMedia, "video")
+	}
+	if requirements.Audio {
+		inputMedia = append(inputMedia, "audio")
+	}
+	if len(inputMedia) == 0 {
+		return nil
+	}
+	return &ModelRouteResourceAccess{
+		Required:   true,
+		Transport:  "public_url",
+		InputMedia: inputMedia,
+		DependsOn:  "ResourceAccessProfile",
+	}
 }
 
 func diagnosticRouteEndpoint(binding persistencemodel.AIModelRouteBinding, credentials map[uint]persistencemodel.AICredential) *ModelRouteDiagnosticEndpoint {

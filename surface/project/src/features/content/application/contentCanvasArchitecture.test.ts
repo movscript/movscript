@@ -1326,8 +1326,8 @@ test('content canvas workspace page delegates pane layout to route layout contro
   assert.match(contentUnitCreateNodeCommandsSource, /refKind: 'expression_unit'/)
   assert.match(contentUnitCommandsSource, /refKind: 'asset' \| 'scene_moment' \| 'expression_unit' \| 'keyframe' \| 'storyboard'/)
   assert.doesNotMatch(contentUnitCommandsSource, /shot/)
-  assert.match(expressionUnitKindsSource, /\| 'shot'/)
-  assert.match(expressionUnitKindsSource, /value: 'shot'/)
+  assert.match(expressionUnitKindsSource, /\| 'voice'/)
+  assert.match(expressionUnitKindsSource, /value: 'audio'/)
   assert.match(expressionUnitKindsSource, /return 'video'/)
   assert.doesNotMatch(createNodeCommandHelpersSource, /export function requiredShotRefs/)
   assert.match(createNodeCommandHelpersSource, /export function createdNodeResult/)
@@ -4571,7 +4571,9 @@ test('content canvas expression unit creation also ensures an expression_unit_re
     sceneMomentId: 'scene_1',
     id: 'expr_1',
     title: 'Line 1',
-    kind: 'dialogue',
+    slotKind: 'voice',
+    kind: 'voice',
+    outputKind: 'audio',
     text: 'Line 1',
     sceneMomentTitle: 'Scene 1',
   })
@@ -4589,6 +4591,8 @@ test('content canvas expression unit creation also ensures an expression_unit_re
     modelIntent: {
       source: 'content_canvas',
       expression_unit_id: 'expr_1',
+      expression_slot_kind: 'voice',
+      output_kind: 'audio',
       scene_moment_id: 'scene_1',
       scene_moment_node_id: 'scene_moment:scene_1',
     },
@@ -4635,7 +4639,9 @@ test('content canvas creation commands prefer domain ancestry over stale legacy 
     sceneMomentId: 'scene_1',
     id: 'expr_1',
     title: 'Line 1',
-    kind: 'dialogue',
+    slotKind: 'voice',
+    kind: 'voice',
+    outputKind: 'audio',
     text: 'Line 1',
     sceneMomentTitle: 'Scene 1',
   })
@@ -5391,7 +5397,8 @@ test('content canvas expression unit editor saves source expression fields', asy
     projectId: 7,
     targetPath: 'productions/prod/segments/seg/scene_moments/scene_1/expression_units/expr_1/expression_unit.json',
     title: 'New line',
-    kind: 'caption',
+    slotKind: 'subtitle',
+    kind: 'subtitle',
     text: 'Existing text',
     summary: 'Existing intent',
     speaker: 'Narrator',

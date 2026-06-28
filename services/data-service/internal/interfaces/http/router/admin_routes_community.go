@@ -36,6 +36,8 @@ func registerAdminRoutes(admin *gin.RouterGroup, h handlers) {
 	admin.PUT("/settings/generation-tools", h.adminSettings.UpdateGenerationToolsSettings)
 	admin.GET("/settings/provider-assets", h.adminSettings.GetProviderAssetSettings)
 	admin.PUT("/settings/provider-assets", h.adminSettings.UpdateProviderAssetSettings)
+	admin.GET("/settings/resource-access", h.adminSettings.GetResourceAccessSettings)
+	admin.PUT("/settings/resource-access", h.adminSettings.UpdateResourceAccessSettings)
 	registerEditionAdminUserRoutes(admin, h)
 	admin.GET("/users/:id/detail", h.userAdmin.Detail)
 	registerEditionAdminRoutes(admin, h)

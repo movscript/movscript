@@ -878,6 +878,9 @@ func TestAIServiceStructuredCapabilityRoutesByOperationAndInputRoles(t *testing.
 					"max": 2,
 					"modalities": ["image"],
 					"roles": ["first_frame", "last_frame"]
+				},
+				"asset_transport": {
+					"input_media": ["public_url"]
 				}
 			}
 		}`,
@@ -967,6 +970,14 @@ func TestAIServiceStructuredCapabilityRoutesByOperationAndInputRoles(t *testing.
 	}
 	if diagnosis.SelectedRouteID != firstLastRoute.ID {
 		t.Fatalf("selected route id = %d, want %d", diagnosis.SelectedRouteID, firstLastRoute.ID)
+	}
+	if diagnosis.SelectedRoute == nil ||
+		diagnosis.SelectedRoute.ResourceAccess == nil ||
+		!diagnosis.SelectedRoute.ResourceAccess.Required ||
+		diagnosis.SelectedRoute.ResourceAccess.Transport != "public_url" ||
+		diagnosis.SelectedRoute.ResourceAccess.DependsOn != "ResourceAccessProfile" ||
+		!hasString(diagnosis.SelectedRoute.ResourceAccess.InputMedia, "image") {
+		t.Fatalf("selected route resource access = %#v, want ResourceAccessProfile public URL dependency", diagnosis.SelectedRoute)
 	}
 	var rejectedImageOnly *ModelRouteDiagnosticCandidate
 	for i := range diagnosis.Candidates {

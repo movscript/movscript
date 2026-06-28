@@ -67,14 +67,14 @@ test('core production package publishes rules without frontend dependencies', ()
 })
 
 test('core production expression unit rules normalize payloads', () => {
-  assert.equal(normalizeExpressionUnitType('dialogue'), 'dialogue')
-  assert.equal(normalizeExpressionUnitType('unknown'), 'action')
+  assert.equal(normalizeExpressionUnitType('dialogue'), 'voice')
+  assert.equal(normalizeExpressionUnitType('unknown'), 'visual')
 
   assert.deepEqual(normalizeExpressionUnitWorkspace({
     scene_moment_id: 10,
     script_block_id: undefined,
     order: 2,
-    kind: 'dialogue',
+    kind: 'voice',
     speaker: ' 张三 ',
     text: ' 走吧 ',
     note: ' 压低声音 ',
@@ -83,7 +83,7 @@ test('core production expression unit rules normalize payloads', () => {
     scene_moment_id: 10,
     script_block_id: null,
     order: 2,
-    kind: 'dialogue',
+    kind: 'voice',
     speaker: '张三',
     text: '走吧',
     note: '压低声音',
@@ -94,7 +94,7 @@ test('core production expression unit rules normalize payloads', () => {
     scene_moment_id: 10,
     script_block_id: undefined,
     order: undefined,
-    kind: 'dialogue',
+    kind: 'voice',
     speaker: ' 张三 ',
     text: ' 走吧 ',
     note: ' 压低声音 ',
@@ -103,7 +103,7 @@ test('core production expression unit rules normalize payloads', () => {
     scene_moment_id: 10,
     script_block_id: null,
     order: 0,
-    kind: 'dialogue',
+    kind: 'voice',
     speaker: '张三',
     text: '走吧',
     note: '压低声音',
@@ -111,13 +111,13 @@ test('core production expression unit rules normalize payloads', () => {
   })
 
   assert.equal(expressionUnitWorkspaceEquals({
-    kind: 'dialogue',
+    kind: 'voice',
     speaker: ' 张三 ',
     text: ' 走吧 ',
     note: '',
     intent: ' 推进 ',
   }, {
-    kind: 'dialogue',
+    kind: 'voice',
     speaker: '张三',
     text: '走吧',
     note: '',
@@ -126,13 +126,13 @@ test('core production expression unit rules normalize payloads', () => {
 })
 
 test('core production expression unit rules classify source records', () => {
-  assert.equal(expressionUnitTypeFromScriptBlock({ kind: 'dialogue' }), 'dialogue')
-  assert.equal(expressionUnitTypeFromScriptBlock({ kind: 'parenthetical' }), 'action')
-  assert.equal(expressionUnitTypeFromContentUnit({ kind: 'voiceover' }), 'narration')
-  assert.equal(expressionUnitTypeFromContentUnit({ kind: 'dialogue_audio' }), 'dialogue')
+  assert.equal(expressionUnitTypeFromScriptBlock({ kind: 'dialogue' }), 'voice')
+  assert.equal(expressionUnitTypeFromScriptBlock({ kind: 'parenthetical' }), 'visual')
+  assert.equal(expressionUnitTypeFromContentUnit({ kind: 'voiceover' }), 'voice')
+  assert.equal(expressionUnitTypeFromContentUnit({ kind: 'dialogue_audio' }), 'voice')
   assert.equal(expressionUnitTypeFromContentUnit({ kind: 'caption_card' }), 'subtitle')
   assert.equal(expressionUnitTypeFromContentUnit({ kind: 'shot' }), 'visual')
-  assert.equal(expressionUnitTypeFromContentUnit({ kind: 'sound' }), 'action')
+  assert.equal(expressionUnitTypeFromContentUnit({ kind: 'sound' }), 'audio')
 })
 
 test('core production expression unit rules classify references and visibility', () => {
@@ -172,7 +172,7 @@ test('core production orchestration rules build defaults and lookup indexes', ()
   })
   assert.deepEqual(createProductionOrchestrationDefaultsForType('expressionUnits', 12, 34, 56), {
     scene_moment_id: 56,
-    kind: 'dialogue',
+    kind: 'visual',
     order: 1,
   })
 

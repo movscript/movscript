@@ -139,6 +139,19 @@
       "text": "文",
       "audio": "音"
     },
+    "generationOperations": {
+      "text_to_image": "文生图",
+      "image_to_image": "图生图",
+      "reference_to_image": "多参考生图",
+      "image_edit": "图像编辑",
+      "style_transfer": "风格迁移",
+      "prompt_to_video": "文生视频",
+      "image_to_video": "图生视频",
+      "first_frame_to_video": "首帧生视频",
+      "first_last_frame_to_video": "首尾帧生视频",
+      "reference_to_video": "全能参考生视频",
+      "video_to_video": "视频转视频"
+    },
     "nodeLabels": {
       "text": "文本",
       "image": "图片",
@@ -391,6 +404,7 @@
       "resetWaiting": "重置为等待"
     },
     "nodePanel": {
+      "operation": "能力模式",
       "promptPlaceholder": "描述你想生成的内容… 输入 @ 引用上游节点",
       "noUpstreamNodes": "暂无上游连接节点",
       "inputContent": "输入内容",

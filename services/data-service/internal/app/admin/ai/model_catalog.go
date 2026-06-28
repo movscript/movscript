@@ -869,7 +869,7 @@ func legacyModelCapabilitiesAsStructuredJSON(capabilities string) string {
 		add(infraai.CapabilityFamilyTextGeneration, "chat", "responses")
 	}
 	if has(infraai.CapabilityImage) {
-		add(infraai.CapabilityFamilyImageGeneration, infraai.ImageOperationPromptToImage)
+		add(infraai.CapabilityFamilyImageGeneration, infraai.ImageOperationTextToImage)
 	}
 	if has(infraai.CapabilityImageEdit) {
 		add(infraai.CapabilityFamilyImageGeneration, infraai.ImageOperationImageToImage, infraai.ImageOperationImageEdit)

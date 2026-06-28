@@ -3286,6 +3286,19 @@
       "video": "视频",
       "text": "文"
     },
+    "generationOperations": {
+      "text_to_image": "文生图",
+      "image_to_image": "图生图",
+      "reference_to_image": "多参考生图",
+      "image_edit": "图像编辑",
+      "style_transfer": "风格迁移",
+      "prompt_to_video": "文生视频",
+      "image_to_video": "图生视频",
+      "first_frame_to_video": "首帧生视频",
+      "first_last_frame_to_video": "首尾帧生视频",
+      "reference_to_video": "全能参考生视频",
+      "video_to_video": "视频转视频"
+    },
     "nodeLabels": {
       "text": "文本",
       "image": "图片",
@@ -3535,6 +3548,7 @@
       "resetWaiting": "重置为等待"
     },
     "nodePanel": {
+      "operation": "能力模式",
       "promptPlaceholder": "描述你想生成的内容… 输入 @ 引用上游节点",
       "noUpstreamNodes": "暂无上游连接节点",
       "inputContent": "输入内容",
@@ -3672,7 +3686,12 @@
     "canvasName": "工具: {{type}}",
     "errors": {
       "pollFailed": "轮询失败",
-      "runFailed": "运行失败"
+      "runFailed": "运行失败",
+      "resourceAccess": {
+        "missingProfile": "本地资源需要先配置 Resource Access 公网访问配置，才能发送给当前模型。",
+        "missingSigningSecret": "Resource Access 已启用签名，但还没有配置签名密钥。",
+        "publicUrlUnavailable": "当前模型需要可公网访问的素材 URL。请在后台的内部资源管理里配置公网隧道或对象中转后重试。"
+      }
     },
     "page": {
       "selectFromLeft": "或从左侧资源库 / 素材库点击选择",
@@ -3854,7 +3873,7 @@
       "debug": "调试",
       "uiPreview": "UI 预览",
       "storage": "资源存储",
-      "cloudFiles": "输入中转"
+      "cloudFiles": "资源公网访问"
     },
     "adapters": {
       "openai_compat": {
@@ -4103,13 +4122,13 @@
     "cloudFiles": {
       "confirmDelete": "确认删除此云端存储配置？",
       "publicObjectRelay": "公网对象中转",
-      "publicObjectRelayDescription": "S3、OSS、TOS 桶必须能被服务商公网访问，用于只接受 URL 的图生视频、视频参考输入。",
+      "publicObjectRelayDescription": "S3、OSS、TOS 桶是 Resource Access 的一种模式，用于需要公网媒体 URL 的路由。",
       "providerFilesAPI": "服务商 Files API",
       "providerFilesAPIDescription": "OpenAI、Volcen 等服务商自己的文件空间，在“模型管理”的凭据里启用，传给模型的是 file_id。",
       "internalMinio": "内部 MinIO",
       "internalMinioDescription": "只负责 MovScript 持久化资源。Worker 不会再把 MinIO 私网 presigned URL 发给外部服务商。",
-      "title": "公网对象中转配置",
-      "description": "配置 S3、OSS、TOS 后，Worker 会按优先级上传输入素材，并把公网 URL 传给只接受 URL 的服务商接口。",
+      "title": "对象中转配置",
+      "description": "对象中转仍作为 Resource Access 的一种模式保留；公网隧道和公网后端地址在 Resource Access 统一配置。",
       "addConfig": "添加配置",
       "empty": "暂无公网对象中转配置",
       "enabledMark": "● 启用",

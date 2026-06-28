@@ -392,30 +392,31 @@ type DebugHTTPExchange struct {
 }
 
 type DebugCallResult struct {
-	JobType             string               `json:"job_type,omitempty"`
-	JobModelDefID       string               `json:"job_model_def_id,omitempty"`
-	JobResolvedPrompt   string               `json:"job_resolved_prompt,omitempty"`
-	JobInputResourceIDs []uint               `json:"job_input_resource_ids,omitempty"`
-	RouteTrace          *DebugRouteTrace     `json:"route_trace,omitempty"`
-	ResourceDiagnostics []ResourceDiagnostic `json:"resource_diagnostics,omitempty"`
-	Calls               []DebugHTTPExchange  `json:"calls,omitempty"`
-	Success             bool                 `json:"success"`
-	ModelID             string               `json:"model_id"`
-	Endpoint            string               `json:"endpoint"`
-	Method              string               `json:"method"`
-	RequestShape        string               `json:"request_shape,omitempty"`
-	ContentType         string               `json:"content_type,omitempty"`
-	RequestHeaders      map[string]string    `json:"request_headers,omitempty"`
-	RequestBody         string               `json:"request_body"`
-	PromptName          string               `json:"prompt_name,omitempty"`
-	SystemPrompt        string               `json:"system_prompt,omitempty"`
-	UserPrompt          string               `json:"user_prompt,omitempty"`
-	CompiledPrompt      string               `json:"compiled_prompt,omitempty"`
-	PromptMessages      []DebugPromptMessage `json:"prompt_messages,omitempty"`
-	ResponseStatus      int                  `json:"response_status"`
-	ResponseBody        string               `json:"response_body"`
-	LatencyMs           int64                `json:"latency_ms"`
-	Error               string               `json:"error,omitempty"`
+	JobType             string                `json:"job_type,omitempty"`
+	JobModelDefID       string                `json:"job_model_def_id,omitempty"`
+	JobResolvedPrompt   string                `json:"job_resolved_prompt,omitempty"`
+	JobInputResourceIDs []uint                `json:"job_input_resource_ids,omitempty"`
+	RouteTrace          *DebugRouteTrace      `json:"route_trace,omitempty"`
+	ResourceDiagnostics []ResourceDiagnostic  `json:"resource_diagnostics,omitempty"`
+	ResourceAccessTrace []ResourceAccessTrace `json:"resource_access_trace,omitempty"`
+	Calls               []DebugHTTPExchange   `json:"calls,omitempty"`
+	Success             bool                  `json:"success"`
+	ModelID             string                `json:"model_id"`
+	Endpoint            string                `json:"endpoint"`
+	Method              string                `json:"method"`
+	RequestShape        string                `json:"request_shape,omitempty"`
+	ContentType         string                `json:"content_type,omitempty"`
+	RequestHeaders      map[string]string     `json:"request_headers,omitempty"`
+	RequestBody         string                `json:"request_body"`
+	PromptName          string                `json:"prompt_name,omitempty"`
+	SystemPrompt        string                `json:"system_prompt,omitempty"`
+	UserPrompt          string                `json:"user_prompt,omitempty"`
+	CompiledPrompt      string                `json:"compiled_prompt,omitempty"`
+	PromptMessages      []DebugPromptMessage  `json:"prompt_messages,omitempty"`
+	ResponseStatus      int                   `json:"response_status"`
+	ResponseBody        string                `json:"response_body"`
+	LatencyMs           int64                 `json:"latency_ms"`
+	Error               string                `json:"error,omitempty"`
 }
 
 type DebugRouteTrace struct {
@@ -437,6 +438,21 @@ type DebugRouteTrace struct {
 	EndpointMode       string `json:"endpoint_mode,omitempty"`
 	OperationProfile   string `json:"operation_profile,omitempty"`
 	SelectionReason    string `json:"selection_reason,omitempty"`
+}
+
+type ResourceAccessTrace struct {
+	ResourceID   uint   `json:"resource_id,omitempty"`
+	ResourceType string `json:"resource_type,omitempty"`
+	MediaType    string `json:"media_type,omitempty"`
+	Transport    string `json:"transport,omitempty"`
+	Source       string `json:"source,omitempty"`
+	Status       string `json:"status,omitempty"`
+	ProfileID    string `json:"profile_id,omitempty"`
+	ProfileMode  string `json:"profile_mode,omitempty"`
+	URLHost      string `json:"url_host,omitempty"`
+	URLPath      string `json:"url_path,omitempty"`
+	ExpiresAt    int64  `json:"expires_at,omitempty"`
+	Error        string `json:"error,omitempty"`
 }
 
 type ResourceDiagnostic struct {

@@ -70,6 +70,42 @@ test('core generation job payload keeps non numeric duration in extra params', (
   })
 })
 
+test('core generation job payload requires structured reference assets', () => {
+  assert.throws(() => buildGenerationJobPayload({
+    modelId: 'video.workspace',
+    jobType: 'video',
+    title: 'Video job',
+    prompt: 'make a shot',
+    params: {},
+    inputResourceIds: [7],
+    sourceKey: 'tool.video',
+    generationIntent: {
+      capability: 'video_generation',
+      operation: 'image_to_video',
+      reference_assets: [{ role: 'reference_image', resource_id: 7 }],
+    },
+  }), /role, media_type, and resource_id/)
+
+  assert.deepEqual(buildGenerationJobPayload({
+    modelId: 'video.workspace',
+    jobType: 'video',
+    title: 'Video job',
+    prompt: 'make a shot',
+    params: {},
+    inputResourceIds: [7],
+    sourceKey: 'tool.video',
+    generationIntent: {
+      capability: 'video_generation',
+      operation: 'image_to_video',
+      reference_assets: [{ role: 'reference_image', media_type: 'image', resource_id: 7 }],
+    },
+  }).generation_intent, {
+    capability: 'video_generation',
+    operation: 'image_to_video',
+    reference_assets: [{ role: 'reference_image', media_type: 'image', resource_id: 7 }],
+  })
+})
+
 test('core generation job payload omits params whose requires_value is not satisfied', () => {
   const supportedParams = [
     { key: 'sequential_image_generation' },
@@ -129,6 +165,10 @@ test('core content-unit generation payload filters model-unsupported default par
       { key: 'image_size' },
       { key: 'watermark' },
     ],
+    generationIntent: {
+      capability: 'image_generation',
+      operation: 'text_to_image',
+    },
     params: {
       image_size: '2048x2048',
       watermark: true,
@@ -190,11 +230,21 @@ test('core content-unit generation normalizes resource mentions into structured 
     outputKind: 'video',
     compiledPrompt,
     modelId: 'video.model',
+    generationIntent: {
+      capability: 'video_generation',
+      operation: 'reference_to_video',
+      reference_assets: [
+        { role: 'reference_image', media_type: 'image', resource_id: 7 },
+        { role: 'reference_image', media_type: 'image', resource_id: 8 },
+        { role: 'reference_image', media_type: 'image', resource_id: 9 },
+        { role: 'reference_image', media_type: 'image', resource_id: 10 },
+      ],
+    },
   })
 
   assert.equal(request.promptText, 'Use and as references.')
   assert.deepEqual(request.inputResourceIds, [7, 8, 9, 10])
-  assert.equal(request.jobType, 'video_i2v')
+  assert.equal(request.jobType, 'video')
 })
 
 test('core generation job decisions derive effective job type from model capabilities and inputs', () => {

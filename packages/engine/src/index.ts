@@ -23,7 +23,9 @@ import type {
 } from '@movscript/prompt'
 import {
   allocateMovScriptEntityId,
+  defaultOutputKindForExpressionUnitSlot,
   implicitTimelineAssemblyRef,
+  normalizeExpressionUnitSlotKind,
   parseImplicitTimelineAssemblyRef,
 } from '@movscript/domain'
 import type { SemanticEntityKind } from '@movscript/language/domain'
@@ -208,6 +210,7 @@ export interface MovScriptEngineExpressionUnitInput {
   segmentId?: string | number
   sceneMomentId?: string | number
   title?: string
+  slotKind?: string
   modality?: string
   role?: string
   kind?: string
@@ -764,6 +767,7 @@ async function updateEntityBasics(
       sceneMomentId: input.sceneMomentId ?? idValue(record.scene_moment_id) ?? pathSegmentAfter(input.targetPath ?? '', 'scene_moments'),
       id: input.id ?? idValue(record.id) ?? pathSegmentAfter(input.targetPath ?? '', 'expression_units'),
       title: stringValue(patched.title),
+      slotKind: stringValue(patched.slot_kind ?? patched.slotKind),
       kind: stringValue(patched.kind),
       text: stringValue(patched.text ?? patched.summary ?? patched.description),
       intent: stringValue(patched.intent),
@@ -922,6 +926,7 @@ async function saveStoryboard(
             ? {
                 expression_units: [{
                   id: expressionUnitId,
+                  slotKind: 'visual',
                   kind: 'shot',
                   storyboards: [pruneUndefined({
                     id: storyboardId,
@@ -968,6 +973,7 @@ async function saveKeyframe(
             ? {
                 expression_units: [{
                   id: expressionUnitId,
+                  slotKind: 'visual',
                   kind: 'shot',
                   keyframes: [pruneUndefined({
                     id: keyframeId,
@@ -1049,6 +1055,7 @@ async function saveExpressionUnit(
           expression_units: [pruneUndefined({
             id: expressionUnitId,
             title: input.title,
+            slot_kind: normalizeExpressionUnitSlotKind(input.slotKind ?? input.kind ?? input.role ?? input.modality),
             modality: input.modality,
             role: input.role,
             kind: input.kind,
@@ -1261,12 +1268,13 @@ function defaultContentUnitOutputKind(contentUnitType: string): string {
     case 'storyboard_ref':
       return 'image'
     case 'timeline_assembly_ref':
-    case 'expression_unit_ref':
     case 'scence_moment_ref':
     case 'scene_moment_ref':
     case 'production_ref':
     case 'segment_ref':
       return 'video'
+    case 'expression_unit_ref':
+      return defaultOutputKindForExpressionUnitSlot(undefined)
     default:
       return 'metadata'
   }

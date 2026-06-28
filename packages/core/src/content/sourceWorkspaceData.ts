@@ -6,6 +6,7 @@ import {
   classifyMovScriptEntityKind,
   nearestParentPath,
   normalizeContentUnitTargetEdges,
+  expressionUnitSlotKindFromRecord,
   normalizeNamespaceVocabulary,
   normalizePathParentEdge,
   isContentUnitPromptRefKind,
@@ -212,6 +213,7 @@ export interface ContentSourceWorkspaceExpressionUnitPatch {
   targetPath: string
   patch: {
     title: string
+    slotKind?: string
     expressionKind: string
     text: string
     intent: string
@@ -790,6 +792,7 @@ export function buildContentSourceWorkspaceExpressionUnitPatch(input: {
   targetPath: string
   title: string
   kind: string
+  slotKind?: string
   text: string
   summary: string
   speaker?: string
@@ -799,6 +802,7 @@ export function buildContentSourceWorkspaceExpressionUnitPatch(input: {
     targetPath: input.targetPath,
     patch: {
       title: input.title,
+      slotKind: input.slotKind,
       expressionKind: input.kind,
       text: input.text,
       intent: input.summary,
@@ -1440,7 +1444,8 @@ function buildExpressionUnitsByMoment(
       id: idText(expression),
       title: titleOf(expression, stringField(expression.record.text) ?? idText(expression)),
       path: expression.path,
-      kind: stringField(expression.record.expression_kind ?? expression.record.kind) ?? 'expression',
+      kind: stringField(expression.record.slot_kind ?? expression.record.expression_kind ?? expression.record.kind) ?? 'visual',
+      slotKind: expressionUnitSlotKindFromRecord(expression.record),
       text: stringField(expression.record.text) ?? '',
       summary: stringField(expression.record.intent ?? expression.record.note ?? expression.record.text) ?? '',
       speaker: stringField(expression.record.speaker),
@@ -2178,7 +2183,7 @@ function contentUnitType(contentUnit: MovScriptWorkspaceIndexedEntity | undefine
 
 function outputKindForContentUnit(contentUnit: MovScriptWorkspaceIndexedEntity | undefined): PreviewContentUnit['outputKind'] {
   const outputKind = stringField(contentUnit?.record.output_kind)
-  if (outputKind === 'image' || outputKind === 'video' || outputKind === 'audio' || outputKind === 'storyboard') return outputKind
+  if (outputKind === 'image' || outputKind === 'video' || outputKind === 'audio' || outputKind === 'text' || outputKind === 'metadata' || outputKind === 'storyboard') return outputKind
   const type = contentUnitType(contentUnit)
   if (type === 'keyframe_ref' || type === 'storyboard_ref') return 'image'
   if (type === 'audio_cue_ref') return 'audio'
@@ -2397,6 +2402,7 @@ function hierarchyNodeSourceRecord(input: {
     case 'expression_unit':
       return {
         ...base,
+        slot_kind: 'visual',
         expression_kind: 'action',
         text: '',
         intent: '',

@@ -1,30 +1,33 @@
 export type ContentCanvasExpressionUnitKind =
-  | 'dialogue'
-  | 'narration'
+  | 'visual'
+  | 'voice'
   | 'subtitle'
-  | 'caption'
-  | 'action'
-  | 'visual_note'
-  | 'shot'
+  | 'audio'
 
 export const CONTENT_CANVAS_EXPRESSION_UNIT_KIND_OPTIONS: Array<{ value: ContentCanvasExpressionUnitKind; label: string }> = [
-  { value: 'dialogue', label: '对白' },
-  { value: 'narration', label: '旁白' },
+  { value: 'visual', label: '视觉' },
+  { value: 'voice', label: '人声' },
   { value: 'subtitle', label: '字幕' },
-  { value: 'caption', label: '说明字幕' },
-  { value: 'action', label: '动作' },
-  { value: 'visual_note', label: '视觉提示' },
-  { value: 'shot', label: '镜头' },
+  { value: 'audio', label: '音频' },
 ]
 
 export function normalizeContentCanvasExpressionUnitKind(value: string | undefined): ContentCanvasExpressionUnitKind {
-  const match = CONTENT_CANVAS_EXPRESSION_UNIT_KIND_OPTIONS.find((option) => option.value === value)
-  return match?.value ?? 'dialogue'
+  const text = String(value ?? '').trim().toLowerCase()
+  if (text === 'voice' || text === 'dialogue' || text === 'narration' || text === 'voiceover' || text === 'verbal') return 'voice'
+  if (text === 'subtitle' || text === 'caption' || text === 'text') return 'subtitle'
+  if (text === 'audio' || text === 'sound' || text === 'sound_effect' || text === 'sfx' || text === 'music' || text === 'ambience' || text === 'foley') return 'audio'
+  return 'visual'
 }
 
 export function contentCanvasExpressionUnitOutputKind(kind: string | undefined): string {
-  const value = String(kind ?? '').toLowerCase()
-  if (value.includes('shot') || value.includes('video')) return 'video'
-  if (value.includes('dialogue') || value.includes('narration') || value.includes('audio')) return 'audio'
-  return 'text'
+  const normalized = normalizeContentCanvasExpressionUnitKind(kind)
+  if (normalized === 'voice' || normalized === 'audio') return 'audio'
+  if (normalized === 'subtitle') return 'text'
+  return 'video'
+}
+
+export function contentCanvasExpressionUnitKindForOutputKind(outputKind: string | undefined): ContentCanvasExpressionUnitKind {
+  if (outputKind === 'audio') return 'audio'
+  if (outputKind === 'text') return 'subtitle'
+  return 'visual'
 }

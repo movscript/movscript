@@ -47,6 +47,7 @@ import {
   type ReferenceWorkbenchPaneControl,
   ToolDialogReferenceWorkbench,
 } from './ToolDialogReferenceWorkbench'
+import { toolResourceAccessDiagnosticMessage } from '@/features/tools/application/toolResourceAccessDiagnostics'
 
 function buildGenerationJobTitle(jobType: string, label?: string): string {
   if (label?.trim()) return `${label.trim()}-${Math.floor(1000 + Math.random() * 9000)}`
@@ -79,7 +80,7 @@ function generationIntentForTool(
   if (outputType === 'image') {
     return {
       capability: 'image_generation',
-      operation: operation ?? 'prompt_to_image',
+      operation: operation ?? 'text_to_image',
       ...(refs.length > 0 ? { reference_assets: refs } : {}),
     }
   }
@@ -163,9 +164,11 @@ function referenceAssetsForTool(
 }
 
 function referenceAssetForToolResource(resource: RawResource, slotKey?: string): NonNullable<GenerationIntentPayload['reference_assets']>[number] {
+  const mediaType = referenceAssetMediaTypeForToolResource(resource)
+  if (!mediaType) throw new Error('unsupported_tool_reference_media_type')
   return {
     role: referenceAssetRoleForToolSlot(slotKey, resource),
-    media_type: referenceAssetMediaTypeForToolResource(resource),
+    media_type: mediaType,
     resource_id: resource.ID,
   }
 }
@@ -253,6 +256,7 @@ export function ToolDialog({
   const [activeJobId, setActiveJobId] = useState<number | null>(null)
   const [debugMode, setDebugMode] = useState(false)
   const [historyPage, setHistoryPage] = useState(1)
+  const [generationDiagnostic, setGenerationDiagnostic] = useState<string | undefined>(undefined)
   const historyPageSize = layout === 'reference-workbench' ? 6 : 10
   const historyCapability = generationCapabilityForTool(outputType, modelOperation, capability)
 
@@ -359,9 +363,12 @@ export function ToolDialog({
     const activeJob = jobs.find((j) => j.ID === activeJobId)
     if (activeJob && activeJob.status !== 'pending' && activeJob.status !== 'running') {
       setActiveJobId(null)
+      if (activeJob.status === 'failed') {
+        setGenerationDiagnostic(toolResourceAccessDiagnosticMessage(activeJob.error_msg, t))
+      }
       invalidateResourceMutationResult(qc, resourceLibraryChangedResult())
     }
-  }, [jobs, activeJobId, qc])
+  }, [jobs, activeJobId, qc, t])
 
   useEffect(() => {
     if (!selectedModel?.supported_params) {
@@ -397,6 +404,7 @@ export function ToolDialog({
         })
 
     try {
+      setGenerationDiagnostic(undefined)
       const job = await api.post('/jobs', buildGenerationJobPayload({
         modelId: publicModelId(selectedModel),
         jobType: effectiveJobType,
@@ -413,7 +421,10 @@ export function ToolDialog({
       setPrompt('')
       setAttachments([])
       invalidateJobMutationResult(qc, toolJobsChangedResult({ nodeType: _nodeType, changedIds: [job.ID] }))
-    } catch { /* toast handled by interceptor */ }
+    } catch (err) {
+      setGenerationDiagnostic(toolResourceAccessDiagnosticMessage(err, t))
+      /* toast handled by interceptor */
+    }
   }
 
   const isRunning = activeJobId != null
@@ -543,6 +554,13 @@ export function ToolDialog({
               ))}
             </div>
           )}
+          {generationDiagnostic ? (
+            <div className="mb-3">
+              <ToolDialogWarningCallout icon={AlertTriangle}>
+                <span>{generationDiagnostic}</span>
+              </ToolDialogWarningCallout>
+            </div>
+          ) : null}
           <GenInputCard
             prompt={prompt}
             onPromptChange={setPrompt}

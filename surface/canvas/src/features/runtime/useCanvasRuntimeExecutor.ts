@@ -188,6 +188,7 @@ export function useCanvasRuntimeExecutor({
       outputType,
       prompt,
       inputResourceIds: runtimeResourceIdsForNode(node, inputs),
+      inputValues: inputs,
       projectId,
     })
     const resource = job.output_resource

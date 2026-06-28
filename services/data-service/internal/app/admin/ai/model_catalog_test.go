@@ -1299,7 +1299,7 @@ func validTestModelRouteBindingInput(credentialID uint, routeGroup string) Model
 
 const (
 	routeCapabilityTextJSON        = `{"text_generation":{"operations":["chat"]}}`
-	routeCapabilityImageJSON       = `{"image_generation":{"operations":["prompt_to_image"]}}`
+	routeCapabilityImageJSON       = `{"image_generation":{"operations":["text_to_image"]}}`
 	routeCapabilityPromptVideoJSON = `{"video_generation":{"operations":["prompt_to_video"]}}`
 	routeCapabilityAudioTTSJSON    = `{"audio_generation":{"operations":["tts"]}}`
 )

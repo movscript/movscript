@@ -2,8 +2,15 @@ package runner
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"strings"
+
+	adminsettings "github.com/movscript/movscript/internal/app/admin/settings"
 	"github.com/movscript/movscript/internal/infra/ai"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"github.com/movscript/movscript/internal/infra/upload"
@@ -57,37 +64,53 @@ func (w *Worker) prepareVideoInputReferences(job *persistencemodel.Job, imageDat
 }
 
 func (w *Worker) prepareVideoInputReferencesForRoute(job *persistencemodel.Job, route ai.ModelRoute, imageData, videoData, audioData []ai.MediaData) error {
+	_, err := w.prepareVideoInputReferencesForRouteWithTrace(job, route, imageData, videoData, audioData)
+	return err
+}
+
+func (w *Worker) prepareVideoInputReferencesForRouteWithTrace(job *persistencemodel.Job, route ai.ModelRoute, imageData, videoData, audioData []ai.MediaData) ([]ai.ResourceAccessTrace, error) {
 	if len(imageData) == 0 && len(videoData) == 0 && len(audioData) == 0 {
-		return nil
+		return nil, nil
 	}
 	requirements := ai.RouteCapabilityPublicURLRequirements(route.RouteCapabilitiesJSON, route.Capability)
 	if !w.videoRouteRequiresPublicMediaReferencesForRoute(route) && !requirements.Image && !requirements.Video {
-		return nil
+		return nil, nil
 	}
-	w.preparePublicVideoMediaReferences(job, imageData, videoData, audioData)
+	traces := w.preparePublicVideoMediaReferencesWithTrace(job, imageData, videoData, audioData)
 	if requirements.Image {
 		if err := requirePreparedPublicMediaURLs("image", route, imageData); err != nil {
-			return err
+			return traces, err
 		}
 	}
 	if requirements.Video {
 		if err := requirePreparedPublicMediaURLs("video", route, videoData); err != nil {
-			return err
+			return traces, err
 		}
 	}
-	return nil
+	if requirements.Audio {
+		if err := requirePreparedPublicMediaURLs("audio", route, audioData); err != nil {
+			return traces, err
+		}
+	}
+	return traces, nil
 }
 
 func (w *Worker) preparePublicVideoMediaReferences(job *persistencemodel.Job, imageData, videoData, audioData []ai.MediaData) {
+	_ = w.preparePublicVideoMediaReferencesWithTrace(job, imageData, videoData, audioData)
+}
+
+func (w *Worker) preparePublicVideoMediaReferencesWithTrace(job *persistencemodel.Job, imageData, videoData, audioData []ai.MediaData) []ai.ResourceAccessTrace {
+	var traces []ai.ResourceAccessTrace
 	if len(imageData) > 0 {
-		w.preparePublicMediaReferences(job, imageData)
+		traces = append(traces, w.preparePublicMediaReferencesWithTrace(job, imageData, "image")...)
 	}
 	if len(videoData) > 0 {
-		w.preparePublicMediaReferences(job, videoData)
+		traces = append(traces, w.preparePublicMediaReferencesWithTrace(job, videoData, "video")...)
 	}
 	if len(audioData) > 0 {
-		w.preparePublicMediaReferences(job, audioData)
+		traces = append(traces, w.preparePublicMediaReferencesWithTrace(job, audioData, "audio")...)
 	}
+	return traces
 }
 
 func (w *Worker) videoRouteRequiresPublicMediaReferences(job *persistencemodel.Job) bool {
@@ -100,7 +123,7 @@ func (w *Worker) videoRouteRequiresPublicMediaReferences(job *persistencemodel.J
 
 func (w *Worker) videoRouteRequiresPublicMediaReferencesForRoute(route ai.ModelRoute) bool {
 	requirements := ai.RouteCapabilityPublicURLRequirements(route.RouteCapabilitiesJSON, route.Capability)
-	if requirements.Image || requirements.Video {
+	if requirements.Image || requirements.Video || requirements.Audio {
 		return true
 	}
 	switch w.adapterTypeForRoute(route) {
@@ -119,22 +142,210 @@ func requirePreparedPublicMediaURLs(kind string, route ai.ModelRoute, mediaList 
 		if media.ResourceID != 0 {
 			resource = fmt.Sprintf("resource #%d", media.ResourceID)
 		}
-		return fmt.Errorf("route %d requires public %s URL for %s; configure public storage or provide a resource with cached public URL before generation", route.RouteBindingID, kind, resource)
+		return fmt.Errorf("route %d requires public %s URL for %s; configure resource access public URL or object relay before generation", route.RouteBindingID, kind, resource)
 	}
 	return nil
 }
 
 func (w *Worker) preparePublicMediaReferences(job *persistencemodel.Job, mediaList []ai.MediaData) {
+	_ = w.preparePublicMediaReferencesWithTrace(job, mediaList, "")
+}
+
+func (w *Worker) preparePublicMediaReferencesWithTrace(job *persistencemodel.Job, mediaList []ai.MediaData, resourceType string) []ai.ResourceAccessTrace {
+	traces := make([]ai.ResourceAccessTrace, 0, len(mediaList))
 	for i := range mediaList {
+		trace := newRunnerResourceAccessTrace(mediaList[i], resourceType)
 		if mediaList[i].PresignedURL != "" {
+			trace.Source = "existing_public_url"
+			trace.Status = "resolved"
+			trace = annotateRunnerResourceAccessURL(trace, mediaList[i].PresignedURL)
+			traces = append(traces, trace)
+			continue
+		}
+		accessURL, accessTrace := w.resourceAccessPublicURLWithTrace(mediaList[i], resourceType)
+		if accessTrace.Status != "" {
+			trace = accessTrace
+		}
+		if accessURL != "" {
+			mediaList[i].PresignedURL = accessURL
+			traces = append(traces, trace)
 			continue
 		}
 		if cloudResult, _ := w.ensureCloudUpload(job, mediaList[i], true); cloudResult.URL != "" {
 			mediaList[i].PresignedURL = cloudResult.URL
+			trace.Source = "cloud_upload"
+			trace.Status = "resolved"
+			trace = annotateRunnerResourceAccessURL(trace, cloudResult.URL)
+			traces = append(traces, trace)
 			continue
 		}
 		mediaList[i].PresignedURL = ""
+		if trace.Source == "" {
+			trace.Source = "resource_access_profile"
+		}
+		if trace.Status == "" || trace.Status == "skipped" {
+			trace.Status = "unresolved"
+		}
+		if trace.Error == "" {
+			trace.Error = "public_url_unavailable"
+		}
+		traces = append(traces, trace)
 	}
+	return traces
+}
+
+func (w *Worker) resourceAccessPublicURL(media ai.MediaData) string {
+	accessURL, _ := w.resourceAccessPublicURLWithTrace(media, "")
+	return accessURL
+}
+
+func (w *Worker) resourceAccessPublicURLWithTrace(media ai.MediaData, resourceType string) (string, ai.ResourceAccessTrace) {
+	trace := newRunnerResourceAccessTrace(media, resourceType)
+	trace.Source = "resource_access_profile"
+	if media.ResourceID == 0 {
+		trace.Status = "skipped"
+		trace.Error = "resource_id_required"
+		return "", trace
+	}
+	if w == nil || w.db == nil {
+		trace.Status = "unavailable"
+		trace.Error = "resource_access_database_unavailable"
+		return "", trace
+	}
+	if !w.db.Migrator().HasTable(&persistencemodel.AdminSetting{}) {
+		trace.Status = "missing_profile"
+		trace.Error = "missing_resource_access_profile"
+		return "", trace
+	}
+	settings, err := adminsettings.NewService(w.db, hex.EncodeToString(w.encryptionKey)).ResourceAccessSettings(context.Background())
+	if err != nil {
+		log.Printf("[job] resource access settings unavailable for resource #%d: %v", media.ResourceID, err)
+		trace.Status = "unavailable"
+		trace.Error = err.Error()
+		return "", trace
+	}
+	profile, ok := selectRunnerResourceAccessProfile(settings)
+	if !ok {
+		trace.Status = "missing_profile"
+		trace.Error = "missing_resource_access_profile"
+		return "", trace
+	}
+	trace.ProfileID = strings.TrimSpace(profile.ID)
+	trace.ProfileMode = strings.TrimSpace(profile.Mode)
+	accessURL, err := signedRunnerResourceAccessURL(profile, media.ResourceID)
+	if err != nil {
+		log.Printf("[job] resource access URL unavailable for resource #%d: %v", media.ResourceID, err)
+		trace.Status = "error"
+		trace.Error = err.Error()
+		return "", trace
+	}
+	trace.Status = "resolved"
+	trace = annotateRunnerResourceAccessURL(trace, accessURL)
+	return accessURL, trace
+}
+
+func newRunnerResourceAccessTrace(media ai.MediaData, resourceType string) ai.ResourceAccessTrace {
+	mediaType := strings.TrimSpace(media.MimeType)
+	if resourceType == "" {
+		resourceType = runnerResourceTypeFromMime(mediaType)
+	}
+	return ai.ResourceAccessTrace{
+		ResourceID:   media.ResourceID,
+		ResourceType: strings.TrimSpace(resourceType),
+		MediaType:    mediaType,
+		Transport:    "public_url",
+	}
+}
+
+func runnerResourceTypeFromMime(mimeType string) string {
+	switch {
+	case strings.HasPrefix(strings.ToLower(strings.TrimSpace(mimeType)), "image/"):
+		return "image"
+	case strings.HasPrefix(strings.ToLower(strings.TrimSpace(mimeType)), "video/"):
+		return "video"
+	case strings.HasPrefix(strings.ToLower(strings.TrimSpace(mimeType)), "audio/"):
+		return "audio"
+	default:
+		return ""
+	}
+}
+
+func annotateRunnerResourceAccessURL(trace ai.ResourceAccessTrace, accessURL string) ai.ResourceAccessTrace {
+	parsed, err := url.Parse(strings.TrimSpace(accessURL))
+	if err != nil {
+		return trace
+	}
+	trace.URLHost = parsed.Host
+	trace.URLPath = parsed.EscapedPath()
+	if expires := strings.TrimSpace(parsed.Query().Get("expires")); expires != "" {
+		if value, err := strconv.ParseInt(expires, 10, 64); err == nil {
+			trace.ExpiresAt = value
+		}
+	}
+	return trace
+}
+
+func selectRunnerResourceAccessProfile(settings adminsettings.ResourceAccessSettings) (adminsettings.ResourceAccessProfile, bool) {
+	profileID := strings.TrimSpace(settings.DefaultProfileID)
+	for _, profile := range settings.Profiles {
+		if !profile.Enabled {
+			continue
+		}
+		if profileID != "" && profile.ID != profileID {
+			continue
+		}
+		if runnerResourceAccessProfileSupportsPublicURL(profile) {
+			return profile, true
+		}
+	}
+	if profileID != "" {
+		return adminsettings.ResourceAccessProfile{}, false
+	}
+	for _, profile := range settings.Profiles {
+		if profile.Enabled && runnerResourceAccessProfileSupportsPublicURL(profile) {
+			return profile, true
+		}
+	}
+	return adminsettings.ResourceAccessProfile{}, false
+}
+
+func runnerResourceAccessProfileSupportsPublicURL(profile adminsettings.ResourceAccessProfile) bool {
+	return profile.Mode == "public_tunnel" || profile.Mode == "public_backend" || profile.Mode == "object_relay"
+}
+
+func signedRunnerResourceAccessURL(profile adminsettings.ResourceAccessProfile, resourceID uint) (string, error) {
+	if strings.TrimSpace(profile.PublicBaseURL) == "" {
+		return "", fmt.Errorf("resource access profile public_base_url is required")
+	}
+	if strings.TrimSpace(profile.SigningSecret) == "" {
+		return "", fmt.Errorf("resource access profile signing_secret is required")
+	}
+	expiresSeconds := profile.ExpiresSeconds
+	if expiresSeconds <= 0 {
+		expiresSeconds = 3600
+	}
+	expires := time.Now().Add(time.Duration(expiresSeconds) * time.Second).UTC().Unix()
+	signature := signRunnerResourceAccessURL(profile, resourceID, expires)
+	if signature == "" {
+		return "", fmt.Errorf("resource access signature could not be created")
+	}
+	return fmt.Sprintf("%s/api/v1/resource-access/resources/%d/file?expires=%d&profile=%s&signature=%s",
+		strings.TrimRight(profile.PublicBaseURL, "/"),
+		resourceID,
+		expires,
+		url.QueryEscape(profile.ID),
+		url.QueryEscape(signature),
+	), nil
+}
+
+func signRunnerResourceAccessURL(profile adminsettings.ResourceAccessProfile, resourceID uint, expires int64) string {
+	secret := strings.TrimSpace(profile.SigningSecret)
+	if secret == "" {
+		return ""
+	}
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, _ = mac.Write([]byte(fmt.Sprintf("resource_access:%s:%d:%d", profile.ID, resourceID, expires)))
+	return hex.EncodeToString(mac.Sum(nil))
 }
 
 func (w *Worker) modelAdapterTypeForJob(job *persistencemodel.Job) string {

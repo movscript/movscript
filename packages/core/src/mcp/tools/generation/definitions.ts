@@ -227,7 +227,7 @@ function generationRequestSchema(required: string[] = []): MCPTool['inputSchema'
       operation: {
         type: 'string',
         enum: [
-          'prompt_to_image',
+          'text_to_image',
           'reference_to_image',
           'image_to_image',
           'prompt_to_video',

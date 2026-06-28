@@ -73,6 +73,46 @@ func TestProviderAssetClientPrefersProviderCredential(t *testing.T) {
 	}
 }
 
+func TestProviderAssetSignedPublicResourceURLUsesResourceAccessProfile(t *testing.T) {
+	db := testutil.OpenSQLite(t, "handler-provider-asset-signed-resource-access-url.db",
+		&persistencemodel.AdminSetting{},
+	)
+	settingsService := adminsettings.NewService(db, "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+	if err := db.Create(&persistencemodel.AdminSetting{
+		Key:       adminsettings.ProviderAssetSettingsKey,
+		ValueJSON: `{"public_base_url":"https://legacy-provider-assets.example.test","signing_secret":"legacy-secret"}`,
+	}).Error; err != nil {
+		t.Fatalf("save legacy provider asset settings JSON: %v", err)
+	}
+	if _, err := settingsService.UpdateResourceAccessSettings(context.Background(), adminsettings.ResourceAccessSettings{
+		DefaultProfileID: "resource-access",
+		Profiles: []adminsettings.ResourceAccessProfile{{
+			ID:             "resource-access",
+			Name:           "Resource access",
+			Enabled:        true,
+			Mode:           "public_tunnel",
+			PublicBaseURL:  "https://resource-access.example.test",
+			SigningEnabled: true,
+			SigningSecret:  "secret",
+			ExpiresSeconds: 3600,
+		}},
+	}); err != nil {
+		t.Fatalf("save resource access settings: %v", err)
+	}
+	handler := NewProviderAssetHandler(db, &config.Config{}, nil, nil, "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+
+	accessURL, err := handler.signedPublicResourceURL(context.Background(), 42)
+	if err != nil {
+		t.Fatalf("signedPublicResourceURL() error = %v", err)
+	}
+	if !strings.HasPrefix(accessURL, "https://resource-access.example.test/api/v1/resource-access/resources/42/file?") ||
+		!strings.Contains(accessURL, "profile=resource-access") ||
+		!strings.Contains(accessURL, "signature=") ||
+		strings.Contains(accessURL, "legacy-provider-assets.example.test") {
+		t.Fatalf("access URL = %q, want signed ResourceAccessProfile URL", accessURL)
+	}
+}
+
 func TestProviderAssetCertifyUsesAdminSettingsSecret(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	db := testutil.OpenSQLite(t, "handler-provider-asset-certify-admin-settings.db",

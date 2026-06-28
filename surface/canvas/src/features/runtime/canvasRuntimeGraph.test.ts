@@ -42,6 +42,40 @@ test('single node runtime collects connected upstream resource inputs from unsav
   assert.equal(inputs.values.reference[0].resource_id, 42)
 })
 
+test('connected resource inputs inherit target port media type and role', () => {
+  const nodes = [
+    {
+      id: 'ref-image',
+      type: 'image',
+      position: { x: 0, y: 0 },
+      data: {
+        source: 'upload',
+        resourceId: 42,
+        resource: { ID: 42, owner_id: 1, type: 'image', name: 'first.png', url: '/api/v1/resources/42/file', size: 1, mime_type: 'image/png' },
+      },
+    },
+    {
+      id: 'video-gen',
+      type: 'ref_video_gen',
+      position: { x: 200, y: 0 },
+      data: {
+        source: 'ai',
+        prompt: 'animate',
+        inputPorts: [{ id: 'first_frame', type: 'image', mediaType: 'image', role: 'first_frame', required: true }],
+      },
+    },
+  ]
+  const edges = [
+    { id: 'e1', source: 'ref-image', target: 'video-gen', sourceHandle: 'out:image', targetHandle: 'in:first_frame' },
+  ]
+
+  const inputs = collectCanvasNodeInputs({ nodeId: 'video-gen', nodes, edges })
+
+  assert.equal(inputs.values.first_frame[0].resource_id, 42)
+  assert.equal(inputs.values.first_frame[0].media_type, 'image')
+  assert.equal(inputs.values.first_frame[0].role, 'first_frame')
+})
+
 test('single node runtime order includes upstream generated dependencies before target', () => {
   const nodes = [
     { id: 'prompt', type: 'text', position: { x: 0, y: 0 }, data: { source: 'manual', textContent: 'cyberpunk alley' } },
@@ -126,10 +160,10 @@ test('reusable runtime outputs expose an existing generated image without rerunn
   }
 
   assert.deepEqual(reusableCanvasNodeOutputValues(node), {
-    image: { type: 'image', resource_id: 42, resource: node.data.resource },
-    result: { type: 'image', resource_id: 42, resource: node.data.resource },
-    value: { type: 'image', resource_id: 42, resource: node.data.resource },
-    'image-a': { type: 'image', resource_id: 42, resource: node.data.resource },
+    image: { type: 'image', resource_id: 42, media_type: 'image', resource: node.data.resource },
+    result: { type: 'image', resource_id: 42, media_type: 'image', resource: node.data.resource },
+    value: { type: 'image', resource_id: 42, media_type: 'image', resource: node.data.resource },
+    'image-a': { type: 'image', resource_id: 42, media_type: 'image', resource: node.data.resource },
   })
 })
 

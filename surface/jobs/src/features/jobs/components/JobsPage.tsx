@@ -76,8 +76,14 @@ export default function JobsPage() {
         offset: String((page - 1) * PAGE_SIZE),
       })
       if (activeCategory !== 'all') {
-        params.set('type', activeCategory)
-        params.set('exact_type', '1')
+        const intent = generationIntentFilterFromCategory(activeCategory)
+        if (intent) {
+          params.set('generation_capability', intent.capability)
+          params.set('generation_operation', intent.operation)
+        } else {
+          params.set('type', activeCategory)
+          params.set('exact_type', '1')
+        }
       }
       if (statusFilter !== 'all') params.set('status', statusFilter)
 
@@ -307,6 +313,13 @@ export default function JobsPage() {
         )}
     </JobsPageShell>
   )
+}
+
+function generationIntentFilterFromCategory(category: string): { capability: string; operation: string } | undefined {
+  const [capability, operation, ...rest] = category.split(':')
+  if (!capability || !operation || rest.length > 0) return undefined
+  if (!capability.endsWith('_generation')) return undefined
+  return { capability, operation }
 }
 
 function readJobsPayload(payload: unknown): Job[] {

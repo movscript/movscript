@@ -174,11 +174,13 @@ type CreativeCanvasQuickAddOption =
     childKind: CreativeCanvasChildKind
     label: string
     parentNode: ContentCanvasNode
+    inputDefaults?: Partial<ContentCanvasCreateNodeInput>
   }
   | {
     kind: 'direct'
     nodeKind: CreativeCanvasDirectKind
     label: string
+    inputDefaults?: Partial<ContentCanvasCreateNodeInput>
   }
 
 type CreativeCanvasQuickAddMediaKind = 'image' | 'video' | 'audio' | 'text'
@@ -687,11 +689,12 @@ export function ContentPromptCanvasPanel({
     const state = quickCreateDialog
     if (!state) return
     setQuickCreateDialog(null)
+    const nextInput = mergeQuickAddInputDefaults(state.option, input)
     if (state.option.kind === 'direct') {
-      onCreateNode(state.option.nodeKind, state.position, input)
+      onCreateNode(state.option.nodeKind, state.position, nextInput)
       return
     }
-    onCreateChild(state.option.parentNode, state.option.childKind, state.position, input)
+    onCreateChild(state.option.parentNode, state.option.childKind, state.position, nextInput)
   }, [onCreateChild, onCreateNode, quickCreateDialog])
 
   const closeQuickCreateDialog = useCallback(() => {
@@ -2453,7 +2456,7 @@ function ContentPromptFlowNodeGenerationPanel({
 function contentCanvasGenerationOperationOptions(mediaKind: string | null | undefined): Array<{ value: string; label: string }> {
   if (mediaKind === 'image') {
     return [
-      { value: 'prompt_to_image', label: '文生图' },
+      { value: 'text_to_image', label: '文生图' },
       { value: 'image_to_image', label: '图生图 / 参考图生图' },
     ]
   }
@@ -3458,6 +3461,9 @@ function creativeCanvasQuickAddOptionsForPosition({
   })
   const childOptionsByKind = creativeCanvasQuickAddChildOptionsByKind(inferredParent)
   const imageAssetOption = childOptionsByKind.get('asset') ?? directQuickAddOption('asset_image', '资产')
+  const imageExpressionOption = expressionQuickAddOption(childOptionsByKind, 'image', '表达单元')
+  const videoExpressionOption = expressionQuickAddOption(childOptionsByKind, 'video', '表达单元')
+  const audioExpressionOption = expressionQuickAddOption(childOptionsByKind, 'audio', '表达单元')
   const sceneMomentOption = childOptionsByKind.get('scene_moment') ?? directQuickAddOption('scene_moment', '情节')
   return {
     inferredParent,
@@ -3467,6 +3473,7 @@ function creativeCanvasQuickAddOptionsForPosition({
         label: '图片',
         primaryOption: directQuickAddOption('task_image', '图片'),
         semanticOptions: compactQuickAddOptions([
+          imageExpressionOption,
           imageAssetOption,
           childOptionsByKind.get('keyframe') ?? directQuickAddOption('keyframe', '关键帧'),
           childOptionsByKind.get('storyboard') ?? directQuickAddOption('storyboard', '故事板'),
@@ -3478,6 +3485,7 @@ function creativeCanvasQuickAddOptionsForPosition({
         primaryOption: directQuickAddOption('task_video', '视频'),
         semanticOptions: [
           sceneMomentOption,
+          ...(videoExpressionOption ? [videoExpressionOption] : []),
           directQuickAddOption('asset_video', '资产'),
         ],
       },
@@ -3486,6 +3494,7 @@ function creativeCanvasQuickAddOptionsForPosition({
         label: '音频',
         primaryOption: directQuickAddOption('task_audio', '音频'),
         semanticOptions: [
+          ...(audioExpressionOption ? [audioExpressionOption] : []),
           directQuickAddOption('asset_audio', '资产'),
         ],
       },
@@ -3493,9 +3502,7 @@ function creativeCanvasQuickAddOptionsForPosition({
         mediaKind: 'text',
         label: '文本',
         primaryOption: directQuickAddOption('task_text', '文本'),
-        semanticOptions: compactQuickAddOptions([
-          childOptionsByKind.get('expression_unit'),
-        ]),
+        semanticOptions: [],
       },
     ],
   }
@@ -3521,8 +3528,28 @@ function creativeCanvasQuickAddChildOptionsByKind(
 function directQuickAddOption(
   nodeKind: CreativeCanvasDirectKind,
   label: string,
+  inputDefaults?: Partial<ContentCanvasCreateNodeInput>,
 ): CreativeCanvasQuickAddOption {
-  return { kind: 'direct', nodeKind, label }
+  return { kind: 'direct', nodeKind, label, inputDefaults }
+}
+
+function expressionQuickAddOption(
+  childOptionsByKind: Map<CreativeCanvasChildKind, CreativeCanvasQuickAddOption>,
+  outputKind: Exclude<CreativeCanvasQuickAddMediaKind, 'text'>,
+  label: string,
+): CreativeCanvasQuickAddOption | undefined {
+  const option = childOptionsByKind.get('expression_unit')
+  if (!option) return undefined
+  const slotKind = outputKind === 'audio' ? 'audio' : 'visual'
+  return {
+    ...option,
+    label,
+    inputDefaults: {
+      outputKind,
+      slotKind,
+      status: slotKind,
+    },
+  }
 }
 
 function compactQuickAddOptions(
@@ -3616,8 +3643,24 @@ function quickAddMediaIcon(mediaKind: CreativeCanvasQuickAddMediaKind) {
 }
 
 function quickAddOptionKey(option: CreativeCanvasQuickAddOption): string {
-  if (option.kind === 'direct') return `direct:${option.nodeKind}`
-  return `child:${option.parentNode.id}:${option.childKind}`
+  const outputKind = option.inputDefaults?.outputKind ? `:${option.inputDefaults.outputKind}` : ''
+  if (option.kind === 'direct') return `direct:${option.nodeKind}${outputKind}`
+  return `child:${option.parentNode.id}:${option.childKind}${outputKind}`
+}
+
+function mergeQuickAddInputDefaults(
+  option: CreativeCanvasQuickAddOption,
+  input: ContentCanvasCreateNodeInput,
+): ContentCanvasCreateNodeInput {
+  const defaults = option.inputDefaults
+  if (!defaults) return input
+  return {
+    ...defaults,
+    ...input,
+    outputKind: input.outputKind ?? defaults.outputKind,
+    slotKind: input.slotKind ?? defaults.slotKind,
+    status: input.status ?? defaults.status,
+  }
 }
 
 function quickCreateDialogSessionKey(state: CreativeCanvasQuickCreateDialogState | null): string {

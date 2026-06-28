@@ -42,7 +42,8 @@ func TestProviderAssetSettingsUpdateMasksSecretsAndAudits(t *testing.T) {
 	if strings.Contains(res.Body.String(), "signing-secret") || strings.Contains(res.Body.String(), "ark-secret") {
 		t.Fatalf("settings response leaked provider asset secret: %s", res.Body.String())
 	}
-	if !strings.Contains(res.Body.String(), `"signing_secret_set":true`) ||
+	if strings.Contains(res.Body.String(), "public_base_url") ||
+		strings.Contains(res.Body.String(), "signing_secret_set") ||
 		!strings.Contains(res.Body.String(), `"ark_secret_key_set":true`) ||
 		!strings.Contains(res.Body.String(), `"ark_openapi_base_url":"https://ark.cn-beijing.volcengineapi.com"`) {
 		t.Fatalf("unexpected provider asset settings response: %s", res.Body.String())
@@ -59,7 +60,8 @@ func TestProviderAssetSettingsUpdateMasksSecretsAndAudits(t *testing.T) {
 	}
 	if strings.Contains(getRes.Body.String(), "signing-secret") ||
 		strings.Contains(getRes.Body.String(), "ark-secret") ||
-		!strings.Contains(getRes.Body.String(), `"signing_secret_set":true`) ||
+		strings.Contains(getRes.Body.String(), "public_base_url") ||
+		strings.Contains(getRes.Body.String(), "signing_secret_set") ||
 		!strings.Contains(getRes.Body.String(), `"ark_secret_key_set":true`) {
 		t.Fatalf("unexpected provider asset settings get response: %s", getRes.Body.String())
 	}

@@ -506,6 +506,13 @@ export interface AIModelRouteDiagnosticEndpoint {
   effective_base_url?: string
 }
 
+export interface AIModelRouteResourceAccess {
+  required: boolean
+  transport?: string
+  input_media?: string[]
+  depends_on?: string
+}
+
 export interface AIModelRouteDiagnosticCandidate {
   catalog_entry_id: number
   public_model_id: string
@@ -522,6 +529,7 @@ export interface AIModelRouteDiagnosticCandidate {
   capacity_weight: number
   max_concurrency?: number
   effective_endpoint?: AIModelRouteDiagnosticEndpoint
+  resource_access?: AIModelRouteResourceAccess
 }
 
 export interface AIModelRouteDiagnosis {
@@ -1150,10 +1158,12 @@ export type CanvasExecutableCapability = 'text' | 'image' | 'image_edit' | 'vide
 export interface CanvasExecutableSpec {
   executor: 'ai_model' | 'plugin_http'
   capability: CanvasExecutableCapability
+  operation?: string
   modelDbId?: number // legacy route record id kept for older canvases
   pluginToolKey?: string
   prompt?: string
   inputResourceIds?: number[]
+  referenceAssets?: Array<{ resource_id?: number; media_type?: string; role: string }>
   aspectRatio?: string
   duration?: number
   params?: Record<string, unknown>

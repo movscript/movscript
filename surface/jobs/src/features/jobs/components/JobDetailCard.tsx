@@ -19,6 +19,7 @@ import { JobsActionButton } from './JobsPageUi'
 import {
   formatJobTime,
   getJobTitle,
+  jobGenerationDisplay,
   JobStatusPill,
   parseJobStateTrace,
 } from './JobsPageCardModel'
@@ -45,7 +46,7 @@ export function JobDetailCard({ job, onClose }: { job: Job; onClose: () => void 
           <JobDetailPrompt>{job.prompt}</JobDetailPrompt>
         ) : null}
         <JobDetailMeta>
-          {job.job_type} · #{job.ID} · {job.provider_name ?? job.model_display ?? t('pages.jobs.generating')}
+          {jobGenerationDisplay(job, t)} · #{job.ID} · {job.provider_name ?? job.model_display ?? t('pages.jobs.generating')}
         </JobDetailMeta>
       </JobDetailSummary>
 

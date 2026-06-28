@@ -54,6 +54,8 @@ func registerResourceRoutes(protected *gin.RouterGroup, h handlers) {
 	protected.GET("/resources/:id", h.resources.Get)
 	protected.GET("/resources/:id/usages", h.resources.Usages)
 	protected.GET("/resources/:id/file", h.resources.ServeFile)
+	protected.POST("/resource-access/resolve", h.resourceAccess.Resolve)
+	protected.POST("/resource-access/check", h.resourceAccess.Check)
 	protected.POST("/resources/:id/adopt-to-team", h.resources.AdoptToTeam)
 	protected.PUT("/resources/:id", h.resources.Update)
 	protected.POST("/resources/:id/verify-image", h.resources.VerifyImage)

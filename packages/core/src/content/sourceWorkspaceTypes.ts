@@ -92,7 +92,7 @@ export interface PreviewAssetReferenceUnit {
 export interface PreviewContentUnit {
   id: string
   type: 'storyboard_ref' | 'keyframe_ref' | 'audio_cue_ref' | 'scence_moment_ref' | 'scene_moment_ref' | 'expression_unit_ref'
-  outputKind: 'image' | 'video' | 'audio' | 'storyboard'
+  outputKind: 'image' | 'video' | 'audio' | 'text' | 'metadata' | 'storyboard'
   path: string
   editPrompt: string
   sceneMomentRef: string
@@ -108,6 +108,7 @@ export interface PreviewExpressionUnit {
   id: string
   title: string
   kind: string
+  slotKind?: string
   camera: string
   duration: string
   expression: string
@@ -228,6 +229,7 @@ export interface ExpressionUnit {
   title: string
   path: string
   kind: string
+  slotKind?: string
   text: string
   summary: string
   speaker?: string

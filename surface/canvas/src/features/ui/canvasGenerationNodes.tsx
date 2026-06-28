@@ -48,15 +48,62 @@ import { CanvasGenerationInputPanel } from './canvasGenerationInputPanel'
 
 const CANVAS_NODE_IMAGE_THUMB_MAX_SIZE = 320
 
-function useCanvasGenerationModels(capability?: 'text' | 'image' | 'video') {
+function useCanvasGenerationModels(capability?: 'text' | 'image' | 'video', operation?: string) {
   const { data = [] } = useQuery<PublicModel[]>({
-    queryKey: modelKeys.capability(capability),
+    queryKey: modelKeys.intent(capability, operation),
     queryFn: () => capability
-      ? canvasApi.get(canvasServicePaths.runtimeModels, { params: { capability } }).then((r) => r.data)
+      ? canvasApi.get(canvasServicePaths.runtimeModels, { params: canvasGenerationModelQuery(capability, operation) }).then((r) => r.data)
       : Promise.resolve([]),
     enabled: !!capability,
   })
   return data
+}
+
+function canvasGenerationModelQuery(capability: 'text' | 'image' | 'video', operation?: string) {
+  if (capability === 'image') return { capability: 'image_generation', ...(operation ? { operation } : {}) }
+  if (capability === 'video') return { capability: 'video_generation', ...(operation ? { operation } : {}) }
+  return { capability }
+}
+
+function canvasDefaultOperationForNode(type: string, outputType: 'image' | 'video' | 'text'): string | undefined {
+  switch (type) {
+    case 'ref_image_gen':
+      return 'image_to_image'
+    case 'multi_angle':
+      return 'reference_to_image'
+    case 'style_transfer':
+      return 'style_transfer'
+    case 'ref_video_gen':
+    case 'motion_imitation':
+      return 'reference_to_video'
+    case 'ai_gen':
+      if (outputType === 'video') return 'prompt_to_video'
+      if (outputType === 'image') return 'text_to_image'
+      return undefined
+    default:
+      if (outputType === 'video') return 'prompt_to_video'
+      if (outputType === 'image') return 'text_to_image'
+      return undefined
+  }
+}
+
+function canvasOperationOptionsForNode(type: string, outputType: 'image' | 'video' | 'text') {
+  if (outputType === 'image') {
+    if (type === 'ref_image_gen') return ['image_to_image', 'reference_to_image', 'image_edit', 'text_to_image']
+    if (type === 'multi_angle') return ['reference_to_image', 'image_to_image', 'text_to_image']
+    if (type === 'style_transfer') return ['style_transfer', 'image_to_image', 'reference_to_image']
+    return ['text_to_image', 'image_to_image', 'reference_to_image', 'image_edit', 'style_transfer']
+  }
+  if (outputType === 'video') {
+    if (type === 'ref_video_gen') return ['reference_to_video', 'image_to_video', 'first_frame_to_video', 'first_last_frame_to_video', 'prompt_to_video']
+    if (type === 'motion_imitation') return ['reference_to_video', 'video_to_video', 'image_to_video']
+    return ['prompt_to_video', 'image_to_video', 'first_frame_to_video', 'first_last_frame_to_video', 'reference_to_video', 'video_to_video']
+  }
+  return []
+}
+
+function canvasOperationLabel(operation: string, t: (key: string, options?: any) => string) {
+  return t(`canvas.generationOperations.${operation}`, { defaultValue: operation })
 }
 
 function CanvasGenerationParamControls({
@@ -74,8 +121,18 @@ function CanvasGenerationParamControls({
 }) {
   const { t } = useTranslation()
   const params = canvasGenerationParamDefs(nodeType, outputType, selectedModel)
-  if (params.length === 0 && (!models || models.length === 0)) return null
-  const paramItems: CanvasNodeParamControlItem[] = params.map((param) => {
+  const operation = outputType ? (data.modelOperation ?? canvasDefaultOperationForNode(nodeType, outputType)) : undefined
+  const operationOptions = outputType ? canvasOperationOptionsForNode(nodeType, outputType) : []
+  if (params.length === 0 && operationOptions.length === 0 && (!models || models.length === 0)) return null
+  const operationItems: CanvasNodeParamControlItem[] = operation && operationOptions.length > 0 ? [{
+    id: 'model_operation',
+    label: t('canvas.nodePanel.operation', { defaultValue: 'Operation' }),
+    type: 'select',
+    value: operation,
+    options: operationOptions.map((value) => ({ value, label: canvasOperationLabel(value, t) })),
+    onChange: (nextValue: string | number | boolean) => data.onUpdateModelOperation?.(String(nextValue)),
+  }] : []
+  const paramItems: CanvasNodeParamControlItem[] = [...operationItems, ...params.map((param): CanvasNodeParamControlItem => {
     const value = canvasParamValue(data, param)
     return {
       id: param.key,
@@ -88,7 +145,7 @@ function CanvasGenerationParamControls({
       step: param.step,
       onChange: (nextValue) => data.onUpdateParams?.(updateCanvasParam(data, param.key, nextValue)),
     }
-  })
+  })]
   const modelControl = models && models.length > 0 ? {
     label: t('agents.model'),
     value: selectedModel ? publicModelId(selectedModel) : '',
@@ -172,7 +229,7 @@ function CanvasTextGenerationResultPanel({ data }: { data: NodeDataWithHandlers 
 const TOOL_META: Record<string, { icon: ReactNode; labelKey: string; outputType: 'image' | 'video'; capability: 'image' | 'video'; inputType: 'image' | 'video' | 'image+video' }> = {
   canvas:           { icon: <Layers3 size={12} />, labelKey: 'canvas.nodeLabels.canvas',           outputType: 'image', capability: 'image', inputType: 'image' },
   ref_image_gen:    { icon: <Palette size={12} />, labelKey: 'canvas.nodeLabels.ref_image_gen',    outputType: 'image', capability: 'image', inputType: 'image' },
-  ref_video_gen:    { icon: <Camera size={12} />, labelKey: 'canvas.nodeLabels.ref_video_gen',     outputType: 'video', capability: 'video', inputType: 'video' },
+  ref_video_gen:    { icon: <Camera size={12} />, labelKey: 'canvas.nodeLabels.ref_video_gen',     outputType: 'video', capability: 'video', inputType: 'image+video' },
   multi_angle:      { icon: <RotateCw size={12} />, labelKey: 'canvas.nodeLabels.multi_angle',     outputType: 'image', capability: 'image', inputType: 'image' },
   style_transfer:   { icon: <Brush size={12} />, labelKey: 'canvas.nodeLabels.style_transfer',    outputType: 'image', capability: 'image', inputType: 'image' },
   motion_imitation: { icon: <PersonStanding size={12} />, labelKey: 'canvas.nodeLabels.motion_imitation', outputType: 'video', capability: 'video', inputType: 'image+video' },
@@ -248,7 +305,8 @@ export function ToolNode({ data, selected, type }: NodeProps & { data: NodeDataW
     : Wrench
   const isRunning = status === 'pending' || status === 'running'
   const isGenerationTool = type !== 'canvas'
-  const models = useCanvasGenerationModels(isGenerationTool ? meta.capability : undefined)
+  const modelOperation = data.modelOperation ?? canvasDefaultOperationForNode(type, meta.outputType)
+  const models = useCanvasGenerationModels(isGenerationTool ? meta.capability : undefined, modelOperation)
   const selectedModel = selectedCanvasModel(data, models)
 
   return (
@@ -258,7 +316,7 @@ export function ToolNode({ data, selected, type }: NodeProps & { data: NodeDataW
         tone="violet"
         icon={Icon}
         title={canvasDisplayLabel(data.label, metaLabel, t)}
-        subtitle={`${meta.capability} · 输出 ${meta.outputType}`}
+        subtitle={`${meta.capability} · ${modelOperation ?? meta.outputType}`}
         status={nodeStatusLabel(status)}
         selected={selected}
         labels={canvasToolActionCardLabels(t)}
@@ -323,7 +381,8 @@ export function AIGenNode({ data, selected }: NodeProps & { data: NodeDataWithHa
   const status = (data.status ?? 'idle') as 'idle' | 'pending' | 'running' | 'done' | 'failed'
   const outputType = (data.outputType ?? 'image') as 'image' | 'video' | 'text'
   const isRunning = status === 'pending' || status === 'running'
-  const models = useCanvasGenerationModels(outputType)
+  const modelOperation = data.modelOperation ?? canvasDefaultOperationForNode('ai_gen', outputType)
+  const models = useCanvasGenerationModels(outputType, modelOperation)
   const selectedModel = selectedCanvasModel(data, models)
   const outputSlots = toolOutputSlots('ai_gen', data, t).map((slot) => ({
     ...slot,
@@ -337,7 +396,7 @@ export function AIGenNode({ data, selected }: NodeProps & { data: NodeDataWithHa
         tone="violet"
         icon={Sparkles}
         title={canvasDisplayLabel(data.label, 'canvas.nodeLabels.ai_gen', t)}
-        subtitle={`canvas_${outputType} · 输出 ${outputType}`}
+        subtitle={`canvas_${outputType} · ${modelOperation ?? outputType}`}
         status={nodeStatusLabel(status)}
         selected={selected}
         labels={canvasToolActionCardLabels(t)}

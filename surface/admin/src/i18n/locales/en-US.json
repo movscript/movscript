@@ -2174,7 +2174,7 @@
       "debug": "Debug",
       "uiPreview": "UI Preview",
       "storage": "Resource Storage",
-      "cloudFiles": "Input Relay",
+      "cloudFiles": "Resource Access",
       "settings": "System Settings"
     },
     "home": {
@@ -2203,7 +2203,7 @@
         "usageLogs": "Filter {{count}} AI usage records by provider, model, user, and project.",
         "shotVectors": "Manage shot retrieval documents, rebuild the index, and sample recall quality.",
         "storage": "Manage {{count}} internal resource files, storage backends, and user usage.",
-        "cloudFiles": "Public object relay and cloud file storage configuration.",
+        "cloudFiles": "Public resource access, tunnel, and object relay configuration.",
         "settings": "Registration policy, email verification, and basic auth settings.",
         "debug": "System health, slow requests, job queues, and provider call debugging."
       }
@@ -2989,13 +2989,13 @@
       "confirmEnable": "Enable cloud storage configuration \"{{name}}\"?",
       "confirmDisable": "Disable cloud storage configuration \"{{name}}\"? Workers will stop using it to upload input assets.",
       "publicObjectRelay": "Public Object Relay",
-      "publicObjectRelayDescription": "S3, OSS, and TOS buckets must be publicly reachable by providers for image-to-video and video reference inputs that only accept URLs.",
+      "publicObjectRelayDescription": "S3, OSS, and TOS buckets are one Resource Access mode for routes that require public media URLs.",
       "providerFilesAPI": "Provider Files API",
       "providerFilesAPIDescription": "Provider-owned file spaces such as OpenAI and Volcen are enabled under credentials in Model Management. Models receive file_id values.",
       "internalMinio": "Internal MinIO",
       "internalMinioDescription": "Only persists MovScript resources. Workers no longer send MinIO private presigned URLs to external providers.",
-      "title": "Public Object Relay Configuration",
-      "description": "After configuring S3, OSS, or TOS, workers upload input assets by priority and pass public URLs to provider APIs that only accept URLs.",
+      "title": "Object Relay Configuration",
+      "description": "Object relay remains available as a Resource Access mode. Public tunnels and backend URLs are configured above.",
       "addConfig": "Add Config",
       "empty": "No public object relay configuration",
       "enabledMark": "● Enabled",

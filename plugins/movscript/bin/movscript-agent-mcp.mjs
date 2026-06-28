@@ -3144,7 +3144,7 @@ Expecting one of '${allowedValues.join("', '")}'`);
     }
     function readMovScriptWorkspaceRootManifest2(manifestPath) {
       const parsed = readJSON5(manifestPath);
-      if (!isRecord30(parsed) || parsed.schema !== MOVSCRIPT_WORKSPACE_MANIFEST_SCHEMA3) return void 0;
+      if (!isRecord29(parsed) || parsed.schema !== MOVSCRIPT_WORKSPACE_MANIFEST_SCHEMA3) return void 0;
       const workspaceId = stringField20(parsed.workspaceId);
       if (!workspaceId) return void 0;
       const backend = normalizeBackend2(parsed.backend);
@@ -3175,13 +3175,13 @@ Expecting one of '${allowedValues.join("', '")}'`);
       };
     }
     function normalizeBackend2(value) {
-      if (!isRecord30(value)) return void 0;
+      if (!isRecord29(value)) return void 0;
       const kind = value.kind === "local" || value.kind === "cloud" || value.kind === "custom" ? value.kind : void 0;
       const baseURL = stringField20(value.baseURL);
       return kind || baseURL ? { ...kind ? { kind } : {}, ...baseURL ? { baseURL } : {} } : void 0;
     }
     function normalizeRealmRecord2(value) {
-      if (!isRecord30(value)) return void 0;
+      if (!isRecord29(value)) return void 0;
       const kind = value.kind === "local" || value.kind === "cloud" ? value.kind : void 0;
       if (!kind) return void 0;
       if (kind === "local") return { kind, id: "local" };
@@ -3216,7 +3216,7 @@ Expecting one of '${allowedValues.join("', '")}'`);
     function numberField8(value) {
       return typeof value === "number" && Number.isFinite(value) ? value : void 0;
     }
-    function isRecord30(value) {
+    function isRecord29(value) {
       return typeof value === "object" && value !== null && !Array.isArray(value);
     }
     function isNotFoundError5(error) {
@@ -5316,16 +5316,16 @@ Expecting one of '${allowedValues.join("', '")}'`);
       asset: "asset"
     };
     function entityPathMatchesProduction2(path, productionId) {
-      return pathSegmentAfter10(path, "productions") !== void 0 && sameEntityRef3(pathSegmentAfter10(path, "productions"), productionId, "production");
+      return pathSegmentAfter11(path, "productions") !== void 0 && sameEntityRef3(pathSegmentAfter11(path, "productions"), productionId, "production");
     }
     function entityPathMatchesSegment2(path, segmentId) {
-      return pathSegmentAfter10(path, "segments") !== void 0 && sameEntityRef3(pathSegmentAfter10(path, "segments"), segmentId, "segment");
+      return pathSegmentAfter11(path, "segments") !== void 0 && sameEntityRef3(pathSegmentAfter11(path, "segments"), segmentId, "segment");
     }
     function entityPathMatchesSceneMoment2(path, sceneMomentId) {
-      return pathSegmentAfter10(path, "scene_moments") !== void 0 && sameEntityRef3(pathSegmentAfter10(path, "scene_moments"), sceneMomentId, "scene_moment");
+      return pathSegmentAfter11(path, "scene_moments") !== void 0 && sameEntityRef3(pathSegmentAfter11(path, "scene_moments"), sceneMomentId, "scene_moment");
     }
     function entityPathMatchesStoryboard2(path, storyboardId) {
-      return pathSegmentAfter10(path, "storyboards") !== void 0 && sameEntityRef3(pathSegmentAfter10(path, "storyboards"), storyboardId, "storyboard");
+      return pathSegmentAfter11(path, "storyboards") !== void 0 && sameEntityRef3(pathSegmentAfter11(path, "storyboards"), storyboardId, "storyboard");
     }
     function entityMatchesStoryboard2(entity, storyboardId, context) {
       if (entityMatchesScope2(entity, "storyboard", storyboardId, context)) return true;
@@ -5334,13 +5334,13 @@ Expecting one of '${allowedValues.join("', '")}'`);
       return storyboardRef !== void 0 && (entityPathMatchesStoryboard2(storyboardRef, storyboardId) || sameNormalizedEntityPath2(storyboardRef, storyboardId, "storyboard"));
     }
     function entityPathMatchesContentUnit2(path, contentUnitId) {
-      return pathSegmentAfter10(path, "content_units") !== void 0 && sameEntityRef3(pathSegmentAfter10(path, "content_units"), contentUnitId, "content_unit");
+      return pathSegmentAfter11(path, "content_units") !== void 0 && sameEntityRef3(pathSegmentAfter11(path, "content_units"), contentUnitId, "content_unit");
     }
     function entityPathMatchesSetting2(path, settingId) {
-      return pathSegmentAfter10(path, "settings") !== void 0 && sameEntityRef3(pathSegmentAfter10(path, "settings"), settingId, "setting");
+      return pathSegmentAfter11(path, "settings") !== void 0 && sameEntityRef3(pathSegmentAfter11(path, "settings"), settingId, "setting");
     }
     function entityPathMatchesSettingState2(path, stateId) {
-      return pathSegmentAfter10(path, "states") !== void 0 && sameEntityRef3(pathSegmentAfter10(path, "states"), stateId, "setting_state");
+      return pathSegmentAfter11(path, "states") !== void 0 && sameEntityRef3(pathSegmentAfter11(path, "states"), stateId, "setting_state");
     }
     function createEntityQueryContext2(index) {
       const entityByPath = new Map(index.entities.map((entity) => [entity.path, entity]));
@@ -5457,7 +5457,7 @@ Expecting one of '${allowedValues.join("', '")}'`);
       const next = Number(value);
       return Number.isFinite(next) ? next : void 0;
     }
-    function pathSegmentAfter10(path, segment) {
+    function pathSegmentAfter11(path, segment) {
       const parts = path.split("/");
       const index = parts.indexOf(segment);
       return index >= 0 ? parts[index + 1] : void 0;
@@ -6178,11 +6178,11 @@ Expecting one of '${allowedValues.join("', '")}'`);
       return stringValue34(record?.__workspace_path ?? record?.workspace_path ?? record?.path);
     }
     function parseMetadata2(value) {
-      if (isRecord92(value)) return value;
+      if (isRecord93(value)) return value;
       if (typeof value !== "string" || !value.trim()) return void 0;
       try {
         const parsed = JSON.parse(value);
-        return isRecord92(parsed) ? parsed : void 0;
+        return isRecord93(parsed) ? parsed : void 0;
       } catch {
         return void 0;
       }
@@ -6235,7 +6235,7 @@ Expecting one of '${allowedValues.join("', '")}'`);
     function stringValue34(value) {
       return typeof value === "string" && value.trim() ? value.trim() : void 0;
     }
-    function isRecord92(value) {
+    function isRecord93(value) {
       return Boolean(value) && typeof value === "object" && !Array.isArray(value);
     }
     function pruneUndefined62(value) {
@@ -7309,7 +7309,7 @@ Expecting one of '${allowedValues.join("', '")}'`);
     async function upsertMovScriptProjectStandards2(input3) {
       const current = stripWorkspacePrivateFields52(input3.record ?? {});
       const projectStyle = {
-        ...parseProjectStyle4(current.project_style),
+        ...parseProjectStyle3(current.project_style),
         ...input3.projectStyle
       };
       const record = pruneUndefined132({
@@ -7328,7 +7328,7 @@ Expecting one of '${allowedValues.join("', '")}'`);
 ` });
       return { path, record };
     }
-    function parseProjectStyle4(value) {
+    function parseProjectStyle3(value) {
       if (isRecord142(value)) return value;
       if (typeof value !== "string" || !value.trim()) return {};
       try {
@@ -7374,7 +7374,7 @@ Expecting one of '${allowedValues.join("', '")}'`);
       return results;
     }
     function renderMovScriptProjectStandardSkill2(standards) {
-      const projectStyle = parseProjectStyle22(standards.project_style);
+      const projectStyle = parseProjectStyle23(standards.project_style);
       const coreSections = [
         fieldSection2("Aspect ratio", standards.aspect_ratio ?? projectStyle.aspect_ratio),
         fieldSection2("Visual style", standards.visual_style ?? projectStyle.visual_style),
@@ -7468,7 +7468,7 @@ ${ids.map((id) => `- ${id}`).join("\n")}
       if (!text) return [];
       return Array.from(text.matchAll(/\b(?:resource[_-]?id|resource)[_:#\s-]*(\d+)\b/gi)).map((match) => Number(match[1])).filter((id) => Number.isInteger(id));
     }
-    function parseProjectStyle22(value) {
+    function parseProjectStyle23(value) {
       if (isRecord152(value)) return value;
       const text = textValue2(value);
       if (!text) return {};
@@ -9420,10 +9420,10 @@ ${ids.map((id) => `- ${id}`).join("\n")}
     function parentExpressionUnitForEntity2(entity, entityByPathDir, entityById) {
       const expressionUnitRef = normalizedRefDir2(entity.record.expression_unit_ref);
       if (expressionUnitRef) return entityByPathDir.get(expressionUnitRef) ?? entityById.get(entityKey3("expression_unit", expressionUnitRef));
-      const expressionUnitId = pathSegmentAfter33(entity.path, "expression_units");
+      const expressionUnitId = pathSegmentAfter32(entity.path, "expression_units");
       return expressionUnitId ? entityById.get(entityKey3("expression_unit", expressionUnitId)) : void 0;
     }
-    function pathSegmentAfter33(path, segment) {
+    function pathSegmentAfter32(path, segment) {
       const parts = path.split("/");
       const index = parts.indexOf(segment);
       return index >= 0 ? parts[index + 1] : void 0;
@@ -13062,14 +13062,15 @@ ${ids.map((id) => `- ${id}`).join("\n")}
       return buildContentUnitBackendPrompt2({
         index: input3.index,
         contentUnit,
-        decisionProvider: input3.decisionProvider
+        decisionProvider: input3.decisionProvider,
+        ...input3.promptText !== void 0 ? { promptText: input3.promptText } : {}
       });
     }
     async function buildContentUnitBackendPrompt2(input3) {
       const contentUnitRef = entityDir82(input3.contentUnit.path);
       const contentUnitType2 = stringField172(input3.contentUnit.record.content_unit_type) ?? "";
       const outputKind = contentUnitOutputKind32(input3.contentUnit.record.output_kind);
-      const editPrompt = recordField62(input3.contentUnit.record.edit_prompt);
+      const editPrompt = contentUnitEditPrompt2(input3.contentUnit.record.edit_prompt, input3.promptText);
       const refs = parseContentUnitEditPromptRefs32(editPrompt);
       const unsupportedRefs = parseUnsupportedContentUnitEditPromptRefs22(editPrompt);
       const primaryKind = primaryRefKindForContentUnitType32(contentUnitType2);
@@ -13247,6 +13248,14 @@ ${ids.map((id) => `- ${id}`).join("\n")}
         return { ok: false, prompt, blockers: dedupeBlockers22(blockers) };
       }
       return { ok: true, prompt };
+    }
+    function contentUnitEditPrompt2(value, promptText) {
+      const base = recordField62(value);
+      if (promptText === void 0) return base;
+      return {
+        ...base ?? {},
+        text: promptText
+      };
     }
     function parseContentUnitEditPromptRefs32(editPrompt) {
       const prompt = recordField62(editPrompt);
@@ -13960,9 +13969,9 @@ ${ids.map((id) => `- ${id}`).join("\n")}
             "deriveContentUnitArtifact"
           );
         },
-        buildContentUnitBackendPrompt(contentUnitId) {
+        buildContentUnitBackendPrompt(contentUnitId, options2) {
           return callRequiredOperation2(
-            buildContentUnitBackendPrompt22 ? () => buildContentUnitBackendPrompt22(contentUnitId) : void 0,
+            buildContentUnitBackendPrompt22 ? () => buildContentUnitBackendPrompt22(contentUnitId, options2) : void 0,
             "buildContentUnitBackendPrompt"
           );
         },
@@ -14924,7 +14933,7 @@ ${ids.map((id) => `- ${id}`).join("\n")}
           const now = input3.now?.() ?? /* @__PURE__ */ new Date();
           return deriveContentUnitArtifact2(index, contentUnit, { createdAt: now.toISOString() });
         },
-        async buildContentUnitBackendPrompt(contentUnitId) {
+        async buildContentUnitBackendPrompt(contentUnitId, options) {
           return buildContentUnitBackendPromptById2({
             index: await workspaceService.loadIndex(),
             contentUnitId,
@@ -14932,7 +14941,8 @@ ${ids.map((id) => `- ${id}`).join("\n")}
               async getContentUnitDecision() {
                 return void 0;
               }
-            }
+            },
+            ...options?.promptText !== void 0 ? { promptText: options.promptText } : {}
           });
         },
         async deriveArtifacts(artifactInput = {}) {
@@ -19134,7 +19144,7 @@ function isRecord22(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-// ../../packages/core/dist/chunk-UW5SRPBX.js
+// ../../packages/core/dist/chunk-4H5BSQ5X.js
 function isRecord4(value) {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
@@ -20025,7 +20035,7 @@ function domainTools() {
     },
     {
       name: "domain_upsert_expression_unit",
-      description: "Create or update an expression_unit source entity under a scene_moment. Prefer targetPath or sceneMomentPath for new timeline namespace projects; productionId/segmentId are legacy compatibility inputs. Use kind=shot or expression_kind=shot for makeable shot expression units; storyboard/keyframe records may live under that expression unit or directly under the scene moment.",
+      description: "Create or update an expression_unit source entity under a scene_moment. Prefer targetPath or sceneMomentPath for new timeline namespace projects; productionId/segmentId are legacy compatibility inputs. Use slot_kind=visual|voice|subtitle|audio for new expression slots; expression_kind/kind are legacy compatibility hints.",
       inputSchema: projectSchema({ ...workspaceLocator, targetPath: { type: "string" }, target_path: { type: "string" }, sceneMomentPath: { type: "string" }, scene_moment_path: { type: "string" }, parentPath: { type: "string" }, parent_path: { type: "string" }, productionId: { type: ["string", "number"] }, production_id: { type: ["string", "number"] }, segmentId: { type: ["string", "number"] }, segment_id: { type: ["string", "number"] }, sceneMomentId: { type: ["string", "number"] }, scene_moment_id: { type: ["string", "number"] }, expressionUnitId: { type: ["string", "number"] }, expression_unit_id: { type: ["string", "number"] }, expressionUnit: { type: "object", additionalProperties: true }, expression_unit: { type: "object", additionalProperties: true }, payload: { type: "object", additionalProperties: true }, sceneMoment: { type: "object", additionalProperties: true }, scene_moment: { type: "object", additionalProperties: true }, segment: { type: "object", additionalProperties: true }, production: { type: "object", additionalProperties: true } })
     },
     {
@@ -20978,7 +20988,7 @@ function generationRequestSchema(required = []) {
       operation: {
         type: "string",
         enum: [
-          "prompt_to_image",
+          "text_to_image",
           "reference_to_image",
           "image_to_image",
           "prompt_to_video",
@@ -21077,7 +21087,7 @@ function modelTools() {
       inputSchema: objectSchema(
         {
           capability: { type: "string", description: "Optional AI capability family such as text_generation, image_generation, video_generation, audio_generation, or an execution capability such as audio_music. Family capabilities should pair this with operation." },
-          operation: { type: "string", description: "Optional model operation intent such as prompt_to_image, image_to_image, first_last_frame_to_video, music, sfx, tts, or stt. If capability is omitted, known operations imply image_generation, video_generation, or audio_generation." },
+          operation: { type: "string", description: "Optional model operation intent such as text_to_image, image_to_image, first_last_frame_to_video, music, sfx, tts, or stt. If capability is omitted, known operations imply image_generation, video_generation, or audio_generation." },
           model_operation: { type: "string", description: "Alias for operation." },
           reference_assets: {
             type: "array",
@@ -22395,6 +22405,41 @@ function firstUnique(values) {
   }
   return void 0;
 }
+var MOVSCRIPT_EXPRESSION_UNIT_SLOT_KINDS = [
+  "visual",
+  "voice",
+  "subtitle",
+  "audio"
+];
+var SLOT_KIND_SET = new Set(MOVSCRIPT_EXPRESSION_UNIT_SLOT_KINDS);
+function isMovScriptExpressionUnitSlotKind(value) {
+  return typeof value === "string" && SLOT_KIND_SET.has(value);
+}
+function normalizeExpressionUnitSlotKind(value, fallback = "visual") {
+  const text = normalizedToken(value);
+  if (!text) return fallback;
+  if (isMovScriptExpressionUnitSlotKind(text)) return text;
+  if (text === "dialogue" || text === "narration" || text === "voiceover" || text === "voice_over" || text === "speech" || text === "verbal") return "voice";
+  if (text === "caption" || text === "caption_card" || text === "text") return "subtitle";
+  if (text === "sound" || text === "sound_effect" || text === "sfx" || text === "music" || text === "music_beat" || text === "ambience" || text === "ambient" || text === "foley") return "audio";
+  if (text === "shot" || text === "action" || text === "visual_note" || text === "image" || text === "video" || text === "visual") return "visual";
+  return fallback;
+}
+function expressionUnitSlotKindFromRecord(record) {
+  if (!record) return "visual";
+  return normalizeExpressionUnitSlotKind(
+    record.slot_kind ?? record.slotKind ?? record.expression_kind ?? record.expressionKind ?? record.kind ?? record.role ?? record.modality
+  );
+}
+function defaultOutputKindForExpressionUnitSlot(slotKind) {
+  const normalized = normalizeExpressionUnitSlotKind(slotKind);
+  if (normalized === "voice" || normalized === "audio") return "audio";
+  if (normalized === "subtitle") return "text";
+  return "video";
+}
+function normalizedToken(value) {
+  return String(value ?? "").trim().toLowerCase();
+}
 function normalizePathParentEdge(child, parent) {
   if (!parent) {
     return {
@@ -22804,242 +22849,6 @@ function stringField6(value) {
   return text || void 0;
 }
 
-// ../../packages/core/dist/chunk-NRNAVDJZ.js
-var AGENT_SURFACE_ROUTES = {
-  resources: "/agent/resources",
-  resourceDetail: "/agent/resources/:resourceId",
-  contentPrompt: "/agent/content/prompt",
-  contentCandidates: "/agent/content/candidates",
-  generationJob: "/agent/generation/jobs/:jobId",
-  previewTimeline: "/agent/preview/timeline",
-  impact: "/agent/impact",
-  projectStatus: "/agent/project/status"
-};
-function agentGenerationJobPath(jobId) {
-  return `/agent/generation/jobs/${encodeURIComponent(String(jobId))}`;
-}
-function createAgentBrowserSurface(args, input) {
-  const frontendOrigin = resolveFrontendOrigin(args);
-  const proxyBaseURL = resolveMCPProxyBaseURL(args);
-  const mcpApiBaseURL = `${proxyBaseURL}/agent-api/v1`;
-  const url = new URL(input.route, frontendOrigin);
-  url.searchParams.set("mcpApiBaseURL", mcpApiBaseURL);
-  url.searchParams.set("source", "mcp");
-  for (const [key, value] of Object.entries(input.query ?? {})) {
-    if (value === void 0) continue;
-    url.searchParams.set(key, String(value));
-  }
-  return {
-    kind: "browser_url",
-    surface: input.surface,
-    title: input.title,
-    route: input.route,
-    url: url.toString(),
-    frontend_origin: frontendOrigin,
-    mcp_api_base_url: mcpApiBaseURL,
-    api_proxy: {
-      base_url: mcpApiBaseURL,
-      auth: "agent_mcp_context"
-    },
-    ...input.entity ? { entity: input.entity } : {},
-    intent: input.intent,
-    usage: input.usage
-  };
-}
-function createPromptSurface(args, input) {
-  return createAgentBrowserSurface(args, {
-    route: AGENT_SURFACE_ROUTES.contentPrompt,
-    title: `Content unit prompt ${String(input.contentUnitId)}`,
-    surface: input.mode === "inspect" ? "inspect" : "edit",
-    intent: "edit_prompt",
-    entity: {
-      ...input.projectId !== void 0 ? { project_id: input.projectId } : {},
-      content_unit_id: input.contentUnitId
-    },
-    query: {
-      ...input.projectId !== void 0 ? { projectId: input.projectId } : {},
-      contentUnitId: input.contentUnitId,
-      mode: input.mode ?? "edit"
-    },
-    usage: "Open this prompt workbench to inspect semantic refs, blockers, compiled prompt text, provider prompt text, and generation inputs."
-  });
-}
-function createGenerationJobSurface(args, input) {
-  return createAgentBrowserSurface(args, {
-    route: agentGenerationJobPath(input.jobId),
-    title: `Generation job #${input.jobId}`,
-    surface: "inspect",
-    intent: "monitor_generation",
-    entity: {
-      job_id: input.jobId,
-      ...input.projectId !== void 0 ? { project_id: input.projectId } : {},
-      ...input.contentUnitId !== void 0 ? { content_unit_id: input.contentUnitId } : {}
-    },
-    query: {
-      jobId: input.jobId,
-      ...input.projectId !== void 0 ? { projectId: input.projectId } : {},
-      ...input.contentUnitId !== void 0 ? { contentUnitId: input.contentUnitId } : {}
-    },
-    usage: "Open this generation job surface to monitor status, inspect inputs, preview outputs, and continue to candidate review after success."
-  });
-}
-function createContentCandidatesSurface(args, input) {
-  return createAgentBrowserSurface(args, {
-    route: AGENT_SURFACE_ROUTES.contentCandidates,
-    title: `Content unit candidates ${String(input.contentUnitId)}`,
-    surface: "review",
-    intent: "review_candidates",
-    entity: {
-      ...input.projectId !== void 0 ? { project_id: input.projectId } : {},
-      content_unit_id: input.contentUnitId,
-      ...input.candidateId ? { candidate_id: input.candidateId } : {},
-      ...input.resourceId !== void 0 ? { resource_id: input.resourceId } : {}
-    },
-    query: {
-      ...input.projectId !== void 0 ? { projectId: input.projectId } : {},
-      contentUnitId: input.contentUnitId,
-      ...input.candidateId ? { candidateId: input.candidateId } : {},
-      ...input.resourceId !== void 0 ? { resourceId: input.resourceId } : {}
-    },
-    usage: "Open this candidate review surface to compare generated candidates, inspect prompt snapshots, and adopt, reject, or defer a content-unit candidate."
-  });
-}
-function createPreviewTimelineSurface(args, input) {
-  const focus = resolveTimelineSurfaceFocus(input);
-  return createAgentBrowserSurface(args, {
-    route: AGENT_SURFACE_ROUTES.previewTimeline,
-    title: `Timeline preview ${focus.label}`,
-    surface: "review",
-    intent: "preview_timeline",
-    entity: focus.entity,
-    query: focus.query,
-    usage: "Open this preview timeline surface to inspect selected scene-moment outputs for a timeline assembly or legacy production scope."
-  });
-}
-function createImpactSurface(args, input) {
-  return createAgentBrowserSurface(args, {
-    route: AGENT_SURFACE_ROUTES.impact,
-    title: "MovScript change impact",
-    surface: "review",
-    intent: "review_impact",
-    entity: {
-      ...input.projectId !== void 0 ? { project_id: input.projectId } : {}
-    },
-    query: {
-      ...input.projectId !== void 0 ? { projectId: input.projectId } : {},
-      ...input.target !== void 0 ? { target: input.target } : {},
-      ...input.source ? { source: input.source } : {}
-    },
-    usage: "Open this impact surface to review affected content units, stale selections, and explicit keep, relink, re-prompt, regenerate, or accept-stale decisions."
-  });
-}
-function createProjectStatusSurface(args, input = {}) {
-  const focus = resolveTimelineSurfaceFocus(input);
-  return createAgentBrowserSurface(args, {
-    route: AGENT_SURFACE_ROUTES.projectStatus,
-    title: "MovScript project status",
-    surface: "inspect",
-    intent: "inspect_project_status",
-    entity: focus.entity,
-    query: focus.query,
-    usage: "Open this project status surface to inspect timeline readiness, candidate coverage, selections, stale hints, and blockers."
-  });
-}
-function resolveTimelineSurfaceFocus(input) {
-  const focusInput = {
-    projectId: input.projectId,
-    productionId: input.productionId,
-    scopeKind: input.scopeKind,
-    scopeRef: input.scopeRef,
-    namespaceKind: input.namespaceKind,
-    namespaceRef: input.namespaceRef,
-    namespacePath: input.namespacePath,
-    targetCategory: input.targetCategory,
-    targetKind: input.timelineAssemblyRef !== void 0 ? "timeline_assembly" : input.targetKind,
-    targetRef: input.timelineAssemblyRef ?? input.targetRef
-  };
-  const focus = normalizeDomainFocus(focusInput);
-  const legacyProductionId = input.productionId ?? (focus.scope?.kind === "production" ? focus.scope.ref : void 0);
-  const entity = {
-    ...input.projectId !== void 0 ? { project_id: input.projectId } : {},
-    ...legacyProductionId !== void 0 ? { production_id: legacyProductionId } : {},
-    ...focus.scope ? {
-      timeline_scope_kind: focus.scope.kind,
-      timeline_scope_ref: focus.scope.ref
-    } : {},
-    ...focus.target?.targetCategory ? { target_category: focus.target.targetCategory } : {},
-    ...focus.target?.targetKind ? { target_kind: focus.target.targetKind } : {},
-    ...focus.target?.targetRef !== void 0 ? { target_ref: focus.target.targetRef } : {},
-    ...focus.target?.targetKind === "timeline_assembly" && focus.target.targetRef !== void 0 ? { timeline_assembly_ref: focus.target.targetRef } : {},
-    domain_focus: focus
-  };
-  const query = {
-    ...input.projectId !== void 0 ? { projectId: input.projectId } : {},
-    ...legacyProductionId !== void 0 ? { productionId: legacyProductionId } : {},
-    ...focus.scope ? {
-      scopeKind: focus.scope.kind,
-      scopeRef: focus.scope.ref
-    } : {},
-    ...focus.target?.targetCategory ? { targetCategory: focus.target.targetCategory } : {},
-    ...focus.target?.targetKind ? { targetKind: focus.target.targetKind } : {},
-    ...focus.target?.targetRef !== void 0 ? { targetRef: focus.target.targetRef } : {}
-  };
-  return {
-    focus,
-    ...legacyProductionId !== void 0 ? { legacyProductionId } : {},
-    label: timelineFocusLabel(focus, legacyProductionId),
-    entity,
-    query
-  };
-}
-function timelineFocusLabel(focus, legacyProductionId) {
-  if (focus.scope?.kind && focus.scope.ref) return `${focus.scope.kind} ${focus.scope.ref}`;
-  if (focus.target?.targetKind && focus.target.targetRef) return `${focus.target.targetKind} ${focus.target.targetRef}`;
-  if (legacyProductionId !== void 0) return `production ${String(legacyProductionId)}`;
-  return "project";
-}
-function projectIdFromArgs(args) {
-  const value = args.projectId ?? args.project_id;
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim()) return value.trim();
-  return void 0;
-}
-function candidateIdFromArgs(args) {
-  return getOptionalString2(args, "candidateId") ?? getOptionalString2(args, "candidate_id");
-}
-function resolveFrontendOrigin(args) {
-  return normalizeHTTPOrigin(
-    getOptionalString2(args, "frontend_origin") ?? getOptionalString2(args, "frontendOrigin") ?? process.env.MOVSCRIPT_FRONTEND_ORIGIN ?? process.env.VITE_DEV_SERVER_URL ?? "http://127.0.0.1:5173"
-  );
-}
-function resolveMCPProxyBaseURL(args) {
-  const explicit = getOptionalString2(args, "mcp_base_url") ?? getOptionalString2(args, "mcpBaseURL");
-  if (explicit) return normalizeHTTPOrigin(explicit);
-  const endpoint = process.env.MOVSCRIPT_MCP_ENDPOINT;
-  if (endpoint) {
-    try {
-      const url = new URL(endpoint);
-      return normalizeHTTPOrigin(url.origin);
-    } catch {
-    }
-  }
-  const port = process.env.MOVSCRIPT_MCP_PORT || "28765";
-  return normalizeHTTPOrigin(`http://127.0.0.1:${port}`);
-}
-function getOptionalString2(args, key) {
-  const value = args[key];
-  if (typeof value !== "string") return void 0;
-  const trimmed = value.trim();
-  return trimmed || void 0;
-}
-function normalizeHTTPOrigin(value) {
-  const url = new URL(value.trim());
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new Error(`Expected http(s) URL, got ${value}`);
-  }
-  return url.origin;
-}
-
 // ../../packages/workspace/dist/chunk-VIT4JJRQ.js
 var MOVSCRIPT_INTERPRET_CURRENT_DIR = ".interpret/current";
 var MOVSCRIPT_INTERPRET_MANIFESTS_DIR = ".interpret/manifests";
@@ -23156,3908 +22965,7 @@ var MOVSCRIPT_SOURCE_ENTITY_FILES = /* @__PURE__ */ new Set([
   "expression_unit.json"
 ]);
 
-// ../../packages/workspace/dist/chunk-GKIKPQYK.js
-function deriveMovScriptWorkspaceDomainIndex(documents) {
-  const entities = documents.flatMap((document) => indexedEntitiesFromDocument(document));
-  const byKind = /* @__PURE__ */ new Map();
-  for (const entity of entities) {
-    byKind.set(entity.entityKind, [...byKind.get(entity.entityKind) ?? [], entity]);
-  }
-  const namespaceVocabulary = normalizeNamespaceVocabulary(byKind.get("project")?.[0]?.record);
-  const domainNodes = deriveMovScriptDomainNodes(entities);
-  const domainEdges = deriveMovScriptDomainEdges(entities, domainNodes);
-  return { documents, entities, byKind, namespaceVocabulary, domainNodes, domainEdges };
-}
-function queryMovScriptWorkspaceEntities(index, query = {}) {
-  const source = query.entityKind ? index.byKind.get(query.entityKind) ?? [] : index.entities;
-  const queryContext = createEntityQueryContext(index);
-  const out = source.filter((entity) => {
-    const record = entity.record;
-    if (query.kind && !entityKindMatches(entity, query.kind)) return false;
-    if (query.productionId !== void 0 && !entityMatchesScope(entity, "production", query.productionId, queryContext)) return false;
-    if (query.segmentId !== void 0 && !entityMatchesScope(entity, "segment", query.segmentId, queryContext)) return false;
-    if (query.sceneMomentId !== void 0 && !entityMatchesScope(entity, "scene_moment", query.sceneMomentId, queryContext)) return false;
-    if (query.storyboardId !== void 0 && !entityMatchesStoryboard(entity, query.storyboardId, queryContext)) return false;
-    if (query.contentUnitId !== void 0 && !entityPathMatchesContentUnit(entity.path, query.contentUnitId)) return false;
-    if (query.settingId !== void 0 && !entityMatchesScope(entity, "setting", query.settingId, queryContext)) return false;
-    if (query.settingStateId !== void 0 && !entityMatchesScope(entity, "setting_state", query.settingStateId, queryContext)) return false;
-    if (query.query && !recordMatchesQuery(record, query.query)) return false;
-    return !isDeletedWorkspaceRecord(record);
-  });
-  return limitEntities(out, query.limit);
-}
-function queryMovScriptWorkspaceSettings(index, query = {}) {
-  const references = queryMovScriptWorkspaceEntities(index, {
-    entityKind: "setting",
-    kind: query.kind,
-    query: query.query,
-    limit: query.limit
-  });
-  if (query.settingId === void 0) return references;
-  return references.filter((entity) => sameId(entity.id, query.settingId));
-}
-function queryMovScriptWorkspaceAssets(index, query = {}) {
-  const assets = queryMovScriptWorkspaceEntities(index, {
-    entityKind: "asset",
-    query: query.query,
-    settingId: query.settingId,
-    settingStateId: query.settingStateId,
-    limit: query.limit
-  }).filter((entity) => query.assetId === void 0 || sameId(entity.id, query.assetId));
-  if (!query.includeCandidates) return { assets };
-  const candidates = assets.flatMap((entity) => {
-    const rows = entity.record.candidates;
-    return Array.isArray(rows) ? rows.filter(isRecord6) : [];
-  });
-  return { assets, candidates };
-}
-function queryMovScriptWorkspaceProductionContext(index, query = {}) {
-  const include = new Set(query.include ?? ["productions", "segments", "scene_moments", "storyboards", "audio_cues", "expression_units", "content_units", "keyframes"]);
-  const result = {};
-  if (include.has("productions")) {
-    result.productions = queryMovScriptWorkspaceEntities(index, {
-      entityKind: "production",
-      query: query.query,
-      limit: query.limit
-    }).filter((entity) => query.productionId === void 0 || sameId(entity.id, query.productionId));
-  }
-  if (include.has("segments")) {
-    result.segments = queryMovScriptWorkspaceEntities(index, {
-      entityKind: "segment",
-      productionId: query.productionId,
-      query: query.query,
-      limit: query.limit
-    }).filter((entity) => query.segmentId === void 0 || sameId(entity.id, query.segmentId));
-  }
-  if (include.has("scene_moments")) {
-    result.scene_moments = queryMovScriptWorkspaceEntities(index, {
-      entityKind: "scene_moment",
-      productionId: query.productionId,
-      segmentId: query.segmentId,
-      query: query.query,
-      limit: query.limit
-    }).filter((entity) => query.sceneMomentId === void 0 || sameId(entity.id, query.sceneMomentId));
-  }
-  if (include.has("storyboards")) {
-    result.storyboards = queryMovScriptWorkspaceEntities(index, {
-      entityKind: "storyboard",
-      productionId: query.productionId,
-      segmentId: query.segmentId,
-      sceneMomentId: query.sceneMomentId,
-      query: query.query,
-      limit: query.limit
-    }).filter((entity) => query.storyboardId === void 0 || sameId(entity.id, query.storyboardId));
-  }
-  if (include.has("audio_cues")) {
-    result.audio_cues = queryMovScriptWorkspaceEntities(index, {
-      entityKind: "audio_cue",
-      productionId: query.productionId,
-      segmentId: query.segmentId,
-      sceneMomentId: query.sceneMomentId,
-      storyboardId: query.storyboardId,
-      query: query.query,
-      limit: query.limit
-    });
-  }
-  if (include.has("expression_units")) {
-    result.expression_units = queryMovScriptWorkspaceEntities(index, {
-      entityKind: "expression_unit",
-      productionId: query.productionId,
-      segmentId: query.segmentId,
-      sceneMomentId: query.sceneMomentId,
-      query: query.query,
-      limit: query.limit
-    });
-  }
-  if (include.has("content_units")) {
-    result.content_units = queryMovScriptWorkspaceEntities(index, {
-      entityKind: "content_unit",
-      contentUnitId: query.contentUnitId,
-      query: query.query,
-      limit: query.limit
-    });
-  }
-  if (include.has("keyframes")) {
-    result.keyframes = queryMovScriptWorkspaceEntities(index, {
-      entityKind: "keyframe",
-      sceneMomentId: query.sceneMomentId,
-      contentUnitId: query.contentUnitId,
-      query: query.query,
-      limit: query.limit
-    });
-  }
-  return result;
-}
-function indexedEntitiesFromDocument(document) {
-  const path = normalizeIndexedDocumentPath(document.path);
-  if (!isRecord6(document.data)) return [];
-  const entityKind = entityKindFromSchema(stringField7(document.data.schema)) ?? entityKindFromPath(path);
-  return entityKind ? [indexedEntity(entityKind, workspaceRecordWithDocumentMetadata(document.data, document), path, 0)] : [];
-}
-function indexedEntity(entityKind, record, path, index) {
-  const schema = stringField7(record.schema);
-  const id = entityIdField(entityKind, record);
-  const clientId = stringField7(record.client_id ?? record.clientId);
-  return {
-    entityKind,
-    record,
-    path,
-    index,
-    ...id !== void 0 ? { id } : {},
-    ...clientId ? { clientId } : {},
-    ...schema ? { schema } : {}
-  };
-}
-function deriveMovScriptDomainNodes(entities) {
-  return entities.flatMap((entity) => {
-    const category = classifyMovScriptEntityKind(entity.entityKind);
-    if (!category) return [];
-    return [pruneUndefined({
-      category,
-      kind: projectMovScriptDomainNodeKind(entity.entityKind, entity.record),
-      ...entity.id !== void 0 ? { id: entity.id } : {},
-      path: entity.path,
-      title: stringField7(entity.record.title) ?? stringField7(entity.record.label),
-      order: finiteNumber(entity.record.order),
-      metadata: {
-        entityKind: entity.entityKind
-      }
-    })];
-  });
-}
-function deriveMovScriptDomainPathParentEdges(nodes) {
-  const nodeByDir = /* @__PURE__ */ new Map();
-  for (const node of nodes) {
-    if (!node.path) continue;
-    nodeByDir.set(entityDir(node.path), node);
-  }
-  const edges = [];
-  for (const node of nodes) {
-    if (!node.path) continue;
-    const parentPath = nearestParentPath(entityDir(node.path), nodeByDir.keys());
-    if (!parentPath) continue;
-    const parent = nodeByDir.get(parentPath);
-    const normalized = normalizePathParentEdge(domainRefFromNode(node), parent ? domainRefFromNode(parent) : void 0);
-    if (normalized.edge) edges.push(normalized.edge);
-  }
-  return dedupeDomainEdges(edges);
-}
-function deriveMovScriptDomainEdges(entities, nodes) {
-  return dedupeDomainEdges([
-    ...deriveMovScriptDomainPathParentEdges(nodes),
-    ...deriveMovScriptContentUnitTargetEdges(entities, nodes)
-  ]);
-}
-function deriveMovScriptContentUnitTargetEdges(entities, nodes) {
-  const nodeByPath = new Map(nodes.flatMap((node) => node.path ? [[node.path, node]] : []));
-  const timelineNamespaceNodes = nodes.filter((node) => node.category === "timeline_namespace");
-  const edges = [];
-  for (const entity of entities) {
-    if (entity.entityKind !== "content_unit") continue;
-    const sourceNode = nodeByPath.get(entity.path);
-    if (!sourceNode) continue;
-    edges.push(...normalizeContentUnitTargetEdges({
-      source: domainRefFromNode(sourceNode),
-      record: entity.record,
-      scopeTarget(scope) {
-        return domainRefFromTimelineScope(scope.kind, scope.ref, timelineNamespaceNodes);
-      }
-    }));
-  }
-  return edges;
-}
-function domainRefFromTimelineScope(scopeKind, scopeRef, timelineNamespaceNodes) {
-  const node = timelineNamespaceNodes.find(
-    (candidate) => String(candidate.id ?? "") === scopeRef && (candidate.kind === scopeKind || candidate.metadata?.entityKind === scopeKind)
-  );
-  return node ? domainRefFromNode(node) : { category: "timeline_namespace", kind: scopeKind, id: scopeRef };
-}
-function domainRefFromNode(node) {
-  return {
-    category: node.category,
-    kind: node.kind,
-    ...node.id !== void 0 ? { id: node.id } : {},
-    ...node.path ? { path: node.path } : {}
-  };
-}
-function workspaceRecordWithDocumentMetadata(record, document) {
-  return {
-    ...record,
-    __workspace_path: document.path,
-    ...document.version !== void 0 ? { __workspace_version: document.version } : {},
-    ...document.updatedAt !== void 0 ? { __workspace_updated_at: document.updatedAt } : {}
-  };
-}
-function entityKindFromSchema(schema) {
-  if (!schema) return void 0;
-  const normalized = schema.replace(/^movscript\./, "").replace(/\.v\d+$/, "");
-  return schemaEntityKinds[normalized];
-}
-function entityKindFromPath(path) {
-  const name = path.split("/").pop() ?? path;
-  if (name === "project.json") return "project";
-  if (name === "project_standards.json") return "project_standards";
-  if (name === "script.meta.json" || name === "script.json") return "script";
-  if (name === "setting.json") return "setting";
-  if (name === "setting_state.json") return "setting_state";
-  if (name === "asset.json") return "asset";
-  if (name === "script_version.json") return "script_version";
-  if (name === "script_block.json") return "script_block";
-  if (name === "production.json") return "production";
-  if (name === "segment.json") return "segment";
-  if (name === "scene_moment.json") return "scene_moment";
-  if (name === "storyboard.json") return "storyboard";
-  if (name === "audio_cue.json") return "audio_cue";
-  if (name === "expression_unit.json") return "expression_unit";
-  if (name === "content_unit.json") return "content_unit";
-  if (name === "keyframe.json") return "keyframe";
-  return void 0;
-}
-var schemaEntityKinds = {
-  project: "project",
-  project_standards: "project_standards",
-  script: "script",
-  script_version: "script_version",
-  script_block: "script_block",
-  production: "production",
-  segment: "segment",
-  scene_moment: "scene_moment",
-  storyboard: "storyboard",
-  audio_cue: "audio_cue",
-  expression_unit: "expression_unit",
-  content_unit: "content_unit",
-  keyframe: "keyframe",
-  setting: "setting",
-  setting_state: "setting_state",
-  asset: "asset"
-};
-function entityPathMatchesProduction(path, productionId) {
-  return pathSegmentAfter(path, "productions") !== void 0 && sameEntityRef(pathSegmentAfter(path, "productions"), productionId, "production");
-}
-function entityPathMatchesSegment(path, segmentId) {
-  return pathSegmentAfter(path, "segments") !== void 0 && sameEntityRef(pathSegmentAfter(path, "segments"), segmentId, "segment");
-}
-function entityPathMatchesSceneMoment(path, sceneMomentId) {
-  return pathSegmentAfter(path, "scene_moments") !== void 0 && sameEntityRef(pathSegmentAfter(path, "scene_moments"), sceneMomentId, "scene_moment");
-}
-function entityPathMatchesStoryboard(path, storyboardId) {
-  return pathSegmentAfter(path, "storyboards") !== void 0 && sameEntityRef(pathSegmentAfter(path, "storyboards"), storyboardId, "storyboard");
-}
-function entityMatchesStoryboard(entity, storyboardId, context) {
-  if (entityMatchesScope(entity, "storyboard", storyboardId, context)) return true;
-  if (entityPathMatchesStoryboard(entity.path, storyboardId)) return true;
-  const storyboardRef = stringField7(entity.record.storyboard_ref);
-  return storyboardRef !== void 0 && (entityPathMatchesStoryboard(storyboardRef, storyboardId) || sameNormalizedEntityPath(storyboardRef, storyboardId, "storyboard"));
-}
-function entityPathMatchesContentUnit(path, contentUnitId) {
-  return pathSegmentAfter(path, "content_units") !== void 0 && sameEntityRef(pathSegmentAfter(path, "content_units"), contentUnitId, "content_unit");
-}
-function entityPathMatchesSetting(path, settingId) {
-  return pathSegmentAfter(path, "settings") !== void 0 && sameEntityRef(pathSegmentAfter(path, "settings"), settingId, "setting");
-}
-function entityPathMatchesSettingState(path, stateId) {
-  return pathSegmentAfter(path, "states") !== void 0 && sameEntityRef(pathSegmentAfter(path, "states"), stateId, "setting_state");
-}
-function createEntityQueryContext(index) {
-  const entityByPath = new Map(index.entities.map((entity) => [entity.path, entity]));
-  const entityByDir = new Map(index.entities.map((entity) => [entityDir(entity.path), entity]));
-  const parentPathByPath = /* @__PURE__ */ new Map();
-  for (const edge of index.domainEdges) {
-    if (edge.relation !== "parent" || edge.origin !== "path") continue;
-    if (!edge.source.path || !edge.target.path) continue;
-    parentPathByPath.set(edge.source.path, edge.target.path);
-  }
-  for (const entity of index.entities) {
-    if (parentPathByPath.has(entity.path)) continue;
-    const parentDir = nearestParentPath(entityDir(entity.path), entityByDir.keys());
-    const parent = parentDir ? entityByDir.get(parentDir) : void 0;
-    if (parent) parentPathByPath.set(entity.path, parent.path);
-  }
-  return { entityByPath, parentPathByPath };
-}
-function entityMatchesScope(entity, scopeKind, scopeRef, context) {
-  if (entityRefMatchesScope(entity, scopeKind, scopeRef)) return true;
-  for (const ancestor of ancestorEntities(entity, context)) {
-    if (entityRefMatchesScope(ancestor, scopeKind, scopeRef)) return true;
-  }
-  return legacyEntityPathMatchesScope(entity.path, scopeKind, scopeRef);
-}
-function ancestorEntities(entity, context) {
-  const ancestors = [];
-  const seen = /* @__PURE__ */ new Set([entity.path]);
-  let currentPath = entity.path;
-  while (true) {
-    const parentPath = context.parentPathByPath.get(currentPath);
-    if (!parentPath || seen.has(parentPath)) break;
-    seen.add(parentPath);
-    const parent = context.entityByPath.get(parentPath);
-    if (!parent) break;
-    ancestors.push(parent);
-    currentPath = parent.path;
-  }
-  return ancestors;
-}
-function entityRefMatchesScope(entity, scopeKind, scopeRef) {
-  if (entity.entityKind !== scopeKind) return false;
-  if (entity.id !== void 0 && sameEntityRef(entity.id, scopeRef, scopeKind)) return true;
-  return sameNormalizedEntityPath(entity.path, scopeRef, scopeKind) || sameNormalizedEntityPath(entityDir(entity.path), scopeRef, scopeKind);
-}
-function legacyEntityPathMatchesScope(path, scopeKind, scopeRef) {
-  if (scopeKind === "production") return entityPathMatchesProduction(path, scopeRef);
-  if (scopeKind === "segment") return entityPathMatchesSegment(path, scopeRef);
-  if (scopeKind === "scene_moment") return entityPathMatchesSceneMoment(path, scopeRef);
-  if (scopeKind === "storyboard") return entityPathMatchesStoryboard(path, scopeRef);
-  if (scopeKind === "setting") return entityPathMatchesSetting(path, scopeRef);
-  if (scopeKind === "setting_state") return entityPathMatchesSettingState(path, scopeRef);
-  return false;
-}
-function recordMatchesQuery(record, query) {
-  const needle = query.trim().toLowerCase();
-  if (!needle) return true;
-  return ["id", "title", "label", "alias", "description", "content", "summary", "prompt", "notes"].some((key) => String(record[key] ?? "").toLowerCase().includes(needle));
-}
-function entityKindMatches(entity, kind) {
-  return projectMovScriptDomainNodeKind(entity.entityKind, entity.record) === kind || recordKindMatches(entity.record, kind);
-}
-function recordKindMatches(record, kind) {
-  return [
-    record.kind,
-    record.namespace_kind,
-    record.namespaceKind,
-    record.timeline_namespace_kind,
-    record.timelineNamespaceKind,
-    record.setting_namespace_kind,
-    record.settingNamespaceKind,
-    record.setting_kind,
-    record.settingKind,
-    record.content_unit_type,
-    record.contentUnitType,
-    record.asset_kind,
-    record.assetKind,
-    record.shot_kind,
-    record.shotKind,
-    record.segment_kind,
-    record.segmentKind,
-    record.expression_kind,
-    record.expressionKind,
-    record.cue_kind,
-    record.cueKind
-  ].some((value) => stringField7(value) === kind);
-}
-function isDeletedWorkspaceRecord(record) {
-  return record.__delete === true || record.deleted === true;
-}
-function limitEntities(items, limit) {
-  if (limit === void 0) return items;
-  if (!Number.isFinite(limit) || limit <= 0) return [];
-  return items.slice(0, Math.floor(limit));
-}
-function sameId(left, right) {
-  const leftId = idField2(left);
-  const rightId = idField2(right);
-  return leftId !== void 0 && rightId !== void 0 && String(leftId) === String(rightId);
-}
-function entityIdField(entityKind, record) {
-  if (entityKind === "project") return idField2(record.project_id ?? record.ID ?? record.id);
-  return idField2(record.ID ?? record.id);
-}
-function idField2(value) {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim()) return value.trim();
-  return void 0;
-}
-function stringField7(value) {
-  return typeof value === "string" && value.trim() ? value.trim() : void 0;
-}
-function finiteNumber(value) {
-  const next = Number(value);
-  return Number.isFinite(next) ? next : void 0;
-}
-function pathSegmentAfter(path, segment) {
-  const parts = path.split("/");
-  const index = parts.indexOf(segment);
-  return index >= 0 ? parts[index + 1] : void 0;
-}
-function sameNormalizedEntityPath(pathOrDir, ref, entityKind) {
-  const left = normalizeWorkspacePath(pathOrDir);
-  const right = normalizeWorkspacePath(String(ref));
-  if (!left || !right) return false;
-  if (left === right) return true;
-  if (left.endsWith(".json") && entityDir(left) === right) return true;
-  if (right.endsWith(".json") && left === entityDir(right)) return true;
-  return sameEntityRef(left, right, entityKind);
-}
-function normalizeIndexedDocumentPath(path) {
-  return normalizeWorkspacePath(path).replace(/^\.movscript\//, "");
-}
-function isRecord6(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function pruneUndefined(value) {
-  const output = {};
-  for (const [key, item] of Object.entries(value)) {
-    if (item !== void 0) output[key] = item;
-  }
-  return output;
-}
-function dedupeDomainEdges(edges) {
-  const seen = /* @__PURE__ */ new Set();
-  const out = [];
-  for (const edge of edges) {
-    const key = JSON.stringify(edge);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(edge);
-  }
-  return out;
-}
-
-// ../../packages/decision/dist/index.js
-var DEFAULT_SELECTION_FIELD = "lock";
-function buildMovScriptCandidateSelectionRecord(candidate, input = {}) {
-  const candidateId = idField3(candidate.id);
-  const resourceId = resourceIdField(candidate.resource_id ?? candidate.resourceId);
-  const artifactRef = stringField8(candidate.artifact_ref ?? candidate.artifactRef);
-  if (candidateId === void 0 && resourceId === void 0) {
-    throw new Error("candidate selection requires candidate id or resource_id");
-  }
-  return pruneUndefined2({
-    candidate_id: candidateId,
-    resource_id: resourceId,
-    artifact_ref: artifactRef,
-    reason: input.reason ?? "selected",
-    selected_at: input.selectedAt,
-    selected_by: input.selectedBy,
-    metadata: input.metadata
-  });
-}
-function selectMovScriptCandidateRecord(record, input) {
-  const candidate = findCandidate(record, input.candidateId);
-  if (!candidate) throw new Error(`candidate not found: ${String(input.candidateId)}`);
-  const selection = buildMovScriptCandidateSelectionRecord(candidate, input);
-  return {
-    candidate,
-    selection,
-    record: {
-      ...record,
-      [selectionField(input)]: selection
-    }
-  };
-}
-function clearMovScriptCandidateSelectionRecord(record, options = {}) {
-  const field = selectionField(options);
-  const { [field]: _selection, ...nextRecord } = record;
-  return nextRecord;
-}
-function findCandidate(record, candidateId) {
-  return arrayField(record.candidates).filter(isRecord7).find((item) => sameId2(item.id, candidateId));
-}
-function selectionField(options) {
-  return options.selectionField?.trim() || DEFAULT_SELECTION_FIELD;
-}
-function sameId2(left, right) {
-  if (left === void 0 || right === void 0) return false;
-  return String(left) === String(right);
-}
-function idField3(value) {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim()) return value.trim();
-  return void 0;
-}
-function resourceIdField(value) {
-  if (typeof value === "number" && Number.isInteger(value) && value > 0) return value;
-  if (typeof value === "string" && value.trim()) {
-    const parsed = Number(value);
-    if (Number.isInteger(parsed) && parsed > 0) return parsed;
-  }
-  return void 0;
-}
-function stringField8(value) {
-  return typeof value === "string" && value.trim() ? value.trim() : void 0;
-}
-function arrayField(value) {
-  return Array.isArray(value) ? value : [];
-}
-function isRecord7(value) {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-function pruneUndefined2(value) {
-  const output = {};
-  for (const [key, item] of Object.entries(value)) {
-    if (item !== void 0) output[key] = item;
-  }
-  return output;
-}
-
-// ../../packages/workspace/dist/chunk-7KIHQQQN.js
-function createMovScriptWorkspaceDomainRepository(options) {
-  const includeFile = options.includeFile ?? defaultWorkspaceDomainFileFilter;
-  return {
-    async loadDocuments(input = {}) {
-      return loadWorkspaceDocuments(options.fileRepository, input.path ?? "", includeFile);
-    },
-    async loadIndex(input = {}) {
-      const documents = await loadWorkspaceDocuments(options.fileRepository, input.path ?? "", includeFile);
-      return deriveMovScriptWorkspaceDomainIndex(documents);
-    }
-  };
-}
-async function loadWorkspaceDocuments(fileRepository, rootPath, includeFile) {
-  const out = [];
-  await collectWorkspaceDocuments(fileRepository, normalizeWorkspacePath(rootPath), includeFile, out);
-  return out.sort((left, right) => left.path.localeCompare(right.path));
-}
-async function collectWorkspaceDocuments(fileRepository, path, includeFile, out) {
-  const listed = await fileRepository.list({ path });
-  for (const entry of listed.entries) {
-    if (entry.kind === "directory") {
-      if (!path && isMovScriptNonSourceRootDirectory(entry.path)) continue;
-      await collectWorkspaceDocuments(fileRepository, entry.path, includeFile, out);
-      continue;
-    }
-    if (!includeFile(entry.path)) continue;
-    const file = await fileRepository.read({ path: entry.path });
-    out.push({
-      path: file.path,
-      data: parseWorkspaceDocument(file.path, file.content),
-      ...file.version !== void 0 ? { version: file.version } : {},
-      ...file.updatedAt !== void 0 ? { updatedAt: file.updatedAt } : {}
-    });
-  }
-}
-function parseWorkspaceDocument(path, content) {
-  if (path.endsWith(".json")) {
-    try {
-      return JSON.parse(content);
-    } catch {
-      return void 0;
-    }
-  }
-  return content;
-}
-function defaultWorkspaceDomainFileFilter(path) {
-  return isMovScriptSourcePath(path);
-}
-async function appendMovScriptInlineCandidate(input) {
-  const targetPath = normalizeWorkspacePath2(input.targetPath);
-  const current = await readTargetRecord(input.fileRepository, targetPath);
-  validateTargetKind(input.targetKind, current);
-  const candidate = buildInlineCandidate(input.payload, input.nonce);
-  const candidates = arrayField2(current.candidates).filter(isRecord8);
-  if (candidates.some((item) => String(item.id) === String(candidate.id))) {
-    throw new Error(`candidate already exists: ${String(candidate.id)}`);
-  }
-  const record = {
-    ...current,
-    candidates: [...candidates, candidate]
-  };
-  await input.fileRepository.write({ path: targetPath, content: serializeWorkspaceRecord(record) });
-  return { path: targetPath, targetKind: input.targetKind, candidate, record };
-}
-async function selectMovScriptInlineCandidate(input) {
-  const targetPath = normalizeWorkspacePath2(input.targetPath);
-  const current = await readTargetRecord(input.fileRepository, targetPath);
-  validateTargetKind(input.targetKind, current);
-  const { candidate, record } = selectMovScriptCandidateRecord(current, {
-    candidateId: input.candidateId,
-    reason: input.reason
-  });
-  await input.fileRepository.write({ path: targetPath, content: serializeWorkspaceRecord(record) });
-  return { path: targetPath, targetKind: input.targetKind, candidate, record };
-}
-async function updateMovScriptInlineCandidate(input) {
-  const targetPath = normalizeWorkspacePath2(input.targetPath ?? input.targetEntity?.path ?? workspacePath(input.targetRecord));
-  const current = await readTargetRecord(input.fileRepository, targetPath);
-  validateTargetKind(input.targetKind, current);
-  const candidates = arrayField2(current.candidates).filter(isRecord8);
-  const candidateIndex = candidates.findIndex((item) => String(item.id) === input.candidateId);
-  if (candidateIndex < 0) throw new Error(`candidate not found: ${input.candidateId}`);
-  const currentCandidate = candidates[candidateIndex];
-  const candidate = pruneUndefined3({
-    ...currentCandidate,
-    ...input.payload.resource_id !== void 0 || input.payload.resourceId !== void 0 ? { resource_id: requiredResourceId(input.payload.resource_id ?? input.payload.resourceId) } : {},
-    ...input.payload.artifact_ref !== void 0 || input.payload.artifactRef !== void 0 ? { artifact_ref: stringField9(input.payload.artifact_ref ?? input.payload.artifactRef) } : {},
-    ...input.payload.source !== void 0 ? { source: input.payload.source } : {},
-    ...input.payload.notes !== void 0 ? { notes: input.payload.notes } : {},
-    ...input.payload.metadata !== void 0 ? { metadata: input.payload.metadata } : {}
-  });
-  const nextCandidates = [...candidates];
-  nextCandidates[candidateIndex] = candidate;
-  const record = {
-    ...current,
-    candidates: nextCandidates
-  };
-  await input.fileRepository.write({ path: targetPath, content: serializeWorkspaceRecord(record) });
-  return { path: targetPath, targetKind: input.targetKind, candidate, record };
-}
-function workspacePath(record) {
-  const value = record?.__workspace_path ?? record?.workspace_path ?? record?.path;
-  if (typeof value === "string" && value.trim()) return value;
-  throw new Error("candidate target path is required");
-}
-async function unlockMovScriptInlineCandidate(input) {
-  const targetPath = normalizeWorkspacePath2(input.targetPath);
-  const current = await readTargetRecord(input.fileRepository, targetPath);
-  validateTargetKind(input.targetKind, current);
-  const record = clearMovScriptCandidateSelectionRecord(current);
-  await input.fileRepository.write({ path: targetPath, content: serializeWorkspaceRecord(record) });
-  return { path: targetPath, targetKind: input.targetKind, record };
-}
-function readTargetRecord(fileRepository, targetPath) {
-  return fileRepository.read({ path: targetPath }).then((file) => {
-    const parsed = JSON.parse(file.content);
-    if (!isRecord8(parsed)) throw new Error(`target JSON must be an object: ${targetPath}`);
-    return parsed;
-  });
-}
-function validateTargetKind(targetKind, record) {
-  if (targetKind === "content_unit") {
-    throw new Error("content_unit candidates are backend decision records; use createContentCandidate/selectContentUnitCandidate");
-  }
-  if (record.kind === targetKind) return;
-  const schemaKind = typeof record.schema === "string" ? record.schema.replace(/^movscript\./, "").replace(/\.v\d+$/, "") : void 0;
-  if (schemaKind === targetKind) return;
-  throw new Error(`target kind mismatch: expected ${targetKind}`);
-}
-function buildInlineCandidate(payload, nonce) {
-  const resourceId = requiredResourceId(payload.resource_id ?? payload.resourceId);
-  if (resourceId === void 0) {
-    throw new Error("resource_id required");
-  }
-  const id = payload.id ?? `candidate_${safeFileToken(String(resourceId))}_${safeFileToken(nonce ?? randomNonce())}`;
-  return pruneUndefined3({
-    id,
-    resource_id: resourceId,
-    artifact_ref: stringField9(payload.artifact_ref ?? payload.artifactRef),
-    source: payload.source ?? "manual",
-    notes: payload.notes,
-    metadata: payload.metadata
-  });
-}
-function serializeWorkspaceRecord(value) {
-  return `${JSON.stringify(value, null, 2)}
-`;
-}
-function normalizeWorkspacePath2(value) {
-  return value.replace(/\\/g, "/").replace(/^\.movscript\//, "").replace(/^\/+/, "").replace(/\/+$/, "");
-}
-function safeFileToken(value) {
-  return value.trim().replace(/[^a-zA-Z0-9_-]+/g, "_");
-}
-function requiredResourceId(value) {
-  if (value === void 0 || value === null || value === "") return void 0;
-  if (typeof value === "number" && Number.isInteger(value) && value > 0) return value;
-  if (typeof value === "string" && value.trim()) {
-    const parsed = Number(value);
-    if (Number.isInteger(parsed) && parsed > 0) return parsed;
-  }
-  throw new Error("resource_id must be a positive integer RawResource ID");
-}
-function stringField9(value) {
-  return typeof value === "string" && value.trim() ? value.trim() : void 0;
-}
-function randomNonce() {
-  const random = globalThis.crypto;
-  if (random?.randomUUID) return random.randomUUID();
-  return `${Date.now()}_${Math.random().toString(36).slice(2)}`;
-}
-function arrayField2(value) {
-  return Array.isArray(value) ? value : [];
-}
-function isRecord8(value) {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-function pruneUndefined3(value) {
-  const output = {};
-  for (const [key, item] of Object.entries(value)) {
-    if (item !== void 0) output[key] = item;
-  }
-  return output;
-}
-async function updateMovScriptContentUnitEditPrompt(input) {
-  const targetPath = normalizeWorkspacePath3(input.targetPath);
-  const current = await readContentUnitRecord(input.fileRepository, targetPath);
-  const editPrompt = pruneUndefined22({
-    text: stringValue3(input.editPrompt.text),
-    negative_text: stringValue3(input.editPrompt.negative_text),
-    notes: stringValue3(input.editPrompt.notes),
-    structured: isRecord23(input.editPrompt.structured) ? input.editPrompt.structured : void 0
-  });
-  const record = {
-    ...current,
-    edit_prompt: editPrompt
-  };
-  await input.fileRepository.write({ path: targetPath, content: serializeWorkspaceRecord2(record) });
-  return { path: targetPath, record };
-}
-function readContentUnitRecord(fileRepository, targetPath) {
-  return fileRepository.read({ path: targetPath }).then((file) => {
-    const parsed = JSON.parse(file.content);
-    if (!isRecord23(parsed)) throw new Error(`target JSON must be an object: ${targetPath}`);
-    const schemaKind = typeof parsed.schema === "string" ? parsed.schema.replace(/^movscript\./, "").replace(/\.v\d+$/, "") : void 0;
-    if (parsed.kind !== "content_unit" && schemaKind !== "content_unit") {
-      throw new Error("target kind mismatch: expected content_unit");
-    }
-    return parsed;
-  });
-}
-function normalizeWorkspacePath3(value) {
-  return value.replace(/\\/g, "/").replace(/^\.movscript\//, "").replace(/^\/+/, "").replace(/\/+$/, "");
-}
-function serializeWorkspaceRecord2(value) {
-  return `${JSON.stringify(value, null, 2)}
-`;
-}
-function stringValue3(value) {
-  return typeof value === "string" ? value : void 0;
-}
-function isRecord23(value) {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-function pruneUndefined22(value) {
-  const output = {};
-  for (const [key, item] of Object.entries(value)) {
-    if (item !== void 0) output[key] = item;
-  }
-  return output;
-}
-async function snapshotMovScriptVersionFromMarkdown(input) {
-  const scriptId = semanticEntityId(input.scriptId, "script");
-  const versionId = semanticEntityId(input.versionId, "script_version");
-  const scriptDir = `scripts/${entityPathSlug(scriptId, "script")}`;
-  const scriptPath = normalizeWorkspacePath4(input.sourcePath ?? `${scriptDir}/script.md`);
-  const markdown = await input.fileRepository.read({ path: scriptPath });
-  const blocks = splitMarkdownBlocks(markdown.content);
-  const versionDir = `${scriptDir}/versions/${entityPathSlug(versionId, "script_version")}`;
-  const versionPath = `${versionDir}/script_version.json`;
-  const createdAt = (input.now ?? /* @__PURE__ */ new Date()).toISOString();
-  const versionRecord = {
-    schema: "movscript.script_version.v1",
-    kind: "script_version",
-    id: versionId,
-    title: input.versionLabel ?? String(versionId),
-    version_label: input.versionLabel ?? String(versionId),
-    source_ref: scriptPath.replace(`${scriptDir}/`, ""),
-    source_text_hash: hashText(markdown.content),
-    block_count: blocks.length,
-    created_at: createdAt
-  };
-  await input.fileRepository.write({
-    path: versionPath,
-    content: serializeWorkspaceRecord3(versionRecord)
-  });
-  const blockPaths = [];
-  for (const [index, block] of blocks.entries()) {
-    const blockId = String(index + 1).padStart(3, "0");
-    const blockPath = `${versionDir}/blocks/${entityPathSlug(blockId, "script_block")}/script_block.json`;
-    blockPaths.push(blockPath);
-    await input.fileRepository.write({
-      path: blockPath,
-      content: serializeWorkspaceRecord3({
-        schema: "movscript.script_block.v1",
-        kind: "script_block",
-        id: blockId,
-        order: index + 1,
-        text: block.text,
-        block_kind: block.kind,
-        source_range: block.sourceRange
-      })
-    });
-  }
-  return {
-    scriptId,
-    versionId,
-    scriptPath,
-    versionPath,
-    blockPaths,
-    blockCount: blockPaths.length
-  };
-}
-function splitMarkdownBlocks(markdown) {
-  const lines = markdown.replace(/\r\n/g, "\n").split("\n");
-  const blocks = [];
-  let startLine = 1;
-  let current = [];
-  function flush(endLine) {
-    const text = current.join("\n").trim();
-    if (!text) return;
-    blocks.push({
-      text,
-      kind: inferScriptBlockKind(text),
-      sourceRange: { start_line: startLine, end_line: endLine }
-    });
-    current = [];
-  }
-  for (const [index, line] of lines.entries()) {
-    const lineNumber = index + 1;
-    if (line.trim() === "") {
-      flush(lineNumber - 1);
-      startLine = lineNumber + 1;
-      continue;
-    }
-    if (current.length === 0) startLine = lineNumber;
-    current.push(line);
-  }
-  flush(lines.length);
-  return blocks;
-}
-function inferScriptBlockKind(text) {
-  const firstLine2 = text.split("\n")[0]?.trim() ?? "";
-  if (/^(INT\.|EXT\.|内景|外景)/i.test(firstLine2)) return "scene_heading";
-  if (/^[A-Z][A-Z0-9 _-]{1,32}$/.test(firstLine2)) return "character";
-  if (/^（.*）$|^\(.*\)$/.test(firstLine2)) return "parenthetical";
-  return void 0;
-}
-function normalizeWorkspacePath4(value) {
-  return value.replace(/\\/g, "/").replace(/^\.movscript\//, "").replace(/^\/+/, "").replace(/\/+$/, "");
-}
-function serializeWorkspaceRecord3(value) {
-  return `${JSON.stringify(value, null, 2)}
-`;
-}
-function hashText(value) {
-  let hash = 5381;
-  for (let index = 0; index < value.length; index += 1) {
-    hash = (hash << 5) + hash ^ value.charCodeAt(index);
-  }
-  return `djb2_${(hash >>> 0).toString(16)}`;
-}
-async function upsertMovScriptSourceRecord(input) {
-  const targetPath = normalizeWorkspacePath5(input.targetPath);
-  const current = await readOptionalWorkspaceRecord(input.fileRepository, targetPath);
-  const incoming = stripWorkspacePrivateFields({
-    ...input.record,
-    ...input.payload ?? {}
-  });
-  const expectedKind = stringValue22(incoming.kind);
-  if (expectedKind !== void 0) assertRecordKind(current, expectedKind, targetPath);
-  const record = pruneUndefined32({
-    ...current,
-    ...incoming
-  });
-  await input.fileRepository.write({ path: targetPath, content: serializeWorkspaceRecord4(record) });
-  return { path: targetPath, record };
-}
-async function updateMovScriptEntityTransition(input) {
-  const targetPath = normalizeWorkspacePath5(input.targetPath);
-  const current = await readWorkspaceRecord(input.fileRepository, targetPath);
-  const record = pruneUndefined32({
-    ...current,
-    transition: normalizeTransition(input.transition)
-  });
-  await input.fileRepository.write({ path: targetPath, content: serializeWorkspaceRecord4(record) });
-  return { path: targetPath, record };
-}
-async function updateMovScriptStoryboardTimeline(input) {
-  const targetPath = normalizeWorkspacePath5(input.targetPath);
-  const current = await readWorkspaceRecord(input.fileRepository, targetPath, "storyboard");
-  const record = pruneUndefined32({
-    ...current,
-    timeline: normalizeTimeline(input.timeline)
-  });
-  await input.fileRepository.write({ path: targetPath, content: serializeWorkspaceRecord4(record) });
-  return { path: targetPath, record };
-}
-async function readWorkspaceRecord(fileRepository, targetPath, expectedKind) {
-  const file = await fileRepository.read({ path: targetPath });
-  const parsed = JSON.parse(file.content);
-  if (!isRecord32(parsed)) throw new Error(`target JSON must be an object: ${targetPath}`);
-  const schemaKind = typeof parsed.schema === "string" ? parsed.schema.replace(/^movscript\./, "").replace(/\.v\d+$/, "") : void 0;
-  if (expectedKind !== void 0 && parsed.kind !== expectedKind && schemaKind !== expectedKind) {
-    throw new Error(`target kind mismatch: expected ${expectedKind}`);
-  }
-  return parsed;
-}
-async function readOptionalWorkspaceRecord(fileRepository, targetPath) {
-  const file = await fileRepository.read({ path: targetPath }).catch(() => void 0);
-  if (!file) return {};
-  const parsed = JSON.parse(file.content);
-  if (!isRecord32(parsed)) throw new Error(`target JSON must be an object: ${targetPath}`);
-  return parsed;
-}
-function assertRecordKind(current, expectedKind, targetPath) {
-  const currentKind = typeof current.kind === "string" ? current.kind : typeof current.schema === "string" ? current.schema.replace(/^movscript\./, "").replace(/\.v\d+$/, "") : void 0;
-  if (currentKind !== void 0 && currentKind !== expectedKind) {
-    throw new Error(`target kind mismatch: expected ${expectedKind} at ${targetPath}`);
-  }
-}
-function normalizeTransition(transition) {
-  if (!transition) return void 0;
-  return pruneUndefined32({
-    in: stringValue22(transition.in),
-    out: stringValue22(transition.out),
-    notes: stringValue22(transition.notes)
-  });
-}
-function normalizeTimeline(timeline) {
-  if (!timeline) return void 0;
-  return pruneUndefined32({
-    gap_after_sec: finiteNumber2(timeline.gap_after_sec),
-    caption: stringValue22(timeline.caption),
-    duration_sec: finiteNumber2(timeline.duration_sec)
-  });
-}
-function serializeWorkspaceRecord4(value) {
-  return `${JSON.stringify(value, null, 2)}
-`;
-}
-function normalizeWorkspacePath5(value) {
-  return value.replace(/\\/g, "/").replace(/^\.movscript\//, "").replace(/^\/+/, "").replace(/\/+$/, "");
-}
-function stringValue22(value) {
-  return typeof value === "string" && value.trim() ? value : void 0;
-}
-function finiteNumber2(value) {
-  return typeof value === "number" && Number.isFinite(value) ? value : void 0;
-}
-function isRecord32(value) {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-function stripWorkspacePrivateFields(record) {
-  return Object.fromEntries(
-    Object.entries(record).filter(([key]) => !key.startsWith("__workspace_"))
-  );
-}
-function pruneUndefined32(value) {
-  const output = {};
-  for (const [key, item] of Object.entries(value)) {
-    if (item !== void 0) output[key] = item;
-  }
-  return output;
-}
-var CANDIDATE_SCHEMA = "movscript.candidate.v1";
-async function createMovScriptWorkspaceAssetSlotCandidate(input) {
-  const targetPath = workspacePath2(input.targetRecord);
-  if (targetPath) {
-    const result = await appendMovScriptInlineCandidate({
-      fileRepository: input.fileRepository,
-      targetPath,
-      targetKind: "asset",
-      nonce: input.nonce,
-      payload: inlineCandidatePayload(input.payload)
-    });
-    return {
-      path: result.path,
-      entityType: "candidate",
-      record: workspaceCandidateRecordFromInline({
-        payload: input.payload,
-        targetKind: "asset",
-        targetRecord: result.record,
-        candidate: result.candidate,
-        path: result.path
-      }),
-      candidate: result.candidate,
-      targetRecord: result.record
-    };
-  }
-  const record = createMovScriptWorkspaceAssetSlotCandidateRecord(input);
-  const parentSlotId = positiveNumber(record.asset_slot_id);
-  if (!parentSlotId) throw new Error("\u5019\u9009\u7F3A\u5C11\u7236\u7D20\u6750\u9700\u6C42");
-  const path = `${normalizeProjectPath(input.projectPath)}/assets/asset_slot_${parentSlotId}.candidates/candidate_${workspaceCandidateFileKey(record)}.json`;
-  await input.fileRepository.write({ path, content: serializeWorkspaceRecord5(record) });
-  return { path, entityType: "candidate", record };
-}
-async function createMovScriptWorkspaceKeyframeCandidate(input) {
-  const targetPath = workspacePath2(input.targetRecord) ?? stringValue32(input.payload.target_path ?? input.payload.targetPath);
-  if (targetPath) {
-    const result = await appendMovScriptInlineCandidate({
-      fileRepository: input.fileRepository,
-      targetPath,
-      targetKind: "keyframe",
-      nonce: input.nonce,
-      payload: inlineCandidatePayload(input.payload)
-    });
-    return {
-      path: result.path,
-      entityType: "candidate",
-      record: workspaceCandidateRecordFromInline({
-        payload: input.payload,
-        targetKind: "keyframe",
-        targetRecord: result.record,
-        candidate: result.candidate,
-        path: result.path
-      }),
-      candidate: result.candidate,
-      targetRecord: result.record
-    };
-  }
-  const record = createMovScriptWorkspaceKeyframeCandidateRecord(input);
-  const productionId = positiveNumber(record.production_id);
-  if (!productionId) throw new Error("\u5019\u9009\u7F3A\u5C11\u5236\u4F5C ID");
-  const targetKeyframeId = positiveNumber(record.keyframe_id);
-  if (!targetKeyframeId) throw new Error("\u5019\u9009\u7F3A\u5C11\u76EE\u6807\u5173\u952E\u5E27");
-  const directory = `${normalizeProjectPath(input.projectPath)}/productions/${entityPathSlug(productionId, "production")}/keyframes/${entityPathSlug(targetKeyframeId, "keyframe")}.candidates`;
-  const path = `${directory}/candidate_${workspaceCandidateFileKey(record)}.json`;
-  await input.fileRepository.write({ path, content: serializeWorkspaceRecord5(record) });
-  return { path, entityType: "candidate", record };
-}
-function createMovScriptWorkspaceAssetSlotCandidateRecord(input) {
-  const parentSlotId = positiveNumber(input.payload.asset_slot_id ?? input.payload.assetSlotId ?? input.targetRecord?.ID ?? input.targetRecord?.id);
-  if (!parentSlotId) throw new Error("\u5019\u9009\u7F3A\u5C11\u7236\u7D20\u6750\u9700\u6C42");
-  const resourceId = positiveNumber(input.payload.resource_id ?? input.payload.resourceId);
-  if (!resourceId) throw new Error("resource_id required");
-  const clientId = localClientId("asset_slot_candidate", parentSlotId, resourceId, input.nonce);
-  const note = stringValue32(input.payload.note ?? input.payload.notes);
-  const sourceType = stringValue32(input.payload.source_type ?? input.payload.sourceType ?? input.payload.source) ?? "manual";
-  const sourceId = positiveNumber(input.payload.source_id ?? input.payload.sourceId);
-  return pruneUndefined4({
-    schema: CANDIDATE_SCHEMA,
-    ID: -stablePositiveHash(clientId),
-    id: -stablePositiveHash(clientId),
-    client_id: clientId,
-    target: { type: "asset_slot", id: parentSlotId },
-    asset_slot_id: parentSlotId,
-    kind: stringValue32(input.payload.kind) ?? stringValue32(input.targetRecord?.kind ?? input.targetRecord?.asset_kind) ?? "image",
-    title: note ?? `\u5019\u9009\u7D20\u6750 #${resourceId}`,
-    description: note,
-    priority: "normal",
-    resource_id: resourceId,
-    source_type: sourceType,
-    ...sourceId ? { source_id: sourceId } : {},
-    metadata_json: JSON.stringify(pruneUndefined4({
-      source: "workspace_asset_slot_candidate",
-      asset_slot_id: parentSlotId,
-      resource_id: resourceId,
-      source_type: sourceType,
-      source_id: sourceId,
-      score: numberValue2(input.payload.score),
-      note
-    }))
-  });
-}
-function createMovScriptWorkspaceKeyframeCandidateRecord(input) {
-  const resourceId = positiveNumber(input.payload.resource_id ?? input.payload.resourceId);
-  if (!resourceId) throw new Error("resource_id required");
-  const targetKeyframeId = keyframeCandidateTargetId(input.payload);
-  if (!targetKeyframeId) throw new Error("\u5019\u9009\u7F3A\u5C11\u76EE\u6807\u5173\u952E\u5E27");
-  const clientId = localClientId("keyframe_candidate", targetKeyframeId, resourceId, input.nonce);
-  return pruneUndefined4({
-    ...input.payload,
-    schema: CANDIDATE_SCHEMA,
-    ID: -stablePositiveHash(clientId),
-    id: -stablePositiveHash(clientId),
-    client_id: clientId,
-    target: { type: "keyframe", id: targetKeyframeId },
-    keyframe_id: targetKeyframeId,
-    resource_id: resourceId,
-    production_id: numberValue2(input.payload.production_id ?? input.payload.productionId),
-    scene_moment_id: numberValue2(input.payload.scene_moment_id ?? input.payload.sceneMomentId),
-    content_unit_id: numberValue2(input.payload.content_unit_id ?? input.payload.contentUnitId),
-    canvas_id: numberValue2(input.payload.canvas_id ?? input.payload.canvasId),
-    title: stringValue32(input.payload.title) ?? `\u5019\u9009\u753B\u9762 #${resourceId}`,
-    description: stringValue32(input.payload.description) ?? "",
-    prompt: stringValue32(input.payload.prompt) ?? "",
-    order: numberValue2(input.payload.order ?? input.payload.sort_order ?? input.payload.sortOrder) ?? 0
-  });
-}
-function inlineCandidatePayload(payload) {
-  const resourceId = payload.resource_id ?? payload.resourceId;
-  return pruneUndefined4({
-    id: stringValue32(payload.id ?? payload.client_id ?? payload.clientId),
-    resource_id: resourceId === void 0 ? void 0 : requiredResourceId2(resourceId),
-    artifact_ref: stringValue32(payload.artifact_ref ?? payload.artifactRef),
-    source: stringValue32(payload.source ?? payload.source_type ?? payload.sourceType),
-    notes: stringValue32(payload.notes ?? payload.note ?? payload.description),
-    metadata: pruneUndefined4({
-      source_id: payload.source_id ?? payload.sourceId,
-      score: payload.score,
-      raw: payload
-    })
-  });
-}
-function workspaceCandidateRecordFromInline(input) {
-  const targetId = input.targetRecord.ID ?? input.targetRecord.id;
-  const candidateId = stringValue32(input.candidate.id) ?? localClientId(`${input.targetKind}_candidate`, String(targetId ?? "target"), Number(input.candidate.resource_id) || 0);
-  const numericCandidateId = -stablePositiveHash(candidateId);
-  return pruneUndefined4({
-    schema: CANDIDATE_SCHEMA,
-    ID: numericCandidateId,
-    id: numericCandidateId,
-    client_id: candidateId,
-    target: { type: input.targetKind, id: targetId },
-    asset_slot_id: input.targetKind === "asset" ? numericId(targetId) : void 0,
-    keyframe_id: input.targetKind === "keyframe" ? numericId(targetId) : void 0,
-    resource_id: resourceIdValue(input.candidate.resource_id),
-    artifact_ref: stringValue32(input.candidate.artifact_ref),
-    source_type: input.candidate.source,
-    note: input.candidate.notes,
-    metadata_json: JSON.stringify(pruneUndefined4({
-      source: "workspace_inline_candidate",
-      target_path: input.path,
-      target_kind: input.targetKind,
-      candidate_id: input.candidate.id,
-      payload: input.payload
-    }))
-  });
-}
-function keyframeCandidateTargetId(payload) {
-  const metadata = parseMetadata(payload.metadata_json);
-  return positiveNumber(payload.keyframe_id ?? payload.keyframeId ?? metadata?.target_keyframe_id);
-}
-function workspacePath2(record) {
-  return stringValue32(record?.__workspace_path ?? record?.workspace_path ?? record?.path);
-}
-function parseMetadata(value) {
-  if (isRecord42(value)) return value;
-  if (typeof value !== "string" || !value.trim()) return void 0;
-  try {
-    const parsed = JSON.parse(value);
-    return isRecord42(parsed) ? parsed : void 0;
-  } catch {
-    return void 0;
-  }
-}
-function serializeWorkspaceRecord5(value) {
-  return `${JSON.stringify(value, null, 2)}
-`;
-}
-function workspaceCandidateFileKey(record) {
-  return safeFileToken2(stringValue32(record.client_id) ?? String(record.id ?? record.ID ?? Date.now()));
-}
-function localClientId(prefix, targetId, resourceId, nonce) {
-  return `${prefix}_${targetId}_${resourceId}_${nonce ?? randomNonce2()}`;
-}
-function randomNonce2() {
-  const random = globalThis.crypto;
-  if (random?.randomUUID) return random.randomUUID();
-  return `${Date.now()}_${Math.random().toString(36).slice(2)}`;
-}
-function normalizeProjectPath(value) {
-  return value.replace(/\\/g, "/").replace(/^\.movscript\//, "").replace(/^\/+/, "").replace(/\/+$/, "");
-}
-function safeFileToken2(value) {
-  return value.replace(/[^a-zA-Z0-9_-]+/g, "_");
-}
-function positiveNumber(value) {
-  const number = numberValue2(value);
-  return number !== void 0 && number > 0 ? number : void 0;
-}
-function numberValue2(value) {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim()) {
-    const number = Number(value);
-    if (Number.isFinite(number)) return number;
-  }
-  return void 0;
-}
-function numericId(value) {
-  return numberValue2(value);
-}
-function resourceIdValue(value) {
-  if (value === void 0) return void 0;
-  return requiredResourceId2(value);
-}
-function requiredResourceId2(value) {
-  const id = positiveNumber(value);
-  if (id) return id;
-  throw new Error("resource_id must be a positive integer RawResource ID");
-}
-function stringValue32(value) {
-  return typeof value === "string" && value.trim() ? value.trim() : void 0;
-}
-function isRecord42(value) {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-function pruneUndefined4(value) {
-  const output = {};
-  for (const [key, item] of Object.entries(value)) {
-    if (item !== void 0) output[key] = item;
-  }
-  return output;
-}
-function stablePositiveHash(value) {
-  let hash = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    hash = hash * 31 + value.charCodeAt(index) >>> 0;
-  }
-  return hash % 2e9 + 1;
-}
-async function upsertMovScriptWorkspaceSetting(input) {
-  const sourcePath = input.entity?.path ?? workspacePath3(input.record ?? {});
-  const current = stripEntityPrivateFields(input.entity?.record ?? input.record ?? {});
-  const payload = stripEntityPrivateFields(input.payload);
-  const identity = entityIdentity(entityIdentityValue(current, payload, input.now), "setting");
-  const title = stringValue4(payload.title ?? current.title) ?? displayName(identity.id);
-  const path = sourcePath ?? `settings/${identity.slug}/setting.json`;
-  const record = pruneUndefined5({
-    ...current,
-    ...payload,
-    schema: "movscript.setting.v1",
-    kind: "setting",
-    id: identity.id,
-    title,
-    setting_kind: normalizeSettingKind(payload.setting_kind ?? payload.kind ?? current.setting_kind ?? current.kind),
-    profile: normalizeProfile(payload, current)
-  });
-  await input.fileRepository.write({ path, content: serializeWorkspaceRecord6(record) });
-  return { path, entityKind: "setting", record };
-}
-async function upsertMovScriptWorkspaceAsset(input) {
-  const sourcePath = input.entity?.path ?? workspacePath3(input.record ?? {});
-  const current = stripEntityPrivateFields(input.entity?.record ?? input.record ?? {});
-  const payload = stripEntityPrivateFields(input.payload);
-  const identity = entityIdentity(entityIdentityValue(current, payload, input.now), "asset");
-  const sourcePathSettingId = sourcePath ? pathSegmentAfter2(sourcePath, "settings") : void 0;
-  const sourcePathSettingStateId = sourcePath ? pathSegmentAfter2(sourcePath, "states") : void 0;
-  if (sourcePath && !sourcePathSettingStateId) {
-    throw new Error("asset source path must be under a setting state");
-  }
-  const settingId = entityRef(
-    payload.setting_id ?? payload.settingId ?? payload.setting_ref ?? payload.settingRef ?? current.setting_id ?? current.settingId ?? current.setting_ref ?? current.settingRef,
-    "setting"
-  ) ?? sourcePathSettingId;
-  const settingStateId = entityRef(
-    payload.setting_state_id ?? payload.settingStateId ?? payload.setting_state_ref ?? payload.settingStateRef ?? current.setting_state_id ?? current.settingStateId ?? current.setting_state_ref ?? current.settingStateRef,
-    "setting_state"
-  ) ?? sourcePathSettingStateId;
-  if (!settingId) {
-    throw new Error("asset requires setting_id; assets must be stored under settings/{setting}/states/{state}/assets/{asset}/asset.json");
-  }
-  if (!settingStateId) {
-    throw new Error("asset requires setting_state_id; assets must be stored under settings/{setting}/states/{state}/assets/{asset}/asset.json");
-  }
-  const title = stringValue4(payload.title ?? current.title) ?? displayName(identity.id);
-  const path = sourcePath ?? assetPath({ id: identity.id, settingId, settingStateId });
-  const record = pruneUndefined5({
-    ...stripAssetOwnershipAliasFields(current),
-    ...stripAssetOwnershipAliasFields(payload),
-    schema: "movscript.asset.v1",
-    kind: "asset",
-    id: identity.id,
-    title,
-    slot: stringValue4(payload.slot ?? payload.slot_key ?? payload.slotKey ?? current.slot ?? current.slot_key ?? current.slotKey) ?? identity.slug,
-    asset_kind: normalizeAssetKind(payload.asset_kind ?? payload.kind ?? current.asset_kind ?? current.kind),
-    prompt_hint: stringValue4(payload.prompt_hint ?? payload.promptHint ?? current.prompt_hint ?? current.promptHint),
-    setting_id: settingId,
-    setting_state_id: settingStateId
-  });
-  await input.fileRepository.write({ path, content: serializeWorkspaceRecord6(record) });
-  return { path, entityKind: "asset", record };
-}
-async function upsertMovScriptWorkspaceSettingState(input) {
-  const sourcePath = input.entity?.path ?? workspacePath3(input.record ?? {});
-  const current = stripEntityPrivateFields(input.entity?.record ?? input.record ?? {});
-  const payload = stripEntityPrivateFields(input.payload);
-  const identity = entityIdentity(entityIdentityValue(current, payload, input.now), "setting_state");
-  const sourcePathSettingId = sourcePath ? pathSegmentAfter2(sourcePath, "settings") : void 0;
-  const settingId = entityRef(
-    payload.setting_id ?? payload.settingId ?? payload.setting_ref ?? payload.settingRef ?? current.setting_id ?? current.settingId ?? current.setting_ref ?? current.settingRef,
-    "setting"
-  ) ?? sourcePathSettingId;
-  if (!settingId) {
-    throw new Error("setting state requires setting_id; states must be stored under settings/{setting}/states/{state}/setting_state.json");
-  }
-  const title = stringValue4(payload.title ?? current.title) ?? displayName(identity.id);
-  const path = sourcePath ?? `settings/${entityPathSlug(settingId, "setting")}/states/${identity.slug}/setting_state.json`;
-  const record = pruneUndefined5({
-    ...current,
-    ...payload,
-    schema: "movscript.setting_state.v1",
-    kind: "setting_state",
-    id: identity.id,
-    title,
-    setting_id: settingId,
-    state_kind: stringValue4(payload.state_kind ?? payload.stateKind ?? payload.kind ?? current.state_kind ?? current.stateKind ?? current.kind),
-    description: stringValue4(payload.description ?? current.description)
-  });
-  await input.fileRepository.write({ path, content: serializeWorkspaceRecord6(record) });
-  return { path, entityKind: "setting_state", record };
-}
-async function deleteMovScriptWorkspaceEntity(input) {
-  const path = input.entity?.path ?? workspacePath3(input.record ?? {});
-  if (!path) throw new Error("workspace entity path is required");
-  await input.fileRepository.delete({ path });
-}
-function movScriptWorkspaceAssetPath(input) {
-  const settingSlug = entityPathSlug(input.settingId, "setting");
-  const assetSlug = entityPathSlug(input.id, "asset");
-  return `settings/${settingSlug}/states/${entityPathSlug(input.settingStateId, "setting_state")}/assets/${assetSlug}/asset.json`;
-}
-var assetPath = movScriptWorkspaceAssetPath;
-function entityIdentityValue(current, payload, now) {
-  return payload.workspace_slug ?? payload.workspaceSlug ?? current.workspace_slug ?? current.workspaceSlug ?? payload.workspace_entity_id ?? payload.workspaceEntityId ?? current.workspace_entity_id ?? current.workspaceEntityId ?? payload.id ?? payload.ID ?? current.id ?? current.ID ?? current.client_id ?? current.clientId ?? `local_${(now ?? /* @__PURE__ */ new Date()).getTime()}`;
-}
-function entityRef(value, entityKind) {
-  if (value === void 0 || value === null || String(value).trim() === "") return void 0;
-  return semanticEntityId(value, entityKind);
-}
-function stripAssetOwnershipAliasFields(record) {
-  const output = {};
-  for (const [key, value] of Object.entries(record)) {
-    if (key === "setting_ref" || key === "settingRef" || key === "setting_state_ref" || key === "settingStateRef") continue;
-    output[key] = value;
-  }
-  return output;
-}
-function normalizeSettingKind(value) {
-  const kind = stringValue4(value);
-  if (kind === "person" || kind === "character") return "character";
-  if (kind === "place" || kind === "location") return "location";
-  if (kind === "prop" || kind === "world_rule" || kind === "style" || kind === "other") return kind;
-  return "other";
-}
-function normalizeAssetKind(value) {
-  const kind = stringValue4(value);
-  if (kind === "image" || kind === "video" || kind === "audio" || kind === "text" || kind === "reference" || kind === "other") return kind;
-  return "other";
-}
-function normalizeProfile(payload, current) {
-  const existing = isRecord52(current.profile) ? current.profile : {};
-  const profile = pruneUndefined5({
-    ...existing,
-    alias: payload.alias ?? current.alias,
-    description: payload.description ?? current.description,
-    content: payload.content ?? current.content,
-    importance: payload.importance ?? current.importance
-  });
-  return Object.keys(profile).length > 0 ? profile : void 0;
-}
-function workspacePath3(record) {
-  return stringValue4(record.__workspace_path ?? record.workspace_path ?? record.path);
-}
-function pathSegmentAfter2(path, segment) {
-  const parts = path.split("/");
-  const index = parts.indexOf(segment);
-  return index >= 0 ? parts[index + 1] : void 0;
-}
-function stripEntityPrivateFields(record) {
-  const output = {};
-  for (const [key, value] of Object.entries(record)) {
-    if (key.startsWith("__workspace_")) continue;
-    if (key === "name") continue;
-    output[key] = value;
-  }
-  return output;
-}
-function serializeWorkspaceRecord6(value) {
-  return `${JSON.stringify(value, null, 2)}
-`;
-}
-function stringValue4(value) {
-  return typeof value === "string" && value.trim() ? value.trim() : void 0;
-}
-function displayName(value) {
-  const text = stringValue4(value);
-  return text ?? "Untitled";
-}
-function isRecord52(value) {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-function pruneUndefined5(value) {
-  const output = {};
-  for (const [key, item] of Object.entries(value)) {
-    if (item !== void 0 && item !== "") output[key] = item;
-  }
-  return output;
-}
-async function upsertMovScriptWorkspaceScript(input) {
-  const current = stripWorkspacePrivateFields2(input.record ?? {});
-  const scriptId = stableScriptId(input.scriptId);
-  const scriptDir = `scripts/${entityPathSlug(scriptId, "script")}`;
-  const scriptPath = `${scriptDir}/script.json`;
-  const sourcePath = `${scriptDir}/script.md`;
-  const record = pruneUndefined6({
-    ...current,
-    ...input.metadata,
-    schema: "movscript.script.v1",
-    kind: "script",
-    id: scriptId,
-    title: stringValue5(input.metadata?.title ?? current.title) ?? `Script ${scriptId}`,
-    description: stringValue5(input.metadata?.description ?? current.description),
-    script_kind: stringValue5(input.metadata?.script_kind ?? input.metadata?.script_type ?? current.script_kind ?? current.script_type) ?? "uncategorized",
-    source_ref: "script.md",
-    content: input.sourceText,
-    updated_at: (input.now ?? /* @__PURE__ */ new Date()).toISOString(),
-    created_at: stringValue5(current.created_at ?? current.CreatedAt) ?? (input.now ?? /* @__PURE__ */ new Date()).toISOString()
-  });
-  await input.fileRepository.write({ path: sourcePath, content: input.sourceText });
-  await input.fileRepository.write({ path: scriptPath, content: serializeWorkspaceRecord7(record) });
-  return { scriptId, scriptPath, sourcePath, record, sourceText: input.sourceText };
-}
-async function readMovScriptWorkspaceScriptSource(input) {
-  const record = input.entity?.record ?? input.record;
-  const scriptPath = stringValue5(input.entity?.path ?? workspacePath4(record));
-  const sourceRef = stringValue5(record.source_ref) ?? "script.md";
-  if (!scriptPath) return stringValue5(input.record.content) ?? "";
-  const sourcePath = `${scriptPath.replace(/\/script\.json$/, "")}/${sourceRef}`.replace(/\/+/g, "/");
-  return input.fileRepository.read({ path: sourcePath }).then((file) => file.content).catch(() => stringValue5(record.content) ?? "");
-}
-function workspacePath4(record) {
-  return stringValue5(record.__workspace_path ?? record.workspace_path ?? record.path);
-}
-function stableScriptId(value) {
-  return semanticEntityId(value, "script");
-}
-function stripWorkspacePrivateFields2(record) {
-  const output = {};
-  for (const [key, value] of Object.entries(record)) {
-    if (key.startsWith("__workspace_")) continue;
-    output[key] = value;
-  }
-  return output;
-}
-function serializeWorkspaceRecord7(value) {
-  return `${JSON.stringify(value, null, 2)}
-`;
-}
-function stringValue5(value) {
-  return typeof value === "string" ? value : void 0;
-}
-function pruneUndefined6(value) {
-  const output = {};
-  for (const [key, item] of Object.entries(value)) {
-    if (item !== void 0 && item !== "") output[key] = item;
-  }
-  return output;
-}
-async function saveMovScriptProductionWorkspaceSnapshot(input) {
-  const productionId = stableId(input.productionId, "production");
-  const productionSlug = slugId(productionId, "production");
-  const productionPath = `productions/${productionSlug}/production.json`;
-  const writtenPaths = [];
-  const production = await readOptionalRecord(input.fileRepository, productionPath);
-  await writeRecord(input.fileRepository, productionPath, pruneUndefined7({
-    ...stripWorkspacePrivateFields3(production),
-    schema: "movscript.production.v1",
-    kind: "production",
-    id: productionId,
-    title: stringValue6(input.snapshot.production?.title ?? production.title) ?? `Production ${displayId(productionId, "production")}`,
-    transition: normalizeTransition2(input.snapshot.production?.transition ?? production.transition),
-    updated_at: (input.now ?? /* @__PURE__ */ new Date()).toISOString()
-  }));
-  writtenPaths.push(productionPath);
-  for (const segment of input.snapshot.segments) {
-    const segmentId = stableId(segment.id ?? segment.client_id ?? writtenPaths.length + 1, "segment");
-    const segmentSlug = slugId(segmentId, "segment");
-    const segmentPath = `productions/${productionSlug}/segments/${segmentSlug}/segment.json`;
-    const existingSegment = await readOptionalRecord(input.fileRepository, segmentPath);
-    await writeRecord(input.fileRepository, segmentPath, pruneUndefined7({
-      ...stripWorkspacePrivateFields3(existingSegment),
-      schema: "movscript.segment.v1",
-      kind: "segment",
-      id: segmentId,
-      title: stringValue6(segment.title) ?? stringValue6(existingSegment.title) ?? `Segment ${displayId(segmentId, "segment")}`,
-      segment_kind: stringValue6(segment.kind ?? existingSegment.segment_kind),
-      summary: stringValue6(segment.summary ?? existingSegment.summary),
-      order: finiteNumber22(segment.order) ?? finiteNumber22(existingSegment.order),
-      transition: normalizeTransition2(segment.transition ?? existingSegment.transition),
-      script_block_id: nullableRef(segment.script_block_id ?? existingSegment.script_block_id, "script_block"),
-      ...segment.__delete === true ? { __delete: true } : {}
-    }));
-    writtenPaths.push(segmentPath);
-    for (const moment of segment.scene_moments ?? []) {
-      const momentId = stableId(moment.id ?? moment.client_id ?? `${segmentId}_${writtenPaths.length + 1}`, "scene_moment");
-      const momentSlug = slugId(momentId, "scene_moment");
-      const momentDir = `productions/${productionSlug}/segments/${segmentSlug}/scene_moments/${momentSlug}`;
-      const momentPath = `${momentDir}/scene_moment.json`;
-      const existingMoment = await readOptionalRecord(input.fileRepository, momentPath);
-      await writeRecord(input.fileRepository, momentPath, pruneUndefined7({
-        ...stripWorkspacePrivateFields3(existingMoment),
-        schema: "movscript.scene_moment.v1",
-        kind: "scene_moment",
-        id: momentId,
-        title: stringValue6(moment.title) ?? stringValue6(existingMoment.title) ?? `Scene Moment ${displayId(momentId, "scene_moment")}`,
-        scene_code: stringValue6(moment.scene_code ?? existingMoment.scene_code),
-        when: stringValue6(moment.time_text ?? existingMoment.when),
-        where: stringValue6(moment.location_text ?? existingMoment.where),
-        condition_text: stringValue6(moment.condition_text ?? existingMoment.condition_text),
-        action: stringValue6(moment.action_text ?? existingMoment.action),
-        emotion: stringValue6(moment.mood ?? existingMoment.emotion),
-        description: stringValue6(moment.description ?? existingMoment.description),
-        order: finiteNumber22(moment.order) ?? finiteNumber22(existingMoment.order),
-        transition: normalizeTransition2(moment.transition ?? existingMoment.transition),
-        script_block_id: nullableRef(moment.script_block_id ?? existingMoment.script_block_id, "script_block"),
-        setting_refs: normalizeSettingRefs(moment.settings, existingMoment.setting_refs),
-        ...moment.__delete === true ? { __delete: true } : {}
-      }));
-      writtenPaths.push(momentPath);
-      await writeKeyframeNodes({
-        fileRepository: input.fileRepository,
-        writtenPaths,
-        ownerDir: momentDir,
-        ownerKind: "scene_moment",
-        sceneMomentDir: momentDir,
-        ownerTitle: stringValue6(moment.title ?? existingMoment.title) ?? displayId(momentId, "scene_moment"),
-        nodes: moment.keyframes ?? []
-      });
-      await writeStoryboardNodes({
-        fileRepository: input.fileRepository,
-        writtenPaths,
-        ownerDir: momentDir,
-        ownerKind: "scene_moment",
-        sceneMomentDir: momentDir,
-        ownerTitle: stringValue6(moment.title ?? existingMoment.title) ?? displayId(momentId, "scene_moment"),
-        nodes: moment.storyboards ?? [],
-        settings: moment.settings
-      });
-      for (const audioCue of moment.audio_cues ?? []) {
-        const audioCueId = stableId(audioCue.id ?? audioCue.client_id ?? `${momentId}_${writtenPaths.length + 1}`, "audio_cue");
-        const audioCuePath = `${momentDir}/audio_cues/${slugId(audioCueId, "audio_cue")}/audio_cue.json`;
-        const existingAudioCue = await readOptionalRecord(input.fileRepository, audioCuePath);
-        await writeRecord(input.fileRepository, audioCuePath, pruneUndefined7({
-          ...stripWorkspacePrivateFields3(existingAudioCue),
-          schema: "movscript.audio_cue.v1",
-          kind: "audio_cue",
-          id: audioCueId,
-          title: stringValue6(audioCue.title ?? existingAudioCue.title) ?? `Audio Cue ${displayId(audioCueId, "audio_cue")}`,
-          cue_kind: normalizeAudioCueKind(audioCue.cue_kind ?? audioCue.kind ?? existingAudioCue.cue_kind),
-          order: finiteNumber22(audioCue.order) ?? finiteNumber22(existingAudioCue.order),
-          scope_ref: momentDir,
-          expression_unit_ref: stringValue6(audioCue.expression_unit_ref ?? existingAudioCue.expression_unit_ref),
-          storyboard_ref: normalizeStoryboardRef(audioCue.storyboard_ref ?? audioCue.storyboard_id ?? existingAudioCue.storyboard_ref),
-          timing: isRecord62(audioCue.timing) ? audioCue.timing : isRecord62(existingAudioCue.timing) ? existingAudioCue.timing : void 0,
-          prompt_hint: stringValue6(audioCue.prompt_hint ?? existingAudioCue.prompt_hint),
-          asset_refs: Array.isArray(audioCue.asset_refs) ? audioCue.asset_refs.filter(isString) : existingAudioCue.asset_refs,
-          ...audioCue.__delete === true ? { __delete: true } : {}
-        }));
-        writtenPaths.push(audioCuePath);
-      }
-      for (const expression of moment.expression_units ?? []) {
-        const expressionId = stableId(expression.id ?? expression.client_id ?? `${momentId}_${writtenPaths.length + 1}`, "expression_unit");
-        const expressionPath = `${momentDir}/expression_units/${slugId(expressionId, "expression_unit")}/expression_unit.json`;
-        const existingExpression = await readOptionalRecord(input.fileRepository, expressionPath);
-        await writeRecord(input.fileRepository, expressionPath, pruneUndefined7({
-          ...stripWorkspacePrivateFields3(existingExpression),
-          schema: "movscript.expression_unit.v1",
-          kind: "expression_unit",
-          id: expressionId,
-          title: stringValue6(expression.title ?? existingExpression.title) ?? stringValue6(expression.text) ?? `Expression Unit ${displayId(expressionId, "expression_unit")}`,
-          modality: stringValue6(expression.modality ?? existingExpression.modality),
-          role: stringValue6(expression.role ?? existingExpression.role),
-          expression_kind: normalizeExpressionKind(expression.kind ?? existingExpression.expression_kind),
-          visual_kind: stringValue6(expression.visual_kind ?? existingExpression.visual_kind),
-          speaker: stringValue6(expression.speaker ?? existingExpression.speaker),
-          speaker_ref: stringValue6(expression.speaker_ref ?? existingExpression.speaker_ref),
-          source_expression_ref: stringValue6(expression.source_expression_ref ?? existingExpression.source_expression_ref),
-          text: stringValue6(expression.text ?? existingExpression.text) ?? "",
-          note: stringValue6(expression.note ?? existingExpression.note),
-          intent: stringValue6(expression.intent ?? existingExpression.intent),
-          content: isRecord62(expression.content) ? expression.content : isRecord62(existingExpression.content) ? existingExpression.content : void 0,
-          timing_intent: isRecord62(expression.timing_intent) ? expression.timing_intent : isRecord62(existingExpression.timing_intent) ? existingExpression.timing_intent : void 0,
-          voice_profile_ref: stringValue6(expression.voice_profile_ref ?? existingExpression.voice_profile_ref),
-          order: finiteNumber22(expression.order) ?? finiteNumber22(existingExpression.order),
-          span: isRecord62(expression.span) ? expression.span : isRecord62(existingExpression.span) ? existingExpression.span : void 0,
-          script_block_id: nullableRef(expression.script_block_id ?? existingExpression.script_block_id, "script_block"),
-          ...expression.__delete === true ? { __delete: true } : {}
-        }));
-        writtenPaths.push(expressionPath);
-        await writeKeyframeNodes({
-          fileRepository: input.fileRepository,
-          writtenPaths,
-          ownerDir: `${momentDir}/expression_units/${slugId(expressionId, "expression_unit")}`,
-          ownerKind: "expression_unit",
-          sceneMomentDir: momentDir,
-          ownerTitle: stringValue6(expression.title ?? existingExpression.title) ?? displayId(expressionId, "expression_unit"),
-          nodes: expression.keyframes ?? []
-        });
-        await writeStoryboardNodes({
-          fileRepository: input.fileRepository,
-          writtenPaths,
-          ownerDir: `${momentDir}/expression_units/${slugId(expressionId, "expression_unit")}`,
-          ownerKind: "expression_unit",
-          sceneMomentDir: momentDir,
-          ownerTitle: stringValue6(expression.title ?? existingExpression.title) ?? displayId(expressionId, "expression_unit"),
-          nodes: expression.storyboards ?? [],
-          settings: moment.settings
-        });
-      }
-    }
-  }
-  return { productionPath, snapshot: input.snapshot, writtenPaths };
-}
-async function writeKeyframeNodes({
-  fileRepository,
-  writtenPaths,
-  ownerDir,
-  ownerKind,
-  sceneMomentDir,
-  ownerTitle,
-  nodes
-}) {
-  for (const keyframe of nodes) {
-    const keyframeId = stableId(keyframe.id ?? keyframe.client_id ?? `${ownerTitle}_${writtenPaths.length + 1}`, "keyframe");
-    const keyframePath = `${ownerDir}/keyframes/${slugId(keyframeId, "keyframe")}/keyframe.json`;
-    const existingKeyframe = await readOptionalRecord(fileRepository, keyframePath);
-    await writeRecord(fileRepository, keyframePath, pruneUndefined7({
-      ...stripWorkspacePrivateFields3(existingKeyframe),
-      schema: "movscript.keyframe.v1",
-      kind: "keyframe",
-      id: keyframeId,
-      title: stringValue6(keyframe.title ?? existingKeyframe.title) ?? `Keyframe ${displayId(keyframeId, "keyframe")}`,
-      scene_moment_ref: sceneMomentDir,
-      ...ownerKind === "expression_unit" ? { expression_unit_ref: ownerDir } : {},
-      role: stringValue6(keyframe.role ?? existingKeyframe.role),
-      visual_intent: stringValue6(keyframe.visual_intent ?? existingKeyframe.visual_intent),
-      timing: isRecord62(keyframe.timing) ? keyframe.timing : isRecord62(existingKeyframe.timing) ? existingKeyframe.timing : void 0,
-      composition: isRecord62(keyframe.composition) ? keyframe.composition : isRecord62(existingKeyframe.composition) ? existingKeyframe.composition : void 0,
-      continuity: isRecord62(keyframe.continuity) ? keyframe.continuity : isRecord62(existingKeyframe.continuity) ? existingKeyframe.continuity : void 0,
-      reference_asset_refs: Array.isArray(keyframe.reference_asset_refs) ? keyframe.reference_asset_refs.filter(isString) : existingKeyframe.reference_asset_refs,
-      reference_keyframe_refs: Array.isArray(keyframe.reference_keyframe_refs) ? keyframe.reference_keyframe_refs.filter(isString) : existingKeyframe.reference_keyframe_refs,
-      ...keyframe.__delete === true ? { __delete: true } : {}
-    }));
-    writtenPaths.push(keyframePath);
-  }
-}
-async function writeStoryboardNodes({
-  fileRepository,
-  writtenPaths,
-  ownerDir,
-  ownerKind,
-  sceneMomentDir,
-  ownerTitle,
-  nodes,
-  settings
-}) {
-  for (const [storyboardIndex, storyboard] of nodes.entries()) {
-    const storyboardId = stableId(storyboard.id ?? storyboard.client_id ?? "main", "storyboard");
-    const storyboardPath = `${ownerDir}/storyboards/${slugId(storyboardId, "storyboard")}/storyboard.json`;
-    const existingStoryboard = await readOptionalRecord(fileRepository, storyboardPath);
-    await writeRecord(fileRepository, storyboardPath, pruneUndefined7({
-      ...stripWorkspacePrivateFields3(existingStoryboard),
-      schema: "movscript.storyboard.v1",
-      kind: "storyboard",
-      id: storyboardId,
-      title: stringValue6(storyboard.title ?? existingStoryboard.title) ?? `${ownerTitle} storyboard`,
-      order: finiteNumber22(storyboard.order) ?? finiteNumber22(existingStoryboard.order) ?? storyboardIndex + 1,
-      slot: stringValue6(storyboard.slot ?? existingStoryboard.slot) ?? String(storyboardId),
-      asset_kind: stringValue6(storyboard.asset_kind ?? existingStoryboard.asset_kind),
-      scene_moment_ref: sceneMomentDir,
-      ...ownerKind === "expression_unit" ? { expression_unit_ref: ownerDir } : {},
-      transition: normalizeTransition2(storyboard.transition ?? existingStoryboard.transition),
-      timeline: normalizeTimeline2(storyboard.timeline ?? {
-        gap_after_sec: storyboard.gap_after_sec,
-        caption: storyboard.caption,
-        duration_sec: storyboard.duration_sec
-      }, existingStoryboard.timeline),
-      graph: isRecord62(storyboard.graph) ? storyboard.graph : isRecord62(existingStoryboard.graph) ? existingStoryboard.graph : void 0,
-      setting_refs: normalizeSettingRefs(storyboard.settings ?? settings, existingStoryboard.setting_refs),
-      ...storyboard.__delete === true ? { __delete: true } : {}
-    }));
-    writtenPaths.push(storyboardPath);
-  }
-}
-function normalizeSettingRefs(refs, fallback) {
-  if (!refs) return Array.isArray(fallback) ? fallback.filter(isRecord62) : void 0;
-  return refs.map((ref) => pruneUndefined7({
-    setting_id: stableId(ref.id ?? ref.client_id ?? "unassigned", "setting"),
-    setting_state_id: ref.setting_state_id ?? ref.setting_state_ref,
-    role: stringValue6(ref.role),
-    notes: stringValue6(ref.source_label),
-    setting_kind: stringValue6(ref.kind),
-    state: isRecord62(ref.state) ? ref.state : void 0,
-    ...ref.__delete === true ? { __delete: true } : {}
-  }));
-}
-function normalizeExpressionKind(value) {
-  const kind = stringValue6(value);
-  if (kind === "shot") return "shot";
-  if (kind === "dialogue" || kind === "narration" || kind === "subtitle" || kind === "caption" || kind === "action" || kind === "shot") return kind;
-  if (kind === "visual" || kind === "visual_note") return "visual_note";
-  return "dialogue";
-}
-function normalizeTransition2(value) {
-  if (!isRecord62(value)) return void 0;
-  return pruneUndefined7({
-    in: stringValue6(value.in),
-    out: stringValue6(value.out),
-    notes: stringValue6(value.notes)
-  });
-}
-function normalizeTimeline2(value, fallback) {
-  const source = isRecord62(value) ? value : isRecord62(fallback) ? fallback : {};
-  const timeline = pruneUndefined7({
-    gap_after_sec: finiteNumber22(source.gap_after_sec),
-    caption: stringValue6(source.caption),
-    duration_sec: finiteNumber22(source.duration_sec)
-  });
-  return Object.keys(timeline).length ? timeline : void 0;
-}
-function normalizeAudioCueKind(value) {
-  const kind = stringValue6(value);
-  if (kind === "sound_effect" || kind === "music" || kind === "ambience" || kind === "dialogue" || kind === "foley" || kind === "other") return kind;
-  if (kind === "sound") return "sound_effect";
-  if (kind === "music_beat") return "music";
-  return "sound_effect";
-}
-function normalizeStoryboardRef(value) {
-  return stringValue6(value);
-}
-async function readRecord(fileRepository, path) {
-  const file = await fileRepository.read({ path });
-  const parsed = JSON.parse(file.content);
-  return isRecord62(parsed) ? parsed : {};
-}
-async function readOptionalRecord(fileRepository, path) {
-  return readRecord(fileRepository, path).catch(() => ({}));
-}
-async function writeRecord(fileRepository, path, record) {
-  await fileRepository.write({ path, content: `${JSON.stringify(record, null, 2)}
-` });
-}
-function stableId(value, prefix) {
-  return semanticEntityId(value, prefix);
-}
-function slugId(value, prefix) {
-  return entityPathSlug(value, prefix);
-}
-function nullableRef(value, prefix) {
-  if (value === null) return null;
-  if (value === void 0 || String(value).trim() === "") return void 0;
-  return stableId(value, prefix);
-}
-function displayId(value, prefix) {
-  return displayEntityId(value, prefix);
-}
-function finiteNumber22(value) {
-  return typeof value === "number" && Number.isFinite(value) ? value : void 0;
-}
-function stringValue6(value) {
-  return typeof value === "string" && value.trim() ? value.trim() : void 0;
-}
-function isRecord62(value) {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-function isString(value) {
-  return typeof value === "string";
-}
-function stripWorkspacePrivateFields3(record) {
-  const output = {};
-  for (const [key, value] of Object.entries(record)) {
-    if (key.startsWith("__workspace_")) continue;
-    output[key] = value;
-  }
-  return output;
-}
-function pruneUndefined7(value) {
-  const output = {};
-  for (const [key, item] of Object.entries(value)) {
-    if (item !== void 0 && item !== "") output[key] = item;
-  }
-  return output;
-}
-async function upsertMovScriptContentUnit(input) {
-  const contentUnitId = stableEntityId(input.unit.ID ?? input.unit.id ?? input.unit.client_id, "content_unit");
-  const contentUnitPath = movScriptContentUnitPath(input.unit);
-  const current = await readOptionalRecord2(input.fileRepository, contentUnitPath);
-  const record = normalizeContentUnitRecord(input.unit, current, contentUnitId);
-  validateContentUnitTarget(record);
-  validateContentUnitPrimaryPromptRefs(record);
-  await writeRecord2(input.fileRepository, contentUnitPath, record);
-  return { contentUnitPath, record };
-}
-function movScriptContentUnitPath(unit) {
-  const id = stableEntityId(unit.ID ?? unit.id ?? unit.client_id, "content_unit");
-  return `${contentUnitDirectory(id)}/content_unit.json`;
-}
-function normalizeContentUnitRecord(unit, current, id) {
-  const contentUnitType2 = stringValue7(unit.content_unit_type ?? unit.contentUnitType ?? current.content_unit_type) ?? "storyboard_ref";
-  const outputKind = stringValue7(unit.output_kind ?? unit.outputKind ?? current.output_kind) ?? defaultOutputKind(contentUnitType2);
-  const scopeKind = stringValue7(unit.scope_kind ?? unit.scopeKind ?? current.scope_kind);
-  const scopeRef = stringValue7(unit.scope_ref ?? unit.scopeRef ?? current.scope_ref);
-  const targetKind = stringValue7(unit.target_kind ?? unit.targetKind ?? current.target_kind) ?? (contentUnitType2 === "timeline_assembly_ref" ? "timeline_assembly" : void 0);
-  const targetRef = stringValue7(unit.target_ref ?? unit.targetRef ?? current.target_ref) ?? (contentUnitType2 === "timeline_assembly_ref" && scopeKind && scopeRef ? implicitTimelineAssemblyRef(scopeKind, scopeRef) : void 0);
-  return pruneUndefined8({
-    ...stripWorkspacePrivateFields4(current),
-    schema: "movscript.content_unit.v1",
-    kind: "content_unit",
-    id,
-    title: stringValue7(unit.title ?? current.title) ?? "Untitled content unit",
-    content_unit_type: contentUnitType2,
-    output_kind: outputKind,
-    target_category: stringValue7(unit.target_category ?? unit.targetCategory ?? current.target_category),
-    target_kind: targetKind,
-    target_ref: targetRef,
-    scope_kind: scopeKind,
-    scope_ref: scopeRef,
-    generation_role: stringValue7(unit.generation_role ?? unit.generationRole ?? current.generation_role),
-    order: finiteNumber3(unit.order) ?? finiteNumber3(current.order),
-    description: stringValue7(unit.description ?? current.description) ?? "",
-    asset_ref: stringValue7(unit.asset_ref ?? unit.assetRef ?? current.asset_ref),
-    production_ref: stringValue7(unit.production_ref ?? unit.productionRef ?? current.production_ref),
-    segment_ref: stringValue7(unit.segment_ref ?? unit.segmentRef ?? current.segment_ref),
-    keyframe_ref: stringValue7(unit.keyframe_ref ?? unit.keyframeRef ?? current.keyframe_ref),
-    storyboard_ref: stringValue7(unit.storyboard_ref ?? unit.storyboardRef ?? current.storyboard_ref),
-    scene_moment_ref: stringValue7(unit.scene_moment_ref ?? unit.sceneMomentRef ?? current.scene_moment_ref),
-    expression_unit_ref: stringValue7(unit.expression_unit_ref ?? unit.expressionUnitRef ?? current.expression_unit_ref),
-    content_unit_ref: stringValue7(unit.content_unit_ref ?? unit.contentUnitRef ?? current.content_unit_ref),
-    voice_profile_ref: stringValue7(unit.voice_profile_ref ?? unit.voiceProfileRef ?? current.voice_profile_ref),
-    edit_prompt: normalizeEditPrompt(unit.edit_prompt ?? unit.editPrompt ?? unit.prompt ?? current.edit_prompt),
-    model_intent: isRecord72(unit.model_intent ?? unit.modelIntent) ? unit.model_intent ?? unit.modelIntent : current.model_intent,
-    ...unit.__delete === true ? { __delete: true } : {}
-  });
-}
-function contentUnitDirectory(id) {
-  return `content_units/${entityPathSlug(id, "content_unit")}`;
-}
-function defaultOutputKind(contentUnitType2) {
-  return outputKindForContentUnitType(contentUnitType2, void 0);
-}
-function validateContentUnitTarget(record) {
-  for (const diagnostic2 of contentUnitTargetValidationDiagnostics(record)) {
-    throw new Error(diagnostic2.message);
-  }
-}
-function validateContentUnitPrimaryPromptRefs(record) {
-  const contentUnitType2 = stringValue7(record.content_unit_type);
-  if (!contentUnitType2) return;
-  const primaryKind = primaryRefKindForContentUnitType(contentUnitType2);
-  if (!primaryKind) return;
-  const primaryRefs = primaryRefIdsForContentUnitRecord(record, primaryKind);
-  if (primaryRefs.length === 0) return;
-  const promptRefs = parseContentUnitEditPromptRefs(record.edit_prompt);
-  for (const promptRef of promptRefs) {
-    if (promptRef.kind !== primaryKind) continue;
-    if (!primaryRefs.some((primaryRef) => sameRefId(primaryRef, promptRef.id, primaryKind))) continue;
-    throw new Error(`${contentUnitType2} content_unit edit_prompt must not reference its own ${primaryRefFieldNameForKind(primaryKind)}: ${promptRef.raw}`);
-  }
-}
-var PROMPT_REF_PATTERN = /\{\{([a-z_]+):([^{}:\s][^{}]*)\}\}/g;
-function parseContentUnitEditPromptRefs(value) {
-  const editPrompt = isRecord72(value) ? value : {};
-  return [
-    ...parsePromptRefsFromText(stringValue7(editPrompt.text)),
-    ...parsePromptRefsFromText(stringValue7(editPrompt.negative_text)),
-    ...parsePromptRefsFromText(stringValue7(editPrompt.notes))
-  ];
-}
-function parsePromptRefsFromText(text) {
-  if (!text) return [];
-  const refs = [];
-  for (const match of text.matchAll(PROMPT_REF_PATTERN)) {
-    const kind = promptRefKind(match[1]);
-    const id = match[2]?.trim();
-    if (!kind || !id) continue;
-    refs.push({ kind, id, raw: match[0] });
-  }
-  return refs;
-}
-function promptRefKind(value) {
-  return isContentUnitPromptRefKind(value) ? value : void 0;
-}
-function sameRefId(left, right, kind) {
-  return sameEntityRef(left, right, kind) || lastPathSegment(left) === right || lastPathSegment(right) === left;
-}
-function lastPathSegment(value) {
-  if (typeof value !== "string" || !value.includes("/")) return void 0;
-  return value.split("/").filter(Boolean).at(-1);
-}
-function stableEntityId(value, prefix) {
-  return semanticEntityId(value, prefix);
-}
-async function readOptionalRecord2(fileRepository, path) {
-  return fileRepository.read({ path }).then((file) => {
-    const parsed = JSON.parse(file.content);
-    return isRecord72(parsed) ? parsed : {};
-  }).catch(() => ({}));
-}
-async function writeRecord2(fileRepository, path, record) {
-  await fileRepository.write({ path, content: `${JSON.stringify(record, null, 2)}
-` });
-}
-function stripWorkspacePrivateFields4(record) {
-  const output = {};
-  for (const [key, value] of Object.entries(record)) {
-    if (key.startsWith("__workspace_")) continue;
-    output[key] = value;
-  }
-  return output;
-}
-function stringValue7(value) {
-  return typeof value === "string" && value.trim() ? value.trim() : void 0;
-}
-function finiteNumber3(value) {
-  const next = Number(value);
-  return Number.isFinite(next) ? next : void 0;
-}
-function normalizeEditPrompt(value) {
-  if (typeof value === "string") return { text: value };
-  if (isRecord72(value)) return value;
-  return void 0;
-}
-function isRecord72(value) {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-function pruneUndefined8(value) {
-  const output = {};
-  for (const [key, item] of Object.entries(value)) {
-    if (item !== void 0 && item !== "") output[key] = item;
-  }
-  return output;
-}
-function createMovScriptScopedProjectDataDecisionStore(options) {
-  const baseUrl = options.baseUrl.replace(/\/+$/, "");
-  const fetchImpl = options.fetch ?? globalThis.fetch;
-  if (!fetchImpl) throw new Error("fetch is required for scoped project data decision store");
-  const headers = () => ({
-    "content-type": "application/json",
-    ...options.token ? { authorization: `Bearer ${options.token}` } : {},
-    ...options.headers ?? {}
-  });
-  const scopePayload = () => pruneUndefined9({
-    scope_kind: options.scopeKind,
-    scope_id: options.scopeId === void 0 ? void 0 : String(options.scopeId),
-    project_uid: options.projectUid,
-    title: options.title
-  });
-  const targetQuery = (targetRef) => {
-    const query = new URLSearchParams();
-    query.set("project_uid", options.projectUid);
-    query.set("target_kind", "content_unit");
-    query.set("target_ref", targetRef);
-    if (options.scopeKind) query.set("scope_kind", options.scopeKind);
-    if (options.scopeId !== void 0) query.set("scope_id", String(options.scopeId));
-    return query.toString();
-  };
-  const request = async (path, init = {}) => {
-    const response = await fetchImpl(`${baseUrl}/api/v1/project-data${path}`, {
-      ...init,
-      headers: {
-        ...headers(),
-        ...init.headers ?? {}
-      }
-    });
-    if (response.status === 404) {
-      console.info("[movscript-decision-store] scoped project data request not found", {
-        projectUid: options.projectUid,
-        scopeKind: options.scopeKind,
-        scopeId: options.scopeId,
-        method: init.method ?? "GET",
-        path,
-        status: response.status
-      });
-      return void 0;
-    }
-    if (!response.ok) {
-      const body = await response.text().catch(() => "");
-      console.warn("[movscript-decision-store] scoped project data request failed", {
-        projectUid: options.projectUid,
-        scopeKind: options.scopeKind,
-        scopeId: options.scopeId,
-        method: init.method ?? "GET",
-        path,
-        status: response.status,
-        body
-      });
-      throw new Error(`scoped project data decision request failed: ${response.status}${body ? ` ${body}` : ""}`);
-    }
-    if (response.status === 204) return void 0;
-    return await response.json();
-  };
-  return {
-    async getContentUnitDecision(input) {
-      const targetRef = contentUnitDecisionTargetRef(input.contentUnitId);
-      const context = await request(`/decisions?${targetQuery(targetRef)}`);
-      if (isMovScriptDecisionStoreDebugEnabled()) {
-        console.info("[movscript-decision-store] get scoped content unit decision", {
-          projectUid: options.projectUid,
-          contentUnitId: input.contentUnitId,
-          targetRef,
-          found: Boolean(context),
-          candidateCount: context?.candidates.length ?? 0
-        });
-      }
-      return context;
-    },
-    async getContentUnitDecisions(input) {
-      const ids = uniqueContentUnitIds(input.contentUnitIds);
-      if (ids.length === 0) return /* @__PURE__ */ new Map();
-      const contexts = await request("/decisions/query", {
-        method: "POST",
-        body: JSON.stringify({
-          ...scopePayload(),
-          target_kind: "content_unit",
-          target_refs: ids.map(contentUnitDecisionTargetRef)
-        })
-      }) ?? [];
-      if (isMovScriptDecisionStoreDebugEnabled()) {
-        console.info("[movscript-decision-store] get scoped content unit decisions", {
-          projectUid: options.projectUid,
-          requestedCount: ids.length,
-          foundCount: contexts.length
-        });
-      }
-      const byTargetRef = new Map(contexts.map((context) => [context.target_ref, context]));
-      const out = /* @__PURE__ */ new Map();
-      for (const id of ids) {
-        const context = byTargetRef.get(contentUnitDecisionTargetRef(id));
-        if (context) out.set(String(id), context);
-      }
-      return out;
-    },
-    async replaceContentUnitCandidates(input) {
-      const targetRef = contentUnitDecisionTargetRef(input.contentUnitId);
-      const context = await requiredDecisionContext(request("/decisions/candidates", {
-        method: "PUT",
-        body: JSON.stringify({
-          ...scopePayload(),
-          target_kind: "content_unit",
-          target_ref: targetRef,
-          candidates: input.candidates
-        })
-      }));
-      console.info("[movscript-decision-store] replace scoped content unit candidates", {
-        projectUid: options.projectUid,
-        contentUnitId: input.contentUnitId,
-        targetRef,
-        candidateCount: context.candidates.length
-      });
-      return context;
-    },
-    async upsertContentUnitCandidate(input) {
-      const targetRef = contentUnitDecisionTargetRef(input.contentUnitId);
-      const context = await requiredDecisionContext(request("/decisions/candidates", {
-        method: "POST",
-        body: JSON.stringify({
-          ...scopePayload(),
-          target_kind: "content_unit",
-          target_ref: targetRef,
-          candidate: input.candidate
-        })
-      }));
-      console.info("[movscript-decision-store] upsert scoped content unit candidate", {
-        projectUid: options.projectUid,
-        contentUnitId: input.contentUnitId,
-        targetRef,
-        candidateId: idField4(input.candidate.id),
-        candidateCount: context.candidates.length
-      });
-      return context;
-    },
-    async selectContentUnitCandidate(input) {
-      const targetRef = contentUnitDecisionTargetRef(input.contentUnitId);
-      const context = await requiredDecisionContext(request("/decisions/selection", {
-        method: "PUT",
-        body: JSON.stringify({
-          ...scopePayload(),
-          target_kind: "content_unit",
-          target_ref: targetRef,
-          candidate_id: stringIdField(input.candidateId),
-          resource_id: input.resourceId === void 0 ? void 0 : requiredResourceId3(input.resourceId),
-          stale_policy: input.stalePolicy,
-          reason: input.reason,
-          selected_at: input.selectedAt,
-          metadata: input.metadata
-        })
-      }));
-      console.info("[movscript-decision-store] select scoped content unit candidate", {
-        projectUid: options.projectUid,
-        contentUnitId: input.contentUnitId,
-        targetRef,
-        candidateId: stringIdField(input.candidateId),
-        candidateCount: context.candidates.length,
-        hasSelection: Boolean(context.selection)
-      });
-      return context;
-    },
-    clearContentUnitSelection(input) {
-      const targetRef = contentUnitDecisionTargetRef(input.contentUnitId);
-      return requiredDecisionContext(request(`/decisions/selection?${targetQuery(targetRef)}`, {
-        method: "DELETE"
-      }));
-    }
-  };
-}
-async function overlayMovScriptDecisionDocuments(documents, decisionStore) {
-  if (!decisionStore) return documents;
-  const sourceDocuments = documents.filter((document) => !isMovScriptContentUnitDecisionPath(document.path));
-  const baseIndex = deriveMovScriptWorkspaceDomainIndex(sourceDocuments);
-  const contentUnits = baseIndex.byKind.get("content_unit") ?? [];
-  const decisionsByContentUnitId = await getOverlayDecisionContexts(decisionStore, contentUnits);
-  const overlays = [];
-  const rows = [];
-  for (const contentUnit of contentUnits) {
-    if (contentUnit.id === void 0) continue;
-    const context = decisionsByContentUnitId.get(String(contentUnit.id));
-    if (!context) continue;
-    const contentUnitRef = entityDir2(contentUnit.path);
-    rows.push({
-      contentUnitId: contentUnit.id,
-      targetRef: context.target_ref,
-      candidateCount: context.candidates.length,
-      candidateIds: decisionCandidateIds(context.candidates)
-    });
-    overlays.push({
-      path: contentUnitDecisionContextPath(contentUnit.id),
-      data: normalizeDecisionContext(context, contentUnitRef)
-    });
-    for (const candidate of context.candidates) {
-      const candidateId = idField4(candidate.id);
-      if (candidateId === void 0) continue;
-      overlays.push({
-        path: `${contentUnitRef}/candidates/${entityPathSlug(candidateId, "candidate")}/content_candidate.json`,
-        data: normalizeContentUnitCandidate(candidate, contentUnitRef)
-      });
-    }
-  }
-  if (rows.length > 0 && isMovScriptDecisionStoreDebugEnabled()) {
-    console.info("[movscript-decision-store] overlay content unit decisions", {
-      contentUnitCount: contentUnits.length,
-      rows
-    });
-  }
-  const overlayPaths = new Set(overlays.map((document) => document.path));
-  return [
-    ...sourceDocuments.filter((document) => !overlayPaths.has(document.path)),
-    ...overlays
-  ].sort((left, right) => left.path.localeCompare(right.path));
-}
-async function getOverlayDecisionContexts(decisionStore, contentUnits) {
-  const contentUnitIds = uniqueContentUnitIds(contentUnits.map((unit) => unit.id).filter((id) => id !== void 0));
-  if (contentUnitIds.length === 0) return /* @__PURE__ */ new Map();
-  if (decisionStore.getContentUnitDecisions) {
-    return decisionStore.getContentUnitDecisions({ contentUnitIds });
-  }
-  const out = /* @__PURE__ */ new Map();
-  for (const contentUnitId of contentUnitIds) {
-    const context = await decisionStore.getContentUnitDecision({ contentUnitId });
-    if (context) out.set(String(contentUnitId), context);
-  }
-  return out;
-}
-function uniqueContentUnitIds(values) {
-  const seen = /* @__PURE__ */ new Set();
-  const out = [];
-  for (const value of values) {
-    const key = String(value);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(value);
-  }
-  return out;
-}
-function isMovScriptDecisionStoreDebugEnabled() {
-  return typeof process !== "undefined" && process.env?.MOVSCRIPT_DECISION_STORE_DEBUG === "1";
-}
-function contentUnitDecisionTargetRef(contentUnitId) {
-  return `content_units/${entityPathSlug(contentUnitId, "content_unit")}`;
-}
-function contentUnitDecisionContextPath(contentUnitId) {
-  return `.movscript/decisions/content_units/${entityPathSlug(contentUnitId, "content_unit")}/decision_context.json`;
-}
-function normalizeDecisionContext(context, targetRef = context.target_ref) {
-  return pruneUndefined9({
-    ...context,
-    schema: "movscript.decision_context.v1",
-    target_kind: context.target_kind,
-    target_ref: targetRef,
-    candidates: context.candidates.map((candidate) => normalizeContentUnitCandidate(candidate, targetRef)),
-    selection: isRecord82(context.selection) ? normalizeContentUnitDecisionSelection(context.selection) : void 0
-  });
-}
-function normalizeContentUnitCandidate(candidate, contentUnitRef) {
-  return pruneUndefined9({
-    ...candidate,
-    schema: candidate.schema ?? "movscript.content_candidate.v1",
-    content_unit_ref: candidate.content_unit_ref ?? contentUnitRef
-  });
-}
-function normalizeContentUnitDecisionSelection(selection) {
-  return pruneUndefined9({
-    candidate_id: selection.candidate_id,
-    resource_id: selection.resource_id,
-    stale_policy: selection.stale_policy === "accept_stale" ? "accept_stale" : "strict",
-    reason: selection.reason,
-    selected_at: selection.selected_at,
-    selected_by: selection.selected_by,
-    metadata: isRecord82(selection.metadata) ? selection.metadata : void 0
-  });
-}
-async function requiredDecisionContext(promise) {
-  const context = await promise;
-  if (!context) throw new Error("backend decision context not found");
-  return context;
-}
-function entityDir2(path) {
-  return path.replace(/\/[^/]+$/, "");
-}
-function idField4(value) {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim()) return value.trim();
-  return void 0;
-}
-function decisionCandidateIds(candidates) {
-  return candidates.map((candidate) => idField4(candidate.id)).filter((id) => id !== void 0);
-}
-function stringIdField(value) {
-  const id = idField4(value);
-  return id === void 0 ? void 0 : String(id);
-}
-function requiredResourceId3(value) {
-  if (typeof value === "number" && Number.isInteger(value) && value > 0) return value;
-  throw new Error("resource_id must be a positive integer RawResource ID");
-}
-function isRecord82(value) {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-function pruneUndefined9(value) {
-  const output = {};
-  for (const [key, item] of Object.entries(value)) {
-    if (item !== void 0) output[key] = item;
-  }
-  return output;
-}
-function buildMovScriptContentCandidate(input) {
-  const contentUnitId = stableEntityId2(input.contentUnitId, "content_unit");
-  const candidateId = stableEntityId2(input.candidateId ?? `candidate_${Date.now()}`, "candidate");
-  const path = `${contentUnitDirectory2(contentUnitId)}/candidates/${entityPathSlug(candidateId, "candidate")}/content_candidate.json`;
-  const record = pruneUndefined10({
-    schema: "movscript.content_candidate.v1",
-    id: candidateId,
-    content_unit_ref: contentUnitDirectory2(contentUnitId),
-    source: input.source ?? "ai_generate",
-    status: input.status ?? "succeeded",
-    producer: input.producer ?? { kind: "runtime" },
-    outputs: normalizeOutputs(input.outputs),
-    prompt_snapshot: input.promptSnapshot,
-    created_at: input.createdAt ?? (/* @__PURE__ */ new Date()).toISOString()
-  });
-  return { path, record };
-}
-function contentUnitDirectory2(id) {
-  return `content_units/${entityPathSlug(id, "content_unit")}`;
-}
-function stableEntityId2(value, prefix) {
-  return semanticEntityId(value, prefix);
-}
-function normalizeOutputs(outputs) {
-  return outputs.map((output, index) => {
-    const resourceId = requiredResourceId4(output.resource_id, `outputs[${index}].resource_id`);
-    return pruneUndefined10({
-      ...output,
-      resource_id: resourceId,
-      artifact_ref: stringField23(output.artifact_ref)
-    });
-  });
-}
-function requiredResourceId4(value, name) {
-  if (typeof value === "number" && Number.isInteger(value) && value > 0) return value;
-  throw new Error(`${name} must be a positive integer RawResource ID`);
-}
-function stringField23(value) {
-  return typeof value === "string" && value.trim() ? value.trim() : void 0;
-}
-function pruneUndefined10(value) {
-  const output = {};
-  for (const [key, item] of Object.entries(value)) {
-    if (item !== void 0) output[key] = item;
-  }
-  return output;
-}
-async function upsertMovScriptProjectStandards(input) {
-  const current = stripWorkspacePrivateFields5(input.record ?? {});
-  const projectStyle = {
-    ...parseProjectStyle(current.project_style),
-    ...input.projectStyle
-  };
-  const record = pruneUndefined11({
-    ...current,
-    schema: "movscript.project_standards.v1",
-    kind: "project_standards",
-    id: "project_standards",
-    title: stringValue8(current.title) ?? "Project standards",
-    aspect_ratio: stringValue8(projectStyle.aspect_ratio ?? current.aspect_ratio),
-    visual_style: stringValue8(projectStyle.visual_style ?? current.visual_style),
-    project_style: JSON.stringify(projectStyle),
-    updated_at: (input.now ?? /* @__PURE__ */ new Date()).toISOString()
-  });
-  const path = "project_standards.json";
-  await input.fileRepository.write({ path, content: `${JSON.stringify(record, null, 2)}
-` });
-  return { path, record };
-}
-function parseProjectStyle(value) {
-  if (isRecord9(value)) return value;
-  if (typeof value !== "string" || !value.trim()) return {};
-  try {
-    const parsed = JSON.parse(value);
-    return isRecord9(parsed) ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-function stripWorkspacePrivateFields5(record) {
-  const output = {};
-  for (const [key, value] of Object.entries(record)) {
-    if (key.startsWith("__workspace_")) continue;
-    output[key] = value;
-  }
-  return output;
-}
-function stringValue8(value) {
-  return typeof value === "string" && value.trim() ? value.trim() : void 0;
-}
-function isRecord9(value) {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-function pruneUndefined11(value) {
-  const output = {};
-  for (const [key, item] of Object.entries(value)) {
-    if (item !== void 0 && item !== "") output[key] = item;
-  }
-  return output;
-}
-var MOVSCRIPT_PROJECT_STANDARD_SKILL_PATHS = [
-  ".codex/skills/plugins/movscript_project-standards/project-standards/SKILL.md",
-  ".claude/skills/plugins/movscript_project-standards/project-standards/SKILL.md",
-  ".mova/skills/plugins/movscript_project-standards/project-standards/SKILL.md"
-];
-async function syncMovScriptProjectStandardSkills(input) {
-  const content = renderMovScriptProjectStandardSkill(input.standards);
-  const results = [];
-  for (const path of MOVSCRIPT_PROJECT_STANDARD_SKILL_PATHS) {
-    await input.fileRepository.write({ path, content });
-    results.push({ path, content });
-  }
-  return results;
-}
-function renderMovScriptProjectStandardSkill(standards) {
-  const projectStyle = parseProjectStyle2(standards.project_style);
-  const coreSections = [
-    fieldSection("Aspect ratio", standards.aspect_ratio ?? projectStyle.aspect_ratio),
-    fieldSection("Visual style", standards.visual_style ?? projectStyle.visual_style),
-    fieldSection("Lighting style", standards.lighting_style ?? projectStyle.lighting_style),
-    fieldSection("Camera language", standards.camera_language ?? projectStyle.camera_language),
-    fieldSection("Color palette", standards.color_palette ?? projectStyle.color_palette),
-    fieldSection("Pacing rules", standards.pacing_rules ?? projectStyle.pacing_rules),
-    listSection("Shot size system", standards.shot_size_system ?? projectStyle.shot_size_system),
-    listSection("Negative rules", standards.negative_rules ?? projectStyle.negative_rules),
-    customRulesSection(standards.custom_rules ?? projectStyle.custom_rules),
-    styleReferenceSection(standards, projectStyle)
-  ].filter(Boolean);
-  return [
-    "---",
-    "name: project-standards",
-    "description: Apply the current MovScript project standards from project_standards.json when planning, coding, prompting, or generating project-scoped work.",
-    "---",
-    "",
-    "# MovScript Project Standards",
-    "",
-    "Generated from `project_standards.json`. Do not edit this file manually; update project standards through MovScript source or domain tools.",
-    "",
-    "Use this skill whenever work depends on this MovScript project, especially planning, content-unit prompts, generation, style-sensitive code, or provider behavior.",
-    "",
-    "## Rules",
-    "",
-    "- Treat `project_standards.json` as the source of truth.",
-    "- Apply these standards as project-wide house style and constraints.",
-    "- Do not change project standards unless the user explicitly asks to add, remove, replace, or refine them.",
-    "- For visual generation that supports references, pass listed style reference resource ids as house-style references.",
-    "",
-    ...coreSections.length ? ["## Current Standards", "", ...coreSections] : ["## Current Standards", "", "- No project standards are currently filled.", ""]
-  ].join("\n");
-}
-function fieldSection(label, value) {
-  const text = textValue(value);
-  return text ? `### ${label}
-
-${text}
-` : void 0;
-}
-function listSection(label, value) {
-  const items = arrayValues(value);
-  if (!items.length) return void 0;
-  return `### ${label}
-
-${items.map((item) => `- ${item}`).join("\n")}
-`;
-}
-function customRulesSection(value) {
-  const rules = arrayRecords(value).filter((rule) => rule.enabled !== false).map((rule) => {
-    const key = textValue(rule.key) ?? "custom_rule";
-    const ruleValue = rule.value ?? rule.text ?? rule.description;
-    const text = textValue(ruleValue) ?? JSON.stringify(ruleValue);
-    return text ? `- ${key}: ${text}` : void 0;
-  }).filter((rule) => Boolean(rule));
-  if (!rules.length) return void 0;
-  return `### Custom rules
-
-${rules.join("\n")}
-`;
-}
-function styleReferenceSection(standards, projectStyle) {
-  const ids = uniqueNumbers([
-    ...resourceIdsFromValue(standards.style_reference_images),
-    ...resourceIdsFromValue(standards.style_references),
-    ...resourceIdsFromValue(standards.reference_resource_ids),
-    ...resourceIdsFromValue(projectStyle.style_reference_images),
-    ...resourceIdsFromValue(projectStyle.style_references),
-    ...resourceIdsFromValue(projectStyle.reference_resource_ids),
-    ...arrayRecords(standards.custom_rules).filter((rule) => rule.enabled !== false).filter((rule) => textValue(rule.key) === "style_reference_images").flatMap((rule) => resourceIdsFromValue(rule.value)),
-    ...arrayRecords(projectStyle.custom_rules).filter((rule) => rule.enabled !== false).filter((rule) => textValue(rule.key) === "style_reference_images").flatMap((rule) => resourceIdsFromValue(rule.value))
-  ]);
-  if (!ids.length) return void 0;
-  return `### Style reference resource ids
-
-${ids.map((id) => `- ${id}`).join("\n")}
-`;
-}
-function resourceIdsFromValue(value) {
-  if (Array.isArray(value)) return value.flatMap(resourceIdsFromValue);
-  if (typeof value === "number" && Number.isInteger(value)) return [value];
-  if (isRecord10(value)) {
-    return [
-      ...resourceIdsFromValue(value.resource_id),
-      ...resourceIdsFromValue(value.resource_ids),
-      ...resourceIdsFromValue(value.id)
-    ];
-  }
-  const text = textValue(value);
-  if (!text) return [];
-  return Array.from(text.matchAll(/\b(?:resource[_-]?id|resource)[_:#\s-]*(\d+)\b/gi)).map((match) => Number(match[1])).filter((id) => Number.isInteger(id));
-}
-function parseProjectStyle2(value) {
-  if (isRecord10(value)) return value;
-  const text = textValue(value);
-  if (!text) return {};
-  try {
-    const parsed = JSON.parse(text);
-    return isRecord10(parsed) ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-function arrayValues(value) {
-  if (Array.isArray(value)) return value.map(textValue).filter((item) => Boolean(item));
-  const text = textValue(value);
-  return text ? [text] : [];
-}
-function arrayRecords(value) {
-  return Array.isArray(value) ? value.filter(isRecord10) : [];
-}
-function uniqueNumbers(values) {
-  return Array.from(new Set(values)).sort((left, right) => left - right);
-}
-function textValue(value) {
-  return typeof value === "string" && value.trim() ? value.trim() : void 0;
-}
-function isRecord10(value) {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-// ../../packages/workspace/dist/chunk-OOFCVQS5.js
-var WORKSPACE_ENTITY_KIND = {
-  project_workspace: "project",
-  project_standards_workspace: "project_standards",
-  setting_workspace: "setting",
-  setting_state_workspace: "setting_state",
-  asset_workspace: "asset",
-  script_workspace: "script",
-  script_version_workspace: "script_version",
-  script_block_workspace: "script_block",
-  production_workspace: "production",
-  segment_workspace: "segment",
-  scene_moment_workspace: "scene_moment",
-  storyboard_workspace: "storyboard",
-  audio_cue_workspace: "audio_cue",
-  expression_unit_workspace: "expression_unit",
-  content_unit_workspace: "content_unit",
-  keyframe_workspace: "keyframe"
-};
-var MOVSCRIPT_DOMAIN_WORKSPACE_MODELS = {
-  project_workspace: {
-    kind: "project_workspace",
-    title: "Project workspace",
-    entityKinds: ["project"],
-    editablePathPatterns: ["project.json"],
-    contextPathPatterns: [],
-    schemaIds: ["movscript.project.v1"],
-    instructions: ["Edit the project root entity in project.json. Interpret validates the source tree and writes .derived artifacts."]
-  },
-  project_standards_workspace: {
-    kind: "project_standards_workspace",
-    title: "Project standards workspace",
-    entityKinds: ["project_standards"],
-    editablePathPatterns: ["project_standards.json"],
-    contextPathPatterns: ["project.json"],
-    schemaIds: ["movscript.project_standards.v1"],
-    instructions: ["Edit project-wide creative standards in project_standards.json. Interpret uses these standards when deriving generation context."]
-  },
-  setting_workspace: {
-    kind: "setting_workspace",
-    title: "Setting workspace",
-    entityKinds: ["setting"],
-    editablePathPatterns: ["settings/{settingSlug}/setting.json"],
-    contextPathPatterns: ["project.json", "project_standards.json"],
-    schemaIds: ["movscript.setting.v1"],
-    instructions: ["Use setting workspaces for concrete film/music production entities to be made or reused, such as characters, props, places, instruments, costumes, or voice identities. Do not use settings for abstract styles or rules; put project-wide style/rules in project standards. Child setting namespaces/states are organized by their actual source path; namespace_kind only labels that path level. Assets belong under setting states."]
-  },
-  setting_state_workspace: {
-    kind: "setting_state_workspace",
-    title: "Setting state workspace",
-    entityKinds: ["setting_state"],
-    editablePathPatterns: ["settings/{settingSlug}/states/{settingStateSlug}/setting_state.json"],
-    contextPathPatterns: ["settings/{settingSlug}/setting.json", "project_standards.json"],
-    schemaIds: ["movscript.setting_state.v1"],
-    instructions: ["Use setting state workspaces as namespaces under a setting for named conditions or versions of the same entity, such as base look, wet hair, damaged prop, side-view variant, or calm voice. The default states/ path is a legacy hint; custom setting namespace paths are valid when setting_state.json sits under the intended setting parent."]
-  },
-  asset_workspace: {
-    kind: "asset_workspace",
-    title: "Asset workspace",
-    entityKinds: ["asset"],
-    editablePathPatterns: [
-      "settings/{settingSlug}/states/{settingStateSlug}/assets/{assetSlug}/asset.json"
-    ],
-    contextPathPatterns: ["settings/{settingSlug}/setting.json", "settings/{settingSlug}/states/{settingStateSlug}/setting_state.json", "project_standards.json"],
-    schemaIds: ["movscript.asset.v1"],
-    instructions: ["Assets are setting-state-owned resource slots and carriers for asset_ref content-unit generation/review. The owning setting state is the nearest setting_state ancestor in the source path, not a fixed states/ directory. Do not write new candidates or selections into asset.json; generated asset candidates belong to the linked asset_ref content unit and backend content-unit decision flow. Existing inline candidates/selection in asset.json are legacy compatibility data only. Downstream content-unit prompts can reference selected asset outputs with {{asset::id}} when dependency tracking matters; loose raw-resource guidance can use direct resource inputs. Image assets should prefer plain white or very clean backgrounds."]
-  },
-  script_workspace: {
-    kind: "script_workspace",
-    title: "Script workspace",
-    entityKinds: ["script"],
-    editablePathPatterns: ["scripts/{scriptSlug}/script.json", "scripts/{scriptSlug}/script.md"],
-    contextPathPatterns: ["project.json"],
-    schemaIds: ["movscript.script.v1"],
-    instructions: ["Use script workspaces for screenplay roots and source text references."]
-  },
-  script_version_workspace: {
-    kind: "script_version_workspace",
-    title: "Script version workspace",
-    entityKinds: ["script_version"],
-    editablePathPatterns: ["scripts/{scriptSlug}/versions/{scriptVersionSlug}/script_version.json"],
-    contextPathPatterns: ["scripts/{scriptSlug}/script.json"],
-    schemaIds: ["movscript.script_version.v1"],
-    instructions: ["Use script version workspaces for versioned script snapshots and block grouping."]
-  },
-  script_block_workspace: {
-    kind: "script_block_workspace",
-    title: "Script block workspace",
-    entityKinds: ["script_block"],
-    editablePathPatterns: ["scripts/{scriptSlug}/versions/{scriptVersionSlug}/blocks/{scriptBlockSlug}/script_block.json"],
-    contextPathPatterns: ["scripts/{scriptSlug}/versions/{scriptVersionSlug}/script_version.json"],
-    schemaIds: ["movscript.script_block.v1"],
-    instructions: ["Use script block workspaces for addressable text blocks referenced by planning entities."]
-  },
-  production_workspace: {
-    kind: "production_workspace",
-    title: "Production workspace",
-    entityKinds: ["production"],
-    editablePathPatterns: ["productions/{productionSlug}/production.json"],
-    contextPathPatterns: ["project.json", "project_standards.json", "settings/**", "scripts/**"],
-    schemaIds: ["movscript.production.v1"],
-    instructions: ["Production records are legacy/default timeline namespace nodes. Edit existing custom timeline namespace nodes in place; for new custom layouts, put production.json under the intended timeline path and set namespace_kind to the user-facing namespace label. Segment and scene moment children hold planning structure through path ancestry."]
-  },
-  segment_workspace: {
-    kind: "segment_workspace",
-    title: "Segment workspace",
-    entityKinds: ["segment"],
-    editablePathPatterns: ["productions/{productionSlug}/segments/{segmentSlug}/segment.json"],
-    contextPathPatterns: ["productions/{productionSlug}/production.json"],
-    schemaIds: ["movscript.segment.v1"],
-    instructions: ["Segment records are legacy/default timeline namespace nodes for rhythm sections. Edit existing custom namespace nodes in place; for new custom layouts, put segment.json under the intended timeline parent path and set namespace_kind to the user-facing label. Order lives in segment.json, not the directory name."]
-  },
-  scene_moment_workspace: {
-    kind: "scene_moment_workspace",
-    title: "Scene moment workspace",
-    entityKinds: ["scene_moment"],
-    editablePathPatterns: ["productions/{productionSlug}/segments/{segmentSlug}/scene_moments/{sceneMomentSlug}/scene_moment.json"],
-    contextPathPatterns: ["productions/{productionSlug}/segments/{segmentSlug}/segment.json", "settings/**"],
-    schemaIds: ["movscript.scene_moment.v1"],
-    instructions: ["Scene moments are stable production primitives and should remain under the intended timeline namespace path. They describe planning context and their own transition boundaries. Shot semantics live as expression_unit records with kind=shot; storyboards and keyframes may be direct scene moment children when they are scene-scoped."]
-  },
-  storyboard_workspace: {
-    kind: "storyboard_workspace",
-    title: "Storyboard workspace",
-    entityKinds: ["storyboard"],
-    editablePathPatterns: [
-      "productions/{productionSlug}/segments/{segmentSlug}/scene_moments/{sceneMomentSlug}/expression_units/{expressionUnitSlug}/storyboards/{storyboardSlug}/storyboard.json",
-      "productions/{productionSlug}/segments/{segmentSlug}/scene_moments/{sceneMomentSlug}/storyboards/{storyboardSlug}/storyboard.json"
-    ],
-    contextPathPatterns: ["productions/**", "settings/**", "project_standards.json"],
-    schemaIds: ["movscript.storyboard.v1"],
-    instructions: ["Storyboards are production primitives under expression_unit(kind=shot) or directly under scene_moment. Runtime candidates and production decisions are stored outside storyboard.json. Downstream prompts can reference selected storyboard outputs with {{storyboard::id}} when dependency tracking matters; loose raw-resource guidance can use direct resource inputs."]
-  },
-  audio_cue_workspace: {
-    kind: "audio_cue_workspace",
-    title: "Audio cue workspace",
-    entityKinds: ["audio_cue"],
-    editablePathPatterns: ["productions/{productionSlug}/segments/{segmentSlug}/scene_moments/{sceneMomentSlug}/audio_cues/{audioCueSlug}/audio_cue.json"],
-    contextPathPatterns: [
-      "productions/{productionSlug}/segments/{segmentSlug}/scene_moments/{sceneMomentSlug}/scene_moment.json",
-      "productions/{productionSlug}/segments/{segmentSlug}/scene_moments/{sceneMomentSlug}/expression_units/**",
-      "settings/**",
-      "project_standards.json"
-    ],
-    schemaIds: ["movscript.audio_cue.v1"],
-    instructions: ["Audio cues are production primitives for sound, music, ambience, dialogue, or foley planning, normally parented by source path under a scene moment and optionally attached by refs to scene moments, storyboards, or shot plans."]
-  },
-  expression_unit_workspace: {
-    kind: "expression_unit_workspace",
-    title: "Expression unit workspace",
-    entityKinds: ["expression_unit"],
-    editablePathPatterns: ["productions/{productionSlug}/segments/{segmentSlug}/scene_moments/{sceneMomentSlug}/expression_units/{expressionUnitSlug}/expression_unit.json"],
-    contextPathPatterns: [
-      "productions/{productionSlug}/segments/{segmentSlug}/scene_moments/{sceneMomentSlug}/scene_moment.json",
-      "productions/{productionSlug}/segments/{segmentSlug}/scene_moments/{sceneMomentSlug}/expression_units/**"
-    ],
-    schemaIds: ["movscript.expression_unit.v1"],
-    instructions: ["Expression units are scene-moment-owned production primitives. Their owning scene moment is the nearest scene_moment ancestor in the source path. Use expression_kind/kind=shot for makeable shot units; storyboard/keyframe records may be children of that expression unit."]
-  },
-  content_unit_workspace: {
-    kind: "content_unit_workspace",
-    title: "Content unit workspace",
-    entityKinds: ["content_unit"],
-    editablePathPatterns: ["content_units/{contentUnitSlug}/content_unit.json"],
-    contextPathPatterns: ["project_standards.json", "settings/**", "productions/**"],
-    schemaIds: ["movscript.content_unit.v1"],
-    instructions: ["Content units are project-level stable production units. They declare content_unit_type, output_kind, flat business refs, edit_prompt, and model_intent. Specialized content_unit_type adapters perform dependency and regeneration checks; unknown types are valid but untracked for regeneration. Use expression_unit_ref for shot expression units, keyframe_ref/storyboard_ref for visual anchors, audio_cue_ref for sound cues, and timeline_assembly_ref for namespace-scope assembly. In edit_prompt, use semantic refs such as {{asset::id}}, {{storyboard::id}}, {{keyframe::id}}, {{audio_cue::id}}, {{candidate::id}}, or {{resource::123}}; prompt compilation resolves selected backend candidates into resource mentions and resource_ids for generation."]
-  },
-  keyframe_workspace: {
-    kind: "keyframe_workspace",
-    title: "Keyframe workspace",
-    entityKinds: ["keyframe"],
-    editablePathPatterns: [
-      "productions/{productionSlug}/segments/{segmentSlug}/scene_moments/{sceneMomentSlug}/expression_units/{expressionUnitSlug}/keyframes/{keyframeSlug}/keyframe.json",
-      "productions/{productionSlug}/segments/{segmentSlug}/scene_moments/{sceneMomentSlug}/keyframes/{keyframeSlug}/keyframe.json"
-    ],
-    contextPathPatterns: ["settings/**", "project_standards.json", "productions/**"],
-    schemaIds: ["movscript.keyframe.v1"],
-    instructions: ["Keyframes are production primitives and visual anchors under expression_unit(kind=shot) or directly under scene_moment. Content units reference keyframes through keyframe_ref or keyframe_refs."]
-  }
-};
-var ENTITY_WORKSPACE_KIND = Object.entries(WORKSPACE_ENTITY_KIND).reduce((out, [workspaceKind, entityKind]) => {
-  out[entityKind] = workspaceKind;
-  return out;
-}, {});
-function getMovScriptDomainWorkspaceModel(kind) {
-  const model = MOVSCRIPT_DOMAIN_WORKSPACE_MODELS[kind];
-  if (!model) throw new Error(`Unsupported MovScript workspace kind: ${kind}`);
-  return model;
-}
-function resolveMovScriptDomainWorkspaceKindForEntity(entityKind) {
-  const normalized = normalizeEntityKind(entityKind);
-  return isSemanticEntityKind(normalized) ? ENTITY_WORKSPACE_KIND[normalized] : void 0;
-}
-function getMovScriptWorkspaceModel(input) {
-  const entityKind = normalizeEntityKind(input.entityKind);
-  if (!isSemanticEntityKind(entityKind)) throw new Error(`Unsupported MovScript workspace entity kind: ${input.entityKind}`);
-  const workspaceKind = resolveMovScriptDomainWorkspaceKindForEntity(entityKind);
-  if (!workspaceKind) throw new Error(`Unsupported MovScript workspace entity kind: ${input.entityKind}`);
-  const model = getMovScriptDomainWorkspaceModel(workspaceKind);
-  return {
-    workspaceKind,
-    entityKind,
-    ...input.entityId !== void 0 ? { entityId: input.entityId } : {},
-    editablePaths: expandPathPatterns(model.editablePathPatterns, input),
-    contextPaths: model.contextPathPatterns,
-    pathSemantics: MOVSCRIPT_DOMAIN_PATH_SEMANTICS,
-    schemaIds: model.schemaIds,
-    instructions: model.instructions
-  };
-}
-function expandPathPatterns(patterns, input) {
-  const slug = input.entityId === void 0 ? void 0 : entityPathSlug(input.entityId, normalizeEntityKind(input.entityKind));
-  return patterns.map((pattern) => pattern.replaceAll("{id}", slug ?? "{id}").replaceAll(`{${camelEntityKind(input.entityKind)}Slug}`, slug ?? `{${camelEntityKind(input.entityKind)}Slug}`));
-}
-function camelEntityKind(entityKind) {
-  return normalizeEntityKind(entityKind).replace(/_([a-z])/g, (_match, char) => char.toUpperCase());
-}
-function normalizeEntityKind(entityKind) {
-  return entityKind.trim().replace(/^movscript\./, "").replace(/\.v\d+$/, "");
-}
-function isSemanticEntityKind(value) {
-  return Object.values(WORKSPACE_ENTITY_KIND).some((kind) => kind === value);
-}
-var RESOURCE_MENTION_RE = /@\[resource:(\d+)\]|\[\[resource::(\d+)\]\]/g;
-function formatResourceMention(resourceId) {
-  return `@[resource:${String(resourceId)}]`;
-}
-function parseResourceMentions(text) {
-  const mentions = [];
-  for (const match of (text ?? "").matchAll(RESOURCE_MENTION_RE)) {
-    const index = match.index;
-    if (index === void 0) continue;
-    const id = Number(match[1] ?? match[2]);
-    if (!Number.isInteger(id) || id <= 0) continue;
-    mentions.push({ id, token: match[0], index });
-  }
-  return mentions;
-}
-function resourceIdsFromMentions(text) {
-  const ids = [];
-  const seen = /* @__PURE__ */ new Set();
-  for (const mention of parseResourceMentions(text)) {
-    if (seen.has(mention.id)) continue;
-    seen.add(mention.id);
-    ids.push(mention.id);
-  }
-  return ids;
-}
-function stripResourceMentions(text) {
-  return text.replace(RESOURCE_MENTION_RE, "").replace(/[ \t]{2,}/g, " ").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
-}
-function deriveMovScriptWorkspacePreviewTimelines(index) {
-  const sourceEntities = canonicalEntities(index);
-  const contentUnitsByPrimaryRef = groupContentUnitsByPrimaryRef(index);
-  return sourceEntities.filter(isProductionWithId).map((production) => {
-    const productionDir = entityDir3(production.path);
-    const segments = childEntities(index, productionDir, "segment");
-    const items = [];
-    let order = 0;
-    for (const segment of sortEntities(segments)) {
-      const segmentItemId = timelineItemId(segment);
-      items.push({
-        ...timelineItem(segmentItemId, "segment", segment, order++),
-        transition: recordField(segment.record.transition)
-      });
-      const sceneMoments = childEntities(index, entityDir3(segment.path), "scene_moment");
-      for (const sceneMoment of sortEntities(sceneMoments)) {
-        const sceneMomentItemId = timelineItemId(sceneMoment);
-        const sceneMomentContentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, "scene_moment", sceneMoment);
-        items.push({
-          ...timelineItem(sceneMomentItemId, "scene_moment", sceneMoment, order++),
-          parentId: segmentItemId,
-          transition: recordField(sceneMoment.record.transition),
-          contentUnitIds: sceneMomentContentUnits.map((contentUnit) => contentUnit.id).filter(isDefined)
-        });
-        for (const contentUnit of sortEntities(sceneMomentContentUnits)) {
-          items.push({
-            ...timelineItem(timelineItemId(contentUnit), "content_unit", contentUnit, order++),
-            parentId: sceneMomentItemId
-          });
-        }
-        for (const storyboard of sortEntities(childEntities(index, entityDir3(sceneMoment.path), "storyboard"))) {
-          const storyboardItemId = timelineItemId(storyboard);
-          const contentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, "storyboard", storyboard);
-          const timeline = recordField(storyboard.record.timeline);
-          items.push({
-            ...timelineItem(storyboardItemId, "storyboard", storyboard, order++),
-            parentId: sceneMomentItemId,
-            caption: stringField10(timeline?.caption),
-            gapAfterSec: numberField2(timeline?.gap_after_sec),
-            timing: timeline,
-            transition: recordField(storyboard.record.transition),
-            contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined)
-          });
-          for (const contentUnit of sortEntities(contentUnits)) {
-            items.push({
-              ...timelineItem(timelineItemId(contentUnit), "content_unit", contentUnit, order++),
-              parentId: storyboardItemId
-            });
-          }
-        }
-        for (const keyframe of sortEntities(childEntities(index, entityDir3(sceneMoment.path), "keyframe"))) {
-          const keyframeItemId = timelineItemId(keyframe);
-          const contentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, "keyframe", keyframe);
-          items.push({
-            ...timelineItem(keyframeItemId, "keyframe", keyframe, order++),
-            parentId: sceneMomentItemId,
-            timing: recordField(keyframe.record.timing),
-            contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined)
-          });
-          for (const contentUnit of sortEntities(contentUnits)) {
-            items.push({
-              ...timelineItem(timelineItemId(contentUnit), "content_unit", contentUnit, order++),
-              parentId: keyframeItemId
-            });
-          }
-        }
-        for (const expressionUnit of sortEntities(childEntities(index, entityDir3(sceneMoment.path), "expression_unit"))) {
-          const expressionUnitItemId = timelineItemId(expressionUnit);
-          const expressionUnitContentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, "expression_unit", expressionUnit);
-          items.push({
-            ...timelineItem(expressionUnitItemId, "expression_unit", expressionUnit, order++),
-            parentId: sceneMomentItemId,
-            contentUnitIds: expressionUnitContentUnits.map((contentUnit) => contentUnit.id).filter(isDefined)
-          });
-          for (const contentUnit of sortEntities(expressionUnitContentUnits)) {
-            items.push({
-              ...timelineItem(timelineItemId(contentUnit), "content_unit", contentUnit, order++),
-              parentId: expressionUnitItemId
-            });
-          }
-          for (const storyboard of sortEntities(childEntities(index, entityDir3(expressionUnit.path), "storyboard"))) {
-            const storyboardItemId = timelineItemId(storyboard);
-            const contentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, "storyboard", storyboard);
-            const timeline = recordField(storyboard.record.timeline);
-            items.push({
-              ...timelineItem(storyboardItemId, "storyboard", storyboard, order++),
-              parentId: expressionUnitItemId,
-              caption: stringField10(timeline?.caption),
-              gapAfterSec: numberField2(timeline?.gap_after_sec),
-              timing: timeline,
-              transition: recordField(storyboard.record.transition),
-              contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined)
-            });
-            for (const contentUnit of sortEntities(contentUnits)) {
-              items.push({
-                ...timelineItem(timelineItemId(contentUnit), "content_unit", contentUnit, order++),
-                parentId: storyboardItemId
-              });
-            }
-          }
-          for (const keyframe of sortEntities(childEntities(index, entityDir3(expressionUnit.path), "keyframe"))) {
-            const keyframeItemId = timelineItemId(keyframe);
-            const contentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, "keyframe", keyframe);
-            items.push({
-              ...timelineItem(keyframeItemId, "keyframe", keyframe, order++),
-              parentId: expressionUnitItemId,
-              timing: recordField(keyframe.record.timing),
-              contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined)
-            });
-            for (const contentUnit of sortEntities(contentUnits)) {
-              items.push({
-                ...timelineItem(timelineItemId(contentUnit), "content_unit", contentUnit, order++),
-                parentId: keyframeItemId
-              });
-            }
-          }
-        }
-        for (const audioCue of sortEntities(childEntities(index, entityDir3(sceneMoment.path), "audio_cue"))) {
-          items.push({
-            ...timelineItem(timelineItemId(audioCue), "audio_cue", audioCue, order++),
-            parentId: sceneMomentItemId,
-            cueKind: stringField10(audioCue.record.cue_kind),
-            timing: recordField(audioCue.record.timing)
-          });
-        }
-      }
-    }
-    return {
-      schema: "movscript.preview_timeline.v1",
-      productionId: production.id,
-      productionPath: productionDir,
-      items
-    };
-  });
-}
-function deriveMovScriptWorkspaceTimelineAssemblyPreviewTimeline(index, scope) {
-  const parsedTarget = parseImplicitTimelineAssemblyRef(scope.targetRef);
-  const scopeKind = parsedTarget?.scopeKind ?? scope.scopeKind;
-  const scopeRef = parsedTarget?.scopeRef ?? String(scope.scopeRef);
-  const scopeNode = timelineNamespaceNodeForScope(index, scopeKind, scopeRef);
-  if (!scopeNode?.path) return void 0;
-  const scopeEntity = canonicalEntities(index).find((entity) => entity.path === scopeNode.path);
-  const scopeDir = entityDir3(scopeNode.path);
-  const contentUnitsByPrimaryRef = groupContentUnitsByPrimaryRef(index);
-  const items = [];
-  let order = 0;
-  const appendTimelineNamespace = (namespace, parentId) => {
-    const namespaceItemId = timelineNamespaceItemId(namespace);
-    items.push({
-      ...timelineItem(namespaceItemId, "timeline_namespace", namespace, order++),
-      ...parentId ? { parentId } : {}
-    });
-    appendNamespaceChildren(entityDir3(namespace.path), namespaceItemId);
-  };
-  const appendSceneMoment = (sceneMoment, parentId) => {
-    const sceneMomentItemId = timelineItemId(sceneMoment);
-    const sceneMomentContentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, "scene_moment", sceneMoment);
-    items.push({
-      ...timelineItem(sceneMomentItemId, "scene_moment", sceneMoment, order++),
-      ...parentId ? { parentId } : {},
-      transition: recordField(sceneMoment.record.transition),
-      contentUnitIds: sceneMomentContentUnits.map((contentUnit) => contentUnit.id).filter(isDefined)
-    });
-    appendContentUnits(sceneMomentContentUnits, sceneMomentItemId);
-    appendSceneMomentChildren(sceneMoment, sceneMomentItemId);
-  };
-  const appendContentUnits = (contentUnits, parentId) => {
-    for (const contentUnit of sortEntities(contentUnits)) {
-      items.push({
-        ...timelineItem(timelineItemId(contentUnit), "content_unit", contentUnit, order++),
-        parentId
-      });
-    }
-  };
-  const appendSceneMomentChildren = (sceneMoment, sceneMomentItemId) => {
-    for (const storyboard of sortEntities(childEntities(index, entityDir3(sceneMoment.path), "storyboard"))) {
-      const storyboardItemId = timelineItemId(storyboard);
-      const contentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, "storyboard", storyboard);
-      const timeline = recordField(storyboard.record.timeline);
-      items.push({
-        ...timelineItem(storyboardItemId, "storyboard", storyboard, order++),
-        parentId: sceneMomentItemId,
-        caption: stringField10(timeline?.caption),
-        gapAfterSec: numberField2(timeline?.gap_after_sec),
-        timing: timeline,
-        transition: recordField(storyboard.record.transition),
-        contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined)
-      });
-      appendContentUnits(contentUnits, storyboardItemId);
-    }
-    for (const keyframe of sortEntities(childEntities(index, entityDir3(sceneMoment.path), "keyframe"))) {
-      const keyframeItemId = timelineItemId(keyframe);
-      const contentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, "keyframe", keyframe);
-      items.push({
-        ...timelineItem(keyframeItemId, "keyframe", keyframe, order++),
-        parentId: sceneMomentItemId,
-        timing: recordField(keyframe.record.timing),
-        contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined)
-      });
-      appendContentUnits(contentUnits, keyframeItemId);
-    }
-    for (const expressionUnit of sortEntities(childEntities(index, entityDir3(sceneMoment.path), "expression_unit"))) {
-      const expressionUnitItemId = timelineItemId(expressionUnit);
-      const expressionUnitContentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, "expression_unit", expressionUnit);
-      items.push({
-        ...timelineItem(expressionUnitItemId, "expression_unit", expressionUnit, order++),
-        parentId: sceneMomentItemId,
-        contentUnitIds: expressionUnitContentUnits.map((contentUnit) => contentUnit.id).filter(isDefined)
-      });
-      appendContentUnits(expressionUnitContentUnits, expressionUnitItemId);
-      for (const storyboard of sortEntities(childEntities(index, entityDir3(expressionUnit.path), "storyboard"))) {
-        const storyboardItemId = timelineItemId(storyboard);
-        const contentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, "storyboard", storyboard);
-        const timeline = recordField(storyboard.record.timeline);
-        items.push({
-          ...timelineItem(storyboardItemId, "storyboard", storyboard, order++),
-          parentId: expressionUnitItemId,
-          caption: stringField10(timeline?.caption),
-          gapAfterSec: numberField2(timeline?.gap_after_sec),
-          timing: timeline,
-          transition: recordField(storyboard.record.transition),
-          contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined)
-        });
-        appendContentUnits(contentUnits, storyboardItemId);
-      }
-      for (const keyframe of sortEntities(childEntities(index, entityDir3(expressionUnit.path), "keyframe"))) {
-        const keyframeItemId = timelineItemId(keyframe);
-        const contentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, "keyframe", keyframe);
-        items.push({
-          ...timelineItem(keyframeItemId, "keyframe", keyframe, order++),
-          parentId: expressionUnitItemId,
-          timing: recordField(keyframe.record.timing),
-          contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined)
-        });
-        appendContentUnits(contentUnits, keyframeItemId);
-      }
-    }
-    for (const audioCue of sortEntities(childEntities(index, entityDir3(sceneMoment.path), "audio_cue"))) {
-      items.push({
-        ...timelineItem(timelineItemId(audioCue), "audio_cue", audioCue, order++),
-        parentId: sceneMomentItemId,
-        cueKind: stringField10(audioCue.record.cue_kind),
-        timing: recordField(audioCue.record.timing)
-      });
-    }
-  };
-  const appendNamespaceChildren = (parentDir, parentId) => {
-    for (const namespace of sortEntities(childEntities(index, parentDir, "segment"))) {
-      appendTimelineNamespace(namespace, parentId);
-    }
-    for (const sceneMoment of sortEntities(childEntities(index, parentDir, "scene_moment"))) {
-      appendSceneMoment(sceneMoment, parentId);
-    }
-  };
-  appendNamespaceChildren(scopeDir);
-  return {
-    schema: "movscript.preview_timeline.v1",
-    targetKind: "timeline_assembly",
-    targetRef: scope.targetRef ?? implicitTimelineAssemblyRef(scopeKind, scopeRef),
-    scopeKind,
-    scopeRef,
-    scopePath: scopeDir,
-    scopeTitle: scopeNode.title,
-    ...scopeEntity?.entityKind === "production" && scopeEntity.id !== void 0 ? {
-      productionId: scopeEntity.id,
-      productionPath: scopeDir
-    } : {},
-    items
-  };
-}
-function groupContentUnitsByPrimaryRef(index) {
-  const out = /* @__PURE__ */ new Map();
-  for (const entity of canonicalEntities(index)) {
-    if (entity.entityKind !== "content_unit") continue;
-    const contentUnitType2 = stringField10(entity.record.content_unit_type);
-    if (!contentUnitType2 || !hasSpecializedContentUnitType(contentUnitType2)) continue;
-    const assemblyScope = timelineAssemblyScopeFromContentUnitRecord(entity.record);
-    if (assemblyScope) {
-      for (const key of primaryRefKeys(assemblyScope.kind, assemblyScope.ref)) {
-        out.set(key, [...out.get(key) ?? [], entity]);
-      }
-    }
-    const primaryKind = primaryRefKindForContentUnitType(contentUnitType2);
-    if (!primaryKind) continue;
-    const primaryRefs = primaryRefIdsForContentUnitRecord(entity.record, primaryKind);
-    if (primaryRefs.length !== 1) continue;
-    const primaryRef = primaryRefs[0];
-    if (!primaryRef) continue;
-    for (const key of primaryRefKeys(primaryKind, primaryRef)) {
-      out.set(key, [...out.get(key) ?? [], entity]);
-    }
-  }
-  return out;
-}
-function contentUnitsForEntity(contentUnitsByPrimaryRef, entityKind, entity) {
-  if (entity.id === void 0) return [];
-  return contentUnitsByPrimaryRef.get(primaryRefKey(entityKind, entity.id)) ?? [];
-}
-function primaryRefKey(kind, id) {
-  return `${kind}:${String(id)}`;
-}
-function primaryRefKeys(kind, ref) {
-  const value = String(ref);
-  const keys = [primaryRefKey(kind, value)];
-  const lastSegment = value.split("/").filter(Boolean).at(-1);
-  if (lastSegment && lastSegment !== value) keys.push(primaryRefKey(kind, lastSegment));
-  return keys;
-}
-function timelineItem(id, itemType, entity, order) {
-  return {
-    id,
-    itemType,
-    entity: entityRef2(entity),
-    order,
-    title: stringField10(entity.record.title) ?? String(entity.id ?? entity.path)
-  };
-}
-function timelineItemId(entity) {
-  return `${entity.entityKind}:${String(entity.id ?? entity.path)}`;
-}
-function timelineNamespaceItemId(entity) {
-  return `timeline_namespace:${String(entity.id ?? entity.path)}`;
-}
-function entityRef2(entity) {
-  return {
-    entityKind: entity.entityKind,
-    ...entity.id !== void 0 ? { id: entity.id } : {},
-    path: entity.path
-  };
-}
-function childEntities(index, parentDir, entityKind) {
-  const collectionName = collectionDirForEntityKind(entityKind);
-  if (!collectionName) return [];
-  return canonicalEntities(index).filter((entity) => entity.entityKind === entityKind && entity.path.startsWith(`${parentDir}/${collectionName}/`) && entityDir3(entity.path).replace(`${parentDir}/${collectionName}/`, "").split("/").length === 1);
-}
-function collectionDirForEntityKind(entityKind) {
-  if (entityKind === "segment") return "segments";
-  if (entityKind === "scene_moment") return "scene_moments";
-  if (entityKind === "storyboard") return "storyboards";
-  if (entityKind === "keyframe") return "keyframes";
-  if (entityKind === "audio_cue") return "audio_cues";
-  if (entityKind === "expression_unit") return "expression_units";
-  return void 0;
-}
-function canonicalEntities(index) {
-  return index.entities;
-}
-function isProductionWithId(entity) {
-  return entity.entityKind === "production" && entity.id !== void 0;
-}
-function timelineNamespaceNodeForScope(index, scopeKind, scopeRef) {
-  const normalizedRef = normalizeRef(scopeRef);
-  return index.domainNodes.find((node) => {
-    if (node.category !== "timeline_namespace") return false;
-    if (node.kind !== scopeKind && node.metadata?.entityKind !== scopeKind) return false;
-    const nodePath = node.path ? normalizeRef(node.path) : void 0;
-    const nodeDir = node.path ? normalizeRef(entityDir3(node.path)) : void 0;
-    return normalizeRef(node.id) === normalizedRef || nodePath === normalizedRef || nodeDir === normalizedRef;
-  });
-}
-function normalizeRef(value) {
-  if (typeof value === "number" && Number.isFinite(value)) return String(value);
-  if (typeof value !== "string" || !value.trim()) return void 0;
-  return value.trim().replace(/^\/+|\/+$/g, "");
-}
-function sortEntities(entities) {
-  return [...entities].sort((left, right) => {
-    const leftOrder = numberField2(left.record.order) ?? Number.MAX_SAFE_INTEGER;
-    const rightOrder = numberField2(right.record.order) ?? Number.MAX_SAFE_INTEGER;
-    if (leftOrder !== rightOrder) return leftOrder - rightOrder;
-    return left.path.localeCompare(right.path);
-  });
-}
-function entityDir3(path) {
-  return path.replace(/\/[^/]+$/, "");
-}
-function recordField(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value) ? value : void 0;
-}
-function stringField10(value) {
-  return typeof value === "string" && value.trim() ? value.trim() : void 0;
-}
-function numberField2(value) {
-  return typeof value === "number" && Number.isFinite(value) ? value : void 0;
-}
-function isDefined(value) {
-  return value !== void 0;
-}
-function createMovScriptWorkspaceService(options) {
-  const domainRepository = createMovScriptWorkspaceDomainRepository({
-    fileRepository: options.fileRepository
-  });
-  const loadIndex = async (input) => {
-    const documents = await domainRepository.loadDocuments(input);
-    const decisionDocuments = await overlayMovScriptDecisionDocuments(documents, options.decisionStore);
-    return deriveMovScriptWorkspaceDomainIndex(decisionDocuments);
-  };
-  return {
-    async initializeProject(input = {}) {
-      const now = options.now?.() ?? /* @__PURE__ */ new Date();
-      const createdAt = now.toISOString();
-      const existingWorkspace = await readJSONArtifact(options.fileRepository, "workspace.json");
-      const title = stringField24(input.title) ?? "MovScript Project";
-      const projectId = stringField24(input.projectId) ?? stringField24(existingWorkspace?.project_id) ?? safeProjectSlug(title);
-      const projectUid = stringField24(input.projectUid) ?? stringField24(existingWorkspace?.project_uid) ?? stringField24(existingWorkspace?.projectUid) ?? createMovScriptProjectUid();
-      const standardsRecord = {
-        schema: "movscript.project_standards.v1",
-        kind: "project_standards",
-        id: "project_standards",
-        project_id: projectId,
-        title: "Project standards",
-        ...input.standards ?? {},
-        updated_at: createdAt
-      };
-      const files = [
-        await ensureMovScriptGitignore(options.fileRepository),
-        await writeJSONDocument(options.fileRepository, ".movscript/config.json", {
-          schema: "movscript.local_project_config.v1",
-          project_uid: projectUid,
-          remotes: {},
-          created_at: createdAt,
-          updated_at: createdAt
-        }, Boolean(input.overwrite)),
-        await writeJSONDocument(options.fileRepository, "workspace.json", {
-          schema: "movscript.workspace.v2",
-          project_uid: projectUid,
-          project_id: projectId,
-          title,
-          created_at: stringField24(existingWorkspace?.created_at) ?? createdAt,
-          updated_at: createdAt
-        }, Boolean(input.overwrite)),
-        await writeJSONDocument(options.fileRepository, "project.json", {
-          schema: "movscript.project.v1",
-          kind: "project",
-          project_id: projectId,
-          title,
-          language: stringField24(input.language),
-          created_at: createdAt,
-          updated_at: createdAt
-        }, Boolean(input.overwrite)),
-        await writeJSONDocument(options.fileRepository, "project_standards.json", standardsRecord, Boolean(input.overwrite))
-      ];
-      const standardSkillFiles = await syncMovScriptProjectStandardSkills({
-        fileRepository: options.fileRepository,
-        standards: standardsRecord
-      });
-      return { projectId, projectUid, files, standardSkillFiles };
-    },
-    getModel: getMovScriptWorkspaceModel,
-    loadIndex,
-    async queryEntities(query = {}) {
-      return queryMovScriptWorkspaceEntities(await loadIndex(), query);
-    },
-    async querySettings(query = {}) {
-      return queryMovScriptWorkspaceSettings(await loadIndex(), query);
-    },
-    async queryAssets(query = {}) {
-      return queryMovScriptWorkspaceAssets(await loadIndex(), query);
-    },
-    async queryProductionContext(query = {}) {
-      return queryMovScriptWorkspaceProductionContext(await loadIndex(), query);
-    },
-    readEditorState() {
-      return readJSONArtifact(options.fileRepository, MOVSCRIPT_EDITOR_STATE_PATH);
-    },
-    async readPreviewTimeline(productionId) {
-      const timelines = deriveMovScriptWorkspacePreviewTimelines(await loadIndex());
-      return timelines.find((timeline) => samePreviewTimelineProduction(timeline.productionId, productionId));
-    },
-    async readTimelineAssemblyPreviewTimeline(scope) {
-      return deriveMovScriptWorkspaceTimelineAssemblyPreviewTimeline(await loadIndex(), scope);
-    },
-    async readSceneMomentEditPlan(sceneMomentId) {
-      const sceneMoment = queryMovScriptWorkspaceEntities(await loadIndex(), { entityKind: "scene_moment" }).find((entity) => sameEntityId(entity.id, sceneMomentId) || entity.path.includes(`/scene_moments/${entityPathSlug(sceneMomentId, "scene_moment")}/`));
-      if (!sceneMoment) return void 0;
-      return readJSONArtifact(options.fileRepository, `${MOVSCRIPT_INTERPRET_CURRENT_DIR}/${sceneMoment.path.replace(/\/scene_moment\.json$/, "")}/edit_plan.json`);
-    },
-    readContentUnitRuntimePanel(contentUnitId) {
-      return readJSONArtifact(options.fileRepository, `${MOVSCRIPT_INTERPRET_CURRENT_DIR}/content_units/${entityPathSlug(contentUnitId, "content_unit")}/runtime_panel.json`);
-    },
-    readContentUnitGenerationPrompt(contentUnitId) {
-      return readJSONArtifact(options.fileRepository, `${MOVSCRIPT_INTERPRET_CURRENT_DIR}/content_units/${entityPathSlug(contentUnitId, "content_unit")}/generation_prompt.json`);
-    },
-    readContentUnitDependencyReport(contentUnitId) {
-      return readJSONArtifact(options.fileRepository, `${MOVSCRIPT_INTERPRET_CURRENT_DIR}/content_units/${entityPathSlug(contentUnitId, "content_unit")}/dependency_report.json`);
-    },
-    readContentUnitSelectionValidity(contentUnitId) {
-      return readJSONArtifact(options.fileRepository, `${MOVSCRIPT_INTERPRET_CURRENT_DIR}/content_units/${entityPathSlug(contentUnitId, "content_unit")}/selection_validity.json`);
-    },
-    async upsertSetting(input) {
-      const payload = await writePayloadWithGeneratedEntityId(loadIndex, "setting", input);
-      return upsertMovScriptWorkspaceSetting({
-        fileRepository: options.fileRepository,
-        now: options.now?.(),
-        ...input,
-        payload
-      });
-    },
-    async upsertSettingState(input) {
-      const payload = await writePayloadWithGeneratedEntityId(loadIndex, "setting_state", input);
-      return upsertMovScriptWorkspaceSettingState({
-        fileRepository: options.fileRepository,
-        now: options.now?.(),
-        ...input,
-        payload
-      });
-    },
-    async upsertAsset(input) {
-      const payload = await writePayloadWithGeneratedEntityId(loadIndex, "asset", input);
-      return upsertMovScriptWorkspaceAsset({
-        fileRepository: options.fileRepository,
-        now: options.now?.(),
-        ...input,
-        payload
-      });
-    },
-    upsertScript(input) {
-      return upsertMovScriptWorkspaceScript({
-        fileRepository: options.fileRepository,
-        now: options.now?.(),
-        ...input
-      });
-    },
-    readScriptSource(input) {
-      return readMovScriptWorkspaceScriptSource({
-        fileRepository: options.fileRepository,
-        ...input
-      });
-    },
-    saveProductionSnapshot(input) {
-      return saveMovScriptProductionWorkspaceSnapshot({
-        fileRepository: options.fileRepository,
-        now: options.now?.(),
-        ...input
-      });
-    },
-    deleteEntity(input) {
-      return deleteMovScriptWorkspaceEntity({
-        fileRepository: options.fileRepository,
-        ...input
-      });
-    },
-    snapshotScriptVersionFromMarkdown(input) {
-      return snapshotMovScriptVersionFromMarkdown({
-        fileRepository: options.fileRepository,
-        ...input
-      });
-    },
-    updateContentUnitEditPrompt(input) {
-      return updateMovScriptContentUnitEditPrompt({
-        fileRepository: options.fileRepository,
-        ...input
-      });
-    },
-    async upsertContentUnit(input) {
-      const unit = await contentUnitWithGeneratedEntityId(loadIndex, input.unit);
-      return upsertMovScriptContentUnit({
-        fileRepository: options.fileRepository,
-        ...input,
-        unit
-      });
-    },
-    async upsertProjectStandards(input) {
-      const result = await upsertMovScriptProjectStandards({
-        fileRepository: options.fileRepository,
-        now: options.now?.(),
-        ...input
-      });
-      const standardSkillFiles = await syncMovScriptProjectStandardSkills({
-        fileRepository: options.fileRepository,
-        standards: result.record
-      });
-      return { ...result, standardSkillFiles };
-    },
-    updateEntityTransition(input) {
-      return updateMovScriptEntityTransition({
-        fileRepository: options.fileRepository,
-        ...input
-      });
-    },
-    updateStoryboardTimeline(input) {
-      return updateMovScriptStoryboardTimeline({
-        fileRepository: options.fileRepository,
-        ...input
-      });
-    },
-    upsertSourceRecord(input) {
-      return upsertMovScriptSourceRecord({
-        fileRepository: options.fileRepository,
-        ...input
-      });
-    },
-    updateExpressionUnitSource(input) {
-      return updateMovScriptExpressionUnit(options.fileRepository, input);
-    },
-    updateAudioCueSource(input) {
-      return updateMovScriptAudioCue(options.fileRepository, input);
-    },
-    appendCandidate(input) {
-      return appendMovScriptInlineCandidate({
-        fileRepository: options.fileRepository,
-        ...input
-      });
-    },
-    async createContentCandidate(input) {
-      const promptSnapshot = mergePromptSnapshots(
-        await readContentUnitGenerationPromptArtifact(options.fileRepository, input.contentUnitId),
-        input.promptSnapshot
-      );
-      if (options.decisionStore) {
-        const result = buildMovScriptContentCandidate({
-          ...input,
-          ...promptSnapshot !== void 0 ? { promptSnapshot } : {}
-        });
-        await options.decisionStore.upsertContentUnitCandidate({
-          contentUnitId: input.contentUnitId,
-          candidate: result.record
-        });
-        return result;
-      }
-      throw new Error("content unit candidate creation requires a backend scoped project data decisionStore");
-    },
-    async selectContentUnitCandidate(input) {
-      const decisionStore = options.decisionStore;
-      if (!decisionStore) {
-        throw new Error("content unit candidate selection requires a backend scoped project data decisionStore");
-      }
-      const candidate = await readBackendContentCandidateRecord(decisionStore, input.contentUnitId, input.candidateId);
-      const resourceId = input.resourceId ?? firstCandidateResourceId(candidate);
-      const context = await decisionStore.selectContentUnitCandidate({
-        contentUnitId: input.contentUnitId,
-        candidateId: input.candidateId,
-        ...resourceId !== void 0 ? { resourceId } : {},
-        stalePolicy: input.stalePolicy,
-        reason: input.reason,
-        selectedAt: input.selectedAt
-      });
-      return {
-        path: contentUnitDecisionContextPath(input.contentUnitId),
-        record: normalizeDecisionContext(context),
-        context
-      };
-    },
-    async decideContentUnitCandidate(input) {
-      const decisionStore = options.decisionStore;
-      if (!decisionStore) {
-        throw new Error("content unit candidate decision requires a backend scoped project data decisionStore");
-      }
-      if (input.decision === "adopt") {
-        const candidate2 = await readBackendContentCandidateRecord(decisionStore, input.contentUnitId, input.candidateId);
-        const resourceId = input.resourceId ?? firstCandidateResourceId(candidate2);
-        const context2 = await decisionStore.selectContentUnitCandidate({
-          contentUnitId: input.contentUnitId,
-          candidateId: input.candidateId,
-          ...resourceId !== void 0 ? { resourceId } : {},
-          stalePolicy: input.stalePolicy,
-          reason: input.reason,
-          selectedAt: input.decidedAt,
-          metadata: input.metadata
-        });
-        return {
-          path: contentUnitDecisionContextPath(input.contentUnitId),
-          record: normalizeDecisionContext(context2),
-          context: context2
-        };
-      }
-      const candidate = await readBackendContentCandidateRecord(decisionStore, input.contentUnitId, input.candidateId);
-      if (!candidate) throw new Error(`candidate not found: ${String(input.candidateId)}`);
-      const decidedAt = input.decidedAt ?? options.now?.().toISOString();
-      const context = await decisionStore.upsertContentUnitCandidate({
-        contentUnitId: input.contentUnitId,
-        candidate: pruneUndefined12({
-          ...candidate,
-          decision_status: input.decision,
-          decision_reason: input.reason,
-          decided_at: decidedAt,
-          decision_metadata: input.metadata
-        })
-      });
-      return {
-        path: contentUnitDecisionContextPath(input.contentUnitId),
-        record: normalizeDecisionContext(context),
-        context
-      };
-    },
-    createAssetSlotCandidate(input) {
-      return createMovScriptWorkspaceAssetSlotCandidate({
-        fileRepository: options.fileRepository,
-        projectPath: input.projectPath ?? "",
-        ...input
-      });
-    },
-    createKeyframeCandidate(input) {
-      return createMovScriptWorkspaceKeyframeCandidate({
-        fileRepository: options.fileRepository,
-        projectPath: input.projectPath ?? "",
-        ...input
-      });
-    },
-    selectCandidate(input) {
-      return selectMovScriptInlineCandidate({
-        fileRepository: options.fileRepository,
-        ...input
-      });
-    },
-    updateCandidate(input) {
-      return updateMovScriptInlineCandidate({
-        fileRepository: options.fileRepository,
-        ...input
-      });
-    },
-    unlockCandidate(input) {
-      return unlockMovScriptInlineCandidate({
-        fileRepository: options.fileRepository,
-        ...input
-      });
-    }
-  };
-}
-async function readJSONArtifact(fileRepository, path) {
-  const file = await fileRepository.read({ path: normalizeWorkspacePath(path) }).catch(() => void 0);
-  if (!file) return void 0;
-  const parsed = JSON.parse(file.content);
-  return isRecord11(parsed) ? parsed : void 0;
-}
-async function updateMovScriptExpressionUnit(fileRepository, input) {
-  const normalizedPath = normalizeWorkspacePath(input.targetPath);
-  const existing = await readJSONArtifact(fileRepository, normalizedPath);
-  if (!existing) throw new Error(`Expression unit source not found: ${normalizedPath}`);
-  if (existing.kind !== "expression_unit") throw new Error(`Target is not an expression_unit: ${normalizedPath}`);
-  const record = pruneUndefined12({
-    ...existing,
-    schema: stringField24(existing.schema) ?? "movscript.expression_unit.v1",
-    kind: "expression_unit",
-    title: input.patch.title !== void 0 ? input.patch.title : existing.title,
-    expression_kind: input.patch.expressionKind !== void 0 ? input.patch.expressionKind : existing.expression_kind,
-    speaker: input.patch.speaker !== void 0 ? input.patch.speaker : existing.speaker,
-    text: input.patch.text !== void 0 ? input.patch.text : existing.text,
-    note: input.patch.note !== void 0 ? input.patch.note : existing.note,
-    intent: input.patch.intent !== void 0 ? input.patch.intent : existing.intent
-  });
-  await fileRepository.write({
-    path: normalizedPath,
-    content: `${JSON.stringify(record, null, 2)}
-`
-  });
-  return { path: normalizedPath, record };
-}
-async function updateMovScriptAudioCue(fileRepository, input) {
-  const normalizedPath = normalizeWorkspacePath(input.targetPath);
-  const existing = await readJSONArtifact(fileRepository, normalizedPath);
-  if (!existing) throw new Error(`Audio cue source not found: ${normalizedPath}`);
-  if (existing.kind !== "audio_cue") throw new Error(`Target is not an audio_cue: ${normalizedPath}`);
-  const record = pruneUndefined12({
-    ...existing,
-    schema: stringField24(existing.schema) ?? "movscript.audio_cue.v1",
-    kind: "audio_cue",
-    title: input.patch.title !== void 0 ? input.patch.title : existing.title,
-    cue_kind: input.patch.cueKind !== void 0 ? input.patch.cueKind : existing.cue_kind,
-    expression_unit_ref: input.patch.expressionUnitRef !== void 0 ? input.patch.expressionUnitRef : existing.expression_unit_ref,
-    storyboard_ref: input.patch.storyboardRef !== void 0 ? input.patch.storyboardRef : existing.storyboard_ref,
-    timing: input.patch.timing !== void 0 ? input.patch.timing : existing.timing,
-    prompt_hint: input.patch.promptHint !== void 0 ? input.patch.promptHint : existing.prompt_hint,
-    asset_refs: input.patch.assetRefs !== void 0 ? input.patch.assetRefs : existing.asset_refs
-  });
-  await fileRepository.write({
-    path: normalizedPath,
-    content: `${JSON.stringify(record, null, 2)}
-`
-  });
-  return { path: normalizedPath, record };
-}
-function samePreviewTimelineProduction(left, right) {
-  return String(left) === String(right) || entityPathSlug(left, "production") === entityPathSlug(right, "production");
-}
-function contentUnitDerivedArtifactPath(contentUnitId, filename) {
-  return `${MOVSCRIPT_INTERPRET_CURRENT_DIR}/content_units/${entityPathSlug(contentUnitId, "content_unit")}/${filename}`;
-}
-async function readContentUnitGenerationPromptArtifact(fileRepository, contentUnitId) {
-  return readJSONArtifact(fileRepository, contentUnitDerivedArtifactPath(contentUnitId, "generation_prompt.json"));
-}
-async function readBackendContentCandidateRecord(decisionStore, contentUnitId, candidateId) {
-  const context = await decisionStore.getContentUnitDecision({ contentUnitId });
-  return context?.candidates.find((candidate) => String(candidate.id) === String(candidateId));
-}
-function mergePromptSnapshots(runtimePrompt, promptSnapshot) {
-  if (!runtimePrompt) return promptSnapshot;
-  if (!promptSnapshot) return runtimePrompt;
-  return pruneUndefined12({ ...runtimePrompt, ...promptSnapshot });
-}
-function firstCandidateResourceId(candidate) {
-  const firstOutput = arrayField3(candidate?.outputs).filter(isRecord11)[0];
-  const resourceId = firstOutput?.resource_id;
-  return resourceIdField2(resourceId);
-}
-function resourceIdField2(value) {
-  if (typeof value === "number" && Number.isInteger(value) && value > 0) return value;
-  if (typeof value === "string" && value.trim()) {
-    const parsed = Number(value);
-    if (Number.isInteger(parsed) && parsed > 0) return parsed;
-  }
-  return void 0;
-}
-function arrayField3(value) {
-  return Array.isArray(value) ? value : [];
-}
-var MOVSCRIPT_GITIGNORE_PATH = ".gitignore";
-var MOVSCRIPT_INTERPRET_GITIGNORE_ENTRY = ".interpret/";
-var MOVSCRIPT_LOCAL_CONTROL_GITIGNORE_ENTRY = ".movscript/";
-var MOVSCRIPT_INTERPRET_GITIGNORE_BLOCK = [
-  "# MovScript generated artifacts",
-  MOVSCRIPT_INTERPRET_GITIGNORE_ENTRY,
-  MOVSCRIPT_LOCAL_CONTROL_GITIGNORE_ENTRY,
-  ""
-].join("\n");
-async function ensureMovScriptGitignore(fileRepository) {
-  const normalizedPath = normalizeWorkspacePath(MOVSCRIPT_GITIGNORE_PATH);
-  const existingFile = await fileRepository.read({ path: normalizedPath }).catch(() => void 0);
-  const existingContent = existingFile?.content;
-  if (existingContent !== void 0 && gitignoreContainsBuildEntry(existingContent)) {
-    return { path: normalizedPath, status: "skipped", content: existingContent };
-  }
-  const content = appendGitignoreBlock(existingContent, MOVSCRIPT_INTERPRET_GITIGNORE_BLOCK);
-  await fileRepository.write({ path: normalizedPath, content });
-  return {
-    path: normalizedPath,
-    status: existingContent === void 0 ? "created" : "updated",
-    content
-  };
-}
-function gitignoreContainsBuildEntry(content) {
-  const entries = new Set(content.split(/\r?\n/).map((line) => line.trim()).filter(Boolean));
-  return (entries.has(".interpret") || entries.has(MOVSCRIPT_INTERPRET_GITIGNORE_ENTRY)) && (entries.has(".movscript") || entries.has(MOVSCRIPT_LOCAL_CONTROL_GITIGNORE_ENTRY));
-}
-function appendGitignoreBlock(existingContent, block) {
-  if (!existingContent) return block;
-  const separator = existingContent.endsWith("\n") ? "\n" : "\n\n";
-  return `${existingContent}${separator}${block}`;
-}
-async function writeJSONDocument(fileRepository, path, record, overwrite) {
-  const normalizedPath = normalizeWorkspacePath(path);
-  if (!overwrite) {
-    const existing2 = await readJSONArtifact(fileRepository, normalizedPath);
-    if (existing2) {
-      return { path: normalizedPath, status: "skipped", record: existing2 };
-    }
-  }
-  const existing = await readJSONArtifact(fileRepository, normalizedPath);
-  await fileRepository.write({
-    path: normalizedPath,
-    content: `${JSON.stringify(pruneUndefined12(record), null, 2)}
-`
-  });
-  return {
-    path: normalizedPath,
-    status: existing ? "updated" : "created",
-    record: pruneUndefined12(record)
-  };
-}
-async function writePayloadWithGeneratedEntityId(loadIndex, entityKind, input) {
-  const current = {
-    ...isRecord11(input.record) ? input.record : {},
-    ...isRecord11(input.entity?.record) ? input.entity?.record : {}
-  };
-  const payload = isRecord11(input.payload) ? input.payload : {};
-  if (hasEntityIdentity(payload) || hasEntityIdentity(current)) return payload;
-  const existingIds = await existingWorkspaceEntityIds(loadIndex, entityKind);
-  return {
-    ...payload,
-    id: allocateMovScriptEntityId({
-      entityKind,
-      title: entityTitleSeed(payload, current),
-      existingIds
-    })
-  };
-}
-async function contentUnitWithGeneratedEntityId(loadIndex, unit) {
-  if (hasEntityIdentity(unit)) return unit;
-  const existingIds = await existingWorkspaceEntityIds(loadIndex, "content_unit");
-  return {
-    ...unit,
-    id: allocateMovScriptEntityId({
-      entityKind: "content_unit",
-      title: entityTitleSeed(unit, {}),
-      existingIds
-    })
-  };
-}
-async function existingWorkspaceEntityIds(loadIndex, entityKind) {
-  const entities = queryMovScriptWorkspaceEntities(await loadIndex(), { entityKind });
-  return entities.flatMap((entity) => [
-    stringField24(entity.id),
-    stringField24(entity.record.id),
-    stringField24(entity.record.ID)
-  ]).filter((id) => Boolean(id));
-}
-function hasEntityIdentity(record) {
-  return [
-    record.workspace_slug,
-    record.workspaceSlug,
-    record.workspace_entity_id,
-    record.workspaceEntityId,
-    record.id,
-    record.ID,
-    record.client_id,
-    record.clientId
-  ].some((value) => stringField24(value) !== void 0);
-}
-function entityTitleSeed(payload, current) {
-  return payload.title ?? payload.name ?? payload.slot ?? payload.slot_key ?? payload.slotKey ?? payload.text ?? payload.description ?? current.title ?? current.name ?? current.slot ?? current.slot_key ?? current.slotKey ?? current.text ?? current.description;
-}
-function stringField24(value) {
-  if (typeof value === "number" && Number.isFinite(value)) return String(value);
-  return typeof value === "string" && value.trim() ? value.trim() : void 0;
-}
-function safeProjectSlug(value) {
-  const slug = value.trim().toLowerCase().replace(/[^a-z0-9._-]+/g, "_").replace(/^_+|_+$/g, "");
-  return slug || "movscript_project";
-}
-function createMovScriptProjectUid() {
-  const randomUUID3 = globalThis.crypto?.randomUUID?.();
-  if (randomUUID3) return `prj_${randomUUID3.replace(/-/g, "")}`;
-  const random = Math.random().toString(36).slice(2);
-  return `prj_${Date.now().toString(36)}${random}`;
-}
-function sameEntityId(left, right) {
-  return String(left ?? "") === String(right ?? "");
-}
-function isRecord11(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function pruneUndefined12(value) {
-  const output = {};
-  for (const [key, item] of Object.entries(value)) {
-    if (item !== void 0) output[key] = item;
-  }
-  return output;
-}
-
-// ../../packages/core/dist/chunk-KJKRBRBX.js
-function buildContentUnitGenerationRequest(input) {
-  const promptText = compiledContentUnitGenerationPromptText(input.compiledPrompt);
-  const inputResourceIds = positiveIntegerIds([
-    ...compiledContentUnitGenerationPromptResourceIds(input.compiledPrompt),
-    ...input.additionalInputResourceIds ?? []
-  ]);
-  const generationIntent = requiredContentUnitGenerationIntent(input.generationIntent);
-  const jobType = generationExecutionJobTypeForIntent(generationIntent, input.outputKind);
-  const params = contentUnitGenerationParams(input.outputKind, input.compiledPrompt, input.params);
-  const promptSnapshot = buildContentUnitGenerationPromptSnapshot({
-    contentUnitId: input.contentUnitId,
-    outputKind: input.outputKind,
-    modelId: input.modelId,
-    compiledPrompt: input.compiledPrompt,
-    resourceIds: inputResourceIds,
-    paramAudit: input.paramAudit,
-    modelParams: input.modelParams ?? params
-  });
-  return {
-    contentUnitId: input.contentUnitId,
-    outputKind: input.outputKind,
-    promptText,
-    inputResourceIds,
-    jobType,
-    generationIntent,
-    featureKey: contentUnitGenerationFeatureKey(input.outputKind),
-    params,
-    promptSnapshot
-  };
-}
-function generationExecutionJobTypeForIntent(intent, fallbackOutputKind) {
-  switch (intent?.capability?.trim()) {
-    case "video_generation":
-      return "video";
-    case "image_generation":
-      return intent.operation === "image_to_image" ? "image_edit" : "image";
-    case "audio_generation":
-      switch (intent.operation?.trim()) {
-        case "music":
-          return "audio_music";
-        case "sfx":
-          return "audio_sfx";
-        case "stt":
-          return "audio_transcribe";
-        case "speech_translate":
-          return "audio_translate";
-        case "audio_chat":
-          return "audio_chat";
-        case "voice_clone":
-          return "voice_clone";
-        case "voice_design":
-          return "voice_design";
-        default:
-          return "audio_tts";
-      }
-    default:
-      return fallbackOutputKind;
-  }
-}
-function requiredContentUnitGenerationIntent(intent) {
-  if (!intent?.capability?.trim() || !intent.operation?.trim()) {
-    throw new Error("generationIntent with capability and operation is required for content-unit generation");
-  }
-  return intent;
-}
-function buildContentUnitGenerationOutputCandidate(input) {
-  const jobId = contentUnitGenerationJobId(input.job);
-  const candidateId = input.candidateId ?? contentUnitGenerationCandidateId(input.outputKind, jobId, input.resourceId);
-  const promptSnapshot = input.promptSnapshot ?? {};
-  const modelId = input.modelId ?? stringField11(input.job.model_id) ?? stringField11(promptSnapshot.model_id);
-  const modelParams = nonEmptyRecord(input.modelParams ?? recordField2(promptSnapshot.model_params));
-  return {
-    contentUnitId: String(input.contentUnitId),
-    candidateId: String(candidateId),
-    source: "ai_generate",
-    status: "succeeded",
-    producer: {
-      kind: "generation",
-      tool: contentUnitGenerationToolName(input.outputKind),
-      job_id: jobId,
-      ...modelId ? { model_id: modelId } : {},
-      ...stringField11(input.job.job_type) ? { job_type: stringField11(input.job.job_type) } : {},
-      ...modelParams ? { model_params: modelParams } : {}
-    },
-    outputs: [{
-      kind: input.outputKind,
-      resource_id: input.resourceId,
-      metadata: {
-        job_id: jobId,
-        ...modelId ? { model_id: modelId } : {},
-        ...stringField11(input.job.job_type) ? { job_type: stringField11(input.job.job_type) } : {},
-        tool: contentUnitGenerationMonitorToolName(input.outputKind)
-      }
-    }],
-    promptSnapshot,
-    createdAt: stringField11(input.job.CreatedAt) ?? stringField11(input.job.created_at) ?? (/* @__PURE__ */ new Date()).toISOString()
-  };
-}
-function contentUnitGenerationCandidateId(outputKind, jobId, resourceId) {
-  return `gen_${outputKind}_${String(jobId)}_${String(resourceId)}`;
-}
-function compiledContentUnitGenerationPromptText(prompt) {
-  const text = stringField11(prompt.text);
-  if (text) return stripResourceMentions(text);
-  throw new Error("compiled content unit prompt has no text");
-}
-function compiledContentUnitGenerationPromptResourceIds(prompt) {
-  return positiveIntegerIds([
-    ...resourceIdsFromMentions(stringField11(prompt.text)),
-    ...resourceIdsFromMentions(stringField11(prompt.negative_text)),
-    ...numericList(prompt.resource_ids),
-    ...numericList(prompt.resourceIds),
-    ...numericList(prompt.style_reference_resource_ids),
-    ...numericList(prompt.styleReferenceResourceIds)
-  ]);
-}
-function buildContentUnitGenerationPromptSnapshot(input) {
-  const resourceIds2 = input.resourceIds ?? compiledContentUnitGenerationPromptResourceIds(input.compiledPrompt);
-  const modelParams = nonEmptyRecord(input.modelParams);
-  return {
-    schema: "movscript.content_unit_generation_prompt_snapshot.v1",
-    content_unit_id: input.contentUnitId,
-    output_kind: input.outputKind,
-    model_id: input.modelId,
-    compiled_prompt: input.compiledPrompt,
-    resource_ids: resourceIds2,
-    ...modelParams ? { model_params: modelParams } : {},
-    ...Array.isArray(input.paramAudit) && input.paramAudit.length > 0 ? { param_audit: input.paramAudit } : {}
-  };
-}
-function contentUnitGenerationFeatureKey(outputKind) {
-  return outputKind === "image" ? "electron.generation.content_unit.image" : "electron.generation.content_unit.video";
-}
-function contentUnitGenerationMonitorToolName(outputKind) {
-  return "generation_job_get";
-}
-function contentUnitGenerationSystemMonitorToolName(outputKind) {
-  return contentUnitGenerationMonitorToolName(outputKind);
-}
-function contentUnitGenerationToolName(outputKind) {
-  return "generation_submit";
-}
-function contentUnitGenerationParams(outputKind, prompt, params = {}) {
-  const next = { ...params };
-  if (outputKind === "image") {
-    if (next.aspect_ratio === void 0) next.aspect_ratio = "1:1";
-    const negativePrompt = stringField11(prompt.negative_text);
-    if (negativePrompt && next.negative_prompt === void 0) next.negative_prompt = negativePrompt;
-  } else {
-    if (next.aspect_ratio === void 0) next.aspect_ratio = "16:9";
-    if (next.duration === void 0) next.duration = 5;
-  }
-  return next;
-}
-function contentUnitGenerationJobId(job) {
-  const id = numericId2(job.ID) ?? numericId2(job.id);
-  if (id !== void 0) return id;
-  throw new Error("Generation job response does not include a valid job id");
-}
-function positiveIntegerIds(values) {
-  const ids = values.map((value) => numericId2(value)).filter((value) => value !== void 0);
-  return Array.from(new Set(ids));
-}
-function numericList(value) {
-  if (!Array.isArray(value)) return [];
-  return value.map((item) => numericId2(item)).filter((item) => item !== void 0);
-}
-function numericId2(value) {
-  if (typeof value === "number" && Number.isInteger(value) && value > 0) return value;
-  if (typeof value === "string" && value.trim()) {
-    const numberValue8 = Number(value.trim());
-    if (Number.isInteger(numberValue8) && numberValue8 > 0) return numberValue8;
-  }
-  return void 0;
-}
-function stringField11(value) {
-  return typeof value === "string" && value.trim() ? value.trim() : void 0;
-}
-function recordField2(value) {
-  return value && typeof value === "object" && !Array.isArray(value) ? value : void 0;
-}
-function nonEmptyRecord(value) {
-  const record = recordField2(value);
-  return record && Object.keys(record).length > 0 ? record : void 0;
-}
-var DEFAULT_GENERATION_TOOLS_SETTINGS = {
-  servers: [
-    createGenerationToolServer("comfyui", {
-      id: "local-comfyui-default",
-      name: "\u672C\u673A ComfyUI",
-      baseURL: "http://127.0.0.1:8188",
-      priority: 10
-    }),
-    createGenerationToolServer("webui", {
-      id: "local-webui-default",
-      name: "\u672C\u673A WebUI",
-      baseURL: "http://127.0.0.1:7860",
-      priority: 20
-    })
-  ],
-  defaultServerId: void 0,
-  defaultServerIds: {},
-  preferLocalServers: true
-};
-function createGenerationToolServer(type, overrides = {}) {
-  const id = overrides.id ?? newLocalServerId();
-  return {
-    id,
-    scope: overrides.scope ?? "local",
-    type,
-    name: overrides.name ?? (type === "comfyui" ? "ComfyUI" : "Stable Diffusion WebUI"),
-    enabled: overrides.enabled ?? false,
-    baseURL: overrides.baseURL ?? (type === "comfyui" ? "http://127.0.0.1:8188" : "http://127.0.0.1:7860"),
-    timeoutMS: overrides.timeoutMS ?? 12e4,
-    priority: overrides.priority ?? 50,
-    authKind: overrides.authKind ?? "none",
-    username: overrides.username ?? "",
-    password: overrides.password ?? "",
-    passwordSet: overrides.passwordSet ?? false,
-    token: overrides.token ?? "",
-    tokenSet: overrides.tokenSet ?? false,
-    tags: overrides.tags ?? []
-  };
-}
-function newLocalServerId() {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return `local-${crypto.randomUUID()}`;
-  }
-  return `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-// ../../packages/core/dist/chunk-TGVQFAPY.js
+// ../../packages/core/dist/chunk-5MIG2CYA.js
 function buildContentSourceWorkspaceData(input) {
   const productions = input.productions;
   const segments = input.segments;
@@ -27074,7 +22982,7 @@ function buildContentSourceWorkspaceData(input) {
   const productionWorkPlan = normalizeProductionWorkPlanView(input.productionWorkPlan);
   const domainGraph = buildContentSourceWorkspaceDomainGraph(input);
   const ancestryIndex = buildContentSourceWorkspaceEntityAncestryIndex(input, domainGraph);
-  const contentUnitsByPrimaryRef = groupContentUnitsByPrimaryRef2(contentUnits);
+  const contentUnitsByPrimaryRef = groupContentUnitsByPrimaryRef(contentUnits);
   const candidateRecordsByContentUnitId = groupContentCandidateRecordsByContentUnitId(input.indexDocuments);
   const selectionRecordsByContentUnitId22 = groupSelectionRecordsByContentUnitId(input.indexDocuments);
   const selectionByContentUnitId = buildSelectionStateByContentUnitId(contentUnits, selectionRecordsByContentUnitId22);
@@ -27174,7 +23082,7 @@ function buildContentSourceWorkspaceDomainGraph(input) {
 }
 function deriveContentSourceWorkspaceNamespaceVocabulary(input) {
   const projectDocument = input.indexDocuments.find(
-    (document) => normalizeWorkspacePath(document.path) === "project.json" && isRecord12(document.data)
+    (document) => normalizeWorkspacePath(document.path) === "project.json" && isRecord6(document.data)
   );
   return normalizeNamespaceVocabulary(projectDocument?.data);
 }
@@ -27187,7 +23095,7 @@ function deriveContentSourceWorkspaceDomainNodes(input) {
       kind: projectMovScriptDomainNodeKind(entity.entityKind, entity.record),
       ...entity.id !== void 0 ? { id: entity.id } : {},
       path: entity.path,
-      title: stringField12(entity.record.title) ?? stringField12(entity.record.label),
+      title: stringField7(entity.record.title) ?? stringField7(entity.record.label),
       order: optionalNumberField(entity.record.order),
       metadata: { entityKind: entity.entityKind }
     })];
@@ -27196,21 +23104,21 @@ function deriveContentSourceWorkspaceDomainNodes(input) {
 function deriveContentSourceWorkspaceDomainPathParentEdges(nodes) {
   const nodeByDir = /* @__PURE__ */ new Map();
   for (const node of nodes) {
-    if (node.path) nodeByDir.set(entityDir4(node.path), node);
+    if (node.path) nodeByDir.set(entityDir2(node.path), node);
   }
   const edges = [];
   for (const node of nodes) {
     if (!node.path) continue;
-    const parentPath = nearestParentPath(entityDir4(node.path), nodeByDir.keys());
+    const parentPath = nearestParentPath(entityDir2(node.path), nodeByDir.keys());
     if (!parentPath) continue;
     const parent = nodeByDir.get(parentPath);
-    const normalized = normalizePathParentEdge(domainRefFromNode2(node), parent ? domainRefFromNode2(parent) : void 0);
+    const normalized = normalizePathParentEdge(domainRefFromNode(node), parent ? domainRefFromNode(parent) : void 0);
     if (normalized.edge) edges.push(normalized.edge);
   }
-  return dedupeDomainEdges2(edges);
+  return dedupeDomainEdges(edges);
 }
 function deriveContentSourceWorkspaceDomainEdges(input, nodes) {
-  return dedupeDomainEdges2([
+  return dedupeDomainEdges([
     ...deriveContentSourceWorkspaceDomainPathParentEdges(nodes),
     ...deriveContentSourceWorkspaceContentUnitTargetEdges(input.contentUnits, nodes)
   ]);
@@ -27223,10 +23131,10 @@ function deriveContentSourceWorkspaceContentUnitTargetEdges(contentUnits, nodes)
     const sourceNode = nodeByPath.get(contentUnit.path);
     if (!sourceNode) continue;
     edges.push(...normalizeContentUnitTargetEdges({
-      source: domainRefFromNode2(sourceNode),
+      source: domainRefFromNode(sourceNode),
       record: contentUnit.record,
       scopeTarget(scope) {
-        return domainRefFromTimelineScope2(scope.kind, scope.ref, timelineNamespaceNodes);
+        return domainRefFromTimelineScope(scope.kind, scope.ref, timelineNamespaceNodes);
       }
     }));
   }
@@ -27250,7 +23158,7 @@ function sourceWorkspaceDomainEntities(input) {
 function buildContentSourceWorkspaceEntityAncestryIndex(input, domainGraph) {
   const entities = sourceWorkspaceDomainEntities(input);
   const entityByPath = new Map(entities.map((entity) => [entity.path, entity]));
-  const entityByDir = new Map(entities.map((entity) => [entityDir4(entity.path), entity]));
+  const entityByDir = new Map(entities.map((entity) => [entityDir2(entity.path), entity]));
   const parentPathByPath = /* @__PURE__ */ new Map();
   for (const edge of domainGraph.edges) {
     if (edge.relation !== "parent" || edge.origin !== "path") continue;
@@ -27259,7 +23167,7 @@ function buildContentSourceWorkspaceEntityAncestryIndex(input, domainGraph) {
   }
   for (const entity of entities) {
     if (parentPathByPath.has(entity.path)) continue;
-    const parentDir = nearestParentPath(entityDir4(entity.path), entityByDir.keys());
+    const parentDir = nearestParentPath(entityDir2(entity.path), entityByDir.keys());
     const parent = parentDir ? entityByDir.get(parentDir) : void 0;
     if (parent) parentPathByPath.set(entity.path, parent.path);
   }
@@ -27271,13 +23179,13 @@ function buildContentSourceWorkspaceEntityAncestryIndex(input, domainGraph) {
   }
   return { entityByPath, parentPathByPath, childrenByParentPath };
 }
-function domainRefFromTimelineScope2(scopeKind, scopeRef, timelineNamespaceNodes) {
+function domainRefFromTimelineScope(scopeKind, scopeRef, timelineNamespaceNodes) {
   const node = timelineNamespaceNodes.find(
     (candidate) => String(candidate.id ?? "") === scopeRef && (candidate.kind === scopeKind || candidate.metadata?.entityKind === scopeKind)
   );
-  return node ? domainRefFromNode2(node) : { category: "timeline_namespace", kind: scopeKind, id: scopeRef };
+  return node ? domainRefFromNode(node) : { category: "timeline_namespace", kind: scopeKind, id: scopeRef };
 }
-function domainRefFromNode2(node) {
+function domainRefFromNode(node) {
   return {
     category: node.category,
     kind: node.kind,
@@ -27285,7 +23193,7 @@ function domainRefFromNode2(node) {
     ...node.path ? { path: node.path } : {}
   };
 }
-function dedupeDomainEdges2(edges) {
+function dedupeDomainEdges(edges) {
   const seen = /* @__PURE__ */ new Set();
   const out = [];
   for (const edge of edges) {
@@ -27308,7 +23216,7 @@ function normalizeProductionWorkPlanView(plan) {
         readyToGenerate: optionalNumberField(plan.summary.readyToGenerate) ?? 0,
         staleSelections: optionalNumberField(plan.summary.staleSelections) ?? 0
       },
-      items: plan.items.map(normalizeProductionWorkItemView).filter(isDefined2)
+      items: plan.items.map(normalizeProductionWorkItemView).filter(isDefined)
     };
   }
   const rawPlan = plan;
@@ -27404,13 +23312,13 @@ function buildHierarchyTree(input) {
       type: "group",
       title: "Settings",
       path: "settings/",
-      children: sortEntities2(input.settings).map((setting) => {
+      children: sortEntities(input.settings).map((setting) => {
         const states = childEntitiesForParent(input.ancestryIndex, input.settingStates, setting);
         return entityNode(setting, "setting", {
-          children: sortEntities2(states).map((state) => {
+          children: sortEntities(states).map((state) => {
             const stateAssets = childEntitiesForParent(input.ancestryIndex, input.assets, state);
             return entityNode(state, "state", {
-              children: sortEntities2(stateAssets).map((asset) => {
+              children: sortEntities(stateAssets).map((asset) => {
                 const unit = input.assetReferenceUnits[nodeId(asset, "asset")];
                 return entityNode(asset, "asset", { state: unit?.selectionState === "needs_candidate" ? "missing" : void 0 });
               })
@@ -27424,14 +23332,14 @@ function buildHierarchyTree(input) {
       type: "group",
       title: "Productions",
       path: "productions",
-      children: sortEntities2(input.productions).map((production) => {
+      children: sortEntities(input.productions).map((production) => {
         const segments = childEntitiesForParent(input.ancestryIndex, input.segments, production);
         return entityNode(production, "production", {
-          children: sortEntities2(segments).map((segment) => {
+          children: sortEntities(segments).map((segment) => {
             const sceneMoments = childEntitiesForParent(input.ancestryIndex, input.sceneMoments, segment);
             return entityNode(segment, "segment", {
-              children: sortEntities2(sceneMoments).map((sceneMoment) => {
-                const momentDir = entityDir4(sceneMoment.path);
+              children: sortEntities(sceneMoments).map((sceneMoment) => {
+                const momentDir = entityDir2(sceneMoment.path);
                 const expressions = childEntitiesForParent(input.ancestryIndex, input.expressionUnits, sceneMoment);
                 const momentStoryboards = childEntitiesForParent(input.ancestryIndex, input.storyboards, sceneMoment);
                 const momentKeyframes = childEntitiesForParent(input.ancestryIndex, input.keyframes, sceneMoment);
@@ -27443,8 +23351,8 @@ function buildHierarchyTree(input) {
                   title: "Expression Units",
                   path: `${momentDir}/expression_units`,
                   momentId,
-                  children: sortEntities2(expressions).map((expression) => {
-                    const expressionDir = entityDir4(expression.path);
+                  children: sortEntities(expressions).map((expression) => {
+                    const expressionDir = entityDir2(expression.path);
                     const expressionUnitId = idText(expression);
                     const storyboards = childEntitiesForParent(input.ancestryIndex, input.storyboards, expression);
                     const keyframes = childEntitiesForParent(input.ancestryIndex, input.keyframes, expression);
@@ -27459,7 +23367,7 @@ function buildHierarchyTree(input) {
                           path: `${expressionDir}/storyboards`,
                           momentId,
                           expressionUnitId,
-                          children: sortEntities2(storyboards).map((storyboard) => entityNode(storyboard, "storyboard", { momentId, expressionUnitId }))
+                          children: sortEntities(storyboards).map((storyboard) => entityNode(storyboard, "storyboard", { momentId, expressionUnitId }))
                         },
                         {
                           id: `${nodeId(expression, "expression_unit")}_keyframes_group`,
@@ -27468,7 +23376,7 @@ function buildHierarchyTree(input) {
                           path: `${expressionDir}/keyframes`,
                           momentId,
                           expressionUnitId,
-                          children: sortEntities2(keyframes).map((keyframe) => entityNode(keyframe, "keyframe", { momentId, expressionUnitId }))
+                          children: sortEntities(keyframes).map((keyframe) => entityNode(keyframe, "keyframe", { momentId, expressionUnitId }))
                         }
                       ]
                     });
@@ -27480,7 +23388,7 @@ function buildHierarchyTree(input) {
                   title: "Storyboards",
                   path: `${momentDir}/storyboards`,
                   momentId,
-                  children: sortEntities2(momentStoryboards).map((storyboard) => entityNode(storyboard, "storyboard", { momentId }))
+                  children: sortEntities(momentStoryboards).map((storyboard) => entityNode(storyboard, "storyboard", { momentId }))
                 };
                 const keyframeGroup = {
                   id: `${nodeId(sceneMoment, "scene_moment")}_keyframes_group`,
@@ -27488,7 +23396,7 @@ function buildHierarchyTree(input) {
                   title: "Keyframes",
                   path: `${momentDir}/keyframes`,
                   momentId,
-                  children: sortEntities2(momentKeyframes).map((keyframe) => entityNode(keyframe, "keyframe", { momentId }))
+                  children: sortEntities(momentKeyframes).map((keyframe) => entityNode(keyframe, "keyframe", { momentId }))
                 };
                 const audioCueGroup = {
                   id: `${nodeId(sceneMoment, "scene_moment")}_audio_group`,
@@ -27496,7 +23404,7 @@ function buildHierarchyTree(input) {
                   title: "Audio Cues",
                   path: `${momentDir}/audio_cues`,
                   momentId,
-                  children: sortEntities2(audioCues).map((audioCue) => entityNode(audioCue, "audio_cue", { momentId }))
+                  children: sortEntities(audioCues).map((audioCue) => entityNode(audioCue, "audio_cue", { momentId }))
                 };
                 return entityNode(sceneMoment, "scene_moment", {
                   momentId,
@@ -27515,13 +23423,13 @@ function buildPreviewMoments(input) {
     const segment = ancestorEntity(input.ancestryIndex, moment, "segment") ?? parentByDir(input.segments, moment.path);
     const production = segment ? ancestorEntity(input.ancestryIndex, segment, "production") ?? parentByDir(input.productions, segment.path) : ancestorEntity(input.ancestryIndex, moment, "production");
     const expressionUnits = orderedChildEntitiesForTimelineParent(input.expressionUnits, input.previewTimelines, timelineItemIdForEntity(moment), "expression_unit");
-    const momentExpressionUnits = (expressionUnits.length > 0 ? expressionUnits : sortEntities2(childEntitiesForParent(input.ancestryIndex, input.expressionUnits, moment))).map(
+    const momentExpressionUnits = (expressionUnits.length > 0 ? expressionUnits : sortEntities(childEntitiesForParent(input.ancestryIndex, input.expressionUnits, moment))).map(
       (expressionUnit, expressionUnitIndex) => previewExpressionUnit(expressionUnit, expressionUnitIndex, moment, input)
     );
     return {
       id: idText(moment),
       title: titleOf(moment, `Scene Moment ${momentIndex + 1}`),
-      path: entityDir4(moment.path),
+      path: entityDir2(moment.path),
       selectionState: momentSelectionState(momentExpressionUnits),
       priority: momentIndex < 1 ? "\u9AD8\u4F18\u5148\u7EA7" : momentIndex < 3 ? "\u4E2D\u4F18\u5148\u7EA7" : "\u4F4E\u4F18\u5148\u7EA7",
       production: production ? titleOf(production, idText(production)) : "",
@@ -27532,20 +23440,20 @@ function buildPreviewMoments(input) {
   });
 }
 function previewExpressionUnit(expressionUnit, expressionUnitIndex, moment, input) {
-  const storyboards = sortEntities2(childEntitiesForParent(input.ancestryIndex, input.storyboards, expressionUnit));
-  const keyframes = sortEntities2(childEntitiesForParent(input.ancestryIndex, input.keyframes, expressionUnit));
+  const storyboards = sortEntities(childEntitiesForParent(input.ancestryIndex, input.storyboards, expressionUnit));
+  const keyframes = sortEntities(childEntitiesForParent(input.ancestryIndex, input.keyframes, expressionUnit));
   const primaryStoryboard = storyboards[0];
   const primaryKeyframe = keyframes[0];
   const contentUnit = contentUnitForEntity(input.contentUnitsByPrimaryRef, "expression_unit", expressionUnit) ?? (primaryStoryboard ? contentUnitForEntity(input.contentUnitsByPrimaryRef, "storyboard", primaryStoryboard) : void 0) ?? (primaryKeyframe ? contentUnitForEntity(input.contentUnitsByPrimaryRef, "keyframe", primaryKeyframe) : void 0);
   return {
     id: idText(expressionUnit),
     title: titleOf(expressionUnit, `Expression Unit ${expressionUnitIndex + 1}`),
-    kind: stringField12(expressionUnit.record.kind) ?? "expression_unit",
+    kind: stringField7(expressionUnit.record.kind) ?? "expression_unit",
     camera: shotCameraText(expressionUnit),
-    duration: durationText(recordField3(expressionUnit.record.timing_intent)?.duration_sec ?? recordField3(expressionUnit.record.timing)?.duration_sec ?? recordField3(contentUnit?.record.model_intent)?.duration_sec),
+    duration: durationText(recordField(expressionUnit.record.timing_intent)?.duration_sec ?? recordField(expressionUnit.record.timing)?.duration_sec ?? recordField(contentUnit?.record.model_intent)?.duration_sec),
     expression: shotExpressionText(expressionUnit),
     stillPosition: stillPositionForIndex(expressionUnitIndex),
-    path: entityDir4(expressionUnit.path),
+    path: entityDir2(expressionUnit.path),
     keyframes: keyframes.map((keyframe) => idText(keyframe)),
     assets: shotAssets(expressionUnit, keyframes, input.assets),
     storyboard: primaryStoryboard ? nodeId(primaryStoryboard, "storyboard") : "",
@@ -27554,14 +23462,14 @@ function previewExpressionUnit(expressionUnit, expressionUnitIndex, moment, inpu
 }
 function orderedSceneMoments(sceneMoments, previewTimelines) {
   const timelineMoments = previewTimelines.flatMap(
-    (timeline) => timeline.items.filter((item) => item.itemType === "scene_moment").sort((left, right) => left.order - right.order).map((item) => entityForTimelineItem(sceneMoments, item)).filter(isDefined2)
+    (timeline) => timeline.items.filter((item) => item.itemType === "scene_moment").sort((left, right) => left.order - right.order).map((item) => entityForTimelineItem(sceneMoments, item)).filter(isDefined)
   );
-  if (timelineMoments.length === 0) return sortEntities2(sceneMoments);
-  return uniqueEntities([...timelineMoments, ...sortEntities2(sceneMoments)]);
+  if (timelineMoments.length === 0) return sortEntities(sceneMoments);
+  return uniqueEntities([...timelineMoments, ...sortEntities(sceneMoments)]);
 }
 function orderedChildEntitiesForTimelineParent(entities, previewTimelines, parentItemId, itemType) {
   return previewTimelines.flatMap(
-    (timeline) => timeline.items.filter((item) => item.itemType === itemType && item.parentId === parentItemId).sort((left, right) => left.order - right.order).map((item) => entityForTimelineItem(entities, item)).filter(isDefined2)
+    (timeline) => timeline.items.filter((item) => item.itemType === itemType && item.parentId === parentItemId).sort((left, right) => left.order - right.order).map((item) => entityForTimelineItem(entities, item)).filter(isDefined)
   );
 }
 function entityForTimelineItem(entities, item) {
@@ -27595,17 +23503,18 @@ function previewContentUnit(contentUnit, expressionUnit, moment, storyboard, key
 }
 function buildExpressionUnitsByMoment(expressionUnits, ancestryIndex) {
   const output = {};
-  for (const expression of sortEntities2(expressionUnits)) {
-    const momentId = ancestorId(ancestryIndex, expression, "scene_moment") ?? pathSegmentAfter3(expression.path, "scene_moments") ?? "";
+  for (const expression of sortEntities(expressionUnits)) {
+    const momentId = ancestorId(ancestryIndex, expression, "scene_moment") ?? pathSegmentAfter(expression.path, "scene_moments") ?? "";
     const item = {
       id: idText(expression),
-      title: titleOf(expression, stringField12(expression.record.text) ?? idText(expression)),
+      title: titleOf(expression, stringField7(expression.record.text) ?? idText(expression)),
       path: expression.path,
-      kind: stringField12(expression.record.expression_kind ?? expression.record.kind) ?? "expression",
-      text: stringField12(expression.record.text) ?? "",
-      summary: stringField12(expression.record.intent ?? expression.record.note ?? expression.record.text) ?? "",
-      speaker: stringField12(expression.record.speaker),
-      note: stringField12(expression.record.note),
+      kind: stringField7(expression.record.slot_kind ?? expression.record.expression_kind ?? expression.record.kind) ?? "visual",
+      slotKind: expressionUnitSlotKindFromRecord(expression.record),
+      text: stringField7(expression.record.text) ?? "",
+      summary: stringField7(expression.record.intent ?? expression.record.note ?? expression.record.text) ?? "",
+      speaker: stringField7(expression.record.speaker),
+      note: stringField7(expression.record.note),
       sceneMomentId: momentId
     };
     output[momentId] = [...output[momentId] ?? [], item];
@@ -27614,19 +23523,19 @@ function buildExpressionUnitsByMoment(expressionUnits, ancestryIndex) {
 }
 function buildAudioCuesByMoment(audioCues, input) {
   const output = {};
-  for (const audioCue of sortEntities2(audioCues)) {
-    const momentId = ancestorId(input.ancestryIndex, audioCue, "scene_moment") ?? pathSegmentAfter3(audioCue.path, "scene_moments") ?? "";
+  for (const audioCue of sortEntities(audioCues)) {
+    const momentId = ancestorId(input.ancestryIndex, audioCue, "scene_moment") ?? pathSegmentAfter(audioCue.path, "scene_moments") ?? "";
     const contentUnit = contentUnitForEntity(input.contentUnitsByPrimaryRef, "audio_cue", audioCue);
     const item = {
       id: idText(audioCue),
       title: titleOf(audioCue, idText(audioCue)),
       path: audioCue.path,
-      cueKind: stringField12(audioCue.record.cue_kind ?? audioCue.record.kind) ?? "sound_effect",
-      promptHint: stringField12(audioCue.record.prompt_hint) ?? "",
-      expressionUnitRef: stringField12(audioCue.record.expression_unit_ref),
-      storyboardRef: stringField12(audioCue.record.storyboard_ref),
-      timing: recordField3(audioCue.record.timing) ?? {},
-      assetRefs: arrayField4(audioCue.record.asset_refs).map(String),
+      cueKind: stringField7(audioCue.record.cue_kind ?? audioCue.record.kind) ?? "sound_effect",
+      promptHint: stringField7(audioCue.record.prompt_hint) ?? "",
+      expressionUnitRef: stringField7(audioCue.record.expression_unit_ref),
+      storyboardRef: stringField7(audioCue.record.storyboard_ref),
+      timing: recordField(audioCue.record.timing) ?? {},
+      assetRefs: arrayField(audioCue.record.asset_refs).map(String),
       sceneMomentId: momentId,
       ...contentUnit ? { contentUnit: previewAudioCueContentUnit(contentUnit, audioCue, input) } : {}
     };
@@ -27643,29 +23552,29 @@ function previewAudioCueContentUnit(contentUnit, audioCue, input) {
     outputKind: outputKindForContentUnit(contentUnit),
     path: contentUnit.path,
     editPrompt: editPromptText(contentUnit) ?? "",
-    sceneMomentRef: ancestorId(input.ancestryIndex, audioCue, "scene_moment") ?? pathSegmentAfter3(audioCue.path, "scene_moments") ?? "",
-    expressionUnitRef: stringField12(audioCue.record.expression_unit_ref) ?? "",
-    storyboardRef: stringField12(audioCue.record.storyboard_ref) ?? "",
+    sceneMomentRef: ancestorId(input.ancestryIndex, audioCue, "scene_moment") ?? pathSegmentAfter(audioCue.path, "scene_moments") ?? "",
+    expressionUnitRef: stringField7(audioCue.record.expression_unit_ref) ?? "",
+    storyboardRef: stringField7(audioCue.record.storyboard_ref) ?? "",
     keyframeRefs: [],
     selectionState: input.selectionByContentUnitId.get(id) ?? selectionStateFromSourceSelection(selection, contentUnit),
     candidates: previewCandidatesForContentUnit(id, input.candidateRecordsByContentUnitId.get(id) ?? [], selection)
   };
 }
 function transitionFromEntity(entity) {
-  const transition = recordField3(entity.record.transition);
+  const transition = recordField(entity.record.transition);
   if (!transition) return void 0;
   const value = {
-    in: stringField12(transition.in),
-    out: stringField12(transition.out),
-    notes: stringField12(transition.notes)
+    in: stringField7(transition.in),
+    out: stringField7(transition.out),
+    notes: stringField7(transition.notes)
   };
   return Object.values(value).some(Boolean) ? value : void 0;
 }
 function storyboardTimelineFromEntity(entity) {
-  const timeline = recordField3(entity.record.timeline);
+  const timeline = recordField(entity.record.timeline);
   if (!timeline) return void 0;
   const value = {
-    caption: stringField12(timeline.caption),
+    caption: stringField7(timeline.caption),
     gapAfterSec: optionalNumberField(timeline.gap_after_sec),
     durationSec: optionalNumberField(timeline.duration_sec)
   };
@@ -27673,8 +23582,8 @@ function storyboardTimelineFromEntity(entity) {
 }
 function buildExpressionUnitWorkspaceDetails(input) {
   return Object.fromEntries(input.expressionUnits.map((expressionUnit) => {
-    const keyframes = sortEntities2(childEntitiesForParent(input.ancestryIndex, input.keyframes, expressionUnit));
-    const storyboards = sortEntities2(childEntitiesForParent(input.ancestryIndex, input.storyboards, expressionUnit));
+    const keyframes = sortEntities(childEntitiesForParent(input.ancestryIndex, input.keyframes, expressionUnit));
+    const storyboards = sortEntities(childEntitiesForParent(input.ancestryIndex, input.storyboards, expressionUnit));
     const refs = shotAssets(expressionUnit, keyframes, input.assets);
     const assets = refs.map((ref) => ({
       id: ref.title,
@@ -27689,7 +23598,7 @@ function buildExpressionUnitWorkspaceDetails(input) {
       title: titleOf(setting, idText(setting)),
       owner: setting.path,
       status: "current",
-      summary: stringField12(setting.record.summary ?? setting.record.description ?? setting.record.prompt_hint) ?? "Workspace setting context.",
+      summary: stringField7(setting.record.summary ?? setting.record.description ?? setting.record.prompt_hint) ?? "Workspace setting context.",
       downstream: [idText(expressionUnit)]
     }));
     return [idText(expressionUnit), {
@@ -27736,7 +23645,7 @@ function buildAssetDownstreamUnits(asset, input) {
   return input.contentUnits.filter((contentUnit) => {
     const promptRefs = editPromptRefs(contentUnit);
     const referencesAsset = promptRefs.some((ref) => ref.kind === "asset" && refs.has(ref.id));
-    const isOwnAssetRef = stringField12(contentUnit.record.content_unit_type) === "asset_ref" && primaryRefIdsForContentUnitRecord2(contentUnit.record, "asset").some((ref) => refs.has(ref));
+    const isOwnAssetRef = stringField7(contentUnit.record.content_unit_type) === "asset_ref" && primaryRefIdsForContentUnitRecord2(contentUnit.record, "asset").some((ref) => refs.has(ref));
     return referencesAsset && !isOwnAssetRef;
   }).map((contentUnit) => {
     const contentUnitId = idText(contentUnit);
@@ -27765,7 +23674,7 @@ function primaryOwnerForContentUnit(contentUnit, input) {
     const expressionUnit = input.expressionUnits.find((item) => entityMatchesRef(item, expressionUnitRef, "expression_unit"));
     return {
       nodeId: expressionUnit ? idText(expressionUnit) : expressionUnitRef,
-      momentId: expressionUnit ? ancestorId(input.ancestryIndex, expressionUnit, "scene_moment") ?? pathSegmentAfter3(expressionUnit.path, "scene_moments") ?? "" : "",
+      momentId: expressionUnit ? ancestorId(input.ancestryIndex, expressionUnit, "scene_moment") ?? pathSegmentAfter(expressionUnit.path, "scene_moments") ?? "" : "",
       expressionUnitId: expressionUnit ? idText(expressionUnit) : expressionUnitRef
     };
   }
@@ -27774,8 +23683,8 @@ function primaryOwnerForContentUnit(contentUnit, input) {
     const storyboard = input.storyboards.find((item) => entityMatchesRef(item, storyboardRef, "storyboard"));
     return {
       nodeId: storyboard ? nodeId(storyboard, "storyboard") : `storyboard/${storyboardRef}`,
-      momentId: storyboard ? ancestorId(input.ancestryIndex, storyboard, "scene_moment") ?? pathSegmentAfter3(storyboard.path, "scene_moments") ?? "" : "",
-      expressionUnitId: storyboard ? ancestorId(input.ancestryIndex, storyboard, "expression_unit") ?? pathSegmentAfter3(storyboard.path, "expression_units") ?? "" : ""
+      momentId: storyboard ? ancestorId(input.ancestryIndex, storyboard, "scene_moment") ?? pathSegmentAfter(storyboard.path, "scene_moments") ?? "" : "",
+      expressionUnitId: storyboard ? ancestorId(input.ancestryIndex, storyboard, "expression_unit") ?? pathSegmentAfter(storyboard.path, "expression_units") ?? "" : ""
     };
   }
   const keyframeRef = primaryRefIdsForContentUnitRecord2(contentUnit.record, "keyframe")[0];
@@ -27783,8 +23692,8 @@ function primaryOwnerForContentUnit(contentUnit, input) {
     const keyframe = input.keyframes.find((item) => entityMatchesRef(item, keyframeRef, "keyframe"));
     return {
       nodeId: keyframe ? idText(keyframe) : keyframeRef,
-      momentId: keyframe ? ancestorId(input.ancestryIndex, keyframe, "scene_moment") ?? pathSegmentAfter3(keyframe.path, "scene_moments") ?? "" : "",
-      expressionUnitId: keyframe ? ancestorId(input.ancestryIndex, keyframe, "expression_unit") ?? pathSegmentAfter3(keyframe.path, "expression_units") ?? "" : ""
+      momentId: keyframe ? ancestorId(input.ancestryIndex, keyframe, "scene_moment") ?? pathSegmentAfter(keyframe.path, "scene_moments") ?? "" : "",
+      expressionUnitId: keyframe ? ancestorId(input.ancestryIndex, keyframe, "expression_unit") ?? pathSegmentAfter(keyframe.path, "expression_units") ?? "" : ""
     };
   }
   return void 0;
@@ -27798,7 +23707,7 @@ function expressionUnitChildOption(entity, primaryKind, expressionUnit, input) {
     title: titleOf(entity, idText(entity)),
     status: contentUnit ? "candidate" : "draft",
     inputHash: contentUnitId || "source",
-    summary: stringField12(entity.record.visual_intent ?? entity.record.summary ?? entity.record.description ?? entity.record.slot) ?? entity.path,
+    summary: stringField7(entity.record.visual_intent ?? entity.record.summary ?? entity.record.description ?? entity.record.slot) ?? entity.path,
     ...contentUnit ? {
       contentUnit: {
         id: contentUnitId,
@@ -27806,7 +23715,7 @@ function expressionUnitChildOption(entity, primaryKind, expressionUnit, input) {
         outputKind: outputKindForContentUnit(contentUnit),
         path: contentUnit.path,
         editPrompt: editPromptText(contentUnit) ?? "",
-        sceneMomentRef: `scene_moment/${ancestorId(input.ancestryIndex, expressionUnit, "scene_moment") ?? pathSegmentAfter3(expressionUnit.path, "scene_moments") ?? ""}`,
+        sceneMomentRef: `scene_moment/${ancestorId(input.ancestryIndex, expressionUnit, "scene_moment") ?? pathSegmentAfter(expressionUnit.path, "scene_moments") ?? ""}`,
         expressionUnitRef: idText(expressionUnit),
         storyboardRef: primaryKind === "storyboard" ? nodeId(entity, "storyboard") : "",
         keyframeRefs: primaryKind === "keyframe" ? [idText(entity)] : [],
@@ -27832,20 +23741,20 @@ function buildContentUnitCandidates(input) {
   }
   return output;
 }
-function groupContentUnitsByPrimaryRef2(contentUnits) {
+function groupContentUnitsByPrimaryRef(contentUnits) {
   const output = /* @__PURE__ */ new Map();
   for (const contentUnit of contentUnits) {
     const assemblyScope = timelineAssemblyScopeFromContentUnitRecord(contentUnit.record);
     if (assemblyScope) {
-      for (const key of primaryRefKeys2(assemblyScope.kind, assemblyScope.ref)) {
+      for (const key of primaryRefKeys(assemblyScope.kind, assemblyScope.ref)) {
         output.set(key, [...output.get(key) ?? [], contentUnit]);
       }
     }
-    const type = stringField12(contentUnit.record.content_unit_type);
+    const type = stringField7(contentUnit.record.content_unit_type);
     const primaryKind = primaryKindForContentUnitType(type);
     if (!primaryKind) continue;
     for (const ref of primaryRefIdsForContentUnitRecord2(contentUnit.record, primaryKind)) {
-      for (const key of primaryRefKeys2(primaryKind, ref)) {
+      for (const key of primaryRefKeys(primaryKind, ref)) {
         output.set(key, [...output.get(key) ?? [], contentUnit]);
       }
     }
@@ -27862,15 +23771,15 @@ function groupContentCandidateRecordsByContentUnitId(documents) {
       continue;
     }
     if (!isDecisionContextRecord(document.data)) continue;
-    const contentUnitId = contentUnitIdForRuntimeDocument(document.path, stringField12(document.data.target_ref));
+    const contentUnitId = contentUnitIdForRuntimeDocument(document.path, stringField7(document.data.target_ref));
     if (!contentUnitId) continue;
-    for (const candidate of arrayField4(document.data.candidates)) {
+    for (const candidate of arrayField(document.data.candidates)) {
       const record = normalizeDecisionContentCandidateRecord(candidate, contentUnitId);
       if (record) appendContentCandidateRecord(output, contentUnitId, record);
     }
   }
   for (const [contentUnitId, candidates] of output.entries()) {
-    output.set(contentUnitId, candidates.sort((left, right) => (stringField12(right.created_at) ?? "").localeCompare(stringField12(left.created_at) ?? "")));
+    output.set(contentUnitId, candidates.sort((left, right) => (stringField7(right.created_at) ?? "").localeCompare(stringField7(left.created_at) ?? "")));
   }
   return output;
 }
@@ -27893,30 +23802,30 @@ function appendContentCandidateRecord(output, contentUnitId, candidate) {
   ]);
 }
 function normalizeDecisionContentCandidateRecord(value, contentUnitId) {
-  if (!isRecord12(value) || !idValue(value.id)) return void 0;
+  if (!isRecord6(value) || !idValue(value.id)) return void 0;
   return {
     ...value,
-    content_unit_ref: stringField12(value.content_unit_ref) ?? `content_units/${contentUnitId}`
+    content_unit_ref: stringField7(value.content_unit_ref) ?? `content_units/${contentUnitId}`
   };
 }
 function mergeContentCandidateRecords(existing, incoming) {
   const merged = { ...existing, ...incoming };
-  if (arrayField4(incoming.outputs).length === 0 && arrayField4(existing.outputs).length > 0) merged.outputs = existing.outputs;
-  if (!recordField3(incoming.producer) && recordField3(existing.producer)) merged.producer = existing.producer;
-  if (!recordField3(incoming.prompt_snapshot) && recordField3(existing.prompt_snapshot)) merged.prompt_snapshot = existing.prompt_snapshot;
-  if (!stringField12(incoming.status) && stringField12(existing.status)) merged.status = existing.status;
-  if (!stringField12(incoming.source) && stringField12(existing.source)) merged.source = existing.source;
-  if (!stringField12(incoming.created_at) && stringField12(existing.created_at)) merged.created_at = existing.created_at;
-  if (!stringField12(incoming.content_unit_ref) && stringField12(existing.content_unit_ref)) merged.content_unit_ref = existing.content_unit_ref;
+  if (arrayField(incoming.outputs).length === 0 && arrayField(existing.outputs).length > 0) merged.outputs = existing.outputs;
+  if (!recordField(incoming.producer) && recordField(existing.producer)) merged.producer = existing.producer;
+  if (!recordField(incoming.prompt_snapshot) && recordField(existing.prompt_snapshot)) merged.prompt_snapshot = existing.prompt_snapshot;
+  if (!stringField7(incoming.status) && stringField7(existing.status)) merged.status = existing.status;
+  if (!stringField7(incoming.source) && stringField7(existing.source)) merged.source = existing.source;
+  if (!stringField7(incoming.created_at) && stringField7(existing.created_at)) merged.created_at = existing.created_at;
+  if (!stringField7(incoming.content_unit_ref) && stringField7(existing.content_unit_ref)) merged.content_unit_ref = existing.content_unit_ref;
   return merged;
 }
 function groupSelectionRecordsByContentUnitId(documents) {
   const output = /* @__PURE__ */ new Map();
   for (const document of documents) {
     if (!isDecisionContextRecord(document.data)) continue;
-    const selection = recordField3(document.data.selection);
+    const selection = recordField(document.data.selection);
     if (!selection) continue;
-    const contentUnitId = contentUnitIdForRuntimeDocument(document.path, stringField12(document.data.target_ref));
+    const contentUnitId = contentUnitIdForRuntimeDocument(document.path, stringField7(document.data.target_ref));
     if (!contentUnitId) continue;
     output.set(contentUnitId, normalizeContentSelectionRecord(selection));
   }
@@ -27933,17 +23842,17 @@ function previewCandidatesForContentUnit(contentUnitId, candidates, selection) {
       inputHash: candidateInputHash(candidate, contentUnitId),
       selected: selectionCandidateMatches(selection, id),
       note: candidateNote(candidate),
-      resourceId: resourceIdValue2(output?.resource_id),
-      resourceKind: stringField12(output?.kind),
-      artifactRef: stringField12(output?.artifact_ref),
-      status: stringField12(candidate.status),
+      resourceId: resourceIdValue(output?.resource_id),
+      resourceKind: stringField7(output?.kind),
+      artifactRef: stringField7(output?.artifact_ref),
+      status: stringField7(candidate.status),
       decisionStatus: candidateDecisionStatus(candidate),
       decisionReason: candidateDecisionReason(candidate),
-      source: stringField12(candidate.source),
+      source: stringField7(candidate.source),
       producer: candidate.producer,
       outputs: candidate.outputs,
       promptSnapshot: candidate.prompt_snapshot,
-      createdAt: stringField12(candidate.created_at)
+      createdAt: stringField7(candidate.created_at)
     };
   });
 }
@@ -27958,17 +23867,17 @@ function previewAssetCandidatesForContentUnit(contentUnitId, candidates, selecti
       inputHash: candidateInputHash(candidate, contentUnitId),
       selected: selectionCandidateMatches(selection, id),
       note: candidateNote(candidate),
-      resourceId: resourceIdValue2(output?.resource_id),
-      resourceKind: stringField12(output?.kind),
-      artifactRef: stringField12(output?.artifact_ref),
-      status: stringField12(candidate.status),
+      resourceId: resourceIdValue(output?.resource_id),
+      resourceKind: stringField7(output?.kind),
+      artifactRef: stringField7(output?.artifact_ref),
+      status: stringField7(candidate.status),
       decisionStatus: candidateDecisionStatus(candidate),
       decisionReason: candidateDecisionReason(candidate),
-      source: stringField12(candidate.source),
+      source: stringField7(candidate.source),
       producer: candidate.producer,
       outputs: candidate.outputs,
       promptSnapshot: candidate.prompt_snapshot,
-      createdAt: stringField12(candidate.created_at),
+      createdAt: stringField7(candidate.created_at),
       confirmation: assetCandidateConfirmation(candidate, selection, id)
     };
   });
@@ -27988,7 +23897,7 @@ function buildSelectionStateByContentUnitId(contentUnits, selections) {
 }
 function contentUnitForEntity(contentUnitsByPrimaryRef, entityKind, entity) {
   if (entity.id === void 0) return void 0;
-  return contentUnitsByPrimaryRef.get(primaryRefKey2(entityKind, entity.id))?.[0];
+  return contentUnitsByPrimaryRef.get(primaryRefKey(entityKind, entity.id))?.[0];
 }
 function primaryKindForContentUnitType(type) {
   return type ? primaryRefKindForContentUnitType(type) : void 0;
@@ -28010,7 +23919,7 @@ function editPromptRefs(contentUnit) {
 function editPromptText(contentUnit) {
   const prompt = contentUnit?.record.edit_prompt;
   if (typeof prompt === "string") return prompt;
-  if (isRecord12(prompt)) return stringField12(prompt.text);
+  if (isRecord6(prompt)) return stringField7(prompt.text);
   return void 0;
 }
 function entityNode(entity, type, extras = {}) {
@@ -28029,13 +23938,13 @@ function supportsTransition(type) {
 }
 function nodeId(entity, type) {
   if (type === "setting") return `setting/${idText(entity)}`;
-  if (type === "state") return `state/${pathSegmentAfter3(entity.path, "settings") ?? ""}/${idText(entity)}`;
+  if (type === "state") return `state/${pathSegmentAfter(entity.path, "settings") ?? ""}/${idText(entity)}`;
   if (type === "asset") return `asset/${idText(entity)}`;
   if (type === "storyboard") return `storyboard/${idText(entity)}`;
   return idText(entity);
 }
 function titleOf(entity, fallback) {
-  return stringField12(entity.record.title ?? entity.record.name ?? entity.record.label ?? entity.record.text) ?? fallback;
+  return stringField7(entity.record.title ?? entity.record.name ?? entity.record.label ?? entity.record.text) ?? fallback;
 }
 function idText(entity) {
   return String(entity.id ?? entity.record.id ?? entity.record.ID ?? entity.path);
@@ -28045,8 +23954,8 @@ function entityMatchesRef(entity, ref, kind) {
   const dir = entity.path.replace(/\/[^/]+$/, "");
   return String(entity.id ?? "") === ref || dir === normalized || entity.path === `${normalized}/${kind}.json`;
 }
-function sortEntities2(entities) {
-  return [...entities].sort((left, right) => numberField3(left.record.order) - numberField3(right.record.order) || left.path.localeCompare(right.path));
+function sortEntities(entities) {
+  return [...entities].sort((left, right) => numberField2(left.record.order) - numberField2(right.record.order) || left.path.localeCompare(right.path));
 }
 function childEntitiesForParent(ancestryIndex, entities, parent) {
   const directChildren = new Set((ancestryIndex.childrenByParentPath.get(parent.path) ?? []).map((entity) => entity.path));
@@ -28070,36 +23979,36 @@ function ancestorId(ancestryIndex, entity, entityKind) {
   return ancestor ? idText(ancestor) : void 0;
 }
 function parentByDir(entities, childPath) {
-  const childDir = entityDir4(childPath);
-  return entities.find((entity) => childDir.startsWith(`${entityDir4(entity.path)}/`));
+  const childDir = entityDir2(childPath);
+  return entities.find((entity) => childDir.startsWith(`${entityDir2(entity.path)}/`));
 }
-function entityDir4(path) {
+function entityDir2(path) {
   return path.replace(/\/[^/]+$/, "");
 }
-function pathSegmentAfter3(path, segment) {
+function pathSegmentAfter(path, segment) {
   const parts = path.split("/");
   const index = parts.indexOf(segment);
   return index >= 0 ? parts[index + 1] : void 0;
 }
-function primaryRefKey2(kind, id) {
+function primaryRefKey(kind, id) {
   return `${kind}:${String(id ?? "")}`;
 }
-function primaryRefKeys2(kind, ref) {
+function primaryRefKeys(kind, ref) {
   const value = String(ref);
-  const keys = [primaryRefKey2(kind, value)];
+  const keys = [primaryRefKey(kind, value)];
   const lastSegment = value.split("/").filter(Boolean).at(-1);
-  if (lastSegment && lastSegment !== value) keys.push(primaryRefKey2(kind, lastSegment));
+  if (lastSegment && lastSegment !== value) keys.push(primaryRefKey(kind, lastSegment));
   return keys;
 }
 function shotCameraText(shot) {
   return [
-    stringField12(shot.record.shot_size),
-    stringField12(recordField3(shot.record.camera)?.movement),
-    stringField12(recordField3(shot.record.camera)?.angle)
-  ].filter(Boolean).join(" \xB7 ") || stringField12(shot.record.shot_kind) || "shot";
+    stringField7(shot.record.shot_size),
+    stringField7(recordField(shot.record.camera)?.movement),
+    stringField7(recordField(shot.record.camera)?.angle)
+  ].filter(Boolean).join(" \xB7 ") || stringField7(shot.record.shot_kind) || "shot";
 }
 function shotExpressionText(shot) {
-  return stringField12(shot.record.description ?? shot.record.summary ?? recordField3(shot.record.expression)?.text ?? recordField3(shot.record.expression)?.intent) ?? titleOf(shot, idText(shot));
+  return stringField7(shot.record.description ?? shot.record.summary ?? recordField(shot.record.expression)?.text ?? recordField(shot.record.expression)?.intent) ?? titleOf(shot, idText(shot));
 }
 function durationText(value) {
   const duration = Number(value);
@@ -28109,13 +24018,13 @@ function stillPositionForIndex(index) {
   return ["0% 0%", "100% 0%", "0% 100%", "100% 100%"][index % 4] ?? "0% 0%";
 }
 function contentUnitType(contentUnit) {
-  const type = stringField12(contentUnit?.record.content_unit_type);
+  const type = stringField7(contentUnit?.record.content_unit_type);
   if (type === "keyframe_ref" || type === "storyboard_ref" || type === "audio_cue_ref" || type === "scence_moment_ref" || type === "scene_moment_ref" || type === "expression_unit_ref") return type;
   return "expression_unit_ref";
 }
 function outputKindForContentUnit(contentUnit) {
-  const outputKind = stringField12(contentUnit?.record.output_kind);
-  if (outputKind === "image" || outputKind === "video" || outputKind === "audio" || outputKind === "storyboard") return outputKind;
+  const outputKind = stringField7(contentUnit?.record.output_kind);
+  if (outputKind === "image" || outputKind === "video" || outputKind === "audio" || outputKind === "text" || outputKind === "metadata" || outputKind === "storyboard") return outputKind;
   const type = contentUnitType(contentUnit);
   if (type === "keyframe_ref" || type === "storyboard_ref") return "image";
   if (type === "audio_cue_ref") return "audio";
@@ -28139,22 +24048,22 @@ function settingRefsForMoment(_moment, expressionUnits, assets) {
 }
 function shotAssets(shot, keyframes, assets) {
   const refs = [
-    ...arrayField4(shot.record.reference_asset_refs),
-    ...keyframes.flatMap((keyframe) => arrayField4(keyframe.record.reference_asset_refs))
+    ...arrayField(shot.record.reference_asset_refs),
+    ...keyframes.flatMap((keyframe) => arrayField(keyframe.record.reference_asset_refs))
   ].map(String);
   const uniqueRefs = [...new Set(refs)];
   return uniqueRefs.map((ref) => ({
     title: ref.startsWith("asset/") ? ref : `asset/${ref}`,
-    status: assets.some((asset) => String(asset.id ?? "") === ref || entityDir4(asset.path) === ref || asset.path.startsWith(`${ref}/`)) ? "ready" : "missing"
+    status: assets.some((asset) => String(asset.id ?? "") === ref || entityDir2(asset.path) === ref || asset.path.startsWith(`${ref}/`)) ? "ready" : "missing"
   }));
 }
 function contentUnitIdForRuntimeDocument(path, explicitRef) {
-  const ref = explicitRef ?? entityDir4(path);
-  const id = pathSegmentAfter3(ref, "content_units");
+  const ref = explicitRef ?? entityDir2(path);
+  const id = pathSegmentAfter(ref, "content_units");
   return id;
 }
 function candidateTitle(candidate, fallback) {
-  const explicitTitle = stringField12(candidate.prompt_snapshot?.title) ?? stringField12(candidate.producer?.title) ?? stringField12(candidate.producer?.name);
+  const explicitTitle = stringField7(candidate.prompt_snapshot?.title) ?? stringField7(candidate.producer?.title) ?? stringField7(candidate.producer?.name);
   if (explicitTitle && !candidateTitleIsGeneric(explicitTitle)) return explicitTitle;
   return readableCandidateTitleFallback(fallback);
 }
@@ -28170,25 +24079,25 @@ function readableCandidateTitleFallback(value) {
 }
 var technicalCandidateIdPattern = /^(canvas|resource|content)_candidate_[\w-]+$|^resource_\d+_[\w-]+$|^gen_(image|video)_\d+_\d+$/;
 function candidateModel(candidate) {
-  return stringField12(candidate.producer?.model_id) ?? stringField12(candidate.producer?.model) ?? stringField12(candidate.producer?.kind) ?? stringField12(candidate.source) ?? "runtime";
+  return stringField7(candidate.producer?.model_id) ?? stringField7(candidate.producer?.model) ?? stringField7(candidate.producer?.kind) ?? stringField7(candidate.source) ?? "runtime";
 }
 function candidateInputHash(candidate, contentUnitId) {
-  return stringField12(candidate.prompt_snapshot?.input_hash) ?? stringField12(candidate.prompt_snapshot?.content_hash) ?? stringField12(candidate.prompt_snapshot?.hash) ?? stringField12(candidate.created_at) ?? contentUnitId;
+  return stringField7(candidate.prompt_snapshot?.input_hash) ?? stringField7(candidate.prompt_snapshot?.content_hash) ?? stringField7(candidate.prompt_snapshot?.hash) ?? stringField7(candidate.created_at) ?? contentUnitId;
 }
 function candidateNote(candidate) {
   const output = firstCandidateOutput(candidate);
-  return stringField12(candidate.prompt_snapshot?.note) ?? stringField12(candidate.prompt_snapshot?.summary) ?? stringField12(output?.mime_type) ?? stringField12(candidate.status) ?? "Workspace runtime candidate.";
+  return stringField7(candidate.prompt_snapshot?.note) ?? stringField7(candidate.prompt_snapshot?.summary) ?? stringField7(output?.mime_type) ?? stringField7(candidate.status) ?? "Workspace runtime candidate.";
 }
 function candidateDecisionStatus(candidate) {
   const record = candidate;
-  return stringField12(record.decision_status) ?? stringField12(record.decisionStatus);
+  return stringField7(record.decision_status) ?? stringField7(record.decisionStatus);
 }
 function candidateDecisionReason(candidate) {
   const record = candidate;
-  return stringField12(record.decision_reason) ?? stringField12(record.decisionReason);
+  return stringField7(record.decision_reason) ?? stringField7(record.decisionReason);
 }
 function firstCandidateOutput(candidate) {
-  return arrayField4(candidate.outputs).filter(isRecord12)[0];
+  return arrayField(candidate.outputs).filter(isRecord6)[0];
 }
 function assetCandidateConfirmation(candidate, selection, candidateId) {
   if (selectionCandidateMatches(selection, candidateId)) return "confirmed";
@@ -28203,13 +24112,13 @@ function idValue(value) {
   if (typeof value === "string" && value.trim()) return value.trim();
   return void 0;
 }
-function recordField3(value) {
-  return isRecord12(value) ? value : void 0;
+function recordField(value) {
+  return isRecord6(value) ? value : void 0;
 }
-function stringField12(value) {
+function stringField7(value) {
   return typeof value === "string" && value.trim() ? value.trim() : void 0;
 }
-function numberField3(value) {
+function numberField2(value) {
   const numberValue23 = Number(value);
   return Number.isFinite(numberValue23) ? numberValue23 : Number.MAX_SAFE_INTEGER;
 }
@@ -28224,29 +24133,29 @@ function pruneUndefinedRecord(record) {
   }
   return output;
 }
-function arrayField4(value) {
+function arrayField(value) {
   return Array.isArray(value) ? value : [];
 }
-function isRecord12(value) {
+function isRecord6(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 function isContentCandidateRecord(value) {
-  return isRecord12(value) && value.schema === "movscript.content_candidate.v1";
+  return isRecord6(value) && value.schema === "movscript.content_candidate.v1";
 }
 function isDecisionContextRecord(value) {
-  return isRecord12(value) && value.schema === "movscript.decision_context.v1" && value.target_kind === "content_unit";
+  return isRecord6(value) && value.schema === "movscript.decision_context.v1" && value.target_kind === "content_unit";
 }
 function normalizeContentSelectionRecord(value) {
   return {
     candidate_id: value.candidate_id,
-    resource_id: resourceIdValue2(value.resource_id),
-    artifact_ref: stringField12(value.artifact_ref),
+    resource_id: resourceIdValue(value.resource_id),
+    artifact_ref: stringField7(value.artifact_ref),
     stale_policy: value.stale_policy,
     reason: value.reason,
     selected_at: value.selected_at
   };
 }
-function resourceIdValue2(value) {
+function resourceIdValue(value) {
   if (typeof value === "number" && Number.isInteger(value) && value > 0) return value;
   if (typeof value === "string" && value.trim()) {
     const parsed = Number(value);
@@ -28254,7 +24163,7 @@ function resourceIdValue2(value) {
   }
   return void 0;
 }
-function isDefined2(value) {
+function isDefined(value) {
   return value !== void 0;
 }
 function buildContentSourceWorkspaceProjectTimelineStatus(snapshot, contentUnitSummaries = contentSourceWorkspaceContentUnitStatusSummaries(snapshot)) {
@@ -28268,7 +24177,7 @@ function buildContentSourceWorkspaceProjectTimelineStatus(snapshot, contentUnitS
   const timelineNamespaces = timelineNamespaceNodes.map((node) => {
     const parent = domainParentRefForNode(snapshot, node);
     const record = domainRecordForNode(snapshot, node);
-    const productionType = stringField25(record?.production_type ?? record?.productionType ?? record?.timeline_profile ?? record?.timelineProfile);
+    const productionType = stringField23(record?.production_type ?? record?.productionType ?? record?.timeline_profile ?? record?.timelineProfile);
     const nodeTimelineNamespaces = stringArrayField(record?.timeline_namespaces ?? record?.timelineNamespaces);
     return {
       id: node.id,
@@ -28276,7 +24185,7 @@ function buildContentSourceWorkspaceProjectTimelineStatus(snapshot, contentUnitS
       title: node.title,
       path: node.path,
       order: node.order,
-      entity_kind: stringField25(node.metadata?.entityKind),
+      entity_kind: stringField23(node.metadata?.entityKind),
       ...productionType ? { production_type: productionType } : {},
       ...nodeTimelineNamespaces.length ? { timeline_namespaces: nodeTimelineNamespaces } : {},
       ...parent ? { parent } : {}
@@ -28285,7 +24194,7 @@ function buildContentSourceWorkspaceProjectTimelineStatus(snapshot, contentUnitS
   const timelineAssemblies = timelineAssemblyStatusEntries(snapshot, contentUnitSummaries);
   const hasBlockingRefs = timelineAssemblies.some((item) => arrayValue(item.blocking_refs).length > 0);
   const hasStaleSelection = timelineAssemblies.some((item) => {
-    const staleStatus = stringField25(item.stale_status);
+    const staleStatus = stringField23(item.stale_status);
     return staleStatus === "has_stale_selection" || staleStatus === "stale";
   });
   return {
@@ -28325,7 +24234,7 @@ function contentSourceWorkspaceContentUnitStatusSummaries(snapshot) {
 function timelineAssemblyStatusEntries(snapshot, contentUnitSummaries) {
   const contentUnitById = new Map(snapshot.contentUnits.map((unit) => [String(entityId(unit)), unit]));
   return contentUnitSummaries.filter((summary) => isTimelineAssemblyContentUnitSummary(summary)).map((summary) => {
-    const contentUnitId = idField5(summary.content_unit_id);
+    const contentUnitId = idField2(summary.content_unit_id);
     const unit = contentUnitById.get(String(contentUnitId));
     const scope = unit ? timelineAssemblyScopeRefForContentUnit(snapshot, unit) : void 0;
     return {
@@ -28352,28 +24261,28 @@ function summarizeContentUnitStatus(unit, candidatesByContentUnit, selectionsByC
   const contentUnitId = String(id);
   const candidates = candidatesByContentUnit.get(contentUnitId) ?? [];
   const selection = selectionsByContentUnit.get(contentUnitId);
-  const selectedCandidate = selection?.candidate_id !== void 0 ? candidates.find((candidate) => sameId3(candidate.id, selection.candidate_id)) : void 0;
+  const selectedCandidate = selection?.candidate_id !== void 0 ? candidates.find((candidate) => sameId(candidate.id, selection.candidate_id)) : void 0;
   const selectedResourceId2 = numberField22(selection?.resource_id) ?? numberField22(firstCandidateOutput2(selectedCandidate)?.resource_id);
   return {
     content_unit_id: id,
-    title: stringField25(unit.record.title),
+    title: stringField23(unit.record.title),
     path: unit.path,
-    content_unit_type: stringField25(unit.record.content_unit_type),
-    output_kind: stringField25(unit.record.output_kind),
-    target_kind: stringField25(unit.record.target_kind),
-    target_ref: idField5(unit.record.target_ref),
+    content_unit_type: stringField23(unit.record.content_unit_type),
+    output_kind: stringField23(unit.record.output_kind),
+    target_kind: stringField23(unit.record.target_kind),
+    target_ref: idField2(unit.record.target_ref),
     candidate_count: candidates.length,
-    candidate_ids: candidates.map((candidate) => idField5(candidate.id)).filter((value) => value !== void 0),
+    candidate_ids: candidates.map((candidate) => idField2(candidate.id)).filter((value) => value !== void 0),
     selected_candidate: selection?.candidate_id,
     selected_resource: selectedResourceId2,
-    stale_status: stringField25(selection?.stale_policy) === "accept_stale" ? "accepted_stale" : "ok",
+    stale_status: stringField23(selection?.stale_policy) === "accept_stale" ? "accepted_stale" : "ok",
     blocking_refs: selection?.candidate_id === void 0 && candidates.length > 0 ? ["selection_missing"] : []
   };
 }
 function isTimelineAssemblyContentUnitSummary(summary) {
-  const type = stringField25(summary.content_unit_type);
-  const targetKind = stringField25(summary.target_kind);
-  const targetRef = stringField25(summary.target_ref);
+  const type = stringField23(summary.content_unit_type);
+  const targetKind = stringField23(summary.target_kind);
+  const targetRef = stringField23(summary.target_ref);
   return type === "timeline_assembly_ref" || targetKind === "timeline_assembly" || Boolean(targetRef?.startsWith("timeline_assembly:"));
 }
 function timelineAssemblyScopeRefForContentUnit(snapshot, unit) {
@@ -28395,23 +24304,23 @@ function domainParentRefForNode(snapshot, node) {
   } : void 0;
 }
 function domainRecordForNode(snapshot, node) {
-  const entityKind = stringField25(node.metadata?.entityKind);
+  const entityKind = stringField23(node.metadata?.entityKind);
   const entities = entityKind === "production" ? snapshot.productions : entityKind === "segment" ? snapshot.segments : [];
   return entities.find(
-    (entity) => node.path !== void 0 && entity.path === node.path || node.id !== void 0 && sameId3(idField5(entity.id ?? entity.record.id ?? entity.record.ID ?? entity.path), node.id)
+    (entity) => node.path !== void 0 && entity.path === node.path || node.id !== void 0 && sameId(idField2(entity.id ?? entity.record.id ?? entity.record.ID ?? entity.path), node.id)
   )?.record;
 }
 function domainRefMatchesNode(ref, node) {
-  return ref.category === node.category && ref.kind === node.kind && (sameId3(ref.id, node.id) || ref.path !== void 0 && ref.path === node.path);
+  return ref.category === node.category && ref.kind === node.kind && (sameId(ref.id, node.id) || ref.path !== void 0 && ref.path === node.path);
 }
 function domainRefMatchesEntity(ref, entity) {
-  return sameId3(ref.id, entityId(entity)) || ref.path !== void 0 && ref.path === entity.path;
+  return sameId(ref.id, entityId(entity)) || ref.path !== void 0 && ref.path === entity.path;
 }
 function contentCandidateRecordsByContentUnitId(documents) {
   const output = /* @__PURE__ */ new Map();
   for (const document of documents) {
-    if (!document.path.endsWith("/content_candidate.json") || !isRecord24(document.data)) continue;
-    const contentUnitId = contentUnitIdForRuntimeDocument2(document.path, stringField25(document.data.content_unit_ref));
+    if (!document.path.endsWith("/content_candidate.json") || !isRecord23(document.data)) continue;
+    const contentUnitId = contentUnitIdForRuntimeDocument2(document.path, stringField23(document.data.content_unit_ref));
     if (!contentUnitId) continue;
     output.set(contentUnitId, [...output.get(contentUnitId) ?? [], document.data]);
   }
@@ -28420,29 +24329,29 @@ function contentCandidateRecordsByContentUnitId(documents) {
 function selectionRecordsByContentUnitId(documents) {
   const output = /* @__PURE__ */ new Map();
   for (const document of documents) {
-    if (!isRecord24(document.data)) continue;
-    const selection = isRecord24(document.data.selection) ? document.data.selection : void 0;
+    if (!isRecord23(document.data)) continue;
+    const selection = isRecord23(document.data.selection) ? document.data.selection : void 0;
     if (!selection) continue;
-    const contentUnitId = contentUnitIdForRuntimeDocument2(document.path, stringField25(document.data.target_ref));
+    const contentUnitId = contentUnitIdForRuntimeDocument2(document.path, stringField23(document.data.target_ref));
     if (!contentUnitId) continue;
     output.set(contentUnitId, {
-      ...idField5(selection.candidate_id) !== void 0 ? { candidate_id: idField5(selection.candidate_id) } : {},
+      ...idField2(selection.candidate_id) !== void 0 ? { candidate_id: idField2(selection.candidate_id) } : {},
       ...numberField22(selection.resource_id) !== void 0 ? { resource_id: numberField22(selection.resource_id) } : {},
-      ...stringField25(selection.stale_policy) ? { stale_policy: stringField25(selection.stale_policy) } : {}
+      ...stringField23(selection.stale_policy) ? { stale_policy: stringField23(selection.stale_policy) } : {}
     });
   }
   return output;
 }
 function entityId(entity) {
-  return idField5(entity.id ?? entity.record.id ?? entity.record.ID ?? pathSegmentAfter32(entity.path, "content_units") ?? entity.path) ?? entity.path;
+  return idField2(entity.id ?? entity.record.id ?? entity.record.ID ?? pathSegmentAfter3(entity.path, "content_units") ?? entity.path) ?? entity.path;
 }
 function contentUnitIdForRuntimeDocument2(path, ref) {
-  if (ref) return lastPathSegment2(ref) ?? ref;
-  return pathSegmentAfter32(path, "content_units");
+  if (ref) return lastPathSegment(ref) ?? ref;
+  return pathSegmentAfter3(path, "content_units");
 }
 function firstCandidateOutput2(candidate) {
   const outputs = Array.isArray(candidate?.outputs) ? candidate.outputs : [];
-  return outputs.find(isRecord24);
+  return outputs.find(isRecord23);
 }
 function arrayValue(value) {
   return Array.isArray(value) ? value : [];
@@ -28450,13 +24359,13 @@ function arrayValue(value) {
 function stringArrayField(value) {
   return Array.isArray(value) ? value.filter((item) => typeof item === "string" && Boolean(item.trim())).map((item) => item.trim()) : [];
 }
-function idField5(value) {
+function idField2(value) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim()) return value.trim();
   return void 0;
 }
-function stringField25(value) {
-  const id = idField5(value);
+function stringField23(value) {
+  const id = idField2(value);
   return id === void 0 ? void 0 : String(id);
 }
 function numberField22(value) {
@@ -28464,19 +24373,19 @@ function numberField22(value) {
   if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value);
   return void 0;
 }
-function pathSegmentAfter32(path, segment) {
+function pathSegmentAfter3(path, segment) {
   if (!path) return void 0;
   const parts = path.split("/").filter(Boolean);
   const index = parts.indexOf(segment);
   return index >= 0 ? parts[index + 1] : void 0;
 }
-function lastPathSegment2(path) {
+function lastPathSegment(path) {
   return path?.split("/").filter(Boolean).at(-1);
 }
-function sameId3(left, right) {
+function sameId(left, right) {
   return left !== void 0 && right !== void 0 && String(left) === String(right);
 }
-function isRecord24(value) {
+function isRecord23(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 var PROJECT_CONTEXT_STYLE_REFERENCE_RULE_KEY = "style_reference_images";
@@ -28499,7 +24408,7 @@ function buildProjectContextSnapshot(input) {
     settingNamespaces: [],
     diagnostics: []
   };
-  const projectStyle = parseProjectStyle3(standards.project_style);
+  const projectStyle = parseProjectStyle(standards.project_style);
   const core = PROJECT_CONTEXT_CORE_STANDARDS.map((item) => {
     const value = projectContextFieldText(item.key === "aspect_ratio" ? standards.aspect_ratio ?? projectStyle.aspect_ratio : item.key === "visual_style" ? standards.visual_style ?? projectStyle.visual_style : projectStyle[item.key] ?? standards[item.key]);
     return {
@@ -28553,12 +24462,12 @@ function buildProjectContextSnapshot(input) {
     ]
   };
 }
-function parseProjectStyle3(value) {
-  if (isRecord33(value)) return value;
+function parseProjectStyle(value) {
+  if (isRecord32(value)) return value;
   if (typeof value !== "string" || !value.trim()) return {};
   try {
     const parsed = JSON.parse(value);
-    return isRecord33(parsed) ? parsed : {};
+    return isRecord32(parsed) ? parsed : {};
   } catch {
     return {};
   }
@@ -28568,7 +24477,7 @@ function projectContextFieldText(value) {
   if (typeof value === "string") return value.trim();
   if (typeof value === "number" || typeof value === "boolean") return String(value);
   if (Array.isArray(value)) return value.map((item) => projectContextFieldText(item)).filter(Boolean).join("\uFF1B");
-  if (isRecord33(value)) {
+  if (isRecord32(value)) {
     try {
       return JSON.stringify(value);
     } catch {
@@ -28578,7 +24487,7 @@ function projectContextFieldText(value) {
   return String(value);
 }
 function normalizeProjectContextRules(value) {
-  const rules = Array.isArray(value) ? value.filter(isRecord33) : [];
+  const rules = Array.isArray(value) ? value.filter(isRecord32) : [];
   return rules.map((rule, index) => {
     const key = projectContextFieldText(rule.key).toLowerCase().replace(/\s+/g, "_");
     const label = projectContextFieldText(rule.label ?? rule.name ?? rule.key) || `\u6269\u5C55\u89C4\u8303 ${index + 1}`;
@@ -28592,7 +24501,7 @@ function normalizeProjectContextRules(value) {
       prompt_role: normalizeProjectContextPromptRole(rule.prompt_role ?? rule.promptRole ?? rule.role),
       enabled: typeof rule.enabled === "boolean" ? rule.enabled : true,
       required: typeof rule.required === "boolean" ? rule.required : false,
-      order: numberValue3(rule.order) ?? (index + 1) * 10
+      order: numberValue2(rule.order) ?? (index + 1) * 10
     };
   }).filter((rule) => rule.key || rule.label || rule.value).sort((left, right) => left.order - right.order || left.label.localeCompare(right.label));
 }
@@ -28643,15 +24552,15 @@ function stableProjectContextHash(value) {
 }
 function stableStringify(value) {
   if (Array.isArray(value)) return `[${value.map((item) => stableStringify(item)).join(",")}]`;
-  if (isRecord33(value)) {
+  if (isRecord32(value)) {
     return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(",")}}`;
   }
   return JSON.stringify(value);
 }
-function isRecord33(value) {
+function isRecord32(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-function numberValue3(value) {
+function numberValue2(value) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value !== "string" || !value.trim()) return void 0;
   const number = Number(value);
@@ -29169,10 +25078,10 @@ function mediaClipFromMovScriptItem(input) {
     durationMs,
     sourceStartMs,
     sourceEndMs: sourceStartMs + durationMs,
-    volume: normalizeMediaClipVolumePercent(numberField4(timing.volume)) ?? 100,
+    volume: normalizeMediaClipVolumePercent(numberField3(timing.volume)) ?? 100,
     muted: false,
     fit: "cover",
-    opacity: numberField4(timing.opacity) ?? 1,
+    opacity: numberField3(timing.opacity) ?? 1,
     metadata: movscriptItemMetadata(input.item)
   };
   if (base.assetType === "text" || input.trackType === "subtitle") {
@@ -29180,13 +25089,13 @@ function mediaClipFromMovScriptItem(input) {
       ...base,
       assetType: "text",
       text: {
-        content: stringField13(timing.text) ?? String(input.item.content_unit_id),
-        fontSize: numberField4(timing.font_size) ?? 42,
-        fontFamily: stringField13(timing.font_family) ?? "Inter",
-        color: stringField13(timing.color) ?? "#ffffff",
-        backgroundColor: stringField13(timing.background_color),
+        content: stringField8(timing.text) ?? String(input.item.content_unit_id),
+        fontSize: numberField3(timing.font_size) ?? 42,
+        fontFamily: stringField8(timing.font_family) ?? "Inter",
+        color: stringField8(timing.color) ?? "#ffffff",
+        backgroundColor: stringField8(timing.background_color),
         align: "center",
-        position: stringField13(timing.position) ?? "bottom_center"
+        position: stringField8(timing.position) ?? "bottom_center"
       }
     };
   }
@@ -29281,15 +25190,15 @@ function durationFromInOutMs(timing) {
   return endMs - startMs;
 }
 function secField(value) {
-  const seconds = numberField4(value);
+  const seconds = numberField3(value);
   return seconds === void 0 ? void 0 : Math.round(seconds * 1e3);
 }
-function numberField4(value) {
+function numberField3(value) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value);
   return void 0;
 }
-function stringField13(value) {
+function stringField8(value) {
   if (typeof value !== "string") return void 0;
   const trimmed = value.trim();
   return trimmed ? trimmed : void 0;
@@ -29349,7 +25258,7 @@ function buildMediaTimelineRecipeFromEditDecisions(editDecisions, assets, option
   const tracks = new TrackRegistry();
   let primaryCursorMs = 0;
   for (const [index, cut] of arrayValue2(editDecisions.cuts).entries()) {
-    const layer = stringField26(cut.layer) ?? "primary";
+    const layer = stringField24(cut.layer) ?? "primary";
     const track = videoTrackForLayer(tracks, layer);
     const asset = assets.resolve(assetRef(cut), inferAssetTypeFromRecord(cut, "video"));
     const sourceStartMs = secondsToMs(cut.source_in_seconds ?? cut.source_in_sec ?? cut.source_start_seconds ?? cut.source_start_sec ?? cut.in_seconds ?? cut.in_sec) ?? 0;
@@ -29359,7 +25268,7 @@ function buildMediaTimelineRecipeFromEditDecisions(editDecisions, assets, option
     const timelineStartMs = explicitTimelineStartMs ?? (layer === "primary" ? primaryCursorMs : 0);
     const transform = recordValue(cut.transform);
     const clip = {
-      id: stringField26(cut.id) ?? `cut_${index + 1}`,
+      id: stringField24(cut.id) ?? `cut_${index + 1}`,
       assetType: asset?.assetType ?? inferAssetTypeFromRecord(cut, "video"),
       asset,
       timelineStartMs,
@@ -29371,7 +25280,7 @@ function buildMediaTimelineRecipeFromEditDecisions(editDecisions, assets, option
       muted: false,
       fit: "cover",
       opacity: numberField23(transform?.opacity ?? cut.opacity) ?? 1,
-      position: stringField26(transform?.position ?? cut.position),
+      position: stringField24(transform?.position ?? cut.position),
       xPercent: numberField23(transform?.x_percent ?? transform?.xPercent ?? cut.x_percent ?? cut.xPercent),
       yPercent: numberField23(transform?.y_percent ?? transform?.yPercent ?? cut.y_percent ?? cut.yPercent),
       scale: numberField23(transform?.scale ?? cut.scale),
@@ -29381,9 +25290,9 @@ function buildMediaTimelineRecipeFromEditDecisions(editDecisions, assets, option
         movscript: {
           kind: "edit_decision_cut",
           layer,
-          reason: stringField26(cut.reason),
+          reason: stringField24(cut.reason),
           source: assetRef(cut),
-          renderRuntime: stringField26(editDecisions.render_runtime ?? editDecisions.renderRuntime)
+          renderRuntime: stringField24(editDecisions.render_runtime ?? editDecisions.renderRuntime)
         },
         ...cut.metadata ?? {}
       }
@@ -29407,9 +25316,9 @@ function buildMediaTimelineRecipeFromEditDecisions(editDecisions, assets, option
     tracks: finalTracks,
     metadata: {
       schema: "movscript.video_compose_timeline.v1",
-      rendererFamily: stringField26(editDecisions.renderer_family ?? editDecisions.rendererFamily),
-      renderRuntime: stringField26(editDecisions.render_runtime ?? editDecisions.renderRuntime),
-      compositionMode: stringField26(editDecisions.composition_mode ?? editDecisions.compositionMode),
+      rendererFamily: stringField24(editDecisions.renderer_family ?? editDecisions.rendererFamily),
+      renderRuntime: stringField24(editDecisions.render_runtime ?? editDecisions.renderRuntime),
+      compositionMode: stringField24(editDecisions.composition_mode ?? editDecisions.compositionMode),
       targetKind: options.targetKind,
       targetRef: options.targetRef,
       scopeKind: options.scopeKind,
@@ -29425,7 +25334,7 @@ function addOverlayTracks(editDecisions, tracks, assets, timelineDurationMs, def
     const startMs = secondsToMs(overlay.start_seconds ?? overlay.start_sec) ?? 0;
     const durationMs = secondsToMs(overlay.duration_seconds ?? overlay.duration_sec) ?? durationFromRange(startMs, secondsToMs(overlay.end_seconds ?? overlay.end_sec)) ?? Math.max(defaultDurationMs, timelineDurationMs - startMs);
     overlayTrack.clips.push({
-      id: stringField26(overlay.id) ?? `overlay_${index + 1}`,
+      id: stringField24(overlay.id) ?? `overlay_${index + 1}`,
       assetType: asset?.assetType ?? inferAssetTypeFromRecord(overlay, "image"),
       asset,
       timelineStartMs: startMs,
@@ -29434,7 +25343,7 @@ function addOverlayTracks(editDecisions, tracks, assets, timelineDurationMs, def
       sourceEndMs: secondsToMs(overlay.source_end_seconds ?? overlay.source_end_sec),
       fit: "contain",
       opacity: numberField23(overlay.opacity) ?? 1,
-      position: stringField26(overlay.position),
+      position: stringField24(overlay.position),
       xPercent: numberField23(overlay.x_percent ?? overlay.xPercent),
       yPercent: numberField23(overlay.y_percent ?? overlay.yPercent),
       scale: numberField23(overlay.scale),
@@ -29487,7 +25396,7 @@ function addAudioSegments(track, segments, assets, kind, defaultDurationMs) {
     const durationMs = secondsToMs(record.duration_seconds ?? record.duration_sec) ?? durationFromRange(startMs, secondsToMs(record.end_seconds ?? record.end_sec)) ?? defaultDurationMs;
     track.clips.push(audioClipFromLayer({
       layer: record,
-      id: stringField26(record.id) ?? `${kind}_${index + 1}`,
+      id: stringField24(record.id) ?? `${kind}_${index + 1}`,
       kind,
       asset,
       startMs,
@@ -29531,13 +25440,13 @@ function addSubtitleTracks(editDecisions, tracks, assets, timelineDurationMs, de
     const startMs = secondsToMs(segment.start_seconds ?? segment.start_sec) ?? 0;
     const durationMs = secondsToMs(segment.duration_seconds ?? segment.duration_sec) ?? durationFromRange(startMs, secondsToMs(segment.end_seconds ?? segment.end_sec)) ?? defaultDurationMs;
     track.clips.push({
-      id: stringField26(segment.id) ?? `subtitle_${index + 1}`,
+      id: stringField24(segment.id) ?? `subtitle_${index + 1}`,
       assetType: "text",
       timelineStartMs: startMs,
       durationMs,
       text: {
         ...style,
-        content: stringField26(segment.text ?? segment.content) ?? ""
+        content: stringField24(segment.text ?? segment.content) ?? ""
       },
       subtitle: {
         burnIn: true,
@@ -29641,8 +25550,8 @@ var ComposeAssetRegistry = class {
   }
   assetFromRecord(record, preferredType = "video") {
     const resourceId = integerField(record.resourceId ?? record.resource_id);
-    const localPath = stringField26(record.localPath ?? record.local_path ?? record.path ?? record.file_path ?? record.filePath ?? record.src);
-    const idSource = stringField26(record.mediaAssetId ?? record.media_asset_id ?? record.id ?? record.asset_id ?? record.assetId) ?? (resourceId !== void 0 ? `resource_${resourceId}` : void 0) ?? localPath;
+    const localPath = stringField24(record.localPath ?? record.local_path ?? record.path ?? record.file_path ?? record.filePath ?? record.src);
+    const idSource = stringField24(record.mediaAssetId ?? record.media_asset_id ?? record.id ?? record.asset_id ?? record.assetId) ?? (resourceId !== void 0 ? `resource_${resourceId}` : void 0) ?? localPath;
     if (!idSource && resourceId === void 0 && !localPath) return void 0;
     const assetType = inferAssetTypeFromRecord(record, preferredType);
     return {
@@ -29651,9 +25560,9 @@ var ComposeAssetRegistry = class {
       assetType,
       ...resourceId !== void 0 ? { resourceId } : {},
       ...localPath ? { localPath } : {},
-      ...stringField26(record.mimeType ?? record.mime_type) ? { mimeType: stringField26(record.mimeType ?? record.mime_type) } : {},
-      ...stringField26(record.checksum) ? { checksum: stringField26(record.checksum) } : {},
-      label: stringField26(record.label ?? record.title ?? record.name ?? record.id ?? record.asset_id ?? localPath),
+      ...stringField24(record.mimeType ?? record.mime_type) ? { mimeType: stringField24(record.mimeType ?? record.mime_type) } : {},
+      ...stringField24(record.checksum) ? { checksum: stringField24(record.checksum) } : {},
+      label: stringField24(record.label ?? record.title ?? record.name ?? record.id ?? record.asset_id ?? localPath),
       metadata: {
         movscript: {
           kind: "edit_decision_asset_manifest_entry",
@@ -29673,7 +25582,7 @@ var ComposeAssetRegistry = class {
         label: `resource ${resourceId}`
       };
     }
-    const value = stringField26(ref);
+    const value = stringField24(ref);
     if (!value) return void 0;
     const parsedResourceId = resourceIdFromString(value);
     if (parsedResourceId !== void 0) {
@@ -29706,9 +25615,9 @@ function videoTrackForLayer(tracks, layer) {
   return tracks.track("track_primary_video", "video", 0, "primary");
 }
 function transitionFields(record) {
-  const transitionIn = stringField26(record.transition_in ?? record.transitionIn);
-  const transitionOut = stringField26(record.transition_out ?? record.transitionOut);
-  const transition = stringField26(record.transition);
+  const transitionIn = stringField24(record.transition_in ?? record.transitionIn);
+  const transitionOut = stringField24(record.transition_out ?? record.transitionOut);
+  const transition = stringField24(record.transition);
   const durationMs = secondsToMs(record.transition_duration ?? record.transitionDuration);
   return {
     ...transitionIn === "fade" ? { fadeInMs: durationMs } : {},
@@ -29731,25 +25640,25 @@ function subtitleTextStyle(subtitles) {
   return {
     content: "",
     fontSize: numberField23(style.fontSize ?? style.font_size ?? subtitles.fontSize ?? subtitles.font_size) ?? 42,
-    fontFamily: stringField26(style.fontFamily ?? style.font_family ?? subtitles.font) ?? "Inter",
-    color: stringField26(style.color ?? style.text_color ?? subtitles.color ?? subtitles.text_color) ?? "#ffffff",
-    backgroundColor: stringField26(style.backgroundColor ?? style.background_color ?? subtitles.background_color ?? subtitles.background),
+    fontFamily: stringField24(style.fontFamily ?? style.font_family ?? subtitles.font) ?? "Inter",
+    color: stringField24(style.color ?? style.text_color ?? subtitles.color ?? subtitles.text_color) ?? "#ffffff",
+    backgroundColor: stringField24(style.backgroundColor ?? style.background_color ?? subtitles.background_color ?? subtitles.background),
     align: textAlignValue(style.align ?? subtitles.align) ?? "center",
-    position: stringField26(style.position ?? subtitles.position) ?? "bottom"
+    position: stringField24(style.position ?? subtitles.position) ?? "bottom"
   };
 }
 function subtitleFormat(subtitles) {
-  const format = stringField26(subtitles.format)?.toLowerCase();
+  const format = stringField24(subtitles.format)?.toLowerCase();
   if (format === "srt" || format === "vtt" || format === "ass" || format === "ssa") return format;
   return void 0;
 }
 function subtitleRenderer(subtitles) {
-  const renderer = stringField26(subtitles.renderer)?.toLowerCase();
+  const renderer = stringField24(subtitles.renderer)?.toLowerCase();
   if (renderer === "drawtext" || renderer === "ass" || renderer === "libass") return renderer;
   return void 0;
 }
 function textAlignValue(value) {
-  const normalized = stringField26(value)?.toLowerCase();
+  const normalized = stringField24(value)?.toLowerCase();
   if (normalized === "left" || normalized === "center" || normalized === "right") return normalized;
   return void 0;
 }
@@ -29776,17 +25685,17 @@ function assetRefsFromRecord(record) {
   });
 }
 function inferAssetTypeFromRecord(record, fallback) {
-  const declared = stringField26(record.assetType ?? record.asset_type ?? record.type ?? record.kind ?? record.output_kind ?? record.media_type)?.toLowerCase();
+  const declared = stringField24(record.assetType ?? record.asset_type ?? record.type ?? record.kind ?? record.output_kind ?? record.media_type)?.toLowerCase();
   if (declared?.includes("subtitle")) return "subtitle";
   if (declared?.includes("audio") || declared?.includes("music") || declared?.includes("voice") || declared?.includes("sfx")) return "audio";
   if (declared?.includes("image") || declared?.includes("photo")) return "image";
   if (declared?.includes("text") || declared?.includes("caption")) return "text";
   if (declared?.includes("video") || declared?.includes("clip")) return "video";
-  const mime = stringField26(record.mimeType ?? record.mime_type)?.toLowerCase();
+  const mime = stringField24(record.mimeType ?? record.mime_type)?.toLowerCase();
   if (mime?.startsWith("audio/")) return "audio";
   if (mime?.startsWith("image/")) return "image";
   if (mime?.startsWith("text/") || mime?.includes("subrip") || mime?.includes("vtt")) return "subtitle";
-  const path = stringField26(record.localPath ?? record.local_path ?? record.path ?? record.file_path ?? record.filePath ?? record.src);
+  const path = stringField24(record.localPath ?? record.local_path ?? record.path ?? record.file_path ?? record.filePath ?? record.src);
   return assetTypeFromPath(path) ?? fallback;
 }
 function assetTypeFromPath(path) {
@@ -29830,7 +25739,7 @@ function resourceIdFromString(value) {
   if (!match) return void 0;
   return integerField(match[1]);
 }
-function stringField26(value) {
+function stringField24(value) {
   if (typeof value !== "string") return void 0;
   const trimmed = value.trim();
   return trimmed ? trimmed : void 0;
@@ -29844,7 +25753,7 @@ function arrayValue2(value) {
 }
 function refKey(value) {
   if (typeof value === "number" && Number.isFinite(value)) return String(value);
-  return stringField26(value);
+  return stringField24(value);
 }
 function safeId2(value) {
   const raw = String(value ?? "draft").trim() || "draft";
@@ -29857,7 +25766,7 @@ function sameAsset(left, right) {
   return left.id === right.id;
 }
 function isGeneratedSubtitleSource(value) {
-  const normalized = stringField26(value)?.toLowerCase();
+  const normalized = stringField24(value)?.toLowerCase();
   return normalized === "script" || normalized === "auto" || normalized === "captions" || normalized === "segments";
 }
 
@@ -30060,6 +25969,3736 @@ function endpointURL2(endpoint) {
   return void 0;
 }
 
+// ../../packages/workspace/dist/chunk-LJ7J62DV.js
+function deriveMovScriptWorkspaceDomainIndex(documents) {
+  const entities = documents.flatMap((document) => indexedEntitiesFromDocument(document));
+  const byKind = /* @__PURE__ */ new Map();
+  for (const entity of entities) {
+    byKind.set(entity.entityKind, [...byKind.get(entity.entityKind) ?? [], entity]);
+  }
+  const namespaceVocabulary = normalizeNamespaceVocabulary(byKind.get("project")?.[0]?.record);
+  const domainNodes = deriveMovScriptDomainNodes(entities);
+  const domainEdges = deriveMovScriptDomainEdges(entities, domainNodes);
+  return { documents, entities, byKind, namespaceVocabulary, domainNodes, domainEdges };
+}
+function queryMovScriptWorkspaceEntities(index, query = {}) {
+  const source = query.entityKind ? index.byKind.get(query.entityKind) ?? [] : index.entities;
+  const queryContext = createEntityQueryContext(index);
+  const out = source.filter((entity) => {
+    const record = entity.record;
+    if (query.kind && !entityKindMatches(entity, query.kind)) return false;
+    if (query.productionId !== void 0 && !entityMatchesScope(entity, "production", query.productionId, queryContext)) return false;
+    if (query.segmentId !== void 0 && !entityMatchesScope(entity, "segment", query.segmentId, queryContext)) return false;
+    if (query.sceneMomentId !== void 0 && !entityMatchesScope(entity, "scene_moment", query.sceneMomentId, queryContext)) return false;
+    if (query.storyboardId !== void 0 && !entityMatchesStoryboard(entity, query.storyboardId, queryContext)) return false;
+    if (query.contentUnitId !== void 0 && !entityPathMatchesContentUnit(entity.path, query.contentUnitId)) return false;
+    if (query.settingId !== void 0 && !entityMatchesScope(entity, "setting", query.settingId, queryContext)) return false;
+    if (query.settingStateId !== void 0 && !entityMatchesScope(entity, "setting_state", query.settingStateId, queryContext)) return false;
+    if (query.query && !recordMatchesQuery(record, query.query)) return false;
+    return !isDeletedWorkspaceRecord(record);
+  });
+  return limitEntities(out, query.limit);
+}
+function queryMovScriptWorkspaceSettings(index, query = {}) {
+  const references = queryMovScriptWorkspaceEntities(index, {
+    entityKind: "setting",
+    kind: query.kind,
+    query: query.query,
+    limit: query.limit
+  });
+  if (query.settingId === void 0) return references;
+  return references.filter((entity) => sameId2(entity.id, query.settingId));
+}
+function queryMovScriptWorkspaceAssets(index, query = {}) {
+  const assets = queryMovScriptWorkspaceEntities(index, {
+    entityKind: "asset",
+    query: query.query,
+    settingId: query.settingId,
+    settingStateId: query.settingStateId,
+    limit: query.limit
+  }).filter((entity) => query.assetId === void 0 || sameId2(entity.id, query.assetId));
+  if (!query.includeCandidates) return { assets };
+  const candidates = assets.flatMap((entity) => {
+    const rows = entity.record.candidates;
+    return Array.isArray(rows) ? rows.filter(isRecord7) : [];
+  });
+  return { assets, candidates };
+}
+function queryMovScriptWorkspaceProductionContext(index, query = {}) {
+  const include = new Set(query.include ?? ["productions", "segments", "scene_moments", "storyboards", "audio_cues", "expression_units", "content_units", "keyframes"]);
+  const result = {};
+  if (include.has("productions")) {
+    result.productions = queryMovScriptWorkspaceEntities(index, {
+      entityKind: "production",
+      query: query.query,
+      limit: query.limit
+    }).filter((entity) => query.productionId === void 0 || sameId2(entity.id, query.productionId));
+  }
+  if (include.has("segments")) {
+    result.segments = queryMovScriptWorkspaceEntities(index, {
+      entityKind: "segment",
+      productionId: query.productionId,
+      query: query.query,
+      limit: query.limit
+    }).filter((entity) => query.segmentId === void 0 || sameId2(entity.id, query.segmentId));
+  }
+  if (include.has("scene_moments")) {
+    result.scene_moments = queryMovScriptWorkspaceEntities(index, {
+      entityKind: "scene_moment",
+      productionId: query.productionId,
+      segmentId: query.segmentId,
+      query: query.query,
+      limit: query.limit
+    }).filter((entity) => query.sceneMomentId === void 0 || sameId2(entity.id, query.sceneMomentId));
+  }
+  if (include.has("storyboards")) {
+    result.storyboards = queryMovScriptWorkspaceEntities(index, {
+      entityKind: "storyboard",
+      productionId: query.productionId,
+      segmentId: query.segmentId,
+      sceneMomentId: query.sceneMomentId,
+      query: query.query,
+      limit: query.limit
+    }).filter((entity) => query.storyboardId === void 0 || sameId2(entity.id, query.storyboardId));
+  }
+  if (include.has("audio_cues")) {
+    result.audio_cues = queryMovScriptWorkspaceEntities(index, {
+      entityKind: "audio_cue",
+      productionId: query.productionId,
+      segmentId: query.segmentId,
+      sceneMomentId: query.sceneMomentId,
+      storyboardId: query.storyboardId,
+      query: query.query,
+      limit: query.limit
+    });
+  }
+  if (include.has("expression_units")) {
+    result.expression_units = queryMovScriptWorkspaceEntities(index, {
+      entityKind: "expression_unit",
+      productionId: query.productionId,
+      segmentId: query.segmentId,
+      sceneMomentId: query.sceneMomentId,
+      query: query.query,
+      limit: query.limit
+    });
+  }
+  if (include.has("content_units")) {
+    result.content_units = queryMovScriptWorkspaceEntities(index, {
+      entityKind: "content_unit",
+      contentUnitId: query.contentUnitId,
+      query: query.query,
+      limit: query.limit
+    });
+  }
+  if (include.has("keyframes")) {
+    result.keyframes = queryMovScriptWorkspaceEntities(index, {
+      entityKind: "keyframe",
+      sceneMomentId: query.sceneMomentId,
+      contentUnitId: query.contentUnitId,
+      query: query.query,
+      limit: query.limit
+    });
+  }
+  return result;
+}
+function indexedEntitiesFromDocument(document) {
+  const path = normalizeIndexedDocumentPath(document.path);
+  if (!isRecord7(document.data)) return [];
+  const entityKind = entityKindFromSchema(stringField9(document.data.schema)) ?? entityKindFromPath(path);
+  return entityKind ? [indexedEntity(entityKind, workspaceRecordWithDocumentMetadata(document.data, document), path, 0)] : [];
+}
+function indexedEntity(entityKind, record, path, index) {
+  const schema = stringField9(record.schema);
+  const id = entityIdField(entityKind, record);
+  const clientId = stringField9(record.client_id ?? record.clientId);
+  return {
+    entityKind,
+    record,
+    path,
+    index,
+    ...id !== void 0 ? { id } : {},
+    ...clientId ? { clientId } : {},
+    ...schema ? { schema } : {}
+  };
+}
+function deriveMovScriptDomainNodes(entities) {
+  return entities.flatMap((entity) => {
+    const category = classifyMovScriptEntityKind(entity.entityKind);
+    if (!category) return [];
+    return [pruneUndefined({
+      category,
+      kind: projectMovScriptDomainNodeKind(entity.entityKind, entity.record),
+      ...entity.id !== void 0 ? { id: entity.id } : {},
+      path: entity.path,
+      title: stringField9(entity.record.title) ?? stringField9(entity.record.label),
+      order: finiteNumber(entity.record.order),
+      metadata: {
+        entityKind: entity.entityKind
+      }
+    })];
+  });
+}
+function deriveMovScriptDomainPathParentEdges(nodes) {
+  const nodeByDir = /* @__PURE__ */ new Map();
+  for (const node of nodes) {
+    if (!node.path) continue;
+    nodeByDir.set(entityDir(node.path), node);
+  }
+  const edges = [];
+  for (const node of nodes) {
+    if (!node.path) continue;
+    const parentPath = nearestParentPath(entityDir(node.path), nodeByDir.keys());
+    if (!parentPath) continue;
+    const parent = nodeByDir.get(parentPath);
+    const normalized = normalizePathParentEdge(domainRefFromNode2(node), parent ? domainRefFromNode2(parent) : void 0);
+    if (normalized.edge) edges.push(normalized.edge);
+  }
+  return dedupeDomainEdges2(edges);
+}
+function deriveMovScriptDomainEdges(entities, nodes) {
+  return dedupeDomainEdges2([
+    ...deriveMovScriptDomainPathParentEdges(nodes),
+    ...deriveMovScriptContentUnitTargetEdges(entities, nodes)
+  ]);
+}
+function deriveMovScriptContentUnitTargetEdges(entities, nodes) {
+  const nodeByPath = new Map(nodes.flatMap((node) => node.path ? [[node.path, node]] : []));
+  const timelineNamespaceNodes = nodes.filter((node) => node.category === "timeline_namespace");
+  const edges = [];
+  for (const entity of entities) {
+    if (entity.entityKind !== "content_unit") continue;
+    const sourceNode = nodeByPath.get(entity.path);
+    if (!sourceNode) continue;
+    edges.push(...normalizeContentUnitTargetEdges({
+      source: domainRefFromNode2(sourceNode),
+      record: entity.record,
+      scopeTarget(scope) {
+        return domainRefFromTimelineScope2(scope.kind, scope.ref, timelineNamespaceNodes);
+      }
+    }));
+  }
+  return edges;
+}
+function domainRefFromTimelineScope2(scopeKind, scopeRef, timelineNamespaceNodes) {
+  const node = timelineNamespaceNodes.find(
+    (candidate) => String(candidate.id ?? "") === scopeRef && (candidate.kind === scopeKind || candidate.metadata?.entityKind === scopeKind)
+  );
+  return node ? domainRefFromNode2(node) : { category: "timeline_namespace", kind: scopeKind, id: scopeRef };
+}
+function domainRefFromNode2(node) {
+  return {
+    category: node.category,
+    kind: node.kind,
+    ...node.id !== void 0 ? { id: node.id } : {},
+    ...node.path ? { path: node.path } : {}
+  };
+}
+function workspaceRecordWithDocumentMetadata(record, document) {
+  return {
+    ...record,
+    __workspace_path: document.path,
+    ...document.version !== void 0 ? { __workspace_version: document.version } : {},
+    ...document.updatedAt !== void 0 ? { __workspace_updated_at: document.updatedAt } : {}
+  };
+}
+function entityKindFromSchema(schema) {
+  if (!schema) return void 0;
+  const normalized = schema.replace(/^movscript\./, "").replace(/\.v\d+$/, "");
+  return schemaEntityKinds[normalized];
+}
+function entityKindFromPath(path) {
+  const name = path.split("/").pop() ?? path;
+  if (name === "project.json") return "project";
+  if (name === "project_standards.json") return "project_standards";
+  if (name === "script.meta.json" || name === "script.json") return "script";
+  if (name === "setting.json") return "setting";
+  if (name === "setting_state.json") return "setting_state";
+  if (name === "asset.json") return "asset";
+  if (name === "script_version.json") return "script_version";
+  if (name === "script_block.json") return "script_block";
+  if (name === "production.json") return "production";
+  if (name === "segment.json") return "segment";
+  if (name === "scene_moment.json") return "scene_moment";
+  if (name === "storyboard.json") return "storyboard";
+  if (name === "audio_cue.json") return "audio_cue";
+  if (name === "expression_unit.json") return "expression_unit";
+  if (name === "content_unit.json") return "content_unit";
+  if (name === "keyframe.json") return "keyframe";
+  return void 0;
+}
+var schemaEntityKinds = {
+  project: "project",
+  project_standards: "project_standards",
+  script: "script",
+  script_version: "script_version",
+  script_block: "script_block",
+  production: "production",
+  segment: "segment",
+  scene_moment: "scene_moment",
+  storyboard: "storyboard",
+  audio_cue: "audio_cue",
+  expression_unit: "expression_unit",
+  content_unit: "content_unit",
+  keyframe: "keyframe",
+  setting: "setting",
+  setting_state: "setting_state",
+  asset: "asset"
+};
+function entityPathMatchesProduction(path, productionId) {
+  return pathSegmentAfter2(path, "productions") !== void 0 && sameEntityRef(pathSegmentAfter2(path, "productions"), productionId, "production");
+}
+function entityPathMatchesSegment(path, segmentId) {
+  return pathSegmentAfter2(path, "segments") !== void 0 && sameEntityRef(pathSegmentAfter2(path, "segments"), segmentId, "segment");
+}
+function entityPathMatchesSceneMoment(path, sceneMomentId) {
+  return pathSegmentAfter2(path, "scene_moments") !== void 0 && sameEntityRef(pathSegmentAfter2(path, "scene_moments"), sceneMomentId, "scene_moment");
+}
+function entityPathMatchesStoryboard(path, storyboardId) {
+  return pathSegmentAfter2(path, "storyboards") !== void 0 && sameEntityRef(pathSegmentAfter2(path, "storyboards"), storyboardId, "storyboard");
+}
+function entityMatchesStoryboard(entity, storyboardId, context) {
+  if (entityMatchesScope(entity, "storyboard", storyboardId, context)) return true;
+  if (entityPathMatchesStoryboard(entity.path, storyboardId)) return true;
+  const storyboardRef = stringField9(entity.record.storyboard_ref);
+  return storyboardRef !== void 0 && (entityPathMatchesStoryboard(storyboardRef, storyboardId) || sameNormalizedEntityPath(storyboardRef, storyboardId, "storyboard"));
+}
+function entityPathMatchesContentUnit(path, contentUnitId) {
+  return pathSegmentAfter2(path, "content_units") !== void 0 && sameEntityRef(pathSegmentAfter2(path, "content_units"), contentUnitId, "content_unit");
+}
+function entityPathMatchesSetting(path, settingId) {
+  return pathSegmentAfter2(path, "settings") !== void 0 && sameEntityRef(pathSegmentAfter2(path, "settings"), settingId, "setting");
+}
+function entityPathMatchesSettingState(path, stateId) {
+  return pathSegmentAfter2(path, "states") !== void 0 && sameEntityRef(pathSegmentAfter2(path, "states"), stateId, "setting_state");
+}
+function createEntityQueryContext(index) {
+  const entityByPath = new Map(index.entities.map((entity) => [entity.path, entity]));
+  const entityByDir = new Map(index.entities.map((entity) => [entityDir(entity.path), entity]));
+  const parentPathByPath = /* @__PURE__ */ new Map();
+  for (const edge of index.domainEdges) {
+    if (edge.relation !== "parent" || edge.origin !== "path") continue;
+    if (!edge.source.path || !edge.target.path) continue;
+    parentPathByPath.set(edge.source.path, edge.target.path);
+  }
+  for (const entity of index.entities) {
+    if (parentPathByPath.has(entity.path)) continue;
+    const parentDir = nearestParentPath(entityDir(entity.path), entityByDir.keys());
+    const parent = parentDir ? entityByDir.get(parentDir) : void 0;
+    if (parent) parentPathByPath.set(entity.path, parent.path);
+  }
+  return { entityByPath, parentPathByPath };
+}
+function entityMatchesScope(entity, scopeKind, scopeRef, context) {
+  if (entityRefMatchesScope(entity, scopeKind, scopeRef)) return true;
+  for (const ancestor of ancestorEntities(entity, context)) {
+    if (entityRefMatchesScope(ancestor, scopeKind, scopeRef)) return true;
+  }
+  return legacyEntityPathMatchesScope(entity.path, scopeKind, scopeRef);
+}
+function ancestorEntities(entity, context) {
+  const ancestors = [];
+  const seen = /* @__PURE__ */ new Set([entity.path]);
+  let currentPath = entity.path;
+  while (true) {
+    const parentPath = context.parentPathByPath.get(currentPath);
+    if (!parentPath || seen.has(parentPath)) break;
+    seen.add(parentPath);
+    const parent = context.entityByPath.get(parentPath);
+    if (!parent) break;
+    ancestors.push(parent);
+    currentPath = parent.path;
+  }
+  return ancestors;
+}
+function entityRefMatchesScope(entity, scopeKind, scopeRef) {
+  if (entity.entityKind !== scopeKind) return false;
+  if (entity.id !== void 0 && sameEntityRef(entity.id, scopeRef, scopeKind)) return true;
+  return sameNormalizedEntityPath(entity.path, scopeRef, scopeKind) || sameNormalizedEntityPath(entityDir(entity.path), scopeRef, scopeKind);
+}
+function legacyEntityPathMatchesScope(path, scopeKind, scopeRef) {
+  if (scopeKind === "production") return entityPathMatchesProduction(path, scopeRef);
+  if (scopeKind === "segment") return entityPathMatchesSegment(path, scopeRef);
+  if (scopeKind === "scene_moment") return entityPathMatchesSceneMoment(path, scopeRef);
+  if (scopeKind === "storyboard") return entityPathMatchesStoryboard(path, scopeRef);
+  if (scopeKind === "setting") return entityPathMatchesSetting(path, scopeRef);
+  if (scopeKind === "setting_state") return entityPathMatchesSettingState(path, scopeRef);
+  return false;
+}
+function recordMatchesQuery(record, query) {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return true;
+  return ["id", "title", "label", "alias", "description", "content", "summary", "prompt", "notes"].some((key) => String(record[key] ?? "").toLowerCase().includes(needle));
+}
+function entityKindMatches(entity, kind) {
+  return projectMovScriptDomainNodeKind(entity.entityKind, entity.record) === kind || recordKindMatches(entity.record, kind);
+}
+function recordKindMatches(record, kind) {
+  return [
+    record.kind,
+    record.namespace_kind,
+    record.namespaceKind,
+    record.timeline_namespace_kind,
+    record.timelineNamespaceKind,
+    record.setting_namespace_kind,
+    record.settingNamespaceKind,
+    record.setting_kind,
+    record.settingKind,
+    record.content_unit_type,
+    record.contentUnitType,
+    record.asset_kind,
+    record.assetKind,
+    record.shot_kind,
+    record.shotKind,
+    record.segment_kind,
+    record.segmentKind,
+    record.slot_kind,
+    record.slotKind,
+    record.expression_kind,
+    record.expressionKind,
+    record.cue_kind,
+    record.cueKind
+  ].some((value) => stringField9(value) === kind);
+}
+function isDeletedWorkspaceRecord(record) {
+  return record.__delete === true || record.deleted === true;
+}
+function limitEntities(items, limit) {
+  if (limit === void 0) return items;
+  if (!Number.isFinite(limit) || limit <= 0) return [];
+  return items.slice(0, Math.floor(limit));
+}
+function sameId2(left, right) {
+  const leftId = idField3(left);
+  const rightId = idField3(right);
+  return leftId !== void 0 && rightId !== void 0 && String(leftId) === String(rightId);
+}
+function entityIdField(entityKind, record) {
+  if (entityKind === "project") return idField3(record.project_id ?? record.ID ?? record.id);
+  return idField3(record.ID ?? record.id);
+}
+function idField3(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) return value.trim();
+  return void 0;
+}
+function stringField9(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : void 0;
+}
+function finiteNumber(value) {
+  const next = Number(value);
+  return Number.isFinite(next) ? next : void 0;
+}
+function pathSegmentAfter2(path, segment) {
+  const parts = path.split("/");
+  const index = parts.indexOf(segment);
+  return index >= 0 ? parts[index + 1] : void 0;
+}
+function sameNormalizedEntityPath(pathOrDir, ref, entityKind) {
+  const left = normalizeWorkspacePath(pathOrDir);
+  const right = normalizeWorkspacePath(String(ref));
+  if (!left || !right) return false;
+  if (left === right) return true;
+  if (left.endsWith(".json") && entityDir(left) === right) return true;
+  if (right.endsWith(".json") && left === entityDir(right)) return true;
+  return sameEntityRef(left, right, entityKind);
+}
+function normalizeIndexedDocumentPath(path) {
+  return normalizeWorkspacePath(path).replace(/^\.movscript\//, "");
+}
+function isRecord7(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function pruneUndefined(value) {
+  const output = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (item !== void 0) output[key] = item;
+  }
+  return output;
+}
+function dedupeDomainEdges2(edges) {
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  for (const edge of edges) {
+    const key = JSON.stringify(edge);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(edge);
+  }
+  return out;
+}
+
+// ../../packages/decision/dist/index.js
+var DEFAULT_SELECTION_FIELD = "lock";
+function buildMovScriptCandidateSelectionRecord(candidate, input = {}) {
+  const candidateId = idField4(candidate.id);
+  const resourceId = resourceIdField(candidate.resource_id ?? candidate.resourceId);
+  const artifactRef = stringField10(candidate.artifact_ref ?? candidate.artifactRef);
+  if (candidateId === void 0 && resourceId === void 0) {
+    throw new Error("candidate selection requires candidate id or resource_id");
+  }
+  return pruneUndefined2({
+    candidate_id: candidateId,
+    resource_id: resourceId,
+    artifact_ref: artifactRef,
+    reason: input.reason ?? "selected",
+    selected_at: input.selectedAt,
+    selected_by: input.selectedBy,
+    metadata: input.metadata
+  });
+}
+function selectMovScriptCandidateRecord(record, input) {
+  const candidate = findCandidate(record, input.candidateId);
+  if (!candidate) throw new Error(`candidate not found: ${String(input.candidateId)}`);
+  const selection = buildMovScriptCandidateSelectionRecord(candidate, input);
+  return {
+    candidate,
+    selection,
+    record: {
+      ...record,
+      [selectionField(input)]: selection
+    }
+  };
+}
+function clearMovScriptCandidateSelectionRecord(record, options = {}) {
+  const field = selectionField(options);
+  const { [field]: _selection, ...nextRecord } = record;
+  return nextRecord;
+}
+function findCandidate(record, candidateId) {
+  return arrayField2(record.candidates).filter(isRecord8).find((item) => sameId3(item.id, candidateId));
+}
+function selectionField(options) {
+  return options.selectionField?.trim() || DEFAULT_SELECTION_FIELD;
+}
+function sameId3(left, right) {
+  if (left === void 0 || right === void 0) return false;
+  return String(left) === String(right);
+}
+function idField4(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) return value.trim();
+  return void 0;
+}
+function resourceIdField(value) {
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isInteger(parsed) && parsed > 0) return parsed;
+  }
+  return void 0;
+}
+function stringField10(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : void 0;
+}
+function arrayField2(value) {
+  return Array.isArray(value) ? value : [];
+}
+function isRecord8(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+function pruneUndefined2(value) {
+  const output = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (item !== void 0) output[key] = item;
+  }
+  return output;
+}
+
+// ../../packages/workspace/dist/chunk-OLW7PAL3.js
+function createMovScriptWorkspaceDomainRepository(options) {
+  const includeFile = options.includeFile ?? defaultWorkspaceDomainFileFilter;
+  return {
+    async loadDocuments(input = {}) {
+      return loadWorkspaceDocuments(options.fileRepository, input.path ?? "", includeFile);
+    },
+    async loadIndex(input = {}) {
+      const documents = await loadWorkspaceDocuments(options.fileRepository, input.path ?? "", includeFile);
+      return deriveMovScriptWorkspaceDomainIndex(documents);
+    }
+  };
+}
+async function loadWorkspaceDocuments(fileRepository, rootPath, includeFile) {
+  const out = [];
+  await collectWorkspaceDocuments(fileRepository, normalizeWorkspacePath(rootPath), includeFile, out);
+  return out.sort((left, right) => left.path.localeCompare(right.path));
+}
+async function collectWorkspaceDocuments(fileRepository, path, includeFile, out) {
+  const listed = await fileRepository.list({ path });
+  for (const entry of listed.entries) {
+    if (entry.kind === "directory") {
+      if (!path && isMovScriptNonSourceRootDirectory(entry.path)) continue;
+      await collectWorkspaceDocuments(fileRepository, entry.path, includeFile, out);
+      continue;
+    }
+    if (!includeFile(entry.path)) continue;
+    const file = await fileRepository.read({ path: entry.path });
+    out.push({
+      path: file.path,
+      data: parseWorkspaceDocument(file.path, file.content),
+      ...file.version !== void 0 ? { version: file.version } : {},
+      ...file.updatedAt !== void 0 ? { updatedAt: file.updatedAt } : {}
+    });
+  }
+}
+function parseWorkspaceDocument(path, content) {
+  if (path.endsWith(".json")) {
+    try {
+      return JSON.parse(content);
+    } catch {
+      return void 0;
+    }
+  }
+  return content;
+}
+function defaultWorkspaceDomainFileFilter(path) {
+  return isMovScriptSourcePath(path);
+}
+async function appendMovScriptInlineCandidate(input) {
+  const targetPath = normalizeWorkspacePath2(input.targetPath);
+  const current = await readTargetRecord(input.fileRepository, targetPath);
+  validateTargetKind(input.targetKind, current);
+  const candidate = buildInlineCandidate(input.payload, input.nonce);
+  const candidates = arrayField3(current.candidates).filter(isRecord9);
+  if (candidates.some((item) => String(item.id) === String(candidate.id))) {
+    throw new Error(`candidate already exists: ${String(candidate.id)}`);
+  }
+  const record = {
+    ...current,
+    candidates: [...candidates, candidate]
+  };
+  await input.fileRepository.write({ path: targetPath, content: serializeWorkspaceRecord(record) });
+  return { path: targetPath, targetKind: input.targetKind, candidate, record };
+}
+async function selectMovScriptInlineCandidate(input) {
+  const targetPath = normalizeWorkspacePath2(input.targetPath);
+  const current = await readTargetRecord(input.fileRepository, targetPath);
+  validateTargetKind(input.targetKind, current);
+  const { candidate, record } = selectMovScriptCandidateRecord(current, {
+    candidateId: input.candidateId,
+    reason: input.reason
+  });
+  await input.fileRepository.write({ path: targetPath, content: serializeWorkspaceRecord(record) });
+  return { path: targetPath, targetKind: input.targetKind, candidate, record };
+}
+async function updateMovScriptInlineCandidate(input) {
+  const targetPath = normalizeWorkspacePath2(input.targetPath ?? input.targetEntity?.path ?? workspacePath(input.targetRecord));
+  const current = await readTargetRecord(input.fileRepository, targetPath);
+  validateTargetKind(input.targetKind, current);
+  const candidates = arrayField3(current.candidates).filter(isRecord9);
+  const candidateIndex = candidates.findIndex((item) => String(item.id) === input.candidateId);
+  if (candidateIndex < 0) throw new Error(`candidate not found: ${input.candidateId}`);
+  const currentCandidate = candidates[candidateIndex];
+  const candidate = pruneUndefined3({
+    ...currentCandidate,
+    ...input.payload.resource_id !== void 0 || input.payload.resourceId !== void 0 ? { resource_id: requiredResourceId(input.payload.resource_id ?? input.payload.resourceId) } : {},
+    ...input.payload.artifact_ref !== void 0 || input.payload.artifactRef !== void 0 ? { artifact_ref: stringField11(input.payload.artifact_ref ?? input.payload.artifactRef) } : {},
+    ...input.payload.source !== void 0 ? { source: input.payload.source } : {},
+    ...input.payload.notes !== void 0 ? { notes: input.payload.notes } : {},
+    ...input.payload.metadata !== void 0 ? { metadata: input.payload.metadata } : {}
+  });
+  const nextCandidates = [...candidates];
+  nextCandidates[candidateIndex] = candidate;
+  const record = {
+    ...current,
+    candidates: nextCandidates
+  };
+  await input.fileRepository.write({ path: targetPath, content: serializeWorkspaceRecord(record) });
+  return { path: targetPath, targetKind: input.targetKind, candidate, record };
+}
+function workspacePath(record) {
+  const value = record?.__workspace_path ?? record?.workspace_path ?? record?.path;
+  if (typeof value === "string" && value.trim()) return value;
+  throw new Error("candidate target path is required");
+}
+async function unlockMovScriptInlineCandidate(input) {
+  const targetPath = normalizeWorkspacePath2(input.targetPath);
+  const current = await readTargetRecord(input.fileRepository, targetPath);
+  validateTargetKind(input.targetKind, current);
+  const record = clearMovScriptCandidateSelectionRecord(current);
+  await input.fileRepository.write({ path: targetPath, content: serializeWorkspaceRecord(record) });
+  return { path: targetPath, targetKind: input.targetKind, record };
+}
+function readTargetRecord(fileRepository, targetPath) {
+  return fileRepository.read({ path: targetPath }).then((file) => {
+    const parsed = JSON.parse(file.content);
+    if (!isRecord9(parsed)) throw new Error(`target JSON must be an object: ${targetPath}`);
+    return parsed;
+  });
+}
+function validateTargetKind(targetKind, record) {
+  if (targetKind === "content_unit") {
+    throw new Error("content_unit candidates are backend decision records; use createContentCandidate/selectContentUnitCandidate");
+  }
+  if (record.kind === targetKind) return;
+  const schemaKind = typeof record.schema === "string" ? record.schema.replace(/^movscript\./, "").replace(/\.v\d+$/, "") : void 0;
+  if (schemaKind === targetKind) return;
+  throw new Error(`target kind mismatch: expected ${targetKind}`);
+}
+function buildInlineCandidate(payload, nonce) {
+  const resourceId = requiredResourceId(payload.resource_id ?? payload.resourceId);
+  if (resourceId === void 0) {
+    throw new Error("resource_id required");
+  }
+  const id = payload.id ?? `candidate_${safeFileToken(String(resourceId))}_${safeFileToken(nonce ?? randomNonce())}`;
+  return pruneUndefined3({
+    id,
+    resource_id: resourceId,
+    artifact_ref: stringField11(payload.artifact_ref ?? payload.artifactRef),
+    source: payload.source ?? "manual",
+    notes: payload.notes,
+    metadata: payload.metadata
+  });
+}
+function serializeWorkspaceRecord(value) {
+  return `${JSON.stringify(value, null, 2)}
+`;
+}
+function normalizeWorkspacePath2(value) {
+  return value.replace(/\\/g, "/").replace(/^\.movscript\//, "").replace(/^\/+/, "").replace(/\/+$/, "");
+}
+function safeFileToken(value) {
+  return value.trim().replace(/[^a-zA-Z0-9_-]+/g, "_");
+}
+function requiredResourceId(value) {
+  if (value === void 0 || value === null || value === "") return void 0;
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isInteger(parsed) && parsed > 0) return parsed;
+  }
+  throw new Error("resource_id must be a positive integer RawResource ID");
+}
+function stringField11(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : void 0;
+}
+function randomNonce() {
+  const random = globalThis.crypto;
+  if (random?.randomUUID) return random.randomUUID();
+  return `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+}
+function arrayField3(value) {
+  return Array.isArray(value) ? value : [];
+}
+function isRecord9(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+function pruneUndefined3(value) {
+  const output = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (item !== void 0) output[key] = item;
+  }
+  return output;
+}
+async function updateMovScriptContentUnitEditPrompt(input) {
+  const targetPath = normalizeWorkspacePath3(input.targetPath);
+  const current = await readContentUnitRecord(input.fileRepository, targetPath);
+  const editPrompt = pruneUndefined22({
+    text: stringValue3(input.editPrompt.text),
+    negative_text: stringValue3(input.editPrompt.negative_text),
+    notes: stringValue3(input.editPrompt.notes),
+    structured: isRecord24(input.editPrompt.structured) ? input.editPrompt.structured : void 0
+  });
+  const record = {
+    ...current,
+    edit_prompt: editPrompt
+  };
+  await input.fileRepository.write({ path: targetPath, content: serializeWorkspaceRecord2(record) });
+  return { path: targetPath, record };
+}
+function readContentUnitRecord(fileRepository, targetPath) {
+  return fileRepository.read({ path: targetPath }).then((file) => {
+    const parsed = JSON.parse(file.content);
+    if (!isRecord24(parsed)) throw new Error(`target JSON must be an object: ${targetPath}`);
+    const schemaKind = typeof parsed.schema === "string" ? parsed.schema.replace(/^movscript\./, "").replace(/\.v\d+$/, "") : void 0;
+    if (parsed.kind !== "content_unit" && schemaKind !== "content_unit") {
+      throw new Error("target kind mismatch: expected content_unit");
+    }
+    return parsed;
+  });
+}
+function normalizeWorkspacePath3(value) {
+  return value.replace(/\\/g, "/").replace(/^\.movscript\//, "").replace(/^\/+/, "").replace(/\/+$/, "");
+}
+function serializeWorkspaceRecord2(value) {
+  return `${JSON.stringify(value, null, 2)}
+`;
+}
+function stringValue3(value) {
+  return typeof value === "string" ? value : void 0;
+}
+function isRecord24(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+function pruneUndefined22(value) {
+  const output = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (item !== void 0) output[key] = item;
+  }
+  return output;
+}
+async function snapshotMovScriptVersionFromMarkdown(input) {
+  const scriptId = semanticEntityId(input.scriptId, "script");
+  const versionId = semanticEntityId(input.versionId, "script_version");
+  const scriptDir = `scripts/${entityPathSlug(scriptId, "script")}`;
+  const scriptPath = normalizeWorkspacePath4(input.sourcePath ?? `${scriptDir}/script.md`);
+  const markdown = await input.fileRepository.read({ path: scriptPath });
+  const blocks = splitMarkdownBlocks(markdown.content);
+  const versionDir = `${scriptDir}/versions/${entityPathSlug(versionId, "script_version")}`;
+  const versionPath = `${versionDir}/script_version.json`;
+  const createdAt = (input.now ?? /* @__PURE__ */ new Date()).toISOString();
+  const versionRecord = {
+    schema: "movscript.script_version.v1",
+    kind: "script_version",
+    id: versionId,
+    title: input.versionLabel ?? String(versionId),
+    version_label: input.versionLabel ?? String(versionId),
+    source_ref: scriptPath.replace(`${scriptDir}/`, ""),
+    source_text_hash: hashText(markdown.content),
+    block_count: blocks.length,
+    created_at: createdAt
+  };
+  await input.fileRepository.write({
+    path: versionPath,
+    content: serializeWorkspaceRecord3(versionRecord)
+  });
+  const blockPaths = [];
+  for (const [index, block] of blocks.entries()) {
+    const blockId = String(index + 1).padStart(3, "0");
+    const blockPath = `${versionDir}/blocks/${entityPathSlug(blockId, "script_block")}/script_block.json`;
+    blockPaths.push(blockPath);
+    await input.fileRepository.write({
+      path: blockPath,
+      content: serializeWorkspaceRecord3({
+        schema: "movscript.script_block.v1",
+        kind: "script_block",
+        id: blockId,
+        order: index + 1,
+        text: block.text,
+        block_kind: block.kind,
+        source_range: block.sourceRange
+      })
+    });
+  }
+  return {
+    scriptId,
+    versionId,
+    scriptPath,
+    versionPath,
+    blockPaths,
+    blockCount: blockPaths.length
+  };
+}
+function splitMarkdownBlocks(markdown) {
+  const lines = markdown.replace(/\r\n/g, "\n").split("\n");
+  const blocks = [];
+  let startLine = 1;
+  let current = [];
+  function flush(endLine) {
+    const text = current.join("\n").trim();
+    if (!text) return;
+    blocks.push({
+      text,
+      kind: inferScriptBlockKind(text),
+      sourceRange: { start_line: startLine, end_line: endLine }
+    });
+    current = [];
+  }
+  for (const [index, line] of lines.entries()) {
+    const lineNumber = index + 1;
+    if (line.trim() === "") {
+      flush(lineNumber - 1);
+      startLine = lineNumber + 1;
+      continue;
+    }
+    if (current.length === 0) startLine = lineNumber;
+    current.push(line);
+  }
+  flush(lines.length);
+  return blocks;
+}
+function inferScriptBlockKind(text) {
+  const firstLine2 = text.split("\n")[0]?.trim() ?? "";
+  if (/^(INT\.|EXT\.|内景|外景)/i.test(firstLine2)) return "scene_heading";
+  if (/^[A-Z][A-Z0-9 _-]{1,32}$/.test(firstLine2)) return "character";
+  if (/^（.*）$|^\(.*\)$/.test(firstLine2)) return "parenthetical";
+  return void 0;
+}
+function normalizeWorkspacePath4(value) {
+  return value.replace(/\\/g, "/").replace(/^\.movscript\//, "").replace(/^\/+/, "").replace(/\/+$/, "");
+}
+function serializeWorkspaceRecord3(value) {
+  return `${JSON.stringify(value, null, 2)}
+`;
+}
+function hashText(value) {
+  let hash = 5381;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash << 5) + hash ^ value.charCodeAt(index);
+  }
+  return `djb2_${(hash >>> 0).toString(16)}`;
+}
+async function upsertMovScriptSourceRecord(input) {
+  const targetPath = normalizeWorkspacePath5(input.targetPath);
+  const current = await readOptionalWorkspaceRecord(input.fileRepository, targetPath);
+  const incoming = stripWorkspacePrivateFields({
+    ...input.record,
+    ...input.payload ?? {}
+  });
+  const expectedKind = stringValue22(incoming.kind);
+  if (expectedKind !== void 0) assertRecordKind(current, expectedKind, targetPath);
+  const record = pruneUndefined32({
+    ...current,
+    ...incoming
+  });
+  await input.fileRepository.write({ path: targetPath, content: serializeWorkspaceRecord4(record) });
+  return { path: targetPath, record };
+}
+async function updateMovScriptEntityTransition(input) {
+  const targetPath = normalizeWorkspacePath5(input.targetPath);
+  const current = await readWorkspaceRecord(input.fileRepository, targetPath);
+  const record = pruneUndefined32({
+    ...current,
+    transition: normalizeTransition(input.transition)
+  });
+  await input.fileRepository.write({ path: targetPath, content: serializeWorkspaceRecord4(record) });
+  return { path: targetPath, record };
+}
+async function updateMovScriptStoryboardTimeline(input) {
+  const targetPath = normalizeWorkspacePath5(input.targetPath);
+  const current = await readWorkspaceRecord(input.fileRepository, targetPath, "storyboard");
+  const record = pruneUndefined32({
+    ...current,
+    timeline: normalizeTimeline(input.timeline)
+  });
+  await input.fileRepository.write({ path: targetPath, content: serializeWorkspaceRecord4(record) });
+  return { path: targetPath, record };
+}
+async function readWorkspaceRecord(fileRepository, targetPath, expectedKind) {
+  const file = await fileRepository.read({ path: targetPath });
+  const parsed = JSON.parse(file.content);
+  if (!isRecord33(parsed)) throw new Error(`target JSON must be an object: ${targetPath}`);
+  const schemaKind = typeof parsed.schema === "string" ? parsed.schema.replace(/^movscript\./, "").replace(/\.v\d+$/, "") : void 0;
+  if (expectedKind !== void 0 && parsed.kind !== expectedKind && schemaKind !== expectedKind) {
+    throw new Error(`target kind mismatch: expected ${expectedKind}`);
+  }
+  return parsed;
+}
+async function readOptionalWorkspaceRecord(fileRepository, targetPath) {
+  const file = await fileRepository.read({ path: targetPath }).catch(() => void 0);
+  if (!file) return {};
+  const parsed = JSON.parse(file.content);
+  if (!isRecord33(parsed)) throw new Error(`target JSON must be an object: ${targetPath}`);
+  return parsed;
+}
+function assertRecordKind(current, expectedKind, targetPath) {
+  const currentKind = typeof current.kind === "string" ? current.kind : typeof current.schema === "string" ? current.schema.replace(/^movscript\./, "").replace(/\.v\d+$/, "") : void 0;
+  if (currentKind !== void 0 && currentKind !== expectedKind) {
+    throw new Error(`target kind mismatch: expected ${expectedKind} at ${targetPath}`);
+  }
+}
+function normalizeTransition(transition) {
+  if (!transition) return void 0;
+  return pruneUndefined32({
+    in: stringValue22(transition.in),
+    out: stringValue22(transition.out),
+    notes: stringValue22(transition.notes)
+  });
+}
+function normalizeTimeline(timeline) {
+  if (!timeline) return void 0;
+  return pruneUndefined32({
+    gap_after_sec: finiteNumber2(timeline.gap_after_sec),
+    caption: stringValue22(timeline.caption),
+    duration_sec: finiteNumber2(timeline.duration_sec)
+  });
+}
+function serializeWorkspaceRecord4(value) {
+  return `${JSON.stringify(value, null, 2)}
+`;
+}
+function normalizeWorkspacePath5(value) {
+  return value.replace(/\\/g, "/").replace(/^\.movscript\//, "").replace(/^\/+/, "").replace(/\/+$/, "");
+}
+function stringValue22(value) {
+  return typeof value === "string" && value.trim() ? value : void 0;
+}
+function finiteNumber2(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : void 0;
+}
+function isRecord33(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+function stripWorkspacePrivateFields(record) {
+  return Object.fromEntries(
+    Object.entries(record).filter(([key]) => !key.startsWith("__workspace_"))
+  );
+}
+function pruneUndefined32(value) {
+  const output = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (item !== void 0) output[key] = item;
+  }
+  return output;
+}
+var CANDIDATE_SCHEMA = "movscript.candidate.v1";
+async function createMovScriptWorkspaceAssetSlotCandidate(input) {
+  const targetPath = workspacePath2(input.targetRecord);
+  if (targetPath) {
+    const result = await appendMovScriptInlineCandidate({
+      fileRepository: input.fileRepository,
+      targetPath,
+      targetKind: "asset",
+      nonce: input.nonce,
+      payload: inlineCandidatePayload(input.payload)
+    });
+    return {
+      path: result.path,
+      entityType: "candidate",
+      record: workspaceCandidateRecordFromInline({
+        payload: input.payload,
+        targetKind: "asset",
+        targetRecord: result.record,
+        candidate: result.candidate,
+        path: result.path
+      }),
+      candidate: result.candidate,
+      targetRecord: result.record
+    };
+  }
+  const record = createMovScriptWorkspaceAssetSlotCandidateRecord(input);
+  const parentSlotId = positiveNumber(record.asset_slot_id);
+  if (!parentSlotId) throw new Error("\u5019\u9009\u7F3A\u5C11\u7236\u7D20\u6750\u9700\u6C42");
+  const path = `${normalizeProjectPath(input.projectPath)}/assets/asset_slot_${parentSlotId}.candidates/candidate_${workspaceCandidateFileKey(record)}.json`;
+  await input.fileRepository.write({ path, content: serializeWorkspaceRecord5(record) });
+  return { path, entityType: "candidate", record };
+}
+async function createMovScriptWorkspaceKeyframeCandidate(input) {
+  const targetPath = workspacePath2(input.targetRecord) ?? stringValue32(input.payload.target_path ?? input.payload.targetPath);
+  if (targetPath) {
+    const result = await appendMovScriptInlineCandidate({
+      fileRepository: input.fileRepository,
+      targetPath,
+      targetKind: "keyframe",
+      nonce: input.nonce,
+      payload: inlineCandidatePayload(input.payload)
+    });
+    return {
+      path: result.path,
+      entityType: "candidate",
+      record: workspaceCandidateRecordFromInline({
+        payload: input.payload,
+        targetKind: "keyframe",
+        targetRecord: result.record,
+        candidate: result.candidate,
+        path: result.path
+      }),
+      candidate: result.candidate,
+      targetRecord: result.record
+    };
+  }
+  const record = createMovScriptWorkspaceKeyframeCandidateRecord(input);
+  const productionId = positiveNumber(record.production_id);
+  if (!productionId) throw new Error("\u5019\u9009\u7F3A\u5C11\u5236\u4F5C ID");
+  const targetKeyframeId = positiveNumber(record.keyframe_id);
+  if (!targetKeyframeId) throw new Error("\u5019\u9009\u7F3A\u5C11\u76EE\u6807\u5173\u952E\u5E27");
+  const directory = `${normalizeProjectPath(input.projectPath)}/productions/${entityPathSlug(productionId, "production")}/keyframes/${entityPathSlug(targetKeyframeId, "keyframe")}.candidates`;
+  const path = `${directory}/candidate_${workspaceCandidateFileKey(record)}.json`;
+  await input.fileRepository.write({ path, content: serializeWorkspaceRecord5(record) });
+  return { path, entityType: "candidate", record };
+}
+function createMovScriptWorkspaceAssetSlotCandidateRecord(input) {
+  const parentSlotId = positiveNumber(input.payload.asset_slot_id ?? input.payload.assetSlotId ?? input.targetRecord?.ID ?? input.targetRecord?.id);
+  if (!parentSlotId) throw new Error("\u5019\u9009\u7F3A\u5C11\u7236\u7D20\u6750\u9700\u6C42");
+  const resourceId = positiveNumber(input.payload.resource_id ?? input.payload.resourceId);
+  if (!resourceId) throw new Error("resource_id required");
+  const clientId = localClientId("asset_slot_candidate", parentSlotId, resourceId, input.nonce);
+  const note = stringValue32(input.payload.note ?? input.payload.notes);
+  const sourceType = stringValue32(input.payload.source_type ?? input.payload.sourceType ?? input.payload.source) ?? "manual";
+  const sourceId = positiveNumber(input.payload.source_id ?? input.payload.sourceId);
+  return pruneUndefined4({
+    schema: CANDIDATE_SCHEMA,
+    ID: -stablePositiveHash(clientId),
+    id: -stablePositiveHash(clientId),
+    client_id: clientId,
+    target: { type: "asset_slot", id: parentSlotId },
+    asset_slot_id: parentSlotId,
+    kind: stringValue32(input.payload.kind) ?? stringValue32(input.targetRecord?.kind ?? input.targetRecord?.asset_kind) ?? "image",
+    title: note ?? `\u5019\u9009\u7D20\u6750 #${resourceId}`,
+    description: note,
+    priority: "normal",
+    resource_id: resourceId,
+    source_type: sourceType,
+    ...sourceId ? { source_id: sourceId } : {},
+    metadata_json: JSON.stringify(pruneUndefined4({
+      source: "workspace_asset_slot_candidate",
+      asset_slot_id: parentSlotId,
+      resource_id: resourceId,
+      source_type: sourceType,
+      source_id: sourceId,
+      score: numberValue3(input.payload.score),
+      note
+    }))
+  });
+}
+function createMovScriptWorkspaceKeyframeCandidateRecord(input) {
+  const resourceId = positiveNumber(input.payload.resource_id ?? input.payload.resourceId);
+  if (!resourceId) throw new Error("resource_id required");
+  const targetKeyframeId = keyframeCandidateTargetId(input.payload);
+  if (!targetKeyframeId) throw new Error("\u5019\u9009\u7F3A\u5C11\u76EE\u6807\u5173\u952E\u5E27");
+  const clientId = localClientId("keyframe_candidate", targetKeyframeId, resourceId, input.nonce);
+  return pruneUndefined4({
+    ...input.payload,
+    schema: CANDIDATE_SCHEMA,
+    ID: -stablePositiveHash(clientId),
+    id: -stablePositiveHash(clientId),
+    client_id: clientId,
+    target: { type: "keyframe", id: targetKeyframeId },
+    keyframe_id: targetKeyframeId,
+    resource_id: resourceId,
+    production_id: numberValue3(input.payload.production_id ?? input.payload.productionId),
+    scene_moment_id: numberValue3(input.payload.scene_moment_id ?? input.payload.sceneMomentId),
+    content_unit_id: numberValue3(input.payload.content_unit_id ?? input.payload.contentUnitId),
+    canvas_id: numberValue3(input.payload.canvas_id ?? input.payload.canvasId),
+    title: stringValue32(input.payload.title) ?? `\u5019\u9009\u753B\u9762 #${resourceId}`,
+    description: stringValue32(input.payload.description) ?? "",
+    prompt: stringValue32(input.payload.prompt) ?? "",
+    order: numberValue3(input.payload.order ?? input.payload.sort_order ?? input.payload.sortOrder) ?? 0
+  });
+}
+function inlineCandidatePayload(payload) {
+  const resourceId = payload.resource_id ?? payload.resourceId;
+  return pruneUndefined4({
+    id: stringValue32(payload.id ?? payload.client_id ?? payload.clientId),
+    resource_id: resourceId === void 0 ? void 0 : requiredResourceId2(resourceId),
+    artifact_ref: stringValue32(payload.artifact_ref ?? payload.artifactRef),
+    source: stringValue32(payload.source ?? payload.source_type ?? payload.sourceType),
+    notes: stringValue32(payload.notes ?? payload.note ?? payload.description),
+    metadata: pruneUndefined4({
+      source_id: payload.source_id ?? payload.sourceId,
+      score: payload.score,
+      raw: payload
+    })
+  });
+}
+function workspaceCandidateRecordFromInline(input) {
+  const targetId = input.targetRecord.ID ?? input.targetRecord.id;
+  const candidateId = stringValue32(input.candidate.id) ?? localClientId(`${input.targetKind}_candidate`, String(targetId ?? "target"), Number(input.candidate.resource_id) || 0);
+  const numericCandidateId = -stablePositiveHash(candidateId);
+  return pruneUndefined4({
+    schema: CANDIDATE_SCHEMA,
+    ID: numericCandidateId,
+    id: numericCandidateId,
+    client_id: candidateId,
+    target: { type: input.targetKind, id: targetId },
+    asset_slot_id: input.targetKind === "asset" ? numericId(targetId) : void 0,
+    keyframe_id: input.targetKind === "keyframe" ? numericId(targetId) : void 0,
+    resource_id: resourceIdValue2(input.candidate.resource_id),
+    artifact_ref: stringValue32(input.candidate.artifact_ref),
+    source_type: input.candidate.source,
+    note: input.candidate.notes,
+    metadata_json: JSON.stringify(pruneUndefined4({
+      source: "workspace_inline_candidate",
+      target_path: input.path,
+      target_kind: input.targetKind,
+      candidate_id: input.candidate.id,
+      payload: input.payload
+    }))
+  });
+}
+function keyframeCandidateTargetId(payload) {
+  const metadata = parseMetadata(payload.metadata_json);
+  return positiveNumber(payload.keyframe_id ?? payload.keyframeId ?? metadata?.target_keyframe_id);
+}
+function workspacePath2(record) {
+  return stringValue32(record?.__workspace_path ?? record?.workspace_path ?? record?.path);
+}
+function parseMetadata(value) {
+  if (isRecord42(value)) return value;
+  if (typeof value !== "string" || !value.trim()) return void 0;
+  try {
+    const parsed = JSON.parse(value);
+    return isRecord42(parsed) ? parsed : void 0;
+  } catch {
+    return void 0;
+  }
+}
+function serializeWorkspaceRecord5(value) {
+  return `${JSON.stringify(value, null, 2)}
+`;
+}
+function workspaceCandidateFileKey(record) {
+  return safeFileToken2(stringValue32(record.client_id) ?? String(record.id ?? record.ID ?? Date.now()));
+}
+function localClientId(prefix, targetId, resourceId, nonce) {
+  return `${prefix}_${targetId}_${resourceId}_${nonce ?? randomNonce2()}`;
+}
+function randomNonce2() {
+  const random = globalThis.crypto;
+  if (random?.randomUUID) return random.randomUUID();
+  return `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+}
+function normalizeProjectPath(value) {
+  return value.replace(/\\/g, "/").replace(/^\.movscript\//, "").replace(/^\/+/, "").replace(/\/+$/, "");
+}
+function safeFileToken2(value) {
+  return value.replace(/[^a-zA-Z0-9_-]+/g, "_");
+}
+function positiveNumber(value) {
+  const number = numberValue3(value);
+  return number !== void 0 && number > 0 ? number : void 0;
+}
+function numberValue3(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const number = Number(value);
+    if (Number.isFinite(number)) return number;
+  }
+  return void 0;
+}
+function numericId(value) {
+  return numberValue3(value);
+}
+function resourceIdValue2(value) {
+  if (value === void 0) return void 0;
+  return requiredResourceId2(value);
+}
+function requiredResourceId2(value) {
+  const id = positiveNumber(value);
+  if (id) return id;
+  throw new Error("resource_id must be a positive integer RawResource ID");
+}
+function stringValue32(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : void 0;
+}
+function isRecord42(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+function pruneUndefined4(value) {
+  const output = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (item !== void 0) output[key] = item;
+  }
+  return output;
+}
+function stablePositiveHash(value) {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = hash * 31 + value.charCodeAt(index) >>> 0;
+  }
+  return hash % 2e9 + 1;
+}
+async function upsertMovScriptWorkspaceSetting(input) {
+  const sourcePath = input.entity?.path ?? workspacePath3(input.record ?? {});
+  const current = stripEntityPrivateFields(input.entity?.record ?? input.record ?? {});
+  const payload = stripEntityPrivateFields(input.payload);
+  const identity = entityIdentity(entityIdentityValue(current, payload, input.now), "setting");
+  const title = stringValue4(payload.title ?? current.title) ?? displayName(identity.id);
+  const path = sourcePath ?? `settings/${identity.slug}/setting.json`;
+  const record = pruneUndefined5({
+    ...current,
+    ...payload,
+    schema: "movscript.setting.v1",
+    kind: "setting",
+    id: identity.id,
+    title,
+    setting_kind: normalizeSettingKind(payload.setting_kind ?? payload.kind ?? current.setting_kind ?? current.kind),
+    profile: normalizeProfile(payload, current)
+  });
+  await input.fileRepository.write({ path, content: serializeWorkspaceRecord6(record) });
+  return { path, entityKind: "setting", record };
+}
+async function upsertMovScriptWorkspaceAsset(input) {
+  const sourcePath = input.entity?.path ?? workspacePath3(input.record ?? {});
+  const current = stripEntityPrivateFields(input.entity?.record ?? input.record ?? {});
+  const payload = stripEntityPrivateFields(input.payload);
+  const identity = entityIdentity(entityIdentityValue(current, payload, input.now), "asset");
+  const sourcePathSettingId = sourcePath ? pathSegmentAfter4(sourcePath, "settings") : void 0;
+  const sourcePathSettingStateId = sourcePath ? pathSegmentAfter4(sourcePath, "states") : void 0;
+  if (sourcePath && !sourcePathSettingStateId) {
+    throw new Error("asset source path must be under a setting state");
+  }
+  const settingId = entityRef(
+    payload.setting_id ?? payload.settingId ?? payload.setting_ref ?? payload.settingRef ?? current.setting_id ?? current.settingId ?? current.setting_ref ?? current.settingRef,
+    "setting"
+  ) ?? sourcePathSettingId;
+  const settingStateId = entityRef(
+    payload.setting_state_id ?? payload.settingStateId ?? payload.setting_state_ref ?? payload.settingStateRef ?? current.setting_state_id ?? current.settingStateId ?? current.setting_state_ref ?? current.settingStateRef,
+    "setting_state"
+  ) ?? sourcePathSettingStateId;
+  if (!settingId) {
+    throw new Error("asset requires setting_id; assets must be stored under settings/{setting}/states/{state}/assets/{asset}/asset.json");
+  }
+  if (!settingStateId) {
+    throw new Error("asset requires setting_state_id; assets must be stored under settings/{setting}/states/{state}/assets/{asset}/asset.json");
+  }
+  const title = stringValue4(payload.title ?? current.title) ?? displayName(identity.id);
+  const path = sourcePath ?? assetPath({ id: identity.id, settingId, settingStateId });
+  const record = pruneUndefined5({
+    ...stripAssetOwnershipAliasFields(current),
+    ...stripAssetOwnershipAliasFields(payload),
+    schema: "movscript.asset.v1",
+    kind: "asset",
+    id: identity.id,
+    title,
+    slot: stringValue4(payload.slot ?? payload.slot_key ?? payload.slotKey ?? current.slot ?? current.slot_key ?? current.slotKey) ?? identity.slug,
+    asset_kind: normalizeAssetKind(payload.asset_kind ?? payload.kind ?? current.asset_kind ?? current.kind),
+    prompt_hint: stringValue4(payload.prompt_hint ?? payload.promptHint ?? current.prompt_hint ?? current.promptHint),
+    setting_id: settingId,
+    setting_state_id: settingStateId
+  });
+  await input.fileRepository.write({ path, content: serializeWorkspaceRecord6(record) });
+  return { path, entityKind: "asset", record };
+}
+async function upsertMovScriptWorkspaceSettingState(input) {
+  const sourcePath = input.entity?.path ?? workspacePath3(input.record ?? {});
+  const current = stripEntityPrivateFields(input.entity?.record ?? input.record ?? {});
+  const payload = stripEntityPrivateFields(input.payload);
+  const identity = entityIdentity(entityIdentityValue(current, payload, input.now), "setting_state");
+  const sourcePathSettingId = sourcePath ? pathSegmentAfter4(sourcePath, "settings") : void 0;
+  const settingId = entityRef(
+    payload.setting_id ?? payload.settingId ?? payload.setting_ref ?? payload.settingRef ?? current.setting_id ?? current.settingId ?? current.setting_ref ?? current.settingRef,
+    "setting"
+  ) ?? sourcePathSettingId;
+  if (!settingId) {
+    throw new Error("setting state requires setting_id; states must be stored under settings/{setting}/states/{state}/setting_state.json");
+  }
+  const title = stringValue4(payload.title ?? current.title) ?? displayName(identity.id);
+  const path = sourcePath ?? `settings/${entityPathSlug(settingId, "setting")}/states/${identity.slug}/setting_state.json`;
+  const record = pruneUndefined5({
+    ...current,
+    ...payload,
+    schema: "movscript.setting_state.v1",
+    kind: "setting_state",
+    id: identity.id,
+    title,
+    setting_id: settingId,
+    state_kind: stringValue4(payload.state_kind ?? payload.stateKind ?? payload.kind ?? current.state_kind ?? current.stateKind ?? current.kind),
+    description: stringValue4(payload.description ?? current.description)
+  });
+  await input.fileRepository.write({ path, content: serializeWorkspaceRecord6(record) });
+  return { path, entityKind: "setting_state", record };
+}
+async function deleteMovScriptWorkspaceEntity(input) {
+  const path = input.entity?.path ?? workspacePath3(input.record ?? {});
+  if (!path) throw new Error("workspace entity path is required");
+  await input.fileRepository.delete({ path });
+}
+function movScriptWorkspaceAssetPath(input) {
+  const settingSlug = entityPathSlug(input.settingId, "setting");
+  const assetSlug = entityPathSlug(input.id, "asset");
+  return `settings/${settingSlug}/states/${entityPathSlug(input.settingStateId, "setting_state")}/assets/${assetSlug}/asset.json`;
+}
+var assetPath = movScriptWorkspaceAssetPath;
+function entityIdentityValue(current, payload, now) {
+  return payload.workspace_slug ?? payload.workspaceSlug ?? current.workspace_slug ?? current.workspaceSlug ?? payload.workspace_entity_id ?? payload.workspaceEntityId ?? current.workspace_entity_id ?? current.workspaceEntityId ?? payload.id ?? payload.ID ?? current.id ?? current.ID ?? current.client_id ?? current.clientId ?? `local_${(now ?? /* @__PURE__ */ new Date()).getTime()}`;
+}
+function entityRef(value, entityKind) {
+  if (value === void 0 || value === null || String(value).trim() === "") return void 0;
+  return semanticEntityId(value, entityKind);
+}
+function stripAssetOwnershipAliasFields(record) {
+  const output = {};
+  for (const [key, value] of Object.entries(record)) {
+    if (key === "setting_ref" || key === "settingRef" || key === "setting_state_ref" || key === "settingStateRef") continue;
+    output[key] = value;
+  }
+  return output;
+}
+function normalizeSettingKind(value) {
+  const kind = stringValue4(value);
+  if (kind === "person" || kind === "character") return "character";
+  if (kind === "place" || kind === "location") return "location";
+  if (kind === "prop" || kind === "world_rule" || kind === "style" || kind === "other") return kind;
+  return "other";
+}
+function normalizeAssetKind(value) {
+  const kind = stringValue4(value);
+  if (kind === "image" || kind === "video" || kind === "audio" || kind === "text" || kind === "reference" || kind === "other") return kind;
+  return "other";
+}
+function normalizeProfile(payload, current) {
+  const existing = isRecord52(current.profile) ? current.profile : {};
+  const profile = pruneUndefined5({
+    ...existing,
+    alias: payload.alias ?? current.alias,
+    description: payload.description ?? current.description,
+    content: payload.content ?? current.content,
+    importance: payload.importance ?? current.importance
+  });
+  return Object.keys(profile).length > 0 ? profile : void 0;
+}
+function workspacePath3(record) {
+  return stringValue4(record.__workspace_path ?? record.workspace_path ?? record.path);
+}
+function pathSegmentAfter4(path, segment) {
+  const parts = path.split("/");
+  const index = parts.indexOf(segment);
+  return index >= 0 ? parts[index + 1] : void 0;
+}
+function stripEntityPrivateFields(record) {
+  const output = {};
+  for (const [key, value] of Object.entries(record)) {
+    if (key.startsWith("__workspace_")) continue;
+    if (key === "name") continue;
+    output[key] = value;
+  }
+  return output;
+}
+function serializeWorkspaceRecord6(value) {
+  return `${JSON.stringify(value, null, 2)}
+`;
+}
+function stringValue4(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : void 0;
+}
+function displayName(value) {
+  const text = stringValue4(value);
+  return text ?? "Untitled";
+}
+function isRecord52(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+function pruneUndefined5(value) {
+  const output = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (item !== void 0 && item !== "") output[key] = item;
+  }
+  return output;
+}
+async function upsertMovScriptWorkspaceScript(input) {
+  const current = stripWorkspacePrivateFields2(input.record ?? {});
+  const scriptId = stableScriptId(input.scriptId);
+  const scriptDir = `scripts/${entityPathSlug(scriptId, "script")}`;
+  const scriptPath = `${scriptDir}/script.json`;
+  const sourcePath = `${scriptDir}/script.md`;
+  const record = pruneUndefined6({
+    ...current,
+    ...input.metadata,
+    schema: "movscript.script.v1",
+    kind: "script",
+    id: scriptId,
+    title: stringValue5(input.metadata?.title ?? current.title) ?? `Script ${scriptId}`,
+    description: stringValue5(input.metadata?.description ?? current.description),
+    script_kind: stringValue5(input.metadata?.script_kind ?? input.metadata?.script_type ?? current.script_kind ?? current.script_type) ?? "uncategorized",
+    source_ref: "script.md",
+    content: input.sourceText,
+    updated_at: (input.now ?? /* @__PURE__ */ new Date()).toISOString(),
+    created_at: stringValue5(current.created_at ?? current.CreatedAt) ?? (input.now ?? /* @__PURE__ */ new Date()).toISOString()
+  });
+  await input.fileRepository.write({ path: sourcePath, content: input.sourceText });
+  await input.fileRepository.write({ path: scriptPath, content: serializeWorkspaceRecord7(record) });
+  return { scriptId, scriptPath, sourcePath, record, sourceText: input.sourceText };
+}
+async function readMovScriptWorkspaceScriptSource(input) {
+  const record = input.entity?.record ?? input.record;
+  const scriptPath = stringValue5(input.entity?.path ?? workspacePath4(record));
+  const sourceRef = stringValue5(record.source_ref) ?? "script.md";
+  if (!scriptPath) return stringValue5(input.record.content) ?? "";
+  const sourcePath = `${scriptPath.replace(/\/script\.json$/, "")}/${sourceRef}`.replace(/\/+/g, "/");
+  return input.fileRepository.read({ path: sourcePath }).then((file) => file.content).catch(() => stringValue5(record.content) ?? "");
+}
+function workspacePath4(record) {
+  return stringValue5(record.__workspace_path ?? record.workspace_path ?? record.path);
+}
+function stableScriptId(value) {
+  return semanticEntityId(value, "script");
+}
+function stripWorkspacePrivateFields2(record) {
+  const output = {};
+  for (const [key, value] of Object.entries(record)) {
+    if (key.startsWith("__workspace_")) continue;
+    output[key] = value;
+  }
+  return output;
+}
+function serializeWorkspaceRecord7(value) {
+  return `${JSON.stringify(value, null, 2)}
+`;
+}
+function stringValue5(value) {
+  return typeof value === "string" ? value : void 0;
+}
+function pruneUndefined6(value) {
+  const output = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (item !== void 0 && item !== "") output[key] = item;
+  }
+  return output;
+}
+async function saveMovScriptProductionWorkspaceSnapshot(input) {
+  const productionId = stableId(input.productionId, "production");
+  const productionSlug = slugId(productionId, "production");
+  const productionPath = `productions/${productionSlug}/production.json`;
+  const writtenPaths = [];
+  const production = await readOptionalRecord(input.fileRepository, productionPath);
+  await writeRecord(input.fileRepository, productionPath, pruneUndefined7({
+    ...stripWorkspacePrivateFields3(production),
+    schema: "movscript.production.v1",
+    kind: "production",
+    id: productionId,
+    title: stringValue6(input.snapshot.production?.title ?? production.title) ?? `Production ${displayId(productionId, "production")}`,
+    transition: normalizeTransition2(input.snapshot.production?.transition ?? production.transition),
+    updated_at: (input.now ?? /* @__PURE__ */ new Date()).toISOString()
+  }));
+  writtenPaths.push(productionPath);
+  for (const segment of input.snapshot.segments) {
+    const segmentId = stableId(segment.id ?? segment.client_id ?? writtenPaths.length + 1, "segment");
+    const segmentSlug = slugId(segmentId, "segment");
+    const segmentPath = `productions/${productionSlug}/segments/${segmentSlug}/segment.json`;
+    const existingSegment = await readOptionalRecord(input.fileRepository, segmentPath);
+    await writeRecord(input.fileRepository, segmentPath, pruneUndefined7({
+      ...stripWorkspacePrivateFields3(existingSegment),
+      schema: "movscript.segment.v1",
+      kind: "segment",
+      id: segmentId,
+      title: stringValue6(segment.title) ?? stringValue6(existingSegment.title) ?? `Segment ${displayId(segmentId, "segment")}`,
+      segment_kind: stringValue6(segment.kind ?? existingSegment.segment_kind),
+      summary: stringValue6(segment.summary ?? existingSegment.summary),
+      order: finiteNumber22(segment.order) ?? finiteNumber22(existingSegment.order),
+      transition: normalizeTransition2(segment.transition ?? existingSegment.transition),
+      script_block_id: nullableRef(segment.script_block_id ?? existingSegment.script_block_id, "script_block"),
+      ...segment.__delete === true ? { __delete: true } : {}
+    }));
+    writtenPaths.push(segmentPath);
+    for (const moment of segment.scene_moments ?? []) {
+      const momentId = stableId(moment.id ?? moment.client_id ?? `${segmentId}_${writtenPaths.length + 1}`, "scene_moment");
+      const momentSlug = slugId(momentId, "scene_moment");
+      const momentDir = `productions/${productionSlug}/segments/${segmentSlug}/scene_moments/${momentSlug}`;
+      const momentPath = `${momentDir}/scene_moment.json`;
+      const existingMoment = await readOptionalRecord(input.fileRepository, momentPath);
+      await writeRecord(input.fileRepository, momentPath, pruneUndefined7({
+        ...stripWorkspacePrivateFields3(existingMoment),
+        schema: "movscript.scene_moment.v1",
+        kind: "scene_moment",
+        id: momentId,
+        title: stringValue6(moment.title) ?? stringValue6(existingMoment.title) ?? `Scene Moment ${displayId(momentId, "scene_moment")}`,
+        scene_code: stringValue6(moment.scene_code ?? existingMoment.scene_code),
+        when: stringValue6(moment.time_text ?? existingMoment.when),
+        where: stringValue6(moment.location_text ?? existingMoment.where),
+        condition_text: stringValue6(moment.condition_text ?? existingMoment.condition_text),
+        action: stringValue6(moment.action_text ?? existingMoment.action),
+        emotion: stringValue6(moment.mood ?? existingMoment.emotion),
+        description: stringValue6(moment.description ?? existingMoment.description),
+        order: finiteNumber22(moment.order) ?? finiteNumber22(existingMoment.order),
+        transition: normalizeTransition2(moment.transition ?? existingMoment.transition),
+        script_block_id: nullableRef(moment.script_block_id ?? existingMoment.script_block_id, "script_block"),
+        setting_refs: normalizeSettingRefs(moment.settings, existingMoment.setting_refs),
+        ...moment.__delete === true ? { __delete: true } : {}
+      }));
+      writtenPaths.push(momentPath);
+      await writeKeyframeNodes({
+        fileRepository: input.fileRepository,
+        writtenPaths,
+        ownerDir: momentDir,
+        ownerKind: "scene_moment",
+        sceneMomentDir: momentDir,
+        ownerTitle: stringValue6(moment.title ?? existingMoment.title) ?? displayId(momentId, "scene_moment"),
+        nodes: moment.keyframes ?? []
+      });
+      await writeStoryboardNodes({
+        fileRepository: input.fileRepository,
+        writtenPaths,
+        ownerDir: momentDir,
+        ownerKind: "scene_moment",
+        sceneMomentDir: momentDir,
+        ownerTitle: stringValue6(moment.title ?? existingMoment.title) ?? displayId(momentId, "scene_moment"),
+        nodes: moment.storyboards ?? [],
+        settings: moment.settings
+      });
+      for (const audioCue of moment.audio_cues ?? []) {
+        const audioCueId = stableId(audioCue.id ?? audioCue.client_id ?? `${momentId}_${writtenPaths.length + 1}`, "audio_cue");
+        const audioCuePath = `${momentDir}/audio_cues/${slugId(audioCueId, "audio_cue")}/audio_cue.json`;
+        const existingAudioCue = await readOptionalRecord(input.fileRepository, audioCuePath);
+        await writeRecord(input.fileRepository, audioCuePath, pruneUndefined7({
+          ...stripWorkspacePrivateFields3(existingAudioCue),
+          schema: "movscript.audio_cue.v1",
+          kind: "audio_cue",
+          id: audioCueId,
+          title: stringValue6(audioCue.title ?? existingAudioCue.title) ?? `Audio Cue ${displayId(audioCueId, "audio_cue")}`,
+          cue_kind: normalizeAudioCueKind(audioCue.cue_kind ?? audioCue.kind ?? existingAudioCue.cue_kind),
+          order: finiteNumber22(audioCue.order) ?? finiteNumber22(existingAudioCue.order),
+          scope_ref: momentDir,
+          expression_unit_ref: stringValue6(audioCue.expression_unit_ref ?? existingAudioCue.expression_unit_ref),
+          storyboard_ref: normalizeStoryboardRef(audioCue.storyboard_ref ?? audioCue.storyboard_id ?? existingAudioCue.storyboard_ref),
+          timing: isRecord62(audioCue.timing) ? audioCue.timing : isRecord62(existingAudioCue.timing) ? existingAudioCue.timing : void 0,
+          prompt_hint: stringValue6(audioCue.prompt_hint ?? existingAudioCue.prompt_hint),
+          asset_refs: Array.isArray(audioCue.asset_refs) ? audioCue.asset_refs.filter(isString) : existingAudioCue.asset_refs,
+          ...audioCue.__delete === true ? { __delete: true } : {}
+        }));
+        writtenPaths.push(audioCuePath);
+      }
+      for (const expression of moment.expression_units ?? []) {
+        const expressionId = stableId(expression.id ?? expression.client_id ?? `${momentId}_${writtenPaths.length + 1}`, "expression_unit");
+        const expressionPath = `${momentDir}/expression_units/${slugId(expressionId, "expression_unit")}/expression_unit.json`;
+        const existingExpression = await readOptionalRecord(input.fileRepository, expressionPath);
+        await writeRecord(input.fileRepository, expressionPath, pruneUndefined7({
+          ...stripWorkspacePrivateFields3(existingExpression),
+          schema: "movscript.expression_unit.v1",
+          kind: "expression_unit",
+          id: expressionId,
+          title: stringValue6(expression.title ?? existingExpression.title) ?? stringValue6(expression.text) ?? `Expression Unit ${displayId(expressionId, "expression_unit")}`,
+          slot_kind: normalizeExpressionUnitSlotKind(expression.slot_kind ?? expression.slotKind ?? existingExpression.slot_kind ?? existingExpression.slotKind ?? expression.kind ?? existingExpression.expression_kind),
+          modality: stringValue6(expression.modality ?? existingExpression.modality),
+          role: stringValue6(expression.role ?? existingExpression.role),
+          expression_kind: normalizeExpressionKind(expression.kind ?? existingExpression.expression_kind),
+          visual_kind: stringValue6(expression.visual_kind ?? existingExpression.visual_kind),
+          speaker: stringValue6(expression.speaker ?? existingExpression.speaker),
+          speaker_ref: stringValue6(expression.speaker_ref ?? existingExpression.speaker_ref),
+          source_expression_ref: stringValue6(expression.source_expression_ref ?? existingExpression.source_expression_ref),
+          text: stringValue6(expression.text ?? existingExpression.text) ?? "",
+          note: stringValue6(expression.note ?? existingExpression.note),
+          intent: stringValue6(expression.intent ?? existingExpression.intent),
+          content: isRecord62(expression.content) ? expression.content : isRecord62(existingExpression.content) ? existingExpression.content : void 0,
+          timing_intent: isRecord62(expression.timing_intent) ? expression.timing_intent : isRecord62(existingExpression.timing_intent) ? existingExpression.timing_intent : void 0,
+          voice_profile_ref: stringValue6(expression.voice_profile_ref ?? existingExpression.voice_profile_ref),
+          order: finiteNumber22(expression.order) ?? finiteNumber22(existingExpression.order),
+          span: isRecord62(expression.span) ? expression.span : isRecord62(existingExpression.span) ? existingExpression.span : void 0,
+          script_block_id: nullableRef(expression.script_block_id ?? existingExpression.script_block_id, "script_block"),
+          ...expression.__delete === true ? { __delete: true } : {}
+        }));
+        writtenPaths.push(expressionPath);
+        await writeKeyframeNodes({
+          fileRepository: input.fileRepository,
+          writtenPaths,
+          ownerDir: `${momentDir}/expression_units/${slugId(expressionId, "expression_unit")}`,
+          ownerKind: "expression_unit",
+          sceneMomentDir: momentDir,
+          ownerTitle: stringValue6(expression.title ?? existingExpression.title) ?? displayId(expressionId, "expression_unit"),
+          nodes: expression.keyframes ?? []
+        });
+        await writeStoryboardNodes({
+          fileRepository: input.fileRepository,
+          writtenPaths,
+          ownerDir: `${momentDir}/expression_units/${slugId(expressionId, "expression_unit")}`,
+          ownerKind: "expression_unit",
+          sceneMomentDir: momentDir,
+          ownerTitle: stringValue6(expression.title ?? existingExpression.title) ?? displayId(expressionId, "expression_unit"),
+          nodes: expression.storyboards ?? [],
+          settings: moment.settings
+        });
+      }
+    }
+  }
+  return { productionPath, snapshot: input.snapshot, writtenPaths };
+}
+async function writeKeyframeNodes({
+  fileRepository,
+  writtenPaths,
+  ownerDir,
+  ownerKind,
+  sceneMomentDir,
+  ownerTitle,
+  nodes
+}) {
+  for (const keyframe of nodes) {
+    const keyframeId = stableId(keyframe.id ?? keyframe.client_id ?? `${ownerTitle}_${writtenPaths.length + 1}`, "keyframe");
+    const keyframePath = `${ownerDir}/keyframes/${slugId(keyframeId, "keyframe")}/keyframe.json`;
+    const existingKeyframe = await readOptionalRecord(fileRepository, keyframePath);
+    await writeRecord(fileRepository, keyframePath, pruneUndefined7({
+      ...stripWorkspacePrivateFields3(existingKeyframe),
+      schema: "movscript.keyframe.v1",
+      kind: "keyframe",
+      id: keyframeId,
+      title: stringValue6(keyframe.title ?? existingKeyframe.title) ?? `Keyframe ${displayId(keyframeId, "keyframe")}`,
+      scene_moment_ref: sceneMomentDir,
+      ...ownerKind === "expression_unit" ? { expression_unit_ref: ownerDir } : {},
+      role: stringValue6(keyframe.role ?? existingKeyframe.role),
+      visual_intent: stringValue6(keyframe.visual_intent ?? existingKeyframe.visual_intent),
+      timing: isRecord62(keyframe.timing) ? keyframe.timing : isRecord62(existingKeyframe.timing) ? existingKeyframe.timing : void 0,
+      composition: isRecord62(keyframe.composition) ? keyframe.composition : isRecord62(existingKeyframe.composition) ? existingKeyframe.composition : void 0,
+      continuity: isRecord62(keyframe.continuity) ? keyframe.continuity : isRecord62(existingKeyframe.continuity) ? existingKeyframe.continuity : void 0,
+      reference_asset_refs: Array.isArray(keyframe.reference_asset_refs) ? keyframe.reference_asset_refs.filter(isString) : existingKeyframe.reference_asset_refs,
+      reference_keyframe_refs: Array.isArray(keyframe.reference_keyframe_refs) ? keyframe.reference_keyframe_refs.filter(isString) : existingKeyframe.reference_keyframe_refs,
+      ...keyframe.__delete === true ? { __delete: true } : {}
+    }));
+    writtenPaths.push(keyframePath);
+  }
+}
+async function writeStoryboardNodes({
+  fileRepository,
+  writtenPaths,
+  ownerDir,
+  ownerKind,
+  sceneMomentDir,
+  ownerTitle,
+  nodes,
+  settings
+}) {
+  for (const [storyboardIndex, storyboard] of nodes.entries()) {
+    const storyboardId = stableId(storyboard.id ?? storyboard.client_id ?? "main", "storyboard");
+    const storyboardPath = `${ownerDir}/storyboards/${slugId(storyboardId, "storyboard")}/storyboard.json`;
+    const existingStoryboard = await readOptionalRecord(fileRepository, storyboardPath);
+    await writeRecord(fileRepository, storyboardPath, pruneUndefined7({
+      ...stripWorkspacePrivateFields3(existingStoryboard),
+      schema: "movscript.storyboard.v1",
+      kind: "storyboard",
+      id: storyboardId,
+      title: stringValue6(storyboard.title ?? existingStoryboard.title) ?? `${ownerTitle} storyboard`,
+      order: finiteNumber22(storyboard.order) ?? finiteNumber22(existingStoryboard.order) ?? storyboardIndex + 1,
+      slot: stringValue6(storyboard.slot ?? existingStoryboard.slot) ?? String(storyboardId),
+      asset_kind: stringValue6(storyboard.asset_kind ?? existingStoryboard.asset_kind),
+      scene_moment_ref: sceneMomentDir,
+      ...ownerKind === "expression_unit" ? { expression_unit_ref: ownerDir } : {},
+      transition: normalizeTransition2(storyboard.transition ?? existingStoryboard.transition),
+      timeline: normalizeTimeline2(storyboard.timeline ?? {
+        gap_after_sec: storyboard.gap_after_sec,
+        caption: storyboard.caption,
+        duration_sec: storyboard.duration_sec
+      }, existingStoryboard.timeline),
+      graph: isRecord62(storyboard.graph) ? storyboard.graph : isRecord62(existingStoryboard.graph) ? existingStoryboard.graph : void 0,
+      setting_refs: normalizeSettingRefs(storyboard.settings ?? settings, existingStoryboard.setting_refs),
+      ...storyboard.__delete === true ? { __delete: true } : {}
+    }));
+    writtenPaths.push(storyboardPath);
+  }
+}
+function normalizeSettingRefs(refs, fallback) {
+  if (!refs) return Array.isArray(fallback) ? fallback.filter(isRecord62) : void 0;
+  return refs.map((ref) => pruneUndefined7({
+    setting_id: stableId(ref.id ?? ref.client_id ?? "unassigned", "setting"),
+    setting_state_id: ref.setting_state_id ?? ref.setting_state_ref,
+    role: stringValue6(ref.role),
+    notes: stringValue6(ref.source_label),
+    setting_kind: stringValue6(ref.kind),
+    state: isRecord62(ref.state) ? ref.state : void 0,
+    ...ref.__delete === true ? { __delete: true } : {}
+  }));
+}
+function normalizeExpressionKind(value) {
+  const kind = stringValue6(value);
+  if (kind === "shot") return "shot";
+  if (kind === "dialogue" || kind === "narration" || kind === "subtitle" || kind === "caption" || kind === "action" || kind === "shot") return kind;
+  if (kind === "visual" || kind === "visual_note") return "visual_note";
+  if (kind === "voice" || kind === "verbal" || kind === "voiceover") return "dialogue";
+  if (kind === "audio" || kind === "sound" || kind === "sound_effect" || kind === "sfx" || kind === "music" || kind === "ambience") return "action";
+  return "visual_note";
+}
+function normalizeTransition2(value) {
+  if (!isRecord62(value)) return void 0;
+  return pruneUndefined7({
+    in: stringValue6(value.in),
+    out: stringValue6(value.out),
+    notes: stringValue6(value.notes)
+  });
+}
+function normalizeTimeline2(value, fallback) {
+  const source = isRecord62(value) ? value : isRecord62(fallback) ? fallback : {};
+  const timeline = pruneUndefined7({
+    gap_after_sec: finiteNumber22(source.gap_after_sec),
+    caption: stringValue6(source.caption),
+    duration_sec: finiteNumber22(source.duration_sec)
+  });
+  return Object.keys(timeline).length ? timeline : void 0;
+}
+function normalizeAudioCueKind(value) {
+  const kind = stringValue6(value);
+  if (kind === "sound_effect" || kind === "music" || kind === "ambience" || kind === "dialogue" || kind === "foley" || kind === "other") return kind;
+  if (kind === "sound") return "sound_effect";
+  if (kind === "music_beat") return "music";
+  return "sound_effect";
+}
+function normalizeStoryboardRef(value) {
+  return stringValue6(value);
+}
+async function readRecord(fileRepository, path) {
+  const file = await fileRepository.read({ path });
+  const parsed = JSON.parse(file.content);
+  return isRecord62(parsed) ? parsed : {};
+}
+async function readOptionalRecord(fileRepository, path) {
+  return readRecord(fileRepository, path).catch(() => ({}));
+}
+async function writeRecord(fileRepository, path, record) {
+  await fileRepository.write({ path, content: `${JSON.stringify(record, null, 2)}
+` });
+}
+function stableId(value, prefix) {
+  return semanticEntityId(value, prefix);
+}
+function slugId(value, prefix) {
+  return entityPathSlug(value, prefix);
+}
+function nullableRef(value, prefix) {
+  if (value === null) return null;
+  if (value === void 0 || String(value).trim() === "") return void 0;
+  return stableId(value, prefix);
+}
+function displayId(value, prefix) {
+  return displayEntityId(value, prefix);
+}
+function finiteNumber22(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : void 0;
+}
+function stringValue6(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : void 0;
+}
+function isRecord62(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+function isString(value) {
+  return typeof value === "string";
+}
+function stripWorkspacePrivateFields3(record) {
+  const output = {};
+  for (const [key, value] of Object.entries(record)) {
+    if (key.startsWith("__workspace_")) continue;
+    output[key] = value;
+  }
+  return output;
+}
+function pruneUndefined7(value) {
+  const output = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (item !== void 0 && item !== "") output[key] = item;
+  }
+  return output;
+}
+async function upsertMovScriptContentUnit(input) {
+  const contentUnitId = stableEntityId(input.unit.ID ?? input.unit.id ?? input.unit.client_id, "content_unit");
+  const contentUnitPath = movScriptContentUnitPath(input.unit);
+  const current = await readOptionalRecord2(input.fileRepository, contentUnitPath);
+  const record = normalizeContentUnitRecord(input.unit, current, contentUnitId);
+  validateContentUnitTarget(record);
+  validateContentUnitPrimaryPromptRefs(record);
+  await writeRecord2(input.fileRepository, contentUnitPath, record);
+  return { contentUnitPath, record };
+}
+function movScriptContentUnitPath(unit) {
+  const id = stableEntityId(unit.ID ?? unit.id ?? unit.client_id, "content_unit");
+  return `${contentUnitDirectory(id)}/content_unit.json`;
+}
+function normalizeContentUnitRecord(unit, current, id) {
+  const contentUnitType2 = stringValue7(unit.content_unit_type ?? unit.contentUnitType ?? current.content_unit_type) ?? "storyboard_ref";
+  const outputKind = stringValue7(unit.output_kind ?? unit.outputKind ?? current.output_kind) ?? defaultOutputKind(contentUnitType2);
+  const scopeKind = stringValue7(unit.scope_kind ?? unit.scopeKind ?? current.scope_kind);
+  const scopeRef = stringValue7(unit.scope_ref ?? unit.scopeRef ?? current.scope_ref);
+  const targetKind = stringValue7(unit.target_kind ?? unit.targetKind ?? current.target_kind) ?? (contentUnitType2 === "timeline_assembly_ref" ? "timeline_assembly" : void 0);
+  const targetRef = stringValue7(unit.target_ref ?? unit.targetRef ?? current.target_ref) ?? (contentUnitType2 === "timeline_assembly_ref" && scopeKind && scopeRef ? implicitTimelineAssemblyRef(scopeKind, scopeRef) : void 0);
+  return pruneUndefined8({
+    ...stripWorkspacePrivateFields4(current),
+    schema: "movscript.content_unit.v1",
+    kind: "content_unit",
+    id,
+    title: stringValue7(unit.title ?? current.title) ?? "Untitled content unit",
+    content_unit_type: contentUnitType2,
+    output_kind: outputKind,
+    target_category: stringValue7(unit.target_category ?? unit.targetCategory ?? current.target_category),
+    target_kind: targetKind,
+    target_ref: targetRef,
+    scope_kind: scopeKind,
+    scope_ref: scopeRef,
+    generation_role: stringValue7(unit.generation_role ?? unit.generationRole ?? current.generation_role),
+    order: finiteNumber3(unit.order) ?? finiteNumber3(current.order),
+    description: stringValue7(unit.description ?? current.description) ?? "",
+    asset_ref: stringValue7(unit.asset_ref ?? unit.assetRef ?? current.asset_ref),
+    production_ref: stringValue7(unit.production_ref ?? unit.productionRef ?? current.production_ref),
+    segment_ref: stringValue7(unit.segment_ref ?? unit.segmentRef ?? current.segment_ref),
+    keyframe_ref: stringValue7(unit.keyframe_ref ?? unit.keyframeRef ?? current.keyframe_ref),
+    storyboard_ref: stringValue7(unit.storyboard_ref ?? unit.storyboardRef ?? current.storyboard_ref),
+    scene_moment_ref: stringValue7(unit.scene_moment_ref ?? unit.sceneMomentRef ?? current.scene_moment_ref),
+    expression_unit_ref: stringValue7(unit.expression_unit_ref ?? unit.expressionUnitRef ?? current.expression_unit_ref),
+    content_unit_ref: stringValue7(unit.content_unit_ref ?? unit.contentUnitRef ?? current.content_unit_ref),
+    voice_profile_ref: stringValue7(unit.voice_profile_ref ?? unit.voiceProfileRef ?? current.voice_profile_ref),
+    edit_prompt: normalizeEditPrompt(unit.edit_prompt ?? unit.editPrompt ?? unit.prompt ?? current.edit_prompt),
+    model_intent: isRecord72(unit.model_intent ?? unit.modelIntent) ? unit.model_intent ?? unit.modelIntent : current.model_intent,
+    ...unit.__delete === true ? { __delete: true } : {}
+  });
+}
+function contentUnitDirectory(id) {
+  return `content_units/${entityPathSlug(id, "content_unit")}`;
+}
+function defaultOutputKind(contentUnitType2) {
+  return outputKindForContentUnitType(contentUnitType2, void 0);
+}
+function validateContentUnitTarget(record) {
+  for (const diagnostic2 of contentUnitTargetValidationDiagnostics(record)) {
+    throw new Error(diagnostic2.message);
+  }
+}
+function validateContentUnitPrimaryPromptRefs(record) {
+  const contentUnitType2 = stringValue7(record.content_unit_type);
+  if (!contentUnitType2) return;
+  const primaryKind = primaryRefKindForContentUnitType(contentUnitType2);
+  if (!primaryKind) return;
+  const primaryRefs = primaryRefIdsForContentUnitRecord(record, primaryKind);
+  if (primaryRefs.length === 0) return;
+  const promptRefs = parseContentUnitEditPromptRefs(record.edit_prompt);
+  for (const promptRef of promptRefs) {
+    if (promptRef.kind !== primaryKind) continue;
+    if (!primaryRefs.some((primaryRef) => sameRefId(primaryRef, promptRef.id, primaryKind))) continue;
+    throw new Error(`${contentUnitType2} content_unit edit_prompt must not reference its own ${primaryRefFieldNameForKind(primaryKind)}: ${promptRef.raw}`);
+  }
+}
+var PROMPT_REF_PATTERN = /\{\{([a-z_]+):([^{}:\s][^{}]*)\}\}/g;
+function parseContentUnitEditPromptRefs(value) {
+  const editPrompt = isRecord72(value) ? value : {};
+  return [
+    ...parsePromptRefsFromText(stringValue7(editPrompt.text)),
+    ...parsePromptRefsFromText(stringValue7(editPrompt.negative_text)),
+    ...parsePromptRefsFromText(stringValue7(editPrompt.notes))
+  ];
+}
+function parsePromptRefsFromText(text) {
+  if (!text) return [];
+  const refs = [];
+  for (const match of text.matchAll(PROMPT_REF_PATTERN)) {
+    const kind = promptRefKind(match[1]);
+    const id = match[2]?.trim();
+    if (!kind || !id) continue;
+    refs.push({ kind, id, raw: match[0] });
+  }
+  return refs;
+}
+function promptRefKind(value) {
+  return isContentUnitPromptRefKind(value) ? value : void 0;
+}
+function sameRefId(left, right, kind) {
+  return sameEntityRef(left, right, kind) || lastPathSegment2(left) === right || lastPathSegment2(right) === left;
+}
+function lastPathSegment2(value) {
+  if (typeof value !== "string" || !value.includes("/")) return void 0;
+  return value.split("/").filter(Boolean).at(-1);
+}
+function stableEntityId(value, prefix) {
+  return semanticEntityId(value, prefix);
+}
+async function readOptionalRecord2(fileRepository, path) {
+  return fileRepository.read({ path }).then((file) => {
+    const parsed = JSON.parse(file.content);
+    return isRecord72(parsed) ? parsed : {};
+  }).catch(() => ({}));
+}
+async function writeRecord2(fileRepository, path, record) {
+  await fileRepository.write({ path, content: `${JSON.stringify(record, null, 2)}
+` });
+}
+function stripWorkspacePrivateFields4(record) {
+  const output = {};
+  for (const [key, value] of Object.entries(record)) {
+    if (key.startsWith("__workspace_")) continue;
+    output[key] = value;
+  }
+  return output;
+}
+function stringValue7(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : void 0;
+}
+function finiteNumber3(value) {
+  const next = Number(value);
+  return Number.isFinite(next) ? next : void 0;
+}
+function normalizeEditPrompt(value) {
+  if (typeof value === "string") return { text: value };
+  if (isRecord72(value)) return value;
+  return void 0;
+}
+function isRecord72(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+function pruneUndefined8(value) {
+  const output = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (item !== void 0 && item !== "") output[key] = item;
+  }
+  return output;
+}
+function createMovScriptScopedProjectDataDecisionStore(options) {
+  const baseUrl = options.baseUrl.replace(/\/+$/, "");
+  const fetchImpl = options.fetch ?? globalThis.fetch;
+  if (!fetchImpl) throw new Error("fetch is required for scoped project data decision store");
+  const headers = () => ({
+    "content-type": "application/json",
+    ...options.token ? { authorization: `Bearer ${options.token}` } : {},
+    ...options.headers ?? {}
+  });
+  const scopePayload = () => pruneUndefined9({
+    scope_kind: options.scopeKind,
+    scope_id: options.scopeId === void 0 ? void 0 : String(options.scopeId),
+    project_uid: options.projectUid,
+    title: options.title
+  });
+  const targetQuery = (targetRef) => {
+    const query = new URLSearchParams();
+    query.set("project_uid", options.projectUid);
+    query.set("target_kind", "content_unit");
+    query.set("target_ref", targetRef);
+    if (options.scopeKind) query.set("scope_kind", options.scopeKind);
+    if (options.scopeId !== void 0) query.set("scope_id", String(options.scopeId));
+    return query.toString();
+  };
+  const request = async (path, init = {}) => {
+    const response = await fetchImpl(`${baseUrl}/api/v1/project-data${path}`, {
+      ...init,
+      headers: {
+        ...headers(),
+        ...init.headers ?? {}
+      }
+    });
+    if (response.status === 404) {
+      console.info("[movscript-decision-store] scoped project data request not found", {
+        projectUid: options.projectUid,
+        scopeKind: options.scopeKind,
+        scopeId: options.scopeId,
+        method: init.method ?? "GET",
+        path,
+        status: response.status
+      });
+      return void 0;
+    }
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      console.warn("[movscript-decision-store] scoped project data request failed", {
+        projectUid: options.projectUid,
+        scopeKind: options.scopeKind,
+        scopeId: options.scopeId,
+        method: init.method ?? "GET",
+        path,
+        status: response.status,
+        body
+      });
+      throw new Error(`scoped project data decision request failed: ${response.status}${body ? ` ${body}` : ""}`);
+    }
+    if (response.status === 204) return void 0;
+    return await response.json();
+  };
+  return {
+    async getContentUnitDecision(input) {
+      const targetRef = contentUnitDecisionTargetRef(input.contentUnitId);
+      const context = await request(`/decisions?${targetQuery(targetRef)}`);
+      if (isMovScriptDecisionStoreDebugEnabled()) {
+        console.info("[movscript-decision-store] get scoped content unit decision", {
+          projectUid: options.projectUid,
+          contentUnitId: input.contentUnitId,
+          targetRef,
+          found: Boolean(context),
+          candidateCount: context?.candidates.length ?? 0
+        });
+      }
+      return context;
+    },
+    async getContentUnitDecisions(input) {
+      const ids = uniqueContentUnitIds(input.contentUnitIds);
+      if (ids.length === 0) return /* @__PURE__ */ new Map();
+      const contexts = await request("/decisions/query", {
+        method: "POST",
+        body: JSON.stringify({
+          ...scopePayload(),
+          target_kind: "content_unit",
+          target_refs: ids.map(contentUnitDecisionTargetRef)
+        })
+      }) ?? [];
+      if (isMovScriptDecisionStoreDebugEnabled()) {
+        console.info("[movscript-decision-store] get scoped content unit decisions", {
+          projectUid: options.projectUid,
+          requestedCount: ids.length,
+          foundCount: contexts.length
+        });
+      }
+      const byTargetRef = new Map(contexts.map((context) => [context.target_ref, context]));
+      const out = /* @__PURE__ */ new Map();
+      for (const id of ids) {
+        const context = byTargetRef.get(contentUnitDecisionTargetRef(id));
+        if (context) out.set(String(id), context);
+      }
+      return out;
+    },
+    async replaceContentUnitCandidates(input) {
+      const targetRef = contentUnitDecisionTargetRef(input.contentUnitId);
+      const context = await requiredDecisionContext(request("/decisions/candidates", {
+        method: "PUT",
+        body: JSON.stringify({
+          ...scopePayload(),
+          target_kind: "content_unit",
+          target_ref: targetRef,
+          candidates: input.candidates
+        })
+      }));
+      console.info("[movscript-decision-store] replace scoped content unit candidates", {
+        projectUid: options.projectUid,
+        contentUnitId: input.contentUnitId,
+        targetRef,
+        candidateCount: context.candidates.length
+      });
+      return context;
+    },
+    async upsertContentUnitCandidate(input) {
+      const targetRef = contentUnitDecisionTargetRef(input.contentUnitId);
+      const context = await requiredDecisionContext(request("/decisions/candidates", {
+        method: "POST",
+        body: JSON.stringify({
+          ...scopePayload(),
+          target_kind: "content_unit",
+          target_ref: targetRef,
+          candidate: input.candidate
+        })
+      }));
+      console.info("[movscript-decision-store] upsert scoped content unit candidate", {
+        projectUid: options.projectUid,
+        contentUnitId: input.contentUnitId,
+        targetRef,
+        candidateId: idField5(input.candidate.id),
+        candidateCount: context.candidates.length
+      });
+      return context;
+    },
+    async selectContentUnitCandidate(input) {
+      const targetRef = contentUnitDecisionTargetRef(input.contentUnitId);
+      const context = await requiredDecisionContext(request("/decisions/selection", {
+        method: "PUT",
+        body: JSON.stringify({
+          ...scopePayload(),
+          target_kind: "content_unit",
+          target_ref: targetRef,
+          candidate_id: stringIdField(input.candidateId),
+          resource_id: input.resourceId === void 0 ? void 0 : requiredResourceId3(input.resourceId),
+          stale_policy: input.stalePolicy,
+          reason: input.reason,
+          selected_at: input.selectedAt,
+          metadata: input.metadata
+        })
+      }));
+      console.info("[movscript-decision-store] select scoped content unit candidate", {
+        projectUid: options.projectUid,
+        contentUnitId: input.contentUnitId,
+        targetRef,
+        candidateId: stringIdField(input.candidateId),
+        candidateCount: context.candidates.length,
+        hasSelection: Boolean(context.selection)
+      });
+      return context;
+    },
+    clearContentUnitSelection(input) {
+      const targetRef = contentUnitDecisionTargetRef(input.contentUnitId);
+      return requiredDecisionContext(request(`/decisions/selection?${targetQuery(targetRef)}`, {
+        method: "DELETE"
+      }));
+    }
+  };
+}
+async function overlayMovScriptDecisionDocuments(documents, decisionStore) {
+  if (!decisionStore) return documents;
+  const sourceDocuments = documents.filter((document) => !isMovScriptContentUnitDecisionPath(document.path));
+  const baseIndex = deriveMovScriptWorkspaceDomainIndex(sourceDocuments);
+  const contentUnits = baseIndex.byKind.get("content_unit") ?? [];
+  const decisionsByContentUnitId = await getOverlayDecisionContexts(decisionStore, contentUnits);
+  const overlays = [];
+  const rows = [];
+  for (const contentUnit of contentUnits) {
+    if (contentUnit.id === void 0) continue;
+    const context = decisionsByContentUnitId.get(String(contentUnit.id));
+    if (!context) continue;
+    const contentUnitRef = entityDir3(contentUnit.path);
+    rows.push({
+      contentUnitId: contentUnit.id,
+      targetRef: context.target_ref,
+      candidateCount: context.candidates.length,
+      candidateIds: decisionCandidateIds(context.candidates)
+    });
+    overlays.push({
+      path: contentUnitDecisionContextPath(contentUnit.id),
+      data: normalizeDecisionContext(context, contentUnitRef)
+    });
+    for (const candidate of context.candidates) {
+      const candidateId = idField5(candidate.id);
+      if (candidateId === void 0) continue;
+      overlays.push({
+        path: `${contentUnitRef}/candidates/${entityPathSlug(candidateId, "candidate")}/content_candidate.json`,
+        data: normalizeContentUnitCandidate(candidate, contentUnitRef)
+      });
+    }
+  }
+  if (rows.length > 0 && isMovScriptDecisionStoreDebugEnabled()) {
+    console.info("[movscript-decision-store] overlay content unit decisions", {
+      contentUnitCount: contentUnits.length,
+      rows
+    });
+  }
+  const overlayPaths = new Set(overlays.map((document) => document.path));
+  return [
+    ...sourceDocuments.filter((document) => !overlayPaths.has(document.path)),
+    ...overlays
+  ].sort((left, right) => left.path.localeCompare(right.path));
+}
+async function getOverlayDecisionContexts(decisionStore, contentUnits) {
+  const contentUnitIds = uniqueContentUnitIds(contentUnits.map((unit) => unit.id).filter((id) => id !== void 0));
+  if (contentUnitIds.length === 0) return /* @__PURE__ */ new Map();
+  if (decisionStore.getContentUnitDecisions) {
+    return decisionStore.getContentUnitDecisions({ contentUnitIds });
+  }
+  const out = /* @__PURE__ */ new Map();
+  for (const contentUnitId of contentUnitIds) {
+    const context = await decisionStore.getContentUnitDecision({ contentUnitId });
+    if (context) out.set(String(contentUnitId), context);
+  }
+  return out;
+}
+function uniqueContentUnitIds(values) {
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  for (const value of values) {
+    const key = String(value);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(value);
+  }
+  return out;
+}
+function isMovScriptDecisionStoreDebugEnabled() {
+  return typeof process !== "undefined" && process.env?.MOVSCRIPT_DECISION_STORE_DEBUG === "1";
+}
+function contentUnitDecisionTargetRef(contentUnitId) {
+  return `content_units/${entityPathSlug(contentUnitId, "content_unit")}`;
+}
+function contentUnitDecisionContextPath(contentUnitId) {
+  return `.movscript/decisions/content_units/${entityPathSlug(contentUnitId, "content_unit")}/decision_context.json`;
+}
+function normalizeDecisionContext(context, targetRef = context.target_ref) {
+  return pruneUndefined9({
+    ...context,
+    schema: "movscript.decision_context.v1",
+    target_kind: context.target_kind,
+    target_ref: targetRef,
+    candidates: context.candidates.map((candidate) => normalizeContentUnitCandidate(candidate, targetRef)),
+    selection: isRecord82(context.selection) ? normalizeContentUnitDecisionSelection(context.selection) : void 0
+  });
+}
+function normalizeContentUnitCandidate(candidate, contentUnitRef) {
+  return pruneUndefined9({
+    ...candidate,
+    schema: candidate.schema ?? "movscript.content_candidate.v1",
+    content_unit_ref: candidate.content_unit_ref ?? contentUnitRef
+  });
+}
+function normalizeContentUnitDecisionSelection(selection) {
+  return pruneUndefined9({
+    candidate_id: selection.candidate_id,
+    resource_id: selection.resource_id,
+    stale_policy: selection.stale_policy === "accept_stale" ? "accept_stale" : "strict",
+    reason: selection.reason,
+    selected_at: selection.selected_at,
+    selected_by: selection.selected_by,
+    metadata: isRecord82(selection.metadata) ? selection.metadata : void 0
+  });
+}
+async function requiredDecisionContext(promise) {
+  const context = await promise;
+  if (!context) throw new Error("backend decision context not found");
+  return context;
+}
+function entityDir3(path) {
+  return path.replace(/\/[^/]+$/, "");
+}
+function idField5(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) return value.trim();
+  return void 0;
+}
+function decisionCandidateIds(candidates) {
+  return candidates.map((candidate) => idField5(candidate.id)).filter((id) => id !== void 0);
+}
+function stringIdField(value) {
+  const id = idField5(value);
+  return id === void 0 ? void 0 : String(id);
+}
+function requiredResourceId3(value) {
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) return value;
+  throw new Error("resource_id must be a positive integer RawResource ID");
+}
+function isRecord82(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+function pruneUndefined9(value) {
+  const output = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (item !== void 0) output[key] = item;
+  }
+  return output;
+}
+function buildMovScriptContentCandidate(input) {
+  const contentUnitId = stableEntityId2(input.contentUnitId, "content_unit");
+  const candidateId = stableEntityId2(input.candidateId ?? `candidate_${Date.now()}`, "candidate");
+  const path = `${contentUnitDirectory2(contentUnitId)}/candidates/${entityPathSlug(candidateId, "candidate")}/content_candidate.json`;
+  const record = pruneUndefined10({
+    schema: "movscript.content_candidate.v1",
+    id: candidateId,
+    content_unit_ref: contentUnitDirectory2(contentUnitId),
+    source: input.source ?? "ai_generate",
+    status: input.status ?? "succeeded",
+    producer: input.producer ?? { kind: "runtime" },
+    outputs: normalizeOutputs(input.outputs),
+    prompt_snapshot: input.promptSnapshot,
+    created_at: input.createdAt ?? (/* @__PURE__ */ new Date()).toISOString()
+  });
+  return { path, record };
+}
+function contentUnitDirectory2(id) {
+  return `content_units/${entityPathSlug(id, "content_unit")}`;
+}
+function stableEntityId2(value, prefix) {
+  return semanticEntityId(value, prefix);
+}
+function normalizeOutputs(outputs) {
+  return outputs.map((output, index) => {
+    const resourceId = requiredResourceId4(output.resource_id, `outputs[${index}].resource_id`);
+    return pruneUndefined10({
+      ...output,
+      resource_id: resourceId,
+      artifact_ref: stringField25(output.artifact_ref)
+    });
+  });
+}
+function requiredResourceId4(value, name) {
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) return value;
+  throw new Error(`${name} must be a positive integer RawResource ID`);
+}
+function stringField25(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : void 0;
+}
+function pruneUndefined10(value) {
+  const output = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (item !== void 0) output[key] = item;
+  }
+  return output;
+}
+async function upsertMovScriptProjectStandards(input) {
+  const current = stripWorkspacePrivateFields5(input.record ?? {});
+  const projectStyle = {
+    ...parseProjectStyle2(current.project_style),
+    ...input.projectStyle
+  };
+  const record = pruneUndefined11({
+    ...current,
+    schema: "movscript.project_standards.v1",
+    kind: "project_standards",
+    id: "project_standards",
+    title: stringValue8(current.title) ?? "Project standards",
+    aspect_ratio: stringValue8(projectStyle.aspect_ratio ?? current.aspect_ratio),
+    visual_style: stringValue8(projectStyle.visual_style ?? current.visual_style),
+    project_style: JSON.stringify(projectStyle),
+    updated_at: (input.now ?? /* @__PURE__ */ new Date()).toISOString()
+  });
+  const path = "project_standards.json";
+  await input.fileRepository.write({ path, content: `${JSON.stringify(record, null, 2)}
+` });
+  return { path, record };
+}
+function parseProjectStyle2(value) {
+  if (isRecord92(value)) return value;
+  if (typeof value !== "string" || !value.trim()) return {};
+  try {
+    const parsed = JSON.parse(value);
+    return isRecord92(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+function stripWorkspacePrivateFields5(record) {
+  const output = {};
+  for (const [key, value] of Object.entries(record)) {
+    if (key.startsWith("__workspace_")) continue;
+    output[key] = value;
+  }
+  return output;
+}
+function stringValue8(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : void 0;
+}
+function isRecord92(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+function pruneUndefined11(value) {
+  const output = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (item !== void 0 && item !== "") output[key] = item;
+  }
+  return output;
+}
+var MOVSCRIPT_PROJECT_STANDARD_SKILL_PATHS = [
+  ".codex/skills/plugins/movscript_project-standards/project-standards/SKILL.md",
+  ".claude/skills/plugins/movscript_project-standards/project-standards/SKILL.md",
+  ".mova/skills/plugins/movscript_project-standards/project-standards/SKILL.md"
+];
+async function syncMovScriptProjectStandardSkills(input) {
+  const content = renderMovScriptProjectStandardSkill(input.standards);
+  const results = [];
+  for (const path of MOVSCRIPT_PROJECT_STANDARD_SKILL_PATHS) {
+    await input.fileRepository.write({ path, content });
+    results.push({ path, content });
+  }
+  return results;
+}
+function renderMovScriptProjectStandardSkill(standards) {
+  const projectStyle = parseProjectStyle22(standards.project_style);
+  const coreSections = [
+    fieldSection("Aspect ratio", standards.aspect_ratio ?? projectStyle.aspect_ratio),
+    fieldSection("Visual style", standards.visual_style ?? projectStyle.visual_style),
+    fieldSection("Lighting style", standards.lighting_style ?? projectStyle.lighting_style),
+    fieldSection("Camera language", standards.camera_language ?? projectStyle.camera_language),
+    fieldSection("Color palette", standards.color_palette ?? projectStyle.color_palette),
+    fieldSection("Pacing rules", standards.pacing_rules ?? projectStyle.pacing_rules),
+    listSection("Shot size system", standards.shot_size_system ?? projectStyle.shot_size_system),
+    listSection("Negative rules", standards.negative_rules ?? projectStyle.negative_rules),
+    customRulesSection(standards.custom_rules ?? projectStyle.custom_rules),
+    styleReferenceSection(standards, projectStyle)
+  ].filter(Boolean);
+  return [
+    "---",
+    "name: project-standards",
+    "description: Apply the current MovScript project standards from project_standards.json when planning, coding, prompting, or generating project-scoped work.",
+    "---",
+    "",
+    "# MovScript Project Standards",
+    "",
+    "Generated from `project_standards.json`. Do not edit this file manually; update project standards through MovScript source or domain tools.",
+    "",
+    "Use this skill whenever work depends on this MovScript project, especially planning, content-unit prompts, generation, style-sensitive code, or provider behavior.",
+    "",
+    "## Rules",
+    "",
+    "- Treat `project_standards.json` as the source of truth.",
+    "- Apply these standards as project-wide house style and constraints.",
+    "- Do not change project standards unless the user explicitly asks to add, remove, replace, or refine them.",
+    "- For visual generation that supports references, pass listed style reference resource ids as house-style references.",
+    "",
+    ...coreSections.length ? ["## Current Standards", "", ...coreSections] : ["## Current Standards", "", "- No project standards are currently filled.", ""]
+  ].join("\n");
+}
+function fieldSection(label, value) {
+  const text = textValue(value);
+  return text ? `### ${label}
+
+${text}
+` : void 0;
+}
+function listSection(label, value) {
+  const items = arrayValues(value);
+  if (!items.length) return void 0;
+  return `### ${label}
+
+${items.map((item) => `- ${item}`).join("\n")}
+`;
+}
+function customRulesSection(value) {
+  const rules = arrayRecords(value).filter((rule) => rule.enabled !== false).map((rule) => {
+    const key = textValue(rule.key) ?? "custom_rule";
+    const ruleValue = rule.value ?? rule.text ?? rule.description;
+    const text = textValue(ruleValue) ?? JSON.stringify(ruleValue);
+    return text ? `- ${key}: ${text}` : void 0;
+  }).filter((rule) => Boolean(rule));
+  if (!rules.length) return void 0;
+  return `### Custom rules
+
+${rules.join("\n")}
+`;
+}
+function styleReferenceSection(standards, projectStyle) {
+  const ids = uniqueNumbers([
+    ...resourceIdsFromValue(standards.style_reference_images),
+    ...resourceIdsFromValue(standards.style_references),
+    ...resourceIdsFromValue(standards.reference_resource_ids),
+    ...resourceIdsFromValue(projectStyle.style_reference_images),
+    ...resourceIdsFromValue(projectStyle.style_references),
+    ...resourceIdsFromValue(projectStyle.reference_resource_ids),
+    ...arrayRecords(standards.custom_rules).filter((rule) => rule.enabled !== false).filter((rule) => textValue(rule.key) === "style_reference_images").flatMap((rule) => resourceIdsFromValue(rule.value)),
+    ...arrayRecords(projectStyle.custom_rules).filter((rule) => rule.enabled !== false).filter((rule) => textValue(rule.key) === "style_reference_images").flatMap((rule) => resourceIdsFromValue(rule.value))
+  ]);
+  if (!ids.length) return void 0;
+  return `### Style reference resource ids
+
+${ids.map((id) => `- ${id}`).join("\n")}
+`;
+}
+function resourceIdsFromValue(value) {
+  if (Array.isArray(value)) return value.flatMap(resourceIdsFromValue);
+  if (typeof value === "number" && Number.isInteger(value)) return [value];
+  if (isRecord10(value)) {
+    return [
+      ...resourceIdsFromValue(value.resource_id),
+      ...resourceIdsFromValue(value.resource_ids),
+      ...resourceIdsFromValue(value.id)
+    ];
+  }
+  const text = textValue(value);
+  if (!text) return [];
+  return Array.from(text.matchAll(/\b(?:resource[_-]?id|resource)[_:#\s-]*(\d+)\b/gi)).map((match) => Number(match[1])).filter((id) => Number.isInteger(id));
+}
+function parseProjectStyle22(value) {
+  if (isRecord10(value)) return value;
+  const text = textValue(value);
+  if (!text) return {};
+  try {
+    const parsed = JSON.parse(text);
+    return isRecord10(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+function arrayValues(value) {
+  if (Array.isArray(value)) return value.map(textValue).filter((item) => Boolean(item));
+  const text = textValue(value);
+  return text ? [text] : [];
+}
+function arrayRecords(value) {
+  return Array.isArray(value) ? value.filter(isRecord10) : [];
+}
+function uniqueNumbers(values) {
+  return Array.from(new Set(values)).sort((left, right) => left - right);
+}
+function textValue(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : void 0;
+}
+function isRecord10(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+// ../../packages/workspace/dist/chunk-727VRYXJ.js
+var WORKSPACE_ENTITY_KIND = {
+  project_workspace: "project",
+  project_standards_workspace: "project_standards",
+  setting_workspace: "setting",
+  setting_state_workspace: "setting_state",
+  asset_workspace: "asset",
+  script_workspace: "script",
+  script_version_workspace: "script_version",
+  script_block_workspace: "script_block",
+  production_workspace: "production",
+  segment_workspace: "segment",
+  scene_moment_workspace: "scene_moment",
+  storyboard_workspace: "storyboard",
+  audio_cue_workspace: "audio_cue",
+  expression_unit_workspace: "expression_unit",
+  content_unit_workspace: "content_unit",
+  keyframe_workspace: "keyframe"
+};
+var MOVSCRIPT_DOMAIN_WORKSPACE_MODELS = {
+  project_workspace: {
+    kind: "project_workspace",
+    title: "Project workspace",
+    entityKinds: ["project"],
+    editablePathPatterns: ["project.json"],
+    contextPathPatterns: [],
+    schemaIds: ["movscript.project.v1"],
+    instructions: ["Edit the project root entity in project.json. Interpret validates the source tree and writes .derived artifacts."]
+  },
+  project_standards_workspace: {
+    kind: "project_standards_workspace",
+    title: "Project standards workspace",
+    entityKinds: ["project_standards"],
+    editablePathPatterns: ["project_standards.json"],
+    contextPathPatterns: ["project.json"],
+    schemaIds: ["movscript.project_standards.v1"],
+    instructions: ["Edit project-wide creative standards in project_standards.json. Interpret uses these standards when deriving generation context."]
+  },
+  setting_workspace: {
+    kind: "setting_workspace",
+    title: "Setting workspace",
+    entityKinds: ["setting"],
+    editablePathPatterns: ["settings/{settingSlug}/setting.json"],
+    contextPathPatterns: ["project.json", "project_standards.json"],
+    schemaIds: ["movscript.setting.v1"],
+    instructions: ["Use setting workspaces for concrete film/music production entities to be made or reused, such as characters, props, places, instruments, costumes, or voice identities. Do not use settings for abstract styles or rules; put project-wide style/rules in project standards. Child setting namespaces/states are organized by their actual source path; namespace_kind only labels that path level. Assets belong under setting states."]
+  },
+  setting_state_workspace: {
+    kind: "setting_state_workspace",
+    title: "Setting state workspace",
+    entityKinds: ["setting_state"],
+    editablePathPatterns: ["settings/{settingSlug}/states/{settingStateSlug}/setting_state.json"],
+    contextPathPatterns: ["settings/{settingSlug}/setting.json", "project_standards.json"],
+    schemaIds: ["movscript.setting_state.v1"],
+    instructions: ["Use setting state workspaces as namespaces under a setting for named conditions or versions of the same entity, such as base look, wet hair, damaged prop, side-view variant, or calm voice. The default states/ path is a legacy hint; custom setting namespace paths are valid when setting_state.json sits under the intended setting parent."]
+  },
+  asset_workspace: {
+    kind: "asset_workspace",
+    title: "Asset workspace",
+    entityKinds: ["asset"],
+    editablePathPatterns: [
+      "settings/{settingSlug}/states/{settingStateSlug}/assets/{assetSlug}/asset.json"
+    ],
+    contextPathPatterns: ["settings/{settingSlug}/setting.json", "settings/{settingSlug}/states/{settingStateSlug}/setting_state.json", "project_standards.json"],
+    schemaIds: ["movscript.asset.v1"],
+    instructions: ["Assets are setting-state-owned resource slots and carriers for asset_ref content-unit generation/review. The owning setting state is the nearest setting_state ancestor in the source path, not a fixed states/ directory. Do not write new candidates or selections into asset.json; generated asset candidates belong to the linked asset_ref content unit and backend content-unit decision flow. Existing inline candidates/selection in asset.json are legacy compatibility data only. Downstream content-unit prompts can reference selected asset outputs with {{asset::id}} when dependency tracking matters; loose raw-resource guidance can use direct resource inputs. Image assets should prefer plain white or very clean backgrounds."]
+  },
+  script_workspace: {
+    kind: "script_workspace",
+    title: "Script workspace",
+    entityKinds: ["script"],
+    editablePathPatterns: ["scripts/{scriptSlug}/script.json", "scripts/{scriptSlug}/script.md"],
+    contextPathPatterns: ["project.json"],
+    schemaIds: ["movscript.script.v1"],
+    instructions: ["Use script workspaces for screenplay roots and source text references."]
+  },
+  script_version_workspace: {
+    kind: "script_version_workspace",
+    title: "Script version workspace",
+    entityKinds: ["script_version"],
+    editablePathPatterns: ["scripts/{scriptSlug}/versions/{scriptVersionSlug}/script_version.json"],
+    contextPathPatterns: ["scripts/{scriptSlug}/script.json"],
+    schemaIds: ["movscript.script_version.v1"],
+    instructions: ["Use script version workspaces for versioned script snapshots and block grouping."]
+  },
+  script_block_workspace: {
+    kind: "script_block_workspace",
+    title: "Script block workspace",
+    entityKinds: ["script_block"],
+    editablePathPatterns: ["scripts/{scriptSlug}/versions/{scriptVersionSlug}/blocks/{scriptBlockSlug}/script_block.json"],
+    contextPathPatterns: ["scripts/{scriptSlug}/versions/{scriptVersionSlug}/script_version.json"],
+    schemaIds: ["movscript.script_block.v1"],
+    instructions: ["Use script block workspaces for addressable text blocks referenced by planning entities."]
+  },
+  production_workspace: {
+    kind: "production_workspace",
+    title: "Production workspace",
+    entityKinds: ["production"],
+    editablePathPatterns: ["productions/{productionSlug}/production.json"],
+    contextPathPatterns: ["project.json", "project_standards.json", "settings/**", "scripts/**"],
+    schemaIds: ["movscript.production.v1"],
+    instructions: ["Production records are legacy/default timeline namespace nodes. Edit existing custom timeline namespace nodes in place; for new custom layouts, put production.json under the intended timeline path and set namespace_kind to the user-facing namespace label. Segment and scene moment children hold planning structure through path ancestry."]
+  },
+  segment_workspace: {
+    kind: "segment_workspace",
+    title: "Segment workspace",
+    entityKinds: ["segment"],
+    editablePathPatterns: ["productions/{productionSlug}/segments/{segmentSlug}/segment.json"],
+    contextPathPatterns: ["productions/{productionSlug}/production.json"],
+    schemaIds: ["movscript.segment.v1"],
+    instructions: ["Segment records are legacy/default timeline namespace nodes for rhythm sections. Edit existing custom namespace nodes in place; for new custom layouts, put segment.json under the intended timeline parent path and set namespace_kind to the user-facing label. Order lives in segment.json, not the directory name."]
+  },
+  scene_moment_workspace: {
+    kind: "scene_moment_workspace",
+    title: "Scene moment workspace",
+    entityKinds: ["scene_moment"],
+    editablePathPatterns: ["productions/{productionSlug}/segments/{segmentSlug}/scene_moments/{sceneMomentSlug}/scene_moment.json"],
+    contextPathPatterns: ["productions/{productionSlug}/segments/{segmentSlug}/segment.json", "settings/**"],
+    schemaIds: ["movscript.scene_moment.v1"],
+    instructions: ["Scene moments are stable production primitives and should remain under the intended timeline namespace path. They describe planning context and their own transition boundaries. Shot semantics live as expression_unit records with kind=shot; storyboards and keyframes may be direct scene moment children when they are scene-scoped."]
+  },
+  storyboard_workspace: {
+    kind: "storyboard_workspace",
+    title: "Storyboard workspace",
+    entityKinds: ["storyboard"],
+    editablePathPatterns: [
+      "productions/{productionSlug}/segments/{segmentSlug}/scene_moments/{sceneMomentSlug}/expression_units/{expressionUnitSlug}/storyboards/{storyboardSlug}/storyboard.json",
+      "productions/{productionSlug}/segments/{segmentSlug}/scene_moments/{sceneMomentSlug}/storyboards/{storyboardSlug}/storyboard.json"
+    ],
+    contextPathPatterns: ["productions/**", "settings/**", "project_standards.json"],
+    schemaIds: ["movscript.storyboard.v1"],
+    instructions: ["Storyboards are production primitives under expression_unit(kind=shot) or directly under scene_moment. Runtime candidates and production decisions are stored outside storyboard.json. Downstream prompts can reference selected storyboard outputs with {{storyboard::id}} when dependency tracking matters; loose raw-resource guidance can use direct resource inputs."]
+  },
+  audio_cue_workspace: {
+    kind: "audio_cue_workspace",
+    title: "Audio cue workspace",
+    entityKinds: ["audio_cue"],
+    editablePathPatterns: ["productions/{productionSlug}/segments/{segmentSlug}/scene_moments/{sceneMomentSlug}/audio_cues/{audioCueSlug}/audio_cue.json"],
+    contextPathPatterns: [
+      "productions/{productionSlug}/segments/{segmentSlug}/scene_moments/{sceneMomentSlug}/scene_moment.json",
+      "productions/{productionSlug}/segments/{segmentSlug}/scene_moments/{sceneMomentSlug}/expression_units/**",
+      "settings/**",
+      "project_standards.json"
+    ],
+    schemaIds: ["movscript.audio_cue.v1"],
+    instructions: ["Audio cues are production primitives for sound, music, ambience, dialogue, or foley planning, normally parented by source path under a scene moment and optionally attached by refs to scene moments, storyboards, or shot plans."]
+  },
+  expression_unit_workspace: {
+    kind: "expression_unit_workspace",
+    title: "Expression unit workspace",
+    entityKinds: ["expression_unit"],
+    editablePathPatterns: ["productions/{productionSlug}/segments/{segmentSlug}/scene_moments/{sceneMomentSlug}/expression_units/{expressionUnitSlug}/expression_unit.json"],
+    contextPathPatterns: [
+      "productions/{productionSlug}/segments/{segmentSlug}/scene_moments/{sceneMomentSlug}/scene_moment.json",
+      "productions/{productionSlug}/segments/{segmentSlug}/scene_moments/{sceneMomentSlug}/expression_units/**"
+    ],
+    schemaIds: ["movscript.expression_unit.v1"],
+    instructions: ["Expression units are scene-moment-owned form/edit slots. Their owning scene moment is the nearest scene_moment ancestor in the source path. Use slot_kind=visual|voice|subtitle|audio for new records; expression_kind/kind are legacy compatibility hints. Content units target expression_unit_ref and declare output_kind."]
+  },
+  content_unit_workspace: {
+    kind: "content_unit_workspace",
+    title: "Content unit workspace",
+    entityKinds: ["content_unit"],
+    editablePathPatterns: ["content_units/{contentUnitSlug}/content_unit.json"],
+    contextPathPatterns: ["project_standards.json", "settings/**", "productions/**"],
+    schemaIds: ["movscript.content_unit.v1"],
+    instructions: ["Content units are project-level stable production units. They declare content_unit_type, output_kind, flat business refs, edit_prompt, and model_intent. Specialized content_unit_type adapters perform dependency and regeneration checks; unknown types are valid but untracked for regeneration. Use expression_unit_ref for shot expression units, keyframe_ref/storyboard_ref for visual anchors, audio_cue_ref for sound cues, and timeline_assembly_ref for namespace-scope assembly. In edit_prompt, use semantic refs such as {{asset::id}}, {{storyboard::id}}, {{keyframe::id}}, {{audio_cue::id}}, {{candidate::id}}, or {{resource::123}}; prompt compilation resolves selected backend candidates into resource mentions and resource_ids for generation."]
+  },
+  keyframe_workspace: {
+    kind: "keyframe_workspace",
+    title: "Keyframe workspace",
+    entityKinds: ["keyframe"],
+    editablePathPatterns: [
+      "productions/{productionSlug}/segments/{segmentSlug}/scene_moments/{sceneMomentSlug}/expression_units/{expressionUnitSlug}/keyframes/{keyframeSlug}/keyframe.json",
+      "productions/{productionSlug}/segments/{segmentSlug}/scene_moments/{sceneMomentSlug}/keyframes/{keyframeSlug}/keyframe.json"
+    ],
+    contextPathPatterns: ["settings/**", "project_standards.json", "productions/**"],
+    schemaIds: ["movscript.keyframe.v1"],
+    instructions: ["Keyframes are production primitives and visual anchors under expression_unit(kind=shot) or directly under scene_moment. Content units reference keyframes through keyframe_ref or keyframe_refs."]
+  }
+};
+var ENTITY_WORKSPACE_KIND = Object.entries(WORKSPACE_ENTITY_KIND).reduce((out, [workspaceKind, entityKind]) => {
+  out[entityKind] = workspaceKind;
+  return out;
+}, {});
+function getMovScriptDomainWorkspaceModel(kind) {
+  const model = MOVSCRIPT_DOMAIN_WORKSPACE_MODELS[kind];
+  if (!model) throw new Error(`Unsupported MovScript workspace kind: ${kind}`);
+  return model;
+}
+function resolveMovScriptDomainWorkspaceKindForEntity(entityKind) {
+  const normalized = normalizeEntityKind(entityKind);
+  return isSemanticEntityKind(normalized) ? ENTITY_WORKSPACE_KIND[normalized] : void 0;
+}
+function getMovScriptWorkspaceModel(input) {
+  const entityKind = normalizeEntityKind(input.entityKind);
+  if (!isSemanticEntityKind(entityKind)) throw new Error(`Unsupported MovScript workspace entity kind: ${input.entityKind}`);
+  const workspaceKind = resolveMovScriptDomainWorkspaceKindForEntity(entityKind);
+  if (!workspaceKind) throw new Error(`Unsupported MovScript workspace entity kind: ${input.entityKind}`);
+  const model = getMovScriptDomainWorkspaceModel(workspaceKind);
+  return {
+    workspaceKind,
+    entityKind,
+    ...input.entityId !== void 0 ? { entityId: input.entityId } : {},
+    editablePaths: expandPathPatterns(model.editablePathPatterns, input),
+    contextPaths: model.contextPathPatterns,
+    pathSemantics: MOVSCRIPT_DOMAIN_PATH_SEMANTICS,
+    schemaIds: model.schemaIds,
+    instructions: model.instructions
+  };
+}
+function expandPathPatterns(patterns, input) {
+  const slug = input.entityId === void 0 ? void 0 : entityPathSlug(input.entityId, normalizeEntityKind(input.entityKind));
+  return patterns.map((pattern) => pattern.replaceAll("{id}", slug ?? "{id}").replaceAll(`{${camelEntityKind(input.entityKind)}Slug}`, slug ?? `{${camelEntityKind(input.entityKind)}Slug}`));
+}
+function camelEntityKind(entityKind) {
+  return normalizeEntityKind(entityKind).replace(/_([a-z])/g, (_match, char) => char.toUpperCase());
+}
+function normalizeEntityKind(entityKind) {
+  return entityKind.trim().replace(/^movscript\./, "").replace(/\.v\d+$/, "");
+}
+function isSemanticEntityKind(value) {
+  return Object.values(WORKSPACE_ENTITY_KIND).some((kind) => kind === value);
+}
+var RESOURCE_MENTION_RE = /@\[resource:([^\]\s]+)\]|\[\[resource::(\d+)\]\]/g;
+var RESOURCE_MEDIA_TYPES = /* @__PURE__ */ new Set(["image", "video", "audio", "text", "any"]);
+function formatResourceMention(resourceId, options = {}) {
+  const id = String(resourceId);
+  const mediaType = normalizeMentionPart(options.mediaType);
+  const role = normalizeMentionPart(options.role);
+  if (mediaType && role) return `@[resource:${mediaType}:${role}:${id}]`;
+  if (mediaType) return `@[resource:${mediaType}:${id}]`;
+  if (role) return `@[resource:${role}:${id}]`;
+  return `@[resource:${id}]`;
+}
+function parseResourceMentions(text) {
+  const mentions = [];
+  for (const match of (text ?? "").matchAll(RESOURCE_MENTION_RE)) {
+    const index = match.index;
+    if (index === void 0) continue;
+    const parsed = match[1] ? parseResourceMentionPayload(match[1]) : { id: Number(match[2]) };
+    const id = parsed.id;
+    if (!Number.isInteger(id) || id <= 0) continue;
+    mentions.push({
+      id,
+      token: match[0],
+      index,
+      ...parsed.mediaType ? { mediaType: parsed.mediaType } : {},
+      ...parsed.role ? { role: parsed.role } : {}
+    });
+  }
+  return mentions;
+}
+function resourceIdsFromMentions(text) {
+  const ids = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const mention of parseResourceMentions(text)) {
+    if (seen.has(mention.id)) continue;
+    seen.add(mention.id);
+    ids.push(mention.id);
+  }
+  return ids;
+}
+function stripResourceMentions(text) {
+  return text.replace(RESOURCE_MENTION_RE, "").replace(/[ \t]{2,}/g, " ").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+function parseResourceMentionPayload(payload) {
+  const parts = payload.split(":").map((part) => normalizeMentionPart(part)).filter((part) => Boolean(part));
+  if (parts.length === 0) return { id: 0 };
+  const id = Number(parts[parts.length - 1]);
+  if (!Number.isInteger(id) || id <= 0) return { id: 0 };
+  const descriptors = parts.slice(0, -1);
+  let mediaType = "";
+  let role = "";
+  if (descriptors.length === 1) {
+    const first = descriptors[0] ?? "";
+    if (RESOURCE_MEDIA_TYPES.has(first)) {
+      mediaType = first;
+    } else {
+      role = first;
+    }
+  } else if (descriptors.length > 1) {
+    const first = descriptors[0] ?? "";
+    if (RESOURCE_MEDIA_TYPES.has(first)) {
+      mediaType = first;
+      role = descriptors.slice(1).join(":");
+    } else {
+      role = descriptors.join(":");
+    }
+  }
+  return {
+    id,
+    ...mediaType ? { mediaType } : {},
+    ...role ? { role } : {}
+  };
+}
+function normalizeMentionPart(value) {
+  return (value ?? "").trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "_").replace(/^_+|_+$/g, "");
+}
+function deriveMovScriptWorkspacePreviewTimelines(index) {
+  const sourceEntities = canonicalEntities(index);
+  const contentUnitsByPrimaryRef = groupContentUnitsByPrimaryRef2(index);
+  return sourceEntities.filter(isProductionWithId).map((production) => {
+    const productionDir = entityDir4(production.path);
+    const segments = childEntities(index, productionDir, "segment");
+    const items = [];
+    let order = 0;
+    for (const segment of sortEntities2(segments)) {
+      const segmentItemId = timelineItemId(segment);
+      items.push({
+        ...timelineItem(segmentItemId, "segment", segment, order++),
+        transition: recordField2(segment.record.transition)
+      });
+      const sceneMoments = childEntities(index, entityDir4(segment.path), "scene_moment");
+      for (const sceneMoment of sortEntities2(sceneMoments)) {
+        const sceneMomentItemId = timelineItemId(sceneMoment);
+        const sceneMomentContentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, "scene_moment", sceneMoment);
+        items.push({
+          ...timelineItem(sceneMomentItemId, "scene_moment", sceneMoment, order++),
+          parentId: segmentItemId,
+          transition: recordField2(sceneMoment.record.transition),
+          contentUnitIds: sceneMomentContentUnits.map((contentUnit) => contentUnit.id).filter(isDefined2)
+        });
+        for (const contentUnit of sortEntities2(sceneMomentContentUnits)) {
+          items.push({
+            ...timelineItem(timelineItemId(contentUnit), "content_unit", contentUnit, order++),
+            parentId: sceneMomentItemId
+          });
+        }
+        for (const storyboard of sortEntities2(childEntities(index, entityDir4(sceneMoment.path), "storyboard"))) {
+          const storyboardItemId = timelineItemId(storyboard);
+          const contentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, "storyboard", storyboard);
+          const timeline = recordField2(storyboard.record.timeline);
+          items.push({
+            ...timelineItem(storyboardItemId, "storyboard", storyboard, order++),
+            parentId: sceneMomentItemId,
+            caption: stringField12(timeline?.caption),
+            gapAfterSec: numberField4(timeline?.gap_after_sec),
+            timing: timeline,
+            transition: recordField2(storyboard.record.transition),
+            contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined2)
+          });
+          for (const contentUnit of sortEntities2(contentUnits)) {
+            items.push({
+              ...timelineItem(timelineItemId(contentUnit), "content_unit", contentUnit, order++),
+              parentId: storyboardItemId
+            });
+          }
+        }
+        for (const keyframe of sortEntities2(childEntities(index, entityDir4(sceneMoment.path), "keyframe"))) {
+          const keyframeItemId = timelineItemId(keyframe);
+          const contentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, "keyframe", keyframe);
+          items.push({
+            ...timelineItem(keyframeItemId, "keyframe", keyframe, order++),
+            parentId: sceneMomentItemId,
+            timing: recordField2(keyframe.record.timing),
+            contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined2)
+          });
+          for (const contentUnit of sortEntities2(contentUnits)) {
+            items.push({
+              ...timelineItem(timelineItemId(contentUnit), "content_unit", contentUnit, order++),
+              parentId: keyframeItemId
+            });
+          }
+        }
+        for (const expressionUnit of sortEntities2(childEntities(index, entityDir4(sceneMoment.path), "expression_unit"))) {
+          const expressionUnitItemId = timelineItemId(expressionUnit);
+          const expressionUnitContentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, "expression_unit", expressionUnit);
+          items.push({
+            ...timelineItem(expressionUnitItemId, "expression_unit", expressionUnit, order++),
+            parentId: sceneMomentItemId,
+            contentUnitIds: expressionUnitContentUnits.map((contentUnit) => contentUnit.id).filter(isDefined2)
+          });
+          for (const contentUnit of sortEntities2(expressionUnitContentUnits)) {
+            items.push({
+              ...timelineItem(timelineItemId(contentUnit), "content_unit", contentUnit, order++),
+              parentId: expressionUnitItemId
+            });
+          }
+          for (const storyboard of sortEntities2(childEntities(index, entityDir4(expressionUnit.path), "storyboard"))) {
+            const storyboardItemId = timelineItemId(storyboard);
+            const contentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, "storyboard", storyboard);
+            const timeline = recordField2(storyboard.record.timeline);
+            items.push({
+              ...timelineItem(storyboardItemId, "storyboard", storyboard, order++),
+              parentId: expressionUnitItemId,
+              caption: stringField12(timeline?.caption),
+              gapAfterSec: numberField4(timeline?.gap_after_sec),
+              timing: timeline,
+              transition: recordField2(storyboard.record.transition),
+              contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined2)
+            });
+            for (const contentUnit of sortEntities2(contentUnits)) {
+              items.push({
+                ...timelineItem(timelineItemId(contentUnit), "content_unit", contentUnit, order++),
+                parentId: storyboardItemId
+              });
+            }
+          }
+          for (const keyframe of sortEntities2(childEntities(index, entityDir4(expressionUnit.path), "keyframe"))) {
+            const keyframeItemId = timelineItemId(keyframe);
+            const contentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, "keyframe", keyframe);
+            items.push({
+              ...timelineItem(keyframeItemId, "keyframe", keyframe, order++),
+              parentId: expressionUnitItemId,
+              timing: recordField2(keyframe.record.timing),
+              contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined2)
+            });
+            for (const contentUnit of sortEntities2(contentUnits)) {
+              items.push({
+                ...timelineItem(timelineItemId(contentUnit), "content_unit", contentUnit, order++),
+                parentId: keyframeItemId
+              });
+            }
+          }
+        }
+        for (const audioCue of sortEntities2(childEntities(index, entityDir4(sceneMoment.path), "audio_cue"))) {
+          items.push({
+            ...timelineItem(timelineItemId(audioCue), "audio_cue", audioCue, order++),
+            parentId: sceneMomentItemId,
+            cueKind: stringField12(audioCue.record.cue_kind),
+            timing: recordField2(audioCue.record.timing)
+          });
+        }
+      }
+    }
+    return {
+      schema: "movscript.preview_timeline.v1",
+      productionId: production.id,
+      productionPath: productionDir,
+      items
+    };
+  });
+}
+function deriveMovScriptWorkspaceTimelineAssemblyPreviewTimeline(index, scope) {
+  const parsedTarget = parseImplicitTimelineAssemblyRef(scope.targetRef);
+  const scopeKind = parsedTarget?.scopeKind ?? scope.scopeKind;
+  const scopeRef = parsedTarget?.scopeRef ?? String(scope.scopeRef);
+  const scopeNode = timelineNamespaceNodeForScope(index, scopeKind, scopeRef);
+  if (!scopeNode?.path) return void 0;
+  const scopeEntity = canonicalEntities(index).find((entity) => entity.path === scopeNode.path);
+  const scopeDir = entityDir4(scopeNode.path);
+  const contentUnitsByPrimaryRef = groupContentUnitsByPrimaryRef2(index);
+  const items = [];
+  let order = 0;
+  const appendTimelineNamespace = (namespace, parentId) => {
+    const namespaceItemId = timelineNamespaceItemId(namespace);
+    items.push({
+      ...timelineItem(namespaceItemId, "timeline_namespace", namespace, order++),
+      ...parentId ? { parentId } : {}
+    });
+    appendNamespaceChildren(entityDir4(namespace.path), namespaceItemId);
+  };
+  const appendSceneMoment = (sceneMoment, parentId) => {
+    const sceneMomentItemId = timelineItemId(sceneMoment);
+    const sceneMomentContentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, "scene_moment", sceneMoment);
+    items.push({
+      ...timelineItem(sceneMomentItemId, "scene_moment", sceneMoment, order++),
+      ...parentId ? { parentId } : {},
+      transition: recordField2(sceneMoment.record.transition),
+      contentUnitIds: sceneMomentContentUnits.map((contentUnit) => contentUnit.id).filter(isDefined2)
+    });
+    appendContentUnits(sceneMomentContentUnits, sceneMomentItemId);
+    appendSceneMomentChildren(sceneMoment, sceneMomentItemId);
+  };
+  const appendContentUnits = (contentUnits, parentId) => {
+    for (const contentUnit of sortEntities2(contentUnits)) {
+      items.push({
+        ...timelineItem(timelineItemId(contentUnit), "content_unit", contentUnit, order++),
+        parentId
+      });
+    }
+  };
+  const appendSceneMomentChildren = (sceneMoment, sceneMomentItemId) => {
+    for (const storyboard of sortEntities2(childEntities(index, entityDir4(sceneMoment.path), "storyboard"))) {
+      const storyboardItemId = timelineItemId(storyboard);
+      const contentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, "storyboard", storyboard);
+      const timeline = recordField2(storyboard.record.timeline);
+      items.push({
+        ...timelineItem(storyboardItemId, "storyboard", storyboard, order++),
+        parentId: sceneMomentItemId,
+        caption: stringField12(timeline?.caption),
+        gapAfterSec: numberField4(timeline?.gap_after_sec),
+        timing: timeline,
+        transition: recordField2(storyboard.record.transition),
+        contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined2)
+      });
+      appendContentUnits(contentUnits, storyboardItemId);
+    }
+    for (const keyframe of sortEntities2(childEntities(index, entityDir4(sceneMoment.path), "keyframe"))) {
+      const keyframeItemId = timelineItemId(keyframe);
+      const contentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, "keyframe", keyframe);
+      items.push({
+        ...timelineItem(keyframeItemId, "keyframe", keyframe, order++),
+        parentId: sceneMomentItemId,
+        timing: recordField2(keyframe.record.timing),
+        contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined2)
+      });
+      appendContentUnits(contentUnits, keyframeItemId);
+    }
+    for (const expressionUnit of sortEntities2(childEntities(index, entityDir4(sceneMoment.path), "expression_unit"))) {
+      const expressionUnitItemId = timelineItemId(expressionUnit);
+      const expressionUnitContentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, "expression_unit", expressionUnit);
+      items.push({
+        ...timelineItem(expressionUnitItemId, "expression_unit", expressionUnit, order++),
+        parentId: sceneMomentItemId,
+        contentUnitIds: expressionUnitContentUnits.map((contentUnit) => contentUnit.id).filter(isDefined2)
+      });
+      appendContentUnits(expressionUnitContentUnits, expressionUnitItemId);
+      for (const storyboard of sortEntities2(childEntities(index, entityDir4(expressionUnit.path), "storyboard"))) {
+        const storyboardItemId = timelineItemId(storyboard);
+        const contentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, "storyboard", storyboard);
+        const timeline = recordField2(storyboard.record.timeline);
+        items.push({
+          ...timelineItem(storyboardItemId, "storyboard", storyboard, order++),
+          parentId: expressionUnitItemId,
+          caption: stringField12(timeline?.caption),
+          gapAfterSec: numberField4(timeline?.gap_after_sec),
+          timing: timeline,
+          transition: recordField2(storyboard.record.transition),
+          contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined2)
+        });
+        appendContentUnits(contentUnits, storyboardItemId);
+      }
+      for (const keyframe of sortEntities2(childEntities(index, entityDir4(expressionUnit.path), "keyframe"))) {
+        const keyframeItemId = timelineItemId(keyframe);
+        const contentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, "keyframe", keyframe);
+        items.push({
+          ...timelineItem(keyframeItemId, "keyframe", keyframe, order++),
+          parentId: expressionUnitItemId,
+          timing: recordField2(keyframe.record.timing),
+          contentUnitIds: contentUnits.map((contentUnit) => contentUnit.id).filter(isDefined2)
+        });
+        appendContentUnits(contentUnits, keyframeItemId);
+      }
+    }
+    for (const audioCue of sortEntities2(childEntities(index, entityDir4(sceneMoment.path), "audio_cue"))) {
+      items.push({
+        ...timelineItem(timelineItemId(audioCue), "audio_cue", audioCue, order++),
+        parentId: sceneMomentItemId,
+        cueKind: stringField12(audioCue.record.cue_kind),
+        timing: recordField2(audioCue.record.timing)
+      });
+    }
+  };
+  const appendNamespaceChildren = (parentDir, parentId) => {
+    for (const namespace of sortEntities2(childEntities(index, parentDir, "segment"))) {
+      appendTimelineNamespace(namespace, parentId);
+    }
+    for (const sceneMoment of sortEntities2(childEntities(index, parentDir, "scene_moment"))) {
+      appendSceneMoment(sceneMoment, parentId);
+    }
+  };
+  appendNamespaceChildren(scopeDir);
+  return {
+    schema: "movscript.preview_timeline.v1",
+    targetKind: "timeline_assembly",
+    targetRef: scope.targetRef ?? implicitTimelineAssemblyRef(scopeKind, scopeRef),
+    scopeKind,
+    scopeRef,
+    scopePath: scopeDir,
+    scopeTitle: scopeNode.title,
+    ...scopeEntity?.entityKind === "production" && scopeEntity.id !== void 0 ? {
+      productionId: scopeEntity.id,
+      productionPath: scopeDir
+    } : {},
+    items
+  };
+}
+function groupContentUnitsByPrimaryRef2(index) {
+  const out = /* @__PURE__ */ new Map();
+  for (const entity of canonicalEntities(index)) {
+    if (entity.entityKind !== "content_unit") continue;
+    const contentUnitType2 = stringField12(entity.record.content_unit_type);
+    if (!contentUnitType2 || !hasSpecializedContentUnitType(contentUnitType2)) continue;
+    const assemblyScope = timelineAssemblyScopeFromContentUnitRecord(entity.record);
+    if (assemblyScope) {
+      for (const key of primaryRefKeys2(assemblyScope.kind, assemblyScope.ref)) {
+        out.set(key, [...out.get(key) ?? [], entity]);
+      }
+    }
+    const primaryKind = primaryRefKindForContentUnitType(contentUnitType2);
+    if (!primaryKind) continue;
+    const primaryRefs = primaryRefIdsForContentUnitRecord(entity.record, primaryKind);
+    if (primaryRefs.length !== 1) continue;
+    const primaryRef = primaryRefs[0];
+    if (!primaryRef) continue;
+    for (const key of primaryRefKeys2(primaryKind, primaryRef)) {
+      out.set(key, [...out.get(key) ?? [], entity]);
+    }
+  }
+  return out;
+}
+function contentUnitsForEntity(contentUnitsByPrimaryRef, entityKind, entity) {
+  if (entity.id === void 0) return [];
+  return contentUnitsByPrimaryRef.get(primaryRefKey2(entityKind, entity.id)) ?? [];
+}
+function primaryRefKey2(kind, id) {
+  return `${kind}:${String(id)}`;
+}
+function primaryRefKeys2(kind, ref) {
+  const value = String(ref);
+  const keys = [primaryRefKey2(kind, value)];
+  const lastSegment = value.split("/").filter(Boolean).at(-1);
+  if (lastSegment && lastSegment !== value) keys.push(primaryRefKey2(kind, lastSegment));
+  return keys;
+}
+function timelineItem(id, itemType, entity, order) {
+  return {
+    id,
+    itemType,
+    entity: entityRef2(entity),
+    order,
+    title: stringField12(entity.record.title) ?? String(entity.id ?? entity.path)
+  };
+}
+function timelineItemId(entity) {
+  return `${entity.entityKind}:${String(entity.id ?? entity.path)}`;
+}
+function timelineNamespaceItemId(entity) {
+  return `timeline_namespace:${String(entity.id ?? entity.path)}`;
+}
+function entityRef2(entity) {
+  return {
+    entityKind: entity.entityKind,
+    ...entity.id !== void 0 ? { id: entity.id } : {},
+    path: entity.path
+  };
+}
+function childEntities(index, parentDir, entityKind) {
+  const collectionName = collectionDirForEntityKind(entityKind);
+  if (!collectionName) return [];
+  return canonicalEntities(index).filter((entity) => entity.entityKind === entityKind && entity.path.startsWith(`${parentDir}/${collectionName}/`) && entityDir4(entity.path).replace(`${parentDir}/${collectionName}/`, "").split("/").length === 1);
+}
+function collectionDirForEntityKind(entityKind) {
+  if (entityKind === "segment") return "segments";
+  if (entityKind === "scene_moment") return "scene_moments";
+  if (entityKind === "storyboard") return "storyboards";
+  if (entityKind === "keyframe") return "keyframes";
+  if (entityKind === "audio_cue") return "audio_cues";
+  if (entityKind === "expression_unit") return "expression_units";
+  return void 0;
+}
+function canonicalEntities(index) {
+  return index.entities;
+}
+function isProductionWithId(entity) {
+  return entity.entityKind === "production" && entity.id !== void 0;
+}
+function timelineNamespaceNodeForScope(index, scopeKind, scopeRef) {
+  const normalizedRef = normalizeRef(scopeRef);
+  return index.domainNodes.find((node) => {
+    if (node.category !== "timeline_namespace") return false;
+    if (node.kind !== scopeKind && node.metadata?.entityKind !== scopeKind) return false;
+    const nodePath = node.path ? normalizeRef(node.path) : void 0;
+    const nodeDir = node.path ? normalizeRef(entityDir4(node.path)) : void 0;
+    return normalizeRef(node.id) === normalizedRef || nodePath === normalizedRef || nodeDir === normalizedRef;
+  });
+}
+function normalizeRef(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  if (typeof value !== "string" || !value.trim()) return void 0;
+  return value.trim().replace(/^\/+|\/+$/g, "");
+}
+function sortEntities2(entities) {
+  return [...entities].sort((left, right) => {
+    const leftOrder = numberField4(left.record.order) ?? Number.MAX_SAFE_INTEGER;
+    const rightOrder = numberField4(right.record.order) ?? Number.MAX_SAFE_INTEGER;
+    if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+    return left.path.localeCompare(right.path);
+  });
+}
+function entityDir4(path) {
+  return path.replace(/\/[^/]+$/, "");
+}
+function recordField2(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? value : void 0;
+}
+function stringField12(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : void 0;
+}
+function numberField4(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : void 0;
+}
+function isDefined2(value) {
+  return value !== void 0;
+}
+function createMovScriptWorkspaceService(options) {
+  const domainRepository = createMovScriptWorkspaceDomainRepository({
+    fileRepository: options.fileRepository
+  });
+  const loadIndex = async (input) => {
+    const documents = await domainRepository.loadDocuments(input);
+    const decisionDocuments = await overlayMovScriptDecisionDocuments(documents, options.decisionStore);
+    return deriveMovScriptWorkspaceDomainIndex(decisionDocuments);
+  };
+  return {
+    async initializeProject(input = {}) {
+      const now = options.now?.() ?? /* @__PURE__ */ new Date();
+      const createdAt = now.toISOString();
+      const existingWorkspace = await readJSONArtifact(options.fileRepository, "workspace.json");
+      const title = stringField26(input.title) ?? "MovScript Project";
+      const projectId = stringField26(input.projectId) ?? stringField26(existingWorkspace?.project_id) ?? safeProjectSlug(title);
+      const projectUid = stringField26(input.projectUid) ?? stringField26(existingWorkspace?.project_uid) ?? stringField26(existingWorkspace?.projectUid) ?? createMovScriptProjectUid();
+      const standardsRecord = {
+        schema: "movscript.project_standards.v1",
+        kind: "project_standards",
+        id: "project_standards",
+        project_id: projectId,
+        title: "Project standards",
+        ...input.standards ?? {},
+        updated_at: createdAt
+      };
+      const files = [
+        await ensureMovScriptGitignore(options.fileRepository),
+        await writeJSONDocument(options.fileRepository, ".movscript/config.json", {
+          schema: "movscript.local_project_config.v1",
+          project_uid: projectUid,
+          remotes: {},
+          created_at: createdAt,
+          updated_at: createdAt
+        }, Boolean(input.overwrite)),
+        await writeJSONDocument(options.fileRepository, "workspace.json", {
+          schema: "movscript.workspace.v2",
+          project_uid: projectUid,
+          project_id: projectId,
+          title,
+          created_at: stringField26(existingWorkspace?.created_at) ?? createdAt,
+          updated_at: createdAt
+        }, Boolean(input.overwrite)),
+        await writeJSONDocument(options.fileRepository, "project.json", {
+          schema: "movscript.project.v1",
+          kind: "project",
+          project_id: projectId,
+          title,
+          language: stringField26(input.language),
+          created_at: createdAt,
+          updated_at: createdAt
+        }, Boolean(input.overwrite)),
+        await writeJSONDocument(options.fileRepository, "project_standards.json", standardsRecord, Boolean(input.overwrite))
+      ];
+      const standardSkillFiles = await syncMovScriptProjectStandardSkills({
+        fileRepository: options.fileRepository,
+        standards: standardsRecord
+      });
+      return { projectId, projectUid, files, standardSkillFiles };
+    },
+    getModel: getMovScriptWorkspaceModel,
+    loadIndex,
+    async queryEntities(query = {}) {
+      return queryMovScriptWorkspaceEntities(await loadIndex(), query);
+    },
+    async querySettings(query = {}) {
+      return queryMovScriptWorkspaceSettings(await loadIndex(), query);
+    },
+    async queryAssets(query = {}) {
+      return queryMovScriptWorkspaceAssets(await loadIndex(), query);
+    },
+    async queryProductionContext(query = {}) {
+      return queryMovScriptWorkspaceProductionContext(await loadIndex(), query);
+    },
+    readEditorState() {
+      return readJSONArtifact(options.fileRepository, MOVSCRIPT_EDITOR_STATE_PATH);
+    },
+    async readPreviewTimeline(productionId) {
+      const timelines = deriveMovScriptWorkspacePreviewTimelines(await loadIndex());
+      return timelines.find((timeline) => samePreviewTimelineProduction(timeline.productionId, productionId));
+    },
+    async readTimelineAssemblyPreviewTimeline(scope) {
+      return deriveMovScriptWorkspaceTimelineAssemblyPreviewTimeline(await loadIndex(), scope);
+    },
+    async readSceneMomentEditPlan(sceneMomentId) {
+      const sceneMoment = queryMovScriptWorkspaceEntities(await loadIndex(), { entityKind: "scene_moment" }).find((entity) => sameEntityId(entity.id, sceneMomentId) || entity.path.includes(`/scene_moments/${entityPathSlug(sceneMomentId, "scene_moment")}/`));
+      if (!sceneMoment) return void 0;
+      return readJSONArtifact(options.fileRepository, `${MOVSCRIPT_INTERPRET_CURRENT_DIR}/${sceneMoment.path.replace(/\/scene_moment\.json$/, "")}/edit_plan.json`);
+    },
+    readContentUnitRuntimePanel(contentUnitId) {
+      return readJSONArtifact(options.fileRepository, `${MOVSCRIPT_INTERPRET_CURRENT_DIR}/content_units/${entityPathSlug(contentUnitId, "content_unit")}/runtime_panel.json`);
+    },
+    readContentUnitGenerationPrompt(contentUnitId) {
+      return readJSONArtifact(options.fileRepository, `${MOVSCRIPT_INTERPRET_CURRENT_DIR}/content_units/${entityPathSlug(contentUnitId, "content_unit")}/generation_prompt.json`);
+    },
+    readContentUnitDependencyReport(contentUnitId) {
+      return readJSONArtifact(options.fileRepository, `${MOVSCRIPT_INTERPRET_CURRENT_DIR}/content_units/${entityPathSlug(contentUnitId, "content_unit")}/dependency_report.json`);
+    },
+    readContentUnitSelectionValidity(contentUnitId) {
+      return readJSONArtifact(options.fileRepository, `${MOVSCRIPT_INTERPRET_CURRENT_DIR}/content_units/${entityPathSlug(contentUnitId, "content_unit")}/selection_validity.json`);
+    },
+    async upsertSetting(input) {
+      const payload = await writePayloadWithGeneratedEntityId(loadIndex, "setting", input);
+      return upsertMovScriptWorkspaceSetting({
+        fileRepository: options.fileRepository,
+        now: options.now?.(),
+        ...input,
+        payload
+      });
+    },
+    async upsertSettingState(input) {
+      const payload = await writePayloadWithGeneratedEntityId(loadIndex, "setting_state", input);
+      return upsertMovScriptWorkspaceSettingState({
+        fileRepository: options.fileRepository,
+        now: options.now?.(),
+        ...input,
+        payload
+      });
+    },
+    async upsertAsset(input) {
+      const payload = await writePayloadWithGeneratedEntityId(loadIndex, "asset", input);
+      return upsertMovScriptWorkspaceAsset({
+        fileRepository: options.fileRepository,
+        now: options.now?.(),
+        ...input,
+        payload
+      });
+    },
+    upsertScript(input) {
+      return upsertMovScriptWorkspaceScript({
+        fileRepository: options.fileRepository,
+        now: options.now?.(),
+        ...input
+      });
+    },
+    readScriptSource(input) {
+      return readMovScriptWorkspaceScriptSource({
+        fileRepository: options.fileRepository,
+        ...input
+      });
+    },
+    saveProductionSnapshot(input) {
+      return saveMovScriptProductionWorkspaceSnapshot({
+        fileRepository: options.fileRepository,
+        now: options.now?.(),
+        ...input
+      });
+    },
+    deleteEntity(input) {
+      return deleteMovScriptWorkspaceEntity({
+        fileRepository: options.fileRepository,
+        ...input
+      });
+    },
+    snapshotScriptVersionFromMarkdown(input) {
+      return snapshotMovScriptVersionFromMarkdown({
+        fileRepository: options.fileRepository,
+        ...input
+      });
+    },
+    updateContentUnitEditPrompt(input) {
+      return updateMovScriptContentUnitEditPrompt({
+        fileRepository: options.fileRepository,
+        ...input
+      });
+    },
+    async upsertContentUnit(input) {
+      const unit = await contentUnitWithGeneratedEntityId(loadIndex, input.unit);
+      return upsertMovScriptContentUnit({
+        fileRepository: options.fileRepository,
+        ...input,
+        unit
+      });
+    },
+    async upsertProjectStandards(input) {
+      const result = await upsertMovScriptProjectStandards({
+        fileRepository: options.fileRepository,
+        now: options.now?.(),
+        ...input
+      });
+      const standardSkillFiles = await syncMovScriptProjectStandardSkills({
+        fileRepository: options.fileRepository,
+        standards: result.record
+      });
+      return { ...result, standardSkillFiles };
+    },
+    updateEntityTransition(input) {
+      return updateMovScriptEntityTransition({
+        fileRepository: options.fileRepository,
+        ...input
+      });
+    },
+    updateStoryboardTimeline(input) {
+      return updateMovScriptStoryboardTimeline({
+        fileRepository: options.fileRepository,
+        ...input
+      });
+    },
+    upsertSourceRecord(input) {
+      return upsertMovScriptSourceRecord({
+        fileRepository: options.fileRepository,
+        ...input
+      });
+    },
+    updateExpressionUnitSource(input) {
+      return updateMovScriptExpressionUnit(options.fileRepository, input);
+    },
+    updateAudioCueSource(input) {
+      return updateMovScriptAudioCue(options.fileRepository, input);
+    },
+    appendCandidate(input) {
+      return appendMovScriptInlineCandidate({
+        fileRepository: options.fileRepository,
+        ...input
+      });
+    },
+    async createContentCandidate(input) {
+      const promptSnapshot = mergePromptSnapshots(
+        await readContentUnitGenerationPromptArtifact(options.fileRepository, input.contentUnitId),
+        input.promptSnapshot
+      );
+      if (options.decisionStore) {
+        const result = buildMovScriptContentCandidate({
+          ...input,
+          ...promptSnapshot !== void 0 ? { promptSnapshot } : {}
+        });
+        await options.decisionStore.upsertContentUnitCandidate({
+          contentUnitId: input.contentUnitId,
+          candidate: result.record
+        });
+        return result;
+      }
+      throw new Error("content unit candidate creation requires a backend scoped project data decisionStore");
+    },
+    async selectContentUnitCandidate(input) {
+      const decisionStore = options.decisionStore;
+      if (!decisionStore) {
+        throw new Error("content unit candidate selection requires a backend scoped project data decisionStore");
+      }
+      const candidate = await readBackendContentCandidateRecord(decisionStore, input.contentUnitId, input.candidateId);
+      const resourceId = input.resourceId ?? firstCandidateResourceId(candidate);
+      const context = await decisionStore.selectContentUnitCandidate({
+        contentUnitId: input.contentUnitId,
+        candidateId: input.candidateId,
+        ...resourceId !== void 0 ? { resourceId } : {},
+        stalePolicy: input.stalePolicy,
+        reason: input.reason,
+        selectedAt: input.selectedAt
+      });
+      return {
+        path: contentUnitDecisionContextPath(input.contentUnitId),
+        record: normalizeDecisionContext(context),
+        context
+      };
+    },
+    async decideContentUnitCandidate(input) {
+      const decisionStore = options.decisionStore;
+      if (!decisionStore) {
+        throw new Error("content unit candidate decision requires a backend scoped project data decisionStore");
+      }
+      if (input.decision === "adopt") {
+        const candidate2 = await readBackendContentCandidateRecord(decisionStore, input.contentUnitId, input.candidateId);
+        const resourceId = input.resourceId ?? firstCandidateResourceId(candidate2);
+        const context2 = await decisionStore.selectContentUnitCandidate({
+          contentUnitId: input.contentUnitId,
+          candidateId: input.candidateId,
+          ...resourceId !== void 0 ? { resourceId } : {},
+          stalePolicy: input.stalePolicy,
+          reason: input.reason,
+          selectedAt: input.decidedAt,
+          metadata: input.metadata
+        });
+        return {
+          path: contentUnitDecisionContextPath(input.contentUnitId),
+          record: normalizeDecisionContext(context2),
+          context: context2
+        };
+      }
+      const candidate = await readBackendContentCandidateRecord(decisionStore, input.contentUnitId, input.candidateId);
+      if (!candidate) throw new Error(`candidate not found: ${String(input.candidateId)}`);
+      const decidedAt = input.decidedAt ?? options.now?.().toISOString();
+      const context = await decisionStore.upsertContentUnitCandidate({
+        contentUnitId: input.contentUnitId,
+        candidate: pruneUndefined12({
+          ...candidate,
+          decision_status: input.decision,
+          decision_reason: input.reason,
+          decided_at: decidedAt,
+          decision_metadata: input.metadata
+        })
+      });
+      return {
+        path: contentUnitDecisionContextPath(input.contentUnitId),
+        record: normalizeDecisionContext(context),
+        context
+      };
+    },
+    createAssetSlotCandidate(input) {
+      return createMovScriptWorkspaceAssetSlotCandidate({
+        fileRepository: options.fileRepository,
+        projectPath: input.projectPath ?? "",
+        ...input
+      });
+    },
+    createKeyframeCandidate(input) {
+      return createMovScriptWorkspaceKeyframeCandidate({
+        fileRepository: options.fileRepository,
+        projectPath: input.projectPath ?? "",
+        ...input
+      });
+    },
+    selectCandidate(input) {
+      return selectMovScriptInlineCandidate({
+        fileRepository: options.fileRepository,
+        ...input
+      });
+    },
+    updateCandidate(input) {
+      return updateMovScriptInlineCandidate({
+        fileRepository: options.fileRepository,
+        ...input
+      });
+    },
+    unlockCandidate(input) {
+      return unlockMovScriptInlineCandidate({
+        fileRepository: options.fileRepository,
+        ...input
+      });
+    }
+  };
+}
+async function readJSONArtifact(fileRepository, path) {
+  const file = await fileRepository.read({ path: normalizeWorkspacePath(path) }).catch(() => void 0);
+  if (!file) return void 0;
+  const parsed = JSON.parse(file.content);
+  return isRecord11(parsed) ? parsed : void 0;
+}
+async function updateMovScriptExpressionUnit(fileRepository, input) {
+  const normalizedPath = normalizeWorkspacePath(input.targetPath);
+  const existing = await readJSONArtifact(fileRepository, normalizedPath);
+  if (!existing) throw new Error(`Expression unit source not found: ${normalizedPath}`);
+  if (existing.kind !== "expression_unit") throw new Error(`Target is not an expression_unit: ${normalizedPath}`);
+  const record = pruneUndefined12({
+    ...existing,
+    schema: stringField26(existing.schema) ?? "movscript.expression_unit.v1",
+    kind: "expression_unit",
+    title: input.patch.title !== void 0 ? input.patch.title : existing.title,
+    slot_kind: input.patch.slotKind !== void 0 ? normalizeExpressionUnitSlotKind(input.patch.slotKind) : normalizeExpressionUnitSlotKind(existing.slot_kind ?? existing.slotKind ?? existing.expression_kind ?? existing.kind),
+    expression_kind: input.patch.expressionKind !== void 0 ? legacyExpressionKind(input.patch.expressionKind, stringField26(existing.expression_kind)) : existing.expression_kind,
+    speaker: input.patch.speaker !== void 0 ? input.patch.speaker : existing.speaker,
+    text: input.patch.text !== void 0 ? input.patch.text : existing.text,
+    note: input.patch.note !== void 0 ? input.patch.note : existing.note,
+    intent: input.patch.intent !== void 0 ? input.patch.intent : existing.intent
+  });
+  await fileRepository.write({
+    path: normalizedPath,
+    content: `${JSON.stringify(record, null, 2)}
+`
+  });
+  return { path: normalizedPath, record };
+}
+function legacyExpressionKind(value, fallback) {
+  const text = String(value ?? "").trim().toLowerCase();
+  if (text === "dialogue" || text === "narration" || text === "subtitle" || text === "caption" || text === "action" || text === "visual_note" || text === "shot") return text;
+  if (text === "voice" || text === "verbal" || text === "voiceover") return "dialogue";
+  if (text === "visual" || text === "image" || text === "video") return "visual_note";
+  if (text === "audio" || text === "sound" || text === "sound_effect" || text === "sfx" || text === "music" || text === "ambience") return "action";
+  return fallback ?? "visual_note";
+}
+async function updateMovScriptAudioCue(fileRepository, input) {
+  const normalizedPath = normalizeWorkspacePath(input.targetPath);
+  const existing = await readJSONArtifact(fileRepository, normalizedPath);
+  if (!existing) throw new Error(`Audio cue source not found: ${normalizedPath}`);
+  if (existing.kind !== "audio_cue") throw new Error(`Target is not an audio_cue: ${normalizedPath}`);
+  const record = pruneUndefined12({
+    ...existing,
+    schema: stringField26(existing.schema) ?? "movscript.audio_cue.v1",
+    kind: "audio_cue",
+    title: input.patch.title !== void 0 ? input.patch.title : existing.title,
+    cue_kind: input.patch.cueKind !== void 0 ? input.patch.cueKind : existing.cue_kind,
+    expression_unit_ref: input.patch.expressionUnitRef !== void 0 ? input.patch.expressionUnitRef : existing.expression_unit_ref,
+    storyboard_ref: input.patch.storyboardRef !== void 0 ? input.patch.storyboardRef : existing.storyboard_ref,
+    timing: input.patch.timing !== void 0 ? input.patch.timing : existing.timing,
+    prompt_hint: input.patch.promptHint !== void 0 ? input.patch.promptHint : existing.prompt_hint,
+    asset_refs: input.patch.assetRefs !== void 0 ? input.patch.assetRefs : existing.asset_refs
+  });
+  await fileRepository.write({
+    path: normalizedPath,
+    content: `${JSON.stringify(record, null, 2)}
+`
+  });
+  return { path: normalizedPath, record };
+}
+function samePreviewTimelineProduction(left, right) {
+  return String(left) === String(right) || entityPathSlug(left, "production") === entityPathSlug(right, "production");
+}
+function contentUnitDerivedArtifactPath(contentUnitId, filename) {
+  return `${MOVSCRIPT_INTERPRET_CURRENT_DIR}/content_units/${entityPathSlug(contentUnitId, "content_unit")}/${filename}`;
+}
+async function readContentUnitGenerationPromptArtifact(fileRepository, contentUnitId) {
+  return readJSONArtifact(fileRepository, contentUnitDerivedArtifactPath(contentUnitId, "generation_prompt.json"));
+}
+async function readBackendContentCandidateRecord(decisionStore, contentUnitId, candidateId) {
+  const context = await decisionStore.getContentUnitDecision({ contentUnitId });
+  return context?.candidates.find((candidate) => String(candidate.id) === String(candidateId));
+}
+function mergePromptSnapshots(runtimePrompt, promptSnapshot) {
+  if (!runtimePrompt) return promptSnapshot;
+  if (!promptSnapshot) return runtimePrompt;
+  return pruneUndefined12({ ...runtimePrompt, ...promptSnapshot });
+}
+function firstCandidateResourceId(candidate) {
+  const firstOutput = arrayField4(candidate?.outputs).filter(isRecord11)[0];
+  const resourceId = firstOutput?.resource_id;
+  return resourceIdField2(resourceId);
+}
+function resourceIdField2(value) {
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isInteger(parsed) && parsed > 0) return parsed;
+  }
+  return void 0;
+}
+function arrayField4(value) {
+  return Array.isArray(value) ? value : [];
+}
+var MOVSCRIPT_GITIGNORE_PATH = ".gitignore";
+var MOVSCRIPT_INTERPRET_GITIGNORE_ENTRY = ".interpret/";
+var MOVSCRIPT_LOCAL_CONTROL_GITIGNORE_ENTRY = ".movscript/";
+var MOVSCRIPT_INTERPRET_GITIGNORE_BLOCK = [
+  "# MovScript generated artifacts",
+  MOVSCRIPT_INTERPRET_GITIGNORE_ENTRY,
+  MOVSCRIPT_LOCAL_CONTROL_GITIGNORE_ENTRY,
+  ""
+].join("\n");
+async function ensureMovScriptGitignore(fileRepository) {
+  const normalizedPath = normalizeWorkspacePath(MOVSCRIPT_GITIGNORE_PATH);
+  const existingFile = await fileRepository.read({ path: normalizedPath }).catch(() => void 0);
+  const existingContent = existingFile?.content;
+  if (existingContent !== void 0 && gitignoreContainsBuildEntry(existingContent)) {
+    return { path: normalizedPath, status: "skipped", content: existingContent };
+  }
+  const content = appendGitignoreBlock(existingContent, MOVSCRIPT_INTERPRET_GITIGNORE_BLOCK);
+  await fileRepository.write({ path: normalizedPath, content });
+  return {
+    path: normalizedPath,
+    status: existingContent === void 0 ? "created" : "updated",
+    content
+  };
+}
+function gitignoreContainsBuildEntry(content) {
+  const entries = new Set(content.split(/\r?\n/).map((line) => line.trim()).filter(Boolean));
+  return (entries.has(".interpret") || entries.has(MOVSCRIPT_INTERPRET_GITIGNORE_ENTRY)) && (entries.has(".movscript") || entries.has(MOVSCRIPT_LOCAL_CONTROL_GITIGNORE_ENTRY));
+}
+function appendGitignoreBlock(existingContent, block) {
+  if (!existingContent) return block;
+  const separator = existingContent.endsWith("\n") ? "\n" : "\n\n";
+  return `${existingContent}${separator}${block}`;
+}
+async function writeJSONDocument(fileRepository, path, record, overwrite) {
+  const normalizedPath = normalizeWorkspacePath(path);
+  if (!overwrite) {
+    const existing2 = await readJSONArtifact(fileRepository, normalizedPath);
+    if (existing2) {
+      return { path: normalizedPath, status: "skipped", record: existing2 };
+    }
+  }
+  const existing = await readJSONArtifact(fileRepository, normalizedPath);
+  await fileRepository.write({
+    path: normalizedPath,
+    content: `${JSON.stringify(pruneUndefined12(record), null, 2)}
+`
+  });
+  return {
+    path: normalizedPath,
+    status: existing ? "updated" : "created",
+    record: pruneUndefined12(record)
+  };
+}
+async function writePayloadWithGeneratedEntityId(loadIndex, entityKind, input) {
+  const current = {
+    ...isRecord11(input.record) ? input.record : {},
+    ...isRecord11(input.entity?.record) ? input.entity?.record : {}
+  };
+  const payload = isRecord11(input.payload) ? input.payload : {};
+  if (hasEntityIdentity(payload) || hasEntityIdentity(current)) return payload;
+  const existingIds = await existingWorkspaceEntityIds(loadIndex, entityKind);
+  return {
+    ...payload,
+    id: allocateMovScriptEntityId({
+      entityKind,
+      title: entityTitleSeed(payload, current),
+      existingIds
+    })
+  };
+}
+async function contentUnitWithGeneratedEntityId(loadIndex, unit) {
+  if (hasEntityIdentity(unit)) return unit;
+  const existingIds = await existingWorkspaceEntityIds(loadIndex, "content_unit");
+  return {
+    ...unit,
+    id: allocateMovScriptEntityId({
+      entityKind: "content_unit",
+      title: entityTitleSeed(unit, {}),
+      existingIds
+    })
+  };
+}
+async function existingWorkspaceEntityIds(loadIndex, entityKind) {
+  const entities = queryMovScriptWorkspaceEntities(await loadIndex(), { entityKind });
+  return entities.flatMap((entity) => [
+    stringField26(entity.id),
+    stringField26(entity.record.id),
+    stringField26(entity.record.ID)
+  ]).filter((id) => Boolean(id));
+}
+function hasEntityIdentity(record) {
+  return [
+    record.workspace_slug,
+    record.workspaceSlug,
+    record.workspace_entity_id,
+    record.workspaceEntityId,
+    record.id,
+    record.ID,
+    record.client_id,
+    record.clientId
+  ].some((value) => stringField26(value) !== void 0);
+}
+function entityTitleSeed(payload, current) {
+  return payload.title ?? payload.name ?? payload.slot ?? payload.slot_key ?? payload.slotKey ?? payload.text ?? payload.description ?? current.title ?? current.name ?? current.slot ?? current.slot_key ?? current.slotKey ?? current.text ?? current.description;
+}
+function stringField26(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return typeof value === "string" && value.trim() ? value.trim() : void 0;
+}
+function safeProjectSlug(value) {
+  const slug = value.trim().toLowerCase().replace(/[^a-z0-9._-]+/g, "_").replace(/^_+|_+$/g, "");
+  return slug || "movscript_project";
+}
+function createMovScriptProjectUid() {
+  const randomUUID3 = globalThis.crypto?.randomUUID?.();
+  if (randomUUID3) return `prj_${randomUUID3.replace(/-/g, "")}`;
+  const random = Math.random().toString(36).slice(2);
+  return `prj_${Date.now().toString(36)}${random}`;
+}
+function sameEntityId(left, right) {
+  return String(left ?? "") === String(right ?? "");
+}
+function isRecord11(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function pruneUndefined12(value) {
+  const output = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (item !== void 0) output[key] = item;
+  }
+  return output;
+}
+
 // ../../packages/core/dist/chunk-G2ZRFCTC.js
 async function loadContentSourceWorkspaceSnapshotFromEngine(engine) {
   const service2 = engine.workspaceService;
@@ -30091,7 +29730,7 @@ async function loadContentSourceWorkspaceSnapshotFromEngine(engine) {
       const sceneMomentId = idField6(sceneMoment.id ?? sceneMoment.record.id ?? sceneMoment.record.ID);
       if (sceneMomentId === void 0) return void 0;
       const editPlan = await readSceneMomentEditPlanForIndexedEntity(engine, sceneMoment).catch(() => void 0);
-      if (!isRecord13(editPlan)) return void 0;
+      if (!isRecord12(editPlan)) return void 0;
       const mediaEditingProject = createMediaEditingProjectFromMovScriptEditPlan(editPlan, {
         projectId: String(editPlan.productionId ?? "MovScript"),
         title: String(sceneMoment.record.title ?? editPlan.sceneMomentId ?? sceneMomentId)
@@ -30147,12 +29786,12 @@ async function readSceneMomentEditPlanForIndexedEntity(engine, sceneMoment) {
   if (sceneMomentDir === sceneMoment.path) return void 0;
   const path = join5(engine.projectDir, MOVSCRIPT_INTERPRET_CURRENT_DIR, sceneMomentDir, "edit_plan.json");
   const parsed = JSON.parse(await readFile(path, "utf8"));
-  return isRecord13(parsed) ? parsed : void 0;
+  return isRecord12(parsed) ? parsed : void 0;
 }
 function productionTimelineFromPreview(input) {
   const candidateRecords = contentCandidateRecordsByContentUnitId2(input.documents);
   const selections = selectionRecordsByContentUnitId2(input.documents);
-  const contentUnitsById = new Map(input.contentUnits.map((unit) => [String(unit.id ?? pathSegmentAfter4(unit.path, "content_units") ?? unit.path), unit]));
+  const contentUnitsById = new Map(input.contentUnits.map((unit) => [String(unit.id ?? pathSegmentAfter5(unit.path, "content_units") ?? unit.path), unit]));
   const blockers = [];
   const clips = input.previewTimeline.items.filter((item) => item.itemType === "scene_moment").sort((left, right) => left.order - right.order).flatMap((item, index) => {
     const contentUnitIds = productionSceneMomentContentUnitIds(input.contentUnits, item);
@@ -30169,10 +29808,10 @@ function productionTimelineFromPreview(input) {
       const candidate = selection?.candidate_id !== void 0 ? candidateRecords.get(String(contentUnitId))?.find((entry) => sameId4(entry.id, selection.candidate_id)) : void 0;
       const output = firstCandidateOutput3(candidate);
       const resourceId = numberField5(output?.resource_id);
-      if (resourceId !== void 0 && (stringField14(output?.kind) ?? "video") === "video") {
+      if (resourceId !== void 0 && (stringField13(output?.kind) ?? "video") === "video") {
         return [{
           id: `production_clip_${safeId3(String(item.entity.id ?? index))}_${safeId3(String(contentUnitId))}`,
-          title: previewTimelineItemTitle(item) ?? stringField14(item.entity.id) ?? `Scene ${index + 1}`,
+          title: previewTimelineItemTitle(item) ?? stringField13(item.entity.id) ?? `Scene ${index + 1}`,
           sceneMomentId: item.entity.id,
           sceneMomentPath: item.entity.path,
           contentUnitId,
@@ -30187,13 +29826,13 @@ function productionTimelineFromPreview(input) {
         scene_moment_path: item.entity.path,
         content_unit_id: contentUnitId,
         candidate_id: selection?.candidate_id,
-        output_kind: stringField14(contentUnitsById.get(String(contentUnitId))?.record.output_kind)
+        output_kind: stringField13(contentUnitsById.get(String(contentUnitId))?.record.output_kind)
       });
     }
     return [];
   });
   const productionId = input.previewTimeline.productionId ?? "unknown";
-  const productionPath = stringField14(input.previewTimeline.productionPath);
+  const productionPath = stringField13(input.previewTimeline.productionPath);
   const production = input.productions.find(
     (item) => sameId4(item.id, productionId) || productionPath !== void 0 && item.path.startsWith(productionPath)
   );
@@ -30205,7 +29844,7 @@ function productionTimelineFromPreview(input) {
     blockers,
     mediaEditingProject: createMediaEditingProjectFromProductionTimelineClips({
       productionId,
-      title: stringField14(production?.record.title) ?? String(productionId),
+      title: stringField13(production?.record.title) ?? String(productionId),
       productionPath: production?.path ?? productionPath,
       clips
     })
@@ -30214,7 +29853,7 @@ function productionTimelineFromPreview(input) {
 function timelineAssemblyTimelineFromPreview(input) {
   const candidateRecords = contentCandidateRecordsByContentUnitId2(input.documents);
   const selections = selectionRecordsByContentUnitId2(input.documents);
-  const contentUnitsById = new Map(input.contentUnits.map((unit) => [String(unit.id ?? pathSegmentAfter4(unit.path, "content_units") ?? unit.path), unit]));
+  const contentUnitsById = new Map(input.contentUnits.map((unit) => [String(unit.id ?? pathSegmentAfter5(unit.path, "content_units") ?? unit.path), unit]));
   const blockers = [];
   const clips = input.previewTimeline.items.filter((item) => item.itemType === "scene_moment").sort((left, right) => left.order - right.order).flatMap((item, index) => {
     const contentUnitIds = productionSceneMomentContentUnitIds(input.contentUnits, item);
@@ -30231,10 +29870,10 @@ function timelineAssemblyTimelineFromPreview(input) {
       const candidate = selection?.candidate_id !== void 0 ? candidateRecords.get(String(contentUnitId))?.find((entry) => sameId4(entry.id, selection.candidate_id)) : void 0;
       const output = firstCandidateOutput3(candidate);
       const resourceId = numberField5(output?.resource_id);
-      if (resourceId !== void 0 && (stringField14(output?.kind) ?? "video") === "video") {
+      if (resourceId !== void 0 && (stringField13(output?.kind) ?? "video") === "video") {
         return [{
           id: `assembly_clip_${safeId3(String(item.entity.id ?? index))}_${safeId3(String(contentUnitId))}`,
-          title: previewTimelineItemTitle(item) ?? stringField14(item.entity.id) ?? `Scene ${index + 1}`,
+          title: previewTimelineItemTitle(item) ?? stringField13(item.entity.id) ?? `Scene ${index + 1}`,
           sceneMomentId: item.entity.id,
           sceneMomentPath: item.entity.path,
           contentUnitId,
@@ -30249,15 +29888,15 @@ function timelineAssemblyTimelineFromPreview(input) {
         scene_moment_path: item.entity.path,
         content_unit_id: contentUnitId,
         candidate_id: selection?.candidate_id,
-        output_kind: stringField14(contentUnitsById.get(String(contentUnitId))?.record.output_kind)
+        output_kind: stringField13(contentUnitsById.get(String(contentUnitId))?.record.output_kind)
       });
     }
     return [];
   });
-  const scopeKind = stringField14(input.previewTimeline.scopeKind) ?? "timeline";
+  const scopeKind = stringField13(input.previewTimeline.scopeKind) ?? "timeline";
   const scopeRef = idField6(input.previewTimeline.scopeRef) ?? input.previewTimeline.scopePath ?? input.previewTimeline.targetRef ?? "unknown";
-  const targetRef = stringField14(input.previewTimeline.targetRef) ?? implicitTimelineAssemblyRef(scopeKind, String(scopeRef));
-  const scopePath = stringField14(input.previewTimeline.scopePath);
+  const targetRef = stringField13(input.previewTimeline.targetRef) ?? implicitTimelineAssemblyRef(scopeKind, String(scopeRef));
+  const scopePath = stringField13(input.previewTimeline.scopePath);
   return {
     targetKind: "timeline_assembly",
     targetId: targetRef,
@@ -30273,7 +29912,7 @@ function timelineAssemblyTimelineFromPreview(input) {
       scopeKind,
       scopeRef,
       scopePath,
-      title: stringField14(input.previewTimeline.scopeTitle) ?? `Timeline assembly ${scopeKind}:${String(scopeRef)}`,
+      title: stringField13(input.previewTimeline.scopeTitle) ?? `Timeline assembly ${scopeKind}:${String(scopeRef)}`,
       clips
     })
   };
@@ -30296,7 +29935,7 @@ function uniquePreviewTimelines(timelines) {
   const seen = /* @__PURE__ */ new Set();
   const output = [];
   for (const timeline of timelines) {
-    const key = stringField14(timeline.targetRef) ?? (timeline.productionId !== void 0 ? `production:${String(timeline.productionId)}` : void 0) ?? stringField14(timeline.scopePath) ?? JSON.stringify(timeline.items.map((item) => item.id));
+    const key = stringField13(timeline.targetRef) ?? (timeline.productionId !== void 0 ? `production:${String(timeline.productionId)}` : void 0) ?? stringField13(timeline.scopePath) ?? JSON.stringify(timeline.items.map((item) => item.id));
     if (seen.has(key)) continue;
     seen.add(key);
     output.push(timeline);
@@ -30305,16 +29944,16 @@ function uniquePreviewTimelines(timelines) {
 }
 function productionSceneMomentContentUnitIds(contentUnits, item) {
   const explicit = Array.isArray(item.contentUnitIds) ? (item.contentUnitIds ?? []).filter((id) => typeof id === "string" || typeof id === "number") : [];
-  const scanned = contentUnits.filter((unit) => isSceneMomentVideoContentUnit(unit.record) && sceneMomentRefMatches(unit.record, item)).map((unit) => unit.id ?? pathSegmentAfter4(unit.path, "content_units")).filter((id) => typeof id === "string" || typeof id === "number");
+  const scanned = contentUnits.filter((unit) => isSceneMomentVideoContentUnit(unit.record) && sceneMomentRefMatches(unit.record, item)).map((unit) => unit.id ?? pathSegmentAfter5(unit.path, "content_units")).filter((id) => typeof id === "string" || typeof id === "number");
   return [...new Map([...explicit, ...scanned].map((id) => [String(id), id])).values()];
 }
 function previewTimelineItemTitle(item) {
-  return stringField14(item.title);
+  return stringField13(item.title);
 }
 function isSceneMomentVideoContentUnit(record) {
-  const type = stringField14(record.content_unit_type);
+  const type = stringField13(record.content_unit_type);
   if (type !== "scene_moment_ref" && type !== "scence_moment_ref") return false;
-  const outputKind = stringField14(record.output_kind);
+  const outputKind = stringField13(record.output_kind);
   return outputKind === void 0 || outputKind === "video";
 }
 function sceneMomentRefMatches(record, item) {
@@ -30329,8 +29968,8 @@ function sceneMomentRefMatches(record, item) {
 function contentCandidateRecordsByContentUnitId2(documents) {
   const output = /* @__PURE__ */ new Map();
   for (const document of documents) {
-    if (!document.path.endsWith("/content_candidate.json") || !isRecord13(document.data)) continue;
-    const contentUnitId = contentUnitIdForRuntimeDocument3(document.path, stringField14(document.data.content_unit_ref));
+    if (!document.path.endsWith("/content_candidate.json") || !isRecord12(document.data)) continue;
+    const contentUnitId = contentUnitIdForRuntimeDocument3(document.path, stringField13(document.data.content_unit_ref));
     if (!contentUnitId) continue;
     output.set(contentUnitId, [...output.get(contentUnitId) ?? [], document.data]);
   }
@@ -30339,10 +29978,10 @@ function contentCandidateRecordsByContentUnitId2(documents) {
 function selectionRecordsByContentUnitId2(documents) {
   const output = /* @__PURE__ */ new Map();
   for (const document of documents) {
-    if (!isRecord13(document.data)) continue;
-    const selection = isRecord13(document.data.selection) ? document.data.selection : void 0;
+    if (!isRecord12(document.data)) continue;
+    const selection = isRecord12(document.data.selection) ? document.data.selection : void 0;
     if (!selection) continue;
-    const contentUnitId = contentUnitIdForRuntimeDocument3(document.path, stringField14(document.data.target_ref));
+    const contentUnitId = contentUnitIdForRuntimeDocument3(document.path, stringField13(document.data.target_ref));
     if (!contentUnitId) continue;
     output.set(contentUnitId, {
       ...idField6(selection.candidate_id) !== void 0 ? { candidate_id: idField6(selection.candidate_id) } : {}
@@ -30352,19 +29991,19 @@ function selectionRecordsByContentUnitId2(documents) {
 }
 function contentUnitIdForRuntimeDocument3(path, ref) {
   if (ref) return lastPathSegment3(ref) ?? ref;
-  return pathSegmentAfter4(path, "content_units");
+  return pathSegmentAfter5(path, "content_units");
 }
 function firstCandidateOutput3(candidate) {
-  return Array.isArray(candidate?.outputs) ? candidate.outputs.find(isRecord13) : void 0;
+  return Array.isArray(candidate?.outputs) ? candidate.outputs.find(isRecord12) : void 0;
 }
 function productionWorkPlanFromReview(value) {
-  if (!isRecord13(value)) return void 0;
+  if (!isRecord12(value)) return void 0;
   return value.productionWorkPlan;
 }
 function isDefined3(value) {
   return value !== void 0;
 }
-function isRecord13(value) {
+function isRecord12(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function idField6(value) {
@@ -30372,7 +30011,7 @@ function idField6(value) {
   if (typeof value === "string" && value.trim()) return value.trim();
   return void 0;
 }
-function stringField14(value) {
+function stringField13(value) {
   const id = idField6(value);
   return id === void 0 ? void 0 : String(id);
 }
@@ -30381,7 +30020,7 @@ function numberField5(value) {
   if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value);
   return void 0;
 }
-function pathSegmentAfter4(path, segment) {
+function pathSegmentAfter5(path, segment) {
   if (!path) return void 0;
   const parts = path.split("/").filter(Boolean);
   const index = parts.indexOf(segment);
@@ -30395,6 +30034,474 @@ function safeId3(value) {
 }
 function sameId4(left, right) {
   return left !== void 0 && right !== void 0 && String(left) === String(right);
+}
+
+// ../../packages/core/dist/chunk-NRNAVDJZ.js
+var AGENT_SURFACE_ROUTES = {
+  resources: "/agent/resources",
+  resourceDetail: "/agent/resources/:resourceId",
+  contentPrompt: "/agent/content/prompt",
+  contentCandidates: "/agent/content/candidates",
+  generationJob: "/agent/generation/jobs/:jobId",
+  previewTimeline: "/agent/preview/timeline",
+  impact: "/agent/impact",
+  projectStatus: "/agent/project/status"
+};
+function agentGenerationJobPath(jobId) {
+  return `/agent/generation/jobs/${encodeURIComponent(String(jobId))}`;
+}
+function createAgentBrowserSurface(args, input) {
+  const frontendOrigin = resolveFrontendOrigin(args);
+  const proxyBaseURL = resolveMCPProxyBaseURL(args);
+  const mcpApiBaseURL = `${proxyBaseURL}/agent-api/v1`;
+  const url = new URL(input.route, frontendOrigin);
+  url.searchParams.set("mcpApiBaseURL", mcpApiBaseURL);
+  url.searchParams.set("source", "mcp");
+  for (const [key, value] of Object.entries(input.query ?? {})) {
+    if (value === void 0) continue;
+    url.searchParams.set(key, String(value));
+  }
+  return {
+    kind: "browser_url",
+    surface: input.surface,
+    title: input.title,
+    route: input.route,
+    url: url.toString(),
+    frontend_origin: frontendOrigin,
+    mcp_api_base_url: mcpApiBaseURL,
+    api_proxy: {
+      base_url: mcpApiBaseURL,
+      auth: "agent_mcp_context"
+    },
+    ...input.entity ? { entity: input.entity } : {},
+    intent: input.intent,
+    usage: input.usage
+  };
+}
+function createPromptSurface(args, input) {
+  return createAgentBrowserSurface(args, {
+    route: AGENT_SURFACE_ROUTES.contentPrompt,
+    title: `Content unit prompt ${String(input.contentUnitId)}`,
+    surface: input.mode === "inspect" ? "inspect" : "edit",
+    intent: "edit_prompt",
+    entity: {
+      ...input.projectId !== void 0 ? { project_id: input.projectId } : {},
+      content_unit_id: input.contentUnitId
+    },
+    query: {
+      ...input.projectId !== void 0 ? { projectId: input.projectId } : {},
+      contentUnitId: input.contentUnitId,
+      mode: input.mode ?? "edit"
+    },
+    usage: "Open this prompt workbench to inspect semantic refs, blockers, compiled prompt text, provider prompt text, and generation inputs."
+  });
+}
+function createGenerationJobSurface(args, input) {
+  return createAgentBrowserSurface(args, {
+    route: agentGenerationJobPath(input.jobId),
+    title: `Generation job #${input.jobId}`,
+    surface: "inspect",
+    intent: "monitor_generation",
+    entity: {
+      job_id: input.jobId,
+      ...input.projectId !== void 0 ? { project_id: input.projectId } : {},
+      ...input.contentUnitId !== void 0 ? { content_unit_id: input.contentUnitId } : {}
+    },
+    query: {
+      jobId: input.jobId,
+      ...input.projectId !== void 0 ? { projectId: input.projectId } : {},
+      ...input.contentUnitId !== void 0 ? { contentUnitId: input.contentUnitId } : {}
+    },
+    usage: "Open this generation job surface to monitor status, inspect inputs, preview outputs, and continue to candidate review after success."
+  });
+}
+function createContentCandidatesSurface(args, input) {
+  return createAgentBrowserSurface(args, {
+    route: AGENT_SURFACE_ROUTES.contentCandidates,
+    title: `Content unit candidates ${String(input.contentUnitId)}`,
+    surface: "review",
+    intent: "review_candidates",
+    entity: {
+      ...input.projectId !== void 0 ? { project_id: input.projectId } : {},
+      content_unit_id: input.contentUnitId,
+      ...input.candidateId ? { candidate_id: input.candidateId } : {},
+      ...input.resourceId !== void 0 ? { resource_id: input.resourceId } : {}
+    },
+    query: {
+      ...input.projectId !== void 0 ? { projectId: input.projectId } : {},
+      contentUnitId: input.contentUnitId,
+      ...input.candidateId ? { candidateId: input.candidateId } : {},
+      ...input.resourceId !== void 0 ? { resourceId: input.resourceId } : {}
+    },
+    usage: "Open this candidate review surface to compare generated candidates, inspect prompt snapshots, and adopt, reject, or defer a content-unit candidate."
+  });
+}
+function createPreviewTimelineSurface(args, input) {
+  const focus = resolveTimelineSurfaceFocus(input);
+  return createAgentBrowserSurface(args, {
+    route: AGENT_SURFACE_ROUTES.previewTimeline,
+    title: `Timeline preview ${focus.label}`,
+    surface: "review",
+    intent: "preview_timeline",
+    entity: focus.entity,
+    query: focus.query,
+    usage: "Open this preview timeline surface to inspect selected scene-moment outputs for a timeline assembly or legacy production scope."
+  });
+}
+function createImpactSurface(args, input) {
+  return createAgentBrowserSurface(args, {
+    route: AGENT_SURFACE_ROUTES.impact,
+    title: "MovScript change impact",
+    surface: "review",
+    intent: "review_impact",
+    entity: {
+      ...input.projectId !== void 0 ? { project_id: input.projectId } : {}
+    },
+    query: {
+      ...input.projectId !== void 0 ? { projectId: input.projectId } : {},
+      ...input.target !== void 0 ? { target: input.target } : {},
+      ...input.source ? { source: input.source } : {}
+    },
+    usage: "Open this impact surface to review affected content units, stale selections, and explicit keep, relink, re-prompt, regenerate, or accept-stale decisions."
+  });
+}
+function createProjectStatusSurface(args, input = {}) {
+  const focus = resolveTimelineSurfaceFocus(input);
+  return createAgentBrowserSurface(args, {
+    route: AGENT_SURFACE_ROUTES.projectStatus,
+    title: "MovScript project status",
+    surface: "inspect",
+    intent: "inspect_project_status",
+    entity: focus.entity,
+    query: focus.query,
+    usage: "Open this project status surface to inspect timeline readiness, candidate coverage, selections, stale hints, and blockers."
+  });
+}
+function resolveTimelineSurfaceFocus(input) {
+  const focusInput = {
+    projectId: input.projectId,
+    productionId: input.productionId,
+    scopeKind: input.scopeKind,
+    scopeRef: input.scopeRef,
+    namespaceKind: input.namespaceKind,
+    namespaceRef: input.namespaceRef,
+    namespacePath: input.namespacePath,
+    targetCategory: input.targetCategory,
+    targetKind: input.timelineAssemblyRef !== void 0 ? "timeline_assembly" : input.targetKind,
+    targetRef: input.timelineAssemblyRef ?? input.targetRef
+  };
+  const focus = normalizeDomainFocus(focusInput);
+  const legacyProductionId = input.productionId ?? (focus.scope?.kind === "production" ? focus.scope.ref : void 0);
+  const entity = {
+    ...input.projectId !== void 0 ? { project_id: input.projectId } : {},
+    ...legacyProductionId !== void 0 ? { production_id: legacyProductionId } : {},
+    ...focus.scope ? {
+      timeline_scope_kind: focus.scope.kind,
+      timeline_scope_ref: focus.scope.ref
+    } : {},
+    ...focus.target?.targetCategory ? { target_category: focus.target.targetCategory } : {},
+    ...focus.target?.targetKind ? { target_kind: focus.target.targetKind } : {},
+    ...focus.target?.targetRef !== void 0 ? { target_ref: focus.target.targetRef } : {},
+    ...focus.target?.targetKind === "timeline_assembly" && focus.target.targetRef !== void 0 ? { timeline_assembly_ref: focus.target.targetRef } : {},
+    domain_focus: focus
+  };
+  const query = {
+    ...input.projectId !== void 0 ? { projectId: input.projectId } : {},
+    ...legacyProductionId !== void 0 ? { productionId: legacyProductionId } : {},
+    ...focus.scope ? {
+      scopeKind: focus.scope.kind,
+      scopeRef: focus.scope.ref
+    } : {},
+    ...focus.target?.targetCategory ? { targetCategory: focus.target.targetCategory } : {},
+    ...focus.target?.targetKind ? { targetKind: focus.target.targetKind } : {},
+    ...focus.target?.targetRef !== void 0 ? { targetRef: focus.target.targetRef } : {}
+  };
+  return {
+    focus,
+    ...legacyProductionId !== void 0 ? { legacyProductionId } : {},
+    label: timelineFocusLabel(focus, legacyProductionId),
+    entity,
+    query
+  };
+}
+function timelineFocusLabel(focus, legacyProductionId) {
+  if (focus.scope?.kind && focus.scope.ref) return `${focus.scope.kind} ${focus.scope.ref}`;
+  if (focus.target?.targetKind && focus.target.targetRef) return `${focus.target.targetKind} ${focus.target.targetRef}`;
+  if (legacyProductionId !== void 0) return `production ${String(legacyProductionId)}`;
+  return "project";
+}
+function projectIdFromArgs(args) {
+  const value = args.projectId ?? args.project_id;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) return value.trim();
+  return void 0;
+}
+function candidateIdFromArgs(args) {
+  return getOptionalString2(args, "candidateId") ?? getOptionalString2(args, "candidate_id");
+}
+function resolveFrontendOrigin(args) {
+  return normalizeHTTPOrigin(
+    getOptionalString2(args, "frontend_origin") ?? getOptionalString2(args, "frontendOrigin") ?? process.env.MOVSCRIPT_FRONTEND_ORIGIN ?? process.env.VITE_DEV_SERVER_URL ?? "http://127.0.0.1:5173"
+  );
+}
+function resolveMCPProxyBaseURL(args) {
+  const explicit = getOptionalString2(args, "mcp_base_url") ?? getOptionalString2(args, "mcpBaseURL");
+  if (explicit) return normalizeHTTPOrigin(explicit);
+  const endpoint = process.env.MOVSCRIPT_MCP_ENDPOINT;
+  if (endpoint) {
+    try {
+      const url = new URL(endpoint);
+      return normalizeHTTPOrigin(url.origin);
+    } catch {
+    }
+  }
+  const port = process.env.MOVSCRIPT_MCP_PORT || "28765";
+  return normalizeHTTPOrigin(`http://127.0.0.1:${port}`);
+}
+function getOptionalString2(args, key) {
+  const value = args[key];
+  if (typeof value !== "string") return void 0;
+  const trimmed = value.trim();
+  return trimmed || void 0;
+}
+function normalizeHTTPOrigin(value) {
+  const url = new URL(value.trim());
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error(`Expected http(s) URL, got ${value}`);
+  }
+  return url.origin;
+}
+
+// ../../packages/core/dist/chunk-AB7S554A.js
+function buildContentUnitGenerationRequest(input) {
+  const promptText = compiledContentUnitGenerationPromptText(input.compiledPrompt);
+  const inputResourceIds = positiveIntegerIds([
+    ...compiledContentUnitGenerationPromptResourceIds(input.compiledPrompt),
+    ...input.additionalInputResourceIds ?? []
+  ]);
+  const generationIntent = requiredContentUnitGenerationIntent(input.generationIntent);
+  const jobType = generationExecutionJobTypeForIntent(generationIntent, input.outputKind);
+  const params = contentUnitGenerationParams(input.outputKind, input.compiledPrompt, input.params);
+  const promptSnapshot = buildContentUnitGenerationPromptSnapshot({
+    contentUnitId: input.contentUnitId,
+    outputKind: input.outputKind,
+    modelId: input.modelId,
+    compiledPrompt: input.compiledPrompt,
+    resourceIds: inputResourceIds,
+    paramAudit: input.paramAudit,
+    modelParams: input.modelParams ?? params
+  });
+  return {
+    contentUnitId: input.contentUnitId,
+    outputKind: input.outputKind,
+    promptText,
+    inputResourceIds,
+    jobType,
+    generationIntent,
+    featureKey: contentUnitGenerationFeatureKey(input.outputKind),
+    params,
+    promptSnapshot
+  };
+}
+function generationExecutionJobTypeForIntent(intent, fallbackOutputKind) {
+  switch (intent?.capability?.trim()) {
+    case "video_generation":
+      return "video";
+    case "image_generation":
+      return intent.operation === "image_to_image" || intent.operation === "image_edit" ? "image_edit" : "image";
+    case "audio_generation":
+      switch (intent.operation?.trim()) {
+        case "music":
+          return "audio_music";
+        case "sfx":
+          return "audio_sfx";
+        case "stt":
+          return "audio_transcribe";
+        case "speech_translate":
+          return "audio_translate";
+        case "audio_chat":
+          return "audio_chat";
+        case "voice_clone":
+          return "voice_clone";
+        case "voice_design":
+          return "voice_design";
+        default:
+          return "audio_tts";
+      }
+    default:
+      return fallbackOutputKind;
+  }
+}
+function requiredContentUnitGenerationIntent(intent) {
+  if (!intent?.capability?.trim() || !intent.operation?.trim()) {
+    throw new Error("generationIntent with capability and operation is required for content-unit generation");
+  }
+  return intent;
+}
+function buildContentUnitGenerationOutputCandidate(input) {
+  const jobId = contentUnitGenerationJobId(input.job);
+  const candidateId = input.candidateId ?? contentUnitGenerationCandidateId(input.outputKind, jobId, input.resourceId);
+  const promptSnapshot = input.promptSnapshot ?? {};
+  const modelId = input.modelId ?? stringField14(input.job.model_id) ?? stringField14(promptSnapshot.model_id);
+  const modelParams = nonEmptyRecord(input.modelParams ?? recordField3(promptSnapshot.model_params));
+  return {
+    contentUnitId: String(input.contentUnitId),
+    candidateId: String(candidateId),
+    source: "ai_generate",
+    status: "succeeded",
+    producer: {
+      kind: "generation",
+      tool: contentUnitGenerationToolName(input.outputKind),
+      job_id: jobId,
+      ...modelId ? { model_id: modelId } : {},
+      ...stringField14(input.job.job_type) ? { job_type: stringField14(input.job.job_type) } : {},
+      ...modelParams ? { model_params: modelParams } : {}
+    },
+    outputs: [{
+      kind: input.outputKind,
+      resource_id: input.resourceId,
+      metadata: {
+        job_id: jobId,
+        ...modelId ? { model_id: modelId } : {},
+        ...stringField14(input.job.job_type) ? { job_type: stringField14(input.job.job_type) } : {},
+        tool: contentUnitGenerationMonitorToolName(input.outputKind)
+      }
+    }],
+    promptSnapshot,
+    createdAt: stringField14(input.job.CreatedAt) ?? stringField14(input.job.created_at) ?? (/* @__PURE__ */ new Date()).toISOString()
+  };
+}
+function contentUnitGenerationCandidateId(outputKind, jobId, resourceId) {
+  return `gen_${outputKind}_${String(jobId)}_${String(resourceId)}`;
+}
+function compiledContentUnitGenerationPromptText(prompt) {
+  const text = stringField14(prompt.text);
+  if (text) return stripResourceMentions(text);
+  throw new Error("compiled content unit prompt has no text");
+}
+function compiledContentUnitGenerationPromptResourceIds(prompt) {
+  return positiveIntegerIds([
+    ...resourceIdsFromMentions(stringField14(prompt.text)),
+    ...resourceIdsFromMentions(stringField14(prompt.negative_text)),
+    ...numericList(prompt.resource_ids),
+    ...numericList(prompt.resourceIds),
+    ...numericList(prompt.style_reference_resource_ids),
+    ...numericList(prompt.styleReferenceResourceIds)
+  ]);
+}
+function buildContentUnitGenerationPromptSnapshot(input) {
+  const resourceIds2 = input.resourceIds ?? compiledContentUnitGenerationPromptResourceIds(input.compiledPrompt);
+  const modelParams = nonEmptyRecord(input.modelParams);
+  return {
+    schema: "movscript.content_unit_generation_prompt_snapshot.v1",
+    content_unit_id: input.contentUnitId,
+    output_kind: input.outputKind,
+    model_id: input.modelId,
+    compiled_prompt: input.compiledPrompt,
+    resource_ids: resourceIds2,
+    ...modelParams ? { model_params: modelParams } : {},
+    ...Array.isArray(input.paramAudit) && input.paramAudit.length > 0 ? { param_audit: input.paramAudit } : {}
+  };
+}
+function contentUnitGenerationFeatureKey(outputKind) {
+  return outputKind === "image" ? "electron.generation.content_unit.image" : "electron.generation.content_unit.video";
+}
+function contentUnitGenerationMonitorToolName(outputKind) {
+  return "generation_job_get";
+}
+function contentUnitGenerationSystemMonitorToolName(outputKind) {
+  return contentUnitGenerationMonitorToolName(outputKind);
+}
+function contentUnitGenerationToolName(outputKind) {
+  return "generation_submit";
+}
+function contentUnitGenerationParams(outputKind, prompt, params = {}) {
+  const next = { ...params };
+  if (outputKind === "image") {
+    if (next.aspect_ratio === void 0) next.aspect_ratio = "1:1";
+    const negativePrompt = stringField14(prompt.negative_text);
+    if (negativePrompt && next.negative_prompt === void 0) next.negative_prompt = negativePrompt;
+  } else {
+    if (next.aspect_ratio === void 0) next.aspect_ratio = "16:9";
+    if (next.duration === void 0) next.duration = 5;
+  }
+  return next;
+}
+function contentUnitGenerationJobId(job) {
+  const id = numericId2(job.ID) ?? numericId2(job.id);
+  if (id !== void 0) return id;
+  throw new Error("Generation job response does not include a valid job id");
+}
+function positiveIntegerIds(values) {
+  const ids = values.map((value) => numericId2(value)).filter((value) => value !== void 0);
+  return Array.from(new Set(ids));
+}
+function numericList(value) {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => numericId2(item)).filter((item) => item !== void 0);
+}
+function numericId2(value) {
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) return value;
+  if (typeof value === "string" && value.trim()) {
+    const numberValue8 = Number(value.trim());
+    if (Number.isInteger(numberValue8) && numberValue8 > 0) return numberValue8;
+  }
+  return void 0;
+}
+function stringField14(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : void 0;
+}
+function recordField3(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : void 0;
+}
+function nonEmptyRecord(value) {
+  const record = recordField3(value);
+  return record && Object.keys(record).length > 0 ? record : void 0;
+}
+var DEFAULT_GENERATION_TOOLS_SETTINGS = {
+  servers: [
+    createGenerationToolServer("comfyui", {
+      id: "local-comfyui-default",
+      name: "\u672C\u673A ComfyUI",
+      baseURL: "http://127.0.0.1:8188",
+      priority: 10
+    }),
+    createGenerationToolServer("webui", {
+      id: "local-webui-default",
+      name: "\u672C\u673A WebUI",
+      baseURL: "http://127.0.0.1:7860",
+      priority: 20
+    })
+  ],
+  defaultServerId: void 0,
+  defaultServerIds: {},
+  preferLocalServers: true
+};
+function createGenerationToolServer(type, overrides = {}) {
+  const id = overrides.id ?? newLocalServerId();
+  return {
+    id,
+    scope: overrides.scope ?? "local",
+    type,
+    name: overrides.name ?? (type === "comfyui" ? "ComfyUI" : "Stable Diffusion WebUI"),
+    enabled: overrides.enabled ?? false,
+    baseURL: overrides.baseURL ?? (type === "comfyui" ? "http://127.0.0.1:8188" : "http://127.0.0.1:7860"),
+    timeoutMS: overrides.timeoutMS ?? 12e4,
+    priority: overrides.priority ?? 50,
+    authKind: overrides.authKind ?? "none",
+    username: overrides.username ?? "",
+    password: overrides.password ?? "",
+    passwordSet: overrides.passwordSet ?? false,
+    token: overrides.token ?? "",
+    tokenSet: overrides.tokenSet ?? false,
+    tags: overrides.tags ?? []
+  };
+}
+function newLocalServerId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `local-${crypto.randomUUID()}`;
+  }
+  return `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 // ../../packages/project/dist/index.js
@@ -30893,7 +31000,7 @@ function createNodeMovScriptWorkspaceService(input = {}) {
   };
 }
 
-// ../../packages/engine/dist/chunk-YPKXB5ID.js
+// ../../packages/engine/dist/chunk-PVMLBOBJ.js
 function createMovScriptEngine(options) {
   const workspaceService = options.workspaceService;
   const overviewWorkspace = options.overviewWorkspace;
@@ -31054,9 +31161,9 @@ function createMovScriptEngine(options) {
         "deriveContentUnitArtifact"
       );
     },
-    buildContentUnitBackendPrompt(contentUnitId) {
+    buildContentUnitBackendPrompt(contentUnitId, options2) {
       return callRequiredOperation(
-        buildContentUnitBackendPrompt2 ? () => buildContentUnitBackendPrompt2(contentUnitId) : void 0,
+        buildContentUnitBackendPrompt2 ? () => buildContentUnitBackendPrompt2(contentUnitId, options2) : void 0,
         "buildContentUnitBackendPrompt"
       );
     },
@@ -31210,14 +31317,14 @@ async function updateEntityBasics(workspaceService, input) {
   }
   if (entityKind === "production") {
     return saveProduction(workspaceService, {
-      id: input.id ?? idValue2(record.id) ?? pathSegmentAfter5(input.targetPath ?? "", "productions"),
+      id: input.id ?? idValue2(record.id) ?? pathSegmentAfter6(input.targetPath ?? "", "productions"),
       title: stringValue9(patched.title)
     });
   }
   if (entityKind === "segment") {
     return saveSegment(workspaceService, {
-      productionId: input.productionId ?? pathSegmentAfter5(input.targetPath ?? "", "productions"),
-      id: input.id ?? idValue2(record.id) ?? pathSegmentAfter5(input.targetPath ?? "", "segments"),
+      productionId: input.productionId ?? pathSegmentAfter6(input.targetPath ?? "", "productions"),
+      id: input.id ?? idValue2(record.id) ?? pathSegmentAfter6(input.targetPath ?? "", "segments"),
       title: stringValue9(patched.title),
       summary: stringValue9(patched.summary ?? patched.description),
       kind: stringValue9(patched.segment_kind ?? patched.kind)
@@ -31225,9 +31332,9 @@ async function updateEntityBasics(workspaceService, input) {
   }
   if (entityKind === "scene_moment") {
     return saveSceneMoment(workspaceService, {
-      productionId: input.productionId ?? pathSegmentAfter5(input.targetPath ?? "", "productions"),
-      segmentId: input.segmentId ?? pathSegmentAfter5(input.targetPath ?? "", "segments"),
-      id: input.id ?? idValue2(record.id) ?? pathSegmentAfter5(input.targetPath ?? "", "scene_moments"),
+      productionId: input.productionId ?? pathSegmentAfter6(input.targetPath ?? "", "productions"),
+      segmentId: input.segmentId ?? pathSegmentAfter6(input.targetPath ?? "", "segments"),
+      id: input.id ?? idValue2(record.id) ?? pathSegmentAfter6(input.targetPath ?? "", "scene_moments"),
       title: stringValue9(patched.title),
       actionText: stringValue9(patched.action_text ?? patched.action),
       description: stringValue9(patched.description),
@@ -31236,11 +31343,12 @@ async function updateEntityBasics(workspaceService, input) {
   }
   if (entityKind === "expression_unit") {
     return saveExpressionUnit(workspaceService, {
-      productionId: input.productionId ?? pathSegmentAfter5(input.targetPath ?? "", "productions"),
-      segmentId: input.segmentId ?? pathSegmentAfter5(input.targetPath ?? "", "segments"),
-      sceneMomentId: input.sceneMomentId ?? idValue2(record.scene_moment_id) ?? pathSegmentAfter5(input.targetPath ?? "", "scene_moments"),
-      id: input.id ?? idValue2(record.id) ?? pathSegmentAfter5(input.targetPath ?? "", "expression_units"),
+      productionId: input.productionId ?? pathSegmentAfter6(input.targetPath ?? "", "productions"),
+      segmentId: input.segmentId ?? pathSegmentAfter6(input.targetPath ?? "", "segments"),
+      sceneMomentId: input.sceneMomentId ?? idValue2(record.scene_moment_id) ?? pathSegmentAfter6(input.targetPath ?? "", "scene_moments"),
+      id: input.id ?? idValue2(record.id) ?? pathSegmentAfter6(input.targetPath ?? "", "expression_units"),
       title: stringValue9(patched.title),
+      slotKind: stringValue9(patched.slot_kind ?? patched.slotKind),
       kind: stringValue9(patched.kind),
       text: stringValue9(patched.text ?? patched.summary ?? patched.description),
       intent: stringValue9(patched.intent)
@@ -31248,32 +31356,32 @@ async function updateEntityBasics(workspaceService, input) {
   }
   if (entityKind === "keyframe") {
     return saveKeyframe(workspaceService, {
-      productionId: input.productionId ?? pathSegmentAfter5(input.targetPath ?? "", "productions"),
-      segmentId: input.segmentId ?? pathSegmentAfter5(input.targetPath ?? "", "segments"),
-      sceneMomentId: input.sceneMomentId ?? idValue2(record.scene_moment_id) ?? pathSegmentAfter5(input.targetPath ?? "", "scene_moments"),
-      expressionUnitId: input.expressionUnitId ?? idValue2(record.expression_unit_id) ?? pathSegmentAfter5(input.targetPath ?? "", "expression_units"),
-      id: input.id ?? idValue2(record.id) ?? pathSegmentAfter5(input.targetPath ?? "", "keyframes"),
+      productionId: input.productionId ?? pathSegmentAfter6(input.targetPath ?? "", "productions"),
+      segmentId: input.segmentId ?? pathSegmentAfter6(input.targetPath ?? "", "segments"),
+      sceneMomentId: input.sceneMomentId ?? idValue2(record.scene_moment_id) ?? pathSegmentAfter6(input.targetPath ?? "", "scene_moments"),
+      expressionUnitId: input.expressionUnitId ?? idValue2(record.expression_unit_id) ?? pathSegmentAfter6(input.targetPath ?? "", "expression_units"),
+      id: input.id ?? idValue2(record.id) ?? pathSegmentAfter6(input.targetPath ?? "", "keyframes"),
       title: stringValue9(patched.title),
       role: stringValue9(patched.role),
       visualIntent: stringValue9(patched.visual_intent ?? patched.description),
-      timing: isRecord14(patched.timing) ? patched.timing : void 0,
-      composition: isRecord14(patched.composition) ? patched.composition : void 0,
-      continuity: isRecord14(patched.continuity) ? patched.continuity : void 0,
+      timing: isRecord13(patched.timing) ? patched.timing : void 0,
+      composition: isRecord13(patched.composition) ? patched.composition : void 0,
+      continuity: isRecord13(patched.continuity) ? patched.continuity : void 0,
       referenceAssetRefs: Array.isArray(patched.reference_asset_refs) ? patched.reference_asset_refs : void 0,
       referenceKeyframeRefs: Array.isArray(patched.reference_keyframe_refs) ? patched.reference_keyframe_refs : void 0
     });
   }
   if (entityKind === "storyboard") {
     return saveStoryboard(workspaceService, {
-      productionId: input.productionId ?? pathSegmentAfter5(input.targetPath ?? "", "productions"),
-      segmentId: input.segmentId ?? pathSegmentAfter5(input.targetPath ?? "", "segments"),
-      sceneMomentId: input.sceneMomentId ?? idValue2(record.scene_moment_id) ?? pathSegmentAfter5(input.targetPath ?? "", "scene_moments"),
-      expressionUnitId: input.expressionUnitId ?? idValue2(record.expression_unit_id) ?? pathSegmentAfter5(input.targetPath ?? "", "expression_units"),
-      id: input.id ?? idValue2(record.id) ?? pathSegmentAfter5(input.targetPath ?? "", "storyboards"),
+      productionId: input.productionId ?? pathSegmentAfter6(input.targetPath ?? "", "productions"),
+      segmentId: input.segmentId ?? pathSegmentAfter6(input.targetPath ?? "", "segments"),
+      sceneMomentId: input.sceneMomentId ?? idValue2(record.scene_moment_id) ?? pathSegmentAfter6(input.targetPath ?? "", "scene_moments"),
+      expressionUnitId: input.expressionUnitId ?? idValue2(record.expression_unit_id) ?? pathSegmentAfter6(input.targetPath ?? "", "expression_units"),
+      id: input.id ?? idValue2(record.id) ?? pathSegmentAfter6(input.targetPath ?? "", "storyboards"),
       title: stringValue9(patched.title),
       visualIntent: stringValue9(patched.visual_intent ?? patched.description),
-      timeline: isRecord14(patched.timeline) ? patched.timeline : void 0,
-      graph: isRecord14(patched.graph) ? patched.graph : void 0
+      timeline: isRecord13(patched.timeline) ? patched.timeline : void 0,
+      graph: isRecord13(patched.graph) ? patched.graph : void 0
     });
   }
   throw new Error(`Unsupported entity basics update kind: ${entityKind}`);
@@ -31289,8 +31397,8 @@ function connectSceneMomentSetting(workspaceService, input) {
   const settingStateId = idValue2(input.settingStateId);
   const alreadyLinked = currentRefs.some((ref) => String(idValue2(ref.id ?? ref.settingId) ?? "") === String(settingId) && String(idValue2(ref.settingStateId) ?? "") === String(settingStateId ?? ""));
   return saveSceneMoment(workspaceService, {
-    productionId: input.productionId ?? pathSegmentAfter5(stringValue9(sceneMomentRecord.__workspace_path ?? sceneMomentRecord.workspace_path ?? "") ?? "", "productions"),
-    segmentId: input.segmentId ?? pathSegmentAfter5(stringValue9(sceneMomentRecord.__workspace_path ?? sceneMomentRecord.workspace_path ?? "") ?? "", "segments"),
+    productionId: input.productionId ?? pathSegmentAfter6(stringValue9(sceneMomentRecord.__workspace_path ?? sceneMomentRecord.workspace_path ?? "") ?? "", "productions"),
+    segmentId: input.segmentId ?? pathSegmentAfter6(stringValue9(sceneMomentRecord.__workspace_path ?? sceneMomentRecord.workspace_path ?? "") ?? "", "segments"),
     id: sceneMomentId,
     title: stringValue9(sceneMomentRecord.title),
     actionText: stringValue9(sceneMomentRecord.action_text ?? sceneMomentRecord.action),
@@ -31371,6 +31479,7 @@ async function saveStoryboard(workspaceService, input) {
           ...expressionUnitId ? {
             expression_units: [{
               id: expressionUnitId,
+              slotKind: "visual",
               kind: "shot",
               storyboards: [pruneUndefined13({
                 id: storyboardId,
@@ -31411,6 +31520,7 @@ async function saveKeyframe(workspaceService, input) {
           ...expressionUnitId ? {
             expression_units: [{
               id: expressionUnitId,
+              slotKind: "visual",
               kind: "shot",
               keyframes: [pruneUndefined13({
                 id: keyframeId,
@@ -31483,6 +31593,7 @@ async function saveExpressionUnit(workspaceService, input) {
           expression_units: [pruneUndefined13({
             id: expressionUnitId,
             title: input.title,
+            slot_kind: normalizeExpressionUnitSlotKind(input.slotKind ?? input.kind ?? input.role ?? input.modality),
             modality: input.modality,
             role: input.role,
             kind: input.kind,
@@ -31657,12 +31768,13 @@ function defaultContentUnitOutputKind(contentUnitType2) {
     case "storyboard_ref":
       return "image";
     case "timeline_assembly_ref":
-    case "expression_unit_ref":
     case "scence_moment_ref":
     case "scene_moment_ref":
     case "production_ref":
     case "segment_ref":
       return "video";
+    case "expression_unit_ref":
+      return defaultOutputKindForExpressionUnitSlot(void 0);
     default:
       return "metadata";
   }
@@ -31695,7 +31807,7 @@ function pathPreservingHierarchyRecord(targetPath, record, entityKind) {
 }
 function entityIdFromTargetPath(targetPath, entityKind) {
   const collection = collectionSegmentForSourceKind(entityKind);
-  const collectionId = collection ? pathSegmentAfter5(targetPath, collection) : void 0;
+  const collectionId = collection ? pathSegmentAfter6(targetPath, collection) : void 0;
   if (collectionId) return collectionId;
   const parts = normalizePath(targetPath).split("/").filter(Boolean);
   const filename = parts.at(-1);
@@ -31756,7 +31868,7 @@ function patchEntityBasics(record, input) {
 }
 function contentUnitInputFromPatchedRecord(record, input) {
   return {
-    id: input.id ?? idValue2(record.id) ?? pathSegmentAfter5(input.targetPath ?? "", "content_units"),
+    id: input.id ?? idValue2(record.id) ?? pathSegmentAfter6(input.targetPath ?? "", "content_units"),
     title: stringValue9(record.title),
     contentUnitType: stringValue9(record.content_unit_type ?? record.kind),
     outputKind: stringValue9(record.output_kind),
@@ -31772,7 +31884,7 @@ function contentUnitInputFromPatchedRecord(record, input) {
   };
 }
 function settingRefsFromRecord(record) {
-  const refs = Array.isArray(record.setting_refs) ? record.setting_refs.filter(isRecord14) : [];
+  const refs = Array.isArray(record.setting_refs) ? record.setting_refs.filter(isRecord13) : [];
   return refs.flatMap((ref) => {
     const settingId = idValue2(ref.setting_id ?? ref.settingId ?? ref.setting_ref ?? ref.settingRef);
     if (!settingId) return [];
@@ -31833,7 +31945,7 @@ function normalizeEntityRef(value, kind) {
   if (value === void 0 || value === null || String(value).trim() === "") throw new Error(`${kind} ref is required`);
   const raw = normalizePath(String(value));
   const collection = collectionSegmentForTargetKind(kind);
-  const pathId = pathSegmentAfter5(raw, collection);
+  const pathId = pathSegmentAfter6(raw, collection);
   if (pathId) return pathId;
   if (raw.endsWith(".json")) {
     const parts = raw.split("/").filter(Boolean);
@@ -31864,7 +31976,7 @@ function entityRefAliases2(value) {
   if (tail) aliases.add(tail);
   if (tail?.endsWith(".json") && parts.at(-2)) aliases.add(parts.at(-2));
   for (const marker of ["assets", "scene_moments", "expression_units", "keyframes", "storyboards", "content_units"]) {
-    const segment = pathSegmentAfter5(raw, marker);
+    const segment = pathSegmentAfter6(raw, marker);
     if (segment) aliases.add(segment);
   }
   return [...aliases];
@@ -31876,7 +31988,7 @@ function compactStrings2(...values) {
   });
 }
 function recordValue2(value) {
-  return isRecord14(value) ? value : void 0;
+  return isRecord13(value) ? value : void 0;
 }
 function numberValue4(value) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -31929,11 +32041,11 @@ function normalizePath(value) {
 }
 function pathSegmentMatches(path, marker, id, entityKind) {
   if (!path) return false;
-  const segment = pathSegmentAfter5(path, marker);
+  const segment = pathSegmentAfter6(path, marker);
   if (!segment) return false;
   return refAliases(id, entityKind).includes(segment);
 }
-function pathSegmentAfter5(path, marker) {
+function pathSegmentAfter6(path, marker) {
   const parts = normalizePath(path).split("/").filter(Boolean);
   const index = parts.indexOf(marker);
   return index >= 0 ? parts[index + 1] : void 0;
@@ -31943,7 +32055,7 @@ function refAliases(value, entityKind) {
   const withoutPrefix = raw.startsWith(`${entityKind}_`) ? raw.slice(entityKind.length + 1) : raw;
   return [raw, withoutPrefix, `${entityKind}_${withoutPrefix}`];
 }
-function isRecord14(value) {
+function isRecord13(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 function stringValue9(value) {
@@ -31983,7 +32095,7 @@ function jsonPointerToFieldPath(pointer) {
 function diffJsonValueAtPointer(before, after, pointer) {
   if (jsonValueEquals(before, after)) return [];
   if (Array.isArray(before) && Array.isArray(after)) return diffJsonArrayAtPointer(before, after, pointer);
-  if (isRecord15(before) && isRecord15(after)) return diffJsonObjectAtPointer(before, after, pointer);
+  if (isRecord14(before) && isRecord14(after)) return diffJsonObjectAtPointer(before, after, pointer);
   if (before === void 0) return [{ path: pointer, operation: "added", newValue: after }];
   if (after === void 0) return [{ path: pointer, operation: "removed", oldValue: before }];
   return [{ path: pointer, operation: "replaced", oldValue: before, newValue: after }];
@@ -32079,7 +32191,7 @@ function diffTrackableJsonArrayAtPointer(before, after, beforeKeys, afterKeys, p
   return changes.sort(compareJsonChanges);
 }
 function stableArrayItemKey(value) {
-  if (isRecord15(value)) {
+  if (isRecord14(value)) {
     const id = value.id ?? value.ID ?? value.client_id ?? value.key ?? value.name;
     if (typeof id === "string" && id.trim()) return id.trim();
     if (typeof id === "number" && Number.isFinite(id)) return String(id);
@@ -32105,7 +32217,7 @@ function unescapeJsonPointerSegment(segment) {
 function jsonValueEquals(left, right) {
   return JSON.stringify(left) === JSON.stringify(right);
 }
-function isRecord15(value) {
+function isRecord14(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -32167,7 +32279,7 @@ function buildSourceDomainGraph(files) {
   const records = files.map((file) => {
     const data = parseWorkspaceDocument2(file.path, file.content);
     const entityKind = sourceEntityKindFromRelativePath(file.relativePath);
-    const id = isRecord16(data) && entityKind ? sourceEntityStableId(data, entityKind) : void 0;
+    const id = isRecord15(data) && entityKind ? sourceEntityStableId(data, entityKind) : void 0;
     return {
       file,
       data,
@@ -32210,7 +32322,7 @@ function changedEntitiesFromFiles(changedFiles, sourceGraph, currentGraph) {
     const sourceRecord = sourceByPath.get(file.path);
     const currentRecord = currentByRelativePath.get(file.path);
     const record = sourceRecord ?? currentRecord;
-    const entity = isRecord16(record?.data) ? record.data : {};
+    const entity = isRecord15(record?.data) ? record.data : {};
     const entityKind = record?.entityKind ?? entityKindFromFilePath(file.path, entity);
     const id = sourceEntityStableId(entity, entityKind);
     return [{
@@ -32289,7 +32401,7 @@ function idField7(value) {
   if (typeof value === "string" && value.trim()) return value.trim();
   return void 0;
 }
-function isRecord16(value) {
+function isRecord15(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -32331,7 +32443,7 @@ function interpretWorkspaceOverview(input) {
 function projectInfoFromSource(source) {
   const projectFile = source.files.find((file) => file.relativePath === "project.json");
   const project = projectFile ? parseWorkspaceDocument3(projectFile.path, projectFile.content) : void 0;
-  if (!isRecord17(project)) return {};
+  if (!isRecord16(project)) return {};
   const projectId = idField8(project.project_id ?? project.ID ?? project.id);
   return {
     ...projectId !== void 0 ? { projectId } : {},
@@ -32357,7 +32469,7 @@ function idField8(value) {
   if (typeof value === "string" && value.trim()) return value.trim();
   return void 0;
 }
-function isRecord17(value) {
+function isRecord16(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -32773,7 +32885,7 @@ function dedupeTargets(targets) {
   });
 }
 function selectionRecord(value) {
-  if (!isRecord18(value)) return void 0;
+  if (!isRecord17(value)) return void 0;
   return pruneUndefined14({
     contentUnitId: idField9(value.contentUnitId),
     contentUnitPath: stringField15(value.contentUnitPath),
@@ -32832,12 +32944,12 @@ function parseWorkspaceDocument4(path, content) {
   }
 }
 function isInterpretManifest(value) {
-  return isRecord18(value) && value.schema === "movscript.workspace-interpret.v1" && typeof value.interpretationId === "string" && typeof value.interpretedAt === "string" && isRecord18(value.output);
+  return isRecord17(value) && value.schema === "movscript.workspace-interpret.v1" && typeof value.interpretationId === "string" && typeof value.interpretedAt === "string" && isRecord17(value.output);
 }
 function isImpactReportArtifact(value) {
-  return isRecord18(value) && value.schema === "movscript.impact-report.v1" && Array.isArray(value.changedEntities);
+  return isRecord17(value) && value.schema === "movscript.impact-report.v1" && Array.isArray(value.changedEntities);
 }
-function isRecord18(value) {
+function isRecord17(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -32882,7 +32994,7 @@ function projectStyleReferenceResourceIds(index) {
     ...resourceIdsFromValue2(standards.record.style_reference_images),
     ...resourceIdsFromValue2(standards.record.style_references),
     ...resourceIdsFromValue2(standards.record.reference_resource_ids),
-    ...arrayField5(standards.record.custom_rules).filter(isRecord19).filter((rule) => rule.enabled !== false).filter((rule) => stringField16(rule.key) === "style_reference_images").flatMap((rule) => resourceIdsFromValue2(rule.value))
+    ...arrayField5(standards.record.custom_rules).filter(isRecord18).filter((rule) => rule.enabled !== false).filter((rule) => stringField16(rule.key) === "style_reference_images").flatMap((rule) => resourceIdsFromValue2(rule.value))
   ]);
 }
 var PROMPT_REF_PATTERN2 = /\{\{([a-z_]+)::?([^{}:\s][^{}]*)\}\}/g;
@@ -33075,7 +33187,7 @@ function lastPathSegment4(value) {
 }
 function readSelectedContentUnit(index, contentUnitRef) {
   const context = index.documents.find((document) => {
-    if (!isRecord19(document.data)) return false;
+    if (!isRecord18(document.data)) return false;
     if (document.data.schema !== "movscript.decision_context.v1") return false;
     return document.data.target_kind === "content_unit" && document.data.target_ref === contentUnitRef;
   })?.data;
@@ -33127,7 +33239,7 @@ function entityDir5(path) {
   return path.replace(/\/[^/]+$/, "");
 }
 function recordField4(value) {
-  return isRecord19(value) ? value : void 0;
+  return isRecord18(value) ? value : void 0;
 }
 function arrayField5(value) {
   return Array.isArray(value) ? value : [];
@@ -33156,7 +33268,7 @@ function resourceIdsFromValue2(value) {
   }
   const id = resourceIdField4(value);
   if (id !== void 0) return [id];
-  if (isRecord19(value)) return resourceIdsFromValue2(value.resource_id ?? value.resourceId ?? value.id);
+  if (isRecord18(value)) return resourceIdsFromValue2(value.resource_id ?? value.resourceId ?? value.id);
   return [];
 }
 function uniqueIds(values) {
@@ -33198,17 +33310,17 @@ function providerAssetUri(certification) {
 }
 function stableJsonValue(value) {
   if (Array.isArray(value)) return value.map(stableJsonValue);
-  if (!isRecord19(value)) return value;
+  if (!isRecord18(value)) return value;
   return Object.fromEntries(Object.entries(value).filter(([key]) => !key.startsWith("__workspace_")).sort(([left], [right]) => left.localeCompare(right)).map(([key, item]) => [key, stableJsonValue(item)]));
 }
-function isRecord19(value) {
+function isRecord18(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function isDefined4(value) {
   return value !== void 0;
 }
 
-// ../../packages/language/dist/chunk-FB3V2RFN.js
+// ../../packages/language/dist/chunk-B5YQUF4I.js
 function objectSchema2(required, properties) {
   return {
     type: "object",
@@ -33624,6 +33736,7 @@ var expressionUnitEntitySchema = {
   version: "1.0.0",
   status: "active",
   jsonSchema: entitySchema("expression_unit", [], {
+    slot_kind: { enum: ["visual", "voice", "subtitle", "audio"] },
     modality: { enum: ["visual", "verbal", "audio", "text", "interaction", "metadata"] },
     role: { type: "string", minLength: 1 },
     expression_kind: { enum: ["dialogue", "narration", "subtitle", "caption", "action", "visual_note", "shot"] },
@@ -33646,13 +33759,14 @@ var expressionUnitEntitySchema = {
     }),
     script_block_id: sourceRefSchema
   }),
-  promptSummary: "Expression unit is a scene-moment-owned multimodal expression material. It describes visual, verbal, audio, text, interaction, or metadata intent; content units generate candidates from it, and edit plans align selected materials into the scene moment output.",
+  promptSummary: "Expression unit is the smallest form/edit slot under a scene moment. Use slot_kind=visual|voice|subtitle|audio for new records; legacy modality, role, and expression_kind fields remain compatibility hints. Content units target expression_unit_ref and declare the generated output_kind.",
   examples: [{
     title: "visual_shot_material",
     content: {
       schema: "movscript.expression_unit.v1",
       kind: "expression_unit",
       id: "eu_phone_closeup",
+      slot_kind: "visual",
       modality: "visual",
       role: "shot",
       title: "Phone close-up",
@@ -33815,7 +33929,7 @@ function validateSourceDomainGraph(graph) {
   const issues = [];
   for (const entry of graph.records) {
     if (!entry.file.path.endsWith(".json")) continue;
-    if (!isRecord20(entry.data)) continue;
+    if (!isRecord19(entry.data)) continue;
     const expectedKind = entry.entityKind;
     const schemaKind = typeof entry.data.schema === "string" ? entry.data.schema.replace(/^movscript\./, "").replace(/\.v\d+$/, "") : void 0;
     const actualKind = typeof entry.data.kind === "string" ? entry.data.kind : void 0;
@@ -33914,7 +34028,7 @@ function validateSourceDomainGraph(graph) {
   return issues;
 }
 function validateExplicitPathParentRefs(entry, graph, issues) {
-  if (!entry.entityKind || !isRecord20(entry.data)) return;
+  if (!entry.entityKind || !isRecord19(entry.data)) return;
   for (const ref of explicitPathParentRefs(entry.entityKind, entry.data)) {
     const pathParent = ref.parentKind ? nearestAncestorRecord(graph, entry.file.relativePath, ref.parentKind) : nearestPathParentRecord(graph, entry);
     const childId = sourceRecordStableRef(entry);
@@ -34199,7 +34313,7 @@ function validateAudioCueRefs(file, record, graph, issues) {
   }
 }
 function validateStoryboardSettingRefs(file, record, graph, issues) {
-  const settingRefs = Array.isArray(record.setting_refs) ? record.setting_refs.filter(isRecord20) : [];
+  const settingRefs = Array.isArray(record.setting_refs) ? record.setting_refs.filter(isRecord19) : [];
   for (const [index, settingRef] of settingRefs.entries()) {
     const settingId = idField11(settingRef.setting_id);
     const settingStateId = idField11(settingRef.setting_state_id);
@@ -34254,7 +34368,7 @@ function validateKeyframeReferenceAssetRefs(file, record, graph, issues) {
   }
 }
 function validateJsonSchemaValue(value, schema, path) {
-  if (!isRecord20(schema)) return [];
+  if (!isRecord19(schema)) return [];
   const messages = [];
   if ("const" in schema && !jsonValueEquals2(value, schema.const)) {
     messages.push(`${path} must be ${JSON.stringify(schema.const)}`);
@@ -34269,8 +34383,8 @@ function validateJsonSchemaValue(value, schema, path) {
   if (typeof value === "string" && typeof schema.minLength === "number" && value.length < schema.minLength) {
     messages.push(`${path} must contain at least ${schema.minLength} character${schema.minLength === 1 ? "" : "s"}`);
   }
-  if (schema.type === "object" && isRecord20(value)) {
-    const properties = isRecord20(schema.properties) ? schema.properties : {};
+  if (schema.type === "object" && isRecord19(value)) {
+    const properties = isRecord19(schema.properties) ? schema.properties : {};
     const required = Array.isArray(schema.required) ? schema.required.filter((item) => typeof item === "string") : [];
     for (const key of required) {
       if (value[key] === void 0) messages.push(`${path}.${key} is required`);
@@ -34293,7 +34407,7 @@ function validateJsonSchemaValue(value, schema, path) {
 }
 function jsonSchemaTypeMatches(value, type) {
   if (Array.isArray(type)) return type.some((item) => jsonSchemaTypeMatches(value, item));
-  if (type === "object") return isRecord20(value);
+  if (type === "object") return isRecord19(value);
   if (type === "array") return Array.isArray(value);
   if (type === "string") return typeof value === "string";
   if (type === "number") return typeof value === "number" && Number.isFinite(value);
@@ -34358,7 +34472,7 @@ function lastPathSegment5(value) {
   if (typeof value !== "string" || !value.includes("/")) return void 0;
   return value.split("/").filter(Boolean).at(-1);
 }
-function isRecord20(value) {
+function isRecord19(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -34367,7 +34481,7 @@ function businessChangesFromChangedEntities(changedEntities, sourceGraph, curren
   const semanticByEntity = groupSemanticChangesByEntity(semanticChanges);
   return changedEntities.map((entity) => {
     const record = sourceRecordForChangedEntity(sourceGraph, entity) ?? sourceRecordForChangedEntity(currentGraph, entity);
-    const title = isRecord21(record?.data) ? stringField17(record.data.title) : void 0;
+    const title = isRecord20(record?.data) ? stringField17(record.data.title) : void 0;
     const entitySemanticChanges = semanticByEntity.get(entitySemanticKey(entity.entityKind, entity.id)) ?? [];
     const businessKinds = uniqueSorted(entitySemanticChanges.map((change) => change.businessKind));
     const semanticKinds = uniqueSorted(entitySemanticChanges.map((change) => change.kind));
@@ -34500,11 +34614,11 @@ function businessKindLabel(kind) {
 function stringField17(value) {
   return typeof value === "string" && value.trim() ? value : void 0;
 }
-function isRecord21(value) {
+function isRecord20(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-// ../../packages/interpreter/dist/chunk-UAEXITRC.js
+// ../../packages/interpreter/dist/chunk-ESMK3XVG.js
 var FIELD_SEMANTIC_RULES = [
   {
     matches: (entity, fieldChange) => entity.entityKind === "expression_unit" && isExpressionUnitSemanticInputField(fieldChange.field),
@@ -34629,7 +34743,7 @@ function businessKindForEntityChange(entityKind) {
   }
 }
 function isExpressionUnitSemanticInputField(field) {
-  return field === "*" || field === "angle" || field.startsWith("angle.") || field === "lens" || field.startsWith("lens.") || field === "camera" || field.startsWith("camera.") || field === "movement" || field.startsWith("movement.") || field === "blocking" || field.startsWith("blocking.") || field === "lighting" || field.startsWith("lighting.") || field === "sound" || field.startsWith("sound.") || field === "performance" || field.startsWith("performance.") || field === "duration" || field.startsWith("duration.") || field === "intent" || field.startsWith("intent.") || field === "visual_intent" || field.startsWith("visual_intent.") || field === "narrative_intent" || field.startsWith("narrative_intent.");
+  return field === "*" || field === "slot_kind" || field === "slotKind" || field === "expression_kind" || field === "expressionKind" || field === "text" || field.startsWith("text.") || field === "angle" || field.startsWith("angle.") || field === "lens" || field.startsWith("lens.") || field === "camera" || field.startsWith("camera.") || field === "movement" || field.startsWith("movement.") || field === "blocking" || field.startsWith("blocking.") || field === "lighting" || field.startsWith("lighting.") || field === "sound" || field.startsWith("sound.") || field === "performance" || field.startsWith("performance.") || field === "duration" || field.startsWith("duration.") || field === "intent" || field.startsWith("intent.") || field === "visual_intent" || field.startsWith("visual_intent.") || field === "narrative_intent" || field.startsWith("narrative_intent.");
 }
 function isMetadataField(field) {
   return /(^|\.)metadata(\.|$)/.test(field) || /(^|\.)notes?$/.test(field) || /(^|\.)title$/.test(field) || /(^|\.)description$/.test(field) || /(^|\.)created_at$/.test(field) || /(^|\.)updated_at$/.test(field) || /(^|\.)selected_at$/.test(field) || /(^|\.)selected_by$/.test(field);
@@ -34641,7 +34755,7 @@ function isSelectionField(field) {
   return field === "lock" || field.startsWith("lock.") || field === "selection" || field.startsWith("selection.") || field === "stale_policy" || field.endsWith(".candidate_id") || field.endsWith(".resource_id");
 }
 
-// ../../packages/interpreter/dist/chunk-2PJXAGGA.js
+// ../../packages/interpreter/dist/chunk-3R2W5MR6.js
 var CONTENT_UNIT_ADAPTERS = Object.fromEntries(
   MOVSCRIPT_SPECIALIZED_CONTENT_UNIT_TYPES.map((contentUnitType2) => [contentUnitType2, specializedAdapter(contentUnitType2)])
 );
@@ -35071,7 +35185,7 @@ function normalizedEditPrompt(value) {
     text: stringField16(record.text),
     negative_text: stringField16(record.negative_text),
     notes: stringField16(record.notes),
-    structured: isRecord19(record.structured) ? record.structured : void 0
+    structured: isRecord18(record.structured) ? record.structured : void 0
   });
 }
 function capabilityForOutputKind(outputKind) {
@@ -35279,10 +35393,10 @@ function findEntityByRef2(entities, entityKind, ref) {
 function parentExpressionUnitForEntity(entity, entityByPathDir, entityById) {
   const expressionUnitRef = normalizedRefDir(entity.record.expression_unit_ref);
   if (expressionUnitRef) return entityByPathDir.get(expressionUnitRef) ?? entityById.get(entityKey2("expression_unit", expressionUnitRef));
-  const expressionUnitId = pathSegmentAfter6(entity.path, "expression_units");
+  const expressionUnitId = pathSegmentAfter7(entity.path, "expression_units");
   return expressionUnitId ? entityById.get(entityKey2("expression_unit", expressionUnitId)) : void 0;
 }
-function pathSegmentAfter6(path, segment) {
+function pathSegmentAfter7(path, segment) {
   const parts = path.split("/");
   const index = parts.indexOf(segment);
   return index >= 0 ? parts[index + 1] : void 0;
@@ -35465,6 +35579,7 @@ function trackItemFor(contentUnit, artifact, sceneMoment, expressionByRef, fallb
     target_kind: targetKind,
     target_ref: targetRef,
     ...expressionUnit ? { expression_unit_ref: entityDir5(expressionUnit.path) } : {},
+    ...expressionUnit ? { expression_slot_kind: expressionUnitSlotKindFromRecord(expressionUnit.record) } : {},
     ...expressionUnit ? { expression_modality: stringField16(expressionUnit.record.modality) ?? legacyExpressionModality(expressionUnit) } : {},
     ...expressionUnit ? { expression_role: stringField16(expressionUnit.record.role) ?? stringField16(expressionUnit.record.expression_kind) } : {},
     ...artifact.selectionValidity.candidate_id !== void 0 ? { candidate_id: artifact.selectionValidity.candidate_id } : {},
@@ -35486,9 +35601,10 @@ function groupTrackItems(items) {
 }
 function trackTypeFor(item) {
   if (item.output_kind === "video") return "video";
-  if (item.output_kind === "audio") return item.expression_role === "dialogue" || item.expression_role === "narration" ? "voice" : "audio";
+  if (item.output_kind === "audio") return item.expression_slot_kind === "voice" || item.expression_role === "dialogue" || item.expression_role === "narration" ? "voice" : "audio";
   if (item.output_kind === "text") return "subtitle";
   if (item.output_kind === "image") return "image";
+  if (item.expression_slot_kind === "subtitle") return "subtitle";
   return "metadata";
 }
 function primaryTargetKind(contentUnit) {
@@ -36589,7 +36705,7 @@ function businessImpactLabel2(businessKind) {
   return labels[businessKind];
 }
 
-// ../../packages/interpreter/dist/chunk-VLW3KJPO.js
+// ../../packages/interpreter/dist/chunk-BW6UFNUF.js
 async function reviewMovScriptWorkspace(input) {
   const now = input.now ?? /* @__PURE__ */ new Date();
   const sourceOptions = workspaceSourceOptions(input);
@@ -36826,14 +36942,15 @@ async function buildContentUnitBackendPromptById(input) {
   return buildContentUnitBackendPrompt({
     index: input.index,
     contentUnit,
-    decisionProvider: input.decisionProvider
+    decisionProvider: input.decisionProvider,
+    ...input.promptText !== void 0 ? { promptText: input.promptText } : {}
   });
 }
 async function buildContentUnitBackendPrompt(input) {
   const contentUnitRef = entityDir8(input.contentUnit.path);
   const contentUnitType2 = stringField18(input.contentUnit.record.content_unit_type) ?? "";
   const outputKind = contentUnitOutputKind3(input.contentUnit.record.output_kind);
-  const editPrompt = recordField5(input.contentUnit.record.edit_prompt);
+  const editPrompt = contentUnitEditPrompt(input.contentUnit.record.edit_prompt, input.promptText);
   const refs = parseContentUnitEditPromptRefs3(editPrompt);
   const unsupportedRefs = parseUnsupportedContentUnitEditPromptRefs2(editPrompt);
   const primaryKind = primaryRefKindForContentUnitType3(contentUnitType2);
@@ -37011,6 +37128,14 @@ async function buildContentUnitBackendPrompt(input) {
     return { ok: false, prompt, blockers: dedupeBlockers2(blockers) };
   }
   return { ok: true, prompt };
+}
+function contentUnitEditPrompt(value, promptText) {
+  const base = recordField5(value);
+  if (promptText === void 0) return base;
+  return {
+    ...base ?? {},
+    text: promptText
+  };
 }
 function parseContentUnitEditPromptRefs3(editPrompt) {
   const prompt = recordField5(editPrompt);
@@ -37353,7 +37478,7 @@ function selectedResourceId(decision) {
   return firstCandidateResourceId2(candidate);
 }
 function firstCandidateResourceId2(candidate) {
-  const output = arrayField7(candidate?.outputs).filter(isRecord26)[0];
+  const output = arrayField7(candidate?.outputs).filter(isRecord21)[0];
   return resourceIdField5(output?.resource_id);
 }
 function latestResourceCandidate(candidates) {
@@ -37458,7 +37583,7 @@ function projectStyleReferenceResourceIds2(index) {
     ...resourceIdsFromValue3(standards.record.style_reference_images),
     ...resourceIdsFromValue3(standards.record.style_references),
     ...resourceIdsFromValue3(standards.record.reference_resource_ids),
-    ...arrayField7(standards.record.custom_rules).filter(isRecord26).filter((rule) => rule.enabled !== false).filter((rule) => stringField18(rule.key) === "style_reference_images").flatMap((rule) => resourceIdsFromValue3(rule.value))
+    ...arrayField7(standards.record.custom_rules).filter(isRecord21).filter((rule) => rule.enabled !== false).filter((rule) => stringField18(rule.key) === "style_reference_images").flatMap((rule) => resourceIdsFromValue3(rule.value))
   ]);
 }
 function resourceIdsFromValue3(value) {
@@ -37485,7 +37610,7 @@ function resourceIdsFromValue3(value) {
   }
   const id = resourceIdField5(value);
   if (id !== void 0) return [id];
-  if (isRecord26(value)) return resourceIdsFromValue3(value.resource_id ?? value.resourceId ?? value.id);
+  if (isRecord21(value)) return resourceIdsFromValue3(value.resource_id ?? value.resourceId ?? value.id);
   return [];
 }
 function resourceToken(resourceId) {
@@ -37525,7 +37650,7 @@ function dedupeBlockers2(blockers) {
   return output;
 }
 function recordField5(value) {
-  return isRecord26(value) ? value : void 0;
+  return isRecord21(value) ? value : void 0;
 }
 function arrayField7(value) {
   return Array.isArray(value) ? value : [];
@@ -37554,7 +37679,7 @@ function resourceIdField5(value) {
   }
   return void 0;
 }
-function isRecord26(value) {
+function isRecord21(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 function pruneUndefined16(value) {
@@ -37639,7 +37764,7 @@ function createNodeMovScriptEngine(input = {}) {
       const now = input.now?.() ?? /* @__PURE__ */ new Date();
       return deriveContentUnitArtifact(index, contentUnit, { createdAt: now.toISOString() });
     },
-    async buildContentUnitBackendPrompt(contentUnitId) {
+    async buildContentUnitBackendPrompt(contentUnitId, options) {
       return buildContentUnitBackendPromptById({
         index: await workspaceService.loadIndex(),
         contentUnitId,
@@ -37647,7 +37772,8 @@ function createNodeMovScriptEngine(input = {}) {
           async getContentUnitDecision() {
             return void 0;
           }
-        }
+        },
+        ...options?.promptText !== void 0 ? { promptText: options.promptText } : {}
       });
     },
     async deriveArtifacts(artifactInput = {}) {
@@ -38615,6 +38741,7 @@ async function domainUpsertProductionTree(args) {
             sceneMomentId,
             id: expressionUnitId,
             title: stringValue2(expressionUnitPayload.title),
+            slotKind: stringValue2(expressionUnitPayload.slot_kind ?? expressionUnitPayload.slotKind),
             kind: stringValue2(expressionUnitPayload.kind),
             text: stringValue2(expressionUnitPayload.text ?? expressionUnitPayload.content),
             intent: stringValue2(expressionUnitPayload.intent ?? expressionUnitPayload.summary ?? expressionUnitPayload.description),
@@ -38925,6 +39052,7 @@ async function domainUpsertExpressionUnit(args) {
     sceneMomentId,
     id: expressionUnitId,
     title: stringValue2(expressionUnit.title),
+    slotKind: stringValue2(expressionUnit.slot_kind ?? expressionUnit.slotKind),
     kind: stringValue2(expressionUnit.kind),
     text: stringValue2(expressionUnit.text ?? expressionUnit.content),
     intent: stringValue2(expressionUnit.intent ?? expressionUnit.summary ?? expressionUnit.description),
@@ -39564,6 +39692,7 @@ function timelinePrimitiveRecord(payload, spec, primitiveId) {
       description: stringValue2(payload.description)
     } : {},
     ...spec.entityKind === "expression_unit" ? {
+      slot_kind: stringValue2(payload.slot_kind ?? payload.slotKind),
       expression_kind: stringValue2(payload.expression_kind ?? payload.expressionKind ?? nonSystemKind(payload.kind, spec.entityKind)),
       visual_kind: stringValue2(payload.visual_kind ?? payload.visualKind),
       speaker_ref: optionalId(payload.speaker_ref ?? payload.speakerRef),
@@ -39972,6 +40101,7 @@ function normalizeAudioCuePayload(record) {
 function normalizeExpressionUnitPayload(record) {
   return pruneUndefinedRecord2({
     ...record,
+    slot_kind: record.slot_kind ?? record.slotKind,
     kind: record.kind ?? record.expression_kind ?? record.expressionKind,
     script_block_id: record.script_block_id ?? record.scriptBlockId
   });
@@ -40264,7 +40394,7 @@ function selectionRecordsByContentUnitId3(documents) {
 }
 function contentUnitIdForRuntimeDocument4(path, ref) {
   if (ref) return lastPathSegment8(ref) ?? ref;
-  return pathSegmentAfter7(path, "content_units");
+  return pathSegmentAfter8(path, "content_units");
 }
 function entityStatusLine(entity) {
   return {
@@ -40291,7 +40421,7 @@ function firstOutputResourceId(outputs) {
   }
   return void 0;
 }
-function pathSegmentAfter7(path, segment) {
+function pathSegmentAfter8(path, segment) {
   if (!path) return void 0;
   const parts = path.split("/").filter(Boolean);
   const index = parts.indexOf(segment);
@@ -41358,7 +41488,7 @@ async function extractResourceVideoFrameToResource(args) {
     max_frames: 1
   });
   const item = Array.isArray(result.items) ? result.items[0] : void 0;
-  if (!isRecord27(item)) throw new Error("frame extraction did not create an image resource");
+  if (!isRecord26(item)) throw new Error("frame extraction did not create an image resource");
   return {
     status: "created",
     source_resource_id: result.resource_id,
@@ -42125,7 +42255,7 @@ function normalizeClipRange(input) {
 function videoComposeItems(value) {
   if (!Array.isArray(value) || value.length === 0) throw new Error("items must contain at least one video resource item");
   return value.map((item, index) => {
-    if (!isRecord27(item)) throw new Error(`items[${index}] must be an object`);
+    if (!isRecord26(item)) throw new Error(`items[${index}] must be an object`);
     const resourceId = optionalResourceIdParam(item);
     if (resourceId === void 0) throw new Error(`items[${index}].resource_id is required`);
     const startSec = numberParam(item.start_sec) ?? numberParam(item.startSec);
@@ -42629,7 +42759,7 @@ function annotationShapes(value) {
   return value.map(annotationShape).filter((item) => item !== void 0);
 }
 function annotationShape(value) {
-  if (!isRecord27(value)) return void 0;
+  if (!isRecord26(value)) return void 0;
   const type = shapeType(value.type);
   if (!type) return void 0;
   const color = stringParam(value.color) ?? (type === "highlight" ? "#facc15" : "#ef4444");
@@ -42919,7 +43049,7 @@ function extensionForMimeType(mimeType) {
   }
 }
 function numericResourceId(resource2) {
-  if (!isRecord27(resource2)) return void 0;
+  if (!isRecord26(resource2)) return void 0;
   return numberParam(resource2.ID) ?? numberParam(resource2.id);
 }
 function stringParam(value) {
@@ -42943,7 +43073,7 @@ function booleanParam3(value) {
 function batchItems(value, name) {
   if (!Array.isArray(value) || value.length === 0) throw new Error(`${name} must contain at least one item`);
   return value.map((item, index) => {
-    if (!isRecord27(item)) throw new Error(`${name}[${index}] must be an object`);
+    if (!isRecord26(item)) throw new Error(`${name}[${index}] must be an object`);
     return item;
   });
 }
@@ -43044,7 +43174,7 @@ function safeFilename(value) {
 function escapeXML(value) {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 }
-function isRecord27(value) {
+function isRecord26(value) {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 async function mkdtempStable(prefix) {
@@ -44203,7 +44333,6 @@ function modelListPath(capability, options = {}) {
 function capabilityForModelOperation(operation) {
   const normalized = operation?.trim().toLowerCase().replace(/-/g, "_");
   switch (normalized) {
-    case "prompt_to_image":
     case "text_to_image":
     case "image_to_image":
       return "image_generation";
@@ -44898,10 +45027,14 @@ function generationReferenceAssetsPayload(value, refIds) {
     media_type: getOptionalString(item, "media_type") ?? getOptionalString(item, "mediaType"),
     resource_id: idField23(item.resource_id ?? item.resourceId) ?? refIds[index]
   })) : refIds.map((resourceId) => ({ role: "generic", resource_id: resourceId }));
-  const referenceAssets = source.filter((item) => item.role.trim() && item.resource_id !== void 0).map((item) => ({
+  const complete = source.filter((item) => item.role.trim() && item.resource_id !== void 0);
+  if (complete.some((item) => !item.media_type?.trim())) {
+    throw new Error("reference_assets media_type is required for every input resource; pass typed reference_assets instead of bare reference_resource_ids");
+  }
+  const referenceAssets = complete.map((item) => ({
     role: item.role.trim(),
-    ...item.media_type ? { media_type: item.media_type } : {},
-    ...item.resource_id !== void 0 ? { resource_id: item.resource_id } : {}
+    media_type: item.media_type.trim(),
+    resource_id: item.resource_id
   }));
   return referenceAssets.length > 0 ? { reference_assets: referenceAssets } : {};
 }
@@ -46265,7 +46398,7 @@ async function runtimeStatus(args = {}) {
   const desktop = await probeDesktop(timeoutMs, runtimeHome);
   const localAvailable = localProbe.available;
   const cloudConfigured = Boolean(cloudBaseURL || cloudAuth.authenticated || !configuredIsLocal && configuredSession.token);
-  const cloudAvailable = Boolean(cloudBaseURL && isRecord28(cloudProbe) && cloudProbe.available === true);
+  const cloudAvailable = Boolean(cloudBaseURL && isRecord27(cloudProbe) && cloudProbe.available === true);
   const selected = selectedBackendMode({
     configuredIsLocal,
     localAvailable,
@@ -46316,7 +46449,7 @@ async function runtimeStatus(args = {}) {
         configured: cloudConfigured,
         ...cloudBaseURL ? { baseURL: cloudBaseURL } : {},
         authenticated: Boolean(cloudAuth.authenticated || !configuredIsLocal && configuredSession.token),
-        ...isRecord28(cloudProbe) && typeof cloudProbe.error === "string" ? { error: cloudProbe.error } : {}
+        ...isRecord27(cloudProbe) && typeof cloudProbe.error === "string" ? { error: cloudProbe.error } : {}
       },
       selected
     },
@@ -46404,8 +46537,8 @@ function inspectProjectSource(projectDir) {
   const sourceRootFiles = Array.from(MOVSCRIPT_SOURCE_ROOT_FILES).filter((name) => existsSync4(resolve6(projectDir, name))).sort();
   const hasSourceDirs = sourceCollections.length > 0;
   const hasSourceRootFiles = sourceRootFiles.length > 0;
-  const projectUid = isRecord28(metadata) ? stringValue10(metadata.project_uid ?? metadata.projectUid) : void 0;
-  const projectTitle = isRecord28(metadata) ? stringValue10(metadata.title ?? metadata.name) : void 0;
+  const projectUid = isRecord27(metadata) ? stringValue10(metadata.project_uid ?? metadata.projectUid) : void 0;
+  const projectTitle = isRecord27(metadata) ? stringValue10(metadata.title ?? metadata.name) : void 0;
   return {
     isMovScriptProject: Boolean(metadataPath || hasSourceDirs || hasSourceRootFiles),
     hasMetadata: Boolean(metadataPath),
@@ -46765,7 +46898,7 @@ function findCloudAuth(workspaceDir) {
     for (const realmId of readdirSync2(cloudRoot)) {
       const authPath = resolve6(cloudRoot, realmId, "auth.json");
       const auth = readJSON4(authPath);
-      if (isRecord28(auth) && stringValue10(auth.token)) return { authenticated: true };
+      if (isRecord27(auth) && stringValue10(auth.token)) return { authenticated: true };
     }
   } catch {
   }
@@ -46811,12 +46944,12 @@ function mergeTools(primary, secondary) {
   return tools;
 }
 function objectParam(value, key) {
-  if (!isRecord28(value)) return {};
+  if (!isRecord27(value)) return {};
   const candidate = value[key];
-  return isRecord28(candidate) ? candidate : {};
+  return isRecord27(candidate) ? candidate : {};
 }
 function stringParam2(value, key) {
-  if (!isRecord28(value)) return void 0;
+  if (!isRecord27(value)) return void 0;
   return stringValue10(value[key]);
 }
 function readJSON4(path) {
@@ -46843,7 +46976,7 @@ function stringValue10(value) {
 function numberValue6(value) {
   return typeof value === "number" && Number.isFinite(value) ? value : void 0;
 }
-function isRecord28(value) {
+function isRecord27(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function writeMessage(message) {
@@ -47078,7 +47211,7 @@ async function handleRuntimeTextRequest({ fetchImpl, modelGatewayBaseURL, reques
     writeJSON(response, 400, { error: "model_id is required" });
     return;
   }
-  const params = isRecord29(input.params) ? input.params : {};
+  const params = isRecord28(input.params) ? input.params : {};
   const upstream = await fetchImpl(`${modelGatewayBaseURL}/v1/chat/completions`, {
     method: "POST",
     headers: {
@@ -47197,7 +47330,7 @@ async function readJSONBody(request) {
   if (body.length === 0) return {};
   return JSON.parse(body.toString("utf8"));
 }
-function isRecord29(value) {
+function isRecord28(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 function normalizeOptionalBaseURL(value, label) {
@@ -47666,7 +47799,7 @@ async function readTimelineAssemblyBundle(workspaceService, target, input) {
   };
 }
 function productionTimelineClips(input) {
-  const contentUnitsById = new Map(input.contentUnits.map((unit) => [String(unit.id ?? pathSegmentAfter8(unit.path, "content_units") ?? unit.path), unit]));
+  const contentUnitsById = new Map(input.contentUnits.map((unit) => [String(unit.id ?? pathSegmentAfter9(unit.path, "content_units") ?? unit.path), unit]));
   const candidatesByContentUnitId = contentCandidateRecordsByContentUnitId4(input.documents);
   const selectionsByContentUnitId = selectionRecordsByContentUnitId4(input.documents);
   return input.previewTimeline.items.filter((item) => item.itemType === "scene_moment").sort((left, right) => left.order - right.order).flatMap((item, index) => {
@@ -47716,7 +47849,7 @@ function productionTimelineClips(input) {
 }
 function productionSceneMomentContentUnitIds2(contentUnits, item) {
   const fromTimeline = previewTimelineItemContentUnitIds(item);
-  const scanned = contentUnits.filter((unit) => recordValue3(unit.record) && isSceneMomentVideoContentUnit2(unit.record) && sceneMomentRefMatches2(unit.record, item)).map((unit) => unit.id ?? pathSegmentAfter8(unit.path, "content_units")).filter((id) => typeof id === "string" || typeof id === "number");
+  const scanned = contentUnits.filter((unit) => recordValue3(unit.record) && isSceneMomentVideoContentUnit2(unit.record) && sceneMomentRefMatches2(unit.record, item)).map((unit) => unit.id ?? pathSegmentAfter9(unit.path, "content_units")).filter((id) => typeof id === "string" || typeof id === "number");
   return Array.from(new Map([...fromTimeline, ...scanned].map((id) => [String(id), id])).values());
 }
 function previewTimelineItemTitle2(item) {
@@ -47765,7 +47898,7 @@ function selectionRecordsByContentUnitId4(documents) {
 }
 function contentUnitIdForRuntimeDocument5(path, ref) {
   if (ref) return lastPathSegment9(ref) ?? ref;
-  return pathSegmentAfter8(path, "content_units");
+  return pathSegmentAfter9(path, "content_units");
 }
 function selectedVideoResourceId(candidate) {
   const output = firstCandidateOutput5(candidate);
@@ -49336,7 +49469,7 @@ function projectDirFromBody(body) {
   }
   return resolve7(projectDir);
 }
-function pathSegmentAfter8(path, segment) {
+function pathSegmentAfter9(path, segment) {
   if (!path) return void 0;
   const parts = path.split("/").filter(Boolean);
   const index = parts.indexOf(segment);
@@ -51094,7 +51227,7 @@ function contentCanvasRunAffectedContentUnitIds(canvasRecord, snapshot) {
   }
   const affected = [];
   for (const unit of snapshot.contentUnits ?? []) {
-    const unitId = idValue4(unit.id ?? unit.record?.id ?? pathSegmentAfter9(unit.path, "content_units"));
+    const unitId = idValue4(unit.id ?? unit.record?.id ?? pathSegmentAfter10(unit.path, "content_units"));
     if (unitId === void 0) continue;
     const refs = contentUnitRunRefs(unit);
     if (refs.some((ref) => nodeRefs.has(ref) || nodeRefs.has(contentCanvasNodeIdSuffix(ref)))) {
@@ -51105,7 +51238,7 @@ function contentCanvasRunAffectedContentUnitIds(canvasRecord, snapshot) {
 }
 function contentUnitRunRefs(unit) {
   const record = recordValue5(unit.record) ?? {};
-  const id = idValue4(unit.id ?? record.id ?? pathSegmentAfter9(unit.path, "content_units"));
+  const id = idValue4(unit.id ?? record.id ?? pathSegmentAfter10(unit.path, "content_units"));
   const refs = [
     id,
     id !== void 0 ? `content_unit:${id}` : void 0,
@@ -51346,7 +51479,7 @@ function namespaceEntityIdFromPath(targetPath, entityKind) {
     setting: "settings",
     setting_state: "states"
   }[entityKind];
-  return pathSegmentAfter9(targetPath, collection) ?? targetPath.split("/").filter(Boolean).at(-2);
+  return pathSegmentAfter10(targetPath, collection) ?? targetPath.split("/").filter(Boolean).at(-2);
 }
 async function readProjectReadModel(context, now) {
   const engine = createNodeMovScriptEngine({ projectDir: context.projectDir });
@@ -51893,7 +52026,7 @@ function numberValue7(value) {
 function recordValue5(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : void 0;
 }
-function pathSegmentAfter9(path, segment) {
+function pathSegmentAfter10(path, segment) {
   const parts = String(path ?? "").split("/").filter(Boolean);
   const index = parts.indexOf(segment);
   return index >= 0 ? parts[index + 1] : void 0;
